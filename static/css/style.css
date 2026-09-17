@@ -11,10 +11,43 @@ body {
   color: #eee;
 }
 
+.custo-ia {
+  font-size: 0.8rem;
+  color: #777;
+  margin: -0.5rem 0 0.75rem;
+}
+
 header nav {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+#duvida-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: -0.75rem 0 1.5rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #1c1f26;
+  border: 1px solid #2b6cee;
+}
+
+#duvida-box input {
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #111318;
+  color: #eee;
+}
+
+#duvida-box button {
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: none;
+  background: #2b6cee;
+  color: #fff;
 }
 
 .tab-btn {

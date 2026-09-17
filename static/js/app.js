@@ -1,5 +1,7 @@
 const $ = (sel) => document.querySelector(sel);
 
+let textoPendente = null;
+
 function showTab(name) {
   document.querySelectorAll(".tab-content").forEach((el) => {
     el.hidden = el.id !== `tab-${name}`;
@@ -16,23 +18,52 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => showTab(btn.dataset.tab));
 });
 
-$("#captura-btn").addEventListener("click", async () => {
+async function enviarCaptura(text, clarificacao) {
+  const res = await fetch("/api/capture", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, clarificacao }),
+  });
+  const data = await res.json();
+  loadUso();
+
+  if (data.duvida) {
+    textoPendente = data.texto_original;
+    $("#duvida-texto").textContent = data.duvida;
+    $("#duvida-input").value = "";
+    $("#duvida-box").hidden = false;
+    return;
+  }
+
+  textoPendente = null;
+  $("#duvida-box").hidden = true;
+  loadSummary();
+}
+
+$("#captura-btn").addEventListener("click", () => {
   const input = $("#captura-input");
   const text = input.value.trim();
   if (!text) return;
-  await fetch("/api/capture", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
   input.value = "";
-  loadSummary();
+  enviarCaptura(text, "");
+});
+
+$("#duvida-btn").addEventListener("click", () => {
+  const resposta = $("#duvida-input").value.trim();
+  if (!resposta || !textoPendente) return;
+  enviarCaptura(textoPendente, resposta);
 });
 
 async function loadSummary() {
   const res = await fetch("/api/summary/today");
   const data = await res.json();
   $("#resumo-texto").textContent = data.summary;
+}
+
+async function loadUso() {
+  const res = await fetch("/api/uso/total");
+  const data = await res.json();
+  $("#uso-custo").textContent = `gasto com IA hoje-a-hoje: US$ ${data.custo_usd.toFixed(4)}`;
 }
 
 async function loadTasks() {
@@ -79,3 +110,4 @@ if ("serviceWorker" in navigator) {
 }
 
 loadSummary();
+loadUso();

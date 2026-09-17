@@ -8,11 +8,22 @@ client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 HAIKU = "claude-haiku-4-5-20251001"
 SONNET = "claude-sonnet-5"
 
+# USD por 1M tokens (input, output)
+PRICING = {
+    HAIKU: (1.00, 5.00),
+    SONNET: (2.00, 10.00),
+}
+
 CAPTURE_PROMPT = """Classifique o texto do usuario como "tarefa" ou "gasto" e extraia os campos.
 Responda so com JSON, sem markdown, no formato:
-{{"tipo": "tarefa" ou "gasto", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null}}
+{{"tipo": "tarefa" ou "gasto", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "duvida": "..." ou null}}
 
 Categorias de gasto: mercado, transporte, lazer, contas, saude, outros.
+
+Preencha "duvida" APENAS se o texto for realmente ambiguo demais pra classificar com confianca
+(ex: nao da pra saber se e tarefa ou gasto, ou um gasto sem valor nenhum). Nesse caso "duvida" deve
+ser uma pergunta curta e direta pra esclarecer, e os outros campos podem vir com o melhor palpite.
+Se o texto for razoavelmente claro, deixe "duvida" como null - nao pergunte por excesso de zelo.
 
 Texto: {text}"""
 
@@ -37,25 +48,38 @@ def _extract_json(text: str):
     return json.loads(text)
 
 
-def classify_capture(text: str) -> dict:
+def _usage(response) -> dict:
+    input_price, output_price = PRICING[response.model]
+    cost = (response.usage.input_tokens / 1_000_000) * input_price + (
+        response.usage.output_tokens / 1_000_000
+    ) * output_price
+    return {
+        "model": response.model,
+        "input_tokens": response.usage.input_tokens,
+        "output_tokens": response.usage.output_tokens,
+        "cost_usd": cost,
+    }
+
+
+def classify_capture(text: str) -> tuple[dict, dict]:
     response = client.messages.create(
         model=HAIKU,
-        max_tokens=200,
+        max_tokens=250,
         messages=[{"role": "user", "content": CAPTURE_PROMPT.format(text=text)}],
     )
-    return _extract_json(response.content[0].text)
+    return _extract_json(response.content[0].text), _usage(response)
 
 
-def break_down_task(title: str) -> list[str]:
+def break_down_task(title: str) -> tuple[list[str], dict]:
     response = client.messages.create(
         model=SONNET,
         max_tokens=300,
         messages=[{"role": "user", "content": BREAKDOWN_PROMPT.format(title=title)}],
     )
-    return _extract_json(response.content[0].text)
+    return _extract_json(response.content[0].text), _usage(response)
 
 
-def summarize_day(done: list[str], pending: list[str], expenses: list[dict]) -> str:
+def summarize_day(done: list[str], pending: list[str], expenses: list[dict]) -> tuple[str, dict]:
     response = client.messages.create(
         model=HAIKU,
         max_tokens=200,
@@ -70,4 +94,4 @@ def summarize_day(done: list[str], pending: list[str], expenses: list[dict]) -> 
             }
         ],
     )
-    return response.content[0].text.strip()
+    return response.content[0].text.strip(), _usage(response)

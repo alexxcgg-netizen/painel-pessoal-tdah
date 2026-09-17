@@ -8,10 +8,14 @@ from flask import Flask, jsonify, render_template, request
 load_dotenv()
 
 import claude_client
-from db import get_db, init_db
+from db import get_db, init_db, record_usage, total_cost_usd
 
 app = Flask(__name__)
 init_db()
+
+
+def _log_usage(conn, usage: dict):
+    record_usage(conn, usage["model"], usage["input_tokens"], usage["output_tokens"], usage["cost_usd"])
 
 
 @app.route("/")
@@ -21,21 +25,33 @@ def index():
 
 @app.route("/api/capture", methods=["POST"])
 def capture():
-    text = (request.json or {}).get("text", "").strip()
+    body = request.json or {}
+    text = body.get("text", "").strip()
+    clarificacao = body.get("clarificacao", "").strip()
     if not text:
         return jsonify({"error": "texto vazio"}), 400
 
-    parsed = claude_client.classify_capture(text)
+    full_text = f"{text}. Contexto adicional: {clarificacao}" if clarificacao else text
+
+    parsed, usage = claude_client.classify_capture(full_text)
     conn = get_db()
+    _log_usage(conn, usage)
+
+    # Se a IA ainda ficou em duvida, so pede esclarecimento uma vez (quando a
+    # clarificacao ja foi enviada, seguimos com o melhor palpite mesmo assim).
+    if parsed.get("duvida") and not clarificacao:
+        conn.close()
+        return jsonify({"duvida": parsed["duvida"], "texto_original": text})
+
     if parsed["tipo"] == "gasto":
         conn.execute(
             "INSERT INTO expenses (amount, category, description, source_text) VALUES (?, ?, ?, ?)",
-            (parsed["valor"], parsed.get("categoria") or "outros", parsed["titulo"], text),
+            (parsed["valor"], parsed.get("categoria") or "outros", parsed["titulo"], full_text),
         )
     else:
         conn.execute(
             "INSERT INTO tasks (title, due_at, source_text) VALUES (?, ?, ?)",
-            (parsed["titulo"], parsed.get("quando"), text),
+            (parsed["titulo"], parsed.get("quando"), full_text),
         )
     conn.commit()
     conn.close()
@@ -69,7 +85,8 @@ def breakdown_task(task_id):
         conn.close()
         return jsonify({"error": "tarefa nao encontrada"}), 404
 
-    steps = claude_client.break_down_task(task["title"])
+    steps, usage = claude_client.break_down_task(task["title"])
+    _log_usage(conn, usage)
     for i, step in enumerate(steps):
         conn.execute(
             "INSERT INTO subtasks (task_id, title, position) VALUES (?, ?, ?)",
@@ -97,14 +114,23 @@ def summary_today():
     expenses = conn.execute(
         "SELECT amount, category FROM expenses WHERE date(created_at) = ?", (today,)
     ).fetchall()
-    conn.close()
 
-    text = claude_client.summarize_day(
+    text, usage = claude_client.summarize_day(
         [r["title"] for r in done],
         [r["title"] for r in pending],
         [dict(r) for r in expenses],
     )
+    _log_usage(conn, usage)
+    conn.close()
     return jsonify({"summary": text})
+
+
+@app.route("/api/uso/total", methods=["GET"])
+def uso_total():
+    conn = get_db()
+    total = total_cost_usd(conn)
+    conn.close()
+    return jsonify({"custo_usd": round(total, 4)})
 
 
 @app.route("/api/construtora/resumo", methods=["GET"])

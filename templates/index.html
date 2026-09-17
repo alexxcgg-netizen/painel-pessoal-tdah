@@ -10,6 +10,7 @@
 <body>
   <header>
     <h1>Painel Pessoal</h1>
+    <p id="uso-custo" class="custo-ia"></p>
     <nav>
       <button data-tab="hoje" class="tab-btn active">Hoje</button>
       <button data-tab="tarefas" class="tab-btn">Tarefas</button>
@@ -22,6 +23,12 @@
     <section id="captura">
       <input type="text" id="captura-input" placeholder="Digite algo: tarefa, lembrete ou gasto..." />
       <button id="captura-btn">Adicionar</button>
+    </section>
+
+    <section id="duvida-box" hidden>
+      <p id="duvida-texto"></p>
+      <input type="text" id="duvida-input" placeholder="Responde aqui..." />
+      <button id="duvida-btn">Enviar</button>
     </section>
 
     <section id="tab-hoje" class="tab-content">

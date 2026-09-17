@@ -40,7 +40,29 @@ def init_db():
             source_text TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS api_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            input_tokens INTEGER NOT NULL,
+            output_tokens INTEGER NOT NULL,
+            cost_usd REAL NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
     conn.close()
+
+
+def record_usage(conn, model: str, input_tokens: int, output_tokens: int, cost_usd: float):
+    conn.execute(
+        "INSERT INTO api_usage (model, input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?)",
+        (model, input_tokens, output_tokens, cost_usd),
+    )
+    conn.commit()
+
+
+def total_cost_usd(conn) -> float:
+    row = conn.execute("SELECT COALESCE(SUM(cost_usd), 0) AS total FROM api_usage").fetchone()
+    return row["total"]
