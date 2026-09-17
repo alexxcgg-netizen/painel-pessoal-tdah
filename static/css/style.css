@@ -1,0 +1,67 @@
+:root {
+  color-scheme: dark light;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 1rem;
+  background: #111318;
+  color: #eee;
+}
+
+header nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 0.5rem;
+  background: #1c1f26;
+  border: none;
+  border-radius: 6px;
+  color: #aaa;
+}
+
+.tab-btn.active {
+  background: #2b6cee;
+  color: #fff;
+}
+
+#captura {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+#captura-input {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #1c1f26;
+  color: #eee;
+}
+
+#captura-btn {
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  border: none;
+  background: #2b6cee;
+  color: #fff;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #222;
+}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel Pessoal</title>
+  <link rel="manifest" href="/static/manifest.json" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Painel Pessoal</h1>
+    <nav>
+      <button data-tab="hoje" class="tab-btn active">Hoje</button>
+      <button data-tab="tarefas" class="tab-btn">Tarefas</button>
+      <button data-tab="gastos" class="tab-btn">Gastos</button>
+      <button data-tab="construtora" class="tab-btn">Construtora</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="captura">
+      <input type="text" id="captura-input" placeholder="Digite algo: tarefa, lembrete ou gasto..." />
+      <button id="captura-btn">Adicionar</button>
+    </section>
+
+    <section id="tab-hoje" class="tab-content">
+      <h2>Resumo do dia</h2>
+      <p id="resumo-texto">Carregando...</p>
+    </section>
+
+    <section id="tab-tarefas" class="tab-content" hidden>
+      <h2>Tarefas</h2>
+      <ul id="lista-tarefas"></ul>
+    </section>
+
+    <section id="tab-gastos" class="tab-content" hidden>
+      <h2>Gastos</h2>
+      <ul id="lista-gastos"></ul>
+    </section>
+
+    <section id="tab-construtora" class="tab-content" hidden>
+      <h2>Construtora</h2>
+      <p id="construtora-info">Carregando...</p>
+    </section>
+  </main>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
