@@ -1,3 +1,4 @@
+import io
 import os
 import tempfile
 import unittest
@@ -16,6 +17,38 @@ import app  # noqa: E402  (precisa vir depois do patch de db.DB_PATH)
 
 def fake_usage(model="claude-haiku-4-5-20251001", cost=0.001):
     return {"model": model, "input_tokens": 100, "output_tokens": 20, "cost_usd": cost}
+
+
+OFX_AMOSTRA = """
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+
+<OFX>
+<BANKMSGSRSV1>
+<STMTTRNRS>
+<STMTRS>
+<BANKTRANLIST>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20250115120000[-3:BRT]
+<TRNAMT>-45.90
+<FITID>202501150001
+<MEMO>PADARIA CENTRAL
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>CREDIT
+<DTPOSTED>20250116080000[-3:BRT]
+<TRNAMT>1500.00
+<FITID>202501160002
+<MEMO>SALARIO
+</STMTTRN>
+</BANKTRANLIST>
+</STMTRS>
+</STMTTRNRS>
+</BANKMSGSRSV1>
+</OFX>
+"""
 
 
 class PainelTestCase(unittest.TestCase):
@@ -167,6 +200,60 @@ class PainelTestCase(unittest.TestCase):
         res = self.client.get("/api/construtora/resumo")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json(), {"configurado": False})
+
+    def test_importar_extrato_ofx_cria_conta_e_transacoes(self):
+        res = self.client.post(
+            "/api/bancos/importar",
+            data={
+                "banco": "nubank",
+                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "extrato.ofx"),
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["encontradas"], 2)
+        self.assertEqual(body["novas"], 2)
+        self.assertEqual(body["duplicadas"], 0)
+
+        contas = self.client.get("/api/bancos").get_json()
+        self.assertEqual(len(contas), 1)
+        self.assertEqual(contas[0]["banco"], "nubank")
+        self.assertEqual(contas[0]["total_transacoes"], 2)
+
+        transacoes = self.client.get(f"/api/bancos/{contas[0]['id']}/transacoes").get_json()
+        self.assertEqual(len(transacoes), 2)
+        valores = sorted(t["valor"] for t in transacoes)
+        self.assertEqual(valores, [-45.9, 1500.0])
+
+    def test_reimportar_mesmo_extrato_nao_duplica(self):
+        self.client.post(
+            "/api/bancos/importar",
+            data={"banco": "viacredi", "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "e.ofx")},
+            content_type="multipart/form-data",
+        )
+        res = self.client.post(
+            "/api/bancos/importar",
+            data={"banco": "viacredi", "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "e.ofx")},
+            content_type="multipart/form-data",
+        )
+        body = res.get_json()
+        self.assertEqual(body["novas"], 0)
+        self.assertEqual(body["duplicadas"], 2)
+
+        contas = self.client.get("/api/bancos").get_json()
+        self.assertEqual(contas[0]["total_transacoes"], 2)
+
+    def test_importar_sem_arquivo_da_erro(self):
+        res = self.client.post(
+            "/api/bancos/importar", data={"banco": "nubank"}, content_type="multipart/form-data"
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_bancos_sync_status_sem_configuracao(self):
+        res = self.client.get("/api/bancos/sync-status")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.get_json()["sincronizacao_automatica"])
 
 
 if __name__ == "__main__":

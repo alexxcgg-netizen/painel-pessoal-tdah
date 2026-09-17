@@ -36,10 +36,40 @@ Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTH
 - Resumo do dia, tom neutro e factual
 - Lista de gastos categorizados
 - Aba "Construtora": hoje e um stub (`/api/construtora/resumo`); passa a mostrar dados reais quando o painel da construtora expuser sua propria API
+- Aba "Bancos": importacao manual de extrato OFX (Nubank, Viacredi, ou qualquer banco que exporte OFX/QFX), com base pronta pra sincronizacao automatica futura
 
 ## Integracao com o painel da construtora
 
 Os dois projetos ficam em repositorios e pastas separados de proposito — cada um estruturado e programado pro seu contexto especifico. A unica conexao entre eles e via HTTP: o painel da construtora expoe um endpoint read-only (ex: `/api/resumo`, protegido por API key) e este painel consome via `CONSTRUTORA_API_URL` + `CONSTRUTORA_API_KEY` no `.env`. Nenhum banco de dados e compartilhado entre os dois.
+
+## Integracao bancaria (Nubank, Viacredi, etc.)
+
+### O que funciona hoje: importacao de extrato OFX
+
+Todo banco brasileiro relevante (Nubank, Viacredi e praticamente qualquer cooperativa/banco) deixa exportar o extrato em formato OFX pelo app ou internet banking. Na aba **Bancos**:
+
+1. Exporta o extrato em OFX pelo app do banco
+2. Escolhe o banco (Nubank/Viacredi/Outro) e seleciona o arquivo
+3. Clica em "Importar extrato"
+
+O parser (`bank_ofx.py`) le tanto OFX 1.x (SGML, formato mais comum) quanto OFX 2.x (XML). Cada transacao e identificada pelo `FITID` (id unico que o proprio banco atribui), entao **reimportar o mesmo extrato nao duplica nada** — util pra importar toda semana sobrepondo o periodo anterior sem se preocupar.
+
+Os dados ficam em `bank_accounts` e `bank_transactions` no SQLite, com endpoints:
+
+- `POST /api/bancos/importar` — form-data com `banco` + `arquivo` (o OFX)
+- `GET /api/bancos` — lista contas com contagem de transacoes
+- `GET /api/bancos/<id>/transacoes` — extrato de uma conta
+- `GET /api/bancos/sync-status` — se a sincronizacao automatica esta configurada (hoje sempre `false`)
+
+### O que falta pra sincronizacao automatica (sem precisar importar manualmente)
+
+Conectar direto com Nubank/Viacredi em tempo real exige o **Open Finance Brasil** (ex-Open Banking, regulado pelo Banco Central) — nao da pra "hackear" isso com scraping de senha, e nem seria seguro. O caminho real:
+
+1. Criar conta num agregador certificado de Open Finance, tipo [Pluggy](https://pluggy.ai/) ou [Belvo](https://belvo.com/) — eles ja tem o credenciamento e cuidam do fluxo de consentimento com o Banco Central; e o jeito viavel pra um projeto pessoal (virar credenciado direto no Banco Central e fora de escala pra isso)
+2. Pegar `client_id`/`client_secret` do agregador escolhido e colocar em `OPEN_FINANCE_CLIENT_ID` / `OPEN_FINANCE_CLIENT_SECRET` no `.env` (esses nomes de variavel ja sao checados por `/api/bancos/sync-status`)
+3. Implementar o fluxo de conexao (o agregador abre uma tela de consentimento hospedada por eles, o usuario loga no banco la, e depois a API do agregador devolve transacoes via webhook ou polling) — isso ainda **nao esta implementado**, fica como proximo passo quando decidir seguir por esse caminho
+
+Ate la, a importacao manual de OFX cobre o essencial sem precisar de conta em nenhum servico externo nem custo.
 
 ## Roadmap
 

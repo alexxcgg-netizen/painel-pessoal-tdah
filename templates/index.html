@@ -16,6 +16,7 @@
       <button data-tab="hoje" class="tab-btn active">Hoje</button>
       <button data-tab="tarefas" class="tab-btn">Tarefas</button>
       <button data-tab="gastos" class="tab-btn">Gastos</button>
+      <button data-tab="bancos" class="tab-btn">Bancos</button>
       <button data-tab="construtora" class="tab-btn">Construtora</button>
     </nav>
   </header>
@@ -50,6 +51,22 @@
       <h2>Gastos</h2>
       <p id="gastos-vazio" class="vazio" hidden>Nenhum gasto registrado ainda.</p>
       <ul id="lista-gastos"></ul>
+    </section>
+
+    <section id="tab-bancos" class="tab-content" hidden>
+      <h2>Bancos</h2>
+      <form id="importar-form">
+        <select id="banco-select">
+          <option value="nubank">Nubank</option>
+          <option value="viacredi">Viacredi</option>
+          <option value="outro">Outro</option>
+        </select>
+        <input type="file" id="ofx-input" accept=".ofx,.qfx" required />
+        <button type="submit" id="importar-btn">Importar extrato</button>
+      </form>
+      <p id="bancos-status" class="stat-linha"></p>
+      <p id="bancos-vazio" class="vazio" hidden>Nenhum extrato importado ainda. Exporte um OFX do app do seu banco e importe aqui.</p>
+      <ul id="lista-bancos"></ul>
     </section>
 
     <section id="tab-construtora" class="tab-content" hidden>

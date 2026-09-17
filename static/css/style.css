@@ -17,6 +17,73 @@
   box-sizing: border-box;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseBorda {
+  0% {
+    border-color: #34d399;
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
+  }
+  100% {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+button {
+  font-family: inherit;
+  transition: transform 0.1s ease, background 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.spinner {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.45em;
+  vertical-align: -0.12em;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: girar 0.6s linear infinite;
+}
+
 body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   max-width: 480px;
@@ -65,7 +132,13 @@ header nav {
   line-height: 1.15;
   overflow-wrap: anywhere;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.tab-btn:hover:not(.active) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: #3a4152;
 }
 
 .tab-btn.active {
@@ -73,6 +146,12 @@ header nav {
   border-color: var(--accent);
   color: var(--accent-text);
   font-weight: 600;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(77, 124, 255, 0.3);
+}
+
+.tab-content:not([hidden]) {
+  animation: fadeIn 0.2s ease;
 }
 
 .erro {
@@ -109,6 +188,10 @@ header nav {
   border-color: var(--accent);
 }
 
+#captura-input.sucesso {
+  animation: pulseBorda 0.7s ease;
+}
+
 #captura-btn,
 #duvida-btn {
   padding: 0.7rem 1.1rem;
@@ -118,7 +201,11 @@ header nav {
   color: var(--accent-text);
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+}
+
+#captura-btn:hover:not(:disabled),
+#duvida-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 
 #captura-btn:disabled,
@@ -183,6 +270,7 @@ li.item {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.75rem 0.85rem;
+  animation: fadeInUp 0.25s ease;
 }
 
 .item-linha {
@@ -219,10 +307,20 @@ li.item {
   cursor: pointer;
 }
 
+.item-acoes button:hover:not(:disabled) {
+  border-color: #3a4152;
+  background: #262b37;
+}
+
 .item-acoes button.primario {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-text);
+}
+
+.item-acoes button.primario:hover:not(:disabled) {
+  filter: brightness(1.1);
+  background: var(--accent);
 }
 
 .subtarefas {
@@ -265,4 +363,50 @@ li.item {
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
   margin-left: 0.4rem;
+}
+
+#importar-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+#banco-select,
+#ofx-input {
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+#banco-select {
+  flex: 0 0 auto;
+}
+
+#ofx-input {
+  flex: 1;
+  min-width: 0;
+}
+
+#importar-btn {
+  flex: 1 0 100%;
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#importar-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+#importar-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

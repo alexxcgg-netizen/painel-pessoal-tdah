@@ -46,6 +46,7 @@ function showTab(name) {
   });
   if (name === "tarefas") loadTasks();
   if (name === "gastos") loadExpenses();
+  if (name === "bancos") loadBancos();
   if (name === "construtora") loadConstrutora();
 }
 
@@ -53,13 +54,29 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => showTab(btn.dataset.tab));
 });
 
+function setBotaoCarregando(btn, carregando, rotulo) {
+  if (carregando) {
+    btn.dataset.rotuloOriginal = btn.dataset.rotuloOriginal || btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span>${rotulo}`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.rotuloOriginal || rotulo;
+  }
+}
+
+function pulsarSucesso(el) {
+  el.classList.remove("sucesso");
+  // forca reflow pra animacao reiniciar mesmo em capturas seguidas
+  void el.offsetWidth;
+  el.classList.add("sucesso");
+}
+
 async function enviarCaptura(text, clarificacao) {
   const capturaBtn = $("#captura-btn");
   const duvidaBtn = $("#duvida-btn");
-  capturaBtn.disabled = true;
+  setBotaoCarregando(capturaBtn, true, "Pensando...");
   duvidaBtn.disabled = true;
-  const rotuloOriginal = capturaBtn.textContent;
-  capturaBtn.textContent = "Pensando...";
 
   const data = await apiFetch("/api/capture", {
     method: "POST",
@@ -67,9 +84,8 @@ async function enviarCaptura(text, clarificacao) {
     body: JSON.stringify({ text, clarificacao }),
   });
 
-  capturaBtn.disabled = false;
+  setBotaoCarregando(capturaBtn, false, "Adicionar");
   duvidaBtn.disabled = false;
-  capturaBtn.textContent = rotuloOriginal;
 
   if (!data) return;
 
@@ -85,6 +101,7 @@ async function enviarCaptura(text, clarificacao) {
 
   textoPendente = null;
   $("#duvida-box").hidden = true;
+  pulsarSucesso($("#captura-input"));
   loadSummary();
   if (!$("#tab-tarefas").hidden) loadTasks();
   if (!$("#tab-gastos").hidden) loadExpenses();
@@ -156,14 +173,10 @@ function criarItemTarefa(t) {
     const btnQuebrar = document.createElement("button");
     btnQuebrar.textContent = "quebrar em passos";
     btnQuebrar.addEventListener("click", async () => {
-      btnQuebrar.disabled = true;
-      btnQuebrar.textContent = "quebrando...";
+      setBotaoCarregando(btnQuebrar, true, "quebrando...");
       const data = await apiFetch(`/api/tasks/${t.id}/breakdown`, { method: "POST" });
       if (data) loadTasks();
-      else {
-        btnQuebrar.disabled = false;
-        btnQuebrar.textContent = "quebrar em passos";
-      }
+      else setBotaoCarregando(btnQuebrar, false, "quebrar em passos");
     });
     acoes.appendChild(btnQuebrar);
   }
@@ -258,6 +271,69 @@ async function loadExpenses() {
   $("#gastos-vazio").hidden = expenses.length > 0;
   expenses.forEach((e) => list.appendChild(criarItemGasto(e)));
 }
+
+function criarItemBanco(conta) {
+  const li = document.createElement("li");
+  li.className = "item";
+
+  const linha = document.createElement("div");
+  linha.className = "item-linha";
+
+  const info = document.createElement("div");
+  const nome = document.createElement("span");
+  nome.className = "item-titulo";
+  nome.textContent = conta.banco.charAt(0).toUpperCase() + conta.banco.slice(1);
+  info.appendChild(nome);
+
+  const stats = document.createElement("span");
+  stats.className = "item-quando";
+  stats.textContent = conta.ultima_transacao
+    ? `${conta.total_transacoes} transacao(oes) - ultima em ${conta.ultima_transacao}`
+    : "nenhuma transacao ainda";
+  info.appendChild(stats);
+
+  linha.appendChild(info);
+  li.appendChild(linha);
+  return li;
+}
+
+async function loadBancos() {
+  const [contas, status] = await Promise.all([
+    apiFetch("/api/bancos"),
+    apiFetch("/api/bancos/sync-status"),
+  ]);
+
+  if (status) $("#bancos-status").textContent = status.info;
+
+  if (!contas) return;
+  const list = $("#lista-bancos");
+  list.innerHTML = "";
+  $("#bancos-vazio").hidden = contas.length > 0;
+  contas.forEach((c) => list.appendChild(criarItemBanco(c)));
+}
+
+$("#importar-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const banco = $("#banco-select").value;
+  const arquivo = $("#ofx-input").files[0];
+  if (!arquivo) return;
+
+  const importarBtn = $("#importar-btn");
+  setBotaoCarregando(importarBtn, true, "Importando...");
+
+  const form = new FormData();
+  form.append("banco", banco);
+  form.append("arquivo", arquivo);
+  const data = await apiFetch("/api/bancos/importar", { method: "POST", body: form });
+
+  setBotaoCarregando(importarBtn, false, "Importar extrato");
+
+  if (!data) return;
+  $("#ofx-input").value = "";
+  $("#bancos-status").textContent =
+    `Importado: ${data.novas} nova(s), ${data.duplicadas} ja existiam de ${data.encontradas} encontradas.`;
+  loadBancos();
+});
 
 async function loadConstrutora() {
   $("#construtora-info").textContent = "Carregando...";

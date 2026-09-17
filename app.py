@@ -8,8 +8,16 @@ from flask import Flask, jsonify, render_template, request
 
 load_dotenv()
 
+import bank_ofx
 import claude_client
-from db import get_db, init_db, record_usage, total_cost_usd
+from db import (
+    get_db,
+    get_or_create_bank_account,
+    init_db,
+    insert_bank_transactions,
+    record_usage,
+    total_cost_usd,
+)
 
 app = Flask(__name__)
 init_db()
@@ -181,6 +189,81 @@ def uso_total():
     total = total_cost_usd(conn)
     conn.close()
     return jsonify({"custo_usd": round(total, 4)})
+
+
+@app.route("/api/bancos/importar", methods=["POST"])
+def importar_extrato():
+    banco = request.form.get("banco", "").strip().lower()
+    arquivo = request.files.get("arquivo")
+    if not banco or not arquivo:
+        return jsonify({"error": "informe o banco e o arquivo OFX"}), 400
+
+    texto = bank_ofx.decode_ofx(arquivo.read())
+    try:
+        transacoes = bank_ofx.parse_transactions(texto)
+    except ValueError:
+        return jsonify({"error": "nao consegui ler as datas/valores desse arquivo OFX"}), 400
+
+    if not transacoes:
+        return jsonify({"error": "nenhuma transacao encontrada nesse arquivo"}), 400
+
+    conn = get_db()
+    conta_id = get_or_create_bank_account(conn, banco)
+    novas = insert_bank_transactions(conn, conta_id, transacoes)
+    conn.close()
+    return jsonify(
+        {
+            "conta_id": conta_id,
+            "encontradas": len(transacoes),
+            "novas": novas,
+            "duplicadas": len(transacoes) - novas,
+        }
+    )
+
+
+@app.route("/api/bancos", methods=["GET"])
+def listar_bancos():
+    conn = get_db()
+    contas = conn.execute("SELECT * FROM bank_accounts ORDER BY banco").fetchall()
+    resultado = []
+    for c in contas:
+        stats = conn.execute(
+            "SELECT COUNT(*) AS total, MAX(data) AS ultima FROM bank_transactions WHERE bank_account_id = ?",
+            (c["id"],),
+        ).fetchone()
+        resultado.append(
+            {**dict(c), "total_transacoes": stats["total"], "ultima_transacao": stats["ultima"]}
+        )
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/bancos/<int:conta_id>/transacoes", methods=["GET"])
+def transacoes_banco(conta_id):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM bank_transactions WHERE bank_account_id = ? ORDER BY data DESC LIMIT 100",
+        (conta_id,),
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/bancos/sync-status", methods=["GET"])
+def bancos_sync_status():
+    configurado = bool(
+        os.environ.get("OPEN_FINANCE_CLIENT_ID") and os.environ.get("OPEN_FINANCE_CLIENT_SECRET")
+    )
+    return jsonify(
+        {
+            "sincronizacao_automatica": configurado,
+            "info": (
+                "Sincronizacao automatica via Open Finance ainda nao configurada."
+                if not configurado
+                else "Sincronizacao automatica configurada."
+            ),
+        }
+    )
 
 
 @app.route("/api/construtora/resumo", methods=["GET"])
