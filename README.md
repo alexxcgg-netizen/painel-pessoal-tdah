@@ -20,6 +20,14 @@ python app.py
 
 Abre em `http://localhost:5001`. Pra instalar como PWA no celular, acessa pelo navegador e usa "Adicionar a tela de inicio".
 
+## Testes
+
+```bash
+python -m unittest tests.test_app -v
+```
+
+Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTHROPIC_API_KEY` real) e cobrem o fluxo completo: captura, pergunta de esclarecimento quando a IA fica em duvida, completar tarefa, quebra em subtarefas, resumo do dia e acumulo de custo.
+
 ## Funcionalidades (v1)
 
 - Captura de texto livre, classificado automaticamente em tarefa ou gasto
