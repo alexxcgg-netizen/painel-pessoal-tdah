@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Painel Pessoal</title>
+  <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml" />
   <link rel="manifest" href="/static/manifest.json" />
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
@@ -19,6 +20,8 @@
     </nav>
   </header>
 
+  <p id="erro-banner" class="erro" hidden></p>
+
   <main>
     <section id="captura">
       <input type="text" id="captura-input" placeholder="Digite algo: tarefa, lembrete ou gasto..." />
@@ -33,16 +36,19 @@
 
     <section id="tab-hoje" class="tab-content">
       <h2>Resumo do dia</h2>
-      <p id="resumo-texto">Carregando...</p>
+      <p id="resumo-texto" class="resumo-texto">Carregando...</p>
+      <p id="resumo-stats" class="stat-linha"></p>
     </section>
 
     <section id="tab-tarefas" class="tab-content" hidden>
       <h2>Tarefas</h2>
+      <p id="tarefas-vazio" class="vazio" hidden>Nenhuma tarefa pendente. 🎈</p>
       <ul id="lista-tarefas"></ul>
     </section>
 
     <section id="tab-gastos" class="tab-content" hidden>
       <h2>Gastos</h2>
+      <p id="gastos-vazio" class="vazio" hidden>Nenhum gasto registrado ainda.</p>
       <ul id="lista-gastos"></ul>
     </section>
 

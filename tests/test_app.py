@@ -121,7 +121,18 @@ class PainelTestCase(unittest.TestCase):
         ):
             res = self.client.post(f"/api/tasks/{task_id}/breakdown")
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.get_json()["steps"], passos)
+        titulos = [s["title"] for s in res.get_json()["subtasks"]]
+        self.assertEqual(titulos, passos)
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tasks[0]["subtasks"]), 3)
+        self.assertFalse(tasks[0]["subtasks"][0]["completed_at"])
+
+        subtask_id = tasks[0]["subtasks"][0]["id"]
+        res = self.client.post(f"/api/subtasks/{subtask_id}/complete")
+        self.assertEqual(res.status_code, 200)
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertTrue(tasks[0]["subtasks"][0]["completed_at"])
 
     def test_resumo_do_dia_e_custo_acumulado(self):
         with patch(

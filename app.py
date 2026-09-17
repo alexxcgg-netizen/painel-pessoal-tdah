@@ -1,6 +1,7 @@
 import os
 from datetime import date
 
+import anthropic
 import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
@@ -13,9 +14,22 @@ from db import get_db, init_db, record_usage, total_cost_usd
 app = Flask(__name__)
 init_db()
 
+CLAUDE_ERROR_MSG = "Erro ao falar com a IA. Tenta de novo em instantes."
+CLAUDE_FORMAT_ERROR_MSG = "A IA respondeu em um formato inesperado. Tenta de novo."
+
 
 def _log_usage(conn, usage: dict):
     record_usage(conn, usage["model"], usage["input_tokens"], usage["output_tokens"], usage["cost_usd"])
+
+
+def _call_claude(fn, *args):
+    """Chama uma funcao do claude_client e traduz falhas em uma resposta de erro pronta pra devolver."""
+    try:
+        return fn(*args), None
+    except anthropic.APIError:
+        return None, (jsonify({"error": CLAUDE_ERROR_MSG}), 502)
+    except (ValueError, KeyError):
+        return None, (jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502)
 
 
 @app.route("/")
@@ -33,7 +47,11 @@ def capture():
 
     full_text = f"{text}. Contexto adicional: {clarificacao}" if clarificacao else text
 
-    parsed, usage = claude_client.classify_capture(full_text)
+    result, error = _call_claude(claude_client.classify_capture, full_text)
+    if error:
+        return error
+    parsed, usage = result
+
     conn = get_db()
     _log_usage(conn, usage)
 
@@ -64,8 +82,16 @@ def list_tasks():
     rows = conn.execute(
         "SELECT * FROM tasks WHERE completed_at IS NULL ORDER BY created_at DESC"
     ).fetchall()
+    tasks = []
+    for row in rows:
+        task = dict(row)
+        subtasks = conn.execute(
+            "SELECT * FROM subtasks WHERE task_id = ? ORDER BY position", (task["id"],)
+        ).fetchall()
+        task["subtasks"] = [dict(s) for s in subtasks]
+        tasks.append(task)
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    return jsonify(tasks)
 
 
 @app.route("/api/tasks/<int:task_id>/complete", methods=["POST"])
@@ -85,7 +111,12 @@ def breakdown_task(task_id):
         conn.close()
         return jsonify({"error": "tarefa nao encontrada"}), 404
 
-    steps, usage = claude_client.break_down_task(task["title"])
+    result, error = _call_claude(claude_client.break_down_task, task["title"])
+    if error:
+        conn.close()
+        return error
+    steps, usage = result
+
     _log_usage(conn, usage)
     for i, step in enumerate(steps):
         conn.execute(
@@ -93,8 +124,20 @@ def breakdown_task(task_id):
             (task_id, step, i),
         )
     conn.commit()
+    subtasks = conn.execute(
+        "SELECT * FROM subtasks WHERE task_id = ? ORDER BY position", (task_id,)
+    ).fetchall()
     conn.close()
-    return jsonify({"steps": steps})
+    return jsonify({"subtasks": [dict(s) for s in subtasks]})
+
+
+@app.route("/api/subtasks/<int:subtask_id>/complete", methods=["POST"])
+def complete_subtask(subtask_id):
+    conn = get_db()
+    conn.execute("UPDATE subtasks SET completed_at = datetime('now') WHERE id = ?", (subtask_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/expenses", methods=["GET"])
@@ -114,15 +157,22 @@ def summary_today():
     expenses = conn.execute(
         "SELECT amount, category FROM expenses WHERE date(created_at) = ?", (today,)
     ).fetchall()
+    gasto_hoje = sum(r["amount"] for r in expenses)
 
-    text, usage = claude_client.summarize_day(
+    result, error = _call_claude(
+        claude_client.summarize_day,
         [r["title"] for r in done],
         [r["title"] for r in pending],
         [dict(r) for r in expenses],
     )
+    if error:
+        conn.close()
+        return error
+    text, usage = result
+
     _log_usage(conn, usage)
     conn.close()
-    return jsonify({"summary": text})
+    return jsonify({"summary": text, "gasto_hoje": gasto_hoje, "tarefas_concluidas": len(done)})
 
 
 @app.route("/api/uso/total", methods=["GET"])
@@ -140,10 +190,14 @@ def construtora_resumo():
     if not base_url or not api_key:
         return jsonify({"configurado": False})
 
-    resp = requests.get(
-        f"{base_url}/api/resumo", headers={"X-API-Key": api_key}, timeout=5
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.get(
+            f"{base_url}/api/resumo", headers={"X-API-Key": api_key}, timeout=5
+        )
+        resp.raise_for_status()
+    except requests.RequestException:
+        return jsonify({"configurado": True, "erro": "Nao consegui falar com a API da construtora agora."}), 502
+
     return jsonify({"configurado": True, "dados": resp.json()})
 
 
