@@ -1106,6 +1106,93 @@ $("#voo-form").addEventListener("submit", async (e) => {
   loadStreak();
 });
 
+function renderCamposMeteo(container, decodificado) {
+  container.innerHTML = "";
+  if (!decodificado) return;
+  const linhas = [];
+  if (decodificado.vento) {
+    const v = decodificado.vento;
+    let txt = v.variavel
+      ? `variável, ${v.velocidade_kt}kt`
+      : `${String(v.direcao).padStart(3, "0")}° / ${v.velocidade_kt}kt`;
+    if (v.rajada_kt) txt += `, rajada ${v.rajada_kt}kt`;
+    linhas.push(["Vento", txt, false]);
+  }
+  if (decodificado.visibilidade_m != null) {
+    const txt = decodificado.visibilidade_m >= 9999 ? "10km+" : `${decodificado.visibilidade_m}m`;
+    linhas.push(["Vis.", txt, false]);
+  }
+  if (decodificado.teto_ft != null) {
+    linhas.push(["Teto", `${decodificado.teto_ft} ft`, true]);
+  } else if (decodificado.nuvens && decodificado.nuvens.length === 0) {
+    linhas.push(["Nuvens", "céu limpo", false]);
+  }
+  if (decodificado.temp != null) {
+    const orv = decodificado.ponto_orvalho != null ? ` / ${decodificado.ponto_orvalho}°C` : "";
+    linhas.push(["Temp.", `${decodificado.temp}°C${orv}`, false]);
+  }
+  if (decodificado.qnh_hpa) {
+    linhas.push(["QNH", `${decodificado.qnh_hpa} hPa`, false]);
+  }
+  linhas.forEach(([rotulo, valor, destaque]) => {
+    const linha = document.createElement("div");
+    linha.className = "metar-campo-linha";
+    const r = document.createElement("span");
+    r.className = "metar-campo-rotulo";
+    r.textContent = rotulo;
+    const val = document.createElement("span");
+    val.className = "metar-campo-valor" + (destaque ? " teto" : "");
+    val.textContent = valor;
+    linha.appendChild(r);
+    linha.appendChild(val);
+    container.appendChild(linha);
+  });
+}
+
+function renderSegmentosTaf(container, segmentos) {
+  container.innerHTML = "";
+  if (!segmentos) return;
+  segmentos.forEach((seg) => {
+    const bloco = document.createElement("div");
+    bloco.className = "taf-segmento";
+    const titulo = document.createElement("div");
+    titulo.className = "taf-segmento-titulo";
+    titulo.textContent = seg.periodo ? `${seg.tipo} (${seg.periodo})` : seg.tipo;
+    bloco.appendChild(titulo);
+    const campos = document.createElement("div");
+    renderCamposMeteo(campos, seg.decodificado);
+    bloco.appendChild(campos);
+    container.appendChild(bloco);
+  });
+}
+
+let metarFaladoAtual = null;
+let tafFaladoAtual = null;
+
+function falarTexto(btn, texto) {
+  if (!texto || !("speechSynthesis" in window)) return;
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    document.querySelectorAll(".btn-ouvir.falando").forEach((b) => b.classList.remove("falando"));
+    return;
+  }
+  const utter = new SpeechSynthesisUtterance(texto);
+  utter.lang = "pt-BR";
+  utter.rate = 0.98;
+  utter.onstart = () => btn.classList.add("falando");
+  utter.onend = () => btn.classList.remove("falando");
+  utter.onerror = () => btn.classList.remove("falando");
+  window.speechSynthesis.speak(utter);
+}
+
+if ("speechSynthesis" in window) {
+  $("#metar-ouvir").addEventListener("click", () => falarTexto($("#metar-ouvir"), metarFaladoAtual));
+  $("#taf-ouvir").addEventListener("click", () => falarTexto($("#taf-ouvir"), tafFaladoAtual));
+} else {
+  $("#metar-ouvir").hidden = true;
+  $("#taf-ouvir").hidden = true;
+}
+
 $("#metar-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#metar-btn");
@@ -1124,6 +1211,14 @@ $("#metar-form").addEventListener("submit", async (e) => {
   }
   $("#metar-texto").textContent = data.metar || "sem METAR disponivel agora.";
   $("#taf-texto").textContent = data.taf || "sem TAF disponivel agora.";
+  renderCamposMeteo($("#metar-campos"), data.metar_decodificado);
+  renderSegmentosTaf($("#taf-segmentos"), data.taf_segmentos);
+  metarFaladoAtual = data.metar_falado;
+  tafFaladoAtual = data.taf_falado;
+  if ("speechSynthesis" in window) {
+    $("#metar-ouvir").hidden = !metarFaladoAtual;
+    $("#taf-ouvir").hidden = !tafFaladoAtual;
+  }
   $("#metar-resultado").hidden = false;
 });
 

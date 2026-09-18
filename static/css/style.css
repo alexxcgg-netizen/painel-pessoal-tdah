@@ -39,6 +39,11 @@
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* fonte tecnica - so pra numero/dado bruto (estatisticas, horas, METAR),
+     nunca pra texto corrido - da o contraste "readout" que falta usando so
+     Inter/SF Pro em tudo */
+  --font-tech: "JetBrains Mono", "SF Mono", "Menlo", "Consolas", monospace;
 }
 
 * {
@@ -273,10 +278,10 @@ h2 {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   margin: 0 0 0.75rem;
 }
 
@@ -305,9 +310,11 @@ h2 svg {
   margin-bottom: 0.75rem;
 }
 
-.btn-push:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .btn-push:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .btn-push:disabled {
@@ -358,9 +365,11 @@ h2 svg {
   flex-shrink: 0;
 }
 
-.tab-btn:hover:not(.active) {
-  background: var(--surface-2);
-  color: var(--text);
+@media (hover: hover) {
+  .tab-btn:hover:not(.active) {
+    background: var(--surface-2);
+    color: var(--text);
+  }
 }
 
 .tab-btn.active {
@@ -458,10 +467,12 @@ h2 svg {
   transition: background-position 0.4s ease, box-shadow 0.2s ease, transform 0.18s var(--ease-bounce);
 }
 
-#captura-btn:hover:not(:disabled),
-#duvida-btn:hover:not(:disabled) {
-  background-position: 100% 0;
-  box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+@media (hover: hover) {
+  #captura-btn:hover:not(:disabled),
+  #duvida-btn:hover:not(:disabled) {
+    background-position: 100% 0;
+    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
 }
 
 #captura-btn:disabled,
@@ -491,7 +502,8 @@ h2 svg {
 .btn-waze[hidden],
 .vazio[hidden],
 #saude-grid[hidden],
-#chat-mic[hidden] {
+#chat-mic[hidden],
+.btn-ouvir[hidden] {
   display: none;
 }
 
@@ -586,10 +598,11 @@ h2 svg {
 }
 
 .stat-tile-valor {
-  font-size: 1.35rem;
+  font-family: var(--font-tech);
+  font-size: 1.3rem;
   font-weight: 700;
   color: var(--text);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -723,6 +736,8 @@ li.item.saindo {
 
 .item-titulo {
   font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.006em;
 }
 
 .item-quando {
@@ -755,9 +770,11 @@ li.item.saindo {
   height: 12px;
 }
 
-.item-acoes button:hover:not(:disabled) {
-  border-color: #3a4152;
-  background: #262b37;
+@media (hover: hover) {
+  .item-acoes button:hover:not(:disabled) {
+    border-color: #3a4152;
+    background: #262b37;
+  }
 }
 
 .item-acoes button.primario {
@@ -767,9 +784,11 @@ li.item.saindo {
   font-weight: 700;
 }
 
-.item-acoes button.primario:hover:not(:disabled) {
-  filter: brightness(1.08);
-  box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--cor-tarefas) 60%, transparent);
+@media (hover: hover) {
+  .item-acoes button.primario:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--cor-tarefas) 60%, transparent);
+  }
 }
 
 .subtarefas {
@@ -806,7 +825,9 @@ li.item.saindo {
 }
 
 .gasto-valor {
+  font-family: var(--font-tech);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .gasto-categoria {
@@ -883,9 +904,11 @@ li.item.saindo {
   cursor: pointer;
 }
 
-#importar-btn:hover:not(:disabled) {
-  filter: brightness(1.08);
-  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-bancos) 55%, transparent);
+@media (hover: hover) {
+  #importar-btn:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-bancos) 55%, transparent);
+  }
 }
 
 #importar-btn:disabled {
@@ -922,9 +945,11 @@ li.item.saindo {
   flex-shrink: 0;
 }
 
-.btn-conectar:hover:not(:disabled) {
-  background: rgba(168, 139, 220, 0.22);
-  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--accent) 45%, transparent);
+@media (hover: hover) {
+  .btn-conectar:hover:not(:disabled) {
+    background: rgba(168, 139, 220, 0.22);
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
 }
 
 .btn-conectar:disabled {
@@ -1003,9 +1028,11 @@ li.item.saindo {
   gap: 0.32rem;
 }
 
-.meta-guardar button:hover:not(:disabled) {
-  background: rgba(66, 187, 145, 0.24);
-  box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--cor-financeiro) 50%, transparent);
+@media (hover: hover) {
+  .meta-guardar button:hover:not(:disabled) {
+    background: rgba(66, 187, 145, 0.24);
+    box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--cor-financeiro) 50%, transparent);
+  }
 }
 
 .badge-sucesso {
@@ -1051,8 +1078,10 @@ li.item.saindo {
   cursor: pointer;
 }
 
-#viagem-btn:hover:not(:disabled) {
-  filter: brightness(1.08);
+@media (hover: hover) {
+  #viagem-btn:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
 }
 
 #viagem-btn:disabled {
@@ -1085,9 +1114,11 @@ li.item.saindo {
   flex-shrink: 0;
 }
 
-.btn-waze:hover {
-  background: rgba(98, 159, 209, 0.24);
-  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-tarefas) 45%, transparent);
+@media (hover: hover) {
+  .btn-waze:hover {
+    background: rgba(98, 159, 209, 0.24);
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-tarefas) 45%, transparent);
+  }
 }
 
 .chat-lista {
@@ -1271,9 +1302,11 @@ li.item.saindo {
   height: 19px;
 }
 
-#chat-mic:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  #chat-mic:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 #chat-mic.ouvindo {
@@ -1304,8 +1337,10 @@ li.item.saindo {
   box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
-#chat-send:hover:not(:disabled) {
-  box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+@media (hover: hover) {
+  #chat-send:hover:not(:disabled) {
+    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
 }
 
 #chat-send:disabled {
@@ -1438,9 +1473,11 @@ li.item.saindo {
   cursor: pointer;
 }
 
-#lembrete-btn:hover:not(:disabled) {
-  filter: brightness(1.08);
-  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-hoje) 55%, transparent);
+@media (hover: hover) {
+  #lembrete-btn:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-hoje) 55%, transparent);
+  }
 }
 
 #lembrete-btn:disabled {
@@ -1479,10 +1516,12 @@ li.item.saindo {
   cursor: pointer;
 }
 
-#voo-btn:hover:not(:disabled),
-#metar-btn:hover:not(:disabled) {
-  filter: brightness(1.08);
-  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-aviacao) 55%, transparent);
+@media (hover: hover) {
+  #voo-btn:hover:not(:disabled),
+  #metar-btn:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-aviacao) 55%, transparent);
+  }
 }
 
 #voo-btn:disabled,
@@ -1516,18 +1555,106 @@ li.item.saindo {
   box-shadow: var(--shadow-card);
 }
 
+.metar-label-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+}
+
 .metar-label {
-  display: block;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--cor-aviacao);
+}
+
+.btn-ouvir {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--cor-aviacao);
+  cursor: pointer;
+}
+
+.btn-ouvir svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-ouvir.falando {
+  background: var(--cor-aviacao);
+  color: #0c2029;
+  animation: chamaFlicker 1.2s ease-in-out infinite;
+}
+
+.metar-campos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border);
+}
+
+.metar-campos:empty {
+  display: none;
+}
+
+.metar-campo-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.metar-campo-rotulo {
+  font-size: 0.68rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  width: 3.4rem;
+}
+
+.metar-campo-valor {
+  font-family: var(--font-tech);
+  font-size: 0.82rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.metar-campo-valor.teto {
+  color: var(--cor-bancos);
+  font-weight: 700;
+}
+
+.taf-segmento {
+  padding: 0.5rem 0;
+  border-top: 1px dashed var(--border);
+}
+
+.taf-segmento:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.taf-segmento-titulo {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-muted);
   margin-bottom: 0.3rem;
 }
 
 .metar-bloco code {
   display: block;
-  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-family: var(--font-tech);
   font-size: 0.82rem;
   line-height: 1.5;
   color: var(--text);

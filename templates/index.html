@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
 
@@ -344,8 +344,10 @@
         METAR / TAF
       </h2>
       <p class="dica-metas">
-        Consulta direto na fonte oficial (aviationweather.gov) - dado bruto, sem nenhuma
-        interpretacao daqui. Sempre confira antes de voar.
+        Consulta direto na fonte oficial (aviationweather.gov) - o texto bruto vem exatamente como
+        a fonte manda. Vento, visibilidade, teto e temperatura tambem aparecem decodificados
+        (conversao exata de codigo pra numero, sem julgamento nenhum de categoria de voo) e da pra
+        tocar em "ouvir" pra ele ler em voz alta. Sempre confira antes de voar.
       </p>
       <form id="metar-form" class="form-linha" style="--form-cor: var(--cor-aviacao)">
         <input type="text" id="metar-icao" placeholder="Codigo ICAO (ex: SBBI)" maxlength="4" style="text-transform: uppercase" required />
@@ -355,8 +357,26 @@
         </button>
       </form>
       <div id="metar-resultado" hidden>
-        <p class="metar-bloco"><span class="metar-label">METAR</span><code id="metar-texto"></code></p>
-        <p class="metar-bloco"><span class="metar-label">TAF</span><code id="taf-texto"></code></p>
+        <div class="metar-bloco">
+          <div class="metar-label-linha">
+            <span class="metar-label">METAR</span>
+            <button type="button" class="btn-ouvir" id="metar-ouvir" aria-label="Ouvir METAR">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            </button>
+          </div>
+          <code id="metar-texto"></code>
+          <div class="metar-campos" id="metar-campos"></div>
+        </div>
+        <div class="metar-bloco">
+          <div class="metar-label-linha">
+            <span class="metar-label">TAF</span>
+            <button type="button" class="btn-ouvir" id="taf-ouvir" aria-label="Ouvir TAF">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            </button>
+          </div>
+          <code id="taf-texto"></code>
+          <div class="metar-campos" id="taf-segmentos"></div>
+        </div>
       </div>
     </section>
   </main>

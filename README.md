@@ -387,6 +387,16 @@ levemente e o icone cresce um pouco ao passar o mouse (`@media (hover: hover)`, 
 no toque em celular). Texto "Carregando..." em resumo/construtora agora e um shimmer em vez de
 texto estatico.
 
+**Segunda rodada de acabamento (hover, tipografia, fonte tecnica)**: todo `:hover` do app (eram uns
+15 que nao tinham essa trava ainda) agora fica atras de `@media (hover: hover)`, pra nenhum efeito
+"grudar" depois de um toque em celular. Titulo primario de item de lista (`.item-titulo` - nome da
+tarefa, do gasto, do voo, etc.) ganhou peso 600 (antes vinha sem peso proprio nenhum, no padrao do
+corpo do texto) pra criar hierarquia mais forte contra o texto secundario; titulo de secao (`h2`)
+foi de 600 pra 700. Numero "hero" (tiles de estatistica, valor de gasto, bloco de METAR) ganhou uma
+fonte tecnica separada do texto corrido - [JetBrains Mono](https://www.jetbrains.com/lp/mono/) via
+Google Fonts, com SF Mono como fallback no iOS - dando o contraste tipo "painel/readout" que so
+Inter/SF Pro em tudo nao dava.
+
 ## Previsao do tempo do dia — risco de chuva, e a que horas
 
 Alem do clima ligado a voo (ver secao Aviacao abaixo), a aba **Hoje** mostra um aviso de chuva
@@ -437,11 +447,35 @@ previsao ganha um link direto pro [Windy](https://www.windy.com) (camada de base
 local exato - sem precisar digitar a cidade de novo la. Erro de rede ou cidade nao encontrada
 nunca quebra a lista de voos, so nao mostra o clima daquele item.
 
-**METAR/TAF**: consulta direto na fonte oficial ([aviationweather.gov](https://aviationweather.gov/data/api/),
-NOAA - gratuito, sem chave, cobre aerodromos do mundo todo) por codigo ICAO. Importante: isso
-mostra o texto **bruto oficial**, exatamente como a fonte manda - o app nunca interpreta teto,
-base de nuvem ou categoria de voo (VFR/IFR) por conta propria. Decisao de voar e sempre do Alex,
-com a licenca e o julgamento dele; o app so poupa o trabalho de abrir outro site pra ler o dado cru.
+**METAR/TAF, com decodificacao e leitura em voz alta**: consulta direto na fonte oficial
+([aviationweather.gov](https://aviationweather.gov/data/api/), NOAA - gratuito, sem chave, cobre
+aerodromos do mundo todo) por codigo ICAO. O texto **bruto oficial** sempre aparece, exatamente
+como a fonte manda. Alem disso, os grupos padronizados (vento, visibilidade, teto/nuvens,
+temperatura, altimetro) sao decodificados pra numero/unidade real (`metar.decodificar_grupo`) -
+isso e conversao exata e sem ambiguidade (`BKN008` so pode significar "nublado a 800 pes", igual
+qualquer curso de meteorologia aeronautica ensina a ler na mao), nunca uma opiniao sobre categoria
+de voo. **Teto** e calculado certinho pela definicao padrao (a camada BKN/OVC mais baixa - camada
+FEW/SCT nunca conta como teto). O TAF e quebrado em segmentos (previsao inicial + cada BECMG/
+TEMPO/FM/PROB), cada um decodificado separado, pra mostrar a tendencia ao longo do periodo (ex:
+teto caindo de 1300 pra 400 pes durante a noite) em vez de misturar tudo numa frase so.
+
+Tem um botao de **"ouvir"** (🔊) do lado do METAR e do TAF que le um resumo em portugues em voz
+alta via Web Speech API (`speechSynthesis` do navegador - mesmo principio do microfone do chat,
+sem custo, sem depender da Anthropic) - pra quando ler o codigo bruto de cabeca cansada nao ta
+rendendo. O texto falado (`metar.resumo_falado`) e gerado por template em Python a partir dos
+campos ja decodificados, nunca pela IA, e nunca inclui nenhuma palavra de categoria de voo
+(testado explicitamente pra nunca aparecer "VFR"/"IFR"/"seguro"/"pode voar" no texto falado).
+
+Decodificador testado com os exemplos reais capturados do SBBI durante o desenvolvimento, alem de
+casos de borda (vento calmo/variavel/com rajada, CAVOK, ceu limpo, visibilidade vertical, TAF com
+PROB+TEMPO combinados, TAF sem nenhum grupo reconhecido) - `tests/test_metar.py`.
+
+**NOTAM**: pesquisei duas fontes - o AISWEB do DECEA (orgao brasileiro, tem API mas precisa de
+cadastro gratuito) ficou inacessivel pra testar durante o desenvolvimento, e o
+aviationweather.gov (que ja uso pro METAR/TAF) nao tem endpoint de NOTAM na API publica dele. Por
+isso NOTAM ainda nao esta integrado - prefiro nao publicar uma integracao que eu nao consegui
+testar de verdade contra a fonte real, ainda mais numa area onde um dado errado importa. Fica pra
+uma proxima rodada, com a chave do AISWEB em maos.
 
 Nao ha integracao com apps proprietarios tipo NextAtlas (sem API publica conhecida pra linkar
 direto num local especifico) - o Windy foi o unico ponto de "abrir no app externo" que da pra
