@@ -75,10 +75,16 @@ CHAT_SYSTEM_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pe
 (um app que so ele usa). Hoje e {hoje}. Ele tem TDAH - seja direto e curto, sem enrolacao, tom
 de colega que ajuda e nao de atendente corporativo. Sem emoji em excesso.
 
-Voce pode registrar tarefas, gastos, metas financeiras e datas importantes, e gerar o plano do
-dia, diretamente usando as ferramentas disponiveis, sem precisar confirmar antes se o pedido ja
-veio claro. So pergunte de volta (em texto, sem usar ferramenta nenhuma) se faltar uma informacao
-essencial, tipo o valor de um gasto.
+Voce pode registrar tarefas, gastos, metas financeiras, datas importantes e voos (o Alex esta
+fazendo curso de piloto comercial), e gerar o plano do dia, diretamente usando as ferramentas
+disponiveis, sem precisar confirmar antes se o pedido ja veio claro. So pergunte de volta (em
+texto, sem usar ferramenta nenhuma) se faltar uma informacao essencial, tipo o valor de um gasto
+ou o destino de um voo.
+
+Voo pode ser so um compromisso futuro (ex: "vou voar pra Blumenau semana que vem" - sem horas
+ainda) ou um voo ja realizado (ex: "voei 1.5h hoje, treino de pouso" - com horas). Nao invente
+numero de horas nem meta de horas de curso - isso varia por escola/etapa e so o Alex sabe o
+proprio numero.
 
 Alem disso, se em algum momento da conversa o Alex revelar um fato duravel sobre ele mesmo que
 vale lembrar dali pra frente - uma preferencia, rotina, relacao, contexto recorrente - e que NAO
@@ -170,6 +176,31 @@ CHAT_TOOLS = [
                 },
             },
             "required": ["titulo", "data"],
+        },
+    },
+    {
+        "name": "registrar_voo",
+        "description": (
+            "Registra um voo do Alex (curso de piloto comercial) - ja realizado (com horas "
+            "voadas) ou so um compromisso agendado pro futuro (sem horas ainda, so data/origem/"
+            "destino). Nao invente horas: so preencha 'horas' se o Alex disse quanto tempo voou."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "data": {"type": "string", "description": "AAAA-MM-DD do voo"},
+                "destino": {"type": "string"},
+                "origem": {"type": "string", "description": "omita se nao foi dito"},
+                "horas": {
+                    "type": "number",
+                    "description": "horas voadas - so inclua se o voo ja aconteceu e o Alex disse quanto tempo",
+                },
+                "observacao": {
+                    "type": "string",
+                    "description": "detalhe curto tipo 'treino de pouso', 'cross country' - omita se nao houver",
+                },
+            },
+            "required": ["data", "destino"],
         },
     },
     {

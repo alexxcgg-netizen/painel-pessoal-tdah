@@ -12,20 +12,25 @@ load_dotenv()
 import bank_ofx
 import caldav_client
 import claude_client
+import clima
 import maps_client
+import metar
 import notificacoes
 import pluggy_client
 import push_client
 import streak
+import voos as voos_module
 from db import (
     CAMPOS_SAUDE,
     add_to_goal,
     create_goal,
     create_lembrete,
     create_memoria,
+    create_voo,
     delete_lembrete,
     delete_memoria,
     delete_push_subscription,
+    delete_voo,
     get_db,
     get_or_create_bank_account,
     get_saude_dia,
@@ -38,6 +43,7 @@ from db import (
     list_lembretes,
     list_memorias,
     list_push_subscriptions,
+    list_voos,
     marcar_notificado,
     media_passos_ultimos_dias,
     record_usage,
@@ -366,6 +372,7 @@ def _contexto_chat(conn) -> str:
     eventos = _eventos_de_hoje_com_seguranca()
     saude = _saude_contexto_resumo(conn)
     construtora = _construtora_contexto_resumo()
+    proximos_voos = voos_module.proximos_voos(list_voos(conn), date.today())
 
     linhas = [
         f"Tarefas pendentes: {', '.join(r['title'] for r in pendentes) or 'nenhuma'}",
@@ -376,6 +383,12 @@ def _contexto_chat(conn) -> str:
         linhas.append(f"Saude hoje: {saude}")
     if construtora:
         linhas.append(f"Construtora (financeiro geral): {construtora}")
+    if proximos_voos:
+        voos_txt = ", ".join(
+            f"{v['data']} pra {v['destino']}" + (f" ({v['horas']}h)" if v.get("horas") else "")
+            for v in proximos_voos
+        )
+        linhas.append(f"Proximos voos agendados: {voos_txt}")
     return "\n".join(linhas)
 
 
@@ -432,6 +445,17 @@ def chat():
         create_memoria(conn, entrada["fato"], texto)
         return {"ok": True}
 
+    def exec_registrar_voo(entrada):
+        create_voo(
+            conn,
+            entrada["data"],
+            entrada["destino"],
+            entrada.get("origem"),
+            entrada.get("horas"),
+            entrada.get("observacao"),
+        )
+        return {"ok": True}
+
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
@@ -439,6 +463,7 @@ def chat():
         "gerar_plano_do_dia": exec_gerar_plano,
         "registrar_lembrete": exec_registrar_lembrete,
         "registrar_memoria": exec_registrar_memoria,
+        "registrar_voo": exec_registrar_voo,
     }
 
     result, error = _call_claude(
@@ -625,6 +650,75 @@ def streak_atual():
     hoje = date.today()
     dias = streak.calcular_streak(dias_ativos, hoje)
     return jsonify({"dias": dias, "ativo_hoje": hoje.isoformat() in dias_ativos})
+
+
+@app.route("/api/voos", methods=["GET"])
+def voos():
+    conn = get_db()
+    resultado = list_voos(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/voos", methods=["POST"])
+def criar_voo():
+    body = request.json or {}
+    data_str = (body.get("data") or "").strip()
+    destino = (body.get("destino") or "").strip()
+    origem = (body.get("origem") or "").strip() or None
+    observacao = (body.get("observacao") or "").strip() or None
+    horas = body.get("horas")
+
+    if not destino:
+        return jsonify({"error": "informe o destino"}), 400
+    try:
+        date.fromisoformat(data_str)
+    except (ValueError, TypeError):
+        return jsonify({"error": "data precisa estar em formato AAAA-MM-DD"}), 400
+    if horas is not None:
+        if not isinstance(horas, (int, float)) or horas <= 0:
+            return jsonify({"error": "horas precisa ser um numero positivo, ou omitido pra voo agendado"}), 400
+
+    conn = get_db()
+    voo_id = create_voo(conn, data_str, destino, origem, horas, observacao)
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": voo_id, "ok": True}), 201
+
+
+@app.route("/api/voos/<int:voo_id>", methods=["DELETE"])
+def apagar_voo(voo_id):
+    conn = get_db()
+    delete_voo(conn, voo_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _voo_com_clima(voo: dict) -> dict:
+    """Anexa previsao do tempo (se der) pro destino/data do voo - nunca
+    quebra se a cidade nao for encontrada ou a data estiver fora da janela
+    de previsao, so nao inclui o campo 'clima'."""
+    previsao = clima.previsao_para_cidade_e_data(voo["destino"], voo["data"])
+    return {**voo, "clima": previsao}
+
+
+@app.route("/api/voos/resumo", methods=["GET"])
+def voos_resumo():
+    conn = get_db()
+    todos = list_voos(conn)
+    conn.close()
+    hoje = date.today()
+    resumo = voos_module.resumo_horas(todos, hoje)
+    proximos = [_voo_com_clima(v) for v in voos_module.proximos_voos(todos, hoje)]
+    return jsonify({**resumo, "proximos": proximos})
+
+
+@app.route("/api/clima/metar", methods=["GET"])
+def clima_metar():
+    icao = (request.args.get("icao") or "").strip()
+    resultado = metar.buscar_metar_taf(icao)
+    return jsonify(resultado)
 
 
 @app.route("/api/saude/importar", methods=["POST"])

@@ -29,7 +29,10 @@ python -m unittest discover tests -v
 Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTHROPIC_API_KEY`
 real) e cobrem o fluxo completo: captura, pergunta de esclarecimento quando a IA fica em duvida,
 completar tarefa, quebra em subtarefas, resumo do dia, acumulo de custo, o loop de tool-use do
-chat (`tests/test_claude_client.py`) e as regras de notificacao proativa (`tests/test_notificacoes.py`).
+chat (`tests/test_claude_client.py`), as regras de notificacao proativa
+(`tests/test_notificacoes.py`), a sequencia de uso/streak (`tests/test_streak.py`, com fuzzing de
+200 cenarios) e as contas de horas voadas e a previsao do tempo/METAR-TAF com a rede mockada
+(`tests/test_voos.py`, `tests/test_clima.py`, `tests/test_metar.py`).
 
 ## Funcionalidades (v1)
 
@@ -383,6 +386,44 @@ estado vazio pulsam devagar; checkbox de subtarefa da um "pop" ao marcar; botoes
 levemente e o icone cresce um pouco ao passar o mouse (`@media (hover: hover)`, pra nao interferir
 no toque em celular). Texto "Carregando..." em resumo/construtora agora e um shimmer em vez de
 texto estatico.
+
+## Aviacao — o Alex esta fazendo curso de piloto comercial
+
+Aba propria (`Aviacao`) pra vida de piloto, separada do resto porque tem uma dinamica diferente
+de tarefa/gasto: horas voadas, compromissos agendados com antecedencia, e o clima do destino
+importa de verdade pra decidir se um voo vai rolar.
+
+**Horas voadas**: cada voo e `data` + `destino` (+ `origem`/`observacao` opcionais) + `horas`
+opcional - se `horas` vier vazio, e um voo so *agendado* (compromisso futuro, ainda nao
+realizado); quando ele acontecer, basta registrar de novo com as horas ou editar. Os totais de
+horas na semana/mes/total (`voos.resumo_horas`) somam so voos ja realizados (com horas) ate hoje -
+conta pura em Python, testada com casos de virada de semana/mes/ano e ano bissexto
+(`tests/test_voos.py`). Sem meta/numero de horas embutido no app: quantidade de hora pra cada
+etapa do curso varia por escola e o app nunca inventa esse numero - so soma o que o Alex registrou.
+
+Da pra registrar por um formulario curto na aba (com mascara de data dd/mm/aaaa, mesmo padrao "so
+digito" do resto do app) ou pelo **chat** (ex: "vou voar pra Blumenau semana que vem" registra so
+o compromisso; "voei 1,5h hoje, treino de pouso" registra com horas) - ferramenta
+`registrar_voo`, e o chat tambem sabe dos proximos voos agendados como contexto de conversa.
+
+**Previsao do tempo no destino**: pra cada voo agendado (data de hoje pra frente), o painel busca
+a previsao do dia via [Open-Meteo](https://open-meteo.com) (gratuito, sem chave, sem cadastro) -
+geocodifica o nome da cidade digitado (`clima.geocodificar_cidade`, com cache em memoria) e pega a
+previsao daquele dia especifico (`clima.previsao_para_data`). Mostra chance de chuva e
+minima/maxima, com destaque visual quando o codigo de tempo indica chuva/tempestade. Cada voo com
+previsao ganha um link direto pro [Windy](https://www.windy.com) (camada de base de nuvem) no
+local exato - sem precisar digitar a cidade de novo la. Erro de rede ou cidade nao encontrada
+nunca quebra a lista de voos, so nao mostra o clima daquele item.
+
+**METAR/TAF**: consulta direto na fonte oficial ([aviationweather.gov](https://aviationweather.gov/data/api/),
+NOAA - gratuito, sem chave, cobre aerodromos do mundo todo) por codigo ICAO. Importante: isso
+mostra o texto **bruto oficial**, exatamente como a fonte manda - o app nunca interpreta teto,
+base de nuvem ou categoria de voo (VFR/IFR) por conta propria. Decisao de voar e sempre do Alex,
+com a licenca e o julgamento dele; o app so poupa o trabalho de abrir outro site pra ler o dado cru.
+
+Nao ha integracao com apps proprietarios tipo NextAtlas (sem API publica conhecida pra linkar
+direto num local especifico) - o Windy foi o unico ponto de "abrir no app externo" que da pra
+montar com confianca no formato da URL.
 
 ## Roadmap
 

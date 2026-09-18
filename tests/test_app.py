@@ -1029,6 +1029,120 @@ class PainelTestCase(unittest.TestCase):
         data = self.client.get("/api/streak").get_json()
         self.assertEqual(data["dias"], 1)
 
+    def test_criar_voo_agendado_sem_horas(self):
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        res = self.client.post(
+            "/api/voos", json={"data": amanha, "destino": "Blumenau", "origem": "Navegantes"}
+        )
+        self.assertEqual(res.status_code, 201)
+
+        voos = self.client.get("/api/voos").get_json()
+        self.assertEqual(len(voos), 1)
+        self.assertEqual(voos[0]["destino"], "Blumenau")
+        self.assertIsNone(voos[0]["horas"])
+
+    def test_criar_voo_realizado_com_horas(self):
+        hoje = date.today().isoformat()
+        res = self.client.post(
+            "/api/voos",
+            json={"data": hoje, "destino": "Blumenau", "horas": 1.5, "observacao": "treino de pouso"},
+        )
+        self.assertEqual(res.status_code, 201)
+        voos = self.client.get("/api/voos").get_json()
+        self.assertEqual(voos[0]["horas"], 1.5)
+        self.assertEqual(voos[0]["observacao"], "treino de pouso")
+
+    def test_criar_voo_sem_destino_rejeita(self):
+        res = self.client.post("/api/voos", json={"data": date.today().isoformat(), "destino": "  "})
+        self.assertEqual(res.status_code, 400)
+
+    def test_criar_voo_com_data_invalida_rejeita(self):
+        res = self.client.post("/api/voos", json={"data": "31/12/2027", "destino": "Blumenau"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_criar_voo_com_horas_negativa_rejeita(self):
+        res = self.client.post(
+            "/api/voos", json={"data": date.today().isoformat(), "destino": "Blumenau", "horas": -1}
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_criar_voo_registra_atividade(self):
+        self.client.post(
+            "/api/voos", json={"data": date.today().isoformat(), "destino": "Blumenau", "horas": 1.0}
+        )
+        streak_data = self.client.get("/api/streak").get_json()
+        self.assertEqual(streak_data["dias"], 1)
+
+    def test_apagar_voo_remove_da_lista(self):
+        self.client.post(
+            "/api/voos", json={"data": date.today().isoformat(), "destino": "Blumenau", "horas": 1.0}
+        )
+        voo_id = self.client.get("/api/voos").get_json()[0]["id"]
+        res = self.client.delete(f"/api/voos/{voo_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/voos").get_json(), [])
+
+    def test_voos_resumo_soma_horas_e_lista_proximos(self):
+        hoje = date.today()
+        amanha = (hoje + timedelta(days=1)).isoformat()
+        self.client.post(
+            "/api/voos", json={"data": hoje.isoformat(), "destino": "Blumenau", "horas": 1.5}
+        )
+        self.client.post("/api/voos", json={"data": amanha, "destino": "Brusque"})
+
+        with patch("clima.previsao_para_cidade_e_data", return_value=None):
+            data = self.client.get("/api/voos/resumo").get_json()
+
+        self.assertEqual(data["horas_semana"], 1.5)
+        self.assertEqual(len(data["proximos"]), 2)
+
+    def test_voos_resumo_anexa_clima_quando_disponivel(self):
+        hoje = date.today().isoformat()
+        self.client.post("/api/voos", json={"data": hoje, "destino": "Blumenau"})
+        previsao_fake = {"chuva_pct": 90, "temp_max": 20.0, "temp_min": 14.0, "alerta_chuva": True}
+        with patch("clima.previsao_para_cidade_e_data", return_value=previsao_fake):
+            data = self.client.get("/api/voos/resumo").get_json()
+        self.assertEqual(data["proximos"][0]["clima"], previsao_fake)
+
+    def test_clima_metar_devolve_dados_da_fonte(self):
+        with patch(
+            "metar.buscar_metar_taf",
+            return_value={"metar": "SBBI 181800Z ...", "taf": "TAF SBBI ...", "erro": None},
+        ):
+            res = self.client.get("/api/clima/metar?icao=SBBI")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("SBBI", res.get_json()["metar"])
+
+    def test_chat_usa_executor_de_voo_de_verdade(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_voo"](
+                {"data": "2027-01-15", "destino": "Balneario Camboriu", "horas": 1.2}
+            )
+            self.assertEqual(resultado, {"ok": True})
+            return "Beleza, registrei o voo.", ["registrar_voo"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "voei 1.2h hoje pra Balneario"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["acoes"], ["registrar_voo"])
+
+        voos = self.client.get("/api/voos").get_json()
+        self.assertEqual(len(voos), 1)
+        self.assertEqual(voos[0]["destino"], "Balneario Camboriu")
+
+    def test_chat_contexto_inclui_proximos_voos(self):
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        self.client.post("/api/voos", json={"data": amanha, "destino": "Blumenau"})
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            self.assertIn("Blumenau", contexto)
+            self.assertIn("Proximos voos", contexto)
+            return "Beleza.", [], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "e ai, como ta minha semana?"})
+        self.assertEqual(res.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

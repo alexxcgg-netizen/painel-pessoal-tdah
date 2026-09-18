@@ -131,6 +131,16 @@ def init_db():
         CREATE TABLE IF NOT EXISTS atividade_dias (
             dia TEXT PRIMARY KEY
         );
+
+        CREATE TABLE IF NOT EXISTS voos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT NOT NULL,
+            origem TEXT,
+            destino TEXT NOT NULL,
+            horas REAL,
+            observacao TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -368,3 +378,25 @@ def registrar_atividade(conn, dia_iso: str) -> None:
 def list_dias_ativos(conn) -> set[str]:
     rows = conn.execute("SELECT dia FROM atividade_dias").fetchall()
     return {r["dia"] for r in rows}
+
+
+def create_voo(
+    conn, data_str: str, destino: str, origem: str | None = None, horas: float | None = None,
+    observacao: str | None = None,
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO voos (data, origem, destino, horas, observacao) VALUES (?, ?, ?, ?, ?)",
+        (data_str, origem, destino, horas, observacao),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_voos(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM voos ORDER BY data DESC").fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_voo(conn, voo_id: int):
+    conn.execute("DELETE FROM voos WHERE id = ?", (voo_id,))
+    conn.commit()

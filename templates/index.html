@@ -168,7 +168,7 @@
         importa quando estiver perto. Peca no chat pra registrar (ex: "meu exame medico de piloto
         vence dia 15 de janeiro, todo ano"). Avisa por notificacao push nos ultimos 7 dias.
       </p>
-      <form id="lembrete-form" class="lembrete-form">
+      <form id="lembrete-form" class="form-linha">
         <input type="text" id="lembrete-titulo" placeholder="O que vence?" required />
         <input type="text" id="lembrete-data" placeholder="dd/mm/aaaa" inputmode="numeric" required />
         <label class="check-recorrente">
@@ -284,6 +284,77 @@
       </h2>
       <p id="construtora-info" class="resumo-texto">Carregando...</p>
     </section>
+
+    <section id="tab-aviacao" class="tab-content" hidden>
+      <h2 style="--secao-cor: var(--cor-aviacao)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v16M12 9 3 14M12 9l9 5M12 16l-4 3M12 16l4 3"/></svg>
+        Horas voadas
+      </h2>
+      <div class="stats-grid" id="voos-stats-grid">
+        <div class="stat-tile">
+          <span class="stat-tile-valor" id="voo-horas-semana">-</span>
+          <span class="stat-tile-label">na semana</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-tile-valor" id="voo-horas-mes">-</span>
+          <span class="stat-tile-label">no mes</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-tile-valor" id="voo-horas-total">-</span>
+          <span class="stat-tile-label">no total</span>
+        </div>
+      </div>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-aviacao)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Registrar voo
+      </h2>
+      <p class="dica-metas">
+        Ja realizado (com horas) ou so um compromisso agendado (sem horas ainda) - da tambem pra
+        pedir no chat (ex: "vou voar pra Blumenau semana que vem" ou "voei 1,5h hoje, treino de pouso").
+      </p>
+      <form id="voo-form" class="form-linha" style="--form-cor: var(--cor-aviacao)">
+        <input type="text" id="voo-data" placeholder="dd/mm/aaaa" inputmode="numeric" required />
+        <input type="text" id="voo-origem" placeholder="De onde? (opcional)" />
+        <input type="text" id="voo-destino" placeholder="Pra onde?" required />
+        <input type="text" id="voo-horas" placeholder="horas voadas (deixe em branco se so agendado)" inputmode="decimal" />
+        <input type="text" id="voo-obs" placeholder="observacao (opcional)" />
+        <button type="submit" id="voo-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Registrar
+        </button>
+      </form>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-aviacao)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v16M12 9 3 14M12 9l9 5M12 16l-4 3M12 16l4 3"/></svg>
+        Proximos voos
+      </h2>
+      <p id="voos-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v16M12 9 3 14M12 9l9 5M12 16l-4 3M12 16l4 3"/></svg>
+        <span id="voos-vazio-texto">Nenhum voo agendado.</span>
+      </p>
+      <ul id="lista-voos"></ul>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-aviacao)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>
+        METAR / TAF
+      </h2>
+      <p class="dica-metas">
+        Consulta direto na fonte oficial (aviationweather.gov) - dado bruto, sem nenhuma
+        interpretacao daqui. Sempre confira antes de voar.
+      </p>
+      <form id="metar-form" class="form-linha" style="--form-cor: var(--cor-aviacao)">
+        <input type="text" id="metar-icao" placeholder="Codigo ICAO (ex: SBBI)" maxlength="4" style="text-transform: uppercase" required />
+        <button type="submit" id="metar-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>
+          Consultar
+        </button>
+      </form>
+      <div id="metar-resultado" hidden>
+        <p class="metar-bloco"><span class="metar-label">METAR</span><code id="metar-texto"></code></p>
+        <p class="metar-bloco"><span class="metar-label">TAF</span><code id="taf-texto"></code></p>
+      </div>
+    </section>
   </main>
 
   <nav id="tabbar">
@@ -310,6 +381,10 @@
     <button data-tab="construtora" class="tab-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l6-4"/><path d="M10 5 20 9"/><path d="M20 9v3"/><path d="M14 21V13"/><path d="M14 13h6"/><path d="M4 21h16"/></svg>
       <span>Construtora</span>
+    </button>
+    <button data-tab="aviacao" class="tab-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v16M12 9 3 14M12 9l9 5M12 16l-4 3M12 16l4 3"/></svg>
+      <span>Aviacao</span>
     </button>
   </nav>
 

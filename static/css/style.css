@@ -25,6 +25,7 @@
   --cor-financeiro: #42bb91;
   --cor-bancos: #d8ab4c;
   --cor-construtora: #ed7181;
+  --cor-aviacao: #7fb5c9;
 
   --danger: #ed7181;
   --danger-bg: rgba(237, 113, 129, 0.12);
@@ -403,6 +404,10 @@ h2 svg {
   --tab-cor: var(--cor-construtora);
 }
 
+.tab-btn[data-tab="aviacao"] {
+  --tab-cor: var(--cor-aviacao);
+}
+
 .tab-content:not([hidden]) {
   animation: tabEntra 0.32s var(--ease-suave) both;
 }
@@ -444,7 +449,7 @@ h2 svg {
 }
 
 #captura-input.sucesso,
-.lembrete-form input.sucesso {
+.form-linha input.sucesso {
   animation: pulseBorda 0.7s ease;
 }
 
@@ -581,6 +586,12 @@ h2 svg {
 
 #saude-grid.stats-grid .stat-tile:nth-child(3) {
   --tile-cor: var(--cor-hoje);
+}
+
+#voos-stats-grid.stats-grid .stat-tile:nth-child(1),
+#voos-stats-grid.stats-grid .stat-tile:nth-child(2),
+#voos-stats-grid.stats-grid .stat-tile:nth-child(3) {
+  --tile-cor: var(--cor-aviacao);
 }
 
 .stat-tile-valor {
@@ -1339,7 +1350,7 @@ li.item.saindo {
   animation: chamaFlicker 1.6s ease-in-out infinite;
 }
 
-.lembrete-form {
+.form-linha {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -1347,7 +1358,7 @@ li.item.saindo {
   margin-bottom: 0.9rem;
 }
 
-.lembrete-form input[type="text"] {
+.form-linha input[type="text"] {
   padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -1357,10 +1368,10 @@ li.item.saindo {
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.lembrete-form input[type="text"]:focus {
+.form-linha input[type="text"]:focus {
   outline: none;
-  border-color: var(--cor-hoje);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-hoje) 18%, transparent);
+  border-color: var(--form-cor, var(--cor-hoje));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--form-cor, var(--cor-hoje)) 18%, transparent);
 }
 
 #lembrete-titulo {
@@ -1407,4 +1418,91 @@ li.item.saindo {
 #lembrete-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+#voo-data {
+  flex: 0 1 7rem;
+}
+
+#voo-destino,
+#voo-origem {
+  flex: 1 1 40%;
+  min-width: 0;
+}
+
+#voo-horas {
+  flex: 1 1 60%;
+  min-width: 0;
+}
+
+#voo-obs {
+  flex: 1 1 100%;
+}
+
+#voo-btn,
+#metar-btn {
+  flex: 1 0 100%;
+  padding: 0.6rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--cor-aviacao);
+  color: #0c2029;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#voo-btn:hover:not(:disabled),
+#metar-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-aviacao) 55%, transparent);
+}
+
+#voo-btn:disabled,
+#metar-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#metar-icao {
+  flex: 1 1 auto;
+}
+
+.voo-clima {
+  display: inline-block;
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.voo-clima.alerta {
+  color: #f0a4ad;
+  font-weight: 600;
+}
+
+.metar-bloco {
+  margin: 0 0 0.6rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+}
+
+.metar-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--cor-aviacao);
+  margin-bottom: 0.3rem;
+}
+
+.metar-bloco code {
+  display: block;
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
 }

@@ -14,6 +14,18 @@ const ICONE_PLUS =
 const fmtMoeda = (valor) =>
   Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const fmtHoras = (h) =>
+  `${Number(h).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}h`;
+
+// Horas nao tem a complexidade de moeda (sem milhar, poucas casas decimais)
+// entao aceita virgula ou ponto direto, sem mascara "digito a digito".
+function parseHoras(texto) {
+  const limpo = (texto || "").trim().replace(",", ".");
+  if (!limpo) return null;
+  const n = parseFloat(limpo);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 // Mascara de moeda BR no estilo "digito da direita pra esquerda" (o mesmo
 // dos apps de banco): o campo so guarda digitos, os 2 ultimos viram
 // centavos, e o texto e sempre reconstruido do zero a cada tecla - por
@@ -118,6 +130,7 @@ function showTab(name) {
   }
   if (name === "bancos") loadBancos();
   if (name === "construtora") loadConstrutora();
+  if (name === "aviacao") loadVoosResumo();
 }
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -927,6 +940,165 @@ async function loadConstrutora() {
     info.textContent = JSON.stringify(data.dados);
   }
 }
+
+function criarItemVoo(v) {
+  const li = document.createElement("li");
+  li.className = "item";
+
+  const linha = document.createElement("div");
+  linha.className = "item-linha";
+
+  const tituloWrap = document.createElement("div");
+  const titulo = document.createElement("span");
+  titulo.className = "item-titulo";
+  titulo.textContent = v.origem ? `${v.origem} → ${v.destino}` : v.destino;
+  tituloWrap.appendChild(titulo);
+
+  const quando = document.createElement("span");
+  quando.className = "item-quando";
+  let quandoTxt = fmtDataBr(v.data);
+  if (v.horas) quandoTxt += ` - ${fmtHoras(v.horas)} voadas`;
+  if (v.observacao) quandoTxt += ` - ${v.observacao}`;
+  quando.textContent = quandoTxt;
+  tituloWrap.appendChild(quando);
+
+  if (v.clima) {
+    const climaEl = document.createElement("span");
+    climaEl.className = "voo-clima" + (v.clima.alerta_chuva ? " alerta" : "");
+    climaEl.textContent =
+      `${Math.round(v.clima.chuva_pct)}% chance de chuva, ` +
+      `${Math.round(v.clima.temp_min)}–${Math.round(v.clima.temp_max)}°C em ${v.clima.cidade}`;
+    tituloWrap.appendChild(climaEl);
+  }
+
+  linha.appendChild(tituloWrap);
+
+  const acoes = document.createElement("div");
+  acoes.className = "item-acoes";
+
+  if (v.clima) {
+    const windyBtn = document.createElement("a");
+    windyBtn.className = "btn-com-icone";
+    windyBtn.href = `https://www.windy.com/?cbase,${v.clima.lat},${v.clima.lon},9`;
+    windyBtn.target = "_blank";
+    windyBtn.rel = "noopener";
+    windyBtn.textContent = "Windy";
+    acoes.appendChild(windyBtn);
+  }
+
+  const apagarBtn = document.createElement("button");
+  apagarBtn.className = "btn-com-icone";
+  apagarBtn.innerHTML = `${ICONE_TRASH}Apagar`;
+  apagarBtn.addEventListener("click", async () => {
+    apagarBtn.disabled = true;
+    const ok = await apiFetch(`/api/voos/${v.id}`, { method: "DELETE" });
+    if (ok) {
+      li.classList.add("saindo");
+      setTimeout(() => loadVoosResumo(), 220);
+    } else {
+      apagarBtn.disabled = false;
+    }
+  });
+  acoes.appendChild(apagarBtn);
+
+  linha.appendChild(acoes);
+  li.appendChild(linha);
+  return li;
+}
+
+async function loadVoosResumo() {
+  const vazioEl = $("#voos-vazio");
+  const vazioTexto = $("#voos-vazio-texto");
+  const textoOriginal = vazioTexto.textContent;
+  // busca a previsao do tempo pra cada voo agendado, entao pode demorar um
+  // pouco mais que uma chamada comum - mostra que ta carregando em vez de
+  // deixar a lista parecendo vazia/quebrada nesse meio tempo
+  vazioTexto.textContent = "Carregando voos e previsao do tempo...";
+  vazioEl.hidden = false;
+
+  const data = await apiFetch("/api/voos/resumo");
+  vazioTexto.textContent = textoOriginal;
+  if (!data) return;
+
+  animarNumero($("#voo-horas-semana"), data.horas_semana, fmtHoras);
+  animarNumero($("#voo-horas-mes"), data.horas_mes, fmtHoras);
+  animarNumero($("#voo-horas-total"), data.horas_total, fmtHoras);
+
+  const list = $("#lista-voos");
+  list.innerHTML = "";
+  vazioEl.hidden = data.proximos.length > 0;
+  data.proximos.forEach((v) => list.appendChild(criarItemVoo(v)));
+}
+
+aplicarMascaraData($("#voo-data"));
+
+$("#voo-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#voo-btn");
+  const dataInput = $("#voo-data");
+  const origemInput = $("#voo-origem");
+  const destinoInput = $("#voo-destino");
+  const horasInput = $("#voo-horas");
+  const obsInput = $("#voo-obs");
+
+  const dataIso = mascaraDataParaIso(dataInput.value.trim());
+  const destino = destinoInput.value.trim();
+  if (!dataIso || !destino) {
+    mostrarErro("Confere a data (dd/mm/aaaa) e o destino.");
+    return;
+  }
+  const horasTxt = horasInput.value.trim();
+  const horas = horasTxt ? parseHoras(horasTxt) : null;
+  if (horasTxt && !horas) {
+    mostrarErro("Horas invalidas - use um numero tipo 1,5 (ou deixe em branco se so agendado).");
+    return;
+  }
+
+  setBotaoCarregando(btn, true, "salvando...");
+  const data = await apiFetch("/api/voos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      data: dataIso,
+      origem: origemInput.value.trim() || undefined,
+      destino,
+      horas,
+      observacao: obsInput.value.trim() || undefined,
+    }),
+  });
+  setBotaoCarregando(btn, false, "Registrar");
+  if (!data) return;
+
+  dataInput.value = "";
+  origemInput.value = "";
+  destinoInput.value = "";
+  horasInput.value = "";
+  obsInput.value = "";
+  pulsarSucesso(destinoInput);
+  loadVoosResumo();
+  loadStreak();
+});
+
+$("#metar-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#metar-btn");
+  const icao = $("#metar-icao").value.trim().toUpperCase();
+  if (!icao) return;
+
+  setBotaoCarregando(btn, true, "buscando...");
+  $("#metar-resultado").hidden = true;
+  const data = await apiFetch(`/api/clima/metar?icao=${encodeURIComponent(icao)}`);
+  setBotaoCarregando(btn, false, "Consultar");
+  if (!data) return;
+
+  if (!data.metar && !data.taf) {
+    mostrarErro(data.erro || "nao encontrei dado nenhum pra esse codigo.");
+    return;
+  }
+  $("#metar-texto").textContent = data.metar || "sem METAR disponivel agora.";
+  $("#taf-texto").textContent = data.taf || "sem TAF disponivel agora.";
+  $("#metar-resultado").hidden = false;
+});
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);

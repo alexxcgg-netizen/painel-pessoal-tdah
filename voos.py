@@ -1,0 +1,37 @@
+from datetime import date, timedelta
+
+
+def inicio_da_semana(hoje: date) -> date:
+    """Segunda-feira da semana de 'hoje'."""
+    return hoje - timedelta(days=hoje.weekday())
+
+
+def resumo_horas(voos: list[dict], hoje: date) -> dict:
+    """Soma horas voadas (campo 'horas', ja realizado) na semana e no mes
+    atuais e no total - pura conta em Python, nunca pela IA. 'voos' e uma
+    lista de dicts com pelo menos 'data' (AAAA-MM-DD) e 'horas' (float ou
+    None - None significa voo agendado, ainda nao realizado)."""
+    inicio_semana = inicio_da_semana(hoje).isoformat()
+    inicio_mes = hoje.replace(day=1).isoformat()
+    hoje_iso = hoje.isoformat()
+
+    realizados = [v for v in voos if v.get("horas") is not None and v["data"] <= hoje_iso]
+
+    horas_semana = sum(v["horas"] for v in realizados if v["data"] >= inicio_semana)
+    horas_mes = sum(v["horas"] for v in realizados if v["data"] >= inicio_mes)
+    horas_total = sum(v["horas"] for v in realizados)
+
+    return {
+        "horas_semana": round(horas_semana, 2),
+        "horas_mes": round(horas_mes, 2),
+        "horas_total": round(horas_total, 2),
+    }
+
+
+def proximos_voos(voos: list[dict], hoje: date) -> list[dict]:
+    """Voos agendados a partir de hoje (inclusive), em ordem cronologica -
+    tanto os que ainda nao tem horas (compromisso futuro) quanto um voo de
+    hoje mesmo que ja tenha horas registradas."""
+    hoje_iso = hoje.isoformat()
+    futuros = [v for v in voos if v["data"] >= hoje_iso]
+    return sorted(futuros, key=lambda v: v["data"])
