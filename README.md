@@ -311,6 +311,13 @@ funcionar - a ferramenta `registrar_tarefa` do chat so tinha o campo de texto li
 tambem extrai a data em AAAA-MM-DD quando dá pra calcular (e o system prompt do chat sabe a data
 de hoje, que antes nao sabia).
 
+**Voz** (v1): botao de microfone ao lado do campo de chat usa a Web Speech API nativa do
+navegador (`SpeechRecognition`/`webkitSpeechRecognition`) - grava, transcreve em portugues e
+preenche o campo de texto (voce revisa e manda, nao envia sozinho). Sem custo, sem chave nova,
+sem depender da Anthropic pra isso. O botao so aparece se o navegador suportar - funciona bem em
+Chrome/Android; no Safari/iOS o suporte e mais recente e pode variar por versao do iOS, entao
+teste no seu aparelho antes de confiar nisso no dia a dia.
+
 A captura rapida no topo (`Digite algo: tarefa, lembrete, gasto ou meta...`) continua existindo
 em paralelo - e mais rapida pra um lancamento pontual sem abrir conversa.
 
@@ -330,9 +337,8 @@ Visivel e apagavel na aba Painel, em "Datas importantes".
 
 ## Roadmap
 
-**Fase 2** — comando de voz livre (falar em vez de digitar no chat); integracao com Home
-Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa); integracao com o painel
-da construtora de verdade (precisa decidir com o Alex como expor os dados de la com seguranca -
-ver secao "Integracao com o painel da construtora")
+**Fase 2** — Home Assistant (o Alex ainda nao tem uma instancia - fica pra quando ele reformar o
+quarto e comprar os dispositivos, ano que vem); voz na v2 (resposta falada, alem de so
+transcrever - hoje so transcreve pro campo de texto)
 
 **Ideia futura** — se o painel pessoal se provar util, replicar pra outros membros da familia (cada um com seu proprio banco de dados/instancia - nunca compartilhando dados entre si sem pedir)

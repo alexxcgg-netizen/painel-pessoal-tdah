@@ -293,6 +293,47 @@ $("#chat-form").addEventListener("submit", (e) => {
   enviarChat(texto);
 });
 
+function initVozChat() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = $("#chat-mic");
+  if (!SpeechRecognition) return;
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "pt-BR";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  let ouvindo = false;
+
+  const pararDeOuvir = () => {
+    ouvindo = false;
+    micBtn.classList.remove("ouvindo");
+  };
+
+  recognition.addEventListener("result", (e) => {
+    const texto = e.results[0][0].transcript;
+    const input = $("#chat-input");
+    input.value = texto;
+    input.focus();
+  });
+  recognition.addEventListener("end", pararDeOuvir);
+  recognition.addEventListener("error", pararDeOuvir);
+
+  micBtn.hidden = false;
+  micBtn.addEventListener("click", () => {
+    if (ouvindo) {
+      recognition.stop();
+      return;
+    }
+    ouvindo = true;
+    micBtn.classList.add("ouvindo");
+    try {
+      recognition.start();
+    } catch {
+      pararDeOuvir();
+    }
+  });
+}
+
 async function loadSaude() {
   const data = await apiFetch("/api/saude/hoje");
   if (!data) return;
@@ -854,3 +895,4 @@ loadLembretes();
 loadSaude();
 loadChatHistorico();
 initViagemOrigemPadrao();
+initVozChat();
