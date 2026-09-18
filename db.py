@@ -127,6 +127,10 @@ def init_db():
             recorrente INTEGER NOT NULL DEFAULT 0,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS atividade_dias (
+            dia TEXT PRIMARY KEY
+        );
         """
     )
     conn.commit()
@@ -354,3 +358,13 @@ def list_lembretes(conn) -> list[dict]:
 def delete_lembrete(conn, lembrete_id: int):
     conn.execute("DELETE FROM lembretes WHERE id = ?", (lembrete_id,))
     conn.commit()
+
+
+def registrar_atividade(conn, dia_iso: str) -> None:
+    conn.execute("INSERT OR IGNORE INTO atividade_dias (dia) VALUES (?)", (dia_iso,))
+    conn.commit()
+
+
+def list_dias_ativos(conn) -> set[str]:
+    rows = conn.execute("SELECT dia FROM atividade_dias").fetchall()
+    return {r["dia"] for r in rows}

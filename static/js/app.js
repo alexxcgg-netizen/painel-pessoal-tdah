@@ -14,6 +14,57 @@ const ICONE_PLUS =
 const fmtMoeda = (valor) =>
   Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+// Mascara de moeda BR no estilo "digito da direita pra esquerda" (o mesmo
+// dos apps de banco): o campo so guarda digitos, os 2 ultimos viram
+// centavos, e o texto e sempre reconstruido do zero a cada tecla - por
+// isso apagar nunca desorganiza a pontuacao nem o cursor (ele so encolhe
+// a string de digitos e redesenha).
+function aplicarMascaraMoeda(input) {
+  input.addEventListener("input", () => {
+    let digitos = input.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+    if (!digitos) {
+      input.value = "";
+      return;
+    }
+    digitos = digitos.padStart(3, "0");
+    const inteiro = digitos.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const centavos = digitos.slice(-2);
+    input.value = `${inteiro},${centavos}`;
+  });
+}
+
+function valorMascaraParaNumero(texto) {
+  const limpo = texto.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(limpo);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Mesma logica de digito-a-digito pra data: so digitos, barras entram
+// sozinhas conforme a posicao - apagar so encolhe os digitos, nunca deixa
+// barra sobrando nem quebra o cursor.
+function aplicarMascaraData(input) {
+  input.addEventListener("input", () => {
+    const digitos = input.value.replace(/\D/g, "").slice(0, 8);
+    const partes = [];
+    if (digitos.length > 0) partes.push(digitos.slice(0, 2));
+    if (digitos.length > 2) partes.push(digitos.slice(2, 4));
+    if (digitos.length > 4) partes.push(digitos.slice(4, 8));
+    input.value = partes.join("/");
+  });
+}
+
+function mascaraDataParaIso(texto) {
+  const m = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const dia = Number(m[1]);
+  const mes = Number(m[2]);
+  const ano = Number(m[3]);
+  if (mes < 1 || mes > 12) return null;
+  const diasNoMes = new Date(ano, mes, 0).getDate();
+  if (dia < 1 || dia > diasNoMes) return null;
+  return `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}
+
 function mostrarErro(msg) {
   const banner = $("#erro-banner");
   banner.textContent = msg;
@@ -122,6 +173,7 @@ async function enviarCaptura(text, clarificacao) {
   $("#duvida-box").hidden = true;
   pulsarSucesso($("#captura-input"));
   loadSummary();
+  loadStreak();
   if (data.memoria) loadMemorias();
   if (!$("#tab-tarefas").hidden) loadTasks();
   if (!$("#tab-gastos").hidden) {
@@ -166,7 +218,9 @@ function animarNumero(el, valorFinal, formatador) {
 }
 
 async function loadSummary() {
-  $("#resumo-texto").textContent = "Carregando...";
+  const resumoEl = $("#resumo-texto");
+  resumoEl.classList.add("carregando");
+  resumoEl.textContent = "Carregando...";
 
   const [data, tasks, metas] = await Promise.all([
     apiFetch("/api/summary/today"),
@@ -180,13 +234,26 @@ async function loadSummary() {
     animarNumero($("#stat-metas"), ativas);
   }
 
+  resumoEl.classList.remove("carregando");
   if (!data) {
-    $("#resumo-texto").textContent = "Nao consegui gerar o resumo agora.";
+    resumoEl.textContent = "Nao consegui gerar o resumo agora.";
     return;
   }
   animarNumero($("#stat-gasto"), data.gasto_hoje, fmtMoeda);
-  $("#resumo-texto").textContent = data.summary;
+  resumoEl.textContent = data.summary;
   $("#resumo-stats").textContent = `${data.tarefas_concluidas} tarefa(s) concluida(s) hoje`;
+}
+
+async function loadStreak() {
+  const data = await apiFetch("/api/streak");
+  const chip = $("#streak-chip");
+  if (!data || data.dias < 1) {
+    chip.hidden = true;
+    return;
+  }
+  $("#streak-texto").textContent =
+    data.dias === 1 ? "1 dia seguido usando o painel" : `${data.dias} dias seguidos usando o painel`;
+  chip.hidden = false;
 }
 
 function fmtHora(isoString) {
@@ -302,6 +369,7 @@ async function enviarChat(texto) {
 
   lista.appendChild(criarBolhaChat("assistant", data.resposta));
   lista.scrollTop = lista.scrollHeight;
+  loadStreak();
 
   if (data.acoes && data.acoes.length > 0) {
     loadSummary();
@@ -483,6 +551,41 @@ async function loadLembretes() {
   });
 }
 
+aplicarMascaraData($("#lembrete-data"));
+
+$("#lembrete-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#lembrete-btn");
+  const tituloInput = $("#lembrete-titulo");
+  const dataInput = $("#lembrete-data");
+  const titulo = tituloInput.value.trim();
+  const dataIso = mascaraDataParaIso(dataInput.value.trim());
+  if (!titulo || !dataIso) {
+    mostrarErro("Confere o titulo e a data (dd/mm/aaaa).");
+    return;
+  }
+
+  setBotaoCarregando(btn, true, "salvando...");
+  const data = await apiFetch("/api/lembretes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      titulo,
+      data: dataIso,
+      recorrente: $("#lembrete-recorrente").checked,
+    }),
+  });
+  setBotaoCarregando(btn, false, "Adicionar");
+  if (!data) return;
+
+  tituloInput.value = "";
+  dataInput.value = "";
+  $("#lembrete-recorrente").checked = false;
+  pulsarSucesso(tituloInput);
+  loadLembretes();
+  loadStreak();
+});
+
 async function loadUso() {
   const data = await apiFetch("/api/uso/total");
   if (!data) return;
@@ -534,6 +637,7 @@ function criarItemTarefa(t) {
       setTimeout(() => {
         loadTasks();
         loadSummary();
+        loadStreak();
       }, 220);
     }
   });
@@ -770,15 +874,15 @@ function criarItemMeta(meta) {
   const guardarWrap = document.createElement("div");
   guardarWrap.className = "meta-guardar";
   const input = document.createElement("input");
-  input.type = "number";
-  input.step = "0.01";
-  input.min = "0.01";
+  input.type = "text";
+  input.inputMode = "decimal";
   input.placeholder = "guardei R$...";
+  aplicarMascaraMoeda(input);
   const btn = document.createElement("button");
   btn.className = "btn-com-icone";
   btn.innerHTML = `${ICONE_PLUS}Registrar`;
   btn.addEventListener("click", async () => {
-    const valor = parseFloat(input.value);
+    const valor = valorMascaraParaNumero(input.value);
     if (!valor || valor <= 0) return;
     setBotaoCarregando(btn, true, "salvando...");
     const data = await apiFetch(`/api/metas/${meta.id}/guardar`, {
@@ -787,7 +891,10 @@ function criarItemMeta(meta) {
       body: JSON.stringify({ valor }),
     });
     setBotaoCarregando(btn, false, "Registrar");
-    if (data) loadMetas();
+    if (data) {
+      loadMetas();
+      loadStreak();
+    }
   });
   guardarWrap.appendChild(input);
   guardarWrap.appendChild(btn);
@@ -806,15 +913,18 @@ async function loadMetas() {
 }
 
 async function loadConstrutora() {
-  $("#construtora-info").textContent = "Carregando...";
+  const info = $("#construtora-info");
+  info.classList.add("carregando");
+  info.textContent = "Carregando...";
   const data = await apiFetch("/api/construtora/resumo");
+  info.classList.remove("carregando");
   if (!data) return;
   if (!data.configurado) {
-    $("#construtora-info").textContent = "Ainda nao conectado a API da construtora.";
+    info.textContent = "Ainda nao conectado a API da construtora.";
   } else if (data.erro) {
-    $("#construtora-info").textContent = data.erro;
+    info.textContent = data.erro;
   } else {
-    $("#construtora-info").textContent = JSON.stringify(data.dados);
+    info.textContent = JSON.stringify(data.dados);
   }
 }
 
@@ -928,6 +1038,7 @@ if ("serviceWorker" in navigator) {
 
 loadSummary();
 loadUso();
+loadStreak();
 loadAgenda();
 loadMemorias();
 loadLembretes();

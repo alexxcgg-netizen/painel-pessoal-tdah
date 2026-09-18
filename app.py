@@ -16,6 +16,7 @@ import maps_client
 import notificacoes
 import pluggy_client
 import push_client
+import streak
 from db import (
     CAMPOS_SAUDE,
     add_to_goal,
@@ -32,6 +33,7 @@ from db import (
     insert_bank_transactions,
     ja_notificou_hoje,
     list_chat_mensagens,
+    list_dias_ativos,
     list_goals,
     list_lembretes,
     list_memorias,
@@ -39,6 +41,7 @@ from db import (
     marcar_notificado,
     media_passos_ultimos_dias,
     record_usage,
+    registrar_atividade,
     salvar_mensagem_chat,
     save_push_subscription,
     total_cost_usd,
@@ -54,6 +57,10 @@ CLAUDE_FORMAT_ERROR_MSG = "A IA respondeu em um formato inesperado. Tenta de nov
 
 def _log_usage(conn, usage: dict):
     record_usage(conn, usage["model"], usage["input_tokens"], usage["output_tokens"], usage["cost_usd"])
+
+
+def _marcar_atividade(conn):
+    registrar_atividade(conn, date.today().isoformat())
 
 
 def _call_claude(fn, *args):
@@ -127,6 +134,7 @@ def capture():
     if parsed.get("memoria"):
         create_memoria(conn, parsed["memoria"], full_text)
 
+    _marcar_atividade(conn)
     conn.commit()
     conn.close()
     return jsonify(parsed), 201
@@ -154,6 +162,7 @@ def list_tasks():
 def complete_task(task_id):
     conn = get_db()
     conn.execute("UPDATE tasks SET completed_at = datetime('now') WHERE id = ?", (task_id,))
+    _marcar_atividade(conn)
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -191,6 +200,7 @@ def breakdown_task(task_id):
 def complete_subtask(subtask_id):
     conn = get_db()
     conn.execute("UPDATE subtasks SET completed_at = datetime('now') WHERE id = ?", (subtask_id,))
+    _marcar_atividade(conn)
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -338,6 +348,8 @@ def plano_do_dia():
     texto, usage = result
 
     _log_usage(conn, usage)
+    _marcar_atividade(conn)
+    conn.commit()
     conn.close()
     return jsonify({"plano": texto})
 
@@ -440,6 +452,7 @@ def chat():
     _log_usage(conn, usage)
     salvar_mensagem_chat(conn, "user", texto)
     salvar_mensagem_chat(conn, "assistant", resposta)
+    _marcar_atividade(conn)
     conn.close()
     return jsonify({"resposta": resposta, "acoes": acoes})
 
@@ -575,12 +588,43 @@ def lembretes():
     return jsonify(resultado)
 
 
+@app.route("/api/lembretes", methods=["POST"])
+def criar_lembrete():
+    body = request.json or {}
+    titulo = (body.get("titulo") or "").strip()
+    data_str = (body.get("data") or "").strip()
+    recorrente = bool(body.get("recorrente", False))
+    if not titulo:
+        return jsonify({"error": "informe um titulo"}), 400
+    try:
+        date.fromisoformat(data_str)
+    except (ValueError, TypeError):
+        return jsonify({"error": "data precisa estar em formato AAAA-MM-DD"}), 400
+
+    conn = get_db()
+    lembrete_id = create_lembrete(conn, titulo, data_str, recorrente)
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": lembrete_id, "ok": True}), 201
+
+
 @app.route("/api/lembretes/<int:lembrete_id>", methods=["DELETE"])
 def apagar_lembrete(lembrete_id):
     conn = get_db()
     delete_lembrete(conn, lembrete_id)
     conn.close()
     return jsonify({"ok": True})
+
+
+@app.route("/api/streak", methods=["GET"])
+def streak_atual():
+    conn = get_db()
+    dias_ativos = list_dias_ativos(conn)
+    conn.close()
+    hoje = date.today()
+    dias = streak.calcular_streak(dias_ativos, hoje)
+    return jsonify({"dias": dias, "ativo_hoje": hoje.isoformat() in dias_ativos})
 
 
 @app.route("/api/saude/importar", methods=["POST"])
@@ -771,9 +815,12 @@ def guardar_meta(goal_id):
     conn = get_db()
     add_to_goal(conn, goal_id, valor)
     goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
-    conn.close()
     if not goal:
+        conn.close()
         return jsonify({"error": "meta nao encontrada"}), 404
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
     return jsonify(_calculo_meta(dict(goal)))
 
 

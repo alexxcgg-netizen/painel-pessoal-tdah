@@ -822,6 +822,36 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(self.client.get("/api/lembretes").get_json(), [])
 
+    def test_criar_lembrete_manual(self):
+        res = self.client.post(
+            "/api/lembretes",
+            json={"titulo": "Seguro do carro", "data": "2027-05-20", "recorrente": True},
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertTrue(res.get_json()["ok"])
+
+        lembretes = self.client.get("/api/lembretes").get_json()
+        self.assertEqual(len(lembretes), 1)
+        self.assertEqual(lembretes[0]["titulo"], "Seguro do carro")
+        self.assertEqual(lembretes[0]["recorrente"], 1)
+
+    def test_criar_lembrete_sem_titulo_rejeita(self):
+        res = self.client.post("/api/lembretes", json={"titulo": "  ", "data": "2027-05-20"})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(self.client.get("/api/lembretes").get_json(), [])
+
+    def test_criar_lembrete_com_data_invalida_rejeita(self):
+        for data_ruim in ["31/12/2027", "2027-13-40", "", None, "amanha"]:
+            res = self.client.post("/api/lembretes", json={"titulo": "X", "data": data_ruim})
+            self.assertEqual(res.status_code, 400, msg=f"deveria rejeitar data={data_ruim!r}")
+        self.assertEqual(self.client.get("/api/lembretes").get_json(), [])
+
+    def test_criar_lembrete_registra_atividade_do_dia(self):
+        self.client.post("/api/lembretes", json={"titulo": "X", "data": "2027-05-20"})
+        streak_data = self.client.get("/api/streak").get_json()
+        self.assertEqual(streak_data["dias"], 1)
+        self.assertTrue(streak_data["ativo_hoje"])
+
     def test_chat_usa_executor_de_lembrete_de_verdade(self):
         def fake_chat(mensagens, contexto, memorias, executores):
             resultado = executores["registrar_lembrete"](
@@ -962,6 +992,42 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         args = mock_summarize.call_args[0]
         self.assertIsNone(args[6])
+
+    def test_streak_zero_sem_nenhuma_atividade(self):
+        res = self.client.get("/api/streak")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), {"dias": 0, "ativo_hoje": False})
+
+    def test_streak_sobe_ao_completar_tarefa(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES ('lavar o aviao')")
+        conn.commit()
+        task_id = conn.execute("SELECT id FROM tasks").fetchone()["id"]
+        conn.close()
+
+        self.client.post(f"/api/tasks/{task_id}/complete")
+        data = self.client.get("/api/streak").get_json()
+        self.assertEqual(data, {"dias": 1, "ativo_hoje": True})
+
+    def test_streak_conta_dias_consecutivos_ja_registrados(self):
+        conn = db.get_db()
+        hoje = date.today()
+        for i in range(3):
+            db.registrar_atividade(conn, (hoje - timedelta(days=i)).isoformat())
+        conn.close()
+
+        data = self.client.get("/api/streak").get_json()
+        self.assertEqual(data, {"dias": 3, "ativo_hoje": True})
+
+    def test_streak_nao_conta_atividade_de_dias_nao_consecutivos(self):
+        conn = db.get_db()
+        hoje = date.today()
+        db.registrar_atividade(conn, hoje.isoformat())
+        db.registrar_atividade(conn, (hoje - timedelta(days=5)).isoformat())
+        conn.close()
+
+        data = self.client.get("/api/streak").get_json()
+        self.assertEqual(data["dias"], 1)
 
 
 if __name__ == "__main__":

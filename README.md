@@ -340,12 +340,49 @@ chegando perto: validade da licenca ou do exame medico de piloto, vencimento de 
 do carro, aniversario de alguem. Isso vive numa tabela propria (`lembretes`), separada de tarefas,
 justamente pra nao poluir a lista do dia a dia com algo que so faz sentido avisar la na frente.
 
-So da pra registrar pelo **chat** (ex: "meu exame medico de piloto vence dia 15 de janeiro, todo
+Da pra registrar pelo **chat** (ex: "meu exame medico de piloto vence dia 15 de janeiro, todo
 ano"): a IA extrai titulo, data e se repete todo ano (`recorrente`). Pra recorrente, o calculo de
 "quando e a proxima vez" (achar o proximo aniversario dessa data a partir de hoje) e feito em
 Python (`notificacoes._proxima_ocorrencia`), nunca pela IA. Quando falta 7 dias ou menos pra
 proxima ocorrencia, entra na verificacao proativa (ver secao "Notificacoes" acima) e manda push.
 Visivel e apagavel na aba Painel, em "Datas importantes".
+
+Tambem da pra registrar direto por um formulario curto (titulo + data + "todo ano"), sem precisar
+passar pelo chat - util quando voce so quer anotar algo rapido sem conversar (`POST /api/lembretes`).
+
+## Passada de detalhe (mascara BR, animacao, streak)
+
+**Mascara de moeda e de data (padrao "digito da direita pra esquerda")**: o campo "guardei R$..."
+de uma meta agora e texto mascarado em vez de `<input type="number">` (que so aceita ponto como
+separador decimal, nunca virgula, e nao tinha como formatar em `1.234,56`). A mascara guarda so os
+digitos que voce digitou - os 2 ultimos sempre viram centavos - e reconstroi o texto inteiro a
+cada tecla (`aplicarMascaraMoeda` em `app.js`). O mesmo raciocinio vale pro campo de data do
+formulario de lembrete (`aplicarMascaraData`): so digitos, as barras entram sozinhas na posicao
+certa. Como o texto e sempre refeito do zero a partir dos digitos que sobraram, apagar (backspace)
+nunca deixa pontuacao ou barra solta nem quebra o cursor - e o mesmo padrao usado nos apps de
+banco brasileiros. A conversao pra numero/ISO antes de mandar pra API (`valorMascaraParaNumero`,
+`mascaraDataParaIso`) e Python puro por baixo, sem envolver a IA.
+
+**Sequencia de uso (streak)**: toda acao real no painel (falar no chat, capturar algo, concluir
+tarefa/subtarefa, gerar plano do dia, guardar em meta, registrar lembrete) marca o dia de hoje como
+ativo numa tabela simples (`atividade_dias`). `GET /api/streak` conta quantos dias seguidos tem
+atividade, terminando hoje ou ontem - se voce ainda nao abriu o app hoje mas abriu ontem, a
+sequencia continua valendo (so quebra depois de um dia inteiro sem uso, pra nao punir as 00h01). A
+conta em si e uma funcao pura e testada a parte (`streak.calcular_streak`, com um stress test de
+200 cenarios aleatorios contra uma implementacao de referencia). Aparece como um selo com chama
+animada no topo da aba Hoje quando a sequencia e maior que zero.
+
+**Mais uma rodada de animacao e textura**: cartoes (itens de lista, tiles do resumo, bolha do chat
+do assistente) ganharam sombra suave em camadas (`--shadow-card`) e um leve gradiente interno em
+vez de fundo chapado, cantos mais arredondados (16px→20px nos cartoes, 10-12px→14px em
+inputs/botoes), e entram em cascata (cada item da lista com um pequeno atraso a mais que o
+anterior) em vez de todos ao mesmo tempo. Uma textura de ruido bem sutil (`feTurbulence` via SVG
+inline, opacidade ~3.5%, `mix-blend-mode: overlay`) cobre a tela inteira pra tirar a sensacao de
+"plano/chapado". O titulo "Painel Pessoal" tem um gradiente que respira lentamente; icones de
+estado vazio pulsam devagar; checkbox de subtarefa da um "pop" ao marcar; botoes levantam
+levemente e o icone cresce um pouco ao passar o mouse (`@media (hover: hover)`, pra nao interferir
+no toque em celular). Texto "Carregando..." em resumo/construtora agora e um shimmer em vez de
+texto estatico.
 
 ## Roadmap
 
