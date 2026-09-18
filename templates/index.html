@@ -71,6 +71,26 @@
       </p>
       <ul id="lista-agenda"></ul>
 
+      <h2 class="secao-secundaria">Saude hoje</h2>
+      <p id="saude-vazio" class="dica-metas">
+        Sem dados hoje ainda - configure um Atalho no iPhone pra mandar passos/sono automaticamente
+        (veja o README).
+      </p>
+      <div id="saude-grid" class="stats-grid" hidden>
+        <div class="stat-tile stat-tile-saude" data-campo="passos">
+          <span class="stat-tile-valor" id="saude-passos">-</span>
+          <span class="stat-tile-label">passos</span>
+        </div>
+        <div class="stat-tile stat-tile-saude" data-campo="distancia">
+          <span class="stat-tile-valor" id="saude-distancia">-</span>
+          <span class="stat-tile-label">km andados</span>
+        </div>
+        <div class="stat-tile stat-tile-saude" data-campo="sono">
+          <span class="stat-tile-valor" id="saude-sono">-</span>
+          <span class="stat-tile-label">h de sono</span>
+        </div>
+      </div>
+
       <h2 class="secao-secundaria">Plano do dia</h2>
       <p class="dica-metas">Olha suas tarefas pendentes e os compromissos de hoje e sugere a melhor ordem.</p>
       <button id="plano-btn" class="btn-conectar">Gerar plano do dia</button>

@@ -207,6 +207,23 @@ async function loadAgenda() {
   });
 }
 
+async function loadSaude() {
+  const data = await apiFetch("/api/saude/hoje");
+  if (!data) return;
+
+  const dados = data.dados;
+  const temAlgumDado =
+    dados && (dados.passos != null || dados.distancia_km != null || dados.sono_horas != null);
+
+  $("#saude-vazio").hidden = temAlgumDado;
+  $("#saude-grid").hidden = !temAlgumDado;
+  if (!temAlgumDado) return;
+
+  $("#saude-passos").textContent = dados.passos != null ? dados.passos.toLocaleString("pt-BR") : "-";
+  $("#saude-distancia").textContent = dados.distancia_km != null ? dados.distancia_km.toFixed(1) : "-";
+  $("#saude-sono").textContent = dados.sono_horas != null ? dados.sono_horas.toFixed(1) : "-";
+}
+
 async function loadMemorias() {
   const memorias = await apiFetch("/api/memorias");
   if (!memorias) return;
@@ -694,4 +711,5 @@ loadSummary();
 loadUso();
 loadAgenda();
 loadMemorias();
+loadSaude();
 initViagemOrigemPadrao();

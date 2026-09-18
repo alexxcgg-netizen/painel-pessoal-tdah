@@ -103,6 +103,12 @@ button:active:not(:disabled) {
   transform: scale(0.94);
 }
 
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 45%, transparent);
+  border-radius: 6px;
+}
+
 .spinner {
   display: inline-block;
   width: 0.85em;
@@ -301,12 +307,14 @@ h2 {
   background: var(--surface);
   color: var(--text);
   font-size: 0.95rem;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 #captura-input:focus,
 #duvida-input:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 #captura-input.sucesso {
@@ -409,6 +417,18 @@ h2 {
   --tile-cor: var(--cor-bancos);
 }
 
+#saude-grid.stats-grid .stat-tile:nth-child(1) {
+  --tile-cor: var(--cor-financeiro);
+}
+
+#saude-grid.stats-grid .stat-tile:nth-child(2) {
+  --tile-cor: var(--cor-tarefas);
+}
+
+#saude-grid.stats-grid .stat-tile:nth-child(3) {
+  --tile-cor: var(--cor-hoje);
+}
+
 .stat-tile-valor {
   font-size: 1.35rem;
   font-weight: 700;
@@ -509,7 +529,7 @@ li.item.saindo {
 }
 
 .item-acoes button.primario {
-  background: var(--accent-gradient);
+  background: var(--cor-tarefas);
   border-color: transparent;
   color: var(--accent-text);
   font-weight: 700;
@@ -517,7 +537,7 @@ li.item.saindo {
 
 .item-acoes button.primario:hover:not(:disabled) {
   filter: brightness(1.08);
-  box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--cor-tarefas) 60%, transparent);
 }
 
 .subtarefas {
@@ -727,17 +747,18 @@ li.item.saindo {
 .meta-guardar button {
   padding: 0.4rem 0.7rem;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--cor-financeiro) 40%, transparent);
+  background: rgba(66, 187, 145, 0.14);
+  color: #9fe0c9;
+  font-weight: 700;
   font-size: 0.78rem;
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .meta-guardar button:hover:not(:disabled) {
-  border-color: #3a4152;
-  background: #262b37;
+  background: rgba(66, 187, 145, 0.24);
+  box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--cor-financeiro) 50%, transparent);
 }
 
 .badge-sucesso {

@@ -184,6 +184,43 @@ API em si nao e ilimitada de graca se um dia usar muito mais que isso.
 agendador de notificacoes (que ainda depende de hospedagem fixa, ver secoes acima). Hoje voce
 mesmo abre a calculadora quando quiser saber o horario de saida.
 
+## Saude (passos, distancia, sono) — via Atalhos do iPhone
+
+Nao existe uma API na nuvem da Apple Health pra puxar esses dados de fora (fica tudo no
+aparelho, por design de privacidade) - entao o caminho e o app **Atalhos** nativo do iPhone
+mandando os dados pra fora periodicamente, sem precisar de Apple Watch nem app na App Store.
+Sem Watch, o iPhone sozinho ja rastreia passos/distancia pelo sensor de movimento; sono
+normalmente precisa ser registrado manualmente ou por outro app de sono, entao esse dado tende a
+aparecer com menos frequencia.
+
+### Como montar o Atalho
+
+1. Abre o app **Atalhos** no iPhone → aba Automacao → "+" → "Criar Automacao Pessoal"
+2. Escolhe um gatilho (ex: "Hora do dia", todo dia as 22h)
+3. Adiciona a acao **"Obter Amostras de Saude"** (Health Samples) pra cada tipo que quiser
+   (Contagem de Passos, Distancia Percorrida a Pe/Corrida, Horas de Sono) com intervalo "Hoje"
+4. Adiciona a acao **"Obter Conteudo de URL"** (Get Contents of URL):
+   - URL: `http://SEU-IP-OU-DOMINIO:5001/api/saude/importar`
+   - Metodo: POST
+   - Cabecalhos: `Content-Type: application/json` (e `X-Webhook-Token` se voce configurou um - ver abaixo)
+   - Corpo (JSON): `{"passos": [total de passos], "distancia_km": [distancia], "sono_horas": [horas de sono]}`
+     (monta os numeros com as acoes de texto/matematica do Atalhos a partir das amostras do passo 3)
+5. Desativa "Perguntar Antes de Rodar" pra ela rodar sozinha
+
+Os dados aparecem na aba Hoje, em "Saude hoje", e entram como contexto no resumo do dia (com a
+comparacao "acima/abaixo da media dos ultimos dias" calculada em Python, nunca chutada pela IA).
+
+### Protegendo o endpoint (opcional)
+
+Como esse endpoint fica exposto pra receber POST de fora, se um dia voce hospedar o painel em
+algo acessivel pela internet (nao so na sua rede local), defina no `.env`:
+```
+SAUDE_WEBHOOK_TOKEN=escolha-uma-senha-aleatoria
+```
+e manda o header `X-Webhook-Token` com o mesmo valor no Atalho. Sem essa variavel configurada,
+qualquer um que souber a URL pode mandar dados falsos - tranquilo pra uso na sua propria rede,
+mas vale configurar antes de expor o painel publicamente.
+
 ## Memoria — o que ele lembra sobre voce
 
 Toda vez que voce escreve algo na captura, alem de classificar como tarefa/gasto/meta, a IA
@@ -211,6 +248,13 @@ dessaturadas por secao (lavanda, azul, verde-jade, ambar, coral) em vez de gradi
 tipo app de tecnologia. Fonte e Inter/SF Pro (a mesma familia que o iOS usa nativamente), com
 letter-spacing negativo nos titulos - o objetivo e parecer mais discreto/premium e menos
 "aplicativo gritando por atencao".
+
+Cada acao principal usa a cor da propria secao em vez de repetir sempre a mesma (concluir tarefa
+= azul, registrar em meta = verde-jade, importar extrato = ambar, saude = uma cor por
+metrica) - da mais variedade sem virar um arco-iris aleatorio. Detalhes tambem ganharam atencao:
+anel de foco consistente em qualquer elemento navegavel por teclado/VoiceOver, transicao suave
+no campo de captura ao focar, sombra dos botoes sempre na cor do proprio botao (`color-mix`) em
+vez de uma cor generica fixa.
 
 ## Roadmap
 

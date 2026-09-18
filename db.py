@@ -91,6 +91,16 @@ def init_db():
             source_text TEXT,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS saude_dados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT NOT NULL UNIQUE,
+            passos INTEGER,
+            distancia_km REAL,
+            sono_horas REAL,
+            andares_subidos INTEGER,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -217,3 +227,45 @@ def list_memorias(conn, limit: int = 30) -> list[dict]:
 def delete_memoria(conn, memoria_id: int):
     conn.execute("DELETE FROM memorias WHERE id = ?", (memoria_id,))
     conn.commit()
+
+
+CAMPOS_SAUDE = ("passos", "distancia_km", "sono_horas", "andares_subidos")
+
+
+def upsert_saude_dia(conn, data: str, campos: dict):
+    """Grava (ou atualiza, se o dia ja existir) os campos de saude informados
+    pra aquele dia - so mexe nos campos presentes em `campos`, preserva o
+    resto (o Atalho do iPhone pode mandar so passos numa chamada e sono
+    noutra, por exemplo)."""
+    existente = conn.execute("SELECT * FROM saude_dados WHERE data = ?", (data,)).fetchone()
+    valores = {campo: campos.get(campo) for campo in CAMPOS_SAUDE}
+    if existente:
+        for campo in CAMPOS_SAUDE:
+            if valores[campo] is None:
+                valores[campo] = existente[campo]
+        conn.execute(
+            """UPDATE saude_dados SET passos = ?, distancia_km = ?, sono_horas = ?,
+               andares_subidos = ? WHERE data = ?""",
+            (*[valores[c] for c in CAMPOS_SAUDE], data),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO saude_dados (data, passos, distancia_km, sono_horas, andares_subidos)
+               VALUES (?, ?, ?, ?, ?)""",
+            (data, *[valores[c] for c in CAMPOS_SAUDE]),
+        )
+    conn.commit()
+
+
+def get_saude_dia(conn, data: str) -> dict | None:
+    row = conn.execute("SELECT * FROM saude_dados WHERE data = ?", (data,)).fetchone()
+    return dict(row) if row else None
+
+
+def media_passos_ultimos_dias(conn, antes_de: str, dias: int = 7) -> float | None:
+    row = conn.execute(
+        """SELECT AVG(passos) AS media FROM saude_dados
+           WHERE data < ? AND data >= date(?, ?) AND passos IS NOT NULL""",
+        (antes_de, antes_de, f"-{dias} days"),
+    ).fetchone()
+    return row["media"]

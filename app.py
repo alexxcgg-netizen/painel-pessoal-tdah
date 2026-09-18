@@ -16,6 +16,7 @@ import maps_client
 import pluggy_client
 import push_client
 from db import (
+    CAMPOS_SAUDE,
     add_to_goal,
     create_goal,
     create_memoria,
@@ -23,14 +24,17 @@ from db import (
     delete_push_subscription,
     get_db,
     get_or_create_bank_account,
+    get_saude_dia,
     init_db,
     insert_bank_transactions,
     list_goals,
     list_memorias,
     list_push_subscriptions,
+    media_passos_ultimos_dias,
     record_usage,
     save_push_subscription,
     total_cost_usd,
+    upsert_saude_dia,
 )
 
 app = Flask(__name__)
@@ -192,6 +196,28 @@ def list_expenses():
     return jsonify([dict(r) for r in rows])
 
 
+def _saude_contexto_resumo(conn) -> str | None:
+    """Monta uma frase factual sobre a saude de hoje pro resumo do dia -
+    a comparacao com a media e feita em Python, a IA so recebe o resultado
+    pronto (nunca calcula tendencia sozinha)."""
+    hoje = date.today().isoformat()
+    dia = get_saude_dia(conn, hoje)
+    if not dia or dia.get("passos") is None:
+        return None
+
+    partes = [f"{dia['passos']} passos hoje"]
+    media = media_passos_ultimos_dias(conn, hoje)
+    if media:
+        diff_pct = (dia["passos"] - media) / media * 100
+        if diff_pct <= -20:
+            partes.append(f"bem abaixo da media dos ultimos dias ({round(media)} passos)")
+        elif diff_pct >= 20:
+            partes.append(f"bem acima da media dos ultimos dias ({round(media)} passos)")
+    if dia.get("sono_horas"):
+        partes.append(f"{dia['sono_horas']}h de sono")
+    return ", ".join(partes)
+
+
 def _eventos_de_hoje_com_seguranca() -> list[dict]:
     """A agenda do iCloud via CalDAV e instavel (ver caldav_client.py) - se
     falhar, o resumo do dia nao pode quebrar por causa disso."""
@@ -215,6 +241,7 @@ def summary_today():
     gasto_hoje = sum(r["amount"] for r in expenses)
     eventos = _eventos_de_hoje_com_seguranca()
     memorias = list_memorias(conn)
+    saude = _saude_contexto_resumo(conn)
 
     result, error = _call_claude(
         claude_client.summarize_day,
@@ -223,6 +250,7 @@ def summary_today():
         [dict(r) for r in expenses],
         [e["titulo"] for e in eventos],
         [m["texto"] for m in memorias],
+        saude,
     )
     if error:
         conn.close()
@@ -339,6 +367,40 @@ def apagar_memoria(memoria_id):
     delete_memoria(conn, memoria_id)
     conn.close()
     return jsonify({"ok": True})
+
+
+@app.route("/api/saude/importar", methods=["POST"])
+def saude_importar():
+    token_esperado = os.environ.get("SAUDE_WEBHOOK_TOKEN")
+    if token_esperado and request.headers.get("X-Webhook-Token") != token_esperado:
+        return jsonify({"error": "token invalido"}), 401
+
+    body = request.json or {}
+    data = body.get("data") or date.today().isoformat()
+    try:
+        date.fromisoformat(data)
+    except ValueError:
+        return jsonify({"error": "data precisa estar em formato AAAA-MM-DD"}), 400
+
+    campos = {c: body[c] for c in CAMPOS_SAUDE if body.get(c) is not None}
+    if not campos:
+        return (
+            jsonify({"error": "informe ao menos um campo: " + ", ".join(CAMPOS_SAUDE)}),
+            400,
+        )
+
+    conn = get_db()
+    upsert_saude_dia(conn, data, campos)
+    conn.close()
+    return jsonify({"ok": True, "data": data, **campos})
+
+
+@app.route("/api/saude/hoje", methods=["GET"])
+def saude_hoje():
+    conn = get_db()
+    dia = get_saude_dia(conn, date.today().isoformat())
+    conn.close()
+    return jsonify({"dados": dia})
 
 
 @app.route("/api/uso/total", methods=["GET"])

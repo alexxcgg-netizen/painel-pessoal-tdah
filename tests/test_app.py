@@ -666,6 +666,62 @@ class PainelTestCase(unittest.TestCase):
             db.DB_PATH = caminho_original
             tmp.cleanup()
 
+    def test_saude_hoje_sem_dados(self):
+        res = self.client.get("/api/saude/hoje")
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNone(res.get_json()["dados"])
+
+    def test_saude_importar_grava_e_aparece_em_hoje(self):
+        res = self.client.post(
+            "/api/saude/importar", json={"passos": 8000, "distancia_km": 5.5, "sono_horas": 7.0}
+        )
+        self.assertEqual(res.status_code, 200)
+
+        dados = self.client.get("/api/saude/hoje").get_json()["dados"]
+        self.assertEqual(dados["passos"], 8000)
+        self.assertEqual(dados["distancia_km"], 5.5)
+        self.assertEqual(dados["sono_horas"], 7.0)
+
+    def test_saude_importar_so_atualiza_campos_informados(self):
+        self.client.post("/api/saude/importar", json={"passos": 8000, "sono_horas": 7.0})
+        self.client.post("/api/saude/importar", json={"passos": 9500})
+
+        dados = self.client.get("/api/saude/hoje").get_json()["dados"]
+        self.assertEqual(dados["passos"], 9500)
+        self.assertEqual(dados["sono_horas"], 7.0)
+
+    def test_saude_importar_sem_campos_da_erro(self):
+        res = self.client.post("/api/saude/importar", json={})
+        self.assertEqual(res.status_code, 400)
+
+    def test_saude_importar_data_invalida_da_erro(self):
+        res = self.client.post("/api/saude/importar", json={"passos": 100, "data": "ontem"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_saude_importar_com_token_errado_da_erro(self):
+        with patch.dict(os.environ, {"SAUDE_WEBHOOK_TOKEN": "segredo123"}):
+            res = self.client.post("/api/saude/importar", json={"passos": 100})
+            self.assertEqual(res.status_code, 401)
+
+            res_ok = self.client.post(
+                "/api/saude/importar",
+                json={"passos": 100},
+                headers={"X-Webhook-Token": "segredo123"},
+            )
+            self.assertEqual(res_ok.status_code, 200)
+
+    def test_resumo_do_dia_recebe_contexto_de_saude(self):
+        self.client.post("/api/saude/importar", json={"passos": 12000})
+
+        with patch(
+            "claude_client.summarize_day",
+            return_value=("Dia ativo.", fake_usage()),
+        ) as mock_summarize:
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        args = mock_summarize.call_args[0]
+        self.assertEqual(args[5], "12000 passos hoje")
+
 
 if __name__ == "__main__":
     unittest.main()
