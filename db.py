@@ -52,8 +52,10 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS bank_accounts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            banco TEXT NOT NULL UNIQUE,
-            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+            banco TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'conta',
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(banco, tipo)
         );
 
         CREATE TABLE IF NOT EXISTS bank_transactions (
@@ -66,17 +68,28 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(bank_account_id, external_id)
         );
+
+        CREATE TABLE IF NOT EXISTS goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            valor_alvo REAL NOT NULL,
+            prazo TEXT,
+            valor_guardado REAL NOT NULL DEFAULT 0,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
     conn.close()
 
 
-def get_or_create_bank_account(conn, banco: str) -> int:
-    row = conn.execute("SELECT id FROM bank_accounts WHERE banco = ?", (banco,)).fetchone()
+def get_or_create_bank_account(conn, banco: str, tipo: str = "conta") -> int:
+    row = conn.execute(
+        "SELECT id FROM bank_accounts WHERE banco = ? AND tipo = ?", (banco, tipo)
+    ).fetchone()
     if row:
         return row["id"]
-    cur = conn.execute("INSERT INTO bank_accounts (banco) VALUES (?)", (banco,))
+    cur = conn.execute("INSERT INTO bank_accounts (banco, tipo) VALUES (?, ?)", (banco, tipo))
     conn.commit()
     return cur.lastrowid
 
@@ -95,6 +108,27 @@ def insert_bank_transactions(conn, bank_account_id: int, transactions: list[dict
             novas += 1
     conn.commit()
     return novas
+
+
+def create_goal(conn, titulo: str, valor_alvo: float, prazo: str | None) -> int:
+    cur = conn.execute(
+        "INSERT INTO goals (titulo, valor_alvo, prazo) VALUES (?, ?, ?)",
+        (titulo, valor_alvo, prazo),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def add_to_goal(conn, goal_id: int, valor: float):
+    conn.execute(
+        "UPDATE goals SET valor_guardado = valor_guardado + ? WHERE id = ?", (valor, goal_id)
+    )
+    conn.commit()
+
+
+def list_goals(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM goals ORDER BY criado_em DESC").fetchall()
+    return [dict(r) for r in rows]
 
 
 def record_usage(conn, model: str, input_tokens: int, output_tokens: int, cost_usd: float):

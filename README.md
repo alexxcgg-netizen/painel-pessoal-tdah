@@ -30,13 +30,14 @@ Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTH
 
 ## Funcionalidades (v1)
 
-- Captura de texto livre, classificado automaticamente em tarefa ou gasto
+- Captura de texto livre, classificado automaticamente em tarefa, gasto ou **meta financeira**
 - Lista de tarefas pendentes, marcar como concluida
 - Quebra de tarefa grande em passos menores (Sonnet)
 - Resumo do dia, tom neutro e factual
-- Lista de gastos categorizados
+- Aba "Financeiro": gastos categorizados + metas (ex: "quero juntar 15 mil pra uma moto ate dezembro" vira meta com calculo automatico de quanto guardar por mes - a conta e feita em Python, nao pela IA, pra nao ter erro de aritmetica)
+- Aba "Bancos": importacao manual de extrato OFX (Nubank, Caixa, Viacredi, Bradesco ou qualquer banco que exporte OFX/QFX), com conta e cartao de credito tratados como contas separadas pra ver a fatura isolada dos gastos da conta
 - Aba "Construtora": hoje e um stub (`/api/construtora/resumo`); passa a mostrar dados reais quando o painel da construtora expuser sua propria API
-- Aba "Bancos": importacao manual de extrato OFX (Nubank, Viacredi, ou qualquer banco que exporte OFX/QFX), com base pronta pra sincronizacao automatica futura
+- PWA com icone e meta tags proprias pra iOS (Dynamic Island/safe area respeitados, barra de navegacao fixa embaixo no estilo de app nativo)
 
 ## Integracao com o painel da construtora
 
@@ -71,8 +72,14 @@ Conectar direto com Nubank/Viacredi em tempo real exige o **Open Finance Brasil*
 
 Ate la, a importacao manual de OFX cobre o essencial sem precisar de conta em nenhum servico externo nem custo.
 
+## Notificacoes
+
+Push notification de verdade (a que chega mesmo com o navegador fechado) exige o app rodando o tempo todo em algum servidor, nao so quando abre no celular - isso e uma decisao de hospedagem (VPS, Raspberry Pi, etc.) que ainda nao foi tomada. Por isso ainda nao foi implementado; fica pra quando decidir onde o painel vai morar de verdade. Ate la, o resumo do dia cumpre o papel de "olhar o que importa" quando voce abre o app.
+
 ## Roadmap
 
-**Fase 1.5** — notificacao push via PWA (exige gerar VAPID keys e um endpoint de subscription; ainda nao implementado)
+**Fase 1.5** — notificacao push via PWA (exige hospedagem fixa + gerar VAPID keys + endpoint de subscription)
 
-**Fase 2** — comando de voz livre; integracao com Home Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa)
+**Fase 2** — comando de voz livre; integracao com Home Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa); sincronizacao bancaria automatica via Open Finance (ver secao acima)
+
+**Ideia futura** — se o painel pessoal se provar util, replicar pra outros membros da familia (cada um com seu proprio banco de dados/instancia - nunca compartilhando dados entre si sem pedir)

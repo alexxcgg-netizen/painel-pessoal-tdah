@@ -45,7 +45,10 @@ function showTab(name) {
     btn.classList.toggle("active", btn.dataset.tab === name);
   });
   if (name === "tarefas") loadTasks();
-  if (name === "gastos") loadExpenses();
+  if (name === "gastos") {
+    loadExpenses();
+    loadMetas();
+  }
   if (name === "bancos") loadBancos();
   if (name === "construtora") loadConstrutora();
 }
@@ -104,7 +107,10 @@ async function enviarCaptura(text, clarificacao) {
   pulsarSucesso($("#captura-input"));
   loadSummary();
   if (!$("#tab-tarefas").hidden) loadTasks();
-  if (!$("#tab-gastos").hidden) loadExpenses();
+  if (!$("#tab-gastos").hidden) {
+    loadExpenses();
+    loadMetas();
+  }
 }
 
 $("#captura-btn").addEventListener("click", () => {
@@ -282,13 +288,14 @@ function criarItemBanco(conta) {
   const info = document.createElement("div");
   const nome = document.createElement("span");
   nome.className = "item-titulo";
-  nome.textContent = conta.banco.charAt(0).toUpperCase() + conta.banco.slice(1);
+  const rotuloTipo = conta.tipo === "cartao" ? "cartao" : "conta";
+  nome.textContent = `${conta.banco.charAt(0).toUpperCase() + conta.banco.slice(1)} (${rotuloTipo})`;
   info.appendChild(nome);
 
   const stats = document.createElement("span");
   stats.className = "item-quando";
   stats.textContent = conta.ultima_transacao
-    ? `${conta.total_transacoes} transacao(oes) - ultima em ${conta.ultima_transacao}`
+    ? `${conta.total_transacoes} transacao(oes) - ${fmtMoeda(conta.total_gasto)} em gastos - ultima em ${conta.ultima_transacao}`
     : "nenhuma transacao ainda";
   info.appendChild(stats);
 
@@ -315,6 +322,7 @@ async function loadBancos() {
 $("#importar-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const banco = $("#banco-select").value;
+  const tipo = $("#tipo-select").value;
   const arquivo = $("#ofx-input").files[0];
   if (!arquivo) return;
 
@@ -323,6 +331,7 @@ $("#importar-form").addEventListener("submit", async (e) => {
 
   const form = new FormData();
   form.append("banco", banco);
+  form.append("tipo", tipo);
   form.append("arquivo", arquivo);
   const data = await apiFetch("/api/bancos/importar", { method: "POST", body: form });
 
@@ -334,6 +343,72 @@ $("#importar-form").addEventListener("submit", async (e) => {
     `Importado: ${data.novas} nova(s), ${data.duplicadas} ja existiam de ${data.encontradas} encontradas.`;
   loadBancos();
 });
+
+function criarItemMeta(meta) {
+  const li = document.createElement("li");
+  li.className = "item";
+
+  const titulo = document.createElement("span");
+  titulo.className = "item-titulo";
+  titulo.textContent = meta.titulo;
+  li.appendChild(titulo);
+
+  const pct = Math.min(100, (meta.valor_guardado / meta.valor_alvo) * 100 || 0);
+  const barra = document.createElement("div");
+  barra.className = "meta-progresso";
+  const barraInterna = document.createElement("div");
+  barraInterna.className = "meta-progresso-barra";
+  barraInterna.style.width = `${pct}%`;
+  barra.appendChild(barraInterna);
+  li.appendChild(barra);
+
+  const detalhe = document.createElement("p");
+  detalhe.className = "meta-detalhe";
+  const guardadoTxt = `${fmtMoeda(meta.valor_guardado)} de ${fmtMoeda(meta.valor_alvo)} guardado`;
+  const prazoTxt = meta.prazo
+    ? meta.por_mes != null
+      ? ` - guarde ${fmtMoeda(meta.por_mes)}/mes ate ${meta.prazo}`
+      : ` - prazo: ${meta.prazo}`
+    : " - sem prazo definido";
+  detalhe.textContent = guardadoTxt + prazoTxt;
+  li.appendChild(detalhe);
+
+  const guardarWrap = document.createElement("div");
+  guardarWrap.className = "meta-guardar";
+  const input = document.createElement("input");
+  input.type = "number";
+  input.step = "0.01";
+  input.min = "0.01";
+  input.placeholder = "guardei R$...";
+  const btn = document.createElement("button");
+  btn.textContent = "Registrar";
+  btn.addEventListener("click", async () => {
+    const valor = parseFloat(input.value);
+    if (!valor || valor <= 0) return;
+    setBotaoCarregando(btn, true, "salvando...");
+    const data = await apiFetch(`/api/metas/${meta.id}/guardar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ valor }),
+    });
+    setBotaoCarregando(btn, false, "Registrar");
+    if (data) loadMetas();
+  });
+  guardarWrap.appendChild(input);
+  guardarWrap.appendChild(btn);
+  li.appendChild(guardarWrap);
+
+  return li;
+}
+
+async function loadMetas() {
+  const metas = await apiFetch("/api/metas");
+  if (!metas) return;
+  const list = $("#lista-metas");
+  list.innerHTML = "";
+  $("#metas-vazio").hidden = metas.length > 0;
+  metas.forEach((m) => list.appendChild(criarItemMeta(m)));
+}
 
 async function loadConstrutora() {
   $("#construtora-info").textContent = "Carregando...";

@@ -88,7 +88,8 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   max-width: 480px;
   margin: 0 auto;
-  padding: 1.25rem 1rem 3rem;
+  padding: calc(1.25rem + env(safe-area-inset-top)) 1rem
+    calc(5.25rem + env(safe-area-inset-bottom));
   background: var(--bg);
   color: var(--text);
   line-height: 1.45;
@@ -114,40 +115,48 @@ h2 {
   margin: 0 0 1rem;
 }
 
-header nav {
+#tabbar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
   display: flex;
-  gap: 0.4rem;
-  margin-bottom: 1.25rem;
+  gap: 0.3rem;
+  padding: 0.5rem 0.6rem calc(0.5rem + env(safe-area-inset-bottom));
+  background: rgba(13, 15, 20, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid var(--border);
+  z-index: 10;
 }
 
 .tab-btn {
   flex: 1;
   min-width: 0;
-  padding: 0.55rem 0.2rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: 0.5rem 0.15rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   line-height: 1.15;
   overflow-wrap: anywhere;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 .tab-btn:hover:not(.active) {
   background: var(--surface-2);
   color: var(--text);
-  border-color: #3a4152;
 }
 
 .tab-btn.active {
   background: var(--accent);
-  border-color: var(--accent);
   color: var(--accent-text);
   font-weight: 600;
   transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(77, 124, 255, 0.3);
 }
 
 .tab-content:not([hidden]) {
@@ -373,6 +382,7 @@ li.item {
 }
 
 #banco-select,
+#tipo-select,
 #ofx-input {
   padding: 0.6rem;
   border-radius: 10px;
@@ -382,12 +392,13 @@ li.item {
   font-size: 0.85rem;
 }
 
-#banco-select {
+#banco-select,
+#tipo-select {
   flex: 0 0 auto;
 }
 
 #ofx-input {
-  flex: 1;
+  flex: 1 1 100%;
   min-width: 0;
 }
 
@@ -409,4 +420,70 @@ li.item {
 #importar-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.secao-secundaria {
+  margin-top: 1.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.dica-metas {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: -0.4rem 0 0.75rem;
+}
+
+.meta-progresso {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+  margin: 0.5rem 0 0.4rem;
+}
+
+.meta-progresso-barra {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.meta-detalhe {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.meta-guardar {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.meta-guardar input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.meta-guardar button {
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.meta-guardar button:hover:not(:disabled) {
+  border-color: #3a4152;
+  background: #262b37;
 }

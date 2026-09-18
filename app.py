@@ -11,10 +11,13 @@ load_dotenv()
 import bank_ofx
 import claude_client
 from db import (
+    add_to_goal,
+    create_goal,
     get_db,
     get_or_create_bank_account,
     init_db,
     insert_bank_transactions,
+    list_goals,
     record_usage,
     total_cost_usd,
 )
@@ -38,6 +41,22 @@ def _call_claude(fn, *args):
         return None, (jsonify({"error": CLAUDE_ERROR_MSG}), 502)
     except (ValueError, KeyError):
         return None, (jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502)
+
+
+def _calculo_meta(goal: dict) -> dict:
+    """Faz a conta de quanto falta guardar por mes - em Python puro, nao pela IA."""
+    falta = goal["valor_alvo"] - goal["valor_guardado"]
+    por_mes = None
+    meses = None
+    if goal["prazo"]:
+        hoje = date.today()
+        prazo = date.fromisoformat(goal["prazo"])
+        meses = (prazo.year - hoje.year) * 12 + (prazo.month - hoje.month)
+        if prazo.day < hoje.day:
+            meses -= 1
+        meses = max(meses, 1)
+        por_mes = max(falta, 0) / meses
+    return {**goal, "falta": falta, "meses_restantes": meses, "por_mes": por_mes}
 
 
 @app.route("/")
@@ -74,6 +93,8 @@ def capture():
             "INSERT INTO expenses (amount, category, description, source_text) VALUES (?, ?, ?, ?)",
             (parsed["valor"], parsed.get("categoria") or "outros", parsed["titulo"], full_text),
         )
+    elif parsed["tipo"] == "meta":
+        create_goal(conn, parsed["titulo"], parsed["valor"], parsed.get("prazo"))
     else:
         conn.execute(
             "INSERT INTO tasks (title, due_at, source_text) VALUES (?, ?, ?)",
@@ -194,6 +215,9 @@ def uso_total():
 @app.route("/api/bancos/importar", methods=["POST"])
 def importar_extrato():
     banco = request.form.get("banco", "").strip().lower()
+    tipo = request.form.get("tipo", "conta").strip().lower()
+    if tipo not in ("conta", "cartao"):
+        tipo = "conta"
     arquivo = request.files.get("arquivo")
     if not banco or not arquivo:
         return jsonify({"error": "informe o banco e o arquivo OFX"}), 400
@@ -208,7 +232,7 @@ def importar_extrato():
         return jsonify({"error": "nenhuma transacao encontrada nesse arquivo"}), 400
 
     conn = get_db()
-    conta_id = get_or_create_bank_account(conn, banco)
+    conta_id = get_or_create_bank_account(conn, banco, tipo)
     novas = insert_bank_transactions(conn, conta_id, transacoes)
     conn.close()
     return jsonify(
@@ -224,15 +248,22 @@ def importar_extrato():
 @app.route("/api/bancos", methods=["GET"])
 def listar_bancos():
     conn = get_db()
-    contas = conn.execute("SELECT * FROM bank_accounts ORDER BY banco").fetchall()
+    contas = conn.execute("SELECT * FROM bank_accounts ORDER BY banco, tipo").fetchall()
     resultado = []
     for c in contas:
         stats = conn.execute(
-            "SELECT COUNT(*) AS total, MAX(data) AS ultima FROM bank_transactions WHERE bank_account_id = ?",
+            """SELECT COUNT(*) AS total, MAX(data) AS ultima,
+                      COALESCE(SUM(CASE WHEN valor < 0 THEN -valor ELSE 0 END), 0) AS total_gasto
+               FROM bank_transactions WHERE bank_account_id = ?""",
             (c["id"],),
         ).fetchone()
         resultado.append(
-            {**dict(c), "total_transacoes": stats["total"], "ultima_transacao": stats["ultima"]}
+            {
+                **dict(c),
+                "total_transacoes": stats["total"],
+                "ultima_transacao": stats["ultima"],
+                "total_gasto": stats["total_gasto"],
+            }
         )
     conn.close()
     return jsonify(resultado)
@@ -264,6 +295,29 @@ def bancos_sync_status():
             ),
         }
     )
+
+
+@app.route("/api/metas", methods=["GET"])
+def metas():
+    conn = get_db()
+    goals = list_goals(conn)
+    conn.close()
+    return jsonify([_calculo_meta(g) for g in goals])
+
+
+@app.route("/api/metas/<int:goal_id>/guardar", methods=["POST"])
+def guardar_meta(goal_id):
+    valor = (request.json or {}).get("valor")
+    if not isinstance(valor, (int, float)) or valor <= 0:
+        return jsonify({"error": "informe um valor positivo"}), 400
+
+    conn = get_db()
+    add_to_goal(conn, goal_id, valor)
+    goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
+    conn.close()
+    if not goal:
+        return jsonify({"error": "meta nao encontrada"}), 404
+    return jsonify(_calculo_meta(dict(goal)))
 
 
 @app.route("/api/construtora/resumo", methods=["GET"])

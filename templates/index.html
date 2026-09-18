@@ -2,39 +2,39 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Painel Pessoal</title>
+
   <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/static/icons/icon-180.png" />
   <link rel="manifest" href="/static/manifest.json" />
   <link rel="stylesheet" href="/static/css/style.css" />
+
+  <meta name="theme-color" content="#0d0f14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Painel" />
 </head>
 <body>
   <header>
     <h1>Painel Pessoal</h1>
     <p id="uso-custo" class="custo-ia"></p>
-    <nav>
-      <button data-tab="hoje" class="tab-btn active">Hoje</button>
-      <button data-tab="tarefas" class="tab-btn">Tarefas</button>
-      <button data-tab="gastos" class="tab-btn">Gastos</button>
-      <button data-tab="bancos" class="tab-btn">Bancos</button>
-      <button data-tab="construtora" class="tab-btn">Construtora</button>
-    </nav>
   </header>
 
   <p id="erro-banner" class="erro" hidden></p>
 
+  <section id="captura">
+    <input type="text" id="captura-input" placeholder="Digite algo: tarefa, lembrete, gasto ou meta..." />
+    <button id="captura-btn">Adicionar</button>
+  </section>
+
+  <section id="duvida-box" hidden>
+    <p id="duvida-texto"></p>
+    <input type="text" id="duvida-input" placeholder="Responde aqui..." />
+    <button id="duvida-btn">Enviar</button>
+  </section>
+
   <main>
-    <section id="captura">
-      <input type="text" id="captura-input" placeholder="Digite algo: tarefa, lembrete ou gasto..." />
-      <button id="captura-btn">Adicionar</button>
-    </section>
-
-    <section id="duvida-box" hidden>
-      <p id="duvida-texto"></p>
-      <input type="text" id="duvida-input" placeholder="Responde aqui..." />
-      <button id="duvida-btn">Enviar</button>
-    </section>
-
     <section id="tab-hoje" class="tab-content">
       <h2>Resumo do dia</h2>
       <p id="resumo-texto" class="resumo-texto">Carregando...</p>
@@ -51,6 +51,11 @@
       <h2>Gastos</h2>
       <p id="gastos-vazio" class="vazio" hidden>Nenhum gasto registrado ainda.</p>
       <ul id="lista-gastos"></ul>
+
+      <h2 class="secao-secundaria">Metas</h2>
+      <p class="dica-metas">Digite algo como "quero juntar 15 mil pra uma moto ate dezembro" na captura acima.</p>
+      <p id="metas-vazio" class="vazio" hidden>Nenhuma meta ainda.</p>
+      <ul id="lista-metas"></ul>
     </section>
 
     <section id="tab-bancos" class="tab-content" hidden>
@@ -58,8 +63,14 @@
       <form id="importar-form">
         <select id="banco-select">
           <option value="nubank">Nubank</option>
+          <option value="caixa">Caixa</option>
           <option value="viacredi">Viacredi</option>
+          <option value="bradesco">Bradesco</option>
           <option value="outro">Outro</option>
+        </select>
+        <select id="tipo-select">
+          <option value="conta">Conta</option>
+          <option value="cartao">Cartao de credito</option>
         </select>
         <input type="file" id="ofx-input" accept=".ofx,.qfx" required />
         <button type="submit" id="importar-btn">Importar extrato</button>
@@ -74,6 +85,14 @@
       <p id="construtora-info">Carregando...</p>
     </section>
   </main>
+
+  <nav id="tabbar">
+    <button data-tab="hoje" class="tab-btn active">Hoje</button>
+    <button data-tab="tarefas" class="tab-btn">Tarefas</button>
+    <button data-tab="gastos" class="tab-btn">Financeiro</button>
+    <button data-tab="bancos" class="tab-btn">Bancos</button>
+    <button data-tab="construtora" class="tab-btn">Construtora</button>
+  </nav>
 
   <script src="/static/js/app.js"></script>
 </body>

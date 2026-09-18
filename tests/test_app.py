@@ -255,6 +255,89 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertFalse(res.get_json()["sincronizacao_automatica"])
 
+    def test_importar_com_tipo_cartao_fica_separado_da_conta(self):
+        self.client.post(
+            "/api/bancos/importar",
+            data={
+                "banco": "nubank",
+                "tipo": "conta",
+                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "e.ofx"),
+            },
+            content_type="multipart/form-data",
+        )
+        self.client.post(
+            "/api/bancos/importar",
+            data={
+                "banco": "nubank",
+                "tipo": "cartao",
+                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "e.ofx"),
+            },
+            content_type="multipart/form-data",
+        )
+        contas = self.client.get("/api/bancos").get_json()
+        self.assertEqual(len(contas), 2)
+        tipos = sorted(c["tipo"] for c in contas)
+        self.assertEqual(tipos, ["cartao", "conta"])
+
+    def test_captura_meta_calcula_guardar_por_mes(self):
+        from datetime import date
+
+        hoje = date.today()
+        total_meses = hoje.month - 1 + 3
+        ano = hoje.year + total_meses // 12
+        mes = total_meses % 12 + 1
+        prazo_iso = date(ano, mes, min(hoje.day, 28)).isoformat()
+
+        parsed = {
+            "tipo": "meta",
+            "titulo": "moto",
+            "valor": 1200.0,
+            "categoria": None,
+            "quando": None,
+            "prazo": prazo_iso,
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post(
+                "/api/capture", json={"text": "quero juntar 1200 pra uma moto em 3 meses"}
+            )
+        self.assertEqual(res.status_code, 201)
+
+        metas = self.client.get("/api/metas").get_json()
+        self.assertEqual(len(metas), 1)
+        meta = metas[0]
+        self.assertEqual(meta["titulo"], "moto")
+        self.assertEqual(meta["valor_alvo"], 1200.0)
+        # entre 2 e 3 meses dependendo de como o dia do mes cai - o que importa
+        # e a formula bater: por_mes * meses_restantes ~= valor_alvo
+        self.assertIn(meta["meses_restantes"], (2, 3))
+        self.assertAlmostEqual(meta["por_mes"] * meta["meses_restantes"], meta["valor_alvo"], delta=1.0)
+
+    def test_guardar_em_meta_atualiza_progresso(self):
+        parsed = {
+            "tipo": "meta",
+            "titulo": "viagem",
+            "valor": 1000.0,
+            "categoria": None,
+            "quando": None,
+            "prazo": None,
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            self.client.post("/api/capture", json={"text": "quero juntar 1000 pra viagem"})
+
+        goal_id = self.client.get("/api/metas").get_json()[0]["id"]
+        res = self.client.post(f"/api/metas/{goal_id}/guardar", json={"valor": 250})
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["valor_guardado"], 250)
+        self.assertEqual(body["falta"], 750)
+        self.assertIsNone(body["por_mes"])  # sem prazo, nao da pra calcular por mes
+
+    def test_guardar_em_meta_invalida_rejeita_valor_nao_positivo(self):
+        res = self.client.post("/api/metas/999/guardar", json={"valor": -5})
+        self.assertEqual(res.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

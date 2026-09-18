@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import date
 
 from anthropic import Anthropic
 
@@ -14,16 +15,22 @@ PRICING = {
     SONNET: (2.00, 10.00),
 }
 
-CAPTURE_PROMPT = """Classifique o texto do usuario como "tarefa" ou "gasto" e extraia os campos.
+CAPTURE_PROMPT = """Hoje e {hoje}. Classifique o texto do usuario como "tarefa", "gasto" ou "meta"
+(meta financeira, tipo "quero juntar X ate Y" ou "economizar pra comprar Z") e extraia os campos.
 Responda so com JSON, sem markdown, no formato:
-{{"tipo": "tarefa" ou "gasto", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "duvida": "..." ou null}}
+{{"tipo": "tarefa" ou "gasto" ou "meta", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "prazo": "AAAA-MM-DD" ou null, "duvida": "..." ou null}}
 
 Categorias de gasto: mercado, transporte, lazer, contas, saude, outros.
 
+Se tipo="meta": "valor" e o valor total que a pessoa quer juntar, e "prazo" e a data limite no
+formato AAAA-MM-DD - calcule a partir de hoje ({hoje}) se o texto disser algo relativo tipo
+"ate dezembro" ou "em 6 meses". Se nao houver prazo claro no texto, deixe "prazo" como null.
+
 Preencha "duvida" APENAS se o texto for realmente ambiguo demais pra classificar com confianca
-(ex: nao da pra saber se e tarefa ou gasto, ou um gasto sem valor nenhum). Nesse caso "duvida" deve
-ser uma pergunta curta e direta pra esclarecer, e os outros campos podem vir com o melhor palpite.
-Se o texto for razoavelmente claro, deixe "duvida" como null - nao pergunte por excesso de zelo.
+(ex: nao da pra saber se e tarefa, gasto ou meta, ou um gasto/meta sem valor nenhum). Nesse caso
+"duvida" deve ser uma pergunta curta e direta pra esclarecer, e os outros campos podem vir com o
+melhor palpite. Se o texto for razoavelmente claro, deixe "duvida" como null - nao pergunte por
+excesso de zelo.
 
 Texto: {text}"""
 
@@ -65,7 +72,12 @@ def classify_capture(text: str) -> tuple[dict, dict]:
     response = client.messages.create(
         model=HAIKU,
         max_tokens=250,
-        messages=[{"role": "user", "content": CAPTURE_PROMPT.format(text=text)}],
+        messages=[
+            {
+                "role": "user",
+                "content": CAPTURE_PROMPT.format(text=text, hoje=date.today().isoformat()),
+            }
+        ],
     )
     return _extract_json(response.content[0].text), _usage(response)
 
