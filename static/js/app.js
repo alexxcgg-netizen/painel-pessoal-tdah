@@ -269,7 +269,10 @@ async function loadStreak() {
   chip.hidden = false;
 }
 
+let climaUltimoLoad = 0;
+
 async function loadClimaHoje() {
+  climaUltimoLoad = Date.now();
   const data = await apiFetch("/api/clima/hoje");
   const chip = $("#clima-chip");
   if (!data || !data.configurado || data.erro) {
@@ -281,6 +284,17 @@ async function loadClimaHoje() {
   $("#clima-texto").textContent = `${prefixo}${data.cidade}: ${data.texto}`;
   chip.hidden = false;
 }
+
+// a previsao so e buscada de novo (a) a cada 20min, pra acompanhar a hora
+// "agora" avancando sem precisar recarregar a pagina, e (b) quando volta
+// pra aba depois de um tempo longe - assim um PWA deixado aberto o dia
+// inteiro nao fica mostrando a janela de chuva calculada de manha
+setInterval(loadClimaHoje, 20 * 60 * 1000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && Date.now() - climaUltimoLoad > 5 * 60 * 1000) {
+    loadClimaHoje();
+  }
+});
 
 function fmtHora(isoString) {
   const d = new Date(isoString);
