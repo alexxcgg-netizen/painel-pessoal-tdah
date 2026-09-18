@@ -778,3 +778,24 @@ li.item.saindo {
   opacity: 0.6;
   cursor: default;
 }
+
+.btn-waze {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  border-radius: 10px;
+  border: 1px solid #33ccff;
+  background: rgba(51, 204, 255, 0.14);
+  color: #8fe4ff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.btn-waze:hover {
+  background: rgba(51, 204, 255, 0.24);
+  box-shadow: 0 4px 16px -4px rgba(51, 204, 255, 0.4);
+}

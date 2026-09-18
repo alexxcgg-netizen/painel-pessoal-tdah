@@ -169,6 +169,12 @@ chegar num lugar, e conta pra tras a partir do horario que voce precisa estar la
    funcionar: informa destino + horario que precisa chegar, ele devolve o horario de saida
    (ja com 15min de margem de seguranca por padrao)
 
+Depois do calculo aparece um botao "Abrir no Waze", que abre a navegacao turn-by-turn direto no
+app do Waze (com o transito em tempo real dele, que costuma ser melhor em Santa Catarina). Nao
+existe API publica do Waze pra rotas/transito, entao o calculo do horario de saida continua vindo
+da Google Routes API — o link do Waze e so um atalho pra navegacao (usa o [deep link oficial do
+Waze](https://developers.google.com/waze/deeplinks), sem scraping nem API nao documentada).
+
 **Sobre custo**: uso pessoal (algumas consultas por dia) fica bem dentro dos $200/mes de credito
 gratuito que a Google da por conta - na pratica isso e gratis pro seu uso, mas e bom saber que a
 API em si nao e ilimitada de graca se um dia usar muito mais que isso.

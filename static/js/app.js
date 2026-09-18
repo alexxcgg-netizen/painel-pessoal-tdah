@@ -628,6 +628,11 @@ $("#viagem-form").addEventListener("submit", async (e) => {
     `Saia ate as ${horaTxt} (viagem de ${data.duracao_minutos}min, ${data.distancia_km}km, ` +
     `com ${data.margem_minutos}min de margem)`;
   saida.hidden = false;
+
+  const destino = $("#viagem-destino").value.trim();
+  const wazeLink = $("#viagem-waze");
+  wazeLink.href = `https://waze.com/ul?q=${encodeURIComponent(destino)}&navigate=yes`;
+  wazeLink.hidden = false;
 });
 
 async function initViagemOrigemPadrao() {
