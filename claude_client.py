@@ -18,7 +18,7 @@ PRICING = {
 CAPTURE_PROMPT = """Hoje e {hoje}. Classifique o texto do usuario como "tarefa", "gasto" ou "meta"
 (meta financeira, tipo "quero juntar X ate Y" ou "economizar pra comprar Z") e extraia os campos.
 Responda so com JSON, sem markdown, no formato:
-{{"tipo": "tarefa" ou "gasto" ou "meta", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "prazo": "AAAA-MM-DD" ou null, "duvida": "..." ou null}}
+{{"tipo": "tarefa" ou "gasto" ou "meta", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "prazo": "AAAA-MM-DD" ou null, "duvida": "..." ou null, "memoria": "..." ou null}}
 
 Categorias de gasto: mercado, transporte, lazer, contas, saude, outros.
 
@@ -32,6 +32,13 @@ Preencha "duvida" APENAS se o texto for realmente ambiguo demais pra classificar
 melhor palpite. Se o texto for razoavelmente claro, deixe "duvida" como null - nao pergunte por
 excesso de zelo.
 
+Preencha "memoria" APENAS se o texto revelar um fato duravel sobre a pessoa que vale lembrar em
+conversas futuras e que NAO e so o proprio item classificado - por exemplo uma preferencia
+("prefere economizar pra viagem mais que pra moto"), rotina ("trabalha home office as quartas"),
+relacao ("esposa se chama Ana") ou contexto recorrente. Escreva em terceira pessoa, uma frase
+curta. Se o texto for so uma tarefa/gasto/meta pontual sem nada duravel por tras, deixe "memoria"
+como null - a grande maioria dos textos nao tem nada pra lembrar aqui.
+
 Texto: {text}"""
 
 BREAKDOWN_PROMPT = """Quebre esta tarefa em 3 a 6 passos pequenos e concretos, cada um algo que da pra fazer de uma vez.
@@ -42,6 +49,9 @@ Tarefa: {title}"""
 SUMMARY_PROMPT = """Escreva um resumo do dia em 2 a 3 frases. Tom neutro e factual, sem cobranca e sem elogio vazio.
 Se houver compromissos na agenda, mencione quantos tem e se o dia esta cheio ou tranquilo -
 sem repetir cada horario, so o suficiente pra dar uma nocao geral.
+
+Coisas duraveis que voce sabe sobre a pessoa (use so se for relevante pro resumo, nao force):
+{memorias}
 
 Tarefas concluidas: {done}
 Tarefas pendentes: {pending}
@@ -55,6 +65,9 @@ As tarefas pendentes NAO tem horario marcado - sugira em que ordem encaixa-las a
 dia (antes, entre ou depois dos compromissos), pensando em coisas como: tarefa rapida
 antes de sair de casa, tarefa que depende de estar em algum lugar perto de um compromisso
 que ja leva pra la, tarefa urgente primeiro se nao houver pista de prioridade.
+
+Coisas duraveis que voce sabe sobre a pessoa (use so se ajudar a ordenar melhor, nao force):
+{memorias}
 
 Responda em lista numerada curta (maximo 6 itens), cada item uma linha, direto ao ponto.
 Tom neutro, sem cobranca. Se nao houver tarefa nem compromisso nenhum, diga isso em uma frase.
@@ -109,7 +122,11 @@ def break_down_task(title: str) -> tuple[list[str], dict]:
 
 
 def summarize_day(
-    done: list[str], pending: list[str], expenses: list[dict], eventos: list[str] | None = None
+    done: list[str],
+    pending: list[str],
+    expenses: list[dict],
+    eventos: list[str] | None = None,
+    memorias: list[str] | None = None,
 ) -> tuple[str, dict]:
     response = client.messages.create(
         model=HAIKU,
@@ -122,6 +139,7 @@ def summarize_day(
                     pending=pending or "nenhuma",
                     expenses=expenses or "nenhum",
                     eventos=eventos or "nenhum (ou agenda nao conectada)",
+                    memorias=memorias or "nenhuma ainda",
                 ),
             }
         ],
@@ -129,7 +147,9 @@ def summarize_day(
     return response.content[0].text.strip(), _usage(response)
 
 
-def plano_do_dia(tarefas: list[str], eventos: list[dict]) -> tuple[str, dict]:
+def plano_do_dia(
+    tarefas: list[str], eventos: list[dict], memorias: list[str] | None = None
+) -> tuple[str, dict]:
     eventos_fmt = [
         f"{e['titulo']} as {e['inicio'][11:16]}" for e in eventos if not e.get("dia_inteiro")
     ]
@@ -143,6 +163,7 @@ def plano_do_dia(tarefas: list[str], eventos: list[dict]) -> tuple[str, dict]:
                     agora=datetime.now().strftime("%H:%M"),
                     eventos=eventos_fmt or "nenhum",
                     tarefas=tarefas or "nenhuma",
+                    memorias=memorias or "nenhuma ainda",
                 ),
             }
         ],

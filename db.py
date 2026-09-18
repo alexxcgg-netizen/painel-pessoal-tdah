@@ -84,6 +84,13 @@ def init_db():
             subscription_json TEXT NOT NULL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS memorias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            texto TEXT NOT NULL,
+            source_text TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -166,3 +173,23 @@ def record_usage(conn, model: str, input_tokens: int, output_tokens: int, cost_u
 def total_cost_usd(conn) -> float:
     row = conn.execute("SELECT COALESCE(SUM(cost_usd), 0) AS total FROM api_usage").fetchone()
     return row["total"]
+
+
+def create_memoria(conn, texto: str, source_text: str | None = None) -> int:
+    cur = conn.execute(
+        "INSERT INTO memorias (texto, source_text) VALUES (?, ?)", (texto, source_text)
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_memorias(conn, limit: int = 30) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM memorias ORDER BY criado_em DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_memoria(conn, memoria_id: int):
+    conn.execute("DELETE FROM memorias WHERE id = ?", (memoria_id,))
+    conn.commit()

@@ -18,12 +18,15 @@ import push_client
 from db import (
     add_to_goal,
     create_goal,
+    create_memoria,
+    delete_memoria,
     delete_push_subscription,
     get_db,
     get_or_create_bank_account,
     init_db,
     insert_bank_transactions,
     list_goals,
+    list_memorias,
     list_push_subscriptions,
     record_usage,
     save_push_subscription,
@@ -108,6 +111,10 @@ def capture():
             "INSERT INTO tasks (title, due_at, source_text) VALUES (?, ?, ?)",
             (parsed["titulo"], parsed.get("quando"), full_text),
         )
+
+    if parsed.get("memoria"):
+        create_memoria(conn, parsed["memoria"], full_text)
+
     conn.commit()
     conn.close()
     return jsonify(parsed), 201
@@ -207,6 +214,7 @@ def summary_today():
     ).fetchall()
     gasto_hoje = sum(r["amount"] for r in expenses)
     eventos = _eventos_de_hoje_com_seguranca()
+    memorias = list_memorias(conn)
 
     result, error = _call_claude(
         claude_client.summarize_day,
@@ -214,6 +222,7 @@ def summary_today():
         [r["title"] for r in pending],
         [dict(r) for r in expenses],
         [e["titulo"] for e in eventos],
+        [m["texto"] for m in memorias],
     )
     if error:
         conn.close()
@@ -250,9 +259,13 @@ def plano_do_dia():
     conn = get_db()
     pending = conn.execute("SELECT title FROM tasks WHERE completed_at IS NULL").fetchall()
     eventos = _eventos_de_hoje_com_seguranca()
+    memorias = list_memorias(conn)
 
     result, error = _call_claude(
-        claude_client.plano_do_dia, [r["title"] for r in pending], eventos
+        claude_client.plano_do_dia,
+        [r["title"] for r in pending],
+        eventos,
+        [m["texto"] for m in memorias],
     )
     if error:
         conn.close()
@@ -310,6 +323,22 @@ def viagem_quando_sair():
         return jsonify({"error": str(e)}), 400
 
     return jsonify(resultado)
+
+
+@app.route("/api/memorias", methods=["GET"])
+def memorias():
+    conn = get_db()
+    resultado = list_memorias(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/memorias/<int:memoria_id>", methods=["DELETE"])
+def apagar_memoria(memoria_id):
+    conn = get_db()
+    delete_memoria(conn, memoria_id)
+    conn.close()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/uso/total", methods=["GET"])

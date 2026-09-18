@@ -184,10 +184,28 @@ API em si nao e ilimitada de graca se um dia usar muito mais que isso.
 agendador de notificacoes (que ainda depende de hospedagem fixa, ver secoes acima). Hoje voce
 mesmo abre a calculadora quando quiser saber o horario de saida.
 
+## Memoria — o que ele lembra sobre voce
+
+Toda vez que voce escreve algo na captura, alem de classificar como tarefa/gasto/meta, a IA
+tambem olha se aparece algum fato duravel sobre voce (preferencia, rotina, algo recorrente) que
+nao e so o item pontual sendo registrado - tipo "prefere tarefas rapidas de manha" ou "trabalha
+home office as quartas". Se aparecer, fica guardado e entra como contexto nas proximas chamadas
+de resumo do dia e plano do dia, pra ele "lembrar" de conversa pra conversa em vez de cada
+interacao ser isolada. A lista fica visivel na aba Hoje, em "O que eu lembro sobre voce", com
+botao pra apagar qualquer coisa que nao fizer sentido - nada fica escondido.
+
+Isso e so a base do que vira memoria de verdade com um chat continuo (ver Roadmap); por enquanto
+a captura de texto livre e o unico jeito de alimentar isso.
+
 ## Roadmap
 
-**Fase 1.5** — notificacao agendada automatica, ja levando em conta a agenda pra nao avisar em cima de compromisso (precisa de hospedagem fixa rodando o tempo todo - ver secao "Notificacoes" acima)
+**Fase 1.5** — notificacao agendada automatica e proativa (ex: "gasto da semana passou 80% da
+meta", "3 tarefas atrasadas"), ja levando em conta a agenda pra nao avisar em cima de compromisso
+(precisa de hospedagem fixa rodando o tempo todo - ver secao "Notificacoes" acima)
 
-**Fase 2** — comando de voz livre; integracao com Home Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa)
+**Fase 2** — interface vira chat-first: uma conversa continua em vez do painel com abas ser o
+ponto de entrada principal, com a memoria acima alimentada organicamente pela conversa; comando
+de voz livre; integracao com Home Assistant (luz/temperatura/cortina do quarto ligada a rotina ou
+tarefa)
 
 **Ideia futura** — se o painel pessoal se provar util, replicar pra outros membros da familia (cada um com seu proprio banco de dados/instancia - nunca compartilhando dados entre si sem pedir)

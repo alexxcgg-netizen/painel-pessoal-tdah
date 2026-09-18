@@ -106,6 +106,7 @@ async function enviarCaptura(text, clarificacao) {
   $("#duvida-box").hidden = true;
   pulsarSucesso($("#captura-input"));
   loadSummary();
+  if (data.memoria) loadMemorias();
   if (!$("#tab-tarefas").hidden) loadTasks();
   if (!$("#tab-gastos").hidden) {
     loadExpenses();
@@ -202,6 +203,48 @@ async function loadAgenda() {
     horario.textContent = ev.dia_inteiro ? "dia todo" : `${fmtHora(ev.inicio)} - ${fmtHora(ev.fim)}`;
     li.appendChild(titulo);
     li.appendChild(horario);
+    list.appendChild(li);
+  });
+}
+
+async function loadMemorias() {
+  const memorias = await apiFetch("/api/memorias");
+  if (!memorias) return;
+
+  const list = $("#lista-memorias");
+  list.innerHTML = "";
+  $("#memorias-vazio").hidden = memorias.length > 0;
+
+  memorias.forEach((m) => {
+    const li = document.createElement("li");
+    li.className = "item";
+
+    const linha = document.createElement("div");
+    linha.className = "item-linha";
+
+    const titulo = document.createElement("span");
+    titulo.className = "item-titulo";
+    titulo.textContent = m.texto;
+    linha.appendChild(titulo);
+
+    const acoes = document.createElement("div");
+    acoes.className = "item-acoes";
+    const apagarBtn = document.createElement("button");
+    apagarBtn.textContent = "Apagar";
+    apagarBtn.addEventListener("click", async () => {
+      apagarBtn.disabled = true;
+      const ok = await apiFetch(`/api/memorias/${m.id}`, { method: "DELETE" });
+      if (ok) {
+        li.classList.add("saindo");
+        setTimeout(() => li.remove(), 250);
+      } else {
+        apagarBtn.disabled = false;
+      }
+    });
+    acoes.appendChild(apagarBtn);
+    linha.appendChild(acoes);
+
+    li.appendChild(linha);
     list.appendChild(li);
   });
 }
@@ -650,4 +693,5 @@ if ("serviceWorker" in navigator) {
 loadSummary();
 loadUso();
 loadAgenda();
+loadMemorias();
 initViagemOrigemPadrao();

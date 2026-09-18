@@ -571,6 +571,76 @@ class PainelTestCase(unittest.TestCase):
             )
         self.assertEqual(res.status_code, 400)
 
+    def test_captura_com_memoria_grava_e_lista(self):
+        parsed = {
+            "tipo": "tarefa",
+            "titulo": "ligar pro dentista",
+            "valor": None,
+            "categoria": None,
+            "quando": None,
+            "duvida": None,
+            "memoria": "esta enrolando pra ligar pro dentista",
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": "preciso ligar pro dentista"})
+        self.assertEqual(res.status_code, 201)
+
+        memorias = self.client.get("/api/memorias").get_json()
+        self.assertEqual(len(memorias), 1)
+        self.assertEqual(memorias[0]["texto"], "esta enrolando pra ligar pro dentista")
+
+    def test_captura_sem_memoria_nao_grava_nada(self):
+        parsed = {
+            "tipo": "gasto",
+            "titulo": "mercado",
+            "valor": 50.0,
+            "categoria": "mercado",
+            "quando": None,
+            "duvida": None,
+            "memoria": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": "gastei 50 no mercado"})
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(self.client.get("/api/memorias").get_json(), [])
+
+    def test_apagar_memoria_remove_da_lista(self):
+        conn = db.get_db()
+        memoria_id = db.create_memoria(conn, "prefere economizar pra viagem")
+        conn.close()
+
+        res = self.client.delete(f"/api/memorias/{memoria_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/memorias").get_json(), [])
+
+    def test_resumo_do_dia_recebe_memorias(self):
+        conn = db.get_db()
+        db.create_memoria(conn, "trabalha home office as quartas")
+        conn.close()
+
+        with patch(
+            "claude_client.summarize_day",
+            return_value=("Dia tranquilo.", fake_usage()),
+        ) as mock_summarize:
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        args = mock_summarize.call_args[0]
+        self.assertEqual(args[4], ["trabalha home office as quartas"])
+
+    def test_plano_do_dia_recebe_memorias(self):
+        conn = db.get_db()
+        db.create_memoria(conn, "prefere tarefas rapidas de manha")
+        conn.close()
+
+        with patch(
+            "claude_client.plano_do_dia",
+            return_value=("1. Faca a tarefa rapida.", fake_usage()),
+        ) as mock_plano:
+            res = self.client.post("/api/plano-do-dia")
+        self.assertEqual(res.status_code, 200)
+        args = mock_plano.call_args[0]
+        self.assertEqual(args[2], ["prefere tarefas rapidas de manha"])
+
 
 if __name__ == "__main__":
     unittest.main()
