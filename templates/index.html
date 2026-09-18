@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet"
   />
 
@@ -35,13 +35,19 @@
 
   <section id="captura">
     <input type="text" id="captura-input" placeholder="Digite algo: tarefa, lembrete, gasto ou meta..." />
-    <button id="captura-btn">Adicionar</button>
+    <button id="captura-btn" class="btn-com-icone">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      Adicionar
+    </button>
   </section>
 
   <section id="duvida-box" hidden>
     <p id="duvida-texto"></p>
     <input type="text" id="duvida-input" placeholder="Responde aqui..." />
-    <button id="duvida-btn">Enviar</button>
+    <button id="duvida-btn" class="btn-com-icone">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2.5-8.5L3 11Z"/></svg>
+      Enviar
+    </button>
   </section>
 
   <main>
@@ -67,23 +73,38 @@
         <button type="button" id="chat-mic" hidden aria-label="Falar em vez de digitar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>
         </button>
-        <button type="submit" id="chat-send">Enviar</button>
+        <button type="submit" id="chat-send" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2.5-8.5L3 11Z"/></svg>
+          Enviar
+        </button>
       </form>
     </section>
 
     <section id="tab-painel" class="tab-content" hidden>
-      <h2>Resumo do dia</h2>
+      <h2 style="--secao-cor: var(--cor-hoje)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+        Resumo do dia
+      </h2>
       <p id="resumo-texto" class="resumo-texto">Carregando...</p>
       <p id="resumo-stats" class="stat-linha"></p>
 
-      <h2 class="secao-secundaria">Agenda de hoje</h2>
-      <p id="agenda-vazio" class="vazio" hidden>Nenhum compromisso hoje.</p>
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>
+        Agenda de hoje
+      </h2>
+      <p id="agenda-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>
+        Nenhum compromisso hoje.
+      </p>
       <p id="agenda-desconectada" class="dica-metas" hidden>
         Calendario da Apple/iCloud ainda nao conectado - veja o README.
       </p>
       <ul id="lista-agenda"></ul>
 
-      <h2 class="secao-secundaria">Saude hoje</h2>
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l1.5-4L12 17l2-8 1.5 3H21"/></svg>
+        Saude hoje
+      </h2>
       <p id="saude-vazio" class="dica-metas">
         Sem dados hoje ainda - configure um Atalho no iPhone pra mandar passos/sono automaticamente
         (veja o README).
@@ -103,63 +124,117 @@
         </div>
       </div>
 
-      <h2 class="secao-secundaria">Plano do dia</h2>
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-hoje)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.9L18 9.5l-4.4 1.6L12 16l-1.6-4.9L6 9.5l4.4-1.6L12 3Z"/><path d="M19 14l.7 2.3L22 17l-2.3.7L19 20l-.7-2.3L16 17l2.3-.7L19 14Z"/></svg>
+        Plano do dia
+      </h2>
       <p class="dica-metas">Olha suas tarefas pendentes e os compromissos de hoje e sugere a melhor ordem.</p>
-      <button id="plano-btn" class="btn-conectar">Gerar plano do dia</button>
+      <button id="plano-btn" class="btn-conectar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.9L18 9.5l-4.4 1.6L12 16l-1.6-4.9L6 9.5l4.4-1.6L12 3Z"/><path d="M19 14l.7 2.3L22 17l-2.3.7L19 20l-.7-2.3L16 17l2.3-.7L19 14Z"/></svg>
+        Gerar plano do dia
+      </button>
       <p id="plano-texto" class="resumo-texto" hidden></p>
 
-      <h2 class="secao-secundaria">Devo sair ate que horas?</h2>
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m14.8 9.2-1.6 4-4 1.6 1.6-4 4-1.6Z"/></svg>
+        Devo sair ate que horas?
+      </h2>
       <p class="dica-metas">Considera transito em tempo real (precisa do Google Maps configurado - veja o README).</p>
       <form id="viagem-form">
         <input type="text" id="viagem-origem" placeholder="De onde? (deixa em branco se tiver endereco padrao)" />
         <input type="text" id="viagem-destino" placeholder="Pra onde?" required />
         <input type="datetime-local" id="viagem-chegar" required />
-        <button type="submit" id="viagem-btn">Calcular</button>
+        <button type="submit" id="viagem-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m14.8 9.2-1.6 4-4 1.6 1.6-4 4-1.6Z"/></svg>
+          Calcular
+        </button>
       </form>
       <p id="viagem-resultado" class="resumo-texto" hidden></p>
-      <a id="viagem-waze" class="btn-waze" href="#" target="_blank" rel="noopener" hidden>Abrir no Waze</a>
+      <a id="viagem-waze" class="btn-waze" href="#" target="_blank" rel="noopener" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/><path d="M15 6h3a2 2 0 0 1 2 2v10"/></svg>
+        Abrir no Waze
+      </a>
 
-      <h2 class="secao-secundaria">Datas importantes</h2>
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.5 6 2 6.5H4C4.5 14 6 12.5 6 8Z"/><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0"/></svg>
+        Datas importantes
+      </h2>
       <p class="dica-metas">
         Validade de licenca/exame medico, seguro, revisao, aniversario - qualquer data que so
         importa quando estiver perto. Peca no chat pra registrar (ex: "meu exame medico de piloto
         vence dia 15 de janeiro, todo ano"). Avisa por notificacao push nos ultimos 7 dias.
       </p>
-      <p id="lembretes-vazio" class="vazio" hidden>Nada guardado ainda.</p>
+      <p id="lembretes-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.5 6 2 6.5H4C4.5 14 6 12.5 6 8Z"/><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0"/></svg>
+        Nada guardado ainda.
+      </p>
       <ul id="lista-lembretes"></ul>
 
-      <h2 class="secao-secundaria">O que eu lembro sobre voce</h2>
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z"/></svg>
+        O que eu lembro sobre voce
+      </h2>
       <p class="dica-metas">
         Fatos duraveis que aparecem quando voce escreve algo na captura - preferencias, rotinas,
         coisas assim. Usados pro resumo e pro plano do dia. Pode apagar o que nao fizer sentido.
       </p>
-      <p id="memorias-vazio" class="vazio" hidden>Nada guardado ainda.</p>
+      <p id="memorias-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z"/></svg>
+        Nada guardado ainda.
+      </p>
       <ul id="lista-memorias"></ul>
     </section>
 
     <section id="tab-tarefas" class="tab-content" hidden>
-      <h2>Tarefas</h2>
-      <p id="tarefas-vazio" class="vazio" hidden>Nenhuma tarefa pendente. 🎈</p>
+      <h2 style="--secao-cor: var(--cor-tarefas)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg>
+        Tarefas
+      </h2>
+      <p id="tarefas-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9"/></svg>
+        Nenhuma tarefa pendente.
+      </p>
       <ul id="lista-tarefas"></ul>
     </section>
 
     <section id="tab-gastos" class="tab-content" hidden>
-      <h2>Gastos</h2>
-      <p id="gastos-vazio" class="vazio" hidden>Nenhum gasto registrado ainda.</p>
+      <h2 style="--secao-cor: var(--cor-financeiro)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>
+        Gastos
+      </h2>
+      <p id="gastos-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>
+        Nenhum gasto registrado ainda.
+      </p>
       <ul id="lista-gastos"></ul>
 
-      <h2 class="secao-secundaria">Metas</h2>
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>
+        Metas
+      </h2>
       <p class="dica-metas">Digite algo como "quero juntar 15 mil pra uma moto ate dezembro" na captura acima.</p>
-      <p id="metas-vazio" class="vazio" hidden>Nenhuma meta ainda.</p>
+      <p id="metas-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>
+        Nenhuma meta ainda.
+      </p>
       <ul id="lista-metas"></ul>
     </section>
 
     <section id="tab-bancos" class="tab-content" hidden>
-      <h2>Bancos</h2>
+      <h2 style="--secao-cor: var(--cor-bancos)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 4l9 6"/><path d="M4 10h16v2H4z"/><path d="M5 12v7M9.5 12v7M14.5 12v7M19 12v7"/><path d="M3.5 21h17"/></svg>
+        Bancos
+      </h2>
 
-      <button id="conectar-btn" class="btn-conectar" hidden>Conectar banco automaticamente</button>
+      <button id="conectar-btn" class="btn-conectar" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 14.5 14.5 9.5"/><path d="M11 6.5 12.8 4.7a3.5 3.5 0 0 1 5 5L15.8 11.5"/><path d="M13 17.5 11.2 19.3a3.5 3.5 0 0 1-5-5L8 12.5"/></svg>
+        Conectar banco automaticamente
+      </button>
 
-      <h2 class="secao-secundaria">Importar extrato (OFX)</h2>
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4M8 8l4-4 4 4"/><path d="M4.5 15.5V18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5"/></svg>
+        Importar extrato (OFX)
+      </h2>
       <form id="importar-form">
         <select id="banco-select">
           <option value="nubank">Nubank</option>
@@ -173,15 +248,24 @@
           <option value="cartao">Cartao de credito</option>
         </select>
         <input type="file" id="ofx-input" accept=".ofx,.qfx" required />
-        <button type="submit" id="importar-btn">Importar extrato</button>
+        <button type="submit" id="importar-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4M8 8l4-4 4 4"/><path d="M4.5 15.5V18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5"/></svg>
+          Importar extrato
+        </button>
       </form>
       <p id="bancos-status" class="stat-linha"></p>
-      <p id="bancos-vazio" class="vazio" hidden>Nenhum extrato importado ainda. Exporte um OFX do app do seu banco e importe aqui.</p>
+      <p id="bancos-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 4l9 6"/><path d="M4 10h16v2H4z"/><path d="M5 12v7M9.5 12v7M14.5 12v7M19 12v7"/><path d="M3.5 21h17"/></svg>
+        Nenhum extrato importado ainda. Exporte um OFX do app do seu banco e importe aqui.
+      </p>
       <ul id="lista-bancos"></ul>
     </section>
 
     <section id="tab-construtora" class="tab-content" hidden>
-      <h2>Construtora</h2>
+      <h2 style="--secao-cor: var(--cor-construtora)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l6-4"/><path d="M10 5 20 9"/><path d="M20 9v3"/><path d="M14 21V13"/><path d="M14 13h6"/><path d="M4 21h16"/></svg>
+        Construtora
+      </h2>
       <p id="construtora-info">Carregando...</p>
     </section>
   </main>

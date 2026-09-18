@@ -2,6 +2,15 @@ const $ = (sel) => document.querySelector(sel);
 
 let textoPendente = null;
 
+const ICONE_TRASH =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V7M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>';
+const ICONE_PASSOS =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4M4 12h4M4 18h4M11 6h9M11 12h9M11 18h9"/></svg>';
+const ICONE_CHECK =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17 20 6"/></svg>';
+const ICONE_PLUS =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+
 const fmtMoeda = (valor) =>
   Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -66,12 +75,12 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 
 function setBotaoCarregando(btn, carregando, rotulo) {
   if (carregando) {
-    btn.dataset.rotuloOriginal = btn.dataset.rotuloOriginal || btn.textContent;
+    if (btn.dataset.htmlOriginal === undefined) btn.dataset.htmlOriginal = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner"></span>${rotulo}`;
   } else {
     btn.disabled = false;
-    btn.textContent = btn.dataset.rotuloOriginal || rotulo;
+    btn.innerHTML = btn.dataset.htmlOriginal !== undefined ? btn.dataset.htmlOriginal : rotulo;
   }
 }
 
@@ -214,11 +223,38 @@ async function loadAgenda() {
   });
 }
 
-function criarBolhaChat(papel, texto) {
+const ICONE_ASSISTENTE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.6 4.9L18 9.5l-4.4 1.6L12 16l-1.6-4.9L6 9.5l4.4-1.6L12 3Z"/><path d="M19 14l.7 2.3L22 17l-2.3.7L19 20l-.7-2.3L16 17l2.3-.7L19 14Z"/></svg>';
+
+function criarAvatarChat() {
   const div = document.createElement("div");
-  div.className = `chat-bolha ${papel}`;
-  div.textContent = texto;
+  div.className = "chat-avatar";
+  div.innerHTML = ICONE_ASSISTENTE;
   return div;
+}
+
+function criarBolhaChat(papel, texto) {
+  const bolha = document.createElement("div");
+  bolha.className = `chat-bolha ${papel}`;
+  bolha.textContent = texto;
+
+  const linha = document.createElement("div");
+  linha.className = `chat-linha ${papel}`;
+  if (papel === "assistant") linha.appendChild(criarAvatarChat());
+  linha.appendChild(bolha);
+  return linha;
+}
+
+function criarIndicadorDigitando() {
+  const bolha = document.createElement("div");
+  bolha.className = "chat-bolha assistant chat-digitando";
+  bolha.innerHTML = '<div class="chat-dots"><span></span><span></span><span></span></div>';
+
+  const linha = document.createElement("div");
+  linha.className = "chat-linha assistant";
+  linha.appendChild(criarAvatarChat());
+  linha.appendChild(bolha);
+  return linha;
 }
 
 async function loadChatHistorico() {
@@ -230,7 +266,8 @@ async function loadChatHistorico() {
   if (historico.length === 0) {
     const vazio = document.createElement("p");
     vazio.className = "chat-vazio";
-    vazio.textContent = "Fala comigo - posso registrar tarefa, gasto, meta ou montar o plano do dia.";
+    vazio.innerHTML =
+      ICONE_ASSISTENTE + "<br>Fala comigo - posso registrar tarefa, gasto, meta ou montar o plano do dia.";
     lista.appendChild(vazio);
     return;
   }
@@ -249,9 +286,7 @@ async function enviarChat(texto) {
   const btn = $("#chat-send");
   setBotaoCarregando(btn, true, "...");
 
-  const digitando = document.createElement("div");
-  digitando.className = "chat-bolha assistant chat-digitando";
-  digitando.innerHTML = '<span class="spinner"></span>pensando...';
+  const digitando = criarIndicadorDigitando();
   lista.appendChild(digitando);
   lista.scrollTop = lista.scrollHeight;
 
@@ -374,7 +409,8 @@ async function loadMemorias() {
     const acoes = document.createElement("div");
     acoes.className = "item-acoes";
     const apagarBtn = document.createElement("button");
-    apagarBtn.textContent = "Apagar";
+    apagarBtn.className = "btn-com-icone";
+    apagarBtn.innerHTML = `${ICONE_TRASH}Apagar`;
     apagarBtn.addEventListener("click", async () => {
       apagarBtn.disabled = true;
       const ok = await apiFetch(`/api/memorias/${m.id}`, { method: "DELETE" });
@@ -427,7 +463,8 @@ async function loadLembretes() {
     const acoes = document.createElement("div");
     acoes.className = "item-acoes";
     const apagarBtn = document.createElement("button");
-    apagarBtn.textContent = "Apagar";
+    apagarBtn.className = "btn-com-icone";
+    apagarBtn.innerHTML = `${ICONE_TRASH}Apagar`;
     apagarBtn.addEventListener("click", async () => {
       apagarBtn.disabled = true;
       const ok = await apiFetch(`/api/lembretes/${l.id}`, { method: "DELETE" });
@@ -476,7 +513,8 @@ function criarItemTarefa(t) {
 
   if (t.subtasks.length === 0) {
     const btnQuebrar = document.createElement("button");
-    btnQuebrar.textContent = "quebrar em passos";
+    btnQuebrar.className = "btn-com-icone";
+    btnQuebrar.innerHTML = `${ICONE_PASSOS}quebrar em passos`;
     btnQuebrar.addEventListener("click", async () => {
       setBotaoCarregando(btnQuebrar, true, "quebrando...");
       const data = await apiFetch(`/api/tasks/${t.id}/breakdown`, { method: "POST" });
@@ -487,8 +525,8 @@ function criarItemTarefa(t) {
   }
 
   const btnConcluir = document.createElement("button");
-  btnConcluir.className = "primario";
-  btnConcluir.textContent = "concluir";
+  btnConcluir.className = "primario btn-com-icone";
+  btnConcluir.innerHTML = `${ICONE_CHECK}concluir`;
   btnConcluir.addEventListener("click", async () => {
     const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
     if (data) {
@@ -737,7 +775,8 @@ function criarItemMeta(meta) {
   input.min = "0.01";
   input.placeholder = "guardei R$...";
   const btn = document.createElement("button");
-  btn.textContent = "Registrar";
+  btn.className = "btn-com-icone";
+  btn.innerHTML = `${ICONE_PLUS}Registrar`;
   btn.addEventListener("click", async () => {
     const valor = parseFloat(input.value);
     if (!valor || valor <= 0) return;

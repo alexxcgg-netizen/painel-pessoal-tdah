@@ -281,6 +281,18 @@ anel de foco consistente em qualquer elemento navegavel por teclado/VoiceOver, t
 no campo de captura ao focar, sombra dos botoes sempre na cor do proprio botao (`color-mix`) em
 vez de uma cor generica fixa.
 
+**Passada de acabamento (icones, tipografia, animacao)**: todo titulo de secao, todo estado vazio
+e todo botao principal ganhou um icone SVG proprio (tracejado, no mesmo estilo da barra de abas -
+nenhum emoji no app), cada um tingido com a cor da propria secao via `--secao-cor`. Fonte Inter
+ganhou a faixa completa de pesos (300 a 900) pra dar mais contraste entre titulo/corpo/numero. O
+chat ganhou um avatar (icone de sparkle) nas respostas do assistente e um indicador de "digitando"
+com pontinhos animados em vez de spinner + texto. Troca de aba ganhou uma transicao mais viva
+(fade + leve translacao/escala) em vez de so opacidade. No caminho, achei e corrigi de novo o
+mesmo tipo de bug ja visto antes nesta sessao (`display` fixo no CSS batendo o atributo `hidden`
+do navegador) em `.vazio` e `#saude-grid` - agora ha uma verificacao sistematica: qualquer
+elemento que define `display` diferente de `none` E tambem usa `hidden` via JS precisa de um par
+`seletor[hidden] { display: none; }`.
+
 ## Chat — a tela principal agora e conversa
 
 A aba Hoje virou um chat de verdade em vez do painel de numeros: voce escreve o que quiser
