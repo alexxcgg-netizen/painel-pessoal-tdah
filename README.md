@@ -387,6 +387,28 @@ levemente e o icone cresce um pouco ao passar o mouse (`@media (hover: hover)`, 
 no toque em celular). Texto "Carregando..." em resumo/construtora agora e um shimmer em vez de
 texto estatico.
 
+## Previsao do tempo do dia — risco de chuva, e a que horas
+
+Alem do clima ligado a voo (ver secao Aviacao abaixo), a aba **Hoje** mostra um aviso de chuva
+pro dia a dia em geral - tipo "vou sair pra correr, vai chover?". Configura a cidade uma vez
+(`CIDADE_PADRAO` no `.env`, ex: `Brusque`) e o painel busca a previsao **hora a hora** de hoje via
+Open-Meteo e resume num selo no topo da aba: se nao tem risco significativo, mostra "sem risco de
+chuva" discreto; se tem, mostra exatamente a janela de horas com mais chance ("risco de chuva
+entre 14h e 18h, ate 80% de chance") em vez de so um numero solto de "% de chuva hoje" sem
+contexto de horario - o pedido explicito foi "nao pode ser so informacao jogada".
+
+A logica que acha essa janela (`clima.resumo_chuva_do_dia`) e pura Python, sem IA envolvida: pega
+a previsao hora a hora a partir de agora, acha o pico de chance de chuva, e expande pra tras/frente
+enquanto as horas forem consecutivas e continuarem acima de 50% - assim o aviso e sempre um bloco
+continuo de verdade, nunca junta duas chuvas separadas do dia como se fossem uma coisa so. Testada
+com casos de borda (chuva ate virar o dia, chuva so numa hora, gap que quebra o bloco, empate no
+pico) e um stress test de 300 cenarios aleatorios conferindo invariantes da janela
+(`tests/test_clima.py`). O mesmo resumo tambem alimenta o resumo do dia (Sonnet so menciona se for
+relevante, nunca forcado) e o contexto do chat - assim da pra perguntar "vou poder sair mais
+tarde?" e ele considerar a previsao. Sem `CIDADE_PADRAO` configurada, esse aviso simplesmente nao
+aparece (o clima ligado a voo continua funcionando normal, ja que cada voo tem seu proprio
+destino).
+
 ## Aviacao — o Alex esta fazendo curso de piloto comercial
 
 Aba propria (`Aviacao`) pra vida de piloto, separada do resto porque tem uma dinamica diferente

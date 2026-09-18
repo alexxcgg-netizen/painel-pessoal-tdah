@@ -1350,6 +1350,43 @@ li.item.saindo {
   animation: chamaFlicker 1.6s ease-in-out infinite;
 }
 
+.clima-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  margin-bottom: 0.75rem;
+  border-radius: 999px;
+  background: rgba(98, 159, 209, 0.12);
+  border: 1px solid color-mix(in srgb, var(--cor-tarefas) 35%, transparent);
+  color: #bcd6ec;
+  font-size: 0.78rem;
+  font-weight: 700;
+  animation: fadeInUp 0.4s var(--ease-bounce) both;
+}
+
+.clima-chip[hidden] {
+  display: none;
+}
+
+.clima-icone {
+  width: 15px;
+  height: 15px;
+  color: var(--cor-tarefas);
+  flex-shrink: 0;
+}
+
+.clima-chip.alerta {
+  background: linear-gradient(120deg, rgba(237, 113, 129, 0.16), rgba(216, 171, 76, 0.1));
+  border-color: color-mix(in srgb, var(--cor-construtora) 40%, transparent);
+  color: #f5b8c0;
+}
+
+.clima-chip.alerta .clima-icone {
+  color: var(--cor-construtora);
+  animation: chamaFlicker 2s ease-in-out infinite;
+}
+
 .form-linha {
   display: flex;
   flex-wrap: wrap;

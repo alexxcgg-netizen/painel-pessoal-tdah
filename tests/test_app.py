@@ -1143,6 +1143,81 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.post("/api/chat", json={"mensagem": "e ai, como ta minha semana?"})
         self.assertEqual(res.status_code, 200)
 
+    def test_clima_hoje_sem_cidade_padrao_configurada(self):
+        res = self.client.get("/api/clima/hoje")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), {"configurado": False})
+
+    def test_clima_hoje_com_cidade_configurada(self):
+        resumo_fake = {
+            "alerta": True,
+            "chovendo_agora": False,
+            "hora_inicio": 14,
+            "hora_fim": 18,
+            "chuva_pct_max": 80,
+            "texto": "Risco de chuva entre 14h e 18h (ate 80% de chance).",
+            "cidade": "Brusque",
+        }
+        with patch.dict(os.environ, {"CIDADE_PADRAO": "Brusque"}), patch(
+            "clima.resumo_chuva_hoje_para_cidade", return_value=resumo_fake
+        ):
+            res = self.client.get("/api/clima/hoje")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["configurado"])
+        self.assertTrue(data["alerta"])
+        self.assertEqual(data["cidade"], "Brusque")
+
+    def test_clima_hoje_com_cidade_mas_previsao_falha(self):
+        with patch.dict(os.environ, {"CIDADE_PADRAO": "Brusque"}), patch(
+            "clima.resumo_chuva_hoje_para_cidade", return_value=None
+        ):
+            res = self.client.get("/api/clima/hoje")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["configurado"])
+        self.assertIn("erro", data)
+
+    def test_resumo_do_dia_recebe_contexto_de_clima(self):
+        resumo_fake = {"alerta": True, "texto": "Risco de chuva entre 14h e 18h (ate 80% de chance).", "cidade": "Brusque"}
+        with patch.dict(os.environ, {"CIDADE_PADRAO": "Brusque"}), patch(
+            "clima.resumo_chuva_hoje_para_cidade", return_value=resumo_fake
+        ), patch("claude_client.summarize_day", return_value=("Dia ok.", fake_usage())) as mock_summarize:
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        args = mock_summarize.call_args[0]
+        self.assertEqual(args[7], "Risco de chuva entre 14h e 18h (ate 80% de chance).")
+
+    def test_resumo_do_dia_sem_cidade_padrao_nao_quebra(self):
+        with patch("claude_client.summarize_day", return_value=("Dia ok.", fake_usage())) as mock_summarize:
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        args = mock_summarize.call_args[0]
+        self.assertIsNone(args[7])
+
+    def test_chat_contexto_inclui_previsao_do_tempo_quando_configurada(self):
+        resumo_fake = {"alerta": True, "texto": "Risco de chuva entre 14h e 18h (ate 80% de chance).", "cidade": "Brusque"}
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            self.assertIn("Previsao do tempo hoje", contexto)
+            self.assertIn("80%", contexto)
+            return "Beleza.", [], fake_usage()
+
+        with patch.dict(os.environ, {"CIDADE_PADRAO": "Brusque"}), patch(
+            "clima.resumo_chuva_hoje_para_cidade", return_value=resumo_fake
+        ), patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "vou sair mais tarde, vai dar?"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_clima_contexto_ignora_falha_sem_quebrar_resumo(self):
+        with patch.dict(os.environ, {"CIDADE_PADRAO": "CidadeQueNaoExiste"}), patch(
+            "clima.resumo_chuva_hoje_para_cidade", return_value=None
+        ), patch("claude_client.summarize_day", return_value=("Dia ok.", fake_usage())) as mock_summarize:
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        args = mock_summarize.call_args[0]
+        self.assertIsNone(args[7])
+
 
 if __name__ == "__main__":
     unittest.main()

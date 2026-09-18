@@ -269,6 +269,19 @@ async function loadStreak() {
   chip.hidden = false;
 }
 
+async function loadClimaHoje() {
+  const data = await apiFetch("/api/clima/hoje");
+  const chip = $("#clima-chip");
+  if (!data || !data.configurado || data.erro) {
+    chip.hidden = true;
+    return;
+  }
+  chip.classList.toggle("alerta", Boolean(data.alerta));
+  const prefixo = data.chovendo_agora ? "Chovendo agora - " : "";
+  $("#clima-texto").textContent = `${prefixo}${data.cidade}: ${data.texto}`;
+  chip.hidden = false;
+}
+
 function fmtHora(isoString) {
   const d = new Date(isoString);
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -1211,6 +1224,7 @@ if ("serviceWorker" in navigator) {
 loadSummary();
 loadUso();
 loadStreak();
+loadClimaHoje();
 loadAgenda();
 loadMemorias();
 loadLembretes();

@@ -269,6 +269,19 @@ def _construtora_contexto_resumo() -> str | None:
     )
 
 
+def _clima_contexto_resumo() -> str | None:
+    """Frase factual sobre risco de chuva hoje na cidade padrao (CIDADE_PADRAO)
+    pro resumo do dia / chat - so aparece se a cidade estiver configurada;
+    nunca decide nada, so relata o que o Open-Meteo devolveu."""
+    cidade = os.environ.get("CIDADE_PADRAO", "").strip()
+    if not cidade:
+        return None
+    resumo = clima.resumo_chuva_hoje_para_cidade(cidade)
+    if not resumo:
+        return None
+    return resumo["texto"]
+
+
 def _eventos_de_hoje_com_seguranca() -> list[dict]:
     """A agenda do iCloud via CalDAV e instavel (ver caldav_client.py) - se
     falhar, o resumo do dia nao pode quebrar por causa disso."""
@@ -294,6 +307,7 @@ def summary_today():
     memorias = list_memorias(conn)
     saude = _saude_contexto_resumo(conn)
     construtora = _construtora_contexto_resumo()
+    clima_hoje = _clima_contexto_resumo()
 
     result, error = _call_claude(
         claude_client.summarize_day,
@@ -304,6 +318,7 @@ def summary_today():
         [m["texto"] for m in memorias],
         saude,
         construtora,
+        clima_hoje,
     )
     if error:
         conn.close()
@@ -372,6 +387,7 @@ def _contexto_chat(conn) -> str:
     eventos = _eventos_de_hoje_com_seguranca()
     saude = _saude_contexto_resumo(conn)
     construtora = _construtora_contexto_resumo()
+    clima_hoje = _clima_contexto_resumo()
     proximos_voos = voos_module.proximos_voos(list_voos(conn), date.today())
 
     linhas = [
@@ -383,6 +399,8 @@ def _contexto_chat(conn) -> str:
         linhas.append(f"Saude hoje: {saude}")
     if construtora:
         linhas.append(f"Construtora (financeiro geral): {construtora}")
+    if clima_hoje:
+        linhas.append(f"Previsao do tempo hoje: {clima_hoje}")
     if proximos_voos:
         voos_txt = ", ".join(
             f"{v['data']} pra {v['destino']}" + (f" ({v['horas']}h)" if v.get("horas") else "")
@@ -719,6 +737,17 @@ def clima_metar():
     icao = (request.args.get("icao") or "").strip()
     resultado = metar.buscar_metar_taf(icao)
     return jsonify(resultado)
+
+
+@app.route("/api/clima/hoje", methods=["GET"])
+def clima_hoje_rota():
+    cidade = os.environ.get("CIDADE_PADRAO", "").strip()
+    if not cidade:
+        return jsonify({"configurado": False})
+    resumo = clima.resumo_chuva_hoje_para_cidade(cidade)
+    if not resumo:
+        return jsonify({"configurado": True, "erro": "nao consegui buscar a previsao agora"})
+    return jsonify({"configurado": True, **resumo})
 
 
 @app.route("/api/saude/importar", methods=["POST"])

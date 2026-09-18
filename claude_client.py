@@ -66,6 +66,10 @@ Resumo financeiro da construtora do Alex (mencione so se fizer sentido, nao forc
 negocio dele, nao gasto pessoal):
 {construtora}
 
+Previsao de chuva hoje (mencione so se houver risco de chuva e parecer relevante pro dia - por
+exemplo se tiver compromisso que pode ser afetado por chuva; se nao houver risco, ignore):
+{clima}
+
 Tarefas concluidas: {done}
 Tarefas pendentes: {pending}
 Gastos de hoje: {expenses}
@@ -355,6 +359,7 @@ def summarize_day(
     memorias: list[str] | None = None,
     saude: str | None = None,
     construtora: str | None = None,
+    clima: str | None = None,
 ) -> tuple[str, dict]:
     response = client.messages.create(
         model=HAIKU,
@@ -370,6 +375,7 @@ def summarize_day(
                     memorias=memorias or "nenhuma ainda",
                     saude=saude or "sem dados de saude hoje",
                     construtora=construtora or "nao conectado",
+                    clima=clima or "sem risco de chuva relevante (ou cidade padrao nao configurada)",
                 ),
             }
         ],
