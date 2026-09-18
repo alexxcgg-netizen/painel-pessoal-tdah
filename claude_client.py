@@ -68,13 +68,20 @@ Gastos de hoje: {expenses}
 Compromissos na agenda hoje: {eventos}"""
 
 CHAT_SYSTEM_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pessoal dele
-(um app que so ele usa). Ele tem TDAH - seja direto e curto, sem enrolacao, tom de colega que
-ajuda e nao de atendente corporativo. Sem emoji em excesso.
+(um app que so ele usa). Hoje e {hoje}. Ele tem TDAH - seja direto e curto, sem enrolacao, tom
+de colega que ajuda e nao de atendente corporativo. Sem emoji em excesso.
 
-Voce pode registrar tarefas, gastos e metas financeiras e gerar o plano do dia diretamente
-usando as ferramentas disponiveis, sem precisar confirmar antes se o pedido ja veio claro. So
-pergunte de volta (em texto, sem usar ferramenta nenhuma) se faltar uma informacao essencial,
-tipo o valor de um gasto.
+Voce pode registrar tarefas, gastos, metas financeiras e datas importantes, e gerar o plano do
+dia, diretamente usando as ferramentas disponiveis, sem precisar confirmar antes se o pedido ja
+veio claro. So pergunte de volta (em texto, sem usar ferramenta nenhuma) se faltar uma informacao
+essencial, tipo o valor de um gasto.
+
+Alem disso, se em algum momento da conversa o Alex revelar um fato duravel sobre ele mesmo que
+vale lembrar dali pra frente - uma preferencia, rotina, relacao, contexto recorrente - e que NAO
+e so o item pontual que ja esta sendo registrado por outra ferramenta, chame tambem
+`registrar_memoria` com esse fato em terceira pessoa, alem de continuar respondendo normalmente.
+Isso e raro - a grande maioria das mensagens nao tem nada de duravel pra guardar aqui, entao so
+use quando for claramente o caso, nunca por excesso de zelo.
 
 Contexto de agora:
 {contexto}
@@ -92,7 +99,15 @@ CHAT_TOOLS = [
                 "titulo": {"type": "string"},
                 "quando": {
                     "type": "string",
-                    "description": "prazo em texto livre (ex: 'amanha', 'sexta') - omita se nao houver",
+                    "description": "prazo em texto livre, do jeito que o Alex disse (ex: 'amanha', 'sexta') - omita se nao houver",
+                },
+                "quando_data": {
+                    "type": "string",
+                    "description": (
+                        "a mesma informacao de 'quando' convertida pra AAAA-MM-DD - so inclua "
+                        "quando der pra calcular uma data concreta a partir de hoje; se for vago "
+                        "demais (tipo 'quando der', 'algum dia'), omita mesmo que 'quando' tenha texto"
+                    ),
                 },
             },
             "required": ["titulo"],
@@ -153,6 +168,25 @@ CHAT_TOOLS = [
             "required": ["titulo", "data"],
         },
     },
+    {
+        "name": "registrar_memoria",
+        "description": (
+            "Guarda um fato duravel sobre o Alex que apareceu na conversa e vale lembrar em "
+            "conversas futuras (preferencia, rotina, relacao, contexto recorrente) - use JUNTO "
+            "com outra ferramenta se for o caso, nunca no lugar dela. Raro: a maioria das "
+            "mensagens nao tem nada assim."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "fato": {
+                    "type": "string",
+                    "description": "o fato em terceira pessoa, frase curta (ex: 'prefere tarefas rapidas de manha')",
+                },
+            },
+            "required": ["fato"],
+        },
+    },
 ]
 
 
@@ -165,7 +199,9 @@ def chat(
     ela responder so com texto (ou ate um limite de rodadas, pra nunca
     ficar preso num loop)."""
     system = CHAT_SYSTEM_PROMPT.format(
-        contexto=contexto, memorias="\n".join(f"- {m}" for m in memorias) or "nenhuma ainda"
+        hoje=date.today().isoformat(),
+        contexto=contexto,
+        memorias="\n".join(f"- {m}" for m in memorias) or "nenhuma ainda",
     )
     mensagens = list(historico)
     acoes: list[str] = []

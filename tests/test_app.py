@@ -859,6 +859,41 @@ class PainelTestCase(unittest.TestCase):
             titulo_notif = mock_enviar.call_args[0][1]
             self.assertEqual(titulo_notif, "Data importante chegando")
 
+    def test_chat_tarefa_com_data_grava_due_date(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_tarefa"](
+                {"titulo": "ligar pro dentista", "quando": "amanha", "quando_data": "2026-09-19"}
+            )
+            return "Registrei pra amanha.", ["registrar_tarefa"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "ligar pro dentista amanha"})
+
+        conn = db.get_db()
+        row = conn.execute("SELECT due_at, due_date FROM tasks").fetchone()
+        conn.close()
+        self.assertEqual(row["due_at"], "amanha")
+        self.assertEqual(row["due_date"], "2026-09-19")
+
+    def test_chat_usa_executor_de_memoria_de_verdade(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_memoria"](
+                {"fato": "prefere resolver assuntos financeiros de manha"}
+            )
+            self.assertEqual(resultado, {"ok": True})
+            return "Anotado.", ["registrar_memoria"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "eu prefiro resolver assuntos financeiros de manha"}
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["acoes"], ["registrar_memoria"])
+
+        memorias = self.client.get("/api/memorias").get_json()
+        self.assertEqual(len(memorias), 1)
+        self.assertEqual(memorias[0]["texto"], "prefere resolver assuntos financeiros de manha")
+
 
 if __name__ == "__main__":
     unittest.main()

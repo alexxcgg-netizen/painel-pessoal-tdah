@@ -353,8 +353,8 @@ def chat():
 
     def exec_registrar_tarefa(entrada):
         conn.execute(
-            "INSERT INTO tasks (title, due_at, source_text) VALUES (?, ?, ?)",
-            (entrada["titulo"], entrada.get("quando"), texto),
+            "INSERT INTO tasks (title, due_at, due_date, source_text) VALUES (?, ?, ?, ?)",
+            (entrada["titulo"], entrada.get("quando"), entrada.get("quando_data"), texto),
         )
         conn.commit()
         return {"ok": True}
@@ -384,12 +384,17 @@ def chat():
         create_lembrete(conn, entrada["titulo"], entrada["data"], entrada.get("recorrente", False))
         return {"ok": True}
 
+    def exec_registrar_memoria(entrada):
+        create_memoria(conn, entrada["fato"], texto)
+        return {"ok": True}
+
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
         "registrar_meta": exec_registrar_meta,
         "gerar_plano_do_dia": exec_gerar_plano,
         "registrar_lembrete": exec_registrar_lembrete,
+        "registrar_memoria": exec_registrar_memoria,
     }
 
     result, error = _call_claude(

@@ -96,6 +96,21 @@ class ChatLoopTestCase(unittest.TestCase):
         self.assertEqual(texto, "Tudo bem, vamos por outro caminho.")
         self.assertEqual(acoes, [])
 
+    def test_system_prompt_inclui_data_de_hoje(self):
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block("oi")]),
+        ) as mock_create:
+            claude_client.chat([], "contexto", [], {})
+        system_enviado = mock_create.call_args.kwargs["system"]
+        self.assertIn(claude_client.date.today().isoformat(), system_enviado)
+
+    def test_registrar_memoria_e_ferramenta_disponivel(self):
+        nomes = [t["name"] for t in claude_client.CHAT_TOOLS]
+        self.assertIn("registrar_memoria", nomes)
+        self.assertIn("quando_data", claude_client.CHAT_TOOLS[0]["input_schema"]["properties"])
+
 
 if __name__ == "__main__":
     unittest.main()

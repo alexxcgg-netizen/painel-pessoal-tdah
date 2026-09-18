@@ -279,14 +279,27 @@ decide sozinha, usando [tool use](https://docs.claude.com/en/docs/agents-and-too
 API da Anthropic, se registra uma tarefa, um gasto, uma meta, gera o plano do dia, ou so responde
 em texto - sem voce precisar navegar ate um formulario especifico. As ferramentas
 (`registrar_tarefa`, `registrar_gasto`, `registrar_meta`, `gerar_plano_do_dia`,
-`registrar_lembrete`) sao as mesmas operacoes que ja existiam (mais a de datas importantes, ver
-abaixo), so que agora tambem acionaveis por conversa. O historico fica salvo (`chat_mensagens`) e
-entra como contexto nas proximas mensagens, junto com a memoria duravel e um resumo factual do que
-esta acontecendo agora (tarefas pendentes, gasto de hoje, agenda, saude).
+`registrar_lembrete`, `registrar_memoria`) sao as mesmas operacoes que ja existiam (mais a de
+datas importantes, ver abaixo), so que agora tambem acionaveis por conversa. O historico fica
+salvo (`chat_mensagens`) e entra como contexto nas proximas mensagens, junto com a memoria
+duravel e um resumo factual do que esta acontecendo agora (tarefas pendentes, gasto de hoje,
+agenda, saude).
 
 O painel de numeros (resumo, agenda, saude, plano do dia, deslocamento, memoria, datas
 importantes) nao sumiu - virou a aba **Painel**, acessivel quando voce quiser ver os dados direto
 em vez de perguntar.
+
+**Memoria alimentada pela conversa** (nao so pela captura rapida): se voce revelar algo duravel
+no meio de uma conversa no chat ("eu sempre deixo assuntos de dinheiro pra de manha"), o modelo
+pode chamar `registrar_memoria` mesmo sem isso ser o pedido principal da mensagem - junto com
+qualquer outra ferramenta que tenha usado, nunca no lugar dela. Fecha o item do Roadmap que
+faltava aqui.
+
+**Tarefa criada pelo chat agora entra na checagem de atraso**: antes, so tarefa vinda da captura
+rapida ganhava uma data estruturada (`due_date`) pra a verificacao proativa de "tarefa atrasada"
+funcionar - a ferramenta `registrar_tarefa` do chat so tinha o campo de texto livre. Agora ela
+tambem extrai a data em AAAA-MM-DD quando dá pra calcular (e o system prompt do chat sabe a data
+de hoje, que antes nao sabia).
 
 A captura rapida no topo (`Digite algo: tarefa, lembrete, gasto ou meta...`) continua existindo
 em paralelo - e mais rapida pra um lancamento pontual sem abrir conversa.
@@ -308,7 +321,8 @@ Visivel e apagavel na aba Painel, em "Datas importantes".
 ## Roadmap
 
 **Fase 2** — comando de voz livre (falar em vez de digitar no chat); integracao com Home
-Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa); memoria alimentada
-organicamente pelas conversas do chat, nao so pela captura rapida
+Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa); integracao com o painel
+da construtora de verdade (precisa decidir com o Alex como expor os dados de la com seguranca -
+ver secao "Integracao com o painel da construtora")
 
 **Ideia futura** — se o painel pessoal se provar util, replicar pra outros membros da familia (cada um com seu proprio banco de dados/instancia - nunca compartilhando dados entre si sem pedir)
