@@ -49,6 +49,7 @@ function showTab(name) {
     loadAgenda();
     loadSaude();
     loadMemorias();
+    loadLembretes();
   }
   if (name === "tarefas") loadTasks();
   if (name === "gastos") {
@@ -273,6 +274,7 @@ async function enviarChat(texto) {
     if (!$("#tab-painel").hidden) {
       loadAgenda();
       loadMemorias();
+      loadLembretes();
     }
     if (!$("#tab-tarefas").hidden) loadTasks();
     if (!$("#tab-gastos").hidden) {
@@ -335,6 +337,59 @@ async function loadMemorias() {
     apagarBtn.addEventListener("click", async () => {
       apagarBtn.disabled = true;
       const ok = await apiFetch(`/api/memorias/${m.id}`, { method: "DELETE" });
+      if (ok) {
+        li.classList.add("saindo");
+        setTimeout(() => li.remove(), 250);
+      } else {
+        apagarBtn.disabled = false;
+      }
+    });
+    acoes.appendChild(apagarBtn);
+    linha.appendChild(acoes);
+
+    li.appendChild(linha);
+    list.appendChild(li);
+  });
+}
+
+function fmtDataBr(isoDate) {
+  const [ano, mes, dia] = isoDate.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
+async function loadLembretes() {
+  const lembretes = await apiFetch("/api/lembretes");
+  if (!lembretes) return;
+
+  const list = $("#lista-lembretes");
+  list.innerHTML = "";
+  $("#lembretes-vazio").hidden = lembretes.length > 0;
+
+  lembretes.forEach((l) => {
+    const li = document.createElement("li");
+    li.className = "item";
+
+    const linha = document.createElement("div");
+    linha.className = "item-linha";
+
+    const tituloWrap = document.createElement("div");
+    const titulo = document.createElement("span");
+    titulo.className = "item-titulo";
+    titulo.textContent = l.titulo;
+    tituloWrap.appendChild(titulo);
+    const quando = document.createElement("span");
+    quando.className = "item-quando";
+    quando.textContent = l.recorrente ? `${fmtDataBr(l.data)} - todo ano` : fmtDataBr(l.data);
+    tituloWrap.appendChild(quando);
+    linha.appendChild(tituloWrap);
+
+    const acoes = document.createElement("div");
+    acoes.className = "item-acoes";
+    const apagarBtn = document.createElement("button");
+    apagarBtn.textContent = "Apagar";
+    apagarBtn.addEventListener("click", async () => {
+      apagarBtn.disabled = true;
+      const ok = await apiFetch(`/api/lembretes/${l.id}`, { method: "DELETE" });
       if (ok) {
         li.classList.add("saindo");
         setTimeout(() => li.remove(), 250);
@@ -795,6 +850,7 @@ loadSummary();
 loadUso();
 loadAgenda();
 loadMemorias();
+loadLembretes();
 loadSaude();
 loadChatHistorico();
 initViagemOrigemPadrao();

@@ -119,6 +119,14 @@ def init_db():
             texto TEXT NOT NULL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS lembretes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            data TEXT NOT NULL,
+            recorrente INTEGER NOT NULL DEFAULT 0,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -327,3 +335,22 @@ def list_chat_mensagens(conn, limit: int = 20) -> list[dict]:
         "SELECT * FROM chat_mensagens ORDER BY criado_em DESC, id DESC LIMIT ?", (limit,)
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def create_lembrete(conn, titulo: str, data_str: str, recorrente: bool = False) -> int:
+    cur = conn.execute(
+        "INSERT INTO lembretes (titulo, data, recorrente) VALUES (?, ?, ?)",
+        (titulo, data_str, int(recorrente)),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_lembretes(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM lembretes ORDER BY data").fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_lembrete(conn, lembrete_id: int):
+    conn.execute("DELETE FROM lembretes WHERE id = ?", (lembrete_id,))
+    conn.commit()

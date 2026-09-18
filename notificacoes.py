@@ -71,3 +71,42 @@ def gasto_semana_elevado(conn, limiar: float = 1.4) -> str | None:
         f"Gasto dessa semana ja esta em R$ {total_atual:.2f}, "
         f"acima da media das ultimas semanas (R$ {media:.2f})."
     )
+
+
+def _proxima_ocorrencia(data_base: date, recorrente: bool, hoje: date) -> date:
+    """Pra lembrete unico, a proxima ocorrencia e a propria data. Pra
+    recorrente (anual - tipo validade de licenca, exame medico, seguro),
+    acha o proximo aniversario dessa data a partir de hoje."""
+    if not recorrente:
+        return data_base
+    for ano in (hoje.year, hoje.year + 1):
+        try:
+            candidata = date(ano, data_base.month, data_base.day)
+        except ValueError:
+            candidata = date(ano, data_base.month, 28)  # 29 de fevereiro em ano nao bissexto
+        if candidata >= hoje:
+            return candidata
+    return data_base
+
+
+def lembretes_proximos(conn, dias: int = 7) -> list[tuple[int, str]]:
+    """Lembretes (unicos ou recorrentes) cuja proxima ocorrencia cai dentro
+    da janela de `dias` a partir de hoje."""
+    hoje = date.today()
+    avisos = []
+    for row in conn.execute("SELECT * FROM lembretes").fetchall():
+        data_base = date.fromisoformat(row["data"])
+        proxima = _proxima_ocorrencia(data_base, bool(row["recorrente"]), hoje)
+        dias_restantes = (proxima - hoje).days
+        if not (0 <= dias_restantes <= dias):
+            continue
+        if dias_restantes == 0:
+            quando = "e hoje"
+        elif dias_restantes == 1:
+            quando = "e amanha"
+        else:
+            quando = f"e em {dias_restantes} dias"
+        avisos.append(
+            (row["id"], f"\"{row['titulo']}\" {quando} ({proxima.strftime('%d/%m')}).")
+        )
+    return avisos

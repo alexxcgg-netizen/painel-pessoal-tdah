@@ -20,7 +20,9 @@ from db import (
     CAMPOS_SAUDE,
     add_to_goal,
     create_goal,
+    create_lembrete,
     create_memoria,
+    delete_lembrete,
     delete_memoria,
     delete_push_subscription,
     get_db,
@@ -31,6 +33,7 @@ from db import (
     ja_notificou_hoje,
     list_chat_mensagens,
     list_goals,
+    list_lembretes,
     list_memorias,
     list_push_subscriptions,
     marcar_notificado,
@@ -377,11 +380,16 @@ def chat():
         _log_usage(conn, usage_plano)
         return {"plano": plano_texto}
 
+    def exec_registrar_lembrete(entrada):
+        create_lembrete(conn, entrada["titulo"], entrada["data"], entrada.get("recorrente", False))
+        return {"ok": True}
+
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
         "registrar_meta": exec_registrar_meta,
         "gerar_plano_do_dia": exec_gerar_plano,
+        "registrar_lembrete": exec_registrar_lembrete,
     }
 
     result, error = _call_claude(
@@ -433,6 +441,10 @@ def verificar_e_notificar():
     msg = notificacoes.gasto_semana_elevado(conn)
     if msg and not ja_notificou_hoje(conn, "gasto_elevado"):
         avisos.append(("gasto_elevado", 0, "Gasto da semana", msg))
+
+    for lembrete_id, msg in notificacoes.lembretes_proximos(conn):
+        if not ja_notificou_hoje(conn, "lembrete_proximo", lembrete_id):
+            avisos.append(("lembrete_proximo", lembrete_id, "Data importante chegando", msg))
 
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
@@ -514,6 +526,22 @@ def memorias():
 def apagar_memoria(memoria_id):
     conn = get_db()
     delete_memoria(conn, memoria_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/lembretes", methods=["GET"])
+def lembretes():
+    conn = get_db()
+    resultado = list_lembretes(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/lembretes/<int:lembrete_id>", methods=["DELETE"])
+def apagar_lembrete(lembrete_id):
+    conn = get_db()
+    delete_lembrete(conn, lembrete_id)
     conn.close()
     return jsonify({"ok": True})
 

@@ -805,6 +805,60 @@ class PainelTestCase(unittest.TestCase):
             self.assertEqual(res2.get_json()["avisos_enviados"], 0)
             self.assertEqual(mock_enviar.call_count, 1)
 
+    def test_lembretes_lista_vazia(self):
+        self.assertEqual(self.client.get("/api/lembretes").get_json(), [])
+
+    def test_apagar_lembrete_remove_da_lista(self):
+        conn = db.get_db()
+        lembrete_id = db.create_lembrete(conn, "Validade da licenca", "2027-03-10", recorrente=True)
+        conn.close()
+
+        lembretes = self.client.get("/api/lembretes").get_json()
+        self.assertEqual(len(lembretes), 1)
+
+        res = self.client.delete(f"/api/lembretes/{lembrete_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/lembretes").get_json(), [])
+
+    def test_chat_usa_executor_de_lembrete_de_verdade(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_lembrete"](
+                {"titulo": "Validade do exame medico", "data": "2027-01-15", "recorrente": True}
+            )
+            self.assertEqual(resultado, {"ok": True})
+            return "Beleza, vou te lembrar todo ano perto dessa data.", ["registrar_lembrete"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "meu exame medico de piloto vence dia 15 de janeiro, todo ano"}
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["acoes"], ["registrar_lembrete"])
+
+        lembretes = self.client.get("/api/lembretes").get_json()
+        self.assertEqual(len(lembretes), 1)
+        self.assertEqual(lembretes[0]["titulo"], "Validade do exame medico")
+        self.assertEqual(lembretes[0]["recorrente"], 1)
+
+    def test_notificacoes_verificar_agora_inclui_lembrete_proximo(self):
+        data = (date.today() + timedelta(days=2)).isoformat()
+        conn = db.get_db()
+        db.create_lembrete(conn, "Renovar seguro", data, recorrente=False)
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res.get_json()["avisos_enviados"], 1)
+            mock_enviar.assert_called_once()
+            titulo_notif = mock_enviar.call_args[0][1]
+            self.assertEqual(titulo_notif, "Data importante chegando")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -112,11 +112,12 @@ chega no seu navegador/celular.
 
 **Notificacoes proativas - ja implementado, roda enquanto o `python app.py` estiver de pe**: um
 job (`APScheduler`, ver `iniciar_scheduler()` em `app.py`) roda a cada 3h e verifica, em Python
-puro (`notificacoes.py`), tres coisas: tarefas atrasadas (com data), metas financeiras fora do
+puro (`notificacoes.py`), quatro coisas: tarefas atrasadas (com data), metas financeiras fora do
 ritmo pra bater o prazo (compara o quanto ja devia ter guardado, proporcional ao tempo passado,
-com o que guardou de verdade) e gasto da semana bem acima da media das ultimas semanas. Cada tipo
-de aviso so dispara uma vez por dia (deduplicado na tabela `notificacoes_enviadas`), pra nao virar
-spam. Da pra forcar uma verificacao na hora com `POST /api/notificacoes/verificar-agora`.
+com o que guardou de verdade), gasto da semana bem acima da media das ultimas semanas, e datas
+importantes se aproximando (ver secao "Datas importantes" abaixo). Cada tipo de aviso so dispara
+uma vez por dia (deduplicado na tabela `notificacoes_enviadas`), pra nao virar spam. Da pra forcar
+uma verificacao na hora com `POST /api/notificacoes/verificar-agora`.
 
 **O que ainda depende de hospedagem fixa**: isso tudo so roda enquanto o processo do
 `python app.py` estiver ligado no seu computador - fecha o terminal, para de verificar. Pra virar
@@ -277,16 +278,32 @@ A aba Hoje virou um chat de verdade em vez do painel de numeros: voce escreve o 
 decide sozinha, usando [tool use](https://docs.claude.com/en/docs/agents-and-tools/tool-use) da
 API da Anthropic, se registra uma tarefa, um gasto, uma meta, gera o plano do dia, ou so responde
 em texto - sem voce precisar navegar ate um formulario especifico. As ferramentas
-(`registrar_tarefa`, `registrar_gasto`, `registrar_meta`, `gerar_plano_do_dia`) sao as mesmas
-operacoes que ja existiam, so que agora tambem acionaveis por conversa. O historico fica salvo
-(`chat_mensagens`) e entra como contexto nas proximas mensagens, junto com a memoria duravel e um
-resumo factual do que esta acontecendo agora (tarefas pendentes, gasto de hoje, agenda, saude).
+(`registrar_tarefa`, `registrar_gasto`, `registrar_meta`, `gerar_plano_do_dia`,
+`registrar_lembrete`) sao as mesmas operacoes que ja existiam (mais a de datas importantes, ver
+abaixo), so que agora tambem acionaveis por conversa. O historico fica salvo (`chat_mensagens`) e
+entra como contexto nas proximas mensagens, junto com a memoria duravel e um resumo factual do que
+esta acontecendo agora (tarefas pendentes, gasto de hoje, agenda, saude).
 
-O painel de numeros (resumo, agenda, saude, plano do dia, deslocamento, memoria) nao sumiu - virou
-a aba **Painel**, acessivel quando voce quiser ver os dados direto em vez de perguntar.
+O painel de numeros (resumo, agenda, saude, plano do dia, deslocamento, memoria, datas
+importantes) nao sumiu - virou a aba **Painel**, acessivel quando voce quiser ver os dados direto
+em vez de perguntar.
 
 A captura rapida no topo (`Digite algo: tarefa, lembrete, gasto ou meta...`) continua existindo
 em paralelo - e mais rapida pra um lancamento pontual sem abrir conversa.
+
+## Datas importantes — pra qualquer area da vida, nao so financeiro
+
+Nem tudo e tarefa (algo pra fazer agora) ou gasto/meta - tem coisa que so importa quando esta
+chegando perto: validade da licenca ou do exame medico de piloto, vencimento de seguro, revisao
+do carro, aniversario de alguem. Isso vive numa tabela propria (`lembretes`), separada de tarefas,
+justamente pra nao poluir a lista do dia a dia com algo que so faz sentido avisar la na frente.
+
+So da pra registrar pelo **chat** (ex: "meu exame medico de piloto vence dia 15 de janeiro, todo
+ano"): a IA extrai titulo, data e se repete todo ano (`recorrente`). Pra recorrente, o calculo de
+"quando e a proxima vez" (achar o proximo aniversario dessa data a partir de hoje) e feito em
+Python (`notificacoes._proxima_ocorrencia`), nunca pela IA. Quando falta 7 dias ou menos pra
+proxima ocorrencia, entra na verificacao proativa (ver secao "Notificacoes" acima) e manda push.
+Visivel e apagavel na aba Painel, em "Datas importantes".
 
 ## Roadmap
 

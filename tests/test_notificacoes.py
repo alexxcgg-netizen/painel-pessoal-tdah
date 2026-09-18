@@ -104,6 +104,38 @@ class NotificacoesTestCase(unittest.TestCase):
         self.conn.commit()
         self.assertIsNone(notificacoes.gasto_semana_elevado(self.conn))
 
+    def test_lembrete_unico_proximo_e_avisado(self):
+        data = (date.today() + timedelta(days=3)).isoformat()
+        db.create_lembrete(self.conn, "Renovar seguro do carro", data, recorrente=False)
+        avisos = notificacoes.lembretes_proximos(self.conn)
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("Renovar seguro do carro", avisos[0][1])
+        self.assertIn("3 dias", avisos[0][1])
+
+    def test_lembrete_unico_longe_nao_avisa(self):
+        data = (date.today() + timedelta(days=30)).isoformat()
+        db.create_lembrete(self.conn, "Renovar seguro do carro", data, recorrente=False)
+        self.assertEqual(notificacoes.lembretes_proximos(self.conn), [])
+
+    def test_lembrete_unico_ja_passou_nao_avisa(self):
+        data = (date.today() - timedelta(days=2)).isoformat()
+        db.create_lembrete(self.conn, "Coisa antiga", data, recorrente=False)
+        self.assertEqual(notificacoes.lembretes_proximos(self.conn), [])
+
+    def test_lembrete_recorrente_calcula_proximo_aniversario(self):
+        data_original = (date.today() - timedelta(days=360)).isoformat()
+        db.create_lembrete(self.conn, "Validade da licenca de piloto", data_original, recorrente=True)
+        avisos = notificacoes.lembretes_proximos(self.conn, dias=10)
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("Validade da licenca de piloto", avisos[0][1])
+
+    def test_lembrete_recorrente_hoje(self):
+        data_original = date.today().replace(year=date.today().year - 1).isoformat()
+        db.create_lembrete(self.conn, "Aniversario", data_original, recorrente=True)
+        avisos = notificacoes.lembretes_proximos(self.conn)
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("e hoje", avisos[0][1])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -132,6 +132,27 @@ CHAT_TOOLS = [
         "description": "Olha as tarefas pendentes e a agenda de hoje do Alex e sugere a melhor ordem pra fazer as coisas.",
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "registrar_lembrete",
+        "description": (
+            "Registra uma data importante pra avisar com antecedencia mais perto do dia - "
+            "coisas como validade de licenca/exame medico de piloto, vencimento de seguro, "
+            "revisao de veiculo, aniversario de alguem. Diferente de tarefa: isso e uma data "
+            "que se repete ou que so importa mesmo quando estiver perto, nao algo pra fazer agora."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string"},
+                "data": {"type": "string", "description": "AAAA-MM-DD da proxima ocorrencia"},
+                "recorrente": {
+                    "type": "boolean",
+                    "description": "true se repete todo ano nessa mesma data (ex: aniversario, validade anual) - false se for so uma vez",
+                },
+            },
+            "required": ["titulo", "data"],
+        },
+    },
 ]
 
 
