@@ -62,6 +62,10 @@ Coisas duraveis que voce sabe sobre a pessoa (use so se for relevante pro resumo
 Contexto de saude de hoje (mencione so se for notavel, tipo bem abaixo/acima da media - senao ignore):
 {saude}
 
+Resumo financeiro da construtora do Alex (mencione so se fizer sentido, nao force - isso e o
+negocio dele, nao gasto pessoal):
+{construtora}
+
 Tarefas concluidas: {done}
 Tarefas pendentes: {pending}
 Gastos de hoje: {expenses}
@@ -319,6 +323,7 @@ def summarize_day(
     eventos: list[str] | None = None,
     memorias: list[str] | None = None,
     saude: str | None = None,
+    construtora: str | None = None,
 ) -> tuple[str, dict]:
     response = client.messages.create(
         model=HAIKU,
@@ -333,6 +338,7 @@ def summarize_day(
                     eventos=eventos or "nenhum (ou agenda nao conectada)",
                     memorias=memorias or "nenhuma ainda",
                     saude=saude or "sem dados de saude hoje",
+                    construtora=construtora or "nao conectado",
                 ),
             }
         ],

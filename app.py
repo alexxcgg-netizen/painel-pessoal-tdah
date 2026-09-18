@@ -226,6 +226,33 @@ def _saude_contexto_resumo(conn) -> str | None:
     return ", ".join(partes)
 
 
+def _buscar_resumo_construtora() -> dict | None:
+    """Busca o resumo financeiro na API da construtora - None se nao configurado ou
+    se a chamada falhar por qualquer motivo (nunca quebra quem chamar)."""
+    base_url = os.environ.get("CONSTRUTORA_API_URL")
+    api_key = os.environ.get("CONSTRUTORA_API_KEY")
+    if not base_url or not api_key:
+        return None
+    try:
+        resp = requests.get(f"{base_url}/api/resumo", headers={"X-API-Key": api_key}, timeout=5)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.RequestException:
+        return None
+
+
+def _construtora_contexto_resumo() -> str | None:
+    """Frase factual pro resumo do dia / chat - so numeros que ja vieram prontos da
+    API da construtora, nenhuma conta feita aqui nem pela IA."""
+    dados = _buscar_resumo_construtora()
+    if not dados or dados.get("status") != "ok":
+        return None
+    return (
+        f"entradas R$ {dados['tot_entradas']:.2f}, saidas R$ {dados['tot_saidas']:.2f}, "
+        f"lucro liquido R$ {dados['lucro_liquido']:.2f}, margem {dados['margem']:.1f}%"
+    )
+
+
 def _eventos_de_hoje_com_seguranca() -> list[dict]:
     """A agenda do iCloud via CalDAV e instavel (ver caldav_client.py) - se
     falhar, o resumo do dia nao pode quebrar por causa disso."""
@@ -250,6 +277,7 @@ def summary_today():
     eventos = _eventos_de_hoje_com_seguranca()
     memorias = list_memorias(conn)
     saude = _saude_contexto_resumo(conn)
+    construtora = _construtora_contexto_resumo()
 
     result, error = _call_claude(
         claude_client.summarize_day,
@@ -259,6 +287,7 @@ def summary_today():
         [e["titulo"] for e in eventos],
         [m["texto"] for m in memorias],
         saude,
+        construtora,
     )
     if error:
         conn.close()
@@ -324,6 +353,7 @@ def _contexto_chat(conn) -> str:
     ).fetchone()["total"]
     eventos = _eventos_de_hoje_com_seguranca()
     saude = _saude_contexto_resumo(conn)
+    construtora = _construtora_contexto_resumo()
 
     linhas = [
         f"Tarefas pendentes: {', '.join(r['title'] for r in pendentes) or 'nenhuma'}",
@@ -332,6 +362,8 @@ def _contexto_chat(conn) -> str:
     ]
     if saude:
         linhas.append(f"Saude hoje: {saude}")
+    if construtora:
+        linhas.append(f"Construtora (financeiro geral): {construtora}")
     return "\n".join(linhas)
 
 

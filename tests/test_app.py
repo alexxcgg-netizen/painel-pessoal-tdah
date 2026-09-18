@@ -4,7 +4,9 @@ import tempfile
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import requests
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
@@ -893,6 +895,73 @@ class PainelTestCase(unittest.TestCase):
         memorias = self.client.get("/api/memorias").get_json()
         self.assertEqual(len(memorias), 1)
         self.assertEqual(memorias[0]["texto"], "prefere resolver assuntos financeiros de manha")
+
+    def test_resumo_do_dia_recebe_contexto_da_construtora(self):
+        resposta_fake = MagicMock()
+        resposta_fake.raise_for_status = lambda: None
+        resposta_fake.json.return_value = {
+            "status": "ok",
+            "tot_entradas": 100000.0,
+            "tot_saidas": 40000.0,
+            "lucro_liquido": 60000.0,
+            "margem": 60.0,
+        }
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", return_value=resposta_fake), patch(
+            "claude_client.summarize_day", return_value=("Dia ok.", fake_usage())
+        ) as mock_summarize:
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        args = mock_summarize.call_args[0]
+        self.assertIn("lucro liquido R$ 60000.00", args[6])
+
+    def test_resumo_do_dia_sem_construtora_configurada_nao_quebra(self):
+        with patch(
+            "claude_client.summarize_day", return_value=("Dia ok.", fake_usage())
+        ) as mock_summarize:
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        args = mock_summarize.call_args[0]
+        self.assertIsNone(args[6])
+
+    def test_chat_contexto_inclui_construtora_quando_configurada(self):
+        resposta_fake = MagicMock()
+        resposta_fake.raise_for_status = lambda: None
+        resposta_fake.json.return_value = {
+            "status": "ok",
+            "tot_entradas": 100000.0,
+            "tot_saidas": 40000.0,
+            "lucro_liquido": 60000.0,
+            "margem": 60.0,
+        }
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            self.assertIn("Construtora", contexto)
+            self.assertIn("60000.00", contexto)
+            return "Beleza.", [], fake_usage()
+
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", return_value=resposta_fake), patch(
+            "claude_client.chat", side_effect=fake_chat
+        ):
+            res = self.client.post("/api/chat", json={"mensagem": "como ta a construtora?"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_construtora_contexto_ignora_falha_de_rede(self):
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", side_effect=requests.RequestException("fora do ar")), patch(
+            "claude_client.summarize_day", return_value=("Dia ok.", fake_usage())
+        ) as mock_summarize:
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        args = mock_summarize.call_args[0]
+        self.assertIsNone(args[6])
 
 
 if __name__ == "__main__":
