@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import date
+from datetime import date, datetime
 
 import anthropic
 import requests
@@ -12,6 +12,7 @@ load_dotenv()
 import bank_ofx
 import caldav_client
 import claude_client
+import maps_client
 import pluggy_client
 import push_client
 from db import (
@@ -242,6 +243,73 @@ def calendario_hoje():
             {"configurado": True, "eventos": [], "erro": "Nao consegui falar com o iCloud agora."}
         )
     return jsonify({"configurado": True, "eventos": eventos})
+
+
+@app.route("/api/plano-do-dia", methods=["POST"])
+def plano_do_dia():
+    conn = get_db()
+    pending = conn.execute("SELECT title FROM tasks WHERE completed_at IS NULL").fetchall()
+    eventos = _eventos_de_hoje_com_seguranca()
+
+    result, error = _call_claude(
+        claude_client.plano_do_dia, [r["title"] for r in pending], eventos
+    )
+    if error:
+        conn.close()
+        return error
+    texto, usage = result
+
+    _log_usage(conn, usage)
+    conn.close()
+    return jsonify({"plano": texto})
+
+
+@app.route("/api/viagem/status", methods=["GET"])
+def viagem_status():
+    return jsonify(
+        {
+            "configurado": maps_client.configurado(),
+            "origem_padrao": os.environ.get("ENDERECO_CASA", ""),
+        }
+    )
+
+
+@app.route("/api/viagem/quando-sair", methods=["POST"])
+def viagem_quando_sair():
+    if not maps_client.configurado():
+        return jsonify({"error": "calculadora de deslocamento nao configurada - veja o README"}), 400
+
+    body = request.json or {}
+    destino = (body.get("destino") or "").strip()
+    chegar_ate_str = body.get("chegar_ate")
+    origem = (body.get("origem") or "").strip() or os.environ.get("ENDERECO_CASA", "").strip()
+    margem = body.get("margem_minutos", 15)
+    modo = (body.get("modo") or "DRIVE").strip().upper()
+
+    if not destino or not chegar_ate_str or not origem:
+        return (
+            jsonify({"error": "informe destino e horario de chegada (e origem, se nao tiver ENDERECO_CASA configurado)"}),
+            400,
+        )
+
+    try:
+        chegar_ate = datetime.fromisoformat(chegar_ate_str)
+    except ValueError:
+        return jsonify({"error": "chegar_ate precisa estar em formato AAAA-MM-DDTHH:MM"}), 400
+
+    try:
+        margem = int(margem)
+    except (TypeError, ValueError):
+        margem = 15
+
+    try:
+        resultado = maps_client.horario_de_saida(origem, destino, chegar_ate, margem, modo)
+    except requests.RequestException:
+        return jsonify({"error": "nao consegui calcular a rota agora"}), 502
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(resultado)
 
 
 @app.route("/api/uso/total", methods=["GET"])

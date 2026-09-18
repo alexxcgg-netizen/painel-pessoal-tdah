@@ -70,6 +70,21 @@
         Calendario da Apple/iCloud ainda nao conectado - veja o README.
       </p>
       <ul id="lista-agenda"></ul>
+
+      <h2 class="secao-secundaria">Plano do dia</h2>
+      <p class="dica-metas">Olha suas tarefas pendentes e os compromissos de hoje e sugere a melhor ordem.</p>
+      <button id="plano-btn" class="btn-conectar">Gerar plano do dia</button>
+      <p id="plano-texto" class="resumo-texto" hidden></p>
+
+      <h2 class="secao-secundaria">Devo sair ate que horas?</h2>
+      <p class="dica-metas">Considera transito em tempo real (precisa do Google Maps configurado - veja o README).</p>
+      <form id="viagem-form">
+        <input type="text" id="viagem-origem" placeholder="De onde? (deixa em branco se tiver endereco padrao)" />
+        <input type="text" id="viagem-destino" placeholder="Pra onde?" required />
+        <input type="datetime-local" id="viagem-chegar" required />
+        <button type="submit" id="viagem-btn">Calcular</button>
+      </form>
+      <p id="viagem-resultado" class="resumo-texto" hidden></p>
     </section>
 
     <section id="tab-tarefas" class="tab-content" hidden>

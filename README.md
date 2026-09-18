@@ -41,6 +41,8 @@ Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTH
 - Visual: fonte Plus Jakarta Sans, paleta vibrante com cor propria por secao, fundo com gradiente animado (aurora), micro-animacoes com efeito "spring" nos botoes e transicoes, numeros que sobem ao carregar, e uma comemoracao (brilho dourado + selo) quando uma meta bate 100%
 - Notificacao push (Web Push/VAPID) - ver secao "Notificacoes" abaixo
 - Agenda do Calendario da Apple/iCloud (so leitura) aparece na aba Hoje, e entra como contexto no resumo do dia gerado pela IA - ver secao "Calendario" abaixo
+- **Plano do dia**: olha suas tarefas pendentes (sem hora) e os compromissos da agenda (com hora fixa) e sugere a melhor ordem pra encaixar tudo, sob demanda (botao "Gerar plano do dia")
+- **Devo sair ate que horas?**: calculadora de deslocamento com transito em tempo real (Google Routes API) - informa destino e horario que precisa chegar, ela conta pra tras o tempo de viagem + uma margem de seguranca e diz a que horas sair
 
 ## Integracao com o painel da construtora
 
@@ -129,6 +131,11 @@ nada la). Pra ativar:
    compromissos do dia, e o resumo diario gerado pela IA passa a mencionar se o dia esta cheio
    ou tranquilo
 
+Alem disso, o botao **"Gerar plano do dia"** (tambem na aba Hoje) usa a agenda como ancora fixa
+e sugere a ordem certa de fazer suas tarefas pendentes ao redor dos compromissos - isso ja
+resolve boa parte do "me ajuda a organizar o dia" sem precisar de agendador nenhum, porque voce
+pede sob demanda quando quiser (nao e automatico).
+
 ### O que ainda falta pra notificacao "esperta" de verdade
 
 A funcao `caldav_client.horario_ocupado(inicio, fim)` ja existe e confere se um horario colide
@@ -141,6 +148,35 @@ essa peca for construida, a logica vai ser: antes de mandar um push, chama
 oficialmente suportado (funciona, mas as vezes falha sem motivo aparente) - por isso todo o
 codigo aqui e tolerante a erro: se a conexao falhar, o resumo do dia e a aba Hoje simplesmente
 mostram "sem agenda" em vez de quebrar o resto do app.
+
+## Deslocamento — "devo sair ate que horas?"
+
+O exemplo que voce deu (voo daqui a pouco, preciso saber se da tempo de chegar) e resolvido pela
+calculadora na aba Hoje. `maps_client.py` usa a **Google Routes API** com transito em tempo real
+(nao e so distancia - considera transito, tipo de via, etc.) pra calcular quanto tempo leva pra
+chegar num lugar, e conta pra tras a partir do horario que voce precisa estar la.
+
+### Como ativar
+
+1. Cria um projeto gratis em [console.cloud.google.com](https://console.cloud.google.com/),
+   ativa a "Routes API" e gera uma chave de API
+2. Cola no `.env`:
+   ```
+   GOOGLE_MAPS_API_KEY=sua-chave
+   ENDERECO_CASA=Rua Exemplo, 123 - Sua Cidade   # opcional, senao pede origem toda vez
+   ```
+3. Reinicia o `python app.py` — o formulario "Devo sair ate que horas?" na aba Hoje passa a
+   funcionar: informa destino + horario que precisa chegar, ele devolve o horario de saida
+   (ja com 15min de margem de seguranca por padrao)
+
+**Sobre custo**: uso pessoal (algumas consultas por dia) fica bem dentro dos $200/mes de credito
+gratuito que a Google da por conta - na pratica isso e gratis pro seu uso, mas e bom saber que a
+API em si nao e ilimitada de graca se um dia usar muito mais que isso.
+
+**O que isso ainda nao faz**: calcular automaticamente "voce tem voo as 14h, preciso avisar
+1h30 antes" sozinho, sem voce pedir - isso juntaria a calculadora de deslocamento com o
+agendador de notificacoes (que ainda depende de hospedagem fixa, ver secoes acima). Hoje voce
+mesmo abre a calculadora quando quiser saber o horario de saida.
 
 ## Roadmap
 

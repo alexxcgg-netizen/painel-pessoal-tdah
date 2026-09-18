@@ -490,6 +490,87 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json()["eventos_hoje"], 0)
 
+    def test_plano_do_dia_usa_tarefas_e_agenda(self):
+        parsed = {
+            "tipo": "tarefa",
+            "titulo": "levar carro na oficina",
+            "valor": None,
+            "categoria": None,
+            "quando": None,
+            "prazo": None,
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            self.client.post("/api/capture", json={"text": "levar carro na oficina"})
+
+        eventos_fake = [
+            {"titulo": "Dentista", "inicio": "2026-09-18T10:00:00", "fim": "2026-09-18T11:00:00", "dia_inteiro": False}
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ), patch(
+            "claude_client.plano_do_dia",
+            return_value=("1. Faca X antes do dentista.", fake_usage()),
+        ) as mock_plano:
+            res = self.client.post("/api/plano-do-dia")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["plano"], "1. Faca X antes do dentista.")
+        args = mock_plano.call_args[0]
+        self.assertEqual(args[0], ["levar carro na oficina"])
+        self.assertEqual(args[1], eventos_fake)
+
+    def test_viagem_status_sem_configuracao(self):
+        res = self.client.get("/api/viagem/status")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.get_json()["configurado"])
+
+    def test_viagem_quando_sair_sem_configuracao_da_erro(self):
+        res = self.client.post(
+            "/api/viagem/quando-sair",
+            json={"origem": "Casa", "destino": "Aeroporto", "chegar_ate": "2026-09-20T14:00:00"},
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_viagem_quando_sair_calcula_com_margem(self):
+        resultado_fake = {
+            "sair_ate": "2026-09-20T12:54:00",
+            "duracao_minutos": 46,
+            "distancia_km": 18.5,
+            "margem_minutos": 20,
+        }
+        with patch("maps_client.configurado", return_value=True), patch(
+            "maps_client.horario_de_saida", return_value=resultado_fake
+        ) as mock_calc:
+            res = self.client.post(
+                "/api/viagem/quando-sair",
+                json={
+                    "origem": "Rua A, 100",
+                    "destino": "Aeroporto",
+                    "chegar_ate": "2026-09-20T14:00:00",
+                    "margem_minutos": 20,
+                },
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), resultado_fake)
+        mock_calc.assert_called_once()
+
+    def test_viagem_quando_sair_sem_destino_da_erro(self):
+        with patch("maps_client.configurado", return_value=True):
+            res = self.client.post(
+                "/api/viagem/quando-sair",
+                json={"origem": "Casa", "chegar_ate": "2026-09-20T14:00:00"},
+            )
+        self.assertEqual(res.status_code, 400)
+
+    def test_viagem_quando_sair_data_invalida_da_erro(self):
+        with patch("maps_client.configurado", return_value=True):
+            res = self.client.post(
+                "/api/viagem/quando-sair",
+                json={"origem": "Casa", "destino": "Aeroporto", "chegar_ate": "nao-e-uma-data"},
+            )
+        self.assertEqual(res.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

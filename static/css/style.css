@@ -738,3 +738,43 @@ li.item.saindo {
   background: linear-gradient(90deg, #34d399, #fbbf24);
   animation: fadeInUp 0.4s var(--ease-bounce);
 }
+
+#viagem-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+#viagem-origem,
+#viagem-destino,
+#viagem-chegar {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+#viagem-btn {
+  flex: 1 0 100%;
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent-gradient);
+  color: var(--accent-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#viagem-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+#viagem-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

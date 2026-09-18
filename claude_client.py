@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import date
+from datetime import date, datetime
 
 from anthropic import Anthropic
 
@@ -47,6 +47,20 @@ Tarefas concluidas: {done}
 Tarefas pendentes: {pending}
 Gastos de hoje: {expenses}
 Compromissos na agenda hoje: {eventos}"""
+
+PLANO_PROMPT = """Voce ajuda uma pessoa com TDAH a organizar o resto do dia. Agora sao {agora}.
+
+Os compromissos da agenda abaixo tem horario FIXO e nao podem mudar - use como ancoras.
+As tarefas pendentes NAO tem horario marcado - sugira em que ordem encaixa-las ao longo do
+dia (antes, entre ou depois dos compromissos), pensando em coisas como: tarefa rapida
+antes de sair de casa, tarefa que depende de estar em algum lugar perto de um compromisso
+que ja leva pra la, tarefa urgente primeiro se nao houver pista de prioridade.
+
+Responda em lista numerada curta (maximo 6 itens), cada item uma linha, direto ao ponto.
+Tom neutro, sem cobranca. Se nao houver tarefa nem compromisso nenhum, diga isso em uma frase.
+
+Compromissos de hoje (hora fixa): {eventos}
+Tarefas pendentes (sem hora fixa): {tarefas}"""
 
 
 def _extract_json(text: str):
@@ -108,6 +122,27 @@ def summarize_day(
                     pending=pending or "nenhuma",
                     expenses=expenses or "nenhum",
                     eventos=eventos or "nenhum (ou agenda nao conectada)",
+                ),
+            }
+        ],
+    )
+    return response.content[0].text.strip(), _usage(response)
+
+
+def plano_do_dia(tarefas: list[str], eventos: list[dict]) -> tuple[str, dict]:
+    eventos_fmt = [
+        f"{e['titulo']} as {e['inicio'][11:16]}" for e in eventos if not e.get("dia_inteiro")
+    ]
+    response = client.messages.create(
+        model=SONNET,
+        max_tokens=400,
+        messages=[
+            {
+                "role": "user",
+                "content": PLANO_PROMPT.format(
+                    agora=datetime.now().strftime("%H:%M"),
+                    eventos=eventos_fmt or "nenhum",
+                    tarefas=tarefas or "nenhuma",
                 ),
             }
         ],

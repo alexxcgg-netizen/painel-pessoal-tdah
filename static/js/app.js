@@ -584,6 +584,59 @@ async function initPush() {
   });
 }
 
+$("#plano-btn").addEventListener("click", async () => {
+  const btn = $("#plano-btn");
+  const saida = $("#plano-texto");
+  setBotaoCarregando(btn, true, "Pensando...");
+  saida.hidden = true;
+
+  const data = await apiFetch("/api/plano-do-dia", { method: "POST" });
+
+  setBotaoCarregando(btn, false, "Gerar plano do dia");
+  loadUso();
+  if (!data) return;
+  saida.textContent = data.plano;
+  saida.hidden = false;
+});
+
+$("#viagem-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#viagem-btn");
+  const saida = $("#viagem-resultado");
+  const chegarInput = $("#viagem-chegar").value;
+  if (!chegarInput) return;
+
+  setBotaoCarregando(btn, true, "Calculando...");
+  saida.hidden = true;
+
+  const data = await apiFetch("/api/viagem/quando-sair", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      origem: $("#viagem-origem").value.trim(),
+      destino: $("#viagem-destino").value.trim(),
+      chegar_ate: chegarInput,
+    }),
+  });
+
+  setBotaoCarregando(btn, false, "Calcular");
+  if (!data) return;
+
+  const sairEm = new Date(data.sair_ate);
+  const horaTxt = sairEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  saida.textContent =
+    `Saia ate as ${horaTxt} (viagem de ${data.duracao_minutos}min, ${data.distancia_km}km, ` +
+    `com ${data.margem_minutos}min de margem)`;
+  saida.hidden = false;
+});
+
+async function initViagemOrigemPadrao() {
+  const status = await apiFetch("/api/viagem/status");
+  if (status && status.origem_padrao) {
+    $("#viagem-origem").placeholder = `De onde? (padrao: ${status.origem_padrao})`;
+  }
+}
+
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/service-worker.js");
   initPush();
@@ -592,3 +645,4 @@ if ("serviceWorker" in navigator) {
 loadSummary();
 loadUso();
 loadAgenda();
+initViagemOrigemPadrao();
