@@ -197,6 +197,21 @@ botao pra apagar qualquer coisa que nao fizer sentido - nada fica escondido.
 Isso e so a base do que vira memoria de verdade com um chat continuo (ver Roadmap); por enquanto
 a captura de texto livre e o unico jeito de alimentar isso.
 
+Pra ele ja comecar "conhecendo voce" em vez de aprender tudo do zero, um banco novo ja nasce com
+3 memorias basicas (nome, idade/aniversario, profissao) - ver `PERFIL_INICIAL` em `db.py`. So
+roda uma vez (nao duplica se o app reiniciar) e pode ser editado ou apagado como qualquer outra
+memoria pela aba Hoje.
+
+## Visual
+
+A paleta e a tipografia foram desenhadas em cima do [Nectar](https://www.meu-nectar.com/) de
+proposito (`--ng-*` no CSS dele): paineis em cinza-chumbo (nao preto puro), texto quase-branco
+(nao branco puro), bordas finas quase invisiveis em vez de linhas solidas, e uma paleta de cores
+dessaturadas por secao (lavanda, azul, verde-jade, ambar, coral) em vez de gradiente vibrante
+tipo app de tecnologia. Fonte e Inter/SF Pro (a mesma familia que o iOS usa nativamente), com
+letter-spacing negativo nos titulos - o objetivo e parecer mais discreto/premium e menos
+"aplicativo gritando por atencao".
+
 ## Roadmap
 
 **Fase 1.5** — notificacao agendada automatica e proativa (ex: "gasto da semana passou 80% da

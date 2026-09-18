@@ -1,29 +1,33 @@
 :root {
   color-scheme: dark light;
-  --bg: #0b0c14;
-  --surface: #181a26;
-  --surface-2: #212433;
-  --border: #2c2f42;
-  --text: #f3f2fb;
-  --text-muted: #9592ab;
+  --bg: #09090d;
+  --surface: #16181f;
+  --surface-2: #1c1f28;
+  --surface-3: #20232d;
+  --border: rgba(218, 226, 243, 0.09);
+  --border-strong: rgba(218, 226, 243, 0.18);
+  --text: #eceef3;
+  --text-muted: #a7afbc;
+  --text-faint: #788292;
 
-  /* paleta vibrante - indigo/violeta como acento principal, com uma cor
-     propria por secao pra dar variedade sem perder coerencia */
-  --accent: #7c6bff;
-  --accent-2: #ff6bd6;
-  --accent-cyan: #22d3ee;
-  --accent-gradient: linear-gradient(135deg, #7c6bff 0%, #b06bff 50%, #ff6bd6 100%);
-  --accent-text: #ffffff;
+  /* paleta contida - tons dessaturados, tipo joia fosca, em vez de
+     gradiente vibrante - cada secao tem sua cor propria pra dar
+     variedade sem parecer aplicativo gritando por atencao */
+  --accent: #a88bdc;
+  --accent-2: #629fd1;
+  --accent-gradient: linear-gradient(135deg, #a88bdc 0%, #629fd1 100%);
+  --accent-text: #14151c;
+  --accent-soft-bg: rgba(168, 139, 220, 0.14);
 
-  --cor-hoje: #7c6bff;
-  --cor-tarefas: #22d3ee;
-  --cor-financeiro: #34d399;
-  --cor-bancos: #fbbf24;
-  --cor-construtora: #ff6b8a;
+  --cor-hoje: #a88bdc;
+  --cor-tarefas: #629fd1;
+  --cor-financeiro: #42bb91;
+  --cor-bancos: #d8ab4c;
+  --cor-construtora: #ed7181;
 
-  --danger: #ff6b6b;
-  --danger-bg: #2b1518;
-  --radius: 14px;
+  --danger: #ed7181;
+  --danger-bg: rgba(237, 113, 129, 0.12);
+  --radius: 16px;
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
@@ -65,8 +69,8 @@
 
 @keyframes pulseBorda {
   0% {
-    border-color: #34d399;
-    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
+    border-color: #42bb91;
+    box-shadow: 0 0 0 3px rgba(66, 187, 145, 0.15);
   }
   100% {
     border-color: var(--border);
@@ -113,7 +117,8 @@ button:active:not(:disabled) {
 
 body {
   position: relative;
-  font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "InterVariable",
+    "Inter", system-ui, sans-serif;
   max-width: 480px;
   margin: 0 auto;
   padding: calc(1.25rem + env(safe-area-inset-top)) 1rem
@@ -121,6 +126,7 @@ body {
   background: var(--bg);
   color: var(--text);
   line-height: 1.45;
+  letter-spacing: -0.006em;
   overflow-x: hidden;
 }
 
@@ -129,11 +135,11 @@ body {
   inset: -20%;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(circle at 20% 20%, rgba(124, 107, 255, 0.35), transparent 45%),
-    radial-gradient(circle at 80% 15%, rgba(255, 107, 214, 0.22), transparent 40%),
-    radial-gradient(circle at 50% 80%, rgba(34, 211, 238, 0.18), transparent 45%);
-  filter: blur(40px);
-  animation: auroraMove 18s ease-in-out infinite;
+  background: radial-gradient(circle at 18% 18%, rgba(168, 139, 220, 0.16), transparent 45%),
+    radial-gradient(circle at 82% 12%, rgba(98, 159, 209, 0.12), transparent 40%),
+    radial-gradient(circle at 50% 85%, rgba(66, 187, 145, 0.08), transparent 45%);
+  filter: blur(60px);
+  animation: auroraMove 24s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -143,10 +149,10 @@ body {
 }
 
 h1 {
-  font-size: 1.5rem;
-  font-weight: 800;
+  font-size: 1.4rem;
+  font-weight: 700;
   margin: 0 0 0.15rem;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.028em;
   background: var(--accent-gradient);
   -webkit-background-clip: text;
   background-clip: text;
@@ -154,10 +160,11 @@ h1 {
 }
 
 h2 {
-  font-size: 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.07em;
   margin: 0 0 0.75rem;
 }
 
@@ -198,9 +205,9 @@ h2 {
   display: flex;
   gap: 0.3rem;
   padding: 0.5rem 0.6rem calc(0.5rem + env(safe-area-inset-bottom));
-  background: rgba(13, 15, 20, 0.88);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(9, 9, 13, 0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   border-top: 1px solid var(--border);
   z-index: 10;
 }
@@ -238,10 +245,10 @@ h2 {
 
 .tab-btn.active {
   background: var(--tab-cor, var(--accent));
-  color: var(--accent-text);
+  color: #0e0f14;
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
-  box-shadow: 0 4px 14px -2px var(--tab-cor, var(--accent));
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--tab-cor, var(--accent)) 65%, transparent);
 }
 
 .tab-btn[data-tab="hoje"] {
@@ -309,21 +316,21 @@ h2 {
 #captura-btn,
 #duvida-btn {
   padding: 0.7rem 1.1rem;
-  border-radius: 10px;
+  border-radius: 12px;
   border: none;
   background: var(--accent-gradient);
   background-size: 160% 160%;
   color: var(--accent-text);
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 16px -4px rgba(124, 107, 255, 0.55);
+  box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
   transition: background-position 0.4s ease, box-shadow 0.2s ease, transform 0.18s var(--ease-bounce);
 }
 
 #captura-btn:hover:not(:disabled),
 #duvida-btn:hover:not(:disabled) {
   background-position: 100% 0;
-  box-shadow: 0 6px 20px -4px rgba(124, 107, 255, 0.7);
+  box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 #captura-btn:disabled,
@@ -404,16 +411,17 @@ h2 {
 
 .stat-tile-valor {
   font-size: 1.35rem;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text);
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
 .stat-tile-label {
   font-size: 0.65rem;
-  color: var(--text-muted);
+  color: var(--text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
 }
 
 .resumo-texto {
@@ -508,8 +516,8 @@ li.item.saindo {
 }
 
 .item-acoes button.primario:hover:not(:disabled) {
-  filter: brightness(1.12);
-  box-shadow: 0 3px 12px -3px rgba(124, 107, 255, 0.6);
+  filter: brightness(1.08);
+  box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .subtarefas {
@@ -555,28 +563,28 @@ li.item.saindo {
 }
 
 .gasto-categoria[data-cat="mercado"] {
-  background: rgba(52, 211, 153, 0.15);
-  color: #34d399;
+  background: rgba(66, 187, 145, 0.15);
+  color: #42bb91;
 }
 
 .gasto-categoria[data-cat="transporte"] {
-  background: rgba(96, 165, 250, 0.15);
-  color: #60a5fa;
+  background: rgba(98, 159, 209, 0.15);
+  color: #629fd1;
 }
 
 .gasto-categoria[data-cat="lazer"] {
-  background: rgba(244, 114, 182, 0.15);
-  color: #f472b6;
+  background: rgba(168, 139, 220, 0.15);
+  color: #a88bdc;
 }
 
 .gasto-categoria[data-cat="contas"] {
-  background: rgba(251, 191, 36, 0.15);
-  color: #fbbf24;
+  background: rgba(216, 171, 76, 0.15);
+  color: #d8ab4c;
 }
 
 .gasto-categoria[data-cat="saude"] {
-  background: rgba(248, 113, 113, 0.15);
-  color: #f87171;
+  background: rgba(237, 113, 129, 0.15);
+  color: #ed7181;
 }
 
 #importar-form {
@@ -612,7 +620,7 @@ li.item.saindo {
   padding: 0.6rem;
   border-radius: 10px;
   border: none;
-  background: linear-gradient(135deg, var(--cor-bancos), #f97316);
+  background: var(--cor-bancos);
   color: #1a1200;
   font-weight: 700;
   cursor: pointer;
@@ -620,7 +628,7 @@ li.item.saindo {
 
 #importar-btn:hover:not(:disabled) {
   filter: brightness(1.08);
-  box-shadow: 0 4px 16px -4px rgba(251, 191, 36, 0.5);
+  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-bancos) 55%, transparent);
 }
 
 #importar-btn:disabled {
@@ -639,18 +647,18 @@ li.item.saindo {
   width: 100%;
   padding: 0.75rem;
   margin-bottom: 0.5rem;
-  border-radius: 10px;
-  border: 1px solid var(--accent);
-  background: rgba(124, 107, 255, 0.14);
-  color: #b8adff;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft-bg);
+  color: #cfc0ec;
   font-weight: 700;
   font-size: 0.9rem;
   cursor: pointer;
 }
 
 .btn-conectar:hover:not(:disabled) {
-  background: rgba(124, 107, 255, 0.24);
-  box-shadow: 0 4px 16px -4px rgba(124, 107, 255, 0.4);
+  background: rgba(168, 139, 220, 0.22);
+  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .btn-conectar:disabled {
@@ -681,10 +689,10 @@ li.item.saindo {
 }
 
 .meta-progresso-barra.completa {
-  background: linear-gradient(90deg, #34d399, #fbbf24, #34d399);
+  background: linear-gradient(90deg, #42bb91, #d8ab4c, #42bb91);
   background-size: 200% 100%;
   animation: shimmer 1.8s linear infinite;
-  box-shadow: 0 0 10px rgba(52, 211, 153, 0.6);
+  box-shadow: 0 0 10px rgba(66, 187, 145, 0.5);
 }
 
 @keyframes shimmer {
@@ -740,7 +748,7 @@ li.item.saindo {
   font-size: 0.72rem;
   font-weight: 700;
   color: #0b1f16;
-  background: linear-gradient(90deg, #34d399, #fbbf24);
+  background: linear-gradient(90deg, #42bb91, #d8ab4c);
   animation: fadeInUp 0.4s var(--ease-bounce);
 }
 
@@ -789,10 +797,10 @@ li.item.saindo {
   width: 100%;
   padding: 0.75rem;
   margin-top: 0.5rem;
-  border-radius: 10px;
-  border: 1px solid #33ccff;
-  background: rgba(51, 204, 255, 0.14);
-  color: #8fe4ff;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--cor-tarefas) 45%, transparent);
+  background: rgba(98, 159, 209, 0.14);
+  color: #b7d3ea;
   font-weight: 700;
   font-size: 0.9rem;
   text-align: center;
@@ -801,6 +809,6 @@ li.item.saindo {
 }
 
 .btn-waze:hover {
-  background: rgba(51, 204, 255, 0.24);
-  box-shadow: 0 4px 16px -4px rgba(51, 204, 255, 0.4);
+  background: rgba(98, 159, 209, 0.24);
+  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-tarefas) 45%, transparent);
 }

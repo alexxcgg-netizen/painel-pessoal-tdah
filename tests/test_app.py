@@ -56,6 +56,12 @@ class PainelTestCase(unittest.TestCase):
         if db.DB_PATH.exists():
             db.DB_PATH.unlink()
         db.init_db()
+        # a memoria do perfil inicial (nome, idade, profissao) e semeada em todo
+        # banco novo - limpa aqui pra os testes de memoria ficarem isolados/previsiveis
+        conn = db.get_db()
+        conn.execute("DELETE FROM memorias")
+        conn.commit()
+        conn.close()
         self.client = app.app.test_client()
 
     def test_captura_gasto_direto(self):
@@ -640,6 +646,25 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         args = mock_plano.call_args[0]
         self.assertEqual(args[2], ["prefere tarefas rapidas de manha"])
+
+    def test_seed_perfil_inicial_roda_uma_vez_em_banco_novo(self):
+        tmp = tempfile.TemporaryDirectory()
+        caminho_original = db.DB_PATH
+        db.DB_PATH = Path(tmp.name) / "painel.db"
+        try:
+            db.init_db()
+            conn = db.get_db()
+            memorias = db.list_memorias(conn)
+            self.assertEqual(len(memorias), len(db.PERFIL_INICIAL))
+            self.assertTrue(all(m["source_text"] == "perfil-inicial" for m in memorias))
+
+            # rodar de novo (ex: reiniciar o app) nao duplica
+            db.init_db()
+            self.assertEqual(len(db.list_memorias(conn)), len(db.PERFIL_INICIAL))
+            conn.close()
+        finally:
+            db.DB_PATH = caminho_original
+            tmp.cleanup()
 
 
 if __name__ == "__main__":

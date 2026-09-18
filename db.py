@@ -94,7 +94,31 @@ def init_db():
         """
     )
     conn.commit()
+    _seed_perfil_inicial(conn)
     conn.close()
+
+
+PERFIL_INICIAL = [
+    "Se chama Alex, tem 20 anos (nasceu em 8 de dezembro de 2005).",
+    "E piloto de aviao.",
+    "Tem uma construtora - constroi predios e casas.",
+]
+
+
+def _seed_perfil_inicial(conn):
+    """Poe os fatos basicos do perfil como memoria logo na primeira vez que o
+    banco e criado, pra ele ja "conhecer" a pessoa desde o primeiro uso em vez
+    de aprender tudo do zero. So roda uma vez (marca pelo source_text)."""
+    ja_existe = conn.execute(
+        "SELECT 1 FROM memorias WHERE source_text = 'perfil-inicial' LIMIT 1"
+    ).fetchone()
+    if ja_existe:
+        return
+    for texto in PERFIL_INICIAL:
+        conn.execute(
+            "INSERT INTO memorias (texto, source_text) VALUES (?, ?)", (texto, "perfil-inicial")
+        )
+    conn.commit()
 
 
 def save_push_subscription(conn, endpoint: str, subscription_json: str):
