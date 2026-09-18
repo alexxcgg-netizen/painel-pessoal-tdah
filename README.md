@@ -40,6 +40,7 @@ Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTH
 - PWA com icone e meta tags proprias pra iOS (Dynamic Island/safe area respeitados, barra de navegacao fixa embaixo no estilo de app nativo)
 - Visual: fonte Plus Jakarta Sans, paleta vibrante com cor propria por secao, fundo com gradiente animado (aurora), micro-animacoes com efeito "spring" nos botoes e transicoes, numeros que sobem ao carregar, e uma comemoracao (brilho dourado + selo) quando uma meta bate 100%
 - Notificacao push (Web Push/VAPID) - ver secao "Notificacoes" abaixo
+- Agenda do Calendario da Apple/iCloud (so leitura) aparece na aba Hoje, e entra como contexto no resumo do dia gerado pela IA - ver secao "Calendario" abaixo
 
 ## Integracao com o painel da construtora
 
@@ -107,9 +108,43 @@ isso ainda nao esta implementado (precisaria de um agendador tipo APScheduler ou
 chamando a API). Assim que decidir onde o painel vai morar de forma fixa (VPS, Raspberry Pi em
 casa, etc.), essa parte e rapida de plugar em cima do que ja existe.
 
+## Calendario (Apple/iCloud) — pra notificacao nao atrapalhar compromisso
+
+Voce pediu pra notificacao levar em conta sua agenda, pra nao mandar aviso bem na hora de um
+compromisso. Isso tem duas partes, uma pronta hoje e outra que depende do agendador (Fase 1.5):
+
+### O que ja funciona hoje
+
+`caldav_client.py` conecta no Calendario da Apple/iCloud via CalDAV (so leitura, nunca escreve
+nada la). Pra ativar:
+
+1. Vai em [appleid.apple.com](https://appleid.apple.com/) → Seguranca → Senhas de app → gera uma
+   senha nova (a senha normal da sua Apple ID **nao funciona** aqui por causa do 2FA)
+2. Cola no `.env`:
+   ```
+   ICLOUD_USERNAME=seu-email@icloud.com
+   ICLOUD_APP_PASSWORD=a-senha-de-app-gerada
+   ```
+3. Reinicia o `python app.py` — a aba **Hoje** passa a mostrar "Agenda de hoje" com os
+   compromissos do dia, e o resumo diario gerado pela IA passa a mencionar se o dia esta cheio
+   ou tranquilo
+
+### O que ainda falta pra notificacao "esperta" de verdade
+
+A funcao `caldav_client.horario_ocupado(inicio, fim)` ja existe e confere se um horario colide
+com algum evento — mas ainda nao esta plugada em nada automatico, porque isso so faz sentido
+junto com um agendador (ver "Notificacoes" acima: precisa de algo rodando o tempo todo). Quando
+essa peca for construida, a logica vai ser: antes de mandar um push, chama
+`horario_ocupado()` e, se estiver ocupado, adia o aviso em vez de interromper o compromisso.
+
+**Aviso honesto sobre a lib**: o CalDAV do iCloud e um protocolo que a Apple nunca declarou
+oficialmente suportado (funciona, mas as vezes falha sem motivo aparente) - por isso todo o
+codigo aqui e tolerante a erro: se a conexao falhar, o resumo do dia e a aba Hoje simplesmente
+mostram "sem agenda" em vez de quebrar o resto do app.
+
 ## Roadmap
 
-**Fase 1.5** — notificacao agendada automatica (precisa de hospedagem fixa rodando o tempo todo - ver secao "Notificacoes" acima)
+**Fase 1.5** — notificacao agendada automatica, ja levando em conta a agenda pra nao avisar em cima de compromisso (precisa de hospedagem fixa rodando o tempo todo - ver secao "Notificacoes" acima)
 
 **Fase 2** — comando de voz livre; integracao com Home Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa)
 

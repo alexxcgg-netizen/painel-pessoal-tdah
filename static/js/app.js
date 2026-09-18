@@ -172,6 +172,40 @@ async function loadSummary() {
   $("#resumo-stats").textContent = `${data.tarefas_concluidas} tarefa(s) concluida(s) hoje`;
 }
 
+function fmtHora(isoString) {
+  const d = new Date(isoString);
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+async function loadAgenda() {
+  const data = await apiFetch("/api/calendario/hoje");
+  if (!data) return;
+
+  $("#agenda-desconectada").hidden = data.configurado;
+  if (!data.configurado) {
+    $("#agenda-vazio").hidden = true;
+    $("#lista-agenda").innerHTML = "";
+    return;
+  }
+
+  const list = $("#lista-agenda");
+  list.innerHTML = "";
+  $("#agenda-vazio").hidden = data.eventos.length > 0;
+  data.eventos.forEach((ev) => {
+    const li = document.createElement("li");
+    li.className = "item";
+    const titulo = document.createElement("span");
+    titulo.className = "item-titulo";
+    titulo.textContent = ev.titulo;
+    const horario = document.createElement("span");
+    horario.className = "item-quando";
+    horario.textContent = ev.dia_inteiro ? "dia todo" : `${fmtHora(ev.inicio)} - ${fmtHora(ev.fim)}`;
+    li.appendChild(titulo);
+    li.appendChild(horario);
+    list.appendChild(li);
+  });
+}
+
 async function loadUso() {
   const data = await apiFetch("/api/uso/total");
   if (!data) return;
@@ -557,3 +591,4 @@ if ("serviceWorker" in navigator) {
 
 loadSummary();
 loadUso();
+loadAgenda();

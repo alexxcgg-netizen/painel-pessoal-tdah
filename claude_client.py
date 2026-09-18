@@ -40,10 +40,13 @@ Responda so com um JSON de lista de strings, sem markdown.
 Tarefa: {title}"""
 
 SUMMARY_PROMPT = """Escreva um resumo do dia em 2 a 3 frases. Tom neutro e factual, sem cobranca e sem elogio vazio.
+Se houver compromissos na agenda, mencione quantos tem e se o dia esta cheio ou tranquilo -
+sem repetir cada horario, so o suficiente pra dar uma nocao geral.
 
 Tarefas concluidas: {done}
 Tarefas pendentes: {pending}
-Gastos de hoje: {expenses}"""
+Gastos de hoje: {expenses}
+Compromissos na agenda hoje: {eventos}"""
 
 
 def _extract_json(text: str):
@@ -91,7 +94,9 @@ def break_down_task(title: str) -> tuple[list[str], dict]:
     return _extract_json(response.content[0].text), _usage(response)
 
 
-def summarize_day(done: list[str], pending: list[str], expenses: list[dict]) -> tuple[str, dict]:
+def summarize_day(
+    done: list[str], pending: list[str], expenses: list[dict], eventos: list[str] | None = None
+) -> tuple[str, dict]:
     response = client.messages.create(
         model=HAIKU,
         max_tokens=200,
@@ -102,6 +107,7 @@ def summarize_day(done: list[str], pending: list[str], expenses: list[dict]) -> 
                     done=done or "nenhuma",
                     pending=pending or "nenhuma",
                     expenses=expenses or "nenhum",
+                    eventos=eventos or "nenhum (ou agenda nao conectada)",
                 ),
             }
         ],

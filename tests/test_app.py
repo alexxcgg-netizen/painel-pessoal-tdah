@@ -432,6 +432,64 @@ class PainelTestCase(unittest.TestCase):
             res2 = self.client.post("/api/push/testar")
         self.assertEqual(res2.get_json()["total"], 0)
 
+    def test_calendario_hoje_sem_configuracao(self):
+        res = self.client.get("/api/calendario/hoje")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertFalse(body["configurado"])
+        self.assertEqual(body["eventos"], [])
+
+    def test_calendario_hoje_configurado_retorna_eventos(self):
+        eventos_fake = [
+            {"titulo": "Reuniao", "inicio": "2026-09-18T14:00:00", "fim": "2026-09-18T15:00:00", "dia_inteiro": False}
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ):
+            res = self.client.get("/api/calendario/hoje")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertTrue(body["configurado"])
+        self.assertEqual(len(body["eventos"]), 1)
+        self.assertEqual(body["eventos"][0]["titulo"], "Reuniao")
+
+    def test_calendario_hoje_erro_na_conexao_nao_quebra(self):
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", side_effect=Exception("timeout")
+        ):
+            res = self.client.get("/api/calendario/hoje")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertTrue(body["configurado"])
+        self.assertEqual(body["eventos"], [])
+        self.assertIn("erro", body)
+
+    def test_resumo_do_dia_inclui_contagem_de_eventos(self):
+        eventos_fake = [
+            {"titulo": "Dentista", "inicio": "2026-09-18T10:00:00", "fim": "2026-09-18T11:00:00", "dia_inteiro": False}
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ), patch(
+            "claude_client.summarize_day",
+            return_value=("Dia com 1 compromisso.", fake_usage()),
+        ) as mock_summarize:
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["eventos_hoje"], 1)
+        # confirma que os titulos dos eventos foram passados pro prompt
+        args = mock_summarize.call_args[0]
+        self.assertEqual(args[3], ["Dentista"])
+
+    def test_resumo_do_dia_sem_calendario_configurado_nao_quebra(self):
+        with patch(
+            "claude_client.summarize_day",
+            return_value=("Dia tranquilo.", fake_usage()),
+        ):
+            res = self.client.get("/api/summary/today")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["eventos_hoje"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

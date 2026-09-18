@@ -10,6 +10,7 @@ from flask import Flask, jsonify, render_template, request
 load_dotenv()
 
 import bank_ofx
+import caldav_client
 import claude_client
 import pluggy_client
 import push_client
@@ -183,6 +184,17 @@ def list_expenses():
     return jsonify([dict(r) for r in rows])
 
 
+def _eventos_de_hoje_com_seguranca() -> list[dict]:
+    """A agenda do iCloud via CalDAV e instavel (ver caldav_client.py) - se
+    falhar, o resumo do dia nao pode quebrar por causa disso."""
+    if not caldav_client.configurado():
+        return []
+    try:
+        return caldav_client.eventos_do_dia(date.today())
+    except Exception:
+        return []
+
+
 @app.route("/api/summary/today", methods=["GET"])
 def summary_today():
     today = date.today().isoformat()
@@ -193,12 +205,14 @@ def summary_today():
         "SELECT amount, category FROM expenses WHERE date(created_at) = ?", (today,)
     ).fetchall()
     gasto_hoje = sum(r["amount"] for r in expenses)
+    eventos = _eventos_de_hoje_com_seguranca()
 
     result, error = _call_claude(
         claude_client.summarize_day,
         [r["title"] for r in done],
         [r["title"] for r in pending],
         [dict(r) for r in expenses],
+        [e["titulo"] for e in eventos],
     )
     if error:
         conn.close()
@@ -207,7 +221,27 @@ def summary_today():
 
     _log_usage(conn, usage)
     conn.close()
-    return jsonify({"summary": text, "gasto_hoje": gasto_hoje, "tarefas_concluidas": len(done)})
+    return jsonify(
+        {
+            "summary": text,
+            "gasto_hoje": gasto_hoje,
+            "tarefas_concluidas": len(done),
+            "eventos_hoje": len(eventos),
+        }
+    )
+
+
+@app.route("/api/calendario/hoje", methods=["GET"])
+def calendario_hoje():
+    if not caldav_client.configurado():
+        return jsonify({"configurado": False, "eventos": []})
+    try:
+        eventos = caldav_client.eventos_do_dia(date.today())
+    except Exception:
+        return jsonify(
+            {"configurado": True, "eventos": [], "erro": "Nao consegui falar com o iCloud agora."}
+        )
+    return jsonify({"configurado": True, "eventos": eventos})
 
 
 @app.route("/api/uso/total", methods=["GET"])
