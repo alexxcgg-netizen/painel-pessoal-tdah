@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import date
 
@@ -11,15 +12,19 @@ load_dotenv()
 import bank_ofx
 import claude_client
 import pluggy_client
+import push_client
 from db import (
     add_to_goal,
     create_goal,
+    delete_push_subscription,
     get_db,
     get_or_create_bank_account,
     init_db,
     insert_bank_transactions,
     list_goals,
+    list_push_subscriptions,
     record_usage,
+    save_push_subscription,
     total_cost_usd,
 )
 
@@ -381,6 +386,46 @@ def construtora_resumo():
         return jsonify({"configurado": True, "erro": "Nao consegui falar com a API da construtora agora."}), 502
 
     return jsonify({"configurado": True, "dados": resp.json()})
+
+
+@app.route("/api/push/status", methods=["GET"])
+def push_status():
+    return jsonify({"configurado": push_client.configurado(), "public_key": push_client.public_key()})
+
+
+@app.route("/api/push/inscrever", methods=["POST"])
+def push_inscrever():
+    subscription = request.json or {}
+    endpoint = subscription.get("endpoint")
+    if not endpoint:
+        return jsonify({"error": "inscricao invalida"}), 400
+    conn = get_db()
+    save_push_subscription(conn, endpoint, json.dumps(subscription))
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/push/testar", methods=["POST"])
+def push_testar():
+    if not push_client.configurado():
+        return jsonify({"error": "notificacao push nao configurada - veja o README"}), 400
+
+    conn = get_db()
+    subscriptions = list_push_subscriptions(conn)
+    enviados = 0
+    for s in subscriptions:
+        sub_dict = json.loads(s["subscription_json"])
+        ok = push_client.enviar(
+            sub_dict,
+            "Painel Pessoal",
+            "Notificacao de teste - se voce esta vendo isso, esta tudo funcionando!",
+        )
+        if ok:
+            enviados += 1
+        else:
+            delete_push_subscription(conn, s["endpoint"])
+    conn.close()
+    return jsonify({"enviados": enviados, "total": len(subscriptions)})
 
 
 if __name__ == "__main__":

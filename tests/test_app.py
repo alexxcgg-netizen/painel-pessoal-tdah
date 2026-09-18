@@ -386,6 +386,52 @@ class PainelTestCase(unittest.TestCase):
         res = self.client.post("/api/metas/999/guardar", json={"valor": -5})
         self.assertEqual(res.status_code, 400)
 
+    def test_push_status_sem_configuracao(self):
+        res = self.client.get("/api/push/status")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.get_json()["configurado"])
+
+    def test_push_inscrever_sem_endpoint_da_erro(self):
+        res = self.client.post("/api/push/inscrever", json={})
+        self.assertEqual(res.status_code, 400)
+
+    def test_push_testar_sem_configuracao_da_erro(self):
+        res = self.client.post("/api/push/testar")
+        self.assertEqual(res.status_code, 400)
+
+    def test_push_inscrever_e_testar_envia_para_inscritos(self):
+        sub = {"endpoint": "https://exemplo.com/push/abc", "keys": {"p256dh": "x", "auth": "y"}}
+        res = self.client.post("/api/push/inscrever", json=sub)
+        self.assertEqual(res.status_code, 200)
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            res = self.client.post("/api/push/testar")
+
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["enviados"], 1)
+        self.assertEqual(body["total"], 1)
+        mock_enviar.assert_called_once()
+
+    def test_push_testar_remove_inscricao_morta(self):
+        sub = {"endpoint": "https://exemplo.com/push/morta", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=False
+        ):
+            res = self.client.post("/api/push/testar")
+        self.assertEqual(res.get_json()["enviados"], 0)
+
+        # a segunda tentativa nao deve mais achar essa inscricao (foi apagada)
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ):
+            res2 = self.client.post("/api/push/testar")
+        self.assertEqual(res2.get_json()["total"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

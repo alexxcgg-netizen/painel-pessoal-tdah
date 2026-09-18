@@ -4,5 +4,6 @@ __pycache__/
 venv/
 .env
 data/
+vapid_private.pem
 .claude/*
 !.claude/settings.json

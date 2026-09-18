@@ -38,6 +38,8 @@ Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTH
 - Aba "Bancos": importacao manual de extrato OFX (Nubank, Caixa, Viacredi, Bradesco ou qualquer banco que exporte OFX/QFX), com conta e cartao de credito tratados como contas separadas pra ver a fatura isolada dos gastos da conta
 - Aba "Construtora": hoje e um stub (`/api/construtora/resumo`); passa a mostrar dados reais quando o painel da construtora expuser sua propria API
 - PWA com icone e meta tags proprias pra iOS (Dynamic Island/safe area respeitados, barra de navegacao fixa embaixo no estilo de app nativo)
+- Visual: fonte Plus Jakarta Sans, paleta vibrante com cor propria por secao, fundo com gradiente animado (aurora), micro-animacoes com efeito "spring" nos botoes e transicoes, numeros que sobem ao carregar, e uma comemoracao (brilho dourado + selo) quando uma meta bate 100%
+- Notificacao push (Web Push/VAPID) - ver secao "Notificacoes" abaixo
 
 ## Integracao com o painel da construtora
 
@@ -81,13 +83,33 @@ Ja implementado de verdade (nao e mais so um placeholder), usando [Pluggy](https
 
 Endpoints, request/response e nomes de campo foram conferidos direto no [codigo-fonte do SDK oficial da Pluggy](https://github.com/pluggyai/pluggy-node) antes de escrever, nao inventados. Uma coisa que so da pra confirmar com uma conta real conectada: se o sinal do valor da transacao (`amount`) segue a mesma convencao do OFX (negativo = saiu dinheiro) em todos os tipos de conta, especialmente cartao de credito. Vale conferir os primeiros valores importados antes de confiar cegamente no `total_gasto` da aba Bancos.
 
-## Notificacoes
+## Notificacoes (Web Push) — pronto pra usar, ativa em 1 passo
 
-Push notification de verdade (a que chega mesmo com o navegador fechado) exige o app rodando o tempo todo em algum servidor, nao so quando abre no celular - isso e uma decisao de hospedagem (VPS, Raspberry Pi, etc.) que ainda nao foi tomada. Por isso ainda nao foi implementado; fica pra quando decidir onde o painel vai morar de verdade. Ate la, o resumo do dia cumpre o papel de "olhar o que importa" quando voce abre o app.
+Ja implementado de ponta a ponta (chaves, banco, service worker, botao). Pra ativar:
+
+```bash
+python scripts/gerar_chaves_push.py
+```
+
+Isso gera `vapid_private.pem` (fica de fora do git) e imprime duas linhas pra colar no `.env`
+(`VAPID_PUBLIC_KEY` e `VAPID_SUBJECT`). Reinicia o `python app.py` e um botao "Ativar
+notificacoes" aparece no cabecalho — clica, aceita a permissao do navegador, pronto.
+
+**O que ja funciona hoje, mesmo sem hospedagem fixa**: mandar uma notificacao agora mesmo
+funciona sempre que o `python app.py` estiver rodando no momento do envio — o navegador entrega
+assim que o aparelho estiver online, mesmo que o servidor ja tenha parado depois. Pra testar,
+chama `POST /api/push/testar` (ou eu crio um botao "testar" se quiser) e uma notificacao real
+chega no seu navegador/celular.
+
+**O que ainda depende de hospedagem fixa**: notificacao *agendada* (tipo "todo dia as 8h me
+lembra do resumo") precisa de algo rodando o tempo todo pra disparar o envio na hora certa -
+isso ainda nao esta implementado (precisaria de um agendador tipo APScheduler ou um cron
+chamando a API). Assim que decidir onde o painel vai morar de forma fixa (VPS, Raspberry Pi em
+casa, etc.), essa parte e rapida de plugar em cima do que ja existe.
 
 ## Roadmap
 
-**Fase 1.5** — notificacao push via PWA (exige hospedagem fixa + gerar VAPID keys + endpoint de subscription)
+**Fase 1.5** — notificacao agendada automatica (precisa de hospedagem fixa rodando o tempo todo - ver secao "Notificacoes" acima)
 
 **Fase 2** — comando de voz livre; integracao com Home Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa)
 

@@ -77,10 +77,34 @@ def init_db():
             valor_guardado REAL NOT NULL DEFAULT 0,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            endpoint TEXT NOT NULL UNIQUE,
+            subscription_json TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
     conn.close()
+
+
+def save_push_subscription(conn, endpoint: str, subscription_json: str):
+    conn.execute(
+        "INSERT OR REPLACE INTO push_subscriptions (endpoint, subscription_json) VALUES (?, ?)",
+        (endpoint, subscription_json),
+    )
+    conn.commit()
+
+
+def list_push_subscriptions(conn) -> list[dict]:
+    return [dict(r) for r in conn.execute("SELECT * FROM push_subscriptions").fetchall()]
+
+
+def delete_push_subscription(conn, endpoint: str):
+    conn.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
+    conn.commit()
 
 
 def get_or_create_bank_account(conn, banco: str, tipo: str = "conta") -> int:

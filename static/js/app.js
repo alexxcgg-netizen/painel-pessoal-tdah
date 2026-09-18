@@ -135,6 +135,19 @@ $("#duvida-input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") $("#duvida-btn").click();
 });
 
+function animarNumero(el, valorFinal, formatador) {
+  const duracao = 500;
+  const inicio = performance.now();
+  function passo(agora) {
+    const progresso = Math.min(1, (agora - inicio) / duracao);
+    const suavizado = 1 - Math.pow(1 - progresso, 3);
+    const valorAtual = valorFinal * suavizado;
+    el.textContent = formatador ? formatador(valorAtual) : Math.round(valorAtual);
+    if (progresso < 1) requestAnimationFrame(passo);
+  }
+  requestAnimationFrame(passo);
+}
+
 async function loadSummary() {
   $("#resumo-texto").textContent = "Carregando...";
 
@@ -144,17 +157,17 @@ async function loadSummary() {
     apiFetch("/api/metas"),
   ]);
 
-  if (tasks) $("#stat-tarefas").textContent = tasks.length;
+  if (tasks) animarNumero($("#stat-tarefas"), tasks.length);
   if (metas) {
     const ativas = metas.filter((m) => m.valor_guardado < m.valor_alvo).length;
-    $("#stat-metas").textContent = ativas;
+    animarNumero($("#stat-metas"), ativas);
   }
 
   if (!data) {
     $("#resumo-texto").textContent = "Nao consegui gerar o resumo agora.";
     return;
   }
-  $("#stat-gasto").textContent = fmtMoeda(data.gasto_hoje);
+  animarNumero($("#stat-gasto"), data.gasto_hoje, fmtMoeda);
   $("#resumo-texto").textContent = data.summary;
   $("#resumo-stats").textContent = `${data.tarefas_concluidas} tarefa(s) concluida(s) hoje`;
 }
@@ -205,8 +218,11 @@ function criarItemTarefa(t) {
   btnConcluir.addEventListener("click", async () => {
     const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
     if (data) {
-      loadTasks();
-      loadSummary();
+      li.classList.add("saindo");
+      setTimeout(() => {
+        loadTasks();
+        loadSummary();
+      }, 220);
     }
   });
   acoes.appendChild(btnConcluir);
@@ -417,10 +433,16 @@ function criarItemMeta(meta) {
   const barra = document.createElement("div");
   barra.className = "meta-progresso";
   const barraInterna = document.createElement("div");
-  barraInterna.className = "meta-progresso-barra";
+  barraInterna.className = "meta-progresso-barra" + (pct >= 100 ? " completa" : "");
   barraInterna.style.width = `${pct}%`;
   barra.appendChild(barraInterna);
   li.appendChild(barra);
+  if (pct >= 100) {
+    const badge = document.createElement("span");
+    badge.className = "badge-sucesso";
+    badge.textContent = "meta batida! \u{1F389}";
+    li.appendChild(badge);
+  }
 
   const detalhe = document.createElement("p");
   detalhe.className = "meta-detalhe";
@@ -483,8 +505,54 @@ async function loadConstrutora() {
   }
 }
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+async function initPush() {
+  const btn = $("#push-btn");
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+  const status = await apiFetch("/api/push/status");
+  if (!status || !status.configurado) return;
+
+  const reg = await navigator.serviceWorker.ready;
+  const existente = await reg.pushManager.getSubscription();
+  btn.hidden = false;
+
+  if (existente) {
+    btn.textContent = "Notificacoes ativadas";
+    btn.disabled = true;
+    return;
+  }
+
+  btn.addEventListener("click", async () => {
+    const permissao = await Notification.requestPermission();
+    if (permissao !== "granted") {
+      mostrarErro("Permissao de notificacao negada no navegador.");
+      return;
+    }
+    setBotaoCarregando(btn, true, "Ativando...");
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(status.public_key),
+    });
+    await apiFetch("/api/push/inscrever", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(subscription.toJSON()),
+    });
+    setBotaoCarregando(btn, false, "Notificacoes ativadas");
+    btn.disabled = true;
+  });
+}
+
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/service-worker.js");
+  initPush();
 }
 
 loadSummary();
