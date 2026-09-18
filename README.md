@@ -23,26 +23,32 @@ Abre em `http://localhost:5001`. Pra instalar como PWA no celular, acessa pelo n
 ## Testes
 
 ```bash
-python -m unittest tests.test_app -v
+python -m unittest discover tests -v
 ```
 
-Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTHROPIC_API_KEY` real) e cobrem o fluxo completo: captura, pergunta de esclarecimento quando a IA fica em duvida, completar tarefa, quebra em subtarefas, resumo do dia e acumulo de custo.
+Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTHROPIC_API_KEY`
+real) e cobrem o fluxo completo: captura, pergunta de esclarecimento quando a IA fica em duvida,
+completar tarefa, quebra em subtarefas, resumo do dia, acumulo de custo, o loop de tool-use do
+chat (`tests/test_claude_client.py`) e as regras de notificacao proativa (`tests/test_notificacoes.py`).
 
 ## Funcionalidades (v1)
 
-- Captura de texto livre, classificado automaticamente em tarefa, gasto ou **meta financeira**
+- **Chat**: a aba Hoje e uma conversa com tool-use - fala o que quiser e a IA decide se registra tarefa/gasto/meta, gera o plano do dia, ou so responde (ver secao "Chat" abaixo)
+- Captura rapida de texto livre no topo, classificado automaticamente em tarefa, gasto ou **meta financeira** - continua existindo em paralelo ao chat
 - Lista de tarefas pendentes, marcar como concluida
 - Quebra de tarefa grande em passos menores (Sonnet)
-- Resumo do dia, tom neutro e factual
+- Resumo do dia, tom neutro e factual (aba Painel)
+- **Notificacoes proativas**: verifica tarefa atrasada, meta fora do ritmo e gasto da semana elevado, e manda push sozinho (ver secao "Notificacoes" abaixo)
 - Aba "Financeiro": gastos categorizados + metas (ex: "quero juntar 15 mil pra uma moto ate dezembro" vira meta com calculo automatico de quanto guardar por mes - a conta e feita em Python, nao pela IA, pra nao ter erro de aritmetica)
 - Aba "Bancos": importacao manual de extrato OFX (Nubank, Caixa, Viacredi, Bradesco ou qualquer banco que exporte OFX/QFX), com conta e cartao de credito tratados como contas separadas pra ver a fatura isolada dos gastos da conta
 - Aba "Construtora": hoje e um stub (`/api/construtora/resumo`); passa a mostrar dados reais quando o painel da construtora expuser sua propria API
 - PWA com icone e meta tags proprias pra iOS (Dynamic Island/safe area respeitados, barra de navegacao fixa embaixo no estilo de app nativo)
-- Visual: fonte Plus Jakarta Sans, paleta vibrante com cor propria por secao, fundo com gradiente animado (aurora), micro-animacoes com efeito "spring" nos botoes e transicoes, numeros que sobem ao carregar, e uma comemoracao (brilho dourado + selo) quando uma meta bate 100%
+- Visual: paleta e tipografia inspiradas no Nectar (ver secao "Visual" abaixo), micro-animacoes com efeito "spring" nos botoes e transicoes, numeros que sobem ao carregar, e uma comemoracao (brilho dourado + selo) quando uma meta bate 100%
 - Notificacao push (Web Push/VAPID) - ver secao "Notificacoes" abaixo
-- Agenda do Calendario da Apple/iCloud (so leitura) aparece na aba Hoje, e entra como contexto no resumo do dia gerado pela IA - ver secao "Calendario" abaixo
-- **Plano do dia**: olha suas tarefas pendentes (sem hora) e os compromissos da agenda (com hora fixa) e sugere a melhor ordem pra encaixar tudo, sob demanda (botao "Gerar plano do dia")
-- **Devo sair ate que horas?**: calculadora de deslocamento com transito em tempo real (Google Routes API) - informa destino e horario que precisa chegar, ela conta pra tras o tempo de viagem + uma margem de seguranca e diz a que horas sair
+- Agenda do Calendario da Apple/iCloud (so leitura) aparece na aba Painel, e entra como contexto no resumo do dia e no chat - ver secao "Calendario" abaixo
+- Saude (passos, distancia, sono) via Atalhos do iPhone - ver secao "Saude" abaixo
+- **Plano do dia**: olha suas tarefas pendentes (sem hora) e os compromissos da agenda (com hora fixa) e sugere a melhor ordem pra encaixar tudo, sob demanda (botao na aba Painel ou pedindo no chat)
+- **Devo sair ate que horas?**: calculadora de deslocamento com transito em tempo real (Google Routes API) - informa destino e horario que precisa chegar, ela conta pra tras o tempo de viagem + uma margem de seguranca e diz a que horas sair, com atalho pra abrir a rota no Waze
 
 ## Integracao com o painel da construtora
 
@@ -104,11 +110,19 @@ assim que o aparelho estiver online, mesmo que o servidor ja tenha parado depois
 chama `POST /api/push/testar` (ou eu crio um botao "testar" se quiser) e uma notificacao real
 chega no seu navegador/celular.
 
-**O que ainda depende de hospedagem fixa**: notificacao *agendada* (tipo "todo dia as 8h me
-lembra do resumo") precisa de algo rodando o tempo todo pra disparar o envio na hora certa -
-isso ainda nao esta implementado (precisaria de um agendador tipo APScheduler ou um cron
-chamando a API). Assim que decidir onde o painel vai morar de forma fixa (VPS, Raspberry Pi em
-casa, etc.), essa parte e rapida de plugar em cima do que ja existe.
+**Notificacoes proativas - ja implementado, roda enquanto o `python app.py` estiver de pe**: um
+job (`APScheduler`, ver `iniciar_scheduler()` em `app.py`) roda a cada 3h e verifica, em Python
+puro (`notificacoes.py`), tres coisas: tarefas atrasadas (com data), metas financeiras fora do
+ritmo pra bater o prazo (compara o quanto ja devia ter guardado, proporcional ao tempo passado,
+com o que guardou de verdade) e gasto da semana bem acima da media das ultimas semanas. Cada tipo
+de aviso so dispara uma vez por dia (deduplicado na tabela `notificacoes_enviadas`), pra nao virar
+spam. Da pra forcar uma verificacao na hora com `POST /api/notificacoes/verificar-agora`.
+
+**O que ainda depende de hospedagem fixa**: isso tudo so roda enquanto o processo do
+`python app.py` estiver ligado no seu computador - fecha o terminal, para de verificar. Pra virar
+"todo dia as 8h, sem eu precisar deixar o Mac ligado", precisa hospedar o painel em algo que fica
+de pe sozinho (VPS, Raspberry Pi em casa, etc.). A logica em si (scheduler + regras) ja esta
+pronta, so falta o lugar fixo pra ela rodar.
 
 ## Calendario (Apple/iCloud) — pra notificacao nao atrapalhar compromisso
 
@@ -256,15 +270,28 @@ anel de foco consistente em qualquer elemento navegavel por teclado/VoiceOver, t
 no campo de captura ao focar, sombra dos botoes sempre na cor do proprio botao (`color-mix`) em
 vez de uma cor generica fixa.
 
+## Chat — a tela principal agora e conversa
+
+A aba Hoje virou um chat de verdade em vez do painel de numeros: voce escreve o que quiser
+("adiciona pagar aluguel dia 5", "gastei 80 no mercado", "monta meu plano do dia") e a Sonnet
+decide sozinha, usando [tool use](https://docs.claude.com/en/docs/agents-and-tools/tool-use) da
+API da Anthropic, se registra uma tarefa, um gasto, uma meta, gera o plano do dia, ou so responde
+em texto - sem voce precisar navegar ate um formulario especifico. As ferramentas
+(`registrar_tarefa`, `registrar_gasto`, `registrar_meta`, `gerar_plano_do_dia`) sao as mesmas
+operacoes que ja existiam, so que agora tambem acionaveis por conversa. O historico fica salvo
+(`chat_mensagens`) e entra como contexto nas proximas mensagens, junto com a memoria duravel e um
+resumo factual do que esta acontecendo agora (tarefas pendentes, gasto de hoje, agenda, saude).
+
+O painel de numeros (resumo, agenda, saude, plano do dia, deslocamento, memoria) nao sumiu - virou
+a aba **Painel**, acessivel quando voce quiser ver os dados direto em vez de perguntar.
+
+A captura rapida no topo (`Digite algo: tarefa, lembrete, gasto ou meta...`) continua existindo
+em paralelo - e mais rapida pra um lancamento pontual sem abrir conversa.
+
 ## Roadmap
 
-**Fase 1.5** — notificacao agendada automatica e proativa (ex: "gasto da semana passou 80% da
-meta", "3 tarefas atrasadas"), ja levando em conta a agenda pra nao avisar em cima de compromisso
-(precisa de hospedagem fixa rodando o tempo todo - ver secao "Notificacoes" acima)
-
-**Fase 2** — interface vira chat-first: uma conversa continua em vez do painel com abas ser o
-ponto de entrada principal, com a memoria acima alimentada organicamente pela conversa; comando
-de voz livre; integracao com Home Assistant (luz/temperatura/cortina do quarto ligada a rotina ou
-tarefa)
+**Fase 2** — comando de voz livre (falar em vez de digitar no chat); integracao com Home
+Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa); memoria alimentada
+organicamente pelas conversas do chat, nao so pela captura rapida
 
 **Ideia futura** — se o painel pessoal se provar util, replicar pra outros membros da familia (cada um com seu proprio banco de dados/instancia - nunca compartilhando dados entre si sem pedir)

@@ -2,6 +2,7 @@ import io
 import os
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -721,6 +722,88 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         args = mock_summarize.call_args[0]
         self.assertEqual(args[5], "12000 passos hoje")
+
+    def test_captura_tarefa_com_prazo_grava_due_date(self):
+        parsed = {
+            "tipo": "tarefa",
+            "titulo": "ligar pro dentista",
+            "valor": None,
+            "categoria": None,
+            "quando": "amanha",
+            "quando_data": "2026-09-19",
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": "ligar pro dentista amanha"})
+        self.assertEqual(res.status_code, 201)
+
+        conn = db.get_db()
+        row = conn.execute("SELECT due_at, due_date FROM tasks").fetchone()
+        conn.close()
+        self.assertEqual(row["due_at"], "amanha")
+        self.assertEqual(row["due_date"], "2026-09-19")
+
+    def test_chat_resposta_de_texto_simples(self):
+        with patch(
+            "claude_client.chat", return_value=("Oi! Beleza?", [], fake_usage())
+        ) as mock_chat:
+            res = self.client.post("/api/chat", json={"mensagem": "oi"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["resposta"], "Oi! Beleza?")
+        self.assertEqual(res.get_json()["acoes"], [])
+        mock_chat.assert_called_once()
+
+        historico = self.client.get("/api/chat/historico").get_json()
+        self.assertEqual(len(historico), 2)
+        self.assertEqual(historico[0]["papel"], "user")
+        self.assertEqual(historico[1]["papel"], "assistant")
+
+    def test_chat_sem_mensagem_da_erro(self):
+        res = self.client.post("/api/chat", json={"mensagem": "  "})
+        self.assertEqual(res.status_code, 400)
+
+    def test_chat_usa_executor_de_tarefa_de_verdade(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_tarefa"]({"titulo": "levar carro na oficina"})
+            self.assertEqual(resultado, {"ok": True})
+            return "Registrei a tarefa.", ["registrar_tarefa"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "leva o carro na oficina"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["acoes"], ["registrar_tarefa"])
+
+        tarefas = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tarefas), 1)
+        self.assertEqual(tarefas[0]["title"], "levar carro na oficina")
+
+    def test_notificacoes_verificar_agora_sem_push_configurado(self):
+        res = self.client.post("/api/notificacoes/verificar-agora")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["avisos_enviados"], 0)
+
+    def test_notificacoes_verificar_agora_envia_e_deduplica(self):
+        ontem = (date.today() - timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("pagar conta", ontem))
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res1 = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res1.get_json()["avisos_enviados"], 1)
+            self.assertEqual(mock_enviar.call_count, 1)
+
+            # rodar de novo no mesmo dia nao manda de novo
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+            self.assertEqual(mock_enviar.call_count, 1)
 
 
 if __name__ == "__main__":

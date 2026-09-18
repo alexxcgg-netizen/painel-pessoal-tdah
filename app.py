@@ -13,6 +13,7 @@ import bank_ofx
 import caldav_client
 import claude_client
 import maps_client
+import notificacoes
 import pluggy_client
 import push_client
 from db import (
@@ -27,11 +28,15 @@ from db import (
     get_saude_dia,
     init_db,
     insert_bank_transactions,
+    ja_notificou_hoje,
+    list_chat_mensagens,
     list_goals,
     list_memorias,
     list_push_subscriptions,
+    marcar_notificado,
     media_passos_ultimos_dias,
     record_usage,
+    salvar_mensagem_chat,
     save_push_subscription,
     total_cost_usd,
     upsert_saude_dia,
@@ -112,8 +117,8 @@ def capture():
         create_goal(conn, parsed["titulo"], parsed["valor"], parsed.get("prazo"))
     else:
         conn.execute(
-            "INSERT INTO tasks (title, due_at, source_text) VALUES (?, ?, ?)",
-            (parsed["titulo"], parsed.get("quando"), full_text),
+            "INSERT INTO tasks (title, due_at, due_date, source_text) VALUES (?, ?, ?, ?)",
+            (parsed["titulo"], parsed.get("quando"), parsed.get("quando_data"), full_text),
         )
 
     if parsed.get("memoria"):
@@ -303,6 +308,150 @@ def plano_do_dia():
     _log_usage(conn, usage)
     conn.close()
     return jsonify({"plano": texto})
+
+
+def _contexto_chat(conn) -> str:
+    """Resumo factual do agora pro chat usar como contexto - mesma logica
+    do resumo do dia, so que em formato de linhas pro system prompt."""
+    hoje = date.today().isoformat()
+    pendentes = conn.execute("SELECT title FROM tasks WHERE completed_at IS NULL").fetchall()
+    gasto_hoje = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ?",
+        (hoje,),
+    ).fetchone()["total"]
+    eventos = _eventos_de_hoje_com_seguranca()
+    saude = _saude_contexto_resumo(conn)
+
+    linhas = [
+        f"Tarefas pendentes: {', '.join(r['title'] for r in pendentes) or 'nenhuma'}",
+        f"Gasto de hoje: R$ {gasto_hoje:.2f}",
+        f"Compromissos de hoje: {', '.join(e['titulo'] for e in eventos) or 'nenhum'}",
+    ]
+    if saude:
+        linhas.append(f"Saude hoje: {saude}")
+    return "\n".join(linhas)
+
+
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    body = request.json or {}
+    texto = (body.get("mensagem") or "").strip()
+    if not texto:
+        return jsonify({"error": "mensagem vazia"}), 400
+
+    conn = get_db()
+
+    historico = list(reversed(list_chat_mensagens(conn, limit=20)))
+    mensagens = [{"role": r["papel"], "content": r["texto"]} for r in historico]
+    mensagens.append({"role": "user", "content": texto})
+
+    memorias_texto = [m["texto"] for m in list_memorias(conn)]
+    contexto = _contexto_chat(conn)
+
+    def exec_registrar_tarefa(entrada):
+        conn.execute(
+            "INSERT INTO tasks (title, due_at, source_text) VALUES (?, ?, ?)",
+            (entrada["titulo"], entrada.get("quando"), texto),
+        )
+        conn.commit()
+        return {"ok": True}
+
+    def exec_registrar_gasto(entrada):
+        conn.execute(
+            "INSERT INTO expenses (amount, category, description, source_text) VALUES (?, ?, ?, ?)",
+            (entrada["valor"], entrada.get("categoria") or "outros", entrada["titulo"], texto),
+        )
+        conn.commit()
+        return {"ok": True}
+
+    def exec_registrar_meta(entrada):
+        create_goal(conn, entrada["titulo"], entrada["valor"], entrada.get("prazo"))
+        return {"ok": True}
+
+    def exec_gerar_plano(_entrada):
+        pendentes = conn.execute("SELECT title FROM tasks WHERE completed_at IS NULL").fetchall()
+        eventos = _eventos_de_hoje_com_seguranca()
+        plano_texto, usage_plano = claude_client.plano_do_dia(
+            [r["title"] for r in pendentes], eventos, memorias_texto
+        )
+        _log_usage(conn, usage_plano)
+        return {"plano": plano_texto}
+
+    executores = {
+        "registrar_tarefa": exec_registrar_tarefa,
+        "registrar_gasto": exec_registrar_gasto,
+        "registrar_meta": exec_registrar_meta,
+        "gerar_plano_do_dia": exec_gerar_plano,
+    }
+
+    result, error = _call_claude(
+        claude_client.chat, mensagens, contexto, memorias_texto, executores
+    )
+    if error:
+        conn.close()
+        return error
+    resposta, acoes, usage = result
+
+    _log_usage(conn, usage)
+    salvar_mensagem_chat(conn, "user", texto)
+    salvar_mensagem_chat(conn, "assistant", resposta)
+    conn.close()
+    return jsonify({"resposta": resposta, "acoes": acoes})
+
+
+@app.route("/api/chat/historico", methods=["GET"])
+def chat_historico():
+    conn = get_db()
+    mensagens = list(reversed(list_chat_mensagens(conn, limit=30)))
+    conn.close()
+    return jsonify(mensagens)
+
+
+def verificar_e_notificar():
+    """Roda as verificacoes proativas e manda push pra quem tiver inscrito -
+    cada tipo de aviso so dispara uma vez por dia (dedup em notificacoes_enviadas).
+    Chamado pelo scheduler (ver iniciar_scheduler) e pelo endpoint manual."""
+    if not push_client.configurado():
+        return 0
+
+    conn = get_db()
+    subs = list_push_subscriptions(conn)
+    if not subs:
+        conn.close()
+        return 0
+
+    avisos = []  # (tipo, referencia_id, titulo, corpo)
+
+    msg = notificacoes.tarefas_atrasadas(conn)
+    if msg and not ja_notificou_hoje(conn, "tarefas_atrasadas"):
+        avisos.append(("tarefas_atrasadas", 0, "Tarefas atrasadas", msg))
+
+    for meta_id, msg in notificacoes.metas_fora_do_ritmo(conn):
+        if not ja_notificou_hoje(conn, "meta_atrasada", meta_id):
+            avisos.append(("meta_atrasada", meta_id, "Meta fora do ritmo", msg))
+
+    msg = notificacoes.gasto_semana_elevado(conn)
+    if msg and not ja_notificou_hoje(conn, "gasto_elevado"):
+        avisos.append(("gasto_elevado", 0, "Gasto da semana", msg))
+
+    enviados = 0
+    for tipo, ref_id, titulo, corpo in avisos:
+        for s in subs:
+            sub_dict = json.loads(s["subscription_json"])
+            ok = push_client.enviar(sub_dict, titulo, corpo)
+            if not ok:
+                delete_push_subscription(conn, s["endpoint"])
+        marcar_notificado(conn, tipo, ref_id)
+        enviados += 1
+
+    conn.close()
+    return enviados
+
+
+@app.route("/api/notificacoes/verificar-agora", methods=["POST"])
+def notificacoes_verificar_agora():
+    enviados = verificar_e_notificar()
+    return jsonify({"avisos_enviados": enviados})
 
 
 @app.route("/api/viagem/status", methods=["GET"])
@@ -621,5 +770,17 @@ def push_testar():
     return jsonify({"enviados": enviados, "total": len(subscriptions)})
 
 
+def iniciar_scheduler():
+    """So roda quando o app sobe de verdade (nao na chamada de recarga do
+    Flask em modo debug, que sobe o processo duas vezes)."""
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+        from apscheduler.schedulers.background import BackgroundScheduler
+
+        scheduler = BackgroundScheduler(daemon=True)
+        scheduler.add_job(verificar_e_notificar, "interval", hours=3)
+        scheduler.start()
+
+
 if __name__ == "__main__":
+    iniciar_scheduler()
     app.run(debug=True, port=5001)

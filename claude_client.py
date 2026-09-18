@@ -18,9 +18,15 @@ PRICING = {
 CAPTURE_PROMPT = """Hoje e {hoje}. Classifique o texto do usuario como "tarefa", "gasto" ou "meta"
 (meta financeira, tipo "quero juntar X ate Y" ou "economizar pra comprar Z") e extraia os campos.
 Responda so com JSON, sem markdown, no formato:
-{{"tipo": "tarefa" ou "gasto" ou "meta", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "prazo": "AAAA-MM-DD" ou null, "duvida": "..." ou null, "memoria": "..." ou null}}
+{{"tipo": "tarefa" ou "gasto" ou "meta", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "quando_data": "AAAA-MM-DD" ou null, "prazo": "AAAA-MM-DD" ou null, "duvida": "..." ou null, "memoria": "..." ou null}}
 
 Categorias de gasto: mercado, transporte, lazer, contas, saude, outros.
+
+Se tipo="tarefa": "quando" e o prazo em texto livre, do jeito que a pessoa escreveu (ex:
+"amanha", "sexta que vem"). "quando_data" e a MESMA informacao convertida pra AAAA-MM-DD, so
+quando der pra calcular uma data concreta a partir de hoje ({hoje}) - se o texto nao tiver prazo
+nenhum ou for vago demais pra virar data (tipo "quando der", "algum dia"), deixe "quando_data"
+como null mesmo que "quando" tenha texto.
 
 Se tipo="meta": "valor" e o valor total que a pessoa quer juntar, e "prazo" e a data limite no
 formato AAAA-MM-DD - calcule a partir de hoje ({hoje}) se o texto disser algo relativo tipo
@@ -60,6 +66,131 @@ Tarefas concluidas: {done}
 Tarefas pendentes: {pending}
 Gastos de hoje: {expenses}
 Compromissos na agenda hoje: {eventos}"""
+
+CHAT_SYSTEM_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pessoal dele
+(um app que so ele usa). Ele tem TDAH - seja direto e curto, sem enrolacao, tom de colega que
+ajuda e nao de atendente corporativo. Sem emoji em excesso.
+
+Voce pode registrar tarefas, gastos e metas financeiras e gerar o plano do dia diretamente
+usando as ferramentas disponiveis, sem precisar confirmar antes se o pedido ja veio claro. So
+pergunte de volta (em texto, sem usar ferramenta nenhuma) se faltar uma informacao essencial,
+tipo o valor de um gasto.
+
+Contexto de agora:
+{contexto}
+
+Coisas duraveis que voce sabe sobre o Alex:
+{memorias}"""
+
+CHAT_TOOLS = [
+    {
+        "name": "registrar_tarefa",
+        "description": "Registra uma nova tarefa pendente pro Alex.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string"},
+                "quando": {
+                    "type": "string",
+                    "description": "prazo em texto livre (ex: 'amanha', 'sexta') - omita se nao houver",
+                },
+            },
+            "required": ["titulo"],
+        },
+    },
+    {
+        "name": "registrar_gasto",
+        "description": "Registra um gasto do Alex.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string"},
+                "valor": {"type": "number"},
+                "categoria": {
+                    "type": "string",
+                    "enum": ["mercado", "transporte", "lazer", "contas", "saude", "outros"],
+                },
+            },
+            "required": ["titulo", "valor"],
+        },
+    },
+    {
+        "name": "registrar_meta",
+        "description": "Cria uma meta financeira (algo que o Alex quer juntar dinheiro pra comprar/fazer).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string"},
+                "valor": {"type": "number"},
+                "prazo": {"type": "string", "description": "data limite AAAA-MM-DD - omita se nao houver"},
+            },
+            "required": ["titulo", "valor"],
+        },
+    },
+    {
+        "name": "gerar_plano_do_dia",
+        "description": "Olha as tarefas pendentes e a agenda de hoje do Alex e sugere a melhor ordem pra fazer as coisas.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+]
+
+
+def chat(
+    historico: list[dict], contexto: str, memorias: list[str], executores: dict
+) -> tuple[str, list[str], dict]:
+    """Roda o loop de tool-use: manda o historico + ferramentas, se a IA
+    pedir pra usar uma ferramenta, chama o executor correspondente (que
+    mexe no banco, em app.py) e devolve o resultado pra IA continuar, ate
+    ela responder so com texto (ou ate um limite de rodadas, pra nunca
+    ficar preso num loop)."""
+    system = CHAT_SYSTEM_PROMPT.format(
+        contexto=contexto, memorias="\n".join(f"- {m}" for m in memorias) or "nenhuma ainda"
+    )
+    mensagens = list(historico)
+    acoes: list[str] = []
+    usage_total = {"model": SONNET, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+
+    for _ in range(4):
+        response = client.messages.create(
+            model=SONNET,
+            max_tokens=600,
+            system=system,
+            tools=CHAT_TOOLS,
+            messages=mensagens,
+        )
+        u = _usage(response)
+        usage_total["input_tokens"] += u["input_tokens"]
+        usage_total["output_tokens"] += u["output_tokens"]
+        usage_total["cost_usd"] += u["cost_usd"]
+
+        if response.stop_reason != "tool_use":
+            texto = "".join(b.text for b in response.content if b.type == "text").strip()
+            return texto or "Beleza.", acoes, usage_total
+
+        mensagens.append({"role": "assistant", "content": response.content})
+        resultados = []
+        for bloco in response.content:
+            if bloco.type != "tool_use":
+                continue
+            executor = executores.get(bloco.name)
+            resultado = executor(bloco.input) if executor else {"erro": "ferramenta desconhecida"}
+            if executor:
+                acoes.append(bloco.name)
+            resultados.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": bloco.id,
+                    "content": json.dumps(resultado, ensure_ascii=False),
+                }
+            )
+        mensagens.append({"role": "user", "content": resultados})
+
+    return (
+        "Isso ficou complicado demais pra eu processar de uma vez - tenta pedir uma coisa por vez.",
+        acoes,
+        usage_total,
+    )
+
 
 PLANO_PROMPT = """Voce ajuda uma pessoa com TDAH a organizar o resto do dia. Agora sao {agora}.
 

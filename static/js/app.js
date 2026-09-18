@@ -44,6 +44,12 @@ function showTab(name) {
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === name);
   });
+  if (name === "painel") {
+    loadSummary();
+    loadAgenda();
+    loadSaude();
+    loadMemorias();
+  }
   if (name === "tarefas") loadTasks();
   if (name === "gastos") {
     loadExpenses();
@@ -206,6 +212,84 @@ async function loadAgenda() {
     list.appendChild(li);
   });
 }
+
+function criarBolhaChat(papel, texto) {
+  const div = document.createElement("div");
+  div.className = `chat-bolha ${papel}`;
+  div.textContent = texto;
+  return div;
+}
+
+async function loadChatHistorico() {
+  const historico = await apiFetch("/api/chat/historico");
+  if (!historico) return;
+
+  const lista = $("#chat-mensagens");
+  lista.innerHTML = "";
+  if (historico.length === 0) {
+    const vazio = document.createElement("p");
+    vazio.className = "chat-vazio";
+    vazio.textContent = "Fala comigo - posso registrar tarefa, gasto, meta ou montar o plano do dia.";
+    lista.appendChild(vazio);
+    return;
+  }
+  historico.forEach((m) => lista.appendChild(criarBolhaChat(m.papel, m.texto)));
+  lista.scrollTop = lista.scrollHeight;
+}
+
+async function enviarChat(texto) {
+  const lista = $("#chat-mensagens");
+  const vazio = lista.querySelector(".chat-vazio");
+  if (vazio) vazio.remove();
+
+  lista.appendChild(criarBolhaChat("user", texto));
+  lista.scrollTop = lista.scrollHeight;
+
+  const btn = $("#chat-send");
+  setBotaoCarregando(btn, true, "...");
+
+  const digitando = document.createElement("div");
+  digitando.className = "chat-bolha assistant chat-digitando";
+  digitando.innerHTML = '<span class="spinner"></span>pensando...';
+  lista.appendChild(digitando);
+  lista.scrollTop = lista.scrollHeight;
+
+  const data = await apiFetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mensagem: texto }),
+  });
+
+  digitando.remove();
+  setBotaoCarregando(btn, false, "Enviar");
+  if (!data) return;
+
+  lista.appendChild(criarBolhaChat("assistant", data.resposta));
+  lista.scrollTop = lista.scrollHeight;
+
+  if (data.acoes && data.acoes.length > 0) {
+    loadSummary();
+    loadUso();
+    if (!$("#tab-painel").hidden) {
+      loadAgenda();
+      loadMemorias();
+    }
+    if (!$("#tab-tarefas").hidden) loadTasks();
+    if (!$("#tab-gastos").hidden) {
+      loadExpenses();
+      loadMetas();
+    }
+  }
+}
+
+$("#chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = $("#chat-input");
+  const texto = input.value.trim();
+  if (!texto) return;
+  input.value = "";
+  enviarChat(texto);
+});
 
 async function loadSaude() {
   const data = await apiFetch("/api/saude/hoje");
@@ -712,4 +796,5 @@ loadUso();
 loadAgenda();
 loadMemorias();
 loadSaude();
+loadChatHistorico();
 initViagemOrigemPadrao();

@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import date
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "data" / "painel.db"
@@ -20,6 +21,7 @@ def init_db():
             title TEXT NOT NULL,
             source_text TEXT,
             due_at TEXT,
+            due_date TEXT,
             completed_at TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -101,11 +103,37 @@ def init_db():
             andares_subidos INTEGER,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS notificacoes_enviadas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            referencia_id INTEGER NOT NULL DEFAULT 0,
+            data TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(tipo, referencia_id, data)
+        );
+
+        CREATE TABLE IF NOT EXISTS chat_mensagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            papel TEXT NOT NULL CHECK (papel IN ('user', 'assistant')),
+            texto TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
+    _garantir_coluna(conn, "tasks", "due_date", "TEXT")
     _seed_perfil_inicial(conn)
     conn.close()
+
+
+def _garantir_coluna(conn, tabela: str, coluna: str, tipo: str):
+    """Adiciona uma coluna nova numa tabela que ja existe de uma versao anterior
+    do app - CREATE TABLE IF NOT EXISTS nao faz isso sozinho."""
+    colunas = [r["name"] for r in conn.execute(f"PRAGMA table_info({tabela})").fetchall()]
+    if coluna not in colunas:
+        conn.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}")
+        conn.commit()
 
 
 PERFIL_INICIAL = [
@@ -269,3 +297,33 @@ def media_passos_ultimos_dias(conn, antes_de: str, dias: int = 7) -> float | Non
         (antes_de, antes_de, f"-{dias} days"),
     ).fetchone()
     return row["media"]
+
+
+def ja_notificou_hoje(conn, tipo: str, referencia_id: int = 0) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM notificacoes_enviadas WHERE tipo = ? AND referencia_id = ? AND data = ?",
+        (tipo, referencia_id, date.today().isoformat()),
+    ).fetchone()
+    return row is not None
+
+
+def marcar_notificado(conn, tipo: str, referencia_id: int = 0):
+    conn.execute(
+        "INSERT OR IGNORE INTO notificacoes_enviadas (tipo, referencia_id, data) VALUES (?, ?, ?)",
+        (tipo, referencia_id, date.today().isoformat()),
+    )
+    conn.commit()
+
+
+def salvar_mensagem_chat(conn, papel: str, texto: str):
+    conn.execute("INSERT INTO chat_mensagens (papel, texto) VALUES (?, ?)", (papel, texto))
+    conn.commit()
+
+
+def list_chat_mensagens(conn, limit: int = 20) -> list[dict]:
+    """Mais recentes primeiro (pra LIMIT pegar as ultimas N) - quem usa pra
+    montar historico de conversa deve inverter a ordem antes de mandar pra IA."""
+    rows = conn.execute(
+        "SELECT * FROM chat_mensagens ORDER BY criado_em DESC, id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [dict(r) for r in rows]
