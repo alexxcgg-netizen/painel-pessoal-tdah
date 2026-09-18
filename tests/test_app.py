@@ -255,6 +255,54 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertFalse(res.get_json()["sincronizacao_automatica"])
 
+    def test_conectar_token_sem_configuracao_da_erro(self):
+        res = self.client.post("/api/bancos/conectar/token")
+        self.assertEqual(res.status_code, 400)
+
+    def test_conectar_finalizar_sem_configuracao_da_erro(self):
+        res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "abc"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_conectar_finalizar_sem_item_id_da_erro(self):
+        with patch("pluggy_client.configurado", return_value=True):
+            res = self.client.post("/api/bancos/conectar/finalizar", json={})
+        self.assertEqual(res.status_code, 400)
+
+    def test_conectar_token_configurado_retorna_token(self):
+        with patch("pluggy_client.configurado", return_value=True), patch(
+            "pluggy_client.create_connect_token", return_value="token-fake"
+        ):
+            res = self.client.post("/api/bancos/conectar/token")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["connect_token"], "token-fake")
+
+    def test_conectar_finalizar_grava_contas_e_transacoes(self):
+        item_fake = {"connector": {"name": "Nubank"}}
+        contas_fake = [
+            {"id": "conta-1", "type": "BANK"},
+            {"id": "conta-2", "type": "CREDIT"},
+        ]
+        transacoes_fake = [
+            {"id": "txn-1", "date": "2026-09-01T00:00:00.000Z", "amount": -50.0, "description": "mercado"}
+        ]
+        with patch("pluggy_client.configurado", return_value=True), patch(
+            "pluggy_client.get_item", return_value=item_fake
+        ), patch("pluggy_client.get_accounts", return_value=contas_fake), patch(
+            "pluggy_client.get_transactions", return_value=transacoes_fake
+        ):
+            res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "item-1"})
+
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["banco"], "nubank")
+        self.assertEqual(len(body["contas"]), 2)
+
+        contas = self.client.get("/api/bancos").get_json()
+        self.assertEqual(len(contas), 2)
+        tipos = sorted(c["tipo"] for c in contas)
+        self.assertEqual(tipos, ["cartao", "conta"])
+        self.assertEqual(sum(c["total_transacoes"] for c in contas), 2)
+
     def test_importar_com_tipo_cartao_fica_separado_da_conta(self):
         self.client.post(
             "/api/bancos/importar",

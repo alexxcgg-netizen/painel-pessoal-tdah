@@ -135,16 +135,26 @@ h2 {
 .tab-btn {
   flex: 1;
   min-width: 0;
-  padding: 0.5rem 0.15rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.4rem 0.1rem;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 10px;
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   line-height: 1.15;
   overflow-wrap: anywhere;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.tab-btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .tab-btn:hover:not(.active) {
@@ -241,6 +251,40 @@ h2 {
 #duvida-texto {
   margin: 0;
   font-size: 0.9rem;
+}
+
+.stats-grid {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.stat-tile {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  text-align: center;
+  animation: fadeInUp 0.25s ease;
+}
+
+.stat-tile-valor {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stat-tile-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .resumo-texto {
@@ -374,6 +418,31 @@ li.item {
   margin-left: 0.4rem;
 }
 
+.gasto-categoria[data-cat="mercado"] {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+}
+
+.gasto-categoria[data-cat="transporte"] {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
+.gasto-categoria[data-cat="lazer"] {
+  background: rgba(244, 114, 182, 0.15);
+  color: #f472b6;
+}
+
+.gasto-categoria[data-cat="contas"] {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.gasto-categoria[data-cat="saude"] {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
 #importar-form {
   display: flex;
   flex-wrap: wrap;
@@ -426,6 +495,29 @@ li.item {
   margin-top: 1.75rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+}
+
+.btn-conectar {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: rgba(77, 124, 255, 0.12);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.btn-conectar:hover:not(:disabled) {
+  background: rgba(77, 124, 255, 0.2);
+}
+
+.btn-conectar:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .dica-metas {

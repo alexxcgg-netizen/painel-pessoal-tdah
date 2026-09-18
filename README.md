@@ -60,17 +60,26 @@ Os dados ficam em `bank_accounts` e `bank_transactions` no SQLite, com endpoints
 - `POST /api/bancos/importar` — form-data com `banco` + `arquivo` (o OFX)
 - `GET /api/bancos` — lista contas com contagem de transacoes
 - `GET /api/bancos/<id>/transacoes` — extrato de uma conta
-- `GET /api/bancos/sync-status` — se a sincronizacao automatica esta configurada (hoje sempre `false`)
+- `GET /api/bancos/sync-status` — se a sincronizacao automatica (Pluggy) esta configurada
+- `POST /api/bancos/conectar/token` — gera o token de curta duracao (30min) que o widget da Pluggy usa
+- `POST /api/bancos/conectar/finalizar` — recebe o `item_id` que o widget devolveu e sincroniza contas/transacoes
 
-### O que falta pra sincronizacao automatica (sem precisar importar manualmente)
+### Sincronizacao automatica (Pluggy) — codigo pronto, so falta a chave
 
-Conectar direto com Nubank/Viacredi em tempo real exige o **Open Finance Brasil** (ex-Open Banking, regulado pelo Banco Central) — nao da pra "hackear" isso com scraping de senha, e nem seria seguro. O caminho real:
+Ja implementado de verdade (nao e mais so um placeholder), usando [Pluggy](https://pluggy.ai/) — agregador de Open Finance Brasil autorizado pelo Banco Central. Pra ativar:
 
-1. Criar conta num agregador certificado de Open Finance, tipo [Pluggy](https://pluggy.ai/) ou [Belvo](https://belvo.com/) — eles ja tem o credenciamento e cuidam do fluxo de consentimento com o Banco Central; e o jeito viavel pra um projeto pessoal (virar credenciado direto no Banco Central e fora de escala pra isso)
-2. Pegar `client_id`/`client_secret` do agregador escolhido e colocar em `OPEN_FINANCE_CLIENT_ID` / `OPEN_FINANCE_CLIENT_SECRET` no `.env` (esses nomes de variavel ja sao checados por `/api/bancos/sync-status`)
-3. Implementar o fluxo de conexao (o agregador abre uma tela de consentimento hospedada por eles, o usuario loga no banco la, e depois a API do agregador devolve transacoes via webhook ou polling) — isso ainda **nao esta implementado**, fica como proximo passo quando decidir seguir por esse caminho
+1. Cria uma conta gratuita em [meu.pluggy.ai](https://meu.pluggy.ai/) (uso pessoal, sem custo) e conecta seus bancos por la
+2. No [dashboard da Pluggy](https://dashboard.pluggy.ai/), pega o `CLIENT_ID` e `CLIENT_SECRET` da sua aplicacao
+3. Cola os dois no `.env`:
+   ```
+   PLUGGY_CLIENT_ID=...
+   PLUGGY_CLIENT_SECRET=...
+   ```
+4. Reinicia o `python app.py` — a aba **Bancos** passa a mostrar um botao "Conectar banco automaticamente" no topo, junto com o import manual de OFX (que continua funcionando igual, nao foi removido)
 
-Ate la, a importacao manual de OFX cobre o essencial sem precisar de conta em nenhum servico externo nem custo.
+**Como funciona por baixo dos panos** (`pluggy_client.py`): o botao abre o widget oficial da Pluggy (`PluggyConnect`, carregado via `cdn.pluggy.ai`) direto no navegador — voce loga no banco *dentro do widget deles*, nunca no nosso servidor, e a gente nunca ve nem guarda sua senha do banco. Quando termina, o widget devolve um `item.id`; nosso backend usa isso pra buscar as contas (`GET /accounts`) e transacoes (`GET /transactions`) na API da Pluggy e gravar nas mesmas tabelas `bank_accounts`/`bank_transactions` que o import de OFX ja usa — os dois caminhos convivem e alimentam o mesmo lugar. Contas do tipo `CREDIT` na Pluggy viram `tipo=cartao` automaticamente (pra separar fatura de conta corrente, como ja fazia no OFX).
+
+Endpoints, request/response e nomes de campo foram conferidos direto no [codigo-fonte do SDK oficial da Pluggy](https://github.com/pluggyai/pluggy-node) antes de escrever, nao inventados. Uma coisa que so da pra confirmar com uma conta real conectada: se o sinal do valor da transacao (`amount`) segue a mesma convencao do OFX (negativo = saiu dinheiro) em todos os tipos de conta, especialmente cartao de credito. Vale conferir os primeiros valores importados antes de confiar cegamente no `total_gasto` da aba Bancos.
 
 ## Notificacoes
 
@@ -80,6 +89,6 @@ Push notification de verdade (a que chega mesmo com o navegador fechado) exige o
 
 **Fase 1.5** — notificacao push via PWA (exige hospedagem fixa + gerar VAPID keys + endpoint de subscription)
 
-**Fase 2** — comando de voz livre; integracao com Home Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa); sincronizacao bancaria automatica via Open Finance (ver secao acima)
+**Fase 2** — comando de voz livre; integracao com Home Assistant (luz/temperatura/cortina do quarto ligada a rotina ou tarefa)
 
 **Ideia futura** — se o painel pessoal se provar util, replicar pra outros membros da familia (cada um com seu proprio banco de dados/instancia - nunca compartilhando dados entre si sem pedir)

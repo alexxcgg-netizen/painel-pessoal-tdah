@@ -137,14 +137,26 @@ $("#duvida-input").addEventListener("keydown", (e) => {
 
 async function loadSummary() {
   $("#resumo-texto").textContent = "Carregando...";
-  const data = await apiFetch("/api/summary/today");
+
+  const [data, tasks, metas] = await Promise.all([
+    apiFetch("/api/summary/today"),
+    apiFetch("/api/tasks"),
+    apiFetch("/api/metas"),
+  ]);
+
+  if (tasks) $("#stat-tarefas").textContent = tasks.length;
+  if (metas) {
+    const ativas = metas.filter((m) => m.valor_guardado < m.valor_alvo).length;
+    $("#stat-metas").textContent = ativas;
+  }
+
   if (!data) {
     $("#resumo-texto").textContent = "Nao consegui gerar o resumo agora.";
     return;
   }
+  $("#stat-gasto").textContent = fmtMoeda(data.gasto_hoje);
   $("#resumo-texto").textContent = data.summary;
-  $("#resumo-stats").textContent =
-    `${data.tarefas_concluidas} tarefa(s) concluida(s) hoje - ${fmtMoeda(data.gasto_hoje)} gastos hoje`;
+  $("#resumo-stats").textContent = `${data.tarefas_concluidas} tarefa(s) concluida(s) hoje`;
 }
 
 async function loadUso() {
@@ -254,6 +266,7 @@ function criarItemGasto(e) {
   valor.textContent = fmtMoeda(e.amount);
   const cat = document.createElement("span");
   cat.className = "gasto-categoria";
+  cat.dataset.cat = e.category;
   cat.textContent = e.category;
   info.appendChild(valor);
   info.appendChild(cat);
@@ -310,7 +323,10 @@ async function loadBancos() {
     apiFetch("/api/bancos/sync-status"),
   ]);
 
-  if (status) $("#bancos-status").textContent = status.info;
+  if (status) {
+    $("#bancos-status").textContent = status.info;
+    $("#conectar-btn").hidden = !status.sincronizacao_automatica;
+  }
 
   if (!contas) return;
   const list = $("#lista-bancos");
@@ -318,6 +334,50 @@ async function loadBancos() {
   $("#bancos-vazio").hidden = contas.length > 0;
   contas.forEach((c) => list.appendChild(criarItemBanco(c)));
 }
+
+let pluggyScriptCarregado = null;
+
+function carregarPluggyScript() {
+  if (pluggyScriptCarregado) return pluggyScriptCarregado;
+  pluggyScriptCarregado = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.pluggy.ai/pluggy-connect/latest/pluggy-connect.js";
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  return pluggyScriptCarregado;
+}
+
+$("#conectar-btn").addEventListener("click", async () => {
+  const btn = $("#conectar-btn");
+  setBotaoCarregando(btn, true, "Abrindo...");
+
+  const [tokenData] = await Promise.all([
+    apiFetch("/api/bancos/conectar/token", { method: "POST" }),
+    carregarPluggyScript().catch(() => mostrarErro("Nao consegui carregar o widget de conexao.")),
+  ]);
+
+  setBotaoCarregando(btn, false, "Conectar banco automaticamente");
+  if (!tokenData) return;
+
+  const widget = new PluggyConnect({
+    connectToken: tokenData.connect_token,
+    includeSandbox: false,
+    onSuccess: async ({ item }) => {
+      setBotaoCarregando(btn, true, "Sincronizando...");
+      const data = await apiFetch("/api/bancos/conectar/finalizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_id: item.id }),
+      });
+      setBotaoCarregando(btn, false, "Conectar banco automaticamente");
+      if (data) loadBancos();
+    },
+    onError: () => mostrarErro("A conexao com o banco falhou. Tenta de novo."),
+  });
+  widget.init();
+});
 
 $("#importar-form").addEventListener("submit", async (e) => {
   e.preventDefault();
