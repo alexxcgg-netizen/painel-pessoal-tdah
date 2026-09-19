@@ -661,7 +661,8 @@ header {
   animation: fadeInUp 0.35s var(--ease-bounce) both;
 }
 
-.resumo-texto.carregando {
+.resumo-texto.carregando,
+.shimmer {
   color: transparent;
   background: linear-gradient(
     100deg,
@@ -671,6 +672,14 @@ header {
   );
   background-size: 250% 100%;
   animation: shimmerCarregando 1.4s ease-in-out infinite;
+}
+
+.stat-tile-valor.shimmer {
+  display: inline-block;
+  width: 2.2em;
+  height: 1.05em;
+  border-radius: 7px;
+  vertical-align: -0.15em;
 }
 
 .stat-linha {
@@ -762,6 +771,36 @@ ul li.item:nth-child(n + 5) {
 li.item.saindo {
   opacity: 0;
   transform: scale(0.9) translateX(12px);
+}
+
+.burst-wrap {
+  position: fixed;
+  z-index: 90;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.burst-particula {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 999px;
+  animation: burstParticula 0.6s var(--ease-suave) both;
+}
+
+@keyframes burstParticula {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty)) scale(0.3);
+  }
 }
 
 .item-linha {

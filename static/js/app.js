@@ -222,6 +222,7 @@ $("#duvida-input").addEventListener("keydown", (e) => {
 });
 
 function animarNumero(el, valorFinal, formatador) {
+  el.classList.remove("shimmer");
   const duracao = 500;
   const inicio = performance.now();
   function passo(agora) {
@@ -232,6 +233,33 @@ function animarNumero(el, valorFinal, formatador) {
     if (progresso < 1) requestAnimationFrame(passo);
   }
   requestAnimationFrame(passo);
+}
+
+function explodirConcluido(origemEl) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const r = origemEl.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+
+  const wrap = document.createElement("div");
+  wrap.className = "burst-wrap";
+  wrap.style.left = `${cx}px`;
+  wrap.style.top = `${cy}px`;
+
+  const cores = ["var(--cor-financeiro)", "var(--accent)", "var(--accent-2)", "var(--cor-bancos)"];
+  const total = 8;
+  for (let i = 0; i < total; i++) {
+    const ang = (Math.PI * 2 * i) / total + (Math.random() - 0.5) * 0.5;
+    const dist = 30 + Math.random() * 18;
+    const p = document.createElement("span");
+    p.className = "burst-particula";
+    p.style.setProperty("--tx", `${Math.cos(ang) * dist}px`);
+    p.style.setProperty("--ty", `${Math.sin(ang) * dist}px`);
+    p.style.background = cores[i % cores.length];
+    wrap.appendChild(p);
+  }
+  document.body.appendChild(wrap);
+  setTimeout(() => wrap.remove(), 650);
 }
 
 async function loadSummary() {
@@ -683,6 +711,7 @@ function criarItemTarefa(t) {
   btnConcluir.addEventListener("click", async () => {
     const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
     if (data) {
+      explodirConcluido(btnConcluir);
       li.classList.add("saindo");
       setTimeout(() => {
         loadTasks();
