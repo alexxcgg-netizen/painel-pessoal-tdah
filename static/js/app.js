@@ -306,11 +306,6 @@ async function loadAgenda() {
   if (!data) return;
 
   $("#agenda-desconectada").hidden = data.configurado;
-  if (!data.configurado) {
-    $("#agenda-vazio").hidden = true;
-    $("#lista-agenda").innerHTML = "";
-    return;
-  }
 
   const list = $("#lista-agenda");
   list.innerHTML = "";
@@ -321,9 +316,19 @@ async function loadAgenda() {
     const titulo = document.createElement("span");
     titulo.className = "item-titulo";
     titulo.textContent = ev.titulo;
+    if (ev.origem === "tarefa") {
+      const tag = document.createElement("span");
+      tag.className = "item-tag-tarefa";
+      tag.textContent = "tarefa";
+      titulo.appendChild(tag);
+    }
     const horario = document.createElement("span");
     horario.className = "item-quando";
-    horario.textContent = ev.dia_inteiro ? "dia todo" : `${fmtHora(ev.inicio)} - ${fmtHora(ev.fim)}`;
+    horario.textContent = ev.dia_inteiro
+      ? "dia todo"
+      : ev.inicio === ev.fim
+      ? fmtHora(ev.inicio)
+      : `${fmtHora(ev.inicio)} - ${fmtHora(ev.fim)}`;
     li.appendChild(titulo);
     li.appendChild(horario);
     list.appendChild(li);
@@ -644,10 +649,11 @@ function criarItemTarefa(t) {
   titulo.className = "item-titulo";
   titulo.textContent = t.title;
   tituloWrap.appendChild(titulo);
-  if (t.due_at) {
+  if (t.due_at || t.hora) {
     const quando = document.createElement("span");
     quando.className = "item-quando";
-    quando.textContent = t.due_at;
+    const base = t.due_at || "hoje";
+    quando.textContent = t.hora ? `${base} as ${t.hora}` : base;
     tituloWrap.appendChild(quando);
   }
 

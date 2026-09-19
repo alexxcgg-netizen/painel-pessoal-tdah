@@ -69,6 +69,23 @@ def _marcar_atividade(conn):
     registrar_atividade(conn, date.today().isoformat())
 
 
+def _normalizar_hora(hora) -> str | None:
+    """Valida e zero-preenche um horario "HH:MM" vindo da IA - nunca confia
+    cegamente no formato (pode vir "9:00" em vez de "09:00", por exemplo),
+    porque um horario sem zero a esquerda quebra a ordenacao por texto da
+    agenda (comparado como string, "9:00" fica depois de "10:00")."""
+    if not hora or not isinstance(hora, str):
+        return None
+    try:
+        h, m = hora.strip().split(":")
+        h, m = int(h), int(m)
+    except (ValueError, AttributeError):
+        return None
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        return None
+    return f"{h:02d}:{m:02d}"
+
+
 def _call_claude(fn, *args):
     """Chama uma funcao do claude_client e traduz falhas em uma resposta de erro pronta pra devolver."""
     try:
@@ -133,8 +150,8 @@ def capture():
         create_goal(conn, parsed["titulo"], parsed["valor"], parsed.get("prazo"))
     else:
         conn.execute(
-            "INSERT INTO tasks (title, due_at, due_date, source_text) VALUES (?, ?, ?, ?)",
-            (parsed["titulo"], parsed.get("quando"), parsed.get("quando_data"), full_text),
+            "INSERT INTO tasks (title, due_at, due_date, hora, source_text) VALUES (?, ?, ?, ?, ?)",
+            (parsed["titulo"], parsed.get("quando"), parsed.get("quando_data"), _normalizar_hora(parsed.get("hora")), full_text),
         )
 
     if parsed.get("memoria"):
@@ -282,15 +299,47 @@ def _clima_contexto_resumo() -> str | None:
     return resumo["texto"]
 
 
-def _eventos_de_hoje_com_seguranca() -> list[dict]:
+def _tarefas_com_horario_hoje(conn) -> list[dict]:
+    """Tarefas pendentes com horario marcado pra hoje, no mesmo formato dos
+    eventos do iCloud - pra virarem ancoras de horario fixo junto com eles."""
+    hoje = date.today().isoformat()
+    rows = conn.execute(
+        "SELECT title, hora FROM tasks WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL",
+        (hoje,),
+    ).fetchall()
+    return [
+        {
+            "titulo": r["title"],
+            "inicio": f"{hoje}T{r['hora']}:00",
+            "fim": f"{hoje}T{r['hora']}:00",
+            "dia_inteiro": False,
+            "origem": "tarefa",
+        }
+        for r in rows
+    ]
+
+
+def _compromissos_de_hoje(conn, eventos_icloud: list[dict]) -> list[dict]:
+    """Junta os eventos do iCloud com as tarefas que tem horario marcado pra
+    hoje, tudo ordenado por horario - assim um compromisso mencionado depois
+    numa conversa (mas mais cedo no dia) nao fica fora de ordem na agenda."""
+    compromissos = [dict(e, origem="calendario") for e in eventos_icloud]
+    compromissos += _tarefas_com_horario_hoje(conn)
+    compromissos.sort(key=lambda e: e["inicio"])
+    return compromissos
+
+
+def _eventos_de_hoje_com_seguranca(conn) -> list[dict]:
     """A agenda do iCloud via CalDAV e instavel (ver caldav_client.py) - se
-    falhar, o resumo do dia nao pode quebrar por causa disso."""
-    if not caldav_client.configurado():
-        return []
-    try:
-        return caldav_client.eventos_do_dia(date.today())
-    except Exception:
-        return []
+    falhar, o resumo do dia nao pode quebrar por causa disso. Combina o que
+    conseguir buscar do iCloud com as tarefas com horario marcado pra hoje."""
+    icloud = []
+    if caldav_client.configurado():
+        try:
+            icloud = caldav_client.eventos_do_dia(date.today())
+        except Exception:
+            icloud = []
+    return _compromissos_de_hoje(conn, icloud)
 
 
 @app.route("/api/summary/today", methods=["GET"])
@@ -303,7 +352,7 @@ def summary_today():
         "SELECT amount, category FROM expenses WHERE date(created_at) = ?", (today,)
     ).fetchall()
     gasto_hoje = sum(r["amount"] for r in expenses)
-    eventos = _eventos_de_hoje_com_seguranca()
+    eventos = _eventos_de_hoje_com_seguranca(conn)
     memorias = list_memorias(conn)
     saude = _saude_contexto_resumo(conn)
     construtora = _construtora_contexto_resumo()
@@ -337,24 +386,43 @@ def summary_today():
     )
 
 
+def _tarefas_pendentes_sem_horario_hoje(conn):
+    """Tarefas pendentes que NAO viram ancora de horario fixo hoje - ou
+    porque nao tem hora marcada, ou porque a hora e de outro dia. Evita
+    listar a mesma tarefa duas vezes (como compromisso e como tarefa solta)
+    pro plano do dia."""
+    hoje = date.today().isoformat()
+    return conn.execute(
+        "SELECT title FROM tasks WHERE completed_at IS NULL "
+        "AND NOT (due_date = ? AND hora IS NOT NULL)",
+        (hoje,),
+    ).fetchall()
+
+
 @app.route("/api/calendario/hoje", methods=["GET"])
 def calendario_hoje():
-    if not caldav_client.configurado():
-        return jsonify({"configurado": False, "eventos": []})
-    try:
-        eventos = caldav_client.eventos_do_dia(date.today())
-    except Exception:
-        return jsonify(
-            {"configurado": True, "eventos": [], "erro": "Nao consegui falar com o iCloud agora."}
-        )
-    return jsonify({"configurado": True, "eventos": eventos})
+    conn = get_db()
+    configurado = caldav_client.configurado()
+    erro = None
+    icloud_eventos = []
+    if configurado:
+        try:
+            icloud_eventos = caldav_client.eventos_do_dia(date.today())
+        except Exception:
+            erro = "Nao consegui falar com o iCloud agora."
+    eventos = _compromissos_de_hoje(conn, icloud_eventos)
+    conn.close()
+    resposta = {"configurado": configurado, "eventos": eventos}
+    if erro:
+        resposta["erro"] = erro
+    return jsonify(resposta)
 
 
 @app.route("/api/plano-do-dia", methods=["POST"])
 def plano_do_dia():
     conn = get_db()
-    pending = conn.execute("SELECT title FROM tasks WHERE completed_at IS NULL").fetchall()
-    eventos = _eventos_de_hoje_com_seguranca()
+    pending = _tarefas_pendentes_sem_horario_hoje(conn)
+    eventos = _eventos_de_hoje_com_seguranca(conn)
     memorias = list_memorias(conn)
 
     result, error = _call_claude(
@@ -379,21 +447,25 @@ def _contexto_chat(conn) -> str:
     """Resumo factual do agora pro chat usar como contexto - mesma logica
     do resumo do dia, so que em formato de linhas pro system prompt."""
     hoje = date.today().isoformat()
-    pendentes = conn.execute("SELECT title FROM tasks WHERE completed_at IS NULL").fetchall()
+    pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
     gasto_hoje = conn.execute(
         "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ?",
         (hoje,),
     ).fetchone()["total"]
-    eventos = _eventos_de_hoje_com_seguranca()
+    eventos = _eventos_de_hoje_com_seguranca(conn)
     saude = _saude_contexto_resumo(conn)
     construtora = _construtora_contexto_resumo()
     clima_hoje = _clima_contexto_resumo()
     proximos_voos = voos_module.proximos_voos(list_voos(conn), date.today())
 
+    eventos_txt = ", ".join(
+        f"{e['titulo']} as {e['inicio'][11:16]}" if not e.get("dia_inteiro") else f"{e['titulo']} (dia todo)"
+        for e in eventos
+    )
     linhas = [
         f"Tarefas pendentes: {', '.join(r['title'] for r in pendentes) or 'nenhuma'}",
         f"Gasto de hoje: R$ {gasto_hoje:.2f}",
-        f"Compromissos de hoje: {', '.join(e['titulo'] for e in eventos) or 'nenhum'}",
+        f"Compromissos de hoje (em ordem de horario): {eventos_txt or 'nenhum'}",
     ]
     if saude:
         linhas.append(f"Saude hoje: {saude}")
@@ -428,8 +500,8 @@ def chat():
 
     def exec_registrar_tarefa(entrada):
         conn.execute(
-            "INSERT INTO tasks (title, due_at, due_date, source_text) VALUES (?, ?, ?, ?)",
-            (entrada["titulo"], entrada.get("quando"), entrada.get("quando_data"), texto),
+            "INSERT INTO tasks (title, due_at, due_date, hora, source_text) VALUES (?, ?, ?, ?, ?)",
+            (entrada["titulo"], entrada.get("quando"), entrada.get("quando_data"), _normalizar_hora(entrada.get("hora")), texto),
         )
         conn.commit()
         return {"ok": True}
@@ -447,8 +519,8 @@ def chat():
         return {"ok": True}
 
     def exec_gerar_plano(_entrada):
-        pendentes = conn.execute("SELECT title FROM tasks WHERE completed_at IS NULL").fetchall()
-        eventos = _eventos_de_hoje_com_seguranca()
+        pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
+        eventos = _eventos_de_hoje_com_seguranca(conn)
         plano_texto, usage_plano = claude_client.plano_do_dia(
             [r["title"] for r in pendentes], eventos, memorias_texto
         )

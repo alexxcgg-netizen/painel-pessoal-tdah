@@ -145,6 +145,7 @@ def init_db():
     )
     conn.commit()
     _garantir_coluna(conn, "tasks", "due_date", "TEXT")
+    _garantir_coluna(conn, "tasks", "hora", "TEXT")
     _seed_perfil_inicial(conn)
     conn.close()
 

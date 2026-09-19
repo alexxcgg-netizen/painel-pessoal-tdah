@@ -18,7 +18,7 @@ PRICING = {
 CAPTURE_PROMPT = """Hoje e {hoje}. Classifique o texto do usuario como "tarefa", "gasto" ou "meta"
 (meta financeira, tipo "quero juntar X ate Y" ou "economizar pra comprar Z") e extraia os campos.
 Responda so com JSON, sem markdown, no formato:
-{{"tipo": "tarefa" ou "gasto" ou "meta", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "quando_data": "AAAA-MM-DD" ou null, "prazo": "AAAA-MM-DD" ou null, "duvida": "..." ou null, "memoria": "..." ou null}}
+{{"tipo": "tarefa" ou "gasto" ou "meta", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "quando_data": "AAAA-MM-DD" ou null, "hora": "HH:MM" ou null, "prazo": "AAAA-MM-DD" ou null, "duvida": "..." ou null, "memoria": "..." ou null}}
 
 Categorias de gasto: mercado, transporte, lazer, contas, saude, outros.
 
@@ -27,6 +27,13 @@ Se tipo="tarefa": "quando" e o prazo em texto livre, do jeito que a pessoa escre
 quando der pra calcular uma data concreta a partir de hoje ({hoje}) - se o texto nao tiver prazo
 nenhum ou for vago demais pra virar data (tipo "quando der", "algum dia"), deixe "quando_data"
 como null mesmo que "quando" tenha texto.
+
+"hora" e o horario do compromisso em HH:MM (24h), SO quando o texto disser um horario especifico
+tipo "as 14h", "as 22 horas", "9 da manha", "2 da tarde" - converta pra 24h (2 da tarde = 14:00).
+Se houver "hora" mas nenhuma referencia de dia no texto (nem "hoje" nem outra data), assuma que
+e hoje e preencha "quando_data" com {hoje} mesmo assim - uma pessoa que diz "tenho consulta as
+14h" sem mais contexto normalmente esta falando de hoje. Se o texto nao mencionar horario
+nenhum, deixe "hora" como null.
 
 Se tipo="meta": "valor" e o valor total que a pessoa quer juntar, e "prazo" e a data limite no
 formato AAAA-MM-DD - calcule a partir de hoje ({hoje}) se o texto disser algo relativo tipo
@@ -85,6 +92,12 @@ disponiveis, sem precisar confirmar antes se o pedido ja veio claro. So pergunte
 texto, sem usar ferramenta nenhuma) se faltar uma informacao essencial, tipo o valor de um gasto
 ou o destino de um voo.
 
+Quando o Alex mencionar um horario especifico pra alguma tarefa (ex: "as 14h tenho consulta"),
+sempre capture esse horario no campo "hora" de `registrar_tarefa` - mesmo que ele va mencionando
+compromissos do dia em mensagens separadas e fora de ordem (ex: primeiro "hoje as 22h academia",
+depois "hoje as 13h consulta"). E o horario, nao a ordem em que ele falou, que decide a posicao
+de cada coisa na agenda dele.
+
 Voo pode ser so um compromisso futuro (ex: "vou voar pra Blumenau semana que vem" - sem horas
 ainda) ou um voo ja realizado (ex: "voei 1.5h hoje, treino de pouso" - com horas). Nao invente
 numero de horas nem meta de horas de curso - isso varia por escola/etapa e so o Alex sabe o
@@ -121,6 +134,17 @@ CHAT_TOOLS = [
                         "a mesma informacao de 'quando' convertida pra AAAA-MM-DD - so inclua "
                         "quando der pra calcular uma data concreta a partir de hoje; se for vago "
                         "demais (tipo 'quando der', 'algum dia'), omita mesmo que 'quando' tenha texto"
+                    ),
+                },
+                "hora": {
+                    "type": "string",
+                    "description": (
+                        "horario do compromisso em HH:MM (24h) - so inclua se o Alex disse um "
+                        "horario especifico (ex: 'as 14h', '9 da manha'); converta pra 24h. Se "
+                        "houver hora mas nenhuma referencia de dia, preencha tambem 'quando_data' "
+                        "com a data de hoje - uma tarefa com horario e sempre um compromisso com "
+                        "hora fixa, entao capturar a hora certa evita que dois compromissos do "
+                        "mesmo dia fiquem fora de ordem na agenda."
                     ),
                 },
             },

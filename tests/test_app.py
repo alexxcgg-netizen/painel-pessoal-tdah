@@ -473,6 +473,112 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(body["eventos"], [])
         self.assertIn("erro", body)
 
+    def test_calendario_hoje_mostra_tarefa_com_horario_mesmo_sem_icloud(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("consulta medica", hoje, "14:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/calendario/hoje")
+        body = res.get_json()
+        self.assertFalse(body["configurado"])
+        self.assertEqual(len(body["eventos"]), 1)
+        evento = body["eventos"][0]
+        self.assertEqual(evento["titulo"], "consulta medica")
+        self.assertEqual(evento["origem"], "tarefa")
+        self.assertEqual(evento["inicio"], f"{hoje}T14:00:00")
+        self.assertEqual(evento["fim"], evento["inicio"])
+
+    def test_calendario_hoje_combina_tarefas_e_icloud_ordenado_por_horario(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        # registrada em ordem invertida de proposito - o horario que decide a posicao final,
+        # nao a ordem de cadastro (era exatamente essa a confusao que o Alex reportou)
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("academia", hoje, "22:00"),
+        )
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("consulta medica", hoje, "13:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        eventos_fake = [
+            {
+                "titulo": "Reuniao",
+                "inicio": f"{hoje}T10:00:00",
+                "fim": f"{hoje}T11:00:00",
+                "dia_inteiro": False,
+            }
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ):
+            res = self.client.get("/api/calendario/hoje")
+
+        body = res.get_json()
+        titulos_em_ordem = [e["titulo"] for e in body["eventos"]]
+        self.assertEqual(titulos_em_ordem, ["Reuniao", "consulta medica", "academia"])
+        origens = {e["titulo"]: e["origem"] for e in body["eventos"]}
+        self.assertEqual(origens["Reuniao"], "calendario")
+        self.assertEqual(origens["consulta medica"], "tarefa")
+
+    def test_calendario_hoje_ignora_tarefa_com_horario_de_outro_dia(self):
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("consulta amanha", amanha, "09:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/calendario/hoje")
+        self.assertEqual(res.get_json()["eventos"], [])
+
+    def test_calendario_hoje_ignora_tarefa_concluida(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora, completed_at) VALUES (?, ?, ?, datetime('now'))",
+            ("consulta ja feita", hoje, "09:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/calendario/hoje")
+        self.assertEqual(res.get_json()["eventos"], [])
+
+    def test_plano_do_dia_nao_duplica_tarefa_com_horario_hoje(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("consulta medica", hoje, "14:00"),
+        )
+        conn.execute("INSERT INTO tasks (title) VALUES (?)", ("tarefa sem hora",))
+        conn.commit()
+        conn.close()
+
+        with patch(
+            "claude_client.plano_do_dia", return_value=("1. Faca algo.", fake_usage())
+        ) as mock_plano:
+            res = self.client.post("/api/plano-do-dia")
+        self.assertEqual(res.status_code, 200)
+
+        args = mock_plano.call_args[0]
+        tarefas_soltas, compromissos = args[0], args[1]
+        self.assertEqual(tarefas_soltas, ["tarefa sem hora"])
+        self.assertEqual(len(compromissos), 1)
+        self.assertEqual(compromissos[0]["titulo"], "consulta medica")
+        self.assertEqual(compromissos[0]["origem"], "tarefa")
+
     def test_resumo_do_dia_inclui_contagem_de_eventos(self):
         eventos_fake = [
             {"titulo": "Dentista", "inicio": "2026-09-18T10:00:00", "fim": "2026-09-18T11:00:00", "dia_inteiro": False}
@@ -527,7 +633,7 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.get_json()["plano"], "1. Faca X antes do dentista.")
         args = mock_plano.call_args[0]
         self.assertEqual(args[0], ["levar carro na oficina"])
-        self.assertEqual(args[1], eventos_fake)
+        self.assertEqual(args[1], [dict(eventos_fake[0], origem="calendario")])
 
     def test_viagem_status_sem_configuracao(self):
         res = self.client.get("/api/viagem/status")
@@ -745,6 +851,88 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(row["due_at"], "amanha")
         self.assertEqual(row["due_date"], "2026-09-19")
 
+    def test_captura_tarefa_com_horario_grava_hora(self):
+        hoje = date.today().isoformat()
+        parsed = {
+            "tipo": "tarefa",
+            "titulo": "consulta medica",
+            "valor": None,
+            "categoria": None,
+            "quando": "hoje",
+            "quando_data": hoje,
+            "hora": "14:00",
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": "hoje as 14h tenho consulta medica"})
+        self.assertEqual(res.status_code, 201)
+
+        conn = db.get_db()
+        row = conn.execute("SELECT due_date, hora FROM tasks").fetchone()
+        conn.close()
+        self.assertEqual(row["due_date"], hoje)
+        self.assertEqual(row["hora"], "14:00")
+
+    def test_captura_tarefa_com_hora_sem_zero_a_esquerda_e_normalizada(self):
+        hoje = date.today().isoformat()
+        parsed = {
+            "tipo": "tarefa",
+            "titulo": "academia",
+            "valor": None,
+            "categoria": None,
+            "quando": "hoje",
+            "quando_data": hoje,
+            "hora": "9:5",
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": "hoje as 9:05 academia"})
+        self.assertEqual(res.status_code, 201)
+
+        conn = db.get_db()
+        row = conn.execute("SELECT hora FROM tasks").fetchone()
+        conn.close()
+        self.assertEqual(row["hora"], "09:05")
+
+    def test_captura_tarefa_com_hora_invalida_nao_quebra_e_vira_nula(self):
+        parsed = {
+            "tipo": "tarefa",
+            "titulo": "academia",
+            "valor": None,
+            "categoria": None,
+            "quando": None,
+            "quando_data": None,
+            "hora": "25:99",
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": "academia"})
+        self.assertEqual(res.status_code, 201)
+
+        conn = db.get_db()
+        row = conn.execute("SELECT hora FROM tasks").fetchone()
+        conn.close()
+        self.assertIsNone(row["hora"])
+
+    def test_captura_tarefa_sem_horario_grava_hora_nula(self):
+        parsed = {
+            "tipo": "tarefa",
+            "titulo": "ligar pro dentista",
+            "valor": None,
+            "categoria": None,
+            "quando": None,
+            "quando_data": None,
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": "ligar pro dentista"})
+        self.assertEqual(res.status_code, 201)
+
+        conn = db.get_db()
+        row = conn.execute("SELECT hora FROM tasks").fetchone()
+        conn.close()
+        self.assertIsNone(row["hora"])
+
     def test_chat_resposta_de_texto_simples(self):
         with patch(
             "claude_client.chat", return_value=("Oi! Beleza?", [], fake_usage())
@@ -778,6 +966,26 @@ class PainelTestCase(unittest.TestCase):
         tarefas = self.client.get("/api/tasks").get_json()
         self.assertEqual(len(tarefas), 1)
         self.assertEqual(tarefas[0]["title"], "levar carro na oficina")
+
+    def test_chat_registrar_tarefa_com_horario_grava_hora(self):
+        hoje = date.today().isoformat()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_tarefa"](
+                {"titulo": "consulta medica", "quando_data": hoje, "hora": "14:00"}
+            )
+            self.assertEqual(resultado, {"ok": True})
+            return "Registrei.", ["registrar_tarefa"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "hoje as 14h tenho consulta"})
+        self.assertEqual(res.status_code, 200)
+
+        conn = db.get_db()
+        row = conn.execute("SELECT due_date, hora FROM tasks").fetchone()
+        conn.close()
+        self.assertEqual(row["due_date"], hoje)
+        self.assertEqual(row["hora"], "14:00")
 
     def test_notificacoes_verificar_agora_sem_push_configurado(self):
         res = self.client.post("/api/notificacoes/verificar-agora")
@@ -1217,6 +1425,26 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         args = mock_summarize.call_args[0]
         self.assertIsNone(args[7])
+
+
+class NormalizarHoraTestCase(unittest.TestCase):
+    def test_zero_preenche_hora_e_minuto(self):
+        self.assertEqual(app._normalizar_hora("9:5"), "09:05")
+        self.assertEqual(app._normalizar_hora("9:05"), "09:05")
+        self.assertEqual(app._normalizar_hora("09:05"), "09:05")
+
+    def test_limites_validos(self):
+        self.assertEqual(app._normalizar_hora("00:00"), "00:00")
+        self.assertEqual(app._normalizar_hora("23:59"), "23:59")
+
+    def test_entradas_invalidas_viram_none_sem_quebrar(self):
+        invalidas = [
+            None, "", "  ", "nao e hora", "25:00", "10:60", "-1:00", "10", "10:", ":30",
+            "10:00:00", "manha", "14h", 1400, 14.5, [], {}, "10:aa", "aa:10",
+        ]
+        for valor in invalidas:
+            with self.subTest(valor=valor):
+                self.assertIsNone(app._normalizar_hora(valor))
 
 
 if __name__ == "__main__":

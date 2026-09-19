@@ -747,6 +747,21 @@ li.item.saindo {
   margin-top: 0.15rem;
 }
 
+.item-tag-tarefa {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  vertical-align: middle;
+}
+
 .item-acoes {
   display: flex;
   gap: 0.4rem;

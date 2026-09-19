@@ -177,6 +177,23 @@ oficialmente suportado (funciona, mas as vezes falha sem motivo aparente) - por 
 codigo aqui e tolerante a erro: se a conexao falhar, o resumo do dia e a aba Hoje simplesmente
 mostram "sem agenda" em vez de quebrar o resto do app.
 
+### Tarefa com horario vira compromisso na agenda (mesmo sem iCloud)
+
+Se voce disser um horario especifico ao registrar uma tarefa - pela captura rapida ("hoje as
+14h tenho consulta medica") ou pelo chat, mesmo em mensagens separadas e fora de ordem ("hoje as
+22h academia" numa mensagem, "hoje as 13h consulta" em outra) - a IA extrai esse horario (campo
+`hora`, formato HH:MM, `claude_client.py`) e a tarefa passa a contar como compromisso de horario
+fixo na "Agenda de hoje", junto com os eventos do iCloud (se estiver conectado) ou sozinha (se
+nao estiver). O que decide a posicao de cada compromisso na lista e sempre o horario, nunca a
+ordem em que voce falou - a lista final (`app.py::_compromissos_de_hoje`) e ordenada por horario
+antes de ir pro navegador. Essa mesma lista unificada e o que "Gerar plano do dia" usa como
+ancora fixa e o que o resumo diario e o contexto do chat enxergam - entao uma tarefa com horario
+nunca aparece duplicada como "tarefa solta" em outro lugar.
+
+So conta como compromisso de hoje se a tarefa tiver `due_date` = hoje **e** `hora` preenchida;
+uma tarefa so com prazo ("ate sexta") continua sendo tarefa solta, sem horario fixo, do jeito que
+sempre foi.
+
 ## Deslocamento — "devo sair ate que horas?"
 
 O exemplo que voce deu (voo daqui a pouco, preciso saber se da tempo de chegar) e resolvido pela
