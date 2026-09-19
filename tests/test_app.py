@@ -1015,6 +1015,28 @@ class PainelTestCase(unittest.TestCase):
             self.assertEqual(res2.get_json()["avisos_enviados"], 0)
             self.assertEqual(mock_enviar.call_count, 1)
 
+    def test_notificacoes_verificar_agora_inclui_tarefa_com_horario_chegado(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("colocar o lixo pra fora", hoje, "00:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        corpo = mock_enviar.call_args[0][2]
+        self.assertIn("colocar o lixo pra fora", corpo)
+
     def test_lembretes_lista_vazia(self):
         self.assertEqual(self.client.get("/api/lembretes").get_json(), [])
 

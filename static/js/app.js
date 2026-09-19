@@ -1322,6 +1322,11 @@ $("#viagem-form").addEventListener("submit", async (e) => {
   const wazeLink = $("#viagem-waze");
   wazeLink.href = `https://waze.com/ul?q=${encodeURIComponent(destino)}&navigate=yes`;
   wazeLink.hidden = false;
+
+  const uberLink = $("#viagem-uber");
+  uberLink.href = `https://m.uber.com/ul/?action=setPickup&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(destino)}`;
+  uberLink.hidden = false;
+  $("#viagem-uber-dica").hidden = false;
 });
 
 async function initViagemOrigemPadrao() {

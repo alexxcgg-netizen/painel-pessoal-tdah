@@ -158,10 +158,19 @@
         </button>
       </form>
       <p id="viagem-resultado" class="resumo-texto" hidden></p>
-      <a id="viagem-waze" class="btn-waze" href="#" target="_blank" rel="noopener" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/><path d="M15 6h3a2 2 0 0 1 2 2v10"/></svg>
-        Abrir no Waze
-      </a>
+      <div class="viagem-links">
+        <a id="viagem-waze" class="btn-waze" href="#" target="_blank" rel="noopener" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/><path d="M15 6h3a2 2 0 0 1 2 2v10"/></svg>
+          Abrir no Waze
+        </a>
+        <a id="viagem-uber" class="btn-uber" href="#" target="_blank" rel="noopener" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M7 17v-4.5L9 8h6l2 4.5V17"/><circle cx="8.5" cy="17" r="1.6"/><circle cx="15.5" cy="17" r="1.6"/></svg>
+          Pedir Uber
+        </a>
+      </div>
+      <p class="dica-metas dica-uber" id="viagem-uber-dica" hidden>
+        Abre o app da Uber com o destino ja preenchido - o pedido e a corrida voce confirma la, o painel nao tem acesso a conta nem pode pedir sozinho.
+      </p>
 
       <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.5 6 2 6.5H4C4.5 14 6 12.5 6 8Z"/><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0"/></svg>

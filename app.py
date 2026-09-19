@@ -611,6 +611,10 @@ def verificar_e_notificar():
         if not ja_notificou_hoje(conn, "lembrete_proximo", lembrete_id):
             avisos.append(("lembrete_proximo", lembrete_id, "Data importante chegando", msg))
 
+    for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(conn):
+        if not ja_notificou_hoje(conn, "tarefa_horario", tarefa_id):
+            avisos.append(("tarefa_horario", tarefa_id, "Lembrete", msg))
+
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
         for s in subs:
@@ -1084,7 +1088,11 @@ def iniciar_scheduler():
         from apscheduler.schedulers.background import BackgroundScheduler
 
         scheduler = BackgroundScheduler(daemon=True)
-        scheduler.add_job(verificar_e_notificar, "interval", hours=3)
+        # 5 min pra tarefa-com-horario (ver notificacoes.tarefas_com_horario_chegando)
+        # virar push perto da hora certa - as outras checagens (atrasada, meta, gasto,
+        # lembrete) sao lentas por natureza e nao se importam com a checagem ser mais
+        # frequente, o dedup em notificacoes_enviadas ja evita reenvio.
+        scheduler.add_job(verificar_e_notificar, "interval", minutes=5)
         scheduler.start()
 
 

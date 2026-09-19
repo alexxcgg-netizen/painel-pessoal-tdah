@@ -124,13 +124,22 @@ chama `POST /api/push/testar` (ou eu crio um botao "testar" se quiser) e uma not
 chega no seu navegador/celular.
 
 **Notificacoes proativas - ja implementado, roda enquanto o `python app.py` estiver de pe**: um
-job (`APScheduler`, ver `iniciar_scheduler()` em `app.py`) roda a cada 3h e verifica, em Python
-puro (`notificacoes.py`), quatro coisas: tarefas atrasadas (com data), metas financeiras fora do
+job (`APScheduler`, ver `iniciar_scheduler()` em `app.py`) roda a cada 5min e verifica, em Python
+puro (`notificacoes.py`), cinco coisas: tarefas atrasadas (com data), metas financeiras fora do
 ritmo pra bater o prazo (compara o quanto ja devia ter guardado, proporcional ao tempo passado,
-com o que guardou de verdade), gasto da semana bem acima da media das ultimas semanas, e datas
-importantes se aproximando (ver secao "Datas importantes" abaixo). Cada tipo de aviso so dispara
-uma vez por dia (deduplicado na tabela `notificacoes_enviadas`), pra nao virar spam. Da pra forcar
-uma verificacao na hora com `POST /api/notificacoes/verificar-agora`.
+com o que guardou de verdade), gasto da semana bem acima da media das ultimas semanas, datas
+importantes se aproximando (ver secao "Datas importantes" abaixo), e **tarefas com horario
+marcado pra hoje cuja hora ja chegou** (`notificacoes.tarefas_com_horario_chegando`) - isso e o
+que transforma "cria um lembrete pra mim: quando eu chegar em casa umas 14h, colocar o lixo pra
+fora" (dito no chat) num push de verdade chegando por volta das 14h, nao so um item guardado numa
+lista que voce so ve se abrir o app. Cada tipo de aviso so dispara uma vez por ocorrencia
+(deduplicado na tabela `notificacoes_enviadas`), pra nao virar spam. Da pra forcar uma
+verificacao na hora com `POST /api/notificacoes/verificar-agora`.
+
+A checagem roda a cada 5 minutos (em vez de 3h como as outras) especificamente pra esse lembrete
+com horario nao atrasar muito - "as 14h" que so vira aviso as 17h nao serve pra nada. As outras
+quatro checagens sao lentas por natureza (atraso de dias, nao de minutos) e nao se importam com a
+frequencia maior; o dedup evita qualquer reenvio extra.
 
 **O que ainda depende de hospedagem fixa**: isso tudo so roda enquanto o processo do
 `python app.py` estiver ligado no seu computador - fecha o terminal, para de verificar. Pra virar
@@ -219,6 +228,23 @@ app do Waze (com o transito em tempo real dele, que costuma ser melhor em Santa 
 existe API publica do Waze pra rotas/transito, entao o calculo do horario de saida continua vindo
 da Google Routes API — o link do Waze e so um atalho pra navegacao (usa o [deep link oficial do
 Waze](https://developers.google.com/waze/deeplinks), sem scraping nem API nao documentada).
+
+### E a Uber?
+
+Do lado do link, funciona igual ao Waze: aparece um botao "Pedir Uber" junto do Waze, que abre o
+app da Uber (ou a Uber web se nao tiver o app) com origem = sua localizacao atual e destino ja
+preenchido, usando o [deep link publico da Uber](https://developer.uber.com/docs/riders/ride-requests/tutorials/deep-links/introduction)
+(`m.uber.com/ul/...`) - nao precisa de chave de API nem de OAuth, e nao acessa sua conta.
+
+**O que isso NAO faz**: pedir a corrida sozinho (sem voce confirmar no app), nem ver preco/tempo
+de espera antes de abrir, nem confirmar se a corrida foi aceita. Isso exigiria a API de verdade
+da Uber (`Ride Requests API`), que precisa de aprovacao formal da Uber como parceiro de negocio -
+nao e algo que um app pessoal como esse consegue simplesmente ativar com uma chave, diferente da
+Google Maps ou do Waze. Pesquisei antes de prometer isso pronto: hoje a Uber restringe esse tipo
+de acesso a parceiros aprovados (apps de terceiros que integram delivery/corrida em escala), nao
+a desenvolvedores individuais pedindo pra automatizar a propria conta. O deep link resolve o "abre
+ja com o destino preenchido, poupa de digitar" - o resto (pedir, pagar, confirmar) continua sendo
+voce, no app da Uber mesmo.
 
 **Sobre custo**: uso pessoal (algumas consultas por dia) fica bem dentro dos $200/mes de credito
 gratuito que a Google da por conta - na pratica isso e gratis pro seu uso, mas e bom saber que a

@@ -136,6 +136,55 @@ class NotificacoesTestCase(unittest.TestCase):
         self.assertEqual(len(avisos), 1)
         self.assertIn("e hoje", avisos[0][1])
 
+    def test_tarefa_com_horario_ja_chegado_e_avisada(self):
+        hoje = date.today().isoformat()
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("colocar o lixo pra fora", hoje, "14:00"),
+        )
+        self.conn.commit()
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=14, minute=5)
+        avisos = notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora)
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("colocar o lixo pra fora", avisos[0][1])
+
+    def test_tarefa_com_horario_ainda_nao_chegado_nao_avisa(self):
+        hoje = date.today().isoformat()
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("colocar o lixo pra fora", hoje, "14:00"),
+        )
+        self.conn.commit()
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=13, minute=59)
+        self.assertEqual(notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora), [])
+
+    def test_tarefa_com_horario_de_outro_dia_nao_avisa(self):
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("consulta amanha", amanha, "09:00"),
+        )
+        self.conn.commit()
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=23, minute=59)
+        self.assertEqual(notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora), [])
+
+    def test_tarefa_sem_horario_nunca_avisa_aqui(self):
+        hoje = date.today().isoformat()
+        self.conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("so com prazo", hoje))
+        self.conn.commit()
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=23, minute=59)
+        self.assertEqual(notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora), [])
+
+    def test_tarefa_com_horario_concluida_nao_avisa(self):
+        hoje = date.today().isoformat()
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora, completed_at) VALUES (?, ?, ?, datetime('now'))",
+            ("ja fiz", hoje, "08:00"),
+        )
+        self.conn.commit()
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=23, minute=59)
+        self.assertEqual(notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora), [])
+
 
 if __name__ == "__main__":
     unittest.main()

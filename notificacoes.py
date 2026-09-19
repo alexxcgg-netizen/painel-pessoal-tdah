@@ -20,6 +20,21 @@ def tarefas_atrasadas(conn) -> str | None:
     return f"Voce tem {n} tarefas atrasadas."
 
 
+def tarefas_com_horario_chegando(conn, agora: datetime | None = None) -> list[tuple[int, str]]:
+    """Tarefas pendentes com horario marcado pra hoje cujo horario ja
+    chegou (ou passou) - pra virar um lembrete de verdade (push) na hora
+    certa, nao so aparecer numa lista que precisa abrir o app pra ver."""
+    agora = agora or datetime.now()
+    hoje = agora.date().isoformat()
+    hora_atual = agora.strftime("%H:%M")
+    rows = conn.execute(
+        """SELECT id, title, hora FROM tasks
+           WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL AND hora <= ?""",
+        (hoje, hora_atual),
+    ).fetchall()
+    return [(r["id"], f"\"{r['title']}\" - {r['hora']}.") for r in rows]
+
+
 def metas_fora_do_ritmo(conn, tolerancia: float = 0.7) -> list[tuple[int, str]]:
     """Compara o quanto ja devia ter guardado (proporcional ao tempo passado
     desde a criacao ate o prazo) com o que realmente guardou. So considera
