@@ -223,14 +223,20 @@ $("#duvida-input").addEventListener("keydown", (e) => {
 
 function animarNumero(el, valorFinal, formatador) {
   el.classList.remove("shimmer");
-  const duracao = 500;
+  const duracao = 420;
   const inicio = performance.now();
   function passo(agora) {
     const progresso = Math.min(1, (agora - inicio) / duracao);
     const suavizado = 1 - Math.pow(1 - progresso, 3);
     const valorAtual = valorFinal * suavizado;
     el.textContent = formatador ? formatador(valorAtual) : Math.round(valorAtual);
-    if (progresso < 1) requestAnimationFrame(passo);
+    if (progresso < 1) {
+      requestAnimationFrame(passo);
+    } else {
+      el.classList.remove("num-pop");
+      void el.offsetWidth;
+      el.classList.add("num-pop");
+    }
   }
   requestAnimationFrame(passo);
 }
@@ -245,6 +251,7 @@ function explodirConcluido(origemEl) {
   wrap.className = "burst-wrap";
   wrap.style.left = `${cx}px`;
   wrap.style.top = `${cy}px`;
+  wrap.appendChild(document.createElement("span")).className = "burst-anel";
 
   const cores = ["var(--cor-financeiro)", "var(--accent)", "var(--accent-2)", "var(--cor-bancos)"];
   const total = 8;

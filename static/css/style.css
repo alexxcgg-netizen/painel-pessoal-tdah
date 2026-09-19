@@ -10,25 +10,28 @@
   --text-muted: #a7afbc;
   --text-faint: #788292;
 
-  /* paleta contida - tons dessaturados, tipo joia fosca, em vez de
-     gradiente vibrante - cada secao tem sua cor propria pra dar
-     variedade sem parecer aplicativo gritando por atencao */
-  --accent: #a88bdc;
-  --accent-2: #629fd1;
-  --accent-gradient: linear-gradient(135deg, #a88bdc 0%, #629fd1 100%);
-  --accent-text: #14151c;
-  --accent-soft-bg: rgba(168, 139, 220, 0.14);
+  /* paleta viva - fundo continua escuro/contido, mas as cores de acento
+     agora sao saturadas de verdade e blendam em gradiente (Spotify/Apple
+     Music como referencia) em vez do tom fosco/dessaturado de antes -
+     cada secao ainda tem sua cor propria, so que agora ela aparece com
+     mais energia nos elementos-chave (tiles, tabbar ativa, botoes) em
+     vez de ficar so numa borda fina */
+  --accent: #9d6bff;
+  --accent-2: #2f9bff;
+  --accent-gradient: linear-gradient(135deg, #9d6bff 0%, #2f9bff 100%);
+  --accent-text: #0d0a1a;
+  --accent-soft-bg: rgba(157, 107, 255, 0.16);
 
-  --cor-hoje: #a88bdc;
-  --cor-painel: #a3b992;
-  --cor-tarefas: #629fd1;
-  --cor-financeiro: #42bb91;
-  --cor-bancos: #d8ab4c;
-  --cor-construtora: #ed7181;
-  --cor-aviacao: #7fb5c9;
+  --cor-hoje: #9d6bff;
+  --cor-painel: #9ad84f;
+  --cor-tarefas: #2f9bff;
+  --cor-financeiro: #1ddb9f;
+  --cor-bancos: #ffb830;
+  --cor-construtora: #ff5c72;
+  --cor-aviacao: #35c3f2;
 
-  --danger: #ed7181;
-  --danger-bg: rgba(237, 113, 129, 0.12);
+  --danger: #ff5c72;
+  --danger-bg: rgba(255, 92, 114, 0.14);
   --radius: 20px;
   --radius-sm: 14px;
 
@@ -39,6 +42,12 @@
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* fonte de exibicao - titulo do app e os numeros-heroi (stat tiles) -
+     geometrica e com mais carater que Inter, pareada com JetBrains Mono
+     nos dados tecnicos/brutos (METAR, timestamps) que continuam separados */
+  --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
 
   /* fonte tecnica - so pra numero/dado bruto (estatisticas, horas, METAR),
      nunca pra texto corrido - da o contraste "readout" que falta usando so
@@ -236,11 +245,11 @@ body {
   inset: -20%;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(circle at 18% 18%, rgba(168, 139, 220, 0.16), transparent 45%),
-    radial-gradient(circle at 82% 12%, rgba(98, 159, 209, 0.12), transparent 40%),
-    radial-gradient(circle at 50% 85%, rgba(66, 187, 145, 0.08), transparent 45%);
+  background: radial-gradient(circle at 18% 18%, rgba(157, 107, 255, 0.26), transparent 45%),
+    radial-gradient(circle at 82% 12%, rgba(47, 155, 255, 0.2), transparent 42%),
+    radial-gradient(circle at 50% 85%, rgba(29, 219, 159, 0.13), transparent 48%);
   filter: blur(60px);
-  animation: auroraMove 24s ease-in-out infinite;
+  animation: auroraMove 20s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -261,10 +270,11 @@ body::after {
 }
 
 h1 {
-  font-size: 1.4rem;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
   margin: 0 0 0.15rem;
-  letter-spacing: -0.032em;
+  letter-spacing: -0.02em;
   background: var(--accent-gradient);
   background-size: 200% auto;
   -webkit-background-clip: text;
@@ -391,8 +401,8 @@ header {
   line-height: 1.15;
   overflow-wrap: anywhere;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.25s var(--ease-bounce),
-    box-shadow 0.25s ease;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.2s var(--ease-snap),
+    box-shadow 0.2s ease;
 }
 
 .tab-btn svg {
@@ -409,7 +419,11 @@ header {
 }
 
 .tab-btn.active {
-  background: var(--tab-cor, var(--accent));
+  background: linear-gradient(
+    140deg,
+    color-mix(in srgb, var(--tab-cor, var(--accent)) 70%, white 30%) 0%,
+    var(--tab-cor, var(--accent)) 100%
+  );
   color: #0e0f14;
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
@@ -559,8 +573,12 @@ header {
   flex: 1;
   min-width: 0;
   position: relative;
-  background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 65%);
-  border: 1px solid var(--border);
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--tile-cor, var(--accent)) 20%, var(--surface-2)) 0%,
+    var(--surface) 78%
+  );
+  border: 1px solid color-mix(in srgb, var(--tile-cor, var(--accent)) 25%, var(--border));
   border-radius: var(--radius);
   padding: 0.9rem 0.4rem 0.75rem;
   display: flex;
@@ -570,7 +588,7 @@ header {
   text-align: center;
   overflow: hidden;
   box-shadow: var(--shadow-card);
-  transition: transform 0.25s var(--ease-suave), box-shadow 0.25s ease, border-color 0.2s ease;
+  transition: transform 0.2s var(--ease-snap), box-shadow 0.2s ease, border-color 0.2s ease;
   animation: fadeInUp 0.4s var(--ease-bounce) both;
 }
 
@@ -601,7 +619,11 @@ header {
   left: 0;
   right: 0;
   height: 3px;
-  background: var(--tile-cor, var(--accent));
+  background: linear-gradient(
+    90deg,
+    var(--tile-cor, var(--accent)) 0%,
+    color-mix(in srgb, var(--tile-cor, var(--accent)) 55%, white 45%) 100%
+  );
 }
 
 .stat-tile:nth-child(1) {
@@ -635,12 +657,38 @@ header {
 }
 
 .stat-tile-valor {
-  font-family: var(--font-tech);
-  font-size: 1.3rem;
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--text);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
+}
+
+.stat-tile-valor.num-pop {
+  animation: numPop 0.32s var(--ease-snap);
+}
+
+@keyframes numPop {
+  0% {
+    transform: scale(1);
+    text-shadow: none;
+  }
+  40% {
+    transform: scale(1.18);
+    text-shadow: 0 0 16px color-mix(in srgb, var(--tile-cor, var(--accent)) 70%, transparent);
+  }
+  100% {
+    transform: scale(1);
+    text-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-tile-valor.num-pop {
+    animation: none;
+  }
 }
 
 .stat-tile-label {
@@ -789,7 +837,7 @@ li.item.saindo {
   height: 6px;
   margin: -3px;
   border-radius: 999px;
-  animation: burstParticula 0.6s var(--ease-suave) both;
+  animation: burstParticula 0.55s var(--ease-snap) both;
 }
 
 @keyframes burstParticula {
@@ -800,6 +848,29 @@ li.item.saindo {
   100% {
     opacity: 0;
     transform: translate(var(--tx), var(--ty)) scale(0.3);
+  }
+}
+
+.burst-anel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 26px;
+  height: 26px;
+  margin: -13px;
+  border-radius: 999px;
+  border: 2px solid var(--cor-financeiro);
+  animation: burstAnel 0.45s var(--ease-snap) both;
+}
+
+@keyframes burstAnel {
+  0% {
+    opacity: 0.8;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.2);
   }
 }
 
