@@ -18,7 +18,14 @@ cp .env.example .env  # preencher ANTHROPIC_API_KEY
 python app.py
 ```
 
-Abre em `http://localhost:5001`. Pra instalar como PWA no celular, acessa pelo navegador e usa "Adicionar a tela de inicio".
+Abre em `http://localhost:5001` - bom pra testar no proprio computador.
+
+**Isso NAO da pra instalar no celular como PWA com notificacao funcionando** -
+`localhost` so existe pro computador que esta rodando o `python app.py`, e o
+iPhone exige HTTPS pra registrar o Service Worker/push (nem um IP da rede local
+em HTTP resolve isso). Pra usar de verdade no iPhone (instalar na tela de inicio,
+receber notificacao), hospeda numa VPS com dominio proprio - passo a passo
+completo em [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
 
 ## Testes
 

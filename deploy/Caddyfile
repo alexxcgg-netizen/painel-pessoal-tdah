@@ -1,0 +1,16 @@
+# Troca "seu-dominio.com" pelo dominio de verdade. O Caddy busca e renova o
+# certificado HTTPS sozinho (Let's Encrypt) so por causa dessa linha - nao
+# precisa mexer em certbot nem nada manual.
+seu-dominio.com {
+	# OBRIGATORIO: o painel (app.py) nao tem nenhum login proprio - foi feito
+	# pra so voce acessar via localhost. Assim que sai do localhost pra um
+	# dominio publico, qualquer pessoa que ache a URL consegue ver/mexer nas
+	# suas tarefas, gastos, saude, voos e conversa com a IA sem essa linha.
+	# Gera o hash com: caddy hash-password
+	# (nunca cola a senha em texto puro aqui, so o hash que o comando devolve)
+	basicauth {
+		seu-usuario JDJhJDE0JGV4ZW1wbG8uZGUuaGFzaC5xdWUudm9jZS5jb2xhLmFxdWk
+	}
+
+	reverse_proxy 127.0.0.1:5001
+}

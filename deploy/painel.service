@@ -1,0 +1,19 @@
+[Unit]
+Description=Painel Pessoal (Flask + gunicorn)
+After=network.target
+
+[Service]
+# Ajusta esses tres caminhos/usuario pro seu servidor - o resto pode ficar como esta.
+User=painel
+WorkingDirectory=/home/painel/painel-pessoal-tdah
+ExecStart=/home/painel/painel-pessoal-tdah/.venv/bin/gunicorn -w 1 -b 127.0.0.1:5001 wsgi:app
+
+Restart=on-failure
+RestartSec=5
+
+# Trava de seguranca: nunca sobe com mais de 1 worker (duplicaria o
+# agendador de notificacoes e o SQLite nao aguenta escrita concorrente
+# de multiplos processos - ver wsgi.py e deploy/DEPLOY.md).
+
+[Install]
+WantedBy=multi-user.target
