@@ -1,8 +1,9 @@
-const CACHE_NAME = "painel-pessoal-v1";
+const CACHE_NAME = "painel-pessoal-v2";
 const ASSETS = [
   "/",
   "/static/css/style.css",
   "/static/js/app.js",
+  "/static/js/charts.js",
   "/static/manifest.json",
   "/static/icons/icon.svg",
   "/static/icons/icon-180.png",

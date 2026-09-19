@@ -698,6 +698,71 @@ header {
   letter-spacing: 0.05em;
 }
 
+.grafico-card {
+  position: relative;
+  background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 70%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.9rem 0.6rem;
+  margin: 0 0 0.85rem;
+  box-shadow: var(--shadow-card);
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+.grafico-titulo {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.5rem;
+}
+
+.grafico-container {
+  position: relative;
+  width: 100%;
+}
+
+.grafico-vazio {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 1.2rem 0;
+  margin: 0;
+}
+
+.grafico-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-family: var(--font-tech);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow-card);
+  z-index: 5;
+}
+
+.grafico-rotulo-topo {
+  font-family: var(--font-tech);
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--text-muted);
+}
+
+.grafico-barra {
+  transition: opacity 0.15s ease;
+}
+
+.meta-grafico {
+  margin: 0.5rem 0 0.7rem;
+}
+
 .resumo-texto {
   background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 70%);
   border: 1px solid var(--border);

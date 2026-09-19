@@ -404,6 +404,82 @@ class PainelTestCase(unittest.TestCase):
         res = self.client.post("/api/metas/999/guardar", json={"valor": -5})
         self.assertEqual(res.status_code, 400)
 
+    def test_guardar_em_meta_inexistente_com_valor_valido_da_404(self):
+        res = self.client.post("/api/metas/999/guardar", json={"valor": 100})
+        self.assertEqual(res.status_code, 404)
+
+    def test_meta_historico_inexistente_da_404(self):
+        res = self.client.get("/api/metas/999/historico")
+        self.assertEqual(res.status_code, 404)
+
+    def test_meta_historico_acumula_depositos_em_ordem(self):
+        conn = db.get_db()
+        cur = conn.execute(
+            "INSERT INTO goals (titulo, valor_alvo) VALUES (?, ?)", ("Moto", 5000)
+        )
+        gid = cur.lastrowid
+        conn.commit()
+        conn.close()
+
+        self.client.post(f"/api/metas/{gid}/guardar", json={"valor": 200})
+        self.client.post(f"/api/metas/{gid}/guardar", json={"valor": 300})
+
+        res = self.client.get(f"/api/metas/{gid}/historico")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["valor_alvo"], 5000)
+        acumulados = [p["acumulado"] for p in body["pontos"]]
+        self.assertEqual(acumulados, [0.0, 200.0, 500.0])
+
+    def test_expenses_historico_zero_preenchido(self):
+        res = self.client.get("/api/expenses/historico?dias=5")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(len(body), 5)
+        self.assertEqual(sum(d["total"] for d in body), 0)
+
+    def test_expenses_historico_inclui_gasto_de_hoje(self):
+        parsed = {
+            "tipo": "gasto",
+            "titulo": "mercado",
+            "valor": 42.0,
+            "categoria": "mercado",
+            "quando": None,
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            self.client.post("/api/capture", json={"text": "gastei 42 no mercado"})
+
+        res = self.client.get("/api/expenses/historico?dias=7")
+        body = res.get_json()
+        self.assertEqual(body[-1]["data"], date.today().isoformat())
+        self.assertEqual(body[-1]["total"], 42.0)
+
+    def test_expenses_historico_limita_dias_no_intervalo_valido(self):
+        res = self.client.get("/api/expenses/historico?dias=9999")
+        self.assertEqual(len(res.get_json()), 90)
+        res2 = self.client.get("/api/expenses/historico?dias=0")
+        self.assertEqual(len(res2.get_json()), 1)
+
+    def test_voos_historico_vazio_sem_voos(self):
+        res = self.client.get("/api/voos/historico")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), [])
+
+    def test_voos_historico_acumula_voos_realizados(self):
+        self.client.post(
+            "/api/voos",
+            json={"data": "2026-01-10", "destino": "Blumenau", "horas": 1.5},
+        )
+        self.client.post(
+            "/api/voos",
+            json={"data": "2026-01-05", "destino": "Navegantes", "horas": 2.0},
+        )
+        res = self.client.get("/api/voos/historico")
+        body = res.get_json()
+        self.assertEqual([p["data"] for p in body], ["2026-01-05", "2026-01-10"])
+        self.assertEqual([p["acumulado"] for p in body], [2.0, 3.5])
+
     def test_push_status_sem_configuracao(self):
         res = self.client.get("/api/push/status")
         self.assertEqual(res.status_code, 200)

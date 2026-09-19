@@ -14,6 +14,7 @@ import bank_ofx
 import caldav_client
 import claude_client
 import clima
+import gastos
 import maps_client
 import metar
 import notificacoes
@@ -40,6 +41,7 @@ from db import (
     ja_notificou_hoje,
     list_chat_mensagens,
     list_dias_ativos,
+    list_goal_deposits,
     list_goals,
     list_lembretes,
     list_memorias,
@@ -351,6 +353,17 @@ def list_expenses():
     rows = conn.execute("SELECT * FROM expenses ORDER BY created_at DESC LIMIT 50").fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/expenses/historico", methods=["GET"])
+def expenses_historico():
+    dias = request.args.get("dias", default=14, type=int)
+    dias = min(max(dias, 1), 90)
+    conn = get_db()
+    rows = conn.execute("SELECT amount, created_at FROM expenses").fetchall()
+    conn.close()
+    historico = gastos.historico_diario([dict(r) for r in rows], dias, date.today())
+    return jsonify(historico)
 
 
 def _saude_contexto_resumo(conn) -> str | None:
@@ -924,6 +937,14 @@ def voos_resumo():
     return jsonify({**resumo, "proximos": proximos})
 
 
+@app.route("/api/voos/historico", methods=["GET"])
+def voos_historico():
+    conn = get_db()
+    todos = list_voos(conn)
+    conn.close()
+    return jsonify(voos_module.historico_horas_acumuladas(todos, date.today()))
+
+
 @app.route("/api/clima/metar", methods=["GET"])
 def clima_metar():
     icao = (request.args.get("icao") or "").strip()
@@ -1128,15 +1149,34 @@ def guardar_meta(goal_id):
         return jsonify({"error": "informe um valor positivo"}), 400
 
     conn = get_db()
-    add_to_goal(conn, goal_id, valor)
     goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
     if not goal:
         conn.close()
         return jsonify({"error": "meta nao encontrada"}), 404
+    add_to_goal(conn, goal_id, valor)
+    goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
     _marcar_atividade(conn)
     conn.commit()
     conn.close()
     return jsonify(_calculo_meta(dict(goal)))
+
+
+@app.route("/api/metas/<int:goal_id>/historico", methods=["GET"])
+def meta_historico(goal_id):
+    conn = get_db()
+    goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
+    if not goal:
+        conn.close()
+        return jsonify({"error": "meta nao encontrada"}), 404
+    depositos = list_goal_deposits(conn, goal_id)
+    conn.close()
+
+    acumulado = 0.0
+    pontos = [{"data": goal["criado_em"][:10], "acumulado": 0.0}]
+    for d in depositos:
+        acumulado += d["valor"]
+        pontos.append({"data": d["criado_em"][:10], "acumulado": round(acumulado, 2)})
+    return jsonify({"pontos": pontos, "valor_alvo": goal["valor_alvo"]})
 
 
 @app.route("/api/construtora/resumo", methods=["GET"])

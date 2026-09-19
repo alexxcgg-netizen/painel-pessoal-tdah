@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from voos import inicio_da_semana, proximos_voos, resumo_horas
+from voos import historico_horas_acumuladas, inicio_da_semana, proximos_voos, resumo_horas
 
 
 class VoosTestCase(unittest.TestCase):
@@ -56,6 +56,34 @@ class VoosTestCase(unittest.TestCase):
     def test_proximos_voos_vazio_quando_nao_ha_futuro(self):
         voos = [{"data": "2026-09-01", "horas": 1.0, "destino": "X"}]
         self.assertEqual(proximos_voos(voos, date(2026, 9, 18)), [])
+
+    def test_historico_acumula_em_ordem_cronologica(self):
+        voos = [
+            {"data": "2026-09-10", "horas": 1.5},
+            {"data": "2026-09-01", "horas": 2.0},
+            {"data": "2026-09-15", "horas": 1.0},
+        ]
+        r = historico_horas_acumuladas(voos, date(2026, 9, 18))
+        self.assertEqual(
+            r,
+            [
+                {"data": "2026-09-01", "acumulado": 2.0},
+                {"data": "2026-09-10", "acumulado": 3.5},
+                {"data": "2026-09-15", "acumulado": 4.5},
+            ],
+        )
+
+    def test_historico_ignora_voos_futuros_e_sem_horas(self):
+        voos = [
+            {"data": "2026-09-01", "horas": 2.0},
+            {"data": "2026-09-25", "horas": 5.0},
+            {"data": "2026-09-05", "horas": None},
+        ]
+        r = historico_horas_acumuladas(voos, date(2026, 9, 18))
+        self.assertEqual(r, [{"data": "2026-09-01", "acumulado": 2.0}])
+
+    def test_historico_vazio_sem_voos(self):
+        self.assertEqual(historico_horas_acumuladas([], date(2026, 9, 18)), [])
 
 
 if __name__ == "__main__":

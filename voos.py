@@ -28,6 +28,23 @@ def resumo_horas(voos: list[dict], hoje: date) -> dict:
     }
 
 
+def historico_horas_acumuladas(voos: list[dict], hoje: date) -> list[dict]:
+    """Horas voadas acumuladas ao longo do tempo, so dos voos ja realizados
+    (mesma regra do resumo: precisa ter 'horas' e a data nao pode ser
+    futura) - pra desenhar um grafico de evolucao das horas de curso."""
+    hoje_iso = hoje.isoformat()
+    realizados = sorted(
+        (v for v in voos if v.get("horas") is not None and v["data"] <= hoje_iso),
+        key=lambda v: v["data"],
+    )
+    acumulado = 0.0
+    historico = []
+    for v in realizados:
+        acumulado += v["horas"]
+        historico.append({"data": v["data"], "acumulado": round(acumulado, 2)})
+    return historico
+
+
 def proximos_voos(voos: list[dict], hoje: date) -> list[dict]:
     """Voos agendados a partir de hoje (inclusive), em ordem cronologica -
     tanto os que ainda nao tem horas (compromisso futuro) quanto um voo de

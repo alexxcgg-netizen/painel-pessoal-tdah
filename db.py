@@ -80,6 +80,13 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS goal_deposits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_id INTEGER NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+            valor REAL NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS push_subscriptions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             endpoint TEXT NOT NULL UNIQUE,
@@ -250,7 +257,16 @@ def add_to_goal(conn, goal_id: int, valor: float):
     conn.execute(
         "UPDATE goals SET valor_guardado = valor_guardado + ? WHERE id = ?", (valor, goal_id)
     )
+    conn.execute("INSERT INTO goal_deposits (goal_id, valor) VALUES (?, ?)", (goal_id, valor))
     conn.commit()
+
+
+def list_goal_deposits(conn, goal_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT valor, criado_em FROM goal_deposits WHERE goal_id = ? ORDER BY criado_em",
+        (goal_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def list_goals(conn) -> list[dict]:

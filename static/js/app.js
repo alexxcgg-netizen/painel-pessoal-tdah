@@ -807,6 +807,15 @@ async function loadExpenses() {
   list.innerHTML = "";
   $("#gastos-vazio").hidden = expenses.length > 0;
   expenses.forEach((e) => list.appendChild(criarItemGasto(e)));
+
+  const historico = await apiFetch("/api/expenses/historico?dias=14");
+  if (historico) {
+    desenharGraficoBarras($("#grafico-gastos"), historico, {
+      cor: "var(--cor-financeiro)",
+      formatarValor: fmtMoeda,
+      rotulo: "Gasto diario nos ultimos 14 dias",
+    });
+  }
 }
 
 function criarItemBanco(conta) {
@@ -957,6 +966,11 @@ function criarItemMeta(meta) {
   detalhe.textContent = guardadoTxt + prazoTxt;
   li.appendChild(detalhe);
 
+  const graficoWrap = document.createElement("div");
+  graficoWrap.className = "grafico-container meta-grafico";
+  graficoWrap.id = `grafico-meta-${meta.id}`;
+  li.appendChild(graficoWrap);
+
   const guardarWrap = document.createElement("div");
   guardarWrap.className = "meta-guardar";
   const input = document.createElement("input");
@@ -996,6 +1010,20 @@ async function loadMetas() {
   list.innerHTML = "";
   $("#metas-vazio").hidden = metas.length > 0;
   metas.forEach((m) => list.appendChild(criarItemMeta(m)));
+
+  metas.forEach(async (m) => {
+    const historico = await apiFetch(`/api/metas/${m.id}/historico`);
+    const container = $(`#grafico-meta-${m.id}`);
+    if (historico && container) {
+      desenharGraficoLinha(container, historico.pontos, {
+        cor: "var(--cor-hoje)",
+        valorAlvo: historico.valor_alvo,
+        formatarValor: fmtMoeda,
+        altura: 70,
+        rotulo: `Evolucao de "${m.titulo}"`,
+      });
+    }
+  });
 }
 
 async function loadConstrutora() {
@@ -1101,6 +1129,15 @@ async function loadVoosResumo() {
   list.innerHTML = "";
   vazioEl.hidden = data.proximos.length > 0;
   data.proximos.forEach((v) => list.appendChild(criarItemVoo(v)));
+
+  const historico = await apiFetch("/api/voos/historico");
+  if (historico) {
+    desenharGraficoLinha($("#grafico-voos"), historico, {
+      cor: "var(--cor-aviacao)",
+      formatarValor: fmtHoras,
+      rotulo: "Evolucao das horas de voo acumuladas",
+    });
+  }
 }
 
 aplicarMascaraData($("#voo-data"));
