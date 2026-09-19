@@ -44,14 +44,17 @@
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* fonte de exibicao - titulo do app e os numeros-heroi (stat tiles) -
-     geometrica e com mais carater que Inter, pareada com JetBrains Mono
+  /* fonte de exibicao - titulo do app, secoes e os numeros-heroi (stat tiles) -
+     negrito/extra-negrito com tracking mais compacto, pareada com JetBrains Mono
      nos dados tecnicos/brutos (METAR, timestamps) que continuam separados */
-  --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
+  --font-display: "Plus Jakarta Sans", -apple-system, sans-serif;
+
+  /* fonte de corpo - texto corrido, listas, menus */
+  --font-body: "DM Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
 
   /* fonte tecnica - so pra numero/dado bruto (estatisticas, horas, METAR),
      nunca pra texto corrido - da o contraste "readout" que falta usando so
-     Inter/SF Pro em tudo */
+     DM Sans/SF Pro em tudo */
   --font-tech: "JetBrains Mono", "SF Mono", "Menlo", "Consolas", monospace;
 }
 
@@ -227,8 +230,7 @@ button:active:not(:disabled) {
 
 body {
   position: relative;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "InterVariable",
-    "Inter", system-ui, sans-serif;
+  font-family: var(--font-body);
   max-width: 480px;
   margin: 0 auto;
   padding: calc(1.25rem + env(safe-area-inset-top)) 1rem
@@ -287,6 +289,7 @@ h2 {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  font-family: var(--font-display);
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--text-muted);
