@@ -10,6 +10,12 @@ const ICONE_CHECK =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17 20 6"/></svg>';
 const ICONE_PLUS =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+const ICONE_TAREFA_CARD =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg>';
+const ICONE_GASTO_CARD =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>';
+const ICONE_META_CARD =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>';
 
 const fmtMoeda = (valor) =>
   Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -152,6 +158,55 @@ function setBotaoCarregando(btn, carregando, rotulo) {
   }
 }
 
+function criarCardResultado(parsed) {
+  const card = document.createElement("div");
+  card.className = `card-resultado card-resultado-${parsed.tipo}`;
+
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "card-resultado-eyebrow";
+  const rotulos = { tarefa: "Tarefa criada", gasto: "Gasto registrado", meta: "Meta criada" };
+  const icones = { tarefa: ICONE_TAREFA_CARD, gasto: ICONE_GASTO_CARD, meta: ICONE_META_CARD };
+  eyebrow.innerHTML = `${icones[parsed.tipo] || ""}<span>${rotulos[parsed.tipo] || "Criado"}</span>`;
+  card.appendChild(eyebrow);
+
+  const titulo = document.createElement("p");
+  titulo.className = "card-resultado-titulo";
+  titulo.textContent = parsed.titulo;
+  card.appendChild(titulo);
+
+  if (parsed.tipo === "gasto") {
+    const valor = document.createElement("p");
+    valor.className = "card-resultado-valor";
+    valor.textContent = `-${fmtMoeda(parsed.valor)}`;
+    card.appendChild(valor);
+    if (parsed.categoria) {
+      const tag = document.createElement("span");
+      tag.className = "gasto-categoria";
+      tag.dataset.cat = parsed.categoria;
+      tag.textContent = parsed.categoria;
+      card.appendChild(tag);
+    }
+  } else if (parsed.tipo === "meta") {
+    const valor = document.createElement("p");
+    valor.className = "card-resultado-valor";
+    valor.textContent = fmtMoeda(parsed.valor);
+    card.appendChild(valor);
+    const detalhe = document.createElement("p");
+    detalhe.className = "card-resultado-detalhe";
+    detalhe.textContent = parsed.prazo ? `Prazo: ${parsed.prazo}` : "Sem prazo definido";
+    card.appendChild(detalhe);
+  } else {
+    const detalhe = document.createElement("p");
+    detalhe.className = "card-resultado-detalhe";
+    detalhe.textContent = parsed.hora
+      ? `${parsed.quando || "hoje"} as ${parsed.hora}`
+      : parsed.quando || "sem prazo definido";
+    card.appendChild(detalhe);
+  }
+
+  return card;
+}
+
 function pulsarSucesso(el) {
   el.classList.remove("sucesso");
   // forca reflow pra animacao reiniciar mesmo em capturas seguidas
@@ -189,6 +244,10 @@ async function enviarCaptura(text, clarificacao) {
   textoPendente = null;
   $("#duvida-box").hidden = true;
   pulsarSucesso($("#captura-input"));
+  const listaChat = $("#chat-mensagens");
+  listaChat.querySelector(".chat-vazio")?.remove();
+  listaChat.appendChild(criarCardResultado(data));
+  listaChat.scrollTop = listaChat.scrollHeight;
   loadSummary();
   loadStreak();
   if (data.memoria) loadMemorias();

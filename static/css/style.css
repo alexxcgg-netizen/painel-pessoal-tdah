@@ -1104,28 +1104,28 @@ li.item.saindo {
 }
 
 .gasto-categoria[data-cat="mercado"] {
-  background: rgba(66, 187, 145, 0.15);
-  color: #42bb91;
+  background: color-mix(in srgb, var(--cor-financeiro) 18%, transparent);
+  color: var(--cor-financeiro);
 }
 
 .gasto-categoria[data-cat="transporte"] {
-  background: rgba(98, 159, 209, 0.15);
-  color: #629fd1;
+  background: color-mix(in srgb, var(--cor-tarefas) 18%, transparent);
+  color: var(--cor-tarefas);
 }
 
 .gasto-categoria[data-cat="lazer"] {
-  background: rgba(168, 139, 220, 0.15);
-  color: #a88bdc;
+  background: color-mix(in srgb, var(--cor-hoje) 18%, transparent);
+  color: var(--cor-hoje);
 }
 
 .gasto-categoria[data-cat="contas"] {
-  background: rgba(216, 171, 76, 0.15);
-  color: #d8ab4c;
+  background: color-mix(in srgb, var(--cor-bancos) 18%, transparent);
+  color: var(--cor-bancos);
 }
 
 .gasto-categoria[data-cat="saude"] {
-  background: rgba(237, 113, 129, 0.15);
-  color: #ed7181;
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
 }
 
 #importar-form {
@@ -1483,6 +1483,84 @@ li.item.saindo {
 
 .chat-bolha.user {
   box-shadow: 0 4px 16px -8px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.card-resultado {
+  --card-cor: var(--accent);
+  align-self: stretch;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--card-cor) 16%, var(--surface-2)) 0%,
+    var(--surface) 78%
+  );
+  border: 1px solid color-mix(in srgb, var(--card-cor) 28%, var(--border));
+  border-radius: var(--radius);
+  padding: 0.8rem 0.9rem;
+  box-shadow: var(--shadow-card);
+  animation: cardResultadoEntra 0.4s var(--ease-bounce) both;
+}
+
+@keyframes cardResultadoEntra {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card-resultado-tarefa {
+  --card-cor: var(--cor-tarefas);
+}
+
+.card-resultado-gasto {
+  --card-cor: var(--cor-financeiro);
+}
+
+.card-resultado-meta {
+  --card-cor: var(--cor-hoje);
+}
+
+.card-resultado-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--card-cor);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.4rem;
+}
+
+.card-resultado-eyebrow svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.card-resultado-titulo {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.card-resultado-valor {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0.2rem 0 0;
+  letter-spacing: -0.01em;
+}
+
+.card-resultado-detalhe {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 .chat-bolha.chat-digitando {
