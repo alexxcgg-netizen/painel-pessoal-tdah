@@ -10,25 +10,27 @@
   --text-muted: #a7afbc;
   --text-faint: #788292;
 
-  /* paleta viva - fundo continua escuro/contido, mas as cores de acento
-     agora sao saturadas de verdade e blendam em gradiente (Spotify/Apple
-     Music como referencia) em vez do tom fosco/dessaturado de antes -
-     cada secao ainda tem sua cor propria, so que agora ela aparece com
-     mais energia nos elementos-chave (tiles, tabbar ativa, botoes) em
-     vez de ficar so numa borda fina */
-  --accent: #9d6bff;
-  --accent-2: #2f9bff;
-  --accent-gradient: linear-gradient(135deg, #9d6bff 0%, #2f9bff 100%);
-  --accent-text: #0d0a1a;
-  --accent-soft-bg: rgba(157, 107, 255, 0.16);
+  /* paleta joia - pedido explicito do Alex: menos "LED"/pastel-brilhante,
+     mais tom de pedra preciosa - roxo, azul-marinho, esmeralda e ouro
+     todos escurecidos/aprofundados, preto e vermelho-vinho como base.
+     vermelho (--danger) fica reservado SO pra erro, nunca pra identidade
+     de secao - por isso --cor-construtora saiu do vermelho (antes batia
+     exatamente com --danger) pro terracota, sem risco de parecer erro.
+     --accent-text virou claro (antes era escuro) porque o acento em si
+     ficou escuro - texto escuro em cima de acento escuro perdia contraste. */
+  --accent: #6d3fd1;
+  --accent-2: #24467d;
+  --accent-gradient: linear-gradient(135deg, #6d3fd1 0%, #24467d 100%);
+  --accent-text: #f4eeff;
+  --accent-soft-bg: color-mix(in srgb, var(--accent) 16%, transparent);
 
-  --cor-hoje: #9d6bff;
-  --cor-painel: #9ad84f;
-  --cor-tarefas: #2f9bff;
-  --cor-financeiro: #1ddb9f;
-  --cor-bancos: #ffb830;
-  --cor-construtora: #ff5c72;
-  --cor-aviacao: #35c3f2;
+  --cor-hoje: #6d3fd1;
+  --cor-painel: #167a45;
+  --cor-tarefas: #2f5fa8;
+  --cor-financeiro: #0e7d6c;
+  --cor-bancos: #b8862c;
+  --cor-construtora: #a85a2e;
+  --cor-aviacao: #1f6f8c;
 
   --danger: #ff5c72;
   --danger-bg: rgba(255, 92, 114, 0.14);
@@ -45,9 +47,11 @@
   --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* fonte de exibicao - titulo do app, secoes e os numeros-heroi (stat tiles) -
-     negrito/extra-negrito com tracking mais compacto, pareada com JetBrains Mono
-     nos dados tecnicos/brutos (METAR, timestamps) que continuam separados */
-  --font-display: "Plus Jakarta Sans", -apple-system, sans-serif;
+     serif editorial (Fraunces) em vez de uma geometrica generica tipo
+     Plus Jakarta/Space Grotesk, que ficava com cara de SaaS/gerado por IA.
+     pareada com JetBrains Mono nos dados tecnicos/brutos (METAR, timestamps)
+     que continuam separados */
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
 
   /* fonte de corpo - texto corrido, listas, menus */
   --font-body: "DM Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
@@ -247,9 +251,9 @@ body {
   inset: -20%;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(circle at 18% 18%, rgba(157, 107, 255, 0.26), transparent 45%),
-    radial-gradient(circle at 82% 12%, rgba(47, 155, 255, 0.2), transparent 42%),
-    radial-gradient(circle at 50% 85%, rgba(29, 219, 159, 0.13), transparent 48%);
+  background: radial-gradient(circle at 18% 18%, rgba(109, 63, 209, 0.22), transparent 45%),
+    radial-gradient(circle at 82% 12%, rgba(36, 70, 125, 0.2), transparent 42%),
+    radial-gradient(circle at 50% 85%, rgba(14, 125, 108, 0.12), transparent 48%);
   filter: blur(60px);
   animation: auroraMove 20s ease-in-out infinite;
 }
@@ -424,10 +428,10 @@ header {
 .tab-btn.active {
   background: linear-gradient(
     140deg,
-    color-mix(in srgb, var(--tab-cor, var(--accent)) 70%, white 30%) 0%,
+    color-mix(in srgb, var(--tab-cor, var(--accent)) 85%, white 15%) 0%,
     var(--tab-cor, var(--accent)) 100%
   );
-  color: #0e0f14;
+  color: var(--accent-text);
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
   box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--tab-cor, var(--accent)) 65%, transparent);
@@ -625,7 +629,7 @@ header {
   background: linear-gradient(
     90deg,
     var(--tile-cor, var(--accent)) 0%,
-    color-mix(in srgb, var(--tile-cor, var(--accent)) 55%, white 45%) 100%
+    color-mix(in srgb, var(--tile-cor, var(--accent)) 80%, white 20%) 100%
   );
 }
 
