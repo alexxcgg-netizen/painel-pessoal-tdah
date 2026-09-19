@@ -1,6 +1,25 @@
 const $ = (sel) => document.querySelector(sel);
 
+// app de uso unico (so o Alex) - nome fixo aqui mesmo pra saudacao
+// personalizada, mesmo espirito do "so o Alex usa o PIN hoje" do painel_web
+// da construtora. Se um dia isso precisar mudar, e essa unica linha.
+const NOME_USUARIO = "Alex";
+
 let textoPendente = null;
+
+function mostrarSaudacao() {
+  const agora = new Date();
+  const hora = agora.getHours();
+  const saudacao = hora < 5 ? "Boa noite" : hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+  $("#saudacao-texto").textContent = `${saudacao}, ${NOME_USUARIO.split(" ")[0]}`;
+  const dataFormatada = agora.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  $("#saudacao-data").textContent = dataFormatada.charAt(0).toUpperCase() + dataFormatada.slice(1);
+  $("#avatar-usuario").textContent = NOME_USUARIO.charAt(0).toUpperCase();
+}
 
 const ICONE_TRASH =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V7M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>';
@@ -16,6 +35,48 @@ const ICONE_GASTO_CARD =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>';
 const ICONE_META_CARD =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>';
+
+// Vibracao (Vibration API): funciona no Chrome/Android, mas o Safari no
+// iOS NUNCA implementou isso (decisao de plataforma da Apple, nao falta de
+// suporte tecnico) - no iPhone essa chamada simplesmente nao faz nada,
+// silenciosamente. Deixa aqui mesmo assim (feature-detected, sem erro em
+// nenhum navegador) pra funcionar de verdade se um dia isso rodar em
+// Android, ou se a Apple mudar de ideia.
+function vibrar(padrao) {
+  if ("vibrate" in navigator) navigator.vibrate(padrao);
+}
+
+let audioCtx = null;
+
+function tocarTom(freqs, duracaoMs, volume = 0.09) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const agora = audioCtx.currentTime;
+    freqs.forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const inicio = agora + i * (duracaoMs / 1000 / freqs.length) * 0.85;
+      gain.gain.setValueAtTime(0, inicio);
+      gain.gain.linearRampToValueAtTime(volume, inicio + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, inicio + duracaoMs / 1000);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(inicio);
+      osc.stop(inicio + duracaoMs / 1000 + 0.02);
+    });
+  } catch {
+    // Web Audio pode falhar por politica de autoplay antes do primeiro toque
+    // do usuario, ou nao existir em navegadores antigos - som e so um extra,
+    // nunca pode quebrar a acao de verdade (concluir tarefa, registrar algo).
+  }
+}
+
+// dois tons curtos subindo (quinta justa) - "cling" limpo, sem ser um efeito
+// de jogo/notificacao generica
+const tocarSomSucesso = () => tocarTom([740, 988], 220);
+const tocarSomConcluido = () => tocarTom([659, 880, 1109], 260, 0.08);
 
 const fmtMoeda = (valor) =>
   Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -244,6 +305,8 @@ async function enviarCaptura(text, clarificacao) {
   textoPendente = null;
   $("#duvida-box").hidden = true;
   pulsarSucesso($("#captura-input"));
+  vibrar(20);
+  tocarSomSucesso();
   const listaChat = $("#chat-mensagens");
   listaChat.querySelector(".chat-vazio")?.remove();
   listaChat.appendChild(criarCardResultado(data));
@@ -548,6 +611,8 @@ async function enviarChat(texto) {
   loadStreak();
 
   if (data.acoes && data.acoes.length > 0) {
+    vibrar(20);
+    tocarSomSucesso();
     loadSummary();
     loadUso();
     if (!$("#tab-painel").hidden) {
@@ -811,6 +876,8 @@ function criarItemTarefa(t) {
     const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
     if (data) {
       explodirConcluido(btnConcluir);
+      vibrar(30);
+      tocarSomConcluido();
       li.classList.add("saindo");
       setTimeout(() => {
         loadTasks();
@@ -1515,6 +1582,7 @@ $("#logout-btn").addEventListener("click", async () => {
   window.location.href = "/login";
 });
 
+mostrarSaudacao();
 loadSummary();
 loadUso();
 loadStreak();
