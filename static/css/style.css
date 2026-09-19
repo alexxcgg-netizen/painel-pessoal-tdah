@@ -770,6 +770,7 @@ header {
   padding: 1rem;
   margin: 0 0 0.6rem;
   font-size: 0.95rem;
+  white-space: pre-wrap;
   box-shadow: var(--shadow-card);
   animation: fadeInUp 0.35s var(--ease-bounce) both;
 }
@@ -957,6 +958,41 @@ li.item.saindo {
   color: var(--text-muted);
   font-size: 0.78rem;
   margin-top: 0.15rem;
+}
+
+.dia-barra {
+  margin-top: 0.5rem;
+}
+
+.dia-barra-trilha {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: visible;
+}
+
+.dia-barra-preenchida {
+  position: absolute;
+  top: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent-gradient);
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.dia-barra-preenchida.tarefa {
+  background: var(--cor-tarefas);
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--cor-tarefas) 60%, transparent);
+}
+
+.dia-barra-legenda {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-family: var(--font-tech);
+  font-size: 0.6rem;
+  color: var(--text-faint);
 }
 
 .item-tag-tarefa {

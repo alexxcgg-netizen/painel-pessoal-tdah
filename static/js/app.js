@@ -340,6 +340,38 @@ function fmtHora(isoString) {
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function minutosDoDia(isoString) {
+  const d = new Date(isoString);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function criarBarraDia(ev) {
+  const wrap = document.createElement("div");
+  wrap.className = "dia-barra";
+
+  const trilha = document.createElement("div");
+  trilha.className = "dia-barra-trilha";
+
+  const inicioMin = minutosDoDia(ev.inicio);
+  const fimMin = Math.max(minutosDoDia(ev.fim), inicioMin);
+  const pctInicio = (inicioMin / 1440) * 100;
+  const pctLargura = Math.max(((fimMin - inicioMin) / 1440) * 100, 1.2);
+
+  const preenchida = document.createElement("div");
+  preenchida.className = "dia-barra-preenchida" + (ev.origem === "tarefa" ? " tarefa" : "");
+  preenchida.style.left = `${pctInicio}%`;
+  preenchida.style.width = `${pctLargura}%`;
+  trilha.appendChild(preenchida);
+  wrap.appendChild(trilha);
+
+  const legenda = document.createElement("div");
+  legenda.className = "dia-barra-legenda";
+  legenda.innerHTML = "<span>00h</span><span>12h</span><span>24h</span>";
+  wrap.appendChild(legenda);
+
+  return wrap;
+}
+
 async function loadAgenda() {
   const data = await apiFetch("/api/calendario/hoje");
   if (!data) return;
@@ -370,6 +402,7 @@ async function loadAgenda() {
       : `${fmtHora(ev.inicio)} - ${fmtHora(ev.fim)}`;
     li.appendChild(titulo);
     li.appendChild(horario);
+    if (!ev.dia_inteiro) li.appendChild(criarBarraDia(ev));
     list.appendChild(li);
   });
 }

@@ -1,5 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="28" fill="#2b6cee" />
-  <text x="64" y="86" font-family="system-ui, sans-serif" font-size="64" font-weight="700"
-        fill="#ffffff" text-anchor="middle">P</text>
+  <defs>
+    <linearGradient id="g" x1="14" y1="10" x2="118" y2="122" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9d6bff" />
+      <stop offset="1" stop-color="#2f9bff" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#g)" />
+  <rect width="128" height="128" rx="28" fill="#ffffff" opacity="0.04" />
+  <text x="64" y="90" font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="70" font-weight="700"
+        fill="#f7f5ff" text-anchor="middle">P</text>
 </svg>
