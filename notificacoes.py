@@ -59,8 +59,12 @@ def metas_fora_do_ritmo(conn, tolerancia: float = 0.7) -> list[tuple[int, str]]:
 
 
 def _total_gasto_entre(conn, inicio: date, fim: date) -> float:
+    """So conta gasto 'real' (ja aconteceu) - um gasto so cogitado/planejado
+    nao deveria disparar alerta de "gastou demais essa semana", ja que pode
+    nem chegar a acontecer."""
     row = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) BETWEEN ? AND ?",
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses "
+        "WHERE date(created_at) BETWEEN ? AND ? AND tipo = 'real'",
         (inicio.isoformat(), fim.isoformat()),
     ).fetchone()
     return row["total"]
@@ -125,3 +129,18 @@ def lembretes_proximos(conn, dias: int = 7) -> list[tuple[int, str]]:
             (row["id"], f"\"{row['titulo']}\" {quando} ({proxima.strftime('%d/%m')}).")
         )
     return avisos
+
+
+def voos_de_hoje_com_horario(conn, hoje: date | None = None) -> list[dict]:
+    """Voos de hoje com horario marcado que ainda nao aconteceram (sem
+    'horas' voadas registradas ainda) - candidatos pra calcular a hora de
+    sair de casa. So identifica QUAIS voos checar; o calculo em si (trajeto
+    via Maps, que pede rede) e a decisao de "esta perto o bastante pra
+    avisar" ficam em app.py (verificar_e_notificar), pra esta funcao
+    continuar pura e testavel so com SQLite, como as outras deste modulo."""
+    hoje = hoje or date.today()
+    rows = conn.execute(
+        "SELECT id, destino, data, hora FROM voos WHERE data = ? AND hora IS NOT NULL AND horas IS NULL",
+        (hoje.isoformat(),),
+    ).fetchall()
+    return [dict(r) for r in rows]

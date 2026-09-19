@@ -260,9 +260,10 @@ def capture():
         return jsonify({"duvida": parsed["duvida"], "texto_original": text})
 
     if parsed["tipo"] == "gasto":
+        status_gasto = parsed.get("status") if parsed.get("status") in ("real", "planejado") else "real"
         conn.execute(
-            "INSERT INTO expenses (amount, category, description, source_text) VALUES (?, ?, ?, ?)",
-            (parsed["valor"], parsed.get("categoria") or "outros", parsed["titulo"], full_text),
+            "INSERT INTO expenses (amount, category, description, source_text, tipo) VALUES (?, ?, ?, ?, ?)",
+            (parsed["valor"], parsed.get("categoria") or "outros", parsed["titulo"], full_text, status_gasto),
         )
     elif parsed["tipo"] == "meta":
         create_goal(conn, parsed["titulo"], parsed["valor"], parsed.get("prazo"))
@@ -360,7 +361,7 @@ def expenses_historico():
     dias = request.args.get("dias", default=14, type=int)
     dias = min(max(dias, 1), 90)
     conn = get_db()
-    rows = conn.execute("SELECT amount, created_at FROM expenses").fetchall()
+    rows = conn.execute("SELECT amount, created_at FROM expenses WHERE tipo = 'real'").fetchall()
     conn.close()
     historico = gastos.historico_diario([dict(r) for r in rows], dias, date.today())
     return jsonify(historico)
@@ -478,9 +479,13 @@ def summary_today():
     done = conn.execute("SELECT title FROM tasks WHERE date(completed_at) = ?", (today,)).fetchall()
     pending = conn.execute("SELECT title FROM tasks WHERE completed_at IS NULL").fetchall()
     expenses = conn.execute(
-        "SELECT amount, category FROM expenses WHERE date(created_at) = ?", (today,)
+        "SELECT amount, category FROM expenses WHERE date(created_at) = ? AND tipo = 'real'", (today,)
     ).fetchall()
     gasto_hoje = sum(r["amount"] for r in expenses)
+    gasto_planejado = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'planejado'",
+        (today,),
+    ).fetchone()["total"]
     eventos = _eventos_de_hoje_com_seguranca(conn)
     memorias = list_memorias(conn)
     saude = _saude_contexto_resumo(conn)
@@ -509,6 +514,7 @@ def summary_today():
         {
             "summary": text,
             "gasto_hoje": gasto_hoje,
+            "gasto_planejado": gasto_planejado,
             "tarefas_concluidas": len(done),
             "eventos_hoje": len(eventos),
         }
@@ -578,7 +584,11 @@ def _contexto_chat(conn) -> str:
     hoje = date.today().isoformat()
     pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
     gasto_hoje = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ?",
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
+        (hoje,),
+    ).fetchone()["total"]
+    gasto_planejado = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'planejado'",
         (hoje,),
     ).fetchone()["total"]
     eventos = _eventos_de_hoje_com_seguranca(conn)
@@ -593,7 +603,8 @@ def _contexto_chat(conn) -> str:
     )
     linhas = [
         f"Tarefas pendentes: {', '.join(r['title'] for r in pendentes) or 'nenhuma'}",
-        f"Gasto de hoje: R$ {gasto_hoje:.2f}",
+        f"Gasto de hoje (ja realizado): R$ {gasto_hoje:.2f}",
+        f"Gasto planejado/cogitado hoje (ainda nao decidido): R$ {gasto_planejado:.2f}",
         f"Compromissos de hoje (em ordem de horario): {eventos_txt or 'nenhum'}",
     ]
     if saude:
@@ -636,9 +647,10 @@ def chat():
         return {"ok": True}
 
     def exec_registrar_gasto(entrada):
+        status_gasto = entrada.get("status") if entrada.get("status") in ("real", "planejado") else "real"
         conn.execute(
-            "INSERT INTO expenses (amount, category, description, source_text) VALUES (?, ?, ?, ?)",
-            (entrada["valor"], entrada.get("categoria") or "outros", entrada["titulo"], texto),
+            "INSERT INTO expenses (amount, category, description, source_text, tipo) VALUES (?, ?, ?, ?, ?)",
+            (entrada["valor"], entrada.get("categoria") or "outros", entrada["titulo"], texto, status_gasto),
         )
         conn.commit()
         return {"ok": True}
@@ -672,6 +684,7 @@ def chat():
             entrada.get("origem"),
             entrada.get("horas"),
             entrada.get("observacao"),
+            _normalizar_hora(entrada.get("hora")),
         )
         return {"ok": True}
 
@@ -709,6 +722,35 @@ def chat_historico():
     return jsonify(mensagens)
 
 
+def _aviso_voo_sair(voo: dict, janela_minutos: int = 25) -> str | None:
+    """Se o voo tem horario hoje e a hora de sair de casa (calculada com
+    transito real) ja esta dentro da janela de aviso, devolve a mensagem
+    de push. None se nao configurado, a rota nao puder ser calculada, ou
+    ainda nao for hora de avisar. Sem rede/erro nunca derruba o scheduler -
+    so pula esse voo nessa rodada (tenta de novo daqui a 5min)."""
+    if not maps_client.configurado():
+        return None
+    origem = os.environ.get("ENDERECO_CASA", "").strip()
+    if not origem:
+        return None
+    try:
+        chegar_ate = datetime.fromisoformat(f"{voo['data']}T{voo['hora']}")
+        resultado = maps_client.horario_de_saida(origem, voo["destino"], chegar_ate, margem_minutos=60)
+    except (ValueError, requests.RequestException):
+        return None
+
+    sair_ate = datetime.fromisoformat(resultado["sair_ate"])
+    minutos_pra_sair = (sair_ate - datetime.now()).total_seconds() / 60
+    if not (0 <= minutos_pra_sair <= janela_minutos):
+        return None
+
+    hora_txt = sair_ate.strftime("%H:%M")
+    return (
+        f"Saia ate as {hora_txt} pra chegar a tempo do voo das {voo['hora']} "
+        f"pra {voo['destino']} (trajeto de {resultado['duracao_minutos']}min)."
+    )
+
+
 def verificar_e_notificar():
     """Roda as verificacoes proativas e manda push pra quem tiver inscrito -
     cada tipo de aviso so dispara uma vez por dia (dedup em notificacoes_enviadas).
@@ -743,6 +785,13 @@ def verificar_e_notificar():
     for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(conn):
         if not ja_notificou_hoje(conn, "tarefa_horario", tarefa_id):
             avisos.append(("tarefa_horario", tarefa_id, "Lembrete", msg))
+
+    for voo in notificacoes.voos_de_hoje_com_horario(conn):
+        if ja_notificou_hoje(conn, "voo_sair", voo["id"]):
+            continue
+        msg = _aviso_voo_sair(voo)
+        if msg:
+            avisos.append(("voo_sair", voo["id"], "Hora de ir pro voo", msg))
 
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
@@ -891,6 +940,7 @@ def criar_voo():
     origem = (body.get("origem") or "").strip() or None
     observacao = (body.get("observacao") or "").strip() or None
     horas = body.get("horas")
+    hora = _normalizar_hora(body.get("hora"))
 
     if not destino:
         return jsonify({"error": "informe o destino"}), 400
@@ -903,7 +953,7 @@ def criar_voo():
             return jsonify({"error": "horas precisa ser um numero positivo, ou omitido pra voo agendado"}), 400
 
     conn = get_db()
-    voo_id = create_voo(conn, data_str, destino, origem, horas, observacao)
+    voo_id = create_voo(conn, data_str, destino, origem, horas, observacao, hora)
     _marcar_atividade(conn)
     conn.commit()
     conn.close()

@@ -185,6 +185,40 @@ class NotificacoesTestCase(unittest.TestCase):
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=23, minute=59)
         self.assertEqual(notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora), [])
 
+    def test_voo_de_hoje_com_hora_e_sem_horas_e_candidato(self):
+        hoje = date.today().isoformat()
+        self.conn.execute(
+            "INSERT INTO voos (data, destino, hora) VALUES (?, ?, ?)", (hoje, "Navegantes", "14:00")
+        )
+        self.conn.commit()
+        candidatos = notificacoes.voos_de_hoje_com_horario(self.conn)
+        self.assertEqual(len(candidatos), 1)
+        self.assertEqual(candidatos[0]["destino"], "Navegantes")
+        self.assertEqual(candidatos[0]["hora"], "14:00")
+
+    def test_voo_sem_hora_nao_e_candidato(self):
+        hoje = date.today().isoformat()
+        self.conn.execute("INSERT INTO voos (data, destino) VALUES (?, ?)", (hoje, "Navegantes"))
+        self.conn.commit()
+        self.assertEqual(notificacoes.voos_de_hoje_com_horario(self.conn), [])
+
+    def test_voo_ja_realizado_nao_e_candidato(self):
+        hoje = date.today().isoformat()
+        self.conn.execute(
+            "INSERT INTO voos (data, destino, hora, horas) VALUES (?, ?, ?, ?)",
+            (hoje, "Navegantes", "14:00", 1.5),
+        )
+        self.conn.commit()
+        self.assertEqual(notificacoes.voos_de_hoje_com_horario(self.conn), [])
+
+    def test_voo_de_outro_dia_nao_e_candidato(self):
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        self.conn.execute(
+            "INSERT INTO voos (data, destino, hora) VALUES (?, ?, ?)", (amanha, "Navegantes", "14:00")
+        )
+        self.conn.commit()
+        self.assertEqual(notificacoes.voos_de_hoje_com_horario(self.conn), [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -414,6 +414,13 @@ async function loadSummary() {
     return;
   }
   animarNumero($("#stat-gasto"), data.gasto_hoje, fmtMoeda);
+  const planejadoEl = $("#stat-gasto-planejado");
+  if (data.gasto_planejado > 0) {
+    planejadoEl.textContent = `+${fmtMoeda(data.gasto_planejado)} planejado`;
+    planejadoEl.hidden = false;
+  } else {
+    planejadoEl.hidden = true;
+  }
   resumoEl.textContent = data.summary;
   $("#resumo-stats").textContent = `${data.tarefas_concluidas} tarefa(s) concluida(s) hoje`;
 }
@@ -932,7 +939,7 @@ async function loadTasks() {
 
 function criarItemGasto(e) {
   const li = document.createElement("li");
-  li.className = "item";
+  li.className = "item" + (e.tipo === "planejado" ? " item-planejado" : "");
 
   const linha = document.createElement("div");
   linha.className = "item-linha";
@@ -947,6 +954,12 @@ function criarItemGasto(e) {
   cat.textContent = e.category;
   info.appendChild(valor);
   info.appendChild(cat);
+  if (e.tipo === "planejado") {
+    const badge = document.createElement("span");
+    badge.className = "badge-planejado";
+    badge.textContent = "planejado";
+    info.appendChild(badge);
+  }
   if (e.description) {
     const desc = document.createElement("span");
     desc.className = "item-quando";
@@ -1217,10 +1230,16 @@ function criarItemVoo(v) {
   const quando = document.createElement("span");
   quando.className = "item-quando";
   let quandoTxt = fmtDataBr(v.data);
+  if (v.hora) quandoTxt += ` as ${v.hora}`;
   if (v.horas) quandoTxt += ` - ${fmtHoras(v.horas)} voadas`;
   if (v.observacao) quandoTxt += ` - ${v.observacao}`;
   quando.textContent = quandoTxt;
   tituloWrap.appendChild(quando);
+
+  const saidaResultado = document.createElement("p");
+  saidaResultado.className = "resumo-texto voo-saida-resultado";
+  saidaResultado.hidden = true;
+  tituloWrap.appendChild(saidaResultado);
 
   if (v.clima) {
     const climaEl = document.createElement("span");
@@ -1244,6 +1263,33 @@ function criarItemVoo(v) {
     windyBtn.rel = "noopener";
     windyBtn.textContent = "Windy";
     acoes.appendChild(windyBtn);
+  }
+
+  if (v.hora) {
+    const sairBtn = document.createElement("button");
+    sairBtn.className = "btn-com-icone";
+    sairBtn.textContent = "Quando sair?";
+    sairBtn.addEventListener("click", async () => {
+      setBotaoCarregando(sairBtn, true, "calculando...");
+      const data = await apiFetch("/api/viagem/quando-sair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destino: v.destino,
+          chegar_ate: `${v.data}T${v.hora}`,
+          margem_minutos: 60,
+        }),
+      });
+      setBotaoCarregando(sairBtn, false, "Quando sair?");
+      if (!data) return;
+      const sairEm = new Date(data.sair_ate);
+      const horaTxt = sairEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      saidaResultado.textContent =
+        `Saia ate as ${horaTxt} (viagem de ${data.duracao_minutos}min, ${data.distancia_km}km, ` +
+        `com ${data.margem_minutos}min de margem pro voo)`;
+      saidaResultado.hidden = false;
+    });
+    acoes.appendChild(sairBtn);
   }
 
   const apagarBtn = document.createElement("button");
@@ -1305,6 +1351,7 @@ $("#voo-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#voo-btn");
   const dataInput = $("#voo-data");
+  const horaInput = $("#voo-hora");
   const origemInput = $("#voo-origem");
   const destinoInput = $("#voo-destino");
   const horasInput = $("#voo-horas");
@@ -1322,6 +1369,11 @@ $("#voo-form").addEventListener("submit", async (e) => {
     mostrarErro("Horas invalidas - use um numero tipo 1,5 (ou deixe em branco se so agendado).");
     return;
   }
+  const horaTxt = horaInput.value.trim();
+  if (horaTxt && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(horaTxt)) {
+    mostrarErro("Horario do voo invalido - use hh:mm (ex: 14:00), ou deixe em branco.");
+    return;
+  }
 
   setBotaoCarregando(btn, true, "salvando...");
   const data = await apiFetch("/api/voos", {
@@ -1329,6 +1381,7 @@ $("#voo-form").addEventListener("submit", async (e) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       data: dataIso,
+      hora: horaTxt || undefined,
       origem: origemInput.value.trim() || undefined,
       destino,
       horas,
@@ -1339,6 +1392,7 @@ $("#voo-form").addEventListener("submit", async (e) => {
   if (!data) return;
 
   dataInput.value = "";
+  horaInput.value = "";
   origemInput.value = "";
   destinoInput.value = "";
   horasInput.value = "";

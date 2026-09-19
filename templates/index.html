@@ -78,6 +78,7 @@
         <div class="stat-tile">
           <span class="stat-tile-valor shimmer" id="stat-gasto">-</span>
           <span class="stat-tile-label">gasto hoje</span>
+          <span class="stat-tile-sub" id="stat-gasto-planejado" hidden></span>
         </div>
         <div class="stat-tile">
           <span class="stat-tile-valor shimmer" id="stat-metas">-</span>
@@ -347,6 +348,7 @@
       </p>
       <form id="voo-form" class="form-linha" style="--form-cor: var(--cor-aviacao)">
         <input type="text" id="voo-data" placeholder="dd/mm/aaaa" inputmode="numeric" required />
+        <input type="text" id="voo-hora" placeholder="hh:mm do voo (opcional)" inputmode="numeric" />
         <input type="text" id="voo-origem" placeholder="De onde? (opcional)" />
         <input type="text" id="voo-destino" placeholder="Pra onde?" required />
         <input type="text" id="voo-horas" placeholder="horas voadas (deixe em branco se so agendado)" inputmode="decimal" />

@@ -164,6 +164,8 @@ def init_db():
     conn.commit()
     _garantir_coluna(conn, "tasks", "due_date", "TEXT")
     _garantir_coluna(conn, "tasks", "hora", "TEXT")
+    _garantir_coluna(conn, "voos", "hora", "TEXT")
+    _garantir_coluna(conn, "expenses", "tipo", "TEXT NOT NULL DEFAULT 'real'")
     _seed_perfil_inicial(conn)
     conn.close()
 
@@ -424,11 +426,11 @@ def list_dias_ativos(conn) -> set[str]:
 
 def create_voo(
     conn, data_str: str, destino: str, origem: str | None = None, horas: float | None = None,
-    observacao: str | None = None,
+    observacao: str | None = None, hora: str | None = None,
 ) -> int:
     cur = conn.execute(
-        "INSERT INTO voos (data, origem, destino, horas, observacao) VALUES (?, ?, ?, ?, ?)",
-        (data_str, origem, destino, horas, observacao),
+        "INSERT INTO voos (data, origem, destino, horas, observacao, hora) VALUES (?, ?, ?, ?, ?, ?)",
+        (data_str, origem, destino, horas, observacao, hora),
     )
     conn.commit()
     return cur.lastrowid

@@ -2,8 +2,9 @@ import io
 import os
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -11,6 +12,7 @@ import requests
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
 import auth
+import claude_client
 import db
 
 _tmp_dir = tempfile.TemporaryDirectory()
@@ -21,6 +23,23 @@ import app  # noqa: E402  (precisa vir depois do patch de db.DB_PATH)
 
 def fake_usage(model="claude-haiku-4-5-20251001", cost=0.001):
     return {"model": model, "input_tokens": 100, "output_tokens": 20, "cost_usd": cost}
+
+
+def _resp(content, stop_reason="end_turn", model=claude_client.SONNET, in_tok=100, out_tok=20):
+    return SimpleNamespace(
+        content=content,
+        stop_reason=stop_reason,
+        model=model,
+        usage=SimpleNamespace(input_tokens=in_tok, output_tokens=out_tok),
+    )
+
+
+def _text_block(texto):
+    return SimpleNamespace(type="text", text=texto)
+
+
+def _tool_block(nome, entrada, id_):
+    return SimpleNamespace(type="tool_use", name=nome, input=entrada, id=id_)
 
 
 OFX_AMOSTRA = """
@@ -1532,6 +1551,341 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         args = mock_summarize.call_args[0]
         self.assertIsNone(args[7])
+
+    # ---- Horario do voo + "quando sair?" ----
+
+    def test_criar_voo_com_hora(self):
+        hoje = date.today().isoformat()
+        res = self.client.post(
+            "/api/voos", json={"data": hoje, "destino": "Aeroporto Navegantes", "hora": "14:00"}
+        )
+        self.assertEqual(res.status_code, 201)
+        voos = self.client.get("/api/voos").get_json()
+        self.assertEqual(voos[0]["hora"], "14:00")
+
+    def test_criar_voo_com_hora_sem_zero_a_esquerda_normaliza(self):
+        hoje = date.today().isoformat()
+        self.client.post("/api/voos", json={"data": hoje, "destino": "Blumenau", "hora": "9:5"})
+        voos = self.client.get("/api/voos").get_json()
+        self.assertEqual(voos[0]["hora"], "09:05")
+
+    def test_criar_voo_com_hora_invalida_fica_nula(self):
+        hoje = date.today().isoformat()
+        self.client.post("/api/voos", json={"data": hoje, "destino": "Blumenau", "hora": "25:99"})
+        voos = self.client.get("/api/voos").get_json()
+        self.assertIsNone(voos[0]["hora"])
+
+    def test_criar_voo_sem_hora_fica_nula(self):
+        hoje = date.today().isoformat()
+        self.client.post("/api/voos", json={"data": hoje, "destino": "Blumenau"})
+        voos = self.client.get("/api/voos").get_json()
+        self.assertIsNone(voos[0]["hora"])
+
+    def test_chat_registrar_voo_com_hora(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_voo"](
+                {"data": "2027-01-15", "destino": "Aeroporto", "hora": "14:00"}
+            )
+            return "Beleza.", ["registrar_voo"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "meu voo amanha e as 14h"})
+        self.assertEqual(res.status_code, 200)
+        voos = self.client.get("/api/voos").get_json()
+        self.assertEqual(voos[0]["hora"], "14:00")
+
+    # ---- Gasto real x planejado ----
+
+    def test_captura_gasto_sem_status_vira_real(self):
+        parsed = {
+            "tipo": "gasto", "titulo": "mercado", "valor": 50.0, "categoria": "mercado",
+            "status": None, "quando": None, "quando_data": None, "hora": None,
+            "prazo": None, "duvida": None, "memoria": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": "gastei 50 no mercado"})
+        self.assertEqual(res.status_code, 201)
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(expenses[0]["tipo"], "real")
+
+    def test_captura_gasto_planejado_marca_tipo(self):
+        parsed = {
+            "tipo": "gasto", "titulo": "notebook novo", "valor": 3000.0, "categoria": "outros",
+            "status": "planejado", "quando": None, "quando_data": None, "hora": None,
+            "prazo": None, "duvida": None, "memoria": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post(
+                "/api/capture", json={"text": "penso em comprar um notebook de 3000"}
+            )
+        self.assertEqual(res.status_code, 201)
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(expenses[0]["tipo"], "planejado")
+
+    def test_gasto_planejado_nao_conta_no_resumo_do_dia(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_gasto"]({"titulo": "gasolina", "valor": 100.0, "status": "real"})
+            executores["registrar_gasto"](
+                {"titulo": "compra no cartao", "valor": 300.0, "status": "planejado"}
+            )
+            return "Beleza.", ["registrar_gasto", "registrar_gasto"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post(
+                "/api/chat",
+                json={"mensagem": "gastei 100 de gasolina e penso em gastar 300 no cartao"},
+            )
+
+        with patch("claude_client.summarize_day", return_value=("Dia ok.", fake_usage())):
+            res = self.client.get("/api/summary/today")
+        body = res.get_json()
+        self.assertEqual(body["gasto_hoje"], 100.0)
+        self.assertEqual(body["gasto_planejado"], 300.0)
+
+    def test_gasto_planejado_nao_entra_no_historico_do_grafico(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_gasto"]({"titulo": "gasolina", "valor": 100.0, "status": "real"})
+            executores["registrar_gasto"](
+                {"titulo": "compra no cartao", "valor": 300.0, "status": "planejado"}
+            )
+            return "Beleza.", [], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "..."})
+
+        historico = self.client.get("/api/expenses/historico?dias=1").get_json()
+        self.assertEqual(historico[0]["total"], 100.0)
+
+    def test_gasto_sem_status_no_chat_vira_real(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_gasto"]({"titulo": "padaria", "valor": 15.0})
+            return "Beleza.", ["registrar_gasto"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "gastei 15 na padaria"})
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(expenses[0]["tipo"], "real")
+
+    # ---- Push "sair em breve" antes do voo ----
+
+    def test_verificar_notifica_voo_perto_da_hora_de_sair(self):
+        hoje = date.today().isoformat()
+        self.client.post("/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "14:00"})
+        sub = {"endpoint": "https://exemplo.com/push/voo", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        sair_em_breve = (datetime.now() + timedelta(minutes=10)).isoformat()
+        resultado_fake = {
+            "sair_ate": sair_em_breve,
+            "duracao_minutos": 40,
+            "distancia_km": 15.0,
+            "margem_minutos": 60,
+        }
+        with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 100"}), patch(
+            "maps_client.configurado", return_value=True
+        ), patch("maps_client.horario_de_saida", return_value=resultado_fake), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        corpo_notificado = mock_enviar.call_args[0][2]
+        self.assertIn("Aeroporto", corpo_notificado)
+
+    def test_verificar_nao_notifica_voo_com_hora_de_sair_distante(self):
+        hoje = date.today().isoformat()
+        self.client.post("/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "22:00"})
+        sub = {"endpoint": "https://exemplo.com/push/voo2", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        sair_longe = (datetime.now() + timedelta(hours=5)).isoformat()
+        resultado_fake = {
+            "sair_ate": sair_longe, "duracao_minutos": 40, "distancia_km": 15.0, "margem_minutos": 60,
+        }
+        with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 100"}), patch(
+            "maps_client.configurado", return_value=True
+        ), patch("maps_client.horario_de_saida", return_value=resultado_fake), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_not_called()
+
+    def test_verificar_voo_sem_endereco_casa_nao_quebra(self):
+        hoje = date.today().isoformat()
+        self.client.post("/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "14:00"})
+        sub = {"endpoint": "https://exemplo.com/push/voo3", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch.dict(os.environ, {"ENDERECO_CASA": ""}), patch(
+            "maps_client.configurado", return_value=True
+        ), patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.status_code, 200)
+        mock_enviar.assert_not_called()
+
+    def test_verificar_voo_ja_notificado_nao_repete(self):
+        hoje = date.today().isoformat()
+        self.client.post("/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "14:00"})
+        sub = {"endpoint": "https://exemplo.com/push/voo4", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        sair_em_breve = (datetime.now() + timedelta(minutes=10)).isoformat()
+        resultado_fake = {
+            "sair_ate": sair_em_breve, "duracao_minutos": 40, "distancia_km": 15.0, "margem_minutos": 60,
+        }
+        with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 100"}), patch(
+            "maps_client.configurado", return_value=True
+        ), patch("maps_client.horario_de_saida", return_value=resultado_fake), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_called_once()
+
+    def test_verificar_voo_ja_realizado_nao_e_candidato(self):
+        hoje = date.today().isoformat()
+        self.client.post(
+            "/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "14:00", "horas": 1.5}
+        )
+        sub = {"endpoint": "https://exemplo.com/push/voo5", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 100"}), patch(
+            "maps_client.configurado", return_value=True
+        ), patch("maps_client.horario_de_saida") as mock_horario, patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        mock_horario.assert_not_called()
+        mock_enviar.assert_not_called()
+
+    # ---- Cenario real: mensagem corrida de manha com varias coisas juntas ----
+    # (o exemplo que o Alex deu: material de obra + gravar video na obra + voo
+    # as 14h + gasto ja feito de gasolina + gasto planejado de reabastecer +
+    # gasto planejado no cartao - tudo numa mensagem so). Mocka a API da
+    # Anthropic no nivel mais baixo (client.messages.create), entao o loop de
+    # tool-use de verdade (claude_client.chat) e os executores de verdade
+    # (app.py) rodam - nao e so testar se o executor isolado funciona, e se o
+    # pipeline inteiro (parsing simulado -> tools -> banco -> resumo) bate.
+    def test_chat_mensagem_corrida_com_obra_voo_e_gastos_mistos(self):
+        hoje = date.today().isoformat()
+        resposta_com_tools = _resp(
+            [
+                _tool_block(
+                    "registrar_tarefa",
+                    {
+                        "titulo": "comprar material (cimento, argamassa, porta) e pegar granito",
+                        "quando_data": hoje,
+                        "hora": "08:00",
+                    },
+                    id_="t1",
+                ),
+                _tool_block(
+                    "registrar_tarefa",
+                    {"titulo": "gravar video e tirar fotos da obra", "quando_data": hoje},
+                    id_="t2",
+                ),
+                _tool_block(
+                    "registrar_voo",
+                    {"data": hoje, "destino": "Aeroporto", "hora": "14:00"},
+                    id_="t3",
+                ),
+                _tool_block(
+                    "registrar_gasto",
+                    {"titulo": "gasolina", "valor": 100.0, "categoria": "transporte", "status": "real"},
+                    id_="t4",
+                ),
+                _tool_block(
+                    "registrar_gasto",
+                    {
+                        "titulo": "abastecer o carro de novo",
+                        "valor": 100.0,
+                        "categoria": "transporte",
+                        "status": "planejado",
+                    },
+                    id_="t5",
+                ),
+                _tool_block(
+                    "registrar_gasto",
+                    {
+                        "titulo": "compra no cartao de credito",
+                        "valor": 300.0,
+                        "categoria": "outros",
+                        "status": "planejado",
+                    },
+                    id_="t6",
+                ),
+            ],
+            stop_reason="tool_use",
+        )
+        resposta_final = _resp(
+            [
+                _text_block(
+                    "-> Tarefa: material de obra (cimento, argamassa, porta, granito) as 08:00.\n"
+                    "-> Tarefa: gravar video e fotos da obra.\n"
+                    "-> Voo: hoje as 14:00 pro Aeroporto.\n"
+                    "-> Gasto: R$100 de gasolina.\n"
+                    "-> Gasto (planejado): R$100 pra reabastecer.\n"
+                    "-> Gasto (planejado): R$300 no cartao."
+                )
+            ]
+        )
+
+        mensagem = (
+            "hoje 8h da manha eu tenho que ir comprar material pras obras, cimento, "
+            "argamassa, porta, depois pegar granito, daí tenho que ir na obra gravar "
+            "um video e tirar fotos, vou almoçar e à tarde tenho voo as 14h, gastei "
+            "100 de gasolina mas tenho que abastecer de novo, acho que vai mais 100, "
+            "e penso em comprar algo de 300 no cartao de credito"
+        )
+        with patch.object(
+            claude_client.client.messages, "create", side_effect=[resposta_com_tools, resposta_final]
+        ):
+            res = self.client.post("/api/chat", json={"mensagem": mensagem})
+        self.assertEqual(res.status_code, 200)
+        acoes = res.get_json()["acoes"]
+        self.assertEqual(
+            sorted(acoes),
+            sorted(
+                ["registrar_tarefa", "registrar_tarefa", "registrar_voo", "registrar_gasto",
+                 "registrar_gasto", "registrar_gasto"]
+            ),
+        )
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tasks), 2)
+        titulos_tarefas = {t["title"] for t in tasks}
+        self.assertIn("comprar material (cimento, argamassa, porta) e pegar granito", titulos_tarefas)
+        tarefa_com_hora = next(t for t in tasks if t["hora"])
+        self.assertEqual(tarefa_com_hora["hora"], "08:00")
+
+        voos = self.client.get("/api/voos").get_json()
+        self.assertEqual(len(voos), 1)
+        self.assertEqual(voos[0]["hora"], "14:00")
+        self.assertEqual(voos[0]["destino"], "Aeroporto")
+
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(len(expenses), 3)
+        por_tipo = {"real": 0.0, "planejado": 0.0}
+        for e in expenses:
+            por_tipo[e["tipo"]] += e["amount"]
+        self.assertEqual(por_tipo["real"], 100.0)
+        self.assertEqual(por_tipo["planejado"], 400.0)
+
+        with patch("claude_client.summarize_day", return_value=("Dia cheio.", fake_usage())):
+            resumo = self.client.get("/api/summary/today").get_json()
+        self.assertEqual(resumo["gasto_hoje"], 100.0)
+        self.assertEqual(resumo["gasto_planejado"], 400.0)
 
 
 class AutenticacaoTestCase(unittest.TestCase):

@@ -18,9 +18,14 @@ PRICING = {
 CAPTURE_PROMPT = """Hoje e {hoje}. Classifique o texto do usuario como "tarefa", "gasto" ou "meta"
 (meta financeira, tipo "quero juntar X ate Y" ou "economizar pra comprar Z") e extraia os campos.
 Responda so com JSON, sem markdown, no formato:
-{{"tipo": "tarefa" ou "gasto" ou "meta", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "quando": "..." ou null, "quando_data": "AAAA-MM-DD" ou null, "hora": "HH:MM" ou null, "prazo": "AAAA-MM-DD" ou null, "duvida": "..." ou null, "memoria": "..." ou null}}
+{{"tipo": "tarefa" ou "gasto" ou "meta", "titulo": "...", "valor": numero ou null, "categoria": "..." ou null, "status": "real" ou "planejado" ou null, "quando": "..." ou null, "quando_data": "AAAA-MM-DD" ou null, "hora": "HH:MM" ou null, "prazo": "AAAA-MM-DD" ou null, "duvida": "..." ou null, "memoria": "..." ou null}}
 
 Categorias de gasto: mercado, transporte, lazer, contas, saude, outros.
+
+Se tipo="gasto": "status" e "real" quando o gasto ja aconteceu (ex: "gastei", "paguei",
+"comprei", verbo no passado) e "planejado" quando e so uma possibilidade/intencao futura ainda
+nao decidida (ex: "penso em comprar", "quero gastar", "talvez eu compre", "tô pensando em").
+Na duvida, use "real" (e o caso mais comum). Deixe null se tipo nao for "gasto".
 
 Se tipo="tarefa": "quando" e o prazo em texto livre, do jeito que a pessoa escreveu (ex:
 "amanha", "sexta que vem"). "quando_data" e a MESMA informacao convertida pra AAAA-MM-DD, so
@@ -107,7 +112,15 @@ de cada coisa na agenda dele.
 Voo pode ser so um compromisso futuro (ex: "vou voar pra Blumenau semana que vem" - sem horas
 ainda) ou um voo ja realizado (ex: "voei 1.5h hoje, treino de pouso" - com horas). Nao invente
 numero de horas nem meta de horas de curso - isso varia por escola/etapa e so o Alex sabe o
-proprio numero.
+proprio numero. Se ele disser o horario do voo (ex: "meu voo e as 14h"), capture no campo "hora"
+de `registrar_voo` - com isso o painel consegue calcular sozinho a que horas ele precisa sair de
+casa considerando o trajeto ate o aeroporto.
+
+Preste atencao na diferenca entre um gasto que JA ACONTECEU (ex: "gastei 100 de gasolina", "paguei
+a conta") e um gasto so COGITADO/possivel, ainda nao decidido (ex: "to pensando em comprar",
+"talvez eu gaste 300 no cartao") - o primeiro e "status": "real" em `registrar_gasto`, o segundo e
+"status": "planejado". Isso importa porque so o gasto real conta no total ja gasto do dia; o
+planejado fica separado, como um alerta do que pode vir a acontecer.
 
 Alem disso, se em algum momento da conversa o Alex revelar um fato duravel sobre ele mesmo que
 vale lembrar dali pra frente - uma preferencia, rotina, relacao, contexto recorrente - e que NAO
@@ -159,7 +172,7 @@ CHAT_TOOLS = [
     },
     {
         "name": "registrar_gasto",
-        "description": "Registra um gasto do Alex.",
+        "description": "Registra um gasto do Alex - real (ja aconteceu) ou planejado (ainda so cogitado).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -168,6 +181,16 @@ CHAT_TOOLS = [
                 "categoria": {
                     "type": "string",
                     "enum": ["mercado", "transporte", "lazer", "contas", "saude", "outros"],
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["real", "planejado"],
+                    "description": (
+                        "'real' se o gasto ja aconteceu (ex: 'gastei', 'paguei', 'comprei'). "
+                        "'planejado' se e so uma possibilidade/intencao futura ainda nao decidida "
+                        "(ex: 'penso em comprar', 'talvez eu compre', 'to pensando em gastar'). "
+                        "Na duvida, omita - vira 'real' por padrao."
+                    ),
                 },
             },
             "required": ["titulo", "valor"],

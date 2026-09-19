@@ -705,6 +705,12 @@ header {
   letter-spacing: 0.05em;
 }
 
+.stat-tile-sub {
+  font-size: 0.62rem;
+  color: var(--cor-bancos);
+  margin-top: 0.1rem;
+}
+
 .grafico-card {
   position: relative;
   background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 70%);
@@ -1137,6 +1143,29 @@ li.item.saindo {
 .gasto-categoria[data-cat="saude"] {
   background: color-mix(in srgb, var(--danger) 18%, transparent);
   color: var(--danger);
+}
+
+/* gasto so cogitado (ainda nao decidido) - borda tracejada pra ficar visualmente
+   claro que isso NAO entra no total ja gasto do dia, e um "pode acontecer" */
+li.item.item-planejado {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--cor-bancos) 45%, var(--border));
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--cor-bancos) 8%, var(--surface-2)) 0%,
+    var(--surface) 70%
+  );
+}
+
+.badge-planejado {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--cor-bancos);
+  background: color-mix(in srgb, var(--cor-bancos) 18%, transparent);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  margin-left: 0.4rem;
 }
 
 #importar-form {
