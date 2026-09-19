@@ -10,12 +10,20 @@ reiniciar o serviço (passo final).
 
 ## 0. Antes de começar - segurança
 
-**O painel não tem login nenhum embutido** (`app.py` foi feito pra só você acessar
-via localhost - ver `README.md`). Assim que ele sai do localhost pra um domínio
-público, *qualquer pessoa* que ache a URL vê suas tarefas, gastos, saúde, voos e
-histórico de chat. O `Caddyfile` deste diretório já resolve isso com uma senha
-(HTTP Basic Auth) na frente de tudo - **não pula o passo 5**, ou o painel fica
-aberto pra internet inteira.
+O painel agora tem login próprio por PIN de 6 dígitos (ver `auth.py`) - na
+primeira vez que você abrir o site ele pede pra você escolher o PIN, fica
+travado depois de 5 tentativas erradas (5min de bloqueio), e o cookie de
+sessão é assinado e `HttpOnly` (inspecionar/console do navegador não dá
+acesso). Isso já é suficiente pra proteger o painel sozinho.
+
+O `Caddyfile` deste diretório também tem uma segunda camada (HTTP Basic
+Auth) - opcional agora, mas ainda vale a pena como defesa extra (bloqueia
+antes mesmo de chegar na página de login). Se não quiser essa camada a
+mais, pode remover o bloco `basicauth` do Caddyfile depois do passo 6.
+
+**Não esquece do passo 5**: seta `SECURE_COOKIES=true` no `.env` assim que
+o domínio com HTTPS estiver no ar, senão o cookie de sessão não é marcado
+como seguro.
 
 ## 1. Escolhe uma VPS
 
@@ -78,6 +86,11 @@ Preenche **`SAUDE_WEBHOOK_TOKEN`** com alguma string aleatoria longa - o própri
 `.env.example` já avisa que isso é obrigatório assim que o painel fica público
 (protege o endpoint que recebe dados de Saúde do Atalho do iPhone).
 
+Deixa **`SECURE_COOKIES=true`** já preenchido (assim que o domínio com HTTPS
+estiver no ar no passo 8, o cookie de sessão do login passa a exigir HTTPS -
+correto pra produção, só ficaria `false` se você estivesse testando local em
+`http://`).
+
 O arquivo `vapid_private.pem` (chave do push) **não vai pro git** - copia ele do
 seu computador pra VPS direto:
 
@@ -138,14 +151,16 @@ sudo systemctl status painel   # deve aparecer "active (running)"
 
 ## 8. Confere que funcionou
 
-Abre `https://SEU_DOMINIO` num navegador qualquer - deve pedir usuário/senha
-(o que você configurou no passo 6) e depois abrir o painel normalmente, com o
-cadeado de HTTPS.
+Abre `https://SEU_DOMINIO` num navegador qualquer - se deixou o `basicauth` no
+Caddyfile, pede usuário/senha primeiro; depois cai na tela "Primeiro acesso"
+pra você escolher seu PIN de 6 dígitos (só essa primeira vez). Confirma que
+apareceu o cadeado de HTTPS.
 
 ## 9. No iPhone
 
 1. Abre `https://SEU_DOMINIO` no **Safari** (tem que ser Safari, não Chrome)
-2. Entra com o usuário/senha
+2. Se pedir usuário/senha do Basic Auth, entra; depois digita seu PIN de
+   6 dígitos (ou escolhe um, se for a primeira vez)
 3. Toca em Compartilhar → "Adicionar à Tela de Início"
 4. Abre o painel **pelo ícone na tela de início** (não pela aba do Safari)
 5. Dentro do app instalado, toca em "Ativar notificações" e aceita a permissão
@@ -171,3 +186,17 @@ source .venv/bin/activate
 pip install -r requirements.txt   # so se mudou alguma dependencia
 sudo systemctl restart painel
 ```
+
+## Esqueci o PIN
+
+Não tem "esqueci minha senha" pelo navegador de propósito (seria um jeito de
+contornar o próprio login). Se esquecer, entra na VPS e roda:
+
+```bash
+ssh painel@SEU_IP
+cd painel-pessoal-tdah
+source .venv/bin/activate
+python scripts/resetar_pin.py
+```
+
+Da próxima vez que abrir o painel, ele pede pra escolher um PIN novo.

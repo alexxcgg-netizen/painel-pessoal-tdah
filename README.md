@@ -1,6 +1,6 @@
 # Painel Pessoal / Assistente de TDAH
 
-App pessoal (uso unico, sem autenticacao multiusuario) pra reduzir carga mental do dia a dia: captura rapida de tarefa e gasto por texto livre, quebra de tarefa grande em passos, resumo factual do dia. Inspirado no espirito do [Nectar](https://www.meu-nectar.com/), mas sob controle proprio e sem mensalidade.
+App pessoal (uso unico - um PIN de 6 digitos, sem contas nem multiplos usuarios) pra reduzir carga mental do dia a dia: captura rapida de tarefa e gasto por texto livre, quebra de tarefa grande em passos, resumo factual do dia. Inspirado no espirito do [Nectar](https://www.meu-nectar.com/), mas sob controle proprio e sem mensalidade.
 
 ## Stack
 
@@ -26,6 +26,31 @@ iPhone exige HTTPS pra registrar o Service Worker/push (nem um IP da rede local
 em HTTP resolve isso). Pra usar de verdade no iPhone (instalar na tela de inicio,
 receber notificacao), hospeda numa VPS com dominio proprio - passo a passo
 completo em [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
+
+## Login (PIN de 6 digitos)
+
+Na primeira vez que abrir o painel (local ou hospedado), ele pede pra voce
+escolher um PIN de 6 digitos - fica guardado com hash no banco (`auth.py`,
+`werkzeug.security.generate_password_hash`), nunca em texto puro, e nunca
+sai do seu banco de dados nem vai pro git. A partir dai toda pagina e toda
+rota `/api/...` (com excecao de `/api/saude/importar`, que usa o proprio
+`SAUDE_WEBHOOK_TOKEN`) exige uma sessao autenticada - isso e checado no
+servidor (`@app.before_request` em `app.py`) em toda requisicao, entao abrir
+o Inspecionar/Console do navegador nao adianta nada pra contornar: quem
+decide "entra ou nao" e sempre o backend, nunca o que roda no navegador.
+
+5 tentativas de PIN erradas do mesmo IP bloqueiam novas tentativas por 5
+minutos (contador persistido no banco, sobrevive a reinicio do processo -
+`login_tentativas`), pra um PIN de 6 digitos (1 milhao de combinacoes) nao
+virar forca-bruta viavel. A sessao dura 90 dias (`permanent_session_lifetime`)
+depois de logar, entao no dia a dia voce nao fica digitando o PIN toda hora -
+so a primeira vez (ou se limpar os dados do navegador, ou apertar o botao de
+sair no cabecalho).
+
+Esqueceu o PIN? Nao tem recuperacao pelo navegador de proposito (seria um
+jeito de contornar o proprio login) - `python scripts/resetar_pin.py` no
+servidor apaga o PIN configurado, e o painel pede pra escolher um novo na
+proxima visita.
 
 ## Testes
 

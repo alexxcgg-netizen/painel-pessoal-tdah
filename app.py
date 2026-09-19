@@ -1,14 +1,15 @@
 import json
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import anthropic
 import requests
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, session
 
 load_dotenv()
 
+import auth
 import bank_ofx
 import caldav_client
 import claude_client
@@ -56,6 +57,20 @@ from db import (
 
 app = Flask(__name__)
 init_db()
+
+_conn_inicial = get_db()
+app.secret_key = auth.obter_ou_criar_secret_key(_conn_inicial)
+_conn_inicial.close()
+app.permanent_session_lifetime = timedelta(days=90)
+
+# HttpOnly: JavaScript (mesmo em caso de XSS) nao consegue ler o cookie de sessao.
+# SameSite=Lax: o cookie nao vai em requisicoes vindas de outro site (mitiga CSRF).
+# Secure liga sozinho quando SECURE_COOKIES=true no .env (hospedado atras de HTTPS
+# de verdade - ver deploy/DEPLOY.md) - forcar isso sempre quebraria o acesso local
+# em HTTP puro (o navegador simplesmente nao envia cookie "Secure" fora de HTTPS).
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SECURE_COOKIES", "false").lower() in ("true", "1", "t", "yes")
 
 CLAUDE_ERROR_MSG = "Erro ao falar com a IA. Tenta de novo em instantes."
 CLAUDE_FORMAT_ERROR_MSG = "A IA respondeu em um formato inesperado. Tenta de novo."
@@ -110,6 +125,107 @@ def _calculo_meta(goal: dict) -> dict:
         meses = max(meses, 1)
         por_mes = max(falta, 0) / meses
     return {**goal, "falta": falta, "meses_restantes": meses, "por_mes": por_mes}
+
+
+ROTAS_PUBLICAS = {"/login", "/configurar-pin", "/logout"}
+
+
+@app.before_request
+def _verificar_autenticacao():
+    """Roda em TODA requisicao antes da rota de verdade - e aqui, no
+    servidor, que a decisao "entra ou nao" e tomada. Abrir o Inspecionar/
+    Console do navegador nao muda nada disso: o cookie de sessao e assinado
+    (Flask usa `app.secret_key`) e HttpOnly (JS nem consegue ler ele), entao
+    forjar acesso exigiria adivinhar o PIN de verdade, nao mexer no
+    navegador."""
+    path = request.path
+    if path.startswith("/static/"):
+        return None
+    # Integracao maquina-a-maquina (Atalho do iPhone) - tem o proprio token
+    # (SAUDE_WEBHOOK_TOKEN) checado dentro da rota, nao usa sessao de login.
+    if path == "/api/saude/importar":
+        return None
+
+    conn = get_db()
+    try:
+        pin_ja_configurado = auth.pin_configurado(conn)
+    finally:
+        conn.close()
+
+    if not pin_ja_configurado:
+        if path == "/configurar-pin":
+            return None
+        if path.startswith("/api/"):
+            return jsonify({"error": "PIN de acesso ainda nao configurado."}), 401
+        return redirect("/configurar-pin")
+
+    if path in ROTAS_PUBLICAS:
+        return None
+
+    if not session.get("autenticado"):
+        if path.startswith("/api/"):
+            return jsonify({"error": "nao autenticado"}), 401
+        return redirect("/login")
+    return None
+
+
+@app.route("/configurar-pin", methods=["GET", "POST"])
+def configurar_pin():
+    conn = get_db()
+    try:
+        if auth.pin_configurado(conn):
+            if request.method == "POST":
+                return jsonify({"error": "O PIN ja foi configurado."}), 400
+            return redirect("/login")
+
+        if request.method == "GET":
+            return render_template("configurar_pin.html")
+
+        corpo = request.json or {}
+        try:
+            auth.definir_pin(conn, corpo.get("pin", ""), corpo.get("confirmacao", ""))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        session["autenticado"] = True
+        session.permanent = True
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        if session.get("autenticado"):
+            return redirect("/")
+        return render_template("login.html")
+
+    ip = request.remote_addr or "desconhecido"
+    conn = get_db()
+    try:
+        pode_tentar, msg_bloqueio = auth.verificar_bloqueio(conn, ip)
+        if not pode_tentar:
+            return jsonify({"error": msg_bloqueio}), 429
+
+        corpo = request.json or {}
+        pin = corpo.get("pin", "")
+        if auth.verificar_pin(conn, pin):
+            auth.registrar_tentativa(conn, ip, sucesso=True)
+            session["autenticado"] = True
+            session.permanent = True
+            return jsonify({"ok": True})
+
+        auth.registrar_tentativa(conn, ip, sucesso=False)
+        return jsonify({"error": "PIN incorreto."}), 401
+    finally:
+        conn.close()
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"ok": True})
 
 
 @app.route("/")

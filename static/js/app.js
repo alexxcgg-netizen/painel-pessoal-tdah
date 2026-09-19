@@ -101,6 +101,10 @@ async function apiFetch(url, options) {
   } catch {
     // resposta sem corpo (ex: 204) - segue com data null
   }
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return null;
+  }
   if (!res.ok) {
     mostrarErro((data && data.error) || `Erro inesperado (HTTP ${res.status}).`);
     return null;
@@ -1340,6 +1344,11 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/service-worker.js");
   initPush();
 }
+
+$("#logout-btn").addEventListener("click", async () => {
+  await fetch("/logout", { method: "POST" });
+  window.location.href = "/login";
+});
 
 loadSummary();
 loadUso();

@@ -141,6 +141,17 @@ def init_db():
             observacao TEXT,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS configuracoes (
+            chave TEXT PRIMARY KEY,
+            valor TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS login_tentativas (
+            ip TEXT PRIMARY KEY,
+            tentativas INTEGER NOT NULL DEFAULT 0,
+            bloqueado_ate REAL NOT NULL DEFAULT 0
+        );
         """
     )
     conn.commit()
@@ -334,6 +345,20 @@ def marcar_notificado(conn, tipo: str, referencia_id: int = 0):
     conn.execute(
         "INSERT OR IGNORE INTO notificacoes_enviadas (tipo, referencia_id, data) VALUES (?, ?, ?)",
         (tipo, referencia_id, date.today().isoformat()),
+    )
+    conn.commit()
+
+
+def obter_configuracao(conn, chave: str) -> str | None:
+    row = conn.execute("SELECT valor FROM configuracoes WHERE chave = ?", (chave,)).fetchone()
+    return row["valor"] if row else None
+
+
+def definir_configuracao(conn, chave: str, valor: str):
+    conn.execute(
+        "INSERT INTO configuracoes (chave, valor) VALUES (?, ?) "
+        "ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor",
+        (chave, valor),
     )
     conn.commit()
 

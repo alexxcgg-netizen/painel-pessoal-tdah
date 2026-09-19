@@ -10,6 +10,7 @@ import requests
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
+import auth
 import db
 
 _tmp_dir = tempfile.TemporaryDirectory()
@@ -54,6 +55,9 @@ VERSION:102
 """
 
 
+PIN_TESTE = "123456"
+
+
 class PainelTestCase(unittest.TestCase):
     def setUp(self):
         if db.DB_PATH.exists():
@@ -63,9 +67,14 @@ class PainelTestCase(unittest.TestCase):
         # banco novo - limpa aqui pra os testes de memoria ficarem isolados/previsiveis
         conn = db.get_db()
         conn.execute("DELETE FROM memorias")
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
         conn.commit()
         conn.close()
         self.client = app.app.test_client()
+        # loga de verdade pelo fluxo real - assim toda a suite ja exercita o
+        # gate de autenticacao (before_request) em vez de contornar ele
+        res = self.client.post("/login", json={"pin": PIN_TESTE})
+        assert res.status_code == 200, res.get_json()
 
     def test_captura_gasto_direto(self):
         parsed = {
@@ -1447,6 +1456,120 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         args = mock_summarize.call_args[0]
         self.assertIsNone(args[7])
+
+
+class AutenticacaoTestCase(unittest.TestCase):
+    """Testa o gate de autenticacao no nivel HTTP - cada teste comeca de um
+    banco vazio (sem PIN configurado), diferente de PainelTestCase (que ja
+    loga automaticamente pra nao atrapalhar os testes de feature)."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        self.client = app.app.test_client()
+
+    def test_sem_pin_configurado_redireciona_pagina_pra_configurar(self):
+        res = self.client.get("/", follow_redirects=False)
+        self.assertEqual(res.status_code, 302)
+        self.assertIn("/configurar-pin", res.headers["Location"])
+
+    def test_sem_pin_configurado_api_devolve_401(self):
+        res = self.client.get("/api/tasks")
+        self.assertEqual(res.status_code, 401)
+
+    def test_configurar_pin_com_sucesso_ja_autentica(self):
+        res = self.client.post(
+            "/configurar-pin", json={"pin": "111111", "confirmacao": "111111"}
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.get_json()["ok"])
+
+        # a sessao aberta pelo configurar-pin ja da acesso, sem precisar logar de novo
+        res2 = self.client.get("/api/tasks")
+        self.assertEqual(res2.status_code, 200)
+
+    def test_configurar_pin_rejeita_formato_invalido(self):
+        res = self.client.post("/configurar-pin", json={"pin": "123", "confirmacao": "123"})
+        self.assertEqual(res.status_code, 400)
+        self.assertFalse(auth.pin_configurado(db.get_db()))
+
+    def test_configurar_pin_ja_configurado_nao_deixa_reconfigurar(self):
+        self.client.post("/configurar-pin", json={"pin": "111111", "confirmacao": "111111"})
+        res = self.client.post("/configurar-pin", json={"pin": "222222", "confirmacao": "222222"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_login_com_pin_certo_autentica(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.commit()
+        conn.close()
+
+        res = self.client.post("/login", json={"pin": "123456"})
+        self.assertEqual(res.status_code, 200)
+
+        res2 = self.client.get("/api/tasks")
+        self.assertEqual(res2.status_code, 200)
+
+    def test_login_com_pin_errado_nao_autentica(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.commit()
+        conn.close()
+
+        res = self.client.post("/login", json={"pin": "000000"})
+        self.assertEqual(res.status_code, 401)
+
+        res2 = self.client.get("/api/tasks")
+        self.assertEqual(res2.status_code, 401)
+
+    def test_cinco_pins_errados_bloqueia_ate_o_certo(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.commit()
+        conn.close()
+
+        for _ in range(5):
+            self.client.post("/login", json={"pin": "000000"})
+
+        # a sexta tentativa, mesmo com o PIN CERTO, e barrada pelo bloqueio
+        res = self.client.post("/login", json={"pin": "123456"})
+        self.assertEqual(res.status_code, 429)
+
+        res2 = self.client.get("/api/tasks")
+        self.assertEqual(res2.status_code, 401)
+
+    def test_logout_derruba_a_sessao(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.commit()
+        conn.close()
+        self.client.post("/login", json={"pin": "123456"})
+
+        res_logout = self.client.post("/logout")
+        self.assertEqual(res_logout.status_code, 200)
+
+        res = self.client.get("/api/tasks")
+        self.assertEqual(res.status_code, 401)
+
+    def test_saude_importar_nao_exige_sessao_de_login(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.commit()
+        conn.close()
+        # sem logar - so o SAUDE_WEBHOOK_TOKEN (checado dentro da propria rota)
+        res = self.client.post("/api/saude/importar", json={"passos": 1000})
+        self.assertNotEqual(res.status_code, 401)
+
+    def test_login_ja_autenticado_redireciona_pra_home(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.commit()
+        conn.close()
+        self.client.post("/login", json={"pin": "123456"})
+
+        res = self.client.get("/login", follow_redirects=False)
+        self.assertEqual(res.status_code, 302)
 
 
 class NormalizarHoraTestCase(unittest.TestCase):
