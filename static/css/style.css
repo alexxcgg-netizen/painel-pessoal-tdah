@@ -474,42 +474,21 @@ header {
 .tab-btn.active {
   background: linear-gradient(
     140deg,
-    color-mix(in srgb, var(--tab-cor, var(--accent-fill)) 85%, white 15%) 0%,
-    var(--tab-cor, var(--accent-fill)) 100%
+    color-mix(in srgb, var(--accent-fill) 85%, white 15%) 0%,
+    var(--accent-fill) 100%
   );
   color: var(--accent-text);
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
-  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--tab-cor, var(--accent-fill)) 65%, transparent);
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent);
 }
 
-.tab-btn[data-tab="hoje"] {
-  --tab-cor: var(--cor-hoje-fill);
-}
-
-.tab-btn[data-tab="painel"] {
-  --tab-cor: var(--cor-painel-fill);
-}
-
-.tab-btn[data-tab="tarefas"] {
-  --tab-cor: var(--cor-tarefas-fill);
-}
-
-.tab-btn[data-tab="gastos"] {
-  --tab-cor: var(--cor-financeiro-fill);
-}
-
-.tab-btn[data-tab="bancos"] {
-  --tab-cor: var(--cor-bancos-fill);
-}
-
-.tab-btn[data-tab="construtora"] {
-  --tab-cor: var(--cor-construtora-fill);
-}
-
-.tab-btn[data-tab="aviacao"] {
-  --tab-cor: var(--cor-aviacao-fill);
-}
+/* Pedido do Alex (inspirado no app Pierre - preto/branco quase puro, cor so
+   nos detalhes pequenos): as 7 abas paravam de "misturar cor" - a aba ativa
+   agora e sempre a mesma cor de marca (--accent-fill), nao uma cor
+   diferente por secao. A identidade de secao continua existindo, so que
+   reduzida a acento pequeno (faixa fina do stat-tile, icone do h2) em vez
+   de tomar conta do preenchimento inteiro do botao/aba. */
 
 .tab-content:not([hidden]) {
   animation: tabEntra 0.32s var(--ease-suave) both;
@@ -1125,7 +1104,7 @@ li.item.saindo {
 }
 
 .item-acoes button.primario {
-  background: var(--cor-tarefas-fill);
+  background: var(--accent-fill);
   border-color: transparent;
   color: var(--accent-text);
   font-weight: 700;
@@ -1268,7 +1247,7 @@ li.item.item-planejado {
   padding: 0.6rem;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--cor-bancos-fill);
+  background: var(--accent-fill);
   color: var(--accent-text);
   font-weight: 700;
   cursor: pointer;
@@ -1784,7 +1763,7 @@ li.item.item-planejado {
 }
 
 #chat-mic.ouvindo {
-  background: var(--cor-construtora-fill);
+  background: var(--accent-fill);
   border-color: transparent;
   color: var(--accent-text);
   animation: pulsarMic 1s ease-in-out infinite;
@@ -1982,7 +1961,7 @@ li.item.item-planejado {
   padding: 0.6rem;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--cor-hoje-fill);
+  background: var(--accent-fill);
   color: var(--accent-text);
   font-weight: 700;
   cursor: pointer;
@@ -2025,7 +2004,7 @@ li.item.item-planejado {
   padding: 0.6rem;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--cor-aviacao-fill);
+  background: var(--accent-fill);
   color: var(--accent-text);
   font-weight: 700;
   cursor: pointer;
@@ -2104,7 +2083,7 @@ li.item.item-planejado {
 }
 
 .btn-ouvir.falando {
-  background: var(--cor-aviacao-fill);
+  background: var(--accent-fill);
   color: var(--accent-text);
   animation: chamaFlicker 1.2s ease-in-out infinite;
 }
