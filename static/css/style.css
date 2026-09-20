@@ -93,6 +93,15 @@
   /* fonte de corpo - texto corrido, listas, menus */
   --font-body: "Jost", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
 
+  /* fonte dos valores em destaque (stat-tile, card de resultado - tipo
+     "R$ 30") - pedido explicito: o serifado de alto contraste do
+     --font-display fica bonito em letra, mas em NUMERO fica fraco/quebrado
+     na tela (traço fino demais em tamanho de UI, didone e feito pra corpo
+     grande impresso, nao pra digito pequeno). Grotesk forte e confiante,
+     igual fintech premium usa pros numeros grandes mesmo tendo serifa no
+     titulo. */
+  --font-numeros: "Bricolage Grotesque", -apple-system, sans-serif;
+
   /* fonte tecnica - so pra numero/dado bruto (estatisticas, horas, METAR),
      nunca pra texto corrido - da o contraste "readout" que falta usando so
      Jost/SF Pro em tudo */
@@ -707,7 +716,7 @@ header {
 
 .stat-tile-valor {
   display: inline-block;
-  font-family: var(--font-display);
+  font-family: var(--font-numeros);
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--text);
@@ -1647,7 +1656,7 @@ li.item.item-planejado {
 }
 
 .card-resultado-valor {
-  font-family: var(--font-display);
+  font-family: var(--font-numeros);
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--text);
