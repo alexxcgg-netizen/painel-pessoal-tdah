@@ -15,30 +15,57 @@
      todos escurecidos/aprofundados. vermelho (--danger) fica reservado SO
      pra erro, nunca pra identidade de secao - por isso --cor-construtora
      nao e vermelho (evita ler como erro).
-     --accent-text virou claro (antes era escuro) porque o acento em si
-     ficou escuro - texto escuro em cima de acento escuro perdia contraste.
 
      Validada com a skill dataviz (node scripts/validate_palette.js, OKLCH/
      CVD real, nao "olhometro") pro modo escuro contra --bg #09090d: banda
      de luminosidade e piso de croma OK nas 7, pior par de daltonismo
      (--accent x --cor-financeiro) fica no piso 6-8 legal-com-reforco (esse
      app sempre pareia cor com icone+texto, nunca so cor), pior par a olho
-     nu 15.3 (o minimo e 15) - tudo dentro do limite. Esse foi o motivo de
-     --accent ter mudado de tom nessa passada: o roxo anterior nao cabia
-     numa combinacao valida junto das outras 6 cores. */
+     nu 15.3 (o minimo e 15) - tudo dentro do limite.
+
+     Round 2 de escurecimento (pedido explicito: "escurece todas as cores
+     em uns 70%"): --cor-X/--accent continuam sendo os hex validados acima
+     (usados em texto, icone, borda fina, glow de sombra - onde precisam
+     continuar legiveis/visiveis num fundo quase preto). Cada --cor-X-fill/
+     --accent-fill novo e a MESMA cor escurecida 70% em cima de preto via
+     color-mix - usado SO nos preenchimentos solidos e grandes (tab ativa,
+     fundo dos stat-tiles, badges/pontos solidos), que e onde "muito
+     claro"/"tipo LED" realmente incomodava. --accent-text voltou a ser
+     claro porque esses preenchimentos ficaram escuros nessa rodada. */
   --accent: #b85ec9;
+  --accent-fill: color-mix(in srgb, var(--accent) 30%, black 70%);
   --accent-2: #24467d;
-  --accent-gradient: linear-gradient(135deg, #b85ec9 0%, #24467d 100%);
-  --accent-text: #1a0e1e;
+  --accent-2-fill: color-mix(in srgb, var(--accent-2) 30%, black 70%);
+  --accent-gradient: linear-gradient(135deg, var(--accent-fill) 0%, var(--accent-2-fill) 100%);
+  /* versao viva do gradiente - so pra onde a cor E o proprio conteudo visivel
+     (barra de progresso) e nao da pra usar a versao escurecida sem sumir */
+  --accent-gradient-ink: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  /* versao intermediaria - texto com background-clip:text (titulo) precisa
+     ficar mais escuro/profundo que o ink (pedido explicito), mas ainda
+     legivel - nao da pra crivar ate quase preto como o fundo dos botoes,
+     senao a letra some contra o proprio fundo escuro da pagina */
+  --accent-gradient-titulo: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 58%, black 42%) 0%,
+    color-mix(in srgb, var(--accent-2) 58%, black 42%) 100%
+  );
+  --accent-text: #f4eeff;
   --accent-soft-bg: color-mix(in srgb, var(--accent) 16%, transparent);
 
-  --cor-hoje: #b85ec9;
+  --cor-hoje: var(--accent);
+  --cor-hoje-fill: var(--accent-fill);
   --cor-painel: #41aa75;
+  --cor-painel-fill: color-mix(in srgb, var(--cor-painel) 30%, black 70%);
   --cor-tarefas: #5246d8;
+  --cor-tarefas-fill: color-mix(in srgb, var(--cor-tarefas) 30%, black 70%);
   --cor-financeiro: #04759a;
+  --cor-financeiro-fill: color-mix(in srgb, var(--cor-financeiro) 30%, black 70%);
   --cor-bancos: #a27c2f;
+  --cor-bancos-fill: color-mix(in srgb, var(--cor-bancos) 30%, black 70%);
   --cor-construtora: #aa320e;
+  --cor-construtora-fill: color-mix(in srgb, var(--cor-construtora) 30%, black 70%);
   --cor-aviacao: #3d8cfa;
+  --cor-aviacao-fill: color-mix(in srgb, var(--cor-aviacao) 30%, black 70%);
 
   --danger: #ff5c72;
   --danger-bg: rgba(255, 92, 114, 0.14);
@@ -54,20 +81,22 @@
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* fonte de exibicao - titulo do app, secoes e os numeros-heroi (stat tiles) -
-     serif editorial (Fraunces) em vez de uma geometrica generica tipo
-     Plus Jakarta/Space Grotesk, que ficava com cara de SaaS/gerado por IA.
-     pareada com JetBrains Mono nos dados tecnicos/brutos (METAR, timestamps)
-     que continuam separados */
-  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  /* Round 3 de tipografia - pedido explicito do Alex: trocar as tres,
+     nenhuma repetida das rodadas anteriores (nem Fraunces/DM Sans/
+     JetBrains Mono, nem Plus Jakarta/Space Grotesk antes disso). Pesquisado
+     especificamente por fontes de marca de luxo (revista de moda, nao
+     "SaaS premium") - Libre Bodoni e um didone de alto contraste (parente
+     livre do Bodoni/Didot que Chanel/Vogue usam), Jost e geometrica
+     inspirada na Bauhaus pro corpo, IBM Plex Mono nos dados tecnicos. */
+  --font-display: "Libre Bodoni", Didot, "Bodoni MT", Georgia, serif;
 
   /* fonte de corpo - texto corrido, listas, menus */
-  --font-body: "DM Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-body: "Jost", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
 
   /* fonte tecnica - so pra numero/dado bruto (estatisticas, horas, METAR),
      nunca pra texto corrido - da o contraste "readout" que falta usando so
-     DM Sans/SF Pro em tudo */
-  --font-tech: "JetBrains Mono", "SF Mono", "Menlo", "Consolas", monospace;
+     Jost/SF Pro em tudo */
+  --font-tech: "IBM Plex Mono", "SF Mono", "Menlo", "Consolas", monospace;
 }
 
 * {
@@ -289,7 +318,7 @@ h1 {
   font-weight: 700;
   margin: 0 0 0.15rem;
   letter-spacing: -0.02em;
-  background: var(--accent-gradient);
+  background: var(--accent-gradient-titulo);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -436,41 +465,41 @@ header {
 .tab-btn.active {
   background: linear-gradient(
     140deg,
-    color-mix(in srgb, var(--tab-cor, var(--accent)) 85%, white 15%) 0%,
-    var(--tab-cor, var(--accent)) 100%
+    color-mix(in srgb, var(--tab-cor, var(--accent-fill)) 85%, white 15%) 0%,
+    var(--tab-cor, var(--accent-fill)) 100%
   );
   color: var(--accent-text);
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
-  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--tab-cor, var(--accent)) 65%, transparent);
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--tab-cor, var(--accent-fill)) 65%, transparent);
 }
 
 .tab-btn[data-tab="hoje"] {
-  --tab-cor: var(--cor-hoje);
+  --tab-cor: var(--cor-hoje-fill);
 }
 
 .tab-btn[data-tab="painel"] {
-  --tab-cor: var(--cor-painel);
+  --tab-cor: var(--cor-painel-fill);
 }
 
 .tab-btn[data-tab="tarefas"] {
-  --tab-cor: var(--cor-tarefas);
+  --tab-cor: var(--cor-tarefas-fill);
 }
 
 .tab-btn[data-tab="gastos"] {
-  --tab-cor: var(--cor-financeiro);
+  --tab-cor: var(--cor-financeiro-fill);
 }
 
 .tab-btn[data-tab="bancos"] {
-  --tab-cor: var(--cor-bancos);
+  --tab-cor: var(--cor-bancos-fill);
 }
 
 .tab-btn[data-tab="construtora"] {
-  --tab-cor: var(--cor-construtora);
+  --tab-cor: var(--cor-construtora-fill);
 }
 
 .tab-btn[data-tab="aviacao"] {
-  --tab-cor: var(--cor-aviacao);
+  --tab-cor: var(--cor-aviacao-fill);
 }
 
 .tab-content:not([hidden]) {
@@ -590,7 +619,12 @@ header {
   position: relative;
   background: linear-gradient(
     155deg,
-    color-mix(in srgb, var(--tile-cor, var(--accent)) 20%, var(--surface-2)) 0%,
+    color-mix(
+        in srgb,
+        color-mix(in srgb, var(--tile-cor, var(--accent)) 30%, black 70%) 20%,
+        var(--surface-2)
+      )
+      0%,
     var(--surface) 78%
   );
   border: 1px solid color-mix(in srgb, var(--tile-cor, var(--accent)) 25%, var(--border));
@@ -1018,7 +1052,7 @@ li.item.saindo {
   top: 0;
   height: 4px;
   border-radius: 999px;
-  background: var(--accent-gradient);
+  background: var(--accent-gradient-ink);
   box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
@@ -1082,7 +1116,7 @@ li.item.saindo {
 }
 
 .item-acoes button.primario {
-  background: var(--cor-tarefas);
+  background: var(--cor-tarefas-fill);
   border-color: transparent;
   color: var(--accent-text);
   font-weight: 700;
@@ -1145,22 +1179,22 @@ li.item.saindo {
 }
 
 .gasto-categoria[data-cat="mercado"] {
-  background: color-mix(in srgb, var(--cor-financeiro) 18%, transparent);
+  background: color-mix(in srgb, var(--cor-financeiro-fill) 45%, transparent);
   color: var(--cor-financeiro);
 }
 
 .gasto-categoria[data-cat="transporte"] {
-  background: color-mix(in srgb, var(--cor-tarefas) 18%, transparent);
+  background: color-mix(in srgb, var(--cor-tarefas-fill) 45%, transparent);
   color: var(--cor-tarefas);
 }
 
 .gasto-categoria[data-cat="lazer"] {
-  background: color-mix(in srgb, var(--cor-hoje) 18%, transparent);
+  background: color-mix(in srgb, var(--cor-hoje-fill) 45%, transparent);
   color: var(--cor-hoje);
 }
 
 .gasto-categoria[data-cat="contas"] {
-  background: color-mix(in srgb, var(--cor-bancos) 18%, transparent);
+  background: color-mix(in srgb, var(--cor-bancos-fill) 45%, transparent);
   color: var(--cor-bancos);
 }
 
@@ -1176,7 +1210,7 @@ li.item.item-planejado {
   border-color: color-mix(in srgb, var(--cor-bancos) 45%, var(--border));
   background: linear-gradient(
     165deg,
-    color-mix(in srgb, var(--cor-bancos) 8%, var(--surface-2)) 0%,
+    color-mix(in srgb, var(--cor-bancos-fill) 20%, var(--surface-2)) 0%,
     var(--surface) 70%
   );
 }
@@ -1186,7 +1220,7 @@ li.item.item-planejado {
   font-size: 0.68rem;
   font-weight: 600;
   color: var(--cor-bancos);
-  background: color-mix(in srgb, var(--cor-bancos) 18%, transparent);
+  background: color-mix(in srgb, var(--cor-bancos-fill) 45%, transparent);
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
   margin-left: 0.4rem;
@@ -1225,8 +1259,8 @@ li.item.item-planejado {
   padding: 0.6rem;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--cor-bancos);
-  color: #1a1200;
+  background: var(--cor-bancos-fill);
+  color: var(--accent-text);
   font-weight: 700;
   cursor: pointer;
 }
@@ -1300,7 +1334,7 @@ li.item.item-planejado {
 
 .meta-progresso-barra {
   height: 100%;
-  background: var(--accent-gradient);
+  background: var(--accent-gradient-ink);
   background-size: 200% 100%;
   border-radius: 999px;
   transition: width 0.6s var(--ease-suave);
@@ -1554,7 +1588,7 @@ li.item.item-planejado {
   align-self: stretch;
   background: linear-gradient(
     155deg,
-    color-mix(in srgb, var(--card-cor) 16%, var(--surface-2)) 0%,
+    color-mix(in srgb, color-mix(in srgb, var(--card-cor) 30%, black 70%) 16%, var(--surface-2)) 0%,
     var(--surface) 78%
   );
   border: 1px solid color-mix(in srgb, var(--card-cor) 28%, var(--border));
@@ -1643,7 +1677,7 @@ li.item.item-planejado {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #14151c;
+  color: var(--accent-text);
 }
 
 .chat-avatar svg {
@@ -1741,9 +1775,9 @@ li.item.item-planejado {
 }
 
 #chat-mic.ouvindo {
-  background: var(--cor-construtora);
+  background: var(--cor-construtora-fill);
   border-color: transparent;
-  color: #2a0a0e;
+  color: var(--accent-text);
   animation: pulsarMic 1s ease-in-out infinite;
 }
 
@@ -1939,8 +1973,8 @@ li.item.item-planejado {
   padding: 0.6rem;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--cor-hoje);
-  color: #17111f;
+  background: var(--cor-hoje-fill);
+  color: var(--accent-text);
   font-weight: 700;
   cursor: pointer;
 }
@@ -1982,8 +2016,8 @@ li.item.item-planejado {
   padding: 0.6rem;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--cor-aviacao);
-  color: #0c2029;
+  background: var(--cor-aviacao-fill);
+  color: var(--accent-text);
   font-weight: 700;
   cursor: pointer;
 }
@@ -2061,8 +2095,8 @@ li.item.item-planejado {
 }
 
 .btn-ouvir.falando {
-  background: var(--cor-aviacao);
-  color: #0c2029;
+  background: var(--cor-aviacao-fill);
+  color: var(--accent-text);
   animation: chamaFlicker 1.2s ease-in-out infinite;
 }
 
