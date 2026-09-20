@@ -8,13 +8,13 @@
   --text: #eceef3;
   --text-muted: #a7afbc;
   --text-faint: #788292;
-  --accent: #6d3fd1;
+  --accent: #b85ec9;
   --accent-2: #24467d;
-  --accent-gradient: linear-gradient(135deg, #6d3fd1 0%, #24467d 100%);
-  --accent-text: #f4eeff;
+  --accent-gradient: linear-gradient(135deg, #b85ec9 0%, #24467d 100%);
+  --accent-text: #1a0e1e;
   --danger: #ff5c72;
   --danger-bg: rgba(255, 92, 114, 0.14);
-  --ok: #0e7d6c;
+  --ok: #41aa75;
   --radius: 20px;
   --radius-sm: 14px;
   --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px rgba(0, 0, 0, 0.22),

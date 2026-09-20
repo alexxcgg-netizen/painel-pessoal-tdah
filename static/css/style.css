@@ -11,26 +11,34 @@
   --text-faint: #788292;
 
   /* paleta joia - pedido explicito do Alex: menos "LED"/pastel-brilhante,
-     mais tom de pedra preciosa - roxo, azul-marinho, esmeralda e ouro
-     todos escurecidos/aprofundados, preto e vermelho-vinho como base.
-     vermelho (--danger) fica reservado SO pra erro, nunca pra identidade
-     de secao - por isso --cor-construtora saiu do vermelho (antes batia
-     exatamente com --danger) pro terracota, sem risco de parecer erro.
+     mais tom de pedra preciosa - roxo, azul, esmeralda, ouro e terracota,
+     todos escurecidos/aprofundados. vermelho (--danger) fica reservado SO
+     pra erro, nunca pra identidade de secao - por isso --cor-construtora
+     nao e vermelho (evita ler como erro).
      --accent-text virou claro (antes era escuro) porque o acento em si
-     ficou escuro - texto escuro em cima de acento escuro perdia contraste. */
-  --accent: #6d3fd1;
+     ficou escuro - texto escuro em cima de acento escuro perdia contraste.
+
+     Validada com a skill dataviz (node scripts/validate_palette.js, OKLCH/
+     CVD real, nao "olhometro") pro modo escuro contra --bg #09090d: banda
+     de luminosidade e piso de croma OK nas 7, pior par de daltonismo
+     (--accent x --cor-financeiro) fica no piso 6-8 legal-com-reforco (esse
+     app sempre pareia cor com icone+texto, nunca so cor), pior par a olho
+     nu 15.3 (o minimo e 15) - tudo dentro do limite. Esse foi o motivo de
+     --accent ter mudado de tom nessa passada: o roxo anterior nao cabia
+     numa combinacao valida junto das outras 6 cores. */
+  --accent: #b85ec9;
   --accent-2: #24467d;
-  --accent-gradient: linear-gradient(135deg, #6d3fd1 0%, #24467d 100%);
-  --accent-text: #f4eeff;
+  --accent-gradient: linear-gradient(135deg, #b85ec9 0%, #24467d 100%);
+  --accent-text: #1a0e1e;
   --accent-soft-bg: color-mix(in srgb, var(--accent) 16%, transparent);
 
-  --cor-hoje: #6d3fd1;
-  --cor-painel: #167a45;
-  --cor-tarefas: #2f5fa8;
-  --cor-financeiro: #0e7d6c;
-  --cor-bancos: #b8862c;
-  --cor-construtora: #a85a2e;
-  --cor-aviacao: #1f6f8c;
+  --cor-hoje: #b85ec9;
+  --cor-painel: #41aa75;
+  --cor-tarefas: #5246d8;
+  --cor-financeiro: #04759a;
+  --cor-bancos: #a27c2f;
+  --cor-construtora: #aa320e;
+  --cor-aviacao: #3d8cfa;
 
   --danger: #ff5c72;
   --danger-bg: rgba(255, 92, 114, 0.14);
@@ -769,7 +777,23 @@ header {
 }
 
 .grafico-barra {
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+@media (hover: hover) {
+  .grafico-barra:hover {
+    filter: brightness(1.18);
+  }
+}
+
+/* grid de referencia - recessivo de proposito, so uma marca de escala no
+   meio do grafico, nunca deve competir com a marca de dado em si */
+.grafico-grid {
+  opacity: 0.5;
+}
+
+.grafico-crosshair {
+  transition: opacity 0.1s ease;
 }
 
 .meta-grafico {
