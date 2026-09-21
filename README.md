@@ -670,6 +670,14 @@ tarde?" e ele considerar a previsao. Sem `CIDADE_PADRAO` configurada, esse aviso
 aparece (o clima ligado a voo continua funcionando normal, ja que cada voo tem seu proprio
 destino).
 
+## Noticias sob demanda — "tem noticia de Brusque?"
+
+Pergunta no chat algo como "tem noticia de Brusque?" ou "o que ta rolando na aviacao no Brasil?"
+que ele busca manchetes recentes via o feed RSS publico do Google News (`noticias.py`) - gratuito,
+sem chave, sem cadastro. **Deliberadamente so sob demanda, nunca notificacao proativa** - foi
+pedido explicito do Alex, pra nao virar mais uma fonte de ruido automatico. Sem resultado, a IA diz
+que nao achou nada - nunca inventa uma manchete.
+
 ## Aviacao — o Alex esta fazendo curso de piloto comercial
 
 Aba propria (`Aviacao`) pra vida de piloto, separada do resto porque tem uma dinamica diferente

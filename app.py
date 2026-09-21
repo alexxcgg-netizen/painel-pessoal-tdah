@@ -25,6 +25,7 @@ import estudo
 import gastos
 import maps_client
 import metar
+import noticias
 import notificacoes
 import pluggy_client
 import push_client
@@ -1142,6 +1143,9 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
     def exec_consultar_sobra_do_mes(_entrada):
         return _sobra_do_mes(conn)
 
+    def exec_consultar_noticias(entrada):
+        return {"manchetes": noticias.buscar_manchetes(entrada["termo"])}
+
     def exec_sugerir_horario_livre(entrada):
         eventos = _eventos_de_hoje_com_seguranca(conn)
         compromissos = [(e["inicio"][11:16], e["fim"][11:16]) for e in eventos if not e.get("dia_inteiro")]
@@ -1245,6 +1249,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "resolver_espera": exec_resolver_espera,
         "registrar_feito": exec_registrar_feito,
         "registrar_voo": exec_registrar_voo,
+        "consultar_noticias": exec_consultar_noticias,
         "sugerir_horario_livre": exec_sugerir_horario_livre,
         "rotular_cobranca_generica": exec_rotular_cobranca_generica,
         "consultar_gastos_fixos": exec_consultar_gastos_fixos,

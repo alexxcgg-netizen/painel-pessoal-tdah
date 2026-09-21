@@ -493,6 +493,23 @@ CHAT_TOOLS = [
         "input_schema": {"type": "object", "properties": {}},
     },
     {
+        "name": "consultar_noticias",
+        "description": (
+            "Busca manchetes recentes sobre um assunto ou lugar (ex: 'Brusque SC', 'aviacao civil "
+            "Brasil') - use SO quando o Alex pedir noticia explicitamente (ex: 'tem noticia de "
+            "Brusque?', 'o que ta rolando na cidade?'). Nunca chame por conta propria (nao e "
+            "notificacao proativa, e sob demanda). Se vier vazio, diga que nao achou nada sobre o "
+            "assunto agora - nunca invente uma manchete."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "termo": {"type": "string", "description": "o assunto/lugar a buscar, como o Alex mencionou"},
+            },
+            "required": ["termo"],
+        },
+    },
+    {
         "name": "sugerir_horario_livre",
         "description": (
             "Acha o maior espaco livre HOJE, olhando o que ja esta marcado no dia de verdade - "

@@ -5,6 +5,26 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (11) - Noticias sob demanda (Google News RSS) + confirmado que Saude ja conecta
+
+O Alex perguntou por outras fontes de dado pro assistente (noticias de Brusque, algum app com API
+gratuita) e se o Apple Saude ja conectava. Confirmei que Saude ja conecta (via Atalhos do iPhone,
+ja documentado - nao existe API na nuvem da Apple Health, so o caminho local mesmo). Pra noticias,
+achei o feed RSS publico do Google News (gratuito, sem chave) e perguntei como ele queria receber -
+resumo diario, notificacao proativa, ou so quando perguntasse. Escolheu **so quando perguntar no
+chat**, de proposito pra nao virar mais ruido automatico.
+
+**`noticias.py` (modulo novo):** `buscar_manchetes(termo, limite=5)` busca no feed RSS do Google
+News (`news.google.com/rss/search`, sem chave/cadastro) e devolve titulo/fonte/link/data - tira o
+sufixo redundante " - Nome da Fonte" que o proprio feed repete no titulo. Erro de rede ou XML
+malformado nunca derruba quem chamou, devolve lista vazia (mesmo padrao de erro de `clima.py`).
+
+**Tool `consultar_noticias` no chat:** SO dispara quando o Alex pede explicitamente ("tem noticia
+de Brusque?") - nunca por conta propria, nunca notificacao proativa (decisao dele). Sem resultado,
+a IA diz que nao achou nada - instrucao explicita no prompt pra nunca inventar manchete.
+
+772 testes (14 novos), 100% passando.
+
 ## 2026-09-21 (10) - Cobranca generica (Apple) identificavel pelo chat + gastos fixos enxergam o banco
 
 O Alex perguntou se dava pra conectar com as assinaturas do iPhone/iCloud. Pesquisei: nao existe

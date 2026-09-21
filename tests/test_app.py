@@ -3011,6 +3011,35 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.post("/api/chat", json={"mensagem": "quanto eu gasto de fixo por mes?"})
         self.assertEqual(res.status_code, 200)
 
+    # ---- Noticias sob demanda (Google News RSS, so quando pedido) ----
+
+    def test_chat_consultar_noticias(self):
+        manchetes_fake = [
+            {"titulo": "Prefeitura anuncia obra", "fonte": "Brusque Agora", "link": "https://x.com/1", "publicado_em": "..."}
+        ]
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            with patch("noticias.buscar_manchetes", return_value=manchetes_fake) as mock_buscar:
+                resultado = executores["consultar_noticias"]({"termo": "Brusque SC"})
+            mock_buscar.assert_called_once_with("Brusque SC")
+            self.assertEqual(resultado["manchetes"], manchetes_fake)
+            return "Achei essa noticia de Brusque: Prefeitura anuncia obra.", ["consultar_noticias"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "tem noticia de Brusque?"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_chat_consultar_noticias_sem_resultado(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            with patch("noticias.buscar_manchetes", return_value=[]):
+                resultado = executores["consultar_noticias"]({"termo": "algo bem obscuro"})
+            self.assertEqual(resultado["manchetes"], [])
+            return "Nao achei nada sobre isso agora.", ["consultar_noticias"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "tem noticia sobre algo bem obscuro?"})
+        self.assertEqual(res.status_code, 200)
+
     # ---- Quanto sobra pra gastar ----
 
     def test_sobra_do_mes_sem_nenhum_dado(self):
