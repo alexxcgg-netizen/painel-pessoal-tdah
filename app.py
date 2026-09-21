@@ -128,6 +128,22 @@ def _normalizar_hora(hora) -> str | None:
     return f"{h:02d}:{m:02d}"
 
 
+def _corpo_json() -> dict:
+    """request.json, mas sempre um dict - um JSON valido porem do tipo errado (lista,
+    string, numero) faria qualquer `.get()` mais adiante derrubar a rota com um 500
+    cru (AttributeError). Corpo malformado deve virar 400 controlado no maximo, nunca
+    excecao nao tratada."""
+    corpo = request.json
+    return corpo if isinstance(corpo, dict) else {}
+
+
+def _texto_seguro(valor, padrao: str = "") -> str:
+    """Coage um campo de texto vindo do corpo da requisicao pra string, com
+    seguranca - um numero/lista/bool/None no lugar de texto (corpo malformado,
+    ex: {"text": 123}) vira o padrao em vez de derrubar a rota no .strip()."""
+    return valor.strip() if isinstance(valor, str) else padrao
+
+
 def _call_claude(fn, *args):
     """Chama uma funcao do claude_client e traduz falhas em uma resposta de erro pronta pra devolver."""
     try:
@@ -227,7 +243,7 @@ def configurar_pin():
         if request.method == "GET":
             return render_template("configurar_pin.html")
 
-        corpo = request.json or {}
+        corpo = _corpo_json()
         try:
             auth.definir_pin(conn, corpo.get("pin", ""), corpo.get("confirmacao", ""))
         except ValueError as e:
@@ -254,7 +270,7 @@ def login():
         if not pode_tentar:
             return jsonify({"error": msg_bloqueio}), 429
 
-        corpo = request.json or {}
+        corpo = _corpo_json()
         pin = corpo.get("pin", "")
         if auth.verificar_pin(conn, pin):
             auth.registrar_tentativa(conn, ip, sucesso=True)
@@ -324,9 +340,9 @@ def _executar_captura(text: str, clarificacao: str):
 
 @app.route("/api/capture", methods=["POST"])
 def capture():
-    body = request.json or {}
-    text = body.get("text", "").strip()
-    clarificacao = body.get("clarificacao", "").strip()
+    body = _corpo_json()
+    text = _texto_seguro(body.get("text"))
+    clarificacao = _texto_seguro(body.get("clarificacao"))
     if not text:
         return jsonify({"error": "texto vazio"}), 400
     return _executar_captura(text, clarificacao)
@@ -883,8 +899,8 @@ def _resolver_cotacao_por_titulo(conn, titulo: str) -> int:
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    body = request.json or {}
-    texto = (body.get("mensagem") or "").strip()
+    body = _corpo_json()
+    texto = _texto_seguro(body.get("mensagem"))
     if not texto:
         return jsonify({"error": "mensagem vazia"}), 400
 
@@ -1458,7 +1474,7 @@ def viagem_quando_sair():
     if not maps_client.configurado():
         return jsonify({"error": "calculadora de deslocamento nao configurada - veja o README"}), 400
 
-    body = request.json or {}
+    body = _corpo_json()
     destino = (body.get("destino") or "").strip()
     chegar_ate_str = body.get("chegar_ate")
     origem = (body.get("origem") or "").strip() or os.environ.get("ENDERECO_CASA", "").strip()
@@ -1517,7 +1533,7 @@ def lembretes():
 
 @app.route("/api/lembretes", methods=["POST"])
 def criar_lembrete():
-    body = request.json or {}
+    body = _corpo_json()
     titulo = (body.get("titulo") or "").strip()
     data_str = (body.get("data") or "").strip()
     recorrente = bool(body.get("recorrente", False))
@@ -1564,7 +1580,7 @@ def voos():
 
 @app.route("/api/voos", methods=["POST"])
 def criar_voo():
-    body = request.json or {}
+    body = _corpo_json()
     data_str = (body.get("data") or "").strip()
     destino = (body.get("destino") or "").strip()
     origem = (body.get("origem") or "").strip() or None
@@ -1650,7 +1666,7 @@ def saude_importar():
     if token_esperado and request.headers.get("X-Webhook-Token") != token_esperado:
         return jsonify({"error": "token invalido"}), 401
 
-    body = request.json or {}
+    body = _corpo_json()
     data = body.get("data") or date.today().isoformat()
     try:
         date.fromisoformat(data)
@@ -1785,7 +1801,7 @@ def bancos_conectar_finalizar():
     if not pluggy_client.configurado():
         return jsonify({"error": "sincronizacao automatica nao configurada"}), 400
 
-    item_id = (request.json or {}).get("item_id")
+    item_id = _corpo_json().get("item_id")
     if not item_id:
         return jsonify({"error": "item_id obrigatorio"}), 400
 
@@ -1825,7 +1841,7 @@ def metas():
 
 @app.route("/api/metas/<int:goal_id>/guardar", methods=["POST"])
 def guardar_meta(goal_id):
-    valor = (request.json or {}).get("valor")
+    valor = _corpo_json().get("valor")
     if not isinstance(valor, (int, float)) or valor <= 0:
         return jsonify({"error": "informe um valor positivo"}), 400
 
@@ -1890,7 +1906,7 @@ def listar_cotacoes():
 
 @app.route("/api/cotacoes", methods=["POST"])
 def criar_cotacao_rota():
-    titulo = ((request.json or {}).get("titulo") or "").strip()
+    titulo = (_corpo_json().get("titulo") or "").strip()
     if not titulo:
         return jsonify({"error": "informe o titulo da cotacao"}), 400
     conn = get_db()
@@ -1926,7 +1942,7 @@ def adicionar_item_cotacao(cotacao_id):
         conn.close()
         return jsonify({"error": "cotacao nao encontrada"}), 404
 
-    body = request.json or {}
+    body = _corpo_json()
     fornecedor = (body.get("fornecedor") or "").strip() or None
     valor = body.get("valor")
     if valor is not None and not isinstance(valor, (int, float)):
@@ -2015,7 +2031,7 @@ def atalho_capturar():
     if not _token_atalho_valido():
         return jsonify({"error": "token invalido"}), 401
 
-    body = request.json or {}
+    body = _corpo_json()
     text = (body.get("text") or "").strip()
     if not text:
         return jsonify({"error": "texto vazio"}), 400
@@ -2115,7 +2131,7 @@ def push_status():
 
 @app.route("/api/push/inscrever", methods=["POST"])
 def push_inscrever():
-    subscription = request.json or {}
+    subscription = _corpo_json()
     endpoint = subscription.get("endpoint")
     if not endpoint:
         return jsonify({"error": "inscricao invalida"}), 400

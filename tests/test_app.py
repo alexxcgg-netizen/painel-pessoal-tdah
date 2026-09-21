@@ -3231,6 +3231,128 @@ class PainelTestCase(unittest.TestCase):
         self.assertIn("erro", resultado)
 
 
+class FuzzingEndpointsTestCase(unittest.TestCase):
+    """Fuzzing leve dos endpoints principais (POST /api/capture, POST /api/chat,
+    GET /api/tasks, GET /api/expenses) - garante que corpo malformado ou tipo de
+    dado inesperado nunca derruba a rota com um 500 cru (excecao nao tratada
+    vazando como Internal Server Error). Nao valida o resultado de negocio de cada
+    caso, so que a resposta e sempre controlada (400/401/200), nunca 500 - exceto
+    onde isso e explicitamente o esperado (nenhum caso aqui e assim).
+
+    Classe separada de PainelTestCase (em vez de herdar dela) de proposito - herdar
+    faria o unittest coletar e rodar de novo todos os testes de feature dela sob
+    esse nome, dobrando o tempo da suite sem nenhum ganho."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        conn.execute("DELETE FROM memorias")
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        conn.commit()
+        conn.close()
+        app._CACHE_CONSTRUTORA.clear()
+        self.client = app.app.test_client()
+        res = self.client.post("/login", json={"pin": PIN_TESTE})
+        assert res.status_code == 200, res.get_json()
+
+    CORPOS_MALFORMADOS = [
+        {},
+        None,
+        [],
+        [1, 2, 3],
+        "so uma string solta",
+        123,
+        123.45,
+        True,
+        {"text": None},
+        {"text": 123},
+        {"text": 123.45},
+        {"text": True},
+        {"text": False},
+        {"text": []},
+        {"text": [1, 2, 3]},
+        {"text": {}},
+        {"text": {"aninhado": "valor"}},
+        {"text": ""},
+        {"text": "   "},
+        {"mensagem": None},
+        {"mensagem": 123},
+        {"mensagem": []},
+        {"mensagem": {}},
+        {"text": "a" * 100000},
+        {"text": "😀" * 2000},
+        {"text": "<script>alert(1)</script>"},
+        {"text": "' OR '1'='1"},
+        {"text": "'; DROP TABLE tasks; --"},
+        {"text": "texto\x00com\x00null\x00byte"},
+        {"text": "линия юникода на русском"},
+        {"text": "texto valido", "clarificacao": None},
+        {"text": "texto valido", "clarificacao": 123},
+        {"text": "texto valido", "clarificacao": []},
+        {"text": "texto valido", "clarificacao": {}},
+        {"text": "texto valido", "campo_desconhecido_extra": "valor qualquer"},
+        {"text": "texto valido", "__proto__": "tentativa de poluicao"},
+        {"outro_campo_qualquer": "sem text nem mensagem"},
+        {"text": {"$ne": None}},  # tentativa de injecao estilo NoSQL, sem sentido aqui mas nao pode quebrar
+    ]
+
+    def _fuzzar(self, path, campo_chave_vazia="text"):
+        with patch("claude_client.classify_capture", return_value=(
+            {"tipo": "tarefa", "titulo": "fuzz", "valor": None, "categoria": None, "quando": None, "duvida": None},
+            fake_usage(),
+        )), patch("claude_client.chat", return_value=("ok", [], fake_usage())):
+            for i, corpo in enumerate(self.CORPOS_MALFORMADOS):
+                with self.subTest(endpoint=path, caso=i, corpo=corpo):
+                    # Serializa na mao (em vez do kwarg json= do test client) pra
+                    # cobrir de forma explicita e previsivel None/listas/escalares
+                    # como corpo, nao so dicts.
+                    res = self.client.post(path, data=json.dumps(corpo), content_type="application/json")
+                    self.assertNotEqual(
+                        res.status_code, 500, f"{path} com corpo={corpo!r} devolveu 500 cru"
+                    )
+                    self.assertIn(res.status_code, (200, 201, 400), f"{path} com corpo={corpo!r} -> {res.status_code}")
+
+    def test_fuzzing_capture_nunca_da_500(self):
+        self._fuzzar("/api/capture")
+
+    def test_fuzzing_chat_nunca_da_500(self):
+        self._fuzzar("/api/chat")
+
+    def test_fuzzing_capture_corpo_nao_json_nunca_da_500(self):
+        casos_nao_json = [
+            "texto puro sem ser json",
+            "{json quebrado sem fechar",
+            "",
+            "null",
+            "<xml>nao é json</xml>",
+            b"\xff\xfe\x00\x01binario",
+        ]
+        for i, corpo in enumerate(casos_nao_json):
+            with self.subTest(caso=i, corpo=corpo):
+                res = self.client.post(
+                    "/api/capture",
+                    data=corpo,
+                    content_type="application/json" if i < 4 else "application/octet-stream",
+                )
+                self.assertNotEqual(res.status_code, 500, f"corpo bruto={corpo!r} devolveu 500 cru")
+
+    def test_fuzzing_tasks_get_nunca_da_500(self):
+        for query in ["", "?foo=bar", "?" + "x" * 5000, "?id=' OR '1'='1"]:
+            with self.subTest(query=query):
+                res = self.client.get(f"/api/tasks{query}")
+                self.assertNotEqual(res.status_code, 500)
+                self.assertEqual(res.status_code, 200)
+
+    def test_fuzzing_expenses_get_nunca_da_500(self):
+        for query in ["", "?foo=bar", "?" + "x" * 5000]:
+            with self.subTest(query=query):
+                res = self.client.get(f"/api/expenses{query}")
+                self.assertNotEqual(res.status_code, 500)
+                self.assertEqual(res.status_code, 200)
+
+
 class AutenticacaoTestCase(unittest.TestCase):
     """Testa o gate de autenticacao no nivel HTTP - cada teste comeca de um
     banco vazio (sem PIN configurado), diferente de PainelTestCase (que ja
