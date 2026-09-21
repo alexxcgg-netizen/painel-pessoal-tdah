@@ -2142,6 +2142,168 @@ class PainelTestCase(unittest.TestCase):
         ]
         self.assertIn("nao chover", tarefa_aeroclube["title"])
 
+    # ---- Sugestao de melhor dia pra tarefa sem data fixa ----
+
+    def _registrar_via_chat(self, nome_tool, entrada):
+        """Roda o executor de verdade (app.py) sem precisar simular o loop
+        completo de tool-use - mocka so claude_client.chat pra chamar o
+        executor direto, igual aos testes de gasto real/planejado ja
+        existentes."""
+        captura = {}
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            captura["resultado"] = executores[nome_tool](entrada)
+            return "Beleza.", [nome_tool], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "..."})
+        return captura["resultado"]
+
+    def test_registrar_tarefa_essa_semana_sugere_dia_menos_corrido(self):
+        hoje = date.today()
+        if hoje.weekday() == 6:
+            self.skipTest("domingo e o ultimo dia da semana, nao ha o que sugerir")
+        amanha = (hoje + timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        for _ in range(3):
+            conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("coisa", amanha))
+        conn.commit()
+        conn.close()
+
+        resultado = self._registrar_via_chat(
+            "registrar_tarefa", {"titulo": "cotar portas", "quando": "essa semana"}
+        )
+        self.assertIn("sugestao_dia", resultado)
+        self.assertNotEqual(resultado["sugestao_dia"]["data"], amanha)
+        self.assertEqual(resultado["sugestao_dia"]["carga"], 0)
+
+    def test_registrar_tarefa_com_data_certa_nao_sugere_dia(self):
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        resultado = self._registrar_via_chat(
+            "registrar_tarefa", {"titulo": "ir pra BC", "quando": "amanha cedo", "quando_data": amanha}
+        )
+        self.assertNotIn("sugestao_dia", resultado)
+
+    def test_registrar_tarefa_sem_quando_nao_sugere_dia(self):
+        resultado = self._registrar_via_chat(
+            "registrar_tarefa", {"titulo": "responder a corretora"}
+        )
+        self.assertNotIn("sugestao_dia", resultado)
+
+    # ---- Sugestao de horario livre no dia ----
+
+    def test_sugerir_horario_livre_considera_compromissos_reais_do_dia(self):
+        hoje = date.today().isoformat()
+        eventos_fake = [
+            {"titulo": "Reuniao", "inicio": f"{hoje}T08:00:00", "fim": f"{hoje}T09:00:00", "dia_inteiro": False},
+            {"titulo": "Jantar", "inicio": f"{hoje}T19:00:00", "fim": f"{hoje}T20:00:00", "dia_inteiro": False},
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ):
+            resultado = self._registrar_via_chat("sugerir_horario_livre", {"duracao_minutos": 60})
+        self.assertTrue(resultado["encontrado"])
+        self.assertEqual(resultado["inicio"], "09:00")
+        self.assertEqual(resultado["fim"], "19:00")
+
+    def test_sugerir_horario_livre_respeita_depois_das(self):
+        hoje = date.today().isoformat()
+        eventos_fake = [
+            {"titulo": "Reuniao", "inicio": f"{hoje}T08:00:00", "fim": f"{hoje}T09:00:00", "dia_inteiro": False}
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ):
+            resultado = self._registrar_via_chat(
+                "sugerir_horario_livre", {"duracao_minutos": 30, "depois_das": "18:00"}
+            )
+        self.assertEqual(resultado["inicio"], "18:00")
+
+    def test_sugerir_horario_livre_dia_cheio_retorna_nao_encontrado(self):
+        hoje = date.today().isoformat()
+        eventos_fake = [
+            {"titulo": "Trabalho", "inicio": f"{hoje}T06:00:00", "fim": f"{hoje}T22:00:00", "dia_inteiro": False}
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ):
+            resultado = self._registrar_via_chat("sugerir_horario_livre", {"duracao_minutos": 30})
+        self.assertFalse(resultado["encontrado"])
+
+    # ---- Calculadora de viagem + combustivel ----
+
+    def test_calcular_gasto_viagem_usa_distancia_real_do_maps(self):
+        resultado_fake = {"duracao_minutos": 480, "distancia_km": 850.0}
+        with patch("maps_client.configurado", return_value=True), patch(
+            "maps_client.tempo_de_viagem", return_value=resultado_fake
+        ):
+            resultado = self._registrar_via_chat(
+                "calcular_gasto_viagem",
+                {"destino": "Foz do Iguacu", "origem": "Brusque", "km_por_litro": 16.0, "preco_por_litro": 6.0},
+            )
+        self.assertEqual(resultado["distancia_km"], 850.0)
+        self.assertEqual(resultado["duracao_minutos"], 480)
+        self.assertEqual(resultado["litros_gastos"], 53.1)
+        self.assertEqual(resultado["custo_combustivel"], 318.75)
+
+    def test_calcular_gasto_viagem_usa_endereco_padrao_quando_origem_omitida(self):
+        resultado_fake = {"duracao_minutos": 10, "distancia_km": 5.0}
+        with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 100"}), patch(
+            "maps_client.configurado", return_value=True
+        ), patch("maps_client.tempo_de_viagem", return_value=resultado_fake) as mock_trajeto:
+            self._registrar_via_chat(
+                "calcular_gasto_viagem",
+                {"destino": "mercado", "km_por_litro": 10.0, "preco_por_litro": 5.0},
+            )
+        mock_trajeto.assert_called_once_with("Rua Teste, 100", "mercado")
+
+    def test_calcular_gasto_viagem_sem_origem_nem_padrao_devolve_erro(self):
+        with patch.dict(os.environ, {"ENDERECO_CASA": ""}), patch(
+            "maps_client.configurado", return_value=True
+        ):
+            resultado = self._registrar_via_chat(
+                "calcular_gasto_viagem",
+                {"destino": "mercado", "km_por_litro": 10.0, "preco_por_litro": 5.0},
+            )
+        self.assertIn("erro", resultado)
+
+    def test_calcular_gasto_viagem_sem_maps_configurado_devolve_erro(self):
+        with patch("maps_client.configurado", return_value=False):
+            resultado = self._registrar_via_chat(
+                "calcular_gasto_viagem",
+                {"destino": "mercado", "km_por_litro": 10.0, "preco_por_litro": 5.0},
+            )
+        self.assertIn("erro", resultado)
+
+    # ---- Sugestao de posto no meio do caminho ----
+
+    def test_sugerir_posto_no_caminho_retorna_posto_encontrado(self):
+        posto_fake = {"nome": "Posto Graal", "endereco": "BR-101, km 100"}
+        with patch("maps_client.configurado", return_value=True), patch(
+            "maps_client.posto_no_meio_do_caminho", return_value=posto_fake
+        ):
+            resultado = self._registrar_via_chat(
+                "sugerir_posto_no_caminho", {"destino": "Foz do Iguacu", "origem": "Brusque"}
+            )
+        self.assertEqual(resultado["nome"], "Posto Graal")
+        self.assertEqual(resultado["endereco"], "BR-101, km 100")
+
+    def test_sugerir_posto_no_caminho_sem_resultado_devolve_erro(self):
+        with patch("maps_client.configurado", return_value=True), patch(
+            "maps_client.posto_no_meio_do_caminho", return_value=None
+        ):
+            resultado = self._registrar_via_chat(
+                "sugerir_posto_no_caminho", {"destino": "Foz do Iguacu", "origem": "Brusque"}
+            )
+        self.assertIn("erro", resultado)
+
+    def test_sugerir_posto_no_caminho_sem_maps_configurado_devolve_erro(self):
+        with patch("maps_client.configurado", return_value=False):
+            resultado = self._registrar_via_chat(
+                "sugerir_posto_no_caminho", {"destino": "Foz do Iguacu", "origem": "Brusque"}
+            )
+        self.assertIn("erro", resultado)
+
 
 class AutenticacaoTestCase(unittest.TestCase):
     """Testa o gate de autenticacao no nivel HTTP - cada teste comeca de um

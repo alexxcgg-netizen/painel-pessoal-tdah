@@ -121,6 +121,25 @@ condicao a tarefa perde o motivo de estar ali. "essa semana"/"um dia da semana" 
 e "quando" solto (sem "quando_data") - segue a regra ja dada de so preencher "quando_data" quando
 der pra apontar uma data exata.
 
+Se o resultado de `registrar_tarefa` vier com um campo "sugestao_dia" (dia, dia da semana e quanta
+coisa ja esta marcada nele), mencione essa sugestao na resposta como uma pergunta, nunca como algo
+decidido (ex: "terca parece o dia mais livre - quer marcar pra la?") - MAS SO quando a tarefa for
+do tipo que se beneficia de um dia dedicado (cotacao com fornecedor, ida a algum lugar, projeto de
+casa que toma tempo). Nao sugira dia pra coisa rapida (responder uma mensagem, uma ligacao curta),
+que cabe em qualquer hora do dia.
+
+Quando o Alex perguntar que horas fazer algo recorrente sem hora fixa (ex: "que horas eu vou pra
+academia hoje?"), chame `sugerir_horario_livre` em vez de adivinhar - ela olha o que ja esta
+marcado no dia de verdade e acha o maior espaco livre.
+
+Quando o Alex perguntar quanto gastaria de combustivel numa viagem, chame `calcular_gasto_viagem` -
+nunca estime distancia ou tempo de cabeca, isso sempre vem do resultado da ferramenta (Google
+Maps). Se faltar o consumo do carro (km/l) ou o preco do combustivel, pergunte antes de chamar a
+ferramenta (a nao ser que ja esteja nas memorias). Se ele tambem quiser saber onde parar pra
+abastecer no meio do caminho, chame tambem `sugerir_posto_no_caminho` - deixe bem claro na resposta
+que e so a localizacao de um posto por perto, sem comparar preco entre postos (essa informacao eu
+nao tenho de onde tirar confiavel pro Brasil).
+
 Voo pode ser so um compromisso futuro (ex: "vou voar pra Blumenau semana que vem" - sem horas
 ainda) ou um voo ja realizado (ex: "voei 1.5h hoje, treino de pouso" - com horas). Nao invente
 numero de horas nem meta de horas de curso - isso varia por escola/etapa e so o Alex sabe o
@@ -289,6 +308,79 @@ CHAT_TOOLS = [
                 },
             },
             "required": ["fato"],
+        },
+    },
+    {
+        "name": "sugerir_horario_livre",
+        "description": (
+            "Acha o maior espaco livre HOJE, olhando o que ja esta marcado no dia de verdade - "
+            "use quando o Alex perguntar que horas fazer algo (tipo ir pra academia) sem ter dito "
+            "um horario fixo."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "duracao_minutos": {
+                    "type": "integer",
+                    "description": "quanto tempo a atividade costuma durar, em minutos - use 60 se ele nao disser",
+                },
+                "depois_das": {
+                    "type": "string",
+                    "description": "HH:MM - so procura depois desse horario (ex: ele disse 'de tarde'). Omita se nao houver preferencia",
+                },
+                "antes_das": {
+                    "type": "string",
+                    "description": "HH:MM - so procura antes desse horario. Omita se nao houver preferencia",
+                },
+            },
+            "required": ["duracao_minutos"],
+        },
+    },
+    {
+        "name": "calcular_gasto_viagem",
+        "description": (
+            "Calcula distancia real, duracao e gasto de combustivel de uma viagem de carro, "
+            "usando o trajeto de verdade do Google Maps - use quando o Alex perguntar quanto "
+            "gastaria de gasolina indo de um lugar a outro."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "destino": {"type": "string"},
+                "origem": {
+                    "type": "string",
+                    "description": "omita pra usar o endereco padrao de casa do Alex",
+                },
+                "km_por_litro": {
+                    "type": "number",
+                    "description": "consumo medio do carro - pergunte antes se ele nao disse e nao esta nas memorias",
+                },
+                "preco_por_litro": {
+                    "type": "number",
+                    "description": "preco do combustivel em reais por litro - pergunte antes se ele nao disse",
+                },
+            },
+            "required": ["destino", "km_por_litro", "preco_por_litro"],
+        },
+    },
+    {
+        "name": "sugerir_posto_no_caminho",
+        "description": (
+            "Sugere um posto de gasolina perto do meio do caminho de uma viagem longa - so "
+            "localizacao, NUNCA compara preco entre postos (essa informacao nao existe de forma "
+            "confiavel pro Brasil nas fontes que tenho). Use quando o Alex perguntar onde parar "
+            "pra abastecer numa viagem."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "destino": {"type": "string"},
+                "origem": {
+                    "type": "string",
+                    "description": "omita pra usar o endereco padrao de casa do Alex",
+                },
+            },
+            "required": ["destino"],
         },
     },
 ]

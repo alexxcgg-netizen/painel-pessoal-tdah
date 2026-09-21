@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 import requests
 
 URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
+GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+PLACES_URL = "https://places.googleapis.com/v1/places:searchNearby"
 
 # 'DRIVE' (carro), 'WALK' (a pe), 'BICYCLE', 'TRANSIT' (transporte publico)
 MODOS_VALIDOS = {"DRIVE", "WALK", "BICYCLE", "TRANSIT"}
@@ -70,4 +72,54 @@ def horario_de_saida(
         "duracao_minutos": viagem["duracao_minutos"],
         "distancia_km": viagem["distancia_km"],
         "margem_minutos": margem_minutos,
+    }
+
+
+def _geocodificar(endereco: str) -> tuple[float, float]:
+    resp = requests.get(
+        GEOCODE_URL,
+        params={"address": endereco, "key": os.environ["GOOGLE_MAPS_API_KEY"]},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    resultados = resp.json().get("results") or []
+    if not resultados:
+        raise ValueError(f"nao encontrei o endereco: {endereco}")
+    loc = resultados[0]["geometry"]["location"]
+    return loc["lat"], loc["lng"]
+
+
+def posto_no_meio_do_caminho(origem: str, destino: str) -> dict | None:
+    """Geocodifica origem e destino, acha o ponto geografico no meio do
+    caminho (linha reta entre os dois pontos - aproximacao, nao segue o
+    contorno exato da estrada) e procura o posto de gasolina mais proximo
+    desse ponto. So localizacao: a Google Places API nao tem preco de
+    combustivel confiavel pro Brasil, entao isso nunca compara preco entre
+    postos, so aponta onde parar. None se nao achar nenhum por perto."""
+    lat1, lng1 = _geocodificar(origem)
+    lat2, lng2 = _geocodificar(destino)
+    lat_meio, lng_meio = (lat1 + lat2) / 2, (lng1 + lng2) / 2
+
+    body = {
+        "includedTypes": ["gas_station"],
+        "maxResultCount": 3,
+        "locationRestriction": {
+            "circle": {"center": {"latitude": lat_meio, "longitude": lng_meio}, "radius": 15000.0}
+        },
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": os.environ["GOOGLE_MAPS_API_KEY"],
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress",
+    }
+    resp = requests.post(PLACES_URL, json=body, headers=headers, timeout=10)
+    resp.raise_for_status()
+    lugares = resp.json().get("places", [])
+    if not lugares:
+        return None
+
+    posto = lugares[0]
+    return {
+        "nome": posto.get("displayName", {}).get("text", "posto de gasolina"),
+        "endereco": posto.get("formattedAddress", ""),
     }

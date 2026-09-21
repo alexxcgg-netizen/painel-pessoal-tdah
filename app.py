@@ -9,6 +9,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session
 
 load_dotenv()
 
+import agenda
 import auth
 import bank_ofx
 import caldav_client
@@ -21,6 +22,7 @@ import notificacoes
 import pluggy_client
 import push_client
 import streak
+import viagem
 import voos as voos_module
 from db import (
     CAMPOS_SAUDE,
@@ -658,6 +660,20 @@ def _contexto_chat(conn) -> str:
     return "\n".join(linhas)
 
 
+def _carga_por_dia(conn, dias: list[date]) -> dict[str, int]:
+    """Quantas tarefas pendentes ja estao marcadas em cada dia (entre os
+    'dias' dados) - usado so pra decidir qual dia esta mais livre pra
+    sugerir uma tarefa nova sem data fixa, nunca pra nada critico."""
+    if not dias:
+        return {}
+    rows = conn.execute(
+        "SELECT due_date, COUNT(*) AS n FROM tasks WHERE completed_at IS NULL "
+        "AND due_date BETWEEN ? AND ? GROUP BY due_date",
+        (dias[0].isoformat(), dias[-1].isoformat()),
+    ).fetchall()
+    return {r["due_date"]: r["n"] for r in rows}
+
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
     body = request.json or {}
@@ -675,12 +691,22 @@ def chat():
     contexto = _contexto_chat(conn)
 
     def exec_registrar_tarefa(entrada):
+        quando_data = entrada.get("quando_data")
         conn.execute(
             "INSERT INTO tasks (title, due_at, due_date, hora, source_text) VALUES (?, ?, ?, ?, ?)",
-            (entrada["titulo"], entrada.get("quando"), entrada.get("quando_data"), _normalizar_hora(entrada.get("hora")), texto),
+            (entrada["titulo"], entrada.get("quando"), quando_data, _normalizar_hora(entrada.get("hora")), texto),
         )
         conn.commit()
-        return {"ok": True}
+        resultado = {"ok": True}
+        # so oferece sugestao de dia quando a tarefa ficou com data vaga
+        # ("essa semana") - com dia certo (quando_data) ou sem nenhuma pista
+        # de tempo (entrada.get("quando") vazio) nao ha nada útil a sugerir
+        if entrada.get("quando") and not quando_data:
+            dias = agenda.dias_ate_o_fim_da_semana(date.today())
+            if len(dias) > 1:
+                carga = _carga_por_dia(conn, dias)
+                resultado["sugestao_dia"] = agenda.sugerir_dia_menos_corrido(carga, dias)
+        return resultado
 
     def exec_registrar_gasto(entrada):
         status_gasto = entrada.get("status") if entrada.get("status") in ("real", "planejado") else "real"
@@ -724,6 +750,50 @@ def chat():
         )
         return {"ok": True}
 
+    def exec_sugerir_horario_livre(entrada):
+        eventos = _eventos_de_hoje_com_seguranca(conn)
+        compromissos = [(e["inicio"][11:16], e["fim"][11:16]) for e in eventos if not e.get("dia_inteiro")]
+        inicio_dia = entrada.get("depois_das") or "06:00"
+        fim_dia = entrada.get("antes_das") or "22:00"
+        janela = agenda.maior_janela_livre(compromissos, inicio_dia, fim_dia, entrada["duracao_minutos"])
+        if not janela:
+            return {"encontrado": False}
+        return {"encontrado": True, **janela}
+
+    def exec_calcular_gasto_viagem(entrada):
+        if not maps_client.configurado():
+            return {"erro": "Google Maps nao configurado"}
+        origem = entrada.get("origem") or os.environ.get("ENDERECO_CASA", "").strip()
+        if not origem:
+            return {"erro": "preciso saber de onde voce sai (endereco padrao nao configurado)"}
+        try:
+            trajeto = maps_client.tempo_de_viagem(origem, entrada["destino"])
+        except (ValueError, requests.RequestException):
+            return {"erro": "nao consegui calcular a rota agora"}
+        custo = viagem.custo_combustivel(
+            trajeto["distancia_km"], entrada["km_por_litro"], entrada["preco_por_litro"]
+        )
+        return {
+            "distancia_km": trajeto["distancia_km"],
+            "duracao_minutos": trajeto["duracao_minutos"],
+            "litros_gastos": custo["litros"],
+            "custo_combustivel": custo["custo"],
+        }
+
+    def exec_sugerir_posto_no_caminho(entrada):
+        if not maps_client.configurado():
+            return {"erro": "Google Maps nao configurado"}
+        origem = entrada.get("origem") or os.environ.get("ENDERECO_CASA", "").strip()
+        if not origem:
+            return {"erro": "preciso saber de onde voce sai (endereco padrao nao configurado)"}
+        try:
+            posto = maps_client.posto_no_meio_do_caminho(origem, entrada["destino"])
+        except (ValueError, requests.RequestException):
+            return {"erro": "nao consegui buscar postos agora"}
+        if not posto:
+            return {"erro": "nao achei nenhum posto perto do meio do caminho"}
+        return posto
+
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
@@ -732,6 +802,9 @@ def chat():
         "registrar_lembrete": exec_registrar_lembrete,
         "registrar_memoria": exec_registrar_memoria,
         "registrar_voo": exec_registrar_voo,
+        "sugerir_horario_livre": exec_sugerir_horario_livre,
+        "calcular_gasto_viagem": exec_calcular_gasto_viagem,
+        "sugerir_posto_no_caminho": exec_sugerir_posto_no_caminho,
     }
 
     result, error = _call_claude(
