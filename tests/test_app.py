@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import sqlite3
 import tempfile
@@ -98,6 +99,34 @@ class PainelTestCase(unittest.TestCase):
         # gate de autenticacao (before_request) em vez de contornar ele
         res = self.client.post("/login", json={"pin": PIN_TESTE})
         assert res.status_code == 200, res.get_json()
+
+    def test_smoke_pagina_principal_carrega(self):
+        res = self.client.get("/")
+        self.assertEqual(res.status_code, 200)
+        corpo = res.get_data(as_text=True)
+        self.assertIn("<html", corpo.lower())
+        self.assertIn("Painel Pessoal", corpo)
+
+    def test_smoke_manifest_valido_e_icones_existem(self):
+        res = self.client.get("/static/manifest.json")
+        self.assertEqual(res.status_code, 200)
+        manifest = json.loads(res.get_data(as_text=True))
+        self.assertIn("icons", manifest)
+        self.assertTrue(len(manifest["icons"]) > 0)
+        for icone in manifest["icons"]:
+            res_icone = self.client.get(icone["src"])
+            self.assertEqual(
+                res_icone.status_code, 200, f"icone {icone['src']} nao encontrado/servido"
+            )
+
+    def test_smoke_apple_touch_icon_existe(self):
+        res = self.client.get("/static/icons/icon-180.png")
+        self.assertEqual(res.status_code, 200)
+
+    def test_smoke_service_worker_servido(self):
+        res = self.client.get("/static/service-worker.js")
+        self.assertEqual(res.status_code, 200)
+        self.assertGreater(len(res.get_data()), 0)
 
     def test_captura_gasto_direto(self):
         parsed = {
