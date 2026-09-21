@@ -659,6 +659,78 @@ class PainelTestCase(unittest.TestCase):
         res = self.client.get("/api/calendario/hoje")
         self.assertEqual(res.get_json()["eventos"], [])
 
+    def test_fechamento_do_dia_lista_concluidas_e_pendentes_de_hoje(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, datetime('now'))",
+            ("academia", hoje),
+        )
+        conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)",
+            ("ligar pro dentista", hoje),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/fechamento-do-dia")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["concluidas"], ["academia"])
+        self.assertEqual(body["pendentes_hoje"], ["ligar pro dentista"])
+
+    def test_fechamento_do_dia_ignora_tarefa_pendente_de_outro_dia(self):
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("viagem", amanha))
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/fechamento-do-dia")
+        body = res.get_json()
+        self.assertEqual(body["concluidas"], [])
+        self.assertEqual(body["pendentes_hoje"], [])
+
+    def test_fechamento_do_dia_vazio_sem_tarefas(self):
+        res = self.client.get("/api/fechamento-do-dia")
+        body = res.get_json()
+        self.assertEqual(body["concluidas"], [])
+        self.assertEqual(body["pendentes_hoje"], [])
+
+    def test_gastos_resumo_semanal_endpoint(self):
+        parsed = {
+            "tipo": "gasto",
+            "titulo": "mercado",
+            "valor": 42.0,
+            "categoria": "mercado",
+            "quando": None,
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            self.client.post("/api/capture", json={"text": "gastei 42 no mercado"})
+
+        res = self.client.get("/api/gastos/resumo-semanal")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["total_semana"], 42.0)
+        self.assertEqual(body["categoria_top"], "mercado")
+
+    def test_gastos_resumo_semanal_ignora_gasto_planejado(self):
+        parsed = {
+            "tipo": "gasto",
+            "titulo": "talvez compre um fone",
+            "valor": 300.0,
+            "categoria": "lazer",
+            "status": "planejado",
+            "quando": None,
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            self.client.post("/api/capture", json={"text": "to pensando em comprar um fone de 300"})
+
+        res = self.client.get("/api/gastos/resumo-semanal")
+        self.assertEqual(res.get_json()["total_semana"], 0)
+
     def test_plano_do_dia_nao_duplica_tarefa_com_horario_hoje(self):
         hoje = date.today().isoformat()
         conn = db.get_db()

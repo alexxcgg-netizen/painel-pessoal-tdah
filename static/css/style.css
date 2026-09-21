@@ -741,6 +741,39 @@ header {
   margin-top: 0.1rem;
 }
 
+.resumo-semanal-box {
+  background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 70%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  margin: 0 0 0.85rem;
+  box-shadow: var(--shadow-card);
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+.resumo-semanal-valor {
+  display: block;
+  font-family: var(--font-numeros);
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.resumo-semanal-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 0.1rem;
+}
+
+.resumo-semanal-detalhe {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
 .grafico-card {
   position: relative;
   background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 70%);
@@ -1023,39 +1056,78 @@ li.item.saindo {
   margin-top: 0.15rem;
 }
 
-.dia-barra {
-  margin-top: 0.5rem;
-}
-
-.dia-barra-trilha {
+/* Linha do tempo da agenda (inspirada no Tiimo): uma trilha vertical liga os
+   compromissos do dia, o que ja passou fica apagado e o proximo evento ganha
+   um marcador maior + selo "proximo" - ajuda com cegueira de tempo sem
+   precisar ler cada horario com atencao. */
+#lista-agenda {
   position: relative;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--border);
-  overflow: visible;
+  padding-left: 1.3rem;
 }
 
-.dia-barra-preenchida {
+#lista-agenda::before {
+  content: "";
   position: absolute;
-  top: 0;
-  height: 4px;
+  left: 0.5rem;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  width: 2px;
+  background: var(--border);
+}
+
+#lista-agenda li.item {
+  position: relative;
+}
+
+#lista-agenda li.item::before {
+  content: "";
+  position: absolute;
+  left: -1.05rem;
+  top: 1.05rem;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
-  background: var(--accent-gradient-ink);
-  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 60%, transparent);
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  z-index: 1;
 }
 
-.dia-barra-preenchida.tarefa {
-  background: var(--cor-tarefas);
-  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--cor-tarefas) 60%, transparent);
+#lista-agenda li.item.passado {
+  opacity: 0.5;
 }
 
-.dia-barra-legenda {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.3rem;
+#lista-agenda li.item.passado::before {
+  border-color: var(--text-faint);
+  background: var(--text-faint);
+}
+
+#lista-agenda li.item.proximo {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-card);
+}
+
+#lista-agenda li.item.proximo::before {
+  left: -1.1rem;
+  top: 1rem;
+  width: 12px;
+  height: 12px;
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.item-badge-proximo {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--accent-text);
   font-family: var(--font-tech);
-  font-size: 0.6rem;
-  color: var(--text-faint);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
 }
 
 .item-tag-tarefa {
@@ -1310,6 +1382,24 @@ li.item.item-planejado {
   color: var(--text-muted);
   font-size: 0.8rem;
   margin: -0.4rem 0 0.75rem;
+}
+
+.fechamento-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 70%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.95rem;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 1rem;
+}
+
+.fechamento-linha {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--text);
 }
 
 .meta-progresso {

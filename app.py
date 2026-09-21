@@ -367,6 +367,16 @@ def expenses_historico():
     return jsonify(historico)
 
 
+@app.route("/api/gastos/resumo-semanal", methods=["GET"])
+def gastos_resumo_semanal():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT amount, category, created_at FROM expenses WHERE tipo = 'real'"
+    ).fetchall()
+    conn.close()
+    return jsonify(gastos.resumo_semanal([dict(r) for r in rows], date.today()))
+
+
 def _saude_contexto_resumo(conn) -> str | None:
     """Monta uma frase factual sobre a saude de hoje pro resumo do dia -
     a comparacao com a media e feita em Python, a IA so recebe o resultado
@@ -532,6 +542,32 @@ def _tarefas_pendentes_sem_horario_hoje(conn):
         "AND NOT (due_date = ? AND hora IS NOT NULL)",
         (hoje,),
     ).fetchall()
+
+
+@app.route("/api/fechamento-do-dia", methods=["GET"])
+def fechamento_do_dia():
+    """Ritual de fechamento (inspirado no 'shutdown' do Sunsama): o que foi
+    concluido hoje e o que ainda ficou marcado pra hoje e nao foi feito -
+    sem cobranca, a tarefa continua pendente naturalmente e reaparece
+    amanha, isso aqui e so uma fotografia pra fechar o dia com a cabeca
+    tranquila."""
+    hoje = date.today().isoformat()
+    conn = get_db()
+    concluidas = conn.execute(
+        "SELECT title FROM tasks WHERE date(completed_at) = ? ORDER BY completed_at", (hoje,)
+    ).fetchall()
+    pendentes_hoje = conn.execute(
+        "SELECT title FROM tasks WHERE completed_at IS NULL AND due_date = ? "
+        "ORDER BY hora IS NULL, hora",
+        (hoje,),
+    ).fetchall()
+    conn.close()
+    return jsonify(
+        {
+            "concluidas": [r["title"] for r in concluidas],
+            "pendentes_hoje": [r["title"] for r in pendentes_hoje],
+        }
+    )
 
 
 @app.route("/api/calendario/hoje", methods=["GET"])

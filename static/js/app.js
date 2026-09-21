@@ -190,6 +190,7 @@ function showTab(name) {
   if (name === "painel") {
     loadSummary();
     loadAgenda();
+    loadFechamentoDoDia();
     loadSaude();
     loadMemorias();
     loadLembretes();
@@ -469,38 +470,6 @@ function fmtHora(isoString) {
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function minutosDoDia(isoString) {
-  const d = new Date(isoString);
-  return d.getHours() * 60 + d.getMinutes();
-}
-
-function criarBarraDia(ev) {
-  const wrap = document.createElement("div");
-  wrap.className = "dia-barra";
-
-  const trilha = document.createElement("div");
-  trilha.className = "dia-barra-trilha";
-
-  const inicioMin = minutosDoDia(ev.inicio);
-  const fimMin = Math.max(minutosDoDia(ev.fim), inicioMin);
-  const pctInicio = (inicioMin / 1440) * 100;
-  const pctLargura = Math.max(((fimMin - inicioMin) / 1440) * 100, 1.2);
-
-  const preenchida = document.createElement("div");
-  preenchida.className = "dia-barra-preenchida" + (ev.origem === "tarefa" ? " tarefa" : "");
-  preenchida.style.left = `${pctInicio}%`;
-  preenchida.style.width = `${pctLargura}%`;
-  trilha.appendChild(preenchida);
-  wrap.appendChild(trilha);
-
-  const legenda = document.createElement("div");
-  legenda.className = "dia-barra-legenda";
-  legenda.innerHTML = "<span>00h</span><span>12h</span><span>24h</span>";
-  wrap.appendChild(legenda);
-
-  return wrap;
-}
-
 async function loadAgenda() {
   const data = await apiFetch("/api/calendario/hoje");
   if (!data) return;
@@ -510,9 +479,28 @@ async function loadAgenda() {
   const list = $("#lista-agenda");
   list.innerHTML = "";
   $("#agenda-vazio").hidden = data.eventos.length > 0;
+
+  // linha do tempo (inspirada no Tiimo): em vez de so uma lista de texto, cada
+  // compromisso marca sua posicao na linha vertical - o que ja passou fica
+  // apagado, o proximo que ainda vai acontecer ganha destaque, pra ajudar
+  // com cegueira de tempo (comum em TDAH) a bater o olho e saber onde esta
+  // no dia sem ter que ler tudo.
+  const agora = new Date();
+  let proximoMarcado = false;
+
   data.eventos.forEach((ev) => {
     const li = document.createElement("li");
     li.className = "item";
+
+    if (!ev.dia_inteiro) {
+      if (new Date(ev.fim) < agora) {
+        li.classList.add("passado");
+      } else if (!proximoMarcado) {
+        li.classList.add("proximo");
+        proximoMarcado = true;
+      }
+    }
+
     const titulo = document.createElement("span");
     titulo.className = "item-titulo";
     titulo.textContent = ev.titulo;
@@ -521,6 +509,12 @@ async function loadAgenda() {
       tag.className = "item-tag-tarefa";
       tag.textContent = "tarefa";
       titulo.appendChild(tag);
+    }
+    if (li.classList.contains("proximo")) {
+      const badge = document.createElement("span");
+      badge.className = "item-badge-proximo";
+      badge.textContent = "proximo";
+      titulo.appendChild(badge);
     }
     const horario = document.createElement("span");
     horario.className = "item-quando";
@@ -531,9 +525,25 @@ async function loadAgenda() {
       : `${fmtHora(ev.inicio)} - ${fmtHora(ev.fim)}`;
     li.appendChild(titulo);
     li.appendChild(horario);
-    if (!ev.dia_inteiro) li.appendChild(criarBarraDia(ev));
     list.appendChild(li);
   });
+}
+
+async function loadFechamentoDoDia() {
+  const data = await apiFetch("/api/fechamento-do-dia");
+  if (!data) return;
+
+  const concluidasEl = $("#fechamento-concluidas");
+  concluidasEl.textContent =
+    data.concluidas.length > 0
+      ? `Feito hoje: ${data.concluidas.join(", ")}.`
+      : "Nada concluido hoje ainda.";
+
+  const pendentesEl = $("#fechamento-pendentes");
+  pendentesEl.textContent =
+    data.pendentes_hoje.length > 0
+      ? `Ainda fica pra depois: ${data.pendentes_hoje.join(", ")}.`
+      : "Nada ficou pra tras hoje.";
 }
 
 const ICONE_ASSISTENTE =
@@ -890,6 +900,7 @@ function criarItemTarefa(t) {
         loadTasks();
         loadSummary();
         loadStreak();
+        if (!$("#tab-painel").hidden) loadFechamentoDoDia();
       }, 220);
     }
   });
@@ -988,6 +999,34 @@ async function loadExpenses() {
       rotulo: "Gasto diario nos ultimos 14 dias",
     });
   }
+
+  loadResumoSemanal();
+}
+
+async function loadResumoSemanal() {
+  const data = await apiFetch("/api/gastos/resumo-semanal");
+  const box = $("#resumo-semanal-box");
+  if (!data || data.total_semana <= 0) {
+    box.hidden = true;
+    return;
+  }
+
+  $("#resumo-semanal-total").textContent = fmtMoeda(data.total_semana);
+
+  const partes = [];
+  if (data.variacao_pct !== null) {
+    partes.push(
+      data.variacao_pct >= 0
+        ? `${data.variacao_pct}% a mais que a semana passada`
+        : `${Math.abs(data.variacao_pct)}% a menos que a semana passada`
+    );
+  }
+  if (data.categoria_top) {
+    partes.push(`maior peso: ${data.categoria_top} (${fmtMoeda(data.categoria_top_valor)})`);
+  }
+  $("#resumo-semanal-detalhe").textContent = partes.join(" - ");
+
+  box.hidden = false;
 }
 
 function criarItemBanco(conta) {
@@ -1642,6 +1681,7 @@ loadUso();
 loadStreak();
 loadClimaHoje();
 loadAgenda();
+loadFechamentoDoDia();
 loadMemorias();
 loadLembretes();
 loadSaude();
