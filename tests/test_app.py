@@ -2201,6 +2201,87 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(r3["tema"], "Navegacao")
         self.assertEqual(r4["tema"], r1["tema"])  # completou a volta, recomeca
 
+    def test_registrar_tarefa_depende_do_tempo_grava_flag(self):
+        self._registrar_via_chat(
+            "registrar_tarefa", {"titulo": "limpar o quarto", "depende_do_tempo": True}
+        )
+        conn = db.get_db()
+        row = conn.execute("SELECT depende_do_tempo FROM tasks WHERE title = ?", ("limpar o quarto",)).fetchone()
+        conn.close()
+        self.assertEqual(row["depende_do_tempo"], 1)
+
+    def test_registrar_tarefa_sem_depende_do_tempo_fica_zero(self):
+        self._registrar_via_chat("registrar_tarefa", {"titulo": "responder corretora"})
+        conn = db.get_db()
+        row = conn.execute(
+            "SELECT depende_do_tempo FROM tasks WHERE title = ?", ("responder corretora",)
+        ).fetchone()
+        conn.close()
+        self.assertEqual(row["depende_do_tempo"], 0)
+
+    def test_verificar_notifica_tarefa_com_dia_bom_de_tempo(self):
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, depende_do_tempo) VALUES (?, 1)", ("limpar o quarto",)
+        )
+        conn.commit()
+        conn.close()
+        sub = {"endpoint": "https://exemplo.com/push/clima1", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        previsoes = [
+            {"data": date.today().isoformat(), "chuva_pct": 10, "alerta_chuva": False},
+        ]
+        with patch.dict(os.environ, {"CIDADE_PADRAO": "Brusque"}), patch(
+            "clima.geocodificar_cidade", return_value={"lat": -27.0, "lon": -49.0, "nome": "Brusque"}
+        ), patch("clima.previsao_proximos_dias", return_value=previsoes), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        self.assertIn("limpar o quarto", mock_enviar.call_args[0][2])
+
+    def test_verificar_nao_notifica_tarefa_sem_cidade_padrao_configurada(self):
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, depende_do_tempo) VALUES (?, 1)", ("limpar o quarto",)
+        )
+        conn.commit()
+        conn.close()
+        sub = {"endpoint": "https://exemplo.com/push/clima2", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch.dict(os.environ, {"CIDADE_PADRAO": ""}), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        mock_enviar.assert_not_called()
+
+    def test_verificar_tarefa_clima_ja_notificada_nao_repete(self):
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, depende_do_tempo) VALUES (?, 1)", ("limpar o quarto",)
+        )
+        conn.commit()
+        conn.close()
+        sub = {"endpoint": "https://exemplo.com/push/clima3", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        previsoes = [{"data": date.today().isoformat(), "chuva_pct": 10, "alerta_chuva": False}]
+        with patch.dict(os.environ, {"CIDADE_PADRAO": "Brusque"}), patch(
+            "clima.geocodificar_cidade", return_value={"lat": -27.0, "lon": -49.0, "nome": "Brusque"}
+        ), patch("clima.previsao_proximos_dias", return_value=previsoes), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_called_once()
+
     # ---- Cenario real: mensagem corrida de manha com varias coisas juntas ----
     # (o exemplo que o Alex deu: material de obra + gravar video na obra + voo
     # as 14h + gasto ja feito de gasolina + gasto planejado de reabastecer +

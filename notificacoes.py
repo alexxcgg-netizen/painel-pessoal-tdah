@@ -6,6 +6,17 @@ em app.py."""
 from datetime import date, datetime, timedelta
 
 
+def tarefas_aguardando_bom_tempo(conn) -> list[dict]:
+    """Tarefas pendentes marcadas como 'depende do tempo' (ex: 'limpar o
+    quarto se nao chover') - so identifica QUAIS tarefas checar; buscar a
+    previsao de verdade (que pede rede) e decidir se ja tem um dia bom fica
+    em app.py, pra esta funcao continuar pura e testavel so com SQLite."""
+    rows = conn.execute(
+        "SELECT id, title FROM tasks WHERE completed_at IS NULL AND depende_do_tempo = 1"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def tarefas_atrasadas(conn) -> str | None:
     hoje = date.today().isoformat()
     n = conn.execute(

@@ -345,6 +345,47 @@ class ResumoChuvaDoDiaTestCase(unittest.TestCase):
         ):
             self.assertIsNone(clima.resumo_chuva_hoje_para_cidade("Blumenau"))
 
+    def test_previsao_proximos_dias_devolve_lista_completa(self):
+        resposta = MagicMock()
+        resposta.raise_for_status = lambda: None
+        resposta.json.return_value = {
+            "daily": {
+                "time": ["2026-09-18", "2026-09-19", "2026-09-20"],
+                "weathercode": [3, 61, 1],
+                "temperature_2m_max": [24.0, 20.0, 26.0],
+                "temperature_2m_min": [15.0, 14.0, 16.0],
+                "precipitation_probability_max": [10, 80, 5],
+            }
+        }
+        with patch("clima.requests.get", return_value=resposta):
+            r = clima.previsao_proximos_dias(-27.0, -49.06, dias=3)
+        self.assertEqual(len(r), 3)
+        self.assertEqual(r[0]["data"], "2026-09-18")
+        self.assertEqual(r[1]["chuva_pct"], 80)
+        self.assertTrue(r[1]["alerta_chuva"])
+        self.assertFalse(r[2]["alerta_chuva"])
+
+    def test_previsao_proximos_dias_erro_de_rede_devolve_none(self):
+        with patch("clima.requests.get", side_effect=requests.RequestException("timeout")):
+            self.assertIsNone(clima.previsao_proximos_dias(-27.0, -49.06))
+
+    def test_melhor_dia_sem_chuva_acha_o_primeiro_abaixo_do_limite(self):
+        previsoes = [
+            {"data": "2026-09-18", "chuva_pct": 80},
+            {"data": "2026-09-19", "chuva_pct": 60},
+            {"data": "2026-09-20", "chuva_pct": 20},
+            {"data": "2026-09-21", "chuva_pct": 5},
+        ]
+        r = clima.melhor_dia_sem_chuva(previsoes, limite_pct=50)
+        self.assertEqual(r["data"], "2026-09-20")
+
+    def test_melhor_dia_sem_chuva_none_quando_nenhum_dia_serve(self):
+        previsoes = [{"data": "2026-09-18", "chuva_pct": 90}, {"data": "2026-09-19", "chuva_pct": 70}]
+        self.assertIsNone(clima.melhor_dia_sem_chuva(previsoes, limite_pct=50))
+
+    def test_melhor_dia_sem_chuva_lista_vazia_e_none(self):
+        self.assertIsNone(clima.melhor_dia_sem_chuva([], limite_pct=50))
+
 
 if __name__ == "__main__":
     unittest.main()

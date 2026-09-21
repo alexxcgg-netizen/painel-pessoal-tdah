@@ -23,6 +23,24 @@ class NotificacoesTestCase(unittest.TestCase):
         db.DB_PATH = self._caminho_original
         self._tmp.cleanup()
 
+    def test_tarefas_aguardando_bom_tempo_filtra_pela_flag(self):
+        self.conn.execute(
+            "INSERT INTO tasks (title, depende_do_tempo) VALUES (?, 1)", ("limpar o quarto",)
+        )
+        self.conn.execute("INSERT INTO tasks (title, depende_do_tempo) VALUES (?, 0)", ("outra coisa",))
+        self.conn.commit()
+        r = notificacoes.tarefas_aguardando_bom_tempo(self.conn)
+        self.assertEqual(len(r), 1)
+        self.assertEqual(r[0]["title"], "limpar o quarto")
+
+    def test_tarefas_aguardando_bom_tempo_ignora_concluida(self):
+        self.conn.execute(
+            "INSERT INTO tasks (title, depende_do_tempo, completed_at) VALUES (?, 1, datetime('now'))",
+            ("limpar o quarto",),
+        )
+        self.conn.commit()
+        self.assertEqual(notificacoes.tarefas_aguardando_bom_tempo(self.conn), [])
+
     def test_sem_tarefa_atrasada_retorna_none(self):
         self.assertIsNone(notificacoes.tarefas_atrasadas(self.conn))
 

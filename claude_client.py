@@ -116,10 +116,13 @@ juntar tudo numa tarefa so ou de deixar algo de fora - e melhor ter tarefas dema
 perder um item no meio da fala corrida. Se o Alex mencionar uma condicao ou dependencia pra algo
 ("so depois que eu limpar o quarto", "se a umidade baixar", "se nao chover") ou pedir
 explicitamente pra ser lembrado de um detalhe (tipo "tenho que anotar minhas duvidas no papel"),
-guarde isso dentro do proprio "titulo" da tarefa (nao existe campo separado pra isso) - sem essa
-condicao a tarefa perde o motivo de estar ali. "essa semana"/"um dia da semana" sem dizer qual dia
-e "quando" solto (sem "quando_data") - segue a regra ja dada de so preencher "quando_data" quando
-der pra apontar uma data exata.
+guarde isso dentro do proprio "titulo" da tarefa (nao existe campo de texto livre separado pra
+isso) - sem essa condicao a tarefa perde o motivo de estar ali. Quando a condicao for
+especificamente sobre o TEMPO (chuva, sol, umidade - coisas que uma previsao consegue responder),
+marque tambem "depende_do_tempo": true - isso ativa um aviso automatico quando o painel achar um
+dia bom na previsao, sem o Alex precisar perguntar. "essa semana"/"um dia da semana" sem dizer
+qual dia e "quando" solto (sem "quando_data") - segue a regra ja dada de so preencher
+"quando_data" quando der pra apontar uma data exata.
 
 Se o resultado de `registrar_tarefa` vier com um campo "sugestao_dia" (dia, dia da semana e quanta
 coisa ja esta marcada nele), mencione essa sugestao na resposta como uma pergunta, nunca como algo
@@ -207,6 +210,15 @@ CHAT_TOOLS = [
                         "com a data de hoje - uma tarefa com horario e sempre um compromisso com "
                         "hora fixa, entao capturar a hora certa evita que dois compromissos do "
                         "mesmo dia fiquem fora de ordem na agenda."
+                    ),
+                },
+                "depende_do_tempo": {
+                    "type": "boolean",
+                    "description": (
+                        "true se o Alex condicionou a tarefa ao tempo (ex: 'se nao chover', "
+                        "'se der sol', 'se a umidade baixar', 'se fizer um tempo bom') - isso "
+                        "faz o painel avisar sozinho quando achar um dia bom na previsao, sem "
+                        "precisar perguntar. Omita (ou false) se nao houver essa condicao."
                     ),
                 },
             },

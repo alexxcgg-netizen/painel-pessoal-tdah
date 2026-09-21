@@ -702,8 +702,16 @@ def chat():
     def exec_registrar_tarefa(entrada):
         quando_data = entrada.get("quando_data")
         conn.execute(
-            "INSERT INTO tasks (title, due_at, due_date, hora, source_text) VALUES (?, ?, ?, ?, ?)",
-            (entrada["titulo"], entrada.get("quando"), quando_data, _normalizar_hora(entrada.get("hora")), texto),
+            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                entrada["titulo"],
+                entrada.get("quando"),
+                quando_data,
+                _normalizar_hora(entrada.get("hora")),
+                texto,
+                int(bool(entrada.get("depende_do_tempo"))),
+            ),
         )
         conn.commit()
         resultado = {"ok": True}
@@ -854,6 +862,30 @@ def chat_historico():
     mensagens = list(reversed(list_chat_mensagens(conn, limit=30)))
     conn.close()
     return jsonify(mensagens)
+
+
+def _aviso_bom_tempo_pra_tarefa(tarefa: dict) -> str | None:
+    """Se a cidade padrao estiver configurada e a previsao achar um dia com
+    chance de chuva baixa dentro da janela, devolve a mensagem de push pra
+    essa tarefa que depende do tempo. None se nao configurado, erro de rede,
+    ou nenhum dia bom na janela ainda."""
+    cidade = os.environ.get("CIDADE_PADRAO", "").strip()
+    if not cidade:
+        return None
+    local = clima.geocodificar_cidade(cidade)
+    if not local:
+        return None
+    previsoes = clima.previsao_proximos_dias(local["lat"], local["lon"], dias=7)
+    if not previsoes:
+        return None
+    melhor = clima.melhor_dia_sem_chuva(previsoes)
+    if not melhor:
+        return None
+
+    dia_str = datetime.fromisoformat(melhor["data"]).strftime("%d/%m")
+    hoje_str = date.today().isoformat()
+    quando = "Hoje" if melhor["data"] == hoje_str else f"Dia {dia_str}"
+    return f"{quando} parece um dia bom (pouca chance de chuva) pra: {tarefa['title']}."
 
 
 def _aviso_voo_sair(voo: dict, janela_minutos: int = 25) -> str | None:
@@ -1014,6 +1046,13 @@ def verificar_e_notificar():
     msg = notificacoes.currency_voo_baixa(conn, limiar_dias=21)
     if msg and not ja_notificou_hoje(conn, "currency_voo"):
         avisos.append(("currency_voo", 0, "Faz tempo que voce nao voa", msg))
+
+    for tarefa in notificacoes.tarefas_aguardando_bom_tempo(conn):
+        if ja_notificou_hoje(conn, "clima_tarefa", tarefa["id"]):
+            continue
+        msg = _aviso_bom_tempo_pra_tarefa(tarefa)
+        if msg:
+            avisos.append(("clima_tarefa", tarefa["id"], "Dia bom pra tarefa pendente", msg))
 
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:

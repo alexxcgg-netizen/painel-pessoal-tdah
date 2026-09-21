@@ -22,6 +22,8 @@ _cache_geocodificacao: dict[str, dict | None] = {}
 # real sempre vem da API, nunca inventado aqui
 _CODIGOS_CHUVA = set(range(51, 68)) | set(range(80, 100))
 
+LIMITE_ALERTA_CHUVA = 50
+
 
 def geocodificar_cidade(nome: str) -> dict | None:
     nome = (nome or "").strip()
@@ -93,6 +95,58 @@ def previsao_para_cidade_e_data(cidade: str, data_iso: str) -> dict | None:
     return {**previsao, "cidade": local["nome"], "lat": local["lat"], "lon": local["lon"]}
 
 
+def previsao_proximos_dias(lat: float, lon: float, dias: int = 7) -> list[dict] | None:
+    """Previsao diaria dos proximos `dias` dias (incluindo hoje) numa chamada
+    so - usado pra achar o melhor dia pra uma tarefa que depende do tempo
+    (ex: "limpar o quarto se nao chover"), sem precisar de uma chamada por
+    dia. None so em caso de erro de rede/resposta - `dias` e limitado a 16
+    (janela maxima do Open-Meteo)."""
+    dias = min(max(dias, 1), 16)
+    try:
+        resp = requests.get(
+            FORECAST_URL,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "daily": "weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+                "timezone": "America/Sao_Paulo",
+                "forecast_days": dias,
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        dados = resp.json().get("daily") or {}
+        datas = dados.get("time") or []
+        previsoes = []
+        for i, data_iso in enumerate(datas):
+            codigo = dados["weathercode"][i]
+            previsoes.append(
+                {
+                    "data": data_iso,
+                    "chuva_pct": dados["precipitation_probability_max"][i],
+                    "temp_max": dados["temperature_2m_max"][i],
+                    "temp_min": dados["temperature_2m_min"][i],
+                    "codigo": codigo,
+                    "alerta_chuva": codigo in _CODIGOS_CHUVA,
+                }
+            )
+        return previsoes
+    except (requests.RequestException, ValueError, KeyError, IndexError):
+        return None
+
+
+def melhor_dia_sem_chuva(previsoes: list[dict], limite_pct: int = LIMITE_ALERTA_CHUVA) -> dict | None:
+    """Entre os dias de previsao (em ordem cronologica), acha o primeiro cuja
+    chance de chuva fica abaixo do limite - a primeira "janela boa" pra uma
+    atividade ao ar livre, nao necessariamente o dia com a MENOR chuva de
+    todos (prefere o mais proximo que ja serve, pra nao empurrar demais).
+    None se nenhum dia bater o limite."""
+    for p in previsoes:
+        if p["chuva_pct"] < limite_pct:
+            return p
+    return None
+
+
 def previsao_horaria_hoje(lat: float, lon: float) -> list[dict] | None:
     """Previsao hora a hora do dia de hoje (fuso America/Sao_Paulo) - lista
     de {'hora': 0-23, 'chuva_pct': int, 'temp': float, 'codigo': int}."""
@@ -120,9 +174,6 @@ def previsao_horaria_hoje(lat: float, lon: float) -> list[dict] | None:
         ]
     except (requests.RequestException, ValueError, KeyError, IndexError):
         return None
-
-
-LIMITE_ALERTA_CHUVA = 50
 
 
 def resumo_chuva_do_dia(horas: list[dict], hora_atual: int, limite_pct: int = LIMITE_ALERTA_CHUVA) -> dict:

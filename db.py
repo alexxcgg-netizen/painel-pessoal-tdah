@@ -182,6 +182,7 @@ def init_db():
     conn.commit()
     _garantir_coluna(conn, "tasks", "due_date", "TEXT")
     _garantir_coluna(conn, "tasks", "hora", "TEXT")
+    _garantir_coluna(conn, "tasks", "depende_do_tempo", "INTEGER NOT NULL DEFAULT 0")
     _garantir_coluna(conn, "voos", "hora", "TEXT")
     _garantir_coluna(conn, "expenses", "tipo", "TEXT NOT NULL DEFAULT 'real'")
     _seed_perfil_inicial(conn)
