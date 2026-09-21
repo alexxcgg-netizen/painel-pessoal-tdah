@@ -387,6 +387,33 @@ e manda o header `X-Webhook-Token` com o mesmo valor nos tres Atalhos/widget. Se
 configurada, os endpoints ficam abertos - tranquilo na sua rede local, configure antes de expor o
 painel publicamente.
 
+## Notificar-me do Safari (iOS 27) — pra testar, ainda nao decidido se vale
+
+O iOS 27 trouxe um recurso novo no Safari chamado **Notificar-me** (Notify Me): dentro de
+qualquer site aberto, no menu de tres linhas ao lado da barra de endereco, da pra descrever em
+texto livre o que voce quer que ele detecte (ex: "avise quando aparecer uma conta nova a
+vencer") e escolher a frequencia de checagem. O Safari fica checando a pagina em segundo plano
+nesse intervalo, usando Apple Intelligence **no proprio aparelho** pra decidir se a mudanca
+descrita aconteceu, e so notifica quando ocorre de fato.
+
+**Exige Apple Intelligence ligado no aparelho** (recurso limitado aos iPhones mais recentes que
+suportam) - sem isso a opcao nem aparece no menu do Safari.
+
+Isso nao e algo que o painel implementa ou controla - e 100% do lado do Safari, apontando pra
+qualquer pagina que ja existe hoje (ex: a aba Hoje). Pra testar:
+
+1. Abre a pagina do painel que quer monitorar no Safari do iPhone
+2. Toca no menu de tres linhas ao lado da barra de endereco → **Notificar-me**
+3. Descreve o que quer detectar e escolhe a frequencia de checagem
+4. Confirma se a checagem em segundo plano ainda enxerga a pagina logada (a sessao do painel
+   pode expirar entre uma checagem e outra) - isso so da pra confirmar testando de verdade
+
+**Por que ainda nao virou parte oficial do fluxo**: o bot do Telegram (ver secao acima) ja avisa
+na hora, com a logica exata que construimos (dedupe, botao de acao, aprendizado) - o Notificar-me
+e generico (deteccao por IA em cima do que estiver na tela) e depende de configuracao manual por
+pagina. Vale como experimento pra ver se ele reage mais rapido que o esperado ou se serve pra
+algum uso que o Telegram nao cobre, mas nao substitui nada do que ja existe.
+
 ## Memoria — o que ele lembra sobre voce
 
 Toda vez que voce escreve algo na captura, alem de classificar como tarefa/gasto/meta, a IA

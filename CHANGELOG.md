@@ -5,6 +5,27 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (12) - Documentado "Notificar-me" do Safari (iOS 27) como experimento
+
+O Alex mandou o material da Apple sobre o iOS 27 perguntando se ajudava o painel. Avaliei: a
+maioria (App Intents, Foundation Models, Live Activities, Widgets) exige app nativo Swift na App
+Store - fora do escopo (o painel e Flask/PWA), sem contar que o ganho de App Intents (acionar
+por voz sem frase fixa) ja e coberto de graca pelo Atalho "Ei Siri, anota" que ja existe. A unica
+coisa aproveitavel sem reescrever nada e Passkeys via WebAuthn pra trocar o login por PIN por
+Face ID/Touch ID direto no PWA - aprovado, mas ainda nao implementado (fica pra proxima sessao).
+
+Tambem investiguei push notification no navegador: descobri que isso ja existe desde o iOS 16.4
+(nao e novidade do 27) e exige o painel instalado na Tela de Inicio - mas o bot do Telegram ja
+cobre esse papel. O Alex corrigiu: o recurso novo de verdade do iOS 27 e o **"Notificar-me"** do
+Safari (Notify Me) - descreve em texto livre o que quer detectar numa pagina, e o Safari checa em
+segundo plano usando Apple Intelligence no aparelho, notificando so quando a mudanca acontece.
+Exige Apple Intelligence ligado (iPhones mais recentes). E 100% do lado do Safari, nao precisa de
+nada no codigo do painel - documentei no README como apontar pra uma pagina existente (ex: aba
+Hoje) pra ele testar quando quiser, deixando claro que nao substitui o Telegram (que e instantaneo
+e usa a logica exata que construimos) ate ele testar na pratica e decidir se vale mais.
+
+Sem mudanca de codigo/schema - so README, entao sem necessidade de rodar a suite de testes.
+
 ## 2026-09-21 (11) - Noticias sob demanda (Google News RSS) + confirmado que Saude ja conecta
 
 O Alex perguntou por outras fontes de dado pro assistente (noticias de Brusque, algum app com API
