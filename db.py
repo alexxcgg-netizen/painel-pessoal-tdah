@@ -227,6 +227,15 @@ def init_db():
             valor_limite REAL NOT NULL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS apelidos_gasto (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            descricao_normalizada TEXT NOT NULL,
+            valor REAL NOT NULL,
+            apelido TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(descricao_normalizada, valor)
+        );
         """
     )
     conn.commit()
@@ -564,6 +573,18 @@ def total_gastos_mes(conn, ano_mes: str, tipo: str = "real") -> float:
     return row["total"]
 
 
+def total_gastos_bancarios_mes(conn, ano_mes: str) -> float:
+    """Soma das saidas (valor negativo, convencao ja usada no resto do app)
+    do extrato bancario sincronizado no mes - complementa total_gastos_mes,
+    que so ve o que foi digitado no chat."""
+    row = conn.execute(
+        "SELECT COALESCE(SUM(-valor), 0) AS total FROM bank_transactions "
+        "WHERE valor < 0 AND strftime('%Y-%m', data) = ?",
+        (ano_mes,),
+    ).fetchone()
+    return row["total"]
+
+
 def definir_orcamento(conn, categoria: str, valor_limite: float) -> None:
     conn.execute(
         "INSERT INTO orcamentos (categoria, valor_limite) VALUES (?, ?) "
@@ -597,6 +618,24 @@ def gasto_mes_por_categoria(conn, categoria: str, ano_mes: str) -> float:
         (categoria, ano_mes),
     ).fetchone()
     return row["total"]
+
+
+def definir_apelido_gasto(conn, descricao_normalizada: str, valor: float, apelido: str) -> None:
+    """Guarda o que uma cobranca generica (ex: "apple.com/bill") realmente e
+    - "descricao_normalizada" + "valor" juntos formam a chave porque duas
+    assinaturas diferentes da mesma empresa (ex: iCloud e Apple Music) tem
+    o mesmo texto de cobranca mas valores diferentes; sem o valor na chave,
+    uma sobrescreveria o apelido da outra."""
+    conn.execute(
+        "INSERT INTO apelidos_gasto (descricao_normalizada, valor, apelido) VALUES (?, ?, ?) "
+        "ON CONFLICT(descricao_normalizada, valor) DO UPDATE SET apelido = excluded.apelido",
+        (descricao_normalizada, valor, apelido),
+    )
+    conn.commit()
+
+
+def list_apelidos_gasto(conn) -> list[dict]:
+    return [dict(r) for r in conn.execute("SELECT * FROM apelidos_gasto").fetchall()]
 
 
 def create_espera(conn, quem: str, sobre: str, source_text: str | None = None) -> int:

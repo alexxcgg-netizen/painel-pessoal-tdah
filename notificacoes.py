@@ -5,6 +5,8 @@ em app.py."""
 
 from datetime import date, datetime, timedelta
 
+import gastos
+
 
 def dentro_do_horario_silencioso(agora: datetime, inicio: str, fim: str) -> bool:
     """Janela de horario em que os avisos "soft" (nao urgentes) ficam
@@ -169,6 +171,51 @@ def orcamentos_perto_ou_estourados(conn, hoje: date | None = None) -> list[tuple
                 f"Voce ja gastou R$ {gasto:.2f} em {categoria} esse mes - "
                 f"perto do limite de R$ {limite:.2f}.",
             ))
+    return avisos
+
+
+def cobrancas_genericas_sem_rotulo(conn) -> list[tuple[str, float, str]]:
+    """Acha cobrancas com padrao generico (ex: "apple.com/bill") - tanto no
+    que foi digitado no chat quanto no extrato bancario sincronizado - que
+    ainda nao tem apelido definido (apelidos_gasto), candidatas a perguntar
+    pro Alex o que cada uma e (zero custo de IA - so reconhecimento de
+    texto). Devolve (descricao_normalizada, valor, mensagem) unicos - mesma
+    descricao+valor nao repete, mesmo aparecendo varias vezes no
+    historico."""
+    ja_com_apelido = {
+        (a["descricao_normalizada"], a["valor"])
+        for a in conn.execute("SELECT descricao_normalizada, valor FROM apelidos_gasto").fetchall()
+    }
+
+    candidatos: dict[tuple[str, float], str] = {}
+
+    rows_expenses = conn.execute(
+        "SELECT amount AS valor, description, source_text FROM expenses WHERE tipo = 'real'"
+    ).fetchall()
+    for r in rows_expenses:
+        descricao = (r["description"] or r["source_text"] or "").strip()
+        if gastos.e_cobranca_generica(descricao):
+            chave = (descricao.lower(), r["valor"])
+            if chave not in ja_com_apelido:
+                candidatos[chave] = descricao
+
+    rows_bancarias = conn.execute(
+        "SELECT -valor AS valor, descricao FROM bank_transactions WHERE valor < 0"
+    ).fetchall()
+    for r in rows_bancarias:
+        descricao = (r["descricao"] or "").strip()
+        if gastos.e_cobranca_generica(descricao):
+            chave = (descricao.lower(), r["valor"])
+            if chave not in ja_com_apelido:
+                candidatos[chave] = descricao
+
+    avisos = []
+    for (descricao_norm, valor), descricao_original in candidatos.items():
+        avisos.append((
+            descricao_norm,
+            valor,
+            f"Cobranca de R$ {valor:.2f} em \"{descricao_original}\" - qual assinatura e essa?",
+        ))
     return avisos
 
 

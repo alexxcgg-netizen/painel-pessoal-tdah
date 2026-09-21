@@ -5,6 +5,36 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (10) - Cobranca generica (Apple) identificavel pelo chat + gastos fixos enxergam o banco
+
+O Alex perguntou se dava pra conectar com as assinaturas do iPhone/iCloud. Pesquisei: nao existe
+API (paga ou gratuita) que deixe um app de terceiros ler a lista de assinaturas do Apple ID -
+bloqueio de plataforma por privacidade, nao uma peca faltando. Perguntou tambem se tinha algum
+outro app/API gratuita que ajudasse o assistente financeiro - resposta honesta: nao, o Pluggy (ja
+integrado) ja e a peca que importa. Ele aprovou uma alternativa: reconhecer o PADRAO da cobranca
+("apple.com/bill") no extrato e perguntar uma vez qual assinatura e - e pediu pra isso (e tudo mais
+que for possivel) rodar sem gastar credito de IA quando puder ser feito por Python puro.
+
+**Descoberta no caminho: gastos fixos/orcamento/sobra do mes so enxergavam `expenses` (digitado no
+chat), nunca `bank_transactions` (extrato sincronizado via OFX/Pluggy).** Isso era uma lacuna real -
+a maior parte do gasto de quem usa sincronizacao bancaria simplesmente nao entrava na conta.
+`app._gastos_reais_unificados()` unifica as duas fontes (normalizando pra um formato so); `_gastos_fixos`
+e `_sobra_do_mes` passam a usar isso. Ressalva documentada no README (mesmo espirito do aviso ja
+existente na aba Bancos): sem reconciliacao entre as duas fontes, um gasto digitado no chat E
+sincronizado depois pelo banco conta duas vezes.
+
+**Reconhecimento de cobranca generica (`gastos.e_cobranca_generica`, zero custo de IA):** so
+reconhecimento de texto (`PADROES_COBRANCA_GENERICA`, hoje so "apple.com") - `notificacoes.cobrancas_genericas_sem_rotulo()`
+acha cobrancas desse padrao (em expenses OU bank_transactions) sem apelido ainda, avisa uma vez por
+descricao+valor. **Rotulagem pelo chat (`rotular_cobranca_generica`, essa parte SIM usa IA - e
+conversa em linguagem natural):** "a cobranca da apple de 14,90 e o icloud" salva o apelido
+(`apelidos_gasto`, chave descricao normalizada + VALOR exato - nao so descricao, pra "iCloud" e
+"Apple Music" nunca se confundirem mesmo com o mesmo texto de cobranca). `gastos.aplicar_apelidos()`
+troca a descricao pelo apelido ANTES de agrupar recorrencia, entao o resto da deteccao nem precisa
+saber que isso existe.
+
+758 testes (31 novos), 100% passando.
+
 ## 2026-09-21 (9) - Assistente financeiro de verdade + botao de acao no Telegram
 
 O Alex perguntou se o painel realmente ajuda como assistente financeiro e o que faltava. Depois de

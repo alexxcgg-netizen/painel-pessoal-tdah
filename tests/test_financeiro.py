@@ -108,5 +108,49 @@ class OrcamentosTestCase(_BancoIsoladoTestCase):
         self.assertEqual(db.gasto_mes_por_categoria(self.conn, "lazer", "2026-01"), 0.0)
 
 
+class TotalGastosBancariosMesTestCase(_BancoIsoladoTestCase):
+    def _transacao(self, valor, data, external_id):
+        conta_id = db.get_or_create_bank_account(self.conn, "Nubank")
+        self.conn.execute(
+            "INSERT INTO bank_transactions (bank_account_id, data, descricao, valor, external_id) "
+            "VALUES (?, ?, 'compra', ?, ?)",
+            (conta_id, data, valor, external_id),
+        )
+        self.conn.commit()
+
+    def test_sem_transacoes_retorna_zero(self):
+        self.assertEqual(db.total_gastos_bancarios_mes(self.conn, "2026-01"), 0.0)
+
+    def test_soma_so_saidas_do_mes_pedido(self):
+        self._transacao(-100.0, "2026-01-10", "ext1")  # saida
+        self._transacao(-50.0, "2026-01-15", "ext2")  # saida
+        self._transacao(1000.0, "2026-01-20", "ext3")  # entrada, nao conta
+        self._transacao(-30.0, "2026-02-01", "ext4")  # mes diferente
+        self.assertEqual(db.total_gastos_bancarios_mes(self.conn, "2026-01"), 150.0)
+
+
+class ApelidosGastoTestCase(_BancoIsoladoTestCase):
+    def test_definir_e_listar_apelido(self):
+        db.definir_apelido_gasto(self.conn, "apple.com/bill", 14.90, "iCloud 200GB")
+        apelidos = db.list_apelidos_gasto(self.conn)
+        self.assertEqual(len(apelidos), 1)
+        self.assertEqual(apelidos[0]["descricao_normalizada"], "apple.com/bill")
+        self.assertEqual(apelidos[0]["valor"], 14.90)
+        self.assertEqual(apelidos[0]["apelido"], "iCloud 200GB")
+
+    def test_mesma_descricao_e_valor_atualiza_o_apelido(self):
+        db.definir_apelido_gasto(self.conn, "apple.com/bill", 14.90, "iCloud")
+        db.definir_apelido_gasto(self.conn, "apple.com/bill", 14.90, "iCloud 200GB")
+        apelidos = db.list_apelidos_gasto(self.conn)
+        self.assertEqual(len(apelidos), 1)
+        self.assertEqual(apelidos[0]["apelido"], "iCloud 200GB")
+
+    def test_mesma_descricao_valor_diferente_e_outro_apelido(self):
+        db.definir_apelido_gasto(self.conn, "apple.com/bill", 14.90, "iCloud 200GB")
+        db.definir_apelido_gasto(self.conn, "apple.com/bill", 21.90, "Apple Music")
+        apelidos = db.list_apelidos_gasto(self.conn)
+        self.assertEqual(len(apelidos), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

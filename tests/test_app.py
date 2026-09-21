@@ -3066,6 +3066,182 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.post("/api/chat", json={"mensagem": "quanto sobra pra gastar esse mes?"})
         self.assertEqual(res.status_code, 200)
 
+    # ---- Extrato bancario entra na deteccao de recorrencia e na sobra do mes ----
+
+    def _transacao_bancaria(self, descricao, valor, external_id):
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "Nubank")
+        conn.execute(
+            "INSERT INTO bank_transactions (bank_account_id, data, descricao, valor, external_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (conta_id, date.today().isoformat(), descricao, valor, external_id),
+        )
+        conn.commit()
+        conn.close()
+
+    def test_sobra_do_mes_inclui_saida_do_extrato_bancario(self):
+        conn = db.get_db()
+        db.create_income(conn, 3000.0, "outros")
+        conn.close()
+        self._transacao_bancaria("Mercado", -800.0, "ext1")
+
+        res = self.client.get("/api/sobra-do-mes").get_json()
+        self.assertEqual(res["gasto_mes"], 800.0)
+        self.assertEqual(res["sobra"], 2200.0)
+
+    def test_sobra_do_mes_soma_expenses_e_bank_transactions_juntos(self):
+        conn = db.get_db()
+        db.create_income(conn, 3000.0, "outros")
+        conn.execute("INSERT INTO expenses (amount, category, tipo) VALUES (200, 'lazer', 'real')")
+        conn.commit()
+        conn.close()
+        self._transacao_bancaria("Mercado", -800.0, "ext1")
+
+        res = self.client.get("/api/sobra-do-mes").get_json()
+        self.assertEqual(res["gasto_mes"], 1000.0)
+
+    def test_entrada_bancaria_nao_conta_como_gasto(self):
+        conn = db.get_db()
+        db.create_income(conn, 3000.0, "outros")
+        conn.close()
+        self._transacao_bancaria("Salario", 3000.0, "ext1")
+
+        res = self.client.get("/api/sobra-do-mes").get_json()
+        self.assertEqual(res["gasto_mes"], 0.0)
+
+    def test_gastos_fixos_detecta_recorrencia_so_do_extrato_bancario(self):
+        hoje = date.today()
+        mes_passado = (hoje.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        self._transacao_bancaria("APPLE.COM/BILL", -14.90, "ext1")
+        conn = db.get_db()
+        conn.execute(
+            "UPDATE bank_transactions SET data = ? WHERE external_id = 'ext1'",
+            (f"{hoje.strftime('%Y-%m')}-05",),
+        )
+        conn.commit()
+        conn.close()
+        self._transacao_bancaria("APPLE.COM/BILL", -14.90, "ext2")
+        conn = db.get_db()
+        conn.execute(
+            "UPDATE bank_transactions SET data = ? WHERE external_id = 'ext2'",
+            (f"{mes_passado}-05",),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/gastos-fixos").get_json()
+        self.assertEqual(len(res["recorrentes"]), 1)
+        self.assertEqual(res["recorrentes"][0]["descricao"], "APPLE.COM/BILL")
+        self.assertEqual(res["total_mensal"], 14.90)
+
+    # ---- Cobranca generica (padrao apple.com) e rotulagem pelo chat ----
+
+    def test_verificar_agora_avisa_cobranca_generica_sem_rotulo(self):
+        self._transacao_bancaria("APPLE.COM/BILL", -14.90, "ext1")
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        corpo = mock_enviar.call_args[0][2]
+        self.assertIn("14.90", corpo)
+        self.assertIn("qual assinatura", corpo)
+
+    def test_verificar_agora_nao_avisa_cobranca_ja_rotulada(self):
+        self._transacao_bancaria("APPLE.COM/BILL", -14.90, "ext1")
+        conn = db.get_db()
+        db.definir_apelido_gasto(conn, "apple.com/bill", 14.90, "iCloud 200GB")
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+        self.assertEqual(res.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_not_called()
+
+    def test_verificar_agora_cobranca_generica_nao_repete_apos_avisar(self):
+        self._transacao_bancaria("APPLE.COM/BILL", -14.90, "ext1")
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(mock_enviar.call_count, 1)
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+            self.assertEqual(mock_enviar.call_count, 1)
+
+    def test_chat_rotular_cobranca_generica(self):
+        self._transacao_bancaria("APPLE.COM/BILL", -14.90, "ext1")
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["rotular_cobranca_generica"]({"valor": 14.90, "apelido": "iCloud 200GB"})
+            self.assertTrue(resultado["ok"])
+            return "Beleza, guardei que essa e o iCloud.", ["rotular_cobranca_generica"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "a cobranca da apple de 14,90 e o icloud"}
+            )
+        self.assertEqual(res.status_code, 200)
+
+        gastos_fixos_res = self.client.get("/api/gastos-fixos").get_json()
+        # so uma ocorrencia ainda (nao e recorrente com 1 mes so), mas o
+        # apelido ja deve estar salvo pra quando repetir
+        conn = db.get_db()
+        apelidos = db.list_apelidos_gasto(conn)
+        conn.close()
+        self.assertEqual(len(apelidos), 1)
+        self.assertEqual(apelidos[0]["apelido"], "iCloud 200GB")
+
+    def test_chat_rotular_cobranca_generica_sem_correspondencia_devolve_erro(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["rotular_cobranca_generica"]({"valor": 99.99, "apelido": "iCloud"})
+            self.assertIn("erro", resultado)
+            return "Nao achei essa cobranca.", ["rotular_cobranca_generica"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "a cobranca de 99,99 e o icloud"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_apos_rotular_gastos_fixos_agrupa_por_apelido(self):
+        hoje = date.today()
+        mes_passado = (hoje.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        self._transacao_bancaria("APPLE.COM/BILL", -14.90, "ext1")
+        conn = db.get_db()
+        conn.execute(
+            "UPDATE bank_transactions SET data = ? WHERE external_id = 'ext1'",
+            (f"{hoje.strftime('%Y-%m')}-05",),
+        )
+        db.definir_apelido_gasto(conn, "apple.com/bill", 14.90, "iCloud 200GB")
+        conn.commit()
+        conn.close()
+        self._transacao_bancaria("APPLE.COM/BILL", -14.90, "ext2")
+        conn = db.get_db()
+        conn.execute(
+            "UPDATE bank_transactions SET data = ? WHERE external_id = 'ext2'",
+            (f"{mes_passado}-05",),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/gastos-fixos").get_json()
+        self.assertEqual(res["recorrentes"][0]["descricao"], "iCloud 200GB")
+
     # ---- Push "sair em breve" antes do voo ----
 
     def test_verificar_notifica_voo_perto_da_hora_de_sair(self):

@@ -50,6 +50,7 @@ from db import (
     criar_cotacao,
     criar_item_cotacao,
     criar_uber_pedido,
+    definir_apelido_gasto,
     definir_configuracao,
     definir_orcamento,
     delete_cotacao,
@@ -74,6 +75,7 @@ from db import (
     list_esperas_pendentes,
     list_goal_deposits,
     list_goals,
+    list_apelidos_gasto,
     list_incomes,
     list_itens_cotacao,
     list_lembretes,
@@ -92,6 +94,7 @@ from db import (
     salvar_mensagem_chat,
     save_push_subscription,
     total_cost_usd,
+    total_gastos_bancarios_mes,
     total_gastos_mes,
     total_incomes_mes,
     uber_pedido,
@@ -657,18 +660,49 @@ def _id_estavel_conta(conta: dict) -> int:
     return int.from_bytes(digest, "big") % (2**62)
 
 
-def _gastos_fixos(conn) -> dict:
+def _gastos_reais_unificados(conn) -> list[dict]:
+    """Todo gasto real que a gente sabe que aconteceu - tanto o que foi
+    digitado no chat (expenses) quanto o que veio sozinho do extrato
+    bancario sincronizado (bank_transactions, OFX ou Pluggy) - normalizado
+    num formato so. Sem isso, deteccao de recorrencia e sobra do mes
+    enxergariam so o que foi digitado na mao, perdendo a maior parte do
+    gasto de quem usa a sincronizacao bancaria pra nao precisar digitar
+    nada. Risco conhecido: se o Alex as vezes digita no chat uma compra que
+    TAMBEM vai aparecer no banco depois, ela conta duas vezes - nao tem
+    reconciliacao entre as duas fontes ainda (mesma ressalva que a aba
+    Bancos ja tem sobre confiar cegamente no total importado)."""
     expenses_reais = conn.execute(
         "SELECT amount, category, description, source_text, created_at FROM expenses WHERE tipo = 'real'"
     ).fetchall()
-    recorrentes = gastos.detectar_gastos_recorrentes([dict(r) for r in expenses_reais], date.today())
+    unificado = [dict(r) for r in expenses_reais]
+    bancarias = conn.execute(
+        "SELECT valor, categoria, descricao, data FROM bank_transactions WHERE valor < 0"
+    ).fetchall()
+    for r in bancarias:
+        unificado.append(
+            {
+                "amount": -r["valor"],
+                "category": r["categoria"] or "outros",
+                "description": r["descricao"],
+                "source_text": None,
+                "created_at": r["data"],
+            }
+        )
+    return unificado
+
+
+def _gastos_fixos(conn) -> dict:
+    reais = _gastos_reais_unificados(conn)
+    apelidos = {(a["descricao_normalizada"], a["valor"]): a["apelido"] for a in list_apelidos_gasto(conn)}
+    reais = gastos.aplicar_apelidos(reais, apelidos)
+    recorrentes = gastos.detectar_gastos_recorrentes(reais, date.today())
     return {"recorrentes": recorrentes, "total_mensal": gastos.total_gasto_fixo_mensal(recorrentes)}
 
 
 def _sobra_do_mes(conn) -> dict:
     ano_mes = date.today().strftime("%Y-%m")
     renda = total_incomes_mes(conn, ano_mes)
-    gasto_real = total_gastos_mes(conn, ano_mes, "real")
+    gasto_real = total_gastos_mes(conn, ano_mes, "real") + total_gastos_bancarios_mes(conn, ano_mes)
     gasto_planejado = total_gastos_mes(conn, ano_mes, "planejado")
     return gastos.sobra_do_mes(renda, gasto_real, gasto_planejado)
 
@@ -679,6 +713,15 @@ def _id_estavel_orcamento(categoria: str, nivel: str, ano_mes: str) -> int:
     seguinte, com o gasto zerado de novo, ganha uma chave nova sozinho, sem
     precisar resetar nada manualmente."""
     chave = f"{categoria}|{nivel}|{ano_mes}"
+    digest = hashlib.sha1(chave.encode("utf-8")).digest()[:8]
+    return int.from_bytes(digest, "big") % (2**62)
+
+
+def _id_estavel_cobranca_generica(descricao_normalizada: str, valor: float) -> int:
+    """Mesma ideia de _id_estavel_orcamento - identifica uma cobranca
+    generica pela descricao+valor (nao ha id de linha unico, ja que a
+    cobranca pode vir tanto de expenses quanto de bank_transactions)."""
+    chave = f"{descricao_normalizada}|{valor}"
     digest = hashlib.sha1(chave.encode("utf-8")).digest()[:8]
     return int.from_bytes(digest, "big") % (2**62)
 
@@ -1084,6 +1127,15 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         )
         return {"ok": True}
 
+    def exec_rotular_cobranca_generica(entrada):
+        candidatos = notificacoes.cobrancas_genericas_sem_rotulo(conn)
+        correspondente = next((c for c in candidatos if abs(c[1] - entrada["valor"]) < 0.01), None)
+        if not correspondente:
+            return {"erro": f"nao achei nenhuma cobranca generica de R$ {entrada['valor']:.2f} pra identificar"}
+        descricao_norm, valor, _msg = correspondente
+        definir_apelido_gasto(conn, descricao_norm, valor, entrada["apelido"])
+        return {"ok": True, "apelido": entrada["apelido"]}
+
     def exec_consultar_gastos_fixos(_entrada):
         return _gastos_fixos(conn)
 
@@ -1194,6 +1246,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "registrar_feito": exec_registrar_feito,
         "registrar_voo": exec_registrar_voo,
         "sugerir_horario_livre": exec_sugerir_horario_livre,
+        "rotular_cobranca_generica": exec_rotular_cobranca_generica,
         "consultar_gastos_fixos": exec_consultar_gastos_fixos,
         "consultar_sobra_do_mes": exec_consultar_sobra_do_mes,
         "calcular_gasto_viagem": exec_calcular_gasto_viagem,
@@ -1501,6 +1554,13 @@ def verificar_e_notificar():
         if not ja_notificado_alguma_vez(conn, "orcamento", ref_id):
             titulo = "Orcamento estourado" if nivel == "estourado" else "Orcamento quase no limite"
             avisos.append(("orcamento", ref_id, titulo, msg))
+
+    # Cobranca generica (ex: "apple.com/bill") sem apelido ainda - pergunta
+    # uma vez so, nunca todo dia enquanto o Alex nao responder qual e.
+    for descricao_norm, valor, msg in notificacoes.cobrancas_genericas_sem_rotulo(conn):
+        ref_id = _id_estavel_cobranca_generica(descricao_norm, valor)
+        if not ja_notificado_alguma_vez(conn, "cobranca_generica", ref_id):
+            avisos.append(("cobranca_generica", ref_id, "Cobranca sem identificar", msg))
 
     msg = notificacoes.gasto_semana_elevado(conn)
     if msg and not ja_notificou_hoje(conn, "gasto_elevado"):

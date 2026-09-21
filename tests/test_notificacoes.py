@@ -616,5 +616,85 @@ class OrcamentosPertoOuEstouradosTestCase(unittest.TestCase):
         self.assertEqual(categorias, {"mercado", "lazer"})
 
 
+class CobrancasGenericasSemRotuloTestCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def _gasto_chat(self, descricao, valor):
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo) VALUES (?, 'outros', ?, 'real')",
+            (valor, descricao),
+        )
+        self.conn.commit()
+
+    _contador_external_id = 0
+
+    def _transacao_bancaria(self, descricao, valor_saida):
+        CobrancasGenericasSemRotuloTestCase._contador_external_id += 1
+        conta_id = db.get_or_create_bank_account(self.conn, "Nubank")
+        self.conn.execute(
+            "INSERT INTO bank_transactions (bank_account_id, data, descricao, valor, external_id) "
+            "VALUES (?, '2026-09-05', ?, ?, ?)",
+            (conta_id, descricao, -valor_saida, f"ext-{self._contador_external_id}"),
+        )
+        self.conn.commit()
+
+    def test_sem_nenhum_gasto_generico_retorna_vazio(self):
+        self._gasto_chat("Mercado", 100.0)
+        self.assertEqual(notificacoes.cobrancas_genericas_sem_rotulo(self.conn), [])
+
+    def test_detecta_cobranca_generica_do_chat(self):
+        self._gasto_chat("APPLE.COM/BILL", 14.90)
+        avisos = notificacoes.cobrancas_genericas_sem_rotulo(self.conn)
+        self.assertEqual(len(avisos), 1)
+        descricao_norm, valor, msg = avisos[0]
+        self.assertEqual(descricao_norm, "apple.com/bill")
+        self.assertEqual(valor, 14.90)
+        self.assertIn("14.90", msg)
+
+    def test_detecta_cobranca_generica_do_extrato_bancario(self):
+        self._transacao_bancaria("APPLE.COM/BILL", 21.90)
+        avisos = notificacoes.cobrancas_genericas_sem_rotulo(self.conn)
+        self.assertEqual(len(avisos), 1)
+        self.assertEqual(avisos[0][1], 21.90)
+
+    def test_ja_com_apelido_nao_aparece_mais(self):
+        self._transacao_bancaria("APPLE.COM/BILL", 14.90)
+        db.definir_apelido_gasto(self.conn, "apple.com/bill", 14.90, "iCloud 200GB")
+        self.assertEqual(notificacoes.cobrancas_genericas_sem_rotulo(self.conn), [])
+
+    def test_duas_cobrancas_com_valores_diferentes_sao_candidatos_separados(self):
+        self._transacao_bancaria("APPLE.COM/BILL", 14.90)
+        self._transacao_bancaria("APPLE.COM/BILL", 21.90)
+        avisos = notificacoes.cobrancas_genericas_sem_rotulo(self.conn)
+        valores = {v for _, v, _ in avisos}
+        self.assertEqual(valores, {14.90, 21.90})
+
+    def test_mesma_cobranca_repetida_varias_vezes_nao_duplica(self):
+        self._transacao_bancaria("APPLE.COM/BILL", 14.90)
+        self._transacao_bancaria("APPLE.COM/BILL", 14.90)
+        avisos = notificacoes.cobrancas_genericas_sem_rotulo(self.conn)
+        self.assertEqual(len(avisos), 1)
+
+    def test_entrada_de_dinheiro_nao_conta_como_cobranca(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "Nubank")
+        self.conn.execute(
+            "INSERT INTO bank_transactions (bank_account_id, data, descricao, valor, external_id) "
+            "VALUES (?, '2026-09-05', 'APPLE.COM/BILL REEMBOLSO', 14.90, 'ext-1')",
+            (conta_id,),
+        )
+        self.conn.commit()
+        self.assertEqual(notificacoes.cobrancas_genericas_sem_rotulo(self.conn), [])
+
+
 if __name__ == "__main__":
     unittest.main()

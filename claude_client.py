@@ -465,6 +465,24 @@ CHAT_TOOLS = [
         "input_schema": {"type": "object", "properties": {}},
     },
     {
+        "name": "rotular_cobranca_generica",
+        "description": (
+            "Diz o que uma cobranca generica do extrato (ex: 'APPLE.COM/BILL', que sozinha nao diz "
+            "se e iCloud, Apple Music ou outra coisa) realmente e - use quando o Alex responder a "
+            "uma pergunta do tipo 'qual assinatura e essa cobranca de R$X?' (ex: 'a cobranca da "
+            "apple de 14,90 e o icloud'). So use pra identificar uma cobranca generica ja "
+            "sinalizada, nunca pra registrar um gasto novo."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "valor": {"type": "number", "description": "o valor exato da cobranca que ele esta identificando"},
+                "apelido": {"type": "string", "description": "o nome da assinatura (ex: 'iCloud 200GB', 'Apple Music')"},
+            },
+            "required": ["valor", "apelido"],
+        },
+    },
+    {
         "name": "consultar_gastos_fixos",
         "description": (
             "Descobre quanto o Alex gasta de fixo por mes (assinaturas, aluguel, academia - "

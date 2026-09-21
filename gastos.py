@@ -52,6 +52,39 @@ def _normalizar_descricao(texto: str | None) -> str:
     return (texto or "").strip().lower()
 
 
+# Trechos que identificam uma cobranca "generica" no extrato bancario - o
+# texto sozinho nao diz qual assinatura e (ex: "APPLE.COM/BILL" pode ser
+# iCloud, Apple Music, ou um app qualquer) - lista simples de proposito, faz
+# so uma coisa (reconhecer o padrao), sem inventar antecipadamente outras
+# empresas que ninguem pediu ainda.
+PADROES_COBRANCA_GENERICA = ["apple.com"]
+
+
+def e_cobranca_generica(descricao: str | None) -> bool:
+    descricao_norm = _normalizar_descricao(descricao)
+    return any(padrao in descricao_norm for padrao in PADROES_COBRANCA_GENERICA)
+
+
+def aplicar_apelidos(gastos_reais: list[dict], apelidos: dict[tuple[str, float], str]) -> list[dict]:
+    """Troca a descricao de cada gasto pelo apelido conhecido (chave:
+    descricao normalizada + valor exato) ANTES de agrupar recorrencia -
+    assim "APPLE.COM/BILL R$14,90" e "APPLE.COM/BILL R$21,90" (duas
+    assinaturas diferentes, mesmo texto de cobranca) viram "iCloud" e
+    "Apple Music" antes mesmo de detectar_gastos_recorrentes ver o dado,
+    entao agrupam certo (cada apelido e seu proprio grupo) sem precisar
+    mudar nada na logica de agrupamento em si. Gasto sem apelido conhecido
+    passa direto, sem alteracao."""
+    resultado = []
+    for gasto in gastos_reais:
+        descricao_original = gasto.get("description") or gasto.get("source_text") or ""
+        chave = (_normalizar_descricao(descricao_original), gasto["amount"])
+        apelido = apelidos.get(chave)
+        if apelido:
+            gasto = {**gasto, "description": apelido}
+        resultado.append(gasto)
+    return resultado
+
+
 def detectar_gastos_recorrentes(
     expenses: list[dict],
     hoje: date,

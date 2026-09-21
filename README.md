@@ -537,6 +537,23 @@ o painel aprende a renda pelo que você mesmo conta no chat.
   retrospectivo (o que já entrou menos o que já saiu, sem tentar adivinhar gasto futuro), mais um
   aviso à parte do quanto ainda está só planejado/cogitado (pode ou não virar gasto real).
 
+Gastos fixos, orçamento e sobra do mês enxergam tanto o que foi digitado no chat quanto o extrato
+bancário sincronizado (OFX/Pluggy) - sem isso, ficariam cegos pra maior parte do gasto de quem usa
+a sincronização automática. Ressalva: as duas fontes não são reconciliadas entre si, então uma
+compra digitada no chat E que também aparece depois no extrato conta duas vezes - mesmo cuidado que
+a aba Bancos já pedia sobre confiar cegamente no total importado.
+
+### Cobrança sem identificar (ex: "APPLE.COM/BILL")
+
+Não existe API (paga ou gratuita) que deixe um app de terceiros ler a lista de assinaturas do seu
+Apple ID - é bloqueio de plataforma por privacidade, não uma peça faltando. O painel contorna isso
+reconhecendo o *padrão* da cobrança (`gastos.PADROES_COBRANCA_GENERICA`, hoje só "apple.com" -
+zero custo de IA, é só reconhecimento de texto) e perguntando uma vez só: "Cobrança de R$14,90 em
+'APPLE.COM/BILL' - qual assinatura é essa?". Você responde no chat ("a cobrança da apple de 14,90 é
+o iCloud") e o apelido fica salvo (por descrição + valor exato, pra "iCloud" e "Apple Music" nunca
+se confundirem mesmo com o mesmo texto de cobrança) - da próxima vez que aparecer, já entra
+identificado na detecção de gasto fixo.
+
 ## Aprendizado de padrao pessoal — sem IA, so o seu proprio historico
 
 O painel personaliza sozinho o numero de dias que espera antes de cobrar uma tarefa parada ou uma

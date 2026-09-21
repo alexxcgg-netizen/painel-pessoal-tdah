@@ -2,7 +2,9 @@ import unittest
 from datetime import date
 
 from gastos import (
+    aplicar_apelidos,
     detectar_gastos_recorrentes,
+    e_cobranca_generica,
     historico_diario,
     resumo_semanal,
     sobra_do_mes,
@@ -333,6 +335,68 @@ class SobraDoMesTestCase(unittest.TestCase):
         r = sobra_do_mes(renda_mes=1000.333, gasto_real_mes=500.111, gasto_planejado_mes=0.0)
         self.assertEqual(r["renda_mes"], 1000.33)
         self.assertEqual(r["gasto_mes"], 500.11)
+
+
+class ECobrancaGenericaTestCase(unittest.TestCase):
+    def test_reconhece_apple_com(self):
+        self.assertTrue(e_cobranca_generica("APPLE.COM/BILL"))
+        self.assertTrue(e_cobranca_generica("apple.com/bill"))
+        self.assertTrue(e_cobranca_generica("Compra Apple.Com"))
+
+    def test_nao_reconhece_outras_descricoes(self):
+        self.assertFalse(e_cobranca_generica("Netflix"))
+        self.assertFalse(e_cobranca_generica("Mercado Central"))
+
+    def test_none_ou_vazio_nao_e_generica(self):
+        self.assertFalse(e_cobranca_generica(None))
+        self.assertFalse(e_cobranca_generica(""))
+
+
+class AplicarApelidosTestCase(unittest.TestCase):
+    def test_sem_apelido_conhecido_passa_direto(self):
+        gastos_reais = [{"amount": 14.90, "description": "APPLE.COM/BILL", "created_at": "2026-09-05"}]
+        resultado = aplicar_apelidos(gastos_reais, {})
+        self.assertEqual(resultado[0]["description"], "APPLE.COM/BILL")
+
+    def test_com_apelido_troca_a_descricao(self):
+        gastos_reais = [{"amount": 14.90, "description": "APPLE.COM/BILL", "created_at": "2026-09-05"}]
+        apelidos = {("apple.com/bill", 14.90): "iCloud 200GB"}
+        resultado = aplicar_apelidos(gastos_reais, apelidos)
+        self.assertEqual(resultado[0]["description"], "iCloud 200GB")
+
+    def test_valores_diferentes_nao_se_confundem(self):
+        gastos_reais = [
+            {"amount": 14.90, "description": "APPLE.COM/BILL", "created_at": "2026-09-05"},
+            {"amount": 21.90, "description": "APPLE.COM/BILL", "created_at": "2026-09-06"},
+        ]
+        apelidos = {("apple.com/bill", 14.90): "iCloud 200GB", ("apple.com/bill", 21.90): "Apple Music"}
+        resultado = aplicar_apelidos(gastos_reais, apelidos)
+        self.assertEqual(resultado[0]["description"], "iCloud 200GB")
+        self.assertEqual(resultado[1]["description"], "Apple Music")
+
+    def test_nao_altera_a_lista_original(self):
+        gastos_reais = [{"amount": 14.90, "description": "APPLE.COM/BILL", "created_at": "2026-09-05"}]
+        aplicar_apelidos(gastos_reais, {("apple.com/bill", 14.90): "iCloud 200GB"})
+        self.assertEqual(gastos_reais[0]["description"], "APPLE.COM/BILL")
+
+    def test_usa_source_text_quando_sem_description(self):
+        gastos_reais = [{"amount": 14.90, "description": None, "source_text": "apple.com/bill", "created_at": "2026-09-05"}]
+        apelidos = {("apple.com/bill", 14.90): "iCloud 200GB"}
+        resultado = aplicar_apelidos(gastos_reais, apelidos)
+        self.assertEqual(resultado[0]["description"], "iCloud 200GB")
+
+    def test_dois_apelidos_diferentes_agrupam_como_recorrentes_separados(self):
+        gastos_reais = [
+            {"amount": 14.90, "description": "APPLE.COM/BILL", "created_at": "2026-07-05"},
+            {"amount": 14.90, "description": "APPLE.COM/BILL", "created_at": "2026-08-05"},
+            {"amount": 21.90, "description": "APPLE.COM/BILL", "created_at": "2026-07-06"},
+            {"amount": 21.90, "description": "APPLE.COM/BILL", "created_at": "2026-08-06"},
+        ]
+        apelidos = {("apple.com/bill", 14.90): "iCloud 200GB", ("apple.com/bill", 21.90): "Apple Music"}
+        rotulados = aplicar_apelidos(gastos_reais, apelidos)
+        recorrentes = detectar_gastos_recorrentes(rotulados, date(2026, 9, 21), minimo_meses=2)
+        descricoes = {r["descricao"] for r in recorrentes}
+        self.assertEqual(descricoes, {"iCloud 200GB", "Apple Music"})
 
 
 if __name__ == "__main__":
