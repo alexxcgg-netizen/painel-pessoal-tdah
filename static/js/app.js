@@ -1219,6 +1219,18 @@ $("#conectar-btn").addEventListener("click", async () => {
   widget.init();
 });
 
+const OFX_LABEL_PADRAO = "Escolher extrato (.ofx, .qfx)";
+
+function atualizarOfxLabel() {
+  const label = $("#ofx-input-label");
+  const span = label.querySelector("span");
+  const arquivo = $("#ofx-input").files[0];
+  span.textContent = arquivo ? arquivo.name : OFX_LABEL_PADRAO;
+  label.classList.toggle("tem-arquivo", Boolean(arquivo));
+}
+
+$("#ofx-input").addEventListener("change", atualizarOfxLabel);
+
 $("#importar-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const banco = $("#banco-select").value;
@@ -1239,6 +1251,7 @@ $("#importar-form").addEventListener("submit", async (e) => {
 
   if (!data) return;
   $("#ofx-input").value = "";
+  atualizarOfxLabel();
   $("#bancos-status").textContent =
     `Importado: ${data.novas} nova(s), ${data.duplicadas} ja existiam de ${data.encontradas} encontradas.`;
   loadBancos();
@@ -2009,6 +2022,60 @@ $("#viagem-form").addEventListener("submit", async (e) => {
   $("#viagem-uber-dica").hidden = false;
 });
 
+/* Dicas colapsaveis: o paragrafo comeca escondido atras do icone "!" e, na
+   primeira vez que abre, o texto "digita" progressivamente em vez de
+   aparecer tudo de uma vez - reforca que e uma explicacao extra, nao
+   conteudo que precisa ser lido toda vez que a secao aparece na tela. */
+function initDicas() {
+  const reduzMovimento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  document.querySelectorAll(".dica-colapsavel").forEach((wrapper) => {
+    const btn = wrapper.querySelector(".dica-toggle");
+    const texto = wrapper.querySelector(".dica-texto");
+    if (!btn || !texto) return;
+
+    const conteudoCompleto = texto.textContent.trim();
+    let jaDigitou = false;
+    let timerId = null;
+
+    function digitar() {
+      if (jaDigitou || reduzMovimento) {
+        texto.textContent = conteudoCompleto;
+        jaDigitou = true;
+        return;
+      }
+      texto.textContent = "";
+      texto.classList.add("digitando");
+      let i = 0;
+      const passo = () => {
+        i += 1;
+        texto.textContent = conteudoCompleto.slice(0, i);
+        if (i < conteudoCompleto.length) {
+          timerId = setTimeout(passo, 14);
+        } else {
+          texto.classList.remove("digitando");
+          jaDigitou = true;
+        }
+      };
+      passo();
+    }
+
+    btn.addEventListener("click", () => {
+      const aberto = btn.getAttribute("aria-expanded") === "true";
+      if (aberto) {
+        btn.setAttribute("aria-expanded", "false");
+        texto.hidden = true;
+        clearTimeout(timerId);
+        texto.classList.remove("digitando");
+        return;
+      }
+      btn.setAttribute("aria-expanded", "true");
+      texto.hidden = false;
+      digitar();
+    });
+  });
+}
+
 async function initViagemOrigemPadrao() {
   const status = await apiFetch("/api/viagem/status");
   if (status && status.origem_padrao) {
@@ -2046,3 +2113,4 @@ loadSaude();
 loadChatHistorico();
 initViagemOrigemPadrao();
 initVozChat();
+initDicas();

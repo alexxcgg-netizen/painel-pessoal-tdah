@@ -5,6 +5,34 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (2) - Polimento visual a partir do feedback do Alex
+
+Ajustes de design pedidos direto pelo Alex depois de revisar o artefato-réplica do app:
+
+- **Dicas colapsáveis:** os ~6 parágrafos explicativos mais longos (Fechamento de hoje,
+  Datas importantes, O que eu lembro sobre você, Cotações, Registrar voo, METAR/TAF) agora
+  começam escondidos atrás de um ícone "!" clicável (`.dica-colapsavel`/`.dica-toggle` em
+  `style.css`, `initDicas()` em `app.js`). Na primeira abertura o texto "digita"
+  progressivamente (respeitando `prefers-reduced-motion`) em vez de aparecer tudo de uma vez.
+- **Tipografia:** `-webkit-font-smoothing`/`text-rendering: optimizeLegibility` no `body`
+  (fonte "esgarçada" em telas de alta densidade), `::placeholder` com peso e cor explícitos,
+  `font-weight: 600` nos `<select>` de banco/tipo.
+- **Input de arquivo customizado:** `#ofx-input` nativo virou visually-hidden e ganhou uma
+  `<label>` estilizada (`.ofx-input-label`) que mostra o nome do arquivo escolhido - o texto
+  "nenhum arquivo selecionado" do navegador não é estilizável via CSS.
+- **Brilho "LED" em repouso:** badges (`.item-badge-proximo`, `.badge-sucesso`,
+  `.badge-planejado`), botões primários (`#lembrete-btn`, `#voo-btn`, `#metar-btn`,
+  `#importar-btn`, `.item-acoes button.primario`, `.meta-guardar button`) e
+  `.stat-tile-valor` agora têm um `box-shadow`/`text-shadow` de brilho mesmo fora do
+  `:hover` - antes só acendiam ao passar o mouse.
+- **Sombra com mais profundidade:** `--shadow-card`/`--shadow-card-hover` reforçadas de 3
+  pra 4 camadas (realce interno + contato colado + duas quedas em raios diferentes) pra
+  parecer sombra de verdade em vez do "achatado" que o Alex descreveu como "cara de feito
+  por IA". `.tab-btn.active` ganhou uma segunda camada de glow ambiente + `drop-shadow` no
+  ícone.
+- Artefato-réplica no claude.ai regenerado a partir dos arquivos-fonte atualizados (mesmo
+  script de montagem mecânica de sempre - nunca diverge do código real).
+
 ## 2026-09-21 - Contas a pagar da construtora, auditoria noturna de qualidade
 
 **Integração com a construtora:** consome o novo `GET /api/contas_a_vencer` do painel da

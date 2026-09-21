@@ -72,10 +72,16 @@
   --radius: 20px;
   --radius-sm: 14px;
 
-  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px rgba(0, 0, 0, 0.22),
-    0 10px 26px -16px rgba(0, 0, 0, 0.55);
-  --shadow-card-hover: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 4px rgba(0, 0, 0, 0.26),
-    0 18px 38px -18px rgba(0, 0, 0, 0.6);
+  /* Reforcado (pedido explicito: "pouco efeito de profundidade") - de 3 camadas
+     pra 4: realce interno mais visivel no topo, contato bem colado (a caixa
+     "gruda" no fundo), e duas camadas de queda em raios bem diferentes (uma
+     curta/escura simulando contato, uma longa/suave simulando distancia) - e
+     assim que sombra de verdade funciona (uma unica sombra generica sempre lê
+     como "achatado"/gerado por IA). */
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 1px rgba(0, 0, 0, 0.5),
+    0 6px 10px -6px rgba(0, 0, 0, 0.5), 0 20px 34px -18px rgba(0, 0, 0, 0.65);
+  --shadow-card-hover: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 1px 1px rgba(0, 0, 0, 0.55),
+    0 10px 16px -8px rgba(0, 0, 0, 0.55), 0 30px 46px -20px rgba(0, 0, 0, 0.7);
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
@@ -313,6 +319,23 @@ body {
   line-height: 1.45;
   letter-spacing: -0.006em;
   overflow-x: hidden;
+  /* Jost (geometrica, traco fino) sem isso renderiza "esgarcada"/fraca em telas de
+     alta densidade - pedido explicito do Alex ("fonte fina/feia"), principalmente
+     visivel em texto pequeno (placeholder, select, badge). Nao muda a fonte, so
+     como o rasterizador desenha ela. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Placeholder sem regra propria herdava a opacidade bem baixa que o navegador
+   aplica por padrao - em cima de uma fonte ja fina isso lia como "quebrado". Peso
+   500 (em vez do 400 padrao do Jost) + opacidade total (a cor ja e escura o
+   bastante pra nao competir com o texto digitado). */
+::placeholder {
+  color: var(--text-faint);
+  opacity: 1;
+  font-weight: 500;
 }
 
 .aurora {
@@ -534,7 +557,15 @@ header {
   color: var(--accent-text);
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
-  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent);
+  /* "LED" pedido explicito: glow ambiente pequeno e continuo (nao so na sombra de
+     queda) em cima da cor de acento - e o que faz uma superficie escura parecer
+     "acesa" em vez de so escura. */
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent),
+    0 0 16px -2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.tab-btn.active svg {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent));
 }
 
 /* Pedido do Alex (inspirado no app Pierre - preto/branco quase puro, cor so
@@ -755,6 +786,8 @@ header {
   color: var(--text);
   letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
+  /* brilho de repouso (nao so no pop) - da o "LED" que faltava no numero de destaque */
+  text-shadow: 0 0 12px color-mix(in srgb, var(--tile-cor, var(--accent)) 35%, transparent);
 }
 
 .stat-tile-valor.num-pop {
@@ -1182,6 +1215,7 @@ li.item.saindo {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   vertical-align: middle;
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 .item-badge-vencida {
@@ -1248,6 +1282,7 @@ li.item.saindo {
   border-color: transparent;
   color: var(--accent-text);
   font-weight: 700;
+  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--cor-tarefas) 55%, transparent);
 }
 
 @media (hover: hover) {
@@ -1352,6 +1387,7 @@ li.item.item-planejado {
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
   margin-left: 0.4rem;
+  box-shadow: 0 0 6px -1px color-mix(in srgb, var(--cor-bancos) 55%, transparent);
 }
 
 #importar-form {
@@ -1362,24 +1398,75 @@ li.item.item-planejado {
 }
 
 #banco-select,
-#tipo-select,
-#ofx-input {
+#tipo-select {
   padding: 0.6rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   font-size: 0.85rem;
-}
-
-#banco-select,
-#tipo-select {
+  font-weight: 600;
   flex: 0 0 auto;
 }
 
+/* Input de arquivo nativo escondido - o texto "nenhum arquivo selecionado" do
+   navegador nao e estilizavel via CSS, entao a label abaixo vira o controle
+   visual de verdade e mostra o nome do arquivo com a tipografia do app. */
 #ofx-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ofx-input-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   flex: 1 1 100%;
   min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ofx-input-label svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.ofx-input-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ofx-input-label.tem-arquivo {
+  color: var(--text);
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--cor-bancos) 45%, var(--border));
+}
+
+@media (hover: hover) {
+  .ofx-input-label:hover {
+    border-color: color-mix(in srgb, var(--cor-bancos) 55%, var(--border));
+  }
+}
+
+#ofx-input:focus-visible + .ofx-input-label {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 #importar-btn {
@@ -1450,6 +1537,93 @@ li.item.item-planejado {
   color: var(--text-muted);
   font-size: 0.8rem;
   margin: -0.4rem 0 0.75rem;
+}
+
+/* Dica colapsavel: o texto explicativo comeca escondido atras de um icone de
+   "!" pra nao poluir a tela toda vez - quem ja sabe como a secao funciona
+   nao precisa reler o paragrafo de novo em cada visita. */
+.dica-colapsavel {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: -0.3rem 0 0.75rem;
+}
+
+.dica-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 0.05rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-family: var(--font-tech);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dica-toggle::before {
+  content: "!";
+}
+
+@media (hover: hover) {
+  .dica-toggle:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  }
+}
+
+.dica-toggle[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.dica-colapsavel .dica-texto {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.dica-colapsavel .dica-texto[hidden] {
+  display: none;
+}
+
+/* cursor piscando enquanto o texto "digita" - some sozinho quando a classe
+   sai (fim da animacao, ver initDicas em app.js) */
+.dica-texto.digitando::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: cursorPiscando 0.8s step-end infinite;
+}
+
+@keyframes cursorPiscando {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dica-texto.digitando::after {
+    animation: none;
+  }
 }
 
 .fechamento-box {
@@ -1533,6 +1707,7 @@ li.item.item-planejado {
   cursor: pointer;
   flex-shrink: 0;
   gap: 0.32rem;
+  box-shadow: 0 0 10px -3px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
 }
 
 @media (hover: hover) {
@@ -1552,6 +1727,7 @@ li.item.item-planejado {
   color: #0b1f16;
   background: linear-gradient(90deg, #42bb91, #d8ab4c);
   animation: fadeInUp 0.4s var(--ease-bounce);
+  box-shadow: 0 0 10px -2px rgba(66, 187, 145, 0.6);
 }
 
 #viagem-form {

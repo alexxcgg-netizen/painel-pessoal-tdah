@@ -128,10 +128,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5l2 2 4-5"/><circle cx="12" cy="12" r="9"/></svg>
         Fechamento de hoje
       </h2>
-      <p class="dica-metas">
-        Fecha o dia com a cabeca tranquila: o que foi feito e o que ficou pra depois. Nada some -
-        o que nao foi feito continua pendente e aparece de novo amanha, sem culpa.
-      </p>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao do fechamento de hoje"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Fecha o dia com a cabeca tranquila: o que foi feito e o que ficou pra depois. Nada some -
+          o que nao foi feito continua pendente e aparece de novo amanha, sem culpa.
+        </p>
+      </div>
       <div id="fechamento-box" class="fechamento-box">
         <p id="fechamento-concluidas" class="fechamento-linha"></p>
         <p id="fechamento-pendentes" class="fechamento-linha"></p>
@@ -204,11 +207,14 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.5 6 2 6.5H4C4.5 14 6 12.5 6 8Z"/><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0"/></svg>
         Datas importantes
       </h2>
-      <p class="dica-metas">
-        Validade de licenca/exame medico, seguro, revisao, aniversario - qualquer data que so
-        importa quando estiver perto. Peca no chat pra registrar (ex: "meu exame medico de piloto
-        vence dia 15 de janeiro, todo ano"). Avisa por notificacao push nos ultimos 7 dias.
-      </p>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao das datas importantes"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Validade de licenca/exame medico, seguro, revisao, aniversario - qualquer data que so
+          importa quando estiver perto. Peca no chat pra registrar (ex: "meu exame medico de piloto
+          vence dia 15 de janeiro, todo ano"). Avisa por notificacao push nos ultimos 7 dias.
+        </p>
+      </div>
       <form id="lembrete-form" class="form-linha">
         <input type="text" id="lembrete-titulo" placeholder="O que vence?" required />
         <input type="text" id="lembrete-data" placeholder="dd/mm/aaaa" inputmode="numeric" required />
@@ -231,10 +237,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z"/></svg>
         O que eu lembro sobre voce
       </h2>
-      <p class="dica-metas">
-        Fatos duraveis que aparecem quando voce escreve algo na captura - preferencias, rotinas,
-        coisas assim. Usados pro resumo e pro plano do dia. Pode apagar o que nao fizer sentido.
-      </p>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao do que o painel lembra"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Fatos duraveis que aparecem quando voce escreve algo na captura - preferencias, rotinas,
+          coisas assim. Usados pro resumo e pro plano do dia. Pode apagar o que nao fizer sentido.
+        </p>
+      </div>
       <p id="memorias-vazio" class="vazio" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z"/></svg>
         Ainda nao sei nada sobre voce. Escreve algo na captura que eu guardo.
@@ -318,6 +327,10 @@
           <option value="cartao">Cartao de credito</option>
         </select>
         <input type="file" id="ofx-input" accept=".ofx,.qfx" required />
+        <label for="ofx-input" id="ofx-input-label" class="ofx-input-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4M8 8l4-4 4 4"/><path d="M4.5 15.5V18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5"/></svg>
+          <span>Escolher extrato (.ofx, .qfx)</span>
+        </label>
         <button type="submit" id="importar-btn" class="btn-com-icone">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4M8 8l4-4 4 4"/><path d="M4.5 15.5V18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5"/></svg>
           Importar extrato
@@ -352,10 +365,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5l2 2 4-5"/><rect x="3.5" y="4" width="17" height="16" rx="2"/></svg>
         Cotacoes
       </h2>
-      <p class="dica-metas">
-        Compare precos de fornecedor de material de obra. Fala no chat ("fornecedor tal, R$5000,
-        pra cotacao de ferro") ou anexa o PDF do orcamento direto aqui.
-      </p>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao das cotacoes"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Compare precos de fornecedor de material de obra. Fala no chat ("fornecedor tal, R$5000,
+          pra cotacao de ferro") ou anexa o PDF do orcamento direto aqui.
+        </p>
+      </div>
       <form id="cotacao-form" class="form-linha">
         <input type="text" id="cotacao-titulo" placeholder="Material/servico (ex: portas, ferro)" required />
         <button type="submit" id="cotacao-btn" class="btn-com-icone">
@@ -403,10 +419,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Registrar voo
       </h2>
-      <p class="dica-metas">
-        Ja realizado (com horas) ou so um compromisso agendado (sem horas ainda) - da tambem pra
-        pedir no chat (ex: "vou voar pra Blumenau semana que vem" ou "voei 1,5h hoje, treino de pouso").
-      </p>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao do registro de voo"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Ja realizado (com horas) ou so um compromisso agendado (sem horas ainda) - da tambem pra
+          pedir no chat (ex: "vou voar pra Blumenau semana que vem" ou "voei 1,5h hoje, treino de pouso").
+        </p>
+      </div>
       <form id="voo-form" class="form-linha" style="--form-cor: var(--cor-aviacao)">
         <input type="text" id="voo-data" placeholder="dd/mm/aaaa" inputmode="numeric" required />
         <input type="text" id="voo-hora" placeholder="hh:mm do voo (opcional)" inputmode="numeric" />
@@ -434,12 +453,15 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>
         METAR / TAF
       </h2>
-      <p class="dica-metas">
-        Consulta direto na fonte oficial (aviationweather.gov) - o texto bruto vem exatamente como
-        a fonte manda. Vento, visibilidade, teto e temperatura tambem aparecem decodificados
-        (conversao exata de codigo pra numero, sem julgamento nenhum de categoria de voo) e da pra
-        tocar em "ouvir" pra ele ler em voz alta. Sempre confira antes de voar.
-      </p>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao do METAR/TAF"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Consulta direto na fonte oficial (aviationweather.gov) - o texto bruto vem exatamente como
+          a fonte manda. Vento, visibilidade, teto e temperatura tambem aparecem decodificados
+          (conversao exata de codigo pra numero, sem julgamento nenhum de categoria de voo) e da pra
+          tocar em "ouvir" pra ele ler em voz alta. Sempre confira antes de voar.
+        </p>
+      </div>
       <form id="metar-form" class="form-linha" style="--form-cor: var(--cor-aviacao)">
         <input type="text" id="metar-icao" placeholder="Codigo ICAO (ex: SBBI)" maxlength="4" style="text-transform: uppercase" required />
         <button type="submit" id="metar-btn" class="btn-com-icone">
