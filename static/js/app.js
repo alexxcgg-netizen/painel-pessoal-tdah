@@ -1425,6 +1425,17 @@ async function loadVoosResumo() {
   animarNumero($("#voo-horas-mes"), data.horas_mes, fmtHoras);
   animarNumero($("#voo-horas-total"), data.horas_total, fmtHoras);
 
+  const currencyChip = $("#currency-voo-chip");
+  if (data.dias_desde_ultimo_voo === null || data.dias_desde_ultimo_voo === undefined) {
+    currencyChip.hidden = true;
+  } else {
+    const dias = data.dias_desde_ultimo_voo;
+    $("#currency-voo-texto").textContent =
+      dias === 0 ? "Voou hoje" : dias === 1 ? "1 dia sem voar" : `${dias} dias sem voar`;
+    currencyChip.classList.toggle("alerta", dias >= 21);
+    currencyChip.hidden = false;
+  }
+
   const list = $("#lista-voos");
   list.innerHTML = "";
   vazioEl.hidden = data.proximos.length > 0;

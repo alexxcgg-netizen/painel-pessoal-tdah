@@ -52,3 +52,15 @@ def proximos_voos(voos: list[dict], hoje: date) -> list[dict]:
     hoje_iso = hoje.isoformat()
     futuros = [v for v in voos if v["data"] >= hoje_iso]
     return sorted(futuros, key=lambda v: v["data"])
+
+
+def dias_desde_ultimo_voo(voos: list[dict], hoje: date) -> int | None:
+    """Quantos dias se passaram desde o voo REALIZADO mais recente (tem que
+    ter 'horas' preenchido - um voo so agendado nao conta como ter voado).
+    None se nunca voou ainda (sem voo realizado no historico)."""
+    hoje_iso = hoje.isoformat()
+    realizados = [v for v in voos if v.get("horas") is not None and v["data"] <= hoje_iso]
+    if not realizados:
+        return None
+    ultima_data = max(v["data"] for v in realizados)
+    return (hoje - date.fromisoformat(ultima_data)).days

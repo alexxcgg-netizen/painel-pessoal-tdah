@@ -1,7 +1,13 @@
 import unittest
 from datetime import date
 
-from voos import historico_horas_acumuladas, inicio_da_semana, proximos_voos, resumo_horas
+from voos import (
+    dias_desde_ultimo_voo,
+    historico_horas_acumuladas,
+    inicio_da_semana,
+    proximos_voos,
+    resumo_horas,
+)
 
 
 class VoosTestCase(unittest.TestCase):
@@ -84,6 +90,31 @@ class VoosTestCase(unittest.TestCase):
 
     def test_historico_vazio_sem_voos(self):
         self.assertEqual(historico_horas_acumuladas([], date(2026, 9, 18)), [])
+
+    def test_dias_desde_ultimo_voo_sem_nenhum_voo_e_none(self):
+        self.assertIsNone(dias_desde_ultimo_voo([], date(2026, 9, 18)))
+
+    def test_dias_desde_ultimo_voo_ignora_agendado_sem_horas(self):
+        voos = [{"data": "2026-09-18", "horas": None}]
+        self.assertIsNone(dias_desde_ultimo_voo(voos, date(2026, 9, 18)))
+
+    def test_dias_desde_ultimo_voo_conta_a_partir_do_mais_recente(self):
+        voos = [
+            {"data": "2026-09-01", "horas": 1.0},
+            {"data": "2026-09-10", "horas": 1.5},
+        ]
+        self.assertEqual(dias_desde_ultimo_voo(voos, date(2026, 9, 18)), 8)
+
+    def test_dias_desde_ultimo_voo_hoje_e_zero(self):
+        voos = [{"data": "2026-09-18", "horas": 1.0}]
+        self.assertEqual(dias_desde_ultimo_voo(voos, date(2026, 9, 18)), 0)
+
+    def test_dias_desde_ultimo_voo_ignora_voo_agendado_no_futuro(self):
+        voos = [
+            {"data": "2026-09-10", "horas": 1.0},
+            {"data": "2026-09-25", "horas": None},
+        ]
+        self.assertEqual(dias_desde_ultimo_voo(voos, date(2026, 9, 18)), 8)
 
 
 if __name__ == "__main__":

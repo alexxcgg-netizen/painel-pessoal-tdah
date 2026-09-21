@@ -144,6 +144,32 @@ def planejamento_semanal_devido(agora: datetime | None = None) -> bool:
     return alvo <= agora < alvo + timedelta(minutes=5)
 
 
+def hora_de_dormir_devida(agora: datetime | None = None) -> bool:
+    """Verdadeiro na janela de 5min em torno das 22h - o horario que o Alex
+    escolheu pra comecar a desacelerar pro sono, todo dia."""
+    agora = agora or datetime.now()
+    alvo = agora.replace(hour=22, minute=0, second=0, microsecond=0)
+    return alvo <= agora < alvo + timedelta(minutes=5)
+
+
+def currency_voo_baixa(conn, limiar_dias: int = 21) -> str | None:
+    """Faz tempo demais desde o ultimo voo REALIZADO (com horas registradas -
+    um voo so agendado nao conta) - um lembrete gentil pra nao perder o
+    ritmo do curso. None se nunca voou ainda ou se ainda esta dentro do
+    limiar."""
+    hoje = date.today()
+    ultima = conn.execute(
+        "SELECT MAX(data) AS ultima FROM voos WHERE horas IS NOT NULL AND data <= ?",
+        (hoje.isoformat(),),
+    ).fetchone()["ultima"]
+    if not ultima:
+        return None
+    dias = (hoje - date.fromisoformat(ultima)).days
+    if dias < limiar_dias:
+        return None
+    return f"Faz {dias} dias que voce nao voa - pode ser hora de marcar um voo pra nao perder o ritmo."
+
+
 def voos_de_hoje_com_horario(conn, hoje: date | None = None) -> list[dict]:
     """Voos de hoje com horario marcado que ainda nao aconteceram (sem
     'horas' voadas registradas ainda) - candidatos pra calcular a hora de

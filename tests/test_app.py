@@ -2138,6 +2138,69 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(db.obter_configuracao(conn, "uber_refresh_token"), "novo-refresh")
         conn.close()
 
+    # ---- Rotina: hora de dormir, currency de voo, rotacao de estudo ----
+
+    def test_verificar_notifica_hora_de_dormir(self):
+        sub = {"endpoint": "https://exemplo.com/push/dormir1", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("notificacoes.hora_de_dormir_devida", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        self.assertIn("desacelerar", mock_enviar.call_args[0][2])
+
+    def test_verificar_hora_de_dormir_ja_notificada_nao_repete(self):
+        sub = {"endpoint": "https://exemplo.com/push/dormir2", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("notificacoes.hora_de_dormir_devida", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_called_once()
+
+    def test_verificar_notifica_currency_de_voo_baixa(self):
+        antigo = (date.today() - timedelta(days=25)).isoformat()
+        self.client.post("/api/voos", json={"data": antigo, "destino": "Navegantes", "horas": 1.0})
+        sub = {"endpoint": "https://exemplo.com/push/currency1", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        self.assertIn("25 dias", mock_enviar.call_args[0][2])
+
+    def test_voos_resumo_inclui_dias_desde_ultimo_voo(self):
+        antigo = (date.today() - timedelta(days=10)).isoformat()
+        self.client.post("/api/voos", json={"data": antigo, "destino": "Navegantes", "horas": 1.0})
+        res = self.client.get("/api/voos/resumo")
+        self.assertEqual(res.get_json()["dias_desde_ultimo_voo"], 10)
+
+    def test_voos_resumo_dias_desde_ultimo_voo_none_sem_voos(self):
+        res = self.client.get("/api/voos/resumo")
+        self.assertIsNone(res.get_json()["dias_desde_ultimo_voo"])
+
+    def test_sugerir_tema_estudo_roda_em_rodizio(self):
+        r1 = self._registrar_via_chat("sugerir_tema_estudo", {})
+        r2 = self._registrar_via_chat("sugerir_tema_estudo", {})
+        r3 = self._registrar_via_chat("sugerir_tema_estudo", {})
+        r4 = self._registrar_via_chat("sugerir_tema_estudo", {})
+        self.assertEqual(r1["tema"], "Regulamentacao (RBAC/RBHA)")
+        self.assertEqual(r2["tema"], "Meteorologia aeronautica")
+        self.assertEqual(r3["tema"], "Navegacao")
+        self.assertEqual(r4["tema"], r1["tema"])  # completou a volta, recomeca
+
     # ---- Cenario real: mensagem corrida de manha com varias coisas juntas ----
     # (o exemplo que o Alex deu: material de obra + gravar video na obra + voo
     # as 14h + gasto ja feito de gasolina + gasto planejado de reabastecer +

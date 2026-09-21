@@ -238,6 +238,45 @@ class NotificacoesTestCase(unittest.TestCase):
         segunda = self._domingo_as(20, 30) + timedelta(days=1)
         self.assertFalse(notificacoes.planejamento_semanal_devido(segunda))
 
+    def _hoje_as(self, hora, minuto):
+        return datetime.combine(date.today(), datetime.min.time()).replace(hour=hora, minute=minuto)
+
+    def test_hora_de_dormir_devida_as_22h(self):
+        self.assertTrue(notificacoes.hora_de_dormir_devida(self._hoje_as(22, 0)))
+        self.assertTrue(notificacoes.hora_de_dormir_devida(self._hoje_as(22, 4)))
+
+    def test_hora_de_dormir_nao_devida_fora_da_janela(self):
+        self.assertFalse(notificacoes.hora_de_dormir_devida(self._hoje_as(21, 59)))
+        self.assertFalse(notificacoes.hora_de_dormir_devida(self._hoje_as(22, 5)))
+        self.assertFalse(notificacoes.hora_de_dormir_devida(self._hoje_as(9, 0)))
+
+    def test_currency_voo_sem_voo_nenhum_e_none(self):
+        self.assertIsNone(notificacoes.currency_voo_baixa(self.conn))
+
+    def test_currency_voo_dentro_do_limiar_nao_avisa(self):
+        recente = (date.today() - timedelta(days=5)).isoformat()
+        self.conn.execute(
+            "INSERT INTO voos (data, destino, horas) VALUES (?, ?, ?)", (recente, "Navegantes", 1.0)
+        )
+        self.conn.commit()
+        self.assertIsNone(notificacoes.currency_voo_baixa(self.conn, limiar_dias=21))
+
+    def test_currency_voo_acima_do_limiar_avisa(self):
+        antigo = (date.today() - timedelta(days=25)).isoformat()
+        self.conn.execute(
+            "INSERT INTO voos (data, destino, horas) VALUES (?, ?, ?)", (antigo, "Navegantes", 1.0)
+        )
+        self.conn.commit()
+        msg = notificacoes.currency_voo_baixa(self.conn, limiar_dias=21)
+        self.assertIsNotNone(msg)
+        self.assertIn("25 dias", msg)
+
+    def test_currency_voo_ignora_voo_so_agendado(self):
+        antigo = (date.today() - timedelta(days=25)).isoformat()
+        self.conn.execute("INSERT INTO voos (data, destino) VALUES (?, ?)", (antigo, "Navegantes"))
+        self.conn.commit()
+        self.assertIsNone(notificacoes.currency_voo_baixa(self.conn, limiar_dias=21))
+
 
 if __name__ == "__main__":
     unittest.main()

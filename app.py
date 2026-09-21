@@ -15,6 +15,7 @@ import bank_ofx
 import caldav_client
 import claude_client
 import clima
+import estudo
 import gastos
 import maps_client
 import metar
@@ -810,6 +811,12 @@ def chat():
         pedido_id = criar_uber_pedido(conn, entrada.get("origem"), entrada["destino"], disparar_em)
         return {"ok": True, "pedido_id": pedido_id, "minutos": minutos}
 
+    def exec_sugerir_tema_estudo(_entrada):
+        indice_atual = int(obter_configuracao(conn, "estudo_proximo_indice") or 0)
+        tema, proximo_indice = estudo.proximo_tema(indice_atual)
+        definir_configuracao(conn, "estudo_proximo_indice", str(proximo_indice))
+        return {"tema": tema}
+
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
@@ -822,6 +829,7 @@ def chat():
         "calcular_gasto_viagem": exec_calcular_gasto_viagem,
         "sugerir_posto_no_caminho": exec_sugerir_posto_no_caminho,
         "agendar_uber": exec_agendar_uber,
+        "sugerir_tema_estudo": exec_sugerir_tema_estudo,
     }
 
     result, error = _call_claude(
@@ -992,6 +1000,20 @@ def verificar_e_notificar():
                 "Ja sabe sua agenda dessa semana? Manda pra mim que eu registro tudo.",
             )
         )
+
+    if notificacoes.hora_de_dormir_devida() and not ja_notificou_hoje(conn, "hora_de_dormir"):
+        avisos.append(
+            (
+                "hora_de_dormir",
+                0,
+                "Hora de desacelerar",
+                "22h - comeca a desacelerar pro sono.",
+            )
+        )
+
+    msg = notificacoes.currency_voo_baixa(conn, limiar_dias=21)
+    if msg and not ja_notificou_hoje(conn, "currency_voo"):
+        avisos.append(("currency_voo", 0, "Faz tempo que voce nao voa", msg))
 
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
@@ -1295,7 +1317,8 @@ def voos_resumo():
     hoje = date.today()
     resumo = voos_module.resumo_horas(todos, hoje)
     proximos = [_voo_com_clima(v) for v in voos_module.proximos_voos(todos, hoje)]
-    return jsonify({**resumo, "proximos": proximos})
+    dias_sem_voar = voos_module.dias_desde_ultimo_voo(todos, hoje)
+    return jsonify({**resumo, "proximos": proximos, "dias_desde_ultimo_voo": dias_sem_voar})
 
 
 @app.route("/api/voos/historico", methods=["GET"])
