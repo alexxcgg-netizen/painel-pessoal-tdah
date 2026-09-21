@@ -8,8 +8,8 @@
   --text: #eceef3;
   --text-muted: #a7afbc;
   --text-faint: #788292;
-  --accent: #b85ec9;
-  --accent-2: #24467d;
+  --accent: #41aa75;
+  --accent-2: #6d3fd1;
   --accent-fill: color-mix(in srgb, var(--accent) 30%, black 70%);
   --accent-2-fill: color-mix(in srgb, var(--accent-2) 30%, black 70%);
   --accent-gradient: linear-gradient(135deg, var(--accent-fill) 0%, var(--accent-2-fill) 100%);
@@ -24,8 +24,8 @@
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
-  --font-display: "Libre Bodoni", Didot, "Bodoni MT", Georgia, serif;
-  --font-body: "Jost", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-display: "Sora", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: "Sora", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   --font-tech: "IBM Plex Mono", "SF Mono", "Menlo", "Consolas", monospace;
 }
 

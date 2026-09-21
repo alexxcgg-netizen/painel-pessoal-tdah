@@ -31,10 +31,18 @@
      color-mix - usado SO nos preenchimentos solidos e grandes (tab ativa,
      fundo dos stat-tiles, badges/pontos solidos), que e onde "muito
      claro"/"tipo LED" realmente incomodava. --accent-text voltou a ser
-     claro porque esses preenchimentos ficaram escuros nessa rodada. */
-  --accent: #b85ec9;
+     claro porque esses preenchimentos ficaram escuros nessa rodada.
+
+     Round 3 de cor (escolhido comparando ao vivo num artefato-replica):
+     --accent trocou de ametista pra esmeralda puro - o mesmo tom ja usado
+     em --cor-painel, entao a marca global e a aba Painel agora comungam a
+     mesma identidade de cor de proposito, nao por coincidencia. --accent-2
+     virou o roxo profundo que ja aparecia no gradiente do .aurora
+     (rgba(109,63,209)), fechando o par esmeralda+ametista que o Alex
+     pediu. */
+  --accent: #41aa75;
   --accent-fill: color-mix(in srgb, var(--accent) 30%, black 70%);
-  --accent-2: #24467d;
+  --accent-2: #6d3fd1;
   --accent-2-fill: color-mix(in srgb, var(--accent-2) 30%, black 70%);
   --accent-gradient: linear-gradient(135deg, var(--accent-fill) 0%, var(--accent-2-fill) 100%);
   /* versao viva do gradiente - so pra onde a cor E o proprio conteudo visivel
@@ -87,30 +95,25 @@
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* Round 3 de tipografia - pedido explicito do Alex: trocar as tres,
-     nenhuma repetida das rodadas anteriores (nem Fraunces/DM Sans/
-     JetBrains Mono, nem Plus Jakarta/Space Grotesk antes disso). Pesquisado
-     especificamente por fontes de marca de luxo (revista de moda, nao
-     "SaaS premium") - Libre Bodoni e um didone de alto contraste (parente
-     livre do Bodoni/Didot que Chanel/Vogue usam), Jost e geometrica
-     inspirada na Bauhaus pro corpo, IBM Plex Mono nos dados tecnicos. */
-  --font-display: "Libre Bodoni", Didot, "Bodoni MT", Georgia, serif;
+  /* Round 4 de tipografia (escolhido comparando ao vivo num artefato-replica,
+     junto com a cor acima): o serifado de luxo (Libre Bodoni/Jost/Bricolage
+     Grotesque do round 3) deu lugar a uma familia unica - Sora - nas tres
+     funcoes (titulo, corpo, numero). Mais perto da "cara de app moderno"
+     que o Alex citou (tipo ChatGPT) do que do editorial de revista. */
+  --font-display: "Sora", -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* fonte de corpo - texto corrido, listas, menus */
-  --font-body: "Jost", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-body: "Sora", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
 
   /* fonte dos valores em destaque (stat-tile, card de resultado - tipo
-     "R$ 30") - pedido explicito: o serifado de alto contraste do
-     --font-display fica bonito em letra, mas em NUMERO fica fraco/quebrado
-     na tela (traço fino demais em tamanho de UI, didone e feito pra corpo
-     grande impresso, nao pra digito pequeno). Grotesk forte e confiante,
-     igual fintech premium usa pros numeros grandes mesmo tendo serifa no
-     titulo. */
-  --font-numeros: "Bricolage Grotesque", -apple-system, sans-serif;
+     "R$ 30") - mesma familia do corpo agora (Sora tem peso 700/800 forte o
+     suficiente pra numero grande, sem precisar de uma segunda grotesk so
+     pra isso). */
+  --font-numeros: "Sora", -apple-system, sans-serif;
 
   /* fonte tecnica - so pra numero/dado bruto (estatisticas, horas, METAR),
      nunca pra texto corrido - da o contraste "readout" que falta usando so
-     Jost/SF Pro em tudo */
+     Sora/SF Pro em tudo */
   --font-tech: "IBM Plex Mono", "SF Mono", "Menlo", "Consolas", monospace;
 }
 
@@ -319,10 +322,10 @@ body {
   line-height: 1.45;
   letter-spacing: -0.006em;
   overflow-x: hidden;
-  /* Jost (geometrica, traco fino) sem isso renderiza "esgarcada"/fraca em telas de
-     alta densidade - pedido explicito do Alex ("fonte fina/feia"), principalmente
-     visivel em texto pequeno (placeholder, select, badge). Nao muda a fonte, so
-     como o rasterizador desenha ela. */
+  /* Fonte geometrica de traco fino (era Jost, agora Sora) sem isso renderiza
+     "esgarcada"/fraca em telas de alta densidade - pedido explicito do Alex
+     ("fonte fina/feia"), principalmente visivel em texto pequeno (placeholder,
+     select, badge). Nao muda a fonte, so como o rasterizador desenha ela. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -330,8 +333,8 @@ body {
 
 /* Placeholder sem regra propria herdava a opacidade bem baixa que o navegador
    aplica por padrao - em cima de uma fonte ja fina isso lia como "quebrado". Peso
-   500 (em vez do 400 padrao do Jost) + opacidade total (a cor ja e escura o
-   bastante pra nao competir com o texto digitado). */
+   500 (em vez do 400 padrao) + opacidade total (a cor ja e escura o bastante
+   pra nao competir com o texto digitado). */
 ::placeholder {
   color: var(--text-faint);
   opacity: 1;

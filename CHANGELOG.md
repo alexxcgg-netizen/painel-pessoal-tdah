@@ -5,6 +5,26 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (3) - Nova identidade: fonte Sora + esmeralda/ametista
+
+Depois do polimento visual da rodada anterior, o Alex comparou fonte e cor ao vivo num
+artefato-replica (comparador com presets, sem mexer no codigo real) e decidiu a combinacao
+final:
+
+- **Tipografia:** as tres familias do round 3 (Libre Bodoni/Jost/Bricolage Grotesque) deram
+  lugar a uma unica familia - **Sora** - em `--font-display`/`--font-body`/`--font-numeros`.
+  `--font-tech` continua IBM Plex Mono. Aplicado em `style.css`, `login.css` e nos tres
+  `<link>` de Google Fonts (`index.html`, `login.html`, `configurar_pin.html`).
+- **Cor de destaque:** `--accent` trocou de ametista (`#b85ec9`) pro esmeralda puro
+  (`#41aa75`, o mesmo tom ja usado em `--cor-painel` - marca global e aba Painel agora
+  compartilham identidade de proposito). `--accent-2` trocou de azul profundo (`#24467d`)
+  pro roxo profundo (`#6d3fd1`, o mesmo tom que ja aparecia no gradiente do `.aurora`).
+  Os seis `--cor-X` de cada secao (tarefas, financeiro, bancos, construtora, aviacao) nao
+  mudaram.
+- Mesma cor/fonte tambem atualizada no widget do Scriptable (`scriptable/widget_painel.js`).
+- 469 testes passando, artefato-replica regenerado a partir dos arquivos-fonte (mesmo
+  processo mecanico de sempre, nunca diverge do codigo real).
+
 ## 2026-09-21 (2) - Polimento visual a partir do feedback do Alex
 
 Ajustes de design pedidos direto pelo Alex depois de revisar o artefato-réplica do app:

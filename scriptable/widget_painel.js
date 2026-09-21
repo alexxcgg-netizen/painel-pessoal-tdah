@@ -20,7 +20,7 @@ const COR_BG = new Color("#09090d");
 const COR_SURFACE = new Color("#1c1f28");
 const COR_TEXTO = new Color("#eceef3");
 const COR_TEXTO_MUTED = new Color("#a7afbc");
-const COR_ACCENT = new Color("#b85ec9");
+const COR_ACCENT = new Color("#41aa75");
 
 async function buscarResumo() {
   const req = new Request(`${PAINEL_URL}/api/atalho/resumo`);
