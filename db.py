@@ -202,8 +202,31 @@ def init_db():
     _garantir_coluna(conn, "tasks", "depende_do_tempo", "INTEGER NOT NULL DEFAULT 0")
     _garantir_coluna(conn, "voos", "hora", "TEXT")
     _garantir_coluna(conn, "expenses", "tipo", "TEXT NOT NULL DEFAULT 'real'")
+    _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     conn.close()
+
+
+def _garantir_indices(conn):
+    """Indices nas colunas mais filtradas/ordenadas pelo app - rodado depois das
+    migracoes de coluna acima, pra nunca tentar indexar uma coluna que ainda nao
+    existe num banco antigo. Banco e pequeno (uso pessoal), entao isso e mais
+    sobre nao regredir conforme o historico cresce do que sobre um problema de
+    performance que exista hoje."""
+    conn.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_tasks_completed_at ON tasks(completed_at);
+        CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+        CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
+        CREATE INDEX IF NOT EXISTS idx_expenses_created_at ON expenses(created_at);
+        CREATE INDEX IF NOT EXISTS idx_expenses_tipo ON expenses(tipo);
+        CREATE INDEX IF NOT EXISTS idx_bank_transactions_bank_account_id ON bank_transactions(bank_account_id);
+        CREATE INDEX IF NOT EXISTS idx_goal_deposits_goal_id ON goal_deposits(goal_id);
+        CREATE INDEX IF NOT EXISTS idx_cotacoes_itens_cotacao_id ON cotacoes_itens(cotacao_id);
+        CREATE INDEX IF NOT EXISTS idx_voos_data ON voos(data);
+        """
+    )
+    conn.commit()
 
 
 def _garantir_coluna(conn, tabela: str, coluna: str, tipo: str):

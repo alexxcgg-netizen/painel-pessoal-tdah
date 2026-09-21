@@ -1054,6 +1054,37 @@ class PainelTestCase(unittest.TestCase):
             db.DB_PATH = caminho_original
             tmp.cleanup()
 
+    def test_init_db_cria_indices_esperados_e_e_idempotente(self):
+        tmp = tempfile.TemporaryDirectory()
+        caminho_original = db.DB_PATH
+        db.DB_PATH = Path(tmp.name) / "painel.db"
+        try:
+            db.init_db()
+            db.init_db()  # roda 2x - nao pode dar erro (CREATE INDEX IF NOT EXISTS)
+            conn = db.get_db()
+            indices = {
+                r["name"]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'"
+                ).fetchall()
+            }
+            conn.close()
+            esperados = {
+                "idx_tasks_completed_at",
+                "idx_tasks_due_date",
+                "idx_subtasks_task_id",
+                "idx_expenses_created_at",
+                "idx_expenses_tipo",
+                "idx_bank_transactions_bank_account_id",
+                "idx_goal_deposits_goal_id",
+                "idx_cotacoes_itens_cotacao_id",
+                "idx_voos_data",
+            }
+            self.assertTrue(esperados.issubset(indices), f"faltando: {esperados - indices}")
+        finally:
+            db.DB_PATH = caminho_original
+            tmp.cleanup()
+
     def test_saude_hoje_sem_dados(self):
         res = self.client.get("/api/saude/hoje")
         self.assertEqual(res.status_code, 200)
