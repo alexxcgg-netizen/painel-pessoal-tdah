@@ -41,17 +41,55 @@ def _url(metodo: str) -> str:
     return f"https://api.telegram.org/bot{token}/{metodo}"
 
 
-def enviar_mensagem(texto: str) -> bool:
+def enviar_mensagem(texto: str, botoes: list[tuple[str, str]] | None = None) -> bool:
     """Manda uma mensagem pro chat configurado (TELEGRAM_CHAT_ID) - usado
     tanto pra responder uma conversa quanto pros avisos proativos do
     scheduler. Corta com seguranca no limite de caracteres do Telegram em
-    vez de deixar a chamada falhar."""
+    vez de deixar a chamada falhar.
+
+    'botoes' (opcional) e uma lista de (texto_do_botao, callback_data) - vira
+    um botao inline embaixo da mensagem que, ao ser tocado, manda um
+    callback_query de volta pro bot (ver processar_callback) em vez de abrir
+    o app - a acao acontece com um toque, sem precisar digitar nada."""
+    if not configurado():
+        return False
+    payload = {"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": texto[:LIMITE_TEXTO_TELEGRAM]}
+    if botoes:
+        payload["reply_markup"] = {
+            "inline_keyboard": [[{"text": label, "callback_data": dados} for label, dados in botoes]]
+        }
+    try:
+        resposta = requests.post(_url("sendMessage"), json=payload, timeout=10)
+        return resposta.status_code == 200
+    except requests.RequestException:
+        return False
+
+
+def responder_callback(callback_query_id: str, texto: str | None = None) -> bool:
+    """Fecha o "carregando" que o Telegram mostra no botao logo apos o
+    toque - a API exige essa chamada sempre, mesmo sem nada pra mostrar
+    (senao o botao fica girando ate dar timeout do lado do usuario)."""
+    if not configurado():
+        return False
+    payload = {"callback_query_id": callback_query_id}
+    if texto:
+        payload["text"] = texto
+    try:
+        resposta = requests.post(_url("answerCallbackQuery"), json=payload, timeout=10)
+        return resposta.status_code == 200
+    except requests.RequestException:
+        return False
+
+
+def remover_botoes(chat_id: str, message_id: int) -> bool:
+    """Tira o teclado inline da mensagem depois do toque - evita um segundo
+    toque acidental disparar a mesma acao de novo."""
     if not configurado():
         return False
     try:
         resposta = requests.post(
-            _url("sendMessage"),
-            json={"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": texto[:LIMITE_TEXTO_TELEGRAM]},
+            _url("editMessageReplyMarkup"),
+            json={"chat_id": chat_id, "message_id": message_id, "reply_markup": {"inline_keyboard": []}},
             timeout=10,
         )
         return resposta.status_code == 200
@@ -90,6 +128,37 @@ def processar_update(update: dict, chat_fn) -> str | None:
     return chat_fn(texto)
 
 
+def processar_callback(update: dict, callback_fn) -> dict | None:
+    """Se o update for um clique num botao inline (callback_query) vindo do
+    chat autorizado, chama callback_fn(dados) - onde 'dados' e o
+    callback_data que o botao carregava, ex: "completar_tarefa:123" - e
+    devolve o que precisa pra fechar o loop (responder_callback +
+    remover_botoes). None quando nao e callback, ou vem de outro chat
+    (mesma regra de silencio de processar_update - nunca revela que o bot
+    existe pra quem nao e o Alex)."""
+    callback = update.get("callback_query")
+    if not isinstance(callback, dict):
+        return None
+    dados = callback.get("data")
+    mensagem = callback.get("message")
+    callback_query_id = callback.get("id")
+    if not dados or not callback_query_id or not isinstance(mensagem, dict):
+        return None
+    chat = mensagem.get("chat")
+    message_id = mensagem.get("message_id")
+    if not isinstance(chat, dict) or chat.get("id") is None or message_id is None:
+        return None
+    if str(chat["id"]) != os.environ.get("TELEGRAM_CHAT_ID", ""):
+        return None
+    texto_resposta = callback_fn(dados)
+    return {
+        "callback_query_id": callback_query_id,
+        "chat_id": str(chat["id"]),
+        "message_id": message_id,
+        "texto_resposta": texto_resposta,
+    }
+
+
 def _buscar_updates(offset: int | None) -> list[dict]:
     params = {"timeout": POLLING_TIMEOUT}
     if offset is not None:
@@ -99,11 +168,15 @@ def _buscar_updates(offset: int | None) -> list[dict]:
     return resposta.json().get("result", [])
 
 
-def iniciar_polling(chat_fn, parar_evento: threading.Event | None = None):
+def iniciar_polling(chat_fn, parar_evento: threading.Event | None = None, callback_fn=None):
     """Loop de long polling - roda pra sempre (chamado numa thread separada,
     ver iniciar_thread) ou ate parar_evento ser setado (usado so em teste,
     pra nao deixar uma thread de teste rodando pra sempre). Erro de rede so
-    espera um pouco e tenta de novo, nunca derruba a thread."""
+    espera um pouco e tenta de novo, nunca derruba a thread.
+
+    'callback_fn' (opcional) trata toques em botao inline (ver
+    processar_callback) - sem ele, um callback_query so e ignorado (nenhum
+    botao foi mandado, entao nenhum devia chegar)."""
     parar_evento = parar_evento or threading.Event()
     offset = None
     while not parar_evento.is_set():
@@ -114,14 +187,22 @@ def iniciar_polling(chat_fn, parar_evento: threading.Event | None = None):
             continue
         for update in updates:
             offset = update["update_id"] + 1
+            if callback_fn is not None:
+                resultado = processar_callback(update, callback_fn)
+                if resultado:
+                    responder_callback(resultado["callback_query_id"], resultado["texto_resposta"])
+                    remover_botoes(resultado["chat_id"], resultado["message_id"])
+                    continue
             resposta = processar_update(update, chat_fn)
             if resposta:
                 enviar_mensagem(resposta)
 
 
-def iniciar_thread(chat_fn) -> threading.Thread:
+def iniciar_thread(chat_fn, callback_fn=None) -> threading.Thread:
     """Sobe o polling numa thread daemon (nao impede o processo de terminar) -
     chamado uma vez, na subida do app (ver app.iniciar_telegram)."""
-    thread = threading.Thread(target=iniciar_polling, args=(chat_fn,), daemon=True)
+    thread = threading.Thread(
+        target=iniciar_polling, args=(chat_fn,), kwargs={"callback_fn": callback_fn}, daemon=True
+    )
     thread.start()
     return thread

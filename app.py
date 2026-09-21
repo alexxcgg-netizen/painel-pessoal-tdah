@@ -43,6 +43,7 @@ from db import (
     cotacao_por_titulo_aproximado,
     create_espera,
     create_goal,
+    create_income,
     create_lembrete,
     create_memoria,
     create_voo,
@@ -50,6 +51,7 @@ from db import (
     criar_item_cotacao,
     criar_uber_pedido,
     definir_configuracao,
+    definir_orcamento,
     delete_cotacao,
     delete_item_cotacao,
     delete_lembrete,
@@ -57,6 +59,7 @@ from db import (
     delete_push_subscription,
     delete_voo,
     espera_pendente_por_quem_aproximado,
+    gasto_mes_por_categoria,
     get_cotacao,
     get_db,
     get_or_create_bank_account,
@@ -71,9 +74,11 @@ from db import (
     list_esperas_pendentes,
     list_goal_deposits,
     list_goals,
+    list_incomes,
     list_itens_cotacao,
     list_lembretes,
     list_memorias,
+    list_orcamentos,
     list_push_subscriptions,
     list_voos,
     marcar_notificado,
@@ -87,6 +92,8 @@ from db import (
     salvar_mensagem_chat,
     save_push_subscription,
     total_cost_usd,
+    total_gastos_mes,
+    total_incomes_mes,
     uber_pedido,
     uber_pedidos_aguardando_confirmacao,
     uber_pedidos_para_disparar,
@@ -443,6 +450,41 @@ def list_expenses():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route("/api/incomes", methods=["GET"])
+def list_incomes_rota():
+    conn = get_db()
+    rows = list_incomes(conn, limit=50)
+    conn.close()
+    return jsonify(rows)
+
+
+@app.route("/api/orcamentos", methods=["GET"])
+def list_orcamentos_rota():
+    conn = get_db()
+    orcamentos = list_orcamentos(conn)
+    ano_mes = date.today().strftime("%Y-%m")
+    for o in orcamentos:
+        o["gasto_mes"] = gasto_mes_por_categoria(conn, o["categoria"], ano_mes)
+    conn.close()
+    return jsonify(orcamentos)
+
+
+@app.route("/api/gastos-fixos", methods=["GET"])
+def gastos_fixos_rota():
+    conn = get_db()
+    resultado = _gastos_fixos(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/sobra-do-mes", methods=["GET"])
+def sobra_do_mes_rota():
+    conn = get_db()
+    resultado = _sobra_do_mes(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
 @app.route("/api/expenses/historico", methods=["GET"])
 def expenses_historico():
     dias = request.args.get("dias", default=14, type=int)
@@ -611,6 +653,32 @@ def _id_estavel_conta(conta: dict) -> int:
     identificam. Muda se a conta for editada do lado da construtora, o que so faz a
     notificacao repetir, nunca sumir - comportamento seguro."""
     chave = f"{conta.get('vencimento')}|{conta.get('valor')}|{conta.get('fornecedor')}|{conta.get('descricao')}"
+    digest = hashlib.sha1(chave.encode("utf-8")).digest()[:8]
+    return int.from_bytes(digest, "big") % (2**62)
+
+
+def _gastos_fixos(conn) -> dict:
+    expenses_reais = conn.execute(
+        "SELECT amount, category, description, source_text, created_at FROM expenses WHERE tipo = 'real'"
+    ).fetchall()
+    recorrentes = gastos.detectar_gastos_recorrentes([dict(r) for r in expenses_reais], date.today())
+    return {"recorrentes": recorrentes, "total_mensal": gastos.total_gasto_fixo_mensal(recorrentes)}
+
+
+def _sobra_do_mes(conn) -> dict:
+    ano_mes = date.today().strftime("%Y-%m")
+    renda = total_incomes_mes(conn, ano_mes)
+    gasto_real = total_gastos_mes(conn, ano_mes, "real")
+    gasto_planejado = total_gastos_mes(conn, ano_mes, "planejado")
+    return gastos.sobra_do_mes(renda, gasto_real, gasto_planejado)
+
+
+def _id_estavel_orcamento(categoria: str, nivel: str, ano_mes: str) -> int:
+    """Mesma ideia de _id_estavel_conta - o aviso de orcamento e "uma vez por
+    categoria+nivel+mes" (nao por dia), entao o mes entra na chave: o mes
+    seguinte, com o gasto zerado de novo, ganha uma chave nova sozinho, sem
+    precisar resetar nada manualmente."""
+    chave = f"{categoria}|{nivel}|{ano_mes}"
     digest = hashlib.sha1(chave.encode("utf-8")).digest()[:8]
     return int.from_bytes(digest, "big") % (2**62)
 
@@ -965,6 +1033,14 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         create_goal(conn, entrada["titulo"], entrada["valor"], entrada.get("prazo"))
         return {"ok": True}
 
+    def exec_definir_orcamento(entrada):
+        definir_orcamento(conn, entrada["categoria"], entrada["valor_limite"])
+        return {"ok": True}
+
+    def exec_registrar_renda(entrada):
+        create_income(conn, entrada["valor"], entrada["categoria"], entrada.get("descricao"), texto)
+        return {"ok": True}
+
     def exec_gerar_plano(_entrada):
         pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
         eventos = _eventos_de_hoje_com_seguranca(conn)
@@ -1007,6 +1083,12 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
             _normalizar_hora(entrada.get("hora")),
         )
         return {"ok": True}
+
+    def exec_consultar_gastos_fixos(_entrada):
+        return _gastos_fixos(conn)
+
+    def exec_consultar_sobra_do_mes(_entrada):
+        return _sobra_do_mes(conn)
 
     def exec_sugerir_horario_livre(entrada):
         eventos = _eventos_de_hoje_com_seguranca(conn)
@@ -1101,6 +1183,8 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
+        "registrar_renda": exec_registrar_renda,
+        "definir_orcamento": exec_definir_orcamento,
         "registrar_meta": exec_registrar_meta,
         "gerar_plano_do_dia": exec_gerar_plano,
         "registrar_lembrete": exec_registrar_lembrete,
@@ -1110,6 +1194,8 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "registrar_feito": exec_registrar_feito,
         "registrar_voo": exec_registrar_voo,
         "sugerir_horario_livre": exec_sugerir_horario_livre,
+        "consultar_gastos_fixos": exec_consultar_gastos_fixos,
+        "consultar_sobra_do_mes": exec_consultar_sobra_do_mes,
         "calcular_gasto_viagem": exec_calcular_gasto_viagem,
         "sugerir_posto_no_caminho": exec_sugerir_posto_no_caminho,
         "agendar_uber": exec_agendar_uber,
@@ -1160,13 +1246,39 @@ def _telegram_chat_fn(texto: str) -> str:
         conn.close()
 
 
+def _telegram_callback_fn(dados: str) -> str:
+    """Ponte entre um toque de botao inline no Telegram e a acao de verdade -
+    hoje so entende "completar_tarefa:<id>" (o botao que acompanha a
+    cobranca de tarefa_parada), mas o formato "acao:id" deixa dar pra
+    estender pra outros tipos de botao no futuro sem mudar o protocolo."""
+    if not dados.startswith("completar_tarefa:"):
+        return "Nao reconheci essa acao."
+    try:
+        task_id = int(dados.split(":", 1)[1])
+    except ValueError:
+        return "Nao reconheci essa acao."
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT title, completed_at FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if not row:
+            return "Essa tarefa nao existe mais."
+        if row["completed_at"]:
+            return "Ja estava marcada como feita."
+        complete_task(conn, task_id)
+        _marcar_atividade(conn)
+        conn.commit()
+        return f"Marquei \"{row['title']}\" como feita!"
+    finally:
+        conn.close()
+
+
 def iniciar_telegram():
     """So roda quando o app sobe de verdade (mesma guarda de iniciar_scheduler,
     nao duplica a thread na recarga do Flask em modo debug)."""
     if not telegram_bot.configurado():
         return
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
-        telegram_bot.iniciar_thread(_telegram_chat_fn)
+        telegram_bot.iniciar_thread(_telegram_chat_fn, callback_fn=_telegram_callback_fn)
 
 
 @app.route("/api/chat/historico", methods=["GET"])
@@ -1381,6 +1493,15 @@ def verificar_e_notificar():
         if not ja_notificou_hoje(conn, "meta_atrasada", meta_id):
             avisos.append(("meta_atrasada", meta_id, "Meta fora do ritmo", msg))
 
+    # Orcamento por categoria - uma vez por categoria+nivel+mes (nunca todo
+    # dia enquanto continuar no mesmo nivel), pra nao virar ruido.
+    ano_mes_atual = date.today().strftime("%Y-%m")
+    for categoria, nivel, msg in notificacoes.orcamentos_perto_ou_estourados(conn):
+        ref_id = _id_estavel_orcamento(categoria, nivel, ano_mes_atual)
+        if not ja_notificado_alguma_vez(conn, "orcamento", ref_id):
+            titulo = "Orcamento estourado" if nivel == "estourado" else "Orcamento quase no limite"
+            avisos.append(("orcamento", ref_id, titulo, msg))
+
     msg = notificacoes.gasto_semana_elevado(conn)
     if msg and not ja_notificou_hoje(conn, "gasto_elevado"):
         avisos.append(("gasto_elevado", 0, "Gasto da semana", msg))
@@ -1492,7 +1613,11 @@ def verificar_e_notificar():
             if not ok:
                 delete_push_subscription(conn, s["endpoint"])
         if telegram_ok:
-            telegram_bot.enviar_mensagem(f"{titulo}\n{corpo}")
+            # tarefa_parada ganha um botao de acao direto na notificacao -
+            # marca como feita com um toque, sem precisar abrir o app nem
+            # digitar nada (o pedido especifico do Alex pra esse canal).
+            botoes = [("Marcar como feito", f"completar_tarefa:{ref_id}")] if tipo == "tarefa_parada" else None
+            telegram_bot.enviar_mensagem(f"{titulo}\n{corpo}", botoes=botoes)
         marcar_notificado(conn, tipo, ref_id)
         if tipo in ("tarefa_parada", "espera_parada"):
             registrar_interacao_aprendizado(conn, tipo, ref_id)

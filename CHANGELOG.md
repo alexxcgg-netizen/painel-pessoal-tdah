@@ -5,6 +5,52 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (9) - Assistente financeiro de verdade + botao de acao no Telegram
+
+O Alex perguntou se o painel realmente ajuda como assistente financeiro e o que faltava. Depois de
+comparar Claude/Gemini/GPT-5/DeepSeek/o3-mini por custo-beneficio (recomendacao: continuar no
+Claude - a diferenca de preco e irrelevante no volume de uso pessoal dele, e trocar de provedor
+custaria reescrever `claude_client.py` inteiro por uma economia que nem apareceria na fatura),
+aprovou 4 features financeiras + o botao de acao no Telegram que ja tinha sido proposto antes.
+
+**Renda pelo chat (`incomes`, `registrar_renda`).** Ele nao tem salario fixo (dono de construtora -
+dinheiro entra de jeito variado), entao em vez de cadastro fixo, ele so conta no chat ("entrou 3000
+na conta", "recebi 500 do fulano", "vendi um material e entrou 800") - categoria `venda`/`cliente`/
+`reembolso`/`outros`, decidida pela IA.
+
+**Orcamento por categoria (`orcamentos`, `definir_orcamento`).** "Quero gastar no maximo 800 em
+mercado por mes" define um limite mensal por categoria - `notificacoes.orcamentos_perto_ou_estourados()`
+avisa uma vez quando o gasto real bate 90% ("quase") e de novo quando passa de 100% ("estourado"),
+dedup por categoria+nivel+mes via hash estavel (`_id_estavel_orcamento`, mesmo padrao ja usado pras
+contas a pagar da construtora) - o mes seguinte, com o gasto zerado, ganha chave nova sozinho.
+
+**Deteccao de gasto recorrente/assinatura (`gastos.detectar_gastos_recorrentes`).** Agrupa gastos
+reais por descricao normalizada (igualdade exata, nao palavra em comum - agrupar errado aqui e pior
+que nao agrupar) que se repete em 2+ dos ultimos 3 meses com valor parecido (tolerancia de 15%) -
+Netflix, academia, aluguel. `consultar_gastos_fixos` no chat devolve a lista e o total mensal
+comprometido.
+
+**Quanto sobra pra gastar (`gastos.sobra_do_mes`).** Renda do mes menos gasto real do mes -
+retrospectivo (nunca tenta prever gasto futuro), mais o quanto esta so planejado/cogitado como
+aviso a parte (reaproveita o `tipo='planejado'` que ja existia, sem duplicar o conceito).
+`consultar_sobra_do_mes` no chat.
+
+**Botao de acao no Telegram.** A cobranca de tarefa parada ganha um botao inline "Marcar como
+feito" - um toque completa a tarefa sem abrir o app. Feito no Telegram (nao no push web) porque
+botao de acao em push de PWA e instavel no iPhone; Telegram suporta isso solido em qualquer
+aparelho. `telegram_bot.py` ganhou `processar_callback`/`responder_callback`/`remover_botoes`
+(fecha o "carregando" do botao e tira o teclado depois do toque, evitando clique duplo);
+`app._telegram_callback_fn` fecha o loop de aprendizado igual o `complete_task_rota` normal.
+
+**Bonus: flakiness real corrigida.** Descobri (rodando a suite completa as 22h) que praticamente
+todo teste de `verificar_e_notificar` dependia do relogio de verdade - o modo silencioso padrao
+(22:00-07:00, mais de um terco do dia) fazia a suite falhar sempre que rodasse nessa janela, ha
+meses sem ninguem perceber. `PainelTestCase.setUp` agora fixa `dentro_do_horario_silencioso` como
+"nunca silencioso" por padrao (os 2 testes que testam silencioso de verdade continuam
+sobrescrevendo isso com seu proprio patch).
+
+727 testes (82 novos), 100% passando.
+
 ## 2026-09-21 (8) - Colar trecho exportado do WhatsApp no chat
 
 O Alex mostrou que ultimamente anota as coisas pra fazer direto no WhatsApp (mensagem pra ele

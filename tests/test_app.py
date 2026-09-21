@@ -99,6 +99,15 @@ class PainelTestCase(unittest.TestCase):
         # gate de autenticacao (before_request) em vez de contornar ele
         res = self.client.post("/login", json={"pin": PIN_TESTE})
         assert res.status_code == 200, res.get_json()
+        # "nunca silencioso" por padrao - sem isso, todo teste de
+        # verificar_e_notificar ficaria dependente da hora real do relogio
+        # (silencioso e 22:00-07:00 por padrao, mais de um terco do dia) e
+        # falharia sempre que a suite rodasse dentro dessa janela. Testes que
+        # querem testar o silencioso de verdade sobrescrevem isso com seu
+        # proprio "with patch(...)" dentro do corpo do teste.
+        self._silencio_patch = patch("notificacoes.dentro_do_horario_silencioso", return_value=False)
+        self._silencio_patch.start()
+        self.addCleanup(self._silencio_patch.stop)
 
     def test_smoke_pagina_principal_carrega(self):
         res = self.client.get("/")
@@ -2078,6 +2087,101 @@ class PainelTestCase(unittest.TestCase):
             resposta = app._telegram_chat_fn("oi")
         self.assertEqual(resposta, app.CLAUDE_FORMAT_ERROR_MSG)
 
+    def test_telegram_callback_fn_completa_tarefa_pendente(self):
+        conn = db.get_db()
+        cur = conn.execute("INSERT INTO tasks (title) VALUES (?)", ("responder a corretora",))
+        conn.commit()
+        task_id = cur.lastrowid
+        conn.close()
+
+        resposta = app._telegram_callback_fn(f"completar_tarefa:{task_id}")
+        self.assertIn("responder a corretora", resposta)
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(tasks, [])
+
+    def test_telegram_callback_fn_fecha_interacao_de_aprendizado(self):
+        conn = db.get_db()
+        cur = conn.execute("INSERT INTO tasks (title) VALUES (?)", ("responder a corretora",))
+        conn.commit()
+        task_id = cur.lastrowid
+        db.registrar_interacao_aprendizado(conn, "tarefa_parada", task_id)
+        conn.close()
+
+        app._telegram_callback_fn(f"completar_tarefa:{task_id}")
+
+        conn = db.get_db()
+        row = conn.execute(
+            "SELECT * FROM interacoes_aprendizado WHERE tipo = 'tarefa_parada' AND referencia_id = ?",
+            (task_id,),
+        ).fetchone()
+        conn.close()
+        self.assertIsNotNone(row["resolvido_em"])
+
+    def test_telegram_callback_fn_tarefa_ja_concluida_nao_quebra(self):
+        conn = db.get_db()
+        cur = conn.execute(
+            "INSERT INTO tasks (title, completed_at) VALUES (?, datetime('now'))", ("ja feita",)
+        )
+        conn.commit()
+        task_id = cur.lastrowid
+        conn.close()
+
+        resposta = app._telegram_callback_fn(f"completar_tarefa:{task_id}")
+        self.assertIn("Ja estava", resposta)
+
+    def test_telegram_callback_fn_tarefa_inexistente(self):
+        resposta = app._telegram_callback_fn("completar_tarefa:99999")
+        self.assertIn("nao existe mais", resposta)
+
+    def test_telegram_callback_fn_dados_desconhecidos(self):
+        resposta = app._telegram_callback_fn("acao_estranha:1")
+        self.assertIn("Nao reconheci", resposta)
+
+    def test_telegram_callback_fn_id_nao_numerico_nao_quebra(self):
+        resposta = app._telegram_callback_fn("completar_tarefa:abc")
+        self.assertIn("Nao reconheci", resposta)
+
+    def test_verificar_agora_manda_botao_de_acao_por_telegram_em_tarefa_parada(self):
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        conn = db.get_db()
+        cur = conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("responder a corretora", tres_dias)
+        )
+        conn.commit()
+        task_id = cur.lastrowid
+        conn.close()
+
+        with patch("telegram_bot.configurado", return_value=True), patch(
+            "telegram_bot.enviar_mensagem", return_value=True
+        ) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        chamada_tarefa = next(
+            c for c in mock_enviar.call_args_list if "responder a corretora" in c.args[0]
+        )
+        botoes = chamada_tarefa.kwargs.get("botoes")
+        self.assertEqual(botoes, [("Marcar como feito", f"completar_tarefa:{task_id}")])
+
+    def test_verificar_agora_nao_manda_botao_em_notificacao_generica(self):
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("responder a corretora", tres_dias)
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("telegram_bot.configurado", return_value=True), patch(
+            "telegram_bot.enviar_mensagem", return_value=True
+        ) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        chamada_generica = next(
+            c for c in mock_enviar.call_args_list if "Tarefas atrasadas" in c.args[0]
+        )
+        self.assertIsNone(chamada_generica.kwargs.get("botoes"))
+
     def test_chat_usa_executor_de_espera_de_verdade(self):
         def fake_chat(mensagens, contexto, memorias, executores):
             resultado = executores["registrar_espera"](
@@ -2685,6 +2789,282 @@ class PainelTestCase(unittest.TestCase):
             self.client.post("/api/chat", json={"mensagem": "gastei 15 na padaria"})
         expenses = self.client.get("/api/expenses").get_json()
         self.assertEqual(expenses[0]["tipo"], "real")
+
+    # ---- Renda (entradas) ----
+
+    def test_incomes_lista_vazia(self):
+        self.assertEqual(self.client.get("/api/incomes").get_json(), [])
+
+    def test_chat_registrar_renda_entrada_generica(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_renda"]({"valor": 3000.0, "categoria": "outros"})
+            self.assertTrue(resultado["ok"])
+            return "Boa, registrei a entrada.", ["registrar_renda"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "entrou 3000 na conta"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["acoes"], ["registrar_renda"])
+
+        incomes = self.client.get("/api/incomes").get_json()
+        self.assertEqual(len(incomes), 1)
+        self.assertEqual(incomes[0]["amount"], 3000.0)
+        self.assertEqual(incomes[0]["category"], "outros")
+
+    def test_chat_registrar_renda_pagamento_de_cliente(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_renda"](
+                {"valor": 500.0, "categoria": "cliente", "descricao": "pagamento do fulano"}
+            )
+            return "Boa.", ["registrar_renda"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "recebi 500 do fulano"})
+
+        incomes = self.client.get("/api/incomes").get_json()
+        self.assertEqual(incomes[0]["category"], "cliente")
+        self.assertEqual(incomes[0]["description"], "pagamento do fulano")
+
+    def test_chat_registrar_renda_venda(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_renda"]({"valor": 800.0, "categoria": "venda", "descricao": "material"})
+            return "Boa.", ["registrar_renda"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "vendi um material e entrou 800"})
+
+        incomes = self.client.get("/api/incomes").get_json()
+        self.assertEqual(incomes[0]["category"], "venda")
+
+    def test_incomes_ordenadas_mais_recente_primeiro(self):
+        conn = db.get_db()
+        db.create_income(conn, 100.0, "outros", None, None)
+        db.create_income(conn, 200.0, "outros", None, None)
+        conn.close()
+        incomes = self.client.get("/api/incomes").get_json()
+        self.assertEqual([i["amount"] for i in incomes], [200.0, 100.0])
+
+    # ---- Orcamento por categoria ----
+
+    def test_orcamentos_lista_vazia(self):
+        self.assertEqual(self.client.get("/api/orcamentos").get_json(), [])
+
+    def test_chat_definir_orcamento(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["definir_orcamento"]({"categoria": "mercado", "valor_limite": 800.0})
+            self.assertTrue(resultado["ok"])
+            return "Beleza, orcamento de mercado definido.", ["definir_orcamento"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "quero gastar no maximo 800 em mercado por mes"}
+            )
+        self.assertEqual(res.status_code, 200)
+
+        orcamentos = self.client.get("/api/orcamentos").get_json()
+        self.assertEqual(len(orcamentos), 1)
+        self.assertEqual(orcamentos[0]["categoria"], "mercado")
+        self.assertEqual(orcamentos[0]["valor_limite"], 800.0)
+        self.assertEqual(orcamentos[0]["gasto_mes"], 0.0)
+
+    def test_orcamentos_mostra_gasto_do_mes_atual(self):
+        conn = db.get_db()
+        db.definir_orcamento(conn, "mercado", 800.0)
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo) VALUES (300, 'mercado', 'real')"
+        )
+        conn.commit()
+        conn.close()
+
+        orcamentos = self.client.get("/api/orcamentos").get_json()
+        self.assertEqual(orcamentos[0]["gasto_mes"], 300.0)
+
+    def test_verificar_agora_avisa_orcamento_quase_no_limite(self):
+        conn = db.get_db()
+        db.definir_orcamento(conn, "mercado", 1000.0)
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo) VALUES (950, 'mercado', 'real')"
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        corpo = mock_enviar.call_args[0][2]
+        self.assertIn("mercado", corpo)
+        self.assertIn("950.00", corpo)
+
+    def test_verificar_agora_orcamento_nao_repete_no_mesmo_mes(self):
+        conn = db.get_db()
+        db.definir_orcamento(conn, "mercado", 1000.0)
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo) VALUES (950, 'mercado', 'real')"
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(mock_enviar.call_count, 1)
+
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+            self.assertEqual(mock_enviar.call_count, 1)
+
+    def test_verificar_agora_avisa_estourado_alem_de_quase(self):
+        # gasta mais depois de ja ter recebido o aviso de "quase" - o nivel
+        # "estourado" e uma chave de dedup diferente, entao dispara de novo.
+        conn = db.get_db()
+        db.definir_orcamento(conn, "mercado", 1000.0)
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo) VALUES (950, 'mercado', 'real')"
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(mock_enviar.call_count, 1)
+
+            conn = db.get_db()
+            conn.execute(
+                "INSERT INTO expenses (amount, category, tipo) VALUES (200, 'mercado', 'real')"
+            )
+            conn.commit()
+            conn.close()
+
+            self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(mock_enviar.call_count, 2)
+            corpo = mock_enviar.call_args[0][2]
+            self.assertIn("passou do orcamento", corpo)
+
+    # ---- Gastos fixos/assinaturas ----
+
+    def test_gastos_fixos_vazio_sem_historico(self):
+        res = self.client.get("/api/gastos-fixos").get_json()
+        self.assertEqual(res, {"recorrentes": [], "total_mensal": 0})
+
+    def test_gastos_fixos_detecta_assinatura_recorrente(self):
+        hoje = date.today()
+        mes_passado = (hoje.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo, created_at) "
+            "VALUES (39.90, 'lazer', 'Netflix', 'real', ?)",
+            (f"{hoje.strftime('%Y-%m')}-05 10:00:00",),
+        )
+        conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo, created_at) "
+            "VALUES (39.90, 'lazer', 'Netflix', 'real', ?)",
+            (f"{mes_passado}-05 10:00:00",),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/gastos-fixos").get_json()
+        self.assertEqual(len(res["recorrentes"]), 1)
+        self.assertEqual(res["recorrentes"][0]["descricao"], "Netflix")
+        self.assertEqual(res["total_mensal"], 39.90)
+
+    def test_chat_consultar_gastos_fixos(self):
+        hoje = date.today()
+        mes_passado = (hoje.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo, created_at) "
+            "VALUES (100.0, 'saude', 'Academia', 'real', ?)",
+            (f"{hoje.strftime('%Y-%m')}-05 10:00:00",),
+        )
+        conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo, created_at) "
+            "VALUES (100.0, 'saude', 'Academia', 'real', ?)",
+            (f"{mes_passado}-05 10:00:00",),
+        )
+        conn.commit()
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["consultar_gastos_fixos"]({})
+            self.assertEqual(resultado["total_mensal"], 100.0)
+            return "Voce gasta R$100 fixo por mes (Academia).", ["consultar_gastos_fixos"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "quanto eu gasto de fixo por mes?"})
+        self.assertEqual(res.status_code, 200)
+
+    # ---- Quanto sobra pra gastar ----
+
+    def test_sobra_do_mes_sem_nenhum_dado(self):
+        res = self.client.get("/api/sobra-do-mes").get_json()
+        self.assertEqual(res["renda_mes"], 0)
+        self.assertEqual(res["gasto_mes"], 0)
+        self.assertEqual(res["sobra"], 0)
+
+    def test_sobra_do_mes_com_renda_e_gasto(self):
+        conn = db.get_db()
+        db.create_income(conn, 3000.0, "outros")
+        conn.execute("INSERT INTO expenses (amount, category, tipo) VALUES (1200, 'mercado', 'real')")
+        conn.execute("INSERT INTO expenses (amount, category, tipo) VALUES (500, 'lazer', 'planejado')")
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/sobra-do-mes").get_json()
+        self.assertEqual(res["renda_mes"], 3000.0)
+        self.assertEqual(res["gasto_mes"], 1200.0)
+        self.assertEqual(res["sobra"], 1800.0)
+        self.assertEqual(res["gasto_planejado_mes"], 500.0)
+        self.assertEqual(res["sobra_considerando_planejado"], 1300.0)
+
+    def test_sobra_do_mes_ignora_renda_e_gasto_de_outro_mes(self):
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO incomes (amount, category, created_at) VALUES (3000, 'outros', '2020-01-15 10:00:00')"
+        )
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo, created_at) "
+            "VALUES (1200, 'mercado', 'real', '2020-01-15 10:00:00')"
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/sobra-do-mes").get_json()
+        self.assertEqual(res["renda_mes"], 0)
+        self.assertEqual(res["gasto_mes"], 0)
+
+    def test_chat_consultar_sobra_do_mes(self):
+        conn = db.get_db()
+        db.create_income(conn, 2000.0, "outros")
+        conn.execute("INSERT INTO expenses (amount, category, tipo) VALUES (500, 'mercado', 'real')")
+        conn.commit()
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["consultar_sobra_do_mes"]({})
+            self.assertEqual(resultado["sobra"], 1500.0)
+            return "Sobrou R$1500 esse mes.", ["consultar_sobra_do_mes"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "quanto sobra pra gastar esse mes?"})
+        self.assertEqual(res.status_code, 200)
 
     # ---- Push "sair em breve" antes do voo ----
 

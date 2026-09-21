@@ -186,6 +186,14 @@ a conta") e um gasto so COGITADO/possivel, ainda nao decidido (ex: "to pensando 
 "status": "planejado". Isso importa porque so o gasto real conta no total ja gasto do dia; o
 planejado fica separado, como um alerta do que pode vir a acontecer.
 
+O Alex nao tem salario fixo - o dinheiro entra de jeitos variados (venda, pagamento de cliente,
+qualquer entrada avulsa). Quando ele contar que ALGUM dinheiro ENTROU na conta (ex: "entrou 3000 na
+conta", "recebi 500 do fulano", "vendi um material e entrou 800"), chame `registrar_renda` - nunca
+confunda com `registrar_gasto` (que e dinheiro SAINDO). Categoria "cliente" pra pagamento recebido
+de alguem por um trabalho/servico, "venda" pra venda de algo (material, equipamento), "reembolso"
+quando ele mencionar que e devolucao de algo que ele tinha pago, "outros" quando nao encaixar em
+nenhuma das anteriores - na duvida, "outros".
+
 Alem disso, se em algum momento da conversa o Alex revelar um fato duravel sobre ele mesmo que
 vale lembrar dali pra frente - uma preferencia, rotina, relacao, contexto recorrente - e que NAO
 e so o item pontual que ja esta sendo registrado por outra ferramenta, chame tambem
@@ -267,6 +275,47 @@ CHAT_TOOLS = [
                 },
             },
             "required": ["titulo", "valor"],
+        },
+    },
+    {
+        "name": "registrar_renda",
+        "description": (
+            "Registra dinheiro que ENTROU na conta do Alex - venda, pagamento de cliente, "
+            "qualquer entrada avulsa (ele nao tem salario fixo). Use quando ele disser algo como "
+            "'entrou 3000 na conta', 'recebi 500 do fulano', 'vendi um material e entrou 800'. "
+            "NUNCA confunda com registrar_gasto - isso aqui e dinheiro entrando, nao saindo."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "valor": {"type": "number"},
+                "categoria": {
+                    "type": "string",
+                    "enum": ["venda", "cliente", "reembolso", "outros"],
+                },
+                "descricao": {"type": "string", "description": "de onde veio, resumido - omita se nao houver detalhe"},
+            },
+            "required": ["valor", "categoria"],
+        },
+    },
+    {
+        "name": "definir_orcamento",
+        "description": (
+            "Define (ou muda) o limite mensal de gasto numa categoria - use quando o Alex disser "
+            "algo como 'quero gastar no maximo 800 em mercado por mes' ou 'define um orcamento de "
+            "300 pra lazer'. O painel avisa sozinho quando o gasto real da categoria chegar perto "
+            "(90%) ou passar do limite naquele mes."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "categoria": {
+                    "type": "string",
+                    "enum": ["mercado", "transporte", "lazer", "contas", "saude", "outros"],
+                },
+                "valor_limite": {"type": "number"},
+            },
+            "required": ["categoria", "valor_limite"],
         },
     },
     {
@@ -403,6 +452,27 @@ CHAT_TOOLS = [
             },
             "required": ["titulo"],
         },
+    },
+    {
+        "name": "consultar_sobra_do_mes",
+        "description": (
+            "Calcula quanto sobrou pra gastar esse mes ate agora (renda que entrou menos o que ja "
+            "foi gasto de verdade) - use quando o Alex perguntar 'quanto sobra pra gastar?', "
+            "'quanto ainda posso gastar esse mes?' ou algo parecido. Tambem devolve o quanto ja "
+            "esta so planejado/cogitado (nao decidido ainda), pra avisar que pode reduzir mais a "
+            "sobra se virar gasto de verdade."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "consultar_gastos_fixos",
+        "description": (
+            "Descobre quanto o Alex gasta de fixo por mes (assinaturas, aluguel, academia - "
+            "qualquer gasto que se repete todo mes com valor parecido) - use quando ele perguntar "
+            "algo como 'quanto eu gasto de fixo por mes?', 'quais sao minhas assinaturas?' ou "
+            "'quanto ta comprometido todo mes?'. Devolve a lista detectada e o total somado."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "sugerir_horario_livre",

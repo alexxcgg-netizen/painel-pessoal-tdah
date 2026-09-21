@@ -212,6 +212,21 @@ def init_db():
             resolvido_em TEXT,
             latencia_horas REAL
         );
+
+        CREATE TABLE IF NOT EXISTS incomes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            amount REAL NOT NULL,
+            category TEXT NOT NULL,
+            description TEXT,
+            source_text TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS orcamentos (
+            categoria TEXT PRIMARY KEY,
+            valor_limite REAL NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -246,6 +261,7 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_esperas_resolvido_em ON esperas(resolvido_em);
         CREATE INDEX IF NOT EXISTS idx_interacoes_aprendizado_aberta
             ON interacoes_aprendizado(tipo, referencia_id, resolvido_em);
+        CREATE INDEX IF NOT EXISTS idx_incomes_created_at ON incomes(created_at);
         """
     )
     conn.commit()
@@ -506,6 +522,81 @@ def list_lembretes(conn) -> list[dict]:
 def delete_lembrete(conn, lembrete_id: int):
     conn.execute("DELETE FROM lembretes WHERE id = ?", (lembrete_id,))
     conn.commit()
+
+
+def create_income(
+    conn, amount: float, category: str, description: str | None = None, source_text: str | None = None
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO incomes (amount, category, description, source_text) VALUES (?, ?, ?, ?)",
+        (amount, category, description, source_text),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_incomes(conn, limit: int = 200) -> list[dict]:
+    """Mais recente primeiro - 'id DESC' desempata quando duas entradas caem
+    no mesmo segundo (created_at so tem resolucao de segundo)."""
+    rows = conn.execute(
+        "SELECT * FROM incomes ORDER BY created_at DESC, id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def total_incomes_mes(conn, ano_mes: str) -> float:
+    """Soma das entradas do mes (ano_mes no formato 'AAAA-MM')."""
+    row = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM incomes WHERE strftime('%Y-%m', created_at) = ?",
+        (ano_mes,),
+    ).fetchone()
+    return row["total"]
+
+
+def total_gastos_mes(conn, ano_mes: str, tipo: str = "real") -> float:
+    """Soma dos gastos do mes por tipo ('real' ou 'planejado', ano_mes no
+    formato 'AAAA-MM') - todas as categorias juntas."""
+    row = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses "
+        "WHERE tipo = ? AND strftime('%Y-%m', created_at) = ?",
+        (tipo, ano_mes),
+    ).fetchone()
+    return row["total"]
+
+
+def definir_orcamento(conn, categoria: str, valor_limite: float) -> None:
+    conn.execute(
+        "INSERT INTO orcamentos (categoria, valor_limite) VALUES (?, ?) "
+        "ON CONFLICT(categoria) DO UPDATE SET valor_limite = excluded.valor_limite",
+        (categoria, valor_limite),
+    )
+    conn.commit()
+
+
+def obter_orcamento(conn, categoria: str) -> float | None:
+    row = conn.execute(
+        "SELECT valor_limite FROM orcamentos WHERE categoria = ?", (categoria,)
+    ).fetchone()
+    return row["valor_limite"] if row else None
+
+
+def list_orcamentos(conn) -> list[dict]:
+    return [dict(r) for r in conn.execute("SELECT * FROM orcamentos ORDER BY categoria").fetchall()]
+
+
+def apagar_orcamento(conn, categoria: str) -> None:
+    conn.execute("DELETE FROM orcamentos WHERE categoria = ?", (categoria,))
+    conn.commit()
+
+
+def gasto_mes_por_categoria(conn, categoria: str, ano_mes: str) -> float:
+    """Soma dos gastos REAIS do mes numa categoria (ano_mes no formato 'AAAA-MM')."""
+    row = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses "
+        "WHERE category = ? AND tipo = 'real' AND strftime('%Y-%m', created_at) = ?",
+        (categoria, ano_mes),
+    ).fetchone()
+    return row["total"]
 
 
 def create_espera(conn, quem: str, sobre: str, source_text: str | None = None) -> int:

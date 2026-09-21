@@ -130,6 +130,48 @@ def metas_fora_do_ritmo(conn, tolerancia: float = 0.7) -> list[tuple[int, str]]:
     return avisos
 
 
+def orcamentos_perto_ou_estourados(conn, hoje: date | None = None) -> list[tuple[str, str, str]]:
+    """Pra cada categoria com orcamento definido (`orcamentos`), compara o
+    gasto REAL do mes atual com o limite - devolve (categoria, nivel,
+    mensagem) pra cada categoria que bateu 90% ("quase") ou 100%+
+    ("estourado") do limite agora. So gastos ja acontecidos contam (mesma
+    regra de _total_gasto_entre - gasto planejado nao deveria disparar
+    alerta de orcamento, pode nem vir a acontecer). A deduplicacao
+    (uma vez por categoria+mes+nivel) fica em app.py."""
+    hoje = hoje or date.today()
+    ano_mes = hoje.strftime("%Y-%m")
+    avisos = []
+    for orc in conn.execute("SELECT categoria, valor_limite FROM orcamentos").fetchall():
+        categoria = orc["categoria"]
+        limite = orc["valor_limite"]
+        if limite <= 0:
+            continue
+        row = conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses "
+            "WHERE category = ? AND tipo = 'real' AND strftime('%Y-%m', created_at) = ?",
+            (categoria, ano_mes),
+        ).fetchone()
+        gasto = row["total"]
+        if gasto <= 0:
+            continue
+        fracao = gasto / limite
+        if fracao >= 1:
+            avisos.append((
+                categoria,
+                "estourado",
+                f"Voce ja passou do orcamento de {categoria} esse mes: "
+                f"R$ {gasto:.2f} de um limite de R$ {limite:.2f}.",
+            ))
+        elif fracao >= 0.9:
+            avisos.append((
+                categoria,
+                "quase",
+                f"Voce ja gastou R$ {gasto:.2f} em {categoria} esse mes - "
+                f"perto do limite de R$ {limite:.2f}.",
+            ))
+    return avisos
+
+
 def _total_gasto_entre(conn, inicio: date, fim: date) -> float:
     """So conta gasto 'real' (ja aconteceu) - um gasto so cogitado/planejado
     nao deveria disparar alerta de "gastou demais essa semana", ja que pode

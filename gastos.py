@@ -48,6 +48,85 @@ def sugerir_categoria(descricao: str, expenses_categorizados: list[dict]) -> str
     return categoria_top
 
 
+def _normalizar_descricao(texto: str | None) -> str:
+    return (texto or "").strip().lower()
+
+
+def detectar_gastos_recorrentes(
+    expenses: list[dict],
+    hoje: date,
+    meses_analise: int = 3,
+    tolerancia: float = 0.15,
+    minimo_meses: int = 2,
+) -> list[dict]:
+    """Identifica gastos fixos/assinaturas: a mesma descricao (comparada por
+    igualdade normalizada, nao por palavra em comum - grupo errado aqui e
+    pior que nao agrupar) aparecendo em pelo menos `minimo_meses` dos
+    ultimos `meses_analise` meses, sempre com valor parecido (dentro de
+    `tolerancia` fracionaria da media do grupo - um gasto pontual que por
+    acaso repetiu o valor uma vez nao conta, mas Netflix/academia/aluguel
+    sim). So passe gastos REAIS pra `expenses` (filtrar 'tipo' e
+    responsabilidade de quem chama, como no resto do modulo). Cada dict de
+    'expenses' precisa ter 'amount', 'category', 'description' (ou
+    'source_text') e 'created_at'. Retorna ordenado do maior valor medio
+    pro menor: [{"descricao", "categoria", "valor_medio",
+    "meses_confirmados"}, ...]."""
+    limite = (hoje - timedelta(days=31 * meses_analise)).isoformat()
+    grupos: dict[tuple[str, str], list[dict]] = {}
+    for e in expenses:
+        dia = e["created_at"][:10]
+        if dia < limite:
+            continue
+        descricao = e.get("description") or e.get("source_text") or ""
+        chave_desc = _normalizar_descricao(descricao)
+        if not chave_desc:
+            continue
+        categoria = e.get("category") or "outros"
+        grupos.setdefault((categoria, chave_desc), []).append(e)
+
+    recorrentes = []
+    for (categoria, _chave_desc), itens in grupos.items():
+        meses_distintos = {i["created_at"][:7] for i in itens}
+        if len(meses_distintos) < minimo_meses:
+            continue
+        valores = [i["amount"] for i in itens]
+        media = sum(valores) / len(valores)
+        if media <= 0 or any(abs(v - media) / media > tolerancia for v in valores):
+            continue
+        descricao_original = itens[-1].get("description") or itens[-1].get("source_text") or ""
+        recorrentes.append(
+            {
+                "descricao": descricao_original,
+                "categoria": categoria,
+                "valor_medio": round(media, 2),
+                "meses_confirmados": len(meses_distintos),
+            }
+        )
+    recorrentes.sort(key=lambda r: r["valor_medio"], reverse=True)
+    return recorrentes
+
+
+def total_gasto_fixo_mensal(recorrentes: list[dict]) -> float:
+    return round(sum(r["valor_medio"] for r in recorrentes), 2)
+
+
+def sobra_do_mes(renda_mes: float, gasto_real_mes: float, gasto_planejado_mes: float) -> dict:
+    """Saldo do mes ATE AGORA: renda que ja entrou menos o que ja foi
+    gasto de verdade - retrospectivo (nao tenta adivinhar gasto futuro que
+    ainda nao aconteceu, seria so achismo), mas mostra tambem o quanto ja
+    esta cogitado/planejado (pode ou nao virar gasto real) como um aviso a
+    parte, reaproveitando o que o app.js ja separa (status 'real' vs
+    'planejado') sem duplicar esse conceito."""
+    sobra = round(renda_mes - gasto_real_mes, 2)
+    return {
+        "renda_mes": round(renda_mes, 2),
+        "gasto_mes": round(gasto_real_mes, 2),
+        "sobra": sobra,
+        "gasto_planejado_mes": round(gasto_planejado_mes, 2),
+        "sobra_considerando_planejado": round(sobra - gasto_planejado_mes, 2),
+    }
+
+
 def historico_diario(expenses: list[dict], dias: int, hoje: date) -> list[dict]:
     """Total gasto por dia nos ultimos `dias` dias (incluindo hoje), com
     zero nos dias sem nenhum gasto - pura conta em Python, pra desenhar um

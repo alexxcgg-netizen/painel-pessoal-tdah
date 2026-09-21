@@ -510,6 +510,33 @@ Usa [long polling](https://core.telegram.org/bots/api#getupdates) (`getUpdates`)
 funciona rodando de casa, sem precisar expor uma URL pública/HTTPS, o mesmo motivo que o resto do
 app já roda assim hoje.
 
+### Botão de ação direto na notificação
+
+A cobrança de tarefa parada chega no Telegram com um botão "Marcar como feito" embaixo da
+mensagem - um toque marca a tarefa como concluída na hora, sem abrir o painel nem digitar nada.
+Foi feito pro Telegram (não pro push web) de propósito: botão de ação em notificação push de PWA
+é instável no iPhone, enquanto o Telegram suporta isso de forma sólida em qualquer aparelho. Depois
+do toque, o botão some da mensagem (evita clique duplo acionando a mesma ação de novo).
+
+## Assistente financeiro de verdade — renda, orçamento, gastos fixos e sobra do mês
+
+O Alex não tem salário fixo (dono de construtora - o dinheiro entra de jeitos variados: venda,
+pagamento de cliente, qualquer entrada avulsa), então em vez de um cadastro de "salário mensal",
+o painel aprende a renda pelo que você mesmo conta no chat.
+
+- **Renda pelo chat**: fala "entrou 3000 na conta", "recebi 500 do fulano" ou "vendi um material e
+  entrou 800" - a IA registra como entrada (categoria `venda`, `cliente`, `reembolso` ou `outros`),
+  sem formulário nenhum.
+- **Orçamento por categoria**: "quero gastar no máximo 800 em mercado por mês" define um limite -
+  o painel avisa sozinho quando o gasto real da categoria bate perto (90%) ou passa do limite
+  naquele mês, uma vez por categoria+mês (não repete todo dia enquanto continuar no mesmo nível).
+- **Gastos fixos/assinaturas**: "quanto eu gasto de fixo por mês?" detecta sozinho gastos que se
+  repetem em pelo menos 2 meses com valor parecido (mesma descrição normalizada, não palavra em
+  comum - grupo errado aqui é pior que não agrupar) e soma o total comprometido todo mês.
+- **Quanto sobra pra gastar**: "quanto sobra esse mês?" calcula renda menos gasto real do mês -
+  retrospectivo (o que já entrou menos o que já saiu, sem tentar adivinhar gasto futuro), mais um
+  aviso à parte do quanto ainda está só planejado/cogitado (pode ou não virar gasto real).
+
 ## Aprendizado de padrao pessoal — sem IA, so o seu proprio historico
 
 O painel personaliza sozinho o numero de dias que espera antes de cobrar uma tarefa parada ou uma

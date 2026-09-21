@@ -538,5 +538,83 @@ class NotificacoesTestCase(unittest.TestCase):
         self.assertIsNone(notificacoes.currency_voo_baixa(self.conn, limiar_dias=21))
 
 
+class OrcamentosPertoOuEstouradosTestCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def _gastar(self, categoria, valor, quando="2026-01-15 10:00:00", tipo="real"):
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, tipo, created_at) VALUES (?, ?, ?, ?)",
+            (valor, categoria, tipo, quando),
+        )
+        self.conn.commit()
+
+    def test_sem_orcamento_definido_nao_avisa(self):
+        self._gastar("mercado", 1000)
+        hoje = date(2026, 1, 20)
+        self.assertEqual(notificacoes.orcamentos_perto_ou_estourados(self.conn, hoje), [])
+
+    def test_abaixo_de_90_por_cento_nao_avisa(self):
+        db.definir_orcamento(self.conn, "mercado", 1000.0)
+        self._gastar("mercado", 500)
+        hoje = date(2026, 1, 20)
+        self.assertEqual(notificacoes.orcamentos_perto_ou_estourados(self.conn, hoje), [])
+
+    def test_90_por_cento_avisa_nivel_quase(self):
+        db.definir_orcamento(self.conn, "mercado", 1000.0)
+        self._gastar("mercado", 900)
+        hoje = date(2026, 1, 20)
+        avisos = notificacoes.orcamentos_perto_ou_estourados(self.conn, hoje)
+        self.assertEqual(len(avisos), 1)
+        categoria, nivel, msg = avisos[0]
+        self.assertEqual(categoria, "mercado")
+        self.assertEqual(nivel, "quase")
+        self.assertIn("900.00", msg)
+
+    def test_100_por_cento_ou_mais_avisa_nivel_estourado(self):
+        db.definir_orcamento(self.conn, "mercado", 1000.0)
+        self._gastar("mercado", 1200)
+        hoje = date(2026, 1, 20)
+        avisos = notificacoes.orcamentos_perto_ou_estourados(self.conn, hoje)
+        self.assertEqual(len(avisos), 1)
+        self.assertEqual(avisos[0][1], "estourado")
+
+    def test_gasto_planejado_nao_conta(self):
+        db.definir_orcamento(self.conn, "mercado", 1000.0)
+        self._gastar("mercado", 950, tipo="planejado")
+        hoje = date(2026, 1, 20)
+        self.assertEqual(notificacoes.orcamentos_perto_ou_estourados(self.conn, hoje), [])
+
+    def test_gasto_de_mes_diferente_nao_conta(self):
+        db.definir_orcamento(self.conn, "mercado", 1000.0)
+        self._gastar("mercado", 950, quando="2025-12-15 10:00:00")
+        hoje = date(2026, 1, 20)
+        self.assertEqual(notificacoes.orcamentos_perto_ou_estourados(self.conn, hoje), [])
+
+    def test_gasto_de_outra_categoria_nao_conta(self):
+        db.definir_orcamento(self.conn, "mercado", 1000.0)
+        self._gastar("transporte", 950)
+        hoje = date(2026, 1, 20)
+        self.assertEqual(notificacoes.orcamentos_perto_ou_estourados(self.conn, hoje), [])
+
+    def test_varias_categorias_avisam_independente(self):
+        db.definir_orcamento(self.conn, "mercado", 1000.0)
+        db.definir_orcamento(self.conn, "lazer", 200.0)
+        self._gastar("mercado", 950)
+        self._gastar("lazer", 250)
+        avisos = notificacoes.orcamentos_perto_ou_estourados(self.conn, date(2026, 1, 20))
+        categorias = {c for c, _, _ in avisos}
+        self.assertEqual(categorias, {"mercado", "lazer"})
+
+
 if __name__ == "__main__":
     unittest.main()
