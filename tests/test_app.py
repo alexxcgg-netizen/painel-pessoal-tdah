@@ -3785,6 +3785,56 @@ class PainelTestCase(unittest.TestCase):
         ]
         self.assertIn("nao chover", tarefa_aeroclube["title"])
 
+    # ---- Colar trecho exportado do WhatsApp direto no chat ----
+    # (o Alex disse que ultimamente anota tudo la, nao no painel - exemplo real
+    # dele: linhas "[DD/MM/AAAA, HH:MM:SS] alex: texto", uma delas com 3 itens
+    # soltos dentro da MESMA mensagem colchetada). O ponto critico: a data
+    # entre colchetes e so metadado de quando ele anotou, nunca a data em que a
+    # tarefa precisa ser feita - se o modelo confundisse isso, toda tarefa
+    # nasceria "atrasada" do nada. Este teste simula a classificacao ideal (o
+    # que o system prompt agora pede explicitamente) e confere que o app
+    # cria as 7 tarefas certas, nenhuma com due_date vindo do colchete.
+    def test_chat_cola_trecho_exportado_do_whatsapp(self):
+        resposta_com_tools = _resp(
+            [
+                _tool_block("registrar_tarefa", {"titulo": "comprar 4 pacotinho de fuga cinza claro 1kg"}, id_="t1"),
+                _tool_block("registrar_tarefa", {"titulo": "comprar vaso sanitario caixa acoplada"}, id_="t2"),
+                _tool_block("registrar_tarefa", {"titulo": "comprar soleira da lixeira guarani"}, id_="t3"),
+                _tool_block("registrar_tarefa", {"titulo": "resolver nome do predio e numeros predios"}, id_="t4"),
+                _tool_block("registrar_tarefa", {"titulo": "ver vasos na internet"}, id_="t5"),
+                _tool_block("registrar_tarefa", {"titulo": "pesquisar madeira poli"}, id_="t6"),
+                _tool_block("registrar_tarefa", {"titulo": "fazer lista de contas com a Nina"}, id_="t7"),
+            ],
+            stop_reason="tool_use",
+        )
+        resposta_final = _resp([_text_block("Registrei os 7 itens soltos que voce colou.")])
+
+        mensagem = (
+            "[18/09/2026, 07:57:50] alex: 4 pacotinho de fuga cinza claro 1kg\n"
+            "[18/09/2026, 08:14:00] alex: vaso sanitário caixa acoplada\n"
+            "[18/09/2026, 08:15:24] alex: soleira da lixeira guarani\n"
+            "[21/09/2026, 17:27:28] alex: resolver nome do predio e numeros predios\n"
+            "ver vasos na internet\n"
+            "madeira poli\n"
+            "[21/09/2026, 17:28:29] alex: fazer lista contasse conversa com a nina"
+        )
+        with patch.object(
+            claude_client.client.messages, "create", side_effect=[resposta_com_tools, resposta_final]
+        ):
+            res = self.client.post("/api/chat", json={"mensagem": mensagem})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["acoes"], ["registrar_tarefa"] * 7)
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tasks), 7)
+        # nenhuma tarefa pode ter herdado a data do colchete (18/09 e 21/09 sao
+        # passado em relacao a "hoje" no teste - se due_date tivesse sido
+        # setada a partir dali, isso apareceria como atrasada sem sentido).
+        self.assertTrue(all(t["due_date"] is None for t in tasks))
+
+        msg = app.notificacoes.tarefas_atrasadas(db.get_db())
+        self.assertIsNone(msg, "nenhuma das 7 tarefas coladas devia contar como atrasada")
+
     # ---- Sugestao de melhor dia pra tarefa sem data fixa ----
 
     def _registrar_via_chat(self, nome_tool, entrada):

@@ -5,6 +5,31 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (8) - Colar trecho exportado do WhatsApp no chat
+
+O Alex mostrou que ultimamente anota as coisas pra fazer direto no WhatsApp (mensagem pra ele
+mesmo), nao no painel - mandou um exemplo real: linhas exportadas no formato "[DD/MM/AAAA,
+HH:MM:SS] alex: texto", uma delas com 3 itens soltos dentro da MESMA mensagem colchetada.
+Perguntei como ele queria trazer isso pro painel (colar no chat vs integracao direta com WhatsApp
+vs importar arquivo de export) - escolheu colar no chat.
+
+**`CHAT_SYSTEM_PROMPT` (claude_client.py) ganhou uma instrucao especifica pro formato de export do
+WhatsApp:** reconhecer o padrao "[data, hora] nome: texto" e IGNORAR completamente a data/hora
+entre colchetes - isso e so metadado de quando ele anotou, nunca a data em que a tarefa precisa
+ser feita (senao toda tarefa colada nasceria "atrasada" do nada, ja que ele as vezes anota com
+dias/semanas de antecedencia). Reforça tambem que uma mensagem colchetada com varias linhas soltas
+dentro vira uma `registrar_tarefa` por linha, nao uma tarefa so.
+
+**Teste golden-path com o exemplo real do Alex** (`test_chat_cola_trecho_exportado_do_whatsapp`):
+simula a classificacao ideal (a que o novo trecho do prompt pede) pro texto exato que ele colou -
+confere que as 7 tarefas nascem certas e nenhuma com due_date vindo do colchete. Como isso e uma
+mudanca de prompt (comportamento generativo, nao deterministico), nao da pra garantir por teste
+automatizado que o modelo real vai classificar exatamente assim - o teste confirma que SE
+classificar assim, o app faz a coisa certa; a qualidade real da classificacao pede um teste ao
+vivo com a chave da Anthropic de verdade.
+
+645 testes (1 novo), 100% passando.
+
 ## 2026-09-21 (7) - Aprendizado bem mais profundo, 100% por tras das cameras
 
 O Alex achou o aprendizado da entrada anterior bom mas raso ("quero ele muito mais esperto,

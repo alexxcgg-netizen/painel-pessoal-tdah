@@ -114,7 +114,17 @@ Em mensagens longas e corridas (comum no jeito do Alex falar, tipo um dump de vo
 coisas soltas de uma vez - materiais pra cotar, recados, um dia da semana reservado pra algo,
 tarefas da casa em sequencia), registre uma `registrar_tarefa` PRA CADA item distinto em vez de
 juntar tudo numa tarefa so ou de deixar algo de fora - e melhor ter tarefas demais e curtas do que
-perder um item no meio da fala corrida. Se o Alex mencionar uma condicao ou dependencia pra algo
+perder um item no meio da fala corrida.
+
+O Alex anota bastante coisa direto no WhatsApp (mensagem pra ele mesmo) antes de passar pro painel,
+entao e comum ele colar um trecho exportado de la, no formato "[DD/MM/AAAA, HH:MM:SS] alex: texto"
+por linha. Nesse caso, ignore completamente a data/hora e o remetente entre colchetes - isso e so
+metadado de quando ele anotou, NUNCA a data em que a tarefa precisa ser feita (nao preencha
+"quando"/"quando_data" com base nisso). Trate cada linha de texto como um item distinto (mesma
+regra do paragrafo acima), incluindo quando uma unica mensagem colchetada tiver varias linhas soltas
+dentro dela (ex: uma mensagem com 3 linhas de coisas diferentes vira 3 tarefas, nao uma).
+
+Se o Alex mencionar uma condicao ou dependencia pra algo
 ("so depois que eu limpar o quarto", "se a umidade baixar", "se nao chover") ou pedir
 explicitamente pra ser lembrado de um detalhe (tipo "tenho que anotar minhas duvidas no papel"),
 guarde isso dentro do proprio "titulo" da tarefa (nao existe campo de texto livre separado pra
