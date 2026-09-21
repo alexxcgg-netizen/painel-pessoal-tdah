@@ -2,6 +2,8 @@
 
 App pessoal (uso unico - um PIN de 6 digitos, sem contas nem multiplos usuarios) pra reduzir carga mental do dia a dia: captura rapida de tarefa e gasto por texto livre, quebra de tarefa grande em passos, resumo factual do dia. Inspirado no espirito do [Nectar](https://www.meu-nectar.com/), mas sob controle proprio e sem mensalidade.
 
+Historico de mudancas por dia de trabalho: **`CHANGELOG.md`** - memoria base pras proximas sessoes de IA.
+
 ## Stack
 
 - Backend: Flask + SQLite
