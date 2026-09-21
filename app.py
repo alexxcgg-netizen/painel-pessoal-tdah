@@ -163,6 +163,8 @@ def _verificar_autenticacao():
     path = request.path
     if path.startswith("/static/"):
         return None
+    if path == "/healthz":
+        return None
     # Integracao maquina-a-maquina (Atalho do iPhone) - cada uma tem o proprio
     # token (SAUDE_WEBHOOK_TOKEN / PAINEL_ATALHOS_TOKEN) checado dentro da
     # rota, nao usa sessao de login (o iPhone nao guarda cookie de sessao
@@ -196,6 +198,14 @@ def _verificar_autenticacao():
             return jsonify({"error": "nao autenticado"}), 401
         return redirect("/login")
     return None
+
+
+@app.route("/healthz", methods=["GET"])
+def healthz():
+    """Healthcheck pra monitoramento externo - sem autenticacao, sem dado
+    sensivel, sem tocar no banco (nao pode falhar por causa de lock do
+    SQLite nem depender do PIN estar configurado)."""
+    return jsonify({"status": "ok"})
 
 
 @app.route("/configurar-pin", methods=["GET", "POST"])

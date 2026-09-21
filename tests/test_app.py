@@ -3089,6 +3089,11 @@ class AutenticacaoTestCase(unittest.TestCase):
         res = self.client.get("/api/tasks")
         self.assertEqual(res.status_code, 401)
 
+    def test_healthz_funciona_sem_pin_configurado(self):
+        res = self.client.get("/healthz")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), {"status": "ok"})
+
     def test_configurar_pin_com_sucesso_ja_autentica(self):
         res = self.client.post(
             "/configurar-pin", json={"pin": "111111", "confirmacao": "111111"}
