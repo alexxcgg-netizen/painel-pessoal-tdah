@@ -582,6 +582,26 @@ class PainelTestCase(unittest.TestCase):
         # e a formula bater: por_mes * meses_restantes ~= valor_alvo
         self.assertIn(meta["meses_restantes"], (2, 3))
         self.assertAlmostEqual(meta["por_mes"] * meta["meses_restantes"], meta["valor_alvo"], delta=1.0)
+        dias_esperados = (date.fromisoformat(prazo_iso) - hoje).days
+        self.assertEqual(meta["dias_restantes"], dias_esperados)
+
+    def test_meta_sem_prazo_dias_restantes_none(self):
+        conn = db.get_db()
+        goal_id = db.create_goal(conn, "sem prazo", 500.0, None)
+        conn.close()
+        metas = self.client.get("/api/metas").get_json()
+        meta = next(m for m in metas if m["id"] == goal_id)
+        self.assertIsNone(meta["dias_restantes"])
+        self.assertIsNone(meta["meses_restantes"])
+
+    def test_meta_com_prazo_vencido_dias_restantes_negativo(self):
+        prazo_passado = (date.today() - timedelta(days=10)).isoformat()
+        conn = db.get_db()
+        goal_id = db.create_goal(conn, "atrasada", 500.0, prazo_passado)
+        conn.close()
+        metas = self.client.get("/api/metas").get_json()
+        meta = next(m for m in metas if m["id"] == goal_id)
+        self.assertEqual(meta["dias_restantes"], -10)
 
     def test_guardar_em_meta_atualiza_progresso(self):
         parsed = {

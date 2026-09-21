@@ -1228,10 +1228,16 @@ function criarItemMeta(meta) {
   const detalhe = document.createElement("p");
   detalhe.className = "meta-detalhe";
   const guardadoTxt = `${fmtMoeda(meta.valor_guardado)} de ${fmtMoeda(meta.valor_alvo)} guardado`;
+  const diasTxt =
+    pct < 100 && meta.dias_restantes != null
+      ? meta.dias_restantes >= 0
+        ? ` (faltam ${meta.dias_restantes} dia${meta.dias_restantes === 1 ? "" : "s"})`
+        : ` (${Math.abs(meta.dias_restantes)} dia${Math.abs(meta.dias_restantes) === 1 ? "" : "s"} atrasada)`
+      : "";
   const prazoTxt = meta.prazo
     ? meta.por_mes != null
-      ? ` - guarde ${fmtMoeda(meta.por_mes)}/mes ate ${meta.prazo}`
-      : ` - prazo: ${meta.prazo}`
+      ? ` - guarde ${fmtMoeda(meta.por_mes)}/mes ate ${meta.prazo}${diasTxt}`
+      : ` - prazo: ${meta.prazo}${diasTxt}`
     : " - sem prazo definido";
   detalhe.textContent = guardadoTxt + prazoTxt;
   li.appendChild(detalhe);

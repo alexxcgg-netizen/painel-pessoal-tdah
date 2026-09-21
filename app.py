@@ -143,15 +143,17 @@ def _calculo_meta(goal: dict) -> dict:
     falta = goal["valor_alvo"] - goal["valor_guardado"]
     por_mes = None
     meses = None
+    dias = None
     if goal["prazo"]:
         hoje = date.today()
         prazo = date.fromisoformat(goal["prazo"])
+        dias = (prazo - hoje).days
         meses = (prazo.year - hoje.year) * 12 + (prazo.month - hoje.month)
         if prazo.day < hoje.day:
             meses -= 1
         meses = max(meses, 1)
         por_mes = max(falta, 0) / meses
-    return {**goal, "falta": falta, "meses_restantes": meses, "por_mes": por_mes}
+    return {**goal, "falta": falta, "meses_restantes": meses, "dias_restantes": dias, "por_mes": por_mes}
 
 
 ROTAS_PUBLICAS = {"/login", "/configurar-pin", "/logout"}
