@@ -57,6 +57,7 @@ from db import (
     get_saude_dia,
     init_db,
     insert_bank_transactions,
+    ja_notificado_alguma_vez,
     ja_notificou_hoje,
     list_chat_mensagens,
     list_cotacoes,
@@ -1229,6 +1230,12 @@ def _disparar_estimativa_uber(conn, pedido: dict, access_token: str) -> None:
     )
 
 
+# Avisos presos a um instante especifico (a informacao perde o sentido se
+# adiada pro fim do horario silencioso) - esses sempre disparam na hora, os
+# outros respeitam o modo silencioso (ver verificar_e_notificar).
+NOTIFICACOES_URGENTES = {"tarefa_horario", "voo_sair", "hora_de_dormir"}
+
+
 def verificar_e_notificar():
     """Roda as verificacoes proativas e manda push pra quem tiver inscrito -
     cada tipo de aviso so dispara uma vez por dia (dedup em notificacoes_enviadas).
@@ -1248,6 +1255,14 @@ def verificar_e_notificar():
     if msg and not ja_notificou_hoje(conn, "tarefas_atrasadas"):
         avisos.append(("tarefas_atrasadas", 0, "Tarefas atrasadas", msg))
 
+    # Cobranca individual (fecha o loop) - diferente do aviso generico acima
+    # (que so soma quantas estao atrasadas), essa aqui nomeia a tarefa parada
+    # e cobra uma vez so, nunca todo dia (ja_notificado_alguma_vez, nao
+    # ja_notificou_hoje) - senao vira ruido em vez de ajuda.
+    for tarefa_id, msg in notificacoes.tarefas_paradas(conn):
+        if not ja_notificado_alguma_vez(conn, "tarefa_parada", tarefa_id):
+            avisos.append(("tarefa_parada", tarefa_id, "Isso ainda ta pendente?", msg))
+
     for meta_id, msg in notificacoes.metas_fora_do_ritmo(conn):
         if not ja_notificou_hoje(conn, "meta_atrasada", meta_id):
             avisos.append(("meta_atrasada", meta_id, "Meta fora do ritmo", msg))
@@ -1255,6 +1270,12 @@ def verificar_e_notificar():
     msg = notificacoes.gasto_semana_elevado(conn)
     if msg and not ja_notificou_hoje(conn, "gasto_elevado"):
         avisos.append(("gasto_elevado", 0, "Gasto da semana", msg))
+
+    # Complementa o alerta acima: pega um dia especifico fora do padrao mesmo
+    # quando a semana inteira ainda nao estourou a media.
+    msg = notificacoes.gasto_dia_semana_atipico(conn)
+    if msg and not ja_notificou_hoje(conn, "gasto_dia_atipico"):
+        avisos.append(("gasto_dia_atipico", 0, "Gasto fora do padrao hoje", msg))
 
     for lembrete_id, msg in notificacoes.lembretes_proximos(conn):
         if not ja_notificou_hoje(conn, "lembrete_proximo", lembrete_id):
@@ -1328,8 +1349,22 @@ def verificar_e_notificar():
         if msg:
             avisos.append(("clima_tarefa", tarefa["id"], "Dia bom pra tarefa pendente", msg))
 
+    # Modo silencioso: avisos "soft" (nao presos a um instante especifico) ficam
+    # represados fora do horario configurado (padrao 22:00-07:00, mesma janela
+    # da hora_de_dormir) em vez de tocar o celular. Nao marca como notificado -
+    # o proximo tick (5min) tenta de novo, entao o aviso so atrasa ate o
+    # silencio acabar, nunca se perde. hora_de_dormir fica de fora de proposito
+    # (senao ela mesma seria silenciada bem no horario que ela avisa).
+    silencioso = notificacoes.dentro_do_horario_silencioso(
+        datetime.now(),
+        obter_configuracao(conn, "silencio_inicio") or "22:00",
+        obter_configuracao(conn, "silencio_fim") or "07:00",
+    )
+
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
+        if silencioso and tipo not in NOTIFICACOES_URGENTES:
+            continue
         for s in subs:
             sub_dict = json.loads(s["subscription_json"])
             ok = push_client.enviar(sub_dict, titulo, corpo)
@@ -1702,6 +1737,22 @@ def uso_total():
     return jsonify({"custo_usd": round(total, 4)})
 
 
+def _categorizar_transacoes_importadas(conn, transacoes: list[dict]) -> list[dict]:
+    """Decide a categoria de cada transacao importada sozinho, com base no
+    historico de gastos que voce ja categorizou manualmente - sem perguntar
+    uma por uma. So marca 'categoria' quando o padrao e claro (ver
+    gastos.sugerir_categoria); senao fica sem, pronta pra voce corrigir/
+    completar depois se quiser."""
+    historico = conn.execute(
+        "SELECT category, description, source_text FROM expenses "
+        "WHERE tipo = 'real' AND category IS NOT NULL"
+    ).fetchall()
+    historico = [dict(r) for r in historico]
+    for t in transacoes:
+        t["categoria"] = gastos.sugerir_categoria(t.get("descricao", ""), historico)
+    return transacoes
+
+
 @app.route("/api/bancos/importar", methods=["POST"])
 def importar_extrato():
     banco = request.form.get("banco", "").strip().lower()
@@ -1723,6 +1774,7 @@ def importar_extrato():
 
     conn = get_db()
     conta_id = get_or_create_bank_account(conn, banco, tipo)
+    transacoes = _categorizar_transacoes_importadas(conn, transacoes)
     novas = insert_bank_transactions(conn, conta_id, transacoes)
     conn.close()
     return jsonify(
@@ -1824,6 +1876,7 @@ def bancos_conectar_finalizar():
             conn.close()
             return jsonify({"error": "nao consegui buscar as transacoes na Pluggy agora"}), 502
         transacoes = pluggy_client.normalizar_transacoes(transacoes_pluggy)
+        transacoes = _categorizar_transacoes_importadas(conn, transacoes)
         novas = insert_bank_transactions(conn, conta_id, transacoes)
         resumo.append({"conta_id": conta_id, "tipo": tipo, "novas": novas})
     conn.close()
@@ -2122,6 +2175,29 @@ def atalho_resumo():
             "proximo_hora": proximo["inicio"][11:16] if proximo else None,
         }
     )
+
+
+@app.route("/api/configuracoes/silencio", methods=["GET"])
+def obter_silencio():
+    conn = get_db()
+    inicio = obter_configuracao(conn, "silencio_inicio") or "22:00"
+    fim = obter_configuracao(conn, "silencio_fim") or "07:00"
+    conn.close()
+    return jsonify({"inicio": inicio, "fim": fim})
+
+
+@app.route("/api/configuracoes/silencio", methods=["POST"])
+def definir_silencio():
+    corpo = _corpo_json()
+    inicio = _normalizar_hora(corpo.get("inicio"))
+    fim = _normalizar_hora(corpo.get("fim"))
+    if not inicio or not fim:
+        return jsonify({"error": "horario invalido - use HH:MM"}), 400
+    conn = get_db()
+    definir_configuracao(conn, "silencio_inicio", inicio)
+    definir_configuracao(conn, "silencio_fim", fim)
+    conn.close()
+    return jsonify({"ok": True, "inicio": inicio, "fim": fim})
 
 
 @app.route("/api/push/status", methods=["GET"])

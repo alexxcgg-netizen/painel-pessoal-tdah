@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from gastos import historico_diario, resumo_semanal
+from gastos import historico_diario, resumo_semanal, sugerir_categoria
 
 
 class GastosTestCase(unittest.TestCase):
@@ -132,6 +132,53 @@ class ResumoSemanalTestCase(unittest.TestCase):
         r = resumo_semanal(expenses, date(2026, 9, 18))
         self.assertEqual(r["total_semana"], 10.0)
         self.assertEqual(r["total_semana_anterior"], 20.0)
+
+
+class SugerirCategoriaTestCase(unittest.TestCase):
+    def test_sem_historico_nao_decide(self):
+        self.assertIsNone(sugerir_categoria("SUPERMERCADO BOM PRECO", []))
+
+    def test_descricao_vazia_nao_decide(self):
+        historico = [{"category": "mercado", "description": "mercado bom preco"}]
+        self.assertIsNone(sugerir_categoria("", historico))
+        self.assertIsNone(sugerir_categoria(None, historico))
+
+    def test_padrao_claro_decide_categoria(self):
+        historico = [
+            {"category": "mercado", "description": "compra supermercado bompreco"},
+            {"category": "mercado", "description": "supermercado bompreco semana"},
+            {"category": "mercado", "description": "supermercado bompreco mensal"},
+        ]
+        self.assertEqual(sugerir_categoria("PGTO SUPERMERCADO BOMPRECO LTDA", historico), "mercado")
+
+    def test_padrao_ambiguo_nao_decide(self):
+        """A mesma palavra aparecendo em categorias diferentes, sem uma clara
+        dominante, deve ficar sem categoria em vez de arriscar um palpite."""
+        historico = [
+            {"category": "mercado", "description": "compra posto ipiranga conveniencia"},
+            {"category": "transporte", "description": "combustivel posto ipiranga"},
+        ]
+        self.assertIsNone(sugerir_categoria("POSTO IPIRANGA", historico))
+
+    def test_uma_unica_coincidencia_nao_decide(self):
+        """Uma unica batida no historico e pouco pra confiar - precisa de
+        pelo menos 2 gastos passados apontando pra mesma categoria."""
+        historico = [{"category": "lazer", "description": "cinema shopping"}]
+        self.assertIsNone(sugerir_categoria("CINEMA SHOPPING CENTER", historico))
+
+    def test_usa_source_text_quando_sem_description(self):
+        historico = [
+            {"category": "contas", "source_text": "paguei a conta de luz da casa"},
+            {"category": "contas", "source_text": "conta de luz atrasada"},
+        ]
+        self.assertEqual(sugerir_categoria("CIA ELETRICA - CONTA DE LUZ", historico), "contas")
+
+    def test_gasto_sem_categoria_no_historico_e_ignorado(self):
+        historico = [
+            {"category": None, "description": "mercado bompreco"},
+            {"category": None, "description": "mercado bompreco"},
+        ]
+        self.assertIsNone(sugerir_categoria("SUPERMERCADO BOMPRECO", historico))
 
 
 if __name__ == "__main__":

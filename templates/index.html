@@ -29,6 +29,9 @@
     <h1>Painel Pessoal</h1>
     <p id="uso-custo" class="custo-ia"></p>
     <button id="push-btn" class="btn-push" hidden>Ativar notificacoes</button>
+    <button id="silencio-btn" class="btn-silencio" title="Horario silencioso" aria-label="Configurar horario silencioso" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>
+    </button>
     <a href="/api/backup/exportar" class="btn-backup" title="Baixar backup do banco" aria-label="Baixar backup do banco">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
     </a>
@@ -36,6 +39,24 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
     </button>
   </header>
+
+  <div id="silencio-painel" hidden>
+    <p class="silencio-titulo">Horario silencioso</p>
+    <p class="silencio-descricao">
+      Avisos que podem esperar (gasto, meta, lembrete, tarefa parada) ficam represados nessa
+      janela. O que e urgente pra agora (hora de um compromisso, hora de sair pro voo) continua
+      avisando na hora, mesmo dentro do silencio.
+    </p>
+    <div class="silencio-campos">
+      <label>Das <input type="text" id="silencio-inicio" inputmode="numeric" placeholder="22:00" /></label>
+      <label>ate <input type="text" id="silencio-fim" inputmode="numeric" placeholder="07:00" /></label>
+      <button type="button" id="silencio-salvar" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
+        Salvar
+      </button>
+    </div>
+    <p id="silencio-status"></p>
+  </div>
 
   <p id="erro-banner" class="erro" hidden></p>
 

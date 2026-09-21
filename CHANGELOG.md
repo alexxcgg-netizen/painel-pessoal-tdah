@@ -5,6 +5,40 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (4) - De app de rotina pra assistente: 4 features de proatividade
+
+Pedido do Alex depois de discutir o que separaria o painel de "app de anotar rotina" pra
+"funcionário particular": 4 direções, implementadas uma de cada vez.
+
+**1. Fechar loops (cobrança individual, não só contagem).** `notificacoes.tarefas_paradas()`
+identifica tarefas atrasadas há 3+ dias e cobra pelo nome ("X está parada há N dias. Ainda
+precisa fazer isso?"), diferente do aviso genérico `tarefas_atrasadas` (que só soma quantas
+estão atrasadas). Dispara **uma vez só** por tarefa (`db.ja_notificado_alguma_vez()`, que
+ignora a data - ao contrário de `ja_notificou_hoje`) - nunca vira cobrança repetida todo dia
+enquanto a tarefa continuar parada.
+
+**2. Puxar padrão (não só total da semana).** `notificacoes.gasto_dia_semana_atipico()`
+compara o gasto de hoje com a média do **mesmo dia da semana** nas últimas 4 ocorrências -
+pega um dia fora do padrão mesmo quando a semana inteira ainda está dentro da média (o que
+`gasto_semana_elevado` sozinho não enxerga).
+
+**3. Decidir dentro de limites (auto-categorização do extrato).** `gastos.sugerir_categoria()`
+decide a categoria de uma transação bancária importada (OFX ou Pluggy) sozinho, comparando a
+descrição com o histórico de gastos que você já categorizou manualmente - só decide quando
+pelo menos 2 gastos passados concordam com folga (≥60% dos votos); em caso de dúvida real,
+deixa sem categoria em vez de arriscar. Nova coluna `bank_transactions.categoria`, aplicada em
+`importar_extrato()` e `bancos_conectar_finalizar()`.
+
+**4. Timing que respeita você (modo silencioso).** Janela de horário configurável (padrão
+22:00-07:00, `GET`/`POST /api/configuracoes/silencio`) em que avisos "soft" (gasto, meta,
+lembrete, tarefa parada) ficam represados em vez de tocar o celular - sem marcar como
+notificado, então o aviso só atrasa até o silêncio acabar, nunca se perde. Avisos presos a um
+instante específico (`tarefa_horario`, `voo_sair`, `hora_de_dormir`) sempre furam o silêncio,
+porque adiar a informação a esvazia. Botão novo no cabeçalho (ícone de lua) abre o painel de
+configuração.
+
+469 → 505 testes (36 novos), todos passando.
+
 ## 2026-09-21 (3) - Nova identidade: fonte Sora + esmeralda/ametista
 
 Depois do polimento visual da rodada anterior, o Alex comparou fonte e cor ao vivo num

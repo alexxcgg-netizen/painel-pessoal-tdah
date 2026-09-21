@@ -2076,6 +2076,53 @@ function initDicas() {
   });
 }
 
+function initSilencio() {
+  const btn = $("#silencio-btn");
+  const painel = $("#silencio-painel");
+  const inicioInput = $("#silencio-inicio");
+  const fimInput = $("#silencio-fim");
+  const status = $("#silencio-status");
+  let carregado = false;
+
+  async function carregar() {
+    const dados = await apiFetch("/api/configuracoes/silencio");
+    if (!dados) return;
+    inicioInput.value = dados.inicio;
+    fimInput.value = dados.fim;
+    carregado = true;
+  }
+
+  btn.addEventListener("click", async () => {
+    const aberto = btn.getAttribute("aria-expanded") === "true";
+    if (aberto) {
+      btn.setAttribute("aria-expanded", "false");
+      btn.classList.remove("ativo");
+      painel.hidden = true;
+      return;
+    }
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("ativo");
+    painel.hidden = false;
+    if (!carregado) await carregar();
+  });
+
+  $("#silencio-salvar").addEventListener("click", async () => {
+    const salvarBtn = $("#silencio-salvar");
+    status.textContent = "";
+    setBotaoCarregando(salvarBtn, true, "Salvando...");
+    const dados = await apiFetch("/api/configuracoes/silencio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inicio: inicioInput.value.trim(), fim: fimInput.value.trim() }),
+    });
+    setBotaoCarregando(salvarBtn, false, "Salvar");
+    if (!dados) return;
+    inicioInput.value = dados.inicio;
+    fimInput.value = dados.fim;
+    status.textContent = `Salvo: das ${dados.inicio} ate ${dados.fim}.`;
+  });
+}
+
 async function initViagemOrigemPadrao() {
   const status = await apiFetch("/api/viagem/status");
   if (status && status.origem_padrao) {
@@ -2114,3 +2161,4 @@ loadChatHistorico();
 initViagemOrigemPadrao();
 initVozChat();
 initDicas();
+initSilencio();

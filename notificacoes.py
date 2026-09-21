@@ -6,6 +6,20 @@ em app.py."""
 from datetime import date, datetime, timedelta
 
 
+def dentro_do_horario_silencioso(agora: datetime, inicio: str, fim: str) -> bool:
+    """Janela de horario em que os avisos "soft" (nao urgentes) ficam
+    represados em vez de tocar o celular - respeita o timing de quem esta do
+    outro lado em vez de cutucar em qualquer hora so porque a condicao ficou
+    verdadeira. 'inicio'/'fim' no formato 'HH:MM'; lida com a janela cruzando
+    a meia-noite (ex: 22:00-07:00). inicio == fim desativa (nunca silencioso)."""
+    if inicio == fim:
+        return False
+    hora_atual = agora.strftime("%H:%M")
+    if inicio < fim:
+        return inicio <= hora_atual < fim
+    return hora_atual >= inicio or hora_atual < fim
+
+
 def tarefas_aguardando_bom_tempo(conn) -> list[dict]:
     """Tarefas pendentes marcadas como 'depende do tempo' (ex: 'limpar o
     quarto se nao chover') - so identifica QUAIS tarefas checar; buscar a
@@ -29,6 +43,28 @@ def tarefas_atrasadas(conn) -> str | None:
     if n == 1:
         return "Voce tem 1 tarefa atrasada."
     return f"Voce tem {n} tarefas atrasadas."
+
+
+def tarefas_paradas(conn, dias_minimo: int = 3, hoje: date | None = None) -> list[tuple[int, str]]:
+    """Cobranca por tarefa (nao so a contagem generica de tarefas_atrasadas): uma
+    tarefa parada ha `dias_minimo` dias ou mais vira um check-in pelo nome, uma vez
+    so (a deduplicacao fica em app.py via ja_notificado_alguma_vez, nao
+    ja_notificou_hoje - senao voltaria a cobrar todo santo dia enquanto continuar
+    atrasada, o que vira ruido em vez de ajuda)."""
+    hoje = hoje or date.today()
+    limite = (hoje - timedelta(days=dias_minimo)).isoformat()
+    rows = conn.execute(
+        """SELECT id, title, due_date FROM tasks
+           WHERE completed_at IS NULL AND due_date IS NOT NULL AND due_date <= ?""",
+        (limite,),
+    ).fetchall()
+    avisos = []
+    for r in rows:
+        dias = (hoje - date.fromisoformat(r["due_date"])).days
+        avisos.append(
+            (r["id"], f"\"{r['title']}\" esta parada ha {dias} dias. Ainda precisa fazer isso?")
+        )
+    return avisos
 
 
 def tarefas_com_horario_chegando(conn, agora: datetime | None = None) -> list[tuple[int, str]]:
@@ -100,6 +136,51 @@ def gasto_semana_elevado(conn, limiar: float = 1.4) -> str | None:
     return (
         f"Gasto dessa semana ja esta em R$ {total_atual:.2f}, "
         f"acima da media das ultimas semanas (R$ {media:.2f})."
+    )
+
+
+_DIA_SEMANA_COM_ARTIGO = {
+    0: "numa segunda-feira",
+    1: "numa terca-feira",
+    2: "numa quarta-feira",
+    3: "numa quinta-feira",
+    4: "numa sexta-feira",
+    5: "num sabado",
+    6: "num domingo",
+}
+
+
+def gasto_dia_semana_atipico(
+    conn, hoje: date | None = None, semanas: int = 4, limiar: float = 1.6
+) -> str | None:
+    """Pega um padrao que o total da semana (gasto_semana_elevado) esconde:
+    uma semana pode fechar dentro da media e ainda assim ter um dia
+    especifico bem fora do normal - ex: sexta sempre foi baixa e hoje veio
+    3x mais alta, mesmo que o resto da semana compense. Compara o gasto de
+    hoje com a media do MESMO dia da semana nas ultimas `semanas`
+    ocorrencias (nao com a semana inteira)."""
+    hoje = hoje or date.today()
+    total_hoje = _total_gasto_entre(conn, hoje, hoje)
+    if total_hoje <= 0:
+        return None
+
+    amostras = []
+    for i in range(1, semanas + 1):
+        dia = hoje - timedelta(days=7 * i)
+        total_dia = _total_gasto_entre(conn, dia, dia)
+        if total_dia > 0:
+            amostras.append(total_dia)
+    if len(amostras) < 2:
+        return None  # historico curto demais desse dia da semana pra comparar direito
+
+    media = sum(amostras) / len(amostras)
+    if media <= 0 or total_hoje < limiar * media:
+        return None
+
+    dia_semana = _DIA_SEMANA_COM_ARTIGO[hoje.weekday()]
+    return (
+        f"Gasto de hoje (R$ {total_hoje:.2f}) esta bem acima do que costuma ser "
+        f"{dia_semana} (media de R$ {media:.2f})."
     )
 
 

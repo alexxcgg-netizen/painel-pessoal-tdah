@@ -202,6 +202,7 @@ def init_db():
     _garantir_coluna(conn, "tasks", "depende_do_tempo", "INTEGER NOT NULL DEFAULT 0")
     _garantir_coluna(conn, "voos", "hora", "TEXT")
     _garantir_coluna(conn, "expenses", "tipo", "TEXT NOT NULL DEFAULT 'real'")
+    _garantir_coluna(conn, "bank_transactions", "categoria", "TEXT")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     conn.close()
@@ -290,14 +291,16 @@ def get_or_create_bank_account(conn, banco: str, tipo: str = "conta") -> int:
 
 
 def insert_bank_transactions(conn, bank_account_id: int, transactions: list[dict]) -> int:
-    """Insere transacoes ignorando duplicatas (mesmo external_id). Retorna quantas foram novas."""
+    """Insere transacoes ignorando duplicatas (mesmo external_id). Retorna quantas foram novas.
+    Cada dict pode trazer uma 'categoria' ja decidida (ver gastos.sugerir_categoria,
+    chamado por quem importa o OFX) - fica NULL quando nao foi possivel decidir."""
     novas = 0
     for t in transactions:
         cur = conn.execute(
             """INSERT OR IGNORE INTO bank_transactions
-               (bank_account_id, data, descricao, valor, external_id)
-               VALUES (?, ?, ?, ?, ?)""",
-            (bank_account_id, t["data"], t["descricao"], t["valor"], t["external_id"]),
+               (bank_account_id, data, descricao, valor, external_id, categoria)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (bank_account_id, t["data"], t["descricao"], t["valor"], t["external_id"], t.get("categoria")),
         )
         if cur.rowcount:
             novas += 1
@@ -424,6 +427,17 @@ def marcar_notificado(conn, tipo: str, referencia_id: int = 0):
         (tipo, referencia_id, date.today().isoformat()),
     )
     conn.commit()
+
+
+def ja_notificado_alguma_vez(conn, tipo: str, referencia_id: int = 0) -> bool:
+    """Como ja_notificou_hoje, mas ignora a data - pra avisos que devem disparar
+    UMA VEZ so quando a condicao aparece (ex: cutucar sobre uma tarefa parada),
+    nao repetir todo dia enquanto a condicao continuar verdadeira."""
+    row = conn.execute(
+        "SELECT 1 FROM notificacoes_enviadas WHERE tipo = ? AND referencia_id = ?",
+        (tipo, referencia_id),
+    ).fetchone()
+    return row is not None
 
 
 def obter_configuracao(conn, chave: str) -> str | None:

@@ -23,6 +23,39 @@ class NotificacoesTestCase(unittest.TestCase):
         db.DB_PATH = self._caminho_original
         self._tmp.cleanup()
 
+    def test_silencio_dentro_da_janela_normal(self):
+        agora = datetime(2026, 9, 21, 13, 0)
+        self.assertTrue(notificacoes.dentro_do_horario_silencioso(agora, "12:00", "14:00"))
+
+    def test_silencio_fora_da_janela_normal(self):
+        agora = datetime(2026, 9, 21, 15, 0)
+        self.assertFalse(notificacoes.dentro_do_horario_silencioso(agora, "12:00", "14:00"))
+
+    def test_silencio_janela_cruza_meia_noite_depois_do_inicio(self):
+        agora = datetime(2026, 9, 21, 23, 30)
+        self.assertTrue(notificacoes.dentro_do_horario_silencioso(agora, "22:00", "07:00"))
+
+    def test_silencio_janela_cruza_meia_noite_antes_do_fim(self):
+        agora = datetime(2026, 9, 22, 5, 0)
+        self.assertTrue(notificacoes.dentro_do_horario_silencioso(agora, "22:00", "07:00"))
+
+    def test_silencio_janela_cruza_meia_noite_fora_da_janela(self):
+        agora = datetime(2026, 9, 21, 12, 0)
+        self.assertFalse(notificacoes.dentro_do_horario_silencioso(agora, "22:00", "07:00"))
+
+    def test_silencio_nos_limites_exatos(self):
+        # inicio inclusivo, fim exclusivo
+        self.assertTrue(
+            notificacoes.dentro_do_horario_silencioso(datetime(2026, 9, 21, 22, 0), "22:00", "07:00")
+        )
+        self.assertFalse(
+            notificacoes.dentro_do_horario_silencioso(datetime(2026, 9, 21, 7, 0), "22:00", "07:00")
+        )
+
+    def test_silencio_inicio_igual_fim_desativa(self):
+        agora = datetime(2026, 9, 21, 23, 0)
+        self.assertFalse(notificacoes.dentro_do_horario_silencioso(agora, "22:00", "22:00"))
+
     def test_tarefas_aguardando_bom_tempo_filtra_pela_flag(self):
         self.conn.execute(
             "INSERT INTO tasks (title, depende_do_tempo) VALUES (?, 1)", ("limpar o quarto",)
@@ -63,6 +96,55 @@ class NotificacoesTestCase(unittest.TestCase):
         self.conn.execute("INSERT INTO tasks (title) VALUES (?)", ("algo vago",))
         self.conn.commit()
         self.assertIsNone(notificacoes.tarefas_atrasadas(self.conn))
+
+    def test_tarefas_paradas_vazio_sem_tarefa_atrasada(self):
+        self.assertEqual(notificacoes.tarefas_paradas(self.conn), [])
+
+    def test_tarefas_paradas_ignora_atraso_recente(self):
+        dois_dias = (date.today() - timedelta(days=2)).isoformat()
+        self.conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("pagar conta", dois_dias))
+        self.conn.commit()
+        self.assertEqual(notificacoes.tarefas_paradas(self.conn, dias_minimo=3), [])
+
+    def test_tarefas_paradas_detecta_parada_no_limite(self):
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        self.conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("pagar conta", tres_dias))
+        self.conn.commit()
+        avisos = notificacoes.tarefas_paradas(self.conn, dias_minimo=3)
+        self.assertEqual(len(avisos), 1)
+        tarefa_id, msg = avisos[0]
+        self.assertIn("pagar conta", msg)
+        self.assertIn("3 dias", msg)
+        self.assertIsInstance(tarefa_id, int)
+
+    def test_tarefas_paradas_ignora_concluida(self):
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, datetime('now'))",
+            ("pagar conta", tres_dias),
+        )
+        self.conn.commit()
+        self.assertEqual(notificacoes.tarefas_paradas(self.conn), [])
+
+    def test_ja_notificado_alguma_vez_ignora_a_data(self):
+        self.assertFalse(db.ja_notificado_alguma_vez(self.conn, "tarefa_parada", 42))
+        db.marcar_notificado(self.conn, "tarefa_parada", 42)
+        self.assertTrue(db.ja_notificado_alguma_vez(self.conn, "tarefa_parada", 42))
+        # outro tipo ou outra referencia nao conta como "ja notificado"
+        self.assertFalse(db.ja_notificado_alguma_vez(self.conn, "tarefa_parada", 43))
+        self.assertFalse(db.ja_notificado_alguma_vez(self.conn, "outro_tipo", 42))
+
+    def test_tarefas_paradas_lista_varias_com_dias_corretos(self):
+        cinco_dias = (date.today() - timedelta(days=5)).isoformat()
+        dez_dias = (date.today() - timedelta(days=10)).isoformat()
+        self.conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("tarefa a", cinco_dias))
+        self.conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("tarefa b", dez_dias))
+        self.conn.commit()
+        avisos = notificacoes.tarefas_paradas(self.conn)
+        self.assertEqual(len(avisos), 2)
+        textos = " ".join(msg for _, msg in avisos)
+        self.assertIn("5 dias", textos)
+        self.assertIn("10 dias", textos)
 
     def test_meta_fora_do_ritmo_e_detectada(self):
         criado = (datetime.now() - timedelta(days=50)).isoformat()
@@ -121,6 +203,95 @@ class NotificacoesTestCase(unittest.TestCase):
             )
         self.conn.commit()
         self.assertIsNone(notificacoes.gasto_semana_elevado(self.conn))
+
+    def test_gasto_dia_semana_atipico_detectado(self):
+        hoje = date.today()
+        for i in range(1, 5):
+            dia = hoje - timedelta(days=7 * i)
+            self.conn.execute(
+                "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+                (50, "mercado", dia.isoformat()),
+            )
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+            (300, "mercado", hoje.isoformat()),
+        )
+        self.conn.commit()
+        msg = notificacoes.gasto_dia_semana_atipico(self.conn, hoje=hoje)
+        self.assertIsNotNone(msg)
+        self.assertIn("300.00", msg)
+
+    def test_gasto_dia_semana_normal_nao_avisa(self):
+        hoje = date.today()
+        for i in range(1, 5):
+            dia = hoje - timedelta(days=7 * i)
+            self.conn.execute(
+                "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+                (50, "mercado", dia.isoformat()),
+            )
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+            (55, "mercado", hoje.isoformat()),
+        )
+        self.conn.commit()
+        self.assertIsNone(notificacoes.gasto_dia_semana_atipico(self.conn, hoje=hoje))
+
+    def test_gasto_dia_semana_sem_gasto_hoje_nao_avisa(self):
+        hoje = date.today()
+        for i in range(1, 5):
+            dia = hoje - timedelta(days=7 * i)
+            self.conn.execute(
+                "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+                (50, "mercado", dia.isoformat()),
+            )
+        self.conn.commit()
+        self.assertIsNone(notificacoes.gasto_dia_semana_atipico(self.conn, hoje=hoje))
+
+    def test_gasto_dia_semana_sem_historico_nao_avisa(self):
+        hoje = date.today()
+        semana_passada = hoje - timedelta(days=7)
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+            (50, "mercado", semana_passada.isoformat()),
+        )
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+            (500, "mercado", hoje.isoformat()),
+        )
+        self.conn.commit()
+        # so 1 amostra de historico (precisa de pelo menos 2 pra comparar)
+        self.assertIsNone(notificacoes.gasto_dia_semana_atipico(self.conn, hoje=hoje))
+
+    def test_gasto_dia_semana_ignora_gasto_planejado(self):
+        hoje = date.today()
+        for i in range(1, 5):
+            dia = hoje - timedelta(days=7 * i)
+            self.conn.execute(
+                "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+                (50, "mercado", dia.isoformat()),
+            )
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, created_at, tipo) VALUES (?, ?, ?, 'planejado')",
+            (500, "mercado", hoje.isoformat()),
+        )
+        self.conn.commit()
+        self.assertIsNone(notificacoes.gasto_dia_semana_atipico(self.conn, hoje=hoje))
+
+    def test_gasto_dia_semana_atipico_menciona_dia_da_semana(self):
+        segunda = date(2026, 9, 21)  # segunda-feira
+        for i in range(1, 5):
+            dia = segunda - timedelta(days=7 * i)
+            self.conn.execute(
+                "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+                (50, "mercado", dia.isoformat()),
+            )
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+            (300, "mercado", segunda.isoformat()),
+        )
+        self.conn.commit()
+        msg = notificacoes.gasto_dia_semana_atipico(self.conn, hoje=segunda)
+        self.assertIn("segunda-feira", msg)
 
     def test_lembrete_unico_proximo_e_avisado(self):
         data = (date.today() + timedelta(days=3)).isoformat()

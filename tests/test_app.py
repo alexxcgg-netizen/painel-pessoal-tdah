@@ -477,6 +477,51 @@ class PainelTestCase(unittest.TestCase):
         valores = sorted(t["valor"] for t in transacoes)
         self.assertEqual(valores, [-45.9, 1500.0])
 
+    def test_importar_extrato_categoriza_sozinho_com_historico_claro(self):
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO expenses (amount, category, description) VALUES (?, ?, ?)",
+            (18.0, "mercado", "compra na padaria central de manha"),
+        )
+        conn.execute(
+            "INSERT INTO expenses (amount, category, description) VALUES (?, ?, ?)",
+            (12.5, "mercado", "pao na padaria central"),
+        )
+        conn.commit()
+        conn.close()
+
+        self.client.post(
+            "/api/bancos/importar",
+            data={
+                "banco": "nubank",
+                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "extrato.ofx"),
+            },
+            content_type="multipart/form-data",
+        )
+        contas = self.client.get("/api/bancos").get_json()
+        transacoes = self.client.get(f"/api/bancos/{contas[0]['id']}/transacoes").get_json()
+
+        padaria = next(t for t in transacoes if t["valor"] == -45.9)
+        self.assertEqual(padaria["categoria"], "mercado")
+
+        # SALARIO nao tem nada parecido no historico - fica sem categoria em
+        # vez de arriscar um palpite
+        salario = next(t for t in transacoes if t["valor"] == 1500.0)
+        self.assertIsNone(salario["categoria"])
+
+    def test_importar_extrato_sem_historico_fica_sem_categoria(self):
+        self.client.post(
+            "/api/bancos/importar",
+            data={
+                "banco": "nubank",
+                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "extrato.ofx"),
+            },
+            content_type="multipart/form-data",
+        )
+        contas = self.client.get("/api/bancos").get_json()
+        transacoes = self.client.get(f"/api/bancos/{contas[0]['id']}/transacoes").get_json()
+        self.assertTrue(all(t["categoria"] is None for t in transacoes))
+
     def test_reimportar_mesmo_extrato_nao_duplica(self):
         self.client.post(
             "/api/bancos/importar",
@@ -1455,6 +1500,174 @@ class PainelTestCase(unittest.TestCase):
             res2 = self.client.post("/api/notificacoes/verificar-agora")
             self.assertEqual(res2.get_json()["avisos_enviados"], 0)
             self.assertEqual(mock_enviar.call_count, 1)
+
+    def test_notificacoes_verificar_agora_cobra_tarefa_parada_pelo_nome(self):
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("responder a corretora", tres_dias)
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+            # dispara os dois: o aviso generico (tarefas_atrasadas) e o check-in
+            # nominal (tarefa_parada) - sao conteudos diferentes, ambos validos.
+            self.assertEqual(res.get_json()["avisos_enviados"], 2)
+            corpos = [c.args[2] for c in mock_enviar.call_args_list]
+            self.assertTrue(
+                any("responder a corretora" in c and "3 dias" in c for c in corpos),
+                msg=f"nenhum push cobrou a tarefa pelo nome: {corpos}",
+            )
+
+    def test_notificacoes_tarefa_parada_nao_repete_mesmo_continuando_atrasada(self):
+        """A cobranca de tarefa parada e um check-in uma vez so - diferente do
+        aviso generico de tarefas atrasadas (que reseta por dia e volta a disparar
+        no dia seguinte), essa nao deve voltar a mandar push so porque a tarefa
+        continua sem due_date futuro nem concluida."""
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("responder a corretora", tres_dias)
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(mock_enviar.call_count, 2)
+
+            # simula o dia seguinte apagando so o dedup do aviso generico (que e
+            # por data) - o dedup de tarefa_parada (que ignora data) fica intacto,
+            # simulando a tarefa continuar atrasada num dia posterior
+            conn = db.get_db()
+            conn.execute("DELETE FROM notificacoes_enviadas WHERE tipo = 'tarefas_atrasadas'")
+            conn.commit()
+            linha = conn.execute(
+                "SELECT * FROM notificacoes_enviadas WHERE tipo = 'tarefa_parada'"
+            ).fetchone()
+            self.assertIsNotNone(linha)
+            conn.close()
+
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+            # so o generico volta a disparar - o check-in nominal ja foi feito e
+            # nao repete
+            self.assertEqual(res2.get_json()["avisos_enviados"], 1)
+            self.assertEqual(mock_enviar.call_count, 3)
+            corpos_novos = [c.args[2] for c in mock_enviar.call_args_list[2:]]
+            self.assertFalse(any("responder a corretora" in c for c in corpos_novos))
+
+    def test_notificacoes_verificar_agora_inclui_gasto_dia_semana_atipico(self):
+        hoje = date.today()
+        conn = db.get_db()
+        for i in range(1, 5):
+            dia = hoje - timedelta(days=7 * i)
+            conn.execute(
+                "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+                (50, "mercado", dia.isoformat()),
+            )
+        conn.execute(
+            "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+            (500, "mercado", hoje.isoformat()),
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertGreaterEqual(res.get_json()["avisos_enviados"], 1)
+            corpos = [c.args[2] for c in mock_enviar.call_args_list]
+            self.assertTrue(any("500.00" in c for c in corpos))
+
+    def test_obter_silencio_retorna_padrao_quando_nao_configurado(self):
+        res = self.client.get("/api/configuracoes/silencio")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), {"inicio": "22:00", "fim": "07:00"})
+
+    def test_definir_silencio_valido_e_persistido(self):
+        res = self.client.post("/api/configuracoes/silencio", json={"inicio": "23:00", "fim": "6:30"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), {"ok": True, "inicio": "23:00", "fim": "06:30"})
+
+        res2 = self.client.get("/api/configuracoes/silencio")
+        self.assertEqual(res2.get_json(), {"inicio": "23:00", "fim": "06:30"})
+
+    def test_definir_silencio_invalido_rejeita(self):
+        for corpo in [{"inicio": "25:00", "fim": "07:00"}, {"inicio": "22:00", "fim": ""}, {}]:
+            res = self.client.post("/api/configuracoes/silencio", json=corpo)
+            self.assertEqual(res.status_code, 400, msg=f"deveria rejeitar {corpo!r}")
+        # nao alterou o padrao
+        self.assertEqual(
+            self.client.get("/api/configuracoes/silencio").get_json(),
+            {"inicio": "22:00", "fim": "07:00"},
+        )
+
+    def test_verificar_agora_represa_aviso_soft_no_horario_silencioso(self):
+        ontem = (date.today() - timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("pagar conta", ontem))
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "notificacoes.dentro_do_horario_silencioso", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res.get_json()["avisos_enviados"], 0)
+            mock_enviar.assert_not_called()
+
+            # nao marcou como notificado - assim que o silencio acabar, manda
+            with patch("notificacoes.dentro_do_horario_silencioso", return_value=False):
+                res2 = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res2.get_json()["avisos_enviados"], 1)
+            mock_enviar.assert_called_once()
+
+    def test_verificar_agora_tarefa_com_horario_ignora_silencio(self):
+        """Aviso urgente (preso a um instante) nao pode ficar represado - se
+        adiar pro fim do silencio, a informacao perde a validade."""
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("colocar o lixo pra fora", hoje, "00:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "notificacoes.dentro_do_horario_silencioso", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        corpo = mock_enviar.call_args[0][2]
+        self.assertIn("colocar o lixo pra fora", corpo)
 
     def test_notificacoes_verificar_agora_inclui_tarefa_com_horario_chegado(self):
         hoje = date.today().isoformat()
