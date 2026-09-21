@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from datetime import date, datetime
@@ -154,6 +155,13 @@ Quando o Alex perguntar o que estudar (ex: "que estudar hoje?", "que assunto vej
 vem a seguir sozinha. So repasse o tema devolvido, nunca complete com sub-topicos ou material de
 estudo inventado por voce - isso e conteudo tecnico de aviacao, tem que vir so do que ele mesmo
 trouxer.
+
+Cotacao de fornecedor: quando o Alex mencionar um preco de fornecedor (ex: "fornecedor tal, R$5000,
+pra cotacao de ferro" ou so "recebi R$5000 do fornecedor tal pro ferro"), chame
+`registrar_item_cotacao` - nao precisa ter aberto a cotacao antes, a ferramenta cria sozinha se for
+a primeira vez. Quando ele pedir pra comparar ("compara os fornecedores de ferro", "quem ta mais
+barato"), chame `comparar_cotacao` e responda com a lista ordenada que ela devolver - nunca invente
+um valor que nao esta na lista.
 
 Voo pode ser so um compromisso futuro (ex: "vou voar pra Blumenau semana que vem" - sem horas
 ainda) ou um voo ja realizado (ex: "voei 1.5h hoje, treino de pouso" - com horas). Nao invente
@@ -446,6 +454,46 @@ CHAT_TOOLS = [
         ),
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "registrar_item_cotacao",
+        "description": (
+            "Registra um preco de fornecedor dentro de uma cotacao (ex: 'fornecedor tal, "
+            "R$5000, pra cotacao de ferro') - se a cotacao com esse titulo ainda nao existir, "
+            "cria automaticamente. Use quando o Alex mencionar um preco de fornecedor pra "
+            "comparar depois com outros, mesmo sem ter dito explicitamente 'abrir cotacao'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo_cotacao": {
+                    "type": "string",
+                    "description": "o material/servico sendo cotado (ex: 'portas', 'vasos sanitarios', 'ferro')",
+                },
+                "fornecedor": {"type": "string"},
+                "valor": {"type": "number"},
+                "prazo_texto": {
+                    "type": "string",
+                    "description": "prazo de entrega, se ele disser (ex: '15 dias') - omita se nao houver",
+                },
+                "observacao": {"type": "string", "description": "detalhe curto relevante - omita se nao houver"},
+            },
+            "required": ["titulo_cotacao", "fornecedor", "valor"],
+        },
+    },
+    {
+        "name": "comparar_cotacao",
+        "description": (
+            "Lista os fornecedores ja registrados numa cotacao, do mais barato pro mais caro - "
+            "use quando o Alex pedir pra comparar/ver os precos de uma cotacao."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo_cotacao": {"type": "string"},
+            },
+            "required": ["titulo_cotacao"],
+        },
+    },
 ]
 
 
@@ -569,6 +617,43 @@ def break_down_task(title: str) -> tuple[list[str], dict]:
         messages=[{"role": "user", "content": BREAKDOWN_PROMPT.format(title=title)}],
     )
     return _extract_json(response.content[0].text), _usage(response)
+
+
+COTACAO_PDF_PROMPT = """Leia esse PDF de orcamento/cotacao de um fornecedor de material de
+construcao e extraia em JSON:
+{"fornecedor": nome da empresa/fornecedor (texto curto) ou null se nao identificar,
+ "valor": valor TOTAL do orcamento em reais (numero puro, sem "R$" nem separador de milhar) ou
+ null se nao achar um valor total claro, "prazo_texto": prazo de entrega mencionado, em texto
+ livre (ex: "15 dias uteis") ou null, "observacao": um detalhe curto relevante (frete incluso,
+ validade da proposta, forma de pagamento) ou null}
+
+So extraia o que estiver escrito no documento - nunca estime ou arredonde um valor que nao
+esteja explicito. Responda SO com o JSON, sem explicacao, sem markdown."""
+
+
+def extrair_item_cotacao_pdf(pdf_bytes: bytes) -> tuple[dict, dict]:
+    """Le um PDF de cotacao/orcamento de fornecedor e extrai fornecedor/valor/prazo -
+    extracao pura (mesmo espirito de classify_capture: a IA so le e devolve estruturado,
+    nunca decide nada sozinho, quem compara os valores depois e o Python)."""
+    pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+    response = client.messages.create(
+        model=SONNET,
+        max_tokens=400,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_b64},
+                    },
+                    {"type": "text", "text": COTACAO_PDF_PROMPT},
+                ],
+            }
+        ],
+    )
+    texto = "".join(b.text for b in response.content if b.type == "text")
+    return _extract_json(texto), _usage(response)
 
 
 def summarize_day(

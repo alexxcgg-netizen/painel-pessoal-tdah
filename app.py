@@ -30,16 +30,22 @@ from db import (
     CAMPOS_SAUDE,
     add_to_goal,
     atualizar_uber_pedido,
+    cotacao_por_titulo_aproximado,
     create_goal,
     create_lembrete,
     create_memoria,
     create_voo,
+    criar_cotacao,
+    criar_item_cotacao,
     criar_uber_pedido,
     definir_configuracao,
+    delete_cotacao,
+    delete_item_cotacao,
     delete_lembrete,
     delete_memoria,
     delete_push_subscription,
     delete_voo,
+    get_cotacao,
     get_db,
     get_or_create_bank_account,
     get_saude_dia,
@@ -47,9 +53,11 @@ from db import (
     insert_bank_transactions,
     ja_notificou_hoje,
     list_chat_mensagens,
+    list_cotacoes,
     list_dias_ativos,
     list_goal_deposits,
     list_goals,
+    list_itens_cotacao,
     list_lembretes,
     list_memorias,
     list_push_subscriptions,
@@ -825,6 +833,42 @@ def chat():
         definir_configuracao(conn, "estudo_proximo_indice", str(proximo_indice))
         return {"tema": tema}
 
+    def exec_registrar_item_cotacao(entrada):
+        cotacao = cotacao_por_titulo_aproximado(conn, entrada["titulo_cotacao"])
+        if not cotacao:
+            cotacao_id = criar_cotacao(conn, entrada["titulo_cotacao"])
+        else:
+            cotacao_id = cotacao["id"]
+        criar_item_cotacao(
+            conn,
+            cotacao_id,
+            entrada["fornecedor"],
+            entrada["valor"],
+            entrada.get("prazo_texto"),
+            entrada.get("observacao"),
+            origem="texto",
+        )
+        return {"ok": True, "cotacao_id": cotacao_id}
+
+    def exec_comparar_cotacao(entrada):
+        cotacao = cotacao_por_titulo_aproximado(conn, entrada["titulo_cotacao"])
+        if not cotacao:
+            return {"erro": f"nao achei nenhuma cotacao com o titulo \"{entrada['titulo_cotacao']}\""}
+        itens = list_itens_cotacao(conn, cotacao["id"])
+        if not itens:
+            return {"titulo": cotacao["titulo"], "itens": []}
+        return {
+            "titulo": cotacao["titulo"],
+            "itens": [
+                {
+                    "fornecedor": i["fornecedor"],
+                    "valor": i["valor"],
+                    "prazo_texto": i["prazo_texto"],
+                }
+                for i in itens
+            ],
+        }
+
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
@@ -838,6 +882,8 @@ def chat():
         "sugerir_posto_no_caminho": exec_sugerir_posto_no_caminho,
         "agendar_uber": exec_agendar_uber,
         "sugerir_tema_estudo": exec_sugerir_tema_estudo,
+        "registrar_item_cotacao": exec_registrar_item_cotacao,
+        "comparar_cotacao": exec_comparar_cotacao,
     }
 
     result, error = _call_claude(
@@ -1618,6 +1664,126 @@ def construtora_resumo():
         return jsonify({"configurado": True, "erro": "Nao consegui falar com a API da construtora agora."}), 502
 
     return jsonify({"configurado": True, "dados": resp.json()})
+
+
+TAMANHO_MAX_PDF_BYTES = 15 * 1024 * 1024  # 15MB - cabe folgado num orcamento escaneado
+
+
+@app.route("/api/cotacoes", methods=["GET"])
+def listar_cotacoes():
+    conn = get_db()
+    resultado = list_cotacoes(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/cotacoes", methods=["POST"])
+def criar_cotacao_rota():
+    titulo = ((request.json or {}).get("titulo") or "").strip()
+    if not titulo:
+        return jsonify({"error": "informe o titulo da cotacao"}), 400
+    conn = get_db()
+    cotacao_id = criar_cotacao(conn, titulo)
+    conn.close()
+    return jsonify({"id": cotacao_id, "ok": True}), 201
+
+
+@app.route("/api/cotacoes/<int:cotacao_id>", methods=["GET"])
+def ver_cotacao(cotacao_id):
+    conn = get_db()
+    cotacao = get_cotacao(conn, cotacao_id)
+    if not cotacao:
+        conn.close()
+        return jsonify({"error": "cotacao nao encontrada"}), 404
+    itens = list_itens_cotacao(conn, cotacao_id)
+    conn.close()
+    return jsonify({**cotacao, "itens": itens})
+
+
+@app.route("/api/cotacoes/<int:cotacao_id>", methods=["DELETE"])
+def apagar_cotacao(cotacao_id):
+    conn = get_db()
+    delete_cotacao(conn, cotacao_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/cotacoes/<int:cotacao_id>/itens", methods=["POST"])
+def adicionar_item_cotacao(cotacao_id):
+    conn = get_db()
+    if not get_cotacao(conn, cotacao_id):
+        conn.close()
+        return jsonify({"error": "cotacao nao encontrada"}), 404
+
+    body = request.json or {}
+    fornecedor = (body.get("fornecedor") or "").strip() or None
+    valor = body.get("valor")
+    if valor is not None and not isinstance(valor, (int, float)):
+        conn.close()
+        return jsonify({"error": "valor precisa ser um numero"}), 400
+
+    item_id = criar_item_cotacao(
+        conn,
+        cotacao_id,
+        fornecedor,
+        valor,
+        (body.get("prazo_texto") or "").strip() or None,
+        (body.get("observacao") or "").strip() or None,
+        origem="texto",
+    )
+    conn.close()
+    return jsonify({"id": item_id, "ok": True}), 201
+
+
+@app.route("/api/cotacoes/<int:cotacao_id>/itens/pdf", methods=["POST"])
+def adicionar_item_cotacao_pdf(cotacao_id):
+    """Le um PDF de orcamento de fornecedor e extrai fornecedor/valor/prazo
+    automaticamente - o Alex so anexa o PDF que recebeu, sem digitar nada."""
+    conn = get_db()
+    if not get_cotacao(conn, cotacao_id):
+        conn.close()
+        return jsonify({"error": "cotacao nao encontrada"}), 404
+
+    arquivo = request.files.get("arquivo")
+    if not arquivo or not arquivo.filename:
+        conn.close()
+        return jsonify({"error": "anexe um arquivo PDF"}), 400
+    if not arquivo.filename.lower().endswith(".pdf"):
+        conn.close()
+        return jsonify({"error": "so aceito arquivo PDF"}), 400
+
+    pdf_bytes = arquivo.read()
+    if len(pdf_bytes) > TAMANHO_MAX_PDF_BYTES:
+        conn.close()
+        return jsonify({"error": "PDF maior que 15MB - manda um arquivo menor"}), 400
+
+    result, error = _call_claude(claude_client.extrair_item_cotacao_pdf, pdf_bytes)
+    if error:
+        conn.close()
+        return error
+    dados, usage = result
+
+    _log_usage(conn, usage)
+    item_id = criar_item_cotacao(
+        conn,
+        cotacao_id,
+        dados.get("fornecedor"),
+        dados.get("valor"),
+        dados.get("prazo_texto"),
+        dados.get("observacao"),
+        origem="pdf",
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"id": item_id, "ok": True, **dados}), 201
+
+
+@app.route("/api/cotacoes/<int:cotacao_id>/itens/<int:item_id>", methods=["DELETE"])
+def apagar_item_cotacao(cotacao_id, item_id):
+    conn = get_db()
+    delete_item_cotacao(conn, item_id)
+    conn.close()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/push/status", methods=["GET"])

@@ -201,7 +201,10 @@ function showTab(name) {
     loadMetas();
   }
   if (name === "bancos") loadBancos();
-  if (name === "construtora") loadConstrutora();
+  if (name === "construtora") {
+    loadConstrutora();
+    loadCotacoes();
+  }
   if (name === "aviacao") loadVoosResumo();
 }
 
@@ -1308,6 +1311,184 @@ async function loadConstrutora() {
     info.textContent = JSON.stringify(data.dados);
   }
 }
+
+async function loadCotacoes() {
+  const data = await apiFetch("/api/cotacoes");
+  const list = $("#lista-cotacoes");
+  list.innerHTML = "";
+  if (!data) return;
+  $("#cotacoes-vazio").hidden = data.length > 0;
+  data.forEach((c) => list.appendChild(criarItemCotacao(c)));
+}
+
+function criarItemCotacao(c) {
+  const li = document.createElement("li");
+  li.className = "item cotacao-card";
+
+  const cabecalho = document.createElement("div");
+  cabecalho.className = "cotacao-cabecalho";
+  cabecalho.tabIndex = 0;
+
+  const titulo = document.createElement("span");
+  titulo.className = "item-titulo";
+  titulo.textContent = c.titulo;
+
+  const resumo = document.createElement("span");
+  resumo.className = "item-quando";
+  resumo.textContent =
+    c.total_itens === 0
+      ? "nenhum fornecedor ainda"
+      : `${c.total_itens} fornecedor(es)` +
+        (c.menor_valor != null ? ` - menor: ${fmtMoeda(c.menor_valor)}` : "");
+
+  cabecalho.appendChild(titulo);
+  cabecalho.appendChild(resumo);
+  li.appendChild(cabecalho);
+
+  const detalhe = document.createElement("div");
+  detalhe.className = "cotacao-detalhe";
+  detalhe.hidden = true;
+  li.appendChild(detalhe);
+
+  let carregado = false;
+  const abrirFechar = async () => {
+    detalhe.hidden = !detalhe.hidden;
+    if (!detalhe.hidden && !carregado) {
+      carregado = true;
+      await preencherDetalheCotacao(c.id, detalhe);
+    }
+  };
+  cabecalho.addEventListener("click", abrirFechar);
+  cabecalho.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" || ev.key === " ") {
+      ev.preventDefault();
+      abrirFechar();
+    }
+  });
+
+  return li;
+}
+
+async function preencherDetalheCotacao(cotacaoId, container) {
+  container.textContent = "Carregando...";
+  const data = await apiFetch(`/api/cotacoes/${cotacaoId}`);
+  if (!data) {
+    container.textContent = "";
+    return;
+  }
+  container.innerHTML = "";
+
+  if (data.itens.length === 0) {
+    const vazio = document.createElement("p");
+    vazio.className = "dica-metas";
+    vazio.textContent = "Nenhum fornecedor registrado ainda.";
+    container.appendChild(vazio);
+  } else {
+    const listaItens = document.createElement("ul");
+    listaItens.className = "cotacao-itens";
+    data.itens.forEach((item, i) => {
+      const itemLi = document.createElement("li");
+      itemLi.className = "cotacao-item" + (i === 0 && item.valor != null ? " cotacao-item-menor" : "");
+
+      const texto = document.createElement("span");
+      const partes = [item.fornecedor || "fornecedor sem nome"];
+      partes.push(item.valor != null ? fmtMoeda(item.valor) : "sem valor");
+      if (item.prazo_texto) partes.push(item.prazo_texto);
+      texto.textContent = partes.join(" - ");
+      itemLi.appendChild(texto);
+
+      const btnApagar = document.createElement("button");
+      btnApagar.type = "button";
+      btnApagar.className = "cotacao-item-apagar";
+      btnApagar.setAttribute("aria-label", "Apagar item");
+      btnApagar.textContent = "×";
+      btnApagar.addEventListener("click", async () => {
+        await apiFetch(`/api/cotacoes/${cotacaoId}/itens/${item.id}`, { method: "DELETE" });
+        preencherDetalheCotacao(cotacaoId, container);
+        loadCotacoes();
+      });
+      itemLi.appendChild(btnApagar);
+      listaItens.appendChild(itemLi);
+    });
+    container.appendChild(listaItens);
+  }
+
+  const formItem = document.createElement("form");
+  formItem.className = "form-linha cotacao-add-form";
+  const inputFornecedor = document.createElement("input");
+  inputFornecedor.type = "text";
+  inputFornecedor.placeholder = "Fornecedor";
+  inputFornecedor.required = true;
+  const inputValor = document.createElement("input");
+  inputValor.type = "text";
+  inputValor.inputMode = "decimal";
+  inputValor.placeholder = "Valor R$";
+  inputValor.required = true;
+  const btnAdd = document.createElement("button");
+  btnAdd.type = "submit";
+  btnAdd.className = "btn-com-icone";
+  btnAdd.textContent = "+ Adicionar";
+  formItem.appendChild(inputFornecedor);
+  formItem.appendChild(inputValor);
+  formItem.appendChild(btnAdd);
+  formItem.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const fornecedor = inputFornecedor.value.trim();
+    const valor = parseFloat(inputValor.value.trim().replace(",", "."));
+    if (!fornecedor || Number.isNaN(valor)) return;
+    const r = await apiFetch(`/api/cotacoes/${cotacaoId}/itens`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fornecedor, valor }),
+    });
+    if (r) {
+      preencherDetalheCotacao(cotacaoId, container);
+      loadCotacoes();
+    }
+  });
+  container.appendChild(formItem);
+
+  const uploadLabel = document.createElement("label");
+  uploadLabel.className = "cotacao-upload-label";
+  const uploadTexto = document.createElement("span");
+  uploadTexto.textContent = "Anexar PDF do orcamento";
+  const uploadInput = document.createElement("input");
+  uploadInput.type = "file";
+  uploadInput.accept = "application/pdf";
+  uploadLabel.appendChild(uploadTexto);
+  uploadLabel.appendChild(uploadInput);
+  uploadInput.addEventListener("change", async () => {
+    const arquivo = uploadInput.files[0];
+    if (!arquivo) return;
+    uploadTexto.textContent = "Lendo PDF...";
+    const form = new FormData();
+    form.append("arquivo", arquivo);
+    const r = await apiFetch(`/api/cotacoes/${cotacaoId}/itens/pdf`, { method: "POST", body: form });
+    if (r) {
+      preencherDetalheCotacao(cotacaoId, container);
+      loadCotacoes();
+    } else {
+      uploadTexto.textContent = "Anexar PDF do orcamento";
+    }
+  });
+  container.appendChild(uploadLabel);
+}
+
+$("#cotacao-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("#cotacao-titulo");
+  const titulo = input.value.trim();
+  if (!titulo) return;
+  const r = await apiFetch("/api/cotacoes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ titulo }),
+  });
+  if (r) {
+    input.value = "";
+    loadCotacoes();
+  }
+});
 
 function criarItemVoo(v) {
   const li = document.createElement("li");

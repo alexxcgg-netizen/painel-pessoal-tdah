@@ -2282,6 +2282,148 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res2.get_json()["avisos_enviados"], 0)
         mock_enviar.assert_called_once()
 
+    # ---- Cotacao de fornecedores (com leitura de PDF) ----
+
+    def test_criar_cotacao_via_endpoint(self):
+        res = self.client.post("/api/cotacoes", json={"titulo": "Portas"})
+        self.assertEqual(res.status_code, 201)
+        self.assertTrue(res.get_json()["ok"])
+
+    def test_criar_cotacao_sem_titulo_devolve_erro(self):
+        res = self.client.post("/api/cotacoes", json={"titulo": ""})
+        self.assertEqual(res.status_code, 400)
+
+    def test_listar_cotacoes_inclui_total_de_itens_e_menor_valor(self):
+        cotacao_id = self.client.post("/api/cotacoes", json={"titulo": "Ferro"}).get_json()["id"]
+        self.client.post(f"/api/cotacoes/{cotacao_id}/itens", json={"fornecedor": "A", "valor": 500.0})
+        self.client.post(f"/api/cotacoes/{cotacao_id}/itens", json={"fornecedor": "B", "valor": 300.0})
+
+        res = self.client.get("/api/cotacoes")
+        cotacoes = res.get_json()
+        self.assertEqual(len(cotacoes), 1)
+        self.assertEqual(cotacoes[0]["total_itens"], 2)
+        self.assertEqual(cotacoes[0]["menor_valor"], 300.0)
+
+    def test_ver_cotacao_lista_itens_do_mais_barato_pro_mais_caro(self):
+        cotacao_id = self.client.post("/api/cotacoes", json={"titulo": "Vasos"}).get_json()["id"]
+        self.client.post(f"/api/cotacoes/{cotacao_id}/itens", json={"fornecedor": "Caro", "valor": 900.0})
+        self.client.post(f"/api/cotacoes/{cotacao_id}/itens", json={"fornecedor": "Barato", "valor": 100.0})
+
+        res = self.client.get(f"/api/cotacoes/{cotacao_id}")
+        itens = res.get_json()["itens"]
+        self.assertEqual([i["fornecedor"] for i in itens], ["Barato", "Caro"])
+
+    def test_ver_cotacao_inexistente_devolve_404(self):
+        res = self.client.get("/api/cotacoes/9999")
+        self.assertEqual(res.status_code, 404)
+
+    def test_apagar_cotacao_remove_itens_tambem(self):
+        cotacao_id = self.client.post("/api/cotacoes", json={"titulo": "Tijolo"}).get_json()["id"]
+        self.client.post(f"/api/cotacoes/{cotacao_id}/itens", json={"fornecedor": "A", "valor": 50.0})
+
+        res = self.client.delete(f"/api/cotacoes/{cotacao_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get(f"/api/cotacoes/{cotacao_id}").status_code, 404)
+
+    def test_adicionar_item_em_cotacao_inexistente_devolve_404(self):
+        res = self.client.post("/api/cotacoes/9999/itens", json={"fornecedor": "A", "valor": 10.0})
+        self.assertEqual(res.status_code, 404)
+
+    def test_apagar_item_cotacao(self):
+        cotacao_id = self.client.post("/api/cotacoes", json={"titulo": "Areia"}).get_json()["id"]
+        item_id = self.client.post(
+            f"/api/cotacoes/{cotacao_id}/itens", json={"fornecedor": "A", "valor": 50.0}
+        ).get_json()["id"]
+
+        res = self.client.delete(f"/api/cotacoes/{cotacao_id}/itens/{item_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get(f"/api/cotacoes/{cotacao_id}").get_json()["itens"], [])
+
+    def test_upload_pdf_cotacao_extrai_e_cria_item(self):
+        cotacao_id = self.client.post("/api/cotacoes", json={"titulo": "Ferro"}).get_json()["id"]
+        dados_extraidos = {
+            "fornecedor": "Ferragens Silva",
+            "valor": 4500.0,
+            "prazo_texto": "15 dias",
+            "observacao": None,
+        }
+        with patch(
+            "claude_client.extrair_item_cotacao_pdf", return_value=(dados_extraidos, fake_usage())
+        ):
+            res = self.client.post(
+                f"/api/cotacoes/{cotacao_id}/itens/pdf",
+                data={"arquivo": (io.BytesIO(b"%PDF-1.4 fake"), "orcamento.pdf")},
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.get_json()["fornecedor"], "Ferragens Silva")
+
+        itens = self.client.get(f"/api/cotacoes/{cotacao_id}").get_json()["itens"]
+        self.assertEqual(len(itens), 1)
+        self.assertEqual(itens[0]["origem"], "pdf")
+        self.assertEqual(itens[0]["valor"], 4500.0)
+
+    def test_upload_arquivo_nao_pdf_devolve_erro(self):
+        cotacao_id = self.client.post("/api/cotacoes", json={"titulo": "Ferro"}).get_json()["id"]
+        res = self.client.post(
+            f"/api/cotacoes/{cotacao_id}/itens/pdf",
+            data={"arquivo": (io.BytesIO(b"nao e pdf"), "orcamento.txt")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_upload_sem_arquivo_devolve_erro(self):
+        cotacao_id = self.client.post("/api/cotacoes", json={"titulo": "Ferro"}).get_json()["id"]
+        res = self.client.post(f"/api/cotacoes/{cotacao_id}/itens/pdf", data={}, content_type="multipart/form-data")
+        self.assertEqual(res.status_code, 400)
+
+    def test_upload_pdf_maior_que_15mb_devolve_erro(self):
+        cotacao_id = self.client.post("/api/cotacoes", json={"titulo": "Ferro"}).get_json()["id"]
+        conteudo_grande = b"0" * (16 * 1024 * 1024)
+        res = self.client.post(
+            f"/api/cotacoes/{cotacao_id}/itens/pdf",
+            data={"arquivo": (io.BytesIO(conteudo_grande), "grande.pdf")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_registrar_item_cotacao_via_chat_cria_cotacao_nova(self):
+        resultado = self._registrar_via_chat(
+            "registrar_item_cotacao",
+            {"titulo_cotacao": "portas", "fornecedor": "Madeireira X", "valor": 3000.0},
+        )
+        self.assertTrue(resultado["ok"])
+        cotacoes = self.client.get("/api/cotacoes").get_json()
+        self.assertEqual(len(cotacoes), 1)
+        self.assertEqual(cotacoes[0]["titulo"], "portas")
+
+    def test_registrar_item_cotacao_via_chat_reusa_cotacao_existente(self):
+        self.client.post("/api/cotacoes", json={"titulo": "Cotacao de ferro"})
+        resultado = self._registrar_via_chat(
+            "registrar_item_cotacao",
+            {"titulo_cotacao": "ferro", "fornecedor": "Aco Forte", "valor": 2000.0},
+        )
+        cotacoes = self.client.get("/api/cotacoes").get_json()
+        self.assertEqual(len(cotacoes), 1)  # nao criou uma segunda
+        self.assertEqual(cotacoes[0]["total_itens"], 1)
+        self.assertEqual(resultado["cotacao_id"], cotacoes[0]["id"])
+
+    def test_comparar_cotacao_via_chat_ordena_por_valor(self):
+        self._registrar_via_chat(
+            "registrar_item_cotacao",
+            {"titulo_cotacao": "vasos", "fornecedor": "Caro Ltda", "valor": 900.0},
+        )
+        self._registrar_via_chat(
+            "registrar_item_cotacao",
+            {"titulo_cotacao": "vasos", "fornecedor": "Barato Ltda", "valor": 300.0},
+        )
+        resultado = self._registrar_via_chat("comparar_cotacao", {"titulo_cotacao": "vasos"})
+        self.assertEqual([i["fornecedor"] for i in resultado["itens"]], ["Barato Ltda", "Caro Ltda"])
+
+    def test_comparar_cotacao_inexistente_devolve_erro(self):
+        resultado = self._registrar_via_chat("comparar_cotacao", {"titulo_cotacao": "algo que nao existe"})
+        self.assertIn("erro", resultado)
+
     # ---- Cenario real: mensagem corrida de manha com varias coisas juntas ----
     # (o exemplo que o Alex deu: material de obra + gravar video na obra + voo
     # as 14h + gasto ja feito de gasolina + gasto planejado de reabastecer +

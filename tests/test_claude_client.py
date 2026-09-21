@@ -111,6 +111,56 @@ class ChatLoopTestCase(unittest.TestCase):
         self.assertIn("registrar_memoria", nomes)
         self.assertIn("quando_data", claude_client.CHAT_TOOLS[0]["input_schema"]["properties"])
 
+    def test_cotacao_tools_disponiveis(self):
+        nomes = [t["name"] for t in claude_client.CHAT_TOOLS]
+        self.assertIn("registrar_item_cotacao", nomes)
+        self.assertIn("comparar_cotacao", nomes)
+
+
+class ExtrairItemCotacaoPdfTestCase(unittest.TestCase):
+    def test_extrai_campos_do_json_devolvido(self):
+        dados_json = (
+            '{"fornecedor": "Ferragens Silva", "valor": 4500.0, '
+            '"prazo_texto": "15 dias uteis", "observacao": "frete incluso"}'
+        )
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)]),
+        ) as mock_create:
+            dados, usage = claude_client.extrair_item_cotacao_pdf(b"%PDF-1.4 conteudo falso")
+
+        self.assertEqual(dados["fornecedor"], "Ferragens Silva")
+        self.assertEqual(dados["valor"], 4500.0)
+        self.assertEqual(dados["prazo_texto"], "15 dias uteis")
+        self.assertEqual(usage["input_tokens"], 100)
+
+        conteudo_enviado = mock_create.call_args.kwargs["messages"][0]["content"]
+        blocos_documento = [b for b in conteudo_enviado if b["type"] == "document"]
+        self.assertEqual(len(blocos_documento), 1)
+        self.assertEqual(blocos_documento[0]["source"]["media_type"], "application/pdf")
+
+    def test_extrai_com_campos_nulos_quando_pdf_nao_tem_valor_claro(self):
+        dados_json = '{"fornecedor": null, "valor": null, "prazo_texto": null, "observacao": null}'
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)]),
+        ):
+            dados, _ = claude_client.extrair_item_cotacao_pdf(b"conteudo")
+        self.assertIsNone(dados["fornecedor"])
+        self.assertIsNone(dados["valor"])
+
+    def test_extrai_ignora_markdown_ao_redor_do_json(self):
+        dados_json = '```json\n{"fornecedor": "X", "valor": 100.0, "prazo_texto": null, "observacao": null}\n```'
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)]),
+        ):
+            dados, _ = claude_client.extrair_item_cotacao_pdf(b"conteudo")
+        self.assertEqual(dados["fornecedor"], "X")
+
 
 if __name__ == "__main__":
     unittest.main()

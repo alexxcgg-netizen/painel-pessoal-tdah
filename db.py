@@ -177,6 +177,23 @@ def init_db():
             erro TEXT,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS cotacoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS cotacoes_itens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cotacao_id INTEGER NOT NULL REFERENCES cotacoes(id) ON DELETE CASCADE,
+            fornecedor TEXT,
+            valor REAL,
+            prazo_texto TEXT,
+            observacao TEXT,
+            origem TEXT NOT NULL DEFAULT 'texto',
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -515,4 +532,87 @@ def atualizar_uber_pedido(conn, pedido_id: int, **campos):
     conn.execute(
         f"UPDATE uber_pedidos SET {colunas} WHERE id = ?", (*campos.values(), pedido_id)
     )
+    conn.commit()
+
+
+def criar_cotacao(conn, titulo: str) -> int:
+    cur = conn.execute("INSERT INTO cotacoes (titulo) VALUES (?)", (titulo,))
+    conn.commit()
+    return cur.lastrowid
+
+
+def cotacao_por_titulo_aproximado(conn, titulo: str) -> dict | None:
+    """Acha uma cotacao existente cujo titulo bate (sem diferenciar
+    maiusculas/minusculas, por substring nos dois sentidos) - pra
+    'fornecedor tal, R$500, pra cotacao de ferro' cair na mesma cotacao de
+    'abrir cotacao de ferro' mesmo sem repetir o titulo palavra por
+    palavra. Se houver mais de uma, pega a mais recente."""
+    titulo_norm = (titulo or "").strip().lower()
+    if not titulo_norm:
+        return None
+    rows = conn.execute("SELECT * FROM cotacoes ORDER BY criado_em DESC").fetchall()
+    for r in rows:
+        existente = r["titulo"].strip().lower()
+        if titulo_norm in existente or existente in titulo_norm:
+            return dict(r)
+    return None
+
+
+def get_cotacao(conn, cotacao_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM cotacoes WHERE id = ?", (cotacao_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def list_cotacoes(conn) -> list[dict]:
+    """Cada cotacao com quantos itens tem e o menor valor entre eles (NULL
+    se nenhum item ainda tem valor) - o essencial pra listar sem precisar
+    buscar os itens de cada uma."""
+    rows = conn.execute(
+        """SELECT c.*, COUNT(i.id) AS total_itens, MIN(i.valor) AS menor_valor
+           FROM cotacoes c LEFT JOIN cotacoes_itens i ON i.cotacao_id = c.id
+           GROUP BY c.id ORDER BY c.criado_em DESC"""
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def criar_item_cotacao(
+    conn,
+    cotacao_id: int,
+    fornecedor: str | None,
+    valor: float | None,
+    prazo_texto: str | None = None,
+    observacao: str | None = None,
+    origem: str = "texto",
+) -> int:
+    cur = conn.execute(
+        """INSERT INTO cotacoes_itens (cotacao_id, fornecedor, valor, prazo_texto, observacao, origem)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (cotacao_id, fornecedor, valor, prazo_texto, observacao, origem),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_itens_cotacao(conn, cotacao_id: int) -> list[dict]:
+    """Itens da cotacao, mais barato primeiro - itens sem valor (ex: PDF que
+    nao deu pra extrair) ficam por ultimo, nao desaparecem."""
+    rows = conn.execute(
+        """SELECT * FROM cotacoes_itens WHERE cotacao_id = ?
+           ORDER BY (valor IS NULL), valor, criado_em""",
+        (cotacao_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_cotacao(conn, cotacao_id: int):
+    """Apaga a cotacao e os itens dela - sem depender de ON DELETE CASCADE
+    do SQLite (que so funciona com PRAGMA foreign_keys ligado, nao ligado
+    aqui), apaga os itens primeiro explicitamente."""
+    conn.execute("DELETE FROM cotacoes_itens WHERE cotacao_id = ?", (cotacao_id,))
+    conn.execute("DELETE FROM cotacoes WHERE id = ?", (cotacao_id,))
+    conn.commit()
+
+
+def delete_item_cotacao(conn, item_id: int):
+    conn.execute("DELETE FROM cotacoes_itens WHERE id = ?", (item_id,))
     conn.commit()
