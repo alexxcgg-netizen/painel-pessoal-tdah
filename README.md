@@ -324,6 +324,52 @@ e manda o header `X-Webhook-Token` com o mesmo valor no Atalho. Sem essa variave
 qualquer um que souber a URL pode mandar dados falsos - tranquilo pra uso na sua propria rede,
 mas vale configurar antes de expor o painel publicamente.
 
+## Atalhos do iPhone — captura por voz e PDF direto pro Compartilhar
+
+Dois Atalhos que falam com o painel sem precisar abrir o navegador nem logar com o PIN toda vez -
+mesmo espirito do Atalho de Saude acima, cada um com seu proprio endpoint autenticado por token.
+
+### "Ei Siri, anota" — captura por voz
+
+1. Abre o app **Atalhos** → "+" → "Novo Atalho"
+2. Adiciona a acao **"Ditar Texto"** (Dictate Text)
+3. Adiciona a acao **"Obter Conteudo de URL"**:
+   - URL: `http://SEU-IP-OU-DOMINIO:5001/api/atalho/capturar`
+   - Metodo: POST
+   - Cabecalhos: `Content-Type: application/json` (e `X-Webhook-Token` se configurou um - ver abaixo)
+   - Corpo (JSON): `{"text": [Texto Ditado]}` (usa a variavel do passo 2)
+4. Renomeia o Atalho pra algo curto tipo "Anota" e ativa **"Usar com Siri"** nas configuracoes dele
+5. A partir dai: "Ei Siri, anota" → fala o que quiser → cai direto como tarefa/gasto/meta, igual
+   digitar na captura do painel
+
+### Compartilhar PDF direto pra uma cotacao
+
+1. Abre o app **Atalhos** → "+" → "Novo Atalho"
+2. Nas configuracoes do Atalho (icone de engrenagem), ativa **"Mostrar na Folha de Compartilhamento"**
+   e restringe o tipo de conteudo aceito a **Arquivos PDF**
+3. Adiciona a acao **"Pedir Entrada"** (Ask for Input) do tipo Texto, com a pergunta "Qual cotacao?"
+   (voce responde algo tipo "portas" ou "ferro" - nao precisa ser o titulo exato, o painel acha a
+   cotacao existente mais parecida ou cria uma nova)
+4. Adiciona a acao **"Obter Conteudo de URL"**:
+   - URL: `http://SEU-IP-OU-DOMINIO:5001/api/atalho/cotacao-pdf`
+   - Metodo: POST
+   - Corpo da requisicao: **Form** (nao JSON) com dois campos:
+     - `arquivo`: o PDF recebido (Conteudo do Atalho / Shortcut Input)
+     - `titulo_cotacao`: a resposta do passo 3
+   - Cabecalhos: `X-Webhook-Token` se configurou um (ver abaixo)
+5. A partir dai: no PDF recebido no WhatsApp/Email, aperta **Compartilhar** → escolhe esse Atalho →
+   fala o titulo da cotacao → o painel le o PDF e extrai fornecedor/valor/prazo sozinho
+
+### Protegendo os dois endpoints (opcional)
+
+Mesma logica do Atalho de Saude:
+```
+PAINEL_ATALHOS_TOKEN=escolha-uma-senha-aleatoria
+```
+e manda o header `X-Webhook-Token` com o mesmo valor nos dois Atalhos. Sem essa variavel
+configurada, os endpoints ficam abertos - tranquilo na sua rede local, configure antes de expor o
+painel publicamente.
+
 ## Memoria — o que ele lembra sobre voce
 
 Toda vez que voce escreve algo na captura, alem de classificar como tarefa/gasto/meta, a IA

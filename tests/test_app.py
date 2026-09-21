@@ -2950,6 +2950,91 @@ class AutenticacaoTestCase(unittest.TestCase):
         res = self.client.post("/api/saude/importar", json={"passos": 1000})
         self.assertNotEqual(res.status_code, 401)
 
+    def test_atalho_capturar_nao_exige_sessao_de_login(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.commit()
+        conn.close()
+        parsed = {
+            "tipo": "tarefa", "titulo": "ligar pro dentista", "valor": None,
+            "categoria": None, "status": None, "quando": None, "quando_data": None,
+            "hora": None, "prazo": None, "duvida": None, "memoria": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/atalho/capturar", json={"text": "ligar pro dentista"})
+        self.assertEqual(res.status_code, 201)
+
+    def test_atalho_capturar_sem_texto_devolve_erro(self):
+        res = self.client.post("/api/atalho/capturar", json={"text": ""})
+        self.assertEqual(res.status_code, 400)
+
+    def test_atalho_capturar_com_token_configurado_exige_token_certo(self):
+        with patch.dict(os.environ, {"PAINEL_ATALHOS_TOKEN": "segredo-123"}):
+            sem_token = self.client.post("/api/atalho/capturar", json={"text": "algo"})
+            self.assertEqual(sem_token.status_code, 401)
+
+            token_errado = self.client.post(
+                "/api/atalho/capturar", json={"text": "algo"}, headers={"X-Webhook-Token": "errado"}
+            )
+            self.assertEqual(token_errado.status_code, 401)
+
+            parsed = {
+                "tipo": "tarefa", "titulo": "algo", "valor": None, "categoria": None,
+                "status": None, "quando": None, "quando_data": None, "hora": None,
+                "prazo": None, "duvida": None, "memoria": None,
+            }
+            with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+                token_certo = self.client.post(
+                    "/api/atalho/capturar",
+                    json={"text": "algo"},
+                    headers={"X-Webhook-Token": "segredo-123"},
+                )
+            self.assertEqual(token_certo.status_code, 201)
+
+    def test_atalho_cotacao_pdf_nao_exige_sessao_e_cria_cotacao(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.commit()
+        conn.close()
+
+        dados_extraidos = {
+            "fornecedor": "Ferragens Silva", "valor": 4500.0,
+            "prazo_texto": "15 dias", "observacao": None,
+        }
+        with patch(
+            "claude_client.extrair_item_cotacao_pdf", return_value=(dados_extraidos, fake_usage())
+        ):
+            res = self.client.post(
+                "/api/atalho/cotacao-pdf",
+                data={
+                    "titulo_cotacao": "ferro",
+                    "arquivo": (io.BytesIO(b"%PDF-1.4 fake"), "orcamento.pdf"),
+                },
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.get_json()["fornecedor"], "Ferragens Silva")
+
+        conn = db.get_db()
+        cotacoes = db.list_cotacoes(conn)
+        conn.close()
+        self.assertEqual(len(cotacoes), 1)
+        self.assertEqual(cotacoes[0]["titulo"], "ferro")
+
+    def test_atalho_cotacao_pdf_sem_titulo_devolve_erro(self):
+        res = self.client.post(
+            "/api/atalho/cotacao-pdf",
+            data={"arquivo": (io.BytesIO(b"%PDF-1.4"), "orcamento.pdf")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_atalho_cotacao_pdf_sem_arquivo_devolve_erro(self):
+        res = self.client.post(
+            "/api/atalho/cotacao-pdf", data={"titulo_cotacao": "ferro"}, content_type="multipart/form-data"
+        )
+        self.assertEqual(res.status_code, 400)
+
     def test_login_ja_autenticado_redireciona_pra_home(self):
         conn = db.get_db()
         auth.definir_pin(conn, "123456", "123456")

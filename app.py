@@ -162,9 +162,11 @@ def _verificar_autenticacao():
     path = request.path
     if path.startswith("/static/"):
         return None
-    # Integracao maquina-a-maquina (Atalho do iPhone) - tem o proprio token
-    # (SAUDE_WEBHOOK_TOKEN) checado dentro da rota, nao usa sessao de login.
-    if path == "/api/saude/importar":
+    # Integracao maquina-a-maquina (Atalho do iPhone) - cada uma tem o proprio
+    # token (SAUDE_WEBHOOK_TOKEN / PAINEL_ATALHOS_TOKEN) checado dentro da
+    # rota, nao usa sessao de login (o iPhone nao guarda cookie de sessao
+    # entre execucoes do Atalho).
+    if path in ("/api/saude/importar", "/api/atalho/capturar", "/api/atalho/cotacao-pdf"):
         return None
 
     conn = get_db()
@@ -254,14 +256,10 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/api/capture", methods=["POST"])
-def capture():
-    body = request.json or {}
-    text = body.get("text", "").strip()
-    clarificacao = body.get("clarificacao", "").strip()
-    if not text:
-        return jsonify({"error": "texto vazio"}), 400
-
+def _executar_captura(text: str, clarificacao: str):
+    """Classifica e grava um texto de captura (tarefa/gasto/meta) - usado
+    tanto por /api/capture (sessao normal) quanto por /api/atalho/capturar
+    (Atalho do iPhone, autenticado por token). Devolve (jsonify(...), status)."""
     full_text = f"{text}. Contexto adicional: {clarificacao}" if clarificacao else text
 
     result, error = _call_claude(claude_client.classify_capture, full_text)
@@ -276,7 +274,7 @@ def capture():
     # clarificacao ja foi enviada, seguimos com o melhor palpite mesmo assim).
     if parsed.get("duvida") and not clarificacao:
         conn.close()
-        return jsonify({"duvida": parsed["duvida"], "texto_original": text})
+        return jsonify({"duvida": parsed["duvida"], "texto_original": text}), 200
 
     if parsed["tipo"] == "gasto":
         status_gasto = parsed.get("status") if parsed.get("status") in ("real", "planejado") else "real"
@@ -299,6 +297,16 @@ def capture():
     conn.commit()
     conn.close()
     return jsonify(parsed), 201
+
+
+@app.route("/api/capture", methods=["POST"])
+def capture():
+    body = request.json or {}
+    text = body.get("text", "").strip()
+    clarificacao = body.get("clarificacao", "").strip()
+    if not text:
+        return jsonify({"error": "texto vazio"}), 400
+    return _executar_captura(text, clarificacao)
 
 
 @app.route("/api/tasks", methods=["GET"])
@@ -691,6 +699,14 @@ def _carga_por_dia(conn, dias: list[date]) -> dict[str, int]:
     return {r["due_date"]: r["n"] for r in rows}
 
 
+def _resolver_cotacao_por_titulo(conn, titulo: str) -> int:
+    """Acha a cotacao existente com titulo parecido, ou cria uma nova - usado
+    tanto pelo chat (registrar_item_cotacao) quanto pelo Atalho do iPhone que
+    manda PDF direto, pra nao precisar saber o ID numerico da cotacao."""
+    cotacao = cotacao_por_titulo_aproximado(conn, titulo)
+    return cotacao["id"] if cotacao else criar_cotacao(conn, titulo)
+
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
     body = request.json or {}
@@ -834,11 +850,7 @@ def chat():
         return {"tema": tema}
 
     def exec_registrar_item_cotacao(entrada):
-        cotacao = cotacao_por_titulo_aproximado(conn, entrada["titulo_cotacao"])
-        if not cotacao:
-            cotacao_id = criar_cotacao(conn, entrada["titulo_cotacao"])
-        else:
-            cotacao_id = cotacao["id"]
+        cotacao_id = _resolver_cotacao_por_titulo(conn, entrada["titulo_cotacao"])
         criar_item_cotacao(
             conn,
             cotacao_id,
@@ -1784,6 +1796,77 @@ def apagar_item_cotacao(cotacao_id, item_id):
     delete_item_cotacao(conn, item_id)
     conn.close()
     return jsonify({"ok": True})
+
+
+def _token_atalho_valido() -> bool:
+    """Mesma logica do SAUDE_WEBHOOK_TOKEN: se PAINEL_ATALHOS_TOKEN nao
+    estiver configurado, a rota fica aberta (uso local); se estiver, o
+    Atalho do iPhone precisa mandar o header X-Webhook-Token batendo."""
+    token_esperado = os.environ.get("PAINEL_ATALHOS_TOKEN")
+    if not token_esperado:
+        return True
+    return request.headers.get("X-Webhook-Token") == token_esperado
+
+
+@app.route("/api/atalho/capturar", methods=["POST"])
+def atalho_capturar():
+    """Pro Atalho "Ei Siri, anota" do iPhone - mesma logica de /api/capture,
+    so que autenticado por token em vez de sessao de login (o app Atalhos
+    nao guarda cookie entre execucoes)."""
+    if not _token_atalho_valido():
+        return jsonify({"error": "token invalido"}), 401
+
+    body = request.json or {}
+    text = (body.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "texto vazio"}), 400
+    return _executar_captura(text, "")
+
+
+@app.route("/api/atalho/cotacao-pdf", methods=["POST"])
+def atalho_cotacao_pdf():
+    """Pro Atalho "Compartilhar PDF" do iPhone - aparece no menu de
+    Compartilhar do iOS quando o Alex ta vendo o PDF de um orcamento
+    (ex: recebido no WhatsApp). Recebe o PDF + o titulo da cotacao (o Alex
+    fala/digita, ex: "portas") e acha ou cria a cotacao sozinho - assim nao
+    precisa saber o ID numerico dela."""
+    if not _token_atalho_valido():
+        return jsonify({"error": "token invalido"}), 401
+
+    titulo_cotacao = (request.form.get("titulo_cotacao") or "").strip()
+    if not titulo_cotacao:
+        return jsonify({"error": "informe o titulo da cotacao (ex: portas)"}), 400
+
+    arquivo = request.files.get("arquivo")
+    if not arquivo or not arquivo.filename:
+        return jsonify({"error": "anexe um arquivo PDF"}), 400
+    if not arquivo.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "so aceito arquivo PDF"}), 400
+
+    pdf_bytes = arquivo.read()
+    if len(pdf_bytes) > TAMANHO_MAX_PDF_BYTES:
+        return jsonify({"error": "PDF maior que 15MB - manda um arquivo menor"}), 400
+
+    result, error = _call_claude(claude_client.extrair_item_cotacao_pdf, pdf_bytes)
+    if error:
+        return error
+    dados, usage = result
+
+    conn = get_db()
+    _log_usage(conn, usage)
+    cotacao_id = _resolver_cotacao_por_titulo(conn, titulo_cotacao)
+    item_id = criar_item_cotacao(
+        conn,
+        cotacao_id,
+        dados.get("fornecedor"),
+        dados.get("valor"),
+        dados.get("prazo_texto"),
+        dados.get("observacao"),
+        origem="pdf",
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"id": item_id, "cotacao_id": cotacao_id, "ok": True, **dados}), 201
 
 
 @app.route("/api/push/status", methods=["GET"])
