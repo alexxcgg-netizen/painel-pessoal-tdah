@@ -67,6 +67,31 @@ def tarefas_paradas(conn, dias_minimo: int = 3, hoje: date | None = None) -> lis
     return avisos
 
 
+def esperas_paradas(conn, dias_minimo: int = 5, hoje: date | None = None) -> list[tuple[int, str]]:
+    """Cobranca de resposta pendente de TERCEIROS (fornecedor, corretora,
+    quem for) - diferente de tarefas_paradas, que cobra voce mesmo de volta,
+    essa acompanha quem ainda nao te respondeu. Mesma logica de disparo unico
+    (ver ja_notificado_alguma_vez em app.py): nao vale cobrar todo dia
+    enquanto a espera continuar em aberto."""
+    hoje = hoje or date.today()
+    avisos = []
+    rows = conn.execute(
+        "SELECT id, quem, sobre, criado_em FROM esperas WHERE resolvido_em IS NULL"
+    ).fetchall()
+    for r in rows:
+        criado = datetime.fromisoformat(r["criado_em"]).date()
+        dias = (hoje - criado).days
+        if dias < dias_minimo:
+            continue
+        avisos.append(
+            (
+                r["id"],
+                f"Ainda esperando resposta de {r['quem']} sobre \"{r['sobre']}\" - ja fazem {dias} dias.",
+            )
+        )
+    return avisos
+
+
 def tarefas_com_horario_chegando(conn, agora: datetime | None = None) -> list[tuple[int, str]]:
     """Tarefas pendentes com horario marcado pra hoje cujo horario ja
     chegou (ou passou) - pra virar um lembrete de verdade (push) na hora
@@ -242,6 +267,58 @@ def hora_de_dormir_devida(agora: datetime | None = None) -> bool:
     agora = agora or datetime.now()
     alvo = agora.replace(hour=22, minute=0, second=0, microsecond=0)
     return alvo <= agora < alvo + timedelta(minutes=5)
+
+
+def fechamento_noturno_devido(agora: datetime | None = None) -> bool:
+    """Verdadeiro na janela de 5min em torno das 21h - fecha o dia de forma
+    ATIVA (manda push sozinho) em vez de esperar o Alex abrir a aba Painel
+    pra ver o fechamento. Uma hora antes da hora_de_dormir de proposito, pra
+    nao empilhar dois avisos no mesmo minuto."""
+    agora = agora or datetime.now()
+    alvo = agora.replace(hour=21, minute=0, second=0, microsecond=0)
+    return alvo <= agora < alvo + timedelta(minutes=5)
+
+
+def _total_gasto_dia(conn, dia: date) -> float:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
+        (dia.isoformat(),),
+    ).fetchone()
+    return row["total"]
+
+
+def mensagem_fechamento_noturno(conn, hoje: date | None = None) -> str:
+    """Monta o texto do fechamento ativo - deterministico, sem IA (roda
+    sozinho todo dia, nao vale gastar chamada de IA nisso). O mesmo par
+    concluidas/pendentes que a aba Painel ja mostra, mais o gasto do dia,
+    resumido numa mensagem so."""
+    hoje = hoje or date.today()
+    concluidas = conn.execute(
+        "SELECT COUNT(*) AS n FROM tasks WHERE date(completed_at) = ?", (hoje.isoformat(),)
+    ).fetchone()["n"]
+    pendentes = conn.execute(
+        "SELECT title FROM tasks WHERE completed_at IS NULL AND due_date = ? "
+        "ORDER BY hora IS NULL, hora",
+        (hoje.isoformat(),),
+    ).fetchall()
+    gasto = _total_gasto_dia(conn, hoje)
+
+    partes = []
+    if concluidas == 0:
+        partes.append("Nenhuma tarefa concluida hoje.")
+    elif concluidas == 1:
+        partes.append("1 tarefa concluida hoje.")
+    else:
+        partes.append(f"{concluidas} tarefas concluidas hoje.")
+
+    if pendentes:
+        titulos = ", ".join(r["title"] for r in pendentes)
+        partes.append(f"Ficou pendente: {titulos}.")
+
+    if gasto > 0:
+        partes.append(f"Gasto do dia: R$ {gasto:.2f}.")
+
+    return " ".join(partes)
 
 
 def currency_voo_baixa(conn, limiar_dias: int = 21) -> str | None:

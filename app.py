@@ -28,6 +28,7 @@ import notificacoes
 import pluggy_client
 import push_client
 import streak
+import telegram_bot
 import uber_client
 import viagem
 import voos as voos_module
@@ -35,8 +36,10 @@ import db
 from db import (
     CAMPOS_SAUDE,
     add_to_goal,
+    apagar_espera,
     atualizar_uber_pedido,
     cotacao_por_titulo_aproximado,
+    create_espera,
     create_goal,
     create_lembrete,
     create_memoria,
@@ -51,6 +54,7 @@ from db import (
     delete_memoria,
     delete_push_subscription,
     delete_voo,
+    espera_pendente_por_quem_aproximado,
     get_cotacao,
     get_db,
     get_or_create_bank_account,
@@ -62,6 +66,7 @@ from db import (
     list_chat_mensagens,
     list_cotacoes,
     list_dias_ativos,
+    list_esperas_pendentes,
     list_goal_deposits,
     list_goals,
     list_itens_cotacao,
@@ -74,6 +79,7 @@ from db import (
     obter_configuracao,
     record_usage,
     registrar_atividade,
+    resolver_espera,
     salvar_mensagem_chat,
     save_push_subscription,
     total_cost_usd,
@@ -873,6 +879,10 @@ def _contexto_chat(conn) -> str:
             for v in proximos_voos
         )
         linhas.append(f"Proximos voos agendados: {voos_txt}")
+    esperas_pendentes = list_esperas_pendentes(conn)
+    if esperas_pendentes:
+        esperas_txt = ", ".join(f"{e['quem']} sobre \"{e['sobre']}\"" for e in esperas_pendentes)
+        linhas.append(f"Esperando resposta de: {esperas_txt}")
     return "\n".join(linhas)
 
 
@@ -898,15 +908,12 @@ def _resolver_cotacao_por_titulo(conn, titulo: str) -> int:
     return cotacao["id"] if cotacao else criar_cotacao(conn, titulo)
 
 
-@app.route("/api/chat", methods=["POST"])
-def chat():
-    body = _corpo_json()
-    texto = _texto_seguro(body.get("mensagem"))
-    if not texto:
-        return jsonify({"error": "mensagem vazia"}), 400
-
-    conn = get_db()
-
+def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], str | None]:
+    """Roda o pipeline inteiro de chat (contexto + tool-use + persistencia) -
+    fonte unica de verdade da conversa, usada tanto pela rota HTTP /api/chat
+    quanto pelo bot do Telegram, pra nenhum dos dois canais reimplementar a
+    logica de tool-use (nem arriscar os dois divergirem). Devolve
+    (resposta, acoes, None) no sucesso, ou (None, [], mensagem_de_erro)."""
     historico = list(reversed(list_chat_mensagens(conn, limit=20)))
     mensagens = [{"role": r["papel"], "content": r["texto"]} for r in historico]
     mensagens.append({"role": "user", "content": texto})
@@ -969,6 +976,17 @@ def chat():
     def exec_registrar_memoria(entrada):
         create_memoria(conn, entrada["fato"], texto)
         return {"ok": True}
+
+    def exec_registrar_espera(entrada):
+        espera_id = create_espera(conn, entrada["quem"], entrada["sobre"], texto)
+        return {"ok": True, "espera_id": espera_id}
+
+    def exec_resolver_espera(entrada):
+        espera = espera_pendente_por_quem_aproximado(conn, entrada["quem"])
+        if not espera:
+            return {"erro": f"nao achei nenhuma espera em aberto de \"{entrada['quem']}\""}
+        resolver_espera(conn, espera["id"])
+        return {"ok": True, "quem": espera["quem"], "sobre": espera["sobre"]}
 
     def exec_registrar_voo(entrada):
         create_voo(
@@ -1079,6 +1097,8 @@ def chat():
         "gerar_plano_do_dia": exec_gerar_plano,
         "registrar_lembrete": exec_registrar_lembrete,
         "registrar_memoria": exec_registrar_memoria,
+        "registrar_espera": exec_registrar_espera,
+        "resolver_espera": exec_resolver_espera,
         "registrar_voo": exec_registrar_voo,
         "sugerir_horario_livre": exec_sugerir_horario_livre,
         "calcular_gasto_viagem": exec_calcular_gasto_viagem,
@@ -1089,20 +1109,55 @@ def chat():
         "comparar_cotacao": exec_comparar_cotacao,
     }
 
-    result, error = _call_claude(
-        claude_client.chat, mensagens, contexto, memorias_texto, executores
-    )
-    if error:
-        conn.close()
-        return error
-    resposta, acoes, usage = result
+    try:
+        resposta, acoes, usage = claude_client.chat(mensagens, contexto, memorias_texto, executores)
+    except anthropic.APIError:
+        return None, [], CLAUDE_ERROR_MSG
+    except (ValueError, KeyError):
+        return None, [], CLAUDE_FORMAT_ERROR_MSG
 
     _log_usage(conn, usage)
     salvar_mensagem_chat(conn, "user", texto)
     salvar_mensagem_chat(conn, "assistant", resposta)
     _marcar_atividade(conn)
+    return resposta, acoes, None
+
+
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    body = _corpo_json()
+    texto = _texto_seguro(body.get("mensagem"))
+    if not texto:
+        return jsonify({"error": "mensagem vazia"}), 400
+
+    conn = get_db()
+    resposta, acoes, erro = _processar_mensagem_chat(conn, texto)
     conn.close()
+    if erro:
+        return jsonify({"error": erro}), 502
     return jsonify({"resposta": resposta, "acoes": acoes})
+
+
+def _telegram_chat_fn(texto: str) -> str:
+    """Ponte entre o bot do Telegram e o mesmo pipeline de conversa do
+    /api/chat - roda numa thread separada (ver telegram_bot.iniciar_thread),
+    entao abre e fecha a propria conexao com o banco em vez de compartilhar
+    uma conexao do request HTTP."""
+    conn = get_db()
+    try:
+        resposta, _acoes, erro = _processar_mensagem_chat(conn, _texto_seguro(texto))
+        return erro or resposta
+    finally:
+        conn.close()
+
+
+def iniciar_telegram():
+    """So roda quando o app sobe de verdade (mesma guarda de iniciar_scheduler,
+    nao duplica a thread na recarga do Flask em modo debug)."""
+    if not telegram_bot.configurado():
+        return
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+        telegram_bot.iniciar_thread(_telegram_chat_fn)
 
 
 @app.route("/api/chat/historico", methods=["GET"])
@@ -1237,15 +1292,18 @@ NOTIFICACOES_URGENTES = {"tarefa_horario", "voo_sair", "hora_de_dormir"}
 
 
 def verificar_e_notificar():
-    """Roda as verificacoes proativas e manda push pra quem tiver inscrito -
-    cada tipo de aviso so dispara uma vez por dia (dedup em notificacoes_enviadas).
-    Chamado pelo scheduler (ver iniciar_scheduler) e pelo endpoint manual."""
-    if not push_client.configurado():
+    """Roda as verificacoes proativas e manda pra quem tiver canal configurado
+    (push web e/ou Telegram) - cada tipo de aviso so dispara uma vez por dia
+    (dedup em notificacoes_enviadas). Chamado pelo scheduler (ver
+    iniciar_scheduler) e pelo endpoint manual."""
+    push_ok = push_client.configurado()
+    telegram_ok = telegram_bot.configurado()
+    if not push_ok and not telegram_ok:
         return 0
 
     conn = get_db()
-    subs = list_push_subscriptions(conn)
-    if not subs:
+    subs = list_push_subscriptions(conn) if push_ok else []
+    if not subs and not telegram_ok:
         conn.close()
         return 0
 
@@ -1262,6 +1320,13 @@ def verificar_e_notificar():
     for tarefa_id, msg in notificacoes.tarefas_paradas(conn):
         if not ja_notificado_alguma_vez(conn, "tarefa_parada", tarefa_id):
             avisos.append(("tarefa_parada", tarefa_id, "Isso ainda ta pendente?", msg))
+
+    # Mesma ideia, mas pra resposta que voce esta esperando de TERCEIROS
+    # (fornecedor, corretora) - o painel acompanha o thread em aberto por
+    # voce, nao so as suas proprias tarefas.
+    for espera_id, msg in notificacoes.esperas_paradas(conn):
+        if not ja_notificado_alguma_vez(conn, "espera_parada", espera_id):
+            avisos.append(("espera_parada", espera_id, "Ainda sem resposta", msg))
 
     for meta_id, msg in notificacoes.metas_fora_do_ritmo(conn):
         if not ja_notificou_hoje(conn, "meta_atrasada", meta_id):
@@ -1310,6 +1375,13 @@ def verificar_e_notificar():
                 "Hora de desacelerar",
                 "22h - comeca a desacelerar pro sono.",
             )
+        )
+
+    # Fechamento ativo do dia (21h, uma hora antes da hora_de_dormir) - manda
+    # o fechamento sozinho em vez de esperar o Alex abrir a aba Painel.
+    if notificacoes.fechamento_noturno_devido() and not ja_notificou_hoje(conn, "fechamento_noturno"):
+        avisos.append(
+            ("fechamento_noturno", 0, "Fechando o dia", notificacoes.mensagem_fechamento_noturno(conn))
         )
 
     msg = notificacoes.currency_voo_baixa(conn, limiar_dias=21)
@@ -1370,6 +1442,8 @@ def verificar_e_notificar():
             ok = push_client.enviar(sub_dict, titulo, corpo)
             if not ok:
                 delete_push_subscription(conn, s["endpoint"])
+        if telegram_ok:
+            telegram_bot.enviar_mensagem(f"{titulo}\n{corpo}")
         marcar_notificado(conn, tipo, ref_id)
         enviados += 1
 
@@ -1383,14 +1457,15 @@ def verificar_e_notificar():
                 _disparar_estimativa_uber(conn, pedido, access_token)
                 atualizado = uber_pedido(conn, pedido["id"])
                 if atualizado and atualizado["status"] == "aguardando_confirmacao":
+                    corpo_uber = (
+                        f"Uber pra {atualizado['destino']}: {atualizado['preco_texto']}. "
+                        "Abre o painel pra confirmar."
+                    )
                     for s in subs:
                         sub_dict = json.loads(s["subscription_json"])
-                        push_client.enviar(
-                            sub_dict,
-                            "Hora do Uber",
-                            f"Uber pra {atualizado['destino']}: {atualizado['preco_texto']}. "
-                            "Abre o painel pra confirmar.",
-                        )
+                        push_client.enviar(sub_dict, "Hora do Uber", corpo_uber)
+                    if telegram_ok:
+                        telegram_bot.enviar_mensagem(f"Hora do Uber\n{corpo_uber}")
                     enviados += 1
 
     conn.close()
@@ -1591,6 +1666,48 @@ def criar_lembrete():
 def apagar_lembrete(lembrete_id):
     conn = get_db()
     delete_lembrete(conn, lembrete_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/esperas", methods=["GET"])
+def esperas():
+    conn = get_db()
+    resultado = list_esperas_pendentes(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/esperas", methods=["POST"])
+def criar_espera():
+    body = _corpo_json()
+    quem = _texto_seguro(body.get("quem"))
+    sobre = _texto_seguro(body.get("sobre"))
+    if not quem or not sobre:
+        return jsonify({"error": "informe quem e sobre o que"}), 400
+
+    conn = get_db()
+    espera_id = create_espera(conn, quem, sobre)
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": espera_id, "ok": True}), 201
+
+
+@app.route("/api/esperas/<int:espera_id>/resolver", methods=["POST"])
+def resolver_espera_rota(espera_id):
+    conn = get_db()
+    ok = resolver_espera(conn, espera_id)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "espera nao encontrada ou ja resolvida"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/esperas/<int:espera_id>", methods=["DELETE"])
+def apagar_espera_rota(espera_id):
+    conn = get_db()
+    apagar_espera(conn, espera_id)
     conn.close()
     return jsonify({"ok": True})
 
@@ -2257,4 +2374,5 @@ def iniciar_scheduler():
 
 if __name__ == "__main__":
     iniciar_scheduler()
+    iniciar_telegram()
     app.run(debug=True, port=5001)

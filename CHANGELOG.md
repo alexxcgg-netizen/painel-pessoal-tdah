@@ -5,6 +5,37 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (5) - Bot do Telegram + 3 features de "funcionario particular"
+
+Continuação da conversa sobre o que falta pra sentir como um assistente humano dedicado, não só
+um app de rotina - o Alex pediu as outras 3 direções primeiro, depois o bot do Telegram.
+
+**Mensagem de fechamento ativa à noite:** `notificacoes.fechamento_noturno_devido()` (janela das
+21h, uma hora antes da `hora_de_dormir`) manda o fechamento do dia sozinho por push
+(`mensagem_fechamento_noturno()` - concluídas, pendentes e gasto do dia, sem IA) em vez de esperar
+você abrir a aba Painel pra ver.
+
+**Voz de volta no chat:** cada resposta do assistente agora tem um botão de "ouvir" (mesmo
+mecanismo já usado no METAR/TAF, `SpeechSynthesis` do navegador) - antes só dava pra falar com o
+painel, não pra ele falar de volta.
+
+**Esperas - threads pendentes com terceiros:** nova seção "Esperando resposta de" (aba Painel) e
+tabela `esperas` - acompanha resposta que você está esperando de fornecedor/corretora/etc,
+diferente de tarefa (que é algo que *você* precisa fazer). Registra e resolve por conversa
+(`registrar_espera`/`resolver_espera`, tools novas do chat, com match aproximado por nome) ou
+manual. Cobra uma vez só depois de 5 dias sem resposta (`notificacoes.esperas_paradas()`), mesmo
+padrão de disparo único do `tarefa_parada`.
+
+**Bot do Telegram como canal principal:** novo `telegram_bot.py` - você conversa com o painel
+direto pelo Telegram, como mandando mensagem pra uma pessoa. Reaproveita o pipeline de chat
+inteiro (extraído de dentro da rota `/api/chat` pra `_processar_mensagem_chat()`, fonte única de
+verdade usada pelos dois canais) e long polling (`getUpdates`, sem precisar de URL pública/HTTPS).
+`verificar_e_notificar()` agora manda pros dois canais configurados (push web e/ou Telegram, não
+precisa mais dos dois - só um já basta). Autorização por `TELEGRAM_CHAT_ID`: mensagem de qualquer
+outro chat é ignorada em silêncio, nunca processada.
+
+528 → 553 testes (25 novos), todos passando.
+
 ## 2026-09-21 (4) - De app de rotina pra assistente: 4 features de proatividade
 
 Pedido do Alex depois de discutir o que separaria o painel de "app de anotar rotina" pra

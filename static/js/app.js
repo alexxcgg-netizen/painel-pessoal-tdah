@@ -207,6 +207,7 @@ function showTab(name) {
     loadSaude();
     loadMemorias();
     loadLembretes();
+    loadEsperas();
   }
   if (name === "tarefas") loadTasks();
   if (name === "gastos") {
@@ -658,6 +659,23 @@ function criarAvatarChat() {
   return div;
 }
 
+const ICONE_OUVIR =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+
+function criarBotaoOuvirChat(texto) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-ouvir btn-ouvir-chat";
+  btn.setAttribute("aria-label", "Ouvir essa resposta");
+  btn.innerHTML = ICONE_OUVIR;
+  if (!("speechSynthesis" in window)) {
+    btn.hidden = true;
+  } else {
+    btn.addEventListener("click", () => falarTexto(btn, texto));
+  }
+  return btn;
+}
+
 function criarBolhaChat(papel, texto) {
   const bolha = document.createElement("div");
   bolha.className = `chat-bolha ${papel}`;
@@ -665,8 +683,13 @@ function criarBolhaChat(papel, texto) {
 
   const linha = document.createElement("div");
   linha.className = `chat-linha ${papel}`;
-  if (papel === "assistant") linha.appendChild(criarAvatarChat());
-  linha.appendChild(bolha);
+  if (papel === "assistant") {
+    linha.appendChild(criarAvatarChat());
+    linha.appendChild(bolha);
+    linha.appendChild(criarBotaoOuvirChat(texto));
+  } else {
+    linha.appendChild(bolha);
+  }
   return linha;
 }
 
@@ -738,6 +761,7 @@ async function enviarChat(texto) {
       loadAgenda();
       loadMemorias();
       loadLembretes();
+      loadEsperas();
     }
     if (!$("#tab-tarefas").hidden) loadTasks();
     if (!$("#tab-gastos").hidden) {
@@ -943,6 +967,100 @@ $("#lembrete-form").addEventListener("submit", async (e) => {
   $("#lembrete-recorrente").checked = false;
   pulsarSucesso(tituloInput);
   loadLembretes();
+  loadStreak();
+});
+
+async function loadEsperas() {
+  const esperas = await apiFetch("/api/esperas");
+  if (!esperas) return;
+
+  const list = $("#lista-esperas");
+  list.innerHTML = "";
+  $("#esperas-vazio").hidden = esperas.length > 0;
+
+  esperas.forEach((esp) => {
+    const li = document.createElement("li");
+    li.className = "item";
+
+    const linha = document.createElement("div");
+    linha.className = "item-linha";
+
+    const tituloWrap = document.createElement("div");
+    const titulo = document.createElement("span");
+    titulo.className = "item-titulo";
+    titulo.textContent = esp.quem;
+    tituloWrap.appendChild(titulo);
+    const sobre = document.createElement("span");
+    sobre.className = "item-quando";
+    sobre.textContent = esp.sobre;
+    tituloWrap.appendChild(sobre);
+    linha.appendChild(tituloWrap);
+
+    const acoes = document.createElement("div");
+    acoes.className = "item-acoes";
+
+    const resolverBtn = document.createElement("button");
+    resolverBtn.className = "btn-com-icone primario";
+    resolverBtn.innerHTML = `${ICONE_CHECK}Resolvido`;
+    resolverBtn.addEventListener("click", async () => {
+      resolverBtn.disabled = true;
+      const ok = await apiFetch(`/api/esperas/${esp.id}/resolver`, { method: "POST" });
+      if (ok) {
+        li.classList.add("saindo");
+        setTimeout(() => li.remove(), 250);
+      } else {
+        resolverBtn.disabled = false;
+      }
+    });
+    acoes.appendChild(resolverBtn);
+
+    const apagarBtn = document.createElement("button");
+    apagarBtn.className = "btn-com-icone";
+    apagarBtn.innerHTML = ICONE_TRASH;
+    apagarBtn.setAttribute("aria-label", "Apagar");
+    apagarBtn.addEventListener("click", async () => {
+      apagarBtn.disabled = true;
+      const ok = await apiFetch(`/api/esperas/${esp.id}`, { method: "DELETE" });
+      if (ok) {
+        li.classList.add("saindo");
+        setTimeout(() => li.remove(), 250);
+      } else {
+        apagarBtn.disabled = false;
+      }
+    });
+    acoes.appendChild(apagarBtn);
+
+    linha.appendChild(acoes);
+    li.appendChild(linha);
+    list.appendChild(li);
+  });
+}
+
+$("#espera-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#espera-btn");
+  const quemInput = $("#espera-quem");
+  const sobreInput = $("#espera-sobre");
+  const quem = quemInput.value.trim();
+  const sobre = sobreInput.value.trim();
+  if (!quem || !sobre) {
+    mostrarErro("Confere quem e sobre o que voce esta esperando.");
+    return;
+  }
+
+  setBotaoCarregando(btn, true, "salvando...");
+  const data = await apiFetch("/api/esperas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quem, sobre }),
+  });
+  setBotaoCarregando(btn, false, "Adicionar");
+  if (!data) return;
+
+  quemInput.value = "";
+  sobreInput.value = "";
+  pulsarSucesso(quemInput);
+  loadEsperas();
   loadStreak();
 });
 
@@ -2156,6 +2274,7 @@ loadAgenda();
 loadFechamentoDoDia();
 loadMemorias();
 loadLembretes();
+loadEsperas();
 loadSaude();
 loadChatHistorico();
 initViagemOrigemPadrao();

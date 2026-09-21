@@ -474,6 +474,42 @@ teste no seu aparelho antes de confiar nisso no dia a dia.
 A captura rapida no topo (`Digite algo: tarefa, lembrete, gasto ou meta...`) continua existindo
 em paralelo - e mais rapida pra um lancamento pontual sem abrir conversa.
 
+## Bot do Telegram — conversa com o painel sem abrir o app
+
+O chat da aba Hoje e ótimo, mas ainda depende de você abrir o painel. O bot do Telegram e o mesmo
+pipeline de conversa (`app._processar_mensagem_chat` - nenhuma logica duplicada, nenhuma tool nova)
+só que chega como mensagem de texto direto no seu Telegram, incluindo as notificações proativas
+(`verificar_e_notificar`) que hoje só iam por push web. É o canal que faz o painel parecer alguém
+te escrevendo, não um app que você precisa lembrar de checar.
+
+### Como ativar
+
+1. Fala com o [@BotFather](https://t.me/BotFather) no Telegram, manda `/newbot`, segue o passo a
+   passo (nome + username terminando em `bot`) - ele te devolve um token
+2. Manda qualquer mensagem pro bot novo que você acabou de criar (senão ele nunca aparece na lista
+   de updates)
+3. Abre no navegador `https://api.telegram.org/bot<TOKEN>/getUpdates` (troca `<TOKEN>` pelo token
+   do passo 1) - o número em `"chat":{"id": ...}` da resposta é o seu `TELEGRAM_CHAT_ID`
+4. Cola os dois no `.env`:
+   ```
+   TELEGRAM_BOT_TOKEN=...
+   TELEGRAM_CHAT_ID=...
+   ```
+5. Reinicia o `python app.py` - a partir daí, qualquer mensagem que você mandar pro bot é
+   processada como se fosse o chat do painel, e as notificações proativas passam a chegar por lá
+   também (além do push web, se estiver configurado - os dois convivem)
+
+### Segurança: bot de uma pessoa só
+
+O bot só responde mensagens vindas do `TELEGRAM_CHAT_ID` configurado - qualquer mensagem de outro
+chat é ignorada em silêncio (nunca processada, nunca respondida, nunca revela que o bot existe).
+Mesmo que o token do bot vaze ou alguém descubra o username, ninguém além de você consegue
+conversar com o seu painel por ali.
+
+Usa [long polling](https://core.telegram.org/bots/api#getupdates) (`getUpdates`), não webhook -
+funciona rodando de casa, sem precisar expor uma URL pública/HTTPS, o mesmo motivo que o resto do
+app já roda assim hoje.
+
 ## Datas importantes — pra qualquer area da vida, nao so financeiro
 
 Nem tudo e tarefa (algo pra fazer agora) ou gasto/meta - tem coisa que so importa quando esta

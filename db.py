@@ -194,6 +194,15 @@ def init_db():
             origem TEXT NOT NULL DEFAULT 'texto',
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS esperas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quem TEXT NOT NULL,
+            sobre TEXT NOT NULL,
+            source_text TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            resolvido_em TEXT
+        );
         """
     )
     conn.commit()
@@ -225,6 +234,7 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_goal_deposits_goal_id ON goal_deposits(goal_id);
         CREATE INDEX IF NOT EXISTS idx_cotacoes_itens_cotacao_id ON cotacoes_itens(cotacao_id);
         CREATE INDEX IF NOT EXISTS idx_voos_data ON voos(data);
+        CREATE INDEX IF NOT EXISTS idx_esperas_resolvido_em ON esperas(resolvido_em);
         """
     )
     conn.commit()
@@ -485,6 +495,58 @@ def list_lembretes(conn) -> list[dict]:
 def delete_lembrete(conn, lembrete_id: int):
     conn.execute("DELETE FROM lembretes WHERE id = ?", (lembrete_id,))
     conn.commit()
+
+
+def create_espera(conn, quem: str, sobre: str, source_text: str | None = None) -> int:
+    cur = conn.execute(
+        "INSERT INTO esperas (quem, sobre, source_text) VALUES (?, ?, ?)",
+        (quem, sobre, source_text),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_esperas_pendentes(conn) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM esperas WHERE resolvido_em IS NULL ORDER BY criado_em"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def resolver_espera(conn, espera_id: int) -> bool:
+    """Marca como resolvida (chegou a resposta, ou nao precisa mais esperar).
+    Retorna False se o id nao existir ou ja estiver resolvido - pra rota
+    devolver 404 em vez de um 'ok' silencioso que nao fez nada."""
+    cur = conn.execute(
+        "UPDATE esperas SET resolvido_em = datetime('now') WHERE id = ? AND resolvido_em IS NULL",
+        (espera_id,),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def apagar_espera(conn, espera_id: int):
+    conn.execute("DELETE FROM esperas WHERE id = ?", (espera_id,))
+    conn.commit()
+
+
+def espera_pendente_por_quem_aproximado(conn, quem: str) -> dict | None:
+    """Acha uma espera ainda em aberto cujo 'quem' bate (sem diferenciar
+    maiusculas/minusculas, por substring nos dois sentidos) - mesmo padrao de
+    cotacao_por_titulo_aproximado, pra 'o fornecedor de ferro ja respondeu'
+    achar a espera certa sem repetir o nome palavra por palavra. Mais de uma
+    batendo, pega a mais antiga (a que esta esperando ha mais tempo)."""
+    quem_norm = (quem or "").strip().lower()
+    if not quem_norm:
+        return None
+    rows = conn.execute(
+        "SELECT * FROM esperas WHERE resolvido_em IS NULL ORDER BY criado_em"
+    ).fetchall()
+    for r in rows:
+        existente = r["quem"].strip().lower()
+        if quem_norm in existente or existente in quem_norm:
+            return dict(r)
+    return None
 
 
 def registrar_atividade(conn, dia_iso: str) -> None:

@@ -146,6 +146,42 @@ class NotificacoesTestCase(unittest.TestCase):
         self.assertIn("5 dias", textos)
         self.assertIn("10 dias", textos)
 
+    def test_esperas_paradas_vazio_sem_espera_pendente(self):
+        self.assertEqual(notificacoes.esperas_paradas(self.conn), [])
+
+    def test_esperas_paradas_ignora_recente(self):
+        dois_dias = (datetime.now() - timedelta(days=2)).isoformat()
+        self.conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
+            ("fornecedor de ferro", "preco do vergalhao", dois_dias),
+        )
+        self.conn.commit()
+        self.assertEqual(notificacoes.esperas_paradas(self.conn, dias_minimo=5), [])
+
+    def test_esperas_paradas_detecta_no_limite(self):
+        cinco_dias = (datetime.now() - timedelta(days=5)).isoformat()
+        self.conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
+            ("fornecedor de ferro", "preco do vergalhao", cinco_dias),
+        )
+        self.conn.commit()
+        avisos = notificacoes.esperas_paradas(self.conn, dias_minimo=5)
+        self.assertEqual(len(avisos), 1)
+        espera_id, msg = avisos[0]
+        self.assertIn("fornecedor de ferro", msg)
+        self.assertIn("preco do vergalhao", msg)
+        self.assertIn("5 dias", msg)
+        self.assertIsInstance(espera_id, int)
+
+    def test_esperas_paradas_ignora_resolvida(self):
+        dez_dias = (datetime.now() - timedelta(days=10)).isoformat()
+        self.conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em, resolvido_em) VALUES (?, ?, ?, datetime('now'))",
+            ("fornecedor de ferro", "preco do vergalhao", dez_dias),
+        )
+        self.conn.commit()
+        self.assertEqual(notificacoes.esperas_paradas(self.conn), [])
+
     def test_meta_fora_do_ritmo_e_detectada(self):
         criado = (datetime.now() - timedelta(days=50)).isoformat()
         prazo = (date.today() + timedelta(days=50)).isoformat()
@@ -438,6 +474,41 @@ class NotificacoesTestCase(unittest.TestCase):
         self.assertFalse(notificacoes.hora_de_dormir_devida(self._hoje_as(21, 59)))
         self.assertFalse(notificacoes.hora_de_dormir_devida(self._hoje_as(22, 5)))
         self.assertFalse(notificacoes.hora_de_dormir_devida(self._hoje_as(9, 0)))
+
+    def test_fechamento_noturno_devido_as_21h(self):
+        self.assertTrue(notificacoes.fechamento_noturno_devido(self._hoje_as(21, 0)))
+        self.assertTrue(notificacoes.fechamento_noturno_devido(self._hoje_as(21, 4)))
+
+    def test_fechamento_noturno_nao_devido_fora_da_janela(self):
+        self.assertFalse(notificacoes.fechamento_noturno_devido(self._hoje_as(20, 59)))
+        self.assertFalse(notificacoes.fechamento_noturno_devido(self._hoje_as(21, 5)))
+        self.assertFalse(notificacoes.fechamento_noturno_devido(self._hoje_as(22, 0)))
+
+    def test_mensagem_fechamento_sem_nada_no_dia(self):
+        msg = notificacoes.mensagem_fechamento_noturno(self.conn)
+        self.assertIn("Nenhuma tarefa concluida hoje", msg)
+
+    def test_mensagem_fechamento_com_concluidas_pendentes_e_gasto(self):
+        hoje = date.today().isoformat()
+        self.conn.execute(
+            "INSERT INTO tasks (title, completed_at) VALUES (?, datetime('now'))", ("Academia",)
+        )
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("Responder a corretora", hoje)
+        )
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, created_at) VALUES (?, ?, ?)",
+            (45.5, "mercado", hoje),
+        )
+        self.conn.commit()
+        msg = notificacoes.mensagem_fechamento_noturno(self.conn)
+        self.assertIn("1 tarefa concluida hoje", msg)
+        self.assertIn("Responder a corretora", msg)
+        self.assertIn("45.50", msg)
+
+    def test_mensagem_fechamento_sem_gasto_nao_menciona_gasto(self):
+        msg = notificacoes.mensagem_fechamento_noturno(self.conn)
+        self.assertNotIn("Gasto do dia", msg)
 
     def test_currency_voo_sem_voo_nenhum_e_none(self):
         self.assertIsNone(notificacoes.currency_voo_baixa(self.conn))

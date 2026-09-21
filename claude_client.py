@@ -343,6 +343,39 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "registrar_espera",
+        "description": (
+            "Registra que o Alex esta esperando uma resposta/retorno de outra pessoa (fornecedor, "
+            "corretora, cliente, qualquer terceiro) - use quando ele disser algo como 'to esperando "
+            "resposta do fornecedor de ferro' ou 'mandei mensagem pra corretora, aguardando'. "
+            "Diferente de tarefa: isso nao e algo que O ALEX precisa fazer, e algo que ele esta "
+            "aguardando ALGUEM ELE fazer/responder."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "quem": {"type": "string", "description": "de quem esta esperando (ex: 'fornecedor de ferro', 'corretora do seguro')"},
+                "sobre": {"type": "string", "description": "sobre o que (ex: 'preco do vergalhao', 'proposta do seguro')"},
+            },
+            "required": ["quem", "sobre"],
+        },
+    },
+    {
+        "name": "resolver_espera",
+        "description": (
+            "Marca uma espera como resolvida - use quando o Alex disser que a resposta chegou, ou "
+            "que nao precisa mais esperar (ex: 'o fornecedor de ferro respondeu', 'ja recebi retorno "
+            "da corretora', 'deixa pra la aquela espera')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "quem": {"type": "string", "description": "de quem era a espera, como o Alex se referiu"},
+            },
+            "required": ["quem"],
+        },
+    },
+    {
         "name": "sugerir_horario_livre",
         "description": (
             "Acha o maior espaco livre HOJE, olhando o que ja esta marcado no dia de verdade - "

@@ -2666,6 +2666,29 @@ li.item.item-planejado {
   animation: chamaFlicker 1.2s ease-in-out infinite;
 }
 
+/* Voz de volta no chat - mesmo mecanismo do "ouvir" do METAR/TAF, so que
+   neutro (nao usa --cor-aviacao, que so faz sentido naquela aba) e um pouco
+   menor pra caber ao lado da bolha sem competir com o texto. */
+.btn-ouvir-chat {
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  color: var(--text-faint);
+  align-self: flex-end;
+}
+
+.btn-ouvir-chat svg {
+  width: 12px;
+  height: 12px;
+}
+
+@media (hover: hover) {
+  .btn-ouvir-chat:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+
 .metar-campos {
   display: flex;
   flex-direction: column;

@@ -1478,6 +1478,46 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json()["avisos_enviados"], 0)
 
+    def test_notificacoes_verificar_agora_envia_so_por_telegram_sem_push(self):
+        """Nao precisa de nenhuma inscricao push pra funcionar - o Telegram
+        sozinho ja basta como canal."""
+        ontem = (date.today() - timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("pagar conta", ontem))
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=False), patch(
+            "telegram_bot.configurado", return_value=True
+        ), patch("telegram_bot.enviar_mensagem", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        self.assertIn("tarefa atrasada", mock_enviar.call_args[0][0])
+
+    def test_notificacoes_verificar_agora_manda_pelos_dois_canais(self):
+        ontem = (date.today() - timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("pagar conta", ontem))
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_push, patch("telegram_bot.configurado", return_value=True), patch(
+            "telegram_bot.enviar_mensagem", return_value=True
+        ) as mock_telegram:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_push.assert_called_once()
+        mock_telegram.assert_called_once()
+
     def test_notificacoes_verificar_agora_envia_e_deduplica(self):
         ontem = (date.today() - timedelta(days=1)).isoformat()
         conn = db.get_db()
@@ -1569,6 +1609,53 @@ class PainelTestCase(unittest.TestCase):
             self.assertEqual(mock_enviar.call_count, 3)
             corpos_novos = [c.args[2] for c in mock_enviar.call_args_list[2:]]
             self.assertFalse(any("responder a corretora" in c for c in corpos_novos))
+
+    def test_notificacoes_verificar_agora_cobra_espera_parada(self):
+        cinco_dias = (datetime.now() - timedelta(days=5)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
+            ("fornecedor de ferro", "preco do vergalhao", cinco_dias),
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res.get_json()["avisos_enviados"], 1)
+            corpo = mock_enviar.call_args[0][2]
+            self.assertIn("fornecedor de ferro", corpo)
+            self.assertIn("preco do vergalhao", corpo)
+
+    def test_notificacoes_espera_parada_nao_repete_depois_de_avisada(self):
+        cinco_dias = (datetime.now() - timedelta(days=5)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
+            ("fornecedor de ferro", "preco do vergalhao", cinco_dias),
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(mock_enviar.call_count, 1)
+
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+            self.assertEqual(mock_enviar.call_count, 1)
 
     def test_notificacoes_verificar_agora_inclui_gasto_dia_semana_atipico(self):
         hoje = date.today()
@@ -1755,6 +1842,128 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(len(lembretes), 1)
         self.assertEqual(lembretes[0]["titulo"], "Validade do exame medico")
         self.assertEqual(lembretes[0]["recorrente"], 1)
+
+    def test_telegram_chat_fn_usa_o_mesmo_pipeline_do_chat_web(self):
+        """O bot do Telegram nao reimplementa nada - passa pelo mesmo
+        _processar_mensagem_chat que a rota HTTP usa."""
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_lembrete"](
+                {"titulo": "Validade do exame medico", "data": "2027-01-15", "recorrente": True}
+            )
+            self.assertEqual(resultado, {"ok": True})
+            return "Beleza, vou te lembrar todo ano perto dessa data.", ["registrar_lembrete"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            resposta = app._telegram_chat_fn("meu exame medico de piloto vence dia 15 de janeiro, todo ano")
+
+        self.assertEqual(resposta, "Beleza, vou te lembrar todo ano perto dessa data.")
+        lembretes = self.client.get("/api/lembretes").get_json()
+        self.assertEqual(len(lembretes), 1)
+        self.assertEqual(lembretes[0]["titulo"], "Validade do exame medico")
+
+    def test_telegram_chat_fn_devolve_mensagem_de_erro_amigavel_na_falha(self):
+        with patch("claude_client.chat", side_effect=ValueError("formato inesperado")):
+            resposta = app._telegram_chat_fn("oi")
+        self.assertEqual(resposta, app.CLAUDE_FORMAT_ERROR_MSG)
+
+    def test_chat_usa_executor_de_espera_de_verdade(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_espera"](
+                {"quem": "fornecedor de ferro", "sobre": "preco do vergalhao"}
+            )
+            self.assertTrue(resultado["ok"])
+            return "Beleza, vou ficar de olho nisso.", ["registrar_espera"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "to esperando resposta do fornecedor de ferro sobre o preco do vergalhao"}
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["acoes"], ["registrar_espera"])
+
+        esperas = self.client.get("/api/esperas").get_json()
+        self.assertEqual(len(esperas), 1)
+        self.assertEqual(esperas[0]["quem"], "fornecedor de ferro")
+        self.assertEqual(esperas[0]["sobre"], "preco do vergalhao")
+
+    def test_chat_resolve_espera_por_quem_aproximado(self):
+        conn = db.get_db()
+        db.create_espera(conn, "fornecedor de ferro", "preco do vergalhao")
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["resolver_espera"]({"quem": "o fornecedor de ferro"})
+            self.assertTrue(resultado["ok"])
+            return "Legal, marquei como resolvido.", ["resolver_espera"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "o fornecedor de ferro respondeu"})
+        self.assertEqual(res.status_code, 200)
+
+        esperas = self.client.get("/api/esperas").get_json()
+        self.assertEqual(esperas, [])
+
+    def test_chat_resolve_espera_inexistente_retorna_erro_pro_modelo(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["resolver_espera"]({"quem": "alguem que nao existe"})
+            self.assertIn("erro", resultado)
+            return "Nao achei essa espera.", ["resolver_espera"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "alguem que nao existe respondeu"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_esperas_lista_vazia(self):
+        self.assertEqual(self.client.get("/api/esperas").get_json(), [])
+
+    def test_criar_espera_manual(self):
+        res = self.client.post(
+            "/api/esperas", json={"quem": "corretora do seguro", "sobre": "proposta nova"}
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertTrue(res.get_json()["ok"])
+
+        esperas = self.client.get("/api/esperas").get_json()
+        self.assertEqual(len(esperas), 1)
+        self.assertEqual(esperas[0]["quem"], "corretora do seguro")
+
+    def test_criar_espera_sem_quem_ou_sobre_rejeita(self):
+        for corpo in [{"quem": "", "sobre": "algo"}, {"quem": "alguem", "sobre": ""}, {}]:
+            res = self.client.post("/api/esperas", json=corpo)
+            self.assertEqual(res.status_code, 400, msg=f"deveria rejeitar {corpo!r}")
+        self.assertEqual(self.client.get("/api/esperas").get_json(), [])
+
+    def test_resolver_espera_remove_da_lista_de_pendentes(self):
+        conn = db.get_db()
+        espera_id = db.create_espera(conn, "corretora do seguro", "proposta nova")
+        conn.close()
+
+        res = self.client.post(f"/api/esperas/{espera_id}/resolver")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/esperas").get_json(), [])
+
+    def test_resolver_espera_inexistente_devolve_404(self):
+        res = self.client.post("/api/esperas/9999/resolver")
+        self.assertEqual(res.status_code, 404)
+
+    def test_resolver_espera_ja_resolvida_devolve_404(self):
+        conn = db.get_db()
+        espera_id = db.create_espera(conn, "corretora do seguro", "proposta nova")
+        conn.close()
+        self.client.post(f"/api/esperas/{espera_id}/resolver")
+
+        res = self.client.post(f"/api/esperas/{espera_id}/resolver")
+        self.assertEqual(res.status_code, 404)
+
+    def test_apagar_espera_remove_da_lista(self):
+        conn = db.get_db()
+        espera_id = db.create_espera(conn, "corretora do seguro", "proposta nova")
+        conn.close()
+
+        res = self.client.delete(f"/api/esperas/{espera_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/esperas").get_json(), [])
 
     def test_notificacoes_verificar_agora_inclui_lembrete_proximo(self):
         data = (date.today() + timedelta(days=2)).isoformat()
@@ -2636,6 +2845,40 @@ class PainelTestCase(unittest.TestCase):
         self.client.post("/api/push/inscrever", json=sub)
 
         with patch("notificacoes.hora_de_dormir_devida", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_called_once()
+
+    def test_verificar_notifica_fechamento_noturno(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, completed_at) VALUES (?, datetime('now'))", ("Academia",)
+        )
+        conn.commit()
+        conn.close()
+
+        sub = {"endpoint": "https://exemplo.com/push/fechamento1", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("notificacoes.fechamento_noturno_devido", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        self.assertIn("concluida hoje", mock_enviar.call_args[0][2])
+
+    def test_verificar_fechamento_noturno_ja_notificado_nao_repete(self):
+        sub = {"endpoint": "https://exemplo.com/push/fechamento2", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("notificacoes.fechamento_noturno_devido", return_value=True), patch(
             "push_client.configurado", return_value=True
         ), patch("push_client.enviar", return_value=True) as mock_enviar:
             self.client.post("/api/notificacoes/verificar-agora")
