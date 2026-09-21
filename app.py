@@ -3,12 +3,14 @@ import hashlib
 import io
 import json
 import os
+import sqlite3
+import tempfile
 from datetime import date, datetime, timedelta
 
 import anthropic
 import requests
 from dotenv import load_dotenv
-from flask import Flask, Response, jsonify, redirect, render_template, request, session
+from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, session
 
 load_dotenv()
 
@@ -29,6 +31,7 @@ import streak
 import uber_client
 import viagem
 import voos as voos_module
+import db
 from db import (
     CAMPOS_SAUDE,
     add_to_goal,
@@ -443,6 +446,30 @@ def exportar_expenses_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=gastos.csv"},
     )
+
+
+@app.route("/api/backup/exportar", methods=["GET"])
+def exportar_backup():
+    """Baixa uma copia consistente do banco inteiro - usa a API de backup do
+    proprio sqlite3 (nao uma copia de arquivo crua), que tira um snapshot
+    seguro mesmo com o banco em uso, sem lock nem risco de arquivo pela
+    metade. Mesmo habito de backup do financeiro-construtora (AGENTS.md de
+    la), aqui como export manual sob demanda em vez de automatico antes de
+    escrita."""
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    tmp.close()
+    origem = sqlite3.connect(db.DB_PATH)
+    destino = sqlite3.connect(tmp.name)
+    try:
+        origem.backup(destino)
+    finally:
+        destino.close()
+        origem.close()
+
+    nome_arquivo = f"painel-backup-{date.today().isoformat()}.db"
+    resposta = send_file(tmp.name, as_attachment=True, download_name=nome_arquivo, mimetype="application/octet-stream")
+    resposta.call_on_close(lambda: os.unlink(tmp.name))
+    return resposta
 
 
 @app.route("/api/gastos/resumo-semanal", methods=["GET"])

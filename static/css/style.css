@@ -444,6 +444,37 @@ header {
   }
 }
 
+.btn-backup {
+  position: absolute;
+  top: 0;
+  right: 2.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  text-decoration: none;
+  transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-bounce);
+}
+
+.btn-backup svg {
+  width: 15px;
+  height: 15px;
+}
+
+@media (hover: hover) {
+  .btn-backup:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    transform: scale(1.06);
+  }
+}
+
 #tabbar {
   position: fixed;
   left: 50%;

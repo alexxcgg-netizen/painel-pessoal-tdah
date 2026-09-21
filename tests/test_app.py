@@ -1,5 +1,6 @@
 import io
 import os
+import sqlite3
 import tempfile
 import unittest
 from datetime import date, datetime, timedelta
@@ -143,6 +144,30 @@ class PainelTestCase(unittest.TestCase):
     def test_exportar_csv_gastos_exige_autenticacao(self):
         self.client.post("/logout")
         res = self.client.get("/api/expenses/exportar-csv")
+        self.assertEqual(res.status_code, 401)
+
+    def test_exportar_backup_devolve_banco_sqlite_valido(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES ('tarefa pro backup')")
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/backup/exportar")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("attachment", res.headers["Content-Disposition"])
+        self.assertIn(".db", res.headers["Content-Disposition"])
+
+        with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+            tmp.write(res.get_data())
+            tmp.flush()
+            conn_verificacao = sqlite3.connect(tmp.name)
+            titulo = conn_verificacao.execute("SELECT title FROM tasks").fetchone()[0]
+            conn_verificacao.close()
+        self.assertEqual(titulo, "tarefa pro backup")
+
+    def test_exportar_backup_exige_autenticacao(self):
+        self.client.post("/logout")
+        res = self.client.get("/api/backup/exportar")
         self.assertEqual(res.status_code, 401)
 
     def test_captura_ambigua_pede_esclarecimento_e_depois_grava(self):
