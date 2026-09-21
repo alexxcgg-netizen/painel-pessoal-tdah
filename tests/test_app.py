@@ -1657,6 +1657,108 @@ class PainelTestCase(unittest.TestCase):
             self.assertEqual(res2.get_json()["avisos_enviados"], 0)
             self.assertEqual(mock_enviar.call_count, 1)
 
+    def test_verificar_agora_abre_interacao_de_aprendizado_pra_tarefa_parada(self):
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        conn = db.get_db()
+        cur = conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("responder a corretora", tres_dias)
+        )
+        conn.commit()
+        task_id = cur.lastrowid
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ):
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        conn = db.get_db()
+        row = conn.execute(
+            "SELECT * FROM interacoes_aprendizado WHERE tipo = 'tarefa_parada' AND referencia_id = ?",
+            (task_id,),
+        ).fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertIsNone(row["resolvido_em"])
+
+    def test_completar_tarefa_depois_de_cobrada_fecha_a_interacao_com_latencia(self):
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        conn = db.get_db()
+        cur = conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("responder a corretora", tres_dias)
+        )
+        conn.commit()
+        task_id = cur.lastrowid
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ):
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        res = self.client.post(f"/api/tasks/{task_id}/complete")
+        self.assertEqual(res.status_code, 200)
+
+        conn = db.get_db()
+        row = conn.execute(
+            "SELECT * FROM interacoes_aprendizado WHERE tipo = 'tarefa_parada' AND referencia_id = ?",
+            (task_id,),
+        ).fetchone()
+        conn.close()
+        self.assertIsNotNone(row["resolvido_em"])
+        self.assertIsNotNone(row["latencia_horas"])
+
+    def test_completar_tarefa_sem_ter_sido_cobrada_nao_quebra(self):
+        conn = db.get_db()
+        cur = conn.execute("INSERT INTO tasks (title) VALUES (?)", ("lavar o carro",))
+        conn.commit()
+        task_id = cur.lastrowid
+        conn.close()
+
+        res = self.client.post(f"/api/tasks/{task_id}/complete")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/tasks").get_json(), [])
+
+    def test_resolver_espera_depois_de_cobrada_fecha_a_interacao_com_latencia(self):
+        cinco_dias = (datetime.now() - timedelta(days=5)).isoformat()
+        conn = db.get_db()
+        cur = conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
+            ("fornecedor de ferro", "preco do vergalhao", cinco_dias),
+        )
+        conn.commit()
+        espera_id = cur.lastrowid
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ):
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        res = self.client.post(f"/api/esperas/{espera_id}/resolver")
+        self.assertEqual(res.status_code, 200)
+
+        conn = db.get_db()
+        row = conn.execute(
+            "SELECT * FROM interacoes_aprendizado WHERE tipo = 'espera_parada' AND referencia_id = ?",
+            (espera_id,),
+        ).fetchone()
+        conn.close()
+        self.assertIsNotNone(row["resolvido_em"])
+        self.assertIsNotNone(row["latencia_horas"])
+
     def test_notificacoes_verificar_agora_inclui_gasto_dia_semana_atipico(self):
         hoje = date.today()
         conn = db.get_db()
@@ -1684,6 +1786,70 @@ class PainelTestCase(unittest.TestCase):
             self.assertGreaterEqual(res.get_json()["avisos_enviados"], 1)
             corpos = [c.args[2] for c in mock_enviar.call_args_list]
             self.assertTrue(any("500.00" in c for c in corpos))
+
+    def test_aprendizado_status_sem_historico_mostra_padrao(self):
+        res = self.client.get("/api/aprendizado")
+        self.assertEqual(res.status_code, 200)
+        dados = res.get_json()
+        self.assertEqual(dados["tarefa_parada"]["dias_atual"], 3)
+        self.assertEqual(dados["tarefa_parada"]["fonte"], "padrao")
+        self.assertEqual(dados["espera_parada"]["dias_atual"], 5)
+        self.assertEqual(dados["espera_parada"]["fonte"], "padrao")
+        self.assertIsNone(dados["tarefa_parada"]["latencia_media_horas"])
+        self.assertIsNone(dados["espera_parada"]["latencia_media_horas"])
+
+    def test_aprendizado_status_reflete_historico_aprendido(self):
+        conn = db.get_db()
+        # 5 tarefas concluidas sempre com 2 dias de atraso - amostra
+        # suficiente (minimo_amostras=5) pra aprender um limiar diferente do padrao
+        for i in range(5):
+            due = (date.today() - timedelta(days=30 + i)).isoformat()
+            concluida = (date.today() - timedelta(days=28 + i)).isoformat() + " 10:00:00"
+            conn.execute(
+                "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+                (f"tarefa {i}", due, concluida),
+            )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/aprendizado")
+        dados = res.get_json()
+        self.assertEqual(dados["tarefa_parada"]["dias_atual"], 2)
+        self.assertEqual(dados["tarefa_parada"]["fonte"], "aprendido")
+        self.assertEqual(dados["tarefa_parada"]["amostras"], 5)
+
+    def test_verificar_agora_usa_limiar_aprendido_pra_cobrar_mais_cedo(self):
+        # historico ensina que o Alex sempre resolve em 1 dia - o limiar
+        # aprendido fica bem abaixo do padrao de 3, entao uma tarefa parada
+        # ha 2 dias (que o padrao ainda deixaria passar) ja deve ser cobrada.
+        conn = db.get_db()
+        for i in range(5):
+            due = (date.today() - timedelta(days=30 + i)).isoformat()
+            concluida = (date.today() - timedelta(days=29 + i)).isoformat() + " 10:00:00"
+            conn.execute(
+                "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+                (f"tarefa antiga {i}", due, concluida),
+            )
+        dois_dias = (date.today() - timedelta(days=2)).isoformat()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("responder a corretora", dois_dias)
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+            corpos = [c.args[2] for c in mock_enviar.call_args_list]
+            self.assertTrue(
+                any("responder a corretora" in c for c in corpos),
+                msg=f"deveria ter cobrado com o limiar aprendido: {corpos}",
+            )
 
     def test_obter_silencio_retorna_padrao_quando_nao_configurado(self):
         res = self.client.get("/api/configuracoes/silencio")
@@ -1913,6 +2079,56 @@ class PainelTestCase(unittest.TestCase):
         with patch("claude_client.chat", side_effect=fake_chat):
             res = self.client.post("/api/chat", json={"mensagem": "alguem que nao existe respondeu"})
         self.assertEqual(res.status_code, 200)
+
+    def test_chat_registrar_feito_sem_tarefa_parecida_cria_ja_concluida(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_feito"]({"titulo": "fui na academia"})
+            self.assertTrue(resultado["ok"])
+            self.assertEqual(resultado["acao"], "registrada_e_concluida")
+            return "Boa, ja registrei aqui.", ["registrar_feito"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat",
+                json={"mensagem": "so passando pra contar que hoje eu fui na academia"},
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["acoes"], ["registrar_feito"])
+
+        tasks = self.client.get("/api/tasks").get_json()
+        # tarefa ja nasce concluida - nao aparece na lista de pendentes
+        self.assertEqual(tasks, [])
+        conn = db.get_db()
+        row = conn.execute("SELECT * FROM tasks WHERE title = 'fui na academia'").fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertIsNotNone(row["completed_at"])
+
+    def test_chat_registrar_feito_com_tarefa_pendente_parecida_marca_concluida(self):
+        conn = db.get_db()
+        cur = conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)",
+            ("pagar conta de luz", date.today().isoformat()),
+        )
+        conn.commit()
+        task_id = cur.lastrowid
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_feito"]({"titulo": "conta de luz"})
+            self.assertEqual(resultado["acao"], "marcada_concluida")
+            return "Boa, marquei como feito.", ["registrar_feito"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "ja paguei a conta de luz tambem"})
+        self.assertEqual(res.status_code, 200)
+
+        conn = db.get_db()
+        row = conn.execute("SELECT completed_at FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        total = conn.execute("SELECT COUNT(*) AS n FROM tasks").fetchone()["n"]
+        conn.close()
+        self.assertIsNotNone(row["completed_at"])
+        self.assertEqual(total, 1)
 
     def test_esperas_lista_vazia(self):
         self.assertEqual(self.client.get("/api/esperas").get_json(), [])

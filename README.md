@@ -510,6 +510,29 @@ Usa [long polling](https://core.telegram.org/bots/api#getupdates) (`getUpdates`)
 funciona rodando de casa, sem precisar expor uma URL pública/HTTPS, o mesmo motivo que o resto do
 app já roda assim hoje.
 
+## Aprendizado de padrao pessoal — sem IA, so o seu proprio historico
+
+O painel personaliza sozinho o numero de dias que espera antes de cobrar uma tarefa parada ou uma
+espera de terceiro, com base no que voce realmente costuma fazer - nao um numero fixo pra sempre.
+Sem misturar IA/rede neural nisso de proposito: e estatistica pura (`aprendizado.py`) em cima do
+que ja esta salvo em `tasks`/`esperas`, robusta o bastante (usa MEDIANA, nao media) pra um caso fora
+da curva nao bagunçar o limiar, e sempre auditavel - nunca caixa preta.
+
+- So aprende com 5+ amostras de historico; antes disso, usa o padrao conservador de sempre (3 dias
+  pra tarefa, 5 pra espera)
+- O valor aprendido fica sempre dentro de um piso/teto de segurança (nunca cobra no mesmo dia, nunca
+  para de cobrar de vez)
+- `GET /api/aprendizado` mostra exatamente o que foi aprendido pra cada tipo - se veio do padrao ou
+  foi aprendido, quantas amostras, e a latencia media (quanto tempo voce demora a resolver depois de
+  ser cutucado)
+
+## Catch-up de fim do dia — "esqueci de te contar, mas eu fiz isso"
+
+Nem tudo que voce faz passa pelo painel em tempo real. No fim do dia, so contar no chat o que ficou
+de fora ("fiz academia, paguei a conta de luz e resolvi aquele negocio do fornecedor") - o painel
+registra cada coisa: se ja existir uma tarefa pendente parecida, marca ela como concluida; senao,
+cria uma tarefa nova ja nascendo concluida, um registro honesto do que foi feito fora do planejado.
+
 ## Datas importantes — pra qualquer area da vida, nao so financeiro
 
 Nem tudo e tarefa (algo pra fazer agora) ou gasto/meta - tem coisa que so importa quando esta

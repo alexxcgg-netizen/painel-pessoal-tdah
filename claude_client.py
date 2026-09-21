@@ -376,6 +376,25 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "registrar_feito",
+        "description": (
+            "Registra algo que o Alex JA FEZ mas nunca tinha contado pro painel antes - use "
+            "quando ele estiver passando o dia a limpo no final do dia e mencionar coisas ja "
+            "concluidas que voce nao tinha registrado (ex: 'fiz academia, paguei a conta de luz "
+            "e resolvi aquele negocio do fornecedor'). Se ja existir uma tarefa pendente parecida, "
+            "ela e marcada como feita; senao uma tarefa nova ja concluida e criada. Chame uma vez "
+            "pra cada coisa diferente que ele mencionar. NUNCA use pra algo que ele ainda vai "
+            "fazer - isso e' registrar_tarefa."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string", "description": "o que foi feito, resumido"},
+            },
+            "required": ["titulo"],
+        },
+    },
+    {
         "name": "sugerir_horario_livre",
         "description": (
             "Acha o maior espaco livre HOJE, olhando o que ja esta marcado no dia de verdade - "

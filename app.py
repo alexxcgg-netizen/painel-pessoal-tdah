@@ -15,6 +15,7 @@ from flask import Flask, Response, jsonify, redirect, render_template, request, 
 load_dotenv()
 
 import agenda
+import aprendizado
 import auth
 import bank_ofx
 import caldav_client
@@ -38,6 +39,7 @@ from db import (
     add_to_goal,
     apagar_espera,
     atualizar_uber_pedido,
+    complete_task,
     cotacao_por_titulo_aproximado,
     create_espera,
     create_goal,
@@ -63,6 +65,7 @@ from db import (
     insert_bank_transactions,
     ja_notificado_alguma_vez,
     ja_notificou_hoje,
+    latencias_resolvidas,
     list_chat_mensagens,
     list_cotacoes,
     list_dias_ativos,
@@ -75,10 +78,12 @@ from db import (
     list_push_subscriptions,
     list_voos,
     marcar_notificado,
+    marcar_ou_criar_feito,
     media_passos_ultimos_dias,
     obter_configuracao,
     record_usage,
     registrar_atividade,
+    registrar_interacao_aprendizado,
     resolver_espera,
     salvar_mensagem_chat,
     save_push_subscription,
@@ -384,9 +389,9 @@ def list_tasks():
 
 
 @app.route("/api/tasks/<int:task_id>/complete", methods=["POST"])
-def complete_task(task_id):
+def complete_task_rota(task_id):
     conn = get_db()
-    conn.execute("UPDATE tasks SET completed_at = datetime('now') WHERE id = ?", (task_id,))
+    complete_task(conn, task_id)
     _marcar_atividade(conn)
     conn.commit()
     conn.close()
@@ -988,6 +993,9 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         resolver_espera(conn, espera["id"])
         return {"ok": True, "quem": espera["quem"], "sobre": espera["sobre"]}
 
+    def exec_registrar_feito(entrada):
+        return marcar_ou_criar_feito(conn, entrada["titulo"], texto)
+
     def exec_registrar_voo(entrada):
         create_voo(
             conn,
@@ -1099,6 +1107,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "registrar_memoria": exec_registrar_memoria,
         "registrar_espera": exec_registrar_espera,
         "resolver_espera": exec_resolver_espera,
+        "registrar_feito": exec_registrar_feito,
         "registrar_voo": exec_registrar_voo,
         "sugerir_horario_livre": exec_sugerir_horario_livre,
         "calcular_gasto_viagem": exec_calcular_gasto_viagem,
@@ -1316,15 +1325,23 @@ def verificar_e_notificar():
     # Cobranca individual (fecha o loop) - diferente do aviso generico acima
     # (que so soma quantas estao atrasadas), essa aqui nomeia a tarefa parada
     # e cobra uma vez so, nunca todo dia (ja_notificado_alguma_vez, nao
-    # ja_notificou_hoje) - senao vira ruido em vez de ajuda.
-    for tarefa_id, msg in notificacoes.tarefas_paradas(conn):
+    # ja_notificou_hoje) - senao vira ruido em vez de ajuda. O numero de dias
+    # pra cobrar e' personalizado pelo seu proprio historico (aprendizado.py)
+    # assim que houver amostra suficiente - ate la, usa o padrao conservador.
+    dias_tarefa, _ = aprendizado.limiar_personalizado(
+        aprendizado.dias_atraso_historico_tarefas(conn), padrao=3, teto=14
+    )
+    for tarefa_id, msg in notificacoes.tarefas_paradas(conn, dias_minimo=dias_tarefa):
         if not ja_notificado_alguma_vez(conn, "tarefa_parada", tarefa_id):
             avisos.append(("tarefa_parada", tarefa_id, "Isso ainda ta pendente?", msg))
 
     # Mesma ideia, mas pra resposta que voce esta esperando de TERCEIROS
     # (fornecedor, corretora) - o painel acompanha o thread em aberto por
-    # voce, nao so as suas proprias tarefas.
-    for espera_id, msg in notificacoes.esperas_paradas(conn):
+    # voce, nao so as suas proprias tarefas. Tambem personalizado.
+    dias_espera, _ = aprendizado.limiar_personalizado(
+        aprendizado.dias_espera_historico(conn), padrao=5, teto=21
+    )
+    for espera_id, msg in notificacoes.esperas_paradas(conn, dias_minimo=dias_espera):
         if not ja_notificado_alguma_vez(conn, "espera_parada", espera_id):
             avisos.append(("espera_parada", espera_id, "Ainda sem resposta", msg))
 
@@ -1445,6 +1462,8 @@ def verificar_e_notificar():
         if telegram_ok:
             telegram_bot.enviar_mensagem(f"{titulo}\n{corpo}")
         marcar_notificado(conn, tipo, ref_id)
+        if tipo in ("tarefa_parada", "espera_parada"):
+            registrar_interacao_aprendizado(conn, tipo, ref_id)
         enviados += 1
 
     # Uber agendado: passou o tempo de espera, busca o preco de verdade
@@ -2315,6 +2334,29 @@ def definir_silencio():
     definir_configuracao(conn, "silencio_fim", fim)
     conn.close()
     return jsonify({"ok": True, "inicio": inicio, "fim": fim})
+
+
+@app.route("/api/aprendizado", methods=["GET"])
+def aprendizado_status():
+    """Transparencia do que o painel aprendeu do seu historico - pra nunca
+    virar caixa preta: mostra o limiar em uso hoje pra cada tipo de
+    cutucada, se veio do padrao ou foi aprendido, quantas amostras
+    embasaram isso, e o quanto (em media) voce demora pra resolver depois
+    de ser cutucado."""
+    conn = get_db()
+    atrasos = aprendizado.dias_atraso_historico_tarefas(conn)
+    esperas_dias = aprendizado.dias_espera_historico(conn)
+    limiar_tarefa, info_tarefa = aprendizado.limiar_personalizado(atrasos, padrao=3, teto=14)
+    limiar_espera, info_espera = aprendizado.limiar_personalizado(esperas_dias, padrao=5, teto=21)
+    latencia_tarefa = aprendizado.latencia_media_horas(latencias_resolvidas(conn, "tarefa_parada"))
+    latencia_espera = aprendizado.latencia_media_horas(latencias_resolvidas(conn, "espera_parada"))
+    conn.close()
+    return jsonify(
+        {
+            "tarefa_parada": {"dias_atual": limiar_tarefa, **info_tarefa, "latencia_media_horas": latencia_tarefa},
+            "espera_parada": {"dias_atual": limiar_espera, **info_espera, "latencia_media_horas": latencia_espera},
+        }
+    )
 
 
 @app.route("/api/push/status", methods=["GET"])

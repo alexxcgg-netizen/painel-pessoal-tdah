@@ -5,6 +5,50 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (6) - Aprendizado de padrao pessoal + catch-up de fim do dia
+
+Depois do bot do Telegram, o Alex pediu duas coisas: (1) o painel aprender de verdade com o
+proprio historico dele - "muito bem minucioso, que nao se perde, que guarda os dados, que pega
+padroes" - e (2) um jeito de contar no chat, no fim do dia, coisas que ja fez mas nunca tinha
+registrado em tempo real. Ele tambem perguntou se dava pra usar o Neural Engine do iPhone (A19)
+pra isso - explicado que um PWA/Flask nao alcanca hardware nativo (precisaria de Core ML/Swift),
+e que o problema real (personalizar limiares numericos com base num historico pessoal pequeno) nao
+precisa de ML: estatistica pura em cima do que ja esta no banco resolve, com decisao auditavel
+(nunca caixa preta) - a escolha deliberada de manter a filosofia "sem IA" do resto do codebase.
+
+**`aprendizado.py` (modulo novo):** `limiar_personalizado()` decide, pra cada tipo de cutucada
+(tarefa parada, espera parada), se usa o padrao conservador de sempre ou um valor aprendido - so
+aprende com 5+ amostras (`minimo_amostras`), usa a MEDIANA (robusta a um caso fora da curva, ao
+contrario da media) arredondada e sempre limitada a um piso/teto de seguranca. `dias_atraso_historico_tarefas()`
+e `dias_espera_historico()` extraem a amostra direto de `tasks`/`esperas` (devido/concluido,
+criado/resolvido) - nenhuma tabela nova precisa pra isso, o dado ja existia. `latencia_media_horas()`
+usa MEDIA (nao mediana) de proposito: aqui um valor extremo e sinal real sobre o quanto a cutucada
+esta funcionando, nao ruido pra filtrar.
+
+**Fechamento do loop de aprendizado:** tabela nova `interacoes_aprendizado` registra quando cada
+cutucada de `tarefa_parada`/`espera_parada` foi *de fato enviada* (nao so quando a condicao ficou
+verdadeira) e, ao ser resolvida, calcula a latencia em horas (`julianday()` do SQLite). `complete_task()`
+foi movido de dentro da rota Flask pra `db.py` (rota renomeada pra `complete_task_rota` - so o nome
+da funcao Python, a URL `/api/tasks/<id>/complete` continua igual) e `resolver_espera()` passou a
+fechar a interacao junto, sem duplicar essa logica em mais de um lugar.
+
+**Limiares aprendidos ligados de verdade:** `verificar_e_notificar()` agora calcula
+`dias_minimo` de `tarefas_paradas`/`esperas_paradas` via `limiar_personalizado()` a cada rodada, em
+vez do numero fixo de antes (3 e 5 dias) - assim que houver historico suficiente, cobra no ritmo
+real de cada um. Endpoint novo `GET /api/aprendizado` mostra o que foi aprendido pra cada tipo
+(limiar atual, se veio do padrao ou foi aprendido, quantas amostras, latencia media de resposta) -
+transparencia deliberada, pra nunca virar caixa preta.
+
+**Catch-up de fim do dia:** tool nova no chat, `registrar_feito` - "fiz academia, paguei a conta de
+luz e resolvi aquele negocio do fornecedor" no fim do dia registra cada coisa mencionada.
+`db.marcar_ou_criar_feito()` tenta achar uma tarefa pendente parecida (mesmo match aproximado por
+substring usado em cotacoes/esperas) e marca ela concluida (fechando o loop de aprendizado
+tambem, via `complete_task()`); sem achar, cria uma tarefa nova ja nascendo concluida - registro
+honesto de trabalho feito fora do planejado.
+
+610 testes (57 novos: `tests/test_aprendizado.py` criado do zero + extensoes em `tests/test_app.py`
+e `claude_client.py`), todos passando.
+
 ## 2026-09-21 (5) - Bot do Telegram + 3 features de "funcionario particular"
 
 Continuação da conversa sobre o que falta pra sentir como um assistente humano dedicado, não só

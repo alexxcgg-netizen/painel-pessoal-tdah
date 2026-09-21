@@ -203,6 +203,15 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now')),
             resolvido_em TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS interacoes_aprendizado (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            referencia_id INTEGER NOT NULL DEFAULT 0,
+            disparado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            resolvido_em TEXT,
+            latencia_horas REAL
+        );
         """
     )
     conn.commit()
@@ -235,6 +244,8 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_cotacoes_itens_cotacao_id ON cotacoes_itens(cotacao_id);
         CREATE INDEX IF NOT EXISTS idx_voos_data ON voos(data);
         CREATE INDEX IF NOT EXISTS idx_esperas_resolvido_em ON esperas(resolvido_em);
+        CREATE INDEX IF NOT EXISTS idx_interacoes_aprendizado_aberta
+            ON interacoes_aprendizado(tipo, referencia_id, resolvido_em);
         """
     )
     conn.commit()
@@ -521,6 +532,8 @@ def resolver_espera(conn, espera_id: int) -> bool:
         "UPDATE esperas SET resolvido_em = datetime('now') WHERE id = ? AND resolvido_em IS NULL",
         (espera_id,),
     )
+    if cur.rowcount > 0:
+        fechar_interacao_aprendizado(conn, "espera_parada", espera_id)
     conn.commit()
     return cur.rowcount > 0
 
@@ -547,6 +560,89 @@ def espera_pendente_por_quem_aproximado(conn, quem: str) -> dict | None:
         if quem_norm in existente or existente in quem_norm:
             return dict(r)
     return None
+
+
+def registrar_interacao_aprendizado(conn, tipo: str, referencia_id: int = 0) -> int:
+    """Abre um registro de interacao (ex: cutucada de tarefa_parada mandada
+    agora) pra depois medir quanto tempo levou ate ser resolvida - ver
+    fechar_interacao_aprendizado. Chamado no momento em que a notificacao
+    e' de fato ENVIADA (nao quando a condicao so passa a ser verdadeira),
+    pra latencia_horas medir o efeito real da cutucada."""
+    cur = conn.execute(
+        "INSERT INTO interacoes_aprendizado (tipo, referencia_id) VALUES (?, ?)",
+        (tipo, referencia_id),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def fechar_interacao_aprendizado(conn, tipo: str, referencia_id: int = 0) -> bool:
+    """Fecha a interacao aberta mais recente desse tipo/referencia (se
+    houver) registrando quanto tempo levou desde que foi disparada -
+    julianday() calcula a diferenca em dias com precisao de fracao, *24
+    converte pra horas. E' um no-op seguro quando nao ha interacao aberta
+    (o caso comum: toda tarefa concluida chama isso, mas so as que
+    passaram por uma cutucada de tarefa_parada tem algo pra fechar)."""
+    cur = conn.execute(
+        """UPDATE interacoes_aprendizado
+           SET resolvido_em = datetime('now'),
+               latencia_horas = (julianday('now') - julianday(disparado_em)) * 24
+           WHERE id = (
+               SELECT id FROM interacoes_aprendizado
+               WHERE tipo = ? AND referencia_id = ? AND resolvido_em IS NULL
+               ORDER BY disparado_em DESC LIMIT 1
+           )""",
+        (tipo, referencia_id),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def latencias_resolvidas(conn, tipo: str) -> list[float]:
+    rows = conn.execute(
+        "SELECT latencia_horas FROM interacoes_aprendizado "
+        "WHERE tipo = ? AND latencia_horas IS NOT NULL",
+        (tipo,),
+    ).fetchall()
+    return [r["latencia_horas"] for r in rows]
+
+
+def complete_task(conn, task_id: int) -> None:
+    conn.execute("UPDATE tasks SET completed_at = datetime('now') WHERE id = ?", (task_id,))
+    fechar_interacao_aprendizado(conn, "tarefa_parada", task_id)
+    conn.commit()
+
+
+def marcar_ou_criar_feito(
+    conn, titulo: str, source_text: str | None = None, hoje: date | None = None
+) -> dict:
+    """Catch-up de fim do dia: o Alex conta algo que ja fez mas nunca tinha
+    registrado em tempo real. Se bater (por aproximacao, mesmo padrao de
+    cotacao_por_titulo_aproximado) com uma tarefa pendente existente, marca
+    ela como concluida (fecha o loop de aprendizado tambem, via
+    complete_task); senao cria uma tarefa nova ja nascendo concluida - um
+    registro honesto de trabalho feito fora do que foi planejado."""
+    hoje = hoje or date.today()
+    titulo_norm = (titulo or "").strip().lower()
+    if not titulo_norm:
+        return {"ok": False, "erro": "titulo vazio"}
+    candidatas = conn.execute(
+        "SELECT id, title FROM tasks WHERE completed_at IS NULL "
+        "AND (due_date IS NULL OR due_date <= ?)",
+        (hoje.isoformat(),),
+    ).fetchall()
+    for c in candidatas:
+        existente = c["title"].strip().lower()
+        if titulo_norm in existente or existente in titulo_norm:
+            complete_task(conn, c["id"])
+            return {"ok": True, "acao": "marcada_concluida", "titulo": c["title"], "task_id": c["id"]}
+    cur = conn.execute(
+        "INSERT INTO tasks (title, due_date, source_text, completed_at) "
+        "VALUES (?, ?, ?, datetime('now'))",
+        (titulo, hoje.isoformat(), source_text),
+    )
+    conn.commit()
+    return {"ok": True, "acao": "registrada_e_concluida", "titulo": titulo, "task_id": cur.lastrowid}
 
 
 def registrar_atividade(conn, dia_iso: str) -> None:
