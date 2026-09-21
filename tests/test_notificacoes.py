@@ -219,6 +219,25 @@ class NotificacoesTestCase(unittest.TestCase):
         self.conn.commit()
         self.assertEqual(notificacoes.voos_de_hoje_com_horario(self.conn), [])
 
+    def _domingo_as(self, hora, minuto):
+        """Acha o domingo mais proximo (indo pra tras) e devolve com esse horario."""
+        hoje = date.today()
+        domingo = hoje - timedelta(days=(hoje.weekday() + 1) % 7)
+        return datetime.combine(domingo, datetime.min.time()).replace(hour=hora, minute=minuto)
+
+    def test_planejamento_semanal_devido_domingo_as_2030(self):
+        self.assertTrue(notificacoes.planejamento_semanal_devido(self._domingo_as(20, 30)))
+        self.assertTrue(notificacoes.planejamento_semanal_devido(self._domingo_as(20, 34)))
+
+    def test_planejamento_semanal_nao_devido_fora_da_janela(self):
+        self.assertFalse(notificacoes.planejamento_semanal_devido(self._domingo_as(20, 29)))
+        self.assertFalse(notificacoes.planejamento_semanal_devido(self._domingo_as(20, 35)))
+        self.assertFalse(notificacoes.planejamento_semanal_devido(self._domingo_as(9, 0)))
+
+    def test_planejamento_semanal_nao_devido_em_outro_dia_da_semana(self):
+        segunda = self._domingo_as(20, 30) + timedelta(days=1)
+        self.assertFalse(notificacoes.planejamento_semanal_devido(segunda))
+
 
 if __name__ == "__main__":
     unittest.main()

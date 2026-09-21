@@ -1841,6 +1841,47 @@ class PainelTestCase(unittest.TestCase):
         mock_horario.assert_not_called()
         mock_enviar.assert_not_called()
 
+    # ---- Push "como fica sua semana?" (domingo 20h30) ----
+
+    def test_verificar_notifica_planejamento_semanal_na_janela(self):
+        sub = {"endpoint": "https://exemplo.com/push/semanal", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("notificacoes.planejamento_semanal_devido", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        corpo_notificado = mock_enviar.call_args[0][2]
+        self.assertIn("agenda dessa semana", corpo_notificado)
+
+    def test_verificar_nao_notifica_planejamento_fora_da_janela(self):
+        sub = {"endpoint": "https://exemplo.com/push/semanal2", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("notificacoes.planejamento_semanal_devido", return_value=False), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_not_called()
+
+    def test_verificar_planejamento_semanal_ja_notificado_nao_repete(self):
+        sub = {"endpoint": "https://exemplo.com/push/semanal3", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("notificacoes.planejamento_semanal_devido", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_called_once()
+
     # ---- Cenario real: mensagem corrida de manha com varias coisas juntas ----
     # (o exemplo que o Alex deu: material de obra + gravar video na obra + voo
     # as 14h + gasto ja feito de gasolina + gasto planejado de reabastecer +
@@ -1958,6 +1999,148 @@ class PainelTestCase(unittest.TestCase):
             resumo = self.client.get("/api/summary/today").get_json()
         self.assertEqual(resumo["gasto_hoje"], 100.0)
         self.assertEqual(resumo["gasto_planejado"], 400.0)
+
+    # ---- Cenario real: dump de domingo a noite com a semana inteira ----
+    # (o exemplo que o Alex deu pra testar a notificacao de planejamento
+    # semanal: 8 itens soltos numa mensagem so - duas cotacoes com
+    # fornecedores, responder a corretora, viagem amanha cedo, um dia da
+    # semana reservado pra contabilidade, o lembrete de anotar duvidas no
+    # papel, o projeto do quarto (com condicao de umidade) e a visita ao
+    # aeroclube (condicionada ao tempo). Verifica que CADA item vira uma
+    # tarefa propria, sem nada ser perdido ou juntado errado, e que nada
+    # ganha due_date quando so foi dito "essa semana"/"um dia da semana".
+    def test_chat_dump_semanal_de_domingo_com_varios_itens_soltos(self):
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        resposta_com_tools = _resp(
+            [
+                _tool_block(
+                    "registrar_tarefa",
+                    {"titulo": "Cotar 36 portas com pelo menos 5 fornecedores", "quando": "essa semana"},
+                    id_="t1",
+                ),
+                _tool_block(
+                    "registrar_tarefa",
+                    {
+                        "titulo": "Cotar 30 vasos sanitarios com pelo menos 5 fornecedores",
+                        "quando": "essa semana",
+                    },
+                    id_="t2",
+                ),
+                _tool_block(
+                    "registrar_tarefa",
+                    {"titulo": "Responder a corretora sobre o terreno"},
+                    id_="t3",
+                ),
+                _tool_block(
+                    "registrar_tarefa",
+                    {
+                        "titulo": "Ir para Balneario Camboriu",
+                        "quando": "amanha cedo",
+                        "quando_data": amanha,
+                    },
+                    id_="t4",
+                ),
+                _tool_block(
+                    "registrar_tarefa",
+                    {
+                        "titulo": "Tirar um dia pra ir na contabilidade tirar duvidas",
+                        "quando": "essa semana",
+                    },
+                    id_="t5",
+                ),
+                _tool_block(
+                    "registrar_tarefa",
+                    {"titulo": "Anotar as duvidas no papel antes de ir na contabilidade"},
+                    id_="t6",
+                ),
+                _tool_block(
+                    "registrar_tarefa",
+                    {
+                        "titulo": (
+                            "Arrumar o quarto: limpar (se a umidade baixar, depois de terminar as "
+                            "tarefas do dia), deixar organizado, montar o PC e montar a prateleira"
+                        ),
+                    },
+                    id_="t7",
+                ),
+                _tool_block(
+                    "registrar_tarefa",
+                    {
+                        "titulo": (
+                            "Visitar o Aeroclube pra ver o que mudou pra voltar aos voos "
+                            "(se der tempo e nao chover)"
+                        ),
+                        "quando": "essa semana",
+                    },
+                    id_="t8",
+                ),
+            ],
+            stop_reason="tool_use",
+        )
+        resposta_final = _resp(
+            [
+                _text_block(
+                    "-> Tarefa: cotar 36 portas com 5 fornecedores.\n"
+                    "-> Tarefa: cotar 30 vasos sanitarios com 5 fornecedores.\n"
+                    "-> Tarefa: responder a corretora sobre o terreno.\n"
+                    "-> Tarefa: Balneario Camboriu amanha cedo.\n"
+                    "-> Tarefa: tirar um dia essa semana pra contabilidade.\n"
+                    "-> Tarefa: anotar as duvidas no papel.\n"
+                    "-> Tarefa: projeto do quarto (limpar, organizar, montar PC e prateleira).\n"
+                    "-> Tarefa: visitar o Aeroclube essa semana."
+                )
+            ]
+        )
+
+        mensagem = (
+            "hoje e domingo, essa semana eu preciso comprar porta pro meu predio, preciso "
+            "cotar as portas com pelo menos 5 fornecedores, sao 36 portas, tambem preciso "
+            "cotar vasos sanitarios, 30 unidades, com 5 fornecedores, preciso responder a "
+            "corretora sobre o terreno que ela esta vendendo pra mim, amanha cedo eu tenho "
+            "que ir pra balneario camboriu, essa semana eu quero tirar um dia pra ir na "
+            "contabilidade tirar duvidas, minhas duvidas vou anotar no papel entao preciso "
+            "ser lembrado disso, tambem preciso continuar limpando meu quarto, se a umidade "
+            "baixar eu limpo depois de terminar minhas tarefas do dia, deixar ele organizado, "
+            "montar meu pc depois de limpar, montar a prateleira, e num dia da semana quero ir "
+            "no aeroclube dar uma visitada se der um tempo e nao chover"
+        )
+        with patch.object(
+            claude_client.client.messages, "create", side_effect=[resposta_com_tools, resposta_final]
+        ):
+            res = self.client.post("/api/chat", json={"mensagem": mensagem})
+        self.assertEqual(res.status_code, 200)
+        acoes = res.get_json()["acoes"]
+        self.assertEqual(acoes, ["registrar_tarefa"] * 8)
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tasks), 8)
+        titulos = {t["title"] for t in tasks}
+        self.assertIn("Cotar 36 portas com pelo menos 5 fornecedores", titulos)
+        self.assertIn("Cotar 30 vasos sanitarios com pelo menos 5 fornecedores", titulos)
+        self.assertIn("Responder a corretora sobre o terreno", titulos)
+        self.assertIn("Anotar as duvidas no papel antes de ir na contabilidade", titulos)
+
+        # so a viagem de amanha cedo tem due_date concreto - "essa semana" e
+        # "um dia da semana" ficam sem data, so como texto em "quando"
+        por_titulo = {t["title"]: t for t in tasks}
+        self.assertEqual(por_titulo["Ir para Balneario Camboriu"]["due_date"], amanha)
+        self.assertIsNone(
+            por_titulo["Cotar 36 portas com pelo menos 5 fornecedores"]["due_date"]
+        )
+        self.assertIsNone(
+            por_titulo["Tirar um dia pra ir na contabilidade tirar duvidas"]["due_date"]
+        )
+
+        tarefa_quarto = por_titulo[
+            "Arrumar o quarto: limpar (se a umidade baixar, depois de terminar as "
+            "tarefas do dia), deixar organizado, montar o PC e montar a prateleira"
+        ]
+        self.assertIn("umidade", tarefa_quarto["title"])
+
+        tarefa_aeroclube = por_titulo[
+            "Visitar o Aeroclube pra ver o que mudou pra voltar aos voos (se der tempo e nao chover)"
+        ]
+        self.assertIn("nao chover", tarefa_aeroclube["title"])
 
 
 class AutenticacaoTestCase(unittest.TestCase):

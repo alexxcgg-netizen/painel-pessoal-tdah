@@ -131,6 +131,19 @@ def lembretes_proximos(conn, dias: int = 7) -> list[tuple[int, str]]:
     return avisos
 
 
+def planejamento_semanal_devido(agora: datetime | None = None) -> bool:
+    """Verdadeiro na janela de 5min em torno de domingo as 20:30 - o momento
+    que o Alex escolheu pra parar e pensar na semana que comeca, puxando um
+    push que pergunta se ele ja sabe a agenda da semana. A deduplicacao por
+    dia (ja_notificou_hoje, em app.py) garante que so dispara uma vez mesmo
+    rodando a cada 5min dentro dessa janela."""
+    agora = agora or datetime.now()
+    if agora.weekday() != 6:  # segunda=0 ... domingo=6
+        return False
+    alvo = agora.replace(hour=20, minute=30, second=0, microsecond=0)
+    return alvo <= agora < alvo + timedelta(minutes=5)
+
+
 def voos_de_hoje_com_horario(conn, hoje: date | None = None) -> list[dict]:
     """Voos de hoje com horario marcado que ainda nao aconteceram (sem
     'horas' voadas registradas ainda) - candidatos pra calcular a hora de

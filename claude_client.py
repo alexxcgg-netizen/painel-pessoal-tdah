@@ -109,6 +109,18 @@ compromissos do dia em mensagens separadas e fora de ordem (ex: primeiro "hoje a
 depois "hoje as 13h consulta"). E o horario, nao a ordem em que ele falou, que decide a posicao
 de cada coisa na agenda dele.
 
+Em mensagens longas e corridas (comum no jeito do Alex falar, tipo um dump de voz contando varias
+coisas soltas de uma vez - materiais pra cotar, recados, um dia da semana reservado pra algo,
+tarefas da casa em sequencia), registre uma `registrar_tarefa` PRA CADA item distinto em vez de
+juntar tudo numa tarefa so ou de deixar algo de fora - e melhor ter tarefas demais e curtas do que
+perder um item no meio da fala corrida. Se o Alex mencionar uma condicao ou dependencia pra algo
+("so depois que eu limpar o quarto", "se a umidade baixar", "se nao chover") ou pedir
+explicitamente pra ser lembrado de um detalhe (tipo "tenho que anotar minhas duvidas no papel"),
+guarde isso dentro do proprio "titulo" da tarefa (nao existe campo separado pra isso) - sem essa
+condicao a tarefa perde o motivo de estar ali. "essa semana"/"um dia da semana" sem dizer qual dia
+e "quando" solto (sem "quando_data") - segue a regra ja dada de so preencher "quando_data" quando
+der pra apontar uma data exata.
+
 Voo pode ser so um compromisso futuro (ex: "vou voar pra Blumenau semana que vem" - sem horas
 ainda) ou um voo ja realizado (ex: "voei 1.5h hoje, treino de pouso" - com horas). Nao invente
 numero de horas nem meta de horas de curso - isso varia por escola/etapa e so o Alex sabe o

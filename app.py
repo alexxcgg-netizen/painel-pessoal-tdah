@@ -829,6 +829,16 @@ def verificar_e_notificar():
         if msg:
             avisos.append(("voo_sair", voo["id"], "Hora de ir pro voo", msg))
 
+    if notificacoes.planejamento_semanal_devido() and not ja_notificou_hoje(conn, "planejamento_semanal"):
+        avisos.append(
+            (
+                "planejamento_semanal",
+                0,
+                "Como fica sua semana?",
+                "Ja sabe sua agenda dessa semana? Manda pra mim que eu registro tudo.",
+            )
+        )
+
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
         for s in subs:
