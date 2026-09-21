@@ -166,7 +166,12 @@ def _verificar_autenticacao():
     # token (SAUDE_WEBHOOK_TOKEN / PAINEL_ATALHOS_TOKEN) checado dentro da
     # rota, nao usa sessao de login (o iPhone nao guarda cookie de sessao
     # entre execucoes do Atalho).
-    if path in ("/api/saude/importar", "/api/atalho/capturar", "/api/atalho/cotacao-pdf"):
+    if path in (
+        "/api/saude/importar",
+        "/api/atalho/capturar",
+        "/api/atalho/cotacao-pdf",
+        "/api/atalho/resumo",
+    ):
         return None
 
     conn = get_db()
@@ -1867,6 +1872,46 @@ def atalho_cotacao_pdf():
     conn.commit()
     conn.close()
     return jsonify({"id": item_id, "cotacao_id": cotacao_id, "ok": True, **dados}), 201
+
+
+@app.route("/api/atalho/resumo", methods=["GET"])
+def atalho_resumo():
+    """Resumo compacto pra widget externo (ex: Scriptable no iPhone) -
+    autenticado por token, sem sessao, e sem chamar a IA (so leitura direta
+    do banco) pra ficar rapido o bastante pra um widget de tela inicial."""
+    if not _token_atalho_valido():
+        return jsonify({"error": "token invalido"}), 401
+
+    conn = get_db()
+    hoje = date.today().isoformat()
+    tarefas_pendentes = conn.execute(
+        "SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NULL"
+    ).fetchone()["n"]
+    gasto_hoje = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
+        (hoje,),
+    ).fetchone()["total"]
+
+    eventos = _eventos_de_hoje_com_seguranca(conn)
+    agora = datetime.now()
+    proximo = next(
+        (
+            e
+            for e in eventos
+            if not e.get("dia_inteiro") and datetime.fromisoformat(e["inicio"]) >= agora
+        ),
+        None,
+    )
+    conn.close()
+
+    return jsonify(
+        {
+            "tarefas_pendentes": tarefas_pendentes,
+            "gasto_hoje": gasto_hoje,
+            "proximo_titulo": proximo["titulo"] if proximo else None,
+            "proximo_hora": proximo["inicio"][11:16] if proximo else None,
+        }
+    )
 
 
 @app.route("/api/push/status", methods=["GET"])

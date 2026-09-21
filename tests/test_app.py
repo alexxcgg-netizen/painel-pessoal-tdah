@@ -3035,6 +3035,52 @@ class AutenticacaoTestCase(unittest.TestCase):
         )
         self.assertEqual(res.status_code, 400)
 
+    def test_atalho_resumo_nao_exige_sessao_de_login(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.execute("INSERT INTO tasks (title) VALUES (?)", ("cotar portas",))
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo) VALUES (?, ?, 'real')", (42.0, "mercado")
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/atalho/resumo")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["tarefas_pendentes"], 1)
+        self.assertEqual(body["gasto_hoje"], 42.0)
+        self.assertIsNone(body["proximo_titulo"])
+
+    def test_atalho_resumo_mostra_proximo_compromisso_do_dia(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)", ("consulta", hoje, "23:59")
+        )
+        conn.commit()
+        conn.close()
+
+        agora_antes = datetime.combine(date.today(), datetime.min.time()).replace(hour=23, minute=0)
+        with patch("app.datetime") as mock_dt:
+            mock_dt.now.return_value = agora_antes
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.combine = datetime.combine
+            res = self.client.get("/api/atalho/resumo")
+
+        body = res.get_json()
+        self.assertEqual(body["proximo_titulo"], "consulta")
+        self.assertEqual(body["proximo_hora"], "23:59")
+
+    def test_atalho_resumo_com_token_configurado_exige_token_certo(self):
+        with patch.dict(os.environ, {"PAINEL_ATALHOS_TOKEN": "segredo-456"}):
+            sem_token = self.client.get("/api/atalho/resumo")
+            self.assertEqual(sem_token.status_code, 401)
+
+            com_token = self.client.get("/api/atalho/resumo", headers={"X-Webhook-Token": "segredo-456"})
+            self.assertEqual(com_token.status_code, 200)
+
     def test_login_ja_autenticado_redireciona_pra_home(self):
         conn = db.get_db()
         auth.definir_pin(conn, "123456", "123456")

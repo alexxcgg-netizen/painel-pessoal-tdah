@@ -360,13 +360,20 @@ mesmo espirito do Atalho de Saude acima, cada um com seu proprio endpoint autent
 5. A partir dai: no PDF recebido no WhatsApp/Email, aperta **Compartilhar** → escolhe esse Atalho →
    fala o titulo da cotacao → o painel le o PDF e extrai fornecedor/valor/prazo sozinho
 
-### Protegendo os dois endpoints (opcional)
+### Widget de tela inicial (Scriptable)
+
+Existe tambem `GET /api/atalho/resumo` (mesma autenticacao por token, sem IA - so leitura rapida do
+banco) que devolve `{tarefas_pendentes, gasto_hoje, proximo_titulo, proximo_hora}`. Serve pra
+montar um widget de tela inicial/bloqueio com o app gratuito **Scriptable** (App Store), mostrando
+esse resumo sem precisar abrir o painel. O script fica em `scriptable/widget_painel.js`.
+
+### Protegendo os tres endpoints (opcional)
 
 Mesma logica do Atalho de Saude:
 ```
 PAINEL_ATALHOS_TOKEN=escolha-uma-senha-aleatoria
 ```
-e manda o header `X-Webhook-Token` com o mesmo valor nos dois Atalhos. Sem essa variavel
+e manda o header `X-Webhook-Token` com o mesmo valor nos tres Atalhos/widget. Sem essa variavel
 configurada, os endpoints ficam abertos - tranquilo na sua rede local, configure antes de expor o
 painel publicamente.
 
