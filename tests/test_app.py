@@ -115,6 +115,36 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(len(expenses), 1)
         self.assertEqual(expenses[0]["amount"], 50.0)
 
+    def test_exportar_csv_gastos_com_dados(self):
+        parsed = {
+            "tipo": "gasto", "titulo": "mercado", "valor": 50.0,
+            "categoria": "mercado", "quando": None, "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            self.client.post("/api/capture", json={"text": "gastei 50 no mercado"})
+
+        res = self.client.get("/api/expenses/exportar-csv")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.mimetype, "text/csv")
+        self.assertIn("attachment", res.headers["Content-Disposition"])
+        corpo = res.get_data(as_text=True)
+        linhas = corpo.strip().split("\r\n")
+        self.assertEqual(linhas[0], "data,valor,categoria,tipo,descricao")
+        self.assertEqual(len(linhas), 2)
+        self.assertIn("50.0", linhas[1])
+        self.assertIn("mercado", linhas[1])
+
+    def test_exportar_csv_gastos_vazio_ainda_devolve_cabecalho(self):
+        res = self.client.get("/api/expenses/exportar-csv")
+        self.assertEqual(res.status_code, 200)
+        corpo = res.get_data(as_text=True)
+        self.assertEqual(corpo.strip(), "data,valor,categoria,tipo,descricao")
+
+    def test_exportar_csv_gastos_exige_autenticacao(self):
+        self.client.post("/logout")
+        res = self.client.get("/api/expenses/exportar-csv")
+        self.assertEqual(res.status_code, 401)
+
     def test_captura_ambigua_pede_esclarecimento_e_depois_grava(self):
         duvida_resp = {
             "tipo": "gasto",

@@ -256,6 +256,29 @@ button svg {
   flex-shrink: 0;
 }
 
+.btn-exportar-csv {
+  margin-left: auto;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-tech);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.btn-exportar-csv svg {
+  width: 12px;
+  height: 12px;
+}
+
+.btn-exportar-csv:hover {
+  color: var(--text);
+  border-color: var(--text-faint);
+}
+
 button:active:not(:disabled) {
   transform: scale(0.94);
 }

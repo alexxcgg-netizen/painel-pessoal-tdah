@@ -1,4 +1,6 @@
+import csv
 import hashlib
+import io
 import json
 import os
 from datetime import date, datetime, timedelta
@@ -6,7 +8,7 @@ from datetime import date, datetime, timedelta
 import anthropic
 import requests
 from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, render_template, request, session
+from flask import Flask, Response, jsonify, redirect, render_template, request, session
 
 load_dotenv()
 
@@ -418,6 +420,29 @@ def expenses_historico():
     conn.close()
     historico = gastos.historico_diario([dict(r) for r in rows], dias, date.today())
     return jsonify(historico)
+
+
+@app.route("/api/expenses/exportar-csv", methods=["GET"])
+def exportar_expenses_csv():
+    """CSV de todos os gastos (real e planejado) - sem limite de 50 como o
+    /api/expenses normal, essa e feita pra abrir na planilha, nao pra tela."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT created_at, amount, category, tipo, description FROM expenses ORDER BY created_at"
+    ).fetchall()
+    conn.close()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["data", "valor", "categoria", "tipo", "descricao"])
+    for r in rows:
+        writer.writerow([r["created_at"], r["amount"], r["category"], r["tipo"], r["description"] or ""])
+
+    return Response(
+        buffer.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=gastos.csv"},
+    )
 
 
 @app.route("/api/gastos/resumo-semanal", methods=["GET"])
