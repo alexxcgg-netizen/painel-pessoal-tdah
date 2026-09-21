@@ -89,6 +89,9 @@ class PainelTestCase(unittest.TestCase):
         auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
         conn.commit()
         conn.close()
+        # cache em memoria da integracao com a construtora (TTL 60s) - limpa entre
+        # testes pra um teste nunca herdar a resposta mockada de outro
+        app._CACHE_CONSTRUTORA.clear()
         self.client = app.app.test_client()
         # loga de verdade pelo fluxo real - assim toda a suite ja exercita o
         # gate de autenticacao (before_request) em vez de contornar ele
@@ -295,6 +298,48 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.get("/api/construtora/resumo")
 
         self.assertIsNone(res.get_json()["contas"])
+
+    def test_construtora_resumo_cacheado_nao_bate_de_novo_na_api_externa(self):
+        resposta_fake = MagicMock()
+        resposta_fake.raise_for_status = lambda: None
+        resposta_fake.json.return_value = {
+            "status": "ok", "tot_entradas": 1.0, "tot_saidas": 1.0,
+            "lucro_liquido": 0.0, "margem": 0.0,
+        }
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", return_value=resposta_fake) as mock_get:
+            self.client.get("/api/construtora/resumo")
+            chamadas_apos_primeira = mock_get.call_count
+            self.client.get("/api/construtora/resumo")
+            chamadas_apos_segunda = mock_get.call_count
+
+        self.assertEqual(chamadas_apos_primeira, chamadas_apos_segunda)
+
+    def test_construtora_cache_nao_mistura_dias_diferentes(self):
+        chamadas = []
+
+        def fake_get(url, headers=None, params=None, timeout=None):
+            chamadas.append(dict(params or {}))
+            resp = MagicMock()
+            resp.raise_for_status = lambda: None
+            if url.endswith("/api/resumo"):
+                resp.json.return_value = {"status": "ok", "tot_entradas": 1.0, "tot_saidas": 1.0, "lucro_liquido": 0.0, "margem": 0.0}
+            else:
+                resp.json.return_value = {"status": "ok", "contas": []}
+            return resp
+
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", side_effect=fake_get):
+            app._buscar_contas_a_vencer_construtora(dias=30)
+            app._buscar_contas_a_vencer_construtora(dias=7)
+
+        dias_pedidos = [c.get("dias") for c in chamadas]
+        self.assertIn(30, dias_pedidos)
+        self.assertIn(7, dias_pedidos)
 
     def test_importar_extrato_ofx_cria_conta_e_transacoes(self):
         res = self.client.post(

@@ -432,28 +432,62 @@ def _saude_contexto_resumo(conn) -> str | None:
     return ", ".join(partes)
 
 
+_CACHE_CONSTRUTORA = {}  # chave -> (timestamp, dados)
+_CACHE_CONSTRUTORA_TTL_SEGUNDOS = 60
+
+
+def _cache_construtora_get(chave: str):
+    """None tanto pra 'nunca guardado' quanto pra 'expirou' - o chamador trata os
+    dois igual (vai buscar de novo)."""
+    entrada = _CACHE_CONSTRUTORA.get(chave)
+    if not entrada:
+        return None
+    timestamp, dados = entrada
+    if datetime.now().timestamp() - timestamp > _CACHE_CONSTRUTORA_TTL_SEGUNDOS:
+        return None
+    return dados
+
+
+def _cache_construtora_set(chave: str, dados):
+    _CACHE_CONSTRUTORA[chave] = (datetime.now().timestamp(), dados)
+
+
 def _buscar_resumo_construtora() -> dict | None:
     """Busca o resumo financeiro na API da construtora - None se nao configurado ou
-    se a chamada falhar por qualquer motivo (nunca quebra quem chamar)."""
+    se a chamada falhar por qualquer motivo (nunca quebra quem chamar). Cacheado por
+    60s (mesmo processo) - o resumo do dia, o chat e a aba Construtora podem pedir
+    isso tudo em sequencia rapida, e o lado da construtora tem rate limit de 20
+    req/min por IP na integracao externa."""
     base_url = os.environ.get("CONSTRUTORA_API_URL")
     api_key = os.environ.get("CONSTRUTORA_API_KEY")
     if not base_url or not api_key:
         return None
+    cacheado = _cache_construtora_get("resumo")
+    if cacheado is not None:
+        return cacheado
     try:
         resp = requests.get(f"{base_url}/api/resumo", headers={"X-API-Key": api_key}, timeout=5)
         resp.raise_for_status()
-        return resp.json()
+        dados = resp.json()
+        _cache_construtora_set("resumo", dados)
+        return dados
     except requests.RequestException:
         return None
 
 
 def _buscar_contas_a_vencer_construtora(dias: int = 30) -> dict | None:
     """Busca as contas a pagar a vencer/vencidas na API da construtora - None se nao
-    configurado ou se a chamada falhar por qualquer motivo (nunca quebra quem chamar)."""
+    configurado ou se a chamada falhar por qualquer motivo (nunca quebra quem chamar).
+    Mesmo cache de 60s de `_buscar_resumo_construtora`, por chave separada (o `dias`
+    pedido pode variar)."""
     base_url = os.environ.get("CONSTRUTORA_API_URL")
     api_key = os.environ.get("CONSTRUTORA_API_KEY")
     if not base_url or not api_key:
         return None
+    cache_chave = f"contas:{dias}"
+    cacheado = _cache_construtora_get(cache_chave)
+    if cacheado is not None:
+        return cacheado
     try:
         resp = requests.get(
             f"{base_url}/api/contas_a_vencer",
@@ -462,7 +496,9 @@ def _buscar_contas_a_vencer_construtora(dias: int = 30) -> dict | None:
             timeout=5,
         )
         resp.raise_for_status()
-        return resp.json()
+        dados = resp.json()
+        _cache_construtora_set(cache_chave, dados)
+        return dados
     except requests.RequestException:
         return None
 
@@ -1757,18 +1793,14 @@ def construtora_resumo():
     if not base_url or not api_key:
         return jsonify({"configurado": False})
 
-    try:
-        resp = requests.get(
-            f"{base_url}/api/resumo", headers={"X-API-Key": api_key}, timeout=5
-        )
-        resp.raise_for_status()
-    except requests.RequestException:
+    dados = _buscar_resumo_construtora()
+    if dados is None:
         return jsonify({"configurado": True, "erro": "Nao consegui falar com a API da construtora agora."}), 502
 
     dados_contas = _buscar_contas_a_vencer_construtora(dias=30)
     contas = dados_contas.get("contas") if dados_contas and dados_contas.get("status") == "ok" else None
 
-    return jsonify({"configurado": True, "dados": resp.json(), "contas": contas})
+    return jsonify({"configurado": True, "dados": dados, "contas": contas})
 
 
 TAMANHO_MAX_PDF_BYTES = 15 * 1024 * 1024  # 15MB - cabe folgado num orcamento escaneado
