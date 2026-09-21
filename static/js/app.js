@@ -1379,6 +1379,8 @@ function criarItemCotacao(c) {
   const cabecalho = document.createElement("div");
   cabecalho.className = "cotacao-cabecalho";
   cabecalho.tabIndex = 0;
+  cabecalho.setAttribute("role", "button");
+  cabecalho.setAttribute("aria-expanded", "false");
 
   const titulo = document.createElement("span");
   titulo.className = "item-titulo";
@@ -1404,6 +1406,7 @@ function criarItemCotacao(c) {
   let carregado = false;
   const abrirFechar = async () => {
     detalhe.hidden = !detalhe.hidden;
+    cabecalho.setAttribute("aria-expanded", String(!detalhe.hidden));
     if (!detalhe.hidden && !carregado) {
       carregado = true;
       await preencherDetalheCotacao(c.id, detalhe);
