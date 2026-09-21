@@ -331,15 +331,25 @@ def list_tasks():
     rows = conn.execute(
         "SELECT * FROM tasks WHERE completed_at IS NULL ORDER BY created_at DESC"
     ).fetchall()
+    # Uma query so pras subtarefas de todas as tasks (em vez de uma query por task -
+    # nao pesava nada com poucas tarefas, mas escala mal conforme o historico cresce).
+    task_ids = [row["id"] for row in rows]
+    subtasks_por_task = {}
+    if task_ids:
+        placeholders = ",".join("?" for _ in task_ids)
+        subtask_rows = conn.execute(
+            f"SELECT * FROM subtasks WHERE task_id IN ({placeholders}) ORDER BY position",
+            task_ids,
+        ).fetchall()
+        for s in subtask_rows:
+            subtasks_por_task.setdefault(s["task_id"], []).append(dict(s))
+    conn.close()
+
     tasks = []
     for row in rows:
         task = dict(row)
-        subtasks = conn.execute(
-            "SELECT * FROM subtasks WHERE task_id = ? ORDER BY position", (task["id"],)
-        ).fetchall()
-        task["subtasks"] = [dict(s) for s in subtasks]
+        task["subtasks"] = subtasks_por_task.get(task["id"], [])
         tasks.append(task)
-    conn.close()
     return jsonify(tasks)
 
 

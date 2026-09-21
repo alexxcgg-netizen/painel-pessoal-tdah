@@ -174,6 +174,33 @@ class PainelTestCase(unittest.TestCase):
         tasks_depois = self.client.get("/api/tasks").get_json()
         self.assertEqual(len(tasks_depois), 0)
 
+    def test_list_tasks_agrupa_subtarefas_por_task_sem_misturar(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES ('lavar o carro')")
+        conn.execute("INSERT INTO tasks (title) VALUES ('estudar meteorologia')")
+        task_a, task_b = [r["id"] for r in conn.execute("SELECT id FROM tasks ORDER BY id").fetchall()]
+        conn.execute(
+            "INSERT INTO subtasks (task_id, title, position) VALUES (?, 'lavar externo', 0)", (task_a,)
+        )
+        conn.execute(
+            "INSERT INTO subtasks (task_id, title, position) VALUES (?, 'aspirar interno', 1)", (task_a,)
+        )
+        conn.execute(
+            "INSERT INTO subtasks (task_id, title, position) VALUES (?, 'ler apostila', 0)", (task_b,)
+        )
+        conn.commit()
+        conn.close()
+
+        tasks = self.client.get("/api/tasks").get_json()
+        por_id = {t["id"]: t for t in tasks}
+        self.assertEqual([s["title"] for s in por_id[task_a]["subtasks"]], ["lavar externo", "aspirar interno"])
+        self.assertEqual([s["title"] for s in por_id[task_b]["subtasks"]], ["ler apostila"])
+
+    def test_list_tasks_sem_nenhuma_task_nao_quebra(self):
+        res = self.client.get("/api/tasks")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), [])
+
     def test_quebra_de_tarefa_grande_cria_subtarefas(self):
         parsed = {
             "tipo": "tarefa",
