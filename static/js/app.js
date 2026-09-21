@@ -154,13 +154,26 @@ function limparErro() {
   $("#erro-banner").hidden = true;
 }
 
+// 45s porque varias chamadas passam pela IA (classificacao, chat, leitura de PDF de
+// cotacao) - um timeout curto demais aborta uma chamada real em andamento, nao so
+// uma conexao morta.
+const API_FETCH_TIMEOUT_MS = 45000;
+
 async function apiFetch(url, options) {
   let res;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
   try {
-    res = await fetch(url, options);
-  } catch {
-    mostrarErro("Sem conexao com o servidor. Confere se o painel esta rodando.");
+    res = await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    mostrarErro(
+      e && e.name === "AbortError"
+        ? "O painel demorou demais pra responder. Tenta de novo."
+        : "Sem conexao com o servidor. Confere se o painel esta rodando."
+    );
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
   let data = null;
   try {
@@ -1979,7 +1992,13 @@ if ("serviceWorker" in navigator) {
 }
 
 $("#logout-btn").addEventListener("click", async () => {
-  await fetch("/logout", { method: "POST" });
+  // Sempre navega pro login, mesmo se a chamada falhar (rede fora do ar etc) -
+  // o objetivo e sair da tela autenticada, nao garantir que o servidor confirmou.
+  try {
+    await fetch("/logout", { method: "POST" });
+  } catch {
+    // ignora - segue pro login de qualquer jeito
+  }
   window.location.href = "/login";
 });
 
