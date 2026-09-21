@@ -87,17 +87,25 @@ chat (`tests/test_claude_client.py`), as regras de notificacao proativa
 
 ## Integracao com o painel da construtora
 
-Os dois projetos ficam em repositorios e pastas separados de proposito — cada um estruturado e programado pro seu contexto especifico. A unica conexao entre eles e via HTTP: o painel da construtora expoe um endpoint read-only (`GET /api/resumo`, protegido por API key) e este painel consome via `CONSTRUTORA_API_URL` + `CONSTRUTORA_API_KEY` no `.env`. Nenhum banco de dados e compartilhado entre os dois.
+Os dois projetos ficam em repositorios e pastas separados de proposito — cada um estruturado e programado pro seu contexto especifico. A unica conexao entre eles e via HTTP: o painel da construtora expoe dois endpoints read-only (`GET /api/resumo` e `GET /api/contas_a_vencer`, ambos protegidos por API key) e este painel consome via `CONSTRUTORA_API_URL` + `CONSTRUTORA_API_KEY` no `.env`. Nenhum banco de dados e compartilhado entre os dois.
 
-**Ja implementado do lado da construtora** (v3.99.14 daquele repositorio): `/api/resumo`
-devolve so o essencial - `tot_entradas`, `tot_saidas`, `lucro_liquido`, `margem` (sem
-detalhamento por obra/categoria, decisao tomada com o Alex) - autenticado por header
-`X-API-Key` comparado contra `PAINEL_EXTERNO_API_KEY` no `.env` de la. Pra ativar aqui: cola a
-mesma chave em `CONSTRUTORA_API_KEY` e a URL de onde aquele painel roda em `CONSTRUTORA_API_URL`.
+**Ja implementado do lado da construtora** (v3.99.14 e v3.99.16 daquele repositorio):
+- `/api/resumo` devolve so o essencial - `tot_entradas`, `tot_saidas`, `lucro_liquido`,
+  `margem` (sem detalhamento por obra/categoria, decisao tomada com o Alex).
+- `/api/contas_a_vencer` devolve as contas a pagar em aberto (nao pagas) vencendo nos
+  proximos 30 dias, mais qualquer conta ja vencida - cada uma com `vencimento`, `valor`,
+  `fornecedor`, `descricao`, `dias_ate_vencer`.
 
-Esse resumo tambem entra como contexto no **resumo do dia** e no **chat** (decisao do Alex,
-2026-09-18) - o modelo pode mencionar ou responder perguntas sobre o financeiro geral da
-construtora, sempre com os numeros exatamente como vieram de la (nunca recalculados aqui).
+Os dois autenticados por header `X-API-Key` comparado contra `PAINEL_EXTERNO_API_KEY` no
+`.env` de la. Pra ativar aqui: cola a mesma chave em `CONSTRUTORA_API_KEY` e a URL de onde
+aquele painel roda em `CONSTRUTORA_API_URL`.
+
+Esse resumo (e as contas a pagar) tambem entram como contexto no **resumo do dia** e no
+**chat** (decisao do Alex, 2026-09-18) - o modelo pode mencionar ou responder perguntas sobre
+o financeiro geral da construtora, sempre com os numeros exatamente como vieram de la (nunca
+recalculados aqui). A aba **Construtora** mostra a lista de contas a vencer/vencidas direto no
+painel, e o scheduler avisa por push quando uma conta vence hoje, ja venceu, ou vence nos
+proximos 3 dias (uma vez por dia por conta, sem repetir aviso).
 
 ## Integracao bancaria (Nubank, Viacredi, etc.)
 

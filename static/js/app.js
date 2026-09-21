@@ -1298,18 +1298,69 @@ async function loadMetas() {
 
 async function loadConstrutora() {
   const info = $("#construtora-info");
+  const listaContas = $("#lista-contas-a-vencer");
   info.classList.add("carregando");
   info.textContent = "Carregando...";
+  listaContas.innerHTML = "";
+  $("#contas-a-vencer-vazio").hidden = true;
+
   const data = await apiFetch("/api/construtora/resumo");
   info.classList.remove("carregando");
   if (!data) return;
   if (!data.configurado) {
     info.textContent = "Ainda nao conectado a API da construtora.";
-  } else if (data.erro) {
-    info.textContent = data.erro;
-  } else {
-    info.textContent = JSON.stringify(data.dados);
+    return;
   }
+  if (data.erro) {
+    info.textContent = data.erro;
+    return;
+  }
+
+  const d = data.dados;
+  info.textContent =
+    `Entradas ${fmtMoeda(d.tot_entradas)} · Saidas ${fmtMoeda(d.tot_saidas)} · ` +
+    `Lucro liquido ${fmtMoeda(d.lucro_liquido)} (margem ${d.margem.toFixed(1)}%)`;
+
+  const contas = data.contas || [];
+  $("#contas-a-vencer-vazio").hidden = contas.length > 0;
+  contas.forEach((c) => listaContas.appendChild(criarItemContaAVencer(c)));
+}
+
+function criarItemContaAVencer(c) {
+  const li = document.createElement("li");
+  li.className = "item";
+
+  const linha = document.createElement("div");
+  linha.className = "item-linha";
+
+  const tituloWrap = document.createElement("div");
+  const titulo = document.createElement("span");
+  titulo.className = "item-titulo";
+  titulo.textContent = c.fornecedor || c.descricao || "Fornecedor nao informado";
+  if (c.dias_ate_vencer < 0) {
+    const badge = document.createElement("span");
+    badge.className = "item-badge-vencida";
+    badge.textContent = "vencida";
+    titulo.appendChild(badge);
+  }
+  tituloWrap.appendChild(titulo);
+
+  const quando = document.createElement("span");
+  quando.className = "item-quando";
+  let quandoTexto;
+  if (c.dias_ate_vencer < 0) {
+    quandoTexto = `venceu ha ${Math.abs(c.dias_ate_vencer)} dia(s)`;
+  } else if (c.dias_ate_vencer === 0) {
+    quandoTexto = "vence hoje";
+  } else {
+    quandoTexto = `vence em ${c.dias_ate_vencer} dia(s)`;
+  }
+  quando.textContent = `${fmtMoeda(c.valor)} · ${quandoTexto}`;
+  tituloWrap.appendChild(quando);
+
+  linha.appendChild(tituloWrap);
+  li.appendChild(linha);
+  return li;
 }
 
 async function loadCotacoes() {

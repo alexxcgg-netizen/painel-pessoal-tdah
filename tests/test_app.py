@@ -238,6 +238,64 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json(), {"configurado": False})
 
+    def test_construtora_resumo_inclui_contas_a_vencer(self):
+        def fake_get(url, headers=None, params=None, timeout=None):
+            resp = MagicMock()
+            resp.raise_for_status = lambda: None
+            if url.endswith("/api/resumo"):
+                resp.json.return_value = {
+                    "status": "ok",
+                    "tot_entradas": 100000.0,
+                    "tot_saidas": 40000.0,
+                    "lucro_liquido": 60000.0,
+                    "margem": 60.0,
+                }
+            else:
+                resp.json.return_value = {
+                    "status": "ok",
+                    "contas": [
+                        {
+                            "vencimento": "2026-10-01",
+                            "valor": 500.0,
+                            "fornecedor": "Fornecedor X",
+                            "descricao": "",
+                            "dias_ate_vencer": 5,
+                        }
+                    ],
+                }
+            return resp
+
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", side_effect=fake_get):
+            res = self.client.get("/api/construtora/resumo")
+
+        body = res.get_json()
+        self.assertTrue(body["configurado"])
+        self.assertEqual(len(body["contas"]), 1)
+        self.assertEqual(body["contas"][0]["fornecedor"], "Fornecedor X")
+
+    def test_construtora_resumo_contas_none_se_endpoint_de_contas_falhar(self):
+        def fake_get(url, headers=None, params=None, timeout=None):
+            if url.endswith("/api/resumo"):
+                resp = MagicMock()
+                resp.raise_for_status = lambda: None
+                resp.json.return_value = {
+                    "status": "ok", "tot_entradas": 1.0, "tot_saidas": 1.0,
+                    "lucro_liquido": 0.0, "margem": 0.0,
+                }
+                return resp
+            raise requests.RequestException("fora do ar")
+
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", side_effect=fake_get):
+            res = self.client.get("/api/construtora/resumo")
+
+        self.assertIsNone(res.get_json()["contas"])
+
     def test_importar_extrato_ofx_cria_conta_e_transacoes(self):
         res = self.client.post(
             "/api/bancos/importar",
@@ -2180,6 +2238,125 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.get_json()["avisos_enviados"], 1)
         mock_enviar.assert_called_once()
         self.assertIn("25 dias", mock_enviar.call_args[0][2])
+
+    def _fake_get_contas_a_vencer(self, contas):
+        def fake_get(url, headers=None, params=None, timeout=None):
+            resp = MagicMock()
+            resp.raise_for_status = lambda: None
+            resp.json.return_value = {"status": "ok", "contas": contas}
+            return resp
+
+        return fake_get
+
+    def test_verificar_notifica_conta_a_vencer_proxima(self):
+        sub = {"endpoint": "https://exemplo.com/push/contas1", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        contas = [
+            {
+                "vencimento": date.today().isoformat(),
+                "valor": 1250.0,
+                "fornecedor": "Topografia & Engenharia Ltda",
+                "descricao": "Laudo ambiental",
+                "dias_ate_vencer": 0,
+            }
+        ]
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", side_effect=self._fake_get_contas_a_vencer(contas)), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        self.assertIn("Topografia", mock_enviar.call_args[0][2])
+        self.assertIn("vence hoje", mock_enviar.call_args[0][2])
+
+    def test_verificar_notifica_conta_a_vencer_vencida(self):
+        sub = {"endpoint": "https://exemplo.com/push/contas2", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        contas = [
+            {
+                "vencimento": (date.today() - timedelta(days=2)).isoformat(),
+                "valor": 800.0,
+                "fornecedor": "Locadora de Retroescavadeiras",
+                "descricao": "",
+                "dias_ate_vencer": -2,
+            }
+        ]
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", side_effect=self._fake_get_contas_a_vencer(contas)), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        self.assertIn("venceu ha 2 dia(s)", mock_enviar.call_args[0][2])
+
+    def test_verificar_nao_notifica_conta_distante(self):
+        sub = {"endpoint": "https://exemplo.com/push/contas3", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        contas = [
+            {
+                "vencimento": (date.today() + timedelta(days=10)).isoformat(),
+                "valor": 500.0,
+                "fornecedor": "Fornecedor Distante",
+                "descricao": "",
+                "dias_ate_vencer": 10,
+            }
+        ]
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", side_effect=self._fake_get_contas_a_vencer(contas)), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_not_called()
+
+    def test_verificar_conta_a_vencer_ja_notificada_nao_repete(self):
+        sub = {"endpoint": "https://exemplo.com/push/contas4", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        contas = [
+            {
+                "vencimento": date.today().isoformat(),
+                "valor": 300.0,
+                "fornecedor": "Fornecedor Repetido",
+                "descricao": "",
+                "dias_ate_vencer": 0,
+            }
+        ]
+        with patch.dict(
+            os.environ,
+            {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"},
+        ), patch("requests.get", side_effect=self._fake_get_contas_a_vencer(contas)), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True):
+            self.client.post("/api/notificacoes/verificar-agora")
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+
+    def test_verificar_sem_construtora_configurada_nao_notifica_conta(self):
+        sub = {"endpoint": "https://exemplo.com/push/contas5", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_not_called()
 
     def test_voos_resumo_inclui_dias_desde_ultimo_voo(self):
         antigo = (date.today() - timedelta(days=10)).isoformat()

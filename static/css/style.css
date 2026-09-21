@@ -1130,6 +1130,20 @@ li.item.saindo {
   vertical-align: middle;
 }
 
+.item-badge-vencida {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cor-construtora) 30%, black 70%);
+  color: #fff;
+  font-family: var(--font-tech);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
 .item-tag-tarefa {
   display: inline-block;
   margin-left: 0.4rem;

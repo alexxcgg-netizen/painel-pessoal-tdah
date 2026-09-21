@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from datetime import date, datetime, timedelta
@@ -446,16 +447,74 @@ def _buscar_resumo_construtora() -> dict | None:
         return None
 
 
+def _buscar_contas_a_vencer_construtora(dias: int = 30) -> dict | None:
+    """Busca as contas a pagar a vencer/vencidas na API da construtora - None se nao
+    configurado ou se a chamada falhar por qualquer motivo (nunca quebra quem chamar)."""
+    base_url = os.environ.get("CONSTRUTORA_API_URL")
+    api_key = os.environ.get("CONSTRUTORA_API_KEY")
+    if not base_url or not api_key:
+        return None
+    try:
+        resp = requests.get(
+            f"{base_url}/api/contas_a_vencer",
+            headers={"X-API-Key": api_key},
+            params={"dias": dias},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except requests.RequestException:
+        return None
+
+
+def _id_estavel_conta(conta: dict) -> int:
+    """ID estavel (mesmos dados -> mesmo numero) pra dar pra `notificacoes_enviadas`
+    deduplicar - a API externa da construtora nao expoe o id real da linha no banco dela
+    (decisao deles: 'so o essencial'), entao deriva um a partir dos campos que a
+    identificam. Muda se a conta for editada do lado da construtora, o que so faz a
+    notificacao repetir, nunca sumir - comportamento seguro."""
+    chave = f"{conta.get('vencimento')}|{conta.get('valor')}|{conta.get('fornecedor')}|{conta.get('descricao')}"
+    digest = hashlib.sha1(chave.encode("utf-8")).digest()[:8]
+    return int.from_bytes(digest, "big") % (2**62)
+
+
+def _construtora_contexto_contas() -> str | None:
+    """Frase factual sobre a proxima conta a pagar da construtora (vencendo ou ja
+    vencida) pro resumo do dia / chat - so numeros que ja vieram prontos da API,
+    nenhuma conta feita aqui nem pela IA."""
+    dados = _buscar_contas_a_vencer_construtora(dias=30)
+    if not dados or dados.get("status") != "ok":
+        return None
+    contas = dados.get("contas") or []
+    if not contas:
+        return None
+    proxima = contas[0]
+    dias_ate = proxima["dias_ate_vencer"]
+    if dias_ate < 0:
+        quando = f"vencida ha {abs(dias_ate)} dia(s)"
+    elif dias_ate == 0:
+        quando = "vence hoje"
+    else:
+        quando = f"vence em {dias_ate} dia(s)"
+    quem = proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor nao informado"
+    extra = f", mais {len(contas) - 1} outra(s) conta(s) em aberto" if len(contas) > 1 else ""
+    return f"proxima conta a pagar da construtora: {quem}, R$ {proxima['valor']:.2f}, {quando}{extra}"
+
+
 def _construtora_contexto_resumo() -> str | None:
     """Frase factual pro resumo do dia / chat - so numeros que ja vieram prontos da
     API da construtora, nenhuma conta feita aqui nem pela IA."""
     dados = _buscar_resumo_construtora()
     if not dados or dados.get("status") != "ok":
         return None
-    return (
+    texto = (
         f"entradas R$ {dados['tot_entradas']:.2f}, saidas R$ {dados['tot_saidas']:.2f}, "
         f"lucro liquido R$ {dados['lucro_liquido']:.2f}, margem {dados['margem']:.1f}%"
     )
+    contas_texto = _construtora_contexto_contas()
+    if contas_texto:
+        texto += f"; {contas_texto}"
+    return texto
 
 
 def _clima_contexto_resumo() -> str | None:
@@ -1110,6 +1169,32 @@ def verificar_e_notificar():
     if msg and not ja_notificou_hoje(conn, "currency_voo"):
         avisos.append(("currency_voo", 0, "Faz tempo que voce nao voa", msg))
 
+    # Contas a pagar da construtora vencendo/vencidas (v3.99.16 do outro lado):
+    # so avisa o que realmente precisa de atencao agora - vencida ou vencendo nos
+    # proximos 3 dias - pra nao virar ruido com toda conta em aberto todo dia.
+    dados_contas = _buscar_contas_a_vencer_construtora(dias=30)
+    if dados_contas and dados_contas.get("status") == "ok":
+        for conta in dados_contas.get("contas", []):
+            dias_ate = conta["dias_ate_vencer"]
+            if dias_ate > 3:
+                continue
+            ref_id = _id_estavel_conta(conta)
+            if ja_notificou_hoje(conn, "conta_a_vencer", ref_id):
+                continue
+            quem = conta.get("fornecedor") or conta.get("descricao") or "fornecedor nao informado"
+            if dias_ate < 0:
+                quando = f"venceu ha {abs(dias_ate)} dia(s)"
+            elif dias_ate == 0:
+                quando = "vence hoje"
+            else:
+                quando = f"vence em {dias_ate} dia(s)"
+            avisos.append((
+                "conta_a_vencer",
+                ref_id,
+                "Conta a pagar (construtora)",
+                f"{quem}: R$ {conta['valor']:.2f} - {quando}.",
+            ))
+
     for tarefa in notificacoes.tarefas_aguardando_bom_tempo(conn):
         if ja_notificou_hoje(conn, "clima_tarefa", tarefa["id"]):
             continue
@@ -1680,7 +1765,10 @@ def construtora_resumo():
     except requests.RequestException:
         return jsonify({"configurado": True, "erro": "Nao consegui falar com a API da construtora agora."}), 502
 
-    return jsonify({"configurado": True, "dados": resp.json()})
+    dados_contas = _buscar_contas_a_vencer_construtora(dias=30)
+    contas = dados_contas.get("contas") if dados_contas and dados_contas.get("status") == "ok" else None
+
+    return jsonify({"configurado": True, "dados": resp.json(), "contas": contas})
 
 
 TAMANHO_MAX_PDF_BYTES = 15 * 1024 * 1024  # 15MB - cabe folgado num orcamento escaneado
