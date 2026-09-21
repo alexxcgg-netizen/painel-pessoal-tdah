@@ -1,4 +1,10 @@
-const CACHE_NAME = "painel-pessoal-v2";
+// v3: antes disso o fetch era cache-first pra TUDO (inclusive "/" no precache), e sem
+// handler de "activate" - um SW instalado uma vez, sem o proprio arquivo mudar, nunca
+// buscava versao nova de HTML/CSS/JS (o navegador so reinstala quando o BYTE do
+// service-worker.js muda). Trocado pra network-first: sempre tenta a rede primeiro
+// (app atualizado, dado financeiro/tarefas nunca vem de cache velho), cai pro cache
+// so quando a rede falha (funciona offline). "activate" limpa cache de versao antiga.
+const CACHE_NAME = "painel-pessoal-v3";
 const ASSETS = [
   "/",
   "/static/css/style.css",
@@ -12,11 +18,30 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
 });
 
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((nomes) => Promise.all(nomes.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))))
+      .then(() => self.clients.claim())
+  );
+});
+
 self.addEventListener("fetch", (event) => {
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
+  if (event.request.method !== "GET") return;
+  event.respondWith(
+    fetch(event.request)
+      .then((res) => {
+        const copia = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copia));
+        return res;
+      })
+      .catch(() => caches.match(event.request))
+  );
 });
 
 self.addEventListener("push", (event) => {
