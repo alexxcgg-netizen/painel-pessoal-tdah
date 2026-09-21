@@ -408,6 +408,30 @@ function explodirConcluido(origemEl) {
   setTimeout(() => wrap.remove(), 650);
 }
 
+// Cache do ultimo resumo com sucesso (so o texto/numeros, nada de PII alem do que ja
+// aparece na tela) - se abrir o painel sem rede, mostra o ultimo estado conhecido em
+// vez de uma tela vazia. Por viewer/dispositivo so, nunca sincroniza entre aparelhos -
+// e so uma conveniencia visual, cada leitura/escrita protegida (localStorage pode
+// falhar ou nao existir: aba anonima, storage bloqueado etc).
+const CHAVE_CACHE_RESUMO = "painel:ultimo-resumo";
+
+function salvarResumoCache(data) {
+  try {
+    localStorage.setItem(CHAVE_CACHE_RESUMO, JSON.stringify(data));
+  } catch {
+    // ignora - cache e so uma conveniencia, nunca deve quebrar o carregamento
+  }
+}
+
+function lerResumoCache() {
+  try {
+    const bruto = localStorage.getItem(CHAVE_CACHE_RESUMO);
+    return bruto ? JSON.parse(bruto) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function loadSummary() {
   const resumoEl = $("#resumo-texto");
   resumoEl.classList.add("carregando");
@@ -426,20 +450,26 @@ async function loadSummary() {
   }
 
   resumoEl.classList.remove("carregando");
-  if (!data) {
+
+  const dadosPraMostrar = data || lerResumoCache();
+  if (!dadosPraMostrar) {
     resumoEl.textContent = "Nao consegui gerar o resumo agora.";
     return;
   }
-  animarNumero($("#stat-gasto"), data.gasto_hoje, fmtMoeda);
+  animarNumero($("#stat-gasto"), dadosPraMostrar.gasto_hoje, fmtMoeda);
   const planejadoEl = $("#stat-gasto-planejado");
-  if (data.gasto_planejado > 0) {
-    planejadoEl.textContent = `+${fmtMoeda(data.gasto_planejado)} planejado`;
+  if (dadosPraMostrar.gasto_planejado > 0) {
+    planejadoEl.textContent = `+${fmtMoeda(dadosPraMostrar.gasto_planejado)} planejado`;
     planejadoEl.hidden = false;
   } else {
     planejadoEl.hidden = true;
   }
-  resumoEl.textContent = data.summary;
-  $("#resumo-stats").textContent = `${data.tarefas_concluidas} tarefa(s) concluida(s) hoje`;
+  resumoEl.textContent = dadosPraMostrar.summary;
+  $("#resumo-stats").textContent = data
+    ? `${data.tarefas_concluidas} tarefa(s) concluida(s) hoje`
+    : `${dadosPraMostrar.tarefas_concluidas} tarefa(s) concluida(s) - sem conexao, mostrando o ultimo resumo salvo`;
+
+  if (data) salvarResumoCache(data);
 }
 
 async function loadStreak() {
