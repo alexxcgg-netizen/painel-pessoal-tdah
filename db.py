@@ -159,6 +159,24 @@ def init_db():
             tentativas INTEGER NOT NULL DEFAULT 0,
             bloqueado_ate REAL NOT NULL DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS uber_pedidos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            origem TEXT,
+            destino TEXT NOT NULL,
+            origem_lat REAL,
+            origem_lng REAL,
+            destino_lat REAL,
+            destino_lng REAL,
+            product_id TEXT,
+            disparar_em TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'aguardando',
+            fare_id TEXT,
+            preco_texto TEXT,
+            request_id TEXT,
+            erro TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -443,4 +461,57 @@ def list_voos(conn) -> list[dict]:
 
 def delete_voo(conn, voo_id: int):
     conn.execute("DELETE FROM voos WHERE id = ?", (voo_id,))
+    conn.commit()
+
+
+def criar_uber_pedido(conn, origem: str | None, destino: str, disparar_em: str) -> int:
+    cur = conn.execute(
+        "INSERT INTO uber_pedidos (origem, destino, disparar_em) VALUES (?, ?, ?)",
+        (origem, destino, disparar_em),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def uber_pedidos_para_disparar(conn, agora_iso: str) -> list[dict]:
+    """Pedidos ainda 'aguardando' (contagem regressiva rodando) cujo horario
+    de disparar a estimativa ja chegou."""
+    rows = conn.execute(
+        "SELECT * FROM uber_pedidos WHERE status = 'aguardando' AND disparar_em <= ?",
+        (agora_iso,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def uber_pedido(conn, pedido_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM uber_pedidos WHERE id = ?", (pedido_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def uber_pedidos_aguardando_confirmacao(conn) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM uber_pedidos WHERE status = 'aguardando_confirmacao' ORDER BY criado_em"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+_UBER_PEDIDO_COLUNAS = {
+    "origem_lat", "origem_lng", "destino_lat", "destino_lng", "product_id",
+    "status", "fare_id", "preco_texto", "request_id", "erro",
+}
+
+
+def atualizar_uber_pedido(conn, pedido_id: int, **campos):
+    """Atualiza so os campos passados. As chaves de 'campos' sao sempre
+    literais escritas no proprio codigo (nunca vem de input externo), mas
+    a whitelist evita que um nome de campo errado vire SQL invalido calado."""
+    invalidos = set(campos) - _UBER_PEDIDO_COLUNAS
+    if invalidos:
+        raise ValueError(f"campo(s) invalido(s) pra uber_pedidos: {invalidos}")
+    if not campos:
+        return
+    colunas = ", ".join(f"{c} = ?" for c in campos)
+    conn.execute(
+        f"UPDATE uber_pedidos SET {colunas} WHERE id = ?", (*campos.values(), pedido_id)
+    )
     conn.commit()

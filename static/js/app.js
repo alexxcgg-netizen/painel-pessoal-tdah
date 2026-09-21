@@ -463,7 +463,63 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && Date.now() - climaUltimoLoad > 5 * 60 * 1000) {
     loadClimaHoje();
   }
+  if (document.visibilityState === "visible") loadUberPendentes();
 });
+
+async function loadUberPendentes() {
+  const data = await apiFetch("/api/uber/pedidos");
+  const box = $("#uber-pendentes");
+  box.innerHTML = "";
+  if (!data || data.length === 0) return;
+
+  data.forEach((p) => {
+    const card = document.createElement("div");
+    card.className = "uber-pendente-card";
+
+    const titulo = document.createElement("p");
+    titulo.className = "uber-pendente-titulo";
+    titulo.textContent = `Uber pra ${p.destino}`;
+    card.appendChild(titulo);
+
+    const preco = document.createElement("p");
+    preco.className = "uber-pendente-preco";
+    preco.textContent = p.preco_texto || "preco nao disponivel";
+    card.appendChild(preco);
+
+    const acoes = document.createElement("div");
+    acoes.className = "uber-pendente-acoes";
+
+    const btnConfirmar = document.createElement("button");
+    btnConfirmar.className = "uber-btn-confirmar";
+    btnConfirmar.textContent = "Confirmar";
+    btnConfirmar.addEventListener("click", async () => {
+      btnConfirmar.disabled = true;
+      btnCancelar.disabled = true;
+      const r = await apiFetch(`/api/uber/pedidos/${p.id}/confirmar`, { method: "POST" });
+      if (r && r.ok) {
+        loadUberPendentes();
+      } else {
+        btnConfirmar.disabled = false;
+        btnCancelar.disabled = false;
+      }
+    });
+
+    const btnCancelar = document.createElement("button");
+    btnCancelar.className = "uber-btn-cancelar";
+    btnCancelar.textContent = "Cancelar";
+    btnCancelar.addEventListener("click", async () => {
+      btnConfirmar.disabled = true;
+      btnCancelar.disabled = true;
+      await apiFetch(`/api/uber/pedidos/${p.id}/cancelar`, { method: "POST" });
+      loadUberPendentes();
+    });
+
+    acoes.appendChild(btnConfirmar);
+    acoes.appendChild(btnCancelar);
+    card.appendChild(acoes);
+    box.appendChild(card);
+  });
+}
 
 function fmtHora(isoString) {
   const d = new Date(isoString);
@@ -1680,6 +1736,7 @@ loadSummary();
 loadUso();
 loadStreak();
 loadClimaHoje();
+loadUberPendentes();
 loadAgenda();
 loadFechamentoDoDia();
 loadMemorias();

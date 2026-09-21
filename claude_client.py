@@ -140,6 +140,12 @@ abastecer no meio do caminho, chame tambem `sugerir_posto_no_caminho` - deixe be
 que e so a localizacao de um posto por perto, sem comparar preco entre postos (essa informacao eu
 nao tenho de onde tirar confiavel pro Brasil).
 
+Quando o Alex pedir um Uber (ex: "pede um Uber pra tal lugar daqui 20 minutos"), chame
+`agendar_uber` - isso NUNCA pede a corrida nem cobra nada na hora, so agenda pra buscar o preco
+real mais perto do horario e pedir a confirmacao dele antes de qualquer coisa acontecer de
+verdade. Na resposta, deixe claro que voce vai avisar com o preco quando chegar a hora, nunca
+diga que "ja pediu" o Uber.
+
 Voo pode ser so um compromisso futuro (ex: "vou voar pra Blumenau semana que vem" - sem horas
 ainda) ou um voo ja realizado (ex: "voei 1.5h hoje, treino de pouso" - com horas). Nao invente
 numero de horas nem meta de horas de curso - isso varia por escola/etapa e so o Alex sabe o
@@ -381,6 +387,34 @@ CHAT_TOOLS = [
                 },
             },
             "required": ["destino"],
+        },
+    },
+    {
+        "name": "agendar_uber",
+        "description": (
+            "Agenda um pedido de Uber pra daqui X minutos - NUNCA pede a corrida na hora nem "
+            "cobra nada aqui. Passado esse tempo, o painel busca o preco real e manda um aviso "
+            "pro Alex confirmar antes de qualquer coisa ser cobrada de verdade. Use quando o "
+            "Alex pedir um Uber por voz (ex: 'pede um Uber pra tal lugar daqui 20 minutos')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "destino": {"type": "string"},
+                "origem": {
+                    "type": "string",
+                    "description": "omita pra usar o endereco padrao de casa do Alex",
+                },
+                "minutos": {
+                    "type": "integer",
+                    "description": (
+                        "quantos minutos esperar antes de buscar o preco e pedir confirmacao - "
+                        "use 0 se ele quiser 'agora' (o painel confere a cada poucos minutos, "
+                        "entao 'agora' pode levar ate uns 5 minutos pra aparecer o aviso de preco)"
+                    ),
+                },
+            },
+            "required": ["destino", "minutos"],
         },
     },
 ]

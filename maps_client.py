@@ -75,7 +75,7 @@ def horario_de_saida(
     }
 
 
-def _geocodificar(endereco: str) -> tuple[float, float]:
+def geocodificar(endereco: str) -> tuple[float, float]:
     resp = requests.get(
         GEOCODE_URL,
         params={"address": endereco, "key": os.environ["GOOGLE_MAPS_API_KEY"]},
@@ -96,8 +96,8 @@ def posto_no_meio_do_caminho(origem: str, destino: str) -> dict | None:
     desse ponto. So localizacao: a Google Places API nao tem preco de
     combustivel confiavel pro Brasil, entao isso nunca compara preco entre
     postos, so aponta onde parar. None se nao achar nenhum por perto."""
-    lat1, lng1 = _geocodificar(origem)
-    lat2, lng2 = _geocodificar(destino)
+    lat1, lng1 = geocodificar(origem)
+    lat2, lng2 = geocodificar(destino)
     lat_meio, lng_meio = (lat1 + lat2) / 2, (lng1 + lng2) / 2
 
     body = {

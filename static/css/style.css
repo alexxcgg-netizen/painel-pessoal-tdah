@@ -1997,6 +1997,67 @@ li.item.item-planejado {
   animation: chamaFlicker 2s ease-in-out infinite;
 }
 
+.uber-pendente-card {
+  background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 70%);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent), var(--shadow-card);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.95rem;
+  margin-bottom: 0.75rem;
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+.uber-pendente-titulo {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.uber-pendente-preco {
+  font-family: var(--font-numeros);
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-top: 0.2rem;
+}
+
+.uber-pendente-acoes {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.uber-pendente-acoes button {
+  flex: 1;
+  padding: 0.55rem;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.uber-pendente-acoes button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.uber-btn-confirmar {
+  border: none;
+  background: var(--accent-fill);
+  color: var(--accent-text);
+}
+
+.uber-btn-cancelar {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+@media (hover: hover) {
+  .uber-pendente-acoes button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
 .form-linha {
   display: flex;
   flex-wrap: wrap;

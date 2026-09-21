@@ -1882,6 +1882,262 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res2.get_json()["avisos_enviados"], 0)
         mock_enviar.assert_called_once()
 
+    # ---- Uber: agendar, estimar (com preco travado) e so pedir com confirmacao ----
+
+    def test_agendar_uber_cria_pedido_pendente(self):
+        with patch("uber_client.configurado", return_value=True):
+            resultado = self._registrar_via_chat(
+                "agendar_uber", {"destino": "Aeroporto", "minutos": 20}
+            )
+        self.assertTrue(resultado["ok"])
+        self.assertEqual(resultado["minutos"], 20)
+
+        conn = db.get_db()
+        pedido = conn.execute("SELECT * FROM uber_pedidos WHERE id = ?", (resultado["pedido_id"],)).fetchone()
+        conn.close()
+        self.assertEqual(pedido["destino"], "Aeroporto")
+        self.assertEqual(pedido["status"], "aguardando")
+        disparar_em = datetime.fromisoformat(pedido["disparar_em"])
+        self.assertAlmostEqual(
+            (disparar_em - datetime.now()).total_seconds(), 20 * 60, delta=10
+        )
+
+    def test_agendar_uber_minutos_negativo_vira_zero(self):
+        with patch("uber_client.configurado", return_value=True):
+            resultado = self._registrar_via_chat(
+                "agendar_uber", {"destino": "Aeroporto", "minutos": -5}
+            )
+        self.assertEqual(resultado["minutos"], 0)
+
+    def test_agendar_uber_sem_configurar_retorna_erro(self):
+        with patch("uber_client.configurado", return_value=False):
+            resultado = self._registrar_via_chat(
+                "agendar_uber", {"destino": "Aeroporto", "minutos": 10}
+            )
+        self.assertIn("erro", resultado)
+
+    def _criar_uber_pedido_pronto_pra_disparar(self, destino="Aeroporto", origem=None, minutos_atras=1):
+        conn = db.get_db()
+        disparar_em = (datetime.now() - timedelta(minutes=minutos_atras)).isoformat()
+        pedido_id = db.criar_uber_pedido(conn, origem, destino, disparar_em)
+        conn.close()
+        return pedido_id
+
+    def _configurar_uber_conectado(self):
+        conn = db.get_db()
+        db.definir_configuracao(conn, "uber_access_token", "token-valido")
+        db.definir_configuracao(conn, "uber_refresh_token", "refresh-valido")
+        db.definir_configuracao(
+            conn, "uber_token_expira_em", (datetime.now() + timedelta(hours=1)).isoformat()
+        )
+        conn.close()
+
+    def test_verificar_dispara_estimativa_uber_e_notifica_preco(self):
+        pedido_id = self._criar_uber_pedido_pronto_pra_disparar()
+        self._configurar_uber_conectado()
+        sub = {"endpoint": "https://exemplo.com/push/uber1", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 100"}), patch(
+            "uber_client.configurado", return_value=True
+        ), patch("maps_client.geocodificar", side_effect=[(-27.0, -49.0), (-27.1, -49.1)]), patch(
+            "uber_client.produto_padrao", return_value="uberx-id"
+        ), patch(
+            "uber_client.estimar_corrida",
+            return_value={"fare_id": "fare-123", "preco_texto": "R$32,50", "eta_minutos": 6},
+        ), patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        corpo = mock_enviar.call_args[0][2]
+        self.assertIn("R$32,50", corpo)
+
+        conn = db.get_db()
+        pedido = db.uber_pedido(conn, pedido_id)
+        conn.close()
+        self.assertEqual(pedido["status"], "aguardando_confirmacao")
+        self.assertEqual(pedido["fare_id"], "fare-123")
+
+    def test_verificar_uber_sem_token_nao_dispara(self):
+        self._criar_uber_pedido_pronto_pra_disparar()
+        sub = {"endpoint": "https://exemplo.com/push/uber2", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("uber_client.configurado", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        mock_enviar.assert_not_called()
+
+    def test_verificar_uber_pedido_no_futuro_nao_dispara_ainda(self):
+        conn = db.get_db()
+        disparar_em = (datetime.now() + timedelta(minutes=15)).isoformat()
+        pedido_id = db.criar_uber_pedido(conn, None, "Aeroporto", disparar_em)
+        conn.close()
+        self._configurar_uber_conectado()
+        sub = {"endpoint": "https://exemplo.com/push/uber3", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("uber_client.configurado", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        mock_enviar.assert_not_called()
+        conn = db.get_db()
+        pedido = db.uber_pedido(conn, pedido_id)
+        conn.close()
+        self.assertEqual(pedido["status"], "aguardando")
+
+    def test_verificar_uber_erro_de_geocodificacao_marca_pedido_com_erro(self):
+        pedido_id = self._criar_uber_pedido_pronto_pra_disparar()
+        self._configurar_uber_conectado()
+        sub = {"endpoint": "https://exemplo.com/push/uber4", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 100"}), patch(
+            "uber_client.configurado", return_value=True
+        ), patch("maps_client.geocodificar", side_effect=ValueError("nao encontrei o endereco")), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        mock_enviar.assert_not_called()
+        conn = db.get_db()
+        pedido = db.uber_pedido(conn, pedido_id)
+        conn.close()
+        self.assertEqual(pedido["status"], "erro")
+
+    def test_verificar_uber_sem_endereco_de_origem_marca_pedido_com_erro(self):
+        pedido_id = self._criar_uber_pedido_pronto_pra_disparar()
+        self._configurar_uber_conectado()
+        sub = {"endpoint": "https://exemplo.com/push/uber5", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch.dict(os.environ, {"ENDERECO_CASA": ""}), patch(
+            "uber_client.configurado", return_value=True
+        ), patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post("/api/notificacoes/verificar-agora")
+
+        mock_enviar.assert_not_called()
+        conn = db.get_db()
+        pedido = db.uber_pedido(conn, pedido_id)
+        conn.close()
+        self.assertEqual(pedido["status"], "erro")
+
+    def test_uber_pedidos_pendentes_lista_so_aguardando_confirmacao(self):
+        conn = db.get_db()
+        id_pronto = db.criar_uber_pedido(conn, None, "Aeroporto", datetime.now().isoformat())
+        db.atualizar_uber_pedido(conn, id_pronto, status="aguardando_confirmacao", preco_texto="R$20")
+        db.criar_uber_pedido(conn, None, "Shopping", datetime.now().isoformat())  # continua 'aguardando'
+        conn.close()
+
+        res = self.client.get("/api/uber/pedidos")
+        pedidos = res.get_json()
+        self.assertEqual(len(pedidos), 1)
+        self.assertEqual(pedidos[0]["destino"], "Aeroporto")
+
+    def test_uber_confirmar_pede_corrida_com_fare_id_travado(self):
+        conn = db.get_db()
+        pedido_id = db.criar_uber_pedido(conn, None, "Aeroporto", datetime.now().isoformat())
+        db.atualizar_uber_pedido(
+            conn,
+            pedido_id,
+            status="aguardando_confirmacao",
+            origem_lat=-27.0,
+            origem_lng=-49.0,
+            destino_lat=-27.1,
+            destino_lng=-49.1,
+            product_id="uberx-id",
+            fare_id="fare-123",
+            preco_texto="R$32,50",
+        )
+        conn.close()
+        self._configurar_uber_conectado()
+
+        with patch(
+            "uber_client.pedir_corrida",
+            return_value={"request_id": "req-789", "status": "processing"},
+        ) as mock_pedir:
+            res = self.client.post(f"/api/uber/pedidos/{pedido_id}/confirmar")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["request_id"], "req-789")
+        mock_pedir.assert_called_once_with(-27.0, -49.0, -27.1, -49.1, "uberx-id", "fare-123", "token-valido")
+
+        conn = db.get_db()
+        pedido = db.uber_pedido(conn, pedido_id)
+        conn.close()
+        self.assertEqual(pedido["status"], "confirmado")
+        self.assertEqual(pedido["request_id"], "req-789")
+
+    def test_uber_confirmar_pedido_ja_tratado_devolve_404(self):
+        conn = db.get_db()
+        pedido_id = db.criar_uber_pedido(conn, None, "Aeroporto", datetime.now().isoformat())
+        db.atualizar_uber_pedido(conn, pedido_id, status="confirmado")
+        conn.close()
+
+        res = self.client.post(f"/api/uber/pedidos/{pedido_id}/confirmar")
+        self.assertEqual(res.status_code, 404)
+
+    def test_uber_confirmar_pedido_inexistente_devolve_404(self):
+        res = self.client.post("/api/uber/pedidos/9999/confirmar")
+        self.assertEqual(res.status_code, 404)
+
+    def test_uber_cancelar_marca_status_cancelado(self):
+        conn = db.get_db()
+        pedido_id = db.criar_uber_pedido(conn, None, "Aeroporto", datetime.now().isoformat())
+        db.atualizar_uber_pedido(conn, pedido_id, status="aguardando_confirmacao")
+        conn.close()
+
+        res = self.client.post(f"/api/uber/pedidos/{pedido_id}/cancelar")
+        self.assertEqual(res.status_code, 200)
+
+        conn = db.get_db()
+        pedido = db.uber_pedido(conn, pedido_id)
+        conn.close()
+        self.assertEqual(pedido["status"], "cancelado")
+
+    def test_uber_conectar_sem_configurar_devolve_erro(self):
+        with patch("uber_client.configurado", return_value=False):
+            res = self.client.get("/uber/conectar")
+        self.assertEqual(res.status_code, 400)
+
+    def test_uber_conectar_redireciona_pra_autorizacao_da_uber(self):
+        with patch.dict(os.environ, {"UBER_CLIENT_ID": "meu-id"}), patch(
+            "uber_client.configurado", return_value=True
+        ):
+            res = self.client.get("/uber/conectar", follow_redirects=False)
+        self.assertEqual(res.status_code, 302)
+        self.assertIn("login.uber.com", res.headers["Location"])
+
+    def test_uber_callback_sem_codigo_devolve_erro(self):
+        res = self.client.get("/uber/callback")
+        self.assertEqual(res.status_code, 400)
+
+    def test_uber_callback_com_erro_da_uber_devolve_erro(self):
+        res = self.client.get("/uber/callback?error=access_denied")
+        self.assertEqual(res.status_code, 400)
+
+    def test_uber_callback_troca_codigo_e_guarda_token(self):
+        dados = {"access_token": "novo-token", "refresh_token": "novo-refresh", "expires_in": 2592000}
+        with patch("uber_client.trocar_codigo_por_token", return_value=dados) as mock_trocar:
+            res = self.client.get("/uber/callback?code=codigo-abc")
+        self.assertEqual(res.status_code, 200)
+        mock_trocar.assert_called_once()
+        self.assertEqual(mock_trocar.call_args[0][0], "codigo-abc")
+
+        conn = db.get_db()
+        self.assertEqual(db.obter_configuracao(conn, "uber_access_token"), "novo-token")
+        self.assertEqual(db.obter_configuracao(conn, "uber_refresh_token"), "novo-refresh")
+        conn.close()
+
     # ---- Cenario real: mensagem corrida de manha com varias coisas juntas ----
     # (o exemplo que o Alex deu: material de obra + gravar video na obra + voo
     # as 14h + gasto ja feito de gasolina + gasto planejado de reabastecer +

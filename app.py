@@ -22,15 +22,19 @@ import notificacoes
 import pluggy_client
 import push_client
 import streak
+import uber_client
 import viagem
 import voos as voos_module
 from db import (
     CAMPOS_SAUDE,
     add_to_goal,
+    atualizar_uber_pedido,
     create_goal,
     create_lembrete,
     create_memoria,
     create_voo,
+    criar_uber_pedido,
+    definir_configuracao,
     delete_lembrete,
     delete_memoria,
     delete_push_subscription,
@@ -51,11 +55,15 @@ from db import (
     list_voos,
     marcar_notificado,
     media_passos_ultimos_dias,
+    obter_configuracao,
     record_usage,
     registrar_atividade,
     salvar_mensagem_chat,
     save_push_subscription,
     total_cost_usd,
+    uber_pedido,
+    uber_pedidos_aguardando_confirmacao,
+    uber_pedidos_para_disparar,
     upsert_saude_dia,
 )
 
@@ -794,6 +802,14 @@ def chat():
             return {"erro": "nao achei nenhum posto perto do meio do caminho"}
         return posto
 
+    def exec_agendar_uber(entrada):
+        if not uber_client.configurado():
+            return {"erro": "Uber nao conectado ainda"}
+        minutos = max(entrada.get("minutos", 0), 0)
+        disparar_em = (datetime.now() + timedelta(minutes=minutos)).isoformat()
+        pedido_id = criar_uber_pedido(conn, entrada.get("origem"), entrada["destino"], disparar_em)
+        return {"ok": True, "pedido_id": pedido_id, "minutos": minutos}
+
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
@@ -805,6 +821,7 @@ def chat():
         "sugerir_horario_livre": exec_sugerir_horario_livre,
         "calcular_gasto_viagem": exec_calcular_gasto_viagem,
         "sugerir_posto_no_caminho": exec_sugerir_posto_no_caminho,
+        "agendar_uber": exec_agendar_uber,
     }
 
     result, error = _call_claude(
@@ -857,6 +874,70 @@ def _aviso_voo_sair(voo: dict, janela_minutos: int = 25) -> str | None:
     return (
         f"Saia ate as {hora_txt} pra chegar a tempo do voo das {voo['hora']} "
         f"pra {voo['destino']} (trajeto de {resultado['duracao_minutos']}min)."
+    )
+
+
+def _uber_token_valido(conn) -> str | None:
+    """Devolve um access_token utilizavel pra API da Uber, renovando com o
+    refresh_token guardado se o atual ja expirou. None se a conta nunca foi
+    conectada ainda (ver rota /uber/conectar)."""
+    access_token = obter_configuracao(conn, "uber_access_token")
+    refresh_token = obter_configuracao(conn, "uber_refresh_token")
+    expira_em = obter_configuracao(conn, "uber_token_expira_em")
+    if not access_token or not refresh_token:
+        return None
+    if expira_em and datetime.fromisoformat(expira_em) > datetime.now():
+        return access_token
+
+    try:
+        dados = uber_client.renovar_token(refresh_token)
+    except requests.RequestException:
+        return None
+    novo_token = dados.get("access_token")
+    if not novo_token:
+        return None
+    definir_configuracao(conn, "uber_access_token", novo_token)
+    definir_configuracao(conn, "uber_refresh_token", dados.get("refresh_token", refresh_token))
+    nova_expiracao = datetime.now() + timedelta(seconds=dados.get("expires_in", 2592000))
+    definir_configuracao(conn, "uber_token_expira_em", nova_expiracao.isoformat())
+    return novo_token
+
+
+def _disparar_estimativa_uber(conn, pedido: dict, access_token: str) -> None:
+    """Busca o preco de verdade (com fare_id, que trava o valor cobrado) e
+    deixa o pedido pronto pro push de confirmacao - NUNCA pede a corrida
+    sozinho aqui. So depois do Alex confirmar explicitamente (endpoint
+    /api/uber/pedidos/<id>/confirmar) e que o dinheiro entra em jogo."""
+    origem = pedido.get("origem") or os.environ.get("ENDERECO_CASA", "").strip()
+    if not origem:
+        atualizar_uber_pedido(conn, pedido["id"], status="erro", erro="sem endereco de origem")
+        return
+    try:
+        origem_lat, origem_lng = maps_client.geocodificar(origem)
+        destino_lat, destino_lng = maps_client.geocodificar(pedido["destino"])
+        product_id = uber_client.produto_padrao(origem_lat, origem_lng, access_token)
+        estimativa = uber_client.estimar_corrida(
+            origem_lat, origem_lng, destino_lat, destino_lng, product_id, access_token
+        )
+    except (ValueError, requests.RequestException) as e:
+        atualizar_uber_pedido(conn, pedido["id"], status="erro", erro=str(e))
+        return
+
+    if not estimativa.get("fare_id"):
+        atualizar_uber_pedido(conn, pedido["id"], status="erro", erro="nao consegui obter o preco")
+        return
+
+    atualizar_uber_pedido(
+        conn,
+        pedido["id"],
+        status="aguardando_confirmacao",
+        origem_lat=origem_lat,
+        origem_lng=origem_lng,
+        destino_lat=destino_lat,
+        destino_lng=destino_lng,
+        product_id=product_id,
+        fare_id=estimativa["fare_id"],
+        preco_texto=estimativa["preco_texto"],
     )
 
 
@@ -922,6 +1003,26 @@ def verificar_e_notificar():
         marcar_notificado(conn, tipo, ref_id)
         enviados += 1
 
+    # Uber agendado: passou o tempo de espera, busca o preco de verdade
+    # (trava com fare_id) e avisa - a corrida so sai com confirmacao
+    # explicita do Alex, nunca automatica daqui.
+    if uber_client.configurado():
+        access_token = _uber_token_valido(conn)
+        if access_token:
+            for pedido in uber_pedidos_para_disparar(conn, datetime.now().isoformat()):
+                _disparar_estimativa_uber(conn, pedido, access_token)
+                atualizado = uber_pedido(conn, pedido["id"])
+                if atualizado and atualizado["status"] == "aguardando_confirmacao":
+                    for s in subs:
+                        sub_dict = json.loads(s["subscription_json"])
+                        push_client.enviar(
+                            sub_dict,
+                            "Hora do Uber",
+                            f"Uber pra {atualizado['destino']}: {atualizado['preco_texto']}. "
+                            "Abre o painel pra confirmar.",
+                        )
+                    enviados += 1
+
     conn.close()
     return enviados
 
@@ -930,6 +1031,97 @@ def verificar_e_notificar():
 def notificacoes_verificar_agora():
     enviados = verificar_e_notificar()
     return jsonify({"avisos_enviados": enviados})
+
+
+@app.route("/uber/conectar", methods=["GET"])
+def uber_conectar():
+    """Passo 1 do OAuth - so o Alex, ja logado no painel, clica nisso pra
+    autorizar o app com a propria conta Uber dele."""
+    if not uber_client.configurado():
+        return "Uber ainda nao configurado - defina UBER_CLIENT_ID e UBER_CLIENT_SECRET no .env.", 400
+    redirect_uri = request.host_url.rstrip("/") + "/uber/callback"
+    return redirect(uber_client.url_autorizacao(redirect_uri))
+
+
+@app.route("/uber/callback", methods=["GET"])
+def uber_callback():
+    """Passo 2 do OAuth - a Uber manda o Alex de volta pra ca com um codigo,
+    trocado aqui por um token de verdade (guardado na tabela configuracoes)."""
+    erro = request.args.get("error")
+    if erro:
+        return f"Autorizacao da Uber cancelada ou negada ({erro}).", 400
+    codigo = request.args.get("code")
+    if not codigo:
+        return "Codigo de autorizacao nao recebido.", 400
+
+    redirect_uri = request.host_url.rstrip("/") + "/uber/callback"
+    try:
+        dados = uber_client.trocar_codigo_por_token(codigo, redirect_uri)
+    except requests.RequestException:
+        return "Nao consegui trocar o codigo por um token - tenta de novo.", 502
+
+    conn = get_db()
+    definir_configuracao(conn, "uber_access_token", dados["access_token"])
+    definir_configuracao(conn, "uber_refresh_token", dados.get("refresh_token", ""))
+    expira_em = datetime.now() + timedelta(seconds=dados.get("expires_in", 2592000))
+    definir_configuracao(conn, "uber_token_expira_em", expira_em.isoformat())
+    conn.close()
+    return "Uber conectado! Pode fechar essa aba e voltar pro painel."
+
+
+@app.route("/api/uber/pedidos", methods=["GET"])
+def uber_pedidos_pendentes():
+    conn = get_db()
+    pedidos = uber_pedidos_aguardando_confirmacao(conn)
+    conn.close()
+    return jsonify(pedidos)
+
+
+@app.route("/api/uber/pedidos/<int:pedido_id>/confirmar", methods=["POST"])
+def uber_confirmar(pedido_id):
+    conn = get_db()
+    pedido = uber_pedido(conn, pedido_id)
+    if not pedido or pedido["status"] != "aguardando_confirmacao":
+        conn.close()
+        return jsonify({"error": "pedido nao encontrado ou ja tratado"}), 404
+
+    access_token = _uber_token_valido(conn)
+    if not access_token:
+        conn.close()
+        return jsonify({"error": "Uber nao conectado"}), 400
+
+    try:
+        resultado = uber_client.pedir_corrida(
+            pedido["origem_lat"],
+            pedido["origem_lng"],
+            pedido["destino_lat"],
+            pedido["destino_lng"],
+            pedido["product_id"],
+            pedido["fare_id"],
+            access_token,
+        )
+    except requests.RequestException as e:
+        atualizar_uber_pedido(conn, pedido_id, status="erro", erro=str(e))
+        conn.close()
+        return jsonify({"error": "nao consegui pedir a corrida agora"}), 502
+
+    atualizar_uber_pedido(
+        conn, pedido_id, status="confirmado", request_id=resultado.get("request_id") or ""
+    )
+    conn.close()
+    return jsonify({"ok": True, "request_id": resultado.get("request_id")})
+
+
+@app.route("/api/uber/pedidos/<int:pedido_id>/cancelar", methods=["POST"])
+def uber_cancelar(pedido_id):
+    conn = get_db()
+    pedido = uber_pedido(conn, pedido_id)
+    if not pedido:
+        conn.close()
+        return jsonify({"error": "pedido nao encontrado"}), 404
+    atualizar_uber_pedido(conn, pedido_id, status="cancelado")
+    conn.close()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/viagem/status", methods=["GET"])
