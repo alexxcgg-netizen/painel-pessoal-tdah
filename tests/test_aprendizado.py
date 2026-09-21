@@ -407,5 +407,276 @@ class LatenciaMediaHorasTestCase(unittest.TestCase):
         self.assertGreater(com_outlier, normal)
 
 
+class TokenizarTestCase(unittest.TestCase):
+    def test_ignora_preposicao_artigo_e_palavra_curta(self):
+        self.assertEqual(
+            aprendizado._tokenizar("cotar portas com o fornecedor de ferro"),
+            {"cotar", "portas", "fornecedor", "ferro"},
+        )
+
+    def test_texto_vazio(self):
+        self.assertEqual(aprendizado._tokenizar(""), set())
+        self.assertEqual(aprendizado._tokenizar(None), set())
+
+    def test_minusculas_e_acento_preservado(self):
+        self.assertIn("licença", aprendizado._tokenizar("Licença de voo"))
+
+
+class GrupoDbTestCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def _criar_task(self, title, due_date, completed_at):
+        cur = self.conn.execute(
+            "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+            (title, due_date, completed_at),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def _criar_espera(self, quem, criado_em, resolvido_em):
+        cur = self.conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em, resolvido_em) VALUES (?, ?, ?, ?)",
+            (quem, "algo", criado_em, resolvido_em),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def test_dias_atraso_por_titulo_semelhante_agrupa_por_token_comum(self):
+        self._criar_task("cotar portas com fornecedor", "2026-01-01", "2026-01-04 10:00:00")  # 3
+        self._criar_task("cotar vasos com fornecedor", "2026-01-10", "2026-01-13 10:00:00")  # 3
+        self._criar_task("lavar o carro", "2026-01-05", "2026-01-08 10:00:00")  # 3, sem token em comum
+        resultado = aprendizado.dias_atraso_por_titulo_semelhante(self.conn, "cotar piso com fornecedor")
+        self.assertEqual(sorted(resultado), [3, 3])
+
+    def test_dias_atraso_por_titulo_semelhante_sem_token_relevante_retorna_vazio(self):
+        self._criar_task("cotar portas com fornecedor", "2026-01-01", "2026-01-04 10:00:00")
+        resultado = aprendizado.dias_atraso_por_titulo_semelhante(self.conn, "de na o em")
+        self.assertEqual(resultado, [])
+
+    def test_dias_atraso_por_titulo_semelhante_exclui_id_informado(self):
+        task_id = self._criar_task("cotar portas com fornecedor", "2026-01-01", "2026-01-04 10:00:00")
+        resultado = aprendizado.dias_atraso_por_titulo_semelhante(
+            self.conn, "cotar portas com fornecedor", excluir_id=task_id
+        )
+        self.assertEqual(resultado, [])
+
+    def test_dias_espera_por_quem_semelhante_agrupa_por_token_comum(self):
+        self._criar_espera("fornecedor de ferro", "2026-01-01 10:00:00", "2026-01-06 10:00:00")  # 5
+        self._criar_espera("fornecedor de ferro ltda", "2026-02-01 10:00:00", "2026-02-08 10:00:00")  # 7
+        self._criar_espera("corretora do seguro", "2026-03-01 10:00:00", "2026-03-02 10:00:00")  # 1
+        resultado = aprendizado.dias_espera_por_quem_semelhante(self.conn, "o fornecedor de ferro")
+        self.assertEqual(sorted(resultado), [5, 7])
+
+    def test_dias_espera_por_quem_semelhante_exclui_id_informado(self):
+        espera_id = self._criar_espera("fornecedor de ferro", "2026-01-01 10:00:00", "2026-01-06 10:00:00")
+        resultado = aprendizado.dias_espera_por_quem_semelhante(
+            self.conn, "fornecedor de ferro", excluir_id=espera_id
+        )
+        self.assertEqual(resultado, [])
+
+    def test_janela_recente_limita_as_mais_novas(self):
+        # 3 tarefas antigas com 10 dias de atraso, 2 recentes com 1 dia -
+        # com janela=2, so as 2 mais recentes (por completed_at) devem contar.
+        for i in range(3):
+            self._criar_task(f"antiga {i}", "2020-01-01", "2020-01-11 10:00:00")
+        for i in range(2):
+            self._criar_task(f"recente {i}", "2026-01-01", "2026-01-02 10:00:00")
+        resultado = aprendizado.dias_atraso_historico_tarefas(self.conn, janela=2)
+        self.assertEqual(sorted(resultado), [1, 1])
+
+    def test_janela_maior_que_o_historico_devolve_tudo(self):
+        self._criar_task("a", "2026-01-01", "2026-01-02 10:00:00")
+        self._criar_task("b", "2026-01-05", "2026-01-06 10:00:00")
+        resultado = aprendizado.dias_atraso_historico_tarefas(self.conn, janela=100)
+        self.assertEqual(len(resultado), 2)
+
+    def test_janela_none_e_o_padrao_sem_quebrar_comportamento_antigo(self):
+        self._criar_task("a", "2026-01-01", "2026-01-02 10:00:00")
+        resultado_sem_janela = aprendizado.dias_atraso_historico_tarefas(self.conn)
+        self.assertEqual(resultado_sem_janela, [1])
+
+
+class AjustarPelaEficaciaTestCase(unittest.TestCase):
+    def test_sem_latencia_registrada_nao_ajusta(self):
+        self.assertEqual(aprendizado._ajustar_pela_eficacia(5, None, piso=1), 5)
+
+    def test_latencia_rapida_reduz_um_dia(self):
+        self.assertEqual(aprendizado._ajustar_pela_eficacia(5, 10.0, piso=1), 4)
+
+    def test_latencia_exatamente_no_limite_de_24h_reduz(self):
+        self.assertEqual(aprendizado._ajustar_pela_eficacia(5, 24.0, piso=1), 4)
+
+    def test_latencia_lenta_nao_reduz(self):
+        self.assertEqual(aprendizado._ajustar_pela_eficacia(5, 48.0, piso=1), 5)
+
+    def test_nunca_reduz_abaixo_do_piso(self):
+        self.assertEqual(aprendizado._ajustar_pela_eficacia(1, 5.0, piso=1), 1)
+
+
+class LimiarTarefaTestCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def test_sem_historico_nenhum_usa_padrao(self):
+        valor, info = aprendizado.limiar_tarefa(self.conn, "cotar portas")
+        self.assertEqual(valor, 3)
+        self.assertEqual(info["fonte"], "padrao")
+
+    def test_com_historico_especifico_suficiente_usa_ele(self):
+        for i in range(5):
+            self.conn.execute(
+                "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+                (f"cotar {i} com fornecedor", "2026-01-01", "2026-01-03 10:00:00"),  # 2 dias
+            )
+        self.conn.commit()
+        valor, info = aprendizado.limiar_tarefa(self.conn, "cotar piso com fornecedor")
+        self.assertEqual(valor, 2)
+        self.assertEqual(info["fonte"], "aprendido_especifico")
+
+    def test_sem_historico_especifico_mas_com_global_usa_global(self):
+        for i in range(5):
+            self.conn.execute(
+                "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+                (f"tarefa qualquer {i}", "2026-01-01", "2026-01-03 10:00:00"),  # 2 dias
+            )
+        self.conn.commit()
+        # titulo sem nenhuma palavra em comum com o historico existente
+        valor, info = aprendizado.limiar_tarefa(self.conn, "xyzabc123 completamente diferente")
+        self.assertEqual(valor, 2)
+        self.assertEqual(info["fonte"], "aprendido_global")
+
+    def test_eficacia_reduz_o_limiar_quando_resposta_e_rapida(self):
+        for i in range(5):
+            self.conn.execute(
+                "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+                (f"tarefa {i}", "2026-01-01", "2026-01-06 10:00:00"),  # 5 dias
+            )
+        self.conn.commit()
+        db.registrar_interacao_aprendizado(self.conn, "tarefa_parada", 999)
+        self.conn.execute(
+            "UPDATE interacoes_aprendizado SET resolvido_em = datetime('now'), latencia_horas = 2 "
+            "WHERE referencia_id = 999"
+        )
+        self.conn.commit()
+        valor, info = aprendizado.limiar_tarefa(self.conn, "tarefa nova qualquer")
+        self.assertEqual(valor, 4)  # 5 (aprendido) - 1 (eficacia)
+        self.assertTrue(info["ajustado_pela_eficacia"])
+
+    def test_task_id_exclui_a_propria_tarefa_do_calculo_especifico(self):
+        task_id = self.conn.execute(
+            "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+            ("cotar portas com fornecedor", "2026-01-01", "2026-01-03 10:00:00"),
+        ).lastrowid
+        self.conn.commit()
+        valor, info = aprendizado.limiar_tarefa(self.conn, "cotar portas com fornecedor", task_id=task_id)
+        self.assertEqual(info["fonte"], "padrao")  # a unica amostra era ela mesma, agora excluida
+
+
+class LimiarEsperaTestCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def test_sem_historico_usa_padrao(self):
+        valor, info = aprendizado.limiar_espera(self.conn, "fornecedor de ferro")
+        self.assertEqual(valor, 5)
+        self.assertEqual(info["fonte"], "padrao")
+
+    def test_com_historico_especifico_por_quem_usa_ele(self):
+        for i in range(5):
+            self.conn.execute(
+                "INSERT INTO esperas (quem, sobre, criado_em, resolvido_em) VALUES (?, ?, ?, ?)",
+                (
+                    "fornecedor de ferro",
+                    f"item {i}",
+                    "2026-01-01 10:00:00",
+                    "2026-01-04 10:00:00",  # 3 dias
+                ),
+            )
+        self.conn.commit()
+        valor, info = aprendizado.limiar_espera(self.conn, "o fornecedor de ferro")
+        self.assertEqual(valor, 3)
+        self.assertEqual(info["fonte"], "aprendido_especifico")
+
+
+class ProdutividadePorDiaSemanaTestCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def _criar_task(self, due_date, completed_at):
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+            ("tarefa", due_date, completed_at),
+        )
+        self.conn.commit()
+
+    def test_sem_historico_devolve_vazio(self):
+        self.assertEqual(aprendizado.produtividade_por_dia_semana(self.conn), {})
+
+    def test_dia_abaixo_do_minimo_de_amostras_fica_de_fora(self):
+        # segunda-feira 2026-01-05, so 2 amostras (minimo padrao e 3)
+        self._criar_task("2026-01-05", "2026-01-05 10:00:00")
+        self._criar_task("2026-01-05", "2026-01-05 10:00:00")
+        self.assertEqual(aprendizado.produtividade_por_dia_semana(self.conn), {})
+
+    def test_taxa_no_prazo_calculada_corretamente(self):
+        # 2026-01-05 e uma segunda (weekday 0) - 3 tarefas, 2 no prazo, 1 atrasada
+        self._criar_task("2026-01-05", "2026-01-05 10:00:00")
+        self._criar_task("2026-01-05", "2026-01-04 10:00:00")
+        self._criar_task("2026-01-05", "2026-01-10 10:00:00")  # atrasada
+        resultado = aprendizado.produtividade_por_dia_semana(self.conn)
+        self.assertAlmostEqual(resultado[0], 2 / 3)
+
+    def test_tarefa_ainda_nao_vencida_nao_conta(self):
+        futuro = (date.today() + timedelta(days=30)).isoformat()
+        self._criar_task(futuro, None)
+        self._criar_task(futuro, None)
+        self._criar_task(futuro, None)
+        self.assertEqual(aprendizado.produtividade_por_dia_semana(self.conn), {})
+
+    def test_tarefa_nunca_concluida_e_vencida_conta_como_fora_do_prazo(self):
+        passado = "2020-01-06"  # segunda
+        for _ in range(3):
+            self._criar_task(passado, None)
+        resultado = aprendizado.produtividade_por_dia_semana(self.conn)
+        self.assertEqual(resultado[0], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

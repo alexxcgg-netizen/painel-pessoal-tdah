@@ -43,6 +43,35 @@ class SugerirDiaMenosCorridoTestCase(unittest.TestCase):
         r = sugerir_dia_menos_corrido(carga, dias)
         self.assertEqual(r["data"], "2026-09-22")
 
+    def test_sem_produtividade_informada_comportamento_nao_muda(self):
+        dias = [date(2026, 9, 21), date(2026, 9, 22), date(2026, 9, 23)]
+        carga = {"2026-09-21": 3, "2026-09-22": 0, "2026-09-23": 2}
+        r = sugerir_dia_menos_corrido(carga, dias, produtividade_por_dia_semana=None)
+        self.assertEqual(r["data"], "2026-09-22")
+
+    def test_produtividade_desempata_carga_igual(self):
+        # segunda (21) e terca (22) empatam em carga; terca (weekday=1) tem
+        # produtividade historica bem maior - deve vencer o empate.
+        dias = [date(2026, 9, 21), date(2026, 9, 22)]
+        carga = {"2026-09-21": 1, "2026-09-22": 1}
+        r = sugerir_dia_menos_corrido(carga, dias, produtividade_por_dia_semana={0: 0.1, 1: 0.9})
+        self.assertEqual(r["data"], "2026-09-22")
+
+    def test_produtividade_nao_ganha_de_carga_bem_menor(self):
+        # terca tem carga bem maior mesmo com produtividade alta - o bonus e
+        # so um desempate fraco (peso 0.5), nunca deveria virar uma carga de
+        # verdade bem mais leve.
+        dias = [date(2026, 9, 21), date(2026, 9, 22)]
+        carga = {"2026-09-21": 0, "2026-09-22": 5}
+        r = sugerir_dia_menos_corrido(carga, dias, produtividade_por_dia_semana={0: 0.0, 1: 1.0})
+        self.assertEqual(r["data"], "2026-09-21")
+
+    def test_dia_sem_entrada_na_produtividade_nao_ganha_nem_perde_bonus(self):
+        dias = [date(2026, 9, 21), date(2026, 9, 22)]
+        carga = {"2026-09-21": 1, "2026-09-22": 1}
+        r = sugerir_dia_menos_corrido(carga, dias, produtividade_por_dia_semana={1: 0.9})
+        self.assertEqual(r["data"], "2026-09-22")
+
 
 class MaiorJanelaLivreTestCase(unittest.TestCase):
     def test_dia_totalmente_livre(self):

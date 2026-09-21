@@ -1815,7 +1815,7 @@ class PainelTestCase(unittest.TestCase):
         res = self.client.get("/api/aprendizado")
         dados = res.get_json()
         self.assertEqual(dados["tarefa_parada"]["dias_atual"], 2)
-        self.assertEqual(dados["tarefa_parada"]["fonte"], "aprendido")
+        self.assertEqual(dados["tarefa_parada"]["fonte"], "aprendido_global")
         self.assertEqual(dados["tarefa_parada"]["amostras"], 5)
 
     def test_verificar_agora_usa_limiar_aprendido_pra_cobrar_mais_cedo(self):
@@ -1849,6 +1849,51 @@ class PainelTestCase(unittest.TestCase):
             self.assertTrue(
                 any("responder a corretora" in c for c in corpos),
                 msg=f"deveria ter cobrado com o limiar aprendido: {corpos}",
+            )
+
+    def test_verificar_agora_usa_limiar_especifico_do_titulo_quando_ha_amostra(self):
+        # duas "familias" de tarefas com ritmos bem diferentes: "cotar X com
+        # fornecedor" sempre atrasa MUITO (10 dias) - o limiar especifico
+        # pra esse titulo devia ficar alto, sem cobrar cedo demais so por
+        # causa do aprendizado GLOBAL (que teria uma mediana bem menor,
+        # puxada por outra familia de tarefas rapidas).
+        conn = db.get_db()
+        for i in range(5):
+            due_rapida = (date.today() - timedelta(days=30 + i)).isoformat()
+            concluida_rapida = (date.today() - timedelta(days=29 + i)).isoformat() + " 10:00:00"
+            conn.execute(
+                "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+                (f"lavar o carro {i}", due_rapida, concluida_rapida),  # 1 dia de atraso
+            )
+        for i in range(5):
+            due_lenta = (date.today() - timedelta(days=60 + i)).isoformat()
+            concluida_lenta = (date.today() - timedelta(days=50 + i)).isoformat() + " 10:00:00"
+            conn.execute(
+                "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+                (f"cotar item {i} com fornecedor", due_lenta, concluida_lenta),  # 10 dias de atraso
+            )
+        # nova tarefa da familia "lenta", parada ha so 3 dias - o limiar
+        # global (puxado pelas rapidas) cobraria; o especifico (~10 dias) nao deveria
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)",
+            ("cotar telhas com fornecedor", tres_dias),
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+            corpos = [c.args[2] for c in mock_enviar.call_args_list]
+            self.assertFalse(
+                any("cotar telhas com fornecedor" in c for c in corpos),
+                msg=f"nao deveria ter cobrado ainda (familia lenta, so 3 dias parada): {corpos}",
             )
 
     def test_obter_silencio_retorna_padrao_quando_nao_configurado(self):
@@ -3774,6 +3819,39 @@ class PainelTestCase(unittest.TestCase):
         self.assertIn("sugestao_dia", resultado)
         self.assertNotEqual(resultado["sugestao_dia"]["data"], amanha)
         self.assertEqual(resultado["sugestao_dia"]["carga"], 0)
+
+    def test_sugestao_de_dia_usa_produtividade_pra_desempatar_carga_igual(self):
+        hoje = date.today()
+        if hoje.weekday() >= 5:
+            self.skipTest("precisa de pelo menos 2 dias uteis distintos candidatos essa semana")
+        dia_a = hoje + timedelta(days=1)
+        dia_b = hoje + timedelta(days=2)
+        conn = db.get_db()
+        # historico: tarefas com prazo no dia_b da semana sempre terminam no
+        # prazo; no dia_a da semana, nunca - produtividade real bem diferente
+        # entre os dois dias, mesmo sem nenhuma carga JA marcada pra essa semana.
+        for semanas_atras in range(1, 4):
+            devido_a = (dia_a - timedelta(weeks=semanas_atras)).isoformat()
+            devido_b = (dia_b - timedelta(weeks=semanas_atras)).isoformat()
+            conn.execute(
+                "INSERT INTO tasks (title, due_date) VALUES (?, ?)",  # nunca concluida = fora do prazo
+                (f"nunca feita a {semanas_atras}", devido_a),
+            )
+            conn.execute(
+                "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+                (f"feita no prazo b {semanas_atras}", devido_b, devido_b + " 08:00:00"),
+            )
+        conn.commit()
+        conn.close()
+
+        resultado = self._registrar_via_chat(
+            "registrar_tarefa", {"titulo": "algo novo", "quando": "essa semana"}
+        )
+        self.assertIn("sugestao_dia", resultado)
+        # sem carga nenhuma marcada, os dois dias empatam em 0 - a produtividade
+        # historica (dia_b sempre no prazo, dia_a quase nunca) deveria desempatar
+        # pro dia_b, nao pro mais proximo (regra antiga de desempate).
+        self.assertEqual(resultado["sugestao_dia"]["data"], dia_b.isoformat())
 
     def test_registrar_tarefa_com_data_certa_nao_sugere_dia(self):
         amanha = (date.today() + timedelta(days=1)).isoformat()

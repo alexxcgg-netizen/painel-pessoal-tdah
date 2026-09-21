@@ -520,11 +520,21 @@ da curva nao bagunçar o limiar, e sempre auditavel - nunca caixa preta.
 
 - So aprende com 5+ amostras de historico; antes disso, usa o padrao conservador de sempre (3 dias
   pra tarefa, 5 pra espera)
+- Aprende por GRUPO primeiro (tarefas com titulo parecido, esperas com o mesmo fornecedor/pessoa -
+  agrupado por palavra em comum, sem precisar de campo de categoria manual), so caindo pro
+  aprendizado global quando nao ha amostra especifica suficiente
+- O aprendizado global da mais peso ao que e recente (ultimas 20 amostras, nao a mediana de todo o
+  histórico desde sempre) - se voce mudou de ritmo, o painel percebe mais rapido
+- Tambem aprende se a propria cutucada esta funcionando: quando voce resolve rapido depois de
+  avisado, o limiar cai um pouco mais (vale cutucar cedo); quando nao, fica como estava
+- A sugestao de melhor dia pra tarefa sem data fixa tambem usa isso - entre dois dias com carga
+  parecida, prefere o dia em que voce historicamente da conta melhor (nao so o menos ocupado)
 - O valor aprendido fica sempre dentro de um piso/teto de segurança (nunca cobra no mesmo dia, nunca
   para de cobrar de vez)
-- `GET /api/aprendizado` mostra exatamente o que foi aprendido pra cada tipo - se veio do padrao ou
-  foi aprendido, quantas amostras, e a latencia media (quanto tempo voce demora a resolver depois de
-  ser cutucado)
+- Tudo isso roda 100% por tras das cameras - nenhuma tela do painel menciona o que foi aprendido, o
+  efeito aparece so no comportamento (quando cutuca, que dia sugere). `GET /api/aprendizado` existe
+  so como auditoria tecnica (nenhuma tela chama esse endpoint) - mostra o que foi aprendido pra cada
+  tipo, se veio do padrao ou foi aprendido, quantas amostras, e a latencia media de resposta
 
 ## Catch-up de fim do dia — "esqueci de te contar, mas eu fiz isso"
 

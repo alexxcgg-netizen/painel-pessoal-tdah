@@ -65,7 +65,6 @@ from db import (
     insert_bank_transactions,
     ja_notificado_alguma_vez,
     ja_notificou_hoje,
-    latencias_resolvidas,
     list_chat_mensagens,
     list_cotacoes,
     list_dias_ativos,
@@ -949,7 +948,8 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
             dias = agenda.dias_ate_o_fim_da_semana(date.today())
             if len(dias) > 1:
                 carga = _carga_por_dia(conn, dias)
-                resultado["sugestao_dia"] = agenda.sugerir_dia_menos_corrido(carga, dias)
+                produtividade = aprendizado.produtividade_por_dia_semana(conn)
+                resultado["sugestao_dia"] = agenda.sugerir_dia_menos_corrido(carga, dias, produtividade)
         return resultado
 
     def exec_registrar_gasto(entrada):
@@ -1326,24 +1326,56 @@ def verificar_e_notificar():
     # (que so soma quantas estao atrasadas), essa aqui nomeia a tarefa parada
     # e cobra uma vez so, nunca todo dia (ja_notificado_alguma_vez, nao
     # ja_notificou_hoje) - senao vira ruido em vez de ajuda. O numero de dias
-    # pra cobrar e' personalizado pelo seu proprio historico (aprendizado.py)
-    # assim que houver amostra suficiente - ate la, usa o padrao conservador.
-    dias_tarefa, _ = aprendizado.limiar_personalizado(
-        aprendizado.dias_atraso_historico_tarefas(conn), padrao=3, teto=14
-    )
-    for tarefa_id, msg in notificacoes.tarefas_paradas(conn, dias_minimo=dias_tarefa):
-        if not ja_notificado_alguma_vez(conn, "tarefa_parada", tarefa_id):
-            avisos.append(("tarefa_parada", tarefa_id, "Isso ainda ta pendente?", msg))
+    # pra cobrar e' personalizado POR TAREFA (aprendizado.limiar_tarefa: primeiro
+    # tenta o historico de titulos parecidos, senao o aprendizado global,
+    # senao o padrao) - busca ampla (dias_minimo=1, o piso de qualquer limiar
+    # possivel) e filtra item a item, ja que cada uma pode ter um limiar diferente.
+    hoje = date.today()
+    candidatos_tarefa = notificacoes.tarefas_paradas(conn, dias_minimo=1, hoje=hoje)
+    if candidatos_tarefa:
+        ids = [tarefa_id for tarefa_id, _ in candidatos_tarefa]
+        placeholders = ",".join("?" * len(ids))
+        detalhe_por_id = {
+            r["id"]: r
+            for r in conn.execute(
+                f"SELECT id, title, due_date FROM tasks WHERE id IN ({placeholders})", ids
+            ).fetchall()
+        }
+        for tarefa_id, msg in candidatos_tarefa:
+            row = detalhe_por_id.get(tarefa_id)
+            if not row:
+                continue
+            dias_atraso_atual = (hoje - date.fromisoformat(row["due_date"])).days
+            limiar, _ = aprendizado.limiar_tarefa(conn, row["title"], task_id=tarefa_id)
+            if dias_atraso_atual < limiar:
+                continue
+            if not ja_notificado_alguma_vez(conn, "tarefa_parada", tarefa_id):
+                avisos.append(("tarefa_parada", tarefa_id, "Isso ainda ta pendente?", msg))
 
     # Mesma ideia, mas pra resposta que voce esta esperando de TERCEIROS
     # (fornecedor, corretora) - o painel acompanha o thread em aberto por
-    # voce, nao so as suas proprias tarefas. Tambem personalizado.
-    dias_espera, _ = aprendizado.limiar_personalizado(
-        aprendizado.dias_espera_historico(conn), padrao=5, teto=21
-    )
-    for espera_id, msg in notificacoes.esperas_paradas(conn, dias_minimo=dias_espera):
-        if not ja_notificado_alguma_vez(conn, "espera_parada", espera_id):
-            avisos.append(("espera_parada", espera_id, "Ainda sem resposta", msg))
+    # voce, nao so as suas proprias tarefas. Tambem personalizado por quem
+    # (aprendizado.limiar_espera), mesmo padrao de busca ampla + filtro item a item.
+    candidatos_espera = notificacoes.esperas_paradas(conn, dias_minimo=1, hoje=hoje)
+    if candidatos_espera:
+        ids = [espera_id for espera_id, _ in candidatos_espera]
+        placeholders = ",".join("?" * len(ids))
+        detalhe_por_id = {
+            r["id"]: r
+            for r in conn.execute(
+                f"SELECT id, quem, criado_em FROM esperas WHERE id IN ({placeholders})", ids
+            ).fetchall()
+        }
+        for espera_id, msg in candidatos_espera:
+            row = detalhe_por_id.get(espera_id)
+            if not row:
+                continue
+            dias_atual = (hoje - datetime.fromisoformat(row["criado_em"]).date()).days
+            limiar, _ = aprendizado.limiar_espera(conn, row["quem"], espera_id=espera_id)
+            if dias_atual < limiar:
+                continue
+            if not ja_notificado_alguma_vez(conn, "espera_parada", espera_id):
+                avisos.append(("espera_parada", espera_id, "Ainda sem resposta", msg))
 
     for meta_id, msg in notificacoes.metas_fora_do_ritmo(conn):
         if not ja_notificou_hoje(conn, "meta_atrasada", meta_id):
@@ -2344,17 +2376,18 @@ def aprendizado_status():
     embasaram isso, e o quanto (em media) voce demora pra resolver depois
     de ser cutucado."""
     conn = get_db()
-    atrasos = aprendizado.dias_atraso_historico_tarefas(conn)
-    esperas_dias = aprendizado.dias_espera_historico(conn)
-    limiar_tarefa, info_tarefa = aprendizado.limiar_personalizado(atrasos, padrao=3, teto=14)
-    limiar_espera, info_espera = aprendizado.limiar_personalizado(esperas_dias, padrao=5, teto=21)
-    latencia_tarefa = aprendizado.latencia_media_horas(latencias_resolvidas(conn, "tarefa_parada"))
-    latencia_espera = aprendizado.latencia_media_horas(latencias_resolvidas(conn, "espera_parada"))
+    # titulo/quem vazio nao bate com nenhum historico especifico (nenhum
+    # token pra comparar), entao cai direto no caminho global - o mesmo
+    # limiar_tarefa/limiar_espera usados de verdade em cada cobranca, so que
+    # aqui mostrando o valor "base" (sem o ajuste fino por titulo/quem
+    # especifico de uma tarefa em particular).
+    dias_tarefa, info_tarefa = aprendizado.limiar_tarefa(conn, "")
+    dias_espera, info_espera = aprendizado.limiar_espera(conn, "")
     conn.close()
     return jsonify(
         {
-            "tarefa_parada": {"dias_atual": limiar_tarefa, **info_tarefa, "latencia_media_horas": latencia_tarefa},
-            "espera_parada": {"dias_atual": limiar_espera, **info_espera, "latencia_media_horas": latencia_espera},
+            "tarefa_parada": {"dias_atual": dias_tarefa, **info_tarefa},
+            "espera_parada": {"dias_atual": dias_espera, **info_espera},
         }
     )
 

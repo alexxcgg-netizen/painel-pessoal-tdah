@@ -14,12 +14,30 @@ def dias_ate_o_fim_da_semana(hoje: date) -> list[date]:
     return [hoje + timedelta(days=i) for i in range(dias_restantes + 1)]
 
 
-def sugerir_dia_menos_corrido(carga_por_dia: dict[str, int], dias_candidatos: list[date]) -> dict:
+def sugerir_dia_menos_corrido(
+    carga_por_dia: dict[str, int],
+    dias_candidatos: list[date],
+    produtividade_por_dia_semana: dict[int, float] | None = None,
+) -> dict:
     """Escolhe, entre os dias candidatos, o que tem menos compromissos ja
     marcados - empate resolve pro dia mais proximo, pra nao arriscar
     empurrar de mais e esquecer. 'carga_por_dia' e um dict data-ISO ->
-    quantidade de compromissos naquele dia (dias sem entrada valem 0)."""
-    escolhido = min(dias_candidatos, key=lambda d: (carga_por_dia.get(d.isoformat(), 0), d))
+    quantidade de compromissos naquele dia (dias sem entrada valem 0).
+
+    'produtividade_por_dia_semana' (opcional) e um dict dia-da-semana (0-6)
+    -> taxa historica de concluir tarefas no prazo nesse dia - quando
+    presente, um dia em que voce historicamente da conta melhor ganha um
+    pequeno desconto na carga (pode empatar/vencer um dia com carga um
+    pouco menor mas onde voce historicamente rende menos), sem nunca
+    overridar completamente a carga real."""
+    produtividade_por_dia_semana = produtividade_por_dia_semana or {}
+
+    def pontuacao(d: date) -> tuple[float, date]:
+        carga = carga_por_dia.get(d.isoformat(), 0)
+        bonus = produtividade_por_dia_semana.get(d.weekday(), 0.0) * 0.5
+        return (carga - bonus, d)
+
+    escolhido = min(dias_candidatos, key=pontuacao)
     return {
         "data": escolhido.isoformat(),
         "dia_semana": DIAS_SEMANA_PT[escolhido.weekday()],

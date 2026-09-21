@@ -5,6 +5,43 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-21 (7) - Aprendizado bem mais profundo, 100% por tras das cameras
+
+O Alex achou o aprendizado da entrada anterior bom mas raso ("quero ele muito mais esperto,
+perceber tudo basicamente"), com uma condicao clara: nada disso pode aparecer na tela ou virar
+frase tipo "eu aprendi que...". Continua tudo em `aprendizado.py`, so que 4 sentidos mais fundos,
+todos silenciosos - o unico efeito visivel e o COMPORTAMENTO mudando (quando cutuca, que dia
+sugere), nunca uma explicacao de si mesmo. `GET /api/aprendizado` (auditoria tecnica, nenhuma tela
+chama) segue sendo o unico jeito de ver o que foi aprendido, se alguem quiser checar na mao.
+
+**Aprende por titulo/quem parecido, nao so um numero global.** `dias_atraso_por_titulo_semelhante()`
+e `dias_espera_por_quem_semelhante()` agrupam pelo token relevante em comum (mesmo tokenizador de
+`gastos.sugerir_categoria`, sem precisar de campo de categoria manual em tarefa/espera - ninguem ia
+preencher isso). "Cotar portas com fornecedor" e "cotar vasos com fornecedor" aprendem juntas; duas
+tarefas sem nada em comum, cada uma com seu proprio ritmo. `limiar_tarefa()`/`limiar_espera()`
+encapsulam o fallback completo: especifico (5+ amostras do mesmo grupo) → global (janela recente) →
+padrao fixo.
+
+**Da mais peso ao que e recente.** `dias_atraso_historico_tarefas()`/`dias_espera_historico()`
+ganharam um parametro `janela` - o limiar global agora usa so as ultimas 20 amostras (mais recente
+primeiro, por data de conclusao/resolucao), nao a mediana de todo o histórico desde sempre. Se voce
+mudou de ritmo recentemente, o painel percebe mais rapido.
+
+**Aprende se a propria cutucada funciona.** `_ajustar_pela_eficacia()`: quando a latencia media
+entre ser cutucado e resolver e baixa (≤24h - voce age rapido assim que avisado), o limiar cai mais
+1 dia (nunca abaixo do piso) - vale a pena avisar cedo, ja que funciona. Quando a resposta e lenta
+mesmo depois de avisado, mantem como estava - cutucar mais cedo nao ajudaria em nada.
+
+**Produtividade real por dia da semana, nao so carga agendada.** `produtividade_por_dia_semana()`
+mede a taxa de tarefas concluidas NO PRAZO por dia da semana do vencimento (min. 3 amostras por
+dia). `agenda.sugerir_dia_menos_corrido()` ganhou um parametro opcional que usa isso como um
+desempate leve (peso 0.5, nunca sobrepõe uma carga bem menor) - entre dois dias com carga parecida,
+prefere o dia em que voce historicamente da conta melhor.
+
+Tudo ligado direto em `verificar_e_notificar()` (busca ampla + filtro item a item, ja que cada
+tarefa/espera pode ter seu proprio limiar agora) e em `exec_registrar_tarefa` (sugestao de dia).
+644 testes (34 novos), 100% passando.
+
 ## 2026-09-21 (6) - Aprendizado de padrao pessoal + catch-up de fim do dia
 
 Depois do bot do Telegram, o Alex pediu duas coisas: (1) o painel aprender de verdade com o
