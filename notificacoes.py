@@ -94,19 +94,37 @@ def esperas_paradas(conn, dias_minimo: int = 5, hoje: date | None = None) -> lis
     return avisos
 
 
-def tarefas_com_horario_chegando(conn, agora: datetime | None = None) -> list[tuple[int, str]]:
-    """Tarefas pendentes com horario marcado pra hoje cujo horario ja
-    chegou (ou passou) - pra virar um lembrete de verdade (push) na hora
-    certa, nao so aparecer numa lista que precisa abrir o app pra ver."""
+def tarefas_com_horario_chegando(
+    conn, agora: datetime | None = None, antecedencia_minutos: int = 10
+) -> list[tuple[int, str]]:
+    """Tarefas pendentes com horario marcado pra hoje que estao chegando -
+    pedido explicito do Alex (TDAH): avisar ANTES ("daqui 10 minutos voce tem
+    que fazer tal coisa, ja va se arrumando"), nao so bem na hora, pra dar
+    tempo de reagir em vez de so registrar que passou. A janela cobre de
+    `antecedencia_minutos` antes ate a propria hora (inclusive) - quem ja
+    passou do horario (ex: scheduler ficou fora do ar um tempo) ainda cai
+    aqui com a mensagem "na hora", nunca fica sem aviso nenhum so porque o
+    tick certo de heads-up foi perdido. A deduplicacao (uma vez por tarefa
+    por dia, em app.py) garante que so um dos dois formatos de mensagem sai,
+    mesmo com varios ticks do scheduler caindo dentro da janela."""
     agora = agora or datetime.now()
     hoje = agora.date().isoformat()
     hora_atual = agora.strftime("%H:%M")
+    limite_futuro = (agora + timedelta(minutes=antecedencia_minutos)).strftime("%H:%M")
     rows = conn.execute(
         """SELECT id, title, hora FROM tasks
            WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL AND hora <= ?""",
-        (hoje, hora_atual),
+        (hoje, limite_futuro),
     ).fetchall()
-    return [(r["id"], f"\"{r['title']}\" - {r['hora']}.") for r in rows]
+    avisos = []
+    for r in rows:
+        if r["hora"] > hora_atual:
+            avisos.append(
+                (r["id"], f"Daqui a pouco: \"{r['title']}\" as {r['hora']} - ja va se preparando.")
+            )
+        else:
+            avisos.append((r["id"], f"\"{r['title']}\" - {r['hora']}."))
+    return avisos
 
 
 def metas_fora_do_ritmo(conn, tolerancia: float = 0.7) -> list[tuple[int, str]]:

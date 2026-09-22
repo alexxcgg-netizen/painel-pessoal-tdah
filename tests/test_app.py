@@ -1488,6 +1488,197 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(row["due_date"], hoje)
         self.assertEqual(row["hora"], "14:00")
 
+    def test_chat_distribuir_tarefas_na_semana_so_propoe_nao_cria_ainda(self):
+        # Pedido explicito do Alex: "eu digo se vai dar ou nao" - a proposta
+        # em si NUNCA pode criar tarefa nenhuma sozinha.
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["distribuir_tarefas_na_semana"](
+                {"titulos": ["lavar o carro", "estudar meteorologia", "cotar portas"]}
+            )
+            self.assertTrue(resultado["ok"])
+            self.assertEqual(len(resultado["propostas"]), 3)
+            return "Aqui esta o plano da semana.", ["distribuir_tarefas_na_semana"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "domingo: lavar o carro, estudar, cotar portas"})
+        self.assertEqual(res.status_code, 200)
+
+        tarefas = self.client.get("/api/tasks").get_json()
+        self.assertEqual(tarefas, [])
+
+        conn = db.get_db()
+        pendente = db.obter_configuracao(conn, "plano_semana_pendente")
+        conn.close()
+        self.assertTrue(pendente)
+        self.assertEqual(len(json.loads(pendente)), 3)
+
+    def test_chat_distribuir_tarefas_sem_titulo_da_erro_pro_modelo(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["distribuir_tarefas_na_semana"]({"titulos": []})
+            self.assertIn("erro", resultado)
+            return "Nao entendi quais tarefas.", [], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "distribui minhas tarefas"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_chat_confirmar_plano_semana_cria_as_tarefas(self):
+        def fake_propor(mensagens, contexto, memorias, executores):
+            executores["distribuir_tarefas_na_semana"]({"titulos": ["lavar o carro", "estudar"]})
+            return "Plano proposto.", ["distribuir_tarefas_na_semana"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_propor):
+            self.client.post("/api/chat", json={"mensagem": "domingo: lavar o carro, estudar"})
+
+        def fake_confirmar(mensagens, contexto, memorias, executores):
+            resultado = executores["confirmar_plano_semana"]({})
+            self.assertTrue(resultado["ok"])
+            self.assertEqual(resultado["quantidade"], 2)
+            return "Prontinho, criei as duas.", ["confirmar_plano_semana"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_confirmar):
+            res = self.client.post("/api/chat", json={"mensagem": "pode, ta bom"})
+        self.assertEqual(res.status_code, 200)
+
+        tarefas = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tarefas), 2)
+        titulos = {t["title"] for t in tarefas}
+        self.assertEqual(titulos, {"lavar o carro", "estudar"})
+
+        conn = db.get_db()
+        pendente = db.obter_configuracao(conn, "plano_semana_pendente")
+        conn.close()
+        self.assertFalse(pendente)
+
+    def test_chat_confirmar_plano_semana_sem_proposta_pendente_da_erro(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["confirmar_plano_semana"]({})
+            self.assertIn("erro", resultado)
+            return "Nao tem nada pendente.", [], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "pode confirmar"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/tasks").get_json(), [])
+
+    def test_chat_cancelar_plano_semana_descarta_sem_criar(self):
+        def fake_propor(mensagens, contexto, memorias, executores):
+            executores["distribuir_tarefas_na_semana"]({"titulos": ["lavar o carro"]})
+            return "Plano proposto.", ["distribuir_tarefas_na_semana"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_propor):
+            self.client.post("/api/chat", json={"mensagem": "domingo: lavar o carro"})
+
+        def fake_cancelar(mensagens, contexto, memorias, executores):
+            resultado = executores["cancelar_plano_semana"]({})
+            self.assertTrue(resultado["ok"])
+            return "Esqueci o plano.", ["cancelar_plano_semana"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_cancelar):
+            res = self.client.post("/api/chat", json={"mensagem": "deixa quieto"})
+        self.assertEqual(res.status_code, 200)
+
+        self.assertEqual(self.client.get("/api/tasks").get_json(), [])
+        conn = db.get_db()
+        pendente = db.obter_configuracao(conn, "plano_semana_pendente")
+        conn.close()
+        self.assertFalse(pendente)
+
+    def test_chat_contexto_menciona_plano_semana_pendente(self):
+        conn = db.get_db()
+        db.definir_configuracao(
+            conn,
+            "plano_semana_pendente",
+            json.dumps([{"titulo": "lavar o carro", "dia": "2026-09-23", "hora": "09:00"}]),
+        )
+        conn.close()
+
+        contexto_capturado = {}
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            contexto_capturado["valor"] = contexto
+            return "Ok.", [], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "oi"})
+
+        self.assertIn("lavar o carro", contexto_capturado["valor"])
+        self.assertIn("aguardando", contexto_capturado["valor"].lower())
+
+    def test_chat_sugerir_tarefa_para_agora_adianta_tarefa_futura(self):
+        depois_de_amanha = (date.today() + timedelta(days=2)).isoformat()
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("evento depois de amanha", depois_de_amanha)
+        )
+        conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("limpar o quarto", amanha))
+        conn.commit()
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["sugerir_tarefa_para_agora"]({})
+            self.assertTrue(resultado["encontrada"])
+            self.assertEqual(resultado["tipo"], "adiantada")
+            self.assertEqual(resultado["titulo"], "limpar o quarto")
+            self.assertEqual(resultado["dia_original"], amanha)
+            return "Que tal adiantar isso?", ["sugerir_tarefa_para_agora"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "nao to fazendo nada agora"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_chat_sugerir_tarefa_para_agora_sem_data_marcada_oferece_solta(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES (?)", ("responder a corretora",))
+        conn.commit()
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["sugerir_tarefa_para_agora"]({})
+            self.assertTrue(resultado["encontrada"])
+            self.assertEqual(resultado["tipo"], "solta")
+            self.assertEqual(resultado["titulo"], "responder a corretora")
+            return "Que tal fazer isso agora?", ["sugerir_tarefa_para_agora"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "to sem nada pra fazer"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_chat_sugerir_tarefa_para_agora_sem_nenhuma_pendente(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["sugerir_tarefa_para_agora"]({})
+            self.assertEqual(resultado, {"encontrada": False})
+            return "Nada pendente - aproveita pra descansar.", ["sugerir_tarefa_para_agora"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "to livre agora, que faco?"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_chat_sugerir_tarefa_para_agora_ignora_tarefa_de_hoje_e_concluida(self):
+        hoje = date.today().isoformat()
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("tarefa de hoje", hoje))
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, datetime('now'))",
+            ("tarefa de amanha ja feita", amanha),
+        )
+        conn.commit()
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["sugerir_tarefa_para_agora"]({})
+            # nenhuma tarefa FUTURA pendente (a de amanha ja foi concluida, a
+            # de hoje nao conta como "adiantavel") - cai pro fallback de
+            # tarefa solta, mas nao ha nenhuma tarefa solta tambem
+            self.assertEqual(resultado, {"encontrada": False})
+            return "Nada pra adiantar agora.", ["sugerir_tarefa_para_agora"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "to sem nada pra fazer"})
+        self.assertEqual(res.status_code, 200)
+
     def test_notificacoes_verificar_agora_sem_push_configurado(self):
         res = self.client.post("/api/notificacoes/verificar-agora")
         self.assertEqual(res.status_code, 200)
@@ -1555,6 +1746,59 @@ class PainelTestCase(unittest.TestCase):
             res2 = self.client.post("/api/notificacoes/verificar-agora")
             self.assertEqual(res2.get_json()["avisos_enviados"], 0)
             self.assertEqual(mock_enviar.call_count, 1)
+
+    def test_notificacoes_verificar_agora_avisa_compromisso_calendario_chegando(self):
+        # Pedido explicito do Alex (TDAH): "se eu marquei alguma coisa na
+        # agenda, daqui 10 minutos ja me avisa" - compromisso do iCloud
+        # dentro da janela de heads-up precisa virar aviso, nao so a tarefa.
+        inicio = (datetime.now() + timedelta(minutes=5)).isoformat()
+        eventos_fake = [
+            {"titulo": "Reuniao com fornecedor", "inicio": inicio, "fim": inicio, "dia_inteiro": False}
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ), patch("push_client.configurado", return_value=False), patch(
+            "telegram_bot.configurado", return_value=True
+        ), patch("telegram_bot.enviar_mensagem", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        self.assertIn("Reuniao com fornecedor", mock_enviar.call_args[0][0])
+
+    def test_notificacoes_verificar_agora_ignora_compromisso_calendario_longe(self):
+        inicio = (datetime.now() + timedelta(hours=3)).isoformat()
+        eventos_fake = [
+            {"titulo": "Reuniao distante", "inicio": inicio, "fim": inicio, "dia_inteiro": False}
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ), patch("push_client.configurado", return_value=False), patch(
+            "telegram_bot.configurado", return_value=True
+        ), patch("telegram_bot.enviar_mensagem", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_not_called()
+
+    def test_notificacoes_verificar_agora_ignora_compromisso_dia_inteiro(self):
+        eventos_fake = [
+            {
+                "titulo": "Feriado",
+                "inicio": date.today().isoformat(),
+                "fim": date.today().isoformat(),
+                "dia_inteiro": True,
+            }
+        ]
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", return_value=eventos_fake
+        ), patch("push_client.configurado", return_value=False), patch(
+            "telegram_bot.configurado", return_value=True
+        ), patch("telegram_bot.enviar_mensagem", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 0)
+        mock_enviar.assert_not_called()
 
     def test_notificacoes_verificar_agora_cobra_tarefa_parada_pelo_nome(self):
         tres_dias = (date.today() - timedelta(days=3)).isoformat()

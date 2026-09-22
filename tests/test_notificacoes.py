@@ -373,14 +373,29 @@ class NotificacoesTestCase(unittest.TestCase):
         self.assertEqual(len(avisos), 1)
         self.assertIn("colocar o lixo pra fora", avisos[0][1])
 
-    def test_tarefa_com_horario_ainda_nao_chegado_nao_avisa(self):
+    def test_tarefa_com_horario_chegando_avisa_com_antecedencia(self):
+        # Pedido explicito do Alex (TDAH): avisar ANTES da hora, nao so na
+        # hora - "daqui 10 minutos voce tem que fazer tal coisa".
         hoje = date.today().isoformat()
         self.conn.execute(
             "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
             ("colocar o lixo pra fora", hoje, "14:00"),
         )
         self.conn.commit()
-        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=13, minute=59)
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=13, minute=52)
+        avisos = notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora)
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("colocar o lixo pra fora", avisos[0][1])
+        self.assertIn("Daqui a pouco", avisos[0][1])
+
+    def test_tarefa_com_horario_ainda_longe_nao_avisa(self):
+        hoje = date.today().isoformat()
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("colocar o lixo pra fora", hoje, "14:00"),
+        )
+        self.conn.commit()
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=13, minute=49)
         self.assertEqual(notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora), [])
 
     def test_tarefa_com_horario_de_outro_dia_nao_avisa(self):

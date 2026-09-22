@@ -146,6 +146,22 @@ Quando o Alex perguntar que horas fazer algo recorrente sem hora fixa (ex: "que 
 academia hoje?"), chame `sugerir_horario_livre` em vez de adivinhar - ela olha o que ja esta
 marcado no dia de verdade e acha o maior espaco livre.
 
+O Alex tem TDAH e pediu explicitamente um assistente que ajuda a pensar, nao so registra: quando
+ele despejar VARIAS tarefas soltas numa mensagem so (o caso classico e domingo planejando a
+semana, mas pode acontecer qualquer dia), NAO chame `registrar_tarefa` varias vezes - chame
+`distribuir_tarefas_na_semana` uma vez so com a lista inteira. Ela devolve onde cada uma cairia
+(dia+horario, ja evitando hora de comer e espalhando pelos dias mais livres); apresente esse plano
+dia a dia na resposta e pergunte se esta bom, deixando claro que ainda nao foi criado nada. So
+crie de verdade quando ele confirmar (`confirmar_plano_semana`); se ele rejeitar ou pedir pra
+esquecer, chame `cancelar_plano_semana`. Duas ou tres tarefas com data ja dita por ele continuam
+indo por `registrar_tarefa` normal - o fluxo de distribuicao e pra quando SOBRA pra voce decidir
+onde encaixar, nao pra substituir um pedido com data clara.
+
+Mesmo espirito de "ajudar a pensar": quando ele disser que esta sem nada pra fazer agora (ver
+exemplos em `sugerir_tarefa_para_agora`), chame essa ferramenta em vez de so responder "que bom" ou
+perguntar o que ele quer fazer - ela ja acha uma tarefa candidata (de preferencia uma que so estava
+marcada pra outro dia, adiantando ela) pra voce sugerir.
+
 Quando o Alex perguntar quanto gastaria de combustivel numa viagem, chame `calcular_gasto_viagem` -
 nunca estime distancia ou tempo de cabeca, isso sempre vem do resultado da ferramenta (Google
 Maps). Se faltar o consumo do carro (km/l) ou o preco do combustivel, pergunte antes de chamar a
@@ -602,6 +618,68 @@ CHAT_TOOLS = [
             },
             "required": ["duracao_minutos"],
         },
+    },
+    {
+        "name": "distribuir_tarefas_na_semana",
+        "description": (
+            "Use quando o Alex despejar VARIAS tarefas soltas de uma vez, sem data especifica pra "
+            "cada uma (ex: domingo listando um monte de coisa pra fazer na semana) - em vez de "
+            "chamar registrar_tarefa uma vez pra cada, chame esta ferramenta UMA VEZ com a lista de "
+            "titulos. O painel calcula sozinho em que dia e horario cada uma cai (espalhando pelos "
+            "dias menos ocupados, evitando hora de comer) e devolve a proposta em 'propostas' - "
+            "APRESENTE o plano dia a dia na sua resposta (ex: 'segunda: X as 9h - terca: Y as "
+            "10h30...') e pergunte se esta bom. NAO cria nada no banco ainda - so quando o Alex "
+            "confirmar explicitamente (ai voce chama confirmar_plano_semana) as tarefas realmente "
+            "entram na agenda. Se ele pedir ajuste antes de confirmar (tirar uma, trocar de dia), "
+            "chame esta ferramenta de novo com a lista corrigida - isso substitui a proposta "
+            "anterior."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulos": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "cada tarefa que o Alex mencionou, um titulo curto por item, na ordem que ele falou",
+                },
+            },
+            "required": ["titulos"],
+        },
+    },
+    {
+        "name": "confirmar_plano_semana",
+        "description": (
+            "Chame quando o Alex aprovar explicitamente o ultimo plano de semana proposto (ex: "
+            "'pode', 'ta bom', 'confirma', 'manda ver', 'fechado') - so ai as tarefas da proposta "
+            "pendente (ver distribuir_tarefas_na_semana) sao criadas de verdade na agenda. Nunca "
+            "chame sem uma confirmacao explicita do Alex primeiro, e nunca chame se nao houver "
+            "nenhum plano pendente (olhe o contexto - ele avisa quando ha um)."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "cancelar_plano_semana",
+        "description": (
+            "Chame quando o Alex rejeitar ou pedir pra esquecer o plano de semana proposto (ex: "
+            "'deixa quieto', 'nao, esquece isso', 'depois eu vejo') - so descarta a proposta "
+            "pendente, nada e criado."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "sugerir_tarefa_para_agora",
+        "description": (
+            "Chame quando o Alex disser que esta ocioso/sem nada pra fazer AGORA (ex: 'nao to "
+            "fazendo nada', 'to sem nada pra fazer', 'to livre agora', 'que faco agora') - pedido "
+            "explicito dele (TDAH): em vez de so confirmar que ta tudo livre, puxa uma tarefa que "
+            "so estava marcada pra outro dia da semana e sugere adiantar ela agora. Devolve a "
+            "tarefa com dia mais proximo (tipo 'adiantada') ou, se nenhuma tiver dia marcado, uma "
+            "tarefa solta sem data (tipo 'solta'). Na resposta, sugira como pergunta (ex: 'que tal "
+            "adiantar \"limpar o quarto\", que so estava marcado pra terca?'), nunca decida por "
+            "ele - se ele topar e depois contar que fez, isso vira `registrar_feito` normalmente, "
+            "nao precisa de nenhuma ferramenta especial pra 'mover' a tarefa."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "calcular_gasto_viagem",

@@ -5,6 +5,44 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (14) - Assistente proativo: avisa antes, distribui a semana, puxa tarefa quando ocioso
+
+Pedido grande e explicito do Alex (TDAH): "eu tenho que ser um cara que... ela nao tem que so me
+lembrar, ela tem que me ajudar a pensar". Escopo fechado com ele antes de codar (3 perguntas via
+AskUserQuestion): os 3 pedacos abaixo, distribuicao sempre com confirmacao antes de criar
+("eu digo se vai dar ou nao"), aviso de heads-up nos dois canais (push + Telegram).
+
+**Aviso ANTES do horario, nao so na hora**: `notificacoes.tarefas_com_horario_chegando` ganhou uma
+janela de antecedencia (10min por padrao) - uma tarefa com hora marcada agora avisa "Daqui a
+pouco: X as HH:MM - ja va se preparando" alguns minutos antes, e so cai na mensagem antiga ("X -
+HH:MM") se o tick certo de heads-up foi perdido (scheduler fora do ar etc), nunca fica sem aviso
+nenhum. Estendido tambem pra compromisso do calendario do iCloud (novo bloco em
+`verificar_e_notificar`, tipo `compromisso_chegando` - so `origem="calendario"`, tarefa ja tem o
+aviso acima, senao duplicaria). ID estavel do evento via hash titulo+inicio (`_id_estavel_evento_calendario`,
+mesma tecnica de `_id_estavel_conta`), ja que o iCloud nao expoe um id numerico pra gente.
+
+**Distribuir lista de tarefas jogada de uma vez pela semana**: nova funcao PURA em `agenda.py`
+(`distribuir_tarefas_na_semana`) - reusa `sugerir_dia_menos_corrido` item a item (carga simulada
+que vai aumentando a cada escolha, pra espalhar em vez de empilhar tudo no dia mais vazio) e
+`HORARIOS_SUGERIDOS_DIA` (pula almoco 12h-14h e janta 18h-20h de proposito). A IA so extrai a
+LISTA de titulos do que o Alex despejou (`distribuir_tarefas_na_semana` como tool) - quem decide
+dia/horario e Python determinista, nao a IA "no chute". A proposta fica guardada em
+`configuracoes` (chave `plano_semana_pendente`, reaproveitando o mesmo mecanismo ja usado pro
+horario silencioso) e SO vira tarefa de verdade com `confirmar_plano_semana`; `cancelar_plano_semana`
+descarta sem criar nada. `_contexto_chat` agora menciona um plano pendente (se houver) pro modelo
+saber, numa mensagem seguinte, que "pode" significa confirmar aquele plano especifico.
+
+**Puxar tarefa quando ele diz que ta sem nada pra fazer**: `sugerir_tarefa_para_agora` (tool novo)
+acha a tarefa mais proxima com dia marcado NO FUTURO (adianta ela, pedido literal do Alex - "em
+vez de fazer isso na terca, faz na segunda") ou, se nao houver nenhuma, cai pra uma tarefa solta
+sem data. So sugere (a resposta do modelo tem que ser pergunta, nunca decisao) - se ele topar e
+depois contar que fez, isso ja fecha via `registrar_feito` existente, sem precisar de mecanismo
+novo pra "mover" a tarefa.
+
+19 testes novos (`test_agenda.py`, `test_notificacoes.py`, `test_app.py`) cobrindo os 3 pedacos +
+o reaproveitamento correto do dedup/contexto existente. 823 testes Python + 112 subtestes, 100%
+passando.
+
 ## 2026-09-22 (13) - Agenda com bolinhas verde/vermelha, saldo nos bancos, diario de bordo do voo, rainbow v2
 
 Rodada baseada num walkthrough completo do Alex aba por aba (aba Hoje/chat/tarefas ok como

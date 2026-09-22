@@ -686,6 +686,15 @@ def _id_estavel_conta(conta: dict) -> int:
     return int.from_bytes(digest, "big") % (2**62)
 
 
+def _id_estavel_evento_calendario(evento: dict) -> int:
+    """Mesma ideia de _id_estavel_conta - evento do iCloud nao tem id
+    numerico exposto pra gente (so o objeto do CalDAV), entao deriva um a
+    partir do titulo+inicio pra deduplicar o aviso de "daqui a pouco"."""
+    chave = f"{evento.get('titulo')}|{evento.get('inicio')}"
+    digest = hashlib.sha1(chave.encode("utf-8")).digest()[:8]
+    return int.from_bytes(digest, "big") % (2**62)
+
+
 def _gastos_reais_unificados(conn) -> list[dict]:
     """Todo gasto real que a gente sabe que aconteceu - tanto o que foi
     digitado no chat (expenses) quanto o que veio sozinho do extrato
@@ -1054,6 +1063,19 @@ def _contexto_chat(conn) -> str:
     if esperas_pendentes:
         esperas_txt = ", ".join(f"{e['quem']} sobre \"{e['sobre']}\"" for e in esperas_pendentes)
         linhas.append(f"Esperando resposta de: {esperas_txt}")
+    plano_pendente_bruto = obter_configuracao(conn, "plano_semana_pendente")
+    if plano_pendente_bruto:
+        try:
+            plano_pendente = json.loads(plano_pendente_bruto)
+        except ValueError:
+            plano_pendente = []
+        if plano_pendente:
+            plano_txt = ", ".join(f"{p['titulo']} ({p['dia']} as {p['hora']})" for p in plano_pendente)
+            linhas.append(
+                f"Plano de semana proposto AGUARDANDO confirmacao do Alex (ainda NAO foi criado "
+                f"no banco): {plano_txt}. Se ele confirmar, chame confirmar_plano_semana; se "
+                f"rejeitar/pedir pra esquecer, chame cancelar_plano_semana."
+            )
     return "\n".join(linhas)
 
 
@@ -1217,6 +1239,66 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
     def exec_consultar_notas(entrada):
         return {"notas": buscar_notas(conn, entrada["termo"])}
 
+    def exec_distribuir_tarefas_na_semana(entrada):
+        titulos = [t.strip() for t in entrada.get("titulos", []) if t and t.strip()]
+        if not titulos:
+            return {"erro": "nao veio nenhum titulo de tarefa pra distribuir"}
+        dias = agenda.proximos_n_dias(date.today() + timedelta(days=1), 14)
+        carga = _carga_por_dia(conn, dias)
+        produtividade = aprendizado.produtividade_por_dia_semana(conn)
+        propostas = agenda.distribuir_tarefas_na_semana(carga, dias, titulos, produtividade)
+        definir_configuracao(conn, "plano_semana_pendente", json.dumps(propostas, ensure_ascii=False))
+        return {"ok": True, "propostas": propostas}
+
+    def exec_confirmar_plano_semana(_entrada):
+        bruto = obter_configuracao(conn, "plano_semana_pendente")
+        if not bruto:
+            return {"erro": "nao tem nenhum plano de semana pendente pra confirmar"}
+        propostas = json.loads(bruto)
+        for item in propostas:
+            conn.execute(
+                "INSERT INTO tasks (title, due_date, hora, source_text) VALUES (?, ?, ?, ?)",
+                (item["titulo"], item["dia"], item["hora"], texto),
+            )
+        conn.commit()
+        definir_configuracao(conn, "plano_semana_pendente", "")
+        return {"ok": True, "quantidade": len(propostas), "titulos": [p["titulo"] for p in propostas]}
+
+    def exec_cancelar_plano_semana(_entrada):
+        definir_configuracao(conn, "plano_semana_pendente", "")
+        return {"ok": True}
+
+    def exec_sugerir_tarefa_para_agora(_entrada):
+        hoje = date.today().isoformat()
+        # prioriza uma tarefa com dia marcado mais pra frente (adiantar de
+        # verdade, o pedido especifico do Alex) - a mais proxima primeiro,
+        # pra nao pular direto pra semana que vem enquanto tem algo de
+        # amanha esperando.
+        futura = conn.execute(
+            "SELECT id, title, due_date FROM tasks "
+            "WHERE completed_at IS NULL AND due_date IS NOT NULL AND due_date > ? "
+            "ORDER BY due_date ASC LIMIT 1",
+            (hoje,),
+        ).fetchone()
+        if futura:
+            return {
+                "encontrada": True,
+                "tipo": "adiantada",
+                "tarefa_id": futura["id"],
+                "titulo": futura["title"],
+                "dia_original": futura["due_date"],
+            }
+        # nada com dia marcado pra frente - ainda assim tenta oferecer algo
+        # (tarefa solta sem data), pra "to sem nada pra fazer" nunca virar
+        # uma resposta vazia quando existe trabalho pendente de qualquer jeito.
+        solta = conn.execute(
+            "SELECT title FROM tasks WHERE completed_at IS NULL AND due_date IS NULL "
+            "ORDER BY id ASC LIMIT 1"
+        ).fetchone()
+        if solta:
+            return {"encontrada": True, "tipo": "solta", "titulo": solta["title"]}
+        return {"encontrada": False}
+
     def exec_sugerir_horario_livre(entrada):
         eventos = _eventos_de_hoje_com_seguranca(conn)
         compromissos = [(e["inicio"][11:16], e["fim"][11:16]) for e in eventos if not e.get("dia_inteiro")]
@@ -1324,6 +1406,10 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "salvar_nota": exec_salvar_nota,
         "consultar_notas": exec_consultar_notas,
         "sugerir_horario_livre": exec_sugerir_horario_livre,
+        "distribuir_tarefas_na_semana": exec_distribuir_tarefas_na_semana,
+        "confirmar_plano_semana": exec_confirmar_plano_semana,
+        "cancelar_plano_semana": exec_cancelar_plano_semana,
+        "sugerir_tarefa_para_agora": exec_sugerir_tarefa_para_agora,
         "rotular_cobranca_generica": exec_rotular_cobranca_generica,
         "consultar_gastos_fixos": exec_consultar_gastos_fixos,
         "consultar_sobra_do_mes": exec_consultar_sobra_do_mes,
@@ -1540,7 +1626,7 @@ def _disparar_estimativa_uber(conn, pedido: dict, access_token: str) -> None:
 # Avisos presos a um instante especifico (a informacao perde o sentido se
 # adiada pro fim do horario silencioso) - esses sempre disparam na hora, os
 # outros respeitam o modo silencioso (ver verificar_e_notificar).
-NOTIFICACOES_URGENTES = {"tarefa_horario", "voo_sair", "hora_de_dormir"}
+NOTIFICACOES_URGENTES = {"tarefa_horario", "compromisso_chegando", "voo_sair", "hora_de_dormir"}
 
 
 def verificar_e_notificar():
@@ -1657,6 +1743,37 @@ def verificar_e_notificar():
     for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(conn):
         if not ja_notificou_hoje(conn, "tarefa_horario", tarefa_id):
             avisos.append(("tarefa_horario", tarefa_id, "Lembrete", msg))
+
+    # Compromisso do calendario do iCloud chegando (so origem="calendario" -
+    # tarefa com horario ja tem o aviso acima, senao duplicaria). Pedido
+    # explicito do Alex: "se eu marquei alguma coisa na agenda, daqui 10
+    # minutos tu tem que fazer tal coisa, ja vai se arrumar". A busca do
+    # iCloud ja vem protegida contra falha/instabilidade (ver
+    # _eventos_de_hoje_com_seguranca) - um erro de rede so faz esse tipo de
+    # aviso nao disparar nesse tick, nunca derruba o resto do scheduler.
+    agora_dt = datetime.now()
+    for evento in _eventos_de_hoje_com_seguranca(conn):
+        if evento.get("origem") != "calendario" or evento.get("dia_inteiro"):
+            continue
+        try:
+            inicio_evento = datetime.fromisoformat(evento["inicio"])
+        except (ValueError, TypeError):
+            continue
+        minutos_pra_comecar = (inicio_evento - agora_dt).total_seconds() / 60
+        if not (0 <= minutos_pra_comecar <= 10):
+            continue
+        ref_id = _id_estavel_evento_calendario(evento)
+        if ja_notificou_hoje(conn, "compromisso_chegando", ref_id):
+            continue
+        hora_txt = inicio_evento.strftime("%H:%M")
+        avisos.append(
+            (
+                "compromisso_chegando",
+                ref_id,
+                "Daqui a pouco",
+                f"Daqui a pouco: \"{evento['titulo']}\" as {hora_txt} - ja va se preparando.",
+            )
+        )
 
     for voo in notificacoes.voos_de_hoje_com_horario(conn):
         if ja_notificou_hoje(conn, "voo_sair", voo["id"]):

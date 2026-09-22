@@ -1,7 +1,14 @@
 import unittest
 from datetime import date
 
-from agenda import dias_ate_o_fim_da_semana, maior_janela_livre, sugerir_dia_menos_corrido
+from agenda import (
+    HORARIOS_SUGERIDOS_DIA,
+    dias_ate_o_fim_da_semana,
+    distribuir_tarefas_na_semana,
+    maior_janela_livre,
+    proximos_n_dias,
+    sugerir_dia_menos_corrido,
+)
 
 
 class DiasAteOFimDaSemanaTestCase(unittest.TestCase):
@@ -109,6 +116,64 @@ class MaiorJanelaLivreTestCase(unittest.TestCase):
         r = maior_janela_livre(compromissos, "06:00", "22:00", 30)
         self.assertEqual(r["inicio"], "09:00")
         self.assertEqual(r["fim"], "18:00")
+
+
+class ProximosNDiasTestCase(unittest.TestCase):
+    def test_gera_n_dias_a_partir_do_dado(self):
+        inicio = date(2026, 9, 21)
+        dias = proximos_n_dias(inicio, 5)
+        self.assertEqual(dias, [date(2026, 9, 21 + i) for i in range(5)])
+
+    def test_zero_dias_devolve_lista_vazia(self):
+        self.assertEqual(proximos_n_dias(date(2026, 9, 21), 0), [])
+
+    def test_atravessa_troca_de_mes(self):
+        dias = proximos_n_dias(date(2026, 9, 29), 3)
+        self.assertEqual(dias, [date(2026, 9, 29), date(2026, 9, 30), date(2026, 10, 1)])
+
+
+class DistribuirTarefasNaSemanaTestCase(unittest.TestCase):
+    def test_espalha_pelos_dias_menos_carregados(self):
+        dias = [date(2026, 9, 21), date(2026, 9, 22), date(2026, 9, 23)]
+        # 21 ja tem 2 marcados, 22 e 23 estao livres - as duas tarefas novas
+        # devem ir pros dias vazios, nao empilhar em cima do 21.
+        carga = {"2026-09-21": 2}
+        propostas = distribuir_tarefas_na_semana(carga, dias, ["lavar o carro", "estudar meteorologia"])
+        self.assertEqual(len(propostas), 2)
+        dias_escolhidos = {p["dia"] for p in propostas}
+        self.assertNotIn("2026-09-21", dias_escolhidos)
+        self.assertEqual(dias_escolhidos, {"2026-09-22", "2026-09-23"})
+
+    def test_titulo_preservado_na_proposta(self):
+        dias = [date(2026, 9, 21)]
+        propostas = distribuir_tarefas_na_semana({}, dias, ["cotar portas"])
+        self.assertEqual(propostas[0]["titulo"], "cotar portas")
+        self.assertIn(propostas[0]["hora"], HORARIOS_SUGERIDOS_DIA)
+
+    def test_mais_tarefas_que_horarios_do_dia_nao_repete_horario_no_mesmo_dia(self):
+        # so 1 dia candidato - todas as tarefas caem nele, mas cada uma pega
+        # um horario diferente de HORARIOS_SUGERIDOS_DIA, em ordem.
+        dias = [date(2026, 9, 21)]
+        titulos = [f"tarefa {i}" for i in range(len(HORARIOS_SUGERIDOS_DIA))]
+        propostas = distribuir_tarefas_na_semana({}, dias, titulos)
+        horarios_usados = [p["hora"] for p in propostas]
+        self.assertEqual(horarios_usados, HORARIOS_SUGERIDOS_DIA)
+
+    def test_horario_nunca_cai_em_almoco_ou_janta(self):
+        for h in HORARIOS_SUGERIDOS_DIA:
+            hora, minuto = h.split(":")
+            minutos_do_dia = int(hora) * 60 + int(minuto)
+            self.assertFalse(12 * 60 <= minutos_do_dia < 14 * 60, f"{h} cai no almoco")
+            self.assertFalse(18 * 60 <= minutos_do_dia < 20 * 60, f"{h} cai na janta")
+
+    def test_lista_vazia_devolve_lista_vazia(self):
+        self.assertEqual(distribuir_tarefas_na_semana({}, [date(2026, 9, 21)], []), [])
+
+    def test_carga_simulada_nao_afeta_carga_por_dia_original(self):
+        carga_original = {"2026-09-21": 0}
+        dias = [date(2026, 9, 21), date(2026, 9, 22)]
+        distribuir_tarefas_na_semana(carga_original, dias, ["a", "b", "c"])
+        self.assertEqual(carga_original, {"2026-09-21": 0})
 
 
 if __name__ == "__main__":

@@ -14,6 +14,14 @@ def dias_ate_o_fim_da_semana(hoje: date) -> list[date]:
     return [hoje + timedelta(days=i) for i in range(dias_restantes + 1)]
 
 
+def proximos_n_dias(a_partir_de: date, n: int) -> list[date]:
+    """Pool de dias candidatos a partir de (e incluindo) 'a_partir_de' - usada
+    por distribuir_tarefas_na_semana, que precisa de um pool maior que
+    dias_ate_o_fim_da_semana (essa so vai ate domingo, pensada pra sugerir
+    UMA tarefa dentro da semana atual)."""
+    return [a_partir_de + timedelta(days=i) for i in range(n)]
+
+
 def sugerir_dia_menos_corrido(
     carga_por_dia: dict[str, int],
     dias_candidatos: list[date],
@@ -43,6 +51,46 @@ def sugerir_dia_menos_corrido(
         "dia_semana": DIAS_SEMANA_PT[escolhido.weekday()],
         "carga": carga_por_dia.get(escolhido.isoformat(), 0),
     }
+
+
+# Horarios candidatos pra distribuir_tarefas_na_semana - pula almoco
+# (12h-14h) e janta (18h-20h) de proposito (pedido implicito do Alex: "tem
+# que lembrar que as vezes tem que tomar cafe, comer, almocar").
+HORARIOS_SUGERIDOS_DIA = ["09:00", "10:30", "15:00", "16:30", "20:30"]
+
+
+def distribuir_tarefas_na_semana(
+    carga_por_dia: dict[str, int],
+    dias_candidatos: list[date],
+    titulos: list[str],
+    produtividade_por_dia_semana: dict[int, float] | None = None,
+) -> list[dict]:
+    """Pedido explicito do Alex (TDAH, "assistente de vida" de verdade): quando
+    ele despeja varias tarefas soltas de uma vez (tipo domingo listando a
+    semana inteira), sugere dia+horario pra CADA uma - nao so uma. Reusa
+    sugerir_dia_menos_corrido item a item, atualizando uma carga SIMULADA a
+    cada escolha (carga_simulada[dia] += 1) pra nao empilhar tudo no dia que
+    comecou mais vazio; o horario dentro do dia vem de
+    HORARIOS_SUGERIDOS_DIA, andando pra frente a cada item novo que cai
+    naquele mesmo dia (1o item do dia pega o 1o horario, 2o item pega o 2o,
+    etc) - nunca dois itens novos no mesmo horario do mesmo dia.
+
+    So MONTA a lista de propostas, nunca escreve no banco - quem decide
+    quando (e se) isso vira tarefa de verdade e o codigo que chama esta
+    funcao (ver confirmar_plano_semana em app.py), depois que o Alex
+    confirmar explicitamente o plano."""
+    carga_simulada = dict(carga_por_dia)
+    usados_no_dia: dict[str, int] = {}
+    propostas = []
+    for titulo in titulos:
+        escolhido = sugerir_dia_menos_corrido(carga_simulada, dias_candidatos, produtividade_por_dia_semana)
+        dia_iso = escolhido["data"]
+        indice_horario = usados_no_dia.get(dia_iso, 0)
+        hora = HORARIOS_SUGERIDOS_DIA[indice_horario % len(HORARIOS_SUGERIDOS_DIA)]
+        propostas.append({"titulo": titulo, "dia": dia_iso, "hora": hora})
+        carga_simulada[dia_iso] = carga_simulada.get(dia_iso, 0) + 1
+        usados_no_dia[dia_iso] = indice_horario + 1
+    return propostas
 
 
 def _para_minutos(hhmm: str) -> int:
