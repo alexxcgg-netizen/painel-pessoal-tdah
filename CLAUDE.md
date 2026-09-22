@@ -49,3 +49,24 @@ como tela principal. Ver `README.md` pra lista completa de funcionalidades.
   sem tratamento de erro. Fuzzing pesado (50-100 cenários por mudança) não é obrigatório
   aqui como é lá, mas vale a pena nos pontos mais expostos a entrada externa (captura por
   texto livre, chat, os endpoints `/api/atalho/*` usados pelos Shortcuts do iPhone).
+
+## Preferência permanente do Alex: atenção obsessiva a detalhe visual/interação
+Pedido explícito pra guardar como padrão de toda sessão futura, não só pontual: o Alex presta
+atenção em detalhes mínimos de UI/UX e quer que estejam certos - animação, timing, easing,
+micro-interação, tudo.
+- **Padrão de qualidade**: suave e "premium" (comparação dele mesmo: "carro de luxo"), nunca
+  chamativo/brusco/"sinistro". Preferir easing customizado a linear, transições que "assentam"
+  (overshoot leve, bounce sutil) a cortes secos. Ver `--ease-bounce`/`--ease-suave`/
+  `--ease-snap` já definidos em `static/css/style.css`. Sempre respeitar
+  `prefers-reduced-motion` (o app já faz isso em várias animações existentes).
+- **Chat com "cara de gente", não de robô**: quer que a resposta do assistente pareça alguém
+  digitando de verdade, não um bloco de texto aparecendo mecanicamente. Já existe uma base
+  (`escreverPalavraAPalavra` em `app.js`, palavra por palavra com blur+fade) - qualquer
+  evolução deve manter esse espírito.
+- **Antes de qualquer leva grande de efeito/animação, perguntar o que estiver ambíguo** (ele
+  pediu isso explicitamente) em vez de implementar tudo de uma vez e descobrir depois que não
+  era bem aquilo.
+- **Feedback visual sempre pelo artefato-réplica**: o padrão estabelecido nessa sessão é
+  regenerar o artefato (`https://claude.ai/artifact/Ecy9gXXfefAgWkeTA5DojR`) a cada rodada de
+  mudança visual/CSS/JS pra ele testar ao vivo antes de considerar fechado - ver `CHANGELOG.md`
+  (entradas "Liquid Glass round N") pro histórico completo de idas e vindas nesse processo.
