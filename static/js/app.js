@@ -193,10 +193,28 @@ async function apiFetch(url, options) {
   return data;
 }
 
+// Ordem das abas na barra - usada so pra saber se a troca "avança" ou
+// "volta" e entrar do lado certo (slide pra direita indo pra frente, pra
+// esquerda voltando) - o mesmo tipo de pista de direcao que apps premium
+// usam em transicao de aba, em vez de um fade generico igual pra qualquer
+// troca.
+const ORDEM_ABAS = ["hoje", "painel", "tarefas", "gastos", "bancos", "construtora", "aviacao"];
+let abaAtual = "hoje";
+
 function showTab(name) {
+  const indiceAtual = ORDEM_ABAS.indexOf(abaAtual);
+  const indiceNovo = ORDEM_ABAS.indexOf(name);
+  const direcao =
+    indiceNovo > indiceAtual ? "entra-direita" : indiceNovo < indiceAtual ? "entra-esquerda" : null;
+  abaAtual = name;
+
   document.querySelectorAll(".tab-content").forEach((el) => {
+    el.classList.remove("entra-direita", "entra-esquerda");
     el.hidden = el.id !== `tab-${name}`;
   });
+  if (direcao) {
+    document.getElementById(`tab-${name}`).classList.add(direcao);
+  }
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === name);
   });
@@ -677,11 +695,17 @@ function criarBotaoOuvirChat(texto) {
   return btn;
 }
 
+// Ritmo humano (pedido explicito: "diferentes ritmos... mas nao algo devagar"):
+// o passo base continua limitando a duracao TOTAL (nao fica mais lento que
+// antes - a media do jitter e 1.0x), mas cada palavra varia +-20% em vez de
+// ser um metronomo identico, palavras bem curtas (ate 2 letras - "e", "a",
+// "no") saem mais rapido, e pontuacao de fim de frase/virgula ganha uma
+// pausa de verdade - e assim que gente digita, nao um bloco uniforme.
 function escreverPalavraAPalavra(elemento, texto) {
   const tokens = texto.split(/(\s+)/);
   const palavras = tokens.filter((t) => t.trim() !== "").length;
-  const passo = Math.min(24, Math.max(8, 700 / Math.max(palavras, 1)));
-  let indice = 0;
+  const passoBase = Math.min(22, Math.max(7, 620 / Math.max(palavras, 1)));
+  let acumulado = 0;
   tokens.forEach((token) => {
     if (token.trim() === "") {
       elemento.appendChild(document.createTextNode(token));
@@ -690,9 +714,14 @@ function escreverPalavraAPalavra(elemento, texto) {
     const span = document.createElement("span");
     span.className = "palavra-surgindo";
     span.textContent = token;
-    span.style.animationDelay = `${indice * passo}ms`;
+    span.style.animationDelay = `${acumulado}ms`;
     elemento.appendChild(span);
-    indice += 1;
+
+    let incremento = passoBase * (0.8 + Math.random() * 0.4);
+    if (token.length <= 2) incremento *= 0.7;
+    if (/[.!?]$/.test(token)) incremento += passoBase * 2.2;
+    else if (/[,;:]$/.test(token)) incremento += passoBase * 1.1;
+    acumulado += incremento;
   });
 }
 

@@ -810,6 +810,43 @@ header {
   animation: tabEntra 0.32s var(--ease-suave) both;
 }
 
+/* Transicao direcional entre abas (pedido explicito: efeitos "premium",
+   detalhe minimo) - troca pra uma aba mais a direita na barra desliza
+   entrando pela direita, mais a esquerda entra pela esquerda, em vez do
+   mesmo fade generico pra qualquer troca. `overflow-x: hidden` no body (ja
+   existia) evita scroll horizontal durante o deslize. So a aba que ENTRA e
+   animada (a que sai so fica `hidden` na hora) - dar exit animation tambem
+   exigiria as duas abas visiveis ao mesmo tempo por um instante, mais
+   arriscado (dado carregando, foco, etc) pro ganho visual que traria. */
+.tab-content.entra-direita:not([hidden]) {
+  animation: tabEntraDireita 0.36s var(--ease-suave) both;
+}
+.tab-content.entra-esquerda:not([hidden]) {
+  animation: tabEntraEsquerda 0.36s var(--ease-suave) both;
+}
+
+@keyframes tabEntraDireita {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes tabEntraEsquerda {
+  from {
+    opacity: 0;
+    transform: translateX(-16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
 /* Cada aba redefine --glass-tint pra sua cor de identidade. Pegadinha real de
    CSS (nao bug de digitar errado): os tokens compostos (--glass-border/
    --glass-shadow, la no topo do arquivo) so resolvem o var(--glass-tint) QUE
@@ -857,6 +894,12 @@ header {
   --glass-tint: var(--cor-aviacao);
 }
 
+/* Antes aparecia sem nenhuma transicao (so o [hidden] saindo). Um erro
+   merece mais destaque que qualquer outro elemento novo na tela, mas um
+   "shake" literal lê como alarme/"sinistro" (pedido explicito: nada
+   chamativo) - em vez disso, um leve overshoot-e-assenta (sobe um pouco
+   além do tamanho final e volta), o mesmo tipo de acabamento premium usado
+   no resto do app via --ease-bounce. */
 .erro {
   background: var(--danger-bg);
   border: 1px solid var(--danger);
@@ -865,6 +908,18 @@ header {
   border-radius: var(--radius);
   font-size: 0.85rem;
   margin-bottom: 1rem;
+  animation: erroEntra 0.4s var(--ease-bounce) both;
+}
+
+@keyframes erroEntra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 #captura {

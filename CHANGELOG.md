@@ -5,6 +5,49 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (11) - Rodada de animacoes: ritmo humano no chat, transicao de aba direcional, erro com entrada
+
+Depois de fechar o tema (round 8-10), o Alex pediu a proxima etapa: animacoes e efeitos "em
+detalhes minimos", "premium, tipo carro de luxo", e que o chat parecesse mais uma pessoa
+respondendo que um robo. Registrei essa preferencia como permanente no `CLAUDE.md` (nao e so
+pra essa rodada - vale pra qualquer trabalho visual futuro no projeto).
+
+Antes de implementar, perguntei o que priorizar (ele pediu isso: "pergunta antes de comecar")
+- resposta: os 4 pontos ao mesmo tempo (chat mais humano, fundo reagindo ao scroll,
+micro-interacoes, transicoes entre abas), com uma ressalva clara pro chat: "diferentes ritmos,
+mas nao algo devagar".
+
+**Ritmo humano no chat** (`escreverPalavraAPalavra` em `app.js`): antes cada palavra aparecia
+num intervalo IDENTICO (metronomo). Agora cada palavra varia +-20% em vez de ser uniforme,
+palavras bem curtas (ate 2 letras) saem mais rapido, e pontuacao de fim de frase ganha uma
+pausa de verdade (2.2x) - virgula/ponto-e-virgula uma pausa menor (1.1x). A duracao TOTAL nao
+mudou (a media do jitter e 1.0x) - mais variado, nao mais lento, exatamente o pedido.
+
+**Transicao direcional entre abas**: trocar pra uma aba mais a direita na barra desliza
+entrando pela direita, mais a esquerda entra pela esquerda (`ORDEM_ABAS` + classes
+`entra-direita`/`entra-esquerda` em `app.js`, keyframes novos em `style.css`) - em vez do
+mesmo fade generico pra qualquer troca, um detalhe que a maioria dos apps premium tem e o
+nosso nao tinha.
+
+**Banner de erro com entrada**: antes aparecia sem nenhuma transicao. Ganhou um leve
+overshoot-e-assenta (`erroEntra`, usa `--ease-bounce`) - decidi contra um "shake" literal de
+proposito, porque lê como alarme/chamativo, o oposto do "premium, nao sinistro" que ele pediu.
+
+**Fundo reagindo ao scroll**: unico ponto onde ele nao tinha certeza da direcao ("me mostra") -
+em vez de escolher por ele, montei 3 protótipos SO no artefato-replica (tom que muda com a
+posicao do scroll via hue-rotate, paralaxe onde o fundo se move mais devagar que o conteudo, e
+um brilho que acompanha a posicao da rolagem tipo farol) com botoes pra alternar entre eles ao
+vivo. Nenhum foi aplicado no app real ainda - esperando ele escolher qual (ou nenhum).
+
+Micro-interacoes: o app ja tinha bastante disso (pulso de sucesso, particulas ao concluir
+tarefa, numero "pop", checkbox pop, shimmer de carregamento) - essa rodada focou nos 3 pontos
+que realmente faltavam (chat, transicao de aba, erro) em vez de duplicar o que ja existia.
+
+Validado com Playwright: classes de direcao corretas ao trocar de aba pra frente/tras, delays
+de palavra realmente variados numa resposta real do chat (nao mais um passo fixo), animacao do
+banner de erro confirmada via `getComputedStyle`, e os 3 modos de scroll-fx alterando o filtro/
+transform/opacidade da aurora conforme a posicao de rolagem. 800 testes Python, 100% passando.
+
 ## 2026-09-22 (10) - Remove de vez o "negocinho preto" acima do chat (raiz, nao sintoma)
 
 Terceiro print seguido reclamando da mesma area (acima do "Fala comigo..."): dessa vez "tem um
