@@ -5,6 +5,39 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (12) - Fisica de toque de verdade (causa real do "barato") + efeito rainbow
+
+O Alex achou a rodada anterior "muito simples... clico e ja vai sem nada, como se fosse muito
+barato", pediu fluidez tipo iOS e um efeito "rainbow" (fundo trocando bem devagar entre roxo e
+verde).
+
+**Causa raiz do "barato" encontrada**: o app inteiro tinha UMA UNICA regra `:active` pra toque
+(so em `<button>`, escala 0.94) e ZERO estados de toque em qualquer outro elemento clicavel -
+27 blocos `@media (hover: hover)` no CSS, e nenhum equivalente pra toque (celular nao tem hover,
+entao nada acontecia visualmente ao tocar em coisas como o cabecalho de cotacao que expande, ou
+o label de anexar OFX). Corrigido: `.cotacao-cabecalho` e `.ofx-input-label` ganharam a mesma
+fisica de toque dos botoes.
+
+**A fisica de toque em si tambem estava errada, nao so faltando**: existia uma unica curva
+(`--ease-bounce`, com overshoot) usada tanto pra afundar quanto pra soltar o botao. Overshoot faz
+sentido soltando (a "mola" passa um pouco do ponto e assenta) mas fica estranho/nervoso afundando
+numa escala tao pequena (0.94) - nao lia como toque de verdade. Agora sao duas fases distintas,
+copiando o padrao real do iOS: afundar e RAPIDO e sem overshoot (~90ms, ease-in reto - sensacao
+de "toque registrado na hora") e soltar e um pouco mais lento COM leve overshoot (~220ms, bounce -
+sensacao de mola assentando). Opacity leve (0.85) somada ao scale ajuda o toque a ser percebido
+mesmo numa amplitude pequena.
+
+**Efeito rainbow**: `.aurora` ganhou uma segunda camada (`::after`) com duas manchas radiais FIXAS
+(roxo/ametista e verde/esmeralda - a dupla original da identidade do app, independente de qual
+`--accent` estiver ativo) cuja posicao de fundo anima devagar (26s, ida e volta) - as duas manchas
+se revezam em qual fica mais "em foco" sem nunca passar por outra cor no meio do caminho (por
+isso nao usei `hue-rotate`, que passaria por vermelho/laranja). Respeita
+`prefers-reduced-motion` (herda o `animation: none` que ja existia pro `.aurora` base).
+
+Validado com Playwright: regra `button:active` e as duas novas (`cotacao-cabecalho`/
+`ofx-input-label`) confirmadas com a fisica de duas fases certa, `aurora::after` rodando o
+`rainbowDrift` de 26s em `mix-blend-mode: screen`. 800 testes Python, 100% passando (CSS puro).
+
 ## 2026-09-22 (11) - Rodada de animacoes: ritmo humano no chat, transicao de aba direcional, erro com entrada
 
 Depois de fechar o tema (round 8-10), o Alex pediu a proxima etapa: animacoes e efeitos "em

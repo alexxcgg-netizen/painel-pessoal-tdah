@@ -329,10 +329,22 @@
   }
 }
 
+/* Fisica de toque separada pra pressionar x soltar (pedido explicito: as
+   animacoes pareciam "travadas"/"baratas" - clicar nao dava quase nenhum
+   retorno visual). A causa real: so existia UMA curva (--ease-bounce, com
+   overshoot) usada em cima E embaixo - overshoot faz sentido voltando pro
+   tamanho normal (um "solta e passa um pouco, depois assenta"), mas
+   aplicado tambem na hora de AFUNDAR o botao ele fica errado/nervoso numa
+   amplitude tao pequena (0.94), sem ler como um toque de verdade. Isso
+   copia o padrao real do iOS: afundar e RAPIDO e SEM overshoot (ease-in
+   comum, ~90ms) - a sensacao de "toque registrado na hora"; soltar e um
+   pouco mais lento COM overshoot leve (bounce, ~220ms) - a sensacao de
+   "mola assentando". Um leve opacity tambem ajuda o toque ficar percebido
+   mesmo numa escala pequena. */
 button {
   font-family: inherit;
-  transition: transform 0.18s var(--ease-bounce), background 0.15s ease, filter 0.15s ease,
-    opacity 0.15s ease, box-shadow 0.2s ease, border-color 0.15s ease;
+  transition: transform 0.22s var(--ease-bounce), background 0.15s ease, filter 0.15s ease,
+    opacity 0.18s ease, box-shadow 0.2s ease, border-color 0.15s ease;
 }
 
 @media (hover: hover) {
@@ -388,7 +400,24 @@ button svg {
 }
 
 button:active:not(:disabled) {
-  transform: scale(0.94);
+  transform: scale(0.93);
+  opacity: 0.85;
+  transition: transform 0.09s cubic-bezier(0.4, 0, 1, 1), opacity 0.09s ease;
+}
+
+/* Mesma fisica de toque (afunda rapido/sem overshoot, solta com bounce) pros
+   dois elementos "clicaveis" que nao sao <button> (o header de cotacao que
+   expande/colapsa, e o label que abre o seletor de arquivo OFX) - sem isso
+   eles nao tinham NENHUM feedback em toque (so em :hover, que celular
+   nenhum dispara). */
+.cotacao-cabecalho,
+.ofx-input-label {
+  transition: transform 0.22s var(--ease-bounce), border-color 0.15s ease;
+}
+.cotacao-cabecalho:active,
+.ofx-input-label:active {
+  transform: scale(0.97);
+  transition: transform 0.09s cubic-bezier(0.4, 0, 1, 1);
 }
 
 :focus-visible {
@@ -453,8 +482,42 @@ body {
   animation: auroraMove 20s ease-in-out infinite;
 }
 
+/* "Efeito rainbow" (pedido explicito): um brilho de fundo trocando bem
+   devagar entre roxo e verde - a mesma dupla de cor da identidade original
+   do app (ametista + esmeralda), independente de qual --accent estiver
+   ativo no momento (isso e puramente ambiente/decorativo, nao segue a
+   paleta escolhida). Em vez de animar hue-rotate (que passaria por
+   vermelho/laranja no meio do caminho - errado, ele pediu especificamente
+   "entre o roxo e o verde"), sao duas manchas radiais FIXAS nessas duas
+   cores, e o que anima e a POSICAO de fundo de um canvas maior - a mancha
+   roxa e a verde ficam se revezando em qual fica mais "em foco", sem nunca
+   passar por outra cor. 26s de ciclo = "bem devagarzinho" de verdade. */
+.aurora::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(65% 55% at 22% 70%, rgba(109, 63, 209, 0.45), transparent 60%),
+    radial-gradient(60% 50% at 78% 28%, rgba(65, 170, 117, 0.42), transparent 60%);
+  background-size: 180% 180%;
+  mix-blend-mode: screen;
+  animation: rainbowDrift 26s ease-in-out infinite;
+}
+
+@keyframes rainbowDrift {
+  0%,
+  100% {
+    background-position: 0% 20%;
+    opacity: 0.5;
+  }
+  50% {
+    background-position: 100% 80%;
+    opacity: 0.85;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .aurora {
+  .aurora,
+  .aurora::after {
     animation: none;
   }
 }
