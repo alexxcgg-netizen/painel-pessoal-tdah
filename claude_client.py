@@ -398,7 +398,12 @@ CHAT_TOOLS = [
                 },
                 "observacao": {
                     "type": "string",
-                    "description": "detalhe curto tipo 'treino de pouso', 'cross country' - omita se nao houver",
+                    "description": (
+                        "diario de bordo do voo - o trajeto e o que ele fez/aprendeu, no jeito que ele "
+                        "contou (ex: 'fui de Blumenau, passei em Curitiba, fui pra Florianopolis e voltei, "
+                        "treino de pouso com vento cruzado'). So escreva o que o Alex de fato contou, nao invente - "
+                        "omita se ele nao deu detalhe nenhum."
+                    ),
                 },
             },
             "required": ["data", "destino"],

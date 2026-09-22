@@ -934,7 +934,10 @@ class PainelTestCase(unittest.TestCase):
         res = self.client.get("/api/calendario/hoje")
         self.assertEqual(res.get_json()["eventos"], [])
 
-    def test_calendario_hoje_ignora_tarefa_concluida(self):
+    def test_calendario_hoje_marca_tarefa_concluida(self):
+        # A agenda precisa MOSTRAR a tarefa concluida (bolinha verde, pedido do
+        # Alex) - so quem NAO pode ver isso e o plano do dia/notificacoes, que
+        # usam _tarefas_com_horario_hoje (so pendentes) em vez desta rota.
         hoje = date.today().isoformat()
         conn = db.get_db()
         conn.execute(
@@ -945,7 +948,10 @@ class PainelTestCase(unittest.TestCase):
         conn.close()
 
         res = self.client.get("/api/calendario/hoje")
-        self.assertEqual(res.get_json()["eventos"], [])
+        eventos = res.get_json()["eventos"]
+        self.assertEqual(len(eventos), 1)
+        self.assertEqual(eventos[0]["titulo"], "consulta ja feita")
+        self.assertTrue(eventos[0]["concluido"])
 
     def test_fechamento_do_dia_lista_concluidas_e_pendentes_de_hoje(self):
         hoje = date.today().isoformat()

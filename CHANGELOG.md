@@ -5,6 +5,44 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (13) - Agenda com bolinhas verde/vermelha, saldo nos bancos, diario de bordo do voo, rainbow v2
+
+Rodada baseada num walkthrough completo do Alex aba por aba (aba Hoje/chat/tarefas ok como
+estao; Construcao adiada de proposito ate a integracao real; feedback concreto nas outras).
+
+**Agenda: bolinha verde (concluido) / vermelha (perdido)**: `/api/calendario/hoje` so devolvia
+tarefas PENDENTES (por design - e a mesma funcao que alimenta plano do dia e notificacoes, que
+nao podem ver trabalho ja feito como se ainda faltasse). Em vez de mexer nessa funcao
+compartilhada (risco real de regressao em 8 pontos de consumo), criei
+`_tarefas_concluidas_com_horario_hoje` separada, so pro `/api/calendario/hoje` mesclar - visual
+puro, sem efeito colateral em nenhum outro fluxo. Frontend (`loadAgenda`) agora aplica `.concluido`
+(verde, `#42bb91`) em tarefa feita, `.perdido` (vermelho, `--danger`) em tarefa com horario que
+passou sem marcar como feita - evento de calendario (sem tarefa por tras) continua no tratamento
+neutro `.passado` de sempre, porque nao da pra confirmar presenca num compromisso.
+
+**Bancos: saldo visivel**: `bank_accounts.saldo` ja existia no schema e ja vinha no
+`/api/bancos`, so nao aparecia na tela. Adicionado na ponta da linha de cada conta/cartao
+(`.banco-saldo`, verde se positivo, vermelho se negativo).
+
+**Aviacao: "observacao" virou diario de bordo**: campo trocado de `<input>` de uma linha pra
+`<textarea>`, com placeholder convidando a contar o trajeto (ex: "fui de Blumenau, passei em
+Curitiba..."). Descricao ganhou paragrafo proprio na lista (`.voo-diario`, borda lateral colorida)
+em vez de ficar espremida na mesma linha da data/horas. Schema de ferramenta do chat
+(`claude_client.py`) tambem atualizado - a IA agora pode registrar um relato mais completo quando
+o Alex contar por voz/texto, sempre so o que ele de fato disse (sem inventar).
+
+**Rainbow v2 ("mais tecnologico, mais chique")**: pedido vago, interpretado como (a) terceira
+mancha radial verde-azulada com ciclo proprio fora de fase das outras duas - o caminho fica mais
+organico/mesh-gradient em vez de um ping-pong entre 2 pontos, tipo os fundos animados da Apple
+(Fitness/Music); e (b) uma camada extra de brilho diagonal bem sutil (`.aurora::before`,
+branco a ~5-9% em `mix-blend-mode: overlay`) cruzando a tela devagar (34s), como o "shine" que
+passa em fotos de produto da Apple - acabamento de vidro/metal sem mexer na paleta roxo/verde
+nem virar luz piscando. Continua respeitando `prefers-reduced-motion`.
+
+Teste `test_calendario_hoje_ignora_tarefa_concluida` renomeado/reescrito pra
+`test_calendario_hoje_marca_tarefa_concluida` (a mudanca de comportamento e intencional e
+documentada no proprio teste). 800 testes Python + 112 subtestes, 100% passando.
+
 ## 2026-09-22 (12) - Fisica de toque de verdade (causa real do "barato") + efeito rainbow
 
 O Alex achou a rodada anterior "muito simples... clico e ja vai sem nada, como se fosse muito

@@ -496,27 +496,78 @@ body {
   content: "";
   position: absolute;
   inset: 0;
+  /* v2 ("mais tecnologico, mais chique"): terceira mancha (verde-azulado, ainda
+     dentro do par roxo/verde - nao e uma cor nova) com o proprio ciclo, rodando
+     fora de fase das outras duas - em vez de um "ping-pong" de 2 pontos, agora
+     o caminho parece mais organico/mesh-gradient, tipo os fundos animados da
+     Apple (Fitness/Music), sem nunca cruzar pra vermelho/laranja/amarelo. */
   background: radial-gradient(65% 55% at 22% 70%, rgba(109, 63, 209, 0.45), transparent 60%),
-    radial-gradient(60% 50% at 78% 28%, rgba(65, 170, 117, 0.42), transparent 60%);
-  background-size: 180% 180%;
+    radial-gradient(60% 50% at 78% 28%, rgba(65, 170, 117, 0.42), transparent 60%),
+    radial-gradient(45% 40% at 50% 50%, rgba(50, 150, 160, 0.28), transparent 62%);
+  background-size: 180% 180%, 180% 180%, 220% 220%;
   mix-blend-mode: screen;
-  animation: rainbowDrift 26s ease-in-out infinite;
+  animation: rainbowDrift 26s ease-in-out infinite, rainbowDriftExtra 37s ease-in-out infinite;
 }
 
 @keyframes rainbowDrift {
   0%,
   100% {
-    background-position: 0% 20%;
+    background-position: 0% 20%, 0% 20%, 60% 40%;
     opacity: 0.5;
   }
-  50% {
-    background-position: 100% 80%;
+  35% {
+    background-position: 60% 55%, 40% 65%, 30% 70%;
+    opacity: 0.72;
+  }
+  70% {
+    background-position: 100% 80%, 90% 30%, 70% 20%;
     opacity: 0.85;
+  }
+}
+
+@keyframes rainbowDriftExtra {
+  0%,
+  100% {
+    background-position: 20% 30%;
+  }
+  50% {
+    background-position: 80% 65%;
+  }
+}
+
+/* Camada de brilho fino, tipo um reflexo de vidro/metal escovado cruzando a
+   tela bem devagar (referencia: o "shine" que passa nos produtos da Apple em
+   paginas de marketing) - branco bem sutil (nao mexe na paleta roxo/verde),
+   so pra dar aquele acabamento premium/tecnologico sem virar "luz piscando". */
+.aurora::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.05) 47%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.05) 53%,
+    transparent 70%
+  );
+  background-size: 260% 260%;
+  mix-blend-mode: overlay;
+  animation: auroraShine 34s linear infinite;
+}
+
+@keyframes auroraShine {
+  0% {
+    background-position: 120% -20%;
+  }
+  100% {
+    background-position: -20% 120%;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .aurora,
+  .aurora::before,
   .aurora::after {
     animation: none;
   }
@@ -1567,6 +1618,28 @@ li.item.saindo {
   margin-top: 0.15rem;
 }
 
+.voo-diario {
+  margin: 0.4rem 0 0;
+  padding-left: 0.6rem;
+  border-left: 2px solid color-mix(in srgb, var(--cor-aviacao) 45%, var(--border));
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.banco-saldo {
+  flex-shrink: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #42bb91;
+}
+
+.banco-saldo-negativo {
+  color: var(--danger);
+}
+
 /* Linha do tempo da agenda (inspirada no Tiimo): uma trilha vertical liga os
    compromissos do dia, o que ja passou fica apagado e o proximo evento ganha
    um marcador maior + selo "proximo" - ajuda com cegueira de tempo sem
@@ -1625,6 +1698,29 @@ li.item.saindo {
   border-color: var(--accent);
   background: var(--accent);
   box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* tarefas com horario: bolinha verde se feita, vermelha se o horario passou
+   sem marcar como feita. So tarefas - compromisso de calendario nao tem como
+   confirmar presenca, entao fica no tratamento neutro (.passado) acima. */
+#lista-agenda li.item.concluido {
+  opacity: 0.75;
+}
+
+#lista-agenda li.item.concluido::before {
+  border-color: #42bb91;
+  background: #42bb91;
+  box-shadow: 0 0 6px 0 rgba(66, 187, 145, 0.5);
+}
+
+#lista-agenda li.item.perdido {
+  opacity: 0.75;
+}
+
+#lista-agenda li.item.perdido::before {
+  border-color: var(--danger);
+  background: var(--danger);
+  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--danger) 50%, transparent);
 }
 
 .item-badge-proximo {
@@ -2897,6 +2993,27 @@ li.item.item-planejado {
 }
 
 .form-linha input[type="text"]:focus {
+  outline: none;
+  border-color: var(--form-cor, var(--cor-hoje));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--form-cor, var(--cor-hoje)) 18%, transparent);
+}
+
+.form-linha textarea {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 2.6rem;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.form-linha textarea:focus {
   outline: none;
   border-color: var(--form-cor, var(--cor-hoje));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--form-cor, var(--cor-hoje)) 18%, transparent);

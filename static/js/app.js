@@ -615,7 +615,15 @@ async function loadAgenda() {
     li.className = "item";
 
     if (!ev.dia_inteiro) {
-      if (new Date(ev.fim) < agora) {
+      const jaPassou = new Date(ev.fim) < agora;
+      if (ev.origem === "tarefa" && ev.concluido) {
+        // concluida: bolinha verde, mesmo se foi feita adiantada (antes do horario)
+        li.classList.add("concluido");
+      } else if (ev.origem === "tarefa" && jaPassou) {
+        // tarefa com horario que passou e nao foi marcada como feita: bolinha vermelha
+        li.classList.add("perdido");
+      } else if (jaPassou) {
+        // compromisso de calendario nao tem como confirmar presenca - fica so apagado, sem julgar
         li.classList.add("passado");
       } else if (!proximoMarcado) {
         li.classList.add("proximo");
@@ -1385,6 +1393,14 @@ function criarItemBanco(conta) {
   info.appendChild(stats);
 
   linha.appendChild(info);
+
+  if (conta.saldo !== null && conta.saldo !== undefined) {
+    const saldo = document.createElement("span");
+    saldo.className = "banco-saldo" + (conta.saldo < 0 ? " banco-saldo-negativo" : "");
+    saldo.textContent = fmtMoeda(conta.saldo);
+    linha.appendChild(saldo);
+  }
+
   li.appendChild(linha);
   return li;
 }
@@ -1856,9 +1872,15 @@ function criarItemVoo(v) {
   let quandoTxt = fmtDataBr(v.data);
   if (v.hora) quandoTxt += ` as ${v.hora}`;
   if (v.horas) quandoTxt += ` - ${fmtHoras(v.horas)} voadas`;
-  if (v.observacao) quandoTxt += ` - ${v.observacao}`;
   quando.textContent = quandoTxt;
   tituloWrap.appendChild(quando);
+
+  if (v.observacao) {
+    const diario = document.createElement("p");
+    diario.className = "voo-diario";
+    diario.textContent = v.observacao;
+    tituloWrap.appendChild(diario);
+  }
 
   const saidaResultado = document.createElement("p");
   saidaResultado.className = "resumo-texto voo-saida-resultado";

@@ -492,6 +492,7 @@
         <p class="dica-metas dica-texto" hidden>
           Ja realizado (com horas) ou so um compromisso agendado (sem horas ainda) - da tambem pra
           pedir no chat (ex: "vou voar pra Blumenau semana que vem" ou "voei 1,5h hoje, treino de pouso").
+          O diario de bordo e pra registrar o trajeto e o que voce aprendeu no voo, pra sempre lembrar.
         </p>
       </div>
       <form id="voo-form" class="form-linha" style="--form-cor: var(--cor-aviacao)">
@@ -500,7 +501,7 @@
         <input type="text" id="voo-origem" placeholder="De onde? (opcional)" />
         <input type="text" id="voo-destino" placeholder="Pra onde?" required />
         <input type="text" id="voo-horas" placeholder="horas voadas (deixe em branco se so agendado)" inputmode="decimal" />
-        <input type="text" id="voo-obs" placeholder="observacao (opcional)" />
+        <textarea id="voo-obs" placeholder="diario de bordo (opcional) - o que rolou no voo? ex: fui de Blumenau, passei em Curitiba, fui pra Florianopolis e voltei" rows="2"></textarea>
         <button type="submit" id="voo-btn" class="btn-com-icone">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           Registrar

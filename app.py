@@ -806,7 +806,9 @@ def _clima_contexto_resumo() -> str | None:
 
 def _tarefas_com_horario_hoje(conn) -> list[dict]:
     """Tarefas pendentes com horario marcado pra hoje, no mesmo formato dos
-    eventos do iCloud - pra virarem ancoras de horario fixo junto com eles."""
+    eventos do iCloud - pra virarem ancoras de horario fixo junto com eles.
+    So pendentes de proposito (quem consome isso - plano do dia, resumo,
+    notificacoes - nao pode ver trabalho ja feito como se ainda faltasse)."""
     hoje = date.today().isoformat()
     rows = conn.execute(
         "SELECT title, hora FROM tasks WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL",
@@ -819,6 +821,32 @@ def _tarefas_com_horario_hoje(conn) -> list[dict]:
             "fim": f"{hoje}T{r['hora']}:00",
             "dia_inteiro": False,
             "origem": "tarefa",
+            "concluido": False,
+        }
+        for r in rows
+    ]
+
+
+def _tarefas_concluidas_com_horario_hoje(conn) -> list[dict]:
+    """So pra bolinha da agenda poder ficar verde (pedido explicito: "se
+    fossem concluidas, ja ficassem verdes"). Deliberadamente SEPARADA de
+    _tarefas_com_horario_hoje (que so devolve pendentes, de proposito) -
+    misturar concluidas ali afetaria plano do dia/notificacoes/resumo, que
+    dependem de ver so o que ainda falta. So o endpoint da agenda (consumo
+    puramente visual) usa esta aqui."""
+    hoje = date.today().isoformat()
+    rows = conn.execute(
+        "SELECT title, hora FROM tasks WHERE completed_at IS NOT NULL AND due_date = ? AND hora IS NOT NULL",
+        (hoje,),
+    ).fetchall()
+    return [
+        {
+            "titulo": r["title"],
+            "inicio": f"{hoje}T{r['hora']}:00",
+            "fim": f"{hoje}T{r['hora']}:00",
+            "dia_inteiro": False,
+            "origem": "tarefa",
+            "concluido": True,
         }
         for r in rows
     ]
@@ -947,6 +975,8 @@ def calendario_hoje():
         except Exception:
             erro = "Nao consegui falar com o iCloud agora."
     eventos = _compromissos_de_hoje(conn, icloud_eventos)
+    eventos += _tarefas_concluidas_com_horario_hoje(conn)
+    eventos.sort(key=lambda e: e["inicio"])
     conn.close()
     resposta = {"configurado": configurado, "eventos": eventos}
     if erro:
