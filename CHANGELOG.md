@@ -5,6 +5,43 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (6) - Liquid Glass round 6 (transparencia de verdade, removida a mancha branca)
+
+O Alex mandou dois prints lado a lado: o `#chat-input` do nosso app (uma mancha branca diagonal
+por cima de um fundo cinza opaco) e o Control Center real do iOS. A diferenca principal: o vidro
+de verdade da Apple e MUITO mais transparente (da pra ver claramente o que ta atras, so borrado),
+quase sem cor propria somada, com borda/brilho finos e discretos - nunca uma mancha de luz
+concentrada. Frase-chave: "ele não tem um branco nem nada".
+
+**Causa raiz encontrada**: `--glass-specular`, adicionado no round 5 como um blob radial branco
+forte (55% de opacidade) num canto, ficava proporcionalmente enorme e virava uma mancha/risco
+diagonal em qualquer elemento largo e baixo - exatamente o `#chat-input`/`#captura-input` do
+print. Removido de vez (nao so reduzido).
+
+**Reescrita completa da receita `--glass-*`** pra bater com o material real:
+- `--glass-highlight` deixou de ser um blob radial e virou um degrade LINEAR bem fraco (16%→4%→0)
+  so na borda de cima - da o "luz pegando a borda" sem virar ponto de luz isolado.
+- `--glass-glow` (halo colorido no canto) caiu de 68% pra 30% de opacidade - a identidade de cor
+  da secao continua ali, so que discreta, nao dominando.
+- O preenchimento base (`--glass-bg`) trocou o degrade tint+surface por uma mistura bem mais
+  transparente (`color-mix(var(--glass-tint) 9%, color-mix(var(--surface) 26%, transparent))` -
+  antes a cobertura de opacidade chegava a 55-65%, agora fica bem mais baixa) - com isso o
+  `backdrop-filter` por tras finalmente aparece de verdade, que e o que faz ler como vidro e nao
+  "plastico colorido opaco com brilho em cima".
+- Blur/saturacao/brilho do `backdrop-filter` desceram um pouco (42px→36px, 230%→150%, 1.14→1.06)
+  - hiper-saturado tambem lia como "processado demais", nao como vidro limpo.
+- `--glass-border` e `--glass-shadow` ficaram mais finos e com menos opacidade - uma linha
+  discreta, nao uma borda grossa de duas camadas.
+- `#tabbar` (que tinha ganhado o mesmo `--glass-specular` no round 5) seguiu a mesma dieta -
+  fundo bem menos opaco (0.85/0.88→0.6/0.68), blur/saturacao reduzidos, sombra simplificada.
+- `.stat-tile`/`.card-resultado` (opacos, cor validada por acessibilidade - nao mudam a formula de
+  fundo) so perderam a referencia ao `--glass-specular` removido, mantendo `--glass-highlight`
+  (agora sutil) como unico acabamento de brilho.
+
+Artefato-replica regenerado (mesmo link) com o CSS atual. Comparado visualmente com print do
+`#chat-input` antes/depois - a mancha diagonal sumiu, o campo agora le como vidro fino e
+transparente em vez de plastico com brilho. 800 testes Python, 100% passando (CSS puro).
+
 ## 2026-09-22 (5) - Liquid Glass round 5 (qualidade do material + barra flutuante) + artefato com testador de cores neutras
 
 O Alex mandou print de referencia (barra de abas do Instagram) e disse que o Liquid Glass do

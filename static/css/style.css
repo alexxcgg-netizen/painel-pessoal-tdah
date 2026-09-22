@@ -120,49 +120,40 @@
      arriscar legibilidade - ver `scripts/validate_palette.js` pra reconferir
      se a cor de texto em cima ainda passa depois de qualquer ajuste aqui.
 
-     Round 4 (pedido explicito: "Liquid Glass uma qualidade horrivel... tenta
-     aumentar a qualidade"): o vidro raso do round 3 ganhou mais duas coisas
-     que vidro de verdade tem e faltavam - um segundo brilho especular menor
-     e mais forte (--glass-specular, o "ponto de luz" propriamente dito, nao
-     so o halo difuso) e uma borda com DUAS linhas (clara por fora numa
-     direcao, escura por dentro na oposta - --glass-rim) simulando a espessura
-     real do vidro visto de canto, nao so uma borda de 1px solida. Blur/
-     saturacao tambem subiram (28px->42px, 190%->230%) - blur raso e o que
-     mais lia como "borrado tosco" em vez de vidro. --glass-shadow ganhou uma
-     terceira camada de queda (contato bem curto e escuro, igual --shadow-card
-     ja fazia pros cards solidos) - sem ela o card parecia flutuar generico
-     em vez de ter um ponto de apoio proximo. */
+     Round 5 (blur/saturacao mais fortes, brilho especular concentrado) ainda
+     nao acertou - o Alex mandou o Control Center de verdade do iOS ao lado
+     do nosso input de chat pra comparar: o vidro real da Apple e MUITO mais
+     transparente (o que tem atras - app, cor - continua claramente visivel,
+     so borrado), quase sem cor propria adicionada, e a borda/brilho e uma
+     linha fina e discreta, nunca uma mancha branca concentrada. O brilho
+     especular do round 5 (--glass-specular, um blob branco forte num canto)
+     virava literalmente uma mancha/risco branco diagonal em qualquer coisa
+     larga e baixa (o input de chat, por exemplo) - removido. --glass-highlight
+     virou um degrade linear bem fraco (nao mais um blob radial) so no topo -
+     da o "luz pegando a borda de cima" sem virar ponto de luz isolado. O
+     preenchimento de cor (--glass-bg) caiu bastante de opacidade (a base de
+     tint+surface era ~55-65% de cobertura antes, agora fica bem mais baixa)
+     -e assim o `--glass-blur` por tras realmente aparece, que e o que faz
+     ler como vidro de verdade e nao "plastico colorido opaco com brilho em
+     cima". */
   --glass-tint: var(--accent);
-  --glass-specular: radial-gradient(
-    38% 30% at 22% 4%,
-    rgba(255, 255, 255, 0.55) 0%,
-    rgba(255, 255, 255, 0.16) 45%,
-    transparent 75%
-  );
-  --glass-highlight: radial-gradient(
-    130% 95% at 12% -20%,
-    rgba(255, 255, 255, 0.3) 0%,
-    rgba(255, 255, 255, 0.09) 32%,
-    transparent 62%
+  --glass-highlight: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.04) 24%,
+    transparent 55%
   );
   --glass-glow: radial-gradient(
-    100% 80% at 90% 118%,
-    color-mix(in srgb, var(--glass-tint) 68%, transparent) 0%,
-    transparent 60%
+    120% 90% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 30%, transparent) 0%,
+    transparent 62%
   );
-  --glass-bg: var(--glass-specular), var(--glass-highlight), var(--glass-glow),
-    linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--glass-tint) 26%, color-mix(in srgb, var(--surface-2) 62%, transparent)) 0%,
-      color-mix(in srgb, var(--glass-tint) 12%, color-mix(in srgb, var(--surface) 44%, transparent)) 100%
-    );
-  --glass-border: color-mix(in srgb, var(--glass-tint) 50%, color-mix(in srgb, white 38%, var(--border-strong)));
-  --glass-rim: inset 0 0 0 1px color-mix(in srgb, var(--glass-tint) 38%, rgba(255, 255, 255, 0.5)),
-    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.55);
-  --glass-blur: blur(42px) saturate(230%) brightness(1.14);
-  --glass-shadow: var(--glass-rim), inset 0 -1.5px 1px -1px rgba(0, 0, 0, 0.4),
-    0 2px 3px -1px rgba(0, 0, 0, 0.35),
-    0 14px 30px -14px color-mix(in srgb, var(--glass-tint) 55%, transparent), var(--shadow-card);
+  --glass-bg: var(--glass-highlight), var(--glass-glow),
+    color-mix(in srgb, var(--glass-tint) 9%, color-mix(in srgb, var(--surface) 26%, transparent));
+  --glass-border: color-mix(in srgb, var(--glass-tint) 20%, color-mix(in srgb, white 22%, var(--border-strong)));
+  --glass-blur: blur(36px) saturate(150%) brightness(1.06);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 10px 24px -16px color-mix(in srgb, var(--glass-tint) 32%, transparent), var(--shadow-card);
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
@@ -697,14 +688,13 @@ header {
   gap: 0.05rem;
   padding: 0.45rem 0.3rem;
   border-radius: 999px;
-  background: var(--glass-specular), var(--glass-highlight),
-    linear-gradient(165deg, rgba(34, 35, 43, 0.85) 0%, rgba(10, 11, 15, 0.88) 100%);
-  backdrop-filter: blur(46px) saturate(240%) brightness(1.16);
-  -webkit-backdrop-filter: blur(46px) saturate(240%) brightness(1.16);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 1.5px 0 rgba(255, 255, 255, 0.34),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 3px 8px -3px rgba(0, 0, 0, 0.55),
-    0 28px 46px -18px rgba(0, 0, 0, 0.78);
+  background: var(--glass-highlight),
+    linear-gradient(165deg, rgba(28, 29, 36, 0.6) 0%, rgba(8, 9, 12, 0.68) 100%);
+  backdrop-filter: blur(38px) saturate(160%) brightness(1.08);
+  -webkit-backdrop-filter: blur(38px) saturate(160%) brightness(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 3px 8px -3px rgba(0, 0, 0, 0.5), 0 26px 44px -18px rgba(0, 0, 0, 0.7);
   z-index: 10;
 }
 
@@ -803,23 +793,16 @@ header {
 #tab-bancos,
 #tab-construtora,
 #tab-aviacao {
-  --glass-bg: var(--glass-specular), var(--glass-highlight), var(--glass-glow),
-    linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--glass-tint) 26%, color-mix(in srgb, var(--surface-2) 62%, transparent)) 0%,
-      color-mix(in srgb, var(--glass-tint) 12%, color-mix(in srgb, var(--surface) 44%, transparent)) 100%
-    );
-  --glass-border: color-mix(in srgb, var(--glass-tint) 50%, color-mix(in srgb, white 38%, var(--border-strong)));
   --glass-glow: radial-gradient(
-    100% 80% at 90% 118%,
-    color-mix(in srgb, var(--glass-tint) 68%, transparent) 0%,
-    transparent 60%
+    120% 90% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 30%, transparent) 0%,
+    transparent 62%
   );
-  --glass-rim: inset 0 0 0 1px color-mix(in srgb, var(--glass-tint) 38%, rgba(255, 255, 255, 0.5)),
-    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.55);
-  --glass-shadow: var(--glass-rim), inset 0 -1.5px 1px -1px rgba(0, 0, 0, 0.4),
-    0 2px 3px -1px rgba(0, 0, 0, 0.35),
-    0 14px 30px -14px color-mix(in srgb, var(--glass-tint) 55%, transparent), var(--shadow-card);
+  --glass-bg: var(--glass-highlight), var(--glass-glow),
+    color-mix(in srgb, var(--glass-tint) 9%, color-mix(in srgb, var(--surface) 26%, transparent));
+  --glass-border: color-mix(in srgb, var(--glass-tint) 20%, color-mix(in srgb, white 22%, var(--border-strong)));
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 10px 24px -16px color-mix(in srgb, var(--glass-tint) 32%, transparent), var(--shadow-card);
 }
 #tab-hoje {
   --glass-tint: var(--cor-hoje);
@@ -972,7 +955,7 @@ header {
     color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
     transparent 62%
   );
-  background: var(--glass-specular), var(--glass-highlight), var(--glass-glow),
+  background: var(--glass-highlight), var(--glass-glow),
     linear-gradient(
       155deg,
       color-mix(
@@ -2213,7 +2196,7 @@ li.item.item-planejado {
     transparent 62%
   );
   align-self: stretch;
-  background: var(--glass-specular), var(--glass-highlight), var(--glass-glow),
+  background: var(--glass-highlight), var(--glass-glow),
     linear-gradient(
       155deg,
       color-mix(in srgb, color-mix(in srgb, var(--card-cor) 30%, black 70%) 16%, var(--surface-2)) 0%,
