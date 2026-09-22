@@ -258,6 +258,21 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now')),
             atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS hidratacao_registros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS medidas_corporais (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            valor REAL NOT NULL,
+            unidade TEXT NOT NULL,
+            data TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -306,6 +321,8 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_tasks_recorrencia ON tasks(recorrencia);
         CREATE INDEX IF NOT EXISTS idx_tasks_recorrente_origem_id ON tasks(recorrente_origem_id);
         CREATE INDEX IF NOT EXISTS idx_medicamentos_ativo ON medicamentos(ativo);
+        CREATE INDEX IF NOT EXISTS idx_hidratacao_registros_data ON hidratacao_registros(data);
+        CREATE INDEX IF NOT EXISTS idx_medidas_corporais_tipo_data ON medidas_corporais(tipo, data);
         """
     )
     conn.commit()
@@ -680,6 +697,48 @@ def delete_medicamento(conn, medicamento_id: int):
     if row:
         conn.execute("DELETE FROM tasks WHERE id = ?", (row["tarefa_modelo_id"],))
     conn.execute("DELETE FROM medicamentos WHERE id = ?", (medicamento_id,))
+    conn.commit()
+
+
+def registrar_hidratacao(conn, data: str) -> int:
+    """+1 copo no dia informado - conta simples, sem limite de meta (o Alex so
+    quer parar de esquecer de beber agua, nao gerenciar meta em ml)."""
+    conn.execute("INSERT INTO hidratacao_registros (data) VALUES (?)", (data,))
+    conn.commit()
+    return contar_hidratacao_dia(conn, data)
+
+
+def contar_hidratacao_dia(conn, data: str) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) AS total FROM hidratacao_registros WHERE data = ?", (data,)
+    ).fetchone()
+    return row["total"]
+
+
+def create_medida_corporal(conn, tipo: str, valor: float, unidade: str, data: str) -> int:
+    cur = conn.execute(
+        "INSERT INTO medidas_corporais (tipo, valor, unidade, data) VALUES (?, ?, ?, ?)",
+        (tipo, valor, unidade, data),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_medidas_corporais(conn, tipo: str | None = None, limite: int = 50) -> list[dict]:
+    if tipo:
+        rows = conn.execute(
+            "SELECT * FROM medidas_corporais WHERE tipo = ? ORDER BY data DESC, id DESC LIMIT ?",
+            (tipo, limite),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM medidas_corporais ORDER BY data DESC, id DESC LIMIT ?", (limite,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_medida_corporal(conn, medida_id: int):
+    conn.execute("DELETE FROM medidas_corporais WHERE id = ?", (medida_id,))
     conn.commit()
 
 

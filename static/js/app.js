@@ -228,6 +228,7 @@ function showTab(name) {
     loadMemorias();
     loadLembretes();
     loadMedicamentos();
+    loadMedidas();
     loadEsperas();
     loadNotas();
   }
@@ -895,12 +896,125 @@ async function loadSaude() {
 
   $("#saude-vazio").hidden = temAlgumDado;
   $("#saude-grid").hidden = !temAlgumDado;
+  $("#hidratacao-total").textContent = data.hidratacao_hoje ?? 0;
+
+  const dicaSono = $("#dica-sono");
+  dicaSono.hidden = !data.dica_sono;
+  dicaSono.textContent = data.dica_sono || "";
+
   if (!temAlgumDado) return;
 
   $("#saude-passos").textContent = dados.passos != null ? dados.passos.toLocaleString("pt-BR") : "-";
   $("#saude-distancia").textContent = dados.distancia_km != null ? dados.distancia_km.toFixed(1) : "-";
   $("#saude-sono").textContent = dados.sono_horas != null ? dados.sono_horas.toFixed(1) : "-";
 }
+
+$("#hidratacao-btn").addEventListener("click", async () => {
+  const btn = $("#hidratacao-btn");
+  btn.disabled = true;
+  const data = await apiFetch("/api/hidratacao", { method: "POST" });
+  btn.disabled = false;
+  if (!data) return;
+  $("#hidratacao-total").textContent = data.total_hoje;
+  pulsarSucesso($("#hidratacao-total"));
+});
+
+async function loadMedidas() {
+  const medidas = await apiFetch("/api/medidas");
+  if (!medidas) return;
+
+  const list = $("#lista-medidas");
+  list.innerHTML = "";
+  $("#medidas-vazio").hidden = medidas.length > 0;
+
+  const tipoJaMostrouTendencia = new Set();
+
+  medidas.forEach((m, idx) => {
+    const li = document.createElement("li");
+    li.className = "item";
+
+    const linha = document.createElement("div");
+    linha.className = "item-linha";
+
+    const tituloWrap = document.createElement("div");
+    const titulo = document.createElement("span");
+    titulo.className = "item-titulo";
+    titulo.textContent = `${m.tipo}: ${m.valor}${m.unidade}`;
+    tituloWrap.appendChild(titulo);
+
+    const quando = document.createElement("span");
+    quando.className = "item-quando";
+    quando.textContent = fmtDataBr(m.data);
+    tituloWrap.appendChild(quando);
+
+    // So o registro mais recente de cada tipo ganha a tendencia (comparado
+    // com o registro anterior mais proximo do MESMO tipo) - historico antigo
+    // fica so como lista, sem repetir a mesma seta em cada linha.
+    if (!tipoJaMostrouTendencia.has(m.tipo)) {
+      tipoJaMostrouTendencia.add(m.tipo);
+      const anterior = medidas.slice(idx + 1).find((x) => x.tipo === m.tipo);
+      if (anterior && anterior.valor !== m.valor) {
+        const tendencia = document.createElement("span");
+        const subiu = m.valor > anterior.valor;
+        const delta = (m.valor - anterior.valor).toFixed(1);
+        tendencia.className = `medida-tendencia ${subiu ? "subiu" : "desceu"}`;
+        tendencia.textContent = subiu ? `+${delta}` : delta;
+        tituloWrap.appendChild(tendencia);
+      }
+    }
+    linha.appendChild(tituloWrap);
+
+    const acoes = document.createElement("div");
+    acoes.className = "item-acoes";
+    const apagarBtn = document.createElement("button");
+    apagarBtn.className = "btn-com-icone";
+    apagarBtn.innerHTML = `${ICONE_TRASH}Apagar`;
+    apagarBtn.addEventListener("click", async () => {
+      apagarBtn.disabled = true;
+      const ok = await apiFetch(`/api/medidas/${m.id}`, { method: "DELETE" });
+      if (ok) {
+        li.classList.add("saindo");
+        setTimeout(() => li.remove(), 250);
+      } else {
+        apagarBtn.disabled = false;
+      }
+    });
+    acoes.appendChild(apagarBtn);
+    linha.appendChild(acoes);
+
+    li.appendChild(linha);
+    list.appendChild(li);
+  });
+}
+
+$("#medida-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#medida-btn");
+  const tipoInput = $("#medida-tipo");
+  const valorInput = $("#medida-valor");
+  const unidadeInput = $("#medida-unidade");
+  const tipo = tipoInput.value.trim();
+  const valor = valorInput.value.trim();
+  if (!tipo || !valor) {
+    mostrarErro("Confere o tipo e o valor da medida.");
+    return;
+  }
+
+  setBotaoCarregando(btn, true, "salvando...");
+  const data = await apiFetch("/api/medidas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tipo, valor: Number(valor), unidade: unidadeInput.value.trim() }),
+  });
+  setBotaoCarregando(btn, false, "Adicionar");
+  if (!data) return;
+
+  tipoInput.value = "";
+  valorInput.value = "";
+  unidadeInput.value = "";
+  pulsarSucesso(tipoInput);
+  loadMedidas();
+});
 
 async function loadMemorias() {
   const memorias = await apiFetch("/api/memorias");
@@ -2540,6 +2654,7 @@ loadFechamentoDoDia();
 loadMemorias();
 loadLembretes();
 loadMedicamentos();
+loadMedidas();
 loadEsperas();
 loadSaude();
 loadChatHistorico();

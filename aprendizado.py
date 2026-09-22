@@ -272,3 +272,69 @@ def produtividade_por_dia_semana(conn, minimo_amostras: int = 3) -> dict[int, fl
         for dia in total_por_dia
         if total_por_dia[dia] >= minimo_amostras
     }
+
+
+_ORDEM_BUCKETS_SONO = ["<6h", "6-7h", "7-8h", "8h+"]
+
+
+def _bucket_sono(horas: float) -> str:
+    if horas < 6:
+        return "<6h"
+    if horas < 7:
+        return "6-7h"
+    if horas < 8:
+        return "7-8h"
+    return "8h+"
+
+
+def correlacao_sono_produtividade(conn, minimo_amostras: int = 3) -> dict[str, float]:
+    """Taxa de tarefas concluidas NO DIA (devidas nesse dia, concluidas nesse
+    mesmo dia), agrupada pela faixa de horas de sono da noite anterior
+    (`saude_dados.sono_horas`, ja gravado via Atalho do iPhone). Mesmo
+    principio de `produtividade_por_dia_semana`: faixa com menos de
+    `minimo_amostras` tarefas fica de fora (ausencia de dado e neutra, nunca
+    dia ruim)."""
+    dias_com_sono = conn.execute(
+        "SELECT data, sono_horas FROM saude_dados WHERE sono_horas IS NOT NULL"
+    ).fetchall()
+    total_por_bucket = Counter()
+    no_prazo_por_bucket = Counter()
+    for d in dias_com_sono:
+        tarefas_do_dia = conn.execute(
+            "SELECT completed_at FROM tasks WHERE due_date = ?", (d["data"],)
+        ).fetchall()
+        if not tarefas_do_dia:
+            continue
+        bucket = _bucket_sono(d["sono_horas"])
+        dia = date.fromisoformat(d["data"])
+        for t in tarefas_do_dia:
+            total_por_bucket[bucket] += 1
+            if t["completed_at"] and datetime.fromisoformat(t["completed_at"]).date() == dia:
+                no_prazo_por_bucket[bucket] += 1
+    return {
+        b: no_prazo_por_bucket[b] / total_por_bucket[b]
+        for b in total_por_bucket
+        if total_por_bucket[b] >= minimo_amostras
+    }
+
+
+def dica_sono_produtividade(conn, minimo_amostras: int = 3, diferenca_minima: float = 0.15) -> str | None:
+    """Frase pronta pra tela, so quando houver dado suficiente E uma diferenca
+    real entre a melhor e a pior faixa de sono (senao fica ruido, nao dica).
+    None quando nao da pra dizer nada confiavel ainda."""
+    correlacao = correlacao_sono_produtividade(conn, minimo_amostras)
+    if len(correlacao) < 2:
+        return None
+    melhor = max(correlacao, key=correlacao.get)
+    pior = min(correlacao, key=correlacao.get)
+    if melhor == pior or correlacao[melhor] - correlacao[pior] < diferenca_minima:
+        return None
+    melhor_pct = round(correlacao[melhor] * 100)
+    pior_pct = round(correlacao[pior] * 100)
+    sugestao = ""
+    if _ORDEM_BUCKETS_SONO.index(melhor) > _ORDEM_BUCKETS_SONO.index(pior):
+        sugestao = " Vale tentar dormir mais nos dias que tem tarefa importante."
+    return (
+        f"Nos dias com {melhor} de sono, {melhor_pct}% das tarefas do dia saem no prazo - "
+        f"nos dias com {pior}, so {pior_pct}%.{sugestao}"
+    )

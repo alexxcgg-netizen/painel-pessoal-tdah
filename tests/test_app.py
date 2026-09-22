@@ -1394,6 +1394,99 @@ class PainelTestCase(unittest.TestCase):
             )
             self.assertEqual(res_ok.status_code, 200)
 
+    def test_hidratacao_comeca_zerada_e_incrementa(self):
+        dados_inicial = self.client.get("/api/saude/hoje").get_json()
+        self.assertEqual(dados_inicial["hidratacao_hoje"], 0)
+
+        res = self.client.post("/api/hidratacao")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.get_json()["total_hoje"], 1)
+
+        self.client.post("/api/hidratacao")
+        dados_depois = self.client.get("/api/saude/hoje").get_json()
+        self.assertEqual(dados_depois["hidratacao_hoje"], 2)
+
+    def test_dica_sono_null_sem_dado_suficiente(self):
+        dados = self.client.get("/api/saude/hoje").get_json()
+        self.assertIsNone(dados["dica_sono"])
+
+    def test_medidas_lista_vazia(self):
+        self.assertEqual(self.client.get("/api/medidas").get_json(), [])
+
+    def test_criar_medida_peso_usa_kg_por_padrao(self):
+        res = self.client.post("/api/medidas", json={"tipo": "peso", "valor": 82.5})
+        self.assertEqual(res.status_code, 201)
+
+        medidas = self.client.get("/api/medidas").get_json()
+        self.assertEqual(len(medidas), 1)
+        self.assertEqual(medidas[0]["tipo"], "peso")
+        self.assertEqual(medidas[0]["valor"], 82.5)
+        self.assertEqual(medidas[0]["unidade"], "kg")
+
+    def test_criar_medida_nao_peso_usa_cm_por_padrao(self):
+        res = self.client.post("/api/medidas", json={"tipo": "biceps", "valor": 38})
+        self.assertEqual(res.status_code, 201)
+        medidas = self.client.get("/api/medidas").get_json()
+        self.assertEqual(medidas[0]["unidade"], "cm")
+
+    def test_criar_medida_com_unidade_customizada(self):
+        self.client.post("/api/medidas", json={"tipo": "peso", "valor": 180, "unidade": "lb"})
+        medidas = self.client.get("/api/medidas").get_json()
+        self.assertEqual(medidas[0]["unidade"], "lb")
+
+    def test_medidas_filtra_por_tipo(self):
+        self.client.post("/api/medidas", json={"tipo": "peso", "valor": 82})
+        self.client.post("/api/medidas", json={"tipo": "biceps", "valor": 38})
+        medidas = self.client.get("/api/medidas?tipo=peso").get_json()
+        self.assertEqual(len(medidas), 1)
+        self.assertEqual(medidas[0]["tipo"], "peso")
+
+    def test_criar_medida_sem_tipo_rejeita(self):
+        res = self.client.post("/api/medidas", json={"tipo": "  ", "valor": 82})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(self.client.get("/api/medidas").get_json(), [])
+
+    def test_criar_medida_valor_invalido_rejeita(self):
+        for valor_ruim in ["oitenta", None, "", []]:
+            res = self.client.post("/api/medidas", json={"tipo": "peso", "valor": valor_ruim})
+            self.assertEqual(res.status_code, 400, msg=f"deveria rejeitar valor={valor_ruim!r}")
+        self.assertEqual(self.client.get("/api/medidas").get_json(), [])
+
+    def test_criar_medida_data_invalida_rejeita(self):
+        res = self.client.post("/api/medidas", json={"tipo": "peso", "valor": 80, "data": "ontem"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_apagar_medida_remove_da_lista(self):
+        res = self.client.post("/api/medidas", json={"tipo": "peso", "valor": 82})
+        medida_id = res.get_json()["medida_id"]
+        res_delete = self.client.delete(f"/api/medidas/{medida_id}")
+        self.assertEqual(res_delete.status_code, 200)
+        self.assertEqual(self.client.get("/api/medidas").get_json(), [])
+
+    def test_chat_usa_executor_de_hidratacao_de_verdade(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_hidratacao"]({})
+            self.assertEqual(resultado["ok"], True)
+            return "Anotado, +1 copo.", ["registrar_hidratacao"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "bebi agua"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/saude/hoje").get_json()["hidratacao_hoje"], 1)
+
+    def test_chat_usa_executor_de_medida_de_verdade(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_medida"]({"tipo": "peso", "valor": 81.2})
+            self.assertEqual(resultado["ok"], True)
+            return "Anotado, 81.2kg.", ["registrar_medida"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "hoje to com 81.2kg"})
+        self.assertEqual(res.status_code, 200)
+        medidas = self.client.get("/api/medidas").get_json()
+        self.assertEqual(medidas[0]["tipo"], "peso")
+        self.assertEqual(medidas[0]["valor"], 81.2)
+
     def test_resumo_do_dia_recebe_contexto_de_saude(self):
         self.client.post("/api/saude/importar", json={"passos": 12000})
 

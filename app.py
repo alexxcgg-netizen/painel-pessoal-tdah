@@ -53,11 +53,13 @@ from db import (
     create_income,
     create_lembrete,
     create_medicamento,
+    create_medida_corporal,
     create_memoria,
     create_voo,
     criar_cotacao,
     criar_item_cotacao,
     criar_uber_pedido,
+    contar_hidratacao_dia,
     definir_apelido_gasto,
     definir_configuracao,
     definir_orcamento,
@@ -65,6 +67,7 @@ from db import (
     delete_item_cotacao,
     delete_lembrete,
     delete_medicamento,
+    delete_medida_corporal,
     delete_memoria,
     delete_push_subscription,
     delete_voo,
@@ -89,6 +92,7 @@ from db import (
     list_itens_cotacao,
     list_lembretes,
     list_medicamentos_ativos,
+    list_medidas_corporais,
     list_memorias,
     list_notas,
     list_orcamentos,
@@ -100,6 +104,7 @@ from db import (
     obter_configuracao,
     record_usage,
     registrar_atividade,
+    registrar_hidratacao,
     registrar_interacao_aprendizado,
     resolver_espera,
     salvar_mensagem_chat,
@@ -1268,6 +1273,22 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
             texto,
         )
 
+    def exec_registrar_hidratacao(entrada):
+        total = registrar_hidratacao(conn, date.today().isoformat())
+        return {"ok": True, "total_hoje": total}
+
+    def exec_registrar_medida(entrada):
+        tipo = (entrada.get("tipo") or "").strip().lower()
+        if not tipo:
+            return {"erro": "informe o tipo da medida (ex: peso, biceps, cintura)"}
+        try:
+            valor = float(entrada["valor"])
+        except (KeyError, TypeError, ValueError):
+            return {"erro": "valor invalido"}
+        unidade = (entrada.get("unidade") or "").strip() or ("kg" if tipo == "peso" else "cm")
+        medida_id = create_medida_corporal(conn, tipo, valor, unidade, date.today().isoformat())
+        return {"ok": True, "medida_id": medida_id}
+
     def exec_registrar_memoria(entrada):
         create_memoria(conn, entrada["fato"], texto)
         return {"ok": True}
@@ -1482,6 +1503,8 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "gerar_plano_do_dia": exec_gerar_plano,
         "registrar_lembrete": exec_registrar_lembrete,
         "registrar_medicamento": exec_registrar_medicamento,
+        "registrar_hidratacao": exec_registrar_hidratacao,
+        "registrar_medida": exec_registrar_medida,
         "registrar_memoria": exec_registrar_memoria,
         "registrar_espera": exec_registrar_espera,
         "resolver_espera": exec_resolver_espera,
@@ -2451,8 +2474,65 @@ def saude_importar():
 def saude_hoje():
     conn = get_db()
     dia = get_saude_dia(conn, date.today().isoformat())
+    hidratacao_hoje = contar_hidratacao_dia(conn, date.today().isoformat())
+    dica_sono = aprendizado.dica_sono_produtividade(conn)
     conn.close()
-    return jsonify({"dados": dia})
+    return jsonify({"dados": dia, "hidratacao_hoje": hidratacao_hoje, "dica_sono": dica_sono})
+
+
+@app.route("/api/hidratacao", methods=["POST"])
+def registrar_hidratacao_rota():
+    conn = get_db()
+    total = registrar_hidratacao(conn, date.today().isoformat())
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "total_hoje": total}), 201
+
+
+@app.route("/api/medidas", methods=["GET"])
+def medidas():
+    tipo = request.args.get("tipo") or None
+    conn = get_db()
+    resultado = list_medidas_corporais(conn, tipo=tipo)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/medidas", methods=["POST"])
+def criar_medida_rota():
+    body = _corpo_json()
+    tipo = (body.get("tipo") or "").strip().lower()
+    unidade = (body.get("unidade") or "").strip()
+    data_medida = (body.get("data") or date.today().isoformat()).strip()
+    if not tipo:
+        return jsonify({"error": "informe o tipo da medida (ex: peso, biceps)"}), 400
+    try:
+        valor = float(body.get("valor"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "valor invalido"}), 400
+    try:
+        date.fromisoformat(data_medida)
+    except ValueError:
+        return jsonify({"error": "data invalida - use AAAA-MM-DD"}), 400
+
+    if not unidade:
+        unidade = "kg" if tipo == "peso" else "cm"
+
+    conn = get_db()
+    medida_id = create_medida_corporal(conn, tipo, valor, unidade, data_medida)
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "medida_id": medida_id}), 201
+
+
+@app.route("/api/medidas/<int:medida_id>", methods=["DELETE"])
+def apagar_medida(medida_id):
+    conn = get_db()
+    delete_medida_corporal(conn, medida_id)
+    conn.close()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/uso/total", methods=["GET"])

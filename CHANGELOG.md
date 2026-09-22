@@ -5,6 +5,41 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (18) - Hidratacao, peso/medidas corporais e correlacao sono x produtividade
+
+Terceira rodada de perguntas explicitas ao Alex sobre o que falta pro painel virar um
+"assistente de vida" de verdade (10 perguntas, respostas curtas e diretas). Do que ele
+confirmou como util - "esqueco ate alimentacao" (agua), "seria legal pra eu nao esquecer"
+(peso/medidas) e "sinto falta de uma analise do sono detalhada e melhorar pra resolver"
+(correlacao) - e descartou explicitamente o resto (calendario Apple - "nosso app ja e
+melhor"; lembretes Apple - redundante; screen time/foco - nao expostos pelo iOS mesmo;
+diario, cartao de emergencia, vault de documento - "nao me interessa").
+
+**Hidratacao**: tabela `hidratacao_registros`, so timestamp por copo - sem meta/limite (o
+pedido era so parar de esquecer, nao gerenciar ml). `POST /api/hidratacao` incrementa o dia,
+botao "+1 copo" na Saude hoje com contador. O lembrete pra beber em horario fixo nao ganhou
+notificacao nova - a tarefa recorrente que ja existe (rodada 16) ja cobre isso.
+
+**Peso e medidas corporais**: tabela `medidas_corporais` (tipo livre - peso, biceps, cintura
+etc -, valor, unidade, data). `GET/POST/DELETE /api/medidas`, unidade padrao 'kg' pra peso e
+'cm' pro resto quando nao informada. Frontend mostra so no registro mais recente de cada
+tipo quanto subiu/desceu desde o anterior (verde/vermelho), sem repetir a seta em toda
+linha do historico.
+
+**Sono x produtividade**: `aprendizado.correlacao_sono_produtividade` cruza
+`saude_dados.sono_horas` (ja gravado via Atalho) com taxa de tarefas concluidas no mesmo dia,
+agrupado em 4 faixas (<6h, 6-7h, 7-8h, 8h+, minimo 3 amostras por faixa - mesmo principio de
+`produtividade_por_dia_semana`). `dica_sono_produtividade` so fala alguma coisa quando a
+diferenca entre a melhor e a pior faixa for real (>=15 pontos percentuais), e so sugere
+"dormir mais" quando a faixa de MAIS horas for de fato a mais produtiva (nunca inventa causa
+que o dado nao mostra). Aparece como frase na Saude hoje via `/api/saude/hoje`.
+
+**Chat**: `registrar_hidratacao` (sem parametro) e `registrar_medida` (tipo/valor/unidade)
+entram no dicionario de tools, cada um chamando o mesmo helper que a rota HTTP usa.
+
+21 testes novos (`test_aprendizado.py`, `test_app.py`). 875 testes Python + 112 subtestes,
+100% passando.
+
 ## 2026-09-22 (17) - Medicamentos: cadastro estruturado (nome/dosagem/horario) com lembrete
 
 Continuacao direta da (16): o Alex pediu explicitamente pra copiar o fluxo de "Medicamentos" do

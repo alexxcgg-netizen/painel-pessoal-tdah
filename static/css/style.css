@@ -1605,6 +1605,31 @@ li.item.saindo {
   gap: 0.5rem;
 }
 
+.hidratacao-linha {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.6rem 0;
+}
+
+.hidratacao-contador {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.medida-tendencia {
+  font-size: 0.78rem;
+}
+
+.medida-tendencia.subiu {
+  color: var(--cor-construtora);
+}
+
+.medida-tendencia.desceu {
+  color: var(--cor-painel);
+}
+
 .item-titulo {
   font-size: 0.95rem;
   font-weight: 600;

@@ -450,6 +450,35 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "registrar_hidratacao",
+        "description": (
+            "Registra +1 copo de agua bebido AGORA (hoje). Use quando o Alex disser algo tipo "
+            "'bebi agua', 'tomei um copo de agua'. Sem parametro nenhum - so soma 1 no contador "
+            "do dia."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "registrar_medida",
+        "description": (
+            "Registra uma medida corporal do dia (peso ou medida tipo biceps/cintura/coxa) pra "
+            "acompanhar evolucao ao longo do tempo. Use quando o Alex disser um numero de peso ou "
+            "medida, tipo 'hoje to com 82kg' ou 'biceps direito 38cm'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tipo": {"type": "string", "description": "ex: 'peso', 'biceps', 'cintura', 'coxa' - sempre em minusculo"},
+                "valor": {"type": "number"},
+                "unidade": {
+                    "type": "string",
+                    "description": "ex: 'kg', 'cm' - omita que o sistema usa 'kg' pra peso e 'cm' pro resto por padrao",
+                },
+            },
+            "required": ["tipo", "valor"],
+        },
+    },
+    {
         "name": "registrar_voo",
         "description": (
             "Registra um voo do Alex (curso de piloto comercial) - ja realizado (com horas "

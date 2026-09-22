@@ -678,5 +678,93 @@ class ProdutividadePorDiaSemanaTestCase(unittest.TestCase):
         self.assertEqual(resultado[0], 0.0)
 
 
+class CorrelacaoSonoProdutividadeTestCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def _criar_task(self, due_date, completed_at):
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, ?)",
+            ("tarefa", due_date, completed_at),
+        )
+        self.conn.commit()
+
+    def _gravar_sono(self, data, horas):
+        self.conn.execute(
+            "INSERT INTO saude_dados (data, sono_horas) VALUES (?, ?)", (data, horas)
+        )
+        self.conn.commit()
+
+    def test_sem_historico_devolve_vazio(self):
+        self.assertEqual(aprendizado.correlacao_sono_produtividade(self.conn), {})
+
+    def test_dia_com_sono_mas_sem_tarefa_e_ignorado(self):
+        self._gravar_sono("2026-01-05", 8.0)
+        self.assertEqual(aprendizado.correlacao_sono_produtividade(self.conn), {})
+
+    def test_bucket_abaixo_do_minimo_de_amostras_fica_de_fora(self):
+        self._gravar_sono("2026-01-05", 8.0)
+        self._criar_task("2026-01-05", "2026-01-05 10:00:00")
+        self._criar_task("2026-01-05", "2026-01-05 10:00:00")
+        self.assertEqual(aprendizado.correlacao_sono_produtividade(self.conn), {})
+
+    def test_agrupa_por_faixa_de_sono_corretamente(self):
+        self._gravar_sono("2026-01-05", 5.5)
+        for _ in range(3):
+            self._criar_task("2026-01-05", None)  # nunca concluida = fora do prazo
+        self._gravar_sono("2026-01-06", 8.5)
+        for _ in range(3):
+            self._criar_task("2026-01-06", "2026-01-06 10:00:00")  # no prazo
+        resultado = aprendizado.correlacao_sono_produtividade(self.conn)
+        self.assertEqual(resultado["<6h"], 0.0)
+        self.assertEqual(resultado["8h+"], 1.0)
+
+    def test_dica_none_sem_dado_suficiente(self):
+        self.assertIsNone(aprendizado.dica_sono_produtividade(self.conn))
+
+    def test_dica_none_quando_diferenca_pequena(self):
+        self._gravar_sono("2026-01-05", 5.5)
+        for _ in range(3):
+            self._criar_task("2026-01-05", "2026-01-05 10:00:00")
+        self._gravar_sono("2026-01-06", 8.5)
+        for _ in range(3):
+            self._criar_task("2026-01-06", "2026-01-06 10:00:00")
+        self.assertIsNone(aprendizado.dica_sono_produtividade(self.conn))
+
+    def test_dica_sugere_dormir_mais_quando_faixa_maior_e_melhor(self):
+        self._gravar_sono("2026-01-05", 5.5)
+        for _ in range(3):
+            self._criar_task("2026-01-05", None)
+        self._gravar_sono("2026-01-06", 8.5)
+        for _ in range(3):
+            self._criar_task("2026-01-06", "2026-01-06 10:00:00")
+        dica = aprendizado.dica_sono_produtividade(self.conn)
+        self.assertIn("8h+", dica)
+        self.assertIn("<6h", dica)
+        self.assertIn("dormir mais", dica)
+
+    def test_dica_sem_sugestao_quando_faixa_menor_e_melhor(self):
+        # inverso do caso "faz sentido dormir mais" - aqui a faixa MENOR de
+        # sono que teve mais produtividade, entao nao faz sentido sugerir
+        # "durma mais" (seria o oposto do que o dado mostra).
+        self._gravar_sono("2026-01-05", 5.5)
+        for _ in range(3):
+            self._criar_task("2026-01-05", "2026-01-05 10:00:00")
+        self._gravar_sono("2026-01-06", 8.5)
+        for _ in range(3):
+            self._criar_task("2026-01-06", None)
+        dica = aprendizado.dica_sono_produtividade(self.conn)
+        self.assertNotIn("dormir mais", dica)
+
+
 if __name__ == "__main__":
     unittest.main()
