@@ -380,8 +380,10 @@ def capture():
 @app.route("/api/tasks", methods=["GET"])
 def list_tasks():
     conn = get_db()
+    materializar_tarefas_recorrentes(conn)
     rows = conn.execute(
-        "SELECT * FROM tasks WHERE completed_at IS NULL ORDER BY created_at DESC"
+        "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
+        "ORDER BY created_at DESC"
     ).fetchall()
     # Uma query so pras subtarefas de todas as tasks (em vez de uma query por task -
     # nao pesava nada com poucas tarefas, mas escala mal conforme o historico cresce).
@@ -813,6 +815,46 @@ def _clima_contexto_resumo() -> str | None:
     return resumo["texto"]
 
 
+def materializar_tarefas_recorrentes(conn, hoje: date | None = None) -> int:
+    """Cria a instancia de HOJE pra cada tarefa-modelo recorrente cujo padrao
+    bate com o dia da semana de hoje e que ainda nao tem instancia criada.
+    Modelo = linha com `recorrencia` preenchida e `due_date` sempre NULL -
+    nunca aparece ela mesma em lista nenhuma (todas as queries de listagem
+    de tarefa excluem `recorrencia IS NOT NULL`), so a instancia gerada
+    (due_date=hoje, recorrencia NULL, recorrente_origem_id apontando de
+    volta pro modelo) e que e uma tarefa de verdade, completavel como
+    qualquer outra.
+
+    Idempotente de proposito - seguro chamar em varios pontos (scheduler,
+    /api/tasks, /api/calendario/hoje) sem risco de duplicar, ja que sempre
+    confere se a instancia de hoje ja existe antes de criar."""
+    hoje = hoje or date.today()
+    hoje_iso = hoje.isoformat()
+    modelos = conn.execute(
+        "SELECT id, title, hora, depende_do_tempo, recorrencia FROM tasks "
+        "WHERE recorrencia IS NOT NULL AND due_date IS NULL"
+    ).fetchall()
+    criadas = 0
+    for m in modelos:
+        if not agenda.recorrencia_bate_no_dia(m["recorrencia"], hoje):
+            continue
+        ja_existe = conn.execute(
+            "SELECT 1 FROM tasks WHERE recorrente_origem_id = ? AND due_date = ?",
+            (m["id"], hoje_iso),
+        ).fetchone()
+        if ja_existe:
+            continue
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora, depende_do_tempo, recorrente_origem_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (m["title"], hoje_iso, m["hora"], m["depende_do_tempo"], m["id"]),
+        )
+        criadas += 1
+    if criadas:
+        conn.commit()
+    return criadas
+
+
 def _tarefas_com_horario_hoje(conn) -> list[dict]:
     """Tarefas pendentes com horario marcado pra hoje, no mesmo formato dos
     eventos do iCloud - pra virarem ancoras de horario fixo junto com eles.
@@ -888,8 +930,11 @@ def _eventos_de_hoje_com_seguranca(conn) -> list[dict]:
 def summary_today():
     today = date.today().isoformat()
     conn = get_db()
+    materializar_tarefas_recorrentes(conn)
     done = conn.execute("SELECT title FROM tasks WHERE date(completed_at) = ?", (today,)).fetchall()
-    pending = conn.execute("SELECT title FROM tasks WHERE completed_at IS NULL").fetchall()
+    pending = conn.execute(
+        "SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
+    ).fetchall()
     expenses = conn.execute(
         "SELECT amount, category FROM expenses WHERE date(created_at) = ? AND tipo = 'real'", (today,)
     ).fetchall()
@@ -940,7 +985,7 @@ def _tarefas_pendentes_sem_horario_hoje(conn):
     pro plano do dia."""
     hoje = date.today().isoformat()
     return conn.execute(
-        "SELECT title FROM tasks WHERE completed_at IS NULL "
+        "SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
         "AND NOT (due_date = ? AND hora IS NOT NULL)",
         (hoje,),
     ).fetchall()
@@ -975,6 +1020,7 @@ def fechamento_do_dia():
 @app.route("/api/calendario/hoje", methods=["GET"])
 def calendario_hoje():
     conn = get_db()
+    materializar_tarefas_recorrentes(conn)
     configurado = caldav_client.configurado()
     erro = None
     icloud_eventos = []
@@ -1107,6 +1153,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
     quanto pelo bot do Telegram, pra nenhum dos dois canais reimplementar a
     logica de tool-use (nem arriscar os dois divergirem). Devolve
     (resposta, acoes, None) no sucesso, ou (None, [], mensagem_de_erro)."""
+    materializar_tarefas_recorrentes(conn)
     historico = list(reversed(list_chat_mensagens(conn, limit=20)))
     mensagens = [{"role": r["papel"], "content": r["texto"]} for r in historico]
     mensagens.append({"role": "user", "content": texto})
@@ -1115,6 +1162,30 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
     contexto = _contexto_chat(conn)
 
     def exec_registrar_tarefa(entrada):
+        recorrencia = entrada.get("recorrencia")
+        if recorrencia:
+            if not agenda.recorrencia_valida(recorrencia):
+                return {"erro": f"recorrencia mal formatada: {recorrencia!r}"}
+            # Rotina recorrente vira um MODELO (due_date/due_at sempre NULL,
+            # nunca some da tela mesmo apos "completar" a instancia do dia -
+            # ver materializar_tarefas_recorrentes). 'quando'/'quando_data'
+            # nao fazem sentido aqui (nao e um item de um dia so) - ignorados
+            # de proposito mesmo se vierem preenchidos.
+            conn.execute(
+                "INSERT INTO tasks (title, hora, source_text, depende_do_tempo, recorrencia) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    entrada["titulo"],
+                    _normalizar_hora(entrada.get("hora")),
+                    texto,
+                    int(bool(entrada.get("depende_do_tempo"))),
+                    recorrencia,
+                ),
+            )
+            conn.commit()
+            materializar_tarefas_recorrentes(conn)
+            return {"ok": True, "recorrente": True}
+
         quando_data = entrada.get("quando_data")
         conn.execute(
             "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo) "
@@ -1293,7 +1364,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         # uma resposta vazia quando existe trabalho pendente de qualquer jeito.
         solta = conn.execute(
             "SELECT title FROM tasks WHERE completed_at IS NULL AND due_date IS NULL "
-            "ORDER BY id ASC LIMIT 1"
+            "AND recorrencia IS NULL ORDER BY id ASC LIMIT 1"
         ).fetchone()
         if solta:
             return {"encontrada": True, "tipo": "solta", "titulo": solta["title"]}
@@ -1634,6 +1705,13 @@ def verificar_e_notificar():
     (push web e/ou Telegram) - cada tipo de aviso so dispara uma vez por dia
     (dedup em notificacoes_enviadas). Chamado pelo scheduler (ver
     iniciar_scheduler) e pelo endpoint manual."""
+    # Materializa ANTES de qualquer early-return de canal - rotina recorrente
+    # (remedio, academia) tem que aparecer mesmo se push/Telegram nao
+    # estiverem configurados ainda, nao pode ficar refem de notificacao.
+    conn_materializar = get_db()
+    materializar_tarefas_recorrentes(conn_materializar)
+    conn_materializar.close()
+
     push_ok = push_client.configurado()
     telegram_ok = telegram_bot.configurado()
     if not push_ok and not telegram_ok:
@@ -2726,7 +2804,7 @@ def atalho_resumo():
     conn = get_db()
     hoje = date.today().isoformat()
     tarefas_pendentes = conn.execute(
-        "SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NULL"
+        "SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
     ).fetchone()["n"]
     gasto_hoje = conn.execute(
         "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",

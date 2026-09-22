@@ -14,6 +14,40 @@ def dias_ate_o_fim_da_semana(hoje: date) -> list[date]:
     return [hoje + timedelta(days=i) for i in range(dias_restantes + 1)]
 
 
+# Formato de recorrencia (pedido explicito do Alex: "toda segunda tem
+# academia as 7h", remedio diario - o painel precisa substituir o Calendario
+# da Apple de verdade, que ja tem recorrencia). So dois padroes, de proposito
+# (sem "mensal"/"a cada N dias" ainda - YAGNI ate aparecer pedido real):
+# "diaria" (todo santo dia) ou "semanal:N,N,..." com N = dia da semana
+# (0=segunda...6=domingo, mesma ordem de DIAS_SEMANA_PT).
+def recorrencia_valida(padrao: str | None) -> bool:
+    if not padrao:
+        return False
+    if padrao == "diaria":
+        return True
+    if not padrao.startswith("semanal:"):
+        return False
+    dias_txt = padrao[len("semanal:"):]
+    if not dias_txt:
+        return False
+    for parte in dias_txt.split(","):
+        if not parte.isdigit() or not (0 <= int(parte) <= 6):
+            return False
+    return True
+
+
+def recorrencia_bate_no_dia(padrao: str | None, dia: date) -> bool:
+    """Verdadeiro se 'dia' e uma ocorrencia da rotina descrita por 'padrao' -
+    padrao invalido/vazio nunca bate em nada (defensivo, nunca quebra o
+    materializador por causa de um dado sujo)."""
+    if not recorrencia_valida(padrao):
+        return False
+    if padrao == "diaria":
+        return True
+    dias = {int(p) for p in padrao[len("semanal:"):].split(",")}
+    return dia.weekday() in dias
+
+
 def proximos_n_dias(a_partir_de: date, n: int) -> list[date]:
     """Pool de dias candidatos a partir de (e incluindo) 'a_partir_de' - usada
     por distribuir_tarefas_na_semana, que precisa de um pool maior que

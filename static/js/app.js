@@ -1224,6 +1224,12 @@ function criarItemTarefa(t) {
   const titulo = document.createElement("span");
   titulo.className = "item-titulo";
   titulo.textContent = t.title;
+  if (t.recorrente_origem_id) {
+    const tagRotina = document.createElement("span");
+    tagRotina.className = "item-tag-tarefa";
+    tagRotina.textContent = "rotina";
+    titulo.appendChild(tagRotina);
+  }
   tituloWrap.appendChild(titulo);
   if (t.due_at || t.hora) {
     const quando = document.createElement("span");

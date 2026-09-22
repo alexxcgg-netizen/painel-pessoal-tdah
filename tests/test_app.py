@@ -294,6 +294,80 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json(), [])
 
+    def test_tarefa_modelo_recorrente_nunca_aparece_diretamente_na_lista(self):
+        # "diaria" bate hoje, entao a INSTANCIA materializada aparece - so o
+        # MODELO em si (due_date NULL, recorrencia preenchida) nunca deve
+        # aparecer como se fosse uma tarefa de verdade.
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, recorrencia) VALUES (?, ?)", ("Tomar remedio", "diaria")
+        )
+        conn.commit()
+        modelo_id = conn.execute("SELECT id FROM tasks WHERE recorrencia = 'diaria'").fetchone()["id"]
+        conn.close()
+
+        tasks = self.client.get("/api/tasks").get_json()
+        ids = [t["id"] for t in tasks]
+        self.assertNotIn(modelo_id, ids)
+        self.assertTrue(all(t["recorrencia"] is None for t in tasks))
+
+    def test_get_tasks_materializa_instancia_de_tarefa_diaria(self):
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, hora, recorrencia) VALUES (?, ?, ?)",
+            ("Tomar remedio", "08:00", "diaria"),
+        )
+        conn.commit()
+        conn.close()
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["title"], "Tomar remedio")
+        self.assertEqual(tasks[0]["due_date"], date.today().isoformat())
+        self.assertEqual(tasks[0]["hora"], "08:00")
+
+    def test_get_tasks_nao_duplica_instancia_ja_materializada(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title, recorrencia) VALUES (?, ?)", ("Tomar remedio", "diaria"))
+        conn.commit()
+        conn.close()
+
+        self.client.get("/api/tasks")
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tasks), 1)
+
+    def test_tarefa_semanal_so_materializa_no_dia_certo(self):
+        hoje = date.today()
+        outro_dia = (hoje.weekday() + 1) % 7
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, recorrencia) VALUES (?, ?)",
+            ("Academia", f"semanal:{outro_dia}"),
+        )
+        conn.commit()
+        conn.close()
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(tasks, [])
+
+    def test_completar_instancia_de_recorrente_nao_apaga_o_modelo(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title, recorrencia) VALUES (?, ?)", ("Tomar remedio", "diaria"))
+        conn.commit()
+        conn.close()
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tasks), 1)
+        self.client.post(f"/api/tasks/{tasks[0]['id']}/complete")
+
+        conn = db.get_db()
+        modelo = conn.execute(
+            "SELECT completed_at FROM tasks WHERE recorrencia = 'diaria'"
+        ).fetchone()
+        conn.close()
+        self.assertIsNone(modelo["completed_at"])
+        self.assertEqual(self.client.get("/api/tasks").get_json(), [])
+
     def test_quebra_de_tarefa_grande_cria_subtarefas(self):
         parsed = {
             "tipo": "tarefa",
@@ -1487,6 +1561,42 @@ class PainelTestCase(unittest.TestCase):
         conn.close()
         self.assertEqual(row["due_date"], hoje)
         self.assertEqual(row["hora"], "14:00")
+
+    def test_chat_registrar_tarefa_diaria_vira_modelo_e_materializa_hoje(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_tarefa"](
+                {"titulo": "Tomar remedio", "hora": "08:00", "recorrencia": "diaria"}
+            )
+            self.assertEqual(resultado, {"ok": True, "recorrente": True})
+            return "Beleza, vou te lembrar todo dia.", ["registrar_tarefa"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "tenho que tomar remedio todo dia as 8h"})
+        self.assertEqual(res.status_code, 200)
+
+        tarefas = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tarefas), 1)
+        self.assertEqual(tarefas[0]["title"], "Tomar remedio")
+        self.assertEqual(tarefas[0]["due_date"], date.today().isoformat())
+
+        conn = db.get_db()
+        modelos = conn.execute("SELECT * FROM tasks WHERE recorrencia = 'diaria'").fetchall()
+        conn.close()
+        self.assertEqual(len(modelos), 1)
+        self.assertIsNone(modelos[0]["due_date"])
+
+    def test_chat_registrar_tarefa_recorrencia_malformada_devolve_erro(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_tarefa"](
+                {"titulo": "Academia", "recorrencia": "toda terca"}
+            )
+            self.assertIn("erro", resultado)
+            return "Nao entendi essa rotina.", [], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "academia toda terca"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/tasks").get_json(), [])
 
     def test_chat_distribuir_tarefas_na_semana_so_propoe_nao_cria_ainda(self):
         # Pedido explicito do Alex: "eu digo se vai dar ou nao" - a proposta

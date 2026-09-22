@@ -7,6 +7,8 @@ from agenda import (
     distribuir_tarefas_na_semana,
     maior_janela_livre,
     proximos_n_dias,
+    recorrencia_bate_no_dia,
+    recorrencia_valida,
     sugerir_dia_menos_corrido,
 )
 
@@ -174,6 +176,63 @@ class DistribuirTarefasNaSemanaTestCase(unittest.TestCase):
         dias = [date(2026, 9, 21), date(2026, 9, 22)]
         distribuir_tarefas_na_semana(carga_original, dias, ["a", "b", "c"])
         self.assertEqual(carga_original, {"2026-09-21": 0})
+
+
+class RecorrenciaValidaTestCase(unittest.TestCase):
+    def test_diaria_e_valida(self):
+        self.assertTrue(recorrencia_valida("diaria"))
+
+    def test_semanal_com_um_dia_e_valida(self):
+        self.assertTrue(recorrencia_valida("semanal:0"))
+
+    def test_semanal_com_varios_dias_e_valida(self):
+        self.assertTrue(recorrencia_valida("semanal:0,2,4"))
+
+    def test_none_e_invalido(self):
+        self.assertFalse(recorrencia_valida(None))
+
+    def test_string_vazia_e_invalida(self):
+        self.assertFalse(recorrencia_valida(""))
+
+    def test_semanal_sem_dias_e_invalido(self):
+        self.assertFalse(recorrencia_valida("semanal:"))
+
+    def test_semanal_com_dia_fora_do_intervalo_e_invalido(self):
+        self.assertFalse(recorrencia_valida("semanal:7"))
+        self.assertFalse(recorrencia_valida("semanal:-1"))
+
+    def test_semanal_com_lixo_no_meio_e_invalido(self):
+        self.assertFalse(recorrencia_valida("semanal:0,x,2"))
+
+    def test_padrao_desconhecido_e_invalido(self):
+        self.assertFalse(recorrencia_valida("mensal"))
+        self.assertFalse(recorrencia_valida("todo dia"))
+
+
+class RecorrenciaBateNoDiaTestCase(unittest.TestCase):
+    def test_diaria_bate_qualquer_dia(self):
+        for dia in [date(2026, 9, 21), date(2026, 9, 22), date(2026, 9, 27)]:
+            self.assertTrue(recorrencia_bate_no_dia("diaria", dia))
+
+    def test_semanal_bate_so_no_dia_certo(self):
+        segunda = date(2026, 9, 21)
+        terca = date(2026, 9, 22)
+        self.assertTrue(recorrencia_bate_no_dia("semanal:0", segunda))
+        self.assertFalse(recorrencia_bate_no_dia("semanal:0", terca))
+
+    def test_semanal_com_varios_dias(self):
+        segunda = date(2026, 9, 21)
+        quarta = date(2026, 9, 23)
+        quinta = date(2026, 9, 24)
+        self.assertTrue(recorrencia_bate_no_dia("semanal:0,2", segunda))
+        self.assertTrue(recorrencia_bate_no_dia("semanal:0,2", quarta))
+        self.assertFalse(recorrencia_bate_no_dia("semanal:0,2", quinta))
+
+    def test_padrao_invalido_nunca_bate(self):
+        self.assertFalse(recorrencia_bate_no_dia(None, date(2026, 9, 21)))
+        self.assertFalse(recorrencia_bate_no_dia("", date(2026, 9, 21)))
+        self.assertFalse(recorrencia_bate_no_dia("lixo", date(2026, 9, 21)))
+        self.assertFalse(recorrencia_bate_no_dia("semanal:", date(2026, 9, 21)))
 
 
 if __name__ == "__main__":

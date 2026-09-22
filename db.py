@@ -253,6 +253,14 @@ def init_db():
     _garantir_coluna(conn, "tasks", "due_date", "TEXT")
     _garantir_coluna(conn, "tasks", "hora", "TEXT")
     _garantir_coluna(conn, "tasks", "depende_do_tempo", "INTEGER NOT NULL DEFAULT 0")
+    # Rotina recorrente (pedido explicito: "toda segunda tem academia as 7h",
+    # remedio diario etc - o app precisa substituir o Calendario da Apple de
+    # verdade, que ja tem isso). Uma linha com recorrencia preenchida e um
+    # MODELO (due_date sempre NULL, nunca aparece sozinha em lista nenhuma) -
+    # materializar_tarefas_recorrentes (app.py) gera a instancia do dia,
+    # marcada com recorrente_origem_id apontando de volta pro modelo.
+    _garantir_coluna(conn, "tasks", "recorrencia", "TEXT")
+    _garantir_coluna(conn, "tasks", "recorrente_origem_id", "INTEGER")
     _garantir_coluna(conn, "voos", "hora", "TEXT")
     _garantir_coluna(conn, "expenses", "tipo", "TEXT NOT NULL DEFAULT 'real'")
     _garantir_coluna(conn, "bank_transactions", "categoria", "TEXT")
@@ -284,6 +292,8 @@ def _garantir_indices(conn):
             ON interacoes_aprendizado(tipo, referencia_id, resolvido_em);
         CREATE INDEX IF NOT EXISTS idx_incomes_created_at ON incomes(created_at);
         CREATE INDEX IF NOT EXISTS idx_notas_criado_em ON notas(criado_em);
+        CREATE INDEX IF NOT EXISTS idx_tasks_recorrencia ON tasks(recorrencia);
+        CREATE INDEX IF NOT EXISTS idx_tasks_recorrente_origem_id ON tasks(recorrente_origem_id);
         """
     )
     conn.commit()

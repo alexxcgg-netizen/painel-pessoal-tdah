@@ -5,6 +5,43 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (16) - Tarefa recorrente (diaria/semanal) - remedio, academia, rotina
+
+Pedido explicito do Alex depois de confirmar a visao do projeto (agenda/TDAH e a prioridade,
+e o painel e pra SUBSTITUIR o Calendario da Apple de verdade, nao rodar do lado): "toda segunda
+tem academia as 7h", remedio diario ("no Apple Saude tem varias coisas que me ajudam, tipo
+marcar que tomei remedio - seria bom se ele se conectasse"). Decisao: em vez de tentar integrar
+com o Apple Saude/Medications via Shortcuts (superficie incerta - o iOS nao expoe isso de forma
+simples como passos/sono), a rotina de remedio vira uma tarefa recorrente dentro do proprio
+painel - reusa toda a infraestrutura de agenda/notificacao que ja existe (bolinha verde/vermelha,
+aviso 10min antes) sem precisar de nada novo.
+
+**Modelo de dados**: `tasks` ganhou `recorrencia` (TEXT, formato `"diaria"` ou
+`"semanal:N,N,..."` com N=dia da semana, 0=segunda...6=domingo) e `recorrente_origem_id`
+(aponta de volta pro modelo). Uma linha com `recorrencia` preenchida e devem `due_date` NULL e um
+MODELO - nunca aparece ela mesma em lista nenhuma (todas as queries de "tarefas pendentes" sem
+filtro de due_date especifico ganharam `AND recorrencia IS NULL`: `/api/tasks`,
+`/api/summary/today`, `_tarefas_pendentes_sem_horario_hoje`, `sugerir_tarefa_para_agora`, o
+endpoint do widget Scriptable, `notificacoes.tarefas_aguardando_bom_tempo`).
+
+**Materializacao**: `materializar_tarefas_recorrentes(conn)` cria a instancia de HOJE pra cada
+modelo cujo padrao bate com o dia da semana (funcao pura `agenda.recorrencia_bate_no_dia`),
+idempotente (confere se ja existe antes de criar). Chamada em todo ponto de leitura relevante
+(`/api/tasks`, `/api/calendario/hoje`, `_processar_mensagem_chat`, `verificar_e_notificar` - essa
+ultima ANTES de qualquer early-return de canal de notificacao, pra rotina aparecer mesmo sem
+push/Telegram configurado ainda).
+
+**Chat**: `registrar_tarefa` ganhou o campo opcional `recorrencia` - a IA reconhece "todo
+dia"/"toda segunda e quinta" e preenche o padrao certo, ignorando `quando`/`quando_data` (nao
+faz sentido pra algo que se repete). Completar a instancia do dia nunca apaga o modelo - ele
+regenera sozinho no proximo dia que bater o padrao.
+
+**Frontend**: instancia materializada ganha uma tag "rotina" ao lado do titulo (mesma pilula
+visual ja usada pra tag "tarefa" na agenda), pra distinguir de uma tarefa avulsa num relance.
+
+18 testes novos (`test_agenda.py`, `test_app.py`). 845 testes Python + 112 subtestes, 100%
+passando.
+
 ## 2026-09-22 (15) - Polish final: card de resultado no "devo sair" e dias restantes nas datas importantes
 
 Fecha os dois pontos que ficaram vagos no walkthrough do Alex ("Devo sair até que horas" e "Datas

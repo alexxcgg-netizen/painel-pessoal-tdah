@@ -142,6 +142,13 @@ do tipo que se beneficia de um dia dedicado (cotacao com fornecedor, ida a algum
 casa que toma tempo). Nao sugira dia pra coisa rapida (responder uma mensagem, uma ligacao curta),
 que cabe em qualquer hora do dia.
 
+O painel substitui o Calendario da Apple de verdade pro Alex, entao ROTINA que se repete (remedio
+diario, academia toda segunda e quinta, qualquer coisa com "todo dia"/"toda [dia da semana]"/
+"sempre que") tem que virar uma tarefa RECORRENTE (`recorrencia` em `registrar_tarefa`), nunca uma
+tarefa avulsa de um dia so - ela reaparece sozinha em cada dia que bate o padrao, sem precisar
+pedir de novo. Confirme na resposta que virou rotina (ex: "beleza, vou te lembrar de tomar o
+remedio todo dia as 8h") pra ficar claro que nao e so hoje.
+
 Quando o Alex perguntar que horas fazer algo recorrente sem hora fixa (ex: "que horas eu vou pra
 academia hoje?"), chame `sugerir_horario_livre` em vez de adivinhar - ela olha o que ja esta
 marcado no dia de verdade e acha o maior espaco livre.
@@ -266,6 +273,21 @@ CHAT_TOOLS = [
                         "'se der sol', 'se a umidade baixar', 'se fizer um tempo bom') - isso "
                         "faz o painel avisar sozinho quando achar um dia bom na previsao, sem "
                         "precisar perguntar. Omita (ou false) se nao houver essa condicao."
+                    ),
+                },
+                "recorrencia": {
+                    "type": "string",
+                    "description": (
+                        "SO preencha se o Alex disser que e uma ROTINA que se repete (ex: 'todo "
+                        "dia', 'toda segunda e quinta', 'remedio de manha', 'academia as tercas e "
+                        "quintas') - nunca pra um compromisso avulso, mesmo que tenha data. Dois "
+                        "formatos possiveis: 'diaria' (todo santo dia) ou 'semanal:N,N,...' onde "
+                        "cada N e o numero do dia da semana (0=segunda, 1=terca, 2=quarta, "
+                        "3=quinta, 4=sexta, 5=sabado, 6=domingo) - ex: 'academia toda segunda e "
+                        "quinta' vira 'semanal:0,3'. Quando preencher isso, IGNORE 'quando'/"
+                        "'quando_data' (a tarefa vira um modelo recorrente, nao um item avulso de "
+                        "um dia so) - mas ainda pode preencher 'hora' se ele disse um horario fixo "
+                        "pra rotina."
                     ),
                 },
             },

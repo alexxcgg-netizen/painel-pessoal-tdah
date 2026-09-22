@@ -28,7 +28,8 @@ def tarefas_aguardando_bom_tempo(conn) -> list[dict]:
     previsao de verdade (que pede rede) e decidir se ja tem um dia bom fica
     em app.py, pra esta funcao continuar pura e testavel so com SQLite."""
     rows = conn.execute(
-        "SELECT id, title FROM tasks WHERE completed_at IS NULL AND depende_do_tempo = 1"
+        "SELECT id, title FROM tasks WHERE completed_at IS NULL AND depende_do_tempo = 1 "
+        "AND recorrencia IS NULL"
     ).fetchall()
     return [dict(r) for r in rows]
 
