@@ -38,9 +38,15 @@ import db
 from db import (
     CAMPOS_SAUDE,
     add_to_goal,
+    ajustar_saldo_conta,
     apagar_espera,
+    apagar_nota,
+    atualizar_saldo_conta,
     atualizar_uber_pedido,
+    buscar_conta_por_nome,
+    buscar_notas,
     complete_task,
+    create_nota,
     cotacao_por_titulo_aproximado,
     create_espera,
     create_goal,
@@ -81,6 +87,7 @@ from db import (
     list_itens_cotacao,
     list_lembretes,
     list_memorias,
+    list_notas,
     list_orcamentos,
     list_push_subscriptions,
     list_voos,
@@ -650,6 +657,24 @@ def _buscar_contas_a_vencer_construtora(dias: int = 30) -> dict | None:
         return None
 
 
+def _ajustar_saldo_se_banco_citado(conn, banco: str | None, delta: float) -> dict | None:
+    """Se o Alex citou um banco no chat E aquela conta ja tem saldo sincronizado
+    (via Pluggy), aplica o ajuste otimista e devolve {"banco", "antes", "depois"}
+    pra entrar na resposta. Devolve None em qualquer outro caso - sem banco
+    citado, sem conta parecida, ou conta sem saldo conhecido ainda - nunca
+    inventa um saldo."""
+    if not banco:
+        return None
+    conta = buscar_conta_por_nome(conn, banco)
+    if not conta:
+        return None
+    ajuste = ajustar_saldo_conta(conn, conta["id"], delta)
+    if ajuste is None:
+        return None
+    saldo_antes, saldo_depois = ajuste
+    return {"banco": conta["banco"], "antes": saldo_antes, "depois": saldo_depois}
+
+
 def _id_estavel_conta(conta: dict) -> int:
     """ID estavel (mesmos dados -> mesmo numero) pra dar pra `notificacoes_enviadas`
     deduplicar - a API externa da construtora nao expoe o id real da linha no banco dela
@@ -1071,7 +1096,12 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
             (entrada["valor"], entrada.get("categoria") or "outros", entrada["titulo"], texto, status_gasto),
         )
         conn.commit()
-        return {"ok": True}
+        resultado = {"ok": True}
+        if status_gasto == "real":
+            saldo_banco = _ajustar_saldo_se_banco_citado(conn, entrada.get("banco"), -entrada["valor"])
+            if saldo_banco:
+                resultado["saldo_banco"] = saldo_banco
+        return resultado
 
     def exec_registrar_meta(entrada):
         create_goal(conn, entrada["titulo"], entrada["valor"], entrada.get("prazo"))
@@ -1083,7 +1113,11 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
 
     def exec_registrar_renda(entrada):
         create_income(conn, entrada["valor"], entrada["categoria"], entrada.get("descricao"), texto)
-        return {"ok": True}
+        resultado = {"ok": True}
+        saldo_banco = _ajustar_saldo_se_banco_citado(conn, entrada.get("banco"), entrada["valor"])
+        if saldo_banco:
+            resultado["saldo_banco"] = saldo_banco
+        return resultado
 
     def exec_gerar_plano(_entrada):
         pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
@@ -1145,6 +1179,13 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
 
     def exec_consultar_noticias(entrada):
         return {"manchetes": noticias.buscar_manchetes(entrada["termo"])}
+
+    def exec_salvar_nota(entrada):
+        nota_id = create_nota(conn, entrada["titulo"], entrada["corpo"], entrada.get("tags"), texto)
+        return {"ok": True, "nota_id": nota_id}
+
+    def exec_consultar_notas(entrada):
+        return {"notas": buscar_notas(conn, entrada["termo"])}
 
     def exec_sugerir_horario_livre(entrada):
         eventos = _eventos_de_hoje_com_seguranca(conn)
@@ -1250,6 +1291,8 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "registrar_feito": exec_registrar_feito,
         "registrar_voo": exec_registrar_voo,
         "consultar_noticias": exec_consultar_noticias,
+        "salvar_nota": exec_salvar_nota,
+        "consultar_notas": exec_consultar_notas,
         "sugerir_horario_livre": exec_sugerir_horario_livre,
         "rotular_cobranca_generica": exec_rotular_cobranca_generica,
         "consultar_gastos_fixos": exec_consultar_gastos_fixos,
@@ -1874,6 +1917,22 @@ def apagar_memoria(memoria_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/notas", methods=["GET"])
+def notas():
+    conn = get_db()
+    resultado = list_notas(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/notas/<int:nota_id>", methods=["DELETE"])
+def apagar_nota_rota(nota_id):
+    conn = get_db()
+    apagar_nota(conn, nota_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
 @app.route("/api/lembretes", methods=["GET"])
 def lembretes():
     conn = get_db()
@@ -2228,6 +2287,9 @@ def bancos_conectar_finalizar():
     for conta_pluggy in contas_pluggy:
         tipo = "cartao" if conta_pluggy.get("type") == "CREDIT" else "conta"
         conta_id = get_or_create_bank_account(conn, banco, tipo)
+        saldo_pluggy = conta_pluggy.get("balance")
+        if saldo_pluggy is not None:
+            atualizar_saldo_conta(conn, conta_id, saldo_pluggy)
         try:
             transacoes_pluggy = pluggy_client.get_transactions(conta_pluggy["id"])
         except requests.RequestException:

@@ -3040,6 +3040,73 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.post("/api/chat", json={"mensagem": "tem noticia sobre algo bem obscuro?"})
         self.assertEqual(res.status_code, 200)
 
+    # ---- Notas ----
+
+    def test_chat_salvar_nota(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["salvar_nota"](
+                {
+                    "titulo": "Viagem Portugal",
+                    "corpo": "Comprar passagens\nHotel em Lisboa",
+                    "tags": ["portugal", "viagem"],
+                }
+            )
+            self.assertTrue(resultado["ok"])
+            self.assertIn("nota_id", resultado)
+            return "Anotado.", ["salvar_nota"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat",
+                json={"mensagem": "anota isso: viagem pra Portugal, comprar passagens e hotel em Lisboa"},
+            )
+        self.assertEqual(res.status_code, 200)
+
+        conn = db.get_db()
+        notas = db.list_notas(conn)
+        conn.close()
+        self.assertEqual(len(notas), 1)
+        self.assertEqual(notas[0]["titulo"], "Viagem Portugal")
+
+    def test_chat_consultar_notas(self):
+        conn = db.get_db()
+        db.create_nota(conn, "Viagem Portugal", "roteiro de dezembro", ["portugal"])
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["consultar_notas"]({"termo": "Portugal"})
+            self.assertEqual(len(resultado["notas"]), 1)
+            return "Achei a nota de Portugal.", ["consultar_notas"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "o que eu anotei sobre Portugal?"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_chat_consultar_notas_sem_resultado(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["consultar_notas"]({"termo": "nada a ver"})
+            self.assertEqual(resultado["notas"], [])
+            return "Nao achei nenhuma nota com isso.", ["consultar_notas"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "o que eu anotei sobre nada a ver?"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_api_notas_get_e_delete(self):
+        conn = db.get_db()
+        nota_id = db.create_nota(conn, "Nota qualquer", "conteudo")
+        conn.close()
+
+        res = self.client.get("/api/notas")
+        self.assertEqual(res.status_code, 200)
+        notas = res.get_json()
+        self.assertEqual(len(notas), 1)
+        self.assertEqual(notas[0]["id"], nota_id)
+
+        res_delete = self.client.delete(f"/api/notas/{nota_id}")
+        self.assertEqual(res_delete.status_code, 200)
+        self.assertEqual(self.client.get("/api/notas").get_json(), [])
+
     # ---- Quanto sobra pra gastar ----
 
     def test_sobra_do_mes_sem_nenhum_dado(self):
@@ -3246,6 +3313,131 @@ class PainelTestCase(unittest.TestCase):
         with patch("claude_client.chat", side_effect=fake_chat):
             res = self.client.post("/api/chat", json={"mensagem": "a cobranca de 99,99 e o icloud"})
         self.assertEqual(res.status_code, 200)
+
+    # ---- Saldo antes/depois quando o banco e citado ----
+
+    def test_chat_registrar_gasto_com_banco_conhecido_mostra_saldo(self):
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "nubank", "conta")
+        db.atualizar_saldo_conta(conn, conta_id, 1000.0)
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_gasto"](
+                {"titulo": "mercado", "valor": 150.0, "banco": "Nubank"}
+            )
+            self.assertEqual(resultado["saldo_banco"], {"banco": "nubank", "antes": 1000.0, "depois": 850.0})
+            return "Registrado. Saldo do Nubank: 1000 -> 850.", ["registrar_gasto"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "gastei 150 no mercado pelo Pix do Nubank"}
+            )
+        self.assertEqual(res.status_code, 200)
+
+    def test_chat_registrar_gasto_sem_banco_citado_nao_mostra_saldo(self):
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "nubank", "conta")
+        db.atualizar_saldo_conta(conn, conta_id, 1000.0)
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_gasto"]({"titulo": "mercado", "valor": 150.0})
+            self.assertNotIn("saldo_banco", resultado)
+            return "Registrado.", ["registrar_gasto"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "gastei 150 no mercado"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_chat_registrar_gasto_banco_desconhecido_nao_mostra_saldo(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_gasto"](
+                {"titulo": "mercado", "valor": 150.0, "banco": "Banco Que Nao Existe"}
+            )
+            self.assertNotIn("saldo_banco", resultado)
+            return "Registrado.", ["registrar_gasto"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "gastei 150 no mercado pelo Banco Que Nao Existe"}
+            )
+        self.assertEqual(res.status_code, 200)
+
+    def test_chat_registrar_gasto_planejado_com_banco_nao_mexe_no_saldo(self):
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "nubank", "conta")
+        db.atualizar_saldo_conta(conn, conta_id, 1000.0)
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_gasto"](
+                {"titulo": "talvez viagem", "valor": 300.0, "banco": "Nubank", "status": "planejado"}
+            )
+            self.assertNotIn("saldo_banco", resultado)
+            return "Anotado como planejado.", ["registrar_gasto"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "talvez eu gaste 300 numa viagem pelo Nubank"}
+            )
+        self.assertEqual(res.status_code, 200)
+
+        conn = db.get_db()
+        saldo = conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (conta_id,)).fetchone()
+        conn.close()
+        self.assertEqual(saldo["saldo"], 1000.0)
+
+    def test_chat_registrar_renda_com_banco_conhecido_mostra_saldo(self):
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "nubank", "conta")
+        db.atualizar_saldo_conta(conn, conta_id, 1000.0)
+        conn.close()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_renda"](
+                {"valor": 500.0, "categoria": "cliente", "banco": "Nubank"}
+            )
+            self.assertEqual(resultado["saldo_banco"], {"banco": "nubank", "antes": 1000.0, "depois": 1500.0})
+            return "Registrado.", ["registrar_renda"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "recebi 500 de um cliente no Nubank"}
+            )
+        self.assertEqual(res.status_code, 200)
+
+    def test_conectar_finalizar_grava_saldo_da_conta(self):
+        item_fake = {"connector": {"name": "Nubank"}}
+        contas_fake = [{"id": "conta-1", "type": "BANK", "balance": 16344.40}]
+        with patch("pluggy_client.configurado", return_value=True), patch(
+            "pluggy_client.get_item", return_value=item_fake
+        ), patch("pluggy_client.get_accounts", return_value=contas_fake), patch(
+            "pluggy_client.get_transactions", return_value=[]
+        ):
+            res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "item-1"})
+        self.assertEqual(res.status_code, 200)
+
+        conn = db.get_db()
+        conta = db.buscar_conta_por_nome(conn, "nubank")
+        conn.close()
+        self.assertEqual(conta["saldo"], 16344.40)
+
+    def test_conectar_finalizar_sem_balance_nao_grava_saldo(self):
+        item_fake = {"connector": {"name": "Nubank"}}
+        contas_fake = [{"id": "conta-1", "type": "BANK"}]
+        with patch("pluggy_client.configurado", return_value=True), patch(
+            "pluggy_client.get_item", return_value=item_fake
+        ), patch("pluggy_client.get_accounts", return_value=contas_fake), patch(
+            "pluggy_client.get_transactions", return_value=[]
+        ):
+            res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "item-1"})
+        self.assertEqual(res.status_code, 200)
+
+        conn = db.get_db()
+        conta = db.buscar_conta_por_nome(conn, "nubank")
+        conn.close()
+        self.assertIsNone(conta["saldo"])
 
     def test_apos_rotular_gastos_fixos_agrupa_por_apelido(self):
         hoje = date.today()

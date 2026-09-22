@@ -194,6 +194,11 @@ de alguem por um trabalho/servico, "venda" pra venda de algo (material, equipame
 quando ele mencionar que e devolucao de algo que ele tinha pago, "outros" quando nao encaixar em
 nenhuma das anteriores - na duvida, "outros".
 
+Quando o resultado de `registrar_gasto`/`registrar_renda` trouxer `saldo_banco` (antes/depois),
+mencione isso na resposta de forma direta (ex: "Saldo do Nubank: R$ 16.344 -> R$ 16.194") - so
+aparece quando o Alex citou o banco E aquela conta ja tem saldo sincronizado; quando o campo nao
+vier, nao mencione saldo nenhum (nunca invente um numero).
+
 Alem disso, se em algum momento da conversa o Alex revelar um fato duravel sobre ele mesmo que
 vale lembrar dali pra frente - uma preferencia, rotina, relacao, contexto recorrente - e que NAO
 e so o item pontual que ja esta sendo registrado por outra ferramenta, chame tambem
@@ -273,6 +278,15 @@ CHAT_TOOLS = [
                         "Na duvida, omita - vira 'real' por padrao."
                     ),
                 },
+                "banco": {
+                    "type": "string",
+                    "description": (
+                        "SO preencha se o Alex citar explicitamente de qual banco/conta saiu o "
+                        "dinheiro (ex: 'paguei pelo Pix do Nubank', 'no cartao do Itau') - o nome "
+                        "do banco como ele falou. Omita sempre que ele nao mencionar - nunca "
+                        "adivinhe qual conta foi."
+                    ),
+                },
             },
             "required": ["titulo", "valor"],
         },
@@ -294,6 +308,14 @@ CHAT_TOOLS = [
                     "enum": ["venda", "cliente", "reembolso", "outros"],
                 },
                 "descricao": {"type": "string", "description": "de onde veio, resumido - omita se nao houver detalhe"},
+                "banco": {
+                    "type": "string",
+                    "description": (
+                        "SO preencha se o Alex citar explicitamente em qual banco/conta caiu o "
+                        "dinheiro (ex: 'recebi 500 do fulano no Nubank'). Omita sempre que ele nao "
+                        "mencionar - nunca adivinhe qual conta foi."
+                    ),
+                },
             },
             "required": ["valor", "categoria"],
         },
@@ -505,6 +527,47 @@ CHAT_TOOLS = [
             "type": "object",
             "properties": {
                 "termo": {"type": "string", "description": "o assunto/lugar a buscar, como o Alex mencionou"},
+            },
+            "required": ["termo"],
+        },
+    },
+    {
+        "name": "salvar_nota",
+        "description": (
+            "Guarda uma nota/anotacao mais longa que nao e tarefa nem gasto nem lembrete - um "
+            "roteiro, um plano, uma lista de coisas a verificar, algo que ele quer poder consultar "
+            "depois. Use quando o Alex disser algo como 'anota isso: [lista de coisas]' ou 'cria "
+            "uma nota sobre [assunto] com [detalhes]'. Se ele so quer registrar UM item pontual "
+            "(uma tarefa, um gasto), use a ferramenta certa pra isso em vez desta."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string", "description": "titulo curto da nota"},
+                "corpo": {
+                    "type": "string",
+                    "description": "o conteudo da nota, pode ter varias linhas/itens",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "palavras-chave curtas pra achar essa nota depois (ex: ['portugal', 'viagem']) - omita se nao houver nenhuma obvia",
+                },
+            },
+            "required": ["titulo", "corpo"],
+        },
+    },
+    {
+        "name": "consultar_notas",
+        "description": (
+            "Busca notas ja salvas por titulo, conteudo ou tag - use quando o Alex perguntar algo "
+            "como 'o que eu anotei sobre Portugal?' ou 'abre minha nota de viagem'. Se vier vazio, "
+            "diga que nao achou nenhuma nota com esse termo - nunca invente conteudo de nota."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "termo": {"type": "string", "description": "o que procurar - assunto, tag ou palavra do titulo"},
             },
             "required": ["termo"],
         },

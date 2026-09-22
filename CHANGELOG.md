@@ -5,6 +5,42 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (2) - Saldo bancario antes/depois + Notas com tags + auditoria de deploy
+
+O Alex mandou 30 prints do Nectar (assistente pessoal completo - tarefas, habitos, financas,
+agenda, notas, tudo numa mensagem so, com proatividade e widgets nativos). Comparei com o que
+ja temos: a maior parte ja existe (mensagem unica virando varias acoes, cutucada proativa que
+aprende, Uber com OAuth de verdade - mais robusto que o deles). Peguei os dois pedacos reais que
+faltavam e que dao pra fazer sem app nativo:
+
+**Saldo do banco antes -> depois** (`db.py`, `claude_client.py`, `app.py`): `bank_accounts` ganhou
+uma coluna `saldo`, atualizada de verdade a cada sincronizacao com a Pluggy (o campo `balance` que
+a API ja devolvia e a gente simplesmente descartava). Quando o Alex cita o banco no chat/Telegram
+("paguei pelo Pix do Nubank"), `registrar_gasto`/`registrar_renda` acham a conta pelo nome e
+ajustam o saldo de forma otimista (ate a proxima sincronizacao reconciliar), devolvendo
+antes/depois pra IA falar de volta - so quando o banco foi citado E a conta ja tem saldo
+conhecido, nunca inventa um numero.
+
+**Notas com tags** (tabela `notas` nova): pra anotacao mais longa que nao e tarefa/gasto/lembrete
+- um roteiro, uma lista, um plano. `salvar_nota` e `consultar_notas` no chat, secao nova na aba
+Painel (mesmo padrao visual de "O que eu lembro sobre voce").
+
+**Correcao de bug flagrante achada na auditoria**: `deploy/Caddyfile` ainda dizia "o painel nao
+tem login proprio" e chamava o Basic Auth de OBRIGATORIO - isso e de antes do login por PIN
+existir (`auth.py`) e contradizia o proprio `DEPLOY.md` (secao 0), que ja documenta o PIN como
+suficiente e o Basic Auth como camada extra opcional. Corrigido o comentario. Resto do fluxo de
+deploy (`wsgi.py`, `painel.service`, `requirements.txt`, chaves VAPID) conferido e consistente -
+nada mais pra ajustar antes de ele migrar pra VPS quando quiser.
+
+O Alex tambem pediu pra investigar a "notificacao push do Safari" que ele confundiu com o
+"Notificar-me" do iOS 27 (documentado na entrada anterior) - esclarecido que sao coisas
+diferentes: o Web Push de verdade (que ele quer) ja esta 100% implementado (botao "Ativar
+notificacoes" + 5 verificacoes proativas rodando), so falta hospedar num dominio com HTTPS
+de verdade pra funcionar no iPhone (regra da propria Apple, nao falta de codigo) - ele decidiu
+adiar a hospedagem por enquanto e so deixar o sistema pronto.
+
+800 testes (28 novos), 100% passando.
+
 ## 2026-09-22 (1) - "Liquid Glass" nos paineis + pesquisa de concorrentes (Nectar, Pierre, Zapia, Luzia, Base44)
 
 O Alex mandou 5 links pra eu avaliar como concorrentes/referencia (meu-nectar.com, Pierre

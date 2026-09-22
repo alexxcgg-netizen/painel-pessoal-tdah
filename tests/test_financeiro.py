@@ -152,5 +152,108 @@ class ApelidosGastoTestCase(_BancoIsoladoTestCase):
         self.assertEqual(len(apelidos), 2)
 
 
+class SaldoContaTestCase(_BancoIsoladoTestCase):
+    def test_conta_nova_nao_tem_saldo(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "nubank", "conta")
+        row = self.conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (conta_id,)).fetchone()
+        self.assertIsNone(row["saldo"])
+
+    def test_atualizar_saldo_conta_grava_valor_absoluto(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "nubank", "conta")
+        db.atualizar_saldo_conta(self.conn, conta_id, 16344.40)
+        row = self.conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (conta_id,)).fetchone()
+        self.assertEqual(row["saldo"], 16344.40)
+
+        db.atualizar_saldo_conta(self.conn, conta_id, 20000.0)
+        row = self.conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (conta_id,)).fetchone()
+        self.assertEqual(row["saldo"], 20000.0)
+
+    def test_buscar_conta_por_nome_parcial_e_sem_diferenciar_maiusculas(self):
+        db.get_or_create_bank_account(self.conn, "nubank", "conta")
+        achada = db.buscar_conta_por_nome(self.conn, "NUBANK")
+        self.assertIsNotNone(achada)
+        self.assertEqual(achada["banco"], "nubank")
+
+        achada2 = db.buscar_conta_por_nome(self.conn, "nu")
+        self.assertIsNotNone(achada2)
+
+    def test_buscar_conta_por_nome_sem_match_devolve_none(self):
+        db.get_or_create_bank_account(self.conn, "nubank", "conta")
+        self.assertIsNone(db.buscar_conta_por_nome(self.conn, "itau"))
+
+    def test_buscar_conta_por_nome_prefere_conta_sobre_cartao(self):
+        db.get_or_create_bank_account(self.conn, "nubank", "cartao")
+        db.get_or_create_bank_account(self.conn, "nubank", "conta")
+        achada = db.buscar_conta_por_nome(self.conn, "nubank")
+        self.assertEqual(achada["tipo"], "conta")
+
+    def test_buscar_conta_por_nome_vazio_devolve_none(self):
+        self.assertIsNone(db.buscar_conta_por_nome(self.conn, ""))
+        self.assertIsNone(db.buscar_conta_por_nome(self.conn, None))
+
+    def test_ajustar_saldo_conta_sem_saldo_conhecido_devolve_none(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "nubank", "conta")
+        self.assertIsNone(db.ajustar_saldo_conta(self.conn, conta_id, -50.0))
+
+    def test_ajustar_saldo_conta_com_saldo_conhecido(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "nubank", "conta")
+        db.atualizar_saldo_conta(self.conn, conta_id, 1000.0)
+        resultado = db.ajustar_saldo_conta(self.conn, conta_id, -150.0)
+        self.assertEqual(resultado, (1000.0, 850.0))
+        row = self.conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (conta_id,)).fetchone()
+        self.assertEqual(row["saldo"], 850.0)
+
+    def test_ajustar_saldo_conta_positivo_pra_renda(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "nubank", "conta")
+        db.atualizar_saldo_conta(self.conn, conta_id, 1000.0)
+        resultado = db.ajustar_saldo_conta(self.conn, conta_id, 2500.0)
+        self.assertEqual(resultado, (1000.0, 3500.0))
+
+
+class NotasTestCase(_BancoIsoladoTestCase):
+    def test_create_nota_e_list_notas(self):
+        nota_id = db.create_nota(self.conn, "Viagem Portugal", "Comprar passagens\nHotel em Lisboa", ["portugal", "viagem"])
+        notas = db.list_notas(self.conn)
+        self.assertEqual(len(notas), 1)
+        self.assertEqual(notas[0]["id"], nota_id)
+        self.assertEqual(notas[0]["titulo"], "Viagem Portugal")
+        self.assertEqual(notas[0]["tags"], "portugal,viagem")
+
+    def test_create_nota_sem_tags(self):
+        db.create_nota(self.conn, "Rascunho", "so um texto solto")
+        notas = db.list_notas(self.conn)
+        self.assertIsNone(notas[0]["tags"])
+
+    def test_buscar_notas_por_titulo(self):
+        db.create_nota(self.conn, "Viagem Portugal", "roteiro de dezembro", ["portugal"])
+        db.create_nota(self.conn, "Lista de compras", "arroz, feijao", ["mercado"])
+        achadas = db.buscar_notas(self.conn, "Portugal")
+        self.assertEqual(len(achadas), 1)
+        self.assertEqual(achadas[0]["titulo"], "Viagem Portugal")
+
+    def test_buscar_notas_por_tag(self):
+        db.create_nota(self.conn, "Viagem Portugal", "roteiro de dezembro", ["portugal", "viagem"])
+        achadas = db.buscar_notas(self.conn, "viagem")
+        self.assertEqual(len(achadas), 1)
+
+    def test_buscar_notas_por_corpo(self):
+        db.create_nota(self.conn, "Anotacao qualquer", "lembrar de levar o passaporte")
+        achadas = db.buscar_notas(self.conn, "passaporte")
+        self.assertEqual(len(achadas), 1)
+
+    def test_buscar_notas_sem_match(self):
+        db.create_nota(self.conn, "Viagem Portugal", "roteiro de dezembro", ["portugal"])
+        self.assertEqual(db.buscar_notas(self.conn, "nada a ver"), [])
+
+    def test_buscar_notas_termo_vazio_devolve_vazio(self):
+        db.create_nota(self.conn, "Viagem Portugal", "roteiro de dezembro", ["portugal"])
+        self.assertEqual(db.buscar_notas(self.conn, ""), [])
+
+    def test_apagar_nota(self):
+        nota_id = db.create_nota(self.conn, "Descartavel", "sem importancia")
+        db.apagar_nota(self.conn, nota_id)
+        self.assertEqual(db.list_notas(self.conn), [])
+
+
 if __name__ == "__main__":
     unittest.main()

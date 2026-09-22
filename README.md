@@ -432,6 +432,14 @@ Pra ele ja comecar "conhecendo voce" em vez de aprender tudo do zero, um banco n
 roda uma vez (nao duplica se o app reiniciar) e pode ser editado ou apagado como qualquer outra
 memoria pela aba Hoje.
 
+## Notas — anotacao mais longa que nao e tarefa nem gasto
+
+Diferente de Memoria (fato solto sobre voce), Notas guarda algo mais longo que voce quer poder
+consultar depois - um roteiro de viagem, uma lista de coisas a verificar, um plano. Fala "anota
+isso: [o que for]" ou "cria uma nota sobre [assunto] com [detalhes]" na captura, e depois pergunta
+de volta ("o que eu anotei sobre Portugal?") que a IA acha pelo titulo, conteudo ou tag. Aparece
+na aba Painel, em "Notas", com botao pra apagar.
+
 ## Visual
 
 A paleta e a tipografia foram desenhadas em cima do [Nectar](https://www.meu-nectar.com/) de
@@ -569,6 +577,16 @@ bancário sincronizado (OFX/Pluggy) - sem isso, ficariam cegos pra maior parte d
 a sincronização automática. Ressalva: as duas fontes não são reconciliadas entre si, então uma
 compra digitada no chat E que também aparece depois no extrato conta duas vezes - mesmo cuidado que
 a aba Bancos já pedia sobre confiar cegamente no total importado.
+
+### Saldo do banco antes → depois
+
+Se você conectou um banco via Pluggy (ver seção "Bancos"), o saldo de cada conta fica salvo e
+atualizado a cada sincronização. Quando você cita o banco no chat/Telegram ao registrar um gasto
+ou renda ("paguei a conta de luz pelo Pix do Nubank", "recebi 500 no Itaú"), a IA acha a conta pelo
+nome e responde com o saldo antes e depois daquele lançamento - ajuste otimista (o valor exato só é
+confirmado de verdade na próxima sincronização com o banco). Sem citar o banco, ou se a conta ainda
+não tem saldo sincronizado nenhuma vez, o painel simplesmente não menciona saldo nenhum - nunca
+inventa um número.
 
 ### Cobrança sem identificar (ex: "APPLE.COM/BILL")
 

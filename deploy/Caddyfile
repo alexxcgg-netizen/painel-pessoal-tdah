@@ -2,10 +2,11 @@
 # certificado HTTPS sozinho (Let's Encrypt) so por causa dessa linha - nao
 # precisa mexer em certbot nem nada manual.
 seu-dominio.com {
-	# OBRIGATORIO: o painel (app.py) nao tem nenhum login proprio - foi feito
-	# pra so voce acessar via localhost. Assim que sai do localhost pra um
-	# dominio publico, qualquer pessoa que ache a URL consegue ver/mexer nas
-	# suas tarefas, gastos, saude, voos e conversa com a IA sem essa linha.
+	# OPCIONAL: o painel ja tem login proprio por PIN de 6 digitos (auth.py) -
+	# sozinho ja e suficiente pra proteger o painel num dominio publico. Esse
+	# basicauth e so uma segunda camada de defesa (bloqueia antes mesmo de
+	# chegar na tela de PIN) - ver deploy/DEPLOY.md, secao 0. Se nao quiser
+	# essa camada a mais, remove o bloco basicauth inteiro.
 	# Gera o hash com: caddy hash-password
 	# (nunca cola a senha em texto puro aqui, so o hash que o comando devolve)
 	basicauth {

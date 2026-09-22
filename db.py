@@ -56,6 +56,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             banco TEXT NOT NULL,
             tipo TEXT NOT NULL DEFAULT 'conta',
+            saldo REAL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(banco, tipo)
         );
@@ -236,6 +237,16 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(descricao_normalizada, valor)
         );
+
+        CREATE TABLE IF NOT EXISTS notas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            corpo TEXT NOT NULL,
+            tags TEXT,
+            source_text TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -245,6 +256,7 @@ def init_db():
     _garantir_coluna(conn, "voos", "hora", "TEXT")
     _garantir_coluna(conn, "expenses", "tipo", "TEXT NOT NULL DEFAULT 'real'")
     _garantir_coluna(conn, "bank_transactions", "categoria", "TEXT")
+    _garantir_coluna(conn, "bank_accounts", "saldo", "REAL")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     conn.close()
@@ -271,6 +283,7 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_interacoes_aprendizado_aberta
             ON interacoes_aprendizado(tipo, referencia_id, resolvido_em);
         CREATE INDEX IF NOT EXISTS idx_incomes_created_at ON incomes(created_at);
+        CREATE INDEX IF NOT EXISTS idx_notas_criado_em ON notas(criado_em);
         """
     )
     conn.commit()
@@ -334,6 +347,44 @@ def get_or_create_bank_account(conn, banco: str, tipo: str = "conta") -> int:
     cur = conn.execute("INSERT INTO bank_accounts (banco, tipo) VALUES (?, ?)", (banco, tipo))
     conn.commit()
     return cur.lastrowid
+
+
+def atualizar_saldo_conta(conn, bank_account_id: int, saldo: float) -> None:
+    """Grava o saldo mais recente vindo da sincronizacao (Pluggy) - sobrescreve
+    qualquer ajuste otimista feito entre uma sincronizacao e outra, pra nao
+    acumular deriva."""
+    conn.execute("UPDATE bank_accounts SET saldo = ? WHERE id = ?", (saldo, bank_account_id))
+    conn.commit()
+
+
+def buscar_conta_por_nome(conn, nome: str) -> dict | None:
+    """Acha a conta bancaria cujo nome mais parece com o texto informado (ex: o
+    Alex escreveu "Nubank" ou "nubank" no chat) - correspondencia parcial e sem
+    diferenciar maiusculas, preferindo 'conta' sobre 'cartao' quando ha as duas
+    pro mesmo banco. Retorna None se nao achar nada parecido (nunca inventa)."""
+    nome = (nome or "").strip()
+    if not nome:
+        return None
+    row = conn.execute(
+        "SELECT * FROM bank_accounts WHERE banco LIKE ? ORDER BY (tipo = 'conta') DESC, id ASC LIMIT 1",
+        (f"%{nome}%",),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def ajustar_saldo_conta(conn, bank_account_id: int, delta: float) -> tuple[float, float] | None:
+    """Aplica um ajuste otimista de saldo (o gasto/renda foi digitado no chat,
+    nao veio de uma nova sincronizacao) e devolve (saldo_antes, saldo_depois).
+    Devolve None se a conta nunca teve saldo sincronizado - nunca calcula um
+    saldo a partir do nada."""
+    row = conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (bank_account_id,)).fetchone()
+    if row is None or row["saldo"] is None:
+        return None
+    saldo_antes = row["saldo"]
+    saldo_depois = saldo_antes + delta
+    conn.execute("UPDATE bank_accounts SET saldo = ? WHERE id = ?", (saldo_depois, bank_account_id))
+    conn.commit()
+    return (saldo_antes, saldo_depois)
 
 
 def insert_bank_transactions(conn, bank_account_id: int, transactions: list[dict]) -> int:
@@ -414,6 +465,44 @@ def list_memorias(conn, limit: int = 30) -> list[dict]:
 
 def delete_memoria(conn, memoria_id: int):
     conn.execute("DELETE FROM memorias WHERE id = ?", (memoria_id,))
+    conn.commit()
+
+
+def create_nota(
+    conn, titulo: str, corpo: str, tags: list[str] | None = None, source_text: str | None = None
+) -> int:
+    tags_str = ",".join(t.strip().lower() for t in tags if t.strip()) if tags else None
+    cur = conn.execute(
+        "INSERT INTO notas (titulo, corpo, tags, source_text) VALUES (?, ?, ?, ?)",
+        (titulo, corpo, tags_str, source_text),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_notas(conn, limit: int = 50) -> list[dict]:
+    rows = conn.execute("SELECT * FROM notas ORDER BY atualizado_em DESC LIMIT ?", (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def buscar_notas(conn, termo: str, limit: int = 10) -> list[dict]:
+    """Acha notas pelo titulo, corpo ou uma tag que contenha o termo - usado
+    pelo chat quando o Alex pergunta algo tipo "o que eu anotei sobre Portugal"."""
+    termo = (termo or "").strip()
+    if not termo:
+        return []
+    curinga = f"%{termo}%"
+    rows = conn.execute(
+        """SELECT * FROM notas
+           WHERE titulo LIKE ? OR corpo LIKE ? OR tags LIKE ?
+           ORDER BY atualizado_em DESC LIMIT ?""",
+        (curinga, curinga, curinga.lower(), limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def apagar_nota(conn, nota_id: int):
+    conn.execute("DELETE FROM notas WHERE id = ?", (nota_id,))
     conn.commit()
 
 
