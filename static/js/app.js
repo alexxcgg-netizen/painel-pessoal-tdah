@@ -677,10 +677,33 @@ function criarBotaoOuvirChat(texto) {
   return btn;
 }
 
-function criarBolhaChat(papel, texto) {
+function escreverPalavraAPalavra(elemento, texto) {
+  const tokens = texto.split(/(\s+)/);
+  const palavras = tokens.filter((t) => t.trim() !== "").length;
+  const passo = Math.min(24, Math.max(8, 700 / Math.max(palavras, 1)));
+  let indice = 0;
+  tokens.forEach((token) => {
+    if (token.trim() === "") {
+      elemento.appendChild(document.createTextNode(token));
+      return;
+    }
+    const span = document.createElement("span");
+    span.className = "palavra-surgindo";
+    span.textContent = token;
+    span.style.animationDelay = `${indice * passo}ms`;
+    elemento.appendChild(span);
+    indice += 1;
+  });
+}
+
+function criarBolhaChat(papel, texto, animarEntrada = false) {
   const bolha = document.createElement("div");
   bolha.className = `chat-bolha ${papel}`;
-  bolha.textContent = texto;
+  if (animarEntrada && papel === "assistant") {
+    escreverPalavraAPalavra(bolha, texto);
+  } else {
+    bolha.textContent = texto;
+  }
 
   const linha = document.createElement("div");
   linha.className = `chat-linha ${papel}`;
@@ -749,7 +772,7 @@ async function enviarChat(texto) {
   setBotaoCarregando(btn, false, "Enviar");
   if (!data) return;
 
-  lista.appendChild(criarBolhaChat("assistant", data.resposta));
+  lista.appendChild(criarBolhaChat("assistant", data.resposta, true));
   lista.scrollTop = lista.scrollHeight;
   loadStreak();
 

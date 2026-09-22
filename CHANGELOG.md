@@ -5,6 +5,31 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (3) - Loop noturno (ciclo 1): Liquid Glass v2 + palavra surgindo no chat
+
+O Alex foi dormir e pediu trabalho autonomo ate 7:30 da manha, focado em duas coisas que ele
+disse que estavam faltando: o Liquid Glass "ta horrivel" (precisa parecer vidro de verdade,
+flutuando) e falta de animacao "tipo, ta escrevendo, as palavras vao surgindo".
+
+**Liquid Glass v2** (`static/css/style.css`): a v1 (sessao anterior) so tinha tint translucido +
+blur - sem nada capturando luz, lia como "cinza sujo" em vez de vidro. Adicionado
+`--glass-highlight` (mancha de luz radial no canto superior-esquerdo, onde a luz bateria) somado
+ao tint no `--glass-bg`; `--glass-border` ficou mais claro (32% branco em vez de 16%); `--glass-blur`
+ganhou `brightness(1.08)` (vidro de verdade clareia o que ta atras, nao so borra); novo
+`--glass-shadow` soma um par de insets (claro no topo, escuro embaixo - "espessura" do vidro) na
+sombra normal, aplicado nos mesmos 8 paineis que ja eram glass (nenhum novo elemento virou glass
+nessa rodada, so ficou melhor o que ja era). O tabbar (barra de abas) tambem ganhou o highlight e
+um inset de brilho na borda de cima.
+
+**"Palavra surgindo" no chat** (`static/js/app.js` + `static/css/style.css`): resposta NOVA do
+assistente (nunca o historico recarregado - isso ficaria estranho) entra palavra por palavra, cada
+uma com fade-in + blur-out + leve subida, atraso calculado pra sempre terminar em ~700ms
+independente do tamanho da resposta (min 8ms/max 24ms por palavra). `prefers-reduced-motion`
+desliga a animacao (acessibilidade). Testado via Playwright injetando a funcao real do app.js e
+capturando o meio da animacao - efeito renderiza como esperado.
+
+800 testes, 100% passando (mudanca e CSS/JS, sem impacto em logica de backend).
+
 ## 2026-09-22 (2) - Saldo bancario antes/depois + Notas com tags + auditoria de deploy
 
 O Alex mandou 30 prints do Nectar (assistente pessoal completo - tarefas, habitos, financas,
