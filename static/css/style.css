@@ -2367,13 +2367,29 @@ li.item.item-planejado {
   }
 }
 
+/* Antes era um retangulo solido de --bg (sem blur, sem canto arredondado) so
+   pra tapar as bolhas do chat rolando por baixo - com o resto do app em
+   vidro fino/transparente (round 6), esse bloco opaco de bordas retas ficava
+   destacado como um "negocinho preto" colado, sem se misturar (pedido
+   explicito do Alex, com print anotado). Virou um degrade (transparente no
+   topo -> solido embaixo) com um blur leve por cima - a ultima bolha visivel
+   esmaece suavemente em vez de cortar numa linha reta, e ainda tapa o texto
+   por baixo o suficiente pra nao sobrepor ilegível. */
 .chat-form {
   position: sticky;
   bottom: calc(6rem + env(safe-area-inset-bottom));
   display: flex;
   gap: 0.5rem;
-  background: var(--bg);
-  padding-top: 0.4rem;
+  padding-top: 1.1rem;
+  margin-top: -0.7rem;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in srgb, var(--bg) 55%, transparent) 35%,
+    var(--bg) 68%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 5;
 }
 

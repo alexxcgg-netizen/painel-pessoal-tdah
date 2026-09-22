@@ -5,6 +5,50 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (7) - Fix do bloco preto atras do campo de chat + laboratorio de estilos no artefato
+
+O Alex mandou print anotado apontando um "negocinho preto" atras do `#chat-input`/mic/enviar que
+"nao consegue estar separado" das bolhas de chat.
+
+**Causa e fix**: `.chat-form` (a linha do input+mic+enviar, fixa por cima da lista de chat que
+rola) usava `background: var(--bg)` solido - um retangulo opaco sem blur nem canto arredondado,
+so pra tapar as bolhas rolando por baixo. Com o resto do app em vidro fino (round 6), esse
+retangulo de bordas retas ficava destacado, sem se misturar com nada ao redor. Virou um degrade
+(transparente no topo -> solido embaixo) com um blur leve - a ultima bolha visivel esmaece
+suavemente em vez de cortar numa linha reta, continuando a tapar o texto por baixo o suficiente
+pra nao ficar ilegivel sobreposto.
+
+**Artefato virou um laboratorio de estilo de verdade** (pedido explicito: "adiciona mais umas 10
+fontes, mais umas 10 cores... e tambem liquid glass em questoes, em alguns lugares so... pra gente
+terminar de uma vez"). O widget "Comparar estilos" (so existe no artefato) foi reescrito do zero:
+- **Fonte**: 4 -> 13 combinacoes (Atual/Sora, Editorial, Revista, Anterior + Moderno/Space Grotesk,
+  Humanista/DM Sans, Tecnico/IBM Plex, Fino/Fraunces, Redondo/Quicksand, Suico/Work Sans,
+  Contraste/Bodoni Moda, Mono/JetBrains Mono, Popular/Poppins) - a lista de `<link>` do Google
+  Fonts no `<head>` ganhou as familias novas.
+- **Cor de destaque**: 4 coloridas + 4 neutras (round 5) -> 9 coloridas (+ rubi, cobre, petroleo,
+  indigo, ametista escura) + 9 neutras (+ carvao, marfim frio, bronze fosco, chumbo, preto quase
+  puro) = 18 no total.
+- **Cor de fundo** (nova secao): 5 opcoes que trocam `--bg`/`--surface`/`--surface-2`/`--surface-3`
+  juntos (Atual, Preto puro, Grafite quente, Azul meia-noite, Verde-petroleo escuro) - antes so
+  dava pra trocar a cor de destaque, nao o preto de base.
+- **Liquid Glass ligado/desligado por area** (nova secao): 3 toggles independentes (Paineis,
+  Barra inferior, Campos de texto) que removem blur/vidro so daquela area, pra comparar com/sem
+  lado a lado. Implementado sobrescrevendo as propriedades renderizadas direto (`background`,
+  `backdrop-filter`) com `!important` nos mesmos seletores que ja usam vidro, em vez de mexer nos
+  tokens `--glass-*` - evita de proposito a pegadinha de indirecao de custom properties ja
+  documentada no CSS real (nao teria efeito confiavel dentro de `#tab-hoje`/etc, que redeclaram o
+  conjunto inteiro).
+- O painel do comparador cresceu (agora ocupa quase a tela toda, com scroll) pra caber tudo isso
+  sem ficar espremido.
+
+Tudo isso e so pro Alex testar ao vivo e decidir - nenhuma fonte/cor/fundo novo virou padrao do
+app de verdade, e nenhum foi validado por `scripts/validate_palette.js` ainda.
+
+Validado com `node --check` nos 4 blocos `<script>`, Playwright confirmando que clicar em fonte/
+cor/fundo/toggle atualiza `getComputedStyle` corretamente e se propaga pro app inteiro (nao so
+pro widget). 800 testes Python, 100% passando (so o CSS real mudou - `.chat-form` -, o resto foi
+so no artefato).
+
 ## 2026-09-22 (6) - Liquid Glass round 6 (transparencia de verdade, removida a mancha branca)
 
 O Alex mandou dois prints lado a lado: o `#chat-input` do nosso app (uma mancha branca diagonal
