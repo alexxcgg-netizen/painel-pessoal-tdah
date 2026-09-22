@@ -5,6 +5,40 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (4) - Liquid Glass colorido em (quase) tudo + achado real de CSS
+
+O Alex pediu de manha (fora do horario noturno, autorizado a trabalhar na hora): Liquid Glass
+"em tudo", mas diferente do iOS puro - colorido, usando as cores de identidade que o painel ja
+tem por secao, com mais profundidade ainda.
+
+**Vidro tingido por secao**: cada aba (`#tab-hoje`, `#tab-tarefas`, `#tab-gastos`, etc) agora
+redefine `--glass-tint` pra sua propria `--cor-X` - tudo que usa os tokens `--glass-*` dentro
+dela fica automaticamente tingido, sem marcar elemento por elemento. Cada painel ganhou uma
+terceira camada de luz alem do brilho branco especular (`--glass-highlight`): um halo colorido
+no canto oposto (`--glass-glow`, "luz atravessando o vidro colorido e saindo do outro lado") -
+e a sombra (`--glass-shadow`) passou a levar um brilho ambiente na cor da secao, nao so preto,
+pra reforcar o "flutuando".
+
+**Achado real no processo (nao foi so estetica)**: a primeira tentativa de fazer isso nao
+funcionou - toda aba renderizava a MESMA cor (verde), nao a cor certa por secao. Investigando
+com `getComputedStyle` (nao só olhando a tela), descobri uma pegadinha real e documentada de CSS
+custom properties: quando um token composto tipo `--glass-shadow` e definido UMA VEZ no `:root`
+e contem `var(--glass-tint)` por dentro, esse `var()` interno so e resolvido lá no `:root`
+(usando o `--glass-tint` do `:root`) - um filho la embaixo que so redefine `--glass-tint`
+(sem redefinir `--glass-shadow` tambem) herda a STRING JA PRONTA com a cor errada "congelada"
+dentro, nao recalcula nada. Fix: cada aba (e tambem `.stat-tile`/`.card-resultado`, que tem cor
+propria por tile) redefine o CONJUNTO INTEIRO de tokens compostos, nao so `--glass-tint`.
+Documentado com comentario extenso no CSS pra nenhuma sessao futura cair nisso de novo.
+
+Tambem apliquei vidro nos campos de captura/chat (`#captura-input`, `#duvida-input`,
+`#chat-input`) e um acabamento (brilho especular, sem trocar a cor) na aba ativa da barra
+inferior - essa continua com a cor de marca fixa por decisao antiga e deliberada (documentada no
+proprio CSS), nao virou arco-iris por secao.
+
+Testado visualmente com Playwright em todas as 7 abas + `getComputedStyle` pra confirmar a cor
+resolvida em cada uma antes e depois do fix. 800 testes, 100% passando (CSS puro, sem mudanca de
+logica/schema).
+
 ## 2026-09-22 (3) - Loop noturno (ciclo 1): Liquid Glass v2 + palavra surgindo no chat
 
 O Alex foi dormir e pediu trabalho autonomo ate 7:30 da manha, focado em duas coisas que ele

@@ -92,40 +92,55 @@
     0 10px 16px -8px rgba(0, 0, 0, 0.55), 0 30px 46px -20px rgba(0, 0, 0, 0.7);
 
   /* "Liquid Glass" (pedido explicito, inspirado no iOS): os paineis retangulares
-     (caixas de resumo, itens de lista, bolha de chat) deixam de ser uma superficie
-     solida e viram vidro translucido - o fundo colorido do .aurora borra por tras
-     via backdrop-filter, dando a sensacao de profundidade/"flutuando por cima" em
-     vez de um bloco opaco colado no fundo. So aplicado nos paineis neutros (fundo
-     cinza), nao nos tiles/cards com cor de secao - aqueles usam a paleta validada
-     por acessibilidade (ver nota acima) e alterar a mistura de cor ali quebraria
-     essa validacao sem rodar o script de novo.
+     deixam de ser uma superficie solida e viram vidro translucido - o fundo
+     colorido do .aurora borra por tras via backdrop-filter, dando a sensacao de
+     profundidade/"flutuando por cima" em vez de um bloco opaco colado no fundo.
 
-     Round 2 (pedido explicito do Alex: "o liquid glass ta horrivel, tem que
-     parecer liquido de verdade flutuando, tipo iOS"): a v1 so tinha tint
-     translucido + blur, sem nada capturando luz - lia como "cinza sujo", nao
-     vidro. Vidro de verdade tem UM ponto de brilho onde a luz bate (aqui,
-     sempre canto superior-esquerdo, luz vindo de cima) e uma borda que acende
-     mais que o resto (espessura do vidro refletindo). --glass-highlight e essa
-     mancha de luz (radial, funde com o tint por baixo). --glass-shadow soma um
-     par de insets (claro no topo, escuro embaixo = "borda grossa" de vidro) em
-     cima da sombra normal. brightness() a mais no blur clareia o que aparece
-     atras, como vidro de verdade faz (nao so borra, ilumina um pouco). */
+     Round 3 (pedido explicito do Alex: "quero em tudo, mas colorido - tipo o
+     iOS 27 só que com cor, as mesmas cores que a gente ja usa"): o Liquid
+     Glass da Apple e sempre neutro/incolor; o nosso pega a cor de identidade
+     de cada secao (--cor-hoje, --cor-tarefas etc) e tinge o vidro com ela -
+     --glass-tint e essa cor, redefinida por secao logo abaixo (ver bloco
+     "tab-content por secao"), com var(--accent) como fallback pra qualquer
+     coisa fora de uma secao. Vidro colorido de verdade tem tres camadas de
+     luz, nao uma so: um brilho branco especular onde a luz bate direto
+     (--glass-highlight, canto superior-esquerdo), um halo da PROPRIA cor do
+     vidro onde a luz atravessa e sai do outro lado (--glass-glow, canto
+     inferior-direito - e o que faz ler como "vidro colorido" e nao "vidro com
+     uma mancha por cima"), e o corpo tingido por baixo dos dois. --glass-shadow
+     soma os insets de espessura (claro em cima/escuro embaixo) com um brilho
+     ambiente na cor da secao embaixo do card - o "flutuando" fica mais forte
+     quando a sombra tambem carrega a cor, nao so preta.
+
+     Os tiles/cards com cor de secao (--tile-cor/--card-cor) usam essas MESMAS
+     camadas mas com opacidade mais alta (menos transparencia) - a paleta deles
+     foi validada por acessibilidade contra fundo solido (ver nota no topo do
+     arquivo) e translucidez total mudaria o contraste de verdade renderizado;
+     mantendo mais corpo solido por baixo, o efeito de vidro/brilho aparece sem
+     arriscar legibilidade - ver `scripts/validate_palette.js` pra reconferir
+     se a cor de texto em cima ainda passa depois de qualquer ajuste aqui. */
+  --glass-tint: var(--accent);
   --glass-highlight: radial-gradient(
     120% 85% at 18% -15%,
-    rgba(255, 255, 255, 0.24) 0%,
-    rgba(255, 255, 255, 0.06) 35%,
+    rgba(255, 255, 255, 0.26) 0%,
+    rgba(255, 255, 255, 0.07) 35%,
     transparent 60%
   );
-  --glass-bg: var(--glass-highlight),
+  --glass-glow: radial-gradient(
+    95% 75% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
+    transparent 62%
+  );
+  --glass-bg: var(--glass-highlight), var(--glass-glow),
     linear-gradient(
       165deg,
-      color-mix(in srgb, var(--surface-2) 62%, transparent) 0%,
-      color-mix(in srgb, var(--surface) 46%, transparent) 100%
+      color-mix(in srgb, var(--glass-tint) 22%, color-mix(in srgb, var(--surface-2) 66%, transparent)) 0%,
+      color-mix(in srgb, var(--glass-tint) 10%, color-mix(in srgb, var(--surface) 50%, transparent)) 100%
     );
-  --glass-border: color-mix(in srgb, white 32%, var(--border-strong));
-  --glass-blur: blur(28px) saturate(180%) brightness(1.08);
+  --glass-border: color-mix(in srgb, var(--glass-tint) 45%, color-mix(in srgb, white 32%, var(--border-strong)));
+  --glass-blur: blur(28px) saturate(190%) brightness(1.08);
   --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.3),
-    var(--shadow-card);
+    0 10px 26px -14px color-mix(in srgb, var(--glass-tint) 45%, transparent), var(--shadow-card);
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
@@ -690,18 +705,24 @@ header {
 }
 
 .tab-btn.active {
-  background: linear-gradient(
-    140deg,
-    color-mix(in srgb, var(--accent-fill) 85%, white 15%) 0%,
-    var(--accent-fill) 100%
-  );
+  /* Fica com a cor de marca (--accent), nao vira arco-iris por secao - decisao
+     antiga e deliberada (ver comentario logo abaixo), mantida mesmo no pedido
+     de vidro colorido em tudo. O que muda aqui e so o acabamento: brilho
+     especular por cima, igual o resto do vidro colorido do painel. */
+  background: var(--glass-highlight),
+    linear-gradient(
+      140deg,
+      color-mix(in srgb, var(--accent-fill) 85%, white 15%) 0%,
+      var(--accent-fill) 100%
+    );
   color: var(--accent-text);
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
   /* "LED" pedido explicito: glow ambiente pequeno e continuo (nao so na sombra de
      queda) em cima da cor de acento - e o que faz uma superficie escura parecer
      "acesa" em vez de so escura. */
-  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent),
     0 0 16px -2px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
@@ -718,6 +739,62 @@ header {
 
 .tab-content:not([hidden]) {
   animation: tabEntra 0.32s var(--ease-suave) both;
+}
+
+/* Liquid Glass colorido por secao: cada aba redefine --glass-tint pra sua cor
+   de identidade. Pegadinha real de CSS (nao bug de digitar errado): os tokens
+   compostos (--glass-bg/--glass-border/--glass-shadow/--glass-glow, la no
+   topo do arquivo) so resolvem o var(--glass-tint) QUE ELES CONTEM uma unica
+   vez, no elemento onde cada um foi DECLARADO (:root) - um filho la embaixo
+   (li.item, por exemplo) herda a STRING JA PRONTA com a cor do :root
+   "congelada" dentro, nunca recalcula com o proprio --glass-tint dele, por
+   mais que --glass-tint em si esteja correto nesse filho. Testado e
+   confirmado via getComputedStyle antes de escrever isso. Por isso cada aba
+   abaixo redefine o CONJUNTO INTEIRO (nao so --glass-tint) - assim quem
+   calcula --glass-bg/--glass-shadow/etc e a propria secao, com a cor certa,
+   e so ENTAO os filhos herdam a string ja tingida certa. */
+#tab-hoje,
+#tab-painel,
+#tab-tarefas,
+#tab-gastos,
+#tab-bancos,
+#tab-construtora,
+#tab-aviacao {
+  --glass-bg: var(--glass-highlight), var(--glass-glow),
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--glass-tint) 22%, color-mix(in srgb, var(--surface-2) 66%, transparent)) 0%,
+      color-mix(in srgb, var(--glass-tint) 10%, color-mix(in srgb, var(--surface) 50%, transparent)) 100%
+    );
+  --glass-border: color-mix(in srgb, var(--glass-tint) 45%, color-mix(in srgb, white 32%, var(--border-strong)));
+  --glass-glow: radial-gradient(
+    95% 75% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
+    transparent 62%
+  );
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 10px 26px -14px color-mix(in srgb, var(--glass-tint) 45%, transparent), var(--shadow-card);
+}
+#tab-hoje {
+  --glass-tint: var(--cor-hoje);
+}
+#tab-painel {
+  --glass-tint: var(--cor-painel);
+}
+#tab-tarefas {
+  --glass-tint: var(--cor-tarefas);
+}
+#tab-gastos {
+  --glass-tint: var(--cor-financeiro);
+}
+#tab-bancos {
+  --glass-tint: var(--cor-bancos);
+}
+#tab-construtora {
+  --glass-tint: var(--cor-construtora);
+}
+#tab-aviacao {
+  --glass-tint: var(--cor-aviacao);
 }
 
 .erro {
@@ -742,8 +819,10 @@ header {
   min-width: 0;
   padding: 0.7rem 0.8rem;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text);
   font-size: 0.95rem;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
@@ -831,16 +910,33 @@ header {
   flex: 1;
   min-width: 0;
   position: relative;
-  background: linear-gradient(
-    155deg,
-    color-mix(
-        in srgb,
-        color-mix(in srgb, var(--tile-cor, var(--accent)) 30%, black 70%) 20%,
-        var(--surface-2)
-      )
-      0%,
-    var(--surface) 78%
+  /* Glass "por cima", nao "atraves de": a cor de fundo abaixo e a MESMA
+     formula ja validada por acessibilidade (nao mexida) - o vidro entra so
+     como duas camadas de luz por cima (brilho branco + halo da cor,
+     --tile-cor no lugar do --glass-tint da secao pra cada tile continuar com
+     a propria identidade mesmo dentro da mesma aba). Sem backdrop-filter de
+     proposito: o fundo continua opaco, entao nao teria nada real pra borrar -
+     ver nota no bloco --glass-* no topo do arquivo. Redefine --glass-glow
+     aqui tambem (nao so --glass-tint) pela mesma pegadinha de indirecao
+     documentada la em cima - senao herdaria o halo da COR DA ABA, nao da
+     cor propria do tile. */
+  --glass-tint: var(--tile-cor, var(--accent));
+  --glass-glow: radial-gradient(
+    95% 75% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
+    transparent 62%
   );
+  background: var(--glass-highlight), var(--glass-glow),
+    linear-gradient(
+      155deg,
+      color-mix(
+          in srgb,
+          color-mix(in srgb, var(--tile-cor, var(--accent)) 30%, black 70%) 20%,
+          var(--surface-2)
+        )
+        0%,
+      var(--surface) 78%
+    );
   border: 1px solid color-mix(in srgb, var(--tile-cor, var(--accent)) 25%, var(--border));
   border-radius: var(--radius);
   padding: 0.9rem 0.4rem 0.75rem;
@@ -850,7 +946,7 @@ header {
   gap: 0.2rem;
   text-align: center;
   overflow: hidden;
-  box-shadow: var(--shadow-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), var(--shadow-card);
   transition: transform 0.2s var(--ease-snap), box-shadow 0.2s ease, border-color 0.2s ease;
   animation: fadeInUp 0.4s var(--ease-bounce) both;
 }
@@ -2060,16 +2156,26 @@ li.item.item-planejado {
 
 .card-resultado {
   --card-cor: var(--accent);
-  align-self: stretch;
-  background: linear-gradient(
-    155deg,
-    color-mix(in srgb, color-mix(in srgb, var(--card-cor) 30%, black 70%) 16%, var(--surface-2)) 0%,
-    var(--surface) 78%
+  /* Mesmo raciocinio do .stat-tile (incluindo redefinir --glass-glow, nao so
+     --glass-tint - mesma pegadinha de indirecao) - ver nota no bloco
+     --glass-* no topo do arquivo. */
+  --glass-tint: var(--card-cor);
+  --glass-glow: radial-gradient(
+    95% 75% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
+    transparent 62%
   );
+  align-self: stretch;
+  background: var(--glass-highlight), var(--glass-glow),
+    linear-gradient(
+      155deg,
+      color-mix(in srgb, color-mix(in srgb, var(--card-cor) 30%, black 70%) 16%, var(--surface-2)) 0%,
+      var(--surface) 78%
+    );
   border: 1px solid color-mix(in srgb, var(--card-cor) 28%, var(--border));
   border-radius: var(--radius);
   padding: 0.8rem 0.9rem;
-  box-shadow: var(--shadow-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), var(--shadow-card);
   animation: cardResultadoEntra 0.4s var(--ease-bounce) both;
 }
 
@@ -2245,8 +2351,10 @@ li.item.item-planejado {
   min-width: 0;
   padding: 0.7rem 0.9rem;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text);
   font-size: 0.95rem;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
