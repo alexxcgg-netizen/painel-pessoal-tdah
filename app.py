@@ -52,6 +52,7 @@ from db import (
     create_goal,
     create_income,
     create_lembrete,
+    create_medicamento,
     create_memoria,
     create_voo,
     criar_cotacao,
@@ -63,6 +64,7 @@ from db import (
     delete_cotacao,
     delete_item_cotacao,
     delete_lembrete,
+    delete_medicamento,
     delete_memoria,
     delete_push_subscription,
     delete_voo,
@@ -86,6 +88,7 @@ from db import (
     list_incomes,
     list_itens_cotacao,
     list_lembretes,
+    list_medicamentos_ativos,
     list_memorias,
     list_notas,
     list_orcamentos,
@@ -1255,6 +1258,16 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         create_lembrete(conn, entrada["titulo"], entrada["data"], entrada.get("recorrente", False))
         return {"ok": True}
 
+    def exec_registrar_medicamento(entrada):
+        return _criar_medicamento(
+            conn,
+            entrada["nome"],
+            entrada.get("dosagem"),
+            entrada["horario"],
+            entrada.get("recorrencia") or "diaria",
+            texto,
+        )
+
     def exec_registrar_memoria(entrada):
         create_memoria(conn, entrada["fato"], texto)
         return {"ok": True}
@@ -1468,6 +1481,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "registrar_meta": exec_registrar_meta,
         "gerar_plano_do_dia": exec_gerar_plano,
         "registrar_lembrete": exec_registrar_lembrete,
+        "registrar_medicamento": exec_registrar_medicamento,
         "registrar_memoria": exec_registrar_memoria,
         "registrar_espera": exec_registrar_espera,
         "resolver_espera": exec_resolver_espera,
@@ -2202,6 +2216,65 @@ def criar_lembrete():
 def apagar_lembrete(lembrete_id):
     conn = get_db()
     delete_lembrete(conn, lembrete_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _criar_medicamento(conn, nome: str, dosagem: str | None, horario: str, recorrencia: str, texto: str | None):
+    """Orquestra as duas insercoes (a tarefa recorrente que de verdade
+    aparece na agenda/dispara aviso, e o metadado estruturado em
+    medicamentos) - compartilhado entre a rota HTTP do form e o executor do
+    chat tool, pra nunca divergir. Devolve {"erro": ...} se horario/
+    recorrencia vierem invalidos, nunca deixa criar um medicamento quebrado."""
+    hora_normalizada = _normalizar_hora(horario)
+    if not hora_normalizada:
+        return {"erro": "horario invalido - use HH:MM"}
+    if not agenda.recorrencia_valida(recorrencia):
+        return {"erro": f"recorrencia mal formatada: {recorrencia!r}"}
+    titulo_tarefa = f"Tomar {nome}" + (f" ({dosagem})" if dosagem else "")
+    cur = conn.execute(
+        "INSERT INTO tasks (title, hora, source_text, recorrencia) VALUES (?, ?, ?, ?)",
+        (titulo_tarefa, hora_normalizada, texto, recorrencia),
+    )
+    conn.commit()
+    medicamento_id = create_medicamento(conn, nome, dosagem, hora_normalizada, recorrencia, cur.lastrowid)
+    materializar_tarefas_recorrentes(conn)
+    return {"ok": True, "medicamento_id": medicamento_id}
+
+
+@app.route("/api/medicamentos", methods=["GET"])
+def medicamentos():
+    conn = get_db()
+    resultado = list_medicamentos_ativos(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/medicamentos", methods=["POST"])
+def criar_medicamento_rota():
+    body = _corpo_json()
+    nome = (body.get("nome") or "").strip()
+    if not nome:
+        return jsonify({"error": "informe o nome do remedio"}), 400
+    dosagem = (body.get("dosagem") or "").strip() or None
+    horario = (body.get("horario") or "").strip()
+    recorrencia = (body.get("recorrencia") or "diaria").strip()
+
+    conn = get_db()
+    resultado = _criar_medicamento(conn, nome, dosagem, horario, recorrencia, None)
+    if "erro" in resultado:
+        conn.close()
+        return jsonify({"error": resultado["erro"]}), 400
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify(resultado), 201
+
+
+@app.route("/api/medicamentos/<int:medicamento_id>", methods=["DELETE"])
+def apagar_medicamento(medicamento_id):
+    conn = get_db()
+    delete_medicamento(conn, medicamento_id)
     conn.close()
     return jsonify({"ok": True})
 

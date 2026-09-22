@@ -5,6 +5,41 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (17) - Medicamentos: cadastro estruturado (nome/dosagem/horario) com lembrete
+
+Continuacao direta da (16): o Alex pediu explicitamente pra copiar o fluxo de "Medicamentos" do
+Apple Saude (nome do remedio, quantos mg, horario de tomar, com lembrete) depois de eu confirmar
+por pesquisa que essa parte especifica NAO tem ponte via Atalhos - nem o proprio ecossistema da
+Apple expoe Medications externamente (so passos/sono/distancia tem "Log Health Sample"). Em vez
+de tentar uma integracao impossivel, o painel ganha seu proprio cadastro de medicamentos, camada
+fina por cima da infraestrutura de tarefa recorrente que ja existia.
+
+**Modelo de dados**: tabela nova `medicamentos` (nome, dosagem, horario, recorrencia DEFAULT
+'diaria', `tarefa_modelo_id` FK pro modelo recorrente em `tasks`, ativo). Guarda so metadado
+estruturado pra exibir bonito - toda a materializacao diaria, bolinha verde/vermelha e aviso
+10min antes vem de graca da tarefa recorrente vinculada, sem duplicar nenhuma logica de
+agendamento. `_criar_medicamento` (compartilhado entre a rota HTTP e o executor do chat, mesmo
+padrao de `_resolver_cotacao_por_titulo`) cria as duas linhas numa tacada so e ja materializa a
+instancia de hoje. Sem `PRAGMA foreign_keys` ligado neste banco (confirmado no padrao existente
+de `delete_cotacao`), `delete_medicamento` apaga o medicamento E a tarefa-modelo explicitamente -
+instancias ja materializadas em dias anteriores ficam no historico normal, so paravam de gerar
+novas a partir de hoje.
+
+**Rotas**: `GET/POST /api/medicamentos`, `DELETE /api/medicamentos/<id>`.
+
+**Chat**: tool nova `registrar_medicamento` (nome obrigatorio, dosagem opcional, horario
+obrigatorio HH:MM, recorrencia opcional default "diaria") - o system prompt agora distingue
+remedio (usa essa tool, guarda dado estruturado) de rotina generica tipo academia (continua
+usando `recorrencia` em `registrar_tarefa`).
+
+**Frontend**: secao nova "Medicamentos" na aba Painel, entre "Datas importantes" e "O que eu
+lembro sobre voce" - form com nome/dosagem/horario (`<input type="time">`) e lista com botao
+Apagar, mesmo padrao visual de `.item`/`.item-linha` ja usado em lembretes/esperas.
+
+9 testes novos em `test_app.py` (lista vazia, criar com/sem dosagem, materializacao da tarefa de
+hoje, rejeicao de nome/horario/recorrencia invalidos, apagar remove medicamento + tarefa-modelo,
+chat usa o executor de verdade). 854 testes Python + 112 subtestes, 100% passando.
+
 ## 2026-09-22 (16) - Tarefa recorrente (diaria/semanal) - remedio, academia, rotina
 
 Pedido explicito do Alex depois de confirmar a visao do projeto (agenda/TDAH e a prioridade,

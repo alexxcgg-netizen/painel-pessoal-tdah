@@ -136,6 +136,17 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS medicamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            dosagem TEXT,
+            horario TEXT NOT NULL,
+            recorrencia TEXT NOT NULL DEFAULT 'diaria',
+            tarefa_modelo_id INTEGER NOT NULL REFERENCES tasks(id),
+            ativo INTEGER NOT NULL DEFAULT 1,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS atividade_dias (
             dia TEXT PRIMARY KEY
         );
@@ -294,6 +305,7 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_notas_criado_em ON notas(criado_em);
         CREATE INDEX IF NOT EXISTS idx_tasks_recorrencia ON tasks(recorrencia);
         CREATE INDEX IF NOT EXISTS idx_tasks_recorrente_origem_id ON tasks(recorrente_origem_id);
+        CREATE INDEX IF NOT EXISTS idx_medicamentos_ativo ON medicamentos(ativo);
         """
     )
     conn.commit()
@@ -629,6 +641,45 @@ def list_lembretes(conn) -> list[dict]:
 
 def delete_lembrete(conn, lembrete_id: int):
     conn.execute("DELETE FROM lembretes WHERE id = ?", (lembrete_id,))
+    conn.commit()
+
+
+def create_medicamento(
+    conn, nome: str, dosagem: str | None, horario: str, recorrencia: str, tarefa_modelo_id: int
+) -> int:
+    """A tarefa recorrente que de verdade aparece na agenda/dispara aviso ja
+    foi criada antes disso (ver _criar_medicamento em app.py, que orquestra
+    as duas insercoes) - esta tabela e so metadado estruturado (nome/dosagem
+    separados, pra exibir bonito e listar "que remedios estao ativos" sem
+    precisar fazer parsing do titulo da tarefa)."""
+    cur = conn.execute(
+        "INSERT INTO medicamentos (nome, dosagem, horario, recorrencia, tarefa_modelo_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (nome, dosagem, horario, recorrencia, tarefa_modelo_id),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_medicamentos_ativos(conn) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM medicamentos WHERE ativo = 1 ORDER BY horario"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_medicamento(conn, medicamento_id: int):
+    """Apaga o medicamento E a tarefa-modelo recorrente vinculada - sem
+    depender de ON DELETE CASCADE (nao ligado neste banco, ver delete_cotacao
+    pro mesmo padrao), apaga explicitamente os dois. As instancias ja
+    materializadas em dias anteriores ficam no historico normalmente (nao
+    somem - so param de gerar novas a partir de hoje)."""
+    row = conn.execute(
+        "SELECT tarefa_modelo_id FROM medicamentos WHERE id = ?", (medicamento_id,)
+    ).fetchone()
+    if row:
+        conn.execute("DELETE FROM tasks WHERE id = ?", (row["tarefa_modelo_id"],))
+    conn.execute("DELETE FROM medicamentos WHERE id = ?", (medicamento_id,))
     conn.commit()
 
 

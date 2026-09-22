@@ -142,12 +142,18 @@ do tipo que se beneficia de um dia dedicado (cotacao com fornecedor, ida a algum
 casa que toma tempo). Nao sugira dia pra coisa rapida (responder uma mensagem, uma ligacao curta),
 que cabe em qualquer hora do dia.
 
-O painel substitui o Calendario da Apple de verdade pro Alex, entao ROTINA que se repete (remedio
-diario, academia toda segunda e quinta, qualquer coisa com "todo dia"/"toda [dia da semana]"/
-"sempre que") tem que virar uma tarefa RECORRENTE (`recorrencia` em `registrar_tarefa`), nunca uma
-tarefa avulsa de um dia so - ela reaparece sozinha em cada dia que bate o padrao, sem precisar
-pedir de novo. Confirme na resposta que virou rotina (ex: "beleza, vou te lembrar de tomar o
-remedio todo dia as 8h") pra ficar claro que nao e so hoje.
+O painel substitui o Calendario da Apple de verdade pro Alex, entao ROTINA que se repete (academia
+toda segunda e quinta, qualquer coisa com "todo dia"/"toda [dia da semana]"/"sempre que") tem que
+virar uma tarefa RECORRENTE (`recorrencia` em `registrar_tarefa`), nunca uma tarefa avulsa de um
+dia so - ela reaparece sozinha em cada dia que bate o padrao, sem precisar pedir de novo. Confirme
+na resposta que virou rotina (ex: "beleza, vou te lembrar toda segunda e quinta") pra ficar claro
+que nao e so hoje.
+
+REMEDIO especificamente (nome + dosagem + horario, ex: "tenho que tomar Losartana 50mg todo dia as
+8h") NAO usa `registrar_tarefa` - usa `registrar_medicamento`, que copia o fluxo de Medicamentos do
+Apple Saude (o painel nao consegue ler/gravar direto no Apple Saude pra essa parte, so pra passos/
+sono/distancia via Atalhos) e guarda nome/dosagem estruturados alem de criar o lembrete recorrente
+por baixo dos panos.
 
 Quando o Alex perguntar que horas fazer algo recorrente sem hora fixa (ex: "que horas eu vou pra
 academia hoje?"), chame `sugerir_horario_livre` em vez de adivinhar - ela olha o que ja esta
@@ -415,6 +421,32 @@ CHAT_TOOLS = [
                 },
             },
             "required": ["titulo", "data"],
+        },
+    },
+    {
+        "name": "registrar_medicamento",
+        "description": (
+            "Cadastra um remedio que o Alex toma com nome, dosagem e horario, pra virar uma "
+            "tarefa recorrente na agenda que avisa 10 minutos antes na hora de tomar - copia o "
+            "fluxo de 'Medicamentos' do Apple Saude, que o painel nao consegue ler/gravar direto "
+            "(Apple nao expõe essa parte pelo Atalhos). Use quando o Alex disser um remedio novo "
+            "com horario, tipo 'tenho que tomar Losartana 50mg todo dia as 8h'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string", "description": "nome do remedio"},
+                "dosagem": {"type": "string", "description": "ex: '50mg', '1 comprimido' - omita se nao foi dito"},
+                "horario": {"type": "string", "description": "HH:MM do horario de tomar"},
+                "recorrencia": {
+                    "type": "string",
+                    "description": (
+                        "'diaria' (padrao, use se o Alex nao especificar) ou 'semanal:N,N,...' com "
+                        "0=segunda...6=domingo pros dias especificos da semana"
+                    ),
+                },
+            },
+            "required": ["nome", "horario"],
         },
     },
     {

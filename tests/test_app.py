@@ -2448,6 +2448,112 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(lembretes[0]["titulo"], "Validade do exame medico")
         self.assertEqual(lembretes[0]["recorrente"], 1)
 
+    def test_medicamentos_lista_vazia(self):
+        self.assertEqual(self.client.get("/api/medicamentos").get_json(), [])
+
+    def test_criar_medicamento_manual(self):
+        res = self.client.post(
+            "/api/medicamentos",
+            json={"nome": "Losartana", "dosagem": "50mg", "horario": "08:00"},
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertTrue(res.get_json()["ok"])
+
+        medicamentos = self.client.get("/api/medicamentos").get_json()
+        self.assertEqual(len(medicamentos), 1)
+        self.assertEqual(medicamentos[0]["nome"], "Losartana")
+        self.assertEqual(medicamentos[0]["dosagem"], "50mg")
+        self.assertEqual(medicamentos[0]["horario"], "08:00")
+        self.assertEqual(medicamentos[0]["recorrencia"], "diaria")
+
+    def test_criar_medicamento_sem_dosagem(self):
+        res = self.client.post("/api/medicamentos", json={"nome": "Vitamina D", "horario": "9:5"})
+        self.assertEqual(res.status_code, 201)
+        medicamentos = self.client.get("/api/medicamentos").get_json()
+        self.assertIsNone(medicamentos[0]["dosagem"])
+        self.assertEqual(medicamentos[0]["horario"], "09:05")
+
+    def test_criar_medicamento_gera_tarefa_recorrente_vinculada_e_materializa_hoje(self):
+        self.client.post(
+            "/api/medicamentos",
+            json={"nome": "Losartana", "dosagem": "50mg", "horario": "08:00"},
+        )
+        conn = db.get_db()
+        hoje = date.today().isoformat()
+        tarefas_hoje = conn.execute(
+            "SELECT * FROM tasks WHERE due_date = ? AND recorrente_origem_id IS NOT NULL", (hoje,)
+        ).fetchall()
+        conn.close()
+        self.assertEqual(len(tarefas_hoje), 1)
+        self.assertEqual(tarefas_hoje[0]["title"], "Tomar Losartana (50mg)")
+        self.assertEqual(tarefas_hoje[0]["hora"], "08:00")
+
+    def test_criar_medicamento_sem_nome_rejeita(self):
+        res = self.client.post("/api/medicamentos", json={"nome": "  ", "horario": "08:00"})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(self.client.get("/api/medicamentos").get_json(), [])
+
+    def test_criar_medicamento_horario_invalido_rejeita(self):
+        for horario_ruim in ["25:00", "08:70", "manha", "", None]:
+            res = self.client.post(
+                "/api/medicamentos", json={"nome": "X", "horario": horario_ruim}
+            )
+            self.assertEqual(res.status_code, 400, msg=f"deveria rejeitar horario={horario_ruim!r}")
+        self.assertEqual(self.client.get("/api/medicamentos").get_json(), [])
+
+    def test_criar_medicamento_recorrencia_invalida_rejeita(self):
+        res = self.client.post(
+            "/api/medicamentos",
+            json={"nome": "X", "horario": "08:00", "recorrencia": "semanal:9"},
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(self.client.get("/api/medicamentos").get_json(), [])
+
+    def test_apagar_medicamento_remove_da_lista_e_a_tarefa_modelo(self):
+        res = self.client.post(
+            "/api/medicamentos", json={"nome": "Losartana", "horario": "08:00"}
+        )
+        medicamento_id = res.get_json()["medicamento_id"]
+        conn = db.get_db()
+        modelo = conn.execute(
+            "SELECT id FROM medicamentos WHERE id = ?", (medicamento_id,)
+        ).fetchone()
+        tarefa_modelo_id = conn.execute(
+            "SELECT tarefa_modelo_id FROM medicamentos WHERE id = ?", (medicamento_id,)
+        ).fetchone()["tarefa_modelo_id"]
+        conn.close()
+        self.assertIsNotNone(modelo)
+
+        res_delete = self.client.delete(f"/api/medicamentos/{medicamento_id}")
+        self.assertEqual(res_delete.status_code, 200)
+        self.assertEqual(self.client.get("/api/medicamentos").get_json(), [])
+
+        conn = db.get_db()
+        tarefa_modelo = conn.execute(
+            "SELECT * FROM tasks WHERE id = ?", (tarefa_modelo_id,)
+        ).fetchone()
+        conn.close()
+        self.assertIsNone(tarefa_modelo)
+
+    def test_chat_usa_executor_de_medicamento_de_verdade(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultado = executores["registrar_medicamento"](
+                {"nome": "Losartana", "dosagem": "50mg", "horario": "08:00"}
+            )
+            self.assertEqual(resultado["ok"], True)
+            return "Beleza, vou te lembrar de tomar todo dia as 8h.", ["registrar_medicamento"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post(
+                "/api/chat", json={"mensagem": "tenho que tomar Losartana 50mg todo dia as 8h"}
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["acoes"], ["registrar_medicamento"])
+
+        medicamentos = self.client.get("/api/medicamentos").get_json()
+        self.assertEqual(len(medicamentos), 1)
+        self.assertEqual(medicamentos[0]["nome"], "Losartana")
+
     def test_telegram_chat_fn_usa_o_mesmo_pipeline_do_chat_web(self):
         """O bot do Telegram nao reimplementa nada - passa pelo mesmo
         _processar_mensagem_chat que a rota HTTP usa."""
