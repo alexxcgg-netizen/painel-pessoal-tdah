@@ -5,6 +5,58 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (5) - Liquid Glass round 5 (qualidade do material + barra flutuante) + artefato com testador de cores neutras
+
+O Alex mandou print de referencia (barra de abas do Instagram) e disse que o Liquid Glass do
+round anterior estava "uma qualidade horrivel" e que a barra inferior (`#tabbar`) precisava
+flutuar de verdade, tipo iOS, com sombra dando profundidade - nao ficar colada/reta na borda de
+baixo da tela como estava.
+
+**Material do vidro em si ficou mais rico**: os tokens `--glass-*` (topo do `style.css`) ganharam
+uma segunda camada de brilho especular menor e mais forte (`--glass-specular`, o "ponto de luz"
+concentrado, nao so o halo difuso que ja existia em `--glass-highlight`), uma borda com DUAS
+linhas simulando espessura de vidro visto de canto (`--glass-rim` - clara externa, escura
+interna), e o blur/saturacao subiram (28px→42px de blur, 190%→230% de saturacao - blur raso era
+o que mais lia como "borrado tosco" em vez de vidro de verdade). `--glass-shadow` ganhou uma
+camada extra de contato bem curto e escuro (a mesma logica que `--shadow-card` ja usava pros
+cards solidos), sem ela os paineis pareciam flutuar de forma generica. `.stat-tile` e
+`.card-resultado` tambem ganharam a camada `--glass-specular` e um anel de borda mais definido
+(sem mexer na formula de cor de fundo ja validada por acessibilidade).
+
+**`#tabbar` virou uma pilula flutuante de verdade**: antes ficava `bottom: 0`, largura 100%,
+sem `border-radius` proprio - colada e reta na borda de baixo. Agora tem margem da borda
+(`bottom: calc(0.85rem + safe-area-inset-bottom)`, largura menor que 100%), `border-radius: 999px`
+(pilula completa), fundo proprio mais escuro/neutro (nao tingido por `--glass-tint` da secao de
+proposito - e a unica peca de chrome visivel o tempo todo, tingir ela mudaria de cor a cada troca
+de aba) com `backdrop-filter: blur(46px) saturate(240%)`, e sombra em duas distancias (contato
+curto + queda longa) pra realmente ler como "no ar" sobre o conteudo. `body` (padding-bottom) e
+`.chat-form` (bottom) foram ajustados pra abrir espaco pra pilula sem esconder conteudo atras
+dela. Pra 7 abas caberem numa pilula mais estreita sem quebrar linha, reduzi levemente
+font-size/gap/padding dos botoes e troquei `overflow-wrap: anywhere` (que deixava o texto quebrar
+em varias linhas, desalinhando os botoes entre si) por `white-space: nowrap` + `text-overflow:
+ellipsis` no rotulo - nas larguras de iPhone mais comuns (390-430px) todos os rotulos cabem
+inteiros; so no menor tamanho testado (iPhone SE, 375px) "Financeiro"/"Construtora" truncam com
+reticencias (nunca quebram feio nem sobrepoe o vizinho).
+
+Tambem reforcei o `.aurora` de fundo (blobs radiais atras de tudo) - opacidade um pouco mais alta
+e um quarto blob (dourado, canto inferior-direito) - o Alex citou "o fundo que e feito de
+profundidade, ta faltando isso": o vidro sozinho não cria profundidade se não houver o que borrar
+atrás dele.
+
+**Artefato-replica regenerado** (mesmo link, `https://claude.ai/artifact/Ecy9gXXfefAgWkeTA5DojR`)
+com o CSS/JS atuais coladas verbatim. O widget de comparação de estilo (so existe no artefato, pra
+testar ao vivo sem mexer no app de producao) ganhou uma segunda fileira de swatches - 4 combinacoes
+neutras (Grafite, Platina, Onix, Titanio - cinza/preto, pedido explicito "mais luxo") ao lado das
+4 coloridas que ja existiam, pra comparar lado a lado antes de decidir se alguma vira a paleta
+oficial. Nenhuma delas foi rodada no `scripts/validate_palette.js` ainda - isso e so pra
+visualizar, nao pra adotar direto.
+
+Validado com `node --check` nos 4 blocos `<script>` do artefato, Playwright servindo por HTTP
+(fetch mock quebra em `file://` por CORS) confirmando a pilula flutuante, `getComputedStyle`
+trocando de cor ao clicar num swatch neutro, e nenhum log de erro alem de um 404 esperado
+(service-worker nao existe fora do app real). 800 testes Python, 100% passando (mudanca so em
+CSS, nenhuma logica de backend tocada).
+
 ## 2026-09-22 (4) - Liquid Glass colorido em (quase) tudo + achado real de CSS
 
 O Alex pediu de manha (fora do horario noturno, autorizado a trabalhar na hora): Liquid Glass

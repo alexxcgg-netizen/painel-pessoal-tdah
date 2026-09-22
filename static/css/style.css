@@ -118,29 +118,51 @@
      arquivo) e translucidez total mudaria o contraste de verdade renderizado;
      mantendo mais corpo solido por baixo, o efeito de vidro/brilho aparece sem
      arriscar legibilidade - ver `scripts/validate_palette.js` pra reconferir
-     se a cor de texto em cima ainda passa depois de qualquer ajuste aqui. */
+     se a cor de texto em cima ainda passa depois de qualquer ajuste aqui.
+
+     Round 4 (pedido explicito: "Liquid Glass uma qualidade horrivel... tenta
+     aumentar a qualidade"): o vidro raso do round 3 ganhou mais duas coisas
+     que vidro de verdade tem e faltavam - um segundo brilho especular menor
+     e mais forte (--glass-specular, o "ponto de luz" propriamente dito, nao
+     so o halo difuso) e uma borda com DUAS linhas (clara por fora numa
+     direcao, escura por dentro na oposta - --glass-rim) simulando a espessura
+     real do vidro visto de canto, nao so uma borda de 1px solida. Blur/
+     saturacao tambem subiram (28px->42px, 190%->230%) - blur raso e o que
+     mais lia como "borrado tosco" em vez de vidro. --glass-shadow ganhou uma
+     terceira camada de queda (contato bem curto e escuro, igual --shadow-card
+     ja fazia pros cards solidos) - sem ela o card parecia flutuar generico
+     em vez de ter um ponto de apoio proximo. */
   --glass-tint: var(--accent);
-  --glass-highlight: radial-gradient(
-    120% 85% at 18% -15%,
-    rgba(255, 255, 255, 0.26) 0%,
-    rgba(255, 255, 255, 0.07) 35%,
-    transparent 60%
+  --glass-specular: radial-gradient(
+    38% 30% at 22% 4%,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.16) 45%,
+    transparent 75%
   );
-  --glass-glow: radial-gradient(
-    95% 75% at 88% 116%,
-    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
+  --glass-highlight: radial-gradient(
+    130% 95% at 12% -20%,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.09) 32%,
     transparent 62%
   );
-  --glass-bg: var(--glass-highlight), var(--glass-glow),
+  --glass-glow: radial-gradient(
+    100% 80% at 90% 118%,
+    color-mix(in srgb, var(--glass-tint) 68%, transparent) 0%,
+    transparent 60%
+  );
+  --glass-bg: var(--glass-specular), var(--glass-highlight), var(--glass-glow),
     linear-gradient(
       165deg,
-      color-mix(in srgb, var(--glass-tint) 22%, color-mix(in srgb, var(--surface-2) 66%, transparent)) 0%,
-      color-mix(in srgb, var(--glass-tint) 10%, color-mix(in srgb, var(--surface) 50%, transparent)) 100%
+      color-mix(in srgb, var(--glass-tint) 26%, color-mix(in srgb, var(--surface-2) 62%, transparent)) 0%,
+      color-mix(in srgb, var(--glass-tint) 12%, color-mix(in srgb, var(--surface) 44%, transparent)) 100%
     );
-  --glass-border: color-mix(in srgb, var(--glass-tint) 45%, color-mix(in srgb, white 32%, var(--border-strong)));
-  --glass-blur: blur(28px) saturate(190%) brightness(1.08);
-  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.3),
-    0 10px 26px -14px color-mix(in srgb, var(--glass-tint) 45%, transparent), var(--shadow-card);
+  --glass-border: color-mix(in srgb, var(--glass-tint) 50%, color-mix(in srgb, white 38%, var(--border-strong)));
+  --glass-rim: inset 0 0 0 1px color-mix(in srgb, var(--glass-tint) 38%, rgba(255, 255, 255, 0.5)),
+    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.55);
+  --glass-blur: blur(42px) saturate(230%) brightness(1.14);
+  --glass-shadow: var(--glass-rim), inset 0 -1.5px 1px -1px rgba(0, 0, 0, 0.4),
+    0 2px 3px -1px rgba(0, 0, 0, 0.35),
+    0 14px 30px -14px color-mix(in srgb, var(--glass-tint) 55%, transparent), var(--shadow-card);
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
@@ -367,7 +389,7 @@ body {
   max-width: 480px;
   margin: 0 auto;
   padding: calc(1.25rem + env(safe-area-inset-top)) 1rem
-    calc(5.25rem + env(safe-area-inset-bottom));
+    calc(6.4rem + env(safe-area-inset-bottom));
   background: var(--bg);
   color: var(--text);
   line-height: 1.45;
@@ -397,9 +419,10 @@ body {
   inset: -20%;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(circle at 18% 18%, rgba(109, 63, 209, 0.22), transparent 45%),
-    radial-gradient(circle at 82% 12%, rgba(36, 70, 125, 0.2), transparent 42%),
-    radial-gradient(circle at 50% 85%, rgba(14, 125, 108, 0.12), transparent 48%);
+  background: radial-gradient(circle at 18% 18%, rgba(109, 63, 209, 0.28), transparent 45%),
+    radial-gradient(circle at 82% 12%, rgba(36, 70, 125, 0.26), transparent 42%),
+    radial-gradient(circle at 50% 85%, rgba(14, 125, 108, 0.18), transparent 48%),
+    radial-gradient(circle at 88% 92%, rgba(162, 124, 47, 0.14), transparent 40%);
   filter: blur(60px);
   animation: auroraMove 20s ease-in-out infinite;
 }
@@ -653,21 +676,35 @@ header {
   color: var(--text-faint);
 }
 
+/* Round 4 (pedido explicito, com print de referencia do Instagram): a barra
+   parava de ficar colada/reta na borda de baixo da tela - virou uma pilula
+   flutuante de verdade, separada da borda e do conteudo por um respiro
+   (bottom com margem + border-radius 999px), com sombra em duas distancias
+   (uma curta/escura simulando o "pouco de ar" logo embaixo dela, uma longa/
+   suave simulando a altura real que ela flutua sobre o conteudo) - e assim
+   que uma barra "no ar" le como no ar, uma sombra so nunca convence. Fica
+   neutra (nao tingida por --glass-tint da secao) de proposito: e a UNICA
+   peca de chrome que aparece em toda tela ao mesmo tempo, tingir ela mudaria
+   de cor a cada troca de aba e ia ficar estranho. */
 #tabbar {
   position: fixed;
   left: 50%;
-  bottom: 0;
+  bottom: calc(0.85rem + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  width: 100%;
-  max-width: 480px;
+  width: calc(100% - 0.8rem);
+  max-width: 472px;
   display: flex;
-  gap: 0.3rem;
-  padding: 0.5rem 0.6rem calc(0.5rem + env(safe-area-inset-bottom));
-  background: var(--glass-highlight), rgba(9, 9, 13, 0.7);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-top: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  gap: 0.05rem;
+  padding: 0.45rem 0.3rem;
+  border-radius: 999px;
+  background: var(--glass-specular), var(--glass-highlight),
+    linear-gradient(165deg, rgba(34, 35, 43, 0.85) 0%, rgba(10, 11, 15, 0.88) 100%);
+  backdrop-filter: blur(46px) saturate(240%) brightness(1.16);
+  -webkit-backdrop-filter: blur(46px) saturate(240%) brightness(1.16);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 1.5px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 3px 8px -3px rgba(0, 0, 0, 0.55),
+    0 28px 46px -18px rgba(0, 0, 0, 0.78);
   z-index: 10;
 }
 
@@ -678,14 +715,14 @@ header {
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
-  padding: 0.4rem 0.1rem;
+  padding: 0.4rem 0.05rem;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 14px;
   color: var(--text-muted);
-  font-size: 0.68rem;
+  font-size: 0.61rem;
   line-height: 1.15;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.16s ease, color 0.16s ease, transform 0.2s var(--ease-snap),
     box-shadow 0.2s ease;
@@ -695,6 +732,12 @@ header {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+}
+
+.tab-btn span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (hover: hover) {
@@ -760,20 +803,23 @@ header {
 #tab-bancos,
 #tab-construtora,
 #tab-aviacao {
-  --glass-bg: var(--glass-highlight), var(--glass-glow),
+  --glass-bg: var(--glass-specular), var(--glass-highlight), var(--glass-glow),
     linear-gradient(
       165deg,
-      color-mix(in srgb, var(--glass-tint) 22%, color-mix(in srgb, var(--surface-2) 66%, transparent)) 0%,
-      color-mix(in srgb, var(--glass-tint) 10%, color-mix(in srgb, var(--surface) 50%, transparent)) 100%
+      color-mix(in srgb, var(--glass-tint) 26%, color-mix(in srgb, var(--surface-2) 62%, transparent)) 0%,
+      color-mix(in srgb, var(--glass-tint) 12%, color-mix(in srgb, var(--surface) 44%, transparent)) 100%
     );
-  --glass-border: color-mix(in srgb, var(--glass-tint) 45%, color-mix(in srgb, white 32%, var(--border-strong)));
+  --glass-border: color-mix(in srgb, var(--glass-tint) 50%, color-mix(in srgb, white 38%, var(--border-strong)));
   --glass-glow: radial-gradient(
-    95% 75% at 88% 116%,
-    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
-    transparent 62%
+    100% 80% at 90% 118%,
+    color-mix(in srgb, var(--glass-tint) 68%, transparent) 0%,
+    transparent 60%
   );
-  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.3),
-    0 10px 26px -14px color-mix(in srgb, var(--glass-tint) 45%, transparent), var(--shadow-card);
+  --glass-rim: inset 0 0 0 1px color-mix(in srgb, var(--glass-tint) 38%, rgba(255, 255, 255, 0.5)),
+    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.55);
+  --glass-shadow: var(--glass-rim), inset 0 -1.5px 1px -1px rgba(0, 0, 0, 0.4),
+    0 2px 3px -1px rgba(0, 0, 0, 0.35),
+    0 14px 30px -14px color-mix(in srgb, var(--glass-tint) 55%, transparent), var(--shadow-card);
 }
 #tab-hoje {
   --glass-tint: var(--cor-hoje);
@@ -926,7 +972,7 @@ header {
     color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
     transparent 62%
   );
-  background: var(--glass-highlight), var(--glass-glow),
+  background: var(--glass-specular), var(--glass-highlight), var(--glass-glow),
     linear-gradient(
       155deg,
       color-mix(
@@ -946,7 +992,8 @@ header {
   gap: 0.2rem;
   text-align: center;
   overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), var(--shadow-card);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile-cor, var(--accent)) 30%, rgba(255, 255, 255, 0.45)),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
   transition: transform 0.2s var(--ease-snap), box-shadow 0.2s ease, border-color 0.2s ease;
   animation: fadeInUp 0.4s var(--ease-bounce) both;
 }
@@ -2166,7 +2213,7 @@ li.item.item-planejado {
     transparent 62%
   );
   align-self: stretch;
-  background: var(--glass-highlight), var(--glass-glow),
+  background: var(--glass-specular), var(--glass-highlight), var(--glass-glow),
     linear-gradient(
       155deg,
       color-mix(in srgb, color-mix(in srgb, var(--card-cor) 30%, black 70%) 16%, var(--surface-2)) 0%,
@@ -2175,7 +2222,8 @@ li.item.item-planejado {
   border: 1px solid color-mix(in srgb, var(--card-cor) 28%, var(--border));
   border-radius: var(--radius);
   padding: 0.8rem 0.9rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), var(--shadow-card);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-cor) 28%, rgba(255, 255, 255, 0.45)),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
   animation: cardResultadoEntra 0.4s var(--ease-bounce) both;
 }
 
@@ -2338,7 +2386,7 @@ li.item.item-planejado {
 
 .chat-form {
   position: sticky;
-  bottom: calc(4.85rem + env(safe-area-inset-bottom));
+  bottom: calc(6rem + env(safe-area-inset-bottom));
   display: flex;
   gap: 0.5rem;
   background: var(--bg);
