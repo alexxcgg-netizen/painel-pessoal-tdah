@@ -5,6 +5,43 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (8) - Decisao final de tema: preto puro + neutro, vidro so na barra + 4 fixes
+
+Depois de testar no comparador do artefato (18 cores x 5 fundos x Liquid Glass on/off por area),
+o Alex decidiu e circulou num print: fonte Atual (Sora), cor "Preto puro" (neutro/grafite
+#45454a/#08080a), fundo "Preto puro" (#000000/#121212/#181818/#1e1e1e), Liquid Glass ligado SO na
+barra de abas (Paineis: OFF, Campos: OFF). Aplicado como novo padrao real do app (nao mais so no
+comparador).
+
+**Paineis e campos de texto viraram opacos**: `--glass-bg` deixou de ser um degrade translucido e
+virou `var(--surface-2)` fixo, `--glass-blur: none` - `li.item`, `.resumo-texto`, `.grafico-card`,
+`.fechamento-box`, `.chat-bolha.assistant`, `.uber-pendente-card`, `#chat-input`/`#captura-input`/
+`#duvida-input` (tudo que usava esses tokens) ficou solido de uma vez, sem tocar em cada seletor
+individualmente. `--glass-border`/`--glass-shadow` continuam tingidos pela cor de identidade de
+cada secao (borda fina + sombra ambiente colorida) - a secao ainda se distingue por cor mesmo
+opaca. `#tabbar` nao usa esses tokens (receita propria) - continua com blur de verdade.
+
+**4 ajustes pedidos junto, com print anotado**:
+1. *Campos "grudados"*: `.chat-form` (input+mic+enviar) tinha um fundo compartilhado cobrindo os
+   3 - pareciam um bloco unico. O degrade que esmaece a ultima bolha de chat virou um `::before`
+   plantado SO no espaco vazio acima da linha (nao mais sobre ela) - cada controle mostra so o
+   proprio fundo agora, com vao real entre eles.
+2. *Falta de profundidade*: com os paineis opacos, a sombra virou a unica pista de "flutuando" -
+   trocado `var(--shadow-card)` por `var(--shadow-card-hover)` (mais forte) + um halo colorido
+   maior por baixo de cada card/aba.
+3. *Titulo "some" com fundo escuro*: `--accent-gradient-titulo` escurecia o accent ainda mais
+   (58% accent + 42% preto) - pensado pra accents vividos contra um fundo quase-preto, mas com
+   accent JA escuro (preto-puro) contra fundo literalmente preto o titulo ficava com ~1.4:1 de
+   contraste (medido, bem abaixo do legivel). Fix: depois de escurecer, mistura de volta 32% de
+   `--text` como piso minimo de claridade - funciona pra qualquer accent, claro ou escuro.
+4. *Fonte fina demais nas explicacoes*: SO o texto de apoio (`.dica-metas`/`.dica-texto`,
+   `.silencio-descricao` - "Considera transito em tempo real...", "Avisos que podem esperar...")
+   ganhou `font-weight: 500` (era peso padrao/400) - nada mais na tela mudou de peso.
+
+Validado com Playwright: `getComputedStyle` confirmando fundo/accent/glass-blur aplicados, print
+mostrando os 3 controles do chat separados, titulo legivel contra o novo preto, sombra mais
+presente. 800 testes Python, 100% passando (CSS puro).
+
 ## 2026-09-22 (7) - Fix do bloco preto atras do campo de chat + laboratorio de estilos no artefato
 
 O Alex mandou print anotado apontando um "negocinho preto" atras do `#chat-input`/mic/enviar que

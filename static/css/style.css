@@ -1,9 +1,12 @@
 :root {
   color-scheme: dark light;
-  --bg: #09090d;
-  --surface: #16181f;
-  --surface-2: #1c1f28;
-  --surface-3: #20232d;
+  /* Round 8 (decisao final, testada ao vivo no comparador do artefato entre
+     18 cores x 5 fundos): "Preto puro" - a versao mais escura das 5 opcoes
+     de fundo testadas. Antes era um preto azulado (#09090d/#16181f/...). */
+  --bg: #000000;
+  --surface: #121212;
+  --surface-2: #181818;
+  --surface-3: #1e1e1e;
   --border: rgba(218, 226, 243, 0.09);
   --border-strong: rgba(218, 226, 243, 0.18);
   --text: #eceef3;
@@ -39,10 +42,26 @@
      mesma identidade de cor de proposito, nao por coincidencia. --accent-2
      virou o roxo profundo que ja aparecia no gradiente do .aurora
      (rgba(109,63,209)), fechando o par esmeralda+ametista que o Alex
-     pediu. */
-  --accent: #41aa75;
+     pediu.
+
+     Round 8 (decisao final, testada ao vivo no comparador do artefato entre
+     18 cores x 5 fundos x Liquid Glass on/off por area): "Preto puro" -
+     tonalidade neutra/grafite quase monocromatica, junto com o fundo
+     tambem "Preto puro" acima. --cor-tarefas/--cor-financeiro/--cor-bancos/
+     --cor-construtora/--cor-aviacao NAO mudam (continuam os hex vividos
+     validados no round 2/3) - so a marca global e a aba Hoje (--cor-hoje:
+     var(--accent)) ficam neutras agora. IMPORTANTE: com --accent tao escuro
+     e --bg tambem preto puro, `--accent-fill` (mistura de 30% accent + 70%
+     preto, pensada pra accents vividos contra um fundo so quase-preto) fica
+     com contraste muito baixo contra o novo --bg - documentado e aceito
+     como trade-off consciente (nao e diferente, na pratica, do contraste ja
+     baixo que --accent-fill sempre teve contra --bg mesmo com esmeralda;
+     esses elementos sempre dependeram de borda/glow/texto pra se
+     distinguir, nao do preenchimento em si). Ver o fix separado em
+     --accent-gradient-titulo mais abaixo pro titulo continuar legivel. */
+  --accent: #45454a;
   --accent-fill: color-mix(in srgb, var(--accent) 30%, black 70%);
-  --accent-2: #6d3fd1;
+  --accent-2: #08080a;
   --accent-2-fill: color-mix(in srgb, var(--accent-2) 30%, black 70%);
   --accent-gradient: linear-gradient(135deg, var(--accent-fill) 0%, var(--accent-2-fill) 100%);
   /* versao viva do gradiente - so pra onde a cor E o proprio conteudo visivel
@@ -51,11 +70,22 @@
   /* versao intermediaria - texto com background-clip:text (titulo) precisa
      ficar mais escuro/profundo que o ink (pedido explicito), mas ainda
      legivel - nao da pra crivar ate quase preto como o fundo dos botoes,
-     senao a letra some contra o proprio fundo escuro da pagina */
+     senao a letra some contra o proprio fundo escuro da pagina.
+
+     Round 8: com cores neutras bem escuras (testadas no comparador do
+     artefato, ex. "preto quase puro") + fundo tambem bem escuro, escurecer
+     ainda mais um --accent ja escuro deixava o titulo praticamente
+     invisivel (medido: ~1.4:1 de contraste, bem abaixo do minimo legivel) -
+     o Alex confirmou "às vezes ele não aparece". Fix: depois de escurecer
+     (igual antes), mistura de volta 32% de --text (quase branco) como piso
+     minimo de claridade - nao depende de o --accent escolhido ser claro ou
+     escuro pra continuar legivel. Com a paleta validada (esmeralda) o titulo
+     fica um pouco mais claro que antes, mas continua bem mais escuro que o
+     --accent-gradient-ink puro (que e vivido/brilhante). */
   --accent-gradient-titulo: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--accent) 58%, black 42%) 0%,
-    color-mix(in srgb, var(--accent-2) 58%, black 42%) 100%
+    color-mix(in srgb, color-mix(in srgb, var(--accent) 58%, black 42%) 68%, var(--text) 32%) 0%,
+    color-mix(in srgb, color-mix(in srgb, var(--accent-2) 58%, black 42%) 68%, var(--text) 32%) 100%
   );
   --accent-text: #f4eeff;
   --accent-soft-bg: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -125,17 +155,23 @@
      do nosso input de chat pra comparar: o vidro real da Apple e MUITO mais
      transparente (o que tem atras - app, cor - continua claramente visivel,
      so borrado), quase sem cor propria adicionada, e a borda/brilho e uma
-     linha fina e discreta, nunca uma mancha branca concentrada. O brilho
-     especular do round 5 (--glass-specular, um blob branco forte num canto)
-     virava literalmente uma mancha/risco branco diagonal em qualquer coisa
-     larga e baixa (o input de chat, por exemplo) - removido. --glass-highlight
-     virou um degrade linear bem fraco (nao mais um blob radial) so no topo -
-     da o "luz pegando a borda de cima" sem virar ponto de luz isolado. O
-     preenchimento de cor (--glass-bg) caiu bastante de opacidade (a base de
-     tint+surface era ~55-65% de cobertura antes, agora fica bem mais baixa)
-     -e assim o `--glass-blur` por tras realmente aparece, que e o que faz
-     ler como vidro de verdade e nao "plastico colorido opaco com brilho em
-     cima". */
+     linha fina e discreta, nunca uma mancha branca concentrada. Round 6
+     reduziu a opacidade e trocou o brilho especular (que virava mancha
+     diagonal em qualquer coisa larga/baixa) por um degrade linear fraco.
+
+     Round 8 (testado ao vivo no artefato com 18 cores x 5 fundos x toggle de
+     vidro por area - decisao final do Alex): Liquid Glass/blur ficou SO na
+     barra de abas (#tabbar, que tem sua propria receita, nao usa --glass-bg).
+     Paineis (`li.item`, `.resumo-texto`, `.grafico-card`, etc) e campos de
+     texto (`#chat-input`/`#captura-input`/`#duvida-input`) viraram opacos de
+     verdade - `--glass-bg` agora e so `var(--surface-2)`, sem blur nenhum
+     (`--glass-blur: none`). `--glass-border` e `--glass-shadow` continuam
+     tingidos pela cor de identidade da secao (`--glass-tint`) - a superficie
+     e chapada, mas a borda fina colorida e o brilho ambiente embaixo do card
+     continuam existindo, entao cada secao ainda se distingue por cor sem
+     precisar de translucidez. `--glass-highlight`/`--glass-glow` continuam
+     definidos (a barra de abas ainda usa `--glass-highlight`) mesmo sem
+     entrar mais em `--glass-bg`. */
   --glass-tint: var(--accent);
   --glass-highlight: linear-gradient(
     180deg,
@@ -148,12 +184,11 @@
     color-mix(in srgb, var(--glass-tint) 30%, transparent) 0%,
     transparent 62%
   );
-  --glass-bg: var(--glass-highlight), var(--glass-glow),
-    color-mix(in srgb, var(--glass-tint) 9%, color-mix(in srgb, var(--surface) 26%, transparent));
-  --glass-border: color-mix(in srgb, var(--glass-tint) 20%, color-mix(in srgb, white 22%, var(--border-strong)));
-  --glass-blur: blur(36px) saturate(150%) brightness(1.06);
-  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.22),
-    0 10px 24px -16px color-mix(in srgb, var(--glass-tint) 32%, transparent), var(--shadow-card);
+  --glass-bg: var(--surface-2);
+  --glass-border: color-mix(in srgb, var(--glass-tint) 32%, var(--border-strong));
+  --glass-blur: none;
+  --glass-shadow: 0 3px 8px -4px rgba(0, 0, 0, 0.55),
+    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 35%, transparent), var(--shadow-card-hover);
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
@@ -631,6 +666,7 @@ header {
 .silencio-descricao {
   margin: 0;
   font-size: 0.78rem;
+  font-weight: 500;
   color: var(--text-muted);
   line-height: 1.45;
 }
@@ -774,18 +810,20 @@ header {
   animation: tabEntra 0.32s var(--ease-suave) both;
 }
 
-/* Liquid Glass colorido por secao: cada aba redefine --glass-tint pra sua cor
-   de identidade. Pegadinha real de CSS (nao bug de digitar errado): os tokens
-   compostos (--glass-bg/--glass-border/--glass-shadow/--glass-glow, la no
-   topo do arquivo) so resolvem o var(--glass-tint) QUE ELES CONTEM uma unica
-   vez, no elemento onde cada um foi DECLARADO (:root) - um filho la embaixo
-   (li.item, por exemplo) herda a STRING JA PRONTA com a cor do :root
-   "congelada" dentro, nunca recalcula com o proprio --glass-tint dele, por
-   mais que --glass-tint em si esteja correto nesse filho. Testado e
+/* Cada aba redefine --glass-tint pra sua cor de identidade. Pegadinha real de
+   CSS (nao bug de digitar errado): os tokens compostos (--glass-border/
+   --glass-shadow, la no topo do arquivo) so resolvem o var(--glass-tint) QUE
+   ELES CONTEM uma unica vez, no elemento onde cada um foi DECLARADO (:root) -
+   um filho la embaixo (li.item, por exemplo) herda a STRING JA PRONTA com a
+   cor do :root "congelada" dentro, nunca recalcula com o proprio --glass-tint
+   dele, por mais que --glass-tint em si esteja correto nesse filho. Testado e
    confirmado via getComputedStyle antes de escrever isso. Por isso cada aba
    abaixo redefine o CONJUNTO INTEIRO (nao so --glass-tint) - assim quem
-   calcula --glass-bg/--glass-shadow/etc e a propria secao, com a cor certa,
-   e so ENTAO os filhos herdam a string ja tingida certa. */
+   calcula --glass-border/--glass-shadow e a propria secao, com a cor certa, e
+   so ENTAO os filhos herdam a string ja tingida certa. (Round 8: --glass-bg
+   virou `var(--surface-2)` fixo - nao depende mais de --glass-tint - entao
+   nao precisa mais ser redeclarado aqui; so borda e sombra continuam
+   tingidas por secao mesmo com o painel opaco.) */
 #tab-hoje,
 #tab-painel,
 #tab-tarefas,
@@ -793,16 +831,9 @@ header {
 #tab-bancos,
 #tab-construtora,
 #tab-aviacao {
-  --glass-glow: radial-gradient(
-    120% 90% at 88% 116%,
-    color-mix(in srgb, var(--glass-tint) 30%, transparent) 0%,
-    transparent 62%
-  );
-  --glass-bg: var(--glass-highlight), var(--glass-glow),
-    color-mix(in srgb, var(--glass-tint) 9%, color-mix(in srgb, var(--surface) 26%, transparent));
-  --glass-border: color-mix(in srgb, var(--glass-tint) 20%, color-mix(in srgb, white 22%, var(--border-strong)));
-  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.22),
-    0 10px 24px -16px color-mix(in srgb, var(--glass-tint) 32%, transparent), var(--shadow-card);
+  --glass-border: color-mix(in srgb, var(--glass-tint) 32%, var(--border-strong));
+  --glass-shadow: 0 3px 8px -4px rgba(0, 0, 0, 0.55),
+    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 35%, transparent), var(--shadow-card-hover);
 }
 #tab-hoje {
   --glass-tint: var(--cor-hoje);
@@ -1808,9 +1839,14 @@ li.item.item-planejado {
   cursor: default;
 }
 
+/* Pedido explicito: so o texto explicativo (dicas colapsaveis, avisos tipo
+   "Considera transito em tempo real...") ficar um pouco mais grosso - nada
+   mais na tela, so essas frases de apoio que ficavam finas/discretas demais
+   pra ler bem contra o fundo agora opaco. */
 .dica-metas {
   color: var(--text-muted);
   font-size: 0.8rem;
+  font-weight: 500;
   margin: -0.4rem 0 0.75rem;
 }
 
@@ -2367,30 +2403,46 @@ li.item.item-planejado {
   }
 }
 
-/* Antes era um retangulo solido de --bg (sem blur, sem canto arredondado) so
-   pra tapar as bolhas do chat rolando por baixo - com o resto do app em
-   vidro fino/transparente (round 6), esse bloco opaco de bordas retas ficava
-   destacado como um "negocinho preto" colado, sem se misturar (pedido
-   explicito do Alex, com print anotado). Virou um degrade (transparente no
-   topo -> solido embaixo) com um blur leve por cima - a ultima bolha visivel
-   esmaece suavemente em vez de cortar numa linha reta, e ainda tapa o texto
-   por baixo o suficiente pra nao sobrepor ilegível. */
+/* Round 6: era um retangulo solido de --bg (sem blur, sem canto arredondado)
+   por cima do input+mic+enviar inteiro, so pra tapar as bolhas de chat
+   rolando por baixo - com o resto do app em vidro fino, esse bloco opaco
+   ficava destacado como um "negocinho preto" colado, sem se misturar.
+
+   Round 8 (pedido explicito com novo print: os 3 controles pareciam
+   "grudados" num unico bloco preto): o degrade saiu de cima do proprio
+   `.chat-form` (que teria que cobrir input+mic+enviar inteiros pra existir)
+   e virou um `::before` plantado SO na faixa vazia logo ACIMA da linha de
+   controles (`bottom: 100%` do proprio `.chat-form`) - esmaece a ultima
+   bolha visivel, mas a linha de input/mic/enviar em si fica sem nenhum
+   fundo compartilhado. Cada controle mostra so o proprio fundo (o input tem
+   o dele, o mic o dele, o botao de enviar o dele) e os espacos entre eles
+   ficam abertos - por isso passam a ler como 3 pecas separadas, nao um
+   bloco unico. */
 .chat-form {
   position: sticky;
   bottom: calc(6rem + env(safe-area-inset-bottom));
   display: flex;
   gap: 0.5rem;
-  padding-top: 1.1rem;
-  margin-top: -0.7rem;
+  padding-top: 0.4rem;
+  z-index: 5;
+}
+
+.chat-form::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 1.3rem;
   background: linear-gradient(
     180deg,
     transparent 0%,
-    color-mix(in srgb, var(--bg) 55%, transparent) 35%,
-    var(--bg) 68%
+    color-mix(in srgb, var(--bg) 65%, transparent) 55%,
+    var(--bg) 100%
   );
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: 5;
+  pointer-events: none;
 }
 
 #chat-input {
