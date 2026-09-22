@@ -5,7 +5,32 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
-## 2026-09-21 (12) - Documentado "Notificar-me" do Safari (iOS 27) como experimento
+## 2026-09-22 (1) - "Liquid Glass" nos paineis + pesquisa de concorrentes (Nectar, Pierre, Zapia, Luzia, Base44)
+
+O Alex mandou 5 links pra eu avaliar como concorrentes/referencia (meu-nectar.com, Pierre
+Finance, Base44, Zapia, Luzia). Entrei em cada um: Pierre Finance e o mais parecido com o
+nosso painel (WhatsApp+app+web, Open Finance, categorizacao, deteccao de cobranca duplicada,
+metas) - cobra R$39 a R$199/mes por praticamente tudo que a gente ja tem de graca; a unica
+diferenca real e usar WhatsApp em vez de Telegram como canal. Zapia e Luzia sao assistentes
+generalistas (nao financeiros), Base44 e uma plataforma no-code pra montar agentes (nao um
+produto pronto) - nenhum dos tres muda a analise. Nectar nao carregou conteudo real (SPA sem
+JS renderizado no fetch).
+
+**CSS "Liquid Glass" (pedido explicito, inspirado no iOS)**: os paineis retangulares (caixa de
+resumo, grafico, itens de lista, bolha de chat do assistente, tabbar) deixaram de ser uma
+superficie solida e viraram vidro translucido - novo token `--glass-bg` (gradiente com
+`color-mix(..., transparent)`) + `--glass-blur` (`backdrop-filter: blur(24px) saturate(165%)`)
++ `--glass-border` (borda mais clara, tipo reflexo). O fundo colorido do `.aurora` (que ja
+existia, fixo atras de tudo) agora borra por tras dos cards, dando a sensacao de profundidade/
+"flutuando por cima" que o Alex pediu. Deixei de fora, de proposito, os tiles/cards com cor de
+secao (`.stat-tile`, `.card-resultado`) - a paleta deles foi validada por acessibilidade
+(script `scripts/validate_palette.js`, ver comentario no topo do `style.css`) e mexer na
+mistura de cor ali quebraria essa validacao sem rodar o script de novo.
+
+Testado visualmente: subi o app local (Flask + SQLite descartavel, nao e o banco real),
+naveguei nas abas Hoje/Tarefas/Financeiro via Playwright/Chromium e conferi print a print que
+o efeito renderiza como esperado (cor do aurora visivel atras dos cards, texto ainda legivel).
+772 testes, 100% passando (mudanca e so CSS, nao mexe em logica).
 
 O Alex mandou o material da Apple sobre o iOS 27 perguntando se ajudava o painel. Avaliei: a
 maioria (App Intents, Foundation Models, Live Activities, Widgets) exige app nativo Swift na App
