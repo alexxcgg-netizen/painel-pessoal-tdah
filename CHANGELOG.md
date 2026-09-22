@@ -5,6 +5,33 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (15) - Polish final: card de resultado no "devo sair" e dias restantes nas datas importantes
+
+Fecha os dois pontos que ficaram vagos no walkthrough do Alex ("Devo sair até que horas" e "Datas
+importantes" pareciam "muito simples", sem ele conseguir dizer exatamente o que faltava) -
+resolvidos por julgamento proprio (ele pediu explicitamente pra terminar tudo sem parar pra
+confirmar de novo), reaproveitando padroes visuais/de dado que ja existem no app em vez de
+inventar comportamento novo.
+
+**"Devo sair até que horas" virou um card de resultado**: `#viagem-resultado` trocou de um `<p
+class="resumo-texto">` (paragrafo piano) pro mesmo `.card-resultado` ja usado nos cards do chat
+(tarefa/gasto/meta) - eyebrow com icone + destino, o horario de saida em destaque (mesmo tratamento
+visual de um valor em R$), duracao/distancia/margem como detalhe. So mudou apresentacao - o calculo
+(Google Maps, transito real) ja estava certo.
+
+**"Datas importantes" ganhou "faltam N dias"**: `/api/lembretes` agora calcula `proxima_ocorrencia`
++ `dias_restantes` por item (`notificacoes.proxima_ocorrencia_lembrete`, que ja existia como
+`_proxima_ocorrencia` privada - so tornada publica pra servir os dois usos). Corrige de quebra um
+bug latente: um lembrete recorrente (tipo exame medico anual) mostrava a data do ANO DE CADASTRO
+pra sempre, nunca o proximo aniversario de verdade - agora mostra a proxima ocorrencia calculada,
+com "faltam N dias"/"e hoje"/"e amanha" ao lado (mesmo padrao ja usado nas metas), destacado quando
+faltam 7 dias ou menos (a mesma janela que ja dispara notificacao push).
+
+6 testes novos (`test_app.py`). 825 testes Python + 112 subtestes, 100% passando. Validado por
+revisao de codigo + suite completa - sem screenshot desta vez (o componente `.card-resultado`
+reaproveitado ja foi validado visualmente em rodadas anteriores, entao o risco de regressao visual
+era baixo).
+
 ## 2026-09-22 (14) - Assistente proativo: avisa antes, distribui a semana, puxa tarefa quando ocioso
 
 Pedido grande e explicito do Alex (TDAH): "eu tenho que ser um cara que... ela nao tem que so me

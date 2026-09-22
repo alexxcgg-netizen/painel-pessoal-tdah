@@ -35,6 +35,8 @@ const ICONE_GASTO_CARD =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>';
 const ICONE_META_CARD =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>';
+const ICONE_VIAGEM_CARD =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m14.8 9.2-1.6 4-4 1.6 1.6-4 4-1.6Z"/></svg>';
 
 // Vibracao (Vibration API): funciona no Chrome/Android, mas o Safari no
 // iOS NUNCA implementou isso (decisao de plataforma da Apple, nao falta de
@@ -969,8 +971,27 @@ async function loadLembretes() {
     tituloWrap.appendChild(titulo);
     const quando = document.createElement("span");
     quando.className = "item-quando";
-    quando.textContent = l.recorrente ? `${fmtDataBr(l.data)} - todo ano` : fmtDataBr(l.data);
+    // proxima_ocorrencia (calculada no backend) em vez de l.data crua - pra
+    // um lembrete recorrente mostrar o PROXIMO aniversario da data, nao o
+    // ano em que ele foi cadastrado originalmente.
+    const dataMostrada = l.proxima_ocorrencia || l.data;
+    quando.textContent = l.recorrente ? `${fmtDataBr(dataMostrada)} - todo ano` : fmtDataBr(dataMostrada);
     tituloWrap.appendChild(quando);
+
+    if (typeof l.dias_restantes === "number") {
+      const contagem = document.createElement("span");
+      const urgente = l.dias_restantes <= 7;
+      contagem.className = urgente ? "item-quando lembrete-contagem-urgente" : "item-quando";
+      contagem.textContent =
+        l.dias_restantes < 0
+          ? `passou ha ${Math.abs(l.dias_restantes)} dia(s)`
+          : l.dias_restantes === 0
+          ? "e hoje"
+          : l.dias_restantes === 1
+          ? "e amanha"
+          : `faltam ${l.dias_restantes} dias`;
+      tituloWrap.appendChild(contagem);
+    }
     linha.appendChild(tituloWrap);
 
     const acoes = document.createElement("div");
@@ -2261,12 +2282,30 @@ $("#viagem-form").addEventListener("submit", async (e) => {
 
   const sairEm = new Date(data.sair_ate);
   const horaTxt = sairEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  saida.textContent =
-    `Saia ate as ${horaTxt} (viagem de ${data.duracao_minutos}min, ${data.distancia_km}km, ` +
-    `com ${data.margem_minutos}min de margem)`;
-  saida.hidden = false;
-
   const destino = $("#viagem-destino").value.trim();
+
+  // Mesmo card de resultado usado no chat (tarefa/gasto/meta) - pedido do
+  // Alex ("achei muito simples") era so de apresentacao, o calculo em si
+  // (Google Maps, transito real) ja estava certo.
+  saida.innerHTML = "";
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "card-resultado-eyebrow";
+  eyebrow.innerHTML = `${ICONE_VIAGEM_CARD}<span>Pra ${destino}</span>`;
+  saida.appendChild(eyebrow);
+
+  const valor = document.createElement("p");
+  valor.className = "card-resultado-valor";
+  valor.textContent = `Saia ate as ${horaTxt}`;
+  saida.appendChild(valor);
+
+  const detalhe = document.createElement("p");
+  detalhe.className = "card-resultado-detalhe";
+  detalhe.textContent =
+    `${data.duracao_minutos}min de viagem - ${data.distancia_km}km - ` +
+    `${data.margem_minutos}min de margem`;
+  saida.appendChild(detalhe);
+
+  saida.hidden = false;
   const wazeLink = $("#viagem-waze");
   wazeLink.href = `https://waze.com/ul?q=${encodeURIComponent(destino)}&navigate=yes`;
   wazeLink.hidden = false;

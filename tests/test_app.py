@@ -2263,6 +2263,31 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(self.client.get("/api/lembretes").get_json(), [])
 
+    def test_lembretes_traz_dias_restantes_e_proxima_ocorrencia(self):
+        daqui_a_5_dias = (date.today() + timedelta(days=5)).isoformat()
+        conn = db.get_db()
+        db.create_lembrete(conn, "Seguro do carro", daqui_a_5_dias, recorrente=False)
+        conn.close()
+
+        lembretes = self.client.get("/api/lembretes").get_json()
+        self.assertEqual(len(lembretes), 1)
+        self.assertEqual(lembretes[0]["proxima_ocorrencia"], daqui_a_5_dias)
+        self.assertEqual(lembretes[0]["dias_restantes"], 5)
+
+    def test_lembrete_recorrente_mostra_proximo_aniversario_nao_o_ano_de_criacao(self):
+        # Pedido do Alex ("datas importantes parece muito simples"): um
+        # lembrete recorrente cadastrado num ano passado tem que mostrar o
+        # PROXIMO aniversario da data, nunca o ano original de cadastro.
+        data_original = date.today().replace(year=date.today().year - 1).isoformat()
+        conn = db.get_db()
+        db.create_lembrete(conn, "Exame medico anual", data_original, recorrente=True)
+        conn.close()
+
+        lembretes = self.client.get("/api/lembretes").get_json()
+        proxima = date.fromisoformat(lembretes[0]["proxima_ocorrencia"])
+        self.assertGreaterEqual(proxima, date.today())
+        self.assertGreaterEqual(lembretes[0]["dias_restantes"], 0)
+
     def test_criar_lembrete_manual(self):
         res = self.client.post(
             "/api/lembretes",

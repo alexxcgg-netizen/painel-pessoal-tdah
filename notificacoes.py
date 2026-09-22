@@ -316,10 +316,12 @@ def gasto_dia_semana_atipico(
     )
 
 
-def _proxima_ocorrencia(data_base: date, recorrente: bool, hoje: date) -> date:
+def proxima_ocorrencia_lembrete(data_base: date, recorrente: bool, hoje: date) -> date:
     """Pra lembrete unico, a proxima ocorrencia e a propria data. Pra
     recorrente (anual - tipo validade de licenca, exame medico, seguro),
-    acha o proximo aniversario dessa data a partir de hoje."""
+    acha o proximo aniversario dessa data a partir de hoje. Publica (nao so
+    interna) porque /api/lembretes tambem usa pra mostrar a proxima data +
+    dias restantes na tela, nao so lembretes_proximos aqui embaixo."""
     if not recorrente:
         return data_base
     for ano in (hoje.year, hoje.year + 1):
@@ -339,7 +341,7 @@ def lembretes_proximos(conn, dias: int = 7) -> list[tuple[int, str]]:
     avisos = []
     for row in conn.execute("SELECT * FROM lembretes").fetchall():
         data_base = date.fromisoformat(row["data"])
-        proxima = _proxima_ocorrencia(data_base, bool(row["recorrente"]), hoje)
+        proxima = proxima_ocorrencia_lembrete(data_base, bool(row["recorrente"]), hoje)
         dias_restantes = (proxima - hoje).days
         if not (0 <= dias_restantes <= dias):
             continue

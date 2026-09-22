@@ -2085,6 +2085,17 @@ def lembretes():
     conn = get_db()
     resultado = list_lembretes(conn)
     conn.close()
+    # Pedido do Alex ("datas importantes" parecia simples demais): manda a
+    # PROXIMA ocorrencia + dias restantes calculados, nao so a data crua -
+    # sem isso um lembrete recorrente mostrava o ano ORIGINAL de criacao pra
+    # sempre, nunca o proximo aniversario de verdade.
+    hoje = date.today()
+    for item in resultado:
+        proxima = notificacoes.proxima_ocorrencia_lembrete(
+            date.fromisoformat(item["data"]), bool(item["recorrente"]), hoje
+        )
+        item["proxima_ocorrencia"] = proxima.isoformat()
+        item["dias_restantes"] = (proxima - hoje).days
     return jsonify(resultado)
 
 

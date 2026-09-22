@@ -1628,6 +1628,11 @@ li.item.saindo {
   white-space: pre-wrap;
 }
 
+.lembrete-contagem-urgente {
+  color: var(--cor-bancos);
+  font-weight: 600;
+}
+
 .banco-saldo {
   flex-shrink: 0;
   font-size: 1rem;
@@ -2481,6 +2486,10 @@ li.item.item-planejado {
 
 .card-resultado-meta {
   --card-cor: var(--cor-hoje);
+}
+
+.card-resultado-viagem {
+  --card-cor: var(--cor-tarefas);
 }
 
 .card-resultado-eyebrow {
