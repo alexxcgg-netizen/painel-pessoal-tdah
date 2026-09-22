@@ -1875,13 +1875,6 @@ function criarItemVoo(v) {
   quando.textContent = quandoTxt;
   tituloWrap.appendChild(quando);
 
-  if (v.observacao) {
-    const diario = document.createElement("p");
-    diario.className = "voo-diario";
-    diario.textContent = v.observacao;
-    tituloWrap.appendChild(diario);
-  }
-
   const saidaResultado = document.createElement("p");
   saidaResultado.className = "resumo-texto voo-saida-resultado";
   saidaResultado.hidden = true;
@@ -1955,6 +1948,14 @@ function criarItemVoo(v) {
 
   linha.appendChild(acoes);
   li.appendChild(linha);
+
+  if (v.observacao) {
+    const diario = document.createElement("p");
+    diario.className = "voo-diario";
+    diario.textContent = v.observacao;
+    li.appendChild(diario);
+  }
+
   return li;
 }
 
