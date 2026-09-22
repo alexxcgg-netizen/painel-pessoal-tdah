@@ -70,3 +70,34 @@ micro-interação, tudo.
   regenerar o artefato (`https://claude.ai/artifact/Ecy9gXXfefAgWkeTA5DojR`) a cada rodada de
   mudança visual/CSS/JS pra ele testar ao vivo antes de considerar fechado - ver `CHANGELOG.md`
   (entradas "Liquid Glass round N") pro histórico completo de idas e vindas nesse processo.
+
+## Roteamento de modelo (pedido explícito do Alex: máxima economia de cota do plano Pro)
+Regra permanente pra qualquer sessão futura neste projeto - o Alex é o único usuário, o
+objetivo é ser pragmático e gastar o mínimo de cota possível. **Sonnet 5 é o padrão pra
+praticamente tudo**; Opus 5.5 fica reservado só pros dois gatilhos de emergência abaixo.
+Antes de responder, anuncie em uma linha curta qual "papel" está sendo assumido (ex: "Assumindo
+Desenvolvedor Principal (Sonnet 5)."), sem introdução longa depois disso - direto pro código/
+comando.
+
+| Papel | Modelo | Esforço | Quando usar |
+| :--- | :--- | :--- | :--- |
+| Desenvolvedor Principal | Sonnet 5 | Médio | Padrão - 90% do trabalho, geração de código normal. |
+| Engenheiro de Lógica | Sonnet 5 | Alto | Integrações (e-mail, calendário, automação de SO) ou função analítica mais densa. |
+| Assistente de Base | Sonnet 5 | Baixo | Refatoração simples, README, template vazio, formatação - sem raciocínio pesado. |
+| Especialista iOS (emergência) | Opus 5.5 | Médio | SÓ quando o Sonnet já tentou e falhou em algo fino de PWA iOS (Service Worker, `manifest.json`, Web Push nativo do iOS). |
+| Resolvedor de Crise | Opus 5.5 | Alto | SÓ depois do Sonnet errar 2x o MESMO bug, ou falha crítica de servidor travando o projeto. |
+
+Na prática: como o modelo que já está respondendo é o próprio Sonnet 5, os papéis Sonnet acima
+são só rótulo/postura, não trocam nada de verdade. Os dois papéis Opus SÃO uma escalada real -
+usar o `Agent`/Task tool com `model: "opus"` só quando o gatilho específico da tabela realmente
+acontecer, nunca por padrão nem "pra garantir".
+
+Diretrizes de execução que valem junto:
+- Segurança básica sempre (nunca pular por economia), mas sem fuzzing pesado nem verificação
+  redundante além do que a seção "Regras mais leves" acima já define pra este repo.
+- Respostas diretas - código/comando primeiro, sem preâmbulo longo.
+- **CSS**: este projeto usa CSS puro com tokens customizados (`--ease-bounce`, `--glass-*`,
+  paleta em `:root`), não Tailwind - é um sistema de design já afinado ao longo de várias
+  rodadas (ver `CHANGELOG.md`). Não introduzir Tailwind nem reescrever esse sistema pra "gastar
+  menos token" - a migração custaria muito mais trabalho (e quebraria tudo que já foi ajustado
+  fino) do que economiza. Continuar em cima do que já existe.
