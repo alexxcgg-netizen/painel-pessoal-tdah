@@ -2403,25 +2403,19 @@ li.item.item-planejado {
   }
 }
 
-/* Round 6: era um retangulo solido de --bg (sem blur, sem canto arredondado)
-   por cima do input+mic+enviar inteiro, so pra tapar as bolhas de chat
-   rolando por baixo - com o resto do app em vidro fino, esse bloco opaco
-   ficava destacado como um "negocinho preto" colado, sem se misturar.
+/* Historico: rounds 6-9 tentaram varias versoes de um degrade acima do
+   input (retangulo solido -> ::before com blur -> ::before sem blur) pra
+   "esmaecer" a ultima bolha de chat contra a barra de input fixa por cima.
+   Toda vez virava um "negocinho preto" flutuando/descendo, sem se prender
+   a nada, num app que agora e majoritariamente opaco/reto (round 8: Liquid
+   Glass so na barra).
 
-   Round 8: o degrade saiu de cima do proprio `.chat-form` (que teria que
-   cobrir input+mic+enviar inteiros pra existir) e virou um `::before`
-   plantado SO na faixa vazia logo ACIMA da linha de controles (`bottom:
-   100%` do proprio `.chat-form`) - resolveu os 3 controles "grudados", mas
-   o `backdrop-filter: blur(8px)` que sobrou nesse `::before` suavizava as
-   bordas do retangulo o bastante pra ele ler como uma barrinha preta
-   flutuando por conta propria, sem se prender a nada (pedido explicito:
-   "nao faz sentido, ta so atrapalhando") - e o round 8 tambem decidiu
-   Liquid Glass SO na barra de abas, entao um blur perdido aqui contradizia
-   a propria regra que acabara de ser fechada.
-
-   Round 9: tirou o backdrop-filter. So o degrade solido (transparente ->
-   --bg) continua - sem blur, as bordas ficam nitidas e ele lê como parte
-   do fundo esmaecendo o texto por tras, nao como um objeto separado. */
+   Round 10: removido de vez. `.chat-lista` (a lista de bolhas, logo acima)
+   ja tem `overflow-y: auto` com `max-height` PROPRIO - ela clipa as
+   mensagens sozinha, dentro da propria caixa. Nunca precisou de nada aqui
+   pra "esconder" bolha escapando por baixo; a ultima bolha so termina na
+   borda de baixo da lista, como qualquer lista com scroll. Zero elemento
+   extra, zero degrade, zero chance de voltar a virar uma mancha estranha. */
 .chat-form {
   position: sticky;
   bottom: calc(6rem + env(safe-area-inset-bottom));
@@ -2429,22 +2423,6 @@ li.item.item-planejado {
   gap: 0.5rem;
   padding-top: 0.4rem;
   z-index: 5;
-}
-
-.chat-form::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: 1.3rem;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    color-mix(in srgb, var(--bg) 65%, transparent) 55%,
-    var(--bg) 100%
-  );
-  pointer-events: none;
 }
 
 #chat-input {

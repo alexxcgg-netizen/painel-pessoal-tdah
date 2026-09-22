@@ -5,6 +5,27 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (10) - Remove de vez o "negocinho preto" acima do chat (raiz, nao sintoma)
+
+Terceiro print seguido reclamando da mesma area (acima do "Fala comigo..."): dessa vez "tem um
+negocinho preto, ele ta descendo, ta meio estranho" - o degrade round 9 (sem blur) continuava
+visivel o bastante pra ler como um elemento estranho.
+
+Em vez de ajustar o degrade de novo, questionei se ele precisava existir: `.chat-lista` (a lista
+de bolhas do chat, logo acima do `.chat-form`) ja tem `overflow-y: auto` com `max-height: 58vh`
+PROPRIO - ela clipa as mensagens sozinha, dentro da propria caixa. O degrade nunca teve conteudo
+de verdade pra esconder (nao tinha bolha "vazando" por baixo do input) - era decoracao pura que,
+em 3 rodadas seguidas (retangulo solido -> ::before com blur -> ::before sem blur), sempre acabava
+lendo como um elemento fora do lugar. Removido o `::before` inteiro - zero elemento novo, a ultima
+bolha agora so termina na borda da lista, como qualquer lista com scroll.
+
+Confirmado de novo (o Alex reforcou por precaucao): Liquid Glass continua SO na barra de abas,
+paineis e campos continuam opacos - nada mudou nessa regra, so o elemento fantasma foi removido.
+
+Validado com Playwright: `getComputedStyle(.chat-form, '::before').content` retorna `none`
+(elemento nao existe mais), screenshot da mesma zona sem nenhuma forma estranha, `--glass-blur`
+ainda `none` pros paineis e a barra ainda com blur de verdade. 800 testes Python, 100% passando.
+
 ## 2026-09-22 (9) - Fix: barrinha preta flutuando acima do chat (residuo de blur esquecido)
 
 Print anotado: uma barra preta retangular flutuando por cima da grade de stats, logo acima do
