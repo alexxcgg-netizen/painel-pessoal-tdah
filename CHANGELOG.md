@@ -5,6 +5,24 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-22 (9) - Fix: barrinha preta flutuando acima do chat (residuo de blur esquecido)
+
+Print anotado: uma barra preta retangular flutuando por cima da grade de stats, logo acima do
+"Fala comigo...", "não faz sentido, tá só atrapalhando".
+
+Causa: o `::before` do `.chat-form` (round 8, esmaece a ultima bolha de chat antes da linha de
+input) ainda tinha `backdrop-filter: blur(8px)` sobrando do round 6. Esse blur suavizava as bordas
+do retangulo o bastante pra ele ler como um objeto flutuando por conta propria, sem se prender a
+nada visualmente - e contradizia a propria regra que o round 8 acabara de fechar (Liquid Glass SO
+na barra de abas). Fix: removido o `backdrop-filter` - so sobra o degrade solido (transparente ->
+`--bg`), que agora lê como parte do fundo esmaecendo o texto por tras, nao como um bloco a parte.
+
+Confirmado nesse mesmo round: cor "Preto puro", fonte Atual (Sora) e Liquid Glass so na barra
+continuam sendo a decisao - nada mudou ali, so o residuo de blur foi removido.
+
+Validado com Playwright (getComputedStyle confirmando backdrop-filter: none, screenshot da zona
+stats->chat sem nenhuma forma flutuante). 800 testes Python, 100% passando (CSS puro).
+
 ## 2026-09-22 (8) - Decisao final de tema: preto puro + neutro, vidro so na barra + 4 fixes
 
 Depois de testar no comparador do artefato (18 cores x 5 fundos x Liquid Glass on/off por area),

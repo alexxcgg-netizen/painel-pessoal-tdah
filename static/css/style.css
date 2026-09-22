@@ -2408,16 +2408,20 @@ li.item.item-planejado {
    rolando por baixo - com o resto do app em vidro fino, esse bloco opaco
    ficava destacado como um "negocinho preto" colado, sem se misturar.
 
-   Round 8 (pedido explicito com novo print: os 3 controles pareciam
-   "grudados" num unico bloco preto): o degrade saiu de cima do proprio
-   `.chat-form` (que teria que cobrir input+mic+enviar inteiros pra existir)
-   e virou um `::before` plantado SO na faixa vazia logo ACIMA da linha de
-   controles (`bottom: 100%` do proprio `.chat-form`) - esmaece a ultima
-   bolha visivel, mas a linha de input/mic/enviar em si fica sem nenhum
-   fundo compartilhado. Cada controle mostra so o proprio fundo (o input tem
-   o dele, o mic o dele, o botao de enviar o dele) e os espacos entre eles
-   ficam abertos - por isso passam a ler como 3 pecas separadas, nao um
-   bloco unico. */
+   Round 8: o degrade saiu de cima do proprio `.chat-form` (que teria que
+   cobrir input+mic+enviar inteiros pra existir) e virou um `::before`
+   plantado SO na faixa vazia logo ACIMA da linha de controles (`bottom:
+   100%` do proprio `.chat-form`) - resolveu os 3 controles "grudados", mas
+   o `backdrop-filter: blur(8px)` que sobrou nesse `::before` suavizava as
+   bordas do retangulo o bastante pra ele ler como uma barrinha preta
+   flutuando por conta propria, sem se prender a nada (pedido explicito:
+   "nao faz sentido, ta so atrapalhando") - e o round 8 tambem decidiu
+   Liquid Glass SO na barra de abas, entao um blur perdido aqui contradizia
+   a propria regra que acabara de ser fechada.
+
+   Round 9: tirou o backdrop-filter. So o degrade solido (transparente ->
+   --bg) continua - sem blur, as bordas ficam nitidas e ele lê como parte
+   do fundo esmaecendo o texto por tras, nao como um objeto separado. */
 .chat-form {
   position: sticky;
   bottom: calc(6rem + env(safe-area-inset-bottom));
@@ -2440,8 +2444,6 @@ li.item.item-planejado {
     color-mix(in srgb, var(--bg) 65%, transparent) 55%,
     var(--bg) 100%
   );
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   pointer-events: none;
 }
 
