@@ -14,8 +14,8 @@
         "Verificar manualmente no navegador disponivel no ambiente (mesmo que so em desktop Chrome, documentar que iOS Safari em PWA instalado precisa validacao manual do proprio Alex depois, ja que o ambiente de execucao nao tem iPhone real)"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Botao #comando-voz-btn (fora do chat, secao propria) usa window.SpeechRecognition/webkitSpeechRecognition; sem suporte, desabilita o botao e mostra mensagem clara apontando pros Atalhos da Siri (US-B4). Texto reconhecido vai pra POST /api/intent/classificar e a acao e roteada (navegar_tela->showTab, registrar_tarefa/gasto->enviarCaptura existente, registrar_checkin->abre a aba com o check-in de 1 toque, consultar/corrigir_ultimo->enviarChat existente) - nunca duplica logica de captura/chat/navegacao, so decide pra onde mandar. Testes: tests/js/voz_comando.test.js (logica pura) + tests/test_app.py (backend). Verificado com Playwright headless: botao visivel, fallback funciona quando SpeechRecognition e removido do window, sem erros de console. iOS Safari PWA standalone real precisa validacao manual do Alex (sem iPhone no ambiente de execucao)."
     },
     {
       "id": "US-B2",
@@ -27,8 +27,8 @@
         "Testes cobrindo: acao destrutiva de alta confianca ainda pede confirmacao; acao nao-destrutiva de alta confianca nao pede"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "O contrato fechado (docs/INTENT.md) ainda nao tem nenhuma acao literalmente destrutiva (tipo deletar_tarefa/deletar_gasto), so pode GANHAR uma no futuro (regra: so aditivo). Ate la, corrigir_ultimo (sobrescreve a classificacao do ultimo item) e tratado como quase-destrutiva - ver ACOES_DESTRUTIVAS em static/js/voz-comando.js (constante isolada, facil de estender se uma acao de deletar de verdade existir um dia). exigeConfirmacao() = precisa_confirmacao OU acao destrutiva - testado em tests/js/voz_comando.test.js (destrutiva de confianca alta ainda pede confirmacao; nao-destrutiva de confianca alta nao pede)."
     },
     {
       "id": "US-B3",
@@ -40,8 +40,8 @@
         "Testes cobrindo o fluxo de 2 turnos"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Quando precisa_confirmacao=true, a caixa de confirmacao (US-B2) tambem mostra 6 botoes 'Era X' (uma por acao real do contrato, exceto desconhecido - opcoesDeCorrecao() em voz-comando.js) guardando o texto/resultado original em estadoPendente. Escolher uma opcao chama POST /api/intent/corrigir (novo endpoint, reusa aprendizado.confirmar_padrao_intent com forcar_confianca_alta=True - MESMO mecanismo da US-A4, sem duplicar logica) e executa a acao corrigida. Confirmar (sem corrigir) uma classificacao de baixa confianca tambem reforca o padrao. Testes: tests/test_app.py::IntentCorrigirTestCase (backend) + tests/js/voz_comando.test.js::opcoesDeCorrecao (frontend) + Playwright (dialogo renderiza os 6 botoes)."
     },
     {
       "id": "US-B4",
@@ -54,8 +54,8 @@
         "Testes cobrindo o endpoint"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "POST /api/atalho/comando-voz (mesmo padrao de token X-Webhook-Token/PAINEL_ATALHOS_TOKEN dos outros /api/atalho/*) reusa _classificar_intent (fonte unica compartilhada com /api/intent/classificar, refatorada de app.py pra nao duplicar) e devolve {..., \"fala\": \"...\"} - frase curta pronta pro Atalho falar de volta. So classifica, nao executa a acao (fora do escopo desta historia - execucao fica pro painel com confirmacao do Alex). Documentado em README.md (secao 'Ei Siri, o que eu disse'). Testes: tests/test_app.py::AtalhoComandoVozTestCase (auth por token, fala por acao, teto de IA, erro da API, confirma que nao cria nada no banco)."
     },
     {
       "id": "US-B5",
@@ -67,8 +67,8 @@
         "Testes JS cobrindo esse caso (reaproveitar tests/js/fila_offline.test.js como base)"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "enviarComando (voz-comando.js) chama window.apiFetch com o mesmo 3o parametro `fila` ja usado por captura/check-in ({tipo: 'comando_voz', id: clientId}) - fetch falhando por rede (nao por 4xx/5xx real) cai na MESMA fila IndexedDB da Fase 4 (static/js/fila-offline.js), sem nenhum campo especial. Registrado FilaOffline.registrarCallback('comando_voz', ...) pra processar o resultado real assim que sincronizar (mesmo padrao do callback 'capture' em app.js). static/js/voz-comando.js entrou no precache do service-worker (v10) pra existir offline tambem. Testes: tests/js/voz_comando.test.js (criarItem/ehErroDeServidor com tipo comando_voz, reaproveitando fila_offline.test.js como base, conforme pedido)."
     },
     {
       "id": "US-B6",
@@ -80,8 +80,8 @@
         "Se viavel de alguma forma simplificada (ex: um classificador estatistico bem simples tipo bag-of-words local em JS, sem ser de fato 'Neural Engine'), implementar essa versao reduzida e deixar claro na documentacao que nao e Core ML de verdade"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Avaliado: Core ML/Neural Engine de verdade exige app nativo (Swift + runtime Core ML) ou WebNN (suporte de navegador extremamente limitado em 2026) - inviavel dentro do escopo de uma PWA, confirmando a suspeita do briefing. Implementada a alternativa que o proprio AC#3 permite: classificarLocalmente() em voz-comando.js, uma heuristica de PALAVRAS-CHAVE (bag-of-words simples, explicitamente documentada como NAO sendo Core ML/ML de verdade) que resolve so o caso mais inequivoco (navegar pra uma tela conhecida, ex: 'abre os gastos') 100% offline e sem custo de IA - qualquer coisa fora desse padrao cai pro classificador remoto normal (US-B1) ou fila offline (US-B5). Testes: tests/js/voz_comando.test.js::classificarLocalmente."
     }
   ]
 }

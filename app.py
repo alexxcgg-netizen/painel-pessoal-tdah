@@ -344,6 +344,7 @@ def _verificar_autenticacao():
         "/api/atalho/resumo",
         "/api/atalho/local",
         "/api/atalho/app",
+        "/api/atalho/comando-voz",
     ):
         return None
 
@@ -609,50 +610,45 @@ def capture():
 ACOES_INTENT = claude_client.ACOES_INTENT
 
 
-@app.route("/api/intent/classificar", methods=["POST"])
-def intent_classificar():
-    """Classifica um comando de voz/texto numa acao (contrato em
-    docs/INTENT.md). Antes de chamar a IA (US-A2, Haiku), tenta resolver
-    localmente por padrao aprendido (US-A3, aprendizado.padrao_intent_confiavel)
-    - so cai pra API se nao achar um padrao confiavel o bastante. Se o teto
-    mensal de gasto com IA (US-A6, db.obter_teto_mensal_ia) ja estourou, NAO
-    cai pra API mesmo sem padrao - fica so no que o padrao aprendido
-    resolver, ate o mes virar (documentado no card financeiro, /api/ia/custo)."""
-    body = _corpo_json()
-    texto = _texto_seguro(body.get("texto"))
-    if not texto:
-        return jsonify({"error": "texto vazio"}), 400
+def _classificar_intent(conn, texto: str):
+    """Fonte unica da logica de classificacao de intent (contrato em
+    docs/INTENT.md) - usada tanto por /api/intent/classificar (sessao,
+    navegacao por voz no navegador, US-B1) quanto por /api/atalho/comando-voz
+    (token, Atalho/Siri, US-B4). NUNCA duplicar essa logica num dos dois
+    lugares - qualquer regra nova de classificacao nasce aqui.
 
-    conn = get_db()
+    Antes de chamar a IA (US-A2, Haiku), tenta resolver localmente por
+    padrao aprendido (US-A3, aprendizado.padrao_intent_confiavel) - so cai
+    pra API se nao achar um padrao confiavel o bastante. Se o teto mensal de
+    gasto com IA (US-A6, db.obter_teto_mensal_ia) ja estourou, NAO cai pra
+    API mesmo sem padrao - fica so no que o padrao aprendido resolver, ate o
+    mes virar (documentado no card financeiro, /api/ia/custo).
 
+    Devolve (resultado_dict, None) no caminho feliz, ou (None, erro) onde
+    `erro` e a tupla (jsonify(...), status) ja pronta pra devolver - o
+    caller decide se repassa esse erro cru (US-B1) ou traduz numa fala curta
+    (US-B4)."""
     padrao = aprendizado.padrao_intent_confiavel(conn, texto)
     if padrao:
-        conn.close()
-        return jsonify(
-            {
-                "acao": padrao["acao"],
-                "confianca": aprendizado.CONFIANCA_PADRAO_INTENT,
-                "parametros": padrao["parametros"],
-                "precisa_confirmacao": False,
-            }
-        )
+        return {
+            "acao": padrao["acao"],
+            "confianca": aprendizado.CONFIANCA_PADRAO_INTENT,
+            "parametros": padrao["parametros"],
+            "precisa_confirmacao": False,
+        }, None
 
     if resumo_custo_api(conn)["teto_estourado"]:
-        conn.close()
-        return jsonify(
-            {
-                "acao": "desconhecido",
-                "confianca": 0.0,
-                "parametros": {},
-                "precisa_confirmacao": True,
-                "teto_ia_estourado": True,
-            }
-        )
+        return {
+            "acao": "desconhecido",
+            "confianca": 0.0,
+            "parametros": {},
+            "precisa_confirmacao": True,
+            "teto_ia_estourado": True,
+        }, None
 
     result, error = _call_claude(claude_client.classify_intent, texto)
     if error:
-        conn.close()
-        return error
+        return None, error
     resultado, usage = result
 
     _log_usage(conn, usage, "intent")
@@ -660,9 +656,53 @@ def intent_classificar():
     # nao vale a pena aprender de algo que ja veio com precisa_confirmacao.
     if not resultado["precisa_confirmacao"]:
         aprendizado.confirmar_padrao_intent(conn, texto, resultado["acao"], resultado["parametros"])
+    return resultado, None
+
+
+@app.route("/api/intent/classificar", methods=["POST"])
+def intent_classificar():
+    """Classifica um comando de voz/texto numa acao (contrato em
+    docs/INTENT.md) - ver _classificar_intent pra logica de verdade."""
+    body = _corpo_json()
+    texto = _texto_seguro(body.get("texto"))
+    if not texto:
+        return jsonify({"error": "texto vazio"}), 400
+
+    conn = get_db()
+    resultado, error = _classificar_intent(conn, texto)
+    if error:
+        conn.close()
+        return error
     conn.commit()
     conn.close()
     return jsonify(resultado)
+
+
+@app.route("/api/intent/corrigir", methods=["POST"])
+def intent_corrigir():
+    """US-B3: quando o dialogo de voz de 2 turnos (UI, voz-comando.js) tem uma
+    correcao confirmada pelo Alex pro texto original, isso alimenta o mesmo
+    banco de padroes aprendidos do resto do intent (US-A3/US-A4) - reusa
+    aprendizado.confirmar_padrao_intent com forcar_confianca_alta=True (mesmo
+    espirito de uma correcao manual de captura, US-A4): uma correcao vale
+    como sinal forte na hora, sem precisar repetir o erro 3x."""
+    body = _corpo_json()
+    texto = _texto_seguro(body.get("texto"))
+    acao_correta = body.get("acao_correta")
+    parametros = body.get("parametros")
+    if not isinstance(parametros, dict):
+        parametros = {}
+
+    if not texto:
+        return jsonify({"error": "texto vazio"}), 400
+    if acao_correta not in ACOES_INTENT:
+        return jsonify({"error": "acao_correta invalida"}), 400
+
+    conn = get_db()
+    aprendizado.confirmar_padrao_intent(conn, texto, acao_correta, parametros, forcar_confianca_alta=True)
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/tasks", methods=["GET"])
@@ -6265,6 +6305,78 @@ def atalho_capturar():
     if not text:
         return jsonify({"error": "texto vazio"}), 400
     return _executar_captura(text, "")
+
+
+# Rotulo curto de cada acao do contrato (docs/INTENT.md), usado so pra montar
+# a fala de volta pro Atalho/Siri (US-B4) - nao e o formato de dado, so texto
+# de UI/voz. "tela"/"pergunta"/"titulo" sao chaves de parametros que a IA PODE
+# preencher (claude_client.INTENT_PROMPT), nunca garantidas - por isso todo
+# .get() aqui tem um fallback plausivel.
+_ROTULO_ACAO_INTENT = {
+    "registrar_tarefa": "uma tarefa",
+    "registrar_gasto": "um gasto",
+    "registrar_checkin": "um check-in",
+    "navegar_tela": "ir pra uma tela do painel",
+    "consultar": "uma pergunta",
+    "corrigir_ultimo": "uma correcao do ultimo item",
+    "desconhecido": None,
+}
+
+
+def _texto_falado_intent(resultado: dict) -> str:
+    """Frase curta pronta pro Atalho falar de volta (acao "Falar Texto"/
+    "Mostrar Resultado" do app Atalhos) - nunca executa a acao aqui (fora do
+    escopo da US-B4, ver docs/INTENT.md), so descreve o que foi entendido."""
+    if resultado.get("teto_ia_estourado"):
+        return "O limite mensal de IA ja estourou, nao consegui entender esse comando agora."
+
+    acao = resultado.get("acao")
+    rotulo = _ROTULO_ACAO_INTENT.get(acao)
+    if not rotulo:
+        return "Nao entendi esse comando. Tenta de novo com mais detalhe."
+
+    parametros = resultado.get("parametros") or {}
+    detalhe = ""
+    if acao == "navegar_tela" and parametros.get("tela"):
+        detalhe = f' ({parametros["tela"]})'
+    elif acao in ("registrar_tarefa", "registrar_gasto") and parametros.get("titulo"):
+        detalhe = f': {parametros["titulo"]}'
+    elif acao == "consultar" and parametros.get("pergunta"):
+        detalhe = f': {parametros["pergunta"]}'
+
+    if resultado.get("precisa_confirmacao"):
+        return f"Acho que entendi {rotulo}{detalhe}, mas nao tenho certeza. Confirma no painel antes de executar."
+    return f"Entendi {rotulo}{detalhe}. Confirma no painel pra executar."
+
+
+@app.route("/api/atalho/comando-voz", methods=["POST"])
+def atalho_comando_voz():
+    """US-B4: pro Atalho "Ei Siri, [comando]" do iPhone - mesmo padrao de
+    autenticacao por token dos outros /api/atalho/*. Recebe o texto que o
+    Siri ja transcreveu (acao "Ditar Texto" do app Atalhos) e reusa a MESMA
+    logica de classificacao de /api/intent/classificar (_classificar_intent,
+    fonte unica - nunca duplicada aqui). Devolve so uma frase curta ("fala")
+    pronta pro Atalho falar de volta - NAO executa a acao classificada
+    sozinho (fora do escopo desta historia; a execucao de verdade acontece
+    no painel, US-B1/US-B2, com a confirmacao explicita do Alex)."""
+    if not _token_atalho_valido():
+        return jsonify({"error": "token invalido"}), 401
+
+    body = _corpo_json()
+    texto = (body.get("texto") or body.get("text") or "").strip()
+    if not texto:
+        return jsonify({"error": "texto vazio", "fala": "Nao entendi, pode repetir?"}), 400
+
+    conn = get_db()
+    resultado, error = _classificar_intent(conn, texto)
+    if error:
+        conn.close()
+        status = error[1] if isinstance(error, tuple) else 502
+        return jsonify({"error": "erro ao classificar", "fala": "Deu um erro ao tentar entender o comando."}), status
+    conn.commit()
+    conn.close()
+
+    return jsonify({**resultado, "fala": _texto_falado_intent(resultado)})
 
 
 @app.route("/api/atalho/cotacao-pdf", methods=["POST"])

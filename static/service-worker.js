@@ -16,13 +16,17 @@
 // poll (setInterval) funciona identico em qualquer navegador. Esse SW so
 // precisa saber que fila-offline.js existe pra ir pro precache (senao o app
 // abriria offline sem a fila disponivel) - por isso essa versao sobe.
-const CACHE_NAME = "painel-pessoal-v9";
+// v10: comando de voz (Fase 5, Grupo B) - static/js/voz-comando.js reusa a
+// mesma fila offline de static/js/fila-offline.js (US-B5), mesma logica do
+// v9 acima: so precisa entrar no precache pra existir offline tambem.
+const CACHE_NAME = "painel-pessoal-v10";
 const ASSETS = [
   "/",
   "/static/css/style.css",
   "/static/js/fila-offline.js",
   "/static/js/app.js",
   "/static/js/vida.js",
+  "/static/js/voz-comando.js",
   "/static/js/charts.js",
   "/static/manifest.json",
   "/static/icons/icon.svg",
