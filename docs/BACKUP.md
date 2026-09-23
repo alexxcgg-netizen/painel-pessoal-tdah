@@ -18,6 +18,25 @@ endpoints diretamente (autenticados, exigem estar logado):
 Além desses três, `GET /api/expenses/exportar-csv` já existia antes e continua só pra gastos
 (pensado pra abrir rápido numa planilha, sem baixar o resto do banco junto).
 
+### Criptografia em repouso e os exports (leia se você tem `ENCRYPTION_KEY` configurada)
+
+Se você ligou a criptografia em repouso (ver `docs/SEGURANCA.md`), os dois formatos se
+comportam diferente nesse ponto - decisão deliberada, achada e ajustada numa revisão
+independente:
+
+- **JSON completo e CSV completo saem legíveis** (saldo, extrato, dado de saúde já
+  descriptografados) - são pensados como "legível"/"pra abrir em planilha", e você já está
+  autenticado no painel pra pedir esses exports (o mesmo acesso que já mostra esse dado
+  descriptografado nas telas de Bancos/Saúde), então isso não é uma exposição nova.
+- **O backup `.db` bruto continua cifrado** - é o formato pensado pra restaurar sem passar pela
+  aplicação (só trocando o arquivo, ver "Restaurar" abaixo), então ele preserva o mesmo nível de
+  proteção do banco em produção. Restaurar esse arquivo com o `ENCRYPTION_KEY` certo no `.env`
+  volta a mostrar tudo normalmente pela interface.
+
+Ou seja: se você for mandar o JSON/CSV completo pra algum lugar fora do seu controle (nuvem sem
+criptografia própria, por exemplo), trate esses arquivos com o mesmo cuidado que trataria a tela
+do painel aberta - eles têm o dado sensível em texto plano.
+
 ## Restaurar a partir de um backup `.db`
 
 O jeito mais direto de voltar o painel inteiro pro estado de um backup:

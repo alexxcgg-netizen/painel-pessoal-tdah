@@ -102,6 +102,7 @@ from db import (
     delete_salvo,
     delete_viagem,
     delete_voo,
+    descriptografar_linhas_export,
     espera_pendente_por_quem_aproximado,
     gasto_mes_por_categoria,
     get_checkin,
@@ -619,7 +620,7 @@ def reclassificar_tarefa_rota(task_id):
     claro, entao quem esta corrigindo (o Alex, nao a IA de novo) informa."""
     corpo = _corpo_json()
     valor = corpo.get("valor")
-    if not isinstance(valor, (int, float)) or valor <= 0:
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)) or not math.isfinite(valor) or valor <= 0:
         return jsonify({"error": "informe um valor valido"}), 400
     categoria = corpo.get("categoria") if isinstance(corpo.get("categoria"), str) else None
     tipo = corpo.get("tipo") if corpo.get("tipo") in ("real", "planejado") else "real"
@@ -821,7 +822,11 @@ def _exportar_tabelas_dict(conn) -> dict:
         # externa - seguro interpolar no SQL (nao da pra parametrizar nome de
         # tabela com "?" no sqlite3)
         linhas = conn.execute(f'SELECT * FROM "{nome}"').fetchall()
-        tabelas[nome] = [dict(r) for r in linhas]
+        # tabelas do escopo de criptografia (docs/SEGURANCA.md) saem
+        # descriptografadas aqui - senao o export "legivel/pra planilha"
+        # sairia com saldo/sono/etc como token cifrado ilegivel (achado de
+        # revisao independente). O backup .db bruto continua cifrado.
+        tabelas[nome] = descriptografar_linhas_export(nome, [dict(r) for r in linhas])
     return tabelas
 
 

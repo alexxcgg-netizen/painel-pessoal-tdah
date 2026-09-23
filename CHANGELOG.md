@@ -5,6 +5,76 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
+
+Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em
+paralelo e depois integrados com um merge git de verdade (dois conflitos reais resolvidos a
+mao em `app.py`/`tests/test_app.py` - o resto entrou limpo). Revisao independente (2 agentes,
+codigo/integracao e seguranca) achou 4 problemas reais, todos corrigidos.
+
+**Item 1 - Backup e exportacao**
+- `GET /api/backup/exportar-json`: todas as ~49 tabelas do schema (introspeccao dinamica via
+  `sqlite_master`, nunca lista fixa), estrutura `{"versao", "exportado_em", "tabelas": {...}}`.
+- `GET /api/backup/exportar-csv-completo`: mesmo dado num `.zip` (um `.csv` por tabela).
+- Botao "exportar tudo agora" no cabecalho (toggle igual o de silencio), com as 3 opcoes
+  (banco `.db`, JSON, CSV).
+- Backup automatico semanal (domingo 3h, via scheduler existente) em `BACKUP_DIR` (padrao
+  `data/backups/`), mantem os ultimos 8, manda pro Telegram se ja configurado
+  (`telegram_bot.enviar_documento`, novo). Falha (disco cheio, Telegram fora do ar) so loga,
+  nunca derruba o scheduler.
+- `docs/BACKUP.md` novo.
+
+**Item 2 - Resiliencia offline**
+- Fila em IndexedDB (`static/js/fila-offline.js`) so pras 2 acoes criticas pedidas
+  (`/api/capture`, `/api/checkin`) - decisao: so no JS da pagina, nao no Service Worker
+  (Background Sync API nao existe no Safari/iOS, o aparelho do Alex).
+- `apiFetch` ganhou um 3o parametro opcional (`fila`) - sem ele, ~200 chamadas existentes
+  continuam identicas. Falha de rede real (nunca uma resposta HTTP de verdade) enfileira,
+  mostra card provisorio, sincroniza sozinho (evento `online` + poll de 45s de reforco).
+- Idempotencia no servidor por `client_id` (tabela `capture_idempotency`, limpeza automatica
+  >7 dias) - reenvio da fila nao duplica tarefa/gasto.
+- Banner discreto de "sem conexao" com contador de itens pendentes.
+
+**Item 3 - Criptografia em repouso**
+- Fernet (`cryptography`) campo a campo, escopo restrito: `bank_accounts.saldo`,
+  `bank_transactions.descricao/valor` (Open Finance) e `saude_dados`, `medidas_corporais.valor`,
+  `medicamentos.nome/dosagem/horario` (saude). Chave em `ENCRYPTION_KEY` (opcional - sem ela o
+  app funciona 100% normal, so em texto plano, com aviso em 3 lugares: log, `GET
+  /api/seguranca/status`, UI). Gerar com `scripts/gerar_chave_criptografia.py`.
+- Migracao do dado ja existente na subida do app (uma vez, flag em `configuracoes`).
+- Colunas que precisaram virar agregacao/filtro em Python (nao dava mais pra `WHERE`/`SUM`/
+  `ORDER BY` direto): resumo bancario, media de passos, correlacao sono x produtividade, sono
+  x humor, cobranca generica sem rotulo, ordenacao de medicamento por horario.
+- `docs/SEGURANCA.md` novo.
+
+**Item 4 - Correcao rapida de classificacao**
+- `POST /api/tasks/<id>/reclassificar` (tarefa -> gasto, apaga subtasks e avisa quantas),
+  `POST /api/expenses/<id>/reclassificar` (gasto -> tarefa), `POST /api/expenses/<id>/categoria`
+  - tudo em 1-2 toques, sem apagar e recriar.
+- Aprendizado leve: correcao vira contexto extra no prompt do `classify_capture` quando um
+  texto novo bate por token com uma correcao anterior (`aprendizado.correcao_semelhante`, mesmo
+  espirito de `dias_atraso_por_titulo_semelhante`) - a IA continua decidindo, nunca um override
+  silencioso em Python (diferente de `apelidos_gasto`, onde o "erro" e so um nome; aqui pode ser
+  o tipo inteiro da captura).
+
+**Correcoes da revisao independente**
+- `Infinity`/`NaN`/bool passavam pela validacao de `valor` em `/api/tasks/<id>/reclassificar` e
+  viravam `expenses.amount = inf`, contaminando soma/media do mes: agora recusado (`400`), mesmo
+  padrao `math.isfinite` ja usado no resto do app.
+- Export JSON/CSV completo devolvia os campos criptografados como token Fernet cru (ilegivel,
+  contradizendo a propria `docs/BACKUP.md`): agora sai descriptografado (rota autenticada, mesmo
+  acesso que a tela ja mostra) - o backup `.db` bruto continua cifrado de proposito.
+- **`ENCRYPTION_KEY` presente mas malformada (colada errada no `.env`) derrubava o app inteiro
+  na subida** quando ja havia dado sensivel gravado (a migracao chamava `criptografar()` num
+  loop sem tratamento). Corrigido: `criptografia._fernet()` nunca levanta mais, degrada pro
+  mesmo caminho de "sem chave" com um aviso especifico; `configurada()` passou a exigir chave
+  presente E valida, pra uma chave invalida nunca marcar a migracao como "ja feita" por engano.
+- Achado do proprio processo (nao do codigo): o isolamento por worktree do ambiente so cobre o
+  repositorio principal da sessao, nao um repo irmao como este - 3 dos 4 agentes em paralelo
+  compartilharam o mesmo checkout sem isolamento de verdade (o 4o percebeu e criou o proprio
+  `git worktree`). Nenhum dado se perdeu, mas a integracao precisou de um merge git real.
+  Registrado no `TODO.md` pra a proxima sessao saber disso.
+
 ## 2026-09-23 (24) - Correcoes da revisao independente da Fase 3
 
 Segundo agente revisor (so leitura) atacou o commit da Fase 3 com scripts. Tudo corrigido, com

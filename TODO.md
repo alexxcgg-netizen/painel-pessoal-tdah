@@ -78,6 +78,14 @@ Opcionais (ja existiam):
 - `GOOGLE_MAPS_API_KEY` + `ENDERECO_CASA` - "que horas sair" com transito.
 - `PLUGGY_CLIENT_ID`/`SECRET`, `CONSTRUTORA_API_URL`/`KEY`, `UBER_CLIENT_ID`/`SECRET`.
 
+Novas da Fase 4 (opcionais - sem elas o app funciona normal, so sem essas camadas extras):
+- `ENCRYPTION_KEY` - liga a criptografia em repouso de dado do Open Finance e de saude.
+  Gere com `python scripts/gerar_chave_criptografia.py` e cole no `.env`. **Guarde uma
+  copia fora do servidor** (gerenciador de senhas) - perder essa chave torna o dado
+  cifrado irrecuperavel. Ver `docs/SEGURANCA.md`.
+- `BACKUP_DIR` - so se quiser o backup automatico semanal num lugar diferente de
+  `data/backups/` (o padrao ja funciona sem configurar nada). Ver `docs/BACKUP.md`.
+
 ## Decisoes (tomadas sem perguntar, pela regra 3)
 - Base: continua no painel-pessoal-tdah, pula o que ja existe.
 - Calendario/Contatos da Apple (CalDAV/CardDAV): fora, a pedido do Alex.
@@ -94,3 +102,46 @@ Opcionais (ja existiam):
 - Salvar link: o servidor so busca endereco publico; se nao ler/resumir, guarda o link mesmo assim.
 - Uso de apps: sessao sem "fechou" ou > 3h e descartada (subestimar e melhor que inventar).
 - Progresso/revisao mensal: so numeros e fatos, sem nota nem comparacao com "ideal".
+
+## Fase 4 - Resiliencia, Backup e Seguranca (leva adicional, pos-BRIEFING.md)
+- [x] Item 1: Backup e exportacao completa (JSON + CSV/.zip, botao manual, backup
+  automatico semanal com rotacao + envio opcional pro Telegram, `docs/BACKUP.md`)
+- [x] Item 2: Resiliencia offline (fila em IndexedDB pra `/api/capture`/`/api/checkin`,
+  idempotencia por `client_id` no servidor, indicador visual, sync automatico)
+- [x] Item 3: Criptografia em repouso pra dado do Open Finance (`bank_accounts`/
+  `bank_transactions`) e de saude (`saude_dados`/`medidas_corporais`/`medicamentos`),
+  `docs/SEGURANCA.md`
+- [x] Item 4: Correcao rapida de classificacao errada (reclassificar tarefa<->gasto,
+  corrigir categoria em 2 toques) + aprendizado leve (contexto no prompt a partir de
+  correcoes parecidas anteriores)
+- [x] Integracao dos 4 itens (feitos em paralelo, 3 deles sem isolamento de verdade
+  - ver "Decisoes" abaixo) + merge real do 4o via git + suite completa
+- [x] Revisao independente (2 agentes, codigo/integracao e seguranca) + correcao dos
+  achados reais
+
+### Decisoes da Fase 4
+- **Isolamento dos agentes em paralelo nao funcionou como esperado**: o parametro de
+  worktree isolado so cobre o repositorio principal da sessao (`financeiro-construtora`),
+  nao o `painel-pessoal-tdah` (diretorio irmao onde o trabalho de verdade acontece). Os
+  itens 1, 2 e 3 acabaram editando o MESMO checkout ao mesmo tempo, sem isolamento real -
+  o item 4 percebeu o risco sozinho e criou seu proprio `git worktree`. Resultado: nenhum
+  dado se perdeu (a suite ficou verde em cada etapa), mas a integracao final precisou de
+  um merge git de verdade (2 conflitos resolvidos a mao em `app.py`/`tests/test_app.py`)
+  em vez de ser so "colar os 4 diffs". Registrado aqui pra uma proxima sessao saber que
+  precisa isolar manualmente (`git worktree add` dentro do proprio painel-pessoal-tdah)
+  se for repetir o padrao de agentes em paralelo.
+- Backup automatico: local sempre (`BACKUP_DIR`, ultimos 8) + Telegram se ja configurado
+  (canal que ja existe, sem pedir credencial nova).
+- Fila offline: so no JS da pagina (nao no Service Worker) - Background Sync API nao
+  existe no Safari/iOS, que e o aparelho principal do Alex.
+- Criptografia: campo a campo com Fernet (`cryptography`), chave em `ENCRYPTION_KEY`
+  (opcional - sem ela o app funciona normal, so sem essa camada extra). Escopo restrito
+  ao que o pedido especificou (Open Finance + saude), nao o banco inteiro.
+- Export JSON/CSV completo sai **descriptografado** (rota autenticada, mesmo nivel de
+  acesso que a tela ja mostra) - so o backup `.db` bruto fica cifrado de proposito (e o
+  formato pensado pra restaurar sem passar pela aplicacao). Decisao ajustada depois de um
+  achado da revisao independente (o export saia ilegivel, contradizendo a propria
+  documentacao).
+- Aprendizado da correcao: contexto extra no prompt do Claude (nao um override
+  deterministico em Python) - o "erro" pode ser o tipo inteiro da captura (tarefa vs
+  gasto), entao a decisao final continua sendo da IA olhando o texto atual.

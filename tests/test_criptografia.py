@@ -21,6 +21,18 @@ import criptografia
 import db
 import notificacoes
 
+# ATENCAO: db.DB_PATH tem que ser desviado do banco de verdade (data/painel.db)
+# ANTES de importar app.py - o modulo chama init_db() direto na importacao
+# (app.py:198), no caminho que db.DB_PATH apontar naquele instante. Sem isso,
+# so importar este arquivo de teste ja migraria/mexeria no banco real (foi
+# exatamente esse erro que uma revisao independente cometeu num script solto
+# fora da suite - aqui na suite de verdade fica protegido). Mesmo padrao que
+# tests/test_app.py ja usa.
+_tmp_dir_import = tempfile.TemporaryDirectory()
+db.DB_PATH = Path(_tmp_dir_import.name) / "painel.db"
+
+import app  # noqa: E402  (precisa vir depois do desvio de db.DB_PATH acima)
+
 CHAVE_TESTE = Fernet.generate_key().decode()
 OUTRA_CHAVE = Fernet.generate_key().decode()
 
@@ -36,7 +48,8 @@ class _BancoIsoladoTestCase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self._caminho_original = db.DB_PATH
         db.DB_PATH = Path(self._tmp.name) / "painel.db"
-        criptografia._aviso_ja_logado = False
+        criptografia._aviso_sem_chave_ja_logado = False
+        criptografia._aviso_chave_invalida_ja_logado = False
 
     def tearDown(self):
         db.DB_PATH = self._caminho_original
@@ -53,6 +66,17 @@ class CriptografiaModuloTestCase(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("ENCRYPTION_KEY", None)
             self.assertFalse(criptografia.configurada())
+
+    def test_chave_malformada_nunca_levanta_e_nao_conta_como_configurada(self):
+        # achado de revisao independente: Fernet(chave.encode()) levantava
+        # ValueError direto pra quem chamasse _fernet()/criptografar() -
+        # sem try/except em volta (ex: dentro do loop de migracao em db.py),
+        # isso derrubava o app inteiro. Agora degrada pra "sem criptografia".
+        for chave_ruim in ("nao-e-base64-valido!!!", "curta-demais", "a" * 100):
+            with patch.dict(os.environ, {"ENCRYPTION_KEY": chave_ruim}):
+                self.assertFalse(criptografia.configurada(), msg=repr(chave_ruim))
+                self.assertEqual(criptografia.criptografar("saldo 1000"), "saldo 1000", msg=repr(chave_ruim))
+                self.assertEqual(criptografia.descriptografar("saldo 1000"), "saldo 1000", msg=repr(chave_ruim))
 
     def test_roundtrip_texto(self):
         with patch.dict(os.environ, {"ENCRYPTION_KEY": CHAVE_TESTE}):
@@ -305,6 +329,60 @@ class MigracaoTestCase(_BancoIsoladoTestCase):
         self.assertEqual(bruto["saldo"], 500.0)
         conn.close()
 
+    def test_chave_malformada_nao_derruba_a_subida_com_dado_sensivel(self):
+        # achado de revisao independente: com dado sensivel ja gravado em
+        # texto plano, uma ENCRYPTION_KEY presente mas invalida (colada
+        # errada no .env) derrubava o app inteiro na subida - a migracao
+        # chamava criptografar() dentro de um loop sem try/except em volta,
+        # e Fernet(chave.encode()) levantava ValueError direto de init_db().
+        db.init_db()
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "Caixa")
+        db.atualizar_saldo_conta(conn, conta_id, 500.0)
+        db.upsert_saude_dia(conn, date.today().isoformat(), {"passos": 5000})
+        conn.close()
+
+        for chave_ruim in ("chave-obviamente-invalida", "curta-demais", ""):
+            with patch.dict(os.environ, {"ENCRYPTION_KEY": chave_ruim}):
+                if not chave_ruim:
+                    os.environ.pop("ENCRYPTION_KEY", None)
+                try:
+                    db.init_db()  # nao pode levantar
+                except Exception as e:  # pragma: no cover - o teste falha e mostra o motivo
+                    self.fail(f"init_db() nao deveria propagar excecao com chave invalida: {e}")
+
+        conn = db.get_db()
+        # migracao nao rodou (chave nunca ficou "valida") - dado continua
+        # exatamente como estava, legivel, nada virou lixo cifrado com chave
+        # que nao existe de verdade
+        self.assertIsNone(db.obter_configuracao(conn, "criptografia_migrada"))
+        bruto = conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (conta_id,)).fetchone()
+        self.assertEqual(bruto["saldo"], 500.0)
+        conn.close()
+
+    def test_migra_de_verdade_depois_de_corrigir_chave_invalida_pra_valida(self):
+        # a chave invalida nao pode ter marcado "ja migrei" por engano -
+        # senao, quando o Alex corrigir o .env com a chave certa, a migracao
+        # de verdade nunca rodaria e o dado ficaria em texto plano pra sempre
+        db.init_db()
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "Caixa")
+        db.atualizar_saldo_conta(conn, conta_id, 500.0)
+        conn.close()
+
+        with patch.dict(os.environ, {"ENCRYPTION_KEY": "chave-invalida"}):
+            db.init_db()
+
+        with patch.dict(os.environ, {"ENCRYPTION_KEY": CHAVE_TESTE}):
+            db.init_db()
+            conn = db.get_db()
+            self.assertEqual(db.obter_configuracao(conn, "criptografia_migrada"), "1")
+            bruto = conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (conta_id,)).fetchone()
+            self.assertNotEqual(bruto["saldo"], 500.0)
+            conta = db.buscar_conta_por_nome(conn, "Caixa")
+            self.assertEqual(conta["saldo"], 500.0)
+            conn.close()
+
 
 # ---- Comportamento sem ENCRYPTION_KEY configurada --------------------------
 
@@ -411,6 +489,55 @@ class FeaturesExistentesComCriptografiaTestCase(_BancoIsoladoTestCase):
             self.assertEqual(avisos[0][0], "apple.com/bill")
             self.assertAlmostEqual(avisos[0][1], 14.9)
             conn.close()
+
+    def test_export_completo_sai_legivel_com_criptografia_ativa(self):
+        # achado de revisao independente: o export JSON/CSV completo
+        # (docs/BACKUP.md promete "legivel"/"pra abrir em planilha") fazia
+        # SELECT * cru via introspeccao de schema, sem descriptografar - com
+        # a chave ligada, saldo/sono/etc saiam como token Fernet ilegivel.
+        # O backup .db bruto (sqlite3.backup) continua cifrado de proposito
+        # (esse SIM e o formato pensado pra restaurar sem passar pela app) -
+        # esse teste e so do export JSON/CSV completo.
+        with patch.dict(os.environ, {"ENCRYPTION_KEY": CHAVE_TESTE}):
+            db.init_db()
+            conn = db.get_db()
+            conta_id = db.get_or_create_bank_account(conn, "Nubank")
+            db.atualizar_saldo_conta(conn, conta_id, 1234.5)
+            db.insert_bank_transactions(
+                conn, conta_id, [{"data": "2026-09-01", "descricao": "Mercado", "valor": -50.0, "external_id": "e1"}]
+            )
+            db.upsert_saude_dia(conn, "2026-09-01", {"passos": 8000, "sono_horas": 7.5})
+
+            tabelas = app._exportar_tabelas_dict(conn)
+
+            conta_exportada = next(t for t in tabelas["bank_accounts"] if t["id"] == conta_id)
+            self.assertEqual(conta_exportada["saldo"], 1234.5)
+            transacao_exportada = tabelas["bank_transactions"][0]
+            self.assertEqual(transacao_exportada["descricao"], "Mercado")
+            self.assertEqual(transacao_exportada["valor"], -50.0)
+            saude_exportada = next(s for s in tabelas["saude_dados"] if s["data"] == "2026-09-01")
+            self.assertEqual(saude_exportada["passos"], 8000)
+            self.assertEqual(saude_exportada["sono_horas"], 7.5)
+
+            # confirma que ESTAVA cifrado no banco (senao o teste nao provaria
+            # nada - o export teria que descriptografar de fato, nao so ler
+            # um valor que ja estava em texto plano por acidente)
+            bruto = conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (conta_id,)).fetchone()
+            self.assertNotEqual(bruto["saldo"], 1234.5)
+            conn.close()
+
+    def test_export_completo_fica_cifrado_sem_chave(self):
+        # sem ENCRYPTION_KEY, nao ha chave nenhuma pra descriptografar -
+        # exporta exatamente o que esta gravado (que ja e o proprio dado
+        # legivel, ja que sem chave o banco fica em texto plano mesmo)
+        db.init_db()
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "Nubank")
+        db.atualizar_saldo_conta(conn, conta_id, 700.0)
+        tabelas = app._exportar_tabelas_dict(conn)
+        conta_exportada = next(t for t in tabelas["bank_accounts"] if t["id"] == conta_id)
+        self.assertEqual(conta_exportada["saldo"], 700.0)
+        conn.close()
 
 
 if __name__ == "__main__":

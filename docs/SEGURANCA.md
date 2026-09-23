@@ -125,6 +125,22 @@ Ou seja: a ausência da chave nunca falha silenciosamente sem indicar isso
 em algum lugar visível (log + rota de diagnóstico + UI), mas também nunca
 impede o app de subir e funcionar.
 
+### E se `ENCRYPTION_KEY` estiver presente mas malformada (colada errada)?
+
+Mesmo comportamento de "sem chave" - achado numa revisão independente e
+corrigido: antes, uma `ENCRYPTION_KEY` presente mas inválida (chave curta
+demais, caractere faltando/sobrando ao colar no `.env`) fazia
+`Fernet(chave.encode())` levantar `ValueError` sem tratamento em volta, e
+como a migração de dado existente (próxima seção) chama isso dentro de um
+loop na subida do app, o processo inteiro crashava sempre que já houvesse
+algum dado sensível gravado - justo o cenário mais provável de erro
+humano. `criptografia._fernet()` agora nunca levanta: uma chave malformada
+loga um aviso específico ("ENCRYPTION_KEY configurada mas INVALIDA...") e
+degrada pro mesmo caminho de "sem chave" (`configurada()` também passou a
+refletir isso - só é `True` com uma chave presente E válida). Assim que
+você corrigir a chave no `.env` e reiniciar, a migração roda normalmente
+(uma chave inválida nunca marca `criptografia_migrada` como feito).
+
 ## Migração de dado pré-existente
 
 Na primeira subida do app **depois** que `ENCRYPTION_KEY` é configurada, uma
@@ -178,6 +194,18 @@ O backup do `.db` bruto (ver `docs/BACKUP.md`) contém os campos já
 criptografados - isso é o comportamento esperado e correto: só quem tem a
 `ENCRYPTION_KEY` consegue ler o backup também. Um backup vazado sozinho,
 sem a chave, expõe saldo/extrato/saúde só como texto cifrado ilegível.
+
+Já os exports **JSON completo** e **CSV completo** (`/api/backup/exportar-json`,
+`/api/backup/exportar-csv-completo`, ver `docs/BACKUP.md`) saem
+**descriptografados** - achado e corrigido numa revisão independente (antes
+saíam com o token Fernet cru, contradizendo a própria promessa de serem
+"legíveis"/"pra abrir em planilha", tornando esses dois formatos inúteis
+pra esse fim com a criptografia ligada). São rotas autenticadas (exigem
+sessão logada, o mesmo acesso que já mostra esse dado descriptografado nas
+telas de Bancos/Saúde), então isso não abre uma exposição nova - mas
+significa que esses dois arquivos, diferente do `.db` bruto, carregam o
+dado sensível em texto plano; trate-os com o mesmo cuidado que a tela do
+painel aberta.
 
 ## Se você perder a `ENCRYPTION_KEY`
 

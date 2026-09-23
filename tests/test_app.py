@@ -5714,6 +5714,16 @@ class ReclassificacaoECorrecaoTestCase(unittest.TestCase):
         self.assertEqual(len(self.client.get("/api/tasks").get_json()), 1)
         self.assertEqual(len(self.client.get("/api/expenses").get_json()), 0)
 
+    def test_reclassificar_tarefa_valor_infinito_ou_bool_da_erro(self):
+        # achado da revisao independente: Infinity/NaN e bool passavam pela
+        # checagem antiga (isinstance(valor, (int, float)) e bool e subclasse
+        # de int) e viravam expenses.amount = inf, contaminando qualquer soma.
+        for valor in (float("inf"), float("-inf"), float("nan"), True, False):
+            tarefa = self._criar_tarefa()
+            res = self.client.post(f"/api/tasks/{tarefa['id']}/reclassificar", json={"valor": valor})
+            self.assertEqual(res.status_code, 400, msg=repr(valor))
+            self.assertEqual(len(self.client.get("/api/expenses").get_json()), 0, msg=repr(valor))
+
     def test_reclassificar_tarefa_inexistente_404(self):
         res = self.client.post("/api/tasks/9999/reclassificar", json={"valor": 10})
         self.assertEqual(res.status_code, 404)

@@ -1172,6 +1172,30 @@ def _descriptografar_medida(d: dict) -> dict:
     return d
 
 
+_DESCRIPTOGRAFADORES_POR_TABELA = {
+    "bank_accounts": _descriptografar_conta,
+    "bank_transactions": _descriptografar_transacao,
+    "saude_dados": _descriptografar_saude,
+    "medidas_corporais": _descriptografar_medida,
+    "medicamentos": _descriptografar_medicamento,
+}
+
+
+def descriptografar_linhas_export(nome_tabela: str, linhas: list[dict]) -> list[dict]:
+    """Usado pelo export completo (JSON/CSV, ver app.py) pra devolver as
+    tabelas do escopo de criptografia (docs/SEGURANCA.md) legiveis, em vez do
+    token cifrado cru - achado de revisao: sem isso, o export prometido como
+    "legivel/pra planilha" saia com saldo/sono/etc ilegivel. E o MESMO nivel
+    de acesso que a tela ja mostra descriptografado pra quem esta logado
+    (rota atras de sessao), nao um vazamento novo - o backup .db bruto
+    (sqlite3.backup) continua cifrado de proposito, documentado em
+    docs/SEGURANCA.md. Tabela fora do escopo volta sem alteracao."""
+    descriptografador = _DESCRIPTOGRAFADORES_POR_TABELA.get(nome_tabela)
+    if not descriptografador:
+        return linhas
+    return [descriptografador(linha) for linha in linhas]
+
+
 def list_medidas_corporais(conn, tipo: str | None = None, limite: int = 50) -> list[dict]:
     if tipo:
         rows = conn.execute(
