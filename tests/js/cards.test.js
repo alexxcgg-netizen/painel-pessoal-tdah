@@ -391,6 +391,45 @@ test("projeto_viagem: checklist, barra com HOJE, '25% · 2/8 tarefas · 22 dez',
   assert.match(html, /Abrir Projetos/);
 });
 
+test("projeto_viagem: linha do tempo de planejamento (US-F11) so aparece quando o backend manda marcos_planejamento", () => {
+  const semMarcos = Cards.renderizarCardHTML({
+    type: "projeto_viagem",
+    data: { titulo: "Projeto generico", origem: "projeto", etapas: [], status: "no_rumo" },
+  });
+  assert.doesNotMatch(semMarcos, /card-marcos-planejamento/);
+
+  const comMarcos = Cards.renderizarCardHTML(
+    {
+      type: "projeto_viagem",
+      data: {
+        titulo: "Viagem pra Lisboa",
+        origem: "viagem",
+        etapas: [],
+        status: "no_rumo",
+        marcos_planejamento: [
+          { chave: "passagem", titulo: "Melhor janela pra comprar a passagem", data: "2026-08-27", dias_antes: 120 },
+          { chave: "documento", titulo: "Conferir visto/passaporte valido", data: "2026-09-26", dias_antes: 90 },
+          { chave: "checkin", titulo: "Check-in online libera", data: "2026-12-23", dias_antes: 2 },
+        ],
+        aviso_regra_pratica: "Regra pratica generica - nao e preco em tempo real.",
+      },
+      actions: [],
+    },
+    { agora: new Date(2026, 8, 23, 12, 0) }
+  );
+  assert.match(comMarcos, /card-marcos-planejamento/);
+  assert.match(comMarcos, /Regra pratica generica - nao e preco em tempo real\./);
+  assert.match(comMarcos, /Melhor janela pra comprar a passagem/);
+  assert.match(comMarcos, /class="item hoje-marcador"[^>]*><span class="item-titulo">HOJE<\/span>/);
+  // 2026-09-23: passagem (27 ago) e documento (26 set) ja passaram, checkin (23 dez) nao
+  const idxPassagem = comMarcos.indexOf("Melhor janela");
+  const idxHoje = comMarcos.indexOf("HOJE");
+  const idxCheckin = comMarcos.indexOf("Check-in online libera");
+  assert.ok(idxPassagem < idxHoje && idxHoje < idxCheckin, "HOJE deve ficar entre os marcos passados e os futuros");
+  assert.match(comMarcos, /class="item passado">.*Melhor janela/s);
+  assert.match(comMarcos, /class="item proximo">.*Check-in online libera/s);
+});
+
 test("progressoProjeto usa os campos prontos do backend quando vierem", () => {
   const p = Cards.progressoProjeto({ etapas: [], percentual: 40, feitas: 4, total: 10, hoje_fracao: 0.5 });
   assert.deepEqual(p, { pct: 40, feitas: 4, total: 10, hoje: 0.5 });

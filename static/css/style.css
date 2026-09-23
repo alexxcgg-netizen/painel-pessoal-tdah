@@ -1952,6 +1952,149 @@ li.item.saindo {
   box-shadow: 0 0 6px 0 color-mix(in srgb, var(--danger) 50%, transparent);
 }
 
+/* US-F11 (Fase 6 F3): linha do tempo de planejamento de viagem, dentro do
+   card projeto_viagem - versao "mini" da mesma .linha-do-tempo (agenda/visao
+   do dia), so com espacamento menor pra caber dentro do card. */
+.linha-do-tempo.mini {
+  padding-left: 1.1rem;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.linha-do-tempo.mini li.item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.linha-do-tempo.mini li.item::before {
+  top: 0.35rem;
+  width: 8px;
+  height: 8px;
+}
+
+.linha-do-tempo.mini li.item .item-titulo {
+  color: var(--text);
+}
+
+.linha-do-tempo.mini li.item.passado .item-titulo {
+  color: var(--text-faint);
+}
+
+/* Marcador HOJE dentro da linha do tempo de planejamento - pill destacada,
+   nao e um marco de verdade (sem bolinha da trilha, so o texto). */
+.linha-do-tempo.mini li.item.hoje-marcador {
+  justify-content: flex-start;
+}
+
+.linha-do-tempo.mini li.item.hoje-marcador::before {
+  display: none;
+}
+
+.linha-do-tempo.mini li.item.hoje-marcador .item-titulo {
+  display: inline-block;
+  padding: 0.08rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--accent-text);
+  font-family: var(--font-tech);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.card-marcos-planejamento {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border);
+}
+
+.card-marcos-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.card-marcos-aviso svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 0.1rem;
+}
+
+/* US-F12: status de voo por numero (AviationStack, ver voo_status.py) */
+.viagem-voo-box {
+  margin-top: 0.5rem;
+}
+
+.viagem-voo-form {
+  margin-bottom: 0.4rem;
+}
+
+.voo-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.voo-status-linha-principal {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.voo-status-chip {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--font-tech);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.voo-status-chip.voo-status-em_voo,
+.voo-status-chip.voo-status-pousou {
+  background: color-mix(in srgb, #42bb91 22%, transparent);
+  border-color: #42bb91;
+  color: #1c8f68;
+}
+
+.voo-status-chip.voo-status-agendado {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.voo-status-chip.voo-status-cancelado,
+.voo-status-chip.voo-status-incidente,
+.voo-status-chip.voo-status-desviado {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.voo-status-aviso {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.voo-status-cache {
+  opacity: 0.7;
+}
+
 .item-badge-proximo {
   display: inline-block;
   margin-left: 0.4rem;
@@ -3841,6 +3984,25 @@ li.item.item-planejado {
 .essencial-item.feita .essencial-titulo {
   color: var(--text-faint);
   text-decoration: line-through;
+}
+
+/* Checkbox solto dentro de um form-linha (ex: "Viagem internacional",
+   US-F11) - mesmo alvo de toque/accent-color do checklist acima, mas sem
+   risco (nao e um "feito", e uma opcao). */
+.checkbox-linha {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.checkbox-linha input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
 }
 
 .checkin-linhas {

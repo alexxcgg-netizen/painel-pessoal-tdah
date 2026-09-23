@@ -1,0 +1,138 @@
+# Fase 6 - Grupo F3-extra (Viagens/Lugares/Cotacoes/Aviacao) - Progress Log
+Iniciado: 2026-09-23
+
+---
+
+## US-F11 - Viagens: linha do tempo de planejamento (regra pratica)
+
+Marcos genericos de prazo a partir da data de ida (`vida.marcos_planejamento_viagem`,
+pura funcao de calendario - nunca IA, nunca rede). Viagem ganhou coluna
+`internacional` (checkbox no form de nova viagem) porque a regra muda de
+acordo: nacional tem 3 marcos, internacional 5 (mais documento/visto e
+seguro viagem).
+
+Fonte/raciocinio dos numeros (pesquisado via WebSearch em 2026-09-23,
+mercado brasileiro de viagem - nomadglobal.com/melhoresdestinos.com.br):
+- Nacional: janela usual de compra e 21-45 dias antes (uso 45, a ponta mais
+  segura); hospedagem 21 dias antes; check-in online 1 dia antes.
+- Internacional: janela usual de compra e 3-6 meses antes (uso 120 dias,
+  ~4 meses, meio do intervalo); documento/visto 90 dias antes (processos de
+  visto/passaporte costumam levar semanas-meses); seguro viagem 30 dias
+  antes; hospedagem 45 dias antes; check-in online 2 dias antes (varias
+  companhias liberam 24-48h antes em voo internacional).
+- Em alta temporada (Natal/Ano Novo/Carnaval) a janela recomendada sobe pra
+  60-90 dias mesmo em voo nacional - o app NAO sabe se e alta temporada
+  (nao tem calendario de feriado embutido), entao fica com o numero
+  generico o ano inteiro. Marcado explicitamente como decisao.
+
+Historia US-F11 — decisao: os numeros sao REGRA PRATICA, nunca preco em
+tempo real - texto `vida.AVISO_REGRA_PRATICA` aparece sempre junto da linha
+do tempo na tela ("Regra pratica generica (antecedencia usual de mercado) -
+nao e preco em tempo real nem consulta a nenhuma companhia aerea."), tanto
+no card do chat quanto na tela de Viagens. / Motivo: pedido explicito do
+Alex no prd ("Deixe claro na tela e no progress que e REGRA PRATICA, nao
+preco em tempo real"). / Nao confirmado: se o Alex quer ajustar os numeros
+depois de usar de verdade (ex: achar 45 dias curto pra nacional) - facil de
+mudar, sao so as constantes MARCOS_NACIONAL/MARCOS_INTERNACIONAL em
+vida.py.
+
+Visual: reaproveita o card `projeto_viagem` (US-E13, ja usado pelo chat) -
+`GET /api/viagens/<id>/timeline-card` devolve o MESMO card que `cards.card_viagem`
+monta pro chat (sem duplicar calculo), so com `actions: []` (a tela ja esta
+na aba Viagens - um botao "abrir aba Viagens" ali seria um link circular).
+A linha do tempo em si reusa a classe `.linha-do-tempo` que ja existe pra
+agenda/visao do dia (Fase 6 E5) - versao "mini" (`.linha-do-tempo.mini`)
+soltando o CSS caber dentro do card, MESMA marcacao visual (bolinha
+apagada = passado, bolinha acesa = proximo). Marcador HOJE fica dentro da
+propria linha do tempo (pill "HOJE" inserida na posicao cronologica certa
+entre os marcos, alem do marcador HOJE que a barra de progresso do card ja
+tinha antes) - acceptance criteria pede o marcador NA linha, nao so na
+barra.
+
+Verificacao headless: duas viagens semeadas (nacional e internacional),
+tela Vida > Viagens, screenshot antes/depois - as duas linhas do tempo
+renderizam com os marcos certos (3 pra nacional, 5 pra internacional),
+classes passado/proximo corretas pra 2026-09-23 (data real do dia), sem
+erro de console. Screenshots em /tmp/fase6-f3/depois_viagens*.png
+(nao versionados).
+
+
+## US-F12 - Viagens: status do voo por numero (API de voo)
+
+### API de voo (Fase 6 F3) - comparacao completa
+
+Pesquisado via WebSearch em 2026-09-23 (situacao "hoje", nao a do
+treinamento do modelo - free tier muda com frequencia):
+
+1. **AviationStack** (https://aviationstack.com) - ESCOLHIDA.
+   - Cadastro gratuito SO com email, sem cartao de credito.
+   - 100 requisicoes gratis/mes (~3.3/dia).
+   - LIMITACAO REAL: o plano gratuito so aceita HTTP (nao HTTPS) - a
+     API rejeita a chamada em https:// sem plano pago. A chave viaja sem
+     criptografia nessa chamada especifica. Documentado no .env.example
+     e no docstring de `voo_status.py` pro Alex decidir informado.
+   - Motivo da escolha: e a UNICA das 4 pesquisadas que nao pede cartao de
+     credito pra ativar o plano gratuito - trava explicita do briefing
+     ("Voce NAO consegue criar conta por ele"): cartao e decisao financeira
+     que so o Alex toma, entao qualquer API que exija cartao mesmo no
+     "gratis" fica fora ate ele mesmo cadastrar.
+
+2. **AeroDataBox** (via RapidAPI) - descartada por exigir cartao.
+   - Limite bem maior no gratuito (600 unidades/mes, ~2400 requisicoes/mes,
+     1000/hora) e HTTPS de verdade - tecnicamente superior.
+   - RapidAPI PEDE cartao de credito mesmo pro plano Basic ($0/mes), como
+     garantia contra excesso de uso. Mesma trava do item acima.
+   - Se o Alex mesmo cadastrar o cartao um dia, essa e a melhor opcao pra
+     trocar (limite maior, HTTPS) - so trocar a URL/parsing em
+     `voo_status.py`, o cache e o contrato de dado (`status_voo`) nao
+     mudam.
+
+3. **FlightAware AeroAPI** (plano Personal) - descartada, sem card, so
+   parcialmente confirmado.
+   - Ate $5 gratis/mes, sem minimo mensal, 10 result sets/minuto.
+   - NAO CONFIRMADO: se o cadastro do plano Personal exige forma de
+     pagamento cadastrada mesmo dentro da faixa gratis de $5 (nao achei
+     uma fonte clara que dissesse "sem cartao" como a AviationStack disse
+     explicitamente) - por seguranca, tratada como "provavelmente pede
+     cartao" e descartada junto com o item 2.
+
+4. **Amadeus Self-Service** - MORTA, nem entra na comparacao.
+   - O ambiente de teste gratuito (Self-Service, era a opcao mais
+     conhecida ha alguns anos) foi DESCONTINUADO em 2026-07-17 junto com
+     todo o portal self-service - confirmado por WebSearch, nao ha mais
+     free tier pra desenvolvedor independente. So sobrou o Enterprise
+     (contrato comercial, cartao/boleto, fora de escopo).
+
+Variavel de ambiente: `AVIATIONSTACK_API_KEY` (ver `.env.example` e
+`TODO.md`, secao "API de voo (Fase 6)"). Sem ela, `voo_status.configurado()`
+volta False e `GET /api/viagens/<id>/voo-status` devolve so
+`{"configurado": false}` sem tentar rede - a tela mostra "status em tempo
+real: configurar chave" (numero do voo continua editavel a mao,
+independente da chave).
+
+Cache: `voo_status_cache` (numero_voo, data) unique, TTL de 3h
+(`voo_status.CACHE_TTL`) - 100 req/mes / 30 dias ~= 3.3/dia, 3h de cache
+deixa consultar de novo algumas vezes ao longo do dia (manha + perto do
+horario do voo) sem estourar o limite mensal. Erro de rede com cache velho
+disponivel cai pro cache velho (com aviso "(rede falhou agora)") em vez de
+some a informacao da tela.
+
+Historia US-F12 — decisao: SEM chamar a API de verdade em nenhum teste -
+`tests/test_fase6_f3_viagens.py` mocka `voo_status.requests.get` sempre
+(FakeResp). / Motivo: regra explicita do prd + AGENTS.md (nunca API
+externa real em teste) - alem disso a chave nem existe no ambiente de
+teste (CI/agente nao tem AVIATIONSTACK_API_KEY). / Nao confirmado:
+comportamento real da API com um numero de voo/data que ela nao conhece
+(ex: voo cancelado ha muito tempo, ICAO/IATA errado) - o parsing de
+`_mapear_resposta` foi escrito contra a doc publica da AviationStack
+(formato `data: [{flight_status, departure: {gate, terminal, delay,
+scheduled, actual}}]`), nao contra uma resposta real (nenhuma chave
+disponivel pra chamar de verdade agora). Quando o Alex configurar a chave e
+testar com um voo real, se o formato divergir da doc, so ajustar
+`_mapear_resposta` (unico lugar que le o JSON bruto).
+
+Verificacao headless: caixa de numero do voo aparece em cada item de
+Viagens (screenshot em /tmp/fase6-f3/depois_viagens.png), sem chave
+configurada no ambiente de teste - sem numero de voo cadastrado ainda,
+entao nao tenta status (checado tambem via teste HTTP
+`test_sem_numero_voo_cadastrado`/`test_definir_numero_voo_e_consultar_status_sem_chave`).

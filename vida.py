@@ -810,6 +810,20 @@ def viagem_como_projeto_detalhada(viagem: dict, itens: list[dict], hoje: date) -
     return {**projeto, **calculo}
 
 
+def _marcos_planejamento_para_viagem(viagem: dict) -> list[dict] | None:
+    """None quando a data de ida nao e uma data valida (nunca deveria
+    acontecer vindo do banco, mas uma viagem convertida a mao em teste pode
+    nao ter - melhor sumir com a linha do tempo do que quebrar o card)."""
+    data_ida = viagem.get("data_ida")
+    if not data_ida:
+        return None
+    try:
+        ida = date.fromisoformat(str(data_ida)[:10])
+    except ValueError:
+        return None
+    return marcos_planejamento_viagem(ida, bool(viagem.get("internacional")))
+
+
 def converter_viagem_para_projeto(viagem: dict, itens: list[dict]) -> dict:
     """Converte uma viagem (viagens + viagem_itens) pro MESMO formato de
     dado de um projeto - decisao do Alex: Viagens NAO migram pra tabela
@@ -838,7 +852,65 @@ def converter_viagem_para_projeto(viagem: dict, itens: list[dict]) -> dict:
         "atualizado_em": viagem.get("criado_em"),
         "etapas": etapas,
         "origem": "viagem",
+        # US-F11: linha do tempo de planejamento (regra pratica, ver aviso) -
+        # None quando data_ida vier invalida (nunca deveria, mas nao quebra o card).
+        "marcos_planejamento": _marcos_planejamento_para_viagem(viagem),
+        "aviso_regra_pratica": AVISO_REGRA_PRATICA,
     }
+
+
+# ---- Fase 6 F3 (US-F11): linha do tempo de planejamento (regra pratica) ----
+# ATENCAO: isso e REGRA PRATICA generica de mercado, NUNCA preco em tempo
+# real nem consulta a nenhuma companhia aerea - o app nao tem (e nao pediu)
+# nenhuma API de preco de passagem. Antecedencias baseadas em reportagens de
+# consenso do mercado brasileiro de viagem (nomadglobal.com/melhoresdestinos.com.br,
+# pesquisado em 2026-09-23 - ver tasks/fase6/progress-f3.txt pra fonte
+# completa e o raciocinio de cada numero):
+#   - Nacional: melhor janela de compra costuma ser 21-45 dias antes (usamos
+#     45, a ponta mais segura da janela); em alta temporada sobe pra 60-90
+#     dias, mas o app nao sabe se e alta temporada sem calendario de feriado,
+#     entao fica com o numero generico.
+#   - Internacional: janela usual e 3-6 meses antes; usamos 120 dias (~4
+#     meses, meio do intervalo) pra passagem, e datas menores pros passos que
+#     dependem dela (visto/documento, seguro, hospedagem).
+# Cada marco carrega "dias_antes" e uma nota curta do raciocinio, pra ficar
+# visivel na tela que e estimativa, nao fato.
+MARCOS_NACIONAL = [
+    {"chave": "passagem", "titulo": "Melhor janela pra comprar a passagem", "dias_antes": 45},
+    {"chave": "hospedagem", "titulo": "Reservar hospedagem", "dias_antes": 21},
+    {"chave": "checkin", "titulo": "Check-in online libera", "dias_antes": 1},
+]
+MARCOS_INTERNACIONAL = [
+    {"chave": "passagem", "titulo": "Melhor janela pra comprar a passagem", "dias_antes": 120},
+    {"chave": "documento", "titulo": "Conferir visto/passaporte valido", "dias_antes": 90},
+    {"chave": "seguro", "titulo": "Contratar seguro viagem", "dias_antes": 30},
+    {"chave": "hospedagem", "titulo": "Reservar hospedagem", "dias_antes": 45},
+    {"chave": "checkin", "titulo": "Check-in online libera", "dias_antes": 2},
+]
+
+AVISO_REGRA_PRATICA = (
+    "Regra pratica generica (antecedencia usual de mercado) - nao e preco em "
+    "tempo real nem consulta a nenhuma companhia aerea."
+)
+
+
+def marcos_planejamento_viagem(data_ida: date, internacional: bool) -> list[dict]:
+    """Marcos genericos de prazo pra linha do tempo de planejamento (US-F11) -
+    pura conta de calendario a partir da data de ida, nunca IA nem rede. Cada
+    marco no passado (data < data_ida) so e informativo mesmo depois de
+    passar - quem decide se "fez ou nao fez" e o Alex olhando a tela, o app
+    nao tem como saber (nao e um checklist com feito/nao-feito de verdade,
+    e uma regra de bolso)."""
+    modelo = MARCOS_INTERNACIONAL if internacional else MARCOS_NACIONAL
+    return [
+        {
+            "chave": m["chave"],
+            "titulo": m["titulo"],
+            "data": (data_ida - timedelta(days=m["dias_antes"])).isoformat(),
+            "dias_antes": m["dias_antes"],
+        }
+        for m in modelo
+    ]
 
 
 # ---- Fase 6, US-E15: limite do cartao (campo manual) -----------------------

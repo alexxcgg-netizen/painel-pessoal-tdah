@@ -478,6 +478,8 @@ def init_db():
             data_ida TEXT NOT NULL,
             data_volta TEXT,
             motivo TEXT,
+            internacional INTEGER NOT NULL DEFAULT 0,
+            numero_voo TEXT,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
@@ -494,7 +496,24 @@ def init_db():
             cidade TEXT,
             tipo TEXT,
             nota TEXT,
+            lat REAL,
+            lng REAL,
+            geocode_status TEXT,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        -- Fase 6 F3 (US-F12): cache do status de voo por API externa (ver
+        -- voo_status.py) - chave (numero_voo, data) porque o mesmo numero de
+        -- voo se repete todo dia (ex: "LA3251" voa toda tarde); nunca chama a
+        -- API de novo dentro da janela de cache, pra nao estourar o limite
+        -- gratuito mensal.
+        CREATE TABLE IF NOT EXISTS voo_status_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_voo TEXT NOT NULL,
+            data TEXT NOT NULL,
+            resposta_json TEXT NOT NULL,
+            buscado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(numero_voo, data)
         );
 
         -- Fase 6 (US-E1a): secao unica de manutencao (antes eram duas tabelas
@@ -745,6 +764,18 @@ def init_db():
     # (sua_rotina/seus_planos/fora_do_painel) - coluna nova em bancos que ja
     # tem `memorias` de antes.
     _garantir_coluna(conn, "memorias", "categoria", "TEXT")
+    # Fase 6 F3 (US-F11): nacional x internacional muda a regra pratica da
+    # linha do tempo de planejamento (vida.marcos_planejamento_viagem) -
+    # sem essa coluna nao da pra saber qual conjunto de marcos mostrar.
+    _garantir_coluna(conn, "viagens", "internacional", "INTEGER NOT NULL DEFAULT 0")
+    # Fase 6 F3 (US-F12): numero do voo comprado (preenchido pelo Alex depois
+    # da compra) - sem isso nao ha o que consultar na API de status de voo.
+    _garantir_coluna(conn, "viagens", "numero_voo", "TEXT")
+    # Fase 6 F3 (US-F13): coordenadas cacheadas do geocode Nominatim (US-F13) -
+    # nunca geocodifica o mesmo lugar duas vezes (politica de uso do Nominatim).
+    _garantir_coluna(conn, "lugares", "lat", "REAL")
+    _garantir_coluna(conn, "lugares", "lng", "REAL")
+    _garantir_coluna(conn, "lugares", "geocode_status", "TEXT")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
@@ -2683,13 +2714,28 @@ def list_treinos(conn, limite: int = 20) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def create_viagem(conn, destino: str, data_ida: str, data_volta: str | None, motivo: str | None) -> int:
+def create_viagem(
+    conn,
+    destino: str,
+    data_ida: str,
+    data_volta: str | None,
+    motivo: str | None,
+    internacional: bool = False,
+) -> int:
     cur = conn.execute(
-        "INSERT INTO viagens (destino, data_ida, data_volta, motivo) VALUES (?, ?, ?, ?)",
-        (destino, data_ida, data_volta, motivo),
+        "INSERT INTO viagens (destino, data_ida, data_volta, motivo, internacional) VALUES (?, ?, ?, ?, ?)",
+        (destino, data_ida, data_volta, motivo, int(bool(internacional))),
     )
     conn.commit()
     return cur.lastrowid
+
+
+def definir_numero_voo_viagem(conn, viagem_id: int, numero_voo: str | None) -> bool:
+    """US-F12: o Alex preenche o numero do voo depois de comprar a passagem -
+    None/"" apaga (volta pro modo so-manual)."""
+    cur = conn.execute("UPDATE viagens SET numero_voo = ? WHERE id = ?", (numero_voo or None, viagem_id))
+    conn.commit()
+    return cur.rowcount > 0
 
 
 def list_viagens_futuras(conn, hoje: str) -> list[dict]:
@@ -2742,6 +2788,46 @@ def list_lugares(conn) -> list[dict]:
 
 def delete_lugar(conn, lugar_id: int):
     conn.execute("DELETE FROM lugares WHERE id = ?", (lugar_id,))
+    conn.commit()
+
+
+def salvar_geocode_lugar(conn, lugar_id: int, lat: float | None, lng: float | None, status: str) -> None:
+    """US-F13: grava o resultado (ou a falta dele) do geocode Nominatim -
+    'status' e 'ok'/'nao_encontrado'/'erro', pra loadLugares() nao tentar
+    geocodificar de novo um lugar que ja foi consultado (politica de uso do
+    Nominatim: nunca repetir a mesma consulta)."""
+    conn.execute(
+        "UPDATE lugares SET lat = ?, lng = ?, geocode_status = ? WHERE id = ?",
+        (lat, lng, status, lugar_id),
+    )
+    conn.commit()
+
+
+def lugares_sem_geocode(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM lugares WHERE geocode_status IS NULL ORDER BY id").fetchall()
+    return [dict(r) for r in rows]
+
+
+# ---- Fase 6 F3 (US-F12): cache de status de voo ----------------------------
+
+def obter_status_voo_cache(conn, numero_voo: str, data: str) -> dict | None:
+    row = conn.execute(
+        "SELECT * FROM voo_status_cache WHERE numero_voo = ? AND data = ?", (numero_voo, data)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def salvar_status_voo_cache(conn, numero_voo: str, data: str, resposta_json: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO voo_status_cache (numero_voo, data, resposta_json, buscado_em)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(numero_voo, data) DO UPDATE SET
+            resposta_json = excluded.resposta_json,
+            buscado_em = excluded.buscado_em
+        """,
+        (numero_voo, data, resposta_json),
+    )
     conn.commit()
 
 
