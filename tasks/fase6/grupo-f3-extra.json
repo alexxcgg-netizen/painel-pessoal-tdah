@@ -14,8 +14,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Regra pratica em vida.marcos_planejamento_viagem (3 marcos nacional, 5 internacional - coluna nova viagens.internacional). Linha do tempo reaproveita .linha-do-tempo (E5) dentro do card projeto_viagem (E13) via GET /api/viagens/<id>/timeline-card (cards.card_viagem, sem duplicar calculo). Aviso 'regra pratica, nao preco em tempo real' sempre junto. Marcador HOJE na propria linha (pill), alem da barra do card. Fonte dos numeros e testes/verificacao visual em tasks/fase6/progress-f3.txt. Commit 86961f2 (junto com US-F12, decisao do Alex no prd).",
       "modelo_planejado": "sonnet"
     },
     {
@@ -31,8 +31,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "API escolhida: AviationStack (cadastro so com email, sem cartao - a unica assim entre as 4 pesquisadas; free = 100 req/mes, so HTTP nao HTTPS - limitacao documentada). AeroDataBox exige cartao mesmo no plano gratis; FlightAware Personal nao confirmado se exige; Amadeus Self-Service morreu em 2026-07-17. Comparacao completa em TODO.md ('API de voo (Fase 6)') e progress-f3.txt. voo_status.py com cache de 3h (tabela voo_status_cache) - nunca chama a API de novo dentro da janela. Variavel AVIATIONSTACK_API_KEY (.env.example); sem ela, card mostra 'status em tempo real: configurar chave'. Testes 100% mockados. Commit 86961f2 (junto com US-F11).",
       "modelo_planejado": "sonnet"
     },
     {
