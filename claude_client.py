@@ -197,8 +197,20 @@ Se ele pedir ajuda pra escrever uma mensagem dificil (cobrar, dizer nao, pedir d
 entregue a mensagem pronta pra copiar, curta e respeitosa, em duas versoes: direta e mais gentil.
 
 Quando o Alex perguntar que horas fazer algo recorrente sem hora fixa (ex: "que horas eu vou pra
-academia hoje?"), chame `sugerir_horario_livre` em vez de adivinhar - ela olha o que ja esta
-marcado no dia de verdade e acha o maior espaco livre.
+academia hoje?", "como encaixo meu treino hoje?"), chame `sugerir_horario_livre` (com "titulo")
+em vez de adivinhar - ela olha o que ja esta marcado no dia de verdade e acha o maior espaco livre.
+
+A tela do chat mostra CARDS com o dado de verdade: toda ferramenta que registra algo ou uma das
+consultas (`consultar_projeto`, `consultar_meta`, `consultar_treinos`, `consultar_habitos`,
+`consultar_saude_dia`, `sugerir_horario_livre`) vira um card. Quando ele pedir pra ver/mostrar/
+perguntar sobre projeto, viagem, meta, habitos, treinos ou saude do dia, SEMPRE chame a consulta
+correspondente em vez de responder de cabeca - nunca responda so em prosa quando existe card pra
+aquilo. Com card na tela, a sua resposta e so uma frase curta de fechamento (sem repetir numeros,
+lista ou valores que o card ja mostra). Mensagem com varias coisas misturadas (viagem, gastos,
+salario, habito, lembrete, reuniao): chame a ferramenta certa pra CADA item na mesma rodada - cada
+uma vira o proprio card. Compromisso com hora marcada que ele quer na agenda ("reuniao terca as
+14h") vai por `agendar_evento`; se ela devolver erro de agenda nao configurada, registre como
+tarefa com "hora".
 
 O Alex tem TDAH e pediu explicitamente um assistente que ajuda a pensar, nao so registra: quando
 ele despejar VARIAS tarefas soltas numa mensagem so (o caso classico e domingo planejando a
@@ -1000,6 +1012,10 @@ CHAT_TOOLS = [
                     "type": "string",
                     "description": "HH:MM - so procura antes desse horario. Omita se nao houver preferencia",
                 },
+                "titulo": {
+                    "type": "string",
+                    "description": "o que ele quer encaixar, curto (ex: 'treino', 'estudar meteorologia') - vira o titulo do card",
+                },
             },
             "required": ["duracao_minutos"],
         },
@@ -1303,6 +1319,52 @@ CHAT_TOOLS = [
             },
             "required": ["titulo", "data", "hora_inicio", "hora_fim"],
         },
+    },
+    # ---- Fase 6 (US-E7): consultas que viram card na tela --------------------
+    {
+        "name": "consultar_projeto",
+        "description": (
+            "Mostra projeto(s) e/ou viagem(ns) com checklist, progresso e proximo marco (card na tela). "
+            "Use quando ele pedir pra ver/perguntar como esta um projeto ou uma viagem."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "termo": {
+                    "type": "string",
+                    "description": "parte do nome do projeto ou destino da viagem ('viagem' = proxima viagem) - omita pra todos",
+                },
+            },
+        },
+    },
+    {
+        "name": "consultar_meta",
+        "description": "Mostra meta(s) financeira(s) pessoal(is) com progresso (card na tela).",
+        "input_schema": {
+            "type": "object",
+            "properties": {"termo": {"type": "string", "description": "parte do nome da meta - omita pra todas"}},
+        },
+    },
+    {
+        "name": "consultar_treinos",
+        "description": "Mostra os treinos registrados nos ultimos N dias, com tempo por atividade (card na tela).",
+        "input_schema": {
+            "type": "object",
+            "properties": {"dias": {"type": "integer", "description": "janela em dias (1 a 90) - use 7 se ele nao disser"}},
+        },
+    },
+    {
+        "name": "consultar_habitos",
+        "description": "Mostra os habitos com a semana (seg a dom) marcada (card na tela).",
+        "input_schema": {
+            "type": "object",
+            "properties": {"nome": {"type": "string", "description": "parte do nome de um habito - omita pra todos"}},
+        },
+    },
+    {
+        "name": "consultar_saude_dia",
+        "description": "Mostra a saude de hoje: copos de agua, passos, sono e treino (card na tela).",
+        "input_schema": {"type": "object", "properties": {}},
     },
 ]
 

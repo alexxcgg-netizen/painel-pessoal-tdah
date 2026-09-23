@@ -1098,7 +1098,13 @@ function recarregarAposMudancaDeCard() {
 if (typeof Cards !== "undefined") {
   Cards.ligar($("#chat-mensagens"), {
     apiFetch,
-    showTab,
+    // A aba Vida so carrega as listas no clique da tabbar (vida.js) - o
+    // link "Abrir Projetos/Habitos/Viagens" de um card (US-E7) precisa
+    // disparar o mesmo carregamento, senao a lista de destino fica vazia.
+    showTab: (aba) => {
+      showTab(aba);
+      if (aba === "vida" && typeof loadVidaAba === "function") loadVidaAba();
+    },
     aoMudar: recarregarAposMudancaDeCard,
   });
 }

@@ -115,6 +115,13 @@ Lista de objetos com `tipo` + `rotulo` (texto do botão/link). Tipos:
   recorrente, apaga o modelo e as instâncias), `gasto` e `renda` (apaga e
   reverte o ajuste otimista de saldo, se houve), `lembrete`, `meta` (apaga a
   meta e os depósitos).
+- **Aditivo (US-E7, módulos da Fase 6):** `habito` (apaga o hábito criado e
+  as marcações), `habito_marcacao` (o token guarda `data` + `feito` - volta
+  aquele dia exato pro estado anterior: desmarca o que foi marcado, remarca o
+  que foi desmarcado), `projeto` (apaga projeto + etapas), `projeto_etapa`
+  (apaga a etapa adicionada), `etapa_concluida` (reabre a etapa), `viagem`
+  (apaga viagem + checklist de mala), `hidratacao` (apaga aquele copo),
+  `treino` (apaga aquele treino).
 - `evento` (agenda, US-E14): o registro guarda `{ "entidade": "evento",
   "uid": "..." }`. Só pode ser desfeito se o `uid` estiver na tabela local
   de eventos criados pelo painel (`eventos_criados`, US-E14) - evento que o
@@ -286,6 +293,23 @@ o front (`fmtMoeda`).
 - Front: horário sugerido (grande, mono), duração, caixa "Com a sua rotina em
   mente" com o porquê.
 
+### `saude_dia` (aditivo, US-E7)
+
+```json
+{ "data": "2026-09-23", "agua_copos": 3, "passos": 8240, "sono_horas": 7.5,
+  "treino_min": 45, "registrado": "agua" }
+```
+
+- A saúde do dia num olhar. `agua_copos` = contador do painel
+  (`hidratacao_registros`); `passos`/`sono_horas` = Apple Saúde via Atalho
+  (`saude_dados`, `null` quando não chegou); `treino_min` = soma dos treinos
+  de hoje (`null` sem treino). `registrado`: `"agua"` quando o card nasceu
+  de um copo registrado agora (chip "Registrado" + Desfazer daquele copo),
+  `null` numa consulta.
+- Front: número de copos grande em fonte mono, fileira de 8 gotas (acesas
+  até `agua_copos`, "+N" além disso), chips neutros de passos/sono/treino.
+- Actions típicas: `desfazer` (quando `registrado`).
+
 ### `habito` (renderizador pronto; dado real ligado pela US-E12/E7b)
 
 ```json
@@ -305,6 +329,47 @@ o front (`fmtMoeda`).
   `contexto` podem ser `null`.
 - Front: nome, meta ("15 min · qualquer dia conta · às 8h"), 7 círculos (hoje
   tracejado, dias feitos acesos), "Hábitos ativos: 4 → 5", caixa de contexto.
+
+### Campo aditivo `consulta` (US-E7)
+
+Qualquer card que veio de uma **consulta** (nada foi criado - "me mostra o
+projeto e a meta") traz `data.consulta = true` e **não** tem action
+`desfazer` (só o link da aba). O front usa isso pra não dizer "Meta criada"
+num card de meta consultada. Card de consulta também não conta pro
+`resumo_final` (ele só aparece quando a resposta **fez** 2+ coisas).
+
+### Quem gera cada card dos módulos (US-E7 / US-E6)
+
+Mapeamento único em `cards.cards_dos_efeitos` (`_card_de_efeito_modulo`);
+o executor da tool só declara o `_efeito`. As consultas rodam nos MESMOS
+executores tanto pela IA (tool-use) quanto pelo classificador local (sem API,
+ver `docs/INTENT.md`).
+
+| Origem (tool do chat / pergunta) | `_efeito` | Card | Desfazer |
+| :--- | :--- | :--- | :--- |
+| `registrar_habito` | `habito` (+ `ativos_antes`/`ativos_depois`) | `habito` ("Hábitos ativos: 4 → 5") | `habito` |
+| `marcar_habito` | `habito_marcacao` (`data`, `feito`) | `habito` (contexto "Marcado como feito hoje.") | `habito_marcacao` |
+| `criar_projeto` / `adicionar_etapa` / `concluir_etapa` | `projeto` / `projeto_etapa` / `etapa_concluida` (+ `projeto_id`) | `projeto_viagem` (origem `projeto`) | idem |
+| `registrar_viagem` | `viagem` | `projeto_viagem` (origem `viagem`, título "Viagem pra X"; sem checklist o marco é a ida) | `viagem` |
+| `agendar_evento` | `evento` (`uid`, `lembrar_min_antes`) | `agenda` (`confirmado: true`, calendário "Painel") | `evento` (só uid em `eventos_criados`) |
+| `registrar_treino` | `treino` | `saude_treino` dos últimos 7 dias, `registrado: true` | `treino` |
+| `registrar_hidratacao` / "tomei um copo de água" | `hidratacao` | `saude_dia` (`registrado: "agua"`) | `hidratacao` |
+| `consultar_projeto` / "me mostra o projeto da viagem" | `projeto`/`viagem` + `consulta` | `projeto_viagem` | - |
+| `consultar_meta` / "e a meta?" | `meta` + `consulta` | `meta` | - |
+| `consultar_treinos` / "como foram meus treinos nos últimos 7 dias?" | `treinos` (`dias`) | `saude_treino` | - |
+| `consultar_habitos` / "como estão meus hábitos?" | `habito` + `consulta` | `habito` | - |
+| `consultar_saude_dia` / "quanta água eu tomei hoje?" | `saude_dia` | `saude_dia` | - |
+| `sugerir_horario_livre` / "como encaixo meu treino hoje?" | `sugestao` (`titulo`, `inicio`, `duracao_min`, `porque`) | `sugestao` | - |
+
+- **Adaptadores de formato** (puros, `cards.py`): `semana_seg_dom` (o
+  `GET /api/habitos` expõe `ultimos_7`, janela móvel; o card quer a semana
+  segunda->domingo), `habito_para_card`, `projeto_para_card` (o módulo
+  expõe `posicao_hoje` em **0-100**; o card quer `hoje_fracao` em **0..1**;
+  `texto`/`feita`/`data_prevista` viram `titulo`/`feito`/`data`).
+- `sugestao.porque` = o fato da agenda de hoje ("maior espaço livre das X às
+  Y") + a memória da categoria `sua_rotina` (US-E10, "O que eu lembro sobre
+  você") que fala do mesmo assunto, quando existir - nunca inventado. O
+  horário nunca é no passado (procura a partir de agora).
 
 ### Fallback (front)
 

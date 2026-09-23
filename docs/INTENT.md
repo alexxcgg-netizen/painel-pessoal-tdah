@@ -95,3 +95,24 @@ nenhum valor fora desta lista é um contrato válido:
   já confiável continua resolvendo normalmente mesmo com o teto estourado
   (só a chamada à API é que fica bloqueada). Volta ao normal quando o mês
   vira (o cálculo do teto é sempre "gasto do mês calendário atual").
+- **US-E7 (Fase 6)**: segunda camada local, entre o padrão aprendido e a
+  IA - o banco **"pergunta -> onde buscar"** (`aprendizado.consulta_conhecida`,
+  chamado SÓ por `app._classificar_intent`). Consulta de formato conhecido
+  resolve sem API, com `confianca` = `CONFIANCA_PADRAO_INTENT` e
+  `precisa_confirmacao: false`. Formato dos `parametros` (aditivo):
+  - `consultar`: `{"fontes": [{"fonte": "projeto", "termo": "viagem"}, {"fonte": "meta"}]}` -
+    fontes conhecidas: `projeto` (`termo` opcional), `meta` (`termo`),
+    `treinos` (`dias`), `habitos` (`termo`), `saude_dia`, `sugestao`
+    (`titulo`, `duracao_min` opcional).
+  - `registrar_checkin`: `{"campo": "hidratacao"}` ("tomei um copo de água").
+  Nunca resolve local se o texto tem verbo de ação (cria, registra, gastei,
+  agenda...) ou assunto fora do banco (gasto, saldo, tarefa, lembrete...) - a
+  IA responde. Um padrão aprendido de OUTRA ação (ex: correção manual) vence
+  a regra; um padrão `consultar` sem `fontes` (gravado pela IA de voz) ganha
+  as fontes da regra. `_classificar_intent(conn, texto, somente_local=True)`
+  para antes da API e devolve `(None, None)` quando nada local resolveu - é
+  o que `/api/chat` usa antes do tool-use (a resposta vira card sem gastar
+  chamada). O banco **cresce sozinho**: quando a IA do chat responde usando
+  SÓ ferramentas de consulta (ou só o copo de água), o par texto -> fontes é
+  gravado via `aprendizado.confirmar_padrao_intent`; depois de
+  `LIMIAR_CONFIRMACOES_PADRAO_INTENT` (3) repetições a frase resolve local.

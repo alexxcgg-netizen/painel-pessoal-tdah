@@ -782,6 +782,34 @@ def status_projeto_calculado(status_manual: str, prazo_final: str | None, percen
     return "no_rumo"
 
 
+def projeto_detalhado(projeto: dict, etapas: list[dict], hoje: date) -> dict:
+    """Fase 6 (US-E7): composicao unica de um projeto com o calculo puro
+    (calcular_projeto + status_projeto_calculado) - usada por
+    GET /api/projetos (app._projeto_detalhado) e pelo card projeto_viagem
+    (cards.card_projeto), pra os dois nunca divergirem."""
+    calculo = calcular_projeto(etapas, projeto.get("prazo_final"), projeto.get("criado_em"), hoje)
+    status = status_projeto_calculado(projeto.get("status"), projeto.get("prazo_final"), calculo["percentual"], hoje)
+    return {
+        "id": projeto["id"],
+        "nome": projeto["nome"],
+        "prazo_final": projeto.get("prazo_final"),
+        "status": status,
+        "status_manual": projeto.get("status") == "pausado",
+        "criado_em": projeto.get("criado_em"),
+        "atualizado_em": projeto.get("atualizado_em"),
+        "etapas": etapas,
+        **calculo,
+    }
+
+
+def viagem_como_projeto_detalhada(viagem: dict, itens: list[dict], hoje: date) -> dict:
+    """Viagem no formato de projeto + o calculo (GET /api/viagens/<id>/como-projeto
+    e card projeto_viagem com origem viagem) - le direto de viagens/viagem_itens."""
+    projeto = converter_viagem_para_projeto(viagem, itens)
+    calculo = calcular_projeto(projeto["etapas"], projeto["prazo_final"], projeto["criado_em"], hoje)
+    return {**projeto, **calculo}
+
+
 def converter_viagem_para_projeto(viagem: dict, itens: list[dict]) -> dict:
     """Converte uma viagem (viagens + viagem_itens) pro MESMO formato de
     dado de um projeto - decisao do Alex: Viagens NAO migram pra tabela

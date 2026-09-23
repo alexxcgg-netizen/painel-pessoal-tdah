@@ -1,0 +1,47 @@
+# Progresso - Fase 6, faixa E4 (chat produzindo cards dos modulos novos)
+# Branch: fase6/e4-chat. Uma linha "Historia X — decisao" por decisao real.
+
+## US-E7 - consulta renderiza card (classificador local) + modulos ligados aos cards
+Historia US-E7 — decisao: o banco "pergunta -> onde buscar" e uma SEGUNDA camada local dentro de app._classificar_intent (aprendizado.consulta_conhecida: regras de consulta de formato conhecido), entre o padrao aprendido por repeticao (Fase 5) e a IA; `somente_local=True` para ali e devolve (None, None).
+Motivo: "nenhuma logica de classificacao duplicada fora de _classificar_intent" - o chat so pergunta ao classificador e traduz o resultado em chamadas das MESMAS tools (_plano_local_chat); /api/intent/classificar (voz) ganha o mesmo atalho de graca.
+Nao confirmado: a lista de regras cobre o que o PRD citou + variacoes proximas; frase nova so vira local depois de a IA responder 3x igual (banco cresce sozinho).
+
+Historia US-E7 — decisao: o banco cresce gravando em padroes_intent_aprendidos (confirmar_padrao_intent) quando a IA do chat respondeu usando SO ferramentas de consulta (ou so o copo de agua), com parametros {"fontes": [...]}.
+Motivo: reusa o banco/limiar da Fase 5 (3 repeticoes = local) em vez de uma tabela nova; resposta que criou algo nunca ensina (a frase poderia ser acao).
+Nao confirmado: nada.
+
+Historia US-E7 — decisao: "tomei um copo de agua" vira acao `registrar_checkin` com parametros {"campo": "hidratacao"} (sem acao nova no contrato de intent); a voz manda pro chat quando campo=hidratacao.
+Motivo: ACOES_INTENT e fechada/so aditiva e hidratacao e "check-in do dia" de saude; evitar mexer no prompt do Haiku e no switch da voz alem de um if.
+Nao confirmado: se o Alex prefere uma acao propria (ex: registrar_saude) no contrato - daria pra adicionar depois sem quebrar nada.
+
+Historia US-E7 — decisao: card novo `saude_dia` (aditivo em docs/CARDS.md) pra "card de saude do dia" (agua em destaque + passos/sono/treino).
+Motivo: nenhum type existente cabia (saude_treino e lista de sessoes); o PRD pede "mostra o card de saude do dia".
+Nao confirmado: visual (gotas) - conferido no headless 390px.
+
+Historia US-E7 — decisao: adaptador de habito le as marcacoes da semana seg->dom direto do banco (cards.semana_seg_dom puro) em vez de converter `ultimos_7` da rota.
+Motivo: `ultimos_7` e janela movel; a semana calendario precisa dos dias futuros (vazios) e o card quer SEMPRE seg->dom. Adaptador puro testado.
+Nao confirmado: nada.
+
+Historia US-E7 — decisao: projeto: `posicao_hoje` (0-100 do modulo) vira `hoje_fracao` (0..1) no adaptador cards.projeto_para_card; a composicao projeto+calculo foi extraida pra vida.projeto_detalhado (usada por GET /api/projetos E pelo card) e vida.viagem_como_projeto_detalhada (rota /como-projeto e card de viagem).
+Motivo: fonte unica do calculo - card e tela nunca divergem.
+Nao confirmado: nada.
+
+Historia US-E7 — decisao: card de consulta nao tem Desfazer e ganha `data.consulta = true` (aditivo); resumo_final so conta cards que FIZERAM algo (2+).
+Motivo: "me mostra o projeto e a meta" nao criou nada; sem isso o card dizia "Meta criada" e o resumo_final dizia "1 meta criada".
+Nao confirmado: nada.
+
+Historia US-E7 — decisao: sugestao procura o maior espaco livre A PARTIR DE AGORA (arredondado pro proximo quarto de hora), nao mais a partir das 06:00; relogio isolado em app._agora (os 3 testes antigos de sugerir_horario_livre fixam 00:00).
+Motivo: "horario sugerido real" - antes, perguntar as 19h podia sugerir 09:00 do mesmo dia.
+Nao confirmado: dia acabando (sem espaco ate 22h) responde "nao sobrou espaco" sem card - nao sugere amanha.
+
+Historia US-E7 — decisao: caixa "Com a sua rotina em mente" = fato da agenda de hoje ("maior espaco livre das X as Y") + a memoria `sua_rotina` (US-E10) que fala do mesmo assunto (prefixo de palavra + sinonimo academia/treino), quando existir.
+Motivo: nunca inventar o porque; memoria editada pelo Alex aparece na hora (teste).
+Nao confirmado: o texto da memoria seed e escrito como instrucao ("sugerir de forma flexivel...") e aparece literal na caixa - o Alex pode reescrever em "O que eu lembro sobre voce".
+
+Historia US-E7 — decisao: undo novo por entidade (habito, habito_marcacao com data+feito, projeto, projeto_etapa, etapa_concluida, viagem, hidratacao, treino) em db.ENTIDADES_DESFAZIVEIS + ramo em _desfazer_itens; evento continua so com uid em eventos_criados.
+Motivo: regra do Padrao Nectar (todo card de acao se desfaz) e contrato da US-E5.
+Nao confirmado: nada.
+
+Historia US-E7 — decisao: link "Abrir Projetos/Habitos/Viagens/Treinos/Agenda" vai pra aba vida; o showTab injetado em Cards.ligar agora chama loadVidaAba() (showTab sozinho nao carrega a Vida) e os <li> de habito/projeto/viagem ganharam data-entidade/data-id.
+Motivo: a lista de destino ficava vazia/sem destaque.
+Nao confirmado: nada.

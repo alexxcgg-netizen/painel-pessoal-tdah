@@ -565,3 +565,144 @@ def dica_sono_humor(conn, minimo_amostras: int = 3, diferenca_minima: float = 0.
     if not partes:
         return None
     return "Pelo seu check-in, " + "; ".join(partes) + "."
+
+
+# ---- Banco "pergunta -> onde buscar" (Fase 6, US-E7) -----------------------
+# Segunda camada local do classificador de intent (depois do padrao aprendido
+# por repeticao, antes da IA): consultas de formato conhecido ("me mostra o
+# projeto da viagem e a meta", "como foram meus treinos nos ultimos 7 dias?",
+# "como encaixo meu treino hoje?") e o registro trivial de agua ("tomei um
+# copo de agua") resolvem SEM chamar API nenhuma. Quem chama isto e SO
+# app._classificar_intent (fonte unica da classificacao) - nunca chamar
+# direto de uma rota. O banco cresce sozinho: quando a IA do chat responde
+# uma pergunta usando so ferramentas de consulta, app.py grava o par
+# (texto -> fontes) via confirmar_padrao_intent (padroes_intent_aprendidos) e,
+# depois de LIMIAR_CONFIRMACOES_PADRAO_INTENT vezes, aquela frase exata
+# tambem passa a resolver local, mesmo que nenhuma regra abaixo a reconheca.
+#
+# Formato devolvido (mesmo contrato de docs/INTENT.md):
+#   {"acao": "consultar", "parametros": {"fontes": [{"fonte": "projeto", "termo": "viagem"},
+#                                                    {"fonte": "meta"}]}}
+#   {"acao": "registrar_checkin", "parametros": {"campo": "hidratacao"}}
+# Fontes conhecidas: FONTES_CONSULTA.
+
+FONTES_CONSULTA = ("projeto", "meta", "treinos", "habitos", "saude_dia", "sugestao")
+
+# So e consulta se COMECA com um jeito de perguntar/pedir pra ver, ou termina
+# com "?" - "quero uma meta de 5 mil" nunca vira consulta de meta.
+_GATILHO_CONSULTA = re.compile(
+    r"^(?:(?:me |pode me |quero |queria )?(?:mostra|mostre|mostrar|ver|ve|veja|abre|abrir|lista|listar)\b"
+    r"|como\b|qual\b|quais\b|quanto|quanta|cade\b|onde (?:ta|esta)\b|resumo\b|status\b)"
+    r"|\?$"
+)
+# Qualquer verbo de criar/mudar dado derruba o caminho local (a mensagem e
+# uma acao, ou mistura acao + pergunta - a IA decide).
+_VERBO_ACAO = re.compile(
+    r"\b(cria|criar|crie|adiciona|adicionar|adicione|registra|registrar|registre|anota|anotar|anote|"
+    r"novo|nova|marca|marcar|marque|conclui|concluir|terminei|apaga|apagar|deleta|deletar|remove|remover|"
+    r"gastei|paguei|comprei|recebi|entrou|lembra|lembrar|agenda|agendar|muda|mudar|troca|trocar)\b"
+)
+# Assunto que o banco local NAO cobre - se aparecer junto, a pergunta e
+# maior do que as fontes conhecidas e a IA responde (nunca responder so
+# metade da pergunta).
+_FORA_DO_BANCO = re.compile(
+    r"\b(gast\w*|pag\w*|saldo|dinheiro|conta|contas|fatura|cartao|sobr\w*|orcamento|reais|r\$|"
+    r"tarefas?|lembretes?|voos?|remedios?|compras?|notas?|noticias?|clima|tempo|construtora|banco|"
+    r"email|e-mail|uber|cotac\w*|plano)\b"
+)
+_RE_PROJETO = re.compile(r"\bprojetos?\b")
+_RE_PROJETO_TERMO = re.compile(r"\bprojetos? (?:(?:d[aeo]s?|de|pra|para) )?([a-z0-9][a-z0-9 ]*?)(?: e | com |,|\?|$)")
+_RE_VIAGEM = re.compile(r"\bviage(?:m|ns)\b")
+_RE_META = re.compile(r"\bmetas?\b")
+_RE_TREINO = re.compile(r"\b(treinos?|treinei|treinando|academia|exercicios?)\b")
+_RE_HABITO = re.compile(r"\bhabitos?\b")
+_RE_SAUDE = re.compile(r"\b(agua|hidratacao|saude)\b")
+_RE_DIAS = re.compile(r"\bultim[oa]s? (\d{1,3}) dias?\b")
+_RE_SUGESTAO = re.compile(
+    r"^(?:como|quando|que horas) (?:eu )?(?:encaixo|encaixar|faco|fazer|vou|posso|consigo|da pra)"
+    r"(?: encaixar| fazer| ir)?(?: (?:o|a|meu|minha|um|uma|pra|para|na|no))* ([a-z][a-z ]{1,38}?)"
+    r"(?: hoje| agora| ainda hoje)?\??$"
+    r"|^(?:qual|que) (?:e )?(?:o )?(?:melhor )?horario (?:pra|para) (?:eu )?(?:(?:fazer|encaixar|ir) )?"
+    r"(?:(?:o|a|meu|minha|na|no) )*([a-z][a-z ]{1,38}?)(?: hoje| agora)?\??$"
+)
+_RE_AGUA = re.compile(
+    r"^(?:tomei|bebi)(?: mais)?(?: (?:um|1|uma|meio))?(?: (?:copo|copinho|garrafa|garrafinha|caneca))?"
+    r"(?: (?:d[e']|da))? ?agua(?: agora| hoje| ja)?[!.]*$"
+)
+
+
+def normalizar_consulta(texto: str) -> str:
+    """Normalizacao mais agressiva que a do padrao aprendido (so pra casar
+    regra): minusculo, sem acento, espacos colapsados."""
+    import unicodedata
+
+    if not isinstance(texto, str):
+        return ""
+    sem_acento = "".join(
+        c for c in unicodedata.normalize("NFD", texto.lower()) if unicodedata.category(c) != "Mn"
+    )
+    return re.sub(r"\s+", " ", sem_acento).strip()
+
+
+def _dias_da_consulta(t: str) -> int:
+    m = _RE_DIAS.search(t)
+    if m:
+        return max(1, min(int(m.group(1)), 90))
+    if re.search(r"\bmes\b", t):
+        return 30
+    if re.search(r"\bhoje\b", t):
+        return 1
+    return 7
+
+
+def consulta_conhecida(texto: str) -> dict | None:
+    """Regra do banco "pergunta -> onde buscar" que casa com o texto, ou
+    None (cai pro proximo passo do classificador). Nunca levanta excecao."""
+    t = normalizar_consulta(texto)
+    if not t or len(t) > 160:
+        return None
+
+    if _RE_AGUA.match(t):
+        return {"acao": "registrar_checkin", "parametros": {"campo": "hidratacao"}}
+
+    if _VERBO_ACAO.search(t) or _FORA_DO_BANCO.search(t):
+        return None
+
+    sugestao = _RE_SUGESTAO.match(t)
+    if sugestao:
+        titulo = (sugestao.group(1) or sugestao.group(2) or "").strip()
+        if titulo and not _RE_PROJETO.search(titulo) and not _RE_META.search(titulo):
+            return {"acao": "consultar", "parametros": {"fontes": [{"fonte": "sugestao", "titulo": titulo}]}}
+
+    if not _GATILHO_CONSULTA.search(t):
+        return None
+
+    fontes: list[dict] = []
+    if _RE_PROJETO.search(t) or _RE_VIAGEM.search(t):
+        m = _RE_PROJETO_TERMO.search(t)
+        termo = m.group(1).strip() if m else ("viagem" if _RE_VIAGEM.search(t) else None)
+        fonte = {"fonte": "projeto"}
+        if termo and termo not in ("meu", "minha", "meus", "minhas", "o", "a", "os", "as"):
+            fonte["termo"] = termo
+        fontes.append(fonte)
+    if _RE_META.search(t):
+        fontes.append({"fonte": "meta"})
+    if _RE_TREINO.search(t):
+        fontes.append({"fonte": "treinos", "dias": _dias_da_consulta(t)})
+    if _RE_HABITO.search(t):
+        fontes.append({"fonte": "habitos"})
+    if _RE_SAUDE.search(t) and not any(f["fonte"] == "treinos" for f in fontes):
+        fontes.append({"fonte": "saude_dia"})
+    if not fontes:
+        return None
+    return {"acao": "consultar", "parametros": {"fontes": fontes}}
+
+
+def fontes_validas(parametros) -> list[dict]:
+    """Filtra `parametros["fontes"]` (vindo do banco local OU de um padrao
+    aprendido gravado antes) pra so fontes conhecidas - lista vazia = o
+    padrao nao diz onde buscar (ex: gravado pela IA de voz com
+    {"pergunta": ...}) e o chamador deve cair pra IA."""
+    if not isinstance(parametros, dict) or not isinstance(parametros.get("fontes"), list):
+        return []
+    return [f for f in parametros["fontes"] if isinstance(f, dict) and f.get("fonte") in FONTES_CONSULTA][:6]

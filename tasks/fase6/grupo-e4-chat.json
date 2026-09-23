@@ -31,8 +31,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Local sem API: banco 'pergunta -> onde buscar' (aprendizado.consulta_conhecida) como 2a camada de _classificar_intent (chat usa somente_local=True e chama as MESMAS tools via _plano_local_chat); cresce sozinho via confirmar_padrao_intent quando a IA responde so com consultas (3x = local). 'Tomei um copo de agua' = registrar_checkin {campo: hidratacao}. Tools novas consultar_projeto/meta/treinos/habitos/saude_dia; _efeito em registrar_habito/marcar_habito/criar_projeto/adicionar_etapa/concluir_etapa/registrar_viagem/agendar_evento/registrar_treino/registrar_hidratacao/sugerir_horario_livre -> cards habito/projeto_viagem/agenda/saude_treino/saude_dia (novo, aditivo)/sugestao, com Desfazer por entidade (evento so com uid em eventos_criados). Adaptadores cards.semana_seg_dom e projeto_para_card (posicao_hoje 0-100 -> hoje_fracao 0..1). Sugestao a partir de agora + memoria sua_rotina na caixa. Testes tests/test_fase6_e4_chat.py + tests/js/cards.test.js; headless 390px conferido.",
       "modelo_planejado": "opus"
     }
   ]
