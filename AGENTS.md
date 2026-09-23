@@ -53,14 +53,22 @@ Isso é responsabilidade de quem faz a integração de um grupo inteiro na `main
 cada história isolada) — depois do merge de um grupo (A, B, C ou D) e da suíte de testes
 completa passando, também confirmar que o app de fato sobe e a tela principal carrega:
 ```
-.venv/bin/python -c "import app" 2>&1   # confirma que importa sem erro (pega erro de sintaxe/import quebrado que testes unitarios podem nao cobrir)
-.venv/bin/python app.py &
-sleep 2
-curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:5000/ || curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:5000/login
-kill %1
+ANTHROPIC_API_KEY=teste-fake .venv/bin/python -c "
+import tempfile
+from pathlib import Path
+import db
+tmp = tempfile.TemporaryDirectory()
+db.DB_PATH = Path(tmp.name) / 'painel.db'  # NUNCA import app contra data/painel.db real (ver regra 6) - esse arquivo ja existe de verdade neste checkout
+import app
+"
 ```
-(ajustar porta/rota de login conforme o que `app.py` já usa — o objetivo é só confirmar
-"o processo sobe e responde HTTP 200/302 na rota inicial", não um teste completo de UI).
+**Nunca rode isso com `DB_PATH` apontando pro `data/painel.db` real** - já existe um banco
+de verdade neste checkout (não é hipotético), e `init_db()`/qualquer import de `app.py`
+escreveria nele de verdade. Sempre sobrescreva `db.DB_PATH` pra um diretório temporário
+antes de importar `app`, igual todo o resto (regra 6). O objetivo é só confirmar "o
+processo sobe sem erro de import/sintaxe que teste unitário isolado pode não pegar", não
+um teste completo de UI - pra abrir de verdade e ver a tela renderizando, ver regra 5
+(Playwright), que já sobe o servidor em thread com `DB_PATH` isolado do mesmo jeito.
 Se o smoke-test falhar, é bloqueador — não considerar a integração daquele grupo concluída
 até resolver.
 
