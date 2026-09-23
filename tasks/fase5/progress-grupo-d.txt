@@ -100,3 +100,84 @@ Node, coberto pelo Playwright acima).
 
 Arquivo mudado: static/js/voz-comando.js (enviarComando).
 
+## US-D3 - Ajuste fino de espacamento/hierarquia visual geral e micro-interacao de confirmacao/salvamento
+Status: PASSES
+
+Espacamento/hierarquia: revisei todas as telas novas do Grupo C (diario de
+decisao, brain dump, ideias de presente, garantia de produtos, manutencao
+veicular, revisao trimestral/anual, sugestao por energia) linha a linha no
+templates/index.html comparando com telas antigas ja polidas (ex: Notas).
+Ja seguem o mesmo padrao: mesmo h2.secao-secundaria com --secao-cor, mesmo
+.dica-colapsavel pro texto de ajuda, mesmo form.form-linha, mesmo <p
+class="vazio"> pro estado vazio, mesma ul/li.item renderizada pelas mesmas
+funcoes JS de sempre (ou reaproveitando funcoes existentes tipo
+criarItemTarefa na sugestao de energia). O fix de .card-vida da US-D1
+reforca essa consistencia tambem aqui, ja que varios desses cards novos
+(revisao-periodo-box, patrimonio-box) usam a mesma classe.
+
+Micro-interacao de confirmacao: a maioria dos formularios novos JA chamava
+pulsarSucesso (diario-decisao-form e brain-dump-form direto em app.js;
+garantia-form direto em vida.js; ideia-presente-form e manutencao-veiculo-
+form via ligarForm, o helper generico de vida.js que ja injeta
+pulsarSucesso no primeiro input/textarea do form pra QUALQUER form que
+passar por ele - nada a fazer nesses).
+
+Gap real encontrado: a confirmacao de nota fiscal por foto (US-C8/US-C9,
+#nf-confirmar-btn em app.js) salvava o gasto e escondia a caixa de
+confirmacao NA HORA, sem nenhuma pulsarSucesso - o usuario nao tinha
+nenhum feedback visual de "salvou". Corrigido pulsando #nf-valor (conferi
+antes que a classe .sucesso so tem CSS de verdade pra #captura-input ou
+pra "input dentro de .form-linha" - nao e uma classe generica, entao
+escolhi um elemento que realmente casa com o seletor) e adiando o
+hidden=true da caixa em 250ms (mesmo tempo ja usado no "saindo" de item
+apagado/convertido nas listas, pra manter a mesma "velocidade de app" em
+vez de inventar um timing novo) - da tempo do usuario ver o pulso antes da
+caixa sumir, em vez de sumir instantaneo sem nenhum feedback.
+
+Verificacao visual (Playwright): chamei o fluxo real da pagina (a funcao
+global mostrarConfirmacaoNotaFiscal pra abrir a caixa sem depender da API
+de visao/foto, que exigiria mockar a chamada de IA - so testando o PASSO
+de salvar/confirmar, que e o que esta historia mexe) -> cliquei
+#nf-confirmar-btn de verdade -> POST /api/notas-fiscais/confirmar real
+(sem mock, sem IA envolvida nesse endpoint) -> conferi classe "sucesso" em
+#nf-valor logo apos clicar (120ms: caixa ainda visivel, hidden=None) e
+depois de 400ms (hidden="", escondida) -> screenshot confirma visualmente
+-> conferi que o gasto realmente apareceu nos totais da aba Gastos (R$
+42,50, Mercado Teste, categoria "outros") -> zero erro de console.
+
+Suite completa (rodada de novo apos esta 3a mudanca): unittest 1417 testes,
+so as mesmas 5 falhas pre-existentes de voo/horario, 0 novas. node --test
+tests/js/*.test.js 29/29 ok (nao mexi em voz-comando.js nesta historia).
+
+Arquivo mudado: static/js/app.js (handler de #nf-confirmar-btn).
+
+---
+## Resumo final (Grupo D completo)
+
+US-D1: PASSES
+US-D2: PASSES
+US-D3: PASSES
+
+3 de 3 historias passaram. 0 bloqueadas, 0 perguntas pendentes pro Alex.
+
+Credenciais/variaveis de ambiente novas necessarias: NENHUMA (so CSS/JS,
+nenhuma dependencia nova, nenhuma config nova).
+
+Resumo tecnico: as telas novas do Grupo C ja chegaram com um bom nivel de
+consistencia visual (reuso de componentes/classes/funcoes JS existentes) -
+o trabalho real desta rodada foi achar e corrigir os 3 pontos concretos
+que realmente destoavam do padrao (2 CSS/animacao, 1 micro-interacao de
+confirmacao faltando), documentados em detalhe no AGENTS.md (secao "Fase
+5, Grupo D") pra proxima sessao de IA nao precisar re-descobrir o mesmo:
+1. .card-vida sem fadeInUp (US-D1) - static/css/style.css
+2. Botao de comando de voz sem feedback visual no estado "processando"
+   (US-D2) - static/js/voz-comando.js
+3. Confirmacao de nota fiscal por foto sem pulsarSucesso (US-D3) -
+   static/js/app.js
+
+3 commits nesta branch (um por historia), gitleaks limpo antes de cada um,
+suite completa (unittest + node --test) sem regressao depois de cada
+mudanca, verificacao visual real via Playwright headless (Chromium
+/opt/pw-browsers/chromium-1194) antes de marcar qualquer historia como
+passes:true, todos com screenshot conferido.
+

@@ -37,7 +37,7 @@
         "Testar visualmente antes de concluir",
         "Sem regressao - suite de testes completa"
       ],
-      "priority": 3, "passes": false, "notes": ""
+      "priority": 3, "passes": true, "notes": "Espacamento/hierarquia: revisado - as telas novas do Grupo C (diario de decisao, brain dump, ideias de presente, garantia, manutencao veicular, revisao trimestral/anual) ja seguem o mesmo padrao das telas antigas (secao-secundaria + dica-colapsavel + form-linha + vazio + li.item), reforcado pelo fix de .card-vida da US-D1 (mesmo bloco, aplica aqui tambem). Micro-interacao de confirmacao: quase todo formulario novo ja chamava pulsarSucesso (diario-decisao, brain-dump, garantia, ideia-presente e manutencao-veiculo via ligarForm, o helper generico que ja injeta isso). Gap real encontrado e corrigido: a confirmacao de nota fiscal por foto (US-C8/US-C9, #nf-confirmar-btn em app.js) salvava e escondia a caixa na hora, sem nenhum pulsarSucesso - corrigido pulsando #nf-valor (input valido dentro de .form-linha, a classe .sucesso so tem CSS pra #captura-input ou input dentro de .form-linha - checado antes de escolher o elemento) e adiando o hidden=true em 250ms (mesmo tempo ja usado no 'saindo' de item apagado/convertido) pra dar tempo do usuario ver a confirmacao antes da caixa sumir. Validado com Playwright chamando o fluxo real (mostrarConfirmacaoNotaFiscal -> #nf-confirmar-btn -> POST /api/notas-fiscais/confirmar de verdade, sem mock): classe 'sucesso' aparece na hora, caixa ainda visivel a 120ms, escondida a 400ms, gasto realmente salvo e refletido nos totais da aba Gastos, zero erro de console."
     }
   ]
 }
