@@ -1,0 +1,174 @@
+# Fase 6 - Grupo E5 (dia) - Progress Log
+Iniciado: 2026-09-23T16:13:00Z
+---
+
+## US-E8 - Proatividade unificada
+
+Seis avisos novos, todos entrando na MESMA lista `avisos` de
+`app.verificar_e_notificar()` e passando pelo pipeline unico ja existente
+(silencioso -> hiperfoco -> modo viagem -> agrupamento -> `_despachar()`,
+dedup em `notificacoes_enviadas`). `app._avisos_proatividade_e8(conn,
+agora)` so monta `(tipo, ref, titulo, corpo)`; nenhuma logica de envio novo,
+nenhum caminho paralelo.
+
+As 6 checagens (`notificacoes.py`):
+- `habitos_passaram_batido` (habito com horario, 1h sem marcar - reusa
+  `vida.habito_passou_batido`, ja deixada pronta na US-E12)
+- `tarefas_horario_passou` (30min apos a hora, tarefa ainda pendente -
+  complementa `tarefas_com_horario_chegando`, que so cobre antes/na hora)
+- `cartoes_perto_ou_estourados` (>=90%/>=100% do limite manual, reusa
+  `vida.fracao_limite_cartao`, US-E15)
+- `renda_perto_de_acabar` (>=70%/>=100% da renda do mes ja gasta)
+- `projetos_juntando_poeira` (21+ dias sem nenhum toque, reusa
+  `vida.calcular_projeto`, US-E13)
+- `mes_seguinte_apertado` + `projecao_mes_seguinte_devida` (custos fixos
+  recorrentes vs media de renda dos ultimos 3 meses, checado so nos ultimos
+  3 dias do mes atual)
+
+Historia X (US-E8) — decisao: tom dos avisos JA EXISTENTES no sistema
+(antes desta historia) ja seguia o pedido do Alex (direto, sem diminutivo,
+sem cobranca, sem coach) - confirmado por leitura de `notificacoes.py`
+inteiro + grep por diminutivos/frases de coach (`vamos la`, `voce
+consegue`, `-inho/-inha`, `parabens`), zero ocorrencia real. Nenhuma
+migracao de texto foi necessaria alem dos 6 avisos novos. / Motivo: nao
+inventar trabalho onde nao ha problema - reescrever ~40 mensagens ja boas
+teria sido risco (regressao de teste) sem ganho real. / Nao confirmado:
+se o Alex tiver uma mensagem especifica em mente que considera "com tom
+errado" e que o grep nao pegou, ele pode apontar e eu ajusto pontualmente.
+
+Historia X (US-E8) — decisao: texto da tarefa "passou da hora" leva o
+TITULO da tarefa entre aspas no inicio do corpo (`"Ligar pro dentista" - a
+tarefa era 14:00...`), diferente do exemplo literal do PRD (que nao nomeia
+a tarefa). / Motivo: mesmo padrao usado em TODO o resto do arquivo
+(`tarefas_paradas`, `esperas_paradas`, etc - entidade entre aspas no
+comeco); sem isso, 2+ tarefas atrasadas no mesmo dia gerariam notificacoes
+indistinguiveis. O fato literal do exemplo ("a tarefa era 14:00, ainda da
+tempo de resolver hoje") continua identico depois das aspas. / Nao
+confirmado: nada, e melhoria de usabilidade dentro do espirito do pedido.
+
+Historia X (US-E8) — decisao: timing de cartao/renda/projeto/mes-seguinte
+(itens 3-6 do PRD) nao tinha regra de disparo explicita alem do limiar
+numerico (90%/70%/21 dias/80%) - defini: cartao e renda ficam "sempre
+ativos" (checados a cada tick, dedup por nivel+mes via
+`ja_notificado_alguma_vez`, igual ao padrao de orcamento ja existente);
+projeto poeira dispara uma vez por "ciclo parado" (ref muda quando o
+projeto e tocado de novo); mes seguinte so e avaliado nos ULTIMOS 3 DIAS do
+mes atual (`projecao_mes_seguinte_devida`). / Motivo: reusa o MESMO padrao
+de dedup que orcamento/teto_ia/manutencao ja usam com sucesso, em vez de
+inventar um mecanismo novo. / Nao confirmado: se o Alex preferir uma
+janela diferente pra "mes seguinte" (ex: ultima semana em vez de ultimos 3
+dias), e so trocar `timedelta(days=2)` em
+`notificacoes.projecao_mes_seguinte_devida`.
+
+Testes: `tests/test_fase6_e8_proatividade.py` (29 casos - cada checagem
+isolada com relogio/data controlados via parametro explicito, mais
+4 testes de pipeline: monta tipo certo, dedup por dia vs por sempre,
+hiperfoco segura aviso nao-critico, e um teste ponta-a-ponta que confirma
+o push de verdade saindo via `verificar_e_notificar()` com `push_client.
+enviar` mockado). Um teste PRE-EXISTENTE (`tests/test_app.py`,
+`test_notificacoes_verificar_agora_inclui_tarefa_com_horario_chegado`) foi
+ajustado: uma tarefa com hora "00:00" agora dispara 2 avisos (o antigo
+"chegou" + o novo "passou da hora"), nao mais 1 - comportamento correto e
+esperado da nova funcionalidade, nao uma regressao.
+
+passes: true.
+
+## US-E9 - Visao do dia (aba Hoje, abaixo do chat)
+
+Secao nova em `#tab-hoje` (`templates/index.html`), logo apos o formulario
+de chat: seletor Dia/Semana/Mes, linha de status, card "Em foco agora"
+(reusa `card-vida` + o hiperfoco JA EXISTENTE via `POST /api/hiperfoco`),
+"Hoje · N itens · M concluidas", e a linha do tempo do dia.
+
+Onde cada fonte e lida (tudo em `app.py`, US-E9):
+- **Tarefas**: `_tarefas_com_horario_hoje`/`_tarefas_concluidas_com_horario_hoje`
+  (ja existiam pra `/api/calendario/hoje`) - so ganharam o campo `id` (pra
+  US-E9 poder oferecer o check de concluir), aditivo, nao quebra ninguem
+  que ja consumia esses dicts.
+- **Agenda (iCloud + calendario "Painel")**: `_eventos_de_hoje_com_seguranca`
+  (ja existia, ja tolera falha de rede) - reusada tal e qual, sem
+  duplicar a busca. Eventos criados no calendario "Painel" (US-E14)
+  aparecem aqui automaticamente (sao so eventos normais do iCloud depois
+  de criados, sem tratamento especial).
+- **Habitos**: `_habitos_do_dia_com_horario` (novo) - so habitos COM
+  horario definido e devidos no dia entram na linha do tempo (habito sem
+  horario nao tem posicao temporal pra desenhar; continua so na aba Vida).
+
+`GET /api/visao-dia/hoje` junta os 3 (`_visao_do_dia_itens`) e devolve
+`{status, em_foco, total_itens, total_concluidas, timeline}`. `GET
+/api/visao-dia/periodo?tipo=semana|mes` devolve contagem agregada por dia
+(`_contagem_dia`: tarefas + habitos devidos + eventos criados localmente -
+a agenda do iCloud NAO entra na agregacao de periodo, ver decisao abaixo).
+
+A linha do tempo em si REUSA a marcacao visual que ja existia
+(`#lista-agenda`, aba Painel) - virou a classe compartilhada
+`.linha-do-tempo` (`style.css`) + a funcao JS compartilhada
+`criarItemLinhaDoTempo` (`app.js`, extraida de dentro de `loadAgenda()`).
+Nao ha duas implementacoes de linha do tempo no projeto.
+
+Historia X (US-E9) — decisao: agregacao de Semana/Mes NAO inclui a agenda
+do iCloud (so tarefas + habitos + eventos criados no calendario "Painel",
+que e local). / Motivo: buscar a agenda do iCloud dia a dia por uma
+semana/mes inteiro exigiria N chamadas de rede instaveis (CalDAV) so pra
+uma contagem simples - custo real que a propria AC pede pra evitar ("sem
+virar outro app"). Eventos criados no calendario "Painel" (tabela local
+`eventos_criados`) SAO contados, sem custo de rede nenhum. / Nao
+confirmado: se o Alex quiser a agenda completa do iCloud tambem
+agregada, precisa decidir se vale o custo de rede (ou cachear
+localmente primeiro - fora do escopo desta historia).
+
+Historia X (US-E9) — decisao: card "Em foco agora" so considera
+tarefa/habito com horario (nunca compromisso de calendario, que nao tem
+"concluir" nem faz sentido "comecar foco" nele) - sem nenhum item
+completavel com horario hoje, o card fica vazio (estado "Nada marcado com
+hora agora"). Sem futuro nenhum (tudo ja passou), escolhe o item que
+passou do horario HA MENOS TEMPO (o mais recente, nao o mais antigo -
+ver Padroes descobertos no AGENTS.md pra o motivo). / Motivo: literal da
+AC ("proxima tarefa... 'Comecar foco'... check de concluir") - todos os
+tres elementos (proxima, foco, concluir) so fazem sentido pra item
+completavel com hora. / Nao confirmado: se preferir mostrar uma tarefa
+SEM horario quando nao houver nenhuma com horario (hoje fica vazio nesse
+caso), e mudanca pequena em `app._proximo_item_em_foco`.
+
+Historia X (US-E9) — decisao: botao "Comecar foco" sempre inicia hiperfoco
+de 25min (a mais curta das 3 opcoes que `#hiperfoco-box` ja oferece).
+/ Motivo: menos disruptivo por padrao - o Alex sempre pode trocar/encerrar
+pela caixa de hiperfoco normal (aba Hoje, mesma tela, logo abaixo). / Nao
+confirmado: se preferir calcular a duracao com base no tempo ate o
+proximo item (ex: nao passar do horario do proximo compromisso), e ajuste
+so no valor de `MINUTOS_FOCO_PADRAO` em `visao-dia.js`.
+
+Modo visitante: a visao do dia (US-E9) NAO mostra nenhum valor financeiro
+(so titulo/horario/origem de tarefa, evento e habito) - `_modo_visitante_ativo()`
+nao se aplica, confirmado por leitura da AC extra do prompt ("se a visao do
+dia mostrar valor financeiro..."). Nada a esconder.
+
+Testes: `tests/test_fase6_e9_visao_dia.py` (28 casos: `vida.formatar_em_
+quanto_tempo` com relogio controlado, `_item_concluivel`/`_status_do_dia`/
+`_proximo_item_em_foco` isolados com listas de item sinteticas, e rotas
+`/api/visao-dia/hoje`+`/periodo` com CalDAV sempre mockado). Mais
+`tests/js/visao_dia.test.js` (8 casos, funcoes puras `nomeDiaCurto`/
+`textoResumoDia` de `visao-dia.js`). Playwright: aba Hoje carregando com
+tarefas/habito reais (timeline com 3 itens, tags TAREFA/TAREFA/HABITO,
+card "Em foco agora" preenchido), troca Dia/Semana/Mes funcionando
+(Semana=7 linhas, Mes=30 linhas em setembro), botao "Comecar foco"
+liga o hiperfoco existente de verdade, botao "Concluir" atualiza o resumo
+na hora - zero erro de JS no console (fora o 502 conhecido de
+`/api/summary/today`, ja documentado no AGENTS.md). Confirmado tambem que
+a agenda de hoje (aba Painel, `#lista-agenda`) continua com a trilha
+visual (ganhou a classe `.linha-do-tempo` no HTML, achado real durante a
+verificacao - ver AGENTS.md).
+
+Historia X (US-E9) — decisao: "marcador da hora atual" (AC) e o marcador
+"proximo" JA EXISTENTE (bolinha maior + brilho + selo "proximo" no primeiro
+item ainda nao acontecido) - nao um segundo elemento visual novo (linha
+horizontal separada indicando "agora"). / Motivo: e exatamente essa a
+funcao desse marcador desde que a linha do tempo original foi criada (ver
+comentario em `app.js`: "ajuda com cegueira de tempo... bater o olho e
+saber onde esta no dia") - um segundo indicador faria a mesma coisa duas
+vezes na mesma tela. / Nao confirmado: se o Alex quiser literalmente uma
+linha horizontal cruzando a trilha na altura de "agora" (visual mais
+proximo de agendas tipo Google Calendar), e um CSS/JS adicional pequeno,
+nao um redesenho.
+
+passes: true.

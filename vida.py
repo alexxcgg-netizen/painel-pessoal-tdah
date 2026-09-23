@@ -829,3 +829,18 @@ def fracao_limite_cartao(gasto_ciclo: float, limite: float | None) -> dict | Non
         "fracao": round(min(gasto / limite, 1.5), 4),
         "sobra": round(limite - gasto, 2),
     }
+
+
+# ---- Fase 6, US-E9: visao do dia --------------------------------------------
+
+def formatar_em_quanto_tempo(alvo: datetime, agora: datetime) -> str:
+    """'em 19 min'/'em 2h5min' pro card EM FOCO AGORA - so o fato, sem
+    diminutivo nem tom de coach. Alvo no passado vira 'atrasada' (nao mostra
+    "ha -12 min", que so reforça o atraso com um numero negativo estranho)."""
+    delta_min = round((alvo - agora).total_seconds() / 60)
+    if delta_min <= 0:
+        return "atrasada"
+    if delta_min < 60:
+        return f"em {delta_min} min"
+    horas, minutos = divmod(delta_min, 60)
+    return f"em {horas}h" if minutos == 0 else f"em {horas}h{minutos}min"

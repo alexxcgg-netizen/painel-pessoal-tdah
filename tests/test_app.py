@@ -2823,9 +2823,13 @@ class PainelTestCase(unittest.TestCase):
                 json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
             )
             res = self.client.post("/api/notificacoes/verificar-agora")
-        self.assertEqual(res.get_json()["avisos_enviados"], 1)
-        corpo = mock_enviar.call_args[0][2]
-        self.assertIn("colocar o lixo pra fora", corpo)
+        # Fase 6 (US-E8): tarefa com hora 00:00 ja passa tambem dos 30min de
+        # tarefas_horario_passou no mesmo tick (hora bem no inicio do dia) -
+        # os dois avisos (tarefa_horario "chegou" + tarefa_horario_passou
+        # "passou da hora") saem juntos aqui, cada um seu proprio tipo/corpo.
+        self.assertEqual(res.get_json()["avisos_enviados"], 2)
+        corpos = [c.args[2] for c in mock_enviar.call_args_list]
+        self.assertTrue(any("colocar o lixo pra fora" in c for c in corpos))
 
     def test_lembretes_lista_vazia(self):
         self.assertEqual(self.client.get("/api/lembretes").get_json(), [])

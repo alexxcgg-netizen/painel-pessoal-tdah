@@ -5,6 +5,45 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (Fase 6 E5) - proatividade unificada e visao do dia
+
+Faixa 5 do Grupo E da Fase 6 (depois de E1+E2+E3 integrados): unifica a proatividade num so
+pipeline e estende a linha do tempo que ja existia numa visao do dia de verdade.
+
+- **US-E8 (Proatividade unificada)**: 6 avisos novos em `notificacoes.py`, todos entrando na
+  MESMA lista de `app.verificar_e_notificar()` e passando pelo pipeline unico ja existente
+  (silencioso -> hiperfoco -> modo viagem -> agrupamento -> `_despachar()`, dedup em
+  `notificacoes_enviadas`) - nenhum caminho paralelo de envio. `habitos_passaram_batido`
+  (habito com horario, 1h sem marcar - reusa `vida.habito_passou_batido`, ja preparada na
+  US-E12); `tarefas_horario_passou` (30min apos a hora, ainda pendente, complementa
+  `tarefas_com_horario_chegando`); `cartoes_perto_ou_estourados` (>=90%/>=100% do limite
+  manual, US-E15, reusa `vida.fracao_limite_cartao`); `renda_perto_de_acabar` (>=70%/>=100%
+  da renda do mes ja gasta); `projetos_juntando_poeira` (21+ dias sem toque, US-E13, reusa
+  `vida.calcular_projeto`); `mes_seguinte_apertado` (custos fixos recorrentes vs media de
+  renda dos ultimos 3 meses, checado so nos ultimos 3 dias do mes). Revisao de tom: os avisos
+  ja existentes no sistema ja eram diretos/sem diminutivo/sem coach - nenhuma migracao de
+  texto foi necessaria alem dos 6 novos.
+- **US-E9 (Visao do dia)**: secao nova em `#tab-hoje` (aba Hoje, abaixo do chat) - seletor
+  Dia/Semana/Mes, linha de status, card "Em foco agora" (proxima tarefa/habito com horario,
+  "em N min", botao "Comecar foco" ligado ao hiperfoco ja existente via `POST /api/hiperfoco`,
+  check de concluir), "Hoje · N itens · M concluidas", e a linha do tempo do dia. `GET
+  /api/visao-dia/hoje` junta agenda do iCloud + eventos do calendario "Painel" + tarefas (tudo
+  via `_eventos_de_hoje_com_seguranca`, ja existente) com habitos com horario (`_habitos_do_dia_com_horario`,
+  novo). `GET /api/visao-dia/periodo?tipo=semana|mes` agrega tarefas+habitos+eventos criados
+  por dia (agenda do iCloud fica fora da agregacao de periodo - custo de N chamadas de rede
+  instaveis, ver decisao em `tasks/fase6/progress-e5.txt`). A linha do tempo REUSA a marcacao
+  visual que a agenda de hoje (aba Painel) ja tinha - virou a classe compartilhada
+  `.linha-do-tempo` (`style.css`) + a funcao JS compartilhada `criarItemLinhaDoTempo`
+  (`app.js`, extraida de `loadAgenda()`) - nao ha duas implementacoes de linha do tempo no
+  projeto.
+
+Testes: `tests/test_fase6_e8_proatividade.py` (29 casos), `tests/test_fase6_e9_visao_dia.py`
+(28 casos), `tests/js/visao_dia.test.js` (8 casos) - todos com relogio/data controlados
+explicitamente, sem depender da hora real de quando o teste roda. Suite completa sem
+regressao (as 6 falhas pre-existentes de horario de voo/agrupamento, conhecidas e documentadas
+no AGENTS.md, continuam as mesmas). Verificacao visual headless (Playwright, 390px) das duas
+telas. Decisoes e "nao confirmado" completos em `tasks/fase6/progress-e5.txt`.
+
 ## 2026-09-23 (Fase 6 E2) - modulos Habitos, Projetos, agenda no iCloud e limite do cartao
 
 Faixa 2 do Grupo E da Fase 6: 4 modulos novos e independentes que a proatividade (US-E8) e os

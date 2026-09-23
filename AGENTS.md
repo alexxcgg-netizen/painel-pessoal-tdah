@@ -355,3 +355,43 @@ db.init_db()
   história que vai ganhar o commit), rodar a suíte só então, e só depois
   restaurar os arquivos da próxima história a partir de uma cópia salva em
   `/tmp` (nunca editar author de novo por cima do que a suíte está lendo).
+
+### Fase 6, Grupo E5 (proatividade unificada + visão do dia) - US-E8/US-E9
+- **A linha do tempo vertical (trilha + bolinha colorida por estado) virou
+  classe compartilhada `.linha-do-tempo`** (`style.css`, antes era
+  `#lista-agenda` sozinho) - `#lista-agenda` (agenda de hoje, aba Painel) e
+  `#visao-dia-timeline` (visão do dia, aba Hoje, US-E9) usam a MESMA classe
+  + a MESMA função JS `criarItemLinhaDoTempo(ev, agora, proximoJaMarcado)`
+  (`app.js`, extraída de dentro de `loadAgenda()`). Um terceiro consumidor
+  futuro (ex: linha do tempo na aba Vida) deve reusar os dois, nunca copiar
+  o CSS/JS de novo - **e lembrar de somar `class="linha-do-tempo"` no `<ul>`
+  novo**, a classe sozinha no CSS não pinta nada sem o elemento carregar
+  ela (achado real: o primeiro rascunho desta história renomeou o CSS mas
+  esqueceu de acrescentar a classe no `<ul id="lista-agenda">` já
+  existente - só foi pego na verificação visual headless, a agenda do
+  Painel teria ficado sem a trilha visual silenciosamente, sem nenhum erro
+  de JS/teste unitário acusando).
+- **`notificacoes.py` NUNCA importa de `app.py`** (é o contrário: `app.py`
+  importa `notificacoes`) - por isso as checagens novas da US-E8 que
+  precisam do estado de hábito/projeto/cartão (ex: `habitos_passaram_batido`)
+  recalculam com as funções de `db.py`/`vida.py` direto (`db.habito_marcado`,
+  `db.marcacoes_habito_no_periodo`, `vida.habito_passou_batido`), em vez de
+  chamar helpers privados de `app.py` como `_habito_detalhado` (que também
+  faz a mesma conta, mas do lado errado da dependência).
+- **Teste com "hora" fixa tipo `"00:00"` e relógio REAL (sem mockar
+  `datetime.now`)** - comum em testes mais antigos de `tarefas_com_horario_hoje`
+  - agora também aciona `tarefas_horario_passou` (US-E8, 30min depois do
+  horário) no mesmo tick, já que qualquer hora real do dia está a mais de
+  30min de `"00:00"`. Um teste que conta `avisos_enviados` com uma tarefa
+  dessas precisa esperar 2 avisos (o "chegou"/`tarefa_horario` E o "passou
+  da hora"/`tarefa_horario_passou`), não mais 1 - ver o ajuste em
+  `test_notificacoes_verificar_agora_inclui_tarefa_com_horario_chegado`
+  (`tests/test_app.py`) pro padrão exato.
+- **"Sem nenhum item futuro, escolhe o mais atrasado" é `max()`, não
+  `min()`, no horário de início** (`app._proximo_item_em_foco`, US-E9): a
+  intuição de "mais atrasado" engana - o item que queremos em destaque é o
+  que passou do horário HÁ MENOS TEMPO (o miss mais fresco, `max(inicio)`),
+  não o mais antigo (`min(inicio)`, que ficaria preso mostrando a mesma
+  tarefa staleada o dia inteiro mesmo com itens mais recentes passando
+  batido também).
+
