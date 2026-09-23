@@ -10,6 +10,7 @@ import db
 
 _tmp_dir = tempfile.TemporaryDirectory()
 db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+db.garantir_banco_nao_producao()
 
 import app  # noqa: E402
 
@@ -82,6 +83,24 @@ class ModoVisitanteTestCase(unittest.TestCase):
         self.client.post("/logout")
         res = self.client.get("/api/modo-visitante")
         self.assertEqual(res.status_code, 401)
+
+    def test_pin_errado_repetido_bloqueia_temporariamente(self):
+        """Achado da revisao de seguranca da Fase 5: antes, o PIN do modo
+        visitante nao tinha limite de tentativas (diferente do /login) -
+        agora reusa o mesmo mecanismo (auth.verificar_bloqueio/registrar_tentativa)."""
+        self.client.post("/api/modo-visitante", json={"ativar": True})
+        for _ in range(auth.TENTATIVAS_PARA_BLOQUEAR):
+            res = self.client.post("/api/modo-visitante", json={"ativar": False, "pin": "000000"})
+            self.assertEqual(res.status_code, 403)
+
+        res_bloqueado = self.client.post("/api/modo-visitante", json={"ativar": False, "pin": "000000"})
+        self.assertEqual(res_bloqueado.status_code, 429)
+
+        res_pin_certo_tambem_bloqueado = self.client.post(
+            "/api/modo-visitante", json={"ativar": False, "pin": PIN_TESTE}
+        )
+        self.assertEqual(res_pin_certo_tambem_bloqueado.status_code, 429)
+        self.assertTrue(self.client.get("/api/modo-visitante").get_json()["ativo"])
 
     def test_estado_e_por_sessao_nao_vaza_pra_outro_cliente(self):
         outro_client = app.app.test_client()

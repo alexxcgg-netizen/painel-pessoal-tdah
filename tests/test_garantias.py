@@ -17,6 +17,7 @@ import vida
 
 _tmp_dir = tempfile.TemporaryDirectory()
 db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+db.garantir_banco_nao_producao()
 
 import app  # noqa: E402
 
@@ -121,6 +122,28 @@ class GarantiasApiTestCase(unittest.TestCase):
         }
         res = self.client.post("/api/garantias", data=data, content_type="multipart/form-data")
         self.assertEqual(res.status_code, 400)
+
+    def test_anexo_conteudo_nao_bate_com_extensao_rejeitado(self):
+        """US-C18 (revisao de seguranca da Fase 5): extensao .pdf sozinha nao
+        prova nada sobre o conteudo real - so o nome que o navegador mandou."""
+        data = {
+            "produto": "Geladeira",
+            "data_compra": "2026-01-01",
+            "prazo_garantia_meses": "12",
+            "nota_fiscal": (io.BytesIO(b"isso nao e um pdf de verdade"), "nota.pdf"),
+        }
+        res = self.client.post("/api/garantias", data=data, content_type="multipart/form-data")
+        self.assertEqual(res.status_code, 400)
+
+    def test_anexo_jpg_com_magic_bytes_corretos_aceito(self):
+        data = {
+            "produto": "Fone de ouvido",
+            "data_compra": "2026-01-01",
+            "prazo_garantia_meses": "12",
+            "nota_fiscal": (io.BytesIO(b"\xff\xd8\xff\xe0resto da foto"), "nota.jpg"),
+        }
+        res = self.client.post("/api/garantias", data=data, content_type="multipart/form-data")
+        self.assertEqual(res.status_code, 201)
 
     def test_anexo_grande_demais_rejeitado(self):
         grande = b"0" * (6 * 1024 * 1024)

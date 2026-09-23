@@ -176,3 +176,49 @@ Novas da Fase 4 (opcionais - sem elas o app funciona normal, so sem essas camada
 - Aprendizado da correcao: contexto extra no prompt do Claude (nao um override
   deterministico em Python) - o "erro" pode ser o tipo inteiro da captura (tarefa vs
   gasto), entao a decisao final continua sendo da IA olhando o texto atual.
+
+## Fase 5 - Execucao noturna orquestrada (padrao Ralph, 4 grupos em paralelo)
+Tracking detalhado por historia fica em `tasks/fase5/*.json` (formato Ralph:
+userStories com `passes`/`notes`) e nos `progress-grupo-*.txt` de cada agente - este
+arquivo so registra o resumo/decisoes, igual as fases anteriores. Ver `CHANGELOG.md`
+(entradas 26 a 31) pro detalhe tecnico completo de cada historia e da rodada de correcao.
+
+- [x] Grupo A - nucleo do classificador de intent (US-A1 a US-A6, `docs/INTENT.md`)
+- [x] Grupo B - navegacao por voz best-effort + Atalhos/Siri + fallback offline (US-B1 a
+  US-B6, dependia do contrato do Grupo A)
+- [x] Grupo C - 22 historias independentes (brain dump, diario de decisao, garantias,
+  manutencao veicular, patrimonio consolidado, revisao trimestral/anual, modo viagem,
+  modo visitante, sinal de sobrecarga, etc - ver `tasks/fase5/grupo-c-*.json`)
+- [x] Grupo D - polimento visual (US-D1 a US-D3, so comecou depois de A+B+C integrados
+  na main, pra nao gerar conflito em cima de tela ainda sendo criada)
+- [x] Integracao dos 4 grupos na main via merge git de verdade (worktree isolado por
+  grupo, seguindo o protocolo do topo deste arquivo) + suite completa a cada etapa
+- [x] Revisao independente (2 agentes, codigo/integracao e seguranca) + correcao de
+  todas as 6 vulnerabilidades reais encontradas (o modo visitante incompleto - achado
+  pelos dois agentes de forma independente - foi o mais serio) e dos 4 itens "deve
+  corrigir em breve"
+- Nenhuma historia ficou `blocked` em nenhum dos 4 grupos - nenhuma pergunta pendente
+  pro Alex desbloquear nada.
+
+### Decisoes da Fase 5
+- **3 regras novas viraram padrao permanente do projeto, pedidas em pleno andamento sem
+  parar o que ja estava rodando**: (1) atualizar `AGENTS.md` por historia com
+  padrao/pegadinha/convencao descoberta, nao so `progress.txt`; (2) `gitleaks detect`
+  antes de todo commit; (3) auditoria de dependencia nova (`pip-audit`/`npm audit`) antes
+  de fechar qualquer historia com lib nova; (4) smoke-test do app depois de integrar cada
+  grupo (nao so o teste unitario); (5) verificacao visual headless com Playwright pra
+  toda historia de UI (Chromium pre-instalado do ambiente - ver AGENTS.md pra pegadinha
+  do `executable_path`); (6) todo teste/migracao roda contra copia de desenvolvimento,
+  nunca o banco real - `db.garantir_banco_nao_producao()` existe por causa disso (um quase-
+  incidente real, pego antes de rodar, documentado no proprio commit); (7) `.env.example`
+  e o lockfile de dependencia consolidados numa passada so na integracao final.
+- **Mensagens "do coordenador" durante a execucao dispararam o classificador de seguranca
+  de 3 agentes diferentes** (Grupo A, C1, C2), que se recusaram a agir nelas por nao
+  conseguir verificar quem realmente mandou - comportamento defensivo correto (o
+  orquestrador nao tem como provar identidade pro subagente no meio da tarefa), confirmado
+  como legitimo caso a caso, sem nenhum dado real em risco.
+- Mesma leitura da Fase 4 sobre isolamento: cada grupo rodou em `git worktree` proprio
+  dentro do `painel-pessoal-tdah` (nunca o parametro de isolamento automatico do ambiente,
+  que so cobre o `financeiro-construtora`), com `pwd`/`git remote -v` conferido antes de
+  qualquer escrita - sem incidente de repositorio errado nesta fase.
+- Nenhuma credencial nova foi necessaria em nenhum dos 4 grupos.

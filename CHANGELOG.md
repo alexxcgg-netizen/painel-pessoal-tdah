@@ -5,6 +5,95 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (31) - Fase 5: correcoes da revisao independente (codigo + seguranca)
+
+Depois de integrar os 4 grupos da Fase 5 na main, revisao independente de codigo e de
+seguranca (mesmo padrao ja usado nas fases anteriores) encontrou 6 vulnerabilidades reais
+(4 bloqueadoras, 1 achada pelos dois agentes de forma independente) e 4 itens "deve
+corrigir em breve". Todos corrigidos nesta rodada, direto na main:
+
+- **Modo visitante incompleto (US-C20/US-C22, o achado mais serio - encontrado pelos DOIS
+  agentes de revisao de forma independente)**: `/api/diario-decisoes` (GET/POST/resultado)
+  nunca tinha entrado no escopo do modo visitante - segredo aparecia inteiro na resposta.
+  Corrigido com o mesmo padrao ja usado em `/api/decisoes`. Alem disso, `/api/patrimonio`,
+  `/api/bancos` e `/api/bancos/<id>/transacoes` (dado consolidado das contas bancarias,
+  Fase 4) nunca tinham sido trazidas pro escopo nenhuma vez - corrigido (GET devolve vazio/
+  `oculto: true`, nunca o dado real).
+- **Export de dados ignorava o modo visitante**: os 4 endpoints de export
+  (`/api/expenses/exportar-csv`, `/api/backup/exportar`, `/api/backup/exportar-json`,
+  `/api/backup/exportar-csv-completo`) devolviam o dado real completo mesmo com o modo
+  visitante ligado - agora bloqueados com 403, mesma mensagem padrao.
+  - **Frontend**: `loadDecisoes()` e `loadBancos()` (que tambem recarrega `/api/patrimonio`)
+    agora tambem escutam `modo-visitante-mudou` (`static/js/app.js`) - o dado sensivel
+    parado em cache no DOM de uma leitura anterior tambem some da tela, nao so da resposta
+    HTTP. Verificado com Playwright headless (fluxo real: login, dado secreto visivel,
+    ativa modo visitante, dado some do DOM em ambas as telas).
+- **PIN do modo visitante sem limite de tentativas**: diferente do `/login`, desativar o
+  modo visitante com o PIN errado nao tinha nenhum bloqueio - agora reusa o MESMO mecanismo
+  (`auth.verificar_bloqueio`/`registrar_tentativa`) do login, 5 tentativas erradas bloqueiam
+  por 5 minutos.
+- **Teto mensal de gasto com IA (US-A6) checado em so 1 dos 2 endpoints caros**: o
+  classificador de intent (`_classificar_intent`) respeitava o teto, mas a extracao de nota
+  fiscal por foto (`/api/notas-fiscais/extrair`, usa Sonnet - a chamada mais cara do app)
+  nao checava. Corrigido com o mesmo padrao (`resumo_custo_api(conn)["teto_estourado"]`
+  antes de chamar a API).
+- **TOCTOU no teto de gasto (MEDIO)**: checar o teto e so depois logar o gasto, sem nenhum
+  lock, deixava uma janela teorica pra duas requisicoes concorrentes passarem do teto ao
+  mesmo tempo. `_TETO_IA_LOCK` (um `threading.Lock` de processo) agora serializa checar ->
+  chamar a IA -> logar nos dois pontos que respeitam o teto - app de usuario unico, entao
+  o lock nunca fica sob disputa real, so fecha a janela.
+- **Anexo de garantia so validado pela extensao do nome do arquivo (MEDIO)**: `.pdf`/`.jpg`/
+  `.png` no nome nao prova nada sobre o conteudo real. Adicionada checagem de magic bytes
+  (`_conteudo_bate_com_extensao`) - PDF/JPG/PNG de verdade, ou rejeitado com 400.
+- **9 arquivos de teste sem a trava de producao (MEDIO)**: `db.garantir_banco_nao_producao()`
+  (criada na propria Fase 5 depois de um quase-incidente, ver entrada anterior) tinha sido
+  esquecida em `test_garantias.py`, `test_modo_visitante.py`, `test_modo_visitante_telas.py`,
+  `test_sinal_sobrecarga.py`, `test_ideias_presente.py`, `test_modo_viagem.py`,
+  `test_gasto_categoria_atipico.py`, `test_previa_noite.py` e `test_vida_rotas.py` -
+  adicionada em todos, logo apos `db.DB_PATH` ser trocado pro caminho temporario.
+- Testes de regressao novos cobrindo cada achado (`test_modo_visitante_telas.py`:
+  patrimonio/bancos/transacoes/diario-decisoes/exports; `test_modo_visitante.py`: bloqueio
+  de tentativas; `test_garantias.py`: magic bytes). Suite completa (unittest + `node --test`)
+  sem regressao, `gitleaks detect` sem achado, `pyflakes` limpo.
+- Achados menores documentados e conscientemente NAO corrigidos nesta rodada (BAIXO/nice-
+  to-have, escopo de uma proxima fase): `/api/atalho/resumo` chama `_token_atalho_valido`
+  sem `obrigatorio=True` (inconsistente com o padrao do resto dos `/api/atalho/*`, mas
+  pre-existente e de fora do escopo da Fase 5); `MAX_CONTENT_LENGTH` do Flask nao
+  configurado; a listagem de `/api/garantias` devolve o anexo em base64 inteiro (nenhuma
+  tela ainda renderiza ou baixa esse anexo, entao sem exposicao real hoje).
+
+## 2026-09-23 (30) - Fase 5 Grupo D: polimento visual
+
+Branch `fase5/grupo-d-polimento` (agente IA autonomo, worktree isolado, `tasks/fase5/
+grupo-d-polimento.json`). So comecou depois dos Grupos A, B e C integrados na main (regra
+do proprio grupo, pra nao gerar conflito de CSS/HTML em cima de tela que ainda tava sendo
+criada). US-D1 a US-D3, todas passando.
+
+- **US-D1 - Animacao/transicao nas telas de captura/rotina/financeiro**: quase toda tela
+  nova do Grupo C ja seguia o padrao visual existente (herda `fadeInUp`/stagger de
+  `secao-secundaria`/`dica-colapsavel`/`form-linha`/`li.item`). Gap real: `.card-vida`
+  (usado por `sobrecarga-box`, `previa-noite-box`, `revisao-periodo-box`, `patrimonio-box` -
+  novos - e tambem por `rotina`/`checkin`/`essencial`/`progresso`/`fim-mes`/`custo-ia` -
+  antigos) nao tinha nenhuma animacao de entrada, aparecia com corte seco ao sair de
+  `[hidden]`. Adicionado `fadeInUp 0.35s var(--ease-bounce) both`, a mesma curva ja usada
+  nos irmaos.
+- **US-D2 - Animacao na navegacao por voz e widget de tela bloqueada**: o estado "ouvindo"
+  (US-B1) ja tinha feedback visual; gap real era o estado "processando" (entre fim da
+  escuta e a resposta de `/api/intent/classificar`) sem nenhum feedback alem de um texto
+  pequeno. Corrigido reaproveitando o MESMO padrao ja usado em todo formulario do app
+  (`setBotaoCarregando`), em vez de inventar animacao nova. Widget de tela bloqueada
+  (US-C1, `scriptable/widget_lockscreen.js`) conferido e ja estava certo - o proprio arquivo
+  documenta por que nunca usa cor customizada nos slots de lock screen (iOS renderiza
+  monocromatico ali).
+- **US-D3 - Espacamento/hierarquia geral e micro-interacao de confirmacao**: telas novas do
+  Grupo C ja seguiam o mesmo padrao de espacamento das antigas. Gap real: a confirmacao de
+  nota fiscal por foto (US-C8/US-C9) salvava e escondia a caixa na hora, sem nenhum
+  `pulsarSucesso` - corrigido pulsando `#nf-valor` e adiando o `hidden=true` em 250ms (mesmo
+  tempo ja usado no "saindo" de item apagado/convertido).
+- Cada historia verificada com Playwright headless (Chromium pre-instalado, ver AGENTS.md
+  pra pegadinha do `executable_path`) alem da suite de testes completa (unittest 1417
+  testes, so as 5 falhas pre-existentes de horario de voo; `node --test` 29/29).
+
 ## 2026-09-23 (29) - Fase 5 Grupo B: navegacao por voz (best-effort) + offline
 
 Branch `fase5/grupo-b-voz-offline` (agente IA autonomo, worktree isolado). US-B1 a US-B6

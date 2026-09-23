@@ -14,6 +14,7 @@ from viagem import modo_viagem_ativo
 
 _tmp_dir = tempfile.TemporaryDirectory()
 db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+db.garantir_banco_nao_producao()
 
 import app  # noqa: E402
 

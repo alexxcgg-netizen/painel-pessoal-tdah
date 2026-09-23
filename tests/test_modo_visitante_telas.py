@@ -15,6 +15,7 @@ import db
 
 _tmp_dir = tempfile.TemporaryDirectory()
 db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+db.garantir_banco_nao_producao()
 
 import app  # noqa: E402
 
@@ -170,6 +171,97 @@ class ModoVisitanteTelasTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 403)
         mock_create.assert_not_called()
         self.assertEqual(db.list_decisoes(self.conn), [])
+
+    # ---- patrimonio/bancos (achado da revisao de seguranca da Fase 5:
+    # essas rotas nunca tinham sido trazidas pro escopo do modo visitante) ----
+
+    def test_patrimonio_oculto_com_modo_visitante(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "Banco Segredo XPTO")
+        self.conn.execute("UPDATE bank_accounts SET saldo = ? WHERE id = ?", (4321.55, conta_id))
+        self.conn.commit()
+        antes = self.client.get("/api/patrimonio")
+        self.assertIn(b"4321.55", antes.data)
+
+        self._ativar_modo_visitante()
+        res = self.client.get("/api/patrimonio")
+        self.assertEqual(res.status_code, 200)
+        dados = res.get_json()
+        self.assertEqual(dados["patrimonio_total"], 0)
+        self.assertEqual(dados["contas"], [])
+        self.assertTrue(dados.get("oculto"))
+        self.assertNotIn(b"4321.55", res.data)
+        self.assertNotIn(b"Banco Segredo XPTO", res.data)
+
+    def test_bancos_somem_com_modo_visitante(self):
+        db.get_or_create_bank_account(self.conn, "Banco Segredo XPTO")
+        antes = self.client.get("/api/bancos")
+        self.assertIn(b"Banco Segredo XPTO", antes.data)
+
+        self._ativar_modo_visitante()
+        res = self.client.get("/api/bancos")
+        self.assertEqual(res.get_json(), [])
+        self.assertNotIn(b"Banco Segredo XPTO", res.data)
+
+    def test_transacoes_banco_somem_com_modo_visitante(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "Nubank")
+        self.conn.execute(
+            "INSERT INTO bank_transactions (bank_account_id, data, descricao, valor, external_id) "
+            "VALUES (?, '2026-01-01', 'compra-secreta', -99.9, 'ext1')",
+            (conta_id,),
+        )
+        self.conn.commit()
+        antes = self.client.get(f"/api/bancos/{conta_id}/transacoes")
+        self.assertIn(b"compra-secreta", antes.data)
+
+        self._ativar_modo_visitante()
+        res = self.client.get(f"/api/bancos/{conta_id}/transacoes")
+        self.assertEqual(res.get_json(), [])
+        self.assertNotIn(b"compra-secreta", res.data)
+
+    # ---- diario de decisao (achado por AMBAS as revisoes independentes -
+    # o unico blocker que os dois agentes encontraram por conta propria) ----
+
+    def test_diario_decisoes_some_com_modo_visitante(self):
+        db.create_diario_decisao(self.conn, "vender a empresa segredo-y", contexto="ctx")
+        antes = self.client.get("/api/diario-decisoes")
+        self.assertIn(b"segredo-y", antes.data)
+
+        self._ativar_modo_visitante()
+        res = self.client.get("/api/diario-decisoes")
+        self.assertEqual(res.get_json(), [])
+        self.assertNotIn(b"segredo-y", res.data)
+
+    def test_criar_diario_decisao_bloqueado_com_modo_visitante(self):
+        self._ativar_modo_visitante()
+        res = self.client.post("/api/diario-decisoes", json={"decisao": "trocar de emprego"})
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(db.list_diario_decisoes(self.conn), [])
+
+    def test_registrar_resultado_diario_decisao_bloqueado_com_modo_visitante(self):
+        decisao_id = db.create_diario_decisao(self.conn, "mudar de cidade")
+        self._ativar_modo_visitante()
+        res = self.client.post(f"/api/diario-decisoes/{decisao_id}/resultado", json={"resultado": "deu certo"})
+        self.assertEqual(res.status_code, 403)
+        self.assertIsNone(db.obter_diario_decisao(self.conn, decisao_id)["resultado"])
+
+    # ---- export (achado da revisao de seguranca: dado sensivel saia
+    # inteiro pelo export mesmo com o modo visitante ligado) ----
+
+    def test_exports_bloqueados_com_modo_visitante(self):
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo) VALUES (654.0, 'exportado-secreto', 'x', 'real')"
+        )
+        self.conn.commit()
+        self._ativar_modo_visitante()
+        for url in (
+            "/api/expenses/exportar-csv",
+            "/api/backup/exportar",
+            "/api/backup/exportar-json",
+            "/api/backup/exportar-csv-completo",
+        ):
+            res = self.client.get(url)
+            self.assertEqual(res.status_code, 403, url)
+            self.assertNotIn(b"exportado-secreto", res.data, url)
 
     # ---- desativando volta tudo ao normal ----
 

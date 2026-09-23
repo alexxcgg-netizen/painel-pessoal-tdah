@@ -9,6 +9,7 @@ import math
 import os
 import sqlite3
 import tempfile
+import threading
 import zipfile
 from datetime import date, datetime, timedelta
 
@@ -289,6 +290,15 @@ def _texto_seguro(valor, padrao: str = "") -> str:
     return valor.strip() if isinstance(valor, str) else padrao
 
 
+# Serializa checar-o-teto -> chamar a IA -> gravar o gasto (US-A6) nos dois
+# pontos que respeitam o teto mensal (_classificar_intent e
+# extrair_nota_fiscal) - sem isso, duas requisicoes concorrentes podiam
+# ambas ler "abaixo do teto" antes de qualquer uma logar o custo (TOCTOU,
+# achado na revisao de seguranca da Fase 5). App de usuario unico, entao o
+# lock nunca fica sob disputa real - so fecha a janela teorica.
+_TETO_IA_LOCK = threading.Lock()
+
+
 def _call_claude(fn, *args):
     """Chama uma funcao do claude_client e traduz falhas em uma resposta de erro pronta pra devolver."""
     try:
@@ -464,9 +474,14 @@ def alternar_modo_visitante_rota():
         session["modo_visitante"] = True
         return jsonify({"ativo": True})
 
+    ip = request.remote_addr or "desconhecido"
     conn = get_db()
     try:
+        pode_tentar, msg_bloqueio = auth.verificar_bloqueio(conn, ip)
+        if not pode_tentar:
+            return jsonify({"error": msg_bloqueio}), 429
         pin_ok = auth.verificar_pin(conn, body.get("pin"))
+        auth.registrar_tentativa(conn, ip, sucesso=pin_ok)
     finally:
         conn.close()
     if not pin_ok:
@@ -637,21 +652,22 @@ def _classificar_intent(conn, texto: str):
             "precisa_confirmacao": False,
         }, None
 
-    if resumo_custo_api(conn)["teto_estourado"]:
-        return {
-            "acao": "desconhecido",
-            "confianca": 0.0,
-            "parametros": {},
-            "precisa_confirmacao": True,
-            "teto_ia_estourado": True,
-        }, None
+    with _TETO_IA_LOCK:
+        if resumo_custo_api(conn)["teto_estourado"]:
+            return {
+                "acao": "desconhecido",
+                "confianca": 0.0,
+                "parametros": {},
+                "precisa_confirmacao": True,
+                "teto_ia_estourado": True,
+            }, None
 
-    result, error = _call_claude(claude_client.classify_intent, texto)
-    if error:
-        return None, error
-    resultado, usage = result
+        result, error = _call_claude(claude_client.classify_intent, texto)
+        if error:
+            return None, error
+        resultado, usage = result
 
-    _log_usage(conn, usage, "intent")
+        _log_usage(conn, usage, "intent")
     # So reforca o padrao com classificacoes em que a propria IA confiou -
     # nao vale a pena aprender de algo que ja veio com precisa_confirmacao.
     if not resultado["precisa_confirmacao"]:
@@ -976,6 +992,8 @@ def expenses_historico():
 def exportar_expenses_csv():
     """CSV de todos os gastos (real e planejado) - sem limite de 50 como o
     /api/expenses normal, essa e feita pra abrir na planilha, nao pra tela."""
+    if _modo_visitante_ativo():
+        return jsonify({"error": "desative o modo visitante pra exportar dados"}), 403
     conn = get_db()
     rows = conn.execute(
         "SELECT created_at, amount, category, tipo, description FROM expenses ORDER BY created_at"
@@ -1003,6 +1021,8 @@ def exportar_backup():
     metade. Mesmo habito de backup do financeiro-construtora (AGENTS.md de
     la), aqui como export manual sob demanda em vez de automatico antes de
     escrita."""
+    if _modo_visitante_ativo():
+        return jsonify({"error": "desative o modo visitante pra exportar dados"}), 403
     tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     tmp.close()
     origem = sqlite3.connect(db.DB_PATH)
@@ -1058,6 +1078,8 @@ def exportar_backup_json():
     pensado pra restaurar o painel inteiro depois, diferente do
     /api/expenses/exportar-csv (so gastos, pra planilha) e do
     /api/backup/exportar (.db bruto, so restaura via SQLite direto)."""
+    if _modo_visitante_ativo():
+        return jsonify({"error": "desative o modo visitante pra exportar dados"}), 403
     conn = get_db()
     try:
         tabelas = _exportar_tabelas_dict(conn)
@@ -1083,6 +1105,8 @@ def exportar_backup_csv_completo():
     de um .zip - diferente do JSON (uma estrutura relacional so faz sentido
     achatada em varios arquivos, nao um CSV unico) e do
     /api/expenses/exportar-csv (so gastos)."""
+    if _modo_visitante_ativo():
+        return jsonify({"error": "desative o modo visitante pra exportar dados"}), 403
     conn = get_db()
     try:
         tabelas = _exportar_tabelas_dict(conn)
@@ -3527,6 +3551,8 @@ def apagar_nota_rota(nota_id):
 # proprias abaixo.
 @app.route("/api/diario-decisoes", methods=["GET"])
 def diario_decisoes():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     resultado = list_diario_decisoes(conn)
     conn.close()
@@ -3535,6 +3561,8 @@ def diario_decisoes():
 
 @app.route("/api/diario-decisoes", methods=["POST"])
 def criar_diario_decisao():
+    if _modo_visitante_ativo():
+        return jsonify({"error": "desative o modo visitante pra usar o diario de decisao"}), 403
     body = _corpo_json()
     decisao = _texto_seguro(body.get("decisao"))
     if not decisao:
@@ -3552,6 +3580,8 @@ def criar_diario_decisao():
 
 @app.route("/api/diario-decisoes/<int:decisao_id>/resultado", methods=["POST"])
 def registrar_resultado_diario_decisao_rota(decisao_id):
+    if _modo_visitante_ativo():
+        return jsonify({"error": "desative o modo visitante pra usar o diario de decisao"}), 403
     body = _corpo_json()
     resultado = _texto_seguro(body.get("resultado"))
     if not resultado:
@@ -5105,6 +5135,24 @@ def apagar_manutencao_veiculo(manutencao_id):
 
 TAMANHO_MAX_ANEXO_GARANTIA_BYTES = 5 * 1024 * 1024  # 5MB - nota fiscal (PDF ou foto), nao um orcamento escaneado
 EXTENSOES_ANEXO_GARANTIA = (".pdf", ".jpg", ".jpeg", ".png")
+# Assinatura real dos primeiros bytes por extensao aceita (US-C18) - a
+# extensao do filename sozinha e so o nome que o navegador mandou, nao prova
+# nada sobre o conteudo real (revisao de seguranca da Fase 5). Checar os
+# magic bytes evita salvar um arquivo com conteudo arbitrario disfarcado de
+# PDF/imagem no anexo da garantia.
+_ASSINATURAS_ANEXO_GARANTIA = {
+    ".pdf": (b"%PDF-",),
+    ".jpg": (b"\xff\xd8\xff",),
+    ".jpeg": (b"\xff\xd8\xff",),
+    ".png": (b"\x89PNG\r\n\x1a\n",),
+}
+
+
+def _conteudo_bate_com_extensao(nome: str, dados: bytes) -> bool:
+    for ext, assinaturas in _ASSINATURAS_ANEXO_GARANTIA.items():
+        if nome.endswith(ext):
+            return any(dados.startswith(sig) for sig in assinaturas)
+    return False
 
 
 def _garantia_com_status(g: dict, hoje: date) -> dict:
@@ -5155,6 +5203,9 @@ def criar_garantia_rota():
             if len(dados) > TAMANHO_MAX_ANEXO_GARANTIA_BYTES:
                 conn.close()
                 return jsonify({"error": "anexo maior que 5MB - manda um arquivo menor"}), 400
+            if not _conteudo_bate_com_extensao(nome, dados):
+                conn.close()
+                return jsonify({"error": "conteudo do arquivo nao bate com a extensao (PDF, JPG ou PNG de verdade)"}), 400
             anexo_b64 = base64.b64encode(dados).decode("ascii")
     else:
         body = _corpo_json()
@@ -5833,6 +5884,8 @@ def importar_extrato():
 
 @app.route("/api/bancos", methods=["GET"])
 def listar_bancos():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     # saldo/valor sao criptografados em repouso - list_bank_accounts e
     # estatisticas_conta ja descriptografam e somam em Python (ver db.py).
@@ -5885,6 +5938,17 @@ def _patrimonio_consolidado(conn) -> dict:
 
 @app.route("/api/patrimonio", methods=["GET"])
 def patrimonio_rota():
+    if _modo_visitante_ativo():
+        return jsonify(
+            {
+                "saldo_bancario": 0,
+                "valor_guardado_metas": 0,
+                "patrimonio_total": 0,
+                "contas": [],
+                "metas": [],
+                "oculto": True,
+            }
+        )
     conn = get_db()
     resultado = _patrimonio_consolidado(conn)
     conn.close()
@@ -5893,6 +5957,8 @@ def patrimonio_rota():
 
 @app.route("/api/bancos/<int:conta_id>/transacoes", methods=["GET"])
 def transacoes_banco(conta_id):
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     transacoes = list_bank_transactions(conn, conta_id, limite=100)
     conn.close()
@@ -6208,20 +6274,27 @@ def extrair_nota_fiscal():
     if len(image_bytes) > TAMANHO_MAX_IMAGEM_BYTES:
         return jsonify({"error": "foto maior que 10MB - manda uma foto menor"}), 400
 
-    result, error = _call_claude(claude_client.extrair_nota_fiscal_foto, image_bytes, media_type)
-    if error:
-        return error
-    dados, usage = result
-
     conn = get_db()
-    # Registra o custo na tabela generica ja existente (api_usage/_log_usage,
-    # a fonte de verdade atual de custo de IA neste projeto). Se a US-A5 (Grupo A,
-    # tabela uso_api_ia dedicada por endpoint/feature) ja estiver integrada quando
-    # este codigo for revisado, vale mover/duplicar esse registro pra la tambem -
-    # documentado aqui em vez de assumir uma tabela que pode nao existir ainda
-    # neste branch (agentes rodando em paralelo, ver tasks/fase5).
-    _log_usage(conn, usage)
-    conn.commit()
+    # Mesmo teto mensal da US-A6 (ver _classificar_intent) - extracao por
+    # visao usa Sonnet, mais caro que o Haiku do classificador de intent,
+    # entao e a chamada mais cara do app pra deixar sem controle de gasto.
+    # Revisao de seguranca da Fase 5 achou que so o classificador de intent
+    # respeitava o teto - corrigido aqui. Mesmo _TETO_IA_LOCK da
+    # _classificar_intent (fecha a mesma janela TOCTOU nos dois pontos que
+    # respeitam o teto).
+    with _TETO_IA_LOCK:
+        if resumo_custo_api(conn)["teto_estourado"]:
+            conn.close()
+            return jsonify({"error": "teto mensal de gasto com IA estourado - tente de novo mes que vem ou ajuste o teto no card financeiro"}), 402
+
+        result, error = _call_claude(claude_client.extrair_nota_fiscal_foto, image_bytes, media_type)
+        if error:
+            conn.close()
+            return error
+        dados, usage = result
+
+        _log_usage(conn, usage, "nota_fiscal")
+        conn.commit()
     conn.close()
     return jsonify(dados), 200
 

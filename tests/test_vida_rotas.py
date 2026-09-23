@@ -15,6 +15,7 @@ import db  # noqa: E402
 _tmp_dir = tempfile.TemporaryDirectory()
 _CAMINHO_TESTE = Path(_tmp_dir.name) / "vida.db"
 db.DB_PATH = _CAMINHO_TESTE
+db.garantir_banco_nao_producao()
 
 import app  # noqa: E402
 import claude_client  # noqa: E402
