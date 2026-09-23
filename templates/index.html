@@ -416,10 +416,22 @@
         Devo sair ate que horas?
       </h2>
       <p class="dica-metas">Considera transito em tempo real (precisa do Google Maps configurado - veja o README).</p>
-      <form id="viagem-form">
-        <input type="text" id="viagem-origem" placeholder="De onde? (deixa em branco se tiver endereco padrao)" />
-        <input type="text" id="viagem-destino" placeholder="Pra onde?" required />
-        <input type="datetime-local" id="viagem-chegar" required />
+      <form id="viagem-form" style="--form-cor: var(--cor-tarefas)">
+        <div class="viagem-rota">
+          <span class="viagem-rota-trilha" aria-hidden="true"></span>
+          <div class="viagem-rota-campo">
+            <span class="viagem-rota-ponto viagem-rota-ponto-origem" aria-hidden="true"></span>
+            <input type="text" id="viagem-origem" placeholder="De onde? (deixa em branco se tiver endereco padrao)" />
+          </div>
+          <div class="viagem-rota-campo">
+            <span class="viagem-rota-ponto viagem-rota-ponto-destino" aria-hidden="true"></span>
+            <input type="text" id="viagem-destino" placeholder="Pra onde?" required />
+          </div>
+        </div>
+        <label class="campo-rotulo-wrap">
+          <span class="campo-rotulo">Chegar ate</span>
+          <input type="datetime-local" id="viagem-chegar" required />
+        </label>
         <button type="submit" id="viagem-btn" class="btn-com-icone">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m14.8 9.2-1.6 4-4 1.6 1.6-4 4-1.6Z"/></svg>
           Calcular
