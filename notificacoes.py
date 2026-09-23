@@ -6,6 +6,7 @@ em app.py."""
 from datetime import date, datetime, timedelta
 
 import gastos
+import vida
 
 
 def dentro_do_horario_silencioso(agora: datetime, inicio: str, fim: str) -> bool:
@@ -352,9 +353,11 @@ def lembretes_proximos(conn, dias: int = 7) -> list[tuple[int, str]]:
             quando = "e amanha"
         else:
             quando = f"e em {dias_restantes} dias"
-        avisos.append(
-            (row["id"], f"\"{row['titulo']}\" {quando} ({proxima.strftime('%d/%m')}).")
-        )
+        msg = f"\"{row['titulo']}\" {quando} ({proxima.strftime('%d/%m')})."
+        sugestao = vida.sugestao_acao_data(row["titulo"])
+        if sugestao:
+            msg = f"{msg} {sugestao}"
+        avisos.append((row["id"], msg))
     return avisos
 
 

@@ -16,16 +16,16 @@ correlacao sono x produtividade, clima do dia, "devo sair ate que horas"
 "quanto sobra no mes", notas com tags.
 
 ## Fase 1
-- [ ] Check-in de 1 toque (energia/sono/humor, ruim/ok/bom) de manha
-- [ ] Rotina matinal (7h-7h30) e noturna (22h) guiada - checklist curto + push
-- [ ] Modo hiperfoco (25/50/90 min) - so notificacao critica passa
-- [ ] Modo "so o essencial" - IA escolhe 1-3, Alex pode trocar
-- [ ] Tarefa empacada -> sugere quebrar diferente
-- [ ] Contas pessoais recorrentes (so estrutura) - aviso 3 dias antes
-- [ ] Assinatura sem uso - pergunta mensal "ainda usa X?" 1 toque
-- [ ] Pessoas: lista com frequencia, nota de conversa, "faz tempo que nao fala com X"
-- [ ] Data importante com sugestao de acao ("ja pensou em mandar algo?")
-- [ ] Decisao rapida: "vale a pena?" + pros e contras
+- [x] Check-in de 1 toque (energia/sono/humor, ruim/ok/bom) de manha
+- [x] Rotina matinal (7h-7h30) e noturna (22h) guiada - checklist curto + push
+- [x] Modo hiperfoco (25/50/90 min) - so notificacao critica passa
+- [x] Modo "so o essencial" - IA escolhe 1-3, Alex pode trocar
+- [x] Tarefa empacada -> sugere quebrar diferente
+- [x] Contas pessoais recorrentes (so estrutura) - aviso 3 dias antes
+- [x] Assinatura sem uso - pergunta mensal "ainda usa X?" 1 toque
+- [x] Pessoas: lista com frequencia, nota de conversa, "faz tempo que nao fala com X"
+- [x] Data importante com sugestao de acao ("ja pensou em mandar algo?")
+- [x] Decisao rapida: "vale a pena?" + pros e contras
 
 ## Fase 2
 - [ ] Lembrete de agua/pausa a cada 2h, 9h-19h, dia util (silencia no hiperfoco)

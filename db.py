@@ -2,6 +2,8 @@ import sqlite3
 from datetime import date
 from pathlib import Path
 
+import vida
+
 DB_PATH = Path(__file__).parent / "data" / "painel.db"
 
 
@@ -273,6 +275,88 @@ def init_db():
             data TEXT NOT NULL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS checkins (
+            data TEXT PRIMARY KEY,
+            energia INTEGER,
+            sono INTEGER,
+            humor INTEGER,
+            atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS rotina_itens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            momento TEXT NOT NULL,
+            texto TEXT NOT NULL,
+            posicao INTEGER NOT NULL DEFAULT 0,
+            ativo INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS rotina_marcacoes (
+            data TEXT NOT NULL,
+            item_id INTEGER NOT NULL,
+            feito_em TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (data, item_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS essencial_dia (
+            data TEXT NOT NULL,
+            task_id INTEGER NOT NULL,
+            posicao INTEGER NOT NULL,
+            motivo TEXT,
+            PRIMARY KEY (data, task_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS contas_pessoais (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            valor REAL,
+            dia_vencimento INTEGER NOT NULL,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS contas_pessoais_pagas (
+            conta_id INTEGER NOT NULL,
+            vencimento TEXT NOT NULL,
+            pago_em TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (conta_id, vencimento)
+        );
+
+        CREATE TABLE IF NOT EXISTS assinaturas_revisao (
+            descricao_normalizada TEXT NOT NULL,
+            ano_mes TEXT NOT NULL,
+            descricao TEXT NOT NULL,
+            valor REAL,
+            resposta TEXT NOT NULL,
+            respondido_em TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (descricao_normalizada, ano_mes)
+        );
+
+        CREATE TABLE IF NOT EXISTS pessoas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            frequencia_dias INTEGER NOT NULL DEFAULT 14,
+            ultimo_contato TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS conversas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pessoa_id INTEGER,
+            pessoa_nome TEXT NOT NULL,
+            sobre TEXT,
+            data TEXT NOT NULL,
+            source_text TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS decisoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pergunta TEXT NOT NULL,
+            analise_json TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -293,6 +377,7 @@ def init_db():
     _garantir_coluna(conn, "bank_accounts", "saldo", "REAL")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
+    _seed_rotina_padrao(conn)
     conn.close()
 
 
@@ -323,6 +408,8 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_medicamentos_ativo ON medicamentos(ativo);
         CREATE INDEX IF NOT EXISTS idx_hidratacao_registros_data ON hidratacao_registros(data);
         CREATE INDEX IF NOT EXISTS idx_medidas_corporais_tipo_data ON medidas_corporais(tipo, data);
+        CREATE INDEX IF NOT EXISTS idx_conversas_pessoa_id ON conversas(pessoa_id);
+        CREATE INDEX IF NOT EXISTS idx_conversas_data ON conversas(data);
         """
     )
     conn.commit()
@@ -358,6 +445,20 @@ def _seed_perfil_inicial(conn):
             "INSERT INTO memorias (texto, source_text) VALUES (?, ?)", (texto, "perfil-inicial")
         )
     conn.commit()
+
+
+def _seed_rotina_padrao(conn):
+    """Itens padrao da rotina manha/noite, uma vez so (marca em configuracoes) -
+    se o Alex apagar tudo depois, nao volta sozinho."""
+    if obter_configuracao(conn, "rotina_semeada"):
+        return
+    for momento, itens in vida.ITENS_ROTINA_PADRAO.items():
+        for posicao, texto in enumerate(itens):
+            conn.execute(
+                "INSERT INTO rotina_itens (momento, texto, posicao) VALUES (?, ?, ?)",
+                (momento, texto, posicao),
+            )
+    definir_configuracao(conn, "rotina_semeada", "1")
 
 
 def save_push_subscription(conn, endpoint: str, subscription_json: str):
@@ -1150,3 +1251,215 @@ def delete_cotacao(conn, cotacao_id: int):
 def delete_item_cotacao(conn, item_id: int):
     conn.execute("DELETE FROM cotacoes_itens WHERE id = ?", (item_id,))
     conn.commit()
+
+
+# ---- Assistente de vida (BRIEFING.md, Fase 1) ----
+
+def salvar_checkin(conn, data: str, campos: dict) -> dict:
+    """Grava so os campos informados (energia/sono/humor, 1-3) - cada toque
+    do Alex salva na hora, sem precisar responder os tres de uma vez."""
+    validos = {k: v for k, v in campos.items() if k in vida.CAMPOS_CHECKIN and v is not None}
+    existente = conn.execute("SELECT * FROM checkins WHERE data = ?", (data,)).fetchone()
+    if existente:
+        if validos:
+            sets = ", ".join(f"{k} = ?" for k in validos)
+            conn.execute(
+                f"UPDATE checkins SET {sets}, atualizado_em = datetime('now') WHERE data = ?",
+                (*validos.values(), data),
+            )
+    else:
+        conn.execute(
+            "INSERT INTO checkins (data, energia, sono, humor) VALUES (?, ?, ?, ?)",
+            (data, validos.get("energia"), validos.get("sono"), validos.get("humor")),
+        )
+    conn.commit()
+    return get_checkin(conn, data)
+
+
+def get_checkin(conn, data: str) -> dict | None:
+    row = conn.execute("SELECT * FROM checkins WHERE data = ?", (data,)).fetchone()
+    return dict(row) if row else None
+
+
+def list_checkins(conn, desde: str) -> list[dict]:
+    rows = conn.execute("SELECT * FROM checkins WHERE data >= ? ORDER BY data", (desde,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_rotina_itens(conn, momento: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM rotina_itens WHERE momento = ? AND ativo = 1 ORDER BY posicao, id", (momento,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def create_rotina_item(conn, momento: str, texto: str) -> int:
+    posicao = conn.execute(
+        "SELECT COALESCE(MAX(posicao), -1) + 1 AS p FROM rotina_itens WHERE momento = ?", (momento,)
+    ).fetchone()["p"]
+    cur = conn.execute(
+        "INSERT INTO rotina_itens (momento, texto, posicao) VALUES (?, ?, ?)", (momento, texto, posicao)
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def delete_rotina_item(conn, item_id: int):
+    conn.execute("DELETE FROM rotina_marcacoes WHERE item_id = ?", (item_id,))
+    conn.execute("DELETE FROM rotina_itens WHERE id = ?", (item_id,))
+    conn.commit()
+
+
+def rotina_marcadas(conn, data: str) -> set[int]:
+    rows = conn.execute("SELECT item_id FROM rotina_marcacoes WHERE data = ?", (data,)).fetchall()
+    return {r["item_id"] for r in rows}
+
+
+def alternar_rotina_item(conn, data: str, item_id: int) -> bool:
+    """Marca/desmarca o item no dia. Devolve o estado novo (True = feito)."""
+    ja = conn.execute(
+        "SELECT 1 FROM rotina_marcacoes WHERE data = ? AND item_id = ?", (data, item_id)
+    ).fetchone()
+    if ja:
+        conn.execute("DELETE FROM rotina_marcacoes WHERE data = ? AND item_id = ?", (data, item_id))
+    else:
+        conn.execute("INSERT INTO rotina_marcacoes (data, item_id) VALUES (?, ?)", (data, item_id))
+    conn.commit()
+    return not ja
+
+
+def get_essencial(conn, data: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM essencial_dia WHERE data = ? ORDER BY posicao", (data,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def salvar_essencial(conn, data: str, escolhas: list[tuple[int, str | None]]):
+    conn.execute("DELETE FROM essencial_dia WHERE data = ?", (data,))
+    for posicao, (task_id, motivo) in enumerate(escolhas):
+        conn.execute(
+            "INSERT INTO essencial_dia (data, task_id, posicao, motivo) VALUES (?, ?, ?, ?)",
+            (data, task_id, posicao, motivo),
+        )
+    conn.commit()
+
+
+def create_conta_pessoal(conn, nome: str, dia_vencimento: int, valor: float | None = None) -> int:
+    cur = conn.execute(
+        "INSERT INTO contas_pessoais (nome, dia_vencimento, valor) VALUES (?, ?, ?)",
+        (nome, dia_vencimento, valor),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_contas_pessoais(conn) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM contas_pessoais WHERE ativo = 1 ORDER BY dia_vencimento, nome"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_conta_pessoal(conn, conta_id: int):
+    conn.execute("DELETE FROM contas_pessoais_pagas WHERE conta_id = ?", (conta_id,))
+    conn.execute("DELETE FROM contas_pessoais WHERE id = ?", (conta_id,))
+    conn.commit()
+
+
+def marcar_conta_paga(conn, conta_id: int, vencimento: str):
+    conn.execute(
+        "INSERT OR IGNORE INTO contas_pessoais_pagas (conta_id, vencimento) VALUES (?, ?)",
+        (conta_id, vencimento),
+    )
+    conn.commit()
+
+
+def conta_paga(conn, conta_id: int, vencimento: str) -> bool:
+    return bool(
+        conn.execute(
+            "SELECT 1 FROM contas_pessoais_pagas WHERE conta_id = ? AND vencimento = ?",
+            (conta_id, vencimento),
+        ).fetchone()
+    )
+
+
+def responder_assinatura(
+    conn, descricao_normalizada: str, ano_mes: str, descricao: str, valor: float | None, resposta: str
+):
+    conn.execute(
+        """INSERT INTO assinaturas_revisao (descricao_normalizada, ano_mes, descricao, valor, resposta)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(descricao_normalizada, ano_mes) DO UPDATE SET
+             resposta = excluded.resposta, respondido_em = datetime('now')""",
+        (descricao_normalizada, ano_mes, descricao, valor, resposta),
+    )
+    conn.commit()
+
+
+def respostas_assinaturas(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM assinaturas_revisao").fetchall()
+    return [dict(r) for r in rows]
+
+
+def create_pessoa(conn, nome: str, frequencia_dias: int = 14) -> int:
+    cur = conn.execute(
+        "INSERT INTO pessoas (nome, frequencia_dias) VALUES (?, ?)", (nome, frequencia_dias)
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_pessoas(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM pessoas ORDER BY nome").fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_pessoa(conn, pessoa_id: int):
+    """Conversas antigas ficam (so perdem o vinculo) - historico nao some."""
+    conn.execute("UPDATE conversas SET pessoa_id = NULL WHERE pessoa_id = ?", (pessoa_id,))
+    conn.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_id,))
+    conn.commit()
+
+
+def registrar_conversa(
+    conn, pessoa_id: int | None, pessoa_nome: str, sobre: str | None, data: str, source_text: str | None = None
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO conversas (pessoa_id, pessoa_nome, sobre, data, source_text) VALUES (?, ?, ?, ?, ?)",
+        (pessoa_id, pessoa_nome, sobre, data, source_text),
+    )
+    if pessoa_id is not None:
+        conn.execute(
+            """UPDATE pessoas SET ultimo_contato = ?
+               WHERE id = ? AND (ultimo_contato IS NULL OR ultimo_contato < ?)""",
+            (data, pessoa_id, data),
+        )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_conversas(conn, pessoa_id: int | None = None, limite: int = 20) -> list[dict]:
+    if pessoa_id is None:
+        rows = conn.execute(
+            "SELECT * FROM conversas ORDER BY data DESC, id DESC LIMIT ?", (limite,)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM conversas WHERE pessoa_id = ? ORDER BY data DESC, id DESC LIMIT ?",
+            (pessoa_id, limite),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def create_decisao(conn, pergunta: str, analise_json: str) -> int:
+    cur = conn.execute(
+        "INSERT INTO decisoes (pergunta, analise_json) VALUES (?, ?)", (pergunta, analise_json)
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_decisoes(conn, limite: int = 10) -> list[dict]:
+    rows = conn.execute("SELECT * FROM decisoes ORDER BY id DESC LIMIT ?", (limite,)).fetchall()
+    return [dict(r) for r in rows]

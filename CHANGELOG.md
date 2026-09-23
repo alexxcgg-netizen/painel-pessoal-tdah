@@ -5,6 +5,48 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (19) - BRIEFING.md Fase 1: rotina guiada, check-in, hiperfoco, so o essencial, pessoas
+
+Primeira rodada do `BRIEFING.md` (assistente de vida, agora versionado no repo junto com o
+`TODO.md` de progresso). O Alex respondeu todas as perguntas antes (regra 3 do briefing); o que
+ja existia no painel ficou de fora, e as decisoes tomadas sem perguntar estao no fim do `TODO.md`.
+Logica pura nova em `vida.py` (testavel sem banco), rotas em `app.py`, frontend em
+`static/js/vida.js` (arquivo novo, carregado depois do `app.js`).
+
+- **Rotina guiada**: `rotina_itens`/`rotina_marcacoes`, itens padrao semeados uma vez (manha:
+  agua, remedio, check-in, olhar o essencial; noite: fechamento, separar o de amanha, celular
+  longe). Push "Bom dia" as 7h com os itens (horario em `configuracoes.rotina_manha_hora`) e o
+  push das 22h que ja existia agora lista a rotina da noite. Card na aba Hoje aparece so no
+  horario (5h-12h / 20h-3h) e some quando tudo foi marcado.
+- **Check-in de 1 toque**: energia/sono/humor, ruim/ok/bom, cada toque salva na hora
+  (`checkins`). Tool `registrar_checkin` no chat ("dormi mal").
+- **Hiperfoco** (25/50/90 min): em `configuracoes.hiperfoco_ate`. Durante o bloco so passa
+  aviso critico (`vida.CRITICOS_HIPERFOCO`: tarefa com hora - inclui remedio -, compromisso
+  chegando, voo); o resto fica represado e sai depois, nunca se perde. Push quando o bloco acaba
+  (so se acabou ha menos de 30 min). Tool `iniciar_hiperfoco`.
+- **So o essencial**: Haiku escolhe 1-3 das tarefas de hoje/atrasadas/sem prazo, guardado por
+  dia (`essencial_dia`) pra nao mudar a cada abertura; "trocar" repoe pela heuristica
+  (`vida.pontuar_tarefa_essencial`), que tambem e o fallback se a IA falhar ou inventar id.
+  "Modo foco no dia" esconde o resto da aba Hoje e reseta sozinho no dia seguinte.
+- **Tarefa empacada**: `/api/tasks` ganhou `empacada_dias` (3+ dias atrasada, ou 7+ dias sem
+  prazo e sem passo concluido na semana). Botao "quebrar diferente" (`/requebrar`, Sonnet) troca
+  so os passos nao feitos, com primeiro passo de 2-5 min. O push de tarefa parada oferece isso.
+- **Contas pessoais** (so estrutura, a pedido): nome/dia/valor, aviso 3 dias antes e no dia (uma
+  vez cada), "paga" para os avisos daquele vencimento. Dia 31 em mes curto vira o ultimo dia.
+- **Assinatura sem uso**: uma vez por mes pergunta "ainda usa?" das recorrencias ja detectadas
+  (`_gastos_fixos`); "nao uso mais" cria a tarefa "Cancelar assinatura: X" e nunca mais pergunta.
+- **Pessoas**: lista curta com frequencia (`pessoas`), nota leve de conversa (`conversas`), aviso
+  "faz X dias" uma vez por ciclo. Tools `registrar_conversa` e `cadastrar_pessoa`.
+- **Data importante com sugestao**: aniversario/casamento/etc ganham "Ja pensou em mandar uma
+  mensagem ou algo?" no push e na lista.
+- **Vale a pena?**: `/api/decisao` (Sonnet) devolve pros/contras/perguntas-chave/inclinacao e guarda
+  historico (`decisoes`); o chat tambem responde nesse formato.
+- CSS: estilo de input/textarea/botao aplicado tambem aos forms de medicamento, medida e espera
+  (estavam com o visual padrao do navegador).
+
+65 testes novos (`tests/test_vida.py`, `tests/test_vida_rotas.py`, com entradas invalidas em
+todas as rotas). Validado no navegador (Playwright, 390px): todos os fluxos, sem overflow.
+
 ## 2026-09-22 (18) - Hidratacao, peso/medidas corporais e correlacao sono x produtividade
 
 Terceira rodada de perguntas explicitas ao Alex sobre o que falta pro painel virar um

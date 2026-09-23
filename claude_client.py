@@ -155,6 +155,14 @@ Apple Saude (o painel nao consegue ler/gravar direto no Apple Saude pra essa par
 sono/distancia via Atalhos) e guarda nome/dosagem estruturados alem de criar o lembrete recorrente
 por baixo dos panos.
 
+Quando o Alex perguntar se "vale a pena" algo (compra, negociacao, escolha), responda em formato
+curto e organizado: uma linha com a decisao, "Pros:" e "Contras:" em listas de ate 4 itens, as
+perguntas que mudariam a resposta (se faltar informacao importante), e uma inclinacao honesta
+(vale / nao vale / depende de X). Nada de texto longo.
+
+Quando ele contar que falou com alguem, use `registrar_conversa` (nota leve, sem virar CRM). Se
+ele disser que quer manter contato com alguem de tempos em tempos, use `cadastrar_pessoa`.
+
 Quando o Alex perguntar que horas fazer algo recorrente sem hora fixa (ex: "que horas eu vou pra
 academia hoje?"), chame `sugerir_horario_livre` em vez de adivinhar - ela olha o que ja esta
 marcado no dia de verdade e acha o maior espaco livre.
@@ -476,6 +484,83 @@ CHAT_TOOLS = [
                 },
             },
             "required": ["tipo", "valor"],
+        },
+    },
+    {
+        "name": "registrar_checkin",
+        "description": (
+            "Check-in de como o Alex esta HOJE: energia, sono e humor, cada um 'ruim', 'ok' ou "
+            "'bom'. Use quando ele disser algo tipo 'dormi mal', 'to sem energia', 'hoje to "
+            "bem'. Preencha so o que ele disse - omita o resto."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "energia": {"type": "string", "enum": ["ruim", "ok", "bom"]},
+                "sono": {"type": "string", "enum": ["ruim", "ok", "bom"]},
+                "humor": {"type": "string", "enum": ["ruim", "ok", "bom"]},
+            },
+        },
+    },
+    {
+        "name": "iniciar_hiperfoco",
+        "description": (
+            "Liga o modo hiperfoco: silencia notificacao nao critica por 25, 50 ou 90 minutos "
+            "(so passa tarefa com hora marcada, remedio, compromisso chegando e voo). Use quando "
+            "o Alex disser que vai focar/se concentrar numa coisa. Sem duracao dita, use 50."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"minutos": {"type": "integer", "enum": [25, 50, 90]}},
+        },
+    },
+    {
+        "name": "registrar_conversa",
+        "description": (
+            "Nota leve de conversa: 'falei com X sobre Y'. Use quando o Alex contar que falou/"
+            "encontrou/ligou pra alguem. Zera a contagem de 'faz tempo que nao fala com X' se a "
+            "pessoa estiver na lista dele."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pessoa": {"type": "string", "description": "nome ou apelido como ele falou (ex: 'mae', 'Joao')"},
+                "sobre": {"type": "string", "description": "assunto em poucas palavras - omita se ele nao disse"},
+            },
+            "required": ["pessoa"],
+        },
+    },
+    {
+        "name": "cadastrar_pessoa",
+        "description": (
+            "Poe alguem na lista curta de pessoas importantes, com de quantos em quantos dias o "
+            "Alex quer falar com ela (ex: 'quero falar com minha mae toda semana' = 7). O painel "
+            "avisa quando passar desse prazo sem conversa registrada."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string"},
+                "frequencia_dias": {"type": "integer", "description": "padrao 14 se ele nao disser"},
+            },
+            "required": ["nome"],
+        },
+    },
+    {
+        "name": "registrar_conta_pessoal",
+        "description": (
+            "Cadastra uma conta PESSOAL recorrente (luz, internet, cartao, aluguel) com dia de "
+            "vencimento todo mes - o painel avisa 3 dias antes e no dia. Nao e gasto (use "
+            "registrar_gasto pra isso) e nao e conta da construtora."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string"},
+                "dia_vencimento": {"type": "integer", "description": "1 a 31"},
+                "valor": {"type": "number", "description": "omita se variar ou nao foi dito"},
+            },
+            "required": ["nome", "dia_vencimento"],
         },
     },
     {
@@ -1106,3 +1191,94 @@ def plano_do_dia(
         ],
     )
     return response.content[0].text.strip(), _usage(response)
+
+
+ESSENCIAL_PROMPT = """Voce ajuda uma pessoa com TDAH num dia corrido: das tarefas abaixo, escolha
+as 1 a 3 MAIS importantes pra hoje (menos e melhor - se so uma importa de verdade, escolha uma).
+Criterio: o que tem consequencia real se nao for feito hoje (prazo vencido ou vencendo, hora
+marcada, algo que trava outra coisa). Rotina repetitiva (remedio, academia) raramente e a escolha,
+ela ja tem lembrete proprio. Hoje e {hoje}.
+
+Tarefas (id | titulo | prazo | hora):
+{tarefas}
+
+Responda SO com JSON, sem markdown: [{{"id": <id>, "motivo": "<ate 8 palavras, sem cobranca>"}}]"""
+
+
+def escolher_essencial(tarefas: list[dict]) -> tuple[list[dict], dict]:
+    linhas = "\n".join(
+        f"{t['id']} | {t['title']} | {t.get('due_date') or 'sem prazo'} | {t.get('hora') or '-'}"
+        for t in tarefas
+    )
+    response = client.messages.create(
+        model=HAIKU,
+        max_tokens=250,
+        messages=[
+            {
+                "role": "user",
+                "content": ESSENCIAL_PROMPT.format(hoje=date.today().isoformat(), tarefas=linhas),
+            }
+        ],
+    )
+    return _extract_json(response.content[0].text), _usage(response)
+
+
+REQUEBRAR_PROMPT = """A tarefa abaixo esta travada ha {dias} dias - a pessoa tem TDAH e o jeito
+que ela estava quebrada nao funcionou. Proponha um jeito DIFERENTE de atacar, em 3 a 5 passos.
+O primeiro passo tem que ser ridiculamente facil, de 2 a 5 minutos (abrir o arquivo, mandar uma
+mensagem de uma linha, separar o material) - o objetivo e so comecar. Sem repetir os passos
+antigos do mesmo jeito.
+
+Tarefa: {titulo}
+Passos antigos que nao andaram: {passos}
+
+Responda so com um JSON de lista de strings, sem markdown."""
+
+
+def requebrar_tarefa(titulo: str, dias: int, passos_antigos: list[str]) -> tuple[list[str], dict]:
+    response = client.messages.create(
+        model=SONNET,
+        max_tokens=350,
+        messages=[
+            {
+                "role": "user",
+                "content": REQUEBRAR_PROMPT.format(
+                    titulo=titulo, dias=dias, passos="; ".join(passos_antigos) or "nenhum"
+                ),
+            }
+        ],
+    )
+    return _extract_json(response.content[0].text), _usage(response)
+
+
+DECISAO_PROMPT = """Ajude a decidir rapido se vale a pena. A pessoa tem TDAH e quer clareza, nao
+um texto longo. Seja honesto: se a informacao e pouca, diga o que falta saber em vez de inventar.
+
+Coisas que voce sabe sobre a pessoa (use so se ajudar):
+{memorias}
+
+Decisao: {pergunta}
+
+Responda SO com JSON, sem markdown:
+{{"resumo": "<1 frase reformulando a decisao>",
+  "pros": ["<ate 4, curtos>"],
+  "contras": ["<ate 4, curtos>"],
+  "perguntas_chave": ["<ate 3 perguntas que mudariam a resposta>"],
+  "inclinacao": "<'vale', 'nao_vale' ou 'depende'>",
+  "porque": "<1 frase>"}}"""
+
+
+def analisar_decisao(pergunta: str, memorias: list[str] | None = None) -> tuple[dict, dict]:
+    response = client.messages.create(
+        model=SONNET,
+        max_tokens=600,
+        messages=[
+            {
+                "role": "user",
+                "content": DECISAO_PROMPT.format(
+                    pergunta=pergunta, memorias="\n".join(f"- {m}" for m in memorias or []) or "nenhuma"
+                ),
+            }
+        ],
+    )
+    return _extract_json(response.content[0].text), _usage(response)

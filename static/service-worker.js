@@ -4,11 +4,12 @@
 // service-worker.js muda). Trocado pra network-first: sempre tenta a rede primeiro
 // (app atualizado, dado financeiro/tarefas nunca vem de cache velho), cai pro cache
 // so quando a rede falha (funciona offline). "activate" limpa cache de versao antiga.
-const CACHE_NAME = "painel-pessoal-v3";
+const CACHE_NAME = "painel-pessoal-v4";
 const ASSETS = [
   "/",
   "/static/css/style.css",
   "/static/js/app.js",
+  "/static/js/vida.js",
   "/static/js/charts.js",
   "/static/manifest.json",
   "/static/icons/icon.svg",

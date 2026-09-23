@@ -111,6 +111,47 @@
         </div>
       </div>
 
+
+      <div id="rotina-box" class="card-vida" hidden>
+        <div class="card-vida-topo">
+          <h3 id="rotina-titulo">Rotina</h3>
+          <span id="rotina-progresso" class="card-vida-meta"></span>
+        </div>
+        <ul id="rotina-lista" class="checklist"></ul>
+      </div>
+
+      <div id="checkin-box" class="card-vida" hidden>
+        <div class="card-vida-topo">
+          <h3>Como voce ta hoje?</h3>
+          <span class="card-vida-meta">1 toque em cada</span>
+        </div>
+        <div class="checkin-linhas" id="checkin-linhas"></div>
+      </div>
+
+      <div id="essencial-box" class="card-vida">
+        <div class="card-vida-topo">
+          <h3>So o essencial</h3>
+          <button type="button" id="essencial-modo-btn" class="btn-link" aria-pressed="false">modo foco no dia</button>
+        </div>
+        <p id="essencial-vazio" class="card-vida-meta" hidden>Nada urgente pra hoje. Dia leve.</p>
+        <ul id="essencial-lista" class="essencial-lista"></ul>
+      </div>
+
+      <div id="hiperfoco-box" class="hiperfoco-box">
+        <div id="hiperfoco-inativo" class="hiperfoco-linha">
+          <span class="card-vida-meta">Hiperfoco (so aviso critico passa):</span>
+          <div class="hiperfoco-botoes">
+            <button type="button" class="hiperfoco-btn" data-minutos="25">25 min</button>
+            <button type="button" class="hiperfoco-btn" data-minutos="50">50 min</button>
+            <button type="button" class="hiperfoco-btn" data-minutos="90">90 min</button>
+          </div>
+        </div>
+        <div id="hiperfoco-ativo" class="hiperfoco-linha hiperfoco-ligado" hidden>
+          <span><strong>Em hiperfoco</strong> - <span id="hiperfoco-restante"></span></span>
+          <button type="button" id="hiperfoco-parar" class="btn-link">encerrar</button>
+        </div>
+      </div>
+
       <div id="chat-mensagens" class="chat-lista"></div>
       <form id="chat-form" class="chat-form">
         <input type="text" id="chat-input" placeholder="Fala comigo..." autocomplete="off" />
@@ -306,6 +347,75 @@
         Nenhum remedio cadastrado ainda.
       </p>
       <ul id="lista-medicamentos"></ul>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"/></svg>
+        Pessoas
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de pessoas"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Lista curta de quem voce quer manter contato, com de quantos em quantos dias. Quando passar
+          do prazo sem conversa, o painel avisa uma vez. No chat: "falei com a mae sobre o almoco de
+          domingo" registra e zera a contagem.
+        </p>
+      </div>
+      <form id="pessoa-form" class="form-linha">
+        <input type="text" id="pessoa-nome" placeholder="Nome (ex: Mae)" maxlength="60" required />
+        <input type="number" id="pessoa-freq" placeholder="A cada quantos dias?" min="1" max="365" inputmode="numeric" />
+        <button type="submit" id="pessoa-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar
+        </button>
+      </form>
+      <p id="pessoas-vazio" class="vazio" hidden>Ninguem na lista ainda.</p>
+      <ul id="lista-pessoas"></ul>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+        Contas pessoais
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de contas pessoais"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Conta que vence todo mes (luz, internet, cartao). Avisa 3 dias antes e no dia - marque
+          "paga" pra parar de avisar naquele mes. Nao tem nada a ver com as contas da construtora.
+        </p>
+      </div>
+      <form id="conta-pessoal-form" class="form-linha">
+        <input type="text" id="conta-pessoal-nome" placeholder="Conta (ex: Internet)" maxlength="80" required />
+        <input type="number" id="conta-pessoal-dia" placeholder="Dia (1-31)" min="1" max="31" inputmode="numeric" required />
+        <input type="number" id="conta-pessoal-valor" placeholder="Valor (opcional)" step="0.01" min="0" inputmode="decimal" />
+        <button type="submit" id="conta-pessoal-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar
+        </button>
+      </form>
+      <p id="contas-pessoais-vazio" class="vazio" hidden>Nenhuma conta cadastrada.</p>
+      <ul id="lista-contas-pessoais"></ul>
+
+      <div id="assinaturas-box" hidden>
+        <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg>
+          Ainda usa?
+        </h2>
+        <p class="dica-metas">Assinaturas que se repetem todo mes. Se nao usa mais, eu crio a tarefa de cancelar.</p>
+        <ul id="lista-assinaturas"></ul>
+      </div>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-hoje)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM5 7h14"/></svg>
+        Vale a pena?
+      </h2>
+      <form id="decisao-form" class="form-linha">
+        <textarea id="decisao-pergunta" rows="2" maxlength="1000" placeholder="Ex: vale a pena trocar o celular agora por R$ 4.000?" required></textarea>
+        <button type="submit" id="decisao-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM5 7h14"/></svg>
+          Analisar
+        </button>
+      </form>
+      <div id="decisao-resultado" class="card-resultado" hidden></div>
+
 
       <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z"/></svg>
@@ -649,5 +759,6 @@
 
   <script src="/static/js/charts.js"></script>
   <script src="/static/js/app.js"></script>
+  <script src="/static/js/vida.js"></script>
 </body>
 </html>

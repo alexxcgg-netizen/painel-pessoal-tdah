@@ -1107,6 +1107,12 @@ async function loadLembretes() {
           : `faltam ${l.dias_restantes} dias`;
       tituloWrap.appendChild(contagem);
     }
+    if (l.sugestao && typeof l.dias_restantes === "number" && l.dias_restantes <= 7) {
+      const sugestao = document.createElement("span");
+      sugestao.className = "item-quando lembrete-sugestao";
+      sugestao.textContent = l.sugestao;
+      tituloWrap.appendChild(sugestao);
+    }
     linha.appendChild(tituloWrap);
 
     const acoes = document.createElement("div");
@@ -1439,7 +1445,23 @@ function criarItemTarefa(t) {
   const acoes = document.createElement("div");
   acoes.className = "item-acoes";
 
-  if (t.subtasks.length === 0) {
+  if (t.empacada_dias) {
+    const tagTravada = document.createElement("span");
+    tagTravada.className = "item-tag-travada";
+    tagTravada.textContent = `travada ha ${t.empacada_dias} dias`;
+    titulo.appendChild(tagTravada);
+
+    const btnRequebrar = document.createElement("button");
+    btnRequebrar.className = "btn-com-icone";
+    btnRequebrar.innerHTML = `${ICONE_PASSOS}quebrar diferente`;
+    btnRequebrar.addEventListener("click", async () => {
+      setBotaoCarregando(btnRequebrar, true, "pensando...");
+      const data = await apiFetch(`/api/tasks/${t.id}/requebrar`, { method: "POST" });
+      if (data) loadTasks();
+      else setBotaoCarregando(btnRequebrar, false, "quebrar diferente");
+    });
+    acoes.appendChild(btnRequebrar);
+  } else if (t.subtasks.length === 0) {
     const btnQuebrar = document.createElement("button");
     btnQuebrar.className = "btn-com-icone";
     btnQuebrar.innerHTML = `${ICONE_PASSOS}quebrar em passos`;
