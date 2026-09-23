@@ -644,6 +644,9 @@ def init_db():
     # pra sugerir tarefas compativeis com o nivel de energia atual (ver
     # vida.tarefas_compativeis_com_energia). Sem valor = tratado como 'media'.
     _garantir_coluna(conn, "tasks", "esforco", "TEXT")
+    # Fase 6 (US-E2, docs/CARDS.md): cards da resposta do chat, gravados
+    # junto da mensagem pra recarregar a pagina nao perder os cards.
+    _garantir_coluna(conn, "chat_mensagens", "cards_json", "TEXT")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
@@ -1342,9 +1345,29 @@ def definir_teto_mensal_ia(conn, teto: float | None) -> None:
     definir_configuracao(conn, CHAVE_TETO_MENSAL_IA, str(teto))
 
 
-def salvar_mensagem_chat(conn, papel: str, texto: str):
-    conn.execute("INSERT INTO chat_mensagens (papel, texto) VALUES (?, ?)", (papel, texto))
+def salvar_mensagem_chat(conn, papel: str, texto: str, cards: list | None = None):
+    """`cards` (Fase 6, docs/CARDS.md): os cards da resposta, gravados como
+    JSON criptografado em repouso (podem ter valor/saldo - mesmo cuidado do
+    resto do dado financeiro, ver docs/SEGURANCA.md). None/[] = sem cards."""
+    cards_json = criptografia.criptografar(json.dumps(cards, ensure_ascii=False)) if cards else None
+    conn.execute(
+        "INSERT INTO chat_mensagens (papel, texto, cards_json) VALUES (?, ?, ?)", (papel, texto, cards_json)
+    )
     conn.commit()
+
+
+def cards_de_mensagem_chat(mensagem: dict) -> list:
+    """Le de volta os cards gravados por salvar_mensagem_chat - lista vazia
+    em mensagem antiga (sem cards) ou dado ilegivel (nunca derruba o
+    historico por causa de um card)."""
+    bruto = mensagem.get("cards_json")
+    if not bruto:
+        return []
+    try:
+        cards = json.loads(criptografia.descriptografar(bruto) or "[]")
+    except (TypeError, ValueError):
+        return []
+    return cards if isinstance(cards, list) else []
 
 
 def list_chat_mensagens(conn, limit: int = 20) -> list[dict]:

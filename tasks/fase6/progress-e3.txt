@@ -1,0 +1,27 @@
+# Progresso - Fase 6, faixa E3 (contrato de cards, "Padrao Nectar")
+# Branch: fase6/e3-cards. Uma linha "Historia X — decisao" por decisao real.
+
+## US-E2 - contrato {cards, resumo_texto, passos} + registro no front
+Historia US-E2 — decisao: executor de tool devolve `_efeito` (chave privada) e um wrapper (cards.RegistroExecucao) recolhe/tira antes da IA ver; o card e montado lendo a linha do banco pelo id.
+Motivo: mapeamento num lugar so (cards.cards_dos_efeitos), zero mudanca no que a IA recebe (testes antigos `resultado == {"ok": True}` seguem), e card nunca depende do texto da IA.
+Nao confirmado: nada.
+
+Historia US-E2 — decisao: campos legados mantidos (`resposta`/`acoes` no chat; JSON da classificacao na captura) e o contrato entra ADITIVO no mesmo objeto.
+Motivo: PWA pode estar com app.js antigo em cache; Telegram usa _processar_mensagem_chat (so texto); Atalhos leem tipo/titulo. Grep: consumidores = app.js (enviarChat/enviarCaptura/fila offline), voz-comando.js (delega pra enviarChat/enviarCaptura), telegram_bot (via app._telegram_chat_fn), /api/atalho/capturar (mesmo _executar_captura).
+Nao confirmado: quando o legado pode sair - fica anotado em docs/CARDS.md.
+
+Historia US-E2 — decisao: renderizador = funcao pura que devolve string HTML (com esc()), eventos por delegacao no #chat-mensagens.
+Motivo: testavel em Node sem DOM/jsdom (nenhuma dependencia nova) e o fallback cobre qualquer excecao do renderizador.
+Nao confirmado: nada.
+
+Historia US-E2 — decisao: tarefas criadas na mesma resposta viram UM card tarefas_criadas; os demais efeitos um card cada; resumo_final so quando ha 2+ cards.
+Motivo: e o comportamento do Nectar (lista de tarefas num card, brain dump fecha com resumo).
+Nao confirmado: se o Alex prefere um card por tarefa no brain dump.
+
+Historia US-E2 — decisao: modo visitante mascara no servidor tambem a prosa (regex R$ ...) da resposta do chat e do historico.
+Motivo: "o dado nao sai na resposta" - a IA costuma repetir o valor no texto.
+Nao confirmado: numero sem "R$" na prosa ("gastei 50") ainda passa.
+
+Historia US-E2 — decisao: cards gravados em chat_mensagens.cards_json (criptografado).
+Motivo: recarregar a pagina nao perde os cards; transacao pode ter saldo (dado que ja e criptografado em repouso).
+Nao confirmado: nada.

@@ -19,11 +19,15 @@
 // v10: comando de voz (Fase 5, Grupo B) - static/js/voz-comando.js reusa a
 // mesma fila offline de static/js/fila-offline.js (US-B5), mesma logica do
 // v9 acima: so precisa entrar no precache pra existir offline tambem.
-const CACHE_NAME = "painel-pessoal-v10";
+// v11: contrato de cards (Fase 6, docs/CARDS.md) - cards.js/cards-tipos.js
+// entram no precache pra aba Hoje renderizar os cards tambem offline.
+const CACHE_NAME = "painel-pessoal-v11";
 const ASSETS = [
   "/",
   "/static/css/style.css",
   "/static/js/fila-offline.js",
+  "/static/js/cards.js",
+  "/static/js/cards-tipos.js",
   "/static/js/app.js",
   "/static/js/vida.js",
   "/static/js/voz-comando.js",

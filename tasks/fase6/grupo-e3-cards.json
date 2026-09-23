@@ -18,8 +18,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Contrato em docs/CARDS.md; backend cards.py (RegistroExecucao + cards_dos_efeitos, mapeamento unico) ligado em _processar_mensagem_chat/_executar_captura; legado resposta/acoes/JSON da captura mantido; modo visitante mascarado no servidor; cards gravados em chat_mensagens.cards_json. Front: static/js/cards.js (registro + fallback) carregado antes de app.js. Testes: tests/test_cards.py, tests/js/cards.test.js. Headless 390px ok (fallback).",
       "modelo_planejado": "opus"
     },
     {

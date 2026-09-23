@@ -4021,3 +4021,149 @@ body.modo-essencial #essencial-box {
 #fim-mes-box[hidden] {
   display: none !important;
 }
+
+/* ==========================================================================
+   Cards do contrato (Fase 6, "Padrao Nectar" - docs/CARDS.md)
+   Todo card do registro (static/js/cards.js) e um <article> com as classes
+   `card-resultado card-contrato card-contrato-<type>`: herda o vidro, a
+   borda tingida (--card-cor) e a entrada com --ease-bounce do card de
+   resultado que ja existia - so acrescenta o que o contrato precisa (rodape
+   de actions, fallback, estado desfeito). Nenhuma cor/fonte nova: so os
+   tokens de :root.
+   ========================================================================== */
+.cards-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-self: stretch;
+  margin-left: calc(22px + 0.5rem); /* alinha com a bolha do assistente (avatar + gap) */
+}
+
+.card-contrato {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  transition: opacity 0.3s var(--ease-suave), filter 0.3s var(--ease-suave);
+}
+
+.card-contrato p {
+  margin: 0;
+}
+
+.card-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--card-cor) 18%, var(--border));
+}
+
+.card-rodape-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0.25rem 0.1rem 0.25rem 0.4rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.card-link svg {
+  width: 14px;
+  height: 14px;
+  color: var(--card-cor);
+}
+
+@media (hover: hover) {
+  .card-link:hover {
+    color: var(--text);
+  }
+}
+
+.card-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.card-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.card-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.card-btn-despertar.ativo {
+  border-color: color-mix(in srgb, var(--card-cor) 70%, transparent);
+  background: color-mix(in srgb, var(--card-cor) 22%, var(--surface-3));
+  box-shadow: 0 0 12px -3px color-mix(in srgb, var(--card-cor) 70%, transparent);
+}
+
+.card-contrato-fallback {
+  --card-cor: var(--text-faint);
+  border-style: dashed;
+}
+
+.card-fallback-texto {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+/* Desfeito: o card continua na conversa (historico honesto do que
+   aconteceu), so que apagado e riscado - nunca some de repente. */
+.card-contrato.card-desfeito {
+  opacity: 0.55;
+  filter: saturate(0.3);
+}
+
+.card-contrato.card-desfeito .card-titulo,
+.card-contrato.card-desfeito .card-valor-grande {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+/* Link "Abrir em ..." de um card destaca o item na aba de destino. */
+.item-destacado {
+  animation: itemDestacado 2.2s var(--ease-suave);
+}
+
+@keyframes itemDestacado {
+  0%,
+  35% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-text) 55%, transparent),
+      0 0 22px -4px color-mix(in srgb, var(--accent-text) 45%, transparent);
+  }
+  100% {
+    box-shadow: none;
+  }
+}

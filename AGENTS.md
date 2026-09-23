@@ -209,3 +209,38 @@ db.init_db()
   `page.evaluate("window.showTab('painel')")` (nomes: hoje/painel/vida/
   tarefas/gastos/bancos/construtora/aviacao, batem com `data-tab` dos
   botões da tabbar) - não precisa de `page.goto` por aba.
+
+### Fase 6, Grupo E3 (contrato de cards, "Padrão Nectar") - US-E2 a US-E5
+- **Contrato de resposta da aba Hoje = `docs/CARDS.md` (fonte única, só
+  aditivo).** `/api/chat` e `/api/capture` (e `/api/atalho/capturar`)
+  devolvem `{cards: [{type, id, data, actions}], resumo_texto, passos}` **além**
+  dos campos legados (`resposta`/`acoes` no chat; `tipo`/`titulo`/`valor`...
+  na captura) - não remover legado sem anotar em `docs/CARDS.md` antes (PWA
+  com `app.js` antigo em cache, Telegram, Atalhos).
+- **Executor de tool do chat NUNCA monta card.** Ele grava e devolve
+  `"_efeito": {"entidade": "tarefa"|"gasto"|"renda"|"meta"|"lembrete", "id": ...}`;
+  `cards.RegistroExecucao` (envolve os executores em `_processar_mensagem_chat`)
+  cronometra (vira `passos`), recolhe o efeito e **tira toda chave com `_`**
+  antes do resultado voltar pra IA (os testes antigos que comparam
+  `resultado == {"ok": True}` continuam valendo). `cards.cards_dos_efeitos`
+  é o ÚNICO mapeamento efeito -> card (lê a linha real do banco pelo id).
+- **Card novo = 4 lugares**: formato em `docs/CARDS.md`; builder em
+  `cards.py` (+ `CAMPOS_SENSIVEIS` se tiver dinheiro); renderizador puro
+  `Cards.registrar(type, (data, card, ctx) => html)` em
+  `static/js/cards-tipos.js` (todo texto por `Cards.esc`); teste em
+  `tests/test_cards.py` + `tests/js/cards.test.js`. Type sem renderizador
+  vira o fallback "Este trecho não pode ser exibido..." - nunca quebra.
+- **Modo visitante nos cards é no servidor** (`_resposta_contrato` ->
+  `cards.mascarar_visitante`): tira `valor`/`saldo` da transação e
+  `valor_*`/`falta` da meta, troca `R$ 1.234,56` por `R$ •••` na prosa
+  (`resumo_texto`/`resposta`, e no histórico). A captura idempotente grava a
+  resposta SEM máscara no cache e mascara na saída (os dois caminhos passam
+  por `_resposta_contrato`).
+- **`cards.js`/`cards-tipos.js` carregam ANTES de `app.js`** (index.html):
+  `app.js` chama `Cards.ligar(#chat-mensagens, {apiFetch, showTab, aoMudar})`
+  no carregamento. `fmtMoeda` (const top-level de `app.js`) é resolvido na
+  hora da chamada - funciona entre scripts clássicos; em Node cai no
+  fallback idêntico.
+- **Cards do chat ficam gravados** em `chat_mensagens.cards_json`
+  (criptografado em repouso via `criptografia.criptografar`, igual ao resto do
+  dado financeiro) - `/api/chat/historico` devolve `cards` por mensagem.

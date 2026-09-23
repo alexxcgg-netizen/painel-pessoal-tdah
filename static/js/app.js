@@ -1035,8 +1035,43 @@ async function loadChatHistorico() {
     lista.appendChild(vazio);
     return;
   }
-  historico.forEach((m) => lista.appendChild(criarBolhaChat(m.papel, m.texto)));
+  historico.forEach((m) => {
+    lista.appendChild(criarBolhaChat(m.papel, m.texto));
+    if (m.papel === "assistant") anexarCardsResposta(lista, m.cards, null);
+  });
   lista.scrollTop = lista.scrollHeight;
+}
+
+// Fase 6 (contrato de cards, docs/CARDS.md): os cards da resposta entram
+// logo abaixo da bolha - renderizados pelo registro de static/js/cards.js
+// (type desconhecido vira o card fallback, nunca quebra o chat).
+function anexarCardsResposta(lista, cards, passos) {
+  if (!Array.isArray(cards) || cards.length === 0 || typeof Cards === "undefined") return null;
+  const grupo = Cards.criarGrupo(cards, passos);
+  lista.appendChild(grupo);
+  return grupo;
+}
+
+// Recarrega as telas que um card pode ter mudado (desfazer, concluir
+// tarefa pelo checkbox do card) - mesmas que o caminho de acao do chat ja
+// recarrega.
+function recarregarAposMudancaDeCard() {
+  loadSummary();
+  loadStreak();
+  if (!$("#tab-painel").hidden) loadLembretes();
+  if (!$("#tab-tarefas").hidden) loadTasks();
+  if (!$("#tab-gastos").hidden) {
+    loadExpenses();
+    loadMetas();
+  }
+}
+
+if (typeof Cards !== "undefined") {
+  Cards.ligar($("#chat-mensagens"), {
+    apiFetch,
+    showTab,
+    aoMudar: recarregarAposMudancaDeCard,
+  });
 }
 
 async function enviarChat(texto) {
@@ -1064,7 +1099,10 @@ async function enviarChat(texto) {
   setBotaoCarregando(btn, false, "Enviar");
   if (!data) return;
 
-  lista.appendChild(criarBolhaChat("assistant", data.resposta, true));
+  // resumo_texto = contrato da Fase 6; `resposta` = mesmo texto no campo
+  // legado (fallback se um backend mais velho responder).
+  lista.appendChild(criarBolhaChat("assistant", data.resumo_texto || data.resposta, true));
+  anexarCardsResposta(lista, data.cards, data.passos);
   lista.scrollTop = lista.scrollHeight;
   loadStreak();
 
