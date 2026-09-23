@@ -162,3 +162,50 @@ db.init_db()
   `aprendizado.confirmar_padrao_intent(..., forcar_confianca_alta=True)`**
   - o mesmo mecanismo da US-A4 (correção manual vale mais que repetir 3x) -
   não criar um caminho de "aprendizado" paralelo pra isso.
+
+### Fase 5, Grupo D (polimento visual) - US-D1 a US-D3
+- **As telas novas do Grupo C já seguiam o padrão visual na maioria dos
+  casos** (reaproveitam `secao-secundaria`, `dica-colapsavel`, `form-linha`,
+  `li.item`, `ligarForm`/`pulsarSucesso`) - antes de escrever CSS/JS novo
+  pra "aplicar o padrão", vale conferir se o componente já não herda tudo de
+  graça por reuso de classe. Boa parte do trabalho de polimento acabou
+  sendo achar os poucos componentes que NÃO seguiam o padrão, não recriar
+  o padrão do zero.
+- **Gap real encontrado (US-D1/US-D3): `.card-vida` (`style.css`) não tinha
+  `animation: fadeInUp` nenhuma**, ao contrário de todo outro painel "glass"
+  (`.stat-tile`, `li.item`, `#duvida-box`, `#comando-voz-confirmar`) - os
+  cards que ligam via `[hidden]` (inclusive os 4 novos do Grupo C:
+  `sobrecarga-box`, `previa-noite-box`, `revisao-periodo-box`,
+  `patrimonio-box`, e também os antigos: `rotina-box`, `checkin-box`,
+  `essencial-box`, `progresso-box`, `fim-mes-box`, `custo-ia-box`)
+  apareciam com corte seco. Corrigido adicionando a mesma curva já usada
+  nos irmãos (`fadeInUp 0.35s var(--ease-bounce) both`) - a animação
+  reinicia sozinha ao sair de `display:none` pra `display:flex`, sem
+  precisar de JS extra tipo `pulsarSucesso`.
+- **Gap real encontrado (US-D2): o botão de comando de voz
+  (`#comando-voz-btn`) só tinha feedback visual pro estado "ouvindo"
+  (`.ouvindo`, `pulsarMic`) - o estado "processando" (entre o fim da
+  escuta e a resposta do `/api/intent/classificar`) só tinha o texto
+  pequeno `mostrarStatus("Entendendo...")`, sem nada no botão em si**
+  (o listener `recognition.end` já tira `.ouvindo` antes da chamada assíncrona
+  resolver). Corrigido reaproveitando o MESMO padrão já usado em todo
+  formulário do app (`setBotaoCarregando`, spinner via `.spinner`/`girar`)
+  em vez de inventar uma animação nova - `voz-comando.js` agora chama
+  `window.setBotaoCarregando(btn, true/false, ...)` ao redor do
+  `await window.apiFetch("/api/intent/classificar", ...)`, dentro de um
+  `try/finally` pra nunca deixar o botão preso em "carregando" se a
+  chamada falhar.
+- **Widget de tela bloqueada (US-C1, `scriptable/widget_lockscreen.js`) já
+  estava certo e não precisou de mudança**: o próprio arquivo já documenta
+  (comentário no topo) por que NUNCA define cor/gradiente customizado nos
+  slots de lock screen - o iOS renderiza esses slots monocromáticos e
+  ignora/distorce cor customizada. "Aplicar o padrão visual" ali seria
+  piorar, não polir - a US-D2 confirma isso como já resolvido, sem tocar
+  no arquivo.
+- **Padrão de verificação Playwright pra SPA de aba única (este projeto é
+  1 só `index.html` com `<section class="tab-content" hidden>` por aba,
+  trocadas via `window.showTab(nome)`, não rotas separadas)**: depois de
+  `/configurar-pin` + `/login` (ver seção 5 acima), navegar só precisa de
+  `page.evaluate("window.showTab('painel')")` (nomes: hoje/painel/vida/
+  tarefas/gastos/bancos/construtora/aviacao, batem com `data-tab` dos
+  botões da tabbar) - não precisa de `page.goto` por aba.

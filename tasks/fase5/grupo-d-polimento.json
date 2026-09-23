@@ -13,7 +13,7 @@
         "Testar visualmente no navegador (usar a skill 'run' se disponivel) antes de considerar concluido",
         "Sem regressao nas telas ja existentes - rodar suite de testes completa"
       ],
-      "priority": 1, "passes": false, "notes": ""
+      "priority": 1, "passes": true, "notes": "Conferido style.css antes de escrever CSS novo (regra do AC). A maioria das telas novas do Grupo C ja seguia o padrao (secao-secundaria + dica-colapsavel + form-linha + li.item, todos ja com fadeInUp/stagger herdado de graca). Gap real encontrado: .card-vida (usado por sobrecarga-box, previa-noite-box, revisao-periodo-box, patrimonio-box - novos - e tambem rotina/checkin/essencial/progresso/fim-mes/custo-ia - antigos) nao tinha nenhuma animacao de entrada, diferente de .stat-tile/li.item/#duvida-box - aparecia com corte seco ao trocar [hidden]. Adicionado animation: fadeInUp 0.35s var(--ease-bounce) both (mesma curva ja usada nos irmaos). Validado com Playwright (390px): troquei pra Painel/Vida/Tarefas/Hoje, cliquei 'Ver' na revisao trimestral/anual pra tirar o card-vida do hidden e conferi visualmente (screenshot) sem corte/pop abrupto e sem erro de console. Suite completa: unittest 1417 testes, 5 falhas esperadas (voo/horario, ver AGENTS.md), 0 novas; node --test tests/js/*.test.js 29/29 ok."
     },
     {
       "id": "US-D2",
@@ -25,7 +25,7 @@
         "Testar visualmente antes de concluir",
         "Sem regressao - suite de testes completa"
       ],
-      "priority": 2, "passes": false, "notes": ""
+      "priority": 2, "passes": true, "notes": "Estado 'ouvindo' (US-B1) ja tinha feedback visual (.ouvindo + pulsarMic). Gap real: nao havia NENHUM feedback visual no botao durante o estado 'processando' (entre fim da escuta e resposta de /api/intent/classificar) - so o texto pequeno abaixo do botao ('Entendendo...'), porque recognition 'end' ja tira .ouvindo antes da chamada assincrona resolver. Corrigido reaproveitando o MESMO padrao ja usado em todo formulario do app (setBotaoCarregando/spinner), em vez de inventar animacao nova - voz-comando.js chama window.setBotaoCarregando(btn, true/false, ...) ao redor do await apiFetch, dentro de try/finally pra nunca travar o botao em carregando se a chamada falhar. Widget de tela bloqueada (US-C1, scriptable/widget_lockscreen.js) conferido e ja estava certo sem precisar de mudanca - o proprio arquivo ja documenta por que NUNCA usa cor/gradiente customizado nos slots de lock screen (iOS renderiza monocromatico ali, cor customizada e ignorada/distorcida - aplicar o Liquid Glass la seria piorar, nao polir). Validado com Playwright: toggle manual das classes/chamada de setBotaoCarregando no botao real da pagina, screenshot confirma spinner+texto 'Entendendo...' aparecendo e o botao restaurando o icone/rotulo original certinho depois. node --test tests/js/*.test.js 29/29 (o teste JS so cobre a logica pura, nao o wiring de DOM mudado aqui - coberto pelo Playwright). unittest completo sem regressao (1417 testes, mesmas 5 falhas pre-existentes de voo)."
     },
     {
       "id": "US-D3",
@@ -37,7 +37,7 @@
         "Testar visualmente antes de concluir",
         "Sem regressao - suite de testes completa"
       ],
-      "priority": 3, "passes": false, "notes": ""
+      "priority": 3, "passes": true, "notes": "Espacamento/hierarquia: revisado - as telas novas do Grupo C (diario de decisao, brain dump, ideias de presente, garantia, manutencao veicular, revisao trimestral/anual) ja seguem o mesmo padrao das telas antigas (secao-secundaria + dica-colapsavel + form-linha + vazio + li.item), reforcado pelo fix de .card-vida da US-D1 (mesmo bloco, aplica aqui tambem). Micro-interacao de confirmacao: quase todo formulario novo ja chamava pulsarSucesso (diario-decisao, brain-dump, garantia, ideia-presente e manutencao-veiculo via ligarForm, o helper generico que ja injeta isso). Gap real encontrado e corrigido: a confirmacao de nota fiscal por foto (US-C8/US-C9, #nf-confirmar-btn em app.js) salvava e escondia a caixa na hora, sem nenhum pulsarSucesso - corrigido pulsando #nf-valor (input valido dentro de .form-linha, a classe .sucesso so tem CSS pra #captura-input ou input dentro de .form-linha - checado antes de escolher o elemento) e adiando o hidden=true em 250ms (mesmo tempo ja usado no 'saindo' de item apagado/convertido) pra dar tempo do usuario ver a confirmacao antes da caixa sumir. Validado com Playwright chamando o fluxo real (mostrarConfirmacaoNotaFiscal -> #nf-confirmar-btn -> POST /api/notas-fiscais/confirmar de verdade, sem mock): classe 'sucesso' aparece na hora, caixa ainda visivel a 120ms, escondida a 400ms, gasto realmente salvo e refletido nos totais da aba Gastos, zero erro de console."
     }
   ]
 }

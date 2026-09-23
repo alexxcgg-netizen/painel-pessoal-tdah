@@ -1,3 +1,183 @@
 # Fase 5 - Grupo D - Progress Log
 Iniciado: 2026-09-23T06:28:35Z
 ---
+
+## US-D1 - Animacao e transicao nas telas de captura/rotina/financeiro (Fase 1-4 + novidades da Fase 5)
+Status: PASSES
+
+Conferido style.css e o padrao visual ja estabelecido (Liquid Glass, glow LED,
+sombra em camadas, curvas --ease-bounce/--ease-suave/--ease-snap) antes de
+escrever qualquer CSS novo, como pedido. Descoberta principal: as telas novas
+do Grupo C (diario de decisao, brain dump, ideias de presente, garantia de
+produtos, manutencao veicular, revisao trimestral/anual, sugestao por
+energia) na maioria JA seguiam o padrao certinho, porque reaproveitam os
+mesmos componentes/classes das telas antigas (secao-secundaria, dica-
+colapsavel, form-linha, li.item via as mesmas funcoes JS de renderizar
+lista, ligarForm/pulsarSucesso) - herdam animacao/stagger/hover de graca por
+reuso de classe, nao precisei recriar nada disso.
+
+Gap real encontrado: .card-vida (classe usada tanto pelas telas antigas -
+rotina-box, checkin-box, essencial-box, progresso-box, fim-mes-box, custo-
+ia-box - quanto pelas 4 novas do Grupo C - sobrecarga-box, previa-noite-box,
+revisao-periodo-box, patrimonio-box) nao tinha NENHUMA animacao de entrada,
+diferente de todo outro painel "glass" do app (.stat-tile, li.item, #duvida-
+box, #comando-voz-confirmar, todos com fadeInUp). Como esses cards ligam via
+atributo [hidden], isso significava um corte seco toda vez que apareciam.
+Corrigido com a MESMA curva ja usada nos irmaos (fadeInUp 0.35s var(--ease-
+bounce) both) - sem JS extra, a animacao reinicia sozinha ao sair de
+display:none pra display:flex.
+
+Verificacao visual (Playwright, Chromium /opt/pw-browsers/chromium-1194,
+390x844): subi o app com DB_PATH isolado (tempdir, garantir_banco_nao_
+producao() antes de qualquer init_db), configurei PIN via POST /configurar-
+pin + POST /login (json), naveguei por Hoje/Painel/Vida/Tarefas via
+window.showTab(), cliquei "Ver" na revisao trimestral/anual (tira o
+revisao-periodo-box do hidden) - screenshot confirma entrada suave, sem pop/
+corte abrupto, sem erro de console real (filtrando "Failed to load resource"
+do /api/summary/today, 502 pre-existente do proxy de rede do sandbox, sem
+relacao com esta historia).
+
+Suite completa: `.venv/bin/python -m unittest discover -s tests` -> 1417
+testes, 5 falhas (as esperadas, testes de voo sensiveis a horario -
+test_verificar_nao_notifica_voo_com_hora_de_sair_distante,
+test_verificar_notifica_voo_perto_da_hora_de_sair,
+test_verificar_voo_ja_notificado_nao_repete,
+test_verificar_voo_ja_realizado_nao_e_candidato,
+test_verificar_voo_sem_endereco_casa_nao_quebra), 0 falhas novas.
+`node --test tests/js/*.test.js` -> 29/29 ok (nao mexi em logica pura de
+voz-comando.js nesta historia, so em US-D2 abaixo).
+
+Arquivo mudado: static/css/style.css (bloco .card-vida).
+
+## US-D2 - Animacao e transicao na navegacao por voz e widget de tela bloqueada
+Status: PASSES
+
+Estado "ouvindo" (US-B1, botao #comando-voz-btn) ja tinha feedback visual
+consistente com o padrao existente (.ouvindo + pulsarMic, mesma inspiracao
+do #chat-mic). Gap real: nenhum feedback visual no BOTAO durante o estado
+"processando" - entre o fim da escuta (recognition "end" ja remove .ouvindo
+antes da chamada assincrona pro classificador resolver) e a resposta de
+POST /api/intent/classificar, so existia o texto pequeno mostrarStatus
+("Entendendo...") abaixo do botao, nada no botao em si.
+
+Corrigido reaproveitando o MESMO padrao ja usado em todo formulario do app
+(setBotaoCarregando + spinner via .spinner/girar, ja usado por diario-
+decisao-btn, brain-dump-btn, garantia-btn, etc) em vez de inventar uma
+animacao nova - evita duplicar "linguagem visual de carregando" no mesmo
+app. voz-comando.js -> enviarComando() agora chama window.setBotaoCarregando
+(btn, true, "Entendendo...") antes do await window.apiFetch(...) e
+window.setBotaoCarregando(btn, false, "Comando de voz") dentro de um
+finally, pra nunca deixar o botao preso em "carregando" numa falha de rede/
+excecao.
+
+Widget de tela bloqueada (US-C1, scriptable/widget_lockscreen.js) revisado:
+ja estava certo, sem precisar de mudanca nenhuma. O proprio arquivo ja
+documenta (comentario no topo) por que NUNCA define cor/gradiente
+customizado nos slots accessoryInline/Circular/Rectangular - o iOS
+renderiza esses slots de tela de bloqueio monocromaticos e ignora/distorce
+qualquer cor customizada. Tentar "aplicar o Liquid Glass" ali seria
+piorar, nao polir - dentro das limitacoes reais do Scriptable/WidgetKit,
+o widget ja esta com o visual condizente possivel (2 linhas curtas,
+fonte do sistema, sem tentar forcar identidade visual que o iOS ignoraria).
+
+Verificacao visual (Playwright): como SpeechRecognition nao tem backend
+real de reconhecimento no Chromium headless deste sandbox (sem
+microfone/rede - ver nota ja existente no AGENTS.md sobre isso), testei os
+DOIS estados diretamente no botao real da pagina (mesmo elemento DOM, mesma
+funcao setBotaoCarregando que o app usa de verdade, nao um mock): toggle de
+.ouvindo (screenshot confirma borda/preenchimento pulsando, IGUAL ao padrao
+ja usado no #chat-mic) e chamada de window.setBotaoCarregando(btn, true,
+"Entendendo...") (screenshot confirma spinner + texto substituindo o icone/
+rotulo, igual a qualquer outro botao de salvar do app) seguida da chamada
+inversa (confirma reconstroi o icone/rotulo original certinho via
+dataset.htmlOriginal). Zero erro de console.
+
+Suite completa: unittest 1417 testes, so as 5 falhas esperadas (voo/
+horario). node --test tests/js/*.test.js 29/29 ok - a logica pura testada
+la (exigeConfirmacao, resolverTela, descreverResultado, classificarLocalmente
+etc) nao muda com esta historia, so o wiring de DOM (fora do escopo do teste
+Node, coberto pelo Playwright acima).
+
+Arquivo mudado: static/js/voz-comando.js (enviarComando).
+
+## US-D3 - Ajuste fino de espacamento/hierarquia visual geral e micro-interacao de confirmacao/salvamento
+Status: PASSES
+
+Espacamento/hierarquia: revisei todas as telas novas do Grupo C (diario de
+decisao, brain dump, ideias de presente, garantia de produtos, manutencao
+veicular, revisao trimestral/anual, sugestao por energia) linha a linha no
+templates/index.html comparando com telas antigas ja polidas (ex: Notas).
+Ja seguem o mesmo padrao: mesmo h2.secao-secundaria com --secao-cor, mesmo
+.dica-colapsavel pro texto de ajuda, mesmo form.form-linha, mesmo <p
+class="vazio"> pro estado vazio, mesma ul/li.item renderizada pelas mesmas
+funcoes JS de sempre (ou reaproveitando funcoes existentes tipo
+criarItemTarefa na sugestao de energia). O fix de .card-vida da US-D1
+reforca essa consistencia tambem aqui, ja que varios desses cards novos
+(revisao-periodo-box, patrimonio-box) usam a mesma classe.
+
+Micro-interacao de confirmacao: a maioria dos formularios novos JA chamava
+pulsarSucesso (diario-decisao-form e brain-dump-form direto em app.js;
+garantia-form direto em vida.js; ideia-presente-form e manutencao-veiculo-
+form via ligarForm, o helper generico de vida.js que ja injeta
+pulsarSucesso no primeiro input/textarea do form pra QUALQUER form que
+passar por ele - nada a fazer nesses).
+
+Gap real encontrado: a confirmacao de nota fiscal por foto (US-C8/US-C9,
+#nf-confirmar-btn em app.js) salvava o gasto e escondia a caixa de
+confirmacao NA HORA, sem nenhuma pulsarSucesso - o usuario nao tinha
+nenhum feedback visual de "salvou". Corrigido pulsando #nf-valor (conferi
+antes que a classe .sucesso so tem CSS de verdade pra #captura-input ou
+pra "input dentro de .form-linha" - nao e uma classe generica, entao
+escolhi um elemento que realmente casa com o seletor) e adiando o
+hidden=true da caixa em 250ms (mesmo tempo ja usado no "saindo" de item
+apagado/convertido nas listas, pra manter a mesma "velocidade de app" em
+vez de inventar um timing novo) - da tempo do usuario ver o pulso antes da
+caixa sumir, em vez de sumir instantaneo sem nenhum feedback.
+
+Verificacao visual (Playwright): chamei o fluxo real da pagina (a funcao
+global mostrarConfirmacaoNotaFiscal pra abrir a caixa sem depender da API
+de visao/foto, que exigiria mockar a chamada de IA - so testando o PASSO
+de salvar/confirmar, que e o que esta historia mexe) -> cliquei
+#nf-confirmar-btn de verdade -> POST /api/notas-fiscais/confirmar real
+(sem mock, sem IA envolvida nesse endpoint) -> conferi classe "sucesso" em
+#nf-valor logo apos clicar (120ms: caixa ainda visivel, hidden=None) e
+depois de 400ms (hidden="", escondida) -> screenshot confirma visualmente
+-> conferi que o gasto realmente apareceu nos totais da aba Gastos (R$
+42,50, Mercado Teste, categoria "outros") -> zero erro de console.
+
+Suite completa (rodada de novo apos esta 3a mudanca): unittest 1417 testes,
+so as mesmas 5 falhas pre-existentes de voo/horario, 0 novas. node --test
+tests/js/*.test.js 29/29 ok (nao mexi em voz-comando.js nesta historia).
+
+Arquivo mudado: static/js/app.js (handler de #nf-confirmar-btn).
+
+---
+## Resumo final (Grupo D completo)
+
+US-D1: PASSES
+US-D2: PASSES
+US-D3: PASSES
+
+3 de 3 historias passaram. 0 bloqueadas, 0 perguntas pendentes pro Alex.
+
+Credenciais/variaveis de ambiente novas necessarias: NENHUMA (so CSS/JS,
+nenhuma dependencia nova, nenhuma config nova).
+
+Resumo tecnico: as telas novas do Grupo C ja chegaram com um bom nivel de
+consistencia visual (reuso de componentes/classes/funcoes JS existentes) -
+o trabalho real desta rodada foi achar e corrigir os 3 pontos concretos
+que realmente destoavam do padrao (2 CSS/animacao, 1 micro-interacao de
+confirmacao faltando), documentados em detalhe no AGENTS.md (secao "Fase
+5, Grupo D") pra proxima sessao de IA nao precisar re-descobrir o mesmo:
+1. .card-vida sem fadeInUp (US-D1) - static/css/style.css
+2. Botao de comando de voz sem feedback visual no estado "processando"
+   (US-D2) - static/js/voz-comando.js
+3. Confirmacao de nota fiscal por foto sem pulsarSucesso (US-D3) -
+   static/js/app.js
+
+3 commits nesta branch (um por historia), gitleaks limpo antes de cada um,
+suite completa (unittest + node --test) sem regressao depois de cada
+mudanca, verificacao visual real via Playwright headless (Chromium
+/opt/pw-browsers/chromium-1194) antes de marcar qualquer historia como
+passes:true, todos com screenshot conferido.
+

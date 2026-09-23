@@ -526,7 +526,16 @@ if (nfConfirmarBtn) {
     });
     setBotaoCarregando(nfConfirmarBtn, false, "Confirmar e salvar");
     if (!data) return;
-    $("#nota-fiscal-confirmacao").hidden = true;
+    // US-D3: faltava a mesma micro-interacao de confirmacao que todo outro
+    // formulario ja tem (pulsarSucesso, animacao pulseBorda em CSS aplicada
+    // so a input dentro de .form-linha - #nf-valor serve). Pulsa e espera
+    // um instante antes de esconder a caixa (mesmo tempo ja usado no
+    // "saindo" de item apagado/convertido nas listas) pra confirmacao ficar
+    // visivel antes do formulario sumir, em vez de sumir na hora sem feedback.
+    pulsarSucesso($("#nf-valor"));
+    setTimeout(() => {
+      $("#nota-fiscal-confirmacao").hidden = true;
+    }, 250);
     loadExpenses();
     loadUso();
   });
