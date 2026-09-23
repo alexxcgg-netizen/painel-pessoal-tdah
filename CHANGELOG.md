@@ -5,6 +5,63 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (Fase 6 F3) - Viagens (linha do tempo + status de voo), mapa, Cotacoes e Aviacao
+
+Faixa extra do Grupo F da Fase 6 (`grupo-f3-extra.json`, US-F11 a US-F15) - todas passaram,
+nenhuma ficou blocked. Trabalho isolado em worktree separado (`fase6/f3-extra`), enquanto F1
+(aba Vida) e F2 (Painel/Tarefas) rodaram em paralelo nos seus proprios worktrees.
+
+- **US-F11 (Viagens: linha do tempo de planejamento, regra pratica)**: marcos genericos de
+  prazo a partir da data de ida (`vida.marcos_planejamento_viagem` - pura conta de
+  calendario, nunca IA/rede), nacional (3 marcos: passagem/hospedagem/check-in) vs
+  internacional (5 marcos, tambem documento/visto e seguro viagem) - coluna nova
+  `viagens.internacional`. Fonte/raciocinio dos numeros (mercado brasileiro de viagem,
+  pesquisado via WebSearch) documentado em `tasks/fase6/progress-f3.txt`. Reaproveita o card
+  `projeto_viagem` (US-E13) via `GET /api/viagens/<id>/timeline-card` (`cards.card_viagem`,
+  sem duplicar calculo); a linha do tempo em si reusa a classe `.linha-do-tempo` ja existente
+  (agenda/visao do dia, US-E5) numa versao "mini", com marcador HOJE proprio (pill) alem da
+  barra do card. Aviso "regra pratica, nao preco em tempo real" sempre visivel na tela.
+- **US-F12 (Viagens: status do voo por numero)**: numero do voo comprado (`viagens.numero_voo`)
+  + status em tempo real (atraso/portao/terminal) via **AviationStack** (`voo_status.py`,
+  novo) - a UNICA das 4 APIs pesquisadas (AviationStack, AeroDataBox/RapidAPI, FlightAware
+  AeroAPI, Amadeus Self-Service) sem exigir cartao de credito no cadastro gratuito (100
+  req/mes, so HTTP nao HTTPS - limitacao documentada). Amadeus Self-Service morreu de vez em
+  2026-07-17. Cache de 3h (`voo_status_cache`) pra caber no limite gratuito. Chave opcional
+  via `AVIATIONSTACK_API_KEY` (`.env.example`) - sem ela, card mostra "status em tempo real:
+  configurar chave". Comparacao completa em `TODO.md` ("API de voo (Fase 6)"). Testes sempre
+  com a API mockada.
+- **US-F13 (Lugares que Gostei: mapa via OpenStreetMap)**: geocodificacao server-side via
+  **Nominatim** (`geocode_nominatim.py`, novo) respeitando a politica de uso (maximo 1 req/s,
+  User-Agent proprio sem dado pessoal, cache permanente em `lugares.lat/lng/geocode_status` -
+  nunca repete a mesma consulta). Mapa com **Leaflet 1.9.4** fixado via `cdn.jsdelivr.net`,
+  carregado sob demanda (so ao clicar "ver no mapa"), tiles do OpenStreetMap publico. Sem CSP
+  no app (nada a liberar) e service worker sem mudar de versao. Achado real: o CDN falha
+  especificamente dentro do Chromium do Playwright deste sandbox (mesmo o backend alcancando
+  via `requests`/`curl`) - fallback textual confirmado funcionando, nome do lugar sempre
+  aparece independente de rede.
+- **US-F14 (Cotacoes: grafico de comparacao)**: SVG inline (barras horizontais, fornecedor
+  mais barato destacado) reaproveitando o padrao visual `.card-grafico` ja usado em
+  `saude_treino`. Gap real corrigido: `/api/cotacoes` nunca tinha ganhado a checagem de modo
+  visitante que todo outro endpoint financeiro ja tem desde a US-C20 - agora segue o mesmo
+  padrao (`GET` lista/detalhe escondidos, escrita bloqueada com 403).
+- **US-F15 (Aviacao: METAR e voo mais visuais)**: `metar.categoria_voo` classifica teto/
+  visibilidade nos limiares PADRAO FAA/AIM (os mesmos que aviationweather.gov publica em
+  todo METAR) - chip colorido com as cores padrao de carta aeronautica (verde/azul/vermelho/
+  magenta), testado com METARs reais cobrindo CAVOK, vento variavel, calmaria e BKN/OVC nos
+  limites exatos de cada faixa. Seta de vento SVG rotacionada pelo grau decodificado.
+  "Proximos voos" ganhou icone de status (agendado/realizado) - so visual, logica intocada em
+  `voos.py`. `resumo_falado()` continua nunca mencionando categoria.
+- **Achados de processo**: gap de especificidade CSS (`[hidden]` perdendo pra uma classe com
+  `display` != `none` declarada depois) achado e corrigido na verificacao headless da US-F13;
+  pegadinha de teste real (`GET` com efeito colateral de rede escapando do escopo de um mock)
+  achada rodando a suite completa antes de fechar a US-F14, corrigida - ambos documentados em
+  `AGENTS.md`.
+
+Arquivos novos: `voo_status.py`, `geocode_nominatim.py`,
+`tests/test_fase6_f3_viagens.py`, `tests/test_fase6_f3_lugares_mapa.py`,
+`tests/test_fase6_f3_cotacoes_grafico.py`. Historico completo, decisoes e o que NAO foi
+confirmado em `tasks/fase6/progress-f3.txt`.
+
 ## 2026-09-23 (Fase 6 E4) - chat produzindo cards dos modulos novos
 
 Faixa 4 do Grupo E da Fase 6: a aba Hoje (chat) passa a devolver CARD pros modulos da E2
