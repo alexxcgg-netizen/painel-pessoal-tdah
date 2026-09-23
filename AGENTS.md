@@ -209,3 +209,46 @@ db.init_db()
   `page.evaluate("window.showTab('painel')")` (nomes: hoje/painel/vida/
   tarefas/gastos/bancos/construtora/aviacao, batem com `data-tab` dos
   botões da tabbar) - não precisa de `page.goto` por aba.
+
+### Fase 6, Grupo E2 (módulos: Hábitos, Projetos, agenda iCloud, limite do cartão) - US-E12 a US-E15
+- **`page.evaluate("window.showTab('vida')")` NÃO recarrega dado nenhum da
+  aba Vida** (nem Hoje, nem Gastos) - só troca o `hidden` da `<section>`.
+  `loadVidaAba()`/`loadVidaHoje()`/`loadFimMes()` só disparam dentro do
+  listener de **click de verdade** no botão da tabbar
+  (`document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", ...))`
+  em `app.js`, perto do fim do arquivo) - `showTab()` sozinho não acorda
+  esse listener. Pra verificação visual Playwright de qualquer coisa
+  pré-semeada no banco (não criada pela própria página via formulário) use
+  `page.click("button.tab-btn[data-tab='vida']")`, nunca só `evaluate`
+  (a nota acima, da Fase 5 Grupo D, vale pra "a seção existe/está anexada
+  no DOM", não pra "os dados da aba já carregaram").
+- **`self.client.post(url, data={...})` (form-encoded) nunca autentica em
+  `/login`** - `_corpo_json()` (`app.py`) lê `request.json`, então todo
+  teste/script novo tem que mandar `json={...}`, não `data={...}`, senão
+  a rota recebe corpo vazio e falha silenciosamente (nenhum erro de
+  sintaxe, só um 401/400 que confunde).
+- **`caldav` (biblioteca) monta o VEVENT sozinho a partir de kwargs** -
+  `Calendar.add_event(dtstart=..., dtend=..., summary=..., uid=...,
+  alarm_trigger=timedelta(minutes=-N), alarm_action="DISPLAY",
+  alarm_description=...)` (ver `caldav/lib/vcal.py:create_ical`), nunca
+  precisou montar texto ICS na mão em `caldav_client.criar_evento`.
+  `Calendar.name` é `@property` **deprecated** (`DeprecationWarning`) -
+  achar o calendário "Painel" pelo nome usa `get_display_name()`.
+- **`bank_accounts` não tinha nenhuma função de "gasto do mês de UMA
+  conta"** antes do limite do cartão (só `total_gastos_bancarios_mes`,
+  somando todas as contas juntas) - `db.gasto_mes_conta(conn, id, ano_mes)`
+  é nova (US-E15) e generaliza `total_gastos_bancarios_mes`; qualquer
+  feature futura de "fatura do cartão" deve reusar essa função, não somar
+  `bank_transactions` de novo na mão.
+- **`rotina_itens`/`rotina_marcacoes` (Rotina guiada manhã/noite) e
+  `habitos`/`habito_marcacoes` (Hábitos, US-E12) são conceitos
+  DIFERENTES por decisão do Alex** - não misturar nem reusar tabela: a
+  Rotina é uma checklist fixa "de todo dia" com dois `momento`s
+  (manha/noite); Hábito tem meta/frequência/horário próprios e é uma
+  entidade nova.
+- **Viagens (`viagens`/`viagem_itens`) continuam intocadas pelo módulo
+  Projetos** (US-E13) - `vida.converter_viagem_para_projeto` só monta um
+  dict no MESMO formato de `_projeto_detalhado` (id prefixado
+  `"viagem-{id}"`, sem gravar nada em `projetos`/`projeto_etapas`) pro
+  card poder reaproveitar o mesmo componente visual; `GET
+  /api/viagens/<id>/como-projeto` calcula isso on-the-fly a cada chamada.

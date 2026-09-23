@@ -4021,3 +4021,137 @@ body.modo-essencial #essencial-box {
 #fim-mes-box[hidden] {
   display: none !important;
 }
+
+/* ---- Fase 6 (US-E12): Habitos - 7 circulos da semana + checkboxes de dia --- */
+
+.habito-dias-semana {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.2rem 0.1rem;
+}
+
+.habito-dias-semana label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.habito-semana {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.15rem;
+}
+
+.habito-circulo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.habito-circulo.feito {
+  background: var(--accent-fill);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.habito-circulo.hoje {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ---- Fase 6 (US-E13): Projetos - barra de progresso com marcador de hoje - */
+
+.projeto-card {
+  gap: 0.4rem;
+}
+
+.projeto-status {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.projeto-status-atrasado {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.projeto-status-no_rumo {
+  color: var(--accent-text);
+  background: var(--accent-fill);
+  border-color: var(--accent);
+}
+
+.projeto-barra-trilho {
+  position: relative;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: visible;
+}
+
+.projeto-barra-preenchido {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  transition: width 0.35s var(--ease-suave, ease);
+}
+
+.projeto-barra-hoje {
+  position: absolute;
+  top: 50%;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--bg);
+  transform: translate(-50%, -50%);
+}
+
+/* ---- Fase 6 (US-E15): limite do cartao (campo manual) --------------------- */
+
+.limite-cartao {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+
+.limite-cartao-trilho {
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+
+.limite-cartao-preenchido {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  transition: width 0.35s var(--ease-suave, ease);
+}
+
+.limite-cartao-preenchido.limite-cartao-alerta {
+  background: var(--danger);
+}

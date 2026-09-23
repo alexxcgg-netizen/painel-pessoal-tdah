@@ -18,8 +18,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Tabelas habitos/habito_marcacoes; rotas GET/POST /api/habitos, DELETE, POST /marcar. Resposta traz ultimos_7 (data/letra/feito/hoje), feito_hoje, devido_hoje, passou_batido, vezes_feitas_semana. Chat tools registrar_habito/marcar_habito. Tela na aba Vida com 7 circulos. vida.habito_passou_batido pronta pra US-E8. Decisao: NAO oculta no modo visitante (nao e dado sensivel). Ver progress-e2.txt pro detalhe.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -37,8 +37,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Tabelas projetos/projeto_etapas; rotas /api/projetos (GET/POST/DELETE/status/etapas/concluir). vida.calcular_projeto (percentual, proxima_etapa, posicao_hoje 0-100, dias_sem_toque) + status_projeto_calculado (pausado sempre manual). Chat tools criar_projeto/adicionar_etapa/concluir_etapa. Decisao: tela na aba Vida (nao Painel - documentado em progress-e2.txt). Viagens NAO migram: vida.converter_viagem_para_projeto + GET /api/viagens/<id>/como-projeto so emprestam o formato, sem duplicar dado.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -55,8 +55,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "caldav_client.criar_evento/apagar_evento (NaoConfiguradoError se ICLOUD_* ausente). Calendario 'Painel' achado por get_display_name() (nao .name, deprecated) ou criado via make_calendar. Tabela local eventos_criados = fonte da verdade do que pode ser desfeito; apagar_evento_agenda_rota recusa uid nao registrado ANTES de chamar CalDAV (testado que o mock nunca e chamado nesse caso). Rotas POST/DELETE /api/agenda/eventos, GET /api/agenda/eventos-criados. Chat tool agendar_evento. Testes 100% mockados.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -71,8 +71,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Coluna bank_accounts.limite (via _garantir_coluna). db.gasto_mes_conta (generaliza total_gastos_bancarios_mes pra 1 conta, 'ciclo' = mes-calendario - documentado como aproximacao). GET /api/bancos ganha gasto_ciclo + limite_info ({fracao, sobra} ou null sem limite) por cartao. POST /api/bancos/<id>/limite respeita modo visitante (403). vida.fracao_limite_cartao trava fracao em 1.5 (dado sujo). UI na aba Bancos, dentro de cada item de cartao.",
       "modelo_planejado": "sonnet"
     }
   ]

@@ -2448,7 +2448,64 @@ function criarItemBanco(conta) {
   }
 
   li.appendChild(linha);
+
+  // Fase 6 (US-E15): limite manual do cartao - Open Finance nao manda isso,
+  // entao o Alex digita. Sem limite configurado o aviso de 90% (US-E8)
+  // simplesmente nao existe - nunca inventa um numero.
+  if (conta.tipo === "cartao") {
+    li.appendChild(criarLimiteCartaoBox(conta));
+  }
+
   return li;
+}
+
+function criarLimiteCartaoBox(conta) {
+  const box = document.createElement("div");
+  box.className = "limite-cartao";
+
+  if (conta.limite_info) {
+    const barra = document.createElement("div");
+    barra.className = "limite-cartao-trilho";
+    const preenchido = document.createElement("div");
+    preenchido.className = "limite-cartao-preenchido" + (conta.limite_info.fracao >= 0.9 ? " limite-cartao-alerta" : "");
+    preenchido.style.width = `${Math.min(conta.limite_info.fracao * 100, 100)}%`;
+    barra.appendChild(preenchido);
+    box.appendChild(barra);
+    const texto = document.createElement("p");
+    texto.className = "item-quando";
+    texto.textContent = `${fmtMoeda(conta.gasto_ciclo)} de ${fmtMoeda(conta.limite)} (${Math.round(conta.limite_info.fracao * 100)}%) - sobra ${fmtMoeda(conta.limite_info.sobra)}`;
+    box.appendChild(texto);
+  }
+
+  const linha = document.createElement("div");
+  linha.className = "form-linha";
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "0";
+  input.step = "0.01";
+  input.inputMode = "decimal";
+  input.placeholder = "Limite do cartao (opcional)";
+  input.setAttribute("aria-label", `Limite do cartao ${conta.banco}`);
+  if (conta.limite != null) input.value = conta.limite;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-com-icone";
+  btn.textContent = "Salvar limite";
+  btn.addEventListener("click", async () => {
+    setBotaoCarregando(btn, true, "salvando...");
+    const valor = input.value.trim();
+    const ok = await apiFetch(`/api/bancos/${conta.id}/limite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ limite: valor === "" ? null : Number(valor) }),
+    });
+    setBotaoCarregando(btn, false, "Salvar limite");
+    if (ok) loadBancos();
+  });
+  linha.appendChild(input);
+  linha.appendChild(btn);
+  box.appendChild(linha);
+  return box;
 }
 
 async function loadBancos() {

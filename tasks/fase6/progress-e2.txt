@@ -1,0 +1,192 @@
+# Fase 6 - Grupo E2 (modulos) - Progress Log
+Iniciado: 2026-09-23T15:08:00Z
+---
+
+## US-E12 - Modulo Habitos (novo, separado da Rotina guiada)
+
+Tabelas novas `habitos`/`habito_marcacoes` em `db.py` (CRUD completo:
+create_habito/list_habitos/get_habito/buscar_habito_por_nome/delete_habito/
+habito_marcado/alternar_habito_dia/marcacoes_habito_no_periodo). Rotas
+`GET/POST /api/habitos`, `DELETE /api/habitos/<id>`, `POST
+/api/habitos/<id>/marcar` em `app.py`. Chat tools `registrar_habito` e
+`marcar_habito` em `claude_client.py` + executores em `app.py`. Tela nova
+na aba Vida (`templates/index.html`, secao "Habitos" antes de "Pra
+responder"), JS em `static/js/vida.js` (loadHabitos/renderHabitoSemana/
+form com toggle de campos por frequencia_tipo). CSS novo em
+`static/css/style.css` (`.habito-dias-semana`, `.habito-semana`,
+`.habito-circulo`).
+
+Funcoes puras novas em `vida.py`: `letra_dia_semana`, `ultimos_n_dias`,
+`parse_dias_semana`, `habito_devido_em`, `habito_passou_batido` (esta
+ultima e a que a US-E8 - proatividade - vai consumir).
+
+Historia X (US-E12) — decisao: habito NAO respeita `_modo_visitante_ativo()`
+(nao e dado financeiro nem sensivel) / Motivo: pedido explicito da AC
+("Habito nao e dado sensivel - NAO precisa ocultar"), documentado em
+comentario no bloco de rotas de `app.py`. / Nao confirmado: nada - decisao
+direta da propria historia, nao precisou de julgamento adicional.
+
+Formato de dado que o card da faixa seguinte vai consumir
+(`GET /api/habitos`): `{"ativos_total": N, "habitos": [{"id", "nome",
+"meta", "frequencia_tipo", "dias_semana": [0..6], "vezes_por_semana",
+"horario", "ultimos_7": [{"data", "letra", "feito", "hoje"} x7],
+"feito_hoje", "vezes_feitas_semana", "devido_hoje", "passou_batido"}]}`.
+
+Testes: `tests/test_fase6_e2_modulos.py` (rotas + fuzzing leve de
+dias_semana/vezes_por_semana invalidos + funcoes puras). Playwright:
+criado habito via UI, confirmado 7 circulos renderizados + marcar/desmarcar
+funcionando (ver relatorio final pro screenshot).
+
+passes: true.
+
+## US-E13 - Modulo Projetos generico
+
+Tabelas novas `projetos`/`projeto_etapas` em `db.py`. Rotas `GET/POST
+/api/projetos`, `DELETE /api/projetos/<id>`, `POST
+/api/projetos/<id>/status`, `POST /api/projetos/<id>/etapas`, `POST
+/api/projetos/etapas/<id>/concluir`, `DELETE /api/projetos/etapas/<id>`
+em `app.py`. Chat tools `criar_projeto`/`adicionar_etapa`/`concluir_etapa`.
+Tela na aba Vida (decisao abaixo). CSS novo: `.projeto-card`,
+`.projeto-status(-atrasado/-no_rumo)`, `.projeto-barra-trilho/
+-preenchido/-hoje`.
+
+Calculo puro em `vida.py`: `calcular_projeto` (percentual, etapas_feitas/
+total, proxima_etapa, posicao_hoje 0-100 pra barra, dias_sem_toque) e
+`status_projeto_calculado` (deriva atrasado/no_rumo do prazo; pausado e
+sempre manual, nunca sobrescrito).
+
+Historia X (US-E13) — decisao: tela ficou na aba **Vida** (nao Painel) /
+Motivo: e onde Habitos tambem ficou nesta mesma leva, e onde ja moram
+outros modulos de acompanhamento pessoal (Manutencao, Garantias, Viagens);
+manter os 2 modulos novos da mesma leva juntos evita o Alex procurar em
+dois lugares. / Nao confirmado: se o Alex preferir mover pra Painel depois
+de ver, e so questao de mover a secao no HTML - nenhum dado precisa migrar.
+
+Historia X (US-E13) — decisao: Viagens NAO migram pra tabela `projetos` /
+Motivo: pedido explicito da AC; `vida.converter_viagem_para_projeto(viagem,
+itens)` so EMPRESTA o formato de dado (calcula em cima de
+viagens/viagem_itens direto, nunca copia pra `projetos`) via `GET
+/api/viagens/<id>/como-projeto` - o card da faixa seguinte pode desenhar
+uma viagem com o mesmo componente visual de projeto sem duplicar
+persistencia. / Nao confirmado: nada.
+
+Formato de dado (`GET /api/projetos`, cada item): `{"id", "nome",
+"prazo_final", "status" (no_rumo/atrasado/pausado, ja calculado),
+"status_manual" (bool - so true quando "pausado" foi setado a mao),
+"criado_em", "atualizado_em", "etapas": [...], "total_etapas",
+"etapas_feitas", "percentual", "proxima_etapa" (objeto etapa ou null),
+"posicao_hoje" (0-100 ou null sem prazo), "dias_sem_toque" (int ou null)}`.
+`GET /api/viagens/<id>/como-projeto` devolve o MESMO formato (id vira
+`"viagem-{id}"`, `origem: "viagem"`).
+
+Testes + Playwright: ver US-E12 (mesmo arquivo de teste, mesma sessao de
+verificacao visual - projeto com etapa concluida renderizou barra +
+badge de status corretamente).
+
+passes: true.
+
+## US-E14 - Agenda: criar/apagar evento no calendario "Painel" (CalDAV)
+
+`caldav_client.py` ganhou `criar_evento`/`apagar_evento` (antes so lia).
+Calendario "Painel" e achado por `get_display_name()` (NUNCA `.name`,
+deprecated) dentro do principal do iCloud; criado com
+`principal.make_calendar(name="Painel")` se ainda nao existir. UID e
+gerado no servidor (`uuid.uuid4()`) ANTES de mandar pro iCloud, pra bater
+com o que e gravado localmente. `NaoConfiguradoError` (subclasse de
+RuntimeError) e levantada quando ICLOUD_USERNAME/ICLOUD_APP_PASSWORD nao
+estao no ambiente - `app.py` converte isso num JSON `{"error": ...}` 400,
+nunca um 500.
+
+Tabela nova `eventos_criados` (uid PK, titulo, inicio, fim, criado_em) em
+`db.py` - fonte da verdade de "o painel pode desfazer isso". Rotas `POST
+/api/agenda/eventos`, `DELETE /api/agenda/eventos/<uid>`, `GET
+/api/agenda/eventos-criados`. A rota de apagar SO chama
+`caldav_client.apagar_evento` se `evento_criado_pelo_painel(conn, uid)`
+achar o uid na tabela local - testado explicitamente que um uid
+desconhecido e recusado ANTES de qualquer chamada ao CalDAV (mock de
+`caldav_client.apagar_evento` nunca e chamado nesse caso). Chat tool
+`agendar_evento`. Tela nova na aba Vida (form + lista de eventos criados
+com apagar).
+
+Historia X (US-E14) — decisao: guarda de seguranca vive em DUAS camadas /
+Motivo: `caldav_client.apagar_evento(uid)` so mexe no calendario "Painel"
+(nunca em outro calendario do iCloud, mesmo que o uid exista la); e
+`app.py` so chama essa funcao depois de confirmar o uid em
+`eventos_criados` local. As duas juntas cobrem tanto "nunca mexe em outro
+calendario" quanto "nunca apaga evento que nao criei", que eram as duas
+partes da decisao original do Alex. / Nao confirmado: nada - decisao
+literal da AC.
+
+Formato de dado: evento criado devolve `{"ok": true, "uid", "titulo",
+"inicio" (ISO), "fim" (ISO)}`; `GET /api/agenda/eventos-criados` devolve
+lista de `{"uid", "titulo", "inicio", "fim", "criado_em"}`.
+
+Testes: CalDAV SEMPRE mockado (`unittest.mock.patch` em
+`caldav_client.configurado`/`criar_evento`/`apagar_evento`, ou em
+`caldav_client._client` pros testes que verificam a mecanica interna
+contra um `FakeClient`/`FakeCalendar`/`FakePrincipal` - nunca uma
+conexao de rede de verdade). Cobertos: sem CALDAV configurado (erro
+claro, app nao quebra), criar com sucesso registra local, hora fim antes
+do inicio, varios campos invalidos (fuzzing leve), apagar uid nao
+registrado e recusado sem chamar CalDAV, apagar uid registrado funciona e
+esquece local, calendario "Painel" e achado OU criado quando nao existe,
+uid nao encontrado no calendario devolve False (nao lanca excecao).
+
+Playwright: form de criar evento testado sem CALDAV configurado (ambiente
+de teste nunca tem ICLOUD_*) - confirma que o erro aparece como toast e a
+pagina nao quebra (zero erro de JS no console).
+
+passes: true.
+
+## US-E15 - Limite do cartao (campo manual)
+
+Coluna nova `bank_accounts.limite` (REAL, via `_garantir_coluna` -
+banco existente ganha a coluna sem perder dado). `db.definir_limite_conta`
+e `db.gasto_mes_conta` (generaliza `total_gastos_bancarios_mes` pra UMA
+conta). `GET /api/bancos` agora inclui `gasto_ciclo` e `limite_info`
+(`{"fracao", "sobra"}` ou `null`) pra cada conta `tipo="cartao"`. Rota
+nova `POST /api/bancos/<id>/limite` (respeita `_modo_visitante_ativo()`,
+403 no modo visitante - e dado financeiro de verdade). Tela: caixa nova
+dentro de cada item de cartao em `templates/index.html`/`static/js/app.js`
+(`criarLimiteCartaoBox`), com barra + input + botao salvar. CSS
+`.limite-cartao(-trilho/-preenchido/-alerta)`.
+
+Funcao pura `vida.fracao_limite_cartao(gasto_ciclo, limite)`: `None` sem
+limite (nunca inventa aviso), senao `{"fracao", "sobra"}` com fracao
+travada num teto de 1.5 (150%) pra dado sujo/fatura muito estourada nao
+virar numero absurdo na tela, e nunca negativa mesmo com gasto_ciclo
+negativo (dado corrompido).
+
+Historia X (US-E15) — decisao: "ciclo do cartao" = mes-calendario (nao a
+data de fechamento real da fatura) / Motivo: o app nao tem o dia de
+fechamento de cada cartao cadastrado em lugar nenhum (Open Finance nao
+manda isso e nao foi pedido campo novo pra digitar); mes-calendario e uma
+aproximacao razoavel e documentada no docstring de `gasto_mes_conta`, sem
+inventar um numero que pareceria mais preciso do que e. / Nao confirmado:
+se o Alex quiser o dia de fechamento real do cartao no futuro, precisa de
+um campo novo (dia_fechamento) e virar um calculo de janela deslizante -
+nao fiz isso aqui por nao estar no escopo da AC.
+
+Formato de dado: cada item de `GET /api/bancos` com `tipo="cartao"` ganha
+`"gasto_ciclo"` (float) e `"limite_info"` (`{"fracao": 0..1.5, "sobra":
+float}` ou `null` sem limite configurado) - a US-E8 (proatividade) pode
+disparar o aviso de "90%" direto de `limite_info.fracao >= 0.9`.
+
+Testes: sem limite = sem aviso, definir/apagar limite, fracao/sobra
+corretas com transacoes reais no mes, limite invalido (negativo, zero,
+string, NaN) recusado com 400, modo visitante oculta tudo (lista vazia e
+403 na rota de definir limite), `gasto_mes_conta` soma so saidas do
+mes/conta corretos (entrada nao conta, mes errado nao conta, outra conta
+nao conta). Playwright: caixa de limite renderizada pra cartao existente,
+preencheu 1000, salvou, texto "R$ 450,00 de R$ 1.000,00 (45%) - sobra
+R$ 550,00" apareceu corretamente (screenshot em
+/tmp/fase6-e2/limite_cartao.png, nao versionado).
+
+passes: true.
+
+## Suite completa (todas as 4 historias)
+
+`.venv/bin/python -m unittest discover -s tests` + `node --test
+tests/js/*.test.js` rodados apos as 4 historias implementadas - ver
+relatorio final pro resultado (0 falhas novas, so as 5 pre-existentes de
+horario de voo ja conhecidas, se aplicavel).
