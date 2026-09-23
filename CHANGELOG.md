@@ -35,6 +35,22 @@ completo por historia.
 - `tests/test_modo_viagem.py` (16 casos: funcao pura, API, supressao real em
   `verificar_e_notificar`).
 
+**US-C17 - Alerta de gasto fora do padrao (categoria)**
+- Estende o mecanismo ja existente de gasto atipico (`notificacoes.gasto_dia_semana_atipico`,
+  que compara o TOTAL do dia com o mesmo dia da semana) com um segundo angulo, no mesmo
+  arquivo: `notificacoes.gastos_fora_do_padrao_categoria` compara cada gasto INDIVIDUAL de
+  hoje com a media + desvio-padrao historico da mesma categoria (janela de 3 meses, minimo
+  5 amostras) - pega um gasto pontual fora do normal mesmo quando o dia inteiro nao chama
+  atencao. Categoria sem variacao historica (desvio-padrao 0, ex: sempre a mesma assinatura)
+  usa 50% acima da media constante como limiar, ja que "X desvios" nao faz sentido com
+  variancia zero.
+- `aprendizado.media_e_desvio_padrao` (helper estatistico puro novo, reaproveitando o padrao
+  do modulo - so estatistica sobre o proprio historico, sem IA).
+- Wired em `verificar_e_notificar` logo apos o alerta por dia da semana, dedup por gasto
+  (`ja_notificado_alguma_vez` - o mesmo gasto nunca avisa duas vezes).
+- `tests/test_gasto_categoria_atipico.py` (11 casos: helper estatistico, deteccao pura,
+  integracao real em `verificar_e_notificar`).
+
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 
 Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em

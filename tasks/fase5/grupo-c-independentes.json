@@ -195,7 +195,7 @@
         "Notifica quando um gasto novo for X desvios-padrao acima da media da categoria (reaproveitar aprendizado.py)",
         "Testes cobrindo o novo criterio de deteccao"
       ],
-      "priority": 17, "passes": false, "notes": ""
+      "priority": 17, "passes": true, "notes": "Estendeu o mecanismo existente (notificacoes.gasto_dia_semana_atipico) com notificacoes.gastos_fora_do_padrao_categoria (mesmo arquivo/padrao de dedup), usando aprendizado.media_e_desvio_padrao (novo helper puro). Wired em verificar_e_notificar logo apos o alerta por dia da semana. Testes em tests/test_gasto_categoria_atipico.py (11 casos, 100% ok)."
     },
     {
       "id": "US-C18",

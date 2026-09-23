@@ -2697,6 +2697,14 @@ def verificar_e_notificar():
     if msg and not ja_notificou_hoje(conn, "gasto_dia_atipico"):
         avisos.append(("gasto_dia_atipico", 0, "Gasto fora do padrao hoje", msg))
 
+    # Mesmo mecanismo acima, outro angulo: um gasto INDIVIDUAL bem acima da
+    # media+desvio-padrao da propria categoria, mesmo que o dia inteiro nao
+    # tenha estourado (US-C17). Dedup por gasto (ja_notificado_alguma_vez -
+    # o mesmo gasto nunca precisa avisar de novo).
+    for gasto_id, msg in notificacoes.gastos_fora_do_padrao_categoria(conn):
+        if not ja_notificado_alguma_vez(conn, "gasto_categoria_atipico", gasto_id):
+            avisos.append(("gasto_categoria_atipico", gasto_id, "Gasto fora do padrao da categoria", msg))
+
     for lembrete_id, msg in notificacoes.lembretes_proximos(conn):
         if not ja_notificou_hoje(conn, "lembrete_proximo", lembrete_id):
             avisos.append(("lembrete_proximo", lembrete_id, "Data importante chegando", msg))

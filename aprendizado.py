@@ -47,6 +47,21 @@ def _mediana(amostras: list[float]) -> float:
     return (ordenada[meio - 1] + ordenada[meio]) / 2
 
 
+def media_e_desvio_padrao(amostras: list[float]) -> tuple[float, float]:
+    """Media e desvio-padrao populacional simples (sem libs externas - a
+    amostra aqui e sempre pequena, uso pessoal). Usado pelo alerta de gasto
+    fora do padrao dentro da categoria (Fase 5, US-C17) - desvio 0.0 quando
+    houver menos de 2 amostras, ja que desvio-padrao nao faz sentido com 0/1
+    ponto."""
+    if not amostras:
+        return 0.0, 0.0
+    media = sum(amostras) / len(amostras)
+    if len(amostras) < 2:
+        return media, 0.0
+    variancia = sum((v - media) ** 2 for v in amostras) / len(amostras)
+    return media, variancia ** 0.5
+
+
 def limiar_personalizado(
     amostras: list[float],
     padrao: int,

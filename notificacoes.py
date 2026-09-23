@@ -5,6 +5,7 @@ em app.py."""
 
 from datetime import date, datetime, timedelta
 
+import aprendizado
 import db
 import gastos
 import vida
@@ -319,6 +320,53 @@ def gasto_dia_semana_atipico(
         f"Gasto de hoje (R$ {total_hoje:.2f}) esta bem acima do que costuma ser "
         f"{dia_semana} (media de R$ {media:.2f})."
     )
+
+
+def gastos_fora_do_padrao_categoria(
+    conn, hoje: date | None = None, meses_historico: int = 3, desvios: float = 2.0, minimo_amostras: int = 5
+) -> list[tuple[int, str]]:
+    """Fase 5 (US-C17): extensao de gasto_dia_semana_atipico (mesmo mecanismo
+    - "isso hoje esta fora do padrao?" - so que olhando por outro angulo).
+    Em vez do TOTAL do dia vs o mesmo dia da semana, compara CADA gasto
+    individual registrado hoje com a media + desvio-padrao (aprendizado.py)
+    dos gastos historicos da MESMA categoria - pega um gasto pontual fora do
+    normal mesmo quando o dia inteiro nao chama atencao (ex: 1 gasto de
+    R$800 em "mercado", categoria que raramente passa de R$150). Categoria
+    com historico curto demais (`minimo_amostras`) e ignorada - sem dado
+    suficiente pra saber o que e "normal" ainda."""
+    hoje = hoje or date.today()
+    inicio_historico = (hoje - timedelta(days=30 * meses_historico)).isoformat()
+    gastos_hoje = conn.execute(
+        "SELECT id, category, amount FROM expenses WHERE tipo = 'real' AND date(created_at) = ?",
+        (hoje.isoformat(),),
+    ).fetchall()
+    avisos = []
+    for g in gastos_hoje:
+        historico = conn.execute(
+            """SELECT amount FROM expenses
+               WHERE tipo = 'real' AND category = ? AND id != ?
+                 AND date(created_at) >= ? AND date(created_at) < ?""",
+            (g["category"], g["id"], inicio_historico, hoje.isoformat()),
+        ).fetchall()
+        valores = [h["amount"] for h in historico]
+        if len(valores) < minimo_amostras:
+            continue
+        media, desvio_padrao = aprendizado.media_e_desvio_padrao(valores)
+        # Categoria sem variacao historica (ex: sempre a mesma assinatura de
+        # R$30) tem desvio-padrao 0 - "X desvios acima da media" nao faz
+        # sentido nesse caso (qualquer valor diferente seria "infinitos
+        # desvios"), entao usa 50% acima da media constante como limiar.
+        limiar = media + desvios * desvio_padrao if desvio_padrao > 0 else media * 1.5
+        if g["amount"] <= limiar:
+            continue
+        avisos.append(
+            (
+                g["id"],
+                f"Gasto de R$ {g['amount']:.2f} em \"{g['category']}\" esta bem acima do "
+                f"normal pra essa categoria (media de R$ {media:.2f}).",
+            )
+        )
+    return avisos
 
 
 def proxima_ocorrencia_lembrete(data_base: date, recorrente: bool, hoje: date) -> date:

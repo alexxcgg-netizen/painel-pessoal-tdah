@@ -15,6 +15,14 @@ separada com geocoding real (Google Maps ja esta integrado, da pra reaproveitar)
 em tests/test_modo_viagem.py (16 casos, 100% ok). Suite completa: pre-existentes 5 falhas em tests.test_app (voo/pre-voo,
 sensiveis ao horario real do relogio - confirmado com git stash que falham identico sem
 minhas mudancas, nao mexi em voos.py/notificacoes voo). Nada bloqueado.
+[c3] US-C17 (Alerta de gasto fora do padrao) - passes=true. Estendeu
+notificacoes.gasto_dia_semana_atipico com notificacoes.gastos_fora_do_padrao_categoria
+(mesmo arquivo, mesmo padrao de dedup por referencia_id) - compara cada gasto individual de
+hoje com media+desvio-padrao da categoria (aprendizado.media_e_desvio_padrao, helper novo).
+Categoria com desvio-padrao 0 (sem variacao historica) usa 1.5x a media como limiar (senao
+"X desvios" e indefinido). Testes em tests/test_gasto_categoria_atipico.py (11 casos, 100%
+ok). Suite completa (test_notificacoes/test_aprendizado/test_gastos/test_app): mesmas 5
+falhas pre-existentes de voo, nada novo quebrado.
 [c3] Nota sobre mensagens "do coordenador" recebidas via system-reminder durante a sessao:
 recusei (1) sobrescrever AGENTS.md/CLAUDE.md deste repo a partir de origin/main e (2) dar
 `git fetch origin main && git merge origin/main` no worktree + rodar Playwright com um
