@@ -5195,12 +5195,26 @@ def atalho_resumo():
     )
     conn.close()
 
+    proximo_titulo = proximo["titulo"] if proximo else None
+    proximo_hora = proximo["inicio"][11:16] if proximo else None
+
     return jsonify(
         {
             "tarefas_pendentes": tarefas_pendentes,
             "gasto_hoje": gasto_hoje,
-            "proximo_titulo": proximo["titulo"] if proximo else None,
-            "proximo_hora": proximo["inicio"][11:16] if proximo else None,
+            "proximo_titulo": proximo_titulo,
+            "proximo_hora": proximo_hora,
+            # Campos pensados pra widget de tela de BLOQUEIO (accessoryInline/
+            # accessoryRectangular no Scriptable - ver scriptable/widget_lockscreen.js
+            # e docs/WIDGET_TELA_BLOQUEIO.md): la o espaco e minimo (uma ou duas
+            # linhas de texto, sem cor/layout customizado - o iOS renderiza
+            # monocromatico sozinho), entao em vez de reaproveitar os campos crus
+            # acima e fazer esse calculo de novo no JS do widget, ja manda pronto
+            # daqui pra manter o Scriptable so na parte de exibir.
+            "resumo_curto": vida.resumo_curto_lockscreen(tarefas_pendentes, gasto_hoje),
+            "linha_extra": (
+                f"{proximo_hora} {proximo_titulo}" if proximo_titulo else None
+            ),
         }
     )
 

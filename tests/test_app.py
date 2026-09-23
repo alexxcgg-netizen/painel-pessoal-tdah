@@ -6227,6 +6227,41 @@ class AutenticacaoTestCase(unittest.TestCase):
             com_token = self.client.get("/api/atalho/resumo", headers={"X-Webhook-Token": "segredo-456"})
             self.assertEqual(com_token.status_code, 200)
 
+    def test_atalho_resumo_traz_campos_compactos_pra_widget_de_tela_de_bloqueio(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.execute("INSERT INTO tasks (title) VALUES (?)", ("cotar portas",))
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo) VALUES (?, ?, 'real')", (42.0, "mercado")
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/atalho/resumo")
+        body = res.get_json()
+        self.assertEqual(body["resumo_curto"], "1 tarefa · R$ 42.00 hoje")
+        self.assertIsNone(body["linha_extra"])
+
+    def test_atalho_resumo_linha_extra_traz_proximo_compromisso(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)", ("dentista", hoje, "23:59")
+        )
+        conn.commit()
+        conn.close()
+
+        agora_antes = datetime.combine(date.today(), datetime.min.time()).replace(hour=23, minute=0)
+        with patch("app.datetime") as mock_dt:
+            mock_dt.now.return_value = agora_antes
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.combine = datetime.combine
+            res = self.client.get("/api/atalho/resumo")
+
+        body = res.get_json()
+        self.assertEqual(body["linha_extra"], "23:59 dentista")
+
     def test_login_ja_autenticado_redireciona_pra_home(self):
         conn = db.get_db()
         auth.definir_pin(conn, "123456", "123456")

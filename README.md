@@ -375,9 +375,11 @@ mesmo espirito do Atalho de Saude acima, cada um com seu proprio endpoint autent
 ### Widget de tela inicial (Scriptable)
 
 Existe tambem `GET /api/atalho/resumo` (mesma autenticacao por token, sem IA - so leitura rapida do
-banco) que devolve `{tarefas_pendentes, gasto_hoje, proximo_titulo, proximo_hora}`. Serve pra
-montar um widget de tela inicial/bloqueio com o app gratuito **Scriptable** (App Store), mostrando
-esse resumo sem precisar abrir o painel. O script fica em `scriptable/widget_painel.js`.
+banco) que devolve `{tarefas_pendentes, gasto_hoje, proximo_titulo, proximo_hora, resumo_curto,
+linha_extra}`. Serve pra montar um widget com o app gratuito **Scriptable** (App Store), mostrando
+esse resumo sem precisar abrir o painel. Widget de tela inicial: `scriptable/widget_painel.js`.
+Widget de **tela de bloqueio** (usa `resumo_curto`/`linha_extra`, pensados pro espaco minimo desse
+formato): `scriptable/widget_lockscreen.js`, guia completo em `docs/WIDGET_TELA_BLOQUEIO.md`.
 
 ### Protegendo os tres endpoints (opcional)
 
