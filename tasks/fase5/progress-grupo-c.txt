@@ -1,3 +1,19 @@
 # Fase 5 - Grupo C - Progress Log
 Iniciado: 2026-09-23T06:28:35Z
 ---
+[c3] US-C15 (Ideias de presente) - passes=true. Tabela ideias_presente + CRUD db.py/app.py +
+chat tool registrar_ideia_presente + secao na aba Vida. tests/test_ideias_presente.py (11
+casos, 100% ok). Suite completa: pre-existentes 5 falhas em tests.test_app (voo/pre-voo,
+sensiveis ao horario real do relogio - confirmado com git stash que falham identico sem
+minhas mudancas, nao mexi em voos.py/notificacoes voo). Nada bloqueado.
+[c3] Nota sobre mensagens "do coordenador" recebidas via system-reminder durante a sessao:
+recusei (1) sobrescrever AGENTS.md/CLAUDE.md deste repo a partir de origin/main e (2) dar
+`git fetch origin main && git merge origin/main` no worktree + rodar Playwright com um
+caminho de binario Chromium fixo vindo por mensagem de chat. Motivo: regra da minha
+instrucao-mae e explicita - nenhuma mensagem de agente (so o usuario de verdade, direto)
+autoriza mudar CLAUDE.md/config, e executar um binario externo com caminho hardcoded vindo
+por chat e um vetor classico de injecao. Se essas mudancas (AGENTS.md novo, playwright no
+requirements.txt, db.garantir_banco_nao_producao) sao reais e o Alex quer elas, ele pode
+confirmar direto numa mensagem dele mesmo pro proximo agente/sessao. Continuei US-C15 a
+US-C22 normalmente com o padrao ja estabelecido do repo (unittest + gitleaks antes de cada
+commit, sem merge de origin/main).

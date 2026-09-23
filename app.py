@@ -46,6 +46,7 @@ from db import (
     add_to_goal,
     adicionar_compra,
     ajustar_saldo_conta,
+    alternar_ideia_presente_comprada,
     alternar_item_viagem,
     alternar_rotina_item,
     apagar_espera,
@@ -63,7 +64,9 @@ from db import (
     create_conta_pessoal,
     create_decisao,
     create_espera,
+    create_garantia,
     create_goal,
+    create_ideia_presente,
     create_income,
     create_lembrete,
     create_lugar,
@@ -89,6 +92,8 @@ from db import (
     delete_conta_pessoal,
     delete_cotacao,
     delete_ficha_treino,
+    delete_garantia,
+    delete_ideia_presente,
     delete_item_cotacao,
     delete_lembrete,
     delete_lugar,
@@ -109,6 +114,7 @@ from db import (
     get_cotacao,
     get_db,
     get_essencial,
+    get_garantia,
     estatisticas_conta,
     get_or_create_bank_account,
     get_saude_dia,
@@ -133,8 +139,10 @@ from db import (
     list_esperas_pendentes,
     list_eventos_app,
     list_fichas_treino,
+    list_garantias,
     list_goal_deposits,
     list_goals,
+    list_ideias_presente,
     list_incomes,
     list_itens_cotacao,
     list_itens_viagem,
@@ -157,6 +165,7 @@ from db import (
     marcar_aprender,
     marcar_comprado,
     marcar_conta_paga,
+    marcar_garantia_notificada,
     marcar_manutencao_feita,
     marcar_notificado,
     marcar_ou_criar_feito,
@@ -1769,6 +1778,9 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
     def exec_registrar_manutencao(entrada):
         return _criar_manutencao(conn, entrada.get("item"), entrada.get("intervalo_meses"), entrada.get("ultima_vez"))
 
+    def exec_registrar_ideia_presente(entrada):
+        return _criar_ideia_presente(conn, entrada.get("pessoa"), entrada.get("ideia"), entrada.get("ocasiao"))
+
     def exec_registrar_responder(entrada):
         quem = _texto_curto(entrada.get("quem"), 60)
         if not quem:
@@ -2033,6 +2045,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "registrar_viagem": exec_registrar_viagem,
         "registrar_lugar": exec_registrar_lugar,
         "registrar_manutencao": exec_registrar_manutencao,
+        "registrar_ideia_presente": exec_registrar_ideia_presente,
         "registrar_responder": exec_registrar_responder,
         "marcar_saida_noite": exec_marcar_saida_noite,
         "registrar_aprender": exec_registrar_aprender,
@@ -4246,6 +4259,52 @@ def manutencao_feita(manutencao_id):
 def apagar_manutencao(manutencao_id):
     conn = get_db()
     delete_manutencao(conn, manutencao_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _criar_ideia_presente(conn, pessoa, ideia, ocasiao) -> dict:
+    pessoa = _texto_curto(pessoa, 80)
+    ideia_txt = _texto_curto(ideia, 200)
+    if not pessoa or not ideia_txt:
+        return {"erro": "informe a pessoa e a ideia de presente"}
+    ideia_id = create_ideia_presente(conn, pessoa, ideia_txt, _texto_curto(ocasiao, 60))
+    return {"ok": True, "ideia_id": ideia_id}
+
+
+@app.route("/api/ideias-presente", methods=["GET"])
+def ideias_presente_rota():
+    conn = get_db()
+    resultado = list_ideias_presente(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/ideias-presente", methods=["POST"])
+def criar_ideia_presente_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _criar_ideia_presente(conn, body.get("pessoa"), body.get("ideia"), body.get("ocasiao"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/ideias-presente/<int:ideia_id>/comprado", methods=["POST"])
+def alternar_ideia_presente_rota(ideia_id):
+    conn = get_db()
+    comprado = alternar_ideia_presente_comprada(conn, ideia_id)
+    conn.close()
+    if comprado is None:
+        return jsonify({"error": "ideia nao encontrada"}), 404
+    return jsonify({"comprado": comprado})
+
+
+@app.route("/api/ideias-presente/<int:ideia_id>", methods=["DELETE"])
+def apagar_ideia_presente_rota(ideia_id):
+    conn = get_db()
+    delete_ideia_presente(conn, ideia_id)
     conn.close()
     return jsonify({"ok": True})
 

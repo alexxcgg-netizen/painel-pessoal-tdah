@@ -173,7 +173,7 @@
         "CRUD simples + chat tool de captura rapida",
         "Testes cobrindo CRUD"
       ],
-      "priority": 15, "passes": false, "notes": ""
+      "priority": 15, "passes": true, "notes": "Tabela ideias_presente + CRUD (db.py/app.py) + chat tool registrar_ideia_presente + secao na aba Vida. Testes em tests/test_ideias_presente.py (11 casos, 100% ok)."
     },
     {
       "id": "US-C16",

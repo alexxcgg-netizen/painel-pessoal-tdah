@@ -672,6 +672,22 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "registrar_ideia_presente",
+        "description": (
+            "Guarda uma ideia de presente pra uma pessoa especifica, pra nao esquecer na hora "
+            "de comprar (aniversario, Natal, qualquer ocasiao)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pessoa": {"type": "string"},
+                "ideia": {"type": "string"},
+                "ocasiao": {"type": "string", "description": "aniversario, Natal... - omita se nao disse"},
+            },
+            "required": ["pessoa", "ideia"],
+        },
+    },
+    {
         "name": "registrar_responder",
         "description": (
             "Mensagem importante que o ALEX precisa responder e deixou 'pra depois' (diferente "

@@ -513,6 +513,25 @@ def init_db():
             evento TEXT NOT NULL,
             em TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS ideias_presente (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pessoa TEXT NOT NULL,
+            ideia TEXT NOT NULL,
+            ocasiao TEXT,
+            comprado INTEGER NOT NULL DEFAULT 0,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS garantias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            produto TEXT NOT NULL,
+            data_compra TEXT NOT NULL,
+            prazo_garantia_meses INTEGER NOT NULL,
+            nota_fiscal_anexo TEXT,
+            notificado INTEGER NOT NULL DEFAULT 0,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -2059,6 +2078,73 @@ def marcar_manutencao_feita(conn, manutencao_id: int, data: str) -> bool:
 
 def delete_manutencao(conn, manutencao_id: int):
     conn.execute("DELETE FROM manutencoes WHERE id = ?", (manutencao_id,))
+    conn.commit()
+
+
+# ---- Fase 5 (Grupo C): ideias de presente ----
+
+def create_ideia_presente(conn, pessoa: str, ideia: str, ocasiao: str | None) -> int:
+    cur = conn.execute(
+        "INSERT INTO ideias_presente (pessoa, ideia, ocasiao) VALUES (?, ?, ?)",
+        (pessoa, ideia, ocasiao),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_ideias_presente(conn) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM ideias_presente ORDER BY comprado, pessoa COLLATE NOCASE, criado_em DESC"
+    ).fetchall()
+    return _criado_local(rows)
+
+
+def alternar_ideia_presente_comprada(conn, ideia_id: int) -> bool | None:
+    row = conn.execute("SELECT comprado FROM ideias_presente WHERE id = ?", (ideia_id,)).fetchone()
+    if not row:
+        return None
+    novo = 0 if row["comprado"] else 1
+    conn.execute("UPDATE ideias_presente SET comprado = ? WHERE id = ?", (novo, ideia_id))
+    conn.commit()
+    return bool(novo)
+
+
+def delete_ideia_presente(conn, ideia_id: int):
+    conn.execute("DELETE FROM ideias_presente WHERE id = ?", (ideia_id,))
+    conn.commit()
+
+
+# ---- Fase 5 (Grupo C): cofre de garantia ----
+
+def create_garantia(
+    conn, produto: str, data_compra: str, prazo_garantia_meses: int, nota_fiscal_anexo: str | None
+) -> int:
+    cur = conn.execute(
+        """INSERT INTO garantias (produto, data_compra, prazo_garantia_meses, nota_fiscal_anexo)
+           VALUES (?, ?, ?, ?)""",
+        (produto, data_compra, prazo_garantia_meses, nota_fiscal_anexo),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_garantias(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM garantias ORDER BY data_compra DESC").fetchall()
+    return _criado_local(rows)
+
+
+def get_garantia(conn, garantia_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM garantias WHERE id = ?", (garantia_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def delete_garantia(conn, garantia_id: int):
+    conn.execute("DELETE FROM garantias WHERE id = ?", (garantia_id,))
+    conn.commit()
+
+
+def marcar_garantia_notificada(conn, garantia_id: int):
+    conn.execute("UPDATE garantias SET notificado = 1 WHERE id = ?", (garantia_id,))
     conn.commit()
 
 

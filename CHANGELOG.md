@@ -5,6 +5,19 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (26) - Fase 5 Grupo C (independentes, agente c3): US-C15 a US-C22
+
+Agente isolado em worktree proprio (`fase5/grupo-c3`), cobrindo so US-C15 a US-C22 do
+`tasks/fase5/grupo-c-independentes.json`. Ver `tasks/fase5/progress-grupo-c.txt` pro relato
+completo por historia.
+
+**US-C15 - Ideias de presente**
+- Tabela `ideias_presente` (pessoa, ideia, ocasiao, comprado) + CRUD (`db.py`/`app.py`,
+  `GET/POST /api/ideias-presente`, `POST .../<id>/comprado`, `DELETE .../<id>`).
+- Chat tool `registrar_ideia_presente` (mesmo padrao de `registrar_lugar`).
+- Secao nova na aba Vida (reaproveita `itemSimples`/`ligarForm` de `vida.js`).
+- `tests/test_ideias_presente.py` (11 casos: CRUD via db.py, via API, autenticacao, chat tool).
+
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 
 Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em
