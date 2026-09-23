@@ -184,7 +184,7 @@
         "Enquanto ativo, suprime notificacoes de rotina domestica (ex: lembretes de casa) e ajusta calculo de horario se fizer sentido",
         "Testes cobrindo a supressao de notificacao no modo viagem"
       ],
-      "priority": 16, "passes": false, "notes": ""
+      "priority": 16, "passes": true, "notes": "Toggle persistido em configuracoes (chave modo_viagem, ativo+data_inicio/fim opcionais, expira sozinho fora da janela). Suprime rotina_manha/hora_de_dormir/fechamento_noturno/manutencao em verificar_e_notificar. Ajuste de fuso horario avaliado e descartado por ora (sem geocoding do destino nao da pra saber o fuso de verdade) - documentado em progress.txt. Testes em tests/test_modo_viagem.py (16 casos, 100% ok)."
     },
     {
       "id": "US-C17",

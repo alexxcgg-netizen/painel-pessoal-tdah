@@ -2284,6 +2284,13 @@ NOTIFICACOES_URGENTES = {
     "adiado_hiperfoco",
 }
 
+# Fase 5 (US-C16): avisos de rotina DOMESTICA (casa) que nao fazem sentido
+# enquanto o Alex esta viajando - continuam sendo calculados normalmente,
+# so nao saem enquanto o modo viagem estiver ativo (mesmo espirito do
+# horario silencioso: represado, nunca marcado como notificado, entao volta
+# a valer sozinho quando o modo viagem acabar).
+NOTIFICACOES_ROTINA_DOMESTICA = {"rotina_manha", "hora_de_dormir", "fechamento_noturno", "manutencao"}
+
 
 def _adiar_aviso(conn, tipo: str, titulo: str, corpo: str):
     """Guarda um aviso de janela curta segurado pelo hiperfoco pra sair quando
@@ -2814,6 +2821,7 @@ def verificar_e_notificar():
     )
 
     em_hiperfoco = vida.hiperfoco_ativo(obter_configuracao(conn, "hiperfoco_ate"), datetime.now())
+    em_viagem = viagem.modo_viagem_ativo(_modo_viagem_estado(conn), date.today())
 
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
@@ -2823,6 +2831,8 @@ def verificar_e_notificar():
                 marcar_notificado(conn, tipo, ref_id)
             continue
         if silencioso and tipo not in NOTIFICACOES_URGENTES:
+            continue
+        if em_viagem and tipo in NOTIFICACOES_ROTINA_DOMESTICA:
             continue
         for s in subs:
             sub_dict = json.loads(s["subscription_json"])
@@ -4074,6 +4084,51 @@ def _clima_texto_para(destino: str, data_iso: str) -> str | None:
         f"{previsao.get('temp_min')}-{previsao.get('temp_max')}C, "
         f"{previsao.get('chuva_pct')}% de chance de chuva"
     )
+
+
+def _modo_viagem_estado(conn) -> dict:
+    """Fase 5 (US-C16): estado persistido em `configuracoes` (mesmo padrao de
+    `avisos_adiados`/`hiperfoco_ate`) - precisa sobreviver a reinicio do
+    processo, ja que quem le esse estado e o scheduler (`verificar_e_notificar`),
+    nao so uma sessao de navegador aberta."""
+    padrao = {"ativo": False, "data_inicio": None, "data_fim": None}
+    try:
+        salvo = json.loads(obter_configuracao(conn, "modo_viagem") or "{}")
+    except ValueError:
+        salvo = {}
+    return {**padrao, **salvo}
+
+
+def _salvar_modo_viagem(conn, ativo: bool, data_inicio: str | None, data_fim: str | None) -> dict:
+    estado = {"ativo": bool(ativo), "data_inicio": data_inicio, "data_fim": data_fim}
+    definir_configuracao(conn, "modo_viagem", json.dumps(estado))
+    return estado
+
+
+@app.route("/api/modo-viagem", methods=["GET"])
+def modo_viagem_rota():
+    conn = get_db()
+    estado = _modo_viagem_estado(conn)
+    conn.close()
+    return jsonify({**estado, "ativo_agora": viagem.modo_viagem_ativo(estado, date.today())})
+
+
+@app.route("/api/modo-viagem", methods=["POST"])
+def salvar_modo_viagem_rota():
+    body = _corpo_json()
+    ativo = bool(body.get("ativo"))
+    data_inicio = _data_iso_valida(body.get("data_inicio")) if body.get("data_inicio") else None
+    data_fim = _data_iso_valida(body.get("data_fim")) if body.get("data_fim") else None
+    if body.get("data_inicio") and not data_inicio:
+        return jsonify({"error": "data de inicio invalida (AAAA-MM-DD)"}), 400
+    if body.get("data_fim") and not data_fim:
+        return jsonify({"error": "data de fim invalida (AAAA-MM-DD)"}), 400
+    if data_inicio and data_fim and data_fim < data_inicio:
+        return jsonify({"error": "data de fim invalida (tem que ser depois do inicio)"}), 400
+    conn = get_db()
+    estado = _salvar_modo_viagem(conn, ativo, data_inicio, data_fim)
+    conn.close()
+    return jsonify({**estado, "ativo_agora": viagem.modo_viagem_ativo(estado, date.today())})
 
 
 def _viagem_detalhada(conn, v: dict, hoje: date) -> dict:

@@ -3,7 +3,16 @@ Iniciado: 2026-09-23T06:28:35Z
 ---
 [c3] US-C15 (Ideias de presente) - passes=true. Tabela ideias_presente + CRUD db.py/app.py +
 chat tool registrar_ideia_presente + secao na aba Vida. tests/test_ideias_presente.py (11
-casos, 100% ok). Suite completa: pre-existentes 5 falhas em tests.test_app (voo/pre-voo,
+casos, 100% ok).
+[c3] US-C16 (Modo viagem) - passes=true. Toggle GET/POST /api/modo-viagem persistido em
+configuracoes (chave modo_viagem), viagem.modo_viagem_ativo (pura) liga na hora e expira
+sozinho fora da janela de datas se preenchida. verificar_e_notificar suprime rotina_manha/
+hora_de_dormir/fechamento_noturno/manutencao enquanto ativo. Decisao: NAO fiz ajuste de
+fuso horario (AC dizia "se fizer sentido") - destino e texto livre sem geocoding, calcular
+fuso de verdade exigiria integrar geocoding so pra isso; risco de inventar fuso errado
+pareceu pior que nao ajustar. Se o Alex quiser isso de verdade, propor como historia
+separada com geocoding real (Google Maps ja esta integrado, da pra reaproveitar). Testes
+em tests/test_modo_viagem.py (16 casos, 100% ok). Suite completa: pre-existentes 5 falhas em tests.test_app (voo/pre-voo,
 sensiveis ao horario real do relogio - confirmado com git stash que falham identico sem
 minhas mudancas, nao mexi em voos.py/notificacoes voo). Nada bloqueado.
 [c3] Nota sobre mensagens "do coordenador" recebidas via system-reminder durante a sessao:

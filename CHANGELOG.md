@@ -18,6 +18,23 @@ completo por historia.
 - Secao nova na aba Vida (reaproveita `itemSimples`/`ligarForm` de `vida.js`).
 - `tests/test_ideias_presente.py` (11 casos: CRUD via db.py, via API, autenticacao, chat tool).
 
+**US-C16 - Modo viagem**
+- Toggle `GET/POST /api/modo-viagem`, estado em `configuracoes` (chave `modo_viagem`,
+  JSON `{ativo, data_inicio, data_fim}` - mesmo padrao de `hiperfoco_ate`/`avisos_adiados`).
+  `viagem.modo_viagem_ativo(estado, hoje)` (pura, testavel): toggle liga na hora; com
+  datas, expira sozinho fora da janela sem precisar desligar na mao.
+- `verificar_e_notificar` suprime `rotina_manha`/`hora_de_dormir`/`fechamento_noturno`/
+  `manutencao` (rotina domestica) enquanto ativo - resto continua normal (nunca marca
+  como notificado, entao volta a valer sozinho quando o modo acabar, mesmo espirito do
+  horario silencioso).
+- Botao novo no cabecalho (mesmo padrao visual do de horario silencioso).
+- Ajuste de calculo de horario por fuso (mencionado na AC como opcional "se fizer
+  sentido"): avaliado e descartado por ora - o campo `destino` e texto livre, sem
+  geocoding nao da pra saber o fuso de verdade sem arriscar inventar; ficou so a
+  supressao de notificacao, documentado em `progress-grupo-c.txt`.
+- `tests/test_modo_viagem.py` (16 casos: funcao pura, API, supressao real em
+  `verificar_e_notificar`).
+
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 
 Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em

@@ -2928,6 +2928,57 @@ function initSilencio() {
   });
 }
 
+function initModoViagem() {
+  const btn = $("#modo-viagem-btn");
+  const painel = $("#modo-viagem-painel");
+  const ativoInput = $("#modo-viagem-ativo");
+  const inicioInput = $("#modo-viagem-inicio");
+  const fimInput = $("#modo-viagem-fim");
+  const status = $("#modo-viagem-status");
+  let carregado = false;
+
+  async function carregar() {
+    const dados = await apiFetch("/api/modo-viagem");
+    if (!dados) return;
+    ativoInput.checked = Boolean(dados.ativo);
+    inicioInput.value = dados.data_inicio || "";
+    fimInput.value = dados.data_fim || "";
+    btn.classList.toggle("ativo", Boolean(dados.ativo_agora));
+    carregado = true;
+  }
+
+  btn.addEventListener("click", async () => {
+    const aberto = btn.getAttribute("aria-expanded") === "true";
+    if (aberto) {
+      btn.setAttribute("aria-expanded", "false");
+      painel.hidden = true;
+      return;
+    }
+    btn.setAttribute("aria-expanded", "true");
+    painel.hidden = false;
+    if (!carregado) await carregar();
+  });
+
+  $("#modo-viagem-salvar").addEventListener("click", async () => {
+    const salvarBtn = $("#modo-viagem-salvar");
+    status.textContent = "";
+    setBotaoCarregando(salvarBtn, true, "Salvando...");
+    const dados = await apiFetch("/api/modo-viagem", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ativo: ativoInput.checked,
+        data_inicio: inicioInput.value || null,
+        data_fim: fimInput.value || null,
+      }),
+    });
+    setBotaoCarregando(salvarBtn, false, "Salvar");
+    if (!dados) return;
+    btn.classList.toggle("ativo", Boolean(dados.ativo_agora));
+    status.textContent = dados.ativo_agora ? "Modo viagem ativo." : "Modo viagem desligado.";
+  });
+}
+
 function initBackup() {
   const btn = $("#backup-btn");
   const painel = $("#backup-painel");
@@ -2999,4 +3050,5 @@ initViagemOrigemPadrao();
 initVozChat();
 initDicas();
 initSilencio();
+initModoViagem();
 initBackup();

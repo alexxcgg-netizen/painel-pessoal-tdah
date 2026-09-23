@@ -758,7 +758,8 @@ header {
 }
 
 #silencio-painel,
-#backup-painel {
+#backup-painel,
+#modo-viagem-painel {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -774,7 +775,8 @@ header {
 }
 
 #silencio-painel[hidden],
-#backup-painel[hidden] {
+#backup-painel[hidden],
+#modo-viagem-painel[hidden] {
   display: none;
 }
 
