@@ -602,3 +602,25 @@ test("projeto_viagem sem etapa nao mostra '0/0 tarefas'", () => {
   assert.ok(!html.includes("0/0"));
   assert.match(html, /Sem checklist ainda/);
 });
+
+// ---- modo visitante nos cards de saude (revisao da Fase 6) ----
+
+test("saude_dia/saude_treino com oculto: so o aviso, nenhum numero de saude", () => {
+  const dia = Cards.renderizarCardHTML({
+    type: "saude_dia",
+    data: { data: "2026-09-23", oculto: true, agua_copos: 3, passos: 4321, sono_horas: 3.5 },
+    actions: [],
+  });
+  assert.match(dia, /ocultos no modo visitante/);
+  assert.ok(!dia.includes("4,3 mil"), dia);
+  assert.ok(!/Sono/.test(dia), dia);
+  assert.ok(!dia.includes("card-gota"), dia);
+  const treino = Cards.renderizarCardHTML({
+    type: "saude_treino",
+    data: { periodo: "últimos 7 dias", oculto: true, sessoes: [{ atividade: "Perna", minutos: 50 }] },
+    actions: [],
+  });
+  assert.match(treino, /ocultos no modo visitante/);
+  assert.ok(!treino.includes("Perna"), treino);
+  assert.ok(!treino.includes("card-contrato-fallback"), treino);
+});

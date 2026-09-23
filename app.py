@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 import anthropic
 import requests
 from dotenv import load_dotenv
-from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, session
+from flask import Flask, Response, has_request_context, jsonify, redirect, render_template, request, send_file, session
 
 load_dotenv()
 
@@ -508,6 +508,16 @@ def _modo_visitante_ativo() -> bool:
     return bool(session.get("modo_visitante"))
 
 
+def _recusar_no_modo_visitante():
+    """Revisao da Fase 6: rota que ESCREVE algo com efeito fora da tela
+    (desfazer, memoria que entra no prompt da IA, padrao aprendido do
+    classificador, agenda do iCloud, conversao do brain dump) nunca roda no
+    modo visitante - devolve a resposta 403 pronta, ou None pra seguir."""
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
+    return None
+
+
 @app.route("/api/modo-visitante", methods=["GET"])
 def modo_visitante_rota():
     return jsonify({"ativo": _modo_visitante_ativo()})
@@ -810,7 +820,13 @@ def intent_corrigir():
     banco de padroes aprendidos do resto do intent (US-A3/US-A4) - reusa
     aprendizado.confirmar_padrao_intent com forcar_confianca_alta=True (mesmo
     espirito de uma correcao manual de captura, US-A4): uma correcao vale
-    como sinal forte na hora, sem precisar repetir o erro 3x."""
+    como sinal forte na hora, sem precisar repetir o erro 3x.
+
+    Modo visitante: 403 (revisao da Fase 6) - um padrao aprendido muda como
+    o chat responde depois (envenenamento do banco local)."""
+    recusa = _recusar_no_modo_visitante()
+    if recusa:
+        return recusa
     body = _corpo_json()
     texto = _texto_seguro(body.get("texto"))
     acao_correta = body.get("acao_correta")
@@ -1788,6 +1804,9 @@ def _criar_evento_agenda(conn, titulo, data, hora_inicio, hora_fim, lembrar_min_
 
 @app.route("/api/agenda/eventos", methods=["POST"])
 def criar_evento_agenda_rota():
+    recusa = _recusar_no_modo_visitante()  # escreve no iCloud real do Alex
+    if recusa:
+        return recusa
     body = _corpo_json()
     conn = get_db()
     resultado = _criar_evento_agenda(
@@ -1817,6 +1836,9 @@ def _apagar_evento_agenda(conn, uid: str) -> dict:
 
 @app.route("/api/agenda/eventos/<uid>", methods=["DELETE"])
 def apagar_evento_agenda_rota(uid):
+    recusa = _recusar_no_modo_visitante()  # apaga no iCloud real do Alex
+    if recusa:
+        return recusa
     conn = get_db()
     resultado = _apagar_evento_agenda(conn, uid)
     conn.close()
@@ -2526,7 +2548,16 @@ def _consultar_saude_dia(conn) -> dict:
 def _plano_local_chat(conn, texto: str) -> list[tuple[str, dict]] | None:
     """Traduz o que o classificador LOCAL resolveu (_classificar_intent com
     somente_local=True - padrao aprendido ou banco "pergunta -> onde
-    buscar") em chamadas das tools do chat. None = a IA responde."""
+    buscar") em chamadas das tools do chat. None = a IA responde.
+
+    Revisao da Fase 6: frase com verbo de acao ou assunto fora do banco
+    local (aprendizado.exige_ia - os MESMOS filtros de consulta_conhecida)
+    nunca vira consulta local, nem por padrao aprendido - senao um padrao
+    "gastei 80 no mercado" -> consultar/habitos (correcao manual errada ou
+    envenenada) fazia o chat responder sem registrar o gasto. So a regra
+    fixa do copo de agua (consulta_conhecida) continua valendo nesse caso."""
+    if aprendizado.exige_ia(texto) and not aprendizado.consulta_conhecida(texto):
+        return None
     resultado, _erro = _classificar_intent(conn, texto, somente_local=True)
     if not resultado:
         return None
@@ -3173,6 +3204,10 @@ def _processar_mensagem_chat(
         }
 
     def exec_agendar_evento(entrada):
+        # modo visitante (so existe com request HTTP - o Telegram nao tem):
+        # nunca cria evento no iCloud real (revisao da Fase 6).
+        if has_request_context() and _modo_visitante_ativo():
+            return {"erro": "agenda indisponivel no modo visitante"}
         resultado = _criar_evento_agenda(
             conn, entrada.get("titulo"), entrada.get("data"), entrada.get("hora_inicio"), entrada.get("hora_fim"),
             entrada.get("lembrar_min_antes"),
@@ -3432,7 +3467,13 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
 def desfazer_acao(token):
     """US-E5: botao Desfazer de um card. Reverte EXATAMENTE o que foi criado
     junto com aquele token (ids gravados no momento da acao) - nunca "o
-    ultimo item". Tudo ou nada numa transacao so."""
+    ultimo item". Tudo ou nada numa transacao so.
+
+    Modo visitante: 403 (revisao da Fase 6) - e o botao nem aparece
+    (cards.mascarar_cards tira a action `desfazer`)."""
+    recusa = _recusar_no_modo_visitante()
+    if recusa:
+        return recusa
     token = (token or "")[:64]
     conn = get_db()
     try:
@@ -4621,7 +4662,13 @@ def criar_memoria_rota():
     fixos de "O que eu lembro sobre voce": sua_rotina/seus_planos/
     fora_do_painel) quando adicionada por um dos formularios de grupo, ou
     sem categoria (generica, mesmo caminho que `registrar_memoria` do chat
-    ja usava) quando omitida."""
+    ja usava) quando omitida.
+
+    Modo visitante: 403 (revisao da Fase 6) - memoria entra no system prompt
+    do chat, seria uma injecao persistente."""
+    recusa = _recusar_no_modo_visitante()
+    if recusa:
+        return recusa
     body = _corpo_json()
     texto = _texto_curto(body.get("texto"), 500)
     if not texto:
@@ -4639,6 +4686,9 @@ def criar_memoria_rota():
 def editar_memoria_rota(memoria_id):
     """Fase 6 (US-E10): edicao no lugar do texto (categoria/source_text nao
     mudam) - os 3 grupos fixos e a lista generica sao editaveis na tela."""
+    recusa = _recusar_no_modo_visitante()
+    if recusa:
+        return recusa
     body = _corpo_json()
     texto = _texto_curto(body.get("texto"), 500)
     if not texto:
@@ -4653,6 +4703,9 @@ def editar_memoria_rota(memoria_id):
 
 @app.route("/api/memorias/<int:memoria_id>", methods=["DELETE"])
 def apagar_memoria(memoria_id):
+    recusa = _recusar_no_modo_visitante()
+    if recusa:
+        return recusa
     conn = get_db()
     delete_memoria(conn, memoria_id)
     conn.close()
@@ -4966,7 +5019,13 @@ def converter_brain_dump(item_id):
     despejo com viagem, gastos, salario, habito, lembrete e reuniao
     misturados vira um card por item + resumo_final, com Desfazer
     independente em cada card. Toda saida (qualquer tipo) segue o contrato
-    de docs/CARDS.md, alem dos campos antigos (ok/tipo/id)."""
+    de docs/CARDS.md, alem dos campos antigos (ok/tipo/id).
+
+    Modo visitante: 403 (revisao da Fase 6) - cria gasto/tarefa/evento de
+    uma vez."""
+    recusa = _recusar_no_modo_visitante()
+    if recusa:
+        return recusa
     body = _corpo_json()
     tipo = body.get("tipo")
     if tipo not in ("tarefa", "nota", "gasto", "assistente"):

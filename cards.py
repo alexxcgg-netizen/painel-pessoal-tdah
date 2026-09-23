@@ -115,7 +115,16 @@ ABA_POR_ENTIDADE = {
 CAMPOS_SENSIVEIS = {
     "transacao": ("valor", "saldo"),
     "meta": ("valor_guardado", "valor_alvo", "falta"),
+    # Revisao da Fase 6: dado de saude (Apple Saude/treinos/agua) e tao
+    # sensivel quanto dinheiro - /api/saude/hoje ja devolvia `oculto` no
+    # modo visitante, mas os cards do chat/historico vazavam sono/passos.
+    "saude_dia": ("agua_copos", "passos", "sono_horas", "treino_min"),
+    "saude_treino": ("sessoes",),
 }
+
+# Action que MUDA dado (nunca sai no modo visitante - o servidor tambem
+# recusa POST /api/desfazer com 403, isto so evita mostrar o botao/token).
+ACTIONS_BLOQUEADAS_VISITANTE = ("desfazer",)
 
 # Cards gerados pelo servidor hoje (os de visual complexo - agenda,
 # projeto_viagem, saude_treino, sugestao, habito - tem renderizador pronto
@@ -792,6 +801,11 @@ def mascarar_cards(cards_lista: list) -> list:
             for campo in campos:
                 c["data"].pop(campo, None)
             c["data"]["oculto"] = True
+        if isinstance(c.get("actions"), list):
+            c["actions"] = [
+                a for a in c["actions"]
+                if not (isinstance(a, dict) and a.get("tipo") in ACTIONS_BLOQUEADAS_VISITANTE)
+            ]
         saida.append(c)
     return saida
 

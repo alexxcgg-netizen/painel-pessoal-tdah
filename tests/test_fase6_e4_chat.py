@@ -630,14 +630,15 @@ class BrainDumpCardsTestCase(Base):
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM incomes").fetchone()[0], 1)
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM viagens").fetchone()[0], 1)
 
-    def test_brain_dump_visitante_nao_vaza_valor(self):
+    def test_brain_dump_visitante_nao_converte(self):
+        # Revisao da Fase 6 (achado 12): converter cria gasto/tarefa/evento de
+        # uma vez - no modo visitante e 403 (antes convertia e so mascarava o
+        # valor). O item continua pendente pro Alex converter depois.
         item_id = self.client.post("/api/brain-dump", json={"texto": TEXTO_NECTAR}).get_json()["id"]
         with patch("app._modo_visitante_ativo", return_value=True):
-            corpo = self._processar(item_id).get_json()
-        for c in corpo["cards"]:
-            if c["type"] == "transacao":
-                self.assertNotIn("valor", c["data"])
-                self.assertTrue(c["data"]["oculto"])
+            res = self._processar(item_id, fake=ia_proibida)
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual([i["id"] for i in self.client.get("/api/brain-dump").get_json()], [item_id])
 
     def test_ia_falhou_item_continua_pendente(self):
         import anthropic

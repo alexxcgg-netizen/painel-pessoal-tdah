@@ -87,8 +87,15 @@ e marca `data.oculto = true`; `resumo_texto`/`resposta` passam por
 | :--- | :--- |
 | `transacao` | `valor`, `saldo` |
 | `meta` | `valor_guardado`, `valor_alvo`, `falta` (o `percentual` fica) |
+| `saude_dia` | `agua_copos`, `passos`, `sono_horas`, `treino_min` (revisão da Fase 6) |
+| `saude_treino` | `sessoes` (revisão da Fase 6) |
 
-O front mostra `R$ •••` quando `data.oculto` é `true`.
+O front mostra `R$ •••` quando `data.oculto` é `true` (nos cards de saúde:
+"Dados de saúde ocultos no modo visitante.").
+
+Actions que mudam dado (`desfazer`) também saem de todo card no modo
+visitante, e `POST /api/desfazer/<token>` responde 403 (revisão da Fase 6).
+**Card novo com dado sensível (dinheiro, saúde) entra em `CAMPOS_SENSIVEIS`.**
 
 ## Actions
 

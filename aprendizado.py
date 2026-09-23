@@ -655,6 +655,15 @@ def _dias_da_consulta(t: str) -> int:
     return 7
 
 
+def exige_ia(texto: str) -> bool:
+    """True quando a frase tem verbo de acao (_VERBO_ACAO) ou assunto fora
+    do banco local (_FORA_DO_BANCO) - o chat nunca responde isso so com
+    consulta local, nem por padrao aprendido (revisao da Fase 6, ver
+    app._plano_local_chat). Texto invalido/vazio -> False."""
+    t = normalizar_consulta(texto)
+    return bool(t) and bool(_VERBO_ACAO.search(t) or _FORA_DO_BANCO.search(t))
+
+
 def consulta_conhecida(texto: str) -> dict | None:
     """Regra do banco "pergunta -> onde buscar" que casa com o texto, ou
     None (cai pro proximo passo do classificador). Nunca levanta excecao."""
