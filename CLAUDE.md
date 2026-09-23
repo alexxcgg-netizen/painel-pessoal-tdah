@@ -28,6 +28,12 @@ ser confundidos:**
   diretório/repositório um comando vai rodar antes de editar ou commitar — `pwd`/`git
   remote -v` primeiro se houver a menor dúvida.
 
+## Regras operacionais + padrões descobertos: ver AGENTS.md
+A partir da Fase 5, todo agente trabalhando neste repositório deve ler também
+`AGENTS.md` (na raiz) antes de começar - tem regras obrigatórias por história (checagem
+de segredo antes de commit, auditoria de dependência nova, smoke-test pós-integração) e
+uma seção viva de padrões/pegadinhas descobertos que se acumula a cada história.
+
 ## O que este projeto é
 App pessoal de uso único (um PIN de 6 dígitos, sem múltiplos usuários) pra reduzir carga
 mental do dia a dia: captura rápida de tarefa/gasto/meta por texto livre (Claude
