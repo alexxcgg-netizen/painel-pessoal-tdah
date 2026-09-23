@@ -679,7 +679,21 @@ ligarForm("#ficha-form", "#ficha-btn", "Salvar ficha", () => {
   return grupo && exercicios ? { grupo, exercicios } : null;
 }, "/api/treino/fichas", loadTreino);
 
-// ---- Fase 2: manutencao ----
+// ---- Fase 2 + Fase 5 (US-C14) + Fase 6 (US-E1a): manutencao (secao unica) ----
+// tipo='carro' e HISTORICO (registro novo a cada manutencao feita, aviso por
+// km/data, sem botao "feita hoje"); os demais tipos (casa/equipamento/outro)
+// sao EDICAO NO LUGAR (um item so, "feita hoje" atualiza a data), igual
+// sempre foi antes da unificacao das duas secoes.
+
+const ROTULO_TIPO_MANUTENCAO = { casa: "Casa", carro: "Carro", equipamento: "Equipamento", outro: "Outro" };
+
+function textoProximaManutencaoCarro(m) {
+  const partes = [];
+  if (m.km != null) partes.push(`${m.km} km na hora`);
+  if (m.proxima_em_km != null) partes.push(`proxima em ${m.proxima_em_km} km`);
+  if (m.proxima_em_data) partes.push(`proxima em ${fmtDataBr(m.proxima_em_data)}`);
+  return partes;
+}
 
 async function loadManutencoes() {
   const itens = await apiFetch("/api/manutencoes");
@@ -688,6 +702,17 @@ async function loadManutencoes() {
   lista.innerHTML = "";
   $("#manutencoes-vazio").hidden = itens.length > 0;
   itens.forEach((m) => {
+    const rotuloTipo = ROTULO_TIPO_MANUTENCAO[m.tipo] || "Outro";
+    if (m.tipo === "carro") {
+      lista.appendChild(
+        itemSimples(
+          m.item,
+          [rotuloTipo, fmtDataBr(m.data), ...textoProximaManutencaoCarro(m)],
+          [(el) => botaoApagar(`/api/manutencoes/${m.id}`, el)]
+        )
+      );
+      return;
+    }
     const quando =
       m.dias_ate < 0
         ? `passou do prazo ha ${-m.dias_ate} dia(s)`
@@ -695,7 +720,7 @@ async function loadManutencoes() {
         ? "vence hoje"
         : `proxima em ${fmtDataBr(m.proxima)} (${m.dias_ate} dias)`;
     lista.appendChild(
-      itemSimples(m.item, [`a cada ${m.intervalo_meses} mes(es)`, quando], [
+      itemSimples(m.item, [rotuloTipo, `a cada ${m.intervalo_meses} mes(es)`, quando], [
         botaoAcao("feita hoje", async () => {
           const ok = await jsonPost(`/api/manutencoes/${m.id}/feita`);
           if (ok) loadManutencoes();
@@ -707,42 +732,41 @@ async function loadManutencoes() {
   });
 }
 
+$("#manutencao-tipo").addEventListener("change", () => {
+  const carro = $("#manutencao-tipo").value === "carro";
+  $("#manutencao-campos-carro").hidden = !carro;
+  $("#manutencao-campos-tempo").hidden = carro;
+});
+
 ligarForm("#manutencao-form", "#manutencao-btn", "Adicionar", () => {
+  const tipo = $("#manutencao-tipo").value;
   const item = $("#manutencao-item").value.trim();
-  const meses = Number($("#manutencao-meses").value);
-  if (!item || !(meses >= 1 && meses <= 120)) {
-    mostrarErro("Confere o item e o intervalo (1 a 120 meses).");
+  if (!item) {
+    mostrarErro("Confere o item.");
     return null;
   }
-  return { item, intervalo_meses: meses, ultima_vez: $("#manutencao-ultima").value || null };
+  if (tipo === "carro") {
+    const data = $("#manutencao-data").value;
+    if (!data) {
+      mostrarErro("Confere a data.");
+      return null;
+    }
+    const km = $("#manutencao-km").value;
+    const proximaKm = $("#manutencao-proxima-km").value;
+    return {
+      tipo, item, data,
+      km: km === "" ? null : Number(km),
+      proxima_em_km: proximaKm === "" ? null : Number(proximaKm),
+      proxima_em_data: $("#manutencao-proxima-data").value || null,
+    };
+  }
+  const meses = Number($("#manutencao-meses").value);
+  if (!(meses >= 1 && meses <= 120)) {
+    mostrarErro("Confere o intervalo (1 a 120 meses).");
+    return null;
+  }
+  return { tipo, item, intervalo_meses: meses, ultima_vez: $("#manutencao-ultima").value || null };
 }, "/api/manutencoes", loadManutencoes);
-
-// ---- Fase 5 (US-C14): manutencao do veiculo, por km ou por data ----
-
-function textoProximaManutencaoVeiculo(m) {
-  const partes = [];
-  if (m.km != null) partes.push(`${m.km} km na hora`);
-  if (m.proxima_em_km != null) partes.push(`proxima em ${m.proxima_em_km} km`);
-  if (m.proxima_em_data) partes.push(`proxima em ${fmtDataBr(m.proxima_em_data)}`);
-  return partes;
-}
-
-async function loadManutencoesVeiculo() {
-  const itens = await apiFetch("/api/manutencoes-veiculo");
-  if (!itens) return;
-  const lista = $("#lista-manutencoes-veiculo");
-  lista.innerHTML = "";
-  $("#manutencoes-veiculo-vazio").hidden = itens.length > 0;
-  itens.forEach((m) => {
-    lista.appendChild(
-      itemSimples(
-        m.tipo,
-        [fmtDataBr(m.data), ...textoProximaManutencaoVeiculo(m)],
-        [(el) => botaoApagar(`/api/manutencoes-veiculo/${m.id}`, el)]
-      )
-    );
-  });
-}
 
 // ---- Fase 5: garantia de produtos ----
 
@@ -766,24 +790,6 @@ async function loadGarantias() {
     );
   });
 }
-
-ligarForm("#manutencao-veiculo-form", "#mv-btn", "Adicionar", () => {
-  const tipo = $("#mv-tipo").value.trim();
-  const data = $("#mv-data").value;
-  if (!tipo || !data) {
-    mostrarErro("Confere o tipo e a data.");
-    return null;
-  }
-  const km = $("#mv-km").value;
-  const proximaKm = $("#mv-proxima-km").value;
-  return {
-    tipo,
-    data,
-    km: km === "" ? null : Number(km),
-    proxima_em_km: proximaKm === "" ? null : Number(proximaKm),
-    proxima_em_data: $("#mv-proxima-data").value || null,
-  };
-}, "/api/manutencoes-veiculo", loadManutencoesVeiculo);
 
 $("#garantia-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1163,7 +1169,6 @@ function loadVidaAba() {
   loadContasPessoais();
   loadAssinaturasRevisao();
   loadManutencoes();
-  loadManutencoesVeiculo();
   loadGarantias();
   loadViagens();
   loadLugares();

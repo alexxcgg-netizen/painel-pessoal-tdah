@@ -57,7 +57,6 @@ from db import (
     apagar_espera,
     apagar_nota,
     atualizar_categoria_gasto,
-    atualizar_manutencao_veiculo,
     atualizar_saldo_conta,
     atualizar_uber_pedido,
     buscar_conta_por_nome,
@@ -79,7 +78,6 @@ from db import (
     create_lembrete,
     create_lugar,
     create_manutencao,
-    create_manutencao_veiculo,
     create_medicamento,
     create_medida_corporal,
     create_memoria,
@@ -111,7 +109,6 @@ from db import (
     delete_lembrete,
     delete_lugar,
     delete_manutencao,
-    delete_manutencao_veiculo,
     delete_medicamento,
     delete_medida_corporal,
     delete_memoria,
@@ -129,7 +126,7 @@ from db import (
     get_db,
     get_essencial,
     estatisticas_conta,
-    get_manutencao_veiculo,
+    get_manutencao,
     get_or_create_bank_account,
     get_saude_dia,
     init_db,
@@ -166,7 +163,6 @@ from db import (
     list_lembretes,
     list_lugares,
     list_manutencoes,
-    list_manutencoes_veiculo,
     list_medicamentos_ativos,
     list_medidas_corporais,
     list_memorias,
@@ -2166,7 +2162,15 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         return _criar_lugar(conn, entrada.get("nome"), entrada.get("cidade"), entrada.get("tipo"), entrada.get("nota"))
 
     def exec_registrar_manutencao(entrada):
-        return _criar_manutencao(conn, entrada.get("item"), entrada.get("intervalo_meses"), entrada.get("ultima_vez"))
+        # Chat tool (contrato fechado, ver claude_client.ACOES_INTENT/tools) nao
+        # manda tipo - so cria manutencao por tempo (casa/equipamento/outro),
+        # nunca carro (essa so tem UI, por precisar de km/data especificos).
+        return _criar_manutencao(conn, {
+            "tipo": "outro",
+            "item": entrada.get("item"),
+            "intervalo_meses": entrada.get("intervalo_meses"),
+            "ultima_vez": entrada.get("ultima_vez"),
+        })
 
     def exec_registrar_ideia_presente(entrada):
         return _criar_ideia_presente(conn, entrada.get("pessoa"), entrada.get("ideia"), entrada.get("ocasiao"))
@@ -2922,7 +2926,7 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         )
 
     for m in _manutencoes_com_status(conn, hoje):
-        if m["dias_ate"] > 7:
+        if m["tipo"] == "carro" or m["dias_ate"] > 7:
             continue
         ref = vida.id_estavel("manutencao", m["id"], m["proxima"])
         if ja_notificado_alguma_vez(conn, "manutencao", ref):
@@ -2930,13 +2934,15 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         quando = "ja passou do prazo" if m["dias_ate"] < 0 else "vence hoje" if m["dias_ate"] == 0 else f"vence em {m['dias_ate']} dia(s)"
         avisos.append(("manutencao", ref, "Manutencao", f"{m['item']}: {quando}."))
 
-    # Manutencao de veiculo por km ou data (US-C14) - tabela dedicada,
-    # separada da manutencao generica acima (essa e so por tempo).
-    for m in _manutencoes_veiculo_proximas(conn, hoje):
+    # Manutencao de carro por km ou data (US-C14/Fase 6 US-E1a) - mesma
+    # secao/tabela unificada acima, so que tipo='carro' e HISTORICO (uma
+    # linha nova a cada vez), nao edicao no lugar - por isso o aviso e
+    # calculado separado (so o registro mais recente de cada item importa).
+    for m in _manutencoes_carro_proximas(conn, hoje):
         ref = vida.id_estavel("manutencao_veiculo", m["id"], m["proxima_em_km"], m["proxima_em_data"])
         if ja_notificado_alguma_vez(conn, "manutencao_veiculo", ref):
             continue
-        avisos.append(("manutencao_veiculo", ref, "Manutencao do veiculo", f"{m['tipo']}: {m['motivo']}."))
+        avisos.append(("manutencao_veiculo", ref, "Manutencao do veiculo", f"{m['item']}: {m['motivo']}."))
 
     # Garantia perto de vencer (US-C18) - dedup pela propria coluna
     # `notificado` da garantia (ver notificacoes.garantias_vencendo), marcada
@@ -4939,24 +4945,101 @@ def apagar_lugar(lugar_id):
     return jsonify({"ok": True})
 
 
+TIPOS_MANUTENCAO = {"casa", "carro", "equipamento", "outro"}
+
+
+def _numero_positivo_opcional(valor):
+    """None e valido (campo opcional, ex: km ou proxima_em_km nao
+    informados). Qualquer outra coisa que nao seja numero >= 0 devolve
+    "invalido" (string, nunca confundivel com um float de verdade) pra quem
+    chamou tratar como erro de validacao."""
+    if valor in (None, ""):
+        return None
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        return "invalido"
+    if valor < 0:
+        return "invalido"
+    return float(valor)
+
+
 def _manutencoes_com_status(conn, hoje: date) -> list[dict]:
+    """Secao unica de manutencao (Fase 6, US-E1a). tipo='carro' e HISTORICO
+    (uma linha por manutencao feita, sem "proxima"/"dias_ate" por tempo - o
+    aviso dela e por km/data, ver _manutencoes_carro_proximas) - os demais
+    tipos sao EDICAO NO LUGAR (um item so, "proxima"/"dias_ate" calculados
+    por vida.proxima_data_manutencao). `data` e um alias de `ultima_vez` pro
+    tipo='carro', pro front-end nao precisar saber o nome interno da coluna."""
     resultado = []
     for m in list_manutencoes(conn):
-        proxima = vida.proxima_data_manutencao(m["ultima_vez"], m["intervalo_meses"], m["criado_em"], hoje)
-        resultado.append({**m, "proxima": proxima.isoformat(), "dias_ate": (proxima - hoje).days})
-    resultado.sort(key=lambda x: x["dias_ate"])
+        item = dict(m)
+        if item["tipo"] == "carro":
+            item["data"] = item["ultima_vez"]
+            item["proxima"] = None
+            item["dias_ate"] = None
+        else:
+            proxima = vida.proxima_data_manutencao(m["ultima_vez"], m["intervalo_meses"], m["criado_em"], hoje)
+            item["proxima"] = proxima.isoformat()
+            item["dias_ate"] = (proxima - hoje).days
+        resultado.append(item)
+    resultado.sort(key=lambda x: x["dias_ate"] if x["dias_ate"] is not None else 10**9)
     return resultado
 
 
-def _criar_manutencao(conn, item, intervalo, ultima_vez) -> dict:
-    item = _texto_curto(item, 80)
-    intervalo = _inteiro_no_intervalo(intervalo, 1, 120)
-    ultima = _data_iso_valida(ultima_vez) if ultima_vez not in (None, "") else None
-    if not item or intervalo is None:
+def _validar_manutencao(body: dict) -> dict:
+    """Valida o corpo de criacao de manutencao pros dois "modos" da secao
+    unificada: tipo='carro' pede item + data (+ km/proxima_em_km/
+    proxima_em_data opcionais, historico - ver create_manutencao); os
+    demais tipos (casa/equipamento/outro) pedem item + intervalo_meses (+
+    ultima_vez opcional, edicao no lugar - mesma validacao de antes da
+    unificacao)."""
+    tipo = _texto_curto(body.get("tipo"), 20) or "outro"
+    if tipo not in TIPOS_MANUTENCAO:
+        return {"erro": "tipo invalido (use casa, carro, equipamento ou outro)"}
+    item = _texto_curto(body.get("item"), 80)
+    if not item:
+        return {"erro": "informe o item"}
+
+    if tipo == "carro":
+        data = _data_iso_valida(body.get("data") or body.get("ultima_vez"))
+        if not data:
+            return {"erro": "informe a data (AAAA-MM-DD)"}
+        km = _numero_positivo_opcional(body.get("km"))
+        if km == "invalido":
+            return {"erro": "km invalido (numero maior ou igual a zero)"}
+        proxima_em_km = _numero_positivo_opcional(body.get("proxima_em_km"))
+        if proxima_em_km == "invalido":
+            return {"erro": "proxima_em_km invalido (numero maior ou igual a zero)"}
+        proxima_em_data = None
+        if body.get("proxima_em_data") not in (None, ""):
+            proxima_em_data = _data_iso_valida(body.get("proxima_em_data"))
+            if not proxima_em_data:
+                return {"erro": "proxima_em_data invalida (AAAA-MM-DD)"}
+        return {
+            "tipo": tipo, "item": item, "intervalo_meses": None, "ultima_vez": data,
+            "km": km, "proxima_em_km": proxima_em_km, "proxima_em_data": proxima_em_data,
+        }
+
+    intervalo = _inteiro_no_intervalo(body.get("intervalo_meses"), 1, 120)
+    if intervalo is None:
         return {"erro": "informe o item e o intervalo em meses (1 a 120)"}
+    ultima_vez = body.get("ultima_vez")
+    ultima = _data_iso_valida(ultima_vez) if ultima_vez not in (None, "") else None
     if ultima_vez not in (None, "") and (not ultima or ultima > date.today().isoformat()):
         return {"erro": "data da ultima vez invalida"}
-    manutencao_id = create_manutencao(conn, item, intervalo, ultima)
+    return {
+        "tipo": tipo, "item": item, "intervalo_meses": intervalo, "ultima_vez": ultima,
+        "km": None, "proxima_em_km": None, "proxima_em_data": None,
+    }
+
+
+def _criar_manutencao(conn, body: dict) -> dict:
+    campos = _validar_manutencao(body)
+    if "erro" in campos:
+        return campos
+    manutencao_id = create_manutencao(
+        conn, campos["tipo"], campos["item"], campos["intervalo_meses"], campos["ultima_vez"],
+        campos["km"], campos["proxima_em_km"], campos["proxima_em_data"],
+    )
     return {"ok": True, "manutencao_id": manutencao_id}
 
 
@@ -4972,7 +5055,10 @@ def manutencoes():
 def criar_manutencao_rota():
     body = _corpo_json()
     conn = get_db()
-    resultado = _criar_manutencao(conn, body.get("item"), body.get("intervalo_meses"), body.get("ultima_vez"))
+    resultado = _criar_manutencao(conn, body)
+    if "ok" in resultado:
+        _marcar_atividade(conn)
+        conn.commit()
     conn.close()
     if "erro" in resultado:
         return jsonify({"error": resultado["erro"]}), 400
@@ -4982,6 +5068,13 @@ def criar_manutencao_rota():
 @app.route("/api/manutencoes/<int:manutencao_id>/feita", methods=["POST"])
 def manutencao_feita(manutencao_id):
     conn = get_db()
+    existente = get_manutencao(conn, manutencao_id)
+    if not existente:
+        conn.close()
+        return jsonify({"error": "manutencao nao encontrada"}), 404
+    if existente["tipo"] == "carro":
+        conn.close()
+        return jsonify({"error": "manutencao de carro nao usa 'feita' - adicione um novo registro"}), 400
     ok = marcar_manutencao_feita(conn, manutencao_id, date.today().isoformat())
     if ok:
         _marcar_atividade(conn)
@@ -5000,60 +5093,6 @@ def apagar_manutencao(manutencao_id):
     return jsonify({"ok": True})
 
 
-def _numero_positivo_opcional(valor):
-    """None e valido (campo opcional, ex: km ou proxima_em_km nao
-    informados). Qualquer outra coisa que nao seja numero >= 0 devolve
-    "invalido" (string, nunca confundivel com um float de verdade) pra quem
-    chamou tratar como erro de validacao."""
-    if valor in (None, ""):
-        return None
-    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
-        return "invalido"
-    if valor < 0:
-        return "invalido"
-    return float(valor)
-
-
-def _validar_manutencao_veiculo(body: dict) -> dict:
-    """Valida os campos comuns a criar/atualizar manutencao de veiculo -
-    devolve {"erro": "..."} ou os campos ja normalizados prontos pra
-    gravar. tipo/data sao obrigatorios; km/proxima_em_km/proxima_em_data sao
-    opcionais, mas precisam fazer sentido quando informados."""
-    tipo = _texto_curto(body.get("tipo"), 80)
-    data = _data_iso_valida(body.get("data"))
-    if not tipo or not data:
-        return {"erro": "informe o tipo e a data (AAAA-MM-DD)"}
-
-    km = _numero_positivo_opcional(body.get("km"))
-    if km == "invalido":
-        return {"erro": "km invalido (numero maior ou igual a zero)"}
-    proxima_em_km = _numero_positivo_opcional(body.get("proxima_em_km"))
-    if proxima_em_km == "invalido":
-        return {"erro": "proxima_em_km invalido (numero maior ou igual a zero)"}
-
-    proxima_em_data = None
-    if body.get("proxima_em_data") not in (None, ""):
-        proxima_em_data = _data_iso_valida(body.get("proxima_em_data"))
-        if not proxima_em_data:
-            return {"erro": "proxima_em_data invalida (AAAA-MM-DD)"}
-
-    return {
-        "tipo": tipo,
-        "data": data,
-        "km": km,
-        "proxima_em_km": proxima_em_km,
-        "proxima_em_data": proxima_em_data,
-    }
-
-
-@app.route("/api/manutencoes-veiculo", methods=["GET"])
-def listar_manutencoes_veiculo():
-    conn = get_db()
-    resultado = list_manutencoes_veiculo(conn)
-    conn.close()
-    return jsonify(resultado)
-
-
 def _criar_ideia_presente(conn, pessoa, ideia, ocasiao) -> dict:
     pessoa = _texto_curto(pessoa, 80)
     ideia_txt = _texto_curto(ideia, 200)
@@ -5069,47 +5108,6 @@ def ideias_presente_rota():
     resultado = list_ideias_presente(conn)
     conn.close()
     return jsonify(resultado)
-
-
-@app.route("/api/manutencoes-veiculo", methods=["POST"])
-def criar_manutencao_veiculo_rota():
-    body = _corpo_json()
-    campos = _validar_manutencao_veiculo(body)
-    if "erro" in campos:
-        return jsonify({"error": campos["erro"]}), 400
-    conn = get_db()
-    manutencao_id = create_manutencao_veiculo(
-        conn, campos["tipo"], campos["data"], campos["km"], campos["proxima_em_km"], campos["proxima_em_data"]
-    )
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify({"id": manutencao_id, "ok": True}), 201
-
-
-@app.route("/api/manutencoes-veiculo/<int:manutencao_id>", methods=["PUT"])
-def atualizar_manutencao_veiculo_rota(manutencao_id):
-    conn = get_db()
-    if not get_manutencao_veiculo(conn, manutencao_id):
-        conn.close()
-        return jsonify({"error": "manutencao nao encontrada"}), 404
-    body = _corpo_json()
-    campos = _validar_manutencao_veiculo(body)
-    if "erro" in campos:
-        conn.close()
-        return jsonify({"error": campos["erro"]}), 400
-    atualizar_manutencao_veiculo(
-        conn,
-        manutencao_id,
-        campos["tipo"],
-        campos["data"],
-        campos["km"],
-        campos["proxima_em_km"],
-        campos["proxima_em_data"],
-    )
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True})
 
 
 @app.route("/api/ideias-presente", methods=["POST"])
@@ -5137,14 +5135,6 @@ def alternar_ideia_presente_rota(ideia_id):
 def apagar_ideia_presente_rota(ideia_id):
     conn = get_db()
     delete_ideia_presente(conn, ideia_id)
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/manutencoes-veiculo/<int:manutencao_id>", methods=["DELETE"])
-def apagar_manutencao_veiculo(manutencao_id):
-    conn = get_db()
-    delete_manutencao_veiculo(conn, manutencao_id)
     conn.close()
     return jsonify({"ok": True})
 
@@ -5245,22 +5235,24 @@ def apagar_garantia_rota(garantia_id):
     return jsonify({"ok": True})
 
 
-def _ultima_manutencao_veiculo_por_tipo(conn) -> list[dict]:
-    """So a manutencao mais recente de cada tipo importa pra saber "quando
-    vence a proxima" - um registro antigo do mesmo tipo (ex: troca de oleo
-    de 2 revisoes atras) tem um proxima_em_km/proxima_em_data ja obsoleto,
-    substituido pelo registro mais novo."""
+def _ultima_manutencao_carro_por_item(conn) -> list[dict]:
+    """So a manutencao de carro mais recente de cada item importa pra saber
+    "quando vence a proxima" - um registro antigo do mesmo item (ex: troca
+    de oleo de 2 revisoes atras) tem um proxima_em_km/proxima_em_data ja
+    obsoleto, substituido pelo registro mais novo."""
+    carros = [m for m in list_manutencoes(conn) if m["tipo"] == "carro"]
+    carros.sort(key=lambda m: (m["ultima_vez"] or "", m["id"]), reverse=True)
     vistos = set()
     ultimas = []
-    for m in list_manutencoes_veiculo(conn):  # ja vem ordenado por data/id DESC
-        if m["tipo"] in vistos:
+    for m in carros:
+        if m["item"] in vistos:
             continue
-        vistos.add(m["tipo"])
+        vistos.add(m["item"])
         ultimas.append(m)
     return ultimas
 
 
-def _manutencoes_veiculo_proximas(conn, hoje: date, dias_aviso: int = 15, km_aviso: float = 500) -> list[dict]:
+def _manutencoes_carro_proximas(conn, hoje: date, dias_aviso: int = 15, km_aviso: float = 500) -> list[dict]:
     """Pra cada tipo de manutencao (so o registro mais recente), decide se
     esta perto do limite por DATA (dentro de `dias_aviso` dias, ou ja
     passou) ou por KM (km_atual_veiculo - o maior km ja registrado em
@@ -5269,7 +5261,7 @@ def _manutencoes_veiculo_proximas(conn, hoje: date, dias_aviso: int = 15, km_avi
     definido, essa manutencao simplesmente nunca avisa (nada pra comparar)."""
     km_atual = km_atual_veiculo(conn)
     proximas = []
-    for m in _ultima_manutencao_veiculo_por_tipo(conn):
+    for m in _ultima_manutencao_carro_por_item(conn):
         motivo = None
         if m["proxima_em_data"]:
             proxima = date.fromisoformat(m["proxima_em_data"])

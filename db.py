@@ -490,24 +490,22 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- Fase 6 (US-E1a): secao unica de manutencao (antes eram duas tabelas
+        -- separadas - `manutencoes`, generica por tempo, e `manutencoes_veiculo`,
+        -- especifica de carro por km/data - ver _migrar_manutencoes_unificadas
+        -- pra migracao dos bancos que ja tinham as duas). `tipo` classifica
+        -- casa/carro/equipamento/outro; km/proxima_em_km/proxima_em_data so
+        -- fazem sentido pra tipo='carro' (nulos pros demais). Carro continua
+        -- com semantica de HISTORICO (registro novo a cada manutencao feita,
+        -- intervalo_meses fica 0/sentinela, nunca lido); os demais tipos
+        -- continuam com semantica de EDICAO NO LUGAR (ultima_vez atualizada
+        -- pelo botao "feita hoje").
         CREATE TABLE IF NOT EXISTS manutencoes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL DEFAULT 'outro',
             item TEXT NOT NULL,
             intervalo_meses INTEGER NOT NULL,
             ultima_vez TEXT,
-            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-
-        -- Tabela dedicada (US-C14, Fase 5) - diferente de `manutencoes` acima
-        -- (generica, so por tempo: carro/casa/equipamento, um registro editado
-        -- no lugar a cada vez que e feita de novo). Esta e especifica de
-        -- veiculo, com km, e cada manutencao feita vira um REGISTRO NOVO (linha
-        -- historica), nao uma atualizacao no lugar - assim da pra ver o
-        -- historico completo (troca de oleo de quando em quando, com que km).
-        CREATE TABLE IF NOT EXISTS manutencoes_veiculo (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo TEXT NOT NULL,
-            data TEXT NOT NULL,
             km REAL,
             proxima_em_km REAL,
             proxima_em_data TEXT,
@@ -644,10 +642,19 @@ def init_db():
     # pra sugerir tarefas compativeis com o nivel de energia atual (ver
     # vida.tarefas_compativeis_com_energia). Sem valor = tratado como 'media'.
     _garantir_coluna(conn, "tasks", "esforco", "TEXT")
+    # Fase 6 (US-E1a): unificacao das duas secoes de manutencao - colunas
+    # novas em bancos que ainda tem o `manutencoes` de 5 colunas (ver
+    # _migrar_manutencoes_unificadas logo abaixo pra copia dos dados de
+    # `manutencoes_veiculo`, se a tabela antiga ainda existir).
+    _garantir_coluna(conn, "manutencoes", "tipo", "TEXT NOT NULL DEFAULT 'outro'")
+    _garantir_coluna(conn, "manutencoes", "km", "REAL")
+    _garantir_coluna(conn, "manutencoes", "proxima_em_km", "REAL")
+    _garantir_coluna(conn, "manutencoes", "proxima_em_data", "TEXT")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
     _migrar_criptografia_campos_sensiveis(conn)
+    _migrar_manutencoes_unificadas(conn)
     conn.close()
 
 
@@ -795,6 +802,37 @@ def _migrar_criptografia_campos_sensiveis(conn):
         )
 
     definir_configuracao(conn, "criptografia_migrada", "1")
+    conn.commit()
+
+
+def _migrar_manutencoes_unificadas(conn):
+    """Fase 6 (US-E1a): copia as linhas de `manutencoes_veiculo` (tabela
+    dedicada da Fase 5/US-C14, por km/data) pra dentro de `manutencoes` (que
+    ja ganhou as colunas `tipo`/km/proxima_em_km/proxima_em_data acima) como
+    tipo='carro', e apaga a tabela antiga - a partir daqui so existe UMA
+    tabela/secao de manutencao. Idempotente por dois motivos independentes
+    (mesmo padrao de _migrar_criptografia_campos_sensiveis): a flag em
+    `configuracoes` evita rodar de novo, e mesmo sem a flag, depois da
+    primeira vez a tabela `manutencoes_veiculo` nao existe mais - nada pra
+    copiar. intervalo_meses grava 0 (sentinela, nunca lido pra tipo='carro',
+    so existe pra satisfazer a coluna NOT NULL)."""
+    if obter_configuracao(conn, "manutencoes_unificadas_fase6"):
+        return
+    existe = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'manutencoes_veiculo'"
+    ).fetchone()
+    if existe:
+        for row in conn.execute(
+            "SELECT tipo, data, km, proxima_em_km, proxima_em_data, criado_em FROM manutencoes_veiculo"
+        ).fetchall():
+            conn.execute(
+                """INSERT INTO manutencoes
+                   (tipo, item, intervalo_meses, ultima_vez, km, proxima_em_km, proxima_em_data, criado_em)
+                   VALUES ('carro', ?, 0, ?, ?, ?, ?, ?)""",
+                (row["tipo"], row["data"], row["km"], row["proxima_em_km"], row["proxima_em_data"], row["criado_em"]),
+            )
+        conn.execute("DROP TABLE manutencoes_veiculo")
+    definir_configuracao(conn, "manutencoes_unificadas_fase6", "1")
     conn.commit()
 
 
@@ -2418,18 +2456,37 @@ def delete_lugar(conn, lugar_id: int):
     conn.commit()
 
 
-def create_manutencao(conn, item: str, intervalo_meses: int, ultima_vez: str | None) -> int:
+def create_manutencao(
+    conn,
+    tipo: str,
+    item: str,
+    intervalo_meses: int | None,
+    ultima_vez: str | None,
+    km: float | None = None,
+    proxima_em_km: float | None = None,
+    proxima_em_data: str | None = None,
+) -> int:
+    """Secao unica de manutencao (Fase 6, US-E1a - ver comentario da tabela
+    em init_db). intervalo_meses grava 0 quando None (tipo='carro', onde o
+    campo nao se aplica - a coluna e NOT NULL por historico; nunca lido
+    pra esse tipo, ver _manutencoes_com_status)."""
     cur = conn.execute(
-        "INSERT INTO manutencoes (item, intervalo_meses, ultima_vez) VALUES (?, ?, ?)",
-        (item, intervalo_meses, ultima_vez),
+        """INSERT INTO manutencoes (tipo, item, intervalo_meses, ultima_vez, km, proxima_em_km, proxima_em_data)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (tipo, item, intervalo_meses if intervalo_meses is not None else 0, ultima_vez, km, proxima_em_km, proxima_em_data),
     )
     conn.commit()
     return cur.lastrowid
 
 
 def list_manutencoes(conn) -> list[dict]:
-    rows = conn.execute("SELECT * FROM manutencoes ORDER BY item").fetchall()
+    rows = conn.execute("SELECT * FROM manutencoes ORDER BY criado_em DESC, id DESC").fetchall()
     return _criado_local(rows)
+
+
+def get_manutencao(conn, manutencao_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM manutencoes WHERE id = ?", (manutencao_id,)).fetchone()
+    return dict(row) if row else None
 
 
 def marcar_manutencao_feita(conn, manutencao_id: int, data: str) -> bool:
@@ -2443,21 +2500,13 @@ def delete_manutencao(conn, manutencao_id: int):
     conn.commit()
 
 
-def create_manutencao_veiculo(
-    conn,
-    tipo: str,
-    data: str,
-    km: float | None,
-    proxima_em_km: float | None,
-    proxima_em_data: str | None,
-) -> int:
-    cur = conn.execute(
-        "INSERT INTO manutencoes_veiculo (tipo, data, km, proxima_em_km, proxima_em_data) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (tipo, data, km, proxima_em_km, proxima_em_data),
-    )
-    conn.commit()
-    return cur.lastrowid
+def km_atual_veiculo(conn) -> float | None:
+    """Maior km ja registrado em qualquer manutencao de carro - usado como
+    "km atual do veiculo" pra decidir se uma manutencao por km esta perto do
+    limite (nao ha odometro conectado, so o que foi digitado manualmente a
+    cada manutencao)."""
+    row = conn.execute("SELECT MAX(km) AS km_max FROM manutencoes WHERE tipo = 'carro'").fetchone()
+    return row["km_max"]
 
 
 # ---- Fase 5 (Grupo C): ideias de presente ----
@@ -2469,48 +2518,6 @@ def create_ideia_presente(conn, pessoa: str, ideia: str, ocasiao: str | None) ->
     )
     conn.commit()
     return cur.lastrowid
-
-
-def list_manutencoes_veiculo(conn) -> list[dict]:
-    rows = conn.execute("SELECT * FROM manutencoes_veiculo ORDER BY data DESC, id DESC").fetchall()
-    return [dict(r) for r in rows]
-
-
-def get_manutencao_veiculo(conn, manutencao_id: int) -> dict | None:
-    row = conn.execute("SELECT * FROM manutencoes_veiculo WHERE id = ?", (manutencao_id,)).fetchone()
-    return dict(row) if row else None
-
-
-def atualizar_manutencao_veiculo(
-    conn,
-    manutencao_id: int,
-    tipo: str,
-    data: str,
-    km: float | None,
-    proxima_em_km: float | None,
-    proxima_em_data: str | None,
-) -> bool:
-    cur = conn.execute(
-        "UPDATE manutencoes_veiculo SET tipo = ?, data = ?, km = ?, proxima_em_km = ?, "
-        "proxima_em_data = ? WHERE id = ?",
-        (tipo, data, km, proxima_em_km, proxima_em_data, manutencao_id),
-    )
-    conn.commit()
-    return cur.rowcount > 0
-
-
-def delete_manutencao_veiculo(conn, manutencao_id: int):
-    conn.execute("DELETE FROM manutencoes_veiculo WHERE id = ?", (manutencao_id,))
-    conn.commit()
-
-
-def km_atual_veiculo(conn) -> float | None:
-    """Maior km ja registrado em qualquer manutencao - usado como "km atual
-    do veiculo" pra decidir se uma manutencao por km esta perto do limite
-    (nao ha odometro conectado, so o que foi digitado manualmente a cada
-    manutencao)."""
-    row = conn.execute("SELECT MAX(km) AS km_max FROM manutencoes_veiculo").fetchone()
-    return row["km_max"]
 
 
 def list_ideias_presente(conn) -> list[dict]:

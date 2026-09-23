@@ -3267,6 +3267,20 @@ li.item.item-planejado {
   margin-bottom: 0.9rem;
 }
 
+/* Fase 6 (US-E1a): sub-grupo de campos dentro de um .form-linha que aparece/
+   some inteiro conforme o tipo escolhido (ex: campos de carro vs. campos de
+   tempo na secao de Manutencao unificada) - "display: contents" faz o <span>
+   sumir do layout, os inputs de dentro viram item de flex do .form-linha
+   igual antes (senao virariam 1 item so, quebrando o wrap/gap); [hidden]
+   tem 2 seletores (especificidade maior que o "contents" sozinho) pra
+   garantir que esconde de verdade. */
+.form-linha-sub {
+  display: contents;
+}
+.form-linha-sub[hidden] {
+  display: none;
+}
+
 .form-linha input[type="text"],
 .form-linha input[type="number"],
 .form-linha input[type="time"],
