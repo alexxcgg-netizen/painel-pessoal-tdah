@@ -16,8 +16,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Unificado em `manutencoes` (coluna tipo: casa/carro/equipamento/outro); tipo=carro mantem semantica de historico (registro novo, sem 'feita'), demais tipos mantem edicao no lugar. Migracao idempotente de manutencoes_veiculo em init_db, testada com banco de dev nas duas tabelas (MigracaoManutencoesUnificadasTestCase). Rotas -veiculo removidas; chat tool registrar_manutencao inalterado (tipo='outro' default). Commit c670eea.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -32,8 +32,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "vida.dividir_itens_compra (virgula + ' e '/'e tambem'/'e acabou(aram)', com/sem artigo) e a funcao unica; _adicionar_compras (app.py) ja era o ponto unico dos 3 caminhos (formulario, API, chat tool) e agora chama ela por entrada bruta. Nome composto sem ' e ' isolada continua 1 item (regex exige a conjuncao como palavra inteira, nunca dentro de outra palavra). Commit b877073.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -48,8 +48,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Causa real: @keyframes auroraShine (camada de 'brilho', .aurora::before) tinha 0% != 100% (120% -20% vs -20% 120%) - unico dos 4 keyframes do fundo assim, dava o pulo a cada 34s. Virou ida-e-volta (0%/100% iguais). Investigacao completa em progress-e1.txt. Verificado lendo os @keyframes reais via Web Animations API no Playwright (sem precisar esperar um ciclo inteiro). prefers-reduced-motion ja cobria essa camada, sem mudanca.",
       "modelo_planejado": "sonnet"
     },
     {

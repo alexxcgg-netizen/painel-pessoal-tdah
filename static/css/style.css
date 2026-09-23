@@ -566,11 +566,22 @@ body {
   animation: auroraShine 34s linear infinite;
 }
 
+/* Fase 6 (US-E1c): 0% e 100% eram DIFERENTES (120% -20% -> -20% 120%) - a
+   causa real do "salto" no fundo era essa (ver progress-e1.txt): um keyframe
+   assimetrico sempre da um pulo visivel na virada do ciclo, porque o
+   navegador nao tem pra onde interpolar depois do ultimo frame - ele so
+   reseta pro 0% instantaneamente. As outras animacoes do .aurora
+   (auroraMove, rainbowDrift, rainbowDriftExtra) ja tinham 0%/100% iguais
+   por isso nunca pulavam. Correcao: vira ida-e-volta (0%/100% iguais, 50%
+   no destino que era o 100% antigo) - mesmo padrao ja usado em rainbowDrift,
+   continua "bem devagarzinho" (34s no total, 17s cada trecho), so que
+   oscilando em vez de andar so numa direcao. */
 @keyframes auroraShine {
-  0% {
+  0%,
+  100% {
     background-position: 120% -20%;
   }
-  100% {
+  50% {
     background-position: -20% 120%;
   }
 }
