@@ -3409,6 +3409,59 @@ def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
     return avisos
 
 
+def _avisos_proatividade_e8(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
+    """Fase 6 (US-E8): proatividade unificada - so MONTA (tipo, ref, titulo,
+    corpo) a partir do que notificacoes.py ja calculou (cada checagem la
+    reusa o mesmo calculo que a tela/API correspondente ja usa - nada
+    recalculado aqui). O despacho de verdade (silencioso/hiperfoco/modo
+    viagem/agrupamento) continua so em verificar_e_notificar, nao existe
+    caminho paralelo de envio pra esses avisos."""
+    avisos = []
+    hoje = agora.date()
+
+    for habito_id, msg in notificacoes.habitos_passaram_batido(conn, agora):
+        if not ja_notificou_hoje(conn, "habito_passou_batido", habito_id):
+            avisos.append(("habito_passou_batido", habito_id, "Passou batido", msg))
+
+    for tarefa_id, msg in notificacoes.tarefas_horario_passou(conn, agora):
+        if not ja_notificou_hoje(conn, "tarefa_horario_passou", tarefa_id):
+            avisos.append(("tarefa_horario_passou", tarefa_id, "Passou da hora", msg))
+
+    for conta_id, nivel, titulo, corpo in notificacoes.cartoes_perto_ou_estourados(conn, hoje):
+        ref = vida.id_estavel("cartao_limite", conta_id, nivel, hoje.strftime("%Y-%m"))
+        if not ja_notificado_alguma_vez(conn, "cartao_limite", ref):
+            avisos.append(("cartao_limite", ref, titulo, corpo))
+
+    renda_aviso = notificacoes.renda_perto_de_acabar(conn, hoje)
+    if renda_aviso:
+        nivel, titulo, corpo = renda_aviso
+        ref = vida.id_estavel("renda_comprometida", nivel, hoje.strftime("%Y-%m"))
+        if not ja_notificado_alguma_vez(conn, "renda_comprometida", ref):
+            avisos.append(("renda_comprometida", ref, titulo, corpo))
+
+    for ref, titulo, corpo in notificacoes.projetos_juntando_poeira(conn, hoje):
+        if not ja_notificado_alguma_vez(conn, "projeto_poeira", ref):
+            avisos.append(("projeto_poeira", ref, titulo, corpo))
+
+    if notificacoes.projecao_mes_seguinte_devida(hoje):
+        resultado = notificacoes.mes_seguinte_apertado(conn, hoje)
+        if resultado:
+            nome_mes, fracao = resultado
+            pct = round(fracao * 100)
+            ref = vida.id_estavel("mes_seguinte_apertado", nome_mes, hoje.year)
+            if not ja_notificado_alguma_vez(conn, "mes_seguinte_apertado", ref):
+                avisos.append(
+                    (
+                        "mes_seguinte_apertado",
+                        ref,
+                        f"{nome_mes} vem apertado",
+                        f"custos fixos ja comprometem {pct}%.",
+                    )
+                )
+
+    return avisos
+
+
 def verificar_e_notificar():
     """Roda as verificacoes proativas e manda pra quem tiver canal configurado
     (push web e/ou Telegram) - cada tipo de aviso so dispara uma vez por dia
@@ -3629,6 +3682,7 @@ def verificar_e_notificar():
     avisos.extend(_avisos_assistente_vida(conn, datetime.now()))
     avisos.extend(_avisos_fase2(conn, datetime.now()))
     avisos.extend(_avisos_fase3(conn, datetime.now()))
+    avisos.extend(_avisos_proatividade_e8(conn, datetime.now()))
 
     # Fechamento ativo do dia (21h, uma hora antes da hora_de_dormir) - manda
     # o fechamento sozinho em vez de esperar o Alex abrir a aba Painel.

@@ -732,3 +732,201 @@ def voos_de_hoje_com_horario(conn, hoje: date | None = None) -> list[dict]:
         (hoje.isoformat(),),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---- Fase 6, US-E8: proatividade unificada ---------------------------------
+# Cada checagem abaixo reusa o MESMO calculo que a tela/API correspondente ja
+# usa (vida.habito_passou_batido, vida.fracao_limite_cartao,
+# vida.calcular_projeto) - nunca recalcula do zero. app.py so decide dedup
+# (ja_notificado_alguma_vez/ja_notificou_hoje) e despacha pelo pipeline
+# unico de verificar_e_notificar (silencioso/hiperfoco/viagem/agrupamento) -
+# nenhum caminho paralelo de envio.
+
+def habitos_passaram_batido(conn, agora: datetime | None = None) -> list[tuple[int, str]]:
+    """Usa vida.habito_passou_batido (mesmo calculo que /api/habitos ja
+    expoe em 'passou_batido' por habito) pra achar habitos com horario
+    definido que passaram 1h do horario sem serem marcados hoje. So
+    identifica e monta o texto - dedup (uma vez por dia) fica com quem
+    chama (ja_notificou_hoje)."""
+    agora = agora or datetime.now()
+    hoje = agora.date()
+    hoje_iso = hoje.isoformat()
+    inicio_semana = (hoje - timedelta(days=hoje.weekday())).isoformat()
+    fim_semana = (hoje + timedelta(days=6 - hoje.weekday())).isoformat()
+    avisos = []
+    for row in db.list_habitos(conn):
+        habito = dict(row)
+        marcado_hoje = db.habito_marcado(conn, hoje_iso, habito["id"])
+        vezes_feitas_semana = len(db.marcacoes_habito_no_periodo(conn, habito["id"], inicio_semana, fim_semana))
+        if not vida.habito_passou_batido(habito, agora, marcado_hoje, vezes_feitas_semana):
+            continue
+        avisos.append(
+            (habito["id"], f"{habito['horario']} ja foi e o habito {habito['nome']} segue intocado.")
+        )
+    return avisos
+
+
+def tarefas_horario_passou(conn, agora: datetime | None = None, minutos_depois: int = 30) -> list[tuple[int, str]]:
+    """Complementa tarefas_com_horario_chegando (aviso ANTES/na hora): um
+    segundo aviso, `minutos_depois` apos o horario marcado, se a tarefa
+    continuar pendente - so constata o fato (ainda da tempo hoje), sem
+    cobranca nem diminutivo. O titulo entra entre aspas no comeco do corpo
+    (mesmo padrao de tarefas_paradas acima) - o exemplo do PRD ("a tarefa
+    era 14:00...") fica intacto depois das aspas, so identifica QUAL tarefa
+    quando ha mais de uma pendente. Dedup (uma vez por dia) fica com quem
+    chama."""
+    agora = agora or datetime.now()
+    hoje = agora.date().isoformat()
+    limite = (agora - timedelta(minutes=minutos_depois)).strftime("%H:%M")
+    rows = conn.execute(
+        """SELECT id, title, hora FROM tasks
+           WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL AND hora <= ?""",
+        (hoje, limite),
+    ).fetchall()
+    return [
+        (r["id"], f"\"{r['title']}\" - a tarefa era {r['hora']}, ainda da tempo de resolver hoje.")
+        for r in rows
+    ]
+
+
+def cartoes_perto_ou_estourados(conn, hoje: date | None = None) -> list[tuple[int, str, str, str]]:
+    """US-E15: reusa vida.fracao_limite_cartao (o MESMO calculo que
+    /api/bancos ja expoe em 'limite_info') pra achar cartao perto (>=90%)
+    ou ja estourando (>=100%) do limite manual. So cartoes com limite
+    configurado entram - sem limite, fracao_limite_cartao ja devolve None
+    (nunca inventa um limite). Devolve (conta_id, nivel, titulo, corpo)."""
+    hoje = hoje or date.today()
+    ano_mes = hoje.strftime("%Y-%m")
+    avisos = []
+    for c in db.list_bank_accounts(conn):
+        if c["tipo"] != "cartao":
+            continue
+        gasto_ciclo = db.gasto_mes_conta(conn, c["id"], ano_mes)
+        info = vida.fracao_limite_cartao(gasto_ciclo, c.get("limite"))
+        if not info:
+            continue
+        if info["fracao"] >= 1:
+            nivel, titulo = "estourado", "Cartao estourou o limite"
+        elif info["fracao"] >= 0.9:
+            pct = round(info["fracao"] * 100)
+            nivel, titulo = "quase", f"Cartao em {pct}% do limite"
+        else:
+            continue
+        if info["sobra"] >= 0:
+            corpo = f"{c['banco']}: sobram R$ {info['sobra']:.2f}."
+        else:
+            corpo = f"{c['banco']}: passou R$ {-info['sobra']:.2f} do limite."
+        avisos.append((c["id"], nivel, titulo, corpo))
+    return avisos
+
+
+def renda_perto_de_acabar(conn, hoje: date | None = None, limiar: float = 0.7) -> tuple[str, str, str] | None:
+    """Fracao da renda do mes ja gasta (mesma soma de expenses reais +
+    extrato bancario que _sobra_do_mes/app.py ja usa) - avisa a partir de
+    70% comprometido (nivel 'atencao') ou 100%+ ('estourado'). Sem renda
+    registrada no mes, None - nao ha base pra calcular fracao nenhuma."""
+    hoje = hoje or date.today()
+    ano_mes = hoje.strftime("%Y-%m")
+    renda_mes = db.total_incomes_mes(conn, ano_mes)
+    if renda_mes <= 0:
+        return None
+    gasto_mes = db.total_gastos_mes(conn, ano_mes, "real") + db.total_gastos_bancarios_mes(conn, ano_mes)
+    fracao = gasto_mes / renda_mes
+    if fracao < limiar:
+        return None
+    pct = round(fracao * 100)
+    sobra = renda_mes - gasto_mes
+    nivel = "estourado" if fracao >= 1 else "atencao"
+    titulo = f"{pct}% da renda ja foi"
+    corpo = f"sobram R$ {sobra:.2f}." if sobra >= 0 else f"passou R$ {-sobra:.2f} da renda."
+    return (nivel, titulo, corpo)
+
+
+def projetos_juntando_poeira(conn, hoje: date | None = None, dias_aviso: int = 21) -> list[tuple[int, str, str]]:
+    """US-E13: projeto ativo (nao pausado, nao concluido) sem NENHUM toque
+    ha `dias_aviso` dias ou mais - reusa vida.calcular_projeto (mesmo
+    'dias_sem_toque' que /api/projetos ja expoe). Projeto que nunca teve
+    etapa concluida usa a propria data de criacao como referencia
+    (calcular_projeto devolve None nesse caso - sem esse fallback, um
+    projeto criado e esquecido nunca avisaria). O ref de dedup muda quando
+    o projeto e tocado de novo (referencia = data do ultimo toque ou
+    criacao), entao volta a valer sozinho se ficar parado de novo depois.
+    Devolve (ref_dedup, titulo, corpo)."""
+    hoje = hoje or date.today()
+    avisos = []
+    for p in db.list_projetos(conn):
+        etapas = db.list_etapas_projeto(conn, p["id"])
+        calculo = vida.calcular_projeto(etapas, p["prazo_final"], p["criado_em"], hoje)
+        status = vida.status_projeto_calculado(p["status"], p["prazo_final"], calculo["percentual"], hoje)
+        if status == "pausado" or calculo["percentual"] >= 100:
+            continue
+        dias = calculo["dias_sem_toque"]
+        if dias is None:
+            try:
+                referencia = date.fromisoformat((p["criado_em"] or "")[:10])
+            except ValueError:
+                continue
+            dias = (hoje - referencia).days
+        else:
+            datas_feitas = [e["feita_em"] for e in etapas if e.get("feita_em")]
+            try:
+                referencia = max(date.fromisoformat(d[:10]) for d in datas_feitas)
+            except ValueError:
+                continue
+        if dias < dias_aviso:
+            continue
+        ref = vida.id_estavel("projeto_poeira", p["id"], referencia.isoformat())
+        avisos.append(
+            (
+                ref,
+                "Tem projeto criando poeira",
+                f"\"{p['nome']}\": {dias} dias sem um toque, abre e derruba a menor etapa.",
+            )
+        )
+    return avisos
+
+
+def _renda_media_mensal(conn, hoje: date, meses: int = 3) -> float:
+    """Media da renda registrada nos ultimos `meses` meses fechados - so
+    entram meses com renda > 0 (mes sem nenhum lancamento pode so estar
+    sem digitar ainda, nao vale puxar a media pra baixo por isso)."""
+    valores = []
+    for i in range(1, meses + 1):
+        ref = vida.somar_meses(hoje.replace(day=1), -i)
+        total = db.total_incomes_mes(conn, ref.strftime("%Y-%m"))
+        if total > 0:
+            valores.append(total)
+    return sum(valores) / len(valores) if valores else 0.0
+
+
+def projecao_mes_seguinte_devida(hoje: date | None = None) -> bool:
+    """Verdadeiro nos ultimos 3 dias do mes - a janela em que faz sentido
+    projetar como o mes que vem chega, perto o bastante pra reagir (revisar
+    assinatura, adiar compra) mas nao cedo demais pro dado do mes atual
+    ainda estar mudando muito."""
+    hoje = hoje or date.today()
+    ultimo_dia_mes = vida.somar_meses(hoje.replace(day=1), 1) - timedelta(days=1)
+    return hoje >= ultimo_dia_mes - timedelta(days=2)
+
+
+def mes_seguinte_apertado(conn, hoje: date | None = None, limiar: float = 0.8) -> tuple[str, float] | None:
+    """Projeta o mes seguinte comparando os custos fixos ja conhecidos
+    (mesma deteccao de gastos.detectar_gastos_recorrentes que a aba Gastos
+    usa) com a media de renda dos ultimos 3 meses - sem renda OU sem custo
+    fixo identificado ainda, nao ha base pra projetar nada (None). `limiar`
+    e a fracao (custos_fixos/renda_media) a partir da qual vale avisar
+    (0.8 = 80% comprometido)."""
+    hoje = hoje or date.today()
+    renda_media = _renda_media_mensal(conn, hoje)
+    if renda_media <= 0:
+        return None
+    recorrentes = gastos.detectar_gastos_recorrentes(_gastos_reais_unificados_para_deteccao(conn), hoje)
+    custos_fixos = gastos.total_gasto_fixo_mensal(recorrentes)
+    if custos_fixos <= 0:
+        return None
+    fracao = custos_fixos / renda_media
+    if fracao < limiar:
+        return None
+    proximo_mes = vida.somar_meses(hoje.replace(day=1), 1)
+    nome_mes = vida.NOMES_MES[proximo_mes.month - 1].capitalize()
+    return (nome_mes, round(fracao, 4))
