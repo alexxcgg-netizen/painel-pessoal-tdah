@@ -532,7 +532,91 @@ def mes_anterior(hoje: date) -> tuple[date, date]:
     return ultimo.replace(day=1), ultimo
 
 
+def intervalo_trimestre(ano: int, trimestre: int) -> tuple[date, date]:
+    """(primeiro dia, ultimo dia) do trimestre (1-4) do ano informado - Fase
+    5 (US-C3, revisao trimestral/anual). Trimestre invalido levanta
+    ValueError (a rota decide o 400)."""
+    if trimestre not in (1, 2, 3, 4):
+        raise ValueError(f"trimestre invalido: {trimestre!r}")
+    primeiro_mes = 3 * (trimestre - 1) + 1
+    primeiro = date(ano, primeiro_mes, 1)
+    ultimo_mes = primeiro_mes + 2
+    ultimo = date(ano, ultimo_mes, monthrange(ano, ultimo_mes)[1])
+    return primeiro, ultimo
+
+
+def intervalo_ano(ano: int) -> tuple[date, date]:
+    """(primeiro dia, ultimo dia) do ano informado."""
+    return date(ano, 1, 1), date(ano, 12, 31)
+
+
+def trimestre_de(hoje: date) -> int:
+    return (hoje.month - 1) // 3 + 1
+
+
 NOMES_MES = (
     "janeiro", "fevereiro", "marco", "abril", "maio", "junho",
     "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
 )
+
+
+def resumo_curto_lockscreen(tarefas_pendentes: int, gasto_hoje: float) -> str:
+    """Uma linha so, o bastante pra caber num widget de tela de bloqueio
+    (accessoryInline no Scriptable so mostra uma linha, sem quebra) -
+    ver /api/atalho/resumo e scriptable/widget_lockscreen.js."""
+    plural = "tarefa" if tarefas_pendentes == 1 else "tarefas"
+    texto = f"{tarefas_pendentes} {plural}"
+    if gasto_hoje:
+        texto += f" · R$ {gasto_hoje:.2f} hoje"
+    return texto
+
+
+def priorizar_esperas(esperas: list[dict], hoje: date) -> list[dict]:
+    """Ordena esperas pendentes por quem deveria ser respondido/cobrado
+    primeiro - combina tempo parado (dias desde `criado_em`) com a marcacao
+    de importancia (coluna `importante`, 0/1). O peso de 5 dias abaixo e o
+    que decide o equilibrio entre os dois fatores: uma espera importante
+    "pula a fila" na frente de uma mais antiga porem sem importancia
+    marcada, mas nao apaga o tempo parado - uma espera SUPER antiga ainda
+    sobe pro topo, mesmo sem importancia nenhuma. Devolve copias dos dicts
+    de entrada com `dias_parado`/`prioridade_score` adicionados, da mais
+    prioritaria pra menos."""
+    PESO_IMPORTANTE_EM_DIAS = 5
+
+    def _dias(espera: dict) -> int:
+        criado = espera["criado_em"]
+        data_criado = datetime.fromisoformat(criado).date() if isinstance(criado, str) else criado
+        return (hoje - data_criado).days
+
+    enriquecidas = []
+    for espera in esperas:
+        item = dict(espera)
+        dias = _dias(espera)
+        bonus = PESO_IMPORTANTE_EM_DIAS if espera.get("importante") else 0
+        item["dias_parado"] = dias
+        item["prioridade_score"] = dias + bonus
+        enriquecidas.append(item)
+    return sorted(enriquecidas, key=lambda i: i["prioridade_score"], reverse=True)
+
+
+NIVEIS_ENERGIA = {"baixa": 1, "media": 2, "alta": 3}
+
+
+def tarefas_compativeis_com_energia(tasks: list[dict], nivel: str) -> list[dict]:
+    """Filtra tarefas pendentes compativeis com o nivel de energia atual
+    informado (baixa/media/alta) - uma tarefa de esforco 'alta' so aparece
+    quando a energia tambem for 'alta'; uma tarefa 'baixa' cabe em
+    qualquer nivel. Tarefa sem esforco definido (nunca classificada) e
+    tratada como 'media' - nem escondida na energia baixa por padrao, nem
+    despejada ali igual as leves de verdade. Nivel invalido devolve lista
+    vazia em vez de quebrar (a rota decide o 400)."""
+    nivel_num = NIVEIS_ENERGIA.get(nivel)
+    if nivel_num is None:
+        return []
+    compativeis = []
+    for tarefa in tasks:
+        esforco = tarefa.get("esforco") or "media"
+        esforco_num = NIVEIS_ENERGIA.get(esforco, NIVEIS_ENERGIA["media"])
+        if esforco_num <= nivel_num:
+            compativeis.append(tarefa)
+    return compativeis

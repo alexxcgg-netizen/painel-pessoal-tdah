@@ -714,5 +714,24 @@ class CobrancasGenericasSemRotuloTestCase(unittest.TestCase):
         self.assertEqual(notificacoes.cobrancas_genericas_sem_rotulo(self.conn), [])
 
 
+class MontarMensagemAgrupadaTestCase(unittest.TestCase):
+    """US-C4 (Fase 5) - notificacao agrupada."""
+
+    def test_lista_vazia(self):
+        self.assertEqual(notificacoes.montar_mensagem_agrupada([]), ("", ""))
+
+    def test_um_item_so_devolve_sem_alterar(self):
+        resultado = notificacoes.montar_mensagem_agrupada([("Tarefas atrasadas", "Voce tem 2 atrasadas.")])
+        self.assertEqual(resultado, ("Tarefas atrasadas", "Voce tem 2 atrasadas."))
+
+    def test_varios_itens_agrupa_numa_mensagem_so(self):
+        titulo, corpo = notificacoes.montar_mensagem_agrupada(
+            [("Tarefas atrasadas", "Voce tem 2 atrasadas."), ("Orcamento estourado", "Mercado passou do limite.")]
+        )
+        self.assertEqual(titulo, "2 avisos")
+        self.assertIn("Tarefas atrasadas: Voce tem 2 atrasadas.", corpo)
+        self.assertIn("Orcamento estourado: Mercado passou do limite.", corpo)
+
+
 if __name__ == "__main__":
     unittest.main()

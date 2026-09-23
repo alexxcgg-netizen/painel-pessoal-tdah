@@ -2495,7 +2495,10 @@ class PainelTestCase(unittest.TestCase):
     def test_obter_silencio_retorna_padrao_quando_nao_configurado(self):
         res = self.client.get("/api/configuracoes/silencio")
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.get_json(), {"inicio": "22:00", "fim": "07:00"})
+        self.assertEqual(
+            res.get_json(),
+            {"inicio": "22:00", "fim": "07:00", "agrupar": False, "agrupar_janela_min": 2},
+        )
 
     def test_definir_silencio_valido_e_persistido(self):
         res = self.client.post("/api/configuracoes/silencio", json={"inicio": "23:00", "fim": "6:30"})
@@ -2503,7 +2506,10 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.get_json(), {"ok": True, "inicio": "23:00", "fim": "06:30"})
 
         res2 = self.client.get("/api/configuracoes/silencio")
-        self.assertEqual(res2.get_json(), {"inicio": "23:00", "fim": "06:30"})
+        self.assertEqual(
+            res2.get_json(),
+            {"inicio": "23:00", "fim": "06:30", "agrupar": False, "agrupar_janela_min": 2},
+        )
 
     def test_definir_silencio_invalido_rejeita(self):
         for corpo in [{"inicio": "25:00", "fim": "07:00"}, {"inicio": "22:00", "fim": ""}, {}]:
@@ -2512,7 +2518,7 @@ class PainelTestCase(unittest.TestCase):
         # nao alterou o padrao
         self.assertEqual(
             self.client.get("/api/configuracoes/silencio").get_json(),
-            {"inicio": "22:00", "fim": "07:00"},
+            {"inicio": "22:00", "fim": "07:00", "agrupar": False, "agrupar_janela_min": 2},
         )
 
     def test_verificar_agora_represa_aviso_soft_no_horario_silencioso(self):
@@ -6230,6 +6236,41 @@ class AutenticacaoTestCase(unittest.TestCase):
             com_token = self.client.get("/api/atalho/resumo", headers={"X-Webhook-Token": "segredo-456"})
             self.assertEqual(com_token.status_code, 200)
 
+    def test_atalho_resumo_traz_campos_compactos_pra_widget_de_tela_de_bloqueio(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.execute("INSERT INTO tasks (title) VALUES (?)", ("cotar portas",))
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo) VALUES (?, ?, 'real')", (42.0, "mercado")
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/atalho/resumo")
+        body = res.get_json()
+        self.assertEqual(body["resumo_curto"], "1 tarefa · R$ 42.00 hoje")
+        self.assertIsNone(body["linha_extra"])
+
+    def test_atalho_resumo_linha_extra_traz_proximo_compromisso(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        auth.definir_pin(conn, "123456", "123456")
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)", ("dentista", hoje, "23:59")
+        )
+        conn.commit()
+        conn.close()
+
+        agora_antes = datetime.combine(date.today(), datetime.min.time()).replace(hour=23, minute=0)
+        with patch("app.datetime") as mock_dt:
+            mock_dt.now.return_value = agora_antes
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.combine = datetime.combine
+            res = self.client.get("/api/atalho/resumo")
+
+        body = res.get_json()
+        self.assertEqual(body["linha_extra"], "23:59 dentista")
+
     def test_login_ja_autenticado_redireciona_pra_home(self):
         conn = db.get_db()
         auth.definir_pin(conn, "123456", "123456")
@@ -6259,6 +6300,8 @@ class NormalizarHoraTestCase(unittest.TestCase):
         for valor in invalidas:
             with self.subTest(valor=valor):
                 self.assertIsNone(app._normalizar_hora(valor))
+
+
 
 
 def _fake_intent(acao="desconhecido", confianca=0.0, parametros=None):
@@ -6675,6 +6718,495 @@ class TetoIaBloqueiaClassificadorTestCase(unittest.TestCase):
         ) as mock_classify:
             self.client.post("/api/intent/classificar", json={"texto": "quanto eu gastei"})
         mock_classify.assert_called_once()
+
+
+
+
+class _Fase5GrupoCTestCase(unittest.TestCase):
+    """Base comum pras histórias independentes do Grupo C (Fase 5)."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        conn.commit()
+        conn.close()
+        self.client = app.app.test_client()
+        res = self.client.post("/login", json={"pin": PIN_TESTE})
+        assert res.status_code == 200, res.get_json()
+        # mesmo motivo do PainelTestCase: sem isso, todo teste que dispara
+        # verificar_e_notificar ficaria dependente da hora real do relogio.
+        self._silencio_patch = patch("notificacoes.dentro_do_horario_silencioso", return_value=False)
+        self._silencio_patch.start()
+        self.addCleanup(self._silencio_patch.stop)
+
+    def test_smoke_secoes_novas_da_fase_5_grupo_c_estao_na_pagina(self):
+        corpo = self.client.get("/").get_data(as_text=True)
+        for elemento_id in (
+            "diario-decisao-form",
+            "lista-diario-decisoes",
+            "brain-dump-form",
+            "lista-brain-dump",
+            "energia-botoes",
+            "lista-sugestao-energia",
+            "revisao-periodo-btn",
+            "revisao-periodo-box",
+        ):
+            self.assertIn(f'id="{elemento_id}"', corpo, msg=f"elemento #{elemento_id} sumiu da pagina")
+
+
+class DiarioDecisaoTestCase(_Fase5GrupoCTestCase):
+    """US-C2."""
+
+    def test_lista_vazia_no_comeco(self):
+        self.assertEqual(self.client.get("/api/diario-decisoes").get_json(), [])
+
+    def test_cria_e_lista(self):
+        res = self.client.post(
+            "/api/diario-decisoes",
+            json={"decisao": "Trocar de corretora", "contexto": "taxa menor", "revisao_em": "2026-12-01"},
+        )
+        self.assertEqual(res.status_code, 201)
+        decisao_id = res.get_json()["id"]
+
+        lista = self.client.get("/api/diario-decisoes").get_json()
+        self.assertEqual(len(lista), 1)
+        self.assertEqual(lista[0]["id"], decisao_id)
+        self.assertEqual(lista[0]["decisao"], "Trocar de corretora")
+        self.assertEqual(lista[0]["contexto"], "taxa menor")
+        self.assertEqual(lista[0]["revisao_em"], "2026-12-01")
+        self.assertIsNone(lista[0]["resultado"])
+
+    def test_criar_sem_decisao_da_erro(self):
+        res = self.client.post("/api/diario-decisoes", json={"contexto": "sem decisao"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_registra_resultado(self):
+        decisao_id = self.client.post("/api/diario-decisoes", json={"decisao": "x"}).get_json()["id"]
+        res = self.client.post(
+            f"/api/diario-decisoes/{decisao_id}/resultado", json={"resultado": "deu certo"}
+        )
+        self.assertEqual(res.status_code, 200)
+        lista = self.client.get("/api/diario-decisoes").get_json()
+        self.assertEqual(lista[0]["resultado"], "deu certo")
+
+    def test_registrar_resultado_sem_texto_da_erro(self):
+        decisao_id = self.client.post("/api/diario-decisoes", json={"decisao": "x"}).get_json()["id"]
+        res = self.client.post(f"/api/diario-decisoes/{decisao_id}/resultado", json={"resultado": ""})
+        self.assertEqual(res.status_code, 400)
+
+    def test_registrar_resultado_id_inexistente_404(self):
+        res = self.client.post("/api/diario-decisoes/999/resultado", json={"resultado": "x"})
+        self.assertEqual(res.status_code, 404)
+
+    def test_apaga(self):
+        decisao_id = self.client.post("/api/diario-decisoes", json={"decisao": "x"}).get_json()["id"]
+        res = self.client.delete(f"/api/diario-decisoes/{decisao_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/diario-decisoes").get_json(), [])
+
+    def test_nao_colide_com_tabela_decisoes_da_fase_1(self):
+        """A tabela 'vale a pena?' (Fase 1) e o diario de decisao (Fase 5)
+        sao coisas diferentes - uma nao deve afetar a outra."""
+        conn = db.get_db()
+        db.create_decisao(conn, "Vale a pena trocar de carro?", '{"pros": [], "contras": []}')
+        conn.close()
+
+        self.client.post("/api/diario-decisoes", json={"decisao": "Troquei de carro"})
+        diario = self.client.get("/api/diario-decisoes").get_json()
+        self.assertEqual(len(diario), 1)
+        self.assertEqual(diario[0]["decisao"], "Troquei de carro")
+
+        conn = db.get_db()
+        antigas = db.list_decisoes(conn)
+        conn.close()
+        self.assertEqual(len(antigas), 1)
+        self.assertEqual(antigas[0]["pergunta"], "Vale a pena trocar de carro?")
+
+    def test_chat_tool_registrar_decisao(self):
+        with patch("claude_client.client.messages.create") as mock_create:
+            mock_create.return_value = _resp(
+                [_tool_block("registrar_decisao", {"decisao": "Mudar de cidade", "contexto": "trabalho novo"}, "t1")],
+                stop_reason="tool_use",
+            )
+            mock_create.side_effect = [
+                _resp(
+                    [_tool_block("registrar_decisao", {"decisao": "Mudar de cidade", "contexto": "trabalho novo"}, "t1")],
+                    stop_reason="tool_use",
+                ),
+                _resp([_text_block("Registrado no diario de decisao.")]),
+            ]
+            res = self.client.post("/api/chat", json={"mensagem": "decidi mudar de cidade por causa do trabalho novo"})
+        self.assertEqual(res.status_code, 200)
+        diario = self.client.get("/api/diario-decisoes").get_json()
+        self.assertEqual(len(diario), 1)
+        self.assertEqual(diario[0]["decisao"], "Mudar de cidade")
+
+
+class EsperaPrioridadeTestCase(_Fase5GrupoCTestCase):
+    """US-C5."""
+
+    def test_prioridade_vazia(self):
+        self.assertEqual(self.client.get("/api/esperas/prioridade").get_json(), [])
+
+    def test_ordena_por_tempo_parado_e_importancia(self):
+        conn = db.get_db()
+        antiga = date.today() - timedelta(days=10)
+        recente = date.today() - timedelta(days=1)
+        conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
+            ("fornecedor antigo", "ferro", antiga.isoformat() + "T10:00:00"),
+        )
+        conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
+            ("corretora recente", "proposta", recente.isoformat() + "T10:00:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        resultado = self.client.get("/api/esperas/prioridade").get_json()
+        self.assertEqual(resultado[0]["quem"], "fornecedor antigo")
+        self.assertEqual(resultado[1]["quem"], "corretora recente")
+
+    def test_marcar_importante_muda_prioridade(self):
+        conn = db.get_db()
+        antiga = date.today() - timedelta(days=5)
+        recente = date.today() - timedelta(days=2)
+        conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
+            ("fornecedor antigo", "ferro", antiga.isoformat() + "T10:00:00"),
+        )
+        cur = conn.execute(
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
+            ("corretora recente", "proposta", recente.isoformat() + "T10:00:00"),
+        )
+        recente_id = cur.lastrowid
+        conn.commit()
+        conn.close()
+
+        res = self.client.post(f"/api/esperas/{recente_id}/importante", json={"importante": True})
+        self.assertEqual(res.status_code, 200)
+
+        resultado = self.client.get("/api/esperas/prioridade").get_json()
+        self.assertEqual(resultado[0]["quem"], "corretora recente")
+
+    def test_marcar_importante_id_inexistente_404(self):
+        res = self.client.post("/api/esperas/999/importante", json={"importante": True})
+        self.assertEqual(res.status_code, 404)
+
+
+class BrainDumpTestCase(_Fase5GrupoCTestCase):
+    """US-C6."""
+
+    def test_captura_e_lista(self):
+        res = self.client.post("/api/brain-dump", json={"texto": "ideia solta qualquer"})
+        self.assertEqual(res.status_code, 201)
+        lista = self.client.get("/api/brain-dump").get_json()
+        self.assertEqual(len(lista), 1)
+        self.assertEqual(lista[0]["texto"], "ideia solta qualquer")
+        self.assertEqual(lista[0]["processado"], 0)
+
+    def test_captura_sem_texto_da_erro(self):
+        res = self.client.post("/api/brain-dump", json={"texto": "  "})
+        self.assertEqual(res.status_code, 400)
+
+    def test_converter_em_tarefa(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "levar carro na revisao"}).get_json()["id"]
+        res = self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "tarefa"})
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["tipo"], "tarefa")
+
+        tarefas = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tarefas), 1)
+        self.assertEqual(tarefas[0]["title"], "levar carro na revisao")
+
+        # some da lista de pendentes depois de convertido
+        self.assertEqual(self.client.get("/api/brain-dump").get_json(), [])
+
+    def test_converter_em_nota(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "lembrar de pesquisar sobre X"}).get_json()["id"]
+        res = self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "nota", "titulo": "pesquisa X"})
+        self.assertEqual(res.status_code, 200)
+        notas = self.client.get("/api/notas").get_json()
+        self.assertEqual(len(notas), 1)
+        self.assertEqual(notas[0]["titulo"], "pesquisa X")
+
+    def test_converter_em_gasto(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "gastei uns 30 reais no mercado"}).get_json()["id"]
+        res = self.client.post(
+            f"/api/brain-dump/{item_id}/converter",
+            json={"tipo": "gasto", "valor": 30.0, "categoria": "mercado"},
+        )
+        self.assertEqual(res.status_code, 200)
+        gastos = self.client.get("/api/expenses").get_json()
+        self.assertEqual(len(gastos), 1)
+        self.assertEqual(gastos[0]["amount"], 30.0)
+
+    def test_converter_gasto_sem_valor_da_erro(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "x"}).get_json()["id"]
+        res = self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "gasto"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_converter_tipo_invalido_da_erro(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "x"}).get_json()["id"]
+        res = self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "lixo"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_converter_item_inexistente_404(self):
+        res = self.client.post("/api/brain-dump/999/converter", json={"tipo": "nota"})
+        self.assertEqual(res.status_code, 404)
+
+    def test_converter_item_ja_processado_da_erro(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "x"}).get_json()["id"]
+        self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "nota"})
+        res = self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "nota"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_apaga_sem_converter(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "descartar"}).get_json()["id"]
+        res = self.client.delete(f"/api/brain-dump/{item_id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get("/api/brain-dump").get_json(), [])
+
+
+class RevisaoPeriodoTestCase(_Fase5GrupoCTestCase):
+    """US-C3."""
+
+    def test_trimestre_atual_por_padrao(self):
+        res = self.client.get("/api/revisao-periodo")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["tipo"], "trimestre")
+        self.assertEqual(body["ano"], date.today().year)
+        self.assertIn("tarefas_feitas", body)
+        self.assertIn("gasto_total", body)
+        self.assertIn("decisoes", body)
+
+    def test_trimestre_especifico_agrega_gasto_e_tarefas(self):
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo, created_at) VALUES (?, ?, 'real', ?)",
+            (100.0, "mercado", "2026-02-10 10:00:00"),
+        )
+        conn.execute(
+            "INSERT INTO tasks (title, completed_at) VALUES (?, ?)", ("feita no Q1", "2026-02-15 10:00:00")
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/revisao-periodo?tipo=trimestre&ano=2026&trimestre=1")
+        body = res.get_json()
+        self.assertEqual(body["gasto_total"], 100.0)
+        self.assertEqual(body["tarefas_feitas"], 1)
+        self.assertEqual(body["inicio"], "2026-01-01")
+        self.assertEqual(body["fim"], "2026-03-31")
+
+    def test_inclui_decisoes_do_diario_no_periodo(self):
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO diario_decisoes (decisao, data) VALUES (?, ?)", ("decisao Q1", "2026-02-01")
+        )
+        conn.execute(
+            "INSERT INTO diario_decisoes (decisao, data) VALUES (?, ?)", ("decisao Q3", "2026-08-01")
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/revisao-periodo?tipo=trimestre&ano=2026&trimestre=1")
+        body = res.get_json()
+        self.assertEqual(len(body["decisoes"]), 1)
+        self.assertEqual(body["decisoes"][0]["decisao"], "decisao Q1")
+
+    def test_tipo_ano(self):
+        res = self.client.get("/api/revisao-periodo?tipo=ano&ano=2026")
+        body = res.get_json()
+        self.assertEqual(body["inicio"], "2026-01-01")
+        self.assertEqual(body["fim"], "2026-12-31")
+        self.assertIsNone(body["trimestre"])
+
+    def test_tipo_invalido_da_erro(self):
+        res = self.client.get("/api/revisao-periodo?tipo=semana")
+        self.assertEqual(res.status_code, 400)
+
+    def test_trimestre_invalido_da_erro(self):
+        res = self.client.get("/api/revisao-periodo?tipo=trimestre&trimestre=9")
+        self.assertEqual(res.status_code, 400)
+
+    def test_ano_fora_de_faixa_da_erro(self):
+        res = self.client.get("/api/revisao-periodo?tipo=ano&ano=1500")
+        self.assertEqual(res.status_code, 400)
+
+
+class NotificacaoAgrupadaTestCase(_Fase5GrupoCTestCase):
+    """US-C4 - desligado por padrao (ver PainelTestCase/config tests pra
+    confirmar que o comportamento antigo, sem agrupar, continua intacto)."""
+
+    def _ligar_agrupamento(self, janela_min=2):
+        res = self.client.post(
+            "/api/configuracoes/silencio",
+            json={"inicio": "22:00", "fim": "07:00", "agrupar": True, "agrupar_janela_min": janela_min},
+        )
+        self.assertEqual(res.status_code, 200)
+
+    def _forcar_janela_vencida(self, minutos_atras=5):
+        """Reescreve o 'inicio' guardado da fila de agrupamento pra simular
+        que a janela ja passou, sem precisar mockar datetime em varios
+        modulos diferentes."""
+        conn = db.get_db()
+        guardado = json.loads(db.obter_configuracao(conn, "notificacoes_agrupadas_fila") or "{}")
+        self.assertTrue(guardado.get("itens"), msg="fila deveria ter pelo menos um item enfileirado")
+        guardado["inicio"] = (datetime.now() - timedelta(minutes=minutos_atras)).isoformat()
+        db.definir_configuracao(conn, "notificacoes_agrupadas_fila", json.dumps(guardado))
+        conn.commit()
+        conn.close()
+
+    def _duas_condicoes_nao_urgentes(self):
+        tres_dias = (date.today() - timedelta(days=3)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("responder a corretora", tres_dias)
+        )
+        conn.execute("INSERT INTO orcamentos (categoria, valor_limite) VALUES ('mercado', 100)")
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo) VALUES (110, 'mercado', 'real')"
+        )
+        conn.commit()
+        conn.close()
+
+    def _horario_seguro(self):
+        """14h de uma quarta-feira - fora de qualquer janela de horario fixo
+        que o modulo dispara sozinho (rotina da manha 07:00, planejamento
+        semanal so aos domingos 20:30, hora de dormir 22:00, fechamento
+        21:00) - sem isso, o teste ficaria sujeito a coincidir com uma
+        dessas janelas dependendo de que horas ele realmente roda."""
+        return datetime(2026, 9, 23, 14, 0)
+
+    def test_desligado_por_padrao_manda_cada_aviso_separado(self):
+        self._duas_condicoes_nao_urgentes()
+        sub = {"endpoint": "https://exemplo.com/agrupado-off", "keys": {"p256dh": "x", "auth": "y"}}
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar, patch("app.datetime") as mock_dt:
+            mock_dt.now.return_value = self._horario_seguro()
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.combine = datetime.combine
+            self.client.post("/api/push/inscrever", json=sub)
+            res = self.client.post("/api/notificacoes/verificar-agora")
+        # tarefa 3 dias atrasada dispara 2 avisos (o generico + a cobranca
+        # nominal) mais o orcamento estourado = 3, cada um seu proprio push.
+        self.assertEqual(res.get_json()["avisos_enviados"], 3)
+        self.assertEqual(mock_enviar.call_count, 3)
+
+    def test_ligado_segura_ate_a_janela_passar_e_agrupa(self):
+        self._ligar_agrupamento(janela_min=2)
+        self._duas_condicoes_nao_urgentes()
+        sub = {"endpoint": "https://exemplo.com/agrupado-on", "keys": {"p256dh": "x", "auth": "y"}}
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar, patch("app.datetime") as mock_dt:
+            mock_dt.now.return_value = self._horario_seguro()
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.combine = datetime.combine
+            self.client.post("/api/push/inscrever", json=sub)
+
+            primeiro = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(primeiro.get_json()["avisos_enviados"], 0)
+            mock_enviar.assert_not_called()
+
+            self._forcar_janela_vencida(minutos_atras=5)
+
+            segundo = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(segundo.get_json()["avisos_enviados"], 3)
+        mock_enviar.assert_called_once()
+        corpo_enviado = mock_enviar.call_args[0][2]
+        self.assertIn("responder a corretora", corpo_enviado)
+        self.assertIn("mercado", corpo_enviado)
+        titulo_enviado = mock_enviar.call_args[0][1]
+        self.assertEqual(titulo_enviado, "3 avisos")
+
+    def test_urgente_nunca_agrupa_mesmo_ligado(self):
+        self._ligar_agrupamento(janela_min=2)
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)", ("reuniao", hoje, "00:05")
+        )
+        conn.commit()
+        conn.close()
+
+        sub = {"endpoint": "https://exemplo.com/agrupado-urgente", "keys": {"p256dh": "x", "auth": "y"}}
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=0, minute=0)
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar, patch("app.datetime") as mock_dt:
+            mock_dt.now.return_value = agora
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.combine = datetime.combine
+            self.client.post("/api/push/inscrever", json=sub)
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        mock_enviar.assert_called_once()
+        self.assertIn("reuniao", mock_enviar.call_args[0][2])
+
+
+class SugestaoEnergiaTestCase(_Fase5GrupoCTestCase):
+    """US-C7."""
+
+    def test_definir_esforco_e_sugestao_filtra(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES ('tarefa leve')")
+        conn.execute("INSERT INTO tasks (title) VALUES ('tarefa pesada')")
+        conn.commit()
+        ids = [r["id"] for r in conn.execute("SELECT id FROM tasks ORDER BY id").fetchall()]
+        conn.close()
+        leve_id, pesada_id = ids
+
+        self.client.post(f"/api/tasks/{leve_id}/esforco", json={"esforco": "baixa"})
+        self.client.post(f"/api/tasks/{pesada_id}/esforco", json={"esforco": "alta"})
+
+        baixa = self.client.get("/api/tarefas/sugestao-energia?nivel=baixa").get_json()
+        self.assertEqual([t["id"] for t in baixa], [leve_id])
+
+        alta = self.client.get("/api/tarefas/sugestao-energia?nivel=alta").get_json()
+        self.assertEqual(sorted(t["id"] for t in alta), sorted([leve_id, pesada_id]))
+
+    def test_definir_esforco_invalido_da_erro(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES ('x')")
+        conn.commit()
+        task_id = conn.execute("SELECT id FROM tasks").fetchone()["id"]
+        conn.close()
+        res = self.client.post(f"/api/tasks/{task_id}/esforco", json={"esforco": "lixo"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_definir_esforco_tarefa_inexistente_404(self):
+        res = self.client.post("/api/tasks/999/esforco", json={"esforco": "baixa"})
+        self.assertEqual(res.status_code, 404)
+
+    def test_sugestao_nivel_invalido_da_erro(self):
+        res = self.client.get("/api/tarefas/sugestao-energia?nivel=lixo")
+        self.assertEqual(res.status_code, 400)
+
+    def test_sugestao_sem_nivel_da_erro(self):
+        res = self.client.get("/api/tarefas/sugestao-energia")
+        self.assertEqual(res.status_code, 400)
+
+    def test_tarefa_sem_esforco_definido_entra_na_media(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES ('sem classificacao')")
+        conn.commit()
+        conn.close()
+        media = self.client.get("/api/tarefas/sugestao-energia?nivel=media").get_json()
+        self.assertEqual(len(media), 1)
+        baixa = self.client.get("/api/tarefas/sugestao-energia?nivel=baixa").get_json()
+        self.assertEqual(baixa, [])
+
+
 
 
 if __name__ == "__main__":

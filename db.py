@@ -552,6 +552,33 @@ def init_db():
             vezes_confirmado INTEGER NOT NULL DEFAULT 1,
             ultima_vez TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        -- Fase 5 (US-C2): diario de decisao - o que foi decidido, o contexto/
+        -- motivo na hora, e um resultado preenchido depois (revisao). NAO e
+        -- a mesma coisa que a tabela `decisoes` (Fase 1 - "vale a pena?" com
+        -- pros/contras da IA, efemera): esta aqui e um diario persistente pra
+        -- revisar depois, dai o nome diferente pra nao colidir.
+        CREATE TABLE IF NOT EXISTS diario_decisoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            decisao TEXT NOT NULL,
+            contexto TEXT,
+            data TEXT NOT NULL DEFAULT (date('now')),
+            revisao_em TEXT,
+            resultado TEXT,
+            source_text TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        -- Fase 5 (US-C6): brain dump - despejo rapido de pensamento solto,
+        -- sem classificar em tarefa/nota/gasto na hora. `processado` vira 1
+        -- quando o item e convertido (ou descartado) depois, com calma.
+        CREATE TABLE IF NOT EXISTS brain_dump (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            texto TEXT NOT NULL,
+            processado INTEGER NOT NULL DEFAULT 0,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -574,6 +601,14 @@ def init_db():
     # classificador de intent, etc) - existia so model/tokens/custo antes,
     # sem como separar o gasto por origem no card financeiro.
     _garantir_coluna(conn, "api_usage", "feature", "TEXT NOT NULL DEFAULT 'outro'")
+    # Fase 5 (US-C5): marcacao simples de importancia numa espera ja
+    # existente, pra priorizar quem responder primeiro (ver
+    # vida.priorizar_esperas) sem criar um sistema de contatos novo.
+    _garantir_coluna(conn, "esperas", "importante", "INTEGER NOT NULL DEFAULT 0")
+    # Fase 5 (US-C7): esforco estimado da tarefa (baixa/media/alta) - usado
+    # pra sugerir tarefas compativeis com o nivel de energia atual (ver
+    # vida.tarefas_compativeis_com_energia). Sem valor = tratado como 'media'.
+    _garantir_coluna(conn, "tasks", "esforco", "TEXT")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
@@ -1026,6 +1061,104 @@ def buscar_notas(conn, termo: str, limit: int = 10) -> list[dict]:
 def apagar_nota(conn, nota_id: int):
     conn.execute("DELETE FROM notas WHERE id = ?", (nota_id,))
     conn.commit()
+
+
+def create_diario_decisao(
+    conn,
+    decisao: str,
+    contexto: str | None = None,
+    revisao_em: str | None = None,
+    source_text: str | None = None,
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO diario_decisoes (decisao, contexto, revisao_em, source_text) VALUES (?, ?, ?, ?)",
+        (decisao, contexto, revisao_em, source_text),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_diario_decisoes(conn, limit: int = 100) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM diario_decisoes ORDER BY data DESC, criado_em DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def obter_diario_decisao(conn, decisao_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM diario_decisoes WHERE id = ?", (decisao_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def registrar_resultado_diario_decisao(conn, decisao_id: int, resultado: str) -> bool:
+    cur = conn.execute(
+        "UPDATE diario_decisoes SET resultado = ?, atualizado_em = datetime('now') WHERE id = ?",
+        (resultado, decisao_id),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def apagar_diario_decisao(conn, decisao_id: int):
+    conn.execute("DELETE FROM diario_decisoes WHERE id = ?", (decisao_id,))
+    conn.commit()
+
+
+def create_brain_dump(conn, texto: str) -> int:
+    cur = conn.execute("INSERT INTO brain_dump (texto) VALUES (?)", (texto,))
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_brain_dump_pendentes(conn, limit: int = 100) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM brain_dump WHERE processado = 0 ORDER BY criado_em LIMIT ?", (limit,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def obter_brain_dump(conn, item_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM brain_dump WHERE id = ?", (item_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def marcar_brain_dump_processado(conn, item_id: int) -> bool:
+    cur = conn.execute(
+        "UPDATE brain_dump SET processado = 1 WHERE id = ? AND processado = 0", (item_id,)
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def apagar_brain_dump(conn, item_id: int):
+    conn.execute("DELETE FROM brain_dump WHERE id = ?", (item_id,))
+    conn.commit()
+
+
+def criar_tarefa_de_brain_dump(
+    conn, titulo: str, due_date: str | None = None, hora: str | None = None, source_text: str | None = None
+) -> int:
+    """Insert minimo de tarefa (sem passar pela classificacao por IA de
+    /api/capture) - usado so na conversao de um item de brain dump (US-C6),
+    onde o Alex ja escolheu manualmente que e uma tarefa."""
+    cur = conn.execute(
+        "INSERT INTO tasks (title, due_date, hora, source_text) VALUES (?, ?, ?, ?)",
+        (titulo, due_date, hora, source_text),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def criar_gasto_de_brain_dump(
+    conn, valor: float, categoria: str | None, descricao: str, source_text: str | None = None
+) -> int:
+    """Mesmo espirito de criar_tarefa_de_brain_dump, so que pra gasto."""
+    cur = conn.execute(
+        "INSERT INTO expenses (amount, category, description, source_text, tipo) VALUES (?, ?, ?, ?, 'real')",
+        (valor, categoria or "outros", descricao, source_text),
+    )
+    conn.commit()
+    return cur.lastrowid
 
 
 CAMPOS_SAUDE = ("passos", "distancia_km", "sono_horas", "andares_subidos")
@@ -1482,6 +1615,14 @@ def apagar_espera(conn, espera_id: int):
     conn.commit()
 
 
+def marcar_espera_importante(conn, espera_id: int, importante: bool) -> bool:
+    cur = conn.execute(
+        "UPDATE esperas SET importante = ? WHERE id = ?", (1 if importante else 0, espera_id)
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
 def espera_pendente_por_quem_aproximado(conn, quem: str) -> dict | None:
     """Acha uma espera ainda em aberto cujo 'quem' bate (sem diferenciar
     maiusculas/minusculas, por substring nos dois sentidos) - mesmo padrao de
@@ -1550,6 +1691,15 @@ def complete_task(conn, task_id: int) -> None:
     conn.execute("UPDATE tasks SET completed_at = datetime('now') WHERE id = ?", (task_id,))
     fechar_interacao_aprendizado(conn, "tarefa_parada", task_id)
     conn.commit()
+
+
+def definir_esforco_tarefa(conn, task_id: int, esforco: str) -> bool:
+    """Fase 5 (US-C7): marca o esforco estimado (baixa/media/alta) de uma
+    tarefa - usado por vida.tarefas_compativeis_com_energia pra sugerir
+    tarefa de acordo com o nivel de energia atual."""
+    cur = conn.execute("UPDATE tasks SET esforco = ? WHERE id = ?", (esforco, task_id))
+    conn.commit()
+    return cur.rowcount > 0
 
 
 def reclassificar_tarefa_para_gasto(

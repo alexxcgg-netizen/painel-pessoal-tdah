@@ -5,7 +5,7 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
-## 2026-09-23 (26) - Fase 5 Grupo A: nucleo do classificador de intent
+## 2026-09-23 (27) - Fase 5 Grupo A: nucleo do classificador de intent
 
 Branch `fase5/grupo-a-nucleo-intent` (agente IA autonomo, worktree isolado). US-A1 a US-A6
 do `tasks/fase5/grupo-a-nucleo-intent.json`, todas passando. Objetivo: dar ao Grupo B
@@ -44,6 +44,43 @@ e teto de gasto - ver `docs/INTENT.md` pro contrato completo.
   como falso-positivo (mesmos testes passam limpos fora da janela). Recomendacao pra uma
   historia futura: mockar `datetime.now()` nesses testes tambem, como ja e feito pro
   silencio noturno (`notificacoes.dentro_do_horario_silencioso`).
+## 2026-09-23 (26) - Fase 5, Grupo C1: historias independentes (US-C1 a US-C7)
+
+Leva de 7 historias totalmente independentes do nucleo de intent (rodaram em worktree/branch
+isolada, `fase5/grupo-c1`), cada uma conferida contra `TODO.md`/`CHANGELOG.md` antes de criar
+algo do zero (a maioria estende mecanismo ja existente em vez de duplicar).
+
+- **US-C1 - Widget de tela de bloqueio**: `GET /api/atalho/resumo` ganhou `resumo_curto`/
+  `linha_extra` (texto compacto pra accessoryInline/Rectangular do iOS 16+). Script novo
+  `scriptable/widget_lockscreen.js` (sem cor customizada - o iOS renderiza monocromatico
+  nesses slots) + `docs/WIDGET_TELA_BLOQUEIO.md`.
+- **US-C2 - Diario de decisao**: tabela `diario_decisoes` (decisao, contexto, data,
+  revisao_em, resultado) - nome escolhido pra NAO colidir com a tabela `decisoes` da Fase 1
+  ("vale a pena?", efemera). CRUD em `/api/diario-decisoes`, chat tool `registrar_decisao`,
+  secao na aba Painel (mesmo padrao visual de Notas).
+- **US-C3 - Revisao trimestral/anual**: `GET /api/revisao-periodo` reaproveita `_fatos_periodo`
+  (a mesma funcao ja usada por `/api/revisao-mensal` e `/api/progresso` - financeiro, tarefas
+  concluidas, saude) e soma as decisoes do diario (US-C2) do periodo. Tela na aba Vida.
+- **US-C4 - Notificacao agrupada**: integrado ao MESMO endpoint/mecanismo do modo silencioso
+  configuravel (`/api/configuracoes/silencio` ganhou `agrupar`/`agrupar_janela_min`) -
+  desligado por padrao (nao muda comportamento de quem nunca configurou). Ligado: avisos
+  nao-urgentes ficam numa fila persistida (mesmo padrao de `avisos_adiados`/hiperfoco) ate a
+  janela configurada passar, ai viram UMA mensagem so (`notificacoes.montar_mensagem_agrupada`).
+  Urgente nunca agrupa.
+- **US-C5 - Priorizacao de contato**: reaproveita a tabela/logica de esperas pendentes (nao
+  cria sistema de contatos novo) - coluna nova `esperas.importante` + `vida.priorizar_esperas`
+  (tempo parado + bonus de 5 dias se importante) em `GET /api/esperas/prioridade`.
+- **US-C6 - Brain dump**: tabela `brain_dump` (texto, processado) - captura em
+  `POST /api/brain-dump`, lista em `GET`, conversao em `/api/brain-dump/<id>/converter`
+  (tarefa/nota/gasto, sempre com o Alex escolhendo o tipo - nunca salva sem revisao). Secao na
+  aba Painel.
+- **US-C7 - Sugestao por energia**: coluna nova `tasks.esforco` (baixa/media/alta, sem valor =
+  tratado como media) + `vida.tarefas_compativeis_com_energia`. 3 botoes na aba Tarefas
+  (`GET /api/tarefas/sugestao-energia?nivel=`), tag clicavel em cada tarefa pra marcar o
+  esforco (mesmo padrao de `criarSeletorCategoriaGasto`).
+
+Suite completa (1174 testes) sem nenhuma regressao - as 5 falhas pre-existentes de
+notificacao de voo sensivel a horario continuam as mesmas de antes desta leva.
 
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 

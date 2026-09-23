@@ -270,6 +270,8 @@ function showTab(name) {
     loadMedidas();
     loadEsperas();
     loadNotas();
+    loadDecisoes();
+    loadBrainDump();
   }
   if (name === "tarefas") loadTasks();
   if (name === "gastos") {
@@ -1517,6 +1519,302 @@ async function loadNotas() {
   });
 }
 
+// ---- Diario de decisao (Fase 5, US-C2) --------------------------------
+async function loadDecisoes() {
+  const decisoes = await apiFetch("/api/diario-decisoes");
+  if (!decisoes) return;
+
+  const list = $("#lista-diario-decisoes");
+  list.innerHTML = "";
+  $("#diario-decisoes-vazio").hidden = decisoes.length > 0;
+
+  decisoes.forEach((d) => {
+    const li = document.createElement("li");
+    li.className = "item";
+
+    const linha = document.createElement("div");
+    linha.className = "item-linha";
+
+    const tituloWrap = document.createElement("div");
+    const titulo = document.createElement("span");
+    titulo.className = "item-titulo";
+    titulo.textContent = d.decisao;
+    tituloWrap.appendChild(titulo);
+
+    if (d.contexto) {
+      const contexto = document.createElement("span");
+      contexto.className = "item-quando";
+      contexto.textContent = d.contexto;
+      tituloWrap.appendChild(contexto);
+    }
+
+    const resultado = document.createElement("span");
+    resultado.className = "item-quando";
+    resultado.textContent = d.resultado ? `Resultado: ${d.resultado}` : "Sem resultado ainda";
+    tituloWrap.appendChild(resultado);
+    linha.appendChild(tituloWrap);
+
+    const acoes = document.createElement("div");
+    acoes.className = "item-acoes";
+
+    if (!d.resultado) {
+      const btnResultado = document.createElement("button");
+      btnResultado.className = "btn-com-icone";
+      btnResultado.innerHTML = `${ICONE_CHECK}resultado`;
+      btnResultado.addEventListener("click", () => {
+        if (li.querySelector(".correcao-form")) return;
+        const form = document.createElement("form");
+        form.className = "correcao-form form-linha";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.maxLength = 300;
+        input.placeholder = "Como foi?";
+        input.required = true;
+        const salvar = document.createElement("button");
+        salvar.type = "submit";
+        salvar.className = "btn-com-icone primario";
+        salvar.textContent = "Salvar";
+        form.appendChild(input);
+        form.appendChild(salvar);
+        form.addEventListener("submit", async (ev) => {
+          ev.preventDefault();
+          const data = await apiFetch(`/api/diario-decisoes/${d.id}/resultado`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ resultado: input.value.trim() }),
+          });
+          if (data) loadDecisoes();
+        });
+        li.appendChild(form);
+        input.focus();
+      });
+      acoes.appendChild(btnResultado);
+    }
+
+    const apagarBtn = document.createElement("button");
+    apagarBtn.className = "btn-com-icone";
+    apagarBtn.innerHTML = ICONE_TRASH;
+    apagarBtn.setAttribute("aria-label", "Apagar");
+    apagarBtn.addEventListener("click", async () => {
+      apagarBtn.disabled = true;
+      const ok = await apiFetch(`/api/diario-decisoes/${d.id}`, { method: "DELETE" });
+      if (ok) {
+        li.classList.add("saindo");
+        setTimeout(() => li.remove(), 250);
+      } else {
+        apagarBtn.disabled = false;
+      }
+    });
+    acoes.appendChild(apagarBtn);
+    linha.appendChild(acoes);
+
+    li.appendChild(linha);
+    list.appendChild(li);
+  });
+}
+
+$("#diario-decisao-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#diario-decisao-btn");
+  const textoInput = $("#diario-decisao-texto");
+  const contextoInput = $("#diario-decisao-contexto");
+  const decisao = textoInput.value.trim();
+  if (!decisao) return;
+
+  setBotaoCarregando(btn, true, "salvando...");
+  const data = await apiFetch("/api/diario-decisoes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ decisao, contexto: contextoInput.value.trim() }),
+  });
+  setBotaoCarregando(btn, false, "Registrar");
+  if (!data) return;
+
+  textoInput.value = "";
+  contextoInput.value = "";
+  pulsarSucesso(textoInput);
+  loadDecisoes();
+});
+
+// ---- Brain dump (Fase 5, US-C6) ----------------------------------------
+async function loadBrainDump() {
+  const itens = await apiFetch("/api/brain-dump");
+  if (!itens) return;
+
+  const list = $("#lista-brain-dump");
+  list.innerHTML = "";
+  $("#brain-dump-vazio").hidden = itens.length > 0;
+
+  itens.forEach((item) => {
+    const li = document.createElement("li");
+    li.className = "item";
+
+    const linha = document.createElement("div");
+    linha.className = "item-linha";
+
+    const tituloWrap = document.createElement("div");
+    const titulo = document.createElement("span");
+    titulo.className = "item-titulo";
+    titulo.textContent = item.texto;
+    tituloWrap.appendChild(titulo);
+    linha.appendChild(tituloWrap);
+
+    const acoes = document.createElement("div");
+    acoes.className = "item-acoes";
+
+    const converterPara = async (tipo) => {
+      const corpo = { tipo };
+      if (tipo === "gasto") {
+        const valorTexto = window.prompt("Valor do gasto (ex: 30.00)?");
+        const valor = parseFloat((valorTexto || "").replace(",", "."));
+        if (!valor || valor <= 0) return;
+        corpo.valor = valor;
+      }
+      const data = await apiFetch(`/api/brain-dump/${item.id}/converter`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corpo),
+      });
+      if (!data) return;
+      li.classList.add("saindo");
+      setTimeout(() => {
+        loadBrainDump();
+        if (tipo === "tarefa") loadTasks();
+        if (tipo === "nota") loadNotas();
+        if (tipo === "gasto") loadExpenses();
+      }, 220);
+    };
+
+    [
+      ["tarefa", "→ tarefa"],
+      ["nota", "→ nota"],
+      ["gasto", "→ gasto"],
+    ].forEach(([tipo, rotulo]) => {
+      const btn = document.createElement("button");
+      btn.className = "btn-com-icone";
+      btn.textContent = rotulo;
+      btn.addEventListener("click", () => converterPara(tipo));
+      acoes.appendChild(btn);
+    });
+
+    const apagarBtn = document.createElement("button");
+    apagarBtn.className = "btn-com-icone";
+    apagarBtn.innerHTML = ICONE_TRASH;
+    apagarBtn.setAttribute("aria-label", "Apagar");
+    apagarBtn.addEventListener("click", async () => {
+      apagarBtn.disabled = true;
+      const ok = await apiFetch(`/api/brain-dump/${item.id}`, { method: "DELETE" });
+      if (ok) {
+        li.classList.add("saindo");
+        setTimeout(() => li.remove(), 250);
+      } else {
+        apagarBtn.disabled = false;
+      }
+    });
+    acoes.appendChild(apagarBtn);
+    linha.appendChild(acoes);
+
+    li.appendChild(linha);
+    list.appendChild(li);
+  });
+}
+
+$("#brain-dump-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#brain-dump-btn");
+  const input = $("#brain-dump-texto");
+  const texto = input.value.trim();
+  if (!texto) return;
+
+  setBotaoCarregando(btn, true, "guardando...");
+  const data = await apiFetch("/api/brain-dump", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ texto }),
+  });
+  setBotaoCarregando(btn, false, "Guardar");
+  if (!data) return;
+
+  input.value = "";
+  pulsarSucesso(input);
+  loadBrainDump();
+});
+
+// ---- Sugestao por energia (Fase 5, US-C7) -------------------------------
+async function carregarSugestaoEnergia(nivel) {
+  const tasks = await apiFetch(`/api/tarefas/sugestao-energia?nivel=${nivel}`);
+  if (!tasks) return;
+
+  $("#energia-botoes")
+    .querySelectorAll("button")
+    .forEach((b) => b.classList.toggle("primario", b.dataset.nivel === nivel));
+
+  const list = $("#lista-sugestao-energia");
+  list.innerHTML = "";
+  $("#sugestao-energia-vazio").hidden = tasks.length > 0;
+  tasks.forEach((t) => list.appendChild(criarItemTarefa(t)));
+}
+
+$("#energia-botoes")
+  .querySelectorAll("button")
+  .forEach((btn) => {
+    btn.addEventListener("click", () => carregarSugestaoEnergia(btn.dataset.nivel));
+  });
+
+// ---- Revisao trimestral/anual (Fase 5, US-C3) ---------------------------
+async function carregarRevisaoPeriodo() {
+  const tipo = $("#revisao-periodo-tipo").value;
+  const ano = $("#revisao-periodo-ano").value || new Date().getFullYear();
+  const trimestre = $("#revisao-periodo-trimestre").value;
+  const params = new URLSearchParams({ tipo, ano });
+  if (tipo === "trimestre") params.set("trimestre", trimestre);
+
+  const dados = await apiFetch(`/api/revisao-periodo?${params.toString()}`);
+  if (!dados) return;
+
+  const box = $("#revisao-periodo-box");
+  box.hidden = false;
+  $("#revisao-periodo-titulo").textContent =
+    dados.tipo === "trimestre"
+      ? `T${dados.trimestre}/${dados.ano} (${dados.inicio} a ${dados.fim})`
+      : `${dados.ano} (${dados.inicio} a ${dados.fim})`;
+
+  const grid = $("#revisao-periodo-grid");
+  grid.innerHTML = "";
+  const stats = [
+    ["Tarefas concluídas", dados.tarefas_feitas],
+    ["Gasto total", fmtMoeda(dados.gasto_total)],
+    ["Sono médio", dados.sono_medio != null ? `${dados.sono_medio}h` : "—"],
+    ["Humor médio", dados.humor_medio || "—"],
+    ["Decisões registradas", dados.decisoes.length],
+    ["Decisões com resultado", dados.decisoes_com_resultado],
+  ];
+  stats.forEach(([rotulo, valor]) => {
+    const item = document.createElement("div");
+    item.className = "progresso-item";
+    const v = document.createElement("span");
+    v.className = "progresso-valor";
+    v.textContent = valor;
+    const r = document.createElement("span");
+    r.className = "progresso-rotulo";
+    r.textContent = rotulo;
+    item.appendChild(v);
+    item.appendChild(r);
+    grid.appendChild(item);
+  });
+
+  const listaDecisoes = $("#revisao-periodo-decisoes");
+  listaDecisoes.innerHTML = "";
+  $("#revisao-periodo-decisoes-titulo").hidden = dados.decisoes.length === 0;
+  dados.decisoes.forEach((d) => {
+    const li = document.createElement("li");
+    li.textContent = d.resultado ? `${d.decisao} — ${d.resultado}` : d.decisao;
+    listaDecisoes.appendChild(li);
+  });
+}
+
+$("#revisao-periodo-btn").addEventListener("click", carregarRevisaoPeriodo);
+
 $("#espera-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#espera-btn");
@@ -1551,6 +1849,46 @@ async function loadUso() {
   $("#uso-custo").textContent = `gasto com IA ate agora: ${fmtUSD(data.custo_usd)}`;
 }
 
+const NIVEIS_ENERGIA = ["baixa", "media", "alta"];
+
+// Fase 5 (US-C7): esforco estimado da tarefa - mesmo espirito de
+// criarSeletorCategoriaGasto (tag que vira <select> num toque), pra
+// vida.tarefas_compativeis_com_energia ter o que filtrar.
+function criarTagEsforco(t) {
+  const tag = document.createElement("span");
+  tag.className = "item-quando item-tag-esforco";
+  tag.textContent = t.esforco ? `esforço: ${t.esforco}` : "definir esforço";
+  tag.title = "toque pra marcar o esforco dessa tarefa";
+  tag.addEventListener("click", () => {
+    const select = document.createElement("select");
+    select.className = "correcao-select";
+    NIVEIS_ENERGIA.forEach((n) => {
+      const opt = document.createElement("option");
+      opt.value = n;
+      opt.textContent = n;
+      if (n === t.esforco) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener("click", (ev) => ev.stopPropagation());
+    select.addEventListener("blur", () => {
+      if (select.parentElement) select.replaceWith(tag);
+    });
+    select.addEventListener("change", async () => {
+      select.disabled = true;
+      const data = await apiFetch(`/api/tasks/${t.id}/esforco`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ esforco: select.value }),
+      });
+      if (data) loadTasks();
+      else select.disabled = false;
+    });
+    tag.replaceWith(select);
+    select.focus();
+  });
+  return tag;
+}
+
 function criarItemTarefa(t) {
   const li = document.createElement("li");
   li.className = "item";
@@ -1576,6 +1914,7 @@ function criarItemTarefa(t) {
     quando.textContent = t.hora ? `${base} as ${t.hora}` : base;
     tituloWrap.appendChild(quando);
   }
+  tituloWrap.appendChild(criarTagEsforco(t));
 
   const acoes = document.createElement("div");
   acoes.className = "item-acoes";
