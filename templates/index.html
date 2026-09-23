@@ -692,6 +692,42 @@
           CSV
         </a>
       </h2>
+      <div id="nota-fiscal-box" class="card-vida">
+        <div class="card-vida-topo">
+          <h3>Nota fiscal por foto</h3>
+        </div>
+        <p class="dica-metas">Tira uma foto da nota que eu leio o valor, o estabelecimento e a data
+          sozinho (voce confere antes de salvar).</p>
+        <input type="file" id="nota-fiscal-input" accept="image/*" capture="environment" hidden />
+        <label for="nota-fiscal-input" id="nota-fiscal-label" class="ofx-input-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h2l2-2h8l2 2h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <span>Tirar/escolher foto da nota</span>
+        </label>
+        <div id="nota-fiscal-confirmacao" hidden>
+          <p class="card-vida-meta" id="nota-fiscal-status"></p>
+          <div class="form-linha">
+            <input type="number" step="0.01" min="0.01" id="nf-valor" placeholder="Valor (R$)" />
+            <input type="text" id="nf-estabelecimento" placeholder="Estabelecimento" />
+            <input type="date" id="nf-data" />
+            <select id="nf-categoria">
+              <option value="">Categoria automatica</option>
+              <option value="mercado">Mercado</option>
+              <option value="transporte">Transporte</option>
+              <option value="lazer">Lazer</option>
+              <option value="contas">Contas</option>
+              <option value="saude">Saude</option>
+              <option value="outros">Outros</option>
+            </select>
+          </div>
+          <div class="form-linha">
+            <button type="button" id="nf-confirmar-btn" class="btn-com-icone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              Confirmar e salvar
+            </button>
+            <button type="button" id="nf-cancelar-btn" class="btn-com-icone">Cancelar</button>
+          </div>
+        </div>
+      </div>
       <div id="fim-mes-box" class="card-vida" hidden>
         <div class="card-vida-topo">
           <h3>Fim do mes</h3>

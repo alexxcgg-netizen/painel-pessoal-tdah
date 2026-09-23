@@ -422,6 +422,112 @@ if (typeof FilaOffline !== "undefined") {
     if (cardPendente) cardPendente.remove();
     mostrarErro((corpo && corpo.error) || `Nao consegui sincronizar um item pendente (HTTP ${status}). Foi descartado.`);
   });
+
+  // Nota fiscal tirada sem internet (US-C8): a extracao em si nao pode
+  // esperar so no navegador porque depende da API de visao - fica na fila
+  // igual qualquer outra escrita, e quando sincronizar mostra a MESMA tela
+  // de confirmacao de quem tirou a foto com internet (nunca salva sozinho).
+  FilaOffline.registrarCallback("nota_fiscal_extrair", (data) => {
+    if (data && !data.duvida) mostrarConfirmacaoNotaFiscal(data);
+  });
+}
+
+// Nota fiscal por foto (US-C8/US-C9) ----------------------------------------
+
+function lerArquivoComoBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function mostrarConfirmacaoNotaFiscal(dados) {
+  $("#nf-valor").value = dados.valor != null ? dados.valor : "";
+  $("#nf-estabelecimento").value = dados.estabelecimento || "";
+  $("#nf-data").value = dados.data || "";
+  $("#nf-categoria").value = "";
+  $("#nota-fiscal-status").textContent =
+    dados.valor == null || !dados.estabelecimento
+      ? "Nao consegui ler tudo com certeza na foto - confere/completa antes de salvar."
+      : "Confere os dados da nota antes de salvar.";
+  $("#nota-fiscal-confirmacao").hidden = false;
+}
+
+const notaFiscalInput = $("#nota-fiscal-input");
+if (notaFiscalInput) {
+  notaFiscalInput.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // permite escolher a mesma foto de novo depois
+    if (!file) return;
+
+    const label = $("#nota-fiscal-label");
+    const htmlOriginal = label.innerHTML;
+    label.innerHTML = `<span class="spinner"></span><span>Lendo a nota...</span>`;
+    let imagemBase64;
+    try {
+      imagemBase64 = await lerArquivoComoBase64(file);
+    } catch {
+      label.innerHTML = htmlOriginal;
+      mostrarErro("Nao consegui ler essa foto. Tenta de novo.");
+      return;
+    }
+
+    const clientId = crypto.randomUUID ? crypto.randomUUID() : `nf-${Date.now()}`;
+    const data = await apiFetch(
+      "/api/notas-fiscais/extrair",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagem_base64: imagemBase64, media_type: file.type || "image/jpeg" }),
+      },
+      { tipo: "nota_fiscal_extrair", id: clientId }
+    );
+    label.innerHTML = htmlOriginal;
+    if (!data) return; // erro real ja mostrado por apiFetch
+    if (data.__enfileirado) {
+      $("#nota-fiscal-status").textContent = "Sem conexao - a foto foi salva e vai ler assim que voltar.";
+      $("#nota-fiscal-confirmacao").hidden = true;
+      return;
+    }
+    mostrarConfirmacaoNotaFiscal(data);
+  });
+}
+
+const nfConfirmarBtn = $("#nf-confirmar-btn");
+if (nfConfirmarBtn) {
+  nfConfirmarBtn.addEventListener("click", async () => {
+    const valor = parseFloat($("#nf-valor").value);
+    const estabelecimento = $("#nf-estabelecimento").value.trim();
+    if (!estabelecimento || !(valor > 0)) {
+      mostrarErro("Preenche valor (maior que zero) e estabelecimento antes de salvar.");
+      return;
+    }
+    setBotaoCarregando(nfConfirmarBtn, true, "Salvando...");
+    const data = await apiFetch("/api/notas-fiscais/confirmar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        valor,
+        estabelecimento,
+        data: $("#nf-data").value || null,
+        categoria: $("#nf-categoria").value || null,
+      }),
+    });
+    setBotaoCarregando(nfConfirmarBtn, false, "Confirmar e salvar");
+    if (!data) return;
+    $("#nota-fiscal-confirmacao").hidden = true;
+    loadExpenses();
+    loadUso();
+  });
+}
+
+const nfCancelarBtn = $("#nf-cancelar-btn");
+if (nfCancelarBtn) {
+  nfCancelarBtn.addEventListener("click", () => {
+    $("#nota-fiscal-confirmacao").hidden = true;
+  });
 }
 
 async function enviarCaptura(text, clarificacao) {

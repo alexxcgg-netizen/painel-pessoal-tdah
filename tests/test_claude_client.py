@@ -162,5 +162,47 @@ class ExtrairItemCotacaoPdfTestCase(unittest.TestCase):
         self.assertEqual(dados["fornecedor"], "X")
 
 
+class ExtrairNotaFiscalFotoTestCase(unittest.TestCase):
+    def test_extrai_campos_do_json_devolvido(self):
+        dados_json = '{"valor": 89.9, "estabelecimento": "Supermercado Bom Preco", "data": "2026-09-20"}'
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)]),
+        ) as mock_create:
+            dados, usage = claude_client.extrair_nota_fiscal_foto(b"fake-jpeg-bytes", "image/jpeg")
+
+        self.assertEqual(dados["valor"], 89.9)
+        self.assertEqual(dados["estabelecimento"], "Supermercado Bom Preco")
+        self.assertEqual(dados["data"], "2026-09-20")
+        self.assertEqual(usage["input_tokens"], 100)
+
+        conteudo_enviado = mock_create.call_args.kwargs["messages"][0]["content"]
+        blocos_imagem = [b for b in conteudo_enviado if b["type"] == "image"]
+        self.assertEqual(len(blocos_imagem), 1)
+        self.assertEqual(blocos_imagem[0]["source"]["media_type"], "image/jpeg")
+
+    def test_extrai_com_campos_nulos_quando_foto_ilegivel(self):
+        dados_json = '{"valor": null, "estabelecimento": null, "data": null}'
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)]),
+        ):
+            dados, _ = claude_client.extrair_nota_fiscal_foto(b"conteudo", "image/png")
+        self.assertIsNone(dados["valor"])
+        self.assertIsNone(dados["estabelecimento"])
+
+    def test_extrai_ignora_markdown_ao_redor_do_json(self):
+        dados_json = '```json\n{"valor": 20.0, "estabelecimento": "Padaria", "data": null}\n```'
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)]),
+        ):
+            dados, _ = claude_client.extrair_nota_fiscal_foto(b"conteudo", "image/jpeg")
+        self.assertEqual(dados["estabelecimento"], "Padaria")
+
+
 if __name__ == "__main__":
     unittest.main()

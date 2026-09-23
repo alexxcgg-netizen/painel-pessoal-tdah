@@ -1,3 +1,17 @@
 # Fase 5 - Grupo C - Progress Log
 Iniciado: 2026-09-23T06:28:35Z
 ---
+[C2] 2026-09-23 - US-C8 (extracao de nota fiscal por foto) + US-C9 (integracao com fluxo de gasto): passes=true.
+  - claude_client.extrair_nota_fiscal_foto (API de visao Anthropic, reaproveita claude_client.py, sem OCR local).
+  - POST /api/notas-fiscais/extrair (so extrai) + POST /api/notas-fiscais/confirmar (categoriza via
+    gastos.sugerir_categoria reaproveitado + salva o gasto so depois de confirmacao explicita na UI).
+  - Offline: fila-offline.js reaproveitada via apiFetch(...,{tipo:'nota_fiscal_extrair'}) - corpo em JSON
+    base64 (nao multipart) de proposito pra replay generico da fila funcionar sem tratamento especial.
+  - Custo de IA registrado em api_usage (tabela generica ja existente) - uso_api_ia da US-A5 (Grupo A)
+    ainda nao existe neste branch; comentario no codigo (app.py) documenta migrar/duplicar o registro
+    la quando o Grupo A integrar.
+  - Testes novos: tests/test_claude_client.py::ExtrairNotaFiscalFotoTestCase (3), tests/test_app.py
+    (12 testes, mock de claude_client.extrair_nota_fiscal_foto - nenhum credito real de API gasto).
+  - Suite completa: 437 testes em test_app+test_claude_client, 5 falhas pre-existentes (nao relacionadas -
+    testes de notificacao de voo sensiveis a hora do relogio, ver test_verificar_voo_*, ja falhavam antes
+    de qualquer mudanca minha - confirmado rodando a suite ANTES de tocar em qualquer arquivo).

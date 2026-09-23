@@ -95,7 +95,7 @@
         "Testes cobrindo o endpoint (mockar a chamada de visao da API pra nao gastar credito real)",
         "Registra uso de API na tabela uso_api_ia se o Grupo A (US-A5) ja estiver integrado; senao documentar TODO claro"
       ],
-      "priority": 8, "passes": false, "notes": ""
+      "priority": 8, "passes": true, "notes": "POST /api/notas-fiscais/extrair (claude_client.extrair_nota_fiscal_foto, imagem base64 em JSON - nao multipart, de proposito, pra fila-offline.js conseguir reenfileirar igual /api/capture). So extrai, nunca salva sozinho. Offline: apiFetch(...,{tipo:'nota_fiscal_extrair'}) enfileira e o callback mostra a confirmacao quando sincroniza. Custo registrado em api_usage (tabela generica ja existente) - uso_api_ia (US-A5) ainda nao existe neste branch; se/quando o Grupo A integrar, migrar/duplicar o registro la (comentario no codigo). Testes: tests/test_claude_client.py::ExtrairNotaFiscalFotoTestCase + tests/test_app.py (mock da chamada de visao, sem gastar credito real)."
     },
     {
       "id": "US-C9",
@@ -106,7 +106,7 @@
         "Usuario ve uma tela de confirmacao antes de salvar (nunca salva direto sem revisao, dado que OCR por IA pode errar valor)",
         "Testes cobrindo o fluxo completo extracao -> confirmacao -> gasto salvo"
       ],
-      "priority": 9, "passes": false, "notes": ""
+      "priority": 9, "passes": true, "notes": "POST /api/notas-fiscais/confirmar recebe valor/estabelecimento/data (editaveis na tela de confirmacao, templates/index.html #nota-fiscal-confirmacao) e cria o gasto via gastos.sugerir_categoria (mesmo classificador ja usado no extrato bancario - reaproveitado, nao duplicado), com override manual de categoria se o usuario escolher. UI: tab Gastos, card 'Nota fiscal por foto'. Testes cobrindo o fluxo completo extracao->confirmacao->gasto salvo em tests/test_app.py."
     },
     {
       "id": "US-C10",

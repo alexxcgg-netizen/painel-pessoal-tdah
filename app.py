@@ -1,3 +1,5 @@
+import base64
+import binascii
 import csv
 import hashlib
 import hmac
@@ -5088,6 +5090,107 @@ def apagar_item_cotacao(cotacao_id, item_id):
     delete_item_cotacao(conn, item_id)
     conn.close()
     return jsonify({"ok": True})
+
+
+TAMANHO_MAX_IMAGEM_BYTES = 10 * 1024 * 1024  # 10MB - foto de celular cabe folgado
+
+
+@app.route("/api/notas-fiscais/extrair", methods=["POST"])
+def extrair_nota_fiscal():
+    """Recebe a foto de uma nota fiscal (base64, nao multipart - de proposito:
+    o corpo em JSON e o mesmo formato que /api/capture ja usa, entao a fila
+    offline (fila-offline.js, generica pra qualquer url/method/headers/body)
+    consegue reenfileirar essa chamada sem precisar de nenhum tratamento
+    especial pra FormData/Blob quando a foto e tirada sem internet) e extrai
+    valor/estabelecimento/data via claude_client (API de visao da Anthropic -
+    decisao ja tomada com o Alex, sem OCR local). So extrai: NUNCA grava o
+    gasto direto, porque a leitura por IA pode errar o valor - a confirmacao
+    e o fluxo de registro ficam com /api/notas-fiscais/confirmar (US-C9)."""
+    body = _corpo_json()
+    imagem_b64 = body.get("imagem_base64")
+    media_type = (body.get("media_type") or "").strip().lower()
+    if not imagem_b64 or not isinstance(imagem_b64, str):
+        return jsonify({"error": "anexe uma foto da nota fiscal"}), 400
+    if media_type not in claude_client.MEDIA_TYPES_IMAGEM_VALIDOS:
+        return jsonify({"error": "formato de imagem nao suportado (use jpeg, png, webp ou heic)"}), 400
+
+    try:
+        image_bytes = base64.b64decode(imagem_b64, validate=True)
+    except (binascii.Error, ValueError):
+        return jsonify({"error": "imagem invalida (base64 malformado)"}), 400
+    if not image_bytes:
+        return jsonify({"error": "imagem vazia"}), 400
+    if len(image_bytes) > TAMANHO_MAX_IMAGEM_BYTES:
+        return jsonify({"error": "foto maior que 10MB - manda uma foto menor"}), 400
+
+    result, error = _call_claude(claude_client.extrair_nota_fiscal_foto, image_bytes, media_type)
+    if error:
+        return error
+    dados, usage = result
+
+    conn = get_db()
+    # Registra o custo na tabela generica ja existente (api_usage/_log_usage,
+    # a fonte de verdade atual de custo de IA neste projeto). Se a US-A5 (Grupo A,
+    # tabela uso_api_ia dedicada por endpoint/feature) ja estiver integrada quando
+    # este codigo for revisado, vale mover/duplicar esse registro pra la tambem -
+    # documentado aqui em vez de assumir uma tabela que pode nao existir ainda
+    # neste branch (agentes rodando em paralelo, ver tasks/fase5).
+    _log_usage(conn, usage)
+    conn.commit()
+    conn.close()
+    return jsonify(dados), 200
+
+
+@app.route("/api/notas-fiscais/confirmar", methods=["POST"])
+def confirmar_nota_fiscal():
+    """Segundo passo do fluxo (US-C9): recebe o valor/estabelecimento/data
+    que o Alex CONFIRMOU na tela (pode ter editado o que a IA leu errado -
+    nunca salva o que veio de /extrair sem passar por aqui) e vira um gasto
+    de verdade, com a MESMA sugestao automatica de categoria ja usada pro
+    extrato bancario (gastos.sugerir_categoria, historico de gastos
+    categorizados manualmente - nao um classificador novo e paralelo)."""
+    body = _corpo_json()
+    valor = body.get("valor")
+    estabelecimento = _texto_seguro(body.get("estabelecimento")).strip()
+    data_compra = _texto_seguro(body.get("data")).strip() or None
+    categoria_informada = _texto_seguro(body.get("categoria")).strip() or None
+
+    if not isinstance(valor, (int, float)) or isinstance(valor, bool) or valor <= 0:
+        return jsonify({"error": "informe um valor valido (maior que zero)"}), 400
+    if not estabelecimento:
+        return jsonify({"error": "informe o estabelecimento"}), 400
+    if data_compra:
+        try:
+            date.fromisoformat(data_compra)
+        except ValueError:
+            return jsonify({"error": "data invalida (use AAAA-MM-DD)"}), 400
+
+    conn = get_db()
+    categoria = categoria_informada
+    if not categoria:
+        historico = conn.execute(
+            "SELECT category, description, source_text FROM expenses "
+            "WHERE tipo = 'real' AND category IS NOT NULL"
+        ).fetchall()
+        categoria = gastos.sugerir_categoria(estabelecimento, [dict(r) for r in historico]) or "outros"
+
+    created_at = f"{data_compra} 12:00:00" if data_compra else None
+    if created_at:
+        cur = conn.execute(
+            "INSERT INTO expenses (amount, category, description, source_text, tipo, created_at) "
+            "VALUES (?, ?, ?, ?, 'real', ?)",
+            (valor, categoria, estabelecimento, f"Nota fiscal (foto): {estabelecimento}", created_at),
+        )
+    else:
+        cur = conn.execute(
+            "INSERT INTO expenses (amount, category, description, source_text, tipo) "
+            "VALUES (?, ?, ?, ?, 'real')",
+            (valor, categoria, estabelecimento, f"Nota fiscal (foto): {estabelecimento}"),
+        )
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": cur.lastrowid, "ok": True, "categoria": categoria}), 201
 
 
 def _token_atalho_valido(obrigatorio: bool = False) -> bool:
