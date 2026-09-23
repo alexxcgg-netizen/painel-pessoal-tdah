@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from test_vida_rotas import VidaBaseTestCase
+from test_vida_rotas import VidaBaseTestCase, fake_usage
 
 import aprendizado
 import app
@@ -166,3 +166,184 @@ class RotasRevisaoTestCase(VidaBaseTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---- Revisao independente da Fase 3 ----
+
+import http.server  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
+
+import leitura  # noqa: E402
+
+
+class _Pagina(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/pinga":
+            self.send_response(200)
+            self.end_headers()
+            for _ in range(30):
+                try:
+                    self.wfile.write(b"a")
+                    self.wfile.flush()
+                except OSError:
+                    return
+                time.sleep(0.5)
+            return
+        if self.path == "/gzip":
+            self.send_response(200)
+            self.send_header("Content-Encoding", "gzip")
+            self.end_headers()
+            self.wfile.write(b"x")
+            return
+        corpo = f"<title>Host {self.headers.get('Host')}</title><p>caf\xe9</p>".encode("latin-1")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=xyz-inexistente" if self.path == "/charset" else
+                         "text/html; charset=iso-8859-1")
+        self.end_headers()
+        self.wfile.write(corpo)
+
+    def log_message(self, *args):
+        pass
+
+
+class LeituraSeguraTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.servidor = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Pagina)
+        cls.porta = cls.servidor.server_address[1]
+        threading.Thread(target=cls.servidor.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.servidor.shutdown()
+
+    def _baixar(self, caminho):
+        # "site.test" finge ser publico mas o IP e o servidor local do teste -
+        # prova que a conexao vai pro IP validado com o Host original.
+        real = leitura._resolver
+        with patch("leitura._resolver", side_effect=lambda h: ["127.0.0.1"] if h == "site.test" else real(h)):
+            return leitura.baixar_pagina(f"http://site.test:{self.porta}{caminho}")
+
+    def test_conecta_no_ip_validado_com_host_original(self):
+        pagina = self._baixar("/")
+        self.assertIn(f"Host site.test:{self.porta}", pagina)
+        self.assertIn("café", pagina)
+
+    def test_truques_de_url_bloqueados(self):
+        for url in [f"http://127.0.0.1:{self.porta}\\@site.test/", "http://u:p@site.test/", "http://[::1",
+                    "http://[abc]/", "http://[::1]@example.com/", "http://a..b/", "http://" + "a" * 64 + ".com/",
+                    "http://.example.com/", "http://[::127.0.0.1]/", "http://[64:ff9b::7f00:1]/",
+                    "http://2130706433/", "http://0x7f.1/", "http://site.test:99999/"]:
+            with self.assertRaises(leitura.LinkInvalido, msg=url):
+                leitura.baixar_pagina(url)
+
+    def test_prazo_total_e_sem_compressao(self):
+        with patch("leitura.PRAZO_TOTAL", 2):
+            inicio = time.monotonic()
+            with self.assertRaises(leitura.LinkInvalido):
+                self._baixar("/pinga")
+            self.assertLess(time.monotonic() - inicio, 6)
+        with self.assertRaises(leitura.LinkInvalido):
+            self._baixar("/gzip")
+
+    def test_charset_desconhecido_nao_quebra(self):
+        self.assertIn("Host", self._baixar("/charset"))
+
+    def test_html_hostil_e_linear(self):
+        for pagina in ["<script>" * 200000, "<meta " * 300000, "<title>x" * 200000, "<a" * 700000]:
+            inicio = time.monotonic()
+            leitura.extrair(pagina[:1_500_000])
+            self.assertLess(time.monotonic() - inicio, 2)
+
+    def test_dominio_com_acento(self):
+        with patch("leitura._resolver", return_value=["93.184.216.34"]):
+            self.assertEqual(leitura.validar_url("https://ação.com.br/x"), "https://ação.com.br/x")
+
+
+class RotasRevisaoFase3TestCase(VidaBaseTestCase):
+    def test_salvar_link_estranho_nao_da_500(self):
+        for url in ["http://[::1", "http://[abc]/", "http://a..b/", "http://" + "a" * 64 + ".com/"]:
+            self.assertEqual(self.client.post("/api/salvos", json={"url": url}).status_code, 400, msg=url)
+        with patch("leitura._resolver", return_value=["93.184.216.34"]), \
+                patch("leitura.baixar_pagina", side_effect=LookupError("xyz")):
+            r = self.client.post("/api/salvos", json={"url": "https://exemplo.com/a"})
+        self.assertEqual(r.status_code, 201)
+        self.assertIn("link ficou salvo", r.get_json()["aviso"])
+
+    def test_meta_com_deposito_simbolico(self):
+        conn = self._conn()
+        gid = conn.execute("INSERT INTO goals (titulo, valor_alvo, valor_guardado) VALUES ('Casa', 1000000, 0)").lastrowid
+        conn.commit()
+        self.client.post(f"/api/metas/{gid}/guardar", json={"valor": 1})
+        r = self.client.get("/api/metas")
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(r.get_json()[0]["previsao"])
+        self.assertEqual(self.client.post(f"/api/metas/{gid}/guardar", json={"valor": 1e999}).status_code, 400)
+        self.assertEqual(self.client.get("/api/progresso").status_code, 200)
+
+    def test_revisao_mensal_mes_absurdo(self):
+        for mes in ["9999-12", "0001-01", "2026-13", "abc"]:
+            self.assertEqual(self.client.get(f"/api/revisao-mensal?mes={mes}").status_code, 400, msg=mes)
+        self.assertEqual(self.client.get("/api/revisao-mensal?mes=2026-12").status_code, 200)
+
+    def test_pos_voo_de_noite_pergunta_de_manha(self):
+        conn = self._conn()
+        hoje = date.today()
+        ontem = (hoje - timedelta(days=1)).isoformat()
+        conn.execute("INSERT INTO voos (data, destino, hora) VALUES (?, 'SBJV', '20:30')", (ontem,))
+        conn.commit()
+        manha = datetime.combine(hoje, datetime.min.time()).replace(hour=7, minute=5)
+        tipos = [t for t, *_ in app._avisos_fase3(conn, manha)]
+        self.assertIn("pos_voo", tipos)
+        tarde = manha.replace(hour=13)
+        self.assertNotIn("pos_voo", [t for t, *_ in app._avisos_fase3(conn, tarde)])
+
+    def test_contar_voo_completa_o_agendado(self):
+        conn = self._conn()
+        hoje = date.today().isoformat()
+        conn.execute("INSERT INTO voos (data, destino, hora) VALUES (?, 'SBJV', '10:00')", (hoje,))
+        conn.commit()
+        resultados = []
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            resultados.append(executores["registrar_voo"](
+                {"data": hoje, "destino": "sbjv", "horas": 1.2, "observacao": "pousos com vento"}))
+            return "Anotado.", ["registrar_voo"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "voei 1.2h pro sbjv, pousos com vento"})
+        self.assertTrue(resultados[0].get("atualizado"))
+        voos = self._conn().execute("SELECT destino, horas, observacao FROM voos").fetchall()
+        self.assertEqual([tuple(v) for v in voos], [("SBJV", 1.2, "pousos com vento")])
+
+    def test_projecao_conta_vencida_nao_paga(self):
+        hoje = date.today()
+        vencida = hoje - timedelta(days=3)
+        if vencida.month != hoje.month:
+            self.skipTest("inicio do mes")
+        conn = self._conn()
+        conn.execute(
+            "INSERT INTO contas_pessoais (nome, valor, dia_vencimento, criado_em) VALUES ('Aluguel', 1500, ?, ?)",
+            (vencida.day, (hoje - timedelta(days=60)).isoformat() + " 10:00:00"),
+        )
+        conn.commit()
+        projecao = self.client.get("/api/sobra-do-mes").get_json()["projecao"]
+        self.assertEqual(projecao["contas_pendentes"], 1500)
+
+    def test_aprender_tema_longo_explica(self):
+        r = self.client.post("/api/aprender", json={"tema": "x" * 81})
+        self.assertIn("muito longo", r.get_json()["error"])
+        r = self.client.post("/api/aprender", json={"tema": "FII", "nota": "n" * 400})
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(len(self.client.get("/api/aprender").get_json()[0]["nota"]), 300)
+
+    def test_eventos_app_antigos_sao_limpos(self):
+        conn = self._conn()
+        db.registrar_evento_app(conn, "X", "abriu", "2026-01-01T10:00:00")
+        db.registrar_evento_app(conn, "X", "abriu", "2026-09-23T10:00:00")
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM app_eventos").fetchone()[0], 1)
+
+    def test_burocracia_visto(self):
+        self.assertFalse(vida.eh_burocracia("Ja tinha visto esse filme"))
+        self.assertTrue(vida.eh_burocracia("Renovar visto americano"))

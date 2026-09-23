@@ -822,8 +822,9 @@ def _sobra_do_mes(conn) -> dict:
     contas_pendentes = sum(
         c["valor"]
         for c in _contas_pessoais_com_status(conn, hoje)
-        if c["valor"] is not None and not c["paga"] and c["dias_ate_vencer"] >= 0
-        and c["proximo_vencimento"][:7] == ano_mes
+        # vencida e ainda nao paga (ate 10 dias) tambem vai sair do bolso
+        if c["valor"] is not None and not c["paga"]
+        and (c["dias_ate_vencer"] < 0 or c["proximo_vencimento"][:7] == ano_mes)
     )
     return {
         **gastos.sobra_do_mes(renda, gasto_real, gasto_planejado),
@@ -1479,6 +1480,24 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         return marcar_ou_criar_feito(conn, entrada["titulo"], texto)
 
     def exec_registrar_voo(entrada):
+        # Contar como foi um voo ja agendado (resposta ao "Como foi o voo?")
+        # completa o registro existente em vez de criar um voo duplicado.
+        existente = next(
+            (v for v in list_voos(conn)
+             if v["data"] == entrada["data"]
+             and vida.normalizar_nome(v["destino"]) == vida.normalizar_nome(entrada["destino"])
+             and not (v.get("observacao") or "").strip()),
+            None,
+        )
+        if existente:
+            conn.execute(
+                """UPDATE voos SET observacao = COALESCE(?, observacao), horas = COALESCE(?, horas),
+                   origem = COALESCE(?, origem), hora = COALESCE(?, hora) WHERE id = ?""",
+                (entrada.get("observacao"), entrada.get("horas"), entrada.get("origem"),
+                 _normalizar_hora(entrada.get("hora")), existente["id"]),
+            )
+            conn.commit()
+            return {"ok": True, "atualizado": True}
         create_voo(
             conn,
             entrada["data"],
@@ -2144,7 +2163,7 @@ def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
     avisos = []
     hoje = agora.date()
 
-    if hoje.day == 1 and agora.hour >= 9:
+    if hoje.day <= 3 and agora.hour >= 9:
         primeiro, ultimo = vida.mes_anterior(hoje)
         ref = vida.id_estavel("revisao_mensal", primeiro.isoformat())
         if not ja_notificado_alguma_vez(conn, "revisao_mensal", ref):
@@ -2181,10 +2200,14 @@ def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
                     )
                     break
 
+    ontem = (hoje - timedelta(days=1)).isoformat()
     for voo in list_voos(conn):
-        if voo.get("data") != hoje.isoformat() or (voo.get("observacao") or "").strip():
+        if voo.get("data") not in (hoje.isoformat(), ontem) or (voo.get("observacao") or "").strip():
             continue
-        if voo.get("hora"):
+        if voo["data"] == ontem:
+            # voo das 20h+ cai no silencio da noite: pergunta de manha, ate o meio-dia
+            pronto = agora.hour < 12
+        elif voo.get("hora"):
             try:
                 h, m = (int(x) for x in voo["hora"].split(":"))
                 decolagem = agora.replace(hour=h, minute=m, second=0, microsecond=0)
@@ -4118,10 +4141,13 @@ def aprender():
 
 
 def _criar_aprender(conn, tema, nota) -> dict:
+    if isinstance(tema, str) and len(tema.strip()) > 80:
+        return {"erro": "tema muito longo (ate 80 caracteres)"}
     tema = _texto_curto(tema, 80)
     if not tema:
         return {"erro": "informe o tema"}
-    return {"ok": True, "id": create_aprender(conn, tema, _texto_curto(nota, 300))}
+    nota = nota.strip()[:300] or None if isinstance(nota, str) else None
+    return {"ok": True, "id": create_aprender(conn, tema, nota)}
 
 
 @app.route("/api/aprender", methods=["POST"])
@@ -4175,7 +4201,8 @@ def _salvar_link(conn, url) -> dict:
             if not erro and isinstance(resultado[0], str):
                 resumo = resultado[0][:2000]
                 _log_usage(conn, resultado[1])
-    except (requests.RequestException, leitura.LinkInvalido, UnicodeError):
+    except (requests.RequestException, OSError, ValueError, LookupError):
+        # LinkInvalido e ValueError; OSError cobre socket/SSL fora do requests
         aviso = "Nao consegui ler a pagina agora - o link ficou salvo."
     if resumo is None and aviso is None:
         aviso = "Salvei o link, mas nao deu pra resumir."
@@ -4316,6 +4343,8 @@ def revisao_mensal():
     if mes:
         try:
             primeiro = date.fromisoformat(f"{mes}-01")
+            if not 2000 <= primeiro.year <= 2100:
+                raise ValueError
         except ValueError:
             return jsonify({"error": "mes deve ser AAAA-MM"}), 400
         proximo = date(primeiro.year + (primeiro.month == 12), primeiro.month % 12 + 1, 1)
@@ -4540,7 +4569,7 @@ def metas():
 @app.route("/api/metas/<int:goal_id>/guardar", methods=["POST"])
 def guardar_meta(goal_id):
     valor = _corpo_json().get("valor")
-    if not isinstance(valor, (int, float)) or valor <= 0:
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)) or not math.isfinite(valor) or valor <= 0:
         return jsonify({"error": "informe um valor positivo"}), 400
 
     conn = get_db()

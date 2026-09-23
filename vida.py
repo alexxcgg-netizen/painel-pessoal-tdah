@@ -428,9 +428,11 @@ def normalizar_item_compra(texto: str | None) -> str:
 
 _PALAVRAS_BUROCRACIA = {
     "cnh", "passaporte", "irpf", "licenca", "cma", "habilitacao", "rg", "ipva", "licenciamento",
-    "certificado", "visto",
+    "certificado",
 }
 _FRASES_BUROCRACIA = (
+    "visto americano", "visto de turista", "visto de trabalho", "visto de estudante", "renovar visto",
+    "renovacao do visto",
     "imposto de renda", "declaracao do ir", "declaracao de ir", "exame medico", "titulo de eleitor",
 )
 
@@ -485,6 +487,8 @@ def previsao_meta(valor_alvo: float, valor_guardado: float, depositos: list[dict
     dias_janela = max((hoje - primeiro).days, 30)
     por_dia = total / dias_janela
     dias_ate = int(falta / por_dia) + 1
+    if dias_ate > 365 * 50:  # deposito simbolico: "daqui 800 anos" nao ajuda ninguem
+        return None
     return {"ritmo_mensal": round(por_dia * 30, 2), "data_prevista": (hoje + timedelta(days=dias_ate)).isoformat()}
 
 

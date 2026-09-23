@@ -1804,6 +1804,8 @@ def delete_salvo(conn, salvo_id: int):
 
 def registrar_evento_app(conn, app: str, evento: str, em: str):
     conn.execute("INSERT INTO app_eventos (app, evento, em) VALUES (?, ?, ?)", (app, evento, em))
+    # so os ultimos 60 dias interessam (resumo semanal / 30 dias na tela)
+    conn.execute("DELETE FROM app_eventos WHERE em < datetime(?, '-60 days')", (em,))
     conn.commit()
 
 

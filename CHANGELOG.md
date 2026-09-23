@@ -5,6 +5,47 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (24) - Correcoes da revisao independente da Fase 3
+
+Segundo agente revisor (so leitura) atacou o commit da Fase 3 com scripts. Tudo corrigido, com
+teste em `tests/test_vida_revisao.py` (e os scripts de ataque do revisor rodados de novo).
+
+**Seguranca do "Salvos pra ver depois" (`leitura.py` reescrito)**
+- **SSRF com barra invertida** (`http://127.0.0.1:porta\@example.com/`): o validador via
+  `example.com` mas o `requests` conectava no 127.0.0.1. Agora: URL com `\` ou usuario/senha e
+  recusada, os dois parsers (urllib e urllib3) tem que concordar sobre host e porta, e - o
+  principal - o host e resolvido uma vez so e a conexao vai **direto pro IP validado** (SNI e
+  certificado conferidos no nome original, via adaptador proprio). Isso fecha tambem o
+  **DNS rebinding** (publico na checagem, 127.0.0.1 na conexao).
+- IPv6 com IPv4 embutido (`::127.0.0.1`, NAT64 `64:ff9b::/96`) recusado.
+- **Prazo total de 20s** (servidor que pinga 1 byte/s prendia o unico worker do gunicorn) e
+  **sem compressao** (`Accept-Encoding: identity`; pagina compactada mesmo assim e recusada) -
+  nada de bomba gzip, independente da versao do urllib3.
+- **Parsing linear**: as regex de `<script>`/`<meta>`/`<title>` sem fechar eram quadraticas
+  (400KB = 115s de CPU); agora 1,5MB hostil leva menos de 0,2s.
+- Charset: do cabecalho, senao do `<meta charset>`, senao utf-8 (antes ISO-8859-1 embaralhava
+  acento); charset inexistente nao derruba mais.
+- Links estranhos (`http://[::1`, rotulo de 64 letras, `a..b`, redirect pra `http://[::1`)
+  davam 500: agora 400 "link invalido" ou "link ficou salvo" conforme o caso.
+
+**Outros**
+- `/api/metas` dava 500 com deposito simbolico (R$ 1 numa meta de R$ 1 milhao = data no ano
+  2800+): previsao acima de 50 anos vira "sem previsao".
+- Deposito `1e999` na meta era aceito e depois derrubava `/api/progresso`: recusado na entrada.
+- `/api/revisao-mensal?mes=9999-12` dava 500: ano fora de 2000-2100 e 400.
+- **"Como foi o voo?" nunca chegava pra voo das 20h+** (caia no silencio da noite e sumia): voo
+  de ontem sem diario pergunta de manha, ate o meio-dia.
+- **Responder o "Como foi o voo?" no chat criava um voo duplicado**: `registrar_voo` com mesma
+  data e destino de um voo sem diario agora completa o existente.
+- **Projecao do fim do mes ignorava conta vencida e nao paga**: entra no "ainda vai sair".
+- Revisao mensal sai do dia 1 ao 3 (servidor fora do ar no dia 1 nao perde o mes).
+- Detalhes: tema de estudo longo diz "tema muito longo" (antes "informe o tema") e nota longa e
+  cortada em 300; "visto" sozinho nao e mais burocracia ("ja tinha visto") - so "visto
+  americano/de turista/..."; `app_eventos` guarda so 60 dias; "humor mais comum" virou "humor na
+  media" (e uma media).
+- Mantido de proposito: progresso usa a mesma data (UTC do SQLite) que a aba Gastos, pra os
+  totais baterem entre as telas.
+
 ## 2026-09-23 (23) - Fechamento do BRIEFING: guia de Atalhos e credenciais
 
 - **`docs/ATALHOS.md`**: passo a passo das automacoes do iPhone - casa (chegou/saiu com

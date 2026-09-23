@@ -901,7 +901,7 @@ async function loadProgresso() {
       [p.treinos_por_semana, "treinos por semana"],
       [p.copos_por_dia, "copos de agua por dia"],
       [p.sono_medio != null ? `${p.sono_medio}h` : "-", "sono medio"],
-      [p.humor_medio || "-", "humor mais comum"],
+      [p.humor_medio || "-", "humor na media"],
     ].forEach(([valor, rotulo]) => {
       const item = criarEl("div", "progresso-item");
       item.appendChild(criarEl("span", "progresso-valor", String(valor)));

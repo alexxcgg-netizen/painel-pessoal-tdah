@@ -75,13 +75,16 @@ class LeituraTestCase(unittest.TestCase):
                      "http://" + "a" * 2000 + ".com"]:
             with self.assertRaises(leitura.LinkInvalido, msg=repr(ruim)):
                 leitura.validar_url(ruim)
-        with patch("leitura._host_publico", return_value=True):
+        with patch("leitura._resolver", return_value=["93.184.216.34"]):
             self.assertEqual(leitura.validar_url(" https://exemplo.com/artigo "), "https://exemplo.com/artigo")
 
     def test_redirecionamento_pra_rede_interna_bloqueado(self):
         redirect = SimpleNamespace(is_redirect=True, headers={"Location": "http://127.0.0.1/segredo"}, close=lambda: None)
-        with patch("leitura._host_publico", side_effect=lambda h: h != "127.0.0.1"), \
-                patch("leitura.requests.get", return_value=redirect):
+        sessao = SimpleNamespace(close=lambda: None)
+        real = leitura._resolver
+        publico = lambda h: ["93.184.216.34"] if h == "exemplo.com" else real(h)  # noqa: E731
+        with patch("leitura._resolver", side_effect=publico), \
+                patch("leitura._pedir", return_value=(sessao, redirect)):
             with self.assertRaises(leitura.LinkInvalido):
                 leitura.baixar_pagina("https://exemplo.com/a")
 
@@ -115,7 +118,7 @@ class AprenderSalvosTestCase(VidaBaseTestCase):
 
     def test_salvar_link_com_resumo(self):
         pagina = "<title>Artigo</title><p>" + "conteudo relevante " * 20 + "</p>"
-        with patch("leitura._host_publico", return_value=True), \
+        with patch("leitura._resolver", return_value=["93.184.216.34"]), \
                 patch("leitura.baixar_pagina", return_value=pagina), \
                 patch("claude_client.resumir_link", return_value=("- ponto 1\n- ponto 2", fake_usage())):
             r = self.client.post("/api/salvos", json={"url": "https://exemplo.com/artigo"})
@@ -129,7 +132,7 @@ class AprenderSalvosTestCase(VidaBaseTestCase):
 
     def test_link_que_nao_abre_fica_salvo(self):
         import requests
-        with patch("leitura._host_publico", return_value=True), \
+        with patch("leitura._resolver", return_value=["93.184.216.34"]), \
                 patch("leitura.baixar_pagina", side_effect=requests.ConnectionError("fora do ar")):
             r = self.client.post("/api/salvos", json={"url": "https://exemplo.com/x"}).get_json()
         self.assertIsNone(r["resumo"])
@@ -224,7 +227,7 @@ class AvisosFase3TestCase(VidaBaseTestCase):
     def test_revisao_no_dia_1(self):
         primeiro = datetime(2026, 10, 1, 9, 30)
         self.assertTrue([c for t, c in self._tipos(primeiro) if t == "revisao_mensal" and c.startswith("Setembro fechou")])
-        self.assertFalse([t for t, _ in self._tipos(primeiro.replace(day=2)) if t == "revisao_mensal"])
+        self.assertFalse([t for t, _ in self._tipos(primeiro.replace(day=4)) if t == "revisao_mensal"])
         self.assertFalse([t for t, _ in self._tipos(primeiro.replace(hour=8)) if t == "revisao_mensal"])
 
     def test_burocracia_com_30_dias(self):
