@@ -69,6 +69,9 @@ No plano grátis do Render:
 - **Status "Failed" (vermelho)**: abra a aba *Logs* e procure a última linha de erro:
   - `PAINEL_PIN_INICIAL invalido` → o PIN não tem exatamente 6 números. Vá em
     **Environment**, corrija o valor, salve e clique em **Manual Deploy → Deploy latest commit**.
+  - `Hospedado no Render sem PIN configurado` → faltou `PAINEL_PIN_INICIAL` (o painel se
+    recusa a subir sem PIN numa URL pública, de propósito). Mesmo caminho: **Environment** →
+    preencher os 6 números → salvar → **Manual Deploy**.
   - `KeyError: 'ANTHROPIC_API_KEY'` → faltou esse valor. Mesmo caminho: **Environment** →
     adicionar (pode ser `nenhuma`) → salvar → **Manual Deploy**.
   - Qualquer outra coisa: copie as últimas linhas do *Logs* e me mande.

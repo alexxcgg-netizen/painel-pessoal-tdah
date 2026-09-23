@@ -5,6 +5,85 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (Fase 6) - correcoes da revisao independente (codigo + seguranca)
+
+Revisao independente da Fase 6 (seguranca + codigo) achou 14 pontos; todos
+reproduzidos antes e corrigidos com teste de regressao que falhava antes
+(`tests/test_fase6_revisao_visitante.py`, `tests/test_fase6_revisao_seguranca.py`,
+`tests/js/cards.test.js`) ou verificacao headless (XSS, barra do chat).
+Branch `fase6/fix-revisao`.
+
+### ALTO
+- **1. Visitante conseguia Desfazer**: `POST /api/desfazer/<token>` -> 403 no
+  modo visitante, e `cards.mascarar_cards` tira a action `desfazer` de todo
+  card (resposta do chat e `/api/chat/historico`) - o token nem sai mais.
+- **2. XSS armazenado no mapa**: `bindPopup(l.nome)` (Leaflet trata string
+  como HTML) -> `bindPopup(<span>)` com `textContent`. Confirmado no headless:
+  antes `window.__xss` disparava, depois o nome aparece escapado.
+- **3. Saude vazando no visitante**: `saude_dia` (agua/passos/sono/treino) e
+  `saude_treino` (sessoes) entraram em `cards.CAMPOS_SENSIVEIS` - card sai com
+  `oculto: true`, renderizador mostra "Dados de saude ocultos no modo visitante."
+
+### MEDIO
+- **4. Teto mensal de IA ignorado**: `/api/chat`, brain dump "assistente" e
+  Telegram (todos via `_processar_mensagem_chat`) checam
+  `resumo_custo_api(conn)["teto_estourado"]` dentro do `_TETO_IA_LOCK` antes da
+  IA -> 402 com `TETO_IA_MSG` (consulta local sem IA continua funcionando).
+  Texto do chat/brain dump/Telegram limitado a `TAMANHO_MAX_TEXTO_CHAT = 4000`
+  caracteres (400 amigavel; `maxlength` no input do chat).
+  `MAX_CONTENT_LENGTH = 20MB` + handler 413 em JSON - cobre a foto de nota
+  fiscal (10MB -> ~13,4MB em base64) e o PDF de cotacao (15MB multipart),
+  testados.
+- **5. Envenenamento do banco de padroes**: `/api/intent/corrigir` -> 403 no
+  visitante; no chat, frase com verbo de acao/assunto fora do banco
+  (`aprendizado.exige_ia`, mesmos `_VERBO_ACAO`/`_FORA_DO_BANCO`) nunca vira
+  consulta local, nem por padrao aprendido ("Gastei 80 no mercado" com padrao
+  consultar/habitos gravado agora vai pra IA e registra o gasto).
+- **6. Memorias gravaveis no visitante**: POST/PUT/DELETE `/api/memorias` -> 403.
+- **7. Lockout de login atras do proxy**: `ProxyFix(x_for=1, x_proto=1)` so
+  com `PAINEL_ATRAS_DE_PROXY=1` (nova variavel; `render.yaml` = "1",
+  `.env.example` comentada, `deploy/DEPLOY.md` manda ligar na VPS com Caddy).
+  Sem a variavel, `X-Forwarded-For` e ignorado (nao da pra fugir do bloqueio).
+- **8. Nominatim repetindo em falha**: rede/429/5xx grava `geocode_status =
+  "erro"` + `lugares.geocode_tentar_depois` (6h, `app.GEOCODE_ESPERA_APOS_ERRO`);
+  4xx (400/403/404) grava `"recusado"` (definitivo - nao existe rota de
+  renomear lugar). GET faz no maximo 1 geocode e so de lugar vencido
+  (`db.proximo_lugar_para_geocodificar`); timeout 8s -> 4s.
+
+### BAIXO
+- **9. Leaflet sem SRI**: `integrity` sha256 + `crossOrigin="anonymous"` no JS
+  e CSS 1.9.4 - hashes calculados sobre os arquivos baixados do jsdelivr,
+  iguais aos do unpkg, e carregados de verdade no headless com SRI ligado.
+- **10. AviationStack**: erro fica 30 min em cache (`voo_status.CACHE_TTL_ERRO`)
+  sem apagar o ultimo dado bom (continua aparecendo "dado de HH:MM (rede
+  falhou agora)"); tela mostra "Confirme no app da companhia." (plano gratis e
+  HTTP - so exibicao).
+- **11. `/configurar-pin` aberto no Render**: com `RENDER` definido e sem PIN
+  (nem `PAINEL_PIN_INICIAL`), o boot levanta `RuntimeError` com mensagem clara
+  (`_exigir_pin_em_hospedagem_publica`); `deploy/RENDER.md` explica o erro.
+- **12. Agenda/brain dump no visitante**: POST/DELETE `/api/agenda/eventos` ->
+  403, tool `agendar_evento` do chat devolve erro no visitante,
+  `POST /api/brain-dump/<id>/converter` -> 403 (item continua pendente).
+  Habitos/projetos continuam liberados (decisao documentada da Fase 6).
+
+### Codigo/visual
+- **13. Sobreposicao na aba Hoje**: `.chat-form` sticky ganhou fundo de vidro
+  quase opaco (mesmo material da tabbar) + `bottom` 6rem -> 5.5rem - o
+  "Como voce ta hoje?" passa por tras da barra em vez de aparecer entre o
+  input e os botoes (conferido no headless 390x844, sem `full_page`).
+- **14. CSS duplicado**: `.card-contrato .meta-progresso` num bloco so.
+
+### Nao corrigido (decisao do orquestrador)
+- Valor em R$ no push de limite do cartao - texto pedido pelo Alex.
+
+### Testes antigos ajustados (mudanca de comportamento intencional)
+- `test_fase6_e4_chat.test_brain_dump_visitante_nao_vaza_valor` ->
+  `test_brain_dump_visitante_nao_converte` (agora 403).
+- `test_fase6_f3_lugares_mapa`: erro de rede grava `"erro"` temporario em vez
+  de deixar `NULL`.
+
+Service worker -> **v13**.
+
 ## 2026-09-23 (Fase 6 F1) - polimento da aba Vida
 
 Faixa 1 do Grupo F da Fase 6: polimento visual/interativo de 5 secoes da aba Vida

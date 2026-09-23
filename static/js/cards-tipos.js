@@ -460,7 +460,14 @@
     return `<svg class="card-grafico" viewBox="0 0 ${largura} ${grupos.length * alturaLinha}" role="img" aria-label="${esc(`Minutos por atividade - ${titulo}`)}">${linhas}</svg>`;
   }
 
+  // Modo visitante (revisao da Fase 6): o servidor tira `sessoes` e manda
+  // `oculto: true` - o card so diz que o dado esta escondido.
+  const TEXTO_SAUDE_OCULTA = "Dados de saúde ocultos no modo visitante.";
+
   Cards.registrar("saude_treino", (data) => {
+    if (data.oculto) {
+      return eyebrow(ICONES.treino, "Treinos") + `<p class="card-linha-meta">${esc(TEXTO_SAUDE_OCULTA)}</p>`;
+    }
     const sessoes = lista(data.sessoes).filter((s) => s && typeof s === "object");
     const totalMin = sessoes.reduce((acc, s) => acc + Math.max(0, Number(s.minutos) || 0), 0);
     const chip = data.registrado ? `<span class="card-chip">${ICONES.check}Registrado</span>` : "";
@@ -581,6 +588,9 @@
   }
 
   Cards.registrar("saude_dia", (data) => {
+    if (data.oculto) {
+      return eyebrow(ICONES.agua, "Saúde") + `<p class="card-linha-meta">${esc(TEXTO_SAUDE_OCULTA)}</p>`;
+    }
     const copos = numeroValido(data.agua_copos) && data.agua_copos > 0 ? Math.floor(data.agua_copos) : 0;
     const chip = data.registrado ? `<span class="card-chip">${ICONES.check}Registrado</span>` : "";
     const gotas = Array.from({ length: COPOS_VISIVEIS }, (_, i) =>

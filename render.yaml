@@ -16,6 +16,13 @@ services:
         value: 3.11.9
       - key: SECURE_COOKIES
         value: "true"
+      # O Render sempre fica na frente do app (proxy reverso) - sem isso o
+      # bloqueio de 5 PINs errados seria pelo IP do proxy e trancaria o Alex
+      # junto com quem errou (ver _configurar_proxy em app.py).
+      - key: PAINEL_ATRAS_DE_PROXY
+        value: "1"
+      # PAINEL_PIN_INICIAL e obrigatorio aqui: com RENDER definido (o Render
+      # define sozinho) e sem PIN, o app se recusa a subir de proposito.
       # O Render pede esses dois na hora de criar (sync: false = nunca vai pro Git).
       - key: PAINEL_PIN_INICIAL
         sync: false

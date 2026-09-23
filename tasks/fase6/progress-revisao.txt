@@ -1,0 +1,63 @@
+# Fase 6 - Correcoes da revisao independente (codigo + seguranca) - Progress Log
+Branch: fase6/fix-revisao (a partir da main 62571b1). Data: 2026-09-23.
+Reproducao antes/depois: scripts do revisor adaptados em /tmp/fase6-fix/
+(repro.py, xss_fix.py/xss_head.py) + testes novos rodados contra um
+`git archive HEAD` (todos falham la, passam aqui).
+
+Achado 1 (desfazer no visitante) — decisao: 403 em POST /api/desfazer + action `desfazer` removida em cards.mascarar_cards (chat e historico).
+Motivo: o token saia no historico e o visitante apagava gasto real/devolvia saldo.
+Nao confirmado: nada.
+
+Achado 2 (XSS no popup do mapa) — decisao: bindPopup recebe <span> com textContent.
+Motivo: Leaflet poe string como innerHTML; confirmado no headless (window.__xss disparava no HEAD, nao dispara mais). Nenhum outro bindPopup/bindTooltip/innerHTML com dado do usuario em vida.js (criarEl usa textContent; attribution e constante).
+Nao confirmado: nada.
+
+Achado 3 (saude no visitante) — decisao: mascarar (nao recusar) - saude_dia sem agua/passos/sono/treino, saude_treino sem sessoes, oculto: true; renderizador com aviso.
+Motivo: mesmo mecanismo ja usado pra dinheiro; a consulta continua respondendo sem vazar.
+Nao confirmado: texto livre ja gravado da IA no historico (ex: "voce dormiu 3h") nao e reescrito - so valor em R$ e trocado na prosa (limite pre-existente do modo visitante).
+
+Achado 4 (teto IA / tamanho) — decisao: teto no _processar_mensagem_chat (chat, brain dump assistente, Telegram) com _TETO_IA_LOCK -> 402; TAMANHO_MAX_TEXTO_CHAT = 4000 (chat, POST brain-dump, Telegram); MAX_CONTENT_LENGTH = 20MB + 413 JSON.
+Motivo: 20MB cobre foto de nota fiscal de 10MB em base64 (~13,4MB) e PDF de cotacao de 15MB multipart (os dois testados); 4000 caracteres e muito acima de qualquer mensagem real.
+Nao confirmado: /api/capture (classify_capture) e outras chamadas de IA (mala, plano, cotacao PDF) tambem nao checam o teto - fora do escopo pedido, anotado no AGENTS.md.
+
+Achado 5 (envenenamento de padroes) — decisao: 403 em /api/intent/corrigir no visitante + aprendizado.exige_ia no _plano_local_chat.
+Motivo: cenario exato ("Gastei 80 no mercado" com padrao consultar/habitos) agora vai pra IA e registra; padrao de consulta sem verbo continua local.
+Nao confirmado: padroes ja envenenados em producao (se existirem) continuam no banco, mas nao tem mais efeito no chat; o comando de voz ainda confia no padrao cru (so o Alex corrige por la).
+
+Achado 6 (memorias) — decisao: POST/PUT/DELETE /api/memorias -> 403 no visitante.
+Motivo: memoria entra no system prompt (injecao persistente).
+Nao confirmado: nada.
+
+Achado 7 (lockout atras do proxy) — decisao: ProxyFix(x_for=1, x_proto=1) so com PAINEL_ATRAS_DE_PROXY=1; render.yaml "1"; .env.example comentada; DEPLOY.md liga na VPS (Caddy).
+Motivo: sem proxy, confiar em X-Forwarded-For deixaria trocar de IP e fugir do bloqueio (testado nos dois modos).
+Nao confirmado: numero exato de saltos do proxy do Render (assumido 1, o padrao documentado de proxy reverso unico); se houver CDN extra na frente, x_for=1 pega o IP do CDN (ainda melhor que hoje).
+
+Achado 8 (Nominatim) — decisao: rede/429/5xx = "erro" + geocode_tentar_depois (6h); 4xx (exceto 429) = "recusado" definitivo; timeout 4s; GET faz no maximo 1 e so de lugar vencido.
+Motivo: nao existe rota de renomear lugar, entao "definitivo ate o nome mudar" = definitivo; 429 e limite de taxa, tratado como temporario.
+Nao confirmado: nada.
+
+Achado 9 (SRI Leaflet) — decisao: integrity + crossOrigin no JS e CSS 1.9.4; hashes JS sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo= e CSS sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=.
+Motivo: calculados sobre os arquivos baixados do jsdelivr, identicos aos do unpkg, e o Leaflet carregou no headless com SRI ligado.
+Nao confirmado: nada.
+
+Achado 10 (AviationStack) — decisao: erro em cache 30 min (CACHE_TTL_ERRO) preservando o ultimo dado bom; "Confirme no app da companhia." na tela.
+Motivo: cada visita com erro gastava cota; plano gratis e HTTP (so exibicao).
+Nao confirmado: fuso de buscado_em (datetime('now') UTC do SQLite x datetime.now() local) no TTL de 3h e pre-existente - o erro usa o proprio relogio local (_erro_em) e nao tem esse problema.
+
+Achado 11 (Render sem PIN) — decisao: RENDER definido + sem PIN -> RuntimeError no boot (depois de aplicar PAINEL_PIN_INICIAL).
+Motivo: mesma filosofia do PIN inicial invalido; testado inclusive com import real num subprocesso.
+Nao confirmado: nada.
+
+Achado 12 (agenda/brain dump no visitante) — decisao: 403 em POST/DELETE /api/agenda/eventos e POST /api/brain-dump/<id>/converter; tool agendar_evento devolve erro no visitante. Habitos/projetos intocados (decisao da Fase 6).
+Motivo: escrevem no iCloud real / criam varias coisas de uma vez.
+Nao confirmado: o chat em si continua aceito no visitante (a IA ainda pode registrar tarefa/gasto via outras tools) - fora do escopo pedido.
+
+Achado 13 (sobreposicao na aba Hoje) — decisao: fundo de vidro quase opaco no .chat-form sticky (mesmo material da tabbar) + bottom 5.5rem.
+Motivo: menor ajuste que mantem a barra do chat sempre a mao; o conteudo passa por tras em vez de aparecer entre input e botoes (headless 390x844, sem full_page).
+Nao confirmado: aparencia no Safari do iPhone real (so Chromium headless).
+
+Achado 14 (CSS duplicado) — decisao: .card-contrato .meta-progresso num bloco so (margin + background, na posicao do segundo).
+Motivo: nenhuma outra regra entre as duas posicoes mexe nesse seletor.
+Nao confirmado: nada.
+
+Nao corrigido (decisao do orquestrador): valor em R$ no push de limite do cartao.

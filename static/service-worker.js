@@ -23,7 +23,10 @@
 // entram no precache pra aba Hoje renderizar os cards tambem offline.
 // v12: fim da Fase 6 - visao-dia.js (US-E9) entra no precache e o CSS/JS do
 // polimento por secao (Grupo F) precisa chegar no iPhone que ja tem o v11.
-const CACHE_NAME = "painel-pessoal-v12";
+// v13: correcoes da revisao independente da Fase 6 - cards de saude com
+// `oculto` (cards-tipos.js), popup do mapa sem HTML + SRI do Leaflet e aviso
+// de status de voo (vida.js), barra do chat e CSS duplicado (style.css).
+const CACHE_NAME = "painel-pessoal-v13";
 const ASSETS = [
   "/",
   "/static/css/style.css",

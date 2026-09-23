@@ -15,10 +15,12 @@ conferida via WebSearch em 2026-09-23) tem 3 exigencias e as 3 sao seguidas aqui
    geocode e feito UMA VEZ por lugar e o resultado (ou a falta dele) fica
    salvo em `lugares.lat/lng/geocode_status` (db.salvar_geocode_lugar) -
    `geocode_status` preenchido (mesmo que "nao_encontrado") nunca dispara
-   nova consulta. So uma falha de REDE (timeout/erro de conexao) deixa
-   `geocode_status` None de proposito, pra poder tentar de novo mais tarde
-   (isso nao e "repetir a mesma consulta que já deu certo", e simplesmente
-   nunca ter conseguido perguntar)."""
+   nova consulta. Falha TEMPORARIA (rede/timeout, 429, 5xx) vira status
+   "erro" com um "tentar de novo depois de" (app.GEOCODE_ESPERA_APOS_ERRO) -
+   revisao da Fase 6: antes nao gravava nada e cada GET /api/lugares tentava
+   de novo na hora, sincrono, no unico worker. Recusa 4xx (ex: 400/403) vira
+   "recusado", definitivo (nao ha rota de renomear lugar; um lugar novo com
+   outro nome e outra consulta)."""
 
 import os
 import time
@@ -41,10 +43,16 @@ def _throttle():
     _ultima_chamada = time.monotonic()
 
 
+# Curto de proposito: roda dentro de uma requisicao HTTP (criar lugar /
+# backfill em GET /api/lugares) no unico worker do gunicorn.
+TIMEOUT_SEGUNDOS = 4
+
+
 def geocodificar(nome: str, cidade: str | None) -> dict:
     """Devolve {"status": "ok", "lat":..., "lng":...} | {"status": "nao_encontrado"}
-    | {"status": "erro"} (erro = falha de rede/timeout - NAO persistir isso como
-    definitivo, ver docstring do modulo). Nunca lanca excecao."""
+    | {"status": "erro"} (temporario: rede/timeout/429/5xx - tenta de novo mais
+    tarde) | {"status": "recusado"} (4xx exceto 429 - definitivo). Nunca lanca
+    excecao."""
     consulta = ", ".join(p for p in [nome, cidade] if p)
     if not consulta.strip():
         return {"status": "nao_encontrado"}
@@ -55,10 +63,15 @@ def geocodificar(nome: str, cidade: str | None) -> dict:
             NOMINATIM_URL,
             params={"q": consulta, "format": "jsonv2", "limit": 1},
             headers={"User-Agent": USER_AGENT},
-            timeout=8,
+            timeout=TIMEOUT_SEGUNDOS,
         )
         resp.raise_for_status()
         resultados = resp.json()
+    except requests.HTTPError as e:
+        codigo = getattr(e.response, "status_code", None)
+        if isinstance(codigo, int) and 400 <= codigo < 500 and codigo != 429:
+            return {"status": "recusado"}
+        return {"status": "erro"}
     except (requests.RequestException, ValueError):
         return {"status": "erro"}
 

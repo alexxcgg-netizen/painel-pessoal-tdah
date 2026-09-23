@@ -1372,6 +1372,9 @@ function criarStatusVooEl(r) {
   ].filter(Boolean);
   if (detalhes.length) box.appendChild(criarEl("p", "card-linha-meta", detalhes.join(" · ")));
   if (r.cache) box.appendChild(criarEl("p", "card-linha-meta voo-status-cache", `dado de ${r.buscado_em_texto || "cache recente"}`));
+  // Plano gratis da AviationStack e so HTTP (o dado pode ser alterado no
+  // caminho) - so exibicao, nunca decisao automatica (revisao da Fase 6).
+  box.appendChild(criarEl("p", "card-linha-meta voo-status-confirmar", "Confirme no app da companhia."));
   return box;
 }
 
@@ -1419,6 +1422,14 @@ ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Adicionar", () => {
 // nunca no carregamento da tela (custa uma chamada de rede a mais que a
 // maioria das visitas nao precisa). Versao fixada (1.9.4, cdn.jsdelivr.net,
 // ver tasks/fase6/progress-f3.txt) - nunca "latest".
+// SRI (revisao da Fase 6): hash sha256 calculado sobre os arquivos EXATOS
+// dessas URLs (conferido igual no unpkg) - se o CDN servir outra coisa, o
+// navegador recusa e a tela cai no aviso "Não consegui carregar o mapa".
+// Trocar a versao = recalcular: openssl dgst -sha256 -binary f | openssl base64 -A
+const LEAFLET_JS_URL = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+const LEAFLET_JS_SRI = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
+const LEAFLET_CSS_URL = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+const LEAFLET_CSS_SRI = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
 let leafletCarregando = null;
 function carregarLeaflet() {
   if (window.L) return Promise.resolve();
@@ -1426,12 +1437,19 @@ function carregarLeaflet() {
   leafletCarregando = new Promise((resolve, reject) => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+    link.href = LEAFLET_CSS_URL;
+    link.integrity = LEAFLET_CSS_SRI;
+    link.crossOrigin = "anonymous";
     document.head.appendChild(link);
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+    script.src = LEAFLET_JS_URL;
+    script.integrity = LEAFLET_JS_SRI;
+    script.crossOrigin = "anonymous";
     script.addEventListener("load", () => resolve());
-    script.addEventListener("error", () => reject(new Error("falha ao carregar o Leaflet")));
+    script.addEventListener("error", () => {
+      leafletCarregando = null; // deixa tentar de novo num proximo clique
+      reject(new Error("falha ao carregar o Leaflet"));
+    });
     document.head.appendChild(script);
   });
   return leafletCarregando;
@@ -1457,9 +1475,11 @@ function criarBlocoMapaLugar(l) {
     if (!abrir || iniciado) return;
     if (l.geocode_status !== "ok" || l.lat == null || l.lng == null) {
       mapaEl.textContent =
-        l.geocode_status === "nao_encontrado"
+        l.geocode_status === "nao_encontrado" || l.geocode_status === "recusado"
           ? "Não encontrei esse lugar no mapa (nome/cidade) - o lugar continua salvo normalmente."
-          : "Ainda localizando no mapa... tente de novo em instantes.";
+          : l.geocode_status === "erro"
+            ? "O serviço de mapa não respondeu - tento localizar de novo mais tarde. O lugar continua salvo normalmente."
+            : "Ainda localizando no mapa... tente de novo em instantes.";
       return;
     }
     iniciado = true;
@@ -1470,7 +1490,11 @@ function criarBlocoMapaLugar(l) {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(mapa);
-      window.L.marker([l.lat, l.lng]).addTo(mapa).bindPopup(l.nome);
+      // Leaflet trata STRING no popup como HTML (XSS armazenado com o nome
+      // do lugar - revisao da Fase 6): sempre um no DOM com textContent.
+      const popup = document.createElement("span");
+      popup.textContent = l.nome || "";
+      window.L.marker([l.lat, l.lng]).addTo(mapa).bindPopup(popup);
     } catch (e) {
       iniciado = false;
       mapaEl.textContent = "Não consegui carregar o mapa agora (sem rede?) - o lugar continua salvo normalmente.";
