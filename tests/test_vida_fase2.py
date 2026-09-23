@@ -319,7 +319,7 @@ class ManutencaoComprasResponderTestCase(VidaBaseTestCase):
 
     def test_compras_dedup_e_comprado(self):
         r = self.client.post("/api/compras", json={"itens": ["acabou o cafe", "Café", "arroz", " "]})
-        self.assertEqual(r.get_json()["adicionados"], ["acabou o cafe", "arroz"])
+        self.assertEqual(r.get_json()["adicionados"], ["cafe", "arroz"])
         itens = self.client.get("/api/compras").get_json()
         self.assertEqual([i["item"] for i in itens], ["cafe", "arroz"])
         self.client.post(f"/api/compras/{itens[0]['id']}/comprado")

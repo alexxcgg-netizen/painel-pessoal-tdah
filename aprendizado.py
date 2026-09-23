@@ -373,10 +373,13 @@ def dica_sono_humor(conn, minimo_amostras: int = 3, diferenca_minima: float = 0.
         pior = min(medias, key=medias.get)
         if medias[melhor] - medias[pior] < diferenca_minima:
             continue
-        partes.append(
-            f"seu {campo} fica mais pra '{rotulo[round(medias[melhor])]}' depois de {melhor} de sono "
-            f"e mais pra '{rotulo[round(medias[pior])]}' depois de {pior}"
-        )
+        alto, baixo = rotulo[round(medias[melhor])], rotulo[round(medias[pior])]
+        if alto == baixo:
+            partes.append(f"seu {campo} fica melhor depois de {melhor} de sono do que depois de {pior}")
+        else:
+            partes.append(
+                f"seu {campo} fica mais pra '{alto}' depois de {melhor} de sono e mais pra '{baixo}' depois de {pior}"
+            )
     if not partes:
         return None
     return "Pelo seu check-in, " + "; ".join(partes) + "."

@@ -38,6 +38,12 @@ def _extrair_evento(obj) -> dict | None:
     inicio = comp["DTSTART"].dt
     fim = comp["DTEND"].dt if "DTEND" in comp else inicio
     dia_inteiro = not isinstance(inicio, datetime)
+    # iCloud manda horario com fuso (TZID); o resto do app trabalha com hora
+    # local sem fuso - comparar os dois estoura TypeError. Converte uma vez aqui.
+    if isinstance(inicio, datetime) and inicio.tzinfo is not None:
+        inicio = inicio.astimezone().replace(tzinfo=None)
+    if isinstance(fim, datetime) and fim.tzinfo is not None:
+        fim = fim.astimezone().replace(tzinfo=None)
     return {
         "titulo": str(comp.get("SUMMARY", "Sem titulo")),
         "inicio": inicio.isoformat(),

@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import hmac
 import io
 import json
 import math
@@ -1930,7 +1931,7 @@ NOTIFICACOES_URGENTES = {
 }
 
 
-def _adiar_aviso(conn, titulo: str, corpo: str):
+def _adiar_aviso(conn, tipo: str, titulo: str, corpo: str):
     """Guarda um aviso de janela curta segurado pelo hiperfoco pra sair quando
     o foco acabar (so vale no mesmo dia - aviso de ontem nao faz mais sentido)."""
     hoje = date.today().isoformat()
@@ -1939,7 +1940,7 @@ def _adiar_aviso(conn, titulo: str, corpo: str):
     except ValueError:
         guardados = {}
     itens = guardados.get("itens", []) if guardados.get("data") == hoje else []
-    itens.append([titulo, corpo])
+    itens.append([tipo, titulo, corpo])
     definir_configuracao(conn, "avisos_adiados", json.dumps({"data": hoje, "itens": itens[-10:]}))
 
 
@@ -1953,10 +1954,14 @@ def _liberar_avisos_adiados(conn, hoje: date) -> list[tuple[str, int, str, str]]
     definir_configuracao(conn, "avisos_adiados", "{}")
     if guardados.get("data") != hoje.isoformat():
         return []
-    return [
-        ("adiado_hiperfoco", vida.id_estavel("adiado", hoje.isoformat(), titulo, corpo), titulo, corpo)
-        for titulo, corpo in guardados["itens"]
-    ]
+    # O tipo original decide se o aviso respeita o modo silencioso na hora de
+    # sair ("Fechando o dia" segurado ate 22h25 nao deve tocar no silencio).
+    liberados = []
+    for item in guardados["itens"]:
+        tipo_original, titulo, corpo = item if len(item) == 3 else ("", *item)
+        tipo = "adiado_hiperfoco" if tipo_original in NOTIFICACOES_URGENTES else "adiado_hiperfoco_leve"
+        liberados.append((tipo, vida.id_estavel("adiado", hoje.isoformat(), titulo, corpo), titulo, corpo))
+    return liberados
 
 
 def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
@@ -2059,9 +2064,8 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         checkin_sono = {
             c["data"]: c["sono"] for c in list_checkins(conn, (hoje - timedelta(days=14)).isoformat()) if c["sono"]
         }
-        seguidas = vida.noites_ruins_seguidas(sono, checkin_sono, hoje)
+        seguidas, inicio = vida.sequencia_noites_ruins(sono, checkin_sono, hoje)
         if seguidas >= 3:
-            inicio = hoje - timedelta(days=seguidas - 1)
             ref = vida.id_estavel("sono_ruim", inicio.isoformat())
             if not ja_notificado_alguma_vez(conn, "sono_ruim", ref):
                 avisos.append(
@@ -2457,7 +2461,7 @@ def verificar_e_notificar():
     for tipo, ref_id, titulo, corpo in avisos:
         if em_hiperfoco and tipo not in vida.CRITICOS_HIPERFOCO:
             if tipo in vida.AVISOS_JANELA_CURTA:
-                _adiar_aviso(conn, titulo, corpo)
+                _adiar_aviso(conn, tipo, titulo, corpo)
                 marcar_notificado(conn, tipo, ref_id)
             continue
         if silencioso and tipo not in NOTIFICACOES_URGENTES:
@@ -3367,7 +3371,7 @@ def _inteiro_no_intervalo(valor, minimo: int, maximo: int) -> int | None:
         return None
     try:
         numero = int(valor)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     if isinstance(valor, float) and valor != numero:
         return None
@@ -3705,7 +3709,7 @@ def _clima_texto_para(destino: str, data_iso: str) -> str | None:
 def _viagem_detalhada(conn, v: dict, hoje: date) -> dict:
     lugares = [
         l for l in list_lugares(conn)
-        if l["cidade"] and vida.normalizar_nome(l["cidade"]) in vida.normalizar_nome(v["destino"])
+        if vida.mesma_cidade(l["cidade"], v["destino"])
     ]
     ida = date.fromisoformat(v["data_ida"])
     return {
@@ -3895,14 +3899,16 @@ def _adicionar_compras(conn, itens) -> dict:
     if not isinstance(itens, list):
         return {"erro": "mande a lista de itens"}
     adicionados = []
+    validos = 0
     for bruto in itens[:30]:
         item = _texto_curto(bruto, 60)
         if not item or not vida.normalizar_item_compra(item):
             continue
+        validos += 1
         _, novo = adicionar_compra(conn, item)
         if novo:
-            adicionados.append(item)
-    if not adicionados and not any(_texto_curto(i, 60) for i in itens[:30]):
+            adicionados.append(vida.limpar_item_compra(item))
+    if not validos:
         return {"erro": "nenhum item valido"}
     return {"ok": True, "adicionados": adicionados}
 
@@ -3999,11 +4005,20 @@ def mensagem_dificil():
 
 def _agenda_pendente_de_hoje(conn) -> list[dict]:
     """Agenda de hoje (iCloud + tarefa com hora) sem dia inteiro e sem o que
-    ja foi concluido - o que ainda pode ter horario pra cumprir."""
-    return [
-        e for e in _eventos_de_hoje_com_seguranca(conn)
-        if not e.get("dia_inteiro") and not e.get("concluido") and e.get("inicio")
-    ]
+    ja foi concluido - o que ainda pode ter horario pra cumprir. `inicio` sai
+    sempre como hora local sem fuso (quem compara com datetime.now() nao quebra)."""
+    resultado = []
+    for e in _eventos_de_hoje_com_seguranca(conn):
+        if e.get("dia_inteiro") or e.get("concluido") or not e.get("inicio"):
+            continue
+        try:
+            inicio = datetime.fromisoformat(e["inicio"])
+        except (TypeError, ValueError):
+            continue
+        if inicio.tzinfo is not None:
+            inicio = inicio.astimezone().replace(tzinfo=None)
+        resultado.append({**e, "inicio": inicio.isoformat(timespec="minutes")})
+    return resultado
 
 
 def _mensagem_local(conn, evento: str, lugar: str, bateria: int | None, agora: datetime) -> str | None:
@@ -4046,7 +4061,7 @@ def atalho_local():
     (o Atalho so mostra notificacao se o texto nao estiver vazio). A mesma
     mensagem nao se repete em menos de 2h (geofence costuma disparar mais de
     uma vez quando o sinal oscila na porta de casa)."""
-    if not _token_atalho_valido():
+    if not _token_atalho_valido(obrigatorio=True):
         return jsonify({"error": "token invalido"}), 401
     body = _corpo_json()
     evento = body.get("evento")
@@ -4305,7 +4320,7 @@ def revisao_mensal():
 def atalho_app():
     """Automacao 'App abriu/fechou' do Atalhos (uma por app) - o Screen Time
     nao e legivel pelo Atalhos, entao o tempo de uso e aproximado por aqui."""
-    if not _token_atalho_valido():
+    if not _token_atalho_valido(obrigatorio=True):
         return jsonify({"error": "token invalido"}), 401
     body = _corpo_json()
     nome = _texto_curto(body.get("app"), 40)
@@ -4684,14 +4699,18 @@ def apagar_item_cotacao(cotacao_id, item_id):
     return jsonify({"ok": True})
 
 
-def _token_atalho_valido() -> bool:
+def _token_atalho_valido(obrigatorio: bool = False) -> bool:
     """Mesma logica do SAUDE_WEBHOOK_TOKEN: se PAINEL_ATALHOS_TOKEN nao
     estiver configurado, a rota fica aberta (uso local); se estiver, o
-    Atalho do iPhone precisa mandar o header X-Webhook-Token batendo."""
+    Atalho do iPhone precisa mandar o header X-Webhook-Token batendo.
+    `obrigatorio`: rota que DEVOLVE dado pessoal (agenda, lista de compras)
+    ou grava rastro de uso - sem token configurado, so aceita quem ja esta
+    logado no painel (nunca fica aberta pra qualquer um que ache a URL)."""
     token_esperado = os.environ.get("PAINEL_ATALHOS_TOKEN")
     if not token_esperado:
-        return True
-    return request.headers.get("X-Webhook-Token") == token_esperado
+        return not obrigatorio or bool(session.get("autenticado"))
+    enviado = request.headers.get("X-Webhook-Token") or ""
+    return hmac.compare_digest(enviado.encode(), token_esperado.encode())
 
 
 @app.route("/api/atalho/capturar", methods=["POST"])

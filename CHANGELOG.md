@@ -5,6 +5,40 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (22) - Correcoes da revisao independente da Fase 2
+
+Um agente separado (so leitura) revisou o commit da Fase 2 com ~700 requisicoes de lixo e
+cenarios reproduzidos. Tudo que era bug real foi corrigido, com teste de regressao em
+`tests/test_vida_revisao.py`.
+
+- **"Cheguei em casa" dava erro 500 com evento do iCloud no dia**: o iCloud manda horario com
+  fuso e o resto do app usa hora local sem fuso. Agora `caldav_client` converte uma vez na
+  entrada e `_agenda_pendente_de_hoje` garante hora local sem fuso (tambem corrige o "vai sair a
+  noite" e o aviso de chuva).
+- **Numero gigante (`1e999`) dava 500** em manutencao, treino e no Atalho de localizacao
+  (bateria): `_inteiro_no_intervalo` agora recusa infinito.
+- **"Sono ruim seguido" podia avisar duas vezes no mesmo dia** quando o dado de hoje chegava
+  depois: a sequencia agora e identificada pela primeira noite ruim de verdade
+  (`vida.sequencia_noites_ruins`).
+- **Ficha de treino casava pedaco de palavra** ("Braco" em "abraco", "Perna" em
+  "Pernambucanas"): agora e palavra inteira. "Treino de voo/pouso" nao e academia (nem mostra
+  ficha, nem poe fone e garrafa na saida de casa).
+- **"!" abria vazio** se a ficha foi criada pelo chat depois de abrir a aba: recarrega a lista
+  quando falta alguma.
+- **Data de criacao em UTC** comparada com a data local (item de "pra responder" criado as 22h
+  aparecia "ha -1 dia" e o lembrete atrasava um dia): pra responder, aprender, manutencao e
+  contas pessoais agora leem `criado_em` em hora local.
+- **Aviso segurado pelo hiperfoco ignorava o modo silencioso** ao sair: agora so o que ja era
+  urgente (rotina da manha, hora de dormir) fura o silencio.
+- **Atalho de localizacao/uso de apps sem token ficava aberto pra qualquer um**: sem
+  `PAINEL_ATALHOS_TOKEN`, so aceita quem esta logado no painel. Comparacao do token em tempo
+  constante (`hmac.compare_digest`).
+- Lista de memorias: texto longo nao empurra mais o botao de apagar pra outra linha.
+- Detalhes: "acabou o" sozinho nao vira item "o"; a resposta de compras devolve o nome limpo;
+  lugar curtido so aparece na viagem se a cidade bate por palavra inteira; dica sono x humor nao
+  diz "mais pra 'ok' ... e mais pra 'ok'"; hora de voo invalida nao quebra o aviso pos-voo.
+  Service worker v8.
+
 ## 2026-09-23 (21) - BRIEFING.md Fase 3 (dinheiro, crescimento, burocracia)
 
 Fase 3 do `BRIEFING.md`. Cofre de documentos e CalDAV ficaram de fora a pedido do Alex.

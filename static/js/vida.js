@@ -611,7 +611,10 @@ function botaoFichaTreino(t, li) {
       btn.setAttribute("aria-expanded", "false");
       return;
     }
-    const fichas = (await obterFichasTreino()).filter((f) => t.fichas_treino.includes(f.id));
+    let cache = await obterFichasTreino();
+    // Ficha criada pelo chat (ou em outro aparelho) depois do cache: recarrega.
+    if (t.fichas_treino.some((id) => !cache.some((f) => f.id === id))) cache = await obterFichasTreino(true);
+    const fichas = cache.filter((f) => t.fichas_treino.includes(f.id));
     const wrap = criarEl("div", "fichas-da-tarefa");
     fichas.forEach((f) => wrap.appendChild(renderExerciciosFicha(f)));
     li.appendChild(wrap);

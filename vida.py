@@ -16,7 +16,8 @@ CAMPOS_CHECKIN = ("energia", "sono", "humor")
 # Durante o hiperfoco so passa o que perde o sentido se atrasar: tarefa com
 # hora marcada (inclui remedio, que vira tarefa recorrente com hora),
 # compromisso chegando e hora de sair pro voo.
-CRITICOS_HIPERFOCO = {"tarefa_horario", "compromisso_chegando", "voo_sair", "hiperfoco_fim", "adiado_hiperfoco"}
+CRITICOS_HIPERFOCO = {"tarefa_horario", "compromisso_chegando", "voo_sair", "hiperfoco_fim", "adiado_hiperfoco",
+                      "adiado_hiperfoco_leve"}
 
 # Avisos que so disparam numa janela curta de horario (22h, 21h, 7h...) - se o
 # hiperfoco segurar, a janela passa e eles sumiriam do dia. Esses ficam
@@ -268,9 +269,13 @@ def slot_agua_pausa(agora: datetime) -> int | None:
     return agora.hour
 
 
-def noites_ruins_seguidas(sono_por_dia: dict[str, float], checkin_sono_por_dia: dict[str, int], hoje: date) -> int:
-    """Quantas noites ruins seguidas terminando hoje (ou ontem, se hoje ainda
-    nao tem dado). Ruim = menos de 6h no Saude OU 'ruim' no check-in."""
+def sequencia_noites_ruins(
+    sono_por_dia: dict[str, float], checkin_sono_por_dia: dict[str, int], hoje: date
+) -> tuple[int, date | None]:
+    """(quantas noites ruins seguidas, primeira noite da sequencia), terminando
+    hoje (ou ontem, se hoje ainda nao tem dado). Ruim = menos de 6h no Saude OU
+    'ruim' no check-in. A primeira noite nao muda quando o dado de hoje chega
+    depois - e ela que identifica a sequencia (um aviso por sequencia)."""
     def ruim(dia: date) -> bool | None:
         iso = dia.isoformat()
         horas = sono_por_dia.get(iso)
@@ -286,7 +291,11 @@ def noites_ruins_seguidas(sono_por_dia: dict[str, float], checkin_sono_por_dia: 
     while ruim(dia):
         seguidas += 1
         dia -= timedelta(days=1)
-    return seguidas
+    return seguidas, (dia + timedelta(days=1) if seguidas else None)
+
+
+def noites_ruins_seguidas(sono_por_dia: dict[str, float], checkin_sono_por_dia: dict[str, int], hoje: date) -> int:
+    return sequencia_noites_ruins(sono_por_dia, checkin_sono_por_dia, hoje)[0]
 
 
 def compromissos_na_chuva(eventos: list[dict], resumo_chuva: dict | None) -> list[dict]:
@@ -308,26 +317,47 @@ def compromissos_na_chuva(eventos: list[dict], resumo_chuva: dict | None) -> lis
     return afetados
 
 
+_PALAVRAS_TREINO = {"treino", "academia", "musculacao", "treinar", "malhar"}
+# "treino de pouso", "treino de voo": o Alex e aluno piloto - nao e academia.
+_PALAVRAS_AVIACAO = {"voo", "pouso", "pousos", "decolagem", "navegacao", "solo", "simulador", "aeroclube"}
+
+
+def _palavras(texto: str | None) -> list[str]:
+    return re.findall(r"[a-z0-9]+", normalizar_nome(texto))
+
+
+def _contem_sequencia(palavras: list[str], trecho: list[str]) -> bool:
+    n = len(trecho)
+    return n > 0 and any(palavras[i:i + n] == trecho for i in range(len(palavras) - n + 1))
+
+
 def ficha_para_titulo(fichas: list[dict], titulo: str | None) -> list[dict]:
     """Fichas de treino que batem com o titulo da tarefa: pelo nome do grupo
-    ("Treino peito" -> ficha "Peito"). Titulo generico de treino/academia sem
-    grupo nenhum mostra todas."""
-    texto = normalizar_nome(titulo)
-    if not texto:
+    como palavra(s) inteira(s) ("Treino peito" -> ficha "Peito"; "abraco" nao
+    casa com "Braco"). Titulo generico de treino/academia sem grupo nenhum
+    mostra todas. Treino de aviacao nao e academia."""
+    palavras = _palavras(titulo)
+    if not palavras or _PALAVRAS_AVIACAO & set(palavras):
         return []
-    palavras = set(texto.replace("/", " ").replace("-", " ").replace(",", " ").split())
-    achadas = [f for f in fichas if normalizar_nome(f["grupo"]) and normalizar_nome(f["grupo"]) in texto]
+    achadas = [f for f in fichas if _contem_sequencia(palavras, _palavras(f["grupo"]))]
     if achadas:
         return achadas
-    if palavras & {"treino", "academia", "musculacao", "treinar", "malhar"}:
+    if _PALAVRAS_TREINO & set(palavras):
         return list(fichas)
     return []
 
 
+def mesma_cidade(cidade: str | None, destino: str | None) -> bool:
+    """Lugar curtido vale pra viagem se a cidade aparece no destino como
+    palavra(s) inteira(s) ("Floripa" casa com "Floripa, SC"; "Sal" nao casa
+    com "Salvador"; cidade so de emoji nao casa com tudo)."""
+    return _contem_sequencia(_palavras(destino), _palavras(cidade))
+
+
 def eh_dia_de_academia(titulos_hoje: list[str]) -> bool:
     for t in titulos_hoje:
-        texto = normalizar_nome(t)
-        if any(p in texto for p in ("academia", "treino", "musculacao", "malhar")):
+        palavras = set(_palavras(t))
+        if palavras & _PALAVRAS_TREINO and not palavras & _PALAVRAS_AVIACAO:
             return True
     return False
 
@@ -381,7 +411,7 @@ def proxima_data_manutencao(ultima_vez: str | None, intervalo_meses: int, criado
     return date(ano, mes, min(base.day, monthrange(ano, mes)[1]))
 
 
-_PREFIXO_ACABOU = re.compile(r"^\s*(acab(ou|aram))\s+((o|a|os|as)\s+)?", re.IGNORECASE)
+_PREFIXO_ACABOU = re.compile(r"^\s*(acab(ou|aram))\b\s*((o|a|os|as)\b\s*)?", re.IGNORECASE)
 
 
 def limpar_item_compra(texto: str) -> str:
@@ -391,11 +421,7 @@ def limpar_item_compra(texto: str) -> str:
 
 def normalizar_item_compra(texto: str | None) -> str:
     """'acabou o cafe' / 'Cafe.' -> 'cafe' (pra nao duplicar na lista)."""
-    t = normalizar_nome(texto).strip(" .,!;")
-    for prefixo in ("acabou o ", "acabou a ", "acabaram os ", "acabaram as ", "acabou "):
-        if t.startswith(prefixo):
-            t = t[len(prefixo):]
-    return t.strip()
+    return normalizar_nome(limpar_item_compra(texto or "")).strip(" .,!;")
 
 
 # ---- Fase 3 ----

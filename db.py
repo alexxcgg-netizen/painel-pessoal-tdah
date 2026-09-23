@@ -1,10 +1,28 @@
 import sqlite3
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import vida
 
 DB_PATH = Path(__file__).parent / "data" / "painel.db"
+
+
+def _criado_local(linhas) -> list[dict]:
+    """`criado_em` com DEFAULT datetime('now') e UTC; quem compara com
+    date.today() precisa da hora local (senao item criado as 22h de Brasilia
+    ja "nasce amanha")."""
+    resultado = []
+    for r in linhas:
+        d = dict(r)
+        try:
+            if len(d["criado_em"]) <= 10:  # so data (legado/teste): nada a converter
+                raise ValueError
+            utc = datetime.fromisoformat(d["criado_em"]).replace(tzinfo=timezone.utc)
+            d["criado_em"] = utc.astimezone().replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
+        except (KeyError, TypeError, ValueError):
+            pass
+        resultado.append(d)
+    return resultado
 
 
 def get_db():
@@ -1449,7 +1467,7 @@ def list_contas_pessoais(conn) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM contas_pessoais WHERE ativo = 1 ORDER BY dia_vencimento, nome"
     ).fetchall()
-    return [dict(r) for r in rows]
+    return _criado_local(rows)
 
 
 def delete_conta_pessoal(conn, conta_id: int):
@@ -1672,7 +1690,7 @@ def create_manutencao(conn, item: str, intervalo_meses: int, ultima_vez: str | N
 
 def list_manutencoes(conn) -> list[dict]:
     rows = conn.execute("SELECT * FROM manutencoes ORDER BY item").fetchall()
-    return [dict(r) for r in rows]
+    return _criado_local(rows)
 
 
 def marcar_manutencao_feita(conn, manutencao_id: int, data: str) -> bool:
@@ -1723,7 +1741,7 @@ def create_responder(conn, quem: str, sobre: str | None) -> int:
 
 def list_responder_pendentes(conn) -> list[dict]:
     rows = conn.execute("SELECT * FROM responder WHERE respondido_em IS NULL ORDER BY criado_em").fetchall()
-    return [dict(r) for r in rows]
+    return _criado_local(rows)
 
 
 def marcar_respondido(conn, responder_id: int):
@@ -1744,7 +1762,7 @@ def list_aprender(conn) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM aprender WHERE concluido_em IS NULL ORDER BY COALESCE(ultima_vez, substr(criado_em, 1, 10))"
     ).fetchall()
-    return [dict(r) for r in rows]
+    return _criado_local(rows)
 
 
 def marcar_aprender(conn, aprender_id: int, campo: str, data: str) -> bool:

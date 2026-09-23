@@ -3673,9 +3673,10 @@ body.modo-essencial #essencial-box {
   flex-wrap: wrap;
 }
 
-.item-linha > div:first-child {
+.item-linha > :first-child:not(.item-acoes) {
   flex: 1 1 9rem;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .item-acoes {
