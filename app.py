@@ -53,6 +53,7 @@ from db import (
     apagar_espera,
     apagar_nota,
     atualizar_categoria_gasto,
+    atualizar_manutencao_veiculo,
     atualizar_saldo_conta,
     atualizar_uber_pedido,
     buscar_conta_por_nome,
@@ -70,6 +71,7 @@ from db import (
     create_lembrete,
     create_lugar,
     create_manutencao,
+    create_manutencao_veiculo,
     create_medicamento,
     create_medida_corporal,
     create_memoria,
@@ -95,6 +97,7 @@ from db import (
     delete_lembrete,
     delete_lugar,
     delete_manutencao,
+    delete_manutencao_veiculo,
     delete_medicamento,
     delete_medida_corporal,
     delete_memoria,
@@ -112,10 +115,12 @@ from db import (
     get_db,
     get_essencial,
     estatisticas_conta,
+    get_manutencao_veiculo,
     get_or_create_bank_account,
     get_saude_dia,
     init_db,
     insert_bank_transactions,
+    km_atual_veiculo,
     list_all_bank_transactions,
     list_bank_accounts,
     list_bank_transactions,
@@ -143,6 +148,7 @@ from db import (
     list_lembretes,
     list_lugares,
     list_manutencoes,
+    list_manutencoes_veiculo,
     list_medicamentos_ativos,
     list_medidas_corporais,
     list_memorias,
@@ -2503,6 +2509,14 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         quando = "ja passou do prazo" if m["dias_ate"] < 0 else "vence hoje" if m["dias_ate"] == 0 else f"vence em {m['dias_ate']} dia(s)"
         avisos.append(("manutencao", ref, "Manutencao", f"{m['item']}: {quando}."))
 
+    # Manutencao de veiculo por km ou data (US-C14) - tabela dedicada,
+    # separada da manutencao generica acima (essa e so por tempo).
+    for m in _manutencoes_veiculo_proximas(conn, hoje):
+        ref = vida.id_estavel("manutencao_veiculo", m["id"], m["proxima_em_km"], m["proxima_em_data"])
+        if ja_notificado_alguma_vez(conn, "manutencao_veiculo", ref):
+            continue
+        avisos.append(("manutencao_veiculo", ref, "Manutencao do veiculo", f"{m['tipo']}: {m['motivo']}."))
+
     if agora.hour >= 10 and not ja_notificou_hoje(conn, "responder"):
         antigas = [
             r for r in list_responder_pendentes(conn) if datetime.fromisoformat(r["criado_em"]).date() < hoje
@@ -4292,6 +4306,156 @@ def apagar_manutencao(manutencao_id):
     delete_manutencao(conn, manutencao_id)
     conn.close()
     return jsonify({"ok": True})
+
+
+def _numero_positivo_opcional(valor):
+    """None e valido (campo opcional, ex: km ou proxima_em_km nao
+    informados). Qualquer outra coisa que nao seja numero >= 0 devolve
+    "invalido" (string, nunca confundivel com um float de verdade) pra quem
+    chamou tratar como erro de validacao."""
+    if valor in (None, ""):
+        return None
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        return "invalido"
+    if valor < 0:
+        return "invalido"
+    return float(valor)
+
+
+def _validar_manutencao_veiculo(body: dict) -> dict:
+    """Valida os campos comuns a criar/atualizar manutencao de veiculo -
+    devolve {"erro": "..."} ou os campos ja normalizados prontos pra
+    gravar. tipo/data sao obrigatorios; km/proxima_em_km/proxima_em_data sao
+    opcionais, mas precisam fazer sentido quando informados."""
+    tipo = _texto_curto(body.get("tipo"), 80)
+    data = _data_iso_valida(body.get("data"))
+    if not tipo or not data:
+        return {"erro": "informe o tipo e a data (AAAA-MM-DD)"}
+
+    km = _numero_positivo_opcional(body.get("km"))
+    if km == "invalido":
+        return {"erro": "km invalido (numero maior ou igual a zero)"}
+    proxima_em_km = _numero_positivo_opcional(body.get("proxima_em_km"))
+    if proxima_em_km == "invalido":
+        return {"erro": "proxima_em_km invalido (numero maior ou igual a zero)"}
+
+    proxima_em_data = None
+    if body.get("proxima_em_data") not in (None, ""):
+        proxima_em_data = _data_iso_valida(body.get("proxima_em_data"))
+        if not proxima_em_data:
+            return {"erro": "proxima_em_data invalida (AAAA-MM-DD)"}
+
+    return {
+        "tipo": tipo,
+        "data": data,
+        "km": km,
+        "proxima_em_km": proxima_em_km,
+        "proxima_em_data": proxima_em_data,
+    }
+
+
+@app.route("/api/manutencoes-veiculo", methods=["GET"])
+def listar_manutencoes_veiculo():
+    conn = get_db()
+    resultado = list_manutencoes_veiculo(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/manutencoes-veiculo", methods=["POST"])
+def criar_manutencao_veiculo_rota():
+    body = _corpo_json()
+    campos = _validar_manutencao_veiculo(body)
+    if "erro" in campos:
+        return jsonify({"error": campos["erro"]}), 400
+    conn = get_db()
+    manutencao_id = create_manutencao_veiculo(
+        conn, campos["tipo"], campos["data"], campos["km"], campos["proxima_em_km"], campos["proxima_em_data"]
+    )
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": manutencao_id, "ok": True}), 201
+
+
+@app.route("/api/manutencoes-veiculo/<int:manutencao_id>", methods=["PUT"])
+def atualizar_manutencao_veiculo_rota(manutencao_id):
+    conn = get_db()
+    if not get_manutencao_veiculo(conn, manutencao_id):
+        conn.close()
+        return jsonify({"error": "manutencao nao encontrada"}), 404
+    body = _corpo_json()
+    campos = _validar_manutencao_veiculo(body)
+    if "erro" in campos:
+        conn.close()
+        return jsonify({"error": campos["erro"]}), 400
+    atualizar_manutencao_veiculo(
+        conn,
+        manutencao_id,
+        campos["tipo"],
+        campos["data"],
+        campos["km"],
+        campos["proxima_em_km"],
+        campos["proxima_em_data"],
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/manutencoes-veiculo/<int:manutencao_id>", methods=["DELETE"])
+def apagar_manutencao_veiculo(manutencao_id):
+    conn = get_db()
+    delete_manutencao_veiculo(conn, manutencao_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _ultima_manutencao_veiculo_por_tipo(conn) -> list[dict]:
+    """So a manutencao mais recente de cada tipo importa pra saber "quando
+    vence a proxima" - um registro antigo do mesmo tipo (ex: troca de oleo
+    de 2 revisoes atras) tem um proxima_em_km/proxima_em_data ja obsoleto,
+    substituido pelo registro mais novo."""
+    vistos = set()
+    ultimas = []
+    for m in list_manutencoes_veiculo(conn):  # ja vem ordenado por data/id DESC
+        if m["tipo"] in vistos:
+            continue
+        vistos.add(m["tipo"])
+        ultimas.append(m)
+    return ultimas
+
+
+def _manutencoes_veiculo_proximas(conn, hoje: date, dias_aviso: int = 15, km_aviso: float = 500) -> list[dict]:
+    """Pra cada tipo de manutencao (so o registro mais recente), decide se
+    esta perto do limite por DATA (dentro de `dias_aviso` dias, ou ja
+    passou) ou por KM (km_atual_veiculo - o maior km ja registrado em
+    qualquer manutencao, ja que nao ha odometro conectado - dentro de
+    `km_aviso` do proximo, ou ja passou). Sem proxima_em_km/proxima_em_data
+    definido, essa manutencao simplesmente nunca avisa (nada pra comparar)."""
+    km_atual = km_atual_veiculo(conn)
+    proximas = []
+    for m in _ultima_manutencao_veiculo_por_tipo(conn):
+        motivo = None
+        if m["proxima_em_data"]:
+            proxima = date.fromisoformat(m["proxima_em_data"])
+            dias_ate = (proxima - hoje).days
+            if dias_ate <= dias_aviso:
+                motivo = (
+                    "ja passou do prazo" if dias_ate < 0
+                    else "vence hoje" if dias_ate == 0
+                    else f"vence em {dias_ate} dia(s)"
+                )
+        if not motivo and m["proxima_em_km"] is not None and km_atual is not None:
+            km_faltando = m["proxima_em_km"] - km_atual
+            if km_faltando <= km_aviso:
+                motivo = (
+                    f"ja passou {abs(km_faltando):.0f}km do previsto" if km_faltando < 0
+                    else f"faltam {km_faltando:.0f}km pro previsto"
+                )
+        if motivo:
+            proximas.append({**m, "motivo": motivo})
+    return proximas
 
 
 def _adicionar_compras(conn, itens) -> dict:

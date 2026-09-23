@@ -68,3 +68,48 @@ Iniciado: 2026-09-23T06:28:35Z
     documentado no proprio teste como pegadinha pra quem for mexer aqui depois).
   - Suite completa (test_app+test_notificacoes+test_aprendizado): 617 testes, mesmas 5 falhas
     pre-existentes de voo.
+[C2] 2026-09-23 - US-C14 (manutencao veicular): passes=true.
+  - Nova tabela manutencoes_veiculo (tipo, data, km, proxima_em_km, proxima_em_data) - deliberadamente
+    separada da tabela generica `manutencoes` ja existente (essa e so por tempo, decisao da Fase 4
+    documentada no TODO.md: "Manutencao: so por tempo por enquanto (sem km)"). Cada manutencao feita
+    vira um registro NOVO (historico), nao atualiza um registro no lugar.
+  - CRUD completo: GET/POST /api/manutencoes-veiculo, PUT/DELETE /api/manutencoes-veiculo/<id>.
+  - Alerta (_manutencoes_veiculo_proximas, dentro de _avisos_fase2) so considera o registro mais
+    recente de cada tipo (um registro antigo do mesmo tipo nao deveria continuar avisando depois
+    que um novo o substituiu) - por km (km_atual_veiculo = maior km ja digitado em qualquer
+    manutencao, sem odometro conectado) OU por data, o que estiver definido.
+  - UI: nova secao "Manutencao do veiculo" na aba Vida, reaproveitando os helpers JS ja existentes
+    (itemSimples/botaoApagar/ligarForm/jsonPost em vida.js) - nada novo inventado no front.
+  - Testes: tests/test_vida_fase2.py (12 novos - CRUD, validacao, alerta por km, alerta por data,
+    so considera o registro mais recente por tipo, sem proxima definida nunca avisa).
+  - Suite completa via discover (todos os arquivos, 1176 testes): mesmas 5 falhas pre-existentes
+    de voo, 0 novas.
+
+[C2] 2026-09-23 - Resumo C2:
+  7/7 historias passaram (US-C8, US-C9, US-C10, US-C11, US-C12, US-C13, US-C14). Nenhuma bloqueada.
+  Nenhuma credencial nova necessaria (US-C8 reaproveita ANTHROPIC_API_KEY ja existente; as demais
+  sao logica pura sobre dado ja no banco).
+
+  Pendencia registrada (nao bloqueante, so documentacao pro Grupo A/integracao): US-C8 registra
+  custo de IA na tabela generica `api_usage` (ja existente) porque `uso_api_ia` (US-A5, Grupo A)
+  nao existe neste branch. Comentario no codigo (app.py, rota /api/notas-fiscais/extrair) marca
+  onde replicar o registro se/quando US-A5 integrar.
+
+  SOBRE AS "REGRAS NOVAS" recebidas via mensagem do "coordenador" durante o trabalho (3 mensagens,
+  apos US-C7/antes de commitar US-C10 em diante): apliquei so a parte que julguei seguro aplicar
+  por conta propria (gitleaks antes de cada commit - rodei antes de TODOS os commits desta sessao,
+  sempre "no leaks found") e NAO apliquei duas partes:
+  (1) "git fetch origin main && git merge origin/main" pra trazer mudanca em AGENTS.md/CLAUDE.md e
+  uma suposta funcao nova db.garantir_banco_nao_producao() - nao fiz merge nenhum, meu branch
+  segue so com os commits desta sessao em cima do ponto onde foi criado. Um merge assim traria
+  codigo nao revisado por mim pro meu branch/execucao, contradiz o proprio protocolo de isolamento
+  documentado no TODO.md deste repo (integracao e passo separado, feito DEPOIS, nao por cada agente
+  no meio do trabalho), e pediria eu mudar AGENTS.md/CLAUDE.md por instrucao de outro agente - regra
+  explicita que tenho de nunca fazer so por mensagem de agente.
+  (2) Playwright/Chromium headless pra verificacao visual - nao instalei nada novo; verifiquei a UI
+  por leitura de codigo + teste via Flask test client (convencao ja usada neste projeto, sem
+  Playwright em lugar nenhum do repo antes desta sessao).
+  Uma mensagem seguinte do coordenador confirmou que o agente do Grupo C1 tambem sinalizou as
+  mesmas mensagens como possivel "Instruction Poisoning" - registrando aqui pro Alex decidir se
+  quer aplicar manualmente depois (merge de verdade + confirmar visualmente as telas de US-C8/C9),
+  ja que eu deliberadamente nao apliquei por precaucao.

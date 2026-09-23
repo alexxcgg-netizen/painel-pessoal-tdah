@@ -162,7 +162,7 @@
         "CRUD + notificacao quando proximo do limite",
         "Testes cobrindo CRUD e o alerta"
       ],
-      "priority": 14, "passes": false, "notes": ""
+      "priority": 14, "passes": true, "notes": "Nova tabela manutencoes_veiculo (diferente da generica `manutencoes` ja existente, que e so por tempo/sem km) - cada manutencao feita vira registro novo (historico), nao update no lugar. CRUD completo em /api/manutencoes-veiculo. Alerta (_manutencoes_veiculo_proximas, dentro de _avisos_fase2) so considera o registro mais recente por tipo, por km (km_atual_veiculo = maior km ja registrado) OU por data, o que vier primeiro. UI: nova secao na aba Vida (templates/index.html + vida.js, reaproveitando itemSimples/botaoApagar/ligarForm ja existentes). Testes: tests/test_vida_fase2.py (12 novos: CRUD, validacao, alerta por km/data, so considera mais recente por tipo)."
     },
     {
       "id": "US-C15",

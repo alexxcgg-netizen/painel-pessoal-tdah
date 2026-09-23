@@ -317,6 +317,55 @@ class ManutencaoComprasResponderTestCase(VidaBaseTestCase):
                       {"item": "x", "intervalo_meses": 6, "ultima_vez": "ontem"}]:
             self.assertEqual(self.client.post("/api/manutencoes", json=corpo).status_code, 400, msg=repr(corpo))
 
+    def test_manutencao_veiculo_crud(self):
+        hoje = date.today().isoformat()
+        r = self.client.post(
+            "/api/manutencoes-veiculo",
+            json={"tipo": "Troca de oleo", "data": hoje, "km": 50000, "proxima_em_km": 55000},
+        )
+        self.assertEqual(r.status_code, 201)
+        m_id = r.get_json()["id"]
+
+        itens = self.client.get("/api/manutencoes-veiculo").get_json()
+        self.assertEqual(len(itens), 1)
+        self.assertEqual(itens[0]["tipo"], "Troca de oleo")
+        self.assertEqual(itens[0]["km"], 50000)
+        self.assertEqual(itens[0]["proxima_em_km"], 55000)
+        self.assertIsNone(itens[0]["proxima_em_data"])
+
+        r_upd = self.client.put(
+            f"/api/manutencoes-veiculo/{m_id}",
+            json={"tipo": "Troca de oleo", "data": hoje, "km": 50000, "proxima_em_km": 60000},
+        )
+        self.assertEqual(r_upd.status_code, 200)
+        self.assertEqual(self.client.get("/api/manutencoes-veiculo").get_json()[0]["proxima_em_km"], 60000)
+
+        self.assertEqual(self.client.put("/api/manutencoes-veiculo/9999", json={"tipo": "x", "data": hoje}).status_code, 404)
+
+        del_res = self.client.delete(f"/api/manutencoes-veiculo/{m_id}")
+        self.assertEqual(del_res.status_code, 200)
+        self.assertEqual(self.client.get("/api/manutencoes-veiculo").get_json(), [])
+
+    def test_manutencao_veiculo_validacao(self):
+        hoje = date.today().isoformat()
+        for corpo in [
+            {},
+            {"tipo": "x"},
+            {"tipo": "", "data": hoje},
+            {"tipo": "x", "data": "31/12/2026"},
+            {"tipo": "x", "data": hoje, "km": -5},
+            {"tipo": "x", "data": hoje, "km": "lixo"},
+            {"tipo": "x", "data": hoje, "proxima_em_km": -1},
+            {"tipo": "x", "data": hoje, "proxima_em_data": "lixo"},
+        ]:
+            self.assertEqual(
+                self.client.post("/api/manutencoes-veiculo", json=corpo).status_code, 400, msg=repr(corpo)
+            )
+
+    def test_manutencao_veiculo_apagar_inexistente_nao_quebra(self):
+        res = self.client.delete("/api/manutencoes-veiculo/9999")
+        self.assertEqual(res.status_code, 200)
+
     def test_compras_dedup_e_comprado(self):
         r = self.client.post("/api/compras", json={"itens": ["acabou o cafe", "Café", "arroz", " "]})
         self.assertEqual(r.get_json()["adicionados"], ["cafe", "arroz"])
@@ -465,6 +514,81 @@ class AvisosFase2TestCase(VidaBaseTestCase):
         self.client.post("/api/manutencoes", json={"item": "Oleo", "intervalo_meses": 6, "ultima_vez": ultima})
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
         self.assertIn("manutencao", self._tipos(agora))
+
+    def test_manutencao_veiculo_perto_por_data(self):
+        hoje = date.today().isoformat()
+        proxima = (date.today() + timedelta(days=5)).isoformat()
+        self.client.post(
+            "/api/manutencoes-veiculo",
+            json={"tipo": "Revisao", "data": hoje, "proxima_em_data": proxima},
+        )
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
+        self.assertTrue(
+            [c for t, c in self._avisos(agora) if t == "manutencao_veiculo" and "Revisao" in c]
+        )
+
+    def test_manutencao_veiculo_longe_por_data_nao_avisa(self):
+        hoje = date.today().isoformat()
+        proxima = (date.today() + timedelta(days=60)).isoformat()
+        self.client.post(
+            "/api/manutencoes-veiculo",
+            json={"tipo": "Revisao", "data": hoje, "proxima_em_data": proxima},
+        )
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
+        self.assertNotIn("manutencao_veiculo", self._tipos(agora))
+
+    def test_manutencao_veiculo_perto_por_km(self):
+        hoje = date.today().isoformat()
+        self.client.post(
+            "/api/manutencoes-veiculo",
+            json={"tipo": "Troca de oleo", "data": hoje, "km": 49800, "proxima_em_km": 50000},
+        )
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
+        self.assertTrue(
+            [c for t, c in self._avisos(agora) if t == "manutencao_veiculo" and "faltam" in c]
+        )
+
+    def test_manutencao_veiculo_longe_por_km_nao_avisa(self):
+        hoje = date.today().isoformat()
+        self.client.post(
+            "/api/manutencoes-veiculo",
+            json={"tipo": "Troca de oleo", "data": hoje, "km": 40000, "proxima_em_km": 50000},
+        )
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
+        self.assertNotIn("manutencao_veiculo", self._tipos(agora))
+
+    def test_manutencao_veiculo_ja_passou_do_km_avisa(self):
+        hoje = date.today().isoformat()
+        self.client.post(
+            "/api/manutencoes-veiculo",
+            json={"tipo": "Troca de oleo", "data": hoje, "km": 50500, "proxima_em_km": 50000},
+        )
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
+        self.assertTrue(
+            [c for t, c in self._avisos(agora) if t == "manutencao_veiculo" and "passou" in c]
+        )
+
+    def test_manutencao_veiculo_so_considera_registro_mais_recente_por_tipo(self):
+        hoje = date.today().isoformat()
+        antiga = (date.today() - timedelta(days=200)).isoformat()
+        # registro antigo do mesmo tipo, ja vencido - deveria ser substituido
+        # pelo mais recente (que ainda esta longe), nao empilhar os dois
+        self.client.post(
+            "/api/manutencoes-veiculo",
+            json={"tipo": "Pneu", "data": antiga, "proxima_em_data": antiga},
+        )
+        self.client.post(
+            "/api/manutencoes-veiculo",
+            json={"tipo": "Pneu", "data": hoje, "proxima_em_data": (date.today() + timedelta(days=90)).isoformat()},
+        )
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
+        self.assertNotIn("manutencao_veiculo", self._tipos(agora))
+
+    def test_manutencao_veiculo_sem_proxima_definida_nunca_avisa(self):
+        hoje = date.today().isoformat()
+        self.client.post("/api/manutencoes-veiculo", json={"tipo": "Lavagem", "data": hoje})
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
+        self.assertNotIn("manutencao_veiculo", self._tipos(agora))
 
     def test_responder_so_do_dia_anterior_e_depois_das_10h(self):
         conn = self._conn()

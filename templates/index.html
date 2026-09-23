@@ -575,6 +575,28 @@
       <p id="manutencoes-vazio" class="vazio" hidden>Nada cadastrado.</p>
       <ul id="lista-manutencoes"></ul>
 
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M5 17a2 2 0 0 1-2-2v-2l2-5a2 2 0 0 1 2-1h10a2 2 0 0 1 2 1l2 5v2a2 2 0 0 1-2 2M7 17v2M17 17v2"/><circle cx="7.5" cy="14" r="1.3"/><circle cx="16.5" cy="14" r="1.3"/></svg>
+        Manutencao do veiculo
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de manutencao do veiculo"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Troca de oleo, revisao, pneu - cada manutencao feita vira um registro novo (com km, se souber).
+          Preenche "proxima em km" ou "proxima em data" (ou os dois) pra eu avisar quando estiver perto.
+        </p>
+      </div>
+      <form id="manutencao-veiculo-form" class="form-linha">
+        <input type="text" id="mv-tipo" placeholder="Tipo (ex: Troca de oleo)" maxlength="80" required />
+        <input type="date" id="mv-data" aria-label="Data" required />
+        <input type="number" id="mv-km" placeholder="Km atual (opcional)" min="0" step="1" inputmode="numeric" />
+        <input type="number" id="mv-proxima-km" placeholder="Proxima em km (opcional)" min="0" step="1" inputmode="numeric" />
+        <input type="date" id="mv-proxima-data" aria-label="Proxima em data (opcional)" />
+        <button type="submit" id="mv-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+      <p id="manutencoes-veiculo-vazio" class="vazio" hidden>Nada cadastrado.</p>
+      <ul id="lista-manutencoes-veiculo"></ul>
+
       <h2 class="secao-secundaria" style="--secao-cor: var(--cor-aviacao)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg>
         Viagens
