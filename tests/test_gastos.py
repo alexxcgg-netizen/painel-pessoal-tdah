@@ -3,6 +3,7 @@ from datetime import date
 
 from gastos import (
     aplicar_apelidos,
+    detectar_aumento_assinatura,
     detectar_gastos_recorrentes,
     e_cobranca_generica,
     historico_diario,
@@ -294,6 +295,104 @@ class DetectarGastosRecorrentesTestCase(unittest.TestCase):
         ]
         resultado = detectar_gastos_recorrentes(gastos, date(2026, 9, 21), meses_analise=4, minimo_meses=2)
         self.assertEqual(resultado[0]["meses_confirmados"], 3)
+
+
+class DetectarAumentoAssinaturaTestCase(unittest.TestCase):
+    def test_sem_gastos_retorna_vazio(self):
+        self.assertEqual(detectar_aumento_assinatura([], date(2026, 9, 21)), [])
+
+    def test_aumento_acima_do_limiar_e_detectado(self):
+        gastos = [
+            _gasto("Netflix", 39.90, "2026-07-15"),
+            _gasto("Netflix", 39.90, "2026-08-15"),
+            _gasto("Netflix", 44.90, "2026-09-15"),  # ~12.5% de aumento
+        ]
+        resultado = detectar_aumento_assinatura(gastos, date(2026, 9, 21), minimo_meses=2)
+        self.assertEqual(len(resultado), 1)
+        self.assertEqual(resultado[0]["descricao"], "Netflix")
+        self.assertEqual(resultado[0]["valor_anterior_medio"], 39.90)
+        self.assertEqual(resultado[0]["valor_novo"], 44.90)
+        self.assertAlmostEqual(resultado[0]["aumento_pct"], 12.5, delta=0.1)
+
+    def test_aumento_pequeno_dentro_do_limiar_nao_dispara(self):
+        gastos = [
+            _gasto("Academia", 100.0, "2026-07-15"),
+            _gasto("Academia", 100.0, "2026-08-15"),
+            _gasto("Academia", 102.0, "2026-09-15"),  # 2%, abaixo do limiar padrao de 5%
+        ]
+        resultado = detectar_aumento_assinatura(gastos, date(2026, 9, 21), minimo_meses=2)
+        self.assertEqual(resultado, [])
+
+    def test_preco_estavel_nao_dispara(self):
+        gastos = [
+            _gasto("Spotify", 21.90, "2026-07-15"),
+            _gasto("Spotify", 21.90, "2026-08-15"),
+            _gasto("Spotify", 21.90, "2026-09-15"),
+        ]
+        resultado = detectar_aumento_assinatura(gastos, date(2026, 9, 21), minimo_meses=2)
+        self.assertEqual(resultado, [])
+
+    def test_gasto_que_diminuiu_nao_dispara(self):
+        gastos = [
+            _gasto("Streaming X", 50.0, "2026-07-15"),
+            _gasto("Streaming X", 50.0, "2026-08-15"),
+            _gasto("Streaming X", 30.0, "2026-09-15"),
+        ]
+        resultado = detectar_aumento_assinatura(gastos, date(2026, 9, 21), minimo_meses=2)
+        self.assertEqual(resultado, [])
+
+    def test_ainda_nao_e_assinatura_estabelecida_nao_dispara(self):
+        # so 1 ocorrencia anterior - nao chega no minimo_meses pra virar
+        # "assinatura conhecida" antes de comparar com a nova
+        gastos = [
+            _gasto("Servico Novo", 20.0, "2026-08-15"),
+            _gasto("Servico Novo", 40.0, "2026-09-15"),
+        ]
+        resultado = detectar_aumento_assinatura(gastos, date(2026, 9, 21), minimo_meses=2)
+        self.assertEqual(resultado, [])
+
+    def test_historico_instavel_nao_e_assinatura_e_nao_dispara(self):
+        # as ANTERIORES ja variam muito entre si - nunca foi um valor
+        # "fixo", entao nao da pra dizer que "subiu de preco"
+        gastos = [
+            _gasto("Mercado Central", 100.0, "2026-06-15", categoria="mercado"),
+            _gasto("Mercado Central", 400.0, "2026-07-15", categoria="mercado"),
+            _gasto("Mercado Central", 100.0, "2026-08-15", categoria="mercado"),
+            _gasto("Mercado Central", 900.0, "2026-09-15", categoria="mercado"),
+        ]
+        resultado = detectar_aumento_assinatura(gastos, date(2026, 9, 21), meses_analise=4, minimo_meses=2)
+        self.assertEqual(resultado, [])
+
+    def test_segunda_cobranca_do_mesmo_mes_nao_conta_como_novo_aumento(self):
+        gastos = [
+            _gasto("Netflix", 39.90, "2026-07-15"),
+            _gasto("Netflix", 39.90, "2026-08-15"),
+            _gasto("Netflix", 39.90, "2026-09-01"),
+            _gasto("Netflix", 60.0, "2026-09-20"),  # mesmo mes da 3a ocorrencia
+        ]
+        resultado = detectar_aumento_assinatura(gastos, date(2026, 9, 21), minimo_meses=2)
+        self.assertEqual(resultado, [])
+
+    def test_ordenado_do_maior_aumento_pro_menor(self):
+        gastos = [
+            _gasto("Netflix", 40.0, "2026-07-15"),
+            _gasto("Netflix", 40.0, "2026-08-15"),
+            _gasto("Netflix", 44.0, "2026-09-15"),  # 10%
+            _gasto("Aluguel", 1000.0, "2026-07-05"),
+            _gasto("Aluguel", 1000.0, "2026-08-05"),
+            _gasto("Aluguel", 1300.0, "2026-09-05"),  # 30%
+        ]
+        resultado = detectar_aumento_assinatura(gastos, date(2026, 9, 21), minimo_meses=2)
+        self.assertEqual([r["descricao"] for r in resultado], ["Aluguel", "Netflix"])
+
+    def test_descricoes_diferentes_nao_se_confundem(self):
+        gastos = [
+            _gasto("Netflix", 40.0, "2026-07-15"),
+            _gasto("Netflix", 40.0, "2026-08-15"),
+            _gasto("Spotify", 44.0, "2026-09-15"),
+        ]
+        resultado = detectar_aumento_assinatura(gastos, date(2026, 9, 21), minimo_meses=2)
+        self.assertEqual(resultado, [])
 
 
 class TotalGastoFixoMensalTestCase(unittest.TestCase):

@@ -117,7 +117,7 @@
         "Compara valor da nova ocorrencia com a media/ultima ocorrencia da mesma assinatura; se subir mais que um limiar (ex: 5%), notifica",
         "Testes cobrindo o alerta de aumento de preco"
       ],
-      "priority": 10, "passes": false, "notes": ""
+      "priority": 10, "passes": true, "notes": "gastos.detectar_aumento_assinatura reaproveita o agrupamento de detectar_gastos_recorrentes (_agrupar_por_descricao, refatorado pra ser comum as duas), separando a ocorrencia mais recente do resto pra nao perder a deteccao inteira quando o preco muda (o teste de estabilidade original olhava TODOS os valores juntos). notificacoes.assinaturas_aumento_preco reusa expenses+bank_transactions+apelidos_gasto (mesmo padrao de app.py._gastos_reais_unificados) e entra em verificar_e_notificar como aviso soft (respeita modo silencioso), dedup por descricao+valor novo. Testes: tests/test_gastos.py::DetectarAumentoAssinaturaTestCase (10), tests/test_notificacoes.py::AssinaturasAumentoPrecoTestCase (5), integracao em test_app.py."
     },
     {
       "id": "US-C11",

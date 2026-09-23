@@ -15,3 +15,15 @@ Iniciado: 2026-09-23T06:28:35Z
   - Suite completa: 437 testes em test_app+test_claude_client, 5 falhas pre-existentes (nao relacionadas -
     testes de notificacao de voo sensiveis a hora do relogio, ver test_verificar_voo_*, ja falhavam antes
     de qualquer mudanca minha - confirmado rodando a suite ANTES de tocar em qualquer arquivo).
+[C2] 2026-09-23 - US-C10 (alerta de aumento de preco de assinatura): passes=true.
+  - gastos.py: refatorado _agrupar_por_descricao (comum a detectar_gastos_recorrentes e a
+    nova detectar_aumento_assinatura) - reaproveita a deteccao existente em vez de duplicar.
+    detectar_aumento_assinatura separa a ocorrencia mais recente do resto antes de checar
+    estabilidade (senao um aumento de preco fazia a assinatura inteira sumir da deteccao).
+  - notificacoes.assinaturas_aumento_preco: mesmo padrao de cobrancas_genericas_sem_rotulo
+    (devolve (descricao_norm, valor, msg)), integrado em verificar_e_notificar (app.py) como
+    aviso soft (respeita modo silencioso), dedup por descricao+valor novo.
+  - Testes: tests/test_gastos.py::DetectarAumentoAssinaturaTestCase (10), tests/test_notificacoes.py
+    ::AssinaturasAumentoPrecoTestCase (5), 1 teste de integracao em test_app.py.
+  - Suite completa (test_app+test_gastos+test_notificacoes): 569 testes, mesmas 5 falhas
+    pre-existentes de voo (nao relacionadas).

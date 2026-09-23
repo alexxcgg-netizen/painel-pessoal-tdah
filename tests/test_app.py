@@ -2381,6 +2381,45 @@ class PainelTestCase(unittest.TestCase):
             corpos = [c.args[2] for c in mock_enviar.call_args_list]
             self.assertTrue(any("500.00" in c for c in corpos))
 
+    def test_notificacoes_verificar_agora_inclui_assinatura_aumento_preco(self):
+        hoje = date.today()
+        conn = db.get_db()
+        for meses_atras, valor in ((2, 39.90), (1, 39.90), (0, 54.90)):
+            mes = hoje.month - meses_atras
+            ano = hoje.year
+            while mes < 1:
+                mes += 12
+                ano -= 1
+            dia = min(hoje.day, 28)
+            data_gasto = date(ano, mes, dia).isoformat()
+            conn.execute(
+                "INSERT INTO expenses (amount, category, description, tipo, created_at) "
+                "VALUES (?, 'contas', 'Netflix', 'real', ?)",
+                (valor, data_gasto),
+            )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertGreaterEqual(res.get_json()["avisos_enviados"], 1)
+            corpos = [c.args[2] for c in mock_enviar.call_args_list]
+            self.assertTrue(any("Netflix" in c and "54.90" in c for c in corpos))
+
+        # nao repete no mesmo dia pra mesma descricao+valor (dedup)
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar2:
+            self.client.post("/api/notificacoes/verificar-agora")
+            corpos2 = [c.args[2] for c in mock_enviar2.call_args_list]
+            self.assertFalse(any("Netflix" in c and "54.90" in c for c in corpos2))
+
     def test_aprendizado_status_sem_historico_mostra_padrao(self):
         res = self.client.get("/api/aprendizado")
         self.assertEqual(res.status_code, 200)

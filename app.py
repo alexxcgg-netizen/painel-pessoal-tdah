@@ -2669,6 +2669,14 @@ def verificar_e_notificar():
         if not ja_notificado_alguma_vez(conn, "cobranca_generica", ref_id):
             avisos.append(("cobranca_generica", ref_id, "Cobranca sem identificar", msg))
 
+    # Assinatura ja conhecida que subiu de preco (US-C10) - uma vez por
+    # descricao+valor novo (mesma chave de dedup de cobranca_generica acima);
+    # se subir de novo depois, o valor novo muda a chave e avisa de novo.
+    for descricao_norm, valor, msg in notificacoes.assinaturas_aumento_preco(conn):
+        ref_id = _id_estavel_cobranca_generica(descricao_norm, valor)
+        if not ja_notificado_alguma_vez(conn, "assinatura_aumento_preco", ref_id):
+            avisos.append(("assinatura_aumento_preco", ref_id, "Assinatura ficou mais cara", msg))
+
     msg = notificacoes.gasto_semana_elevado(conn)
     if msg and not ja_notificou_hoje(conn, "gasto_elevado"):
         avisos.append(("gasto_elevado", 0, "Gasto da semana", msg))
