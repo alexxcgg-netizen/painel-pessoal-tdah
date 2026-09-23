@@ -2035,9 +2035,10 @@ function criarItemBanco(conta) {
 }
 
 async function loadBancos() {
-  const [contas, status] = await Promise.all([
+  const [contas, status, patrimonio] = await Promise.all([
     apiFetch("/api/bancos"),
     apiFetch("/api/bancos/sync-status"),
+    apiFetch("/api/patrimonio"),
   ]);
 
   if (status) {
@@ -2046,6 +2047,15 @@ async function loadBancos() {
     // aviso discreto - so aparece quando ENCRYPTION_KEY nao esta configurada
     // (ver docs/SEGURANCA.md); nao bloqueia nada, so avisa.
     $("#cripto-aviso").hidden = status.criptografia_ativa !== false;
+  }
+
+  if (patrimonio) {
+    $("#patrimonio-total").textContent = fmtMoeda(patrimonio.patrimonio_total);
+    const detalhes = [];
+    if (patrimonio.saldo_bancario) detalhes.push(`saldo em conta/cartao: ${fmtMoeda(patrimonio.saldo_bancario)}`);
+    if (patrimonio.valor_guardado_metas) detalhes.push(`guardado em metas: ${fmtMoeda(patrimonio.valor_guardado_metas)}`);
+    $("#patrimonio-detalhe").textContent = detalhes.join(" - ");
+    $("#patrimonio-box").hidden = patrimonio.contas.length === 0 && patrimonio.metas.length === 0;
   }
 
   if (!contas) return;

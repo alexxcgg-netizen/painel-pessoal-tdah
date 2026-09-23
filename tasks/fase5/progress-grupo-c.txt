@@ -44,3 +44,14 @@ Iniciado: 2026-09-23T06:28:35Z
     testes que eu nem toquei (tarefa_parada, espera_parada, lembrete_proximo, compromisso
     calendario, voo). Registrado aqui pro Alex/outros agentes: e fragilidade PRE-EXISTENTE da
     suite (testes de horario sem mock completo de datetime.now()), nao nova. Passa fora da janela.
+[C2] 2026-09-23 - US-C12 (patrimonio pessoal consolidado): passes=true.
+  - GET /api/patrimonio: soma bank_accounts.saldo (ja criptografado em repouso desde a Fase 4,
+    list_bank_accounts ja descriptografa - nenhuma coluna nova, entao a regra de criptografia
+    condicional da US-C12 nao se aplica aqui) + goals.valor_guardado (dinheiro ja separado em
+    metas). Sinal de saldo de cartao usa a mesma convencao ja existente (pode ser negativo,
+    ja descontando divida) - nao inventei logica de sinal nova.
+  - Card "Patrimonio consolidado" na aba Bancos (templates/index.html + loadBancos em app.js).
+  - Testes: tests/test_app.py (5 novos, incl. saldo negativo de cartao descontando do total).
+  - Suite completa test_app.py: 434 testes, 5 falhas pre-existentes (voo). Confirmado dentro
+    da janela 7h-7h30 UTC mas SEM a flutuacao do "Bom dia" desta vez (parece ser sensivel ao
+    segundo exato em que cada teste roda dentro da janela - documentado na entrada da US-C11).

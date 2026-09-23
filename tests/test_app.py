@@ -737,6 +737,70 @@ class PainelTestCase(unittest.TestCase):
         transacoes = self.client.get(f"/api/bancos/{contas[0]['id']}/transacoes").get_json()
         self.assertTrue(all(t["categoria"] is None for t in transacoes))
 
+    def test_patrimonio_sem_nada_cadastrado_e_zero(self):
+        res = self.client.get("/api/patrimonio")
+        self.assertEqual(res.status_code, 200)
+        corpo = res.get_json()
+        self.assertEqual(corpo["patrimonio_total"], 0)
+        self.assertEqual(corpo["contas"], [])
+        self.assertEqual(corpo["metas"], [])
+
+    def test_patrimonio_soma_saldo_de_varias_contas(self):
+        conn = db.get_db()
+        conta1 = db.get_or_create_bank_account(conn, "nubank", "conta")
+        conta2 = db.get_or_create_bank_account(conn, "caixa", "conta")
+        db.atualizar_saldo_conta(conn, conta1, 1500.0)
+        db.atualizar_saldo_conta(conn, conta2, 300.0)
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/patrimonio")
+        corpo = res.get_json()
+        self.assertEqual(corpo["saldo_bancario"], 1800.0)
+        self.assertEqual(corpo["patrimonio_total"], 1800.0)
+        self.assertEqual(len(corpo["contas"]), 2)
+
+    def test_patrimonio_desconta_saldo_negativo_de_cartao(self):
+        conn = db.get_db()
+        conta_conta = db.get_or_create_bank_account(conn, "nubank", "conta")
+        conta_cartao = db.get_or_create_bank_account(conn, "nubank", "cartao")
+        db.atualizar_saldo_conta(conn, conta_conta, 1000.0)
+        db.atualizar_saldo_conta(conn, conta_cartao, -400.0)
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/patrimonio")
+        corpo = res.get_json()
+        self.assertEqual(corpo["saldo_bancario"], 600.0)
+        self.assertEqual(corpo["patrimonio_total"], 600.0)
+
+    def test_patrimonio_inclui_valor_guardado_em_metas(self):
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "nubank", "conta")
+        db.atualizar_saldo_conta(conn, conta_id, 500.0)
+        goal_id = db.create_goal(conn, "Moto", 15000.0, None)
+        db.add_to_goal(conn, goal_id, 2000.0)
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/patrimonio")
+        corpo = res.get_json()
+        self.assertEqual(corpo["saldo_bancario"], 500.0)
+        self.assertEqual(corpo["valor_guardado_metas"], 2000.0)
+        self.assertEqual(corpo["patrimonio_total"], 2500.0)
+        self.assertEqual(corpo["metas"][0]["titulo"], "Moto")
+
+    def test_patrimonio_conta_sem_saldo_definido_e_ignorada_na_soma(self):
+        conn = db.get_db()
+        db.get_or_create_bank_account(conn, "banco-sem-saldo", "conta")
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/patrimonio")
+        corpo = res.get_json()
+        self.assertEqual(corpo["saldo_bancario"], 0)
+        self.assertEqual(corpo["contas"], [])
+
     def test_reimportar_mesmo_extrato_nao_duplica(self):
         self.client.post(
             "/api/bancos/importar",

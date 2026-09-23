@@ -140,7 +140,7 @@
         "Se dado sensivel (saldo bancario), aplicar mesma regra de criptografia em repouso da Fase 4 se envolver nova coluna sensivel",
         "Testes cobrindo o calculo"
       ],
-      "priority": 12, "passes": false, "notes": ""
+      "priority": 12, "passes": true, "notes": "GET /api/patrimonio soma bank_accounts.saldo (ja criptografado em repouso desde a Fase 4 - list_bank_accounts ja descriptografa, nenhuma coluna nova) com goals.valor_guardado (dinheiro ja separado em metas). Sinal de saldo de cartao ja reflete divida na propria convencao existente (aba Bancos mostra negativo) - nao inventei sinal novo. Card 'Patrimonio consolidado' na aba Bancos. Testes: tests/test_app.py (5, incl. saldo negativo de cartao descontando do total)."
     },
     {
       "id": "US-C13",

@@ -4842,6 +4842,45 @@ def listar_bancos():
     return jsonify(resultado)
 
 
+def _patrimonio_consolidado(conn) -> dict:
+    """Soma tudo que o projeto ja sabe que tem valor monetario num so numero
+    (US-C12): saldo das contas/cartoes (bank_accounts.saldo, ja
+    criptografado em repouso desde a Fase 4 - list_bank_accounts
+    descriptografa, nenhuma coluna nova pra proteger aqui) + o que ja foi
+    guardado nas metas financeiras (goals.valor_guardado - dinheiro
+    separado, entao conta como patrimonio tanto quanto o saldo em conta).
+    Soma o saldo de cada conta como esta gravado (sinal ja reflete divida
+    em cartao quando existir - a mesma convencao que a aba Bancos ja usa
+    pra mostrar saldo negativo, nao inventa um sinal novo aqui)."""
+    contas = list_bank_accounts(conn)
+    saldo_bancario = sum(c["saldo"] or 0 for c in contas)
+    metas = list_goals(conn)
+    valor_guardado_metas = sum(g["valor_guardado"] or 0 for g in metas)
+    return {
+        "saldo_bancario": round(saldo_bancario, 2),
+        "valor_guardado_metas": round(valor_guardado_metas, 2),
+        "patrimonio_total": round(saldo_bancario + valor_guardado_metas, 2),
+        "contas": [
+            {"banco": c["banco"], "tipo": c["tipo"], "saldo": c["saldo"]}
+            for c in contas
+            if c["saldo"] is not None
+        ],
+        "metas": [
+            {"titulo": g["titulo"], "valor_guardado": g["valor_guardado"]}
+            for g in metas
+            if g["valor_guardado"]
+        ],
+    }
+
+
+@app.route("/api/patrimonio", methods=["GET"])
+def patrimonio_rota():
+    conn = get_db()
+    resultado = _patrimonio_consolidado(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
 @app.route("/api/bancos/<int:conta_id>/transacoes", methods=["GET"])
 def transacoes_banco(conta_id):
     conn = get_db()
