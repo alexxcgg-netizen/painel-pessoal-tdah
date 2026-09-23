@@ -21,6 +21,7 @@ import db
 
 _tmp_dir = tempfile.TemporaryDirectory()
 db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+db.garantir_banco_nao_producao()
 
 import app  # noqa: E402  (precisa vir depois do patch de db.DB_PATH)
 
@@ -1435,6 +1436,7 @@ class PainelTestCase(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         caminho_original = db.DB_PATH
         db.DB_PATH = Path(tmp.name) / "painel.db"
+        db.garantir_banco_nao_producao()
         try:
             db.init_db()
             conn = db.get_db()
@@ -1454,6 +1456,7 @@ class PainelTestCase(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         caminho_original = db.DB_PATH
         db.DB_PATH = Path(tmp.name) / "painel.db"
+        db.garantir_banco_nao_producao()
         try:
             db.init_db()
             db.init_db()  # roda 2x - nao pode dar erro (CREATE INDEX IF NOT EXISTS)

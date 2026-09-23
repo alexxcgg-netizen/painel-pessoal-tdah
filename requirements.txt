@@ -7,3 +7,4 @@ caldav
 APScheduler
 gunicorn
 cryptography
+playwright  # so pra verificacao visual de tela nova (Fase 5, regra de AGENTS.md) - nao entra no runtime de producao

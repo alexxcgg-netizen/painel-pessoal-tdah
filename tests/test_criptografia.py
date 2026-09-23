@@ -30,6 +30,7 @@ import notificacoes
 # tests/test_app.py ja usa.
 _tmp_dir_import = tempfile.TemporaryDirectory()
 db.DB_PATH = Path(_tmp_dir_import.name) / "painel.db"
+db.garantir_banco_nao_producao()
 
 import app  # noqa: E402  (precisa vir depois do desvio de db.DB_PATH acima)
 
@@ -48,6 +49,7 @@ class _BancoIsoladoTestCase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self._caminho_original = db.DB_PATH
         db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.garantir_banco_nao_producao()
         criptografia._aviso_sem_chave_ja_logado = False
         criptografia._aviso_chave_invalida_ja_logado = False
 

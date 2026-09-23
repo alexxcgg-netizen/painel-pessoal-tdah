@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -6,6 +7,28 @@ import criptografia
 import vida
 
 DB_PATH = Path(__file__).parent / "data" / "painel.db"
+DB_PATH_PRODUCAO = DB_PATH.resolve()
+
+
+def garantir_banco_nao_producao():
+    """Guarda de seguranca: levanta RuntimeError se DB_PATH atual apontar pro banco de
+    producao real (data/painel.db). Testes, migracoes ad-hoc e scripts de fuzzing/reproducao
+    devem chamar isso logo depois de sobrescrever DB_PATH (e antes de qualquer escrita) -
+    incidente real na Fase 4: um script de reproducao esqueceu de trocar DB_PATH e chegou a
+    tocar o banco real. Nao chamar isso do app.py em producao normal (ali DB_PATH == producao
+    de proposito). Bypass explicito via PAINEL_PERMITIR_PRODUCAO=sim, pro raro caso em que
+    rodar contra producao de verdade e intencional."""
+    try:
+        atual = DB_PATH.resolve()
+    except OSError:
+        return
+    if atual == DB_PATH_PRODUCAO and os.environ.get("PAINEL_PERMITIR_PRODUCAO") != "sim":
+        raise RuntimeError(
+            f"BLOQUEADO: DB_PATH aponta pro banco de producao real ({DB_PATH_PRODUCAO}). "
+            "Teste/migracao/script de fuzzing nunca deve rodar contra o banco real - troque "
+            "DB_PATH pra um arquivo temporario antes de importar app/chamar init_db(). Se "
+            "voce tem certeza que quer mesmo produção, defina PAINEL_PERMITIR_PRODUCAO=sim."
+        )
 
 
 # ---- Criptografia de campo (Open Finance + saude) -------------------------

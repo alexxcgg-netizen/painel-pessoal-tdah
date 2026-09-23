@@ -14,6 +14,7 @@ class AuthTestCase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self._caminho_original = db.DB_PATH
         db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.garantir_banco_nao_producao()
         db.init_db()
         self.conn = db.get_db()
 

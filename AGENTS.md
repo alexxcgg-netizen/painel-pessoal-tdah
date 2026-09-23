@@ -64,6 +64,49 @@ kill %1
 Se o smoke-test falhar, é bloqueador — não considerar a integração daquele grupo concluída
 até resolver.
 
+### 5. Verificação visual real (headless) pra história de interface
+Toda história que criar/mudar uma TELA (widget, navegação por voz, diário de decisão,
+brain dump, qualquer UI nova) precisa ser aberta de verdade num navegador headless antes
+de marcar `"passes": true` — teste unitário sozinho não é suficiente pra história de UI.
+
+Ambiente já tem Chromium pré-instalado e Playwright configurado, mas com uma pegadinha de
+versão: o pacote `playwright` (Python, já adicionado ao `requirements.txt`) baixado via pip
+pode não bater com o Chromium pré-instalado em `/opt/pw-browsers`. Sempre lance passando o
+executável explícito, não deixe o Playwright decidir sozinho:
+
+```python
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    browser = p.chromium.launch(
+        executable_path="/opt/pw-browsers/chromium-1194/chrome-linux/chrome",  # confira se esse caminho ainda existe; se a versao do chromium pre-instalado mudou, ajuste
+        headless=True,
+    )
+    page = browser.new_page()
+    page.goto("http://localhost:5000/rota-da-tela-nova")  # subir o app antes (ver regra 4, mesmo principio)
+    # screenshot pra conferencia visual, e/ou asserts de texto/elemento renderizado
+    page.screenshot(path="/tmp/verificacao-tela.png")
+    assert page.inner_text("h1") != ""  # exemplo - trocar pela asserção real da tela
+    browser.close()
+```
+
+Não precisa de display real nem Xvfb — roda headless direto neste ambiente de nuvem. O
+objetivo é confirmar que a tela renderiza (sem erro JS bloqueando, elemento esperado
+aparece), não fazer um teste de UI exaustivo.
+
+### 6. Nunca migração/teste contra o banco de produção real
+Incidente real na Fase 4: um script de reprodução esqueceu de trocar `db.DB_PATH` antes de
+chamar `db.init_db()` e chegou a tocar o banco real (`data/painel.db`). Corrigido
+estruturalmente: `db.py` agora tem `db.garantir_banco_nao_producao()`, que levanta
+`RuntimeError` se `DB_PATH` ainda apontar pro banco de produção real. Já está chamada logo
+depois de toda sobrescrita de `DB_PATH` nos arquivos de teste existentes — ao escrever um
+teste NOVO ou um script avulso de migração/reprodução/fuzzing, chame essa função
+explicitamente logo depois de trocar `db.DB_PATH` e antes de qualquer `init_db()`/escrita:
+```python
+db.DB_PATH = Path(tmp_dir.name) / "painel.db"
+db.garantir_banco_nao_producao()  # nunca pule este passo num script novo
+db.init_db()
+```
+
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
 _(vazio até agora - primeira história a rodar sob esta regra preenche.)_
