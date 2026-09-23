@@ -1,0 +1,82 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase6/f3-extra",
+  "description": "Fase 6 Grupo F, faixa extra: Viagens, Lugares, Cotacoes, Aviacao (depois do Grupo E integrado)",
+  "userStories": [
+    {
+      "id": "US-F11",
+      "title": "Viagens: linha do tempo de planejamento (regra pratica)",
+      "description": "O card da viagem hoje so mostra destino e data. Linha do tempo com marcos genericos de prazo: quando comprar passagem mais barato, quando reservar hotel, etc, a partir da data da viagem (nacional vs internacional). Usa o visual de card de projeto (US-E13/E4).",
+      "acceptanceCriteria": [
+        "Regras documentadas com a fonte/raciocinio em progress.txt e marcadas como 'regra pratica, nao dado de preco em tempo real'",
+        "Marcador HOJE na linha",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F12",
+      "title": "Viagens: status do voo por numero (API de voo)",
+      "description": "Depois de comprar: atraso, portao, terminal, horarios reais pelo numero do voo.",
+      "acceptanceCriteria": [
+        "Pesquisar opcoes reais com plano gratuito (ex: AviationStack, AeroDataBox via RapidAPI, FlightAware AeroAPI, Amadeus) - comparar limite gratuito e facilidade de cadastro; registrar a escolha e o porque no TODO.md e em progress.txt, com o que NAO foi possivel confirmar",
+        "Integracao pronta atras de variavel de ambiente (chave entra so no final, pelo Alex); sem chave: card funciona com dado manual e mostra 'status em tempo real: configurar chave'",
+        "Testes com a API mockada; cache pra nao estourar limite gratuito",
+        "Se TODAS exigirem aprovacao demorada/dado de empresa: marcar blocked com pergunta especifica, sem inventar credencial",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F13",
+      "title": "Lugares que Gostei: mapa (OpenStreetMap)",
+      "description": "Decisao do Alex: OpenStreetMap agora (sem chave, sem cartao).",
+      "acceptanceCriteria": [
+        "Mapa visual do lugar salvo; geocodificacao via Nominatim respeitando a politica de uso (User-Agent proprio, cache, sem rajada)",
+        "Lib de mapa leve via CDN ja permitida pelo service worker/CSP do app, ou tiles estaticos - documentar a escolha",
+        "Sem rede: lugar continua aparecendo com nome",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F14",
+      "title": "Cotacoes: visual com grafico",
+      "description": "Mais interativo, com grafico de comparacao entre fornecedores.",
+      "acceptanceCriteria": [
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F15",
+      "title": "Aviacao: registro de voo e METAR mais visuais",
+      "description": "Cards muito simples hoje; mais interativo e animado nos dois.",
+      "acceptanceCriteria": [
+        "METAR decodificado visualmente (vento, visibilidade, teto, categoria VFR/IFR com cor)",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    }
+  ]
+}

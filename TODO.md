@@ -222,3 +222,25 @@ arquivo so registra o resumo/decisoes, igual as fases anteriores. Ver `CHANGELOG
   que so cobre o `financeiro-construtora`), com `pwd`/`git remote -v` conferido antes de
   qualquer escrita - sem incidente de repositorio errado nesta fase.
 - Nenhuma credencial nova foi necessaria em nenhum dos 4 grupos.
+
+## Fase 6 - Polimento de interface e centralizacao via chat (Padrao Nectar)
+Tracking por historia em `tasks/fase6/*.json` (formato Ralph) + `progress-*.txt` de cada faixa.
+Rollback: branch `pre-fase-6` (c838e1f). Ordem: E1+E2+E3 em paralelo -> integra -> E4+E5 em
+paralelo -> integra -> F1+F2+F3 em paralelo -> integra -> revisao independente.
+
+- [ ] E1 base: bugs (manutencao unificada, lista de compras, rainbow), memoria visivel, estilo de resposta
+- [ ] E2 modulos: Habitos, Projetos, agenda no calendario "Painel" do iCloud, limite do cartao
+- [ ] E3 cards: contrato {cards, resumo_texto, passos}, registro de cards, cards simples e complexos, desfazer/link
+- [ ] E4 chat: brain dump em cards, consulta -> card no classificador local, ligacao dos modulos novos
+- [ ] E5 dia: proatividade unificada (6 textos/timings), visao do dia
+- [ ] F1 vida / F2 painel / F3 extra (Viagens com API de voo, Lugares com OpenStreetMap, Cotacoes, Aviacao)
+- [ ] Integracao + revisao independente (codigo + seguranca) + resumo final em 3 blocos
+
+### Decisoes do Alex antes de comecar (rodada unica de perguntas)
+- Repositorio privado (confirmado) -> texto inicial de "O que lembro sobre voce" vai direto no codigo.
+- Habitos = modulo novo (separado da Rotina guiada). Projetos = modulo generico novo; Viagens reaproveita o visual.
+- Agenda escreve SO num calendario "Painel" do iCloud; nunca mexe em evento que o painel nao criou.
+- Viagens: as duas coisas - linha do tempo de planejamento (regra pratica) E status de voo por numero.
+- Mapa: OpenStreetMap agora (sem chave/cartao). Push real validado depois, em hospedagem que nao dorme.
+- Limite do cartao: campo manual. Widget via Scriptable: mantido.
+- Plugins: frontend-design (oficial) + ui-ux-pro-max (comunidade, inspecionado: so skills, sem hook/MCP).

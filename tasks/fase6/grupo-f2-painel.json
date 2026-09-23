@@ -1,0 +1,75 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase6/f2-painel",
+  "description": "Fase 6 Grupo F, faixa Painel/Tarefas (depois do Grupo E integrado)",
+  "userStories": [
+    {
+      "id": "US-F6",
+      "title": "'Devo sair ate que horas': layout mais bonito e claro",
+      "description": "Campos de origem/destino/data repensados.",
+      "acceptanceCriteria": [
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F7",
+      "title": "Datas Importantes / Medicamentos: tratamento visual mais rico",
+      "description": "Mesmo problema de caixa simples.",
+      "acceptanceCriteria": [
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F8",
+      "title": "Esperando resposta / Diario de Decisao: apresentacao visual",
+      "description": "Melhorar as duas secoes.",
+      "acceptanceCriteria": [
+        "Modo visitante continua ocultando o diario (regra da revisao de seguranca da Fase 5)",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F9",
+      "title": "Comunicacao Assistida / Vale a Pena: resposta interativa",
+      "description": "Resposta apresentada de forma interativa, nao texto corrido (Vale a Pena: fatos + recomendacao direta, US-E11).",
+      "acceptanceCriteria": [
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F10",
+      "title": "Tarefas: campo de prazo/data opcional",
+      "description": "Hoje da pra criar tarefa sem data e esquecer.",
+      "acceptanceCriteria": [
+        "Campo opcional no formulario e no chat ('limpar o quarto hoje' -> prazo hoje)",
+        "Tarefas antigas sem prazo continuam validas",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "haiku"
+    }
+  ]
+}

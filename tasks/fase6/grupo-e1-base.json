@@ -1,0 +1,91 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase6/e1-base",
+  "description": "Fase 6 Grupo E, faixa 1: bugs + memoria visivel + estilo de resposta",
+  "userStories": [
+    {
+      "id": "US-E1a",
+      "title": "Bug: unificar as duas secoes de Manutencao da aba Vida",
+      "description": "MANUTENCAO (tabela manutencoes) e MANUTENCAO DO VEICULO (tabela manutencoes_veiculo, Fase 5 US-C?) viram UMA secao com campo tipo (casa/carro/equipamento/outro).",
+      "acceptanceCriteria": [
+        "Uma secao so na aba Vida; campos especificos de carro (km etc) so aparecem quando tipo=carro",
+        "Migracao sem perda: dados das duas tabelas atuais aparecem na secao unificada (migracao idempotente, rodando em init_db, testada com banco de dev contendo linhas nas duas tabelas)",
+        "Notificacoes/alertas que ja existiam pras duas continuam funcionando (sem aviso duplicado)",
+        "Chat tools existentes pra manutencao continuam funcionando",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-E1b",
+      "title": "Bug: lista de compras separa itens",
+      "description": "'acabou cafe e acucar' / 'acabou cafe e acabou acucar' / 'cafe, acucar e leite' -> itens separados, cada um com checkbox proprio.",
+      "acceptanceCriteria": [
+        "Separacao por virgula e por ' e ' (e variacoes 'e acabou', 'e tambem'), aplicada em TODO caminho de entrada (chat tool, captura, formulario) - uma funcao so, nao duplicada",
+        "Nome composto sem ' e ' continua 1 item ('pao de queijo', 'papel higienico')",
+        "Testes unitarios cobrindo os exemplos acima + item vazio/espacos/duplicado",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-E1c",
+      "title": "Bug: animacao de fundo (rainbow) com loop suave",
+      "description": "Hoje reinicia visivelmente de vez em quando.",
+      "acceptanceCriteria": [
+        "Investigar e registrar a causa real em progress.txt (iteration-count, simetria do @keyframes primeiro/ultimo frame, ou re-render/remontagem do elemento)",
+        "Loop infinito sem salto perceptivel - conferido no headless observando >2 ciclos completos (screenshots/medicao de estilo computado na virada do ciclo)",
+        "Respeitar prefers-reduced-motion se ja respeitava",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-E10",
+      "title": "Memoria visivel: 'O que lembro sobre voce'",
+      "description": "Secao editavel com 'Sua rotina' e 'Seus planos' (e 'Fora do painel'), populada com o texto inicial abaixo. Reaproveitar a tabela/tela de memorias que ja existe (loadMemorias) - estender, nao duplicar. O repositorio e privado (confirmado pelo Alex): o texto inicial pode ficar no codigo como seed.",
+      "acceptanceCriteria": [
+        "Seed idempotente (so insere se a categoria estiver vazia; nunca sobrescreve edicao do Alex): {\"sua_rotina\": [\"Horario de trabalho variavel - pode comecar antes das 7h em dias cheios, ou seguir horario comum (7h-9h) em dias mais tranquilos. Nao tratar como fixo.\", \"Treino sem horario fixo preferido - sugerir de forma flexivel, nao travado num periodo do dia.\", \"Sono ainda irregular, em processo de ajuste - esse e justamente um dos motivos de construir o painel. Quando o padrao de sono vier ruim em periodo de viagem/trabalho intenso (voo, semana pesada), ajustar a sugestao dos dias seguintes de acordo (tarefa mais leve primeiro).\"], \"seus_planos\": [\"Expansao da empresa (construtora): acompanhar como projeto de alto nivel (nome, etapa atual, marco), sem numero financeiro - valor e detalhe de caixa ficam so no painel financeiro-construtora, nunca aqui.\", \"Ao avaliar 'vale a pena' em decisao financeira grande: contexto conhecido, nao regra automatica - historicamente prefere financiar a taxa baixa e manter capital girando no negocio, em vez de imobilizar em compra a vista, mas a analise continua caso a caso com os numeros reais, sem assumir financiamento como resposta padrao.\"], \"fora_do_painel\": [\"Compra de carro: so decisao pontual, nao vira projeto/meta rastreado.\", \"Vida amorosa/relacionamento: sem registro de data ou gesto automatizado.\"]}",
+        "Cada item editavel e apagavel na tela; adicionar item novo em cada grupo",
+        "Funcao unica que devolve esse contexto pro prompt do assistente (sera usada pela caixa 'Com a sua rotina em mente' do card sugestao, US-E4/E7)",
+        "'Fora do painel' e respeitado no prompt: o assistente nao cria projeto/meta de compra de carro nem registra nada de vida amorosa",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "haiku"
+    },
+    {
+      "id": "US-E11",
+      "title": "Estilo de resposta do assistente",
+      "description": "Aplica em toda a aba Hoje (system prompt do chat e de qualquer resposta textual).",
+      "acceptanceCriteria": [
+        "Direto ao ponto por padrao, resposta curta; so expande quando pedido ('explica melhor', 'detalha')",
+        "Em 'vale a pena?' (e qualquer pros/contras): fatos organizados + recomendacao direta explicita",
+        "Contexto de negocio: Alex trabalha com o pai e um socio na construtora - decisao de negocio normalmente envolve alinhamento com os dois; usar so quando fizer diferenca, nao repetir sempre",
+        "Nunca citar numero financeiro da construtora (separacao entre os dois sistemas)",
+        "Teste que valida o conteudo do system prompt (regras presentes) - sem chamar a API real",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    }
+  ]
+}

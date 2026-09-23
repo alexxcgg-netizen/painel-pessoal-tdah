@@ -1,0 +1,77 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase6/f1-vida",
+  "description": "Fase 6 Grupo F, faixa Vida (depois do Grupo E integrado)",
+  "userStories": [
+    {
+      "id": "US-F1",
+      "title": "Saude Hoje: botao +1 copo de agua",
+      "description": "Maior, feedback forte ao toque (animacao, contador crescendo visivelmente).",
+      "acceptanceCriteria": [
+        "Sem mudar logica de negocio",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "haiku"
+    },
+    {
+      "id": "US-F2",
+      "title": "Peso e Medidas: seletores",
+      "description": "Tipo por menu com os mais comuns prontos, valor em campo numerico/stepper dedicado, unidade por seletor.",
+      "acceptanceCriteria": [
+        "Dados antigos continuam aparecendo",
+        "Grafico de evolucao se ainda nao houver",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F3",
+      "title": "Pessoas: mais funcional no dia a dia",
+      "description": "Hoje parece so cadastro. Tornar util (ultimo contato, proximo aniversario/data, acao rapida) reaproveitando o que ja existe (priorizacao de contato da Fase 5).",
+      "acceptanceCriteria": [
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F4",
+      "title": "Treino: montar ficha guiada",
+      "description": "Trocar 'um exercicio por linha' por adicionar exercicio um a um com campos proprios (nome, series, reps, carga).",
+      "acceptanceCriteria": [
+        "Fichas antigas (texto) convertidas/exibidas sem perda",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-F5",
+      "title": "Garantia de Produtos mais interativa",
+      "description": "Hoje e so formulario simples.",
+      "acceptanceCriteria": [
+        "Barra/contagem de tempo restante de garantia, destaque do que vence logo",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    }
+  ]
+}

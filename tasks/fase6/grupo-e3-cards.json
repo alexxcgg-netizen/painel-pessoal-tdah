@@ -1,0 +1,82 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase6/e3-cards",
+  "description": "Fase 6 Grupo E, faixa 3: contrato de resposta + registro de cards (Padrao Nectar)",
+  "userStories": [
+    {
+      "id": "US-E2",
+      "title": "Contrato de resposta {cards, resumo_texto, passos} + registro de cards no frontend",
+      "description": "Toda acao/consulta da aba Hoje (chat e captura) devolve {cards: [{type, data, actions}], resumo_texto, passos}. Frontend tem um REGISTRO type -> componente. Opus: e arquitetura.",
+      "acceptanceCriteria": [
+        "docs/CARDS.md: contrato completo, formato de data de CADA type listado nas historias E3/E4, formato de actions (desfazer, abrir_aba), formato de passos ({modulo, descricao, ms}) - fonte unica que as outras faixas vao seguir",
+        "Backend: /api/chat e /api/capture passam a devolver o contrato SEM quebrar clientes existentes (campo de texto antigo continua presente enquanto o frontend antigo existir - documentar)",
+        "Cada executor de tool do chat devolve o card correspondente (tarefas, gasto/renda, lembrete, meta) - mapeamento num lugar so",
+        "Frontend: registro de cards (static/js/cards.js ou similar), renderizacao no chat da aba Hoje",
+        "type desconhecido -> card fallback 'Este trecho nao pode ser exibido. Os dados foram preservados.' - nunca quebra a tela (teste JS)",
+        "Nunca prosa pura quando existe card pra aquilo",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "opus"
+    },
+    {
+      "id": "US-E3",
+      "title": "Cards de dado simples",
+      "description": "tarefas_criadas, transacao, lembrete, meta, resumo_final.",
+      "acceptanceCriteria": [
+        "tarefas_criadas: lista com checkbox funcional, titulo, data curta ('quarta 23'), link 'Abrir Tarefas >'",
+        "transacao: bolinha de categoria, valor grande (-R$ neutro, +R$ verde), linha 'data · meio · categoria', saldo antes -> depois (quando houver conta), link 'Abrir no extrato'",
+        "lembrete: horario grande em fonte mono, 'amanha · faltam 23h 6min' (contagem regressiva viva no front), botoes 'Desfazer' e 'Desperta voce' (= push no horario, PWA nao toca alarme), link 'Abrir em Lembretes'",
+        "meta: 'R$ 9.000,00 de R$ 15.000,00', barra, '60% da meta · faltam R$ 6.000', data planejada",
+        "resumo_final: linhas em seta ('-> Financas: ...', '-> Tarefas: ...') + linha recolhivel '13 passos · 31 s · Tarefas, Financas, Habitos'",
+        "Formatacao de moeda/data pelos helpers ja existentes (nao formatar na mao)",
+        "Respeita modo visitante: card de transacao/meta nao mostra valor com modo visitante ligado",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-E4",
+      "title": "Cards de visual complexo (renderizadores)",
+      "description": "agenda, projeto_viagem, saude_treino, sugestao, habito. Esta historia faz os RENDERIZADORES contra o formato de docs/CARDS.md, com dado de exemplo nos testes - a ligacao com os modulos novos (Habitos/Projetos/CalDAV, outra faixa) e feita depois na US-E7b.",
+      "acceptanceCriteria": [
+        "agenda: titulo, 'terca, 29 de setembro, das 14:00 as 15:00', BARRA DO DIA 06h-22h com o bloco marcado, '1h reservadas', chip 'Lembrar 30 min antes', confirmacao '✓ esta na sua agenda · Desfazer'",
+        "projeto_viagem: titulo, checklist, barra de progresso com marcador HOJE, '25% · 2/8 tarefas · 22 dez', proximo marco com bandeira, chip de status ('No rumo'), link 'Abrir Projetos'",
+        "saude_treino: 'Sessoes registradas: 3 · Tempo de atividade: 1h50', lista (fonte + duracao), grafico de barras por atividade (SVG inline, sem lib pesada nova), chip 'Registrado'",
+        "sugestao: horario sugerido, duracao, caixa 'Com a sua rotina em mente' com o porque",
+        "habito: nome, meta ('15 min · qualquer dia conta · as 8h'), 7 circulos S T Q Q S S D (hoje tracejado, dias feitos acesos), 'Habitos ativos: 4 -> 5', caixa de contexto opcional",
+        "Todos conferidos visualmente no headless em 390px, claro e escuro se o app tiver os dois temas",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "opus"
+    },
+    {
+      "id": "US-E5",
+      "title": "Desfazer + link pra aba de origem em todo card",
+      "description": "Acao criada por engano se desfaz com um toque dentro do proprio card; cada card leva pra aba correspondente.",
+      "acceptanceCriteria": [
+        "actions.desfazer chama endpoint que reverte exatamente a acao criada (id especifico, nunca 'o ultimo'), com teste por tipo",
+        "Desfazer em lote do brain dump (cada card independente)",
+        "Link abre a aba certa (showTab) e rola/destaca o item quando possivel",
+        "Desfazer de evento de agenda so vale pra evento criado pelo painel (regra da US-E14)",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    }
+  ]
+}

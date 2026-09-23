@@ -1,0 +1,79 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase6/e2-modulos",
+  "description": "Fase 6 Grupo E, faixa 2: modulos novos que os cards e a proatividade precisam",
+  "userStories": [
+    {
+      "id": "US-E12",
+      "title": "Modulo Habitos (novo, separado da Rotina guiada)",
+      "description": "Habito com nome, meta (ex: '15 min'), frequencia (dias da semana ou 'qualquer dia conta' com N vezes/semana), horario opcional ('as 8h'), marcacao diaria.",
+      "acceptanceCriteria": [
+        "Tabela(s) nova(s) via _garantir/CREATE IF NOT EXISTS em init_db; CRUD em db.py",
+        "Rotas /api/habitos (GET/POST/DELETE) + marcar/desmarcar dia; resposta inclui os ultimos 7 dias (S T Q Q S S D) e contagem de habitos ativos",
+        "Chat tool registrar_habito / marcar_habito (texto livre: 'meditar 15 min todo dia as 8h')",
+        "Tela na aba Vida seguindo o padrao visual existente (secao-secundaria etc), com os 7 circulos da semana",
+        "Funcao pura que diz se o habito de hoje 'passou batido' (horario + 1h sem marcacao) - sera usada pela proatividade (US-E8)",
+        "Respeita modo visitante? Habito nao e dado sensivel - NAO precisa ocultar (documentar a decisao)",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-E13",
+      "title": "Modulo Projetos generico",
+      "description": "Projeto com nome, etapas (checklist ordenado, cada etapa com data opcional), prazo final, status (no rumo / atrasado / pausado), atualizado_em (ultimo toque).",
+      "acceptanceCriteria": [
+        "Tabelas novas + CRUD + rotas /api/projetos",
+        "Calculo puro: % concluido, n/total, proxima etapa pendente (proximo marco), posicao de HOJE entre inicio e prazo (pra barra com marcador), dias sem toque",
+        "Chat tool criar_projeto / adicionar_etapa / concluir_etapa",
+        "Tela na aba Vida (ou Painel - escolher e documentar) no padrao visual existente",
+        "Viagens NAO migram pra Projetos: expor funcao que converte uma viagem existente (viagens + viagem_itens) no MESMO formato de dado do projeto, pra o card reaproveitar o visual",
+        "Expansao da construtora como projeto: so nome/etapa/marco - nunca campo financeiro",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-E14",
+      "title": "Agenda: criar evento no calendario 'Painel' do iCloud (CalDAV)",
+      "description": "Hoje caldav_client so le. Decisao do Alex: escrever num calendario separado chamado 'Painel' dentro do iCloud dele; NUNCA editar/apagar evento que o painel nao criou.",
+      "acceptanceCriteria": [
+        "caldav_client: criar evento (titulo, inicio, fim, alarme opcional 'lembrar N min antes') no calendario 'Painel' (criar o calendario se nao existir); apagar evento SO se o UID estiver registrado numa tabela local de eventos criados pelo painel",
+        "Tabela local eventos_criados (uid, titulo, inicio, fim, criado_em) = fonte da verdade do que pode ser desfeito",
+        "Sem CALDAV configurado: funcao devolve erro claro, app nao quebra",
+        "Testes com o cliente CalDAV mockado (nunca chamar iCloud real em teste); teste explicito de que apagar UID nao registrado e recusado",
+        "Chat tool agendar_evento ('reuniao terca 29 das 14h as 15h, lembrar 30 min antes')",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-E15",
+      "title": "Limite do cartao (campo manual)",
+      "description": "Open Finance nao esta conectado; o aviso 'Cartao em 90% do limite' (US-E8) precisa do limite digitado.",
+      "acceptanceCriteria": [
+        "Campo de limite por conta/cartao (ou configuracao simples se nao houver cartao cadastrado), editavel na tela de Bancos/Financeiro",
+        "Funcao pura: fatura/gasto atual do cartao no ciclo vs limite -> fracao, sobra",
+        "Sem limite configurado: aviso simplesmente nao existe (nunca inventa)",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    }
+  ]
+}

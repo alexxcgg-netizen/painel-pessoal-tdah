@@ -1,0 +1,39 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase6/e4-chat",
+  "description": "Fase 6 Grupo E, faixa 4 (depois de E1+E2+E3 integrados): chat produzindo cards dos modulos novos",
+  "userStories": [
+    {
+      "id": "US-E6",
+      "title": "Brain dump produzindo cards",
+      "description": "O brain dump da Fase 5 (US-C6?) passa a devolver o contrato de cards: um texto com viagem, gastos, salario, habitos, lembrete e reuniao misturados vira 8+ cards de uma vez. Unificar, nao duplicar.",
+      "acceptanceCriteria": [
+        "Mesmo endpoint/logica do brain dump existente, saida no contrato de docs/CARDS.md",
+        "resumo_final ao fim com os modulos tocados",
+        "Teste com o texto-exemplo do Nectar (mock da IA)",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-E7",
+      "title": "Consulta renderiza card, resolvida no classificador local",
+      "description": "'Me mostra o projeto da viagem e a meta' -> card projeto + card meta; 'como foram meus treinos nos ultimos 7 dias?' -> saude_treino; 'tomei um copo de agua' -> incrementa e mostra card de saude do dia. Toca o nucleo de intent (Fase 5 Grupo A).",
+      "acceptanceCriteria": [
+        "Consulta por padrao conhecido resolve no classificador local (aprendizado.padrao_intent_confiavel / banco de padroes), sem API; cresce o banco 'pergunta -> onde buscar'",
+        "Ligar os renderizadores da US-E4 aos modulos reais: habito (US-E12), projeto e viagem (US-E13), agenda (US-E14), sugestao usando a memoria da US-E10 na caixa 'Com a sua rotina em mente'",
+        "Nenhuma logica de classificacao duplicada fora de _classificar_intent",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "opus"
+    }
+  ]
+}

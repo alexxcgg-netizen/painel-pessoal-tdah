@@ -1,0 +1,41 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase6/e5-dia",
+  "description": "Fase 6 Grupo E, faixa 5 (depois de E1+E2+E3 integrados): proatividade unificada + visao do dia",
+  "userStories": [
+    {
+      "id": "US-E8",
+      "title": "Proatividade unificada",
+      "description": "Unificar num sistema so os avisos que ja existem (tarefa empacada, gasto fora do padrao, semana pesada, sinal de sobrecarga...) + os novos, com o texto e o timing dos exemplos. Tom: direto, reconhece o fato, sem cobranca, sem diminutivo, sem coach.",
+      "acceptanceCriteria": [
+        "Textos/timing: 'Passou batido — 08:00 ja foi e o habito Meditar segue intocado' (1h depois do horario); 'Passou da hora — a tarefa era 14:00, ainda da tempo de resolver hoje' (30 min depois); 'Cartao em 90% do limite — sobram R$ 500' (US-E15); '70% da renda ja foi — sobram R$ 1.500'; 'Tem projeto criando poeira — 21 dias sem um toque, abre e derruba a menor etapa' (US-E13); 'Outubro vem apertado — custos fixos ja comprometem 84%'",
+        "Passa pelo mesmo pipeline ja existente (verificar_e_notificar/_despachar: silencioso, hiperfoco, modo viagem, agrupamento, dedup em notificacoes_enviadas) - sem caminho paralelo",
+        "Avisos antigos migrados pro tom novo sem duplicar",
+        "Testes com relogio controlado pra cada timing",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    },
+    {
+      "id": "US-E9",
+      "title": "Visao do dia (aba Hoje, abaixo do chat)",
+      "description": "Seletor Dia/Semana/Mes; linha de status ('tudo sob controle'); card EM FOCO AGORA com a proxima tarefa, 'em 19 min', botao 'Comecar foco' (hiperfoco existente) e check de concluir; 'Hoje · 6 itens · 3 concluidas'; linha do tempo vertical com marcador da hora atual, cada item marcado pela origem (Tarefas / Agenda / Habitos).",
+      "acceptanceCriteria": [
+        "Reaproveitar a linha do tempo da aba Hoje que ja existe (Fase anterior) - estender, nao duplicar",
+        "Agenda do iCloud (leitura existente) + eventos do calendario Painel + habitos + tarefas no mesmo eixo",
+        "Semana/Mes: visao agregada simples (contagem por dia), sem virar outro app",
+        "Conferido no headless em 390px",
+        "Suite completa sem regressao (.venv/bin/python -m unittest discover -s tests + node --test tests/js/*.test.js) - as 5 falhas pre-existentes de horario de voo sao conhecidas",
+        "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "modelo_planejado": "sonnet"
+    }
+  ]
+}
