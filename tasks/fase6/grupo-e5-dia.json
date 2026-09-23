@@ -16,8 +16,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "6 avisos novos (habito passou batido, tarefa passou da hora, cartao 90%/estourado, renda 70%/estourada, projeto 21+ dias sem toque, mes seguinte apertado) - todos passam pelo pipeline unico de verificar_e_notificar (silencioso/hiperfoco/viagem/agrupamento/dedup), sem caminho paralelo. Tom dos avisos ja existentes ja era direto/sem diminutivo - nenhuma migracao de texto necessaria. Ver tasks/fase6/progress-e5.txt pro detalhe de cada decisao. Testes: tests/test_fase6_e8_proatividade.py (29 casos, relogio controlado).",
       "modelo_planejado": "sonnet"
     },
     {
@@ -33,8 +33,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "GET /api/visao-dia/hoje junta _eventos_de_hoje_com_seguranca (agenda iCloud + calendario Painel + tarefas, ja existente) com _habitos_do_dia_com_horario (novo). GET /api/visao-dia/periodo?tipo=semana|mes agrega tarefas+habitos+eventos_criados por dia (agenda do iCloud fica fora da agregacao - custo de N chamadas de rede, ver progress-e5.txt). Linha do tempo REUSA a marcacao visual que ja existia em #lista-agenda (agora classe .linha-do-tempo compartilhada + funcao JS criarItemLinhaDoTempo compartilhada) - nao duplicada. Testes: tests/test_fase6_e9_visao_dia.py (28 casos) + tests/js/visao_dia.test.js (8 casos) + Playwright em 390px.",
       "modelo_planejado": "sonnet"
     }
   ]

@@ -1855,16 +1855,19 @@ li.item.saindo {
   color: var(--danger);
 }
 
-/* Linha do tempo da agenda (inspirada no Tiimo): uma trilha vertical liga os
+/* Linha do tempo (inspirada no Tiimo): uma trilha vertical liga os
    compromissos do dia, o que ja passou fica apagado e o proximo evento ganha
    um marcador maior + selo "proximo" - ajuda com cegueira de tempo sem
-   precisar ler cada horario com atencao. */
-#lista-agenda {
+   precisar ler cada horario com atencao. Classe compartilhada (Fase 6,
+   US-E9) - usada tanto pela agenda de hoje (#lista-agenda, aba Painel)
+   quanto pela visao do dia (#visao-dia-timeline, aba Hoje); mesma marcacao
+   visual, nunca duas implementacoes. */
+.linha-do-tempo {
   position: relative;
   padding-left: 1.3rem;
 }
 
-#lista-agenda::before {
+.linha-do-tempo::before {
   content: "";
   position: absolute;
   left: 0.5rem;
@@ -1874,11 +1877,11 @@ li.item.saindo {
   background: var(--border);
 }
 
-#lista-agenda li.item {
+.linha-do-tempo li.item {
   position: relative;
 }
 
-#lista-agenda li.item::before {
+.linha-do-tempo li.item::before {
   content: "";
   position: absolute;
   left: -1.05rem;
@@ -1891,21 +1894,21 @@ li.item.saindo {
   z-index: 1;
 }
 
-#lista-agenda li.item.passado {
+.linha-do-tempo li.item.passado {
   opacity: 0.5;
 }
 
-#lista-agenda li.item.passado::before {
+.linha-do-tempo li.item.passado::before {
   border-color: var(--text-faint);
   background: var(--text-faint);
 }
 
-#lista-agenda li.item.proximo {
+.linha-do-tempo li.item.proximo {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-card);
 }
 
-#lista-agenda li.item.proximo::before {
+.linha-do-tempo li.item.proximo::before {
   left: -1.1rem;
   top: 1rem;
   width: 12px;
@@ -1918,21 +1921,21 @@ li.item.saindo {
 /* tarefas com horario: bolinha verde se feita, vermelha se o horario passou
    sem marcar como feita. So tarefas - compromisso de calendario nao tem como
    confirmar presenca, entao fica no tratamento neutro (.passado) acima. */
-#lista-agenda li.item.concluido {
+.linha-do-tempo li.item.concluido {
   opacity: 0.75;
 }
 
-#lista-agenda li.item.concluido::before {
+.linha-do-tempo li.item.concluido::before {
   border-color: #42bb91;
   background: #42bb91;
   box-shadow: 0 0 6px 0 rgba(66, 187, 145, 0.5);
 }
 
-#lista-agenda li.item.perdido {
+.linha-do-tempo li.item.perdido {
   opacity: 0.75;
 }
 
-#lista-agenda li.item.perdido::before {
+.linha-do-tempo li.item.perdido::before {
   border-color: var(--danger);
   background: var(--danger);
   box-shadow: 0 0 6px 0 color-mix(in srgb, var(--danger) 50%, transparent);
@@ -1980,6 +1983,142 @@ li.item.saindo {
   background: var(--surface-2);
   border: 1px solid var(--border);
   vertical-align: middle;
+}
+
+/* Fase 6 (US-E9): mesma forma de .item-tag-tarefa, so a cor muda por origem -
+   a visao do dia (e a agenda de hoje, que reusa o mesmo componente) marca
+   cada item da linha do tempo por quem ele veio (Tarefas/Agenda/Habitos). */
+.item-tag-habito,
+.item-tag-calendario {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: var(--surface-2);
+  vertical-align: middle;
+}
+
+.item-tag-habito {
+  color: var(--cor-hoje);
+  border: 1px solid color-mix(in srgb, var(--cor-hoje) 45%, var(--border));
+}
+
+.item-tag-calendario {
+  color: var(--cor-financeiro);
+  border: 1px solid color-mix(in srgb, var(--cor-financeiro) 45%, var(--border));
+}
+
+/* Fase 6 (US-E9): visao do dia (aba Hoje, abaixo do chat) - seletor
+   Dia/Semana/Mes, status, card "em foco agora" e resumo. A linha do tempo em
+   si reusa .linha-do-tempo (ver acima), sem estilo proprio aqui. */
+.visao-dia-seletor {
+  display: flex;
+  gap: 0.4rem;
+  margin: -0.3rem 0 0.85rem;
+}
+
+.visao-dia-periodo-btn {
+  flex: 1;
+  min-height: 34px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.visao-dia-periodo-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-fill);
+  color: var(--accent-text);
+}
+
+.visao-dia-status {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.visao-dia-foco-card {
+  gap: 0.3rem;
+}
+
+.visao-dia-foco-label {
+  font-family: var(--font-tech);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-text, var(--accent));
+}
+
+.visao-dia-foco-titulo {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.visao-dia-foco-em {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.visao-dia-foco-acoes {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+}
+
+.visao-dia-resumo {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.visao-dia-periodo-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.visao-dia-periodo-lista li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.visao-dia-periodo-lista .visao-dia-periodo-dia-nome {
+  font-weight: 600;
+}
+
+.visao-dia-periodo-lista .visao-dia-periodo-dia-hoje {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.visao-dia-periodo-lista .visao-dia-periodo-contagem {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .item-acoes {

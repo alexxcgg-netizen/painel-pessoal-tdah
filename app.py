@@ -1614,14 +1614,18 @@ def _tarefas_com_horario_hoje(conn) -> list[dict]:
     """Tarefas pendentes com horario marcado pra hoje, no mesmo formato dos
     eventos do iCloud - pra virarem ancoras de horario fixo junto com eles.
     So pendentes de proposito (quem consome isso - plano do dia, resumo,
-    notificacoes - nao pode ver trabalho ja feito como se ainda faltasse)."""
+    notificacoes - nao pode ver trabalho ja feito como se ainda faltasse).
+    'id' (Fase 6, US-E9) e so pra visao do dia poder oferecer o check de
+    concluir sem duplicar consulta - os outros consumidores (plano do dia,
+    notificacoes) ja ignoravam chave que nao usam."""
     hoje = date.today().isoformat()
     rows = conn.execute(
-        "SELECT title, hora FROM tasks WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL",
+        "SELECT id, title, hora FROM tasks WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL",
         (hoje,),
     ).fetchall()
     return [
         {
+            "id": r["id"],
             "titulo": r["title"],
             "inicio": f"{hoje}T{r['hora']}:00",
             "fim": f"{hoje}T{r['hora']}:00",
@@ -1638,15 +1642,16 @@ def _tarefas_concluidas_com_horario_hoje(conn) -> list[dict]:
     fossem concluidas, ja ficassem verdes"). Deliberadamente SEPARADA de
     _tarefas_com_horario_hoje (que so devolve pendentes, de proposito) -
     misturar concluidas ali afetaria plano do dia/notificacoes/resumo, que
-    dependem de ver so o que ainda falta. So o endpoint da agenda (consumo
-    puramente visual) usa esta aqui."""
+    dependem de ver so o que ainda falta. So o endpoint da agenda e a visao
+    do dia (consumo puramente visual) usam esta aqui."""
     hoje = date.today().isoformat()
     rows = conn.execute(
-        "SELECT title, hora FROM tasks WHERE completed_at IS NOT NULL AND due_date = ? AND hora IS NOT NULL",
+        "SELECT id, title, hora FROM tasks WHERE completed_at IS NOT NULL AND due_date = ? AND hora IS NOT NULL",
         (hoje,),
     ).fetchall()
     return [
         {
+            "id": r["id"],
             "titulo": r["title"],
             "inicio": f"{hoje}T{r['hora']}:00",
             "fim": f"{hoje}T{r['hora']}:00",
@@ -1997,6 +2002,179 @@ def calendario_hoje():
     if erro:
         resposta["erro"] = erro
     return jsonify(resposta)
+
+
+# ---- Fase 6, US-E9: visao do dia (aba Hoje, abaixo do chat) ----------------
+# Reusa o MESMO eixo de agenda+tarefas de _eventos_de_hoje_com_seguranca (que
+# /api/calendario/hoje ja usa) em vez de duplicar essa busca - so acrescenta
+# habitos com horario. O front reusa a MESMA classe visual da linha do tempo
+# que a agenda de hoje ja tinha (.linha-do-tempo, ver style.css) - so estende,
+# nao duplica.
+
+def _semana_de(dia: date) -> tuple[str, str]:
+    inicio = dia - timedelta(days=dia.weekday())
+    return inicio.isoformat(), (inicio + timedelta(days=6)).isoformat()
+
+
+def _habitos_do_dia_com_horario(conn, dia: date) -> list[dict]:
+    """Habitos com horario definido e devidos no dia, no mesmo formato dos
+    itens de agenda/tarefa - habito sem horario nao tem como entrar na linha
+    do tempo (nao ha posicao pra desenhar), continua so na aba Vida."""
+    dia_iso = dia.isoformat()
+    ini_semana, fim_semana = _semana_de(dia)
+    itens = []
+    for h in list_habitos(conn):
+        if not h["horario"]:
+            continue
+        vezes_feitas_semana = len(marcacoes_habito_no_periodo(conn, h["id"], ini_semana, fim_semana))
+        if not vida.habito_devido_em(h, dia, vezes_feitas_semana):
+            continue
+        itens.append(
+            {
+                "id": h["id"],
+                "titulo": h["nome"],
+                "inicio": f"{dia_iso}T{h['horario']}:00",
+                "fim": f"{dia_iso}T{h['horario']}:00",
+                "dia_inteiro": False,
+                "origem": "habito",
+                "concluido": habito_marcado(conn, dia_iso, h["id"]),
+            }
+        )
+    return itens
+
+
+def _visao_do_dia_itens(conn, hoje: date) -> list[dict]:
+    itens = [dict(e) for e in _eventos_de_hoje_com_seguranca(conn)]
+    itens += _tarefas_concluidas_com_horario_hoje(conn)
+    for item in itens:
+        item.setdefault("id", None)
+    itens += _habitos_do_dia_com_horario(conn, hoje)
+    itens.sort(key=lambda e: e["inicio"])
+    return itens
+
+
+def _item_concluivel(item: dict) -> bool:
+    """So tarefa/habito sao completaveis pelo painel - compromisso de
+    calendario (iCloud) nao tem como confirmar presenca."""
+    return item.get("origem") in ("tarefa", "habito") and item.get("id") is not None
+
+
+def _status_do_dia(itens: list[dict], agora: datetime) -> str:
+    """Linha de status do topo - direto, sem julgamento: so constata quantos
+    itens completaveis (tarefa/habito) ja passaram do horario sem
+    confirmacao. Compromisso de calendario passado nunca conta aqui (mesmo
+    criterio visual que a linha do tempo ja usa pra classe 'passado', que
+    nunca julga presenca)."""
+    passados_sem_confirmar = 0
+    for item in itens:
+        if item.get("dia_inteiro") or item.get("concluido") or not _item_concluivel(item):
+            continue
+        try:
+            fim = datetime.fromisoformat(item["fim"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if fim < agora:
+            passados_sem_confirmar += 1
+    if passados_sem_confirmar == 0:
+        return "tudo sob controle"
+    if passados_sem_confirmar == 1:
+        return "1 item passou do horario sem confirmar"
+    return f"{passados_sem_confirmar} itens passaram do horario sem confirmar"
+
+
+def _proximo_item_em_foco(itens: list[dict], agora: datetime) -> dict | None:
+    """O item EM FOCO AGORA: o proximo (ou, sem nenhum futuro, o que passou
+    do horario mais recentemente - o miss mais fresco, nao o mais antigo)
+    tarefa/habito pendente com horario - compromisso de calendario fica de
+    fora (nao tem check de concluir nem faz sentido 'comecar foco' nele).
+    Sem nenhum item completavel com horario hoje, None (o front mostra o
+    estado vazio)."""
+    pendentes = [i for i in itens if not i.get("dia_inteiro") and not i.get("concluido") and _item_concluivel(i)]
+    if not pendentes:
+        return None
+    futuros = [i for i in pendentes if datetime.fromisoformat(i["inicio"]) >= agora]
+    escolhido = min(futuros, key=lambda i: i["inicio"]) if futuros else max(pendentes, key=lambda i: i["inicio"])
+    inicio = datetime.fromisoformat(escolhido["inicio"])
+    return {
+        "origem": escolhido["origem"],
+        "id": escolhido["id"],
+        "titulo": escolhido["titulo"],
+        "em_texto": vida.formatar_em_quanto_tempo(inicio, agora),
+    }
+
+
+@app.route("/api/visao-dia/hoje", methods=["GET"])
+def visao_dia_hoje():
+    conn = get_db()
+    materializar_tarefas_recorrentes(conn)
+    hoje = date.today()
+    agora = datetime.now()
+    itens = _visao_do_dia_itens(conn, hoje)
+    conn.close()
+    concluidas = sum(1 for i in itens if i.get("concluido"))
+    return jsonify(
+        {
+            "status": _status_do_dia(itens, agora),
+            "em_foco": _proximo_item_em_foco(itens, agora),
+            "total_itens": len(itens),
+            "total_concluidas": concluidas,
+            "timeline": itens,
+        }
+    )
+
+
+def _contagem_dia(conn, dia: date) -> dict:
+    """Contagem agregada simples de um dia (tarefas + habitos devidos +
+    eventos criados no calendario Painel, que sao locais - a agenda do
+    iCloud em si NAO entra aqui: buscar dia a dia por uma semana/mes inteiro
+    faria N chamadas de rede instaveis so pra uma contagem, custo que o "sem
+    virar outro app" da US-E9 nao pede). 'concluidas' conta so tarefa/habito
+    (evento de calendario nao tem conclusao)."""
+    dia_iso = dia.isoformat()
+    total_tarefas = conn.execute("SELECT COUNT(*) AS n FROM tasks WHERE due_date = ?", (dia_iso,)).fetchone()["n"]
+    concluidas_tarefas = conn.execute(
+        "SELECT COUNT(*) AS n FROM tasks WHERE due_date = ? AND completed_at IS NOT NULL", (dia_iso,)
+    ).fetchone()["n"]
+    total_eventos = conn.execute(
+        "SELECT COUNT(*) AS n FROM eventos_criados WHERE date(inicio) = ?", (dia_iso,)
+    ).fetchone()["n"]
+    ini_semana, fim_semana = _semana_de(dia)
+    total_habitos = 0
+    concluidos_habitos = 0
+    for h in list_habitos(conn):
+        vezes_feitas_semana = len(marcacoes_habito_no_periodo(conn, h["id"], ini_semana, fim_semana))
+        if not vida.habito_devido_em(h, dia, vezes_feitas_semana):
+            continue
+        total_habitos += 1
+        if habito_marcado(conn, dia_iso, h["id"]):
+            concluidos_habitos += 1
+    return {
+        "data": dia_iso,
+        "total": total_tarefas + total_eventos + total_habitos,
+        "concluidas": concluidas_tarefas + concluidos_habitos,
+    }
+
+
+@app.route("/api/visao-dia/periodo", methods=["GET"])
+def visao_dia_periodo():
+    tipo = request.args.get("tipo", "semana")
+    hoje = date.today()
+    if tipo == "mes":
+        inicio = hoje.replace(day=1)
+        fim = vida.somar_meses(inicio, 1) - timedelta(days=1)
+    else:
+        tipo = "semana"
+        inicio, fim_iso = _semana_de(hoje)
+        inicio = date.fromisoformat(inicio)
+        fim = date.fromisoformat(fim_iso)
+    conn = get_db()
+    dias = []
+    d = inicio
+    while d <= fim:
+        dias.append(_contagem_dia(conn, d))
+        d += timedelta(days=1)
+    conn.close()
+    return jsonify({"tipo": tipo, "dias": dias})
 
 
 @app.route("/api/plano-do-dia", methods=["POST"])
