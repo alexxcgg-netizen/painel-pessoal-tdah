@@ -6443,6 +6443,174 @@ class IntentClassificarTestCase(unittest.TestCase):
         self.assertFalse(body["precisa_confirmacao"])
 
 
+class IntentCorrigirTestCase(unittest.TestCase):
+    """US-B3 (Fase 5, Grupo B): POST /api/intent/corrigir - a correcao do
+    dialogo de 2 turnos vira padrao aprendido de intent direto (mesmo
+    mecanismo da US-A4, forcar_confianca_alta=True, sem precisar repetir o
+    erro 3x)."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        conn.commit()
+        conn.close()
+        self.client = app.app.test_client()
+        res = self.client.post("/login", json={"pin": PIN_TESTE})
+        assert res.status_code == 200, res.get_json()
+
+    def test_exige_sessao_de_login(self):
+        anonimo = app.app.test_client()
+        res = anonimo.post(
+            "/api/intent/corrigir", json={"texto": "algo", "acao_correta": "registrar_tarefa"}
+        )
+        self.assertEqual(res.status_code, 401)
+
+    def test_texto_vazio_400(self):
+        res = self.client.post(
+            "/api/intent/corrigir", json={"texto": "", "acao_correta": "registrar_tarefa"}
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_acao_correta_fora_da_lista_fechada_400(self):
+        res = self.client.post(
+            "/api/intent/corrigir", json={"texto": "algo", "acao_correta": "deletar_tudo"}
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_acao_correta_ausente_400(self):
+        res = self.client.post("/api/intent/corrigir", json={"texto": "algo"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_correcao_destrava_padrao_direto_sem_repetir(self):
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("registrar_tarefa", 0.3), fake_usage()),
+        ) as mock_classify:
+            self.client.post("/api/intent/classificar", json={"texto": "ligar pro dentista amanha"})
+        mock_classify.assert_called_once()
+
+        res = self.client.post(
+            "/api/intent/corrigir",
+            json={"texto": "ligar pro dentista amanha", "acao_correta": "registrar_gasto"},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.get_json()["ok"])
+
+        with patch("claude_client.classify_intent") as mock_classify_2:
+            res2 = self.client.post(
+                "/api/intent/classificar", json={"texto": "ligar pro dentista amanha"}
+            )
+            mock_classify_2.assert_not_called()
+        body2 = res2.get_json()
+        self.assertEqual(body2["acao"], "registrar_gasto")
+        self.assertFalse(body2["precisa_confirmacao"])
+
+    def test_parametros_opcional_nao_quebra(self):
+        res = self.client.post(
+            "/api/intent/corrigir", json={"texto": "abre os gastos", "acao_correta": "navegar_tela"}
+        )
+        self.assertEqual(res.status_code, 200)
+
+
+class AtalhoComandoVozTestCase(unittest.TestCase):
+    """US-B4 (Fase 5, Grupo B): POST /api/atalho/comando-voz - mesma
+    autenticacao por token dos outros /api/atalho/*, reusa a classificacao
+    de /api/intent/classificar e devolve uma fala curta pro Atalho/Siri."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        self.client = app.app.test_client()
+
+    def test_nao_exige_sessao_de_login(self):
+        conn = db.get_db()
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        conn.commit()
+        conn.close()
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("registrar_tarefa", 0.9, {"titulo": "ligar pro dentista"}), fake_usage()),
+        ):
+            res = self.client.post("/api/atalho/comando-voz", json={"texto": "ligar pro dentista"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_texto_vazio_400_com_fala(self):
+        res = self.client.post("/api/atalho/comando-voz", json={"texto": ""})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("fala", res.get_json())
+
+    def test_com_token_configurado_exige_token_certo(self):
+        with patch.dict(os.environ, {"PAINEL_ATALHOS_TOKEN": "segredo-voz"}):
+            sem_token = self.client.post("/api/atalho/comando-voz", json={"texto": "algo"})
+            self.assertEqual(sem_token.status_code, 401)
+
+            token_errado = self.client.post(
+                "/api/atalho/comando-voz", json={"texto": "algo"}, headers={"X-Webhook-Token": "errado"}
+            )
+            self.assertEqual(token_errado.status_code, 401)
+
+            with patch(
+                "claude_client.classify_intent",
+                return_value=(_fake_intent("consultar", 0.8, {"pergunta": "quanto gastei"}), fake_usage()),
+            ):
+                token_certo = self.client.post(
+                    "/api/atalho/comando-voz",
+                    json={"texto": "quanto eu gastei esse mes"},
+                    headers={"X-Webhook-Token": "segredo-voz"},
+                )
+            self.assertEqual(token_certo.status_code, 200)
+
+    def test_devolve_fala_curta_pra_cada_acao(self):
+        for acao in app.ACOES_INTENT:
+            with self.subTest(acao=acao):
+                with patch(
+                    "claude_client.classify_intent",
+                    return_value=(_fake_intent(acao, 0.9, {}), fake_usage()),
+                ):
+                    res = self.client.post("/api/atalho/comando-voz", json={"texto": f"exemplo de {acao}"})
+                self.assertEqual(res.status_code, 200)
+                body = res.get_json()
+                self.assertIsInstance(body["fala"], str)
+                self.assertTrue(body["fala"])
+                self.assertEqual(body["acao"], acao)
+
+    def test_baixa_confianca_avisa_incerteza_na_fala(self):
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("registrar_tarefa", 0.2), fake_usage()),
+        ):
+            res = self.client.post("/api/atalho/comando-voz", json={"texto": "texto ambiguo"})
+        self.assertIn("nao tenho certeza", res.get_json()["fala"].lower())
+
+    def test_erro_da_api_vira_fala_de_erro(self):
+        import anthropic
+
+        with patch(
+            "claude_client.classify_intent",
+            side_effect=anthropic.APIError("erro", request=MagicMock(), body=None),
+        ):
+            res = self.client.post("/api/atalho/comando-voz", json={"texto": "qualquer coisa"})
+        self.assertEqual(res.status_code, 502)
+        self.assertIn("fala", res.get_json())
+
+    def test_nao_executa_a_acao_so_classifica(self):
+        # US-B4 e explicito: so classifica e devolve fala, nunca cria a
+        # tarefa/gasto sozinho - a execucao de verdade fica pro painel (US-B1/B2).
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("registrar_tarefa", 0.95, {"titulo": "ligar pro dentista"}), fake_usage()),
+        ):
+            self.client.post("/api/atalho/comando-voz", json={"texto": "lembra de ligar pro dentista"})
+        conn = db.get_db()
+        total = conn.execute("SELECT COUNT(*) AS n FROM tasks").fetchone()["n"]
+        conn.close()
+        self.assertEqual(total, 0)
+
+
 class IaCustoTestCase(unittest.TestCase):
     """US-A5 (Fase 5): GET /api/ia/custo - ver db.resumo_custo_api pros
     testes de calculo em si (tests/test_financeiro.py)."""
