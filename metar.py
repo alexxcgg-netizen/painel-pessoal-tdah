@@ -6,9 +6,18 @@ disso, os grupos padronizados (vento, visibilidade, nuvens/teto, temperatura,
 altimetro) sao decodificados pra numero/unidade real - isso e conversao
 exata e sem ambiguidade (tipo "BKN008" so pode significar "nublado a 800
 pes", nao ha outra leitura possivel), igual o que qualquer curso de
-meteorologia aeronautica ensina a fazer na mao. O que esse modulo NUNCA faz e
-decidir categoria de voo (VFR/IFR), teto minimo seguro ou qualquer "pode
-voar ou nao" - isso exige julgamento e e sempre do Alex, com a licenca dele."""
+meteorologia aeronautica ensina a fazer na mao.
+
+`categoria_voo` (Fase 6 F3, US-F15) e a UNICA excecao a essa regra de "so
+conversao, nunca julgamento" - e a classificacao PADRAO VFR/MVFR/IFR/LIFR
+definida pela FAA/AIM (mesmos limiares de teto/visibilidade que o proprio
+aviationweather.gov publica como "flight_category" em todo METAR), nao uma
+opiniao deste app nem um "pode voar ou nao": e so mais uma conversao
+tabelada de numero pra rotulo, igual BKN008 -> 800 pes, so que com 2
+variaveis (teto + visibilidade) em vez de 1. A decisao de voar OU NAO
+continua sendo sempre do Alex, com a licenca dele - por isso a tela sempre
+mostra "Sempre confira antes de voar" junto (nunca escondido atras da
+cor)."""
 
 import re
 
@@ -115,6 +124,34 @@ def decodificar_grupo(tokens: list[str]) -> dict:
     if candidatas_teto:
         resultado["teto_ft"] = min(candidatas_teto)
     return resultado
+
+
+# ---- US-F15: categoria VFR/MVFR/IFR/LIFR (definicao padrao FAA/AIM) -------
+# Limiares oficiais (identicos aos que aviationweather.gov publica como
+# "flight_category" em todo METAR - conferido no formato da propria fonte
+# deste modulo, nao inventado): teto em pes AGL, visibilidade em statute
+# miles (SM). "Sem teto" (ceu limpo/CAVOK, nenhuma nuvem BKN/OVC/VV
+# reportada) conta como teto acima de 3000ft pra fins desta classificacao -
+# e exatamente como a definicao oficial trata ausencia de teto.
+_METROS_POR_SM = 1609.34
+
+
+def categoria_voo(decodificado: dict) -> str | None:
+    """None quando nao ha teto NEM visibilidade decodificados (dado
+    insuficiente - nunca adivinha)."""
+    teto_ft = decodificado.get("teto_ft")
+    vis_m = decodificado.get("visibilidade_m")
+    if teto_ft is None and vis_m is None:
+        return None
+    teto = teto_ft if teto_ft is not None else float("inf")
+    vis_sm = (vis_m / _METROS_POR_SM) if vis_m is not None else float("inf")
+    if teto < 500 or vis_sm < 1:
+        return "LIFR"
+    if teto < 1000 or vis_sm < 3:
+        return "IFR"
+    if teto <= 3000 or vis_sm <= 5:
+        return "MVFR"
+    return "VFR"
 
 
 def _falar_vento(vento: dict | None) -> str | None:
@@ -229,9 +266,11 @@ def decodificar_taf(tokens: list[str]) -> list[dict]:
             prob_pendente = None
         segmentos[-1]["tokens"].append(tok)
 
-    return [
-        {**s, "decodificado": decodificar_grupo(s["tokens"])} for s in segmentos if s["tokens"]
-    ] or [{**segmentos[0], "decodificado": decodificar_grupo([])}]
+    def _com_decodificado(s):
+        dec = decodificar_grupo(s["tokens"])
+        return {**s, "decodificado": dec, "categoria_voo": categoria_voo(dec)}
+
+    return [_com_decodificado(s) for s in segmentos if s["tokens"]] or [_com_decodificado(segmentos[0])]
 
 
 def resumo_falado_taf(segmentos: list[dict]) -> str:
@@ -275,6 +314,7 @@ def buscar_metar_taf(icao: str) -> dict:
             "erro": "informe o codigo ICAO do aerodromo",
             "metar_decodificado": None,
             "metar_falado": None,
+            "metar_categoria": None,
             "taf_segmentos": None,
             "taf_falado": None,
         }
@@ -298,10 +338,11 @@ def buscar_metar_taf(icao: str) -> dict:
     if not metar and not taf and not erro:
         erro = f"nenhum dado encontrado pra {icao} - confere o codigo ICAO"
 
-    metar_decodificado = metar_falado = taf_segmentos = taf_falado = None
+    metar_decodificado = metar_falado = metar_cat = taf_segmentos = taf_falado = None
     if metar:
         metar_decodificado = decodificar_grupo(_tokens_uteis_metar(metar))
         metar_falado = resumo_falado(metar_decodificado)
+        metar_cat = categoria_voo(metar_decodificado)
     if taf:
         taf_segmentos = decodificar_taf(_tokens_uteis_taf(taf))
         taf_falado = resumo_falado_taf(taf_segmentos)
@@ -312,6 +353,7 @@ def buscar_metar_taf(icao: str) -> dict:
         "erro": erro,
         "metar_decodificado": metar_decodificado,
         "metar_falado": metar_falado,
+        "metar_categoria": metar_cat,
         "taf_segmentos": taf_segmentos,
         "taf_falado": taf_falado,
     }

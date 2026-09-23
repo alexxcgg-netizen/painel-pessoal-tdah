@@ -281,3 +281,83 @@ renderizando (fornecedor mais barato destacado), screenshot em
 pelo botao real da tela esconde a secao inteira (mensagem "Oculto no modo
 visitante"), screenshot em /tmp/fase6-f3/cotacoes_visitante.png. Zero erro
 de console nos dois casos.
+
+
+## US-F15 - Aviacao: registro de voo e METAR mais visuais
+
+**Categoria VFR/MVFR/IFR/LIFR** (`metar.categoria_voo`, `metar.py`): decisao
+tomada explicitamente - isso NAO e o mesmo tipo de julgamento que o modulo
+sempre recusou fazer ("posso voar ou nao"). E a classificacao PADRAO
+FAA/AIM (limiares oficiais de teto/visibilidade, os MESMOS que o proprio
+aviationweather.gov publica como "flight_category" em todo METAR que essa
+API devolve) - so mais uma conversao tabelada de numero pra rotulo, igual
+"BKN008 = 800 pes de teto" ja era. A decisao de voar continua 100% do Alex;
+a tela sempre mostra "Sempre confira antes de voar" junto da cor (ja
+existia esse aviso na dica-colapsavel da secao, mantido).
+
+Limiares exatos (teto em pes AGL, visibilidade convertida de metros pra
+statute miles - 1SM = 1609.34m, MESMA unidade que a definicao oficial usa):
+- **LIFR**: teto < 500ft OU visibilidade < 1SM
+- **IFR**: teto < 1000ft OU visibilidade < 3SM
+- **MVFR**: teto <= 3000ft OU visibilidade <= 5SM (limite superior inclusivo)
+- **VFR**: acima de tudo isso (CAVOK e ceu limpo contam como "sem teto" =
+  acima de 3000, igual a definicao oficial trata ausencia de teto)
+
+Cor do chip (`static/js/app.js`/`style.css`) usa as MESMAS 4 cores padrao
+de carta aeronautica que qualquer piloto ja reconhece (verde/azul/
+vermelho/magenta), nunca inventadas.
+
+Historia US-F15 — decisao: `resumo_falado()` (o texto que o botao "ouvir"
+le em voz alta) CONTINUA sem mencionar categoria - existe um teste antigo
+(`test_nunca_menciona_categoria_de_voo`) garantindo isso e ele ficou
+intocado. / Motivo: a fala e uma leitura NEUTRA dos dados brutos (mesmo
+espirito de sempre); a categoria e so um indicador visual adicional (chip
+colorido), informacao nova que se soma, nao substitui nem se mistura com o
+texto falado original. / Nao confirmado: nada tecnico - a definicao FAA/AIM
+e publica e nao ambigua, testada com METARs reais cobrindo CAVOK, vento
+variavel (VRB e variavel-entre), calmaria (00000KT) e BKN/OVC em varios
+tetos, incluindo os limites exatos de cada faixa (teto=500 -> IFR,
+teto=3000/vis=5SM -> MVFR).
+
+**Vento com seta**: `criarIconeVento` (app.js) desenha uma seta SVG
+rotacionada pelo grau decodificado (`vento.direcao`) - vento variavel (VRB)
+mostra um icone circular em vez de seta (nao ha direcao unica pra apontar).
+
+**Registro de voo mais visual**: icone de status (relogio = agendado,
+check verde = realizado) em cada item de "Proximos voos"
+(`criarIconeStatusVoo`) - decisao PURAMENTE visual, a logica de "o que e
+realizado" continua 100% em `voos.py` (`v.horas != null`), nunca
+reimplementada no front. A lista em si ja herdava a animacao de entrada
+compartilhada (`li.item { animation: fadeInUp ... }`, padrao ja
+estabelecido no app inteiro) - nao precisou de nada novo ali. METAR/TAF
+ganharam reanimacao (`fadeInUp`) a cada consulta nova (antes so animava na
+primeira vez que a secao aparecia).
+
+Testes: `tests/test_metar.py` (16 casos novos em `CategoriaVooTestCase`,
+METARs reais cobrindo CAVOK/vento variavel/calmaria/BKN/OVC/limites exatos
+das 4 faixas, mais o campo novo em `buscar_metar_taf`/segmentos de TAF) -
+suite de metar.py inteira (60 testes) sem regressao. `criarIconeVento`/
+`criarIconeStatusVoo`/chip (DOM puro) verificados so via Playwright, mesmo
+padrao dos outros renderizadores de tela em `app.js`.
+
+Verificacao headless: METAR SBBI mockado (BKN020/6000m -> chip MVFR azul,
+seta de vento a 120°) - screenshot em /tmp/fase6-f3/depois_metar.png; voo
+agendado futuro com icone de relogio - screenshot em
+/tmp/fase6-f3/antes_aviacao.png. Zero erro de console. Suite completa:
+1702 testes, mesmas 6 falhas conhecidas de horario real, sem regressao.
+node --test: 87/87 ok. gitleaks: 0 achados.
+
+
+---
+
+## Fecho da faixa F3-extra (US-F11 a US-F15)
+
+Todas as 5 historias do grupo `grupo-f3-extra.json` passaram (`passes:
+true`), nenhuma ficou blocked, nenhuma pergunta pendente pro Alex.
+Decisoes de API externa (AviationStack pro status de voo) ficaram atras de
+variavel de ambiente vazia (`AVIATIONSTACK_API_KEY`) - o Alex cadastra a
+conta e cola a chave quando quiser, sem nenhuma mudanca de codigo
+necessaria. Nominatim/Leaflet (US-F13) nao precisam de nenhuma chave -
+funcionam assim que o app for aberto fora deste sandbox de rede restrita.
+Commits: 86961f2 (US-F11/F12), 5f67191 (tracking), 2e280da (US-F13), 20b5fba
+(US-F14) + o desta historia (US-F15).

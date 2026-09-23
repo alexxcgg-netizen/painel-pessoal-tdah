@@ -74,8 +74,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "metar.categoria_voo (limiares padrao FAA/AIM, mesmos de aviationweather.gov) - chip colorido (verde/azul/vermelho/magenta padrao de carta aeronautica), testado com 16 METARs reais (CAVOK, vento variavel, calmaria, BKN/OVC, limites exatos das 4 faixas). Seta de vento rotacionada pelo grau (icone circular pra VRB). Voos: icone de status (agendado/realizado, so visual - logica 100% em voos.py). Chip/seta/icone verificados via Playwright (screenshot em /tmp/fase6-f3/depois_metar.png e antes_aviacao.png). resumo_falado() continua nunca mencionando categoria (teste antigo intocado). Detalhes em tasks/fase6/progress-f3.txt.",
       "modelo_planejado": "sonnet"
     }
   ]

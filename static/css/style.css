@@ -3907,6 +3907,102 @@ li.item.item-planejado {
   font-weight: 700;
 }
 
+/* US-F15: categoria VFR/MVFR/IFR/LIFR - MESMAS cores padrao de carta
+   aeronautica (verde/azul/vermelho/magenta), nunca inventadas: sao a
+   linguagem visual que qualquer piloto ja reconhece de cor. */
+.metar-chip-categoria {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-family: var(--font-tech);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: help;
+}
+
+.metar-chip-categoria.cat-vfr {
+  background: color-mix(in srgb, #2ecc71 22%, transparent);
+  border: 1px solid #2ecc71;
+  color: #2ecc71;
+}
+
+.metar-chip-categoria.cat-mvfr {
+  background: color-mix(in srgb, #3aa0ff 22%, transparent);
+  border: 1px solid #3aa0ff;
+  color: #3aa0ff;
+}
+
+.metar-chip-categoria.cat-ifr {
+  background: color-mix(in srgb, #ff4d4d 22%, transparent);
+  border: 1px solid #ff4d4d;
+  color: #ff4d4d;
+}
+
+.metar-chip-categoria.cat-lifr {
+  background: color-mix(in srgb, #e05cff 24%, transparent);
+  border: 1px solid #e05cff;
+  color: #e05cff;
+}
+
+/* Seta de vento - gira pelo grau decodificado (US-F15) */
+.metar-vento-icone {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  margin-right: 0.15rem;
+  color: var(--cor-aviacao);
+  transition: transform 0.4s var(--ease-bounce);
+}
+
+.metar-vento-icone svg {
+  width: 100%;
+  height: 100%;
+}
+
+.metar-campo-linha:has(.metar-vento-icone) {
+  align-items: center;
+}
+
+/* Reanima a cada consulta nova (US-F15) - mesma curva do resto do app */
+.metar-anim {
+  animation: fadeInUp 0.35s var(--ease-bounce) both;
+}
+
+/* US-F15: icone de status do voo (agendado/realizado) - so decoracao,
+   ver criarIconeStatusVoo (app.js). */
+.item-titulo-com-icone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.voo-status-icone {
+  display: inline-flex;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+}
+
+.voo-status-icone svg {
+  width: 13px;
+  height: 13px;
+}
+
+.voo-status-icone.agendado {
+  color: var(--cor-aviacao);
+  background: color-mix(in srgb, var(--cor-aviacao) 16%, transparent);
+}
+
+.voo-status-icone.realizado {
+  color: #42bb91;
+  background: color-mix(in srgb, #42bb91 18%, transparent);
+}
+
 .taf-segmento {
   padding: 0.5rem 0;
   border-top: 1px dashed var(--border);
