@@ -526,6 +526,53 @@ class NotificacoesTestCase(unittest.TestCase):
         msg = notificacoes.mensagem_fechamento_noturno(self.conn)
         self.assertNotIn("Gasto do dia", msg)
 
+    def test_resumo_manha_sem_nada_no_historico(self):
+        hoje = date.today()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("nao registrou gasto nenhum", msg)
+        self.assertIn("Nenhuma tarefa pendente", msg)
+
+    def test_resumo_manha_com_gasto_de_ontem_e_pendentes(self):
+        hoje = date.today()
+        ontem = hoje - timedelta(days=1)
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, tipo, created_at) VALUES (?, 'mercado', 'real', ?)",
+            (89.9, ontem.isoformat()),
+        )
+        self.conn.execute("INSERT INTO tasks (title) VALUES (?)", ("Ligar pro dentista",))
+        self.conn.execute("INSERT INTO tasks (title) VALUES (?)", ("Pagar boleto",))
+        self.conn.commit()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("89.90", msg)
+        self.assertIn("2 tarefas ainda pendentes", msg)
+
+    def test_resumo_manha_gasto_de_hoje_nao_conta_como_de_ontem(self):
+        hoje = date.today()
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, tipo, created_at) VALUES (?, 'mercado', 'real', ?)",
+            (50.0, hoje.isoformat()),
+        )
+        self.conn.commit()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("nao registrou gasto nenhum", msg)
+
+    def test_resumo_manha_1_tarefa_pendente_usa_singular(self):
+        hoje = date.today()
+        self.conn.execute("INSERT INTO tasks (title) VALUES (?)", ("Ligar pro dentista",))
+        self.conn.commit()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("1 tarefa ainda pendente", msg)
+        self.assertNotIn("1 tarefas", msg)
+
+    def test_resumo_manha_tarefa_concluida_nao_conta_como_pendente(self):
+        hoje = date.today()
+        self.conn.execute(
+            "INSERT INTO tasks (title, completed_at) VALUES (?, datetime('now'))", ("Feita",)
+        )
+        self.conn.commit()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("Nenhuma tarefa pendente", msg)
+
     def test_currency_voo_sem_voo_nenhum_e_none(self):
         self.assertIsNone(notificacoes.currency_voo_baixa(self.conn))
 
@@ -731,6 +778,81 @@ class MontarMensagemAgrupadaTestCase(unittest.TestCase):
         self.assertEqual(titulo, "2 avisos")
         self.assertIn("Tarefas atrasadas: Voce tem 2 atrasadas.", corpo)
         self.assertIn("Orcamento estourado: Mercado passou do limite.", corpo)
+
+
+class AssinaturasAumentoPrecoTestCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def _gasto(self, descricao, valor, data):
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo, created_at) "
+            "VALUES (?, 'contas', ?, 'real', ?)",
+            (valor, descricao, f"{data} 10:00:00"),
+        )
+        self.conn.commit()
+
+    def test_sem_gastos_retorna_vazio(self):
+        hoje = date(2026, 9, 21)
+        self.assertEqual(notificacoes.assinaturas_aumento_preco(self.conn, hoje=hoje), [])
+
+    def test_detecta_assinatura_que_subiu_de_preco(self):
+        self._gasto("Netflix", 39.90, "2026-07-15")
+        self._gasto("Netflix", 39.90, "2026-08-15")
+        self._gasto("Netflix", 54.90, "2026-09-15")
+        hoje = date(2026, 9, 21)
+        avisos = notificacoes.assinaturas_aumento_preco(self.conn, hoje=hoje)
+        self.assertEqual(len(avisos), 1)
+        descricao_norm, valor, msg = avisos[0]
+        self.assertEqual(descricao_norm, "netflix")
+        self.assertEqual(valor, 54.90)
+        self.assertIn("39.90", msg)
+        self.assertIn("54.90", msg)
+
+    def test_preco_estavel_nao_avisa(self):
+        self._gasto("Spotify", 21.90, "2026-07-15")
+        self._gasto("Spotify", 21.90, "2026-08-15")
+        self._gasto("Spotify", 21.90, "2026-09-15")
+        hoje = date(2026, 9, 21)
+        self.assertEqual(notificacoes.assinaturas_aumento_preco(self.conn, hoje=hoje), [])
+
+    def test_reaproveita_apelido_definido(self):
+        # apelido troca "APPLE.COM/BILL" por "iCloud" ANTES de agrupar -
+        # mesmo mecanismo ja usado por gastos.aplicar_apelidos/_gastos_fixos.
+        db.definir_apelido_gasto(self.conn, "apple.com/bill", 14.90, "iCloud")
+        db.definir_apelido_gasto(self.conn, "apple.com/bill", 21.90, "iCloud")
+        self._gasto("APPLE.COM/BILL", 14.90, "2026-07-15")
+        self._gasto("APPLE.COM/BILL", 14.90, "2026-08-15")
+        self._gasto("APPLE.COM/BILL", 21.90, "2026-09-15")
+        hoje = date(2026, 9, 21)
+        avisos = notificacoes.assinaturas_aumento_preco(self.conn, hoje=hoje)
+        self.assertEqual(len(avisos), 1)
+        self.assertEqual(avisos[0][0], "icloud")
+
+    def test_considera_extrato_bancario_tambem(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "Nubank")
+        for i, (data, valor) in enumerate(
+            [("2026-07-05", -39.90), ("2026-08-05", -39.90), ("2026-09-05", -55.00)]
+        ):
+            self.conn.execute(
+                "INSERT INTO bank_transactions (bank_account_id, data, descricao, valor, external_id) "
+                "VALUES (?, ?, 'Netflix.com', ?, ?)",
+                (conta_id, data, valor, f"ext-{i}"),
+            )
+        self.conn.commit()
+        hoje = date(2026, 9, 21)
+        avisos = notificacoes.assinaturas_aumento_preco(self.conn, hoje=hoje)
+        self.assertEqual(len(avisos), 1)
+        self.assertEqual(avisos[0][1], 55.00)
 
 
 if __name__ == "__main__":

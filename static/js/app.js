@@ -429,6 +429,112 @@ if (typeof FilaOffline !== "undefined") {
     if (cardPendente) cardPendente.remove();
     mostrarErro((corpo && corpo.error) || `Nao consegui sincronizar um item pendente (HTTP ${status}). Foi descartado.`);
   });
+
+  // Nota fiscal tirada sem internet (US-C8): a extracao em si nao pode
+  // esperar so no navegador porque depende da API de visao - fica na fila
+  // igual qualquer outra escrita, e quando sincronizar mostra a MESMA tela
+  // de confirmacao de quem tirou a foto com internet (nunca salva sozinho).
+  FilaOffline.registrarCallback("nota_fiscal_extrair", (data) => {
+    if (data && !data.duvida) mostrarConfirmacaoNotaFiscal(data);
+  });
+}
+
+// Nota fiscal por foto (US-C8/US-C9) ----------------------------------------
+
+function lerArquivoComoBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function mostrarConfirmacaoNotaFiscal(dados) {
+  $("#nf-valor").value = dados.valor != null ? dados.valor : "";
+  $("#nf-estabelecimento").value = dados.estabelecimento || "";
+  $("#nf-data").value = dados.data || "";
+  $("#nf-categoria").value = "";
+  $("#nota-fiscal-status").textContent =
+    dados.valor == null || !dados.estabelecimento
+      ? "Nao consegui ler tudo com certeza na foto - confere/completa antes de salvar."
+      : "Confere os dados da nota antes de salvar.";
+  $("#nota-fiscal-confirmacao").hidden = false;
+}
+
+const notaFiscalInput = $("#nota-fiscal-input");
+if (notaFiscalInput) {
+  notaFiscalInput.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // permite escolher a mesma foto de novo depois
+    if (!file) return;
+
+    const label = $("#nota-fiscal-label");
+    const htmlOriginal = label.innerHTML;
+    label.innerHTML = `<span class="spinner"></span><span>Lendo a nota...</span>`;
+    let imagemBase64;
+    try {
+      imagemBase64 = await lerArquivoComoBase64(file);
+    } catch {
+      label.innerHTML = htmlOriginal;
+      mostrarErro("Nao consegui ler essa foto. Tenta de novo.");
+      return;
+    }
+
+    const clientId = crypto.randomUUID ? crypto.randomUUID() : `nf-${Date.now()}`;
+    const data = await apiFetch(
+      "/api/notas-fiscais/extrair",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagem_base64: imagemBase64, media_type: file.type || "image/jpeg" }),
+      },
+      { tipo: "nota_fiscal_extrair", id: clientId }
+    );
+    label.innerHTML = htmlOriginal;
+    if (!data) return; // erro real ja mostrado por apiFetch
+    if (data.__enfileirado) {
+      $("#nota-fiscal-status").textContent = "Sem conexao - a foto foi salva e vai ler assim que voltar.";
+      $("#nota-fiscal-confirmacao").hidden = true;
+      return;
+    }
+    mostrarConfirmacaoNotaFiscal(data);
+  });
+}
+
+const nfConfirmarBtn = $("#nf-confirmar-btn");
+if (nfConfirmarBtn) {
+  nfConfirmarBtn.addEventListener("click", async () => {
+    const valor = parseFloat($("#nf-valor").value);
+    const estabelecimento = $("#nf-estabelecimento").value.trim();
+    if (!estabelecimento || !(valor > 0)) {
+      mostrarErro("Preenche valor (maior que zero) e estabelecimento antes de salvar.");
+      return;
+    }
+    setBotaoCarregando(nfConfirmarBtn, true, "Salvando...");
+    const data = await apiFetch("/api/notas-fiscais/confirmar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        valor,
+        estabelecimento,
+        data: $("#nf-data").value || null,
+        categoria: $("#nf-categoria").value || null,
+      }),
+    });
+    setBotaoCarregando(nfConfirmarBtn, false, "Confirmar e salvar");
+    if (!data) return;
+    $("#nota-fiscal-confirmacao").hidden = true;
+    loadExpenses();
+    loadUso();
+  });
+}
+
+const nfCancelarBtn = $("#nf-cancelar-btn");
+if (nfCancelarBtn) {
+  nfCancelarBtn.addEventListener("click", () => {
+    $("#nota-fiscal-confirmacao").hidden = true;
+  });
 }
 
 async function enviarCaptura(text, clarificacao) {
@@ -2322,9 +2428,10 @@ function criarItemBanco(conta) {
 }
 
 async function loadBancos() {
-  const [contas, status] = await Promise.all([
+  const [contas, status, patrimonio] = await Promise.all([
     apiFetch("/api/bancos"),
     apiFetch("/api/bancos/sync-status"),
+    apiFetch("/api/patrimonio"),
   ]);
 
   if (status) {
@@ -2333,6 +2440,15 @@ async function loadBancos() {
     // aviso discreto - so aparece quando ENCRYPTION_KEY nao esta configurada
     // (ver docs/SEGURANCA.md); nao bloqueia nada, so avisa.
     $("#cripto-aviso").hidden = status.criptografia_ativa !== false;
+  }
+
+  if (patrimonio) {
+    $("#patrimonio-total").textContent = fmtMoeda(patrimonio.patrimonio_total);
+    const detalhes = [];
+    if (patrimonio.saldo_bancario) detalhes.push(`saldo em conta/cartao: ${fmtMoeda(patrimonio.saldo_bancario)}`);
+    if (patrimonio.valor_guardado_metas) detalhes.push(`guardado em metas: ${fmtMoeda(patrimonio.valor_guardado_metas)}`);
+    $("#patrimonio-detalhe").textContent = detalhes.join(" - ");
+    $("#patrimonio-box").hidden = patrimonio.contas.length === 0 && patrimonio.metas.length === 0;
   }
 
   if (!contas) return;
@@ -3070,6 +3186,32 @@ if ("speechSynthesis" in window) {
 } else {
   $("#metar-ouvir").hidden = true;
   $("#taf-ouvir").hidden = true;
+}
+
+// Resumo falado da manha (US-C11) - texto vem pronto do servidor
+// (/api/resumo-manha, agenda + gasto de ontem + pendentes), o TTS em si
+// reaproveita o mesmo falarTexto/SpeechSynthesis ja usado no METAR/TAF e no
+// chat, nada novo do lado do audio.
+const resumoManhaBtn = $("#resumo-manha-btn");
+if (resumoManhaBtn) {
+  if (!("speechSynthesis" in window)) {
+    resumoManhaBtn.hidden = true;
+  } else {
+    resumoManhaBtn.addEventListener("click", async () => {
+      // falando de novo (mesmo botao) -> cancela, mesmo comportamento de
+      // metar-ouvir/taf-ouvir - nunca busca de novo enquanto ja esta falando.
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        resumoManhaBtn.classList.remove("falando");
+        return;
+      }
+      setBotaoCarregando(resumoManhaBtn, true, "Preparando...");
+      const data = await apiFetch("/api/resumo-manha");
+      setBotaoCarregando(resumoManhaBtn, false, "Ouvir resumo da manha");
+      if (!data) return;
+      falarTexto(resumoManhaBtn, data.texto);
+    });
+  }
 }
 
 $("#metar-form").addEventListener("submit", async (e) => {

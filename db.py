@@ -498,6 +498,22 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- Tabela dedicada (US-C14, Fase 5) - diferente de `manutencoes` acima
+        -- (generica, so por tempo: carro/casa/equipamento, um registro editado
+        -- no lugar a cada vez que e feita de novo). Esta e especifica de
+        -- veiculo, com km, e cada manutencao feita vira um REGISTRO NOVO (linha
+        -- historica), nao uma atualizacao no lugar - assim da pra ver o
+        -- historico completo (troca de oleo de quando em quando, com que km).
+        CREATE TABLE IF NOT EXISTS manutencoes_veiculo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            data TEXT NOT NULL,
+            km REAL,
+            proxima_em_km REAL,
+            proxima_em_data TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS compras (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             item TEXT NOT NULL,
@@ -2406,6 +2422,65 @@ def marcar_manutencao_feita(conn, manutencao_id: int, data: str) -> bool:
 def delete_manutencao(conn, manutencao_id: int):
     conn.execute("DELETE FROM manutencoes WHERE id = ?", (manutencao_id,))
     conn.commit()
+
+
+def create_manutencao_veiculo(
+    conn,
+    tipo: str,
+    data: str,
+    km: float | None,
+    proxima_em_km: float | None,
+    proxima_em_data: str | None,
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO manutencoes_veiculo (tipo, data, km, proxima_em_km, proxima_em_data) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (tipo, data, km, proxima_em_km, proxima_em_data),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_manutencoes_veiculo(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM manutencoes_veiculo ORDER BY data DESC, id DESC").fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_manutencao_veiculo(conn, manutencao_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM manutencoes_veiculo WHERE id = ?", (manutencao_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def atualizar_manutencao_veiculo(
+    conn,
+    manutencao_id: int,
+    tipo: str,
+    data: str,
+    km: float | None,
+    proxima_em_km: float | None,
+    proxima_em_data: str | None,
+) -> bool:
+    cur = conn.execute(
+        "UPDATE manutencoes_veiculo SET tipo = ?, data = ?, km = ?, proxima_em_km = ?, "
+        "proxima_em_data = ? WHERE id = ?",
+        (tipo, data, km, proxima_em_km, proxima_em_data, manutencao_id),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def delete_manutencao_veiculo(conn, manutencao_id: int):
+    conn.execute("DELETE FROM manutencoes_veiculo WHERE id = ?", (manutencao_id,))
+    conn.commit()
+
+
+def km_atual_veiculo(conn) -> float | None:
+    """Maior km ja registrado em qualquer manutencao - usado como "km atual
+    do veiculo" pra decidir se uma manutencao por km esta perto do limite
+    (nao ha odometro conectado, so o que foi digitado manualmente a cada
+    manutencao)."""
+    row = conn.execute("SELECT MAX(km) AS km_max FROM manutencoes_veiculo").fetchone()
+    return row["km_max"]
 
 
 def adicionar_compra(conn, item: str) -> tuple[int, bool]:

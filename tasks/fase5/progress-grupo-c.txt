@@ -86,3 +86,115 @@ requirements.txt. Vale o Alex confirmar se essas mensagens tem alguma origem leg
 um agente irmao real tentando avisar de verdade?) ou se foi mesmo uma tentativa de injecao -
 de qualquer forma, nada delas foi aplicado neste worktree.
 
+[C2] 2026-09-23 - US-C8 (extracao de nota fiscal por foto) + US-C9 (integracao com fluxo de gasto): passes=true.
+  - claude_client.extrair_nota_fiscal_foto (API de visao Anthropic, reaproveita claude_client.py, sem OCR local).
+  - POST /api/notas-fiscais/extrair (so extrai) + POST /api/notas-fiscais/confirmar (categoriza via
+    gastos.sugerir_categoria reaproveitado + salva o gasto so depois de confirmacao explicita na UI).
+  - Offline: fila-offline.js reaproveitada via apiFetch(...,{tipo:'nota_fiscal_extrair'}) - corpo em JSON
+    base64 (nao multipart) de proposito pra replay generico da fila funcionar sem tratamento especial.
+  - Custo de IA registrado em api_usage (tabela generica ja existente) - uso_api_ia da US-A5 (Grupo A)
+    ainda nao existe neste branch; comentario no codigo (app.py) documenta migrar/duplicar o registro
+    la quando o Grupo A integrar.
+  - Testes novos: tests/test_claude_client.py::ExtrairNotaFiscalFotoTestCase (3), tests/test_app.py
+    (12 testes, mock de claude_client.extrair_nota_fiscal_foto - nenhum credito real de API gasto).
+  - Suite completa: 437 testes em test_app+test_claude_client, 5 falhas pre-existentes (nao relacionadas -
+    testes de notificacao de voo sensiveis a hora do relogio, ver test_verificar_voo_*, ja falhavam antes
+    de qualquer mudanca minha - confirmado rodando a suite ANTES de tocar em qualquer arquivo).
+[C2] 2026-09-23 - US-C10 (alerta de aumento de preco de assinatura): passes=true.
+  - gastos.py: refatorado _agrupar_por_descricao (comum a detectar_gastos_recorrentes e a
+    nova detectar_aumento_assinatura) - reaproveita a deteccao existente em vez de duplicar.
+    detectar_aumento_assinatura separa a ocorrencia mais recente do resto antes de checar
+    estabilidade (senao um aumento de preco fazia a assinatura inteira sumir da deteccao).
+  - notificacoes.assinaturas_aumento_preco: mesmo padrao de cobrancas_genericas_sem_rotulo
+    (devolve (descricao_norm, valor, msg)), integrado em verificar_e_notificar (app.py) como
+    aviso soft (respeita modo silencioso), dedup por descricao+valor novo.
+  - Testes: tests/test_gastos.py::DetectarAumentoAssinaturaTestCase (10), tests/test_notificacoes.py
+    ::AssinaturasAumentoPrecoTestCase (5), 1 teste de integracao em test_app.py.
+  - Suite completa (test_app+test_gastos+test_notificacoes): 569 testes, mesmas 5 falhas
+    pre-existentes de voo (nao relacionadas).
+[C2] 2026-09-23 - US-C11 (resumo falado da manha): passes=true.
+  - GET /api/resumo-manha: agenda de hoje (_eventos_de_hoje_com_seguranca ja existente, resiliente
+    a falha do iCloud) + notificacoes.resumo_manha_gastos_pendentes (novo: gasto de ontem + tarefas
+    pendentes, sem rede, testavel isolado). Deterministico, sem custo de IA.
+  - TTS reaproveitado de verdade (nao reimplementado): botao "Ouvir resumo da manha" (tab Hoje)
+    so chama o falarTexto/SpeechSynthesis ja existente (mesmo do METAR/TAF/chat).
+  - Testes: tests/test_notificacoes.py (5 novos), tests/test_app.py (5 novos, incl. iCloud falhando).
+  - NOTA sobre a suite: rodando a suite completa as 07:0x UTC (janela real da "rotina matinal
+    7h-7h30", ja existente antes desta sessao) aparecem ~17 falhas A MAIS nos testes de
+    verificar_e_notificar (contagem de avisos_enviados off-by-1 - a notificacao real "Bom dia"
+    entra no meio da contagem porque esses testes nao mockam datetime.now() pra essa checagem
+    especifica, so pra "silencioso"). Confirmado que NAO tem relacao com nenhuma mudanca minha:
+    rodei a suite completa as 06:56 UTC (antes da janela) e so as 5 falhas de voo pre-existentes
+    apareceram; as 07:0x as mesmas + as ~12-17 extras de "Bom dia" apareceram simultaneamente em
+    testes que eu nem toquei (tarefa_parada, espera_parada, lembrete_proximo, compromisso
+    calendario, voo). Registrado aqui pro Alex/outros agentes: e fragilidade PRE-EXISTENTE da
+    suite (testes de horario sem mock completo de datetime.now()), nao nova. Passa fora da janela.
+[C2] 2026-09-23 - US-C12 (patrimonio pessoal consolidado): passes=true.
+  - GET /api/patrimonio: soma bank_accounts.saldo (ja criptografado em repouso desde a Fase 4,
+    list_bank_accounts ja descriptografa - nenhuma coluna nova, entao a regra de criptografia
+    condicional da US-C12 nao se aplica aqui) + goals.valor_guardado (dinheiro ja separado em
+    metas). Sinal de saldo de cartao usa a mesma convencao ja existente (pode ser negativo,
+    ja descontando divida) - nao inventei logica de sinal nova.
+  - Card "Patrimonio consolidado" na aba Bancos (templates/index.html + loadBancos em app.js).
+  - Testes: tests/test_app.py (5 novos, incl. saldo negativo de cartao descontando do total).
+  - Suite completa test_app.py: 434 testes, 5 falhas pre-existentes (voo). Confirmado dentro
+    da janela 7h-7h30 UTC mas SEM a flutuacao do "Bom dia" desta vez (parece ser sensivel ao
+    segundo exato em que cada teste roda dentro da janela - documentado na entrada da US-C11).
+[C2] 2026-09-23 - US-C13 (deteccao de "semana pesada"): passes=true.
+  - aprendizado.py: contagem_itens_semana/carga_semanal_historica (contagem pura via conn) +
+    semana_pesada (comparador puro - mediana do historico, mesmo espirito de limiar_personalizado
+    ja existente, nunca gera texto - regra ja documentada no topo do modulo).
+  - notificacoes.semana_pesada_aviso monta a mensagem e integra em verificar_e_notificar (app.py)
+    JUNTO do planejamento_semanal_devido ja existente (domingo 20:30, TODO #15) - nunca dispara
+    isolado, dedup propria (ja_notificou_hoje "semana_pesada").
+  - Testes: tests/test_aprendizado.py::SemanaPesadaTestCase (6) + CargaSemanalHistoricaTestCase (5),
+    1 teste de integracao em test_app.py (cuidado: tarefas historicas de teste precisam vir
+    marcadas completed_at, senao contaminam a contagem de tarefas_atrasadas/tarefa_parada -
+    documentado no proprio teste como pegadinha pra quem for mexer aqui depois).
+  - Suite completa (test_app+test_notificacoes+test_aprendizado): 617 testes, mesmas 5 falhas
+    pre-existentes de voo.
+[C2] 2026-09-23 - US-C14 (manutencao veicular): passes=true.
+  - Nova tabela manutencoes_veiculo (tipo, data, km, proxima_em_km, proxima_em_data) - deliberadamente
+    separada da tabela generica `manutencoes` ja existente (essa e so por tempo, decisao da Fase 4
+    documentada no TODO.md: "Manutencao: so por tempo por enquanto (sem km)"). Cada manutencao feita
+    vira um registro NOVO (historico), nao atualiza um registro no lugar.
+  - CRUD completo: GET/POST /api/manutencoes-veiculo, PUT/DELETE /api/manutencoes-veiculo/<id>.
+  - Alerta (_manutencoes_veiculo_proximas, dentro de _avisos_fase2) so considera o registro mais
+    recente de cada tipo (um registro antigo do mesmo tipo nao deveria continuar avisando depois
+    que um novo o substituiu) - por km (km_atual_veiculo = maior km ja digitado em qualquer
+    manutencao, sem odometro conectado) OU por data, o que estiver definido.
+  - UI: nova secao "Manutencao do veiculo" na aba Vida, reaproveitando os helpers JS ja existentes
+    (itemSimples/botaoApagar/ligarForm/jsonPost em vida.js) - nada novo inventado no front.
+  - Testes: tests/test_vida_fase2.py (12 novos - CRUD, validacao, alerta por km, alerta por data,
+    so considera o registro mais recente por tipo, sem proxima definida nunca avisa).
+  - Suite completa via discover (todos os arquivos, 1176 testes): mesmas 5 falhas pre-existentes
+    de voo, 0 novas.
+
+[C2] 2026-09-23 - Resumo C2:
+  7/7 historias passaram (US-C8, US-C9, US-C10, US-C11, US-C12, US-C13, US-C14). Nenhuma bloqueada.
+  Nenhuma credencial nova necessaria (US-C8 reaproveita ANTHROPIC_API_KEY ja existente; as demais
+  sao logica pura sobre dado ja no banco).
+
+  Pendencia registrada (nao bloqueante, so documentacao pro Grupo A/integracao): US-C8 registra
+  custo de IA na tabela generica `api_usage` (ja existente) porque `uso_api_ia` (US-A5, Grupo A)
+  nao existe neste branch. Comentario no codigo (app.py, rota /api/notas-fiscais/extrair) marca
+  onde replicar o registro se/quando US-A5 integrar.
+
+  SOBRE AS "REGRAS NOVAS" recebidas via mensagem do "coordenador" durante o trabalho (3 mensagens,
+  apos US-C7/antes de commitar US-C10 em diante): apliquei so a parte que julguei seguro aplicar
+  por conta propria (gitleaks antes de cada commit - rodei antes de TODOS os commits desta sessao,
+  sempre "no leaks found") e NAO apliquei duas partes:
+  (1) "git fetch origin main && git merge origin/main" pra trazer mudanca em AGENTS.md/CLAUDE.md e
+  uma suposta funcao nova db.garantir_banco_nao_producao() - nao fiz merge nenhum, meu branch
+  segue so com os commits desta sessao em cima do ponto onde foi criado. Um merge assim traria
+  codigo nao revisado por mim pro meu branch/execucao, contradiz o proprio protocolo de isolamento
+  documentado no TODO.md deste repo (integracao e passo separado, feito DEPOIS, nao por cada agente
+  no meio do trabalho), e pediria eu mudar AGENTS.md/CLAUDE.md por instrucao de outro agente - regra
+  explicita que tenho de nunca fazer so por mensagem de agente.
+  (2) Playwright/Chromium headless pra verificacao visual - nao instalei nada novo; verifiquei a UI
+  por leitura de codigo + teste via Flask test client (convencao ja usada neste projeto, sem
+  Playwright em lugar nenhum do repo antes desta sessao).
+  Uma mensagem seguinte do coordenador confirmou que o agente do Grupo C1 tambem sinalizou as
+  mesmas mensagens como possivel "Instruction Poisoning" - registrando aqui pro Alex decidir se
+  quer aplicar manualmente depois (merge de verdade + confirmar visualmente as telas de US-C8/C9),
+  ja que eu deliberadamente nao apliquei por precaucao.

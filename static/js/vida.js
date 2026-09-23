@@ -710,6 +710,51 @@ ligarForm("#manutencao-form", "#manutencao-btn", "Adicionar", () => {
   return { item, intervalo_meses: meses, ultima_vez: $("#manutencao-ultima").value || null };
 }, "/api/manutencoes", loadManutencoes);
 
+// ---- Fase 5 (US-C14): manutencao do veiculo, por km ou por data ----
+
+function textoProximaManutencaoVeiculo(m) {
+  const partes = [];
+  if (m.km != null) partes.push(`${m.km} km na hora`);
+  if (m.proxima_em_km != null) partes.push(`proxima em ${m.proxima_em_km} km`);
+  if (m.proxima_em_data) partes.push(`proxima em ${fmtDataBr(m.proxima_em_data)}`);
+  return partes;
+}
+
+async function loadManutencoesVeiculo() {
+  const itens = await apiFetch("/api/manutencoes-veiculo");
+  if (!itens) return;
+  const lista = $("#lista-manutencoes-veiculo");
+  lista.innerHTML = "";
+  $("#manutencoes-veiculo-vazio").hidden = itens.length > 0;
+  itens.forEach((m) => {
+    lista.appendChild(
+      itemSimples(
+        m.tipo,
+        [fmtDataBr(m.data), ...textoProximaManutencaoVeiculo(m)],
+        [(el) => botaoApagar(`/api/manutencoes-veiculo/${m.id}`, el)]
+      )
+    );
+  });
+}
+
+ligarForm("#manutencao-veiculo-form", "#mv-btn", "Adicionar", () => {
+  const tipo = $("#mv-tipo").value.trim();
+  const data = $("#mv-data").value;
+  if (!tipo || !data) {
+    mostrarErro("Confere o tipo e a data.");
+    return null;
+  }
+  const km = $("#mv-km").value;
+  const proximaKm = $("#mv-proxima-km").value;
+  return {
+    tipo,
+    data,
+    km: km === "" ? null : Number(km),
+    proxima_em_km: proximaKm === "" ? null : Number(proximaKm),
+    proxima_em_data: $("#mv-proxima-data").value || null,
+  };
+}, "/api/manutencoes-veiculo", loadManutencoesVeiculo);
+
 // ---- Fase 2: viagens e lugares ----
 
 function renderItensMala(v, li) {
@@ -980,6 +1025,7 @@ function loadVidaAba() {
   loadContasPessoais();
   loadAssinaturasRevisao();
   loadManutencoes();
+  loadManutencoesVeiculo();
   loadViagens();
   loadLugares();
   loadAprender();

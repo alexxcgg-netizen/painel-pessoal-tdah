@@ -87,6 +87,93 @@ class LimiarPersonalizadoTestCase(unittest.TestCase):
         self.assertEqual(valor, round(aprendizado._mediana(amostras)))
 
 
+class SemanaPesadaTestCase(unittest.TestCase):
+    def test_historico_insuficiente_nunca_acusa_sobrecarga(self):
+        resultado = aprendizado.semana_pesada(10, [2, 3], minimo_amostras=3)
+        self.assertFalse(resultado["sobrecarregada"])
+        self.assertIsNone(resultado["mediana_historica"])
+
+    def test_proxima_semana_bem_acima_da_mediana_e_pesada(self):
+        resultado = aprendizado.semana_pesada(8, [2, 2, 3, 2], minimo_amostras=3)
+        self.assertTrue(resultado["sobrecarregada"])
+        self.assertEqual(resultado["mediana_historica"], 2)
+        self.assertEqual(resultado["amostras"], 4)
+
+    def test_proxima_semana_dentro_do_normal_nao_e_pesada(self):
+        resultado = aprendizado.semana_pesada(3, [2, 2, 3, 2], minimo_amostras=3)
+        self.assertFalse(resultado["sobrecarregada"])
+
+    def test_salto_pequeno_em_numero_absoluto_nao_conta_mesmo_2x(self):
+        # 1 -> 2 e 2x a mediana, mas so 1 item de diferenca - nao e sobrecarga de verdade
+        resultado = aprendizado.semana_pesada(2, [1, 1, 1, 1], minimo_amostras=3)
+        self.assertFalse(resultado["sobrecarregada"])
+
+    def test_semanas_historicas_vazias_sao_ignoradas_como_amostra(self):
+        # 3 semanas com 0 itens nao contam como "amostra valida" - historico
+        # insuficiente de verdade, nunca acusa sobrecarga
+        resultado = aprendizado.semana_pesada(5, [0, 0, 0, 2], minimo_amostras=3)
+        self.assertFalse(resultado["sobrecarregada"])
+        self.assertEqual(resultado["amostras"], 1)
+
+    def test_um_outlier_no_historico_nao_desloca_a_mediana(self):
+        resultado = aprendizado.semana_pesada(6, [2, 2, 2, 2, 20], minimo_amostras=3)
+        self.assertEqual(resultado["mediana_historica"], 2)
+        self.assertTrue(resultado["sobrecarregada"])
+
+
+class CargaSemanalHistoricaTestCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def _criar_task_com_prazo(self, due_date):
+        self.conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("tarefa", due_date))
+        self.conn.commit()
+
+    def test_contagem_itens_semana_sem_nada_e_zero(self):
+        n = aprendizado.contagem_itens_semana(self.conn, date(2026, 9, 7), date(2026, 9, 13))
+        self.assertEqual(n, 0)
+
+    def test_contagem_itens_semana_conta_so_dentro_do_intervalo(self):
+        self._criar_task_com_prazo("2026-09-07")  # dentro
+        self._criar_task_com_prazo("2026-09-13")  # dentro (borda)
+        self._criar_task_com_prazo("2026-09-14")  # fora
+        self._criar_task_com_prazo("2026-09-06")  # fora
+        n = aprendizado.contagem_itens_semana(self.conn, date(2026, 9, 7), date(2026, 9, 13))
+        self.assertEqual(n, 2)
+
+    def test_contagem_ignora_tarefa_modelo_recorrente(self):
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, recorrencia) VALUES (?, NULL, ?)",
+            ("modelo", "semanal:seg"),
+        )
+        self.conn.commit()
+        n = aprendizado.contagem_itens_semana(self.conn, date(2026, 9, 7), date(2026, 9, 13))
+        self.assertEqual(n, 0)
+
+    def test_carga_semanal_historica_conta_semanas_completas_anteriores(self):
+        hoje = date(2026, 9, 23)  # quarta-feira
+        # semana passada (14 a 20/09): 3 itens
+        self._criar_task_com_prazo("2026-09-15")
+        self._criar_task_com_prazo("2026-09-17")
+        self._criar_task_com_prazo("2026-09-20")
+        # 2 semanas atras (07 a 13/09): 1 item
+        self._criar_task_com_prazo("2026-09-10")
+        # semana atual (21 a 27/09) NAO deve entrar no historico
+        self._criar_task_com_prazo("2026-09-22")
+
+        amostras = aprendizado.carga_semanal_historica(self.conn, hoje, semanas=2)
+        self.assertEqual(amostras, [3, 1])
+
+
 class HistoricoDbTestCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

@@ -1,3 +1,5 @@
+import base64
+import binascii
 import csv
 import hashlib
 import hmac
@@ -53,6 +55,7 @@ from db import (
     apagar_espera,
     apagar_nota,
     atualizar_categoria_gasto,
+    atualizar_manutencao_veiculo,
     atualizar_saldo_conta,
     atualizar_uber_pedido,
     buscar_conta_por_nome,
@@ -72,6 +75,7 @@ from db import (
     create_lembrete,
     create_lugar,
     create_manutencao,
+    create_manutencao_veiculo,
     create_medicamento,
     create_medida_corporal,
     create_memoria,
@@ -101,6 +105,7 @@ from db import (
     delete_lembrete,
     delete_lugar,
     delete_manutencao,
+    delete_manutencao_veiculo,
     delete_medicamento,
     delete_medida_corporal,
     delete_memoria,
@@ -118,10 +123,12 @@ from db import (
     get_db,
     get_essencial,
     estatisticas_conta,
+    get_manutencao_veiculo,
     get_or_create_bank_account,
     get_saude_dia,
     init_db,
     insert_bank_transactions,
+    km_atual_veiculo,
     list_all_bank_transactions,
     list_bank_accounts,
     list_bank_transactions,
@@ -151,6 +158,7 @@ from db import (
     list_lembretes,
     list_lugares,
     list_manutencoes,
+    list_manutencoes_veiculo,
     list_medicamentos_ativos,
     list_medidas_corporais,
     list_memorias,
@@ -1462,6 +1470,34 @@ def _eventos_de_hoje_com_seguranca(conn) -> list[dict]:
     return _compromissos_de_hoje(conn, icloud)
 
 
+def _resumo_falado_manha(conn) -> str:
+    """Texto curto pro resumo falado da manha (US-C11) - agenda de hoje
+    (_eventos_de_hoje_com_seguranca, ja existente, resiliente a falha do
+    iCloud) + gasto de ontem/tarefas pendentes
+    (notificacoes.resumo_manha_gastos_pendentes, sem rede). So monta texto
+    factual, sem IA - mesmo espirito de mensagem_fechamento_noturno. O TTS
+    em si (converter esse texto em audio) reaproveita o mecanismo ja
+    existente no navegador (falarTexto/SpeechSynthesis, o mesmo botao
+    "ouvir" ja usado no METAR/TAF e nas respostas do chat) - nada novo pro
+    servidor gerar aqui."""
+    eventos = [e for e in _eventos_de_hoje_com_seguranca(conn) if not e.get("dia_inteiro")]
+    if not eventos:
+        agenda_texto = "Nenhum compromisso marcado pra hoje."
+    elif len(eventos) == 1:
+        agenda_texto = f"1 compromisso hoje: \"{eventos[0]['titulo']}\" as {eventos[0]['inicio'][11:16]}."
+    else:
+        agenda_texto = f"{len(eventos)} compromissos hoje."
+    return f"Bom dia. {agenda_texto} {notificacoes.resumo_manha_gastos_pendentes(conn)}"
+
+
+@app.route("/api/resumo-manha", methods=["GET"])
+def resumo_manha_rota():
+    conn = get_db()
+    texto = _resumo_falado_manha(conn)
+    conn.close()
+    return jsonify({"texto": texto})
+
+
 @app.route("/api/summary/today", methods=["GET"])
 def summary_today():
     today = date.today().isoformat()
@@ -2641,6 +2677,14 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         quando = "ja passou do prazo" if m["dias_ate"] < 0 else "vence hoje" if m["dias_ate"] == 0 else f"vence em {m['dias_ate']} dia(s)"
         avisos.append(("manutencao", ref, "Manutencao", f"{m['item']}: {quando}."))
 
+    # Manutencao de veiculo por km ou data (US-C14) - tabela dedicada,
+    # separada da manutencao generica acima (essa e so por tempo).
+    for m in _manutencoes_veiculo_proximas(conn, hoje):
+        ref = vida.id_estavel("manutencao_veiculo", m["id"], m["proxima_em_km"], m["proxima_em_data"])
+        if ja_notificado_alguma_vez(conn, "manutencao_veiculo", ref):
+            continue
+        avisos.append(("manutencao_veiculo", ref, "Manutencao do veiculo", f"{m['tipo']}: {m['motivo']}."))
+
     if agora.hour >= 10 and not ja_notificou_hoje(conn, "responder"):
         antigas = [
             r for r in list_responder_pendentes(conn) if datetime.fromisoformat(r["criado_em"]).date() < hoje
@@ -2845,6 +2889,14 @@ def verificar_e_notificar():
         if not ja_notificado_alguma_vez(conn, "cobranca_generica", ref_id):
             avisos.append(("cobranca_generica", ref_id, "Cobranca sem identificar", msg))
 
+    # Assinatura ja conhecida que subiu de preco (US-C10) - uma vez por
+    # descricao+valor novo (mesma chave de dedup de cobranca_generica acima);
+    # se subir de novo depois, o valor novo muda a chave e avisa de novo.
+    for descricao_norm, valor, msg in notificacoes.assinaturas_aumento_preco(conn):
+        ref_id = _id_estavel_cobranca_generica(descricao_norm, valor)
+        if not ja_notificado_alguma_vez(conn, "assinatura_aumento_preco", ref_id):
+            avisos.append(("assinatura_aumento_preco", ref_id, "Assinatura ficou mais cara", msg))
+
     msg = notificacoes.gasto_semana_elevado(conn)
     if msg and not ja_notificou_hoje(conn, "gasto_elevado"):
         avisos.append(("gasto_elevado", 0, "Gasto da semana", msg))
@@ -2910,6 +2962,12 @@ def verificar_e_notificar():
                 "Ja sabe sua agenda dessa semana? Manda pra mim que eu registro tudo.",
             )
         )
+        # Semana pesada (US-C13) - junto do mesmo momento de planejamento
+        # semanal (domingo a noite), avisa com antecedencia se a semana que
+        # vem ja esta bem acima do padrao historico do proprio usuario.
+        msg_semana_pesada = notificacoes.semana_pesada_aviso(conn)
+        if msg_semana_pesada and not ja_notificou_hoje(conn, "semana_pesada"):
+            avisos.append(("semana_pesada", 0, "Semana pesada pela frente", msg_semana_pesada))
 
     if notificacoes.hora_de_dormir_devida() and not ja_notificou_hoje(conn, "hora_de_dormir"):
         itens_noite = ", ".join(i["texto"].lower() for i in list_rotina_itens(conn, "noite"))
@@ -4609,6 +4667,156 @@ def apagar_manutencao(manutencao_id):
     return jsonify({"ok": True})
 
 
+def _numero_positivo_opcional(valor):
+    """None e valido (campo opcional, ex: km ou proxima_em_km nao
+    informados). Qualquer outra coisa que nao seja numero >= 0 devolve
+    "invalido" (string, nunca confundivel com um float de verdade) pra quem
+    chamou tratar como erro de validacao."""
+    if valor in (None, ""):
+        return None
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        return "invalido"
+    if valor < 0:
+        return "invalido"
+    return float(valor)
+
+
+def _validar_manutencao_veiculo(body: dict) -> dict:
+    """Valida os campos comuns a criar/atualizar manutencao de veiculo -
+    devolve {"erro": "..."} ou os campos ja normalizados prontos pra
+    gravar. tipo/data sao obrigatorios; km/proxima_em_km/proxima_em_data sao
+    opcionais, mas precisam fazer sentido quando informados."""
+    tipo = _texto_curto(body.get("tipo"), 80)
+    data = _data_iso_valida(body.get("data"))
+    if not tipo or not data:
+        return {"erro": "informe o tipo e a data (AAAA-MM-DD)"}
+
+    km = _numero_positivo_opcional(body.get("km"))
+    if km == "invalido":
+        return {"erro": "km invalido (numero maior ou igual a zero)"}
+    proxima_em_km = _numero_positivo_opcional(body.get("proxima_em_km"))
+    if proxima_em_km == "invalido":
+        return {"erro": "proxima_em_km invalido (numero maior ou igual a zero)"}
+
+    proxima_em_data = None
+    if body.get("proxima_em_data") not in (None, ""):
+        proxima_em_data = _data_iso_valida(body.get("proxima_em_data"))
+        if not proxima_em_data:
+            return {"erro": "proxima_em_data invalida (AAAA-MM-DD)"}
+
+    return {
+        "tipo": tipo,
+        "data": data,
+        "km": km,
+        "proxima_em_km": proxima_em_km,
+        "proxima_em_data": proxima_em_data,
+    }
+
+
+@app.route("/api/manutencoes-veiculo", methods=["GET"])
+def listar_manutencoes_veiculo():
+    conn = get_db()
+    resultado = list_manutencoes_veiculo(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/manutencoes-veiculo", methods=["POST"])
+def criar_manutencao_veiculo_rota():
+    body = _corpo_json()
+    campos = _validar_manutencao_veiculo(body)
+    if "erro" in campos:
+        return jsonify({"error": campos["erro"]}), 400
+    conn = get_db()
+    manutencao_id = create_manutencao_veiculo(
+        conn, campos["tipo"], campos["data"], campos["km"], campos["proxima_em_km"], campos["proxima_em_data"]
+    )
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": manutencao_id, "ok": True}), 201
+
+
+@app.route("/api/manutencoes-veiculo/<int:manutencao_id>", methods=["PUT"])
+def atualizar_manutencao_veiculo_rota(manutencao_id):
+    conn = get_db()
+    if not get_manutencao_veiculo(conn, manutencao_id):
+        conn.close()
+        return jsonify({"error": "manutencao nao encontrada"}), 404
+    body = _corpo_json()
+    campos = _validar_manutencao_veiculo(body)
+    if "erro" in campos:
+        conn.close()
+        return jsonify({"error": campos["erro"]}), 400
+    atualizar_manutencao_veiculo(
+        conn,
+        manutencao_id,
+        campos["tipo"],
+        campos["data"],
+        campos["km"],
+        campos["proxima_em_km"],
+        campos["proxima_em_data"],
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/manutencoes-veiculo/<int:manutencao_id>", methods=["DELETE"])
+def apagar_manutencao_veiculo(manutencao_id):
+    conn = get_db()
+    delete_manutencao_veiculo(conn, manutencao_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _ultima_manutencao_veiculo_por_tipo(conn) -> list[dict]:
+    """So a manutencao mais recente de cada tipo importa pra saber "quando
+    vence a proxima" - um registro antigo do mesmo tipo (ex: troca de oleo
+    de 2 revisoes atras) tem um proxima_em_km/proxima_em_data ja obsoleto,
+    substituido pelo registro mais novo."""
+    vistos = set()
+    ultimas = []
+    for m in list_manutencoes_veiculo(conn):  # ja vem ordenado por data/id DESC
+        if m["tipo"] in vistos:
+            continue
+        vistos.add(m["tipo"])
+        ultimas.append(m)
+    return ultimas
+
+
+def _manutencoes_veiculo_proximas(conn, hoje: date, dias_aviso: int = 15, km_aviso: float = 500) -> list[dict]:
+    """Pra cada tipo de manutencao (so o registro mais recente), decide se
+    esta perto do limite por DATA (dentro de `dias_aviso` dias, ou ja
+    passou) ou por KM (km_atual_veiculo - o maior km ja registrado em
+    qualquer manutencao, ja que nao ha odometro conectado - dentro de
+    `km_aviso` do proximo, ou ja passou). Sem proxima_em_km/proxima_em_data
+    definido, essa manutencao simplesmente nunca avisa (nada pra comparar)."""
+    km_atual = km_atual_veiculo(conn)
+    proximas = []
+    for m in _ultima_manutencao_veiculo_por_tipo(conn):
+        motivo = None
+        if m["proxima_em_data"]:
+            proxima = date.fromisoformat(m["proxima_em_data"])
+            dias_ate = (proxima - hoje).days
+            if dias_ate <= dias_aviso:
+                motivo = (
+                    "ja passou do prazo" if dias_ate < 0
+                    else "vence hoje" if dias_ate == 0
+                    else f"vence em {dias_ate} dia(s)"
+                )
+        if not motivo and m["proxima_em_km"] is not None and km_atual is not None:
+            km_faltando = m["proxima_em_km"] - km_atual
+            if km_faltando <= km_aviso:
+                motivo = (
+                    f"ja passou {abs(km_faltando):.0f}km do previsto" if km_faltando < 0
+                    else f"faltam {km_faltando:.0f}km pro previsto"
+                )
+        if motivo:
+            proximas.append({**m, "motivo": motivo})
+    return proximas
+
+
 def _adicionar_compras(conn, itens) -> dict:
     if isinstance(itens, str):
         itens = [itens]
@@ -5238,6 +5446,45 @@ def listar_bancos():
     return jsonify(resultado)
 
 
+def _patrimonio_consolidado(conn) -> dict:
+    """Soma tudo que o projeto ja sabe que tem valor monetario num so numero
+    (US-C12): saldo das contas/cartoes (bank_accounts.saldo, ja
+    criptografado em repouso desde a Fase 4 - list_bank_accounts
+    descriptografa, nenhuma coluna nova pra proteger aqui) + o que ja foi
+    guardado nas metas financeiras (goals.valor_guardado - dinheiro
+    separado, entao conta como patrimonio tanto quanto o saldo em conta).
+    Soma o saldo de cada conta como esta gravado (sinal ja reflete divida
+    em cartao quando existir - a mesma convencao que a aba Bancos ja usa
+    pra mostrar saldo negativo, nao inventa um sinal novo aqui)."""
+    contas = list_bank_accounts(conn)
+    saldo_bancario = sum(c["saldo"] or 0 for c in contas)
+    metas = list_goals(conn)
+    valor_guardado_metas = sum(g["valor_guardado"] or 0 for g in metas)
+    return {
+        "saldo_bancario": round(saldo_bancario, 2),
+        "valor_guardado_metas": round(valor_guardado_metas, 2),
+        "patrimonio_total": round(saldo_bancario + valor_guardado_metas, 2),
+        "contas": [
+            {"banco": c["banco"], "tipo": c["tipo"], "saldo": c["saldo"]}
+            for c in contas
+            if c["saldo"] is not None
+        ],
+        "metas": [
+            {"titulo": g["titulo"], "valor_guardado": g["valor_guardado"]}
+            for g in metas
+            if g["valor_guardado"]
+        ],
+    }
+
+
+@app.route("/api/patrimonio", methods=["GET"])
+def patrimonio_rota():
+    conn = get_db()
+    resultado = _patrimonio_consolidado(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
 @app.route("/api/bancos/<int:conta_id>/transacoes", methods=["GET"])
 def transacoes_banco(conta_id):
     conn = get_db()
@@ -5522,6 +5769,107 @@ def apagar_item_cotacao(cotacao_id, item_id):
     delete_item_cotacao(conn, item_id)
     conn.close()
     return jsonify({"ok": True})
+
+
+TAMANHO_MAX_IMAGEM_BYTES = 10 * 1024 * 1024  # 10MB - foto de celular cabe folgado
+
+
+@app.route("/api/notas-fiscais/extrair", methods=["POST"])
+def extrair_nota_fiscal():
+    """Recebe a foto de uma nota fiscal (base64, nao multipart - de proposito:
+    o corpo em JSON e o mesmo formato que /api/capture ja usa, entao a fila
+    offline (fila-offline.js, generica pra qualquer url/method/headers/body)
+    consegue reenfileirar essa chamada sem precisar de nenhum tratamento
+    especial pra FormData/Blob quando a foto e tirada sem internet) e extrai
+    valor/estabelecimento/data via claude_client (API de visao da Anthropic -
+    decisao ja tomada com o Alex, sem OCR local). So extrai: NUNCA grava o
+    gasto direto, porque a leitura por IA pode errar o valor - a confirmacao
+    e o fluxo de registro ficam com /api/notas-fiscais/confirmar (US-C9)."""
+    body = _corpo_json()
+    imagem_b64 = body.get("imagem_base64")
+    media_type = (body.get("media_type") or "").strip().lower()
+    if not imagem_b64 or not isinstance(imagem_b64, str):
+        return jsonify({"error": "anexe uma foto da nota fiscal"}), 400
+    if media_type not in claude_client.MEDIA_TYPES_IMAGEM_VALIDOS:
+        return jsonify({"error": "formato de imagem nao suportado (use jpeg, png, webp ou heic)"}), 400
+
+    try:
+        image_bytes = base64.b64decode(imagem_b64, validate=True)
+    except (binascii.Error, ValueError):
+        return jsonify({"error": "imagem invalida (base64 malformado)"}), 400
+    if not image_bytes:
+        return jsonify({"error": "imagem vazia"}), 400
+    if len(image_bytes) > TAMANHO_MAX_IMAGEM_BYTES:
+        return jsonify({"error": "foto maior que 10MB - manda uma foto menor"}), 400
+
+    result, error = _call_claude(claude_client.extrair_nota_fiscal_foto, image_bytes, media_type)
+    if error:
+        return error
+    dados, usage = result
+
+    conn = get_db()
+    # Registra o custo na tabela generica ja existente (api_usage/_log_usage,
+    # a fonte de verdade atual de custo de IA neste projeto). Se a US-A5 (Grupo A,
+    # tabela uso_api_ia dedicada por endpoint/feature) ja estiver integrada quando
+    # este codigo for revisado, vale mover/duplicar esse registro pra la tambem -
+    # documentado aqui em vez de assumir uma tabela que pode nao existir ainda
+    # neste branch (agentes rodando em paralelo, ver tasks/fase5).
+    _log_usage(conn, usage)
+    conn.commit()
+    conn.close()
+    return jsonify(dados), 200
+
+
+@app.route("/api/notas-fiscais/confirmar", methods=["POST"])
+def confirmar_nota_fiscal():
+    """Segundo passo do fluxo (US-C9): recebe o valor/estabelecimento/data
+    que o Alex CONFIRMOU na tela (pode ter editado o que a IA leu errado -
+    nunca salva o que veio de /extrair sem passar por aqui) e vira um gasto
+    de verdade, com a MESMA sugestao automatica de categoria ja usada pro
+    extrato bancario (gastos.sugerir_categoria, historico de gastos
+    categorizados manualmente - nao um classificador novo e paralelo)."""
+    body = _corpo_json()
+    valor = body.get("valor")
+    estabelecimento = _texto_seguro(body.get("estabelecimento")).strip()
+    data_compra = _texto_seguro(body.get("data")).strip() or None
+    categoria_informada = _texto_seguro(body.get("categoria")).strip() or None
+
+    if not isinstance(valor, (int, float)) or isinstance(valor, bool) or valor <= 0:
+        return jsonify({"error": "informe um valor valido (maior que zero)"}), 400
+    if not estabelecimento:
+        return jsonify({"error": "informe o estabelecimento"}), 400
+    if data_compra:
+        try:
+            date.fromisoformat(data_compra)
+        except ValueError:
+            return jsonify({"error": "data invalida (use AAAA-MM-DD)"}), 400
+
+    conn = get_db()
+    categoria = categoria_informada
+    if not categoria:
+        historico = conn.execute(
+            "SELECT category, description, source_text FROM expenses "
+            "WHERE tipo = 'real' AND category IS NOT NULL"
+        ).fetchall()
+        categoria = gastos.sugerir_categoria(estabelecimento, [dict(r) for r in historico]) or "outros"
+
+    created_at = f"{data_compra} 12:00:00" if data_compra else None
+    if created_at:
+        cur = conn.execute(
+            "INSERT INTO expenses (amount, category, description, source_text, tipo, created_at) "
+            "VALUES (?, ?, ?, ?, 'real', ?)",
+            (valor, categoria, estabelecimento, f"Nota fiscal (foto): {estabelecimento}", created_at),
+        )
+    else:
+        cur = conn.execute(
+            "INSERT INTO expenses (amount, category, description, source_text, tipo) "
+            "VALUES (?, ?, ?, ?, 'real')",
+            (valor, categoria, estabelecimento, f"Nota fiscal (foto): {estabelecimento}"),
+        )
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": cur.lastrowid, "ok": True, "categoria": categoria}), 201
 
 
 def _token_atalho_valido(obrigatorio: bool = False) -> bool:

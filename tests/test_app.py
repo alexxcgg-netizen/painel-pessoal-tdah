@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import os
@@ -737,6 +738,70 @@ class PainelTestCase(unittest.TestCase):
         transacoes = self.client.get(f"/api/bancos/{contas[0]['id']}/transacoes").get_json()
         self.assertTrue(all(t["categoria"] is None for t in transacoes))
 
+    def test_patrimonio_sem_nada_cadastrado_e_zero(self):
+        res = self.client.get("/api/patrimonio")
+        self.assertEqual(res.status_code, 200)
+        corpo = res.get_json()
+        self.assertEqual(corpo["patrimonio_total"], 0)
+        self.assertEqual(corpo["contas"], [])
+        self.assertEqual(corpo["metas"], [])
+
+    def test_patrimonio_soma_saldo_de_varias_contas(self):
+        conn = db.get_db()
+        conta1 = db.get_or_create_bank_account(conn, "nubank", "conta")
+        conta2 = db.get_or_create_bank_account(conn, "caixa", "conta")
+        db.atualizar_saldo_conta(conn, conta1, 1500.0)
+        db.atualizar_saldo_conta(conn, conta2, 300.0)
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/patrimonio")
+        corpo = res.get_json()
+        self.assertEqual(corpo["saldo_bancario"], 1800.0)
+        self.assertEqual(corpo["patrimonio_total"], 1800.0)
+        self.assertEqual(len(corpo["contas"]), 2)
+
+    def test_patrimonio_desconta_saldo_negativo_de_cartao(self):
+        conn = db.get_db()
+        conta_conta = db.get_or_create_bank_account(conn, "nubank", "conta")
+        conta_cartao = db.get_or_create_bank_account(conn, "nubank", "cartao")
+        db.atualizar_saldo_conta(conn, conta_conta, 1000.0)
+        db.atualizar_saldo_conta(conn, conta_cartao, -400.0)
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/patrimonio")
+        corpo = res.get_json()
+        self.assertEqual(corpo["saldo_bancario"], 600.0)
+        self.assertEqual(corpo["patrimonio_total"], 600.0)
+
+    def test_patrimonio_inclui_valor_guardado_em_metas(self):
+        conn = db.get_db()
+        conta_id = db.get_or_create_bank_account(conn, "nubank", "conta")
+        db.atualizar_saldo_conta(conn, conta_id, 500.0)
+        goal_id = db.create_goal(conn, "Moto", 15000.0, None)
+        db.add_to_goal(conn, goal_id, 2000.0)
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/patrimonio")
+        corpo = res.get_json()
+        self.assertEqual(corpo["saldo_bancario"], 500.0)
+        self.assertEqual(corpo["valor_guardado_metas"], 2000.0)
+        self.assertEqual(corpo["patrimonio_total"], 2500.0)
+        self.assertEqual(corpo["metas"][0]["titulo"], "Moto")
+
+    def test_patrimonio_conta_sem_saldo_definido_e_ignorada_na_soma(self):
+        conn = db.get_db()
+        db.get_or_create_bank_account(conn, "banco-sem-saldo", "conta")
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/patrimonio")
+        corpo = res.get_json()
+        self.assertEqual(corpo["saldo_bancario"], 0)
+        self.assertEqual(corpo["contas"], [])
+
     def test_reimportar_mesmo_extrato_nao_duplica(self):
         self.client.post(
             "/api/bancos/importar",
@@ -1090,6 +1155,65 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(evento["origem"], "tarefa")
         self.assertEqual(evento["inicio"], f"{hoje}T14:00:00")
         self.assertEqual(evento["fim"], evento["inicio"])
+
+    def test_resumo_manha_sem_compromisso_nem_gasto_nem_pendente(self):
+        res = self.client.get("/api/resumo-manha")
+        self.assertEqual(res.status_code, 200)
+        texto = res.get_json()["texto"]
+        self.assertIn("Nenhum compromisso marcado pra hoje", texto)
+        self.assertIn("Nenhuma tarefa pendente", texto)
+
+    def test_resumo_manha_conta_1_compromisso_de_hoje(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("consulta medica", hoje, "14:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/resumo-manha")
+        texto = res.get_json()["texto"]
+        self.assertIn("consulta medica", texto)
+        self.assertIn("14:00", texto)
+
+    def test_resumo_manha_conta_varios_compromissos_sem_listar_todos(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)", ("consulta", hoje, "09:00")
+        )
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)", ("reuniao", hoje, "15:00")
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/resumo-manha")
+        texto = res.get_json()["texto"]
+        self.assertIn("2 compromissos hoje", texto)
+
+    def test_resumo_manha_inclui_gasto_de_ontem(self):
+        ontem = (date.today() - timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo, created_at) VALUES (?, 'mercado', 'real', ?)",
+            (77.5, ontem),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/resumo-manha")
+        self.assertIn("77.50", res.get_json()["texto"])
+
+    def test_resumo_manha_falha_do_icloud_nao_quebra(self):
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", side_effect=Exception("timeout")
+        ):
+            res = self.client.get("/api/resumo-manha")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Nenhum compromisso marcado pra hoje", res.get_json()["texto"])
 
     def test_calendario_hoje_combina_tarefas_e_icloud_ordenado_por_horario(self):
         hoje = date.today().isoformat()
@@ -2382,6 +2506,45 @@ class PainelTestCase(unittest.TestCase):
             self.assertGreaterEqual(res.get_json()["avisos_enviados"], 1)
             corpos = [c.args[2] for c in mock_enviar.call_args_list]
             self.assertTrue(any("500.00" in c for c in corpos))
+
+    def test_notificacoes_verificar_agora_inclui_assinatura_aumento_preco(self):
+        hoje = date.today()
+        conn = db.get_db()
+        for meses_atras, valor in ((2, 39.90), (1, 39.90), (0, 54.90)):
+            mes = hoje.month - meses_atras
+            ano = hoje.year
+            while mes < 1:
+                mes += 12
+                ano -= 1
+            dia = min(hoje.day, 28)
+            data_gasto = date(ano, mes, dia).isoformat()
+            conn.execute(
+                "INSERT INTO expenses (amount, category, description, tipo, created_at) "
+                "VALUES (?, 'contas', 'Netflix', 'real', ?)",
+                (valor, data_gasto),
+            )
+        conn.commit()
+        conn.close()
+
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever",
+                json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertGreaterEqual(res.get_json()["avisos_enviados"], 1)
+            corpos = [c.args[2] for c in mock_enviar.call_args_list]
+            self.assertTrue(any("Netflix" in c and "54.90" in c for c in corpos))
+
+        # nao repete no mesmo dia pra mesma descricao+valor (dedup)
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar2:
+            self.client.post("/api/notificacoes/verificar-agora")
+            corpos2 = [c.args[2] for c in mock_enviar2.call_args_list]
+            self.assertFalse(any("Netflix" in c and "54.90" in c for c in corpos2))
 
     def test_aprendizado_status_sem_historico_mostra_padrao(self):
         res = self.client.get("/api/aprendizado")
@@ -4331,6 +4494,43 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res2.get_json()["avisos_enviados"], 0)
         mock_enviar.assert_called_once()
 
+    def test_verificar_avisa_semana_pesada_junto_do_planejamento(self):
+        hoje = date.today()
+        inicio_semana_atual = hoje - timedelta(days=hoje.weekday())
+        conn = db.get_db()
+        # historico: 2 itens por semana nas ultimas 4 semanas - concluidas de
+        # proposito, pra nao contaminar a contagem de avisos_enviados com
+        # tarefas_atrasadas/tarefa_parada (contagem_itens_semana conta pelo
+        # due_date, independente de estar concluida ou nao).
+        for i in range(1, 5):
+            fim = inicio_semana_atual - timedelta(days=1 + 7 * (i - 1))
+            for j in range(2):
+                conn.execute(
+                    "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, datetime('now'))",
+                    (f"tarefa {i}-{j}", (fim - timedelta(days=j)).isoformat()),
+                )
+        # proxima semana: 6 itens (bem acima da mediana de 2)
+        inicio_proxima = inicio_semana_atual + timedelta(days=7)
+        for j in range(6):
+            conn.execute(
+                "INSERT INTO tasks (title, due_date) VALUES (?, ?)",
+                (f"proxima {j}", (inicio_proxima + timedelta(days=j)).isoformat()),
+            )
+        conn.commit()
+        conn.close()
+
+        sub = {"endpoint": "https://exemplo.com/push/semanapesada", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("notificacoes.planejamento_semanal_devido", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 2)
+        corpos = [c.args[2] for c in mock_enviar.call_args_list]
+        self.assertTrue(any("semana que vem" in c for c in corpos))
+
     # ---- Uber: agendar, estimar (com preco travado) e so pedir com confirmacao ----
 
     def test_agendar_uber_cria_pedido_pendente(self):
@@ -4988,6 +5188,141 @@ class PainelTestCase(unittest.TestCase):
             content_type="multipart/form-data",
         )
         self.assertEqual(res.status_code, 400)
+
+    # US-C8: extracao de nota fiscal por foto (OCR via API de visao da Anthropic) --
+
+    def _foto_base64(self, conteudo=b"fake-jpeg-bytes"):
+        return base64.standard_b64encode(conteudo).decode("utf-8")
+
+    def test_extrair_nota_fiscal_devolve_dados_sem_salvar_gasto(self):
+        dados_extraidos = {"valor": 45.9, "estabelecimento": "Padaria Central", "data": "2026-09-20"}
+        with patch(
+            "claude_client.extrair_nota_fiscal_foto", return_value=(dados_extraidos, fake_usage())
+        ) as mock_extrair:
+            res = self.client.post(
+                "/api/notas-fiscais/extrair",
+                json={"imagem_base64": self._foto_base64(), "media_type": "image/jpeg"},
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), dados_extraidos)
+        mock_extrair.assert_called_once()
+        self.assertEqual(mock_extrair.call_args[0][1], "image/jpeg")
+        # so extraiu - nao virou gasto sozinho (a confirmacao e passo aparte, US-C9)
+        self.assertEqual(self.client.get("/api/expenses").get_json(), [])
+
+    def test_extrair_nota_fiscal_sem_imagem_devolve_erro(self):
+        res = self.client.post("/api/notas-fiscais/extrair", json={"media_type": "image/jpeg"})
+        self.assertEqual(res.status_code, 400)
+
+    def test_extrair_nota_fiscal_media_type_invalido_devolve_erro(self):
+        res = self.client.post(
+            "/api/notas-fiscais/extrair",
+            json={"imagem_base64": self._foto_base64(), "media_type": "application/pdf"},
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_extrair_nota_fiscal_base64_invalido_devolve_erro(self):
+        res = self.client.post(
+            "/api/notas-fiscais/extrair",
+            json={"imagem_base64": "isso nao e base64 valido!!!", "media_type": "image/jpeg"},
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_extrair_nota_fiscal_maior_que_10mb_devolve_erro(self):
+        conteudo_grande = b"0" * (11 * 1024 * 1024)
+        res = self.client.post(
+            "/api/notas-fiscais/extrair",
+            json={"imagem_base64": self._foto_base64(conteudo_grande), "media_type": "image/jpeg"},
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_extrair_nota_fiscal_erro_da_api_devolve_502(self):
+        with patch("claude_client.extrair_nota_fiscal_foto", side_effect=app.anthropic.APIError(
+            "erro", request=MagicMock(), body=None
+        )):
+            res = self.client.post(
+                "/api/notas-fiscais/extrair",
+                json={"imagem_base64": self._foto_base64(), "media_type": "image/jpeg"},
+            )
+        self.assertEqual(res.status_code, 502)
+
+    # US-C9: confirmar extracao -> vira gasto categorizado -----------------
+
+    def test_confirmar_nota_fiscal_cria_gasto_com_categoria_sugerida(self):
+        # historico que ensina o classificador: "Padaria" sempre foi "mercado"
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo) VALUES (10, 'mercado', 'Padaria Central', 'real')"
+        )
+        conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo) VALUES (12, 'mercado', 'Padaria Central', 'real')"
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.post(
+            "/api/notas-fiscais/confirmar",
+            json={"valor": 45.9, "estabelecimento": "Padaria Central", "data": "2026-09-20"},
+        )
+        self.assertEqual(res.status_code, 201)
+        corpo = res.get_json()
+        self.assertTrue(corpo["ok"])
+        self.assertEqual(corpo["categoria"], "mercado")
+
+        gastos_lista = self.client.get("/api/expenses").get_json()
+        gasto_nota = next(g for g in gastos_lista if g["id"] == corpo["id"])
+        self.assertEqual(gasto_nota["amount"], 45.9)
+        self.assertEqual(gasto_nota["category"], "mercado")
+        self.assertEqual(gasto_nota["created_at"][:10], "2026-09-20")
+
+    def test_confirmar_nota_fiscal_aceita_categoria_editada_pelo_usuario(self):
+        res = self.client.post(
+            "/api/notas-fiscais/confirmar",
+            json={"valor": 30.0, "estabelecimento": "Loja X", "categoria": "lazer"},
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.get_json()["categoria"], "lazer")
+
+    def test_confirmar_nota_fiscal_sem_categoria_conhecida_usa_outros(self):
+        res = self.client.post(
+            "/api/notas-fiscais/confirmar",
+            json={"valor": 30.0, "estabelecimento": "Estabelecimento nunca visto"},
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.get_json()["categoria"], "outros")
+
+    def test_confirmar_nota_fiscal_valor_invalido_devolve_erro(self):
+        res = self.client.post(
+            "/api/notas-fiscais/confirmar", json={"valor": -5, "estabelecimento": "Loja"}
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_confirmar_nota_fiscal_sem_estabelecimento_devolve_erro(self):
+        res = self.client.post("/api/notas-fiscais/confirmar", json={"valor": 10.0})
+        self.assertEqual(res.status_code, 400)
+
+    def test_confirmar_nota_fiscal_data_invalida_devolve_erro(self):
+        res = self.client.post(
+            "/api/notas-fiscais/confirmar",
+            json={"valor": 10.0, "estabelecimento": "Loja", "data": "20/09/2026"},
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_fluxo_completo_extracao_confirmacao_gasto_salvo(self):
+        dados_extraidos = {"valor": 67.5, "estabelecimento": "Mercado Bom", "data": "2026-09-22"}
+        with patch("claude_client.extrair_nota_fiscal_foto", return_value=(dados_extraidos, fake_usage())):
+            res_extrair = self.client.post(
+                "/api/notas-fiscais/extrair",
+                json={"imagem_base64": self._foto_base64(), "media_type": "image/jpeg"},
+            )
+        self.assertEqual(res_extrair.status_code, 200)
+        extraido = res_extrair.get_json()
+
+        res_confirmar = self.client.post("/api/notas-fiscais/confirmar", json=extraido)
+        self.assertEqual(res_confirmar.status_code, 201)
+
+        gastos_lista = self.client.get("/api/expenses").get_json()
+        self.assertTrue(any(g["description"] == "Mercado Bom" and g["amount"] == 67.5 for g in gastos_lista))
 
     def test_registrar_item_cotacao_via_chat_cria_cotacao_nova(self):
         resultado = self._registrar_via_chat(

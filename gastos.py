@@ -85,6 +85,27 @@ def aplicar_apelidos(gastos_reais: list[dict], apelidos: dict[tuple[str, float],
     return resultado
 
 
+def _agrupar_por_descricao(expenses: list[dict], hoje: date, meses_analise: int) -> dict[tuple[str, str], list[dict]]:
+    """Passo comum a detectar_gastos_recorrentes e detectar_aumento_assinatura:
+    agrupa gastos dos ultimos `meses_analise` meses pela mesma descricao
+    (igualdade normalizada, nao palavra em comum - grupo errado aqui e pior
+    que nao agrupar) + categoria. Cada dict de 'expenses' precisa ter
+    'amount', 'category', 'description' (ou 'source_text') e 'created_at'."""
+    limite = (hoje - timedelta(days=31 * meses_analise)).isoformat()
+    grupos: dict[tuple[str, str], list[dict]] = {}
+    for e in expenses:
+        dia = e["created_at"][:10]
+        if dia < limite:
+            continue
+        descricao = e.get("description") or e.get("source_text") or ""
+        chave_desc = _normalizar_descricao(descricao)
+        if not chave_desc:
+            continue
+        categoria = e.get("category") or "outros"
+        grupos.setdefault((categoria, chave_desc), []).append(e)
+    return grupos
+
+
 def detectar_gastos_recorrentes(
     expenses: list[dict],
     hoje: date,
@@ -104,18 +125,7 @@ def detectar_gastos_recorrentes(
     'source_text') e 'created_at'. Retorna ordenado do maior valor medio
     pro menor: [{"descricao", "categoria", "valor_medio",
     "meses_confirmados"}, ...]."""
-    limite = (hoje - timedelta(days=31 * meses_analise)).isoformat()
-    grupos: dict[tuple[str, str], list[dict]] = {}
-    for e in expenses:
-        dia = e["created_at"][:10]
-        if dia < limite:
-            continue
-        descricao = e.get("description") or e.get("source_text") or ""
-        chave_desc = _normalizar_descricao(descricao)
-        if not chave_desc:
-            continue
-        categoria = e.get("category") or "outros"
-        grupos.setdefault((categoria, chave_desc), []).append(e)
+    grupos = _agrupar_por_descricao(expenses, hoje, meses_analise)
 
     recorrentes = []
     for (categoria, _chave_desc), itens in grupos.items():
@@ -137,6 +147,68 @@ def detectar_gastos_recorrentes(
         )
     recorrentes.sort(key=lambda r: r["valor_medio"], reverse=True)
     return recorrentes
+
+
+def detectar_aumento_assinatura(
+    expenses: list[dict],
+    hoje: date,
+    meses_analise: int = 4,
+    tolerancia: float = 0.15,
+    minimo_meses: int = 2,
+    limiar_aumento: float = 0.05,
+) -> list[dict]:
+    """Reaproveita o mesmo agrupamento de detectar_gastos_recorrentes
+    (_agrupar_por_descricao) - nao um sistema de deteccao paralelo. A
+    diferenca fica so em COMO aplica o criterio de estabilidade: separa a
+    ocorrencia mais recente do grupo e confirma que o RESTO (sem ela) ja e
+    uma assinatura estavel e conhecida (mesmo teste de tolerancia que
+    detectar_gastos_recorrentes usa) - se a ocorrencia mais recente entrasse
+    nesse mesmo teste, um aumento de preco faria a assinatura inteira sumir
+    da deteccao (o desvio dela quebraria a media do grupo todo), quando o
+    que queremos e justamente notar que ELA destoou do padrao estabelecido
+    pelas anteriores. So entao compara o valor mais recente com a media das
+    anteriores - se subiu mais que `limiar_aumento` (fracao, 0.05 = 5%),
+    entra no resultado. Retorna ordenado do maior aumento percentual pro
+    menor: [{"descricao", "categoria", "valor_anterior_medio", "valor_novo",
+    "aumento_pct"}, ...]."""
+    grupos = _agrupar_por_descricao(expenses, hoje, meses_analise)
+
+    aumentos = []
+    for (categoria, _chave_desc), itens in grupos.items():
+        itens_ordenados = sorted(itens, key=lambda i: i["created_at"])
+        mais_recente = itens_ordenados[-1]
+        anteriores = itens_ordenados[:-1]
+        meses_anteriores = {i["created_at"][:7] for i in anteriores}
+        if len(meses_anteriores) < minimo_meses:
+            continue
+        # a ocorrencia "mais recente" precisa ser de um mes que as anteriores
+        # ainda nao cobrem - senao e so mais uma cobranca do mesmo mes que ja
+        # entrou no grupo anterior (nao uma comparacao "mes novo vs historico").
+        if mais_recente["created_at"][:7] in meses_anteriores:
+            continue
+        valores_anteriores = [i["amount"] for i in anteriores]
+        media_anterior = sum(valores_anteriores) / len(valores_anteriores)
+        if media_anterior <= 0:
+            continue
+        if any(abs(v - media_anterior) / media_anterior > tolerancia for v in valores_anteriores):
+            continue
+
+        valor_novo = mais_recente["amount"]
+        aumento_pct = (valor_novo - media_anterior) / media_anterior
+        if aumento_pct <= limiar_aumento:
+            continue
+        descricao_original = mais_recente.get("description") or mais_recente.get("source_text") or ""
+        aumentos.append(
+            {
+                "descricao": descricao_original,
+                "categoria": categoria,
+                "valor_anterior_medio": round(media_anterior, 2),
+                "valor_novo": round(valor_novo, 2),
+                "aumento_pct": round(aumento_pct * 100, 1),
+            }
+        )
+    aumentos.sort(key=lambda a: a["aumento_pct"], reverse=True)
+    return aumentos
 
 
 def total_gasto_fixo_mensal(recorrentes: list[dict]) -> float:

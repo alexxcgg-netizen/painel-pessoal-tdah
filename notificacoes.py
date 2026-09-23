@@ -5,6 +5,7 @@ em app.py."""
 
 from datetime import date, datetime, timedelta
 
+import aprendizado
 import db
 import gastos
 import vida
@@ -269,6 +270,55 @@ def cobrancas_genericas_sem_rotulo(conn) -> list[tuple[str, float, str]]:
     return avisos
 
 
+def _gastos_reais_unificados_para_deteccao(conn) -> list[dict]:
+    """Mesma unificacao de expenses (digitado no chat) + bank_transactions
+    (extrato sincronizado) que app.py._gastos_reais_unificados ja usa pra
+    detectar_gastos_recorrentes - reaproveitada aqui pra nao ter dois
+    conceitos diferentes de "todo gasto real" no projeto. Fica em
+    notificacoes.py (nao importa de app.py, que importa notificacoes - ver
+    de fato o mesmo formato de dict que gastos.py espera)."""
+    expenses_reais = conn.execute(
+        "SELECT amount, category, description, source_text, created_at FROM expenses WHERE tipo = 'real'"
+    ).fetchall()
+    unificado = [dict(r) for r in expenses_reais]
+    for r in db.list_all_bank_transactions(conn):
+        if r["valor"] is None or r["valor"] >= 0:
+            continue
+        unificado.append(
+            {
+                "amount": -r["valor"],
+                "category": r["categoria"] or "outros",
+                "description": r["descricao"],
+                "source_text": None,
+                "created_at": r["data"],
+            }
+        )
+    apelidos = {(a["descricao_normalizada"], a["valor"]): a["apelido"] for a in db.list_apelidos_gasto(conn)}
+    return gastos.aplicar_apelidos(unificado, apelidos)
+
+
+def assinaturas_aumento_preco(conn, hoje: date | None = None) -> list[tuple[str, float, str]]:
+    """Reaproveita gastos.detectar_aumento_assinatura (que por sua vez
+    reaproveita o mesmo agrupamento de detectar_gastos_recorrentes, ja usado
+    na aba Gastos pra achar assinaturas fixas) - so acrescenta o aviso
+    quando uma assinatura ja conhecida vier com o valor mais recente bem
+    acima do que sempre foi. Devolve (descricao_normalizada, valor_novo,
+    mensagem) - mesma forma de cobrancas_genericas_sem_rotulo, pra app.py
+    deduplicar por descricao+valor (um aumento novo, com valor diferente do
+    ultimo aviso, vira um aviso novo sozinho se a assinatura subir de novo)."""
+    hoje = hoje or date.today()
+    unificado = _gastos_reais_unificados_para_deteccao(conn)
+
+    avisos = []
+    for a in gastos.detectar_aumento_assinatura(unificado, hoje):
+        msg = (
+            f"\"{a['descricao']}\" ficou mais cara: de R$ {a['valor_anterior_medio']:.2f} pra "
+            f"R$ {a['valor_novo']:.2f} ({a['aumento_pct']:.0f}% a mais)."
+        )
+        avisos.append((a["descricao"].strip().lower(), a["valor_novo"], msg))
+    return avisos
+
+
 def _total_gasto_entre(conn, inicio: date, fim: date) -> float:
     """So conta gasto 'real' (ja aconteceu) - um gasto so cogitado/planejado
     nao deveria disparar alerta de "gastou demais essa semana", ja que pode
@@ -404,6 +454,28 @@ def planejamento_semanal_devido(agora: datetime | None = None) -> bool:
     return alvo <= agora < alvo + timedelta(minutes=5)
 
 
+def semana_pesada_aviso(conn, hoje: date | None = None) -> str | None:
+    """US-C13: compara quantos itens a proxima semana ja tem marcados com a
+    mediana das ultimas semanas do proprio usuario (aprendizado.
+    semana_pesada - estatistica pura sobre o historico, reaproveitada em vez
+    de um numero fixo arbitrario). Pensado pra disparar junto do
+    planejamento semanal de domingo (planejamento_semanal_devido acima,
+    TODO #15) - app.py decide O QUANDO, essa funcao so decide O QUE dizer."""
+    hoje = hoje or date.today()
+    inicio_proxima = hoje - timedelta(days=hoje.weekday()) + timedelta(days=7)
+    fim_proxima = inicio_proxima + timedelta(days=6)
+    contagem_proxima = aprendizado.contagem_itens_semana(conn, inicio_proxima, fim_proxima)
+    historico = aprendizado.carga_semanal_historica(conn, hoje)
+    resultado = aprendizado.semana_pesada(contagem_proxima, historico)
+    if not resultado["sobrecarregada"]:
+        return None
+    return (
+        f"A semana que vem ja esta com {contagem_proxima} compromisso(s)/tarefa(s) marcado(s), "
+        f"bem acima do seu normal (mediana de {resultado['mediana_historica']:.0f} nas ultimas "
+        f"{resultado['amostras']} semanas). Vale se planejar com folga."
+    )
+
+
 def hora_de_dormir_devida(agora: datetime | None = None) -> bool:
     """Verdadeiro na janela de 5min em torno das 22h - o horario que o Alex
     escolheu pra comecar a desacelerar pro sono, todo dia."""
@@ -461,6 +533,34 @@ def mensagem_fechamento_noturno(conn, hoje: date | None = None) -> str:
     if gasto > 0:
         partes.append(f"Gasto do dia: R$ {gasto:.2f}.")
 
+    return " ".join(partes)
+
+
+def resumo_manha_gastos_pendentes(conn, hoje: date | None = None) -> str:
+    """Parte do resumo falado da manha (US-C11, TTS ja existente no chat -
+    ver falarTexto em app.js) que NAO depende de rede - gasto de ontem +
+    quantas tarefas ficaram pendentes. A parte de agenda (iCloud via CalDAV,
+    instavel) fica em app.py, que ja tem o padrao de buscar com seguranca
+    (_eventos_de_hoje_com_seguranca) - notificacoes.py de proposito nunca
+    faz chamada de rede, pra ficar testavel isolado como o resto do modulo."""
+    hoje = hoje or date.today()
+    ontem = hoje - timedelta(days=1)
+    gasto_ontem = _total_gasto_dia(conn, ontem)
+    pendentes = conn.execute(
+        "SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
+    ).fetchone()["n"]
+
+    partes = []
+    if gasto_ontem > 0:
+        partes.append(f"Ontem voce gastou R$ {gasto_ontem:.2f}.")
+    else:
+        partes.append("Ontem voce nao registrou gasto nenhum.")
+    if pendentes == 0:
+        partes.append("Nenhuma tarefa pendente.")
+    elif pendentes == 1:
+        partes.append("1 tarefa ainda pendente.")
+    else:
+        partes.append(f"{pendentes} tarefas ainda pendentes.")
     return " ".join(partes)
 
 
