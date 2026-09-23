@@ -25,7 +25,7 @@
         "Testar visualmente antes de concluir",
         "Sem regressao - suite de testes completa"
       ],
-      "priority": 2, "passes": false, "notes": ""
+      "priority": 2, "passes": true, "notes": "Estado 'ouvindo' (US-B1) ja tinha feedback visual (.ouvindo + pulsarMic). Gap real: nao havia NENHUM feedback visual no botao durante o estado 'processando' (entre fim da escuta e resposta de /api/intent/classificar) - so o texto pequeno abaixo do botao ('Entendendo...'), porque recognition 'end' ja tira .ouvindo antes da chamada assincrona resolver. Corrigido reaproveitando o MESMO padrao ja usado em todo formulario do app (setBotaoCarregando/spinner), em vez de inventar animacao nova - voz-comando.js chama window.setBotaoCarregando(btn, true/false, ...) ao redor do await apiFetch, dentro de try/finally pra nunca travar o botao em carregando se a chamada falhar. Widget de tela bloqueada (US-C1, scriptable/widget_lockscreen.js) conferido e ja estava certo sem precisar de mudanca - o proprio arquivo ja documenta por que NUNCA usa cor/gradiente customizado nos slots de lock screen (iOS renderiza monocromatico ali, cor customizada e ignorada/distorcida - aplicar o Liquid Glass la seria piorar, nao polir). Validado com Playwright: toggle manual das classes/chamada de setBotaoCarregando no botao real da pagina, screenshot confirma spinner+texto 'Entendendo...' aparecendo e o botao restaurando o icone/rotulo original certinho depois. node --test tests/js/*.test.js 29/29 (o teste JS so cobre a logica pura, nao o wiring de DOM mudado aqui - coberto pelo Playwright). unittest completo sem regressao (1417 testes, mesmas 5 falhas pre-existentes de voo)."
     },
     {
       "id": "US-D3",

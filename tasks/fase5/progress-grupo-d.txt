@@ -49,3 +49,54 @@ voz-comando.js nesta historia, so em US-D2 abaixo).
 
 Arquivo mudado: static/css/style.css (bloco .card-vida).
 
+## US-D2 - Animacao e transicao na navegacao por voz e widget de tela bloqueada
+Status: PASSES
+
+Estado "ouvindo" (US-B1, botao #comando-voz-btn) ja tinha feedback visual
+consistente com o padrao existente (.ouvindo + pulsarMic, mesma inspiracao
+do #chat-mic). Gap real: nenhum feedback visual no BOTAO durante o estado
+"processando" - entre o fim da escuta (recognition "end" ja remove .ouvindo
+antes da chamada assincrona pro classificador resolver) e a resposta de
+POST /api/intent/classificar, so existia o texto pequeno mostrarStatus
+("Entendendo...") abaixo do botao, nada no botao em si.
+
+Corrigido reaproveitando o MESMO padrao ja usado em todo formulario do app
+(setBotaoCarregando + spinner via .spinner/girar, ja usado por diario-
+decisao-btn, brain-dump-btn, garantia-btn, etc) em vez de inventar uma
+animacao nova - evita duplicar "linguagem visual de carregando" no mesmo
+app. voz-comando.js -> enviarComando() agora chama window.setBotaoCarregando
+(btn, true, "Entendendo...") antes do await window.apiFetch(...) e
+window.setBotaoCarregando(btn, false, "Comando de voz") dentro de um
+finally, pra nunca deixar o botao preso em "carregando" numa falha de rede/
+excecao.
+
+Widget de tela bloqueada (US-C1, scriptable/widget_lockscreen.js) revisado:
+ja estava certo, sem precisar de mudanca nenhuma. O proprio arquivo ja
+documenta (comentario no topo) por que NUNCA define cor/gradiente
+customizado nos slots accessoryInline/Circular/Rectangular - o iOS
+renderiza esses slots de tela de bloqueio monocromaticos e ignora/distorce
+qualquer cor customizada. Tentar "aplicar o Liquid Glass" ali seria
+piorar, nao polir - dentro das limitacoes reais do Scriptable/WidgetKit,
+o widget ja esta com o visual condizente possivel (2 linhas curtas,
+fonte do sistema, sem tentar forcar identidade visual que o iOS ignoraria).
+
+Verificacao visual (Playwright): como SpeechRecognition nao tem backend
+real de reconhecimento no Chromium headless deste sandbox (sem
+microfone/rede - ver nota ja existente no AGENTS.md sobre isso), testei os
+DOIS estados diretamente no botao real da pagina (mesmo elemento DOM, mesma
+funcao setBotaoCarregando que o app usa de verdade, nao um mock): toggle de
+.ouvindo (screenshot confirma borda/preenchimento pulsando, IGUAL ao padrao
+ja usado no #chat-mic) e chamada de window.setBotaoCarregando(btn, true,
+"Entendendo...") (screenshot confirma spinner + texto substituindo o icone/
+rotulo, igual a qualquer outro botao de salvar do app) seguida da chamada
+inversa (confirma reconstroi o icone/rotulo original certinho via
+dataset.htmlOriginal). Zero erro de console.
+
+Suite completa: unittest 1417 testes, so as 5 falhas esperadas (voo/
+horario). node --test tests/js/*.test.js 29/29 ok - a logica pura testada
+la (exigeConfirmacao, resolverTela, descreverResultado, classificarLocalmente
+etc) nao muda com esta historia, so o wiring de DOM (fora do escopo do teste
+Node, coberto pelo Playwright acima).
+
+Arquivo mudado: static/js/voz-comando.js (enviarComando).
+

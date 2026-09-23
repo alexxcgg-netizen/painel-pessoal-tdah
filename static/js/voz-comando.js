@@ -326,25 +326,40 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       }
 
       mostrarStatus("Entendendo...");
-      const clientId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `voz-${Date.now()}`;
-      const data = await window.apiFetch(
-        "/api/intent/classificar",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ texto, client_id: clientId }),
-        },
-        { tipo: "comando_voz", id: clientId }
-      );
-      if (!data) return;
-      if (data.__enfileirado) {
-        // US-B5: sem rede - o texto ja transcrito fica na mesma fila da
-        // Fase 4 e sincroniza sozinho quando a conexao voltar (callback
-        // "comando_voz" abaixo processa o resultado real na hora).
-        mostrarStatus("Sem conexao - comando salvo, vai ser entendido quando a conexao voltar.");
-        return;
+      // US-D2: estado "processando" com o MESMO padrao ja usado em todo
+      // formulario do app (setBotaoCarregando, spinner via .spinner/girar) -
+      // sem isso, o botao voltava pro visual parado assim que a escuta
+      // terminava (recognition "end" ja tira a classe .ouvindo antes desta
+      // chamada async resolver), sem nenhum feedback visual ENQUANTO
+      // classifica, so o texto pequeno abaixo do botao.
+      if (typeof window.setBotaoCarregando === "function") {
+        window.setBotaoCarregando(btn, true, "Entendendo...");
       }
-      processarResultado(texto, data);
+      const clientId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `voz-${Date.now()}`;
+      try {
+        const data = await window.apiFetch(
+          "/api/intent/classificar",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texto, client_id: clientId }),
+          },
+          { tipo: "comando_voz", id: clientId }
+        );
+        if (!data) return;
+        if (data.__enfileirado) {
+          // US-B5: sem rede - o texto ja transcrito fica na mesma fila da
+          // Fase 4 e sincroniza sozinho quando a conexao voltar (callback
+          // "comando_voz" abaixo processa o resultado real na hora).
+          mostrarStatus("Sem conexao - comando salvo, vai ser entendido quando a conexao voltar.");
+          return;
+        }
+        processarResultado(texto, data);
+      } finally {
+        if (typeof window.setBotaoCarregando === "function") {
+          window.setBotaoCarregando(btn, false, "Comando de voz");
+        }
+      }
     }
 
     if (typeof FilaOffline !== "undefined") {
