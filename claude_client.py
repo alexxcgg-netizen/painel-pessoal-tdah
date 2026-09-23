@@ -1389,7 +1389,8 @@ def chat(
     for _ in range(4):
         response = client.messages.create(
             model=SONNET,
-            max_tokens=600,
+            # brain dump (US-E6): 8+ tool_use numa rodada so cabem com folga
+            max_tokens=1500,
             system=system,
             tools=CHAT_TOOLS,
             messages=mensagens,

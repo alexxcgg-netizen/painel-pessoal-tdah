@@ -15,8 +15,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Mesmo endpoint do brain dump da Fase 5 (/api/brain-dump/<id>/converter) com tipo 'assistente' (botao 'Processar') -> mesmo _processar_mensagem_chat do chat (tool-use + caminho local): texto do Nectar vira 9 cards (viagem, 3 transacoes, 2 habitos, lembrete, agenda, treino) + resumo_final com os modulos, Desfazer independente por card; tarefa/gasto/nota tambem devolvem o contrato. Item reservado antes da IA e devolvido em falha (502). Teste com mock da IA em tests/test_fase6_e4_chat.py (BrainDumpCardsTestCase); headless 390px conferido.",
       "modelo_planejado": "sonnet"
     },
     {

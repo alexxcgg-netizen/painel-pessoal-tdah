@@ -4920,11 +4920,18 @@ def converter_brain_dump(item_id):
     reaproveita create_nota (ja existente) e dois inserts minimos pra tarefa/
     gasto (criar_tarefa_de_brain_dump/criar_gasto_de_brain_dump, mesmo
     formato das rotas que ja existem pra cada tipo, so sem passar pela
-    classificacao por IA - o Alex ja escolheu o tipo na hora de converter)."""
+    classificacao por IA - o Alex ja escolheu o tipo na hora de converter).
+
+    Fase 6 (US-E6): tipo "assistente" manda o texto inteiro pro MESMO
+    pipeline do chat (_processar_mensagem_chat - tool-use + cards), entao um
+    despejo com viagem, gastos, salario, habito, lembrete e reuniao
+    misturados vira um card por item + resumo_final, com Desfazer
+    independente em cada card. Toda saida (qualquer tipo) segue o contrato
+    de docs/CARDS.md, alem dos campos antigos (ok/tipo/id)."""
     body = _corpo_json()
     tipo = body.get("tipo")
-    if tipo not in ("tarefa", "nota", "gasto"):
-        return jsonify({"error": "tipo precisa ser tarefa, nota ou gasto"}), 400
+    if tipo not in ("tarefa", "nota", "gasto", "assistente"):
+        return jsonify({"error": "tipo precisa ser tarefa, nota, gasto ou assistente"}), 400
 
     conn = get_db()
     item = obter_brain_dump(conn, item_id)
@@ -4935,26 +4942,60 @@ def converter_brain_dump(item_id):
         conn.close()
         return jsonify({"error": "item ja foi processado"}), 400
 
+    if tipo == "assistente":
+        # reserva o item ANTES da IA (dois toques ao mesmo tempo nao
+        # processam o mesmo despejo duas vezes); devolve se a IA falhar.
+        if not marcar_brain_dump_processado(conn, item_id):
+            conn.close()
+            return jsonify({"error": "item ja foi processado"}), 400
+        detalhes: dict = {}
+        resposta, acoes, erro = _processar_mensagem_chat(conn, item["texto"], detalhes)
+        if erro:
+            conn.execute("UPDATE brain_dump SET processado = 0 WHERE id = ?", (item_id,))
+            conn.commit()
+            conn.close()
+            return jsonify({"error": erro}), 502
+        _marcar_atividade(conn)
+        conn.commit()
+        conn.close()
+        corpo = {"ok": True, "tipo": tipo, "resposta": resposta, "acoes": acoes}
+        corpo.update(detalhes or cards.envelope([], resposta, []))
+        return jsonify(_resposta_contrato(corpo))
+
+    inicio = time.perf_counter()
+    efeitos = []
     if tipo == "tarefa":
         titulo = _texto_seguro(body.get("titulo")) or item["texto"]
         novo_id = criar_tarefa_de_brain_dump(
             conn, titulo, body.get("due_date"), _normalizar_hora(body.get("hora")), item["texto"]
         )
+        efeitos.append({"entidade": "tarefa", "id": novo_id})
+        passo = {"modulo": "Tarefas", "descricao": f'Criou a tarefa "{cards._titulo_curto(titulo)}"'}
+        resumo = "Virou tarefa."
     elif tipo == "nota":
         titulo = _texto_seguro(body.get("titulo")) or item["texto"][:60]
         novo_id = create_nota(conn, titulo, body.get("corpo") or item["texto"], source_text=item["texto"])
+        passo = {"modulo": "Notas", "descricao": f'Salvou a nota "{cards._titulo_curto(titulo)}"'}
+        resumo = "Virou nota."
     else:
         valor = body.get("valor")
-        if not isinstance(valor, (int, float)) or valor <= 0:
+        if not isinstance(valor, (int, float)) or isinstance(valor, bool) or not math.isfinite(valor) or valor <= 0:
             conn.close()
             return jsonify({"error": "informe um valor valido pro gasto"}), 400
         descricao = _texto_seguro(body.get("titulo")) or item["texto"]
         novo_id = criar_gasto_de_brain_dump(conn, valor, body.get("categoria"), descricao, item["texto"])
+        efeitos.append({"entidade": "gasto", "id": novo_id})
+        passo = {"modulo": "Finanças", "descricao": f'Registrou o gasto "{cards._titulo_curto(descricao)}"'}
+        resumo = "Virou gasto."
+    passo["ms"] = int(round((time.perf_counter() - inicio) * 1000))
 
     marcar_brain_dump_processado(conn, item_id)
     _marcar_atividade(conn)
+    corpo = {"ok": True, "tipo": tipo, "id": novo_id}
+    corpo.update(cards.montar_resposta(conn, efeitos, resumo, [passo], _criar_token_desfazer(conn)))
+    conn.commit()
     conn.close()
-    return jsonify({"ok": True, "tipo": tipo, "id": novo_id})
+    return jsonify(_resposta_contrato(corpo))
 
 
 @app.route("/api/brain-dump/<int:item_id>", methods=["DELETE"])

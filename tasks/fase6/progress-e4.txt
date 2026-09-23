@@ -45,3 +45,16 @@ Nao confirmado: nada.
 Historia US-E7 — decisao: link "Abrir Projetos/Habitos/Viagens/Treinos/Agenda" vai pra aba vida; o showTab injetado em Cards.ligar agora chama loadVidaAba() (showTab sozinho nao carrega a Vida) e os <li> de habito/projeto/viagem ganharam data-entidade/data-id.
 Motivo: a lista de destino ficava vazia/sem destaque.
 Nao confirmado: nada.
+
+## US-E6 - brain dump produzindo cards
+Historia US-E6 — decisao: o brain dump da Fase 5 (US-C6, /api/brain-dump) ganhou o tipo "assistente" em /api/brain-dump/<id>/converter, que manda o texto inteiro pro MESMO _processar_mensagem_chat (tool-use + cards + local); tipos tarefa/gasto/nota tambem devolvem o contrato (cards/resumo_texto/passos) alem do legado ok/tipo/id.
+Motivo: "unificar, nao duplicar" - uma logica so de despejo->cards (a do chat); o botao "Processar" do item reusa enviarChat(texto, {rota, corpo}) e renderiza na aba Hoje.
+Nao confirmado: se o Alex prefere que "Guardar" ja processe direto (hoje continua guardando pra processar depois, como a US-C6 definiu).
+
+Historia US-E6 — decisao: o item e reservado (processado=1) ANTES da IA e devolvido pra pendente se a IA falhar (502).
+Motivo: dois toques nao processam o mesmo despejo 2x; falha de rede nao perde o item.
+Nao confirmado: nada.
+
+Historia US-E6 — decisao: max_tokens do chat 600 -> 1500 e regra no prompt "cada item misturado = a tool certa na mesma rodada".
+Motivo: 8-9 tool_use numa rodada nao cabiam com folga em 600 tokens.
+Nao confirmado: custo real por despejo grande (cap, nao consumo fixo).

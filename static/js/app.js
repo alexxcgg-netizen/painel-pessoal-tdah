@@ -1109,7 +1109,10 @@ if (typeof Cards !== "undefined") {
   });
 }
 
-async function enviarChat(texto) {
+// `opcoes` (US-E6): { rota, corpo } manda pra outra rota que devolve o MESMO
+// contrato de /api/chat (ex: "processar" um item do brain dump) - a bolha
+// do usuario, o "digitando", a resposta e os cards seguem o mesmo caminho.
+async function enviarChat(texto, opcoes = {}) {
   const lista = $("#chat-mensagens");
   const vazio = lista.querySelector(".chat-vazio");
   if (vazio) vazio.remove();
@@ -1124,15 +1127,15 @@ async function enviarChat(texto) {
   lista.appendChild(digitando);
   lista.scrollTop = lista.scrollHeight;
 
-  const data = await apiFetch("/api/chat", {
+  const data = await apiFetch(opcoes.rota || "/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mensagem: texto }),
+    body: JSON.stringify(opcoes.corpo || { mensagem: texto }),
   });
 
   digitando.remove();
   setBotaoCarregando(btn, false, "Enviar");
-  if (!data) return;
+  if (!data) return null;
 
   // resumo_texto = contrato da Fase 6; `resposta` = mesmo texto no campo
   // legado (fallback se um backend mais velho responder).
@@ -1158,6 +1161,7 @@ async function enviarChat(texto) {
       loadMetas();
     }
   }
+  return data;
 }
 
 $("#chat-form").addEventListener("submit", (e) => {
@@ -1961,6 +1965,26 @@ async function loadBrainDump() {
 
     const acoes = document.createElement("div");
     acoes.className = "item-acoes";
+
+    // US-E6: "Processar" manda o despejo inteiro pro assistente (mesmo
+    // pipeline do chat) - cada coisa misturada no texto vira um card na aba
+    // Hoje, com Desfazer independente.
+    const processar = async (btn) => {
+      btn.disabled = true;
+      showTab("hoje");
+      const data = await enviarChat(item.texto, {
+        rota: `/api/brain-dump/${item.id}/converter`,
+        corpo: { tipo: "assistente" },
+      });
+      btn.disabled = false;
+      if (data) loadBrainDump();
+    };
+    const processarBtn = document.createElement("button");
+    processarBtn.className = "btn-com-icone btn-brain-processar";
+    processarBtn.textContent = "Processar";
+    processarBtn.setAttribute("aria-label", "Processar com o assistente");
+    processarBtn.addEventListener("click", () => processar(processarBtn));
+    acoes.appendChild(processarBtn);
 
     const converterPara = async (tipo) => {
       const corpo = { tipo };

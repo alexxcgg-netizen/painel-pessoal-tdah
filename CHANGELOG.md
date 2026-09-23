@@ -5,6 +5,41 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (Fase 6 E4) - chat produzindo cards dos modulos novos
+
+Faixa 4 do Grupo E da Fase 6: a aba Hoje (chat) passa a devolver CARD pros modulos da E2
+(Habitos, Projetos, Viagens, agenda iCloud, saude) e resolve consulta conhecida sem gastar API.
+
+- **US-E7 (consulta -> card, classificador local)**: banco "pergunta -> onde buscar"
+  (`aprendizado.consulta_conhecida`) virou a segunda camada local de `_classificar_intent`
+  (depois do padrao aprendido, antes da IA). O chat chama `_classificar_intent(...,
+  somente_local=True)` antes do tool-use e, se resolveu, executa as MESMAS tools
+  (`_plano_local_chat`) - "me mostra o projeto da viagem e a meta" (projeto_viagem + meta),
+  "como foram meus treinos nos ultimos 7 dias?" (saude_treino), "tomei um copo de agua"
+  (+1 copo, card `saude_dia` novo com Desfazer), "como encaixo meu treino hoje?" (sugestao com
+  horario real a partir de agora + memoria `sua_rotina` na caixa "Com a sua rotina em
+  mente"), "como estao meus habitos?" (habito). O banco cresce sozinho: resposta da IA feita
+  so com ferramentas de consulta grava o padrao (3 repeticoes = local). Tools novas
+  `consultar_projeto/meta/treinos/habitos/saude_dia`; tools da E2 agora devolvem `_efeito`
+  -> cards habito/projeto_viagem/agenda/saude_treino com Desfazer por entidade (habito,
+  marcacao do dia, projeto, etapa, etapa concluida, viagem, copo de agua, treino; evento so
+  com uid criado pelo painel). Adaptadores `cards.semana_seg_dom` (seg->dom) e
+  `cards.projeto_para_card` (`posicao_hoje` 0-100 -> `hoje_fracao` 0..1); composicao do
+  projeto extraida pra `vida.projeto_detalhado` (fonte unica da rota e do card). Card de
+  consulta sem Desfazer, com `data.consulta` (aditivo) e fora do `resumo_final`.
+- **US-E6 (brain dump -> cards)**: `/api/brain-dump/<id>/converter` ganhou `tipo:
+  "assistente"` (botao "Processar" no item) que manda o despejo inteiro pro MESMO
+  `_processar_mensagem_chat` - viagem, gastos, salario, habitos, lembrete e reuniao
+  misturados viram um card cada (8+) + `resumo_final` com os modulos tocados, cada um com
+  Desfazer independente, renderizados na aba Hoje. tarefa/gasto/nota tambem devolvem o
+  contrato de cards. Item reservado antes da IA e devolvido se ela falhar. `max_tokens` do
+  chat 600 -> 1500 (8-9 tool_use numa rodada).
+- Docs: `docs/CARDS.md` (type `saude_dia`, campo `consulta`, tabela "quem gera cada card",
+  entidades de Desfazer novas), `docs/INTENT.md` (banco local + formato dos `parametros`).
+- Testes: `tests/test_fase6_e4_chat.py` (43, IA e iCloud mockados, fuzz do banco local),
+  `tests/js/cards.test.js` (+6). Headless 390px conferido (consultas, agua + desfazer,
+  sugestao, habitos, brain dump com 9 cards, link pra aba Vida com destaque).
+
 ## 2026-09-23 (Fase 6 E5) - proatividade unificada e visao do dia
 
 Faixa 5 do Grupo E da Fase 6 (depois de E1+E2+E3 integrados): unifica a proatividade num so

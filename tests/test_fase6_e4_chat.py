@@ -556,5 +556,135 @@ class AdaptadoresTestCase(unittest.TestCase):
         self.assertEqual(cards.texto_frequencia_habito({"frequencia_tipo": "dias_semana", "dias_semana": "6,0"}), "seg, dom")
 
 
+# ---------------------------------------------------------------------------
+# US-E6: brain dump produzindo cards
+# ---------------------------------------------------------------------------
+
+TEXTO_NECTAR = (
+    "Semana que vem vou pra Gramado de 10 a 15 de dezembro. Gastei 45,90 no mercado e 32 de uber. "
+    "Caiu o salario, 5 mil. Quero comecar a meditar 10 minutos todo dia de manha e ja fiz academia hoje. "
+    "Me lembra de renovar o CMA dia 1 de outubro. Reuniao com o contador terca as 14h, lembra 30 min antes."
+)
+
+
+class BrainDumpCardsTestCase(Base):
+    def _fake_nectar(self, mensagens, contexto, memorias, executores):
+        self.assertEqual(mensagens[-1]["content"], TEXTO_NECTAR)
+        executores["registrar_viagem"]({"destino": "Gramado", "data_ida": "2026-12-10", "data_volta": "2026-12-15"})
+        executores["registrar_gasto"]({"titulo": "Mercado", "valor": 45.9, "categoria": "mercado"})
+        executores["registrar_gasto"]({"titulo": "Uber", "valor": 32.0, "categoria": "transporte"})
+        executores["registrar_renda"]({"valor": 5000.0, "categoria": "cliente", "descricao": "salario"})
+        executores["registrar_habito"]({"nome": "Meditar", "meta": "10 min", "frequencia_tipo": "diario", "horario": "07:00"})
+        executores["marcar_habito"]({"nome": "Academia"})
+        executores["registrar_lembrete"]({"titulo": "Renovar o CMA", "data": "2026-10-01"})
+        executores["agendar_evento"]({"titulo": "Reuniao com o contador", "data": "2026-09-29",
+                                      "hora_inicio": "14:00", "hora_fim": "15:00", "lembrar_min_antes": 30})
+        executores["registrar_treino"]({"grupo": "academia", "duracao_min": 60})
+        return "-> Viagem: Gramado\n-> Gasto: mercado e uber\n...", [], fake_usage()
+
+    def _processar(self, item_id, fake=None):
+        def fake_criar(titulo, inicio, fim, lembrar=None):
+            return {"uid": "uid-reuniao", "titulo": titulo, "inicio": inicio.isoformat(), "fim": fim.isoformat()}
+
+        with patch("claude_client.chat", side_effect=fake or self._fake_nectar), patch(
+            "caldav_client.configurado", return_value=True
+        ), patch("caldav_client.criar_evento", side_effect=fake_criar):
+            return self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "assistente"})
+
+    def test_texto_nectar_vira_8_ou_mais_cards_e_resumo_final(self):
+        db.create_habito(self.conn, "Academia", None, "diario", None, None, None)
+        item_id = self.client.post("/api/brain-dump", json={"texto": TEXTO_NECTAR}).get_json()["id"]
+        res = self._processar(item_id)
+        self.assertEqual(res.status_code, 200, res.get_json())
+        corpo = res.get_json()
+        self.assert_contrato(corpo)
+        tipos = self.tipos(corpo)
+        self.assertEqual(tipos, [
+            "projeto_viagem", "transacao", "transacao", "transacao", "habito", "habito",
+            "lembrete", "agenda", "saude_treino", "resumo_final",
+        ])
+        self.assertGreaterEqual(len(tipos) - 1, 8)
+        resumo = corpo["cards"][-1]["data"]
+        self.assertEqual(resumo["passos_total"], 9)
+        for modulo in ("Viagens", "Finanças", "Hábitos", "Lembretes", "Agenda", "Saúde"):
+            self.assertIn(modulo, resumo["modulos"])
+        textos = {linha["modulo"]: linha["texto"] for linha in resumo["linhas"]}
+        self.assertEqual(textos["Finanças"], "2 gastos registrados, 1 entrada registrada")
+        self.assertEqual(textos["Viagens"], "1 viagem registrada")
+        self.assertEqual(textos["Hábitos"], "2 hábitos atualizados")
+        self.assertNotIn("45", str(resumo))
+        # cada card tem o proprio Desfazer (tokens independentes)
+        tokens = [self.desfazer_de(c) for c in corpo["cards"][:-1]]
+        self.assertTrue(all(tokens))
+        self.assertEqual(len(set(tokens)), len(tokens))
+        # legado + item marcado + chat com os cards
+        self.assertEqual((corpo["ok"], corpo["tipo"]), (True, "assistente"))
+        self.assertEqual(corpo["resposta"], corpo["resumo_texto"])
+        self.assertEqual(self.client.get("/api/brain-dump").get_json(), [])
+        hist = self.client.get("/api/chat/historico").get_json()
+        self.assertEqual(hist[-2]["texto"], TEXTO_NECTAR)
+        self.assertEqual(len(hist[-1]["cards"]), 10)
+        # desfazer um card (uber) nao mexe nos outros
+        self.assertEqual(self.client.post(f"/api/desfazer/{tokens[2]}").status_code, 200)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM expenses").fetchone()[0], 1)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM incomes").fetchone()[0], 1)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM viagens").fetchone()[0], 1)
+
+    def test_brain_dump_visitante_nao_vaza_valor(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": TEXTO_NECTAR}).get_json()["id"]
+        with patch("app._modo_visitante_ativo", return_value=True):
+            corpo = self._processar(item_id).get_json()
+        for c in corpo["cards"]:
+            if c["type"] == "transacao":
+                self.assertNotIn("valor", c["data"])
+                self.assertTrue(c["data"]["oculto"])
+
+    def test_ia_falhou_item_continua_pendente(self):
+        import anthropic
+
+        item_id = self.client.post("/api/brain-dump", json={"texto": "coisa solta"}).get_json()["id"]
+
+        def quebra(*_a):
+            raise anthropic.APIConnectionError(request=None)
+
+        res = self._processar(item_id, fake=quebra)
+        self.assertEqual(res.status_code, 502)
+        self.assertEqual([i["id"] for i in self.client.get("/api/brain-dump").get_json()], [item_id])
+
+    def test_processar_duas_vezes_recusa(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "coisa solta"}).get_json()["id"]
+        self.assertEqual(self._processar(item_id, fake=lambda *a: ("ok", [], fake_usage())).status_code, 200)
+        self.assertEqual(self._processar(item_id, fake=ia_proibida).status_code, 400)
+
+    def test_consulta_no_brain_dump_resolve_local(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "tomei um copo de agua"}).get_json()["id"]
+        res = self._processar(item_id, fake=ia_proibida)
+        self.assertEqual(self.tipos(res.get_json()), ["saude_dia"])
+
+    def test_converter_tarefa_e_gasto_devolvem_contrato(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "levar carro na revisao"}).get_json()["id"]
+        corpo = self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "tarefa"}).get_json()
+        self.assertEqual((corpo["ok"], corpo["tipo"]), (True, "tarefa"))
+        self.assertEqual(self.tipos(corpo), ["tarefas_criadas"])
+        self.assertEqual(corpo["cards"][0]["data"]["tarefas"][0]["id"], corpo["id"])
+        self.assertEqual(self.client.post(f"/api/desfazer/{self.desfazer_de(corpo['cards'][0])}").status_code, 200)
+
+        item_id = self.client.post("/api/brain-dump", json={"texto": "mercado 30"}).get_json()["id"]
+        corpo = self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "gasto", "valor": 30.0}).get_json()
+        self.assertEqual(self.tipos(corpo), ["transacao"])
+        self.assertEqual(corpo["cards"][0]["data"]["valor"], 30.0)
+
+        item_id = self.client.post("/api/brain-dump", json={"texto": "ideia"}).get_json()["id"]
+        corpo = self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "nota"}).get_json()
+        self.assertEqual(corpo["cards"], [])
+        self.assertEqual(corpo["resumo_texto"], "Virou nota.")
+
+    def test_converter_gasto_valor_invalido(self):
+        item_id = self.client.post("/api/brain-dump", json={"texto": "x"}).get_json()["id"]
+        for valor in [True, float("nan"), float("inf"), -1, "30", None]:
+            res = self.client.post(f"/api/brain-dump/{item_id}/converter", json={"tipo": "gasto", "valor": valor})
+            self.assertEqual(res.status_code, 400, valor)
+
+
 if __name__ == "__main__":
     unittest.main()
