@@ -1051,6 +1051,21 @@ async function loadFimMes() {
   $("#fim-mes-projecao").textContent = `No ritmo de ${fmtMoeda(p.ritmo_diario)}/dia, deve sobrar ${fmtMoeda(p.sobra_projetada)} no fim do mes${contas}.`;
 }
 
+// ---- Fase 5 (US-C22): sinal de sobrecarga ----
+
+const SINAL_TEXTO = { "tarefas atrasadas": "tarefas atrasadas", "sono ruim": "sono ruim seguido", "semana pesada": "semana cheia pela frente" };
+
+async function loadSobrecarga() {
+  const data = await apiFetch("/api/sobrecarga");
+  if (!data) return;
+  const box = $("#sobrecarga-box");
+  box.hidden = !data.sobrecarregado;
+  if (!data.sobrecarregado) return;
+  $("#sobrecarga-pontuacao").textContent = `${data.pontuacao}/3 sinais`;
+  const lista = data.sinais.map((s) => SINAL_TEXTO[s] || s).join(", ");
+  $("#sobrecarga-texto").textContent = `Varios sinais juntos: ${lista}. Talvez valha desacelerar hoje.`;
+}
+
 // ---- Fase 5 (US-C21): previa da noite anterior ----
 
 async function loadPreviaNoite() {
@@ -1087,6 +1102,7 @@ async function loadPreviaNoite() {
 // ---- Carga inicial + recarga ao trocar de aba ----
 
 function loadVidaHoje() {
+  loadSobrecarga();
   loadPreviaNoite();
   loadRotina();
   loadCheckin();

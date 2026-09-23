@@ -1518,6 +1518,35 @@ def previa_noite_rota():
     return jsonify(resultado)
 
 
+def _sinal_sobrecarga_hoje(conn) -> dict:
+    """Fase 5 (US-C22): monta os sinais de hoje e chama notificacoes.
+    sinal_sobrecarga pra combinar. semana_pesada fica False (ver nota na
+    propria funcao - US-C13 nao integrada neste branch ainda)."""
+    hoje = date.today()
+    n_atrasadas = conn.execute(
+        "SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NULL AND due_date IS NOT NULL AND due_date < ?",
+        (hoje.isoformat(),),
+    ).fetchone()["n"]
+    sono = {
+        l["data"]: l["sono_horas"]
+        for l in list_saude_dados(conn, desde=(hoje - timedelta(days=14)).isoformat())
+        if l["sono_horas"] is not None
+    }
+    checkin_sono = {
+        c["data"]: c["sono"] for c in list_checkins(conn, (hoje - timedelta(days=14)).isoformat()) if c["sono"]
+    }
+    seguidas, _ = vida.sequencia_noites_ruins(sono, checkin_sono, hoje)
+    return notificacoes.sinal_sobrecarga(n_atrasadas, seguidas >= 3, semana_pesada=False)
+
+
+@app.route("/api/sobrecarga", methods=["GET"])
+def sobrecarga_rota():
+    conn = get_db()
+    resultado = _sinal_sobrecarga_hoje(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
 def _tarefas_pendentes_sem_horario_hoje(conn):
     """Tarefas pendentes que NAO viram ancora de horario fixo hoje - ou
     porque nao tem hora marcada, ou porque a hora e de outro dia. Evita

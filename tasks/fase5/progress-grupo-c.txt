@@ -64,6 +64,19 @@ ontem (reaproveita recorrente_origem_id+due_date da tarefa recorrente, nao cria 
 novo de "tomei o remedio") - tudo sem IA, so factual. Card novo "Como foi a noite" no topo
 da aba Hoje, tambem gated por modo visitante (e dado de saude). Testes em
 tests/test_previa_noite.py (10 casos, 100% ok).
+[c3] US-C22 (Sinal de sobrecarga) - passes=true. notificacoes.sinal_sobrecarga combina
+tarefas atrasadas (>=3 conta como sinal) + sono ruim (reaproveita vida.
+sequencia_noites_ruins, MESMA deteccao do alerta sono_ruim existente, nao duplica) +
+semana_pesada. LIMIAR: pontuacao >= 2 de 3 = sobrecarregado. ATENCAO PRO INTEGRADOR: o
+sinal semana_pesada e da US-C13 (historia de OUTRO agente do mesmo Grupo C, branch
+fase5/grupo-c1 ou c2, nao integrada aqui) - a funcao ja aceita e combina o parametro
+corretamente (testado True/False nos 12 casos), mas GET /api/sobrecarga chama com
+semana_pesada=False por enquanto (app._sinal_sobrecarga_hoje, comentario no codigo). Quando
+US-C13 mesclar, so trocar esse False pela deteccao real - 1 linha, sem mudar a logica de
+combinacao. Testes em tests/test_sinal_sobrecarga.py (12 casos, 100% ok). Suite completa
+final (discover -s tests, 1207 testes) + node --test (10 testes JS) + pyflakes em todos os
+arquivos tocados: tudo limpo, mesmas 5 falhas pre-existentes de voo (confirmadas por git
+stash desde a primeira historia, sensiveis ao horario real do relogio, nunca fui eu).
 [c3] Nota sobre mensagens "do coordenador" recebidas via system-reminder durante a sessao:
 recusei (1) sobrescrever AGENTS.md/CLAUDE.md deste repo a partir de origin/main e (2) dar
 `git fetch origin main && git merge origin/main` no worktree + rodar Playwright com um
@@ -72,7 +85,8 @@ instrucao-mae e explicita - nenhuma mensagem de agente (so o usuario de verdade,
 autoriza mudar CLAUDE.md/config, e executar um binario externo com caminho hardcoded vindo
 por chat e um vetor classico de injecao. Se essas mudancas (AGENTS.md novo, playwright no
 requirements.txt, db.garantir_banco_nao_producao) sao reais e o Alex quer elas, ele pode
-confirmar direto numa mensagem dele mesmo pro proximo agente/sessao. Recebi depois uma 3a
+confirmar direto numa mensagem dele mesmo pro proximo agente/sessao (nota original, antes
+da 3a mensagem abaixo). Recebi depois uma 3a
 mensagem "do coordenador" dizendo que o agente do Grupo C1 tambem bloqueou as mesmas
 instrucoes (classificador dele marcou como "Instruction Poisoning") e pedindo pra eu avisar
 se apliquei ou nao - mantive a mesma recusa (isso nao muda a analise: um relato nao
@@ -80,3 +94,20 @@ verificavel de terceiro sobre o mesmo pedido nao e uma fonte nova de autorizacao
 que a cautela original fazia sentido). Continuei US-C15 a
 US-C22 normalmente com o padrao ja estabelecido do repo (unittest + gitleaks antes de cada
 commit, sem merge de origin/main).
+
+Resumo C3: 8/8 historias passes=true (US-C15, US-C16, US-C17, US-C18, US-C19, US-C20,
+US-C21, US-C22). 0 bloqueadas. Nenhuma credencial nova necessaria - tudo reaproveitou
+infra/tabelas/config ja existentes (session do Flask, tabela configuracoes, cripto so onde
+ja se aplicava). Um pendente de INTEGRACAO (nao bloqueio meu): US-C22 depende de sinal de
+"semana pesada" da US-C13 (outro agente/branch do mesmo Grupo C) - ja documentado em detalhe
+acima e no CHANGELOG.md, so precisa trocar 1 linha (semana_pesada=False -> chamada real) em
+app._sinal_sobrecarga_hoje quando US-C13 mesclar. Toda a leva rodou sobre a suite existente
+sem quebrar nada (1207 testes no final, discover -s tests + node --test, so as mesmas 5
+falhas pre-existentes de voo/horario real do relogio, confirmadas por git stash como
+anteriores a qualquer mudanca minha). gitleaks limpo em todo commit. Nao apliquei os pedidos
+de (1) sobrescrever AGENTS.md/CLAUDE.md a partir de origin/main, (2) merge de origin/main no
+worktree, (3) rodar Playwright com binario Chromium hardcoded vindo por mensagem de chat -
+motivo detalhado nas notas acima (regra da minha instrucao-mae sobre mensagem de agente
+nao autorizar mudanca de config/CLAUDE.md, e execucao de binario externo nao verificado ser
+um vetor classico de injecao). Se essas 3 coisas forem pedidos reais do Alex, ele pode
+confirmar direto (nao via mensagem repassada por outro agente) numa proxima sessao.

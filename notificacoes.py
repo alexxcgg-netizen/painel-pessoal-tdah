@@ -390,6 +390,30 @@ def garantias_vencendo(conn, hoje: date | None = None, dias_aviso: int = 15) -> 
     return avisos
 
 
+def sinal_sobrecarga(tarefas_atrasadas: int, sono_ruim: bool, semana_pesada: bool) -> dict:
+    """Fase 5 (US-C22): combina sinais independentes numa pontuacao simples
+    de sobrecarga - 1 ponto por sinal presente. `tarefas_atrasadas` so conta
+    como sinal a partir de 3 (uma unica tarefa atrasada e vida normal, nao
+    sobrecarga). Limiar padrao de "sobrecarregado" e 2 de 3 sinais - um
+    sinal isolado ainda e dia normal, dois ou mais juntos que indicam
+    sobrecarga de verdade.
+
+    `semana_pesada` e o sinal de deteccao de "semana que vem esta cheia"
+    (US-C13, historia de outro agente do mesmo grupo/leva - nao integrada
+    neste branch ainda). O chamador passa False ate isso ser mesclado; ver
+    a nota em progress-grupo-c.txt. Quando integrado, o score passa a valer
+    com os 3 sinais automaticamente, sem mudar nada aqui."""
+    sinais = []
+    if tarefas_atrasadas >= 3:
+        sinais.append("tarefas atrasadas")
+    if sono_ruim:
+        sinais.append("sono ruim")
+    if semana_pesada:
+        sinais.append("semana pesada")
+    pontuacao = len(sinais)
+    return {"pontuacao": pontuacao, "sinais": sinais, "sobrecarregado": pontuacao >= 2}
+
+
 def proxima_ocorrencia_lembrete(data_base: date, recorrente: bool, hoje: date) -> date:
     """Pra lembrete unico, a proxima ocorrencia e a propria data. Pra
     recorrente (anual - tipo validade de licenca, exame medico, seguro),

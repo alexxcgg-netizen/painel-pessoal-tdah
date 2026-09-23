@@ -120,6 +120,24 @@ completo por historia.
 - `tests/test_previa_noite.py` (10 casos: cada fonte de dado isolada, combinacao completa,
   API, gate do modo visitante).
 
+**US-C22 - Sinal de sobrecarga**
+- `notificacoes.sinal_sobrecarga(tarefas_atrasadas, sono_ruim, semana_pesada)`: combina 3
+  sinais independentes numa pontuacao simples (1 ponto cada) - tarefas atrasadas so conta a
+  partir de 3 (uma unica atrasada e vida normal), sono ruim reaproveita a MESMA deteccao ja
+  usada no alerta `sono_ruim` existente (`vida.sequencia_noites_ruins`, 3+ noites seguidas).
+  Limiar padrao: pontuacao >= 2 de 3 = `sobrecarregado`.
+- **Importante**: o 3o sinal (`semana_pesada`, US-C13 - "semana que vem esta cheia") e de
+  OUTRA historia do mesmo grupo (Grupo C), atribuida a outro agente rodando num worktree/
+  branch separado (`fase5/grupo-c1` ou `c2`) - nao esta integrada neste branch ainda. O
+  parametro existe e a funcao ja combina com ele corretamente (testado com `True`/`False`),
+  mas o `GET /api/sobrecarga` chama com `semana_pesada=False` por enquanto. Quando a US-C13
+  for mesclada nesta branch/na main, so trocar essa chamada pela funcao real de deteccao -
+  documentado com destaque em `progress-grupo-c.txt` pro integrador nao esquecer.
+- `GET /api/sobrecarga` + card "Sinal de sobrecarga" na aba Hoje (so aparece quando
+  `sobrecarregado` for true).
+- `tests/test_sinal_sobrecarga.py` (12 casos: todas as combinacoes de sinais, limiar,
+  integracao real via API com tarefa atrasada de verdade no banco).
+
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 
 Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em

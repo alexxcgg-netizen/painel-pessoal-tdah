@@ -252,7 +252,7 @@
         "Card/aviso visivel na tela inicial quando a pontuacao passar de um limiar",
         "Testes cobrindo o calculo da pontuacao combinada"
       ],
-      "priority": 22, "passes": false, "notes": ""
+      "priority": 22, "passes": true, "notes": "notificacoes.sinal_sobrecarga combina tarefas atrasadas (>=3) + sono ruim (vida.sequencia_noites_ruins, mesma deteccao ja usada no alerta sono_ruim) + semana_pesada (US-C13, NAO integrada neste branch - agente de outra historia do mesmo grupo; parametro aceito e chamado com False, documentado em progress.txt pro integrador ligar quando C13 mesclar). Limiar: 2 de 3 sinais = sobrecarregado. GET /api/sobrecarga + card na aba Hoje. Testes em tests/test_sinal_sobrecarga.py (12 casos, 100% ok)."
     }
   ]
 }
