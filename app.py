@@ -229,8 +229,26 @@ from db import (
 app = Flask(__name__)
 init_db()
 
+
+def _aplicar_pin_inicial(conn, pin_inicial: str | None) -> bool:
+    """PAINEL_PIN_INICIAL (hospedagem tipo Render, sem terminal pra rodar
+    scripts/resetar_pin.py): sem isso, quem abrir a URL nova primeiro escolhe
+    o PIN. So age se ainda nao houver PIN - nunca sobrescreve um existente.
+    PIN invalido derruba o boot de proposito: subir com /configurar-pin
+    aberto seria pior que nao subir."""
+    if not pin_inicial or auth.pin_configurado(conn):
+        return False
+    try:
+        auth.definir_pin(conn, pin_inicial, pin_inicial)
+    except ValueError as e:
+        raise RuntimeError(f"PAINEL_PIN_INICIAL invalido: {e}") from e
+    conn.commit()
+    return True
+
+
 _conn_inicial = get_db()
 app.secret_key = auth.obter_ou_criar_secret_key(_conn_inicial)
+_aplicar_pin_inicial(_conn_inicial, os.environ.get("PAINEL_PIN_INICIAL"))
 _conn_inicial.close()
 app.permanent_session_lifetime = timedelta(days=90)
 

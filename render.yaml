@@ -1,0 +1,23 @@
+# Deploy de TESTE no Render (plano gratis) - passo a passo em deploy/RENDER.md.
+# Nao e a hospedagem definitiva (essa e a VPS de deploy/DEPLOY.md): no plano
+# gratis o banco SQLite zera a cada deploy novo e o servico hiberna sem uso.
+services:
+  - type: web
+    name: painel-pessoal-tdah
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # 1 worker so: SQLite + app de usuario unico, e o _TETO_IA_LOCK de app.py
+    # e um lock de processo. Timeout alto porque chamada de IA com foto demora.
+    startCommand: gunicorn app:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SECURE_COOKIES
+        value: "true"
+      # O Render pede esses dois na hora de criar (sync: false = nunca vai pro Git).
+      - key: PAINEL_PIN_INICIAL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

@@ -5,6 +5,32 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (32) - Deploy de teste no Render (plano gratis)
+
+Pra o Alex testar o estado atual no iPhone com URL publica HTTPS, sem esperar a VPS
+definitiva (`deploy/DEPLOY.md`). Um tunel temporario a partir do ambiente de nuvem da IA foi
+tentado antes e nao funciona: a rede de la so libera HTTPS via proxy na porta 443, e o
+`cloudflared` precisa da porta 7844 direto.
+
+- **`render.yaml`** (Blueprint): gunicorn com 1 worker (SQLite + `_TETO_IA_LOCK` e lock de
+  processo), timeout 120s (chamada de IA com foto), `healthCheckPath: /healthz`,
+  `SECURE_COOKIES=true`, e `PAINEL_PIN_INICIAL`/`ANTHROPIC_API_KEY` como `sync: false` (o
+  Render pede na criacao, nunca vai pro Git).
+- **`PAINEL_PIN_INICIAL`** (novo, `app._aplicar_pin_inicial`): sem terminal no plano gratis
+  pra rodar `scripts/resetar_pin.py`, quem abrisse a URL nova primeiro escolheria o PIN -
+  e subdominio novo de `onrender.com` e varrido por robo em minutos (certificado aparece nos
+  logs de Certificate Transparency). A variavel define o PIN no boot so se ainda nao houver
+  um (nunca sobrescreve); PIN invalido derruba o boot de proposito (subir com
+  `/configurar-pin` aberto seria pior). Testes em `tests/test_pin_inicial.py`.
+- **`deploy/RENDER.md`**: passo a passo pra leigo (criar conta, Blueprint, preencher PIN e
+  chave, instalar na Tela de Inicio, o que testar, erros comuns).
+- Limitacoes conhecidas e documentadas: disco efemero (dados somem a cada deploy e quando o
+  servico dorme depois de ~15 min parado), agendador/Telegram nao sobem com gunicorn (so no
+  `python app.py`) - de proposito pra teste, nada dispara mensagem real.
+- Validado simulando o Render: copia limpa do repo (sem `data/`, nunca o banco real) subindo
+  pelo mesmo comando do `render.yaml` - healthz ok, PIN inicial aplicado, `/configurar-pin`
+  fechado, login com PIN certo/errado ok.
+
 ## 2026-09-23 (31) - Fase 5: correcoes da revisao independente (codigo + seguranca)
 
 Depois de integrar os 4 grupos da Fase 5 na main, revisao independente de codigo e de
