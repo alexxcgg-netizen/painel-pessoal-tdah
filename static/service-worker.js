@@ -21,7 +21,9 @@
 // v9 acima: so precisa entrar no precache pra existir offline tambem.
 // v11: contrato de cards (Fase 6, docs/CARDS.md) - cards.js/cards-tipos.js
 // entram no precache pra aba Hoje renderizar os cards tambem offline.
-const CACHE_NAME = "painel-pessoal-v11";
+// v12: fim da Fase 6 - visao-dia.js (US-E9) entra no precache e o CSS/JS do
+// polimento por secao (Grupo F) precisa chegar no iPhone que ja tem o v11.
+const CACHE_NAME = "painel-pessoal-v12";
 const ASSETS = [
   "/",
   "/static/css/style.css",
@@ -31,6 +33,7 @@ const ASSETS = [
   "/static/js/app.js",
   "/static/js/vida.js",
   "/static/js/voz-comando.js",
+  "/static/js/visao-dia.js",
   "/static/js/charts.js",
   "/static/manifest.json",
   "/static/icons/icon.svg",
