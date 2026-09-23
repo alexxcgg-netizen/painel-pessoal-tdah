@@ -586,6 +586,28 @@
       <ul id="lista-lugares"></ul>
 
       <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z"/><path d="M9 7h6"/></svg>
+        Quero aprender
+      </h2>
+      <form id="aprender-form" class="form-linha">
+        <input type="text" id="aprender-tema" placeholder="Tema (ex: investimento em FII)" maxlength="80" required />
+        <button type="submit" id="aprender-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+      <p id="aprender-vazio" class="vazio" hidden>Nada na lista.</p>
+      <ul id="lista-aprender"></ul>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+        Salvos pra ver depois
+      </h2>
+      <form id="salvo-form" class="form-linha">
+        <input type="text" id="salvo-url" placeholder="Cola o link (artigo ou video)" inputmode="url" maxlength="2000" required />
+        <button type="submit" id="salvo-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar e resumir</button>
+      </form>
+      <p id="salvos-vazio" class="vazio" hidden>Nenhum link salvo.</p>
+      <ul id="lista-salvos"></ul>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h16v11H9l-5 4v-15Z"/><path d="M8 9h8M8 12h5"/></svg>
         Mensagem dificil
       </h2>
@@ -608,6 +630,21 @@
         </button>
       </form>
       <div id="decisao-resultado" class="card-resultado" hidden></div>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-4 3 3 5-6"/></svg>
+        Seu progresso
+      </h2>
+      <div class="card-vida" id="progresso-box">
+        <p class="card-vida-meta">Ultimos 30 dias - so fato, sem nota.</p>
+        <div class="progresso-grid" id="progresso-grid"></div>
+        <ul id="progresso-metas" class="progresso-metas"></ul>
+      </div>
+      <p id="revisao-mes" class="dica-metas" hidden></p>
+      <div id="uso-apps-box" hidden>
+        <p class="decisao-rotulo">Uso do celular (7 dias)</p>
+        <ul id="lista-uso-apps" class="uso-apps"></ul>
+      </div>
 
     </section>
 
@@ -632,6 +669,14 @@
           CSV
         </a>
       </h2>
+      <div id="fim-mes-box" class="card-vida" hidden>
+        <div class="card-vida-topo">
+          <h3>Fim do mes</h3>
+          <span class="card-vida-meta" id="fim-mes-dias"></span>
+        </div>
+        <p class="fim-mes-linha" id="fim-mes-agora"></p>
+        <p class="fim-mes-linha" id="fim-mes-projecao"></p>
+      </div>
       <div id="resumo-semanal-box" class="resumo-semanal-box" hidden>
         <span class="resumo-semanal-valor" id="resumo-semanal-total">R$ 0</span>
         <span class="resumo-semanal-label">gasto nos ultimos 7 dias</span>

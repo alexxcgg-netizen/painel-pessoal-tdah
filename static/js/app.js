@@ -1798,6 +1798,12 @@ function criarItemMeta(meta) {
     : " - sem prazo definido";
   detalhe.textContent = guardadoTxt + prazoTxt;
   li.appendChild(detalhe);
+  if (meta.previsao && pct < 100) {
+    const previsao = document.createElement("p");
+    previsao.className = "meta-detalhe";
+    previsao.textContent = `No ritmo atual (${fmtMoeda(meta.previsao.ritmo_mensal)}/mes), bate em ${fmtDataBr(meta.previsao.data_prevista)}.`;
+    li.appendChild(previsao);
+  }
 
   const graficoWrap = document.createElement("div");
   graficoWrap.className = "grafico-container meta-grafico";

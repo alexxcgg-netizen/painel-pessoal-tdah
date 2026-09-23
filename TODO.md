@@ -45,15 +45,15 @@ correlacao sono x produtividade, clima do dia, "devo sair ate que horas"
 - [x] "Responder depois" -> lembrete dia seguinte 10h ate marcar respondido
 
 ## Fase 3
-- [ ] Projecao de sobra no fim do mes (conferir o que ja existe e completar)
-- [ ] Meta de compra grande com projecao de quando bate
-- [ ] Lista "quero aprender sobre X" que lembra de retomar
-- [ ] Resumo de artigo/video salvo
-- [ ] Painel de progresso pessoal (habitos, metas)
-- [ ] Revisao mensal automatica sem julgamento
-- [ ] Burocracia: IR, CNH, prazos de documento
-- [ ] Aviacao: validade de licenca + nota pos-voo (conferir o que ja existe)
-- [ ] Uso de apps (automacao "App abriu/fechou" do Atalhos) + bateria -> resumo semanal
+- [x] Projecao de sobra no fim do mes (conferir o que ja existe e completar)
+- [x] Meta de compra grande com projecao de quando bate
+- [x] Lista "quero aprender sobre X" que lembra de retomar
+- [x] Resumo de artigo/video salvo
+- [x] Painel de progresso pessoal (habitos, metas)
+- [x] Revisao mensal automatica sem julgamento
+- [x] Burocracia: IR, CNH, prazos de documento
+- [x] Aviacao: validade de licenca + nota pos-voo (conferir o que ja existe)
+- [x] Uso de apps (automacao "App abriu/fechou" do Atalhos) + bateria -> resumo semanal
 
 ## Final
 - [ ] Guia de Atalhos pro Alex (docs/ATALHOS.md)
@@ -72,3 +72,7 @@ correlacao sono x produtividade, clima do dia, "devo sair ate que horas"
 - Localizacao: o Atalho recebe a mensagem na resposta e mostra ele mesmo (sem push duplicado).
 - Treino: casa ficha pelo nome do grupo no titulo da tarefa; titulo generico mostra todas.
 - Hiperfoco: aviso de janela curta fica guardado e sai no fim do foco; agua/pausa some.
+- Validade de licenca/CMA: entra como lembrete de burocracia (aviso 30 dias antes), sem tabela nova.
+- Salvar link: o servidor so busca endereco publico; se nao ler/resumir, guarda o link mesmo assim.
+- Uso de apps: sessao sem "fechou" ou > 3h e descartada (subestimar e melhor que inventar).
+- Progresso/revisao mensal: so numeros e fatos, sem nota nem comparacao com "ideal".

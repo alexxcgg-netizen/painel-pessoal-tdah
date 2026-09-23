@@ -168,6 +168,11 @@ sugira de forma direta procurar medico ou dentista (urgencia se for grave - dor 
 de ar, desmaio) e ofereca registrar uma tarefa pra marcar a consulta. Se ele disser que tem
 consulta marcada, registre com hora.
 
+Prazo de documento ou burocracia (imposto de renda, renovar CNH, passaporte, licenca, exame
+medico do piloto, IPVA, licenciamento) e uma data importante: use `registrar_lembrete` com a data do
+prazo - o painel avisa com 30 dias de antecedencia pra dar tempo de agendar. Se ele nao souber a
+data exata, pergunte.
+
 Se ele pedir ajuda pra escrever uma mensagem dificil (cobrar, dizer nao, pedir desculpa),
 entregue a mensagem pronta pra copiar, curta e respeitosa, em duas versoes: direta e mais gentil.
 
@@ -675,6 +680,34 @@ CHAT_TOOLS = [
                 "sobre": {"type": "string", "description": "omita se nao disse"},
             },
             "required": ["quem"],
+        },
+    },
+    {
+        "name": "registrar_aprender",
+        "description": (
+            "Poe um tema na lista 'quero aprender sobre X' - o painel lembra de retomar quando ficar "
+            "parado. Use quando o Alex disser que quer aprender/estudar algo (fora do curso de piloto, "
+            "que ja tem o proprio rodizio de temas)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tema": {"type": "string"},
+                "nota": {"type": "string", "description": "por onde comecar, link, livro - omita se nada"},
+            },
+            "required": ["tema"],
+        },
+    },
+    {
+        "name": "salvar_link",
+        "description": (
+            "Salva um link (artigo, video) pra ver depois - o painel le a pagina e guarda um resumo "
+            "curto. Use quando o Alex mandar um link dizendo pra guardar/ver depois."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"url": {"type": "string"}},
+            "required": ["url"],
         },
     },
     {
@@ -1459,3 +1492,23 @@ def redigir_mensagem_dificil(situacao: str, para_quem: str | None) -> tuple[dict
         ],
     )
     return _extract_json(response.content[0].text), _usage(response)
+
+
+RESUMO_LINK_PROMPT = """Resuma pra uma pessoa com TDAH decidir se vale ler/ver agora: 3 a 5
+pontos curtos com o que importa de verdade, em portugues do Brasil. Se o texto for so pagina de
+login/cookie/erro sem conteudo, diga isso numa frase. Nao invente o que nao esta no texto.
+
+Titulo: {titulo}
+Texto (pode estar cortado):
+{texto}
+
+Responda so com o resumo em topicos comecando com "- ", sem introducao."""
+
+
+def resumir_link(titulo: str | None, texto: str) -> tuple[str, dict]:
+    response = client.messages.create(
+        model=HAIKU,
+        max_tokens=400,
+        messages=[{"role": "user", "content": RESUMO_LINK_PROMPT.format(titulo=titulo or "sem titulo", texto=texto)}],
+    )
+    return response.content[0].text.strip(), _usage(response)

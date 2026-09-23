@@ -24,6 +24,7 @@ import claude_client
 import clima
 import estudo
 import gastos
+import leitura
 import maps_client
 import metar
 import noticias
@@ -54,6 +55,7 @@ from db import (
     conta_paga,
     contar_hidratacao_dia,
     cotacao_por_titulo_aproximado,
+    create_aprender,
     create_conta_pessoal,
     create_decisao,
     create_espera,
@@ -69,6 +71,7 @@ from db import (
     create_pessoa,
     create_responder,
     create_rotina_item,
+    create_salvo,
     create_viagem,
     create_voo,
     criar_cotacao,
@@ -77,6 +80,7 @@ from db import (
     definir_apelido_gasto,
     definir_configuracao,
     definir_orcamento,
+    delete_aprender,
     delete_compra,
     delete_conta_pessoal,
     delete_cotacao,
@@ -91,6 +95,7 @@ from db import (
     delete_pessoa,
     delete_push_subscription,
     delete_rotina_item,
+    delete_salvo,
     delete_viagem,
     delete_voo,
     espera_pendente_por_quem_aproximado,
@@ -106,6 +111,7 @@ from db import (
     ja_notificado_alguma_vez,
     ja_notificou_hoje,
     list_apelidos_gasto,
+    list_aprender,
     list_chat_mensagens,
     list_checkins,
     list_compras_pendentes,
@@ -115,6 +121,7 @@ from db import (
     list_decisoes,
     list_dias_ativos,
     list_esperas_pendentes,
+    list_eventos_app,
     list_fichas_treino,
     list_goal_deposits,
     list_goals,
@@ -133,20 +140,24 @@ from db import (
     list_push_subscriptions,
     list_responder_pendentes,
     list_rotina_itens,
+    list_salvos,
     list_treinos,
     list_viagens_futuras,
     list_voos,
+    marcar_aprender,
     marcar_comprado,
     marcar_conta_paga,
     marcar_manutencao_feita,
     marcar_notificado,
     marcar_ou_criar_feito,
     marcar_respondido,
+    marcar_salvo_lido,
     media_passos_ultimos_dias,
     obter_configuracao,
     record_usage,
     registrar_atividade,
     registrar_conversa,
+    registrar_evento_app,
     registrar_hidratacao,
     registrar_interacao_aprendizado,
     registrar_treino,
@@ -286,6 +297,7 @@ def _verificar_autenticacao():
         "/api/atalho/cotacao-pdf",
         "/api/atalho/resumo",
         "/api/atalho/local",
+        "/api/atalho/app",
     ):
         return None
 
@@ -801,11 +813,21 @@ def _gastos_fixos(conn) -> dict:
 
 
 def _sobra_do_mes(conn) -> dict:
-    ano_mes = date.today().strftime("%Y-%m")
+    hoje = date.today()
+    ano_mes = hoje.strftime("%Y-%m")
     renda = total_incomes_mes(conn, ano_mes)
     gasto_real = total_gastos_mes(conn, ano_mes, "real") + total_gastos_bancarios_mes(conn, ano_mes)
     gasto_planejado = total_gastos_mes(conn, ano_mes, "planejado")
-    return gastos.sobra_do_mes(renda, gasto_real, gasto_planejado)
+    contas_pendentes = sum(
+        c["valor"]
+        for c in _contas_pessoais_com_status(conn, hoje)
+        if c["valor"] is not None and not c["paga"] and c["dias_ate_vencer"] >= 0
+        and c["proximo_vencimento"][:7] == ano_mes
+    )
+    return {
+        **gastos.sobra_do_mes(renda, gasto_real, gasto_planejado),
+        "projecao": vida.projecao_fim_do_mes(renda, gasto_real, contas_pendentes, hoje),
+    }
 
 
 def _id_estavel_orcamento(categoria: str, nivel: str, ano_mes: str) -> int:
@@ -1429,6 +1451,15 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
             return {"erro": "faltou pra quem"}
         return {"ok": True, "id": create_responder(conn, quem, _texto_curto(entrada.get("sobre"), 200))}
 
+    def exec_registrar_aprender(entrada):
+        return _criar_aprender(conn, entrada.get("tema"), entrada.get("nota"))
+
+    def exec_salvar_link(entrada):
+        resultado = _salvar_link(conn, entrada.get("url"))
+        if "erro" in resultado:
+            return resultado
+        return {"ok": True, "titulo": resultado["titulo"], "resumo": resultado["resumo"], "aviso": resultado["aviso"]}
+
     def exec_marcar_saida_noite(entrada):
         definir_configuracao(conn, "saida_noite_data", date.today().isoformat())
         return {"ok": True}
@@ -1662,6 +1693,8 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "registrar_manutencao": exec_registrar_manutencao,
         "registrar_responder": exec_registrar_responder,
         "marcar_saida_noite": exec_marcar_saida_noite,
+        "registrar_aprender": exec_registrar_aprender,
+        "salvar_link": exec_salvar_link,
         "registrar_memoria": exec_registrar_memoria,
         "registrar_espera": exec_registrar_espera,
         "resolver_espera": exec_resolver_espera,
@@ -2106,6 +2139,80 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
     return avisos
 
 
+def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
+    """Avisos do BRIEFING.md Fase 3: revisao do mes, prazo de burocracia com
+    30 dias, tema de estudo parado, diario pos-voo e uso semanal do celular."""
+    avisos = []
+    hoje = agora.date()
+
+    if hoje.day == 1 and agora.hour >= 9:
+        primeiro, ultimo = vida.mes_anterior(hoje)
+        ref = vida.id_estavel("revisao_mensal", primeiro.isoformat())
+        if not ja_notificado_alguma_vez(conn, "revisao_mensal", ref):
+            avisos.append(("revisao_mensal", ref, "Como foi o mes", _revisao_do_mes(conn, primeiro, ultimo)["texto"]))
+
+    for lembrete in list_lembretes(conn):
+        if not vida.eh_burocracia(lembrete["titulo"]):
+            continue
+        try:
+            base = date.fromisoformat(lembrete["data"])
+        except (TypeError, ValueError):
+            continue
+        proxima = notificacoes.proxima_ocorrencia_lembrete(base, bool(lembrete["recorrente"]), hoje)
+        dias = (proxima - hoje).days
+        if not 8 <= dias <= 30:
+            continue
+        ref = vida.id_estavel("burocracia", lembrete["id"], proxima.isoformat())
+        if not ja_notificado_alguma_vez(conn, "burocracia", ref):
+            avisos.append(
+                ("burocracia", ref, "Prazo chegando",
+                 f"\"{lembrete['titulo']}\" vence em {dias} dias ({proxima.strftime('%d/%m')}) - ja da pra agendar.")
+            )
+
+    if agora.weekday() == 6 and agora.hour >= 10:
+        semana = hoje.isocalendar()
+        ref = vida.id_estavel("aprender", semana[0], semana[1])
+        if not ja_notificado_alguma_vez(conn, "aprender", ref):
+            for a in list_aprender(conn):
+                parado = (hoje - date.fromisoformat(a["ultima_vez"] or a["criado_em"][:10])).days
+                if parado >= 7:
+                    avisos.append(
+                        ("aprender", ref, "Quer retomar?",
+                         f"Faz {parado} dias que voce nao mexe em \"{a['tema']}\". 20 minutos hoje?")
+                    )
+                    break
+
+    for voo in list_voos(conn):
+        if voo.get("data") != hoje.isoformat() or (voo.get("observacao") or "").strip():
+            continue
+        if voo.get("hora"):
+            try:
+                h, m = (int(x) for x in voo["hora"].split(":"))
+                decolagem = agora.replace(hour=h, minute=m, second=0, microsecond=0)
+            except ValueError:
+                continue
+            pronto = agora >= decolagem + timedelta(hours=2)
+        else:
+            pronto = agora.hour >= 19
+        ref = vida.id_estavel("pos_voo", voo["id"])
+        if pronto and not ja_notificado_alguma_vez(conn, "pos_voo", ref):
+            destino = voo.get("destino") or "o voo"
+            avisos.append(
+                ("pos_voo", ref, "Como foi o voo?",
+                 f"Como foi o voo pra {destino}? Conta no chat que eu guardo no diario de bordo.")
+            )
+
+    if agora.weekday() == 6 and agora.hour >= 19:
+        semana = hoje.isocalendar()
+        ref = vida.id_estavel("uso_apps", semana[0], semana[1])
+        if not ja_notificado_alguma_vez(conn, "uso_apps", ref):
+            uso = _uso_apps(conn, 7)
+            if uso["apps"]:
+                lista = ", ".join(f"{a['app']} {a['texto']}" for a in uso["apps"][:4])
+                avisos.append(("uso_apps", ref, "Sua semana no celular", f"Semana no celular: {lista}."))
+    return avisos
+
+
 def verificar_e_notificar():
     """Roda as verificacoes proativas e manda pra quem tiver canal configurado
     (push web e/ou Telegram) - cada tipo de aviso so dispara uma vez por dia
@@ -2286,6 +2393,7 @@ def verificar_e_notificar():
 
     avisos.extend(_avisos_assistente_vida(conn, datetime.now()))
     avisos.extend(_avisos_fase2(conn, datetime.now()))
+    avisos.extend(_avisos_fase3(conn, datetime.now()))
 
     # Fechamento ativo do dia (21h, uma hora antes da hora_de_dormir) - manda
     # o fechamento sozinho em vez de esperar o Alex abrir a aba Painel.
@@ -3968,6 +4076,267 @@ def atalho_local():
     return jsonify({"mensagem": mensagem})
 
 
+# ---- Assistente de vida (BRIEFING.md, Fase 3) ----
+
+@app.route("/api/aprender", methods=["GET"])
+def aprender():
+    hoje = date.today()
+    conn = get_db()
+    resultado = []
+    for a in list_aprender(conn):
+        base = a["ultima_vez"] or a["criado_em"][:10]
+        resultado.append({**a, "dias_parado": (hoje - date.fromisoformat(base)).days})
+    conn.close()
+    return jsonify(resultado)
+
+
+def _criar_aprender(conn, tema, nota) -> dict:
+    tema = _texto_curto(tema, 80)
+    if not tema:
+        return {"erro": "informe o tema"}
+    return {"ok": True, "id": create_aprender(conn, tema, _texto_curto(nota, 300))}
+
+
+@app.route("/api/aprender", methods=["POST"])
+def criar_aprender_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _criar_aprender(conn, body.get("tema"), body.get("nota"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/aprender/<int:aprender_id>/<acao>", methods=["POST"])
+def marcar_aprender_rota(aprender_id, acao):
+    campo = {"retomei": "ultima_vez", "concluido": "concluido_em"}.get(acao)
+    if not campo:
+        return jsonify({"error": "acao invalida"}), 404
+    conn = get_db()
+    ok = marcar_aprender(conn, aprender_id, campo, date.today().isoformat())
+    if ok:
+        _marcar_atividade(conn)
+        conn.commit()
+    conn.close()
+    if not ok:
+        return jsonify({"error": "tema nao encontrado"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/aprender/<int:aprender_id>", methods=["DELETE"])
+def apagar_aprender(aprender_id):
+    conn = get_db()
+    delete_aprender(conn, aprender_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _salvar_link(conn, url) -> dict:
+    """Valida, tenta ler a pagina e resumir. Link que nao deu pra ler fica
+    salvo mesmo assim (so sem resumo) - o importante e nao perder o link."""
+    try:
+        url = leitura.validar_url(url)
+    except leitura.LinkInvalido as e:
+        return {"erro": str(e)}
+    titulo, resumo, aviso = None, None, None
+    try:
+        pagina = leitura.extrair(leitura.baixar_pagina(url))
+        titulo = pagina["titulo"]
+        if len(pagina["texto"]) >= 80:
+            resultado, erro = _call_claude(claude_client.resumir_link, titulo, pagina["texto"])
+            if not erro and isinstance(resultado[0], str):
+                resumo = resultado[0][:2000]
+                _log_usage(conn, resultado[1])
+    except (requests.RequestException, leitura.LinkInvalido, UnicodeError):
+        aviso = "Nao consegui ler a pagina agora - o link ficou salvo."
+    if resumo is None and aviso is None:
+        aviso = "Salvei o link, mas nao deu pra resumir."
+    salvo_id = create_salvo(conn, url, titulo, resumo)
+    return {"ok": True, "id": salvo_id, "titulo": titulo, "resumo": resumo, "aviso": aviso}
+
+
+@app.route("/api/salvos", methods=["GET"])
+def salvos():
+    conn = get_db()
+    resultado = list_salvos(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/salvos", methods=["POST"])
+def salvar_link_rota():
+    conn = get_db()
+    resultado = _salvar_link(conn, _corpo_json().get("url"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/salvos/<int:salvo_id>/lido", methods=["POST"])
+def salvo_lido(salvo_id):
+    conn = get_db()
+    ok = marcar_salvo_lido(conn, salvo_id)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "link nao encontrado"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/salvos/<int:salvo_id>", methods=["DELETE"])
+def apagar_salvo(salvo_id):
+    conn = get_db()
+    delete_salvo(conn, salvo_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _dias_com_rotina(conn, momento: str, inicio: date, fim: date) -> int:
+    """Dias no periodo em que pelo menos metade da rotina foi marcada."""
+    total = len(list_rotina_itens(conn, momento))
+    if not total:
+        return 0
+    rows = conn.execute(
+        """SELECT m.data, COUNT(*) AS n FROM rotina_marcacoes m
+           JOIN rotina_itens i ON i.id = m.item_id
+           WHERE i.momento = ? AND m.data BETWEEN ? AND ? GROUP BY m.data""",
+        (momento, inicio.isoformat(), fim.isoformat()),
+    ).fetchall()
+    return sum(1 for r in rows if r["n"] * 2 >= total)
+
+
+def _fatos_periodo(conn, inicio: date, fim: date) -> dict:
+    ini, fim_iso = inicio.isoformat(), fim.isoformat()
+    dias = (fim - inicio).days + 1
+    tarefas = conn.execute(
+        "SELECT COUNT(*) AS n FROM tasks WHERE date(completed_at) BETWEEN ? AND ?", (ini, fim_iso)
+    ).fetchone()["n"]
+    treinos = conn.execute("SELECT COUNT(*) AS n FROM treinos WHERE data BETWEEN ? AND ?", (ini, fim_iso)).fetchone()["n"]
+    copos = conn.execute(
+        "SELECT COUNT(*) AS n FROM hidratacao_registros WHERE data BETWEEN ? AND ?", (ini, fim_iso)
+    ).fetchone()["n"]
+    sono = conn.execute(
+        "SELECT AVG(sono_horas) AS m, COUNT(sono_horas) AS n FROM saude_dados WHERE data BETWEEN ? AND ?",
+        (ini, fim_iso),
+    ).fetchone()
+    checkins = conn.execute(
+        "SELECT AVG(energia) AS e, AVG(humor) AS h, COUNT(*) AS n FROM checkins WHERE data BETWEEN ? AND ?",
+        (ini, fim_iso),
+    ).fetchone()
+    gasto = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE tipo = 'real' AND date(created_at) BETWEEN ? AND ?",
+        (ini, fim_iso),
+    ).fetchone()["t"]
+
+    def rotulo(media):
+        return vida.ROTULO_CHECKIN.get(round(media)) if media is not None else None
+
+    return {
+        "dias": dias,
+        "tarefas_feitas": tarefas,
+        "treinos": treinos,
+        "treinos_por_semana": round(treinos / (dias / 7), 1) if dias >= 7 else treinos,
+        "rotina_manha_dias": _dias_com_rotina(conn, "manha", inicio, fim),
+        "rotina_noite_dias": _dias_com_rotina(conn, "noite", inicio, fim),
+        "copos_por_dia": round(copos / dias, 1),
+        "sono_medio": round(sono["m"], 1) if sono["n"] else None,
+        "checkins": checkins["n"],
+        "energia_media": rotulo(checkins["e"]),
+        "humor_medio": rotulo(checkins["h"]),
+        "gasto_total": round(gasto, 2),
+    }
+
+
+@app.route("/api/progresso", methods=["GET"])
+def progresso():
+    dias = min(max(request.args.get("dias", default=30, type=int), 7), 90)
+    hoje = date.today()
+    conn = get_db()
+    fatos = _fatos_periodo(conn, hoje - timedelta(days=dias - 1), hoje)
+    metas_lista = [
+        {"titulo": g["titulo"], "pct": min(100, round(100 * g["valor_guardado"] / g["valor_alvo"])) if g["valor_alvo"] else 0}
+        for g in list_goals(conn)
+    ]
+    conn.close()
+    return jsonify({**fatos, "metas": metas_lista})
+
+
+def _texto_revisao(mes_nome: str, fatos: dict) -> str:
+    partes = [f"{fatos['tarefas_feitas']} tarefa(s) feita(s)"]
+    if fatos["treinos"]:
+        partes.append(f"{fatos['treinos']} treino(s)")
+    if fatos["rotina_manha_dias"]:
+        partes.append(f"rotina da manha em {fatos['rotina_manha_dias']} dia(s)")
+    if fatos["sono_medio"] is not None:
+        partes.append(f"sono medio de {fatos['sono_medio']}h")
+    if fatos["humor_medio"]:
+        partes.append(f"humor mais pra '{fatos['humor_medio']}'")
+    if fatos["gasto_total"]:
+        partes.append(f"R$ {fatos['gasto_total']:.2f} de gasto anotado")
+    return f"{mes_nome.capitalize()} fechou: " + ", ".join(partes) + "."
+
+
+def _revisao_do_mes(conn, primeiro: date, ultimo: date) -> dict:
+    fatos = _fatos_periodo(conn, primeiro, ultimo)
+    nome = vida.NOMES_MES[primeiro.month - 1]
+    return {"mes": primeiro.strftime("%Y-%m"), "nome": nome, **fatos, "texto": _texto_revisao(nome, fatos)}
+
+
+@app.route("/api/revisao-mensal", methods=["GET"])
+def revisao_mensal():
+    mes = request.args.get("mes")
+    if mes:
+        try:
+            primeiro = date.fromisoformat(f"{mes}-01")
+        except ValueError:
+            return jsonify({"error": "mes deve ser AAAA-MM"}), 400
+        proximo = date(primeiro.year + (primeiro.month == 12), primeiro.month % 12 + 1, 1)
+        ultimo = proximo - timedelta(days=1)
+    else:
+        primeiro, ultimo = vida.mes_anterior(date.today())
+    conn = get_db()
+    resultado = _revisao_do_mes(conn, primeiro, ultimo)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/atalho/app", methods=["POST"])
+def atalho_app():
+    """Automacao 'App abriu/fechou' do Atalhos (uma por app) - o Screen Time
+    nao e legivel pelo Atalhos, entao o tempo de uso e aproximado por aqui."""
+    if not _token_atalho_valido():
+        return jsonify({"error": "token invalido"}), 401
+    body = _corpo_json()
+    nome = _texto_curto(body.get("app"), 40)
+    evento = body.get("evento")
+    if not nome or evento not in ("abriu", "fechou"):
+        return jsonify({"error": "mande app e evento ('abriu' ou 'fechou')"}), 400
+    conn = get_db()
+    registrar_evento_app(conn, nome, evento, datetime.now().isoformat(timespec="seconds"))
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _uso_apps(conn, dias: int) -> dict:
+    desde = (datetime.now() - timedelta(days=dias)).isoformat(timespec="seconds")
+    minutos = vida.uso_de_apps(list_eventos_app(conn, desde))
+    return {
+        "dias": dias,
+        "apps": [{"app": a, "minutos": m, "texto": vida.formatar_minutos(m)} for a, m in minutos.items()],
+        "total_minutos": sum(minutos.values()),
+    }
+
+
+@app.route("/api/uso-apps", methods=["GET"])
+def uso_apps():
+    dias = min(max(request.args.get("dias", default=7, type=int), 1), 30)
+    conn = get_db()
+    resultado = _uso_apps(conn, dias)
+    conn.close()
+    return jsonify(resultado)
+
+
 @app.route("/api/uso/total", methods=["GET"])
 def uso_total():
     conn = get_db()
@@ -4128,10 +4497,17 @@ def bancos_conectar_finalizar():
 
 @app.route("/api/metas", methods=["GET"])
 def metas():
+    hoje = date.today()
     conn = get_db()
-    goals = list_goals(conn)
+    resultado = []
+    for g in list_goals(conn):
+        meta = _calculo_meta(g)
+        meta["previsao"] = vida.previsao_meta(
+            g["valor_alvo"], g["valor_guardado"], list_goal_deposits(conn, g["id"]), hoje
+        )
+        resultado.append(meta)
     conn.close()
-    return jsonify([_calculo_meta(g) for g in goals])
+    return jsonify(resultado)
 
 
 @app.route("/api/metas/<int:goal_id>/guardar", methods=["POST"])

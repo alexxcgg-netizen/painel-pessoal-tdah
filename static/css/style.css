@@ -3101,7 +3101,9 @@ li.item.item-planejado {
 #manutencao-btn,
 #viagem-nova-btn,
 #lugar-btn,
-#mensagem-btn {
+#mensagem-btn,
+#aprender-btn,
+#salvo-btn {
   flex: 1 0 100%;
   padding: 0.6rem;
   border-radius: var(--radius-sm);
@@ -3680,4 +3682,85 @@ body.modo-essencial #essencial-box {
   flex-wrap: wrap;
   justify-content: flex-end;
   margin-left: auto;
+}
+
+/* ---- Assistente de vida, Fase 3 ---- */
+
+.progresso-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.progresso-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.progresso-valor {
+  font-family: var(--font-numeros);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.progresso-rotulo {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.progresso-metas,
+.uso-apps {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.uso-apps li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.fim-mes-linha {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.salvo-resumo {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+.salvo-link {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--accent-text, var(--accent));
+  overflow-wrap: anywhere;
+}
+
+#aprender-form input[type="text"],
+#salvo-form input[type="text"] {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.item.lido .item-titulo {
+  color: var(--text-faint);
+}
+
+#uso-apps-box[hidden],
+#fim-mes-box[hidden] {
+  display: none !important;
 }

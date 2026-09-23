@@ -422,6 +422,31 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now')),
             respondido_em TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS aprender (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tema TEXT NOT NULL,
+            nota TEXT,
+            ultima_vez TEXT,
+            concluido_em TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS salvos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT NOT NULL,
+            titulo TEXT,
+            resumo TEXT,
+            lido_em TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS app_eventos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app TEXT NOT NULL,
+            evento TEXT NOT NULL,
+            em TEXT NOT NULL
+        );
         """
     )
     conn.commit()
@@ -479,6 +504,7 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_viagem_itens_viagem_id ON viagem_itens(viagem_id);
         CREATE INDEX IF NOT EXISTS idx_compras_pendentes ON compras(comprado_em, item_normalizado);
         CREATE INDEX IF NOT EXISTS idx_responder_respondido_em ON responder(respondido_em);
+        CREATE INDEX IF NOT EXISTS idx_app_eventos_em ON app_eventos(em);
         """
     )
     conn.commit()
@@ -1703,3 +1729,66 @@ def list_responder_pendentes(conn) -> list[dict]:
 def marcar_respondido(conn, responder_id: int):
     conn.execute("UPDATE responder SET respondido_em = datetime('now') WHERE id = ?", (responder_id,))
     conn.commit()
+
+
+
+# ---- Assistente de vida (BRIEFING.md, Fase 3) ----
+
+def create_aprender(conn, tema: str, nota: str | None) -> int:
+    cur = conn.execute("INSERT INTO aprender (tema, nota) VALUES (?, ?)", (tema, nota))
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_aprender(conn) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM aprender WHERE concluido_em IS NULL ORDER BY COALESCE(ultima_vez, substr(criado_em, 1, 10))"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def marcar_aprender(conn, aprender_id: int, campo: str, data: str) -> bool:
+    if campo not in ("ultima_vez", "concluido_em"):
+        raise ValueError(campo)
+    cur = conn.execute(f"UPDATE aprender SET {campo} = ? WHERE id = ?", (data, aprender_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def delete_aprender(conn, aprender_id: int):
+    conn.execute("DELETE FROM aprender WHERE id = ?", (aprender_id,))
+    conn.commit()
+
+
+def create_salvo(conn, url: str, titulo: str | None, resumo: str | None) -> int:
+    cur = conn.execute("INSERT INTO salvos (url, titulo, resumo) VALUES (?, ?, ?)", (url, titulo, resumo))
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_salvos(conn, limite: int = 30) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM salvos ORDER BY (lido_em IS NOT NULL), id DESC LIMIT ?", (limite,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def marcar_salvo_lido(conn, salvo_id: int) -> bool:
+    cur = conn.execute("UPDATE salvos SET lido_em = datetime('now') WHERE id = ?", (salvo_id,))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def delete_salvo(conn, salvo_id: int):
+    conn.execute("DELETE FROM salvos WHERE id = ?", (salvo_id,))
+    conn.commit()
+
+
+def registrar_evento_app(conn, app: str, evento: str, em: str):
+    conn.execute("INSERT INTO app_eventos (app, evento, em) VALUES (?, ?, ?)", (app, evento, em))
+    conn.commit()
+
+
+def list_eventos_app(conn, desde: str) -> list[dict]:
+    rows = conn.execute("SELECT app, evento, em FROM app_eventos WHERE em >= ? ORDER BY em", (desde,)).fetchall()
+    return [dict(r) for r in rows]

@@ -396,3 +396,113 @@ def normalizar_item_compra(texto: str | None) -> str:
         if t.startswith(prefixo):
             t = t[len(prefixo):]
     return t.strip()
+
+
+# ---- Fase 3 ----
+
+_PALAVRAS_BUROCRACIA = {
+    "cnh", "passaporte", "irpf", "licenca", "cma", "habilitacao", "rg", "ipva", "licenciamento",
+    "certificado", "visto",
+}
+_FRASES_BUROCRACIA = (
+    "imposto de renda", "declaracao do ir", "declaracao de ir", "exame medico", "titulo de eleitor",
+)
+
+
+def eh_burocracia(titulo: str | None) -> bool:
+    """Prazo de documento/imposto: vale avisar com 30 dias (da tempo de agendar),
+    nao so na ultima semana como uma data qualquer. Palavra inteira ("rg" nao
+    casa com "Jorge", e "ir" sozinho nao entra - e verbo)."""
+    texto = normalizar_nome(titulo)
+    palavras = set(re.findall(r"[a-z0-9]+", texto))
+    return bool(palavras & _PALAVRAS_BUROCRACIA) or any(f in texto for f in _FRASES_BUROCRACIA)
+
+
+def projecao_fim_do_mes(renda_mes: float, gasto_real_mes: float, contas_pendentes: float, hoje: date) -> dict:
+    """Quanto deve sobrar no fim do mes se o ritmo de gasto ate agora continuar,
+    ja descontando as contas pessoais que ainda vao vencer no mes. Estimativa
+    simples e explicada, nao previsao magica."""
+    dias_no_mes = monthrange(hoje.year, hoje.month)[1]
+    dias_passados = hoje.day
+    dias_restantes = dias_no_mes - dias_passados
+    ritmo_diario = gasto_real_mes / dias_passados if dias_passados else 0.0
+    gasto_projetado = gasto_real_mes + ritmo_diario * dias_restantes + contas_pendentes
+    return {
+        "ritmo_diario": round(ritmo_diario, 2),
+        "dias_restantes": dias_restantes,
+        "contas_pendentes": round(contas_pendentes, 2),
+        "gasto_projetado": round(gasto_projetado, 2),
+        "sobra_projetada": round(renda_mes - gasto_projetado, 2),
+    }
+
+
+def previsao_meta(valor_alvo: float, valor_guardado: float, depositos: list[dict], hoje: date) -> dict | None:
+    """Quando a meta bate no ritmo dos depositos dos ultimos 90 dias. None se
+    nao da pra dizer (sem deposito recente, ou ja bateu)."""
+    falta = valor_alvo - valor_guardado
+    if falta <= 0:
+        return None
+    inicio = hoje - timedelta(days=90)
+    total = 0.0
+    primeiro = None
+    for d in depositos:
+        try:
+            quando = datetime.fromisoformat(d["criado_em"]).date()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if quando < inicio or d.get("valor", 0) <= 0:
+            continue
+        total += d["valor"]
+        primeiro = quando if primeiro is None or quando < primeiro else primeiro
+    if total <= 0 or primeiro is None:
+        return None
+    dias_janela = max((hoje - primeiro).days, 30)
+    por_dia = total / dias_janela
+    dias_ate = int(falta / por_dia) + 1
+    return {"ritmo_mensal": round(por_dia * 30, 2), "data_prevista": (hoje + timedelta(days=dias_ate)).isoformat()}
+
+
+def uso_de_apps(eventos: list[dict], limite_sessao_min: int = 180) -> dict[str, int]:
+    """Minutos por app a partir dos eventos 'abriu'/'fechou' do Atalhos (em
+    ordem de tempo). Abriu sem fechou, ou sessao absurda (> 3h, provavelmente
+    um 'fechou' perdido), nao conta - melhor subestimar do que inventar."""
+    abertos: dict[str, datetime] = {}
+    total: dict[str, float] = {}
+    for e in sorted(eventos, key=lambda x: x["em"]):
+        try:
+            quando = datetime.fromisoformat(e["em"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        app = e.get("app")
+        if not app:
+            continue
+        if e.get("evento") == "abriu":
+            abertos[app] = quando
+        elif e.get("evento") == "fechou" and app in abertos:
+            minutos = (quando - abertos.pop(app)).total_seconds() / 60
+            if 0 <= minutos <= limite_sessao_min:
+                total[app] = total.get(app, 0) + minutos
+    return {app: round(m) for app, m in sorted(total.items(), key=lambda kv: -kv[1]) if round(m) > 0}
+
+
+def formatar_minutos(minutos: int) -> str:
+    horas, resto = divmod(int(minutos), 60)
+    if horas and resto:
+        return f"{horas}h{resto:02d}"
+    return f"{horas}h" if horas else f"{resto}min"
+
+
+def taxa(feitos: int, total: int) -> int | None:
+    return round(100 * feitos / total) if total else None
+
+
+def mes_anterior(hoje: date) -> tuple[date, date]:
+    """(primeiro dia, ultimo dia) do mes anterior a `hoje`."""
+    ultimo = hoje.replace(day=1) - timedelta(days=1)
+    return ultimo.replace(day=1), ultimo
+
+
+NOMES_MES = (
+    "janeiro", "fevereiro", "marco", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+)

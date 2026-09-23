@@ -5,6 +5,40 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (21) - BRIEFING.md Fase 3 (dinheiro, crescimento, burocracia)
+
+Fase 3 do `BRIEFING.md`. Cofre de documentos e CalDAV ficaram de fora a pedido do Alex.
+
+- **Projecao do fim do mes** (`vida.projecao_fim_do_mes`): o "quanto sobra" da aba Gastos ganha
+  uma linha "No ritmo de R$ X/dia, deve sobrar R$ Y no fim do mes (com R$ Z de contas que ainda
+  vencem)". Conta = gasto real ate hoje + ritmo diario x dias restantes + contas pessoais que
+  ainda vencem no mes. Estimativa explicada, nao previsao magica.
+- **Meta com previsao** (`vida.previsao_meta`): pelos depositos dos ultimos 90 dias, "No ritmo
+  atual (R$ X/mes), bate em DD/MM/AAAA". Sem deposito recente, nao inventa data.
+- **Quero aprender** (`aprender`): lista de temas com nota; domingo 10h, se algum esta parado ha
+  7+ dias, um push "20 minutos hoje?". Botoes "mexi hoje" e "aprendi". Tool `registrar_aprender`.
+- **Salvos pra ver depois** (`salvos`, `leitura.py`): cola o link, o servidor le a pagina e o Haiku
+  resume em 3 pontos. So busca http/https de endereco publico (nunca rede interna/localhost,
+  checado tambem a cada redirecionamento, no maximo 3), pagina ate 1,5MB. Se nao der pra ler ou
+  resumir, o link fica salvo mesmo assim. Tool `salvar_link`.
+- **Seu progresso** (`/api/progresso?dias=30`): so fatos, sem nota - tarefas feitas, dias com
+  rotina da manha, treinos por semana, copos de agua por dia, sono medio, humor mais comum, % das
+  metas.
+- **Revisao mensal** (`/api/revisao-mensal`): dia 1 as 9h, push com o resumo do mes anterior no
+  mesmo tom ("Agosto fechou: 42 tarefas feitas, 11 treinos, ..."). Tambem aparece na aba Vida.
+- **Burocracia**: lembrete com cara de prazo de documento (CNH, passaporte, IR, IPVA, CMA,
+  licenca, RG...) avisa com 30 dias de antecedencia, nao so na ultima semana. Casamento por
+  palavra inteira ("ir" nao pega "vou ir"; "rg" nao pega "Jorge"). O chat tambem foi orientado a
+  registrar esses prazos como lembrete.
+- **Aviacao**: validade de licenca/CMA entra pela burocracia; novo push "Como foi o voo?" 2h depois
+  da decolagem (ou 19h sem horario) se o voo do dia ainda nao tem diario.
+- **Uso do celular** (`POST /api/atalho/app`, token `PAINEL_ATALHOS_TOKEN`): automacao "App
+  abriu/fechou" do Atalhos (uma por app) - o Screen Time nao e legivel pelo Atalhos. Sessao sem
+  "fechou" ou com mais de 3h nao conta (melhor subestimar). Domingo 19h, push com a semana no
+  celular; aba Vida mostra os 7 dias.
+- Visual: link salvo mostra so o dominio embaixo do titulo; campos de aprender/salvos ocupam a
+  largura toda. Cache do service worker v7.
+
 ## 2026-09-23 (20) - BRIEFING.md Fase 2 + correcoes da revisao da Fase 1
 
 Fase 2 inteira do `BRIEFING.md` (saude, localizacao, viagem, casa, comunicacao) e as correcoes

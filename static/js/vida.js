@@ -803,6 +803,145 @@ $("#mensagem-form").addEventListener("submit", async (e) => {
   });
 });
 
+// ---- Fase 3: quero aprender ----
+
+async function loadAprender() {
+  const itens = await apiFetch("/api/aprender");
+  if (!itens) return;
+  const lista = $("#lista-aprender");
+  lista.innerHTML = "";
+  $("#aprender-vazio").hidden = itens.length > 0;
+  itens.forEach((a) => {
+    const parado = a.dias_parado === 0 ? "mexeu hoje" : `parado ha ${a.dias_parado} dia(s)`;
+    lista.appendChild(
+      itemSimples(a.tema, [a.nota, parado], [
+        botaoAcao("mexi hoje", async () => {
+          const ok = await jsonPost(`/api/aprender/${a.id}/retomei`);
+          if (ok) loadAprender();
+          return ok;
+        }),
+        botaoAcao("aprendi", async () => {
+          const ok = await jsonPost(`/api/aprender/${a.id}/concluido`);
+          if (ok) loadAprender();
+          return ok;
+        }, false),
+      ], a.dias_parado >= 14 ? "item-atencao" : "")
+    );
+  });
+}
+
+ligarForm("#aprender-form", "#aprender-btn", "Adicionar", () => {
+  const tema = $("#aprender-tema").value.trim();
+  return tema ? { tema } : null;
+}, "/api/aprender", loadAprender);
+
+// ---- Fase 3: links salvos ----
+
+async function loadSalvos() {
+  const itens = await apiFetch("/api/salvos");
+  if (!itens) return;
+  const lista = $("#lista-salvos");
+  lista.innerHTML = "";
+  $("#salvos-vazio").hidden = itens.length > 0;
+  itens.forEach((sv) => {
+    const acoes = [];
+    if (!sv.lido_em) {
+      acoes.push(
+        botaoAcao("vi", async () => {
+          const ok = await jsonPost(`/api/salvos/${sv.id}/lido`);
+          if (ok) loadSalvos();
+          return ok;
+        })
+      );
+    }
+    acoes.push((el) => botaoApagar(`/api/salvos/${sv.id}`, el));
+    const li = itemSimples(sv.titulo || sv.url, [], acoes, sv.lido_em ? "lido" : "");
+    let host = sv.url;
+    try {
+      host = new URL(sv.url).hostname.replace(/^www\./, "");
+    } catch (_) {}
+    const link = criarEl("a", "salvo-link", sv.titulo ? host : sv.url);
+    link.href = sv.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    li.querySelector(".item-linha > div").appendChild(link);
+    if (sv.resumo) li.appendChild(criarEl("p", "salvo-resumo", sv.resumo));
+    lista.appendChild(li);
+  });
+}
+
+$("#salvo-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const url = $("#salvo-url").value.trim();
+  if (!url) return;
+  const btn = $("#salvo-btn");
+  setBotaoCarregando(btn, true, "lendo...");
+  const r = await jsonPost("/api/salvos", { url });
+  setBotaoCarregando(btn, false, "Salvar e resumir");
+  if (!r) return;
+  $("#salvo-url").value = "";
+  if (r.aviso) mostrarErro(r.aviso);
+  loadSalvos();
+});
+
+// ---- Fase 3: progresso, revisao do mes e uso do celular ----
+
+async function loadProgresso() {
+  const p = await apiFetch("/api/progresso?dias=30");
+  if (p) {
+    const grid = $("#progresso-grid");
+    grid.innerHTML = "";
+    [
+      [p.tarefas_feitas, "tarefas feitas"],
+      [`${p.rotina_manha_dias}/${p.dias}`, "dias com rotina da manha"],
+      [p.treinos_por_semana, "treinos por semana"],
+      [p.copos_por_dia, "copos de agua por dia"],
+      [p.sono_medio != null ? `${p.sono_medio}h` : "-", "sono medio"],
+      [p.humor_medio || "-", "humor mais comum"],
+    ].forEach(([valor, rotulo]) => {
+      const item = criarEl("div", "progresso-item");
+      item.appendChild(criarEl("span", "progresso-valor", String(valor)));
+      item.appendChild(criarEl("span", "progresso-rotulo", rotulo));
+      grid.appendChild(item);
+    });
+    const metas = $("#progresso-metas");
+    metas.innerHTML = "";
+    p.metas.forEach((m) => metas.appendChild(criarEl("li", null, `${m.titulo}: ${m.pct}%`)));
+  }
+  const revisao = await apiFetch("/api/revisao-mensal");
+  const revEl = $("#revisao-mes");
+  revEl.hidden = !revisao;
+  if (revisao) revEl.textContent = revisao.texto;
+
+  const uso = await apiFetch("/api/uso-apps?dias=7");
+  $("#uso-apps-box").hidden = !uso || !uso.apps.length;
+  if (uso && uso.apps.length) {
+    const lista = $("#lista-uso-apps");
+    lista.innerHTML = "";
+    uso.apps.forEach((a) => {
+      const li = criarEl("li");
+      li.appendChild(criarEl("span", null, a.app));
+      li.appendChild(criarEl("span", "progresso-rotulo", a.texto));
+      lista.appendChild(li);
+    });
+  }
+}
+
+// ---- Fase 3: fim do mes (aba Gastos) ----
+
+async function loadFimMes() {
+  const s = await apiFetch("/api/sobra-do-mes");
+  if (!s || !s.projecao) return;
+  const semDado = !s.renda_mes && !s.gasto_mes;
+  $("#fim-mes-box").hidden = semDado;
+  if (semDado) return;
+  const p = s.projecao;
+  $("#fim-mes-dias").textContent = `faltam ${p.dias_restantes} dia(s)`;
+  $("#fim-mes-agora").textContent = `Agora: ${fmtMoeda(s.renda_mes)} entrou, ${fmtMoeda(s.gasto_mes)} saiu - sobra ${fmtMoeda(s.sobra)}.`;
+  const contas = p.contas_pendentes ? ` (com ${fmtMoeda(p.contas_pendentes)} de contas que ainda vencem)` : "";
+  $("#fim-mes-projecao").textContent = `No ritmo de ${fmtMoeda(p.ritmo_diario)}/dia, deve sobrar ${fmtMoeda(p.sobra_projetada)} no fim do mes${contas}.`;
+}
+
 // ---- Carga inicial + recarga ao trocar de aba ----
 
 function loadVidaHoje() {
@@ -822,12 +961,16 @@ function loadVidaAba() {
   loadManutencoes();
   loadViagens();
   loadLugares();
+  loadAprender();
+  loadSalvos();
+  loadProgresso();
 }
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     if (btn.dataset.tab === "hoje") loadVidaHoje();
     if (btn.dataset.tab === "vida") loadVidaAba();
+    if (btn.dataset.tab === "gastos") loadFimMes();
   });
 });
 
