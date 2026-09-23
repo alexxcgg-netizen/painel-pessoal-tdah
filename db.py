@@ -614,6 +614,68 @@ def init_db():
             notificado INTEGER NOT NULL DEFAULT 0,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        -- Fase 6 (US-E12): modulo Habitos NOVO, separado de rotina_itens/
+        -- rotina_marcacoes (aquela e a Rotina guiada manha/noite - decisao
+        -- do Alex de nao misturar os dois conceitos). frequencia_tipo:
+        -- 'diario' (todo dia conta), 'dias_semana' (dias fixos, ver
+        -- dias_semana em CSV "0,2,4" com 0=segunda) ou 'n_vezes_semana'
+        -- ("qualquer dia conta" ate bater vezes_por_semana).
+        CREATE TABLE IF NOT EXISTS habitos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            meta TEXT,
+            frequencia_tipo TEXT NOT NULL DEFAULT 'diario',
+            dias_semana TEXT,
+            vezes_por_semana INTEGER,
+            horario TEXT,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS habito_marcacoes (
+            data TEXT NOT NULL,
+            habito_id INTEGER NOT NULL,
+            marcado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (data, habito_id)
+        );
+
+        -- Fase 6 (US-E13): modulo Projetos generico (nao e Viagens - aquele
+        -- modulo continua separado; ver converter_viagem_para_projeto em
+        -- vida.py pro card reaproveitar o mesmo formato visual sem migrar
+        -- dado nenhum). status e augmentado por vida.status_projeto na
+        -- leitura (nunca gravado errado aqui: so 'pausado' e escolha manual,
+        -- 'no_rumo'/'atrasado' sao calculados a partir do prazo).
+        CREATE TABLE IF NOT EXISTS projetos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            prazo_final TEXT,
+            status TEXT NOT NULL DEFAULT 'no_rumo',
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS projeto_etapas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            projeto_id INTEGER NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
+            texto TEXT NOT NULL,
+            data_prevista TEXT,
+            posicao INTEGER NOT NULL DEFAULT 0,
+            feita INTEGER NOT NULL DEFAULT 0,
+            feita_em TEXT
+        );
+
+        -- Fase 6 (US-E14): fonte da verdade de todo evento que o PAINEL criou
+        -- no calendario "Painel" do iCloud - caldav_client.apagar_evento so
+        -- apaga um UID que exista aqui (decisao do Alex: nunca tocar evento
+        -- que o painel nao criou, mesmo que esteja no mesmo calendario).
+        CREATE TABLE IF NOT EXISTS eventos_criados (
+            uid TEXT PRIMARY KEY,
+            titulo TEXT NOT NULL,
+            inicio TEXT NOT NULL,
+            fim TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -644,6 +706,11 @@ def init_db():
     # pra sugerir tarefas compativeis com o nivel de energia atual (ver
     # vida.tarefas_compativeis_com_energia). Sem valor = tratado como 'media'.
     _garantir_coluna(conn, "tasks", "esforco", "TEXT")
+    # Fase 6 (US-E15): limite manual do cartao (Open Finance nao manda isso) -
+    # so faz sentido pra tipo='cartao', mas a coluna e generica em
+    # bank_accounts (mesmo padrao de "saldo", que tambem so e preenchido
+    # quando existe) pra nao precisar de tabela nova so pra um numero.
+    _garantir_coluna(conn, "bank_accounts", "limite", "REAL")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
@@ -687,6 +754,8 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_app_eventos_em ON app_eventos(em);
         CREATE INDEX IF NOT EXISTS idx_capture_idempotency_criado_em ON capture_idempotency(criado_em);
         CREATE INDEX IF NOT EXISTS idx_api_usage_created_at ON api_usage(created_at);
+        CREATE INDEX IF NOT EXISTS idx_habito_marcacoes_habito_id ON habito_marcacoes(habito_id);
+        CREATE INDEX IF NOT EXISTS idx_projeto_etapas_projeto_id ON projeto_etapas(projeto_id);
         """
     )
     conn.commit()
@@ -2677,3 +2746,225 @@ def registrar_evento_app(conn, app: str, evento: str, em: str):
 def list_eventos_app(conn, desde: str) -> list[dict]:
     rows = conn.execute("SELECT app, evento, em FROM app_eventos WHERE em >= ? ORDER BY em", (desde,)).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---- Fase 6, US-E12: modulo Habitos (novo, separado da Rotina guiada) -----
+
+def create_habito(
+    conn,
+    nome: str,
+    meta: str | None,
+    frequencia_tipo: str,
+    dias_semana: str | None,
+    vezes_por_semana: int | None,
+    horario: str | None,
+) -> int:
+    cur = conn.execute(
+        """INSERT INTO habitos (nome, meta, frequencia_tipo, dias_semana, vezes_por_semana, horario)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (nome, meta, frequencia_tipo, dias_semana, vezes_por_semana, horario),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_habitos(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM habitos WHERE ativo = 1 ORDER BY criado_em, id").fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_habito(conn, habito_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM habitos WHERE id = ? AND ativo = 1", (habito_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def buscar_habito_por_nome(conn, nome: str) -> dict | None:
+    """Igual buscar_conta_por_nome: correspondencia parcial sem diferenciar
+    maiusculas, pra chat tool (marcar_habito) aceitar texto livre em vez de
+    exigir o id exato."""
+    nome = (nome or "").strip()
+    if not nome:
+        return None
+    row = conn.execute(
+        "SELECT * FROM habitos WHERE ativo = 1 AND nome LIKE ? ORDER BY id ASC LIMIT 1", (f"%{nome}%",)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_habito(conn, habito_id: int):
+    conn.execute("DELETE FROM habito_marcacoes WHERE habito_id = ?", (habito_id,))
+    conn.execute("DELETE FROM habitos WHERE id = ?", (habito_id,))
+    conn.commit()
+
+
+def habito_marcado(conn, data: str, habito_id: int) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM habito_marcacoes WHERE data = ? AND habito_id = ?", (data, habito_id)
+    ).fetchone()
+    return row is not None
+
+
+def alternar_habito_dia(conn, data: str, habito_id: int) -> bool:
+    """Marca/desmarca o habito no dia informado - devolve o novo estado
+    (True = ficou marcado). Mesmo padrao de alternar_rotina_item."""
+    if habito_marcado(conn, data, habito_id):
+        conn.execute("DELETE FROM habito_marcacoes WHERE data = ? AND habito_id = ?", (data, habito_id))
+        conn.commit()
+        return False
+    conn.execute("INSERT INTO habito_marcacoes (data, habito_id) VALUES (?, ?)", (data, habito_id))
+    conn.commit()
+    return True
+
+
+def marcacoes_habito_no_periodo(conn, habito_id: int, inicio: str, fim: str) -> set[str]:
+    """Datas (AAAA-MM-DD) marcadas de um habito entre inicio e fim (inclusive) -
+    usado tanto pros 7 circulos da semana quanto pra contar quantas vezes na
+    semana atual (frequencia 'n_vezes_semana')."""
+    rows = conn.execute(
+        "SELECT data FROM habito_marcacoes WHERE habito_id = ? AND data BETWEEN ? AND ?",
+        (habito_id, inicio, fim),
+    ).fetchall()
+    return {r["data"] for r in rows}
+
+
+# ---- Fase 6, US-E13: modulo Projetos generico ------------------------------
+
+def create_projeto(conn, nome: str, prazo_final: str | None) -> int:
+    cur = conn.execute("INSERT INTO projetos (nome, prazo_final) VALUES (?, ?)", (nome, prazo_final))
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_projetos(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM projetos ORDER BY criado_em, id").fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_projeto(conn, projeto_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM projetos WHERE id = ?", (projeto_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def buscar_projeto_por_nome(conn, nome: str) -> dict | None:
+    nome = (nome or "").strip()
+    if not nome:
+        return None
+    row = conn.execute(
+        "SELECT * FROM projetos WHERE nome LIKE ? ORDER BY id ASC LIMIT 1", (f"%{nome}%",)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_projeto(conn, projeto_id: int):
+    conn.execute("DELETE FROM projeto_etapas WHERE projeto_id = ?", (projeto_id,))
+    conn.execute("DELETE FROM projetos WHERE id = ?", (projeto_id,))
+    conn.commit()
+
+
+def _tocar_projeto(conn, projeto_id: int):
+    conn.execute("UPDATE projetos SET atualizado_em = datetime('now') WHERE id = ?", (projeto_id,))
+
+
+def definir_status_projeto(conn, projeto_id: int, status: str) -> bool:
+    if status not in ("no_rumo", "atrasado", "pausado"):
+        return False
+    cur = conn.execute("UPDATE projetos SET status = ? WHERE id = ?", (status, projeto_id))
+    _tocar_projeto(conn, projeto_id)
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def adicionar_etapa_projeto(conn, projeto_id: int, texto: str, data_prevista: str | None) -> int | None:
+    if not get_projeto(conn, projeto_id):
+        return None
+    posicao = conn.execute(
+        "SELECT COALESCE(MAX(posicao), -1) + 1 AS p FROM projeto_etapas WHERE projeto_id = ?", (projeto_id,)
+    ).fetchone()["p"]
+    cur = conn.execute(
+        "INSERT INTO projeto_etapas (projeto_id, texto, data_prevista, posicao) VALUES (?, ?, ?, ?)",
+        (projeto_id, texto, data_prevista, posicao),
+    )
+    _tocar_projeto(conn, projeto_id)
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_etapas_projeto(conn, projeto_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM projeto_etapas WHERE projeto_id = ? ORDER BY posicao, id", (projeto_id,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def concluir_etapa_projeto(conn, etapa_id: int) -> int | None:
+    """Marca a etapa como feita (idempotente) - devolve o projeto_id pra quem
+    chamou poder recalcular %/status, ou None se a etapa nao existe."""
+    row = conn.execute("SELECT projeto_id FROM projeto_etapas WHERE id = ?", (etapa_id,)).fetchone()
+    if not row:
+        return None
+    conn.execute(
+        "UPDATE projeto_etapas SET feita = 1, feita_em = COALESCE(feita_em, datetime('now')) WHERE id = ?",
+        (etapa_id,),
+    )
+    _tocar_projeto(conn, row["projeto_id"])
+    conn.commit()
+    return row["projeto_id"]
+
+
+def apagar_etapa_projeto(conn, etapa_id: int) -> int | None:
+    row = conn.execute("SELECT projeto_id FROM projeto_etapas WHERE id = ?", (etapa_id,)).fetchone()
+    if not row:
+        return None
+    conn.execute("DELETE FROM projeto_etapas WHERE id = ?", (etapa_id,))
+    _tocar_projeto(conn, row["projeto_id"])
+    conn.commit()
+    return row["projeto_id"]
+
+
+# ---- Fase 6, US-E14: eventos criados pelo painel no calendario "Painel" ---
+
+def registrar_evento_criado(conn, uid: str, titulo: str, inicio: str, fim: str):
+    conn.execute(
+        "INSERT INTO eventos_criados (uid, titulo, inicio, fim) VALUES (?, ?, ?, ?)", (uid, titulo, inicio, fim)
+    )
+    conn.commit()
+
+
+def evento_criado_pelo_painel(conn, uid: str) -> dict | None:
+    row = conn.execute("SELECT * FROM eventos_criados WHERE uid = ?", (uid,)).fetchone()
+    return dict(row) if row else None
+
+
+def esquecer_evento_criado(conn, uid: str):
+    conn.execute("DELETE FROM eventos_criados WHERE uid = ?", (uid,))
+    conn.commit()
+
+
+def list_eventos_criados(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM eventos_criados ORDER BY inicio").fetchall()
+    return [dict(r) for r in rows]
+
+
+# ---- Fase 6, US-E15: limite manual do cartao -------------------------------
+
+def definir_limite_conta(conn, bank_account_id: int, limite: float | None) -> bool:
+    cur = conn.execute("UPDATE bank_accounts SET limite = ? WHERE id = ?", (limite, bank_account_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def gasto_mes_conta(conn, bank_account_id: int, ano_mes: str) -> float:
+    """Mesma logica de total_gastos_bancarios_mes, mas filtrada numa unica
+    conta/cartao - usado pra calcular a fracao do limite (US-E15). 'ciclo do
+    cartao' aqui e simplificado pro mes-calendario (strftime %Y-%m) porque o
+    app nao conhece a data de fechamento real da fatura de cada cartao."""
+    rows = conn.execute(
+        "SELECT valor FROM bank_transactions WHERE bank_account_id = ? AND strftime('%Y-%m', data) = ?",
+        (bank_account_id, ano_mes),
+    ).fetchall()
+    total = 0.0
+    for r in rows:
+        valor = _dnum(r["valor"], float)
+        if valor is not None and valor < 0:
+            total += -valor
+    return total

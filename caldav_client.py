@@ -1,22 +1,30 @@
-"""Leitura do Calendario da Apple/iCloud via CalDAV - so pra saber o que
-esta na sua agenda, nao mexe em nada la (so leitura).
+"""Calendario da Apple/iCloud via CalDAV - leitura de todos os calendarios
+(pro resumo do dia) + escrita (Fase 6, US-E14) restrita a UM calendario
+proprio do painel.
 
 So fica ativo quando ICLOUD_USERNAME e ICLOUD_APP_PASSWORD existem no
 .env. A senha tem que ser uma "senha especifica de app" gerada em
 appleid.apple.com (Seguranca > Senhas de app) - a senha normal da sua
 Apple ID NAO funciona aqui por causa do 2FA.
 
-Uso pretendido: mostrar os compromissos de hoje no resumo do dia, e no
-futuro (quando tiver um agendador rodando - ver README) evitar mandar
-notificacao push bem na hora de um compromisso.
+Uso pretendido: mostrar os compromissos de hoje no resumo do dia, evitar
+mandar notificacao push bem na hora de um compromisso, e (US-E14) criar/
+apagar evento no calendario "Painel" a pedido do Alex (chat ou tela) -
+decisao dele, registrada aqui: o painel NUNCA cria/edita/apaga nada em
+qualquer outro calendario do iCloud (trabalho, familia etc), e so apaga um
+evento do calendario "Painel" se o UID estiver registrado na tabela local
+`eventos_criados` (db.py) como tendo sido criado pelo proprio painel -
+quem decide isso e app.py, ANTES de chamar apagar_evento aqui.
 """
 
 import os
-from datetime import date, datetime, time
+import uuid
+from datetime import date, datetime, time, timedelta
 
 import caldav
 
 ICLOUD_URL = "https://caldav.icloud.com/"
+CALENDARIO_PAINEL_NOME = "Painel"
 
 
 def configurado() -> bool:
@@ -91,3 +99,69 @@ def horario_ocupado(inicio: datetime, fim: datetime) -> bool:
         if inicio < ev_fim and fim > ev_inicio:
             return True
     return False
+
+
+class NaoConfiguradoError(RuntimeError):
+    """iCloud nao configurado (ICLOUD_USERNAME/ICLOUD_APP_PASSWORD ausentes) -
+    quem chama (app.py) converte isso num 'erro' de resposta em vez de deixar
+    a rota quebrar com 500."""
+
+
+def _calendario_painel(client: caldav.DAVClient) -> caldav.Calendar:
+    """Acha o calendario 'Painel' do principal pelo nome de exibicao; cria se
+    ainda nao existir (primeira vez que o app tenta escrever algo). NUNCA
+    devolve outro calendario - se o Alex tiver renomeado o "Painel" fora do
+    app, um calendario novo com esse nome e criado (melhor um calendario
+    novo do que escrever sem querer no calendario errado)."""
+    principal = client.principal()
+    for calendario in principal.calendars():
+        try:
+            nome = calendario.get_display_name()
+        except Exception:
+            continue
+        if nome == CALENDARIO_PAINEL_NOME:
+            return calendario
+    return principal.make_calendar(name=CALENDARIO_PAINEL_NOME)
+
+
+def criar_evento(titulo: str, inicio: datetime, fim: datetime, lembrar_min_antes: int | None = None) -> dict:
+    """Cria um evento NOVO no calendario 'Painel' (cria o calendario se for
+    a primeira vez) e devolve {"uid", "titulo", "inicio", "fim"} - quem
+    chama (app.py) grava esse uid em `eventos_criados` (db.py), a unica
+    fonte de verdade de "o painel pode desfazer isso". O uid e gerado aqui
+    (nao deixa o servidor CalDAV escolher) pra ficar garantido de bater com
+    o que sera gravado localmente."""
+    if not configurado():
+        raise NaoConfiguradoError("Agenda do iCloud nao configurada (ICLOUD_USERNAME/ICLOUD_APP_PASSWORD).")
+    uid = str(uuid.uuid4())
+    alarm_kwargs = {}
+    if lembrar_min_antes is not None and lembrar_min_antes >= 0:
+        alarm_kwargs = {
+            "alarm_trigger": timedelta(minutes=-lembrar_min_antes),
+            "alarm_action": "DISPLAY",
+            "alarm_description": "Lembrete",
+        }
+    with _client() as client:
+        calendario = _calendario_painel(client)
+        calendario.add_event(uid=uid, dtstart=inicio, dtend=fim, summary=titulo, **alarm_kwargs)
+    return {"uid": uid, "titulo": titulo, "inicio": inicio.isoformat(), "fim": fim.isoformat()}
+
+
+def apagar_evento(uid: str) -> bool:
+    """Apaga o evento de UID `uid` do calendario 'Painel', se existir la.
+    So a MECANICA de apagar mora aqui - a decisao de "esse uid pode ser
+    apagado porque foi o painel que criou" e responsabilidade de quem chama
+    (ver exec_apagar_evento/apagar_evento_rota em app.py, que confere
+    `eventos_criados` no banco local ANTES de chegar aqui). Devolve False
+    se o evento ja nao existir mais no calendario (idempotente - apagar de
+    novo nao e erro)."""
+    if not configurado():
+        raise NaoConfiguradoError("Agenda do iCloud nao configurada (ICLOUD_USERNAME/ICLOUD_APP_PASSWORD).")
+    with _client() as client:
+        calendario = _calendario_painel(client)
+        try:
+            evento = calendario.event_by_uid(uid)
+        except Exception:
+            return False
+        evento.delete()
+    return True

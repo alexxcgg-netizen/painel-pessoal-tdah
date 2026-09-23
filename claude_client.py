@@ -1177,6 +1177,118 @@ CHAT_TOOLS = [
             "required": ["titulo_cotacao"],
         },
     },
+    {
+        "name": "registrar_habito",
+        "description": (
+            "Cria um habito NOVO (diferente da rotina guiada de manha/noite - isso aqui e coisa "
+            "tipo 'meditar 15 min todo dia as 8h' ou 'academia segunda, quarta e sexta'). O painel "
+            "marca dia a dia e mostra os ultimos 7 dias."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string", "description": "ex: 'meditar', 'academia', 'ler'"},
+                "meta": {"type": "string", "description": "ex: '15 min', '30 paginas' - omita se nao disse"},
+                "frequencia_tipo": {
+                    "type": "string",
+                    "enum": ["diario", "dias_semana", "n_vezes_semana"],
+                    "description": (
+                        "'diario' = todo dia; 'dias_semana' = dias fixos da semana (preencha "
+                        "dias_semana); 'n_vezes_semana' = qualquer dia conta, ate bater a meta "
+                        "da semana (preencha vezes_por_semana)"
+                    ),
+                },
+                "dias_semana": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "so se frequencia_tipo='dias_semana': 0=segunda a 6=domingo",
+                },
+                "vezes_por_semana": {
+                    "type": "integer",
+                    "description": "so se frequencia_tipo='n_vezes_semana': de 1 a 7",
+                },
+                "horario": {
+                    "type": "string",
+                    "description": "HH:MM, horario de lembrete opcional (ex: '08:00') - omita se nao disse",
+                },
+            },
+            "required": ["nome", "frequencia_tipo"],
+        },
+    },
+    {
+        "name": "marcar_habito",
+        "description": "Marca (ou desmarca, se ja estava marcado) um habito existente como feito HOJE.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string", "description": "nome do habito, como o Alex cadastrou (aproximado)"},
+            },
+            "required": ["nome"],
+        },
+    },
+    {
+        "name": "criar_projeto",
+        "description": (
+            "Cria um projeto generico (qualquer coisa com etapas e prazo - 'reformar o quarto', "
+            "'lancar o curso', ate a expansao da construtora como projeto SO com nome/etapa/marco, "
+            "NUNCA campo financeiro - dinheiro da construtora fica no sistema dela). Viagem NAO e "
+            "projeto - pra isso use registrar_viagem."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string"},
+                "prazo_final": {"type": "string", "description": "AAAA-MM-DD - omita se nao disse"},
+            },
+            "required": ["nome"],
+        },
+    },
+    {
+        "name": "adicionar_etapa",
+        "description": "Adiciona uma etapa/passo novo a um projeto existente (checklist ordenado).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome_projeto": {"type": "string", "description": "nome do projeto, aproximado"},
+                "texto": {"type": "string", "description": "a etapa em si (ex: 'comprar tinta')"},
+                "data_prevista": {"type": "string", "description": "AAAA-MM-DD - omita se nao disse"},
+            },
+            "required": ["nome_projeto", "texto"],
+        },
+    },
+    {
+        "name": "concluir_etapa",
+        "description": "Marca como concluida a proxima etapa pendente de um projeto (a primeira da fila).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome_projeto": {"type": "string", "description": "nome do projeto, aproximado"},
+            },
+            "required": ["nome_projeto"],
+        },
+    },
+    {
+        "name": "agendar_evento",
+        "description": (
+            "Cria um evento no calendario 'Painel' do iCloud (calendario separado, exclusivo do "
+            "painel - nunca mexe em outro calendario do Alex). Use pra compromisso com hora "
+            "marcada que ele quer ver no iCloud de verdade."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string"},
+                "data": {"type": "string", "description": "AAAA-MM-DD"},
+                "hora_inicio": {"type": "string", "description": "HH:MM"},
+                "hora_fim": {"type": "string", "description": "HH:MM"},
+                "lembrar_min_antes": {
+                    "type": "integer",
+                    "description": "quantos minutos antes lembrar - omita se ele nao pediu lembrete",
+                },
+            },
+            "required": ["titulo", "data", "hora_inicio", "hora_fim"],
+        },
+    },
 ]
 
 

@@ -626,3 +626,179 @@ def tarefas_compativeis_com_energia(tasks: list[dict], nivel: str) -> list[dict]
         if esforco_num <= nivel_num:
             compativeis.append(tarefa)
     return compativeis
+
+
+# ---- Fase 6, US-E12: modulo Habitos (novo, separado da Rotina guiada) -----
+
+DIAS_SEMANA_LETRAS = ["S", "T", "Q", "Q", "S", "S", "D"]  # segunda a domingo (bate com date.weekday())
+
+
+def letra_dia_semana(dia: date) -> str:
+    return DIAS_SEMANA_LETRAS[dia.weekday()]
+
+
+def ultimos_n_dias(hoje: date, n: int = 7) -> list[date]:
+    """Ultimos N dias terminando hoje (incluso), do mais antigo pro mais
+    recente - base dos 7 circulos da semana do habito."""
+    return [hoje - timedelta(days=i) for i in range(n - 1, -1, -1)]
+
+
+def parse_dias_semana(dias_semana: str | None) -> set[int]:
+    """'0,2,4' -> {0, 2, 4} (0=segunda, 6=domingo, bate com date.weekday()).
+    Vazio/None/malformado vira conjunto vazio em vez de quebrar - so faz o
+    habito parecer "nao devido" naquele dia, nunca derruba a tela."""
+    if not dias_semana:
+        return set()
+    resultado = set()
+    for parte in dias_semana.split(","):
+        parte = parte.strip()
+        if parte.isdigit() and 0 <= int(parte) <= 6:
+            resultado.add(int(parte))
+    return resultado
+
+
+def habito_devido_em(habito: dict, dia: date, vezes_feitas_semana: int = 0) -> bool:
+    """Se o habito "conta" pro dia informado, de acordo com frequencia_tipo:
+    - 'diario': todo dia.
+    - 'dias_semana': so nos dias marcados em dias_semana (CSV).
+    - 'n_vezes_semana': "qualquer dia conta" ate a meta da semana
+      (vezes_por_semana) ja ter sido batida - vezes_feitas_semana e contado
+      por quem chama (db.marcacoes_habito_no_periodo), essa funcao so
+      decide com o numero pronto (fica pura/testavel sem banco).
+    Tipo desconhecido (dado legado) cai em 'diario' por seguranca."""
+    tipo = habito.get("frequencia_tipo") or "diario"
+    if tipo == "dias_semana":
+        return dia.weekday() in parse_dias_semana(habito.get("dias_semana"))
+    if tipo == "n_vezes_semana":
+        meta = habito.get("vezes_por_semana") or 0
+        return vezes_feitas_semana < meta if meta else True
+    return True
+
+
+def habito_passou_batido(habito: dict, agora: datetime, marcado_hoje: bool, vezes_feitas_semana: int = 0) -> bool:
+    """Diz se o habito de hoje "passou batido": tem horario definido, ja
+    passou 1h desse horario, o habito e devido hoje (frequencia) e ainda nao
+    foi marcado. Usado pela proatividade (US-E8) - nunca acusa atraso em
+    habito sem horario (maioria) nem num dia em que o habito nem e devido."""
+    if marcado_hoje or not habito.get("horario"):
+        return False
+    if not habito_devido_em(habito, agora.date(), vezes_feitas_semana):
+        return False
+    try:
+        hora, minuto = (int(p) for p in habito["horario"].split(":"))
+    except (ValueError, AttributeError, TypeError):
+        return False
+    limite = agora.replace(hour=hora, minute=minuto, second=0, microsecond=0) + timedelta(hours=1)
+    return agora >= limite
+
+
+# ---- Fase 6, US-E13: modulo Projetos generico ------------------------------
+
+def calcular_projeto(etapas: list[dict], prazo_final: str | None, criado_em: str | None, hoje: date) -> dict:
+    """Calculo puro pro card de projeto: % concluido, n/total, proxima etapa
+    pendente (a primeira nao feita, na ordem 'posicao'), posicao de HOJE
+    entre o inicio (criado_em) e o prazo (0 a 100, pra barra com marcador -
+    None sem prazo cadastrado, porque nao ha "fim" pra posicionar contra) e
+    dias desde o ultimo toque em qualquer etapa (None se nenhuma etapa foi
+    concluida ainda)."""
+    total = len(etapas)
+    feitas = sum(1 for e in etapas if e.get("feita"))
+    percentual = round(feitas / total * 100) if total else 0
+    proxima = next((e for e in etapas if not e.get("feita")), None)
+
+    posicao_hoje = None
+    if prazo_final:
+        try:
+            inicio = date.fromisoformat((criado_em or hoje.isoformat())[:10])
+            prazo = date.fromisoformat(prazo_final)
+            duracao_total = (prazo - inicio).days
+            if duracao_total > 0:
+                decorrido = (hoje - inicio).days
+                posicao_hoje = max(0, min(100, round(decorrido / duracao_total * 100)))
+            else:
+                posicao_hoje = 100 if hoje >= prazo else 0
+        except ValueError:
+            posicao_hoje = None
+
+    datas_feitas = [e["feita_em"] for e in etapas if e.get("feita_em")]
+    dias_sem_toque = None
+    if datas_feitas:
+        try:
+            ultima = max(date.fromisoformat(d[:10]) for d in datas_feitas)
+            dias_sem_toque = (hoje - ultima).days
+        except ValueError:
+            dias_sem_toque = None
+
+    return {
+        "total_etapas": total,
+        "etapas_feitas": feitas,
+        "percentual": percentual,
+        "proxima_etapa": proxima,
+        "posicao_hoje": posicao_hoje,
+        "dias_sem_toque": dias_sem_toque,
+    }
+
+
+def status_projeto_calculado(status_manual: str, prazo_final: str | None, percentual: int, hoje: date) -> str:
+    """'pausado' e escolha manual do Alex - nunca sobrescrito aqui. Sem isso,
+    o status e derivado do prazo: passou do prazo com etapa pendente vira
+    'atrasado', senao 'no_rumo'. Sem prazo cadastrado, fica sempre 'no_rumo'
+    (nao ha como estar atrasado de um prazo que nao existe)."""
+    if status_manual == "pausado":
+        return "pausado"
+    if prazo_final and percentual < 100:
+        try:
+            if hoje > date.fromisoformat(prazo_final):
+                return "atrasado"
+        except ValueError:
+            pass
+    return "no_rumo"
+
+
+def converter_viagem_para_projeto(viagem: dict, itens: list[dict]) -> dict:
+    """Converte uma viagem (viagens + viagem_itens) pro MESMO formato de
+    dado de um projeto - decisao do Alex: Viagens NAO migram pra tabela
+    projetos, essa funcao so pega o formato emprestado pra o card de
+    projeto poder desenhar uma viagem sem duplicar visual/logica (e sem
+    duplicar dado - le direto de viagens/viagem_itens toda vez, nunca
+    copia pra projetos). Cada item da mala vira uma "etapa" (feito=feito);
+    data_ida/data_volta viram criado_em/prazo_final, entao
+    calcular_projeto() funciona sem precisar saber que veio de uma viagem."""
+    etapas = [
+        {
+            "id": item["id"],
+            "texto": item["texto"],
+            "data_prevista": None,
+            "feita": bool(item.get("feito")),
+            "feita_em": None,
+        }
+        for item in itens
+    ]
+    return {
+        "id": f"viagem-{viagem['id']}",
+        "nome": f"Viagem: {viagem['destino']}",
+        "prazo_final": viagem.get("data_volta") or viagem.get("data_ida"),
+        "status": "no_rumo",
+        "criado_em": viagem.get("criado_em"),
+        "atualizado_em": viagem.get("criado_em"),
+        "etapas": etapas,
+        "origem": "viagem",
+    }
+
+
+# ---- Fase 6, US-E15: limite do cartao (campo manual) -----------------------
+
+def fracao_limite_cartao(gasto_ciclo: float, limite: float | None) -> dict | None:
+    """Fracao do limite usada + sobra - None quando nao ha limite
+    configurado (Open Finance nao manda isso; sem o Alex digitar, o aviso
+    de "cartao em 90%" de US-E8 simplesmente nao pode existir - nunca
+    inventa um limite)."""
+    if not limite or limite <= 0:
+        return None
+    gasto = max(0.0, gasto_ciclo)
+    return {
+        # trava um teto são (150%) pra um dado sujo/gasto muito acima do
+        # limite nao virar um numero absurdo na tela - ainda mostra "estourou"
+        "fracao": round(min(gasto / limite, 1.5), 4),
+        "sobra": round(limite - gasto, 2),
+    }

@@ -597,6 +597,210 @@ ligarForm("#compra-form", "#compra-btn", "Adicionar", () => {
   return item ? { itens: [item] } : null;
 }, "/api/compras", loadCompras);
 
+// ---- Fase 6 (US-E12): Habitos - NOVO, separado da Rotina guiada (rotina
+// manha/noite continua em loadRotina acima) ----
+
+function atualizarCamposFrequenciaHabito() {
+  const tipo = $("#habito-frequencia-tipo").value;
+  $("#habito-dias-semana-campo").hidden = tipo !== "dias_semana";
+  $("#habito-vezes-semana").hidden = tipo !== "n_vezes_semana";
+}
+$("#habito-frequencia-tipo").addEventListener("change", atualizarCamposFrequenciaHabito);
+
+function renderHabitoSemana(ultimos7) {
+  const wrap = criarEl("div", "habito-semana");
+  ultimos7.forEach((dia) => {
+    const classe = ["habito-circulo", dia.feito ? "feito" : "", dia.hoje ? "hoje" : ""].filter(Boolean).join(" ");
+    const c = criarEl("span", classe, dia.letra);
+    c.title = fmtDataBr(dia.data);
+    wrap.appendChild(c);
+  });
+  return wrap;
+}
+
+async function loadHabitos() {
+  const data = await apiFetch("/api/habitos");
+  if (!data) return;
+  const lista = $("#lista-habitos");
+  lista.innerHTML = "";
+  $("#habitos-vazio").hidden = data.habitos.length > 0;
+  data.habitos.forEach((h) => {
+    const detalhes = [h.meta, h.horario ? `lembrete ${h.horario}` : null].filter(Boolean);
+    const li = itemSimples(
+      h.nome,
+      detalhes,
+      [
+        botaoAcao(
+          h.feito_hoje ? "feito hoje" : "marcar hoje",
+          async () => {
+            const r = await jsonPost(`/api/habitos/${h.id}/marcar`);
+            if (r) loadHabitos();
+            return r;
+          },
+          !h.feito_hoje
+        ),
+        (el) => botaoApagar(`/api/habitos/${h.id}`, el),
+      ],
+      h.passou_batido ? "item-atencao" : ""
+    );
+    li.appendChild(renderHabitoSemana(h.ultimos_7));
+    lista.appendChild(li);
+  });
+}
+
+ligarForm(
+  "#habito-form",
+  "#habito-btn",
+  "Adicionar",
+  () => {
+    const nome = $("#habito-nome").value.trim();
+    if (!nome) return null;
+    const frequencia_tipo = $("#habito-frequencia-tipo").value;
+    const corpo = {
+      nome,
+      meta: $("#habito-meta").value.trim() || null,
+      frequencia_tipo,
+      horario: $("#habito-horario").value || null,
+    };
+    if (frequencia_tipo === "dias_semana") {
+      corpo.dias_semana = Array.from($("#habito-dias-semana-campo").querySelectorAll("input:checked")).map((c) => Number(c.value));
+      if (!corpo.dias_semana.length) {
+        mostrarErro("Marca pelo menos um dia da semana.");
+        return null;
+      }
+    } else if (frequencia_tipo === "n_vezes_semana") {
+      corpo.vezes_por_semana = Number($("#habito-vezes-semana").value);
+      if (!(corpo.vezes_por_semana >= 1 && corpo.vezes_por_semana <= 7)) {
+        mostrarErro("Informa quantas vezes por semana (1 a 7).");
+        return null;
+      }
+    }
+    return corpo;
+  },
+  "/api/habitos",
+  () => {
+    $("#habito-dias-semana-campo")
+      .querySelectorAll("input")
+      .forEach((c) => (c.checked = false));
+    atualizarCamposFrequenciaHabito();
+    loadHabitos();
+  }
+);
+
+// ---- Fase 6 (US-E13): Projetos (generico - Viagens NAO migra pra ca, ver
+// loadViagens abaixo; o card de viagem so reaproveita esse mesmo formato
+// visual via /api/viagens/<id>/como-projeto quando precisar) ----
+
+function renderProjetoBarra(p) {
+  const wrap = criarEl("div", "projeto-barra");
+  const trilho = criarEl("div", "projeto-barra-trilho");
+  const preenchido = criarEl("div", "projeto-barra-preenchido");
+  preenchido.style.width = `${p.percentual}%`;
+  trilho.appendChild(preenchido);
+  if (p.posicao_hoje != null) {
+    const marcador = criarEl("div", "projeto-barra-hoje");
+    marcador.style.left = `${p.posicao_hoje}%`;
+    marcador.title = "Posicao de hoje entre inicio e prazo";
+    trilho.appendChild(marcador);
+  }
+  wrap.appendChild(trilho);
+  return wrap;
+}
+
+const STATUS_PROJETO_ROTULO = { no_rumo: "no rumo", atrasado: "atrasado", pausado: "pausado" };
+
+function criarCardProjeto(p, liWrapper) {
+  const box = criarEl("div", "card-vida projeto-card");
+  const topo = criarEl("div", "card-vida-topo");
+  topo.appendChild(criarEl("h3", null, p.nome));
+  topo.appendChild(criarEl("span", `projeto-status projeto-status-${p.status}`, STATUS_PROJETO_ROTULO[p.status] || p.status));
+  box.appendChild(topo);
+  const meta = [`${p.etapas_feitas}/${p.total_etapas} etapas (${p.percentual}%)`];
+  if (p.prazo_final) meta.push(`prazo ${fmtDataBr(p.prazo_final)}`);
+  box.appendChild(criarEl("p", "card-vida-meta", meta.join(" - ")));
+  box.appendChild(renderProjetoBarra(p));
+  if (p.proxima_etapa) {
+    const linha = criarEl("div", "form-linha");
+    linha.appendChild(criarEl("span", "item-quando", `Proxima: ${p.proxima_etapa.texto}`));
+    linha.appendChild(
+      botaoAcao("concluir", async () => {
+        const r = await jsonPost(`/api/projetos/etapas/${p.proxima_etapa.id}/concluir`);
+        if (r) loadProjetos();
+        return r;
+      })
+    );
+    box.appendChild(linha);
+  }
+  if (p.dias_sem_toque != null && p.dias_sem_toque >= 7) {
+    box.appendChild(criarEl("p", "vazio", `${p.dias_sem_toque} dias sem toque.`));
+  }
+  const rodape = criarEl("div", "item-acoes");
+  rodape.appendChild(botaoApagar(`/api/projetos/${p.id}`, liWrapper));
+  box.appendChild(rodape);
+  return box;
+}
+
+async function loadProjetos() {
+  const projetos = await apiFetch("/api/projetos");
+  if (!projetos) return;
+  const lista = $("#lista-projetos");
+  lista.innerHTML = "";
+  $("#projetos-vazio").hidden = projetos.length > 0;
+  projetos.forEach((p) => {
+    const li = criarEl("li");
+    li.appendChild(criarCardProjeto(p, li));
+    lista.appendChild(li);
+  });
+}
+
+ligarForm(
+  "#projeto-form",
+  "#projeto-btn",
+  "Adicionar",
+  () => {
+    const nome = $("#projeto-nome").value.trim();
+    return nome ? { nome, prazo_final: $("#projeto-prazo").value || null } : null;
+  },
+  "/api/projetos",
+  loadProjetos
+);
+
+// ---- Fase 6 (US-E14): Agenda no calendario "Painel" (CalDAV) ----
+
+async function loadEventosCriados() {
+  const eventos = await apiFetch("/api/agenda/eventos-criados");
+  if (!eventos) return;
+  const lista = $("#lista-eventos-criados");
+  lista.innerHTML = "";
+  $("#eventos-criados-vazio").hidden = eventos.length > 0;
+  eventos.forEach((e) => {
+    lista.appendChild(
+      itemSimples(e.titulo, [`${fmtDataBr(e.inicio.slice(0, 10))} ${e.inicio.slice(11, 16)}-${e.fim.slice(11, 16)}`], [
+        (el) => botaoApagar(`/api/agenda/eventos/${e.uid}`, el),
+      ])
+    );
+  });
+}
+
+ligarForm(
+  "#evento-form",
+  "#evento-btn",
+  "Criar evento",
+  () => {
+    const titulo = $("#evento-titulo").value.trim();
+    const data = $("#evento-data").value;
+    const hora_inicio = $("#evento-hora-inicio").value;
+    const hora_fim = $("#evento-hora-fim").value;
+    if (!titulo || !data || !hora_inicio || !hora_fim) return null;
+    const corpo = { titulo, data, hora_inicio, hora_fim };
+    const lembrar = $("#evento-lembrar").value;
+    if (lembrar !== "") corpo.lembrar_min_antes = Number(lembrar);
+    return corpo;
+  },
+  "/api/agenda/eventos",
+  loadEventosCriados
+);
+
 // ---- Fase 2: treino ----
 
 let fichasTreinoCache = null;
@@ -1156,6 +1360,9 @@ function loadVidaHoje() {
 }
 
 function loadVidaAba() {
+  loadHabitos();
+  loadProjetos();
+  loadEventosCriados();
   loadResponder();
   loadCompras();
   loadPessoas();

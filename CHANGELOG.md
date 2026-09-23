@@ -5,6 +5,55 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (Fase 6 E2) - modulos Habitos, Projetos, agenda no iCloud e limite do cartao
+
+Faixa 2 do Grupo E da Fase 6: 4 modulos novos e independentes que a proatividade (US-E8) e os
+cards da faixa E3 vao consumir - nenhum mexe no formato de resposta do `/api/chat`/`/api/capture`
+(isso e a faixa E3) nem nas tools/telas ja existentes de outras faixas em paralelo.
+
+- **US-E12 (Habitos)**: modulo novo, deliberadamente SEPARADO da Rotina guiada
+  (`rotina_itens`/`rotina_marcacoes`, que continua so manha/noite). Tabelas
+  `habitos`/`habito_marcacoes`; habito com nome, meta livre, frequencia (`diario` / `dias_semana`
+  / `n_vezes_semana` - "qualquer dia conta" ate bater a meta da semana) e horario opcional de
+  lembrete. `GET/POST /api/habitos`, `DELETE /api/habitos/<id>`, `POST
+  /api/habitos/<id>/marcar`. Chat tools `registrar_habito`/`marcar_habito`. Tela nova na aba Vida
+  com os 7 circulos da semana (`static/js/vida.js`, `.habito-semana`/`.habito-circulo` em
+  `style.css`). Funcao pura `vida.habito_passou_batido` (horario + 1h sem marcar) fica pronta pra
+  US-E8 consumir. Decisao: habito NAO e ocultado no modo visitante (nao e dado sensivel).
+- **US-E13 (Projetos)**: modulo generico novo (`projetos`/`projeto_etapas`) - checklist de
+  etapas ordenadas, prazo final, status `no_rumo`/`atrasado` (calculado) ou `pausado` (manual,
+  nunca sobrescrito). `vida.calcular_projeto` da o %, proxima etapa pendente, posicao de HOJE
+  entre inicio e prazo (0-100, pra barra com marcador) e dias sem toque. Rotas
+  `/api/projetos` (GET/POST/DELETE), `/status`, `/etapas`, `/etapas/<id>/concluir`. Chat tools
+  `criar_projeto`/`adicionar_etapa`/`concluir_etapa`. **Viagens NAO migram pra Projetos**:
+  `vida.converter_viagem_para_projeto` + `GET /api/viagens/<id>/como-projeto` so emprestam o
+  mesmo formato de dado (calculado em cima de `viagens`/`viagem_itens` direto) pro card reusar o
+  visual, sem duplicar persistencia. Tela ficou na aba Vida (mesma leva de Habitos).
+- **US-E14 (Agenda no iCloud)**: `caldav_client.py` ganhou escrita (antes so lia) - `criar_evento`
+  e `apagar_evento`, restritos a UM calendario proprio chamado "Painel" (criado automaticamente
+  se nao existir, achado por `get_display_name()`). Tabela local `eventos_criados` (uid, titulo,
+  inicio, fim) e a fonte da verdade: `apagar_evento` SO roda se o uid estiver registrado ali -
+  nunca toca em evento que o painel nao criou, em nenhum outro calendario. Sem
+  ICLOUD_USERNAME/ICLOUD_APP_PASSWORD configurados, erro claro (`NaoConfiguradoError`) em vez de
+  quebrar. Rotas `POST/DELETE /api/agenda/eventos`, `GET /api/agenda/eventos-criados`. Chat tool
+  `agendar_evento`. Testes sempre com CalDAV mockado (nunca iCloud real).
+- **US-E15 (limite do cartao)**: coluna `bank_accounts.limite` (manual - Open Finance nao manda
+  isso). `GET /api/bancos` ganhou `gasto_ciclo` (mes-calendario) e `limite_info`
+  (`{fracao, sobra}` ou `null` sem limite configurado - nunca inventa aviso) pra cada cartao.
+  `POST /api/bancos/<id>/limite` (respeita modo visitante). Funcao pura
+  `vida.fracao_limite_cartao` trava a fracao num teto de 150% pra dado sujo nao virar numero
+  absurdo. UI: caixa de limite (barra + input) dentro de cada cartao em Bancos.
+- Testes novos em `tests/test_fase6_e2_modulos.py` (56 casos: rotas, funcoes puras, chat tools,
+  CalDAV mockado, fuzzing leve de campos invalidos). Suite completa (`unittest discover` + `node
+  --test`) sem regressao - as 2 falhas de horario de voo que apareceram nesta rodada
+  (`test_ligado_segura_ate_a_janela_passar_e_agrupa`,
+  `test_verificar_nao_notifica_voo_com_hora_de_sair_distante`) sao pre-existentes e dependentes
+  do relogio real (confirmado rodando as mesmas duas isoladas num `git stash` antes desta leva -
+  falham igual sem nenhuma mudanca desta sessao).
+- `AGENTS.md`: nova secao "Padroes descobertos" com a pegadinha de `page.evaluate("showTab(...)")`
+  nao recarregar dado da aba (precisa de `page.click` de verdade no botao da tabbar), o
+  `data=`/`json=` do `_corpo_json()`, e como a lib `caldav` monta o ICS via kwargs.
+
 ## 2026-09-23 (32) - Deploy de teste no Render (plano gratis)
 
 Pra o Alex testar o estado atual no iPhone com URL publica HTTPS, sem esperar a VPS

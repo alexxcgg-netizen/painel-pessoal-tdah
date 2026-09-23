@@ -48,21 +48,27 @@ from db import (
     CAMPOS_SAUDE,
     add_to_goal,
     adicionar_compra,
+    adicionar_etapa_projeto,
     ajustar_saldo_conta,
+    alternar_habito_dia,
     alternar_ideia_presente_comprada,
     alternar_item_viagem,
     alternar_rotina_item,
     apagar_brain_dump,
     apagar_diario_decisao,
     apagar_espera,
+    apagar_etapa_projeto,
     apagar_nota,
     atualizar_categoria_gasto,
     atualizar_manutencao_veiculo,
     atualizar_saldo_conta,
     atualizar_uber_pedido,
     buscar_conta_por_nome,
+    buscar_habito_por_nome,
     buscar_notas,
+    buscar_projeto_por_nome,
     complete_task,
+    concluir_etapa_projeto,
     conta_paga,
     contar_hidratacao_dia,
     cotacao_por_titulo_aproximado,
@@ -74,6 +80,7 @@ from db import (
     create_espera,
     create_garantia,
     create_goal,
+    create_habito,
     create_ideia_presente,
     create_income,
     create_lembrete,
@@ -85,6 +92,7 @@ from db import (
     create_memoria,
     create_nota,
     create_pessoa,
+    create_projeto,
     create_responder,
     create_rotina_item,
     create_salvo,
@@ -98,7 +106,9 @@ from db import (
     definir_apelido_gasto,
     definir_configuracao,
     definir_esforco_tarefa,
+    definir_limite_conta,
     definir_orcamento,
+    definir_status_projeto,
     definir_teto_mensal_ia,
     delete_aprender,
     delete_compra,
@@ -106,6 +116,7 @@ from db import (
     delete_cotacao,
     delete_ficha_treino,
     delete_garantia,
+    delete_habito,
     delete_ideia_presente,
     delete_item_cotacao,
     delete_lembrete,
@@ -116,22 +127,29 @@ from db import (
     delete_medida_corporal,
     delete_memoria,
     delete_pessoa,
+    delete_projeto,
     delete_push_subscription,
     delete_rotina_item,
     delete_salvo,
     delete_viagem,
     delete_voo,
     descriptografar_linhas_export,
+    esquecer_evento_criado,
     espera_pendente_por_quem_aproximado,
+    evento_criado_pelo_painel,
+    gasto_mes_conta,
     gasto_mes_por_categoria,
     get_checkin,
     get_cotacao,
     get_db,
     get_essencial,
+    get_habito,
+    get_projeto,
     estatisticas_conta,
     get_manutencao_veiculo,
     get_or_create_bank_account,
     get_saude_dia,
+    habito_marcado,
     init_db,
     insert_bank_transactions,
     km_atual_veiculo,
@@ -154,11 +172,14 @@ from db import (
     list_diario_decisoes,
     list_dias_ativos,
     list_esperas_pendentes,
+    list_etapas_projeto,
     list_eventos_app,
+    list_eventos_criados,
     list_fichas_treino,
     list_garantias,
     list_goal_deposits,
     list_goals,
+    list_habitos,
     list_ideias_presente,
     list_incomes,
     list_itens_cotacao,
@@ -173,6 +194,7 @@ from db import (
     list_notas,
     list_orcamentos,
     list_pessoas,
+    list_projetos,
     list_push_subscriptions,
     list_responder_pendentes,
     list_rotina_itens,
@@ -180,6 +202,7 @@ from db import (
     list_treinos,
     list_viagens_futuras,
     list_voos,
+    marcacoes_habito_no_periodo,
     marcar_aprender,
     marcar_brain_dump_processado,
     marcar_comprado,
@@ -201,6 +224,7 @@ from db import (
     registrar_conversa,
     registrar_correcao_classificacao,
     registrar_evento_app,
+    registrar_evento_criado,
     registrar_hidratacao,
     registrar_interacao_aprendizado,
     registrar_resultado_diario_decisao,
@@ -1614,6 +1638,85 @@ def _eventos_de_hoje_com_seguranca(conn) -> list[dict]:
     return _compromissos_de_hoje(conn, icloud)
 
 
+# ---- Fase 6 (US-E14): criar/apagar evento no calendario "Painel" (CalDAV) -
+# Decisao do Alex: SO escreve no calendario "Painel" (nunca em outro
+# calendario do iCloud) e SO apaga um evento cujo UID esteja registrado em
+# `eventos_criados` (db.py) como tendo sido criado pelo proprio painel -
+# ver caldav_client.py pro porque disso morar la e nao aqui.
+
+def _criar_evento_agenda(conn, titulo, data, hora_inicio, hora_fim, lembrar_min_antes) -> dict:
+    titulo = _texto_curto(titulo, 120)
+    data_iso = _data_iso_valida(data) if isinstance(data, str) else None
+    hora_i = _normalizar_hora(hora_inicio)
+    hora_f = _normalizar_hora(hora_fim)
+    if not titulo or not data_iso or not hora_i or not hora_f:
+        return {"erro": "informe titulo, data (AAAA-MM-DD) e hora de inicio/fim (HH:MM)"}
+    inicio = datetime.fromisoformat(f"{data_iso}T{hora_i}")
+    fim = datetime.fromisoformat(f"{data_iso}T{hora_f}")
+    if fim <= inicio:
+        return {"erro": "a hora de fim tem que ser depois da hora de inicio"}
+    lembrar = None
+    if lembrar_min_antes not in (None, ""):
+        lembrar = _inteiro_no_intervalo(lembrar_min_antes, 0, 1440)
+        if lembrar is None:
+            return {"erro": "lembrar_min_antes precisa ser entre 0 e 1440 minutos"}
+    try:
+        resultado = caldav_client.criar_evento(titulo, inicio, fim, lembrar)
+    except caldav_client.NaoConfiguradoError as erro:
+        return {"erro": str(erro)}
+    except Exception:
+        return {"erro": "nao consegui criar o evento no iCloud agora - tenta de novo"}
+    registrar_evento_criado(conn, resultado["uid"], titulo, resultado["inicio"], resultado["fim"])
+    return {"ok": True, **resultado}
+
+
+@app.route("/api/agenda/eventos", methods=["POST"])
+def criar_evento_agenda_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _criar_evento_agenda(
+        conn, body.get("titulo"), body.get("data"), body.get("hora_inicio"), body.get("hora_fim"),
+        body.get("lembrar_min_antes"),
+    )
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+def _apagar_evento_agenda(conn, uid: str) -> dict:
+    # A guarda de verdade e essa: SO apaga se o painel registrou que foi ele
+    # quem criou. Nunca chega a chamar o iCloud se o uid nao estiver aqui.
+    if not evento_criado_pelo_painel(conn, uid):
+        return {"erro": "esse evento nao foi criado pelo painel - nunca mexo em evento que eu nao criei"}
+    try:
+        caldav_client.apagar_evento(uid)
+    except caldav_client.NaoConfiguradoError as erro:
+        return {"erro": str(erro)}
+    except Exception:
+        return {"erro": "nao consegui apagar o evento no iCloud agora - tenta de novo"}
+    esquecer_evento_criado(conn, uid)
+    return {"ok": True}
+
+
+@app.route("/api/agenda/eventos/<uid>", methods=["DELETE"])
+def apagar_evento_agenda_rota(uid):
+    conn = get_db()
+    resultado = _apagar_evento_agenda(conn, uid)
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado)
+
+
+@app.route("/api/agenda/eventos-criados", methods=["GET"])
+def eventos_criados_rota():
+    conn = get_db()
+    resultado = list_eventos_criados(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
 def _resumo_falado_manha(conn) -> str:
     """Texto curto pro resumo falado da manha (US-C11) - agenda de hoje
     (_eventos_de_hoje_com_seguranca, ja existente, resiliente a falha do
@@ -2419,6 +2522,45 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
             ],
         }
 
+    def exec_registrar_habito(entrada):
+        return _criar_habito(
+            conn, entrada.get("nome"), entrada.get("meta"), entrada.get("frequencia_tipo"),
+            entrada.get("dias_semana"), entrada.get("vezes_por_semana"), entrada.get("horario"),
+        )
+
+    def exec_marcar_habito(entrada):
+        habito = buscar_habito_por_nome(conn, entrada.get("nome"))
+        if not habito:
+            return {"erro": f"nao achei nenhum habito chamado \"{entrada.get('nome')}\""}
+        feito = alternar_habito_dia(conn, date.today().isoformat(), habito["id"])
+        return {"ok": True, "nome": habito["nome"], "feito": feito}
+
+    def exec_criar_projeto(entrada):
+        return _criar_projeto(conn, entrada.get("nome"), entrada.get("prazo_final"))
+
+    def exec_adicionar_etapa(entrada):
+        projeto = buscar_projeto_por_nome(conn, entrada.get("nome_projeto"))
+        if not projeto:
+            return {"erro": f"nao achei nenhum projeto chamado \"{entrada.get('nome_projeto')}\""}
+        return _adicionar_etapa(conn, projeto["id"], entrada.get("texto"), entrada.get("data_prevista"))
+
+    def exec_concluir_etapa(entrada):
+        projeto = buscar_projeto_por_nome(conn, entrada.get("nome_projeto"))
+        if not projeto:
+            return {"erro": f"nao achei nenhum projeto chamado \"{entrada.get('nome_projeto')}\""}
+        etapas = list_etapas_projeto(conn, projeto["id"])
+        proxima = next((e for e in etapas if not e["feita"]), None)
+        if not proxima:
+            return {"erro": f"o projeto \"{projeto['nome']}\" nao tem etapa pendente"}
+        concluir_etapa_projeto(conn, proxima["id"])
+        return {"ok": True, "projeto": projeto["nome"], "etapa": proxima["texto"]}
+
+    def exec_agendar_evento(entrada):
+        return _criar_evento_agenda(
+            conn, entrada.get("titulo"), entrada.get("data"), entrada.get("hora_inicio"), entrada.get("hora_fim"),
+            entrada.get("lembrar_min_antes"),
+        )
+
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
@@ -2469,6 +2611,12 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "sugerir_tema_estudo": exec_sugerir_tema_estudo,
         "registrar_item_cotacao": exec_registrar_item_cotacao,
         "comparar_cotacao": exec_comparar_cotacao,
+        "registrar_habito": exec_registrar_habito,
+        "marcar_habito": exec_marcar_habito,
+        "criar_projeto": exec_criar_projeto,
+        "adicionar_etapa": exec_adicionar_etapa,
+        "concluir_etapa": exec_concluir_etapa,
+        "agendar_evento": exec_agendar_evento,
     }
 
     try:
@@ -4169,6 +4317,111 @@ def apagar_item_rotina(item_id):
     return jsonify({"ok": True})
 
 
+# ---- Fase 6 (US-E12): modulo Habitos - NOVO, separado da Rotina guiada ----
+# (rotina_itens/rotina_marcacoes acima e so a rotina manha/noite; decisao do
+# Alex de nao misturar os dois conceitos). Habito NAO e dado financeiro nem
+# sensivel -> decisao documentada: NAO respeita _modo_visitante_ativo() (ao
+# contrario das rotas de bancos/cartao logo abaixo, que respeitam).
+
+def _semana_atual_intervalo(hoje: date) -> tuple[str, str]:
+    inicio = hoje - timedelta(days=hoje.weekday())
+    return inicio.isoformat(), (inicio + timedelta(days=6)).isoformat()
+
+
+def _habito_detalhado(conn, habito: dict, hoje: date) -> dict:
+    dias = vida.ultimos_n_dias(hoje, 7)
+    marcados_7 = marcacoes_habito_no_periodo(conn, habito["id"], dias[0].isoformat(), dias[-1].isoformat())
+    ini_semana, fim_semana = _semana_atual_intervalo(hoje)
+    vezes_feitas_semana = len(marcacoes_habito_no_periodo(conn, habito["id"], ini_semana, fim_semana))
+    feito_hoje = hoje.isoformat() in marcados_7
+    return {
+        "id": habito["id"],
+        "nome": habito["nome"],
+        "meta": habito["meta"],
+        "frequencia_tipo": habito["frequencia_tipo"],
+        "dias_semana": sorted(vida.parse_dias_semana(habito["dias_semana"])),
+        "vezes_por_semana": habito["vezes_por_semana"],
+        "horario": habito["horario"],
+        "ultimos_7": [
+            {"data": d.isoformat(), "letra": vida.letra_dia_semana(d), "feito": d.isoformat() in marcados_7, "hoje": d == hoje}
+            for d in dias
+        ],
+        "feito_hoje": feito_hoje,
+        "vezes_feitas_semana": vezes_feitas_semana,
+        "devido_hoje": vida.habito_devido_em(habito, hoje, vezes_feitas_semana),
+        "passou_batido": vida.habito_passou_batido(habito, datetime.now(), feito_hoje, vezes_feitas_semana),
+    }
+
+
+@app.route("/api/habitos", methods=["GET"])
+def habitos_rota():
+    conn = get_db()
+    resultado = [_habito_detalhado(conn, h, date.today()) for h in list_habitos(conn)]
+    conn.close()
+    return jsonify({"habitos": resultado, "ativos_total": len(resultado)})
+
+
+def _criar_habito(conn, nome, meta, frequencia_tipo, dias_semana, vezes_por_semana, horario) -> dict:
+    nome = _texto_curto(nome, 80)
+    if not nome:
+        return {"erro": "informe o nome do habito"}
+    if frequencia_tipo not in ("diario", "dias_semana", "n_vezes_semana"):
+        frequencia_tipo = "diario"
+    dias_csv, vezes = None, None
+    if frequencia_tipo == "dias_semana":
+        if isinstance(dias_semana, list):
+            candidatos = dias_semana
+        elif isinstance(dias_semana, str):
+            candidatos = dias_semana.split(",")
+        else:
+            candidatos = []
+        validos = sorted({int(d) for d in candidatos if str(d).strip().lstrip("-").isdigit() and 0 <= int(d) <= 6})
+        if not validos:
+            return {"erro": "informe os dias da semana (0=segunda a 6=domingo)"}
+        dias_csv = ",".join(str(d) for d in validos)
+    elif frequencia_tipo == "n_vezes_semana":
+        vezes = _inteiro_no_intervalo(vezes_por_semana, 1, 7)
+        if vezes is None:
+            return {"erro": "informe quantas vezes por semana (1 a 7)"}
+    habito_id = create_habito(
+        conn, nome, _texto_curto(meta, 60), frequencia_tipo, dias_csv, vezes, _normalizar_hora(horario)
+    )
+    return {"ok": True, "habito_id": habito_id}
+
+
+@app.route("/api/habitos", methods=["POST"])
+def criar_habito_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _criar_habito(
+        conn, body.get("nome"), body.get("meta"), body.get("frequencia_tipo"),
+        body.get("dias_semana"), body.get("vezes_por_semana"), body.get("horario"),
+    )
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/habitos/<int:habito_id>", methods=["DELETE"])
+def apagar_habito_rota(habito_id):
+    conn = get_db()
+    delete_habito(conn, habito_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/habitos/<int:habito_id>/marcar", methods=["POST"])
+def marcar_habito_rota(habito_id):
+    conn = get_db()
+    if not get_habito(conn, habito_id):
+        conn.close()
+        return jsonify({"error": "habito nao encontrado"}), 404
+    feito = alternar_habito_dia(conn, date.today().isoformat(), habito_id)
+    conn.close()
+    return jsonify({"feito": feito})
+
+
 def _estado_hiperfoco(conn) -> dict:
     ate = obter_configuracao(conn, "hiperfoco_ate")
     agora = datetime.now()
@@ -4902,6 +5155,140 @@ def alternar_item_viagem_rota(item_id):
     if feito is None:
         return jsonify({"error": "item nao encontrado"}), 404
     return jsonify({"feito": feito})
+
+
+# ---- Fase 6 (US-E13): modulo Projetos generico -----------------------------
+# Viagens NAO migram pra ca (decisao do Alex) - ver
+# /api/viagens/<id>/como-projeto abaixo, que so EMPRESTA o formato via
+# vida.converter_viagem_para_projeto pro card reaproveitar o visual, sem
+# duplicar dado (le direto de viagens/viagem_itens toda vez).
+
+def _projeto_detalhado(conn, projeto: dict, hoje: date) -> dict:
+    etapas = list_etapas_projeto(conn, projeto["id"])
+    calculo = vida.calcular_projeto(etapas, projeto["prazo_final"], projeto["criado_em"], hoje)
+    status = vida.status_projeto_calculado(projeto["status"], projeto["prazo_final"], calculo["percentual"], hoje)
+    return {
+        "id": projeto["id"],
+        "nome": projeto["nome"],
+        "prazo_final": projeto["prazo_final"],
+        "status": status,
+        "status_manual": projeto["status"] == "pausado",
+        "criado_em": projeto["criado_em"],
+        "atualizado_em": projeto["atualizado_em"],
+        "etapas": etapas,
+        **calculo,
+    }
+
+
+@app.route("/api/projetos", methods=["GET"])
+def projetos_rota():
+    conn = get_db()
+    resultado = [_projeto_detalhado(conn, p, date.today()) for p in list_projetos(conn)]
+    conn.close()
+    return jsonify(resultado)
+
+
+def _criar_projeto(conn, nome, prazo_final) -> dict:
+    nome = _texto_curto(nome, 120)
+    if not nome:
+        return {"erro": "informe o nome do projeto"}
+    prazo = None
+    if prazo_final not in (None, ""):
+        prazo = _data_iso_valida(prazo_final)
+        if not prazo:
+            return {"erro": "prazo invalido (AAAA-MM-DD)"}
+    projeto_id = create_projeto(conn, nome, prazo)
+    return {"ok": True, "projeto_id": projeto_id}
+
+
+@app.route("/api/projetos", methods=["POST"])
+def criar_projeto_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _criar_projeto(conn, body.get("nome"), body.get("prazo_final"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/projetos/<int:projeto_id>", methods=["DELETE"])
+def apagar_projeto_rota(projeto_id):
+    conn = get_db()
+    delete_projeto(conn, projeto_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/projetos/<int:projeto_id>/status", methods=["POST"])
+def definir_status_projeto_rota(projeto_id):
+    status = _corpo_json().get("status")
+    conn = get_db()
+    ok = definir_status_projeto(conn, projeto_id, status)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "projeto nao encontrado ou status invalido (no_rumo/atrasado/pausado)"}), 400
+    return jsonify({"ok": True})
+
+
+def _adicionar_etapa(conn, projeto_id, texto, data_prevista) -> dict:
+    texto = _texto_curto(texto, 200)
+    if not texto:
+        return {"erro": "informe o texto da etapa"}
+    data_p = None
+    if data_prevista not in (None, ""):
+        data_p = _data_iso_valida(data_prevista)
+        if not data_p:
+            return {"erro": "data da etapa invalida (AAAA-MM-DD)"}
+    etapa_id = adicionar_etapa_projeto(conn, projeto_id, texto, data_p)
+    if etapa_id is None:
+        return {"erro": "projeto nao encontrado"}
+    return {"ok": True, "etapa_id": etapa_id}
+
+
+@app.route("/api/projetos/<int:projeto_id>/etapas", methods=["POST"])
+def adicionar_etapa_rota(projeto_id):
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _adicionar_etapa(conn, projeto_id, body.get("texto"), body.get("data_prevista"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/projetos/etapas/<int:etapa_id>/concluir", methods=["POST"])
+def concluir_etapa_rota(etapa_id):
+    conn = get_db()
+    projeto_id = concluir_etapa_projeto(conn, etapa_id)
+    conn.close()
+    if projeto_id is None:
+        return jsonify({"error": "etapa nao encontrada"}), 404
+    return jsonify({"ok": True, "projeto_id": projeto_id})
+
+
+@app.route("/api/projetos/etapas/<int:etapa_id>", methods=["DELETE"])
+def apagar_etapa_rota(etapa_id):
+    conn = get_db()
+    projeto_id = apagar_etapa_projeto(conn, etapa_id)
+    conn.close()
+    if projeto_id is None:
+        return jsonify({"error": "etapa nao encontrada"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/viagens/<int:viagem_id>/como-projeto", methods=["GET"])
+def viagem_como_projeto_rota(viagem_id):
+    conn = get_db()
+    registro = conn.execute("SELECT * FROM viagens WHERE id = ?", (viagem_id,)).fetchone()
+    if not registro:
+        conn.close()
+        return jsonify({"error": "viagem nao encontrada"}), 404
+    itens = list_itens_viagem(conn, viagem_id)
+    conn.close()
+    projeto = vida.converter_viagem_para_projeto(dict(registro), itens)
+    calculo = vida.calcular_projeto(projeto["etapas"], projeto["prazo_final"], projeto["criado_em"], date.today())
+    return jsonify({**projeto, **calculo})
 
 
 def _criar_lugar(conn, nome, cidade, tipo, nota) -> dict:
@@ -5908,18 +6295,50 @@ def listar_bancos():
     # saldo/valor sao criptografados em repouso - list_bank_accounts e
     # estatisticas_conta ja descriptografam e somam em Python (ver db.py).
     contas = list_bank_accounts(conn)
+    ano_mes_atual = date.today().strftime("%Y-%m")
     resultado = []
     for c in contas:
         stats = estatisticas_conta(conn, c["id"])
-        resultado.append(
-            {
-                **c,
-                "total_transacoes": stats["total"],
-                "ultima_transacao": stats["ultima"],
-                "total_gasto": stats["total_gasto"],
-            }
-        )
+        item = {
+            **c,
+            "total_transacoes": stats["total"],
+            "ultima_transacao": stats["ultima"],
+            "total_gasto": stats["total_gasto"],
+        }
+        # Fase 6 (US-E15): limite manual do cartao - so calcula fracao/sobra
+        # quando o proprio Alex digitou um limite (Open Finance nao manda
+        # isso); "ciclo" aqui e simplificado pro mes-calendario, ver
+        # gasto_mes_conta em db.py.
+        if c["tipo"] == "cartao":
+            gasto_ciclo = gasto_mes_conta(conn, c["id"], ano_mes_atual)
+            item["gasto_ciclo"] = round(gasto_ciclo, 2)
+            item["limite_info"] = vida.fracao_limite_cartao(gasto_ciclo, c.get("limite"))
+        resultado.append(item)
     conn.close()
+    return jsonify(resultado)
+
+
+def _definir_limite_cartao(conn, bank_account_id: int, limite) -> dict:
+    if limite in (None, ""):
+        ok = definir_limite_conta(conn, bank_account_id, None)
+        return {"ok": True} if ok else {"erro": "conta nao encontrada"}
+    valida = isinstance(limite, (int, float)) and not isinstance(limite, bool) and math.isfinite(limite) and limite > 0
+    if not valida:
+        return {"erro": "limite precisa ser um numero maior que zero (ou vazio pra apagar)"}
+    ok = definir_limite_conta(conn, bank_account_id, float(limite))
+    return {"ok": True} if ok else {"erro": "conta nao encontrada"}
+
+
+@app.route("/api/bancos/<int:conta_id>/limite", methods=["POST"])
+def definir_limite_cartao_rota(conta_id):
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _definir_limite_cartao(conn, conta_id, body.get("limite"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
     return jsonify(resultado)
 
 
