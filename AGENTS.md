@@ -117,6 +117,44 @@ db.init_db()
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
+### Fase 6, revisao independente (codigo + seguranca) - correcoes
+- **Todo card novo com dado sensivel (dinheiro OU saude) entra em
+  `cards.CAMPOS_SENSIVEIS`** - a mascara do modo visitante e por type; type
+  fora da tabela sai inteiro (foi assim que `saude_dia`/`saude_treino`
+  vazaram sono/passos pelo chat local e pelo historico). Action que MUDA dado
+  (`desfazer`) vai em `cards.ACTIONS_BLOQUEADAS_VISITANTE` e a rota
+  correspondente tambem recusa no servidor.
+- **Rota que escreve algo com efeito fora da tela (agenda iCloud, memoria que
+  entra no system prompt, padrao aprendido, desfazer, conversao de brain
+  dump) usa `_recusar_no_modo_visitante()`** (app.py) logo no topo. Tool de
+  chat com efeito externo checa `has_request_context() and
+  _modo_visitante_ativo()` (o Telegram roda sem request).
+- **Todo caminho novo que chama IA precisa do teto**: `resumo_custo_api(conn)
+  ["teto_estourado"]` dentro do `_TETO_IA_LOCK`, ANTES da chamada, e log do
+  uso dentro do mesmo lock (ver `_classificar_intent`, `extrair_nota_fiscal`
+  e agora `_processar_mensagem_chat`). Erro de teto = `TETO_IA_MSG` -> 402.
+  Pendente fora do escopo: `/api/capture` (classify_capture) ainda nao checa.
+- **Padrao aprendido no caminho do chat passa pelos filtros
+  `_VERBO_ACAO`/`_FORA_DO_BANCO`** (`aprendizado.exige_ia` em
+  `_plano_local_chat`) - so o comando de voz confia no padrao cru.
+- **Leaflet popup/tooltip com STRING e HTML** - sempre passar um no DOM com
+  `textContent` (`bindPopup(span)`), nunca dado do usuario/Nominatim direto.
+  CDN novo = `integrity` + `crossOrigin="anonymous"`, hash calculado sobre o
+  arquivo baixado (`openssl dgst -sha256 -binary f | openssl base64 -A`).
+- **`request.remote_addr` atras de proxy e o IP do proxy** - o bloqueio de PIN
+  depende de `PAINEL_ATRAS_DE_PROXY=1` (ProxyFix) no Render/VPS com Caddy;
+  NUNCA ligar sem proxy (X-Forwarded-For viraria forjavel).
+- **API externa chamada dentro de request precisa gravar a FALHA tambem**
+  (com "tentar de novo depois de") - senao cada visita repete a chamada
+  sincrona no unico worker (Nominatim: `geocode_tentar_depois`; AviationStack:
+  `_erro_em` no JSON do cache, preservando `_anterior`).
+- **Pra provar que um teste falha antes da correcao sem `git checkout`**
+  (que ja travou o git de outra faixa): `git archive HEAD | tar -x -C /tmp/x`,
+  copiar o teste novo pra la e rodar com o `.venv` do worktree.
+- **`.chat-form` e sticky sobre o conteudo da aba Hoje** - precisa de fundo
+  proprio (quase opaco); `backdrop-filter` sozinho no headless nao borrou o
+  texto por baixo o bastante.
+
 ### Fase 6, Grupo F3-extra (Viagens/Lugares/Cotações/Aviação) - US-F11/F12/F13/F14
 - **Pegadinha de teste real, pega na própria suíte**: qualquer rota GET com
   efeito colateral de rede (ex: `GET /api/lugares` faz backfill de geocode,
