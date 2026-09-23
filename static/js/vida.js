@@ -464,6 +464,13 @@ function renderDecisao(analise) {
   }
 }
 
+function aplicarModoVisitanteNaDecisao(ativo) {
+  $("#decisao-oculto-visitante").hidden = !ativo;
+  $("#decisao-form").hidden = ativo;
+  if (ativo) $("#decisao-resultado").hidden = true;
+}
+document.addEventListener("modo-visitante-mudou", (e) => aplicarModoVisitanteNaDecisao(e.detail.ativo));
+
 $("#decisao-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const pergunta = $("#decisao-pergunta").value.trim();
@@ -737,6 +744,29 @@ async function loadManutencoesVeiculo() {
   });
 }
 
+// ---- Fase 5: garantia de produtos ----
+
+async function loadGarantias() {
+  const itens = await apiFetch("/api/garantias");
+  if (!itens) return;
+  const lista = $("#lista-garantias");
+  lista.innerHTML = "";
+  $("#garantias-vazio").hidden = itens.length > 0;
+  itens.forEach((g) => {
+    const quando =
+      g.dias_ate < 0
+        ? `venceu ha ${-g.dias_ate} dia(s)`
+        : g.dias_ate === 0
+        ? "vence hoje"
+        : `vence em ${fmtDataBr(g.vencimento)} (${g.dias_ate} dias)`;
+    lista.appendChild(
+      itemSimples(g.produto, [`${g.prazo_garantia_meses} mes(es) de garantia`, quando], [
+        (el) => botaoApagar(`/api/garantias/${g.id}`, el),
+      ], g.dias_ate <= 15 ? "item-atencao" : "")
+    );
+  });
+}
+
 ligarForm("#manutencao-veiculo-form", "#mv-btn", "Adicionar", () => {
   const tipo = $("#mv-tipo").value.trim();
   const data = $("#mv-data").value;
@@ -754,6 +784,31 @@ ligarForm("#manutencao-veiculo-form", "#mv-btn", "Adicionar", () => {
     proxima_em_data: $("#mv-proxima-data").value || null,
   };
 }, "/api/manutencoes-veiculo", loadManutencoesVeiculo);
+
+$("#garantia-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const produto = $("#garantia-produto").value.trim();
+  const dataCompra = $("#garantia-data-compra").value;
+  const prazo = Number($("#garantia-prazo").value);
+  if (!produto || !dataCompra || !(prazo >= 1 && prazo <= 600)) {
+    mostrarErro("Confere o produto, a data de compra e o prazo de garantia.");
+    return;
+  }
+  const arquivo = $("#garantia-anexo").files[0];
+  const btn = $("#garantia-btn");
+  setBotaoCarregando(btn, true, "salvando...");
+  const form = new FormData();
+  form.append("produto", produto);
+  form.append("data_compra", dataCompra);
+  form.append("prazo_garantia_meses", String(prazo));
+  if (arquivo) form.append("nota_fiscal", arquivo);
+  const r = await apiFetch("/api/garantias", { method: "POST", body: form });
+  setBotaoCarregando(btn, false, "Adicionar");
+  if (!r) return;
+  $("#garantia-form").reset();
+  pulsarSucesso($("#garantia-produto"));
+  loadGarantias();
+});
 
 // ---- Fase 2: viagens e lugares ----
 
@@ -833,6 +888,39 @@ ligarForm("#lugar-form", "#lugar-btn", "Adicionar", () => {
   const nome = $("#lugar-nome").value.trim();
   return nome ? { nome, cidade: $("#lugar-cidade").value.trim() } : null;
 }, "/api/lugares", loadLugares);
+
+// ---- Fase 5: ideias de presente ----
+
+async function loadIdeiasPresente() {
+  const itens = await apiFetch("/api/ideias-presente");
+  if (!itens) return;
+  const lista = $("#lista-ideias-presente");
+  lista.innerHTML = "";
+  $("#ideias-presente-vazio").hidden = itens.length > 0;
+  itens.forEach((i) => {
+    const btnComprado = criarEl("button", "btn-com-icone" + (i.comprado ? " primario" : ""));
+    btnComprado.textContent = i.comprado ? "comprado" : "marcar comprado";
+    btnComprado.addEventListener("click", async () => {
+      btnComprado.disabled = true;
+      const r = await jsonPost(`/api/ideias-presente/${i.id}/comprado`);
+      if (r) loadIdeiasPresente();
+      else btnComprado.disabled = false;
+    });
+    lista.appendChild(
+      itemSimples(`${i.pessoa}: ${i.ideia}`, [i.ocasiao], [btnComprado, (el) => botaoApagar(`/api/ideias-presente/${i.id}`, el)])
+    );
+  });
+}
+
+ligarForm("#ideia-presente-form", "#ideia-presente-btn", "Adicionar", () => {
+  const pessoa = $("#ideia-presente-pessoa").value.trim();
+  const ideia = $("#ideia-presente-ideia").value.trim();
+  if (!pessoa || !ideia) {
+    mostrarErro("Confere pra quem e a ideia de presente.");
+    return null;
+  }
+  return { pessoa, ideia, ocasiao: $("#ideia-presente-ocasiao").value.trim() || null };
+}, "/api/ideias-presente", loadIdeiasPresente);
 
 // ---- Fase 2: mensagem dificil ----
 
@@ -1008,9 +1096,59 @@ async function loadFimMes() {
   $("#fim-mes-projecao").textContent = `No ritmo de ${fmtMoeda(p.ritmo_diario)}/dia, deve sobrar ${fmtMoeda(p.sobra_projetada)} no fim do mes${contas}.`;
 }
 
+// ---- Fase 5 (US-C22): sinal de sobrecarga ----
+
+const SINAL_TEXTO = { "tarefas atrasadas": "tarefas atrasadas", "sono ruim": "sono ruim seguido", "semana pesada": "semana cheia pela frente" };
+
+async function loadSobrecarga() {
+  const data = await apiFetch("/api/sobrecarga");
+  if (!data) return;
+  const box = $("#sobrecarga-box");
+  box.hidden = !data.sobrecarregado;
+  if (!data.sobrecarregado) return;
+  $("#sobrecarga-pontuacao").textContent = `${data.pontuacao}/3 sinais`;
+  const lista = data.sinais.map((s) => SINAL_TEXTO[s] || s).join(", ");
+  $("#sobrecarga-texto").textContent = `Varios sinais juntos: ${lista}. Talvez valha desacelerar hoje.`;
+}
+
+// ---- Fase 5 (US-C21): previa da noite anterior ----
+
+async function loadPreviaNoite() {
+  const data = await apiFetch("/api/previa-noite");
+  if (!data) return;
+  const box = $("#previa-noite-box");
+  const oculto = $("#previa-noite-oculto");
+  const texto = $("#previa-noite-texto");
+
+  if (data.oculto) {
+    box.hidden = false;
+    oculto.hidden = false;
+    texto.hidden = true;
+    $("#previa-noite-data").textContent = "";
+    return;
+  }
+  oculto.hidden = true;
+  texto.hidden = false;
+
+  const partes = [];
+  if (data.sono_horas != null) partes.push(`dormiu ${data.sono_horas.toFixed(1)}h`);
+  else if (data.sono_checkin != null) partes.push(`marcou o sono como ${data.sono_checkin}/5`);
+  if (data.copos_agua) partes.push(`${data.copos_agua} copo(s) de agua`);
+  if (data.medicamentos_total > 0) {
+    partes.push(`remedio: ${data.medicamentos_tomados}/${data.medicamentos_total} tomado(s)`);
+  }
+
+  box.hidden = partes.length === 0;
+  if (partes.length === 0) return;
+  $("#previa-noite-data").textContent = fmtDataBr(data.data);
+  texto.textContent = partes.join(" - ") + ".";
+}
+
 // ---- Carga inicial + recarga ao trocar de aba ----
 
 function loadVidaHoje() {
+  loadSobrecarga();
+  loadPreviaNoite();
   loadRotina();
   loadCheckin();
   loadEssencial();
@@ -1026,8 +1164,10 @@ function loadVidaAba() {
   loadAssinaturasRevisao();
   loadManutencoes();
   loadManutencoesVeiculo();
+  loadGarantias();
   loadViagens();
   loadLugares();
+  loadIdeiasPresente();
   loadAprender();
   loadSalvos();
   loadProgresso();

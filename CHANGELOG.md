@@ -5,7 +5,7 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
-## 2026-09-23 (27) - Fase 5 Grupo A: nucleo do classificador de intent
+## 2026-09-23 (28) - Fase 5 Grupo A: nucleo do classificador de intent
 
 Branch `fase5/grupo-a-nucleo-intent` (agente IA autonomo, worktree isolado). US-A1 a US-A6
 do `tasks/fase5/grupo-a-nucleo-intent.json`, todas passando. Objetivo: dar ao Grupo B
@@ -81,6 +81,139 @@ algo do zero (a maioria estende mecanismo ja existente em vez de duplicar).
 
 Suite completa (1174 testes) sem nenhuma regressao - as 5 falhas pre-existentes de
 notificacao de voo sensivel a horario continuam as mesmas de antes desta leva.
+
+## 2026-09-23 (27) - Fase 5 Grupo C (independentes, agente c3): US-C15 a US-C22
+
+Agente isolado em worktree proprio (`fase5/grupo-c3`), cobrindo so US-C15 a US-C22 do
+`tasks/fase5/grupo-c-independentes.json`. Ver `tasks/fase5/progress-grupo-c.txt` pro relato
+completo por historia.
+
+**US-C15 - Ideias de presente**
+- Tabela `ideias_presente` (pessoa, ideia, ocasiao, comprado) + CRUD (`db.py`/`app.py`,
+  `GET/POST /api/ideias-presente`, `POST .../<id>/comprado`, `DELETE .../<id>`).
+- Chat tool `registrar_ideia_presente` (mesmo padrao de `registrar_lugar`).
+- Secao nova na aba Vida (reaproveita `itemSimples`/`ligarForm` de `vida.js`).
+- `tests/test_ideias_presente.py` (11 casos: CRUD via db.py, via API, autenticacao, chat tool).
+
+**US-C16 - Modo viagem**
+- Toggle `GET/POST /api/modo-viagem`, estado em `configuracoes` (chave `modo_viagem`,
+  JSON `{ativo, data_inicio, data_fim}` - mesmo padrao de `hiperfoco_ate`/`avisos_adiados`).
+  `viagem.modo_viagem_ativo(estado, hoje)` (pura, testavel): toggle liga na hora; com
+  datas, expira sozinho fora da janela sem precisar desligar na mao.
+- `verificar_e_notificar` suprime `rotina_manha`/`hora_de_dormir`/`fechamento_noturno`/
+  `manutencao` (rotina domestica) enquanto ativo - resto continua normal (nunca marca
+  como notificado, entao volta a valer sozinho quando o modo acabar, mesmo espirito do
+  horario silencioso).
+- Botao novo no cabecalho (mesmo padrao visual do de horario silencioso).
+- Ajuste de calculo de horario por fuso (mencionado na AC como opcional "se fizer
+  sentido"): avaliado e descartado por ora - o campo `destino` e texto livre, sem
+  geocoding nao da pra saber o fuso de verdade sem arriscar inventar; ficou so a
+  supressao de notificacao, documentado em `progress-grupo-c.txt`.
+- `tests/test_modo_viagem.py` (16 casos: funcao pura, API, supressao real em
+  `verificar_e_notificar`).
+
+**US-C17 - Alerta de gasto fora do padrao (categoria)**
+- Estende o mecanismo ja existente de gasto atipico (`notificacoes.gasto_dia_semana_atipico`,
+  que compara o TOTAL do dia com o mesmo dia da semana) com um segundo angulo, no mesmo
+  arquivo: `notificacoes.gastos_fora_do_padrao_categoria` compara cada gasto INDIVIDUAL de
+  hoje com a media + desvio-padrao historico da mesma categoria (janela de 3 meses, minimo
+  5 amostras) - pega um gasto pontual fora do normal mesmo quando o dia inteiro nao chama
+  atencao. Categoria sem variacao historica (desvio-padrao 0, ex: sempre a mesma assinatura)
+  usa 50% acima da media constante como limiar, ja que "X desvios" nao faz sentido com
+  variancia zero.
+- `aprendizado.media_e_desvio_padrao` (helper estatistico puro novo, reaproveitando o padrao
+  do modulo - so estatistica sobre o proprio historico, sem IA).
+- Wired em `verificar_e_notificar` logo apos o alerta por dia da semana, dedup por gasto
+  (`ja_notificado_alguma_vez` - o mesmo gasto nunca avisa duas vezes).
+- `tests/test_gasto_categoria_atipico.py` (11 casos: helper estatistico, deteccao pura,
+  integracao real em `verificar_e_notificar`).
+
+**US-C18 - Cofre de garantia**
+- Tabela `garantias` (produto, data_compra, prazo_garantia_meses, nota_fiscal_anexo opcional,
+  notificado) + CRUD (`GET/POST /api/garantias`, `DELETE .../<id>`). `POST` aceita JSON (sem
+  anexo) ou `multipart/form-data` com arquivo `nota_fiscal` (PDF/JPG/PNG, ate 5MB) - guarda
+  o anexo como base64 na propria linha, sem OCR/extracao (isso e escopo de US-C8/US-C9,
+  fora desta historia). `vida.somar_meses` novo (extraido de `proxima_data_manutencao`,
+  que passou a reusar - mesmo calculo de "daqui a N meses" pros dois casos).
+- `notificacoes.garantias_vencendo`: avisa 15 dias antes do vencimento (ou se ja venceu).
+  Dedup pela PROPRIA coluna `notificado` da garantia (pedido explicito da AC), nao pela
+  tabela generica `notificacoes_enviadas` - `verificar_e_notificar` marca a coluna depois
+  de mandar de verdade.
+- Decisao: nota_fiscal_anexo NAO entra na criptografia de campo da Fase 4 - esse escopo foi
+  restrito explicitamente a Open Finance + saude (ver Decisoes da Fase 4 no `TODO.md`), uma
+  nota fiscal de eletrodomestico tem o mesmo nivel de sensibilidade de `cotacoes`/
+  `contas_pessoais` (ja sem criptografia).
+- Secao nova na aba Vida (form com upload de arquivo opcional).
+- `tests/test_garantias.py` (21 casos: `somar_meses`, CRUD via db.py/API inclusive upload,
+  validacao, o alerta puro e a integracao real em `verificar_e_notificar`).
+
+**US-C19 - Modo visitante (mecanismo central)**
+- `GET/POST /api/modo-visitante`: estado so em `session` do Flask (cookie assinado pelo
+  servidor) - NUNCA no banco, nem sobrevive a reinicio de sessao/logout de proposito.
+  Ativar e 1 toque (`{"ativar": true}`, sem PIN - precisa ser rapido pra dar tempo de
+  esconder a tela). Desativar exige o PIN de verdade (`auth.verificar_pin`) - senao quem
+  ja esta com o celular desbloqueado conseguiria desligar sozinho.
+- `app._modo_visitante_ativo()`: helper generico que qualquer rota pode chamar pra decidir
+  se manda o dado real ou um estado neutro - US-C20 usa em financeiro/saude/decisoes.
+- Botao novo no cabecalho (icone de olho) + painel com campo de PIN pra desativar.
+- `tests/test_modo_visitante.py` (9 casos: liga sem PIN, nega desligar sem/com PIN errado,
+  desliga com PIN certo, nao grava linha nenhuma no banco, some no logout, isolado por
+  sessao/cliente - nunca vaza pra outro navegador logado).
+
+**US-C20 - Modo visitante aplicado nas telas sensiveis**
+- Gate feito no SERVIDOR em cada rota (usando `app._modo_visitante_ativo()` da US-C19),
+  nunca so CSS - o requisito explicito era o dado real nao ir nem pra resposta HTTP:
+  - **Financeiro**: `GET /api/expenses`, `/api/incomes`, `/api/orcamentos`, `/api/gastos-fixos`,
+    `/api/expenses/historico`, `/api/gastos/resumo-semanal`, `/api/sobra-do-mes` retornam
+    lista vazia/zero. `GET /api/summary/today` nem chama a IA quando o modo visitante esta
+    ativo (o resumo em texto livre poderia mencionar valor gasto por inferencia - mais
+    seguro nao gerar o texto nenhum do que tentar "limpar" o prompt).
+  - **Saude**: `GET /api/saude/hoje` e `GET /api/medidas` retornam dado nulo/vazio (+ flag
+    `oculto: true` no primeiro, pra UI diferenciar de "sem dado ainda").
+  - **Diario de decisao**: `GET /api/decisoes` retorna lista vazia; `POST /api/decisao`
+    (criar analise nova) fica bloqueado com 403 enquanto o modo estiver ativo.
+  - Fora de escopo desta leva (documentado, nao silenciado): `/api/expenses/exportar-csv`
+    (acao deliberada de export, nao "tela"), `/api/medicamentos` e check-in de energia/sono/
+    humor (saude adjacente, mas fora dos 2 componentes visiveis da secao "Saude hoje" +
+    "Peso e medidas" que a AC cobre).
+- UI: cada uma das 3 telas troca pra "Oculto no modo visitante" (nunca so esconde via CSS -
+  o servidor ja manda vazio, a UI so escolhe qual mensagem mostrar) e reage na hora ao
+  evento `modo-visitante-mudou` (nao precisa trocar de aba pra ver o efeito).
+- `tests/test_modo_visitante_telas.py`: verifica o BODY BRUTO da resposta HTTP (nao o DOM
+  renderizado) em cada rota, incluindo que um valor/categoria/produto especifico inserido
+  no banco nao aparece em lugar nenhum da resposta quando o modo esta ativo, que volta a
+  aparecer normal ao desativar com o PIN, e que a IA nao e chamada nos dois casos sensiveis
+  (resumo do dia e criar decisao) - 9 casos, 100% ok.
+
+**US-C21 - Previa da noite anterior**
+- `GET /api/previa-noite`: resumo FACTUAL (sem IA) do dia anterior a partir de dado ja
+  existente - sono (`saude_dados.sono_horas` se o Atalho mandou, senao o check-in de 1
+  toque da manha), hidratacao (`hidratacao_registros`) e quantos dos medicamentos ativos
+  foram marcados como tomados ontem (reaproveita a materializacao de tarefa recorrente que
+  ja rastreia isso - `recorrente_origem_id` + `due_date` de ontem - nao cria sistema novo).
+  Remedio sem instancia materializada nesse dia (recorrencia nao diaria) nao entra na conta.
+- Card novo "Como foi a noite" no topo da aba Hoje - mesmo padrao visual `card-vida`.
+  Gated por modo visitante tambem (e dado de saude), com `{"oculto": true}` cedo.
+- `tests/test_previa_noite.py` (10 casos: cada fonte de dado isolada, combinacao completa,
+  API, gate do modo visitante).
+
+**US-C22 - Sinal de sobrecarga**
+- `notificacoes.sinal_sobrecarga(tarefas_atrasadas, sono_ruim, semana_pesada)`: combina 3
+  sinais independentes numa pontuacao simples (1 ponto cada) - tarefas atrasadas so conta a
+  partir de 3 (uma unica atrasada e vida normal), sono ruim reaproveita a MESMA deteccao ja
+  usada no alerta `sono_ruim` existente (`vida.sequencia_noites_ruins`, 3+ noites seguidas).
+  Limiar padrao: pontuacao >= 2 de 3 = `sobrecarregado`.
+- **Importante**: o 3o sinal (`semana_pesada`, US-C13 - "semana que vem esta cheia") e de
+  OUTRA historia do mesmo grupo (Grupo C), atribuida a outro agente rodando num worktree/
+  branch separado (`fase5/grupo-c1` ou `c2`) - nao esta integrada neste branch ainda. O
+  parametro existe e a funcao ja combina com ele corretamente (testado com `True`/`False`),
+  mas o `GET /api/sobrecarga` chama com `semana_pesada=False` por enquanto. Quando a US-C13
+  for mesclada nesta branch/na main, so trocar essa chamada pela funcao real de deteccao -
+  documentado com destaque em `progress-grupo-c.txt` pro integrador nao esquecer.
+- `GET /api/sobrecarga` + card "Sinal de sobrecarga" na aba Hoje (so aparece quando
+  `sobrecarregado` for true).
+- `tests/test_sinal_sobrecarga.py` (12 casos: todas as combinacoes de sinais, limiar,
+  integracao real via API com tarefa atrasada de verdade no banco).
 
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 

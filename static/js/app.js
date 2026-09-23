@@ -1130,6 +1130,16 @@ async function loadSaude() {
   const data = await apiFetch("/api/saude/hoje");
   if (!data) return;
 
+  $("#saude-oculto-visitante").hidden = !data.oculto;
+  if (data.oculto) {
+    $("#saude-vazio").hidden = true;
+    $("#saude-grid").hidden = true;
+    $("#dica-sono").hidden = true;
+    $("#dica-humor").hidden = true;
+    $("#hidratacao-total").textContent = "-";
+    return;
+  }
+
   const dados = data.dados;
   const temAlgumDado =
     dados && (dados.passos != null || dados.distancia_km != null || dados.sono_horas != null);
@@ -1168,7 +1178,9 @@ async function loadMedidas() {
 
   const list = $("#lista-medidas");
   list.innerHTML = "";
-  $("#medidas-vazio").hidden = medidas.length > 0;
+  $("#medidas-oculto-visitante").hidden = !modoVisitanteAtivo;
+  $("#medidas-vazio").hidden = modoVisitanteAtivo || medidas.length > 0;
+  if (modoVisitanteAtivo) return;
 
   const tipoJaMostrouTendencia = new Set();
 
@@ -2303,7 +2315,8 @@ async function loadExpenses() {
   if (!expenses) return;
   const list = $("#lista-gastos");
   list.innerHTML = "";
-  $("#gastos-vazio").hidden = expenses.length > 0;
+  $("#gastos-oculto-visitante").hidden = !modoVisitanteAtivo;
+  $("#gastos-vazio").hidden = modoVisitanteAtivo || expenses.length > 0;
   expenses.forEach((e) => list.appendChild(criarItemGasto(e)));
 
   const historico = await apiFetch("/api/expenses/historico?dias=14");
@@ -3463,6 +3476,115 @@ function initSilencio() {
   });
 }
 
+let modoVisitanteAtivo = false;
+
+function initModoVisitante() {
+  const btn = $("#modo-visitante-btn");
+  const painel = $("#modo-visitante-painel");
+  const pinInput = $("#modo-visitante-pin");
+  const status = $("#modo-visitante-status");
+
+  function aplicarEstado(ativo) {
+    modoVisitanteAtivo = ativo;
+    btn.classList.toggle("ativo", ativo);
+    btn.setAttribute("aria-pressed", ativo ? "true" : "false");
+    if (!ativo) {
+      painel.hidden = true;
+      pinInput.value = "";
+      status.textContent = "";
+    }
+    document.dispatchEvent(new CustomEvent("modo-visitante-mudou", { detail: { ativo } }));
+  }
+
+  (async () => {
+    const dados = await apiFetch("/api/modo-visitante");
+    if (dados) aplicarEstado(Boolean(dados.ativo));
+  })();
+
+  btn.addEventListener("click", async () => {
+    if (!modoVisitanteAtivo) {
+      const dados = await apiFetch("/api/modo-visitante", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativar: true }),
+      });
+      if (dados) aplicarEstado(true);
+      return;
+    }
+    painel.hidden = !painel.hidden;
+  });
+
+  $("#modo-visitante-desativar").addEventListener("click", async () => {
+    const desativarBtn = $("#modo-visitante-desativar");
+    status.textContent = "";
+    setBotaoCarregando(desativarBtn, true, "Verificando...");
+    const dados = await apiFetch("/api/modo-visitante", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ativar: false, pin: pinInput.value.trim() }),
+    });
+    setBotaoCarregando(desativarBtn, false, "Desativar");
+    if (dados && dados.ativo === false) {
+      aplicarEstado(false);
+      return;
+    }
+    status.textContent = "PIN incorreto.";
+    pinInput.value = "";
+    pinInput.focus();
+  });
+}
+
+function initModoViagem() {
+  const btn = $("#modo-viagem-btn");
+  const painel = $("#modo-viagem-painel");
+  const ativoInput = $("#modo-viagem-ativo");
+  const inicioInput = $("#modo-viagem-inicio");
+  const fimInput = $("#modo-viagem-fim");
+  const status = $("#modo-viagem-status");
+  let carregado = false;
+
+  async function carregar() {
+    const dados = await apiFetch("/api/modo-viagem");
+    if (!dados) return;
+    ativoInput.checked = Boolean(dados.ativo);
+    inicioInput.value = dados.data_inicio || "";
+    fimInput.value = dados.data_fim || "";
+    btn.classList.toggle("ativo", Boolean(dados.ativo_agora));
+    carregado = true;
+  }
+
+  btn.addEventListener("click", async () => {
+    const aberto = btn.getAttribute("aria-expanded") === "true";
+    if (aberto) {
+      btn.setAttribute("aria-expanded", "false");
+      painel.hidden = true;
+      return;
+    }
+    btn.setAttribute("aria-expanded", "true");
+    painel.hidden = false;
+    if (!carregado) await carregar();
+  });
+
+  $("#modo-viagem-salvar").addEventListener("click", async () => {
+    const salvarBtn = $("#modo-viagem-salvar");
+    status.textContent = "";
+    setBotaoCarregando(salvarBtn, true, "Salvando...");
+    const dados = await apiFetch("/api/modo-viagem", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ativo: ativoInput.checked,
+        data_inicio: inicioInput.value || null,
+        data_fim: fimInput.value || null,
+      }),
+    });
+    setBotaoCarregando(salvarBtn, false, "Salvar");
+    if (!dados) return;
+    btn.classList.toggle("ativo", Boolean(dados.ativo_agora));
+    status.textContent = dados.ativo_agora ? "Modo viagem ativo." : "Modo viagem desligado.";
+  });
+}
+
 function initBackup() {
   const btn = $("#backup-btn");
   const painel = $("#backup-painel");
@@ -3534,4 +3656,13 @@ initViagemOrigemPadrao();
 initVozChat();
 initDicas();
 initSilencio();
+initModoViagem();
+initModoVisitante();
 initBackup();
+
+document.addEventListener("modo-visitante-mudou", () => {
+  loadExpenses();
+  loadSaude();
+  loadMedidas();
+  loadPreviaNoite();
+});

@@ -32,6 +32,12 @@
     <button id="silencio-btn" class="btn-silencio" title="Horario silencioso" aria-label="Configurar horario silencioso" aria-expanded="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>
     </button>
+    <button id="modo-viagem-btn" class="btn-silencio" title="Modo viagem" aria-label="Configurar modo viagem" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg>
+    </button>
+    <button id="modo-visitante-btn" class="btn-silencio" title="Modo visitante" aria-label="Ativar modo visitante (esconde financeiro, saude e decisoes)" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
     <button id="backup-btn" class="btn-backup" title="Exportar / backup" aria-label="Exportar ou baixar backup" aria-expanded="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
     </button>
@@ -78,6 +84,43 @@
       </button>
     </div>
     <p id="silencio-status"></p>
+  </div>
+
+  <div id="modo-viagem-painel" hidden>
+    <p class="silencio-titulo">Modo viagem</p>
+    <p class="silencio-descricao">
+      Enquanto ativo, suprime avisos de rotina domestica (rotina da manha, hora de dormir,
+      fechamento do dia, manutencao) - o resto continua normal. Data de inicio/fim e opcional:
+      se preencher, o modo liga/desliga sozinho nessa janela.
+    </p>
+    <div class="silencio-campos">
+      <label>
+        <input type="checkbox" id="modo-viagem-ativo" />
+        Ativo
+      </label>
+      <label>De <input type="date" id="modo-viagem-inicio" aria-label="Data de inicio (opcional)" /></label>
+      <label>ate <input type="date" id="modo-viagem-fim" aria-label="Data de fim (opcional)" /></label>
+      <button type="button" id="modo-viagem-salvar" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
+        Salvar
+      </button>
+    </div>
+    <p id="modo-viagem-status"></p>
+  </div>
+
+  <div id="modo-visitante-painel" hidden>
+    <p class="silencio-titulo">Modo visitante ativo</p>
+    <p class="silencio-descricao">
+      Financeiro, saude e diario de decisao estao ocultos. Digita o PIN pra desativar.
+    </p>
+    <div class="silencio-campos">
+      <label>PIN <input type="password" id="modo-visitante-pin" inputmode="numeric" maxlength="6" placeholder="000000" /></label>
+      <button type="button" id="modo-visitante-desativar" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
+        Desativar
+      </button>
+    </div>
+    <p id="modo-visitante-status"></p>
   </div>
 
   <p id="erro-banner" class="erro" hidden></p>
@@ -138,6 +181,23 @@
         </div>
       </div>
 
+
+      <div id="sobrecarga-box" class="card-vida" hidden>
+        <div class="card-vida-topo">
+          <h3>Sinal de sobrecarga</h3>
+          <span class="card-vida-meta" id="sobrecarga-pontuacao"></span>
+        </div>
+        <p id="sobrecarga-texto" class="card-vida-meta"></p>
+      </div>
+
+      <div id="previa-noite-box" class="card-vida" hidden>
+        <div class="card-vida-topo">
+          <h3>Como foi a noite</h3>
+          <span class="card-vida-meta" id="previa-noite-data"></span>
+        </div>
+        <p id="previa-noite-oculto" class="card-vida-meta" hidden>Oculto no modo visitante.</p>
+        <p id="previa-noite-texto" class="card-vida-meta"></p>
+      </div>
 
       <div id="rotina-box" class="card-vida" hidden>
         <div class="card-vida-topo">
@@ -233,6 +293,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l1.5-4L12 17l2-8 1.5 3H21"/></svg>
         Saude hoje
       </h2>
+      <p id="saude-oculto-visitante" class="dica-metas" hidden>Oculto no modo visitante.</p>
       <p id="saude-vazio" class="dica-metas">
         Sem dados hoje ainda - configure um Atalho no iPhone pra mandar passos/sono automaticamente
         (veja o README).
@@ -275,6 +336,7 @@
           Adicionar
         </button>
       </form>
+      <p id="medidas-oculto-visitante" class="vazio" hidden>Oculto no modo visitante.</p>
       <p id="medidas-vazio" class="vazio" hidden>Nenhuma medida registrada ainda.</p>
       <ul id="lista-medidas"></ul>
 
@@ -642,6 +704,26 @@
       <p id="manutencoes-veiculo-vazio" class="vazio" hidden>Nada cadastrado.</p>
       <ul id="lista-manutencoes-veiculo"></ul>
 
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 7v5c0 4.5 3.4 8.4 9 10 5.6-1.6 9-5.5 9-10V7l-9-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+        Garantia de produtos
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de garantia de produtos"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Guarda o prazo de garantia de um produto (e a nota fiscal, se quiser anexar). Avisa 15 dias antes de vencer.
+        </p>
+      </div>
+      <form id="garantia-form" class="form-linha">
+        <input type="text" id="garantia-produto" placeholder="Produto (ex: Geladeira)" maxlength="120" required />
+        <input type="date" id="garantia-data-compra" aria-label="Data da compra" required />
+        <input type="number" id="garantia-prazo" placeholder="Garantia (meses)" min="1" max="600" inputmode="numeric" required />
+        <input type="file" id="garantia-anexo" accept=".pdf,.jpg,.jpeg,.png" aria-label="Nota fiscal (opcional)" />
+        <button type="submit" id="garantia-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+      <p id="garantias-vazio" class="vazio" hidden>Nenhum produto cadastrado.</p>
+      <ul id="lista-garantias"></ul>
+
       <h2 class="secao-secundaria" style="--secao-cor: var(--cor-aviacao)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg>
         Viagens
@@ -678,6 +760,25 @@
       </form>
       <p id="lugares-vazio" class="vazio" hidden>Nenhum lugar guardado.</p>
       <ul id="lista-lugares"></ul>
+
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7Z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7Z"/></svg>
+        Ideias de presente
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de ideias de presente"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Anota ideia de presente pra uma pessoa ao longo do ano - marca "comprado" quando resolver, pra nao esquecer na hora certa.
+        </p>
+      </div>
+      <form id="ideia-presente-form" class="form-linha">
+        <input type="text" id="ideia-presente-pessoa" placeholder="Pra quem?" maxlength="80" required />
+        <input type="text" id="ideia-presente-ideia" placeholder="Ideia de presente" maxlength="200" required />
+        <input type="text" id="ideia-presente-ocasiao" placeholder="Ocasiao (opcional)" maxlength="60" />
+        <button type="submit" id="ideia-presente-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+      <p id="ideias-presente-vazio" class="vazio" hidden>Nenhuma ideia guardada.</p>
+      <ul id="lista-ideias-presente"></ul>
 
       <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z"/><path d="M9 7h6"/></svg>
@@ -716,6 +817,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM5 7h14"/></svg>
         Vale a pena?
       </h2>
+      <p id="decisao-oculto-visitante" class="vazio" hidden>Diario de decisao oculto no modo visitante.</p>
       <form id="decisao-form" class="form-linha">
         <textarea id="decisao-pergunta" rows="2" maxlength="1000" placeholder="Ex: vale a pena trocar o celular agora por R$ 4.000?" required></textarea>
         <button type="submit" id="decisao-btn" class="btn-com-icone">
@@ -858,6 +960,10 @@
         <p class="grafico-titulo">Gasto nos ultimos 14 dias</p>
         <div class="grafico-container" id="grafico-gastos"></div>
       </div>
+      <p id="gastos-oculto-visitante" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        Oculto no modo visitante.
+      </p>
       <p id="gastos-vazio" class="vazio" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>
         Nenhum gasto registrado ainda. Manda ai que eu anoto.

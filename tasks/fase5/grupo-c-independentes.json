@@ -173,7 +173,7 @@
         "CRUD simples + chat tool de captura rapida",
         "Testes cobrindo CRUD"
       ],
-      "priority": 15, "passes": false, "notes": ""
+      "priority": 15, "passes": true, "notes": "Tabela ideias_presente + CRUD (db.py/app.py) + chat tool registrar_ideia_presente + secao na aba Vida. Testes em tests/test_ideias_presente.py (11 casos, 100% ok)."
     },
     {
       "id": "US-C16",
@@ -184,7 +184,7 @@
         "Enquanto ativo, suprime notificacoes de rotina domestica (ex: lembretes de casa) e ajusta calculo de horario se fizer sentido",
         "Testes cobrindo a supressao de notificacao no modo viagem"
       ],
-      "priority": 16, "passes": false, "notes": ""
+      "priority": 16, "passes": true, "notes": "Toggle persistido em configuracoes (chave modo_viagem, ativo+data_inicio/fim opcionais, expira sozinho fora da janela). Suprime rotina_manha/hora_de_dormir/fechamento_noturno/manutencao em verificar_e_notificar. Ajuste de fuso horario avaliado e descartado por ora (sem geocoding do destino nao da pra saber o fuso de verdade) - documentado em progress.txt. Testes em tests/test_modo_viagem.py (16 casos, 100% ok)."
     },
     {
       "id": "US-C17",
@@ -195,7 +195,7 @@
         "Notifica quando um gasto novo for X desvios-padrao acima da media da categoria (reaproveitar aprendizado.py)",
         "Testes cobrindo o novo criterio de deteccao"
       ],
-      "priority": 17, "passes": false, "notes": ""
+      "priority": 17, "passes": true, "notes": "Estendeu o mecanismo existente (notificacoes.gasto_dia_semana_atipico) com notificacoes.gastos_fora_do_padrao_categoria (mesmo arquivo/padrao de dedup), usando aprendizado.media_e_desvio_padrao (novo helper puro). Wired em verificar_e_notificar logo apos o alerta por dia da semana. Testes em tests/test_gasto_categoria_atipico.py (11 casos, 100% ok)."
     },
     {
       "id": "US-C18",
@@ -207,7 +207,7 @@
         "Notificacao antes do vencimento da garantia",
         "Testes cobrindo CRUD e o alerta"
       ],
-      "priority": 18, "passes": false, "notes": ""
+      "priority": 18, "passes": true, "notes": "Tabela garantias + CRUD (JSON ou multipart com anexo PDF/JPG/PNG ate 5MB, base64 na coluna nota_fiscal_anexo - sem OCR, so guarda). Alerta 15 dias antes via notificacoes.garantias_vencendo + verificar_e_notificar, dedup pela propria coluna notificado (nao a tabela generica). Nao criptografado (fora do escopo Open Finance/saude da Fase 4, mesmo nivel de cotacoes/contas_pessoais). Testes em tests/test_garantias.py (21 casos, 100% ok)."
     },
     {
       "id": "US-C19",
@@ -219,7 +219,7 @@
         "PIN/senha ja existente do app continua protegendo o toggle em si (nao deixa qualquer um desativar o modo visitante sem o PIN)",
         "Testes cobrindo o toggle"
       ],
-      "priority": 19, "passes": false, "notes": ""
+      "priority": 19, "passes": true, "notes": "Estado so em Flask session (nunca no banco), ativar e 1 toque, desativar exige PIN real (auth.verificar_pin). Helper generico app._modo_visitante_ativo() pronto pra US-C20 usar. Botao novo no cabecalho + painel de PIN pra desativar. Testes em tests/test_modo_visitante.py (9 casos, 100% ok, inclui confirmar que nao vaza pra outra sessao/cliente e que nao grava linha nenhuma no banco)."
     },
     {
       "id": "US-C20",
@@ -230,7 +230,7 @@
         "Com modo visitante ativo, essas secoes mostram um estado neutro (ex: 'oculto no modo visitante') em vez do dado real",
         "Testes cobrindo que o dado sensivel nao aparece no DOM/resposta quando modo visitante ativo"
       ],
-      "priority": 20, "passes": false, "notes": ""
+      "priority": 20, "passes": true, "notes": "Aplicado no SERVIDOR (nunca so CSS): /api/expenses, /api/incomes, /api/orcamentos, /api/gastos-fixos, /api/expenses/historico, /api/gastos/resumo-semanal, /api/sobra-do-mes, /api/summary/today (nem chama a IA, pra resumo em texto livre nao vazar nada) para financeiro; /api/saude/hoje e /api/medidas pra saude; /api/decisoes (GET) e /api/decisao (POST bloqueado 403) pro diario de decisao. UI mostra 'Oculto no modo visitante' nas 3 telas. Testes verificam o BODY da resposta HTTP (nao so o DOM), inclusive que o texto gerado por IA nao contem valor/categoria reais. tests/test_modo_visitante_telas.py (9 casos, 100% ok)."
     },
     {
       "id": "US-C21",
@@ -241,7 +241,7 @@
         "Card simples na tela inicial/hoje",
         "Testes cobrindo a montagem do resumo"
       ],
-      "priority": 21, "passes": false, "notes": ""
+      "priority": 21, "passes": true, "notes": "GET /api/previa-noite agrega sono (saude_dados ou checkin), hidratacao e medicamentos tomados (via a mesma materializacao de tarefa recorrente) do dia anterior - sem IA, so factual. Card novo no topo da aba Hoje. Tambem gated por modo visitante (dado de saude). Testes em tests/test_previa_noite.py (10 casos, 100% ok)."
     },
     {
       "id": "US-C22",
@@ -252,7 +252,7 @@
         "Card/aviso visivel na tela inicial quando a pontuacao passar de um limiar",
         "Testes cobrindo o calculo da pontuacao combinada"
       ],
-      "priority": 22, "passes": false, "notes": ""
+      "priority": 22, "passes": true, "notes": "notificacoes.sinal_sobrecarga combina tarefas atrasadas (>=3) + sono ruim (vida.sequencia_noites_ruins, mesma deteccao ja usada no alerta sono_ruim) + semana_pesada (US-C13, NAO integrada neste branch - agente de outra historia do mesmo grupo; parametro aceito e chamado com False, documentado em progress.txt pro integrador ligar quando C13 mesclar). Limiar: 2 de 3 sinais = sobrecarregado. GET /api/sobrecarga + card na aba Hoje. Testes em tests/test_sinal_sobrecarga.py (12 casos, 100% ok)."
     }
   ]
 }

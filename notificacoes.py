@@ -398,6 +398,98 @@ def gasto_dia_semana_atipico(
     )
 
 
+def gastos_fora_do_padrao_categoria(
+    conn, hoje: date | None = None, meses_historico: int = 3, desvios: float = 2.0, minimo_amostras: int = 5
+) -> list[tuple[int, str]]:
+    """Fase 5 (US-C17): extensao de gasto_dia_semana_atipico (mesmo mecanismo
+    - "isso hoje esta fora do padrao?" - so que olhando por outro angulo).
+    Em vez do TOTAL do dia vs o mesmo dia da semana, compara CADA gasto
+    individual registrado hoje com a media + desvio-padrao (aprendizado.py)
+    dos gastos historicos da MESMA categoria - pega um gasto pontual fora do
+    normal mesmo quando o dia inteiro nao chama atencao (ex: 1 gasto de
+    R$800 em "mercado", categoria que raramente passa de R$150). Categoria
+    com historico curto demais (`minimo_amostras`) e ignorada - sem dado
+    suficiente pra saber o que e "normal" ainda."""
+    hoje = hoje or date.today()
+    inicio_historico = (hoje - timedelta(days=30 * meses_historico)).isoformat()
+    gastos_hoje = conn.execute(
+        "SELECT id, category, amount FROM expenses WHERE tipo = 'real' AND date(created_at) = ?",
+        (hoje.isoformat(),),
+    ).fetchall()
+    avisos = []
+    for g in gastos_hoje:
+        historico = conn.execute(
+            """SELECT amount FROM expenses
+               WHERE tipo = 'real' AND category = ? AND id != ?
+                 AND date(created_at) >= ? AND date(created_at) < ?""",
+            (g["category"], g["id"], inicio_historico, hoje.isoformat()),
+        ).fetchall()
+        valores = [h["amount"] for h in historico]
+        if len(valores) < minimo_amostras:
+            continue
+        media, desvio_padrao = aprendizado.media_e_desvio_padrao(valores)
+        # Categoria sem variacao historica (ex: sempre a mesma assinatura de
+        # R$30) tem desvio-padrao 0 - "X desvios acima da media" nao faz
+        # sentido nesse caso (qualquer valor diferente seria "infinitos
+        # desvios"), entao usa 50% acima da media constante como limiar.
+        limiar = media + desvios * desvio_padrao if desvio_padrao > 0 else media * 1.5
+        if g["amount"] <= limiar:
+            continue
+        avisos.append(
+            (
+                g["id"],
+                f"Gasto de R$ {g['amount']:.2f} em \"{g['category']}\" esta bem acima do "
+                f"normal pra essa categoria (media de R$ {media:.2f}).",
+            )
+        )
+    return avisos
+
+
+def garantias_vencendo(conn, hoje: date | None = None, dias_aviso: int = 15) -> list[tuple[int, str]]:
+    """Fase 5 (US-C18): garantia cujo prazo vence em ate `dias_aviso` dias (ou
+    ja venceu). Dedup e pela propria coluna `notificado` da garantia (nao
+    pela tabela generica notificacoes_enviadas) - o pedido explicito da
+    historia e um flag por garantia, entao so filtra o que ainda nao foi
+    avisado; quem chama marca `notificado=1` depois de mandar de verdade."""
+    hoje = hoje or date.today()
+    avisos = []
+    for g in db.list_garantias(conn):
+        if g["notificado"]:
+            continue
+        compra = date.fromisoformat(g["data_compra"])
+        vencimento = vida.somar_meses(compra, g["prazo_garantia_meses"])
+        dias_ate = (vencimento - hoje).days
+        if dias_ate > dias_aviso:
+            continue
+        quando = f"venceu ha {-dias_ate} dia(s)" if dias_ate < 0 else "vence hoje" if dias_ate == 0 else f"vence em {dias_ate} dia(s)"
+        avisos.append((g["id"], f"Garantia de \"{g['produto']}\" {quando} ({vencimento.strftime('%d/%m/%Y')})."))
+    return avisos
+
+
+def sinal_sobrecarga(tarefas_atrasadas: int, sono_ruim: bool, semana_pesada: bool) -> dict:
+    """Fase 5 (US-C22): combina sinais independentes numa pontuacao simples
+    de sobrecarga - 1 ponto por sinal presente. `tarefas_atrasadas` so conta
+    como sinal a partir de 3 (uma unica tarefa atrasada e vida normal, nao
+    sobrecarga). Limiar padrao de "sobrecarregado" e 2 de 3 sinais - um
+    sinal isolado ainda e dia normal, dois ou mais juntos que indicam
+    sobrecarga de verdade.
+
+    `semana_pesada` e o sinal de deteccao de "semana que vem esta cheia"
+    (US-C13, historia de outro agente do mesmo grupo/leva - nao integrada
+    neste branch ainda). O chamador passa False ate isso ser mesclado; ver
+    a nota em progress-grupo-c.txt. Quando integrado, o score passa a valer
+    com os 3 sinais automaticamente, sem mudar nada aqui."""
+    sinais = []
+    if tarefas_atrasadas >= 3:
+        sinais.append("tarefas atrasadas")
+    if sono_ruim:
+        sinais.append("sono ruim")
+    if semana_pesada:
+        sinais.append("semana pesada")
+    pontuacao = len(sinais)
+    return {"pontuacao": pontuacao, "sinais": sinais, "sobrecarregado": pontuacao >= 2}
+
+
 def proxima_ocorrencia_lembrete(data_base: date, recorrente: bool, hoje: date) -> date:
     """Pra lembrete unico, a proxima ocorrencia e a propria data. Pra
     recorrente (anual - tipo validade de licenca, exame medico, seguro),

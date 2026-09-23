@@ -398,6 +398,14 @@ def mensagem_chegou_casa(agora: datetime, proximo: dict | None, pendentes: list[
     return None
 
 
+def somar_meses(base: date, meses: int) -> date:
+    """Soma N meses a uma data, cravando no ultimo dia do mes de destino
+    quando o dia original nao existir la (ex: 31/01 + 1 mes = 28 ou 29/02)."""
+    mes_total = base.month - 1 + meses
+    ano, mes = base.year + mes_total // 12, mes_total % 12 + 1
+    return date(ano, mes, min(base.day, monthrange(ano, mes)[1]))
+
+
 def proxima_data_manutencao(ultima_vez: str | None, intervalo_meses: int, criado_em: str | None, hoje: date) -> date:
     """Proxima vez que a manutencao vence. Sem registro de ultima vez, conta
     a partir do cadastro."""
@@ -406,9 +414,7 @@ def proxima_data_manutencao(ultima_vez: str | None, intervalo_meses: int, criado
         base = date.fromisoformat(base_txt)
     except ValueError:
         base = hoje
-    mes_total = base.month - 1 + intervalo_meses
-    ano, mes = base.year + mes_total // 12, mes_total % 12 + 1
-    return date(ano, mes, min(base.day, monthrange(ano, mes)[1]))
+    return somar_meses(base, intervalo_meses)
 
 
 _PREFIXO_ACABOU = re.compile(r"^\s*(acab(ou|aram))\b\s*((o|a|os|as)\b\s*)?", re.IGNORECASE)

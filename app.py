@@ -48,6 +48,7 @@ from db import (
     add_to_goal,
     adicionar_compra,
     ajustar_saldo_conta,
+    alternar_ideia_presente_comprada,
     alternar_item_viagem,
     alternar_rotina_item,
     apagar_brain_dump,
@@ -70,7 +71,9 @@ from db import (
     create_decisao,
     create_diario_decisao,
     create_espera,
+    create_garantia,
     create_goal,
+    create_ideia_presente,
     create_income,
     create_lembrete,
     create_lugar,
@@ -101,6 +104,8 @@ from db import (
     delete_conta_pessoal,
     delete_cotacao,
     delete_ficha_treino,
+    delete_garantia,
+    delete_ideia_presente,
     delete_item_cotacao,
     delete_lembrete,
     delete_lugar,
@@ -150,8 +155,10 @@ from db import (
     list_esperas_pendentes,
     list_eventos_app,
     list_fichas_treino,
+    list_garantias,
     list_goal_deposits,
     list_goals,
+    list_ideias_presente,
     list_incomes,
     list_itens_cotacao,
     list_itens_viagem,
@@ -177,6 +184,7 @@ from db import (
     marcar_comprado,
     marcar_conta_paga,
     marcar_espera_importante,
+    marcar_garantia_notificada,
     marcar_manutencao_feita,
     marcar_notificado,
     marcar_ou_criar_feito,
@@ -427,6 +435,43 @@ def login():
 def logout():
     session.clear()
     return jsonify({"ok": True})
+
+
+def _modo_visitante_ativo() -> bool:
+    """Fase 5 (US-C19): mecanismo generico que outras rotas (US-C20) chamam
+    pra decidir se mandam o dado real ou um estado neutro. Estado fica so na
+    sessao do Flask (cookie assinado pelo servidor, nunca no banco) - nao
+    precisa sobreviver a reinicio do processo nem ser visto por outra sessao/
+    aparelho, e some sozinho no logout (session.clear() acima)."""
+    return bool(session.get("modo_visitante"))
+
+
+@app.route("/api/modo-visitante", methods=["GET"])
+def modo_visitante_rota():
+    return jsonify({"ativo": _modo_visitante_ativo()})
+
+
+@app.route("/api/modo-visitante", methods=["POST"])
+def alternar_modo_visitante_rota():
+    """Ativar e livre (1 toque, pra dar tempo de esconder a tela antes de
+    passar o celular pra alguem). Desativar exige o PIN de verdade - senao
+    quem ja esta com o celular desbloqueado (a propria pessoa de quem voce
+    esta escondendo o dado) conseguiria desligar sozinha so cutucando um
+    botao."""
+    body = _corpo_json()
+    if bool(body.get("ativar")):
+        session["modo_visitante"] = True
+        return jsonify({"ativo": True})
+
+    conn = get_db()
+    try:
+        pin_ok = auth.verificar_pin(conn, body.get("pin"))
+    finally:
+        conn.close()
+    if not pin_ok:
+        return jsonify({"error": "PIN incorreto"}), 403
+    session["modo_visitante"] = False
+    return jsonify({"ativo": False})
 
 
 @app.route("/")
@@ -820,6 +865,8 @@ def corrigir_categoria_gasto_rota(expense_id):
 
 @app.route("/api/expenses", methods=["GET"])
 def list_expenses():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     rows = conn.execute("SELECT * FROM expenses ORDER BY created_at DESC LIMIT 50").fetchall()
     conn.close()
@@ -828,6 +875,8 @@ def list_expenses():
 
 @app.route("/api/incomes", methods=["GET"])
 def list_incomes_rota():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     rows = list_incomes(conn, limit=50)
     conn.close()
@@ -836,6 +885,8 @@ def list_incomes_rota():
 
 @app.route("/api/orcamentos", methods=["GET"])
 def list_orcamentos_rota():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     orcamentos = list_orcamentos(conn)
     ano_mes = date.today().strftime("%Y-%m")
@@ -847,6 +898,8 @@ def list_orcamentos_rota():
 
 @app.route("/api/gastos-fixos", methods=["GET"])
 def gastos_fixos_rota():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     resultado = _gastos_fixos(conn)
     conn.close()
@@ -855,6 +908,11 @@ def gastos_fixos_rota():
 
 @app.route("/api/sobra-do-mes", methods=["GET"])
 def sobra_do_mes_rota():
+    if _modo_visitante_ativo():
+        hoje = date.today()
+        return jsonify(
+            {**gastos.sobra_do_mes(0, 0, 0), "projecao": vida.projecao_fim_do_mes(0, 0, 0, hoje)}
+        )
     conn = get_db()
     resultado = _sobra_do_mes(conn)
     conn.close()
@@ -863,6 +921,8 @@ def sobra_do_mes_rota():
 
 @app.route("/api/expenses/historico", methods=["GET"])
 def expenses_historico():
+    if _modo_visitante_ativo():
+        return jsonify([])
     dias = request.args.get("dias", default=14, type=int)
     dias = min(max(dias, 1), 90)
     conn = get_db()
@@ -1082,6 +1142,8 @@ def rodar_backup_automatico_semanal():
 
 @app.route("/api/gastos/resumo-semanal", methods=["GET"])
 def gastos_resumo_semanal():
+    if _modo_visitante_ativo():
+        return jsonify(gastos.resumo_semanal([], date.today()))
     conn = get_db()
     rows = conn.execute(
         "SELECT amount, category, created_at FROM expenses WHERE tipo = 'real'"
@@ -1507,6 +1569,22 @@ def summary_today():
     pending = conn.execute(
         "SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
     ).fetchall()
+    if _modo_visitante_ativo():
+        # US-C20: nem chama a IA - o resumo em texto livre poderia mencionar
+        # valor gasto ou dado de saude, e nao da pra garantir que um prompt
+        # "sem esses dados" nunca vaze nada por inferencia. Mais seguro nao
+        # gerar o texto nenhum enquanto o modo visitante estiver ativo.
+        eventos = _eventos_de_hoje_com_seguranca(conn)
+        conn.close()
+        return jsonify(
+            {
+                "summary": "Resumo oculto no modo visitante.",
+                "gasto_hoje": None,
+                "gasto_planejado": None,
+                "tarefas_concluidas": len(done),
+                "eventos_hoje": len(eventos),
+            }
+        )
     expenses = conn.execute(
         "SELECT amount, category FROM expenses WHERE date(created_at) = ? AND tipo = 'real'", (today,)
     ).fetchall()
@@ -1548,6 +1626,88 @@ def summary_today():
             "eventos_hoje": len(eventos),
         }
     )
+
+
+def _previa_noite_anterior(conn, hoje: date) -> dict:
+    """Fase 5 (US-C21): resumo factual (sem IA) de como foi a noite anterior,
+    a partir de dado ja existente - sono (saude_dados, se o Atalho mandou;
+    checkin, se foi so o 1-toque da manha), hidratacao do dia anterior e
+    quantos dos medicamentos ativos foram marcados como tomados ontem
+    (usa a mesma materializacao de tarefa recorrente que ja rastreia isso -
+    nao cria sistema novo de "tomei o remedio")."""
+    ontem = hoje - timedelta(days=1)
+    ontem_iso = ontem.isoformat()
+    dia = get_saude_dia(conn, ontem_iso)
+    checkin = get_checkin(conn, ontem_iso)
+    copos = contar_hidratacao_dia(conn, ontem_iso)
+
+    total_meds = 0
+    meds_tomados = 0
+    for m in list_medicamentos_ativos(conn):
+        row = conn.execute(
+            "SELECT completed_at FROM tasks WHERE recorrente_origem_id = ? AND due_date = ?",
+            (m["tarefa_modelo_id"], ontem_iso),
+        ).fetchone()
+        if row is None:
+            continue  # remedio nao caia nesse dia (recorrencia nao diaria)
+        total_meds += 1
+        if row["completed_at"]:
+            meds_tomados += 1
+
+    return {
+        "data": ontem_iso,
+        "sono_horas": dia["sono_horas"] if dia else None,
+        "sono_checkin": checkin["sono"] if checkin else None,
+        "copos_agua": copos,
+        "medicamentos_tomados": meds_tomados,
+        "medicamentos_total": total_meds,
+    }
+
+
+@app.route("/api/previa-noite", methods=["GET"])
+def previa_noite_rota():
+    if _modo_visitante_ativo():
+        return jsonify({"oculto": True})
+    conn = get_db()
+    resultado = _previa_noite_anterior(conn, date.today())
+    conn.close()
+    return jsonify(resultado)
+
+
+def _sinal_sobrecarga_hoje(conn) -> dict:
+    """Fase 5 (US-C22): monta os sinais de hoje e chama notificacoes.
+    sinal_sobrecarga pra combinar. semana_pesada usa a mesma deteccao da
+    US-C13 (aprendizado.semana_pesada, ja integrada na main) - mesmo
+    calculo de notificacoes.semana_pesada_aviso, so que aqui so importa o
+    booleano "sobrecarregada", nao a mensagem pronta."""
+    hoje = date.today()
+    n_atrasadas = conn.execute(
+        "SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NULL AND due_date IS NOT NULL AND due_date < ?",
+        (hoje.isoformat(),),
+    ).fetchone()["n"]
+    sono = {
+        l["data"]: l["sono_horas"]
+        for l in list_saude_dados(conn, desde=(hoje - timedelta(days=14)).isoformat())
+        if l["sono_horas"] is not None
+    }
+    checkin_sono = {
+        c["data"]: c["sono"] for c in list_checkins(conn, (hoje - timedelta(days=14)).isoformat()) if c["sono"]
+    }
+    seguidas, _ = vida.sequencia_noites_ruins(sono, checkin_sono, hoje)
+    inicio_proxima = hoje - timedelta(days=hoje.weekday()) + timedelta(days=7)
+    fim_proxima = inicio_proxima + timedelta(days=6)
+    contagem_proxima = aprendizado.contagem_itens_semana(conn, inicio_proxima, fim_proxima)
+    historico = aprendizado.carga_semanal_historica(conn, hoje)
+    semana_pesada = aprendizado.semana_pesada(contagem_proxima, historico)["sobrecarregada"]
+    return notificacoes.sinal_sobrecarga(n_atrasadas, seguidas >= 3, semana_pesada=semana_pesada)
+
+
+@app.route("/api/sobrecarga", methods=["GET"])
+def sobrecarga_rota():
+    conn = get_db()
+    resultado = _sinal_sobrecarga_hoje(conn)
+    conn.close()
+    return jsonify(resultado)
 
 
 def _tarefas_pendentes_sem_horario_hoje(conn):
@@ -1926,6 +2086,9 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
     def exec_registrar_manutencao(entrada):
         return _criar_manutencao(conn, entrada.get("item"), entrada.get("intervalo_meses"), entrada.get("ultima_vez"))
 
+    def exec_registrar_ideia_presente(entrada):
+        return _criar_ideia_presente(conn, entrada.get("pessoa"), entrada.get("ideia"), entrada.get("ocasiao"))
+
     def exec_registrar_responder(entrada):
         quem = _texto_curto(entrada.get("quem"), 60)
         if not quem:
@@ -2196,6 +2359,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "registrar_viagem": exec_registrar_viagem,
         "registrar_lugar": exec_registrar_lugar,
         "registrar_manutencao": exec_registrar_manutencao,
+        "registrar_ideia_presente": exec_registrar_ideia_presente,
         "registrar_responder": exec_registrar_responder,
         "marcar_saida_noite": exec_marcar_saida_noite,
         "registrar_aprender": exec_registrar_aprender,
@@ -2434,6 +2598,13 @@ NOTIFICACOES_URGENTES = {
     "tarefa_horario", "compromisso_chegando", "voo_sair", "hora_de_dormir", "rotina_manha", "hiperfoco_fim",
     "adiado_hiperfoco",
 }
+
+# Fase 5 (US-C16): avisos de rotina DOMESTICA (casa) que nao fazem sentido
+# enquanto o Alex esta viajando - continuam sendo calculados normalmente,
+# so nao saem enquanto o modo viagem estiver ativo (mesmo espirito do
+# horario silencioso: represado, nunca marcado como notificado, entao volta
+# a valer sozinho quando o modo viagem acabar).
+NOTIFICACOES_ROTINA_DOMESTICA = {"rotina_manha", "hora_de_dormir", "fechamento_noturno", "manutencao"}
 
 
 def _adiar_aviso(conn, tipo: str, titulo: str, corpo: str):
@@ -2685,6 +2856,12 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
             continue
         avisos.append(("manutencao_veiculo", ref, "Manutencao do veiculo", f"{m['tipo']}: {m['motivo']}."))
 
+    # Garantia perto de vencer (US-C18) - dedup pela propria coluna
+    # `notificado` da garantia (ver notificacoes.garantias_vencendo), marcada
+    # depois de mandar de verdade (ver o loop de envio em verificar_e_notificar).
+    for garantia_id, msg in notificacoes.garantias_vencendo(conn):
+        avisos.append(("garantia_vencendo", garantia_id, "Garantia vencendo", msg))
+
     if agora.hour >= 10 and not ja_notificou_hoje(conn, "responder"):
         antigas = [
             r for r in list_responder_pendentes(conn) if datetime.fromisoformat(r["criado_em"]).date() < hoje
@@ -2907,6 +3084,14 @@ def verificar_e_notificar():
     if msg and not ja_notificou_hoje(conn, "gasto_dia_atipico"):
         avisos.append(("gasto_dia_atipico", 0, "Gasto fora do padrao hoje", msg))
 
+    # Mesmo mecanismo acima, outro angulo: um gasto INDIVIDUAL bem acima da
+    # media+desvio-padrao da propria categoria, mesmo que o dia inteiro nao
+    # tenha estourado (US-C17). Dedup por gasto (ja_notificado_alguma_vez -
+    # o mesmo gasto nunca precisa avisar de novo).
+    for gasto_id, msg in notificacoes.gastos_fora_do_padrao_categoria(conn):
+        if not ja_notificado_alguma_vez(conn, "gasto_categoria_atipico", gasto_id):
+            avisos.append(("gasto_categoria_atipico", gasto_id, "Gasto fora do padrao da categoria", msg))
+
     for lembrete_id, msg in notificacoes.lembretes_proximos(conn):
         if not ja_notificou_hoje(conn, "lembrete_proximo", lembrete_id):
             avisos.append(("lembrete_proximo", lembrete_id, "Data importante chegando", msg))
@@ -3037,6 +3222,7 @@ def verificar_e_notificar():
     )
 
     em_hiperfoco = vida.hiperfoco_ativo(obter_configuracao(conn, "hiperfoco_ate"), datetime.now())
+    em_viagem = viagem.modo_viagem_ativo(_modo_viagem_estado(conn), date.today())
 
     # Fase 5 (US-C4): notificacao agrupada - desligada por padrao (ver
     # /api/configuracoes/silencio), pra nao mudar o comportamento de quem
@@ -3062,6 +3248,8 @@ def verificar_e_notificar():
             continue
         if silencioso and tipo not in NOTIFICACOES_URGENTES:
             continue
+        if em_viagem and tipo in NOTIFICACOES_ROTINA_DOMESTICA:
+            continue
         if agrupar_ligado and tipo not in NOTIFICACOES_URGENTES:
             _enfileirar_para_agrupar(conn, tipo, ref_id, titulo, corpo)
             continue
@@ -3071,6 +3259,8 @@ def verificar_e_notificar():
         botoes = [("Marcar como feito", f"completar_tarefa:{ref_id}")] if tipo == "tarefa_parada" else None
         _despachar(titulo, corpo, botoes)
         marcar_notificado(conn, tipo, ref_id)
+        if tipo == "garantia_vencendo":
+            marcar_garantia_notificada(conn, ref_id)
         if tipo in ("tarefa_parada", "espera_parada"):
             registrar_interacao_aprendizado(conn, tipo, ref_id)
         enviados += 1
@@ -3724,6 +3914,10 @@ def saude_importar():
 
 @app.route("/api/saude/hoje", methods=["GET"])
 def saude_hoje():
+    if _modo_visitante_ativo():
+        return jsonify(
+            {"dados": None, "hidratacao_hoje": None, "dica_sono": None, "dica_humor": None, "oculto": True}
+        )
     conn = get_db()
     dia = get_saude_dia(conn, date.today().isoformat())
     hidratacao_hoje = contar_hidratacao_dia(conn, date.today().isoformat())
@@ -3747,6 +3941,8 @@ def registrar_hidratacao_rota():
 
 @app.route("/api/medidas", methods=["GET"])
 def medidas():
+    if _modo_visitante_ativo():
+        return jsonify([])
     tipo = request.args.get("tipo") or None
     conn = get_db()
     resultado = list_medidas_corporais(conn, tipo=tipo)
@@ -4352,6 +4548,8 @@ def _registrar_conversa_por_nome(conn, nome: str, sobre: str | None, texto: str 
 
 @app.route("/api/decisao", methods=["POST"])
 def decisao():
+    if _modo_visitante_ativo():
+        return jsonify({"error": "desative o modo visitante pra usar o diario de decisao"}), 403
     bruto = _corpo_json().get("pergunta")
     pergunta = bruto.strip() if isinstance(bruto, str) else ""
     if not pergunta or len(pergunta) > 1000:
@@ -4374,6 +4572,8 @@ def decisao():
 
 @app.route("/api/decisoes", methods=["GET"])
 def decisoes():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     resultado = [
         {
@@ -4478,6 +4678,51 @@ def _clima_texto_para(destino: str, data_iso: str) -> str | None:
         f"{previsao.get('temp_min')}-{previsao.get('temp_max')}C, "
         f"{previsao.get('chuva_pct')}% de chance de chuva"
     )
+
+
+def _modo_viagem_estado(conn) -> dict:
+    """Fase 5 (US-C16): estado persistido em `configuracoes` (mesmo padrao de
+    `avisos_adiados`/`hiperfoco_ate`) - precisa sobreviver a reinicio do
+    processo, ja que quem le esse estado e o scheduler (`verificar_e_notificar`),
+    nao so uma sessao de navegador aberta."""
+    padrao = {"ativo": False, "data_inicio": None, "data_fim": None}
+    try:
+        salvo = json.loads(obter_configuracao(conn, "modo_viagem") or "{}")
+    except ValueError:
+        salvo = {}
+    return {**padrao, **salvo}
+
+
+def _salvar_modo_viagem(conn, ativo: bool, data_inicio: str | None, data_fim: str | None) -> dict:
+    estado = {"ativo": bool(ativo), "data_inicio": data_inicio, "data_fim": data_fim}
+    definir_configuracao(conn, "modo_viagem", json.dumps(estado))
+    return estado
+
+
+@app.route("/api/modo-viagem", methods=["GET"])
+def modo_viagem_rota():
+    conn = get_db()
+    estado = _modo_viagem_estado(conn)
+    conn.close()
+    return jsonify({**estado, "ativo_agora": viagem.modo_viagem_ativo(estado, date.today())})
+
+
+@app.route("/api/modo-viagem", methods=["POST"])
+def salvar_modo_viagem_rota():
+    body = _corpo_json()
+    ativo = bool(body.get("ativo"))
+    data_inicio = _data_iso_valida(body.get("data_inicio")) if body.get("data_inicio") else None
+    data_fim = _data_iso_valida(body.get("data_fim")) if body.get("data_fim") else None
+    if body.get("data_inicio") and not data_inicio:
+        return jsonify({"error": "data de inicio invalida (AAAA-MM-DD)"}), 400
+    if body.get("data_fim") and not data_fim:
+        return jsonify({"error": "data de fim invalida (AAAA-MM-DD)"}), 400
+    if data_inicio and data_fim and data_fim < data_inicio:
+        return jsonify({"error": "data de fim invalida (tem que ser depois do inicio)"}), 400
+    conn = get_db()
+    estado = _salvar_modo_viagem(conn, ativo, data_inicio, data_fim)
+    conn.close()
+    return jsonify({**estado, "ativo_agora": viagem.modo_viagem_ativo(estado, date.today())})
 
 
 def _viagem_detalhada(conn, v: dict, hoje: date) -> dict:
@@ -4721,6 +4966,23 @@ def listar_manutencoes_veiculo():
     return jsonify(resultado)
 
 
+def _criar_ideia_presente(conn, pessoa, ideia, ocasiao) -> dict:
+    pessoa = _texto_curto(pessoa, 80)
+    ideia_txt = _texto_curto(ideia, 200)
+    if not pessoa or not ideia_txt:
+        return {"erro": "informe a pessoa e a ideia de presente"}
+    ideia_id = create_ideia_presente(conn, pessoa, ideia_txt, _texto_curto(ocasiao, 60))
+    return {"ok": True, "ideia_id": ideia_id}
+
+
+@app.route("/api/ideias-presente", methods=["GET"])
+def ideias_presente_rota():
+    conn = get_db()
+    resultado = list_ideias_presente(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
 @app.route("/api/manutencoes-veiculo", methods=["POST"])
 def criar_manutencao_veiculo_rota():
     body = _corpo_json()
@@ -4762,10 +5024,114 @@ def atualizar_manutencao_veiculo_rota(manutencao_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/ideias-presente", methods=["POST"])
+def criar_ideia_presente_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _criar_ideia_presente(conn, body.get("pessoa"), body.get("ideia"), body.get("ocasiao"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/ideias-presente/<int:ideia_id>/comprado", methods=["POST"])
+def alternar_ideia_presente_rota(ideia_id):
+    conn = get_db()
+    comprado = alternar_ideia_presente_comprada(conn, ideia_id)
+    conn.close()
+    if comprado is None:
+        return jsonify({"error": "ideia nao encontrada"}), 404
+    return jsonify({"comprado": comprado})
+
+
+@app.route("/api/ideias-presente/<int:ideia_id>", methods=["DELETE"])
+def apagar_ideia_presente_rota(ideia_id):
+    conn = get_db()
+    delete_ideia_presente(conn, ideia_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
 @app.route("/api/manutencoes-veiculo/<int:manutencao_id>", methods=["DELETE"])
 def apagar_manutencao_veiculo(manutencao_id):
     conn = get_db()
     delete_manutencao_veiculo(conn, manutencao_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+# ---- Fase 5 (US-C18): cofre de garantia ----
+
+TAMANHO_MAX_ANEXO_GARANTIA_BYTES = 5 * 1024 * 1024  # 5MB - nota fiscal (PDF ou foto), nao um orcamento escaneado
+EXTENSOES_ANEXO_GARANTIA = (".pdf", ".jpg", ".jpeg", ".png")
+
+
+def _garantia_com_status(g: dict, hoje: date) -> dict:
+    compra = date.fromisoformat(g["data_compra"])
+    vencimento = vida.somar_meses(compra, g["prazo_garantia_meses"])
+    return {**g, "vencimento": vencimento.isoformat(), "dias_ate": (vencimento - hoje).days}
+
+
+def _criar_garantia(conn, produto, data_compra, prazo_meses, nota_fiscal_anexo) -> dict:
+    produto = _texto_curto(produto, 120)
+    compra = _data_iso_valida(data_compra)
+    prazo = _inteiro_no_intervalo(prazo_meses, 1, 600)
+    if not produto or not compra:
+        return {"erro": "informe o produto e a data de compra (AAAA-MM-DD)"}
+    if prazo is None:
+        return {"erro": "informe o prazo de garantia em meses (1 a 600)"}
+    if compra > date.today().isoformat():
+        return {"erro": "data de compra invalida (nao pode ser no futuro)"}
+    garantia_id = create_garantia(conn, produto, compra, prazo, nota_fiscal_anexo)
+    return {"ok": True, "garantia_id": garantia_id}
+
+
+@app.route("/api/garantias", methods=["GET"])
+def garantias_rota():
+    conn = get_db()
+    hoje = date.today()
+    resultado = [_garantia_com_status(g, hoje) for g in list_garantias(conn)]
+    conn.close()
+    resultado.sort(key=lambda g: g["dias_ate"])
+    return jsonify(resultado)
+
+
+@app.route("/api/garantias", methods=["POST"])
+def criar_garantia_rota():
+    conn = get_db()
+    anexo_b64 = None
+    if request.content_type and "multipart/form-data" in request.content_type:
+        produto = request.form.get("produto")
+        data_compra = request.form.get("data_compra")
+        prazo = request.form.get("prazo_garantia_meses")
+        arquivo = request.files.get("nota_fiscal")
+        if arquivo and arquivo.filename:
+            nome = arquivo.filename.lower()
+            if not nome.endswith(EXTENSOES_ANEXO_GARANTIA):
+                conn.close()
+                return jsonify({"error": "anexo precisa ser PDF, JPG ou PNG"}), 400
+            dados = arquivo.read()
+            if len(dados) > TAMANHO_MAX_ANEXO_GARANTIA_BYTES:
+                conn.close()
+                return jsonify({"error": "anexo maior que 5MB - manda um arquivo menor"}), 400
+            anexo_b64 = base64.b64encode(dados).decode("ascii")
+    else:
+        body = _corpo_json()
+        produto = body.get("produto")
+        data_compra = body.get("data_compra")
+        prazo = body.get("prazo_garantia_meses")
+    resultado = _criar_garantia(conn, produto, data_compra, prazo, anexo_b64)
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/garantias/<int:garantia_id>", methods=["DELETE"])
+def apagar_garantia_rota(garantia_id):
+    conn = get_db()
+    delete_garantia(conn, garantia_id)
     conn.close()
     return jsonify({"ok": True})
 
