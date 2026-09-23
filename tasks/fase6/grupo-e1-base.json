@@ -83,8 +83,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "claude_client.py: CHAT_SYSTEM_PROMPT (chat) e DECISAO_PROMPT (card 'vale a pena?' dedicado) atualizados - brevidade padrao + so expande com pedido explicito; regra pros/contras generalizada pra qualquer decisao (nao so a frase literal 'vale a pena') com recomendacao direta obrigatoria no fim; contexto pai+socio na construtora (usar so quando pesar); nunca citar valor R$ especifico da construtora. Nao mexi na injecao factual pre-existente de resumo da construtora em plano-do-dia/resumo-do-dia (_construtora_contexto_resumo, feature ja sancionada/shipeada v3.99.14-16, fora do escopo desta historia - decisao registrada em progress-e1.txt). Testes novos (sem API real): SystemPromptConteudoTestCase, +5 metodos.",
       "modelo_planejado": "sonnet"
     }
   ]

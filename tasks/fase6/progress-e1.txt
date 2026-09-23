@@ -93,4 +93,32 @@ documentado em AGENTS.md "Padroes descobertos". / Motivo: reuso maximo da
 infra existente (memorias + list_memorias + prompt) em vez de criar
 caminho paralelo. / Nao confirmado: nada.
 
-Historia US-E11 — pendente.
+Historia US-E11 — decisao: apliquei o estilo de resposta em DOIS prompts -
+CHAT_SYSTEM_PROMPT (chat, ja tinha uma regra de "vale a pena" limitada a
+frase literal) E DECISAO_PROMPT (o card dedicado "vale a pena?" da aba
+Painel, claude_client.analisar_decisao - achei ele lendo o codigo, nao
+estava no meu radar inicial so pelo nome da historia). Generalizei o
+gatilho de pros/contras pra "qualquer decisao, mesmo sem usar exatamente
+essas palavras" (a regra antiga so disparava com a frase exata "vale a
+pena") e tornei a recomendacao final OBRIGATORIA (antes era "uma
+inclinacao honesta", agora e explicito "nunca deixe a decisao em aberto").
+Contexto de socio+pai e regra de nao citar numero da construtora foram pro
+mesmo lugar (com "so quando pesar"/"nao repetir sempre" nos dois, pra nao
+virar ruido repetitivo). / Decisao de escopo (a parte que mais vale
+registrar): NAO toquei em `_construtora_contexto_resumo`/`_contexto_chat`
+(app.py) - a injecao FACTUAL de um numero real da construtora (proxima
+conta a pagar, R$ X) que ja existe de proposito em plano-do-dia e
+resumo-do-dia (feature v3.99.14/16, documentada no proprio README e no
+AGENTS.md do financeiro-construtora como integracao sancionada,
+"exibidos como chegaram"). Li a AC como sendo sobre o COMPORTAMENTO
+GERATIVO do assistente (nunca INVENTAR/CITAR de cabeca um numero da
+construtora numa resposta livre tipo chat/vale-a-pena), nao sobre remover
+uma feature shippada e testada de mostrar um dado que veio pronto da API
+externa - mudar isso seria uma regressao de produto sem pedido explicito
+pra isso, e arriscaria quebrar testes existentes (test_resumo_do_dia_*,
+test_plano_do_dia_*) sem necessidade. / Nao confirmado: se o Alex quis
+dizer literalmente "em NENHUM lugar da aba Hoje" (incluindo o resumo/plano
+factual), a linha "proxima conta a pagar da construtora: R$ X" ainda
+aparece la - vale confirmar com ele antes de mexer nisso, ja que e uma
+mudanca de produto mais invasiva (removeria um dado que ele especificamente
+pediu antes, v3.99.14/16).
