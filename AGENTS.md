@@ -395,3 +395,31 @@ db.init_db()
   tarefa staleada o dia inteiro mesmo com itens mais recentes passando
   batido também).
 
+
+### Fase 6, Grupo E4 (chat produzindo cards dos módulos) - US-E6/US-E7
+- **Consulta que vira card resolve LOCAL antes da IA**: `_processar_mensagem_chat`
+  pergunta a `_classificar_intent(conn, texto, somente_local=True)` (padrão
+  aprendido -> banco "pergunta -> onde buscar" em `aprendizado.consulta_conhecida`)
+  e, se resolveu, chama as MESMAS tools do chat (`_plano_local_chat`) - sem API.
+  Teste de chat com texto tipo "tomei um copo de agua"/"me mostra meus habitos"
+  **não chama** o `claude_client.chat` mockado: o assert dentro do fake não roda.
+  Pra testar o caminho da IA com essas frases, use outra redação.
+- **Regra nova no banco local**: só em `aprendizado.consulta_conhecida` +
+  plano em `app._plano_local_chat` (fonte -> tool). Verbo de ação ou assunto
+  fora do banco (`_VERBO_ACAO`/`_FORA_DO_BANCO`) sempre cai pra IA - quem
+  adicionar fonte nova precisa tirar a palavra de `_FORA_DO_BANCO` se estiver lá.
+- **Card de consulta**: executor devolve `_efeito` com `"consulta": True` -> sem
+  Desfazer, `data.consulta = true` (aditivo) e fora do `resumo_final`.
+- **O `ul` global do `style.css` é `display:flex; flex-direction: column`**
+  (linha ~1689) - qualquer `<ul>` novo dentro de card que deva ser uma
+  FILEIRA (ex: `.card-gotas`) precisa de `flex-direction: row` explícito,
+  senão empilha vertical (achado no headless, teste JS não pega).
+- **`app.py` não importava `re`** até a E4 - `NameError` só aparece em
+  runtime (500 na rota), nunca no import.
+- **Não usar `pkill -f <script>`/`grep <script>` + kill numa linha de Bash que
+  também LANÇA o mesmo script**: o padrão casa a própria linha de comando do
+  shell e mata a chamada inteira (exit 144). Matar por `ps -eo pid,args |
+  grep "python /tmp/..."` numa chamada separada.
+- **Sugestão de horário usa `app._agora()`** (relógio isolado) - teste que
+  depende de "a partir de agora" faz `patch("app._agora", ...)` em vez de
+  mockar `datetime` inteiro.

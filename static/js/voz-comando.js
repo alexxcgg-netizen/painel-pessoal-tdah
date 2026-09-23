@@ -267,6 +267,14 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
           }
           break;
         case "registrar_checkin":
+          // US-E7: "tomei um copo de agua" (parametros.campo = "hidratacao",
+          // docs/INTENT.md) vai pro chat, que resolve no classificador local
+          // e devolve o card de saude do dia - nada e duplicado aqui.
+          if (parametros.campo === "hidratacao" && typeof window.enviarChat === "function") {
+            window.enviarChat(texto);
+            mostrarStatus("Registrei no chat.");
+            break;
+          }
           // O contrato de intent nao fixa um formato confiavel pra
           // campo/valor do check-in (energia/sono/humor) - em vez de
           // adivinhar errado, abre a tela onde o check-in de 1 toque ja

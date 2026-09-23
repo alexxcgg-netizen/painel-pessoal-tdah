@@ -1568,7 +1568,11 @@ def salvar_mensagem_chat(conn, papel: str, texto: str, cards: list | None = None
     conn.commit()
 
 
-ENTIDADES_DESFAZIVEIS = ("tarefa", "gasto", "renda", "lembrete", "meta", "evento")
+ENTIDADES_DESFAZIVEIS = (
+    "tarefa", "gasto", "renda", "lembrete", "meta", "evento",
+    # Fase 6 (US-E7): modulos ligados aos cards
+    "habito", "habito_marcacao", "projeto", "projeto_etapa", "etapa_concluida", "viagem", "hidratacao", "treino",
+)
 
 
 def criar_acao_desfazer(conn, itens: list[dict]) -> str | None:
@@ -1587,6 +1591,14 @@ def criar_acao_desfazer(conn, itens: list[dict]) -> str | None:
         if isinstance(item.get("conta_id"), int) and isinstance(item.get("delta"), (int, float)):
             limpo["conta_id"] = item["conta_id"]
             limpo["delta"] = float(item["delta"])
+        # habito_marcacao (US-E7): o dia e o estado que a acao deixou - o
+        # desfazer volta pro estado oposto naquele dia exato.
+        if item["entidade"] == "habito_marcacao":
+            dia = item.get("data")
+            if not (isinstance(dia, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", dia)) or not isinstance(item.get("feito"), bool):
+                continue
+            limpo["data"] = dia
+            limpo["feito"] = item["feito"]
         if "id" in limpo or "uid" in limpo:
             limpos.append(limpo)
     if not limpos:

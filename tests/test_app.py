@@ -5837,9 +5837,11 @@ class PainelTestCase(unittest.TestCase):
             {"titulo": "Reuniao", "inicio": f"{hoje}T08:00:00", "fim": f"{hoje}T09:00:00", "dia_inteiro": False},
             {"titulo": "Jantar", "inicio": f"{hoje}T19:00:00", "fim": f"{hoje}T20:00:00", "dia_inteiro": False},
         ]
+        # Fase 6 (US-E7): a sugestao so procura a partir de agora - relogio fixo
+        # antes das 06:00 pra o teste nao depender da hora real.
         with patch("caldav_client.configurado", return_value=True), patch(
             "caldav_client.eventos_do_dia", return_value=eventos_fake
-        ):
+        ), patch("app._agora", return_value=datetime.combine(date.today(), datetime.min.time())):
             resultado = self._registrar_via_chat("sugerir_horario_livre", {"duracao_minutos": 60})
         self.assertTrue(resultado["encontrado"])
         self.assertEqual(resultado["inicio"], "09:00")
@@ -5852,7 +5854,7 @@ class PainelTestCase(unittest.TestCase):
         ]
         with patch("caldav_client.configurado", return_value=True), patch(
             "caldav_client.eventos_do_dia", return_value=eventos_fake
-        ):
+        ), patch("app._agora", return_value=datetime.combine(date.today(), datetime.min.time())):
             resultado = self._registrar_via_chat(
                 "sugerir_horario_livre", {"duracao_minutos": 30, "depois_das": "18:00"}
             )
@@ -5863,9 +5865,11 @@ class PainelTestCase(unittest.TestCase):
         eventos_fake = [
             {"titulo": "Trabalho", "inicio": f"{hoje}T06:00:00", "fim": f"{hoje}T22:00:00", "dia_inteiro": False}
         ]
+        # Fase 6 (US-E7): a sugestao so procura a partir de agora - relogio fixo
+        # antes das 06:00 pra o teste nao depender da hora real.
         with patch("caldav_client.configurado", return_value=True), patch(
             "caldav_client.eventos_do_dia", return_value=eventos_fake
-        ):
+        ), patch("app._agora", return_value=datetime.combine(date.today(), datetime.min.time())):
             resultado = self._registrar_via_chat("sugerir_horario_livre", {"duracao_minutos": 30})
         self.assertFalse(resultado["encontrado"])
 

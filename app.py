@@ -7,6 +7,7 @@ import io
 import json
 import math
 import os
+import re
 import sqlite3
 import tempfile
 import threading
@@ -696,7 +697,7 @@ def capture():
 ACOES_INTENT = claude_client.ACOES_INTENT
 
 
-def _classificar_intent(conn, texto: str):
+def _classificar_intent(conn, texto: str, somente_local: bool = False):
     """Fonte unica da logica de classificacao de intent (contrato em
     docs/INTENT.md) - usada tanto por /api/intent/classificar (sessao,
     navegacao por voz no navegador, US-B1) quanto por /api/atalho/comando-voz
@@ -713,15 +714,45 @@ def _classificar_intent(conn, texto: str):
     Devolve (resultado_dict, None) no caminho feliz, ou (None, erro) onde
     `erro` e a tupla (jsonify(...), status) ja pronta pra devolver - o
     caller decide se repassa esse erro cru (US-B1) ou traduz numa fala curta
-    (US-B4)."""
+    (US-B4).
+
+    Fase 6 (US-E7): entre o padrao aprendido e a IA entra o banco "pergunta
+    -> onde buscar" (aprendizado.consulta_conhecida) - consulta de formato
+    conhecido resolve local, sem API. `somente_local=True` (usado pelo chat,
+    que ja tem a propria IA com tool-use depois) para aqui e devolve
+    (None, None) quando nenhuma camada local resolveu - nunca chama a API."""
     padrao = aprendizado.padrao_intent_confiavel(conn, texto)
+    conhecida = aprendizado.consulta_conhecida(texto)
     if padrao:
+        parametros = padrao["parametros"]
+        # padrao "consultar" gravado sem dizer onde buscar (ex: pela IA de
+        # voz, {"pergunta": ...}) ganha as fontes da regra conhecida - mesma
+        # acao, parametro mais util; qualquer outra acao aprendida (inclusive
+        # correcao manual do Alex) vale como esta.
+        if (
+            padrao["acao"] == "consultar"
+            and conhecida
+            and conhecida["acao"] == "consultar"
+            and not aprendizado.fontes_validas(parametros)
+        ):
+            parametros = {**(parametros if isinstance(parametros, dict) else {}), **conhecida["parametros"]}
         return {
             "acao": padrao["acao"],
             "confianca": aprendizado.CONFIANCA_PADRAO_INTENT,
-            "parametros": padrao["parametros"],
+            "parametros": parametros,
             "precisa_confirmacao": False,
         }, None
+
+    if conhecida:
+        return {
+            "acao": conhecida["acao"],
+            "confianca": aprendizado.CONFIANCA_PADRAO_INTENT,
+            "parametros": conhecida["parametros"],
+            "precisa_confirmacao": False,
+        }, None
+
+    if somente_local:
+        return None, None
 
     with _TETO_IA_LOCK:
         if resumo_custo_api(conn)["teto_estourado"]:
@@ -2283,6 +2314,293 @@ def _resolver_cotacao_por_titulo(conn, titulo: str) -> int:
     return cotacao["id"] if cotacao else criar_cotacao(conn, titulo)
 
 
+# ---- Fase 6 (US-E7): consultas que viram card + caminho local do chat -------
+# Tudo aqui e chamado pelos executores de tool do chat (_processar_mensagem_chat)
+# - o MESMO codigo atende a IA (tool-use) e o classificador local
+# (_plano_local_chat -> _classificar_intent(somente_local=True)), entao o card
+# e o mesmo nos dois caminhos. Nenhuma funcao aqui devolve valor em dinheiro
+# pra IA (o card de meta leva o valor; a prosa nao precisa repetir).
+
+
+def _agora() -> datetime:
+    """Relogio do "a partir de agora" da sugestao de horario - separado pra
+    teste fixar a hora sem mockar datetime inteiro."""
+    return datetime.now()
+
+
+def _hhmm_proximo_quarto(momento: datetime) -> str:
+    minutos = momento.hour * 60 + momento.minute
+    minutos = -(-minutos // 15) * 15
+    if minutos >= 24 * 60:
+        return "23:59"
+    return f"{minutos // 60:02d}:{minutos % 60:02d}"
+
+
+_SINONIMOS_ROTINA = {"academia": "treino", "treino": "academia", "malhar": "treino", "correr": "treino"}
+
+
+def _porque_sugestao(conn, titulo: str, janela: dict) -> str:
+    """Texto da caixa "Com a sua rotina em mente" (card sugestao): o fato
+    real da agenda de hoje + a memoria de rotina (US-E10, categoria
+    sua_rotina) que fala do mesmo assunto, quando existir. Nunca inventa."""
+    partes = [f"Hoje o maior espaço livre na sua agenda vai das {janela['inicio']} às {janela['fim']}."]
+    palavras = [p for p in aprendizado.normalizar_consulta(titulo).split() if len(p) >= 4]
+    palavras += [_SINONIMOS_ROTINA[p] for p in palavras if p in _SINONIMOS_ROTINA]
+    if palavras:
+        for memoria in db.contexto_memorias_categorizadas(conn).get("sua_rotina", []):
+            texto_mem = aprendizado.normalizar_consulta(memoria["texto"])
+            if any(p[:5] in texto_mem for p in palavras):
+                partes.append(f"Da sua rotina: {_texto_curto(memoria['texto'], 200)}")
+                break
+    return " ".join(partes)
+
+
+def _sugerir_horario_livre(conn, entrada: dict) -> dict:
+    """Maior espaco livre de HOJE a partir de agora (tool sugerir_horario_livre
+    e pergunta "como encaixo X hoje?"). Com resultado, vira card `sugestao`."""
+    eventos = _eventos_de_hoje_com_seguranca(conn)
+    compromissos = [(e["inicio"][11:16], e["fim"][11:16]) for e in eventos if not e.get("dia_inteiro")]
+    duracao = _inteiro_no_intervalo(entrada.get("duracao_minutos"), 5, 720) or 60
+    inicio_dia = max(_normalizar_hora(entrada.get("depois_das")) or "06:00", _hhmm_proximo_quarto(_agora()))
+    fim_dia = _normalizar_hora(entrada.get("antes_das")) or "22:00"
+    janela = agenda.maior_janela_livre(compromissos, inicio_dia, fim_dia, duracao) if inicio_dia < fim_dia else None
+    if not janela:
+        return {"encontrado": False}
+    titulo = _texto_curto(entrada.get("titulo"), 80) or "Horário livre"
+    return {
+        "encontrado": True,
+        **janela,
+        "_efeito": {
+            "entidade": "sugestao",
+            "consulta": True,
+            "titulo": titulo[:1].upper() + titulo[1:],
+            "inicio": f"{date.today().isoformat()}T{janela['inicio']}",
+            "duracao_min": duracao,
+            "porque": _porque_sugestao(conn, titulo, janela),
+        },
+    }
+
+
+def _duracao_tipica(conn, titulo: str | None) -> int:
+    """Duracao pra sugestao local: treino usa a media dos ultimos treinos
+    registrados (quando houver), o resto 60 min (mesmo padrao da tool)."""
+    t = aprendizado.normalizar_consulta(titulo or "")
+    if re.search(r"trein|academia|malh|corr", t):
+        row = conn.execute(
+            "SELECT AVG(duracao_min) AS media FROM (SELECT duracao_min FROM treinos "
+            "WHERE duracao_min IS NOT NULL ORDER BY data DESC, id DESC LIMIT 10)"
+        ).fetchone()
+        if row and row["media"]:
+            return max(10, min(int(round(row["media"] / 5) * 5), 240))
+    return 60
+
+
+def _casa_termo(termo_normalizado: str, nome) -> bool:
+    """Busca aproximada por palavra (prefixo de 5 letras) - "reforma do
+    quarto" acha "Reformar o quarto"; sem termo, tudo casa."""
+    palavras = [p for p in termo_normalizado.split() if len(p) >= 3 and p not in ("dos", "das", "pra", "para", "com")]
+    if not palavras:
+        return True
+    alvo = aprendizado.normalizar_consulta(str(nome or ""))
+    return all(p[:5] in alvo for p in palavras)
+
+
+def _consultar_projeto(conn, termo) -> dict:
+    hoje = date.today()
+    termo_n = aprendizado.normalizar_consulta(termo if isinstance(termo, str) else "")
+    projetos = list_projetos(conn)
+    viagens = list_viagens_futuras(conn, hoje.isoformat())
+    if termo_n:
+        quer_viagem = bool(re.search(r"\bviage", termo_n))
+        termo_sem_viagem = re.sub(r"\bviage(m|ns)\b", "", termo_n).strip()
+        viag = [v for v in viagens if termo_sem_viagem and _casa_termo(termo_sem_viagem, v["destino"])]
+        if not viag and quer_viagem:
+            viag = viagens[:1]
+        proj = [p for p in projetos if _casa_termo(termo_n, p["nome"])]
+    else:
+        viag = viagens[:1]
+        proj = [p for p in projetos if p["status"] != "pausado"] or projetos
+    efeitos = [{"entidade": "viagem", "id": v["id"], "consulta": True} for v in viag]
+    efeitos += [{"entidade": "projeto", "id": p["id"], "consulta": True} for p in proj]
+    efeitos = efeitos[:3]
+    itens = []
+    for ef in efeitos:
+        if ef["entidade"] == "viagem":
+            v = next(x for x in viag if x["id"] == ef["id"])
+            itens.append({"tipo": "viagem", "nome": v["destino"], "ida": v["data_ida"]})
+        else:
+            p = next(x for x in proj if x["id"] == ef["id"])
+            d = _projeto_detalhado(conn, p, hoje)
+            itens.append({"tipo": "projeto", "nome": p["nome"], "percentual": d["percentual"], "status": d["status"]})
+    return {"encontrados": len(itens), "itens": itens, "_efeito": efeitos}
+
+
+def _consultar_meta(conn, termo) -> dict:
+    termo_n = aprendizado.normalizar_consulta(termo if isinstance(termo, str) else "")
+    metas = [g for g in list_goals(conn) if not termo_n or _casa_termo(termo_n, g["titulo"])][:3]
+    itens = []
+    for g in metas:
+        alvo = float(g["valor_alvo"] or 0)
+        pct = round(min(100.0, float(g["valor_guardado"] or 0) / alvo * 100)) if alvo > 0 else 0
+        itens.append({"titulo": g["titulo"], "percentual": pct, "prazo": g["prazo"]})
+    return {
+        "encontradas": len(itens),
+        "metas": itens,
+        "_efeito": [{"entidade": "meta", "id": g["id"], "consulta": True} for g in metas],
+    }
+
+
+def _consultar_treinos(conn, dias) -> dict:
+    dias = _inteiro_no_intervalo(dias, 1, 90) or 7
+    desde = (date.today() - timedelta(days=dias - 1)).isoformat()
+    row = conn.execute(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(duracao_min), 0) AS m FROM treinos WHERE data >= ?", (desde,)
+    ).fetchone()
+    return {
+        "dias": dias,
+        "sessoes": row["n"],
+        "minutos": int(row["m"]),
+        "_efeito": {"entidade": "treinos", "dias": dias, "consulta": True},
+    }
+
+
+def _consultar_habitos(conn, nome) -> dict:
+    termo_n = aprendizado.normalizar_consulta(nome if isinstance(nome, str) else "")
+    habitos = [h for h in list_habitos(conn) if not termo_n or _casa_termo(termo_n, h["nome"])][:4]
+    hoje_iso = date.today().isoformat()
+    itens = [{"nome": h["nome"], "feito_hoje": db.habito_marcado(conn, hoje_iso, h["id"])} for h in habitos]
+    return {
+        "encontrados": len(itens),
+        "habitos": itens,
+        "_efeito": [{"entidade": "habito", "id": h["id"], "consulta": True} for h in habitos],
+    }
+
+
+def _consultar_saude_dia(conn) -> dict:
+    hoje_iso = date.today().isoformat()
+    return {
+        "agua_copos_hoje": contar_hidratacao_dia(conn, hoje_iso),
+        "_efeito": {"entidade": "saude_dia", "consulta": True},
+    }
+
+
+def _plano_local_chat(conn, texto: str) -> list[tuple[str, dict]] | None:
+    """Traduz o que o classificador LOCAL resolveu (_classificar_intent com
+    somente_local=True - padrao aprendido ou banco "pergunta -> onde
+    buscar") em chamadas das tools do chat. None = a IA responde."""
+    resultado, _erro = _classificar_intent(conn, texto, somente_local=True)
+    if not resultado:
+        return None
+    parametros = resultado.get("parametros") if isinstance(resultado.get("parametros"), dict) else {}
+    if resultado["acao"] == "registrar_checkin" and parametros.get("campo") == "hidratacao":
+        return [("registrar_hidratacao", {})]
+    if resultado["acao"] != "consultar":
+        return None
+    plano = []
+    for f in aprendizado.fontes_validas(parametros):
+        fonte = f["fonte"]
+        if fonte == "projeto":
+            plano.append(("consultar_projeto", {"termo": f.get("termo")}))
+        elif fonte == "meta":
+            plano.append(("consultar_meta", {"termo": f.get("termo")}))
+        elif fonte == "treinos":
+            plano.append(("consultar_treinos", {"dias": f.get("dias")}))
+        elif fonte == "habitos":
+            plano.append(("consultar_habitos", {"nome": f.get("termo")}))
+        elif fonte == "saude_dia":
+            plano.append(("consultar_saude_dia", {}))
+        elif fonte == "sugestao":
+            titulo = f.get("titulo") if isinstance(f.get("titulo"), str) else None
+            duracao = f.get("duracao_min") if isinstance(f.get("duracao_min"), int) else _duracao_tipica(conn, titulo)
+            plano.append(("sugerir_horario_livre", {"titulo": titulo, "duracao_minutos": duracao}))
+    return plano or None
+
+
+def _frase_local(chamada: dict) -> str:
+    tool = chamada["tool"]
+    res = chamada["resultado"] if isinstance(chamada.get("resultado"), dict) else {}
+    entrada = chamada.get("entrada") if isinstance(chamada.get("entrada"), dict) else {}
+    if res.get("erro"):
+        return "Não consegui buscar isso agora."
+    if tool == "consultar_projeto":
+        n = res.get("encontrados", 0)
+        if not n:
+            return "Não achei projeto nem viagem com esse nome." if entrada.get("termo") else "Você ainda não tem projeto nem viagem cadastrados."
+        return "Aqui está o projeto." if n == 1 else f"Aqui estão {n} projetos."
+    if tool == "consultar_meta":
+        n = res.get("encontradas", 0)
+        return "Não achei nenhuma meta." if not n else ("Aqui está a meta." if n == 1 else f"Aqui estão {n} metas.")
+    if tool == "consultar_treinos":
+        dias = res.get("dias", 7)
+        periodo = "hoje" if dias == 1 else f"nos últimos {dias} dias"
+        return f"Seus treinos {periodo}." if res.get("sessoes") else f"Nenhum treino registrado {periodo}."
+    if tool == "consultar_habitos":
+        return "Seus hábitos." if res.get("encontrados") else "Você ainda não tem hábito cadastrado."
+    if tool == "consultar_saude_dia":
+        return "Sua saúde hoje."
+    if tool == "sugerir_horario_livre":
+        if res.get("encontrado"):
+            return f"Dá pra encaixar às {res['inicio']}."
+        return "Hoje não sobrou um espaço livre desse tamanho na agenda."
+    if tool == "registrar_hidratacao":
+        total = res.get("total_hoje")
+        return f"+1 copo de água. {total} hoje." if total else "+1 copo de água."
+    return "Feito."
+
+
+def _resposta_local_chat(chamadas: list[dict]) -> str:
+    """Frase curta que acompanha os cards no caminho local (sem IA) - o dado
+    esta no card; a frase nunca carrega valor em dinheiro."""
+    return " ".join(_frase_local(c) for c in chamadas) or "Feito."
+
+
+def _fonte_da_chamada(chamada: dict) -> dict | None:
+    tool = chamada["tool"]
+    entrada = chamada.get("entrada") if isinstance(chamada.get("entrada"), dict) else {}
+
+    def com_termo(fonte, chave):
+        termo = entrada.get(chave)
+        return {"fonte": fonte, **({"termo": termo} if isinstance(termo, str) and termo.strip() else {})}
+
+    if tool == "consultar_projeto":
+        return com_termo("projeto", "termo")
+    if tool == "consultar_meta":
+        return com_termo("meta", "termo")
+    if tool == "consultar_habitos":
+        return com_termo("habitos", "nome")
+    if tool == "consultar_treinos":
+        dias = _inteiro_no_intervalo(entrada.get("dias"), 1, 90)
+        return {"fonte": "treinos", **({"dias": dias} if dias else {})}
+    if tool == "consultar_saude_dia":
+        return {"fonte": "saude_dia"}
+    if tool == "sugerir_horario_livre" and not entrada.get("depois_das") and not entrada.get("antes_das"):
+        fonte = {"fonte": "sugestao"}
+        if isinstance(entrada.get("titulo"), str) and entrada["titulo"].strip():
+            fonte["titulo"] = entrada["titulo"].strip()
+        duracao = _inteiro_no_intervalo(entrada.get("duracao_minutos"), 5, 720)
+        if duracao:
+            fonte["duracao_min"] = duracao
+        return fonte
+    return None
+
+
+def _padrao_das_chamadas(chamadas: list[dict]) -> dict | None:
+    """US-E7: o que a IA fez vira "pergunta -> onde buscar" SO quando ela
+    respondeu usando exclusivamente ferramentas de consulta (ou so o copo de
+    agua) sem erro - qualquer ferramenta que cria/muda outra coisa (ou
+    nenhuma ferramenta) nao ensina nada."""
+    if not chamadas:
+        return None
+    if any(isinstance(c.get("resultado"), dict) and c["resultado"].get("erro") for c in chamadas):
+        return None
+    if len(chamadas) == 1 and chamadas[0]["tool"] == "registrar_hidratacao":
+        return {"acao": "registrar_checkin", "parametros": {"campo": "hidratacao"}}
+    fontes = [_fonte_da_chamada(c) for c in chamadas]
+    if not all(fontes):
+        return None
+    return {"acao": "consultar", "parametros": {"fontes": fontes[:6]}}
+
+
 def _processar_mensagem_chat(
     conn, texto: str, detalhes: dict | None = None
 ) -> tuple[str | None, list[str], str | None]:
@@ -2414,8 +2732,13 @@ def _processar_mensagem_chat(
         )
 
     def exec_registrar_hidratacao(entrada):
-        total = registrar_hidratacao(conn, date.today().isoformat())
-        return {"ok": True, "total_hoje": total}
+        hoje_iso = date.today().isoformat()
+        total = registrar_hidratacao(conn, hoje_iso)
+        registro_id = conn.execute(
+            "SELECT MAX(id) AS id FROM hidratacao_registros WHERE data = ?", (hoje_iso,)
+        ).fetchone()["id"]
+        # card saude_dia (US-E7) com Desfazer desse copo exato
+        return {"ok": True, "total_hoje": total, "_efeito": {"entidade": "hidratacao", "id": registro_id}}
 
     def exec_registrar_medida(entrada):
         tipo = (entrada.get("tipo") or "").strip().lower()
@@ -2489,12 +2812,15 @@ def _processar_mensagem_chat(
             conn, date.today().isoformat(), _texto_curto(entrada.get("grupo"), 40), duracao,
             _texto_curto(entrada.get("nota"), 300),
         )
-        return {"ok": True, "treino_id": treino_id}
+        return {"ok": True, "treino_id": treino_id, "_efeito": {"entidade": "treino", "id": treino_id}}
 
     def exec_registrar_viagem(entrada):
-        return _criar_viagem(
+        resultado = _criar_viagem(
             conn, entrada.get("destino"), entrada.get("data_ida"), entrada.get("data_volta"), entrada.get("motivo")
         )
+        if resultado.get("ok"):
+            resultado["_efeito"] = {"entidade": "viagem", "id": resultado["viagem_id"]}
+        return resultado
 
     def exec_registrar_lugar(entrada):
         return _criar_lugar(conn, entrada.get("nome"), entrada.get("cidade"), entrada.get("tipo"), entrada.get("nota"))
@@ -2672,14 +2998,7 @@ def _processar_mensagem_chat(
         return {"encontrada": False}
 
     def exec_sugerir_horario_livre(entrada):
-        eventos = _eventos_de_hoje_com_seguranca(conn)
-        compromissos = [(e["inicio"][11:16], e["fim"][11:16]) for e in eventos if not e.get("dia_inteiro")]
-        inicio_dia = entrada.get("depois_das") or "06:00"
-        fim_dia = entrada.get("antes_das") or "22:00"
-        janela = agenda.maior_janela_livre(compromissos, inicio_dia, fim_dia, entrada["duracao_minutos"])
-        if not janela:
-            return {"encontrado": False}
-        return {"encontrado": True, **janela}
+        return _sugerir_horario_livre(conn, entrada)
 
     def exec_calcular_gasto_viagem(entrada):
         if not maps_client.configurado():
@@ -2762,26 +3081,43 @@ def _processar_mensagem_chat(
         }
 
     def exec_registrar_habito(entrada):
-        return _criar_habito(
+        ativos_antes = len(list_habitos(conn))
+        resultado = _criar_habito(
             conn, entrada.get("nome"), entrada.get("meta"), entrada.get("frequencia_tipo"),
             entrada.get("dias_semana"), entrada.get("vezes_por_semana"), entrada.get("horario"),
         )
+        if resultado.get("ok"):
+            resultado["_efeito"] = {
+                "entidade": "habito", "id": resultado["habito_id"],
+                "ativos_antes": ativos_antes, "ativos_depois": ativos_antes + 1,
+            }
+        return resultado
 
     def exec_marcar_habito(entrada):
         habito = buscar_habito_por_nome(conn, entrada.get("nome"))
         if not habito:
             return {"erro": f"nao achei nenhum habito chamado \"{entrada.get('nome')}\""}
-        feito = alternar_habito_dia(conn, date.today().isoformat(), habito["id"])
-        return {"ok": True, "nome": habito["nome"], "feito": feito}
+        hoje_iso = date.today().isoformat()
+        feito = alternar_habito_dia(conn, hoje_iso, habito["id"])
+        return {
+            "ok": True, "nome": habito["nome"], "feito": feito,
+            "_efeito": {"entidade": "habito_marcacao", "id": habito["id"], "data": hoje_iso, "feito": feito},
+        }
 
     def exec_criar_projeto(entrada):
-        return _criar_projeto(conn, entrada.get("nome"), entrada.get("prazo_final"))
+        resultado = _criar_projeto(conn, entrada.get("nome"), entrada.get("prazo_final"))
+        if resultado.get("ok"):
+            resultado["_efeito"] = {"entidade": "projeto", "id": resultado["projeto_id"]}
+        return resultado
 
     def exec_adicionar_etapa(entrada):
         projeto = buscar_projeto_por_nome(conn, entrada.get("nome_projeto"))
         if not projeto:
             return {"erro": f"nao achei nenhum projeto chamado \"{entrada.get('nome_projeto')}\""}
-        return _adicionar_etapa(conn, projeto["id"], entrada.get("texto"), entrada.get("data_prevista"))
+        resultado = _adicionar_etapa(conn, projeto["id"], entrada.get("texto"), entrada.get("data_prevista"))
+        if resultado.get("ok"):
+            resultado["_efeito"] = {"entidade": "projeto_etapa", "id": resultado["etapa_id"], "projeto_id": projeto["id"]}
+        return resultado
 
     def exec_concluir_etapa(entrada):
         projeto = buscar_projeto_por_nome(conn, entrada.get("nome_projeto"))
@@ -2792,13 +3128,38 @@ def _processar_mensagem_chat(
         if not proxima:
             return {"erro": f"o projeto \"{projeto['nome']}\" nao tem etapa pendente"}
         concluir_etapa_projeto(conn, proxima["id"])
-        return {"ok": True, "projeto": projeto["nome"], "etapa": proxima["texto"]}
+        return {
+            "ok": True, "projeto": projeto["nome"], "etapa": proxima["texto"],
+            "_efeito": {"entidade": "etapa_concluida", "id": proxima["id"], "projeto_id": projeto["id"]},
+        }
 
     def exec_agendar_evento(entrada):
-        return _criar_evento_agenda(
+        resultado = _criar_evento_agenda(
             conn, entrada.get("titulo"), entrada.get("data"), entrada.get("hora_inicio"), entrada.get("hora_fim"),
             entrada.get("lembrar_min_antes"),
         )
+        if resultado.get("ok") and resultado.get("uid"):
+            lembrar = _inteiro_no_intervalo(entrada.get("lembrar_min_antes"), 0, 1440) \
+                if entrada.get("lembrar_min_antes") not in (None, "") else None
+            resultado["_efeito"] = {"entidade": "evento", "uid": resultado["uid"], "lembrar_min_antes": lembrar}
+        return resultado
+
+    # ---- consultas que viram card (US-E7) - mesmas funcoes pro caminho da
+    # IA (tool-use) e pro classificador local (_plano_local_chat) ----
+    def exec_consultar_projeto(entrada):
+        return _consultar_projeto(conn, entrada.get("termo"))
+
+    def exec_consultar_meta(entrada):
+        return _consultar_meta(conn, entrada.get("termo"))
+
+    def exec_consultar_treinos(entrada):
+        return _consultar_treinos(conn, entrada.get("dias"))
+
+    def exec_consultar_habitos(entrada):
+        return _consultar_habitos(conn, entrada.get("nome"))
+
+    def exec_consultar_saude_dia(_entrada):
+        return _consultar_saude_dia(conn)
 
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
@@ -2856,6 +3217,11 @@ def _processar_mensagem_chat(
         "adicionar_etapa": exec_adicionar_etapa,
         "concluir_etapa": exec_concluir_etapa,
         "agendar_evento": exec_agendar_evento,
+        "consultar_projeto": exec_consultar_projeto,
+        "consultar_meta": exec_consultar_meta,
+        "consultar_treinos": exec_consultar_treinos,
+        "consultar_habitos": exec_consultar_habitos,
+        "consultar_saude_dia": exec_consultar_saude_dia,
     }
 
     # Fase 6 (docs/CARDS.md): cronometra cada tool (passos) e recolhe o
@@ -2864,14 +3230,30 @@ def _processar_mensagem_chat(
     registro = cards.RegistroExecucao()
     executores = registro.envolver(executores)
 
-    try:
-        resposta, acoes, usage = claude_client.chat(mensagens, contexto, memorias_texto, executores)
-    except anthropic.APIError:
-        return None, [], CLAUDE_ERROR_MSG
-    except (ValueError, KeyError):
-        return None, [], CLAUDE_FORMAT_ERROR_MSG
+    # US-E7: consulta de padrao conhecido (e "tomei um copo de agua") resolve
+    # no classificador LOCAL (_classificar_intent, somente_local) e chama os
+    # MESMOS executores que a IA chamaria - sem API, mesmos cards/passos.
+    plano = _plano_local_chat(conn, texto)
+    if plano:
+        for tool, entrada in plano:
+            executores[tool](entrada)
+        resposta = _resposta_local_chat(registro.chamadas)
+        acoes = [c["tool"] for c in registro.chamadas]
+    else:
+        try:
+            resposta, acoes, usage = claude_client.chat(mensagens, contexto, memorias_texto, executores)
+        except anthropic.APIError:
+            return None, [], CLAUDE_ERROR_MSG
+        except (ValueError, KeyError):
+            return None, [], CLAUDE_FORMAT_ERROR_MSG
 
-    _log_usage(conn, usage, "chat")
+        _log_usage(conn, usage, "chat")
+        # cresce o banco "pergunta -> onde buscar": resposta da IA feita SO
+        # com ferramentas de consulta vira padrao (vale local depois de
+        # LIMIAR_CONFIRMACOES_PADRAO_INTENT repeticoes da mesma frase).
+        aprendido = _padrao_das_chamadas(registro.chamadas)
+        if aprendido:
+            aprendizado.confirmar_padrao_intent(conn, texto, aprendido["acao"], aprendido["parametros"])
     envelope_cards = cards.montar_resposta(
         conn, registro.efeitos(), resposta, registro.passos(), _criar_token_desfazer(conn)
     )
@@ -2893,7 +3275,8 @@ def _criar_token_desfazer(conn):
     def criar(itens: list[dict]) -> str | None:
         traduzidos = []
         for ef in itens:
-            item = {"entidade": ef.get("entidade"), "id": ef.get("id"), "uid": ef.get("uid")}
+            item = {"entidade": ef.get("entidade"), "id": ef.get("id"), "uid": ef.get("uid"),
+                    "data": ef.get("data"), "feito": ef.get("feito")}
             saldo = ef.get("saldo")
             if ef.get("entidade") in ("gasto", "renda") and isinstance(saldo, dict):
                 antes, depois = saldo.get("antes"), saldo.get("depois")
@@ -2967,6 +3350,38 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
         elif entidade == "meta":
             conn.execute("DELETE FROM goal_deposits WHERE goal_id = ?", (id_,))
             cur = conn.execute("DELETE FROM goals WHERE id = ?", (id_,))
+        # ---- Fase 6 (US-E7): modulos ligados aos cards ----
+        elif entidade == "habito":
+            conn.execute("DELETE FROM habito_marcacoes WHERE habito_id = ?", (id_,))
+            cur = conn.execute("DELETE FROM habitos WHERE id = ?", (id_,))
+        elif entidade == "habito_marcacao":
+            # volta o dia exato pro estado anterior a acao (feito -> nao feito e vice-versa)
+            if item.get("feito"):
+                cur = conn.execute(
+                    "DELETE FROM habito_marcacoes WHERE habito_id = ? AND data = ?", (id_, item.get("data"))
+                )
+            else:
+                cur = conn.execute(
+                    "INSERT OR IGNORE INTO habito_marcacoes (data, habito_id) "
+                    "SELECT ?, id FROM habitos WHERE id = ?",
+                    (item.get("data"), id_),
+                )
+        elif entidade == "projeto":
+            conn.execute("DELETE FROM projeto_etapas WHERE projeto_id = ?", (id_,))
+            cur = conn.execute("DELETE FROM projetos WHERE id = ?", (id_,))
+        elif entidade == "projeto_etapa":
+            cur = conn.execute("DELETE FROM projeto_etapas WHERE id = ?", (id_,))
+        elif entidade == "etapa_concluida":
+            cur = conn.execute(
+                "UPDATE projeto_etapas SET feita = 0, feita_em = NULL WHERE id = ? AND feita = 1", (id_,)
+            )
+        elif entidade == "viagem":
+            conn.execute("DELETE FROM viagem_itens WHERE viagem_id = ?", (id_,))
+            cur = conn.execute("DELETE FROM viagens WHERE id = ?", (id_,))
+        elif entidade == "hidratacao":
+            cur = conn.execute("DELETE FROM hidratacao_registros WHERE id = ?", (id_,))
+        elif entidade == "treino":
+            cur = conn.execute("DELETE FROM treinos WHERE id = ?", (id_,))
         else:
             continue
         if cur.rowcount:
@@ -4505,11 +4920,18 @@ def converter_brain_dump(item_id):
     reaproveita create_nota (ja existente) e dois inserts minimos pra tarefa/
     gasto (criar_tarefa_de_brain_dump/criar_gasto_de_brain_dump, mesmo
     formato das rotas que ja existem pra cada tipo, so sem passar pela
-    classificacao por IA - o Alex ja escolheu o tipo na hora de converter)."""
+    classificacao por IA - o Alex ja escolheu o tipo na hora de converter).
+
+    Fase 6 (US-E6): tipo "assistente" manda o texto inteiro pro MESMO
+    pipeline do chat (_processar_mensagem_chat - tool-use + cards), entao um
+    despejo com viagem, gastos, salario, habito, lembrete e reuniao
+    misturados vira um card por item + resumo_final, com Desfazer
+    independente em cada card. Toda saida (qualquer tipo) segue o contrato
+    de docs/CARDS.md, alem dos campos antigos (ok/tipo/id)."""
     body = _corpo_json()
     tipo = body.get("tipo")
-    if tipo not in ("tarefa", "nota", "gasto"):
-        return jsonify({"error": "tipo precisa ser tarefa, nota ou gasto"}), 400
+    if tipo not in ("tarefa", "nota", "gasto", "assistente"):
+        return jsonify({"error": "tipo precisa ser tarefa, nota, gasto ou assistente"}), 400
 
     conn = get_db()
     item = obter_brain_dump(conn, item_id)
@@ -4520,26 +4942,60 @@ def converter_brain_dump(item_id):
         conn.close()
         return jsonify({"error": "item ja foi processado"}), 400
 
+    if tipo == "assistente":
+        # reserva o item ANTES da IA (dois toques ao mesmo tempo nao
+        # processam o mesmo despejo duas vezes); devolve se a IA falhar.
+        if not marcar_brain_dump_processado(conn, item_id):
+            conn.close()
+            return jsonify({"error": "item ja foi processado"}), 400
+        detalhes: dict = {}
+        resposta, acoes, erro = _processar_mensagem_chat(conn, item["texto"], detalhes)
+        if erro:
+            conn.execute("UPDATE brain_dump SET processado = 0 WHERE id = ?", (item_id,))
+            conn.commit()
+            conn.close()
+            return jsonify({"error": erro}), 502
+        _marcar_atividade(conn)
+        conn.commit()
+        conn.close()
+        corpo = {"ok": True, "tipo": tipo, "resposta": resposta, "acoes": acoes}
+        corpo.update(detalhes or cards.envelope([], resposta, []))
+        return jsonify(_resposta_contrato(corpo))
+
+    inicio = time.perf_counter()
+    efeitos = []
     if tipo == "tarefa":
         titulo = _texto_seguro(body.get("titulo")) or item["texto"]
         novo_id = criar_tarefa_de_brain_dump(
             conn, titulo, body.get("due_date"), _normalizar_hora(body.get("hora")), item["texto"]
         )
+        efeitos.append({"entidade": "tarefa", "id": novo_id})
+        passo = {"modulo": "Tarefas", "descricao": f'Criou a tarefa "{cards._titulo_curto(titulo)}"'}
+        resumo = "Virou tarefa."
     elif tipo == "nota":
         titulo = _texto_seguro(body.get("titulo")) or item["texto"][:60]
         novo_id = create_nota(conn, titulo, body.get("corpo") or item["texto"], source_text=item["texto"])
+        passo = {"modulo": "Notas", "descricao": f'Salvou a nota "{cards._titulo_curto(titulo)}"'}
+        resumo = "Virou nota."
     else:
         valor = body.get("valor")
-        if not isinstance(valor, (int, float)) or valor <= 0:
+        if not isinstance(valor, (int, float)) or isinstance(valor, bool) or not math.isfinite(valor) or valor <= 0:
             conn.close()
             return jsonify({"error": "informe um valor valido pro gasto"}), 400
         descricao = _texto_seguro(body.get("titulo")) or item["texto"]
         novo_id = criar_gasto_de_brain_dump(conn, valor, body.get("categoria"), descricao, item["texto"])
+        efeitos.append({"entidade": "gasto", "id": novo_id})
+        passo = {"modulo": "Finanças", "descricao": f'Registrou o gasto "{cards._titulo_curto(descricao)}"'}
+        resumo = "Virou gasto."
+    passo["ms"] = int(round((time.perf_counter() - inicio) * 1000))
 
     marcar_brain_dump_processado(conn, item_id)
     _marcar_atividade(conn)
+    corpo = {"ok": True, "tipo": tipo, "id": novo_id}
+    corpo.update(cards.montar_resposta(conn, efeitos, resumo, [passo], _criar_token_desfazer(conn)))
+    conn.commit()
     conn.close()
-    return jsonify({"ok": True, "tipo": tipo, "id": novo_id})
+    return jsonify(_resposta_contrato(corpo))
 
 
 @app.route("/api/brain-dump/<int:item_id>", methods=["DELETE"])
@@ -5692,20 +6148,7 @@ def alternar_item_viagem_rota(item_id):
 # duplicar dado (le direto de viagens/viagem_itens toda vez).
 
 def _projeto_detalhado(conn, projeto: dict, hoje: date) -> dict:
-    etapas = list_etapas_projeto(conn, projeto["id"])
-    calculo = vida.calcular_projeto(etapas, projeto["prazo_final"], projeto["criado_em"], hoje)
-    status = vida.status_projeto_calculado(projeto["status"], projeto["prazo_final"], calculo["percentual"], hoje)
-    return {
-        "id": projeto["id"],
-        "nome": projeto["nome"],
-        "prazo_final": projeto["prazo_final"],
-        "status": status,
-        "status_manual": projeto["status"] == "pausado",
-        "criado_em": projeto["criado_em"],
-        "atualizado_em": projeto["atualizado_em"],
-        "etapas": etapas,
-        **calculo,
-    }
+    return vida.projeto_detalhado(projeto, list_etapas_projeto(conn, projeto["id"]), hoje)
 
 
 @app.route("/api/projetos", methods=["GET"])
@@ -5814,9 +6257,7 @@ def viagem_como_projeto_rota(viagem_id):
         return jsonify({"error": "viagem nao encontrada"}), 404
     itens = list_itens_viagem(conn, viagem_id)
     conn.close()
-    projeto = vida.converter_viagem_para_projeto(dict(registro), itens)
-    calculo = vida.calcular_projeto(projeto["etapas"], projeto["prazo_final"], projeto["criado_em"], date.today())
-    return jsonify({**projeto, **calculo})
+    return jsonify(vida.viagem_como_projeto_detalhada(dict(registro), itens, date.today()))
 
 
 def _criar_lugar(conn, nome, cidade, tipo, nota) -> dict:

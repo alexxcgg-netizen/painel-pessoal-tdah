@@ -157,7 +157,7 @@
       ? MOEDA_OCULTA
       : moeda(numeroValido(data.falta) ? data.falta : Math.max(0, data.valor_alvo - guardado));
     return (
-      eyebrow(ICONES.meta, "Meta criada") +
+      eyebrow(ICONES.meta, data.consulta ? "Meta" : "Meta criada") +
       `<p class="card-titulo">${esc(data.titulo)}</p>` +
       `<p class="card-meta-valores">${valores}</p>` +
       `<div class="meta-progresso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}">` +
@@ -359,11 +359,13 @@
     const resto = etapas.length > visiveis.length ? `<li class="card-check-mais">+${etapas.length - visiveis.length} etapas</li>` : "";
     const marcador =
       p.hoje !== null
-        ? `<span class="card-hoje" style="left:${(p.hoje * 100).toFixed(2)}%"><span>HOJE</span></span>`
+        ? `<span class="card-hoje${p.hoje < 0.08 ? " na-borda-inicio" : p.hoje > 0.92 ? " na-borda-fim" : ""}" style="left:${(p.hoje * 100).toFixed(2)}%"><span>HOJE</span></span>`
         : "";
+    // sem nenhuma etapa (ex: viagem sem checklist de mala ainda) "0% · 0/0"
+    // nao diz nada - mostra so que falta o checklist + o prazo
     const linha = [
-      `<strong>${Math.round(p.pct)}%</strong>`,
-      `${esc(p.feitas)}/${esc(p.total)} ${p.total === 1 ? "tarefa" : "tarefas"}`,
+      p.total > 0 ? `<strong>${Math.round(p.pct)}%</strong>` : "Sem checklist ainda",
+      p.total > 0 ? `${esc(p.feitas)}/${esc(p.total)} ${p.total === 1 ? "tarefa" : "tarefas"}` : "",
       data.prazo ? esc(Cards.diaMesCurto(data.prazo)) : "",
     ]
       .filter(Boolean)
@@ -514,5 +516,55 @@
     );
   });
 
-  Object.assign(Cards, { blocoDoDia, progressoProjeto, minutosPorAtividade, semanaHabito, horaCurta });
+  // ---- saude_dia (US-E7, aditivo) -------------------------------------------
+  // Copos de agua do dia em destaque + passos/sono/treino quando existirem.
+  // Os copos viram uma fileira de gotas (ate 8 acesas; alem disso, "+N").
+
+  const GOTA =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5c3.2 4 5.5 7.2 5.5 10.3a5.5 5.5 0 0 1-11 0C6.5 10.7 8.8 7.5 12 3.5Z"/></svg>';
+  ICONES.agua = GOTA;
+
+  const COPOS_VISIVEIS = 8;
+
+  function fmtPassos(n) {
+    if (!numeroValido(n) || n < 0) return "";
+    if (n >= 1000) return `${(n / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil passos`;
+    return `${Math.round(n)} passos`;
+  }
+
+  function fmtSono(h) {
+    if (!numeroValido(h) || h <= 0) return "";
+    const total = Math.round(h * 60);
+    const hh = Math.floor(total / 60);
+    const mm = total % 60;
+    return `Sono ${hh}h${mm ? String(mm).padStart(2, "0") : ""}`;
+  }
+
+  Cards.registrar("saude_dia", (data) => {
+    const copos = numeroValido(data.agua_copos) && data.agua_copos > 0 ? Math.floor(data.agua_copos) : 0;
+    const chip = data.registrado ? `<span class="card-chip">${ICONES.check}Registrado</span>` : "";
+    const gotas = Array.from({ length: COPOS_VISIVEIS }, (_, i) =>
+      `<li class="card-gota${i < copos ? " cheia" : ""}${data.registrado === "agua" && i === copos - 1 ? " nova" : ""}">${GOTA}</li>`
+    ).join("");
+    const extra = copos > COPOS_VISIVEIS ? `<li class="card-gota-mais">+${copos - COPOS_VISIVEIS}</li>` : "";
+    const chips = [
+      fmtPassos(data.passos),
+      fmtSono(data.sono_horas),
+      numeroValido(data.treino_min) && data.treino_min > 0 ? `Treino ${Cards.fmtDuracao(data.treino_min)}` : "",
+    ]
+      .filter(Boolean)
+      .map((t) => `<span class="card-chip card-chip-neutro">${esc(t)}</span>`)
+      .join("");
+    const dia = Cards.parseDia(data.data);
+    const titulo = dia && !Cards.mesmoDia(dia, new Date()) ? `Saúde · ${Cards.dataCurta(data.data)}` : "Saúde hoje";
+    return (
+      eyebrow(ICONES.agua, titulo, chip) +
+      `<div class="card-saude-agua"><span class="card-hora-grande">${esc(copos)}</span>` +
+      `<span class="card-linha-meta">${copos === 1 ? "copo de água" : "copos de água"}</span></div>` +
+      `<ul class="card-gotas" aria-label="${esc(`${copos} ${copos === 1 ? "copo" : "copos"} de água`)}">${gotas}${extra}</ul>` +
+      (chips ? `<div class="card-linha-chips">${chips}</div>` : "")
+    );
+  });
+
+  Object.assign(Cards, { blocoDoDia, progressoProjeto, minutosPorAtividade, semanaHabito, horaCurta, fmtPassos, fmtSono });
 })(typeof window !== "undefined" ? window : globalThis);

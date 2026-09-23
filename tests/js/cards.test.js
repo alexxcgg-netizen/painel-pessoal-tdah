@@ -500,3 +500,66 @@ test("abrir_aba leva aba e destaque do item; sem destaque nao inventa atributo",
   assert.equal(Cards.acaoHTML({ tipo: "abrir_aba" }), ""); // sem aba: nada
   assert.equal(Cards.acaoHTML({ tipo: "desfazer" }), ""); // sem token: nada
 });
+
+// ---- saude_dia (US-E7, aditivo) ----
+
+test("saude_dia: copos em destaque, gotas acesas, chips de passos/sono/treino, chip Registrado", () => {
+  const html = Cards.renderizarCardHTML({
+    type: "saude_dia",
+    id: "c1",
+    data: { data: "2026-09-23", agua_copos: 3, passos: 8240, sono_horas: 7.5, treino_min: 45, registrado: "agua" },
+    actions: [],
+  });
+  assert.match(html, /card-contrato-saude_dia/);
+  assert.match(html, /card-hora-grande">3</);
+  assert.match(html, /copos de água/);
+  assert.equal((html.match(/card-gota cheia/g) || []).length, 3);
+  assert.equal((html.match(/class="card-gota[ "]/g) || []).length, 8);
+  assert.match(html, /card-gota cheia nova/);
+  assert.match(html, /8,2 mil passos/);
+  assert.match(html, /Sono 7h30/);
+  assert.match(html, /Treino 45 min/);
+  assert.match(html, /Registrado/);
+});
+
+test("saude_dia: mais de 8 copos mostra +N; 1 copo no singular; sem registro sem chip", () => {
+  const muitos = Cards.renderizarCardHTML({ type: "saude_dia", data: { agua_copos: 11 }, actions: [] });
+  assert.match(muitos, /\+3/);
+  const um = Cards.renderizarCardHTML({ type: "saude_dia", data: { agua_copos: 1 }, actions: [] });
+  assert.match(um, /copo de água/);
+  assert.ok(!um.includes("Registrado"));
+});
+
+test("saude_dia com data vazia/lixo nunca vira excecao nem fallback", () => {
+  for (const data of [{}, { agua_copos: "<b>x</b>", passos: -1, sono_horas: "oi" }, { agua_copos: NaN }]) {
+    const html = Cards.renderizarCardHTML({ type: "saude_dia", data, actions: [] });
+    assert.ok(!html.includes("card-contrato-fallback"), html);
+    assert.ok(!html.includes("<b>x</b>"));
+  }
+});
+
+test("fmtPassos/fmtSono formatam e ignoram lixo", () => {
+  assert.equal(Cards.fmtPassos(950), "950 passos");
+  assert.equal(Cards.fmtPassos(12000), "12 mil passos");
+  assert.equal(Cards.fmtPassos(null), "");
+  assert.equal(Cards.fmtSono(8), "Sono 8h");
+  assert.equal(Cards.fmtSono(0), "");
+});
+
+test("meta vinda de consulta (data.consulta) nao diz 'Meta criada'", () => {
+  const base = { titulo: "Reserva", valor_guardado: 10, valor_alvo: 100, percentual: 10 };
+  assert.match(Cards.renderizarCardHTML({ type: "meta", data: base, actions: [] }), /Meta criada/);
+  const html = Cards.renderizarCardHTML({ type: "meta", data: { ...base, consulta: true }, actions: [] });
+  assert.ok(!html.includes("Meta criada"));
+  assert.match(html, /<span>Meta<\/span>/);
+});
+
+test("projeto_viagem sem etapa nao mostra '0/0 tarefas'", () => {
+  const html = Cards.renderizarCardHTML({
+    type: "projeto_viagem",
+    data: { origem: "viagem", titulo: "Viagem pra Gramado", etapas: [], prazo: "2026-12-15", total: 0, feitas: 0, percentual: 0 },
+    actions: [],
+  });
+  assert.ok(!html.includes("0/0"));
+  assert.match(html, /Sem checklist ainda/);
+});

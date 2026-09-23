@@ -19,7 +19,10 @@ from __future__ import annotations
 import copy
 import re
 import time
-from datetime import date
+from datetime import date, timedelta
+
+import db
+import vida
 
 # ---- rotulos humanos -------------------------------------------------------
 
@@ -42,6 +45,17 @@ MODULO_POR_TOOL = {
     "consultar_sobra_do_mes": "Finanças",
     "calcular_gasto_viagem": "Finanças",
     "registrar_meta": "Metas",
+    "consultar_meta": "Metas",
+    "registrar_habito": "Hábitos",
+    "marcar_habito": "Hábitos",
+    "consultar_habitos": "Hábitos",
+    "criar_projeto": "Projetos",
+    "adicionar_etapa": "Projetos",
+    "concluir_etapa": "Projetos",
+    "consultar_projeto": "Projetos",
+    "agendar_evento": "Agenda",
+    "consultar_treinos": "Saúde",
+    "consultar_saude_dia": "Saúde",
     "registrar_lembrete": "Lembretes",
     "registrar_medicamento": "Saúde",
     "registrar_hidratacao": "Saúde",
@@ -74,6 +88,13 @@ DESCRICAO_TOOL = {
     "consultar_sobra_do_mes": "Calculou a sobra do mês",
     "sugerir_horario_livre": "Procurou horário livre",
     "sugerir_tarefa_para_agora": "Escolheu uma tarefa pra agora",
+    "consultar_projeto": "Buscou o projeto",
+    "consultar_meta": "Buscou a meta",
+    "consultar_habitos": "Buscou os hábitos",
+    "consultar_treinos": "Buscou os treinos",
+    "consultar_saude_dia": "Buscou a saúde do dia",
+    "marcar_habito": "Marcou o hábito de hoje",
+    "concluir_etapa": "Concluiu a etapa do projeto",
 }
 
 ABA_POR_ENTIDADE = {
@@ -82,6 +103,11 @@ ABA_POR_ENTIDADE = {
     "renda": ("gastos", "Abrir no extrato"),
     "meta": ("gastos", "Abrir Metas"),
     "lembrete": ("painel", "Abrir em Lembretes"),
+    "habito": ("vida", "Abrir Hábitos"),
+    "projeto": ("vida", "Abrir Projetos"),
+    "viagem": ("vida", "Abrir Viagens"),
+    "evento": ("vida", "Abrir Agenda"),
+    "treino": ("vida", "Abrir Treinos"),
 }
 
 # Campos com valor em dinheiro, por type - removidos no modo visitante
@@ -105,6 +131,7 @@ TIPOS_CARD = (
     "saude_treino",
     "sugestao",
     "habito",
+    "saude_dia",
 )
 
 
@@ -142,7 +169,8 @@ def envelope(cards_lista: list[dict], resumo_texto: str, passos: list[dict]) -> 
     """Monta o envelope final e numera os cards (c1, c2...)."""
     numerados = []
     for i, card in enumerate(cards_lista, start=1):
-        c = dict(card)
+        # chave com "_" (ex: "_consulta") e marcador interno do servidor
+        c = {k: v for k, v in card.items() if not str(k).startswith("_")}
         c["id"] = f"c{i}"
         numerados.append(c)
     return {"cards": numerados, "resumo_texto": resumo_texto or "", "passos": list(passos or [])}
@@ -211,6 +239,16 @@ def _descricao_passo(tool: str, entrada) -> str:
         return f'Criou a meta "{_titulo_curto(entrada.get("titulo"))}"'
     if tool == "registrar_lembrete":
         return f'Criou o lembrete "{_titulo_curto(entrada.get("titulo"))}"'
+    if tool == "registrar_habito":
+        return f'Criou o hábito "{_titulo_curto(entrada.get("nome"))}"'
+    if tool == "criar_projeto":
+        return f'Criou o projeto "{_titulo_curto(entrada.get("nome"))}"'
+    if tool == "adicionar_etapa":
+        return f'Adicionou a etapa "{_titulo_curto(entrada.get("texto"))}"'
+    if tool == "agendar_evento":
+        return f'Agendou "{_titulo_curto(entrada.get("titulo"))}"'
+    if tool == "registrar_viagem":
+        return f'Registrou a viagem pra {_titulo_curto(entrada.get("destino"))}'
     if tool in DESCRICAO_TOOL:
         return DESCRICAO_TOOL[tool]
     return tool.replace("_", " ").capitalize()
@@ -350,6 +388,207 @@ def card_lembrete(conn, id_: int, actions_extra=None) -> dict | None:
     return novo_card("lembrete", data, actions)
 
 
+# ---- cards dos modulos da Fase 6 (US-E7: habito, projeto/viagem, agenda,
+# saude, sugestao) - adaptadores de formato + builders ----------------------
+
+DIAS_SEMANA_CURTOS = ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
+
+
+def semana_seg_dom(datas_feitas, hoje: date) -> list[dict]:
+    """Adaptador (puro): o card `habito` quer SEMPRE 7 itens segunda->domingo
+    da semana de `hoje` (docs/CARDS.md), enquanto GET /api/habitos expoe
+    `ultimos_7` (janela movel dos 7 dias ate hoje, com letra/hoje). As datas
+    feitas de qualquer fonte viram a semana calendario aqui."""
+    feitas = {str(d) for d in (datas_feitas or ())}
+    segunda = hoje - timedelta(days=hoje.weekday())
+    semana = []
+    for i in range(7):
+        dia = (segunda + timedelta(days=i)).isoformat()
+        semana.append({"data": dia, "feito": dia in feitas})
+    return semana
+
+
+def texto_frequencia_habito(habito: dict) -> str | None:
+    tipo = habito.get("frequencia_tipo")
+    if tipo == "dias_semana":
+        dias = sorted(d for d in vida.parse_dias_semana(habito.get("dias_semana")) if 0 <= d <= 6)
+        return ", ".join(DIAS_SEMANA_CURTOS[d] for d in dias) or None
+    if tipo == "n_vezes_semana" and habito.get("vezes_por_semana"):
+        return f"{habito['vezes_por_semana']}x por semana · qualquer dia conta"
+    return "todo dia"
+
+
+def habito_para_card(habito: dict, datas_feitas, hoje: date, ativos_antes=None, ativos_depois=None, contexto=None) -> dict:
+    """Adaptador (puro): linha de `habitos` + datas marcadas -> `data` do card habito."""
+    return {
+        "id": habito["id"],
+        "nome": habito["nome"],
+        "meta": habito.get("meta"),
+        "frequencia": texto_frequencia_habito(habito),
+        "horario": habito.get("horario"),
+        "hoje": hoje.isoformat(),
+        "semana": semana_seg_dom(datas_feitas, hoje),
+        "ativos_antes": ativos_antes,
+        "ativos_depois": ativos_depois,
+        "contexto": contexto,
+    }
+
+
+def card_habito(conn, habito_id: int, hoje: date | None = None, ativos_antes=None, ativos_depois=None,
+                contexto=None, actions_extra=None) -> dict | None:
+    hoje = hoje or date.today()
+    row = conn.execute("SELECT * FROM habitos WHERE id = ?", (habito_id,)).fetchone()
+    if not row:
+        return None
+    habito = dict(row)
+    segunda = hoje - timedelta(days=hoje.weekday())
+    feitas = db.marcacoes_habito_no_periodo(
+        conn, habito_id, segunda.isoformat(), (segunda + timedelta(days=6)).isoformat()
+    )
+    if contexto is None and habito.get("frequencia_tipo") == "n_vezes_semana" and habito.get("vezes_por_semana"):
+        contexto = f"{len(feitas)} de {habito['vezes_por_semana']} vezes nesta semana."
+    data = habito_para_card(habito, feitas, hoje, ativos_antes, ativos_depois, contexto)
+    aba, rotulo = ABA_POR_ENTIDADE["habito"]
+    actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, "habito", habito_id)]
+    return novo_card("habito", data, actions)
+
+
+def projeto_para_card(detalhe: dict, origem: str = "projeto", titulo: str | None = None, id_=None) -> dict:
+    """Adaptador (puro): formato de GET /api/projetos (vida.projeto_detalhado)
+    ou de /api/viagens/<id>/como-projeto -> `data` do card projeto_viagem.
+    Escala: `posicao_hoje` do modulo e 0-100 (ou None); o card quer
+    `hoje_fracao` 0..1."""
+    etapas = []
+    for e in detalhe.get("etapas") or []:
+        data_etapa = e.get("data_prevista") or ((e.get("feita_em") or "")[:10] or None)
+        etapas.append({"titulo": e.get("texto"), "feito": bool(e.get("feita")), "data": data_etapa})
+    proxima = detalhe.get("proxima_etapa")
+    posicao = detalhe.get("posicao_hoje")
+    return {
+        "id": id_ if id_ is not None else detalhe.get("id"),
+        "origem": origem,
+        "titulo": titulo or detalhe.get("nome"),
+        "inicio": (detalhe.get("criado_em") or "")[:10] or None,
+        "prazo": detalhe.get("prazo_final"),
+        "etapas": etapas,
+        "proximo_marco": (
+            {"titulo": proxima.get("texto"), "data": proxima.get("data_prevista")} if isinstance(proxima, dict) else None
+        ),
+        "status": detalhe.get("status") or "no_rumo",
+        "percentual": detalhe.get("percentual"),
+        "feitas": detalhe.get("etapas_feitas"),
+        "total": detalhe.get("total_etapas"),
+        "hoje_fracao": round(posicao / 100, 4) if isinstance(posicao, (int, float)) else None,
+    }
+
+
+def card_projeto(conn, projeto_id: int, hoje: date | None = None, actions_extra=None) -> dict | None:
+    projeto = db.get_projeto(conn, projeto_id)
+    if not projeto:
+        return None
+    detalhe = vida.projeto_detalhado(projeto, db.list_etapas_projeto(conn, projeto_id), hoje or date.today())
+    aba, rotulo = ABA_POR_ENTIDADE["projeto"]
+    actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, "projeto", projeto_id)]
+    return novo_card("projeto_viagem", projeto_para_card(detalhe), actions)
+
+
+def card_viagem(conn, viagem_id: int, hoje: date | None = None, actions_extra=None) -> dict | None:
+    row = conn.execute("SELECT * FROM viagens WHERE id = ?", (viagem_id,)).fetchone()
+    if not row:
+        return None
+    viagem = dict(row)
+    detalhe = vida.viagem_como_projeto_detalhada(viagem, db.list_itens_viagem(conn, viagem_id), hoje or date.today())
+    data = projeto_para_card(detalhe, "viagem", f"Viagem pra {viagem['destino']}", viagem_id)
+    if not data["etapas"]:
+        # viagem sem checklist de mala ainda: o marco e a ida em si
+        data["proximo_marco"] = {"titulo": "Ida", "data": viagem["data_ida"]}
+    aba, rotulo = ABA_POR_ENTIDADE["viagem"]
+    actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, "viagem", viagem_id)]
+    return novo_card("projeto_viagem", data, actions)
+
+
+def card_agenda(conn, uid: str, lembrar_min_antes=None, actions_extra=None) -> dict | None:
+    row = conn.execute("SELECT * FROM eventos_criados WHERE uid = ?", (uid,)).fetchone() if uid else None
+    if not row:
+        return None
+    lembrar = lembrar_min_antes if isinstance(lembrar_min_antes, int) and not isinstance(lembrar_min_antes, bool) else None
+    data = {
+        "titulo": row["titulo"],
+        "inicio": str(row["inicio"])[:16],
+        "fim": str(row["fim"])[:16] if row["fim"] else None,
+        "lembrar_min_antes": lembrar,
+        "uid": row["uid"],
+        "calendario": "Painel",
+        "confirmado": True,
+    }
+    aba, rotulo = ABA_POR_ENTIDADE["evento"]
+    actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo)]
+    return novo_card("agenda", data, actions)
+
+
+def _dias_periodo(dias) -> int:
+    return dias if isinstance(dias, int) and not isinstance(dias, bool) and 1 <= dias <= 90 else 7
+
+
+def card_saude_treino(conn, dias=7, registrado: bool = False, hoje: date | None = None, actions_extra=None) -> dict:
+    """Sessoes da tabela `treinos` (registro do proprio painel - o Apple Saude
+    so manda passos/sono/distancia via Atalho, nao treino)."""
+    hoje = hoje or date.today()
+    dias = _dias_periodo(dias)
+    desde = (hoje - timedelta(days=dias - 1)).isoformat()
+    rows = conn.execute(
+        "SELECT * FROM treinos WHERE data BETWEEN ? AND ? ORDER BY data DESC, id DESC",
+        (desde, hoje.isoformat()),
+    ).fetchall()
+    sessoes = [
+        {
+            "atividade": (r["grupo"] or "Treino").strip().capitalize() or "Treino",
+            "fonte": "Painel",
+            "minutos": int(r["duracao_min"] or 0),
+            "data": r["data"],
+        }
+        for r in rows
+    ]
+    periodo = "hoje" if dias == 1 else f"últimos {dias} dias"
+    aba, rotulo = ABA_POR_ENTIDADE["treino"]
+    actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo)]
+    return novo_card("saude_treino", {"periodo": periodo, "sessoes": sessoes, "registrado": bool(registrado)}, actions)
+
+
+def card_saude_dia(conn, dia: date | None = None, registrado: str | None = None, actions_extra=None) -> dict:
+    """Card `saude_dia` (aditivo, US-E7): o dia de saude num olhar - copos de
+    agua (contador do painel), passos/sono (Apple Saude via Atalho, quando
+    chegou) e minutos de treino registrados."""
+    dia = dia or date.today()
+    iso = dia.isoformat()
+    saude = db.get_saude_dia(conn, iso) or {}
+    treino = conn.execute(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(duracao_min), 0) AS m FROM treinos WHERE data = ?", (iso,)
+    ).fetchone()
+    data = {
+        "data": iso,
+        "agua_copos": db.contar_hidratacao_dia(conn, iso),
+        "passos": saude.get("passos"),
+        "sono_horas": saude.get("sono_horas"),
+        "treino_min": int(treino["m"]) if treino and treino["n"] else None,
+        "registrado": registrado,
+    }
+    return novo_card("saude_dia", data, list(actions_extra or []))
+
+
+def card_sugestao(titulo, inicio, duracao_min, porque=None) -> dict | None:
+    if not isinstance(inicio, str) or len(inicio) < 16:
+        return None
+    data = {
+        "titulo": _titulo_curto(titulo, 80) or "Horário livre",
+        "inicio": inicio[:16],
+        "duracao_min": duracao_min if isinstance(duracao_min, int) and duracao_min > 0 else None,
+        "porque": porque or None,
+    }
+    return novo_card("sugestao", data, [])
+
+
+
 def _rotulo_contagem(n: int, singular: str, plural: str) -> str:
     return f"{n} {singular if n == 1 else plural}"
 
@@ -371,13 +610,16 @@ def card_resumo_final(cards_lista: list[dict], passos: list[dict]) -> dict | Non
             contagem[("Metas", "meta")] = contagem.get(("Metas", "meta"), 0) + 1
         elif t == "lembrete":
             contagem[("Lembretes", "lembrete")] = contagem.get(("Lembretes", "lembrete"), 0) + 1
-        elif t in ("agenda", "habito", "projeto_viagem", "saude_treino", "sugestao"):
+        elif t == "projeto_viagem" and d.get("origem") == "viagem":
+            contagem[("Viagens", "viagem")] = contagem.get(("Viagens", "viagem"), 0) + 1
+        elif t in ("agenda", "habito", "projeto_viagem", "saude_treino", "sugestao", "saude_dia"):
             modulo = {
                 "agenda": "Agenda",
                 "habito": "Hábitos",
                 "projeto_viagem": "Projetos",
                 "saude_treino": "Saúde",
                 "sugestao": "Agenda",
+                "saude_dia": "Saúde",
             }[t]
             contagem[(modulo, t)] = contagem.get((modulo, t), 0) + 1
     frases = {
@@ -391,6 +633,8 @@ def card_resumo_final(cards_lista: list[dict], passos: list[dict]) -> dict | Non
         "projeto_viagem": ("projeto atualizado", "projetos atualizados"),
         "saude_treino": ("registro de treino", "registros de treino"),
         "sugestao": ("horário sugerido", "horários sugeridos"),
+        "saude_dia": ("registro de saúde", "registros de saúde"),
+        "viagem": ("viagem registrada", "viagens registradas"),
     }
     por_modulo: dict[str, list[str]] = {}
     for (modulo, chave), n in contagem.items():
@@ -424,6 +668,39 @@ def _acoes_desfazer(criar_token, itens: list[dict]) -> list[dict]:
     return [acao_desfazer(token, itens)] if token else []
 
 
+def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
+    """Efeitos dos modulos da Fase 6 (US-E7). `criar_token` None = consulta
+    (sem Desfazer). O token guarda so o que o executor declarou (ids exatos)."""
+    entidade = ef.get("entidade")
+    id_ = ef.get("id")
+    desfazer = _acoes_desfazer(criar_token, [ef])
+    if entidade == "habito" and isinstance(id_, int):
+        return card_habito(conn, id_, ativos_antes=ef.get("ativos_antes"), ativos_depois=ef.get("ativos_depois"),
+                           actions_extra=desfazer)
+    if entidade == "habito_marcacao" and isinstance(id_, int):
+        contexto = "Marcado como feito hoje." if ef.get("feito") else "Desmarcado hoje."
+        return card_habito(conn, id_, contexto=contexto, actions_extra=desfazer)
+    if entidade == "projeto" and isinstance(id_, int):
+        return card_projeto(conn, id_, actions_extra=desfazer)
+    if entidade in ("projeto_etapa", "etapa_concluida") and isinstance(ef.get("projeto_id"), int):
+        return card_projeto(conn, ef["projeto_id"], actions_extra=desfazer)
+    if entidade == "viagem" and isinstance(id_, int):
+        return card_viagem(conn, id_, actions_extra=desfazer)
+    if entidade == "evento" and isinstance(ef.get("uid"), str):
+        return card_agenda(conn, ef["uid"], ef.get("lembrar_min_antes"), desfazer)
+    if entidade == "treino":
+        return card_saude_treino(conn, ef.get("dias") or 7, registrado=not ef.get("consulta"), actions_extra=desfazer)
+    if entidade == "treinos":
+        return card_saude_treino(conn, ef.get("dias") or 7)
+    if entidade == "hidratacao":
+        return card_saude_dia(conn, registrado="agua" if not ef.get("consulta") else None, actions_extra=desfazer)
+    if entidade == "saude_dia":
+        return card_saude_dia(conn)
+    if entidade == "sugestao":
+        return card_sugestao(ef.get("titulo"), ef.get("inicio"), ef.get("duracao_min"), ef.get("porque"))
+    return None
+
+
 def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]:
     """UNICO mapeamento efeito -> card. Tarefas criadas na mesma resposta
     viram UM card `tarefas_criadas` (na posicao da primeira) com um token de
@@ -447,15 +724,26 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
             tarefas_itens.append(ef)
             continue
         card = None
+        if ef.get("consulta"):
+            # consulta nao cria nada - card sem Desfazer (so o link da aba)
+            criar_token_ef = None
+        else:
+            criar_token_ef = criar_token
         if entidade in ("gasto", "renda") and isinstance(id_, int):
             card = card_transacao(
-                conn, entidade, id_, ef.get("meio"), ef.get("saldo"), _acoes_desfazer(criar_token, [ef])
+                conn, entidade, id_, ef.get("meio"), ef.get("saldo"), _acoes_desfazer(criar_token_ef, [ef])
             )
         elif entidade == "meta" and isinstance(id_, int):
-            card = card_meta(conn, id_, _acoes_desfazer(criar_token, [ef]))
+            card = card_meta(conn, id_, _acoes_desfazer(criar_token_ef, [ef]))
         elif entidade == "lembrete" and isinstance(id_, int):
-            card = card_lembrete(conn, id_, _acoes_desfazer(criar_token, [ef]))
+            card = card_lembrete(conn, id_, _acoes_desfazer(criar_token_ef, [ef]))
+        else:
+            card = _card_de_efeito_modulo(conn, ef, criar_token_ef)
         if card:
+            if ef.get("consulta"):
+                card["_consulta"] = True
+                # aditivo (docs/CARDS.md): o front troca "Meta criada" por "Meta"
+                card["data"]["consulta"] = True
             saida.append(card)
     if pos_tarefas is not None:
         card = card_tarefas_criadas(conn, tarefas_ids, _acoes_desfazer(criar_token, tarefas_itens))
@@ -467,8 +755,11 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
 def montar_resposta(conn, efeitos: list[dict], resumo_texto: str, passos: list[dict], criar_token=None) -> dict:
     """Efeitos -> cards (+ resumo_final quando 2+ cards) -> envelope."""
     lista = cards_dos_efeitos(conn, efeitos, criar_token)
-    if len(lista) >= 2:
-        resumo = card_resumo_final(lista, passos)
+    # resumo_final so quando a resposta FEZ 2+ coisas (brain dump) - card de
+    # consulta (US-E7, "me mostra o projeto e a meta") nao conta como feito.
+    feitos = [c for c in lista if not c.get("_consulta")]
+    if len(feitos) >= 2:
+        resumo = card_resumo_final(feitos, passos)
         if resumo:
             lista.append(resumo)
     return envelope(lista, resumo_texto, passos)

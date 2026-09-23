@@ -644,6 +644,8 @@ async function loadHabitos() {
       h.passou_batido ? "item-atencao" : ""
     );
     li.appendChild(renderHabitoSemana(h.ultimos_7));
+    li.dataset.entidade = "habito"; // destino do link de card (Fase 6, US-E7)
+    li.dataset.id = h.id;
     lista.appendChild(li);
   });
 }
@@ -748,6 +750,8 @@ async function loadProjetos() {
   $("#projetos-vazio").hidden = projetos.length > 0;
   projetos.forEach((p) => {
     const li = criarEl("li");
+    li.dataset.entidade = "projeto"; // destino do link de card (Fase 6, US-E7)
+    li.dataset.id = p.id;
     li.appendChild(criarCardProjeto(p, li));
     lista.appendChild(li);
   });
@@ -1069,6 +1073,8 @@ async function loadViagens() {
     });
     li = itemSimples(v.destino, [`${datas} - ${quando}`, lugares], [malaBtn, (el) => botaoApagar(`/api/viagens/${v.id}`, el)]);
     renderItensMala(v, li);
+    li.dataset.entidade = "viagem"; // destino do link de card (Fase 6, US-E7)
+    li.dataset.id = v.id;
     lista.appendChild(li);
   });
 }
