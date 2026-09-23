@@ -244,3 +244,11 @@ db.init_db()
 - **Cards do chat ficam gravados** em `chat_mensagens.cards_json`
   (criptografado em repouso via `criptografia.criptografar`, igual ao resto do
   dado financeiro) - `/api/chat/historico` devolve `cards` por mensagem.
+- **Lembrete não tem hora** (tabela `lembretes` só tem `data`): o card
+  `lembrete` usa `data.hora` se um dia existir, senão mostra o dia e conta até
+  09:00 (`notificacoes.HORA_PADRAO_DESPERTAR`, o mesmo horário do push
+  "Desperta você", coluna `lembretes.despertar`).
+- **Headless com resposta de contrato sem IA**: `page.route("**/api/chat", ...)`
+  devolvendo um envelope montado com `cards.montar_resposta` contra o banco
+  temporário do launcher (ids reais) - assim checkbox/despertar/desfazer
+  batem no servidor de verdade.

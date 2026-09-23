@@ -352,6 +352,16 @@ function criarCardResultado(parsed) {
   return card;
 }
 
+// Fase 6 (docs/CARDS.md): resposta da captura com o contrato de cards vira
+// os cards do registro (static/js/cards.js); resposta de um servidor mais
+// velho (sem `cards`) cai no card de resultado antigo acima.
+function criarCardsCaptura(data) {
+  if (data && Array.isArray(data.cards) && data.cards.length && typeof Cards !== "undefined") {
+    return Cards.criarGrupo(data.cards, data.passos);
+  }
+  return criarCardResultado(data);
+}
+
 function pulsarSucesso(el) {
   el.classList.remove("sucesso");
   // forca reflow pra animacao reiniciar mesmo em capturas seguidas
@@ -411,7 +421,7 @@ if (typeof FilaOffline !== "undefined") {
       aviso.textContent = `Capturado offline, mas ficou em duvida: "${data.duvida}". Repete a captura quando puder pra confirmar.`;
       $("#chat-mensagens").appendChild(aviso);
     } else if (data) {
-      const novoCard = criarCardResultado(data);
+      const novoCard = criarCardsCaptura(data);
       if (cardPendente) cardPendente.replaceWith(novoCard);
       else $("#chat-mensagens").appendChild(novoCard);
     }
@@ -601,7 +611,7 @@ async function enviarCaptura(text, clarificacao) {
   tocarSomSucesso();
   const listaChat = $("#chat-mensagens");
   listaChat.querySelector(".chat-vazio")?.remove();
-  listaChat.appendChild(criarCardResultado(data));
+  listaChat.appendChild(criarCardsCaptura(data));
   listaChat.scrollTop = listaChat.scrollHeight;
   loadSummary();
   loadStreak();

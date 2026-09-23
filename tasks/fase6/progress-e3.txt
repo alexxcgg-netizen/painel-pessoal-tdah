@@ -25,3 +25,24 @@ Nao confirmado: numero sem "R$" na prosa ("gastei 50") ainda passa.
 Historia US-E2 — decisao: cards gravados em chat_mensagens.cards_json (criptografado).
 Motivo: recarregar a pagina nao perde os cards; transacao pode ter saldo (dado que ja e criptografado em repouso).
 Nao confirmado: nada.
+
+## US-E3 - cards simples (tarefas_criadas, transacao, lembrete, meta, resumo_final)
+Historia US-E3 — decisao: "Desperta voce" = coluna lembretes.despertar + POST /api/lembretes/<id>/despertar + notificacoes.lembretes_para_despertar no scheduler (push no dia, a partir da hora do lembrete ou 09:00).
+Motivo: PWA nao toca alarme; o push e o que da pra entregar. Lembrete hoje e so por dia (sem hora).
+Nao confirmado: se 09:00 e um bom horario padrao pro Alex (constante HORA_PADRAO_DESPERTAR em notificacoes.py).
+
+Historia US-E3 — decisao: lembrete sem hora mostra o DIA grande em mono ("24 set") em vez de inventar um horario; a contagem regressiva conta ate 09:00 (mesmo horario do push).
+Motivo: o card do Nectar mostra horario, mas nosso lembrete nao tem hora - inventar 09:00 grande induziria erro. Se uma faixa futura der hora ao lembrete, o card ja usa `hora` (contrato).
+Nao confirmado: preferencia visual do Alex.
+
+Historia US-E3 — decisao: checkbox do card conclui via /api/tasks/<id>/complete e desmarcar usa rota nova /api/tasks/<id>/reabrir.
+Motivo: checkbox "funcional" precisa dos dois sentidos.
+Nao confirmado: nada.
+
+Historia US-E3 — decisao: barra da meta dentro do card tingida pela cor do card (a .meta-progresso neutra quase some no fundo do card); categorias da bolinha seguem as cores ja usadas em .gasto-categoria (lazer usa --cor-aviacao porque --cor-hoje e cinza).
+Motivo: legibilidade sem cor nova.
+Nao confirmado: nada.
+
+Historia US-E3 — decisao: captura (enviarCaptura e callback da fila offline) passa por criarCardsCaptura: cards do contrato quando vierem, card de resultado antigo se o servidor for mais velho.
+Motivo: compatibilidade nos dois sentidos.
+Nao confirmado: nada.

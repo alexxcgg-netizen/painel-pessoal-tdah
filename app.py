@@ -814,6 +814,18 @@ def complete_task_rota(task_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/tasks/<int:task_id>/reabrir", methods=["POST"])
+def reabrir_task_rota(task_id):
+    """Fase 6 (US-E3): desmarcar o checkbox de uma tarefa no card
+    tarefas_criadas volta ela pra pendente (o par do /complete)."""
+    conn = get_db()
+    ok = db.reabrir_tarefa(conn, task_id)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "tarefa nao encontrada"}), 404
+    return jsonify({"ok": True})
+
+
 @app.route("/api/tasks/<int:task_id>/esforco", methods=["POST"])
 def definir_esforco_tarefa_rota(task_id):
     """Fase 5 (US-C7)."""
@@ -3261,6 +3273,13 @@ def verificar_e_notificar():
         if not ja_notificou_hoje(conn, "lembrete_proximo", lembrete_id):
             avisos.append(("lembrete_proximo", lembrete_id, "Data importante chegando", msg))
 
+    # Fase 6 (US-E3): "Desperta voce" ligado no card de lembrete - push no
+    # horario do proprio dia (uma vez por dia; recorrente anual repete no
+    # ano seguinte).
+    for lembrete_id, msg in notificacoes.lembretes_para_despertar(conn):
+        if not ja_notificou_hoje(conn, "lembrete_despertar", lembrete_id):
+            avisos.append(("lembrete_despertar", lembrete_id, "Lembrete", msg))
+
     for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(conn):
         if not ja_notificou_hoje(conn, "tarefa_horario", tarefa_id):
             avisos.append(("tarefa_horario", tarefa_id, "Lembrete", msg))
@@ -3751,6 +3770,23 @@ def apagar_lembrete(lembrete_id):
     delete_lembrete(conn, lembrete_id)
     conn.close()
     return jsonify({"ok": True})
+
+
+@app.route("/api/lembretes/<int:lembrete_id>/despertar", methods=["POST"])
+def despertar_lembrete(lembrete_id):
+    """Fase 6 (US-E3, botao "Desperta voce" do card de lembrete): liga/
+    desliga um push NO HORARIO do lembrete (hora, ou 09:00 quando o lembrete
+    e so por dia) - o PWA nao consegue tocar alarme de verdade, entao o
+    "despertar" e a notificacao push (ver notificacoes.lembretes_para_despertar)."""
+    ativo = _corpo_json().get("ativo", True)
+    if not isinstance(ativo, bool):
+        return jsonify({"error": "ativo deve ser true ou false"}), 400
+    conn = get_db()
+    ok = db.definir_despertar_lembrete(conn, lembrete_id, ativo)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "lembrete nao encontrado"}), 404
+    return jsonify({"ok": True, "ativo": ativo})
 
 
 def _criar_medicamento(conn, nome: str, dosagem: str | None, horario: str, recorrencia: str, texto: str | None):

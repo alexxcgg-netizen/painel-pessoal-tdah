@@ -38,8 +38,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Renderizadores em static/js/cards-tipos.js (puros, testados em tests/js/cards.test.js). Checkbox conclui/reabre (rota nova /reabrir), 'Desperta voce' = push no dia (coluna lembretes.despertar + scheduler), contagem regressiva viva (setInterval 30s). Modo visitante: R$ ••• (servidor ja manda sem valor). Captura agora renderiza cards. Headless 390px conferido (brain dump, visitante, captura, interacoes).",
       "modelo_planejado": "sonnet"
     },
     {

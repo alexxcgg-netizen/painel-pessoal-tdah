@@ -320,5 +320,67 @@ class CardsPurosTestCase(unittest.TestCase):
         self.assertNotIn("saldo", mascarado["cards"][0]["data"])
 
 
+class CardsSimplesBackendTestCase(ContratoCardsBase):
+    """US-E3: endpoints que os botoes dos cards simples usam."""
+
+    def test_despertar_liga_desliga_e_aparece_no_card(self):
+        lembrete_id = db.create_lembrete(self.conn, "Renovar CMA", "2026-10-01")
+        res = self.client.post(f"/api/lembretes/{lembrete_id}/despertar", json={"ativo": True})
+        self.assertEqual(res.get_json(), {"ok": True, "ativo": True})
+        card = cards.card_lembrete(self.conn, lembrete_id)
+        self.assertTrue(card["data"]["despertar"])
+        despertar = [a for a in card["actions"] if a["tipo"] == "despertar"][0]
+        self.assertEqual((despertar["lembrete_id"], despertar["ativo"]), (lembrete_id, True))
+        self.client.post(f"/api/lembretes/{lembrete_id}/despertar", json={"ativo": False})
+        self.assertFalse(cards.card_lembrete(self.conn, lembrete_id)["data"]["despertar"])
+
+    def test_despertar_valida_entrada(self):
+        lembrete_id = db.create_lembrete(self.conn, "x", "2026-10-01")
+        self.assertEqual(self.client.post(f"/api/lembretes/{lembrete_id}/despertar", json={"ativo": "sim"}).status_code, 400)
+        self.assertEqual(self.client.post("/api/lembretes/9999/despertar", json={"ativo": True}).status_code, 404)
+
+    def test_lembretes_para_despertar_so_no_dia_e_depois_do_horario(self):
+        from datetime import datetime
+
+        import notificacoes
+
+        hoje = date(2026, 9, 23)
+        a = db.create_lembrete(self.conn, "hoje ligado", hoje.isoformat())
+        db.create_lembrete(self.conn, "hoje desligado", hoje.isoformat())
+        c = db.create_lembrete(self.conn, "amanha ligado", "2026-09-24")
+        d = db.create_lembrete(self.conn, "aniversario", "2001-09-23", recorrente=True)
+        for i in (a, c, d):
+            db.definir_despertar_lembrete(self.conn, i, True)
+        cedo = notificacoes.lembretes_para_despertar(self.conn, datetime(2026, 9, 23, 8, 59))
+        self.assertEqual(cedo, [])
+        depois = notificacoes.lembretes_para_despertar(self.conn, datetime(2026, 9, 23, 9, 0))
+        self.assertEqual(sorted(i for i, _ in depois), sorted([a, d]))
+        self.assertIn('"hoje ligado"', dict(depois)[a])
+
+    def test_reabrir_tarefa(self):
+        cur = self.conn.execute("INSERT INTO tasks (title) VALUES ('x')")
+        self.conn.commit()
+        tid = cur.lastrowid
+        self.client.post(f"/api/tasks/{tid}/complete")
+        self.assertTrue(cards.card_tarefas_criadas(self.conn, [tid])["data"]["tarefas"][0]["concluida"])
+        self.assertEqual(self.client.post(f"/api/tasks/{tid}/reabrir").status_code, 200)
+        self.assertFalse(cards.card_tarefas_criadas(self.conn, [tid])["data"]["tarefas"][0]["concluida"])
+        self.assertEqual(self.client.post("/api/tasks/9999/reabrir").status_code, 404)
+
+    def test_card_meta_calcula_percentual_e_falta(self):
+        goal_id = db.create_goal(self.conn, "Reserva", 15000.0, "2026-12-22")
+        db.add_to_goal(self.conn, goal_id, 9000.0)
+        data = cards.card_meta(self.conn, goal_id)["data"]
+        self.assertEqual((data["percentual"], data["falta"]), (60.0, 6000.0))
+
+    def test_card_de_id_inexistente_some_sem_erro(self):
+        self.assertIsNone(cards.card_meta(self.conn, 999))
+        self.assertIsNone(cards.card_lembrete(self.conn, 999))
+        self.assertIsNone(cards.card_transacao(self.conn, "gasto", 999))
+        self.assertIsNone(cards.card_transacao(self.conn, "outra", 1))
+        self.assertIsNone(cards.card_tarefas_criadas(self.conn, [999]))
+        self.assertEqual(cards.cards_dos_efeitos(self.conn, [{"entidade": "meta", "id": 999}, {"lixo": 1}]), [])
+
+
 if __name__ == "__main__":
     unittest.main()

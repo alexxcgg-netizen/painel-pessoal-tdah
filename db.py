@@ -647,6 +647,9 @@ def init_db():
     # Fase 6 (US-E2, docs/CARDS.md): cards da resposta do chat, gravados
     # junto da mensagem pra recarregar a pagina nao perder os cards.
     _garantir_coluna(conn, "chat_mensagens", "cards_json", "TEXT")
+    # Fase 6 (US-E3): botao "Desperta voce" do card de lembrete (push no
+    # horario do lembrete - ver notificacoes.lembretes_para_despertar).
+    _garantir_coluna(conn, "lembretes", "despertar", "INTEGER NOT NULL DEFAULT 0")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
@@ -1391,6 +1394,20 @@ def create_lembrete(conn, titulo: str, data_str: str, recorrente: bool = False) 
 def list_lembretes(conn) -> list[dict]:
     rows = conn.execute("SELECT * FROM lembretes ORDER BY data").fetchall()
     return [dict(r) for r in rows]
+
+
+def definir_despertar_lembrete(conn, lembrete_id: int, ativo: bool) -> bool:
+    """Fase 6 (US-E3): liga/desliga o push no horario do lembrete."""
+    cur = conn.execute("UPDATE lembretes SET despertar = ? WHERE id = ?", (int(bool(ativo)), lembrete_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def reabrir_tarefa(conn, task_id: int) -> bool:
+    """Fase 6 (US-E3): par do complete_task - tira o completed_at."""
+    cur = conn.execute("UPDATE tasks SET completed_at = NULL WHERE id = ?", (task_id,))
+    conn.commit()
+    return cur.rowcount > 0
 
 
 def delete_lembrete(conn, lembrete_id: int):
