@@ -13,7 +13,7 @@
         "Testar visualmente no navegador (usar a skill 'run' se disponivel) antes de considerar concluido",
         "Sem regressao nas telas ja existentes - rodar suite de testes completa"
       ],
-      "priority": 1, "passes": false, "notes": ""
+      "priority": 1, "passes": true, "notes": "Conferido style.css antes de escrever CSS novo (regra do AC). A maioria das telas novas do Grupo C ja seguia o padrao (secao-secundaria + dica-colapsavel + form-linha + li.item, todos ja com fadeInUp/stagger herdado de graca). Gap real encontrado: .card-vida (usado por sobrecarga-box, previa-noite-box, revisao-periodo-box, patrimonio-box - novos - e tambem rotina/checkin/essencial/progresso/fim-mes/custo-ia - antigos) nao tinha nenhuma animacao de entrada, diferente de .stat-tile/li.item/#duvida-box - aparecia com corte seco ao trocar [hidden]. Adicionado animation: fadeInUp 0.35s var(--ease-bounce) both (mesma curva ja usada nos irmaos). Validado com Playwright (390px): troquei pra Painel/Vida/Tarefas/Hoje, cliquei 'Ver' na revisao trimestral/anual pra tirar o card-vida do hidden e conferi visualmente (screenshot) sem corte/pop abrupto e sem erro de console. Suite completa: unittest 1417 testes, 5 falhas esperadas (voo/horario, ver AGENTS.md), 0 novas; node --test tests/js/*.test.js 29/29 ok."
     },
     {
       "id": "US-D2",

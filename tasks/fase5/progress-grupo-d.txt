@@ -1,3 +1,51 @@
 # Fase 5 - Grupo D - Progress Log
 Iniciado: 2026-09-23T06:28:35Z
 ---
+
+## US-D1 - Animacao e transicao nas telas de captura/rotina/financeiro (Fase 1-4 + novidades da Fase 5)
+Status: PASSES
+
+Conferido style.css e o padrao visual ja estabelecido (Liquid Glass, glow LED,
+sombra em camadas, curvas --ease-bounce/--ease-suave/--ease-snap) antes de
+escrever qualquer CSS novo, como pedido. Descoberta principal: as telas novas
+do Grupo C (diario de decisao, brain dump, ideias de presente, garantia de
+produtos, manutencao veicular, revisao trimestral/anual, sugestao por
+energia) na maioria JA seguiam o padrao certinho, porque reaproveitam os
+mesmos componentes/classes das telas antigas (secao-secundaria, dica-
+colapsavel, form-linha, li.item via as mesmas funcoes JS de renderizar
+lista, ligarForm/pulsarSucesso) - herdam animacao/stagger/hover de graca por
+reuso de classe, nao precisei recriar nada disso.
+
+Gap real encontrado: .card-vida (classe usada tanto pelas telas antigas -
+rotina-box, checkin-box, essencial-box, progresso-box, fim-mes-box, custo-
+ia-box - quanto pelas 4 novas do Grupo C - sobrecarga-box, previa-noite-box,
+revisao-periodo-box, patrimonio-box) nao tinha NENHUMA animacao de entrada,
+diferente de todo outro painel "glass" do app (.stat-tile, li.item, #duvida-
+box, #comando-voz-confirmar, todos com fadeInUp). Como esses cards ligam via
+atributo [hidden], isso significava um corte seco toda vez que apareciam.
+Corrigido com a MESMA curva ja usada nos irmaos (fadeInUp 0.35s var(--ease-
+bounce) both) - sem JS extra, a animacao reinicia sozinha ao sair de
+display:none pra display:flex.
+
+Verificacao visual (Playwright, Chromium /opt/pw-browsers/chromium-1194,
+390x844): subi o app com DB_PATH isolado (tempdir, garantir_banco_nao_
+producao() antes de qualquer init_db), configurei PIN via POST /configurar-
+pin + POST /login (json), naveguei por Hoje/Painel/Vida/Tarefas via
+window.showTab(), cliquei "Ver" na revisao trimestral/anual (tira o
+revisao-periodo-box do hidden) - screenshot confirma entrada suave, sem pop/
+corte abrupto, sem erro de console real (filtrando "Failed to load resource"
+do /api/summary/today, 502 pre-existente do proxy de rede do sandbox, sem
+relacao com esta historia).
+
+Suite completa: `.venv/bin/python -m unittest discover -s tests` -> 1417
+testes, 5 falhas (as esperadas, testes de voo sensiveis a horario -
+test_verificar_nao_notifica_voo_com_hora_de_sair_distante,
+test_verificar_notifica_voo_perto_da_hora_de_sair,
+test_verificar_voo_ja_notificado_nao_repete,
+test_verificar_voo_ja_realizado_nao_e_candidato,
+test_verificar_voo_sem_endereco_casa_nao_quebra), 0 falhas novas.
+`node --test tests/js/*.test.js` -> 29/29 ok (nao mexi em logica pura de
+voz-comando.js nesta historia, so em US-D2 abaixo).
+
+Arquivo mudado: static/css/style.css (bloco .card-vida).
+

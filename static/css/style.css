@@ -3599,6 +3599,15 @@ li.item.item-planejado {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   margin-bottom: 0.85rem;
+  /* Fase 5, US-D1/US-D3: faltava o mesmo fadeInUp que todo outro painel
+     "glass" ja tem (.stat-tile, li.item, #duvida-box) - sem isso, os cards
+     que ligam/desligam via [hidden] (sobrecarga-box, previa-noite-box,
+     patrimonio-box, revisao-periodo-box e os antigos rotina/checkin/
+     essencial/progresso/fim-mes/custo-ia) apareciam num corte seco em vez
+     de assentar como o resto do app. A animacao reinicia sozinha sempre que
+     o elemento sai de display:none pra display:flex (troca do atributo
+     hidden), sem precisar de JS extra tipo pulsarSucesso. */
+  animation: fadeInUp 0.35s var(--ease-bounce) both;
 }
 
 .card-vida-topo {
