@@ -13,7 +13,7 @@
         "Documentar em docs/ como configurar o widget de tela de bloqueio via Scriptable",
         "Testes cobrindo o endpoint"
       ],
-      "priority": 1, "passes": false, "notes": ""
+      "priority": 1, "passes": true, "notes": "Endpoint GET /api/atalho/resumo estendido com resumo_curto/linha_extra (vida.resumo_curto_lockscreen). scriptable/widget_lockscreen.js novo (accessoryInline/Circular/Rectangular, sem cor customizada) + docs/WIDGET_TELA_BLOQUEIO.md. Testes em tests/test_vida.py (ResumoCurtoLockscreenTestCase) e tests/test_app.py. Commit b05d4db, branch fase5/grupo-c1."
     },
     {
       "id": "US-C2",
@@ -25,7 +25,7 @@
         "Chat tool pra registrar decisao pelo chat, mesmo padrao das outras tools ja existentes",
         "Testes cobrindo CRUD"
       ],
-      "priority": 2, "passes": false, "notes": ""
+      "priority": 2, "passes": true, "notes": "Tabela diario_decisoes (nome escolhido de proposito - ja existia uma tabela 'decisoes' da Fase 1, 'vale a pena?' com pros/contras da IA, efemera; colisao de nome pega e corrigida durante o desenvolvimento). CRUD em /api/diario-decisoes (GET/POST/POST resultado/DELETE), chat tool registrar_decisao, secao 'Diario de decisao' na aba Painel (reaproveita padrao visual de Notas). Testes em tests/test_app.py (DiarioDecisaoTestCase, 8 casos incl. teste explicito de nao-colisao com a tabela decisoes antiga). Commit f498139, branch fase5/grupo-c1 (junto com US-C3/C4/C5/C6/C7 - ver nota no commit sobre por que ficaram juntas)."
     },
     {
       "id": "US-C3",
@@ -36,7 +36,7 @@
         "Tela simples de revisao acessivel pela UI",
         "Testes cobrindo a agregacao"
       ],
-      "priority": 3, "passes": false, "notes": ""
+      "priority": 3, "passes": true, "notes": "GET /api/revisao-periodo?tipo=trimestre|ano&ano=&trimestre= reaproveita _fatos_periodo (a mesma funcao ja usada por /api/revisao-mensal e /api/progresso - financeiro/gasto_total, tarefas_feitas, sono/humor) e soma decisoes do diario (US-C2) do periodo via vida.intervalo_trimestre/intervalo_ano. Secao 'Revisao trimestral/anual' na aba Vida (select tipo/trimestre/ano + botao Ver). Testes em tests/test_app.py (RevisaoPeriodoTestCase) e tests/test_vida.py (IntervalosDePeriodoTestCase). Commit f498139."
     },
     {
       "id": "US-C4",
@@ -48,7 +48,7 @@
         "Notificacoes urgentes continuam indo na hora, sem agrupar",
         "Testes cobrindo o agrupamento"
       ],
-      "priority": 4, "passes": false, "notes": ""
+      "priority": 4, "passes": true, "notes": "Integrado ao MESMO endpoint/mecanismo do modo silencioso configuravel: /api/configuracoes/silencio (GET/POST) ganhou os campos agrupar (bool) e agrupar_janela_min (int, default 2) - desligado por padrao, nao muda comportamento de quem nunca configurou (testes antigos de silencio so precisaram dos 2 campos novos no dict esperado, sem quebrar). Ligado: avisos nao-urgentes que sobrevivem aos filtros de hiperfoco/silencioso entram numa fila persistida em `configuracoes` (mesmo padrao ja usado por avisos_adiados do hiperfoco) e so saem, combinados numa mensagem so (notificacoes.montar_mensagem_agrupada), quando a janela configurada passa desde o primeiro item enfileirado; urgente (NOTIFICACOES_URGENTES) nunca entra na fila, sempre vai na hora. Testes em tests/test_notificacoes.py (MontarMensagemAgrupadaTestCase) e tests/test_app.py (NotificacaoAgrupadaTestCase - desligado/ligado+janela/urgente-nunca-agrupa, todos com tempo congelado via patch('app.datetime') pra nao depender do relogio real). Commit f498139. Sem UI nova (AC nao pedia)."
     },
     {
       "id": "US-C5",
@@ -59,7 +59,7 @@
         "Ordena/sugere prioridade baseado em tempo parado e alguma marcacao de importancia ja existente ou nova coluna simples",
         "Testes cobrindo a priorizacao"
       ],
-      "priority": 5, "passes": false, "notes": ""
+      "priority": 5, "passes": true, "notes": "Reaproveita a tabela esperas ja existente - coluna nova esperas.importante (0/1) + vida.priorizar_esperas (score = dias parado + bonus de 5 dias se importante, testado pra nao deixar 'importante' apagar uma espera MUITO mais antiga). GET /api/esperas/prioridade (lista ordenada) e POST /api/esperas/<id>/importante (marcar/desmarcar). Nao mudei o /api/esperas original (rota nova em vez de mudar ordem/formato da existente, pra nao quebrar consumidores atuais). Testes em tests/test_vida.py (PriorizarEsperasTestCase) e tests/test_app.py (EsperaPrioridadeTestCase). Commit f498139. Sem UI nova alem da API (AC nao pedia)."
     },
     {
       "id": "US-C6",
@@ -71,7 +71,7 @@
         "Tela/lista de itens 'pra processar depois' com acao de converter em tarefa/nota/gasto (reaproveitando rotas ja existentes de cada tipo)",
         "Testes cobrindo captura e conversao"
       ],
-      "priority": 6, "passes": false, "notes": ""
+      "priority": 6, "passes": true, "notes": "Tabela brain_dump (texto, processado, criado_em). POST /api/brain-dump (captura), GET (lista pendentes), POST /<id>/converter (tipo=tarefa|nota|gasto - reaproveita create_nota ja existente pra nota; tarefa/gasto usam 2 inserts minimos novos criar_tarefa_de_brain_dump/criar_gasto_de_brain_dump, ja que nao havia rota de criacao manual sem IA pra esses dois - so via /api/capture com classificacao). Nunca salva sem o Alex escolher o tipo explicitamente. DELETE pra descartar sem converter. Secao 'Brain dump' na aba Painel. Testes em tests/test_app.py (BrainDumpTestCase - captura, 3 conversoes, erros de validacao, item ja processado, descarte). Commit f498139."
     },
     {
       "id": "US-C7",
@@ -83,7 +83,7 @@
         "Sugestao filtra tarefas compativeis com a energia informada",
         "Testes cobrindo a logica de sugestao"
       ],
-      "priority": 7, "passes": false, "notes": ""
+      "priority": 7, "passes": true, "notes": "Campo esforco/dificuldade nao existia no schema (verificado antes de criar) - coluna nova tasks.esforco (TEXT: baixa/media/alta, sem valor tratado como 'media'). vida.tarefas_compativeis_com_energia filtra por nivel (baixa so pega esforco baixa; media pega baixa+media+sem-classificacao; alta pega tudo). GET /api/tarefas/sugestao-energia?nivel= e POST /api/tasks/<id>/esforco. UI: 3 botoes baixa/media/alta no topo da aba Tarefas + tag clicavel em cada tarefa (mesmo padrao de criarSeletorCategoriaGasto) pra marcar o esforco. Testes em tests/test_vida.py (TarefasCompativeisComEnergiaTestCase) e tests/test_app.py (SugestaoEnergiaTestCase). Commit f498139."
     },
     {
       "id": "US-C8",
