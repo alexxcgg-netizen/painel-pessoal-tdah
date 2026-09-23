@@ -13,6 +13,7 @@ import requests
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
+import aprendizado
 import auth
 import claude_client
 import db
@@ -5390,6 +5391,240 @@ class PainelTestCase(unittest.TestCase):
                 "sugerir_posto_no_caminho", {"destino": "Foz do Iguacu", "origem": "Brusque"}
             )
         self.assertIn("erro", resultado)
+
+
+class ReclassificacaoECorrecaoTestCase(unittest.TestCase):
+    """Item 4 do BRIELING (Fase 4): correcao rapida de classificacao errada
+    (tarefa <-> gasto, categoria de gasto) + aprendizado leve que injeta uma
+    correcao parecida como contexto no prompt de classify_capture."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        conn.execute("DELETE FROM memorias")
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        conn.commit()
+        conn.close()
+        app._CACHE_CONSTRUTORA.clear()
+        self.client = app.app.test_client()
+        res = self.client.post("/login", json={"pin": PIN_TESTE})
+        assert res.status_code == 200, res.get_json()
+        self._silencio_patch = patch("notificacoes.dentro_do_horario_silencioso", return_value=False)
+        self._silencio_patch.start()
+        self.addCleanup(self._silencio_patch.stop)
+
+    def _criar_tarefa(self, texto="ligar pro banco"):
+        parsed = {
+            "tipo": "tarefa", "titulo": texto, "valor": None,
+            "categoria": None, "quando": None, "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": texto})
+        assert res.status_code == 201, res.get_json()
+        tasks = self.client.get("/api/tasks").get_json()
+        return tasks[-1]
+
+    def _criar_gasto(self, texto="netflix mensalidade", categoria="lazer", valor=39.9):
+        parsed = {
+            "tipo": "gasto", "titulo": texto, "valor": valor,
+            "categoria": categoria, "quando": None, "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": texto})
+        assert res.status_code == 201, res.get_json()
+        expenses = self.client.get("/api/expenses").get_json()
+        return expenses[0]
+
+    # ---- tarefa -> gasto ----
+
+    def test_reclassificar_tarefa_para_gasto_preserva_dado_e_limpa_subtasks(self):
+        tarefa = self._criar_tarefa("comprar racao pro gato")
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO subtasks (task_id, title, position) VALUES (?, ?, 0)", (tarefa["id"], "passo 1")
+        )
+        conn.execute(
+            "INSERT INTO subtasks (task_id, title, position) VALUES (?, ?, 1)", (tarefa["id"], "passo 2")
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.post(
+            f"/api/tasks/{tarefa['id']}/reclassificar", json={"valor": 85.0, "categoria": "mercado"}
+        )
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["subtasks_removidas"], 2)
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tasks), 0)
+
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(len(expenses), 1)
+        self.assertEqual(expenses[0]["id"], body["novo_id"])
+        self.assertEqual(expenses[0]["amount"], 85.0)
+        self.assertEqual(expenses[0]["category"], "mercado")
+        self.assertEqual(expenses[0]["description"], "comprar racao pro gato")
+        self.assertIn("comprar racao pro gato", expenses[0]["source_text"])
+
+        conn = db.get_db()
+        restantes = conn.execute(
+            "SELECT COUNT(*) AS n FROM subtasks WHERE task_id = ?", (tarefa["id"],)
+        ).fetchone()["n"]
+        conn.close()
+        self.assertEqual(restantes, 0)
+
+    def test_reclassificar_tarefa_para_gasto_sem_valor_da_erro(self):
+        tarefa = self._criar_tarefa()
+        res = self.client.post(f"/api/tasks/{tarefa['id']}/reclassificar", json={})
+        self.assertEqual(res.status_code, 400)
+        # nada foi movido
+        self.assertEqual(len(self.client.get("/api/tasks").get_json()), 1)
+        self.assertEqual(len(self.client.get("/api/expenses").get_json()), 0)
+
+    def test_reclassificar_tarefa_inexistente_404(self):
+        res = self.client.post("/api/tasks/9999/reclassificar", json={"valor": 10})
+        self.assertEqual(res.status_code, 404)
+
+    # ---- gasto -> tarefa ----
+
+    def test_reclassificar_gasto_para_tarefa_preserva_dado(self):
+        gasto = self._criar_gasto("academia mensalidade", categoria="saude", valor=120.0)
+        res = self.client.post(
+            f"/api/expenses/{gasto['id']}/reclassificar",
+            json={"quando": "amanha", "quando_data": "2026-09-24"},
+        )
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertTrue(body["ok"])
+
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(len(expenses), 0)
+
+        tasks = self.client.get("/api/tasks").get_json()
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["id"], body["novo_id"])
+        self.assertEqual(tasks[0]["title"], "academia mensalidade")
+        self.assertEqual(tasks[0]["due_at"], "amanha")
+        self.assertEqual(tasks[0]["due_date"], "2026-09-24")
+        self.assertIn("academia mensalidade", tasks[0]["source_text"])
+
+    def test_reclassificar_gasto_inexistente_404(self):
+        res = self.client.post("/api/expenses/9999/reclassificar", json={})
+        self.assertEqual(res.status_code, 404)
+
+    # ---- categoria de gasto ----
+
+    def test_corrigir_categoria_gasto(self):
+        gasto = self._criar_gasto("uber pro aeroporto", categoria="lazer", valor=45.0)
+        res = self.client.post(f"/api/expenses/{gasto['id']}/categoria", json={"categoria": "transporte"})
+        self.assertEqual(res.status_code, 200)
+
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(expenses[0]["category"], "transporte")
+
+    def test_corrigir_categoria_gasto_vazia_da_erro(self):
+        gasto = self._criar_gasto()
+        res = self.client.post(f"/api/expenses/{gasto['id']}/categoria", json={"categoria": ""})
+        self.assertEqual(res.status_code, 400)
+
+    def test_corrigir_categoria_gasto_inexistente_404(self):
+        res = self.client.post("/api/expenses/9999/categoria", json={"categoria": "mercado"})
+        self.assertEqual(res.status_code, 404)
+
+    # ---- gravacao da correcao + aprendizado leve ----
+
+    def test_reclassificacao_grava_correcao_na_tabela_nova(self):
+        tarefa = self._criar_tarefa("assinatura streaming mensal")
+        self.client.post(
+            f"/api/tasks/{tarefa['id']}/reclassificar", json={"valor": 39.9, "categoria": "lazer"}
+        )
+
+        conn = db.get_db()
+        correcoes = db.list_correcoes_classificacao(conn)
+        conn.close()
+        self.assertEqual(len(correcoes), 1)
+        self.assertEqual(correcoes[0]["tipo_errado"], "tarefa")
+        self.assertIsNone(correcoes[0]["categoria_errada"])
+        self.assertEqual(correcoes[0]["tipo_certo"], "gasto")
+        self.assertEqual(correcoes[0]["categoria_certa"], "lazer")
+        self.assertIn("assinatura streaming mensal", correcoes[0]["texto_original"])
+
+    def test_correcao_categoria_grava_correcao_na_tabela_nova(self):
+        gasto = self._criar_gasto("posto de gasolina", categoria="lazer", valor=200.0)
+        self.client.post(f"/api/expenses/{gasto['id']}/categoria", json={"categoria": "transporte"})
+
+        conn = db.get_db()
+        correcoes = db.list_correcoes_classificacao(conn)
+        conn.close()
+        self.assertEqual(len(correcoes), 1)
+        self.assertEqual(correcoes[0]["categoria_errada"], "lazer")
+        self.assertEqual(correcoes[0]["categoria_certa"], "transporte")
+
+    def test_aprendizado_correcao_semelhante_bate_por_tokens_em_comum(self):
+        conn = db.get_db()
+        db.registrar_correcao_classificacao(
+            conn, "renovar spotify premium", "tarefa", None, "gasto", "lazer"
+        )
+        conn.close()
+
+        conn = db.get_db()
+        achada = aprendizado.correcao_semelhante(conn, "pagar spotify premium de novo")
+        conn.close()
+        self.assertIsNotNone(achada)
+        self.assertEqual(achada["tipo_certo"], "gasto")
+
+        conn = db.get_db()
+        nao_achada = aprendizado.correcao_semelhante(conn, "levar carro na revisao")
+        conn.close()
+        self.assertIsNone(nao_achada)
+
+    def test_captura_parecida_com_correcao_anterior_recebe_contexto_no_prompt(self):
+        conn = db.get_db()
+        db.registrar_correcao_classificacao(
+            conn, "renovar spotify premium", "tarefa", None, "gasto", "lazer"
+        )
+        conn.close()
+
+        capturados = {}
+
+        def fake_classify(text, contexto_correcao=None):
+            capturados["contexto_correcao"] = contexto_correcao
+            return (
+                {
+                    "tipo": "gasto", "titulo": "spotify", "valor": 21.9,
+                    "categoria": "lazer", "quando": None, "duvida": None,
+                },
+                fake_usage(),
+            )
+
+        with patch("claude_client.classify_capture", side_effect=fake_classify):
+            res = self.client.post("/api/capture", json={"text": "pagar spotify premium de novo"})
+        self.assertEqual(res.status_code, 201)
+        self.assertIsNotNone(capturados["contexto_correcao"])
+        self.assertIn("spotify", capturados["contexto_correcao"])
+        self.assertIn("gasto", capturados["contexto_correcao"])
+
+    def test_captura_sem_correcao_parecida_nao_recebe_contexto(self):
+        capturados = {}
+
+        def fake_classify(text, contexto_correcao=None):
+            capturados["contexto_correcao"] = contexto_correcao
+            return (
+                {
+                    "tipo": "tarefa", "titulo": "levar carro na revisao", "valor": None,
+                    "categoria": None, "quando": None, "duvida": None,
+                },
+                fake_usage(),
+            )
+
+        with patch("claude_client.classify_capture", side_effect=fake_classify):
+            res = self.client.post("/api/capture", json={"text": "levar carro na revisao"})
+        self.assertEqual(res.status_code, 201)
+        self.assertIsNone(capturados["contexto_correcao"])
 
 
 class FuzzingEndpointsTestCase(unittest.TestCase):

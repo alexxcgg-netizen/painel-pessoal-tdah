@@ -1944,6 +1944,64 @@ li.item.item-planejado {
   box-shadow: 0 0 6px -1px color-mix(in srgb, var(--cor-bancos) 55%, transparent);
 }
 
+/* Categoria de gasto vira <select> ali mesmo quando tocada - correcao rapida
+   sem sair do card (Fase 4, item 4: corrigir classificacao errada). */
+.gasto-categoria {
+  cursor: pointer;
+}
+
+.correcao-select-categoria {
+  font-size: 0.72rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  margin-left: 0.4rem;
+  animation: fadeInUp 0.2s var(--ease-suave) both;
+}
+
+/* Formulario inline "isso nao e uma tarefa, e um gasto?" - mesmo espirito
+   visual das subtarefas (borda tracejada separando do resto do card), mas
+   com controles pra corrigir em vez de so listar. */
+.correcao-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border);
+  animation: fadeInUp 0.22s var(--ease-suave) both;
+}
+
+.correcao-input {
+  flex: 1 1 7rem;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.correcao-select {
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .correcao-form,
+  .correcao-select-categoria {
+    animation: none;
+  }
+}
+
 #importar-form {
   display: flex;
   flex-wrap: wrap;

@@ -37,6 +37,13 @@ const ICONE_META_CARD =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>';
 const ICONE_VIAGEM_CARD =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m14.8 9.2-1.6 4-4 1.6 1.6-4 4-1.6Z"/></svg>';
+const ICONE_CORRIGIR =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+// Mesmas categorias que claude_client.CAPTURE_PROMPT ensina a IA a usar -
+// duplicado aqui de proposito (o front nao chama o backend so pra montar um
+// <select>): se uma categoria nova entrar la, precisa entrar aqui tambem.
+const CATEGORIAS_GASTO = ["mercado", "transporte", "lazer", "contas", "saude", "outros"];
 
 // Vibracao (Vibration API): funciona no Chrome/Android, mas o Safari no
 // iOS NUNCA implementou isso (decisao de plataforma da Apple, nao falta de
@@ -1481,6 +1488,20 @@ function criarItemTarefa(t) {
     acoes.appendChild(botaoFichaTreino(t, li));
   }
 
+  const btnCorrigir = document.createElement("button");
+  btnCorrigir.className = "btn-com-icone";
+  btnCorrigir.title = "isso nao e uma tarefa?";
+  btnCorrigir.innerHTML = ICONE_CORRIGIR;
+  btnCorrigir.addEventListener("click", () => {
+    const jaAberto = li.querySelector(".correcao-form");
+    if (jaAberto) {
+      jaAberto.remove();
+      return;
+    }
+    li.appendChild(criarFormularioTarefaParaGasto(t, li));
+  });
+  acoes.appendChild(btnCorrigir);
+
   const btnConcluir = document.createElement("button");
   btnConcluir.className = "primario btn-com-icone";
   btnConcluir.innerHTML = `${ICONE_CHECK}concluir`;
@@ -1534,6 +1555,68 @@ function criarItemTarefa(t) {
   return li;
 }
 
+// Correcao rapida "isso nao e uma tarefa, e um gasto" - formulario minimo
+// (o texto original pode nao ter um valor claro, entao pede o valor certo
+// na hora, do jeito que o Alex quiser) que aparece inline no card e some se
+// for cancelado ou depois de corrigir com sucesso.
+function criarFormularioTarefaParaGasto(t, li) {
+  const form = document.createElement("div");
+  form.className = "correcao-form";
+
+  const valorInput = document.createElement("input");
+  valorInput.type = "number";
+  valorInput.step = "0.01";
+  valorInput.min = "0.01";
+  valorInput.placeholder = "valor (R$)";
+  valorInput.className = "correcao-input";
+
+  const categoriaSelect = document.createElement("select");
+  categoriaSelect.className = "correcao-select";
+  CATEGORIAS_GASTO.forEach((cat) => {
+    const opt = document.createElement("option");
+    opt.value = cat;
+    opt.textContent = cat;
+    categoriaSelect.appendChild(opt);
+  });
+
+  const btnConfirmar = document.createElement("button");
+  btnConfirmar.className = "primario btn-com-icone";
+  btnConfirmar.innerHTML = `${ICONE_CHECK}virar gasto`;
+  btnConfirmar.addEventListener("click", async () => {
+    const valor = parseFloat(valorInput.value);
+    if (!valor || valor <= 0) {
+      valorInput.focus();
+      return;
+    }
+    setBotaoCarregando(btnConfirmar, true, "corrigindo...");
+    const data = await apiFetch(`/api/tasks/${t.id}/reclassificar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ valor, categoria: categoriaSelect.value }),
+    });
+    if (data) {
+      li.classList.add("saindo");
+      setTimeout(() => {
+        loadTasks();
+        loadExpenses();
+      }, 220);
+    } else {
+      setBotaoCarregando(btnConfirmar, false, "virar gasto");
+    }
+  });
+
+  const btnCancelar = document.createElement("button");
+  btnCancelar.className = "btn-com-icone";
+  btnCancelar.textContent = "cancelar";
+  btnCancelar.addEventListener("click", () => form.remove());
+
+  form.appendChild(valorInput);
+  form.appendChild(categoriaSelect);
+  form.appendChild(btnConfirmar);
+  form.appendChild(btnCancelar);
+  return form;
+}
+
 async function loadTasks() {
   const tasks = await apiFetch("/api/tasks");
   if (!tasks) return;
@@ -1541,6 +1624,41 @@ async function loadTasks() {
   list.innerHTML = "";
   $("#tarefas-vazio").hidden = tasks.length > 0;
   tasks.forEach((t) => list.appendChild(criarItemTarefa(t)));
+}
+
+// Categoria errada e o caso mais comum de corrigir (a IA acerta o "e um
+// gasto" quase sempre, erra mais na categoria) - por isso a propria tag vira
+// um <select> ali mesmo, sem sair do card: um toque abre, outro escolhe.
+function criarSeletorCategoriaGasto(e, cat, li) {
+  const select = document.createElement("select");
+  select.className = "correcao-select correcao-select-categoria";
+  CATEGORIAS_GASTO.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = c;
+    if (c === e.category) opt.selected = true;
+    select.appendChild(opt);
+  });
+  select.addEventListener("click", (ev) => ev.stopPropagation());
+  select.addEventListener("blur", () => {
+    if (select.parentElement) select.replaceWith(cat);
+  });
+  select.addEventListener("change", async () => {
+    const categoriaNova = select.value;
+    if (categoriaNova === e.category) {
+      select.replaceWith(cat);
+      return;
+    }
+    select.disabled = true;
+    const data = await apiFetch(`/api/expenses/${e.id}/categoria`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categoria: categoriaNova }),
+    });
+    if (data) loadExpenses();
+    else select.disabled = false;
+  });
+  return select;
 }
 
 function criarItemGasto(e) {
@@ -1558,6 +1676,12 @@ function criarItemGasto(e) {
   cat.className = "gasto-categoria";
   cat.dataset.cat = e.category;
   cat.textContent = e.category;
+  cat.title = "toque pra corrigir a categoria";
+  cat.addEventListener("click", () => {
+    const select = criarSeletorCategoriaGasto(e, cat, li);
+    cat.replaceWith(select);
+    select.focus();
+  });
   info.appendChild(valor);
   info.appendChild(cat);
   if (e.tipo === "planejado") {
@@ -1573,7 +1697,33 @@ function criarItemGasto(e) {
     info.appendChild(desc);
   }
 
+  const acoes = document.createElement("div");
+  acoes.className = "item-acoes";
+  const btnCorrigirTipo = document.createElement("button");
+  btnCorrigirTipo.className = "btn-com-icone";
+  btnCorrigirTipo.title = "isso nao e um gasto?";
+  btnCorrigirTipo.innerHTML = `${ICONE_CORRIGIR}e tarefa`;
+  btnCorrigirTipo.addEventListener("click", async () => {
+    setBotaoCarregando(btnCorrigirTipo, true, "corrigindo...");
+    const data = await apiFetch(`/api/expenses/${e.id}/reclassificar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (data) {
+      li.classList.add("saindo");
+      setTimeout(() => {
+        loadExpenses();
+        loadTasks();
+      }, 220);
+    } else {
+      setBotaoCarregando(btnCorrigirTipo, false, "e tarefa");
+    }
+  });
+  acoes.appendChild(btnCorrigirTipo);
+
   linha.appendChild(info);
+  linha.appendChild(acoes);
   li.appendChild(linha);
   return li;
 }

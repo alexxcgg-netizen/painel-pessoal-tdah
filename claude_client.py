@@ -58,6 +58,11 @@ relacao ("esposa se chama Ana") ou contexto recorrente. Escreva em terceira pess
 curta. Se o texto for so uma tarefa/gasto/meta pontual sem nada duravel por tras, deixe "memoria"
 como null - a grande maioria dos textos nao tem nada pra lembrar aqui.
 
+Aprendizado de correcao anterior (o Alex ja corrigiu manualmente uma captura parecida com essa no
+passado, porque a classificacao automatica saiu errada) - use como pista forte de qual e o tipo/
+categoria certos, mas ainda julgue pelo texto atual, o padrao pode nao se repetir sempre:
+{contexto_correcao}
+
 Texto: {text}"""
 
 BREAKDOWN_PROMPT = """Quebre esta tarefa em 3 a 6 passos pequenos e concretos, cada um algo que da pra fazer de uma vez.
@@ -1232,14 +1237,18 @@ def _usage(response) -> dict:
     }
 
 
-def classify_capture(text: str) -> tuple[dict, dict]:
+def classify_capture(text: str, contexto_correcao: str | None = None) -> tuple[dict, dict]:
     response = client.messages.create(
         model=HAIKU,
         max_tokens=250,
         messages=[
             {
                 "role": "user",
-                "content": CAPTURE_PROMPT.format(text=text, hoje=date.today().isoformat()),
+                "content": CAPTURE_PROMPT.format(
+                    text=text,
+                    hoje=date.today().isoformat(),
+                    contexto_correcao=contexto_correcao or "nenhuma correcao parecida no historico",
+                ),
             }
         ],
     )
