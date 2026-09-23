@@ -46,3 +46,24 @@ Nao confirmado: nada.
 Historia US-E3 — decisao: captura (enviarCaptura e callback da fila offline) passa por criarCardsCaptura: cards do contrato quando vierem, card de resultado antigo se o servidor for mais velho.
 Motivo: compatibilidade nos dois sentidos.
 Nao confirmado: nada.
+
+## US-E4 - renderizadores complexos (agenda, projeto_viagem, saude_treino, sugestao, habito)
+Historia US-E4 — decisao: so o RENDERIZADOR, contra o formato de docs/CARDS.md, testado com o dado de exemplo do proprio doc; nenhum backend gera esses types ainda (US-E7b liga Habitos/Projetos/CalDAV/memoria).
+Motivo: fronteira com a faixa E2 (os modulos nao existem nesta branch).
+Nao confirmado: que o formato de dado bate 1:1 com o que US-E12/E13/E14 vao expor - quem liga converte pro formato do CARDS.md (o contrato manda).
+
+Historia US-E4 — decisao: projeto_viagem aceita `percentual`/`feitas`/`total`/`hoje_fracao` prontos (calculo puro da US-E13) e so calcula no front o que faltar.
+Motivo: "fonte unica" do calculo fica no backend quando existir, sem travar o card hoje.
+Nao confirmado: nada.
+
+Historia US-E4 — decisao: grafico de saude_treino = barras horizontais em SVG inline (rotulo a esquerda, valor na ponta, sem eixo/legenda, uma cor so - a do card), agrupado por atividade.
+Motivo: 390px de largura com nome de atividade legivel; sem lib nova.
+Nao confirmado: nada.
+
+Historia US-E4 — decisao: cores por type so com tokens existentes: agenda/sugestao --cor-aviacao, projeto_viagem --cor-bancos, saude_treino --cor-painel, habito --cor-tarefas; status "atrasado" em --cor-bancos (vermelho e reservado pra erro, regra do style.css).
+Motivo: identidade por cor sem cor nova.
+Nao confirmado: preferencia do Alex por essas combinacoes.
+
+Historia US-E4 — decisao: o app so tem tema escuro (nao existe tema claro em style.css), entao a conferencia visual foi so no escuro.
+Motivo: criterio "claro e escuro se o app tiver os dois temas".
+Nao confirmado: nada.

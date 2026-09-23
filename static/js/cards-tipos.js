@@ -201,3 +201,318 @@
   Cards.ICONES = ICONES;
   Cards.segundos = segundos;
 })(typeof window !== "undefined" ? window : globalThis);
+
+// ---- cards de visual complexo (US-E4) ---------------------------------------
+// Renderizadores prontos contra o formato de docs/CARDS.md; o dado real de
+// agenda (US-E14), projeto/viagem (US-E13), habito (US-E12) e o "porque" da
+// sugestao (US-E10) e ligado por outras faixas (US-E7b).
+(function (raiz) {
+  "use strict";
+  const Cards = raiz.Cards || (typeof require === "function" ? require("./cards.js") : null);
+  if (!Cards) return;
+  const { esc, numeroValido } = Cards;
+
+  const ICONES = Object.assign(Cards.ICONES || {}, {
+    agenda:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>',
+    projeto:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+    viagem:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m14.8 9.2-1.6 4-4 1.6 1.6-4 4-1.6Z"/></svg>',
+    treino:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>',
+    sugestao:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+    habito:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2.5 20.5 6 17 9.5"/><path d="M3.5 11V9.5A3.5 3.5 0 0 1 7 6h13.5M7 21.5 3.5 18 7 14.5"/><path d="M20.5 13v1.5A3.5 3.5 0 0 1 17 18H3.5"/></svg>',
+    check:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17 19 7"/></svg>',
+    bandeira:
+      '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4" fill="none"/><path d="M5 4h11l-2 4 2 4H5z"/></svg>',
+  });
+
+  function eyebrow(icone, texto, extra) {
+    return `<div class="card-resultado-eyebrow">${icone || ""}<span>${esc(texto)}</span>${extra || ""}</div>`;
+  }
+
+  function lista(v) {
+    return Array.isArray(v) ? v : [];
+  }
+
+  function limitar(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  // "08:00" -> "8h", "08:30" -> "8h30"
+  function horaCurta(hhmmTxt) {
+    const m = typeof hhmmTxt === "string" ? hhmmTxt.match(/^(\d{1,2}):(\d{2})/) : null;
+    if (!m) return "";
+    const h = Number(m[1]);
+    return m[2] === "00" ? `${h}h` : `${h}h${m[2]}`;
+  }
+
+  // ---- agenda -----------------------------------------------------------------
+
+  const DIA_INICIO_H = 6;
+  const DIA_FIM_H = 22;
+
+  // Posicao do bloco na barra do dia (06h-22h), em % - cortado nas bordas.
+  function blocoDoDia(inicio, fim) {
+    if (!(inicio instanceof Date)) return null;
+    const fimReal = fim instanceof Date && fim > inicio ? fim : new Date(inicio.getTime() + 60 * 60000);
+    const total = (DIA_FIM_H - DIA_INICIO_H) * 60;
+    const minDoDia = (d, base) =>
+      Cards.mesmoDia(d, base) ? d.getHours() * 60 + d.getMinutes() : d > base ? 24 * 60 : 0;
+    const ini = limitar(minDoDia(inicio, inicio) - DIA_INICIO_H * 60, 0, total);
+    const fi = limitar(minDoDia(fimReal, inicio) - DIA_INICIO_H * 60, 0, total);
+    const left = (ini / total) * 100;
+    const width = Math.max(1.5, ((fi - ini) / total) * 100);
+    return { left: Math.min(left, 100 - width), width, minutos: Math.round((fimReal - inicio) / 60000) };
+  }
+
+  function barraDoDia(inicio, fim, rotulo) {
+    const b = blocoDoDia(inicio, fim);
+    if (!b) return "";
+    const marcas = [6, 10, 14, 18, 22]
+      .map((h) => {
+        const pos = ((h - DIA_INICIO_H) / (DIA_FIM_H - DIA_INICIO_H)) * 100;
+        return `<span class="card-dia-marca" style="left:${pos.toFixed(2)}%">${String(h).padStart(2, "0")}h</span>`;
+      })
+      .join("");
+    return (
+      `<div class="card-dia" role="img" aria-label="${esc(rotulo)}">` +
+      `<div class="card-dia-trilho"><div class="card-dia-bloco" style="left:${b.left.toFixed(2)}%;width:${b.width.toFixed(2)}%"></div></div>` +
+      `<div class="card-dia-escala">${marcas}</div></div>`
+    );
+  }
+
+  Cards.registrar(
+    "agenda",
+    (data, card) => {
+      const inicio = Cards.parseDataHora(data.inicio);
+      const fimInformado = Cards.parseDataHora(data.fim);
+      const fim = fimInformado && inicio && fimInformado > inicio ? fimInformado : inicio ? new Date(inicio.getTime() + 3600000) : null;
+      const quando = inicio
+        ? `${Cards.dataPorExtenso(inicio)}, das ${Cards.hhmm(inicio)} às ${Cards.hhmm(fim)}`
+        : "Horário a definir";
+      const minutos = inicio ? Math.round((fim - inicio) / 60000) : 0;
+      const lembrar = numeroValido(data.lembrar_min_antes) && data.lembrar_min_antes > 0
+        ? `<span class="card-chip">${ICONES.sugestao}Lembrar ${esc(data.lembrar_min_antes)} min antes</span>`
+        : "";
+      const desfazer = Cards.acoesDoTipo(card, "desfazer").map(Cards.acaoHTML).join("");
+      const confirmacao = data.confirmado
+        ? `<p class="card-confirmacao">${ICONES.check}<span>Está na sua agenda</span>${desfazer ? `<span class="card-sep" aria-hidden="true">·</span>${desfazer}` : ""}</p>`
+        : desfazer
+          ? `<div class="card-botoes">${desfazer}</div>`
+          : "";
+      return (
+        eyebrow(ICONES.agenda, data.calendario ? `Agenda · ${data.calendario}` : "Agenda") +
+        `<p class="card-titulo">${esc(data.titulo)}</p>` +
+        `<p class="card-linha-meta card-primeira-maiuscula">${esc(quando)}</p>` +
+        (inicio ? barraDoDia(inicio, fim, quando) : "") +
+        (inicio ? `<div class="card-linha-chips"><span class="card-reservado">${esc(Cards.fmtDuracao(minutos))} reservadas</span>${lembrar}</div>` : "") +
+        confirmacao
+      );
+    },
+    { consome: ["desfazer"] }
+  );
+
+  // ---- projeto_viagem -----------------------------------------------------------
+
+  // % concluido, n/total e posicao de HOJE (0..1) entre inicio e prazo. Usa
+  // o que o backend mandar pronto (US-E13) e so calcula o que faltar.
+  function progressoProjeto(data, agora) {
+    const etapas = lista(data.etapas).filter((e) => e && typeof e === "object");
+    const total = numeroValido(data.total) ? data.total : etapas.length;
+    const feitas = numeroValido(data.feitas) ? data.feitas : etapas.filter((e) => e.feito).length;
+    const pct = numeroValido(data.percentual) ? limitar(data.percentual, 0, 100) : total > 0 ? (feitas / total) * 100 : 0;
+    let hoje = numeroValido(data.hoje_fracao) ? limitar(data.hoje_fracao, 0, 1) : null;
+    if (hoje === null) {
+      const ini = Cards.parseDia(data.inicio);
+      const fim = Cards.parseDia(data.prazo);
+      const ref = agora instanceof Date ? agora : new Date();
+      if (ini && fim && fim > ini) hoje = limitar((ref - ini) / (fim - ini), 0, 1);
+    }
+    return { pct, feitas, total, hoje };
+  }
+
+  const STATUS_PROJETO = {
+    no_rumo: "No rumo",
+    atrasado: "Atrasado",
+    pausado: "Pausado",
+  };
+
+  Cards.registrar("projeto_viagem", (data, card, ctx) => {
+    const etapas = lista(data.etapas).filter((e) => e && typeof e === "object");
+    const p = progressoProjeto(data, ctx && ctx.agora);
+    const statusTxt = STATUS_PROJETO[data.status];
+    const chip = statusTxt ? `<span class="card-chip card-status-${esc(data.status)}">${esc(statusTxt)}</span>` : "";
+    const visiveis = etapas.slice(0, 5);
+    const itens = visiveis
+      .map(
+        (e) =>
+          `<li class="${e.feito ? "feito" : ""}"><span class="card-check" aria-hidden="true">${e.feito ? ICONES.check : ""}</span>` +
+          `<span class="card-check-titulo">${esc(e.titulo)}</span>${e.data ? `<span class="card-check-data">${esc(Cards.diaMesCurto(e.data))}</span>` : ""}` +
+          `<span class="sr-only">${e.feito ? "feito" : "pendente"}</span></li>`
+      )
+      .join("");
+    const resto = etapas.length > visiveis.length ? `<li class="card-check-mais">+${etapas.length - visiveis.length} etapas</li>` : "";
+    const marcador =
+      p.hoje !== null
+        ? `<span class="card-hoje" style="left:${(p.hoje * 100).toFixed(2)}%"><span>HOJE</span></span>`
+        : "";
+    const linha = [
+      `<strong>${Math.round(p.pct)}%</strong>`,
+      `${esc(p.feitas)}/${esc(p.total)} ${p.total === 1 ? "tarefa" : "tarefas"}`,
+      data.prazo ? esc(Cards.diaMesCurto(data.prazo)) : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const marco = data.proximo_marco && typeof data.proximo_marco === "object" && data.proximo_marco.titulo
+      ? `<p class="card-marco">${ICONES.bandeira}<span>Próximo marco: <strong>${esc(data.proximo_marco.titulo)}</strong>${data.proximo_marco.data ? ` · ${esc(Cards.diaMesCurto(data.proximo_marco.data))}` : ""}</span></p>`
+      : "";
+    return (
+      eyebrow(data.origem === "viagem" ? ICONES.viagem : ICONES.projeto, data.origem === "viagem" ? "Viagem" : "Projeto", chip) +
+      `<p class="card-titulo">${esc(data.titulo)}</p>` +
+      (itens ? `<ul class="card-checklist">${itens}${resto}</ul>` : "") +
+      `<div class="card-progresso${marcador ? " com-hoje" : ""}">${marcador}<div class="meta-progresso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p.pct)}">` +
+      `<div class="meta-progresso-barra${p.pct >= 100 ? " completa" : ""}" style="width:${p.pct.toFixed(1)}%"></div></div></div>` +
+      `<p class="card-linha-meta">${linha}</p>` +
+      marco
+    );
+  });
+
+  // ---- saude_treino -------------------------------------------------------------
+
+  function minutosPorAtividade(sessoes) {
+    const mapa = new Map();
+    sessoes.forEach((s) => {
+      const nome = String(s.atividade || "Atividade");
+      mapa.set(nome, (mapa.get(nome) || 0) + Math.max(0, Number(s.minutos) || 0));
+    });
+    return Array.from(mapa, ([atividade, minutos]) => ({ atividade, minutos })).sort((a, b) => b.minutos - a.minutos);
+  }
+
+  // Barras horizontais (rotulo a esquerda, valor direto na ponta - sem
+  // legenda nem eixo), SVG inline, uma cor so (a do card).
+  function graficoBarras(grupos) {
+    if (!grupos.length) return "";
+    const max = Math.max(...grupos.map((g) => g.minutos), 1);
+    const alturaLinha = 26;
+    const largura = 300;
+    const xBarra = 92;
+    const larguraMax = largura - xBarra - 52;
+    const linhas = grupos
+      .map((g, i) => {
+        const y = i * alturaLinha;
+        const w = Math.max(4, (g.minutos / max) * larguraMax);
+        const nome = g.atividade.length > 13 ? `${g.atividade.slice(0, 12)}…` : g.atividade;
+        return (
+          `<text class="card-graf-rotulo" x="0" y="${y + 16}">${esc(nome)}</text>` +
+          `<rect class="card-graf-barra" x="${xBarra}" y="${y + 6}" width="${w.toFixed(1)}" height="12" rx="6"/>` +
+          `<text class="card-graf-valor" x="${(xBarra + w + 6).toFixed(1)}" y="${y + 16}">${esc(Cards.fmtDuracao(g.minutos))}</text>`
+        );
+      })
+      .join("");
+    const titulo = grupos.map((g) => `${g.atividade}: ${Cards.fmtDuracao(g.minutos)}`).join(", ");
+    return `<svg class="card-grafico" viewBox="0 0 ${largura} ${grupos.length * alturaLinha}" role="img" aria-label="${esc(`Minutos por atividade - ${titulo}`)}">${linhas}</svg>`;
+  }
+
+  Cards.registrar("saude_treino", (data) => {
+    const sessoes = lista(data.sessoes).filter((s) => s && typeof s === "object");
+    const totalMin = sessoes.reduce((acc, s) => acc + Math.max(0, Number(s.minutos) || 0), 0);
+    const chip = data.registrado ? `<span class="card-chip">${ICONES.check}Registrado</span>` : "";
+    const itens = sessoes
+      .slice(0, 6)
+      .map(
+        (s) =>
+          `<li><span class="card-sessao-nome">${esc(s.atividade || "Atividade")}</span>` +
+          `<span class="card-sessao-fonte">${esc([s.fonte, s.data ? Cards.dataCurta(s.data) : ""].filter(Boolean).join(" · "))}</span>` +
+          `<span class="card-sessao-dur">${esc(Cards.fmtDuracao(s.minutos))}</span></li>`
+      )
+      .join("");
+    return (
+      eyebrow(ICONES.treino, "Treinos", chip) +
+      (data.periodo ? `<p class="card-titulo card-primeira-maiuscula">${esc(data.periodo)}</p>` : "") +
+      `<p class="card-linha-meta">Sessões registradas: <strong>${sessoes.length}</strong> · Tempo de atividade: <strong>${esc(Cards.fmtDuracao(totalMin))}</strong></p>` +
+      (itens ? `<ul class="card-sessoes">${itens}</ul>` : "") +
+      graficoBarras(minutosPorAtividade(sessoes))
+    );
+  });
+
+  // ---- sugestao -----------------------------------------------------------------
+
+  Cards.registrar("sugestao", (data) => {
+    const inicio = Cards.parseDataHora(data.inicio);
+    const dur = numeroValido(data.duracao_min) && data.duracao_min > 0 ? data.duracao_min : null;
+    const fim = inicio && dur ? new Date(inicio.getTime() + dur * 60000) : null;
+    const linha = [
+      inicio ? Cards.dataPorExtenso(inicio) : "",
+      dur ? `${Cards.fmtDuracao(dur)}${fim ? ` (até ${Cards.hhmm(fim)})` : ""}` : "",
+    ]
+      .filter(Boolean)
+      .map(esc)
+      .join(" · ");
+    const porque = data.porque
+      ? `<div class="card-contexto"><p class="card-contexto-rotulo">Com a sua rotina em mente</p><p>${esc(data.porque)}</p></div>`
+      : "";
+    return (
+      eyebrow(ICONES.sugestao, "Horário sugerido") +
+      `<p class="card-titulo">${esc(data.titulo)}</p>` +
+      `<p class="card-hora-grande">${esc(inicio ? Cards.hhmm(inicio) : "—")}</p>` +
+      (linha ? `<p class="card-linha-meta card-primeira-maiuscula">${linha}</p>` : "") +
+      porque
+    );
+  });
+
+  // ---- habito -------------------------------------------------------------------
+
+  const LETRAS_SEMANA = ["S", "T", "Q", "Q", "S", "S", "D"];
+  const NOMES_SEMANA = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"];
+
+  // Sempre 7 posicoes (segunda..domingo): completa com "nao feito" se o
+  // backend mandar menos, e marca hoje por data.hoje (ou pelo relogio).
+  function semanaHabito(data, agora) {
+    const semana = lista(data.semana).slice(0, 7);
+    const ref = agora instanceof Date ? agora : new Date();
+    const hojeIso = typeof data.hoje === "string" ? data.hoje : null;
+    const idxHojeRelogio = (ref.getDay() + 6) % 7;
+    return LETRAS_SEMANA.map((letra, i) => {
+      const dia = semana[i] && typeof semana[i] === "object" ? semana[i] : {};
+      const ehHoje = hojeIso ? dia.data === hojeIso : i === idxHojeRelogio;
+      return { letra, nome: NOMES_SEMANA[i], feito: Boolean(dia.feito), hoje: ehHoje, data: dia.data || null };
+    });
+  }
+
+  Cards.registrar("habito", (data, card, ctx) => {
+    const dias = semanaHabito(data, ctx && ctx.agora);
+    const meta = [data.meta, data.frequencia, data.horario ? `às ${horaCurta(data.horario)}` : ""]
+      .filter(Boolean)
+      .map(esc)
+      .join(" · ");
+    const circulos = dias
+      .map(
+        (d) =>
+          `<li class="card-habito-dia${d.feito ? " feito" : ""}${d.hoje ? " hoje" : ""}" aria-label="${esc(`${d.nome}${d.hoje ? " (hoje)" : ""}: ${d.feito ? "feito" : "não feito"}`)}">` +
+          `<span class="card-habito-circ">${d.feito ? ICONES.check : ""}</span><span class="card-habito-letra" aria-hidden="true">${d.letra}</span></li>`
+      )
+      .join("");
+    const ativos =
+      numeroValido(data.ativos_depois)
+        ? `<p class="card-linha-meta">Hábitos ativos: ${numeroValido(data.ativos_antes) ? `${esc(data.ativos_antes)} <span class="card-seta" aria-hidden="true">→</span> ` : ""}<strong>${esc(data.ativos_depois)}</strong></p>`
+        : "";
+    const contexto = data.contexto
+      ? `<div class="card-contexto"><p>${esc(data.contexto)}</p></div>`
+      : "";
+    return (
+      eyebrow(ICONES.habito, "Hábito") +
+      `<p class="card-titulo">${esc(data.nome)}</p>` +
+      (meta ? `<p class="card-linha-meta">${meta}</p>` : "") +
+      `<ul class="card-habito-semana">${circulos}</ul>` +
+      ativos +
+      contexto
+    );
+  });
+
+  Object.assign(Cards, { blocoDoDia, progressoProjeto, minutosPorAtividade, semanaHabito, horaCurta });
+})(typeof window !== "undefined" ? window : globalThis);

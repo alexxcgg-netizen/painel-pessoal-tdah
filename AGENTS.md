@@ -252,3 +252,10 @@ db.init_db()
   devolvendo um envelope montado com `cards.montar_resposta` contra o banco
   temporário do launcher (ids reais) - assim checkbox/despertar/desfazer
   batem no servidor de verdade.
+- **Cards de habito/projeto_viagem/agenda/sugestao/saude_treino só têm
+  renderizador** (US-E4): quem liga o dado real (US-E7b) monta o card no
+  formato de `docs/CARDS.md` num builder de `cards.py` - o front não muda.
+  `habito.semana` é SEMPRE segunda->domingo (7 itens); `projeto_viagem` aceita
+  `percentual`/`feitas`/`total`/`hoje_fracao` prontos; `agenda.inicio/fim` são
+  `AAAA-MM-DDTHH:MM` local.
+

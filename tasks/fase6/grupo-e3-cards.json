@@ -57,8 +57,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Renderizadores agenda/projeto_viagem/saude_treino/sugestao/habito em static/js/cards-tipos.js contra docs/CARDS.md, testados com dado de exemplo (tests/js/cards.test.js) + funcoes puras exportadas (blocoDoDia, progressoProjeto, minutosPorAtividade, semanaHabito). Grafico em SVG inline. Headless 390px conferido (app so tem tema escuro). Dado real: US-E7b.",
       "modelo_planejado": "opus"
     },
     {

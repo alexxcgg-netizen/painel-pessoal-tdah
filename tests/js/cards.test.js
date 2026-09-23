@@ -327,3 +327,153 @@ test("todos os types simples registrados", () => {
     assert.ok(Cards.temRenderizador(t), t);
   }
 });
+
+// ---- cards de visual complexo (US-E4) - dado de exemplo do docs/CARDS.md ----
+
+test("agenda: data por extenso, barra do dia 06h-22h com o bloco, reservadas, lembrar, confirmacao + desfazer com uid", () => {
+  const html = Cards.renderizarCardHTML({
+    type: "agenda",
+    data: {
+      titulo: "Reunião com o contador", inicio: "2026-09-29T14:00", fim: "2026-09-29T15:00",
+      lembrar_min_antes: 30, uid: "abc@painel", calendario: "Painel", confirmado: true,
+    },
+    actions: [{ tipo: "desfazer", token: "tk", alvo: [{ entidade: "evento", uid: "abc@painel" }] }],
+  });
+  assert.match(html, /terça, 29 de setembro, das 14:00 às 15:00/);
+  // 14h-15h em 06h-22h: left = 8/16 = 50%, width = 1/16 = 6.25%
+  assert.match(html, /card-dia-bloco" style="left:50\.00%;width:6\.25%"/);
+  assert.match(html, />06h</);
+  assert.match(html, />22h</);
+  assert.match(html, /1h reservadas/);
+  assert.match(html, /Lembrar 30 min antes/);
+  assert.match(html, /Está na sua agenda<\/span><span class="card-sep"[^>]*>·<\/span><button[^>]*data-acao="desfazer"/);
+  assert.equal(html.match(/data-acao="desfazer"/g).length, 1);
+});
+
+test("blocoDoDia corta nas bordas e sem fim assume 1h", () => {
+  const b = Cards.blocoDoDia(new Date(2026, 8, 29, 5, 0), null);
+  assert.equal(b.left, 0);
+  assert.equal(b.minutos, 60);
+  const tarde = Cards.blocoDoDia(new Date(2026, 8, 29, 21, 30), new Date(2026, 8, 29, 23, 30));
+  assert.ok(tarde.left + tarde.width <= 100.0001);
+  assert.equal(Cards.blocoDoDia(null, null), null);
+});
+
+test("agenda sem inicio nao quebra", () => {
+  const html = Cards.renderizarCardHTML({ type: "agenda", data: { titulo: "x" } });
+  assert.doesNotMatch(html, /fallback/);
+  assert.match(html, /Horário a definir/);
+});
+
+test("projeto_viagem: checklist, barra com HOJE, '25% · 2/8 tarefas · 22 dez', marco, chip No rumo", () => {
+  const etapas = [
+    { titulo: "Passagem", feito: true, data: "2026-09-10" },
+    { titulo: "Hotel", feito: true },
+    ...Array.from({ length: 6 }, (_, i) => ({ titulo: `Etapa ${i + 3}`, feito: false })),
+  ];
+  const html = Cards.renderizarCardHTML(
+    {
+      type: "projeto_viagem",
+      data: {
+        titulo: "Viagem pra Gramado", origem: "viagem", inicio: "2026-09-01", prazo: "2026-12-22",
+        etapas, proximo_marco: { titulo: "Reservar carro", data: "2026-10-15" }, status: "no_rumo",
+      },
+      actions: [{ tipo: "abrir_aba", rotulo: "Abrir Projetos", aba: "vida" }],
+    },
+    { agora: new Date(2026, 8, 23, 12, 0) }
+  );
+  assert.match(html, /<strong>25%<\/strong> · 2\/8 tarefas · 22 dez/);
+  assert.match(html, /class="card-hoje" style="left:\d+\.\d+%"><span>HOJE<\/span>/);
+  assert.match(html, /Próximo marco: <strong>Reservar carro<\/strong> · 15 out/);
+  assert.match(html, /No rumo/);
+  assert.match(html, /\+3 etapas/);
+  assert.match(html, />Viagem</);
+  assert.match(html, /Abrir Projetos/);
+});
+
+test("progressoProjeto usa os campos prontos do backend quando vierem", () => {
+  const p = Cards.progressoProjeto({ etapas: [], percentual: 40, feitas: 4, total: 10, hoje_fracao: 0.5 });
+  assert.deepEqual(p, { pct: 40, feitas: 4, total: 10, hoje: 0.5 });
+  const sem = Cards.progressoProjeto({ etapas: [{ feito: true }, { feito: false }] });
+  assert.equal(sem.pct, 50);
+  assert.equal(sem.hoje, null);
+});
+
+test("saude_treino: totais, lista, grafico SVG por atividade, chip Registrado", () => {
+  const html = Cards.renderizarCardHTML({
+    type: "saude_treino",
+    data: {
+      periodo: "últimos 7 dias",
+      sessoes: [
+        { atividade: "Corrida", fonte: "Apple Saúde", minutos: 40, data: "2026-09-22" },
+        { atividade: "Musculação", fonte: "Painel", minutos: 50, data: "2026-09-21" },
+        { atividade: "Corrida", fonte: "Apple Saúde", minutos: 20, data: "2026-09-19" },
+      ],
+      registrado: true,
+    },
+  });
+  assert.match(html, /Sessões registradas: <strong>3<\/strong> · Tempo de atividade: <strong>1h50<\/strong>/);
+  assert.match(html, /<svg class="card-grafico"/);
+  assert.equal(html.match(/class="card-graf-barra"/g).length, 2); // agrupado por atividade
+  assert.match(html, /Registrado/);
+  assert.match(html, /Apple Saúde · terça 22/);
+});
+
+test("minutosPorAtividade agrupa e ordena do maior pro menor", () => {
+  assert.deepEqual(Cards.minutosPorAtividade([{ atividade: "A", minutos: 10 }, { atividade: "B", minutos: 30 }, { atividade: "A", minutos: 25 }]), [
+    { atividade: "A", minutos: 35 },
+    { atividade: "B", minutos: 30 },
+  ]);
+});
+
+test("sugestao: horario grande, duracao, caixa 'Com a sua rotina em mente'", () => {
+  const html = Cards.renderizarCardHTML({
+    type: "sugestao",
+    data: { titulo: "Estudar meteorologia", inicio: "2026-09-24T19:00", duracao_min: 45, porque: "Você rende melhor <à noite>." },
+  });
+  assert.match(html, /card-hora-grande">19:00</);
+  assert.match(html, /quinta, 24 de setembro · 45 min \(até 19:45\)/);
+  assert.match(html, /Com a sua rotina em mente/);
+  assert.match(html, /Você rende melhor &lt;à noite&gt;\./);
+  assert.doesNotMatch(Cards.renderizarCardHTML({ type: "sugestao", data: { titulo: "x" } }), /rotina em mente/);
+});
+
+test("habito: meta, 7 circulos S T Q Q S S D (hoje tracejado, feitos acesos), ativos 4 -> 5, contexto", () => {
+  const semana = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"].map((d, i) => ({
+    data: d,
+    feito: i < 2,
+  }));
+  const html = Cards.renderizarCardHTML({
+    type: "habito",
+    data: {
+      nome: "Meditar", meta: "15 min", frequencia: "qualquer dia conta", horario: "08:00", hoje: "2026-09-23",
+      semana, ativos_antes: 4, ativos_depois: 5, contexto: "Encaixei logo depois do café.",
+    },
+  });
+  assert.match(html, /15 min · qualquer dia conta · às 8h/);
+  const letras = [...html.matchAll(/card-habito-letra" aria-hidden="true">(\w)</g)].map((m) => m[1]).join("");
+  assert.equal(letras, "STQQSSD");
+  assert.equal(html.match(/card-habito-dia feito/g).length, 2);
+  assert.equal(html.match(/ hoje"/g).length, 1);
+  assert.match(html, /quarta \(hoje\): não feito/);
+  assert.match(html, /Hábitos ativos: 4 <span class="card-seta"[^>]*>→<\/span> <strong>5<\/strong>/);
+  assert.match(html, /Encaixei logo depois do café\./);
+});
+
+test("semanaHabito completa 7 dias e usa o relogio quando nao vem 'hoje'", () => {
+  const dias = Cards.semanaHabito({ semana: [{ feito: true }] }, new Date(2026, 8, 27, 10, 0)); // domingo
+  assert.equal(dias.length, 7);
+  assert.equal(dias[0].feito, true);
+  assert.equal(dias[6].hoje, true);
+  assert.equal(Cards.horaCurta("08:30"), "8h30");
+  assert.equal(Cards.horaCurta("x"), "");
+});
+
+test("types complexos com data vazia nunca viram excecao", () => {
+  for (const t of ["agenda", "projeto_viagem", "saude_treino", "sugestao", "habito"]) {
+    assert.ok(Cards.temRenderizador(t), t);
+    assert.doesNotThrow(() => Cards.renderizarCardHTML({ type: t, data: {} }));
+    assert.doesNotMatch(Cards.renderizarCardHTML({ type: t, data: {} }), /card-contrato-fallback/, t);
+    assert.doesNotThrow(() => Cards.renderizarCardHTML({ type: t, data: { etapas: "x", sessoes: 5, semana: null } }));
+  }
+});
