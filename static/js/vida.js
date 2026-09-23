@@ -260,6 +260,45 @@ $("#hiperfoco-parar").addEventListener("click", async () => {
 
 // ---- Pessoas ----
 
+// Fase 6 US-F3: chip curto de status (some por cima do texto ja existente,
+// nao substitui - so da pra escanear a lista de relance sem ler frase por
+// frase pra achar quem esta atrasado).
+function pessoaChip(p) {
+  if (p.dias_sem_falar == null) {
+    return p.atrasada ? { texto: "sem conversa ainda", classe: "atrasada" } : { texto: "novo(a)", classe: "novo" };
+  }
+  if (p.dias_sem_falar === 0) return { texto: "falou hoje", classe: "em-dia" };
+  return p.atrasada
+    ? { texto: `atrasada ha ${p.dias_sem_falar}d`, classe: "atrasada" }
+    : { texto: `ha ${p.dias_sem_falar}d`, classe: "em-dia" };
+}
+
+// Toggle "ver conversas" - reusa GET /api/conversas?pessoa_id= (ja existia,
+// so nao tinha lugar nenhum na UI que chamasse ele pra uma pessoa so).
+async function alternarConversasPessoa(li, pessoaId) {
+  const aberto = li.querySelector(".pessoa-conversas");
+  if (aberto) {
+    aberto.remove();
+    return false;
+  }
+  const conversas = (await apiFetch(`/api/conversas?pessoa_id=${pessoaId}`)) || [];
+  const box = criarEl("div", "pessoa-conversas");
+  if (!conversas.length) {
+    box.appendChild(criarEl("p", "vazio", "Nenhuma conversa registrada ainda."));
+  } else {
+    const ul = criarEl("ul", "pessoa-conversas-lista");
+    conversas.slice(0, 6).forEach((c) => {
+      const item = criarEl("li");
+      item.appendChild(criarEl("span", "item-quando", fmtDataBr(c.data)));
+      item.appendChild(criarEl("span", null, c.sobre || "(sem assunto)"));
+      ul.appendChild(item);
+    });
+    box.appendChild(ul);
+  }
+  li.appendChild(box);
+  return true;
+}
+
 async function loadPessoas() {
   const pessoas = await apiFetch("/api/pessoas");
   if (!pessoas) return;
@@ -267,19 +306,31 @@ async function loadPessoas() {
   lista.innerHTML = "";
   $("#pessoas-vazio").hidden = pessoas.length > 0;
   pessoas.forEach((p) => {
-    const li = criarEl("li", "item" + (p.atrasada ? " item-atencao" : ""));
+    const li = criarEl("li", "item pessoa-item" + (p.atrasada ? " item-atencao" : ""));
     const linha = criarEl("div", "item-linha");
-    const wrap = criarEl("div");
-    wrap.appendChild(criarEl("span", "item-titulo", p.nome));
-    const quando =
-      p.dias_sem_falar == null
-        ? `a cada ${p.frequencia_dias} dias - sem conversa registrada`
-        : p.dias_sem_falar === 0
-        ? "falou hoje"
-        : `ultima conversa ha ${p.dias_sem_falar} dia(s) - a cada ${p.frequencia_dias}`;
-    wrap.appendChild(criarEl("span", "item-quando", quando));
+    const cabecalho = criarEl("div", "pessoa-cabecalho");
+
+    const avatar = criarEl("div", "pessoa-avatar" + (p.atrasada ? " atrasada" : ""), (p.nome.trim()[0] || "?").toUpperCase());
+    cabecalho.appendChild(avatar);
+
+    const wrap = criarEl("div", "pessoa-info");
+    const tituloLinha = criarEl("div", "pessoa-titulo-linha");
+    tituloLinha.appendChild(criarEl("span", "item-titulo", p.nome));
+    const chip = pessoaChip(p);
+    tituloLinha.appendChild(criarEl("span", `pessoa-chip pessoa-chip-${chip.classe}`, chip.texto));
+    wrap.appendChild(tituloLinha);
+    wrap.appendChild(criarEl("span", "item-quando", `contato a cada ${p.frequencia_dias} dia(s)`));
     if (p.ultima_conversa) wrap.appendChild(criarEl("span", "item-quando", `sobre: ${p.ultima_conversa}`));
-    linha.appendChild(wrap);
+    if (p.dias_sem_falar != null && p.frequencia_dias > 0) {
+      const fracao = Math.min(1, p.dias_sem_falar / p.frequencia_dias);
+      const trilho = criarEl("div", "pessoa-barra-trilho");
+      const preenchido = criarEl("div", "pessoa-barra-preenchido" + (p.atrasada ? " pessoa-barra-alerta" : ""));
+      preenchido.style.width = `${Math.round(fracao * 100)}%`;
+      trilho.appendChild(preenchido);
+      wrap.appendChild(trilho);
+    }
+    cabecalho.appendChild(wrap);
+    linha.appendChild(cabecalho);
 
     const acoes = criarEl("div", "item-acoes");
     const falei = criarEl("button", "primario btn-com-icone");
@@ -291,10 +342,21 @@ async function loadPessoas() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (r) loadPessoas();
-      else falei.disabled = false;
+      if (r) {
+        vibrar(15);
+        loadPessoas();
+      } else falei.disabled = false;
     });
     acoes.appendChild(falei);
+
+    const verConversas = criarEl("button", "btn-link", "ver conversas");
+    verConversas.type = "button";
+    verConversas.addEventListener("click", async () => {
+      const abriu = await alternarConversasPessoa(li, p.id);
+      verConversas.textContent = abriu ? "esconder conversas" : "ver conversas";
+    });
+    acoes.appendChild(verConversas);
+
     acoes.appendChild(botaoApagar(`/api/pessoas/${p.id}`, li));
     linha.appendChild(acoes);
     li.appendChild(linha);

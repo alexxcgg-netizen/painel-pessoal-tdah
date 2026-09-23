@@ -1987,6 +1987,117 @@ li.item.saindo {
   margin-top: 0.15rem;
 }
 
+/* Fase 6 US-F3: Pessoas mais util no dia a dia - avatar com iniciais, chip
+   de status pra escanear de relance e barra de "quanto falta pro prazo de
+   contato estourar" (mesmo espirito visual de .limite-cartao-*, US-E15).
+   Nenhum campo/logica novo no backend - so reorganiza/realca dado que
+   /api/pessoas ja devolvia (dias_sem_falar, atrasada, ultima_conversa). */
+.pessoa-cabecalho {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.pessoa-avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--accent-text);
+  background: var(--accent-gradient);
+}
+
+.pessoa-avatar.atrasada {
+  background: linear-gradient(135deg, var(--danger) 0%, color-mix(in srgb, var(--danger) 60%, black 40%) 100%);
+}
+
+.pessoa-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pessoa-titulo-linha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.pessoa-chip {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.pessoa-chip-em-dia {
+  color: var(--cor-painel);
+  border-color: color-mix(in srgb, var(--cor-painel) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-painel) 14%, transparent);
+}
+
+.pessoa-chip-atrasada {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.pessoa-barra-trilho {
+  margin-top: 0.4rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  max-width: 220px;
+}
+
+.pessoa-barra-preenchido {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cor-painel);
+  transition: width 0.35s var(--ease-suave, ease);
+}
+
+.pessoa-barra-preenchido.pessoa-barra-alerta {
+  background: var(--danger);
+}
+
+.pessoa-conversas {
+  margin-top: 0.6rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--border);
+}
+
+.pessoa-conversas-lista li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  padding: 0.2rem 0;
+  color: var(--text-muted);
+}
+
+/* Toque minimo 44px - so escopado pra Pessoas (nao mexe no `.item-acoes
+   button` global, que e compartilhado por toda lista do app fora do escopo
+   desta faixa) - "falei hoje" e a acao mais repetida da secao. */
+#lista-pessoas .item-acoes button {
+  min-height: 44px;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+}
+
 .voo-diario {
   margin: 0.4rem 0 0;
   padding-left: 0.6rem;
