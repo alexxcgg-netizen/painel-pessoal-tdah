@@ -5,6 +5,56 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (27) - Fase 5 Grupo B: navegacao por voz (best-effort) + offline
+
+Branch `fase5/grupo-b-voz-offline` (agente IA autonomo, worktree isolado). US-B1 a US-B6
+do `tasks/fase5/grupo-b-voz-offline.json`, todas passando. Depende do contrato/classificador
+do Grupo A (`/api/intent/classificar`, ver entrada anterior e `docs/INTENT.md`) - este grupo
+so consome, nunca duplica a logica de classificacao.
+
+- **US-B1 - Comando de voz no navegador**: botao `#comando-voz-btn` (secao propria, separado
+  do `#chat-mic` do chat) usa `window.SpeechRecognition`/`webkitSpeechRecognition` -
+  melhor esforco, com mensagem clara ("use os Atalhos da Siri") e botao desabilitado quando o
+  navegador nao suporta, em vez de falhar silenciosamente (instabilidade conhecida em PWA
+  standalone no iOS Safari, dispositivo principal do Alex - validacao manual real ainda
+  pendente, sem iPhone no ambiente de execucao). Texto reconhecido vai pro classificador de
+  intent e a acao e roteada pra um fluxo JA EXISTENTE do painel (nunca duplicado):
+  `registrar_tarefa`/`registrar_gasto` -> `enviarCaptura()`, `consultar`/`corrigir_ultimo` ->
+  `enviarChat()`, `navegar_tela` -> `showTab()`, `registrar_checkin` -> abre a aba com o
+  check-in de 1 toque (o contrato nao fixa formato de parametro confiavel pra
+  campo/valor do check-in).
+- **US-B2 - Confirmacao antes de acao destrutiva**: `precisa_confirmacao=true` do contrato e
+  sempre respeitado. O contrato fechado ainda nao tem nenhuma acao literalmente destrutiva -
+  `corrigir_ultimo` (sobrescreve o ultimo item) e tratado como quase-destrutiva
+  (`ACOES_DESTRUTIVAS`, constante isolada e facil de estender).
+- **US-B3 - Dialogo de correcao de 2 turnos**: quando a confianca vem baixa, a caixa de
+  confirmacao tambem oferece 6 botoes "Era X" (uma por acao real do contrato). Escolher uma
+  chama o endpoint novo `POST /api/intent/corrigir`, que reusa
+  `aprendizado.confirmar_padrao_intent(..., forcar_confianca_alta=True)` - mesmo mecanismo da
+  US-A4, sem logica paralela.
+- **US-B4 - Captura via Atalhos/Siri**: `POST /api/atalho/comando-voz` (mesmo token
+  `X-Webhook-Token`/`PAINEL_ATALHOS_TOKEN` dos outros `/api/atalho/*`) reusa
+  `_classificar_intent` (extraida de `app.py` como fonte unica, compartilhada com
+  `/api/intent/classificar`) e devolve `{..., "fala": "..."}` - frase curta pronta pro Atalho
+  falar de volta com "Falar Texto". So classifica, nunca executa a acao sozinho (fora do
+  escopo desta historia). Documentado em `README.md`.
+- **US-B5 - Fallback offline**: comando de voz reusa a MESMA fila da Fase 4
+  (`static/js/fila-offline.js`, tipo `"comando_voz"`) - sem rede, o texto ja transcrito fica
+  salvo e sincroniza sozinho, igual captura/check-in ja fazem. `voz-comando.js` entrou no
+  precache do service worker (`v10`).
+- **US-B6 - Classificacao local (avaliacao de viabilidade)**: Core ML/Neural Engine de
+  verdade exige app nativo ou WebNN (suporte de navegador limitadissimo em 2026) - inviavel
+  numa PWA. Implementada a alternativa que o proprio criterio de aceite permitia:
+  `classificarLocalmente()`, uma heuristica de palavras-chave (bag-of-words simples,
+  explicitamente NAO e Core ML/ML de verdade) que resolve so o caso mais inequivoco
+  (navegar pra uma tela conhecida) 100% offline e sem custo de IA.
+- Novo arquivo `static/js/voz-comando.js` (logica pura testavel em Node + wiring de
+  navegador) e `tests/js/voz_comando.test.js`. Testes de backend novos em
+  `tests/test_app.py` (`IntentCorrigirTestCase`, `AtalhoComandoVozTestCase`). Verificacao
+  visual headless com Playwright (botao, fallback de nao-suporte, dialogo de
+  confirmacao/correcao) - ver `AGENTS.md` pra pegadinha de como simular "sem suporte" nesse
+  Chromium pre-instalado.
+
 ## 2026-09-23 (26) - Fase 5 Grupo A: nucleo do classificador de intent
 
 Branch `fase5/grupo-a-nucleo-intent` (agente IA autonomo, worktree isolado). US-A1 a US-A6

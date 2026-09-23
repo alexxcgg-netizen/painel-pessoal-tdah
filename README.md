@@ -86,6 +86,7 @@ chat (`tests/test_claude_client.py`), as regras de notificacao proativa
 - Saude (passos, distancia, sono) via Atalhos do iPhone - ver secao "Saude" abaixo
 - **Plano do dia**: olha suas tarefas pendentes (sem hora) e os compromissos da agenda (com hora fixa) e sugere a melhor ordem pra encaixar tudo, sob demanda (botao na aba Painel ou pedindo no chat)
 - **Devo sair ate que horas?**: calculadora de deslocamento com transito em tempo real (Google Routes API) - informa destino e horario que precisa chegar, ela conta pra tras o tempo de viagem + uma margem de seguranca e diz a que horas sair, com atalho pra abrir a rota no Waze
+- **Comando de voz** (Fase 5): botao de microfone (Web Speech API, melhor esforco - sabidamente instavel em PWA standalone no iOS Safari) classifica o comando e navega/executa (contrato em `docs/INTENT.md`); acoes quase-destrutivas ou de baixa confianca sempre pedem confirmacao/correcao antes; sem rede, o comando entra na mesma fila offline da captura/check-in. Tambem da pra usar via Atalho do iPhone/Siri - ver secao "Atalhos do iPhone" abaixo
 
 ## Integracao com o painel da construtora
 
@@ -338,8 +339,33 @@ mas vale configurar antes de expor o painel publicamente.
 
 > Localizacao (casa/mercado), bateria e uso de apps: passo a passo em **`docs/ATALHOS.md`**.
 
-Dois Atalhos que falam com o painel sem precisar abrir o navegador nem logar com o PIN toda vez -
+Tres Atalhos que falam com o painel sem precisar abrir o navegador nem logar com o PIN toda vez -
 mesmo espirito do Atalho de Saude acima, cada um com seu proprio endpoint autenticado por token.
+
+### "Ei Siri, o que eu disse" — comando de voz classificado (Fase 5, US-B4)
+
+Complementa o "comando de voz" do proprio navegador (botao no painel, so funciona bem em
+Chrome/Android - ver aviso sobre iOS Safari mais abaixo): o app **Atalhos** do iPhone e o canal
+de voz mais confiavel no iOS, entao esse Atalho manda o texto ja transcrito pelo Siri direto pro
+mesmo classificador de intent (`/api/intent/classificar`, contrato em `docs/INTENT.md`) e recebe
+de volta uma frase curta pronta pra Siri falar.
+
+**Importante:** esse endpoint so classifica e descreve o que entendeu - ele **nao** cria a
+tarefa/gasto sozinho (isso continua sendo feito no painel, com a confirmacao do Alex, ou pelo
+"Ei Siri, anota" abaixo se for so uma captura direta).
+
+1. Abre o app **Atalhos** → "+" → "Novo Atalho"
+2. Adiciona a acao **"Ditar Texto"** (Dictate Text)
+3. Adiciona a acao **"Obter Conteudo de URL"**:
+   - URL: `http://SEU-IP-OU-DOMINIO:5001/api/atalho/comando-voz`
+   - Metodo: POST
+   - Cabecalhos: `Content-Type: application/json` (e `X-Webhook-Token` se configurou um - ver abaixo)
+   - Corpo (JSON): `{"texto": [Texto Ditado]}` (usa a variavel do passo 2)
+4. Adiciona a acao **"Obter Valor do Dicionario"** pegando a chave `fala` da resposta
+5. Adiciona a acao **"Falar Texto"** (Speak Text) com esse valor
+6. Renomeia o Atalho pra algo curto tipo "Painel" e ativa **"Usar com Siri"**
+7. A partir dai: "Ei Siri, Painel" → fala o comando → o Siri fala de volta o que o painel entendeu
+   (ex: "Entendi: registrar uma tarefa: ligar pro dentista. Confirma no painel pra executar.")
 
 ### "Ei Siri, anota" — captura por voz
 
@@ -379,13 +405,13 @@ banco) que devolve `{tarefas_pendentes, gasto_hoje, proximo_titulo, proximo_hora
 montar um widget de tela inicial/bloqueio com o app gratuito **Scriptable** (App Store), mostrando
 esse resumo sem precisar abrir o painel. O script fica em `scriptable/widget_painel.js`.
 
-### Protegendo os tres endpoints (opcional)
+### Protegendo os quatro endpoints (opcional)
 
 Mesma logica do Atalho de Saude:
 ```
 PAINEL_ATALHOS_TOKEN=escolha-uma-senha-aleatoria
 ```
-e manda o header `X-Webhook-Token` com o mesmo valor nos tres Atalhos/widget. Sem essa variavel
+e manda o header `X-Webhook-Token` com o mesmo valor nos quatro Atalhos/widget. Sem essa variavel
 configurada, os endpoints ficam abertos - tranquilo na sua rede local, configure antes de expor o
 painel publicamente.
 

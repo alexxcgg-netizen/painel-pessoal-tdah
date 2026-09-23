@@ -117,4 +117,48 @@ db.init_db()
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
-_(vazio até agora - primeira história a rodar sob esta regra preenche.)_
+### Fase 5, Grupo B (navegação por voz) - US-B1 a US-B6
+- **`_classificar_intent(conn, texto)` em `app.py` é a fonte única da lógica de
+  classificação de intent** - `/api/intent/classificar` (sessão) e
+  `/api/atalho/comando-voz` (token, Siri, US-B4) só chamam essa função, nunca
+  duplicam a lógica. Qualquer regra nova de classificação nasce ali.
+- **O contrato fechado de `docs/INTENT.md` (`claude_client.ACOES_INTENT`) não
+  tem nenhuma ação literalmente "destrutiva"** (tipo `deletar_tarefa`) - só
+  pode GANHAR uma no futuro (regra: só aditivo). Até lá, `corrigir_ultimo` é
+  tratado como quase-destrutiva (sobrescreve o último item) em
+  `ACOES_DESTRUTIVAS` (`static/js/voz-comando.js`) - se uma ação de deletar
+  de verdade for adicionada ao contrato um dia, adicionar ela lá também.
+- **`parametros.tela` de `navegar_tela` é texto livre da IA**, sem enum fixo
+  no prompt (`claude_client.INTENT_PROMPT`) - `resolverTela()` em
+  `voz-comando.js` faz o de-para por sinônimo/substring normalizado (sem
+  acento/caixa). Se `ORDEM_ABAS` (`app.js`) ganhar uma aba nova, adicionar os
+  sinônimos dela em `MAPA_TELAS` também.
+- **Padrão de UI reusável para "novo botão que fala com o painel"**: o mic
+  button de comando de voz (`#comando-voz-btn`) é separado do `#chat-mic`
+  existente de propósito - o `#chat-mic` só preenche o campo de texto do
+  chat, nunca roteia ação nenhuma; misturar os dois teria quebrado o
+  comportamento já testado do chat.
+- **Execução de ação classificada NUNCA duplica lógica de captura/chat/nav**:
+  `registrar_tarefa`/`registrar_gasto` delegam pro `enviarCaptura()` já
+  existente (mesmo pipeline de classify_capture/fila offline/cards),
+  `consultar`/`corrigir_ultimo` delegam pro `enviarChat()` já existente
+  (tool-use), `navegar_tela` chama `showTab()`. `registrar_checkin` não tem
+  formato de parâmetros confiável no contrato pra campo/valor (energia/
+  sono/humor) - em vez de adivinhar errado, só abre a aba "hoje" onde o
+  check-in de 1 toque (`static/js/vida.js`) já existe.
+- **Web Speech API em Chromium headless (Playwright, `/opt/pw-browsers/...`)
+  reporta `window.SpeechRecognition` como definido** mesmo sem back-end de
+  reconhecimento de verdade (sem microfone/rede pro serviço do Google) - pra
+  testar o fallback de "não suportado" (US-B1) é preciso remover a API via
+  `page.add_init_script("delete window.SpeechRecognition; ...")` ANTES do
+  primeiro load da página, não basta rodar num Chromium sem microfone.
+- **`Failed to load resource ... 502` de `/api/summary/today` aparece no
+  console mesmo numa página nova/limpa** nesse ambiente sandboxed (proxy de
+  rede do container) - pré-existente, sem relação com nenhuma história do
+  Grupo B; um smoke-test/Playwright que checa "zero erro de console" precisa
+  filtrar mensagens de `Failed to load resource` (falha de rede reportada
+  pelo navegador) separado de erro de JS de verdade (exception/throw).
+- **`POST /api/intent/corrigir` (novo, US-B3) reusa
+  `aprendizado.confirmar_padrao_intent(..., forcar_confianca_alta=True)`**
+  - o mesmo mecanismo da US-A4 (correção manual vale mais que repetir 3x) -
+  não criar um caminho de "aprendizado" paralelo pra isso.
