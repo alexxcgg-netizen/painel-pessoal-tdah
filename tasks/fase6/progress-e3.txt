@@ -1,0 +1,82 @@
+# Progresso - Fase 6, faixa E3 (contrato de cards, "Padrao Nectar")
+# Branch: fase6/e3-cards. Uma linha "Historia X — decisao" por decisao real.
+
+## US-E2 - contrato {cards, resumo_texto, passos} + registro no front
+Historia US-E2 — decisao: executor de tool devolve `_efeito` (chave privada) e um wrapper (cards.RegistroExecucao) recolhe/tira antes da IA ver; o card e montado lendo a linha do banco pelo id.
+Motivo: mapeamento num lugar so (cards.cards_dos_efeitos), zero mudanca no que a IA recebe (testes antigos `resultado == {"ok": True}` seguem), e card nunca depende do texto da IA.
+Nao confirmado: nada.
+
+Historia US-E2 — decisao: campos legados mantidos (`resposta`/`acoes` no chat; JSON da classificacao na captura) e o contrato entra ADITIVO no mesmo objeto.
+Motivo: PWA pode estar com app.js antigo em cache; Telegram usa _processar_mensagem_chat (so texto); Atalhos leem tipo/titulo. Grep: consumidores = app.js (enviarChat/enviarCaptura/fila offline), voz-comando.js (delega pra enviarChat/enviarCaptura), telegram_bot (via app._telegram_chat_fn), /api/atalho/capturar (mesmo _executar_captura).
+Nao confirmado: quando o legado pode sair - fica anotado em docs/CARDS.md.
+
+Historia US-E2 — decisao: renderizador = funcao pura que devolve string HTML (com esc()), eventos por delegacao no #chat-mensagens.
+Motivo: testavel em Node sem DOM/jsdom (nenhuma dependencia nova) e o fallback cobre qualquer excecao do renderizador.
+Nao confirmado: nada.
+
+Historia US-E2 — decisao: tarefas criadas na mesma resposta viram UM card tarefas_criadas; os demais efeitos um card cada; resumo_final so quando ha 2+ cards.
+Motivo: e o comportamento do Nectar (lista de tarefas num card, brain dump fecha com resumo).
+Nao confirmado: se o Alex prefere um card por tarefa no brain dump.
+
+Historia US-E2 — decisao: modo visitante mascara no servidor tambem a prosa (regex R$ ...) da resposta do chat e do historico.
+Motivo: "o dado nao sai na resposta" - a IA costuma repetir o valor no texto.
+Nao confirmado: numero sem "R$" na prosa ("gastei 50") ainda passa.
+
+Historia US-E2 — decisao: cards gravados em chat_mensagens.cards_json (criptografado).
+Motivo: recarregar a pagina nao perde os cards; transacao pode ter saldo (dado que ja e criptografado em repouso).
+Nao confirmado: nada.
+
+## US-E3 - cards simples (tarefas_criadas, transacao, lembrete, meta, resumo_final)
+Historia US-E3 — decisao: "Desperta voce" = coluna lembretes.despertar + POST /api/lembretes/<id>/despertar + notificacoes.lembretes_para_despertar no scheduler (push no dia, a partir da hora do lembrete ou 09:00).
+Motivo: PWA nao toca alarme; o push e o que da pra entregar. Lembrete hoje e so por dia (sem hora).
+Nao confirmado: se 09:00 e um bom horario padrao pro Alex (constante HORA_PADRAO_DESPERTAR em notificacoes.py).
+
+Historia US-E3 — decisao: lembrete sem hora mostra o DIA grande em mono ("24 set") em vez de inventar um horario; a contagem regressiva conta ate 09:00 (mesmo horario do push).
+Motivo: o card do Nectar mostra horario, mas nosso lembrete nao tem hora - inventar 09:00 grande induziria erro. Se uma faixa futura der hora ao lembrete, o card ja usa `hora` (contrato).
+Nao confirmado: preferencia visual do Alex.
+
+Historia US-E3 — decisao: checkbox do card conclui via /api/tasks/<id>/complete e desmarcar usa rota nova /api/tasks/<id>/reabrir.
+Motivo: checkbox "funcional" precisa dos dois sentidos.
+Nao confirmado: nada.
+
+Historia US-E3 — decisao: barra da meta dentro do card tingida pela cor do card (a .meta-progresso neutra quase some no fundo do card); categorias da bolinha seguem as cores ja usadas em .gasto-categoria (lazer usa --cor-aviacao porque --cor-hoje e cinza).
+Motivo: legibilidade sem cor nova.
+Nao confirmado: nada.
+
+Historia US-E3 — decisao: captura (enviarCaptura e callback da fila offline) passa por criarCardsCaptura: cards do contrato quando vierem, card de resultado antigo se o servidor for mais velho.
+Motivo: compatibilidade nos dois sentidos.
+Nao confirmado: nada.
+
+## US-E4 - renderizadores complexos (agenda, projeto_viagem, saude_treino, sugestao, habito)
+Historia US-E4 — decisao: so o RENDERIZADOR, contra o formato de docs/CARDS.md, testado com o dado de exemplo do proprio doc; nenhum backend gera esses types ainda (US-E7b liga Habitos/Projetos/CalDAV/memoria).
+Motivo: fronteira com a faixa E2 (os modulos nao existem nesta branch).
+Nao confirmado: que o formato de dado bate 1:1 com o que US-E12/E13/E14 vao expor - quem liga converte pro formato do CARDS.md (o contrato manda).
+
+Historia US-E4 — decisao: projeto_viagem aceita `percentual`/`feitas`/`total`/`hoje_fracao` prontos (calculo puro da US-E13) e so calcula no front o que faltar.
+Motivo: "fonte unica" do calculo fica no backend quando existir, sem travar o card hoje.
+Nao confirmado: nada.
+
+Historia US-E4 — decisao: grafico de saude_treino = barras horizontais em SVG inline (rotulo a esquerda, valor na ponta, sem eixo/legenda, uma cor so - a do card), agrupado por atividade.
+Motivo: 390px de largura com nome de atividade legivel; sem lib nova.
+Nao confirmado: nada.
+
+Historia US-E4 — decisao: cores por type so com tokens existentes: agenda/sugestao --cor-aviacao, projeto_viagem --cor-bancos, saude_treino --cor-painel, habito --cor-tarefas; status "atrasado" em --cor-bancos (vermelho e reservado pra erro, regra do style.css).
+Motivo: identidade por cor sem cor nova.
+Nao confirmado: preferencia do Alex por essas combinacoes.
+
+Historia US-E4 — decisao: o app so tem tema escuro (nao existe tema claro em style.css), entao a conferencia visual foi so no escuro.
+Motivo: criterio "claro e escuro se o app tiver os dois temas".
+Nao confirmado: nada.
+
+## US-E5 - Desfazer + link pra aba de origem
+Historia US-E5 — decisao: desfazer por TOKEN opaco (tabela acoes_desfazer com os ids exatos, criptografada), nao por "entidade+id" mandado pelo cliente.
+Motivo: "id especifico, nunca o ultimo" + o cliente nao consegue apagar item arbitrario/antigo so trocando um id; o token tambem guarda conta_id+delta pra devolver o saldo otimista, e marca "ja desfeito" (409, e o historico mostra o card como Desfeito).
+Nao confirmado: nada.
+
+Historia US-E5 — decisao: undo e tudo-ou-nada numa transacao; evento de agenda e verificado ANTES de apagar qualquer coisa (403 se o uid nao esta em eventos_criados; 501 enquanto caldav_client.apagar_evento_painel nao existir).
+Motivo: regra da US-E14 (nunca apagar evento que o painel nao criou) sem implementar CalDAV nesta faixa.
+Nao confirmado: nome final da funcao de apagar na US-E14 - o ponto de ligacao esta documentado em docs/CARDS.md.
+
+Historia US-E5 — decisao: destaque do item na aba de destino por data-entidade/data-id nos <li> (tarefa, gasto, meta, lembrete) e o JS continua procurando ~3s re-destacando se a lista recarregar.
+Motivo: showTab recarrega a lista e troca os <li>; o primeiro destaque ia pro elemento que sumia (bug achado no headless com lembretes).
+Nao confirmado: renda nao tem lista no front (/api/incomes nao e renderizado), entao "Abrir no extrato" de uma entrada so abre a aba.

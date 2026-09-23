@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import secrets
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -605,6 +606,17 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- Fase 6 (US-E5, docs/CARDS.md "Desfazer"): o que cada botao
+        -- Desfazer de um card pode reverter - ids EXATOS gravados no momento
+        -- da acao (nunca "o ultimo"). itens_json criptografado em repouso
+        -- (pode ter ajuste de saldo).
+        CREATE TABLE IF NOT EXISTS acoes_desfazer (
+            token TEXT PRIMARY KEY,
+            itens_json TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            desfeito_em TEXT
+        );
+
         CREATE TABLE IF NOT EXISTS garantias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             produto TEXT NOT NULL,
@@ -711,6 +723,12 @@ def init_db():
     # bank_accounts (mesmo padrao de "saldo", que tambem so e preenchido
     # quando existe) pra nao precisar de tabela nova so pra um numero.
     _garantir_coluna(conn, "bank_accounts", "limite", "REAL")
+    # Fase 6 (US-E2, docs/CARDS.md): cards da resposta do chat, gravados
+    # junto da mensagem pra recarregar a pagina nao perder os cards.
+    _garantir_coluna(conn, "chat_mensagens", "cards_json", "TEXT")
+    # Fase 6 (US-E3): botao "Desperta voce" do card de lembrete (push no
+    # horario do lembrete - ver notificacoes.lembretes_para_despertar).
+    _garantir_coluna(conn, "lembretes", "despertar", "INTEGER NOT NULL DEFAULT 0")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
@@ -1411,9 +1429,95 @@ def definir_teto_mensal_ia(conn, teto: float | None) -> None:
     definir_configuracao(conn, CHAVE_TETO_MENSAL_IA, str(teto))
 
 
-def salvar_mensagem_chat(conn, papel: str, texto: str):
-    conn.execute("INSERT INTO chat_mensagens (papel, texto) VALUES (?, ?)", (papel, texto))
+def salvar_mensagem_chat(conn, papel: str, texto: str, cards: list | None = None):
+    """`cards` (Fase 6, docs/CARDS.md): os cards da resposta, gravados como
+    JSON criptografado em repouso (podem ter valor/saldo - mesmo cuidado do
+    resto do dado financeiro, ver docs/SEGURANCA.md). None/[] = sem cards."""
+    cards_json = criptografia.criptografar(json.dumps(cards, ensure_ascii=False)) if cards else None
+    conn.execute(
+        "INSERT INTO chat_mensagens (papel, texto, cards_json) VALUES (?, ?, ?)", (papel, texto, cards_json)
+    )
     conn.commit()
+
+
+ENTIDADES_DESFAZIVEIS = ("tarefa", "gasto", "renda", "lembrete", "meta", "evento")
+
+
+def criar_acao_desfazer(conn, itens: list[dict]) -> str | None:
+    """Fase 6 (US-E5): grava os itens exatos que um card pode desfazer e
+    devolve o token (vai na action `desfazer` do card). So guarda chaves
+    conhecidas - nada vindo de texto da IA."""
+    limpos = []
+    for item in itens or []:
+        if not isinstance(item, dict) or item.get("entidade") not in ENTIDADES_DESFAZIVEIS:
+            continue
+        limpo = {"entidade": item["entidade"]}
+        if isinstance(item.get("id"), int):
+            limpo["id"] = item["id"]
+        if isinstance(item.get("uid"), str) and item["uid"]:
+            limpo["uid"] = item["uid"]
+        if isinstance(item.get("conta_id"), int) and isinstance(item.get("delta"), (int, float)):
+            limpo["conta_id"] = item["conta_id"]
+            limpo["delta"] = float(item["delta"])
+        if "id" in limpo or "uid" in limpo:
+            limpos.append(limpo)
+    if not limpos:
+        return None
+    token = secrets.token_urlsafe(16)
+    conn.execute(
+        "INSERT INTO acoes_desfazer (token, itens_json) VALUES (?, ?)",
+        (token, criptografia.criptografar(json.dumps(limpos))),
+    )
+    conn.commit()
+    return token
+
+
+def obter_acao_desfazer(conn, token: str) -> dict | None:
+    row = conn.execute("SELECT * FROM acoes_desfazer WHERE token = ?", (token,)).fetchone()
+    if not row:
+        return None
+    try:
+        itens = json.loads(criptografia.descriptografar(row["itens_json"]) or "[]")
+    except (TypeError, ValueError):
+        itens = []
+    return {"token": row["token"], "itens": itens if isinstance(itens, list) else [], "desfeito_em": row["desfeito_em"]}
+
+
+def tokens_desfeitos(conn, tokens: list[str]) -> set[str]:
+    tokens = [t for t in tokens if isinstance(t, str)]
+    if not tokens:
+        return set()
+    marcadores = ",".join("?" for _ in tokens)
+    rows = conn.execute(
+        f"SELECT token FROM acoes_desfazer WHERE desfeito_em IS NOT NULL AND token IN ({marcadores})", tokens
+    ).fetchall()
+    return {r["token"] for r in rows}
+
+
+def reverter_ajuste_saldo(conn, bank_account_id: int, delta: float) -> None:
+    """Desfaz um ajuste otimista de saldo (ajustar_saldo_conta) SEM commit -
+    quem chama (desfazer) faz tudo numa transacao so."""
+    row = conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (bank_account_id,)).fetchone()
+    if row is None or row["saldo"] is None:
+        return
+    atual = _dnum(row["saldo"], float)
+    if atual is None:
+        return
+    conn.execute("UPDATE bank_accounts SET saldo = ? WHERE id = ?", (_cnum(atual - delta), bank_account_id))
+
+
+def cards_de_mensagem_chat(mensagem: dict) -> list:
+    """Le de volta os cards gravados por salvar_mensagem_chat - lista vazia
+    em mensagem antiga (sem cards) ou dado ilegivel (nunca derruba o
+    historico por causa de um card)."""
+    bruto = mensagem.get("cards_json")
+    if not bruto:
+        return []
+    try:
+        cards = json.loads(criptografia.descriptografar(bruto) or "[]")
+    except (TypeError, ValueError):
+        return []
+    return cards if isinstance(cards, list) else []
 
 
 def list_chat_mensagens(conn, limit: int = 20) -> list[dict]:
@@ -1437,6 +1541,20 @@ def create_lembrete(conn, titulo: str, data_str: str, recorrente: bool = False) 
 def list_lembretes(conn) -> list[dict]:
     rows = conn.execute("SELECT * FROM lembretes ORDER BY data").fetchall()
     return [dict(r) for r in rows]
+
+
+def definir_despertar_lembrete(conn, lembrete_id: int, ativo: bool) -> bool:
+    """Fase 6 (US-E3): liga/desliga o push no horario do lembrete."""
+    cur = conn.execute("UPDATE lembretes SET despertar = ? WHERE id = ?", (int(bool(ativo)), lembrete_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def reabrir_tarefa(conn, task_id: int) -> bool:
+    """Fase 6 (US-E3): par do complete_task - tira o completed_at."""
+    cur = conn.execute("UPDATE tasks SET completed_at = NULL WHERE id = ?", (task_id,))
+    conn.commit()
+    return cur.rowcount > 0
 
 
 def delete_lembrete(conn, lembrete_id: int):

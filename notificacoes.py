@@ -533,6 +533,35 @@ def lembretes_proximos(conn, dias: int = 7) -> list[tuple[int, str]]:
     return avisos
 
 
+HORA_PADRAO_DESPERTAR = "09:00"
+
+
+def lembretes_para_despertar(conn, agora: datetime | None = None) -> list[tuple[int, str]]:
+    """Fase 6 (US-E3): lembretes com "Desperta voce" ligado (coluna
+    `despertar`) cuja proxima ocorrencia e HOJE e cujo horario (coluna `hora`
+    se existir, senao HORA_PADRAO_DESPERTAR) ja chegou. A deduplicacao por
+    dia fica com quem chama (ja_notificou_hoje)."""
+    agora = agora or datetime.now()
+    hoje = agora.date()
+    avisos = []
+    for row in conn.execute("SELECT * FROM lembretes WHERE despertar = 1").fetchall():
+        try:
+            base = date.fromisoformat(row["data"])
+        except (TypeError, ValueError):
+            continue
+        if proxima_ocorrencia_lembrete(base, bool(row["recorrente"]), hoje) != hoje:
+            continue
+        hora_txt = (row["hora"] if "hora" in row.keys() else None) or HORA_PADRAO_DESPERTAR
+        try:
+            h, m = (int(x) for x in str(hora_txt).split(":")[:2])
+        except ValueError:
+            h, m = 9, 0
+        if (agora.hour, agora.minute) < (h, m):
+            continue
+        avisos.append((row["id"], f"Hoje: \"{row['titulo']}\"."))
+    return avisos
+
+
 def planejamento_semanal_devido(agora: datetime | None = None) -> bool:
     """Verdadeiro na janela de 5min em torno de domingo as 20:30 - o momento
     que o Alex escolheu pra parar e pensar na semana que comeca, puxando um

@@ -252,3 +252,66 @@ db.init_db()
   `"viagem-{id}"`, sem gravar nada em `projetos`/`projeto_etapas`) pro
   card poder reaproveitar o mesmo componente visual; `GET
   /api/viagens/<id>/como-projeto` calcula isso on-the-fly a cada chamada.
+
+### Fase 6, Grupo E3 (contrato de cards, "Padrão Nectar") - US-E2 a US-E5
+- **Contrato de resposta da aba Hoje = `docs/CARDS.md` (fonte única, só
+  aditivo).** `/api/chat` e `/api/capture` (e `/api/atalho/capturar`)
+  devolvem `{cards: [{type, id, data, actions}], resumo_texto, passos}` **além**
+  dos campos legados (`resposta`/`acoes` no chat; `tipo`/`titulo`/`valor`...
+  na captura) - não remover legado sem anotar em `docs/CARDS.md` antes (PWA
+  com `app.js` antigo em cache, Telegram, Atalhos).
+- **Executor de tool do chat NUNCA monta card.** Ele grava e devolve
+  `"_efeito": {"entidade": "tarefa"|"gasto"|"renda"|"meta"|"lembrete", "id": ...}`;
+  `cards.RegistroExecucao` (envolve os executores em `_processar_mensagem_chat`)
+  cronometra (vira `passos`), recolhe o efeito e **tira toda chave com `_`**
+  antes do resultado voltar pra IA (os testes antigos que comparam
+  `resultado == {"ok": True}` continuam valendo). `cards.cards_dos_efeitos`
+  é o ÚNICO mapeamento efeito -> card (lê a linha real do banco pelo id).
+- **Card novo = 4 lugares**: formato em `docs/CARDS.md`; builder em
+  `cards.py` (+ `CAMPOS_SENSIVEIS` se tiver dinheiro); renderizador puro
+  `Cards.registrar(type, (data, card, ctx) => html)` em
+  `static/js/cards-tipos.js` (todo texto por `Cards.esc`); teste em
+  `tests/test_cards.py` + `tests/js/cards.test.js`. Type sem renderizador
+  vira o fallback "Este trecho não pode ser exibido..." - nunca quebra.
+- **Modo visitante nos cards é no servidor** (`_resposta_contrato` ->
+  `cards.mascarar_visitante`): tira `valor`/`saldo` da transação e
+  `valor_*`/`falta` da meta, troca `R$ 1.234,56` por `R$ •••` na prosa
+  (`resumo_texto`/`resposta`, e no histórico). A captura idempotente grava a
+  resposta SEM máscara no cache e mascara na saída (os dois caminhos passam
+  por `_resposta_contrato`).
+- **`cards.js`/`cards-tipos.js` carregam ANTES de `app.js`** (index.html):
+  `app.js` chama `Cards.ligar(#chat-mensagens, {apiFetch, showTab, aoMudar})`
+  no carregamento. `fmtMoeda` (const top-level de `app.js`) é resolvido na
+  hora da chamada - funciona entre scripts clássicos; em Node cai no
+  fallback idêntico.
+- **Cards do chat ficam gravados** em `chat_mensagens.cards_json`
+  (criptografado em repouso via `criptografia.criptografar`, igual ao resto do
+  dado financeiro) - `/api/chat/historico` devolve `cards` por mensagem.
+- **Lembrete não tem hora** (tabela `lembretes` só tem `data`): o card
+  `lembrete` usa `data.hora` se um dia existir, senão mostra o dia e conta até
+  09:00 (`notificacoes.HORA_PADRAO_DESPERTAR`, o mesmo horário do push
+  "Desperta você", coluna `lembretes.despertar`).
+- **Headless com resposta de contrato sem IA**: `page.route("**/api/chat", ...)`
+  devolvendo um envelope montado com `cards.montar_resposta` contra o banco
+  temporário do launcher (ids reais) - assim checkbox/despertar/desfazer
+  batem no servidor de verdade.
+- **Cards de habito/projeto_viagem/agenda/sugestao/saude_treino só têm
+  renderizador** (US-E4): quem liga o dado real (US-E7b) monta o card no
+  formato de `docs/CARDS.md` num builder de `cards.py` - o front não muda.
+  `habito.semana` é SEMPRE segunda->domingo (7 itens); `projeto_viagem` aceita
+  `percentual`/`feitas`/`total`/`hoje_fracao` prontos; `agenda.inicio/fim` são
+  `AAAA-MM-DDTHH:MM` local.
+- **Desfazer é por token, nunca "o último"** (US-E5): `cards.montar_resposta(...,
+  criar_token=app._criar_token_desfazer(conn))` grava os ids exatos em
+  `acoes_desfazer`; `POST /api/desfazer/<token>` chama `app._desfazer_itens`
+  (sem commit, tudo ou nada). Entidade nova desfazível = `db.ENTIDADES_DESFAZIVEIS`
+  + ramo em `_desfazer_itens`. Evento só com uid em `eventos_criados` e
+  `caldav_client.apagar_evento_painel` existindo (senão 403/501).
+- **Link de card destaca item por `data-entidade`/`data-id` no `<li>`** - lista
+  nova que queira ser destino precisa desses dois atributos. `showTab` recarrega a
+  lista e troca os `<li>`: por isso `destacarItem` (cards.js) continua procurando
+  ~3s e re-destaca o elemento novo.
+- **`.card-resultado` tem animação com fill-mode `both`** (prende `opacity: 1`):
+  pra apagar um card depois de montado, mude a opacidade dos FILHOS
+  (`.card-desfeito > *`), não do card.
+

@@ -10,6 +10,7 @@ import os
 import sqlite3
 import tempfile
 import threading
+import time
 import zipfile
 from datetime import date, datetime, timedelta
 
@@ -25,6 +26,7 @@ import aprendizado
 import auth
 import bank_ofx
 import caldav_client
+import cards
 import claude_client
 import clima
 import criptografia
@@ -46,6 +48,7 @@ import voos as voos_module
 import db
 from db import (
     CAMPOS_SAUDE,
+    cards_de_mensagem_chat,
     add_to_goal,
     adicionar_compra,
     adicionar_etapa_projeto,
@@ -546,7 +549,7 @@ def _resposta_capture_cacheada(conn, client_id: str):
     ).fetchone()
     if not row:
         return None
-    return jsonify(json.loads(row["response_json"])), row["status"]
+    return jsonify(_resposta_contrato(json.loads(row["response_json"]))), row["status"]
 
 
 def _gravar_resposta_capture(conn, client_id: str, corpo: dict, status: int):
@@ -593,6 +596,7 @@ def _executar_captura(text: str, clarificacao: str, client_id: str = ""):
         conn.close()
         if cache:
             return cache
+    inicio_captura = time.perf_counter()
 
     full_text = f"{text}. Contexto adicional: {clarificacao}" if clarificacao else text
 
@@ -614,38 +618,65 @@ def _executar_captura(text: str, clarificacao: str, client_id: str = ""):
 
     # Se a IA ainda ficou em duvida, so pede esclarecimento uma vez (quando a
     # clarificacao ja foi enviada, seguimos com o melhor palpite mesmo assim).
+    ms_classificar = int(round((time.perf_counter() - inicio_captura) * 1000))
+    passo_classificar = {"modulo": "Captura", "descricao": "Classificou o texto", "ms": ms_classificar}
+
     if parsed.get("duvida") and not clarificacao:
         corpo = {"duvida": parsed["duvida"], "texto_original": text}
+        # contrato de cards (docs/CARDS.md): duvida nao cria nada - sem card,
+        # a pergunta vai no resumo_texto.
+        corpo.update(cards.envelope([], parsed["duvida"], [passo_classificar]))
         if client_id:
             _gravar_resposta_capture(conn, client_id, corpo, 200)
         conn.commit()
         conn.close()
-        return jsonify(corpo), 200
+        return jsonify(_resposta_contrato(corpo)), 200
 
+    inicio_gravar = time.perf_counter()
     if parsed["tipo"] == "gasto":
         status_gasto = parsed.get("status") if parsed.get("status") in ("real", "planejado") else "real"
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO expenses (amount, category, description, source_text, tipo) VALUES (?, ?, ?, ?, ?)",
             (parsed["valor"], parsed.get("categoria") or "outros", parsed["titulo"], full_text, status_gasto),
         )
+        efeito = {"entidade": "gasto", "id": cur.lastrowid}
+        passo_gravar = {"modulo": "Finanças", "descricao": f'Registrou o gasto "{parsed["titulo"]}"'}
+        resumo_texto = "Gasto registrado."
     elif parsed["tipo"] == "meta":
-        create_goal(conn, parsed["titulo"], parsed["valor"], parsed.get("prazo"))
+        goal_id = create_goal(conn, parsed["titulo"], parsed["valor"], parsed.get("prazo"))
+        efeito = {"entidade": "meta", "id": goal_id}
+        passo_gravar = {"modulo": "Metas", "descricao": f'Criou a meta "{parsed["titulo"]}"'}
+        resumo_texto = "Meta criada."
     else:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO tasks (title, due_at, due_date, hora, source_text) VALUES (?, ?, ?, ?, ?)",
             (parsed["titulo"], parsed.get("quando"), parsed.get("quando_data"), _normalizar_hora(parsed.get("hora")), full_text),
         )
+        efeito = {"entidade": "tarefa", "id": cur.lastrowid}
+        passo_gravar = {"modulo": "Tarefas", "descricao": f'Criou a tarefa "{parsed["titulo"]}"'}
+        resumo_texto = "Tarefa criada."
+    passo_gravar["ms"] = int(round((time.perf_counter() - inicio_gravar) * 1000))
 
     if parsed.get("memoria"):
         create_memoria(conn, parsed["memoria"], full_text)
 
+    # Contrato de cards (Fase 6, docs/CARDS.md) - ADITIVO: os campos da
+    # classificacao (tipo/titulo/valor/...) continuam no topo do JSON pro
+    # frontend antigo e pro Atalho do iPhone que ja leem esse formato.
+    corpo = dict(parsed)
+    corpo.update(
+        cards.montar_resposta(
+            conn, [efeito], resumo_texto, [passo_classificar, passo_gravar], _criar_token_desfazer(conn)
+        )
+    )
+
     if client_id:
-        _gravar_resposta_capture(conn, client_id, parsed, 201)
+        _gravar_resposta_capture(conn, client_id, corpo, 201)
 
     _marcar_atividade(conn)
     conn.commit()
     conn.close()
-    return jsonify(parsed), 201
+    return jsonify(_resposta_contrato(corpo)), 201
 
 
 @app.route("/api/capture", methods=["POST"])
@@ -804,6 +835,18 @@ def complete_task_rota(task_id):
     _marcar_atividade(conn)
     conn.commit()
     conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/tasks/<int:task_id>/reabrir", methods=["POST"])
+def reabrir_task_rota(task_id):
+    """Fase 6 (US-E3): desmarcar o checkbox de uma tarefa no card
+    tarefas_criadas volta ela pra pendente (o par do /complete)."""
+    conn = get_db()
+    ok = db.reabrir_tarefa(conn, task_id)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "tarefa nao encontrada"}), 404
     return jsonify({"ok": True})
 
 
@@ -2064,12 +2107,18 @@ def _resolver_cotacao_por_titulo(conn, titulo: str) -> int:
     return cotacao["id"] if cotacao else criar_cotacao(conn, titulo)
 
 
-def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], str | None]:
+def _processar_mensagem_chat(
+    conn, texto: str, detalhes: dict | None = None
+) -> tuple[str | None, list[str], str | None]:
     """Roda o pipeline inteiro de chat (contexto + tool-use + persistencia) -
     fonte unica de verdade da conversa, usada tanto pela rota HTTP /api/chat
     quanto pelo bot do Telegram, pra nenhum dos dois canais reimplementar a
     logica de tool-use (nem arriscar os dois divergirem). Devolve
-    (resposta, acoes, None) no sucesso, ou (None, [], mensagem_de_erro)."""
+    (resposta, acoes, None) no sucesso, ou (None, [], mensagem_de_erro).
+
+    `detalhes` (Fase 6, opcional - so /api/chat passa): dict que recebe o
+    envelope do contrato de cards (docs/CARDS.md: cards, resumo_texto,
+    passos). O Telegram nao passa e continua recebendo so o texto."""
     materializar_tarefas_recorrentes(conn)
     historico = list(reversed(list_chat_mensagens(conn, limit=20)))
     mensagens = [{"role": r["papel"], "content": r["texto"]} for r in historico]
@@ -2088,7 +2137,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
             # ver materializar_tarefas_recorrentes). 'quando'/'quando_data'
             # nao fazem sentido aqui (nao e um item de um dia so) - ignorados
             # de proposito mesmo se vierem preenchidos.
-            conn.execute(
+            cur = conn.execute(
                 "INSERT INTO tasks (title, hora, source_text, depende_do_tempo, recorrencia) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (
@@ -2101,10 +2150,12 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
             )
             conn.commit()
             materializar_tarefas_recorrentes(conn)
-            return {"ok": True, "recorrente": True}
+            # "_efeito" (Fase 6, docs/CARDS.md): chave privada - vira card e
+            # token de desfazer, e cards.RegistroExecucao tira antes da IA ver.
+            return {"ok": True, "recorrente": True, "_efeito": {"entidade": "tarefa", "id": cur.lastrowid}}
 
         quando_data = entrada.get("quando_data")
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo) "
             "VALUES (?, ?, ?, ?, ?, ?)",
             (
@@ -2117,7 +2168,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
             ),
         )
         conn.commit()
-        resultado = {"ok": True}
+        resultado = {"ok": True, "_efeito": {"entidade": "tarefa", "id": cur.lastrowid}}
         # so oferece sugestao de dia quando a tarefa ficou com data vaga
         # ("essa semana") - com dia certo (quando_data) ou sem nenhuma pista
         # de tempo (entrada.get("quando") vazio) nao ha nada útil a sugerir
@@ -2131,32 +2182,36 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
 
     def exec_registrar_gasto(entrada):
         status_gasto = entrada.get("status") if entrada.get("status") in ("real", "planejado") else "real"
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO expenses (amount, category, description, source_text, tipo) VALUES (?, ?, ?, ?, ?)",
             (entrada["valor"], entrada.get("categoria") or "outros", entrada["titulo"], texto, status_gasto),
         )
         conn.commit()
-        resultado = {"ok": True}
+        efeito = {"entidade": "gasto", "id": cur.lastrowid, "meio": entrada.get("banco")}
+        resultado = {"ok": True, "_efeito": efeito}
         if status_gasto == "real":
             saldo_banco = _ajustar_saldo_se_banco_citado(conn, entrada.get("banco"), -entrada["valor"])
             if saldo_banco:
                 resultado["saldo_banco"] = saldo_banco
+                efeito["saldo"] = saldo_banco
         return resultado
 
     def exec_registrar_meta(entrada):
-        create_goal(conn, entrada["titulo"], entrada["valor"], entrada.get("prazo"))
-        return {"ok": True}
+        goal_id = create_goal(conn, entrada["titulo"], entrada["valor"], entrada.get("prazo"))
+        return {"ok": True, "_efeito": {"entidade": "meta", "id": goal_id}}
 
     def exec_definir_orcamento(entrada):
         definir_orcamento(conn, entrada["categoria"], entrada["valor_limite"])
         return {"ok": True}
 
     def exec_registrar_renda(entrada):
-        create_income(conn, entrada["valor"], entrada["categoria"], entrada.get("descricao"), texto)
-        resultado = {"ok": True}
+        income_id = create_income(conn, entrada["valor"], entrada["categoria"], entrada.get("descricao"), texto)
+        efeito = {"entidade": "renda", "id": income_id, "meio": entrada.get("banco")}
+        resultado = {"ok": True, "_efeito": efeito}
         saldo_banco = _ajustar_saldo_se_banco_citado(conn, entrada.get("banco"), entrada["valor"])
         if saldo_banco:
             resultado["saldo_banco"] = saldo_banco
+            efeito["saldo"] = saldo_banco
         return resultado
 
     def exec_gerar_plano(_entrada):
@@ -2169,8 +2224,8 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         return {"plano": plano_texto}
 
     def exec_registrar_lembrete(entrada):
-        create_lembrete(conn, entrada["titulo"], entrada["data"], entrada.get("recorrente", False))
-        return {"ok": True}
+        lembrete_id = create_lembrete(conn, entrada["titulo"], entrada["data"], entrada.get("recorrente", False))
+        return {"ok": True, "_efeito": {"entidade": "lembrete", "id": lembrete_id}}
 
     def exec_registrar_medicamento(entrada):
         return _criar_medicamento(
@@ -2619,6 +2674,12 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "agendar_evento": exec_agendar_evento,
     }
 
+    # Fase 6 (docs/CARDS.md): cronometra cada tool (passos) e recolhe o
+    # "_efeito" de cada executor pra montar os cards - sem mudar o que a IA
+    # ve (chaves com "_" saem do resultado antes de voltar pro tool-use).
+    registro = cards.RegistroExecucao()
+    executores = registro.envolver(executores)
+
     try:
         resposta, acoes, usage = claude_client.chat(mensagens, contexto, memorias_texto, executores)
     except anthropic.APIError:
@@ -2627,10 +2688,146 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         return None, [], CLAUDE_FORMAT_ERROR_MSG
 
     _log_usage(conn, usage, "chat")
+    envelope_cards = cards.montar_resposta(
+        conn, registro.efeitos(), resposta, registro.passos(), _criar_token_desfazer(conn)
+    )
     salvar_mensagem_chat(conn, "user", texto)
-    salvar_mensagem_chat(conn, "assistant", resposta)
+    salvar_mensagem_chat(conn, "assistant", resposta, envelope_cards["cards"])
     _marcar_atividade(conn)
+    if detalhes is not None:
+        detalhes.update(envelope_cards)
     return resposta, acoes, None
+
+
+def _criar_token_desfazer(conn):
+    """Fabrica do `criar_token` que cards.montar_resposta usa pra por o botao
+    Desfazer num card (US-E5, docs/CARDS.md "Desfazer"): grava os ids EXATOS
+    do que o card criou em acoes_desfazer e devolve o token. Ajuste otimista
+    de saldo (gasto/renda com banco citado) vira conta_id + delta, pra o
+    desfazer devolver o saldo tambem."""
+
+    def criar(itens: list[dict]) -> str | None:
+        traduzidos = []
+        for ef in itens:
+            item = {"entidade": ef.get("entidade"), "id": ef.get("id"), "uid": ef.get("uid")}
+            saldo = ef.get("saldo")
+            if ef.get("entidade") in ("gasto", "renda") and isinstance(saldo, dict):
+                antes, depois = saldo.get("antes"), saldo.get("depois")
+                conta = buscar_conta_por_nome(conn, saldo.get("banco"))
+                if conta and isinstance(antes, (int, float)) and isinstance(depois, (int, float)):
+                    item["conta_id"] = conta["id"]
+                    item["delta"] = depois - antes
+            traduzidos.append(item)
+        return db.criar_acao_desfazer(conn, traduzidos)
+
+    return criar
+
+
+class _DesfazerRecusado(Exception):
+    def __init__(self, mensagem: str, status: int):
+        super().__init__(mensagem)
+        self.status = status
+
+
+def _verificar_desfazer_evento(conn, uid) -> None:
+    """Regra da US-E14: evento da agenda so se desfaz se o painel o criou
+    (uid registrado em eventos_criados). Evento de fora NUNCA e apagado."""
+    tabela = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'eventos_criados'"
+    ).fetchone()
+    registrado = bool(
+        tabela and isinstance(uid, str) and uid
+        and conn.execute("SELECT 1 FROM eventos_criados WHERE uid = ?", (uid,)).fetchone()
+    )
+    if not registrado:
+        raise _DesfazerRecusado("esse evento nao foi criado pelo painel - nao da pra desfazer por aqui", 403)
+    if not caldav_client.configurado():
+        raise _DesfazerRecusado("agenda do iCloud nao configurada - nao da pra desfazer o evento agora", 503)
+
+
+def _desfazer_itens(conn, itens: list[dict]) -> int:
+    """Reverte exatamente os itens gravados no token, SEM commit (quem chama
+    faz tudo numa transacao so). Item que ja nao existe e pulado."""
+    for item in itens:
+        if item.get("entidade") == "evento":
+            _verificar_desfazer_evento(conn, item.get("uid"))  # recusa antes de apagar qualquer coisa
+
+    desfeitos = 0
+    for item in itens:
+        entidade, id_ = item.get("entidade"), item.get("id")
+        if entidade == "evento":
+            try:
+                caldav_client.apagar_evento(item["uid"])
+            except Exception as e:
+                raise _DesfazerRecusado("nao consegui apagar o evento no iCloud agora - tenta de novo", 502) from e
+            conn.execute("DELETE FROM eventos_criados WHERE uid = ?", (item["uid"],))
+            desfeitos += 1
+            continue
+        if not isinstance(id_, int):
+            continue
+        if entidade == "tarefa":
+            # rotina recorrente: o modelo + as instancias materializadas dele
+            ids = [id_] + [
+                r["id"] for r in conn.execute("SELECT id FROM tasks WHERE recorrente_origem_id = ?", (id_,)).fetchall()
+            ]
+            marcadores = ",".join("?" for _ in ids)
+            conn.execute(f"DELETE FROM subtasks WHERE task_id IN ({marcadores})", ids)
+            cur = conn.execute(f"DELETE FROM tasks WHERE id IN ({marcadores})", ids)
+        elif entidade in ("gasto", "renda"):
+            tabela = "expenses" if entidade == "gasto" else "incomes"
+            cur = conn.execute(f"DELETE FROM {tabela} WHERE id = ?", (id_,))
+            if cur.rowcount and isinstance(item.get("conta_id"), int) and isinstance(item.get("delta"), (int, float)):
+                db.reverter_ajuste_saldo(conn, item["conta_id"], item["delta"])
+        elif entidade == "lembrete":
+            cur = conn.execute("DELETE FROM lembretes WHERE id = ?", (id_,))
+        elif entidade == "meta":
+            conn.execute("DELETE FROM goal_deposits WHERE goal_id = ?", (id_,))
+            cur = conn.execute("DELETE FROM goals WHERE id = ?", (id_,))
+        else:
+            continue
+        if cur.rowcount:
+            desfeitos += 1
+    return desfeitos
+
+
+@app.route("/api/desfazer/<token>", methods=["POST"])
+def desfazer_acao(token):
+    """US-E5: botao Desfazer de um card. Reverte EXATAMENTE o que foi criado
+    junto com aquele token (ids gravados no momento da acao) - nunca "o
+    ultimo item". Tudo ou nada numa transacao so."""
+    token = (token or "")[:64]
+    conn = get_db()
+    try:
+        acao = db.obter_acao_desfazer(conn, token)
+        if not acao:
+            return jsonify({"error": "nada pra desfazer com esse codigo"}), 404
+        if acao["desfeito_em"]:
+            return jsonify({"error": "isso ja foi desfeito"}), 409
+        try:
+            desfeitos = _desfazer_itens(conn, acao["itens"])
+        except _DesfazerRecusado as e:
+            conn.rollback()
+            return jsonify({"error": str(e)}), e.status
+        cur = conn.execute(
+            "UPDATE acoes_desfazer SET desfeito_em = datetime('now') WHERE token = ? AND desfeito_em IS NULL", (token,)
+        )
+        if not cur.rowcount:  # dois toques ao mesmo tempo: so um vale
+            conn.rollback()
+            return jsonify({"error": "isso ja foi desfeito"}), 409
+        conn.commit()
+        return jsonify({"ok": True, "desfeitos": desfeitos})
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _resposta_contrato(corpo: dict) -> dict:
+    """Aplica o modo visitante (Fase 5, US-C19) no corpo final de chat/
+    captura: o valor em dinheiro nao sai na resposta (nao so escondido no
+    front) - ver cards.mascarar_visitante."""
+    return cards.mascarar_visitante(corpo) if _modo_visitante_ativo() else corpo
 
 
 @app.route("/api/chat", methods=["POST"])
@@ -2641,11 +2838,16 @@ def chat():
         return jsonify({"error": "mensagem vazia"}), 400
 
     conn = get_db()
-    resposta, acoes, erro = _processar_mensagem_chat(conn, texto)
+    detalhes: dict = {}
+    resposta, acoes, erro = _processar_mensagem_chat(conn, texto, detalhes)
     conn.close()
     if erro:
         return jsonify({"error": erro}), 502
-    return jsonify({"resposta": resposta, "acoes": acoes})
+    # `resposta`/`acoes` = campos legados (frontend antigo em cache do PWA);
+    # cards/resumo_texto/passos = contrato da Fase 6 (docs/CARDS.md).
+    corpo = {"resposta": resposta, "acoes": acoes}
+    corpo.update(detalhes or cards.envelope([], resposta, []))
+    return jsonify(_resposta_contrato(corpo))
 
 
 def _telegram_chat_fn(texto: str) -> str:
@@ -2701,6 +2903,32 @@ def chat_historico():
     conn = get_db()
     mensagens = list(reversed(list_chat_mensagens(conn, limit=30)))
     conn.close()
+    visitante = _modo_visitante_ativo()
+    for m in mensagens:
+        m["cards"] = cards_de_mensagem_chat(m)
+    # US-E5: card cujo Desfazer ja foi usado volta marcado como desfeito
+    # (campo aditivo `desfeito` no card, docs/CARDS.md).
+    tokens = [
+        a.get("token")
+        for m in mensagens
+        for c in m["cards"]
+        for a in (c.get("actions") or [])
+        if isinstance(a, dict) and a.get("tipo") == "desfazer"
+    ]
+    conn = get_db()
+    desfeitos = db.tokens_desfeitos(conn, tokens)
+    conn.close()
+    for m in mensagens:
+        for c in m["cards"]:
+            if any(isinstance(a, dict) and a.get("token") in desfeitos for a in (c.get("actions") or [])):
+                c["desfeito"] = True
+        # Fase 6: os cards da resposta ficam gravados junto da mensagem
+        # (cards_json, criptografado em repouso como o resto do dado
+        # financeiro) - recarregar a pagina nao perde os cards.
+        m.pop("cards_json", None)
+        if visitante and m["papel"] == "assistant":
+            m["cards"] = cards.mascarar_cards(m["cards"])
+            m["texto"] = cards.ocultar_valores_texto(m["texto"])
     return jsonify(mensagens)
 
 
@@ -3326,6 +3554,13 @@ def verificar_e_notificar():
         if not ja_notificou_hoje(conn, "lembrete_proximo", lembrete_id):
             avisos.append(("lembrete_proximo", lembrete_id, "Data importante chegando", msg))
 
+    # Fase 6 (US-E3): "Desperta voce" ligado no card de lembrete - push no
+    # horario do proprio dia (uma vez por dia; recorrente anual repete no
+    # ano seguinte).
+    for lembrete_id, msg in notificacoes.lembretes_para_despertar(conn):
+        if not ja_notificou_hoje(conn, "lembrete_despertar", lembrete_id):
+            avisos.append(("lembrete_despertar", lembrete_id, "Lembrete", msg))
+
     for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(conn):
         if not ja_notificou_hoje(conn, "tarefa_horario", tarefa_id):
             avisos.append(("tarefa_horario", tarefa_id, "Lembrete", msg))
@@ -3816,6 +4051,23 @@ def apagar_lembrete(lembrete_id):
     delete_lembrete(conn, lembrete_id)
     conn.close()
     return jsonify({"ok": True})
+
+
+@app.route("/api/lembretes/<int:lembrete_id>/despertar", methods=["POST"])
+def despertar_lembrete(lembrete_id):
+    """Fase 6 (US-E3, botao "Desperta voce" do card de lembrete): liga/
+    desliga um push NO HORARIO do lembrete (hora, ou 09:00 quando o lembrete
+    e so por dia) - o PWA nao consegue tocar alarme de verdade, entao o
+    "despertar" e a notificacao push (ver notificacoes.lembretes_para_despertar)."""
+    ativo = _corpo_json().get("ativo", True)
+    if not isinstance(ativo, bool):
+        return jsonify({"error": "ativo deve ser true ou false"}), 400
+    conn = get_db()
+    ok = db.definir_despertar_lembrete(conn, lembrete_id, ativo)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "lembrete nao encontrado"}), 404
+    return jsonify({"ok": True, "ativo": ativo})
 
 
 def _criar_medicamento(conn, nome: str, dosagem: str | None, horario: str, recorrencia: str, texto: str | None):

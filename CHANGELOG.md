@@ -54,6 +54,46 @@ cards da faixa E3 vao consumir - nenhum mexe no formato de resposta do `/api/cha
   nao recarregar dado da aba (precisa de `page.click` de verdade no botao da tabbar), o
   `data=`/`json=` do `_corpo_json()`, e como a lib `caldav` monta o ICS via kwargs.
 
+## 2026-09-23 (Fase 6 E3) - contrato de cards (Padrao Nectar)
+
+Aba Hoje vira centro de controle: toda acao/consulta do chat e da captura devolve dado
+estruturado renderizado como CARD (referencia: app Nectar), em vez de so prosa. Branch
+`fase6/e3-cards`, historias US-E2 a US-E5 (`tasks/fase6/grupo-e3-cards.json`, decisoes em
+`tasks/fase6/progress-e3.txt`).
+
+- **Contrato (`docs/CARDS.md`, fonte unica, so aditivo)**: `{cards: [{type, id, data,
+  actions}], resumo_texto, passos}` em `/api/chat`, `/api/capture` e `/api/atalho/capturar`.
+  Campos legados mantidos (`resposta`/`acoes` no chat, JSON da classificacao na captura) -
+  PWA com cache antigo, Telegram (so texto, via `_processar_mensagem_chat`) e Atalhos
+  continuam funcionando. Formato de `data` de todos os types, actions (`abrir_aba`,
+  `desfazer`, `despertar`) e passos (`{modulo, descricao, ms}`) documentados.
+- **Backend (`cards.py`)**: executores de tool do chat devolvem `"_efeito"` (chave privada
+  que `RegistroExecucao` tira antes da IA ver) e `cards_dos_efeitos` e o unico mapeamento
+  efeito -> card (le a linha do banco pelo id). Tarefas da mesma resposta viram um card so;
+  2+ cards ganham `resumo_final`. Cards gravados em `chat_mensagens.cards_json`
+  (criptografado) e devolvidos no historico.
+- **Modo visitante no servidor**: card sem `valor`/`saldo`/`valor_*`, prosa com `R$ •••`.
+- **Front (`static/js/cards.js` + `cards-tipos.js`)**: registro type -> renderizador puro
+  (string HTML escapada, testado em Node), fallback "Este trecho nao pode ser exibido. Os
+  dados foram preservados." pra type desconhecido/erro. Cards: `tarefas_criadas` (checkbox
+  conclui/reabre), `transacao`, `lembrete` (contagem regressiva viva + "Desperta voce" =
+  push no dia), `meta`, `resumo_final` (passos recolhiveis), e os renderizadores prontos de
+  `agenda` (barra do dia 06h-22h), `projeto_viagem` (marcador HOJE), `saude_treino`
+  (barras SVG), `sugestao` ("Com a sua rotina em mente") e `habito` (S T Q Q S S D) - o
+  dado real desses ultimos e ligado pela US-E7b.
+- **Desfazer por token (US-E5)**: `POST /api/desfazer/<token>` reverte os ids EXATOS
+  gravados em `acoes_desfazer` no momento da acao (tudo ou nada; saldo otimista revertido
+  junto; 409 se ja desfeito). Cada card do brain dump e independente. Evento de agenda so
+  se o uid estiver em `eventos_criados` (regra da US-E14; sem `apagar_evento_painel` no
+  CalDAV ainda -> 501). Link de cada card abre a aba e destaca o item
+  (`data-entidade`/`data-id` nas listas).
+- Rotas novas: `/api/desfazer/<token>`, `/api/lembretes/<id>/despertar`,
+  `/api/tasks/<id>/reabrir`. Colunas/tabelas novas: `chat_mensagens.cards_json`,
+  `lembretes.despertar`, `acoes_desfazer`. Service worker v11.
+- Testes: `tests/test_cards.py` (contrato, visitante, desfazer por tipo) e
+  `tests/js/cards.test.js` (registro, fallback, cada renderizador). Conferido em Chromium
+  headless 390px (app so tem tema escuro).
+
 ## 2026-09-23 (32) - Deploy de teste no Render (plano gratis)
 
 Pra o Alex testar o estado atual no iPhone com URL publica HTTPS, sem esperar a VPS
