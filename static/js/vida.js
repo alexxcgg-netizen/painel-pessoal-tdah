@@ -1051,9 +1051,43 @@ async function loadFimMes() {
   $("#fim-mes-projecao").textContent = `No ritmo de ${fmtMoeda(p.ritmo_diario)}/dia, deve sobrar ${fmtMoeda(p.sobra_projetada)} no fim do mes${contas}.`;
 }
 
+// ---- Fase 5 (US-C21): previa da noite anterior ----
+
+async function loadPreviaNoite() {
+  const data = await apiFetch("/api/previa-noite");
+  if (!data) return;
+  const box = $("#previa-noite-box");
+  const oculto = $("#previa-noite-oculto");
+  const texto = $("#previa-noite-texto");
+
+  if (data.oculto) {
+    box.hidden = false;
+    oculto.hidden = false;
+    texto.hidden = true;
+    $("#previa-noite-data").textContent = "";
+    return;
+  }
+  oculto.hidden = true;
+  texto.hidden = false;
+
+  const partes = [];
+  if (data.sono_horas != null) partes.push(`dormiu ${data.sono_horas.toFixed(1)}h`);
+  else if (data.sono_checkin != null) partes.push(`marcou o sono como ${data.sono_checkin}/5`);
+  if (data.copos_agua) partes.push(`${data.copos_agua} copo(s) de agua`);
+  if (data.medicamentos_total > 0) {
+    partes.push(`remedio: ${data.medicamentos_tomados}/${data.medicamentos_total} tomado(s)`);
+  }
+
+  box.hidden = partes.length === 0;
+  if (partes.length === 0) return;
+  $("#previa-noite-data").textContent = fmtDataBr(data.data);
+  texto.textContent = partes.join(" - ") + ".";
+}
+
 // ---- Carga inicial + recarga ao trocar de aba ----
 
 function loadVidaHoje() {
+  loadPreviaNoite();
   loadRotina();
   loadCheckin();
   loadEssencial();

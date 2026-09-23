@@ -108,6 +108,18 @@ completo por historia.
   aparecer normal ao desativar com o PIN, e que a IA nao e chamada nos dois casos sensiveis
   (resumo do dia e criar decisao) - 9 casos, 100% ok.
 
+**US-C21 - Previa da noite anterior**
+- `GET /api/previa-noite`: resumo FACTUAL (sem IA) do dia anterior a partir de dado ja
+  existente - sono (`saude_dados.sono_horas` se o Atalho mandou, senao o check-in de 1
+  toque da manha), hidratacao (`hidratacao_registros`) e quantos dos medicamentos ativos
+  foram marcados como tomados ontem (reaproveita a materializacao de tarefa recorrente que
+  ja rastreia isso - `recorrente_origem_id` + `due_date` de ontem - nao cria sistema novo).
+  Remedio sem instancia materializada nesse dia (recorrencia nao diaria) nao entra na conta.
+- Card novo "Como foi a noite" no topo da aba Hoje - mesmo padrao visual `card-vida`.
+  Gated por modo visitante tambem (e dado de saude), com `{"oculto": true}` cedo.
+- `tests/test_previa_noite.py` (10 casos: cada fonte de dado isolada, combinacao completa,
+  API, gate do modo visitante).
+
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 
 Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em

@@ -241,7 +241,7 @@
         "Card simples na tela inicial/hoje",
         "Testes cobrindo a montagem do resumo"
       ],
-      "priority": 21, "passes": false, "notes": ""
+      "priority": 21, "passes": true, "notes": "GET /api/previa-noite agrega sono (saude_dados ou checkin), hidratacao e medicamentos tomados (via a mesma materializacao de tarefa recorrente) do dia anterior - sem IA, so factual. Card novo no topo da aba Hoje. Tambem gated por modo visitante (dado de saude). Testes em tests/test_previa_noite.py (10 casos, 100% ok)."
     },
     {
       "id": "US-C22",

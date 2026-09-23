@@ -1472,6 +1472,52 @@ def summary_today():
     )
 
 
+def _previa_noite_anterior(conn, hoje: date) -> dict:
+    """Fase 5 (US-C21): resumo factual (sem IA) de como foi a noite anterior,
+    a partir de dado ja existente - sono (saude_dados, se o Atalho mandou;
+    checkin, se foi so o 1-toque da manha), hidratacao do dia anterior e
+    quantos dos medicamentos ativos foram marcados como tomados ontem
+    (usa a mesma materializacao de tarefa recorrente que ja rastreia isso -
+    nao cria sistema novo de "tomei o remedio")."""
+    ontem = hoje - timedelta(days=1)
+    ontem_iso = ontem.isoformat()
+    dia = get_saude_dia(conn, ontem_iso)
+    checkin = get_checkin(conn, ontem_iso)
+    copos = contar_hidratacao_dia(conn, ontem_iso)
+
+    total_meds = 0
+    meds_tomados = 0
+    for m in list_medicamentos_ativos(conn):
+        row = conn.execute(
+            "SELECT completed_at FROM tasks WHERE recorrente_origem_id = ? AND due_date = ?",
+            (m["tarefa_modelo_id"], ontem_iso),
+        ).fetchone()
+        if row is None:
+            continue  # remedio nao caia nesse dia (recorrencia nao diaria)
+        total_meds += 1
+        if row["completed_at"]:
+            meds_tomados += 1
+
+    return {
+        "data": ontem_iso,
+        "sono_horas": dia["sono_horas"] if dia else None,
+        "sono_checkin": checkin["sono"] if checkin else None,
+        "copos_agua": copos,
+        "medicamentos_tomados": meds_tomados,
+        "medicamentos_total": total_meds,
+    }
+
+
+@app.route("/api/previa-noite", methods=["GET"])
+def previa_noite_rota():
+    if _modo_visitante_ativo():
+        return jsonify({"oculto": True})
+    conn = get_db()
+    resultado = _previa_noite_anterior(conn, date.today())
+    conn.close()
+    return jsonify(resultado)
+
+
 def _tarefas_pendentes_sem_horario_hoje(conn):
     """Tarefas pendentes que NAO viram ancora de horario fixo hoje - ou
     porque nao tem hora marcada, ou porque a hora e de outro dia. Evita

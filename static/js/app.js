@@ -3129,4 +3129,5 @@ document.addEventListener("modo-visitante-mudou", () => {
   loadExpenses();
   loadSaude();
   loadMedidas();
+  loadPreviaNoite();
 });
