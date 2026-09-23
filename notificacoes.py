@@ -5,6 +5,7 @@ em app.py."""
 
 from datetime import date, datetime, timedelta
 
+import aprendizado
 import db
 import gastos
 import vida
@@ -424,6 +425,28 @@ def planejamento_semanal_devido(agora: datetime | None = None) -> bool:
         return False
     alvo = agora.replace(hour=20, minute=30, second=0, microsecond=0)
     return alvo <= agora < alvo + timedelta(minutes=5)
+
+
+def semana_pesada_aviso(conn, hoje: date | None = None) -> str | None:
+    """US-C13: compara quantos itens a proxima semana ja tem marcados com a
+    mediana das ultimas semanas do proprio usuario (aprendizado.
+    semana_pesada - estatistica pura sobre o historico, reaproveitada em vez
+    de um numero fixo arbitrario). Pensado pra disparar junto do
+    planejamento semanal de domingo (planejamento_semanal_devido acima,
+    TODO #15) - app.py decide O QUANDO, essa funcao so decide O QUE dizer."""
+    hoje = hoje or date.today()
+    inicio_proxima = hoje - timedelta(days=hoje.weekday()) + timedelta(days=7)
+    fim_proxima = inicio_proxima + timedelta(days=6)
+    contagem_proxima = aprendizado.contagem_itens_semana(conn, inicio_proxima, fim_proxima)
+    historico = aprendizado.carga_semanal_historica(conn, hoje)
+    resultado = aprendizado.semana_pesada(contagem_proxima, historico)
+    if not resultado["sobrecarregada"]:
+        return None
+    return (
+        f"A semana que vem ja esta com {contagem_proxima} compromisso(s)/tarefa(s) marcado(s), "
+        f"bem acima do seu normal (mediana de {resultado['mediana_historica']:.0f} nas ultimas "
+        f"{resultado['amostras']} semanas). Vale se planejar com folga."
+    )
 
 
 def hora_de_dormir_devida(agora: datetime | None = None) -> bool:

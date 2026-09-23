@@ -2770,6 +2770,12 @@ def verificar_e_notificar():
                 "Ja sabe sua agenda dessa semana? Manda pra mim que eu registro tudo.",
             )
         )
+        # Semana pesada (US-C13) - junto do mesmo momento de planejamento
+        # semanal (domingo a noite), avisa com antecedencia se a semana que
+        # vem ja esta bem acima do padrao historico do proprio usuario.
+        msg_semana_pesada = notificacoes.semana_pesada_aviso(conn)
+        if msg_semana_pesada and not ja_notificou_hoje(conn, "semana_pesada"):
+            avisos.append(("semana_pesada", 0, "Semana pesada pela frente", msg_semana_pesada))
 
     if notificacoes.hora_de_dormir_devida() and not ja_notificou_hoje(conn, "hora_de_dormir"):
         itens_noite = ", ".join(i["texto"].lower() for i in list_rotina_itens(conn, "noite"))

@@ -55,3 +55,16 @@ Iniciado: 2026-09-23T06:28:35Z
   - Suite completa test_app.py: 434 testes, 5 falhas pre-existentes (voo). Confirmado dentro
     da janela 7h-7h30 UTC mas SEM a flutuacao do "Bom dia" desta vez (parece ser sensivel ao
     segundo exato em que cada teste roda dentro da janela - documentado na entrada da US-C11).
+[C2] 2026-09-23 - US-C13 (deteccao de "semana pesada"): passes=true.
+  - aprendizado.py: contagem_itens_semana/carga_semanal_historica (contagem pura via conn) +
+    semana_pesada (comparador puro - mediana do historico, mesmo espirito de limiar_personalizado
+    ja existente, nunca gera texto - regra ja documentada no topo do modulo).
+  - notificacoes.semana_pesada_aviso monta a mensagem e integra em verificar_e_notificar (app.py)
+    JUNTO do planejamento_semanal_devido ja existente (domingo 20:30, TODO #15) - nunca dispara
+    isolado, dedup propria (ja_notificou_hoje "semana_pesada").
+  - Testes: tests/test_aprendizado.py::SemanaPesadaTestCase (6) + CargaSemanalHistoricaTestCase (5),
+    1 teste de integracao em test_app.py (cuidado: tarefas historicas de teste precisam vir
+    marcadas completed_at, senao contaminam a contagem de tarefas_atrasadas/tarefa_parada -
+    documentado no proprio teste como pegadinha pra quem for mexer aqui depois).
+  - Suite completa (test_app+test_notificacoes+test_aprendizado): 617 testes, mesmas 5 falhas
+    pre-existentes de voo.

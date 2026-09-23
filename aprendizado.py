@@ -12,7 +12,7 @@ explicando a si mesmo. GET /api/aprendizado existe so como auditoria tecnica
 
 import re
 from collections import Counter
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import db
 
@@ -76,6 +76,71 @@ def limiar_personalizado(
         "amostras": len(amostras),
         "mediana_bruta": valor,
         "limitado": valor_limitado != valor,
+    }
+
+
+def contagem_itens_semana(conn, inicio: date, fim: date) -> int:
+    """Quantos itens (tarefas/compromissos com prazo) caem numa semana
+    [inicio, fim] (inclusive) - a mesma nocao de "carga da semana" usada
+    tanto pro historico quanto pra proxima semana (US-C13), pra comparar
+    maca com maca. Tarefa-modelo recorrente (recorrencia IS NOT NULL,
+    due_date sempre NULL) nunca conta aqui - so instancia de verdade."""
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM tasks WHERE due_date BETWEEN ? AND ? AND recorrencia IS NULL",
+        (inicio.isoformat(), fim.isoformat()),
+    ).fetchone()
+    return row["n"]
+
+
+def carga_semanal_historica(conn, hoje: date, semanas: int = 8) -> list[int]:
+    """Contagem de itens de cada uma das ultimas `semanas` semanas
+    COMPLETAS (segunda a domingo, terminando antes da semana atual) -
+    amostras pra comparar a proxima semana com o padrao real do proprio
+    usuario, nunca com um numero fixo arbitrario."""
+    inicio_semana_atual = hoje - timedelta(days=hoje.weekday())
+    amostras = []
+    for i in range(1, semanas + 1):
+        fim = inicio_semana_atual - timedelta(days=1 + 7 * (i - 1))
+        inicio = fim - timedelta(days=6)
+        amostras.append(contagem_itens_semana(conn, inicio, fim))
+    return amostras
+
+
+def semana_pesada(
+    contagem_proxima: int,
+    historico: list[int],
+    minimo_amostras: int = 3,
+    multiplicador: float = 1.5,
+) -> dict:
+    """Decide se a proxima semana esta sobrecarregada comparando com a
+    MEDIANA do historico de semanas anteriores (estatistica pura, robusta a
+    uma unica semana fora da curva - mesmo espirito de limiar_personalizado
+    acima). So considera semanas historicas com pelo menos 1 item (uma
+    semana vazia nao ensina nada sobre "carga normal"). Sem amostras
+    suficientes, NUNCA acusa sobrecarga - dado de menos e pior que um alarme
+    falso. Pra contar como pesada, a proxima semana precisa passar tanto do
+    multiplicador (`multiplicador`x a mediana) quanto de uma diferenca
+    minima absoluta de 2 itens - evita marcar como "pesada" um salto
+    pequeno (1 pra 2 itens ja e 2x, mas nao e sobrecarga de verdade)."""
+    amostras_validas = [a for a in historico if a > 0]
+    if len(amostras_validas) < minimo_amostras:
+        return {
+            "sobrecarregada": False,
+            "contagem_proxima": contagem_proxima,
+            "mediana_historica": None,
+            "amostras": len(amostras_validas),
+        }
+    mediana = _mediana(amostras_validas)
+    sobrecarregada = (
+        mediana > 0
+        and contagem_proxima >= mediana * multiplicador
+        and contagem_proxima - mediana >= 2
+    )
+    return {
+        "sobrecarregada": sobrecarregada,
+        "contagem_proxima": contagem_proxima,
+        "mediana_historica": mediana,
+        "amostras": len(amostras_validas),
     }
 
 

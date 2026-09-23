@@ -4485,6 +4485,43 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res2.get_json()["avisos_enviados"], 0)
         mock_enviar.assert_called_once()
 
+    def test_verificar_avisa_semana_pesada_junto_do_planejamento(self):
+        hoje = date.today()
+        inicio_semana_atual = hoje - timedelta(days=hoje.weekday())
+        conn = db.get_db()
+        # historico: 2 itens por semana nas ultimas 4 semanas - concluidas de
+        # proposito, pra nao contaminar a contagem de avisos_enviados com
+        # tarefas_atrasadas/tarefa_parada (contagem_itens_semana conta pelo
+        # due_date, independente de estar concluida ou nao).
+        for i in range(1, 5):
+            fim = inicio_semana_atual - timedelta(days=1 + 7 * (i - 1))
+            for j in range(2):
+                conn.execute(
+                    "INSERT INTO tasks (title, due_date, completed_at) VALUES (?, ?, datetime('now'))",
+                    (f"tarefa {i}-{j}", (fim - timedelta(days=j)).isoformat()),
+                )
+        # proxima semana: 6 itens (bem acima da mediana de 2)
+        inicio_proxima = inicio_semana_atual + timedelta(days=7)
+        for j in range(6):
+            conn.execute(
+                "INSERT INTO tasks (title, due_date) VALUES (?, ?)",
+                (f"proxima {j}", (inicio_proxima + timedelta(days=j)).isoformat()),
+            )
+        conn.commit()
+        conn.close()
+
+        sub = {"endpoint": "https://exemplo.com/push/semanapesada", "keys": {"p256dh": "x", "auth": "y"}}
+        self.client.post("/api/push/inscrever", json=sub)
+
+        with patch("notificacoes.planejamento_semanal_devido", return_value=True), patch(
+            "push_client.configurado", return_value=True
+        ), patch("push_client.enviar", return_value=True) as mock_enviar:
+            res = self.client.post("/api/notificacoes/verificar-agora")
+
+        self.assertEqual(res.get_json()["avisos_enviados"], 2)
+        corpos = [c.args[2] for c in mock_enviar.call_args_list]
+        self.assertTrue(any("semana que vem" in c for c in corpos))
+
     # ---- Uber: agendar, estimar (com preco travado) e so pedir com confirmacao ----
 
     def test_agendar_uber_cria_pedido_pendente(self):

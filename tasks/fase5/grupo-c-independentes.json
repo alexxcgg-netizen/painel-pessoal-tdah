@@ -151,7 +151,7 @@
         "Notifica com antecedencia (ex: domingo, junto do planejamento semanal ja existente TODO #15)",
         "Testes cobrindo a deteccao"
       ],
-      "priority": 13, "passes": false, "notes": ""
+      "priority": 13, "passes": true, "notes": "aprendizado.py ganhou contagem_itens_semana/carga_semanal_historica (contagem pura por conn) + semana_pesada (comparador puro reaproveitando _mediana, mesmo espirito de limiar_personalizado - so decide numero/booleano, nunca gera texto, seguindo a regra ja documentada no topo do modulo). notificacoes.semana_pesada_aviso monta a mensagem. Disparo integrado junto de planejamento_semanal_devido (domingo 20:30, TODO #15) em verificar_e_notificar - nunca dispara isolado. Testes: tests/test_aprendizado.py (SemanaPesadaTestCase + CargaSemanalHistoricaTestCase, 11), 1 integracao em test_app.py."
     },
     {
       "id": "US-C14",
