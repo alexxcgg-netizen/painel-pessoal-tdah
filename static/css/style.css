@@ -1803,15 +1803,111 @@ li.item.saindo {
 
 .hidratacao-linha {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
   margin: 0.6rem 0;
 }
 
 .hidratacao-contador {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text-muted);
+}
+
+/* Fase 6 US-F1: numero cresce visivelmente a cada copo (reaproveita o MESMO
+   hook que pulsarSucesso ja chamava em #hidratacao-total desde antes desta
+   historia - so nao existia nenhuma regra de CSS pra `.sucesso` num <span>,
+   entao o toque nao tinha retorno visual nenhum no contador; so o
+   checkPop/cor ja usados em outro lugar do app, sem animacao nova). */
+#hidratacao-total {
+  font-size: 1.25rem;
+  font-weight: 800;
+  display: inline-block;
+  transform-origin: center;
+}
+
+#hidratacao-total.sucesso {
+  animation: checkPop 0.45s var(--ease-bounce);
+  color: var(--cor-financeiro);
+}
+
+/* Botao maior (toque minimo 44px sobrando folga - alvo real ~52px de altura)
+   e com identidade propria (cor da secao "Saude hoje"), pra parar de
+   competir visualmente com os botoes de formulario ao redor dele - e a acao
+   de 1 toque mais repetida da tela, merece se destacar. */
+.hidratacao-btn-grande {
+  min-height: 52px;
+  padding: 0.85rem 1.3rem;
+  border-radius: 999px;
+  border: none;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--accent-text);
+  background: linear-gradient(135deg, var(--cor-financeiro) 0%, var(--cor-financeiro-fill) 100%);
+  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
+  position: relative;
+  overflow: visible;
+}
+
+.hidratacao-btn-grande svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (hover: hover) {
+  .hidratacao-btn-grande:hover:not(:disabled) {
+    box-shadow: 0 6px 24px -4px color-mix(in srgb, var(--cor-financeiro) 65%, transparent);
+  }
+}
+
+/* Feedback forte ao toque, alem do :active global (afundar/soltar): um
+   "burst" de glow na borda do proprio botao, disparado por JS (classe
+   `.tocando` reaplicada a cada clique). */
+.hidratacao-btn-grande.tocando {
+  animation: hidratacaoGlow 0.5s var(--ease-bounce);
+}
+
+@keyframes hidratacaoGlow {
+  0% {
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
+  }
+  35% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--cor-financeiro) 32%, transparent);
+  }
+  100% {
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
+  }
+}
+
+/* "+1" flutuante que sobe e some - some sozinho via JS no fim da animacao
+   (`animationend`) e tambem por um timeout de seguranca, entao nao ha risco
+   de sobrar preso na tela mesmo se o evento nao disparar. */
+.hidratacao-flutuante {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--cor-financeiro);
+  animation: hidratacaoSobe 0.9s ease-out forwards;
+}
+
+@keyframes hidratacaoSobe {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -34px) scale(1);
+  }
 }
 
 .medida-tendencia {

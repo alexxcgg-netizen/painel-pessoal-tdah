@@ -1250,6 +1250,24 @@ async function loadSaude() {
   $("#saude-sono").textContent = dados.sono_horas != null ? dados.sono_horas.toFixed(1) : "-";
 }
 
+// Fase 6 US-F1: feedback forte ao toque no botao de agua - "+1" flutuante
+// que sobe e some sozinho (por animationend, com timeout de seguranca pra
+// nunca ficar preso na tela em navegador sem o evento/com reduced-motion).
+function celebrarHidratacao(btn) {
+  btn.classList.remove("tocando");
+  void btn.offsetWidth; // forca reflow pra animacao reiniciar em cliques seguidos
+  btn.classList.add("tocando");
+  vibrar(15);
+  const flutuante = document.createElement("span");
+  flutuante.className = "hidratacao-flutuante";
+  flutuante.textContent = "+1";
+  flutuante.setAttribute("aria-hidden", "true");
+  btn.appendChild(flutuante);
+  const limpar = () => flutuante.remove();
+  flutuante.addEventListener("animationend", limpar, { once: true });
+  setTimeout(limpar, 1200);
+}
+
 $("#hidratacao-btn").addEventListener("click", async () => {
   const btn = $("#hidratacao-btn");
   btn.disabled = true;
@@ -1258,7 +1276,24 @@ $("#hidratacao-btn").addEventListener("click", async () => {
   if (!data) return;
   $("#hidratacao-total").textContent = data.total_hoje;
   pulsarSucesso($("#hidratacao-total"));
+  celebrarHidratacao(btn);
 });
+
+// Fase 6 US-F2: grafico de evolucao (mesmo helper de linha SVG das Metas e
+// Aviacao, static/js/charts.js) - pega o tipo mais recente que tenha pelo
+// menos 2 registros ("peso" tem prioridade por ser o mais comum), sem
+// requisicao nova: usa a lista que loadMedidas ja buscou.
+function dadosGraficoMedida(medidas) {
+  if (!medidas.length) return null;
+  const tipoPreferido = medidas.some((m) => m.tipo === "peso") ? "peso" : medidas[0].tipo;
+  const doTipo = medidas.filter((m) => m.tipo === tipoPreferido);
+  if (doTipo.length < 2) return null;
+  const pontos = doTipo
+    .slice()
+    .sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : a.id - b.id))
+    .map((m) => ({ data: m.data, acumulado: m.valor }));
+  return { tipo: tipoPreferido, unidade: doTipo[0].unidade, pontos };
+}
 
 async function loadMedidas() {
   const medidas = await apiFetch("/api/medidas");
