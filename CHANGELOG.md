@@ -70,6 +70,19 @@ completo por historia.
 - `tests/test_garantias.py` (21 casos: `somar_meses`, CRUD via db.py/API inclusive upload,
   validacao, o alerta puro e a integracao real em `verificar_e_notificar`).
 
+**US-C19 - Modo visitante (mecanismo central)**
+- `GET/POST /api/modo-visitante`: estado so em `session` do Flask (cookie assinado pelo
+  servidor) - NUNCA no banco, nem sobrevive a reinicio de sessao/logout de proposito.
+  Ativar e 1 toque (`{"ativar": true}`, sem PIN - precisa ser rapido pra dar tempo de
+  esconder a tela). Desativar exige o PIN de verdade (`auth.verificar_pin`) - senao quem
+  ja esta com o celular desbloqueado conseguiria desligar sozinho.
+- `app._modo_visitante_ativo()`: helper generico que qualquer rota pode chamar pra decidir
+  se manda o dado real ou um estado neutro - US-C20 usa em financeiro/saude/decisoes.
+- Botao novo no cabecalho (icone de olho) + painel com campo de PIN pra desativar.
+- `tests/test_modo_visitante.py` (9 casos: liga sem PIN, nega desligar sem/com PIN errado,
+  desliga com PIN certo, nao grava linha nenhuma no banco, some no logout, isolado por
+  sessao/cliente - nunca vaza pra outro navegador logado).
+
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 
 Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em

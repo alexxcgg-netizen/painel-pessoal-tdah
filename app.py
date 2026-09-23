@@ -413,6 +413,43 @@ def logout():
     return jsonify({"ok": True})
 
 
+def _modo_visitante_ativo() -> bool:
+    """Fase 5 (US-C19): mecanismo generico que outras rotas (US-C20) chamam
+    pra decidir se mandam o dado real ou um estado neutro. Estado fica so na
+    sessao do Flask (cookie assinado pelo servidor, nunca no banco) - nao
+    precisa sobreviver a reinicio do processo nem ser visto por outra sessao/
+    aparelho, e some sozinho no logout (session.clear() acima)."""
+    return bool(session.get("modo_visitante"))
+
+
+@app.route("/api/modo-visitante", methods=["GET"])
+def modo_visitante_rota():
+    return jsonify({"ativo": _modo_visitante_ativo()})
+
+
+@app.route("/api/modo-visitante", methods=["POST"])
+def alternar_modo_visitante_rota():
+    """Ativar e livre (1 toque, pra dar tempo de esconder a tela antes de
+    passar o celular pra alguem). Desativar exige o PIN de verdade - senao
+    quem ja esta com o celular desbloqueado (a propria pessoa de quem voce
+    esta escondendo o dado) conseguiria desligar sozinha so cutucando um
+    botao."""
+    body = _corpo_json()
+    if bool(body.get("ativar")):
+        session["modo_visitante"] = True
+        return jsonify({"ativo": True})
+
+    conn = get_db()
+    try:
+        pin_ok = auth.verificar_pin(conn, body.get("pin"))
+    finally:
+        conn.close()
+    if not pin_ok:
+        return jsonify({"error": "PIN incorreto"}), 403
+    session["modo_visitante"] = False
+    return jsonify({"ativo": False})
+
+
 @app.route("/")
 def index():
     return render_template("index.html")

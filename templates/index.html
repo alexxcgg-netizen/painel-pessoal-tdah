@@ -35,6 +35,9 @@
     <button id="modo-viagem-btn" class="btn-silencio" title="Modo viagem" aria-label="Configurar modo viagem" aria-expanded="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg>
     </button>
+    <button id="modo-visitante-btn" class="btn-silencio" title="Modo visitante" aria-label="Ativar modo visitante (esconde financeiro, saude e decisoes)" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
     <button id="backup-btn" class="btn-backup" title="Exportar / backup" aria-label="Exportar ou baixar backup" aria-expanded="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
     </button>
@@ -103,6 +106,21 @@
       </button>
     </div>
     <p id="modo-viagem-status"></p>
+  </div>
+
+  <div id="modo-visitante-painel" hidden>
+    <p class="silencio-titulo">Modo visitante ativo</p>
+    <p class="silencio-descricao">
+      Financeiro, saude e diario de decisao estao ocultos. Digita o PIN pra desativar.
+    </p>
+    <div class="silencio-campos">
+      <label>PIN <input type="password" id="modo-visitante-pin" inputmode="numeric" maxlength="6" placeholder="000000" /></label>
+      <button type="button" id="modo-visitante-desativar" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
+        Desativar
+      </button>
+    </div>
+    <p id="modo-visitante-status"></p>
   </div>
 
   <p id="erro-banner" class="erro" hidden></p>

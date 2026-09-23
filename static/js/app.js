@@ -2928,6 +2928,64 @@ function initSilencio() {
   });
 }
 
+let modoVisitanteAtivo = false;
+
+function initModoVisitante() {
+  const btn = $("#modo-visitante-btn");
+  const painel = $("#modo-visitante-painel");
+  const pinInput = $("#modo-visitante-pin");
+  const status = $("#modo-visitante-status");
+
+  function aplicarEstado(ativo) {
+    modoVisitanteAtivo = ativo;
+    btn.classList.toggle("ativo", ativo);
+    btn.setAttribute("aria-pressed", ativo ? "true" : "false");
+    if (!ativo) {
+      painel.hidden = true;
+      pinInput.value = "";
+      status.textContent = "";
+    }
+    document.dispatchEvent(new CustomEvent("modo-visitante-mudou", { detail: { ativo } }));
+  }
+
+  (async () => {
+    const dados = await apiFetch("/api/modo-visitante");
+    if (dados) aplicarEstado(Boolean(dados.ativo));
+  })();
+
+  btn.addEventListener("click", async () => {
+    if (!modoVisitanteAtivo) {
+      const dados = await apiFetch("/api/modo-visitante", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativar: true }),
+      });
+      if (dados) aplicarEstado(true);
+      return;
+    }
+    painel.hidden = !painel.hidden;
+  });
+
+  $("#modo-visitante-desativar").addEventListener("click", async () => {
+    const desativarBtn = $("#modo-visitante-desativar");
+    status.textContent = "";
+    setBotaoCarregando(desativarBtn, true, "Verificando...");
+    const dados = await apiFetch("/api/modo-visitante", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ativar: false, pin: pinInput.value.trim() }),
+    });
+    setBotaoCarregando(desativarBtn, false, "Desativar");
+    if (dados && dados.ativo === false) {
+      aplicarEstado(false);
+      return;
+    }
+    status.textContent = "PIN incorreto.";
+    pinInput.value = "";
+    pinInput.focus();
+  });
+}
+
 function initModoViagem() {
   const btn = $("#modo-viagem-btn");
   const painel = $("#modo-viagem-painel");
@@ -3051,4 +3109,5 @@ initVozChat();
 initDicas();
 initSilencio();
 initModoViagem();
+initModoVisitante();
 initBackup();

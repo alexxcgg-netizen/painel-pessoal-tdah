@@ -219,7 +219,7 @@
         "PIN/senha ja existente do app continua protegendo o toggle em si (nao deixa qualquer um desativar o modo visitante sem o PIN)",
         "Testes cobrindo o toggle"
       ],
-      "priority": 19, "passes": false, "notes": ""
+      "priority": 19, "passes": true, "notes": "Estado so em Flask session (nunca no banco), ativar e 1 toque, desativar exige PIN real (auth.verificar_pin). Helper generico app._modo_visitante_ativo() pronto pra US-C20 usar. Botao novo no cabecalho + painel de PIN pra desativar. Testes em tests/test_modo_visitante.py (9 casos, 100% ok, inclui confirmar que nao vaza pra outra sessao/cliente e que nao grava linha nenhuma no banco)."
     },
     {
       "id": "US-C20",
