@@ -1511,7 +1511,15 @@ async function loadLembretes() {
   list.innerHTML = "";
   $("#lembretes-vazio").hidden = lembretes.length > 0;
 
-  lembretes.forEach((l) => {
+  // Fase 6 (US-F7): o mais perto de vencer primeiro - o backend ja devolve
+  // dias_restantes calculado (proxima_ocorrencia, inclusive pra recorrente),
+  // o /api/lembretes so nao ordena por ele (a query SQL ordena por "data"
+  // crua, que pra um lembrete recorrente e o ano de CRIACAO, nao o proximo
+  // aniversario). Ordenar aqui evita duplicar aquele calculo so pra
+  // reordenar no servidor.
+  const ordenados = [...lembretes].sort((a, b) => a.dias_restantes - b.dias_restantes);
+
+  ordenados.forEach((l) => {
     const li = document.createElement("li");
     li.className = "item";
     li.dataset.entidade = "lembrete"; // destino do link de card (Fase 6)
@@ -1537,10 +1545,18 @@ async function loadLembretes() {
     if (typeof l.dias_restantes === "number") {
       const contagem = document.createElement("span");
       const urgente = l.dias_restantes <= 7;
-      contagem.className = urgente ? "item-quando lembrete-contagem-urgente" : "item-quando";
+      const vencido = l.dias_restantes < 0;
+      // Fase 6 (US-F7): virou selo (pill), nao so texto colorido solto -
+      // 2 niveis: "vencendo" (ate 7 dias, cor da propria secao - a mesma
+      // janela em que o push avisa) e "vencido" (ja passou, ai sim usa
+      // --danger, unico caso aqui que e mesmo um problema, nao so prazo
+      // apertado).
+      contagem.className = urgente
+        ? `item-quando lembrete-contagem-urgente${vencido ? " lembrete-contagem-vencido" : ""}`
+        : "item-quando";
       contagem.textContent =
         l.dias_restantes < 0
-          ? `passou ha ${Math.abs(l.dias_restantes)} dia(s)`
+          ? `venceu ha ${Math.abs(l.dias_restantes)} dia(s)`
           : l.dias_restantes === 0
           ? "e hoje"
           : l.dias_restantes === 1
@@ -1579,17 +1595,19 @@ async function loadLembretes() {
   });
 }
 
-aplicarMascaraData($("#lembrete-data"));
-
 $("#lembrete-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#lembrete-btn");
   const tituloInput = $("#lembrete-titulo");
   const dataInput = $("#lembrete-data");
   const titulo = tituloInput.value.trim();
-  const dataIso = mascaraDataParaIso(dataInput.value.trim());
+  // Fase 6 (US-F7): input virou type="date" (seletor nativo) - o value ja
+  // vem em AAAA-MM-DD direto do navegador, sem precisar da mascara
+  // dd/mm/aaaa (mascaraDataParaIso continua existindo pra #voo-data, que
+  // nao mudou nesta historia).
+  const dataIso = dataInput.value;
   if (!titulo || !dataIso) {
-    mostrarErro("Confere o titulo e a data (dd/mm/aaaa).");
+    mostrarErro("Confere o titulo e a data de vencimento.");
     return;
   }
 
@@ -1613,6 +1631,31 @@ $("#lembrete-form").addEventListener("submit", async (e) => {
   loadLembretes();
   loadStreak();
 });
+
+// Fase 6 (US-F7): "todo dia as HH:MM" sozinho obriga a fazer conta de
+// cabeca pra saber se e daqui a pouco ou so a noite - devolve quanto falta
+// pra proxima dose (ou "ha Xh, foi hoje" se ja passou o horario de hoje,
+// ja que o medicamento e diario e a proxima dose de verdade so vem amanha
+// nesse caso). So calculo de apresentacao (relogio do navegador), nao mexe
+// em nenhum aviso/push real (isso continua 100% no backend).
+function proximaDoseTexto(horario) {
+  const partes = String(horario || "").match(/^(\d{2}):(\d{2})/);
+  if (!partes) return null;
+  const alvo = new Date();
+  alvo.setHours(Number(partes[1]), Number(partes[2]), 0, 0);
+  const agora = new Date();
+  let diffMin = Math.round((alvo - agora) / 60000);
+  if (diffMin < -1) return `foi ha ${formatarDuracaoMin(-diffMin)}`;
+  if (diffMin <= 1) return "agora";
+  return `em ${formatarDuracaoMin(diffMin)}`;
+}
+
+function formatarDuracaoMin(min) {
+  if (min < 60) return `${min}min`;
+  const horas = Math.floor(min / 60);
+  const resto = min % 60;
+  return resto ? `${horas}h${resto}min` : `${horas}h`;
+}
 
 async function loadMedicamentos() {
   const medicamentos = await apiFetch("/api/medicamentos");
@@ -1638,6 +1681,13 @@ async function loadMedicamentos() {
     quando.className = "item-quando";
     quando.textContent = `todo dia as ${m.horario}`;
     tituloWrap.appendChild(quando);
+    const proxima = proximaDoseTexto(m.horario);
+    if (proxima) {
+      const proximaEl = document.createElement("span");
+      proximaEl.className = "item-quando medicamento-proxima-dose";
+      proximaEl.textContent = proxima;
+      tituloWrap.appendChild(proximaEl);
+    }
     linha.appendChild(tituloWrap);
 
     const acoes = document.createElement("div");

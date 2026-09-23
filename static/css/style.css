@@ -1850,8 +1850,40 @@ li.item.saindo {
 }
 
 .lembrete-contagem-urgente {
+  /* Fase 6 (US-F7): virou selo (pill) em vez de so texto colorido - "cor da
+     secao" (--cor-bancos, datas importantes) pro caso "vencendo" (ate 7
+     dias); .lembrete-contagem-vencido troca pra --danger so quando ja
+     passou de verdade (unico caso aqui equivalente a erro). */
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: var(--cor-bancos);
-  font-weight: 600;
+  background: color-mix(in srgb, var(--cor-bancos) 16%, transparent);
+}
+
+.lembrete-contagem-vencido {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* Fase 6 (US-F7): mesmo selo (pill), so que na cor da propria secao de
+   Medicamentos (--cor-painel) - informativo (quanto falta pra proxima
+   dose), nunca alerta/urgente, por isso NAO reusa .lembrete-contagem-
+   urgente (aquela e --cor-bancos, da secao Datas importantes). */
+.medicamento-proxima-dose {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cor-painel);
+  background: color-mix(in srgb, var(--cor-painel) 16%, transparent);
 }
 
 .banco-saldo {
@@ -3553,7 +3585,12 @@ li.item.item-planejado {
 }
 
 #lembrete-data {
-  flex: 0 1 7rem;
+  /* Fase 6 (US-F7): virou <input type="date"> (seletor nativo em vez de
+     texto livre "dd/mm/aaaa" + mascara) - precisa de mais largura que o
+     campo de texto mascarado antigo pro widget nativo do navegador nao
+     cortar o "dd/mm/aaaa". */
+  flex: 1 1 9.5rem;
+  min-width: 8.5rem;
 }
 
 .check-recorrente {

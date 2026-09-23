@@ -464,9 +464,9 @@
           vence dia 15 de janeiro, todo ano"). Avisa por notificacao push nos ultimos 7 dias.
         </p>
       </div>
-      <form id="lembrete-form" class="form-linha">
+      <form id="lembrete-form" class="form-linha" style="--form-cor: var(--cor-bancos)">
         <input type="text" id="lembrete-titulo" placeholder="O que vence?" required />
-        <input type="text" id="lembrete-data" placeholder="dd/mm/aaaa" inputmode="numeric" required />
+        <input type="date" id="lembrete-data" aria-label="Data de vencimento" required />
         <label class="check-recorrente">
           <input type="checkbox" id="lembrete-recorrente" />
           todo ano
@@ -495,7 +495,7 @@
           Losartana 50mg todo dia as 8h") ou cadastra direto aqui.
         </p>
       </div>
-      <form id="medicamento-form" class="form-linha">
+      <form id="medicamento-form" class="form-linha" style="--form-cor: var(--cor-painel)">
         <input type="text" id="medicamento-nome" placeholder="Nome do remedio" required />
         <input type="text" id="medicamento-dosagem" placeholder="Dosagem (ex: 50mg)" />
         <input type="time" id="medicamento-horario" required />
