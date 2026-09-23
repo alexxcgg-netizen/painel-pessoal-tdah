@@ -1,3 +1,5 @@
+import json
+import re
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -512,6 +514,20 @@ def init_db():
             app TEXT NOT NULL,
             evento TEXT NOT NULL,
             em TEXT NOT NULL
+        );
+
+        -- Fase 5 (US-A3): camada robo antes da IA no classificador de intent -
+        -- comando repetido/parecido o suficiente resolve localmente sem gastar
+        -- chamada de API. texto_normalizado e a chave (ver
+        -- aprendizado.normalizar_texto_intent); so aplica com
+        -- vezes_confirmado >= aprendizado.LIMIAR_CONFIRMACOES_PADRAO_INTENT
+        -- (ver aprendizado.padrao_intent_confiavel).
+        CREATE TABLE IF NOT EXISTS padroes_intent_aprendidos (
+            texto_normalizado TEXT PRIMARY KEY,
+            acao TEXT NOT NULL,
+            parametros TEXT NOT NULL DEFAULT '{}',
+            vezes_confirmado INTEGER NOT NULL DEFAULT 1,
+            ultima_vez TEXT NOT NULL DEFAULT (datetime('now'))
         );
         """
     )
@@ -1493,6 +1509,14 @@ def atualizar_categoria_gasto(conn, expense_id: int, categoria: str) -> bool:
     return cur.rowcount > 0
 
 
+# tipo_certo (correcoes_classificacao, Fase 4) -> acao de intent equivalente
+# (ACOES_INTENT, Fase 5) - so cobre o que tem correspondencia direta hoje;
+# "meta" nao tem acao equivalente na lista fechada do classificador de intent
+# ainda, entao correcao pra "meta" nao gera padrao (fica de fora por
+# interpretacao explicita, nao e um esquecimento).
+_TIPO_CERTO_PARA_ACAO_INTENT = {"tarefa": "registrar_tarefa", "gasto": "registrar_gasto"}
+
+
 def registrar_correcao_classificacao(
     conn,
     texto_original: str,
@@ -1505,13 +1529,28 @@ def registrar_correcao_classificacao(
     categoria de gasto errada) pra aprendizado.correcao_semelhante usar depois
     numa captura nova parecida - mesmo espirito de apelidos_gasto (guardar o
     que o Alex corrigiu, sem IA/rede neural nenhuma aqui), so que aqui o
-    "erro" pode ser o TIPO inteiro da captura, nao so um apelido generico."""
+    "erro" pode ser o TIPO inteiro da captura, nao so um apelido generico.
+
+    Fase 5 (US-A4): a mesma correcao tambem vira um padrao de confianca alta
+    em padroes_intent_aprendidos (via _TIPO_CERTO_PARA_ACAO_INTENT) - o Alex
+    corrigindo manualmente uma vez ja e sinal forte o bastante pra nao exigir
+    repetir o erro LIMIAR_CONFIRMACOES_PADRAO_INTENT vezes (ver
+    aprendizado.confirmar_padrao_intent, mesmo espirito com
+    forcar_confianca_alta=True)."""
     conn.execute(
         "INSERT INTO correcoes_classificacao "
         "(texto_original, tipo_errado, categoria_errada, tipo_certo, categoria_certa) "
         "VALUES (?, ?, ?, ?, ?)",
         (texto_original, tipo_errado, categoria_errada, tipo_certo, categoria_certa),
     )
+    acao_intent = _TIPO_CERTO_PARA_ACAO_INTENT.get(tipo_certo)
+    if acao_intent:
+        normalizado = normalizar_texto_intent(texto_original)
+        if normalizado:
+            parametros = {"categoria": categoria_certa} if categoria_certa else {}
+            upsert_padrao_intent(
+                conn, normalizado, acao_intent, parametros, LIMIAR_CONFIRMACOES_PADRAO_INTENT
+            )
     conn.commit()
 
 
@@ -1522,6 +1561,56 @@ def list_correcoes_classificacao(conn) -> list[dict]:
             "SELECT * FROM correcoes_classificacao ORDER BY criado_em DESC"
         ).fetchall()
     ]
+
+
+# ---- Padrao aprendido de intent (Fase 5, US-A3/US-A4) ---------------------
+# Normalizacao e o limiar moram aqui (nao em aprendizado.py, que importa este
+# modulo) pra registrar_correcao_classificacao poder alimentar o padrao
+# direto, sem import circular. aprendizado.py reexporta os dois pra manter a
+# API publica estavel (normalizar_texto_intent/LIMIAR_CONFIRMACOES_PADRAO_INTENT
+# continuam acessiveis por la tambem) - a decisao de QUANDO confiar num
+# padrao (padrao_intent_confiavel/confirmar_padrao_intent) fica em
+# aprendizado.py, que e quem concentra essa logica no projeto.
+LIMIAR_CONFIRMACOES_PADRAO_INTENT = 3
+
+_PONTUACAO_BORDA_INTENT = " .!?,;:"
+
+
+def normalizar_texto_intent(texto: str) -> str:
+    """minusculo + espacos colapsados + pontuacao solta na borda removida -
+    o suficiente pra "Gastei 50 no mercado" e "gastei 50 no mercado."
+    baterem como o mesmo padrao, sem virar um match semantico."""
+    if not texto or not isinstance(texto, str):
+        return ""
+    normalizado = re.sub(r"\s+", " ", texto.strip().lower())
+    return normalizado.strip(_PONTUACAO_BORDA_INTENT)
+
+
+def buscar_padrao_intent(conn, texto_normalizado: str) -> dict | None:
+    """CRUD puro (sem decisao de confianca - isso e aprendizado.padrao_intent_confiavel)."""
+    row = conn.execute(
+        "SELECT * FROM padroes_intent_aprendidos WHERE texto_normalizado = ?", (texto_normalizado,)
+    ).fetchone()
+    if not row:
+        return None
+    padrao = dict(row)
+    padrao["parametros"] = json.loads(padrao["parametros"])
+    return padrao
+
+
+def upsert_padrao_intent(
+    conn, texto_normalizado: str, acao: str, parametros: dict, vezes_confirmado: int
+) -> None:
+    conn.execute(
+        "INSERT INTO padroes_intent_aprendidos "
+        "(texto_normalizado, acao, parametros, vezes_confirmado, ultima_vez) "
+        "VALUES (?, ?, ?, ?, datetime('now')) "
+        "ON CONFLICT(texto_normalizado) DO UPDATE SET "
+        "acao = excluded.acao, parametros = excluded.parametros, "
+        "vezes_confirmado = excluded.vezes_confirmado, ultima_vez = excluded.ultima_vez",
+        (texto_normalizado, acao, json.dumps(parametros or {}, ensure_ascii=False), vezes_confirmado),
+    )
+    conn.commit()
 
 
 def marcar_ou_criar_feito(

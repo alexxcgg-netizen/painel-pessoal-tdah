@@ -531,6 +531,55 @@ def capture():
     return _executar_captura(text, clarificacao, client_id)
 
 
+# Lista fechada de acoes do classificador de intent (Fase 5, ver docs/INTENT.md).
+# Contrato estavel: um valor novo so pode ser ADICIONADO aqui, nunca renomeado/removido,
+# senao quebra quem ja integrou contra o formato (Grupo B - navegacao por voz). Fonte
+# unica: claude_client.ACOES_INTENT (US-A2) - so um alias aqui pra nao quebrar quem ja
+# importava app.ACOES_INTENT (ex: testes da US-A1).
+ACOES_INTENT = claude_client.ACOES_INTENT
+
+
+@app.route("/api/intent/classificar", methods=["POST"])
+def intent_classificar():
+    """Classifica um comando de voz/texto numa acao (contrato em
+    docs/INTENT.md). Antes de chamar a IA (US-A2, Haiku), tenta resolver
+    localmente por padrao aprendido (US-A3, aprendizado.padrao_intent_confiavel)
+    - so cai pra API se nao achar um padrao confiavel o bastante."""
+    body = _corpo_json()
+    texto = _texto_seguro(body.get("texto"))
+    if not texto:
+        return jsonify({"error": "texto vazio"}), 400
+
+    conn = get_db()
+
+    padrao = aprendizado.padrao_intent_confiavel(conn, texto)
+    if padrao:
+        conn.close()
+        return jsonify(
+            {
+                "acao": padrao["acao"],
+                "confianca": aprendizado.CONFIANCA_PADRAO_INTENT,
+                "parametros": padrao["parametros"],
+                "precisa_confirmacao": False,
+            }
+        )
+
+    result, error = _call_claude(claude_client.classify_intent, texto)
+    if error:
+        conn.close()
+        return error
+    resultado, usage = result
+
+    _log_usage(conn, usage)
+    # So reforca o padrao com classificacoes em que a propria IA confiou -
+    # nao vale a pena aprender de algo que ja veio com precisa_confirmacao.
+    if not resultado["precisa_confirmacao"]:
+        aprendizado.confirmar_padrao_intent(conn, texto, resultado["acao"], resultado["parametros"])
+    conn.commit()
+    conn.close()
+    return jsonify(resultado)
+
+
 @app.route("/api/tasks", methods=["GET"])
 def list_tasks():
     conn = get_db()

@@ -766,5 +766,139 @@ class CorrelacaoSonoProdutividadeTestCase(unittest.TestCase):
         self.assertNotIn("dormir mais", dica)
 
 
+class NormalizarTextoIntentTestCase(unittest.TestCase):
+    def test_minusculo_espacos_e_pontuacao_de_borda(self):
+        self.assertEqual(
+            aprendizado.normalizar_texto_intent("  Gastei 50 no Mercado.  "), "gastei 50 no mercado"
+        )
+
+    def test_espacos_duplicados_colapsam(self):
+        self.assertEqual(aprendizado.normalizar_texto_intent("abre   os gastos"), "abre os gastos")
+
+    def test_vazio_ou_tipo_errado_vira_vazio(self):
+        self.assertEqual(aprendizado.normalizar_texto_intent(""), "")
+        self.assertEqual(aprendizado.normalizar_texto_intent(None), "")
+        self.assertEqual(aprendizado.normalizar_texto_intent(123), "")
+
+
+class PadraoIntentAprendidoTestCase(unittest.TestCase):
+    """US-A3 (Fase 5): camada robo antes da IA - ver docs/INTENT.md."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def test_sem_padrao_nenhum_nao_ha_atalho(self):
+        self.assertIsNone(aprendizado.padrao_intent_confiavel(self.conn, "gastei 50 no mercado"))
+
+    def test_confirmado_uma_vez_ainda_nao_aplica(self):
+        aprendizado.confirmar_padrao_intent(self.conn, "gastei 50 no mercado", "registrar_gasto", {})
+        self.assertIsNone(aprendizado.padrao_intent_confiavel(self.conn, "gastei 50 no mercado"))
+
+    def test_confirmado_abaixo_do_limiar_ainda_nao_aplica(self):
+        for _ in range(aprendizado.LIMIAR_CONFIRMACOES_PADRAO_INTENT - 1):
+            aprendizado.confirmar_padrao_intent(self.conn, "gastei 50 no mercado", "registrar_gasto", {})
+        self.assertIsNone(aprendizado.padrao_intent_confiavel(self.conn, "gastei 50 no mercado"))
+
+    def test_confirmado_n_vezes_aplica(self):
+        for _ in range(aprendizado.LIMIAR_CONFIRMACOES_PADRAO_INTENT):
+            aprendizado.confirmar_padrao_intent(
+                self.conn, "gastei 50 no mercado", "registrar_gasto", {"valor": 50.0}
+            )
+        padrao = aprendizado.padrao_intent_confiavel(self.conn, "gastei 50 no mercado")
+        self.assertIsNotNone(padrao)
+        self.assertEqual(padrao["acao"], "registrar_gasto")
+        self.assertEqual(padrao["parametros"], {"valor": 50.0})
+
+    def test_texto_normalizado_diferente_bate_no_mesmo_padrao(self):
+        for _ in range(aprendizado.LIMIAR_CONFIRMACOES_PADRAO_INTENT):
+            aprendizado.confirmar_padrao_intent(self.conn, "Gastei 50 no mercado.", "registrar_gasto", {})
+        self.assertIsNotNone(aprendizado.padrao_intent_confiavel(self.conn, "gastei 50 no mercado"))
+
+    def test_texto_diferente_nao_bate(self):
+        for _ in range(aprendizado.LIMIAR_CONFIRMACOES_PADRAO_INTENT):
+            aprendizado.confirmar_padrao_intent(self.conn, "gastei 50 no mercado", "registrar_gasto", {})
+        self.assertIsNone(aprendizado.padrao_intent_confiavel(self.conn, "abre os gastos"))
+
+    def test_acao_diferente_reinicia_a_contagem(self):
+        aprendizado.confirmar_padrao_intent(self.conn, "isso", "registrar_tarefa", {})
+        aprendizado.confirmar_padrao_intent(self.conn, "isso", "registrar_tarefa", {})
+        # a IA muda de ideia na 3a vez - nao deveria destravar so por ter 3
+        # confirmacoes se a ultima discordar das anteriores
+        aprendizado.confirmar_padrao_intent(self.conn, "isso", "registrar_gasto", {})
+        self.assertIsNone(aprendizado.padrao_intent_confiavel(self.conn, "isso"))
+
+    def test_forcar_confianca_alta_pula_direto_pro_limiar(self):
+        aprendizado.confirmar_padrao_intent(
+            self.conn, "isso e gasto", "registrar_gasto", {}, forcar_confianca_alta=True
+        )
+        padrao = aprendizado.padrao_intent_confiavel(self.conn, "isso e gasto")
+        self.assertIsNotNone(padrao)
+        self.assertEqual(padrao["acao"], "registrar_gasto")
+
+    def test_texto_vazio_nao_registra_nada(self):
+        aprendizado.confirmar_padrao_intent(self.conn, "", "registrar_gasto", {})
+        self.assertIsNone(db.buscar_padrao_intent(self.conn, ""))
+
+
+class CorrecaoClassificacaoViraPadraoIntentTestCase(unittest.TestCase):
+    """US-A4 (Fase 5): toda correcao manual (Fase 4,
+    db.registrar_correcao_classificacao) tambem vira padrao de confianca alta
+    em padroes_intent_aprendidos - sem precisar repetir o erro."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._caminho_original = db.DB_PATH
+        db.DB_PATH = Path(self._tmp.name) / "painel.db"
+        db.init_db()
+        self.conn = db.get_db()
+
+    def tearDown(self):
+        self.conn.close()
+        db.DB_PATH = self._caminho_original
+        self._tmp.cleanup()
+
+    def test_correcao_pra_gasto_ja_resolve_texto_parecido_de_uma_vez(self):
+        db.registrar_correcao_classificacao(
+            self.conn, "academia mensalidade", "tarefa", None, "gasto", "saude"
+        )
+        padrao = aprendizado.padrao_intent_confiavel(self.conn, "academia mensalidade")
+        self.assertIsNotNone(padrao)
+        self.assertEqual(padrao["acao"], "registrar_gasto")
+        self.assertEqual(padrao["parametros"], {"categoria": "saude"})
+
+    def test_correcao_pra_tarefa_ja_resolve_texto_parecido_de_uma_vez(self):
+        db.registrar_correcao_classificacao(
+            self.conn, "comprar racao pro gato", "gasto", "mercado", "tarefa", None
+        )
+        padrao = aprendizado.padrao_intent_confiavel(self.conn, "comprar racao pro gato")
+        self.assertIsNotNone(padrao)
+        self.assertEqual(padrao["acao"], "registrar_tarefa")
+
+    def test_correcao_pra_meta_nao_gera_padrao_de_intent(self):
+        # "meta" nao tem acao equivalente em ACOES_INTENT ainda - decisao
+        # documentada em db._TIPO_CERTO_PARA_ACAO_INTENT
+        db.registrar_correcao_classificacao(
+            self.conn, "juntar pra viagem", "tarefa", None, "meta", None
+        )
+        self.assertIsNone(aprendizado.padrao_intent_confiavel(self.conn, "juntar pra viagem"))
+        # mas a correcao em si continua gravada normalmente (Fase 4)
+        self.assertEqual(len(db.list_correcoes_classificacao(self.conn)), 1)
+
+    def test_correcao_com_texto_normalizado_diferente_ainda_bate(self):
+        db.registrar_correcao_classificacao(
+            self.conn, "Academia Mensalidade.", "tarefa", None, "gasto", "saude"
+        )
+        self.assertIsNotNone(aprendizado.padrao_intent_confiavel(self.conn, "academia mensalidade"))
+
+
 if __name__ == "__main__":
     unittest.main()

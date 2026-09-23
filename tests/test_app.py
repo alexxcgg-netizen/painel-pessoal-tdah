@@ -6258,5 +6258,187 @@ class NormalizarHoraTestCase(unittest.TestCase):
                 self.assertIsNone(app._normalizar_hora(valor))
 
 
+def _fake_intent(acao="desconhecido", confianca=0.0, parametros=None):
+    return {
+        "acao": acao,
+        "confianca": confianca,
+        "parametros": parametros or {},
+        "precisa_confirmacao": confianca < claude_client.CONFIANCA_MINIMA_INTENT,
+    }
+
+
+class IntentClassificarTestCase(unittest.TestCase):
+    """US-A1/US-A2 (Fase 5): contrato do endpoint (docs/INTENT.md) e a
+    integracao com claude_client.classify_intent (mockada aqui - os 15+
+    exemplos de frase por tipo de acao ficam em test_claude_client.py, que
+    testa o classificador em si)."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        conn.execute("DELETE FROM memorias")
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        conn.commit()
+        conn.close()
+        app._CACHE_CONSTRUTORA.clear()
+        self.client = app.app.test_client()
+        res = self.client.post("/login", json={"pin": PIN_TESTE})
+        assert res.status_code == 200, res.get_json()
+        self._silencio_patch = patch("notificacoes.dentro_do_horario_silencioso", return_value=False)
+        self._silencio_patch.start()
+        self.addCleanup(self._silencio_patch.stop)
+
+    def test_texto_vazio_400(self):
+        res = self.client.post("/api/intent/classificar", json={"texto": ""})
+        self.assertEqual(res.status_code, 400)
+
+    def test_texto_ausente_400(self):
+        res = self.client.post("/api/intent/classificar", json={})
+        self.assertEqual(res.status_code, 400)
+
+    def test_texto_tipo_errado_400(self):
+        res = self.client.post("/api/intent/classificar", json={"texto": 123})
+        self.assertEqual(res.status_code, 400)
+
+    def test_formato_do_contrato(self):
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("registrar_gasto", 0.9, {"valor": 50.0}), fake_usage()),
+        ):
+            res = self.client.post("/api/intent/classificar", json={"texto": "gastei 50 no mercado"})
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertIn(body["acao"], app.ACOES_INTENT)
+        self.assertIsInstance(body["confianca"], (int, float))
+        self.assertGreaterEqual(body["confianca"], 0.0)
+        self.assertLessEqual(body["confianca"], 1.0)
+        self.assertIsInstance(body["parametros"], dict)
+        self.assertIsInstance(body["precisa_confirmacao"], bool)
+
+    def test_client_id_opcional_nao_quebra(self):
+        with patch(
+            "claude_client.classify_intent", return_value=(_fake_intent("registrar_tarefa", 0.9), fake_usage())
+        ):
+            res = self.client.post(
+                "/api/intent/classificar", json={"texto": "comprei pao", "client_id": "abc-123"}
+            )
+        self.assertEqual(res.status_code, 200)
+
+    def test_baixa_confianca_pede_confirmacao(self):
+        with patch(
+            "claude_client.classify_intent", return_value=(_fake_intent("registrar_tarefa", 0.2), fake_usage())
+        ):
+            res = self.client.post("/api/intent/classificar", json={"texto": "texto ambiguo"})
+        body = res.get_json()
+        self.assertTrue(body["precisa_confirmacao"])
+
+    def test_alta_confianca_nao_pede_confirmacao(self):
+        with patch(
+            "claude_client.classify_intent", return_value=(_fake_intent("registrar_gasto", 0.95), fake_usage())
+        ):
+            res = self.client.post("/api/intent/classificar", json={"texto": "gastei 50 no mercado"})
+        body = res.get_json()
+        self.assertFalse(body["precisa_confirmacao"])
+
+    def test_registra_uso_da_api(self):
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("consultar", 0.8), fake_usage(cost=0.002)),
+        ):
+            self.client.post("/api/intent/classificar", json={"texto": "quanto eu gastei"})
+        total = self.client.get("/api/uso/total").get_json()
+        self.assertGreaterEqual(total["custo_usd"], 0.002)
+
+    def test_erro_da_api_vira_502(self):
+        import anthropic
+
+        with patch(
+            "claude_client.classify_intent",
+            side_effect=anthropic.APIError("erro", request=MagicMock(), body=None),
+        ):
+            res = self.client.post("/api/intent/classificar", json={"texto": "qualquer coisa"})
+        self.assertEqual(res.status_code, 502)
+
+    def test_cada_acao_da_lista_fechada_passa_pelo_endpoint(self):
+        for acao in app.ACOES_INTENT:
+            with self.subTest(acao=acao):
+                with patch(
+                    "claude_client.classify_intent", return_value=(_fake_intent(acao, 0.9), fake_usage())
+                ):
+                    res = self.client.post("/api/intent/classificar", json={"texto": f"exemplo de {acao}"})
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(res.get_json()["acao"], acao)
+
+    # ---- US-A3: padrao aprendido local (antes de chamar a API) ----
+
+    def test_repetido_1x_ainda_chama_a_api(self):
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("registrar_gasto", 0.9, {"valor": 50.0}), fake_usage()),
+        ) as mock_classify:
+            self.client.post("/api/intent/classificar", json={"texto": "gastei 50 no mercado"})
+            self.client.post("/api/intent/classificar", json={"texto": "gastei 50 no mercado"})
+        self.assertEqual(mock_classify.call_count, 2)
+
+    def test_repetido_n_vezes_resolve_local_sem_chamar_api(self):
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("registrar_gasto", 0.9, {"valor": 50.0}), fake_usage()),
+        ) as mock_classify:
+            for _ in range(3):
+                self.client.post("/api/intent/classificar", json={"texto": "gastei 50 no mercado"})
+            self.assertEqual(mock_classify.call_count, 3)
+
+            res = self.client.post("/api/intent/classificar", json={"texto": "gastei 50 no mercado"})
+            # a 4a vez (ja confirmado 3x) resolve pelo padrao local - a API
+            # nao e chamada de novo
+            self.assertEqual(mock_classify.call_count, 3)
+
+        body = res.get_json()
+        self.assertEqual(body["acao"], "registrar_gasto")
+        self.assertEqual(body["parametros"], {"valor": 50.0})
+        self.assertFalse(body["precisa_confirmacao"])
+
+    def test_baixa_confianca_nao_reforca_padrao(self):
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("registrar_tarefa", 0.2, {}), fake_usage()),
+        ) as mock_classify:
+            for _ in range(5):
+                self.client.post("/api/intent/classificar", json={"texto": "texto ambiguo demais"})
+        # classificacoes de baixa confianca nunca destravam o atalho local -
+        # continua chamando a API todas as vezes
+        self.assertEqual(mock_classify.call_count, 5)
+
+    # ---- US-A4: correcao rapida (Fase 4) vira padrao de intent direto ----
+
+    def test_corrigir_classificacao_destrava_padrao_de_intent_sem_chamar_api(self):
+        parsed = {
+            "tipo": "tarefa", "titulo": "academia mensalidade", "valor": None,
+            "categoria": None, "quando": None, "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            res = self.client.post("/api/capture", json={"text": "academia mensalidade"})
+        self.assertEqual(res.status_code, 201)
+        tarefa = self.client.get("/api/tasks").get_json()[0]
+
+        # o Alex corrige: era gasto, nao tarefa (rota da Fase 4)
+        res = self.client.post(
+            f"/api/tasks/{tarefa['id']}/reclassificar", json={"valor": 120.0, "categoria": "saude"}
+        )
+        self.assertEqual(res.status_code, 200)
+
+        with patch("claude_client.classify_intent") as mock_classify:
+            res = self.client.post(
+                "/api/intent/classificar", json={"texto": "academia mensalidade"}
+            )
+            mock_classify.assert_not_called()
+        body = res.get_json()
+        self.assertEqual(body["acao"], "registrar_gasto")
+        self.assertFalse(body["precisa_confirmacao"])
+
+
 if __name__ == "__main__":
     unittest.main()

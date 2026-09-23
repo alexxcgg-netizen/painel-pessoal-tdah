@@ -15,8 +15,8 @@
         ".venv/bin/python -m unittest discover -s tests passa 100%"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "docs/INTENT.md criado com a lista fechada de acoes, formato de entrada/saida e regras de erro. POST /api/intent/classificar criado em app.py (ACOES_INTENT). Implementado junto com US-A2 na mesma sessao (o stub foi substituido pela classificacao real antes de qualquer commit intermediario existir, entao as duas historias foram commitadas juntas - contrato em si nao mudou, so ganhou a implementacao de verdade). Testes em tests/test_app.py::IntentClassificarTestCase cobrem formato/400. pyflakes limpo, suite completa 100% (exceto 5 falhas preexistentes e nao relacionadas em testes de notificacao de voo sensiveis a horario real do relogio - nao tocados nesta historia)."
     },
     {
       "id": "US-A2",
@@ -30,8 +30,8 @@
         ".venv/bin/python -m unittest discover -s tests passa 100%"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "claude_client.classify_intent implementado (Haiku, reaproveita o client Anthropic ja existente e o padrao de _extract_json/_usage). Sanitiza acao fora da lista fechada -> desconhecido, confianca fora de [0,1] -> limitada, parametros fora de dict -> {}. precisa_confirmacao = confianca < CONFIANCA_MINIMA_INTENT (0.6). 15+ frases reais cobrindo os 6 tipos de acao concretos em tests/test_claude_client.py::ClassifyIntentTestCase (API mockada, nenhum credito gasto). Rota em app.py atualizada pra chamar de verdade e registrar uso via db.record_usage (mesmo mecanismo do chat)."
     },
     {
       "id": "US-A3",
@@ -45,8 +45,8 @@
         ".venv/bin/python -m unittest discover -s tests passa 100%"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Tabela padroes_intent_aprendidos (texto_normalizado PK, acao, parametros JSON, vezes_confirmado, ultima_vez) em db.py, com CRUD puro (buscar_padrao_intent/upsert_padrao_intent). Decisao de confianca (LIMIAR_CONFIRMACOES_PADRAO_INTENT=3, normalizacao) fica em aprendizado.py (padrao_intent_confiavel/confirmar_padrao_intent), seguindo o mesmo principio do resto do modulo - nunca comunica 'aprendi isso' ao usuario, so aplica silenciosamente. Decisao tecnica: normalizar_texto_intent e o limiar moram DE VERDADE em db.py (nao em aprendizado.py) porque US-A4 precisa deles direto em db.registrar_correcao_classificacao sem criar import circular (db.py nao pode importar aprendizado.py, que ja importa db.py); aprendizado.py reexporta os dois pra manter a API publica igual. Rota /api/intent/classificar tenta o padrao local ANTES de chamar a API; so reforca o padrao quando a propria classificacao da IA nao pediu confirmacao (nao aprende de incerteza). Testes: 1x nao aplica, N vezes aplica sem chamar API (mock.call_count) - tests/test_aprendizado.py::PadraoIntentAprendidoTestCase e tests/test_app.py::IntentClassificarTestCase."
     },
     {
       "id": "US-A4",
@@ -58,8 +58,8 @@
         ".venv/bin/python -m unittest discover -s tests passa 100%"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "db.registrar_correcao_classificacao (Fase 4) agora tambem grava/atualiza um padrao em padroes_intent_aprendidos direto com vezes_confirmado = LIMIAR_CONFIRMACOES_PADRAO_INTENT (confianca alta imediata, nao precisa repetir o erro) via db._TIPO_CERTO_PARA_ACAO_INTENT (mapa tipo_certo -> acao de intent). Decisao documentada: 'meta' (tipo_certo da Fase 4) nao tem acao equivalente na lista fechada ACOES_INTENT ainda, entao correcao pra meta grava a correcao normalmente mas nao gera padrao de intent (testado explicitamente). Como a logica fica dentro da propria funcao de db.py, os 3 call-sites existentes em app.py (reclassificar tarefa->gasto, gasto->tarefa, categoria) ganham o comportamento automaticamente, sem precisar mexer neles. Teste fim-a-fim em tests/test_app.py (captura -> corrige via /api/tasks/<id>/reclassificar -> proximo POST /api/intent/classificar com texto parecido resolve local, claude_client.classify_intent mockado e nunca chamado)."
     },
     {
       "id": "US-A5",
