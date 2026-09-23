@@ -1,0 +1,258 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase5/grupo-c-independentes",
+  "description": "Fase 5 Grupo C - features totalmente independentes do nucleo de intent, podem rodar em paralelo com tudo desde o inicio. IMPORTANTE: antes de cada historia, checar se algo parecido ja existe no projeto (TODO.md/CHANGELOG.md tem historico extenso de features ja implementadas) - se existir, estender ou pular e documentar no progress.txt em vez de duplicar.",
+  "userStories": [
+    {
+      "id": "US-C1",
+      "title": "Widget de tela de bloqueio (iOS Lock Screen widget via WidgetKit/Scriptable)",
+      "description": "Como usuario, quero ver um resumo rapido (proxima tarefa, proximo compromisso) direto na tela de bloqueio do iPhone.",
+      "acceptanceCriteria": [
+        "Verificar primeiro: ja existe endpoint de resumo pro widget Scriptable (ver TODO #37) - reaproveitar/estender esse endpoint em vez de criar um novo do zero",
+        "Endpoint retorna dado compacto adequado pra lock screen (poucas linhas de texto)",
+        "Documentar em docs/ como configurar o widget de tela de bloqueio via Scriptable",
+        "Testes cobrindo o endpoint"
+      ],
+      "priority": 1, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C2",
+      "title": "Diario de decisao",
+      "description": "Como usuario, quero registrar decisoes importantes (o que decidi, por que, alternativas consideradas) pra poder revisar depois se deu certo.",
+      "acceptanceCriteria": [
+        "Nova tabela decisoes (texto da decisao, contexto/motivo, data, revisao_em opcional, resultado preenchido depois)",
+        "Rotas CRUD + secao simples na UI (reaproveitar padrao visual ja existente de Notas/conhecimento, TODO #99)",
+        "Chat tool pra registrar decisao pelo chat, mesmo padrao das outras tools ja existentes",
+        "Testes cobrindo CRUD"
+      ],
+      "priority": 2, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C3",
+      "title": "Revisao trimestral/anual",
+      "description": "Como usuario, quero uma tela/resumo de revisao trimestral e anual (financeiro, tarefas concluidas, saude, decisoes do diario) pra parar e olhar o quadro geral.",
+      "acceptanceCriteria": [
+        "Endpoint que agrega dados existentes (gastos, tarefas concluidas, saude, decisoes da US-C2) por trimestre/ano",
+        "Tela simples de revisao acessivel pela UI",
+        "Testes cobrindo a agregacao"
+      ],
+      "priority": 3, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C4",
+      "title": "Notificacao agrupada (batching)",
+      "description": "Como usuario, nao quero receber 5 notificacoes separadas em 2 minutos - quero que notificacoes proximas no tempo sejam agrupadas numa so.",
+      "acceptanceCriteria": [
+        "Verificar primeiro: ja existe 'modo silencioso configuravel' (TODO #72) - integrar com esse mecanismo, nao duplicar",
+        "Notificacoes nao-urgentes geradas numa janela curta (ex: 2 min) sao agrupadas numa unica mensagem antes de enviar (push/Telegram)",
+        "Notificacoes urgentes continuam indo na hora, sem agrupar",
+        "Testes cobrindo o agrupamento"
+      ],
+      "priority": 4, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C5",
+      "title": "Priorizacao de contato (quem responder primeiro)",
+      "description": "Como usuario, quero que o painel sugira com quem eu deveria falar primeiro entre as esperas pendentes (TODO #76 ja rastreia esperas), baseado em urgencia/tempo parado.",
+      "acceptanceCriteria": [
+        "Reaproveita a tabela/logica de esperas pendentes ja existente (TODO #76) - nao cria sistema novo de contatos",
+        "Ordena/sugere prioridade baseado em tempo parado e alguma marcacao de importancia ja existente ou nova coluna simples",
+        "Testes cobrindo a priorizacao"
+      ],
+      "priority": 5, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C6",
+      "title": "Brain dump (despejo rapido de pensamentos)",
+      "description": "Como usuario, quero um lugar pra jogar pensamentos soltos rapido, sem precisar classificar em tarefa/nota/gasto na hora - classificar depois com calma.",
+      "acceptanceCriteria": [
+        "Nova tabela brain_dump (texto, timestamp, processado bool)",
+        "Endpoint de captura rapida (texto puro, sem classificacao obrigatoria na hora)",
+        "Tela/lista de itens 'pra processar depois' com acao de converter em tarefa/nota/gasto (reaproveitando rotas ja existentes de cada tipo)",
+        "Testes cobrindo captura e conversao"
+      ],
+      "priority": 6, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C7",
+      "title": "Sugestao por nivel de energia",
+      "description": "Como usuario, quero que o painel sugira tarefas adequadas ao meu nivel de energia atual (baixa/media/alta), nao so por prazo.",
+      "acceptanceCriteria": [
+        "Campo simples de energia atual (input rapido na UI, ex: 3 botoes baixa/media/alta)",
+        "Reaproveitar tarefas ja marcadas com esforco/dificuldade se esse campo ja existir no schema; se nao existir, adicionar coluna simples 'esforco' em tasks",
+        "Sugestao filtra tarefas compativeis com a energia informada",
+        "Testes cobrindo a logica de sugestao"
+      ],
+      "priority": 7, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C8",
+      "title": "Captura de gasto por foto de nota fiscal - OCR via API da Anthropic",
+      "description": "Como usuario, quero tirar foto de uma nota fiscal e o app extrair valor/estabelecimento automaticamente, usando a API de visao da Anthropic (decisao ja tomada com o Alex - reaproveitar claude_client.py, sem OCR local).",
+      "acceptanceCriteria": [
+        "Endpoint que recebe imagem (upload ou base64) e usa claude_client.py (modelo com suporte a visao) pra extrair valor, estabelecimento, data da nota fiscal",
+        "Se sem internet no momento, a foto entra na fila offline (fila-offline.js) e processa quando reconectar",
+        "Testes cobrindo o endpoint (mockar a chamada de visao da API pra nao gastar credito real)",
+        "Registra uso de API na tabela uso_api_ia se o Grupo A (US-A5) ja estiver integrado; senao documentar TODO claro"
+      ],
+      "priority": 8, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C9",
+      "title": "Integrar extracao de nota fiscal com o fluxo de categorizacao de gasto",
+      "description": "Como usuario, depois que o valor/estabelecimento forem extraidos da nota (US-C8), quero que virem um gasto de verdade ja categorizado, usando o mesmo classificador/aprendizado de categoria ja existente (apelidos_gasto, correcao rapida da Fase 4).",
+      "acceptanceCriteria": [
+        "Resultado da extracao (US-C8) e passado pro fluxo existente de registro de gasto + categorizacao automatica",
+        "Usuario ve uma tela de confirmacao antes de salvar (nunca salva direto sem revisao, dado que OCR por IA pode errar valor)",
+        "Testes cobrindo o fluxo completo extracao -> confirmacao -> gasto salvo"
+      ],
+      "priority": 9, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C10",
+      "title": "Alerta de preco de assinatura",
+      "description": "Como usuario, quero ser avisado se uma assinatura recorrente (ja detectada, TODO #90/#95) subir de preco.",
+      "acceptanceCriteria": [
+        "Reaproveita a deteccao de recorrencia/cobranca generica ja existente - nao duplica",
+        "Compara valor da nova ocorrencia com a media/ultima ocorrencia da mesma assinatura; se subir mais que um limiar (ex: 5%), notifica",
+        "Testes cobrindo o alerta de aumento de preco"
+      ],
+      "priority": 10, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C11",
+      "title": "Resumo falado da manha",
+      "description": "Como usuario, quero ouvir (TTS, ja existe no projeto) um resumo curto da manha (agenda do dia, gastos de ontem, o que ficou pendente).",
+      "acceptanceCriteria": [
+        "Endpoint que monta um texto curto de resumo matinal a partir de dados ja existentes (agenda, gastos, tarefas)",
+        "Reaproveita o TTS ja implementado (TODO #75) pra gerar audio",
+        "Testes cobrindo a montagem do texto do resumo"
+      ],
+      "priority": 11, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C12",
+      "title": "Patrimonio pessoal (visao consolidada)",
+      "description": "Como usuario, quero ver meu patrimonio total consolidado (saldo em conta, dividas, valor de bens se cadastrados) num so lugar.",
+      "acceptanceCriteria": [
+        "Endpoint que soma saldos bancarios ja existentes (bank_accounts) com quaisquer outros valores ja cadastrados no projeto",
+        "Tela simples de patrimonio consolidado",
+        "Se dado sensivel (saldo bancario), aplicar mesma regra de criptografia em repouso da Fase 4 se envolver nova coluna sensivel",
+        "Testes cobrindo o calculo"
+      ],
+      "priority": 12, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C13",
+      "title": "Deteccao de 'semana pesada'",
+      "description": "Como usuario, quero um aviso quando a semana que vem estiver sobrecarregada (muitos compromissos/tarefas), pra eu me planejar.",
+      "acceptanceCriteria": [
+        "Logica que conta compromissos/tarefas da proxima semana e compara com a media historica do usuario (reaproveitar aprendizado.py se fizer sentido - estatistica pura sobre o proprio historico)",
+        "Notifica com antecedencia (ex: domingo, junto do planejamento semanal ja existente TODO #15)",
+        "Testes cobrindo a deteccao"
+      ],
+      "priority": 13, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C14",
+      "title": "Manutencao veicular",
+      "description": "Como usuario, quero rastrear manutencao do carro (troca de oleo, revisao) com aviso por km/tempo.",
+      "acceptanceCriteria": [
+        "Nova tabela manutencoes_veiculo (tipo, data, km, proxima_em_km ou proxima_em_data)",
+        "CRUD + notificacao quando proximo do limite",
+        "Testes cobrindo CRUD e o alerta"
+      ],
+      "priority": 14, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C15",
+      "title": "Ideias de presente",
+      "description": "Como usuario, quero anotar ideias de presente pra pessoas especificas ao longo do ano, pra nao esquecer na hora de comprar.",
+      "acceptanceCriteria": [
+        "Nova tabela ideias_presente (pessoa, ideia, ocasiao opcional, comprado bool)",
+        "CRUD simples + chat tool de captura rapida",
+        "Testes cobrindo CRUD"
+      ],
+      "priority": 15, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C16",
+      "title": "Modo viagem",
+      "description": "Como usuario, quero um modo viagem que ajusta notificacoes (fuso horario, menos notificacao de rotina domestica) enquanto estou viajando.",
+      "acceptanceCriteria": [
+        "Toggle de modo viagem com data de inicio/fim opcional",
+        "Enquanto ativo, suprime notificacoes de rotina domestica (ex: lembretes de casa) e ajusta calculo de horario se fizer sentido",
+        "Testes cobrindo a supressao de notificacao no modo viagem"
+      ],
+      "priority": 16, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C17",
+      "title": "Alerta de gasto fora do padrao",
+      "description": "Como usuario, quero ser avisado quando um gasto individual for muito fora do padrao normal pra aquela categoria.",
+      "acceptanceCriteria": [
+        "Verificar primeiro: ja existe deteccao de 'gasto atipico por dia da semana' (TODO #70) - estender esse mecanismo pra tambem considerar desvio dentro da categoria, nao criar sistema paralelo",
+        "Notifica quando um gasto novo for X desvios-padrao acima da media da categoria (reaproveitar aprendizado.py)",
+        "Testes cobrindo o novo criterio de deteccao"
+      ],
+      "priority": 17, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C18",
+      "title": "Cofre de garantia (nota fiscal e garantia de produtos)",
+      "description": "Como usuario, quero guardar nota fiscal e prazo de garantia de produtos comprados, com aviso antes de vencer.",
+      "acceptanceCriteria": [
+        "Nova tabela garantias (produto, data_compra, prazo_garantia_meses, nota_fiscal_anexo opcional, notificado bool)",
+        "Pode reaproveitar o upload/anexo do fluxo de cotacao de PDF ja existente (TODO #34) se fizer sentido pro anexo da nota",
+        "Notificacao antes do vencimento da garantia",
+        "Testes cobrindo CRUD e o alerta"
+      ],
+      "priority": 18, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C19",
+      "title": "Modo visitante - mecanismo central de ocultar temporariamente",
+      "description": "Como usuario, quero um jeito rapido de esconder temporariamente telas sensiveis (financeiro, saude, diario de decisao) quando alguem mais estiver olhando o celular comigo.",
+      "acceptanceCriteria": [
+        "Toggle 'modo visitante' (estado em sessao/local, nao precisa persistir no banco) acessivel rapido na UI",
+        "Mecanismo generico de 'esconder secao X' que outras telas podem aplicar (a aplicacao em cada tela especifica e a US-C20, separada)",
+        "PIN/senha ja existente do app continua protegendo o toggle em si (nao deixa qualquer um desativar o modo visitante sem o PIN)",
+        "Testes cobrindo o toggle"
+      ],
+      "priority": 19, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C20",
+      "title": "Modo visitante - aplicar nas telas sensiveis",
+      "description": "Como usuario, quero que o modo visitante (US-C19) de fato esconda financeiro, saude e diario de decisao (US-C2) quando ativo.",
+      "acceptanceCriteria": [
+        "Aplica o mecanismo da US-C19 nas 3 telas: financeiro, saude, diario de decisao",
+        "Com modo visitante ativo, essas secoes mostram um estado neutro (ex: 'oculto no modo visitante') em vez do dado real",
+        "Testes cobrindo que o dado sensivel nao aparece no DOM/resposta quando modo visitante ativo"
+      ],
+      "priority": 20, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C21",
+      "title": "Previa da noite anterior",
+      "description": "Como usuario, quero ver na manha um resumo de como foi a noite anterior (sono, hora que dormiu, se bateu meta de agua/etc), reaproveitando dados de saude ja existentes.",
+      "acceptanceCriteria": [
+        "Endpoint que monta resumo da noite anterior a partir de dados ja existentes (sono, hidratacao, medicamentos)",
+        "Card simples na tela inicial/hoje",
+        "Testes cobrindo a montagem do resumo"
+      ],
+      "priority": 21, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-C22",
+      "title": "Sinal de sobrecarga",
+      "description": "Como usuario, quero um sinal visivel quando varios indicadores (tarefas atrasadas, sono ruim, semana pesada) se combinam, indicando que estou sobrecarregado.",
+      "acceptanceCriteria": [
+        "Combina sinais ja existentes/novos desta fase (tarefas atrasadas, correlacao sono x produtividade ja existente TODO #126, semana pesada US-C13) numa pontuacao simples",
+        "Card/aviso visivel na tela inicial quando a pontuacao passar de um limiar",
+        "Testes cobrindo o calculo da pontuacao combinada"
+      ],
+      "priority": 22, "passes": false, "notes": ""
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase5/grupo-a-nucleo-intent",
+  "description": "Fase 5 Grupo A - Nucleo de intent: classificador de voz/texto -> acao, aprendizado local, unificacao com correcao da Fase 4, visor e teto de custo de API",
+  "userStories": [
+    {
+      "id": "US-A1",
+      "title": "Contrato/interface do classificador de intent",
+      "description": "Como desenvolvedor, preciso de um contrato estavel (formato de entrada/saida, nomes de acao possiveis, endpoint) antes de implementar o classificador de verdade, pra o Grupo B poder comecar a navegacao por voz sem esperar o classificador inteiro.",
+      "acceptanceCriteria": [
+        "Documento novo docs/INTENT.md descreve: lista fechada de 'acoes' possiveis (ex: registrar_tarefa, registrar_gasto, registrar_checkin, navegar_tela, consultar, corrigir_ultimo, desconhecido), formato JSON de entrada (texto livre + client_id opcional) e de saida (acao, confianca 0-1, parametros extraidos, precisa_confirmacao bool)",
+        "Endpoint POST /api/intent/classificar criado em app.py, so retorna o contrato acima (pode ter implementacao stub/placeholder nesta historia, sem chamar API ainda)",
+        "Testes cobrindo o contrato do endpoint (formato de resposta, 400 em entrada vazia)",
+        "python -m pyflakes app.py sem novos warnings",
+        ".venv/bin/python -m unittest discover -s tests passa 100%"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-A2",
+      "title": "Classificador de intent via API da Anthropic",
+      "description": "Como usuario, quero que o endpoint /api/intent/classificar de fato classifique meu texto/comando de voz numa acao concreta usando a IA ja integrada (claude_client.py), reaproveitando o padrao de tool-calling ja usado no chat.",
+      "acceptanceCriteria": [
+        "Implementa de verdade o endpoint criado na US-A1 usando claude_client.py (reaproveitar client Anthropic ja existente, HAIKU pra classificacao simples por ser mais barato)",
+        "Cobre pelo menos os casos: registrar tarefa, registrar gasto, registrar check-in, navegar pra uma tela, pergunta/consulta, correcao do ultimo item",
+        "Se a confianca for baixa, retorna precisa_confirmacao=true ao inves de executar direto",
+        "Testes com pelo menos 15 frases de exemplo reais cobrindo os tipos de acao (pode mockar a chamada da API pra nao gastar credito de verdade nos testes)",
+        ".venv/bin/python -m unittest discover -s tests passa 100%"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-A3",
+      "title": "Banco local de padrao aprendido (camada robo antes da IA)",
+      "description": "Como usuario, quero que comandos repetidos e parecidos com um que ja dei antes sejam resolvidos sem gastar chamada de API, reaproveitando o padrao ja existente de aprendizado.py (estatistica pura sobre o proprio historico, nunca inventa).",
+      "acceptanceCriteria": [
+        "Nova tabela padroes_intent_aprendidos (texto normalizado ou hash, acao resultante, parametros, quantas vezes confirmado, ultima vez usado)",
+        "Antes de chamar a API (US-A2), tenta resolver localmente por match de padrao aprendido com confianca alta; so cai pra API se nao achar padrao confiavel",
+        "Segue o mesmo principio de aprendizado.py: nunca declara 'aprendi isso' pro usuario, so aplica silenciosamente",
+        "Testes: padrao repetido 1x nao aplica ainda (limiar minimo), repetido N vezes aplica sem chamar API (mock garante que a API nao foi chamada)",
+        ".venv/bin/python -m unittest discover -s tests passa 100%"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-A4",
+      "title": "Unificar com a correcao rapida da Fase 4",
+      "description": "Como usuario, quando eu corrijo uma classificacao errada (mecanismo ja existente da Fase 4, tabela correcoes_classificacao), essa correcao deve virar um padrao de alta confianca no banco da US-A3, pra IA/robo nao repetir o mesmo erro num comando parecido no futuro.",
+      "acceptanceCriteria": [
+        "Toda vez que registrar_correcao_classificacao (db.py, ja existe da Fase 4) for chamado, tambem grava/atualiza um padrao em padroes_intent_aprendidos com confianca alta",
+        "Teste: corrigir uma classificacao e depois mandar um texto parecido resolve direto pelo padrao aprendido (sem chamar a API)",
+        ".venv/bin/python -m unittest discover -s tests passa 100%"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-A5",
+      "title": "Visor de custo de API no painel financeiro",
+      "description": "Como usuario, quero ver quanto estou gastando com a API da Anthropic (classificador + chat) integrado ao painel financeiro, pra acompanhar o custo real de usar o assistente.",
+      "acceptanceCriteria": [
+        "Nova tabela uso_api_ia registra timestamp, endpoint/feature, modelo usado, tokens entrada/saida estimados, custo estimado em R$ (ou USD, documentar qual)",
+        "Toda chamada a claude_client.py relevante (chat + classificador) registra uma linha",
+        "Novo card/secao na aba financeira mostrando gasto de API do mes atual e dos ultimos 30 dias",
+        "Endpoint GET /api/ia/custo retorna o resumo",
+        "Testes cobrindo o calculo de custo e o endpoint",
+        ".venv/bin/python -m unittest discover -s tests passa 100%"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-A6",
+      "title": "Teto de gasto configuravel com aviso antes de estourar",
+      "description": "Como usuario, quero definir um teto mensal de gasto com a API e ser avisado antes de estourar, pra nao ter surpresa na fatura.",
+      "acceptanceCriteria": [
+        "Novo campo de configuracao (tabela configuracoes) pra teto mensal de gasto com IA, editavel via UI",
+        "Aviso (mesmo canal de notificacao ja usado no projeto - push/Telegram) quando passar de 80% do teto no mes",
+        "Se passar de 100% do teto, classificador de intent passa a preferir resolver so via padrao aprendido (US-A3), evitando novas chamadas de API ate o mes virar - documentar esse comportamento claramente pro usuario na UI",
+        "Testes cobrindo os limiares de 80% e 100%",
+        ".venv/bin/python -m unittest discover -s tests passa 100%"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

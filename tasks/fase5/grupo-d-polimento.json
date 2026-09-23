@@ -1,0 +1,43 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase5/grupo-d-polimento",
+  "description": "Fase 5 Grupo D - Polimento visual. So roda depois que A, B e C estiverem integrados na main, pra nao gerar conflito de CSS/HTML em cima de telas que ainda estao sendo criadas.",
+  "userStories": [
+    {
+      "id": "US-D1",
+      "title": "Animacao e transicao nas telas de captura/rotina/financeiro (Fase 1-4 + novidades da Fase 5)",
+      "description": "Como usuario, quero transicoes suaves nas telas principais e nas novas telas da Fase 5, seguindo o padrao visual ja estabelecido (Liquid Glass, glow LED, sombra - ja implementados em rodadas anteriores).",
+      "acceptanceCriteria": [
+        "Seguir o padrao visual JA EXISTENTE (cor/fonte/identidade ja decididos - nao mudar, so aplicar) - conferir style.css atual antes de escrever qualquer CSS novo",
+        "Transicoes suaves ao trocar de tela/secao nas areas de captura, rotina, financeiro e nas telas novas da Fase 5 (Grupo C)",
+        "Testar visualmente no navegador (usar a skill 'run' se disponivel) antes de considerar concluido",
+        "Sem regressao nas telas ja existentes - rodar suite de testes completa"
+      ],
+      "priority": 1, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-D2",
+      "title": "Animacao e transicao na navegacao por voz e widget de tela bloqueada",
+      "description": "Como usuario, quero que a nova UI de voz (Grupo B) e o widget (US-C1) tenham o mesmo acabamento visual do resto do app.",
+      "acceptanceCriteria": [
+        "Estado de escuta/processando do microfone (US-B1) com feedback visual consistente com o padrao ja existente",
+        "Widget de tela bloqueada (US-C1) com visual condizente (dentro das limitacoes do proprio widget/Scriptable)",
+        "Testar visualmente antes de concluir",
+        "Sem regressao - suite de testes completa"
+      ],
+      "priority": 2, "passes": false, "notes": ""
+    },
+    {
+      "id": "US-D3",
+      "title": "Ajuste fino de espacamento/hierarquia visual geral e micro-interacao de confirmacao/salvamento",
+      "description": "Como usuario, quero que as telas novas da Fase 5 tenham a mesma qualidade de acabamento (espacamento, hierarquia, feedback ao salvar) das telas antigas.",
+      "acceptanceCriteria": [
+        "Revisar espacamento/hierarquia visual das telas novas do Grupo C (brain dump, diario de decisao, revisao trimestral, etc) comparando com telas antigas ja polidas",
+        "Micro-interacao de confirmacao (ex: check/animacao curta) ao salvar em qualquer formulario novo, reaproveitando o padrao ja usado em formularios antigos",
+        "Testar visualmente antes de concluir",
+        "Sem regressao - suite de testes completa"
+      ],
+      "priority": 3, "passes": false, "notes": ""
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "project": "painel-pessoal-tdah",
+  "branchName": "fase5/grupo-b-voz-offline",
+  "description": "Fase 5 Grupo B - Navegacao por voz (best-effort, PWA/iOS Safari), captura via Atalhos/Siri, fallback offline pro comando de voz. Depende do contrato US-A1 do Grupo A (branch fase5/grupo-a-nucleo-intent) estar pronto.",
+  "userStories": [
+    {
+      "id": "US-B1",
+      "title": "Roteamento basico de comando de voz para acao na interface",
+      "description": "Como usuario, quero falar um comando (ex: 'abrir financeiro', 'registrar gasto de 50 reais no mercado') e o app navegar/executar via Web Speech API, com fallback claro se o navegador nao suportar (conhecido: instavel em PWA standalone no iOS Safari).",
+      "acceptanceCriteria": [
+        "Botao de microfone na UI que usa webkitSpeechRecognition/SpeechRecognition quando window.SpeechRecognition existir; se nao existir, mostra mensagem clara 'reconhecimento de voz nao suportado neste navegador, use Atalhos da Siri' (ver US-B4) em vez de falhar silenciosamente",
+        "Texto reconhecido e enviado pro endpoint /api/intent/classificar (contrato da US-A1) e a acao classificada e executada/navegada",
+        "Testes JS (node --test) cobrindo o parsing da resposta do classificador e o fallback de nao-suporte (mockar SpeechRecognition ausente)",
+        "Verificar manualmente no navegador disponivel no ambiente (mesmo que so em desktop Chrome, documentar que iOS Safari em PWA instalado precisa validacao manual do proprio Alex depois, ja que o ambiente de execucao nao tem iPhone real)"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-B2",
+      "title": "Confirmacao por voz antes de acao destrutiva",
+      "description": "Como usuario, nao quero que um comando de voz mal entendido apague ou altere algo importante sem confirmacao.",
+      "acceptanceCriteria": [
+        "Acoes marcadas como destrutivas (deletar tarefa, deletar gasto, etc） exigem uma etapa de confirmacao falada ou tocada antes de executar, mesmo com confianca alta do classificador",
+        "precisa_confirmacao=true do contrato (US-A1) e sempre respeitado - nunca executa acao destrutiva direto",
+        "Testes cobrindo: acao destrutiva de alta confianca ainda pede confirmacao; acao nao-destrutiva de alta confianca nao pede"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-B3",
+      "title": "Dialogo de multiplos turnos pra corrigir comando mal entendido",
+      "description": "Como usuario, se o comando de voz for ambiguo ou a transcricao vier errada, quero poder corrigir num segundo turno (\"não, quis dizer X\") em vez de repetir tudo do zero.",
+      "acceptanceCriteria": [
+        "Quando confianca do classificador for baixa, a UI oferece um estado de 'confirmar ou corrigir' guardando o contexto da tentativa anterior",
+        "Uma correcao nesse fluxo tambem alimenta o banco de padroes aprendidos (US-A3/US-A4 do Grupo A), se aquele codigo ja estiver integrado; senao, documentar como TODO claro no codigo e no progress.txt, sem duplicar a logica",
+        "Testes cobrindo o fluxo de 2 turnos"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-B4",
+      "title": "Captura via Atalhos/Siri (endpoint dedicado)",
+      "description": "Como usuario, quero capturar por voz via app Atalhos do iPhone (Siri), que ja e o canal mais confiavel de voz no iOS (o projeto ja tem precedente disso pra outras coisas - ver /api/atalho/* existentes), chamando o classificador de intent.",
+      "acceptanceCriteria": [
+        "Novo endpoint /api/atalho/comando-voz (mesmo padrao de autenticacao dos /api/atalho/* ja existentes) que recebe texto (Siri ja transcreve) e chama o classificador (US-A1/US-A2)",
+        "Resposta em texto curto adequado pra Siri falar de volta (ja existe TTS no projeto - reaproveitar padrao)",
+        "Documentar no README ou docs/ como configurar o Atalho no iPhone (mesmo estilo dos atalhos ja documentados)",
+        "Testes cobrindo o endpoint"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-B5",
+      "title": "Fallback offline: guardar comando de voz na fila offline existente",
+      "description": "Como usuario, se eu estiver sem internet quando falar um comando, quero que ele seja guardado (reaproveitando a fila offline da Fase 4, static/js/fila-offline.js) e sincronizado quando a conexao voltar, igual ja acontece com tarefa/gasto/check-in.",
+      "acceptanceCriteria": [
+        "Comando de voz (texto ja transcrito pelo navegador, offline nao precisa de rede pro reconhecimento de fala em si) usa a mesma fila IndexedDB da Fase 4 quando fetch falhar",
+        "Sincroniza automaticamente ao reconectar, mesmo padrao ja implementado",
+        "Testes JS cobrindo esse caso (reaproveitar tests/js/fila_offline.test.js como base)"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-B6",
+      "title": "Classificacao local via Neural Engine (avaliar viabilidade)",
+      "description": "Como usuario, quero que comandos simples funcionem totalmente offline sem depender de padrao ja aprendido nem de rede, usando processamento local no dispositivo (ex: Core ML no iOS). Historia explicitamente marcada como mais arriscada pelo briefing.",
+      "acceptanceCriteria": [
+        "Avaliar viabilidade real dentro do escopo de uma PWA (nao um app nativo) - Core ML/Neural Engine normalmente exige app nativo ou WebNN (suporte limitadissimo em 2026)",
+        "Se inviavel dentro do prazo/escopo de uma sessao: marcar blocked no prd.json com o motivo tecnico documentado e a pergunta especifica pro Alex (ex: 'topa um app nativo minimo so pra isso, ou preferimos so IA remota + padrao aprendido local como ja temos nas US-A3/US-B5?'), sem gastar mais tentativas nisso",
+        "Se viavel de alguma forma simplificada (ex: um classificador estatistico bem simples tipo bag-of-words local em JS, sem ser de fato 'Neural Engine'), implementar essa versao reduzida e deixar claro na documentacao que nao e Core ML de verdade"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
