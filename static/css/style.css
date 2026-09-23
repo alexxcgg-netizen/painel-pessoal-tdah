@@ -2098,6 +2098,67 @@ li.item.saindo {
   padding-bottom: 0.55rem;
 }
 
+/* Fase 6 US-F5: Garantia de Produtos mais interativa - chip de status
+   (reusa .pessoa-titulo-linha, US-F3, pro layout titulo+chip) e barra de
+   "quanto do prazo ja passou" (mesmo espirito de .limite-cartao-*/
+   .pessoa-barra-*). Sem campo novo no backend - data_compra/vencimento/
+   dias_ate ja vinham prontos de /api/garantias. */
+.garantia-chip {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.garantia-chip-ok {
+  color: var(--cor-painel);
+  border-color: color-mix(in srgb, var(--cor-painel) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-painel) 14%, transparent);
+}
+
+.garantia-chip-alerta {
+  color: var(--cor-bancos);
+  border-color: color-mix(in srgb, var(--cor-bancos) 55%, var(--border));
+  background: color-mix(in srgb, var(--cor-bancos) 16%, transparent);
+}
+
+.garantia-chip-vencida {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.garantia-barra-trilho {
+  margin-top: 0.4rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  max-width: 260px;
+}
+
+.garantia-barra-preenchido {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cor-painel);
+  transition: width 0.35s var(--ease-suave, ease);
+}
+
+.garantia-barra-alerta {
+  background: var(--cor-bancos);
+}
+
+.garantia-barra-vencida {
+  background: var(--danger);
+}
+
 .voo-diario {
   margin: 0.4rem 0 0;
   padding-left: 0.6rem;

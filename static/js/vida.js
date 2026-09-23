@@ -1134,7 +1134,26 @@ ligarForm("#manutencao-form", "#manutencao-btn", "Adicionar", () => {
   return { tipo, item, intervalo_meses: meses, ultima_vez: $("#manutencao-ultima").value || null };
 }, "/api/manutencoes", loadManutencoes);
 
-// ---- Fase 5: garantia de produtos ----
+// ---- Fase 5 + Fase 6 (US-F5): garantia de produtos ----
+
+// Chip curto de status - a mesma logica de "<=15 dias = atencao" que ja
+// existia (classe item-atencao), so com um rotulo mais claro que "vence em
+// (X dias)" no meio da frase.
+function garantiaChip(g) {
+  if (g.dias_ate < 0) return { texto: `venceu ha ${-g.dias_ate}d`, classe: "vencida" };
+  if (g.dias_ate === 0) return { texto: "vence hoje", classe: "vencida" };
+  if (g.dias_ate <= 15) return { texto: `vence em ${g.dias_ate}d`, classe: "alerta" };
+  return { texto: `vence em ${g.dias_ate}d`, classe: "ok" };
+}
+
+// Fracao do prazo de garantia ja decorrida (0..1) - so matematica de data
+// local, sem endpoint novo (data_compra/vencimento ja vinham no /api/garantias).
+function garantiaFracaoDecorrida(g) {
+  const compra = new Date(`${g.data_compra}T00:00:00`).getTime();
+  const vence = new Date(`${g.vencimento}T00:00:00`).getTime();
+  if (!(vence > compra)) return 1;
+  return Math.min(1, Math.max(0, (Date.now() - compra) / (vence - compra)));
+}
 
 async function loadGarantias() {
   const itens = await apiFetch("/api/garantias");
@@ -1142,19 +1161,43 @@ async function loadGarantias() {
   const lista = $("#lista-garantias");
   lista.innerHTML = "";
   $("#garantias-vazio").hidden = itens.length > 0;
-  itens.forEach((g) => {
-    const quando =
-      g.dias_ate < 0
-        ? `venceu ha ${-g.dias_ate} dia(s)`
-        : g.dias_ate === 0
-        ? "vence hoje"
-        : `vence em ${fmtDataBr(g.vencimento)} (${g.dias_ate} dias)`;
-    lista.appendChild(
-      itemSimples(g.produto, [`${g.prazo_garantia_meses} mes(es) de garantia`, quando], [
-        (el) => botaoApagar(`/api/garantias/${g.id}`, el),
-      ], g.dias_ate <= 15 ? "item-atencao" : "")
-    );
-  });
+  // O que vence mais logo primeiro (inclusive ja vencido) - "destaque do que
+  // vence logo" e o pedido explicito da US-F5, a ordem por data de compra
+  // que a API devolve nao ajuda a bater o olho nisso.
+  itens
+    .slice()
+    .sort((a, b) => a.dias_ate - b.dias_ate)
+    .forEach((g) => {
+      const li = criarEl("li", "item garantia-item" + (g.dias_ate <= 15 ? " item-atencao" : ""));
+      const linha = criarEl("div", "item-linha");
+
+      const wrap = criarEl("div");
+      const tituloLinha = criarEl("div", "pessoa-titulo-linha");
+      tituloLinha.appendChild(criarEl("span", "item-titulo", g.produto));
+      const chip = garantiaChip(g);
+      tituloLinha.appendChild(criarEl("span", `garantia-chip garantia-chip-${chip.classe}`, chip.texto));
+      wrap.appendChild(tituloLinha);
+      wrap.appendChild(
+        criarEl(
+          "span",
+          "item-quando",
+          `${g.prazo_garantia_meses} mes(es) - comprado em ${fmtDataBr(g.data_compra)}, vence ${fmtDataBr(g.vencimento)}`
+        )
+      );
+      const trilho = criarEl("div", "garantia-barra-trilho");
+      const preenchido = criarEl("div", `garantia-barra-preenchido garantia-barra-${chip.classe}`);
+      preenchido.style.width = `${Math.round(garantiaFracaoDecorrida(g) * 100)}%`;
+      trilho.appendChild(preenchido);
+      wrap.appendChild(trilho);
+      linha.appendChild(wrap);
+
+      const acoes = criarEl("div", "item-acoes");
+      acoes.appendChild(botaoApagar(`/api/garantias/${g.id}`, li));
+      linha.appendChild(acoes);
+
+      li.appendChild(linha);
+      lista.appendChild(li);
+    });
 }
 
 $("#garantia-form").addEventListener("submit", async (e) => {
