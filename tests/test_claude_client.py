@@ -7,6 +7,7 @@ from unittest.mock import patch
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
 import claude_client
+import db
 
 
 def _resp(content, stop_reason="end_turn", model=claude_client.SONNET, in_tok=100, out_tok=20):
@@ -116,6 +117,29 @@ class ChatLoopTestCase(unittest.TestCase):
         nomes = [t["name"] for t in claude_client.CHAT_TOOLS]
         self.assertIn("registrar_item_cotacao", nomes)
         self.assertIn("comparar_cotacao", nomes)
+
+
+class SystemPromptConteudoTestCase(unittest.TestCase):
+    """Fase 6 (US-E10/US-E11): confere REGRAS presentes no texto do system
+    prompt do chat - sem chamar a API real (so inspeciona o `system=` que
+    seria mandado pro Claude)."""
+
+    def _system_prompt_enviado(self, memorias=None):
+        with patch.object(
+            claude_client.client.messages, "create", return_value=_resp([_text_block("ok")])
+        ) as mock_create:
+            claude_client.chat([{"role": "user", "content": "oi"}], "contexto", memorias or [], {})
+        return mock_create.call_args.kwargs["system"]
+
+    def test_memorias_fora_do_painel_chegam_no_prompt(self):
+        # US-E10: "Fora do painel" respeitado no prompt - os textos dos 3
+        # grupos fixos (aqui simulados como memorias comuns, exatamente
+        # como list_memorias devolve pro chat) precisam aparecer no
+        # system prompt final, sem filtro/perda nenhuma.
+        memorias = list(db.MEMORIAS_INICIAIS_FASE6["fora_do_painel"])
+        prompt = self._system_prompt_enviado(memorias)
+        for texto in memorias:
+            self.assertIn(texto, prompt)
 
 
 class ExtrairItemCotacaoPdfTestCase(unittest.TestCase):

@@ -164,10 +164,16 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- Fase 6 (US-E10): `categoria` classifica as memorias fixas e editaveis
+        -- de "O que eu lembro sobre voce" (sua_rotina/seus_planos/fora_do_painel -
+        -- ver MEMORIAS_INICIAIS_FASE6/_seed_memorias_categorizadas_fase6). NULL
+        -- continua sendo o caso de sempre: fato solto capturado automaticamente
+        -- (registrar_memoria/parsed["memoria"]), sem grupo fixo.
         CREATE TABLE IF NOT EXISTS memorias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             texto TEXT NOT NULL,
             source_text TEXT,
+            categoria TEXT,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
@@ -650,11 +656,16 @@ def init_db():
     _garantir_coluna(conn, "manutencoes", "km", "REAL")
     _garantir_coluna(conn, "manutencoes", "proxima_em_km", "REAL")
     _garantir_coluna(conn, "manutencoes", "proxima_em_data", "TEXT")
+    # Fase 6 (US-E10): "O que eu lembro sobre voce" ganha grupos fixos
+    # (sua_rotina/seus_planos/fora_do_painel) - coluna nova em bancos que ja
+    # tem `memorias` de antes.
+    _garantir_coluna(conn, "memorias", "categoria", "TEXT")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
     _migrar_criptografia_campos_sensiveis(conn)
     _migrar_manutencoes_unificadas(conn)
+    _seed_memorias_categorizadas_fase6(conn)
     conn.close()
 
 
@@ -713,6 +724,58 @@ PERFIL_INICIAL = [
     "E piloto de aviao.",
     "Tem uma construtora - constroi predios e casas.",
 ]
+
+
+# Fase 6 (US-E10): texto inicial de "O que eu lembro sobre voce" - repositorio
+# privado (confirmado pelo Alex), pode ficar no codigo como seed. Cada grupo e
+# uma categoria de `memorias` (coluna `categoria`); ver _seed_memorias_categorizadas_fase6
+# pra regra de idempotencia (so semeia categoria vazia, nunca sobrescreve edicao).
+MEMORIAS_INICIAIS_FASE6 = {
+    "sua_rotina": [
+        "Horario de trabalho variavel - pode comecar antes das 7h em dias cheios, ou seguir horario "
+        "comum (7h-9h) em dias mais tranquilos. Nao tratar como fixo.",
+        "Treino sem horario fixo preferido - sugerir de forma flexivel, nao travado num periodo do dia.",
+        "Sono ainda irregular, em processo de ajuste - esse e justamente um dos motivos de construir o "
+        "painel. Quando o padrao de sono vier ruim em periodo de viagem/trabalho intenso (voo, semana "
+        "pesada), ajustar a sugestao dos dias seguintes de acordo (tarefa mais leve primeiro).",
+    ],
+    "seus_planos": [
+        "Expansao da empresa (construtora): acompanhar como projeto de alto nivel (nome, etapa atual, "
+        "marco), sem numero financeiro - valor e detalhe de caixa ficam so no painel financeiro-construtora, "
+        "nunca aqui.",
+        "Ao avaliar 'vale a pena' em decisao financeira grande: contexto conhecido, nao regra automatica - "
+        "historicamente prefere financiar a taxa baixa e manter capital girando no negocio, em vez de "
+        "imobilizar em compra a vista, mas a analise continua caso a caso com os numeros reais, sem assumir "
+        "financiamento como resposta padrao.",
+    ],
+    "fora_do_painel": [
+        "Compra de carro: so decisao pontual, nao vira projeto/meta rastreado.",
+        "Vida amorosa/relacionamento: sem registro de data ou gesto automatizado.",
+    ],
+}
+
+CATEGORIAS_MEMORIA = tuple(MEMORIAS_INICIAIS_FASE6.keys())
+
+
+def _seed_memorias_categorizadas_fase6(conn):
+    """Semeia MEMORIAS_INICIAIS_FASE6, uma categoria de cada vez - so insere
+    numa categoria que ainda esta vazia (idempotente: roda em todo init_db,
+    mas nunca duplica nem sobrescreve edicao/remocao que o Alex ja tenha
+    feito - se ele apagar um item e a categoria ficar vazia nao-intencionalmente,
+    o comportamento e semear de novo, igual a primeira vez; isso e o que o
+    criterio "categoria vazia" literalmente decide)."""
+    for categoria, itens in MEMORIAS_INICIAIS_FASE6.items():
+        ja_tem = conn.execute(
+            "SELECT 1 FROM memorias WHERE categoria = ? LIMIT 1", (categoria,)
+        ).fetchone()
+        if ja_tem:
+            continue
+        for texto in itens:
+            conn.execute(
+                "INSERT INTO memorias (texto, source_text, categoria) VALUES (?, ?, ?)",
+                (texto, "seed-fase6", categoria),
+            )
+    conn.commit()
 
 
 def _seed_perfil_inicial(conn):
@@ -1078,9 +1141,9 @@ def total_cost_usd(conn) -> float:
     return row["total"]
 
 
-def create_memoria(conn, texto: str, source_text: str | None = None) -> int:
+def create_memoria(conn, texto: str, source_text: str | None = None, categoria: str | None = None) -> int:
     cur = conn.execute(
-        "INSERT INTO memorias (texto, source_text) VALUES (?, ?)", (texto, source_text)
+        "INSERT INTO memorias (texto, source_text, categoria) VALUES (?, ?, ?)", (texto, source_text, categoria)
     )
     conn.commit()
     return cur.lastrowid
@@ -1093,9 +1156,36 @@ def list_memorias(conn, limit: int = 30) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def update_memoria(conn, memoria_id: int, texto: str) -> bool:
+    """Edicao no lugar do texto de uma memoria (Fase 6, US-E10) - so o texto
+    muda, categoria/source_text ficam como estavam."""
+    cur = conn.execute("UPDATE memorias SET texto = ? WHERE id = ?", (texto, memoria_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
 def delete_memoria(conn, memoria_id: int):
     conn.execute("DELETE FROM memorias WHERE id = ?", (memoria_id,))
     conn.commit()
+
+
+def contexto_memorias_categorizadas(conn) -> dict[str, list[dict]]:
+    """Fase 6 (US-E10): funcao unica que devolve as memorias fixas agrupadas
+    por categoria (sua_rotina/seus_planos/fora_do_painel), pro prompt do
+    assistente e pra caixa "Com a sua rotina em mente" (US-E4/E7) - cada
+    grupo em ordem de criacao (os itens do seed primeiro, depois o que o
+    Alex foi adicionando)."""
+    resultado = {categoria: [] for categoria in CATEGORIAS_MEMORIA}
+    rows = conn.execute(
+        "SELECT * FROM memorias WHERE categoria IN ({}) ORDER BY criado_em ASC".format(
+            ",".join("?" for _ in CATEGORIAS_MEMORIA)
+        ),
+        CATEGORIAS_MEMORIA,
+    ).fetchall()
+    for row in rows:
+        item = dict(row)
+        resultado.setdefault(item["categoria"], []).append(item)
+    return resultado
 
 
 def create_nota(

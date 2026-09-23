@@ -1528,6 +1528,37 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(self.client.get("/api/memorias").get_json(), [])
 
+    def test_criar_memoria_com_e_sem_categoria(self):
+        # sem categoria (generica, mesmo caminho que a captura ja usava)
+        r = self.client.post("/api/memorias", json={"texto": "gosta de acordar cedo"})
+        self.assertEqual(r.status_code, 201)
+        itens = self.client.get("/api/memorias").get_json()
+        self.assertEqual(itens[0]["texto"], "gosta de acordar cedo")
+        self.assertIsNone(itens[0]["categoria"])
+
+        # com categoria valida (US-E10, um dos 3 grupos fixos)
+        r2 = self.client.post("/api/memorias", json={"texto": "corre 3x por semana", "categoria": "sua_rotina"})
+        self.assertEqual(r2.status_code, 201)
+        criada = next(m for m in self.client.get("/api/memorias").get_json() if m["id"] == r2.get_json()["memoria_id"])
+        self.assertEqual(criada["categoria"], "sua_rotina")
+
+        for corpo in [{}, {"texto": " "}, {"texto": "x" * 501}, {"texto": "x", "categoria": "lixo"}]:
+            self.assertEqual(self.client.post("/api/memorias", json=corpo).status_code, 400, msg=repr(corpo))
+
+    def test_editar_memoria(self):
+        conn = db.get_db()
+        memoria_id = db.create_memoria(conn, "texto original", None, "sua_rotina")
+        conn.close()
+
+        r = self.client.put(f"/api/memorias/{memoria_id}", json={"texto": "texto editado"})
+        self.assertEqual(r.status_code, 200)
+        editada = next(m for m in self.client.get("/api/memorias").get_json() if m["id"] == memoria_id)
+        self.assertEqual(editada["texto"], "texto editado")
+        self.assertEqual(editada["categoria"], "sua_rotina")  # categoria preservada
+
+        self.assertEqual(self.client.put("/api/memorias/9999", json={"texto": "x"}).status_code, 404)
+        self.assertEqual(self.client.put(f"/api/memorias/{memoria_id}", json={"texto": " "}).status_code, 400)
+
     def test_resumo_do_dia_recebe_memorias(self):
         conn = db.get_db()
         db.create_memoria(conn, "trabalha home office as quartas")
@@ -1564,13 +1595,55 @@ class PainelTestCase(unittest.TestCase):
         try:
             db.init_db()
             conn = db.get_db()
-            memorias = db.list_memorias(conn)
+            # banco novo tambem semeia US-E10 (grupos fixos de "O que eu
+            # lembro sobre voce") junto do perfil - filtra so o do perfil
+            # pra este teste continuar isolado do outro seed.
+            memorias = [m for m in db.list_memorias(conn, limit=100) if m["source_text"] == "perfil-inicial"]
             self.assertEqual(len(memorias), len(db.PERFIL_INICIAL))
             self.assertTrue(all(m["source_text"] == "perfil-inicial" for m in memorias))
 
             # rodar de novo (ex: reiniciar o app) nao duplica
             db.init_db()
-            self.assertEqual(len(db.list_memorias(conn)), len(db.PERFIL_INICIAL))
+            memorias_2 = [m for m in db.list_memorias(conn, limit=100) if m["source_text"] == "perfil-inicial"]
+            self.assertEqual(len(memorias_2), len(db.PERFIL_INICIAL))
+            conn.close()
+        finally:
+            db.DB_PATH = caminho_original
+            tmp.cleanup()
+
+    def test_seed_memorias_categorizadas_roda_uma_vez_e_nao_sobrescreve_edicao(self):
+        """Fase 6 (US-E10): banco novo semeia os 3 grupos fixos
+        (sua_rotina/seus_planos/fora_do_painel) - idempotente (rodar
+        init_db de novo nao duplica) e NUNCA sobrescreve uma categoria que
+        o Alex ja editou (mesmo que ele tenha reduzido pra so 1 item, o
+        criterio e "categoria vazia", nao "categoria igual ao seed")."""
+        tmp = tempfile.TemporaryDirectory()
+        caminho_original = db.DB_PATH
+        db.DB_PATH = Path(tmp.name) / "painel_memorias.db"
+        db.garantir_banco_nao_producao()
+        try:
+            db.init_db()
+            conn = db.get_db()
+            contexto = db.contexto_memorias_categorizadas(conn)
+            self.assertEqual(set(contexto.keys()), set(db.CATEGORIAS_MEMORIA))
+            for categoria, itens in db.MEMORIAS_INICIAIS_FASE6.items():
+                self.assertEqual(len(contexto[categoria]), len(itens))
+                self.assertEqual([m["texto"] for m in contexto[categoria]], itens)
+
+            db.init_db()  # rodar de novo nao duplica
+            contexto_2 = db.contexto_memorias_categorizadas(conn)
+            self.assertEqual(
+                sum(len(v) for v in contexto_2.values()),
+                sum(len(v) for v in db.MEMORIAS_INICIAIS_FASE6.values()),
+            )
+
+            # Alex edita (apaga tudo de "seus_planos" e deixa 1 item so custom)
+            for m in contexto_2["seus_planos"]:
+                db.delete_memoria(conn, m["id"])
+            id_custom = db.create_memoria(conn, "meu item custom", None, "seus_planos")
+            db.init_db()  # nao pode sobrescrever - categoria nao esta mais vazia
+            contexto_3 = db.contexto_memorias_categorizadas(conn)
+            self.assertEqual([m["id"] for m in contexto_3["seus_planos"]], [id_custom])
             conn.close()
         finally:
             db.DB_PATH = caminho_original

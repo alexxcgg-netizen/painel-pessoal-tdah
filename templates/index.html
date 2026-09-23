@@ -467,12 +467,38 @@
         <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao do que o painel lembra"></button>
         <p class="dica-metas dica-texto" hidden>
           Fatos duraveis que aparecem quando voce escreve algo na captura - preferencias, rotinas,
-          coisas assim. Usados pro resumo e pro plano do dia. Pode apagar o que nao fizer sentido.
+          coisas assim. Usados pro resumo e pro plano do dia. Os tres grupos abaixo (Sua rotina, Seus
+          planos, Fora do painel) sao fixos e editaveis direto aqui - cada item pode ser editado ou
+          apagado, e da pra adicionar um novo em cada grupo. "Fora do painel" e respeitado nas
+          respostas: o assistente nao transforma isso em projeto/meta nem registra nada sozinho.
         </p>
       </div>
+
+      <h3>Sua rotina</h3>
+      <ul id="lista-memorias-sua_rotina" class="lista-memorias-grupo"></ul>
+      <form class="form-linha memoria-add-form" data-categoria="sua_rotina">
+        <input type="text" class="memoria-add-input" placeholder="Adicionar..." maxlength="500" required />
+        <button type="submit" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+
+      <h3>Seus planos</h3>
+      <ul id="lista-memorias-seus_planos" class="lista-memorias-grupo"></ul>
+      <form class="form-linha memoria-add-form" data-categoria="seus_planos">
+        <input type="text" class="memoria-add-input" placeholder="Adicionar..." maxlength="500" required />
+        <button type="submit" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+
+      <h3>Fora do painel</h3>
+      <ul id="lista-memorias-fora_do_painel" class="lista-memorias-grupo"></ul>
+      <form class="form-linha memoria-add-form" data-categoria="fora_do_painel">
+        <input type="text" class="memoria-add-input" placeholder="Adicionar..." maxlength="500" required />
+        <button type="submit" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+
+      <h3>Outras coisas que anotei</h3>
       <p id="memorias-vazio" class="vazio" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z"/></svg>
-        Ainda nao sei nada sobre voce. Escreve algo na captura que eu guardo.
+        Nada ainda. Escreve algo na captura que eu guardo.
       </p>
       <ul id="lista-memorias"></ul>
 

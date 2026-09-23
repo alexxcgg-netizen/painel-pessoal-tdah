@@ -69,5 +69,28 @@ elemento):
     prefers-reduced-motion ja desligava essa camada antes (nao mudou).
   Nao confirmado: nada.
 
-Historia US-E10 — pendente.
+Historia US-E10 — decisao: estendi a tabela `memorias` que ja existia
+(coluna `categoria` nova, NULL = fato solto capturado automaticamente,
+igual sempre foi; sua_rotina/seus_planos/fora_do_painel = os 3 grupos
+fixos novos) em vez de criar tabela separada - reaproveita create_memoria/
+list_memorias/delete_memoria que ja existiam, so add update_memoria (edicao
+no lugar) e o filtro por categoria. Seed (db.MEMORIAS_INICIAIS_FASE6) roda
+em todo init_db mas so insere numa categoria VAZIA - criterio literal da
+AC, testado inclusive o caso "Alex apaga tudo de um grupo e cria 1 item
+custom -> proximo init_db NAO reseeda" (categoria deixou de estar vazia).
+`db.contexto_memorias_categorizadas(conn)` e a funcao unica pro prompt/card
+futuro (US-E4/E7, fora do meu escopo) - devolve os 3 grupos como dict de
+listas de dict (id/texto), nao so texto, pra quem usar depois saber editar/
+apagar direto. "Fora do painel respeitado no prompt" saiu de graca: como as
+memorias categorizadas SAO memorias comuns, `list_memorias(conn)` (usada
+pra montar {memorias} do CHAT_SYSTEM_PROMPT) ja inclui elas automaticamente,
+sem filtro de categoria - nao precisei adicionar wiring nova nenhuma, so
+escrevi um teste (SystemPromptConteudoTestCase, sem chamar API real)
+confirmando que o texto chega no prompt final mandado pro Claude. UI:
+"Editar" troca o item-titulo por um <input> no lugar (Salvar/Cancelar) -
+padrao novo no projeto (nao existia edicao inline em lugar nenhum antes),
+documentado em AGENTS.md "Padroes descobertos". / Motivo: reuso maximo da
+infra existente (memorias + list_memorias + prompt) em vez de criar
+caminho paralelo. / Nao confirmado: nada.
+
 Historia US-E11 — pendente.

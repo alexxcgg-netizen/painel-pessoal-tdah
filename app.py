@@ -46,6 +46,7 @@ import voos as voos_module
 import db
 from db import (
     CAMPOS_SAUDE,
+    CATEGORIAS_MEMORIA,
     add_to_goal,
     adicionar_compra,
     ajustar_saldo_conta,
@@ -219,6 +220,7 @@ from db import (
     uber_pedido,
     uber_pedidos_aguardando_confirmacao,
     uber_pedidos_para_disparar,
+    update_memoria,
     upsert_saude_dia,
 )
 
@@ -3542,6 +3544,42 @@ def memorias():
     resultado = list_memorias(conn)
     conn.close()
     return jsonify(resultado)
+
+
+@app.route("/api/memorias", methods=["POST"])
+def criar_memoria_rota():
+    """Fase 6 (US-E10): cria uma memoria - com `categoria` (um dos 3 grupos
+    fixos de "O que eu lembro sobre voce": sua_rotina/seus_planos/
+    fora_do_painel) quando adicionada por um dos formularios de grupo, ou
+    sem categoria (generica, mesmo caminho que `registrar_memoria` do chat
+    ja usava) quando omitida."""
+    body = _corpo_json()
+    texto = _texto_curto(body.get("texto"), 500)
+    if not texto:
+        return jsonify({"error": "informe o texto"}), 400
+    categoria = body.get("categoria")
+    if categoria is not None and categoria not in CATEGORIAS_MEMORIA:
+        return jsonify({"error": "categoria invalida"}), 400
+    conn = get_db()
+    memoria_id = create_memoria(conn, texto, None, categoria)
+    conn.close()
+    return jsonify({"ok": True, "memoria_id": memoria_id}), 201
+
+
+@app.route("/api/memorias/<int:memoria_id>", methods=["PUT"])
+def editar_memoria_rota(memoria_id):
+    """Fase 6 (US-E10): edicao no lugar do texto (categoria/source_text nao
+    mudam) - os 3 grupos fixos e a lista generica sao editaveis na tela."""
+    body = _corpo_json()
+    texto = _texto_curto(body.get("texto"), 500)
+    if not texto:
+        return jsonify({"error": "informe o texto"}), 400
+    conn = get_db()
+    ok = update_memoria(conn, memoria_id, texto)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "memoria nao encontrada"}), 404
+    return jsonify({"ok": True})
 
 
 @app.route("/api/memorias/<int:memoria_id>", methods=["DELETE"])

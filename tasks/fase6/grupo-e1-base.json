@@ -65,8 +65,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Estendida a tabela `memorias` (coluna categoria: sua_rotina/seus_planos/fora_do_painel) - nao duplicada. Seed idempotente por categoria vazia (db._seed_memorias_categorizadas_fase6). CRUD completo (POST/PUT/DELETE /api/memorias) com editar-no-lugar na UI. db.contexto_memorias_categorizadas(conn) e a funcao unica pro card futuro (US-E4/E7). 'Fora do painel' chega no prompt do chat de graca (list_memorias ja alimenta {memorias} do CHAT_SYSTEM_PROMPT sem filtro de categoria) - testado sem chamar API real (tests/test_claude_client.py::SystemPromptConteudoTestCase). Corrigido teste pre-existente que quebrou (test_seed_perfil_inicial_roda_uma_vez_em_banco_novo contava TODAS as memorias, agora filtra source_text='perfil-inicial').",
       "modelo_planejado": "haiku"
     },
     {
