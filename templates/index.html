@@ -820,8 +820,17 @@
       </div>
       <form id="ficha-form" class="form-linha">
         <input type="text" id="ficha-grupo" placeholder="Grupo (ex: Peito)" maxlength="40" required />
-        <textarea id="ficha-exercicios" rows="3" maxlength="3000" placeholder="Um exercicio por linha (ex: Supino reto 4x10)" required></textarea>
-        <button type="submit" id="ficha-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar ficha</button>
+        <input type="text" id="ficha-ex-nome" placeholder="Exercicio (ex: Supino reto)" maxlength="80" />
+        <input type="number" id="ficha-ex-series" placeholder="Series" min="1" max="30" inputmode="numeric" />
+        <input type="text" id="ficha-ex-reps" placeholder="Reps (ex: 10 ou 8-12)" maxlength="20" />
+        <input type="text" id="ficha-ex-carga" placeholder="Carga (opcional)" maxlength="30" />
+        <button type="button" id="ficha-ex-add-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar exercicio
+        </button>
+        <p id="ficha-exercicios-vazio" class="dica-metas ficha-exercicios-vazio">Nenhum exercicio adicionado ainda - monte a ficha um exercicio por vez.</p>
+        <ul id="ficha-exercicios-pendentes" class="ficha-exercicios-pendentes"></ul>
+        <button type="submit" id="ficha-btn" class="btn-com-icone primario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5l2 2 4-5"/><circle cx="12" cy="12" r="9"/></svg>Salvar ficha</button>
       </form>
       <p id="fichas-vazio" class="vazio" hidden>Nenhuma ficha ainda.</p>
       <ul id="lista-fichas"></ul>

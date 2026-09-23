@@ -4333,9 +4333,82 @@ body.modo-essencial #essencial-box {
 
 .ficha-treino-lista {
   margin: 0;
-  padding-left: 1.1rem;
-  font-size: 0.88rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* Fase 6 US-F4: exercicio um a um (nome/series/reps/carga) em vez de
+   textarea unico - fichas antigas (texto puro, uma linha cada) continuam
+   aparecendo do mesmo jeito, so quem foi montada aqui ganha o layout de
+   chip (`parseLinhaExercicio` em vida.js decide por linha, sem migracao de
+   dado nenhuma). */
+.ficha-exercicio-linha {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.ficha-exercicio-nome {
+  font-weight: 600;
   color: var(--text);
+}
+
+.ficha-exercicio-detalhe {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ficha-exercicios-vazio {
+  margin: 0 0 0.5rem;
+  flex: 1 1 100%;
+}
+
+.ficha-exercicios-pendentes {
+  flex: 1 1 100%;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ficha-exercicio-pendente {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  animation: fadeInUp 0.25s var(--ease-bounce) both;
+}
+
+/* Nome do exercicio pede mais espaco que series/reps/carga - sem isso os 3
+   campos pequenos espremiam e cortavam o proprio placeholder num viewport
+   de celular (achado no headless). */
+#ficha-ex-nome {
+  flex: 1 1 11rem;
+}
+
+#ficha-ex-series,
+#ficha-ex-reps,
+#ficha-ex-carga {
+  flex: 1 1 5.5rem;
+  min-width: 0;
 }
 
 .item .checklist.mala {

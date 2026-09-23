@@ -879,6 +879,23 @@ async function obterFichasTreino(forcar = false) {
   return fichasTreinoCache || [];
 }
 
+// Fase 6 US-F4: cada exercicio guardado por linha, campos separados por "|"
+// (nome|series|reps|carga - "|" nunca aparece em nome de exercicio digitado
+// a mao). Ficha ANTIGA (texto livre, uma linha por exercicio, sem "|") cai
+// no `else` e continua mostrada palavra por palavra, sem perder nada.
+function parseLinhaExercicio(linha) {
+  const partes = linha.split("|");
+  if (partes.length === 4) {
+    const [nome, series, reps, carga] = partes.map((p) => p.trim());
+    if (nome) return { nome, series, reps, carga, estruturado: true };
+  }
+  return { nome: linha, series: "", reps: "", carga: "", estruturado: false };
+}
+
+function serializarExercicio(ex) {
+  return [ex.nome, ex.series, ex.reps, ex.carga].map((v) => (v || "").toString().trim()).join("|");
+}
+
 function renderExerciciosFicha(ficha) {
   const box = criarEl("div", "ficha-treino");
   box.appendChild(criarEl("p", "ficha-treino-grupo", ficha.grupo));
@@ -887,10 +904,74 @@ function renderExerciciosFicha(ficha) {
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
-    .forEach((l) => ul.appendChild(criarEl("li", null, l)));
+    .forEach((linha) => {
+      const ex = parseLinhaExercicio(linha);
+      const li = criarEl("li", "ficha-exercicio-linha");
+      li.appendChild(criarEl("span", "ficha-exercicio-nome", ex.nome));
+      if (ex.estruturado) {
+        const detalhe = [ex.series && ex.reps ? `${ex.series}x${ex.reps}` : ex.series || ex.reps, ex.carga]
+          .filter(Boolean)
+          .join(" · ");
+        if (detalhe) li.appendChild(criarEl("span", "ficha-exercicio-detalhe", detalhe));
+      }
+      ul.appendChild(li);
+    });
   box.appendChild(ul);
   return box;
 }
+
+// ---- Fase 6 US-F4: montar a ficha um exercicio por vez ----
+
+let fichaExerciciosPendentes = [];
+
+function renderFichaExerciciosPendentes() {
+  const ul = $("#ficha-exercicios-pendentes");
+  ul.innerHTML = "";
+  $("#ficha-exercicios-vazio").hidden = fichaExerciciosPendentes.length > 0;
+  fichaExerciciosPendentes.forEach((ex, idx) => {
+    const li = criarEl("li", "ficha-exercicio-pendente");
+    const info = criarEl("span", null, ex.nome);
+    const detalhe = [ex.series && ex.reps ? `${ex.series}x${ex.reps}` : ex.series || ex.reps, ex.carga]
+      .filter(Boolean)
+      .join(" · ");
+    if (detalhe) {
+      const span = criarEl("span", "ficha-exercicio-detalhe", ` ${detalhe}`);
+      info.appendChild(span);
+    }
+    li.appendChild(info);
+    const remover = criarEl("button", "btn-link", "remover");
+    remover.type = "button";
+    remover.setAttribute("aria-label", `Remover ${ex.nome} da ficha`);
+    remover.addEventListener("click", () => {
+      fichaExerciciosPendentes.splice(idx, 1);
+      renderFichaExerciciosPendentes();
+    });
+    li.appendChild(remover);
+    ul.appendChild(li);
+  });
+}
+
+$("#ficha-ex-add-btn").addEventListener("click", () => {
+  const nomeInput = $("#ficha-ex-nome");
+  const nome = nomeInput.value.trim();
+  if (!nome) {
+    mostrarErro("Digite o nome do exercicio antes de adicionar.");
+    return;
+  }
+  fichaExerciciosPendentes.push({
+    nome,
+    series: $("#ficha-ex-series").value.trim(),
+    reps: $("#ficha-ex-reps").value.trim(),
+    carga: $("#ficha-ex-carga").value.trim(),
+  });
+  nomeInput.value = "";
+  $("#ficha-ex-series").value = "";
+  $("#ficha-ex-reps").value = "";
+  $("#ficha-ex-carga").value = "";
+  pulsarSucesso(nomeInput);
+  renderFichaExerciciosPendentes();
+  nomeInput.focus();
+});
 
 // Chamado pelo criarItemTarefa (app.js) quando a tarefa bate com uma ficha.
 function botaoFichaTreino(t, li) {
@@ -943,11 +1024,26 @@ async function loadTreino() {
   }
 }
 
-ligarForm("#ficha-form", "#ficha-btn", "Salvar ficha", () => {
-  const grupo = $("#ficha-grupo").value.trim();
-  const exercicios = $("#ficha-exercicios").value.trim();
-  return grupo && exercicios ? { grupo, exercicios } : null;
-}, "/api/treino/fichas", loadTreino);
+ligarForm(
+  "#ficha-form",
+  "#ficha-btn",
+  "Salvar ficha",
+  () => {
+    const grupo = $("#ficha-grupo").value.trim();
+    if (!grupo || !fichaExerciciosPendentes.length) {
+      mostrarErro("Informe o grupo e adicione ao menos 1 exercicio antes de salvar.");
+      return null;
+    }
+    const exercicios = fichaExerciciosPendentes.map(serializarExercicio).join("\n");
+    return { grupo, exercicios };
+  },
+  "/api/treino/fichas",
+  (r) => {
+    fichaExerciciosPendentes = [];
+    renderFichaExerciciosPendentes();
+    loadTreino(r);
+  }
+);
 
 // ---- Fase 2 + Fase 5 (US-C14) + Fase 6 (US-E1a): manutencao (secao unica) ----
 // tipo='carro' e HISTORICO (registro novo a cada manutencao feita, aviso por
