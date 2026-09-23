@@ -479,6 +479,10 @@ def projeto_para_card(detalhe: dict, origem: str = "projeto", titulo: str | None
         "feitas": detalhe.get("etapas_feitas"),
         "total": detalhe.get("total_etapas"),
         "hoje_fracao": round(posicao / 100, 4) if isinstance(posicao, (int, float)) else None,
+        # US-F11 (so existe quando `detalhe` vem de uma viagem - generico
+        # nunca tem esses campos, o card so mostra a secao se vier preenchida)
+        "marcos_planejamento": detalhe.get("marcos_planejamento"),
+        "aviso_regra_pratica": detalhe.get("aviso_regra_pratica"),
     }
 
 

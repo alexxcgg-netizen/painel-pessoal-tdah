@@ -244,3 +244,31 @@ paralelo -> integra -> F1+F2+F3 em paralelo -> integra -> revisao independente.
 - Mapa: OpenStreetMap agora (sem chave/cartao). Push real validado depois, em hospedagem que nao dorme.
 - Limite do cartao: campo manual. Widget via Scriptable: mantido.
 - Plugins: frontend-design (oficial) + ui-ux-pro-max (comunidade, inspecionado: so skills, sem hook/MCP).
+
+### API de voo (Fase 6 F3, US-F12)
+Pesquisado em 2026-09-23 (WebSearch - situacao "hoje", free tier muda com frequencia,
+reconfirmar se isso for revisitado muito tempo depois). Comparacao completa e o raciocinio
+inteiro em `tasks/fase6/progress-f3.txt` (secao US-F12) - resumo aqui:
+
+| API | Cadastro gratuito | Limite gratis | HTTPS | Escolhida? |
+|---|---|---|---|---|
+| **AviationStack** | So email, sem cartao | 100 req/mes | Nao (so paga) | **Sim** |
+| AeroDataBox (RapidAPI) | Pede cartao mesmo no $0/mes | 600 unid./mes (~2400 req) | Sim | Nao |
+| FlightAware AeroAPI (Personal) | Nao confirmado se pede cartao | $5 gratis/mes, sem minimo | Sim | Nao |
+| Amadeus Self-Service | MORTO - portal free encerrou em 2026-07-17 | - | - | Nao (nem existe mais) |
+
+Escolhida: **AviationStack** - e a unica sem cartao de credito no cadastro gratuito
+("Voce NAO consegue criar conta por ele" - cartao e decisao financeira do Alex, entao
+qualquer API que exija um mesmo no plano "gratis" ficou de fora ate ele mesmo decidir
+cadastrar). Troca-off aceito: o plano gratuito so aceita HTTP (nao HTTPS) - a chave viaja
+sem criptografia nessa chamada especifica (documentado tambem no `.env.example`).
+
+Variavel de ambiente: `AVIATIONSTACK_API_KEY` (`.env.example`). Chave gratuita em
+https://aviationstack.com/product -> "Get Free API Key". Sem ela, o card de voo funciona
+100% no modo manual (numero do voo digitado a mao) e mostra "status em tempo real:
+configurar chave" - nunca quebra por falta de chave.
+
+Se um dia o Alex quiser trocar pra AeroDataBox (limite maior, HTTPS de verdade, mas
+precisa cadastrar cartao no RapidAPI primeiro): so trocar a URL/parsing dentro de
+`voo_status.py` (`_buscar_na_api`/`_mapear_resposta`) - o cache (`voo_status_cache`) e o
+contrato de dado que o front consome (`status_voo`) nao mudam.

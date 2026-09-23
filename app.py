@@ -33,6 +33,7 @@ import clima
 import criptografia
 import estudo
 import gastos
+import geocode_nominatim
 import leitura
 import maps_client
 import metar
@@ -45,6 +46,7 @@ import telegram_bot
 import uber_client
 import viagem
 import vida
+import voo_status
 import voos as voos_module
 import db
 from db import (
@@ -110,6 +112,7 @@ from db import (
     definir_configuracao,
     definir_esforco_tarefa,
     definir_limite_conta,
+    definir_numero_voo_viagem,
     definir_orcamento,
     definir_status_projeto,
     definir_teto_mensal_ia,
@@ -188,6 +191,7 @@ from db import (
     list_itens_viagem,
     list_lembretes,
     list_lugares,
+    lugares_sem_geocode,
     list_manutencoes,
     list_medicamentos_ativos,
     list_medidas_corporais,
@@ -218,6 +222,7 @@ from db import (
     media_passos_ultimos_dias,
     obter_brain_dump,
     obter_configuracao,
+    obter_status_voo_cache,
     reclassificar_gasto_para_tarefa,
     reclassificar_tarefa_para_gasto,
     record_usage,
@@ -238,7 +243,9 @@ from db import (
     salvar_checkin,
     salvar_essencial,
     salvar_ficha_treino,
+    salvar_geocode_lugar,
     salvar_mensagem_chat,
+    salvar_status_voo_cache,
     save_push_subscription,
     substituir_itens_viagem,
     total_cost_usd,
@@ -6093,6 +6100,10 @@ def _viagem_detalhada(conn, v: dict, hoje: date) -> dict:
         "dias_ate": (ida - hoje).days,
         "itens": list_itens_viagem(conn, v["id"]),
         "lugares": [{"nome": l["nome"], "tipo": l["tipo"], "nota": l["nota"]} for l in lugares],
+        # US-F11: linha do tempo de planejamento direto na lista (evita ida
+        # extra ao /como-projeto so pra desenhar os marcos na tela de Viagens).
+        "marcos_planejamento": vida.marcos_planejamento_viagem(ida, bool(v.get("internacional"))),
+        "aviso_regra_pratica": vida.AVISO_REGRA_PRATICA,
     }
 
 
@@ -6105,7 +6116,7 @@ def viagens():
     return jsonify(resultado)
 
 
-def _criar_viagem(conn, destino, data_ida, data_volta, motivo) -> dict:
+def _criar_viagem(conn, destino, data_ida, data_volta, motivo, internacional=False) -> dict:
     destino = _texto_curto(destino, 80)
     ida = _data_iso_valida(data_ida)
     volta = _data_iso_valida(data_volta) if data_volta not in (None, "") else None
@@ -6113,7 +6124,7 @@ def _criar_viagem(conn, destino, data_ida, data_volta, motivo) -> dict:
         return {"erro": "informe o destino e a data de ida (AAAA-MM-DD)"}
     if data_volta not in (None, "") and (not volta or volta < ida):
         return {"erro": "data de volta invalida (tem que ser depois da ida)"}
-    viagem_id = create_viagem(conn, destino, ida, volta, _texto_curto(motivo, 80))
+    viagem_id = create_viagem(conn, destino, ida, volta, _texto_curto(motivo, 80), bool(internacional))
     return {"ok": True, "viagem_id": viagem_id}
 
 
@@ -6121,11 +6132,59 @@ def _criar_viagem(conn, destino, data_ida, data_volta, motivo) -> dict:
 def criar_viagem_rota():
     body = _corpo_json()
     conn = get_db()
-    resultado = _criar_viagem(conn, body.get("destino"), body.get("data_ida"), body.get("data_volta"), body.get("motivo"))
+    resultado = _criar_viagem(
+        conn,
+        body.get("destino"),
+        body.get("data_ida"),
+        body.get("data_volta"),
+        body.get("motivo"),
+        body.get("internacional"),
+    )
     conn.close()
     if "erro" in resultado:
         return jsonify({"error": resultado["erro"]}), 400
     return jsonify(resultado), 201
+
+
+@app.route("/api/viagens/<int:viagem_id>/numero-voo", methods=["POST"])
+def definir_numero_voo_viagem_rota(viagem_id):
+    """US-F12: o Alex preenche o numero do voo comprado (ex: "LA3251") depois
+    da compra - so registra o numero, a consulta de status em si e
+    GET /api/viagens/<id>/voo-status (voo_status.py, cacheada)."""
+    body = _corpo_json()
+    numero = _texto_curto(body.get("numero_voo"), 12)
+    numero = numero.upper().replace(" ", "") if numero else None
+    conn = get_db()
+    ok = definir_numero_voo_viagem(conn, viagem_id, numero)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "viagem nao encontrada"}), 404
+    return jsonify({"ok": True, "numero_voo": numero})
+
+
+@app.route("/api/viagens/<int:viagem_id>/voo-status", methods=["GET"])
+def viagem_voo_status_rota(viagem_id):
+    """US-F12: status do voo comprado (voo_status.py, cacheado - nunca chama
+    a API de novo dentro da janela de cache). Sem numero_voo cadastrado ou
+    sem AVIATIONSTACK_API_KEY, volta so o suficiente pra tela mostrar o
+    aviso certo, sem tentar rede nenhuma."""
+    conn = get_db()
+    registro = conn.execute("SELECT * FROM viagens WHERE id = ?", (viagem_id,)).fetchone()
+    if not registro:
+        conn.close()
+        return jsonify({"error": "viagem nao encontrada"}), 404
+    numero_voo = registro["numero_voo"]
+    if not numero_voo:
+        conn.close()
+        return jsonify({"configurado": voo_status.configurado(), "erro": "informe o numero do voo primeiro"})
+    resultado = voo_status.status_voo(
+        numero_voo,
+        registro["data_ida"],
+        lambda nv, d: obter_status_voo_cache(conn, nv, d),
+        lambda nv, d, j: salvar_status_voo_cache(conn, nv, d, j),
+    )
+    conn.close()
+    return jsonify(resultado)
 
 
 @app.route("/api/viagens/<int:viagem_id>", methods=["DELETE"])
@@ -6292,11 +6351,43 @@ def viagem_como_projeto_rota(viagem_id):
     return jsonify(vida.viagem_como_projeto_detalhada(dict(registro), itens, date.today()))
 
 
+@app.route("/api/viagens/<int:viagem_id>/timeline-card", methods=["GET"])
+def viagem_timeline_card_rota(viagem_id):
+    """US-F11: mesmo `data` do card projeto_viagem (Fase 6, US-E13) que o chat
+    ja usa (cards.card_viagem) - a tela de Viagens reaproveita o MESMO
+    adaptador, sem recalcular etapas/progresso/marcos no front. Sem `actions`
+    (a tela ja esta na aba Viagens - um botao "abrir aba Viagens" ali seria
+    um link circular pro mesmo lugar)."""
+    conn = get_db()
+    card = cards.card_viagem(conn, viagem_id, date.today(), actions_extra=[])
+    conn.close()
+    if not card:
+        return jsonify({"error": "viagem nao encontrada"}), 404
+    card["actions"] = []
+    return jsonify(card)
+
+
+def _geocodificar_lugar(conn, lugar_id: int, nome: str, cidade: str | None) -> None:
+    """US-F13: 1 consulta ao Nominatim por lugar, NUNCA repetida depois que
+    da uma resposta de verdade (ok/nao_encontrado) - so falha de rede fica
+    sem gravar status, pra poder tentar de novo depois (ver docstring de
+    geocode_nominatim.py)."""
+    resultado = geocode_nominatim.geocodificar(nome, cidade)
+    if resultado["status"] == "erro":
+        return  # nao grava - proxima leitura tenta de novo
+    if resultado["status"] == "ok":
+        salvar_geocode_lugar(conn, lugar_id, resultado["lat"], resultado["lng"], "ok")
+    else:
+        salvar_geocode_lugar(conn, lugar_id, None, None, "nao_encontrado")
+
+
 def _criar_lugar(conn, nome, cidade, tipo, nota) -> dict:
     nome = _texto_curto(nome, 80)
     if not nome:
         return {"erro": "informe o nome do lugar"}
-    lugar_id = create_lugar(conn, nome, _texto_curto(cidade, 60), _texto_curto(tipo, 40), _texto_curto(nota, 300))
+    cidade = _texto_curto(cidade, 60)
+    lugar_id = create_lugar(conn, nome, cidade, _texto_curto(tipo, 40), _texto_curto(nota, 300))
+    _geocodificar_lugar(conn, lugar_id, nome, cidade)
     return {"ok": True, "lugar_id": lugar_id}
 
 
@@ -6304,6 +6395,13 @@ def _criar_lugar(conn, nome, cidade, tipo, nota) -> dict:
 def lugares():
     conn = get_db()
     resultado = list_lugares(conn)
+    # US-F13: backfill de lugares que ja existiam antes desta historia (ou
+    # que falharam por rede antes) - no MAXIMO 1 geocode por chamada, pra
+    # nunca estourar 1 req/s mesmo se a lista crescer.
+    pendente = next((l for l in resultado if l.get("geocode_status") is None), None)
+    if pendente:
+        _geocodificar_lugar(conn, pendente["id"], pendente["nome"], pendente.get("cidade"))
+        resultado = list_lugares(conn)
     conn.close()
     return jsonify(resultado)
 
@@ -7562,6 +7660,12 @@ TAMANHO_MAX_PDF_BYTES = 15 * 1024 * 1024  # 15MB - cabe folgado num orcamento es
 
 @app.route("/api/cotacoes", methods=["GET"])
 def listar_cotacoes():
+    # US-F14: cotacao compara preco de fornecedor - e dado financeiro,
+    # mesmo tratamento que /api/expenses/etc em modo visitante (lista
+    # inteira escondida, nao so o valor - achado real: essa rota nunca
+    # tinha ganhado essa checagem antes desta historia).
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     resultado = list_cotacoes(conn)
     conn.close()
@@ -7570,6 +7674,8 @@ def listar_cotacoes():
 
 @app.route("/api/cotacoes", methods=["POST"])
 def criar_cotacao_rota():
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
     titulo = (_corpo_json().get("titulo") or "").strip()
     if not titulo:
         return jsonify({"error": "informe o titulo da cotacao"}), 400
@@ -7581,6 +7687,8 @@ def criar_cotacao_rota():
 
 @app.route("/api/cotacoes/<int:cotacao_id>", methods=["GET"])
 def ver_cotacao(cotacao_id):
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
     conn = get_db()
     cotacao = get_cotacao(conn, cotacao_id)
     if not cotacao:
@@ -7601,6 +7709,8 @@ def apagar_cotacao(cotacao_id):
 
 @app.route("/api/cotacoes/<int:cotacao_id>/itens", methods=["POST"])
 def adicionar_item_cotacao(cotacao_id):
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
     conn = get_db()
     if not get_cotacao(conn, cotacao_id):
         conn.close()
@@ -7630,6 +7740,8 @@ def adicionar_item_cotacao(cotacao_id):
 def adicionar_item_cotacao_pdf(cotacao_id):
     """Le um PDF de orcamento de fornecedor e extrai fornecedor/valor/prazo
     automaticamente - o Alex so anexa o PDF que recebeu, sem digitar nada."""
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
     conn = get_db()
     if not get_cotacao(conn, cotacao_id):
         conn.close()

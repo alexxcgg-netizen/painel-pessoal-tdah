@@ -318,5 +318,81 @@ class DecodificarTafTestCase(unittest.TestCase):
         )
 
 
+# ---- US-F15: categoria VFR/MVFR/IFR/LIFR (limiares padrao FAA/AIM) --------
+# METARs de exemplo REAIS (formato padrao, valores tipicos de aerodromo
+# brasileiro) cobrindo CAVOK, vento variavel, calmaria e BKN/OVC - pedido
+# explicito do prd (o Alex e piloto, a decodificacao tem que estar
+# tecnicamente certa).
+class CategoriaVooTestCase(unittest.TestCase):
+    def _categoria(self, metar_bruto: str) -> str | None:
+        dec = metar.decodificar_grupo(metar._tokens_uteis_metar(metar_bruto))
+        return metar.categoria_voo(dec)
+
+    def test_vfr_ceu_limpo_visibilidade_10km(self):
+        self.assertEqual(self._categoria("SBBI 231800Z 09008KT 9999 FEW040 27/18 Q1015"), "VFR")
+
+    def test_vfr_com_cavok(self):
+        self.assertEqual(self._categoria("SBBI 231800Z 09008KT CAVOK 27/18 Q1015"), "VFR")
+
+    def test_vfr_com_calmaria_00000kt(self):
+        self.assertEqual(self._categoria("SBBI 231800Z 00000KT 9999 SCT030 26/19 Q1014"), "VFR")
+
+    def test_vfr_com_vento_variavel_vrb(self):
+        self.assertEqual(self._categoria("SBBI 231800Z VRB03KT 9999 FEW020 25/20 Q1013"), "VFR")
+
+    def test_vfr_com_vento_variavel_entre_direcoes(self):
+        self.assertEqual(
+            self._categoria("SBBI 231800Z 09010KT 060V120 9999 SCT025 26/19 Q1013"), "VFR"
+        )
+
+    def test_mvfr_teto_2000_vis_6km(self):
+        self.assertEqual(self._categoria("SBBI 231800Z 12010KT 6000 BKN020 22/19 Q1012"), "MVFR")
+
+    def test_mvfr_no_limite_superior_teto_3000_vis_5sm(self):
+        # 3000ft e 5SM (~8045m) sao o TOPO da faixa MVFR (definicao inclusiva)
+        self.assertEqual(self._categoria("SBBI 231800Z 12010KT 8000 BKN030 22/19 Q1012"), "MVFR")
+
+    def test_ifr_teto_800_vis_3200m(self):
+        self.assertEqual(self._categoria("SBBI 231800Z 15015G25KT 3200 OVC008 20/19 Q1010"), "IFR")
+
+    def test_ifr_no_limite_teto_exatamente_500(self):
+        # 500ft e o LIMITE INFERIOR do IFR (LIFR e so ABAIXO de 500)
+        self.assertEqual(self._categoria("SBBI 231800Z 10010KT 9999 OVC005 20/19 Q1010"), "IFR")
+
+    def test_lifr_teto_300_vis_800m(self):
+        self.assertEqual(self._categoria("SBBI 231800Z 18020KT 0800 OVC003 18/18 Q1008"), "LIFR")
+
+    def test_lifr_so_por_visibilidade_mesmo_com_teto_alto(self):
+        # teto 5000 (VFR sozinho) mas visibilidade 400m (LIFR) - o pior dos
+        # dois criterios manda, igual a definicao oficial ("AND/OR")
+        self.assertEqual(self._categoria("SBBI 231800Z 10010KT 0400 BKN050 18/18 Q1008"), "LIFR")
+
+    def test_sem_teto_nem_visibilidade_devolve_none(self):
+        self.assertIsNone(metar.categoria_voo(metar.decodificar_grupo([])))
+
+    def test_so_teto_sem_visibilidade_ainda_classifica(self):
+        self.assertEqual(metar.categoria_voo({"teto_ft": 200, "visibilidade_m": None}), "LIFR")
+
+    def test_so_visibilidade_sem_teto_ainda_classifica(self):
+        self.assertEqual(metar.categoria_voo({"teto_ft": None, "visibilidade_m": 9999}), "VFR")
+
+    def test_buscar_metar_taf_inclui_categoria_no_resultado(self):
+        resp_metar = MagicMock()
+        resp_metar.raise_for_status = lambda: None
+        resp_metar.text = "SBBI 231800Z 09008KT CAVOK 27/18 Q1015"
+        resp_taf = MagicMock()
+        resp_taf.raise_for_status = lambda: None
+        resp_taf.text = ""
+        with patch("metar.requests.get", side_effect=[resp_metar, resp_taf]):
+            r = metar.buscar_metar_taf("SBBI")
+        self.assertEqual(r["metar_categoria"], "VFR")
+
+    def test_taf_segmentos_tambem_ganham_categoria(self):
+        taf = "TAF SBBI 181600Z 1818/1906 08007KT 8000 BKN013 BECMG 1820/1822 OVC003 0400"
+        segs = metar.decodificar_taf(metar._tokens_uteis_taf(taf))
+        self.assertEqual(segs[0]["categoria_voo"], "MVFR")
+        self.assertEqual(segs[1]["categoria_voo"], "LIFR")
+
+
 if __name__ == "__main__":
     unittest.main()

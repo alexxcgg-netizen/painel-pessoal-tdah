@@ -1287,6 +1287,94 @@ function renderItensMala(v, li) {
   li.appendChild(ul);
 }
 
+// US-F11: card projeto_viagem completo (progresso + linha do tempo de
+// planejamento) - vem pronto de /timeline-card (cards.card_viagem), o front
+// so pede pra renderizar (Cards.renderizarCardHTML), nunca recalcula nada.
+async function renderTimelineViagem(viagemId, container) {
+  const card = await apiFetch(`/api/viagens/${viagemId}/timeline-card`);
+  if (!card || !container.isConnected) return;
+  container.innerHTML = Cards.renderizarCardHTML(card, { agora: new Date() });
+}
+
+// US-F12: status de voo em tempo real por numero (atraso, portao, terminal) -
+// ver voo_status.py. Sem VOO_STATUS_API_KEY configurada no servidor, a rota
+// devolve configurado=false e a tela mostra "configure a chave" sem quebrar.
+function criarBlocoVoo(v, li) {
+  const box = criarEl("div", "viagem-voo-box");
+  const form = criarEl("form", "form-linha viagem-voo-form");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "Numero do voo (ex: LA3251)";
+  input.maxLength = 12;
+  input.value = v.numero_voo || "";
+  input.setAttribute("aria-label", `Numero do voo da viagem para ${v.destino}`);
+  const salvarBtn = criarEl("button", "btn-com-icone", v.numero_voo ? "atualizar" : "salvar");
+  salvarBtn.type = "submit";
+  form.appendChild(input);
+  form.appendChild(salvarBtn);
+  const status = criarEl("div", "viagem-voo-status");
+  box.appendChild(form);
+  box.appendChild(status);
+
+  async function carregarStatus() {
+    if (!v.numero_voo) {
+      status.innerHTML = "";
+      return;
+    }
+    status.innerHTML = `<p class="card-linha-meta">consultando...</p>`;
+    const r = await apiFetch(`/api/viagens/${v.id}/voo-status`);
+    if (!r) {
+      status.innerHTML = "";
+      return;
+    }
+    status.innerHTML = "";
+    status.appendChild(criarStatusVooEl(r));
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    setBotaoCarregando(salvarBtn, true, "salvando...");
+    const r = await apiFetch(`/api/viagens/${v.id}/numero-voo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ numero_voo: input.value.trim() }),
+    });
+    setBotaoCarregando(salvarBtn, false, v.numero_voo ? "atualizar" : "salvar");
+    if (!r) return;
+    v.numero_voo = r.numero_voo;
+    salvarBtn.textContent = v.numero_voo ? "atualizar" : "salvar";
+    carregarStatus();
+  });
+
+  carregarStatus();
+  return box;
+}
+
+function criarStatusVooEl(r) {
+  const box = criarEl("div", "voo-status-card");
+  if (!r.configurado) {
+    box.appendChild(criarEl("p", "card-linha-meta voo-status-aviso", "status em tempo real: configurar chave"));
+    return box;
+  }
+  if (r.erro) {
+    box.appendChild(criarEl("p", "card-linha-meta voo-status-aviso", r.erro));
+    return box;
+  }
+  const linha1 = criarEl("p", "voo-status-linha-principal");
+  const situacao = criarEl("span", `voo-status-chip voo-status-${r.status || "desconhecido"}`, r.status_texto || "sem dado");
+  linha1.appendChild(situacao);
+  if (r.atraso_min) linha1.appendChild(criarEl("span", "card-linha-meta", ` atraso de ${r.atraso_min} min`));
+  box.appendChild(linha1);
+  const detalhes = [
+    r.portao ? `Portao ${r.portao}` : null,
+    r.terminal ? `Terminal ${r.terminal}` : null,
+    r.horario_partida_real ? `Partida real ${r.horario_partida_real}` : r.horario_partida_previsto ? `Partida prevista ${r.horario_partida_previsto}` : null,
+  ].filter(Boolean);
+  if (detalhes.length) box.appendChild(criarEl("p", "card-linha-meta", detalhes.join(" · ")));
+  if (r.cache) box.appendChild(criarEl("p", "card-linha-meta voo-status-cache", `dado de ${r.buscado_em_texto || "cache recente"}`));
+  return box;
+}
+
 async function loadViagens() {
   const viagens = await apiFetch("/api/viagens");
   if (!viagens) return;
@@ -1297,6 +1385,7 @@ async function loadViagens() {
     const datas = v.data_volta ? `${fmtDataBr(v.data_ida)} a ${fmtDataBr(v.data_volta)}` : fmtDataBr(v.data_ida);
     const quando = v.dias_ate > 0 ? `em ${v.dias_ate} dia(s)` : v.dias_ate === 0 ? "hoje" : "em andamento";
     const lugares = v.lugares.length ? `voce curtiu la: ${v.lugares.map((l) => l.nome).join(", ")}` : null;
+    const tipoViagem = v.internacional ? "internacional" : "nacional";
     const malaBtn = criarEl("button", "btn-com-icone", v.itens.length ? "refazer mala" : "montar mala");
     let li;
     malaBtn.addEventListener("click", async () => {
@@ -1305,8 +1394,12 @@ async function loadViagens() {
       setBotaoCarregando(malaBtn, false, "refazer mala");
       if (r) renderItensMala(r, li);
     });
-    li = itemSimples(v.destino, [`${datas} - ${quando}`, lugares], [malaBtn, (el) => botaoApagar(`/api/viagens/${v.id}`, el)]);
+    li = itemSimples(v.destino, [`${datas} - ${quando} - viagem ${tipoViagem}`, lugares], [malaBtn, (el) => botaoApagar(`/api/viagens/${v.id}`, el)]);
     renderItensMala(v, li);
+    li.appendChild(criarBlocoVoo(v, li));
+    const timelineBox = criarEl("div", "viagem-timeline-box");
+    li.appendChild(timelineBox);
+    renderTimelineViagem(v.id, timelineBox);
     li.dataset.entidade = "viagem"; // destino do link de card (Fase 6, US-E7)
     li.dataset.id = v.id;
     lista.appendChild(li);
@@ -1316,8 +1409,77 @@ async function loadViagens() {
 ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Adicionar", () => {
   const destino = $("#viagem-nova-destino").value.trim();
   const ida = $("#viagem-nova-ida").value;
-  return destino && ida ? { destino, data_ida: ida, data_volta: $("#viagem-nova-volta").value || null } : null;
+  return destino && ida
+    ? { destino, data_ida: ida, data_volta: $("#viagem-nova-volta").value || null, internacional: $("#viagem-nova-internacional").checked }
+    : null;
 }, "/api/viagens", loadViagens);
+
+// US-F13: mapa (Leaflet + tiles do OpenStreetMap) carregado sob demanda -
+// so na primeira vez que o Alex abrir "ver no mapa" de QUALQUER lugar,
+// nunca no carregamento da tela (custa uma chamada de rede a mais que a
+// maioria das visitas nao precisa). Versao fixada (1.9.4, cdn.jsdelivr.net,
+// ver tasks/fase6/progress-f3.txt) - nunca "latest".
+let leafletCarregando = null;
+function carregarLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (leafletCarregando) return leafletCarregando;
+  leafletCarregando = new Promise((resolve, reject) => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(link);
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+    script.addEventListener("load", () => resolve());
+    script.addEventListener("error", () => reject(new Error("falha ao carregar o Leaflet")));
+    document.head.appendChild(script);
+  });
+  return leafletCarregando;
+}
+
+// A geocodificacao (Nominatim) e sempre feita pelo SERVIDOR (app.py/
+// geocode_nominatim.py - 1 req/s, User-Agent proprio, cache em
+// lugares.lat/lng/geocode_status) - o front so LE o resultado que ja veio
+// em /api/lugares e desenha (ou mostra o motivo de nao ter mapa). Nunca
+// chama Nominatim daqui, senao a politica de 1 req/s e o cache ficariam
+// impossiveis de garantir com varios navegadores abertos ao mesmo tempo.
+function criarBlocoMapaLugar(l) {
+  const box = criarEl("div", "lugar-mapa-box");
+  const btn = criarEl("button", "btn-com-icone", "ver no mapa");
+  btn.type = "button";
+  const mapaEl = criarEl("div", "lugar-mapa");
+  mapaEl.hidden = true;
+  let iniciado = false;
+  btn.addEventListener("click", async () => {
+    const abrir = mapaEl.hidden;
+    mapaEl.hidden = !abrir;
+    btn.textContent = abrir ? "esconder mapa" : "ver no mapa";
+    if (!abrir || iniciado) return;
+    if (l.geocode_status !== "ok" || l.lat == null || l.lng == null) {
+      mapaEl.textContent =
+        l.geocode_status === "nao_encontrado"
+          ? "Não encontrei esse lugar no mapa (nome/cidade) - o lugar continua salvo normalmente."
+          : "Ainda localizando no mapa... tente de novo em instantes.";
+      return;
+    }
+    iniciado = true;
+    try {
+      await carregarLeaflet();
+      const mapa = window.L.map(mapaEl).setView([l.lat, l.lng], 15);
+      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(mapa);
+      window.L.marker([l.lat, l.lng]).addTo(mapa).bindPopup(l.nome);
+    } catch (e) {
+      iniciado = false;
+      mapaEl.textContent = "Não consegui carregar o mapa agora (sem rede?) - o lugar continua salvo normalmente.";
+    }
+  });
+  box.appendChild(btn);
+  box.appendChild(mapaEl);
+  return box;
+}
 
 async function loadLugares() {
   const lugares = await apiFetch("/api/lugares");
@@ -1326,11 +1488,11 @@ async function loadLugares() {
   lista.innerHTML = "";
   $("#lugares-vazio").hidden = lugares.length > 0;
   lugares.forEach((l) => {
-    lista.appendChild(
-      itemSimples(l.nome, [[l.tipo, l.cidade].filter(Boolean).join(" - "), l.nota], [
-        (el) => botaoApagar(`/api/lugares/${l.id}`, el),
-      ])
-    );
+    const li = itemSimples(l.nome, [[l.tipo, l.cidade].filter(Boolean).join(" - "), l.nota], [
+      (el) => botaoApagar(`/api/lugares/${l.id}`, el),
+    ]);
+    li.appendChild(criarBlocoMapaLugar(l));
+    lista.appendChild(li);
   });
 }
 

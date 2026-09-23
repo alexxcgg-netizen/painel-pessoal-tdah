@@ -950,6 +950,10 @@
         <input type="text" id="viagem-nova-destino" placeholder="Destino" maxlength="80" required />
         <input type="date" id="viagem-nova-ida" aria-label="Data de ida" required />
         <input type="date" id="viagem-nova-volta" aria-label="Data de volta (opcional)" />
+        <label class="checkbox-linha">
+          <input type="checkbox" id="viagem-nova-internacional" />
+          <span>Viagem internacional</span>
+        </label>
         <button type="submit" id="viagem-nova-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
       </form>
       <p id="viagens-vazio" class="vazio" hidden>Nenhuma viagem marcada.</p>
@@ -1308,6 +1312,10 @@
           Nova cotacao
         </button>
       </form>
+      <p id="cotacoes-oculto-visitante" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        Oculto no modo visitante.
+      </p>
       <p id="cotacoes-vazio" class="vazio" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5l2 2 4-5"/><rect x="3.5" y="4" width="17" height="16" rx="2"/></svg>
         Nenhuma cotacao ainda.

@@ -117,6 +117,54 @@ db.init_db()
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
+### Fase 6, Grupo F3-extra (Viagens/Lugares/Cotações/Aviação) - US-F11/F12/F13/F14
+- **Pegadinha de teste real, pega na própria suíte**: qualquer rota GET com
+  efeito colateral de rede (ex: `GET /api/lugares` faz backfill de geocode,
+  US-F13) precisa do MESMO mock cobrindo TODAS as chamadas àquela rota no
+  teste, não só a primeira. Um teste que faz `with patch(...): self.client.post(...)`
+  e SÓ DEPOIS, fora do `with`, chama `self.client.get(...)` numa rota que
+  também dispara a mesma dependência externa, escapa do mock silenciosamente
+  e acaba batendo na API de verdade - pego numa rodada real da suíte
+  completa (`test_erro_de_rede_na_criacao_nao_impede_o_lugar_de_ser_salvo`,
+  `tests/test_fase6_f3_lugares_mapa.py`, corrigido envolvendo POST *e* GET
+  no mesmo `with`). Rotas GET "inocentes" que na verdade escrevem/chamam
+  rede (backfill, cache-refresh, etc) são as mais fáceis de esquecer disso.
+- **`hidden` + `display` != `none` numa classe do MESMO elemento é uma
+  pegadinha de especificidade CSS real** (achada na verificação headless da
+  US-F13, `.lugar-mapa`): `[hidden] { display: none }` é a regra padrão do
+  navegador, especificidade (0,1,0) igual a uma classe `.lugar-mapa { display:
+  flex }` - quando as duas competem, quem vem DEPOIS na cascata (a
+  folha de estilo do app, carregada depois do UA stylesheet) ganha, e o
+  elemento "escondido" continua ocupando espaço na tela. Sempre que um
+  elemento alternar `display` != `none`/`block` via classe E também usar o
+  atributo `hidden` pra escondê-lo, adicionar `.classe[hidden] { display:
+  none; }` explícito logo depois - não confiar só no atributo.
+- **Card `projeto_viagem` (US-E13) ganhou um campo opcional novo,
+  `marcos_planejamento`/`aviso_regra_pratica`** (US-F11, só quando a origem
+  é viagem) - o renderizador (`static/js/cards-tipos.js`) já estava pronto
+  pra crescer assim: campo ausente = bloco novo simplesmente não aparece,
+  card genérico de Projeto nunca muda. Qualquer história futura que precise
+  adicionar outro bloco opcional ao mesmo card deve seguir o mesmo padrão
+  (campo novo em `cards.projeto_para_card`, checagem de presença no
+  renderizador, nunca um `type` de card novo só pra isso).
+- **Geocodificação (Nominatim) e qualquer chamada de API externa com
+  política de 1 req/s só pode viver no backend** (nunca no navegador
+  direto) - além de exigir User-Agent próprio (impossível de garantir vindo
+  do `fetch` do navegador, que sempre manda o User-Agent do próprio
+  navegador), múltiplas abas/dispositivos abertos ao mesmo tempo
+  furariam qualquer throttle client-side. `geocode_nominatim.py` só é
+  chamado por `app.py`; o front só lê o resultado já cacheado em
+  `lugares.lat/lng/geocode_status`.
+- **CDN externo (Leaflet, `cdn.jsdelivr.net`) pode falhar especificamente
+  dentro do Chromium do Playwright neste ambiente sandboxed mesmo quando o
+  `requests`/`curl` do backend Python alcança o mesmo host sem problema** -
+  confirmado testando os dois lados antes de escrever qualquer suposição
+  ("`fetch()` do navegador → Failed to fetch" vs "`curl` do shell → HTTP
+  200" pro mesmo `cdn.jsdelivr.net`). Ao verificar uma tela que depende de
+  CDN externo, sempre confirmar que o fallback/estado de erro renderiza
+  direito (nunca assumir que vai carregar liso só porque o backend alcança
+  a URL) - documentar quando isso acontecer, não tratar como bug do código.
+
 ### Fase 5, Grupo B (navegação por voz) - US-B1 a US-B6
 - **`_classificar_intent(conn, texto)` em `app.py` é a fonte única da lógica de
   classificação de intent** - `/api/intent/classificar` (sessão) e

@@ -1,0 +1,363 @@
+# Fase 6 - Grupo F3-extra (Viagens/Lugares/Cotacoes/Aviacao) - Progress Log
+Iniciado: 2026-09-23
+
+---
+
+## US-F11 - Viagens: linha do tempo de planejamento (regra pratica)
+
+Marcos genericos de prazo a partir da data de ida (`vida.marcos_planejamento_viagem`,
+pura funcao de calendario - nunca IA, nunca rede). Viagem ganhou coluna
+`internacional` (checkbox no form de nova viagem) porque a regra muda de
+acordo: nacional tem 3 marcos, internacional 5 (mais documento/visto e
+seguro viagem).
+
+Fonte/raciocinio dos numeros (pesquisado via WebSearch em 2026-09-23,
+mercado brasileiro de viagem - nomadglobal.com/melhoresdestinos.com.br):
+- Nacional: janela usual de compra e 21-45 dias antes (uso 45, a ponta mais
+  segura); hospedagem 21 dias antes; check-in online 1 dia antes.
+- Internacional: janela usual de compra e 3-6 meses antes (uso 120 dias,
+  ~4 meses, meio do intervalo); documento/visto 90 dias antes (processos de
+  visto/passaporte costumam levar semanas-meses); seguro viagem 30 dias
+  antes; hospedagem 45 dias antes; check-in online 2 dias antes (varias
+  companhias liberam 24-48h antes em voo internacional).
+- Em alta temporada (Natal/Ano Novo/Carnaval) a janela recomendada sobe pra
+  60-90 dias mesmo em voo nacional - o app NAO sabe se e alta temporada
+  (nao tem calendario de feriado embutido), entao fica com o numero
+  generico o ano inteiro. Marcado explicitamente como decisao.
+
+Historia US-F11 — decisao: os numeros sao REGRA PRATICA, nunca preco em
+tempo real - texto `vida.AVISO_REGRA_PRATICA` aparece sempre junto da linha
+do tempo na tela ("Regra pratica generica (antecedencia usual de mercado) -
+nao e preco em tempo real nem consulta a nenhuma companhia aerea."), tanto
+no card do chat quanto na tela de Viagens. / Motivo: pedido explicito do
+Alex no prd ("Deixe claro na tela e no progress que e REGRA PRATICA, nao
+preco em tempo real"). / Nao confirmado: se o Alex quer ajustar os numeros
+depois de usar de verdade (ex: achar 45 dias curto pra nacional) - facil de
+mudar, sao so as constantes MARCOS_NACIONAL/MARCOS_INTERNACIONAL em
+vida.py.
+
+Visual: reaproveita o card `projeto_viagem` (US-E13, ja usado pelo chat) -
+`GET /api/viagens/<id>/timeline-card` devolve o MESMO card que `cards.card_viagem`
+monta pro chat (sem duplicar calculo), so com `actions: []` (a tela ja esta
+na aba Viagens - um botao "abrir aba Viagens" ali seria um link circular).
+A linha do tempo em si reusa a classe `.linha-do-tempo` que ja existe pra
+agenda/visao do dia (Fase 6 E5) - versao "mini" (`.linha-do-tempo.mini`)
+soltando o CSS caber dentro do card, MESMA marcacao visual (bolinha
+apagada = passado, bolinha acesa = proximo). Marcador HOJE fica dentro da
+propria linha do tempo (pill "HOJE" inserida na posicao cronologica certa
+entre os marcos, alem do marcador HOJE que a barra de progresso do card ja
+tinha antes) - acceptance criteria pede o marcador NA linha, nao so na
+barra.
+
+Verificacao headless: duas viagens semeadas (nacional e internacional),
+tela Vida > Viagens, screenshot antes/depois - as duas linhas do tempo
+renderizam com os marcos certos (3 pra nacional, 5 pra internacional),
+classes passado/proximo corretas pra 2026-09-23 (data real do dia), sem
+erro de console. Screenshots em /tmp/fase6-f3/depois_viagens*.png
+(nao versionados).
+
+
+## US-F12 - Viagens: status do voo por numero (API de voo)
+
+### API de voo (Fase 6 F3) - comparacao completa
+
+Pesquisado via WebSearch em 2026-09-23 (situacao "hoje", nao a do
+treinamento do modelo - free tier muda com frequencia):
+
+1. **AviationStack** (https://aviationstack.com) - ESCOLHIDA.
+   - Cadastro gratuito SO com email, sem cartao de credito.
+   - 100 requisicoes gratis/mes (~3.3/dia).
+   - LIMITACAO REAL: o plano gratuito so aceita HTTP (nao HTTPS) - a
+     API rejeita a chamada em https:// sem plano pago. A chave viaja sem
+     criptografia nessa chamada especifica. Documentado no .env.example
+     e no docstring de `voo_status.py` pro Alex decidir informado.
+   - Motivo da escolha: e a UNICA das 4 pesquisadas que nao pede cartao de
+     credito pra ativar o plano gratuito - trava explicita do briefing
+     ("Voce NAO consegue criar conta por ele"): cartao e decisao financeira
+     que so o Alex toma, entao qualquer API que exija cartao mesmo no
+     "gratis" fica fora ate ele mesmo cadastrar.
+
+2. **AeroDataBox** (via RapidAPI) - descartada por exigir cartao.
+   - Limite bem maior no gratuito (600 unidades/mes, ~2400 requisicoes/mes,
+     1000/hora) e HTTPS de verdade - tecnicamente superior.
+   - RapidAPI PEDE cartao de credito mesmo pro plano Basic ($0/mes), como
+     garantia contra excesso de uso. Mesma trava do item acima.
+   - Se o Alex mesmo cadastrar o cartao um dia, essa e a melhor opcao pra
+     trocar (limite maior, HTTPS) - so trocar a URL/parsing em
+     `voo_status.py`, o cache e o contrato de dado (`status_voo`) nao
+     mudam.
+
+3. **FlightAware AeroAPI** (plano Personal) - descartada, sem card, so
+   parcialmente confirmado.
+   - Ate $5 gratis/mes, sem minimo mensal, 10 result sets/minuto.
+   - NAO CONFIRMADO: se o cadastro do plano Personal exige forma de
+     pagamento cadastrada mesmo dentro da faixa gratis de $5 (nao achei
+     uma fonte clara que dissesse "sem cartao" como a AviationStack disse
+     explicitamente) - por seguranca, tratada como "provavelmente pede
+     cartao" e descartada junto com o item 2.
+
+4. **Amadeus Self-Service** - MORTA, nem entra na comparacao.
+   - O ambiente de teste gratuito (Self-Service, era a opcao mais
+     conhecida ha alguns anos) foi DESCONTINUADO em 2026-07-17 junto com
+     todo o portal self-service - confirmado por WebSearch, nao ha mais
+     free tier pra desenvolvedor independente. So sobrou o Enterprise
+     (contrato comercial, cartao/boleto, fora de escopo).
+
+Variavel de ambiente: `AVIATIONSTACK_API_KEY` (ver `.env.example` e
+`TODO.md`, secao "API de voo (Fase 6)"). Sem ela, `voo_status.configurado()`
+volta False e `GET /api/viagens/<id>/voo-status` devolve so
+`{"configurado": false}` sem tentar rede - a tela mostra "status em tempo
+real: configurar chave" (numero do voo continua editavel a mao,
+independente da chave).
+
+Cache: `voo_status_cache` (numero_voo, data) unique, TTL de 3h
+(`voo_status.CACHE_TTL`) - 100 req/mes / 30 dias ~= 3.3/dia, 3h de cache
+deixa consultar de novo algumas vezes ao longo do dia (manha + perto do
+horario do voo) sem estourar o limite mensal. Erro de rede com cache velho
+disponivel cai pro cache velho (com aviso "(rede falhou agora)") em vez de
+some a informacao da tela.
+
+Historia US-F12 — decisao: SEM chamar a API de verdade em nenhum teste -
+`tests/test_fase6_f3_viagens.py` mocka `voo_status.requests.get` sempre
+(FakeResp). / Motivo: regra explicita do prd + AGENTS.md (nunca API
+externa real em teste) - alem disso a chave nem existe no ambiente de
+teste (CI/agente nao tem AVIATIONSTACK_API_KEY). / Nao confirmado:
+comportamento real da API com um numero de voo/data que ela nao conhece
+(ex: voo cancelado ha muito tempo, ICAO/IATA errado) - o parsing de
+`_mapear_resposta` foi escrito contra a doc publica da AviationStack
+(formato `data: [{flight_status, departure: {gate, terminal, delay,
+scheduled, actual}}]`), nao contra uma resposta real (nenhuma chave
+disponivel pra chamar de verdade agora). Quando o Alex configurar a chave e
+testar com um voo real, se o formato divergir da doc, so ajustar
+`_mapear_resposta` (unico lugar que le o JSON bruto).
+
+Verificacao headless: caixa de numero do voo aparece em cada item de
+Viagens (screenshot em /tmp/fase6-f3/depois_viagens.png), sem chave
+configurada no ambiente de teste - sem numero de voo cadastrado ainda,
+entao nao tenta status (checado tambem via teste HTTP
+`test_sem_numero_voo_cadastrado`/`test_definir_numero_voo_e_consultar_status_sem_chave`).
+
+
+## US-F13 - Lugares que Gostei: mapa (OpenStreetMap)
+
+Decisao do Alex (ja registrada no TODO.md antes desta historia): OSM agora,
+sem chave nem cartao. Duas peças, cada uma com sua politica de uso
+confirmada via WebSearch em 2026-09-23:
+
+1. **Geocodificacao: Nominatim** (`geocode_nominatim.py`) - so o SERVIDOR
+   chama (nunca o navegador direto), por 3 motivos que a propria politica
+   de uso do Nominatim exige (https://operations.osmfoundation.org/policies/nominatim/):
+   - Maximo 1 req/s: `_throttle()` guarda o timestamp da ultima chamada
+     (modulo, memoria do processo Flask) e da `time.sleep()` do que faltar.
+   - User-Agent proprio identificando o app (nao o default da lib HTTP):
+     `PainelPessoalTDAH/1.0 (app pessoal de produtividade, uso nao
+     comercial)`.
+   - Cache do resultado, nunca repete a mesma consulta: `lugares.lat/lng/geocode_status`
+     grava PARA SEMPRE assim que a API responde "ok" ou "nao_encontrado" -
+     so uma falha de REDE (timeout/erro de conexao) fica sem gravar (campo
+     None), pra poder tentar de novo mais tarde (isso nao e repetir uma
+     consulta que ja deu certo, e so nunca ter conseguido perguntar).
+   - Disparo: 1x na criacao do lugar (`app._criar_lugar`), e um backfill de
+     NO MAXIMO 1 lugar por chamada de `GET /api/lugares` (pra lugares
+     criados antes desta historia, ou que falharam por rede) - nunca mais
+     que isso numa chamada so, mesmo que a lista cresca muito.
+
+Historia US-F13 — decisao: User-Agent do Nominatim NAO leva o email do
+Alex (`alexxcgg@gmail.com`), so o nome do app - a politica pede "identificar
+o app", nao "identificar a pessoa", e nao tem necessidade real de mandar
+dado pessoal pra um terceiro so pra isso. / Motivo: minimizar o que sai do
+app pra fora sem necessidade funcional - a politica do Nominatim funciona
+igual so com um User-Agent descritivo. / Nao confirmado: se algum dia o
+volume de uso justificar um contato de verdade no header (a politica
+sugere isso ajuda o time do Nominatim a avisar antes de bloquear em vez de
+bloquear direto), o Alex pode decidir incluir email/site proprio depois -
+facil de mudar (`geocode_nominatim.USER_AGENT`).
+
+2. **Lib de mapa: Leaflet 1.9.4** via `cdn.jsdelivr.net` (versao FIXADA, nunca
+   "latest" - `npm/leaflet@1.9.4/dist/leaflet.{css,js}`), carregada sob
+   demanda (só quando o Alex clica "ver no mapa" pela primeira vez - nunca
+   no carregamento normal da tela, pra nao pagar o custo de rede em toda
+   visita). Tiles: `tile.openstreetmap.org` (servidor publico padrao,
+   atribuicao "© OpenStreetMap contributors" no rodape do mapa, gerada pelo
+   proprio Leaflet). Sem CSP nem Content-Security-Policy configurada em
+   lugar nenhum do app (conferido - nenhum meta tag nem header) - nada pra
+   liberar. Service worker (`static/service-worker.js`) NAO precisa mudar
+   de versao: o fetch handler ja e network-first pra QUALQUER request
+   (inclusive cross-origin), entao o CDN/tiles funcionam sem precisar
+   entrar no precache - so nao funcionam offline na primeira visita (o que
+   é esperado: mapa e recurso online por natureza).
+
+**Achado real na verificacao headless** (Playwright, Chromium sandboxed
+deste ambiente): o proprio `fetch()` pro `cdn.jsdelivr.net` FALHA dentro do
+navegador headless (`Failed to fetch`), mesmo o backend Python (`curl`/`requests`)
+conseguindo alcançar tanto o Nominatim quanto o jsdelivr e o
+tile.openstreetmap.org sem problema nenhum (testado por curl antes de
+escrever o codigo) - o proxy de rede deste ambiente de sandbox aparentemente
+nao libera o mesmo jeito pro trafego saindo do Chromium controlado por
+Playwright. Confirmado que isso e SO do ambiente de teste, nao um bug: o
+`container`/fallback funciona exatamente como desenhado - o mapa fica com a
+mensagem "Não consegui carregar o mapa agora (sem rede?) - o lugar continua
+salvo normalmente." (nunca quebra, nunca esconde o nome do lugar), e o
+lugar sem geocode ainda mostra "Ainda localizando no mapa...". Screenshots
+em /tmp/fase6-f3/depois_lugares_mapa_aberto.png (fallback) e
+/tmp/fase6-f3/antes_lugares.png (fechado). Em producao real (fora deste
+sandbox) o mapa deve carregar normalmente - o Alex confirma na primeira vez
+que abrir de verdade no navegador dele.
+
+**Gap real encontrado e corrigido na mesma verificacao**: `.lugar-mapa`
+tinha `display: flex` incondicional, que EMPATAVA em especificidade com a
+regra padrao do navegador pro atributo `hidden` (`[hidden] { display: none }`)
+e, por ordem de declaracao, ganhava - o mapa fechado aparecia como uma caixa
+vazia ocupando espaco na tela antes mesmo de clicar "ver no mapa". Corrigido
+com `.lugar-mapa[hidden] { display: none; }` explicito logo depois (mesmo
+padrao de bug que vale a pena lembrar pra qualquer elemento futuro que
+misture `hidden` com `display` != `none` direto na classe).
+
+Testes: `geocode_nominatim.py` SEMPRE com `requests.get` mockado (nunca
+Nominatim real em teste automatizado) - `tests/test_fase6_f3_lugares_mapa.py`
+(12 casos: geocode puro incluindo throttle, criacao, backfill de no maximo
+1 por chamada, nunca geocodifica 2x, erro de rede nao trava status). Suite
+completa: 1681 testes, mesmas 6 falhas conhecidas (horario real), sem
+regressao. node --test: 87/87 ok. gitleaks: 0 achados.
+
+**Correcao pos-commit (achada rodando a suite completa de novo pra US-F14)**:
+`test_erro_de_rede_na_criacao_nao_impede_o_lugar_de_ser_salvo` tinha o `GET
+/api/lugares` (que dispara o backfill) FORA do `with patch(...)` do POST -
+como o lugar ficava com `geocode_status` None (falha de rede simulada), o
+GET seguinte, sem mock, chamava o Nominatim DE VERDADE (rede real
+disponivel neste ambiente). Corrigido envolvendo POST e GET no mesmo
+`with`. Ver AGENTS.md pra o padrao geral (rota GET com efeito colateral de
+rede precisa do mock cobrindo TODAS as chamadas no teste). Suite completa
+re-rodada depois da correcao, mesmas 6 falhas conhecidas, nenhuma real.
+
+
+## US-F14 - Cotacoes: visual com grafico
+
+Grafico de comparacao entre fornecedores (SVG inline, barras horizontais,
+mesmo padrao visual dos cards - reaproveita as classes `.card-grafico`/
+`.card-graf-rotulo`/`.card-graf-valor` ja usadas em `saude_treino`
+(cards-tipos.js), so com cor propria porque cotacoes fica fora do sistema
+`.card-contrato-*` que define `--card-cor`). So aparece com 2+ fornecedores
+com valor (1 so nao "compara" nada); fornecedor mais barato (primeira
+barra, mesma ordem que `list_itens_cotacao` ja devolve) ganha destaque com
+glow, os outros ficam em tom mais apagado da mesma cor (`--cor-construtora`,
+onde Cotacoes mora). Implementado em `static/js/app.js`
+(`graficoComparacaoCotacoes`, dentro de `preencherDetalheCotacao`).
+
+**Gap real encontrado**: `/api/cotacoes` (lista e detalhe) NUNCA tinha
+ganhado a checagem de `_modo_visitante_ativo()` que todo outro endpoint
+financeiro (`/api/expenses`, `/api/incomes`, `/api/orcamentos`...) ja tem -
+cotacao compara preco de fornecedor de material de obra, e claramente dado
+financeiro/de negocio que deveria estar coberto desde a US-C20 (modo
+visitante original), mas ficou de fora por cotacoes ter sido adicionada
+DEPOIS daquela historia. Corrigido: `GET /api/cotacoes` esconde a lista
+inteira (`[]`, mesmo padrao de `/api/expenses`); `GET /api/cotacoes/<id>`,
+`POST /api/cotacoes`, `POST /api/cotacoes/<id>/itens` e
+`POST /api/cotacoes/<id>/itens/pdf` bloqueiam com 403 "indisponivel no modo
+visitante" (mesmo padrao de `/api/decisao`/`/api/diario-decisoes`, que
+tambem bloqueiam escrita alem de esconder leitura). `DELETE` das cotacoes/
+itens foi deixado sem bloqueio de proposito (apagar nao vaza valor nenhum
+e o Alex pode querer limpar uma cotacao de teste mesmo em modo visitante).
+
+Historia US-F14 — decisao: a checagem de visitante ficou no nivel da ROTA
+(nao dentro de `list_cotacoes`/`get_cotacao` em `db.py`), mesmo padrao
+usado em todo o resto do arquivo (`list_expenses`, `list_incomes`, etc) -
+`db.py` nunca sabe de modo visitante, so `app.py`. / Motivo: manter a
+mesma convencao ja estabelecida (`db.py` e so acesso a dado, a regra de
+"quem pode ver o que" e sempre em `app.py`), nunca duplicar o padrao de um
+jeito diferente so porque a rota e nova. / Nao confirmado: nada - a lacuna
+era clara e a correcao seguiu precedente direto, sem ambiguidade.
+
+Testes: `tests/test_fase6_f3_cotacoes_grafico.py` (5 casos, confere o CORPO
+BRUTO da resposta pra pegar vazamento de valor/nome de fornecedor, mesmo
+padrao de `tests/test_modo_visitante_telas.py`) + as 15 cotacoes ja
+existentes em `tests/test_app.py` sem regressao. Grafico em si (SVG via DOM,
+nao testavel em Node sem shim de DOM, mesmo padrao dos outros
+renderizadores de tela em `app.js`) verificado so via Playwright headless.
+
+Verificacao headless: cotacao com 3 fornecedores, grafico com 3 barras
+renderizando (fornecedor mais barato destacado), screenshot em
+/tmp/fase6-f3/depois_cotacoes_grafico_scroll.png; modo visitante ativado
+pelo botao real da tela esconde a secao inteira (mensagem "Oculto no modo
+visitante"), screenshot em /tmp/fase6-f3/cotacoes_visitante.png. Zero erro
+de console nos dois casos.
+
+
+## US-F15 - Aviacao: registro de voo e METAR mais visuais
+
+**Categoria VFR/MVFR/IFR/LIFR** (`metar.categoria_voo`, `metar.py`): decisao
+tomada explicitamente - isso NAO e o mesmo tipo de julgamento que o modulo
+sempre recusou fazer ("posso voar ou nao"). E a classificacao PADRAO
+FAA/AIM (limiares oficiais de teto/visibilidade, os MESMOS que o proprio
+aviationweather.gov publica como "flight_category" em todo METAR que essa
+API devolve) - so mais uma conversao tabelada de numero pra rotulo, igual
+"BKN008 = 800 pes de teto" ja era. A decisao de voar continua 100% do Alex;
+a tela sempre mostra "Sempre confira antes de voar" junto da cor (ja
+existia esse aviso na dica-colapsavel da secao, mantido).
+
+Limiares exatos (teto em pes AGL, visibilidade convertida de metros pra
+statute miles - 1SM = 1609.34m, MESMA unidade que a definicao oficial usa):
+- **LIFR**: teto < 500ft OU visibilidade < 1SM
+- **IFR**: teto < 1000ft OU visibilidade < 3SM
+- **MVFR**: teto <= 3000ft OU visibilidade <= 5SM (limite superior inclusivo)
+- **VFR**: acima de tudo isso (CAVOK e ceu limpo contam como "sem teto" =
+  acima de 3000, igual a definicao oficial trata ausencia de teto)
+
+Cor do chip (`static/js/app.js`/`style.css`) usa as MESMAS 4 cores padrao
+de carta aeronautica que qualquer piloto ja reconhece (verde/azul/
+vermelho/magenta), nunca inventadas.
+
+Historia US-F15 — decisao: `resumo_falado()` (o texto que o botao "ouvir"
+le em voz alta) CONTINUA sem mencionar categoria - existe um teste antigo
+(`test_nunca_menciona_categoria_de_voo`) garantindo isso e ele ficou
+intocado. / Motivo: a fala e uma leitura NEUTRA dos dados brutos (mesmo
+espirito de sempre); a categoria e so um indicador visual adicional (chip
+colorido), informacao nova que se soma, nao substitui nem se mistura com o
+texto falado original. / Nao confirmado: nada tecnico - a definicao FAA/AIM
+e publica e nao ambigua, testada com METARs reais cobrindo CAVOK, vento
+variavel (VRB e variavel-entre), calmaria (00000KT) e BKN/OVC em varios
+tetos, incluindo os limites exatos de cada faixa (teto=500 -> IFR,
+teto=3000/vis=5SM -> MVFR).
+
+**Vento com seta**: `criarIconeVento` (app.js) desenha uma seta SVG
+rotacionada pelo grau decodificado (`vento.direcao`) - vento variavel (VRB)
+mostra um icone circular em vez de seta (nao ha direcao unica pra apontar).
+
+**Registro de voo mais visual**: icone de status (relogio = agendado,
+check verde = realizado) em cada item de "Proximos voos"
+(`criarIconeStatusVoo`) - decisao PURAMENTE visual, a logica de "o que e
+realizado" continua 100% em `voos.py` (`v.horas != null`), nunca
+reimplementada no front. A lista em si ja herdava a animacao de entrada
+compartilhada (`li.item { animation: fadeInUp ... }`, padrao ja
+estabelecido no app inteiro) - nao precisou de nada novo ali. METAR/TAF
+ganharam reanimacao (`fadeInUp`) a cada consulta nova (antes so animava na
+primeira vez que a secao aparecia).
+
+Testes: `tests/test_metar.py` (16 casos novos em `CategoriaVooTestCase`,
+METARs reais cobrindo CAVOK/vento variavel/calmaria/BKN/OVC/limites exatos
+das 4 faixas, mais o campo novo em `buscar_metar_taf`/segmentos de TAF) -
+suite de metar.py inteira (60 testes) sem regressao. `criarIconeVento`/
+`criarIconeStatusVoo`/chip (DOM puro) verificados so via Playwright, mesmo
+padrao dos outros renderizadores de tela em `app.js`.
+
+Verificacao headless: METAR SBBI mockado (BKN020/6000m -> chip MVFR azul,
+seta de vento a 120°) - screenshot em /tmp/fase6-f3/depois_metar.png; voo
+agendado futuro com icone de relogio - screenshot em
+/tmp/fase6-f3/antes_aviacao.png. Zero erro de console. Suite completa:
+1702 testes, mesmas 6 falhas conhecidas de horario real, sem regressao.
+node --test: 87/87 ok. gitleaks: 0 achados.
+
+
+---
+
+## Fecho da faixa F3-extra (US-F11 a US-F15)
+
+Todas as 5 historias do grupo `grupo-f3-extra.json` passaram (`passes:
+true`), nenhuma ficou blocked, nenhuma pergunta pendente pro Alex.
+Decisoes de API externa (AviationStack pro status de voo) ficaram atras de
+variavel de ambiente vazia (`AVIATIONSTACK_API_KEY`) - o Alex cadastra a
+conta e cola a chave quando quiser, sem nenhuma mudanca de codigo
+necessaria. Nominatim/Leaflet (US-F13) nao precisam de nenhuma chave -
+funcionam assim que o app for aberto fora deste sandbox de rede restrita.
+Commits: 86961f2 (US-F11/F12), 5f67191 (tracking), 2e280da (US-F13), 20b5fba
+(US-F14) + o desta historia (US-F15).

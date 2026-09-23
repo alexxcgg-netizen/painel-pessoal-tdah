@@ -3285,8 +3285,58 @@ async function loadCotacoes() {
   const list = $("#lista-cotacoes");
   list.innerHTML = "";
   if (!data) return;
-  $("#cotacoes-vazio").hidden = data.length > 0;
+  $("#cotacoes-oculto-visitante").hidden = !modoVisitanteAtivo;
+  $("#cotacoes-vazio").hidden = modoVisitanteAtivo || data.length > 0;
   data.forEach((c) => list.appendChild(criarItemCotacao(c)));
+}
+
+// US-F14: grafico de comparacao entre fornecedores - SVG inline no mesmo
+// padrao visual dos cards (barras horizontais, cor da secao), so aparece
+// com 2+ fornecedores com valor (1 so nao "compara" nada). Mais barato
+// primeiro (mesma ordem que list_itens_cotacao ja devolve - ver db.py).
+function graficoComparacaoCotacoes(itens) {
+  const comValor = itens.filter((i) => typeof i.valor === "number" && Number.isFinite(i.valor));
+  if (comValor.length < 2) return null;
+  const max = Math.max(...comValor.map((i) => i.valor), 1);
+  const alturaLinha = 28;
+  const largura = 300;
+  const xBarra = 96;
+  const larguraMax = largura - xBarra - 58;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "card-grafico cotacao-grafico");
+  svg.setAttribute("viewBox", `0 0 ${largura} ${comValor.length * alturaLinha}`);
+  svg.setAttribute("role", "img");
+  const titulo = comValor.map((i) => `${i.fornecedor || "fornecedor"}: ${fmtMoeda(i.valor)}`).join(", ");
+  svg.setAttribute("aria-label", `Comparacao de fornecedores - ${titulo}`);
+  comValor.forEach((item, i) => {
+    const y = i * alturaLinha;
+    const w = Math.max(4, (item.valor / max) * larguraMax);
+    const nomeBruto = item.fornecedor || "sem nome";
+    const nome = nomeBruto.length > 14 ? `${nomeBruto.slice(0, 13)}…` : nomeBruto;
+    const ns = "http://www.w3.org/2000/svg";
+    const rotulo = document.createElementNS(ns, "text");
+    rotulo.setAttribute("class", "card-graf-rotulo");
+    rotulo.setAttribute("x", "0");
+    rotulo.setAttribute("y", String(y + 18));
+    rotulo.textContent = nome;
+    const barra = document.createElementNS(ns, "rect");
+    barra.setAttribute("class", "card-graf-barra");
+    barra.setAttribute("x", String(xBarra));
+    barra.setAttribute("y", String(y + 7));
+    barra.setAttribute("width", w.toFixed(1));
+    barra.setAttribute("height", "13");
+    barra.setAttribute("rx", "6.5");
+    if (i === 0) barra.classList.add("cotacao-grafico-menor");
+    const valor = document.createElementNS(ns, "text");
+    valor.setAttribute("class", "card-graf-valor");
+    valor.setAttribute("x", (xBarra + w + 6).toFixed(1));
+    valor.setAttribute("y", String(y + 18));
+    valor.textContent = fmtMoeda(item.valor);
+    svg.appendChild(rotulo);
+    svg.appendChild(barra);
+    svg.appendChild(valor);
+  });
+  return svg;
 }
 
 function criarItemCotacao(c) {
@@ -3382,6 +3432,18 @@ async function preencherDetalheCotacao(cotacaoId, container) {
       listaItens.appendChild(itemLi);
     });
     container.appendChild(listaItens);
+
+    const grafico = graficoComparacaoCotacoes(data.itens);
+    if (grafico) {
+      const graficoBox = document.createElement("div");
+      graficoBox.className = "grafico-card cotacao-grafico-box";
+      const graficoTitulo = document.createElement("p");
+      graficoTitulo.className = "grafico-titulo";
+      graficoTitulo.textContent = "Comparacao entre fornecedores";
+      graficoBox.appendChild(graficoTitulo);
+      graficoBox.appendChild(grafico);
+      container.appendChild(graficoBox);
+    }
   }
 
   const formItem = document.createElement("form");
@@ -3461,6 +3523,19 @@ $("#cotacao-form").addEventListener("submit", async (e) => {
   }
 });
 
+// US-F15: icone de status (agendado vs realizado) - so decoracao visual,
+// a logica de "o que e realizado" continua 100% em voos.py (v.horas != null),
+// nunca reimplementada aqui.
+function criarIconeStatusVoo(realizado) {
+  const wrap = document.createElement("span");
+  wrap.className = "voo-status-icone" + (realizado ? " realizado" : " agendado");
+  wrap.title = realizado ? "Voo realizado" : "Voo agendado";
+  wrap.innerHTML = realizado
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
+  return wrap;
+}
+
 function criarItemVoo(v) {
   const li = document.createElement("li");
   li.className = "item";
@@ -3470,8 +3545,9 @@ function criarItemVoo(v) {
 
   const tituloWrap = document.createElement("div");
   const titulo = document.createElement("span");
-  titulo.className = "item-titulo";
-  titulo.textContent = v.origem ? `${v.origem} → ${v.destino}` : v.destino;
+  titulo.className = "item-titulo item-titulo-com-icone";
+  titulo.appendChild(criarIconeStatusVoo(v.horas != null));
+  titulo.appendChild(document.createTextNode(v.origem ? `${v.origem} → ${v.destino}` : v.destino));
   tituloWrap.appendChild(titulo);
 
   const quando = document.createElement("span");
@@ -3667,9 +3743,51 @@ $("#voo-form").addEventListener("submit", async (e) => {
   loadStreak();
 });
 
-function renderCamposMeteo(container, decodificado) {
+// US-F15: rotulo/cor por categoria VFR/MVFR/IFR/LIFR - MESMAS cores padrao
+// de carta aeronautica (verde/azul/vermelho/magenta), nunca inventadas.
+// `metar.categoria_voo` (Python) e a UNICA fonte da classificacao em si -
+// isso aqui so escolhe rotulo/classe CSS pro que o servidor ja decidiu.
+const CATEGORIA_VOO_INFO = {
+  VFR: { rotulo: "VFR", classe: "cat-vfr" },
+  MVFR: { rotulo: "MVFR", classe: "cat-mvfr" },
+  IFR: { rotulo: "IFR", classe: "cat-ifr" },
+  LIFR: { rotulo: "LIFR", classe: "cat-lifr" },
+};
+
+function criarChipCategoriaVoo(categoria) {
+  const info = CATEGORIA_VOO_INFO[categoria];
+  if (!info) return null;
+  const chip = document.createElement("span");
+  chip.className = `metar-chip-categoria ${info.classe}`;
+  chip.textContent = info.rotulo;
+  chip.title = "Classificacao padrao FAA/AIM de teto e visibilidade - confira sempre antes de voar.";
+  return chip;
+}
+
+// Seta de vento (SVG) apontando na direcao de onde o vento vem (convencao
+// de manga de vento) - rotacionada pelo grau decodificado. VRB (variavel)
+// mostra um icone circular em vez de seta (nao ha uma direcao pra apontar).
+function criarIconeVento(vento) {
+  const wrap = document.createElement("span");
+  wrap.className = "metar-vento-icone";
+  if (!vento || vento.variavel) {
+    wrap.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 8v8M8 12h8"/></svg>';
+    return wrap;
+  }
+  wrap.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14"/><path d="M7 8l5-5 5 5"/></svg>';
+  wrap.style.transform = `rotate(${vento.direcao}deg)`;
+  return wrap;
+}
+
+function renderCamposMeteo(container, decodificado, categoria) {
   container.innerHTML = "";
   if (!decodificado) return;
+
+  const chip = criarChipCategoriaVoo(categoria);
+  if (chip) container.appendChild(chip);
+
   const linhas = [];
   if (decodificado.vento) {
     const v = decodificado.vento;
@@ -3677,27 +3795,28 @@ function renderCamposMeteo(container, decodificado) {
       ? `variável, ${v.velocidade_kt}kt`
       : `${String(v.direcao).padStart(3, "0")}° / ${v.velocidade_kt}kt`;
     if (v.rajada_kt) txt += `, rajada ${v.rajada_kt}kt`;
-    linhas.push(["Vento", txt, false]);
+    linhas.push(["Vento", txt, false, criarIconeVento(v)]);
   }
   if (decodificado.visibilidade_m != null) {
     const txt = decodificado.visibilidade_m >= 9999 ? "10km+" : `${decodificado.visibilidade_m}m`;
-    linhas.push(["Vis.", txt, false]);
+    linhas.push(["Vis.", txt, false, null]);
   }
   if (decodificado.teto_ft != null) {
-    linhas.push(["Teto", `${decodificado.teto_ft} ft`, true]);
+    linhas.push(["Teto", `${decodificado.teto_ft} ft`, true, null]);
   } else if (decodificado.nuvens && decodificado.nuvens.length === 0) {
-    linhas.push(["Nuvens", "céu limpo", false]);
+    linhas.push(["Nuvens", "céu limpo", false, null]);
   }
   if (decodificado.temp != null) {
     const orv = decodificado.ponto_orvalho != null ? ` / ${decodificado.ponto_orvalho}°C` : "";
-    linhas.push(["Temp.", `${decodificado.temp}°C${orv}`, false]);
+    linhas.push(["Temp.", `${decodificado.temp}°C${orv}`, false, null]);
   }
   if (decodificado.qnh_hpa) {
-    linhas.push(["QNH", `${decodificado.qnh_hpa} hPa`, false]);
+    linhas.push(["QNH", `${decodificado.qnh_hpa} hPa`, false, null]);
   }
-  linhas.forEach(([rotulo, valor, destaque]) => {
+  linhas.forEach(([rotulo, valor, destaque, icone]) => {
     const linha = document.createElement("div");
     linha.className = "metar-campo-linha";
+    if (icone) linha.appendChild(icone);
     const r = document.createElement("span");
     r.className = "metar-campo-rotulo";
     r.textContent = rotulo;
@@ -3721,7 +3840,7 @@ function renderSegmentosTaf(container, segmentos) {
     titulo.textContent = seg.periodo ? `${seg.tipo} (${seg.periodo})` : seg.tipo;
     bloco.appendChild(titulo);
     const campos = document.createElement("div");
-    renderCamposMeteo(campos, seg.decodificado);
+    renderCamposMeteo(campos, seg.decodificado, seg.categoria_voo);
     bloco.appendChild(campos);
     container.appendChild(bloco);
   });
@@ -3798,7 +3917,7 @@ $("#metar-form").addEventListener("submit", async (e) => {
   }
   $("#metar-texto").textContent = data.metar || "sem METAR disponivel agora.";
   $("#taf-texto").textContent = data.taf || "sem TAF disponivel agora.";
-  renderCamposMeteo($("#metar-campos"), data.metar_decodificado);
+  renderCamposMeteo($("#metar-campos"), data.metar_decodificado, data.metar_categoria);
   renderSegmentosTaf($("#taf-segmentos"), data.taf_segmentos);
   metarFaladoAtual = data.metar_falado;
   tafFaladoAtual = data.taf_falado;
@@ -3807,6 +3926,13 @@ $("#metar-form").addEventListener("submit", async (e) => {
     $("#taf-ouvir").hidden = !tafFaladoAtual;
   }
   $("#metar-resultado").hidden = false;
+  // reinicia a animacao de entrada a cada consulta nova (mesmo padrao de
+  // pulsarSucesso: remove, forca reflow, adiciona de novo)
+  document.querySelectorAll("#metar-resultado .metar-bloco").forEach((bloco) => {
+    bloco.classList.remove("metar-anim");
+    void bloco.offsetWidth;
+    bloco.classList.add("metar-anim");
+  });
 });
 
 function urlBase64ToUint8Array(base64String) {

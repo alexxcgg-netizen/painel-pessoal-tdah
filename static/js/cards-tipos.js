@@ -342,6 +342,45 @@
     pausado: "Pausado",
   };
 
+  // ---- US-F11: linha do tempo de planejamento (regra pratica) -------------
+  // Mini linha do tempo vertical, MESMA classe/marcacao visual da agenda/visao
+  // do dia (.linha-do-tempo, style.css) - so acrescenta uma classe .mini pra
+  // caber dentro do card sem competir com o card-checklist/progresso acima.
+  // So aparece quando o backend mandar `marcos_planejamento` (so viagem tem -
+  // projeto generico nunca tem esse campo, entao o bloco inteiro some).
+  function linhaDoTempoPlanejamentoHTML(marcos, aviso, agora) {
+    const lista = Array.isArray(marcos)
+      ? marcos.filter((m) => m && typeof m === "object" && m.titulo && typeof m.data === "string")
+      : [];
+    if (!lista.length) return "";
+    const ref = agora instanceof Date ? agora : new Date();
+    const hojeIso = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}-${String(ref.getDate()).padStart(2, "0")}`;
+    const ordenados = lista.slice().sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0));
+    let hojeInserido = false;
+    const itensHtml = [];
+    ordenados.forEach((m) => {
+      if (!hojeInserido && hojeIso <= m.data) {
+        itensHtml.push(`<li class="item hoje-marcador" aria-current="date"><span class="item-titulo">HOJE</span></li>`);
+        hojeInserido = true;
+      }
+      const passado = m.data < hojeIso;
+      itensHtml.push(
+        `<li class="item${passado ? " passado" : " proximo"}">` +
+          `<span class="item-titulo">${esc(m.titulo)}</span>` +
+          `<span class="card-linha-meta">${esc(Cards.diaMesCurto(m.data))}</span></li>`
+      );
+    });
+    if (!hojeInserido) {
+      itensHtml.push(`<li class="item hoje-marcador" aria-current="date"><span class="item-titulo">HOJE</span></li>`);
+    }
+    return (
+      `<div class="card-marcos-planejamento">` +
+      `<p class="card-linha-meta card-marcos-aviso">${ICONES.sugestao || ""}<span>${esc(aviso || "Regra prática, não é preço em tempo real.")}</span></p>` +
+      `<ul class="linha-do-tempo mini">${itensHtml.join("")}</ul>` +
+      `</div>`
+    );
+  }
+
   Cards.registrar("projeto_viagem", (data, card, ctx) => {
     const etapas = lista(data.etapas).filter((e) => e && typeof e === "object");
     const p = progressoProjeto(data, ctx && ctx.agora);
@@ -380,7 +419,8 @@
       `<div class="card-progresso${marcador ? " com-hoje" : ""}">${marcador}<div class="meta-progresso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p.pct)}">` +
       `<div class="meta-progresso-barra${p.pct >= 100 ? " completa" : ""}" style="width:${p.pct.toFixed(1)}%"></div></div></div>` +
       `<p class="card-linha-meta">${linha}</p>` +
-      marco
+      marco +
+      linhaDoTempoPlanejamentoHTML(data.marcos_planejamento, data.aviso_regra_pratica, ctx && ctx.agora)
     );
   });
 

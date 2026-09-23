@@ -14,8 +14,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Regra pratica em vida.marcos_planejamento_viagem (3 marcos nacional, 5 internacional - coluna nova viagens.internacional). Linha do tempo reaproveita .linha-do-tempo (E5) dentro do card projeto_viagem (E13) via GET /api/viagens/<id>/timeline-card (cards.card_viagem, sem duplicar calculo). Aviso 'regra pratica, nao preco em tempo real' sempre junto. Marcador HOJE na propria linha (pill), alem da barra do card. Fonte dos numeros e testes/verificacao visual em tasks/fase6/progress-f3.txt. Commit 86961f2 (junto com US-F12, decisao do Alex no prd).",
       "modelo_planejado": "sonnet"
     },
     {
@@ -31,8 +31,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "API escolhida: AviationStack (cadastro so com email, sem cartao - a unica assim entre as 4 pesquisadas; free = 100 req/mes, so HTTP nao HTTPS - limitacao documentada). AeroDataBox exige cartao mesmo no plano gratis; FlightAware Personal nao confirmado se exige; Amadeus Self-Service morreu em 2026-07-17. Comparacao completa em TODO.md ('API de voo (Fase 6)') e progress-f3.txt. voo_status.py com cache de 3h (tabela voo_status_cache) - nunca chama a API de novo dentro da janela. Variavel AVIATIONSTACK_API_KEY (.env.example); sem ela, card mostra 'status em tempo real: configurar chave'. Testes 100% mockados. Commit 86961f2 (junto com US-F11).",
       "modelo_planejado": "sonnet"
     },
     {
@@ -47,8 +47,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Geocode via Nominatim (geocode_nominatim.py, so backend - 1 req/s, User-Agent proprio sem email do Alex, cache em lugares.lat/lng/geocode_status, nunca repete consulta que ja deu certo/nao_encontrado). Leaflet 1.9.4 fixado via cdn.jsdelivr.net, carregado sob demanda (so ao clicar 'ver no mapa'). Sem CSP no app - nada a liberar; SW nao mudou de versao. Achado real: CDN falha dentro do Chromium do Playwright deste sandbox mesmo o backend alcancando via curl - fallback textual confirmado renderizando (screenshot em /tmp/fase6-f3/depois_lugares_mapa_aberto.png), nome do lugar sempre aparece independente de rede. Gap de CSS [hidden] vs display:flex corrigido (ver AGENTS.md). Detalhes completos em tasks/fase6/progress-f3.txt.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -60,8 +60,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "SVG inline (graficoComparacaoCotacoes, static/js/app.js) reaproveitando o padrao visual .card-grafico/.card-graf-* ja usado em saude_treino - barras horizontais, fornecedor mais barato destacado, so aparece com 2+ fornecedores com valor. Gap real corrigido: /api/cotacoes (lista+detalhe+escrita) nunca respeitava modo visitante - agora segue o mesmo padrao de /api/expenses (lista escondida) e /api/decisao (escrita bloqueada 403). Detalhes/testes/screenshots em tasks/fase6/progress-f3.txt.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -74,8 +74,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "metar.categoria_voo (limiares padrao FAA/AIM, mesmos de aviationweather.gov) - chip colorido (verde/azul/vermelho/magenta padrao de carta aeronautica), testado com 16 METARs reais (CAVOK, vento variavel, calmaria, BKN/OVC, limites exatos das 4 faixas). Seta de vento rotacionada pelo grau (icone circular pra VRB). Voos: icone de status (agendado/realizado, so visual - logica 100% em voos.py). Chip/seta/icone verificados via Playwright (screenshot em /tmp/fase6-f3/depois_metar.png e antes_aviacao.png). resumo_falado() continua nunca mencionando categoria (teste antigo intocado). Detalhes em tasks/fase6/progress-f3.txt.",
       "modelo_planejado": "sonnet"
     }
   ]
