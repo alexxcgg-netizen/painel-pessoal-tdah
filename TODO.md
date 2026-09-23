@@ -228,13 +228,32 @@ Tracking por historia em `tasks/fase6/*.json` (formato Ralph) + `progress-*.txt`
 Rollback: branch `pre-fase-6` (c838e1f). Ordem: E1+E2+E3 em paralelo -> integra -> E4+E5 em
 paralelo -> integra -> F1+F2+F3 em paralelo -> integra -> revisao independente.
 
-- [ ] E1 base: bugs (manutencao unificada, lista de compras, rainbow), memoria visivel, estilo de resposta
-- [ ] E2 modulos: Habitos, Projetos, agenda no calendario "Painel" do iCloud, limite do cartao
-- [ ] E3 cards: contrato {cards, resumo_texto, passos}, registro de cards, cards simples e complexos, desfazer/link
-- [ ] E4 chat: brain dump em cards, consulta -> card no classificador local, ligacao dos modulos novos
-- [ ] E5 dia: proatividade unificada (6 textos/timings), visao do dia
-- [ ] F1 vida / F2 painel / F3 extra (Viagens com API de voo, Lugares com OpenStreetMap, Cotacoes, Aviacao)
-- [ ] Integracao + revisao independente (codigo + seguranca) + resumo final em 3 blocos
+- [x] E1 base: bugs (manutencao unificada, lista de compras, rainbow), memoria visivel, estilo de resposta
+- [x] E2 modulos: Habitos, Projetos, agenda no calendario "Painel" do iCloud, limite do cartao
+- [x] E3 cards: contrato {cards, resumo_texto, passos}, registro de cards, cards simples e complexos, desfazer/link
+- [x] E4 chat: brain dump em cards, consulta -> card no classificador local, ligacao dos modulos novos
+- [x] E5 dia: proatividade unificada (6 textos/timings), visao do dia
+- [x] F1 vida / F2 painel / F3 extra (Viagens com API de voo, Lugares com OpenStreetMap, Cotacoes, Aviacao)
+- [x] Integracao + revisao independente (codigo + seguranca) + resumo final em 3 blocos
+
+### Resultado da Fase 6 (fechada em 2026-09-23 ~22h UTC)
+- 32/32 historias com passes=true, nenhuma blocked. Suite final: 1757 testes Python (so as 6
+  falhas conhecidas dependentes do horario - voo/agrupamento) + 88/88 JS, gitleaks limpo.
+- Revisao independente: seguranca achou 3 ALTO + 5 MEDIO + 5 BAIXO reais (modo visitante no
+  Desfazer/cards de saude/memorias/agenda, XSS no popup do mapa, teto de IA fora do chat,
+  envenenamento do banco de padroes, lockout atras de proxy...) - todos corrigidos com teste
+  de regressao (ver CHANGELOG "correcoes da revisao independente"). Codigo: sem bloqueador.
+- Em aberto (fora do escopo desta rodada, pra proxima): teto de IA tambem em /api/capture,
+  lista de mala e leitura de PDF de cotacao; chat ainda aceita escrita por outras tools no
+  modo visitante; texto de IA ja gravado no historico nao e mascarado; valor em R$ no push de
+  limite do cartao (mantido de proposito - texto pedido pelo Alex).
+- Perguntas pro Alex (nada bloqueado): (1) numero real da construtora que ja aparece no plano/
+  resumo do dia (feature v3.99.14/16) deve sumir tambem, ou a regra "nunca numero da
+  construtora" vale so pra resposta livre da IA? (2) agua ganha acao de intent propria ou
+  continua via check-in? (3) "Guardar" no brain dump deve ja processar em cards direto?
+- Credenciais novas opcionais: AVIATIONSTACK_API_KEY (status de voo em tempo real, gratis so
+  com email). Variavel nova de infra: PAINEL_ATRAS_DE_PROXY=1 (Render ja configurado; ligar na
+  VPS com Caddy).
 
 ### Decisoes do Alex antes de comecar (rodada unica de perguntas)
 - Repositorio privado (confirmado) -> texto inicial de "O que lembro sobre voce" vai direto no codigo.
