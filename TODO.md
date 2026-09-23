@@ -56,9 +56,27 @@ correlacao sono x produtividade, clima do dia, "devo sair ate que horas"
 - [x] Uso de apps (automacao "App abriu/fechou" do Atalhos) + bateria -> resumo semanal
 
 ## Final
-- [ ] Guia de Atalhos pro Alex (docs/ATALHOS.md)
-- [ ] Lista exata de credenciais que faltam
-- [ ] Revisao independente (agente) + artifact atualizado
+- [x] Guia de Atalhos pro Alex (docs/ATALHOS.md)
+- [x] Lista exata de credenciais que faltam (secao abaixo)
+- [x] Revisao independente (agente) + artifact atualizado
+
+## Credenciais (tudo no `.env` do servidor - nada disso vai pro Git)
+Necessarias pro briefing funcionar:
+- `ANTHROPIC_API_KEY` - chat, "so o essencial", quebrar tarefa, vale a pena, mala, mensagem
+  dificil, resumo de link. Sem ela o resto funciona, mas sem IA.
+- `PAINEL_ATALHOS_TOKEN` - voce mesmo gera (senha longa). Obrigatorio pra localizacao
+  (casa/mercado) e uso de apps. Guia: `docs/ATALHOS.md`.
+- Pelo menos um canal de aviso proativo:
+  - Push no iPhone: rodar `python scripts/gerar_chaves_push.py` (gera `VAPID_PUBLIC_KEY` + chave
+    privada) e preencher `VAPID_SUBJECT` com seu e-mail; ou
+  - Telegram: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (@BotFather, ver README).
+- `CIDADE_PADRAO` (nao e segredo) - liga o aviso "vai chover no horario do compromisso".
+
+Opcionais (ja existiam):
+- `SAUDE_WEBHOOK_TOKEN` (voce gera) - Atalho de Saude (sono ruim, sono x humor).
+- `ICLOUD_USERNAME` + `ICLOUD_APP_PASSWORD` - agenda do iCloud no "cheguei em casa"/chuva.
+- `GOOGLE_MAPS_API_KEY` + `ENDERECO_CASA` - "que horas sair" com transito.
+- `PLUGGY_CLIENT_ID`/`SECRET`, `CONSTRUTORA_API_URL`/`KEY`, `UBER_CLIENT_ID`/`SECRET`.
 
 ## Decisoes (tomadas sem perguntar, pela regra 3)
 - Base: continua no painel-pessoal-tdah, pula o que ja existe.

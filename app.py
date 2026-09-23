@@ -1395,13 +1395,8 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         if not nome:
             return {"erro": "faltou o nome"}
         freq = _inteiro_no_intervalo(entrada.get("frequencia_dias") or 14, 1, 365) or 14
-        existente = vida.achar_pessoa(list_pessoas(conn), nome)
-        if existente and vida.normalizar_nome(existente["nome"]) == vida.normalizar_nome(nome):
-            conn.execute("UPDATE pessoas SET frequencia_dias = ? WHERE id = ?", (freq, existente["id"]))
-            conn.commit()
-            return {"ok": True, "atualizada": True, "frequencia_dias": freq}
-        create_pessoa(conn, nome, freq)
-        return {"ok": True, "frequencia_dias": freq}
+        _, atualizada = _salvar_pessoa(conn, nome, freq)
+        return {"ok": True, "atualizada": atualizada, "frequencia_dias": freq}
 
     def exec_registrar_conta_pessoal(entrada):
         nome = (entrada.get("nome") or "").strip()
@@ -3514,6 +3509,18 @@ def pessoas():
     return jsonify(resultado)
 
 
+def _salvar_pessoa(conn, nome: str, freq: int) -> tuple[int, bool]:
+    """Mesmo nome (sem acento/caixa) atualiza a frequencia em vez de duplicar
+    a pessoa. Devolve (id, atualizada)."""
+    alvo = vida.normalizar_nome(nome)
+    existente = next((p for p in list_pessoas(conn) if vida.normalizar_nome(p["nome"]) == alvo), None)
+    if existente:
+        conn.execute("UPDATE pessoas SET frequencia_dias = ? WHERE id = ?", (freq, existente["id"]))
+        conn.commit()
+        return existente["id"], True
+    return create_pessoa(conn, nome, freq), False
+
+
 @app.route("/api/pessoas", methods=["POST"])
 def criar_pessoa_rota():
     body = _corpo_json()
@@ -3525,9 +3532,9 @@ def criar_pessoa_rota():
     if freq is None:
         return jsonify({"error": "frequencia deve ser de 1 a 365 dias"}), 400
     conn = get_db()
-    pessoa_id = create_pessoa(conn, nome, freq)
+    pessoa_id, atualizada = _salvar_pessoa(conn, nome, freq)
     conn.close()
-    return jsonify({"ok": True, "id": pessoa_id}), 201
+    return jsonify({"ok": True, "id": pessoa_id, "atualizada": atualizada}), 200 if atualizada else 201
 
 
 @app.route("/api/pessoas/<int:pessoa_id>", methods=["DELETE"])
@@ -4069,7 +4076,12 @@ def atalho_local():
     if evento not in ("chegou", "saiu") or not lugar:
         return jsonify({"error": "mande evento ('chegou' ou 'saiu') e lugar"}), 400
     bateria = body.get("bateria")
-    bateria = _inteiro_no_intervalo(bateria, 0, 100) if bateria not in (None, "") else None
+    # "Obter Nivel da Bateria" pode vir quebrado (47.5) ou como texto ("47")
+    try:
+        bateria = round(float(bateria)) if bateria not in (None, "") and not isinstance(bateria, bool) else None
+    except (TypeError, ValueError, OverflowError):
+        bateria = None
+    bateria = _inteiro_no_intervalo(bateria, 0, 100) if bateria is not None else None
 
     agora = datetime.now()
     conn = get_db()

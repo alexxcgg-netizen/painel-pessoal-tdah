@@ -5,6 +5,20 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (23) - Fechamento do BRIEFING: guia de Atalhos e credenciais
+
+- **`docs/ATALHOS.md`**: passo a passo das automacoes do iPhone - casa (chegou/saiu com
+  bateria), mercado, uso de apps (uma automacao por app, abriu/fechou), Saude, e o que ja existia.
+  Inclui os limites reais da Apple (banner obrigatorio na localizacao, Screen Time ilegivel,
+  geofence pode atrasar).
+- `.env.example`: `PAINEL_ATALHOS_TOKEN` agora explica que localizacao/apps precisam dele e como
+  gerar. README aponta pro guia. `TODO.md` ganhou a lista exata de credenciais.
+- Bateria do Atalho pode vir quebrada (47.5) ou como texto ("47"): arredonda em vez de ignorar.
+- Pessoa com o mesmo nome (sem acento/caixa) pelo formulario atualiza a frequencia em vez de
+  duplicar - o chat ja fazia isso, agora os dois usam `_salvar_pessoa`.
+- "Quero aprender" recem-criado mostra "adicionado hoje" (antes dizia "mexeu hoje").
+- Artifact de demonstracao atualizado com a aba Vida (dados de um servidor real semeado).
+
 ## 2026-09-23 (22) - Correcoes da revisao independente da Fase 2
 
 Um agente separado (so leitura) revisou o commit da Fase 2 com ~700 requisicoes de lixo e

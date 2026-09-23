@@ -1,0 +1,130 @@
+# Atalhos do iPhone — guia de montagem
+
+Tudo que o painel sabe sobre "onde você está", "quanto de bateria tem" e "quanto usou o
+celular" chega por **automações do app Atalhos** (nativo, grátis). Este guia mostra como montar
+cada uma, na ordem de prioridade. Leva uns 15 minutos no total.
+
+> **Antes de começar:** defina `PAINEL_ATALHOS_TOKEN` no `.env` do servidor (uma senha longa
+> qualquer, ex.: gerada com `python -c "import secrets; print(secrets.token_urlsafe(24))"`).
+> Todo Atalho abaixo manda esse valor no cabeçalho `X-Webhook-Token`. Sem o token configurado,
+> localização e uso de apps **recusam** o pedido (esses endpoints devolvem agenda e lista de
+> compras, então não ficam abertos).
+
+Em todos os exemplos, troque `https://SEU-DOMINIO` pelo endereço do painel (o mesmo que você
+abre no Safari).
+
+## Molde da ação "Obter Conteúdo de URL"
+
+Todas as automações usam a mesma ação, só muda o corpo:
+
+- **URL:** o endereço do endpoint
+- **Método:** POST
+- **Cabeçalhos:**
+  - `Content-Type`: `application/json`
+  - `X-Webhook-Token`: o valor de `PAINEL_ATALHOS_TOKEN`
+- **Corpo da solicitação:** JSON, com os campos de cada seção abaixo
+
+---
+
+## 1. Casa: chegou / saiu (com bateria)
+
+**O que faz:**
+- **Saiu de casa:** checklist do que pegar.
+  - Sempre: carteira.
+  - Com bateria abaixo de 50%: carregador.
+  - Em dia de academia: fone e garrafa.
+  - Sexta ou sábado à noite, se você vai sair: bigode e cavanhaque.
+- **Chegou em casa:** se ainda tem compromisso hoje, "Próximo: X às 14:00, sai até 13:30". À
+  noite, o que ficou pendente. No meio do dia sem nada marcado, fica em silêncio.
+- Mesma mensagem não se repete em 2 horas (o GPS costuma disparar mais de uma vez na porta).
+
+**Automação "Saí de casa":**
+1. Atalhos → aba **Automação** → **+** → **Sair** (Leave).
+2. Local: sua casa. Horário: **Qualquer**. Marque **Executar Imediatamente**.
+3. Ações:
+   1. **Obter Nível da Bateria**.
+   2. **Obter Conteúdo de URL** → `https://SEU-DOMINIO/api/atalho/local`, corpo JSON:
+      - `evento` = `saiu`
+      - `lugar` = `casa`
+      - `bateria` = *Nível da Bateria* (a variável da ação 1)
+   3. **Obter Valor do Dicionário** → chave `mensagem`.
+   4. **Se** *Valor do Dicionário* **tem qualquer valor** → **Mostrar Notificação** com esse valor.
+      → **Fim do Se**.
+
+**Automação "Cheguei em casa":** igual, com o gatilho **Chegar** (Arrive), `evento` = `chegou` e
+sem a ação de bateria (pode mandar `bateria` vazio ou nem mandar).
+
+> **Limites da Apple:**
+> - Automação de localização **sempre mostra um banner** "Executando automação...", mesmo com
+>   "Executar Imediatamente". Não dá pra desligar.
+> - O geofence pode atrasar alguns minutos ou falhar de vez em quando, principalmente em
+>   Modo de Baixo Consumo.
+> - Deixe ligado Ajustes → Privacidade → Serviços de Localização → Serviços do Sistema →
+>   **Locais Importantes**.
+
+## 2. Mercado: lista de compras
+
+Aparece **só se tiver item na lista**. Com a lista vazia, a resposta vem vazia e o Atalho não
+mostra nada.
+
+1. Automação → **Chegar** → escolha o mercado que você mais usa (dá pra criar uma por mercado).
+2. Mesmas ações do item 1, com `evento` = `chegou`, `lugar` = `mercado` e sem bateria.
+
+Pra encher a lista, basta falar no chat: "acabou o café e o arroz".
+
+## 3. Uso do celular: quanto tempo em cada app
+
+A Apple **não deixa o Atalhos ler o Tempo de Uso** (Screen Time). O jeito é registrar quando o
+app abre e fecha. É **uma automação por app** (limite da Apple), então escolha só os 3 ou 4 que
+você quer vigiar (ex.: Instagram, YouTube, TikTok).
+
+Para cada app, crie **duas automações**: uma "For Aberto" e outra "For Fechado". Assim cada uma
+manda um valor fixo, sem precisar de "Se".
+1. Automação → **App** → escolha o app → marque só **For Aberto**.
+2. Marque **Executar Imediatamente** e desligue **Notificar ao Executar** (esse gatilho não
+   exige banner).
+3. Ação única: **Obter Conteúdo de URL** → `https://SEU-DOMINIO/api/atalho/app`, corpo JSON:
+   - `app` = `Instagram` (o nome, escrito igual sempre)
+   - `evento` = `abriu`
+4. Repita com **For Fechado** e `evento` = `fechou`.
+
+**Resultado:**
+- Domingo às 19h chega "Semana no celular: Instagram 5h20, YouTube 2h10".
+- A aba **Vida → Seu progresso** mostra os últimos 7 dias.
+- Sessão sem "fechou", ou com mais de 3 horas, é descartada: melhor subestimar do que inventar.
+
+## 4. Saúde: sono, passos, distância (já existia)
+
+O Atalho de horário que manda dados de Saúde pro `/api/saude/importar` continua igual. Veja o
+`README.md`, seção **Saúde**. Ele é o que alimenta:
+- o alerta de **sono ruim 3 noites seguidas**;
+- a dica **sono × humor/energia** na aba Saúde.
+
+Esse endpoint usa o **`SAUDE_WEBHOOK_TOKEN`**, que é um token separado.
+
+**E o Health Auto Export?** Não precisa. É um app pago (a exportação automática por REST fica
+no plano Premium) e manda um formato próprio. O Atalho nativo já cobre sono, passos e distância
+de graça. Se um dia quiser batimento/HRV, dá pra adaptar.
+
+**E o "Estado de Espírito" (iOS 18)?** O check-in de 1 toque na aba Hoje já cobre humor, energia
+e sono. Se quiser puxar o registro do app Saúde:
+- a ação é **Buscar Amostras de Saúde** → tipo **Estado de Espírito**;
+- não existe gatilho automático pra ela, então teria que rodar num horário fixo.
+
+Por enquanto não vale a complexidade.
+
+## 5. Os que já existiam
+
+Estão descritos no `README.md`, seção **Atalhos do iPhone**, e usam o mesmo
+`PAINEL_ATALHOS_TOKEN`:
+- **"Ei Siri, anota"**: `POST /api/atalho/capturar`, corpo `{"text": ...}`.
+- **PDF de cotação pelo Compartilhar**: `POST /api/atalho/cotacao-pdf`.
+- **Widget Scriptable**: `GET /api/atalho/resumo`.
+
+---
+
+## Testando sem sair de casa
+
+Em cada automação, toque nela → **Executar** (ou monte o mesmo Atalho como atalho comum e rode).
+Se voltar `{"error": "token invalido"}`, o cabeçalho `X-Webhook-Token` está diferente do `.env`.
+Se voltar `{"mensagem": ""}`, está tudo certo: só não tinha nada pra dizer naquela hora.

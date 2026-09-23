@@ -87,6 +87,20 @@ class RotasRevisaoTestCase(VidaBaseTestCase):
         r = self.client.post("/api/atalho/local", json={"evento": "saiu", "lugar": "casa", "bateria": 1e999})
         self.assertEqual(r.status_code, 200)
 
+    def test_bateria_quebrada_ou_texto(self):
+        def mensagem(bateria):
+            with patch("app.datetime") as dt:
+                dt.now.return_value = datetime.combine(date.today(), datetime.min.time()).replace(hour=8)
+                dt.fromisoformat = datetime.fromisoformat
+                app.definir_configuracao(self._conn(), "local_casa_saiu", "")
+                corpo = {"evento": "saiu", "lugar": "casa", "bateria": bateria}
+                return self.client.post("/api/atalho/local", json=corpo).get_json()["mensagem"]
+
+        self.assertIn("carregador (bateria em 48%)", mensagem(47.5))
+        self.assertIn("carregador (bateria em 30%)", mensagem("30"))
+        self.assertNotIn("carregador", mensagem("80"))
+        self.assertNotIn("carregador", mensagem("abc"))
+
     def test_chegou_em_casa_com_evento_com_fuso(self):
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=12)
         evento = {
@@ -123,6 +137,14 @@ class RotasRevisaoTestCase(VidaBaseTestCase):
         self.assertEqual(tipos, ["adiado_hiperfoco_leve", "adiado_hiperfoco"])
         self.assertNotIn("adiado_hiperfoco_leve", app.NOTIFICACOES_URGENTES)
         self.assertIn("adiado_hiperfoco_leve", vida.CRITICOS_HIPERFOCO)
+
+    def test_pessoa_mesmo_nome_nao_duplica(self):
+        self.assertEqual(self.client.post("/api/pessoas", json={"nome": "Mãe", "frequencia_dias": 7}).status_code, 201)
+        r = self.client.post("/api/pessoas", json={"nome": "mae", "frequencia_dias": 3})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.get_json()["atualizada"])
+        pessoas = self.client.get("/api/pessoas").get_json()
+        self.assertEqual([(p["nome"], p["frequencia_dias"]) for p in pessoas], [("Mãe", 3)])
 
     def test_criado_em_convertido_pra_hora_local(self):
         conn = self._conn()

@@ -815,7 +815,8 @@ async function loadAprender() {
   lista.innerHTML = "";
   $("#aprender-vazio").hidden = itens.length > 0;
   itens.forEach((a) => {
-    const parado = a.dias_parado === 0 ? "mexeu hoje" : `parado ha ${a.dias_parado} dia(s)`;
+    const parado =
+      a.dias_parado > 0 ? `parado ha ${a.dias_parado} dia(s)` : a.ultima_vez ? "mexeu hoje" : "adicionado hoje";
     lista.appendChild(
       itemSimples(a.tema, [a.nota, parado], [
         botaoAcao("mexi hoje", async () => {

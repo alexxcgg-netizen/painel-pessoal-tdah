@@ -448,7 +448,7 @@ class PessoasTestCase(VidaBaseTestCase):
 
     def test_chat_registra_conversa_e_cadastra(self):
         def fake_chat(mensagens, contexto, memorias, executores):
-            self.assertEqual(executores["cadastrar_pessoa"]({"nome": "Mãe", "frequencia_dias": 7}), {"ok": True, "frequencia_dias": 7})
+            self.assertEqual(executores["cadastrar_pessoa"]({"nome": "Mãe", "frequencia_dias": 7}), {"ok": True, "atualizada": False, "frequencia_dias": 7})
             self.assertTrue(executores["cadastrar_pessoa"]({"nome": "mae", "frequencia_dias": 5})["atualizada"])
             r = executores["registrar_conversa"]({"pessoa": "mae", "sobre": "viagem"})
             self.assertEqual(r["pessoa_da_lista"], "Mãe")

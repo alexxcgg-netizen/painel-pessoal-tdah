@@ -336,6 +336,8 @@ mas vale configurar antes de expor o painel publicamente.
 
 ## Atalhos do iPhone — captura por voz e PDF direto pro Compartilhar
 
+> Localizacao (casa/mercado), bateria e uso de apps: passo a passo em **`docs/ATALHOS.md`**.
+
 Dois Atalhos que falam com o painel sem precisar abrir o navegador nem logar com o PIN toda vez -
 mesmo espirito do Atalho de Saude acima, cada um com seu proprio endpoint autenticado por token.
 
