@@ -2095,6 +2095,48 @@ li.item.saindo {
   opacity: 0.7;
 }
 
+/* US-F13: mapa (Leaflet + OpenStreetMap) de um lugar salvo */
+.lugar-mapa-box {
+  margin-top: 0.5rem;
+}
+
+.lugar-mapa {
+  margin-top: 0.5rem;
+  height: 180px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow: hidden;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.75rem;
+}
+
+/* Especificidade igual a `.lugar-mapa` (display:flex) - sem isso o atributo
+   `hidden` perderia pro `display:flex` de cima por ordem de declaracao e o
+   mapa fechado ainda ocuparia espaco vazio na tela (achado real na
+   verificacao headless da US-F13). */
+.lugar-mapa[hidden] {
+  display: none;
+}
+
+/* Quando o Leaflet inicializa dentro do mesmo elemento, ele preenche tudo
+   sozinho (tiles) - o texto de fallback acima só aparece enquanto vazio. */
+.lugar-mapa:has(.leaflet-container) {
+  display: block;
+  padding: 0;
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-body, inherit);
+}
+
 .item-badge-proximo {
   display: inline-block;
   margin-left: 0.4rem;

@@ -136,3 +136,86 @@ Viagens (screenshot em /tmp/fase6-f3/depois_viagens.png), sem chave
 configurada no ambiente de teste - sem numero de voo cadastrado ainda,
 entao nao tenta status (checado tambem via teste HTTP
 `test_sem_numero_voo_cadastrado`/`test_definir_numero_voo_e_consultar_status_sem_chave`).
+
+
+## US-F13 - Lugares que Gostei: mapa (OpenStreetMap)
+
+Decisao do Alex (ja registrada no TODO.md antes desta historia): OSM agora,
+sem chave nem cartao. Duas peças, cada uma com sua politica de uso
+confirmada via WebSearch em 2026-09-23:
+
+1. **Geocodificacao: Nominatim** (`geocode_nominatim.py`) - so o SERVIDOR
+   chama (nunca o navegador direto), por 3 motivos que a propria politica
+   de uso do Nominatim exige (https://operations.osmfoundation.org/policies/nominatim/):
+   - Maximo 1 req/s: `_throttle()` guarda o timestamp da ultima chamada
+     (modulo, memoria do processo Flask) e da `time.sleep()` do que faltar.
+   - User-Agent proprio identificando o app (nao o default da lib HTTP):
+     `PainelPessoalTDAH/1.0 (app pessoal de produtividade, uso nao
+     comercial)`.
+   - Cache do resultado, nunca repete a mesma consulta: `lugares.lat/lng/geocode_status`
+     grava PARA SEMPRE assim que a API responde "ok" ou "nao_encontrado" -
+     so uma falha de REDE (timeout/erro de conexao) fica sem gravar (campo
+     None), pra poder tentar de novo mais tarde (isso nao e repetir uma
+     consulta que ja deu certo, e so nunca ter conseguido perguntar).
+   - Disparo: 1x na criacao do lugar (`app._criar_lugar`), e um backfill de
+     NO MAXIMO 1 lugar por chamada de `GET /api/lugares` (pra lugares
+     criados antes desta historia, ou que falharam por rede) - nunca mais
+     que isso numa chamada so, mesmo que a lista cresca muito.
+
+Historia US-F13 — decisao: User-Agent do Nominatim NAO leva o email do
+Alex (`alexxcgg@gmail.com`), so o nome do app - a politica pede "identificar
+o app", nao "identificar a pessoa", e nao tem necessidade real de mandar
+dado pessoal pra um terceiro so pra isso. / Motivo: minimizar o que sai do
+app pra fora sem necessidade funcional - a politica do Nominatim funciona
+igual so com um User-Agent descritivo. / Nao confirmado: se algum dia o
+volume de uso justificar um contato de verdade no header (a politica
+sugere isso ajuda o time do Nominatim a avisar antes de bloquear em vez de
+bloquear direto), o Alex pode decidir incluir email/site proprio depois -
+facil de mudar (`geocode_nominatim.USER_AGENT`).
+
+2. **Lib de mapa: Leaflet 1.9.4** via `cdn.jsdelivr.net` (versao FIXADA, nunca
+   "latest" - `npm/leaflet@1.9.4/dist/leaflet.{css,js}`), carregada sob
+   demanda (só quando o Alex clica "ver no mapa" pela primeira vez - nunca
+   no carregamento normal da tela, pra nao pagar o custo de rede em toda
+   visita). Tiles: `tile.openstreetmap.org` (servidor publico padrao,
+   atribuicao "© OpenStreetMap contributors" no rodape do mapa, gerada pelo
+   proprio Leaflet). Sem CSP nem Content-Security-Policy configurada em
+   lugar nenhum do app (conferido - nenhum meta tag nem header) - nada pra
+   liberar. Service worker (`static/service-worker.js`) NAO precisa mudar
+   de versao: o fetch handler ja e network-first pra QUALQUER request
+   (inclusive cross-origin), entao o CDN/tiles funcionam sem precisar
+   entrar no precache - so nao funcionam offline na primeira visita (o que
+   é esperado: mapa e recurso online por natureza).
+
+**Achado real na verificacao headless** (Playwright, Chromium sandboxed
+deste ambiente): o proprio `fetch()` pro `cdn.jsdelivr.net` FALHA dentro do
+navegador headless (`Failed to fetch`), mesmo o backend Python (`curl`/`requests`)
+conseguindo alcançar tanto o Nominatim quanto o jsdelivr e o
+tile.openstreetmap.org sem problema nenhum (testado por curl antes de
+escrever o codigo) - o proxy de rede deste ambiente de sandbox aparentemente
+nao libera o mesmo jeito pro trafego saindo do Chromium controlado por
+Playwright. Confirmado que isso e SO do ambiente de teste, nao um bug: o
+`container`/fallback funciona exatamente como desenhado - o mapa fica com a
+mensagem "Não consegui carregar o mapa agora (sem rede?) - o lugar continua
+salvo normalmente." (nunca quebra, nunca esconde o nome do lugar), e o
+lugar sem geocode ainda mostra "Ainda localizando no mapa...". Screenshots
+em /tmp/fase6-f3/depois_lugares_mapa_aberto.png (fallback) e
+/tmp/fase6-f3/antes_lugares.png (fechado). Em producao real (fora deste
+sandbox) o mapa deve carregar normalmente - o Alex confirma na primeira vez
+que abrir de verdade no navegador dele.
+
+**Gap real encontrado e corrigido na mesma verificacao**: `.lugar-mapa`
+tinha `display: flex` incondicional, que EMPATAVA em especificidade com a
+regra padrao do navegador pro atributo `hidden` (`[hidden] { display: none }`)
+e, por ordem de declaracao, ganhava - o mapa fechado aparecia como uma caixa
+vazia ocupando espaco na tela antes mesmo de clicar "ver no mapa". Corrigido
+com `.lugar-mapa[hidden] { display: none; }` explicito logo depois (mesmo
+padrao de bug que vale a pena lembrar pra qualquer elemento futuro que
+misture `hidden` com `display` != `none` direto na classe).
+
+Testes: `geocode_nominatim.py` SEMPRE com `requests.get` mockado (nunca
+Nominatim real em teste automatizado) - `tests/test_fase6_f3_lugares_mapa.py`
+(12 casos: geocode puro incluindo throttle, criacao, backfill de no maximo
+1 por chamada, nunca geocodifica 2x, erro de rede nao trava status). Suite
+completa: 1681 testes, mesmas 6 falhas conhecidas (horario real), sem
+regressao. node --test: 87/87 ok. gitleaks: 0 achados.

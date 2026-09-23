@@ -33,6 +33,7 @@ import clima
 import criptografia
 import estudo
 import gastos
+import geocode_nominatim
 import leitura
 import maps_client
 import metar
@@ -6334,11 +6335,27 @@ def viagem_timeline_card_rota(viagem_id):
     return jsonify(card)
 
 
+def _geocodificar_lugar(conn, lugar_id: int, nome: str, cidade: str | None) -> None:
+    """US-F13: 1 consulta ao Nominatim por lugar, NUNCA repetida depois que
+    da uma resposta de verdade (ok/nao_encontrado) - so falha de rede fica
+    sem gravar status, pra poder tentar de novo depois (ver docstring de
+    geocode_nominatim.py)."""
+    resultado = geocode_nominatim.geocodificar(nome, cidade)
+    if resultado["status"] == "erro":
+        return  # nao grava - proxima leitura tenta de novo
+    if resultado["status"] == "ok":
+        salvar_geocode_lugar(conn, lugar_id, resultado["lat"], resultado["lng"], "ok")
+    else:
+        salvar_geocode_lugar(conn, lugar_id, None, None, "nao_encontrado")
+
+
 def _criar_lugar(conn, nome, cidade, tipo, nota) -> dict:
     nome = _texto_curto(nome, 80)
     if not nome:
         return {"erro": "informe o nome do lugar"}
-    lugar_id = create_lugar(conn, nome, _texto_curto(cidade, 60), _texto_curto(tipo, 40), _texto_curto(nota, 300))
+    cidade = _texto_curto(cidade, 60)
+    lugar_id = create_lugar(conn, nome, cidade, _texto_curto(tipo, 40), _texto_curto(nota, 300))
+    _geocodificar_lugar(conn, lugar_id, nome, cidade)
     return {"ok": True, "lugar_id": lugar_id}
 
 
@@ -6346,6 +6363,13 @@ def _criar_lugar(conn, nome, cidade, tipo, nota) -> dict:
 def lugares():
     conn = get_db()
     resultado = list_lugares(conn)
+    # US-F13: backfill de lugares que ja existiam antes desta historia (ou
+    # que falharam por rede antes) - no MAXIMO 1 geocode por chamada, pra
+    # nunca estourar 1 req/s mesmo se a lista crescer.
+    pendente = next((l for l in resultado if l.get("geocode_status") is None), None)
+    if pendente:
+        _geocodificar_lugar(conn, pendente["id"], pendente["nome"], pendente.get("cidade"))
+        resultado = list_lugares(conn)
     conn.close()
     return jsonify(resultado)
 

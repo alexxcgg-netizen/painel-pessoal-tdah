@@ -1180,6 +1180,73 @@ ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Adicionar", () => {
     : null;
 }, "/api/viagens", loadViagens);
 
+// US-F13: mapa (Leaflet + tiles do OpenStreetMap) carregado sob demanda -
+// so na primeira vez que o Alex abrir "ver no mapa" de QUALQUER lugar,
+// nunca no carregamento da tela (custa uma chamada de rede a mais que a
+// maioria das visitas nao precisa). Versao fixada (1.9.4, cdn.jsdelivr.net,
+// ver tasks/fase6/progress-f3.txt) - nunca "latest".
+let leafletCarregando = null;
+function carregarLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (leafletCarregando) return leafletCarregando;
+  leafletCarregando = new Promise((resolve, reject) => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(link);
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+    script.addEventListener("load", () => resolve());
+    script.addEventListener("error", () => reject(new Error("falha ao carregar o Leaflet")));
+    document.head.appendChild(script);
+  });
+  return leafletCarregando;
+}
+
+// A geocodificacao (Nominatim) e sempre feita pelo SERVIDOR (app.py/
+// geocode_nominatim.py - 1 req/s, User-Agent proprio, cache em
+// lugares.lat/lng/geocode_status) - o front so LE o resultado que ja veio
+// em /api/lugares e desenha (ou mostra o motivo de nao ter mapa). Nunca
+// chama Nominatim daqui, senao a politica de 1 req/s e o cache ficariam
+// impossiveis de garantir com varios navegadores abertos ao mesmo tempo.
+function criarBlocoMapaLugar(l) {
+  const box = criarEl("div", "lugar-mapa-box");
+  const btn = criarEl("button", "btn-com-icone", "ver no mapa");
+  btn.type = "button";
+  const mapaEl = criarEl("div", "lugar-mapa");
+  mapaEl.hidden = true;
+  let iniciado = false;
+  btn.addEventListener("click", async () => {
+    const abrir = mapaEl.hidden;
+    mapaEl.hidden = !abrir;
+    btn.textContent = abrir ? "esconder mapa" : "ver no mapa";
+    if (!abrir || iniciado) return;
+    if (l.geocode_status !== "ok" || l.lat == null || l.lng == null) {
+      mapaEl.textContent =
+        l.geocode_status === "nao_encontrado"
+          ? "Não encontrei esse lugar no mapa (nome/cidade) - o lugar continua salvo normalmente."
+          : "Ainda localizando no mapa... tente de novo em instantes.";
+      return;
+    }
+    iniciado = true;
+    try {
+      await carregarLeaflet();
+      const mapa = window.L.map(mapaEl).setView([l.lat, l.lng], 15);
+      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(mapa);
+      window.L.marker([l.lat, l.lng]).addTo(mapa).bindPopup(l.nome);
+    } catch (e) {
+      iniciado = false;
+      mapaEl.textContent = "Não consegui carregar o mapa agora (sem rede?) - o lugar continua salvo normalmente.";
+    }
+  });
+  box.appendChild(btn);
+  box.appendChild(mapaEl);
+  return box;
+}
+
 async function loadLugares() {
   const lugares = await apiFetch("/api/lugares");
   if (!lugares) return;
@@ -1187,11 +1254,11 @@ async function loadLugares() {
   lista.innerHTML = "";
   $("#lugares-vazio").hidden = lugares.length > 0;
   lugares.forEach((l) => {
-    lista.appendChild(
-      itemSimples(l.nome, [[l.tipo, l.cidade].filter(Boolean).join(" - "), l.nota], [
-        (el) => botaoApagar(`/api/lugares/${l.id}`, el),
-      ])
-    );
+    const li = itemSimples(l.nome, [[l.tipo, l.cidade].filter(Boolean).join(" - "), l.nota], [
+      (el) => botaoApagar(`/api/lugares/${l.id}`, el),
+    ]);
+    li.appendChild(criarBlocoMapaLugar(l));
+    lista.appendChild(li);
   });
 }
 

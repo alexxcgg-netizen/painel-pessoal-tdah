@@ -47,8 +47,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Geocode via Nominatim (geocode_nominatim.py, so backend - 1 req/s, User-Agent proprio sem email do Alex, cache em lugares.lat/lng/geocode_status, nunca repete consulta que ja deu certo/nao_encontrado). Leaflet 1.9.4 fixado via cdn.jsdelivr.net, carregado sob demanda (so ao clicar 'ver no mapa'). Sem CSP no app - nada a liberar; SW nao mudou de versao. Achado real: CDN falha dentro do Chromium do Playwright deste sandbox mesmo o backend alcancando via curl - fallback textual confirmado renderizando (screenshot em /tmp/fase6-f3/depois_lugares_mapa_aberto.png), nome do lugar sempre aparece independente de rede. Gap de CSS [hidden] vs display:flex corrigido (ver AGENTS.md). Detalhes completos em tasks/fase6/progress-f3.txt.",
       "modelo_planejado": "sonnet"
     },
     {
