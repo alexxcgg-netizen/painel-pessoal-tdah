@@ -293,6 +293,16 @@ def init_db():
             UNIQUE(descricao_normalizada, valor)
         );
 
+        CREATE TABLE IF NOT EXISTS correcoes_classificacao (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            texto_original TEXT NOT NULL,
+            tipo_errado TEXT,
+            categoria_errada TEXT,
+            tipo_certo TEXT NOT NULL,
+            categoria_certa TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS notas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             titulo TEXT NOT NULL,
@@ -1393,6 +1403,101 @@ def complete_task(conn, task_id: int) -> None:
     conn.execute("UPDATE tasks SET completed_at = datetime('now') WHERE id = ?", (task_id,))
     fechar_interacao_aprendizado(conn, "tarefa_parada", task_id)
     conn.commit()
+
+
+def reclassificar_tarefa_para_gasto(
+    conn, task_id: int, valor: float, categoria: str | None = None, tipo: str = "real"
+) -> tuple[int, int] | None:
+    """Corrige uma captura que a IA classificou errado como tarefa quando na
+    verdade era gasto: move a linha de tasks pra expenses preservando
+    titulo/source_text/data de criacao (transacao unica - ou os dois lados
+    acontecem, ou nenhum). "valor" (e opcionalmente "tipo") vem de quem esta
+    corrigindo na hora, porque o texto original pode nao ter um valor
+    monetario claro pra IA ter adivinhado sozinha. Subtarefas vinculadas nao
+    fazem sentido pra um gasto, entao sao apagadas junto - o numero apagado
+    volta no retorno pra UI poder avisar. None se a tarefa nao existir."""
+    task = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if not task:
+        return None
+    subtasks_removidas = conn.execute(
+        "SELECT COUNT(*) AS n FROM subtasks WHERE task_id = ?", (task_id,)
+    ).fetchone()["n"]
+    conn.execute("DELETE FROM subtasks WHERE task_id = ?", (task_id,))
+    cur = conn.execute(
+        "INSERT INTO expenses (amount, category, description, source_text, tipo, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (valor, categoria or "outros", task["title"], task["source_text"], tipo, task["created_at"]),
+    )
+    conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.commit()
+    return cur.lastrowid, subtasks_removidas
+
+
+def reclassificar_gasto_para_tarefa(
+    conn,
+    expense_id: int,
+    due_at: str | None = None,
+    due_date: str | None = None,
+    hora: str | None = None,
+) -> int | None:
+    """Corrige uma captura que a IA classificou errado como gasto quando na
+    verdade era tarefa: move a linha de expenses pra tasks preservando a
+    descricao (vira titulo), source_text e a data de criacao original -
+    transacao unica, mesmo espirito de reclassificar_tarefa_para_gasto.
+    "tipo" (real/planejado) do gasto nao tem equivalente em tarefa, entao e
+    simplesmente descartado. None se o gasto nao existir."""
+    expense = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+    if not expense:
+        return None
+    titulo = expense["description"] or expense["source_text"] or "gasto reclassificado"
+    cur = conn.execute(
+        "INSERT INTO tasks (title, due_at, due_date, hora, source_text, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (titulo, due_at, due_date, hora, expense["source_text"], expense["created_at"]),
+    )
+    conn.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+    conn.commit()
+    return cur.lastrowid
+
+
+def atualizar_categoria_gasto(conn, expense_id: int, categoria: str) -> bool:
+    """Corrige so a categoria de um gasto ja lancado, sem mexer em mais
+    nada - usado tanto por uma edicao manual quanto (indiretamente, via
+    registrar_correcao_classificacao) pelo aprendizado leve de classificacao."""
+    cur = conn.execute("UPDATE expenses SET category = ? WHERE id = ?", (categoria, expense_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def registrar_correcao_classificacao(
+    conn,
+    texto_original: str,
+    tipo_errado: str | None,
+    categoria_errada: str | None,
+    tipo_certo: str,
+    categoria_certa: str | None,
+) -> None:
+    """Grava uma correcao manual de classificacao (tarefa <-> gasto errado, ou
+    categoria de gasto errada) pra aprendizado.correcao_semelhante usar depois
+    numa captura nova parecida - mesmo espirito de apelidos_gasto (guardar o
+    que o Alex corrigiu, sem IA/rede neural nenhuma aqui), so que aqui o
+    "erro" pode ser o TIPO inteiro da captura, nao so um apelido generico."""
+    conn.execute(
+        "INSERT INTO correcoes_classificacao "
+        "(texto_original, tipo_errado, categoria_errada, tipo_certo, categoria_certa) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (texto_original, tipo_errado, categoria_errada, tipo_certo, categoria_certa),
+    )
+    conn.commit()
+
+
+def list_correcoes_classificacao(conn) -> list[dict]:
+    return [
+        dict(r)
+        for r in conn.execute(
+            "SELECT * FROM correcoes_classificacao ORDER BY criado_em DESC"
+        ).fetchall()
+    ]
 
 
 def marcar_ou_criar_feito(

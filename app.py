@@ -50,6 +50,7 @@ from db import (
     alternar_rotina_item,
     apagar_espera,
     apagar_nota,
+    atualizar_categoria_gasto,
     atualizar_saldo_conta,
     atualizar_uber_pedido,
     buscar_conta_por_nome,
@@ -162,9 +163,12 @@ from db import (
     marcar_salvo_lido,
     media_passos_ultimos_dias,
     obter_configuracao,
+    reclassificar_gasto_para_tarefa,
+    reclassificar_tarefa_para_gasto,
     record_usage,
     registrar_atividade,
     registrar_conversa,
+    registrar_correcao_classificacao,
     registrar_evento_app,
     registrar_hidratacao,
     registrar_interacao_aprendizado,
@@ -427,6 +431,23 @@ def _gravar_resposta_capture(conn, client_id: str, corpo: dict, status: int):
     conn.execute("DELETE FROM capture_idempotency WHERE criado_em < datetime('now', '-7 days')")
 
 
+def _formatar_contexto_correcao(correcao: dict) -> str:
+    """Traduz uma linha de correcoes_classificacao (aprendizado.correcao_semelhante)
+    numa frase curta pra injetar no prompt de classificacao - texto puro, a
+    decisao de usar isso ou nao continua sendo da IA, nunca um override
+    silencioso aqui no Python."""
+    de = correcao["tipo_errado"] or "algo"
+    if correcao["categoria_errada"]:
+        de += f' (categoria "{correcao["categoria_errada"]}")'
+    para = correcao["tipo_certo"]
+    if correcao["categoria_certa"]:
+        para += f' (categoria "{correcao["categoria_certa"]}")'
+    return (
+        f'Um texto parecido ("{correcao["texto_original"]}") foi classificado como {de} '
+        f"e o Alex corrigiu manualmente pra {para}."
+    )
+
+
 def _executar_captura(text: str, clarificacao: str, client_id: str = ""):
     """Classifica e grava um texto de captura (tarefa/gasto/meta) - usado
     tanto por /api/capture (sessao normal) quanto por /api/atalho/capturar
@@ -446,12 +467,20 @@ def _executar_captura(text: str, clarificacao: str, client_id: str = ""):
 
     full_text = f"{text}. Contexto adicional: {clarificacao}" if clarificacao else text
 
-    result, error = _call_claude(claude_client.classify_capture, full_text)
+    conn = get_db()
+    # Aprendizado leve (aprendizado.py, estatistica pura sobre o proprio
+    # historico - ver correcoes_classificacao): se um texto parecido ja foi
+    # corrigido manualmente antes, isso vira contexto extra no prompt da IA,
+    # que continua sendo quem decide - nunca um override silencioso aqui.
+    correcao = aprendizado.correcao_semelhante(conn, full_text)
+    contexto_correcao = _formatar_contexto_correcao(correcao) if correcao else None
+
+    result, error = _call_claude(claude_client.classify_capture, full_text, contexto_correcao)
     if error:
+        conn.close()
         return error
     parsed, usage = result
 
-    conn = get_db()
     _log_usage(conn, usage)
 
     # Se a IA ainda ficou em duvida, so pede esclarecimento uma vez (quando a
@@ -579,6 +608,89 @@ def complete_subtask(subtask_id):
     conn.execute("UPDATE subtasks SET completed_at = datetime('now') WHERE id = ?", (subtask_id,))
     _marcar_atividade(conn)
     conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/tasks/<int:task_id>/reclassificar", methods=["POST"])
+def reclassificar_tarefa_rota(task_id):
+    """Correcao rapida: a IA classificou como tarefa algo que na verdade era
+    gasto. "valor" e obrigatorio - o texto original pode nao ter um numero
+    claro, entao quem esta corrigindo (o Alex, nao a IA de novo) informa."""
+    corpo = _corpo_json()
+    valor = corpo.get("valor")
+    if not isinstance(valor, (int, float)) or valor <= 0:
+        return jsonify({"error": "informe um valor valido"}), 400
+    categoria = corpo.get("categoria") if isinstance(corpo.get("categoria"), str) else None
+    tipo = corpo.get("tipo") if corpo.get("tipo") in ("real", "planejado") else "real"
+
+    conn = get_db()
+    task = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if not task:
+        conn.close()
+        return jsonify({"error": "tarefa nao encontrada"}), 404
+
+    resultado = reclassificar_tarefa_para_gasto(conn, task_id, float(valor), categoria, tipo)
+    novo_id, subtasks_removidas = resultado
+    registrar_correcao_classificacao(
+        conn, task["source_text"] or task["title"], "tarefa", None, "gasto", categoria
+    )
+    _marcar_atividade(conn)
+    conn.close()
+    return jsonify({"ok": True, "novo_id": novo_id, "subtasks_removidas": subtasks_removidas})
+
+
+@app.route("/api/expenses/<int:expense_id>/reclassificar", methods=["POST"])
+def reclassificar_gasto_rota(expense_id):
+    """Correcao rapida: a IA classificou como gasto algo que na verdade era
+    tarefa. Campos de prazo sao opcionais (o corpo do gasto raramente tem
+    essa informacao - fica null, como uma tarefa sem prazo definido)."""
+    corpo = _corpo_json()
+    due_at = corpo.get("quando") if isinstance(corpo.get("quando"), str) else None
+    due_date = corpo.get("quando_data") if isinstance(corpo.get("quando_data"), str) else None
+    hora = _normalizar_hora(corpo.get("hora"))
+
+    conn = get_db()
+    expense = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+    if not expense:
+        conn.close()
+        return jsonify({"error": "gasto nao encontrado"}), 404
+
+    novo_id = reclassificar_gasto_para_tarefa(conn, expense_id, due_at, due_date, hora)
+    registrar_correcao_classificacao(
+        conn, expense["source_text"] or expense["description"], "gasto", expense["category"], "tarefa", None
+    )
+    _marcar_atividade(conn)
+    conn.close()
+    return jsonify({"ok": True, "novo_id": novo_id})
+
+
+@app.route("/api/expenses/<int:expense_id>/categoria", methods=["POST"])
+def corrigir_categoria_gasto_rota(expense_id):
+    """Correcao rapida: so a categoria do gasto saiu errada, tipo continua
+    certo - nao precisa mover linha nenhuma entre tabelas."""
+    corpo = _corpo_json()
+    categoria = _texto_seguro(corpo.get("categoria"))
+    if not categoria:
+        return jsonify({"error": "categoria vazia"}), 400
+
+    conn = get_db()
+    expense = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+    if not expense:
+        conn.close()
+        return jsonify({"error": "gasto nao encontrado"}), 404
+
+    categoria_antiga = expense["category"]
+    atualizar_categoria_gasto(conn, expense_id, categoria)
+    if categoria_antiga != categoria:
+        registrar_correcao_classificacao(
+            conn,
+            expense["source_text"] or expense["description"],
+            "gasto",
+            categoria_antiga,
+            "gasto",
+            categoria,
+        )
     conn.close()
     return jsonify({"ok": True})
 

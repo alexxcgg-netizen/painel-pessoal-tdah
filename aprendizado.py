@@ -173,6 +173,41 @@ def dias_espera_por_quem_semelhante(conn, quem: str, excluir_id: int | None = No
     ]
 
 
+# Quantas palavras relevantes em comum com uma correcao anterior ja contam
+# como "parecido o suficiente" pra dar de pista pra proxima classificacao -
+# criterio simples de proposito (mesmo espirito do resto do modulo): duas
+# palavras batendo (ex: "netflix" e "assinatura") ja e sinal forte o
+# bastante pra nao ser coincidencia de artigo/preposicao comum, sem exigir
+# frase quase identica.
+LIMIAR_TOKENS_CORRECAO = 2
+
+
+def correcao_semelhante(conn, texto: str) -> dict | None:
+    """Procura, entre as correcoes de classificacao que o Alex ja fez
+    (tabela correcoes_classificacao, gravada quando ele corrige uma captura
+    que a IA classificou errado), uma cujo texto original compartilhe pelo
+    menos LIMIAR_TOKENS_CORRECAO palavras relevantes com o texto novo -
+    mesmo criterio de dias_atraso_por_titulo_semelhante acima, so que aqui o
+    resultado nao e um numero, e o proprio veredito (tipo/categoria certos)
+    que o Alex deu da ultima vez que corrigiu algo parecido. Com mais de uma
+    correcao parecida, fica com a que tiver mais palavras em comum
+    (desempate: a mais recente, ja que list_correcoes_classificacao volta
+    ordenado por criado_em DESC). None se nao houver nenhuma parecida o
+    suficiente - o caso mais comum, ja que a maioria das capturas nao tem
+    historico de correcao nenhum."""
+    tokens = _tokenizar(texto)
+    if not tokens:
+        return None
+    melhor = None
+    melhor_pontos = 0
+    for correcao in db.list_correcoes_classificacao(conn):
+        comuns = tokens & _tokenizar(correcao["texto_original"])
+        if len(comuns) >= LIMIAR_TOKENS_CORRECAO and len(comuns) > melhor_pontos:
+            melhor_pontos = len(comuns)
+            melhor = correcao
+    return melhor
+
+
 def _ajustar_pela_eficacia(limiar: int, latencia_media_h: float | None, piso: int) -> int:
     """Usa a latencia de resposta APOS ser cutucado (nao antes) como sinal
     de o quanto a cutucada realmente ajuda: se, historicamente, voce resolve
