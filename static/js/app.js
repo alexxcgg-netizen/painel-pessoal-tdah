@@ -173,8 +173,10 @@ function limparErro() {
 // uma conexao morta.
 const API_FETCH_TIMEOUT_MS = 45000;
 
-// `fila`: so pras 2-3 acoes criticas do BRIEFING (captura, check-in) - o
-// caller passa { tipo: "capture"|"checkin", id? }. Em qualquer outra chamada
+// `fila`: so pras acoes criticas de captura de dado do usuario (captura,
+// check-in, e desde a Fase 5/US-B5 tambem comando de voz) - o caller passa
+// { tipo: "capture"|"checkin"|"comando_voz", id? } (ver static/js/voz-comando.js
+// pro caso de comando de voz). Em qualquer outra chamada
 // (a esmagadora maioria - leituras e a maioria das escritas), fila fica
 // undefined e o comportamento e IDENTICO ao de antes: erro de rede so mostra
 // mostrarErro() e devolve null. So quando fila e passado e o fetch falha por
