@@ -5,6 +5,57 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (Fase 6 F2) - polimento do Painel e prazo em Tarefas
+
+Faixa 2 do Grupo F da Fase 6: polimento visual das secoes "Devo sair ate que horas",
+Datas importantes/Medicamentos, Esperando resposta/Diario de decisao e Mensagem dificil/Vale
+a pena (todas na aba Painel/Vida) + prazo opcional em Tarefas. So apresentacao (HTML/CSS/JS) -
+nenhuma regra financeira/calculo mudou; a unica rota nova e o formulario direto de tarefa
+(US-F10), que reusa o insert minimo ja existente (`criar_tarefa_de_brain_dump`, Fase 5 US-C6)
+em vez de duplicar logica.
+
+- **US-F6 (Devo sair ate que horas)**: origem/destino eram 2 `<input>` soltos sem nada
+  indicando que sao os 2 pontos de uma mesma rota - viraram uma trilha vertical + 2 pontos
+  (mesma linguagem visual da `.linha-do-tempo` da agenda), com um rotulo "Chegar ate" acima
+  do campo de data/hora (`--form-cor` tingindo o foco na cor da secao). So `templates/
+  index.html`/`static/css/style.css` - `#viagem-form` continua com os mesmos ids, JS (`app.js`)
+  intocado.
+- **US-F7 (Datas importantes / Medicamentos)**: `#lembrete-data` virou `<input type="date">`
+  nativo (seletor em vez de texto livre "dd/mm/aaaa" + mascara - `#voo-data`, aviacao/F3,
+  continua com a mascara antiga, nao mudou). A lista de lembretes agora ordena por
+  `dias_restantes` (o backend ja calculava, so nao ordenava por ele) e o selo de contagem
+  virou pill de 2 niveis: cor da secao (`--cor-bancos`) ate 7 dias, `--danger` so quando ja
+  venceu de verdade. Medicamentos ganharam um selo "em Xh/foi ha Xh" (proxima dose,
+  calculo 100% client-side a partir do relogio do navegador - nenhum aviso/push mudou).
+- **US-F8 (Esperando resposta / Diario de decisao)**: a lista de esperas trocou de
+  `/api/esperas` pra `/api/esperas/prioridade` - MESMO endpoint que ja existia desde a Fase 5
+  (US-C5) pro calculo de prioridade, so que nenhuma tela usava; agora mostra "esperando ha N
+  dia(s)" (pill, critico depois de 5 dias - o mesmo limiar do push) e uma estrela pra marcar/
+  desmarcar `importante` (`/api/esperas/<id>/importante`, tambem ja existia sem UI). Diario de
+  decisao ganhou selo de status (RESOLVIDA/AGUARDANDO) e a data da decisao, que antes nao
+  aparecia. Modo visitante continua ocultando o diario e o Vale a pena - protecao no
+  SERVIDOR (`_modo_visitante_ativo()`), reverificado manualmente (403 nas 2 rotas com
+  visitante ligado).
+- **US-F9 (Mensagem dificil / Vale a pena)**: as 2 versoes da mensagem dificil (Direta/Mais
+  gentil) viraram cartoes com selo de cor propria e botao "Copiar" com icone (antes era link
+  de texto solto). Vale a pena: a inclinacao (`vale`/`nao_vale`/`depende`, contrato ja pronto
+  desde a faixa E1 - `claude_client.DECISAO_PROMPT`) virou um banner de veredito no TOPO do
+  card (semaforo verde/vermelho/ambar), com pros/contras em colunas lado a lado em vez de 2
+  listas empilhadas - nenhum prompt/contrato de IA mudou, so a apresentacao.
+- **US-F10 (Tarefas: prazo opcional)**: `POST /api/tasks` novo - titulo + `due_date`
+  OPCIONAL, sem passar pela IA (reusa `criar_tarefa_de_brain_dump`). Formulario direto na aba
+  Tarefas (antes so dava pra criar tarefa via chat/captura). Corrigido tambem um gap real:
+  uma tarefa com `due_date` mas sem `due_at`/`hora` nao mostrava NENHUM prazo na lista
+  (`criarItemTarefa` so olhava `due_at`/`hora`) - agora cai num rotulo curto
+  (hoje/amanha/dd/mm) e ganha a tag "atrasada" quando ja passou. O chat ja suportava prazo
+  opcional desde antes (`quando`/`quando_data`, testes existentes) - nada mudou la.
+
+Testes: `tests/test_fase6_f2_painel.py` (9 casos novos, so US-F10 - as outras 4 historias
+foram so front-end, verificadas com Playwright headless, antes/depois lado a lado). Suite
+completa (`unittest discover`) sem regressao alem das falhas pre-existentes conhecidas
+(horario de voo real, `test_ligado_segura_ate_a_janela_passar_e_agrupa` - 6 no total, todas
+ja documentadas neste AGENTS.md); `node --test tests/js/*.test.js` 86/86.
+
 ## 2026-09-23 (Fase 6 E4) - chat produzindo cards dos modulos novos
 
 Faixa 4 do Grupo E da Fase 6: a aba Hoje (chat) passa a devolver CARD pros modulos da E2

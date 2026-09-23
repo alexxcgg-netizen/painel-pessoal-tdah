@@ -12,8 +12,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Origem/destino viraram trilha vertical + 2 pontos (.viagem-rota, mesma linguagem visual de .linha-do-tempo da agenda), rotulo 'Chegar ate' acima do campo de data/hora (--form-cor tingindo o foco). So HTML/CSS - #viagem-form/ids intocados, nenhuma logica JS mudou. Commit 58ed9f1. Verificado no Playwright headless (antes/depois, 390px).",
       "modelo_planejado": "sonnet"
     },
     {
@@ -25,8 +25,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "#lembrete-data virou <input type=date> nativo (#voo-data, F3, continua mascarado - nao mexido). Lista de lembretes ordena por dias_restantes (backend ja calculava); selo de contagem virou pill de 2 niveis (cor da secao ate 7 dias, --danger so quando venceu). Medicamentos ganharam selo 'em Xh/foi ha Xh' (proxima dose, calculo client-side, nenhum push mudou). Commit c2188c8. Verificado no Playwright headless (antes/depois, 390px).",
       "modelo_planejado": "sonnet"
     },
     {
@@ -39,8 +39,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Esperas: /api/esperas -> /api/esperas/prioridade (ja existia desde Fase 5/US-C5 sem UI) - selo 'esperando ha N dia(s)' (critico >5 dias) + estrela importante (/api/esperas/<id>/importante, idem ja existia). Diario de decisao: selo RESOLVIDA/AGUARDANDO + data da decisao. Modo visitante reconfirmado (403 em /api/diario-decisoes e /api/decisao). Commit 47ddcf9. Verificado no Playwright headless (antes/depois, 390px).",
       "modelo_planejado": "sonnet"
     },
     {
@@ -52,8 +52,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Nenhum prompt/contrato de IA mudou (claude_client.redigir_mensagem_dificil/analisar_decisao ja devolviam JSON estruturado desde a faixa E1) - so apresentacao. Mensagem dificil: 2 cartoes (Direta/Mais gentil) com selo de cor + botao Copiar com icone. Vale a pena: banner de veredito semaforo (vale/nao_vale/depende) no topo + pros/contras em colunas (--danger so no veredito negativo). Commit dc50f16. Verificado no Playwright headless (antes/depois, respostas mockadas via page.route, 390px).",
       "modelo_planejado": "sonnet"
     },
     {
@@ -67,8 +67,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "tasks.due_date/due_at ja existiam (sem migracao) e o chat ja suportava prazo opcional (registrar_tarefa com quando/quando_data, ja testado) - faltava so o formulario direto na aba Tarefas. POST /api/tasks novo (titulo + due_date opcional) reusa criar_tarefa_de_brain_dump (Fase 5, US-C6) em vez de duplicar insert. Corrigido gap real: tarefa com due_date mas sem due_at/hora nao mostrava prazo nenhum na lista - criarItemTarefa ganhou fallback (formatarPrazoTarefa) + tag 'atrasada'. Testes: tests/test_fase6_f2_painel.py (9 casos). Commit final desta faixa (inclui docs: AGENTS.md/CHANGELOG.md/progress-f2.txt).",
       "modelo_planejado": "haiku"
     }
   ]
