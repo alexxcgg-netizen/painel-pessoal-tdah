@@ -128,12 +128,17 @@ class LugaresGeocodeHTTPTestCase(unittest.TestCase):
         self.assertIsNone(alvo["lat"])
 
     def test_erro_de_rede_na_criacao_nao_impede_o_lugar_de_ser_salvo(self):
-        with patch("app.geocode_nominatim.geocodificar", return_value={"status": "erro"}):
+        # Achado real: o GET /api/lugares faz backfill (US-F13) - se o mock
+        # nao cobrir TAMBEM essa chamada, o teste chamaria o Nominatim de
+        # verdade (violando a regra de nunca bater API real em teste). Por
+        # isso o `with` envolve o POST *e* o GET, nao só o POST.
+        with patch("app.geocode_nominatim.geocodificar", return_value={"status": "erro"}) as mock_geo:
             res = self.client.post("/api/lugares", json={"nome": "Vai falhar", "cidade": "X"})
-        self.assertEqual(res.status_code, 201)
-        lugares = self.client.get("/api/lugares").get_json()
+            self.assertEqual(res.status_code, 201)
+            lugares = self.client.get("/api/lugares").get_json()
         alvo = next(l for l in lugares if l["nome"] == "Vai falhar")
         self.assertIsNone(alvo["geocode_status"])  # nao gravou status definitivo - tenta de novo depois
+        mock_geo.assert_called()  # so garante que o mock foi de fato usado nas duas chamadas
 
     def test_get_lugares_faz_backfill_de_no_maximo_1_por_chamada(self):
         conn = db.get_db()

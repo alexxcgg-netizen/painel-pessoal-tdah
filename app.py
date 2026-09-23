@@ -7628,6 +7628,12 @@ TAMANHO_MAX_PDF_BYTES = 15 * 1024 * 1024  # 15MB - cabe folgado num orcamento es
 
 @app.route("/api/cotacoes", methods=["GET"])
 def listar_cotacoes():
+    # US-F14: cotacao compara preco de fornecedor - e dado financeiro,
+    # mesmo tratamento que /api/expenses/etc em modo visitante (lista
+    # inteira escondida, nao so o valor - achado real: essa rota nunca
+    # tinha ganhado essa checagem antes desta historia).
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     resultado = list_cotacoes(conn)
     conn.close()
@@ -7636,6 +7642,8 @@ def listar_cotacoes():
 
 @app.route("/api/cotacoes", methods=["POST"])
 def criar_cotacao_rota():
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
     titulo = (_corpo_json().get("titulo") or "").strip()
     if not titulo:
         return jsonify({"error": "informe o titulo da cotacao"}), 400
@@ -7647,6 +7655,8 @@ def criar_cotacao_rota():
 
 @app.route("/api/cotacoes/<int:cotacao_id>", methods=["GET"])
 def ver_cotacao(cotacao_id):
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
     conn = get_db()
     cotacao = get_cotacao(conn, cotacao_id)
     if not cotacao:
@@ -7667,6 +7677,8 @@ def apagar_cotacao(cotacao_id):
 
 @app.route("/api/cotacoes/<int:cotacao_id>/itens", methods=["POST"])
 def adicionar_item_cotacao(cotacao_id):
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
     conn = get_db()
     if not get_cotacao(conn, cotacao_id):
         conn.close()
@@ -7696,6 +7708,8 @@ def adicionar_item_cotacao(cotacao_id):
 def adicionar_item_cotacao_pdf(cotacao_id):
     """Le um PDF de orcamento de fornecedor e extrai fornecedor/valor/prazo
     automaticamente - o Alex so anexa o PDF que recebeu, sem digitar nada."""
+    if _modo_visitante_ativo():
+        return jsonify({"error": "indisponivel no modo visitante"}), 403
     conn = get_db()
     if not get_cotacao(conn, cotacao_id):
         conn.close()

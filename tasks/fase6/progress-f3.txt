@@ -219,3 +219,65 @@ Nominatim real em teste automatizado) - `tests/test_fase6_f3_lugares_mapa.py`
 1 por chamada, nunca geocodifica 2x, erro de rede nao trava status). Suite
 completa: 1681 testes, mesmas 6 falhas conhecidas (horario real), sem
 regressao. node --test: 87/87 ok. gitleaks: 0 achados.
+
+**Correcao pos-commit (achada rodando a suite completa de novo pra US-F14)**:
+`test_erro_de_rede_na_criacao_nao_impede_o_lugar_de_ser_salvo` tinha o `GET
+/api/lugares` (que dispara o backfill) FORA do `with patch(...)` do POST -
+como o lugar ficava com `geocode_status` None (falha de rede simulada), o
+GET seguinte, sem mock, chamava o Nominatim DE VERDADE (rede real
+disponivel neste ambiente). Corrigido envolvendo POST e GET no mesmo
+`with`. Ver AGENTS.md pra o padrao geral (rota GET com efeito colateral de
+rede precisa do mock cobrindo TODAS as chamadas no teste). Suite completa
+re-rodada depois da correcao, mesmas 6 falhas conhecidas, nenhuma real.
+
+
+## US-F14 - Cotacoes: visual com grafico
+
+Grafico de comparacao entre fornecedores (SVG inline, barras horizontais,
+mesmo padrao visual dos cards - reaproveita as classes `.card-grafico`/
+`.card-graf-rotulo`/`.card-graf-valor` ja usadas em `saude_treino`
+(cards-tipos.js), so com cor propria porque cotacoes fica fora do sistema
+`.card-contrato-*` que define `--card-cor`). So aparece com 2+ fornecedores
+com valor (1 so nao "compara" nada); fornecedor mais barato (primeira
+barra, mesma ordem que `list_itens_cotacao` ja devolve) ganha destaque com
+glow, os outros ficam em tom mais apagado da mesma cor (`--cor-construtora`,
+onde Cotacoes mora). Implementado em `static/js/app.js`
+(`graficoComparacaoCotacoes`, dentro de `preencherDetalheCotacao`).
+
+**Gap real encontrado**: `/api/cotacoes` (lista e detalhe) NUNCA tinha
+ganhado a checagem de `_modo_visitante_ativo()` que todo outro endpoint
+financeiro (`/api/expenses`, `/api/incomes`, `/api/orcamentos`...) ja tem -
+cotacao compara preco de fornecedor de material de obra, e claramente dado
+financeiro/de negocio que deveria estar coberto desde a US-C20 (modo
+visitante original), mas ficou de fora por cotacoes ter sido adicionada
+DEPOIS daquela historia. Corrigido: `GET /api/cotacoes` esconde a lista
+inteira (`[]`, mesmo padrao de `/api/expenses`); `GET /api/cotacoes/<id>`,
+`POST /api/cotacoes`, `POST /api/cotacoes/<id>/itens` e
+`POST /api/cotacoes/<id>/itens/pdf` bloqueiam com 403 "indisponivel no modo
+visitante" (mesmo padrao de `/api/decisao`/`/api/diario-decisoes`, que
+tambem bloqueiam escrita alem de esconder leitura). `DELETE` das cotacoes/
+itens foi deixado sem bloqueio de proposito (apagar nao vaza valor nenhum
+e o Alex pode querer limpar uma cotacao de teste mesmo em modo visitante).
+
+Historia US-F14 — decisao: a checagem de visitante ficou no nivel da ROTA
+(nao dentro de `list_cotacoes`/`get_cotacao` em `db.py`), mesmo padrao
+usado em todo o resto do arquivo (`list_expenses`, `list_incomes`, etc) -
+`db.py` nunca sabe de modo visitante, so `app.py`. / Motivo: manter a
+mesma convencao ja estabelecida (`db.py` e so acesso a dado, a regra de
+"quem pode ver o que" e sempre em `app.py`), nunca duplicar o padrao de um
+jeito diferente so porque a rota e nova. / Nao confirmado: nada - a lacuna
+era clara e a correcao seguiu precedente direto, sem ambiguidade.
+
+Testes: `tests/test_fase6_f3_cotacoes_grafico.py` (5 casos, confere o CORPO
+BRUTO da resposta pra pegar vazamento de valor/nome de fornecedor, mesmo
+padrao de `tests/test_modo_visitante_telas.py`) + as 15 cotacoes ja
+existentes em `tests/test_app.py` sem regressao. Grafico em si (SVG via DOM,
+nao testavel em Node sem shim de DOM, mesmo padrao dos outros
+renderizadores de tela em `app.js`) verificado so via Playwright headless.
+
+Verificacao headless: cotacao com 3 fornecedores, grafico com 3 barras
+renderizando (fornecedor mais barato destacado), screenshot em
+/tmp/fase6-f3/depois_cotacoes_grafico_scroll.png; modo visitante ativado
+pelo botao real da tela esconde a secao inteira (mensagem "Oculto no modo
+visitante"), screenshot em /tmp/fase6-f3/cotacoes_visitante.png. Zero erro
+de console nos dois casos.

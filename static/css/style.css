@@ -5488,6 +5488,24 @@ body.modo-essencial #essencial-box {
   filter: drop-shadow(0 0 4px color-mix(in srgb, var(--card-cor) 55%, transparent));
 }
 
+/* US-F14: grafico de comparacao de cotacoes fica fora do sistema de card
+   (--card-cor so existe dentro de .card-contrato-*) - usa a cor da propria
+   secao (Construtora, onde cotacoes mora) e destaca o fornecedor mais
+   barato (primeira barra, mesma ordem que list_itens_cotacao devolve). */
+.cotacao-grafico .card-graf-barra {
+  fill: color-mix(in srgb, var(--cor-construtora) 55%, var(--text-faint));
+  filter: none;
+}
+
+.cotacao-grafico .cotacao-grafico-menor {
+  fill: var(--cor-construtora);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--cor-construtora) 55%, transparent));
+}
+
+.cotacao-grafico-box {
+  margin-top: 0.5rem;
+}
+
 /* sugestao / habito: caixa de contexto */
 .card-contexto {
   margin-top: 0.2rem;

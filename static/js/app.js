@@ -3003,8 +3003,58 @@ async function loadCotacoes() {
   const list = $("#lista-cotacoes");
   list.innerHTML = "";
   if (!data) return;
-  $("#cotacoes-vazio").hidden = data.length > 0;
+  $("#cotacoes-oculto-visitante").hidden = !modoVisitanteAtivo;
+  $("#cotacoes-vazio").hidden = modoVisitanteAtivo || data.length > 0;
   data.forEach((c) => list.appendChild(criarItemCotacao(c)));
+}
+
+// US-F14: grafico de comparacao entre fornecedores - SVG inline no mesmo
+// padrao visual dos cards (barras horizontais, cor da secao), so aparece
+// com 2+ fornecedores com valor (1 so nao "compara" nada). Mais barato
+// primeiro (mesma ordem que list_itens_cotacao ja devolve - ver db.py).
+function graficoComparacaoCotacoes(itens) {
+  const comValor = itens.filter((i) => typeof i.valor === "number" && Number.isFinite(i.valor));
+  if (comValor.length < 2) return null;
+  const max = Math.max(...comValor.map((i) => i.valor), 1);
+  const alturaLinha = 28;
+  const largura = 300;
+  const xBarra = 96;
+  const larguraMax = largura - xBarra - 58;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "card-grafico cotacao-grafico");
+  svg.setAttribute("viewBox", `0 0 ${largura} ${comValor.length * alturaLinha}`);
+  svg.setAttribute("role", "img");
+  const titulo = comValor.map((i) => `${i.fornecedor || "fornecedor"}: ${fmtMoeda(i.valor)}`).join(", ");
+  svg.setAttribute("aria-label", `Comparacao de fornecedores - ${titulo}`);
+  comValor.forEach((item, i) => {
+    const y = i * alturaLinha;
+    const w = Math.max(4, (item.valor / max) * larguraMax);
+    const nomeBruto = item.fornecedor || "sem nome";
+    const nome = nomeBruto.length > 14 ? `${nomeBruto.slice(0, 13)}…` : nomeBruto;
+    const ns = "http://www.w3.org/2000/svg";
+    const rotulo = document.createElementNS(ns, "text");
+    rotulo.setAttribute("class", "card-graf-rotulo");
+    rotulo.setAttribute("x", "0");
+    rotulo.setAttribute("y", String(y + 18));
+    rotulo.textContent = nome;
+    const barra = document.createElementNS(ns, "rect");
+    barra.setAttribute("class", "card-graf-barra");
+    barra.setAttribute("x", String(xBarra));
+    barra.setAttribute("y", String(y + 7));
+    barra.setAttribute("width", w.toFixed(1));
+    barra.setAttribute("height", "13");
+    barra.setAttribute("rx", "6.5");
+    if (i === 0) barra.classList.add("cotacao-grafico-menor");
+    const valor = document.createElementNS(ns, "text");
+    valor.setAttribute("class", "card-graf-valor");
+    valor.setAttribute("x", (xBarra + w + 6).toFixed(1));
+    valor.setAttribute("y", String(y + 18));
+    valor.textContent = fmtMoeda(item.valor);
+    svg.appendChild(rotulo);
+    svg.appendChild(barra);
+    svg.appendChild(valor);
+  });
+  return svg;
 }
 
 function criarItemCotacao(c) {
@@ -3100,6 +3150,18 @@ async function preencherDetalheCotacao(cotacaoId, container) {
       listaItens.appendChild(itemLi);
     });
     container.appendChild(listaItens);
+
+    const grafico = graficoComparacaoCotacoes(data.itens);
+    if (grafico) {
+      const graficoBox = document.createElement("div");
+      graficoBox.className = "grafico-card cotacao-grafico-box";
+      const graficoTitulo = document.createElement("p");
+      graficoTitulo.className = "grafico-titulo";
+      graficoTitulo.textContent = "Comparacao entre fornecedores";
+      graficoBox.appendChild(graficoTitulo);
+      graficoBox.appendChild(grafico);
+      container.appendChild(graficoBox);
+    }
   }
 
   const formItem = document.createElement("form");

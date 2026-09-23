@@ -117,7 +117,18 @@ db.init_db()
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
-### Fase 6, Grupo F3-extra (Viagens/Lugares/Cotações/Aviação) - US-F11/F12/F13
+### Fase 6, Grupo F3-extra (Viagens/Lugares/Cotações/Aviação) - US-F11/F12/F13/F14
+- **Pegadinha de teste real, pega na própria suíte**: qualquer rota GET com
+  efeito colateral de rede (ex: `GET /api/lugares` faz backfill de geocode,
+  US-F13) precisa do MESMO mock cobrindo TODAS as chamadas àquela rota no
+  teste, não só a primeira. Um teste que faz `with patch(...): self.client.post(...)`
+  e SÓ DEPOIS, fora do `with`, chama `self.client.get(...)` numa rota que
+  também dispara a mesma dependência externa, escapa do mock silenciosamente
+  e acaba batendo na API de verdade - pego numa rodada real da suíte
+  completa (`test_erro_de_rede_na_criacao_nao_impede_o_lugar_de_ser_salvo`,
+  `tests/test_fase6_f3_lugares_mapa.py`, corrigido envolvendo POST *e* GET
+  no mesmo `with`). Rotas GET "inocentes" que na verdade escrevem/chamam
+  rede (backfill, cache-refresh, etc) são as mais fáceis de esquecer disso.
 - **`hidden` + `display` != `none` numa classe do MESMO elemento é uma
   pegadinha de especificidade CSS real** (achada na verificação headless da
   US-F13, `.lugar-mapa`): `[hidden] { display: none }` é a regra padrão do

@@ -60,8 +60,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "SVG inline (graficoComparacaoCotacoes, static/js/app.js) reaproveitando o padrao visual .card-grafico/.card-graf-* ja usado em saude_treino - barras horizontais, fornecedor mais barato destacado, so aparece com 2+ fornecedores com valor. Gap real corrigido: /api/cotacoes (lista+detalhe+escrita) nunca respeitava modo visitante - agora segue o mesmo padrao de /api/expenses (lista escondida) e /api/decisao (escrita bloqueada 403). Detalhes/testes/screenshots em tasks/fase6/progress-f3.txt.",
       "modelo_planejado": "sonnet"
     },
     {
