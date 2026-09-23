@@ -1303,7 +1303,10 @@ async function loadMedidas() {
   list.innerHTML = "";
   $("#medidas-oculto-visitante").hidden = !modoVisitanteAtivo;
   $("#medidas-vazio").hidden = modoVisitanteAtivo || medidas.length > 0;
-  if (modoVisitanteAtivo) return;
+  if (modoVisitanteAtivo) {
+    $("#grafico-medidas").hidden = true;
+    return;
+  }
 
   const tipoJaMostrouTendencia = new Set();
 
@@ -1363,15 +1366,76 @@ async function loadMedidas() {
     li.appendChild(linha);
     list.appendChild(li);
   });
+
+  const grafico = $("#grafico-medidas");
+  const dadosGrafico = dadosGraficoMedida(medidas);
+  grafico.hidden = !dadosGrafico;
+  if (dadosGrafico) {
+    desenharGraficoLinha(grafico, dadosGrafico.pontos, {
+      cor: "var(--cor-financeiro)",
+      formatarValor: (v) => `${v}${dadosGrafico.unidade}`,
+      altura: 80,
+      rotulo: `Evolucao de ${dadosGrafico.tipo}`,
+    });
+  }
 }
+
+// Fase 6 US-F2: unidade padrao muda com o tipo escolhido (mesma regra que ja
+// existia no backend pra quando a unidade vem vazia - api/medidas, "kg" pra
+// peso e "cm" pro resto) - so espelhado aqui pra pre-selecionar sem precisar
+// que o Alex troque na mao toda vez.
+const MEDIDA_UNIDADE_PADRAO = { peso: "kg", gordura: "%" };
+
+function medidaTipoEscolhido() {
+  const sel = $("#medida-tipo-select").value;
+  return sel === "outro" ? $("#medida-tipo-outro").value.trim().toLowerCase() : sel;
+}
+
+function medidaUnidadeEscolhida() {
+  const sel = $("#medida-unidade-select").value;
+  return sel === "outra" ? $("#medida-unidade-outra").value.trim() : sel;
+}
+
+$("#medida-tipo-select").addEventListener("change", () => {
+  const ehOutro = $("#medida-tipo-select").value === "outro";
+  $("#medida-tipo-outro").hidden = !ehOutro;
+  if (ehOutro) {
+    $("#medida-tipo-outro").focus();
+    return;
+  }
+  // Nao pisa numa unidade "outra" que o Alex ja tenha escolhido na mao.
+  if ($("#medida-unidade-select").value !== "outra") {
+    $("#medida-unidade-select").value = MEDIDA_UNIDADE_PADRAO[$("#medida-tipo-select").value] || "cm";
+  }
+});
+
+$("#medida-unidade-select").addEventListener("change", () => {
+  const ehOutra = $("#medida-unidade-select").value === "outra";
+  $("#medida-unidade-outra").hidden = !ehOutra;
+  if (ehOutra) $("#medida-unidade-outra").focus();
+});
+
+function medidaStepAtual() {
+  return Number($("#medida-valor").step) || 0.1;
+}
+
+function medidaAjustarValor(delta) {
+  const input = $("#medida-valor");
+  const atual = Number(input.value) || 0;
+  const novo = Math.max(0, Math.round((atual + delta) * 100) / 100);
+  input.value = novo;
+  pulsarSucesso(input);
+}
+
+$("#medida-valor-menos").addEventListener("click", () => medidaAjustarValor(-medidaStepAtual()));
+$("#medida-valor-mais").addEventListener("click", () => medidaAjustarValor(medidaStepAtual()));
 
 $("#medida-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#medida-btn");
-  const tipoInput = $("#medida-tipo");
   const valorInput = $("#medida-valor");
-  const unidadeInput = $("#medida-unidade");
-  const tipo = tipoInput.value.trim();
+  const tipo = medidaTipoEscolhido();
+  const unidade = medidaUnidadeEscolhida();
   const valor = valorInput.value.trim();
   if (!tipo || !valor) {
     mostrarErro("Confere o tipo e o valor da medida.");
@@ -1382,15 +1446,15 @@ $("#medida-form").addEventListener("submit", async (e) => {
   const data = await apiFetch("/api/medidas", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tipo, valor: Number(valor), unidade: unidadeInput.value.trim() }),
+    body: JSON.stringify({ tipo, valor: Number(valor), unidade }),
   });
   setBotaoCarregando(btn, false, "Adicionar");
   if (!data) return;
 
-  tipoInput.value = "";
   valorInput.value = "";
-  unidadeInput.value = "";
-  pulsarSucesso(tipoInput);
+  $("#medida-tipo-outro").value = "";
+  $("#medida-unidade-outra").value = "";
+  pulsarSucesso(valorInput);
   loadMedidas();
 });
 

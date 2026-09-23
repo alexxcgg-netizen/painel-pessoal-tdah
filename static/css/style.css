@@ -1922,6 +1922,58 @@ li.item.saindo {
   color: var(--cor-painel);
 }
 
+/* Fase 6 US-F2: tipo/unidade por seletor (com "outro/outra" pra nao perder
+   a liberdade de texto livre que o campo tinha antes) + valor por stepper -
+   reusa .form-linha input/select existentes, so acrescenta o agrupamento
+   visual do stepper. */
+#medida-tipo-outro,
+#medida-unidade-outra {
+  margin-top: -0.35rem;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.stepper #medida-valor {
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.stepper-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  .stepper-btn:hover:not(:disabled) {
+    border-color: var(--cor-financeiro);
+    color: var(--cor-financeiro);
+  }
+}
+
+.medida-grafico {
+  margin: 0.6rem 0 0.8rem;
+}
+
 .item-titulo {
   font-size: 0.95rem;
   font-weight: 600;
@@ -3530,7 +3582,8 @@ li.item.item-planejado {
 .form-linha input[type="text"],
 .form-linha input[type="number"],
 .form-linha input[type="time"],
-.form-linha input[type="date"] {
+.form-linha input[type="date"],
+.form-linha select {
   padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -3540,10 +3593,21 @@ li.item.item-planejado {
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
+/* Select nativo nao herda fonte/cursor por padrao (mesmo dentro de
+   .form-linha) - sem isso, os seletores novos da US-F2 (e os que ja
+   existiam, tipo #habito-frequencia-tipo/#manutencao-tipo) ficam com a
+   aparencia crua do navegador, destoando dos inputs ao lado. */
+.form-linha select {
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 44px;
+}
+
 .form-linha input[type="text"]:focus,
 .form-linha input[type="number"]:focus,
 .form-linha input[type="time"]:focus,
-.form-linha input[type="date"]:focus {
+.form-linha input[type="date"]:focus,
+.form-linha select:focus {
   outline: none;
   border-color: var(--form-cor, var(--cor-hoje));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--form-cor, var(--cor-hoje)) 18%, transparent);
