@@ -5,6 +5,7 @@ em app.py."""
 
 from datetime import date, datetime, timedelta
 
+import db
 import gastos
 import vida
 
@@ -219,13 +220,15 @@ def cobrancas_genericas_sem_rotulo(conn) -> list[tuple[str, float, str]]:
             if chave not in ja_com_apelido:
                 candidatos[chave] = descricao
 
-    rows_bancarias = conn.execute(
-        "SELECT -valor AS valor, descricao FROM bank_transactions WHERE valor < 0"
-    ).fetchall()
-    for r in rows_bancarias:
+    # valor/descricao sao criptografados em repouso - db.list_all_bank_transactions
+    # ja descriptografa; o filtro "valor < 0" (antes no SQL) fica em Python.
+    for r in db.list_all_bank_transactions(conn):
+        if r["valor"] is None or r["valor"] >= 0:
+            continue
+        valor = -r["valor"]
         descricao = (r["descricao"] or "").strip()
         if gastos.e_cobranca_generica(descricao):
-            chave = (descricao.lower(), r["valor"])
+            chave = (descricao.lower(), valor)
             if chave not in ja_com_apelido:
                 candidatos[chave] = descricao
 

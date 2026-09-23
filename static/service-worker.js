@@ -4,10 +4,23 @@
 // service-worker.js muda). Trocado pra network-first: sempre tenta a rede primeiro
 // (app atualizado, dado financeiro/tarefas nunca vem de cache velho), cai pro cache
 // so quando a rede falha (funciona offline). "activate" limpa cache de versao antiga.
-const CACHE_NAME = "painel-pessoal-v8";
+// v9: fila offline (BRIEFING Fase 4, item 2). A fila em si (captura/check-in
+// enfileirados quando falha rede/timeout) mora em static/js/fila-offline.js,
+// rodando na PAGINA com IndexedDB, e nao aqui no SW - decisao deliberada:
+// o app roda sobretudo no iPhone do Alex, e o Safari no iOS nunca implementou
+// a Background Sync API (nem "sync" nem "periodicsync" chegam a disparar
+// nesse SW), entao um SW dependendo dela simplesmente nunca sincronizaria
+// sozinho ali. A pagina, em compensacao, ja fica aberta quando uma captura e
+// digitada, tem acesso direto as funcoes de recarregar tela (loadSummary,
+// loadCheckin...) sem precisar de postMessage SW<->pagina, e o reforco por
+// poll (setInterval) funciona identico em qualquer navegador. Esse SW so
+// precisa saber que fila-offline.js existe pra ir pro precache (senao o app
+// abriria offline sem a fila disponivel) - por isso essa versao sobe.
+const CACHE_NAME = "painel-pessoal-v9";
 const ASSETS = [
   "/",
   "/static/css/style.css",
+  "/static/js/fila-offline.js",
   "/static/js/app.js",
   "/static/js/vida.js",
   "/static/js/charts.js",

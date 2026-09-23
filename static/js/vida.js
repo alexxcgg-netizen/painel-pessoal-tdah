@@ -74,6 +74,12 @@ const CHECKIN_CAMPOS = [
   ["humor", "Humor"],
 ];
 
+if (typeof FilaOffline !== "undefined") {
+  // Assim que um check-in enfileirado sincroniza de verdade, recarrega a
+  // caixa pra refletir o estado real vindo do servidor.
+  FilaOffline.registrarCallback("checkin", () => loadCheckin());
+}
+
 async function loadCheckin() {
   const data = await apiFetch("/api/checkin/hoje");
   if (!data) return;
@@ -93,15 +99,26 @@ async function loadCheckin() {
       b.type = "button";
       b.dataset.valor = valor;
       b.addEventListener("click", async () => {
-        const r = await apiFetch("/api/checkin", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ [campo]: valor }),
-        });
-        if (r) {
-          vibrar(15);
-          loadCheckin();
+        const r = await apiFetch(
+          "/api/checkin",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ [campo]: valor }),
+          },
+          { tipo: "checkin" }
+        );
+        if (!r) return;
+        vibrar(15);
+        if (r.__enfileirado) {
+          // otimista: marca a opcao escolhida na hora - o checkin e um
+          // upsert por dia no servidor, entao reenviar o mesmo valor depois
+          // (quando sincronizar) nunca duplica nada.
+          opcoes.querySelectorAll(".checkin-opcao").forEach((el) => el.classList.remove("escolhida"));
+          b.classList.add("escolhida");
+          return;
         }
+        loadCheckin();
       });
       opcoes.appendChild(b);
     });

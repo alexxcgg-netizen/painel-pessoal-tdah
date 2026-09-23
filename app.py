@@ -7,6 +7,7 @@ import math
 import os
 import sqlite3
 import tempfile
+import zipfile
 from datetime import date, datetime, timedelta
 
 import anthropic
@@ -23,6 +24,7 @@ import bank_ofx
 import caldav_client
 import claude_client
 import clima
+import criptografia
 import estudo
 import gastos
 import leitura
@@ -105,10 +107,15 @@ from db import (
     get_cotacao,
     get_db,
     get_essencial,
+    estatisticas_conta,
     get_or_create_bank_account,
     get_saude_dia,
     init_db,
     insert_bank_transactions,
+    list_all_bank_transactions,
+    list_bank_accounts,
+    list_bank_transactions,
+    list_saude_dados,
     ja_notificado_alguma_vez,
     ja_notificou_hoje,
     list_apelidos_gasto,
@@ -397,10 +404,46 @@ def index():
     return render_template("index.html")
 
 
-def _executar_captura(text: str, clarificacao: str):
+def _resposta_capture_cacheada(conn, client_id: str):
+    """Devolve a resposta ja gravada pra esse client_id (ou None se nunca foi
+    processado). So consultado quando o cliente manda client_id - o Atalho do
+    iPhone nao manda, entao segue direto pro fluxo normal."""
+    row = conn.execute(
+        "SELECT response_json, status FROM capture_idempotency WHERE client_id = ?", (client_id,)
+    ).fetchone()
+    if not row:
+        return None
+    return jsonify(json.loads(row["response_json"])), row["status"]
+
+
+def _gravar_resposta_capture(conn, client_id: str, corpo: dict, status: int):
+    conn.execute(
+        "INSERT OR REPLACE INTO capture_idempotency (client_id, response_json, status) VALUES (?, ?, ?)",
+        (client_id, json.dumps(corpo), status),
+    )
+    # limpeza leve: nao deixa a tabela crescer pra sempre com o historico todo -
+    # so precisa lembrar entradas recentes o bastante pra cobrir um reenvio da
+    # fila offline (minutos/horas depois de voltar a conexao, nunca dias).
+    conn.execute("DELETE FROM capture_idempotency WHERE criado_em < datetime('now', '-7 days')")
+
+
+def _executar_captura(text: str, clarificacao: str, client_id: str = ""):
     """Classifica e grava um texto de captura (tarefa/gasto/meta) - usado
     tanto por /api/capture (sessao normal) quanto por /api/atalho/capturar
-    (Atalho do iPhone, autenticado por token). Devolve (jsonify(...), status)."""
+    (Atalho do iPhone, autenticado por token). Devolve (jsonify(...), status).
+
+    client_id (opcional, so vem de /api/capture): id gerado no navegador pra
+    cada captura enviada pela fila offline (IndexedDB, ver app.js). Se a mesma
+    captura for reenviada (ex: a fila nao sabia se a primeira tentativa chegou
+    a processar no servidor antes da conexao cair), devolve a resposta ja
+    gravada em vez de duplicar a tarefa/gasto/meta."""
+    if client_id:
+        conn = get_db()
+        cache = _resposta_capture_cacheada(conn, client_id)
+        conn.close()
+        if cache:
+            return cache
+
     full_text = f"{text}. Contexto adicional: {clarificacao}" if clarificacao else text
 
     result, error = _call_claude(claude_client.classify_capture, full_text)
@@ -414,8 +457,12 @@ def _executar_captura(text: str, clarificacao: str):
     # Se a IA ainda ficou em duvida, so pede esclarecimento uma vez (quando a
     # clarificacao ja foi enviada, seguimos com o melhor palpite mesmo assim).
     if parsed.get("duvida") and not clarificacao:
+        corpo = {"duvida": parsed["duvida"], "texto_original": text}
+        if client_id:
+            _gravar_resposta_capture(conn, client_id, corpo, 200)
+        conn.commit()
         conn.close()
-        return jsonify({"duvida": parsed["duvida"], "texto_original": text}), 200
+        return jsonify(corpo), 200
 
     if parsed["tipo"] == "gasto":
         status_gasto = parsed.get("status") if parsed.get("status") in ("real", "planejado") else "real"
@@ -434,6 +481,9 @@ def _executar_captura(text: str, clarificacao: str):
     if parsed.get("memoria"):
         create_memoria(conn, parsed["memoria"], full_text)
 
+    if client_id:
+        _gravar_resposta_capture(conn, client_id, parsed, 201)
+
     _marcar_atividade(conn)
     conn.commit()
     conn.close()
@@ -445,9 +495,10 @@ def capture():
     body = _corpo_json()
     text = _texto_seguro(body.get("text"))
     clarificacao = _texto_seguro(body.get("clarificacao"))
+    client_id = _texto_seguro(body.get("client_id"))[:64]  # UUID cabe sobra; so um teto de sanidade
     if not text:
         return jsonify({"error": "texto vazio"}), 400
-    return _executar_captura(text, clarificacao)
+    return _executar_captura(text, clarificacao, client_id)
 
 
 @app.route("/api/tasks", methods=["GET"])
@@ -633,6 +684,163 @@ def exportar_backup():
     return resposta
 
 
+VERSAO_EXPORT_JSON = 1  # versao do FORMATO do export, nao da versao do app - so sobe se a
+# estrutura do {"versao": ..., "tabelas": {...}} mudar de um jeito que quebre um import antigo
+
+
+def _listar_tabelas(conn) -> list[str]:
+    """Lista as tabelas de verdade do schema via introspeccao (sqlite_master),
+    nunca uma lista hardcoded - assim uma tabela nova criada em db.py entra
+    automaticamente no proximo export, sem precisar lembrar de atualizar isso
+    aqui. Exclui tabelas internas do sqlite (sqlite_sequence etc)."""
+    rows = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    ).fetchall()
+    return [r["name"] for r in rows]
+
+
+def _exportar_tabelas_dict(conn) -> dict:
+    """Le todas as tabelas do banco pra um dict {nome_tabela: [linha, ...]} -
+    usado tanto pelo export JSON quanto pelo CSV zipado, pra nao duplicar a
+    logica de introspeccao/leitura entre os dois."""
+    tabelas = {}
+    for nome in _listar_tabelas(conn):
+        # nome vem da propria introspeccao do sqlite_master, nunca de entrada
+        # externa - seguro interpolar no SQL (nao da pra parametrizar nome de
+        # tabela com "?" no sqlite3)
+        linhas = conn.execute(f'SELECT * FROM "{nome}"').fetchall()
+        tabelas[nome] = [dict(r) for r in linhas]
+    return tabelas
+
+
+@app.route("/api/backup/exportar-json", methods=["GET"])
+def exportar_backup_json():
+    """Export completo em JSON de TODAS as tabelas do banco (nao so gastos) -
+    pensado pra restaurar o painel inteiro depois, diferente do
+    /api/expenses/exportar-csv (so gastos, pra planilha) e do
+    /api/backup/exportar (.db bruto, so restaura via SQLite direto)."""
+    conn = get_db()
+    try:
+        tabelas = _exportar_tabelas_dict(conn)
+    finally:
+        conn.close()
+
+    corpo = {
+        "versao": VERSAO_EXPORT_JSON,
+        "exportado_em": datetime.now().isoformat(timespec="seconds"),
+        "tabelas": tabelas,
+    }
+    nome_arquivo = f"painel-backup-{date.today().isoformat()}.json"
+    return Response(
+        json.dumps(corpo, ensure_ascii=False, default=str),
+        mimetype="application/json",
+        headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"},
+    )
+
+
+@app.route("/api/backup/exportar-csv-completo", methods=["GET"])
+def exportar_backup_csv_completo():
+    """Export completo em CSV de TODAS as tabelas, um .csv por tabela dentro
+    de um .zip - diferente do JSON (uma estrutura relacional so faz sentido
+    achatada em varios arquivos, nao um CSV unico) e do
+    /api/expenses/exportar-csv (so gastos)."""
+    conn = get_db()
+    try:
+        tabelas = _exportar_tabelas_dict(conn)
+    finally:
+        conn.close()
+
+    buffer_zip = io.BytesIO()
+    with zipfile.ZipFile(buffer_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        for nome, linhas in tabelas.items():
+            buffer_csv = io.StringIO()
+            writer = csv.writer(buffer_csv)
+            if linhas:
+                colunas = list(linhas[0].keys())
+                writer.writerow(colunas)
+                for linha in linhas:
+                    writer.writerow([linha[c] for c in colunas])
+            # tabela vazia ainda gera um .csv (sem cabecalho, ja que sem
+            # linhas nao da pra saber as colunas so pelo select) - melhor um
+            # arquivo vazio presente do que a tabela sumir silenciosamente
+            # do zip
+            zf.writestr(f"{nome}.csv", buffer_csv.getvalue())
+    buffer_zip.seek(0)
+
+    nome_arquivo = f"painel-backup-csv-{date.today().isoformat()}.zip"
+    resposta = send_file(
+        buffer_zip,
+        as_attachment=True,
+        download_name=nome_arquivo,
+        mimetype="application/zip",
+    )
+    return resposta
+
+
+def gerar_backup_arquivo(destino: str) -> None:
+    """Salva uma copia consistente do banco em `destino` via sqlite3.backup()
+    (mesma tecnica do /api/backup/exportar) - nunca uma copia de arquivo
+    crua, que podia pegar o banco no meio de uma escrita. Compartilhada pelo
+    endpoint manual futuro e pelo job semanal do scheduler."""
+    origem = sqlite3.connect(db.DB_PATH)
+    dest_conn = sqlite3.connect(destino)
+    try:
+        origem.backup(dest_conn)
+    finally:
+        dest_conn.close()
+        origem.close()
+
+
+def _diretorio_backups() -> str:
+    return os.environ.get("BACKUP_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "backups")
+
+
+BACKUP_AUTOMATICO_MANTER = 8  # ~2 meses de backups semanais
+
+
+def rodar_backup_automatico_semanal():
+    """Job do scheduler (ver iniciar_scheduler): tira uma copia semanal do
+    banco pra BACKUP_DIR, apaga os mais antigos alem de
+    BACKUP_AUTOMATICO_MANTER, e manda copia pro Telegram do Alex se
+    configurado (copia fora do disco do servidor - se o disco morrer, o
+    Telegram ainda tem uma copia recente). Resiliente de proposito: qualquer
+    erro (disco cheio, permissao, rede do Telegram fora do ar) e' logado e
+    engolido aqui, nunca derruba o scheduler nem o resto do app - um backup
+    automatico que falha silenciosamente e' melhor que travar o painel
+    inteiro por causa dele."""
+    try:
+        diretorio = _diretorio_backups()
+        os.makedirs(diretorio, exist_ok=True)
+        carimbo = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        caminho = os.path.join(diretorio, f"painel-backup-{carimbo}.db")
+        gerar_backup_arquivo(caminho)
+
+        # rotacao: mantem so os N mais recentes (ordenados por nome, que ja
+        # carrega o carimbo de data/hora - nao depende de mtime do
+        # filesystem, que pode ser preservado errado em alguma copia/restore)
+        existentes = sorted(
+            f for f in os.listdir(diretorio) if f.startswith("painel-backup-") and f.endswith(".db")
+        )
+        for antigo in existentes[:-BACKUP_AUTOMATICO_MANTER]:
+            try:
+                os.unlink(os.path.join(diretorio, antigo))
+            except OSError as e:
+                app.logger.error("backup automatico: falha ao apagar backup antigo %s: %s", antigo, e)
+
+        if telegram_bot.configurado():
+            try:
+                telegram_bot.enviar_documento(
+                    caminho, legenda=f"Backup automatico semanal do painel - {date.today().isoformat()}"
+                )
+            except Exception as e:  # nunca deixa uma falha do Telegram derrubar o backup local
+                app.logger.error("backup automatico: falha ao enviar pro Telegram: %s", e)
+    except Exception as e:
+        # ultima rede de seguranca - qualquer coisa inesperada aqui (disco
+        # cheio, permissao negada, etc.) fica so no log, o scheduler segue
+        # rodando normalmente na proxima semana
+        app.logger.error("backup automatico semanal falhou: %s", e)
+
+
 @app.route("/api/gastos/resumo-semanal", methods=["GET"])
 def gastos_resumo_semanal():
     conn = get_db()
@@ -789,10 +997,12 @@ def _gastos_reais_unificados(conn) -> list[dict]:
         "SELECT amount, category, description, source_text, created_at FROM expenses WHERE tipo = 'real'"
     ).fetchall()
     unificado = [dict(r) for r in expenses_reais]
-    bancarias = conn.execute(
-        "SELECT valor, categoria, descricao, data FROM bank_transactions WHERE valor < 0"
-    ).fetchall()
-    for r in bancarias:
+    # valor/descricao sao criptografados em repouso - list_all_bank_transactions
+    # ja devolve descriptografado, entao o filtro "valor < 0" (que era WHERE no
+    # SQL) precisa vir depois, em Python.
+    for r in list_all_bank_transactions(conn):
+        if r["valor"] is None or r["valor"] >= 0:
+            continue
         unificado.append(
             {
                 "amount": -r["valor"],
@@ -2068,12 +2278,12 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
             )
 
     if agora.hour >= 8:
+        # sono_horas e criptografado - list_saude_dados ja descriptografa
+        # (filtro de data continua no SQL, "IS NOT NULL" agora e em Python)
         sono = {
-            r["data"]: r["sono_horas"]
-            for r in conn.execute(
-                "SELECT data, sono_horas FROM saude_dados WHERE sono_horas IS NOT NULL AND data >= ?",
-                ((hoje - timedelta(days=14)).isoformat(),),
-            ).fetchall()
+            l["data"]: l["sono_horas"]
+            for l in list_saude_dados(conn, desde=(hoje - timedelta(days=14)).isoformat())
+            if l["sono_horas"] is not None
         }
         checkin_sono = {
             c["data"]: c["sono"] for c in list_checkins(conn, (hoje - timedelta(days=14)).isoformat()) if c["sono"]
@@ -4270,10 +4480,15 @@ def _fatos_periodo(conn, inicio: date, fim: date) -> dict:
     copos = conn.execute(
         "SELECT COUNT(*) AS n FROM hidratacao_registros WHERE data BETWEEN ? AND ?", (ini, fim_iso)
     ).fetchone()["n"]
-    sono = conn.execute(
-        "SELECT AVG(sono_horas) AS m, COUNT(sono_horas) AS n FROM saude_dados WHERE data BETWEEN ? AND ?",
-        (ini, fim_iso),
-    ).fetchone()
+    # sono_horas e criptografado - list_saude_dados ja descriptografa; AVG/COUNT
+    # que eram feitos no SQL agora sao feitos aqui depois de ler as linhas
+    # (BETWEEN ? AND ? vira desde/ate exclusivo com +1 dia, mesmo intervalo).
+    _sono_valores = [
+        l["sono_horas"]
+        for l in list_saude_dados(conn, desde=ini, ate=(fim + timedelta(days=1)).isoformat())
+        if l["sono_horas"] is not None
+    ]
+    sono = {"m": (sum(_sono_valores) / len(_sono_valores)) if _sono_valores else None, "n": len(_sono_valores)}
     checkins = conn.execute(
         "SELECT AVG(energia) AS e, AVG(humor) AS h, COUNT(*) AS n FROM checkins WHERE data BETWEEN ? AND ?",
         (ini, fim_iso),
@@ -4454,18 +4669,15 @@ def importar_extrato():
 @app.route("/api/bancos", methods=["GET"])
 def listar_bancos():
     conn = get_db()
-    contas = conn.execute("SELECT * FROM bank_accounts ORDER BY banco, tipo").fetchall()
+    # saldo/valor sao criptografados em repouso - list_bank_accounts e
+    # estatisticas_conta ja descriptografam e somam em Python (ver db.py).
+    contas = list_bank_accounts(conn)
     resultado = []
     for c in contas:
-        stats = conn.execute(
-            """SELECT COUNT(*) AS total, MAX(data) AS ultima,
-                      COALESCE(SUM(CASE WHEN valor < 0 THEN -valor ELSE 0 END), 0) AS total_gasto
-               FROM bank_transactions WHERE bank_account_id = ?""",
-            (c["id"],),
-        ).fetchone()
+        stats = estatisticas_conta(conn, c["id"])
         resultado.append(
             {
-                **dict(c),
+                **c,
                 "total_transacoes": stats["total"],
                 "ultima_transacao": stats["ultima"],
                 "total_gasto": stats["total_gasto"],
@@ -4478,12 +4690,9 @@ def listar_bancos():
 @app.route("/api/bancos/<int:conta_id>/transacoes", methods=["GET"])
 def transacoes_banco(conta_id):
     conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM bank_transactions WHERE bank_account_id = ? ORDER BY data DESC LIMIT 100",
-        (conta_id,),
-    ).fetchall()
+    transacoes = list_bank_transactions(conn, conta_id, limite=100)
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    return jsonify(transacoes)
 
 
 @app.route("/api/bancos/sync-status", methods=["GET"])
@@ -4496,6 +4705,30 @@ def bancos_sync_status():
                 "Conecte um banco automaticamente pra sincronizar sem precisar exportar OFX."
                 if configurado
                 else "Sincronizacao automatica ainda nao configurada - veja o README (integracao com Pluggy)."
+            ),
+            "criptografia_ativa": criptografia.configurada(),
+        }
+    )
+
+
+@app.route("/api/seguranca/status", methods=["GET"])
+def seguranca_status():
+    """Rota de diagnostico: diz se a criptografia em repouso (Open Finance +
+    saude) esta ligada agora. Ver docs/SEGURANCA.md. Sem ENCRYPTION_KEY
+    configurada, o app segue funcionando normalmente (decisao de design
+    documentada) mas os campos sensiveis ficam em texto plano no banco -
+    esta rota existe pra isso nunca ficar escondido, so silencioso no log."""
+    ativa = criptografia.configurada()
+    return jsonify(
+        {
+            "criptografia_ativa": ativa,
+            "aviso": (
+                None
+                if ativa
+                else (
+                    "ENCRYPTION_KEY nao configurada - dado do Open Finance e de saude esta "
+                    "em texto plano no banco. Rode python scripts/gerar_chave_criptografia.py."
+                )
             ),
         }
     )
@@ -4954,6 +5187,9 @@ def iniciar_scheduler():
         # lembrete) sao lentas por natureza e nao se importam com a checagem ser mais
         # frequente, o dedup em notificacoes_enviadas ja evita reenvio.
         scheduler.add_job(verificar_e_notificar, "interval", minutes=5)
+        # backup semanal (domingo 3h da manha - baixo uso), ver
+        # rodar_backup_automatico_semanal pro que ele faz
+        scheduler.add_job(rodar_backup_automatico_semanal, "cron", day_of_week="sun", hour=3, minute=0)
         scheduler.start()
 
 

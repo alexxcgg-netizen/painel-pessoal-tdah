@@ -4,6 +4,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+import zipfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -154,6 +155,75 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(len(expenses), 1)
         self.assertEqual(expenses[0]["amount"], 50.0)
 
+    def test_captura_com_client_id_reenviada_nao_duplica(self):
+        """Fila offline (BRIEFING Fase 4, item 2): se a mesma captura for
+        reenviada com o mesmo client_id (ex: a resposta da primeira tentativa
+        se perdeu por queda de conexao, mas o servidor ja tinha processado),
+        o segundo POST devolve a resposta ja gravada em vez de criar uma
+        segunda tarefa/gasto."""
+        parsed = {
+            "tipo": "gasto",
+            "titulo": "mercado",
+            "valor": 50.0,
+            "categoria": "mercado",
+            "quando": None,
+            "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())) as mock_classify:
+            r1 = self.client.post(
+                "/api/capture", json={"text": "gastei 50 no mercado", "client_id": "abc-123"}
+            )
+            self.assertEqual(r1.status_code, 201)
+            r2 = self.client.post(
+                "/api/capture", json={"text": "gastei 50 no mercado", "client_id": "abc-123"}
+            )
+            self.assertEqual(r2.status_code, 201)
+            self.assertEqual(r1.get_json(), r2.get_json())
+            # a IA so precisa ser chamada na primeira vez - o reenvio usa o cache
+            mock_classify.assert_called_once()
+
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(len(expenses), 1)
+
+    def test_captura_sem_client_id_nao_usa_cache(self):
+        """Sem client_id (uso normal, fora da fila offline) cada POST sempre
+        processa e grava de novo - so a fila manda client_id."""
+        parsed = {
+            "tipo": "gasto", "titulo": "mercado", "valor": 50.0,
+            "categoria": "mercado", "quando": None, "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            self.client.post("/api/capture", json={"text": "gastei 50 no mercado"})
+            self.client.post("/api/capture", json={"text": "gastei 50 no mercado"})
+
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(len(expenses), 2)
+
+    def test_captura_client_id_diferente_nao_e_afetada(self):
+        parsed = {
+            "tipo": "gasto", "titulo": "mercado", "valor": 50.0,
+            "categoria": "mercado", "quando": None, "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage())):
+            self.client.post("/api/capture", json={"text": "gastei 50", "client_id": "id-1"})
+            self.client.post("/api/capture", json={"text": "gastei 50 de novo", "client_id": "id-2"})
+
+        expenses = self.client.get("/api/expenses").get_json()
+        self.assertEqual(len(expenses), 2)
+
+    def test_checkin_reenviado_e_idempotente(self):
+        """O check-in (BRIEFING Fase 4, item 2) e um upsert por dia - reenviar
+        o mesmo POST (cenario de fila offline apos reconectar) nunca duplica
+        nem quebra, so confirma o mesmo valor."""
+        r1 = self.client.post("/api/checkin", json={"energia": "bom"})
+        self.assertEqual(r1.status_code, 200)
+        r2 = self.client.post("/api/checkin", json={"energia": "bom"})
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r1.get_json(), r2.get_json())
+
+        hoje = self.client.get("/api/checkin/hoje").get_json()
+        self.assertEqual(hoje["checkin"]["energia"], "bom")
+
     def test_exportar_csv_gastos_com_dados(self):
         parsed = {
             "tipo": "gasto", "titulo": "mercado", "valor": 50.0,
@@ -206,6 +276,66 @@ class PainelTestCase(unittest.TestCase):
     def test_exportar_backup_exige_autenticacao(self):
         self.client.post("/logout")
         res = self.client.get("/api/backup/exportar")
+        self.assertEqual(res.status_code, 401)
+
+    def test_exportar_backup_json_lista_tabelas_bate_com_schema(self):
+        conn = db.get_db()
+        tabelas_schema = set(app._listar_tabelas(conn))
+        conn.close()
+
+        res = self.client.get("/api/backup/exportar-json")
+        self.assertEqual(res.status_code, 200)
+        corpo = res.get_json()
+        self.assertEqual(set(corpo["tabelas"].keys()), tabelas_schema)
+        # nao pode ficar hardcoded vazio/curto demais - regressao contra um
+        # bug onde a introspeccao devolvesse lista errada
+        self.assertGreater(len(tabelas_schema), 30)
+
+    def test_exportar_backup_json_estrutura_e_dados(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES ('tarefa pro export json')")
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/backup/exportar-json")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.mimetype, "application/json")
+        self.assertIn("attachment", res.headers["Content-Disposition"])
+        corpo = res.get_json()
+        self.assertIn("versao", corpo)
+        self.assertIn("exportado_em", corpo)
+        self.assertIn("tabelas", corpo)
+        titulos = [t["title"] for t in corpo["tabelas"]["tasks"]]
+        self.assertIn("tarefa pro export json", titulos)
+
+    def test_exportar_backup_json_exige_autenticacao(self):
+        self.client.post("/logout")
+        res = self.client.get("/api/backup/exportar-json")
+        self.assertEqual(res.status_code, 401)
+
+    def test_exportar_backup_csv_completo_abre_e_tem_uma_tabela_por_arquivo(self):
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES ('tarefa pro zip')")
+        conn.commit()
+        tabelas_schema = set(app._listar_tabelas(conn))
+        conn.close()
+
+        res = self.client.get("/api/backup/exportar-csv-completo")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("attachment", res.headers["Content-Disposition"])
+        self.assertIn(".zip", res.headers["Content-Disposition"])
+
+        with zipfile.ZipFile(io.BytesIO(res.get_data())) as zf:
+            nomes = set(zf.namelist())
+            self.assertEqual(nomes, {f"{t}.csv" for t in tabelas_schema})
+            conteudo_tasks = zf.read("tasks.csv").decode("utf-8")
+            linhas = conteudo_tasks.strip().split("\r\n")
+            self.assertIn("title", linhas[0].split(","))
+            self.assertTrue(any("tarefa pro zip" in linha for linha in linhas[1:]))
+
+    def test_exportar_backup_csv_completo_exige_autenticacao(self):
+        self.client.post("/logout")
+        res = self.client.get("/api/backup/exportar-csv-completo")
         self.assertEqual(res.status_code, 401)
 
     def test_captura_ambigua_pede_esclarecimento_e_depois_grava(self):
@@ -5390,6 +5520,105 @@ class PainelTestCase(unittest.TestCase):
                 "sugerir_posto_no_caminho", {"destino": "Foz do Iguacu", "origem": "Brusque"}
             )
         self.assertIn("erro", resultado)
+
+
+class BackupAutomaticoTestCase(unittest.TestCase):
+    """Testa o job semanal do scheduler (rodar_backup_automatico_semanal) e a
+    funcao de backup que ele reusa - chamados direto (sem HTTP), diferente
+    dos testes de export manual em PainelTestCase."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        conn.execute("INSERT INTO tasks (title) VALUES ('tarefa pro backup automatico')")
+        conn.commit()
+        conn.close()
+        self._tmp_backup_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp_backup_dir.cleanup)
+        self._env_patch = patch.dict(
+            os.environ, {"BACKUP_DIR": self._tmp_backup_dir.name, "TELEGRAM_BOT_TOKEN": "", "TELEGRAM_CHAT_ID": ""}
+        )
+        self._env_patch.start()
+        self.addCleanup(self._env_patch.stop)
+
+    def _arquivos_backup(self):
+        return sorted(
+            f for f in os.listdir(self._tmp_backup_dir.name) if f.startswith("painel-backup-") and f.endswith(".db")
+        )
+
+    def test_gerar_backup_arquivo_produz_db_restauravel(self):
+        destino = os.path.join(self._tmp_backup_dir.name, "copia-manual.db")
+        app.gerar_backup_arquivo(destino)
+
+        conn_verificacao = sqlite3.connect(destino)
+        titulo = conn_verificacao.execute("SELECT title FROM tasks").fetchone()[0]
+        conn_verificacao.close()
+        self.assertEqual(titulo, "tarefa pro backup automatico")
+
+    def test_job_roda_e_produz_arquivo_restauravel_em_backup_dir(self):
+        app.rodar_backup_automatico_semanal()
+
+        arquivos = self._arquivos_backup()
+        self.assertEqual(len(arquivos), 1)
+        caminho = os.path.join(self._tmp_backup_dir.name, arquivos[0])
+        conn_verificacao = sqlite3.connect(caminho)
+        titulo = conn_verificacao.execute("SELECT title FROM tasks").fetchone()[0]
+        conn_verificacao.close()
+        self.assertEqual(titulo, "tarefa pro backup automatico")
+
+    def test_job_usa_data_backups_como_padrao_sem_env(self):
+        with patch.dict(os.environ, {"BACKUP_DIR": ""}):
+            diretorio = app._diretorio_backups()
+        self.assertTrue(diretorio.endswith(os.path.join("data", "backups")))
+
+    def test_rotacao_mantem_so_os_ultimos_n(self):
+        # pre-popula com mais backups "antigos" do que o limite de retencao -
+        # nomes com carimbo cronologico crescente, igual o job real gera
+        for i in range(1, app.BACKUP_AUTOMATICO_MANTER + 3):
+            nome = f"painel-backup-2024-01-{i:02d}_000000.db"
+            with open(os.path.join(self._tmp_backup_dir.name, nome), "wb") as f:
+                f.write(b"fake")
+
+        app.rodar_backup_automatico_semanal()
+
+        arquivos = self._arquivos_backup()
+        self.assertEqual(len(arquivos), app.BACKUP_AUTOMATICO_MANTER)
+        # os mais antigos (01, 02) tem que ter sumido; os mais recentes ficam
+        self.assertNotIn("painel-backup-2024-01-01_000000.db", arquivos)
+        self.assertNotIn("painel-backup-2024-01-02_000000.db", arquivos)
+
+    def test_telegram_enviado_quando_configurado(self):
+        with patch.dict(
+            os.environ, {"TELEGRAM_BOT_TOKEN": "abc", "TELEGRAM_CHAT_ID": "123"}
+        ), patch("telegram_bot.enviar_documento", return_value=True) as mock_enviar:
+            app.rodar_backup_automatico_semanal()
+        mock_enviar.assert_called_once()
+        caminho_enviado = mock_enviar.call_args.args[0]
+        self.assertTrue(os.path.exists(caminho_enviado))
+
+    def test_telegram_pulado_quando_nao_configurado(self):
+        with patch("telegram_bot.enviar_documento") as mock_enviar:
+            app.rodar_backup_automatico_semanal()
+        mock_enviar.assert_not_called()
+        # o backup local ainda tem que acontecer normalmente mesmo sem telegram
+        self.assertEqual(len(self._arquivos_backup()), 1)
+
+    def test_falha_no_backup_nao_derruba_o_job(self):
+        with patch("app.gerar_backup_arquivo", side_effect=OSError("disco cheio")):
+            try:
+                app.rodar_backup_automatico_semanal()
+            except Exception as e:  # pragma: no cover - o teste falha e mostra o motivo
+                self.fail(f"rodar_backup_automatico_semanal nao deveria propagar excecao: {e}")
+        self.assertEqual(self._arquivos_backup(), [])
+
+    def test_falha_no_envio_telegram_nao_impede_backup_local(self):
+        with patch.dict(
+            os.environ, {"TELEGRAM_BOT_TOKEN": "abc", "TELEGRAM_CHAT_ID": "123"}
+        ), patch("telegram_bot.enviar_documento", side_effect=RuntimeError("telegram fora do ar")):
+            app.rodar_backup_automatico_semanal()
+        self.assertEqual(len(self._arquivos_backup()), 1)
 
 
 class FuzzingEndpointsTestCase(unittest.TestCase):

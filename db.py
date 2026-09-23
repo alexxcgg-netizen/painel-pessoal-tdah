@@ -1,10 +1,34 @@
 import sqlite3
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+import criptografia
 import vida
 
 DB_PATH = Path(__file__).parent / "data" / "painel.db"
+
+
+# ---- Criptografia de campo (Open Finance + saude) -------------------------
+# Ver docs/SEGURANCA.md pro escopo completo e o porque. `_cnum`/`_dnum` sao so
+# `criptografia.criptografar/descriptografar` com um passo a mais de
+# serializar/desserializar numero <-> texto (str() e o inverso de int()/
+# float() sem perda pro que este app grava - nao ha NaN/infinito em
+# saldo/passos/sono, entao nao precisa de um serializador mais esperto).
+def _cnum(valor) -> str | None:
+    if valor is None:
+        return None
+    return criptografia.criptografar(str(valor))
+
+
+def _dnum(valor_cifrado, conversor):
+    texto = criptografia.descriptografar(valor_cifrado)
+    if texto is None:
+        return None
+    try:
+        return conversor(texto)
+    except (TypeError, ValueError):
+        # dado corrompido/formato inesperado - nunca derruba a leitura
+        return None
 
 
 def _criado_local(linhas) -> list[dict]:
@@ -302,6 +326,20 @@ def init_db():
             atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- Suporta a fila offline do front (Fase 4, item 2): a pagina guarda em
+        -- IndexedDB as capturas que falharam por falta de rede e reenvia quando
+        -- volta a conexao. Sem isso, um reenvio automatico (ex: o servidor ja
+        -- processou mas a conexao caiu antes do cliente receber a resposta)
+        -- duplicaria a tarefa/gasto. O client_id nasce no navegador
+        -- (crypto.randomUUID) e so /api/capture usa - o Atalho do iPhone
+        -- (/api/atalho/capturar) nunca manda client_id, entao nunca cai aqui.
+        CREATE TABLE IF NOT EXISTS capture_idempotency (
+            client_id TEXT PRIMARY KEY,
+            response_json TEXT NOT NULL,
+            status INTEGER NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS rotina_itens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             momento TEXT NOT NULL,
@@ -486,6 +524,7 @@ def init_db():
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
+    _migrar_criptografia_campos_sensiveis(conn)
     conn.close()
 
 
@@ -523,6 +562,7 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_compras_pendentes ON compras(comprado_em, item_normalizado);
         CREATE INDEX IF NOT EXISTS idx_responder_respondido_em ON responder(respondido_em);
         CREATE INDEX IF NOT EXISTS idx_app_eventos_em ON app_eventos(em);
+        CREATE INDEX IF NOT EXISTS idx_capture_idempotency_criado_em ON capture_idempotency(criado_em);
         """
     )
     conn.commit()
@@ -574,6 +614,66 @@ def _seed_rotina_padrao(conn):
     definir_configuracao(conn, "rotina_semeada", "1")
 
 
+def _migrar_criptografia_campos_sensiveis(conn):
+    """Criptografa em repouso o que ja estava gravado em texto plano (Open
+    Finance + saude) na primeira subida do app depois que ENCRYPTION_KEY foi
+    configurada. So roda se a chave estiver presente (sem chave, nao ha com
+    que criptografar - ver criptografia.py) e so uma vez (marca em
+    `configuracoes`, mesmo padrao de _seed_rotina_padrao): rodar duas vezes
+    criptografaria um valor que ja esta cifrado, virando lixo ilegivel."""
+    if not criptografia.configurada():
+        return
+    if obter_configuracao(conn, "criptografia_migrada"):
+        return
+
+    for row in conn.execute("SELECT id, saldo FROM bank_accounts").fetchall():
+        if row["saldo"] is not None:
+            conn.execute(
+                "UPDATE bank_accounts SET saldo = ? WHERE id = ?",
+                (_cnum(row["saldo"]), row["id"]),
+            )
+
+    for row in conn.execute("SELECT id, descricao, valor FROM bank_transactions").fetchall():
+        conn.execute(
+            "UPDATE bank_transactions SET descricao = ?, valor = ? WHERE id = ?",
+            (criptografia.criptografar(row["descricao"]), _cnum(row["valor"]), row["id"]),
+        )
+
+    for row in conn.execute(
+        "SELECT id, passos, distancia_km, sono_horas, andares_subidos FROM saude_dados"
+    ).fetchall():
+        conn.execute(
+            """UPDATE saude_dados SET passos = ?, distancia_km = ?, sono_horas = ?,
+               andares_subidos = ? WHERE id = ?""",
+            (
+                _cnum(row["passos"]),
+                _cnum(row["distancia_km"]),
+                _cnum(row["sono_horas"]),
+                _cnum(row["andares_subidos"]),
+                row["id"],
+            ),
+        )
+
+    for row in conn.execute("SELECT id, valor FROM medidas_corporais").fetchall():
+        conn.execute(
+            "UPDATE medidas_corporais SET valor = ? WHERE id = ?", (_cnum(row["valor"]), row["id"])
+        )
+
+    for row in conn.execute("SELECT id, nome, dosagem, horario FROM medicamentos").fetchall():
+        conn.execute(
+            "UPDATE medicamentos SET nome = ?, dosagem = ?, horario = ? WHERE id = ?",
+            (
+                criptografia.criptografar(row["nome"]),
+                criptografia.criptografar(row["dosagem"]),
+                criptografia.criptografar(row["horario"]),
+                row["id"],
+            ),
+        )
+
+    definir_configuracao(conn, "criptografia_migrada", "1")
+    conn.commit()
+
+
 def save_push_subscription(conn, endpoint: str, subscription_json: str):
     conn.execute(
         "INSERT OR REPLACE INTO push_subscriptions (endpoint, subscription_json) VALUES (?, ?)",
@@ -606,8 +706,61 @@ def atualizar_saldo_conta(conn, bank_account_id: int, saldo: float) -> None:
     """Grava o saldo mais recente vindo da sincronizacao (Pluggy) - sobrescreve
     qualquer ajuste otimista feito entre uma sincronizacao e outra, pra nao
     acumular deriva."""
-    conn.execute("UPDATE bank_accounts SET saldo = ? WHERE id = ?", (saldo, bank_account_id))
+    conn.execute(
+        "UPDATE bank_accounts SET saldo = ? WHERE id = ?", (_cnum(saldo), bank_account_id)
+    )
     conn.commit()
+
+
+def _descriptografar_conta(d: dict) -> dict:
+    d["saldo"] = _dnum(d["saldo"], float)
+    return d
+
+
+def _descriptografar_transacao(d: dict) -> dict:
+    d["descricao"] = criptografia.descriptografar(d["descricao"])
+    d["valor"] = _dnum(d["valor"], float)
+    return d
+
+
+def list_bank_accounts(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM bank_accounts ORDER BY banco, tipo").fetchall()
+    return [_descriptografar_conta(dict(r)) for r in rows]
+
+
+def estatisticas_conta(conn, bank_account_id: int) -> dict:
+    """Total de transacoes, data da mais recente e total gasto (soma das
+    saidas) de uma conta - valor/descricao sao criptografados em repouso,
+    entao SUM/CASE direto no SQL nao funciona mais aqui: descriptografa e
+    soma em Python (tabela pequena, app de uso pessoal - ver docs/SEGURANCA.md)."""
+    rows = conn.execute(
+        "SELECT valor, data FROM bank_transactions WHERE bank_account_id = ?", (bank_account_id,)
+    ).fetchall()
+    total_gasto = 0.0
+    ultima = None
+    for r in rows:
+        valor = _dnum(r["valor"], float)
+        if r["data"] is not None and (ultima is None or r["data"] > ultima):
+            ultima = r["data"]
+        if valor is not None and valor < 0:
+            total_gasto += -valor
+    return {"total": len(rows), "ultima": ultima, "total_gasto": total_gasto}
+
+
+def list_bank_transactions(conn, bank_account_id: int, limite: int = 100) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM bank_transactions WHERE bank_account_id = ? ORDER BY data DESC LIMIT ?",
+        (bank_account_id, limite),
+    ).fetchall()
+    return [_descriptografar_transacao(dict(r)) for r in rows]
+
+
+def list_all_bank_transactions(conn) -> list[dict]:
+    """Todas as transacoes bancarias, de todas as contas, ja descriptografadas
+    - usado por quem precisa filtrar/somar em Python porque a condicao
+    envolve `valor` (criptografado, ver `_gastos_reais_unificados` em app.py)."""
+    rows = conn.execute("SELECT * FROM bank_transactions").fetchall()
+    return [_descriptografar_transacao(dict(r)) for r in rows]
 
 
 def buscar_conta_por_nome(conn, nome: str) -> dict | None:
@@ -622,7 +775,7 @@ def buscar_conta_por_nome(conn, nome: str) -> dict | None:
         "SELECT * FROM bank_accounts WHERE banco LIKE ? ORDER BY (tipo = 'conta') DESC, id ASC LIMIT 1",
         (f"%{nome}%",),
     ).fetchone()
-    return dict(row) if row else None
+    return _descriptografar_conta(dict(row)) if row else None
 
 
 def ajustar_saldo_conta(conn, bank_account_id: int, delta: float) -> tuple[float, float] | None:
@@ -633,9 +786,11 @@ def ajustar_saldo_conta(conn, bank_account_id: int, delta: float) -> tuple[float
     row = conn.execute("SELECT saldo FROM bank_accounts WHERE id = ?", (bank_account_id,)).fetchone()
     if row is None or row["saldo"] is None:
         return None
-    saldo_antes = row["saldo"]
+    saldo_antes = _dnum(row["saldo"], float)
     saldo_depois = saldo_antes + delta
-    conn.execute("UPDATE bank_accounts SET saldo = ? WHERE id = ?", (saldo_depois, bank_account_id))
+    conn.execute(
+        "UPDATE bank_accounts SET saldo = ? WHERE id = ?", (_cnum(saldo_depois), bank_account_id)
+    )
     conn.commit()
     return (saldo_antes, saldo_depois)
 
@@ -650,7 +805,14 @@ def insert_bank_transactions(conn, bank_account_id: int, transactions: list[dict
             """INSERT OR IGNORE INTO bank_transactions
                (bank_account_id, data, descricao, valor, external_id, categoria)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (bank_account_id, t["data"], t["descricao"], t["valor"], t["external_id"], t.get("categoria")),
+            (
+                bank_account_id,
+                t["data"],
+                criptografia.criptografar(t["descricao"]),
+                _cnum(t["valor"]),
+                t["external_id"],
+                t.get("categoria"),
+            ),
         )
         if cur.rowcount:
             novas += 1
@@ -762,17 +924,33 @@ def apagar_nota(conn, nota_id: int):
 CAMPOS_SAUDE = ("passos", "distancia_km", "sono_horas", "andares_subidos")
 
 
+def _descriptografar_saude(d: dict) -> dict:
+    d["passos"] = _dnum(d["passos"], int)
+    d["distancia_km"] = _dnum(d["distancia_km"], float)
+    d["sono_horas"] = _dnum(d["sono_horas"], float)
+    d["andares_subidos"] = _dnum(d["andares_subidos"], int)
+    return d
+
+
 def upsert_saude_dia(conn, data: str, campos: dict):
     """Grava (ou atualiza, se o dia ja existir) os campos de saude informados
     pra aquele dia - so mexe nos campos presentes em `campos`, preserva o
     resto (o Atalho do iPhone pode mandar so passos numa chamada e sono
-    noutra, por exemplo)."""
+    noutra, por exemplo). Cuidado: o valor preservado de uma linha existente
+    ja esta CIFRADO (veio direto da coluna) - so os campos novos, que chegam
+    em texto plano via `campos`, passam por `_cnum` aqui. Criptografar de
+    novo um valor ja cifrado o transformaria em lixo ilegivel."""
     existente = conn.execute("SELECT * FROM saude_dados WHERE data = ?", (data,)).fetchone()
-    valores = {campo: campos.get(campo) for campo in CAMPOS_SAUDE}
+    valores = {}
+    for campo in CAMPOS_SAUDE:
+        novo = campos.get(campo)
+        if novo is not None:
+            valores[campo] = _cnum(novo)
+        elif existente:
+            valores[campo] = existente[campo]  # ja cifrado (ou texto plano legado) - mantem como esta
+        else:
+            valores[campo] = None
     if existente:
-        for campo in CAMPOS_SAUDE:
-            if valores[campo] is None:
-                valores[campo] = existente[campo]
         conn.execute(
             """UPDATE saude_dados SET passos = ?, distancia_km = ?, sono_horas = ?,
                andares_subidos = ? WHERE data = ?""",
@@ -789,16 +967,37 @@ def upsert_saude_dia(conn, data: str, campos: dict):
 
 def get_saude_dia(conn, data: str) -> dict | None:
     row = conn.execute("SELECT * FROM saude_dados WHERE data = ?", (data,)).fetchone()
-    return dict(row) if row else None
+    return _descriptografar_saude(dict(row)) if row else None
+
+
+def list_saude_dados(conn, desde: str | None = None, ate: str | None = None) -> list[dict]:
+    """Linhas de saude_dados descriptografadas, opcionalmente filtradas por
+    intervalo de `data` (nao e campo criptografado, entao o filtro continua
+    no SQL normalmente). Base comum pra quem precisa agregar/filtrar por
+    passos/sono/etc em Python (ver media_passos_ultimos_dias aqui e as
+    correlacoes de sono em aprendizado.py)."""
+    query = "SELECT * FROM saude_dados WHERE 1=1"
+    params = []
+    if desde is not None:
+        query += " AND data >= ?"
+        params.append(desde)
+    if ate is not None:
+        query += " AND data < ?"
+        params.append(ate)
+    rows = conn.execute(query, params).fetchall()
+    return [_descriptografar_saude(dict(r)) for r in rows]
 
 
 def media_passos_ultimos_dias(conn, antes_de: str, dias: int = 7) -> float | None:
-    row = conn.execute(
-        """SELECT AVG(passos) AS media FROM saude_dados
-           WHERE data < ? AND data >= date(?, ?) AND passos IS NOT NULL""",
-        (antes_de, antes_de, f"-{dias} days"),
-    ).fetchone()
-    return row["media"]
+    """AVG(passos) precisava ser feito no SQL antes de `passos` virar
+    criptografado - agora descriptografa cada linha do periodo e faz a media
+    em Python (data continua filtrada no SQL, so o AVG mudou de lugar)."""
+    inicio = (date.fromisoformat(antes_de) - timedelta(days=dias)).isoformat()
+    linhas = list_saude_dados(conn, desde=inicio, ate=antes_de)
+    valores = [l["passos"] for l in linhas if l["passos"] is not None]
+    if not valores:
+        return None
+    return sum(valores) / len(valores)
 
 
 def ja_notificou_hoje(conn, tipo: str, referencia_id: int = 0) -> bool:
@@ -886,17 +1085,33 @@ def create_medicamento(
     cur = conn.execute(
         "INSERT INTO medicamentos (nome, dosagem, horario, recorrencia, tarefa_modelo_id) "
         "VALUES (?, ?, ?, ?, ?)",
-        (nome, dosagem, horario, recorrencia, tarefa_modelo_id),
+        (
+            criptografia.criptografar(nome),
+            criptografia.criptografar(dosagem),
+            criptografia.criptografar(horario),
+            recorrencia,
+            tarefa_modelo_id,
+        ),
     )
     conn.commit()
     return cur.lastrowid
 
 
+def _descriptografar_medicamento(d: dict) -> dict:
+    d["nome"] = criptografia.descriptografar(d["nome"])
+    d["dosagem"] = criptografia.descriptografar(d["dosagem"])
+    d["horario"] = criptografia.descriptografar(d["horario"])
+    return d
+
+
 def list_medicamentos_ativos(conn) -> list[dict]:
-    rows = conn.execute(
-        "SELECT * FROM medicamentos WHERE ativo = 1 ORDER BY horario"
-    ).fetchall()
-    return [dict(r) for r in rows]
+    """`horario` e criptografado, entao a ordenacao (que antes era `ORDER BY
+    horario` no SQL) agora acontece em Python depois de descriptografar -
+    texto cifrado nao ordena como a hora original."""
+    rows = conn.execute("SELECT * FROM medicamentos WHERE ativo = 1").fetchall()
+    medicamentos = [_descriptografar_medicamento(dict(r)) for r in rows]
+    medicamentos.sort(key=lambda m: m["horario"] or "")
+    return medicamentos
 
 
 def delete_medicamento(conn, medicamento_id: int):
@@ -930,12 +1145,21 @@ def contar_hidratacao_dia(conn, data: str) -> int:
 
 
 def create_medida_corporal(conn, tipo: str, valor: float, unidade: str, data: str) -> int:
+    """`valor` (o numero em si - peso, cintura, etc) e criptografado; `tipo`
+    fica em texto plano porque e uma categoria (usado em WHERE tipo = ? abaixo
+    - criptografado, deixaria de dar pra filtrar), assim como `data` (usada
+    em ORDER BY)."""
     cur = conn.execute(
         "INSERT INTO medidas_corporais (tipo, valor, unidade, data) VALUES (?, ?, ?, ?)",
-        (tipo, valor, unidade, data),
+        (tipo, _cnum(valor), unidade, data),
     )
     conn.commit()
     return cur.lastrowid
+
+
+def _descriptografar_medida(d: dict) -> dict:
+    d["valor"] = _dnum(d["valor"], float)
+    return d
 
 
 def list_medidas_corporais(conn, tipo: str | None = None, limite: int = 50) -> list[dict]:
@@ -948,7 +1172,7 @@ def list_medidas_corporais(conn, tipo: str | None = None, limite: int = 50) -> l
         rows = conn.execute(
             "SELECT * FROM medidas_corporais ORDER BY data DESC, id DESC LIMIT ?", (limite,)
         ).fetchall()
-    return [dict(r) for r in rows]
+    return [_descriptografar_medida(dict(r)) for r in rows]
 
 
 def delete_medida_corporal(conn, medida_id: int):
@@ -999,13 +1223,18 @@ def total_gastos_mes(conn, ano_mes: str, tipo: str = "real") -> float:
 def total_gastos_bancarios_mes(conn, ano_mes: str) -> float:
     """Soma das saidas (valor negativo, convencao ja usada no resto do app)
     do extrato bancario sincronizado no mes - complementa total_gastos_mes,
-    que so ve o que foi digitado no chat."""
-    row = conn.execute(
-        "SELECT COALESCE(SUM(-valor), 0) AS total FROM bank_transactions "
-        "WHERE valor < 0 AND strftime('%Y-%m', data) = ?",
-        (ano_mes,),
-    ).fetchone()
-    return row["total"]
+    que so ve o que foi digitado no chat. `data` filtra no SQL normalmente
+    (nao e campo criptografado), mas a soma de `valor` (criptografado) e
+    feita em Python depois de descriptografar cada linha."""
+    rows = conn.execute(
+        "SELECT valor FROM bank_transactions WHERE strftime('%Y-%m', data) = ?", (ano_mes,)
+    ).fetchall()
+    total = 0.0
+    for r in rows:
+        valor = _dnum(r["valor"], float)
+        if valor is not None and valor < 0:
+            total += -valor
+    return total
 
 
 def definir_orcamento(conn, categoria: str, valor_limite: float) -> None:

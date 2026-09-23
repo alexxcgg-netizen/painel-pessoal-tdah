@@ -65,6 +65,27 @@ def enviar_mensagem(texto: str, botoes: list[tuple[str, str]] | None = None) -> 
         return False
 
 
+def enviar_documento(caminho: str, legenda: str | None = None) -> bool:
+    """Manda um arquivo (ex: backup do banco) como documento pro chat
+    configurado, via sendDocument (multipart/form-data - diferente de
+    enviar_mensagem, que manda JSON puro porque e' so texto). Mesmo padrao de
+    tratamento de erro das outras funcoes daqui: nunca levanta excecao pra
+    quem chamou, so devolve False em qualquer falha (arquivo ausente, rede
+    fora do ar, Telegram fora do ar)."""
+    if not configurado():
+        return False
+    try:
+        with open(caminho, "rb") as f:
+            arquivos = {"document": f}
+            dados = {"chat_id": os.environ["TELEGRAM_CHAT_ID"]}
+            if legenda:
+                dados["caption"] = legenda[:1024]  # limite de legenda da API do Telegram
+            resposta = requests.post(_url("sendDocument"), data=dados, files=arquivos, timeout=60)
+        return resposta.status_code == 200
+    except (OSError, requests.RequestException):
+        return False
+
+
 def responder_callback(callback_query_id: str, texto: str | None = None) -> bool:
     """Fecha o "carregando" que o Telegram mostra no botao logo apos o
     toque - a API exige essa chamada sempre, mesmo sem nada pra mostrar

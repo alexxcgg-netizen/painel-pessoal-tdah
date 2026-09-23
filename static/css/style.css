@@ -699,12 +699,18 @@ header {
   background: var(--surface-2);
   color: var(--text-faint);
   text-decoration: none;
+  cursor: pointer;
   transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-bounce);
 }
 
 .btn-backup svg {
   width: 15px;
   height: 15px;
+}
+
+.btn-backup.ativo {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 @media (hover: hover) {
@@ -751,7 +757,8 @@ header {
   }
 }
 
-#silencio-painel {
+#silencio-painel,
+#backup-painel {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -766,8 +773,43 @@ header {
   animation: fadeInUp 0.3s var(--ease-bounce) both;
 }
 
-#silencio-painel[hidden] {
+#silencio-painel[hidden],
+#backup-painel[hidden] {
   display: none;
+}
+
+.backup-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.backup-opcoes a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+  transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-bounce);
+}
+
+.backup-opcoes a svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+@media (hover: hover) {
+  .backup-opcoes a:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    transform: translateY(-1px);
+  }
 }
 
 .silencio-titulo {
@@ -1037,6 +1079,34 @@ header {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/* Indicador discreto da fila offline (BRIEFING Fase 4, item 2) - deliberadamente
+   NAO usa --danger/.erro: nao e um erro, e so um "aviso" tranquilo (o app
+   continua funcionando normal, so essas 2-3 acoes criticas ficam represadas
+   ate a rede voltar), entao usa --accent-soft-bg/--accent em vez do vermelho.
+   Entra/sai suave (--ease-suave, sem overshoot - nao e uma confirmacao "ganhei
+   algo" como o .erro que usa --ease-bounce, e so um estado que vai e volta). */
+.offline-banner {
+  background: var(--accent-soft-bg);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--text);
+  padding: 0.55rem 0.8rem;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+  animation: offlineBannerEntra 0.35s var(--ease-suave) both;
+}
+
+@keyframes offlineBannerEntra {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -2519,6 +2589,14 @@ li.item.item-planejado {
 
 .card-resultado-viagem {
   --card-cor: var(--cor-tarefas);
+}
+
+/* Captura enfileirada offline - ainda sem classificacao da IA (so texto cru),
+   entao fica visualmente "provisorio" (borda tracejada, levemente apagado)
+   ate ser trocado pelo card real quando sincronizar. */
+.card-resultado-pendente {
+  border-style: dashed;
+  opacity: 0.82;
 }
 
 .card-resultado-eyebrow {

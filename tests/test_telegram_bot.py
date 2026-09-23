@@ -1,4 +1,6 @@
+import contextlib
 import os
+import tempfile
 import threading
 import unittest
 from unittest.mock import MagicMock, patch
@@ -6,6 +8,17 @@ from unittest.mock import MagicMock, patch
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
 import telegram_bot
+
+
+@contextlib.contextmanager
+def tempfile_arquivo():
+    """Arquivo temporario de verdade no disco - enviar_documento abre o
+    caminho com open(), entao precisa existir mesmo (nao da pra mockar isso
+    com um caminho fake sem tambem mockar open, o que esconderia bug real)."""
+    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+        tmp.write(b"conteudo fake de backup")
+        tmp.flush()
+        yield tmp.name
 
 
 class ConfiguradoTestCase(unittest.TestCase):
@@ -145,6 +158,56 @@ class EnviarMensagemTestCase(unittest.TestCase):
             telegram_bot.enviar_mensagem("parada", botoes=[("Marcar como feito", "completar_tarefa:5")])
         teclado = mock_post.call_args.kwargs["json"]["reply_markup"]["inline_keyboard"]
         self.assertEqual(teclado, [[{"text": "Marcar como feito", "callback_data": "completar_tarefa:5"}]])
+
+
+class EnviarDocumentoTestCase(unittest.TestCase):
+    def test_sem_configurado_retorna_false_sem_chamar_rede(self):
+        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "", "TELEGRAM_CHAT_ID": ""}), patch(
+            "requests.post"
+        ) as mock_post, tempfile_arquivo() as caminho:
+            self.assertFalse(telegram_bot.enviar_documento(caminho))
+        mock_post.assert_not_called()
+
+    def test_sucesso_retorna_true_e_manda_multipart(self):
+        mock_resposta = MagicMock(status_code=200)
+        with patch.dict(
+            os.environ, {"TELEGRAM_BOT_TOKEN": "abc", "TELEGRAM_CHAT_ID": "123"}
+        ), patch("requests.post", return_value=mock_resposta) as mock_post, tempfile_arquivo() as caminho:
+            ok = telegram_bot.enviar_documento(caminho, legenda="backup semanal")
+        self.assertTrue(ok)
+        args, kwargs = mock_post.call_args
+        self.assertIn("abc", args[0])
+        self.assertIn("sendDocument", args[0])
+        self.assertEqual(kwargs["data"]["chat_id"], "123")
+        self.assertEqual(kwargs["data"]["caption"], "backup semanal")
+        self.assertIn("document", kwargs["files"])
+
+    def test_sem_legenda_nao_manda_caption(self):
+        mock_resposta = MagicMock(status_code=200)
+        with patch.dict(
+            os.environ, {"TELEGRAM_BOT_TOKEN": "abc", "TELEGRAM_CHAT_ID": "123"}
+        ), patch("requests.post", return_value=mock_resposta) as mock_post, tempfile_arquivo() as caminho:
+            telegram_bot.enviar_documento(caminho)
+        self.assertNotIn("caption", mock_post.call_args.kwargs["data"])
+
+    def test_erro_http_retorna_false(self):
+        mock_resposta = MagicMock(status_code=403)
+        with patch.dict(
+            os.environ, {"TELEGRAM_BOT_TOKEN": "abc", "TELEGRAM_CHAT_ID": "123"}
+        ), patch("requests.post", return_value=mock_resposta), tempfile_arquivo() as caminho:
+            self.assertFalse(telegram_bot.enviar_documento(caminho))
+
+    def test_falha_de_rede_retorna_false_sem_explodir(self):
+        import requests as requests_module
+
+        with patch.dict(
+            os.environ, {"TELEGRAM_BOT_TOKEN": "abc", "TELEGRAM_CHAT_ID": "123"}
+        ), patch("requests.post", side_effect=requests_module.RequestException("timeout")), tempfile_arquivo() as caminho:
+            self.assertFalse(telegram_bot.enviar_documento(caminho))
+
+    def test_arquivo_inexistente_retorna_false_sem_explodir(self):
+        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "abc", "TELEGRAM_CHAT_ID": "123"}):
+            self.assertFalse(telegram_bot.enviar_documento("/caminho/que/nao/existe.db"))
 
 
 class ResponderCallbackTestCase(unittest.TestCase):

@@ -294,9 +294,10 @@ def correlacao_sono_produtividade(conn, minimo_amostras: int = 3) -> dict[str, f
     principio de `produtividade_por_dia_semana`: faixa com menos de
     `minimo_amostras` tarefas fica de fora (ausencia de dado e neutra, nunca
     dia ruim)."""
-    dias_com_sono = conn.execute(
-        "SELECT data, sono_horas FROM saude_dados WHERE sono_horas IS NOT NULL"
-    ).fetchall()
+    # sono_horas e criptografado em repouso - db.list_saude_dados ja devolve
+    # descriptografado, entao o "IS NOT NULL" que era filtro de SQL agora e
+    # feito aqui.
+    dias_com_sono = [l for l in db.list_saude_dados(conn) if l["sono_horas"] is not None]
     total_por_bucket = Counter()
     no_prazo_por_bucket = Counter()
     for d in dias_com_sono:
@@ -346,15 +347,22 @@ def media_checkin_por_faixa_sono(conn, campo: str, minimo_amostras: int = 3) -> 
     outras correlacoes: faixa com poucas amostras fica de fora."""
     if campo not in ("energia", "humor"):
         raise ValueError(campo)
-    rows = conn.execute(
-        f"SELECT s.sono_horas, c.{campo} AS valor FROM saude_dados s "
-        f"JOIN checkins c ON c.data = s.data "
-        f"WHERE s.sono_horas IS NOT NULL AND c.{campo} IS NOT NULL"
+    # sono_horas e criptografado - o JOIN+WHERE que filtrava no SQL vira um
+    # join manual em Python entre saude_dados (ja descriptografado por
+    # db.list_saude_dados) e checkins, por data.
+    sono_por_dia = {
+        l["data"]: l["sono_horas"] for l in db.list_saude_dados(conn) if l["sono_horas"] is not None
+    }
+    checkins_rows = conn.execute(
+        f"SELECT data, {campo} AS valor FROM checkins WHERE {campo} IS NOT NULL"
     ).fetchall()
     soma = Counter()
     total = Counter()
-    for r in rows:
-        faixa = _bucket_sono(r["sono_horas"])
+    for r in checkins_rows:
+        sono_horas = sono_por_dia.get(r["data"])
+        if sono_horas is None:
+            continue
+        faixa = _bucket_sono(sono_horas)
         soma[faixa] += r["valor"]
         total[faixa] += 1
     return {f: soma[f] / total[f] for f in total if total[f] >= minimo_amostras}

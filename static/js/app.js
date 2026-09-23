@@ -161,13 +161,40 @@ function limparErro() {
 // uma conexao morta.
 const API_FETCH_TIMEOUT_MS = 45000;
 
-async function apiFetch(url, options) {
+// `fila`: so pras 2-3 acoes criticas do BRIEFING (captura, check-in) - o
+// caller passa { tipo: "capture"|"checkin", id? }. Em qualquer outra chamada
+// (a esmagadora maioria - leituras e a maioria das escritas), fila fica
+// undefined e o comportamento e IDENTICO ao de antes: erro de rede so mostra
+// mostrarErro() e devolve null. So quando fila e passado e o fetch falha por
+// rede/timeout (nunca por uma resposta HTTP real, 4xx/5xx - essa nem cai
+// nesse catch) e que a requisicao vira um item na fila local (IndexedDB) em
+// vez de virar um erro pro usuario - devolve { __enfileirado: true } pro
+// caller decidir a UX otimista (ex: mostrar como se tivesse capturado, sem
+// esperar a classificacao da IA que so vai vir quando sincronizar de verdade).
+async function apiFetch(url, options, fila) {
   let res;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
   try {
     res = await fetch(url, { ...options, signal: controller.signal });
   } catch (e) {
+    if (fila) {
+      try {
+        await FilaOffline.enfileirar({
+          url,
+          method: options && options.method,
+          headers: options && options.headers,
+          body: options && options.body,
+          tipo: fila.tipo,
+          id: fila.id,
+        });
+        atualizarIndicadorOffline(await FilaOffline.contar());
+        return { __enfileirado: true };
+      } catch {
+        // IndexedDB tambem falhou (raro - modo privado, quota cheia): cai
+        // pro comportamento de erro normal em vez de fingir que deu certo.
+      }
+    }
     mostrarErro(
       e && e.name === "AbortError"
         ? "O painel demorou demais pra responder. Tenta de novo."
@@ -316,22 +343,115 @@ function pulsarSucesso(el) {
   el.classList.add("sucesso");
 }
 
+// Card provisorio mostrado quando a captura foi enfileirada offline - sem
+// classificacao da IA ainda (ela so roda quando a requisicao de verdade
+// chegar no servidor), entao mostra o texto cru + um aviso, no lugar do
+// card com titulo/categoria/valor que so a resposta real traz. `id` e o
+// mesmo client_id usado no corpo da requisicao e na fila (liga o card na
+// tela ao item que vai sincronizar depois, pra poder trocar pelo real).
+function criarCardCapturaPendente(id, text) {
+  const card = document.createElement("div");
+  card.className = "card-resultado card-resultado-pendente";
+  card.id = `fila-${id}`;
+
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "card-resultado-eyebrow";
+  eyebrow.innerHTML = `${ICONE_TAREFA_CARD}<span>Sem conexao - salvo, vai sincronizar</span>`;
+  card.appendChild(eyebrow);
+
+  const titulo = document.createElement("p");
+  titulo.className = "card-resultado-titulo";
+  titulo.textContent = text;
+  card.appendChild(titulo);
+
+  return card;
+}
+
+// Mostra/esconde o indicador discreto de fila offline - some sozinho quando
+// tudo sincroniza (n chega a 0). Chamado pela propria FilaOffline (a cada
+// item processado) e no carregamento da pagina.
+function atualizarIndicadorOffline(n) {
+  const banner = $("#offline-banner");
+  if (!banner) return;
+  if (n > 0) {
+    banner.textContent = `Sem conexao - ${n} ${n === 1 ? "item pendente" : "itens pendentes"}, vai sincronizar quando voltar.`;
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+}
+
+if (typeof FilaOffline !== "undefined") {
+  // Assim que uma captura enfileirada sincroniza de verdade, troca o card
+  // provisorio pelo resultado real (ou, no raro caso de a IA ainda ficar em
+  // duvida, avisa em vez de travar a fila esperando o Alex responder) e
+  // recarrega as mesmas telas que o caminho online ja recarrega.
+  FilaOffline.registrarCallback("capture", (data, item) => {
+    const cardPendente = document.getElementById(`fila-${item.id}`);
+    if (data && data.duvida) {
+      if (cardPendente) cardPendente.remove();
+      const aviso = document.createElement("p");
+      aviso.className = "card-resultado-detalhe";
+      aviso.textContent = `Capturado offline, mas ficou em duvida: "${data.duvida}". Repete a captura quando puder pra confirmar.`;
+      $("#chat-mensagens").appendChild(aviso);
+    } else if (data) {
+      const novoCard = criarCardResultado(data);
+      if (cardPendente) cardPendente.replaceWith(novoCard);
+      else $("#chat-mensagens").appendChild(novoCard);
+    }
+    loadUso();
+    loadSummary();
+    loadStreak();
+    if (data && data.memoria) loadMemorias();
+    if (!$("#tab-tarefas").hidden) loadTasks();
+    if (!$("#tab-gastos").hidden) {
+      loadExpenses();
+      loadMetas();
+    }
+  });
+
+  FilaOffline.registrarCallback("erro", (item, corpo, status) => {
+    const cardPendente = document.getElementById(`fila-${item.id}`);
+    if (cardPendente) cardPendente.remove();
+    mostrarErro((corpo && corpo.error) || `Nao consegui sincronizar um item pendente (HTTP ${status}). Foi descartado.`);
+  });
+}
+
 async function enviarCaptura(text, clarificacao) {
   const capturaBtn = $("#captura-btn");
   const duvidaBtn = $("#duvida-btn");
   setBotaoCarregando(capturaBtn, true, "Pensando...");
   duvidaBtn.disabled = true;
 
-  const data = await apiFetch("/api/capture", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, clarificacao }),
-  });
+  const clientId = crypto.randomUUID();
+  const data = await apiFetch(
+    "/api/capture",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, clarificacao, client_id: clientId }),
+    },
+    { tipo: "capture", id: clientId }
+  );
 
   setBotaoCarregando(capturaBtn, false, "Adicionar");
   duvidaBtn.disabled = false;
 
   if (!data) return;
+
+  if (data.__enfileirado) {
+    // otimista: o Alex nao pode ficar sem poder anotar nada so por falta de
+    // sinal - mostra como se tivesse dado certo, sincroniza sozinho depois.
+    textoPendente = null;
+    $("#duvida-box").hidden = true;
+    pulsarSucesso($("#captura-input"));
+    vibrar(20);
+    const listaChat = $("#chat-mensagens");
+    listaChat.querySelector(".chat-vazio")?.remove();
+    listaChat.appendChild(criarCardCapturaPendente(clientId, text));
+    listaChat.scrollTop = listaChat.scrollHeight;
+    return;
+  }
 
   loadUso();
 
@@ -1667,6 +1787,9 @@ async function loadBancos() {
   if (status) {
     $("#bancos-status").textContent = status.info;
     $("#conectar-btn").hidden = !status.sincronizacao_automatica;
+    // aviso discreto - so aparece quando ENCRYPTION_KEY nao esta configurada
+    // (ver docs/SEGURANCA.md); nao bloqueia nada, so avisa.
+    $("#cripto-aviso").hidden = status.criptografia_ativa !== false;
   }
 
   if (!contas) return;
@@ -2655,6 +2778,24 @@ function initSilencio() {
   });
 }
 
+function initBackup() {
+  const btn = $("#backup-btn");
+  const painel = $("#backup-painel");
+
+  btn.addEventListener("click", () => {
+    const aberto = btn.getAttribute("aria-expanded") === "true";
+    if (aberto) {
+      btn.setAttribute("aria-expanded", "false");
+      btn.classList.remove("ativo");
+      painel.hidden = true;
+      return;
+    }
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("ativo");
+    painel.hidden = false;
+  });
+}
+
 async function initViagemOrigemPadrao() {
   const status = await apiFetch("/api/viagem/status");
   if (status && status.origem_padrao) {
@@ -2665,6 +2806,17 @@ async function initViagemOrigemPadrao() {
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/service-worker.js");
   initPush();
+}
+
+if (typeof FilaOffline !== "undefined") {
+  // Mostra o indicador se ja existia algo pendente de uma sessao offline
+  // anterior (app fechado/pagina recarregada antes de sincronizar), e
+  // tenta sincronizar de cara caso a rede ja tenha voltado nesse meio tempo.
+  FilaOffline.contar().then(atualizarIndicadorOffline);
+  FilaOffline.sincronizar(atualizarIndicadorOffline);
+  // evento "online" + poll de reforco (o poll e quem realmente cobre o iOS,
+  // onde o evento "online" de um PWA no Safari nao e confiavel).
+  FilaOffline.iniciarAutoSync(atualizarIndicadorOffline);
 }
 
 $("#logout-btn").addEventListener("click", async () => {
@@ -2697,3 +2849,4 @@ initViagemOrigemPadrao();
 initVozChat();
 initDicas();
 initSilencio();
+initBackup();
