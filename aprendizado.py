@@ -338,3 +338,45 @@ def dica_sono_produtividade(conn, minimo_amostras: int = 3, diferenca_minima: fl
         f"Nos dias com {melhor} de sono, {melhor_pct}% das tarefas do dia saem no prazo - "
         f"nos dias com {pior}, so {pior_pct}%.{sugestao}"
     )
+
+
+def media_checkin_por_faixa_sono(conn, campo: str, minimo_amostras: int = 3) -> dict[str, float]:
+    """Media do check-in do dia (energia ou humor, 1=ruim 3=bom) agrupada pela
+    faixa de horas de sono da noite (saude_dados.sono_horas). Mesma regra das
+    outras correlacoes: faixa com poucas amostras fica de fora."""
+    if campo not in ("energia", "humor"):
+        raise ValueError(campo)
+    rows = conn.execute(
+        f"SELECT s.sono_horas, c.{campo} AS valor FROM saude_dados s "
+        f"JOIN checkins c ON c.data = s.data "
+        f"WHERE s.sono_horas IS NOT NULL AND c.{campo} IS NOT NULL"
+    ).fetchall()
+    soma = Counter()
+    total = Counter()
+    for r in rows:
+        faixa = _bucket_sono(r["sono_horas"])
+        soma[faixa] += r["valor"]
+        total[faixa] += 1
+    return {f: soma[f] / total[f] for f in total if total[f] >= minimo_amostras}
+
+
+def dica_sono_humor(conn, minimo_amostras: int = 3, diferenca_minima: float = 0.5) -> str | None:
+    """Frase so quando a diferenca entre a melhor e a pior faixa de sono for
+    real (meio ponto na escala de 1 a 3) - senao e ruido."""
+    rotulo = {1: "ruim", 2: "ok", 3: "bom"}
+    partes = []
+    for campo in ("humor", "energia"):
+        medias = media_checkin_por_faixa_sono(conn, campo, minimo_amostras)
+        if len(medias) < 2:
+            continue
+        melhor = max(medias, key=medias.get)
+        pior = min(medias, key=medias.get)
+        if medias[melhor] - medias[pior] < diferenca_minima:
+            continue
+        partes.append(
+            f"seu {campo} fica mais pra '{rotulo[round(medias[melhor])]}' depois de {melhor} de sono "
+            f"e mais pra '{rotulo[round(medias[pior])]}' depois de {pior}"
+        )
+    if not partes:
+        return None
+    return "Pelo seu check-in, " + "; ".join(partes) + "."

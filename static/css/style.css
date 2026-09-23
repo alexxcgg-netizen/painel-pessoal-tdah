@@ -977,6 +977,7 @@ header {
    tingidas por secao mesmo com o painel opaco.) */
 #tab-hoje,
 #tab-painel,
+#tab-vida,
 #tab-tarefas,
 #tab-gastos,
 #tab-bancos,
@@ -990,6 +991,9 @@ header {
   --glass-tint: var(--cor-hoje);
 }
 #tab-painel {
+  --glass-tint: var(--cor-painel);
+}
+#tab-vida {
   --glass-tint: var(--cor-painel);
 }
 #tab-tarefas {
@@ -3018,7 +3022,8 @@ li.item.item-planejado {
 
 .form-linha input[type="text"],
 .form-linha input[type="number"],
-.form-linha input[type="time"] {
+.form-linha input[type="time"],
+.form-linha input[type="date"] {
   padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -3030,7 +3035,8 @@ li.item.item-planejado {
 
 .form-linha input[type="text"]:focus,
 .form-linha input[type="number"]:focus,
-.form-linha input[type="time"]:focus {
+.form-linha input[type="time"]:focus,
+.form-linha input[type="date"]:focus {
   outline: none;
   border-color: var(--form-cor, var(--cor-hoje));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--form-cor, var(--cor-hoje)) 18%, transparent);
@@ -3088,7 +3094,14 @@ li.item.item-planejado {
 #decisao-btn,
 #medicamento-btn,
 #medida-btn,
-#espera-btn {
+#espera-btn,
+#responder-btn,
+#compra-btn,
+#ficha-btn,
+#manutencao-btn,
+#viagem-nova-btn,
+#lugar-btn,
+#mensagem-btn {
   flex: 1 0 100%;
   padding: 0.6rem;
   border-radius: var(--radius-sm);
@@ -3595,4 +3608,76 @@ body.modo-essencial #essencial-box {
 #assinaturas-box[hidden],
 #decisao-resultado[hidden] {
   display: none !important;
+}
+
+/* ---- Assistente de vida, Fase 2 ---- */
+
+.btn-info-treino {
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft-bg, var(--surface-2));
+  color: var(--accent-text, var(--accent));
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.fichas-da-tarefa,
+.item .ficha-treino {
+  margin-top: 0.55rem;
+}
+
+.ficha-treino-grupo {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.ficha-treino-lista {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.item .checklist.mala {
+  margin-top: 0.55rem;
+}
+
+.lista-compras {
+  margin-bottom: 1rem;
+}
+
+.mensagem-texto {
+  margin: 0.2rem 0 0;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+#mensagem-resultado[hidden] {
+  display: none !important;
+}
+
+/* Com 3 acoes (quebrar, !, concluir) a linha estourava o card no iPhone e
+   espremia o titulo - agora as acoes descem pra linha de baixo quando nao
+   cabem, alinhadas a direita, e o titulo fica com a largura toda. */
+.item-linha {
+  flex-wrap: wrap;
+}
+
+.item-linha > div:first-child {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+
+.item-acoes {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
 }

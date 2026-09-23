@@ -200,7 +200,7 @@ async function apiFetch(url, options) {
 // esquerda voltando) - o mesmo tipo de pista de direcao que apps premium
 // usam em transicao de aba, em vez de um fade generico igual pra qualquer
 // troca.
-const ORDEM_ABAS = ["hoje", "painel", "tarefas", "gastos", "bancos", "construtora", "aviacao"];
+const ORDEM_ABAS = ["hoje", "painel", "vida", "tarefas", "gastos", "bancos", "construtora", "aviacao"];
 let abaAtual = "hoje";
 
 function showTab(name) {
@@ -901,6 +901,9 @@ async function loadSaude() {
   const dicaSono = $("#dica-sono");
   dicaSono.hidden = !data.dica_sono;
   dicaSono.textContent = data.dica_sono || "";
+  const dicaHumor = $("#dica-humor");
+  dicaHumor.hidden = !data.dica_humor;
+  dicaHumor.textContent = data.dica_humor || "";
 
   if (!temAlgumDado) return;
 
@@ -1472,6 +1475,10 @@ function criarItemTarefa(t) {
       else setBotaoCarregando(btnQuebrar, false, "quebrar em passos");
     });
     acoes.appendChild(btnQuebrar);
+  }
+
+  if (t.fichas_treino && t.fichas_treino.length && typeof botaoFichaTreino === "function") {
+    acoes.appendChild(botaoFichaTreino(t, li));
   }
 
   const btnConcluir = document.createElement("button");

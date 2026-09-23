@@ -208,7 +208,9 @@ function renderHiperfoco(estado) {
   $("#hiperfoco-inativo").hidden = ativo;
   document.body.classList.toggle("em-hiperfoco", ativo);
   clearInterval(hiperfocoTimer);
-  hiperfocoAte = ativo ? new Date(estado.ate).getTime() : null;
+  // Conta a partir dos segundos restantes (vem do servidor) em vez de ler o
+  // horario "ate" - o servidor pode estar em outro fuso que o celular.
+  hiperfocoAte = ativo ? Date.now() + estado.segundos_restantes * 1000 : null;
   if (ativo) {
     atualizarContagemHiperfoco();
     hiperfocoTimer = setInterval(atualizarContagemHiperfoco, 30000);
@@ -320,6 +322,8 @@ async function loadContasPessoais() {
     wrap.appendChild(criarEl("span", "item-titulo", titulo));
     const quando = c.paga
       ? `paga (vencimento ${fmtDataBr(c.proximo_vencimento)})`
+      : c.dias_ate_vencer < 0
+      ? `venceu ${fmtDataBr(c.proximo_vencimento)} - ha ${-c.dias_ate_vencer} dia(s)`
       : c.dias_ate_vencer === 0
       ? "vence hoje"
       : `vence ${fmtDataBr(c.proximo_vencimento)} - em ${c.dias_ate_vencer} dia(s)`;
@@ -458,6 +462,347 @@ $("#decisao-form").addEventListener("submit", async (e) => {
   if (r) renderDecisao(r.analise);
 });
 
+// ---- Fase 2: pra responder ----
+
+function jsonPost(url, corpo) {
+  return apiFetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(corpo || {}),
+  });
+}
+
+function itemSimples(titulo, subtitulos, acoes, classeExtra) {
+  const li = criarEl("li", "item" + (classeExtra ? ` ${classeExtra}` : ""));
+  const linha = criarEl("div", "item-linha");
+  const wrap = criarEl("div");
+  wrap.appendChild(criarEl("span", "item-titulo", titulo));
+  subtitulos.filter(Boolean).forEach((t) => wrap.appendChild(criarEl("span", "item-quando", t)));
+  linha.appendChild(wrap);
+  const caixa = criarEl("div", "item-acoes");
+  acoes.forEach((a) => caixa.appendChild(typeof a === "function" ? a(li) : a));
+  linha.appendChild(caixa);
+  li.appendChild(linha);
+  return li;
+}
+
+function botaoAcao(rotulo, onClick, primario = true) {
+  const b = criarEl("button", (primario ? "primario " : "") + "btn-com-icone");
+  b.innerHTML = primario ? `${ICONE_CHECK}${rotulo}` : "";
+  if (!primario) b.textContent = rotulo;
+  b.addEventListener("click", async () => {
+    b.disabled = true;
+    const ok = await onClick();
+    if (!ok) b.disabled = false;
+  });
+  return b;
+}
+
+function ligarForm(formSel, btnSel, rotulo, montarCorpo, url, depois) {
+  $(formSel).addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const corpo = montarCorpo();
+    if (!corpo) return;
+    const btn = $(btnSel);
+    setBotaoCarregando(btn, true, "salvando...");
+    const r = await jsonPost(url, corpo);
+    setBotaoCarregando(btn, false, rotulo);
+    if (!r) return;
+    $(formSel).reset();
+    pulsarSucesso($(formSel).querySelector("input, textarea"));
+    depois(r);
+  });
+}
+
+async function loadResponder() {
+  const itens = await apiFetch("/api/responder");
+  if (!itens) return;
+  const lista = $("#lista-responder");
+  lista.innerHTML = "";
+  $("#responder-vazio").hidden = itens.length > 0;
+  itens.forEach((r) => {
+    const quando = r.dias === 0 ? "de hoje" : `ha ${r.dias} dia(s)`;
+    lista.appendChild(
+      itemSimples(r.quem, [r.sobre, quando], [
+        botaoAcao("respondi", async () => {
+          const ok = await jsonPost(`/api/responder/${r.id}/feito`);
+          if (ok) loadResponder();
+          return ok;
+        }),
+      ], r.dias >= 2 ? "item-atencao" : "")
+    );
+  });
+}
+
+ligarForm("#responder-form", "#responder-btn", "Adicionar", () => {
+  const quem = $("#responder-quem").value.trim();
+  return quem ? { quem, sobre: $("#responder-sobre").value.trim() } : null;
+}, "/api/responder", loadResponder);
+
+// ---- Fase 2: lista de compras ----
+
+async function loadCompras() {
+  const itens = await apiFetch("/api/compras");
+  if (!itens) return;
+  const lista = $("#lista-compras");
+  lista.innerHTML = "";
+  $("#compras-vazio").hidden = itens.length > 0;
+  itens.forEach((c) => {
+    const li = criarEl("li", "checklist-item");
+    const label = criarEl("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.addEventListener("change", async () => {
+      const ok = await jsonPost(`/api/compras/${c.id}/comprado`);
+      if (!ok) {
+        cb.checked = false;
+        return;
+      }
+      li.classList.add("feito", "saindo");
+      setTimeout(() => loadCompras(), 250);
+    });
+    label.appendChild(cb);
+    label.appendChild(criarEl("span", null, c.item));
+    li.appendChild(label);
+    lista.appendChild(li);
+  });
+}
+
+ligarForm("#compra-form", "#compra-btn", "Adicionar", () => {
+  const item = $("#compra-item").value.trim();
+  return item ? { itens: [item] } : null;
+}, "/api/compras", loadCompras);
+
+// ---- Fase 2: treino ----
+
+let fichasTreinoCache = null;
+
+async function obterFichasTreino(forcar = false) {
+  if (!fichasTreinoCache || forcar) {
+    const fichas = await apiFetch("/api/treino/fichas");
+    if (fichas) fichasTreinoCache = fichas;
+  }
+  return fichasTreinoCache || [];
+}
+
+function renderExerciciosFicha(ficha) {
+  const box = criarEl("div", "ficha-treino");
+  box.appendChild(criarEl("p", "ficha-treino-grupo", ficha.grupo));
+  const ul = criarEl("ul", "ficha-treino-lista");
+  ficha.exercicios
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .forEach((l) => ul.appendChild(criarEl("li", null, l)));
+  box.appendChild(ul);
+  return box;
+}
+
+// Chamado pelo criarItemTarefa (app.js) quando a tarefa bate com uma ficha.
+function botaoFichaTreino(t, li) {
+  const btn = criarEl("button", "btn-info-treino", "!");
+  btn.type = "button";
+  btn.setAttribute("aria-label", `Ver ficha de treino de ${t.title}`);
+  btn.setAttribute("aria-expanded", "false");
+  btn.addEventListener("click", async () => {
+    const aberto = li.querySelector(".fichas-da-tarefa");
+    if (aberto) {
+      aberto.remove();
+      btn.setAttribute("aria-expanded", "false");
+      return;
+    }
+    const fichas = (await obterFichasTreino()).filter((f) => t.fichas_treino.includes(f.id));
+    const wrap = criarEl("div", "fichas-da-tarefa");
+    fichas.forEach((f) => wrap.appendChild(renderExerciciosFicha(f)));
+    li.appendChild(wrap);
+    btn.setAttribute("aria-expanded", "true");
+  });
+  return btn;
+}
+
+async function loadTreino() {
+  const fichas = await obterFichasTreino(true);
+  const lista = $("#lista-fichas");
+  lista.innerHTML = "";
+  $("#fichas-vazio").hidden = fichas.length > 0;
+  fichas.forEach((f) => {
+    const n = f.exercicios.split("\n").filter((l) => l.trim()).length;
+    const li = itemSimples(f.grupo, [`${n} exercicio(s)`], [(el) => botaoApagar(`/api/treino/fichas/${f.id}`, el)]);
+    li.appendChild(renderExerciciosFicha(f));
+    lista.appendChild(li);
+  });
+  const treinos = await apiFetch("/api/treino");
+  const recentes = $("#treinos-recentes");
+  if (treinos && treinos.length) {
+    recentes.hidden = false;
+    recentes.textContent =
+      "Ultimos treinos: " +
+      treinos
+        .slice(0, 4)
+        .map((t) => [fmtDataBr(t.data), t.grupo, t.duracao_min ? `${t.duracao_min}min` : null].filter(Boolean).join(" "))
+        .join(" | ");
+  } else {
+    recentes.hidden = true;
+  }
+}
+
+ligarForm("#ficha-form", "#ficha-btn", "Salvar ficha", () => {
+  const grupo = $("#ficha-grupo").value.trim();
+  const exercicios = $("#ficha-exercicios").value.trim();
+  return grupo && exercicios ? { grupo, exercicios } : null;
+}, "/api/treino/fichas", loadTreino);
+
+// ---- Fase 2: manutencao ----
+
+async function loadManutencoes() {
+  const itens = await apiFetch("/api/manutencoes");
+  if (!itens) return;
+  const lista = $("#lista-manutencoes");
+  lista.innerHTML = "";
+  $("#manutencoes-vazio").hidden = itens.length > 0;
+  itens.forEach((m) => {
+    const quando =
+      m.dias_ate < 0
+        ? `passou do prazo ha ${-m.dias_ate} dia(s)`
+        : m.dias_ate === 0
+        ? "vence hoje"
+        : `proxima em ${fmtDataBr(m.proxima)} (${m.dias_ate} dias)`;
+    lista.appendChild(
+      itemSimples(m.item, [`a cada ${m.intervalo_meses} mes(es)`, quando], [
+        botaoAcao("feita hoje", async () => {
+          const ok = await jsonPost(`/api/manutencoes/${m.id}/feita`);
+          if (ok) loadManutencoes();
+          return ok;
+        }),
+        (el) => botaoApagar(`/api/manutencoes/${m.id}`, el),
+      ], m.dias_ate <= 7 ? "item-atencao" : "")
+    );
+  });
+}
+
+ligarForm("#manutencao-form", "#manutencao-btn", "Adicionar", () => {
+  const item = $("#manutencao-item").value.trim();
+  const meses = Number($("#manutencao-meses").value);
+  if (!item || !(meses >= 1 && meses <= 120)) {
+    mostrarErro("Confere o item e o intervalo (1 a 120 meses).");
+    return null;
+  }
+  return { item, intervalo_meses: meses, ultima_vez: $("#manutencao-ultima").value || null };
+}, "/api/manutencoes", loadManutencoes);
+
+// ---- Fase 2: viagens e lugares ----
+
+function renderItensMala(v, li) {
+  const antigo = li.querySelector(".mala");
+  if (antigo) antigo.remove();
+  if (!v.itens.length) return;
+  const ul = criarEl("ul", "checklist mala");
+  v.itens.forEach((item) => {
+    const itemLi = criarEl("li", "checklist-item" + (item.feito ? " feito" : ""));
+    const label = criarEl("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = Boolean(item.feito);
+    cb.addEventListener("change", async () => {
+      const r = await jsonPost(`/api/viagens/itens/${item.id}/alternar`);
+      if (!r) {
+        cb.checked = !cb.checked;
+        return;
+      }
+      itemLi.classList.toggle("feito", r.feito);
+    });
+    label.appendChild(cb);
+    label.appendChild(criarEl("span", null, item.texto));
+    itemLi.appendChild(label);
+    ul.appendChild(itemLi);
+  });
+  li.appendChild(ul);
+}
+
+async function loadViagens() {
+  const viagens = await apiFetch("/api/viagens");
+  if (!viagens) return;
+  const lista = $("#lista-viagens");
+  lista.innerHTML = "";
+  $("#viagens-vazio").hidden = viagens.length > 0;
+  viagens.forEach((v) => {
+    const datas = v.data_volta ? `${fmtDataBr(v.data_ida)} a ${fmtDataBr(v.data_volta)}` : fmtDataBr(v.data_ida);
+    const quando = v.dias_ate > 0 ? `em ${v.dias_ate} dia(s)` : v.dias_ate === 0 ? "hoje" : "em andamento";
+    const lugares = v.lugares.length ? `voce curtiu la: ${v.lugares.map((l) => l.nome).join(", ")}` : null;
+    const malaBtn = criarEl("button", "btn-com-icone", v.itens.length ? "refazer mala" : "montar mala");
+    let li;
+    malaBtn.addEventListener("click", async () => {
+      setBotaoCarregando(malaBtn, true, "pensando...");
+      const r = await jsonPost(`/api/viagens/${v.id}/mala`);
+      setBotaoCarregando(malaBtn, false, "refazer mala");
+      if (r) renderItensMala(r, li);
+    });
+    li = itemSimples(v.destino, [`${datas} - ${quando}`, lugares], [malaBtn, (el) => botaoApagar(`/api/viagens/${v.id}`, el)]);
+    renderItensMala(v, li);
+    lista.appendChild(li);
+  });
+}
+
+ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Adicionar", () => {
+  const destino = $("#viagem-nova-destino").value.trim();
+  const ida = $("#viagem-nova-ida").value;
+  return destino && ida ? { destino, data_ida: ida, data_volta: $("#viagem-nova-volta").value || null } : null;
+}, "/api/viagens", loadViagens);
+
+async function loadLugares() {
+  const lugares = await apiFetch("/api/lugares");
+  if (!lugares) return;
+  const lista = $("#lista-lugares");
+  lista.innerHTML = "";
+  $("#lugares-vazio").hidden = lugares.length > 0;
+  lugares.forEach((l) => {
+    lista.appendChild(
+      itemSimples(l.nome, [[l.tipo, l.cidade].filter(Boolean).join(" - "), l.nota], [
+        (el) => botaoApagar(`/api/lugares/${l.id}`, el),
+      ])
+    );
+  });
+}
+
+ligarForm("#lugar-form", "#lugar-btn", "Adicionar", () => {
+  const nome = $("#lugar-nome").value.trim();
+  return nome ? { nome, cidade: $("#lugar-cidade").value.trim() } : null;
+}, "/api/lugares", loadLugares);
+
+// ---- Fase 2: mensagem dificil ----
+
+$("#mensagem-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const situacao = $("#mensagem-situacao").value.trim();
+  if (!situacao) return;
+  const btn = $("#mensagem-btn");
+  setBotaoCarregando(btn, true, "escrevendo...");
+  const r = await jsonPost("/api/mensagem-dificil", { situacao, para_quem: $("#mensagem-para").value.trim() });
+  setBotaoCarregando(btn, false, "Escrever pra mim");
+  if (!r) return;
+  const box = $("#mensagem-resultado");
+  box.innerHTML = "";
+  box.hidden = false;
+  [
+    ["direta", "Direta"],
+    ["gentil", "Mais gentil"],
+  ].forEach(([chave, rotulo]) => {
+    box.appendChild(criarEl("p", "decisao-rotulo", rotulo));
+    box.appendChild(criarEl("p", "mensagem-texto", r[chave]));
+    const copiar = criarEl("button", "btn-link", "copiar");
+    copiar.type = "button";
+    copiar.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(r[chave]);
+        copiar.textContent = "copiado";
+      } catch {
+        copiar.textContent = "nao deu pra copiar - segura no texto";
+      }
+    });
+    box.appendChild(copiar);
+  });
+});
+
 // ---- Carga inicial + recarga ao trocar de aba ----
 
 function loadVidaHoje() {
@@ -467,16 +812,22 @@ function loadVidaHoje() {
   loadHiperfoco();
 }
 
-function loadVidaPainel() {
+function loadVidaAba() {
+  loadResponder();
+  loadCompras();
   loadPessoas();
+  loadTreino();
   loadContasPessoais();
   loadAssinaturasRevisao();
+  loadManutencoes();
+  loadViagens();
+  loadLugares();
 }
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     if (btn.dataset.tab === "hoje") loadVidaHoje();
-    if (btn.dataset.tab === "painel") loadVidaPainel();
+    if (btn.dataset.tab === "vida") loadVidaAba();
   });
 });
 
@@ -485,4 +836,3 @@ document.addEventListener("visibilitychange", () => {
 });
 
 loadVidaHoje();
-loadVidaPainel();

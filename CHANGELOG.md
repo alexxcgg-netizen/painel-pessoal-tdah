@@ -5,6 +5,62 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (20) - BRIEFING.md Fase 2 + correcoes da revisao da Fase 1
+
+Fase 2 inteira do `BRIEFING.md` (saude, localizacao, viagem, casa, comunicacao) e as correcoes
+que uma revisao independente (agente separado, so leitura) achou no commit da Fase 1. Tudo que e
+pessoal e nao e "painel do dia" foi pra uma aba nova **Vida** (a Painel estava virando rolagem
+infinita): pra responder, compras, pessoas, treino, contas, assinaturas, manutencao, viagens,
+lugares, mensagem dificil e vale a pena.
+
+**Fase 2**
+- **Agua/pausa**: push nas 9h/11h/13h/15h/17h de dia util, pulado se bebeu agua na ultima hora.
+  Some durante o hiperfoco (pedido do Alex) - nao acumula.
+- **Treino**: ficha por grupo muscular (`treino_fichas`, salvar o mesmo grupo substitui) e registro
+  leve (`treinos`). `/api/tasks` manda `fichas_treino` - tarefa "Treino peito" ganha o botao **!**
+  que abre a ficha ali mesmo; titulo generico ("Academia") mostra todas. Tools
+  `salvar_ficha_treino` e `registrar_treino`.
+- **Sintoma -> medico**: orientacao no prompt do chat (nunca diagnostica, sugere medico/dentista,
+  urgencia se grave, oferece criar a tarefa de marcar consulta). Sem consulta recorrente fixa.
+- **Sono ruim 3+ noites** (<6h no Saude ou "ruim" no check-in): um aviso por sequencia, depois das 8h.
+- **Sono x humor/energia** (`aprendizado.dica_sono_humor`), cruzando `saude_dados` com o check-in -
+  aparece na Saude hoje so com diferenca real (meio ponto na escala 1-3).
+- **Localizacao via Atalhos** (`POST /api/atalho/local`, token `PAINEL_ATALHOS_TOKEN`): devolve a
+  mensagem pro proprio Atalho mostrar. Chegou em casa: se ainda tem compromisso, "Proximo: X as
+  14:00 - sai ate 13:30"; a noite, o que ficou pendente; meio do dia sem nada, silencio. Saiu de
+  casa: checklist (carteira; carregador com bateria < 50%; fone e garrafa em dia de academia;
+  bigode e cavanhaque sexta/sabado a noite se vai sair - agenda depois das 19h ou "vou sair hoje"
+  no chat, tool `marcar_saida_noite`). Mercado: a lista de compras, so se tiver item. Mesma
+  mensagem nao repete em 2h (geofence oscila na porta).
+- **Chuva x compromisso**: 7h30, se a chuva prevista pega um compromisso do dia (precisa
+  `CIDADE_PADRAO`).
+- **Pre-voo**: vespera (19h+) e manha do voo: fone, carta WAC, cartas dos aerodromos, plano de voo,
+  peso e balanceamento.
+- **Viagens** (`viagens`/`viagem_itens`): mala montada pela IA (Haiku, com destino, dias e clima
+  previsto) como checklist marcavel; aviso de documento 3 dias antes e no dia; lugares que voce
+  curtiu na cidade aparecem junto. **Lugares** (`lugares`) e tools `registrar_viagem`/`registrar_lugar`.
+- **Manutencao por tempo** (`manutencoes`): aviso uma semana antes, "feita hoje" reinicia.
+- **Lista de compras** (`compras`): "acabou o cafe" vira "cafe", sem duplicar. Tool `adicionar_compras`.
+- **Mensagem dificil** (`/api/mensagem-dificil`, Sonnet): versao direta e versao gentil, com copiar.
+- **Pra responder** (`responder`): lembra todo dia as 10h a partir do dia seguinte ate "respondi".
+
+**Correcoes da revisao da Fase 1**
+- Hiperfoco perdia avisos de janela curta (22h, fechamento, rotina da manha...): agora ficam
+  guardados e saem quando o foco acaba (`vida.AVISOS_JANELA_CURTA`, so no mesmo dia).
+- Pagar conta com atraso marcava o mes seguinte como pago: o vencimento que passou ha ate 10 dias
+  sem pagar continua sendo "o atual" (aparece "venceu ha X dias").
+- "So o essencial" deixava remedio esquecido de dias atras ganhar de tarefa de hoje: instancia de
+  rotina de dia passado nao concorre mais.
+- "Trocar" podia devolver a tarefa recusada: recusadas do dia ficam de fora.
+- Rotina da noite zerava a meia-noite: depois da meia-noite ainda conta como a noite anterior.
+- Riscos: check-in com dois toques rapidos nao colide mais; valor infinito (`1e999`) recusado;
+  contagem do hiperfoco nao depende do fuso do celular; fim do foco nao apaga um bloco novo;
+  "Jo" nao casa mais com "Joao" por prefixo; passos novos entram depois do ultimo passo feito.
+- Layout: com 3 botoes na tarefa, as acoes descem pra linha de baixo em vez de estourar o card.
+- Nome duplicado `_compromissos_de_hoje` (achado no teste no navegador) quebrava a agenda.
+
+48 testes novos (`tests/test_vida_fase2.py`). Validado no navegador (Playwright, 390px).
+
 ## 2026-09-23 (19) - BRIEFING.md Fase 1: rotina guiada, check-in, hiperfoco, so o essencial, pessoas
 
 Primeira rodada do `BRIEFING.md` (assistente de vida, agora versionado no repo junto com o

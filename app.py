@@ -2,6 +2,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import os
 import sqlite3
 import tempfile
@@ -39,7 +40,9 @@ import db
 from db import (
     CAMPOS_SAUDE,
     add_to_goal,
+    adicionar_compra,
     ajustar_saldo_conta,
+    alternar_item_viagem,
     alternar_rotina_item,
     apagar_espera,
     apagar_nota,
@@ -57,12 +60,16 @@ from db import (
     create_goal,
     create_income,
     create_lembrete,
+    create_lugar,
+    create_manutencao,
     create_medicamento,
     create_medida_corporal,
     create_memoria,
     create_nota,
     create_pessoa,
+    create_responder,
     create_rotina_item,
+    create_viagem,
     create_voo,
     criar_cotacao,
     criar_item_cotacao,
@@ -70,16 +77,21 @@ from db import (
     definir_apelido_gasto,
     definir_configuracao,
     definir_orcamento,
+    delete_compra,
     delete_conta_pessoal,
     delete_cotacao,
+    delete_ficha_treino,
     delete_item_cotacao,
     delete_lembrete,
+    delete_lugar,
+    delete_manutencao,
     delete_medicamento,
     delete_medida_corporal,
     delete_memoria,
     delete_pessoa,
     delete_push_subscription,
     delete_rotina_item,
+    delete_viagem,
     delete_voo,
     espera_pendente_por_quem_aproximado,
     gasto_mes_por_categoria,
@@ -95,17 +107,23 @@ from db import (
     ja_notificou_hoje,
     list_apelidos_gasto,
     list_chat_mensagens,
+    list_checkins,
+    list_compras_pendentes,
     list_contas_pessoais,
     list_conversas,
     list_cotacoes,
     list_decisoes,
     list_dias_ativos,
     list_esperas_pendentes,
+    list_fichas_treino,
     list_goal_deposits,
     list_goals,
     list_incomes,
     list_itens_cotacao,
+    list_itens_viagem,
     list_lembretes,
+    list_lugares,
+    list_manutencoes,
     list_medicamentos_ativos,
     list_medidas_corporais,
     list_memorias,
@@ -113,11 +131,17 @@ from db import (
     list_orcamentos,
     list_pessoas,
     list_push_subscriptions,
+    list_responder_pendentes,
     list_rotina_itens,
+    list_treinos,
+    list_viagens_futuras,
     list_voos,
+    marcar_comprado,
     marcar_conta_paga,
+    marcar_manutencao_feita,
     marcar_notificado,
     marcar_ou_criar_feito,
+    marcar_respondido,
     media_passos_ultimos_dias,
     obter_configuracao,
     record_usage,
@@ -125,14 +149,17 @@ from db import (
     registrar_conversa,
     registrar_hidratacao,
     registrar_interacao_aprendizado,
+    registrar_treino,
     resolver_espera,
     responder_assinatura,
     respostas_assinaturas,
     rotina_marcadas,
     salvar_checkin,
     salvar_essencial,
+    salvar_ficha_treino,
     salvar_mensagem_chat,
     save_push_subscription,
+    substituir_itens_viagem,
     total_cost_usd,
     total_gastos_bancarios_mes,
     total_gastos_mes,
@@ -258,6 +285,7 @@ def _verificar_autenticacao():
         "/api/atalho/capturar",
         "/api/atalho/cotacao-pdf",
         "/api/atalho/resumo",
+        "/api/atalho/local",
     ):
         return None
 
@@ -429,6 +457,7 @@ def list_tasks():
         ).fetchall()
         for s in subtask_rows:
             subtasks_por_task.setdefault(s["task_id"], []).append(dict(s))
+    fichas = list_fichas_treino(conn)
     conn.close()
 
     hoje = date.today()
@@ -437,6 +466,7 @@ def list_tasks():
         task = dict(row)
         task["subtasks"] = subtasks_por_task.get(task["id"], [])
         task["empacada_dias"] = vida.dias_empacada(task, task["subtasks"], hoje)
+        task["fichas_treino"] = [f["id"] for f in vida.ficha_para_titulo(fichas, task["title"])]
         tasks.append(task)
     return jsonify(tasks)
 
@@ -1356,9 +1386,52 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         if not nome or dia is None:
             return {"erro": "preciso do nome e do dia de vencimento (1 a 31)"}
         valor = entrada.get("valor")
-        valor = float(valor) if isinstance(valor, (int, float)) and not isinstance(valor, bool) else None
-        conta_id = create_conta_pessoal(conn, nome, dia, valor)
+        valida = isinstance(valor, (int, float)) and not isinstance(valor, bool) and math.isfinite(valor) and valor >= 0
+        conta_id = create_conta_pessoal(conn, nome, dia, float(valor) if valida else None)
         return {"ok": True, "conta_id": conta_id}
+
+    def exec_adicionar_compras(entrada):
+        return _adicionar_compras(conn, entrada.get("itens"))
+
+    def exec_salvar_ficha_treino(entrada):
+        grupo = _texto_curto(entrada.get("grupo"), 40)
+        exercicios = entrada.get("exercicios")
+        if isinstance(exercicios, list):
+            exercicios = "\n".join(str(e).strip() for e in exercicios if str(e).strip())
+        exercicios = _texto_curto(exercicios, 3000)
+        if not grupo or not exercicios:
+            return {"erro": "preciso do grupo e dos exercicios"}
+        return {"ok": True, "ficha_id": salvar_ficha_treino(conn, grupo, exercicios)}
+
+    def exec_registrar_treino(entrada):
+        duracao = entrada.get("duracao_min")
+        duracao = _inteiro_no_intervalo(duracao, 1, 600) if duracao not in (None, "") else None
+        treino_id = registrar_treino(
+            conn, date.today().isoformat(), _texto_curto(entrada.get("grupo"), 40), duracao,
+            _texto_curto(entrada.get("nota"), 300),
+        )
+        return {"ok": True, "treino_id": treino_id}
+
+    def exec_registrar_viagem(entrada):
+        return _criar_viagem(
+            conn, entrada.get("destino"), entrada.get("data_ida"), entrada.get("data_volta"), entrada.get("motivo")
+        )
+
+    def exec_registrar_lugar(entrada):
+        return _criar_lugar(conn, entrada.get("nome"), entrada.get("cidade"), entrada.get("tipo"), entrada.get("nota"))
+
+    def exec_registrar_manutencao(entrada):
+        return _criar_manutencao(conn, entrada.get("item"), entrada.get("intervalo_meses"), entrada.get("ultima_vez"))
+
+    def exec_registrar_responder(entrada):
+        quem = _texto_curto(entrada.get("quem"), 60)
+        if not quem:
+            return {"erro": "faltou pra quem"}
+        return {"ok": True, "id": create_responder(conn, quem, _texto_curto(entrada.get("sobre"), 200))}
+
+    def exec_marcar_saida_noite(entrada):
+        definir_configuracao(conn, "saida_noite_data", date.today().isoformat())
+        return {"ok": True}
 
     def exec_registrar_memoria(entrada):
         create_memoria(conn, entrada["fato"], texto)
@@ -1581,6 +1654,14 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "registrar_conversa": exec_registrar_conversa,
         "cadastrar_pessoa": exec_cadastrar_pessoa,
         "registrar_conta_pessoal": exec_registrar_conta_pessoal,
+        "adicionar_compras": exec_adicionar_compras,
+        "salvar_ficha_treino": exec_salvar_ficha_treino,
+        "registrar_treino": exec_registrar_treino,
+        "registrar_viagem": exec_registrar_viagem,
+        "registrar_lugar": exec_registrar_lugar,
+        "registrar_manutencao": exec_registrar_manutencao,
+        "registrar_responder": exec_registrar_responder,
+        "marcar_saida_noite": exec_marcar_saida_noite,
         "registrar_memoria": exec_registrar_memoria,
         "registrar_espera": exec_registrar_espera,
         "resolver_espera": exec_resolver_espera,
@@ -1812,7 +1893,37 @@ def _disparar_estimativa_uber(conn, pedido: dict, access_token: str) -> None:
 # outros respeitam o modo silencioso (ver verificar_e_notificar).
 NOTIFICACOES_URGENTES = {
     "tarefa_horario", "compromisso_chegando", "voo_sair", "hora_de_dormir", "rotina_manha", "hiperfoco_fim",
+    "adiado_hiperfoco",
 }
+
+
+def _adiar_aviso(conn, titulo: str, corpo: str):
+    """Guarda um aviso de janela curta segurado pelo hiperfoco pra sair quando
+    o foco acabar (so vale no mesmo dia - aviso de ontem nao faz mais sentido)."""
+    hoje = date.today().isoformat()
+    try:
+        guardados = json.loads(obter_configuracao(conn, "avisos_adiados") or "{}")
+    except ValueError:
+        guardados = {}
+    itens = guardados.get("itens", []) if guardados.get("data") == hoje else []
+    itens.append([titulo, corpo])
+    definir_configuracao(conn, "avisos_adiados", json.dumps({"data": hoje, "itens": itens[-10:]}))
+
+
+def _liberar_avisos_adiados(conn, hoje: date) -> list[tuple[str, int, str, str]]:
+    try:
+        guardados = json.loads(obter_configuracao(conn, "avisos_adiados") or "{}")
+    except ValueError:
+        guardados = {}
+    if not guardados.get("itens"):
+        return []
+    definir_configuracao(conn, "avisos_adiados", "{}")
+    if guardados.get("data") != hoje.isoformat():
+        return []
+    return [
+        ("adiado_hiperfoco", vida.id_estavel("adiado", hoje.isoformat(), titulo, corpo), titulo, corpo)
+        for titulo, corpo in guardados["itens"]
+    ]
 
 
 def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
@@ -1841,11 +1952,16 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
                 ("hiperfoco_fim", vida.id_estavel("hiperfoco", ate), "Fim do foco",
                  f"Seu bloco de foco{duracao} acabou. Levanta, bebe agua, e ve se continua ou para.")
             )
-        definir_configuracao(conn, "hiperfoco_ate", "")
+        conn.execute(
+            "UPDATE configuracoes SET valor = '' WHERE chave = 'hiperfoco_ate' AND valor = ?", (ate,)
+        )
+        conn.commit()
+    if not vida.hiperfoco_ativo(obter_configuracao(conn, "hiperfoco_ate"), agora):
+        avisos.extend(_liberar_avisos_adiados(conn, hoje))
 
     for conta in _contas_pessoais_com_status(conn, hoje):
         dias = conta["dias_ate_vencer"]
-        if conta["paga"] or dias > 3:
+        if conta["paga"] or dias > 3 or dias < 0:
             continue
         fase = "dia" if dias == 0 else "antes"
         ref = vida.id_estavel("conta_pessoal", conta["id"], conta["proximo_vencimento"], fase)
@@ -1876,6 +1992,117 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
                     ("revisao_assinaturas", ref, "Revisao do mes",
                      f"{len(pendentes)} assinatura(s) pra confirmar se voce ainda usa - 1 toque cada no painel.")
                 )
+    return avisos
+
+
+def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
+    """Avisos do BRIEFING.md Fase 2: agua/pausa, sono ruim seguido, chuva em
+    cima de compromisso, pre-voo, viagem (documento), manutencao e mensagem
+    pra responder."""
+    avisos = []
+    hoje = agora.date()
+    hoje_iso = hoje.isoformat()
+
+    slot = vida.slot_agua_pausa(agora)
+    if slot is not None and not ja_notificou_hoje(conn, "agua_pausa", slot):
+        bebeu_agora = conn.execute(
+            "SELECT 1 FROM hidratacao_registros WHERE criado_em >= datetime('now', '-60 minutes')"
+        ).fetchone()
+        if not bebeu_agora:
+            copos = contar_hidratacao_dia(conn, hoje_iso)
+            avisos.append(
+                ("agua_pausa", slot, "Pausa rapida",
+                 f"Bebe um copo de agua e levanta 2 minutos ({copos} copo(s) hoje).")
+            )
+
+    if agora.hour >= 8:
+        sono = {
+            r["data"]: r["sono_horas"]
+            for r in conn.execute(
+                "SELECT data, sono_horas FROM saude_dados WHERE sono_horas IS NOT NULL AND data >= ?",
+                ((hoje - timedelta(days=14)).isoformat(),),
+            ).fetchall()
+        }
+        checkin_sono = {
+            c["data"]: c["sono"] for c in list_checkins(conn, (hoje - timedelta(days=14)).isoformat()) if c["sono"]
+        }
+        seguidas = vida.noites_ruins_seguidas(sono, checkin_sono, hoje)
+        if seguidas >= 3:
+            inicio = hoje - timedelta(days=seguidas - 1)
+            ref = vida.id_estavel("sono_ruim", inicio.isoformat())
+            if not ja_notificado_alguma_vez(conn, "sono_ruim", ref):
+                avisos.append(
+                    ("sono_ruim", ref, "Sono ruim seguido",
+                     f"{seguidas} noites seguidas dormindo mal. Hoje tenta desacelerar mais cedo - "
+                     "se continuar assim, vale falar com um medico.")
+                )
+
+    cidade = os.environ.get("CIDADE_PADRAO", "").strip()
+    if cidade and vida.rotina_manha_devida(agora, "07:30") and not ja_notificou_hoje(conn, "clima_compromisso"):
+        try:
+            resumo = clima.resumo_chuva_hoje_para_cidade(cidade)
+        except requests.RequestException:
+            resumo = None
+        afetados = vida.compromissos_na_chuva(_agenda_pendente_de_hoje(conn), resumo)
+        if afetados:
+            nomes = ", ".join(
+                f"{a['titulo']} as {datetime.fromisoformat(a['inicio']).strftime('%H:%M')}" for a in afetados[:2]
+            )
+            avisos.append(
+                ("clima_compromisso", 0, "Chuva no seu horario",
+                 f"{resumo['texto']} Pega {nomes} - sai mais cedo ou leva guarda-chuva.")
+            )
+
+    checklist_voo = ", ".join(vida.CHECKLIST_PRE_VOO).lower()
+    for voo in list_voos(conn):
+        try:
+            data_voo = date.fromisoformat(voo["data"])
+        except (TypeError, ValueError):
+            continue
+        destino = voo.get("destino") or "o voo"
+        if data_voo == hoje + timedelta(days=1) and agora.hour >= 19:
+            ref = vida.id_estavel("pre_voo", voo["id"], "vespera")
+            if not ja_notificado_alguma_vez(conn, "pre_voo", ref):
+                avisos.append(("pre_voo", ref, "Voo amanha", f"Voo amanha pra {destino}. Separa hoje: {checklist_voo}."))
+        if data_voo == hoje and agora.hour >= 6:
+            ainda_antes = not voo.get("hora") or agora.strftime("%H:%M") < voo["hora"]
+            ref = vida.id_estavel("pre_voo", voo["id"], "dia")
+            if ainda_antes and not ja_notificado_alguma_vez(conn, "pre_voo", ref):
+                avisos.append(("pre_voo", ref, "Pre-voo", f"Voo hoje pra {destino}. Confere: {checklist_voo}."))
+
+    for v in list_viagens_futuras(conn, hoje_iso):
+        dias = (date.fromisoformat(v["data_ida"]) - hoje).days
+        fase = "antes" if 0 < dias <= 3 else "dia" if dias == 0 and agora.hour >= 6 else None
+        if not fase:
+            continue
+        ref = vida.id_estavel("v", v["id"], fase)
+        if ja_notificado_alguma_vez(conn, "viagem_documento", ref):
+            continue
+        faltando = sum(1 for i in list_itens_viagem(conn, v["id"]) if not i["feito"])
+        mala = f" Faltam {faltando} item(ns) da mala." if faltando else ""
+        quando = "hoje" if fase == "dia" else f"em {dias} dia(s)"
+        avisos.append(
+            ("viagem_documento", ref, "Viagem chegando",
+             f"Viagem pra {v['destino']} {quando}. Confere documento com foto, cartoes e reservas.{mala}")
+        )
+
+    for m in _manutencoes_com_status(conn, hoje):
+        if m["dias_ate"] > 7:
+            continue
+        ref = vida.id_estavel("manutencao", m["id"], m["proxima"])
+        if ja_notificado_alguma_vez(conn, "manutencao", ref):
+            continue
+        quando = "ja passou do prazo" if m["dias_ate"] < 0 else "vence hoje" if m["dias_ate"] == 0 else f"vence em {m['dias_ate']} dia(s)"
+        avisos.append(("manutencao", ref, "Manutencao", f"{m['item']}: {quando}."))
+
+    if agora.hour >= 10 and not ja_notificou_hoje(conn, "responder"):
+        antigas = [
+            r for r in list_responder_pendentes(conn) if datetime.fromisoformat(r["criado_em"]).date() < hoje
+        ]
+        if antigas:
+            nomes = ", ".join(r["quem"] + (f" ({r['sobre']})" if r["sobre"] else "") for r in antigas[:3])
+            resto = f" e mais {len(antigas) - 3}" if len(antigas) > 3 else ""
+            avisos.append(("responder", 0, "Pra responder", f"Ainda falta responder: {nomes}{resto}."))
     return avisos
 
 
@@ -2058,6 +2285,7 @@ def verificar_e_notificar():
         avisos.append(("hora_de_dormir", 0, "Hora de desacelerar", corpo_noite))
 
     avisos.extend(_avisos_assistente_vida(conn, datetime.now()))
+    avisos.extend(_avisos_fase2(conn, datetime.now()))
 
     # Fechamento ativo do dia (21h, uma hora antes da hora_de_dormir) - manda
     # o fechamento sozinho em vez de esperar o Alex abrir a aba Painel.
@@ -2120,6 +2348,9 @@ def verificar_e_notificar():
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
         if em_hiperfoco and tipo not in vida.CRITICOS_HIPERFOCO:
+            if tipo in vida.AVISOS_JANELA_CURTA:
+                _adiar_aviso(conn, titulo, corpo)
+                marcar_notificado(conn, tipo, ref_id)
             continue
         if silencioso and tipo not in NOTIFICACOES_URGENTES:
             continue
@@ -2623,8 +2854,11 @@ def saude_hoje():
     dia = get_saude_dia(conn, date.today().isoformat())
     hidratacao_hoje = contar_hidratacao_dia(conn, date.today().isoformat())
     dica_sono = aprendizado.dica_sono_produtividade(conn)
+    dica_humor = aprendizado.dica_sono_humor(conn)
     conn.close()
-    return jsonify({"dados": dia, "hidratacao_hoje": hidratacao_hoje, "dica_sono": dica_sono})
+    return jsonify(
+        {"dados": dia, "hidratacao_hoje": hidratacao_hoje, "dica_sono": dica_sono, "dica_humor": dica_humor}
+    )
 
 
 @app.route("/api/hidratacao", methods=["POST"])
@@ -2657,6 +2891,8 @@ def criar_medida_rota():
     try:
         valor = float(body.get("valor"))
     except (TypeError, ValueError):
+        return jsonify({"error": "valor invalido"}), 400
+    if not math.isfinite(valor):
         return jsonify({"error": "valor invalido"}), 400
     try:
         date.fromisoformat(data_medida)
@@ -2731,7 +2967,7 @@ def rotina():
     if momento not in vida.ITENS_ROTINA_PADRAO:
         return jsonify({"error": "momento deve ser 'manha' ou 'noite'"}), 400
     conn = get_db()
-    resultado = _rotina_do_dia(conn, momento, date.today().isoformat())
+    resultado = _rotina_do_dia(conn, momento, vida.dia_da_rotina(momento, datetime.now()).isoformat())
     conn.close()
     return jsonify(resultado)
 
@@ -2739,11 +2975,12 @@ def rotina():
 @app.route("/api/rotina/<int:item_id>/alternar", methods=["POST"])
 def alternar_rotina(item_id):
     conn = get_db()
-    existe = conn.execute("SELECT 1 FROM rotina_itens WHERE id = ? AND ativo = 1", (item_id,)).fetchone()
+    existe = conn.execute("SELECT momento FROM rotina_itens WHERE id = ? AND ativo = 1", (item_id,)).fetchone()
     if not existe:
         conn.close()
         return jsonify({"error": "item nao encontrado"}), 404
-    feito = alternar_rotina_item(conn, date.today().isoformat(), item_id)
+    dia = vida.dia_da_rotina(existe["momento"], datetime.now())
+    feito = alternar_rotina_item(conn, dia.isoformat(), item_id)
     if feito:
         _marcar_atividade(conn)
         conn.commit()
@@ -2782,6 +3019,7 @@ def _estado_hiperfoco(conn) -> dict:
         "ativo": ativo,
         "ate": ate if ativo else None,
         "minutos_restantes": vida.minutos_restantes_hiperfoco(ate, agora),
+        "segundos_restantes": int((datetime.fromisoformat(ate) - agora).total_seconds()) if ativo else 0,
     }
 
 
@@ -2816,15 +3054,16 @@ def encerrar_hiperfoco():
     conn = get_db()
     definir_configuracao(conn, "hiperfoco_ate", "")
     conn.close()
-    return jsonify({"ativo": False, "ate": None, "minutos_restantes": 0})
+    return jsonify({"ativo": False, "ate": None, "minutos_restantes": 0, "segundos_restantes": 0})
 
 
 def _candidatas_essencial(conn, hoje: date) -> list[dict]:
     materializar_tarefas_recorrentes(conn, hoje)
     rows = conn.execute(
         "SELECT id, title, due_date, hora, recorrente_origem_id FROM tasks "
-        "WHERE completed_at IS NULL AND recorrencia IS NULL AND (due_date IS NULL OR due_date <= ?)",
-        (hoje.isoformat(),),
+        "WHERE completed_at IS NULL AND recorrencia IS NULL AND (due_date IS NULL OR due_date <= ?) "
+        "AND NOT (recorrente_origem_id IS NOT NULL AND due_date < ?)",
+        (hoje.isoformat(), hoje.isoformat()),
     ).fetchall()
     candidatas = [dict(r) for r in rows]
     candidatas.sort(key=lambda t: (-vida.pontuar_tarefa_essencial(t, hoje), t["id"]))
@@ -2914,8 +3153,17 @@ def trocar_essencial():
         conn.close()
         return jsonify({"error": "essa tarefa nao esta no essencial de hoje"}), 400
     restantes = [(e["task_id"], e["motivo"]) for e in atuais if e["task_id"] != task_id]
+    try:
+        rejeitadas = json.loads(obter_configuracao(conn, "essencial_rejeitadas") or "{}")
+    except ValueError:
+        rejeitadas = {}
+    ids_rejeitados = set(rejeitadas.get("ids", [])) if rejeitadas.get("data") == hoje.isoformat() else set()
+    ids_rejeitados.add(task_id)
+    definir_configuracao(
+        conn, "essencial_rejeitadas", json.dumps({"data": hoje.isoformat(), "ids": sorted(ids_rejeitados)})
+    )
     for t in _candidatas_essencial(conn, hoje):
-        if t["id"] not in ja_usadas:
+        if t["id"] not in ja_usadas and t["id"] not in ids_rejeitados:
             restantes.append((t["id"], None))
             break
     salvar_essencial(conn, hoje.isoformat(), restantes)
@@ -2961,7 +3209,7 @@ def requebrar_task(task_id):
         return jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502
     _log_usage(conn, usage)
     conn.execute("DELETE FROM subtasks WHERE task_id = ? AND completed_at IS NULL", (task_id,))
-    inicio = len(subtasks) - len(antigos)
+    inicio = max((s["position"] for s in subtasks if s["completed_at"]), default=-1) + 1
     for i, passo in enumerate(passos):
         conn.execute(
             "INSERT INTO subtasks (task_id, title, position) VALUES (?, ?, ?)",
@@ -2975,10 +3223,26 @@ def requebrar_task(task_id):
     return jsonify({"subtasks": [dict(s) for s in novas]})
 
 
+def _vencimento_em_aberto(conn, conta, hoje: date) -> date:
+    """O vencimento que ainda precisa ser pago: o que passou ha ate 10 dias sem
+    marcar como paga (pagar com atraso marca ESSE, nao o do mes seguinte), senao
+    o proximo. Conta cadastrada depois do vencimento passado comeca no proximo."""
+    anterior = vida.vencimento_anterior(conta["dia_vencimento"], hoje)
+    cadastro = (conta["criado_em"] or "")[:10]
+    if (
+        anterior < hoje
+        and (hoje - anterior).days <= 10
+        and cadastro <= anterior.isoformat()
+        and not conta_paga(conn, conta["id"], anterior.isoformat())
+    ):
+        return anterior
+    return vida.proximo_vencimento(conta["dia_vencimento"], hoje)
+
+
 def _contas_pessoais_com_status(conn, hoje: date) -> list[dict]:
     resultado = []
     for c in list_contas_pessoais(conn):
-        venc = vida.proximo_vencimento(c["dia_vencimento"], hoje)
+        venc = _vencimento_em_aberto(conn, c, hoje)
         resultado.append(
             {
                 **c,
@@ -3027,7 +3291,7 @@ def criar_conta_pessoal():
             valor = float(valor)
         except (TypeError, ValueError):
             return jsonify({"error": "valor invalido"}), 400
-        if isinstance(body.get("valor"), bool) or valor < 0 or valor != valor:
+        if isinstance(body.get("valor"), bool) or valor < 0 or not math.isfinite(valor):
             return jsonify({"error": "valor invalido"}), 400
     conn = get_db()
     conta_id = create_conta_pessoal(conn, nome, dia, valor)
@@ -3050,7 +3314,7 @@ def pagar_conta_pessoal(conta_id):
     if not conta:
         conn.close()
         return jsonify({"error": "conta nao encontrada"}), 404
-    venc = vida.proximo_vencimento(conta["dia_vencimento"], date.today())
+    venc = _vencimento_em_aberto(conn, conta, date.today())
     marcar_conta_paga(conn, conta_id, venc.isoformat())
     _marcar_atividade(conn)
     conn.commit()
@@ -3091,7 +3355,7 @@ def responder_assinatura_rota():
     if not descricao or len(descricao) > 200 or resposta not in ("usa", "nao_usa"):
         return jsonify({"error": "mande descricao e resposta ('usa' ou 'nao_usa')"}), 400
     valor = body.get("valor")
-    valor = valor if isinstance(valor, (int, float)) and not isinstance(valor, bool) else None
+    valor = valor if isinstance(valor, (int, float)) and not isinstance(valor, bool) and math.isfinite(valor) else None
     conn = get_db()
     responder_assinatura(
         conn, gastos._normalizar_descricao(descricao), date.today().strftime("%Y-%m"), descricao, valor, resposta
@@ -3236,6 +3500,472 @@ def decisoes():
     ]
     conn.close()
     return jsonify(resultado)
+
+
+# ---- Assistente de vida (BRIEFING.md, Fase 2) ----
+
+def _texto_curto(valor, maximo: int) -> str | None:
+    """String aparada e nao vazia com ate `maximo` caracteres, senao None."""
+    if not isinstance(valor, str):
+        return None
+    texto = valor.strip()
+    return texto if texto and len(texto) <= maximo else None
+
+
+def _data_iso_valida(valor) -> str | None:
+    if not isinstance(valor, str):
+        return None
+    try:
+        return date.fromisoformat(valor.strip()).isoformat()
+    except ValueError:
+        return None
+
+
+@app.route("/api/treino/fichas", methods=["GET"])
+def fichas_treino():
+    conn = get_db()
+    resultado = list_fichas_treino(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/treino/fichas", methods=["POST"])
+def salvar_ficha_treino_rota():
+    body = _corpo_json()
+    grupo = _texto_curto(body.get("grupo"), 40)
+    exercicios = body.get("exercicios")
+    if isinstance(exercicios, list):
+        exercicios = "\n".join(str(e).strip() for e in exercicios if str(e).strip())
+    exercicios = _texto_curto(exercicios, 3000)
+    if not grupo or not exercicios:
+        return jsonify({"error": "informe o grupo e os exercicios (um por linha)"}), 400
+    conn = get_db()
+    ficha_id = salvar_ficha_treino(conn, grupo, exercicios)
+    conn.close()
+    return jsonify({"ok": True, "id": ficha_id}), 201
+
+
+@app.route("/api/treino/fichas/<int:ficha_id>", methods=["DELETE"])
+def apagar_ficha_treino(ficha_id):
+    conn = get_db()
+    delete_ficha_treino(conn, ficha_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/treino", methods=["GET"])
+def treinos():
+    conn = get_db()
+    resultado = list_treinos(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/treino", methods=["POST"])
+def registrar_treino_rota():
+    body = _corpo_json()
+    grupo = _texto_curto(body.get("grupo"), 40)
+    nota = _texto_curto(body.get("nota"), 300)
+    duracao = body.get("duracao_min")
+    if duracao not in (None, ""):
+        duracao = _inteiro_no_intervalo(duracao, 1, 600)
+        if duracao is None:
+            return jsonify({"error": "duracao deve ser de 1 a 600 minutos"}), 400
+    else:
+        duracao = None
+    conn = get_db()
+    treino_id = registrar_treino(conn, date.today().isoformat(), grupo, duracao, nota)
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "id": treino_id}), 201
+
+
+def _clima_texto_para(destino: str, data_iso: str) -> str | None:
+    try:
+        previsao = clima.previsao_para_cidade_e_data(destino, data_iso)
+    except requests.RequestException:
+        return None
+    if not previsao:
+        return None
+    return (
+        f"{previsao.get('temp_min')}-{previsao.get('temp_max')}C, "
+        f"{previsao.get('chuva_pct')}% de chance de chuva"
+    )
+
+
+def _viagem_detalhada(conn, v: dict, hoje: date) -> dict:
+    lugares = [
+        l for l in list_lugares(conn)
+        if l["cidade"] and vida.normalizar_nome(l["cidade"]) in vida.normalizar_nome(v["destino"])
+    ]
+    ida = date.fromisoformat(v["data_ida"])
+    return {
+        **v,
+        "dias_ate": (ida - hoje).days,
+        "itens": list_itens_viagem(conn, v["id"]),
+        "lugares": [{"nome": l["nome"], "tipo": l["tipo"], "nota": l["nota"]} for l in lugares],
+    }
+
+
+@app.route("/api/viagens", methods=["GET"])
+def viagens():
+    hoje = date.today()
+    conn = get_db()
+    resultado = [_viagem_detalhada(conn, v, hoje) for v in list_viagens_futuras(conn, hoje.isoformat())]
+    conn.close()
+    return jsonify(resultado)
+
+
+def _criar_viagem(conn, destino, data_ida, data_volta, motivo) -> dict:
+    destino = _texto_curto(destino, 80)
+    ida = _data_iso_valida(data_ida)
+    volta = _data_iso_valida(data_volta) if data_volta not in (None, "") else None
+    if not destino or not ida:
+        return {"erro": "informe o destino e a data de ida (AAAA-MM-DD)"}
+    if data_volta not in (None, "") and (not volta or volta < ida):
+        return {"erro": "data de volta invalida (tem que ser depois da ida)"}
+    viagem_id = create_viagem(conn, destino, ida, volta, _texto_curto(motivo, 80))
+    return {"ok": True, "viagem_id": viagem_id}
+
+
+@app.route("/api/viagens", methods=["POST"])
+def criar_viagem_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _criar_viagem(conn, body.get("destino"), body.get("data_ida"), body.get("data_volta"), body.get("motivo"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/viagens/<int:viagem_id>", methods=["DELETE"])
+def apagar_viagem(viagem_id):
+    conn = get_db()
+    delete_viagem(conn, viagem_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/viagens/<int:viagem_id>/mala", methods=["POST"])
+def gerar_mala_rota(viagem_id):
+    conn = get_db()
+    registro = conn.execute("SELECT * FROM viagens WHERE id = ?", (viagem_id,)).fetchone()
+    if not registro:
+        conn.close()
+        return jsonify({"error": "viagem nao encontrada"}), 404
+    ida = date.fromisoformat(registro["data_ida"])
+    volta = date.fromisoformat(registro["data_volta"]) if registro["data_volta"] else ida
+    dias = (volta - ida).days + 1
+    clima_txt = _clima_texto_para(registro["destino"], registro["data_ida"])
+    result, error = _call_claude(claude_client.gerar_mala, registro["destino"], dias, registro["motivo"], clima_txt)
+    if error:
+        conn.close()
+        return error
+    itens, usage = result
+    itens = [i.strip()[:120] for i in itens if isinstance(i, str) and i.strip()][:20] if isinstance(itens, list) else []
+    if not itens:
+        conn.close()
+        return jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502
+    _log_usage(conn, usage)
+    substituir_itens_viagem(conn, viagem_id, itens)
+    resultado = _viagem_detalhada(conn, dict(registro), date.today())
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/viagens/itens/<int:item_id>/alternar", methods=["POST"])
+def alternar_item_viagem_rota(item_id):
+    conn = get_db()
+    feito = alternar_item_viagem(conn, item_id)
+    conn.close()
+    if feito is None:
+        return jsonify({"error": "item nao encontrado"}), 404
+    return jsonify({"feito": feito})
+
+
+def _criar_lugar(conn, nome, cidade, tipo, nota) -> dict:
+    nome = _texto_curto(nome, 80)
+    if not nome:
+        return {"erro": "informe o nome do lugar"}
+    lugar_id = create_lugar(conn, nome, _texto_curto(cidade, 60), _texto_curto(tipo, 40), _texto_curto(nota, 300))
+    return {"ok": True, "lugar_id": lugar_id}
+
+
+@app.route("/api/lugares", methods=["GET"])
+def lugares():
+    conn = get_db()
+    resultado = list_lugares(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/lugares", methods=["POST"])
+def criar_lugar_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _criar_lugar(conn, body.get("nome"), body.get("cidade"), body.get("tipo"), body.get("nota"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/lugares/<int:lugar_id>", methods=["DELETE"])
+def apagar_lugar(lugar_id):
+    conn = get_db()
+    delete_lugar(conn, lugar_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _manutencoes_com_status(conn, hoje: date) -> list[dict]:
+    resultado = []
+    for m in list_manutencoes(conn):
+        proxima = vida.proxima_data_manutencao(m["ultima_vez"], m["intervalo_meses"], m["criado_em"], hoje)
+        resultado.append({**m, "proxima": proxima.isoformat(), "dias_ate": (proxima - hoje).days})
+    resultado.sort(key=lambda x: x["dias_ate"])
+    return resultado
+
+
+def _criar_manutencao(conn, item, intervalo, ultima_vez) -> dict:
+    item = _texto_curto(item, 80)
+    intervalo = _inteiro_no_intervalo(intervalo, 1, 120)
+    ultima = _data_iso_valida(ultima_vez) if ultima_vez not in (None, "") else None
+    if not item or intervalo is None:
+        return {"erro": "informe o item e o intervalo em meses (1 a 120)"}
+    if ultima_vez not in (None, "") and (not ultima or ultima > date.today().isoformat()):
+        return {"erro": "data da ultima vez invalida"}
+    manutencao_id = create_manutencao(conn, item, intervalo, ultima)
+    return {"ok": True, "manutencao_id": manutencao_id}
+
+
+@app.route("/api/manutencoes", methods=["GET"])
+def manutencoes():
+    conn = get_db()
+    resultado = _manutencoes_com_status(conn, date.today())
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/manutencoes", methods=["POST"])
+def criar_manutencao_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _criar_manutencao(conn, body.get("item"), body.get("intervalo_meses"), body.get("ultima_vez"))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/manutencoes/<int:manutencao_id>/feita", methods=["POST"])
+def manutencao_feita(manutencao_id):
+    conn = get_db()
+    ok = marcar_manutencao_feita(conn, manutencao_id, date.today().isoformat())
+    if ok:
+        _marcar_atividade(conn)
+        conn.commit()
+    conn.close()
+    if not ok:
+        return jsonify({"error": "manutencao nao encontrada"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/manutencoes/<int:manutencao_id>", methods=["DELETE"])
+def apagar_manutencao(manutencao_id):
+    conn = get_db()
+    delete_manutencao(conn, manutencao_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+def _adicionar_compras(conn, itens) -> dict:
+    if isinstance(itens, str):
+        itens = [itens]
+    if not isinstance(itens, list):
+        return {"erro": "mande a lista de itens"}
+    adicionados = []
+    for bruto in itens[:30]:
+        item = _texto_curto(bruto, 60)
+        if not item or not vida.normalizar_item_compra(item):
+            continue
+        _, novo = adicionar_compra(conn, item)
+        if novo:
+            adicionados.append(item)
+    if not adicionados and not any(_texto_curto(i, 60) for i in itens[:30]):
+        return {"erro": "nenhum item valido"}
+    return {"ok": True, "adicionados": adicionados}
+
+
+@app.route("/api/compras", methods=["GET"])
+def compras():
+    conn = get_db()
+    resultado = list_compras_pendentes(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/compras", methods=["POST"])
+def adicionar_compras_rota():
+    body = _corpo_json()
+    conn = get_db()
+    resultado = _adicionar_compras(conn, body.get("itens", body.get("item")))
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/compras/<int:compra_id>/comprado", methods=["POST"])
+def compra_comprada(compra_id):
+    conn = get_db()
+    marcar_comprado(conn, compra_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/compras/<int:compra_id>", methods=["DELETE"])
+def apagar_compra(compra_id):
+    conn = get_db()
+    delete_compra(conn, compra_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/responder", methods=["GET"])
+def responder_pendentes():
+    hoje = date.today()
+    conn = get_db()
+    resultado = []
+    for r in list_responder_pendentes(conn):
+        dias = (hoje - datetime.fromisoformat(r["criado_em"]).date()).days
+        resultado.append({**r, "dias": dias})
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/responder", methods=["POST"])
+def criar_responder_rota():
+    body = _corpo_json()
+    quem = _texto_curto(body.get("quem"), 60)
+    if not quem:
+        return jsonify({"error": "informe pra quem voce precisa responder"}), 400
+    conn = get_db()
+    responder_id = create_responder(conn, quem, _texto_curto(body.get("sobre"), 200))
+    conn.close()
+    return jsonify({"ok": True, "id": responder_id}), 201
+
+
+@app.route("/api/responder/<int:responder_id>/feito", methods=["POST"])
+def responder_feito(responder_id):
+    conn = get_db()
+    marcar_respondido(conn, responder_id)
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/mensagem-dificil", methods=["POST"])
+def mensagem_dificil():
+    body = _corpo_json()
+    situacao = _texto_curto(body.get("situacao"), 1500)
+    if not situacao:
+        return jsonify({"error": "conte a situacao (ate 1500 caracteres)"}), 400
+    para_quem = _texto_curto(body.get("para_quem"), 60)
+    conn = get_db()
+    result, error = _call_claude(claude_client.redigir_mensagem_dificil, situacao, para_quem)
+    if error:
+        conn.close()
+        return error
+    versoes, usage = result
+    if not isinstance(versoes, dict) or not all(isinstance(versoes.get(k), str) for k in ("direta", "gentil")):
+        conn.close()
+        return jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502
+    _log_usage(conn, usage)
+    conn.close()
+    return jsonify({"direta": versoes["direta"], "gentil": versoes["gentil"]})
+
+
+def _agenda_pendente_de_hoje(conn) -> list[dict]:
+    """Agenda de hoje (iCloud + tarefa com hora) sem dia inteiro e sem o que
+    ja foi concluido - o que ainda pode ter horario pra cumprir."""
+    return [
+        e for e in _eventos_de_hoje_com_seguranca(conn)
+        if not e.get("dia_inteiro") and not e.get("concluido") and e.get("inicio")
+    ]
+
+
+def _mensagem_local(conn, evento: str, lugar: str, bateria: int | None, agora: datetime) -> str | None:
+    hoje = agora.date()
+    if lugar == "casa" and evento == "chegou":
+        proximo = next(
+            (c for c in _agenda_pendente_de_hoje(conn) if datetime.fromisoformat(c["inicio"]) > agora), None
+        )
+        pendentes = [
+            r["title"]
+            for r in conn.execute(
+                "SELECT title FROM tasks WHERE due_date = ? AND completed_at IS NULL ORDER BY hora", (hoje.isoformat(),)
+            ).fetchall()
+        ]
+        return vida.mensagem_chegou_casa(agora, proximo, pendentes)
+    if lugar == "casa" and evento == "saiu":
+        compromissos = _agenda_pendente_de_hoje(conn)
+        titulos = [c["titulo"] for c in compromissos] + [
+            r["title"]
+            for r in conn.execute(
+                "SELECT title FROM tasks WHERE due_date = ? AND completed_at IS NULL", (hoje.isoformat(),)
+            ).fetchall()
+        ]
+        saida_noite = obter_configuracao(conn, "saida_noite_data") == hoje.isoformat() or any(
+            datetime.fromisoformat(c["inicio"]).hour >= 19 for c in compromissos
+        )
+        itens = vida.checklist_saida(agora, bateria, vida.eh_dia_de_academia(titulos), saida_noite)
+        return "Pegou tudo? " + ", ".join(itens) + "."
+    if lugar == "mercado" and evento == "chegou":
+        pendentes = [c["item"] for c in list_compras_pendentes(conn)]
+        if pendentes:
+            return "Lista de compras: " + ", ".join(pendentes) + "."
+    return None
+
+
+@app.route("/api/atalho/local", methods=["POST"])
+def atalho_local():
+    """Automacao de localizacao do Atalhos (chegou/saiu de um lugar). Devolve
+    a mensagem pro proprio Atalho mostrar - vazia quando nao ha nada a dizer
+    (o Atalho so mostra notificacao se o texto nao estiver vazio). A mesma
+    mensagem nao se repete em menos de 2h (geofence costuma disparar mais de
+    uma vez quando o sinal oscila na porta de casa)."""
+    if not _token_atalho_valido():
+        return jsonify({"error": "token invalido"}), 401
+    body = _corpo_json()
+    evento = body.get("evento")
+    lugar = vida.normalizar_nome(body.get("lugar")) if isinstance(body.get("lugar"), str) else ""
+    if evento not in ("chegou", "saiu") or not lugar:
+        return jsonify({"error": "mande evento ('chegou' ou 'saiu') e lugar"}), 400
+    bateria = body.get("bateria")
+    bateria = _inteiro_no_intervalo(bateria, 0, 100) if bateria not in (None, "") else None
+
+    agora = datetime.now()
+    conn = get_db()
+    mensagem = _mensagem_local(conn, evento, lugar, bateria, agora) or ""
+    if mensagem:
+        chave = f"local_{lugar}_{evento}"
+        anterior = obter_configuracao(conn, chave)
+        if anterior:
+            try:
+                dados = json.loads(anterior)
+                recente = agora - datetime.fromisoformat(dados["em"]) < timedelta(hours=2)
+                if recente and dados.get("texto") == mensagem:
+                    mensagem = ""
+            except (ValueError, KeyError, TypeError):
+                pass
+        if mensagem:
+            definir_configuracao(conn, chave, json.dumps({"texto": mensagem, "em": agora.isoformat()}))
+    conn.close()
+    return jsonify({"mensagem": mensagem})
 
 
 @app.route("/api/uso/total", methods=["GET"])

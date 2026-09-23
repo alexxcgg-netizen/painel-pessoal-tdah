@@ -163,6 +163,14 @@ perguntas que mudariam a resposta (se faltar informacao importante), e uma incli
 Quando ele contar que falou com alguem, use `registrar_conversa` (nota leve, sem virar CRM). Se
 ele disser que quer manter contato com alguem de tempos em tempos, use `cadastrar_pessoa`.
 
+Se ele contar um SINTOMA (dor, febre, tontura, algo diferente no corpo), nunca diagnostique:
+sugira de forma direta procurar medico ou dentista (urgencia se for grave - dor no peito, falta
+de ar, desmaio) e ofereca registrar uma tarefa pra marcar a consulta. Se ele disser que tem
+consulta marcada, registre com hora.
+
+Se ele pedir ajuda pra escrever uma mensagem dificil (cobrar, dizer nao, pedir desculpa),
+entregue a mensagem pronta pra copiar, curta e respeitosa, em duas versoes: direta e mais gentil.
+
 Quando o Alex perguntar que horas fazer algo recorrente sem hora fixa (ex: "que horas eu vou pra
 academia hoje?"), chame `sugerir_horario_livre` em vez de adivinhar - ela olha o que ja esta
 marcado no dia de verdade e acha o maior espaco livre.
@@ -562,6 +570,120 @@ CHAT_TOOLS = [
             },
             "required": ["nome", "dia_vencimento"],
         },
+    },
+    {
+        "name": "adicionar_compras",
+        "description": (
+            "Poe itens na lista de compras de casa. Use quando o Alex disser 'acabou o X', "
+            "'precisa comprar Y', 'anota pra comprar Z'. Um item por entrada, curto (ex: 'cafe', "
+            "'papel higienico'). O painel avisa quando ele chegar no mercado."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"itens": {"type": "array", "items": {"type": "string"}}},
+            "required": ["itens"],
+        },
+    },
+    {
+        "name": "salvar_ficha_treino",
+        "description": (
+            "Salva (ou substitui) a ficha de treino de um grupo muscular - quando o Alex colar/"
+            "ditar o treino (ex: 'peito: supino reto 4x10, crucifixo 3x12'). Um exercicio por linha."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "grupo": {"type": "string", "description": "ex: 'Peito', 'Costas', 'Perna', 'Treino A'"},
+                "exercicios": {"type": "array", "items": {"type": "string"}, "description": "um por item, com series x reps se ele disse"},
+            },
+            "required": ["grupo", "exercicios"],
+        },
+    },
+    {
+        "name": "registrar_treino",
+        "description": "Registro leve de treino feito HOJE ('treinei peito 1h', 'fui na academia').",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "grupo": {"type": "string", "description": "grupo/tipo - omita se nao disse"},
+                "duracao_min": {"type": "integer", "description": "omita se nao disse"},
+                "nota": {"type": "string", "description": "algo que ele comentou (carga, como foi) - omita se nada"},
+            },
+        },
+    },
+    {
+        "name": "registrar_viagem",
+        "description": (
+            "Registra uma viagem (nao voo de instrucao do aeroclube - pra isso use registrar_voo). "
+            "O painel monta checklist de mala e lembra de documento 3 dias antes e no dia."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "destino": {"type": "string"},
+                "data_ida": {"type": "string", "description": "AAAA-MM-DD"},
+                "data_volta": {"type": "string", "description": "AAAA-MM-DD - omita se nao disse"},
+                "motivo": {"type": "string", "description": "trabalho, ferias, visita... - omita se nao disse"},
+            },
+            "required": ["destino", "data_ida"],
+        },
+    },
+    {
+        "name": "registrar_lugar",
+        "description": (
+            "Guarda um lugar que o Alex GOSTOU (restaurante, hotel, bar, praia) pra sugerir de novo "
+            "quando ele voltar pra mesma cidade."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string"},
+                "cidade": {"type": "string", "description": "omita se nao disse"},
+                "tipo": {"type": "string", "description": "restaurante, hotel, bar... - omita se nao disse"},
+                "nota": {"type": "string", "description": "o que ele gostou - omita se nada"},
+            },
+            "required": ["nome"],
+        },
+    },
+    {
+        "name": "registrar_manutencao",
+        "description": (
+            "Manutencao recorrente por tempo (carro, casa, equipamento): 'trocar oleo a cada 6 "
+            "meses, troquei hoje'. O painel avisa quando estiver chegando a proxima."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "item": {"type": "string"},
+                "intervalo_meses": {"type": "integer", "description": "1 a 120"},
+                "ultima_vez": {"type": "string", "description": "AAAA-MM-DD da ultima vez feita - omita se nao sabe"},
+            },
+            "required": ["item", "intervalo_meses"],
+        },
+    },
+    {
+        "name": "registrar_responder",
+        "description": (
+            "Mensagem importante que o ALEX precisa responder e deixou 'pra depois' (diferente "
+            "de registrar_espera, que e quando ele espera resposta de alguem). Lembra no dia "
+            "seguinte as 10h ate ele marcar como respondida."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "quem": {"type": "string"},
+                "sobre": {"type": "string", "description": "omita se nao disse"},
+            },
+            "required": ["quem"],
+        },
+    },
+    {
+        "name": "marcar_saida_noite",
+        "description": (
+            "O Alex vai sair HOJE a noite (festa, balada, jantar). Usado no checklist de saida "
+            "de casa (lembrar de fazer bigode e cavanhaque na sexta/sabado)."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "registrar_voo",
@@ -1277,6 +1399,61 @@ def analisar_decisao(pergunta: str, memorias: list[str] | None = None) -> tuple[
                 "role": "user",
                 "content": DECISAO_PROMPT.format(
                     pergunta=pergunta, memorias="\n".join(f"- {m}" for m in memorias or []) or "nenhuma"
+                ),
+            }
+        ],
+    )
+    return _extract_json(response.content[0].text), _usage(response)
+
+
+MALA_PROMPT = """Monte um checklist de mala CURTO e pratico pra uma viagem. A pessoa tem TDAH:
+itens concretos, sem obviedade tipo "roupas" solto - diga quantidade quando fizer sentido.
+Maximo 15 itens. Inclua documento se for voo/viagem longa.
+
+Destino: {destino}
+Dias: {dias}
+Motivo: {motivo}
+Clima previsto: {clima}
+
+Responda so com um JSON de lista de strings, sem markdown."""
+
+
+def gerar_mala(destino: str, dias: int, motivo: str | None, clima_texto: str | None) -> tuple[list[str], dict]:
+    response = client.messages.create(
+        model=HAIKU,
+        max_tokens=400,
+        messages=[
+            {
+                "role": "user",
+                "content": MALA_PROMPT.format(
+                    destino=destino, dias=dias, motivo=motivo or "nao informado", clima=clima_texto or "sem previsao"
+                ),
+            }
+        ],
+    )
+    return _extract_json(response.content[0].text), _usage(response)
+
+
+MENSAGEM_DIFICIL_PROMPT = """Ajude a escrever uma mensagem dificil (cobrar alguem, dizer nao, pedir
+desculpa, resolver conflito). A pessoa tem TDAH e trava pra comecar - entregue a mensagem pronta
+pra copiar, em portugues do Brasil, curta, respeitosa e clara. Nada de formalidade excessiva.
+
+Pra quem: {para_quem}
+Situacao: {situacao}
+
+Responda SO com JSON, sem markdown:
+{{"direta": "<versao objetiva>", "gentil": "<versao mais suave, mesma mensagem>"}}"""
+
+
+def redigir_mensagem_dificil(situacao: str, para_quem: str | None) -> tuple[dict, dict]:
+    response = client.messages.create(
+        model=SONNET,
+        max_tokens=600,
+        messages=[
+            {
+                "role": "user",
+                "content": MENSAGEM_DIFICIL_PROMPT.format(
+                    situacao=situacao, para_quem=para_quem or "nao informado"
                 ),
             }
         ],

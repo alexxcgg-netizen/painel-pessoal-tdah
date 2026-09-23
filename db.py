@@ -357,6 +357,71 @@ def init_db():
             analise_json TEXT NOT NULL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS treino_fichas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            grupo TEXT NOT NULL,
+            exercicios TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS treinos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT NOT NULL,
+            grupo TEXT,
+            duracao_min INTEGER,
+            nota TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS viagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            destino TEXT NOT NULL,
+            data_ida TEXT NOT NULL,
+            data_volta TEXT,
+            motivo TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS viagem_itens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            viagem_id INTEGER NOT NULL,
+            texto TEXT NOT NULL,
+            feito INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS lugares (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            cidade TEXT,
+            tipo TEXT,
+            nota TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS manutencoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item TEXT NOT NULL,
+            intervalo_meses INTEGER NOT NULL,
+            ultima_vez TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS compras (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item TEXT NOT NULL,
+            item_normalizado TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            comprado_em TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS responder (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quem TEXT NOT NULL,
+            sobre TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+            respondido_em TEXT
+        );
         """
     )
     conn.commit()
@@ -410,6 +475,10 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_medidas_corporais_tipo_data ON medidas_corporais(tipo, data);
         CREATE INDEX IF NOT EXISTS idx_conversas_pessoa_id ON conversas(pessoa_id);
         CREATE INDEX IF NOT EXISTS idx_conversas_data ON conversas(data);
+        CREATE INDEX IF NOT EXISTS idx_treinos_data ON treinos(data);
+        CREATE INDEX IF NOT EXISTS idx_viagem_itens_viagem_id ON viagem_itens(viagem_id);
+        CREATE INDEX IF NOT EXISTS idx_compras_pendentes ON compras(comprado_em, item_normalizado);
+        CREATE INDEX IF NOT EXISTS idx_responder_respondido_em ON responder(respondido_em);
         """
     )
     conn.commit()
@@ -1259,18 +1328,14 @@ def salvar_checkin(conn, data: str, campos: dict) -> dict:
     """Grava so os campos informados (energia/sono/humor, 1-3) - cada toque
     do Alex salva na hora, sem precisar responder os tres de uma vez."""
     validos = {k: v for k, v in campos.items() if k in vida.CAMPOS_CHECKIN and v is not None}
-    existente = conn.execute("SELECT * FROM checkins WHERE data = ?", (data,)).fetchone()
-    if existente:
-        if validos:
-            sets = ", ".join(f"{k} = ?" for k in validos)
-            conn.execute(
-                f"UPDATE checkins SET {sets}, atualizado_em = datetime('now') WHERE data = ?",
-                (*validos.values(), data),
-            )
-    else:
+    # INSERT OR IGNORE + UPDATE (em vez de checar antes e inserir): dois toques
+    # rapidos no primeiro check-in do dia nao colidem na chave primaria.
+    conn.execute("INSERT OR IGNORE INTO checkins (data) VALUES (?)", (data,))
+    if validos:
+        sets = ", ".join(f"{k} = ?" for k in validos)
         conn.execute(
-            "INSERT INTO checkins (data, energia, sono, humor) VALUES (?, ?, ?, ?)",
-            (data, validos.get("energia"), validos.get("sono"), validos.get("humor")),
+            f"UPDATE checkins SET {sets}, atualizado_em = datetime('now') WHERE data = ?",
+            (*validos.values(), data),
         )
     conn.commit()
     return get_checkin(conn, data)
@@ -1463,3 +1528,178 @@ def create_decisao(conn, pergunta: str, analise_json: str) -> int:
 def list_decisoes(conn, limite: int = 10) -> list[dict]:
     rows = conn.execute("SELECT * FROM decisoes ORDER BY id DESC LIMIT ?", (limite,)).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---- Assistente de vida (BRIEFING.md, Fase 2) ----
+
+def salvar_ficha_treino(conn, grupo: str, exercicios: str) -> int:
+    """Uma ficha por grupo (comparado sem acento/caixa) - salvar de novo o
+    mesmo grupo substitui os exercicios em vez de duplicar."""
+    alvo = vida.normalizar_nome(grupo)
+    for f in list_fichas_treino(conn):
+        if vida.normalizar_nome(f["grupo"]) == alvo:
+            conn.execute(
+                "UPDATE treino_fichas SET grupo = ?, exercicios = ?, atualizado_em = datetime('now') WHERE id = ?",
+                (grupo, exercicios, f["id"]),
+            )
+            conn.commit()
+            return f["id"]
+    cur = conn.execute("INSERT INTO treino_fichas (grupo, exercicios) VALUES (?, ?)", (grupo, exercicios))
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_fichas_treino(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM treino_fichas ORDER BY grupo").fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_ficha_treino(conn, ficha_id: int):
+    conn.execute("DELETE FROM treino_fichas WHERE id = ?", (ficha_id,))
+    conn.commit()
+
+
+def registrar_treino(conn, data: str, grupo: str | None, duracao_min: int | None, nota: str | None) -> int:
+    cur = conn.execute(
+        "INSERT INTO treinos (data, grupo, duracao_min, nota) VALUES (?, ?, ?, ?)",
+        (data, grupo, duracao_min, nota),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_treinos(conn, limite: int = 20) -> list[dict]:
+    rows = conn.execute("SELECT * FROM treinos ORDER BY data DESC, id DESC LIMIT ?", (limite,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def create_viagem(conn, destino: str, data_ida: str, data_volta: str | None, motivo: str | None) -> int:
+    cur = conn.execute(
+        "INSERT INTO viagens (destino, data_ida, data_volta, motivo) VALUES (?, ?, ?, ?)",
+        (destino, data_ida, data_volta, motivo),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_viagens_futuras(conn, hoje: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM viagens WHERE COALESCE(data_volta, data_ida) >= ? ORDER BY data_ida", (hoje,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_viagem(conn, viagem_id: int):
+    conn.execute("DELETE FROM viagem_itens WHERE viagem_id = ?", (viagem_id,))
+    conn.execute("DELETE FROM viagens WHERE id = ?", (viagem_id,))
+    conn.commit()
+
+
+def substituir_itens_viagem(conn, viagem_id: int, itens: list[str]):
+    conn.execute("DELETE FROM viagem_itens WHERE viagem_id = ?", (viagem_id,))
+    for texto in itens:
+        conn.execute("INSERT INTO viagem_itens (viagem_id, texto) VALUES (?, ?)", (viagem_id, texto))
+    conn.commit()
+
+
+def list_itens_viagem(conn, viagem_id: int) -> list[dict]:
+    rows = conn.execute("SELECT * FROM viagem_itens WHERE viagem_id = ? ORDER BY id", (viagem_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def alternar_item_viagem(conn, item_id: int) -> bool | None:
+    row = conn.execute("SELECT feito FROM viagem_itens WHERE id = ?", (item_id,)).fetchone()
+    if not row:
+        return None
+    novo = 0 if row["feito"] else 1
+    conn.execute("UPDATE viagem_itens SET feito = ? WHERE id = ?", (novo, item_id))
+    conn.commit()
+    return bool(novo)
+
+
+def create_lugar(conn, nome: str, cidade: str | None, tipo: str | None, nota: str | None) -> int:
+    cur = conn.execute(
+        "INSERT INTO lugares (nome, cidade, tipo, nota) VALUES (?, ?, ?, ?)", (nome, cidade, tipo, nota)
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_lugares(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM lugares ORDER BY cidade, nome").fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_lugar(conn, lugar_id: int):
+    conn.execute("DELETE FROM lugares WHERE id = ?", (lugar_id,))
+    conn.commit()
+
+
+def create_manutencao(conn, item: str, intervalo_meses: int, ultima_vez: str | None) -> int:
+    cur = conn.execute(
+        "INSERT INTO manutencoes (item, intervalo_meses, ultima_vez) VALUES (?, ?, ?)",
+        (item, intervalo_meses, ultima_vez),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_manutencoes(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM manutencoes ORDER BY item").fetchall()
+    return [dict(r) for r in rows]
+
+
+def marcar_manutencao_feita(conn, manutencao_id: int, data: str) -> bool:
+    cur = conn.execute("UPDATE manutencoes SET ultima_vez = ? WHERE id = ?", (data, manutencao_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def delete_manutencao(conn, manutencao_id: int):
+    conn.execute("DELETE FROM manutencoes WHERE id = ?", (manutencao_id,))
+    conn.commit()
+
+
+def adicionar_compra(conn, item: str) -> tuple[int, bool]:
+    """Nao duplica item que ja esta na lista (pendente). Devolve (id, novo)."""
+    item = vida.limpar_item_compra(item) or item
+    normalizado = vida.normalizar_item_compra(item)
+    existente = conn.execute(
+        "SELECT id FROM compras WHERE item_normalizado = ? AND comprado_em IS NULL", (normalizado,)
+    ).fetchone()
+    if existente:
+        return existente["id"], False
+    cur = conn.execute("INSERT INTO compras (item, item_normalizado) VALUES (?, ?)", (item, normalizado))
+    conn.commit()
+    return cur.lastrowid, True
+
+
+def list_compras_pendentes(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM compras WHERE comprado_em IS NULL ORDER BY id").fetchall()
+    return [dict(r) for r in rows]
+
+
+def marcar_comprado(conn, compra_id: int):
+    conn.execute("UPDATE compras SET comprado_em = datetime('now') WHERE id = ?", (compra_id,))
+    conn.commit()
+
+
+def delete_compra(conn, compra_id: int):
+    conn.execute("DELETE FROM compras WHERE id = ?", (compra_id,))
+    conn.commit()
+
+
+def create_responder(conn, quem: str, sobre: str | None) -> int:
+    cur = conn.execute("INSERT INTO responder (quem, sobre) VALUES (?, ?)", (quem, sobre))
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_responder_pendentes(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM responder WHERE respondido_em IS NULL ORDER BY criado_em").fetchall()
+    return [dict(r) for r in rows]
+
+
+def marcar_respondido(conn, responder_id: int):
+    conn.execute("UPDATE responder SET respondido_em = datetime('now') WHERE id = ?", (responder_id,))
+    conn.commit()

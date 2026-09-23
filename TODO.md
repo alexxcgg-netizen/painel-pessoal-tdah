@@ -28,21 +28,21 @@ correlacao sono x produtividade, clima do dia, "devo sair ate que horas"
 - [x] Decisao rapida: "vale a pena?" + pros e contras
 
 ## Fase 2
-- [ ] Lembrete de agua/pausa a cada 2h, 9h-19h, dia util (silencia no hiperfoco)
-- [ ] Treino: ficha por grupo muscular + botao "!" na tarefa de treino + registro leve
-- [ ] Sintoma no chat -> sugere marcar medico/dentista + cria lembrete
-- [ ] Alerta de sono ruim 3+ noites (<6h no Saude ou "ruim" no check-in)
-- [ ] Correlacao sono x humor (check-in)
-- [ ] Localizacao via Atalhos: chegou/saiu de casa (contextual), mercado so com lista
-- [ ] Checklist de saida do dia a dia (carteira, carregador <50%, fone+garrafa se academia, bigode/cavanhaque sex/sab a noite)
-- [ ] Clima atrapalha compromisso do dia (aviso de manha)
-- [ ] Checklist pre-voo (fone, carta WAC, cartas de aerodromo, plano de voo, peso e balanceamento)
-- [ ] Mala automatica pra viagem (IA por destino/clima) + documento 3 dias antes e na manha
-- [ ] Lugares que gostei (sugere de novo ao voltar pra mesma cidade)
-- [ ] Manutencao recorrente por tempo (carro, casa, equipamento)
-- [ ] Lista de compras que enche com "acabou o X"
-- [ ] Redigir mensagem dificil
-- [ ] "Responder depois" -> lembrete dia seguinte 10h ate marcar respondido
+- [x] Lembrete de agua/pausa a cada 2h, 9h-19h, dia util (silencia no hiperfoco)
+- [x] Treino: ficha por grupo muscular + botao "!" na tarefa de treino + registro leve
+- [x] Sintoma no chat -> sugere marcar medico/dentista + cria lembrete
+- [x] Alerta de sono ruim 3+ noites (<6h no Saude ou "ruim" no check-in)
+- [x] Correlacao sono x humor (check-in)
+- [x] Localizacao via Atalhos: chegou/saiu de casa (contextual), mercado so com lista
+- [x] Checklist de saida do dia a dia (carteira, carregador <50%, fone+garrafa se academia, bigode/cavanhaque sex/sab a noite)
+- [x] Clima atrapalha compromisso do dia (aviso de manha)
+- [x] Checklist pre-voo (fone, carta WAC, cartas de aerodromo, plano de voo, peso e balanceamento)
+- [x] Mala automatica pra viagem (IA por destino/clima) + documento 3 dias antes e na manha
+- [x] Lugares que gostei (sugere de novo ao voltar pra mesma cidade)
+- [x] Manutencao recorrente por tempo (carro, casa, equipamento)
+- [x] Lista de compras que enche com "acabou o X"
+- [x] Redigir mensagem dificil
+- [x] "Responder depois" -> lembrete dia seguinte 10h ate marcar respondido
 
 ## Fase 3
 - [ ] Projecao de sobra no fim do mes (conferir o que ja existe e completar)
@@ -68,3 +68,7 @@ correlacao sono x produtividade, clima do dia, "devo sair ate que horas"
 - Consulta medica/dentista: sem recorrencia fixa - so quando o Alex falar ou citar sintoma.
 - Manutencao: so por tempo por enquanto (sem km).
 - Chegada em casa e contextual (hora + agenda), nunca repete a mesma mensagem em 2h.
+- Aba nova "Vida" pras secoes pessoais (Painel estava longo demais).
+- Localizacao: o Atalho recebe a mensagem na resposta e mostra ele mesmo (sem push duplicado).
+- Treino: casa ficha pelo nome do grupo no titulo da tarefa; titulo generico mostra todas.
+- Hiperfoco: aviso de janela curta fica guardado e sai no fim do foco; agua/pausa some.
