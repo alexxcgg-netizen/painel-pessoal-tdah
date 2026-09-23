@@ -1343,6 +1343,34 @@ def _eventos_de_hoje_com_seguranca(conn) -> list[dict]:
     return _compromissos_de_hoje(conn, icloud)
 
 
+def _resumo_falado_manha(conn) -> str:
+    """Texto curto pro resumo falado da manha (US-C11) - agenda de hoje
+    (_eventos_de_hoje_com_seguranca, ja existente, resiliente a falha do
+    iCloud) + gasto de ontem/tarefas pendentes
+    (notificacoes.resumo_manha_gastos_pendentes, sem rede). So monta texto
+    factual, sem IA - mesmo espirito de mensagem_fechamento_noturno. O TTS
+    em si (converter esse texto em audio) reaproveita o mecanismo ja
+    existente no navegador (falarTexto/SpeechSynthesis, o mesmo botao
+    "ouvir" ja usado no METAR/TAF e nas respostas do chat) - nada novo pro
+    servidor gerar aqui."""
+    eventos = [e for e in _eventos_de_hoje_com_seguranca(conn) if not e.get("dia_inteiro")]
+    if not eventos:
+        agenda_texto = "Nenhum compromisso marcado pra hoje."
+    elif len(eventos) == 1:
+        agenda_texto = f"1 compromisso hoje: \"{eventos[0]['titulo']}\" as {eventos[0]['inicio'][11:16]}."
+    else:
+        agenda_texto = f"{len(eventos)} compromissos hoje."
+    return f"Bom dia. {agenda_texto} {notificacoes.resumo_manha_gastos_pendentes(conn)}"
+
+
+@app.route("/api/resumo-manha", methods=["GET"])
+def resumo_manha_rota():
+    conn = get_db()
+    texto = _resumo_falado_manha(conn)
+    conn.close()
+    return jsonify({"texto": texto})
+
+
 @app.route("/api/summary/today", methods=["GET"])
 def summary_today():
     today = date.today().isoformat()

@@ -525,6 +525,53 @@ class NotificacoesTestCase(unittest.TestCase):
         msg = notificacoes.mensagem_fechamento_noturno(self.conn)
         self.assertNotIn("Gasto do dia", msg)
 
+    def test_resumo_manha_sem_nada_no_historico(self):
+        hoje = date.today()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("nao registrou gasto nenhum", msg)
+        self.assertIn("Nenhuma tarefa pendente", msg)
+
+    def test_resumo_manha_com_gasto_de_ontem_e_pendentes(self):
+        hoje = date.today()
+        ontem = hoje - timedelta(days=1)
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, tipo, created_at) VALUES (?, 'mercado', 'real', ?)",
+            (89.9, ontem.isoformat()),
+        )
+        self.conn.execute("INSERT INTO tasks (title) VALUES (?)", ("Ligar pro dentista",))
+        self.conn.execute("INSERT INTO tasks (title) VALUES (?)", ("Pagar boleto",))
+        self.conn.commit()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("89.90", msg)
+        self.assertIn("2 tarefas ainda pendentes", msg)
+
+    def test_resumo_manha_gasto_de_hoje_nao_conta_como_de_ontem(self):
+        hoje = date.today()
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, tipo, created_at) VALUES (?, 'mercado', 'real', ?)",
+            (50.0, hoje.isoformat()),
+        )
+        self.conn.commit()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("nao registrou gasto nenhum", msg)
+
+    def test_resumo_manha_1_tarefa_pendente_usa_singular(self):
+        hoje = date.today()
+        self.conn.execute("INSERT INTO tasks (title) VALUES (?)", ("Ligar pro dentista",))
+        self.conn.commit()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("1 tarefa ainda pendente", msg)
+        self.assertNotIn("1 tarefas", msg)
+
+    def test_resumo_manha_tarefa_concluida_nao_conta_como_pendente(self):
+        hoje = date.today()
+        self.conn.execute(
+            "INSERT INTO tasks (title, completed_at) VALUES (?, datetime('now'))", ("Feita",)
+        )
+        self.conn.commit()
+        msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
+        self.assertIn("Nenhuma tarefa pendente", msg)
+
     def test_currency_voo_sem_voo_nenhum_e_none(self):
         self.assertIsNone(notificacoes.currency_voo_baixa(self.conn))
 

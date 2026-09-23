@@ -376,6 +376,16 @@ button svg {
   flex-shrink: 0;
 }
 
+/* Resumo falado da manha (US-C11) reaproveita o mesmo estado "falando" do
+   METAR/TAF (.btn-ouvir.falando), so que aplicado num botao com rotulo em
+   vez de so icone - mesma cor de destaque, sem duplicar a animacao. */
+.btn-com-icone.falando {
+  background: var(--accent-fill);
+  border-color: transparent;
+  color: var(--accent-text);
+  animation: chamaFlicker 1.2s ease-in-out infinite;
+}
+
 .btn-exportar-csv {
   margin-left: auto;
   padding: 0.2rem 0.55rem;

@@ -27,3 +27,20 @@ Iniciado: 2026-09-23T06:28:35Z
     ::AssinaturasAumentoPrecoTestCase (5), 1 teste de integracao em test_app.py.
   - Suite completa (test_app+test_gastos+test_notificacoes): 569 testes, mesmas 5 falhas
     pre-existentes de voo (nao relacionadas).
+[C2] 2026-09-23 - US-C11 (resumo falado da manha): passes=true.
+  - GET /api/resumo-manha: agenda de hoje (_eventos_de_hoje_com_seguranca ja existente, resiliente
+    a falha do iCloud) + notificacoes.resumo_manha_gastos_pendentes (novo: gasto de ontem + tarefas
+    pendentes, sem rede, testavel isolado). Deterministico, sem custo de IA.
+  - TTS reaproveitado de verdade (nao reimplementado): botao "Ouvir resumo da manha" (tab Hoje)
+    so chama o falarTexto/SpeechSynthesis ja existente (mesmo do METAR/TAF/chat).
+  - Testes: tests/test_notificacoes.py (5 novos), tests/test_app.py (5 novos, incl. iCloud falhando).
+  - NOTA sobre a suite: rodando a suite completa as 07:0x UTC (janela real da "rotina matinal
+    7h-7h30", ja existente antes desta sessao) aparecem ~17 falhas A MAIS nos testes de
+    verificar_e_notificar (contagem de avisos_enviados off-by-1 - a notificacao real "Bom dia"
+    entra no meio da contagem porque esses testes nao mockam datetime.now() pra essa checagem
+    especifica, so pra "silencioso"). Confirmado que NAO tem relacao com nenhuma mudanca minha:
+    rodei a suite completa as 06:56 UTC (antes da janela) e so as 5 falhas de voo pre-existentes
+    apareceram; as 07:0x as mesmas + as ~12-17 extras de "Bom dia" apareceram simultaneamente em
+    testes que eu nem toquei (tarefa_parada, espera_parada, lembrete_proximo, compromisso
+    calendario, voo). Registrado aqui pro Alex/outros agentes: e fragilidade PRE-EXISTENTE da
+    suite (testes de horario sem mock completo de datetime.now()), nao nova. Passa fora da janela.

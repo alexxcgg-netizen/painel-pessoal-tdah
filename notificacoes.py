@@ -486,6 +486,34 @@ def mensagem_fechamento_noturno(conn, hoje: date | None = None) -> str:
     return " ".join(partes)
 
 
+def resumo_manha_gastos_pendentes(conn, hoje: date | None = None) -> str:
+    """Parte do resumo falado da manha (US-C11, TTS ja existente no chat -
+    ver falarTexto em app.js) que NAO depende de rede - gasto de ontem +
+    quantas tarefas ficaram pendentes. A parte de agenda (iCloud via CalDAV,
+    instavel) fica em app.py, que ja tem o padrao de buscar com seguranca
+    (_eventos_de_hoje_com_seguranca) - notificacoes.py de proposito nunca
+    faz chamada de rede, pra ficar testavel isolado como o resto do modulo."""
+    hoje = hoje or date.today()
+    ontem = hoje - timedelta(days=1)
+    gasto_ontem = _total_gasto_dia(conn, ontem)
+    pendentes = conn.execute(
+        "SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
+    ).fetchone()["n"]
+
+    partes = []
+    if gasto_ontem > 0:
+        partes.append(f"Ontem voce gastou R$ {gasto_ontem:.2f}.")
+    else:
+        partes.append("Ontem voce nao registrou gasto nenhum.")
+    if pendentes == 0:
+        partes.append("Nenhuma tarefa pendente.")
+    elif pendentes == 1:
+        partes.append("1 tarefa ainda pendente.")
+    else:
+        partes.append(f"{pendentes} tarefas ainda pendentes.")
+    return " ".join(partes)
+
+
 def currency_voo_baixa(conn, limiar_dias: int = 21) -> str | None:
     """Faz tempo demais desde o ultimo voo REALIZADO (com horas registradas -
     um voo so agendado nao conta) - um lembrete gentil pra nao perder o

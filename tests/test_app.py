@@ -1091,6 +1091,65 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(evento["inicio"], f"{hoje}T14:00:00")
         self.assertEqual(evento["fim"], evento["inicio"])
 
+    def test_resumo_manha_sem_compromisso_nem_gasto_nem_pendente(self):
+        res = self.client.get("/api/resumo-manha")
+        self.assertEqual(res.status_code, 200)
+        texto = res.get_json()["texto"]
+        self.assertIn("Nenhum compromisso marcado pra hoje", texto)
+        self.assertIn("Nenhuma tarefa pendente", texto)
+
+    def test_resumo_manha_conta_1_compromisso_de_hoje(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)",
+            ("consulta medica", hoje, "14:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/resumo-manha")
+        texto = res.get_json()["texto"]
+        self.assertIn("consulta medica", texto)
+        self.assertIn("14:00", texto)
+
+    def test_resumo_manha_conta_varios_compromissos_sem_listar_todos(self):
+        hoje = date.today().isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)", ("consulta", hoje, "09:00")
+        )
+        conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)", ("reuniao", hoje, "15:00")
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/resumo-manha")
+        texto = res.get_json()["texto"]
+        self.assertIn("2 compromissos hoje", texto)
+
+    def test_resumo_manha_inclui_gasto_de_ontem(self):
+        ontem = (date.today() - timedelta(days=1)).isoformat()
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO expenses (amount, category, tipo, created_at) VALUES (?, 'mercado', 'real', ?)",
+            (77.5, ontem),
+        )
+        conn.commit()
+        conn.close()
+
+        res = self.client.get("/api/resumo-manha")
+        self.assertIn("77.50", res.get_json()["texto"])
+
+    def test_resumo_manha_falha_do_icloud_nao_quebra(self):
+        with patch("caldav_client.configurado", return_value=True), patch(
+            "caldav_client.eventos_do_dia", side_effect=Exception("timeout")
+        ):
+            res = self.client.get("/api/resumo-manha")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Nenhum compromisso marcado pra hoje", res.get_json()["texto"])
+
     def test_calendario_hoje_combina_tarefas_e_icloud_ordenado_por_horario(self):
         hoje = date.today().isoformat()
         conn = db.get_db()

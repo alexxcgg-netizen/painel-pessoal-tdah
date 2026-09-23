@@ -2785,6 +2785,32 @@ if ("speechSynthesis" in window) {
   $("#taf-ouvir").hidden = true;
 }
 
+// Resumo falado da manha (US-C11) - texto vem pronto do servidor
+// (/api/resumo-manha, agenda + gasto de ontem + pendentes), o TTS em si
+// reaproveita o mesmo falarTexto/SpeechSynthesis ja usado no METAR/TAF e no
+// chat, nada novo do lado do audio.
+const resumoManhaBtn = $("#resumo-manha-btn");
+if (resumoManhaBtn) {
+  if (!("speechSynthesis" in window)) {
+    resumoManhaBtn.hidden = true;
+  } else {
+    resumoManhaBtn.addEventListener("click", async () => {
+      // falando de novo (mesmo botao) -> cancela, mesmo comportamento de
+      // metar-ouvir/taf-ouvir - nunca busca de novo enquanto ja esta falando.
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        resumoManhaBtn.classList.remove("falando");
+        return;
+      }
+      setBotaoCarregando(resumoManhaBtn, true, "Preparando...");
+      const data = await apiFetch("/api/resumo-manha");
+      setBotaoCarregando(resumoManhaBtn, false, "Ouvir resumo da manha");
+      if (!data) return;
+      falarTexto(resumoManhaBtn, data.texto);
+    });
+  }
+}
+
 $("#metar-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#metar-btn");

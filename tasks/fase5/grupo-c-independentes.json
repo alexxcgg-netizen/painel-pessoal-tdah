@@ -128,7 +128,7 @@
         "Reaproveita o TTS ja implementado (TODO #75) pra gerar audio",
         "Testes cobrindo a montagem do texto do resumo"
       ],
-      "priority": 11, "passes": false, "notes": ""
+      "priority": 11, "passes": true, "notes": "GET /api/resumo-manha monta texto curto (agenda de hoje via _eventos_de_hoje_com_seguranca ja existente + notificacoes.resumo_manha_gastos_pendentes novo, sem rede: gasto de ontem + tarefas pendentes). Sem IA - deterministico, mesmo espirito de mensagem_fechamento_noturno. TTS reaproveitado de verdade: nenhum audio gerado no servidor, so o botao 'Ouvir resumo da manha' (tab Hoje) chama o mesmo falarTexto/SpeechSynthesis ja usado no METAR/TAF e no chat. Testes: tests/test_notificacoes.py (5) + tests/test_app.py (5, incluindo falha do iCloud nao quebrar)."
     },
     {
       "id": "US-C12",
