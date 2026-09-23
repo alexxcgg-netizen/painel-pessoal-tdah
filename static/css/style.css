@@ -4141,9 +4141,15 @@ body.modo-essencial #essencial-box {
 
 /* Desfeito: o card continua na conversa (historico honesto do que
    aconteceu), so que apagado e riscado - nunca some de repente. */
+/* (opacidade nos filhos, nao no card: a animacao de entrada do card usa
+   fill-mode "both" e prenderia opacity em 1) */
 .card-contrato.card-desfeito {
-  opacity: 0.55;
   filter: saturate(0.3);
+}
+
+.card-contrato.card-desfeito > * {
+  opacity: 0.55;
+  transition: opacity 0.3s var(--ease-suave);
 }
 
 .card-contrato.card-desfeito .card-titulo,

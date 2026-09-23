@@ -67,3 +67,16 @@ Nao confirmado: preferencia do Alex por essas combinacoes.
 Historia US-E4 — decisao: o app so tem tema escuro (nao existe tema claro em style.css), entao a conferencia visual foi so no escuro.
 Motivo: criterio "claro e escuro se o app tiver os dois temas".
 Nao confirmado: nada.
+
+## US-E5 - Desfazer + link pra aba de origem
+Historia US-E5 — decisao: desfazer por TOKEN opaco (tabela acoes_desfazer com os ids exatos, criptografada), nao por "entidade+id" mandado pelo cliente.
+Motivo: "id especifico, nunca o ultimo" + o cliente nao consegue apagar item arbitrario/antigo so trocando um id; o token tambem guarda conta_id+delta pra devolver o saldo otimista, e marca "ja desfeito" (409, e o historico mostra o card como Desfeito).
+Nao confirmado: nada.
+
+Historia US-E5 — decisao: undo e tudo-ou-nada numa transacao; evento de agenda e verificado ANTES de apagar qualquer coisa (403 se o uid nao esta em eventos_criados; 501 enquanto caldav_client.apagar_evento_painel nao existir).
+Motivo: regra da US-E14 (nunca apagar evento que o painel nao criou) sem implementar CalDAV nesta faixa.
+Nao confirmado: nome final da funcao de apagar na US-E14 - o ponto de ligacao esta documentado em docs/CARDS.md.
+
+Historia US-E5 — decisao: destaque do item na aba de destino por data-entidade/data-id nos <li> (tarefa, gasto, meta, lembrete) e o JS continua procurando ~3s re-destacando se a lista recarregar.
+Motivo: showTab recarrega a lista e troca os <li>; o primeiro destaque ia pro elemento que sumia (bug achado no headless com lembretes).
+Nao confirmado: renda nao tem lista no front (/api/incomes nao e renderizado), entao "Abrir no extrato" de uma entrada so abre a aba.

@@ -382,5 +382,168 @@ class CardsSimplesBackendTestCase(ContratoCardsBase):
         self.assertEqual(cards.cards_dos_efeitos(self.conn, [{"entidade": "meta", "id": 999}, {"lixo": 1}]), [])
 
 
+class DesfazerTestCase(ContratoCardsBase):
+    """US-E5: Desfazer por token = ids exatos, um teste por tipo."""
+
+    def _token(self, card):
+        return [a for a in card["actions"] if a["tipo"] == "desfazer"][0]["token"]
+
+    def _desfazer(self, token):
+        return self.client.post(f"/api/desfazer/{token}")
+
+    def _conta(self, tabela):
+        return self.conn.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0]
+
+    def test_tarefa_desfaz_so_as_do_card(self):
+        self.conn.execute("INSERT INTO tasks (title) VALUES ('antiga, nao pode sumir')")
+        self.conn.commit()
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_tarefa"]({"titulo": "a"})
+            executores["registrar_tarefa"]({"titulo": "b"})
+            return "ok", [], fake_usage()
+
+        corpo = self._chat(fake_chat)
+        card = corpo["cards"][0]
+        alvo = [a for a in card["actions"] if a["tipo"] == "desfazer"][0]["alvo"]
+        self.assertEqual([x["entidade"] for x in alvo], ["tarefa", "tarefa"])
+        # depois do card ainda cria outra tarefa - desfazer NAO e "o ultimo"
+        self.conn.execute("INSERT INTO tasks (title) VALUES ('depois')")
+        self.conn.commit()
+        res = self._desfazer(self._token(card))
+        self.assertEqual(res.get_json(), {"ok": True, "desfeitos": 2})
+        titulos = sorted(r[0] for r in self.conn.execute("SELECT title FROM tasks").fetchall())
+        self.assertEqual(titulos, ["antiga, nao pode sumir", "depois"])
+
+    def test_tarefa_recorrente_desfaz_modelo_e_instancias(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_tarefa"]({"titulo": "academia", "recorrencia": "diaria", "hora": "07:00"})
+            return "ok", [], fake_usage()
+
+        corpo = self._chat(fake_chat)
+        self.assertGreaterEqual(self._conta("tasks"), 1)
+        self._desfazer(self._token(corpo["cards"][0]))
+        self.assertEqual(self._conta("tasks"), 0)
+
+    def test_gasto_desfaz_e_devolve_saldo(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "nubank", "conta")
+        db.atualizar_saldo_conta(self.conn, conta_id, 1000.0)
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_gasto"]({"titulo": "mercado", "valor": 150.0, "banco": "nubank"})
+            return "ok", [], fake_usage()
+
+        corpo = self._chat(fake_chat)
+        self._desfazer(self._token(corpo["cards"][0]))
+        self.assertEqual(self._conta("expenses"), 0)
+        saldo = db.buscar_conta_por_nome(self.conn, "nubank")["saldo"]
+        self.assertAlmostEqual(saldo, 1000.0)
+
+    def test_renda_desfaz_e_devolve_saldo(self):
+        conta_id = db.get_or_create_bank_account(self.conn, "inter", "conta")
+        db.atualizar_saldo_conta(self.conn, conta_id, 200.0)
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_renda"]({"valor": 50.0, "categoria": "freela", "banco": "inter"})
+            return "ok", [], fake_usage()
+
+        corpo = self._chat(fake_chat)
+        self._desfazer(self._token(corpo["cards"][0]))
+        self.assertEqual(self._conta("incomes"), 0)
+        self.assertAlmostEqual(db.buscar_conta_por_nome(self.conn, "inter")["saldo"], 200.0)
+
+    def test_lembrete_e_meta(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_lembrete"]({"titulo": "cma", "data": "2026-10-01"})
+            executores["registrar_meta"]({"titulo": "carro", "valor": 1000.0})
+            return "ok", [], fake_usage()
+
+        corpo = self._chat(fake_chat)
+        tipos = {c["type"]: c for c in corpo["cards"]}
+        db.add_to_goal(self.conn, tipos["meta"]["data"]["id"], 100.0)
+        self._desfazer(self._token(tipos["lembrete"]))
+        self.assertEqual(self._conta("lembretes"), 0)
+        self.assertEqual(self._conta("goals"), 1)  # outro card, independente
+        self._desfazer(self._token(tipos["meta"]))
+        self.assertEqual((self._conta("goals"), self._conta("goal_deposits")), (0, 0))
+
+    def test_captura_tambem_tem_desfazer(self):
+        corpo = self._capture({"tipo": "gasto", "titulo": "Uber", "valor": 23.5, "categoria": "transporte"}).get_json()
+        self.assertEqual(self._desfazer(self._token(corpo["cards"][0])).status_code, 200)
+        self.assertEqual(self._conta("expenses"), 0)
+
+    def test_brain_dump_cada_card_independente(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_gasto"]({"titulo": "pao", "valor": 5.0})
+            executores["registrar_tarefa"]({"titulo": "x"})
+            executores["registrar_meta"]({"titulo": "m", "valor": 10.0})
+            return "ok", [], fake_usage()
+
+        corpo = self._chat(fake_chat)
+        tokens = [self._token(c) for c in corpo["cards"] if c["type"] != "resumo_final"]
+        self.assertEqual(len(set(tokens)), 3)
+        self.assertFalse([a for a in corpo["cards"][-1]["actions"] if a["tipo"] == "desfazer"])  # resumo nao desfaz
+        self._desfazer(tokens[1])
+        self.assertEqual((self._conta("expenses"), self._conta("tasks"), self._conta("goals")), (1, 0, 1))
+
+    def test_duas_vezes_e_token_desconhecido(self):
+        corpo = self._capture({"tipo": "tarefa", "titulo": "x"}).get_json()
+        token = self._token(corpo["cards"][0])
+        self.assertEqual(self._desfazer(token).status_code, 200)
+        self.assertEqual(self._desfazer(token).status_code, 409)
+        self.assertEqual(self._desfazer("nao-existe").status_code, 404)
+        self.assertEqual(self._desfazer("x" * 500).status_code, 404)
+
+    def test_item_ja_apagado_a_mao_e_pulado(self):
+        corpo = self._capture({"tipo": "tarefa", "titulo": "x"}).get_json()
+        self.conn.execute("DELETE FROM tasks")
+        self.conn.commit()
+        res = self._desfazer(self._token(corpo["cards"][0]))
+        self.assertEqual(res.get_json(), {"ok": True, "desfeitos": 0})
+
+    def test_historico_marca_card_desfeito(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_tarefa"]({"titulo": "x"})
+            return "ok", [], fake_usage()
+
+        corpo = self._chat(fake_chat)
+        self._desfazer(self._token(corpo["cards"][0]))
+        hist = self.client.get("/api/chat/historico").get_json()
+        self.assertTrue(hist[1]["cards"][0]["desfeito"])
+
+    def test_evento_nao_criado_pelo_painel_e_recusado_sem_apagar_nada(self):
+        tid = self.conn.execute("INSERT INTO tasks (title) VALUES ('junto')").lastrowid
+        self.conn.commit()
+        token = db.criar_acao_desfazer(
+            self.conn, [{"entidade": "tarefa", "id": tid}, {"entidade": "evento", "uid": "de-fora@icloud"}]
+        )
+        res = self._desfazer(token)
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(self._conta("tasks"), 1)  # tudo ou nada
+        self.assertIsNone(db.obter_acao_desfazer(self.conn, token)["desfeito_em"])
+
+    def test_evento_criado_pelo_painel_sem_caldav_ainda_nao_apaga(self):
+        self.conn.execute("CREATE TABLE IF NOT EXISTS eventos_criados (uid TEXT PRIMARY KEY)")
+        self.conn.execute("INSERT INTO eventos_criados (uid) VALUES ('meu@painel')")
+        self.conn.commit()
+        token = db.criar_acao_desfazer(self.conn, [{"entidade": "evento", "uid": "meu@painel"}])
+        self.assertEqual(self._desfazer(token).status_code, 501)
+        self.assertEqual(self._conta("eventos_criados"), 1)
+
+    def test_evento_criado_pelo_painel_com_caldav_apaga(self):
+        self.conn.execute("CREATE TABLE IF NOT EXISTS eventos_criados (uid TEXT PRIMARY KEY)")
+        self.conn.execute("INSERT INTO eventos_criados (uid) VALUES ('meu@painel')")
+        self.conn.commit()
+        token = db.criar_acao_desfazer(self.conn, [{"entidade": "evento", "uid": "meu@painel"}])
+        with patch("caldav_client.apagar_evento_painel", create=True) as apagar:
+            res = self._desfazer(token)
+        self.assertEqual(res.status_code, 200)
+        apagar.assert_called_once_with("meu@painel")
+        self.assertEqual(self._conta("eventos_criados"), 0)
+
+    def test_criar_acao_desfazer_ignora_lixo(self):
+        self.assertIsNone(db.criar_acao_desfazer(self.conn, [{"entidade": "usuario", "id": 1}, "x", {"entidade": "tarefa"}]))
+
+
 if __name__ == "__main__":
     unittest.main()

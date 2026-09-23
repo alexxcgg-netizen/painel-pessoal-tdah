@@ -477,3 +477,26 @@ test("types complexos com data vazia nunca viram excecao", () => {
     assert.doesNotThrow(() => Cards.renderizarCardHTML({ type: t, data: { etapas: "x", sessoes: 5, semana: null } }));
   }
 });
+
+// ---- desfazer + link (US-E5) ----
+
+test("card com desfeito=true (vindo do historico) nasce marcado", () => {
+  const html = Cards.renderizarCardHTML({
+    type: "tarefas_criadas",
+    desfeito: true,
+    data: { tarefas: [{ id: 1, titulo: "x" }] },
+    actions: [{ tipo: "desfazer", token: "t" }],
+  });
+  assert.match(html, /card-contrato-tarefas_criadas card-desfeito"/);
+  assert.match(html, /data-desfeito="1"/);
+});
+
+test("abrir_aba leva aba e destaque do item; sem destaque nao inventa atributo", () => {
+  assert.match(
+    Cards.acaoHTML({ tipo: "abrir_aba", rotulo: "Abrir no extrato", aba: "gastos", destaque: { entidade: "gasto", id: 5 } }),
+    /data-aba="gastos" data-destaque-entidade="gasto" data-destaque-id="5"/
+  );
+  assert.doesNotMatch(Cards.acaoHTML({ tipo: "abrir_aba", aba: "painel" }), /destaque/);
+  assert.equal(Cards.acaoHTML({ tipo: "abrir_aba" }), ""); // sem aba: nada
+  assert.equal(Cards.acaoHTML({ tipo: "desfazer" }), ""); // sem token: nada
+});

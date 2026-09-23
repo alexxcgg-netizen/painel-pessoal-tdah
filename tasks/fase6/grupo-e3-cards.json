@@ -74,8 +74,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "POST /api/desfazer/<token> reverte os ids exatos gravados em acoes_desfazer (tudo ou nada, saldo revertido, 409 se repetido); teste por tipo (tarefa, rotina, gasto, renda, lembrete, meta, captura, brain dump independente, evento recusado/501/ok com mock). Links abrem a aba e destacam o item (data-entidade/data-id). Historico marca card desfeito. Headless 390px conferido.",
       "modelo_planejado": "sonnet"
     }
   ]

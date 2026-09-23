@@ -20,7 +20,7 @@ Código de referência:
 | Montagem dos cards no servidor (builders, mapeamento tool -> card, modo visitante) | `cards.py` |
 | Rota de chat / captura (envelope do contrato) | `app.py` (`chat()`, `_executar_captura`) |
 | Desfazer por token | `app.py` (`POST /api/desfazer/<token>`), tabela `acoes_desfazer` (`db.py`) |
-| Registro `type -> renderizador` + fallback no front | `static/js/cards.js` (`Cards.registrar`) |
+| Registro `type -> renderizador` + fallback no front | `static/js/cards.js` (`Cards.registrar`); renderizadores em `static/js/cards-tipos.js` |
 | Estilo dos cards | `static/css/style.css` (bloco "Cards do contrato") |
 | Testes | `tests/test_cards.py`, `tests/js/cards.test.js` |
 
@@ -44,6 +44,9 @@ Código de referência:
     serve só de chave de DOM, não é id de banco.
   - `data` (objeto, obrigatório): formato específico do `type`.
   - `actions` (lista, obrigatório, pode ser vazia): botões/links do card.
+  - `desfeito` (bool, opcional, **aditivo** - só no `GET /api/chat/historico`):
+    `true` quando o Desfazer daquele card já foi usado; o front mostra o card
+    apagado com "Desfeito".
 - `resumo_texto` (string): a frase curta que acompanha os cards (no chat, a
   resposta da IA; na captura, uma frase gerada no servidor). Aparece como
   bolha de texto acima dos cards.
@@ -115,8 +118,19 @@ Lista de objetos com `tipo` + `rotulo` (texto do botão/link). Tipos:
 - `evento` (agenda, US-E14): o registro guarda `{ "entidade": "evento",
   "uid": "..." }`. Só pode ser desfeito se o `uid` estiver na tabela local
   de eventos criados pelo painel (`eventos_criados`, US-E14) - evento que o
-  painel não criou **nunca** é apagado. Enquanto a US-E14 não ligar o
-  apagar no CalDAV, o desfazer de evento devolve erro claro sem apagar nada.
+  painel não criou **nunca** é apagado (`403`, e nada do token é desfeito:
+  tudo ou nada). Ponto de ligação da US-E14: `caldav_client.apagar_evento_painel(uid)`
+  (levanta exceção se falhar); enquanto essa função não existir, o desfazer
+  de evento registrado devolve `501` sem apagar nada. Quem cria o evento
+  chama `db.criar_acao_desfazer(conn, [{"entidade": "evento", "uid": uid}])`
+  (ou devolve `"_efeito": {"entidade": "evento", "uid": ...}` no executor e
+  registra o builder do card `agenda` em `cards.cards_dos_efeitos`).
+- Ajuste otimista de saldo (gasto/renda com banco citado) é revertido junto
+  (`conta_id` + `delta` gravados no token, nunca vindos do cliente).
+- O link `abrir_aba` rola e destaca `[data-entidade][data-id]` na aba de
+  destino - hoje existe em tarefas (`tarefa`), gastos (`gasto`, `meta`) e
+  painel (`lembrete`). Lista nova que quiser ser destino: pôr os dois
+  atributos no `<li>`.
 
 ## Tipos de card
 
@@ -305,12 +319,14 @@ O card original fica guardado no elemento (`data-card-json`) pra depuração.
    de card"). Só aditivo.
 2. **Servidor**: um builder em `cards.py` (`card_<tipo>(...)` devolvendo
    `novo_card(type, data, actions)`); se ele sai de uma tool do chat,
-   registre em `cards.MONTADORES_POR_ENTIDADE` e faça o executor devolver
+   adicione o ramo da entidade em `cards.cards_dos_efeitos` e faça o executor devolver
    `"_efeito": {"entidade": ..., "id": ...}` (chave com `_` nunca vai pra
    IA - `RegistroExecucao` tira antes). Se tem valor em dinheiro, adicione
-   os campos em `cards.CAMPOS_SENSIVEIS`.
+   os campos em `cards.CAMPOS_SENSIVEIS`. Se o card tem Desfazer de uma
+   entidade nova: acrescente em `db.ENTIDADES_DESFAZIVEIS` e um ramo em
+   `app._desfazer_itens` (sem commit - a rota faz tudo numa transação).
 3. **Front**: `Cards.registrar("<type>", (data, card, ctx) => htmlString)` em
-   `static/js/cards.js`. Todo texto vindo de `data` passa por `Cards.esc`.
+   `static/js/cards-tipos.js`. Todo texto vindo de `data` passa por `Cards.esc`.
    Estilo no bloco "Cards do contrato" do `style.css`, reusando `.card-contrato`
    e os tokens existentes.
 4. **Testes**: builder/mapeamento em `tests/test_cards.py`, renderizador em

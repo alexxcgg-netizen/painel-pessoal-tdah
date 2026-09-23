@@ -258,4 +258,17 @@ db.init_db()
   `habito.semana` é SEMPRE segunda->domingo (7 itens); `projeto_viagem` aceita
   `percentual`/`feitas`/`total`/`hoje_fracao` prontos; `agenda.inicio/fim` são
   `AAAA-MM-DDTHH:MM` local.
+- **Desfazer é por token, nunca "o último"** (US-E5): `cards.montar_resposta(...,
+  criar_token=app._criar_token_desfazer(conn))` grava os ids exatos em
+  `acoes_desfazer`; `POST /api/desfazer/<token>` chama `app._desfazer_itens`
+  (sem commit, tudo ou nada). Entidade nova desfazível = `db.ENTIDADES_DESFAZIVEIS`
+  + ramo em `_desfazer_itens`. Evento só com uid em `eventos_criados` e
+  `caldav_client.apagar_evento_painel` existindo (senão 403/501).
+- **Link de card destaca item por `data-entidade`/`data-id` no `<li>`** - lista
+  nova que queira ser destino precisa desses dois atributos. `showTab` recarrega a
+  lista e troca os `<li>`: por isso `destacarItem` (cards.js) continua procurando
+  ~3s e re-destaca o elemento novo.
+- **`.card-resultado` tem animação com fill-mode `both`** (prende `opacity: 1`):
+  pra apagar um card depois de montado, mude a opacidade dos FILHOS
+  (`.card-desfeito > *`), não do card.
 

@@ -15,8 +15,9 @@
 // um renderizador viram o card fallback "Este trecho nao pode ser exibido.
 // Os dados foram preservados." (o card original fica em data-card-json).
 //
-// Carregado DEPOIS de app.js (usa fmtMoeda/showTab/apiFetch quando existem);
-// em Node so a parte pura e exportada via module.exports.
+// Carregado ANTES de app.js (index.html): fmtMoeda e resolvido na hora da
+// chamada e apiFetch/showTab chegam por Cards.ligar(...), que app.js chama.
+// Em Node so a parte pura e usada (module.exports).
 (function (raiz) {
   "use strict";
 
@@ -252,8 +253,11 @@
       const corpo = entrada.fn(data, card, contexto);
       if (typeof corpo !== "string") return fallbackHTML(card);
       const idAttr = typeof card.id === "string" ? ` data-card-id="${esc(card.id)}"` : "";
+      // `desfeito` (aditivo, vem do historico): o Desfazer ja foi usado.
+      const desfeito = card.desfeito === true ? " card-desfeito" : "";
+      const desfeitoAttr = card.desfeito === true ? ' data-desfeito="1"' : "";
       return (
-        `<article class="card-resultado card-contrato card-contrato-${esc(card.type)}" data-card-type="${esc(card.type)}"${idAttr}>` +
+        `<article class="card-resultado card-contrato card-contrato-${esc(card.type)}${desfeito}" data-card-type="${esc(card.type)}"${idAttr}${desfeitoAttr}>` +
         corpo +
         rodapeHTML(card, entrada.consome) +
         `</article>`
@@ -280,8 +284,22 @@
     grupo.querySelectorAll(".card-contrato").forEach((el, i) => {
       el.style.animationDelay = `${i * 70}ms`;
     });
+    grupo.querySelectorAll('[data-desfeito="1"]').forEach(marcarDesfeito);
     atualizarContagens(grupo);
     return grupo;
+  }
+
+  // Estado "desfeito": o card fica na conversa, apagado, sem acao que mude
+  // dado (so o link pra aba continua).
+  function marcarDesfeito(cardEl) {
+    if (!cardEl) return;
+    cardEl.classList.add("card-desfeito");
+    cardEl.querySelectorAll("input, [data-acao]").forEach((el) => {
+      if (el.dataset.acao !== "abrir_aba") el.disabled = true;
+    });
+    cardEl.querySelectorAll('[data-acao="desfazer"]').forEach((btn) => {
+      btn.innerHTML = `${ICONE_DESFAZER}<span>Desfeito</span>`;
+    });
   }
 
   function atualizarContagens(raizEl) {
@@ -300,19 +318,21 @@
   }
 
   function destacarItem(aba, entidade, id) {
-    // A lista da aba carrega async (showTab dispara o load) - tenta por ~3s.
+    // A lista da aba recarrega async (showTab dispara o load) e troca os <li>
+    // - entao continua olhando por ~3s e destaca de novo se o elemento foi
+    // substituido (senao o destaque ia pro <li> velho que acabou de sumir).
     let tentativas = 0;
+    let ultimo = null;
+    const seletor = `#tab-${CSS.escape(aba)} [data-entidade="${CSS.escape(String(entidade))}"][data-id="${CSS.escape(String(id))}"]`;
     const procurar = () => {
-      const alvo = document.querySelector(
-        `#tab-${CSS.escape(aba)} [data-entidade="${CSS.escape(String(entidade))}"][data-id="${CSS.escape(String(id))}"]`
-      );
-      if (alvo) {
+      const alvo = document.querySelector(seletor);
+      if (alvo && alvo !== ultimo) {
+        ultimo = alvo;
         alvo.scrollIntoView({ block: "center", behavior: "smooth" });
         alvo.classList.remove("item-destacado");
         void alvo.offsetWidth;
         alvo.classList.add("item-destacado");
         setTimeout(() => alvo.classList.remove("item-destacado"), 2200);
-        return;
       }
       if (++tentativas < 15) setTimeout(procurar, 200);
     };
@@ -354,13 +374,7 @@
           btn.disabled = false;
           return;
         }
-        if (cardEl) {
-          cardEl.classList.add("card-desfeito");
-          cardEl.querySelectorAll("input, [data-acao]").forEach((el) => {
-            if (el.dataset.acao !== "abrir_aba") el.disabled = true;
-          });
-        }
-        btn.innerHTML = `${ICONE_DESFAZER}<span>Desfeito</span>`;
+        marcarDesfeito(cardEl);
         if (typeof handlers.aoMudar === "function") handlers.aoMudar();
         return;
       }

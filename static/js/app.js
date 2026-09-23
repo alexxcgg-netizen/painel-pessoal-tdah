@@ -1389,6 +1389,8 @@ async function loadLembretes() {
   lembretes.forEach((l) => {
     const li = document.createElement("li");
     li.className = "item";
+    li.dataset.entidade = "lembrete"; // destino do link de card (Fase 6)
+    li.dataset.id = l.id;
 
     const linha = document.createElement("div");
     linha.className = "item-linha";
@@ -2069,6 +2071,10 @@ function criarTagEsforco(t) {
 function criarItemTarefa(t) {
   const li = document.createElement("li");
   li.className = "item";
+  // data-entidade/data-id: o link "Abrir Tarefas" de um card (Fase 6,
+  // static/js/cards.js) rola ate o item e destaca.
+  li.dataset.entidade = "tarefa";
+  li.dataset.id = t.id;
 
   const linha = document.createElement("div");
   linha.className = "item-linha";
@@ -2305,6 +2311,8 @@ function criarSeletorCategoriaGasto(e, cat, li) {
 function criarItemGasto(e) {
   const li = document.createElement("li");
   li.className = "item" + (e.tipo === "planejado" ? " item-planejado" : "");
+  li.dataset.entidade = "gasto"; // destino do link de card (Fase 6)
+  li.dataset.id = e.id;
 
   const linha = document.createElement("div");
   linha.className = "item-linha";
@@ -2615,6 +2623,8 @@ $("#importar-form").addEventListener("submit", async (e) => {
 function criarItemMeta(meta) {
   const li = document.createElement("li");
   li.className = "item";
+  li.dataset.entidade = "meta"; // destino do link de card (Fase 6)
+  li.dataset.id = meta.id;
 
   const titulo = document.createElement("span");
   titulo.className = "item-titulo";

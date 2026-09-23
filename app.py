@@ -2553,9 +2553,123 @@ def _processar_mensagem_chat(
 
 def _criar_token_desfazer(conn):
     """Fabrica do `criar_token` que cards.montar_resposta usa pra por o botao
-    Desfazer num card (ver docs/CARDS.md, "Desfazer"). None enquanto o
-    desfazer por token nao existir (US-E5) - card sai sem o botao."""
-    return None
+    Desfazer num card (US-E5, docs/CARDS.md "Desfazer"): grava os ids EXATOS
+    do que o card criou em acoes_desfazer e devolve o token. Ajuste otimista
+    de saldo (gasto/renda com banco citado) vira conta_id + delta, pra o
+    desfazer devolver o saldo tambem."""
+
+    def criar(itens: list[dict]) -> str | None:
+        traduzidos = []
+        for ef in itens:
+            item = {"entidade": ef.get("entidade"), "id": ef.get("id"), "uid": ef.get("uid")}
+            saldo = ef.get("saldo")
+            if ef.get("entidade") in ("gasto", "renda") and isinstance(saldo, dict):
+                antes, depois = saldo.get("antes"), saldo.get("depois")
+                conta = buscar_conta_por_nome(conn, saldo.get("banco"))
+                if conta and isinstance(antes, (int, float)) and isinstance(depois, (int, float)):
+                    item["conta_id"] = conta["id"]
+                    item["delta"] = depois - antes
+            traduzidos.append(item)
+        return db.criar_acao_desfazer(conn, traduzidos)
+
+    return criar
+
+
+class _DesfazerRecusado(Exception):
+    def __init__(self, mensagem: str, status: int):
+        super().__init__(mensagem)
+        self.status = status
+
+
+def _verificar_desfazer_evento(conn, uid) -> None:
+    """Regra da US-E14: evento da agenda so se desfaz se o painel o criou
+    (uid registrado em eventos_criados). Evento de fora NUNCA e apagado."""
+    tabela = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'eventos_criados'"
+    ).fetchone()
+    registrado = bool(
+        tabela and isinstance(uid, str) and uid
+        and conn.execute("SELECT 1 FROM eventos_criados WHERE uid = ?", (uid,)).fetchone()
+    )
+    if not registrado:
+        raise _DesfazerRecusado("esse evento nao foi criado pelo painel - nao da pra desfazer por aqui", 403)
+    if not callable(getattr(caldav_client, "apagar_evento_painel", None)):
+        raise _DesfazerRecusado("desfazer evento da agenda ainda nao esta disponivel", 501)
+
+
+def _desfazer_itens(conn, itens: list[dict]) -> int:
+    """Reverte exatamente os itens gravados no token, SEM commit (quem chama
+    faz tudo numa transacao so). Item que ja nao existe e pulado."""
+    for item in itens:
+        if item.get("entidade") == "evento":
+            _verificar_desfazer_evento(conn, item.get("uid"))  # recusa antes de apagar qualquer coisa
+
+    desfeitos = 0
+    for item in itens:
+        entidade, id_ = item.get("entidade"), item.get("id")
+        if entidade == "evento":
+            caldav_client.apagar_evento_painel(item["uid"])
+            conn.execute("DELETE FROM eventos_criados WHERE uid = ?", (item["uid"],))
+            desfeitos += 1
+            continue
+        if not isinstance(id_, int):
+            continue
+        if entidade == "tarefa":
+            # rotina recorrente: o modelo + as instancias materializadas dele
+            ids = [id_] + [
+                r["id"] for r in conn.execute("SELECT id FROM tasks WHERE recorrente_origem_id = ?", (id_,)).fetchall()
+            ]
+            marcadores = ",".join("?" for _ in ids)
+            conn.execute(f"DELETE FROM subtasks WHERE task_id IN ({marcadores})", ids)
+            cur = conn.execute(f"DELETE FROM tasks WHERE id IN ({marcadores})", ids)
+        elif entidade in ("gasto", "renda"):
+            tabela = "expenses" if entidade == "gasto" else "incomes"
+            cur = conn.execute(f"DELETE FROM {tabela} WHERE id = ?", (id_,))
+            if cur.rowcount and isinstance(item.get("conta_id"), int) and isinstance(item.get("delta"), (int, float)):
+                db.reverter_ajuste_saldo(conn, item["conta_id"], item["delta"])
+        elif entidade == "lembrete":
+            cur = conn.execute("DELETE FROM lembretes WHERE id = ?", (id_,))
+        elif entidade == "meta":
+            conn.execute("DELETE FROM goal_deposits WHERE goal_id = ?", (id_,))
+            cur = conn.execute("DELETE FROM goals WHERE id = ?", (id_,))
+        else:
+            continue
+        if cur.rowcount:
+            desfeitos += 1
+    return desfeitos
+
+
+@app.route("/api/desfazer/<token>", methods=["POST"])
+def desfazer_acao(token):
+    """US-E5: botao Desfazer de um card. Reverte EXATAMENTE o que foi criado
+    junto com aquele token (ids gravados no momento da acao) - nunca "o
+    ultimo item". Tudo ou nada numa transacao so."""
+    token = (token or "")[:64]
+    conn = get_db()
+    try:
+        acao = db.obter_acao_desfazer(conn, token)
+        if not acao:
+            return jsonify({"error": "nada pra desfazer com esse codigo"}), 404
+        if acao["desfeito_em"]:
+            return jsonify({"error": "isso ja foi desfeito"}), 409
+        try:
+            desfeitos = _desfazer_itens(conn, acao["itens"])
+        except _DesfazerRecusado as e:
+            conn.rollback()
+            return jsonify({"error": str(e)}), e.status
+        cur = conn.execute(
+            "UPDATE acoes_desfazer SET desfeito_em = datetime('now') WHERE token = ? AND desfeito_em IS NULL", (token,)
+        )
+        if not cur.rowcount:  # dois toques ao mesmo tempo: so um vale
+            conn.rollback()
+            return jsonify({"error": "isso ja foi desfeito"}), 409
+        conn.commit()
+        return jsonify({"ok": True, "desfeitos": desfeitos})
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def _resposta_contrato(corpo: dict) -> dict:
@@ -2640,10 +2754,26 @@ def chat_historico():
     conn.close()
     visitante = _modo_visitante_ativo()
     for m in mensagens:
+        m["cards"] = cards_de_mensagem_chat(m)
+    # US-E5: card cujo Desfazer ja foi usado volta marcado como desfeito
+    # (campo aditivo `desfeito` no card, docs/CARDS.md).
+    tokens = [
+        a.get("token")
+        for m in mensagens
+        for c in m["cards"]
+        for a in (c.get("actions") or [])
+        if isinstance(a, dict) and a.get("tipo") == "desfazer"
+    ]
+    conn = get_db()
+    desfeitos = db.tokens_desfeitos(conn, tokens)
+    conn.close()
+    for m in mensagens:
+        for c in m["cards"]:
+            if any(isinstance(a, dict) and a.get("token") in desfeitos for a in (c.get("actions") or [])):
+                c["desfeito"] = True
         # Fase 6: os cards da resposta ficam gravados junto da mensagem
         # (cards_json, criptografado em repouso como o resto do dado
         # financeiro) - recarregar a pagina nao perde os cards.
-        m["cards"] = cards_de_mensagem_chat(m)
         m.pop("cards_json", None)
         if visitante and m["papel"] == "assistant":
             m["cards"] = cards.mascarar_cards(m["cards"])
