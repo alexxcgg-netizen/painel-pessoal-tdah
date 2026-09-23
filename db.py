@@ -1,4 +1,6 @@
+import json
 import os
+import re
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -536,6 +538,20 @@ def init_db():
             evento TEXT NOT NULL,
             em TEXT NOT NULL
         );
+
+        -- Fase 5 (US-A3): camada robo antes da IA no classificador de intent -
+        -- comando repetido/parecido o suficiente resolve localmente sem gastar
+        -- chamada de API. texto_normalizado e a chave (ver
+        -- aprendizado.normalizar_texto_intent); so aplica com
+        -- vezes_confirmado >= aprendizado.LIMIAR_CONFIRMACOES_PADRAO_INTENT
+        -- (ver aprendizado.padrao_intent_confiavel).
+        CREATE TABLE IF NOT EXISTS padroes_intent_aprendidos (
+            texto_normalizado TEXT PRIMARY KEY,
+            acao TEXT NOT NULL,
+            parametros TEXT NOT NULL DEFAULT '{}',
+            vezes_confirmado INTEGER NOT NULL DEFAULT 1,
+            ultima_vez TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -554,6 +570,10 @@ def init_db():
     _garantir_coluna(conn, "expenses", "tipo", "TEXT NOT NULL DEFAULT 'real'")
     _garantir_coluna(conn, "bank_transactions", "categoria", "TEXT")
     _garantir_coluna(conn, "bank_accounts", "saldo", "REAL")
+    # Fase 5 (US-A5): qual funcionalidade gerou a chamada (chat, captura,
+    # classificador de intent, etc) - existia so model/tokens/custo antes,
+    # sem como separar o gasto por origem no card financeiro.
+    _garantir_coluna(conn, "api_usage", "feature", "TEXT NOT NULL DEFAULT 'outro'")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
@@ -596,6 +616,7 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_responder_respondido_em ON responder(respondido_em);
         CREATE INDEX IF NOT EXISTS idx_app_eventos_em ON app_eventos(em);
         CREATE INDEX IF NOT EXISTS idx_capture_idempotency_criado_em ON capture_idempotency(criado_em);
+        CREATE INDEX IF NOT EXISTS idx_api_usage_created_at ON api_usage(created_at);
         """
     )
     conn.commit()
@@ -883,12 +904,65 @@ def list_goals(conn) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def record_usage(conn, model: str, input_tokens: int, output_tokens: int, cost_usd: float):
+def record_usage(
+    conn, model: str, input_tokens: int, output_tokens: int, cost_usd: float, feature: str = "outro"
+):
     conn.execute(
-        "INSERT INTO api_usage (model, input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?)",
-        (model, input_tokens, output_tokens, cost_usd),
+        "INSERT INTO api_usage (model, input_tokens, output_tokens, cost_usd, feature) VALUES (?, ?, ?, ?, ?)",
+        (model, input_tokens, output_tokens, cost_usd, feature or "outro"),
     )
     conn.commit()
+
+
+def _limite_utc(momento_local: datetime) -> str:
+    """api_usage.created_at e UTC (datetime('now') do SQLite, sem tzinfo) -
+    um limite de periodo calculado em horario local (inicio do mes, N dias
+    atras) precisa virar UTC antes de comparar, senao a virada de mes/dia
+    fica errada em ate ~12h dependendo do fuso."""
+    return momento_local.astimezone(timezone.utc).replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
+
+
+def resumo_custo_api(conn) -> dict:
+    """Resumo do gasto com a API da Anthropic (US-A5) - soma api_usage.cost_usd
+    (USD, mesma unidade ja usada por total_cost_usd) por periodo, pro card
+    financeiro. mes_atual usa o calendario local (dia 1 00:00); ultimos_30_dias
+    e uma janela corrida a partir de agora."""
+    agora_local = datetime.now().astimezone()
+    inicio_mes_local = agora_local.replace(hour=0, minute=0, second=0, microsecond=0, day=1)
+    desde_30_dias_local = agora_local - timedelta(days=30)
+
+    mes_atual = conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM api_usage WHERE created_at >= ?",
+        (_limite_utc(inicio_mes_local),),
+    ).fetchone()["total"]
+    ultimos_30_dias = conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM api_usage WHERE created_at >= ?",
+        (_limite_utc(desde_30_dias_local),),
+    ).fetchone()["total"]
+    por_feature = conn.execute(
+        "SELECT feature, COALESCE(SUM(cost_usd), 0) AS total FROM api_usage "
+        "WHERE created_at >= ? GROUP BY feature ORDER BY total DESC",
+        (_limite_utc(desde_30_dias_local),),
+    ).fetchall()
+
+    teto = obter_teto_mensal_ia(conn)
+    fracao_teto = (mes_atual / teto) if teto else None
+
+    return {
+        "moeda": "USD",
+        "mes_atual_usd": round(mes_atual, 4),
+        "ultimos_30_dias_usd": round(ultimos_30_dias, 4),
+        "ultimos_30_dias_por_feature": [
+            {"feature": r["feature"], "custo_usd": round(r["total"], 4)} for r in por_feature
+        ],
+        # Fase 5 (US-A6): teto None = nunca configurado (sem limite, todos os
+        # campos abaixo ficam None/False). fracao_teto e mes_atual/teto, sem
+        # arredondar pro chamador decidir a casa decimal.
+        "teto_mensal_usd": teto,
+        "fracao_teto": fracao_teto,
+        "teto_perto": fracao_teto is not None and fracao_teto >= 0.8,
+        "teto_estourado": fracao_teto is not None and fracao_teto >= 1.0,
+    }
 
 
 def total_cost_usd(conn) -> float:
@@ -1072,6 +1146,32 @@ def definir_configuracao(conn, chave: str, valor: str):
         (chave, valor),
     )
     conn.commit()
+
+
+CHAVE_TETO_MENSAL_IA = "teto_mensal_ia_usd"
+
+
+def obter_teto_mensal_ia(conn) -> float | None:
+    """Teto mensal de gasto com a API da Anthropic (US-A6), em USD (mesma
+    moeda de api_usage.cost_usd) - None quando o Alex nunca configurou (sem
+    teto nenhum, comportamento igual a antes desta historia)."""
+    valor = obter_configuracao(conn, CHAVE_TETO_MENSAL_IA)
+    if not valor:
+        return None
+    try:
+        teto = float(valor)
+    except (TypeError, ValueError):
+        return None
+    return teto if teto > 0 else None
+
+
+def definir_teto_mensal_ia(conn, teto: float | None) -> None:
+    """teto None ou <= 0 remove o limite (mesmo efeito de nunca ter configurado)."""
+    if teto is None or teto <= 0:
+        conn.execute("DELETE FROM configuracoes WHERE chave = ?", (CHAVE_TETO_MENSAL_IA,))
+        conn.commit()
+        return
+    definir_configuracao(conn, CHAVE_TETO_MENSAL_IA, str(teto))
 
 
 def salvar_mensagem_chat(conn, papel: str, texto: str):
@@ -1516,6 +1616,14 @@ def atualizar_categoria_gasto(conn, expense_id: int, categoria: str) -> bool:
     return cur.rowcount > 0
 
 
+# tipo_certo (correcoes_classificacao, Fase 4) -> acao de intent equivalente
+# (ACOES_INTENT, Fase 5) - so cobre o que tem correspondencia direta hoje;
+# "meta" nao tem acao equivalente na lista fechada do classificador de intent
+# ainda, entao correcao pra "meta" nao gera padrao (fica de fora por
+# interpretacao explicita, nao e um esquecimento).
+_TIPO_CERTO_PARA_ACAO_INTENT = {"tarefa": "registrar_tarefa", "gasto": "registrar_gasto"}
+
+
 def registrar_correcao_classificacao(
     conn,
     texto_original: str,
@@ -1528,13 +1636,28 @@ def registrar_correcao_classificacao(
     categoria de gasto errada) pra aprendizado.correcao_semelhante usar depois
     numa captura nova parecida - mesmo espirito de apelidos_gasto (guardar o
     que o Alex corrigiu, sem IA/rede neural nenhuma aqui), so que aqui o
-    "erro" pode ser o TIPO inteiro da captura, nao so um apelido generico."""
+    "erro" pode ser o TIPO inteiro da captura, nao so um apelido generico.
+
+    Fase 5 (US-A4): a mesma correcao tambem vira um padrao de confianca alta
+    em padroes_intent_aprendidos (via _TIPO_CERTO_PARA_ACAO_INTENT) - o Alex
+    corrigindo manualmente uma vez ja e sinal forte o bastante pra nao exigir
+    repetir o erro LIMIAR_CONFIRMACOES_PADRAO_INTENT vezes (ver
+    aprendizado.confirmar_padrao_intent, mesmo espirito com
+    forcar_confianca_alta=True)."""
     conn.execute(
         "INSERT INTO correcoes_classificacao "
         "(texto_original, tipo_errado, categoria_errada, tipo_certo, categoria_certa) "
         "VALUES (?, ?, ?, ?, ?)",
         (texto_original, tipo_errado, categoria_errada, tipo_certo, categoria_certa),
     )
+    acao_intent = _TIPO_CERTO_PARA_ACAO_INTENT.get(tipo_certo)
+    if acao_intent:
+        normalizado = normalizar_texto_intent(texto_original)
+        if normalizado:
+            parametros = {"categoria": categoria_certa} if categoria_certa else {}
+            upsert_padrao_intent(
+                conn, normalizado, acao_intent, parametros, LIMIAR_CONFIRMACOES_PADRAO_INTENT
+            )
     conn.commit()
 
 
@@ -1545,6 +1668,56 @@ def list_correcoes_classificacao(conn) -> list[dict]:
             "SELECT * FROM correcoes_classificacao ORDER BY criado_em DESC"
         ).fetchall()
     ]
+
+
+# ---- Padrao aprendido de intent (Fase 5, US-A3/US-A4) ---------------------
+# Normalizacao e o limiar moram aqui (nao em aprendizado.py, que importa este
+# modulo) pra registrar_correcao_classificacao poder alimentar o padrao
+# direto, sem import circular. aprendizado.py reexporta os dois pra manter a
+# API publica estavel (normalizar_texto_intent/LIMIAR_CONFIRMACOES_PADRAO_INTENT
+# continuam acessiveis por la tambem) - a decisao de QUANDO confiar num
+# padrao (padrao_intent_confiavel/confirmar_padrao_intent) fica em
+# aprendizado.py, que e quem concentra essa logica no projeto.
+LIMIAR_CONFIRMACOES_PADRAO_INTENT = 3
+
+_PONTUACAO_BORDA_INTENT = " .!?,;:"
+
+
+def normalizar_texto_intent(texto: str) -> str:
+    """minusculo + espacos colapsados + pontuacao solta na borda removida -
+    o suficiente pra "Gastei 50 no mercado" e "gastei 50 no mercado."
+    baterem como o mesmo padrao, sem virar um match semantico."""
+    if not texto or not isinstance(texto, str):
+        return ""
+    normalizado = re.sub(r"\s+", " ", texto.strip().lower())
+    return normalizado.strip(_PONTUACAO_BORDA_INTENT)
+
+
+def buscar_padrao_intent(conn, texto_normalizado: str) -> dict | None:
+    """CRUD puro (sem decisao de confianca - isso e aprendizado.padrao_intent_confiavel)."""
+    row = conn.execute(
+        "SELECT * FROM padroes_intent_aprendidos WHERE texto_normalizado = ?", (texto_normalizado,)
+    ).fetchone()
+    if not row:
+        return None
+    padrao = dict(row)
+    padrao["parametros"] = json.loads(padrao["parametros"])
+    return padrao
+
+
+def upsert_padrao_intent(
+    conn, texto_normalizado: str, acao: str, parametros: dict, vezes_confirmado: int
+) -> None:
+    conn.execute(
+        "INSERT INTO padroes_intent_aprendidos "
+        "(texto_normalizado, acao, parametros, vezes_confirmado, ultima_vez) "
+        "VALUES (?, ?, ?, ?, datetime('now')) "
+        "ON CONFLICT(texto_normalizado) DO UPDATE SET "
+        "acao = excluded.acao, parametros = excluded.parametros, "
+        "vezes_confirmado = excluded.vezes_confirmado, ultima_vez = excluded.ultima_vez",
+        (texto_normalizado, acao, json.dumps(parametros or {}, ensure_ascii=False), vezes_confirmado),
+    )
+    conn.commit()
 
 
 def marcar_ou_criar_feito(

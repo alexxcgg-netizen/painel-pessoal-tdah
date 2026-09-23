@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 from types import SimpleNamespace
@@ -160,6 +161,152 @@ class ExtrairItemCotacaoPdfTestCase(unittest.TestCase):
         ):
             dados, _ = claude_client.extrair_item_cotacao_pdf(b"conteudo")
         self.assertEqual(dados["fornecedor"], "X")
+
+
+class ClassifyIntentTestCase(unittest.TestCase):
+    """US-A2 (Fase 5) - contrato em docs/INTENT.md. Cobre pelo menos 15 frases
+    reais espalhadas pelos tipos de acao fechados, mockando a chamada de API
+    (nunca gasta credito de verdade)."""
+
+    FRASES_POR_ACAO = [
+        # registrar_tarefa
+        ("lembra de ligar pro dentista amanha", "registrar_tarefa", {"titulo": "ligar pro dentista"}, 0.9),
+        ("preciso comprar material de construcao sexta", "registrar_tarefa", {"titulo": "comprar material"}, 0.85),
+        ("marca pra eu levar o carro na revisao", "registrar_tarefa", {"titulo": "revisao do carro"}, 0.88),
+        ("anota que tenho que estudar pra prova", "registrar_tarefa", {"titulo": "estudar pra prova"}, 0.8),
+        # registrar_gasto
+        ("gastei 50 reais no mercado", "registrar_gasto", {"titulo": "mercado", "valor": 50.0}, 0.95),
+        ("paguei 120 de conta de luz", "registrar_gasto", {"titulo": "conta de luz", "valor": 120.0}, 0.92),
+        ("comprei gasolina por 100 reais", "registrar_gasto", {"titulo": "gasolina", "valor": 100.0}, 0.9),
+        # registrar_checkin
+        ("minha energia hoje ta boa", "registrar_checkin", {"campo": "energia", "valor": "bom"}, 0.85),
+        ("dormi mal essa noite", "registrar_checkin", {"campo": "sono", "valor": "ruim"}, 0.82),
+        ("meu humor ta ok hoje", "registrar_checkin", {"campo": "humor", "valor": "ok"}, 0.8),
+        # navegar_tela
+        ("abre os gastos", "navegar_tela", {"tela": "gastos"}, 0.93),
+        ("mostra minhas metas", "navegar_tela", {"tela": "metas"}, 0.9),
+        ("vai pra tela de tarefas", "navegar_tela", {"tela": "tarefas"}, 0.9),
+        # consultar
+        ("quanto eu gastei esse mes", "consultar", {"pergunta": "quanto gastou esse mes"}, 0.88),
+        ("quantas tarefas eu tenho pendente", "consultar", {"pergunta": "tarefas pendentes"}, 0.85),
+        # corrigir_ultimo
+        ("nao, isso e gasto", "corrigir_ultimo", {}, 0.87),
+        ("corrige pra tarefa", "corrigir_ultimo", {}, 0.86),
+    ]
+
+    def test_pelo_menos_15_frases_cobrindo_os_tipos_de_acao(self):
+        self.assertGreaterEqual(len(self.FRASES_POR_ACAO), 15)
+        acoes_cobertas = {acao for _, acao, _, _ in self.FRASES_POR_ACAO}
+        for esperada in (
+            "registrar_tarefa",
+            "registrar_gasto",
+            "registrar_checkin",
+            "navegar_tela",
+            "consultar",
+            "corrigir_ultimo",
+        ):
+            self.assertIn(esperada, acoes_cobertas)
+
+    def test_cada_frase_classifica_na_acao_certa(self):
+        for texto, acao_esperada, parametros, confianca in self.FRASES_POR_ACAO:
+            with self.subTest(texto=texto):
+                dados_json = json.dumps(
+                    {"acao": acao_esperada, "confianca": confianca, "parametros": parametros}
+                )
+                with patch.object(
+                    claude_client.client.messages,
+                    "create",
+                    return_value=_resp([_text_block(dados_json)], model=claude_client.HAIKU),
+                ):
+                    resultado, usage = claude_client.classify_intent(texto)
+                self.assertEqual(resultado["acao"], acao_esperada)
+                self.assertEqual(resultado["parametros"], parametros)
+                self.assertEqual(usage["model"], claude_client.HAIKU)
+
+    def test_confianca_baixa_precisa_confirmacao_true(self):
+        dados_json = json.dumps({"acao": "registrar_tarefa", "confianca": 0.3, "parametros": {}})
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)], model=claude_client.HAIKU),
+        ):
+            resultado, _usage = claude_client.classify_intent("texto ambiguo qualquer")
+        self.assertTrue(resultado["precisa_confirmacao"])
+
+    def test_confianca_alta_nao_precisa_confirmacao(self):
+        dados_json = json.dumps({"acao": "registrar_gasto", "confianca": 0.95, "parametros": {}})
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)], model=claude_client.HAIKU),
+        ):
+            resultado, _usage = claude_client.classify_intent("gastei 30 no lanche")
+        self.assertFalse(resultado["precisa_confirmacao"])
+
+    def test_acao_fora_da_lista_fechada_vira_desconhecido(self):
+        dados_json = json.dumps({"acao": "fazer_cafe", "confianca": 0.9, "parametros": {}})
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)], model=claude_client.HAIKU),
+        ):
+            resultado, _usage = claude_client.classify_intent("texto qualquer")
+        self.assertEqual(resultado["acao"], "desconhecido")
+
+    def test_confianca_fora_do_intervalo_e_limitada(self):
+        dados_json = json.dumps({"acao": "consultar", "confianca": 5, "parametros": {}})
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)], model=claude_client.HAIKU),
+        ):
+            resultado, _usage = claude_client.classify_intent("quanto eu gastei")
+        self.assertEqual(resultado["confianca"], 1.0)
+
+    def test_confianca_ausente_ou_tipo_errado_vira_zero(self):
+        dados_json = json.dumps({"acao": "consultar", "parametros": {}})
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)], model=claude_client.HAIKU),
+        ):
+            resultado, _usage = claude_client.classify_intent("quanto eu gastei")
+        self.assertEqual(resultado["confianca"], 0.0)
+        self.assertTrue(resultado["precisa_confirmacao"])
+
+    def test_parametros_fora_do_tipo_dict_vira_vazio(self):
+        dados_json = json.dumps({"acao": "consultar", "confianca": 0.9, "parametros": "nao e dict"})
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)], model=claude_client.HAIKU),
+        ):
+            resultado, _usage = claude_client.classify_intent("quanto eu gastei")
+        self.assertEqual(resultado["parametros"], {})
+
+    def test_usa_haiku_por_ser_mais_barato(self):
+        dados_json = json.dumps({"acao": "desconhecido", "confianca": 0.0, "parametros": {}})
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block(dados_json)], model=claude_client.HAIKU),
+        ) as mock_create:
+            claude_client.classify_intent("qualquer coisa")
+        self.assertEqual(mock_create.call_args.kwargs["model"], claude_client.HAIKU)
+
+    def test_acoes_intent_e_a_lista_fechada_do_contrato(self):
+        self.assertEqual(
+            claude_client.ACOES_INTENT,
+            (
+                "registrar_tarefa",
+                "registrar_gasto",
+                "registrar_checkin",
+                "navegar_tela",
+                "consultar",
+                "corrigir_ultimo",
+                "desconhecido",
+            ),
+        )
 
 
 if __name__ == "__main__":

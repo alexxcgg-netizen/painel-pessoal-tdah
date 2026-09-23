@@ -1521,3 +1521,91 @@ def resumir_link(titulo: str | None, texto: str) -> tuple[str, dict]:
         messages=[{"role": "user", "content": RESUMO_LINK_PROMPT.format(titulo=titulo or "sem titulo", texto=texto)}],
     )
     return response.content[0].text.strip(), _usage(response)
+
+
+# ---- Classificador de intent (Fase 5, US-A2 - contrato em docs/INTENT.md) --
+
+# Lista fechada de acoes - contrato estavel com quem consome /api/intent/classificar
+# (Grupo B, navegacao por voz). So pode crescer (adicionar valor novo), nunca
+# renomear/remover um existente.
+ACOES_INTENT = (
+    "registrar_tarefa",
+    "registrar_gasto",
+    "registrar_checkin",
+    "navegar_tela",
+    "consultar",
+    "corrigir_ultimo",
+    "desconhecido",
+)
+
+# Abaixo disso, precisa_confirmacao=True em vez de deixar quem chamou executar
+# direto - ver docs/INTENT.md.
+CONFIANCA_MINIMA_INTENT = 0.6
+
+INTENT_PROMPT = """Hoje e {hoje}. Classifique o comando de voz/texto do usuario numa das acoes
+fechadas abaixo e extraia os parametros relevantes.
+
+Acoes possiveis:
+- registrar_tarefa: comando que descreve algo a fazer (ex: "lembra de ligar pro dentista").
+- registrar_gasto: comando que descreve um gasto/despesa (ex: "gastei 50 reais no mercado").
+- registrar_checkin: comando de check-in do dia - energia, sono ou humor (ex: "minha energia hoje ta boa").
+- navegar_tela: pedido pra ir a uma tela/aba do painel (ex: "abre os gastos", "mostra minhas metas").
+- consultar: pergunta sobre dado que ja existe, sem criar nada novo (ex: "quanto eu gastei esse mes").
+- corrigir_ultimo: correcao do ultimo item capturado/classificado (ex: "nao, isso e gasto", "corrige pra tarefa").
+- desconhecido: nao da pra classificar com confianca em nenhuma acao acima.
+
+{contexto_correcao}
+
+Responda SO com JSON, sem markdown, no formato:
+{{"acao": "uma das acoes acima", "confianca": numero de 0.0 a 1.0, "parametros": {{}}}}
+
+"confianca" reflete o quanto voce tem certeza da acao escolhida - use um numero baixo (abaixo de
+0.6) quando o texto for ambiguo ou puder ser mais de uma acao. "parametros" e um objeto com os
+campos relevantes extraidos pra essa acao (pode ficar vazio {{}} se nao houver nada especifico a
+extrair) - por exemplo, pra registrar_tarefa/registrar_gasto pode conter "titulo"/"valor"/
+"categoria"; pra navegar_tela pode conter "tela"; pra consultar pode conter "pergunta".
+
+Texto do usuario: "{texto}\""""
+
+
+def classify_intent(texto: str, contexto_correcao: str | None = None) -> tuple[dict, dict]:
+    """Classifica um comando de voz/texto numa das ACOES_INTENT - contrato
+    descrito em docs/INTENT.md. `contexto_correcao` (opcional) segue o mesmo
+    espirito de classify_capture: uma correcao parecida que o Alex ja fez
+    antes vira contexto extra no prompt, a decisao continua sendo da IA."""
+    response = client.messages.create(
+        model=HAIKU,
+        max_tokens=200,
+        messages=[
+            {
+                "role": "user",
+                "content": INTENT_PROMPT.format(
+                    texto=texto,
+                    hoje=date.today().isoformat(),
+                    contexto_correcao=contexto_correcao or "nenhuma correcao parecida no historico",
+                ),
+            }
+        ],
+    )
+    parsed = _extract_json(response.content[0].text)
+
+    acao = parsed.get("acao")
+    if acao not in ACOES_INTENT:
+        acao = "desconhecido"
+
+    confianca = parsed.get("confianca")
+    if not isinstance(confianca, (int, float)) or isinstance(confianca, bool):
+        confianca = 0.0
+    confianca = max(0.0, min(1.0, float(confianca)))
+
+    parametros = parsed.get("parametros")
+    if not isinstance(parametros, dict):
+        parametros = {}
+
+    resultado = {
+        "acao": acao,
+        "confianca": confianca,
+        "parametros": parametros,
+        "precisa_confirmacao": confianca < CONFIANCA_MINIMA_INTENT,
+    }
+    return resultado, _usage(response)

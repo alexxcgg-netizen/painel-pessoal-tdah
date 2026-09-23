@@ -1,7 +1,7 @@
 import os
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
@@ -254,6 +254,69 @@ class NotasTestCase(_BancoIsoladoTestCase):
         nota_id = db.create_nota(self.conn, "Descartavel", "sem importancia")
         db.apagar_nota(self.conn, nota_id)
         self.assertEqual(db.list_notas(self.conn), [])
+
+
+class ResumoCustoApiTestCase(_BancoIsoladoTestCase):
+    """US-A5 (Fase 5): gasto com a API da Anthropic (mes atual + ultimos 30
+    dias), agrupado por feature - card financeiro."""
+
+    def _inserir_uso(self, dias_atras: float, custo: float, feature: str = "chat"):
+        criado_em = (
+            datetime.now(timezone.utc) - timedelta(days=dias_atras)
+        ).replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
+        self.conn.execute(
+            "INSERT INTO api_usage (model, input_tokens, output_tokens, cost_usd, feature, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("claude-haiku-4-5-20251001", 100, 20, custo, feature, criado_em),
+        )
+        self.conn.commit()
+
+    def test_record_usage_grava_feature(self):
+        db.record_usage(self.conn, "claude-sonnet-5", 100, 20, 0.01, feature="intent")
+        row = self.conn.execute("SELECT feature FROM api_usage").fetchone()
+        self.assertEqual(row["feature"], "intent")
+
+    def test_record_usage_sem_feature_usa_outro(self):
+        db.record_usage(self.conn, "claude-sonnet-5", 100, 20, 0.01)
+        row = self.conn.execute("SELECT feature FROM api_usage").fetchone()
+        self.assertEqual(row["feature"], "outro")
+
+    def test_sem_dados_tudo_zero(self):
+        resumo = db.resumo_custo_api(self.conn)
+        self.assertEqual(resumo["mes_atual_usd"], 0)
+        self.assertEqual(resumo["ultimos_30_dias_usd"], 0)
+        self.assertEqual(resumo["ultimos_30_dias_por_feature"], [])
+        self.assertEqual(resumo["moeda"], "USD")
+
+    def test_soma_apenas_ultimos_30_dias(self):
+        self._inserir_uso(dias_atras=5, custo=1.0)
+        self._inserir_uso(dias_atras=29, custo=2.0)
+        self._inserir_uso(dias_atras=40, custo=100.0)  # fora da janela
+        resumo = db.resumo_custo_api(self.conn)
+        self.assertEqual(resumo["ultimos_30_dias_usd"], 3.0)
+
+    def test_agrupa_por_feature_nos_ultimos_30_dias(self):
+        self._inserir_uso(dias_atras=1, custo=1.5, feature="chat")
+        self._inserir_uso(dias_atras=2, custo=0.5, feature="chat")
+        self._inserir_uso(dias_atras=1, custo=2.0, feature="intent")
+        resumo = db.resumo_custo_api(self.conn)
+        por_feature = {p["feature"]: p["custo_usd"] for p in resumo["ultimos_30_dias_por_feature"]}
+        self.assertEqual(por_feature["chat"], 2.0)
+        self.assertEqual(por_feature["intent"], 2.0)
+
+    def test_mes_atual_exclui_uso_do_mes_passado(self):
+        # linha de "ha muito tempo" (fora do mes calendario atual, mas ainda
+        # pode estar ou nao dentro dos ultimos 30 dias dependendo do dia -
+        # entao usamos uma bem antiga pra garantir que caia fora dos dois)
+        self._inserir_uso(dias_atras=90, custo=50.0)
+        self._inserir_uso(dias_atras=0, custo=3.0)
+        resumo = db.resumo_custo_api(self.conn)
+        self.assertEqual(resumo["mes_atual_usd"], 3.0)
+
+    def test_arredonda_pra_4_casas(self):
+        self._inserir_uso(dias_atras=0, custo=0.000123456)
+        resumo = db.resumo_custo_api(self.conn)
+        self.assertEqual(resumo["ultimos_30_dias_usd"], round(0.000123456, 4))
 
 
 if __name__ == "__main__":

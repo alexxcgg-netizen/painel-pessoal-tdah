@@ -403,6 +403,65 @@ def media_checkin_por_faixa_sono(conn, campo: str, minimo_amostras: int = 3) -> 
     return {f: soma[f] / total[f] for f in total if total[f] >= minimo_amostras}
 
 
+# ---- Padrao aprendido de intent (Fase 5, US-A3/US-A4) ---------------------
+# Camada "robo" antes da IA no classificador de intent (US-A2): comando
+# repetido/parecido o suficiente resolve localmente, sem gastar chamada de
+# API. Mesmo principio do resto do modulo: estatistica pura de repeticao
+# (nao semantica - texto diferente nunca bate), e nunca comunica ao usuario
+# que "aprendeu" algo - o efeito e so a IA nao ser chamada de novo.
+#
+# normalizar_texto_intent/LIMIAR_CONFIRMACOES_PADRAO_INTENT moram de verdade
+# em db.py (db.registrar_correcao_classificacao, US-A4, precisa deles sem
+# importar este modulo - import circular). Reexportados aqui pra quem ja usa
+# aprendizado.* continuar funcionando igual.
+normalizar_texto_intent = db.normalizar_texto_intent
+LIMIAR_CONFIRMACOES_PADRAO_INTENT = db.LIMIAR_CONFIRMACOES_PADRAO_INTENT
+
+# Confianca fixa devolvida quando um padrao aprendido resolve localmente -
+# ele so chega aqui depois de LIMIAR_CONFIRMACOES_PADRAO_INTENT confirmacoes
+# reais (da IA ou de uma correcao manual), entao a confianca e alta por
+# definicao; nunca precisa_confirmacao nesse caminho.
+CONFIANCA_PADRAO_INTENT = 0.95
+
+
+def padrao_intent_confiavel(conn, texto: str) -> dict | None:
+    """Devolve o padrao aprendido pra esse texto SE ja tiver confirmacoes
+    suficientes (LIMIAR_CONFIRMACOES_PADRAO_INTENT) - None no caso mais
+    comum (primeira vez, ou ainda nao confirmado o bastante), sinalizando
+    pro chamador (app.py) cair pra API."""
+    normalizado = normalizar_texto_intent(texto)
+    if not normalizado:
+        return None
+    padrao = db.buscar_padrao_intent(conn, normalizado)
+    if not padrao or padrao["vezes_confirmado"] < LIMIAR_CONFIRMACOES_PADRAO_INTENT:
+        return None
+    return padrao
+
+
+def confirmar_padrao_intent(
+    conn, texto: str, acao: str, parametros: dict, forcar_confianca_alta: bool = False
+) -> None:
+    """Registra silenciosamente que esse texto (normalizado) resultou nessa
+    acao - repetir o mesmo par (texto, acao) LIMIAR_CONFIRMACOES_PADRAO_INTENT
+    vezes destrava o atalho local (padrao_intent_confiavel). Uma acao
+    diferente da ja registrada reinicia a contagem (autocorretivo: nao fica
+    preso reforcando um padrao que mudou). `forcar_confianca_alta` pula
+    direto pro limiar - usado pela correcao manual (US-A4): o Alex corrigindo
+    uma vez ja deve valer como sinal forte, sem exigir repetir o erro
+    LIMIAR_CONFIRMACOES_PADRAO_INTENT vezes."""
+    normalizado = normalizar_texto_intent(texto)
+    if not normalizado:
+        return
+    existente = db.buscar_padrao_intent(conn, normalizado)
+    if forcar_confianca_alta:
+        vezes = LIMIAR_CONFIRMACOES_PADRAO_INTENT
+    elif existente and existente["acao"] == acao:
+        vezes = existente["vezes_confirmado"] + 1
+    else:
+        vezes = 1
+    db.upsert_padrao_intent(conn, normalizado, acao, parametros, vezes)
+
+
 def dica_sono_humor(conn, minimo_amostras: int = 3, diferenca_minima: float = 0.5) -> str | None:
     """Frase so quando a diferenca entre a melhor e a pior faixa de sono for
     real (meio ponto na escala de 1 a 3) - senao e ruido."""

@@ -84,6 +84,7 @@ from db import (
     definir_apelido_gasto,
     definir_configuracao,
     definir_orcamento,
+    definir_teto_mensal_ia,
     delete_aprender,
     delete_compra,
     delete_conta_pessoal,
@@ -177,6 +178,7 @@ from db import (
     resolver_espera,
     responder_assinatura,
     respostas_assinaturas,
+    resumo_custo_api,
     rotina_marcadas,
     salvar_checkin,
     salvar_essencial,
@@ -215,8 +217,10 @@ CLAUDE_ERROR_MSG = "Erro ao falar com a IA. Tenta de novo em instantes."
 CLAUDE_FORMAT_ERROR_MSG = "A IA respondeu em um formato inesperado. Tenta de novo."
 
 
-def _log_usage(conn, usage: dict):
-    record_usage(conn, usage["model"], usage["input_tokens"], usage["output_tokens"], usage["cost_usd"])
+def _log_usage(conn, usage: dict, feature: str = "outro"):
+    record_usage(
+        conn, usage["model"], usage["input_tokens"], usage["output_tokens"], usage["cost_usd"], feature
+    )
 
 
 def _marcar_atividade(conn):
@@ -482,7 +486,7 @@ def _executar_captura(text: str, clarificacao: str, client_id: str = ""):
         return error
     parsed, usage = result
 
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "captura")
 
     # Se a IA ainda ficou em duvida, so pede esclarecimento uma vez (quando a
     # clarificacao ja foi enviada, seguimos com o melhor palpite mesmo assim).
@@ -529,6 +533,70 @@ def capture():
     if not text:
         return jsonify({"error": "texto vazio"}), 400
     return _executar_captura(text, clarificacao, client_id)
+
+
+# Lista fechada de acoes do classificador de intent (Fase 5, ver docs/INTENT.md).
+# Contrato estavel: um valor novo so pode ser ADICIONADO aqui, nunca renomeado/removido,
+# senao quebra quem ja integrou contra o formato (Grupo B - navegacao por voz). Fonte
+# unica: claude_client.ACOES_INTENT (US-A2) - so um alias aqui pra nao quebrar quem ja
+# importava app.ACOES_INTENT (ex: testes da US-A1).
+ACOES_INTENT = claude_client.ACOES_INTENT
+
+
+@app.route("/api/intent/classificar", methods=["POST"])
+def intent_classificar():
+    """Classifica um comando de voz/texto numa acao (contrato em
+    docs/INTENT.md). Antes de chamar a IA (US-A2, Haiku), tenta resolver
+    localmente por padrao aprendido (US-A3, aprendizado.padrao_intent_confiavel)
+    - so cai pra API se nao achar um padrao confiavel o bastante. Se o teto
+    mensal de gasto com IA (US-A6, db.obter_teto_mensal_ia) ja estourou, NAO
+    cai pra API mesmo sem padrao - fica so no que o padrao aprendido
+    resolver, ate o mes virar (documentado no card financeiro, /api/ia/custo)."""
+    body = _corpo_json()
+    texto = _texto_seguro(body.get("texto"))
+    if not texto:
+        return jsonify({"error": "texto vazio"}), 400
+
+    conn = get_db()
+
+    padrao = aprendizado.padrao_intent_confiavel(conn, texto)
+    if padrao:
+        conn.close()
+        return jsonify(
+            {
+                "acao": padrao["acao"],
+                "confianca": aprendizado.CONFIANCA_PADRAO_INTENT,
+                "parametros": padrao["parametros"],
+                "precisa_confirmacao": False,
+            }
+        )
+
+    if resumo_custo_api(conn)["teto_estourado"]:
+        conn.close()
+        return jsonify(
+            {
+                "acao": "desconhecido",
+                "confianca": 0.0,
+                "parametros": {},
+                "precisa_confirmacao": True,
+                "teto_ia_estourado": True,
+            }
+        )
+
+    result, error = _call_claude(claude_client.classify_intent, texto)
+    if error:
+        conn.close()
+        return error
+    resultado, usage = result
+
+    _log_usage(conn, usage, "intent")
+    # So reforca o padrao com classificacoes em que a propria IA confiou -
+    # nao vale a pena aprender de algo que ja veio com precisa_confirmacao.
+    if not resultado["precisa_confirmacao"]:
+        aprendizado.confirmar_padrao_intent(conn, texto, resultado["acao"], resultado["parametros"])
+    conn.commit()
+    conn.close()
+    return jsonify(resultado)
 
 
 @app.route("/api/tasks", methods=["GET"])
@@ -589,7 +657,7 @@ def breakdown_task(task_id):
         return error
     steps, usage = result
 
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "quebra_tarefa")
     for i, step in enumerate(steps):
         conn.execute(
             "INSERT INTO subtasks (task_id, title, position) VALUES (?, ?, ?)",
@@ -1178,6 +1246,13 @@ def _id_estavel_cobranca_generica(descricao_normalizada: str, valor: float) -> i
     return int.from_bytes(digest, "big") % (2**62)
 
 
+def _id_estavel_teto_ia(nivel: str, ano_mes: str) -> int:
+    """Mesma ideia de _id_estavel_orcamento (US-A6) - uma vez por nivel+mes."""
+    chave = f"teto_ia|{nivel}|{ano_mes}"
+    digest = hashlib.sha1(chave.encode("utf-8")).digest()[:8]
+    return int.from_bytes(digest, "big") % (2**62)
+
+
 def _construtora_contexto_contas() -> str | None:
     """Frase factual sobre a proxima conta a pagar da construtora (vencendo ou ja
     vencida) pro resumo do dia / chat - so numeros que ja vieram prontos da API,
@@ -1380,7 +1455,7 @@ def summary_today():
         return error
     text, usage = result
 
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "resumo_dia")
     conn.close()
     return jsonify(
         {
@@ -1472,7 +1547,7 @@ def plano_do_dia():
         return error
     texto, usage = result
 
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "plano_dia")
     _marcar_atividade(conn)
     conn.commit()
     conn.close()
@@ -1663,7 +1738,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         plano_texto, usage_plano = claude_client.plano_do_dia(
             [r["title"] for r in pendentes], eventos, memorias_texto
         )
-        _log_usage(conn, usage_plano)
+        _log_usage(conn, usage_plano, "plano_dia")
         return {"plano": plano_texto}
 
     def exec_registrar_lembrete(entrada):
@@ -2068,7 +2143,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
     except (ValueError, KeyError):
         return None, [], CLAUDE_FORMAT_ERROR_MSG
 
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "chat")
     salvar_mensagem_chat(conn, "user", texto)
     salvar_mensagem_chat(conn, "assistant", resposta)
     _marcar_atividade(conn)
@@ -2659,6 +2734,16 @@ def verificar_e_notificar():
         if not ja_notificado_alguma_vez(conn, "orcamento", ref_id):
             titulo = "Orcamento estourado" if nivel == "estourado" else "Orcamento quase no limite"
             avisos.append(("orcamento", ref_id, titulo, msg))
+
+    # Teto mensal de gasto com a API da IA (US-A6) - uma vez por nivel+mes,
+    # mesma ideia do orcamento por categoria acima.
+    teto_ia_aviso = notificacoes.teto_ia_perto_ou_estourado(conn)
+    if teto_ia_aviso:
+        nivel_ia, msg_ia = teto_ia_aviso
+        ref_id = _id_estavel_teto_ia(nivel_ia, ano_mes_atual)
+        if not ja_notificado_alguma_vez(conn, "teto_ia", ref_id):
+            titulo_ia = "Teto de IA estourado" if nivel_ia == "estourado" else "Teto de IA quase no limite"
+            avisos.append(("teto_ia", ref_id, titulo_ia, msg_ia))
 
     # Cobranca generica (ex: "apple.com/bill") sem apelido ainda - pergunta
     # uma vez so, nunca todo dia enquanto o Alex nao responder qual e.
@@ -3539,7 +3624,7 @@ def _gerar_essencial(conn, hoje: date) -> list[tuple[int, str | None]]:
     resultado, erro = _call_claude(claude_client.escolher_essencial, candidatas)
     if not erro:
         itens, usage = resultado
-        _log_usage(conn, usage)
+        _log_usage(conn, usage, "essencial_dia")
         for item in itens if isinstance(itens, list) else []:
             if not isinstance(item, dict) or item.get("id") not in ids_validos:
                 continue
@@ -3664,7 +3749,7 @@ def requebrar_task(task_id):
     if not passos:
         conn.close()
         return jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "requebrar_tarefa")
     conn.execute("DELETE FROM subtasks WHERE task_id = ? AND completed_at IS NULL", (task_id,))
     inicio = max((s["position"] for s in subtasks if s["completed_at"]), default=-1) + 1
     for i, passo in enumerate(passos):
@@ -3949,7 +4034,7 @@ def decisao():
     if not isinstance(analise, dict):
         conn.close()
         return jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "decisao")
     decisao_id = create_decisao(conn, pergunta, json.dumps(analise, ensure_ascii=False))
     conn.close()
     return jsonify({"id": decisao_id, "pergunta": pergunta, "analise": analise})
@@ -4137,7 +4222,7 @@ def gerar_mala_rota(viagem_id):
     if not itens:
         conn.close()
         return jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "mala_viagem")
     substituir_itens_viagem(conn, viagem_id, itens)
     resultado = _viagem_detalhada(conn, dict(registro), date.today())
     conn.close()
@@ -4355,7 +4440,7 @@ def mensagem_dificil():
     if not isinstance(versoes, dict) or not all(isinstance(versoes.get(k), str) for k in ("direta", "gentil")):
         conn.close()
         return jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "mensagem_dificil")
     conn.close()
     return jsonify({"direta": versoes["direta"], "gentil": versoes["gentil"]})
 
@@ -4527,7 +4612,7 @@ def _salvar_link(conn, url) -> dict:
             resultado, erro = _call_claude(claude_client.resumir_link, titulo, pagina["texto"])
             if not erro and isinstance(resultado[0], str):
                 resumo = resultado[0][:2000]
-                _log_usage(conn, resultado[1])
+                _log_usage(conn, resultado[1], "resumo_link")
     except (requests.RequestException, OSError, ValueError, LookupError):
         # LinkInvalido e ValueError; OSError cobre socket/SSL fora do requests
         aviso = "Nao consegui ler a pagina agora - o link ficou salvo."
@@ -4731,6 +4816,35 @@ def uso_total():
     total = total_cost_usd(conn)
     conn.close()
     return jsonify({"custo_usd": round(total, 4)})
+
+
+@app.route("/api/ia/custo", methods=["GET"])
+def ia_custo():
+    """Resumo do gasto com a API da Anthropic pro card financeiro (US-A5) -
+    mes atual e ultimos 30 dias, mais teto/fracao/estourado (US-A6). Ver
+    db.resumo_custo_api."""
+    conn = get_db()
+    resumo = resumo_custo_api(conn)
+    conn.close()
+    return jsonify(resumo)
+
+
+@app.route("/api/ia/teto", methods=["POST"])
+def ia_definir_teto():
+    """Define (ou remove, com null/0) o teto mensal de gasto com IA (US-A6) -
+    editavel via UI no card financeiro."""
+    body = _corpo_json()
+    teto = body.get("teto_mensal_usd")
+    if teto is not None:
+        if isinstance(teto, bool) or not isinstance(teto, (int, float)) or not math.isfinite(teto):
+            return jsonify({"error": "teto_mensal_usd precisa ser um numero"}), 400
+        if teto < 0:
+            return jsonify({"error": "teto_mensal_usd nao pode ser negativo"}), 400
+    conn = get_db()
+    definir_teto_mensal_ia(conn, teto)
+    resumo = resumo_custo_api(conn)
+    conn.close()
+    return jsonify(resumo)
 
 
 def _categorizar_transacoes_importadas(conn, transacoes: list[dict]) -> list[dict]:
@@ -5067,7 +5181,7 @@ def adicionar_item_cotacao_pdf(cotacao_id):
         return error
     dados, usage = result
 
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "cotacao_pdf")
     item_id = criar_item_cotacao(
         conn,
         cotacao_id,
@@ -5149,7 +5263,7 @@ def atalho_cotacao_pdf():
     dados, usage = result
 
     conn = get_db()
-    _log_usage(conn, usage)
+    _log_usage(conn, usage, "cotacao_pdf")
     cotacao_id = _resolver_cotacao_por_titulo(conn, titulo_cotacao)
     item_id = criar_item_cotacao(
         conn,

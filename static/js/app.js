@@ -90,6 +90,11 @@ const tocarSomConcluido = () => tocarTom([659, 880, 1109], 260, 0.08);
 const fmtMoeda = (valor) =>
   Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+// api_usage.cost_usd (db.py) e sempre USD, nunca convertido pra BRL - fmtMoeda
+// formataria como R$ por engano (moeda errada, nao so casas decimais).
+const fmtUSD = (valor) =>
+  Number(valor).toLocaleString("en-US", { style: "currency", currency: "USD" });
+
 const fmtHoras = (h) =>
   `${Number(h).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}h`;
 
@@ -1543,7 +1548,7 @@ $("#espera-form").addEventListener("submit", async (e) => {
 async function loadUso() {
   const data = await apiFetch("/api/uso/total");
   if (!data) return;
-  $("#uso-custo").textContent = `gasto com IA ate agora: ${fmtMoeda(data.custo_usd)}`;
+  $("#uso-custo").textContent = `gasto com IA ate agora: ${fmtUSD(data.custo_usd)}`;
 }
 
 function criarItemTarefa(t) {
@@ -1866,7 +1871,56 @@ async function loadExpenses() {
   }
 
   loadResumoSemanal();
+  loadCustoIA();
 }
+
+function preencherCustoIA(data) {
+  if (!data) return;
+  $("#custo-ia-box").hidden = false;
+  $("#custo-ia-mes").textContent = `${fmtUSD(data.mes_atual_usd)} esse mes`;
+  $("#custo-ia-30dias").textContent = `Ultimos 30 dias: ${fmtUSD(data.ultimos_30_dias_usd)}.`;
+
+  const inputTeto = $("#custo-ia-teto-input");
+  if (document.activeElement !== inputTeto) {
+    inputTeto.value = data.teto_mensal_usd ?? "";
+  }
+
+  const aviso = $("#custo-ia-teto-aviso");
+  if (data.teto_estourado) {
+    aviso.textContent =
+      "Teto estourado esse mes - o classificador de intent (navegacao por voz) vai preferir " +
+      "resolver por padrao ja aprendido em vez de chamar a IA, ate o mes virar.";
+    aviso.hidden = false;
+  } else if (data.teto_perto) {
+    aviso.textContent = `Perto do teto mensal (ja usou ${Math.round(data.fracao_teto * 100)}%).`;
+    aviso.hidden = false;
+  } else {
+    aviso.hidden = true;
+  }
+}
+
+async function loadCustoIA() {
+  preencherCustoIA(await apiFetch("/api/ia/custo"));
+}
+
+$("#custo-ia-teto-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("#custo-ia-teto-input");
+  const btn = $("#custo-ia-teto-btn");
+  const bruto = input.value.trim();
+  const teto_mensal_usd = bruto === "" ? null : Number(bruto);
+
+  setBotaoCarregando(btn, true, "salvando...");
+  const data = await apiFetch("/api/ia/teto", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ teto_mensal_usd }),
+  });
+  setBotaoCarregando(btn, false, "Salvar");
+  if (!data) return;
+  preencherCustoIA(data);
+  pulsarSucesso(input);
+});
 
 async function loadResumoSemanal() {
   const data = await apiFetch("/api/gastos/resumo-semanal");
