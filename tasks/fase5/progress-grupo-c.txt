@@ -41,6 +41,23 @@ auth.verificar_pin. Helper app._modo_visitante_ativo() generico pronto pra US-C2
 novo no cabecalho + painel de PIN pra desativar. Testes em tests/test_modo_visitante.py (9
 casos, 100% ok, inclui isolamento por sessao/cliente). Seguindo direto pra US-C20
 (aplicacao nas 3 telas), que e sequencial com esta.
+[c3] US-C20 (Modo visitante - aplicado nas telas) - passes=true. Gate no SERVIDOR (nunca so
+CSS) em: financeiro (/api/expenses, /api/incomes, /api/orcamentos, /api/gastos-fixos,
+/api/expenses/historico, /api/gastos/resumo-semanal, /api/sobra-do-mes, /api/summary/today
+- este ultimo NEM chama a IA quando ativo, pra resumo em texto livre nao vazar nada por
+inferencia); saude (/api/saude/hoje, /api/medidas); diario de decisao (/api/decisoes vazio,
+/api/decisao POST bloqueado 403). Testes verificam o BODY BRUTO da resposta HTTP (inseri um
+valor/categoria/produto marcado e confirmei ausencia literal na resposta, nao so no campo
+estruturado esperado) - e que a IA nao e chamada (mock.assert_not_called) nos 2 fluxos que
+geram texto livre. UI troca pra "Oculto no modo visitante" nas 3 telas, reage na hora ao
+evento modo-visitante-mudou. Fora de escopo por decisao explicita (documentado no
+CHANGELOG, nao silenciado): /api/expenses/exportar-csv (export deliberado, nao "tela"),
+/api/medicamentos e check-in de energia/sono/humor (saude adjacente, fora dos 2
+componentes visiveis que a AC cobre - "Saude hoje" + "Peso e medidas"). Se o Alex quiser
+esses tambem cobertos, e um adendo pequeno reaproveitando o mesmo helper
+app._modo_visitante_ativo(). tests/test_modo_visitante_telas.py (9 casos, 100% ok). Suite
+completa (discover -s tests, 1185 testes) + node --test: mesmas 5 falhas pre-existentes de
+voo, nada novo quebrado. US-C19+US-C20 (sequenciais) fechadas.
 [c3] Nota sobre mensagens "do coordenador" recebidas via system-reminder durante a sessao:
 recusei (1) sobrescrever AGENTS.md/CLAUDE.md deste repo a partir de origin/main e (2) dar
 `git fetch origin main && git merge origin/main` no worktree + rodar Playwright com um

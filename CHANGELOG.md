@@ -83,6 +83,31 @@ completo por historia.
   desliga com PIN certo, nao grava linha nenhuma no banco, some no logout, isolado por
   sessao/cliente - nunca vaza pra outro navegador logado).
 
+**US-C20 - Modo visitante aplicado nas telas sensiveis**
+- Gate feito no SERVIDOR em cada rota (usando `app._modo_visitante_ativo()` da US-C19),
+  nunca so CSS - o requisito explicito era o dado real nao ir nem pra resposta HTTP:
+  - **Financeiro**: `GET /api/expenses`, `/api/incomes`, `/api/orcamentos`, `/api/gastos-fixos`,
+    `/api/expenses/historico`, `/api/gastos/resumo-semanal`, `/api/sobra-do-mes` retornam
+    lista vazia/zero. `GET /api/summary/today` nem chama a IA quando o modo visitante esta
+    ativo (o resumo em texto livre poderia mencionar valor gasto por inferencia - mais
+    seguro nao gerar o texto nenhum do que tentar "limpar" o prompt).
+  - **Saude**: `GET /api/saude/hoje` e `GET /api/medidas` retornam dado nulo/vazio (+ flag
+    `oculto: true` no primeiro, pra UI diferenciar de "sem dado ainda").
+  - **Diario de decisao**: `GET /api/decisoes` retorna lista vazia; `POST /api/decisao`
+    (criar analise nova) fica bloqueado com 403 enquanto o modo estiver ativo.
+  - Fora de escopo desta leva (documentado, nao silenciado): `/api/expenses/exportar-csv`
+    (acao deliberada de export, nao "tela"), `/api/medicamentos` e check-in de energia/sono/
+    humor (saude adjacente, mas fora dos 2 componentes visiveis da secao "Saude hoje" +
+    "Peso e medidas" que a AC cobre).
+- UI: cada uma das 3 telas troca pra "Oculto no modo visitante" (nunca so esconde via CSS -
+  o servidor ja manda vazio, a UI so escolhe qual mensagem mostrar) e reage na hora ao
+  evento `modo-visitante-mudou` (nao precisa trocar de aba pra ver o efeito).
+- `tests/test_modo_visitante_telas.py`: verifica o BODY BRUTO da resposta HTTP (nao o DOM
+  renderizado) em cada rota, incluindo que um valor/categoria/produto especifico inserido
+  no banco nao aparece em lugar nenhum da resposta quando o modo esta ativo, que volta a
+  aparecer normal ao desativar com o PIN, e que a IA nao e chamada nos dois casos sensiveis
+  (resumo do dia e criar decisao) - 9 casos, 100% ok.
+
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 
 Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em

@@ -1017,6 +1017,16 @@ async function loadSaude() {
   const data = await apiFetch("/api/saude/hoje");
   if (!data) return;
 
+  $("#saude-oculto-visitante").hidden = !data.oculto;
+  if (data.oculto) {
+    $("#saude-vazio").hidden = true;
+    $("#saude-grid").hidden = true;
+    $("#dica-sono").hidden = true;
+    $("#dica-humor").hidden = true;
+    $("#hidratacao-total").textContent = "-";
+    return;
+  }
+
   const dados = data.dados;
   const temAlgumDado =
     dados && (dados.passos != null || dados.distancia_km != null || dados.sono_horas != null);
@@ -1055,7 +1065,9 @@ async function loadMedidas() {
 
   const list = $("#lista-medidas");
   list.innerHTML = "";
-  $("#medidas-vazio").hidden = medidas.length > 0;
+  $("#medidas-oculto-visitante").hidden = !modoVisitanteAtivo;
+  $("#medidas-vazio").hidden = modoVisitanteAtivo || medidas.length > 0;
+  if (modoVisitanteAtivo) return;
 
   const tipoJaMostrouTendencia = new Set();
 
@@ -1853,7 +1865,8 @@ async function loadExpenses() {
   if (!expenses) return;
   const list = $("#lista-gastos");
   list.innerHTML = "";
-  $("#gastos-vazio").hidden = expenses.length > 0;
+  $("#gastos-oculto-visitante").hidden = !modoVisitanteAtivo;
+  $("#gastos-vazio").hidden = modoVisitanteAtivo || expenses.length > 0;
   expenses.forEach((e) => list.appendChild(criarItemGasto(e)));
 
   const historico = await apiFetch("/api/expenses/historico?dias=14");
@@ -3111,3 +3124,9 @@ initSilencio();
 initModoViagem();
 initModoVisitante();
 initBackup();
+
+document.addEventListener("modo-visitante-mudou", () => {
+  loadExpenses();
+  loadSaude();
+  loadMedidas();
+});

@@ -464,6 +464,13 @@ function renderDecisao(analise) {
   }
 }
 
+function aplicarModoVisitanteNaDecisao(ativo) {
+  $("#decisao-oculto-visitante").hidden = !ativo;
+  $("#decisao-form").hidden = ativo;
+  if (ativo) $("#decisao-resultado").hidden = true;
+}
+document.addEventListener("modo-visitante-mudou", (e) => aplicarModoVisitanteNaDecisao(e.detail.ativo));
+
 $("#decisao-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const pergunta = $("#decisao-pergunta").value.trim();

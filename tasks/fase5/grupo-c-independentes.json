@@ -230,7 +230,7 @@
         "Com modo visitante ativo, essas secoes mostram um estado neutro (ex: 'oculto no modo visitante') em vez do dado real",
         "Testes cobrindo que o dado sensivel nao aparece no DOM/resposta quando modo visitante ativo"
       ],
-      "priority": 20, "passes": false, "notes": ""
+      "priority": 20, "passes": true, "notes": "Aplicado no SERVIDOR (nunca so CSS): /api/expenses, /api/incomes, /api/orcamentos, /api/gastos-fixos, /api/expenses/historico, /api/gastos/resumo-semanal, /api/sobra-do-mes, /api/summary/today (nem chama a IA, pra resumo em texto livre nao vazar nada) para financeiro; /api/saude/hoje e /api/medidas pra saude; /api/decisoes (GET) e /api/decisao (POST bloqueado 403) pro diario de decisao. UI mostra 'Oculto no modo visitante' nas 3 telas. Testes verificam o BODY da resposta HTTP (nao so o DOM), inclusive que o texto gerado por IA nao contem valor/categoria reais. tests/test_modo_visitante_telas.py (9 casos, 100% ok)."
     },
     {
       "id": "US-C21",

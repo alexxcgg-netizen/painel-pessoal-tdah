@@ -744,6 +744,8 @@ def corrigir_categoria_gasto_rota(expense_id):
 
 @app.route("/api/expenses", methods=["GET"])
 def list_expenses():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     rows = conn.execute("SELECT * FROM expenses ORDER BY created_at DESC LIMIT 50").fetchall()
     conn.close()
@@ -752,6 +754,8 @@ def list_expenses():
 
 @app.route("/api/incomes", methods=["GET"])
 def list_incomes_rota():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     rows = list_incomes(conn, limit=50)
     conn.close()
@@ -760,6 +764,8 @@ def list_incomes_rota():
 
 @app.route("/api/orcamentos", methods=["GET"])
 def list_orcamentos_rota():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     orcamentos = list_orcamentos(conn)
     ano_mes = date.today().strftime("%Y-%m")
@@ -771,6 +777,8 @@ def list_orcamentos_rota():
 
 @app.route("/api/gastos-fixos", methods=["GET"])
 def gastos_fixos_rota():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     resultado = _gastos_fixos(conn)
     conn.close()
@@ -779,6 +787,11 @@ def gastos_fixos_rota():
 
 @app.route("/api/sobra-do-mes", methods=["GET"])
 def sobra_do_mes_rota():
+    if _modo_visitante_ativo():
+        hoje = date.today()
+        return jsonify(
+            {**gastos.sobra_do_mes(0, 0, 0), "projecao": vida.projecao_fim_do_mes(0, 0, 0, hoje)}
+        )
     conn = get_db()
     resultado = _sobra_do_mes(conn)
     conn.close()
@@ -787,6 +800,8 @@ def sobra_do_mes_rota():
 
 @app.route("/api/expenses/historico", methods=["GET"])
 def expenses_historico():
+    if _modo_visitante_ativo():
+        return jsonify([])
     dias = request.args.get("dias", default=14, type=int)
     dias = min(max(dias, 1), 90)
     conn = get_db()
@@ -1006,6 +1021,8 @@ def rodar_backup_automatico_semanal():
 
 @app.route("/api/gastos/resumo-semanal", methods=["GET"])
 def gastos_resumo_semanal():
+    if _modo_visitante_ativo():
+        return jsonify(gastos.resumo_semanal([], date.today()))
     conn = get_db()
     rows = conn.execute(
         "SELECT amount, category, created_at FROM expenses WHERE tipo = 'real'"
@@ -1396,6 +1413,22 @@ def summary_today():
     pending = conn.execute(
         "SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
     ).fetchall()
+    if _modo_visitante_ativo():
+        # US-C20: nem chama a IA - o resumo em texto livre poderia mencionar
+        # valor gasto ou dado de saude, e nao da pra garantir que um prompt
+        # "sem esses dados" nunca vaze nada por inferencia. Mais seguro nao
+        # gerar o texto nenhum enquanto o modo visitante estiver ativo.
+        eventos = _eventos_de_hoje_com_seguranca(conn)
+        conn.close()
+        return jsonify(
+            {
+                "summary": "Resumo oculto no modo visitante.",
+                "gasto_hoje": None,
+                "gasto_planejado": None,
+                "tarefas_concluidas": len(done),
+                "eventos_hoje": len(eventos),
+            }
+        )
     expenses = conn.execute(
         "SELECT amount, category FROM expenses WHERE date(created_at) = ? AND tipo = 'real'", (today,)
     ).fetchall()
@@ -3383,6 +3416,10 @@ def saude_importar():
 
 @app.route("/api/saude/hoje", methods=["GET"])
 def saude_hoje():
+    if _modo_visitante_ativo():
+        return jsonify(
+            {"dados": None, "hidratacao_hoje": None, "dica_sono": None, "dica_humor": None, "oculto": True}
+        )
     conn = get_db()
     dia = get_saude_dia(conn, date.today().isoformat())
     hidratacao_hoje = contar_hidratacao_dia(conn, date.today().isoformat())
@@ -3406,6 +3443,8 @@ def registrar_hidratacao_rota():
 
 @app.route("/api/medidas", methods=["GET"])
 def medidas():
+    if _modo_visitante_ativo():
+        return jsonify([])
     tipo = request.args.get("tipo") or None
     conn = get_db()
     resultado = list_medidas_corporais(conn, tipo=tipo)
@@ -4011,6 +4050,8 @@ def _registrar_conversa_por_nome(conn, nome: str, sobre: str | None, texto: str 
 
 @app.route("/api/decisao", methods=["POST"])
 def decisao():
+    if _modo_visitante_ativo():
+        return jsonify({"error": "desative o modo visitante pra usar o diario de decisao"}), 403
     bruto = _corpo_json().get("pergunta")
     pergunta = bruto.strip() if isinstance(bruto, str) else ""
     if not pergunta or len(pergunta) > 1000:
@@ -4033,6 +4074,8 @@ def decisao():
 
 @app.route("/api/decisoes", methods=["GET"])
 def decisoes():
+    if _modo_visitante_ativo():
+        return jsonify([])
     conn = get_db()
     resultado = [
         {
