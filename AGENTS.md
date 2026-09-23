@@ -315,3 +315,43 @@ db.init_db()
   pra apagar um card depois de montado, mude a opacidade dos FILHOS
   (`.card-desfeito > *`), não do card.
 
+### Fase 6, Grupo E, faixa 1 (E1-base) - US-E1a a US-E11
+- **"O que eu lembro sobre você" (`templates/index.html`) fica na aba
+  `painel`, não em `hoje` nem `vida`** - conferir com
+  `grep -n 'data-tab\|class="tab-content"' templates/index.html` antes de
+  assumir onde uma seção mora só pela ordem em que aparece no arquivo
+  fonte (o HTML de várias abas fica concatenado sequencialmente, a divisão
+  real é só pelas tags `<section id="tab-X">`).
+- **Padrão novo de edição inline num item de lista (US-E10, primeiro caso
+  no projeto - antes tudo era só apagar/recriar)**: `criarItemMemoria`
+  (`static/js/app.js`) troca o `.item-titulo` (span) por um `<input>` no
+  lugar, com botões Salvar/Cancelar substituindo Editar/Apagar durante a
+  edição - reusa `ICONE_CORRIGIR` (já existia, é um lápis) pro botão
+  "Editar". CSS novo: `.memoria-edit-input` (`style.css`), porque o input
+  fica direto dentro de `.item-linha`, sem o `.form-linha` por perto que
+  normalmente estiliza input de formulário.
+- **Pegadinha de teste Playwright com `has_text` + edição inline**: um
+  `Locator` com filtro `has_text="X"` é reavaliado do zero a cada retry
+  (`.click()`/`.fill()` etc auto-esperam). Se a ação em teste troca o texto
+  do próprio elemento filtrado (ex: span vira input ao clicar "Editar" - o
+  texto visível some), o locator para de casar no retry seguinte e a ação
+  seguinte trava em timeout, mesmo com a interação tendo funcionado.
+  Solução: localizar por posição (`.first`, já que item novo sempre entra
+  no topo - `list_memorias`/`list_manutencoes` ordenam por `criado_em
+  DESC`) em vez de por texto, quando o teste for editar/interagir com um
+  item logo depois de criar ele.
+- **`_adicionar_compras` (app.py) já era o único ponto de entrada dos 3
+  caminhos (formulário, API genérica, chat tool `adicionar_compras`)** -
+  qualquer regra nova de parsing/validação de item de compra (ex:
+  `vida.dividir_itens_compra`, US-E1b) só precisa entrar ali uma vez.
+- **Rodar a suíte completa em background enquanto edita os MESMOS arquivos
+  que ela está lendo contamina o resultado** (o teste inicia num snapshot,
+  mas os módulos fonte no disco mudam no meio da execução) - descobri isso
+  numa rodada real (6 falhas em vez das 6 esperadas coincidiu por acaso
+  numa tentativa, mas outra rodada intermediária deu resultados
+  inconsistentes até eu parar de editar). Padrão seguro: `git checkout
+  HEAD -- <arquivos da história seguinte>` antes de rodar a suíte de uma
+  história que ainda não foi commitada (isola o estado exatamente na
+  história que vai ganhar o commit), rodar a suíte só então, e só depois
+  restaurar os arquivos da próxima história a partir de uma cópia salva em
+  `/tmp` (nunca editar author de novo por cima do que a suíte está lendo).

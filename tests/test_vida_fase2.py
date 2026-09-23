@@ -2,8 +2,11 @@
 
 import json
 import os
+import sqlite3
+import tempfile
 import unittest
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 from test_vida_rotas import VidaBaseTestCase, fake_usage
@@ -94,6 +97,23 @@ class LogicaFase2TestCase(unittest.TestCase):
         self.assertEqual(vida.limpar_item_compra("acabaram as pilhas"), "pilhas")
         self.assertEqual(vida.normalizar_item_compra("Acabou o Café"), "cafe")
         self.assertEqual(vida.normalizar_item_compra("  CAFÉ! "), "cafe")
+
+    def test_dividir_itens_compra(self):
+        # US-E1b: virgula e " e " (e variacoes) separam; nome composto sem
+        # conjuncao isolada continua 1 item so.
+        self.assertEqual(vida.dividir_itens_compra("acabou cafe e acucar"), ["cafe", "acucar"])
+        self.assertEqual(vida.dividir_itens_compra("acabou cafe e acabou acucar"), ["cafe", "acucar"])
+        self.assertEqual(vida.dividir_itens_compra("cafe, acucar e leite"), ["cafe", "acucar", "leite"])
+        self.assertEqual(vida.dividir_itens_compra("acabou o cafe e tambem o acucar"), ["cafe", "acucar"])
+        self.assertEqual(vida.dividir_itens_compra("pao de queijo"), ["pao de queijo"])
+        self.assertEqual(vida.dividir_itens_compra("papel higienico"), ["papel higienico"])
+        # item vazio/so espaco descartado (virgula dupla, texto vazio, None)
+        self.assertEqual(vida.dividir_itens_compra("cafe,, arroz"), ["cafe", "arroz"])
+        self.assertEqual(vida.dividir_itens_compra("  "), [])
+        self.assertEqual(vida.dividir_itens_compra(""), [])
+        self.assertEqual(vida.dividir_itens_compra(None), [])
+        # duplicado: a funcao so separa, quem chama decide dedup (nao e job dela)
+        self.assertEqual(vida.dividir_itens_compra("cafe e cafe"), ["cafe", "cafe"])
 
     def test_vencimento_anterior_e_dia_da_rotina(self):
         self.assertEqual(vida.vencimento_anterior(10, date(2026, 9, 23)), date(2026, 9, 10))
@@ -301,12 +321,90 @@ class ViagensLugaresTestCase(VidaBaseTestCase):
         self.assertEqual(viagem["lugares"][0]["nome"], "Casa da Montanha")
 
 
+class MigracaoManutencoesUnificadasTestCase(unittest.TestCase):
+    """Fase 6 (US-E1a): simula um banco de dev "antigo", de antes da
+    unificacao, com linhas nas DUAS tabelas (manutencoes de 5 colunas +
+    manutencoes_veiculo) - confere que db.init_db() migra sem perda pra
+    secao unica, e que rodar a migracao de novo nao duplica nada
+    (idempotente)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._caminho_original = db.DB_PATH
+        self.addCleanup(lambda: setattr(db, "DB_PATH", self._caminho_original))
+        db.DB_PATH = Path(self._tmp.name) / "migracao_manutencoes.db"
+        db.garantir_banco_nao_producao()
+
+    def _criar_schema_antigo_com_dados(self):
+        conn = sqlite3.connect(db.DB_PATH)
+        conn.execute(
+            """CREATE TABLE manutencoes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item TEXT NOT NULL,
+                intervalo_meses INTEGER NOT NULL,
+                ultima_vez TEXT,
+                criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+            )"""
+        )
+        conn.execute(
+            """CREATE TABLE manutencoes_veiculo (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tipo TEXT NOT NULL,
+                data TEXT NOT NULL,
+                km REAL,
+                proxima_em_km REAL,
+                proxima_em_data TEXT,
+                criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+            )"""
+        )
+        conn.execute(
+            "INSERT INTO manutencoes (item, intervalo_meses, ultima_vez) VALUES ('Filtro de agua', 6, '2026-01-01')"
+        )
+        conn.execute(
+            "INSERT INTO manutencoes_veiculo (tipo, data, km, proxima_em_km, proxima_em_data) "
+            "VALUES ('Troca de oleo', '2026-06-01', 48000, 53000, NULL)"
+        )
+        conn.commit()
+        conn.close()
+
+    def test_migra_sem_perda_e_idempotente(self):
+        self._criar_schema_antigo_com_dados()
+        db.init_db()
+
+        conn = db.get_db()
+        itens = db.list_manutencoes(conn)
+        self.assertEqual(len(itens), 2)
+        por_tipo = {m["tipo"]: m for m in itens}
+        self.assertIn("outro", por_tipo)  # linha generica antiga - sem como saber casa/carro/equip, default seguro
+        self.assertEqual(por_tipo["outro"]["item"], "Filtro de agua")
+        self.assertEqual(por_tipo["outro"]["intervalo_meses"], 6)
+        self.assertIn("carro", por_tipo)
+        self.assertEqual(por_tipo["carro"]["item"], "Troca de oleo")
+        self.assertEqual(por_tipo["carro"]["ultima_vez"], "2026-06-01")
+        self.assertEqual(por_tipo["carro"]["km"], 48000)
+        self.assertEqual(por_tipo["carro"]["proxima_em_km"], 53000)
+        existe_tabela_antiga = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'manutencoes_veiculo'"
+        ).fetchone()
+        self.assertIsNone(existe_tabela_antiga)
+        conn.close()
+
+        # roda a migracao de novo (2a chamada de init_db, como aconteceria
+        # subindo o app de novo) - idempotente, nao duplica as linhas
+        db.init_db()
+        conn = db.get_db()
+        self.assertEqual(len(db.list_manutencoes(conn)), 2)
+        conn.close()
+
+
 class ManutencaoComprasResponderTestCase(VidaBaseTestCase):
     def test_manutencao_crud_e_feita(self):
         ultima = (date.today() - timedelta(days=170)).isoformat()
         r = self.client.post("/api/manutencoes", json={"item": "Troca de oleo", "intervalo_meses": 6, "ultima_vez": ultima})
         self.assertEqual(r.status_code, 201)
         m = self.client.get("/api/manutencoes").get_json()[0]
+        self.assertEqual(m["tipo"], "outro")  # default quando tipo nao informado
         self.assertLess(m["dias_ate"], 20)
         self.client.post(f"/api/manutencoes/{m['id']}/feita")
         self.assertGreater(self.client.get("/api/manutencoes").get_json()[0]["dias_ate"], 170)
@@ -314,56 +412,61 @@ class ManutencaoComprasResponderTestCase(VidaBaseTestCase):
         amanha = (date.today() + timedelta(days=1)).isoformat()
         for corpo in [{"item": "x"}, {"item": "x", "intervalo_meses": 0}, {"item": "x", "intervalo_meses": 121},
                       {"item": "", "intervalo_meses": 6}, {"item": "x", "intervalo_meses": 6, "ultima_vez": amanha},
-                      {"item": "x", "intervalo_meses": 6, "ultima_vez": "ontem"}]:
+                      {"item": "x", "intervalo_meses": 6, "ultima_vez": "ontem"},
+                      {"item": "x", "intervalo_meses": 6, "tipo": "lixo"}]:
             self.assertEqual(self.client.post("/api/manutencoes", json=corpo).status_code, 400, msg=repr(corpo))
 
-    def test_manutencao_veiculo_crud(self):
+    def test_manutencao_tipos_casa_equipamento(self):
+        for tipo in ["casa", "equipamento", "outro"]:
+            r = self.client.post("/api/manutencoes", json={"tipo": tipo, "item": tipo, "intervalo_meses": 3})
+            self.assertEqual(r.status_code, 201, msg=tipo)
+        tipos = {m["tipo"] for m in self.client.get("/api/manutencoes").get_json()}
+        self.assertEqual(tipos, {"casa", "equipamento", "outro"})
+
+    def test_manutencao_carro_crud(self):
         hoje = date.today().isoformat()
         r = self.client.post(
-            "/api/manutencoes-veiculo",
-            json={"tipo": "Troca de oleo", "data": hoje, "km": 50000, "proxima_em_km": 55000},
+            "/api/manutencoes",
+            json={"tipo": "carro", "item": "Troca de oleo", "data": hoje, "km": 50000, "proxima_em_km": 55000},
         )
         self.assertEqual(r.status_code, 201)
-        m_id = r.get_json()["id"]
+        m_id = r.get_json()["manutencao_id"]
 
-        itens = self.client.get("/api/manutencoes-veiculo").get_json()
+        itens = self.client.get("/api/manutencoes").get_json()
         self.assertEqual(len(itens), 1)
-        self.assertEqual(itens[0]["tipo"], "Troca de oleo")
+        self.assertEqual(itens[0]["tipo"], "carro")
+        self.assertEqual(itens[0]["item"], "Troca de oleo")
+        self.assertEqual(itens[0]["data"], hoje)
         self.assertEqual(itens[0]["km"], 50000)
         self.assertEqual(itens[0]["proxima_em_km"], 55000)
         self.assertIsNone(itens[0]["proxima_em_data"])
+        self.assertIsNone(itens[0]["dias_ate"])  # carro nao usa dias_ate por tempo
 
-        r_upd = self.client.put(
-            f"/api/manutencoes-veiculo/{m_id}",
-            json={"tipo": "Troca de oleo", "data": hoje, "km": 50000, "proxima_em_km": 60000},
-        )
-        self.assertEqual(r_upd.status_code, 200)
-        self.assertEqual(self.client.get("/api/manutencoes-veiculo").get_json()[0]["proxima_em_km"], 60000)
+        # carro nao usa "feita" (e historico - cada manutencao vira um registro novo)
+        self.assertEqual(self.client.post(f"/api/manutencoes/{m_id}/feita").status_code, 400)
 
-        self.assertEqual(self.client.put("/api/manutencoes-veiculo/9999", json={"tipo": "x", "data": hoje}).status_code, 404)
-
-        del_res = self.client.delete(f"/api/manutencoes-veiculo/{m_id}")
+        del_res = self.client.delete(f"/api/manutencoes/{m_id}")
         self.assertEqual(del_res.status_code, 200)
-        self.assertEqual(self.client.get("/api/manutencoes-veiculo").get_json(), [])
+        self.assertEqual(self.client.get("/api/manutencoes").get_json(), [])
 
-    def test_manutencao_veiculo_validacao(self):
+    def test_manutencao_carro_validacao(self):
         hoje = date.today().isoformat()
         for corpo in [
-            {},
-            {"tipo": "x"},
-            {"tipo": "", "data": hoje},
-            {"tipo": "x", "data": "31/12/2026"},
-            {"tipo": "x", "data": hoje, "km": -5},
-            {"tipo": "x", "data": hoje, "km": "lixo"},
-            {"tipo": "x", "data": hoje, "proxima_em_km": -1},
-            {"tipo": "x", "data": hoje, "proxima_em_data": "lixo"},
+            {"tipo": "carro"},
+            {"tipo": "carro", "item": "x"},
+            {"tipo": "carro", "item": "", "data": hoje},
+            {"tipo": "carro", "item": "x", "data": "31/12/2026"},
+            {"tipo": "carro", "item": "x", "data": hoje, "km": -5},
+            {"tipo": "carro", "item": "x", "data": hoje, "km": "lixo"},
+            {"tipo": "carro", "item": "x", "data": hoje, "proxima_em_km": -1},
+            {"tipo": "carro", "item": "x", "data": hoje, "proxima_em_data": "lixo"},
         ]:
             self.assertEqual(
-                self.client.post("/api/manutencoes-veiculo", json=corpo).status_code, 400, msg=repr(corpo)
+                self.client.post("/api/manutencoes", json=corpo).status_code, 400, msg=repr(corpo)
             )
 
-    def test_manutencao_veiculo_apagar_inexistente_nao_quebra(self):
-        res = self.client.delete("/api/manutencoes-veiculo/9999")
+    def test_manutencao_apagar_inexistente_nao_quebra(self):
+        res = self.client.delete("/api/manutencoes/9999")
         self.assertEqual(res.status_code, 200)
 
     def test_compras_dedup_e_comprado(self):
@@ -377,6 +480,17 @@ class ManutencaoComprasResponderTestCase(VidaBaseTestCase):
         self.assertEqual(len(self.client.get("/api/compras").get_json()), 2)
         for corpo in [{}, {"itens": []}, {"itens": [" "]}, {"itens": 5}]:
             self.assertEqual(self.client.post("/api/compras", json=corpo).status_code, 400, msg=repr(corpo))
+
+    def test_compras_formulario_separa_itens_juntos(self):
+        # US-E1b: o formulario manda um campo "item" so (string) - se vier
+        # mais de uma coisa junta ("acabou cafe e acucar"), a rota separa em
+        # itens distintos (mesma funcao usada pelo chat tool).
+        r = self.client.post("/api/compras", json={"item": "acabou cafe e acucar"})
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.get_json()["adicionados"], ["cafe", "acucar"])
+        self.assertEqual(
+            sorted(i["item"] for i in self.client.get("/api/compras").get_json()), ["acucar", "cafe"]
+        )
 
     def test_chat_adiciona_compra(self):
         def fake_chat(mensagens, contexto, memorias, executores):
@@ -515,80 +629,89 @@ class AvisosFase2TestCase(VidaBaseTestCase):
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
         self.assertIn("manutencao", self._tipos(agora))
 
-    def test_manutencao_veiculo_perto_por_data(self):
+    def test_manutencao_carro_perto_por_data(self):
         hoje = date.today().isoformat()
         proxima = (date.today() + timedelta(days=5)).isoformat()
         self.client.post(
-            "/api/manutencoes-veiculo",
-            json={"tipo": "Revisao", "data": hoje, "proxima_em_data": proxima},
+            "/api/manutencoes",
+            json={"tipo": "carro", "item": "Revisao", "data": hoje, "proxima_em_data": proxima},
         )
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
         self.assertTrue(
             [c for t, c in self._avisos(agora) if t == "manutencao_veiculo" and "Revisao" in c]
         )
 
-    def test_manutencao_veiculo_longe_por_data_nao_avisa(self):
+    def test_manutencao_carro_longe_por_data_nao_avisa(self):
         hoje = date.today().isoformat()
         proxima = (date.today() + timedelta(days=60)).isoformat()
         self.client.post(
-            "/api/manutencoes-veiculo",
-            json={"tipo": "Revisao", "data": hoje, "proxima_em_data": proxima},
+            "/api/manutencoes",
+            json={"tipo": "carro", "item": "Revisao", "data": hoje, "proxima_em_data": proxima},
         )
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
         self.assertNotIn("manutencao_veiculo", self._tipos(agora))
 
-    def test_manutencao_veiculo_perto_por_km(self):
+    def test_manutencao_carro_perto_por_km(self):
         hoje = date.today().isoformat()
         self.client.post(
-            "/api/manutencoes-veiculo",
-            json={"tipo": "Troca de oleo", "data": hoje, "km": 49800, "proxima_em_km": 50000},
+            "/api/manutencoes",
+            json={"tipo": "carro", "item": "Troca de oleo", "data": hoje, "km": 49800, "proxima_em_km": 50000},
         )
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
         self.assertTrue(
             [c for t, c in self._avisos(agora) if t == "manutencao_veiculo" and "faltam" in c]
         )
 
-    def test_manutencao_veiculo_longe_por_km_nao_avisa(self):
+    def test_manutencao_carro_longe_por_km_nao_avisa(self):
         hoje = date.today().isoformat()
         self.client.post(
-            "/api/manutencoes-veiculo",
-            json={"tipo": "Troca de oleo", "data": hoje, "km": 40000, "proxima_em_km": 50000},
+            "/api/manutencoes",
+            json={"tipo": "carro", "item": "Troca de oleo", "data": hoje, "km": 40000, "proxima_em_km": 50000},
         )
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
         self.assertNotIn("manutencao_veiculo", self._tipos(agora))
 
-    def test_manutencao_veiculo_ja_passou_do_km_avisa(self):
+    def test_manutencao_carro_ja_passou_do_km_avisa(self):
         hoje = date.today().isoformat()
         self.client.post(
-            "/api/manutencoes-veiculo",
-            json={"tipo": "Troca de oleo", "data": hoje, "km": 50500, "proxima_em_km": 50000},
+            "/api/manutencoes",
+            json={"tipo": "carro", "item": "Troca de oleo", "data": hoje, "km": 50500, "proxima_em_km": 50000},
         )
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
         self.assertTrue(
             [c for t, c in self._avisos(agora) if t == "manutencao_veiculo" and "passou" in c]
         )
 
-    def test_manutencao_veiculo_so_considera_registro_mais_recente_por_tipo(self):
+    def test_manutencao_carro_so_considera_registro_mais_recente_por_item(self):
         hoje = date.today().isoformat()
         antiga = (date.today() - timedelta(days=200)).isoformat()
-        # registro antigo do mesmo tipo, ja vencido - deveria ser substituido
+        # registro antigo do mesmo item, ja vencido - deveria ser substituido
         # pelo mais recente (que ainda esta longe), nao empilhar os dois
         self.client.post(
-            "/api/manutencoes-veiculo",
-            json={"tipo": "Pneu", "data": antiga, "proxima_em_data": antiga},
+            "/api/manutencoes",
+            json={"tipo": "carro", "item": "Pneu", "data": antiga, "proxima_em_data": antiga},
         )
         self.client.post(
-            "/api/manutencoes-veiculo",
-            json={"tipo": "Pneu", "data": hoje, "proxima_em_data": (date.today() + timedelta(days=90)).isoformat()},
+            "/api/manutencoes",
+            json={"tipo": "carro", "item": "Pneu", "data": hoje, "proxima_em_data": (date.today() + timedelta(days=90)).isoformat()},
         )
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
         self.assertNotIn("manutencao_veiculo", self._tipos(agora))
 
-    def test_manutencao_veiculo_sem_proxima_definida_nunca_avisa(self):
+    def test_manutencao_carro_sem_proxima_definida_nunca_avisa(self):
         hoje = date.today().isoformat()
-        self.client.post("/api/manutencoes-veiculo", json={"tipo": "Lavagem", "data": hoje})
+        self.client.post("/api/manutencoes", json={"tipo": "carro", "item": "Lavagem", "data": hoje})
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
         self.assertNotIn("manutencao_veiculo", self._tipos(agora))
+
+    def test_manutencao_carro_nao_e_contada_como_manutencao_por_tempo(self):
+        # tipo='carro' nunca deve cair no ramo "manutencao" (por tempo) do
+        # aviso - so no "manutencao_veiculo" (por km/data), mesmo perto do
+        # prazo de outro item por tempo cadastrado junto.
+        hoje = date.today().isoformat()
+        self.client.post("/api/manutencoes", json={"tipo": "carro", "item": "Troca de oleo", "data": hoje})
+        agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
+        self.assertNotIn("manutencao", self._tipos(agora))
 
     def test_responder_so_do_dia_anterior_e_depois_das_10h(self):
         conn = self._conn()

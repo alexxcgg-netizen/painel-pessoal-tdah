@@ -467,12 +467,38 @@
         <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao do que o painel lembra"></button>
         <p class="dica-metas dica-texto" hidden>
           Fatos duraveis que aparecem quando voce escreve algo na captura - preferencias, rotinas,
-          coisas assim. Usados pro resumo e pro plano do dia. Pode apagar o que nao fizer sentido.
+          coisas assim. Usados pro resumo e pro plano do dia. Os tres grupos abaixo (Sua rotina, Seus
+          planos, Fora do painel) sao fixos e editaveis direto aqui - cada item pode ser editado ou
+          apagado, e da pra adicionar um novo em cada grupo. "Fora do painel" e respeitado nas
+          respostas: o assistente nao transforma isso em projeto/meta nem registra nada sozinho.
         </p>
       </div>
+
+      <h3>Sua rotina</h3>
+      <ul id="lista-memorias-sua_rotina" class="lista-memorias-grupo"></ul>
+      <form class="form-linha memoria-add-form" data-categoria="sua_rotina">
+        <input type="text" class="memoria-add-input" placeholder="Adicionar..." maxlength="500" required />
+        <button type="submit" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+
+      <h3>Seus planos</h3>
+      <ul id="lista-memorias-seus_planos" class="lista-memorias-grupo"></ul>
+      <form class="form-linha memoria-add-form" data-categoria="seus_planos">
+        <input type="text" class="memoria-add-input" placeholder="Adicionar..." maxlength="500" required />
+        <button type="submit" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+
+      <h3>Fora do painel</h3>
+      <ul id="lista-memorias-fora_do_painel" class="lista-memorias-grupo"></ul>
+      <form class="form-linha memoria-add-form" data-categoria="fora_do_painel">
+        <input type="text" class="memoria-add-input" placeholder="Adicionar..." maxlength="500" required />
+        <button type="submit" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+
+      <h3>Outras coisas que anotei</h3>
       <p id="memorias-vazio" class="vazio" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z"/></svg>
-        Ainda nao sei nada sobre voce. Escreve algo na captura que eu guardo.
+        Nada ainda. Escreve algo na captura que eu guardo.
       </p>
       <ul id="lista-memorias"></ul>
 
@@ -772,39 +798,34 @@
       <div class="dica-colapsavel">
         <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de manutencao"></button>
         <p class="dica-metas dica-texto" hidden>
-          Coisa que precisa ser feita de tempos em tempos (troca de oleo, filtro do ar, revisao). Avisa uma semana antes. "Feita hoje" reinicia a contagem.
+          Coisa que precisa ser feita de tempos em tempos - casa, carro, equipamento ou qualquer outra.
+          Pra Casa/Equipamento/Outro: um item so, avisa uma semana antes e "feita hoje" reinicia a contagem.
+          Pra Carro: cada manutencao feita vira um registro novo (com km, se souber) - preenche "proxima em km"
+          ou "proxima em data" (ou os dois) pra eu avisar quando estiver perto.
         </p>
       </div>
       <form id="manutencao-form" class="form-linha">
+        <select id="manutencao-tipo" aria-label="Tipo de manutencao">
+          <option value="outro">Outro</option>
+          <option value="casa">Casa</option>
+          <option value="carro">Carro</option>
+          <option value="equipamento">Equipamento</option>
+        </select>
         <input type="text" id="manutencao-item" placeholder="Item (ex: Troca de oleo)" maxlength="80" required />
-        <input type="number" id="manutencao-meses" placeholder="A cada X meses" min="1" max="120" inputmode="numeric" required />
-        <input type="date" id="manutencao-ultima" aria-label="Ultima vez (opcional)" />
+        <span id="manutencao-campos-tempo" class="form-linha-sub">
+          <input type="number" id="manutencao-meses" placeholder="A cada X meses" min="1" max="120" inputmode="numeric" />
+          <input type="date" id="manutencao-ultima" aria-label="Ultima vez (opcional)" />
+        </span>
+        <span id="manutencao-campos-carro" class="form-linha-sub" hidden>
+          <input type="date" id="manutencao-data" aria-label="Data" />
+          <input type="number" id="manutencao-km" placeholder="Km atual (opcional)" min="0" step="1" inputmode="numeric" />
+          <input type="number" id="manutencao-proxima-km" placeholder="Proxima em km (opcional)" min="0" step="1" inputmode="numeric" />
+          <input type="date" id="manutencao-proxima-data" aria-label="Proxima em data (opcional)" />
+        </span>
         <button type="submit" id="manutencao-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
       </form>
       <p id="manutencoes-vazio" class="vazio" hidden>Nada cadastrado.</p>
       <ul id="lista-manutencoes"></ul>
-
-      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M5 17a2 2 0 0 1-2-2v-2l2-5a2 2 0 0 1 2-1h10a2 2 0 0 1 2 1l2 5v2a2 2 0 0 1-2 2M7 17v2M17 17v2"/><circle cx="7.5" cy="14" r="1.3"/><circle cx="16.5" cy="14" r="1.3"/></svg>
-        Manutencao do veiculo
-      </h2>
-      <div class="dica-colapsavel">
-        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de manutencao do veiculo"></button>
-        <p class="dica-metas dica-texto" hidden>
-          Troca de oleo, revisao, pneu - cada manutencao feita vira um registro novo (com km, se souber).
-          Preenche "proxima em km" ou "proxima em data" (ou os dois) pra eu avisar quando estiver perto.
-        </p>
-      </div>
-      <form id="manutencao-veiculo-form" class="form-linha">
-        <input type="text" id="mv-tipo" placeholder="Tipo (ex: Troca de oleo)" maxlength="80" required />
-        <input type="date" id="mv-data" aria-label="Data" required />
-        <input type="number" id="mv-km" placeholder="Km atual (opcional)" min="0" step="1" inputmode="numeric" />
-        <input type="number" id="mv-proxima-km" placeholder="Proxima em km (opcional)" min="0" step="1" inputmode="numeric" />
-        <input type="date" id="mv-proxima-data" aria-label="Proxima em data (opcional)" />
-        <button type="submit" id="mv-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
-      </form>
-      <p id="manutencoes-veiculo-vazio" class="vazio" hidden>Nada cadastrado.</p>
-      <ul id="lista-manutencoes-veiculo"></ul>
 
       <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 7v5c0 4.5 3.4 8.4 9 10 5.6-1.6 9-5.5 9-10V7l-9-4Z"/><path d="m9 12 2 2 4-4"/></svg>

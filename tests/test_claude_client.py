@@ -7,6 +7,7 @@ from unittest.mock import patch
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
 import claude_client
+import db
 
 
 def _resp(content, stop_reason="end_turn", model=claude_client.SONNET, in_tok=100, out_tok=20):
@@ -116,6 +117,73 @@ class ChatLoopTestCase(unittest.TestCase):
         nomes = [t["name"] for t in claude_client.CHAT_TOOLS]
         self.assertIn("registrar_item_cotacao", nomes)
         self.assertIn("comparar_cotacao", nomes)
+
+
+class SystemPromptConteudoTestCase(unittest.TestCase):
+    """Fase 6 (US-E10/US-E11): confere REGRAS presentes no texto do system
+    prompt do chat - sem chamar a API real (so inspeciona o `system=` que
+    seria mandado pro Claude)."""
+
+    def _system_prompt_enviado(self, memorias=None):
+        with patch.object(
+            claude_client.client.messages, "create", return_value=_resp([_text_block("ok")])
+        ) as mock_create:
+            claude_client.chat([{"role": "user", "content": "oi"}], "contexto", memorias or [], {})
+        return mock_create.call_args.kwargs["system"]
+
+    def test_memorias_fora_do_painel_chegam_no_prompt(self):
+        # US-E10: "Fora do painel" respeitado no prompt - os textos dos 3
+        # grupos fixos (aqui simulados como memorias comuns, exatamente
+        # como list_memorias devolve pro chat) precisam aparecer no
+        # system prompt final, sem filtro/perda nenhuma.
+        memorias = list(db.MEMORIAS_INICIAIS_FASE6["fora_do_painel"])
+        prompt = self._system_prompt_enviado(memorias)
+        for texto in memorias:
+            self.assertIn(texto, prompt)
+
+    def test_estilo_direto_por_padrao_e_expande_so_se_pedido(self):
+        # US-E11: direto ao ponto por padrao, so expande com pedido explicito.
+        prompt = self._system_prompt_enviado()
+        self.assertIn("direto e curto", prompt)
+        self.assertIn("explica melhor", prompt.lower())
+
+    def test_vale_a_pena_pede_recomendacao_explicita(self):
+        # US-E11: fatos organizados (pros/contras) + recomendacao direta -
+        # generalizado pra qualquer pros/contras, nao so a frase literal
+        # "vale a pena".
+        prompt = self._system_prompt_enviado()
+        self.assertIn("Pros:", prompt)
+        self.assertIn("Contras:", prompt)
+        self.assertIn("RECOMENDACAO DIRETA E EXPLICITA", prompt)
+        self.assertIn("mesmo sem usar exatamente essas palavras", prompt)
+
+    def test_contexto_socio_e_pai_na_construtora_no_prompt(self):
+        # US-E11: contexto de negocio (socio + pai), usado so quando pesar.
+        prompt = self._system_prompt_enviado()
+        self.assertIn("pai e um socio", prompt)
+        self.assertIn("so quando fizer diferenca", prompt)
+
+    def test_nunca_numero_financeiro_da_construtora_no_prompt(self):
+        # US-E11: nunca citar numero financeiro real da construtora
+        # (separacao entre painel pessoal e financeiro-construtora).
+        prompt = self._system_prompt_enviado()
+        self.assertIn("Nunca cite um valor em R$ especifico da construtora", prompt)
+        self.assertIn("financeiro-construtora, sistema", prompt)
+
+    def test_decisao_prompt_tambem_recomenda_e_nao_cita_numero_construtora(self):
+        # US-E11 se aplica tambem ao card dedicado "vale a pena?"
+        # (claude_client.analisar_decisao), nao so ao chat.
+        with patch.object(
+            claude_client.client.messages,
+            "create",
+            return_value=_resp([_text_block('{"resumo": "x", "pros": [], "contras": [], '
+                                             '"perguntas_chave": [], "inclinacao": "vale", "porque": "y"}')]),
+        ) as mock_create:
+            claude_client.analisar_decisao("vale a pena expandir a construtora?", [])
+        conteudo_enviado = mock_create.call_args.kwargs["messages"][0]["content"]
+        self.assertIn("inclinacao direta e explicita", conteudo_enviado)
+        self.assertIn("financeiro-construtora, sistema", conteudo_enviado)
+        self.assertIn("pai e o", conteudo_enviado)
 
 
 class ExtrairItemCotacaoPdfTestCase(unittest.TestCase):

@@ -16,8 +16,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Unificado em `manutencoes` (coluna tipo: casa/carro/equipamento/outro); tipo=carro mantem semantica de historico (registro novo, sem 'feita'), demais tipos mantem edicao no lugar. Migracao idempotente de manutencoes_veiculo em init_db, testada com banco de dev nas duas tabelas (MigracaoManutencoesUnificadasTestCase). Rotas -veiculo removidas; chat tool registrar_manutencao inalterado (tipo='outro' default). Commit c670eea.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -32,8 +32,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "vida.dividir_itens_compra (virgula + ' e '/'e tambem'/'e acabou(aram)', com/sem artigo) e a funcao unica; _adicionar_compras (app.py) ja era o ponto unico dos 3 caminhos (formulario, API, chat tool) e agora chama ela por entrada bruta. Nome composto sem ' e ' isolada continua 1 item (regex exige a conjuncao como palavra inteira, nunca dentro de outra palavra). Commit b877073.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -48,8 +48,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Causa real: @keyframes auroraShine (camada de 'brilho', .aurora::before) tinha 0% != 100% (120% -20% vs -20% 120%) - unico dos 4 keyframes do fundo assim, dava o pulo a cada 34s. Virou ida-e-volta (0%/100% iguais). Investigacao completa em progress-e1.txt. Verificado lendo os @keyframes reais via Web Animations API no Playwright (sem precisar esperar um ciclo inteiro). prefers-reduced-motion ja cobria essa camada, sem mudanca.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -65,8 +65,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Estendida a tabela `memorias` (coluna categoria: sua_rotina/seus_planos/fora_do_painel) - nao duplicada. Seed idempotente por categoria vazia (db._seed_memorias_categorizadas_fase6). CRUD completo (POST/PUT/DELETE /api/memorias) com editar-no-lugar na UI. db.contexto_memorias_categorizadas(conn) e a funcao unica pro card futuro (US-E4/E7). 'Fora do painel' chega no prompt do chat de graca (list_memorias ja alimenta {memorias} do CHAT_SYSTEM_PROMPT sem filtro de categoria) - testado sem chamar API real (tests/test_claude_client.py::SystemPromptConteudoTestCase). Corrigido teste pre-existente que quebrou (test_seed_perfil_inicial_roda_uma_vez_em_banco_novo contava TODAS as memorias, agora filtra source_text='perfil-inicial').",
       "modelo_planejado": "haiku"
     },
     {
@@ -83,8 +83,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "claude_client.py: CHAT_SYSTEM_PROMPT (chat) e DECISAO_PROMPT (card 'vale a pena?' dedicado) atualizados - brevidade padrao + so expande com pedido explicito; regra pros/contras generalizada pra qualquer decisao (nao so a frase literal 'vale a pena') com recomendacao direta obrigatoria no fim; contexto pai+socio na construtora (usar so quando pesar); nunca citar valor R$ especifico da construtora. Nao mexi na injecao factual pre-existente de resumo da construtora em plano-do-dia/resumo-do-dia (_construtora_contexto_resumo, feature ja sancionada/shipeada v3.99.14-16, fora do escopo desta historia - decisao registrada em progress-e1.txt). Testes novos (sem API real): SystemPromptConteudoTestCase, +5 metodos.",
       "modelo_planejado": "sonnet"
     }
   ]

@@ -94,6 +94,55 @@ estruturado renderizado como CARD (referencia: app Nectar), em vez de so prosa. 
   `tests/js/cards.test.js` (registro, fallback, cada renderizador). Conferido em Chromium
   headless 390px (app so tem tema escuro).
 
+## 2026-09-23 (Fase 6 E1) - bugs, memoria visivel e estilo de resposta
+
+Faixa E1-base da Fase 6 (Grupo E), 5 historias - branch `fase6/e1-base`, um commit por
+historia (`git log` tem o detalhe completo de cada uma; `tasks/fase6/progress-e1.txt` tem
+a investigacao/decisao de cada uma por extenso).
+
+- **US-E1a (bug): as duas secoes de Manutencao da aba Vida viram uma so.** `manutencoes`
+  (por tempo, generica) e `manutencoes_veiculo` (por km/data, US-C14) eram tabelas/telas
+  separadas - agora e uma tabela so (`manutencoes`, coluna `tipo` nova: casa/carro/
+  equipamento/outro), com migracao idempotente em `init_db` pros bancos que ja tinham as
+  duas. Carro continua com semantica de HISTORICO (registro novo por manutencao feita);
+  os demais tipos continuam com edicao no lugar ("feita hoje"). Rotas `/api/manutencoes-
+  veiculo/*` removidas, tudo em `/api/manutencoes` com `tipo` no corpo.
+- **US-E1b (bug): lista de compras separa itens juntos numa entrada so.** "acabou cafe e
+  acucar" agora vira 2 itens com checkbox proprio (antes virava 1 item so). Funcao unica
+  `vida.dividir_itens_compra` (virgula + conjuncao "e" isolada, com variacoes "e tambem"/
+  "e acabou(aram)") plugada no ponto de entrada unico que ja existia (`_adicionar_compras`,
+  usado pelo formulario, API e chat tool) - nome composto sem a conjuncao isolada ("pao de
+  queijo") continua 1 item.
+- **US-E1c (bug): loop suave na animacao de fundo (rainbow).** Causa real: `@keyframes
+  auroraShine` (a camada de "brilho" diagonal) tinha 0% diferente de 100% - um keyframe
+  assimetrico sempre da um pulo visivel na virada do ciclo. Virou ida-e-volta (0%/100%
+  iguais), mesmo padrao ja usado nas outras 3 camadas do fundo. `prefers-reduced-motion`
+  ja cobria essa camada, sem mudanca.
+- **US-E10: memoria visivel "O que eu lembro sobre voce" (aba Painel).** 3 grupos fixos e
+  editaveis (Sua rotina / Seus planos / Fora do painel), estendendo a tabela `memorias`
+  que ja existia (coluna `categoria` nova) - seed idempotente por categoria vazia (nunca
+  sobrescreve edicao/remocao do Alex). Primeiro caso de edicao inline no projeto (span
+  vira input no lugar, Salvar/Cancelar - documentado no AGENTS.md). "Fora do painel"
+  chega no prompt do chat de graca, sem wiring nova (`list_memorias` ja alimenta o
+  contexto do `CHAT_SYSTEM_PROMPT` sem filtro de categoria).
+- **US-E11: estilo de resposta do assistente.** `CHAT_SYSTEM_PROMPT` (chat) e
+  `DECISAO_PROMPT` (card dedicado "vale a pena?") ganham: direto por padrao, so expande
+  com pedido explicito; qualquer pros/contras (nao so a frase literal "vale a pena") pede
+  recomendacao final explicita, nunca fica em aberto; contexto de que a construtora e
+  socia com o pai e um socio (mencionar so quando pesar na decisao); nunca citar valor em
+  R$ especifico da construtora (fica so no financeiro-construtora, sistema separado).
+  **Nao mexido de proposito:** a injecao factual pre-existente de um numero real da
+  construtora em plano-do-dia/resumo-do-dia (`_construtora_contexto_resumo`, feature
+  v3.99.14/16 ja sancionada) - a leitura foi que a regra e sobre o assistente nunca
+  *inventar/repetir* numero numa resposta livre, nao sobre remover uma feature shippada
+  de mostrar dado que ja vem pronto da API externa; ver `progress-e1.txt` pra decisao
+  completa e a pergunta que ficou em aberto pro Alex confirmar.
+
+Suite completa (unittest discover + node --test) sem regressao em nenhuma das 5 historias -
+mesmas 6 falhas pre-existentes conhecidas em todos os commits (5 de horario de voo +
+1 de notificacao agrupada, ambas ja instaveis antes desta faixa comecar, confirmadas
+isoladas contra a branch antes de qualquer mudanca).
+
 ## 2026-09-23 (32) - Deploy de teste no Render (plano gratis)
 
 Pra o Alex testar o estado atual no iPhone com URL publica HTTPS, sem esperar a VPS

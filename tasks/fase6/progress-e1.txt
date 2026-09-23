@@ -1,0 +1,124 @@
+Fase 6, Grupo E, faixa 1 (E1-base) - progresso
+
+Historia US-E1a — decisao: manutencao vira 1 tabela so (`manutencoes`, coluna
+`tipo` casa/carro/equipamento/outro), mantendo as DUAS semanticas antigas
+dentro dela: tipo != carro continua edicao-no-lugar (um item, "feita hoje"
+atualiza ultima_vez), tipo=carro continua HISTORICO (registro novo por
+manutencao feita, sem botao "feita", intervalo_meses grava 0 sentinela
+porque a coluna e NOT NULL por historico e esse tipo nunca le esse campo).
+Migracao (`_migrar_manutencoes_unificadas`) copia manutencoes_veiculo pra
+dentro da tabela unificada como tipo='carro' e apaga a tabela antiga -
+idempotente por flag em `configuracoes` + a propria ausencia da tabela apos
+a 1a vez. Rotas /api/manutencoes-veiculo/* removidas (nada mais as usava
+alem do JS/testes, ambos atualizados); /api/manutencoes vira o unico
+endpoint, tipo no corpo. / Motivo: a AC pedia "uma secao so" com migracao
+"rodando em init_db" - fusao fisica de tabela e nao so unificacao de UI foi
+a leitura mais literal e a que da uma unica fonte de verdade real pro resto
+do app (notificacao, chat tool) consultar. / Nao confirmado: os IDs das
+linhas migradas de manutencoes_veiculo mudam (viram novos autoincrement na
+tabela unificada, pra evitar colisao com IDs ja existentes em manutencoes) -
+isso muda a ref de dedup de notificacao (vida.id_estavel usa o id), entao um
+alerta de manutencao de carro que ja tinha sido mandado ANTES da migracao
+pode ser mandado de novo UMA vez depois dela (nao duplica simultaneamente,
+so pode re-notificar uma vez). Pra um app pessoal de 1 usuario isso pareceu
+aceitavel, mas nao foi confirmado com o Alex - se incomodar, dava pra
+preservar o id original com uma faixa de autoincrement reservada.
+
+Historia US-E1b — decisao: `vida.dividir_itens_compra` e a unica funcao de
+separacao (virgula + conjuncao "e" isolada, com variacoes "e tambem"/
+"e acabou(aram)", article opcional depois) - plugada dentro de
+`_adicionar_compras` (app.py), que ja era o ponto unico usado pelo
+formulario, pela API generica (/api/compras) e pelo chat tool
+adicionar_compras, entao os 3 caminhos ganharam a separacao de graca sem
+tocar em 3 lugares diferentes. Nome composto sem a conjuncao isolada ("pao
+de queijo", "papel higienico") continua 1 item porque o separador exige "e"
+como PALAVRA INTEIRA cercada de espaco (\s+e\s+), nunca dentro de outra
+palavra. / Motivo: reuso do padrao ja existente (funcao unica + ponto de
+entrada unico) em vez de duplicar a divisao em cada rota/tool. / Nao
+confirmado: nada.
+
+Historia US-E1c — investigacao (causa real, pedida na AC): a animacao de
+fundo tem 4 camadas (.aurora com auroraMove; .aurora::before "shine" com
+auroraShine; .aurora::after com rainbowDrift + rainbowDriftExtra
+simultaneas). Testei as 3 causas possiveis listadas na AC (iteration-count,
+simetria do primeiro/ultimo frame do @keyframes, re-render/remontagem do
+elemento):
+  - iteration-count: todas as 4 ja eram `infinite`, nao era isso.
+  - re-render/remontagem: `.aurora` e um <div> fixo no HTML (templates/
+    index.html), nenhum JS toca nele (grep "aurora" em static/js/*.js sem
+    resultado) - nao remonta.
+  - simetria do keyframe: ACHEI - `@keyframes auroraShine` (a camada de
+    "brilho"/reflexo, animation: auroraShine 34s linear infinite) tinha
+    0% = "120% -20%" e 100% = "-20% 120%", OU SEJA, o frame final era
+    DIFERENTE do inicial. Isso faz o navegador levar o valor ate 100% e
+    depois voltar pro 0% NUM PULO INSTANTANEO na virada do ciclo (nao tem
+    "distancia" nenhuma pra percorrer voltando, ele so troca o valor) -
+    exatamente o "reinicia visivelmente de vez em quando" relatado (visivel
+    a cada ~34s, o periodo dessa camada). As outras 3 animacoes
+    (auroraMove, rainbowDrift, rainbowDriftExtra) ja tinham 0%/100% iguais
+    - nunca pulavam, so essa. / decisao: virou ida-e-volta (0%/100% iguais
+    de novo, com o destino antigo agora no meio em 50%) em vez de tentar um
+    loop de "marquee" sem-costura (precisaria duplicar o gradiente de shine
+    lado a lado, mudanca bem maior de CSS pra um efeito decorativo) - mesmo
+    padrao ja usado em rainbowDrift, mantem "bem devagarzinho" (34s), so
+    troca de "anda numa direcao so" pra "vai e volta". / Verificado no
+    Playwright lendo os @keyframes reais via Web Animations API
+    (document.getAnimations()[].effect.getKeyframes(), comparando o
+    primeiro/ultimo frame sem os campos de timing) em vez de esperar um
+    ciclo inteiro de verdade - confirma 0%==100% nas 4 camadas agora.
+    prefers-reduced-motion ja desligava essa camada antes (nao mudou).
+  Nao confirmado: nada.
+
+Historia US-E10 — decisao: estendi a tabela `memorias` que ja existia
+(coluna `categoria` nova, NULL = fato solto capturado automaticamente,
+igual sempre foi; sua_rotina/seus_planos/fora_do_painel = os 3 grupos
+fixos novos) em vez de criar tabela separada - reaproveita create_memoria/
+list_memorias/delete_memoria que ja existiam, so add update_memoria (edicao
+no lugar) e o filtro por categoria. Seed (db.MEMORIAS_INICIAIS_FASE6) roda
+em todo init_db mas so insere numa categoria VAZIA - criterio literal da
+AC, testado inclusive o caso "Alex apaga tudo de um grupo e cria 1 item
+custom -> proximo init_db NAO reseeda" (categoria deixou de estar vazia).
+`db.contexto_memorias_categorizadas(conn)` e a funcao unica pro prompt/card
+futuro (US-E4/E7, fora do meu escopo) - devolve os 3 grupos como dict de
+listas de dict (id/texto), nao so texto, pra quem usar depois saber editar/
+apagar direto. "Fora do painel respeitado no prompt" saiu de graca: como as
+memorias categorizadas SAO memorias comuns, `list_memorias(conn)` (usada
+pra montar {memorias} do CHAT_SYSTEM_PROMPT) ja inclui elas automaticamente,
+sem filtro de categoria - nao precisei adicionar wiring nova nenhuma, so
+escrevi um teste (SystemPromptConteudoTestCase, sem chamar API real)
+confirmando que o texto chega no prompt final mandado pro Claude. UI:
+"Editar" troca o item-titulo por um <input> no lugar (Salvar/Cancelar) -
+padrao novo no projeto (nao existia edicao inline em lugar nenhum antes),
+documentado em AGENTS.md "Padroes descobertos". / Motivo: reuso maximo da
+infra existente (memorias + list_memorias + prompt) em vez de criar
+caminho paralelo. / Nao confirmado: nada.
+
+Historia US-E11 — decisao: apliquei o estilo de resposta em DOIS prompts -
+CHAT_SYSTEM_PROMPT (chat, ja tinha uma regra de "vale a pena" limitada a
+frase literal) E DECISAO_PROMPT (o card dedicado "vale a pena?" da aba
+Painel, claude_client.analisar_decisao - achei ele lendo o codigo, nao
+estava no meu radar inicial so pelo nome da historia). Generalizei o
+gatilho de pros/contras pra "qualquer decisao, mesmo sem usar exatamente
+essas palavras" (a regra antiga so disparava com a frase exata "vale a
+pena") e tornei a recomendacao final OBRIGATORIA (antes era "uma
+inclinacao honesta", agora e explicito "nunca deixe a decisao em aberto").
+Contexto de socio+pai e regra de nao citar numero da construtora foram pro
+mesmo lugar (com "so quando pesar"/"nao repetir sempre" nos dois, pra nao
+virar ruido repetitivo). / Decisao de escopo (a parte que mais vale
+registrar): NAO toquei em `_construtora_contexto_resumo`/`_contexto_chat`
+(app.py) - a injecao FACTUAL de um numero real da construtora (proxima
+conta a pagar, R$ X) que ja existe de proposito em plano-do-dia e
+resumo-do-dia (feature v3.99.14/16, documentada no proprio README e no
+AGENTS.md do financeiro-construtora como integracao sancionada,
+"exibidos como chegaram"). Li a AC como sendo sobre o COMPORTAMENTO
+GERATIVO do assistente (nunca INVENTAR/CITAR de cabeca um numero da
+construtora numa resposta livre tipo chat/vale-a-pena), nao sobre remover
+uma feature shippada e testada de mostrar um dado que veio pronto da API
+externa - mudar isso seria uma regressao de produto sem pedido explicito
+pra isso, e arriscaria quebrar testes existentes (test_resumo_do_dia_*,
+test_plano_do_dia_*) sem necessidade. / Nao confirmado: se o Alex quis
+dizer literalmente "em NENHUM lugar da aba Hoje" (incluindo o resumo/plano
+factual), a linha "proxima conta a pagar da construtora: R$ X" ainda
+aparece la - vale confirmar com ele antes de mexer nisso, ja que e uma
+mudanca de produto mais invasiva (removeria um dado que ele especificamente
+pediu antes, v3.99.14/16).

@@ -430,6 +430,33 @@ def normalizar_item_compra(texto: str | None) -> str:
     return normalizar_nome(limpar_item_compra(texto or "")).strip(" .,!;")
 
 
+# Fase 6 (US-E1b): virgula OU a conjuncao "e" (isolada, com espaco dos dois
+# lados - nunca a letra "e" no meio de uma palavra, por isso NAO quebra "pao
+# de queijo"/"papel higienico") separam itens distintos - "e tambem"/"e
+# acabou"/"e acabaram" contam como a mesma conjuncao (a palavra extra e
+# descartada no separador, sem sobrar grudada no proximo item).
+_SEPARADOR_ITENS_COMPRA = re.compile(
+    r"\s*,\s*|\s+e\s+(?:(?:tamb[eé]m|acabo(?:u|aram))\s+)?(?:(?:o|a|os|as)\b\s*)?", re.IGNORECASE
+)
+
+
+def dividir_itens_compra(texto: str | None) -> list[str]:
+    """Separa uma entrada de lista de compras em itens distintos ('acabou
+    cafe e acucar' -> ['cafe', 'acucar']), aplicada em TODO caminho que cria
+    item de compra (chat tool, formulario, qualquer captura) - funcao unica,
+    pra ninguem reimplementar a divisao por conta propria. Pedaco vazio/so
+    espaco (ex: virgula dupla, ou "e" sobrando) e descartado; nome composto
+    sem a conjuncao ' e ' isolada continua 1 item so."""
+    if not texto:
+        return []
+    itens = []
+    for pedaco in _SEPARADOR_ITENS_COMPRA.split(texto):
+        limpo = limpar_item_compra(pedaco)
+        if limpo:
+            itens.append(limpo)
+    return itens
+
+
 # ---- Fase 3 ----
 
 _PALAVRAS_BUROCRACIA = {
