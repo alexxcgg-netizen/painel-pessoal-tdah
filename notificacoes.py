@@ -455,6 +455,22 @@ def currency_voo_baixa(conn, limiar_dias: int = 21) -> str | None:
     return f"Faz {dias} dias que voce nao voa - pode ser hora de marcar um voo pra nao perder o ritmo."
 
 
+def montar_mensagem_agrupada(itens: list[tuple[str, str]]) -> tuple[str, str]:
+    """Fase 5 (US-C4): junta varios avisos (titulo, corpo) numa unica
+    mensagem - usado pelo modo de notificacao agrupada (nao-urgentes numa
+    janela curta viram um push/Telegram so, em vez de um por aviso), pra nao
+    virar 5 notificacoes separadas em 2 minutos. Com um item so, devolve ele
+    sem alterar (mesmo formato de sempre - a rota so agrupa de verdade
+    quando ha mais de um pra juntar)."""
+    if not itens:
+        return "", ""
+    if len(itens) == 1:
+        return itens[0]
+    titulo = f"{len(itens)} avisos"
+    corpo = "\n".join(f"• {t}: {c}" for t, c in itens)
+    return titulo, corpo
+
+
 def voos_de_hoje_com_horario(conn, hoje: date | None = None) -> list[dict]:
     """Voos de hoje com horario marcado que ainda nao aconteceram (sem
     'horas' voadas registradas ainda) - candidatos pra calcular a hora de

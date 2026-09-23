@@ -922,6 +922,32 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "registrar_decisao",
+        "description": (
+            "Guarda uma decisao importante no diario de decisao - o que foi decidido, o contexto/"
+            "motivo, pra poder revisar depois se deu certo. Use quando o Alex disser algo como "
+            "'decidi [algo]' ou 'vou registrar essa decisao: [...]' sobre algo que ele quer "
+            "acompanhar o resultado mais pra frente. Diferente de 'vale a pena?' (que so pesa "
+            "pros/contras na hora, sem guardar pra revisar depois) - se ele so quer ajuda pra "
+            "decidir agora, use a ferramenta certa pra isso em vez desta."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "decisao": {"type": "string", "description": "o que foi decidido, resumido"},
+                "contexto": {
+                    "type": "string",
+                    "description": "por que, o que foi considerado - omita se o Alex nao deu motivo",
+                },
+                "revisao_em": {
+                    "type": "string",
+                    "description": "data (AAAA-MM-DD) pra lembrar de revisar essa decisao, se ele mencionar um prazo - omita se nao houver",
+                },
+            },
+            "required": ["decisao"],
+        },
+    },
+    {
         "name": "sugerir_horario_livre",
         "description": (
             "Acha o maior espaco livre HOJE, olhando o que ja esta marcado no dia de verdade - "

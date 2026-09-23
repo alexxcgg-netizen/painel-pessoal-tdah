@@ -48,6 +48,8 @@ from db import (
     ajustar_saldo_conta,
     alternar_item_viagem,
     alternar_rotina_item,
+    apagar_brain_dump,
+    apagar_diario_decisao,
     apagar_espera,
     apagar_nota,
     atualizar_categoria_gasto,
@@ -60,8 +62,10 @@ from db import (
     contar_hidratacao_dia,
     cotacao_por_titulo_aproximado,
     create_aprender,
+    create_brain_dump,
     create_conta_pessoal,
     create_decisao,
+    create_diario_decisao,
     create_espera,
     create_goal,
     create_income,
@@ -79,10 +83,13 @@ from db import (
     create_viagem,
     create_voo,
     criar_cotacao,
+    criar_gasto_de_brain_dump,
     criar_item_cotacao,
+    criar_tarefa_de_brain_dump,
     criar_uber_pedido,
     definir_apelido_gasto,
     definir_configuracao,
+    definir_esforco_tarefa,
     definir_orcamento,
     delete_aprender,
     delete_compra,
@@ -127,8 +134,10 @@ from db import (
     list_compras_pendentes,
     list_contas_pessoais,
     list_conversas,
+    list_brain_dump_pendentes,
     list_cotacoes,
     list_decisoes,
+    list_diario_decisoes,
     list_dias_ativos,
     list_esperas_pendentes,
     list_eventos_app,
@@ -155,14 +164,17 @@ from db import (
     list_viagens_futuras,
     list_voos,
     marcar_aprender,
+    marcar_brain_dump_processado,
     marcar_comprado,
     marcar_conta_paga,
+    marcar_espera_importante,
     marcar_manutencao_feita,
     marcar_notificado,
     marcar_ou_criar_feito,
     marcar_respondido,
     marcar_salvo_lido,
     media_passos_ultimos_dias,
+    obter_brain_dump,
     obter_configuracao,
     reclassificar_gasto_para_tarefa,
     reclassificar_tarefa_para_gasto,
@@ -173,6 +185,7 @@ from db import (
     registrar_evento_app,
     registrar_hidratacao,
     registrar_interacao_aprendizado,
+    registrar_resultado_diario_decisao,
     registrar_treino,
     resolver_espera,
     responder_assinatura,
@@ -573,6 +586,39 @@ def complete_task_rota(task_id):
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
+
+
+@app.route("/api/tasks/<int:task_id>/esforco", methods=["POST"])
+def definir_esforco_tarefa_rota(task_id):
+    """Fase 5 (US-C7)."""
+    body = _corpo_json()
+    esforco = body.get("esforco")
+    if esforco not in vida.NIVEIS_ENERGIA:
+        return jsonify({"error": "esforco precisa ser baixa, media ou alta"}), 400
+    conn = get_db()
+    ok = definir_esforco_tarefa(conn, task_id, esforco)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "tarefa nao encontrada"}), 404
+    return jsonify({"ok": True, "esforco": esforco})
+
+
+@app.route("/api/tarefas/sugestao-energia", methods=["GET"])
+def sugestao_por_energia():
+    """Fase 5 (US-C7): sugere tarefas pendentes compativeis com o nivel de
+    energia atual informado (baixa/media/alta) - so filtra as ja listadas
+    por /api/tasks (mesma fonte, sem duplicar a query)."""
+    nivel = request.args.get("nivel", "")
+    if nivel not in vida.NIVEIS_ENERGIA:
+        return jsonify({"error": "nivel precisa ser baixa, media ou alta"}), 400
+    conn = get_db()
+    tasks = conn.execute(
+        "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
+        "ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    compativeis = vida.tarefas_compativeis_com_energia([dict(t) for t in tasks], nivel)
+    return jsonify(compativeis)
 
 
 @app.route("/api/tasks/<int:task_id>/breakdown", methods=["POST"])
@@ -1861,6 +1907,12 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
     def exec_consultar_notas(entrada):
         return {"notas": buscar_notas(conn, entrada["termo"])}
 
+    def exec_registrar_decisao(entrada):
+        decisao_id = create_diario_decisao(
+            conn, entrada["decisao"], entrada.get("contexto"), entrada.get("revisao_em"), texto
+        )
+        return {"ok": True, "decisao_id": decisao_id}
+
     def exec_distribuir_tarefas_na_semana(entrada):
         titulos = [t.strip() for t in entrada.get("titulos", []) if t and t.strip()]
         if not titulos:
@@ -2045,6 +2097,7 @@ def _processar_mensagem_chat(conn, texto: str) -> tuple[str | None, list[str], s
         "consultar_noticias": exec_consultar_noticias,
         "salvar_nota": exec_salvar_nota,
         "consultar_notas": exec_consultar_notas,
+        "registrar_decisao": exec_registrar_decisao,
         "sugerir_horario_livre": exec_sugerir_horario_livre,
         "distribuir_tarefas_na_semana": exec_distribuir_tarefas_na_semana,
         "confirmar_plano_semana": exec_confirmar_plano_semana,
@@ -2303,6 +2356,46 @@ def _liberar_avisos_adiados(conn, hoje: date) -> list[tuple[str, int, str, str]]
         tipo = "adiado_hiperfoco" if tipo_original in NOTIFICACOES_URGENTES else "adiado_hiperfoco_leve"
         liberados.append((tipo, vida.id_estavel("adiado", hoje.isoformat(), titulo, corpo), titulo, corpo))
     return liberados
+
+
+# ---- Notificacao agrupada (Fase 5, US-C4) - mesmo espirito de
+# _adiar_aviso/_liberar_avisos_adiados acima (fila persistida em
+# `configuracoes`), so que o gatilho pra liberar e o tempo passado
+# (`agrupar_janela_min`, nao o fim do hiperfoco) e so entra na fila quem ja
+# passou pelos filtros de hiperfoco/silencioso e nao e urgente - urgente
+# nunca agrupa (ver verificar_e_notificar).
+def _enfileirar_para_agrupar(conn, tipo: str, ref_id, titulo: str, corpo: str):
+    agora_iso = datetime.now().isoformat()
+    try:
+        guardado = json.loads(obter_configuracao(conn, "notificacoes_agrupadas_fila") or "{}")
+    except ValueError:
+        guardado = {}
+    itens = guardado.get("itens", [])
+    if any(i[0] == tipo and i[1] == ref_id for i in itens):
+        return
+    inicio = guardado.get("inicio") or agora_iso
+    itens.append([tipo, ref_id, titulo, corpo])
+    definir_configuracao(
+        conn, "notificacoes_agrupadas_fila", json.dumps({"inicio": inicio, "itens": itens[-20:]})
+    )
+
+
+def _fila_agrupamento_pronta(conn, janela_min: int, agora: datetime) -> list[list]:
+    try:
+        guardado = json.loads(obter_configuracao(conn, "notificacoes_agrupadas_fila") or "{}")
+    except ValueError:
+        guardado = {}
+    itens = guardado.get("itens") or []
+    if not itens:
+        return []
+    try:
+        inicio = datetime.fromisoformat(guardado.get("inicio"))
+    except (TypeError, ValueError):
+        inicio = agora
+    if (agora - inicio).total_seconds() / 60 < janela_min:
+        return []
+    definir_configuracao(conn, "notificacoes_agrupadas_fila", "{}")
+    return itens
 
 
 def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
@@ -2802,6 +2895,21 @@ def verificar_e_notificar():
 
     em_hiperfoco = vida.hiperfoco_ativo(obter_configuracao(conn, "hiperfoco_ate"), datetime.now())
 
+    # Fase 5 (US-C4): notificacao agrupada - desligada por padrao (ver
+    # /api/configuracoes/silencio), pra nao mudar o comportamento de quem
+    # nunca configurou isso. Urgente nunca agrupa, sempre vai na hora.
+    agrupar_ligado = (obter_configuracao(conn, "notificacoes_agrupar") or "0") == "1"
+    agrupar_janela_min = int(obter_configuracao(conn, "notificacoes_agrupar_janela_min") or "2")
+
+    def _despachar(titulo: str, corpo: str, botoes=None):
+        for s in subs:
+            sub_dict = json.loads(s["subscription_json"])
+            ok = push_client.enviar(sub_dict, titulo, corpo)
+            if not ok:
+                delete_push_subscription(conn, s["endpoint"])
+        if telegram_ok:
+            telegram_bot.enviar_mensagem(f"{titulo}\n{corpo}", botoes=botoes)
+
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
         if em_hiperfoco and tipo not in vida.CRITICOS_HIPERFOCO:
@@ -2811,21 +2919,31 @@ def verificar_e_notificar():
             continue
         if silencioso and tipo not in NOTIFICACOES_URGENTES:
             continue
-        for s in subs:
-            sub_dict = json.loads(s["subscription_json"])
-            ok = push_client.enviar(sub_dict, titulo, corpo)
-            if not ok:
-                delete_push_subscription(conn, s["endpoint"])
-        if telegram_ok:
-            # tarefa_parada ganha um botao de acao direto na notificacao -
-            # marca como feita com um toque, sem precisar abrir o app nem
-            # digitar nada (o pedido especifico do Alex pra esse canal).
-            botoes = [("Marcar como feito", f"completar_tarefa:{ref_id}")] if tipo == "tarefa_parada" else None
-            telegram_bot.enviar_mensagem(f"{titulo}\n{corpo}", botoes=botoes)
+        if agrupar_ligado and tipo not in NOTIFICACOES_URGENTES:
+            _enfileirar_para_agrupar(conn, tipo, ref_id, titulo, corpo)
+            continue
+        # tarefa_parada ganha um botao de acao direto na notificacao - marca
+        # como feita com um toque, sem precisar abrir o app nem digitar nada
+        # (o pedido especifico do Alex pra esse canal).
+        botoes = [("Marcar como feito", f"completar_tarefa:{ref_id}")] if tipo == "tarefa_parada" else None
+        _despachar(titulo, corpo, botoes)
         marcar_notificado(conn, tipo, ref_id)
         if tipo in ("tarefa_parada", "espera_parada"):
             registrar_interacao_aprendizado(conn, tipo, ref_id)
         enviados += 1
+
+    if agrupar_ligado:
+        prontos = _fila_agrupamento_pronta(conn, agrupar_janela_min, datetime.now())
+        if prontos:
+            titulo_agrupado, corpo_agrupado = notificacoes.montar_mensagem_agrupada(
+                [(t, c) for _, _, t, c in prontos]
+            )
+            _despachar(titulo_agrupado, corpo_agrupado)
+            for tipo_original, ref_id_original, _, _ in prontos:
+                marcar_notificado(conn, tipo_original, ref_id_original)
+                if tipo_original in ("tarefa_parada", "espera_parada"):
+                    registrar_interacao_aprendizado(conn, tipo_original, ref_id_original)
+                enviados += 1
 
     # Uber agendado: passou o tempo de espera, busca o preco de verdade
     # (trava com fare_id) e avisa - a corrida so sai com confirmacao
@@ -3029,6 +3147,59 @@ def apagar_nota_rota(nota_id):
     return jsonify({"ok": True})
 
 
+# ---- Diario de decisao (Fase 5, US-C2) - NAO confundir com a tabela
+# `decisoes` (Fase 1, "vale a pena?" com pros/contras da IA, efemera) - esta
+# aqui e um diario persistente (decisao + contexto + resultado revisado
+# depois), dai o nome diferente (diario_decisoes) em db.py e as rotas
+# proprias abaixo.
+@app.route("/api/diario-decisoes", methods=["GET"])
+def diario_decisoes():
+    conn = get_db()
+    resultado = list_diario_decisoes(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/diario-decisoes", methods=["POST"])
+def criar_diario_decisao():
+    body = _corpo_json()
+    decisao = _texto_seguro(body.get("decisao"))
+    if not decisao:
+        return jsonify({"error": "informe a decisao"}), 400
+    contexto = _texto_seguro(body.get("contexto")) or None
+    revisao_em = _texto_seguro(body.get("revisao_em")) or None
+
+    conn = get_db()
+    decisao_id = create_diario_decisao(conn, decisao, contexto, revisao_em)
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": decisao_id, "ok": True}), 201
+
+
+@app.route("/api/diario-decisoes/<int:decisao_id>/resultado", methods=["POST"])
+def registrar_resultado_diario_decisao_rota(decisao_id):
+    body = _corpo_json()
+    resultado = _texto_seguro(body.get("resultado"))
+    if not resultado:
+        return jsonify({"error": "informe o resultado"}), 400
+
+    conn = get_db()
+    ok = registrar_resultado_diario_decisao(conn, decisao_id, resultado)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "decisao nao encontrada"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/diario-decisoes/<int:decisao_id>", methods=["DELETE"])
+def apagar_diario_decisao_rota(decisao_id):
+    conn = get_db()
+    apagar_diario_decisao(conn, decisao_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
 @app.route("/api/lembretes", methods=["GET"])
 def lembretes():
     conn = get_db()
@@ -3175,6 +3346,109 @@ def resolver_espera_rota(espera_id):
 def apagar_espera_rota(espera_id):
     conn = get_db()
     apagar_espera(conn, espera_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/esperas/<int:espera_id>/importante", methods=["POST"])
+def marcar_espera_importante_rota(espera_id):
+    """Fase 5 (US-C5): marca/desmarca uma espera pendente como importante -
+    entra no calculo de prioridade de quem responder primeiro (ver
+    /api/esperas/prioridade e vida.priorizar_esperas)."""
+    body = _corpo_json()
+    importante = bool(body.get("importante", True))
+    conn = get_db()
+    ok = marcar_espera_importante(conn, espera_id, importante)
+    conn.close()
+    if not ok:
+        return jsonify({"error": "espera nao encontrada"}), 404
+    return jsonify({"ok": True, "importante": importante})
+
+
+@app.route("/api/esperas/prioridade", methods=["GET"])
+def esperas_priorizadas():
+    """Fase 5 (US-C5): quem responder primeiro entre as esperas pendentes -
+    reaproveita a mesma tabela/logica de list_esperas_pendentes (TODO #76),
+    so ordena por vida.priorizar_esperas (tempo parado + importancia) em vez
+    da ordem de criacao que /api/esperas devolve."""
+    conn = get_db()
+    esperas = list_esperas_pendentes(conn)
+    conn.close()
+    return jsonify(vida.priorizar_esperas(esperas, date.today()))
+
+
+# ---- Brain dump (Fase 5, US-C6) - despejo rapido de pensamento solto, sem
+# classificar em tarefa/nota/gasto na hora; classifica depois com calma.
+@app.route("/api/brain-dump", methods=["GET"])
+def brain_dump_pendentes():
+    conn = get_db()
+    resultado = list_brain_dump_pendentes(conn)
+    conn.close()
+    return jsonify(resultado)
+
+
+@app.route("/api/brain-dump", methods=["POST"])
+def capturar_brain_dump():
+    body = _corpo_json()
+    texto = _texto_seguro(body.get("texto"))
+    if not texto:
+        return jsonify({"error": "manda algum texto"}), 400
+
+    conn = get_db()
+    item_id = create_brain_dump(conn, texto)
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": item_id, "ok": True}), 201
+
+
+@app.route("/api/brain-dump/<int:item_id>/converter", methods=["POST"])
+def converter_brain_dump(item_id):
+    """Converte um item pendente em tarefa/nota/gasto de verdade -
+    reaproveita create_nota (ja existente) e dois inserts minimos pra tarefa/
+    gasto (criar_tarefa_de_brain_dump/criar_gasto_de_brain_dump, mesmo
+    formato das rotas que ja existem pra cada tipo, so sem passar pela
+    classificacao por IA - o Alex ja escolheu o tipo na hora de converter)."""
+    body = _corpo_json()
+    tipo = body.get("tipo")
+    if tipo not in ("tarefa", "nota", "gasto"):
+        return jsonify({"error": "tipo precisa ser tarefa, nota ou gasto"}), 400
+
+    conn = get_db()
+    item = obter_brain_dump(conn, item_id)
+    if not item:
+        conn.close()
+        return jsonify({"error": "item nao encontrado"}), 404
+    if item["processado"]:
+        conn.close()
+        return jsonify({"error": "item ja foi processado"}), 400
+
+    if tipo == "tarefa":
+        titulo = _texto_seguro(body.get("titulo")) or item["texto"]
+        novo_id = criar_tarefa_de_brain_dump(
+            conn, titulo, body.get("due_date"), _normalizar_hora(body.get("hora")), item["texto"]
+        )
+    elif tipo == "nota":
+        titulo = _texto_seguro(body.get("titulo")) or item["texto"][:60]
+        novo_id = create_nota(conn, titulo, body.get("corpo") or item["texto"], source_text=item["texto"])
+    else:
+        valor = body.get("valor")
+        if not isinstance(valor, (int, float)) or valor <= 0:
+            conn.close()
+            return jsonify({"error": "informe um valor valido pro gasto"}), 400
+        descricao = _texto_seguro(body.get("titulo")) or item["texto"]
+        novo_id = criar_gasto_de_brain_dump(conn, valor, body.get("categoria"), descricao, item["texto"])
+
+    marcar_brain_dump_processado(conn, item_id)
+    _marcar_atividade(conn)
+    conn.close()
+    return jsonify({"ok": True, "tipo": tipo, "id": novo_id})
+
+
+@app.route("/api/brain-dump/<int:item_id>", methods=["DELETE"])
+def apagar_brain_dump_rota(item_id):
+    conn = get_db()
+    apagar_brain_dump(conn, item_id)
     conn.close()
     return jsonify({"ok": True})
 
@@ -4689,6 +4963,52 @@ def revisao_mensal():
     return jsonify(resultado)
 
 
+@app.route("/api/revisao-periodo", methods=["GET"])
+def revisao_periodo():
+    """Fase 5 (US-C3): revisao trimestral/anual - agrega financeiro, tarefas
+    concluidas e saude reaproveitando _fatos_periodo (a mesma funcao ja usada
+    pela revisao mensal em /api/revisao-mensal e por /api/progresso, nao
+    duplica calculo), mais as decisoes do diario (US-C2) registradas no
+    periodo."""
+    tipo = request.args.get("tipo", "trimestre")
+    if tipo not in ("trimestre", "ano"):
+        return jsonify({"error": "tipo precisa ser trimestre ou ano"}), 400
+
+    hoje = date.today()
+    try:
+        ano = int(request.args.get("ano", hoje.year))
+        if tipo == "trimestre":
+            trimestre = int(request.args.get("trimestre", vida.trimestre_de(hoje)))
+            primeiro, ultimo = vida.intervalo_trimestre(ano, trimestre)
+        else:
+            trimestre = None
+            primeiro, ultimo = vida.intervalo_ano(ano)
+        if not 2000 <= ano <= 2100:
+            raise ValueError
+    except (ValueError, TypeError):
+        return jsonify({"error": "ano/trimestre invalidos"}), 400
+
+    conn = get_db()
+    fatos = _fatos_periodo(conn, primeiro, ultimo)
+    decisoes_periodo = [
+        d for d in list_diario_decisoes(conn) if primeiro.isoformat() <= d["data"] <= ultimo.isoformat()
+    ]
+    conn.close()
+
+    return jsonify(
+        {
+            "tipo": tipo,
+            "ano": ano,
+            "trimestre": trimestre,
+            "inicio": primeiro.isoformat(),
+            "fim": ultimo.isoformat(),
+            **fatos,
+            "decisoes": decisoes_periodo,
+            "decisoes_com_resultado": sum(1 for d in decisoes_periodo if d["resultado"]),
+        }
+    )
+
+
 @app.route("/api/atalho/app", methods=["POST"])
 def atalho_app():
     """Automacao 'App abriu/fechou' do Atalhos (uma por app) - o Screen Time
@@ -5224,8 +5544,15 @@ def obter_silencio():
     conn = get_db()
     inicio = obter_configuracao(conn, "silencio_inicio") or "22:00"
     fim = obter_configuracao(conn, "silencio_fim") or "07:00"
+    # Fase 5 (US-C4): notificacao agrupada mora no mesmo endpoint/mecanismo
+    # do modo silencioso configuravel (mesma tabela `configuracoes`, mesmo
+    # painel de ajustes de notificacao) em vez de um sistema paralelo -
+    # desligada por padrao pra nao mudar o comportamento de quem nunca
+    # mexeu nisso.
+    agrupar = (obter_configuracao(conn, "notificacoes_agrupar") or "0") == "1"
+    agrupar_janela_min = int(obter_configuracao(conn, "notificacoes_agrupar_janela_min") or "2")
     conn.close()
-    return jsonify({"inicio": inicio, "fim": fim})
+    return jsonify({"inicio": inicio, "fim": fim, "agrupar": agrupar, "agrupar_janela_min": agrupar_janela_min})
 
 
 @app.route("/api/configuracoes/silencio", methods=["POST"])
@@ -5235,11 +5562,30 @@ def definir_silencio():
     fim = _normalizar_hora(corpo.get("fim"))
     if not inicio or not fim:
         return jsonify({"error": "horario invalido - use HH:MM"}), 400
+
     conn = get_db()
     definir_configuracao(conn, "silencio_inicio", inicio)
     definir_configuracao(conn, "silencio_fim", fim)
+
+    resultado = {"ok": True, "inicio": inicio, "fim": fim}
+    if "agrupar" in corpo:
+        agrupar = bool(corpo.get("agrupar"))
+        definir_configuracao(conn, "notificacoes_agrupar", "1" if agrupar else "0")
+        resultado["agrupar"] = agrupar
+    if "agrupar_janela_min" in corpo:
+        try:
+            janela = int(corpo.get("agrupar_janela_min"))
+        except (TypeError, ValueError):
+            conn.close()
+            return jsonify({"error": "agrupar_janela_min precisa ser um numero inteiro"}), 400
+        if janela < 1:
+            conn.close()
+            return jsonify({"error": "agrupar_janela_min precisa ser pelo menos 1"}), 400
+        definir_configuracao(conn, "notificacoes_agrupar_janela_min", str(janela))
+        resultado["agrupar_janela_min"] = janela
+
     conn.close()
-    return jsonify({"ok": True, "inicio": inicio, "fim": fim})
+    return jsonify(resultado)
 
 
 @app.route("/api/aprendizado", methods=["GET"])
