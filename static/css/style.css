@@ -2028,6 +2028,54 @@ li.item.saindo {
   vertical-align: middle;
 }
 
+/* Fase 6 (US-F8): mesma forma de .item-tag-tarefa (neutra, "aguardando"),
+   so a cor muda quando a decisao ja tem resultado preenchido - mesmo verde
+   ja usado em saldo positivo (.banco-saldo) pro app inteiro falar "ok" com
+   a mesma cor. */
+.diario-status-resolvida {
+  color: #42bb91;
+  border-color: color-mix(in srgb, #42bb91 45%, var(--border));
+  background: color-mix(in srgb, #42bb91 14%, transparent);
+}
+
+/* Fase 6 (US-F8): "esperando ha N dias" - mesmo raciocinio dos 2 niveis de
+   .lembrete-contagem-urgente (Datas importantes), cor da propria secao
+   (--cor-tarefas, "Esperando resposta de") ate 5 dias, --danger depois - o
+   mesmo limiar que ja disparava o push (docs/README, texto da dica desta
+   secao: "avisa se passar de 5 dias"), agora visivel na propria lista. */
+.espera-dias-parado {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cor-tarefas);
+  background: color-mix(in srgb, var(--cor-tarefas) 16%, transparent);
+}
+
+.espera-dias-parado-critico {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* Fase 6 (US-F8): estrela "importante" (/api/esperas/<id>/importante ja
+   existia desde a Fase 5/US-C5 pro calculo de prioridade, so nao tinha
+   toque nenhum na tela pra ligar/desligar). */
+.btn-espera-importante {
+  color: var(--text-muted);
+}
+
+.btn-espera-importante svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.btn-espera-importante.ativo {
+  color: var(--cor-bancos);
+}
+
 /* Fase 6 (US-E9): mesma forma de .item-tag-tarefa, so a cor muda por origem -
    a visao do dia (e a agenda de hoje, que reusa o mesmo componente) marca
    cada item da linha do tempo por quem ele veio (Tarefas/Agenda/Habitos). */
