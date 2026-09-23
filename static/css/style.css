@@ -2170,8 +2170,40 @@ li.item.saindo {
 }
 
 .lembrete-contagem-urgente {
+  /* Fase 6 (US-F7): virou selo (pill) em vez de so texto colorido - "cor da
+     secao" (--cor-bancos, datas importantes) pro caso "vencendo" (ate 7
+     dias); .lembrete-contagem-vencido troca pra --danger so quando ja
+     passou de verdade (unico caso aqui equivalente a erro). */
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: var(--cor-bancos);
-  font-weight: 600;
+  background: color-mix(in srgb, var(--cor-bancos) 16%, transparent);
+}
+
+.lembrete-contagem-vencido {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* Fase 6 (US-F7): mesmo selo (pill), so que na cor da propria secao de
+   Medicamentos (--cor-painel) - informativo (quanto falta pra proxima
+   dose), nunca alerta/urgente, por isso NAO reusa .lembrete-contagem-
+   urgente (aquela e --cor-bancos, da secao Datas importantes). */
+.medicamento-proxima-dose {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cor-painel);
+  background: color-mix(in srgb, var(--cor-painel) 16%, transparent);
 }
 
 .banco-saldo {
@@ -2314,6 +2346,54 @@ li.item.saindo {
   background: var(--surface-2);
   border: 1px solid var(--border);
   vertical-align: middle;
+}
+
+/* Fase 6 (US-F8): mesma forma de .item-tag-tarefa (neutra, "aguardando"),
+   so a cor muda quando a decisao ja tem resultado preenchido - mesmo verde
+   ja usado em saldo positivo (.banco-saldo) pro app inteiro falar "ok" com
+   a mesma cor. */
+.diario-status-resolvida {
+  color: #42bb91;
+  border-color: color-mix(in srgb, #42bb91 45%, var(--border));
+  background: color-mix(in srgb, #42bb91 14%, transparent);
+}
+
+/* Fase 6 (US-F8): "esperando ha N dias" - mesmo raciocinio dos 2 niveis de
+   .lembrete-contagem-urgente (Datas importantes), cor da propria secao
+   (--cor-tarefas, "Esperando resposta de") ate 5 dias, --danger depois - o
+   mesmo limiar que ja disparava o push (docs/README, texto da dica desta
+   secao: "avisa se passar de 5 dias"), agora visivel na propria lista. */
+.espera-dias-parado {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cor-tarefas);
+  background: color-mix(in srgb, var(--cor-tarefas) 16%, transparent);
+}
+
+.espera-dias-parado-critico {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* Fase 6 (US-F8): estrela "importante" (/api/esperas/<id>/importante ja
+   existia desde a Fase 5/US-C5 pro calculo de prioridade, so nao tinha
+   toque nenhum na tela pra ligar/desligar). */
+.btn-espera-importante {
+  color: var(--text-muted);
+}
+
+.btn-espera-importante svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.btn-espera-importante.ativo {
+  color: var(--cor-bancos);
 }
 
 /* Fase 6 (US-E9): mesma forma de .item-tag-tarefa, so a cor muda por origem -
@@ -3002,22 +3082,95 @@ li.item.item-planejado {
 
 #viagem-form {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.6rem;
   margin-bottom: 0.75rem;
 }
 
-#viagem-origem,
-#viagem-destino,
+/* Fase 6 (US-F6): origem/destino eram 2 inputs soltos, sem nada indicando
+   que sao os 2 pontos de uma MESMA rota - agora uma trilha vertical + 2
+   pontos (mesma linguagem visual da .linha-do-tempo da agenda: trilha
+   ligando marcadores) deixa o "de -> pra" claro de relance, nao so pelo
+   placeholder. */
+.viagem-rota {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.viagem-rota-trilha {
+  position: absolute;
+  left: 0.5rem;
+  top: 1.15rem;
+  bottom: 1.15rem;
+  width: 2px;
+  background: var(--border);
+}
+
+.viagem-rota-campo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: 1.5rem;
+}
+
+.viagem-rota-ponto {
+  position: absolute;
+  left: 0.13rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+}
+
+.viagem-rota-ponto-origem {
+  background: var(--text-muted);
+}
+
+.viagem-rota-ponto-destino {
+  background: var(--form-cor, var(--cor-tarefas));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--form-cor, var(--cor-tarefas)) 25%, transparent);
+}
+
+.viagem-rota-campo input,
 #viagem-chegar {
-  flex: 1 1 100%;
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
-  padding: 0.6rem;
+  box-sizing: border-box;
+  padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   font-size: 0.85rem;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.viagem-rota-campo input:focus,
+#viagem-chegar:focus {
+  outline: none;
+  border-color: var(--form-cor, var(--cor-tarefas));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--form-cor, var(--cor-tarefas)) 18%, transparent);
+}
+
+/* Legenda pequena reusavel acima de um campo isolado (fora de .form-linha,
+   que ja nao usa label) - mesmo peso visual de .decisao-rotulo (Vale a
+   pena), soltada daquele nome porque passou a ser usada em varias secoes
+   do Painel (US-F6 em diante), nao so no diario de decisao. */
+.campo-rotulo-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.campo-rotulo {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
 }
 
 #viagem-btn {
@@ -3812,7 +3965,12 @@ li.item.item-planejado {
 }
 
 #lembrete-data {
-  flex: 0 1 7rem;
+  /* Fase 6 (US-F7): virou <input type="date"> (seletor nativo em vez de
+     texto livre "dd/mm/aaaa" + mascara) - precisa de mais largura que o
+     campo de texto mascarado antigo pro widget nativo do navegador nao
+     cortar o "dd/mm/aaaa". */
+  flex: 1 1 9.5rem;
+  min-width: 8.5rem;
 }
 
 .check-recorrente {
@@ -4333,7 +4491,7 @@ body.modo-essencial #essencial-box {
 
 .decisao-resumo {
   font-weight: 600;
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.6rem;
 }
 
 .decisao-rotulo {
@@ -4350,10 +4508,84 @@ body.modo-essencial #essencial-box {
   padding-left: 1.1rem;
 }
 
+/* Fase 6 (US-F9): o veredito ("vale"/"nao_vale"/"depende", ja vem pronto do
+   prompt) virou um banner colorido no TOPO do card (semaforo verde/
+   vermelho/ambar), nao so uma frase perdida no fim do texto - bate o
+   pedido "recomendacao direta" da historia. --danger so entra aqui pro
+   veredito NEGATIVO mesmo (unico caso, igual .lembrete-contagem-vencido/
+   .item-tag-travada) - vale/depende usam cor de secao, nunca vermelho. */
 .decisao-veredito {
-  margin: 0.6rem 0 0;
-  font-weight: 600;
-  color: var(--accent-text, var(--accent));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.decisao-veredito-selo {
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.decisao-veredito-porque {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.decisao-veredito-vale {
+  border-color: color-mix(in srgb, var(--cor-painel) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-painel) 14%, transparent);
+}
+.decisao-veredito-vale .decisao-veredito-selo {
+  color: var(--cor-painel);
+}
+
+.decisao-veredito-nao-vale {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: var(--danger-bg);
+}
+.decisao-veredito-nao-vale .decisao-veredito-selo {
+  color: var(--danger);
+}
+
+.decisao-veredito-depende {
+  border-color: color-mix(in srgb, var(--cor-bancos) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-bancos) 14%, transparent);
+}
+.decisao-veredito-depende .decisao-veredito-selo {
+  color: var(--cor-bancos);
+}
+
+/* Pros/contras eram 2 listas identicas empilhadas - viram colunas lado a
+   lado (empilham no mobile via flex-wrap), cada uma com uma cor de borda
+   propria pra "fatos organizados" ficar visual, nao so texto. */
+.decisao-grade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 0.4rem;
+}
+
+.decisao-coluna {
+  flex: 1 1 9rem;
+  min-width: 8rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--border);
+}
+
+.decisao-coluna .decisao-rotulo {
+  margin-top: 0;
+}
+
+.decisao-coluna-pros {
+  border-left-color: color-mix(in srgb, var(--cor-painel) 55%, var(--border));
+}
+
+.decisao-coluna-contras {
+  border-left-color: color-mix(in srgb, var(--cor-bancos) 55%, var(--border));
 }
 
 /* display:flex nas classes acima sobrescreveria o atributo hidden. */
@@ -4485,6 +4717,55 @@ body.modo-essencial #essencial-box {
   white-space: pre-wrap;
   user-select: text;
   -webkit-user-select: text;
+}
+
+/* Fase 6 (US-F9): "Direta"/"Mais gentil" eram 2 paragrafos empilhados com o
+   mesmo selo generico (.decisao-rotulo) - viraram 2 cartoes com identidade
+   propria (cor da versao no selo + borda), pra bater o pedido de "resposta
+   interativa" em vez de texto corrido igual antes (app e mobile-first,
+   390px - empilhado sempre, sem tentar lado a lado). */
+.mensagem-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.mensagem-card {
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.mensagem-card-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mensagem-copiar {
+  flex-shrink: 0;
+}
+
+.mensagem-card-direta {
+  border-color: color-mix(in srgb, var(--cor-tarefas) 35%, var(--border));
+}
+
+.mensagem-card-direta .item-tag-tarefa {
+  color: var(--cor-tarefas);
+  border-color: color-mix(in srgb, var(--cor-tarefas) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-tarefas) 14%, transparent);
+}
+
+.mensagem-card-gentil {
+  border-color: color-mix(in srgb, var(--cor-painel) 35%, var(--border));
+}
+
+.mensagem-card-gentil .item-tag-tarefa {
+  color: var(--cor-painel);
+  border-color: color-mix(in srgb, var(--cor-painel) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-painel) 14%, transparent);
 }
 
 #mensagem-resultado[hidden] {

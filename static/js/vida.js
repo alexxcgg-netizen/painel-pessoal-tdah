@@ -499,30 +499,63 @@ async function loadAssinaturasRevisao() {
 
 // ---- Vale a pena? ----
 
-const INCLINACAO_TEXTO = { vale: "Inclina pra: vale", nao_vale: "Inclina pra: nao vale", depende: "Depende" };
+// Fase 6 (US-F9): a inclinacao ('vale'/'nao_vale'/'depende', ja vem pronta
+// do prompt - claude_client.DECISAO_PROMPT, ajustado na faixa E1) virou um
+// selo de veredito no TOPO do card, com cor propria (semaforo: verde/
+// vermelho/ambar) em vez de uma frase "Inclina pra: X" perdida no fim do
+// texto corrido - bate o pedido "recomendacao direta", ve-se de relance sem
+// ler o resto.
+const INCLINACAO_INFO = {
+  vale: { rotulo: "Vale a pena", classe: "decisao-veredito-vale" },
+  nao_vale: { rotulo: "Nao vale a pena", classe: "decisao-veredito-nao-vale" },
+  depende: { rotulo: "Depende", classe: "decisao-veredito-depende" },
+};
 
 function renderDecisao(analise) {
   const box = $("#decisao-resultado");
   box.innerHTML = "";
   box.hidden = false;
+
+  const info = INCLINACAO_INFO[analise.inclinacao];
+  if (info) {
+    const veredito = criarEl("div", `decisao-veredito ${info.classe}`);
+    veredito.appendChild(criarEl("span", "decisao-veredito-selo", info.rotulo));
+    if (analise.porque) veredito.appendChild(criarEl("span", "decisao-veredito-porque", analise.porque));
+    box.appendChild(veredito);
+  }
+
   if (analise.resumo) box.appendChild(criarEl("p", "decisao-resumo", analise.resumo));
-  [
-    ["pros", "Pros"],
-    ["contras", "Contras"],
-    ["perguntas_chave", "O que mudaria a resposta"],
-  ].forEach(([chave, rotulo]) => {
-    const itens = Array.isArray(analise[chave]) ? analise[chave] : [];
-    if (!itens.length) return;
-    box.appendChild(criarEl("p", "decisao-rotulo", rotulo));
+
+  // Pros/contras eram 2 listas empilhadas com o mesmo rotulo cinza - viram
+  // colunas lado a lado (empilham no mobile), cada uma com a cor "fatos
+  // organizados" pedida (US-F9): verde pra pros, ambar pra contras (nunca
+  // --danger aqui - a paleta reserva vermelho so pro veredito negativo/erro
+  // de verdade, nao pra "contra" que pode ser so um detalhe menor).
+  const pros = Array.isArray(analise.pros) ? analise.pros : [];
+  const contras = Array.isArray(analise.contras) ? analise.contras : [];
+  if (pros.length || contras.length) {
+    const grade = criarEl("div", "decisao-grade");
+    [
+      [pros, "Pros", "decisao-coluna-pros"],
+      [contras, "Contras", "decisao-coluna-contras"],
+    ].forEach(([itens, rotulo, classeCor]) => {
+      if (!itens.length) return;
+      const coluna = criarEl("div", `decisao-coluna ${classeCor}`);
+      coluna.appendChild(criarEl("p", "decisao-rotulo", rotulo));
+      const ul = criarEl("ul", "decisao-lista");
+      itens.forEach((i) => ul.appendChild(criarEl("li", null, String(i))));
+      coluna.appendChild(ul);
+      grade.appendChild(coluna);
+    });
+    box.appendChild(grade);
+  }
+
+  const perguntas = Array.isArray(analise.perguntas_chave) ? analise.perguntas_chave : [];
+  if (perguntas.length) {
+    box.appendChild(criarEl("p", "decisao-rotulo", "O que mudaria a resposta"));
     const ul = criarEl("ul", "decisao-lista");
-    itens.forEach((i) => ul.appendChild(criarEl("li", null, String(i))));
+    perguntas.forEach((p) => ul.appendChild(criarEl("li", null, String(p))));
     box.appendChild(ul);
-  });
-  const inclinacao = INCLINACAO_TEXTO[analise.inclinacao] || null;
-  if (inclinacao || analise.porque) {
-    box.appendChild(
-      criarEl("p", "decisao-veredito", [inclinacao, analise.porque].filter(Boolean).join(" - "))
-    );
   }
 }
 
@@ -1350,26 +1383,45 @@ $("#mensagem-form").addEventListener("submit", async (e) => {
   const r = await jsonPost("/api/mensagem-dificil", { situacao, para_quem: $("#mensagem-para").value.trim() });
   setBotaoCarregando(btn, false, "Escrever pra mim");
   if (!r) return;
+  // Fase 6 (US-F9): 2 paragrafos rotulados empilhados viraram 2 cartoes lado
+  // a lado (empilham no mobile por causa do wrap) - cada um com selo de qual
+  // versao e e um botao de copiar com icone (mesmo padrao .btn-com-icone do
+  // resto do app, em vez do link de texto solto que nao dava nenhum retorno
+  // visual alem de trocar a palavra).
   const box = $("#mensagem-resultado");
   box.innerHTML = "";
   box.hidden = false;
+  box.className = "card-resultado mensagem-cards";
   [
-    ["direta", "Direta"],
-    ["gentil", "Mais gentil"],
-  ].forEach(([chave, rotulo]) => {
-    box.appendChild(criarEl("p", "decisao-rotulo", rotulo));
-    box.appendChild(criarEl("p", "mensagem-texto", r[chave]));
-    const copiar = criarEl("button", "btn-link", "copiar");
+    ["direta", "Direta", "mensagem-card-direta"],
+    ["gentil", "Mais gentil", "mensagem-card-gentil"],
+  ].forEach(([chave, rotulo, classeCor]) => {
+    const texto = r[chave];
+    if (!texto) return;
+    const card = criarEl("div", `mensagem-card ${classeCor}`);
+
+    const topo = criarEl("div", "mensagem-card-topo");
+    topo.appendChild(criarEl("span", "item-tag-tarefa", rotulo));
+    const copiar = criarEl("button", "btn-com-icone mensagem-copiar");
     copiar.type = "button";
+    copiar.innerHTML = `${ICONE_COPIAR}Copiar`;
     copiar.addEventListener("click", async () => {
       try {
-        await navigator.clipboard.writeText(r[chave]);
-        copiar.textContent = "copiado";
+        await navigator.clipboard.writeText(texto);
+        copiar.innerHTML = `${ICONE_CHECK}Copiado`;
+        pulsarSucesso(copiar);
+        setTimeout(() => {
+          copiar.innerHTML = `${ICONE_COPIAR}Copiar`;
+        }, 1800);
       } catch {
-        copiar.textContent = "nao deu pra copiar - segura no texto";
+        copiar.textContent = "nao deu - segura no texto";
       }
     });
-    box.appendChild(copiar);
+    topo.appendChild(copiar);
+    card.appendChild(topo);
+
+    card.appendChild(criarEl("p", "mensagem-texto", texto));
+    box.appendChild(card);
   });
 });
 

@@ -1,0 +1,189 @@
+# Fase 6 - Grupo F2 (painel) - Progress Log
+Iniciado: 2026-09-23T20:00:00Z
+---
+
+## US-F6 - "Devo sair ate que horas": layout mais bonito
+
+Historia X (US-F6) — decisao: origem/destino viraram uma trilha vertical + 2
+pontos (`.viagem-rota`/`.viagem-rota-trilha`/`.viagem-rota-ponto-*`), a
+MESMA linguagem visual ja usada em `.linha-do-tempo` (agenda de hoje) - nao
+inventei um componente novo do zero. / Motivo: reuso do padrao visual ja
+validado pelo Alex em vez de criar mais um jeito de mostrar "sequencia no
+tempo/espaco"; origem e destino sao os 2 extremos de uma rota, exatamente o
+mesmo conceito de "trilha ligando pontos" que a agenda ja usa pro tempo. /
+Nao confirmado: nada - so CSS/HTML, ids/JS (`app.js`) intocados.
+
+## US-F7 - Datas Importantes / Medicamentos: tratamento visual mais rico
+
+Historia X (US-F7) — decisao: `#lembrete-data` virou `<input type="date">`
+nativo em vez de continuar com o texto livre "dd/mm/aaaa" + mascara
+(`aplicarMascaraData`/`mascaraDataParaIso`, que continuam existindo porque
+`#voo-data`, aviacao/faixa F3, ainda usa). / Motivo: pedido explicito do
+Alex ("seletor em vez de texto livre quando a entrada e limitada") - uma
+data so tem um formato valido, nao faz sentido pedir digitacao livre com
+mascara quando o navegador ja tem um seletor nativo pronto. / Nao
+confirmado: se o Alex preferir manter o texto livre em algum caso especifico
+(ex: digitar mais rapido que abrir o seletor) - reverter e trivial (so o
+`type` do input + a linha `dataInput.value` no submit).
+
+Historia X (US-F7) — decisao: lista de lembretes agora ORDENA por
+`dias_restantes` no cliente (`[...lembretes].sort(...)`) em vez de confiar
+na ordem que `/api/lembretes` devolve (`ORDER BY data` no SQL, que pra um
+lembrete recorrente e o ANO DE CRIACAO, nao o proximo aniversario). / Motivo:
+gap real encontrado por leitura de codigo - o backend ja calculava
+`dias_restantes`/`proxima_ocorrencia` certo (Fase 5), so nao reordenava por
+ele; ordenar no servidor duplicaria aquele calculo (que ja usa
+`notificacoes.proxima_ocorrencia_lembrete`). / Nao confirmado: nada, e
+puramente aditivo.
+
+Historia X (US-F7) — decisao: medicamentos ganharam um selo "em Xh/foi ha
+Xh" (proxima dose) calculado 100% no NAVEGADOR (`proximaDoseTexto`, a
+partir do `horario` e do relogio local), sem tocar em nenhum aviso/push
+real (que continua so no backend, `notificacoes.py`). / Motivo: e so
+apresentacao (ajuda a nao fazer conta de cabeca), nunca deveria virar fonte
+de verdade de quando o push dispara de verdade - lembrete no AGENTS.md de
+nao duplicar logica de negocio se aplica igual a "logica de aviso". / Nao
+confirmado: nada.
+
+## US-F8 - Esperando resposta / Diario de decisao: apresentacao visual
+
+Historia X (US-F8) — decisao: a lista de esperas trocou de `/api/esperas`
+pra `/api/esperas/prioridade` (ja existia desde a Fase 5/US-C5, so nenhuma
+tela chamava) - ganhou o selo "esperando ha N dia(s)" (critico depois de 5
+dias, o mesmo limiar do push) e um botao estrela pra marcar/desmarcar
+`importante` (`/api/esperas/<id>/importante`, idem, ja existia sem UI). /
+Motivo: antes de escrever calculo novo, grep por endpoint pronto sem tela -
+achei os dois ja prontos e testados (`tests/test_app.py` ja cobre
+`/api/esperas/prioridade`), so faltava ligar na interface. / Nao
+confirmado: nada, os 2 endpoints ja eram testados.
+
+Historia X (US-F8) — decisao: diario de decisao ganhou selo de status
+(RESOLVIDA/AGUARDANDO, reusando `.item-tag-tarefa` + uma variante de cor
+`.diario-status-resolvida`) e a DATA da decisao (`d.data`, ja vinha da API
+mas nunca era mostrada). / Motivo: pedido de "apresentacao visual melhor" -
+saber de relance quais decisoes ainda esperam resultado sem ler a frase
+inteira de cada item. / Nao confirmado: nada.
+
+Historia X (US-F8) — verificacao extra (regra de seguranca Fase 5): com
+modo visitante ativo, `GET /api/diario-decisoes` devolve `[]` e `POST
+/api/diario-decisoes`/`POST /api/decisao` (vale a pena) devolvem 403 -
+reconferido manualmente (curl) depois de todas as mudancas desta faixa,
+sem alterar nenhuma linha de `_modo_visitante_ativo()`/`app.py` nessas
+rotas.
+
+## US-F9 - Comunicacao Assistida (mensagem dificil) / Vale a Pena: resposta interativa
+
+Historia X (US-F9) — decisao: NENHUM prompt/contrato de IA mudou -
+`claude_client.redigir_mensagem_dificil` ja devolvia `{direta, gentil}` e
+`claude_client.analisar_decisao` (DECISAO_PROMPT) ja devolvia
+`{resumo, pros, contras, perguntas_chave, inclinacao, porque}` estruturado
+(ajustado na faixa E1, como o briefing ja avisava) - toda a historia foi
+SO front-end (`vida.js`/`style.css`). / Motivo: exatamente o que o
+briefing pedia ("voce so muda a apresentacao"); nao havia texto corrido
+nenhum pra "estruturar", ja vinha em JSON. / Nao confirmado: nada.
+
+Historia X (US-F9) — decisao: veredito da decisao (`vale`/`nao_vale`/
+`depende`) virou banner semaforo (verde/vermelho/ambar) no TOPO do card,
+`--danger` reservado so pro caso `nao_vale` (pros/contras usam
+`--cor-painel`/`--cor-bancos`, nunca vermelho). / Motivo: bate a regra
+documentada no `style.css` ("vermelho reservado so pra erro, nunca pra
+identidade de secao") interpretada com o mesmo criterio ja usado em
+`.item-tag-travada`/`.lembrete-contagem-vencido` (2 casos pre-existentes/
+desta mesma faixa onde --danger sinaliza "atencao real", nao so
+identidade) - "nao vale a pena" e uma recomendacao negativa clara,
+semaforo e convencao universal. / Nao confirmado: se o Alex preferir uma
+cor diferente pro "nao vale" (facil trocar, e so a classe
+`.decisao-veredito-nao-vale`).
+
+## US-F10 - Tarefas: campo de prazo opcional
+
+Historia X (US-F10) — decisao: `tasks.due_date`/`due_at` JA EXISTIAM no
+schema (nenhuma migracao nova) e o CHAT ja suportava prazo opcional
+(`registrar_tarefa` com `quando`/`quando_data`, ja testado em
+`tests/test_app.py`) - o que faltava era só o FORMULARIO direto na aba
+Tarefas (nao existia nenhum, so dava pra criar tarefa via chat/captura). /
+Motivo: conferido ANTES de escrever qualquer coisa (grep em `db.py`/
+`app.py` pela coluna e pelas rotas `/api/tasks`) - `criar_tarefa_de_brain_dump`
+(Fase 5, US-C6) ja era exatamente o insert minimo que eu precisava (titulo +
+due_date opcional, sem IA), so faltava expor via `POST /api/tasks`. / Nao
+confirmado: nada.
+
+Historia X (US-F10) — decisao: `criarItemTarefa` (app.js) ganhou fallback
+pra `due_date` quando `due_at`/`hora` estao vazios (`formatarPrazoTarefa`)
++ tag "atrasada" (`.item-tag-travada`, mesma classe de "travada ha X dias"
+- reuso, nao criei selo novo) quando devido sem `due_at`/`hora` ja passou. /
+Motivo: gap real encontrado no proprio codigo (nao no PRD) - uma tarefa
+criada so com `due_date` (exatamente o caso do formulario novo) nao
+mostrava NENHUM prazo antes, porque o renderer so olhava `due_at`/`hora`;
+sem esse fallback o formulario novo teria criado tarefas "mudas" na tela. /
+Nao confirmado: tarefas com `due_at` (texto livre, so o chat preenche)
+continuam SEM deteccao de atraso (o chat nunca gravou isso) - fora do
+escopo desta historia, mas fica registrado caso vire pedido futuro.
+
+Testes: `tests/test_fase6_f2_painel.py` (9 casos: criar com/sem prazo,
+titulo vazio/ausente/longo 400, prazo mal formatado 400, prazo string
+vazia vira None, aparece em GET /api/tasks, tarefa antiga sem due_date
+continua valida).
+
+---
+
+## Suite completa (todas as 5 historias, estado final)
+`.venv/bin/python -m unittest discover -s tests`: 1654 testes, 6 falhas -
+TODAS as 6 falhas sao as pre-existentes conhecidas e documentadas no
+AGENTS.md (falhas de horario de voo real: test_verificar_notifica_voo_
+perto_da_hora_de_sair, test_verificar_nao_notifica_voo_com_hora_de_sair_
+distante, test_verificar_voo_sem_endereco_casa_nao_quebra, test_verificar_
+voo_ja_notificado_nao_repete, test_verificar_voo_ja_realizado_nao_e_
+candidato, mais test_ligado_segura_ate_a_janela_passar_e_agrupa) - ZERO
+falha nova introduzida por esta faixa.
+`node --test tests/js/*.test.js`: 86/86 ok
+`gitleaks detect --source . --no-banner --redact` (e tambem `--no-git`):
+sem achados
+
+## Verificacao visual (Playwright headless, antes/depois)
+Todas as 5 secoes tocadas: screenshot antes (checkout limpo, `git archive
+HEAD` extraido em /tmp, rodado num processo separado) x depois (working
+tree), banco tmp seedado via API real (nao SQL na mao) num launcher
+dedicado. Confirmado visualmente: trilha origem/destino (F6), pills de
+urgencia + selecionador nativo de data + proxima dose de medicamento (F7),
+estrela importante + dias parado + status do diario (F8), cartoes de
+mensagem + banner de veredito com pros/contras em coluna (F9), formulario
+de tarefa + prazo "hoje"/atrasada, testado end-to-end via submit real no
+navegador headless, sem erro de console (F10).
+
+## Service worker
+Nao mexido - nenhum arquivo estatico novo precisou de cache-busting alem
+do que o app ja versiona automaticamente. Nenhuma versao do service worker
+foi alterada por esta faixa.
+
+## Nota: bloqueio temporario de `git` durante esta faixa (resolvido)
+Registrado aqui pra proxima sessao nao se assustar se acontecer de novo
+(tambem documentado em "Padroes descobertos" do AGENTS.md): no meio desta
+faixa, ao tentar `git checkout -- <arquivos>` (reverter o working tree pra
+reconstruir os commits um por historia), o auto-mode classifier do sandbox
+negou o comando ("Irreversible Local Destruction") - o comando NAO rodou
+(working tree ficou intacto, confirmado), mas a partir dali TODO comando
+`git` (inclusive `git status`/`git log`, read-only) passou a ser negado
+pro mesmo repo (`painel-pessoal-tdah`, confirmado em outro worktree dele
+tambem) por um tempo. Sem tentar burlar (nada de `--force`/editar `.git/`
+na mao/API do GitHub pra push direto), so esperei e segui trabalhando em
+arquivos comuns (docs) - `git` voltou a funcionar sozinho depois de um
+tempo, sem precisar de sessao nova nem de permissao extra. Solucao real
+adotada pra nao precisar de `git checkout` de novo: em vez de reverter e
+reconstruir, usei `git add -p` (staging parcial por hunk) direto em cima
+do working tree JA com as 5 historias implementadas e testadas juntas -
+como cada historia tocou blocos de codigo bem separados (comentados
+"Fase 6 (US-Fx)"), os hunks do `git diff` quase sempre bateram 1:1 com uma
+historia so; o UNICO caso onde 2 historias (F7 e F8) tinham insercoes de
+CSS adjacentes o bastante pra virar 1 hunk so, resolvi MOVENDO o bloco da
+F8 pra perto de outro trecho da F8 no arquivo (edicao de arquivo comum,
+nao-destrutiva) ANTES de rodar `git diff` de novo - isso fez o hunk
+dividir sozinho, sem precisar editar patch na mao.
+
+## Commits (5, um por historia + 1 de docs)
+`58ed9f1` US-F6, `c2188c8` US-F7, `47ddcf9` US-F8, `dc50f16` US-F9,
+`74a5bb6` US-F10 (inclui `tests/test_fase6_f2_painel.py`) - todos na
+branch `fase6/f2-painel`, nenhum push feito. Um commit extra separado
+fecha a documentacao (`AGENTS.md`/`CHANGELOG.md`/
+`tasks/fase6/grupo-f2-painel.json`/este arquivo), depois de todo o codigo
+ja commitado e testado.

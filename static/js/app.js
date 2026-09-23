@@ -39,6 +39,8 @@ const ICONE_VIAGEM_CARD =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m14.8 9.2-1.6 4-4 1.6 1.6-4 4-1.6Z"/></svg>';
 const ICONE_CORRIGIR =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const ICONE_COPIAR =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
 
 // Mesmas categorias que claude_client.CAPTURE_PROMPT ensina a IA a usar -
 // duplicado aqui de proposito (o front nao chama o backend so pra montar um
@@ -1602,6 +1604,29 @@ function fmtDataBr(isoDate) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// Fase 6 (US-F10): "hoje" em AAAA-MM-DD no fuso LOCAL do navegador - nao usa
+// toISOString() (que e UTC: perto da meia-noite no fuso do Brasil, UTC ja
+// virou o dia seguinte e a comparacao com due_date ficaria 1 dia adiantada).
+function hojeIsoLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Fase 6 (US-F10): rotulo curto pra due_date sozinho (hoje/amanha/dd-mm),
+// usado quando a tarefa nao tem due_at (texto livre "amanha"/"sexta" que
+// so o chat preenche) - o formulario direto novo (#nova-tarefa-form) so
+// grava due_date (data de verdade, sem passar pela IA), entao criarItemTarefa
+// precisa saber mostrar isso tambem, nao so due_at/hora.
+function formatarPrazoTarefa(dueDateIso) {
+  const hoje = hojeIsoLocal();
+  if (dueDateIso === hoje) return "hoje";
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const amanhaIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (dueDateIso === amanhaIso) return "amanha";
+  return fmtDataBr(dueDateIso);
+}
+
 async function loadLembretes() {
   const lembretes = await apiFetch("/api/lembretes");
   if (!lembretes) return;
@@ -1610,7 +1635,15 @@ async function loadLembretes() {
   list.innerHTML = "";
   $("#lembretes-vazio").hidden = lembretes.length > 0;
 
-  lembretes.forEach((l) => {
+  // Fase 6 (US-F7): o mais perto de vencer primeiro - o backend ja devolve
+  // dias_restantes calculado (proxima_ocorrencia, inclusive pra recorrente),
+  // o /api/lembretes so nao ordena por ele (a query SQL ordena por "data"
+  // crua, que pra um lembrete recorrente e o ano de CRIACAO, nao o proximo
+  // aniversario). Ordenar aqui evita duplicar aquele calculo so pra
+  // reordenar no servidor.
+  const ordenados = [...lembretes].sort((a, b) => a.dias_restantes - b.dias_restantes);
+
+  ordenados.forEach((l) => {
     const li = document.createElement("li");
     li.className = "item";
     li.dataset.entidade = "lembrete"; // destino do link de card (Fase 6)
@@ -1636,10 +1669,18 @@ async function loadLembretes() {
     if (typeof l.dias_restantes === "number") {
       const contagem = document.createElement("span");
       const urgente = l.dias_restantes <= 7;
-      contagem.className = urgente ? "item-quando lembrete-contagem-urgente" : "item-quando";
+      const vencido = l.dias_restantes < 0;
+      // Fase 6 (US-F7): virou selo (pill), nao so texto colorido solto -
+      // 2 niveis: "vencendo" (ate 7 dias, cor da propria secao - a mesma
+      // janela em que o push avisa) e "vencido" (ja passou, ai sim usa
+      // --danger, unico caso aqui que e mesmo um problema, nao so prazo
+      // apertado).
+      contagem.className = urgente
+        ? `item-quando lembrete-contagem-urgente${vencido ? " lembrete-contagem-vencido" : ""}`
+        : "item-quando";
       contagem.textContent =
         l.dias_restantes < 0
-          ? `passou ha ${Math.abs(l.dias_restantes)} dia(s)`
+          ? `venceu ha ${Math.abs(l.dias_restantes)} dia(s)`
           : l.dias_restantes === 0
           ? "e hoje"
           : l.dias_restantes === 1
@@ -1678,17 +1719,19 @@ async function loadLembretes() {
   });
 }
 
-aplicarMascaraData($("#lembrete-data"));
-
 $("#lembrete-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#lembrete-btn");
   const tituloInput = $("#lembrete-titulo");
   const dataInput = $("#lembrete-data");
   const titulo = tituloInput.value.trim();
-  const dataIso = mascaraDataParaIso(dataInput.value.trim());
+  // Fase 6 (US-F7): input virou type="date" (seletor nativo) - o value ja
+  // vem em AAAA-MM-DD direto do navegador, sem precisar da mascara
+  // dd/mm/aaaa (mascaraDataParaIso continua existindo pra #voo-data, que
+  // nao mudou nesta historia).
+  const dataIso = dataInput.value;
   if (!titulo || !dataIso) {
-    mostrarErro("Confere o titulo e a data (dd/mm/aaaa).");
+    mostrarErro("Confere o titulo e a data de vencimento.");
     return;
   }
 
@@ -1712,6 +1755,31 @@ $("#lembrete-form").addEventListener("submit", async (e) => {
   loadLembretes();
   loadStreak();
 });
+
+// Fase 6 (US-F7): "todo dia as HH:MM" sozinho obriga a fazer conta de
+// cabeca pra saber se e daqui a pouco ou so a noite - devolve quanto falta
+// pra proxima dose (ou "ha Xh, foi hoje" se ja passou o horario de hoje,
+// ja que o medicamento e diario e a proxima dose de verdade so vem amanha
+// nesse caso). So calculo de apresentacao (relogio do navegador), nao mexe
+// em nenhum aviso/push real (isso continua 100% no backend).
+function proximaDoseTexto(horario) {
+  const partes = String(horario || "").match(/^(\d{2}):(\d{2})/);
+  if (!partes) return null;
+  const alvo = new Date();
+  alvo.setHours(Number(partes[1]), Number(partes[2]), 0, 0);
+  const agora = new Date();
+  let diffMin = Math.round((alvo - agora) / 60000);
+  if (diffMin < -1) return `foi ha ${formatarDuracaoMin(-diffMin)}`;
+  if (diffMin <= 1) return "agora";
+  return `em ${formatarDuracaoMin(diffMin)}`;
+}
+
+function formatarDuracaoMin(min) {
+  if (min < 60) return `${min}min`;
+  const horas = Math.floor(min / 60);
+  const resto = min % 60;
+  return resto ? `${horas}h${resto}min` : `${horas}h`;
+}
 
 async function loadMedicamentos() {
   const medicamentos = await apiFetch("/api/medicamentos");
@@ -1737,6 +1805,13 @@ async function loadMedicamentos() {
     quando.className = "item-quando";
     quando.textContent = `todo dia as ${m.horario}`;
     tituloWrap.appendChild(quando);
+    const proxima = proximaDoseTexto(m.horario);
+    if (proxima) {
+      const proximaEl = document.createElement("span");
+      proximaEl.className = "item-quando medicamento-proxima-dose";
+      proximaEl.textContent = proxima;
+      tituloWrap.appendChild(proximaEl);
+    }
     linha.appendChild(tituloWrap);
 
     const acoes = document.createElement("div");
@@ -1795,8 +1870,19 @@ $("#medicamento-form").addEventListener("submit", async (e) => {
   loadMedicamentos();
 });
 
+const ICONE_ESTRELA_CHEIA =
+  '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5Z"/></svg>';
+const ICONE_ESTRELA_VAZIA =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5Z"/></svg>';
+
 async function loadEsperas() {
-  const esperas = await apiFetch("/api/esperas");
+  // Fase 6 (US-F8): /api/esperas/prioridade em vez de /api/esperas puro -
+  // MESMA lista (list_esperas_pendentes por baixo), so que ja vem com
+  // dias_parado calculado e ordenada por vida.priorizar_esperas (tempo
+  // parado + importancia) - esse endpoint ja existia desde a Fase 5 (US-C5)
+  // mas nenhuma tela usava, a lista ficava na ordem de criacao sem mostrar
+  // ha quanto tempo cada uma ta parada.
+  const esperas = await apiFetch("/api/esperas/prioridade");
   if (!esperas) return;
 
   const list = $("#lista-esperas");
@@ -1819,10 +1905,47 @@ async function loadEsperas() {
     sobre.className = "item-quando";
     sobre.textContent = esp.sobre;
     tituloWrap.appendChild(sobre);
+    if (typeof esp.dias_parado === "number") {
+      const parado = document.createElement("span");
+      const critico = esp.dias_parado > 5;
+      parado.className = `item-quando espera-dias-parado${critico ? " espera-dias-parado-critico" : ""}`;
+      parado.textContent =
+        esp.dias_parado === 0 ? "esperando desde hoje" : `esperando ha ${esp.dias_parado} dia(s)`;
+      tituloWrap.appendChild(parado);
+    }
     linha.appendChild(tituloWrap);
 
     const acoes = document.createElement("div");
     acoes.className = "item-acoes";
+
+    // Fase 6 (US-F8): mesma logica do botao "importante" - endpoint
+    // /api/esperas/<id>/importante ja existia (Fase 5, US-C5, usado so pelo
+    // calculo de prioridade), sem nenhum jeito de marcar pela tela.
+    const importanteBtn = document.createElement("button");
+    importanteBtn.className = "btn-com-icone btn-espera-importante";
+    importanteBtn.setAttribute("aria-label", esp.importante ? "Desmarcar como importante" : "Marcar como importante");
+    importanteBtn.setAttribute("aria-pressed", esp.importante ? "true" : "false");
+    importanteBtn.classList.toggle("ativo", Boolean(esp.importante));
+    importanteBtn.innerHTML = esp.importante ? ICONE_ESTRELA_CHEIA : ICONE_ESTRELA_VAZIA;
+    importanteBtn.addEventListener("click", async () => {
+      importanteBtn.disabled = true;
+      const novoValor = !esp.importante;
+      const data = await apiFetch(`/api/esperas/${esp.id}/importante`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ importante: novoValor }),
+      });
+      if (data) {
+        esp.importante = novoValor;
+        importanteBtn.classList.toggle("ativo", novoValor);
+        importanteBtn.innerHTML = novoValor ? ICONE_ESTRELA_CHEIA : ICONE_ESTRELA_VAZIA;
+        importanteBtn.setAttribute("aria-label", novoValor ? "Desmarcar como importante" : "Marcar como importante");
+        importanteBtn.setAttribute("aria-pressed", novoValor ? "true" : "false");
+        pulsarSucesso(importanteBtn);
+      }
+      importanteBtn.disabled = false;
+    });
+    acoes.appendChild(importanteBtn);
 
     const resolverBtn = document.createElement("button");
     resolverBtn.className = "btn-com-icone primario";
@@ -1942,7 +2065,20 @@ async function loadDecisoes() {
     const titulo = document.createElement("span");
     titulo.className = "item-titulo";
     titulo.textContent = d.decisao;
+    // Fase 6 (US-F8): selo de status (pill) alem do texto - "resolvida" ou
+    // "aguardando resultado" de relance, sem precisar ler a frase inteira.
+    const status = document.createElement("span");
+    status.className = d.resultado ? "item-tag-tarefa diario-status-resolvida" : "item-tag-tarefa";
+    status.textContent = d.resultado ? "resolvida" : "aguardando";
+    titulo.appendChild(status);
     tituloWrap.appendChild(titulo);
+
+    if (d.data) {
+      const data = document.createElement("span");
+      data.className = "item-quando";
+      data.textContent = fmtDataBr(d.data);
+      tituloWrap.appendChild(data);
+    }
 
     if (d.contexto) {
       const contexto = document.createElement("span");
@@ -1951,10 +2087,12 @@ async function loadDecisoes() {
       tituloWrap.appendChild(contexto);
     }
 
-    const resultado = document.createElement("span");
-    resultado.className = "item-quando";
-    resultado.textContent = d.resultado ? `Resultado: ${d.resultado}` : "Sem resultado ainda";
-    tituloWrap.appendChild(resultado);
+    if (d.resultado) {
+      const resultado = document.createElement("span");
+      resultado.className = "item-quando";
+      resultado.textContent = `Resultado: ${d.resultado}`;
+      tituloWrap.appendChild(resultado);
+    }
     linha.appendChild(tituloWrap);
 
     const acoes = document.createElement("div");
@@ -2334,12 +2472,28 @@ function criarItemTarefa(t) {
     titulo.appendChild(tagRotina);
   }
   tituloWrap.appendChild(titulo);
-  if (t.due_at || t.hora) {
+  if (t.due_at || t.hora || t.due_date) {
     const quando = document.createElement("span");
     quando.className = "item-quando";
-    const base = t.due_at || "hoje";
+    // Fase 6 (US-F10): due_at (texto livre tipo "amanha") continua tendo
+    // prioridade quando existe (e o que o chat grava) - due_date sozinho
+    // (o formulario direto novo grava so isso, sem passar pela IA) cai no
+    // formatarPrazoTarefa pra pelo menos mostrar ALGUMA data, em vez de
+    // nada (gap real: antes uma tarefa so com due_date nao mostrava prazo
+    // nenhum na lista).
+    const base = t.due_at || (t.due_date ? formatarPrazoTarefa(t.due_date) : "hoje");
     quando.textContent = t.hora ? `${base} as ${t.hora}` : base;
     tituloWrap.appendChild(quando);
+  }
+  // Mesma tag de atencao que "travada ha X dias" ja usa (--danger) - so
+  // quando devido sem due_at/hora ja passou (devido com due_at continua sem
+  // deteccao de atraso, devido/registrar_tarefa nunca calculou isso - fora
+  // do escopo desta historia mexer nesse caminho tambem).
+  if (t.due_date && !t.due_at && !t.hora && t.due_date < hojeIsoLocal()) {
+    const tagAtrasada = document.createElement("span");
+    tagAtrasada.className = "item-tag-travada";
+    tagAtrasada.textContent = "atrasada";
+    titulo.appendChild(tagAtrasada);
   }
   tituloWrap.appendChild(criarTagEsforco(t));
 
@@ -2516,6 +2670,35 @@ async function loadTasks() {
   $("#tarefas-vazio").hidden = tasks.length > 0;
   tasks.forEach((t) => list.appendChild(criarItemTarefa(t)));
 }
+
+// Fase 6 (US-F10): formulario direto na aba Tarefas - titulo obrigatorio,
+// prazo OPCIONAL (POST /api/tasks novo, sem passar pela IA - o chat/captura
+// ja tinham esse caminho via registrar_tarefa/quando_data havia tempos).
+$("#nova-tarefa-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#nova-tarefa-btn");
+  const tituloInput = $("#nova-tarefa-titulo");
+  const prazoInput = $("#nova-tarefa-prazo");
+  const titulo = tituloInput.value.trim();
+  if (!titulo) {
+    mostrarErro("Escreve o que precisa ser feito.");
+    return;
+  }
+
+  setBotaoCarregando(btn, true, "salvando...");
+  const data = await apiFetch("/api/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ titulo, due_date: prazoInput.value || null }),
+  });
+  setBotaoCarregando(btn, false, "Adicionar");
+  if (!data) return;
+
+  tituloInput.value = "";
+  prazoInput.value = "";
+  pulsarSucesso(tituloInput);
+  loadTasks();
+});
 
 // Categoria errada e o caso mais comum de corrigir (a IA acerta o "e um
 // gasto" quase sempre, erra mais na categoria) - por isso a propria tag vira

@@ -466,3 +466,61 @@ db.init_db()
   unitário acusa). Sempre envolver conteúdo de tamanho fixo num wrapper
   que seja o primeiro filho de `.item-linha` (nunca o próprio elemento
   fixo).
+
+### Fase 6, Grupo F, faixa 2 (F2-painel, polimento Painel/Tarefas) - US-F6 a US-F10
+- **Antes de construir uma feature "nova", `grep` se o endpoint/cálculo já
+  não existe sem UI nenhuma ligada** - `/api/esperas/prioridade` (com
+  `dias_parado` calculado) e `/api/esperas/<id>/importante` (US-F8) e
+  `criar_tarefa_de_brain_dump`/`tasks.due_date` (US-F10) já existiam desde a
+  Fase 5, prontos e até testados, só sem nenhuma tela usando - metade do
+  trabalho dessas 2 histórias foi só LIGAR o que já tinha, não escrever
+  cálculo novo.
+- **Gap real de exibição em `criarItemTarefa` (`app.js`)**: uma tarefa com
+  `due_date` preenchido mas sem `due_at` (texto livre, só o chat preenche)
+  nem `hora` não mostrava NENHUM prazo na lista - o renderer só olhava
+  `t.due_at || t.hora`. Corrigido com fallback (`formatarPrazoTarefa`,
+  US-F10) pra quando só `due_date` existe (exatamente o caso do formulário
+  direto novo, que não passa por IA). Qualquer feature futura que crie
+  tarefa só com `due_date` (sem `due_at`) depende desse fallback pra
+  aparecer certo.
+- **`#lembrete-data`/`#voo-data` compartilhavam `aplicarMascaraData`/
+  `mascaraDataParaIso`** (`app.js`) - US-F7 trocou SÓ `#lembrete-data` pra
+  `<input type="date">` nativo (Datas importantes, faixa F2); `#voo-data`
+  (aviação, faixa F3) continua com o texto livre mascarado de propósito,
+  as 2 funções de máscara continuam no arquivo por causa dele - não
+  remover achando que ficaram mortas.
+- **Regra de cor "vermelho só pra erro" (`style.css`, comentário no topo do
+  `:root`) na prática já tinha precedente de uso em "atenção real" que não
+  é erro literal** (`.item-tag-travada` pra tarefa travada, já existente) -
+  US-F7/US-F8/US-F9 seguiram o MESMO critério pra selo "vencido"/"atrasada"/
+  veredito "não vale a pena" (`--danger`), e cor de seção (nunca vermelho)
+  pra estados só de atenção/neutros (pros/contras, "vencendo" dentro de 7
+  dias). Documentando o critério aqui pra próxima faixa não reabrir a
+  dúvida do zero.
+- **Playwright `context.request.post(url, data={...})` manda o corpo como
+  JSON por padrão** (não form-encoded) - diferente do padrão já documentado
+  na Fase 6/E2 pra `self.client.post` (Flask test client), onde `data={}`
+  NUNCA autentica em `/login` (precisa `json={}`). No Playwright,
+  `context.request.post("/login", data={"pin": ...})` funciona direto (o
+  `data` de dict vira JSON sozinho); pra form-encoded de verdade no
+  Playwright seria o parâmetro `form=`, não `data=`. Fácil confundir os 2
+  padrões ao portar um teste Python pra um script Playwright ou vice-versa.
+- **Screenshot `full_page=True` do Playwright com elemento `position:
+  fixed` (a tabbar do rodapé) pode DUPLICAR esse elemento visualmente** no
+  meio da imagem (artefato de como o Playwright "costura" uma página mais
+  alta que o viewport) - não é bug de render real do app, só do jeito de
+  capturar. Pra verificar uma lista longa, preferir viewport fixo +
+  `scrollIntoView`/`page.evaluate` pra rolar até o trecho certo, em vez de
+  `full_page=True`, quando a tabbar fixa estiver no caminho.
+- **O auto-mode classifier do sandbox pode bloquear `git` inteiro (até
+  `git status`/`git log`, read-only) pro RESTO da sessão depois de negar UM
+  `git checkout -- <arquivos>`** (classificado "Irreversible Local
+  Destruction") - o bloqueio pareceu ficar preso na identidade do repo
+  (`painel-pessoal-tdah`: bati o mesmo bloqueio noutro worktree DELE, mas um
+  diretório qualquer sem `.git` funcionou normal). Not fully confirmed se é
+  por sessão inteira ou se destrava depois de um tempo - se acontecer nesta
+  faixa de novo, evite qualquer `git checkout`/`reset`/`clean` mesmo que
+  pareça seguro (ex: reverter só pra reconstruir commits incrementais) e
+  prefira nunca precisar reverter: aplique e commite cada história ANTES de
+  escrever a próxima, em vez de implementar tudo junto e tentar separar
+  depois.
