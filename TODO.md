@@ -5,6 +5,35 @@ Arquivo de progresso pra retomar depois de qualquer interrupcao (regra 2 do
 Marque `[x]` ao terminar cada item (com commit). Decisoes tomadas por
 julgamento proprio ficam na secao "Decisoes" no fim.
 
+## ⚠️ Protocolo obrigatorio antes de rodar agentes em paralelo (leia primeiro)
+Achado real na Fase 4 (ver "Decisoes da Fase 4" mais abaixo pro relato completo) e pedido
+explicito do Alex pra virar regra permanente, nao so um registro do que aconteceu. Vale pra
+QUALQUER leva futura que use mais de um agente/subagente ao mesmo tempo neste repositorio (ou
+entre este repositorio e o `financeiro-construtora`, o outro projeto do Alex que roda na mesma
+maquina/sessao):
+
+1. **Confirme, antes de comecar, em qual repositorio cada agente vai trabalhar** - nome do
+   repositorio E caminho completo, nunca assumido. Cada agente deve rodar `pwd` e `git remote
+   -v` como primeiro passo, antes de qualquer leitura/escrita, e conferir que bate exatamente
+   com o projeto pedido (`painel-pessoal-tdah` ou `financeiro-construtora` - nunca os dois ao
+   mesmo tempo por engano).
+2. **Isolamento de verdade por agente, cobrindo os dois projetos** - o parametro de worktree
+   isolado deste ambiente so cobre o repositorio principal da sessao automaticamente; se o
+   trabalho for num repositorio irmao (como aconteceu na Fase 4), isso NAO isola sozinho. Pra
+   cada agente que vai escrever, crie manualmente um `git worktree add` (ou clone separado)
+   dentro do repositorio certo, antes de disparar o agente - nunca deixe dois agentes editando
+   o mesmo checkout ao mesmo tempo.
+3. **Nunca dar a um agente trabalhando no `painel-pessoal-tdah` acesso de escrita ao
+   `financeiro-construtora`, nem vice-versa** - mesmo sem querer. O `financeiro-construtora` e
+   dado real de empresa (`AGENTS.md` proprio, regras rigidas de backup/homologacao) - uma
+   confusao de repositorio la e muito mais grave do que ja foi aqui. Se a estrutura do
+   ambiente nao permitir bloquear isso tecnicamente, documente a regra explicita no prompt de
+   cada agente e faca ele confirmar antes de escrever.
+4. **So depois da integracao** (merge de verdade se cada agente ficou em worktree/branch
+   separada) rode a suite completa e uma revisao independente - nunca confie so no "cada
+   agente disse que passou nos testes dele" quando houve qualquer risco de checkout
+   compartilhado.
+
 ## Ja existia antes do briefing (nao refazer)
 Captura unica com classificacao automatica (chat + tool-use), quebra de tarefa
 em passos (subtasks), resumo/fechamento do dia sem cobranca, gasto solto
@@ -120,7 +149,9 @@ Novas da Fase 4 (opcionais - sem elas o app funciona normal, so sem essas camada
   achados reais
 
 ### Decisoes da Fase 4
-- **Isolamento dos agentes em paralelo nao funcionou como esperado**: o parametro de
+- **Isolamento dos agentes em paralelo nao funcionou como esperado** (o relato virou regra
+  permanente no "Protocolo obrigatorio" no topo deste arquivo - leia la antes de repetir o
+  padrao): o parametro de
   worktree isolado so cobre o repositorio principal da sessao (`financeiro-construtora`),
   nao o `painel-pessoal-tdah` (diretorio irmao onde o trabalho de verdade acontece). Os
   itens 1, 2 e 3 acabaram editando o MESMO checkout ao mesmo tempo, sem isolamento real -
