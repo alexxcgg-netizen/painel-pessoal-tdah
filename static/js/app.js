@@ -1505,6 +1505,29 @@ function fmtDataBr(isoDate) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// Fase 6 (US-F10): "hoje" em AAAA-MM-DD no fuso LOCAL do navegador - nao usa
+// toISOString() (que e UTC: perto da meia-noite no fuso do Brasil, UTC ja
+// virou o dia seguinte e a comparacao com due_date ficaria 1 dia adiantada).
+function hojeIsoLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Fase 6 (US-F10): rotulo curto pra due_date sozinho (hoje/amanha/dd-mm),
+// usado quando a tarefa nao tem due_at (texto livre "amanha"/"sexta" que
+// so o chat preenche) - o formulario direto novo (#nova-tarefa-form) so
+// grava due_date (data de verdade, sem passar pela IA), entao criarItemTarefa
+// precisa saber mostrar isso tambem, nao so due_at/hora.
+function formatarPrazoTarefa(dueDateIso) {
+  const hoje = hojeIsoLocal();
+  if (dueDateIso === hoje) return "hoje";
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const amanhaIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (dueDateIso === amanhaIso) return "amanha";
+  return fmtDataBr(dueDateIso);
+}
+
 async function loadLembretes() {
   const lembretes = await apiFetch("/api/lembretes");
   if (!lembretes) return;
@@ -2350,12 +2373,28 @@ function criarItemTarefa(t) {
     titulo.appendChild(tagRotina);
   }
   tituloWrap.appendChild(titulo);
-  if (t.due_at || t.hora) {
+  if (t.due_at || t.hora || t.due_date) {
     const quando = document.createElement("span");
     quando.className = "item-quando";
-    const base = t.due_at || "hoje";
+    // Fase 6 (US-F10): due_at (texto livre tipo "amanha") continua tendo
+    // prioridade quando existe (e o que o chat grava) - due_date sozinho
+    // (o formulario direto novo grava so isso, sem passar pela IA) cai no
+    // formatarPrazoTarefa pra pelo menos mostrar ALGUMA data, em vez de
+    // nada (gap real: antes uma tarefa so com due_date nao mostrava prazo
+    // nenhum na lista).
+    const base = t.due_at || (t.due_date ? formatarPrazoTarefa(t.due_date) : "hoje");
     quando.textContent = t.hora ? `${base} as ${t.hora}` : base;
     tituloWrap.appendChild(quando);
+  }
+  // Mesma tag de atencao que "travada ha X dias" ja usa (--danger) - so
+  // quando devido sem due_at/hora ja passou (devido com due_at continua sem
+  // deteccao de atraso, devido/registrar_tarefa nunca calculou isso - fora
+  // do escopo desta historia mexer nesse caminho tambem).
+  if (t.due_date && !t.due_at && !t.hora && t.due_date < hojeIsoLocal()) {
+    const tagAtrasada = document.createElement("span");
+    tagAtrasada.className = "item-tag-travada";
+    tagAtrasada.textContent = "atrasada";
+    titulo.appendChild(tagAtrasada);
   }
   tituloWrap.appendChild(criarTagEsforco(t));
 
@@ -2532,6 +2571,35 @@ async function loadTasks() {
   $("#tarefas-vazio").hidden = tasks.length > 0;
   tasks.forEach((t) => list.appendChild(criarItemTarefa(t)));
 }
+
+// Fase 6 (US-F10): formulario direto na aba Tarefas - titulo obrigatorio,
+// prazo OPCIONAL (POST /api/tasks novo, sem passar pela IA - o chat/captura
+// ja tinham esse caminho via registrar_tarefa/quando_data havia tempos).
+$("#nova-tarefa-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#nova-tarefa-btn");
+  const tituloInput = $("#nova-tarefa-titulo");
+  const prazoInput = $("#nova-tarefa-prazo");
+  const titulo = tituloInput.value.trim();
+  if (!titulo) {
+    mostrarErro("Escreve o que precisa ser feito.");
+    return;
+  }
+
+  setBotaoCarregando(btn, true, "salvando...");
+  const data = await apiFetch("/api/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ titulo, due_date: prazoInput.value || null }),
+  });
+  setBotaoCarregando(btn, false, "Adicionar");
+  if (!data) return;
+
+  tituloInput.value = "";
+  prazoInput.value = "";
+  pulsarSucesso(tituloInput);
+  loadTasks();
+});
 
 // Categoria errada e o caso mais comum de corrigir (a IA acerta o "e um
 // gasto" quase sempre, erra mais na categoria) - por isso a propria tag vira

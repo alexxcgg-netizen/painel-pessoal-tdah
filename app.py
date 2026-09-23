@@ -857,6 +857,38 @@ def list_tasks():
     return jsonify(tasks)
 
 
+@app.route("/api/tasks", methods=["POST"])
+def criar_tarefa_direta():
+    """Fase 6 (US-F10): formulario direto na aba Tarefas, sem passar pela
+    classificacao por IA (essa ja existe via chat/captura, /api/capture e
+    registrar_tarefa) - so titulo + prazo OPCIONAL. Reusa o mesmo insert
+    minimo de criar_tarefa_de_brain_dump (Fase 5, US-C6) em vez de duplicar
+    o INSERT numa terceira funcao."""
+    body = _corpo_json()
+    titulo = (body.get("titulo") or "").strip()
+    if not titulo:
+        return jsonify({"error": "informe um titulo"}), 400
+    if len(titulo) > 200:
+        return jsonify({"error": "titulo muito longo (max 200 caracteres)"}), 400
+
+    due_date_bruto = body.get("due_date")
+    due_date = due_date_bruto.strip() if isinstance(due_date_bruto, str) else None
+    if due_date:
+        try:
+            date.fromisoformat(due_date)
+        except ValueError:
+            return jsonify({"error": "prazo precisa estar em formato AAAA-MM-DD"}), 400
+    else:
+        due_date = None
+
+    conn = get_db()
+    task_id = criar_tarefa_de_brain_dump(conn, titulo, due_date)
+    _marcar_atividade(conn)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": task_id, "ok": True}), 201
+
+
 @app.route("/api/tasks/<int:task_id>/complete", methods=["POST"])
 def complete_task_rota(task_id):
     conn = get_db()
