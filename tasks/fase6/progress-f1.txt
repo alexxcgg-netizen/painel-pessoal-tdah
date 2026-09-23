@@ -1,0 +1,153 @@
+Fase 6 - Grupo F1 (Vida) - Progress Log
+Iniciado: 2026-09-23
+
+## US-F1 - Saude Hoje: botao +1 copo de agua
+
+Historia US-F1 — decisao: o feedback "forte" pedido foi construido em 3
+camadas (contador cresce via CSS nova pra `.sucesso`, glow no proprio
+botao via classe `.tocando` reaplicada por JS, "+1" flutuante que sobe e
+some) em vez de uma unica animacao - `pulsarSucesso($("#hidratacao-total"))`
+ja era chamado no codigo ANTES desta historia, mas nao existia nenhuma
+regra CSS pra `.sucesso` num `<span>` (so pra `input`), entao o toque nao
+tinha retorno visual nenhum no numero - bug real encontrado, nao inventado.
+/ Motivo: reaproveitar o hook que ja existia (so faltava CSS) em vez de
+criar um mecanismo novo de "pulso" duplicado. / Nao confirmado: se o Alex
+quer o "+1" flutuante tambem em outros contadores de 1 toque do app (ex:
+hiperfoco, checkin) - deixei escopado so no botao de agua, que era o pedido
+explicito da historia.
+
+## US-F2 - Peso e Medidas: seletores
+
+Historia US-F2 — decisao: adicionei "outro(a)..." como ultima opcao dos
+dois seletores (tipo e unidade), com um campo de texto que aparece so
+quando escolhido, pra nao perder a liberdade de texto livre que o campo
+tinha antes (ex: "cintura larga" ou uma unidade fora de kg/cm/%/lb). /
+Motivo: o pedido era "seletor em vez de texto livre quando a entrada e
+limitada" - peso/medida corporal NAO e uma entrada 100% limitada (Alex pode
+querer medir qualquer coisa), entao virar seletor puro sem escape teria
+regredido funcionalidade. / Nao confirmado: se os 6 tipos escolhidos
+(peso/cintura/quadril/peito/biceps/coxa/gordura) cobrem o que o Alex mede
+de verdade - ajustavel facil (so a lista de `<option>`) se ele quiser
+outro conjunto.
+
+Historia US-F2 — decisao: grafico de evolucao mostra o tipo "peso" se ele
+tiver 2+ registros, senao o tipo mais recente com 2+ registros; nunca
+mostra mais de 1 grafico ao mesmo tempo (a tela ja tem bastante coisa). /
+Motivo: "peso" e a medida mais comum/o headline; um grafico por tipo teria
+poluido a secao pra quem tem varios tipos cadastrados. / Nao confirmado:
+se o Alex quer poder escolher manualmente qual tipo ver no grafico (troquei
+por auto-selecao pra nao adicionar mais um controle na tela).
+
+Achado real (aplica a US-F2, mas e generico): `.form-linha select` nao
+tinha NENHUM estilo proprio (fonte/cursor/altura) - selects que ja
+existiam antes desta faixa (`#habito-frequencia-tipo`, `#manutencao-tipo`)
+ficavam com a aparencia crua do navegador. Corrigido de forma generica
+(nao so pros selects novos desta historia) porque o CSS e compartilhado e
+nao fazia sentido deixar so os novos bonitos.
+
+## US-F3 - Pessoas mais funcional no dia a dia
+
+Historia US-F3 — decisao: NAO implementei "proximo aniversario/data"
+(mencionado na descricao da historia) porque exigiria coluna nova em
+`pessoas` (schema) e logica de calculo de "proxima data" - isso e mudanca
+de logica de negocio, e a regra do prompt e explicita: "NAO mexer em logica
+de negocio ao alterar visual". Toda a US-F3 foi construida so com dado que
+`/api/pessoas` e `/api/conversas` ja devolviam (dias_sem_falar, atrasada,
+ultima_conversa, historico de conversas). / Motivo: risco de regressao
+(schema novo sem suite de fuzzing dedicada, fora do escopo de "polimento
+visual") x ganho incerto (nao sei se o Alex quer aniversario ou so uma
+data qualquer de "proximo encontro"). / Nao confirmado: se o Alex quer
+esse campo de verdade - se quiser, e uma historia de BACKEND nova (migracao
++ rota + teste), nao caberia no principio "nao mexer em logica de negocio"
+desta faixa.
+
+Historia US-F3 — decisao: "falei hoje" continua em 1 toque, sem abrir um
+formulario de "sobre o que" antes de confirmar (cogitei e descartei). /
+Motivo: o app inteiro segue o principio de captura rapida (TDAH, sem
+atrito) - adicionar um passo extra no controle MAIS repetido da secao teria
+ido contra esse principio pra um ganho marginal. Em vez disso, adicionei
+"ver conversas" (toggle) que reusa o historico ja existente pra quem quiser
+lembrar do que ja foi falado.
+
+Pegadinha de layout encontrada (JS): `.item-linha > :first-child:not(.item-acoes)`
+(style.css, linha ~4366 antes desta faixa) da `flex: 1 1 9rem` pro PRIMEIRO
+filho de qualquer `.item-linha` que nao seja `.item-acoes` - se um avatar/
+elemento de tamanho fixo virar esse primeiro filho (ex: eu tentando por
+`.pessoa-avatar` direto dentro de `.item-linha`), ele estica e vira uma
+elipse esticada (bug real, pego no headless, nao no teste unitario). Fix:
+sempre envolver conteudo de tamanho fixo (avatar, icone) DENTRO de um
+wrapper que seja o primeiro filho de `.item-linha` (ex: `.pessoa-cabecalho`),
+nunca deixar o elemento de tamanho fixo ser literalmente o primeiro filho.
+Proximo agente que adicionar avatar/icone fixo num item de lista: cuidado
+com isso.
+
+## US-F4 - Treino: ficha guiada
+
+Historia US-F4 — decisao: formato de serializacao `nome|series|reps|carga`
+(pipe) por linha, dentro do MESMO campo TEXT `exercicios` que ja existia -
+sem coluna nova, sem migracao, `salvar_ficha_treino`/`list_fichas_treino`
+(db.py) INTOCADOS. Ficha antiga (uma linha de texto puro por exercicio, ex:
+"Supino reto 4x10") continua funcionando: o parser (`parseLinhaExercicio`,
+vida.js) só trata como estruturado quando a linha tem EXATAMENTE 4 campos
+separados por "|" com o primeiro nao-vazio; qualquer outra coisa vira o
+`nome` inteiro (fallback = comportamento antigo, texto puro na tela). /
+Motivo: manter zero mudanca de backend (regra do prompt) e zero risco de
+perda de dado - "|" nao aparece em nome de exercicio digitado a mao nem no
+que a IA gera (claude_client no aceita ficha via chat como texto puro
+tambem, que cai no mesmo fallback). / Nao confirmado: se algum dia a IA
+(chat, "cola o treino") comecar a gerar ficha no formato pipe tambem - hoje
+ela so gera texto puro (fallback), o que e o comportamento esperado e
+testado.
+
+## US-F5 - Garantia de Produtos mais interativa
+
+Historia US-F5 — decisao: reordenei a lista por `dias_ate` (mais urgente
+primeiro, inclusive ja vencido) em vez da ordem por data de compra que a
+API ja devolvia - fiz isso no FRONT (`.slice().sort(...)` antes de
+renderizar), sem tocar `list_garantias`/`/api/garantias` (backend). /
+Motivo: "destaque do que vence logo" e literal na acceptance criteria;
+mudar a ordem no backend seria mudanca de logica de negocio desnecessaria
+quando o front ja tem tudo que precisa (dias_ate) pra reordenar sozinho.
+
+## Descobertas gerais (fora de uma historia so, documentadas tambem em AGENTS.md)
+
+1. HTML de "Saude Hoje" e "Peso e Medidas" (US-F1/US-F2) fica fisicamente
+   dentro de `<section id="tab-painel">` em templates/index.html, NAO em
+   tab-vida - apesar de ser conceitualmente conteudo de Vida (a fronteira
+   do orquestrador dizia "F2 cuida da aba Painel"). Editei SO as linhas
+   especificas de agua/peso-medidas (minhas historias), nunca as outras
+   secoes de Painel (Resumo do dia/Agenda de hoje/Fechamento/Plano do dia,
+   que sao do F2) - risco real de conflito de merge no mesmo arquivo com a
+   faixa F2, que trabalhou em paralelo. Avisar na integracao.
+2. `.venv` neste worktree e um SYMLINK pro `.venv` do checkout principal
+   (`/home/user/painel-pessoal-tdah/.venv`), nao um diretorio de verdade -
+   por isso `.gitignore` (`.venv/`, que so casa diretorio, nao symlink) NAO
+   pega ele, e `git status` mostra `?? .venv` (untracked) o tempo todo,
+   mesmo sem nada errado. Nunca usar `git add -A`/`git add .` neste
+   worktree por causa disso - sempre `git add <arquivo>` explicito (regra
+   que ja segui em toda a faixa). Se algum dia `git status` mostrar outra
+   coisa untracked alem de `.venv`, aí sim e sinal de alerta de verdade.
+3. Todo hunk que misturou 2 historias no mesmo diff (aconteceu com
+   US-F3+US-F5 em style.css, porque os blocos de CSS ficaram fisicamente
+   colados um no outro) foi resolvido cortando o bloco da historia mais
+   nova pra um arquivo temporario, isolando a mais velha pro commit, e
+   colando de volta depois - nenhum commit final ficou com 2 historias
+   misturadas, apesar do coordenador ter autorizado isso como saida se
+   precisasse.
+
+## Suites rodadas
+
+- Apos US-F1: `.venv/bin/python -m unittest discover -s tests` = 1645
+  testes, 6 falhas (todas de horario de voo/agrupamento, conhecidas,
+  pre-existentes ao commit bba77ae).
+- Apos US-F2: mesma suite = 6 falhas (mesmas). `node --test tests/js` =
+  86/86.
+- Apos US-F3+US-F4+US-F5 (rodada UMA vez cobrindo as 3, por pedido do
+  coordenador pra economizar tempo): mesma suite = 6 falhas (mesmas,
+  Ran 1645 tests in 399.7s). `node --test tests/js` = 86/86.
+- `gitleaks detect --source . --no-banner --redact` rodado antes de CADA
+  um dos 5 commits = "no leaks found" em todos.
+
+Nenhuma historia ficou blocked. Nenhum bump de versao do service worker foi
+necessario (nao mexi em nenhum arquivo estatico cacheado alem de css/js/html
+que ja fazem parte do bundle servido, sem cache-busting proprio separado).

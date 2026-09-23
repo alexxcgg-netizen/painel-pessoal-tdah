@@ -5,6 +5,47 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (Fase 6 F1) - polimento da aba Vida
+
+Faixa 1 do Grupo F da Fase 6: polimento visual/interativo de 5 secoes da aba Vida
+(e das duas que fisicamente moram dentro do HTML da aba Painel - ver nota abaixo),
+sem mudar nenhuma logica de negocio nem endpoint.
+
+- **US-F1 (Saude hoje - botao de agua)**: botao "+1 copo de agua" maior, com cor
+  propria (`--cor-financeiro`) e feedback forte ao toque - glow no botao, "+1"
+  flutuante que sobe e some, e o contador agora cresce visivelmente de verdade
+  (existia uma chamada a `pulsarSucesso` sem nenhuma regra CSS por tras dela -
+  achado real, corrigido).
+- **US-F2 (Peso e medidas)**: tipo por `<select>` com os mais comuns (peso,
+  cintura, quadril, peito, biceps, coxa, % de gordura, "outro..." com texto
+  livre), valor por stepper (+/-) e unidade tambem por seletor (com "outra...").
+  Grafico de evolucao novo (SVG, reusa `charts.js`) do tipo mais recente com 2+
+  pontos. Dado antigo (tipo/unidade digitados a mao antes desta historia)
+  continua aparecendo sem nenhuma migracao.
+- **US-F3 (Pessoas)**: avatar com iniciais, chip de status ("em dia"/"atrasada
+  Xd"/"novo(a)"), barra visual de "quanto falta pro prazo de contato estourar"
+  e um novo toggle "ver conversas" (reusa `GET /api/conversas`, que ja existia
+  sem lugar nenhum na UI). "Falei hoje" continua em 1 toque.
+- **US-F4 (Treino - ficha guiada)**: "montar ficha" deixa de ser um textarea
+  livre e vira adicionar exercicio um a um (nome/series/reps/carga), com lista
+  pendente editavel antes de salvar. Formato interno novo (`nome|series|reps|carga`
+  por linha) cabe no MESMO campo TEXT que ja existia - fichas antigas (texto
+  puro) continuam exibidas exatamente como antes, sem perda.
+- **US-F5 (Garantia de produtos)**: chip de status por urgencia e barra de %
+  do prazo ja decorrido; lista reordenada por proximidade do vencimento
+  (inclusive ja vencido) em vez da ordem de compra.
+- **Achado de arquitetura (documentado em `AGENTS.md`)**: o HTML de "Saude hoje"
+  e "Peso e medidas" mora fisicamente dentro de `<section id="tab-painel">`,
+  nao de `tab-vida`, apesar de ser conteudo conceitual de Vida - relevante pra
+  quem trabalhar em paralelo nas duas abas (risco de merge no mesmo arquivo).
+- Testes: nenhum teste Python/JS novo foi necessario (nenhuma logica de negocio
+  nova - todas as 5 historias reusam dado que os endpoints existentes ja
+  devolviam). Verificacao real foi Playwright headless (390px) por historia,
+  com banco semeado (dado "antigo" incluso pra confirmar retrocompatibilidade
+  em F2 e F4). Suite completa (`unittest` + `node --test`) rodada apos cada
+  commit: 1645 testes Python (6 falhas conhecidas de horario de voo/agrupamento,
+  pre-existentes, sem regressao) + 86/86 JS.
+
 ## 2026-09-23 (Fase 6 E4) - chat produzindo cards dos modulos novos
 
 Faixa 4 do Grupo E da Fase 6: a aba Hoje (chat) passa a devolver CARD pros modulos da E2

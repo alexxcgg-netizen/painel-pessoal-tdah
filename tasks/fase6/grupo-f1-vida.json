@@ -13,8 +13,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Commit bba77ae. Botao maior (--cor-financeiro, glow) + '+1' flutuante + contador com checkPop (pulsarSucesso ja chamava .sucesso em #hidratacao-total, so faltava a regra CSS - achado real). Sem mudanca de logica/endpoint. Playwright OK, suite baseline 6 falhas conhecidas (voo/horario).",
       "modelo_planejado": "haiku"
     },
     {
@@ -28,8 +28,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Commit 483b43d. Tipo/unidade por <select> com 'outro(a)...' pra nao perder texto livre; valor por stepper (+/-, toque >=44px); grafico de evolucao (reusa charts.js desenharGraficoLinha, sem lib nova). Dado antigo (tipo digitado a mao) testado e continua aparecendo. .form-linha select ganhou estilo global (faltava, tambem corrige selects que ja existiam). Playwright OK com banco semeado, suite 6 falhas conhecidas.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -41,8 +41,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Commit 2e6d535. Avatar com iniciais, chip de status, barra dias_sem_falar/frequencia_dias e toggle 'ver conversas' (reusa GET /api/conversas, ja existia sem lugar na UI). 'Falei hoje' continua 1 toque, so ganhou min-height 44px escopado a #lista-pessoas. Sem campo/logica novo no backend. Nao implementei aniversario/data importante (exigiria schema novo, fora de 'nao mexer em logica de negocio ao alterar visual' - ver progress-f1.txt). Playwright OK, suite combinada F3+F4+F5 = 6 falhas conhecidas.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -55,8 +55,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Commit 6ff2473. Exercicio um a um (nome/series/reps/carga), serializado como 'nome|series|reps|carga' por linha no MESMO campo TEXT exercicios (sem migracao/coluna nova). Ficha antiga (texto puro, sem '|') cai no fallback e continua exibida sem perda - testado com ficha semeada. Playwright OK, suite combinada = 6 falhas conhecidas.",
       "modelo_planejado": "sonnet"
     },
     {
@@ -69,8 +69,8 @@
         "Toda tela/card novo conferido no navegador headless (Playwright, ver AGENTS.md) antes de marcar passes=true"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Commit 9408f15. Chip de status por urgencia + barra de % do prazo decorrido; lista reordenada por dias_ate (vencido/vence logo primeiro), sem endpoint novo (data_compra/vencimento/dias_ate ja vinham prontos). Playwright OK com 3 garantias semeadas (vencida/alerta/ok), suite combinada = 6 falhas conhecidas.",
       "modelo_planejado": "sonnet"
     }
   ]

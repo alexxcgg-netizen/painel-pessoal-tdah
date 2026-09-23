@@ -260,6 +260,45 @@ $("#hiperfoco-parar").addEventListener("click", async () => {
 
 // ---- Pessoas ----
 
+// Fase 6 US-F3: chip curto de status (some por cima do texto ja existente,
+// nao substitui - so da pra escanear a lista de relance sem ler frase por
+// frase pra achar quem esta atrasado).
+function pessoaChip(p) {
+  if (p.dias_sem_falar == null) {
+    return p.atrasada ? { texto: "sem conversa ainda", classe: "atrasada" } : { texto: "novo(a)", classe: "novo" };
+  }
+  if (p.dias_sem_falar === 0) return { texto: "falou hoje", classe: "em-dia" };
+  return p.atrasada
+    ? { texto: `atrasada ha ${p.dias_sem_falar}d`, classe: "atrasada" }
+    : { texto: `ha ${p.dias_sem_falar}d`, classe: "em-dia" };
+}
+
+// Toggle "ver conversas" - reusa GET /api/conversas?pessoa_id= (ja existia,
+// so nao tinha lugar nenhum na UI que chamasse ele pra uma pessoa so).
+async function alternarConversasPessoa(li, pessoaId) {
+  const aberto = li.querySelector(".pessoa-conversas");
+  if (aberto) {
+    aberto.remove();
+    return false;
+  }
+  const conversas = (await apiFetch(`/api/conversas?pessoa_id=${pessoaId}`)) || [];
+  const box = criarEl("div", "pessoa-conversas");
+  if (!conversas.length) {
+    box.appendChild(criarEl("p", "vazio", "Nenhuma conversa registrada ainda."));
+  } else {
+    const ul = criarEl("ul", "pessoa-conversas-lista");
+    conversas.slice(0, 6).forEach((c) => {
+      const item = criarEl("li");
+      item.appendChild(criarEl("span", "item-quando", fmtDataBr(c.data)));
+      item.appendChild(criarEl("span", null, c.sobre || "(sem assunto)"));
+      ul.appendChild(item);
+    });
+    box.appendChild(ul);
+  }
+  li.appendChild(box);
+  return true;
+}
+
 async function loadPessoas() {
   const pessoas = await apiFetch("/api/pessoas");
   if (!pessoas) return;
@@ -267,19 +306,31 @@ async function loadPessoas() {
   lista.innerHTML = "";
   $("#pessoas-vazio").hidden = pessoas.length > 0;
   pessoas.forEach((p) => {
-    const li = criarEl("li", "item" + (p.atrasada ? " item-atencao" : ""));
+    const li = criarEl("li", "item pessoa-item" + (p.atrasada ? " item-atencao" : ""));
     const linha = criarEl("div", "item-linha");
-    const wrap = criarEl("div");
-    wrap.appendChild(criarEl("span", "item-titulo", p.nome));
-    const quando =
-      p.dias_sem_falar == null
-        ? `a cada ${p.frequencia_dias} dias - sem conversa registrada`
-        : p.dias_sem_falar === 0
-        ? "falou hoje"
-        : `ultima conversa ha ${p.dias_sem_falar} dia(s) - a cada ${p.frequencia_dias}`;
-    wrap.appendChild(criarEl("span", "item-quando", quando));
+    const cabecalho = criarEl("div", "pessoa-cabecalho");
+
+    const avatar = criarEl("div", "pessoa-avatar" + (p.atrasada ? " atrasada" : ""), (p.nome.trim()[0] || "?").toUpperCase());
+    cabecalho.appendChild(avatar);
+
+    const wrap = criarEl("div", "pessoa-info");
+    const tituloLinha = criarEl("div", "pessoa-titulo-linha");
+    tituloLinha.appendChild(criarEl("span", "item-titulo", p.nome));
+    const chip = pessoaChip(p);
+    tituloLinha.appendChild(criarEl("span", `pessoa-chip pessoa-chip-${chip.classe}`, chip.texto));
+    wrap.appendChild(tituloLinha);
+    wrap.appendChild(criarEl("span", "item-quando", `contato a cada ${p.frequencia_dias} dia(s)`));
     if (p.ultima_conversa) wrap.appendChild(criarEl("span", "item-quando", `sobre: ${p.ultima_conversa}`));
-    linha.appendChild(wrap);
+    if (p.dias_sem_falar != null && p.frequencia_dias > 0) {
+      const fracao = Math.min(1, p.dias_sem_falar / p.frequencia_dias);
+      const trilho = criarEl("div", "pessoa-barra-trilho");
+      const preenchido = criarEl("div", "pessoa-barra-preenchido" + (p.atrasada ? " pessoa-barra-alerta" : ""));
+      preenchido.style.width = `${Math.round(fracao * 100)}%`;
+      trilho.appendChild(preenchido);
+      wrap.appendChild(trilho);
+    }
+    cabecalho.appendChild(wrap);
+    linha.appendChild(cabecalho);
 
     const acoes = criarEl("div", "item-acoes");
     const falei = criarEl("button", "primario btn-com-icone");
@@ -291,10 +342,21 @@ async function loadPessoas() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (r) loadPessoas();
-      else falei.disabled = false;
+      if (r) {
+        vibrar(15);
+        loadPessoas();
+      } else falei.disabled = false;
     });
     acoes.appendChild(falei);
+
+    const verConversas = criarEl("button", "btn-link", "ver conversas");
+    verConversas.type = "button";
+    verConversas.addEventListener("click", async () => {
+      const abriu = await alternarConversasPessoa(li, p.id);
+      verConversas.textContent = abriu ? "esconder conversas" : "ver conversas";
+    });
+    acoes.appendChild(verConversas);
+
     acoes.appendChild(botaoApagar(`/api/pessoas/${p.id}`, li));
     linha.appendChild(acoes);
     li.appendChild(linha);
@@ -817,6 +879,23 @@ async function obterFichasTreino(forcar = false) {
   return fichasTreinoCache || [];
 }
 
+// Fase 6 US-F4: cada exercicio guardado por linha, campos separados por "|"
+// (nome|series|reps|carga - "|" nunca aparece em nome de exercicio digitado
+// a mao). Ficha ANTIGA (texto livre, uma linha por exercicio, sem "|") cai
+// no `else` e continua mostrada palavra por palavra, sem perder nada.
+function parseLinhaExercicio(linha) {
+  const partes = linha.split("|");
+  if (partes.length === 4) {
+    const [nome, series, reps, carga] = partes.map((p) => p.trim());
+    if (nome) return { nome, series, reps, carga, estruturado: true };
+  }
+  return { nome: linha, series: "", reps: "", carga: "", estruturado: false };
+}
+
+function serializarExercicio(ex) {
+  return [ex.nome, ex.series, ex.reps, ex.carga].map((v) => (v || "").toString().trim()).join("|");
+}
+
 function renderExerciciosFicha(ficha) {
   const box = criarEl("div", "ficha-treino");
   box.appendChild(criarEl("p", "ficha-treino-grupo", ficha.grupo));
@@ -825,10 +904,74 @@ function renderExerciciosFicha(ficha) {
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
-    .forEach((l) => ul.appendChild(criarEl("li", null, l)));
+    .forEach((linha) => {
+      const ex = parseLinhaExercicio(linha);
+      const li = criarEl("li", "ficha-exercicio-linha");
+      li.appendChild(criarEl("span", "ficha-exercicio-nome", ex.nome));
+      if (ex.estruturado) {
+        const detalhe = [ex.series && ex.reps ? `${ex.series}x${ex.reps}` : ex.series || ex.reps, ex.carga]
+          .filter(Boolean)
+          .join(" · ");
+        if (detalhe) li.appendChild(criarEl("span", "ficha-exercicio-detalhe", detalhe));
+      }
+      ul.appendChild(li);
+    });
   box.appendChild(ul);
   return box;
 }
+
+// ---- Fase 6 US-F4: montar a ficha um exercicio por vez ----
+
+let fichaExerciciosPendentes = [];
+
+function renderFichaExerciciosPendentes() {
+  const ul = $("#ficha-exercicios-pendentes");
+  ul.innerHTML = "";
+  $("#ficha-exercicios-vazio").hidden = fichaExerciciosPendentes.length > 0;
+  fichaExerciciosPendentes.forEach((ex, idx) => {
+    const li = criarEl("li", "ficha-exercicio-pendente");
+    const info = criarEl("span", null, ex.nome);
+    const detalhe = [ex.series && ex.reps ? `${ex.series}x${ex.reps}` : ex.series || ex.reps, ex.carga]
+      .filter(Boolean)
+      .join(" · ");
+    if (detalhe) {
+      const span = criarEl("span", "ficha-exercicio-detalhe", ` ${detalhe}`);
+      info.appendChild(span);
+    }
+    li.appendChild(info);
+    const remover = criarEl("button", "btn-link", "remover");
+    remover.type = "button";
+    remover.setAttribute("aria-label", `Remover ${ex.nome} da ficha`);
+    remover.addEventListener("click", () => {
+      fichaExerciciosPendentes.splice(idx, 1);
+      renderFichaExerciciosPendentes();
+    });
+    li.appendChild(remover);
+    ul.appendChild(li);
+  });
+}
+
+$("#ficha-ex-add-btn").addEventListener("click", () => {
+  const nomeInput = $("#ficha-ex-nome");
+  const nome = nomeInput.value.trim();
+  if (!nome) {
+    mostrarErro("Digite o nome do exercicio antes de adicionar.");
+    return;
+  }
+  fichaExerciciosPendentes.push({
+    nome,
+    series: $("#ficha-ex-series").value.trim(),
+    reps: $("#ficha-ex-reps").value.trim(),
+    carga: $("#ficha-ex-carga").value.trim(),
+  });
+  nomeInput.value = "";
+  $("#ficha-ex-series").value = "";
+  $("#ficha-ex-reps").value = "";
+  $("#ficha-ex-carga").value = "";
+  pulsarSucesso(nomeInput);
+  renderFichaExerciciosPendentes();
+  nomeInput.focus();
+});
 
 // Chamado pelo criarItemTarefa (app.js) quando a tarefa bate com uma ficha.
 function botaoFichaTreino(t, li) {
@@ -881,11 +1024,26 @@ async function loadTreino() {
   }
 }
 
-ligarForm("#ficha-form", "#ficha-btn", "Salvar ficha", () => {
-  const grupo = $("#ficha-grupo").value.trim();
-  const exercicios = $("#ficha-exercicios").value.trim();
-  return grupo && exercicios ? { grupo, exercicios } : null;
-}, "/api/treino/fichas", loadTreino);
+ligarForm(
+  "#ficha-form",
+  "#ficha-btn",
+  "Salvar ficha",
+  () => {
+    const grupo = $("#ficha-grupo").value.trim();
+    if (!grupo || !fichaExerciciosPendentes.length) {
+      mostrarErro("Informe o grupo e adicione ao menos 1 exercicio antes de salvar.");
+      return null;
+    }
+    const exercicios = fichaExerciciosPendentes.map(serializarExercicio).join("\n");
+    return { grupo, exercicios };
+  },
+  "/api/treino/fichas",
+  (r) => {
+    fichaExerciciosPendentes = [];
+    renderFichaExerciciosPendentes();
+    loadTreino(r);
+  }
+);
 
 // ---- Fase 2 + Fase 5 (US-C14) + Fase 6 (US-E1a): manutencao (secao unica) ----
 // tipo='carro' e HISTORICO (registro novo a cada manutencao feita, aviso por
@@ -976,7 +1134,26 @@ ligarForm("#manutencao-form", "#manutencao-btn", "Adicionar", () => {
   return { tipo, item, intervalo_meses: meses, ultima_vez: $("#manutencao-ultima").value || null };
 }, "/api/manutencoes", loadManutencoes);
 
-// ---- Fase 5: garantia de produtos ----
+// ---- Fase 5 + Fase 6 (US-F5): garantia de produtos ----
+
+// Chip curto de status - a mesma logica de "<=15 dias = atencao" que ja
+// existia (classe item-atencao), so com um rotulo mais claro que "vence em
+// (X dias)" no meio da frase.
+function garantiaChip(g) {
+  if (g.dias_ate < 0) return { texto: `venceu ha ${-g.dias_ate}d`, classe: "vencida" };
+  if (g.dias_ate === 0) return { texto: "vence hoje", classe: "vencida" };
+  if (g.dias_ate <= 15) return { texto: `vence em ${g.dias_ate}d`, classe: "alerta" };
+  return { texto: `vence em ${g.dias_ate}d`, classe: "ok" };
+}
+
+// Fracao do prazo de garantia ja decorrida (0..1) - so matematica de data
+// local, sem endpoint novo (data_compra/vencimento ja vinham no /api/garantias).
+function garantiaFracaoDecorrida(g) {
+  const compra = new Date(`${g.data_compra}T00:00:00`).getTime();
+  const vence = new Date(`${g.vencimento}T00:00:00`).getTime();
+  if (!(vence > compra)) return 1;
+  return Math.min(1, Math.max(0, (Date.now() - compra) / (vence - compra)));
+}
 
 async function loadGarantias() {
   const itens = await apiFetch("/api/garantias");
@@ -984,19 +1161,43 @@ async function loadGarantias() {
   const lista = $("#lista-garantias");
   lista.innerHTML = "";
   $("#garantias-vazio").hidden = itens.length > 0;
-  itens.forEach((g) => {
-    const quando =
-      g.dias_ate < 0
-        ? `venceu ha ${-g.dias_ate} dia(s)`
-        : g.dias_ate === 0
-        ? "vence hoje"
-        : `vence em ${fmtDataBr(g.vencimento)} (${g.dias_ate} dias)`;
-    lista.appendChild(
-      itemSimples(g.produto, [`${g.prazo_garantia_meses} mes(es) de garantia`, quando], [
-        (el) => botaoApagar(`/api/garantias/${g.id}`, el),
-      ], g.dias_ate <= 15 ? "item-atencao" : "")
-    );
-  });
+  // O que vence mais logo primeiro (inclusive ja vencido) - "destaque do que
+  // vence logo" e o pedido explicito da US-F5, a ordem por data de compra
+  // que a API devolve nao ajuda a bater o olho nisso.
+  itens
+    .slice()
+    .sort((a, b) => a.dias_ate - b.dias_ate)
+    .forEach((g) => {
+      const li = criarEl("li", "item garantia-item" + (g.dias_ate <= 15 ? " item-atencao" : ""));
+      const linha = criarEl("div", "item-linha");
+
+      const wrap = criarEl("div");
+      const tituloLinha = criarEl("div", "pessoa-titulo-linha");
+      tituloLinha.appendChild(criarEl("span", "item-titulo", g.produto));
+      const chip = garantiaChip(g);
+      tituloLinha.appendChild(criarEl("span", `garantia-chip garantia-chip-${chip.classe}`, chip.texto));
+      wrap.appendChild(tituloLinha);
+      wrap.appendChild(
+        criarEl(
+          "span",
+          "item-quando",
+          `${g.prazo_garantia_meses} mes(es) - comprado em ${fmtDataBr(g.data_compra)}, vence ${fmtDataBr(g.vencimento)}`
+        )
+      );
+      const trilho = criarEl("div", "garantia-barra-trilho");
+      const preenchido = criarEl("div", `garantia-barra-preenchido garantia-barra-${chip.classe}`);
+      preenchido.style.width = `${Math.round(garantiaFracaoDecorrida(g) * 100)}%`;
+      trilho.appendChild(preenchido);
+      wrap.appendChild(trilho);
+      linha.appendChild(wrap);
+
+      const acoes = criarEl("div", "item-acoes");
+      acoes.appendChild(botaoApagar(`/api/garantias/${g.id}`, li));
+      linha.appendChild(acoes);
+
+      li.appendChild(linha);
+      lista.appendChild(li);
+    });
 }
 
 $("#garantia-form").addEventListener("submit", async (e) => {

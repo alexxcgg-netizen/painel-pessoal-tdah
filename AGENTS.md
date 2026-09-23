@@ -423,3 +423,46 @@ db.init_db()
 - **Sugestão de horário usa `app._agora()`** (relógio isolado) - teste que
   depende de "a partir de agora" faz `patch("app._agora", ...)` em vez de
   mockar `datetime` inteiro.
+
+### Fase 6, Grupo F, faixa 1 (F1-vida) - US-F1 a US-F5
+- **O HTML de "Saude hoje" e "Peso e medidas" (contador de água, `#hidratacao-btn`,
+  `#medida-form`, `#lista-medidas`) fica fisicamente dentro de
+  `<section id="tab-painel">` em `templates/index.html`, NÃO em
+  `tab-vida`** - apesar de ser conceitualmente conteúdo de "Vida" (é assim
+  que o PRD da Fase 6 descreve). Confirmar sempre com
+  `grep -n '<section\|</section>' templates/index.html` antes de assumir
+  onde o HTML de uma seção mora só pelo conceito/nome dela (mesmo alerta já
+  existia pra "O que eu lembro sobre você", Fase 6 Grupo E1). Isso importa
+  de verdade quando faixas trabalham em paralelo por aba: uma faixa dona da
+  aba "Vida" pode precisar editar linhas fisicamente dentro da aba
+  "Painel" (e vice-versa) - editar só as linhas exatas da própria história,
+  nunca "aproveitar" pra mexer em outras seções do arquivo que por acaso
+  estão por perto, e avisar a integração do risco de merge no mesmo
+  arquivo.
+- **`.venv` num worktree criado a partir do checkout principal pode ser um
+  SYMLINK** (`.venv -> /home/user/painel-pessoal-tdah/.venv`), não um
+  diretório de verdade - o padrão `.venv/` do `.gitignore` só casa
+  diretório, não symlink, então `git status` mostra `?? .venv` (untracked)
+  o tempo todo, mesmo sem nada de errado. **Nunca usar `git add -A`/`git add .`
+  num worktree assim** - conferir com `ls -la | grep venv` (ou
+  `file .venv`) se é link antes de assumir que `?? .venv` é sinal de
+  alerta; sempre `git add <arquivo>` explícito por commit (que já é a
+  prática recomendada de qualquer forma).
+- **Um hunk de `git diff` pode misturar duas histórias** quando os blocos
+  de CSS/código adicionados por cada uma ficam fisicamente colados (sem
+  linha de contexto entre eles) - `git add -p` sozinho não consegue
+  separar (não tem onde "split" sem contexto no meio). Solução que
+  funcionou: cortar o bloco da história mais nova pra um arquivo
+  temporário (`sed -n` pra extrair, depois recortar essas linhas do
+  arquivo real), deixando só a história mais velha como diff isolado pra
+  `git add -p`/commit, e colar o bloco cortado de volta no lugar exato
+  depois pra continuar com a próxima história. Conferir sempre que o
+  corte/cola bateu com um `diff` contra o texto extraído antes de seguir.
+- **`.item-linha > :first-child:not(.item-acoes)` (style.css) dá
+  `flex: 1 1 9rem` pro PRIMEIRO filho de qualquer `.item-linha`** (regra
+  antiga, Fase 6 Grupo E1a) - um elemento de tamanho fixo (avatar, ícone)
+  que vire esse primeiro filho por engano estica horizontalmente e vira
+  uma elipse (bug real, só aparece no headless/visual, nenhum teste
+  unitário acusa). Sempre envolver conteúdo de tamanho fixo num wrapper
+  que seja o primeiro filho de `.item-linha` (nunca o próprio elemento
+  fixo).

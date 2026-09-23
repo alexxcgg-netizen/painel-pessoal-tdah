@@ -377,7 +377,7 @@
 
       <div class="hidratacao-linha">
         <span class="hidratacao-contador"><span id="hidratacao-total">0</span> copo(s) hoje</span>
-        <button type="button" id="hidratacao-btn" class="btn-com-icone">
+        <button type="button" id="hidratacao-btn" class="btn-com-icone hidratacao-btn-grande">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/></svg>
           +1 copo de agua
         </button>
@@ -388,9 +388,34 @@
         Peso e medidas
       </h2>
       <form id="medida-form" class="form-linha">
-        <input type="text" id="medida-tipo" placeholder="Tipo (peso, biceps, cintura...)" required />
-        <input type="number" id="medida-valor" placeholder="Valor" step="0.1" inputmode="decimal" required />
-        <input type="text" id="medida-unidade" placeholder="Unidade (kg, cm...)" />
+        <select id="medida-tipo-select" aria-label="Tipo de medida">
+          <option value="peso">Peso</option>
+          <option value="cintura">Cintura</option>
+          <option value="quadril">Quadril</option>
+          <option value="peito">Peito</option>
+          <option value="biceps">Biceps</option>
+          <option value="coxa">Coxa</option>
+          <option value="gordura">% de gordura</option>
+          <option value="outro">Outro...</option>
+        </select>
+        <input type="text" id="medida-tipo-outro" placeholder="Qual medida?" maxlength="40" hidden />
+        <div class="stepper" id="medida-valor-stepper">
+          <button type="button" class="stepper-btn" id="medida-valor-menos" aria-label="Diminuir valor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>
+          </button>
+          <input type="number" id="medida-valor" placeholder="Valor" step="0.1" inputmode="decimal" required />
+          <button type="button" class="stepper-btn" id="medida-valor-mais" aria-label="Aumentar valor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+        <select id="medida-unidade-select" aria-label="Unidade">
+          <option value="kg">kg</option>
+          <option value="cm">cm</option>
+          <option value="%">%</option>
+          <option value="lb">lb</option>
+          <option value="outra">outra...</option>
+        </select>
+        <input type="text" id="medida-unidade-outra" placeholder="Unidade" maxlength="10" hidden />
         <button type="submit" id="medida-btn" class="btn-com-icone">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           Adicionar
@@ -398,6 +423,7 @@
       </form>
       <p id="medidas-oculto-visitante" class="vazio" hidden>Oculto no modo visitante.</p>
       <p id="medidas-vazio" class="vazio" hidden>Nenhuma medida registrada ainda.</p>
+      <div id="grafico-medidas" class="grafico-container medida-grafico" hidden></div>
       <ul id="lista-medidas"></ul>
 
       <h2 class="secao-secundaria" style="--secao-cor: var(--cor-hoje)">
@@ -794,8 +820,17 @@
       </div>
       <form id="ficha-form" class="form-linha">
         <input type="text" id="ficha-grupo" placeholder="Grupo (ex: Peito)" maxlength="40" required />
-        <textarea id="ficha-exercicios" rows="3" maxlength="3000" placeholder="Um exercicio por linha (ex: Supino reto 4x10)" required></textarea>
-        <button type="submit" id="ficha-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar ficha</button>
+        <input type="text" id="ficha-ex-nome" placeholder="Exercicio (ex: Supino reto)" maxlength="80" />
+        <input type="number" id="ficha-ex-series" placeholder="Series" min="1" max="30" inputmode="numeric" />
+        <input type="text" id="ficha-ex-reps" placeholder="Reps (ex: 10 ou 8-12)" maxlength="20" />
+        <input type="text" id="ficha-ex-carga" placeholder="Carga (opcional)" maxlength="30" />
+        <button type="button" id="ficha-ex-add-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar exercicio
+        </button>
+        <p id="ficha-exercicios-vazio" class="dica-metas ficha-exercicios-vazio">Nenhum exercicio adicionado ainda - monte a ficha um exercicio por vez.</p>
+        <ul id="ficha-exercicios-pendentes" class="ficha-exercicios-pendentes"></ul>
+        <button type="submit" id="ficha-btn" class="btn-com-icone primario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5l2 2 4-5"/><circle cx="12" cy="12" r="9"/></svg>Salvar ficha</button>
       </form>
       <p id="fichas-vazio" class="vazio" hidden>Nenhuma ficha ainda.</p>
       <ul id="lista-fichas"></ul>
