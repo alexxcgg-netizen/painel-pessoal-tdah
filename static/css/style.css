@@ -4159,7 +4159,7 @@ body.modo-essencial #essencial-box {
 
 .decisao-resumo {
   font-weight: 600;
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.6rem;
 }
 
 .decisao-rotulo {
@@ -4176,10 +4176,84 @@ body.modo-essencial #essencial-box {
   padding-left: 1.1rem;
 }
 
+/* Fase 6 (US-F9): o veredito ("vale"/"nao_vale"/"depende", ja vem pronto do
+   prompt) virou um banner colorido no TOPO do card (semaforo verde/
+   vermelho/ambar), nao so uma frase perdida no fim do texto - bate o
+   pedido "recomendacao direta" da historia. --danger so entra aqui pro
+   veredito NEGATIVO mesmo (unico caso, igual .lembrete-contagem-vencido/
+   .item-tag-travada) - vale/depende usam cor de secao, nunca vermelho. */
 .decisao-veredito {
-  margin: 0.6rem 0 0;
-  font-weight: 600;
-  color: var(--accent-text, var(--accent));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.decisao-veredito-selo {
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.decisao-veredito-porque {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.decisao-veredito-vale {
+  border-color: color-mix(in srgb, var(--cor-painel) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-painel) 14%, transparent);
+}
+.decisao-veredito-vale .decisao-veredito-selo {
+  color: var(--cor-painel);
+}
+
+.decisao-veredito-nao-vale {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: var(--danger-bg);
+}
+.decisao-veredito-nao-vale .decisao-veredito-selo {
+  color: var(--danger);
+}
+
+.decisao-veredito-depende {
+  border-color: color-mix(in srgb, var(--cor-bancos) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-bancos) 14%, transparent);
+}
+.decisao-veredito-depende .decisao-veredito-selo {
+  color: var(--cor-bancos);
+}
+
+/* Pros/contras eram 2 listas identicas empilhadas - viram colunas lado a
+   lado (empilham no mobile via flex-wrap), cada uma com uma cor de borda
+   propria pra "fatos organizados" ficar visual, nao so texto. */
+.decisao-grade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 0.4rem;
+}
+
+.decisao-coluna {
+  flex: 1 1 9rem;
+  min-width: 8rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--border);
+}
+
+.decisao-coluna .decisao-rotulo {
+  margin-top: 0;
+}
+
+.decisao-coluna-pros {
+  border-left-color: color-mix(in srgb, var(--cor-painel) 55%, var(--border));
+}
+
+.decisao-coluna-contras {
+  border-left-color: color-mix(in srgb, var(--cor-bancos) 55%, var(--border));
 }
 
 /* display:flex nas classes acima sobrescreveria o atributo hidden. */
@@ -4238,6 +4312,55 @@ body.modo-essencial #essencial-box {
   white-space: pre-wrap;
   user-select: text;
   -webkit-user-select: text;
+}
+
+/* Fase 6 (US-F9): "Direta"/"Mais gentil" eram 2 paragrafos empilhados com o
+   mesmo selo generico (.decisao-rotulo) - viraram 2 cartoes com identidade
+   propria (cor da versao no selo + borda), pra bater o pedido de "resposta
+   interativa" em vez de texto corrido igual antes (app e mobile-first,
+   390px - empilhado sempre, sem tentar lado a lado). */
+.mensagem-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.mensagem-card {
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.mensagem-card-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mensagem-copiar {
+  flex-shrink: 0;
+}
+
+.mensagem-card-direta {
+  border-color: color-mix(in srgb, var(--cor-tarefas) 35%, var(--border));
+}
+
+.mensagem-card-direta .item-tag-tarefa {
+  color: var(--cor-tarefas);
+  border-color: color-mix(in srgb, var(--cor-tarefas) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-tarefas) 14%, transparent);
+}
+
+.mensagem-card-gentil {
+  border-color: color-mix(in srgb, var(--cor-painel) 35%, var(--border));
+}
+
+.mensagem-card-gentil .item-tag-tarefa {
+  color: var(--cor-painel);
+  border-color: color-mix(in srgb, var(--cor-painel) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-painel) 14%, transparent);
 }
 
 #mensagem-resultado[hidden] {
