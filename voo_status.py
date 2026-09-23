@@ -42,6 +42,12 @@ AVIATIONSTACK_URL = "http://api.aviationstack.com/v1/flights"  # HTTP mesmo (ver
 # manha e perto da hora do voo) sem estourar o limite mensal.
 CACHE_TTL = timedelta(hours=3)
 
+# Revisao da Fase 6 (achado 10): erro (rede, chave invalida, cota) tambem
+# fica em cache - antes cada visita a Viagens com a API falhando gastava mais
+# uma das 100 requisicoes do mes. O erro e gravado SEM apagar o ultimo dado
+# bom (chave "_anterior"), que continua aparecendo como "dado de HH:MM".
+CACHE_TTL_ERRO = timedelta(minutes=30)
+
 # flight_status da AviationStack -> chave interna (CSS/rotulo) + texto pt-BR.
 _STATUS = {
     "scheduled": ("agendado", "Agendado"),
@@ -104,10 +110,17 @@ def status_voo(numero_voo: str, data: str, obter_cache, salvar_cache, agora: dat
 
     agora = agora or datetime.now()
     cache = obter_cache(numero_voo, data)
-    if cache:
+    salvo = json.loads(cache["resposta_json"]) if cache else None
+    anterior, anterior_em = None, None  # ultimo dado BOM que ja veio da API
+    if salvo is not None and "_erro_em" in salvo:
+        anterior, anterior_em = salvo.get("_anterior"), salvo.get("_anterior_buscado_em")
+        if agora - datetime.fromisoformat(salvo["_erro_em"]) < CACHE_TTL_ERRO:
+            return _resposta_depois_de_erro(anterior, anterior_em)
+    elif salvo is not None:
+        anterior, anterior_em = salvo, cache["buscado_em"]
         buscado_em = datetime.fromisoformat(cache["buscado_em"])
         if agora - buscado_em < CACHE_TTL:
-            resultado = json.loads(cache["resposta_json"])
+            resultado = dict(salvo)
             resultado["configurado"] = True
             resultado["cache"] = True
             resultado["buscado_em_texto"] = buscado_em.strftime("%H:%M")
@@ -116,15 +129,27 @@ def status_voo(numero_voo: str, data: str, obter_cache, salvar_cache, agora: dat
     try:
         resultado = _buscar_na_api(numero_voo, data)
     except (requests.RequestException, ValueError, KeyError):
-        if cache:  # rede falhou agora mas tinha algo salvo antes - melhor um dado velho que nada
-            resultado = json.loads(cache["resposta_json"])
-            resultado["configurado"] = True
-            resultado["cache"] = True
-            resultado["buscado_em_texto"] = datetime.fromisoformat(cache["buscado_em"]).strftime("%H:%M") + " (rede falhou agora)"
-            return resultado
-        return {"configurado": True, "erro": "nao consegui consultar o status do voo agora"}
+        salvar_cache(
+            numero_voo,
+            data,
+            json.dumps({"_erro_em": agora.isoformat(), "_anterior": anterior, "_anterior_buscado_em": anterior_em}),
+        )
+        return _resposta_depois_de_erro(anterior, anterior_em)
 
     salvar_cache(numero_voo, data, json.dumps(resultado))
     resultado["configurado"] = True
     resultado["cache"] = False
     return resultado
+
+
+def _resposta_depois_de_erro(anterior: dict | None, anterior_em: str | None) -> dict:
+    """Rede/API falhou (agora ou ha menos de CACHE_TTL_ERRO): melhor um dado
+    velho que nada; sem dado velho, a mensagem amigavel de sempre."""
+    if anterior:
+        resultado = dict(anterior)
+        resultado["configurado"] = True
+        resultado["cache"] = True
+        hora = datetime.fromisoformat(anterior_em).strftime("%H:%M") if anterior_em else "antes"
+        resultado["buscado_em_texto"] = f"{hora} (rede falhou agora)"
+        return resultado
+    return {"configurado": True, "erro": "nao consegui consultar o status do voo agora"}

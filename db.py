@@ -776,6 +776,9 @@ def init_db():
     _garantir_coluna(conn, "lugares", "lat", "REAL")
     _garantir_coluna(conn, "lugares", "lng", "REAL")
     _garantir_coluna(conn, "lugares", "geocode_status", "TEXT")
+    # Revisao da Fase 6: status "erro" (falha temporaria do Nominatim) so
+    # tenta de novo depois desse instante (UTC, "AAAA-MM-DD HH:MM:SS").
+    _garantir_coluna(conn, "lugares", "geocode_tentar_depois", "TEXT")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
@@ -2791,14 +2794,17 @@ def delete_lugar(conn, lugar_id: int):
     conn.commit()
 
 
-def salvar_geocode_lugar(conn, lugar_id: int, lat: float | None, lng: float | None, status: str) -> None:
+def salvar_geocode_lugar(
+    conn, lugar_id: int, lat: float | None, lng: float | None, status: str, tentar_depois: str | None = None
+) -> None:
     """US-F13: grava o resultado (ou a falta dele) do geocode Nominatim -
-    'status' e 'ok'/'nao_encontrado'/'erro', pra loadLugares() nao tentar
-    geocodificar de novo um lugar que ja foi consultado (politica de uso do
-    Nominatim: nunca repetir a mesma consulta)."""
+    'status' e 'ok'/'nao_encontrado'/'recusado' (definitivos) ou 'erro'
+    (temporario, com `tentar_depois` = instante UTC "AAAA-MM-DD HH:MM:SS" a
+    partir do qual pode consultar de novo - revisao da Fase 6). Politica de
+    uso do Nominatim: nunca repetir a mesma consulta que ja respondeu."""
     conn.execute(
-        "UPDATE lugares SET lat = ?, lng = ?, geocode_status = ? WHERE id = ?",
-        (lat, lng, status, lugar_id),
+        "UPDATE lugares SET lat = ?, lng = ?, geocode_status = ?, geocode_tentar_depois = ? WHERE id = ?",
+        (lat, lng, status, tentar_depois, lugar_id),
     )
     conn.commit()
 
@@ -2806,6 +2812,19 @@ def salvar_geocode_lugar(conn, lugar_id: int, lat: float | None, lng: float | No
 def lugares_sem_geocode(conn) -> list[dict]:
     rows = conn.execute("SELECT * FROM lugares WHERE geocode_status IS NULL ORDER BY id").fetchall()
     return [dict(r) for r in rows]
+
+
+def proximo_lugar_para_geocodificar(conn, agora_utc: str) -> dict | None:
+    """O UNICO lugar que um GET /api/lugares pode geocodificar agora: nunca
+    consultado (status NULL) ou com falha temporaria cuja espera ja passou
+    (`agora_utc` no mesmo formato de geocode_tentar_depois)."""
+    row = conn.execute(
+        "SELECT * FROM lugares WHERE geocode_status IS NULL "
+        "OR (geocode_status = 'erro' AND (geocode_tentar_depois IS NULL OR geocode_tentar_depois <= ?)) "
+        "ORDER BY id LIMIT 1",
+        (agora_utc,),
+    ).fetchone()
+    return dict(row) if row else None
 
 
 # ---- Fase 6 F3 (US-F12): cache de status de voo ----------------------------

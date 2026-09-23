@@ -137,8 +137,12 @@ class LugaresGeocodeHTTPTestCase(unittest.TestCase):
             self.assertEqual(res.status_code, 201)
             lugares = self.client.get("/api/lugares").get_json()
         alvo = next(l for l in lugares if l["nome"] == "Vai falhar")
-        self.assertIsNone(alvo["geocode_status"])  # nao gravou status definitivo - tenta de novo depois
-        mock_geo.assert_called()  # so garante que o mock foi de fato usado nas duas chamadas
+        # revisao da Fase 6: grava "erro" TEMPORARIO (com hora pra tentar de
+        # novo), nunca um status definitivo - e o GET logo depois nao repete
+        # a chamada dentro da espera.
+        self.assertEqual(alvo["geocode_status"], "erro")
+        self.assertTrue(alvo["geocode_tentar_depois"])
+        self.assertEqual(mock_geo.call_count, 1)
 
     def test_get_lugares_faz_backfill_de_no_maximo_1_por_chamada(self):
         conn = db.get_db()
@@ -174,7 +178,10 @@ class LugaresGeocodeHTTPTestCase(unittest.TestCase):
         with patch("app.geocode_nominatim.geocodificar", return_value={"status": "erro"}):
             resultado = self.client.get("/api/lugares").get_json()
         alvo = next(l for l in resultado if l["nome"] == "Vai falhar no backfill")
-        self.assertIsNone(alvo["geocode_status"])  # continua pendente, vai tentar de novo depois
+        # continua pendente (status temporario "erro"), tenta de novo depois
+        # de app.GEOCODE_ESPERA_APOS_ERRO - revisao da Fase 6
+        self.assertEqual(alvo["geocode_status"], "erro")
+        self.assertTrue(alvo["geocode_tentar_depois"])
 
 
 if __name__ == "__main__":

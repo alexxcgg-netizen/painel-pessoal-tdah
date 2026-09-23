@@ -19,6 +19,7 @@ import anthropic
 import requests
 from dotenv import load_dotenv
 from flask import Flask, Response, has_request_context, jsonify, redirect, render_template, request, send_file, session
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
 
@@ -192,6 +193,7 @@ from db import (
     list_lembretes,
     list_lugares,
     lugares_sem_geocode,
+    proximo_lugar_para_geocodificar,
     list_manutencoes,
     list_medicamentos_ativos,
     list_medidas_corporais,
@@ -279,9 +281,25 @@ def _aplicar_pin_inicial(conn, pin_inicial: str | None) -> bool:
     return True
 
 
+def _exigir_pin_em_hospedagem_publica(conn, environ) -> None:
+    """Revisao da Fase 6 (achado 11): no Render (que define RENDER sozinho em
+    todo servico) a URL e publica desde o primeiro segundo - subir sem PIN
+    deixaria /configurar-pin aberto pra quem chegar primeiro. Mesma
+    filosofia do PIN inicial invalido: melhor nao subir do que subir aberto.
+    (O plano gratis do Render zera o SQLite a cada deploy, entao na pratica
+    PAINEL_PIN_INICIAL e obrigatorio la.)"""
+    if environ.get("RENDER") and not auth.pin_configurado(conn):
+        raise RuntimeError(
+            "Hospedado no Render sem PIN configurado: defina PAINEL_PIN_INICIAL (6 digitos) nas "
+            "variaveis de ambiente do servico - sem isso /configurar-pin ficaria aberto pra quem "
+            "abrir a URL primeiro. Ver deploy/RENDER.md."
+        )
+
+
 _conn_inicial = get_db()
 app.secret_key = auth.obter_ou_criar_secret_key(_conn_inicial)
 _aplicar_pin_inicial(_conn_inicial, os.environ.get("PAINEL_PIN_INICIAL"))
+_exigir_pin_em_hospedagem_publica(_conn_inicial, os.environ)
 _conn_inicial.close()
 app.permanent_session_lifetime = timedelta(days=90)
 
@@ -293,6 +311,44 @@ app.permanent_session_lifetime = timedelta(days=90)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SECURE_COOKIES", "false").lower() in ("true", "1", "t", "yes")
+
+
+def _configurar_proxy(wsgi_app, environ):
+    """Revisao da Fase 6 (achado 7): atras de proxy reverso (Render, Caddy na
+    VPS), request.remote_addr e o IP do PROXY - 5 PINs errados de qualquer
+    pessoa trancavam o Alex tambem. ProxyFix (1 salto) passa a usar o IP que
+    o proxy anotou em X-Forwarded-For. SO liga com PAINEL_ATRAS_DE_PROXY
+    explicito: sem proxy na frente, confiar nesse cabecalho deixaria qualquer
+    um inventar um IP novo a cada tentativa e fugir do bloqueio."""
+    if (environ.get("PAINEL_ATRAS_DE_PROXY") or "").strip().lower() in ("1", "true", "t", "yes", "sim"):
+        return ProxyFix(wsgi_app, x_for=1, x_proto=1)
+    return wsgi_app
+
+
+app.wsgi_app = _configurar_proxy(app.wsgi_app, os.environ)
+
+# Revisao da Fase 6 (achado 4): teto do corpo de qualquer requisicao. Os
+# maiores envios legitimos sao a foto de nota fiscal em base64 dentro do JSON
+# (TAMANHO_MAX_IMAGEM_BYTES = 10MB de imagem ~ 13,4MB em base64) e o PDF de
+# cotacao em multipart (TAMANHO_MAX_PDF_BYTES = 15MB) - 20MB cobre os dois
+# com folga; acima disso o Flask corta com 413 antes de ler o corpo.
+TAMANHO_MAX_REQUISICAO_BYTES = 20 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = TAMANHO_MAX_REQUISICAO_BYTES
+
+# Texto livre que vai pra IA (chat, brain dump, Telegram) - 4000 caracteres
+# e mais que qualquer despejo real e segura custo/abuso por mensagem.
+TAMANHO_MAX_TEXTO_CHAT = 4000
+MSG_TEXTO_LONGO = (
+    f"mensagem longa demais (maximo {TAMANHO_MAX_TEXTO_CHAT} caracteres) - divide em partes menores"
+)
+TETO_IA_MSG = (
+    "teto mensal de gasto com IA estourado - tente de novo mes que vem ou ajuste o teto no card financeiro"
+)
+
+
+@app.errorhandler(413)
+def _corpo_grande_demais(_erro):
+    return jsonify({"error": "envio grande demais (maximo 20MB por vez) - manda um arquivo menor"}), 413
 
 CLAUDE_ERROR_MSG = "Erro ao falar com a IA. Tenta de novo em instantes."
 CLAUDE_FORMAT_ERROR_MSG = "A IA respondeu em um formato inesperado. Tenta de novo."
@@ -3314,14 +3370,22 @@ def _processar_mensagem_chat(
         resposta = _resposta_local_chat(registro.chamadas)
         acoes = [c["tool"] for c in registro.chamadas]
     else:
-        try:
-            resposta, acoes, usage = claude_client.chat(mensagens, contexto, memorias_texto, executores)
-        except anthropic.APIError:
-            return None, [], CLAUDE_ERROR_MSG
-        except (ValueError, KeyError):
-            return None, [], CLAUDE_FORMAT_ERROR_MSG
+        # Revisao da Fase 6 (achado 4): mesmo teto mensal (e mesmo lock) de
+        # _classificar_intent/extrair_nota_fiscal - vale pro /api/chat, pro
+        # brain dump "assistente" e pro Telegram (todos passam por aqui).
+        # O caminho local acima (sem IA) continua funcionando com o teto
+        # estourado.
+        with _TETO_IA_LOCK:
+            if resumo_custo_api(conn)["teto_estourado"]:
+                return None, [], TETO_IA_MSG
+            try:
+                resposta, acoes, usage = claude_client.chat(mensagens, contexto, memorias_texto, executores)
+            except anthropic.APIError:
+                return None, [], CLAUDE_ERROR_MSG
+            except (ValueError, KeyError):
+                return None, [], CLAUDE_FORMAT_ERROR_MSG
 
-        _log_usage(conn, usage, "chat")
+            _log_usage(conn, usage, "chat")
         # cresce o banco "pergunta -> onde buscar": resposta da IA feita SO
         # com ferramentas de consulta vira padrao (vale local depois de
         # LIMIAR_CONFIRMACOES_PADRAO_INTENT repeticoes da mesma frase).
@@ -3515,13 +3579,15 @@ def chat():
     texto = _texto_seguro(body.get("mensagem"))
     if not texto:
         return jsonify({"error": "mensagem vazia"}), 400
+    if len(texto) > TAMANHO_MAX_TEXTO_CHAT:
+        return jsonify({"error": MSG_TEXTO_LONGO}), 400
 
     conn = get_db()
     detalhes: dict = {}
     resposta, acoes, erro = _processar_mensagem_chat(conn, texto, detalhes)
     conn.close()
     if erro:
-        return jsonify({"error": erro}), 502
+        return jsonify({"error": erro}), 402 if erro == TETO_IA_MSG else 502
     # `resposta`/`acoes` = campos legados (frontend antigo em cache do PWA);
     # cards/resumo_texto/passos = contrato da Fase 6 (docs/CARDS.md).
     corpo = {"resposta": resposta, "acoes": acoes}
@@ -3534,9 +3600,12 @@ def _telegram_chat_fn(texto: str) -> str:
     /api/chat - roda numa thread separada (ver telegram_bot.iniciar_thread),
     entao abre e fecha a propria conexao com o banco em vez de compartilhar
     uma conexao do request HTTP."""
+    texto = _texto_seguro(texto)
+    if len(texto) > TAMANHO_MAX_TEXTO_CHAT:
+        return MSG_TEXTO_LONGO
     conn = get_db()
     try:
-        resposta, _acoes, erro = _processar_mensagem_chat(conn, _texto_seguro(texto))
+        resposta, _acoes, erro = _processar_mensagem_chat(conn, texto)
         return erro or resposta
     finally:
         conn.close()
@@ -4997,6 +5066,8 @@ def capturar_brain_dump():
     texto = _texto_seguro(body.get("texto"))
     if not texto:
         return jsonify({"error": "manda algum texto"}), 400
+    if len(texto) > TAMANHO_MAX_TEXTO_CHAT:
+        return jsonify({"error": MSG_TEXTO_LONGO}), 400
 
     conn = get_db()
     item_id = create_brain_dump(conn, texto)
@@ -5052,7 +5123,7 @@ def converter_brain_dump(item_id):
             conn.execute("UPDATE brain_dump SET processado = 0 WHERE id = ?", (item_id,))
             conn.commit()
             conn.close()
-            return jsonify({"error": erro}), 502
+            return jsonify({"error": erro}), 402 if erro == TETO_IA_MSG else 502
         _marcar_atividade(conn)
         conn.commit()
         conn.close()
@@ -6426,16 +6497,33 @@ def viagem_timeline_card_rota(viagem_id):
     return jsonify(card)
 
 
+# Revisao da Fase 6 (achado 8): falha temporaria do Nominatim (rede, 429,
+# 5xx) espera isso antes de tentar de novo - antes cada GET /api/lugares
+# repetia a chamada na hora (1s de throttle + timeout) no unico worker.
+GEOCODE_ESPERA_APOS_ERRO = timedelta(hours=6)
+
+
+def _agora_utc() -> datetime:
+    return datetime.utcnow()
+
+
+def _fmt_utc(momento: datetime) -> str:
+    return momento.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def _geocodificar_lugar(conn, lugar_id: int, nome: str, cidade: str | None) -> None:
     """US-F13: 1 consulta ao Nominatim por lugar, NUNCA repetida depois que
-    da uma resposta de verdade (ok/nao_encontrado) - so falha de rede fica
-    sem gravar status, pra poder tentar de novo depois (ver docstring de
-    geocode_nominatim.py)."""
+    da uma resposta de verdade (ok/nao_encontrado/recusado). Falha temporaria
+    grava "erro" + quando pode tentar de novo (GEOCODE_ESPERA_APOS_ERRO)."""
     resultado = geocode_nominatim.geocodificar(nome, cidade)
-    if resultado["status"] == "erro":
-        return  # nao grava - proxima leitura tenta de novo
-    if resultado["status"] == "ok":
+    status = resultado.get("status")
+    if status == "ok":
         salvar_geocode_lugar(conn, lugar_id, resultado["lat"], resultado["lng"], "ok")
+    elif status == "erro":
+        depois = _fmt_utc(_agora_utc() + GEOCODE_ESPERA_APOS_ERRO)
+        salvar_geocode_lugar(conn, lugar_id, None, None, "erro", tentar_depois=depois)
+    elif status == "recusado":
+        salvar_geocode_lugar(conn, lugar_id, None, None, "recusado")
     else:
         salvar_geocode_lugar(conn, lugar_id, None, None, "nao_encontrado")
 
@@ -6455,9 +6543,9 @@ def lugares():
     conn = get_db()
     resultado = list_lugares(conn)
     # US-F13: backfill de lugares que ja existiam antes desta historia (ou
-    # que falharam por rede antes) - no MAXIMO 1 geocode por chamada, pra
-    # nunca estourar 1 req/s mesmo se a lista crescer.
-    pendente = next((l for l in resultado if l.get("geocode_status") is None), None)
+    # cuja falha temporaria ja esperou GEOCODE_ESPERA_APOS_ERRO) - no MAXIMO
+    # 1 geocode por chamada, pra nunca estourar 1 req/s nem prender o worker.
+    pendente = proximo_lugar_para_geocodificar(conn, _fmt_utc(_agora_utc()))
     if pendente:
         _geocodificar_lugar(conn, pendente["id"], pendente["nome"], pendente.get("cidade"))
         resultado = list_lugares(conn)
@@ -7890,7 +7978,7 @@ def extrair_nota_fiscal():
     with _TETO_IA_LOCK:
         if resumo_custo_api(conn)["teto_estourado"]:
             conn.close()
-            return jsonify({"error": "teto mensal de gasto com IA estourado - tente de novo mes que vem ou ajuste o teto no card financeiro"}), 402
+            return jsonify({"error": TETO_IA_MSG}), 402
 
         result, error = _call_claude(claude_client.extrair_nota_fiscal_foto, image_bytes, media_type)
         if error:

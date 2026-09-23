@@ -86,6 +86,12 @@ Preenche **`SAUDE_WEBHOOK_TOKEN`** com alguma string aleatoria longa - o própri
 `.env.example` já avisa que isso é obrigatório assim que o painel fica público
 (protege o endpoint que recebe dados de Saúde do Atalho do iPhone).
 
+Preenche também **`PAINEL_ATRAS_DE_PROXY=1`** - o Caddy (passo 6) fica na
+frente do app como proxy reverso, e sem isso o bloqueio de 5 PINs errados
+seria pelo IP do próprio Caddy (qualquer pessoa errando o PIN trancaria você
+junto). Só vale ligar com o Caddy na frente - rodando direto sem proxy,
+deixa comentada.
+
 Deixa **`SECURE_COOKIES=true`** já preenchido (assim que o domínio com HTTPS
 estiver no ar no passo 8, o cookie de sessão do login passa a exigir HTTPS -
 correto pra produção, só ficaria `false` se você estivesse testando local em
