@@ -51,6 +51,25 @@ completo por historia.
 - `tests/test_gasto_categoria_atipico.py` (11 casos: helper estatistico, deteccao pura,
   integracao real em `verificar_e_notificar`).
 
+**US-C18 - Cofre de garantia**
+- Tabela `garantias` (produto, data_compra, prazo_garantia_meses, nota_fiscal_anexo opcional,
+  notificado) + CRUD (`GET/POST /api/garantias`, `DELETE .../<id>`). `POST` aceita JSON (sem
+  anexo) ou `multipart/form-data` com arquivo `nota_fiscal` (PDF/JPG/PNG, ate 5MB) - guarda
+  o anexo como base64 na propria linha, sem OCR/extracao (isso e escopo de US-C8/US-C9,
+  fora desta historia). `vida.somar_meses` novo (extraido de `proxima_data_manutencao`,
+  que passou a reusar - mesmo calculo de "daqui a N meses" pros dois casos).
+- `notificacoes.garantias_vencendo`: avisa 15 dias antes do vencimento (ou se ja venceu).
+  Dedup pela PROPRIA coluna `notificado` da garantia (pedido explicito da AC), nao pela
+  tabela generica `notificacoes_enviadas` - `verificar_e_notificar` marca a coluna depois
+  de mandar de verdade.
+- Decisao: nota_fiscal_anexo NAO entra na criptografia de campo da Fase 4 - esse escopo foi
+  restrito explicitamente a Open Finance + saude (ver Decisoes da Fase 4 no `TODO.md`), uma
+  nota fiscal de eletrodomestico tem o mesmo nivel de sensibilidade de `cotacoes`/
+  `contas_pessoais` (ja sem criptografia).
+- Secao nova na aba Vida (form com upload de arquivo opcional).
+- `tests/test_garantias.py` (21 casos: `somar_meses`, CRUD via db.py/API inclusive upload,
+  validacao, o alerta puro e a integracao real em `verificar_e_notificar`).
+
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 
 Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em

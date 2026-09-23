@@ -369,6 +369,27 @@ def gastos_fora_do_padrao_categoria(
     return avisos
 
 
+def garantias_vencendo(conn, hoje: date | None = None, dias_aviso: int = 15) -> list[tuple[int, str]]:
+    """Fase 5 (US-C18): garantia cujo prazo vence em ate `dias_aviso` dias (ou
+    ja venceu). Dedup e pela propria coluna `notificado` da garantia (nao
+    pela tabela generica notificacoes_enviadas) - o pedido explicito da
+    historia e um flag por garantia, entao so filtra o que ainda nao foi
+    avisado; quem chama marca `notificado=1` depois de mandar de verdade."""
+    hoje = hoje or date.today()
+    avisos = []
+    for g in db.list_garantias(conn):
+        if g["notificado"]:
+            continue
+        compra = date.fromisoformat(g["data_compra"])
+        vencimento = vida.somar_meses(compra, g["prazo_garantia_meses"])
+        dias_ate = (vencimento - hoje).days
+        if dias_ate > dias_aviso:
+            continue
+        quando = f"venceu ha {-dias_ate} dia(s)" if dias_ate < 0 else "vence hoje" if dias_ate == 0 else f"vence em {dias_ate} dia(s)"
+        avisos.append((g["id"], f"Garantia de \"{g['produto']}\" {quando} ({vencimento.strftime('%d/%m/%Y')})."))
+    return avisos
+
+
 def proxima_ocorrencia_lembrete(data_base: date, recorrente: bool, hoje: date) -> date:
     """Pra lembrete unico, a proxima ocorrencia e a propria data. Pra
     recorrente (anual - tipo validade de licenca, exame medico, seguro),

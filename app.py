@@ -1,3 +1,4 @@
+import base64
 import csv
 import hashlib
 import hmac
@@ -114,7 +115,6 @@ from db import (
     get_cotacao,
     get_db,
     get_essencial,
-    get_garantia,
     estatisticas_conta,
     get_or_create_bank_account,
     get_saude_dia,
@@ -2493,6 +2493,12 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         quando = "ja passou do prazo" if m["dias_ate"] < 0 else "vence hoje" if m["dias_ate"] == 0 else f"vence em {m['dias_ate']} dia(s)"
         avisos.append(("manutencao", ref, "Manutencao", f"{m['item']}: {quando}."))
 
+    # Garantia perto de vencer (US-C18) - dedup pela propria coluna
+    # `notificado` da garantia (ver notificacoes.garantias_vencendo), marcada
+    # depois de mandar de verdade (ver o loop de envio em verificar_e_notificar).
+    for garantia_id, msg in notificacoes.garantias_vencendo(conn):
+        avisos.append(("garantia_vencendo", garantia_id, "Garantia vencendo", msg))
+
     if agora.hour >= 10 and not ja_notificou_hoje(conn, "responder"):
         antigas = [
             r for r in list_responder_pendentes(conn) if datetime.fromisoformat(r["criado_em"]).date() < hoje
@@ -2854,6 +2860,8 @@ def verificar_e_notificar():
             botoes = [("Marcar como feito", f"completar_tarefa:{ref_id}")] if tipo == "tarefa_parada" else None
             telegram_bot.enviar_mensagem(f"{titulo}\n{corpo}", botoes=botoes)
         marcar_notificado(conn, tipo, ref_id)
+        if tipo == "garantia_vencendo":
+            marcar_garantia_notificada(conn, ref_id)
         if tipo in ("tarefa_parada", "espera_parada"):
             registrar_interacao_aprendizado(conn, tipo, ref_id)
         enviados += 1
@@ -4368,6 +4376,81 @@ def alternar_ideia_presente_rota(ideia_id):
 def apagar_ideia_presente_rota(ideia_id):
     conn = get_db()
     delete_ideia_presente(conn, ideia_id)
+    conn.close()
+    return jsonify({"ok": True})
+
+
+# ---- Fase 5 (US-C18): cofre de garantia ----
+
+TAMANHO_MAX_ANEXO_GARANTIA_BYTES = 5 * 1024 * 1024  # 5MB - nota fiscal (PDF ou foto), nao um orcamento escaneado
+EXTENSOES_ANEXO_GARANTIA = (".pdf", ".jpg", ".jpeg", ".png")
+
+
+def _garantia_com_status(g: dict, hoje: date) -> dict:
+    compra = date.fromisoformat(g["data_compra"])
+    vencimento = vida.somar_meses(compra, g["prazo_garantia_meses"])
+    return {**g, "vencimento": vencimento.isoformat(), "dias_ate": (vencimento - hoje).days}
+
+
+def _criar_garantia(conn, produto, data_compra, prazo_meses, nota_fiscal_anexo) -> dict:
+    produto = _texto_curto(produto, 120)
+    compra = _data_iso_valida(data_compra)
+    prazo = _inteiro_no_intervalo(prazo_meses, 1, 600)
+    if not produto or not compra:
+        return {"erro": "informe o produto e a data de compra (AAAA-MM-DD)"}
+    if prazo is None:
+        return {"erro": "informe o prazo de garantia em meses (1 a 600)"}
+    if compra > date.today().isoformat():
+        return {"erro": "data de compra invalida (nao pode ser no futuro)"}
+    garantia_id = create_garantia(conn, produto, compra, prazo, nota_fiscal_anexo)
+    return {"ok": True, "garantia_id": garantia_id}
+
+
+@app.route("/api/garantias", methods=["GET"])
+def garantias_rota():
+    conn = get_db()
+    hoje = date.today()
+    resultado = [_garantia_com_status(g, hoje) for g in list_garantias(conn)]
+    conn.close()
+    resultado.sort(key=lambda g: g["dias_ate"])
+    return jsonify(resultado)
+
+
+@app.route("/api/garantias", methods=["POST"])
+def criar_garantia_rota():
+    conn = get_db()
+    anexo_b64 = None
+    if request.content_type and "multipart/form-data" in request.content_type:
+        produto = request.form.get("produto")
+        data_compra = request.form.get("data_compra")
+        prazo = request.form.get("prazo_garantia_meses")
+        arquivo = request.files.get("nota_fiscal")
+        if arquivo and arquivo.filename:
+            nome = arquivo.filename.lower()
+            if not nome.endswith(EXTENSOES_ANEXO_GARANTIA):
+                conn.close()
+                return jsonify({"error": "anexo precisa ser PDF, JPG ou PNG"}), 400
+            dados = arquivo.read()
+            if len(dados) > TAMANHO_MAX_ANEXO_GARANTIA_BYTES:
+                conn.close()
+                return jsonify({"error": "anexo maior que 5MB - manda um arquivo menor"}), 400
+            anexo_b64 = base64.b64encode(dados).decode("ascii")
+    else:
+        body = _corpo_json()
+        produto = body.get("produto")
+        data_compra = body.get("data_compra")
+        prazo = body.get("prazo_garantia_meses")
+    resultado = _criar_garantia(conn, produto, data_compra, prazo, anexo_b64)
+    conn.close()
+    if "erro" in resultado:
+        return jsonify({"error": resultado["erro"]}), 400
+    return jsonify(resultado), 201
+
+
+@app.route("/api/garantias/<int:garantia_id>", methods=["DELETE"])
+def apagar_garantia_rota(garantia_id):
+    conn = get_db()
+    delete_garantia(conn, garantia_id)
     conn.close()
     return jsonify({"ok": True})
 

@@ -710,6 +710,54 @@ ligarForm("#manutencao-form", "#manutencao-btn", "Adicionar", () => {
   return { item, intervalo_meses: meses, ultima_vez: $("#manutencao-ultima").value || null };
 }, "/api/manutencoes", loadManutencoes);
 
+// ---- Fase 5: garantia de produtos ----
+
+async function loadGarantias() {
+  const itens = await apiFetch("/api/garantias");
+  if (!itens) return;
+  const lista = $("#lista-garantias");
+  lista.innerHTML = "";
+  $("#garantias-vazio").hidden = itens.length > 0;
+  itens.forEach((g) => {
+    const quando =
+      g.dias_ate < 0
+        ? `venceu ha ${-g.dias_ate} dia(s)`
+        : g.dias_ate === 0
+        ? "vence hoje"
+        : `vence em ${fmtDataBr(g.vencimento)} (${g.dias_ate} dias)`;
+    lista.appendChild(
+      itemSimples(g.produto, [`${g.prazo_garantia_meses} mes(es) de garantia`, quando], [
+        (el) => botaoApagar(`/api/garantias/${g.id}`, el),
+      ], g.dias_ate <= 15 ? "item-atencao" : "")
+    );
+  });
+}
+
+$("#garantia-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const produto = $("#garantia-produto").value.trim();
+  const dataCompra = $("#garantia-data-compra").value;
+  const prazo = Number($("#garantia-prazo").value);
+  if (!produto || !dataCompra || !(prazo >= 1 && prazo <= 600)) {
+    mostrarErro("Confere o produto, a data de compra e o prazo de garantia.");
+    return;
+  }
+  const arquivo = $("#garantia-anexo").files[0];
+  const btn = $("#garantia-btn");
+  setBotaoCarregando(btn, true, "salvando...");
+  const form = new FormData();
+  form.append("produto", produto);
+  form.append("data_compra", dataCompra);
+  form.append("prazo_garantia_meses", String(prazo));
+  if (arquivo) form.append("nota_fiscal", arquivo);
+  const r = await apiFetch("/api/garantias", { method: "POST", body: form });
+  setBotaoCarregando(btn, false, "Adicionar");
+  if (!r) return;
+  $("#garantia-form").reset();
+  pulsarSucesso($("#garantia-produto"));
+  loadGarantias();
+});
+
 // ---- Fase 2: viagens e lugares ----
 
 function renderItensMala(v, li) {
@@ -1013,6 +1061,7 @@ function loadVidaAba() {
   loadContasPessoais();
   loadAssinaturasRevisao();
   loadManutencoes();
+  loadGarantias();
   loadViagens();
   loadLugares();
   loadIdeiasPresente();
