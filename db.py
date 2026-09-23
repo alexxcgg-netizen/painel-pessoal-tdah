@@ -547,6 +547,10 @@ def init_db():
     _garantir_coluna(conn, "expenses", "tipo", "TEXT NOT NULL DEFAULT 'real'")
     _garantir_coluna(conn, "bank_transactions", "categoria", "TEXT")
     _garantir_coluna(conn, "bank_accounts", "saldo", "REAL")
+    # Fase 5 (US-A5): qual funcionalidade gerou a chamada (chat, captura,
+    # classificador de intent, etc) - existia so model/tokens/custo antes,
+    # sem como separar o gasto por origem no card financeiro.
+    _garantir_coluna(conn, "api_usage", "feature", "TEXT NOT NULL DEFAULT 'outro'")
     _garantir_indices(conn)
     _seed_perfil_inicial(conn)
     _seed_rotina_padrao(conn)
@@ -589,6 +593,7 @@ def _garantir_indices(conn):
         CREATE INDEX IF NOT EXISTS idx_responder_respondido_em ON responder(respondido_em);
         CREATE INDEX IF NOT EXISTS idx_app_eventos_em ON app_eventos(em);
         CREATE INDEX IF NOT EXISTS idx_capture_idempotency_criado_em ON capture_idempotency(criado_em);
+        CREATE INDEX IF NOT EXISTS idx_api_usage_created_at ON api_usage(created_at);
         """
     )
     conn.commit()
@@ -876,12 +881,65 @@ def list_goals(conn) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def record_usage(conn, model: str, input_tokens: int, output_tokens: int, cost_usd: float):
+def record_usage(
+    conn, model: str, input_tokens: int, output_tokens: int, cost_usd: float, feature: str = "outro"
+):
     conn.execute(
-        "INSERT INTO api_usage (model, input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?)",
-        (model, input_tokens, output_tokens, cost_usd),
+        "INSERT INTO api_usage (model, input_tokens, output_tokens, cost_usd, feature) VALUES (?, ?, ?, ?, ?)",
+        (model, input_tokens, output_tokens, cost_usd, feature or "outro"),
     )
     conn.commit()
+
+
+def _limite_utc(momento_local: datetime) -> str:
+    """api_usage.created_at e UTC (datetime('now') do SQLite, sem tzinfo) -
+    um limite de periodo calculado em horario local (inicio do mes, N dias
+    atras) precisa virar UTC antes de comparar, senao a virada de mes/dia
+    fica errada em ate ~12h dependendo do fuso."""
+    return momento_local.astimezone(timezone.utc).replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
+
+
+def resumo_custo_api(conn) -> dict:
+    """Resumo do gasto com a API da Anthropic (US-A5) - soma api_usage.cost_usd
+    (USD, mesma unidade ja usada por total_cost_usd) por periodo, pro card
+    financeiro. mes_atual usa o calendario local (dia 1 00:00); ultimos_30_dias
+    e uma janela corrida a partir de agora."""
+    agora_local = datetime.now().astimezone()
+    inicio_mes_local = agora_local.replace(hour=0, minute=0, second=0, microsecond=0, day=1)
+    desde_30_dias_local = agora_local - timedelta(days=30)
+
+    mes_atual = conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM api_usage WHERE created_at >= ?",
+        (_limite_utc(inicio_mes_local),),
+    ).fetchone()["total"]
+    ultimos_30_dias = conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM api_usage WHERE created_at >= ?",
+        (_limite_utc(desde_30_dias_local),),
+    ).fetchone()["total"]
+    por_feature = conn.execute(
+        "SELECT feature, COALESCE(SUM(cost_usd), 0) AS total FROM api_usage "
+        "WHERE created_at >= ? GROUP BY feature ORDER BY total DESC",
+        (_limite_utc(desde_30_dias_local),),
+    ).fetchall()
+
+    teto = obter_teto_mensal_ia(conn)
+    fracao_teto = (mes_atual / teto) if teto else None
+
+    return {
+        "moeda": "USD",
+        "mes_atual_usd": round(mes_atual, 4),
+        "ultimos_30_dias_usd": round(ultimos_30_dias, 4),
+        "ultimos_30_dias_por_feature": [
+            {"feature": r["feature"], "custo_usd": round(r["total"], 4)} for r in por_feature
+        ],
+        # Fase 5 (US-A6): teto None = nunca configurado (sem limite, todos os
+        # campos abaixo ficam None/False). fracao_teto e mes_atual/teto, sem
+        # arredondar pro chamador decidir a casa decimal.
+        "teto_mensal_usd": teto,
+        "fracao_teto": fracao_teto,
+        "teto_perto": fracao_teto is not None and fracao_teto >= 0.8,
+        "teto_estourado": fracao_teto is not None and fracao_teto >= 1.0,
+    }
 
 
 def total_cost_usd(conn) -> float:
@@ -1065,6 +1123,32 @@ def definir_configuracao(conn, chave: str, valor: str):
         (chave, valor),
     )
     conn.commit()
+
+
+CHAVE_TETO_MENSAL_IA = "teto_mensal_ia_usd"
+
+
+def obter_teto_mensal_ia(conn) -> float | None:
+    """Teto mensal de gasto com a API da Anthropic (US-A6), em USD (mesma
+    moeda de api_usage.cost_usd) - None quando o Alex nunca configurou (sem
+    teto nenhum, comportamento igual a antes desta historia)."""
+    valor = obter_configuracao(conn, CHAVE_TETO_MENSAL_IA)
+    if not valor:
+        return None
+    try:
+        teto = float(valor)
+    except (TypeError, ValueError):
+        return None
+    return teto if teto > 0 else None
+
+
+def definir_teto_mensal_ia(conn, teto: float | None) -> None:
+    """teto None ou <= 0 remove o limite (mesmo efeito de nunca ter configurado)."""
+    if teto is None or teto <= 0:
+        conn.execute("DELETE FROM configuracoes WHERE chave = ?", (CHAVE_TETO_MENSAL_IA,))
+        conn.commit()
+        return
+    definir_configuracao(conn, CHAVE_TETO_MENSAL_IA, str(teto))
 
 
 def salvar_mensagem_chat(conn, papel: str, texto: str):

@@ -6440,5 +6440,239 @@ class IntentClassificarTestCase(unittest.TestCase):
         self.assertFalse(body["precisa_confirmacao"])
 
 
+class IaCustoTestCase(unittest.TestCase):
+    """US-A5 (Fase 5): GET /api/ia/custo - ver db.resumo_custo_api pros
+    testes de calculo em si (tests/test_financeiro.py)."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        conn.commit()
+        conn.close()
+        self.client = app.app.test_client()
+        res = self.client.post("/login", json={"pin": PIN_TESTE})
+        assert res.status_code == 200, res.get_json()
+
+    def test_formato_da_resposta(self):
+        res = self.client.get("/api/ia/custo")
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body["moeda"], "USD")
+        self.assertIn("mes_atual_usd", body)
+        self.assertIn("ultimos_30_dias_usd", body)
+        self.assertIn("ultimos_30_dias_por_feature", body)
+
+    def test_reflete_uso_registrado_pela_captura(self):
+        parsed = {
+            "tipo": "gasto", "titulo": "mercado", "valor": 50.0,
+            "categoria": "mercado", "quando": None, "duvida": None,
+        }
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage(cost=0.005))):
+            self.client.post("/api/capture", json={"text": "gastei 50 no mercado"})
+
+        resumo = self.client.get("/api/ia/custo").get_json()
+        self.assertGreaterEqual(resumo["mes_atual_usd"], 0.005)
+        self.assertGreaterEqual(resumo["ultimos_30_dias_usd"], 0.005)
+        features = {p["feature"] for p in resumo["ultimos_30_dias_por_feature"]}
+        self.assertIn("captura", features)
+
+    def test_sem_teto_configurado(self):
+        resumo = self.client.get("/api/ia/custo").get_json()
+        self.assertIsNone(resumo["teto_mensal_usd"])
+        self.assertIsNone(resumo["fracao_teto"])
+        self.assertFalse(resumo["teto_perto"])
+        self.assertFalse(resumo["teto_estourado"])
+
+    def test_definir_teto_via_post(self):
+        res = self.client.post("/api/ia/teto", json={"teto_mensal_usd": 10.0})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["teto_mensal_usd"], 10.0)
+
+        resumo = self.client.get("/api/ia/custo").get_json()
+        self.assertEqual(resumo["teto_mensal_usd"], 10.0)
+
+    def test_remover_teto_com_null(self):
+        self.client.post("/api/ia/teto", json={"teto_mensal_usd": 10.0})
+        res = self.client.post("/api/ia/teto", json={"teto_mensal_usd": None})
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNone(res.get_json()["teto_mensal_usd"])
+
+    def test_teto_negativo_400(self):
+        res = self.client.post("/api/ia/teto", json={"teto_mensal_usd": -5})
+        self.assertEqual(res.status_code, 400)
+
+    def test_teto_tipo_errado_400(self):
+        for valor in ("dez", [], {}, True):
+            with self.subTest(valor=valor):
+                res = self.client.post("/api/ia/teto", json={"teto_mensal_usd": valor})
+                self.assertEqual(res.status_code, 400)
+
+    def test_80_por_cento_marca_teto_perto(self):
+        parsed = {
+            "tipo": "gasto", "titulo": "mercado", "valor": 50.0,
+            "categoria": "mercado", "quando": None, "duvida": None,
+        }
+        self.client.post("/api/ia/teto", json={"teto_mensal_usd": 0.01})
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage(cost=0.008))):
+            self.client.post("/api/capture", json={"text": "gastei 50 no mercado"})
+        resumo = self.client.get("/api/ia/custo").get_json()
+        self.assertTrue(resumo["teto_perto"])
+        self.assertFalse(resumo["teto_estourado"])
+
+    def test_100_por_cento_marca_teto_estourado(self):
+        parsed = {
+            "tipo": "gasto", "titulo": "mercado", "valor": 50.0,
+            "categoria": "mercado", "quando": None, "duvida": None,
+        }
+        self.client.post("/api/ia/teto", json={"teto_mensal_usd": 0.01})
+        with patch("claude_client.classify_capture", return_value=(parsed, fake_usage(cost=0.02))):
+            self.client.post("/api/capture", json={"text": "gastei 50 no mercado"})
+        resumo = self.client.get("/api/ia/custo").get_json()
+        self.assertTrue(resumo["teto_estourado"])
+
+
+class TetoIaNotificacaoTestCase(unittest.TestCase):
+    """US-A6 (Fase 5): aviso via push/Telegram (mesmo canal ja usado no
+    projeto) quando o teto mensal de IA passa de 80%/100% - mesmo padrao
+    (dedup por nivel+mes) de test_verificar_agora_avisa_orcamento_*."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        conn.commit()
+        conn.close()
+        app._CACHE_CONSTRUTORA.clear()
+        self.client = app.app.test_client()
+        res = self.client.post("/login", json={"pin": PIN_TESTE})
+        assert res.status_code == 200, res.get_json()
+        self._silencio_patch = patch("notificacoes.dentro_do_horario_silencioso", return_value=False)
+        self._silencio_patch.start()
+        self.addCleanup(self._silencio_patch.stop)
+
+    def _gastar_ia(self, cost):
+        conn = db.get_db()
+        db.record_usage(conn, "claude-haiku-4-5-20251001", 100, 20, cost, feature="chat")
+        conn.close()
+
+    def test_avisa_ao_passar_de_80_por_cento(self):
+        self.client.post("/api/ia/teto", json={"teto_mensal_usd": 1.0})
+        self._gastar_ia(0.85)
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever", json={"endpoint": "https://exemplo.com/sub-ia", "keys": {}}
+            )
+            res = self.client.post("/api/notificacoes/verificar-agora")
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        corpo = mock_enviar.call_args[0][2]
+        self.assertIn("teto", corpo.lower())
+
+    def test_nao_repete_no_mesmo_mes(self):
+        self.client.post("/api/ia/teto", json={"teto_mensal_usd": 1.0})
+        self._gastar_ia(0.85)
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever", json={"endpoint": "https://exemplo.com/sub-ia", "keys": {}}
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(mock_enviar.call_count, 1)
+            res2 = self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(res2.get_json()["avisos_enviados"], 0)
+            self.assertEqual(mock_enviar.call_count, 1)
+
+    def test_estourado_e_chave_diferente_de_quase(self):
+        self.client.post("/api/ia/teto", json={"teto_mensal_usd": 1.0})
+        self._gastar_ia(0.85)
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever", json={"endpoint": "https://exemplo.com/sub-ia", "keys": {}}
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(mock_enviar.call_count, 1)
+
+            self._gastar_ia(0.30)  # agora passa de 100%
+            self.client.post("/api/notificacoes/verificar-agora")
+            self.assertEqual(mock_enviar.call_count, 2)
+            titulo = mock_enviar.call_args[0][1]
+            self.assertIn("estourado", titulo.lower())
+
+    def test_sem_teto_nao_avisa(self):
+        self._gastar_ia(1000.0)
+        with patch("push_client.configurado", return_value=True), patch(
+            "push_client.enviar", return_value=True
+        ) as mock_enviar:
+            self.client.post(
+                "/api/push/inscrever", json={"endpoint": "https://exemplo.com/sub-ia", "keys": {}}
+            )
+            self.client.post("/api/notificacoes/verificar-agora")
+        mock_enviar.assert_not_called()
+
+
+class TetoIaBloqueiaClassificadorTestCase(unittest.TestCase):
+    """US-A6 (Fase 5): teto estourado -> /api/intent/classificar prefere
+    padrao aprendido e NUNCA chama a API, mesmo sem padrao confiavel."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        conn.commit()
+        conn.close()
+        self.client = app.app.test_client()
+        res = self.client.post("/login", json={"pin": PIN_TESTE})
+        assert res.status_code == 200, res.get_json()
+
+    def test_teto_estourado_sem_padrao_nao_chama_api(self):
+        self.client.post("/api/ia/teto", json={"teto_mensal_usd": 0.01})
+        conn = db.get_db()
+        db.record_usage(conn, "claude-haiku-4-5-20251001", 100, 20, 0.02, feature="chat")
+        conn.close()
+
+        with patch("claude_client.classify_intent") as mock_classify:
+            res = self.client.post("/api/intent/classificar", json={"texto": "texto nunca visto"})
+            mock_classify.assert_not_called()
+        body = res.get_json()
+        self.assertEqual(body["acao"], "desconhecido")
+        self.assertTrue(body["precisa_confirmacao"])
+        self.assertTrue(body["teto_ia_estourado"])
+
+    def test_teto_estourado_mas_com_padrao_confiavel_ainda_resolve_local(self):
+        self.client.post("/api/ia/teto", json={"teto_mensal_usd": 0.01})
+        conn = db.get_db()
+        db.record_usage(conn, "claude-haiku-4-5-20251001", 100, 20, 0.02, feature="chat")
+        for _ in range(3):
+            aprendizado.confirmar_padrao_intent(conn, "gastei 50 no mercado", "registrar_gasto", {})
+        conn.close()
+
+        with patch("claude_client.classify_intent") as mock_classify:
+            res = self.client.post(
+                "/api/intent/classificar", json={"texto": "gastei 50 no mercado"}
+            )
+            mock_classify.assert_not_called()
+        self.assertEqual(res.get_json()["acao"], "registrar_gasto")
+
+    def test_teto_nao_estourado_chama_api_normalmente(self):
+        self.client.post("/api/ia/teto", json={"teto_mensal_usd": 10.0})
+        with patch(
+            "claude_client.classify_intent",
+            return_value=(_fake_intent("consultar", 0.9), fake_usage()),
+        ) as mock_classify:
+            self.client.post("/api/intent/classificar", json={"texto": "quanto eu gastei"})
+        mock_classify.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

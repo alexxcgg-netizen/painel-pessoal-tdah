@@ -5,6 +5,46 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-23 (26) - Fase 5 Grupo A: nucleo do classificador de intent
+
+Branch `fase5/grupo-a-nucleo-intent` (agente IA autonomo, worktree isolado). US-A1 a US-A6
+do `tasks/fase5/grupo-a-nucleo-intent.json`, todas passando. Objetivo: dar ao Grupo B
+(navegacao por voz) um classificador de comando -> acao real, com camada de economia local
+e teto de gasto - ver `docs/INTENT.md` pro contrato completo.
+
+- **US-A1/US-A2 - Contrato + classificador real**: `POST /api/intent/classificar` com lista
+  fechada de 7 acoes (`registrar_tarefa`, `registrar_gasto`, `registrar_checkin`,
+  `navegar_tela`, `consultar`, `corrigir_ultimo`, `desconhecido`). `claude_client.classify_intent`
+  (Haiku, mesmo padrao de `classify_capture`) classifica de verdade; confianca abaixo de 0.6
+  volta `precisa_confirmacao: true` em vez de deixar o chamador agir direto.
+- **US-A3 - Padrao aprendido local**: tabela `padroes_intent_aprendidos` - texto normalizado
+  repetido e confirmado 3x pela IA resolve local, sem gastar API (`aprendizado.padrao_intent_confiavel`/
+  `confirmar_padrao_intent`, mesmo principio silencioso do resto de `aprendizado.py` - nunca
+  declara "aprendi isso" pro usuario).
+- **US-A4 - Correcao da Fase 4 alimenta o padrao**: `db.registrar_correcao_classificacao`
+  agora tambem grava um padrao de confianca alta direto (sem esperar 3 repeticoes) - corrigir
+  uma vez ja evita repetir o erro num comando parecido.
+- **US-A5 - Visor de custo de API**: reaproveitada a tabela `api_usage` ja existente (ganhou
+  coluna `feature`) em vez de criar uma tabela nova - `GET /api/ia/custo` resume gasto do mes
+  atual e dos ultimos 30 dias (USD) por feature; card novo na aba Financeiro
+  (`static/js/app.js::loadCustoIA`). De quebra, corrigido um bug pre-existente: o total de
+  custo no cabecalho usava `fmtMoeda` (BRL) pra um valor que sempre foi USD - `fmtUSD` novo,
+  os dois lugares corrigidos.
+- **US-A6 - Teto mensal configuravel**: `configuracoes.teto_mensal_ia_usd`, editavel no mesmo
+  card financeiro. Aviso aos 80%/100% pelo canal de notificacao ja existente (push + Telegram,
+  `verificar_e_notificar`), mesmo padrao de dedup de `orcamentos_perto_ou_estourados`. Com o
+  teto estourado, `/api/intent/classificar` para de chamar a API (so resolve por padrao
+  aprendido da US-A3) ate o mes virar - documentado no card e em `docs/INTENT.md`
+  (`teto_ia_estourado`, campo aditivo ao contrato da US-A1).
+- **Fragilidade de teste pre-existente, so documentada (nao corrigida - fora do escopo das
+  historias)**: `vida.rotina_manha_devida` (e o equivalente pros voos, ja conhecido) dispara
+  notificacao real quando o relogio do container cai dentro de uma janela de poucos minutos
+  (07:00-07:05 por padrao) - isso incha falhas nao relacionadas em QUALQUER suite completa que
+  rodar durante essa janela (contagem de mock off-by-one em dezenas de testes). Confirmado
+  como falso-positivo (mesmos testes passam limpos fora da janela). Recomendacao pra uma
+  historia futura: mockar `datetime.now()` nesses testes tambem, como ja e feito pro
+  silencio noturno (`notificacoes.dentro_do_horario_silencioso`).
+
 ## 2026-09-23 (25) - Fase 4: resiliencia, backup e seguranca
 
 Leva adicional pos-BRIEFING.md, 4 itens praticamente independentes, feitos por agentes em

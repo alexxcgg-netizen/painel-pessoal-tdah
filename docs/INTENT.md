@@ -56,6 +56,10 @@ nenhum valor fora desta lista é um contrato válido:
 - `precisa_confirmacao`: booleano. `true` quando a confiança for baixa
   demais pra executar direto (o chamador deve confirmar com o usuário antes
   de agir); `false` quando pode agir direto.
+- `teto_ia_estourado` (campo **aditivo**, US-A6): só aparece (sempre `true`
+  quando presente) na resposta específica em que o teto mensal de IA já
+  estourou e por isso o classificador nem chamou a API - ver "Estado atual"
+  abaixo. Ausência do campo não significa nada (trate como `false`).
 
 ## Erros
 
@@ -66,13 +70,28 @@ nenhum valor fora desta lista é um contrato válido:
 ## Estado atual
 
 - **US-A1**: contrato fechado (este documento) + endpoint stub.
-- **US-A2** (implementado): o endpoint classifica de verdade via
+- **US-A2**: o endpoint classifica de verdade via
   `claude_client.classify_intent` (modelo **Haiku**, mais barato - mesmo
   critério de `classify_capture`). Limiar de confiança:
   `claude_client.CONFIANCA_MINIMA_INTENT` (0.6) - abaixo disso,
   `precisa_confirmacao` vem `true` em vez do chamador assumir que pode agir
   direto. Cada chamada registra uso/custo em `api_usage`
   (`db.record_usage`), o mesmo mecanismo já usado pelo chat.
-- **US-A3+**: camada de padrão aprendido local (antes de chamar a API) ainda
-  não implementada neste ponto do documento - ver `notes` da história
-  correspondente no `prd.json` pra status atualizado.
+- **US-A3**: antes de chamar a API, o endpoint tenta resolver localmente por
+  padrão aprendido (`aprendizado.padrao_intent_confiavel` - mesmo texto
+  normalizado confirmado pelo menos 3 vezes com a mesma ação). Quando
+  resolve local, `confianca` vem fixa em `aprendizado.CONFIANCA_PADRAO_INTENT`
+  (0.95) e `precisa_confirmacao` sempre `false` - a IA não é chamada nesse
+  caminho.
+- **US-A4**: toda correção manual da Fase 4
+  (`db.registrar_correcao_classificacao`) também vira um padrão de confiança
+  alta direto (sem precisar repetir 3 vezes) - próxima vez que um texto
+  parecido aparecer, resolve local desde a primeira tentativa.
+- **US-A6**: quando o teto mensal de gasto com IA (configurável em
+  `GET`/`POST /api/ia/custo` e `/api/ia/teto`, card financeiro) já estourou
+  (100%+) no mês, o endpoint **não chama a API** mesmo sem padrão local
+  confiável - devolve `acao: "desconhecido"`, `confianca: 0.0`,
+  `precisa_confirmacao: true` e `teto_ia_estourado: true`. Um padrão local
+  já confiável continua resolvendo normalmente mesmo com o teto estourado
+  (só a chamada à API é que fica bloqueada). Volta ao normal quando o mês
+  vira (o cálculo do teto é sempre "gasto do mês calendário atual").

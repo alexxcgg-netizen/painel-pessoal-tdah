@@ -74,8 +74,8 @@
         ".venv/bin/python -m unittest discover -s tests passa 100%"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Decisao tecnica (regra de nao duplicar): ja existia uma tabela `api_usage` (model, input_tokens, output_tokens, cost_usd, created_at) alimentada por todo o pipeline de chat/captura via db.record_usage/app._log_usage - NAO criei `uso_api_ia` nova, estendi api_usage com uma coluna `feature` (via _garantir_coluna, migracao segura pra banco existente) e atualizei os 16 call-sites de _log_usage em app.py (captura, intent, quebra_tarefa, resumo_dia, plano_dia, chat, essencial_dia, requebrar_tarefa, decisao, mala_viagem, mensagem_dificil, resumo_link, cotacao_pdf) pra passar um rotulo de feature. Moeda: USD (documentado no proprio campo `moeda` da resposta e no docstring de db.resumo_custo_api - mesma unidade que PRICING em claude_client.py). db.resumo_custo_api soma mes-atual (calendario local) e ultimos-30-dias (janela corrida), convertendo o limite local pra UTC antes de comparar com api_usage.created_at (que e UTC). GET /api/ia/custo expoe isso. Card novo em templates/index.html (tab-gastos, reaproveita classes card-vida/fim-mes-linha ja existentes, sem CSS novo) + loadCustoIA em app.js. Corrigido de passagem: o app ja tinha um totalzinho de custo no header (#uso-custo) formatado com fmtMoeda (BRL) por engano - dado e sempre USD; criei fmtUSD e troquei os dois lugares. Testes: tests/test_financeiro.py::ResumoCustoApiTestCase (calculo, incluindo limites de periodo com created_at manipulado direto via SQL) e tests/test_app.py::IaCustoTestCase (endpoint)."
     },
     {
       "id": "US-A6",
@@ -89,8 +89,8 @@
         ".venv/bin/python -m unittest discover -s tests passa 100%"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Config: db.CHAVE_TETO_MENSAL_IA em `configuracoes` (reaproveita obter_configuracao/definir_configuracao ja existentes), editavel via formulario no card financeiro (POST /api/ia/teto, valida numero/negativo/bool - bool e subclasse de int em Python, testado explicitamente). db.resumo_custo_api ganhou teto_mensal_usd/fracao_teto/teto_perto (>=80%)/teto_estourado (>=100%). Aviso: notificacoes.teto_ia_perto_ou_estourado segue o MESMO padrao ja usado pra orcamento por categoria (notificacoes.orcamentos_perto_ou_estourados) - dedup por nivel+mes via ja_notificado_alguma_vez/_id_estavel_teto_ia, entra no loop de verificar_e_notificar que ja despacha por push+Telegram (nao inventei canal novo). Bloqueio da API: /api/intent/classificar agora testa resumo_custo_api(conn)['teto_estourado'] DEPOIS de tentar o padrao local (US-A3) e ANTES de chamar claude_client.classify_intent - com teto estourado e sem padrao local, devolve desconhecido/precisa_confirmacao=true/teto_ia_estourado=true SEM chamar a API; com padrao local confiavel, continua resolvendo local normalmente mesmo com teto estourado. Campo `teto_ia_estourado` documentado em docs/INTENT.md como aditivo (nao quebra o contrato da US-A1). UI: aviso textual dinamico no card financeiro explicando o comportamento quando estourado (nao só um numero). Testes: tests/test_app.py::TetoIaNotificacaoTestCase (aviso 80%/100%, dedup, sem-teto-nao-avisa) e TetoIaBloqueiaClassificadorTestCase (API nao chamada quando estourado, exceto quando padrao local resolve) + casos de fracao/teto em IaCustoTestCase. NOTA IMPORTANTE sobre o full-suite run: uma rodada da suite completa pegou a janela real das 07:00-07:05 (horario do container) em que `vida.rotina_manha_devida` dispara a notificacao 'Bom dia' por padrao (mesma categoria de fragilidade ja documentada nos testes de voo 'hora de sair') - isso inflou ~46 falhas nao relacionadas (contagem de mock_enviar off-by-one em toda a suite) nesse run especifico; confirmado como falso-positivo comparando o MESMO teste passando isolado antes/depois da janela (ver progress-grupo-a.txt) e por reproducao (hora do container = 07:05:53, exatamente dentro da janela). Nao e uma regressao desta historia nem de nenhuma outra do grupo - roda limpo fora dessa janela de 5 minutos."
     }
   ]
 }

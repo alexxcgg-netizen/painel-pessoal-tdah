@@ -195,6 +195,33 @@ def orcamentos_perto_ou_estourados(conn, hoje: date | None = None) -> list[tuple
     return avisos
 
 
+def teto_ia_perto_ou_estourado(conn) -> tuple[str, str] | None:
+    """US-A6 (Fase 5): compara o gasto do mes com a API da Anthropic
+    (db.resumo_custo_api) contra o teto configurado (db.obter_teto_mensal_ia)
+    - devolve (nivel, mensagem) quando passar de 80% ("quase") ou 100%+
+    ("estourado"), None sem teto configurado ou dentro dos 80%. Mesma
+    logica de orcamentos_perto_ou_estourados (dedup por mes+nivel fica em
+    app.py)."""
+    resumo = db.resumo_custo_api(conn)
+    teto = resumo["teto_mensal_usd"]
+    if not teto:
+        return None
+    gasto = resumo["mes_atual_usd"]
+    if resumo["teto_estourado"]:
+        return (
+            "estourado",
+            f"Voce ja passou do teto mensal de IA: ${gasto:.2f} de um limite de ${teto:.2f}. "
+            "O classificador de intent vai preferir resolver por padrao aprendido (sem "
+            "chamar a API) ate o mes virar.",
+        )
+    if resumo["teto_perto"]:
+        return (
+            "quase",
+            f"Voce ja gastou ${gasto:.2f} com a API da IA esse mes - perto do teto de ${teto:.2f}.",
+        )
+    return None
+
+
 def cobrancas_genericas_sem_rotulo(conn) -> list[tuple[str, float, str]]:
     """Acha cobrancas com padrao generico (ex: "apple.com/bill") - tanto no
     que foi digitado no chat quanto no extrato bancario sincronizado - que

@@ -715,6 +715,19 @@
       </p>
       <ul id="lista-gastos"></ul>
 
+      <div id="custo-ia-box" class="card-vida" hidden>
+        <div class="card-vida-topo">
+          <h3>Gasto com IA</h3>
+          <span class="card-vida-meta" id="custo-ia-mes"></span>
+        </div>
+        <p class="fim-mes-linha" id="custo-ia-30dias"></p>
+        <p class="fim-mes-linha" id="custo-ia-teto-aviso" hidden></p>
+        <form id="custo-ia-teto-form" class="form-linha">
+          <input type="number" id="custo-ia-teto-input" min="0" step="0.5" inputmode="decimal" placeholder="Teto mensal em USD (opcional)" />
+          <button type="submit" id="custo-ia-teto-btn" class="btn-com-icone">Salvar</button>
+        </form>
+      </div>
+
       <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>
         Metas
