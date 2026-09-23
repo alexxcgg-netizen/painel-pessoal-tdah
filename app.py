@@ -5291,8 +5291,18 @@ def _adicionar_compras(conn, itens) -> dict:
         return {"erro": "mande a lista de itens"}
     adicionados = []
     validos = 0
+    # Fase 6 (US-E1b): cada entrada bruta pode conter mais de um item junto
+    # ("acabou cafe e acucar", "cafe, acucar e leite") - vida.dividir_itens_compra
+    # e a UNICA funcao que separa isso, pra nao duplicar a logica em cada
+    # caminho (chat tool ja manda um item por entrada normalmente, mas isso
+    # tambem cobre o formulario/API mandando tudo junto numa string so).
+    itens_separados = []
     for bruto in itens[:30]:
-        item = _texto_curto(bruto, 60)
+        if not isinstance(bruto, str):
+            continue
+        itens_separados.extend(vida.dividir_itens_compra(bruto))
+    for item in itens_separados[:30]:
+        item = _texto_curto(item, 60)
         if not item or not vida.normalizar_item_compra(item):
             continue
         validos += 1

@@ -98,6 +98,23 @@ class LogicaFase2TestCase(unittest.TestCase):
         self.assertEqual(vida.normalizar_item_compra("Acabou o Café"), "cafe")
         self.assertEqual(vida.normalizar_item_compra("  CAFÉ! "), "cafe")
 
+    def test_dividir_itens_compra(self):
+        # US-E1b: virgula e " e " (e variacoes) separam; nome composto sem
+        # conjuncao isolada continua 1 item so.
+        self.assertEqual(vida.dividir_itens_compra("acabou cafe e acucar"), ["cafe", "acucar"])
+        self.assertEqual(vida.dividir_itens_compra("acabou cafe e acabou acucar"), ["cafe", "acucar"])
+        self.assertEqual(vida.dividir_itens_compra("cafe, acucar e leite"), ["cafe", "acucar", "leite"])
+        self.assertEqual(vida.dividir_itens_compra("acabou o cafe e tambem o acucar"), ["cafe", "acucar"])
+        self.assertEqual(vida.dividir_itens_compra("pao de queijo"), ["pao de queijo"])
+        self.assertEqual(vida.dividir_itens_compra("papel higienico"), ["papel higienico"])
+        # item vazio/so espaco descartado (virgula dupla, texto vazio, None)
+        self.assertEqual(vida.dividir_itens_compra("cafe,, arroz"), ["cafe", "arroz"])
+        self.assertEqual(vida.dividir_itens_compra("  "), [])
+        self.assertEqual(vida.dividir_itens_compra(""), [])
+        self.assertEqual(vida.dividir_itens_compra(None), [])
+        # duplicado: a funcao so separa, quem chama decide dedup (nao e job dela)
+        self.assertEqual(vida.dividir_itens_compra("cafe e cafe"), ["cafe", "cafe"])
+
     def test_vencimento_anterior_e_dia_da_rotina(self):
         self.assertEqual(vida.vencimento_anterior(10, date(2026, 9, 23)), date(2026, 9, 10))
         self.assertEqual(vida.vencimento_anterior(25, date(2026, 9, 23)), date(2026, 8, 25))
@@ -463,6 +480,17 @@ class ManutencaoComprasResponderTestCase(VidaBaseTestCase):
         self.assertEqual(len(self.client.get("/api/compras").get_json()), 2)
         for corpo in [{}, {"itens": []}, {"itens": [" "]}, {"itens": 5}]:
             self.assertEqual(self.client.post("/api/compras", json=corpo).status_code, 400, msg=repr(corpo))
+
+    def test_compras_formulario_separa_itens_juntos(self):
+        # US-E1b: o formulario manda um campo "item" so (string) - se vier
+        # mais de uma coisa junta ("acabou cafe e acucar"), a rota separa em
+        # itens distintos (mesma funcao usada pelo chat tool).
+        r = self.client.post("/api/compras", json={"item": "acabou cafe e acucar"})
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.get_json()["adicionados"], ["cafe", "acucar"])
+        self.assertEqual(
+            sorted(i["item"] for i in self.client.get("/api/compras").get_json()), ["acucar", "cafe"]
+        )
 
     def test_chat_adiciona_compra(self):
         def fake_chat(mensagens, contexto, memorias, executores):
