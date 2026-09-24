@@ -1,4 +1,4 @@
-      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-garantia" style="--secao-cor: var(--cor-bancos)">
+      <section class="secao-recolhivel vida-acabamento" data-aberto="true" data-secao-id="vida-garantia" style="--secao-cor: var(--cor-bancos)">
         <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-garantia">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 7v5c0 4.5 3.4 8.4 9 10 5.6-1.6 9-5.5 9-10V7l-9-4Z"/><path d="m9 12 2 2 4-4"/></svg>
           Garantia de produtos
@@ -17,14 +17,18 @@
         </div>
       </section>
 
-      <div class="bottom-sheet" id="sheet-garantia" hidden>
+      <div class="bottom-sheet" id="sheet-garantia" hidden aria-labelledby="sheet-garantia-titulo">
+        <h3 class="bottom-sheet-titulo" id="sheet-garantia-titulo">Adicionar produto</h3>
         <form id="garantia-form" class="form-linha">
-          <input type="text" id="garantia-produto" placeholder="Produto (ex: Geladeira)" maxlength="120" required />
-          <input type="date" id="garantia-data-compra" aria-label="Data da compra" required />
-          <input type="number" id="garantia-prazo" placeholder="Garantia (meses)" min="1" max="600" inputmode="numeric" required />
-          <input type="file" id="garantia-anexo" accept=".pdf,.jpg,.jpeg,.png" aria-label="Nota fiscal (opcional)" />
+          <input type="text" id="garantia-produto" class="campo" placeholder="Produto (ex: Geladeira)" maxlength="120" required />
+          <label class="campo-rotulo" for="garantia-data-compra">Data da compra</label>
+          <input type="date" id="garantia-data-compra" class="campo" required />
+          <label class="campo-rotulo" for="garantia-prazo">Garantia (meses)</label>
+          <input type="number" id="garantia-prazo" class="campo" placeholder="12" min="1" max="600" inputmode="numeric" required />
+          <label class="campo-rotulo" for="garantia-anexo">Nota fiscal (opcional)</label>
+          <input type="file" id="garantia-anexo" class="garantia-anexo" accept=".pdf,.jpg,.jpeg,.png" />
           <div class="form-linha">
-            <button type="submit" id="garantia-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="submit" id="garantia-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar produto</button>
             <button type="button" id="garantia-cancelar-btn" class="btn btn-secundario">Cancelar</button>
           </div>
         </form>

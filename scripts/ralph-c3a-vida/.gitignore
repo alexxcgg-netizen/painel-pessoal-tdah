@@ -1,0 +1,3 @@
+# Capturas da verificacao (nao versionar PNG)
+*.png
+__pycache__/

@@ -4,7 +4,8 @@
 
 async function loadCompras() {
   const itens = await apiFetch("/api/compras");
-  if (!itens) return;
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (!Array.isArray(itens)) return;
   const lista = $("#lista-compras");
   lista.innerHTML = "";
   $("#compras-vazio").hidden = itens.length > 0;
@@ -35,6 +36,9 @@ async function loadCompras() {
 // com origin/fase7/integracao.
 $("#compra-abrir-btn").addEventListener("click", () => {
   const sheet = $("#sheet-compra");
+  // Fase 7 C3a: toque durante a animacao de fechar (240ms) e ignorado - reabrir nessa
+  // janela deixava o sheet preso (bug do V0d anotado no progress da C3a).
+  if (sheet.classList.contains("bottom-sheet--fechando")) return;
   if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
   else sheet.hidden = false;
 });

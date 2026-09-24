@@ -1,4 +1,4 @@
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="vida-revisao-trimestral" style="--secao-cor: var(--cor-painel)">
+      <section class="secao-recolhivel vida-acabamento" data-aberto="false" data-secao-id="vida-revisao-trimestral" style="--secao-cor: var(--cor-painel)">
         <button type="button" class="secao-cabecalho" aria-expanded="false" aria-controls="conteudo-vida-revisao-trimestral">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>
           Revisão trimestral/anual
@@ -12,19 +12,19 @@
               diario - pra parar e olhar o quadro completo, nao so o mes.
             </p>
           </div>
-          <div class="form-linha">
-            <select id="revisao-periodo-tipo">
+          <div class="form-linha revisao-periodo-linha">
+            <select id="revisao-periodo-tipo" class="campo" aria-label="Periodo">
               <option value="trimestre">Trimestre</option>
               <option value="ano">Ano</option>
             </select>
-            <select id="revisao-periodo-trimestre">
+            <select id="revisao-periodo-trimestre" class="campo" aria-label="Trimestre">
               <option value="1">T1 (jan-mar)</option>
               <option value="2">T2 (abr-jun)</option>
               <option value="3">T3 (jul-set)</option>
               <option value="4">T4 (out-dez)</option>
             </select>
-            <input type="number" id="revisao-periodo-ano" min="2000" max="2100" step="1" />
-            <button type="button" id="revisao-periodo-btn" class="btn-com-icone">Ver</button>
+            <input type="number" id="revisao-periodo-ano" class="campo" aria-label="Ano" min="2000" max="2100" step="1" />
+            <button type="button" id="revisao-periodo-btn" class="btn btn-secundario btn-com-icone">Ver</button>
           </div>
           <div class="card-vida" id="revisao-periodo-box" hidden>
             <p class="card-vida-meta" id="revisao-periodo-titulo"></p>

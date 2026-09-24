@@ -4,7 +4,8 @@
 
 async function loadAprender() {
   const itens = await apiFetch("/api/aprender");
-  if (!itens) return;
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (!Array.isArray(itens)) return;
   const lista = $("#lista-aprender");
   lista.innerHTML = "";
   $("#aprender-vazio").hidden = itens.length > 0;
@@ -34,6 +35,9 @@ async function loadAprender() {
 // com origin/fase7/integracao.
 $("#aprender-abrir-btn").addEventListener("click", () => {
   const sheet = $("#sheet-aprender");
+  // Fase 7 C3a: toque durante a animacao de fechar (240ms) e ignorado - reabrir nessa
+  // janela deixava o sheet preso (bug do V0d anotado no progress da C3a).
+  if (sheet.classList.contains("bottom-sheet--fechando")) return;
   if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
   else sheet.hidden = false;
 });

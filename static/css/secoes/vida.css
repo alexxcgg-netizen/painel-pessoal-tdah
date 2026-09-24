@@ -1,40 +1,191 @@
 /* static/css/secoes/vida.css - estilos da aba vida inteira (templates/abas/vida.html).
-   Fase 7 V4: `.vida-secoes` e o wrapper novo que agrupa todas as secoes da aba (adicionado
-   em templates/abas/vida.html), ponto unico de ritmo vertical/ordem da aba.
+   Fase 7 V4: `.vida-secoes` e o wrapper que agrupa todas as secoes da aba, ponto unico de
+   ritmo vertical. O <button class="secao-cabecalho"> e filho DIRETO do <section> (contrato
+   de docs/agentes/fase7-visual.md), entao a cor do icone que vinha de `h2 svg` e reposta aqui;
+   cada secao declara `style="--secao-cor: var(--cor-x)"` no proprio <section>.
 
-   Depois do merge com origin/fase7/integracao (V0a/V0b/V0c ja chegaram nesta branch;
-   V0d/bottom-sheet.css/.js ainda nao): meu <section class="secao-recolhivel"> segue o
-   contrato AO PE DA LETRA (docs/agentes/fase7-visual.md) - <button class="secao-cabecalho">
-   e filho DIRETO do <section>, sem <h2> no meio (o `.secao-cabecalho { border-radius:
-   inherit }` de ui/componentes/secao.css so funciona assim: `inherit` pega o raio do PAI no
-   DOM, que precisa ser o proprio .secao-recolhivel). Por isso o icone de cada secao perdeu a
-   cor de destaque que vinha de `h2 svg { color: var(--secao-cor) }` (style.css) - repost
-   aqui, generico pra toda a aba, cada secao so declara `style="--secao-cor: var(--cor-x)"`
-   no proprio <section> como antes fazia no <h2>. */
+   Fase 7 C3a (polimento): so forma e profundidade com os tokens da V0a (MASTER.md secoes 4-5).
+   Nenhuma cor, fonte ou animacao nova. Nivel de ABA (vale pra toda secao recolhivel da aba):
+   so cabecalho e ritmo entre secoes. O resto (lista, acoes, dica, campo inline) fica escopado
+   em `.vida-acabamento`, classe que marca as secoes da faixa C3a - as secoes de outras faixas
+   (habitos, viagens, lugares...) nao sao tocadas; se quiserem o mesmo acabamento, basta
+   acrescentar a classe no <section> delas.
+
+   Bottom-sheet: NENHUMA regra aqui. O sheet sobe pro <body> enquanto esta aberto (V0d/C2), entao
+   seletor da aba nao o alcanca - o visual dele (titulo, form em coluna, botoes, campos) mora nos
+   componentes (ui/componentes/bottom-sheet.css, campo.css, botao.css). Saiu na C3a o antigo
+   "fallback" `#tab-vida .bottom-sheet { fundo/padding/borda }` da V4, que pintava a moldura
+   fixa da tela inteira. */
+
 #tab-vida .secao-cabecalho svg {
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   color: var(--secao-cor, var(--accent));
   opacity: 0.9;
 }
 
-/* Ritmo vertical entre secoes - `.secao-recolhivel` (ui/componentes/secao.css, V0c) nao
-   define margem externa de proposito (cada aba decide o espacamento). */
-#tab-vida .vida-secoes > .secao-recolhivel {
-  margin-bottom: 1rem;
+/* MASTER 5 (secao recolhivel): titulo a esquerda e chevron a direita. O `space-between` do
+   componente centralizava o titulo porque o cabecalho tem 3 filhos (icone, texto, chevron). */
+#tab-vida .secao-cabecalho {
+  justify-content: flex-start;
+  min-height: var(--toque-confortavel, 48px);
 }
 
-/* Bottom sheet: fallback local enquanto ui/componentes/bottom-sheet.css (V0d) continua
-   vazio nesta branch - mesmos tokens que ja existem em style.css (--radius, --surface-2,
-   --border), no padrao que a faixa V3-organizacao ja usou em secoes/vida/habitos.css pra
-   consistencia. Quando V0d chegar (cascata: componentes -> secoes/vida.css), a regra dela
-   ganha por vir depois - aqui fica so como reforco enquanto isso. */
-#tab-vida .bottom-sheet {
-  margin-block: 0.5rem 1rem;
-  padding: 1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  box-shadow: var(--shadow-card);
+#tab-vida .secao-cabecalho > .chevron {
+  margin-left: auto;
+}
+
+#tab-vida .secao-cabecalho:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+/* Ritmo vertical entre secoes (grade de 8px) - `.secao-recolhivel` nao define margem externa
+   de proposito (cada aba decide). Card de secao = --superficie-2 + realce + --elevacao-1. */
+#tab-vida .vida-secoes > .secao-recolhivel {
+  margin-bottom: var(--espaco-3, 1rem);
+  background: var(--realce-superficie), var(--superficie-2);
+  box-shadow: var(--elevacao-1);
+}
+
+/* ---------- Dica colapsavel ("!"): a area de toque de 44px e do componente (::after em
+   ui/componentes/secao.css, C2). Aqui a LINHA da dica ganha 44px de altura: sem isso o
+   .secao-conteudo (overflow:hidden) cortava a metade de cima dessa area, colada no cabecalho. */
+#tab-vida .secao-recolhivel.vida-acabamento .dica-colapsavel {
+  min-height: var(--toque-min, 44px);
+  align-items: center;
+  margin: 0 0 var(--espaco-1, 0.25rem);
+}
+
+#tab-vida .secao-recolhivel.vida-acabamento .dica-colapsavel .dica-texto:not([hidden]) {
+  padding: var(--espaco-2, 0.5rem) 0;
+}
+
+/* ---------- Item de lista dentro do card da secao = bloco interno (MASTER 5, "card sobre
+   card"): --superficie-3, --raio-sm, --elevacao-0 e borda sutil, em vez do vidro com borda
+   tingida (que repetia o card de fora e deixava tudo com cara de caixa dentro de caixa). */
+#tab-vida .secao-recolhivel.vida-acabamento li.item {
+  background: var(--superficie-3);
+  border: var(--linha, 1px) solid var(--borda-sutil);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* O li tem `.item` (style.css) e `.lista-item` (V0c, display:flex em LINHA). Quando o li tem
+   mais de um filho (resumo do salvo, conversas da pessoa) o segundo ia parar numa coluna ao
+   lado do titulo. Empilha: a linha titulo + acoes continua em linha dentro do .item-linha. */
+#tab-vida .secao-recolhivel.vida-acabamento li.item.lista-item {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+#tab-vida .secao-recolhivel.vida-acabamento li.item + li.item {
+  margin-top: var(--espaco-2, 0.5rem);
+}
+
+@media (hover: hover) {
+  #tab-vida .secao-recolhivel.vida-acabamento li.item:hover {
+    border-color: var(--borda-forte);
+  }
+}
+
+/* Item que pede atencao (vence logo, pessoa atrasada...) mantem a borda tingida da aba e
+   ganha a elevacao 1 - hierarquia por profundidade, nao por cor nova. */
+#tab-vida .secao-recolhivel.vida-acabamento li.item.item-atencao {
+  border-color: var(--glass-border);
+  box-shadow: var(--elevacao-1);
+}
+
+/* ---------- Acoes da linha: alvo de 44px (antes 28px). */
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes {
+  margin-left: auto;
+  align-items: center;
+  gap: var(--espaco-1, 0.25rem);
+}
+
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes button {
+  min-height: var(--toque-min, 44px);
+  min-width: var(--toque-min, 44px);
+  padding: 0 var(--espaco-3, 0.75rem);
+  border-radius: var(--raio-sm);
+  border-color: var(--borda-sutil);
+  background: var(--superficie-2);
+}
+
+/* "Apagar" (botaoApagar em nucleo/vida-base.js, sempre com o ICONE_TRASH) vira icone de 44px
+   em --text-muted que so ganha --danger no hover/foco (receita da lista-item no MASTER). O
+   texto continua no DOM (font-size 0), entao o nome acessivel segue "Apagar". Se o icone
+   mudar um dia, o :has() deixa de casar e o botao volta a ser o de texto, sem quebrar. */
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]) {
+  width: var(--toque-min, 44px);
+  padding: 0;
+  font-size: 0;
+  gap: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]) svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  #tab-vida .secao-recolhivel.vida-acabamento .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]):hover:not(:disabled) {
+    color: var(--danger);
+    background: var(--danger-bg);
+    border-color: transparent;
+  }
+}
+
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]):focus-visible {
+  outline: none;
+  color: var(--danger);
+  box-shadow: var(--anel-foco);
+}
+
+/* Respiro entre o botao de adicionar e a lista (grade de 8px) - antes encostavam. */
+#tab-vida .secao-recolhivel.vida-acabamento .btn-adicionar {
+  margin-bottom: var(--espaco-3, 1rem);
+}
+
+/* ---------- Estado vazio: frase curta em --text-muted, sem caixa pesada (MASTER 6). */
+#tab-vida .secao-recolhivel.vida-acabamento .vazio {
+  margin: var(--espaco-2, 0.5rem) 0 0;
+}
+
+/* ---------- Formularios INLINE de acao unica (Mensagem dificil, Vale a pena?, periodo da
+   Revisao): uma coluna com 8px entre campos. O `flex: 1` herdado do style.css nos inputs
+   do .form-linha vira ALTURA numa coluna - aqui cada campo fica do tamanho dele. */
+#tab-vida .secao-recolhivel.vida-acabamento form.form-linha {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--espaco-2, 0.5rem);
+  margin-bottom: 0;
+}
+
+#tab-vida .secao-recolhivel.vida-acabamento form.form-linha > * {
+  flex: 0 0 auto;
+}
+
+/* Campo inline (dentro do card da secao, nao no sheet). Desvio consciente do MASTER: fundo
+   --superficie-1 (campo "afundado" no card) em vez de --superficie-3, porque o placeholder em
+   --text-faint sobre --superficie-3 dava 4.3:1 (abaixo de 4.5). Sobre --superficie-1 da 4.7:1 -
+   resolvido pela superficie, sem cor nova. (O mesmo vale pro .campo do sheet, que e do
+   componente campo.css - anotado no progress.) */
+#tab-vida .secao-recolhivel.vida-acabamento .campo {
+  min-height: var(--toque-min, 44px);
+  background-color: var(--superficie-1);
+}
+
+/* Paragrafo de explicacao no topo do conteudo (ex.: Ainda usa?): o `margin-top` negativo do
+   style.css (pensado pra colar no h2 antigo) cortava a primeira linha contra o cabecalho. */
+#tab-vida .secao-recolhivel.vida-acabamento .secao-conteudo > .dica-metas:first-child {
+  margin-top: 0;
 }

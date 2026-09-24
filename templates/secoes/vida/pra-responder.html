@@ -1,4 +1,4 @@
-      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-pra-responder" style="--secao-cor: var(--cor-tarefas)">
+      <section class="secao-recolhivel vida-acabamento" data-aberto="true" data-secao-id="vida-pra-responder" style="--secao-cor: var(--cor-tarefas)">
         <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-pra-responder">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5h-2"/></svg>
           Pra responder
@@ -17,12 +17,13 @@
         </div>
       </section>
 
-      <div class="bottom-sheet" id="sheet-responder" hidden>
+      <div class="bottom-sheet" id="sheet-responder" hidden aria-labelledby="sheet-responder-titulo">
+        <h3 class="bottom-sheet-titulo" id="sheet-responder-titulo">Adicionar pendencia</h3>
         <form id="responder-form" class="form-linha">
-          <input type="text" id="responder-quem" placeholder="Pra quem?" maxlength="60" required />
-          <input type="text" id="responder-sobre" placeholder="Sobre o que? (opcional)" maxlength="200" />
+          <input type="text" id="responder-quem" class="campo" placeholder="Pra quem?" maxlength="60" required />
+          <input type="text" id="responder-sobre" class="campo" placeholder="Sobre o que? (opcional)" maxlength="200" />
           <div class="form-linha">
-            <button type="submit" id="responder-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="submit" id="responder-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar pendencia</button>
             <button type="button" id="responder-cancelar-btn" class="btn btn-secundario">Cancelar</button>
           </div>
         </form>

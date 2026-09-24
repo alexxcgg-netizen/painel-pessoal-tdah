@@ -4,7 +4,8 @@
 
 async function loadAssinaturasRevisao() {
   const pendentes = await apiFetch("/api/assinaturas/revisao");
-  if (!pendentes) return;
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (!Array.isArray(pendentes)) return;
   $("#assinaturas-box").hidden = pendentes.length === 0;
   const lista = $("#lista-assinaturas");
   lista.innerHTML = "";

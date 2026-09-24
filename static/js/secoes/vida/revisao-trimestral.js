@@ -11,7 +11,8 @@ async function carregarRevisaoPeriodo() {
   if (tipo === "trimestre") params.set("trimestre", trimestre);
 
   const dados = await apiFetch(`/api/revisao-periodo?${params.toString()}`);
-  if (!dados) return;
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (!dados || typeof dados !== "object" || !Array.isArray(dados.decisoes)) return;
 
   const box = $("#revisao-periodo-box");
   box.hidden = false;

@@ -1,4 +1,4 @@
-      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-treino" style="--secao-cor: var(--cor-hoje)">
+      <section class="secao-recolhivel vida-acabamento" data-aberto="true" data-secao-id="vida-treino" style="--secao-cor: var(--cor-hoje)">
         <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-treino">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>
           Treino
@@ -18,14 +18,15 @@
         </div>
       </section>
 
-      <div class="bottom-sheet" id="sheet-ficha" hidden>
+      <div class="bottom-sheet" id="sheet-ficha" hidden aria-labelledby="sheet-ficha-titulo">
+        <h3 class="bottom-sheet-titulo" id="sheet-ficha-titulo">Nova ficha de treino</h3>
         <form id="ficha-form" class="form-linha">
-          <input type="text" id="ficha-grupo" placeholder="Grupo (ex: Peito)" maxlength="40" required />
-          <input type="text" id="ficha-ex-nome" placeholder="Exercicio (ex: Supino reto)" maxlength="80" />
-          <input type="number" id="ficha-ex-series" placeholder="Series" min="1" max="30" inputmode="numeric" />
-          <input type="text" id="ficha-ex-reps" placeholder="Reps (ex: 10 ou 8-12)" maxlength="20" />
-          <input type="text" id="ficha-ex-carga" placeholder="Carga (opcional)" maxlength="30" />
-          <button type="button" id="ficha-ex-add-btn" class="btn-com-icone">
+          <input type="text" id="ficha-grupo" class="campo" placeholder="Grupo (ex: Peito)" maxlength="40" required />
+          <input type="text" id="ficha-ex-nome" class="campo" placeholder="Exercicio (ex: Supino reto)" maxlength="80" />
+          <input type="number" id="ficha-ex-series" class="campo" placeholder="Series" aria-label="Series" min="1" max="30" inputmode="numeric" />
+          <input type="text" id="ficha-ex-reps" class="campo" placeholder="Reps (ex: 8-12)" aria-label="Repeticoes" maxlength="20" />
+          <input type="text" id="ficha-ex-carga" class="campo" placeholder="Carga (opcional)" aria-label="Carga (opcional)" maxlength="30" />
+          <button type="button" id="ficha-ex-add-btn" class="btn btn-secundario btn-com-icone">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Adicionar exercicio
           </button>
