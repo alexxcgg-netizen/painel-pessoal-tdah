@@ -14,7 +14,7 @@
     "a11-ab": ["scripts/ab_teste_ia.py", "tests/fixtures/ab/*", "tests/test_ab_teste_ia.py", "docs/ab-teste.md"],
     "a12-testes": ["scripts/suite.sh", "tests/conftest.py", "docs/testes.md", "pytest.ini"],
     "a13-calculos": ["calculos.py", "tests/test_calculos.py", "docs/calculos.md"],
-    "a14-roteador": ["ia/roteador_chat.py", "tests/test_fase7_a14_*"],
+    "a14-roteador": ["ia/roteador_chat.py", "ia/roteador_chat.json", "tests/test_fase7_a14_*"],
     "a15-gemini": ["ia/adapters/gemini.py", "tests/test_ia_adapter_gemini.py", "docs/ia-provedores-gemini.md"],
     "n1-assinaturas": ["financas_recorrentes.py", "rotas/n1_*", "migracoes/*_n1_*", "classificador_local/regras/n1_*", "docs/contrato-assinaturas.md", "tests/test_fase7_n1_*"],
     "n2-telegram": ["telegram_captura.py", "rotas/n2_*", "migracoes/*_n2_*", "docs/telegram-captura.md", "tests/test_fase7_n2_*"],
