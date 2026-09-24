@@ -1,3 +1,20 @@
 /* static/css/secoes/painel/memoria.css - secao painel > memoria (HTML: templates/secoes/painel/memoria.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* C2: adicionar rapido de cada grupo continua inline (lista curta, dentro de secao ja
+   recolhida), mas com campo e botao do contrato: campo ocupa a linha, botao ao lado. */
+.memoria-add-form {
+  flex-wrap: nowrap;
+  gap: var(--espaco-2);
+}
+
+.memoria-add-form .memoria-add-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.memoria-add-form .btn {
+  flex: 0 0 auto;
+  padding-inline: var(--espaco-3);
+}

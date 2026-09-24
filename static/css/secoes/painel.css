@@ -83,3 +83,54 @@
   outline: none;
   box-shadow: var(--anel-foco);
 }
+
+/* C2: formularios do Painel (datas importantes, remedios, esperas, decisoes) viraram
+   .btn-adicionar + bottom-sheet. O style.css ainda estiliza os botoes/campos antigos POR ID
+   (flex-basis de linha, fundo --accent-fill sem borda), o que vencia as classes .btn/.campo.
+   Seletor sem #tab-painel de proposito: aberto, o sheet mora no <body>. */
+.bottom-sheet :is(#lembrete-btn, #medicamento-btn, #espera-btn, #diario-decisao-btn) {
+  flex: 1 1 auto;
+  padding: var(--espaco-2) var(--espaco-3);
+  border: var(--linha) solid transparent;
+  border-radius: var(--raio-sm);
+  background: var(--accent-gradient-ink, var(--accent));
+  font-weight: 700;
+}
+
+.bottom-sheet :is(#lembrete-titulo, #lembrete-data) {
+  flex: none;
+  min-width: 0;
+}
+
+.bottom-sheet .check-recorrente {
+  flex: none;
+  min-height: var(--toque-min);
+  font-size: 0.85rem;
+}
+
+#tab-painel :is(#lembrete-abrir-btn, #medicamento-abrir-btn, #espera-abrir-btn, #diario-decisao-abrir-btn) {
+  margin-block: var(--espaco-1) var(--espaco-3);
+}
+
+/* C2: alvos de toque de 44px nas secoes do Painel da C2. Campos do "Devo sair" e do brain
+   dump (36px no style.css), "Gerar plano do dia", "Calcular" e o link de exportar CSV. */
+#tab-painel :is(#viagem-origem, #viagem-destino, #viagem-chegar, #brain-dump-texto),
+#tab-painel :is(#plano-btn, #viagem-btn, #custo-ia-v2-exportar) {
+  min-height: var(--toque-min);
+}
+
+/* Botoes de acao pequenos dentro das listas (Apagar, Editar, Salvar...): o visual continua
+   compacto (28px), a area de toque sobe pra 44px com um ::after invisivel. */
+#tab-painel li button:not(.btn) {
+  position: relative;
+}
+
+#tab-painel li button:not(.btn)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--toque-min);
+  transform: translateY(-50%);
+}
