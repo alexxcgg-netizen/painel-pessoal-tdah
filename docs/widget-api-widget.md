@@ -36,9 +36,9 @@ O endpoint retorna um JSON com esta estrutura:
 1. Abra o app (API Widget, API Widgets, etc).
 2. Toque em **Novo widget** ou **Adicionar widget**.
 3. Escolha **"Custom JSON"** ou **"HTTP"** (o nome pode variar).
-4. Preencha a URL:
-   - `http://seu-painel.com/api/widget` (sem autenticação)
-   - `http://seu-painel.com/api/widget?token=SEU_TOKEN` (com token)
+4. Preencha a URL com o token — obrigatório, o endpoint sempre devolve 401
+   sem ele configurado no `.env`, mesmo sem nenhum token na URL:
+   - `http://seu-painel.com/api/widget?token=SEU_TOKEN`
 5. Configure o **intervalo de atualização**: recomenda-se 15 a 30 minutos.
 6. Procure a opção de **"Mapear campos"** ou **"JSON fields"**.
 
