@@ -1,3 +1,4 @@
 /* static/css/secoes/topo.css - estilos do topo fora das abas (cabecalho + captura).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (V1): acabamento por elemento ficou em secoes/topo/cabecalho.css e
+   secoes/topo/captura.css (mais especifico que "o topo inteiro"). Vazio de
+   proposito aqui. */
