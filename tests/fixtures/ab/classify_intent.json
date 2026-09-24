@@ -1,0 +1,38 @@
+[
+  {
+    "id": "intent_registrar_tarefa",
+    "entrada": {"texto": "lembra de ligar pro dentista amanha"},
+    "esperado": {"acao": "registrar_tarefa"}
+  },
+  {
+    "id": "intent_registrar_gasto",
+    "entrada": {"texto": "gastei 50 reais no mercado"},
+    "esperado": {"acao": "registrar_gasto"}
+  },
+  {
+    "id": "intent_navegar_tela",
+    "entrada": {"texto": "abre a tela de gastos"},
+    "esperado": {"acao": "navegar_tela"}
+  },
+  {
+    "id": "intent_consultar",
+    "entrada": {"texto": "quanto eu gastei esse mes"},
+    "esperado": {"acao": "consultar"}
+  },
+  {
+    "id": "intent_corrigir_ultimo",
+    "entrada": {"texto": "nao, corrige pra tarefa"},
+    "esperado": {"acao": "corrigir_ultimo"},
+    "simulacao_dry_run": {
+      "haiku_4_5": {"errar_campo": {"campo": "acao", "valor": "desconhecido"}}
+    }
+  },
+  {
+    "id": "intent_ambiguo_json_invalido_simulado",
+    "entrada": {"texto": "aquilo la, sabe"},
+    "esperado": {"acao": "desconhecido"},
+    "simulacao_dry_run": {
+      "luna_medio": {"json_invalido": true}
+    }
+  }
+]

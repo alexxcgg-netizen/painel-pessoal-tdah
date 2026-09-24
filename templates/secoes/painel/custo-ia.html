@@ -1,0 +1,57 @@
+      <div class="card painel-secao-card">
+      <h2 style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5h16M7 19.5v-6M12 19.5v-10M17 19.5v-3.5"/></svg>
+        Custo de IA
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao do custo de IA"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Quanto o assistente gastou chamando IA (Anthropic + OpenAI) esse mes, convertido pelo
+          cambio fixo de <code>ia/precos.json</code>, com projecao ate o fim do mes e o quanto
+          isso representa do teto mensal configurado no card financeiro. So metadados de uso
+          (tokens/custo) sao guardados - nunca o conteudo de prompt ou resposta.
+        </p>
+      </div>
+
+      <div id="custo-ia-v2-box" class="custo-ia-box">
+        <p id="custo-ia-v2-carregando" class="resumo-texto">Carregando...</p>
+
+        <div id="custo-ia-v2-conteudo" hidden>
+          <div class="custo-ia-topo">
+            <span id="custo-ia-v2-gasto" class="custo-ia-gasto">R$ 0,00</span>
+            <span id="custo-ia-v2-mes" class="custo-ia-mes-label"></span>
+          </div>
+
+          <div class="meta-progresso" id="custo-ia-v2-barra-wrap">
+            <div class="meta-progresso-barra" id="custo-ia-v2-barra"></div>
+          </div>
+          <p id="custo-ia-v2-fracao" class="stat-linha"></p>
+          <p id="custo-ia-v2-projecao" class="dica-metas"></p>
+          <p id="custo-ia-v2-nivel" class="custo-ia-nivel" hidden></p>
+
+          <div id="custo-ia-v2-grafico" class="grafico-container custo-ia-grafico"></div>
+
+          <p id="custo-ia-v2-vazio" class="vazio" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5h16M7 19.5v-6M12 19.5v-10M17 19.5v-3.5"/></svg>
+            Nenhum uso de IA registrado esse mes ainda.
+          </p>
+
+          <table id="custo-ia-v2-tabela" class="custo-ia-tabela" hidden>
+            <caption class="sr-only">Gasto de IA por funcao, esse mes</caption>
+            <thead>
+              <tr>
+                <th scope="col">Funcao</th>
+                <th scope="col">Chamadas</th>
+                <th scope="col">Gasto</th>
+              </tr>
+            </thead>
+            <tbody id="custo-ia-v2-tabela-corpo"></tbody>
+          </table>
+
+          <a id="custo-ia-v2-exportar" class="btn-com-icone custo-ia-exportar" href="/api/ia/uso.csv" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17.5v1.5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5"/></svg>
+            Exportar CSV
+          </a>
+        </div>
+      </div>
+      </div>

@@ -1,3 +1,5 @@
 /* static/css/secoes/hoje/previa-noite.css - secao hoje > previa-noite (HTML: templates/secoes/hoje/previa-noite.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (V1): conferido - #previa-noite-box ja e .card-vida (agora tambem
+   .card, ver secoes/hoje.css) com glass-bg/glass-border/glass-shadow do
+   style.css. So texto, sem elemento interativo - nada achatado pra corrigir
+   aqui. Vazio de proposito. */

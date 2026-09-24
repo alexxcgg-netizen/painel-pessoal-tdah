@@ -66,14 +66,16 @@ class _PastaRegras:
         self.tmp = tempfile.TemporaryDirectory()
         for nome, codigo in self.modulos.items():
             (Path(self.tmp.name) / f"{nome}.py").write_text(textwrap.dedent(codigo))
-        pacote_regras.__path__.append(self.tmp.name)
+        # So a pasta temporaria: modulos reais das faixas nao interferem no teste.
+        self._path_antes = list(pacote_regras.__path__)
+        pacote_regras.__path__[:] = [self.tmp.name]
         return self
 
     def modulo(self, nome):
         return sys.modules[f"classificador_local.regras.{nome}"]
 
     def __exit__(self, *exc):
-        pacote_regras.__path__.remove(self.tmp.name)
+        pacote_regras.__path__[:] = self._path_antes
         for nome in self.modulos:
             sys.modules.pop(f"classificador_local.regras.{nome}", None)
         self.tmp.cleanup()
@@ -101,9 +103,10 @@ class _Base(unittest.TestCase):
 
 
 class CasarTestCase(_Base):
-    def test_pasta_real_de_regras_esta_vazia(self):
-        self.assertEqual(classificador_local.nomes_regras(), [])
-        self.assertIsNone(classificador_local.casar("assinei netflix 55 por mes"))
+    def test_sem_regra_nenhuma_nao_casa_nada(self):
+        with _PastaRegras({}):
+            self.assertEqual(classificador_local.nomes_regras(), [])
+            self.assertIsNone(classificador_local.casar("assinei netflix 55 por mes"))
 
     def test_casa_e_normaliza_o_formato(self):
         with _PastaRegras({self.nome: REGRA_ASSINATURA}):

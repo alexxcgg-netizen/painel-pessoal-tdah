@@ -1,3 +1,124 @@
 /* static/css/ui/componentes/bottom-sheet.css - componente: bottom sheet.
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (V0d): painel deslizante reutilizavel (static/js/ui/bottom-sheet.js).
+   Segue a receita documentada em docs/MASTER.md (V0a) quase a risca. Nenhuma
+   cor/fonte/animacao NOVA - so os tokens de forma/profundidade em
+   static/css/ui/tokens.css (--raio-lg, --espaco-*, --elevacao-3,
+   --borda-forte, --superficie-2, --veu-fundo, --anel-foco,
+   --transicao-lenta/--transicao-rapida, --camada-sheet/--camada-veu),
+   sempre com fallback pro que ja existia em style.css e por ultimo um
+   numero puro - o componente funciona igual mesmo se algum token faltar.
+
+   Estrutura real em runtime (o JS monta sozinho a partir do contrato
+   `<div class="bottom-sheet" hidden>...</div>` documentado em
+   docs/agentes/fase7-visual.md - ver comentario no topo do .js):
+     .bottom-sheet                  (fixed, cobre o viewport - so moldura)
+       .bottom-sheet-fundo          (fundo escurecido, --camada-veu - toque fora fecha)
+       .bottom-sheet-painel         (painel que sobe, --camada-sheet - foco preso aqui)
+         .bottom-sheet-alca         (alcinha decorativa / area de arrastar)
+         ...conteudo original do autor... */
+
+.bottom-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: var(--camada-veu, 60);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.bottom-sheet[hidden] {
+  display: none;
+}
+
+.bottom-sheet-fundo {
+  position: absolute;
+  inset: 0;
+  z-index: var(--camada-veu, 40);
+  background: var(--veu-fundo, rgba(0, 0, 0, 0.55));
+  opacity: 0;
+  transition: opacity var(--transicao-rapida, 0.15s ease);
+}
+
+.bottom-sheet--aberto {
+  pointer-events: auto;
+}
+
+.bottom-sheet--aberto .bottom-sheet-fundo {
+  opacity: 1;
+}
+
+.bottom-sheet-painel {
+  position: relative;
+  z-index: var(--camada-sheet, 41);
+  width: 100%;
+  max-width: 560px;
+  max-height: min(88vh, 720px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  background: var(--realce-superficie), var(--superficie-2, var(--surface-2, #181818));
+  border-top: var(--linha, 1px) solid var(--borda-forte, var(--border-strong, rgba(218, 226, 243, 0.18)));
+  border-radius: var(--raio-lg, var(--radius, 20px)) var(--raio-lg, var(--radius, 20px)) 0 0;
+  /* Profundidade por camada (borda fina + realce especular no topo) em vez
+     de sombra pesada, pedido explicito da direcao visual da Fase 7B. */
+  box-shadow: var(--elevacao-3, inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 -8px 30px -12px rgba(0, 0, 0, 0.6), 0 24px 48px -20px rgba(0, 0, 0, 0.65));
+  padding: 0.4rem var(--espaco-4, 1.25rem)
+    calc(var(--espaco-5, 1.5rem) + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform var(--transicao-lenta, 0.3s ease);
+  outline: none;
+}
+
+.bottom-sheet-painel:focus-visible {
+  box-shadow: var(--anel-foco, 0 0 0 2px var(--accent, #45454a)), var(--elevacao-3);
+}
+
+.bottom-sheet--aberto .bottom-sheet-painel {
+  transform: translateY(0);
+}
+
+.bottom-sheet--fechando .bottom-sheet-painel {
+  transform: translateY(100%);
+}
+
+.bottom-sheet-painel--arrastando {
+  transition: none;
+}
+
+.bottom-sheet-alca {
+  flex-shrink: 0;
+  width: 36px;
+  height: 4px;
+  margin: var(--espaco-2, 0.6rem) auto var(--espaco-3, 0.85rem);
+  border-radius: var(--raio-pilula, 999px);
+  background: var(--borda-forte, var(--border-strong, rgba(218, 226, 243, 0.18)));
+  touch-action: none;
+}
+
+/* Em telas maiores que o iPhone, o painel fica flutuante (nao gruda nas
+   bordas nem no fundo) - continua "bottom sheet" no espirito, so com
+   respiro, coerente com o resto do app ja ter --radius nos 4 cantos. */
+@media (min-width: 640px) {
+  .bottom-sheet-painel {
+    margin-bottom: var(--espaco-4, 1.25rem);
+    border: var(--linha, 1px) solid var(--borda-forte, var(--border-strong, rgba(218, 226, 243, 0.18)));
+    border-radius: var(--raio-lg, var(--radius, 20px));
+  }
+}
+
+/* Trava o scroll por baixo do sheet enquanto ele esta aberto - regra vive
+   aqui (nao em style.css) porque so este componente adiciona a classe. */
+body.bottom-sheet-bloqueado {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-sheet-fundo,
+  .bottom-sheet-painel {
+    transition-duration: 0.001ms;
+  }
+}

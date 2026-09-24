@@ -1,0 +1,35 @@
+Faixa V0a (v0a-tokens) - tokens de forma/profundidade + docs/MASTER.md
+Branch: fase7/v0a-tokens (de origin/fase7/integracao + merge origin/fase7/e0-frontend)
+Porta de verificacao: 5170 (servidor.py, banco temporario em /tmp/v0a-db-*)
+
+Historias
+- [x] H1 levantamento da identidade atual + screenshots de referencia (referencia-hoje/vida.png,
+       nao versionados - regerar com verificar.py referencia)
+- [x] H2 static/css/ui/tokens.css (so :root, nenhuma regra visual)
+- [x] H3 docs/MASTER.md (guia das faixas V0b-V6)
+- [x] H4 verificacao Playwright (depois-*: 0 erro de console, tokens e sonda OK, diff de pixel
+       referencia x depois = 0 em Hoje e Vida) + changelog.d/v0a-tokens.md
+
+Levantamento (static/css/style.css, :root linhas 1-217)
+- Superficies: --bg #000, --surface #121212, --surface-2 #181818, --surface-3 #1e1e1e
+- Bordas: --border rgba(218,226,243,.09), --border-strong .18
+- Texto: --text #eceef3, --text-muted #a7afbc, --text-faint #788292
+- Marca neutra: --accent #45454a, --accent-2 #08080a (+ -fill 30% em preto)
+- Cor por aba: --cor-painel #41aa75, --cor-tarefas #5246d8, --cor-financeiro #04759a,
+  --cor-bancos #a27c2f, --cor-construtora #aa320e, --cor-aviacao #3d8cfa, --cor-hoje=accent
+- Erro: --danger #ff5c72 (+ --danger-bg)
+- Raios: --radius 20px, --radius-sm 14px, 999px (47x), 50%
+- Sombras: --shadow-card / --shadow-card-hover (4 camadas), --glass-* (tingido por aba)
+- Curvas: --ease-bounce, --ease-suave, --ease-snap; duracoes mais usadas 0.18s/0.15s ease,
+  afundar 0.09s cubic-bezier(.4,0,1,1), soltar 0.22s bounce
+- Fontes: Sora (display/corpo/numeros), IBM Plex Mono = --font-tech (ja carregada no head)
+- Tema claro: NAO existe (so "color-scheme: dark light"); nao inventado.
+- z-index: #tabbar 10, grao body::after 50, burst 90
+
+Notas pro integrador / outras faixas
+- :focus-visible global (style.css ~l.433) usa --accent-2 (#08080a) a 45% -> anel quase
+  invisivel no fundo preto. Tokens trazem --anel-foco (derivado de --text); trocar o global
+  e com o integrador (style.css nao e desta faixa).
+- .card-titulo ja existe no style.css (~l.5526, cards de resultado do chat/cards-tipos.js).
+- Verificacao: Google Fonts falha no sandbox (CA do proxy) e /api/summary/today da 502
+  (IA dublê com chave falsa) - ambiente, filtrados no verificar.py.

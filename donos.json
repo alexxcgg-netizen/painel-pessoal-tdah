@@ -37,7 +37,8 @@
       "ia/config.d/chat.json",
       "ia/config.d/analisar_decisao.json",
       "ia/config.d/redigir_mensagem_dificil.json",
-      "tests/test_fase7_a6_*"
+      "tests/test_fase7_a6_*",
+      "ia/config.d/chat_simples.json"
     ],
     "a7-migracao1": [
       "ia/funcoes/captura.py",

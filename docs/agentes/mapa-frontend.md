@@ -62,7 +62,7 @@ Caminhos relativos: HTML em `templates/`, JS em `static/js/`, CSS em `static/css
 | essencial | `secoes/hoje/essencial.html` | `secoes/hoje/essencial.js` | `secoes/hoje/essencial.css` |
 | hiperfoco | `secoes/hoje/hiperfoco.html` | `secoes/hoje/hiperfoco.js` | `secoes/hoje/hiperfoco.css` |
 | chat | `secoes/hoje/chat.html` | `secoes/hoje/chat.js` | `secoes/hoje/chat.css` |
-| visao-do-dia | `secoes/hoje/visao-do-dia.html` | `static/js/visao-dia.js` (nao mover: testado em tests/js) | `secoes/hoje/visao-do-dia.css` |
+| visao-do-dia | `secoes/hoje/visao-do-dia.html` | `secoes/hoje/visao-do-dia.js` (vazio) + logica existente em `static/js/visao-dia.js` (nao mover: testado em tests/js) | `secoes/hoje/visao-do-dia.css` |
 
 ### painel - `abas/painel.html`, CSS da aba: `secoes/painel.css`
 
@@ -72,6 +72,7 @@ Caminhos relativos: HTML em `templates/`, JS em `static/js/`, CSS em `static/css
 | agenda-de-hoje | `secoes/painel/agenda-de-hoje.html` | `secoes/painel/agenda-de-hoje.js` | `secoes/painel/agenda-de-hoje.css` |
 | fechamento | `secoes/painel/fechamento.html` | `secoes/painel/fechamento.js` | `secoes/painel/fechamento.css` |
 | saude-hoje | `secoes/painel/saude-hoje.html` | `secoes/painel/saude-hoje.js` | `secoes/painel/saude-hoje.css` |
+| custo-ia (vazia; o teto de IA hoje esta em gastos/gastos) | `secoes/painel/custo-ia.html` | `secoes/painel/custo-ia.js` | `secoes/painel/custo-ia.css` |
 | peso-e-medidas | `secoes/painel/peso-e-medidas.html` | `secoes/painel/peso-e-medidas.js` | `secoes/painel/peso-e-medidas.css` |
 | plano-do-dia | `secoes/painel/plano-do-dia.html` | `secoes/painel/plano-do-dia.js` | `secoes/painel/plano-do-dia.css` |
 | devo-sair | `secoes/painel/devo-sair.html` | `secoes/painel/devo-sair.js` | `secoes/painel/devo-sair.css` |
@@ -120,6 +121,7 @@ Caminhos relativos: HTML em `templates/`, JS em `static/js/`, CSS em `static/css
 |---|---|---|---|
 | gastos | `secoes/gastos/gastos.html` | `secoes/gastos/gastos.js` | `secoes/gastos/gastos.css` |
 | metas | `secoes/gastos/metas.html` | `secoes/gastos/metas.js` | `secoes/gastos/metas.css` |
+| assinaturas (vazia; o "Ainda usa?" hoje esta em vida/ainda-usa) | `secoes/gastos/assinaturas.html` | `secoes/gastos/assinaturas.js` | `secoes/gastos/assinaturas.css` |
 
 ### bancos - `abas/bancos.html`, CSS da aba: `secoes/bancos.css`
 
@@ -175,4 +177,5 @@ Caminhos relativos: HTML em `templates/`, JS em `static/js/`, CSS em `static/css
 
 ## Arquivos vazios de proposito (pras faixas)
 JS `secoes/assistente/{caixa,regras,avisos}.js`, `ui/bottom-sheet.js`, `ui/secao-recolhivel.js`;
-HTML `secoes/assistente/{caixa,regras,avisos}.html`; todo o CSS de `fase7.css`.
+HTML `secoes/assistente/{caixa,regras,avisos}.html`; secoes novas `painel/custo-ia`, `gastos/assinaturas`
+(HTML/JS/CSS, previstas no `donos.json`) e `secoes/hoje/visao-do-dia.js`; todo o CSS de `fase7.css`.

@@ -1,6 +1,27 @@
 // static/js/secoes/tarefas/tarefas.js - Secao tarefas > tarefas (HTML: templates/secoes/tarefas/tarefas.html).
 // Fase 7 (X2): extraido sem mudanca de logica do antigo app.js 2304-2324, app.js 2413-2702.
+// Fase 7 (V3-organizacao): botao "Nova tarefa" abre o formulario num bottom-sheet
+// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/fecharBottomSheet
+// (faixa V0d) quando existir; fallback so alterna o atributo hidden do painel.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
+
+function abrirPainelTarefa() {
+  const sheet = $("#tarefa-sheet");
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+}
+
+function fecharPainelTarefa() {
+  const sheet = $("#tarefa-sheet");
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+}
+
+$("#tarefa-abrir-btn").addEventListener("click", abrirPainelTarefa);
+$("#tarefa-cancelar-btn").addEventListener("click", () => {
+  $("#nova-tarefa-form").reset();
+  fecharPainelTarefa();
+});
 
 // ---- Sugestao por energia (Fase 5, US-C7) -------------------------------
 async function carregarSugestaoEnergia(nivel) {
@@ -30,7 +51,7 @@ const NIVEIS_ENERGIA = ["baixa", "media", "alta"];
 // vida.tarefas_compativeis_com_energia ter o que filtrar.
 function criarTagEsforco(t) {
   const tag = document.createElement("span");
-  tag.className = "item-quando item-tag-esforco";
+  tag.className = "item-quando item-tag-esforco chip";
   tag.textContent = t.esforco ? `esforço: ${t.esforco}` : "definir esforço";
   tag.title = "toque pra marcar o esforco dessa tarefa";
   tag.addEventListener("click", () => {
@@ -65,7 +86,7 @@ function criarTagEsforco(t) {
 
 function criarItemTarefa(t) {
   const li = document.createElement("li");
-  li.className = "item";
+  li.className = "item lista-item";
   // data-entidade/data-id: o link "Abrir Tarefas" de um card (Fase 6,
   // static/js/cards.js) rola ate o item e destaca.
   li.dataset.entidade = "tarefa";
@@ -80,14 +101,14 @@ function criarItemTarefa(t) {
   titulo.textContent = t.title;
   if (t.recorrente_origem_id) {
     const tagRotina = document.createElement("span");
-    tagRotina.className = "item-tag-tarefa";
+    tagRotina.className = "item-tag-tarefa chip";
     tagRotina.textContent = "rotina";
     titulo.appendChild(tagRotina);
   }
   tituloWrap.appendChild(titulo);
   if (t.due_at || t.hora || t.due_date) {
     const quando = document.createElement("span");
-    quando.className = "item-quando";
+    quando.className = "item-quando chip";
     // Fase 6 (US-F10): due_at (texto livre tipo "amanha") continua tendo
     // prioridade quando existe (e o que o chat grava) - due_date sozinho
     // (o formulario direto novo grava so isso, sem passar pela IA) cai no
@@ -104,7 +125,7 @@ function criarItemTarefa(t) {
   // do escopo desta historia mexer nesse caminho tambem).
   if (t.due_date && !t.due_at && !t.hora && t.due_date < hojeIsoLocal()) {
     const tagAtrasada = document.createElement("span");
-    tagAtrasada.className = "item-tag-travada";
+    tagAtrasada.className = "item-tag-travada chip";
     tagAtrasada.textContent = "atrasada";
     titulo.appendChild(tagAtrasada);
   }
@@ -115,7 +136,7 @@ function criarItemTarefa(t) {
 
   if (t.empacada_dias) {
     const tagTravada = document.createElement("span");
-    tagTravada.className = "item-tag-travada";
+    tagTravada.className = "item-tag-travada chip";
     tagTravada.textContent = `travada ha ${t.empacada_dias} dias`;
     titulo.appendChild(tagTravada);
 
@@ -310,5 +331,6 @@ $("#nova-tarefa-form").addEventListener("submit", async (e) => {
   tituloInput.value = "";
   prazoInput.value = "";
   pulsarSucesso(tituloInput);
+  fecharPainelTarefa();
   loadTasks();
 });
