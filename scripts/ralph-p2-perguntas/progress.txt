@@ -1,0 +1,81 @@
+Fase 7 - Faixa P2 (Perguntas de acompanhamento) - progress.txt
+
+Status: historias principais concluidas. 79/79 testes verdes
+(scripts/testes.sh tests/test_fase7_p2_perguntas.py).
+
+Historias feitas:
+1. assistente/perguntas.py - logica pura (filtro de relacionamento, textos
+   das perguntas, parse de data livre, adiar de tarefa, limiar de espera em
+   dias, flag ligado/desligado). OK.
+2. assistente/gatilhos/p2_perguntas.py - executar(conn, agora) com os 5
+   gatilhos do prompt (conta pessoal vencendo, evento/reuniao terminado,
+   tarefa vencida, lembrete sem resposta, espera parada) + ao_resolver
+   despachando pela origem do item. OK.
+3. tests/test_fase7_p2_perguntas.py - 79 testes (logica pura + gatilho +
+   idempotencia + ao_resolver), relogio sempre injetado. OK.
+
+Nao precisei de migracao (tabela/coluna nova): contas_pessoais(_pagas),
+esperas, notas, tasks, lembretes ja tinham tudo que os 5 gatilhos precisam
+(marcar_conta_paga, resolver_espera, create_nota, complete_task,
+delete_lembrete - todas em db.py, existentes). Anotado aqui porque a regra
+da faixa pede pra registrar mesmo quando a resposta for "nao precisei".
+
+Dependencias da Etapa 0 que AINDA NAO chegaram na integracao (git log
+origin/fase7/integracao --oneline, checado em 2026-09-24): assistente/caixa.py
+(P1a: enfileirar/resolver/executar_todos) e assistente/avisos.py (P8:
+aviso_permitido). Como o contrato manda (fase7-assistente.md), o gatilho
+importa os dois de forma tardia (dentro da funcao) e so usa enfileirar (nao
+usa aviso_permitido - quem manda push e a P1a/P8). Testado com
+assistente.caixa.enfileirar mockado via sys.modules (nao precisa da P1a
+pronta pra rodar os testes desta faixa).
+
+ATENCAO pro integrador (P1a): o arquivo desta faixa se chama
+assistente/gatilhos/p2_perguntas.py (com sufixo "_perguntas", pedido assim
+no prompt da faixa), nao so "p2.py". Toda origem/chave_unica criada aqui usa
+o formato "p2_<subtipo>:<id>:<data>" (ex.: "p2_conta:7:2026-09-24") - o
+prefixo antes do primeiro "_" e sempre "p2". Se o mecanismo de
+"o prefixo e o nome do arquivo do gatilho" (fase7-assistente.md) fizer
+correspondencia EXATA de nome de arquivo (prefixo == "assistente/gatilhos/p2.py"),
+ele NAO vai achar este arquivo. Preciso que o roteamento de ao_resolver use
+"comeca com" (glob "p2_*.py" ou startswith), nao igualdade exata - e o que
+o glob "assistente/gatilhos/p2_*" na lista de arquivos desta faixa sugere
+que era a intencao. Se a P1a implementar so por igualdade exata, o
+ao_resolver desta faixa nunca vai ser chamado e isso precisa ser corrigido
+na integracao (nao e algo que eu, faixa P2, possa consertar sem mexer em
+assistente/caixa.py, que nao e meu arquivo).
+
+Bloqueios: nenhum no momento. Fiz as historias que nao dependem da P1a
+primeiro, como a regra manda; nao cheguei a precisar esperar 60min porque
+todo o trabalho desta faixa (executar/ao_resolver) e testavel diretamente
+sem o autoloader da P1a. Dei `git fetch && git merge origin/fase7/integracao`
+antes de fechar a faixa (trouxe P8/avisos.py, P7/sinais.py, migracoes/,
+rotas/ etc. - sem conflito, ff/merge limpo). P1a (assistente/caixa.py) e o
+autoloader dos gatilhos continuam ausentes da integracao no momento em que
+fechei esta faixa.
+
+DUVIDA pro integrador sobre assistente/avisos.py (P8): o docstring de
+`assistente/avisos.py` diz que as chaves `pergunta_conta`, `reuniao`,
+`tarefa_vencida`, `lembrete`, `espera` sao "a chave que essas faixas [P2..]
+devem usar ao chamar aviso_permitido/enfileirar". Mas `enfileirar` (contrato
+fixo, assistente/contrato.py) NAO tem parametro pra passar um tipo de aviso
+granular (so aceita tipo=pergunta|aviso|sugestao|briefing|proposta_memoria).
+Por isso NAO chamei aviso_permitido diretamente nesta faixa - decidi que
+gate de push por silencio/tipo-desligado e responsabilidade de quem
+efetivamente despacha o push (P1a, dentro do proprio enfileirar, ou algum
+worker que ela alimentar), nao de cada gatilho que so cria o item da Caixa.
+Se a intencao real for diferente (cada faixa P consultando aviso_permitido
+ela mesma antes de enfileirar), preciso que o integrador confirme - nao
+quis adivinhar e arriscar esconder pergunta da Caixa (nao so do push) por
+engano. Os textos das minhas perguntas ja usam titulo humano (ex.: 'Pagou
+"Internet"?'), entao mapear pra essas 5 chaves de avisos.py, se for preciso,
+e trivial (conta->pergunta_conta, evento->reuniao, tarefa->tarefa_vencida,
+lembrete->lembrete, espera->espera).
+
+Flag: assistente.p2.ativo (padrao ligado). Config nova:
+assistente.p2.espera_dias (padrao 3, inteiro em texto) - usa
+db.obter_configuracao/definir_configuracao, ja existentes.
+
+Arquivos meus: assistente/perguntas.py, assistente/gatilhos/p2_perguntas.py,
+assistente/gatilhos/__init__.py (vazio, so pra virar pacote - se a Etapa 0
+trouxer outro __init__.py junto, mesclar sem problema, esta vazio),
+tests/test_fase7_p2_perguntas.py.
