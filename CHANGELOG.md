@@ -5,6 +5,33 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-24 - Modo teste de IA
+
+- Toggle "Modo teste de IA" no card **Custo de IA** (aba Painel): liga uma resposta de
+  exemplo fixa no chat (`_resposta_exemplo_teste_ia`, `app.py`) no lugar de chamar a IA de
+  verdade, pra conferir o formato visual (cards `tarefas_criadas`/`transacao`/`lembrete`) no
+  celular pelo Render sem gastar chamada real. Config persistida (`configuracoes.modo_teste_ia`,
+  `GET`/`POST /api/configuracoes/teste-ia`), então continua ligado entre sessões até desligar
+  de novo.
+- Bypass total logo no início de `_processar_mensagem_chat` (antes até da regra local) - com
+  o modo ligado, nem `/api/chat`, nem o Telegram, nem `/api/atalho/capturar` chamam IA. Nada é
+  gravado no banco nem no histórico do chat: os cards de exemplo usam `cards.novo_card`/
+  `cards.envelope` direto (sem `card_*`, sem `conn.execute`), e a resposta não passa por
+  `salvar_mensagem_chat` de propósito - senão a conversa falsa entraria no contexto que
+  `_historico_chat_para_ia` manda pra próxima chamada REAL, contaminando o histórico de
+  verdade com dado fake.
+
+### Padrões descobertos
+- **Listener de `change` num toggle que carrega/salva config assíncrona precisa ser anexado
+  ANTES do primeiro `await`, não depois.** `loadTesteIA()` (`static/js/secoes/painel/custo-ia.js`)
+  primeiro fazia `await apiFetch(GET)` e só then anexava o `addEventListener("change", ...)`.
+  Um clique do usuário nesse intervalo (por menor que seja) muda o estado NATIVO do checkbox
+  sem disparar nenhum listener (o evento já aconteceu antes dele existir) - o POST nunca sai,
+  e o checkbox fica mentindo pro usuário até a próxima visita à aba. Só foi pego rodando o
+  Playwright de verdade contra o servidor de verdade (não apareceria num teste unitário que
+  mocka `apiFetch`); ver o mesmo padrão de guarda (`dataset.wired`) já usado em
+  `avisos.js:wireFormSilencio`.
+
 ## 2026-09-24 - Fase 7 (v12): IA híbrida, visual novo, assinaturas e parcelas, assistente proativo
 
 **Resumo para o Alex.** A Fase 7 rodou em 47 faixas paralelas (mais a Etapa 0), integradas na branch

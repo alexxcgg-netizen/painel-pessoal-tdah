@@ -642,6 +642,36 @@ def alternar_modo_visitante_rota():
     return jsonify({"ativo": False})
 
 
+def _modo_teste_ia_ativo(conn) -> bool:
+    """Config persistida (tabela `configuracoes`, nao sessao - ao contrario
+    do modo visitante): o Alex liga antes de testar o visual no celular pelo
+    Render e o estado continua ligado entre sessoes/logins ate ele desligar
+    de volta. So essa pessoa ve o toggle (fica dentro do login por PIN, igual
+    o resto do app - nao ha usuario nenhum alem dela)."""
+    return (obter_configuracao(conn, "modo_teste_ia") or "0") == "1"
+
+
+@app.route("/api/configuracoes/teste-ia", methods=["GET"])
+def obter_teste_ia():
+    conn = get_db()
+    try:
+        return jsonify({"ativo": _modo_teste_ia_ativo(conn)})
+    finally:
+        conn.close()
+
+
+@app.route("/api/configuracoes/teste-ia", methods=["POST"])
+def definir_teste_ia():
+    body = _corpo_json()
+    ativo = bool(body.get("ativo"))
+    conn = get_db()
+    try:
+        definir_configuracao(conn, "modo_teste_ia", "1" if ativo else "0")
+    finally:
+        conn.close()
+    return jsonify({"ativo": ativo})
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -2788,6 +2818,75 @@ def _padrao_das_chamadas(chamadas: list[dict]) -> dict | None:
     return {"acao": "consultar", "parametros": {"fontes": fontes[:6]}}
 
 
+def _resposta_exemplo_teste_ia() -> tuple[str, list[str], dict]:
+    """Modo teste de IA (config `modo_teste_ia`): envelope de cards FIXO,
+    montado direto com `cards.novo_card`/`cards.envelope` (os mesmos
+    primitivos puros que os `card_*` de verdade usam por baixo) - nunca toca
+    o banco nem chama `card_*`/executor nenhum, entao nao existe id de
+    verdade nenhum ids negativos (-1) so pra deixar claro no DOM que e
+    exemplo, e as actions ficam vazias de proposito (um `abrir_aba`/
+    `desfazer` apontando pra um id que nao existe so confundiria ao clicar).
+    So serve pra conferir o FORMATO visual (docs/CARDS.md) sem gastar
+    chamada real nem gravar nada."""
+    hoje = date.today().isoformat()
+    cards_lista = [
+        cards.novo_card(
+            "tarefas_criadas",
+            {
+                "tarefas": [
+                    {
+                        "id": -1,
+                        "titulo": "Exemplo: revisar contrato (modo teste)",
+                        "data": hoje,
+                        "hora": "14:00",
+                        "quando": None,
+                        "recorrencia": None,
+                        "concluida": False,
+                    }
+                ]
+            },
+        ),
+        cards.novo_card(
+            "transacao",
+            {
+                "id": -1,
+                "entidade": "gasto",
+                "sentido": "saida",
+                "titulo": "Exemplo: mercado (modo teste)",
+                "valor": 87.5,
+                "categoria": "mercado",
+                "status": "real",
+                "data": hoje,
+                "meio": None,
+                "saldo": None,
+                "oculto": False,
+            },
+        ),
+        cards.novo_card(
+            "lembrete",
+            {
+                "id": -1,
+                "titulo": "Exemplo: ligar pro dentista (modo teste)",
+                "data": hoje,
+                "hora": None,
+                "recorrente": False,
+                "despertar": False,
+            },
+        ),
+    ]
+    passos = [
+        {"modulo": "Tarefas", "descricao": 'Criou a tarefa "Exemplo: revisar contrato (modo teste)"', "ms": 0},
+        {"modulo": "Finanças", "descricao": 'Registrou o gasto "Exemplo: mercado (modo teste)"', "ms": 0},
+        {"modulo": "Assistente", "descricao": 'Criou o lembrete "Exemplo: ligar pro dentista (modo teste)"', "ms": 0},
+    ]
+    resposta = (
+        "Modo teste de IA ligado - isso é um exemplo fixo, sem chamar nenhuma IA de "
+        "verdade. Dá uma olhada no formato dos cards abaixo; desliga em Painel > "
+        "Custo de IA pra voltar ao chat normal."
+    )
+    return resposta, [], cards.envelope(cards_lista, resposta, passos)
+
+
 def _processar_mensagem_chat(
     conn, texto: str, detalhes: dict | None = None
 ) -> tuple[str | None, list[str], str | None]:
@@ -2800,6 +2899,18 @@ def _processar_mensagem_chat(
     `detalhes` (Fase 6, opcional - so /api/chat passa): dict que recebe o
     envelope do contrato de cards (docs/CARDS.md: cards, resumo_texto,
     passos). O Telegram nao passa e continua recebendo so o texto."""
+    # Modo teste de IA: bypass total, ANTES de qualquer coisa (nem regra
+    # local, nem materializar tarefa recorrente) - de proposito 100% sem
+    # efeito e SEM salvar no historico (chat_mensagens), porque
+    # _historico_chat_para_ia manda o historico de volta pra IA numa chamada
+    # real futura - se essa mensagem de exemplo entrasse ali, contaminaria o
+    # contexto da proxima conversa real com dado falso.
+    if _modo_teste_ia_ativo(conn):
+        resposta, acoes, envelope_cards = _resposta_exemplo_teste_ia()
+        if detalhes is not None:
+            detalhes.update(envelope_cards)
+        return resposta, acoes, None
+
     materializar_tarefas_recorrentes(conn)
 
     # Fase 7 (Etapa 0): regra local (classificador_local/regras/) antes de

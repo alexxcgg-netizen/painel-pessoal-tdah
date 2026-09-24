@@ -53,6 +53,35 @@ function custoIaV2PreencherGrafico(porDia) {
   });
 }
 
+// Modo teste de IA (config persistida, GET/POST /api/configuracoes/teste-ia
+// - rotas em app.py): toggle isolado do resto do card, carrega/salva sozinho.
+async function loadTesteIA() {
+  const checkbox = $("#teste-ia-checkbox");
+  if (!checkbox) return;
+  // navegacao.js chama loadCustoIAV2 (e este) toda vez que a aba Painel abre
+  // de novo - sem a guarda, cada visita empilha mais um listener no mesmo
+  // checkbox (mesmo padrao ja usado em avisos.js:wireFormSilencio). Anexa
+  // o listener ANTES do primeiro `await` (o GET abaixo) - se anexasse depois,
+  // um clique do usuario entre a chamada e a resposta do GET mudaria o
+  // estado nativo do checkbox sem disparar o POST (evento perdido, checkbox
+  // e servidor ficam dessincronizados ate a proxima visita a aba).
+  if (!checkbox.dataset.wired) {
+    checkbox.dataset.wired = "1";
+    checkbox.addEventListener("change", async () => {
+      const ativo = checkbox.checked;
+      const resultado = await apiFetch("/api/configuracoes/teste-ia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo }),
+      });
+      // POST falhou (rede/erro) - nao deixa o toggle mentir sobre o estado real.
+      if (!resultado || resultado.ativo !== ativo) checkbox.checked = !ativo;
+    });
+  }
+  const dados = await apiFetch("/api/configuracoes/teste-ia");
+  if (dados) checkbox.checked = !!dados.ativo;
+}
+
 async function loadCustoIAV2() {
   const dados = await apiFetch("/api/ia/uso/resumo");
   $("#custo-ia-v2-carregando").hidden = !!dados;

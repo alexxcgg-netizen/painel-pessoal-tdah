@@ -13,6 +13,16 @@
         </p>
       </div>
 
+      {# Modo teste de IA: liga uma resposta de exemplo fixa no chat (cards +
+         texto) no lugar de chamar a IA de verdade - pra conferir o formato
+         visual no celular pelo Render sem gastar chamada real nem gravar
+         nada. So visivel aqui, dentro do login por PIN (nao existe outro
+         usuario alem de quem loga). #}
+      <label class="check-recorrente">
+        <input type="checkbox" id="teste-ia-checkbox" />
+        Modo teste de IA (chat responde com cards de exemplo, sem gastar chamada real)
+      </label>
+
       <div id="custo-ia-v2-box" class="custo-ia-box">
         <p id="custo-ia-v2-carregando" class="resumo-texto">Carregando...</p>
 

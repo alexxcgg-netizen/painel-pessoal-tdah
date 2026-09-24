@@ -219,6 +219,23 @@ citada entre parênteses.
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
+### 2026-09-24, Modo teste de IA (toggle no card Custo de IA)
+- **Listener de `change` num toggle que também faz `await` de um GET de carga precisa ser
+  anexado ANTES desse `await`, não depois** (`loadTesteIA`, `static/js/secoes/painel/custo-ia.js`).
+  Anexar depois do `await apiFetch(GET)` deixa uma janela onde um clique do usuário muda o
+  estado NATIVO do checkbox sem disparar handler nenhum (o evento aconteceu antes do listener
+  existir) - o POST nunca sai e o checkbox mente pro usuário até a próxima visita à aba. Só foi
+  pego com Playwright de verdade contra o servidor de verdade; um teste que mocka `apiFetch`
+  não pega isso. Mesma guarda de `dataset.wired` já usada em `avisos.js:wireFormSilencio`
+  pra não empilhar listener toda vez que `navegacao.js` reabre a aba Painel.
+- **Bypass de IA que existe só pra teste visual (sem gastar chamada real) tem que ficar ANTES
+  de `salvar_mensagem_chat`, nunca gravar no histórico.** `_historico_chat_para_ia` manda o
+  histórico de `chat_mensagens` de volta pra próxima chamada REAL - uma resposta de exemplo
+  salva ali contaminaria o contexto da conversa de verdade com dado fake assim que o modo
+  teste fosse desligado. `_resposta_exemplo_teste_ia` monta o envelope com
+  `cards.novo_card`/`cards.envelope` direto (sem `card_*`, sem `conn.execute` nenhum) e nem
+  `_processar_mensagem_chat` chega perto do banco quando o modo está ligado.
+
 ### Fase 7, X2 (frontend dividido por secao) - LER ANTES DE MEXER NO FRONT
 - **`static/js/app.js` e `static/js/vida.js` nao existem mais** (nem o `index.html`
   monolitico): viraram `static/js/nucleo/*.js` + `static/js/secoes/<aba>/<secao>.js` e

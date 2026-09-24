@@ -41,6 +41,7 @@ function showTab(name) {
     loadDecisoes();
     loadBrainDump();
     if (typeof loadCustoIAV2 === "function") loadCustoIAV2();
+    if (typeof loadTesteIA === "function") loadTesteIA();
   }
   if (name === "tarefas") loadTasks();
   if (name === "gastos") {

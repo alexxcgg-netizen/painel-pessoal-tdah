@@ -1951,6 +1951,55 @@ class PainelTestCase(unittest.TestCase):
         res = self.client.post("/api/chat", json={"mensagem": "  "})
         self.assertEqual(res.status_code, 400)
 
+    def test_configuracoes_teste_ia_get_post_roundtrip(self):
+        res = self.client.get("/api/configuracoes/teste-ia")
+        self.assertEqual(res.get_json(), {"ativo": False})
+
+        res = self.client.post("/api/configuracoes/teste-ia", json={"ativo": True})
+        self.assertEqual(res.get_json(), {"ativo": True})
+        res = self.client.get("/api/configuracoes/teste-ia")
+        self.assertEqual(res.get_json(), {"ativo": True})
+
+        res = self.client.post("/api/configuracoes/teste-ia", json={"ativo": False})
+        self.assertEqual(res.get_json(), {"ativo": False})
+        res = self.client.get("/api/configuracoes/teste-ia")
+        self.assertEqual(res.get_json(), {"ativo": False})
+
+    def test_chat_modo_teste_ia_nao_chama_ia_nem_grava_nada(self):
+        self.client.post("/api/configuracoes/teste-ia", json={"ativo": True})
+
+        with patch("claude_client.chat") as mock_chat:
+            res = self.client.post("/api/chat", json={"mensagem": "qualquer coisa"})
+        self.assertEqual(res.status_code, 200)
+        mock_chat.assert_not_called()
+
+        corpo = res.get_json()
+        self.assertIn("Modo teste de IA", corpo["resposta"])
+        tipos = {c["type"] for c in corpo["cards"]}
+        self.assertEqual(tipos, {"tarefas_criadas", "transacao", "lembrete"})
+
+        # nada de verdade foi gravado - nem tarefa/gasto de exemplo, nem a
+        # troca no historico (que contaminaria o contexto da proxima
+        # chamada real de IA com essa conversa falsa).
+        conn = db.get_db()
+        self.assertEqual(conn.execute("SELECT COUNT(*) AS n FROM tasks").fetchone()["n"], 0)
+        self.assertEqual(conn.execute("SELECT COUNT(*) AS n FROM expenses").fetchone()["n"], 0)
+        conn.close()
+        historico = self.client.get("/api/chat/historico").get_json()
+        self.assertEqual(historico, [])
+
+    def test_chat_modo_teste_ia_desligado_usa_ia_normal(self):
+        # confirma que o toggle desligado (padrao) nao muda o comportamento
+        # existente - mesmo teste de sempre, so pra fechar o contraste com
+        # o de cima.
+        with patch(
+            "claude_client.chat", return_value=("Oi! Beleza?", [], fake_usage())
+        ) as mock_chat:
+            res = self.client.post("/api/chat", json={"mensagem": "oi"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["resposta"], "Oi! Beleza?")
+        mock_chat.assert_called_once()
+
     def test_chat_usa_executor_de_tarefa_de_verdade(self):
         def fake_chat(mensagens, contexto, memorias, executores):
             resultado = executores["registrar_tarefa"]({"titulo": "levar carro na oficina"})
