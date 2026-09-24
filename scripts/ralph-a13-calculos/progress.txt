@@ -1,0 +1,43 @@
+Faixa A13 (calculos em codigo) - progress.txt
+
+[done] Historia 1: inventario (docs/calculos.md) - vasculhado claude_client.py
+  (CAPTURE_PROMPT, CHAT_TOOLS), executores de app.py e os modulos que ja
+  calculam em codigo (cards.py, gastos.py, vida.py, viagem.py). ia/funcoes/
+  ainda nao existe nesta integracao - anotado no doc.
+[done] Historia 2: calculos.py (raiz) - 11 funcoes puras pedidas
+  (percentual_meta, projecao_meta, parcela_price, tabela_amortizacao,
+  juros_compostos, total_por_categoria, saldo_apos, parcelas_restantes,
+  data_ultima_parcela, dias_ate, comprometido_mensal). Decimal + 2 casas +
+  ROUND_HALF_EVEN documentado; ValueError claro em entrada invalida; sem
+  dependencia nova (mes somado a mao com calendar.monthrange, sem dateutil).
+[done] Historia 3: tests/test_calculos.py - 87 testes (unittest, mesmo
+  estilo de tests/test_vida.py), incluindo fuzz (percentual sempre 0-100,
+  tabela de amortizacao sempre fecha em saldo 0 pra varias combinacoes,
+  datas bissextas 2024/2000/1900, listas com 200/1000 itens, lixo de tipo
+  em todo helper). 87 passed, 0 failed.
+[done] Historia 4: docs/calculos.md - inventario com arquivo:linha de cada
+  violacao (modelo calculando data relativa em CAPTURE_PROMPT e na tool
+  registrar_tarefa) + instrucao de troca pras faixas A6-A9/N1 + tabela de
+  contas que ja sao codigo (cards.py/app.py tem percentual de meta
+  duplicado com formulas levemente diferentes - flagueado).
+
+Nenhuma historia bloqueada.
+
+Achados que nao sao meus pra consertar (fora da lista de arquivos desta
+faixa, so documentados em docs/calculos.md secao 2):
+- cards.py:card_meta e app.py:_consultar_meta calculam percentual de meta
+  cada um com sua propria formula (1 casa vs 0 casas) - podem divergir na
+  tela.
+- viagem.py:custo_combustivel divide por km_por_litro sem checar zero
+  (ZeroDivisionError cru se o usuario mandar km_por_litro=0).
+
+Dependencia nova: nenhuma (nao precisou de dateutil - mes somado a mao).
+Variavel de ambiente nova: nenhuma.
+
+Testes rodados (so os desta faixa, por instrucao do
+docs/agentes/fase7-regras-faixa.md):
+  scripts/testes.sh tests/test_calculos.py -> "87 passed" (0 failures).
+
+Branch: fase7/a13-calculos (worktree criada a partir de fase7/integracao,
+conforme a regra comum - a raiz do ambiente tinha me dado uma worktree
+"automatica" do repo errado, financeiro-construtora, que foi ignorada).
