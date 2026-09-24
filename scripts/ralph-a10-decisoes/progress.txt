@@ -27,24 +27,59 @@ Historias (15-30min cada):
     por `dias` (nao mistura, expira, erro nunca fica em cache, instancia
     isolada), modo mock por injecao e por env var (todas as variacoes
     truthy/falsy), API de alto nivel completa. 100% verde.
-[ ] H5 - classificador_local/regras/a10_agua.py + testes: BLOQUEADA. Infra
-    de classificador_local (Etapa 0 X1) ainda nao chegou em
-    fase7/integracao (confirmado: `git ls-tree -r origin/fase7/integracao |
-    grep classificador` vazio, HEAD de la em ed0dcce no ultimo fetch).
-    Existe um molde em painel-pessoal-tdah-fase7-e0b/classificador_local/
-    (README com exemplo quase identico ao meu caso: "tomei um copo de
-    agua" -> db.registrar_hidratacao) mas essa worktree e de outra faixa
-    (e0-backend), ainda nao mesclada. Vou continuar checando
-    origin/fase7/integracao a cada ~10min (regra da faixa, ate 60min);
-    se nao chegar, fica blocked mesmo - pergunta especifica: "quando
-    classificador_local/ (Etapa 0 X1) entra em fase7/integracao?".
+[x] H5 - infra classificador_local (Etapa 0 X1) chegou em
+    origin/fase7/integracao (commit c67486c, avisado pelo coordenador) -
+    `git fetch && git merge origin/fase7/integracao` limpo (66 arquivos,
+    sem conflito). classificador_local/regras/a10_agua.py novo: casar()
+    reconhece "tomei/bebi (mais) N copo(s) (de agua)", "mais N copo(s)",
+    "+N copo(s)/agua", "bebi/tomei (mais) agua" - N por extenso (um..dez)
+    ou digito, sempre fullmatch (nunca rouba frase de outra regra) e
+    normalizando espaco/pontuacao final. Registra via a MESMA funcao do
+    botao "+1 copo" (db.registrar_hidratacao), N vezes se "N copos" - 1
+    efeito `{"entidade": "hidratacao", "id": ...}` por copo, formato do
+    README de classificador_local/ (exemplo_agua.py), viram N cards
+    saude_dia com Desfazer cada. Guarda _QUANTIDADE_MAXIMA=20 contra typo/
+    fuzzing tipo "tomei 9999 copos". Decisao de design documentada no
+    modulo: "tomei um copo" sozinho (sem "agua" explicito) TAMBEM conta,
+    mesmo espirito do exemplo oficial ("tomei 2 copos" tambem sem "agua").
+[x] H6 - tests/test_fase7_a10_agua.py: 29 testes + 109 subtests. 48
+    variacoes positivas (os 5 exemplos do prompt + variacoes de
+    verbo/numero/acento/maiuscula/pontuacao/espaco/apostrofo em "d'agua"),
+    30 negativas (incluindo as 2 do prompt: "conta de agua", "agua
+    sanitaria", mais "agua mineral", "tomei copo de suco/cafe/vinho",
+    "vou tomar agua" - intencao futura -, "preciso beber mais agua" -
+    conselho, nao registro -, entrada invalida/vazia/unicode estranho/
+    string gigante, 0 e numero negativo, quantidade absurda clampada),
+    registro de verdade (conta linhas em hidratacao_registros, acumula com
+    registro anterior do dia, parametros malformados caem em 1 por
+    seguranca), Desfazer (remove o registro, 409 na segunda tentativa, "2
+    copos" gera 2 cards com 2 tokens independentes - so desfaz o que foi
+    pedido), e o caminho completo via /api/chat, Telegram, /api/capture e
+    /api/intent/classificar com a IA mockada (nunca chamada quando casa,
+    chamada quando nao casa). 100% verde.
+    Achado (nao e bug meu, documentado pro integrador): rodar a suite
+    completa junto com tests/test_fase7_infra_classificador.py (arquivo
+    compartilhado da Etapa 0, fora da minha lista) quebra 1 teste la -
+    `CasarTestCase::test_pasta_real_de_regras_esta_vazia` assumia
+    `classificador_local/regras/` vazio; agora que existe uma regra real
+    (a10_agua.py, a primeira faixa a colocar uma regra de verdade la), a
+    asserção `nomes_regras() == []` falha por natureza. Nao editei esse
+    arquivo (fora da minha lista) - toda faixa que adicionar a primeira
+    regra real vai bater nisso; quem integrar so precisa ajustar aquele
+    teste pra nao assumir pasta vazia (ex: checar so que a regra falsa
+    dele apareceu, nao que a lista inteira e []).
 
-Bloqueios: H5 (ver acima) - so a infra de classificador_local, o resto da
-faixa (cliente da construtora) esta pronto e testado.
+Bloqueios: nenhum - faixa completa.
 
 Fora da minha lista de arquivos (nao editei): app.py, claude_client.py,
-cards.py, AGENTS.md, CHANGELOG.md, TODO.md, financeiro-construtora/ inteiro
-(outro repositorio, regra do topo de fase7-regras-faixa.md).
+cards.py, AGENTS.md, CHANGELOG.md, TODO.md, tests/test_fase7_infra_*.py
+(inclusive o achado acima), financeiro-construtora/ inteiro (outro
+repositorio, regra do topo de fase7-regras-faixa.md).
 
-Testes: scripts/testes.sh tests/test_fase7_a10_construtora_cliente.py ->
-52 passed, 25 subtests passed.
+Testes (so os da minha faixa, suite completa e do integrador):
+scripts/testes.sh tests/test_fase7_a10_construtora_cliente.py
+  -> 52 passed, 25 subtests passed.
+scripts/testes.sh tests/test_fase7_a10_agua.py
+  -> 29 passed, 109 subtests passed.
+gitleaks detect --no-git --source . -> no leaks found (rodado antes dos
+dois commits).
