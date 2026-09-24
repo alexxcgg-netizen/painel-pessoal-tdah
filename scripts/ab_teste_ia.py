@@ -203,6 +203,9 @@ class AdapterDubleAB(Adapter):
 # quais adapters estao registrados no nucleo, ver `preparar_adapters`)
 # ---------------------------------------------------------------------------
 
+_DRY_RUN_ATIVO = False
+
+
 def _chamar_com_override(funcao: str, entrada_modelo: dict, *, sistema: str, contexto_fixo: str,
                           mensagens: list, schema: Optional[dict],
                           max_tokens_saida: int) -> tuple[Optional[Resposta], Optional[str]]:
@@ -221,7 +224,8 @@ def _chamar_com_override(funcao: str, entrada_modelo: dict, *, sistema: str, con
     validacao pos-resposta e feita por este script (`avaliar_json`, abaixo),
     chamando core._extrair_json/core.validar_schema diretamente, que
     funcionam com raiz lista ou objeto."""
-    if not core._teto_permite(funcao):
+    # Em --dry-run nao ha custo real: nao consulta o teto (que le o banco do app).
+    if not _DRY_RUN_ATIVO and not core._teto_permite(funcao):
         resp = Resposta(ok=False, provedor=entrada_modelo["provedor"], modelo=entrada_modelo["modelo"],
                         esforco=entrada_modelo["esforco"], erro="teto_ia_estourado")
         return resp, "teto_ia_estourado"
@@ -1113,6 +1117,8 @@ class _ContextoAdapters:
         self.duble_por_provedor: dict[str, AdapterDubleAB] = {}
 
     def __enter__(self) -> dict:
+        global _DRY_RUN_ATIVO
+        _DRY_RUN_ATIVO = self.dry_run
         core.limpar_cache()
         if self.dry_run:
             for provedor in ("anthropic", "openai", "gemini"):
@@ -1124,6 +1130,8 @@ class _ContextoAdapters:
         return self.duble_por_provedor
 
     def __exit__(self, *exc) -> None:
+        global _DRY_RUN_ATIVO
+        _DRY_RUN_ATIVO = False
         for provedor in ("anthropic", "openai", "gemini"):
             core.registrar_adapter(provedor, None)
         core.limpar_cache()
