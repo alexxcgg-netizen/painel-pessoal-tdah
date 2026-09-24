@@ -1,0 +1,130 @@
+Faixa A7 (Migracao 1: captura/intent/resumo) - progress.txt
+
+[done] Historia 1: ia/funcoes/captura.py reescrito - classify_capture,
+  classify_intent, summarize_day, escolher_essencial agora chamam
+  ia.core.chamar_ia(funcao, mensagens, contexto_fixo=..., schema=...) em vez
+  do SDK Anthropic direto. Mesma assinatura, mesmo formato de retorno
+  (tupla resultado/lista/texto, dict usage) que claude_client.py ja
+  expunha - confirmado lendo todo consumo em app.py (_call_claude,
+  _log_usage, parsed["..."] direto). ErroIA (subclasse de ValueError)
+  levantada quando chamar_ia devolve ok=False, pra continuar batendo no
+  except (ValueError, KeyError) de app.py:_call_claude (app.py nao foi
+  editado - ver ressalva abaixo). *_PROMPT/ACOES_INTENT/CONFIANCA_MINIMA_INTENT
+  continuam existindo (agora como alias do *_CONTEXTO_FIXO de cada funcao),
+  pra claude_client.py (nao e meu arquivo) continuar importando sem
+  ImportError.
+[done] Historia 2: prompts reescritos - contexto_fixo com a parte estavel
+  (regras, formato JSON, exemplo minimo), mensagens com o que varia (hoje,
+  contexto_correcao, texto do usuario / listas do resumo do dia / tarefas
+  candidatas). Curto e direto, testado que funciona igual com JSON
+  minimalista (schema explicito faz o adapter reforcar o formato nos dois
+  lados, Haiku e Luna).
+[done] Historia 3: resolver_data(texto, hoje) implementada - o modelo so
+  devolve "quando" em texto livre (nunca mais quando_data/prazo calculado
+  por ele - CAPTURE_SCHEMA nem tem mais esses 2 campos). Cobre amanha,
+  depois de amanha, hoje (+hora), dia N (mes atual ou proximo, pulando mes
+  sem esse dia), <dia da semana> que vem / proximo(a) (nunca hoje) vs
+  <dia da semana> sozinho (pode ser hoje), semana/mes que vem, em N
+  dias/semanas/meses/anos (mes reaproveita calculos.data_ultima_parcela em
+  vez de duplicar aritmetica de mes - docs/calculos.md secao 1.3 item 4),
+  ate <mes> (ultimo dia do mes, ano seguinte se o mes ja passou), datas
+  invalidas (dia 45, unidade desconhecida, tipo errado, vazio) -> None,
+  nunca excecao. Regra "hora sem dia -> assume hoje" preservada em
+  classify_capture (nao dentro de resolver_data, que so cuida da pista de
+  data).
+[done] Historia 4: 4 configs em ia/config.d/ (classify_intent max 150,
+  classify_capture 300, summarize_day 400, escolher_essencial 300) - todas
+  ativo:false, modelo_atual anthropic claude-haiku-4-5-20251001, alvo
+  openai gpt-6-luna esforco medio, fallback com o proprio Haiku. Validado
+  com ia.core.carregar_todas_configs() (nao levanta ConfigIAErro).
+[done] Historia 5: tests/test_fase7_a7_resolver_data.py (45 testes,
+  incluindo fuzz com ~28 entradas maliciosas/invalidas/unicode/gigante que
+  nunca podem levantar excecao) e tests/test_fase7_a7_captura.py (41 testes:
+  formato de retorno das 4 funcoes com chamar_ia mockado, sanitizacao de
+  classify_intent preservada, resolver_data integrado em classify_capture,
+  ErroIA em toda funcao quando ok=False, e uma classe de integracao real
+  com ia/core.py - config temporaria + AdapterDuble registrado via
+  core.registrar_adapter, como tests/test_ia_core.py ja faz - provando
+  schema (rejeita campo extra, campo obrigatorio faltando) e fallback
+  entre provedores fim-a-fim). 86 passed, 0 failed
+  (scripts/testes.sh tests/test_fase7_a7_resolver_data.py
+  tests/test_fase7_a7_captura.py). Nenhuma chamada real de API - so dubles
+  (Adapter falso) e Resposta construida na mao.
+
+[blocked] Historia 6 (regressao dos testes antigos): "os testes antigos
+  continuam passando" nao fecha 100% pra tests/test_claude_client.py.
+  scripts/testes.sh tests/test_modo_viagem.py passa inteiro (100%) e
+  tests/test_app.py passa 528/529 (a 1 falha e uma das "6 falhas
+  conhecidas, que dependem de horario" ja documentadas em
+  docs/agentes/fase7-regras-faixa.md, sem nenhuma relacao com esta faixa -
+  ver testes rodados no fim deste arquivo). Mas ClassifyIntentTestCase
+  (so essa classe, as outras
+  ~10 classes do arquivo continuam passando) tem 24 falhas (7 testes + 17
+  subTests de test_cada_frase_classifica_na_acao_certa) porque ela faz
+  `patch(claude_client.client.messages.create)` - o cliente Anthropic
+  baixo nivel de ia/legado.py. Migrar classify_intent pra chamar_ia troca
+  o caminho de rede pro AdapterAnthropic (ia/adapters/anthropic.py, faixa
+  A2), que cria SEU PROPRIO client (`anthropic.Anthropic(...)` dentro de
+  __init__, nao reaproveita ia.legado.client) - o patch antigo simplesmente
+  nao intercepta mais nada. Isso e estrutural (qualquer funcao migrada pra
+  chamar_ia quebra um teste que mockava o client antigo direto, nao e algo
+  so desta faixa) e tests/test_claude_client.py nao esta na minha lista de
+  arquivos, entao nao editei.
+  Verificado com seguranca (sem nenhuma chamada real de rede - regra de
+  ouro do fase7-regras-faixa.md): com ANTHROPIC_API_KEY=teste-fake e sem
+  banco de teste configurado nesse arquivo isolado, a falha real observada
+  foi "teto_ia_estourado" (ia.teto bloqueia por nao achar a tabela
+  `configuracoes`) ANTES de qualquer tentativa de rede - ou seja, nem chega
+  a tentar accessar api.anthropic.com; testado tambem com
+  ANTHROPIC_BASE_URL=http://127.0.0.1:1 (rede local morta) como cinto de
+  seguranca extra, mesmo resultado.
+  Pergunta especifica pro integrador/dono de tests/test_claude_client.py:
+  ClassifyIntentTestCase (linhas ~234-380) deveria (a) ser movida/adaptada
+  pra tests/test_fase7_a7_captura.py (que ja cobre o mesmo comportamento
+  via patch em ia.funcoes.captura.chamar_ia + um teste de integracao real
+  com ia/core.py) e removida de test_claude_client.py, ou (b) reescrita
+  pra registrar um Adapter dublê via ia.core.registrar_adapter em vez de
+  mockar claude_client.client.messages.create? Rodei so os testes da minha
+  faixa (regra do fase7-regras-faixa.md), entao nao rodei a suite inteira
+  de tests/test_claude_client.py alem do necessario pra confirmar o
+  diagnostico acima.
+
+Achado que nao e meu pra consertar (fora da lista de arquivos desta faixa):
+- app.py:411-418 (_call_claude) distingue anthropic.APIError (rede,
+  CLAUDE_ERROR_MSG) de (ValueError, KeyError) (parse, CLAUDE_FORMAT_ERROR_MSG).
+  chamar_ia (ia/core.py) nunca deixa excecao do provedor subir - so devolve
+  Resposta(ok=False). Pra manter o contrato de excecao de _call_claude sem
+  editar app.py, ia/funcoes/captura.py levanta ErroIA(ValueError) em toda
+  falha (rede, schema, teto), entao as 4 funcoes desta faixa sempre caem
+  no branch CLAUDE_FORMAT_ERROR_MSG agora, nunca mais em CLAUDE_ERROR_MSG -
+  nao e uma regressao visivel (continua virando erro 502 controlado, nunca
+  500 cru), so uma mensagem de erro um pouco menos precisa pro usuario
+  final quando a causa e rede/teto. Quem for dono de app.py pode decidir
+  se vale a pena, numa faixa futura, pegar `ia.core.ConfigIAErro`/uma
+  excecao dedicada em vez de ValueError generico pra recuperar a
+  distincao.
+
+Dependencia nova: nenhuma (calendar/unicodedata/re da stdlib; reaproveitou
+  calculos.data_ultima_parcela em vez de dateutil).
+Variavel de ambiente nova: nenhuma.
+
+Testes rodados (regra do fase7-regras-faixa.md - so os da minha faixa +
+  as 3 suites antigas pedidas na tarefa):
+  scripts/testes.sh tests/test_fase7_a7_resolver_data.py
+    tests/test_fase7_a7_captura.py -> "86 passed, 56 subtests passed" (0 falhas)
+  scripts/testes.sh tests/test_claude_client.py -> 24 failed, 23 passed
+    (so ClassifyIntentTestCase - ver Historia 6 [blocked] acima)
+  scripts/testes.sh tests/test_app.py -> "1 failed, 528 passed, 126 subtests
+    passed" (511s). A 1 falha (NotificacaoAgrupadaTestCase::
+    test_ligado_segura_ate_a_janela_passar_e_agrupa) e uma das "6 falhas
+    conhecidas, que dependem de horario" citadas em
+    docs/agentes/fase7-regras-faixa.md - nao tem nenhuma relacao com
+    classify_capture/classify_intent/summarize_day/escolher_essencial
+    (e sobre agrupamento de notificacao por horario). Nenhuma outra falha -
+    todos os ~30+ patch("claude_client.classify_capture"/"summarize_day"
+    /"classify_intent", ...) deste arquivo continuam passando (mockam no
+    nivel da funcao, nao no client Anthropic baixo nivel).
+  scripts/testes.sh tests/test_modo_viagem.py -> "16 passed" (0 falhas)
+
+Branch: fase7/a7-migracao1 (worktree criada a partir de fase7/integracao,
+  conforme a regra comum).
