@@ -54,8 +54,11 @@ def listar():
 
 @bp.route("/api/p4_regras/confirmar", methods=["POST"])
 def confirmar():
-    corpo = request.get_json(silent=True) or {}
-    texto_original = (corpo.get("texto_original") or "").strip()
+    corpo = request.get_json(silent=True)
+    if not isinstance(corpo, dict):  # C1: lista/texto no corpo nao vira 500
+        corpo = {}
+    texto_bruto = corpo.get("texto_original")
+    texto_original = texto_bruto.strip() if isinstance(texto_bruto, str) else ""
     bruto = corpo.get("json")
     if bruto is None:
         bruto = corpo.get("regra")
@@ -87,7 +90,9 @@ def _regra_existe(conn, regra_id: int) -> bool:
 
 @bp.route("/api/p4_regras/<int:regra_id>/pausar", methods=["POST"])
 def pausar(regra_id):
-    corpo = request.get_json(silent=True) or {}
+    corpo = request.get_json(silent=True)
+    if not isinstance(corpo, dict):  # C1: lista/texto no corpo nao vira 500
+        corpo = {}
     conn = db.get_db()
     try:
         if not _regra_existe(conn, regra_id):

@@ -136,6 +136,8 @@ def enfileirar(tipo: str, titulo: str, corpo: str = "", *, opcoes: list | None =
         raise ValueError("titulo obrigatorio")
     if _fora_de_escopo(titulo, corpo):
         return ""
+    if not _tipo_ligado_para_caixa(origem):
+        return ""
 
     chave_unica = chave_unica or ""
     conn = db.get_db()
@@ -338,6 +340,48 @@ def _aviso_permitido(tipo: str, agora: datetime) -> bool:
         return _fallback_silencio_padrao(agora)
 
 
+def _tipo_aviso(origem) -> str | None:
+    """Chave do catalogo da P8 (assistente/avisos.py TIPOS) pra um item, pela
+    origem (Fase 7, C1). None se a P8 nao existir ou a origem for desconhecida."""
+    try:
+        from assistente.avisos import tipo_de_origem
+    except ImportError:
+        return None
+    try:
+        return tipo_de_origem(origem)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _tipo_ligado_para_caixa(origem) -> bool:
+    """So o liga/desliga (esta_ligado) da P8 decide se o item nasce na Caixa
+    - o silencio NAO (a Caixa e silenciosa por natureza; o silencio vale so
+    pro push, em processar_repeticoes). Qualquer erro -> True (nunca some
+    item por falha de config)."""
+    tipo_aviso = _tipo_aviso(origem)
+    if tipo_aviso is None:
+        return True
+    try:
+        from assistente.avisos import esta_ligado
+
+        return bool(esta_ligado(tipo_aviso))
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _so_na_caixa(tipo_aviso: str | None) -> bool:
+    """True quando o Alex escolheu canal "caixa" pro tipo na tela de Avisos
+    (P8): o item fica na Caixa, sem push."""
+    if tipo_aviso is None:
+        return False
+    try:
+        from assistente.avisos import canal
+
+        return canal(tipo_aviso) == "caixa"
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def enviar_push(conn: sqlite3.Connection, titulo: str, corpo: str, url: str = "") -> bool:
     """Funcao fina que reaproveita o mecanismo de push ja existente
     (push_client.py + db.list_push_subscriptions/delete_push_subscription) -
@@ -408,7 +452,14 @@ def processar_repeticoes(conn: sqlite3.Connection, agora: datetime) -> dict:
         if pushes_hoje >= pushes_devidos_agora:
             continue
 
-        if not _aviso_permitido(item["tipo"], agora):
+        # C1: push proativo usa aviso_permitido COMPLETO (liga/desliga +
+        # silencio) com a chave fina do catalogo da P8 (pela origem); sem
+        # chave conhecida, cai na categoria do item (tipo desconhecido na P8 =
+        # permitido, respeitando so o silencio global).
+        tipo_aviso = _tipo_aviso(item.get("origem"))
+        if _so_na_caixa(tipo_aviso):
+            continue
+        if not _aviso_permitido(tipo_aviso or item["tipo"], agora):
             continue
 
         enviar_push(conn, item["titulo"], item["corpo"], url="")

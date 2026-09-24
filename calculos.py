@@ -155,16 +155,38 @@ def percentual_meta(atual: Numero, alvo: Numero) -> Decimal:
     levantar excecao, porque uma meta mal cadastrada nao deveria derrubar a
     tela que so quer mostrar uma barra de progresso.
     """
+    return _pct(_percentual_meta_bruto(atual, alvo))
+
+
+def _percentual_meta_bruto(atual: Numero, alvo: Numero) -> Decimal:
+    """Percentual sem arredondar, ja travado entre 0 e 100 (regras de
+    `percentual_meta`)."""
     alvo_d = _dec(alvo, "alvo")
     if alvo_d <= ZERO:
-        return Decimal("0.00")
+        return ZERO
     atual_d = _dec(atual, "atual")
     if atual_d <= ZERO:
-        return Decimal("0.00")
+        return ZERO
     pct = atual_d / alvo_d * CEM
-    if pct > CEM:
-        pct = CEM
-    return _pct(pct)
+    return CEM if pct > CEM else pct
+
+
+UMA_CASA = Decimal("0.1")
+
+
+def percentual_meta_exibicao(atual, alvo) -> float:
+    """Percentual de meta pra TELA/CHAT (Fase 7, faixa C1): a funcao unica
+    que cards.py (card_meta), app.py (_consultar_meta, /api/progresso) usam -
+    antes cada um arredondava de um jeito (1 casa, 0 casas, round() de
+    float). Float com 1 casa (ROUND_HALF_EVEN, direto do valor bruto - sem
+    arredondar duas vezes), entre 0.0 e 100.0. Tolerante de proposito:
+    `None`/texto/NaN (meta mal cadastrada) vira 0.0 em vez de derrubar a
+    tela - a conta estrita continua em `percentual_meta`."""
+    try:
+        bruto = _percentual_meta_bruto(0 if atual is None else atual, 0 if alvo is None else alvo)
+    except (ValueError, TypeError):
+        return 0.0
+    return float(bruto.quantize(UMA_CASA, rounding=ROUND_HALF_EVEN))
 
 
 def projecao_meta(

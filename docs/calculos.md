@@ -152,6 +152,10 @@ docstring de cada função pra regra completa (divisão por zero, valor
 negativo, arredondamento) e `tests/test_calculos.py` pra exemplos.
 
 - `percentual_meta(atual, alvo) -> Decimal` — 0.00 a 100.00.
+- `percentual_meta_exibicao(atual, alvo) -> float` — **fonte unica pra tela/chat** (Fase 7, C1):
+  1 casa (ROUND_HALF_EVEN direto do valor bruto), 0.0 a 100.0, `None`/texto/NaN viram 0.0.
+  Usada por `cards.card_meta`, `app._consultar_meta` e `GET /api/progresso` (os dois duplicados
+  da tabela acima foram trocados por ela na C1).
 - `projecao_meta(atual, alvo, aporte_mensal, hoje) -> dict` —
   `{falta, atingivel, meses_necessarios, data_prevista}`.
 - `parcela_price(valor, taxa_mensal, n) -> Decimal`.

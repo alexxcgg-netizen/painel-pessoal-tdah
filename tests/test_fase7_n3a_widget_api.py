@@ -50,17 +50,25 @@ def _instalar_stub_rotas_base():
     anterior_base = sys.modules.get("rotas._base")
 
     modulo_rotas = anterior_rotas or types.ModuleType("rotas")
+    # C1: guarda tambem o ATRIBUTO rotas._base do pacote (antes so o
+    # sys.modules era restaurado e o pacote real ficava apontando pro stub).
+    anterior_attr = getattr(modulo_rotas, "_base", None)
     modulo_base = types.ModuleType("rotas._base")
     modulo_base.app_modulo = lambda: app
     modulo_rotas._base = modulo_base
 
     sys.modules["rotas"] = modulo_rotas
     sys.modules["rotas._base"] = modulo_base
-    return anterior_rotas, anterior_base
+    return anterior_rotas, anterior_base, (modulo_rotas, anterior_attr)
 
 
 def _restaurar_stub_rotas_base(anteriores):
-    anterior_rotas, anterior_base = anteriores
+    anterior_rotas, anterior_base, (modulo_rotas, anterior_attr) = anteriores
+    if anterior_attr is None:
+        if hasattr(modulo_rotas, "_base"):
+            delattr(modulo_rotas, "_base")
+    else:
+        modulo_rotas._base = anterior_attr
     if anterior_rotas is None:
         sys.modules.pop("rotas", None)
     else:

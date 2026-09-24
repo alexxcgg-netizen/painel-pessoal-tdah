@@ -1,0 +1,41 @@
+Faixa C1 (polimento do backend) - branch fase7/c1-backend - estado final
+Base: suite na integracao = 3311 ok + 1 falha intermitente (infra_rotas, vazamento da N2).
+Fim: scripts/suite.sh = Python 3414 passed, 1276 subtests | JS 196 pass, 0 fail.
+
+[done] H1 chat: A5 (contexto_fixo) + conn + medir_uso=True via claude_client.opcoes_chat
+  (contextvar; 40+ dubles fake_chat de 4 argumentos em arquivos que nao sao meus). Gasto
+  unico: ia.medicao.gasto_mes_atual = uso_ia + api_usage so antes da 1a linha de uso_ia do
+  mes. Teto unico app._teto_ia_estourado -> ia.teto (R$40). ia/historico sem buraco (max 20).
+[done] H2 ia.core.FalhaChamadaIA(ValueError) > TetoEstourado/ErroProvedor/RespostaInvalida;
+  _call_claude: 402 TETO_IA_MSG / 502 CLAUDE_ERROR_MSG / 502 formato. Visao nao da mais 500.
+[done] H3 fechamento_noturno calado quando assistente.p3.ativo + PAINEL_TICK_TOKEN.
+[done] H4 construtora so via construtora_cliente; filtro (nunca lucro/margem/VGV); mock ok.
+[done] H5 calculos.percentual_meta_exibicao (1 casa) em cards.py, _consultar_meta, /api/progresso.
+[done] H6 avisos.tipo_de_origem; Caixa respeita esta_ligado; push usa aviso_permitido fino.
+  Bug: origem da P3 nao batia com o arquivo (humor do fechamento nunca gravava) - corrigido.
+[done] H7 N1 em TIPOS_CARD/CAMPOS_SENSIVEIS/ABA_POR_ENTIDADE; /api/desfazer geral reverte N1.
+[done] H8 adapter OpenAI converte image/document (formato Anthropic); Gemini nao (doc).
+[done] H9 TELEGRAM_MODO + TELEGRAM_BOT_TOKEN_CAPTURA: polling e webhook nunca juntos.
+[done] H10 fuzz.py: 184 cenarios, 0 falhas (achou 15 500s: N1, p4, caixa - corrigidos).
+[done] H11 suite 100%; vazamentos entre testes corrigidos (n2 rota, n3a, a10, p3); conftest
+  aponta SDKs de IA pra 127.0.0.1:9; N1 le tolerando linha ruim ja gravada.
+
+PARA O INTEGRADOR (arquivos que nao sao meus)
+- .env.example: TELEGRAM_MODO, TELEGRAM_BOT_TOKEN_CAPTURA (docs/telegram-captura.md #7).
+- db.ENTIDADES_DESFAZIVEIS sem assinatura/compra_parcelada: nao precisa mais (o
+  _desfazer_itens do app ja reverte os tokens que a N1 grava).
+- telegram_bot.py: com 409 no getUpdates o loop so loga; poderia parar sozinho.
+- CHANGELOG: juntar changelog.d/c1-backend.md. gitleaks: so os placeholders de docs/tick.md.
+PARA A C2 (static/js)
+- cards-tipos.js: o data da N1 leva aliases pro renderizador V1 (cartao, em_dias, restantes,
+  termina_em, total_mes, n_assinaturas, n_parcelas, proxima_cobranca) - escolher 1 nome.
+  V1 diz "nunca esconde valor"; o servidor esconde no modo visitante (contrato N1).
+- seu-progresso.js: pct de meta agora vem com 1 casa (33.3) - Math.round se quiser inteiro.
+- Botao Desfazer pode usar sempre /api/desfazer/<token> (vale pra N1 tambem).
+DECISOES PRO ALEX
+- ia.teto.FUNCOES_ESSENCIAIS_MODO_ECONOMIA usa nomes ("intent", "captura") que nao batem
+  com chamar_ia ("classify_intent"...): o teto de R$40 bloqueia TUDO a 100% (mantido - "o
+  teto vale pra tudo"). Liberar classificacao no modo economia? trocar os nomes.
+- Push de teto (notificacoes.teto_ia_perto_ou_estourado) ainda usa o teto antigo (so quando
+  configurado, api_usage): nao avisa no teto padrao de R$40.
+- Visao ativo:true no OpenAI: file_data em data URI conforme guia oficial - validar 1x real.

@@ -11,6 +11,8 @@ Fase 7 / A6 (ver comentario "layout de cache estavel" mais abaixo):
   com `ativo: true` na config passam por ia.core.chamar_ia (ver _chamar_json).
 - resolver_data_relativa/resolver_quando_data: data do registrar_tarefa
   resolvida em codigo (docs/calculos.md)."""
+import contextlib
+import contextvars
 import copy
 import json
 import logging
@@ -1617,9 +1619,28 @@ def _responder_simples(historico, contexto, memorias, contexto_fixo):
     }
 
 
+# Fase 7 (C1): opcoes da chamada atual do chat (contexto_fixo/conn/medir_uso)
+# que o app liga sem mudar a chamada posicional de 4 argumentos - dezenas de
+# dubles de teste (patch("claude_client.chat", side_effect=fake(m, c, mem, ex)))
+# tem essa assinatura fixa, entao o app nao pode passar kwargs novos. Um
+# kwarg passado explicitamente sempre ganha do valor daqui.
+_OPCOES_CHAT: contextvars.ContextVar = contextvars.ContextVar("opcoes_chat", default=None)
+
+
+@contextlib.contextmanager
+def opcoes_chat(*, contexto_fixo: str = "", conn=None, medir_uso: bool = False):
+    """`with opcoes_chat(contexto_fixo=..., conn=conn, medir_uso=True):
+    chat(mensagens, contexto, memorias, executores)` == passar os 3 kwargs."""
+    token = _OPCOES_CHAT.set({"contexto_fixo": contexto_fixo, "conn": conn, "medir_uso": medir_uso})
+    try:
+        yield
+    finally:
+        _OPCOES_CHAT.reset(token)
+
+
 def chat(
     historico: list[dict], contexto: str, memorias: list[str], executores: dict,
-    *, contexto_fixo: str = "", conn=None, medir_uso: bool = False,
+    *, contexto_fixo: str | None = None, conn=None, medir_uso: bool | None = None,
 ) -> tuple[str, list[str], dict]:
     """Roda o loop de tool-use: manda o historico + ferramentas, se a IA
     pedir pra usar uma ferramenta, chama o executor correspondente (que
@@ -1633,7 +1654,15 @@ def chat(
     - conn: repassada pro roteador (ia.roteador_chat) consultar padroes.
     - medir_uso: True = consulta ia.teto.teto_permite("chat") antes e grava
       cada rodada em uso_ia (ia.medicao.registrar_uso). Padrao False pra nao
-      gravar no banco em quem chama sem conn (testes antigos); o app liga."""
+      gravar no banco em quem chama sem conn (testes antigos); o app liga
+      (via opcoes_chat, ver acima)."""
+    opcoes = _OPCOES_CHAT.get() or {}
+    if contexto_fixo is None:
+        contexto_fixo = opcoes.get("contexto_fixo") or ""
+    if conn is None:
+        conn = opcoes.get("conn")
+    if medir_uso is None:
+        medir_uso = bool(opcoes.get("medir_uso", False))
     estaveis, nova = _separar_nova(historico)
     mensagem_nova = _texto_de(nova.get("content")) if nova else ""
     rota = _decidir_rota(mensagem_nova, estaveis, conn)
@@ -1771,19 +1800,29 @@ def _chamar_json(funcao: str, conteudo: str) -> tuple[dict, dict]:
       gravariam uso falso no banco real. Ver progress.txt/APRENDIZADOS."""
     config = _config_ia(funcao)
     if not (config and config["ativo"]):
+        # Fase 7 (C1): o caminho direto tambem respeita o teto unico
+        # (ia/teto.py) e grava em uso_ia - sem isso estas 2 funcoes ficavam
+        # fora do gasto do mes (fonte unica = ia.medicao.gasto_mes_atual).
+        if not _teto_permite(funcao):
+            raise core.TetoEstourado(f"{funcao}: {core.ERRO_TETO}")
         atual = config["modelo_atual"] if config else {"provedor": "anthropic", "modelo": SONNET}
         modelo = atual["modelo"] if atual["provedor"] == "anthropic" else SONNET
+        inicio = time.monotonic()
         response = client.messages.create(
             model=modelo,
             max_tokens=config["max_tokens_saida"] if config else MAX_TOKENS_JSON_PADRAO,
             messages=[{"role": "user", "content": conteudo}],
         )
+        uso = _uso_da_resposta(response, modelo, "5m")
+        _registrar_uso(funcao, uso["model"], uso, int((time.monotonic() - inicio) * 1000))
         return _extract_json(response.content[0].text), _usage(response)
 
     _garantir_adapter_anthropic_legado()
     resp = core.chamar_ia(funcao, [{"role": "user", "content": conteudo}])
     if not resp.ok:
-        raise FalhaIA(f"{funcao}: {resp.erro}")
+        # C1: teto -> core.TetoEstourado; rede/provedor -> core.ErroProvedor
+        # (app._call_claude traduz em TETO_IA_MSG/CLAUDE_ERROR_MSG).
+        raise core.excecao_de_resposta(funcao, resp)
     dados = _extract_json(resp.texto or "")
     return dados, {
         "model": resp.modelo,

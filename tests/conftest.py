@@ -23,16 +23,16 @@ from unittest.mock import patch
 
 import pytest
 
-# Integrador (Fase 7): nenhum teste fala com provedor de IA de verdade. Os SDKs
-# da Anthropic e da OpenAI leem *_BASE_URL do ambiente ao criar o cliente;
-# apontando pra uma porta morta local, uma chamada que escapou do dublê falha na
-# hora (erro de conexao) em vez de sair pra internet. Roda antes de qualquer
-# `import app`/`ia.*` porque o pytest carrega o conftest primeiro.
+# Fase 7 / C1 (aviso URGENTE do integrador): nenhum teste pode chegar na API
+# real de IA. Carregado antes de qualquer arquivo de teste, entao os clientes
+# criados na importacao (ia.legado.client, adapters) ja nascem apontando pra
+# uma porta local fechada - uma chamada que escape de um duble falha na hora,
+# sem sair da maquina. Chave da Anthropic sempre falsa (as outras ficam como
+# estao: ha testes que conferem o comportamento SEM chave).
 os.environ["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:9"
 os.environ["OPENAI_BASE_URL"] = "http://127.0.0.1:9"
 os.environ["GOOGLE_GEMINI_BASE_URL"] = "http://127.0.0.1:9"
-for _chave in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"):
-    os.environ[_chave] = "teste-fake"
+os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
 
 @pytest.fixture

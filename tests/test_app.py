@@ -3369,7 +3369,12 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.get("/api/summary/today")
         self.assertEqual(res.status_code, 200)
         args = mock_summarize.call_args[0]
-        self.assertIn("lucro liquido R$ 60000.00", args[6])
+        # C1: so gastos/entradas (+ tempo ate a proxima conta) - nunca lucro/margem
+        self.assertIn("saidas R$ 40000.00", args[6])
+        self.assertIn("entradas R$ 100000.00", args[6])
+        self.assertNotIn("lucro", args[6])
+        self.assertNotIn("margem", args[6])
+        self.assertNotIn("60000", args[6])
 
     def test_resumo_do_dia_sem_construtora_configurada_nao_quebra(self):
         with patch(
@@ -3393,7 +3398,8 @@ class PainelTestCase(unittest.TestCase):
 
         def fake_chat(mensagens, contexto, memorias, executores):
             self.assertIn("Construtora", contexto)
-            self.assertIn("60000.00", contexto)
+            self.assertIn("40000.00", contexto)
+            self.assertNotIn("60000.00", contexto)  # C1: lucro nunca vai pro chat
             return "Beleza.", [], fake_usage()
 
         with patch.dict(

@@ -43,7 +43,7 @@ def executar(conn, agora: datetime) -> None:
             tipo="briefing",
             titulo=dados["titulo"],
             corpo=dados["corpo"],
-            origem=f"p3_briefing_manha:{hoje_iso}",
+            origem=f"p3_briefing:manha:{hoje_iso}",
             chave_unica=f"p3_manha:{hoje_iso}",
         )
 
@@ -54,7 +54,7 @@ def executar(conn, agora: datetime) -> None:
             titulo=dados["titulo"],
             corpo=dados["corpo"],
             opcoes=dados["opcoes"],
-            origem=f"p3_briefing_noite:{hoje_iso}",
+            origem=f"p3_briefing:noite:{hoje_iso}",
             chave_unica=f"p3_noite:{hoje_iso}",
         )
 
@@ -70,14 +70,17 @@ def ao_resolver(conn, item, resposta, texto="") -> None:
     except (KeyError, TypeError, IndexError):
         origem = ""
 
-    if not origem.startswith("p3_briefing_noite:"):
+    # C1: origem = "p3_briefing:noite:<data>" (prefixo = nome deste arquivo,
+    # regra do integrador - so assim a P1a acha este ao_resolver). O formato
+    # antigo "p3_briefing_noite:<data>" continua aceito pra itens ja criados.
+    if not (origem.startswith("p3_briefing:noite:") or origem.startswith("p3_briefing_noite:")):
         return
 
     humor = briefing.humor_da_resposta(resposta)
     if humor is None:
         return
 
-    data = origem.split(":", 1)[1]
+    data = origem.rsplit(":", 1)[1]  # a data e sempre o ultimo campo (nos 2 formatos)
 
     import db  # tardio, so pra manter o padrao de import tardio deste modulo
 

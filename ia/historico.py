@@ -56,6 +56,12 @@ LIMITE_TOKENS_RECONSTRUCAO = 6000
 # interacoes"). Se precisar afinar pra baixo, mexa so aqui.
 MENSAGENS_VERBATIM = 12
 
+# Teto de mensagens na integra por chamada (C1). Entre reconstrucoes, tudo que
+# ainda nao foi resumido vai literal, ate este limite (mesmo numero que o app
+# mandava antes da A5) - protege o custo se a reconstrucao falhar varias
+# vezes seguidas (ex.: teto de IA estourado).
+MENSAGENS_LITERAIS_MAX = 20
+
 _ESTADO_VAZIO = {"resumo": "", "ultimo_mensagem_id": 0, "dia": ""}
 
 SISTEMA_RESUMO = (
@@ -209,7 +215,12 @@ def montar_contexto(conn, agora: Optional[datetime] = None) -> dict:
 
     estado = _obter_estado(conn)
     pool = _mensagens_desde(conn, estado["ultimo_mensagem_id"])
-    corte = _cortar_para_verbatim(pool, MENSAGENS_VERBATIM)
+    # C1: vai na integra TUDO que ainda nao entrou no resumo (id >
+    # ultimo_mensagem_id), limitado a MENSAGENS_LITERAIS_MAX. Antes ia so o
+    # alvo de MENSAGENS_VERBATIM (12): entre uma reconstrucao e outra, as
+    # mensagens 13+ nao estavam nem no resumo nem no trecho literal (sumiam
+    # do contexto). Nunca duplica: o resumo cobre so ate ultimo_mensagem_id.
+    corte = _cortar_para_verbatim(pool, MENSAGENS_LITERAIS_MAX)
     verbatim = pool[corte:]
 
     mensagens = [{"role": m["papel"], "content": m["texto"]} for m in verbatim]

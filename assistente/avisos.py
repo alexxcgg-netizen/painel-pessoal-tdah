@@ -169,10 +169,50 @@ TIPOS: dict[str, dict] = {
     "briefing_manha": _tipo("Briefing da manha"),
     "briefing_noite": _tipo("Briefing da noite"),
     "regra": _tipo("Regra aprendida ou aplicada"),
-    "sinal": _tipo("Sinal de sobrecarga"),
+    "sinal": _tipo("Sinal do iPhone (ex: cheguei no mercado)"),
     "memoria_viva": _tipo("Proposta de memoria viva"),
     "replanejar": _tipo("Sugestao de replanejar a semana"),
 }
+
+
+# ---------------------------------------------------------------------------
+# Itens da Caixa -> tipo do catalogo (Fase 7, faixa C1)
+# ---------------------------------------------------------------------------
+# O `tipo` de um item da Caixa (pergunta/aviso/sugestao/briefing/
+# proposta_memoria) e so a categoria de ordenacao da tela - nao e chave deste
+# catalogo. Quem diz qual aviso e e a `origem` do item ("<arquivo do
+# gatilho>:<subtipo>:..."), entao o mapa abaixo traduz origem -> chave de
+# TIPOS. Toda origem que uma faixa P manda pra Caixa PRECISA estar aqui
+# (tests/test_fase7_c1_caixa_avisos.py confere). Subtipo None = vale pra
+# qualquer subtipo daquele gatilho.
+TIPO_POR_ORIGEM: dict[tuple[str, str | None], str] = {
+    ("p2_perguntas", "conta"): "pergunta_conta",
+    ("p2_perguntas", "evento"): "reuniao",
+    ("p2_perguntas", "tarefa"): "tarefa_vencida",
+    ("p2_perguntas", "lembrete"): "lembrete",
+    ("p2_perguntas", "espera"): "espera",
+    ("p3_briefing", "manha"): "briefing_manha",
+    ("p3_briefing", "noite"): "briefing_noite",
+    # formato antigo da P3 (antes da C1), pra itens ja criados
+    ("p3_briefing_manha", None): "briefing_manha",
+    ("p3_briefing_noite", None): "briefing_noite",
+    ("p4_regras", None): "regra",
+    ("p5_replanejar", None): "replanejar",
+    ("p7_sinais", None): "sinal",
+    ("p9_memoria", None): "memoria_viva",
+}
+
+
+def tipo_de_origem(origem) -> str | None:
+    """Chave de TIPOS pra um item da Caixa, pela `origem` dele. None quando
+    a origem nao e de gatilho conhecido (ex.: item criado a mao/por teste) -
+    quem chama trata como "sem liga/desliga fino"."""
+    if not isinstance(origem, str) or not origem.strip():
+        return None
+    partes = origem.strip().split(":")
+    prefixo = partes[0]
+    subtipo = partes[1] if len(partes) > 1 else None
+    return TIPO_POR_ORIGEM.get((prefixo, subtipo)) or TIPO_POR_ORIGEM.get((prefixo, None))
 
 
 # ---------------------------------------------------------------------------

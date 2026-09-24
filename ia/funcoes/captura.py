@@ -18,7 +18,7 @@ from typing import Optional
 
 import calculos
 from ia.contrato import Resposta
-from ia.core import chamar_ia
+from ia.core import FalhaChamadaIA, chamar_ia, excecao_de_resposta
 # Reaproveitado da faixa A6 (ia/funcoes/chat.py) por pedido do integrador -
 # nao duplicar: faz o adapter "anthropic" do ia.core usar o MESMO cliente
 # (ia.legado.client == claude_client.client) que testes antigos de outras
@@ -31,24 +31,13 @@ from ia.core import chamar_ia
 from ia.funcoes.chat import _garantir_adapter_anthropic_legado
 
 
-class ErroIA(ValueError):
-    """Levantada quando chamar_ia devolve Resposta(ok=False, ...) (rede,
-    provedor, JSON fora do schema, teto mensal estourado - chamar_ia nunca
-    levanta excecao, so devolve ok=False, entao quem chama decide o que
-    fazer com a falha).
-
-    E uma subclasse de ValueError de proposito: app.py:_call_claude (faixa
-    dona) so pega `anthropic.APIError` e `(ValueError, KeyError)` ao redor
-    da chamada - antes da migracao, uma falha de rede vinha como
-    anthropic.APIError (mensagem CLAUDE_ERROR_MSG) e uma falha de parse
-    como ValueError (CLAUDE_FORMAT_ERROR_MSG). Como chamar_ia nunca deixa
-    excecao do provedor subir, as duas causas colapsam aqui numa unica
-    ValueError -> app.py sempre devolve CLAUDE_FORMAT_ERROR_MSG agora,
-    nunca mais CLAUDE_ERROR_MSG, pras 4 funcoes desta faixa. Nao e uma
-    regressao de comportamento visivel (ainda vira erro 502 controlado,
-    nunca 500 cru), so uma mensagem menos precisa - anotado em
-    scripts/ralph-a7-migracao1/progress.txt (app.py:411-418) pra quem for
-    dono de app.py decidir se vale distinguir de novo."""
+# ErroIA: base das falhas de IA desta faixa. Desde a C1 e a base comum de
+# ia.core (FalhaChamadaIA, subclasse de ValueError): _chamar levanta a
+# subclasse certa (TetoEstourado, ErroProvedor ou RespostaInvalida) e
+# app._call_claude traduz cada uma na mensagem certa (TETO_IA_MSG,
+# CLAUDE_ERROR_MSG, CLAUDE_FORMAT_ERROR_MSG). Antes da C1 toda falha virava
+# um ValueError so e o app respondia sempre "formato inesperado".
+ErroIA = FalhaChamadaIA
 
 
 def _usage_de(resp: Resposta) -> dict:
@@ -73,7 +62,9 @@ def _chamar(funcao: str, *, contexto_fixo: str, mensagem: str, schema: Optional[
         schema=schema,
     )
     if not resp.ok:
-        raise ErroIA(resp.erro or f"falha ao chamar IA ({funcao})")
+        # C1: excecao dedicada (TetoEstourado/ErroProvedor/RespostaInvalida,
+        # todas subclasses de ErroIA e de ValueError).
+        raise excecao_de_resposta(funcao, resp)
     return resp
 
 

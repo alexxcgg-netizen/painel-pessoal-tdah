@@ -188,50 +188,18 @@ def casar(texto: str) -> dict | None:
 # ---- execucao ------------------------------------------------------------
 
 
+# C1: os builders moram em cards.py (fonte unica dos tipos de card); aqui so
+# repassa, pra este arquivo e o resto do app montarem o card do mesmo jeito.
 def _card_assinatura(a: dict, hoje: date, *, consulta: bool = False, actions: list | None = None) -> dict:
-    proxima = fr.proxima_cobranca_assinatura(a, hoje)
-    data = {
-        "id": a["id"],
-        "nome": a["nome"],
-        "valor": a["valor"],
-        "dia_cobranca": a["dia_cobranca"],
-        "cartao_ou_forma": a["cartao_ou_forma"],
-        "categoria": a["categoria"],
-        "ativa": bool(a["ativa"]),
-        "inicio": a["inicio"],
-        "cancelada_em": a["cancelada_em"],
-        "proxima_cobranca": proxima.isoformat() if proxima else None,
-    }
-    if consulta:
-        data["consulta"] = True
-    return cards.novo_card("assinatura", data, actions)
+    return cards.assinatura_para_card(a, hoje, consulta=consulta, actions=actions)
 
 
 def _card_compra_parcelada(c: dict, hoje: date, *, consulta: bool = False, actions: list | None = None) -> dict:
-    info = fr.parcela_info(c, hoje)
-    data = {
-        "id": c["id"],
-        "descricao": c["descricao"],
-        "valor_total": c["valor_total"],
-        "n_parcelas": c["n_parcelas"],
-        "valor_parcela": c["valor_parcela"],
-        "cartao": c["cartao"],
-        "primeira_parcela": c["primeira_parcela"],
-        "categoria": c["categoria"],
-        "parcela_atual": info["parcela_atual_calculada"],
-        "parcelas_restantes": info["parcelas_restantes"],
-        "mes_termino": info["mes_termino"],
-        "quitada": info["quitada"],
-    }
-    if consulta:
-        data["consulta"] = True
-    return cards.novo_card("compra_parcelada", data, actions)
+    return cards.compra_parcelada_para_card(c, hoje, consulta=consulta, actions=actions)
 
 
 def _card_resumo(conn: sqlite3.Connection, hoje: date) -> dict:
-    resumo = fr.resumo_financeiro_recorrente(conn, hoje)
-    resumo["consulta"] = True
-    return cards.novo_card("resumo_financeiro_recorrente", resumo, [])
+    return cards.card_resumo_financeiro_recorrente(conn, hoje)
 
 
 def _fmt_valor(v: float) -> str:

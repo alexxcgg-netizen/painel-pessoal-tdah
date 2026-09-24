@@ -27,43 +27,20 @@ import db
 _RAIZ = Path(__file__).resolve().parent.parent
 
 
-def _preparar_rotas_n2_telegram():
-    """Garante que `import rotas.n2_telegram` funcione neste ambiente de
-    teste. Devolve o modulo `rotas.n2_telegram` e uma referencia mutavel
-    (`_app_atual`, lista de 1 elemento) que os testes usam pra trocar o
-    FakeApp que `app_modulo()` devolve, request a request."""
-    _app_atual = [None]
+# C1: antes este arquivo trocava `sys.modules["rotas._base"].app_modulo` na
+# IMPORTACAO e nunca restaurava (e reimportava rotas.n2_telegram) - depois
+# dele, qualquer rota de outro teste no mesmo processo recebia
+# app_modulo() = None e dava 500 (achado do integrador em
+# test_fase7_infra_rotas). Agora a infra real e usada como esta e o duble
+# entra so no fixture, trocando o nome `app_modulo` DENTRO de
+# rotas.n2_telegram (monkeypatch restaura sozinho no fim de cada teste).
+import rotas.n2_telegram as n2_telegram  # noqa: E402
 
-    if "rotas" not in sys.modules:
-        pacote = types.ModuleType("rotas")
-        pacote.__path__ = [str(_RAIZ / "rotas")]
-        sys.modules["rotas"] = pacote
-
-    try:
-        import rotas._base as base_real  # noqa: F401  - Etapa 0 ja chegou? usa a de verdade
-
-        # Infra real: precisamos ainda conseguir trocar o app devolvido por
-        # app_modulo() por teste - envolve com um indirect simples.
-        def app_modulo():
-            return _app_atual[0]
-
-        sys.modules["rotas._base"].app_modulo = app_modulo
-    except ModuleNotFoundError:
-        base_falso = types.ModuleType("rotas._base")
-
-        def app_modulo():
-            return _app_atual[0]
-
-        base_falso.app_modulo = app_modulo
-        sys.modules["rotas._base"] = base_falso
-
-    sys.modules.pop("rotas.n2_telegram", None)
-    import rotas.n2_telegram as n2_telegram
-
-    return n2_telegram, _app_atual
+_app_atual = [None]
 
 
-n2_telegram, _app_atual = _preparar_rotas_n2_telegram()
+def _app_modulo_fake():
+    return _app_atual[0]
 
 
 class FakeApp:
@@ -96,6 +73,11 @@ class FakeApp:
         self.chamadas_salvar_link.append((conn, url))
         return self._resultado_salvar
 
+    teto_estourado = False
+
+    def _teto_ia_estourado(self, funcao="chat"):
+        return self.teto_estourado
+
     def _call_claude(self, fn, *args):
         return fn(*args), None
 
@@ -120,6 +102,7 @@ def app_flask(monkeypatch, tmp_path):
     db.init_db()
 
     _app_atual[0] = FakeApp()
+    monkeypatch.setattr(n2_telegram, "app_modulo", _app_modulo_fake)
 
     from flask import Flask
 
@@ -275,14 +258,14 @@ def test_link_valido_chama_salvar_link(app_flask, monkeypatch):
 
 
 def test_extrair_nota_fiscal_recusa_com_teto_estourado(app_flask, monkeypatch):
-    monkeypatch.setattr(db, "resumo_custo_api", lambda conn: {"teto_estourado": True})
+    _app_atual[0].teto_estourado = True
     dados, erro = n2_telegram._extrair_nota_fiscal(b"jpeg", "image/jpeg")
     assert dados is None
     assert erro == _app_atual[0].TETO_IA_MSG
 
 
 def test_extrair_nota_fiscal_devolve_dados_no_sucesso(app_flask, monkeypatch):
-    monkeypatch.setattr(db, "resumo_custo_api", lambda conn: {"teto_estourado": False})
+    _app_atual[0].teto_estourado = False
     monkeypatch.setattr(
         n2_telegram.claude_client,
         "extrair_nota_fiscal_foto",
@@ -294,7 +277,7 @@ def test_extrair_nota_fiscal_devolve_dados_no_sucesso(app_flask, monkeypatch):
 
 
 def test_extrair_nota_fiscal_erro_na_chamada_vira_mensagem_curta(app_flask, monkeypatch):
-    monkeypatch.setattr(db, "resumo_custo_api", lambda conn: {"teto_estourado": False})
+    _app_atual[0].teto_estourado = False
 
     def _app_call_claude_com_erro(fn, *args):
         return None, ("erro-flask-fake", 502)
