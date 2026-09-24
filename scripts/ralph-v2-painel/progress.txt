@@ -1,0 +1,89 @@
+Faixa V2 (aba Painel) - progress.txt
+
+[feita] Historia 1: secoes recolhiveis
+  - templates/secoes/painel/memoria.html: as duas <section class="secao-recolhivel"
+    data-aberto="false" data-secao-id="...">, contrato de fase7-visual.md/V0c
+    (secao-cabecalho + secao-conteudo): "painel-memoria-rotina-planos" (titulo "O que eu
+    lembro sobre voce", agrupa Sua rotina + Seus planos) e
+    "painel-memoria-fora-do-painel" (titulo "Fora do painel, outras coisas que anotei",
+    agrupa o grupo fixo "fora_do_painel" + a lista generica "Outras coisas que anotei").
+    IDs/forms internos inalterados (memoria.js nao mudou).
+  - Nao criei nem editei static/js/ui/secao-recolhivel.js nem
+    static/css/ui/componentes/secao.css (V0c) - so consumi o contrato. Mesclei
+    origin/fase7/v0a-tokens e origin/fase7/v0c-secoes na minha branch pra poder testar de
+    verdade (sem isso as secoes nao tinham JS/CSS nenhum ainda).
+
+[feita] Historia 2: acabamento (cards com profundidade)
+  - 11 secoes + resumo envolvidas em <div class="card painel-secao-card"> (contrato
+    V0c, static/css/ui/componentes/card.css): resumo, agenda-de-hoje, fechamento,
+    saude-hoje, plano-do-dia, devo-sair, datas-importantes, medicamentos,
+    esperando-resposta, notas, diario-de-decisao. Tirei a classe "secao-secundaria" (a
+    borda-no-topo antiga) dessas 11 - o card ja da a separacao visual.
+  - static/css/secoes/painel.css: layout da aba (#tab-painel com gap entre cards) +
+    faixa fina de 3px no topo de cada .painel-secao-card com a cor de identidade da
+    propria secao (--secao-cor, reaproveitada do h2) + o mesmo acento de cor no icone
+    do cabecalho das secoes recolhiveis. Zero cor/fonte/animacao nova (so os tokens
+    V0a com fallback, como manda fase7-visual.md).
+  - NAO toquei em peso-e-medidas.html nem brain-dump.html (V4/V1, fora da minha lista).
+
+[feita] Historia 3: card "Custo de IA" (secao nova painel/custo-ia)
+  - Backend: rotas/v2_custo_ia.py (Blueprint bp, carregado sozinho por
+    rotas.registrar_todas - conferido no app real). GET /api/ia/uso/resumo (gasto BRL
+    do mes, teto, fracao, nivel_alerta, projecao linear ate fim do mes, por_funcao,
+    por_dia) e GET /api/ia/uso.csv (export). Nao duplica calculo nenhum: cambio/
+    gasto do mes vem de ia.medicao (cambio_usd_brl/gasto_mes_atual_brl), teto/nivel de
+    ia.teto (_teto_mensal_brl/nivel_alerta) - so agrega por funcao/dia em cima da
+    mesma janela de tempo (_limite_utc_inicio_mes, copiada da versao privada de
+    ia.medicao so pro filtro SQL, comentado no arquivo). NAO mexi no endpoint antigo
+    /api/ia/custo (app.py, api_usage/resumo_custo_api) - continua existindo, serve
+    outro card (financeiro/bancos).
+  - Frontend: templates/secoes/painel/custo-ia.html (h2 + dica-colapsavel + card com
+    gasto do mes, barra de progresso reaproveitando .meta-progresso/.meta-progresso-barra
+    ja existentes em style.css, % do teto, projecao, alerta de nivel, grafico de barras
+    via desenharGraficoBarras (static/js/charts.js, o mesmo de gastos.js - NAO existe
+    Chart.js real carregado no app, so esse helper SVG proprio), tabela por funcao,
+    link "Exportar CSV"), static/js/secoes/painel/custo-ia.js (loadCustoIAV2()),
+    static/css/secoes/painel/custo-ia.css.
+  - Incluido em templates/abas/painel.html: {% include "secoes/painel/custo-ia.html" %}
+    logo antes do brain-dump.
+  - Testes: tests/test_fase7_v2_custo_ia.py - 26 testes (0 falhas), incluindo fuzzing
+    de massa (70 cenarios: funcao vazia/gigante/unicode/emoji/injecao SQL/virgula-aspas/
+    quebra de linha, tokens/custo extremos, concorrencia com threads, corte de mes,
+    teto configurado/removido) - todos verificam resumo E csv sempre 200 e numeros
+    finitos. `scripts/testes.sh tests/test_fase7_v2_custo_ia.py` -> "26 passed".
+
+  *** PENDENTE PRO INTEGRADOR (nao sao meus arquivos, so anotado - ja testei localmente
+  com esses 3 diffs aplicados na mao e revertidos antes do commit) ***:
+  1. templates/scripts.html: acrescentar depois de ".../painel/diario-de-decisao.js"
+     `<script src="/static/js/secoes/painel/custo-ia.js"></script>`
+  2. static/css/fase7.css: acrescentar depois de
+     `@import url("secoes/painel/diario-de-decisao.css");`
+     `@import url("secoes/painel/custo-ia.css");`
+  3. static/js/nucleo/navegacao.js: dentro de `if (name === "painel") { ... }`,
+     acrescentar `loadCustoIAV2();` (fiz logo depois de `loadBrainDump();`)
+  4. static/service-worker.js: ASSETS precisa de
+     "/static/js/secoes/painel/custo-ia.js" e
+     "/static/css/secoes/painel/custo-ia.css" (mesmo padrao das outras linhas de
+     painel/*), e subir CACHE_NAME (hoje "painel-pessoal-v14" -> v15) - senao
+     tests/test_fase7_estrutura_frontend.py deve acusar.
+
+[feita] Historia 4: verificacao Playwright 390x844
+  - scripts/ralph-v2-painel/servidor.py (banco temp, porta 5140, mesmo molde do V0c) +
+    verificar.py: aplica os 3 diffs acima temporariamente (so nesta worktree, revertidos
+    antes do commit - git diff limpo em scripts.html/fase7.css/navegacao.js),
+    semeia uso_ia sintetico (ia.medicao.registrar_uso, dados ficticios pt-BR), loga
+    (PIN 135790), vai pra aba Painel, confere que as 2 secoes de memoria comecam
+    data-aberto="false" (fechadas), clica no cabecalho (abre: aria-expanded/data-aberto
+    viram true) e clica de novo (fecha), confere o card de custo de IA (gasto em R$,
+    tabela por funcao, grafico SVG, link de export retornando 200/text-csv), 0 erro de
+    console/rede (fora falhas de ambiente ja conhecidas de outras faixas: fonts.
+    googleapis.com com cert do proxy, /api/summary/today com ANTHROPIC_API_KEY falsa -
+    mesma lista de v0c/v0a). Resultado: "OK" (scripts/ralph-v2-painel/
+    v2-painel-resultado.json). 2 screenshots: v2-painel-fechado.png (card de resumo/
+    agenda com o acento de cor + secoes de memoria recolhidas) e
+    v2-painel-custo-ia.png (card de custo com barra/grafico/tabela/exportar). PNGs
+    ficam na pasta local, fora do commit (grandes, so pra conferencia).
+
+Nada bloqueado. Unico arquivo fora da minha lista que precisei tocar foi pra TESTAR (os
+3 do "pendente pro integrador" acima) - revertidos (git checkout --) antes do commit
+final, entao o diff commitado toca so nos meus arquivos.
