@@ -1,0 +1,26 @@
+Faixa A14 (roteador de mensagem simples do chat) - progress.txt
+
+Historia 1 (concluida): implementar decidir/decidir_com_motivo em
+ia/roteador_chat.py (local vs luna vs padrao), flag em
+ia/roteador_chat.json ({"ativo": false} por padrao, mais chave
+"roteador_chat_ativo" em configuracoes como alternativa via conn).
+Import tardio/defensivo de classificador_local (infra X1 ainda nao
+extraida nesta branch - nunca quebra, so nao resolve local por essa via).
+Reusa aprendizado.consulta_conhecida/padrao_intent_confiavel (mesma logica
+de app._classificar_intent(somente_local=True)).
+
+Historia 2 (concluida): tests/test_fase7_a14_roteador.py - flag desligada
+sempre padrao (inclusive fuzz: json corrompido, diretorio no lugar do
+arquivo, contexto invalido); flag ligada com 40+ mensagens sinteticas
+pt-BR (local/luna/padrao); robustez (vazio, gigante, emoji, so numeros,
+tipos invalidos, classificador_local ausente/quebrando). 38 testes / 47
+subtests, 0 falhas (scripts/testes.sh tests/test_fase7_a14_roteador.py).
+
+Nada bloqueado. Nao precisei de infra alem do que ja existia
+(db.obter_configuracao/definir_configuracao, aprendizado.py) - X1
+(classificador_local de verdade) ainda nao chegou na integracao, mas o
+import defensivo cobre isso: quando X1 mergear com uma regra real de
+classificador_local, o roteador passa a usar ela automaticamente, sem
+precisar mexer neste arquivo.
+
+Nenhuma dependencia nova, nenhuma variavel de ambiente nova.
