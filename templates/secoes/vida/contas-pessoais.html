@@ -9,15 +9,37 @@
           "paga" pra parar de avisar naquele mes. Nao tem nada a ver com as contas da construtora.
         </p>
       </div>
-      <form id="conta-pessoal-form" class="form-linha">
-        <input type="text" id="conta-pessoal-nome" placeholder="Conta (ex: Internet)" maxlength="80" required />
-        <input type="number" id="conta-pessoal-dia" placeholder="Dia (1-31)" min="1" max="31" inputmode="numeric" required />
-        <input type="number" id="conta-pessoal-valor" placeholder="Valor (opcional)" step="0.01" min="0" inputmode="decimal" />
-        <button type="submit" id="conta-pessoal-btn" class="btn-com-icone">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          Adicionar
-        </button>
-      </form>
+      <button type="button" class="btn btn-adicionar" id="btn-nova-conta-pessoal" aria-haspopup="dialog" aria-controls="sheet-nova-conta-pessoal">
+        Nova conta pessoal
+      </button>
       <p id="contas-pessoais-vazio" class="vazio" hidden>Nenhuma conta cadastrada.</p>
-      <ul id="lista-contas-pessoais"></ul>
+      <ul class="lista card" id="lista-contas-pessoais"></ul>
+
+      <div class="bottom-sheet bottom-sheet-financas" id="sheet-nova-conta-pessoal" hidden>
+        <div class="bottom-sheet-pegador" aria-hidden="true"></div>
+        <div class="bottom-sheet-cabecalho">
+          <h3>Adicionar conta pessoal</h3>
+          <button type="button" class="bottom-sheet-fechar" data-fechar-sheet="sheet-nova-conta-pessoal" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+        <form id="conta-pessoal-form">
+          <div class="campo-grupo">
+            <label class="campo-rotulo" for="conta-pessoal-nome">Conta</label>
+            <input type="text" class="campo" id="conta-pessoal-nome" placeholder="Internet, luz, cartao..." maxlength="80" required />
+          </div>
+          <div class="campo-grupo">
+            <label class="campo-rotulo" for="conta-pessoal-dia">Dia do vencimento (1-31)</label>
+            <input type="number" class="campo" id="conta-pessoal-dia" min="1" max="31" inputmode="numeric" required />
+          </div>
+          <div class="campo-grupo">
+            <label class="campo-rotulo" for="conta-pessoal-valor">Valor (opcional)</label>
+            <input type="number" class="campo" id="conta-pessoal-valor" step="0.01" min="0" inputmode="decimal" />
+          </div>
+          <button type="submit" id="conta-pessoal-btn" class="btn btn-primario btn-sheet-salvar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Adicionar
+          </button>
+        </form>
+      </div>
 
