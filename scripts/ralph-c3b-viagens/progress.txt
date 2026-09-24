@@ -53,3 +53,9 @@ Worktree /home/user/painel-pessoal-tdah-fase7-c3b-viagens, porta 5132, banco sin
 
 [x] H4 - Testes: scripts/testes.sh (6 do modulo + tests/test_fase7_c3b_viagens.py novo,
   7 guardas de estrutura) = 129 passed, 0 falha; --js tests/js/*.test.js = 196/196.
+
+[x] H5 - origin/fase7/integracao sem commit novo (nada a mesclar). Banco novo, auditoria
+  final 0 erro; 2 screenshots (c3b-viagem-sheet.png, c3b-aviacao.png) nesta pasta, NAO
+  versionados (nem vendor/ do Leaflet, baixado por comum.py). changelog.d/c3b-viagens.md
+  e APRENDIZADOS.md escritos. Sem dependencia nem variavel de ambiente nova.
+  Branch fase7/c3b-viagens (pushed). Sem PR.
