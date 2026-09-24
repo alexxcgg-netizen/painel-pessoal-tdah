@@ -52,3 +52,9 @@ test("lista vazia mostra a frase de vazio", () => {
   assert.match(Avisos.renderListaHTML([]), /avisos-vazio/);
   assert.match(Avisos.renderListaHTML(undefined), /avisos-vazio/);
 });
+
+test("lista com item null/numero/string nao quebra (achado do fuzz) e ignora o lixo", () => {
+  const html = Avisos.renderListaHTML([null, 3, "x", TIPO]);
+  assert.equal((html.match(/<li class="lista-item aviso-item"/g) || []).length, 1);
+  assert.match(Avisos.renderListaHTML([null, undefined]), /avisos-vazio/);
+});

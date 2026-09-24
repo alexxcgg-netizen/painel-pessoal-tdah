@@ -51,10 +51,12 @@ const AvisosAssistente = (function () {
   }
 
   function renderListaHTML(tipos) {
-    if (!Array.isArray(tipos) || !tipos.length) {
+    // C2 (achado no fuzz): item null/nao-objeto na lista derrubava a secao inteira.
+    const validos = Array.isArray(tipos) ? tipos.filter((t) => t && typeof t === "object") : [];
+    if (!validos.length) {
       return `<li class="avisos-vazio">Nenhum tipo de aviso cadastrado.</li>`;
     }
-    return tipos.map(renderTipoHTML).join("");
+    return validos.map(renderTipoHTML).join("");
   }
 
   // Sempre HH:MM valido (o backend recusa qualquer outra coisa) - so
