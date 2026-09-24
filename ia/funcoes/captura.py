@@ -19,6 +19,16 @@ from typing import Optional
 import calculos
 from ia.contrato import Resposta
 from ia.core import chamar_ia
+# Reaproveitado da faixa A6 (ia/funcoes/chat.py) por pedido do integrador -
+# nao duplicar: faz o adapter "anthropic" do ia.core usar o MESMO cliente
+# (ia.legado.client == claude_client.client) que testes antigos de outras
+# faixas ja mockam com patch.object(claude_client.client.messages, "create")
+# (ex: tests/test_claude_client.py::ClassifyIntentTestCase, escrito quando
+# classify_intent ainda chamava o SDK Anthropic direto). Sem isso,
+# ia.adapters.anthropic.AdapterAnthropic criaria seu proprio cliente e esse
+# mock pararia de interceptar qualquer chamada (ver
+# scripts/ralph-a7-migracao1/progress.txt).
+from ia.funcoes.chat import _garantir_adapter_anthropic_legado
 
 
 class ErroIA(ValueError):
@@ -55,6 +65,7 @@ def _usage_de(resp: Resposta) -> dict:
 
 
 def _chamar(funcao: str, *, contexto_fixo: str, mensagem: str, schema: Optional[dict]) -> Resposta:
+    _garantir_adapter_anthropic_legado()
     resp = chamar_ia(
         funcao,
         [{"role": "user", "content": mensagem}],
@@ -458,13 +469,19 @@ Exemplo: texto "abre os gastos" -> {"acao": "navegar_tela", "confianca": 0.9, "p
 INTENT_PROMPT = INTENT_CONTEXTO_FIXO  # alias p/ compat
 
 INTENT_SCHEMA = {
+    # De proposito SEM "required" e sem "type" em confianca/parametros: o
+    # codigo abaixo (nao o schema) tolera acao desconhecida, confianca
+    # ausente/tipo errado e parametros fora do tipo dict - sempre virando um
+    # palpite seguro (desconhecido/0.0/{}) em vez de estourar a chamada
+    # inteira. As "properties" ficam so como guia de formato pro modelo (o
+    # adapter injeta json.dumps(schema) no prompt) - ver
+    # tests/test_claude_client.py::ClassifyIntentTestCase (anterior a esta
+    # migracao) pra esse contrato de tolerancia.
     "type": "object",
-    "required": ["acao", "confianca", "parametros"],
-    "additionalProperties": False,
     "properties": {
-        "acao": {"type": "string"},
-        "confianca": {"type": "number"},
-        "parametros": {"type": "object"},
+        "acao": {},
+        "confianca": {},
+        "parametros": {},
     },
 }
 

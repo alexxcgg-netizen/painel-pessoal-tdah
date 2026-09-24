@@ -402,22 +402,43 @@ class ChamarIaIntegracaoTestCase(unittest.TestCase):
         base.update(sobrescrever)
         (Path(self.tmp.name) / f"{nome}.json").write_text(json.dumps(base), encoding="utf-8")
 
-    def test_classify_intent_schema_reprova_json_fora_do_formato_e_cai_no_fallback(self):
-        self._escrever_config("classify_intent")
-        # openai (alvo, tentado primeiro) devolve JSON sem "parametros" (obrigatorio no
+    def test_classify_capture_schema_reprova_json_fora_do_formato_e_cai_no_fallback(self):
+        self._escrever_config("classify_capture")
+        # openai (alvo, tentado primeiro) devolve JSON sem "titulo" (obrigatorio no
         # schema) -> reprovado; anthropic (fallback) devolve certinho.
-        self.openai.roteiros = [Resposta(ok=True, dados={"acao": "consultar", "confianca": 0.9},
-                                          provedor="openai", modelo="gpt-6-luna")]
+        dados_incompletos = {
+            "tipo": "tarefa", "valor": None, "categoria": None, "status": None,
+            "quando": None, "hora": None, "duvida": None, "memoria": None,
+        }
+        dados_completos = {**dados_incompletos, "titulo": "Ligar pro dentista"}
+        self.openai.roteiros = [Resposta(ok=True, dados=dados_incompletos, provedor="openai",
+                                          modelo="gpt-6-luna")]
         self.anthropic.roteiros = [Resposta(
-            ok=True, dados={"acao": "consultar", "confianca": 0.9, "parametros": {}},
-            provedor="anthropic", modelo="claude-haiku-4-5-20251001", tokens_in=5, tokens_out=2,
-            custo_usd=0.00001,
+            ok=True, dados=dados_completos, provedor="anthropic",
+            modelo="claude-haiku-4-5-20251001", tokens_in=5, tokens_out=2, custo_usd=0.00001,
         )]
-        resultado, usage = captura.classify_intent("quanto eu gastei")
-        self.assertEqual(resultado["acao"], "consultar")
+        resultado, usage = captura.classify_capture("marca dentista")
+        self.assertEqual(resultado["titulo"], "Ligar pro dentista")
         self.assertEqual(usage["model"], "claude-haiku-4-5-20251001")
         self.assertEqual(len(self.openai.chamadas), 1)
         self.assertEqual(len(self.anthropic.chamadas), 1)
+
+    def test_intent_schema_e_deliberadamente_tolerante_a_confianca_ausente(self):
+        """INTENT_SCHEMA de proposito NAO exige "confianca"/"parametros" nem
+        tipa eles - quem tolera confianca ausente/tipo errado e o codigo em
+        classify_intent (ver ClassifyIntentTestCase em cima), do jeito que
+        tests/test_claude_client.py::ClassifyIntentTestCase (escrito antes
+        desta migracao) ja cobria. Esta faixa exigir isso no schema faria
+        chamar_ia reprovar a resposta e cair no fallback por algo que o
+        proprio classify_intent sempre soube tratar sozinho."""
+        self._escrever_config("classify_intent")
+        self.openai.roteiros = [Resposta(ok=True, dados={"acao": "consultar"}, provedor="openai",
+                                          modelo="gpt-6-luna")]
+        resultado, _usage = captura.classify_intent("quanto eu gastei")
+        self.assertEqual(resultado["acao"], "consultar")
+        self.assertEqual(resultado["confianca"], 0.0)
+        self.assertEqual(resultado["parametros"], {})
+        self.assertEqual(len(self.openai.chamadas), 1)  # nao precisou de fallback
 
     def test_classify_capture_additional_properties_false_reprova_campo_extra(self):
         self._escrever_config("classify_capture", ativo=False)

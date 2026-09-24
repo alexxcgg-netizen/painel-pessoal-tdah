@@ -6,8 +6,11 @@ pista textual em pt-BR que o modelo devolve ("amanha", "sexta que vem", "dia
 num `hoje` fixo passado pelo teste (nunca date.today() implicito, senao o
 teste quebraria dependendo do dia em que rodar).
 """
+import os
 import unittest
 from datetime import date
+
+os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
 from ia.funcoes.captura import resolver_data
 

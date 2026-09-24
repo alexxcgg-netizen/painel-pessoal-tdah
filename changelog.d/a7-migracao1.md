@@ -20,16 +20,22 @@
   (300) - todas `ativo: false` (comportamento atual preservado), `modelo_atual`
   Haiku 4.5, `alvo` GPT-6 Luna esforço médio, fallback pro próprio Haiku.
 - **`tests/test_fase7_a7_resolver_data.py` e `tests/test_fase7_a7_captura.py`
-  (novos)**: 86 testes (dublês, nenhuma chamada real de API) cobrindo formato
+  (novos)**: 87 testes (dublês, nenhuma chamada real de API) cobrindo formato
   de retorno, schema explícito de cada função, resolução de data (incluindo
   fuzz com entradas inválidas/maliciosas/unicode), e fallback entre
   provedores fim-a-fim contra o `ia/core.py` de verdade.
-- **Achado (não corrigido nesta faixa)**: `tests/test_claude_client.py::ClassifyIntentTestCase`
-  mockava o cliente Anthropic de baixo nível (`claude_client.client.messages.create`);
-  como `classify_intent` migrado passa a usar `AdapterAnthropic` (que tem seu
-  próprio cliente), esse mock não intercepta mais nada e a classe (só ela -
-  24 casos) passa a falhar. `tests/test_modo_viagem.py` continua 100% e
-  `tests/test_app.py` passa 528/529 (a única falha é uma das "6 falhas
-  conhecidas, que dependem de horário" já documentadas em
-  `docs/agentes/fase7-regras-faixa.md`, sem relação com esta faixa). Detalhe
-  e pergunta pro integrador em `scripts/ralph-a7-migracao1/progress.txt`.
+- **Compatibilidade com `tests/test_claude_client.py::ClassifyIntentTestCase`**:
+  esse teste mockava o cliente Anthropic de baixo nível
+  (`claude_client.client.messages.create`); migrar `classify_intent` pra
+  `AdapterAnthropic` (que por padrão cria seu próprio cliente) quebrava esse
+  mock. Resolvido reaproveitando `ia.funcoes.chat._garantir_adapter_anthropic
+  _legado()` (faixa A6, trazido pelo merge de `fase7/integracao`) antes de
+  cada chamada, e afrouxando `INTENT_SCHEMA` pra não exigir/tipar
+  `confianca`/`parametros` (quem sempre tolerou esses dois ausentes/com tipo
+  errado foi o código Python de `classify_intent`, não um schema - exigir
+  isso no schema fazia `chamar_ia` reprovar a resposta antes do código
+  rodar). `tests/test_claude_client.py` 100% (30 passed, 17 subtests),
+  `tests/test_modo_viagem.py` 100%, `tests/test_app.py` 528/529 (a única
+  falha é uma das "6 falhas conhecidas, que dependem de horário" já
+  documentadas em `docs/agentes/fase7-regras-faixa.md`, sem relação com esta
+  faixa). Detalhe em `scripts/ralph-a7-migracao1/progress.txt`.
