@@ -15,6 +15,7 @@ from typing import Optional
 
 import anthropic
 
+from ia import precos
 from ia.contrato import Adapter, Resposta
 
 # Mapa PT->valor aceito pela API em output_config.effort. "xhigh" e "max" ja
@@ -40,7 +41,7 @@ CACHE_MIN_TOKENS_POR_MODELO = {
 }
 CACHE_MIN_TOKENS_PADRAO = 1024
 
-CAMINHO_PRECOS = Path(__file__).resolve().parent.parent / "precos.json"
+CAMINHO_PRECOS = precos.CAMINHO_PRECOS
 
 
 def _cache_min_tokens(modelo: str) -> int:
@@ -91,37 +92,7 @@ def _extrair_json(texto: str) -> Optional[dict]:
 
 def _calcular_custo_usd(modelo: str, tokens_in: int, tokens_out: int,
                          tokens_cache_lido: int, tokens_cache_escrito: int) -> float:
-    """Le ia/precos.json (formato ainda sendo definido pela faixa A4) e tenta
-    calcular o custo. Leitura defensiva: arquivo ausente (A4 ainda nao
-    terminou) ou formato inesperado -> custo_usd fica 0.0, nunca quebra a
-    chamada.
-    # TODO: A4 preenche ia/precos.json — reconferir aqui o formato real
-    # assim que existir (esta funcao assume
-    # {"<modelo>": {"input_por_mtok": x, "output_por_mtok": y,
-    #                "cache_leitura_por_mtok": z, "cache_escrita_por_mtok": w}}
-    # como palpite provisorio de layout).
-    """
-    try:
-        with open(CAMINHO_PRECOS, "r", encoding="utf-8") as f:
-            tabela = json.load(f)
-    except FileNotFoundError:
-        return 0.0
-    except (json.JSONDecodeError, OSError):
-        return 0.0
-
-    try:
-        precos_modelo = tabela.get(modelo)
-        if not precos_modelo:
-            return 0.0
-        custo = (
-            tokens_in * precos_modelo.get("input_por_mtok", 0) / 1_000_000
-            + tokens_out * precos_modelo.get("output_por_mtok", 0) / 1_000_000
-            + tokens_cache_lido * precos_modelo.get("cache_leitura_por_mtok", 0) / 1_000_000
-            + tokens_cache_escrito * precos_modelo.get("cache_escrita_por_mtok", 0) / 1_000_000
-        )
-        return round(custo, 6)
-    except (AttributeError, TypeError):
-        return 0.0
+    return precos.custo_usd(modelo, tokens_in, tokens_out, tokens_cache_lido, tokens_cache_escrito)
 
 
 class AdapterAnthropic(Adapter):

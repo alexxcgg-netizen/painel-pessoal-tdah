@@ -1,44 +1,46 @@
 {
   "conferido_em": "2026-09-23",
-  "cambio_usd_brl": 5.50,
+  "cambio_usd_brl": 5.5,
   "_comentario": "Precos por 1M tokens, em USD. Confirmados com o Alex em 2026-09-23 pra migracao hibrida (Anthropic + OpenAI). Reconferir antes de qualquer mudanca de preco real do provedor.",
   "modelos": {
     "gpt-6-luna": {
-      "entrada": 0.10,
-      "saida": 0.50,
+      "entrada": 0.1,
+      "saida": 0.5,
       "cache_leitura": 0.01,
       "cache_escrita": 0.125
     },
     "gpt-6-sol": {
-      "entrada": 2.00,
-      "saida": 10.00,
-      "cache_leitura": 0.20,
-      "cache_escrita": 2.50,
-      "_comentario": "Acima de 272000 tokens de entrada: 2x entrada, 1.5x saida (nao aplicado automaticamente aqui - quem calcular custo precisa checar o tamanho da entrada)."
+      "entrada": 2.0,
+      "saida": 10.0,
+      "cache_leitura": 0.2,
+      "cache_escrita": 2.5,
+      "limiar_tokens_in": 272000,
+      "multiplicador_entrada_acima": 2.0,
+      "multiplicador_saida_acima": 1.5
     },
     "claude-sonnet-5": {
-      "entrada": 2.00,
-      "saida": 10.00,
-      "cache_leitura": 0.20,
-      "cache_escrita_5min": 2.50,
-      "cache_escrita_1h": 4.00
+      "entrada": 2.0,
+      "saida": 10.0,
+      "cache_leitura": 0.2,
+      "cache_escrita_5min": 2.5,
+      "cache_escrita_1h": 4.0
     },
     "claude-haiku-4-5-20251001": {
-      "entrada": 1.00,
-      "saida": 5.00,
+      "entrada": 1.0,
+      "saida": 5.0,
       "cache_leitura": null,
       "cache_escrita": null,
       "_comentario": "cache: conferir"
     },
     "claude-opus-5-5": {
-      "entrada": 4.00,
-      "saida": 20.00,
-      "cache_leitura": 0.20,
-      "cache_escrita": 5.00
+      "entrada": 4.0,
+      "saida": 20.0,
+      "cache_leitura": 0.2,
+      "cache_escrita": 5.0
     },
     "gemini-3-5-flash-lite": {
-      "entrada": 0.30,
-      "saida": 2.50,
+      "entrada": 0.3,
+      "saida": 2.5,
       "cache_leitura": null,
       "cache_escrita": null,
       "_comentario": "Desligado por padrao. Precos ~aproximados, cache: conferir."

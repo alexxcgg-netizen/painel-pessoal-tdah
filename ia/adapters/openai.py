@@ -37,6 +37,7 @@ from typing import Optional
 
 import openai
 
+from ia import precos
 from ia.contrato import Adapter, Resposta
 
 # Esforco (contrato usa baixo/medio/alto) -> `reasoning_effort` da Chat
@@ -166,42 +167,7 @@ class AdapterOpenAI(Adapter):
     @staticmethod
     def _calcular_custo(modelo: str, tokens_in: int, tokens_out: int,
                          tokens_cache_lido: int, tokens_cache_escrito: int) -> float:
-        # TODO: confirmar com a faixa A4 o formato real de ia/precos.json
-        # quando o arquivo dela existir/estabilizar - o formato usado aqui
-        # (provedor -> modelo -> entrada/saida/cache_leitura/cache_escrita,
-        # USD por 1M tokens) e uma suposicao razoavel desta faixa (A3),
-        # NAO confirmada com a A4. Tambem nao aplica o preco escalonado do
-        # GPT-6 Sol acima de 272 mil tokens de entrada (2x entrada, 1.5x
-        # saida) - fica como TODO ate o schema de precos.json expor esses
-        # limiares (`limiar_tokens_in`, `multiplicador_entrada_acima`,
-        # `multiplicador_saida_acima`, testados aqui se existirem, mas sem
-        # garantia de que a A4 vai usar esses nomes).
-        try:
-            with open(_PRECOS_PATH, "r", encoding="utf-8") as f:
-                precos = json.load(f)
-            preco_modelo = precos["openai"][modelo]
-            entrada = float(preco_modelo.get("entrada", 0.0))
-            saida = float(preco_modelo.get("saida", 0.0))
-            cache_leitura = float(preco_modelo.get("cache_leitura", 0.0))
-            cache_escrita = float(preco_modelo.get("cache_escrita", 0.0))
-
-            mult_entrada, mult_saida = 1.0, 1.0
-            limiar = preco_modelo.get("limiar_tokens_in")
-            if limiar and tokens_in > limiar:
-                mult_entrada = float(preco_modelo.get("multiplicador_entrada_acima", 1.0))
-                mult_saida = float(preco_modelo.get("multiplicador_saida_acima", 1.0))
-
-            custo = (
-                (tokens_in / 1_000_000) * entrada * mult_entrada
-                + (tokens_out / 1_000_000) * saida * mult_saida
-                + (tokens_cache_lido / 1_000_000) * cache_leitura
-                + (tokens_cache_escrito / 1_000_000) * cache_escrita
-            )
-            return round(custo, 8)
-        except Exception:
-            # Sem ia/precos.json, sem o modelo la, ou qualquer formato
-            # inesperado: nunca quebra a chamada por causa de custo.
-            return 0.0
+        return precos.custo_usd(modelo, tokens_in, tokens_out, tokens_cache_lido, tokens_cache_escrito)
 
     # -- chamada principal ---------------------------------------------
 
