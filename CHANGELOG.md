@@ -5,6 +5,25 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-24 (Fase 7, X2) - frontend dividido por secao (so estrutura)
+
+Mudanca estrutural pura pra ~10 faixas de visual rodarem em paralelo sem editar o mesmo
+arquivo. Zero mudanca de comportamento/visual: HTML renderizado de `/` identico (fora os
+acrescimos vazios abaixo), mesmos globais JS, mesmo DOM depois de abrir todas as abas,
+screenshots Hoje/Vida iguais. Branch `fase7/e0-frontend`. Mapa: `docs/agentes/mapa-frontend.md`.
+- `templates/index.html` so faz `{% include %}`: `head.html`, `secoes/topo/`,
+  `abas/<aba>.html` -> `secoes/<aba>/<secao>.html` (uma por h2), `navegacao.html`, `scripts.html`.
+- `app.js`/`vida.js` -> `static/js/nucleo/*.js` (compartilhado + `init.js` com a carga inicial)
+  e `static/js/secoes/<aba>/<secao>.js` (mesmos nomes do HTML). Ordem de carga conferida por
+  analise estatica e no navegador.
+- `static/css/fase7.css` (depois do `style.css`) importa camadas vazias: `ui/tokens.css`,
+  `ui/componentes/*.css`, `secoes/<aba>.css`, `secoes/<aba>/<secao>.css`.
+- Vazios pras faixas: aba `assistente` (escondida, sem botao), `#caixa-assistente` no topo da
+  Hoje, `secoes/assistente/{caixa,regras,avisos}` (HTML/JS/CSS), `ui/bottom-sheet.js`,
+  `ui/secao-recolhivel.js`.
+- Service worker v14 com todos os arquivos novos no precache; teste
+  `tests/test_fase7_estrutura_frontend.py` guarda isso.
+
 ## 2026-09-23 (Fase 6) - correcoes da revisao independente (codigo + seguranca)
 
 Revisao independente da Fase 6 (seguranca + codigo) achou 14 pontos; todos
