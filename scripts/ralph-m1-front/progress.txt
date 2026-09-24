@@ -23,3 +23,14 @@ PENDENTE PRO INTEGRADOR (fora dos meus arquivos)
    header Authorization de exemplo). Nao sao da M1.
 4. Quando db.ENTIDADES_DESFAZIVEIS aprender assinatura/compra_parcelada, esvaziar
    TIPOS_DESFAZER_FINANCAS em static/js/cards.js.
+
+RODADA 2 (porta 5141; donos + bottom-sheet.js, campo.css, secao.css, secao-recolhivel.js,
+viagens.css, lugares.css) - [x] H1..H5, bloqueadas: nenhuma.
+[x] H1 bottom-sheet: timer de finalizar por sheet, clearTimeout ao reabrir
+[x] H2 campo.css: fundo --superficie-1 (placeholder 4.3 -> 4.82:1, medido no Playwright)
+[x] H3 style.css: comentario "-*/" -> "-* /"; uppercase do .garantia-chip removido
+[x] H4 viagens/lugares.css: ::after local (inset -12px) removido
+[x] H5 secao-recolhivel.js: inert no conteudo recolhido (secao.css sem mudanca)
+Verificacao: JS 226/226; estrutura/c2/m1/c3b 18 passed; verificar_r2.py OK (0 console, 0 rede).
+PENDENTE PRO INTEGRADOR (r2): docs/MASTER.md "Campo" ainda diz background --superficie-3
+(da 4.3:1 com --text-faint); campo.css e vida.css usam --superficie-1 (dono: C2).
