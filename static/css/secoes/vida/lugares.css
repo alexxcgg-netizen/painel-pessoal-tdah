@@ -6,15 +6,9 @@
    dos sheets da faixa fica em secoes/vida/viagens.css (#lugar-sheet ja esta la). Aqui so a
    lista. O mapa (Leaflet) nao muda: mesmo SRI, mesmo popup por textContent. */
 
-[data-secao-id="vida-lugares"] .dica-toggle {
-  position: relative;
-}
-
-[data-secao-id="vida-lugares"] .dica-toggle::after {
-  content: "";
-  position: absolute;
-  inset: -12px;
-}
+/* M1 r2: a area de toque de 44px da dica "!" vem so do componente (ui/componentes/secao.css,
+   `.dica-toggle::after` centrado). O ::after local com `inset: -12px` somava com o do
+   componente (left/top 50% + translate) e jogava a area de toque pro canto. */
 
 /* Bloco interno dentro do card da secao (mesma receita de #lista-viagens). */
 #lista-lugares > li.item {

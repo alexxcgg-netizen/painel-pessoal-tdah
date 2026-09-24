@@ -149,7 +149,48 @@ def passo_garantia_chip(page):
     return falhas
 
 
-PASSOS = [passo_contraste, passo_contraste_varredura, passo_garantia_chip]
+JS_TOQUE = r"""
+(el) => {
+  el.scrollIntoView({ block: "center" });
+  const r = el.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const depois = getComputedStyle(el, "::after");
+  const pontos = [[0, 0], [-20, 0], [20, 0], [0, -20], [0, 20], [-20, -20], [20, 20]];
+  // Ponto "morto" = dentro dos 44px da dica mas o toque cai em algo que nao e controle. Cair
+  // num controle vizinho (ex.: o cabecalho da secao logo acima, que corta o ::after pela borda
+  // de cima do conteudo) e sobreposicao legitima, nao area perdida.
+  const erros = pontos.filter(([dx, dy]) => {
+    const alvo = document.elementFromPoint(cx + dx, cy + dy);
+    if (alvo === el || el.contains(alvo)) return false;
+    return !(alvo && alvo.closest("button, a[href], input, select, textarea, summary"));
+  });
+  const quem = erros.map(([dx, dy]) => {
+    const a = document.elementFromPoint(cx + dx, cy + dy);
+    return a ? a.tagName.toLowerCase() + (a.id ? "#" + a.id : "") + (a.className && a.className.baseVal === undefined ? "." + String(a.className).trim().split(/\s+/).join(".") : "") : "nada";
+  });
+  return { largura: depois.width, altura: depois.height, inset: depois.inset, falhos: erros.map(String), quem };
+}
+"""
+
+
+def passo_toque_dica(page):
+    """H4: a dica "!" de Viagens e Lugares tem 44px de toque CENTRADOS no botao (hit-test em
+    +-20px do centro)."""
+    falhas = []
+    ir_para_aba(page, "vida")
+    for secao in ("vida-viagens", "vida-lugares"):
+        sec = page.locator(f'[data-secao-id="{secao}"]')
+        if sec.get_attribute("data-aberto") != "true":
+            sec.locator(".secao-cabecalho").first.click()
+            page.wait_for_timeout(400)
+        r = sec.locator(".dica-toggle").first.evaluate(JS_TOQUE)
+        print(f"toque da dica em {secao}:", r)
+        if r["falhos"]:
+            falhas.append(f"{secao}: pontos fora da area de toque {r['falhos']}")
+    return falhas
+
+
+PASSOS = [passo_contraste, passo_contraste_varredura, passo_garantia_chip, passo_toque_dica]
 
 if __name__ == "__main__":
     sys.exit(main())
