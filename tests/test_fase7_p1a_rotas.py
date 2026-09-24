@@ -219,13 +219,15 @@ class RotasP1aTestCase(unittest.TestCase):
         self.assertEqual(total, 1)
 
     def test_tick_chama_executar_todos_de_verdade(self):
-        # assistente.gatilhos.executar_todos (Etapa 0/X1) roda de verdade -
-        # sem gatilho nenhum registrado (nenhum arquivo meu em
-        # assistente/gatilhos/), devolve {} (relatorio vazio), nao None.
+        # assistente.gatilhos.executar_todos (Etapa 0/X1) roda de verdade: o
+        # relatorio traz uma entrada por gatilho real de assistente/gatilhos/.
+        from assistente import gatilhos
         self._datetime_travado(self.AGORA_TESTE)
         resp = self.client.post("/api/tick", headers={"Authorization": "Bearer token-de-teste-123"})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()["gatilhos"], {})
+        relatorio = resp.get_json()["gatilhos"]
+        self.assertIsInstance(relatorio, dict)
+        self.assertEqual(set(relatorio), set(gatilhos.nomes_gatilhos()))
 
     def test_tick_repassa_relatorio_de_executar_todos(self):
         with patch("rotas.p1a_caixa.executar_todos", return_value={"p2_perguntas": {"ok": True}}) as mock_exec:
