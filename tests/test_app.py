@@ -7635,14 +7635,25 @@ class NotificacaoAgrupadaTestCase(_Fase5GrupoCTestCase):
         )
         self.assertEqual(res.status_code, 200)
 
-    def _forcar_janela_vencida(self, minutos_atras=5):
+    def _forcar_janela_vencida(self, minutos_atras=5, agora=None):
         """Reescreve o 'inicio' guardado da fila de agrupamento pra simular
         que a janela ja passou, sem precisar mockar datetime em varios
-        modulos diferentes."""
+        modulos diferentes.
+
+        `agora` precisa ser o MESMO relogio congelado que `app.datetime`
+        esta usando no teste que chama isso (por padrao,
+        `self._horario_seguro()`) - nunca o relogio real. Antes este metodo
+        usava `datetime.now()` (real) pra calcular o 'inicio'; como
+        `_horario_seguro()` congela o app numa data fixa no passado, assim
+        que o calendario real passasse dessa data o 'inicio' calculado a
+        partir do relogio real ficava POSTERIOR ao 'agora' mockado do app -
+        a janela nunca era vista como vencida (0 avisos em vez de 3). Ver
+        `changelog.d/a12-testes.md`."""
+        agora = agora if agora is not None else self._horario_seguro()
         conn = db.get_db()
         guardado = json.loads(db.obter_configuracao(conn, "notificacoes_agrupadas_fila") or "{}")
         self.assertTrue(guardado.get("itens"), msg="fila deveria ter pelo menos um item enfileirado")
-        guardado["inicio"] = (datetime.now() - timedelta(minutes=minutos_atras)).isoformat()
+        guardado["inicio"] = (agora - timedelta(minutes=minutos_atras)).isoformat()
         db.definir_configuracao(conn, "notificacoes_agrupadas_fila", json.dumps(guardado))
         conn.commit()
         conn.close()
@@ -7661,12 +7672,19 @@ class NotificacaoAgrupadaTestCase(_Fase5GrupoCTestCase):
         conn.close()
 
     def _horario_seguro(self):
-        """14h de uma quarta-feira - fora de qualquer janela de horario fixo
+        """14h de HOJE (data real) - fora de qualquer janela de horario fixo
         que o modulo dispara sozinho (rotina da manha 07:00, planejamento
         semanal so aos domingos 20:30, hora de dormir 22:00, fechamento
-        21:00) - sem isso, o teste ficaria sujeito a coincidir com uma
-        dessas janelas dependendo de que horas ele realmente roda."""
-        return datetime(2026, 9, 23, 14, 0)
+        21:00, todas so checadas pela HORA, nenhuma pelo dia da semana a
+        essa hora) - sem isso, o teste ficaria sujeito a coincidir com uma
+        dessas janelas dependendo de que horas ele realmente roda.
+
+        Usa `date.today()` (real) em vez de uma data fixa no passado
+        (antes: `datetime(2026, 9, 23, 14, 0)`) - uma data fixa comparada
+        contra o relogio real em outro ponto do teste (ver
+        `_forcar_janela_vencida`) fica no passado assim que o calendario
+        real avanca, e so a HORA 14 precisa ser fixa aqui, nunca o dia."""
+        return datetime.combine(date.today(), datetime.min.time()).replace(hour=14)
 
     def test_desligado_por_padrao_manda_cada_aviso_separado(self):
         self._duas_condicoes_nao_urgentes()
