@@ -1,0 +1,21 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 13h5"/></svg>
+        Projetos
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de projetos"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Qualquer coisa com etapas e prazo - reforma, lancamento, ate a expansao da construtora como
+          projeto (so nome/etapa/marco, nunca numero financeiro - isso fica no sistema da construtora).
+          Viagem continua separada (aba Aviacao/Vida) - o card de viagem so empresta esse mesmo formato
+          visual, sem migrar dado nenhum.
+        </p>
+      </div>
+      <form id="projeto-form" class="form-linha">
+        <input type="text" id="projeto-nome" placeholder="Projeto (ex: Reforma do quarto)" maxlength="120" required />
+        <input type="date" id="projeto-prazo" aria-label="Prazo final (opcional)" />
+        <button type="submit" id="projeto-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+      <p id="projetos-vazio" class="vazio" hidden>Nenhum projeto cadastrado.</p>
+      <ul id="lista-projetos" class="lista-projetos"></ul>
+
