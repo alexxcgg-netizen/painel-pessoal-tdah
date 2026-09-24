@@ -358,3 +358,88 @@ test("salvarEstado sem secaoId e no-op (nao lanca, nao grava)", () => {
     assert.equal(ls._dados.size, 0);
   });
 });
+
+// ---- M1 r2: conteudo recolhido fora do Tab (inert) -----------------------------
+
+test("secao que comeca fechada deixa o conteudo inert; aberta, nao", () => {
+  comLocalStorage(() => {
+    const fechada = criarSecao({ abertoInicial: false });
+    SecaoRecolhivel.ligarUma(fechada.secao);
+    assert.equal(fechada.conteudo.inert, true);
+
+    const aberta = criarSecao({ abertoInicial: true });
+    SecaoRecolhivel.ligarUma(aberta.secao);
+    assert.equal(aberta.conteudo.inert, false);
+  });
+});
+
+test("clique no cabecalho liga/desliga o inert do conteudo junto com aria-expanded", () => {
+  comLocalStorage(() => {
+    const { secao, cabecalho, conteudo } = criarSecao({ abertoInicial: false });
+    SecaoRecolhivel.ligarUma(secao);
+    for (let i = 0; i < 6; i++) {
+      cabecalho.disparar("click");
+      const aberto = secao.dataset.aberto === "true";
+      assert.equal(conteudo.inert, !aberto);
+      assert.equal(cabecalho.getAttribute("aria-expanded"), String(aberto));
+    }
+  });
+});
+
+test("estado salvo no localStorage (fechado) vence o data-aberto=true e ja nasce inert", () => {
+  comLocalStorage((ls) => {
+    ls.setItem(SecaoRecolhivel.CHAVE_PREFIXO + "sec-inerte", "0");
+    const { secao, conteudo } = criarSecao({ id: "sec-inerte", abertoInicial: true });
+    SecaoRecolhivel.ligarUma(secao);
+    assert.equal(secao.dataset.aberto, "false");
+    assert.equal(conteudo.inert, true);
+  });
+});
+
+test("recolher com o foco dentro do conteudo devolve o foco pro cabecalho", () => {
+  comLocalStorage(() => {
+    const { secao, cabecalho, conteudo } = criarSecao({ abertoInicial: true });
+    const botaoInterno = new ElementoFalso("button", []);
+    conteudo.appendChild(botaoInterno);
+    conteudo.contains = (el) => conteudo._todosDescendentes().includes(el);
+    const docAntes = global.document;
+    const docFalso = { activeElement: botaoInterno };
+    cabecalho.focus = () => {
+      docFalso.activeElement = cabecalho;
+    };
+    global.document = docFalso;
+    try {
+      SecaoRecolhivel.ligarUma(secao);
+      assert.equal(docFalso.activeElement, botaoInterno, "abrir nao mexe no foco");
+      cabecalho.disparar("click"); // recolhe
+      assert.equal(conteudo.inert, true);
+      assert.equal(docFalso.activeElement, cabecalho);
+    } finally {
+      if (docAntes === undefined) delete global.document;
+      else global.document = docAntes;
+    }
+  });
+});
+
+test("recolher com o foco fora do conteudo nao rouba o foco", () => {
+  comLocalStorage(() => {
+    const { secao, cabecalho, conteudo } = criarSecao({ abertoInicial: true });
+    conteudo.contains = (el) => conteudo._todosDescendentes().includes(el);
+    const outro = new ElementoFalso("input", []);
+    let focou = false;
+    cabecalho.focus = () => {
+      focou = true;
+    };
+    const docAntes = global.document;
+    global.document = { activeElement: outro };
+    try {
+      SecaoRecolhivel.ligarUma(secao);
+      cabecalho.disparar("click");
+      assert.equal(conteudo.inert, true);
+      assert.equal(focou, false);
+    } finally {
+      if (docAntes === undefined) delete global.document;
+      else global.document = docAntes;
+    }
+  });
+});

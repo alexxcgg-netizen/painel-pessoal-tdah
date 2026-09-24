@@ -190,7 +190,93 @@ def passo_toque_dica(page):
     return falhas
 
 
-PASSOS = [passo_contraste, passo_contraste_varredura, passo_garantia_chip, passo_toque_dica]
+def estado_sheet(page, sid):
+    return page.evaluate("""(id) => { const s = document.getElementById(id); return {
+        hidden: s.hidden, aberto: s.classList.contains('bottom-sheet--aberto'),
+        fechando: s.classList.contains('bottom-sheet--fechando'), noBody: s.parentNode === document.body,
+        travado: document.body.classList.contains('bottom-sheet-bloqueado'),
+        visivel: !!(s.offsetWidth || s.offsetHeight) }; }""", sid)
+
+
+def passo_sheet_rajada(page):
+    """H1: abre, fecha (ESC) e reabre o sheet dentro da janela de 240ms, 20 vezes. No fim ele
+    tem que estar aberto e visivel; fechando de verdade, some e destrava o scroll; e abre de novo."""
+    falhas = []
+    ir_para_aba(page, "vida")
+    sid = "sheet-compra"
+    page.evaluate("""(id) => { window.__m1Fechados = 0; document.getElementById(id)
+        .addEventListener('bottomsheet:fechado', () => window.__m1Fechados++); }""", sid)
+    for i in range(20):
+        page.evaluate("id => window.abrirBottomSheet(id)", sid)
+        page.wait_for_timeout(60)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(40 + (i % 5) * 35)  # 40..180ms: sempre dentro dos 240ms
+    page.evaluate("id => window.abrirBottomSheet(id)", sid)
+    page.wait_for_timeout(600)
+    e = estado_sheet(page, sid)
+    print("sheet depois de 20 rajadas (deve estar aberto):", e)
+    if e["hidden"] or not e["aberto"] or not e["visivel"] or not e["travado"] or e["fechando"]:
+        falhas.append(f"sheet preso depois da rajada: {e}")
+    # Nenhum fechamento da rajada chegou a terminar (todos foram cancelados pela reabertura):
+    # timer velho vivo finalizava um fechamento posterior antes da hora e emitia "fechado".
+    fechados = page.evaluate("window.__m1Fechados")
+    print("bottomsheet:fechado durante a rajada (deve ser 0):", fechados)
+    if fechados:
+        falhas.append(f"{fechados} fechamento(s) finalizado(s) por timer velho durante a rajada")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(600)
+    e = estado_sheet(page, sid)
+    print("sheet fechado de verdade:", e)
+    if not e["hidden"] or e["travado"] or e["noBody"]:
+        falhas.append(f"sheet nao fechou limpo: {e}")
+    page.click("#compra-abrir-btn")
+    page.wait_for_timeout(500)
+    e = estado_sheet(page, sid)
+    if not e["aberto"] or not e["visivel"]:
+        falhas.append(f"sheet nao reabriu pelo botao: {e}")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(500)
+    return falhas
+
+
+def passo_tab_recolhida(page):
+    """H5: Tab a partir do cabecalho de uma secao RECOLHIDA pula o conteudo dela."""
+    falhas = []
+    ir_para_aba(page, "vida")
+    for sid in ("vida-lista-de-compras", "vida-viagens"):
+        sec = page.locator(f'[data-secao-id="{sid}"]')
+        cab = sec.locator(".secao-cabecalho").first
+        if sec.get_attribute("data-aberto") == "true":
+            cab.click()
+            page.wait_for_timeout(500)
+        focaveis = sec.locator(".secao-conteudo").evaluate(
+            "c => c.querySelectorAll('button, a[href], input, select, textarea, [tabindex]').length")
+        cab.focus()
+        dentro = []
+        for _ in range(3):
+            page.keyboard.press("Tab")
+            info = page.evaluate("""(sid) => { const a = document.activeElement;
+                const c = document.querySelector('[data-secao-id="' + sid + '"] .secao-conteudo');
+                return { dentro: c.contains(a), quem: a.tagName + (a.id ? '#' + a.id : '') + '.' + a.className, inert: c.inert }; }""", sid)
+            if info["dentro"]:
+                dentro.append(info["quem"])
+            page.keyboard.press("Shift+Tab")  # volta pro cabecalho e tenta de novo
+        print(f"Tab na secao recolhida {sid}: {focaveis} focaveis escondidos, inert={info['inert']}, caiu dentro {len(dentro)}x")
+        if dentro:
+            falhas.append(f"{sid}: Tab entrou no conteudo recolhido ({dentro})")
+        # reabre: o conteudo volta pro Tab
+        cab.click()
+        page.wait_for_timeout(500)
+        cab.focus()
+        page.keyboard.press("Tab")
+        if focaveis and not page.evaluate(
+                "(sid) => document.querySelector('[data-secao-id=\"' + sid + '\"] .secao-conteudo').contains(document.activeElement)", sid):
+            falhas.append(f"{sid}: reaberta, o Tab nao entra no conteudo")
+    return falhas
+
+
+PASSOS = [passo_contraste, passo_contraste_varredura, passo_garantia_chip, passo_toque_dica,
+          passo_sheet_rajada, passo_tab_recolhida]
 
 if __name__ == "__main__":
     sys.exit(main())

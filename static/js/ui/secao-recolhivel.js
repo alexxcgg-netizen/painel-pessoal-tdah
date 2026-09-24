@@ -79,6 +79,31 @@ const SecaoRecolhivel = (function () {
     }
   }
 
+  // ---- teclado: conteudo recolhido fora do Tab (M1 r2) ----
+  //
+  // Recolhida, a secao so tem max-height 0 + overflow hidden: os botoes/campos de dentro
+  // continuavam no Tab (foco "sumia" dentro de uma caixa de altura zero) e no leitor de tela.
+  // `inert` tira tudo isso do Tab, do clique e da arvore de acessibilidade, sem mudar o visual
+  // nem a transicao de altura (o conteudo segue visivel enquanto encolhe). Se o foco estava
+  // dentro do conteudo na hora de recolher, ele volta pro cabecalho em vez de cair no <body>.
+
+  function contemFoco(conteudoEl) {
+    if (typeof document === "undefined" || !document || typeof conteudoEl.contains !== "function") return false;
+    const ativo = document.activeElement;
+    return !!ativo && ativo !== conteudoEl && conteudoEl.contains(ativo);
+  }
+
+  function definirInerte(conteudoEl, cabecalhoEl, inerte) {
+    if (inerte && cabecalhoEl && typeof cabecalhoEl.focus === "function" && contemFoco(conteudoEl)) {
+      cabecalhoEl.focus();
+    }
+    try {
+      conteudoEl.inert = inerte;
+    } catch (erro) {
+      // navegador sem suporte a `inert`: a secao continua funcionando, so sem essa guarda
+    }
+  }
+
   // ---- estado aberto/fechado (DOM + aria + localStorage) ----
 
   function definirAberto(secaoEl, cabecalhoEl, conteudoEl, aberto, opts) {
@@ -88,6 +113,7 @@ const SecaoRecolhivel = (function () {
       cabecalhoEl.setAttribute("aria-expanded", aberto ? "true" : "false");
     }
     if (conteudoEl) {
+      definirInerte(conteudoEl, cabecalhoEl, !aberto);
       if (opts.semAnimar) {
         conteudoEl.style.maxHeight = aberto ? "none" : "0px";
       } else if (aberto) {
