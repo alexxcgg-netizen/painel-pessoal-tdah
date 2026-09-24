@@ -1,58 +1,41 @@
-Faixa C1 (polimento do backend) - branch fase7/c1-backend - estado
-Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
-  tests/test_fase7_infra_rotas.py (so no paralelo; sozinho passa - nao e meu arquivo).
+Faixa C1 (polimento do backend) - branch fase7/c1-backend - estado final
+Base: suite na integracao = 3311 ok + 1 falha intermitente (infra_rotas, vazamento da N2).
+Fim: scripts/suite.sh = Python 3414 passed, 1276 subtests | JS 196 pass, 0 fail.
 
-[done] H1 chat + A5 + medicao: app passa contexto_fixo/conn/medir_uso=True via
-  claude_client.opcoes_chat (contextvar - 40+ dubles fake_chat(m,c,mem,ex) em
-  arquivos que nao sao meus quebrariam com kwargs). Fonte unica do gasto:
-  ia.medicao.gasto_mes_atual = uso_ia + api_usage SO antes da 1a linha de uso_ia
-  do mes (virada). Teto unico: app._teto_ia_estourado(funcao) -> ia.teto (R$40).
-  _chamar_json direto (decisao/msg dificil ativo:false) checa teto e grava uso_ia.
-  ia/historico: vai literal tudo que nao foi resumido (max 20), sem buraco.
-[done] H2 erros de IA: ia.core.FalhaChamadaIA(ValueError) > TetoEstourado/ErroProvedor/
-  RespostaInvalida + classificar_falha/excecao_de_resposta. A6/A7/A8/A9 levantam a certa;
-  _call_claude: teto 402 TETO_IA_MSG, provedor 502 CLAUDE_ERROR_MSG. Visao levantava
-  RuntimeError (500 cru) - corrigido. Plano dentro do chat com teto nao derruba a conversa.
-[done] H3 fechamento_noturno x P3: app._briefing_noite_p3_substitui_fechamento -
-  com assistente.p3.ativo ligada E PAINEL_TICK_TOKEN configurado, o push antigo
-  das 21h fica calado (sem tick o briefing nunca sai, entao o antigo continua).
-[done] H4 construtora: app le so via construtora_cliente (instancia padrao, mesmo cache;
-  _CACHE_CONSTRUTORA = o dict do cliente). Filtro na entrada: resumo so status/entradas/
-  saidas; contas so 5 campos. Contexto IA e push de conta: nome + tempo, sem valor
-  (valor so na lista da aba, que o Alex abre). Rota aceita CONSTRUTORA_API_MOCK=1.
-  PARA C2: a aba Construtora continua igual (dados.tot_entradas/tot_saidas + contas).
-[done] H5 percentual de meta: calculos.percentual_meta_exibicao (float, 1 casa) em
-  cards.card_meta, app._consultar_meta e /api/progresso (mudou de int pra 1 casa:
-  seu-progresso.js mostra "33.3%" - PARA C2 conferir se quer Math.round na tela).
-[done] H6 Caixa x P8: avisos.TIPO_POR_ORIGEM/tipo_de_origem (origem do item -> chave de
-  TIPOS). caixa.enfileirar nao cria item de tipo desligado (so esta_ligado); push em
-  processar_repeticoes usa aviso_permitido completo com a chave fina + canal "caixa" =
-  sem push. Bug achado: P3 usava origem "p3_briefing_noite:" (prefixo != arquivo), a P1a
-  nunca achava o ao_resolver (humor do fechamento nao gravava) - agora "p3_briefing:noite:".
-  Teste p3_gatilho poluia p1a_caixa no mesmo processo (pop do sys.modules) - corrigido.
-[done] H7 N1 nos cards: assinatura/compra_parcelada/resumo_financeiro_recorrente em
-  TIPOS_CARD, CAMPOS_SENSIVEIS e ABA_POR_ENTIDADE (aba gastos); builders em cards.py (N1
-  usa). Bug: /api/desfazer geral marcava token N1 como desfeito sem reverter - agora
-  reverte (mesma transacao). PARA C2: data leva aliases pro renderizador V1 (cartao,
-  em_dias, restantes, termina_em, total_mes, n_assinaturas, n_parcelas, proxima_cobranca)
-  - escolher um nome so. V1 diz "nunca esconde valor"; servidor esconde no modo visitante.
-[done] H8 A9 ativo=true: adapter OpenAI converte image/document (formato Anthropic) em
-  image_url/file (file_data data URI - guia oficial PDF da OpenAI); nao-PDF -> ok=False
-  -> fallback. Gemini NAO converte (documentado em docs/ia-provedores.md).
-[done] H9 Telegram: telegram_captura.modo_telegram (flag TELEGRAM_MODO + deteccao por
-  TELEGRAM_WEBHOOK_SECRET; TELEGRAM_BOT_TOKEN_CAPTURA = bot separado). app.iniciar_telegram
-  so sobe polling quando pode; webhook fora do modo -> 503. docs/telegram-captura.md #7.
-  PARA integrador: .env.example ganha TELEGRAM_MODO e TELEGRAM_BOT_TOKEN_CAPTURA.
-[done] H10 fuzz: scripts/ralph-c1-backend/fuzz.py (172 cenarios: chat, tick, sinal, financas,
-  p4, assistente, JSON ruim, gigante, datas/valores ruins, 20 threads na Caixa+teto, 20
-  ticks paralelos, integrity_check, guarda de socket: 0 conexao externa). Achou 15 -> 0:
-  N1 (Decimal NaN/inf/bool/gigante -> 500; data invalida gravada quebrava a listagem;
-  100000 parcelas passava do ano 9999), p4 confirmar/pausar e caixa responder com corpo
-  lista/tipo errado. Regressao em tests/test_fase7_c1_robustez.py.
-[done] Pedidos do integrador: (a) conftest aponta ANTHROPIC/OPENAI/GEMINI_BASE_URL pra
-  127.0.0.1:9 (nenhum teste sai da maquina); fuzz com guarda de socket (0 conexao externa).
-  (b) N1: validacao antes do INSERT + leituras pulam linha ruim ja gravada (log) - GET
-  parcelas/comprometido nunca mais 500; 1e308/inf/NaN -> 400 (teto 1e9). (c) construtora
-  sem lucro/margem ja na H4 (fuzz confere). (d) vazamentos entre testes: n2_telegram_rota
-  (rotas._base.app_modulo na importacao), n3a (atributo rotas._base), a10 (_padrao mock),
-  p3_gatilho (sys.modules caixa), p3_rotas (checagem via sys.modules) - todos corrigidos.
+[done] H1 chat: A5 (contexto_fixo) + conn + medir_uso=True via claude_client.opcoes_chat
+  (contextvar; 40+ dubles fake_chat de 4 argumentos em arquivos que nao sao meus). Gasto
+  unico: ia.medicao.gasto_mes_atual = uso_ia + api_usage so antes da 1a linha de uso_ia do
+  mes. Teto unico app._teto_ia_estourado -> ia.teto (R$40). ia/historico sem buraco (max 20).
+[done] H2 ia.core.FalhaChamadaIA(ValueError) > TetoEstourado/ErroProvedor/RespostaInvalida;
+  _call_claude: 402 TETO_IA_MSG / 502 CLAUDE_ERROR_MSG / 502 formato. Visao nao da mais 500.
+[done] H3 fechamento_noturno calado quando assistente.p3.ativo + PAINEL_TICK_TOKEN.
+[done] H4 construtora so via construtora_cliente; filtro (nunca lucro/margem/VGV); mock ok.
+[done] H5 calculos.percentual_meta_exibicao (1 casa) em cards.py, _consultar_meta, /api/progresso.
+[done] H6 avisos.tipo_de_origem; Caixa respeita esta_ligado; push usa aviso_permitido fino.
+  Bug: origem da P3 nao batia com o arquivo (humor do fechamento nunca gravava) - corrigido.
+[done] H7 N1 em TIPOS_CARD/CAMPOS_SENSIVEIS/ABA_POR_ENTIDADE; /api/desfazer geral reverte N1.
+[done] H8 adapter OpenAI converte image/document (formato Anthropic); Gemini nao (doc).
+[done] H9 TELEGRAM_MODO + TELEGRAM_BOT_TOKEN_CAPTURA: polling e webhook nunca juntos.
+[done] H10 fuzz.py: 184 cenarios, 0 falhas (achou 15 500s: N1, p4, caixa - corrigidos).
+[done] H11 suite 100%; vazamentos entre testes corrigidos (n2 rota, n3a, a10, p3); conftest
+  aponta SDKs de IA pra 127.0.0.1:9; N1 le tolerando linha ruim ja gravada.
+
+PARA O INTEGRADOR (arquivos que nao sao meus)
+- .env.example: TELEGRAM_MODO, TELEGRAM_BOT_TOKEN_CAPTURA (docs/telegram-captura.md #7).
+- db.ENTIDADES_DESFAZIVEIS sem assinatura/compra_parcelada: nao precisa mais (o
+  _desfazer_itens do app ja reverte os tokens que a N1 grava).
+- telegram_bot.py: com 409 no getUpdates o loop so loga; poderia parar sozinho.
+- CHANGELOG: juntar changelog.d/c1-backend.md. gitleaks: so os placeholders de docs/tick.md.
+PARA A C2 (static/js)
+- cards-tipos.js: o data da N1 leva aliases pro renderizador V1 (cartao, em_dias, restantes,
+  termina_em, total_mes, n_assinaturas, n_parcelas, proxima_cobranca) - escolher 1 nome.
+  V1 diz "nunca esconde valor"; o servidor esconde no modo visitante (contrato N1).
+- seu-progresso.js: pct de meta agora vem com 1 casa (33.3) - Math.round se quiser inteiro.
+- Botao Desfazer pode usar sempre /api/desfazer/<token> (vale pra N1 tambem).
+DECISOES PRO ALEX
+- ia.teto.FUNCOES_ESSENCIAIS_MODO_ECONOMIA usa nomes ("intent", "captura") que nao batem
+  com chamar_ia ("classify_intent"...): o teto de R$40 bloqueia TUDO a 100% (mantido - "o
+  teto vale pra tudo"). Liberar classificacao no modo economia? trocar os nomes.
+- Push de teto (notificacoes.teto_ia_perto_ou_estourado) ainda usa o teto antigo (so quando
+  configurado, api_usage): nao avisa no teto padrao de R$40.
+- Visao ativo:true no OpenAI: file_data em data URI conforme guia oficial - validar 1x real.
