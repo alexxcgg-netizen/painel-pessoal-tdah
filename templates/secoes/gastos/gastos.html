@@ -1,0 +1,84 @@
+      <h2 style="--secao-cor: var(--cor-financeiro)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>
+        Gastos
+        <a href="/api/expenses/exportar-csv" class="btn-com-icone btn-exportar-csv" download aria-label="Exportar gastos em CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          CSV
+        </a>
+      </h2>
+      <div id="nota-fiscal-box" class="card-vida">
+        <div class="card-vida-topo">
+          <h3>Nota fiscal por foto</h3>
+        </div>
+        <p class="dica-metas">Tira uma foto da nota que eu leio o valor, o estabelecimento e a data
+          sozinho (voce confere antes de salvar).</p>
+        <input type="file" id="nota-fiscal-input" accept="image/*" capture="environment" hidden />
+        <label for="nota-fiscal-input" id="nota-fiscal-label" class="ofx-input-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h2l2-2h8l2 2h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <span>Tirar/escolher foto da nota</span>
+        </label>
+        <div id="nota-fiscal-confirmacao" hidden>
+          <p class="card-vida-meta" id="nota-fiscal-status"></p>
+          <div class="form-linha">
+            <input type="number" step="0.01" min="0.01" id="nf-valor" class="campo valor-mono" placeholder="Valor (R$)" aria-label="Valor da nota" />
+            <input type="text" id="nf-estabelecimento" class="campo" placeholder="Estabelecimento" aria-label="Estabelecimento" />
+            <input type="date" id="nf-data" class="campo" aria-label="Data da nota" />
+            <select id="nf-categoria" class="campo" aria-label="Categoria">
+              <option value="">Categoria automatica</option>
+              <option value="mercado">Mercado</option>
+              <option value="transporte">Transporte</option>
+              <option value="lazer">Lazer</option>
+              <option value="contas">Contas</option>
+              <option value="saude">Saude</option>
+              <option value="outros">Outros</option>
+            </select>
+          </div>
+          <div class="form-linha">
+            <button type="button" id="nf-confirmar-btn" class="btn btn-primario btn-com-icone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              Confirmar e salvar
+            </button>
+            <button type="button" id="nf-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <div id="fim-mes-box" class="card-vida" hidden>
+        <div class="card-vida-topo">
+          <h3>Fim do mes</h3>
+          <span class="card-vida-meta" id="fim-mes-dias"></span>
+        </div>
+        <p class="fim-mes-linha" id="fim-mes-agora"></p>
+        <p class="fim-mes-linha" id="fim-mes-projecao"></p>
+      </div>
+      <div id="resumo-semanal-box" class="resumo-semanal-box" hidden>
+        <span class="resumo-semanal-valor" id="resumo-semanal-total">R$ 0</span>
+        <span class="resumo-semanal-label">gasto nos ultimos 7 dias</span>
+        <p class="resumo-semanal-detalhe" id="resumo-semanal-detalhe"></p>
+      </div>
+      <div class="grafico-card">
+        <p class="grafico-titulo">Gasto nos ultimos 14 dias</p>
+        <div class="grafico-container" id="grafico-gastos"></div>
+      </div>
+      <p id="gastos-oculto-visitante" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        Oculto no modo visitante.
+      </p>
+      <p id="gastos-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>
+        Nenhum gasto registrado ainda. Manda ai que eu anoto.
+      </p>
+      <ul id="lista-gastos"></ul>
+
+      <div id="custo-ia-box" class="card-vida" hidden>
+        <div class="card-vida-topo">
+          <h3>Gasto com IA</h3>
+          <span class="card-vida-meta" id="custo-ia-mes"></span>
+        </div>
+        <p class="fim-mes-linha" id="custo-ia-30dias"></p>
+        <p class="fim-mes-linha" id="custo-ia-teto-aviso" hidden></p>
+        <form id="custo-ia-teto-form" class="form-linha">
+          <input type="number" id="custo-ia-teto-input" class="campo valor-mono" min="0" step="0.5" inputmode="decimal" placeholder="Teto mensal em USD (opcional)" aria-label="Teto mensal de gasto com IA em USD" />
+          <button type="submit" id="custo-ia-teto-btn" class="btn btn-secundario">Salvar teto</button>
+        </form>
+      </div>
+

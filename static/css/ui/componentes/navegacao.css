@@ -1,0 +1,101 @@
+/* static/css/ui/componentes/navegacao.css - componente: barra de navegacao inferior
+   (templates/navegacao.html, NAO editar aqui - HTML e da faixa P1b).
+   Fase 7 (V0d): acabamento POR CIMA da tabbar que ja existe (#tabbar em
+   style.css - vidro, blur, glow, sombra em duas distancias; nao editar nem
+   duplicar isso aqui). Esta folha carrega DEPOIS de style.css e so
+   acrescenta o que falta: area de toque garantida de 44px, borda fina mais
+   precisa (camada, nao cor nova), um indicador de aba ativa mais discreto
+   (um pontinho, alem do realce que o style.css ja da) e o selo de
+   contagem (.nav-selo). Nenhuma cor/fonte/animacao NOVA - so var() que ja
+   existem, com fallback pros tokens novos de forma da V0a.
+
+   Icones: templates/navegacao.html ja usa SVG de traco (stroke) em todas as
+   abas, nao emoji - nao ha troca de icone pra listar aqui pra P1b.
+
+   Contrato do selo (como a P1b escreveu no HTML): `<span class="tab-btn-icone">` envolve o
+   `<svg>` e o `<span class="nav-selo" hidden>N</span>` (C2: ancora no icone). */
+
+#tabbar {
+  border-color: var(--borda-sutil, var(--border-strong, rgba(255, 255, 255, 0.1)));
+}
+
+.tab-btn {
+  min-height: var(--toque-min, 44px);
+  position: relative;
+}
+
+/* Pontinho de aba ativa: reforco pequeno alem do "cartao aceso" que o
+   style.css ja desenha - ajuda a identificar a aba corrente num relance,
+   mesmo com o olho fora do centro da barra. */
+.tab-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0.1rem;
+  width: 3px;
+  height: 3px;
+  border-radius: var(--raio-pilula, 999px);
+  background: currentColor;
+  opacity: 0;
+  transform: translate(-50%, 3px) scale(0.6);
+  transition: opacity var(--transicao-rapida, 0.15s ease), transform var(--transicao-media, 0.22s ease);
+}
+
+.tab-btn.active::after {
+  opacity: 0.85;
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* C2: foco visivel na barra (o global do style.css usa --accent-2 e some no vidro escuro). */
+.tab-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+.tab-btn svg {
+  position: relative;
+}
+
+/* C2: selo unificado. A P1b pos o selo dentro de <span class="tab-btn-icone"> (o icone);
+   a versao antiga daqui ancorava no botao inteiro e brigava com a copia que a P1b deixou em
+   secoes/assistente.css. Agora uma so, ancorada no icone. #fff = mesmo branco do style.css
+   (texto sobre --danger). */
+.tab-btn-icone {
+  position: relative;
+  display: inline-flex;
+}
+
+.nav-selo {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--raio-pilula);
+  background: var(--danger);
+  color: #fff;
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  /* recorte contra o fundo: le como selo sobreposto ao icone */
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
+}
+
+/* C2: guarda do [hidden] (o selo some com hidden quando a contagem zera). */
+.tab-btn-icone[hidden],
+.nav-selo[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-btn::after {
+    transition-duration: 0.001ms;
+  }
+}

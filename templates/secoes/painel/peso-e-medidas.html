@@ -1,0 +1,56 @@
+      <section class="secao-recolhivel" data-aberto="true" data-secao-id="painel-peso-e-medidas" style="--secao-cor: var(--cor-financeiro)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-painel-peso-e-medidas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M7 8l5-4 5 4M7 16l5 4 5-4"/></svg>
+          Peso e medidas
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+        <div class="secao-conteudo" id="conteudo-painel-peso-e-medidas">
+          <button type="button" id="medida-abrir-btn" class="btn btn-adicionar">Adicionar medida</button>
+          <p id="medidas-oculto-visitante" class="vazio" hidden>Oculto no modo visitante.</p>
+          <p id="medidas-vazio" class="vazio" hidden>Nenhuma medida registrada ainda.</p>
+          <div id="grafico-medidas" class="grafico-container medida-grafico" hidden></div>
+          <ul id="lista-medidas"></ul>
+        </div>
+      </section>
+
+      <div class="bottom-sheet" id="sheet-medida" hidden aria-labelledby="sheet-medida-titulo">
+        <h3 class="bottom-sheet-titulo" id="sheet-medida-titulo">Adicionar medida</h3>
+        <form id="medida-form" class="form-linha">
+          <select id="medida-tipo-select" class="campo" aria-label="Tipo de medida">
+            <option value="peso">Peso</option>
+            <option value="cintura">Cintura</option>
+            <option value="quadril">Quadril</option>
+            <option value="peito">Peito</option>
+            <option value="biceps">Biceps</option>
+            <option value="coxa">Coxa</option>
+            <option value="gordura">% de gordura</option>
+            <option value="outro">Outro...</option>
+          </select>
+          <input type="text" id="medida-tipo-outro" class="campo" placeholder="Qual medida?" maxlength="40" hidden />
+          <div class="stepper" id="medida-valor-stepper">
+            <button type="button" class="stepper-btn" id="medida-valor-menos" aria-label="Diminuir valor">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>
+            </button>
+            <input type="number" id="medida-valor" class="campo" aria-label="Valor" placeholder="Valor" step="0.1" inputmode="decimal" required />
+            <button type="button" class="stepper-btn" id="medida-valor-mais" aria-label="Aumentar valor">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+          <select id="medida-unidade-select" class="campo" aria-label="Unidade">
+            <option value="kg">kg</option>
+            <option value="cm">cm</option>
+            <option value="%">%</option>
+            <option value="lb">lb</option>
+            <option value="outra">outra...</option>
+          </select>
+          <input type="text" id="medida-unidade-outra" class="campo" placeholder="Unidade" maxlength="10" hidden />
+          <div class="form-linha">
+            <button type="submit" id="medida-btn" class="btn btn-primario btn-com-icone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Salvar medida
+            </button>
+            <button type="button" id="medida-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </form>
+      </div>
+

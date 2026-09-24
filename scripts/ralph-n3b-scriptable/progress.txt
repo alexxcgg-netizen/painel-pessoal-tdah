@@ -1,0 +1,47 @@
+Faixa N3b (widget via Scriptable) - Fase 7 - branch fase7/n3b-scriptable
+
+Historias (15-30min cada):
+[x] H1 - Ler regras da faixa (docs/agentes/fase7-regras-faixa.md), criar a
+    worktree/branch a partir de fase7/integracao, ler os scripts antigos
+    (widget_painel.js/widget_lockscreen.js, so referencia, nao editar), a
+    paleta real (static/css/style.css) e o contrato fixo do GET /api/widget
+    dado no prompt (confirmado tambem em
+    /home/user/painel-pessoal-tdah-fase7-n3cd-widget-docs/docs/widget-api-widget.md,
+    faixa irma que ja documenta o mesmo endpoint pra outros apps - dai
+    tambem o nome do env var PAINEL_WIDGET_TOKEN, usado so nos comentarios).
+[x] H2 - scriptable/scriptable-widget.js: script unico pros 4 tamanhos via
+    config.widgetFamily (small/medium tela inicial, accessoryCircular/
+    accessoryRectangular tela de bloqueio, fallback pra small em qualquer
+    outro valor). URL/token por constante no topo OU args.widgetParameter
+    ("URL|TOKEN"). Busca com Request, timeoutInterval 8s, Authorization:
+    Bearer, valida statusCode>=400 e payload sem "estado" como falha.
+[x] H3 - Cache: FileManager.local(), grava a cada busca boa
+    (painel_widget_cache.json), le no fallback quando a busca falha; texto
+    "atualizado ha X" (agora/min/h/d) calculado a partir de atualizado_em.
+    So mostra "sem conexao" quando nao ha cache nenhum salvo ainda.
+[x] H4 - Layout por tamanho x estado (normal/vazio/erro), usando dados.linhas
+    como fonte principal de texto (funciona nos 3 estados mesmo sem saber o
+    formato exato de vazio/erro de antemao) com fallback pra texto padrao
+    claro se linhas vier vazio. accessoryCircular/Rectangular nunca setam
+    cor customizada (iOS ignora/distorce nesses slots - mesma regra do
+    widget_lockscreen.js antigo).
+[x] H5 - tests/js/scriptable_widget.test.js (node --test, 28 casos): mocks
+    de Request/ListWidget+stacks/FileManager em memoria/config/Script/Color/
+    Font/args escritos do zero (nao havia precedente no repo pra testar
+    script Scriptable); roda o modulo real via require() (module.exports
+    guard, mesmo padrao de static/js/*.js) setando os globais ANTES do
+    require. Cobre 4 tamanhos, 3 estados, familia desconhecida, resolverConfig
+    (constante vs parametro), formatarAtualizadoHaX, fallback de cache
+    (rede falha e HTTP>=400) e main() (runsInWidget true/false).
+    scripts/testes.sh --js tests/js/scriptable_widget.test.js -> 28/28 OK.
+[x] H6 - docs/widget-scriptable.md (guia curto de instalacao) +
+    changelog.d/n3b-scriptable.md + este progress.txt.
+
+Bloqueios: nenhum.
+
+Nota pro integrador: o endpoint GET /api/widget em si (rota Flask, faixa
+N3a) nao existe ainda nesta branch (nao achei rotas/ na integracao no
+momento em que criei a worktree) - nao e um bloqueio real porque o contrato
+JSON e fixo (dado no prompt) e os testes mockam a rede inteira; so registro
+que este script ainda nao foi testado contra o endpoint de verdade, so
+contra o contrato documentado.

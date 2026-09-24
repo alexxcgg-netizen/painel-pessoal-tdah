@@ -1,0 +1,10 @@
+{
+  "funcao": "extrair_nota_fiscal_foto",
+  "ativo": false,
+  "modelo_atual": {"provedor": "anthropic", "modelo": "claude-sonnet-5"},
+  "alvo": {"provedor": "openai", "modelo": "gpt-6-luna", "esforco": "medio"},
+  "fallback": [{"provedor": "anthropic", "modelo": "claude-sonnet-5"}],
+  "max_tokens_saida": 500,
+  "cache": {"ativo": false, "ttl": "5m"},
+  "modo": "padrao"
+}

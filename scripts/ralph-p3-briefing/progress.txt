@@ -1,0 +1,44 @@
+Faixa p3-briefing - progresso
+
+[done] H1: assistente/briefing.py - montagem pura dos dois briefings (manha:
+  agenda+tarefas+habitos+contas; noite: fechamento+"passa pra amanha"+
+  pergunta). Reaproveita _eventos_de_hoje_com_seguranca,
+  _tarefas_pendentes_sem_horario_hoje, _contas_pessoais_com_status,
+  _buscar_contas_a_vencer_construtora (app.py, import tardio) e
+  notificacoes.mensagem_fechamento_noturno. Construtora: SO nome+quando,
+  nunca valor (testado explicitamente).
+[done] H2: horarios configuraveis (configuracoes: assistente.p3.horario_*,
+  padrao 07:30/21:00) + flags assistente.p3.ativo (padrao ligado) e
+  assistente.p3.reescrever_ia (padrao desligado, ia.core.chamar_ia).
+[done] H3: assistente/gatilhos/p3_briefing.py - executar(conn, agora)
+  idempotente por chave_unica, janela de 5min, ao_resolver salva
+  checkins.humor na resposta do fechamento noturno.
+[done] H4: rotas/p3_briefing.py (sessao) - GET/PUT horarios, GET previa.
+[done] H5: ia/config.d/reescrever_briefing.json.
+[done] H6: tests/test_fase7_p3_briefing.py, test_fase7_p3_gatilho.py,
+  test_fase7_p3_rotas.py - 49 testes, 0 falhas.
+
+Bloqueado: nenhuma historia.
+
+Infra que ainda nao chegou na integracao (Etapa 0/X1 - confirmado com
+`git log origin/fase7/integracao`): rotas/ (auto-registro de Blueprint),
+assistente/gatilhos/ (auto-load do tick), assistente/caixa.py (P1a) nao
+existem ainda. Os arquivos foram criados do mesmo jeito (parados,
+esperando a infra); testes de rota sobem um Flask app minimo proprio, e o
+gatilho instala assistente.caixa falso em sys.modules (ver
+_instalar_caixa_falsa em test_fase7_p3_gatilho.py) - nada disso e chamada
+real, so duble local.
+
+Pra o integrador: donos.json lista p3-briefing so com
+assistente/gatilhos/p3_*, assistente/briefing.py, tests/test_fase7_p3_* -
+o prompt desta faixa pediu tambem rotas/p3_* e
+ia/config.d/reescrever_briefing.json (feitos). Sugestao: adicionar essas
+duas entradas em donos.json.
+
+Duplicidade a resolver na integracao: o push antigo de fechamento noturno
+(notificacoes.fechamento_noturno_devido, chamado de dentro de app.py, fixo
+as 21h, nao editavel) e o novo briefing da noite da P3 (tambem default
+21h, editavel) vao coexistir e mandar 2 pushes parecidos as 21h. Sugestao:
+quando a Caixa (P1a) estiver de pe, desligar o aviso "fechamento_noturno"
+antigo em app.py (bloco por volta da linha 4439) em favor do item
+"briefing" da P3.

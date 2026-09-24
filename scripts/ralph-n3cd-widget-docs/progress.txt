@@ -1,0 +1,54 @@
+# Progresso — N3cd: Widget Docs (Documentação de Opções de Widget do iPhone)
+
+## Objetivo
+Documentar 5 opções de widget para iPhone que leem o endpoint `/api/widget` (JSON) e `/widget` (HTML).
+Sem código de produção; apenas documentação para o Alex testar e escolher.
+
+## Histórias Concluídas
+
+### N3c: Documentação de Widgy e API Widget
+- [x] docs/widget-widgy.md: Configuração do app Widgy, mapeamento JSON paths, exemplos por tamanho de widget
+- [x] docs/widget-api-widget.md: Configuração de apps "API Widget"/"API Widgets", mapeamento JSON paths, exemplos por tamanho
+
+### N3d: Documentação de Glimpse 2, Atalhos e Tabela Comparativa
+- [x] docs/widget-glimpse.md: Configuração do Glimpse 2 (renderiza página HTML /widget), exemplos por tamanho
+- [x] docs/widget-atalhos.md: Atalho 1 (obter dados e exibir), Atalho 2 (widget na tela de início), Atalho 3 (captura rápida iOS 17+)
+- [x] docs/widget-comparativo.md: Tabela em branco para Alex preencher testando Scriptable, Widgy, API Widget, Glimpse 2, Atalhos, WidgetKit nativo
+
+## Histórias Bloqueadas
+
+Nenhuma. Toda documentação foi baseada nas especificações fornecidas (endpoint JSON + página HTML).
+
+## Testes
+
+Sem testes de código (é documentação). Revisão:
+- [x] Todos os 5 docs criados e estruturados em pt-BR
+- [x] Passo-a-passo claro para cada opção
+- [x] JSON paths corretos (foco.titulo, proxima_conta.nome, linhas[0], etc)
+- [x] Exemplos para 3 tamanhos de widget: pequeno (2x2), médio (3x3), tela de bloqueio
+- [x] Notas sobre autenticação, segurança (token na URL é aceitável agora), comportamento do iOS
+- [x] Tabela comparativa criada em branco, pronta para Alex preencher
+
+## Arquivos Criados
+
+- docs/widget-widgy.md
+- docs/widget-api-widget.md
+- docs/widget-glimpse.md
+- docs/widget-atalhos.md
+- docs/widget-comparativo.md
+- scripts/ralph-n3cd-widget-docs/progress.txt (este arquivo)
+- scripts/ralph-n3cd-widget-docs/APRENDIZADOS.md
+- changelog.d/n3cd-widget-docs.md
+
+## Próximos passos (para o integrador ou fase seguinte)
+
+1. Revisar se os JSON paths estão exatos conforme implementação de /api/widget
+2. Testar um ou dois widgets localmente no iOS real ou simulador para validar
+3. Atualizar os docs se houver diferenças na interface dos apps ou no JSON
+
+## Notas
+
+- Documentação foi estruturada para quem não programa (passos em português, frases curtas).
+- Procurou-se usar "procure a opção de..." em vez de inventar nomes de botões, quando havia dúvida.
+- Token na URL é mencionado como aceitável temporariamente, para revisão na Fase 10.
+- Cada doc é independente; Alex pode ler o que interessa sem dependência entre eles.

@@ -1,0 +1,106 @@
+/* static/css/ui/componentes/card.css - componente: cards (superficie em camada).
+   Fase 7 (V0c). Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve
+   por cascata sem precisar editar o style.css.
+
+   Pedido do Alex (fase7-visual.md): sair do "generico"/"Windows 1990" - superficie em
+   camada, borda fina em vez de sombra pesada, elevacao discreta, raio dos tokens, cabecalho
+   com titulo + acao, numeros em fonte mono. Zero cor/fonte/animacao nova.
+
+   Uso:
+   <div class="card">
+     <div class="card-cabecalho">
+       <h3 class="card-titulo">Titulo</h3>
+       <div class="card-acao">...</div>
+     </div>
+     ... corpo, numeros com class="card-numero" ...
+   </div>
+   Variantes: .card--destaque (realce, usa --accent existente), .card--compacto (padding
+   menor, pra grades densas). */
+
+.card {
+  position: relative;
+  border-radius: var(--raio, var(--radius, 20px));
+  /* C2: receita do MASTER - realce de topo (luz fraca) como 1a camada do fundo. */
+  background: var(--realce-superficie), var(--superficie-2);
+  border: var(--linha) solid var(--borda-sutil);
+  box-shadow: var(--elevacao-1);
+  padding: var(--espaco-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-2, 16px);
+}
+
+/* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de
+   classe, e a regra do autor ganha da do UA) - sem isso, campo/botao escondido pelo JS
+   continuava na tela (ex.: "Quantas vezes por semana" no sheet de habito). */
+.card[hidden],
+.card-cabecalho[hidden],
+.card-acao[hidden] {
+  display: none;
+}
+
+.card--compacto {
+  padding: var(--espaco-2, 16px);
+  gap: var(--espaco-1, 8px);
+  border-radius: var(--raio-sm, var(--radius-sm, 14px));
+}
+
+/* Destaque: mesma cor de acento que o app ja usa (nunca cor nova), so um pouco mais de
+   elevacao/contorno pra puxar o olho - pensado pra 1-2 cards por tela, nao pra todos. */
+.card--destaque {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--borda-sutil, var(--border)));
+  box-shadow: var(--elevacao-2, inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 4px rgba(0, 0, 0, 0.4),
+    0 8px 20px -12px rgba(0, 0, 0, 0.5));
+}
+
+.card-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2, 16px);
+}
+
+.card-titulo {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.card-acao {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-1, 8px);
+}
+
+/* Numeros de destaque (saldo, total, contagem): fonte mono ja usada no app pra numero
+   (--font-numeros, style.css), nunca uma fonte nova. */
+.card-numero {
+  font-family: var(--font-numeros, "Sora", monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.card-legenda {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+@media (hover: hover) {
+  .card {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .card:hover {
+    box-shadow: var(--elevacao-2, inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 4px rgba(0, 0, 0, 0.4),
+      0 8px 20px -12px rgba(0, 0, 0, 0.5));
+  }
+}
+
+/* C2: card focavel (link de card, tabindex) ganha o anel da V0a junto com a elevacao. */
+.card:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco), var(--elevacao-1);
+}

@@ -1,0 +1,27 @@
+/* static/css/secoes/vida/salvos.css - secao vida > salvos (HTML: templates/secoes/vida/salvos.html).
+   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
+   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Fase 7 C3a: o link do salvo era um alvo de 19px - vira linha de 44px (MASTER 9) sem
+   mudar cor nem fonte. */
+#lista-salvos .salvo-link {
+  display: flex;
+  align-items: center;
+  min-height: var(--toque-min, 44px);
+  margin-top: 0;
+}
+
+/* Salvo ja visto: o titulo fica em --text-faint (style.css). Sobre o bloco interno
+   (--superficie-3) isso dava 4.3:1; o item lido perde o preenchimento e fica so com a borda
+   (mais "plano" = ja resolvido, hierarquia por profundidade) e o contraste volta a 4.6:1. */
+/* (mesma especificidade da regra de bloco interno em secoes/vida.css; este arquivo carrega
+   depois, entao ganha no empate) */
+#lista-salvos > li.item.lista-item.lido {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Resumo abaixo da linha do titulo (o empilhamento do li esta em secoes/vida.css). */
+#lista-salvos .salvo-resumo {
+  margin: var(--espaco-1, 0.25rem) 0 0;
+}

@@ -28,9 +28,12 @@ import aprendizado
 import auth
 import bank_ofx
 import caldav_client
+import calculos
 import cards
 import claude_client
+import classificador_local
 import clima
+import construtora_cliente
 import criptografia
 import estudo
 import gastos
@@ -42,14 +45,20 @@ import noticias
 import notificacoes
 import pluggy_client
 import push_client
+import rotas
 import streak
 import telegram_bot
+import telegram_captura
 import uber_client
 import viagem
 import vida
 import voo_status
 import voos as voos_module
 import db
+import ia.core
+import ia.historico
+import ia.teto
+from assistente import avisos as avisos_assistente
 from db import (
     CAMPOS_SAUDE,
     cards_de_mensagem_chat,
@@ -406,10 +415,32 @@ def _texto_seguro(valor, padrao: str = "") -> str:
 _TETO_IA_LOCK = threading.Lock()
 
 
+def _teto_ia_estourado(funcao: str = "chat") -> bool:
+    """Fase 7 (C1): teto UNICO de IA pra todo o app - ia.teto.teto_permite
+    (R$40/mes por padrao, ou o teto configurado no card financeiro), sobre o
+    gasto do mes de ia.medicao.gasto_mes_atual (fonte unica: cada chamada
+    conta uma vez). Substitui o teto antigo (resumo_custo_api, so api_usage e
+    so quando configurado). Erro no calculo bloqueia (mesma regra do ia.core)."""
+    try:
+        return not ia.teto.teto_permite(funcao)
+    except Exception:  # noqa: BLE001
+        app.logger.exception("teto de IA: falha ao consultar (bloqueando por seguranca)")
+        return True
+
+
 def _call_claude(fn, *args):
-    """Chama uma funcao do claude_client e traduz falhas em uma resposta de erro pronta pra devolver."""
+    """Chama uma funcao do claude_client e traduz falhas em uma resposta de erro pronta pra devolver.
+
+    Fase 7 (C1): as funcoes migradas pro ia.core levantam excecoes dedicadas
+    (todas subclasses de ValueError) - teto estourado vira TETO_IA_MSG (402),
+    rede/provedor vira CLAUDE_ERROR_MSG (502) e so JSON/schema ruim continua
+    CLAUDE_FORMAT_ERROR_MSG (502)."""
     try:
         return fn(*args), None
+    except ia.core.TetoEstourado:
+        return None, (jsonify({"error": TETO_IA_MSG}), 402)
+    except ia.core.ErroProvedor:
+        return None, (jsonify({"error": CLAUDE_ERROR_MSG}), 502)
     except anthropic.APIError:
         return None, (jsonify({"error": CLAUDE_ERROR_MSG}), 502)
     except (ValueError, KeyError):
@@ -463,6 +494,10 @@ def _verificar_autenticacao():
         "/api/atalho/app",
         "/api/atalho/comando-voz",
     ):
+        return None
+    # Fase 7: rota maquina-a-maquina declarada por um blueprint de rotas/
+    # (ROTAS_COM_TOKEN / PREFIXOS_COM_TOKEN) - a propria rota checa o token.
+    if rotas.rota_com_token(path):
         return None
 
     conn = get_db()
@@ -668,6 +703,24 @@ def _executar_captura(text: str, clarificacao: str, client_id: str = ""):
         conn.close()
         if cache:
             return cache
+
+    # Fase 7 (Etapa 0): regra local (classificador_local/regras/) resolve sem
+    # IA - casou e executou, a resposta e so o envelope de cards da regra.
+    local = classificador_local.casar(text)
+    if local:
+        conn = get_db()
+        envelope_local = classificador_local.executar(conn, local, _criar_token_desfazer(conn))
+        if envelope_local is not None:
+            corpo = {"acao": local["acao"], "regra_local": local["regra"]}
+            corpo.update(envelope_local)
+            if client_id:
+                _gravar_resposta_capture(conn, client_id, corpo, 201)
+            _marcar_atividade(conn)
+            conn.commit()
+            conn.close()
+            return jsonify(_resposta_contrato(corpo)), 201
+        conn.close()
+
     inicio_captura = time.perf_counter()
 
     full_text = f"{text}. Contexto adicional: {clarificacao}" if clarificacao else text
@@ -793,7 +846,21 @@ def _classificar_intent(conn, texto: str, somente_local: bool = False):
     -> onde buscar" (aprendizado.consulta_conhecida) - consulta de formato
     conhecido resolve local, sem API. `somente_local=True` (usado pelo chat,
     que ja tem a propria IA com tool-use depois) para aqui e devolve
-    (None, None) quando nenhuma camada local resolveu - nunca chama a API."""
+    (None, None) quando nenhuma camada local resolveu - nunca chama a API.
+
+    Fase 7 (Etapa 0): a PRIMEIRA camada e classificador_local (regras por
+    arquivo em classificador_local/regras/) - so classifica aqui, com o
+    campo aditivo "regra_local"; quem executa e chat/captura."""
+    local = classificador_local.casar(texto)
+    if local:
+        return {
+            "acao": local["acao"],
+            "confianca": local["confianca"],
+            "parametros": local["parametros"],
+            "precisa_confirmacao": local["precisa_confirmacao"],
+            "regra_local": local["regra"],
+        }, None
+
     padrao = aprendizado.padrao_intent_confiavel(conn, texto)
     conhecida = aprendizado.consulta_conhecida(texto)
     if padrao:
@@ -828,7 +895,7 @@ def _classificar_intent(conn, texto: str, somente_local: bool = False):
         return None, None
 
     with _TETO_IA_LOCK:
-        if resumo_custo_api(conn)["teto_estourado"]:
+        if _teto_ia_estourado("classify_intent"):
             return {
                 "acao": "desconhecido",
                 "confianca": 0.0,
@@ -1463,75 +1530,74 @@ def _saude_contexto_resumo(conn) -> str | None:
     return ", ".join(partes)
 
 
-_CACHE_CONSTRUTORA = {}  # chave -> (timestamp, dados)
-_CACHE_CONSTRUTORA_TTL_SEGUNDOS = 60
+# Fase 7 (C1): toda leitura da construtora passa por construtora_cliente.py
+# (faixa A10, contrato em docs/contrato-api-construtora.md) - cache/throttle de
+# 60s, timeout de 5s, nunca levanta, modo mock (CONSTRUTORA_API_MOCK=1). A
+# instancia e a padrao do modulo (mesmo cache de gastos_do_mes/proxima_conta),
+# buscada a cada uso (se alguem trocar a instancia padrao, o app acompanha).
+def _cliente_construtora() -> "construtora_cliente.ClienteConstrutora":
+    return construtora_cliente.cliente_padrao()
 
 
-def _cache_construtora_get(chave: str):
-    """None tanto pra 'nunca guardado' quanto pra 'expirou' - o chamador trata os
-    dois igual (vai buscar de novo)."""
-    entrada = _CACHE_CONSTRUTORA.get(chave)
-    if not entrada:
+class _CacheConstrutoraCompat:
+    """Testes antigos fazem app._CACHE_CONSTRUTORA.clear() entre casos -
+    continua valendo: limpa o cache do cliente padrao."""
+
+    def clear(self) -> None:
+        construtora_cliente.limpar_cache_padrao()
+
+
+_CACHE_CONSTRUTORA = _CacheConstrutoraCompat()
+
+# O que o painel pessoal pode mostrar da construtora (decisao do Alex, A10):
+# so gastos, entradas e o tempo ate a proxima conta. Nunca lucro, margem nem
+# VGV - esses campos sao descartados aqui, logo na entrada.
+CAMPOS_RESUMO_CONSTRUTORA_PERMITIDOS = ("status", "tot_entradas", "tot_saidas")
+CAMPOS_CONTA_CONSTRUTORA_PERMITIDOS = ("vencimento", "valor", "fornecedor", "descricao", "dias_ate_vencer")
+
+
+def _filtrar_resumo_construtora(dados) -> dict | None:
+    if not isinstance(dados, dict):
         return None
-    timestamp, dados = entrada
-    if datetime.now().timestamp() - timestamp > _CACHE_CONSTRUTORA_TTL_SEGUNDOS:
+    return {k: dados[k] for k in CAMPOS_RESUMO_CONSTRUTORA_PERMITIDOS if k in dados}
+
+
+def _filtrar_contas_construtora(dados) -> dict | None:
+    """Mantem o envelope {"status", "contas"} e so os campos permitidos de
+    cada conta; conta malformada (sem dias_ate_vencer numerico) sai da lista
+    - melhor nao mostrar do que quebrar quem ordena/compara por dias."""
+    if not isinstance(dados, dict):
         return None
-    return dados
-
-
-def _cache_construtora_set(chave: str, dados):
-    _CACHE_CONSTRUTORA[chave] = (datetime.now().timestamp(), dados)
+    contas = []
+    for conta in dados.get("contas") or []:
+        if not isinstance(conta, dict):
+            continue
+        dias = conta.get("dias_ate_vencer")
+        if isinstance(dias, bool) or not isinstance(dias, (int, float)):
+            continue
+        contas.append({k: conta.get(k) for k in CAMPOS_CONTA_CONSTRUTORA_PERMITIDOS})
+    return {"status": dados.get("status"), "contas": contas}
 
 
 def _buscar_resumo_construtora() -> dict | None:
-    """Busca o resumo financeiro na API da construtora - None se nao configurado ou
-    se a chamada falhar por qualquer motivo (nunca quebra quem chamar). Cacheado por
-    60s (mesmo processo) - o resumo do dia, o chat e a aba Construtora podem pedir
-    isso tudo em sequencia rapida, e o lado da construtora tem rate limit de 20
-    req/min por IP na integracao externa."""
-    base_url = os.environ.get("CONSTRUTORA_API_URL")
-    api_key = os.environ.get("CONSTRUTORA_API_KEY")
-    if not base_url or not api_key:
-        return None
-    cacheado = _cache_construtora_get("resumo")
-    if cacheado is not None:
-        return cacheado
-    try:
-        resp = requests.get(f"{base_url}/api/resumo", headers={"X-API-Key": api_key}, timeout=5)
-        resp.raise_for_status()
-        dados = resp.json()
-        _cache_construtora_set("resumo", dados)
-        return dados
-    except requests.RequestException:
-        return None
+    """Resumo da construtora ja filtrado (so status/tot_entradas/tot_saidas) -
+    None se nao configurado ou se a chamada falhar. Via construtora_cliente."""
+    return _filtrar_resumo_construtora(_cliente_construtora().resumo())
 
 
 def _buscar_contas_a_vencer_construtora(dias: int = 30) -> dict | None:
-    """Busca as contas a pagar a vencer/vencidas na API da construtora - None se nao
-    configurado ou se a chamada falhar por qualquer motivo (nunca quebra quem chamar).
-    Mesmo cache de 60s de `_buscar_resumo_construtora`, por chave separada (o `dias`
-    pedido pode variar)."""
-    base_url = os.environ.get("CONSTRUTORA_API_URL")
-    api_key = os.environ.get("CONSTRUTORA_API_KEY")
-    if not base_url or not api_key:
-        return None
-    cache_chave = f"contas:{dias}"
-    cacheado = _cache_construtora_get(cache_chave)
-    if cacheado is not None:
-        return cacheado
-    try:
-        resp = requests.get(
-            f"{base_url}/api/contas_a_vencer",
-            headers={"X-API-Key": api_key},
-            params={"dias": dias},
-            timeout=5,
-        )
-        resp.raise_for_status()
-        dados = resp.json()
-        _cache_construtora_set(cache_chave, dados)
-        return dados
-    except requests.RequestException:
-        return None
+    """Contas a pagar a vencer/vencidas da construtora - None se nao
+    configurado ou se a chamada falhar. Via construtora_cliente (cache por
+    `dias`)."""
+    return _filtrar_contas_construtora(_cliente_construtora().contas_a_vencer(dias=dias))
+
+
+def _quando_conta_construtora(dias_ate: int, passado: str = "vencida ha") -> str:
+    if dias_ate < 0:
+        return f"{passado} {abs(int(dias_ate))} dia(s)"
+    if dias_ate == 0:
+        return "vence hoje"
+    return f"vence em {int(dias_ate)} dia(s)"
 
 
 def _ajustar_saldo_se_banco_citado(conn, banco: str | None, delta: float) -> dict | None:
@@ -1660,8 +1726,8 @@ def _id_estavel_teto_ia(nivel: str, ano_mes: str) -> int:
 
 def _construtora_contexto_contas() -> str | None:
     """Frase factual sobre a proxima conta a pagar da construtora (vencendo ou ja
-    vencida) pro resumo do dia / chat - so numeros que ja vieram prontos da API,
-    nenhuma conta feita aqui nem pela IA."""
+    vencida) pro resumo do dia / chat - so nome e tempo ate vencer (Fase 7 C1:
+    decisao do Alex, A10 - valor de conta nunca vai de bandeja)."""
     dados = _buscar_contas_a_vencer_construtora(dias=30)
     if not dados or dados.get("status") != "ok":
         return None
@@ -1669,28 +1735,23 @@ def _construtora_contexto_contas() -> str | None:
     if not contas:
         return None
     proxima = contas[0]
-    dias_ate = proxima["dias_ate_vencer"]
-    if dias_ate < 0:
-        quando = f"vencida ha {abs(dias_ate)} dia(s)"
-    elif dias_ate == 0:
-        quando = "vence hoje"
-    else:
-        quando = f"vence em {dias_ate} dia(s)"
+    quando = _quando_conta_construtora(proxima["dias_ate_vencer"])
     quem = proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor nao informado"
     extra = f", mais {len(contas) - 1} outra(s) conta(s) em aberto" if len(contas) > 1 else ""
-    return f"proxima conta a pagar da construtora: {quem}, R$ {proxima['valor']:.2f}, {quando}{extra}"
+    return f"proxima conta a pagar da construtora: {quem}, {quando}{extra}"
 
 
 def _construtora_contexto_resumo() -> str | None:
-    """Frase factual pro resumo do dia / chat - so numeros que ja vieram prontos da
-    API da construtora, nenhuma conta feita aqui nem pela IA."""
+    """Frase factual pro resumo do dia / chat - so gastos (saidas), entradas e
+    tempo ate a proxima conta, que ja vieram prontos da API da construtora
+    (nenhuma conta feita aqui nem pela IA; nunca lucro, margem nem VGV)."""
     dados = _buscar_resumo_construtora()
     if not dados or dados.get("status") != "ok":
         return None
-    texto = (
-        f"entradas R$ {dados['tot_entradas']:.2f}, saidas R$ {dados['tot_saidas']:.2f}, "
-        f"lucro liquido R$ {dados['lucro_liquido']:.2f}, margem {dados['margem']:.1f}%"
-    )
+    entradas, saidas = dados.get("tot_entradas"), dados.get("tot_saidas")
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (entradas, saidas)):
+        return None
+    texto = f"entradas R$ {entradas:.2f}, saidas R$ {saidas:.2f}"
     contas_texto = _construtora_contexto_contas()
     if contas_texto:
         texto += f"; {contas_texto}"
@@ -2557,8 +2618,8 @@ def _consultar_meta(conn, termo) -> dict:
     metas = [g for g in list_goals(conn) if not termo_n or _casa_termo(termo_n, g["titulo"])][:3]
     itens = []
     for g in metas:
-        alvo = float(g["valor_alvo"] or 0)
-        pct = round(min(100.0, float(g["valor_guardado"] or 0) / alvo * 100)) if alvo > 0 else 0
+        # C1: mesma funcao do card de meta (calculos.percentual_meta_exibicao)
+        pct = calculos.percentual_meta_exibicao(g["valor_guardado"], g["valor_alvo"])
         itens.append({"titulo": g["titulo"], "percentual": pct, "prazo": g["prazo"]})
     return {
         "encontradas": len(itens),
@@ -2740,6 +2801,22 @@ def _processar_mensagem_chat(
     envelope do contrato de cards (docs/CARDS.md: cards, resumo_texto,
     passos). O Telegram nao passa e continua recebendo so o texto."""
     materializar_tarefas_recorrentes(conn)
+
+    # Fase 7 (Etapa 0): regra local (classificador_local/regras/) antes de
+    # qualquer IA - casou e executou, responde so com os cards da regra.
+    local = classificador_local.casar(texto)
+    if local:
+        envelope_local = classificador_local.executar(conn, local, _criar_token_desfazer(conn))
+        if envelope_local is not None:
+            resposta = envelope_local["resumo_texto"] or "Feito."
+            envelope_local["resumo_texto"] = resposta
+            salvar_mensagem_chat(conn, "user", texto)
+            salvar_mensagem_chat(conn, "assistant", resposta, envelope_local["cards"])
+            _marcar_atividade(conn)
+            if detalhes is not None:
+                detalhes.update(envelope_local)
+            return resposta, [local["acao"]], None
+
     historico = list(reversed(list_chat_mensagens(conn, limit=20)))
     mensagens = [{"role": r["papel"], "content": r["texto"]} for r in historico]
     mensagens.append({"role": "user", "content": texto})
@@ -2774,7 +2851,9 @@ def _processar_mensagem_chat(
             # token de desfazer, e cards.RegistroExecucao tira antes da IA ver.
             return {"ok": True, "recorrente": True, "_efeito": {"entidade": "tarefa", "id": cur.lastrowid}}
 
-        quando_data = entrada.get("quando_data")
+        # Fase 7 (A6): data relativa ("sexta", "amanha") resolvida em codigo;
+        # o quando_data do modelo so vale como transicao (docs/calculos.md).
+        quando_data = claude_client.resolver_quando_data(entrada, date.today())
         cur = conn.execute(
             "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo) "
             "VALUES (?, ?, ?, ?, ?, ?)",
@@ -2837,9 +2916,16 @@ def _processar_mensagem_chat(
     def exec_gerar_plano(_entrada):
         pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
         eventos = _eventos_de_hoje_com_seguranca(conn)
-        plano_texto, usage_plano = claude_client.plano_do_dia(
-            [r["title"] for r in pendentes], eventos, memorias_texto
-        )
+        try:
+            plano_texto, usage_plano = claude_client.plano_do_dia(
+                [r["title"] for r in pendentes], eventos, memorias_texto
+            )
+        except ia.core.TetoEstourado:
+            # C1: falha da IA dentro de uma ferramenta vira resultado de erro
+            # pro modelo explicar, em vez de derrubar a conversa inteira.
+            return {"erro": TETO_IA_MSG}
+        except ia.core.FalhaChamadaIA:
+            return {"erro": "nao consegui gerar o plano agora - tenta de novo em instantes"}
         _log_usage(conn, usage_plano, "plano_dia")
         return {"plano": plano_texto}
 
@@ -3376,11 +3462,24 @@ def _processar_mensagem_chat(
         # O caminho local acima (sem IA) continua funcionando com o teto
         # estourado.
         with _TETO_IA_LOCK:
-            if resumo_custo_api(conn)["teto_estourado"]:
+            if _teto_ia_estourado("chat"):
                 return None, [], TETO_IA_MSG
+            # Fase 7 (C1): historico da A5 (resumo fixo + so o que ainda nao
+            # foi resumido, na integra - nunca os dois) e medicao nova
+            # (medir_uso=True grava cada rodada em uso_ia; o _log_usage
+            # abaixo so alimenta a tabela antiga do card antigo).
+            mensagens_ia, contexto_fixo = _historico_chat_para_ia(conn, texto, mensagens)
             try:
-                resposta, acoes, usage = claude_client.chat(mensagens, contexto, memorias_texto, executores)
+                # opcoes_chat == passar contexto_fixo/conn/medir_uso=True como
+                # kwargs (ver ia/funcoes/chat.py: dubles de teste tem a
+                # assinatura antiga de 4 argumentos).
+                with claude_client.opcoes_chat(contexto_fixo=contexto_fixo, conn=conn, medir_uso=True):
+                    resposta, acoes, usage = claude_client.chat(mensagens_ia, contexto, memorias_texto, executores)
+            except ia.core.TetoEstourado:
+                return None, [], TETO_IA_MSG
             except anthropic.APIError:
+                return None, [], CLAUDE_ERROR_MSG
+            except ia.core.ErroProvedor:
                 return None, [], CLAUDE_ERROR_MSG
             except (ValueError, KeyError):
                 return None, [], CLAUDE_FORMAT_ERROR_MSG
@@ -3401,6 +3500,24 @@ def _processar_mensagem_chat(
     if detalhes is not None:
         detalhes.update(envelope_cards)
     return resposta, acoes, None
+
+
+def _historico_chat_para_ia(conn, texto: str, mensagens_antigas: list) -> tuple[list, str]:
+    """(mensagens, contexto_fixo) pro claude_client.chat - Fase 7 (C1).
+
+    Usa ia.historico.montar_contexto (A5): o resumo das mensagens antigas vai
+    em `contexto_fixo` e SO as mensagens que ainda nao entraram no resumo vao
+    na integra (as mesmas mensagens nunca aparecem nos dois). A mensagem nova
+    ainda nao foi salva em chat_mensagens (e salva depois da resposta), entao
+    entra aqui no fim. Qualquer falha da A5 cai no historico antigo (ultimas
+    20 mensagens, sem resumo) - o chat nunca quebra por causa disso."""
+    try:
+        ctx = ia.historico.montar_contexto(conn)
+        mensagens = list(ctx["mensagens"]) + [{"role": "user", "content": texto}]
+        return mensagens, ctx["contexto_fixo"] or ""
+    except Exception:  # noqa: BLE001
+        app.logger.exception("chat: montar_contexto (A5) falhou - usando historico antigo")
+        return mensagens_antigas, ""
 
 
 def _criar_token_desfazer(conn):
@@ -3520,6 +3637,18 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
             cur = conn.execute("DELETE FROM hidratacao_registros WHERE id = ?", (id_,))
         elif entidade == "treino":
             cur = conn.execute("DELETE FROM treinos WHERE id = ?", (id_,))
+        # ---- Fase 7 (N1, ligado na C1): o Desfazer geral tambem entende os
+        # tokens da N1 (financas_recorrentes.criar_token_desfazer grava
+        # {"entidade", "acao", "id"} na mesma tabela) - antes a rota geral
+        # marcava o token como desfeito sem reverter nada. Mesma transacao.
+        elif entidade == "assinatura" and item.get("acao") == "cancelar":
+            cur = conn.execute(
+                "UPDATE assinatura SET ativa = 1, cancelada_em = NULL WHERE id = ? AND ativa = 0", (id_,)
+            )
+        elif entidade == "assinatura":
+            cur = conn.execute("DELETE FROM assinatura WHERE id = ?", (id_,))
+        elif entidade == "compra_parcelada":
+            cur = conn.execute("DELETE FROM compra_parcelada WHERE id = ?", (id_,))
         else:
             continue
         if cur.rowcount:
@@ -3641,6 +3770,12 @@ def iniciar_telegram():
     """So roda quando o app sobe de verdade (mesma guarda de iniciar_scheduler,
     nao duplica a thread na recarga do Flask em modo debug)."""
     if not telegram_bot.configurado():
+        return
+    # Fase 7 (C1): polling (este bot) e webhook da N2 nunca juntos no mesmo
+    # bot - telegram_captura.modo_telegram decide (flag TELEGRAM_MODO).
+    modo = telegram_captura.modo_telegram()
+    if not modo["polling"]:
+        app.logger.info("Telegram: polling antigo desligado (%s)", modo["motivo"])
         return
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         telegram_bot.iniciar_thread(_telegram_chat_fn, callback_fn=_telegram_callback_fn)
@@ -4212,6 +4347,25 @@ def _avisos_proatividade_e8(conn, agora: datetime) -> list[tuple[str, int, str, 
     return avisos
 
 
+def _briefing_noite_p3_substitui_fechamento(conn) -> bool:
+    """Fase 7 (C1): True quando o briefing da noite da P3 (assistente/
+    briefing.py, item "briefing" da Caixa, push pelo /api/tick) e quem fala
+    com o Alex a noite - ai o push antigo `fechamento_noturno` fica calado pra
+    nao chegar 2 pushes parecidos as 21h. Precisa das duas coisas: a flag
+    `assistente.p3.ativo` ligada (padrao) E o tick configurado
+    (PAINEL_TICK_TOKEN) - sem tick o briefing nunca sai, entao o fechamento
+    antigo continua. Qualquer erro -> False (mantem o aviso antigo)."""
+    if not os.environ.get("PAINEL_TICK_TOKEN"):
+        return False
+    try:
+        from assistente import briefing as briefing_p3
+
+        return bool(briefing_p3.ativo(conn))
+    except Exception:  # noqa: BLE001
+        app.logger.exception("C1: falha ao consultar a flag do briefing da P3")
+        return False
+
+
 def verificar_e_notificar():
     """Roda as verificacoes proativas e manda pra quem tiver canal configurado
     (push web e/ou Telegram) - cada tipo de aviso so dispara uma vez por dia
@@ -4436,7 +4590,14 @@ def verificar_e_notificar():
 
     # Fechamento ativo do dia (21h, uma hora antes da hora_de_dormir) - manda
     # o fechamento sozinho em vez de esperar o Alex abrir a aba Painel.
-    if notificacoes.fechamento_noturno_devido() and not ja_notificou_hoje(conn, "fechamento_noturno"):
+    # Fase 7 (C1): com o briefing da noite da P3 valendo (flag
+    # assistente.p3.ativo + tick configurado), o fechamento antigo sai de cena
+    # - o briefing da P3 ja traz o mesmo fechamento e sai por push pela Caixa.
+    if (
+        notificacoes.fechamento_noturno_devido()
+        and not _briefing_noite_p3_substitui_fechamento(conn)
+        and not ja_notificou_hoje(conn, "fechamento_noturno")
+    ):
         avisos.append(
             ("fechamento_noturno", 0, "Fechando o dia", notificacoes.mensagem_fechamento_noturno(conn))
         )
@@ -4458,17 +4619,13 @@ def verificar_e_notificar():
             if ja_notificou_hoje(conn, "conta_a_vencer", ref_id):
                 continue
             quem = conta.get("fornecedor") or conta.get("descricao") or "fornecedor nao informado"
-            if dias_ate < 0:
-                quando = f"venceu ha {abs(dias_ate)} dia(s)"
-            elif dias_ate == 0:
-                quando = "vence hoje"
-            else:
-                quando = f"vence em {dias_ate} dia(s)"
+            quando = _quando_conta_construtora(dias_ate, passado="venceu ha")
+            # C1: so nome e tempo ate vencer (valor nunca de bandeja no push).
             avisos.append((
                 "conta_a_vencer",
                 ref_id,
                 "Conta a pagar (construtora)",
-                f"{quem}: R$ {conta['valor']:.2f} - {quando}.",
+                f"{quem} - {quando}.",
             ))
 
     for tarefa in notificacoes.tarefas_aguardando_bom_tempo(conn):
@@ -4510,6 +4667,11 @@ def verificar_e_notificar():
 
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
+        # Fase 7 (P8): tipo desligado na tela Assistente > Avisos nao sai.
+        # So o liga/desliga: o silencio continua sendo o de baixo (que deixa
+        # passar urgente); aviso_permitido() completo calaria urgente a noite.
+        if not avisos_assistente.esta_ligado(tipo, conn=conn):
+            continue
         if em_hiperfoco and tipo not in vida.CRITICOS_HIPERFOCO:
             if tipo in vida.AVISOS_JANELA_CURTA:
                 _adiar_aviso(conn, tipo, titulo, corpo)
@@ -7312,7 +7474,7 @@ def progresso():
     conn = get_db()
     fatos = _fatos_periodo(conn, hoje - timedelta(days=dias - 1), hoje)
     metas_lista = [
-        {"titulo": g["titulo"], "pct": min(100, round(100 * g["valor_guardado"] / g["valor_alvo"])) if g["valor_alvo"] else 0}
+        {"titulo": g["titulo"], "pct": calculos.percentual_meta_exibicao(g["valor_guardado"], g["valor_alvo"])}
         for g in list_goals(conn)
     ]
     conn.close()
@@ -7787,9 +7949,11 @@ def meta_historico(goal_id):
 
 @app.route("/api/construtora/resumo", methods=["GET"])
 def construtora_resumo():
-    base_url = os.environ.get("CONSTRUTORA_API_URL")
-    api_key = os.environ.get("CONSTRUTORA_API_KEY")
-    if not base_url or not api_key:
+    """Aba Construtora. Fase 7 (C1): via construtora_cliente (vale o modo
+    mock CONSTRUTORA_API_MOCK=1) e so com o que o painel pessoal pode mostrar:
+    `dados` = status/tot_entradas/tot_saidas (nunca lucro, margem, VGV) e a
+    lista de contas a vencer (que a propria aba pede)."""
+    if not _cliente_construtora().configurado():
         return jsonify({"configurado": False})
 
     dados = _buscar_resumo_construtora()
@@ -7976,7 +8140,7 @@ def extrair_nota_fiscal():
     # _classificar_intent (fecha a mesma janela TOCTOU nos dois pontos que
     # respeitam o teto).
     with _TETO_IA_LOCK:
-        if resumo_custo_api(conn)["teto_estourado"]:
+        if _teto_ia_estourado("extrair_nota_fiscal_foto"):
             conn.close()
             return jsonify({"error": TETO_IA_MSG}), 402
 
@@ -8374,6 +8538,11 @@ def iniciar_scheduler():
         # rodar_backup_automatico_semanal pro que ele faz
         scheduler.add_job(rodar_backup_automatico_semanal, "cron", day_of_week="sun", hour=3, minute=0)
         scheduler.start()
+
+
+# Fase 7: rotas por Blueprint (rotas/*.py, carga automatica) - SEMPRE no fim,
+# depois de todo helper que os blueprints usam via rotas._base.app_modulo().
+rotas.registrar_todas(app)
 
 
 if __name__ == "__main__":

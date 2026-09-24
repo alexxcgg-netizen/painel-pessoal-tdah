@@ -1,0 +1,25 @@
+      <div class="card painel-secao-card">
+      <h2 style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v18M4 8h5M4 16h5"/><circle cx="16" cy="12" r="5"/></svg>
+        Brain dump
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao do brain dump"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Despejo rapido de pensamento solto, sem precisar classificar em tarefa/nota/gasto na
+          hora. Escreve o que vier na cabeca e aperta "Guardar": o texto inteiro ja vai pro
+          assistente sozinho, num toque so, e cada coisa misturada (gasto, viagem, habito,
+          lembrete, reuniao...) vira um card na aba Hoje, com Desfazer em cada um. Se algum item
+          antigo ficar pendente aqui, da pra converter na mao pro tipo certo ou apagar.
+        </p>
+      </div>
+      <form id="brain-dump-form" class="form-linha">
+        <input type="text" id="brain-dump-texto" placeholder="Joga o pensamento aqui..." maxlength="2000" required />
+        <button type="submit" id="brain-dump-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Guardar
+        </button>
+      </form>
+      <p id="brain-dump-vazio" class="vazio" hidden>Nada pra processar - tudo em dia.</p>
+      <ul id="lista-brain-dump"></ul>
+      </div>

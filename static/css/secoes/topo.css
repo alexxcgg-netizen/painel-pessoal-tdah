@@ -1,0 +1,13 @@
+/* static/css/secoes/topo.css - estilos do topo fora das abas (cabecalho + captura).
+   Fase 7 (V1): acabamento por elemento ficou em secoes/topo/cabecalho.css e
+   secoes/topo/captura.css (mais especifico que "o topo inteiro"). Vazio de
+   proposito aqui. */
+
+/* C2: rede de seguranca do foco no topo. O :focus-visible global do style.css usa
+   --accent-2 (#08080a) a 45% e some no preto; varios elementos da aba ainda tinham
+   box-shadow proprio que tampava ate esse anel fraco. Aqui todo alvo focavel da aba usa o
+   --anel-foco da V0a. (A troca do global e com o integrador - ver progress.txt.) */
+:is(header, #captura) :is(button, a[href], input, select, textarea, summary, [tabindex]):not(.secao-cabecalho):focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}

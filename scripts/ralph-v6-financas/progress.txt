@@ -1,0 +1,40 @@
+Faixa v6-financas (Fase 7) - progresso
+
+[done] H1 - Acabamento gastos/gastos + gastos/metas: profundidade via
+  static/css/secoes/gastos.css (#tab-gastos), chip na categoria do gasto.
+[done] H2 - Acabamento bancos/bancos + bancos/ofx: static/css/secoes/bancos.css;
+  tipo da conta (conta/cartao) virou chip em vez de texto entre parenteses.
+[done] H3 - Construtora: cortado pra mostrar SO entradas, saidas e tempo ate
+  a proxima conta (decisao do Alex/faixa A10) - lucro/margem pararam de
+  aparecer na tela (a API ainda devolve, so nao renderizo mais). Card novo
+  com 2 stats + linha "proxima conta em N dias".
+[done] H4 - vida/contas-pessoais: botao adicionar (era so um <button> fixo no
+  fim do form) virou .btn-adicionar + .bottom-sheet.
+[done] H5 - Secao nova gastos/assinaturas (html/js/css nasceram vazios,
+  preenchidos): consome /api/financas/* (faixa N1). Proximas cobrancas,
+  assinaturas ativas, parcelas em andamento, total comprometido, mini
+  grafico (SVG proprio, ver APRENDIZADOS.md #2) do impacto no limite do
+  cartao. 2 bottom sheets (nova assinatura / nova parcela).
+[done] H6 - git merge origin/fase7/integracao (trouxe V0a/V0b/V0c prontos +
+  a API da faixa N1 - so V0d/bottom-sheet seguiu vazia) + realinhamento com
+  docs/MASTER.md (.btn.btn-adicionar precisa da classe base, .card--destaque
+  nao .card-destaque, .campo direto no input, .lista+.lista-item no lugar de
+  li.item, fix de 2 bugs achados so testando: `assinaturas.forEach` (API
+  devolve {assinaturas:[...]}, nao array puro) e `.card[hidden]` nao escondia
+  (V0c sem guarda de hidden)) + Playwright 390x844 (Gastos/Bancos/Construtora,
+  fluxo completo de criar assinatura+parcela pelo formulario de verdade),
+  zero erro de console, 2 screenshots em scripts/ralph-v6-financas/.
+
+Detalhe de cada decisao/assumpcao/achado (API da N1, por que nao usei
+Chart.js de verdade, bug de position:fixed em .tab-content, colisao de id
+corrigida, construtora_cliente.py ainda nao ligado em app.py, bug do
+.card[hidden] na V0c, CONSTRUTORA_API_MOCK so afeta a API nova):
+ver scripts/ralph-v6-financas/APRENDIZADOS.md.
+
+Testes rodados (so os do meu modulo): test_fase7_estrutura_frontend.py,
+test_gastos.py, test_gasto_categoria_atipico.py,
+test_fase7_a10_construtora_cliente.py, test_vida_fase2.py,
+test_vida_revisao.py, test_vida_rotas.py - todos passando. node --check em
+todo JS editado/criado - sem erro de sintaxe.
+
+Sem historia bloqueada.

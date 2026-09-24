@@ -1,0 +1,386 @@
+"""Fase 7, faixa N3a - testes de coleta de dados, token e rota/pagina do
+widget (`rotas/n3a_widget.py`).
+
+Infra de blueprints (`rotas/__init__.py`, `rotas/_base.py`, Etapa 0 X1)
+ainda nao estava integrada em `fase7/integracao` quando esta faixa comecou -
+ver `scripts/ralph-n3a-widget/progress.txt`. Pra nao travar os testes desta
+faixa nisso, os testes de rota HTTP registram o Blueprint (`n3a_widget.bp`)
+num Flask app OUTRO, isolado (nao o `app.app` de producao), e simulam
+`rotas._base.app_modulo()` via um stub minimo em `sys.modules` que devolve o
+MESMO modulo `app` real (importado com o banco de teste, igual todo outro
+teste do projeto) - o comportamento e identico ao de producao (mesmas
+funcoes de app.py sendo chamadas), so a forma de registrar o Blueprint que e
+provisoria. Assim que `rotas/_base.py` estiver na integracao, estes testes
+continuam validos sem alteracao (o stub so preenche o que a infra real vai
+prover)."""
+
+import os
+import sys
+import tempfile
+import types
+import unittest
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from unittest.mock import patch
+
+os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
+
+import auth
+import db
+import vida
+
+_tmp_dir = tempfile.TemporaryDirectory()
+db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+db.garantir_banco_nao_producao()
+
+import app  # noqa: E402  (precisa vir depois do patch de db.DB_PATH)
+
+from rotas import n3a_widget  # noqa: E402
+
+
+def _instalar_stub_rotas_base():
+    """Registra um `rotas._base` minimo em sys.modules, so com
+    `app_modulo()` devolvendo o `app` real (ja importado acima, com banco de
+    teste) - o suficiente pro corpo das rotas de `n3a_widget.py` (que faz
+    `from rotas._base import app_modulo` DENTRO da funcao) funcionar sem
+    precisar da infra completa da Etapa 0 ainda estar mergeada. Devolve os
+    valores anteriores de sys.modules["rotas"]/["rotas._base"] pra
+    restaurar depois (nao vaza pra outros arquivos de teste)."""
+    anterior_rotas = sys.modules.get("rotas")
+    anterior_base = sys.modules.get("rotas._base")
+
+    modulo_rotas = anterior_rotas or types.ModuleType("rotas")
+    # C1: guarda tambem o ATRIBUTO rotas._base do pacote (antes so o
+    # sys.modules era restaurado e o pacote real ficava apontando pro stub).
+    anterior_attr = getattr(modulo_rotas, "_base", None)
+    modulo_base = types.ModuleType("rotas._base")
+    modulo_base.app_modulo = lambda: app
+    modulo_rotas._base = modulo_base
+
+    sys.modules["rotas"] = modulo_rotas
+    sys.modules["rotas._base"] = modulo_base
+    return anterior_rotas, anterior_base, (modulo_rotas, anterior_attr)
+
+
+def _restaurar_stub_rotas_base(anteriores):
+    anterior_rotas, anterior_base, (modulo_rotas, anterior_attr) = anteriores
+    if anterior_attr is None:
+        if hasattr(modulo_rotas, "_base"):
+            delattr(modulo_rotas, "_base")
+    else:
+        modulo_rotas._base = anterior_attr
+    if anterior_rotas is None:
+        sys.modules.pop("rotas", None)
+    else:
+        sys.modules["rotas"] = anterior_rotas
+    if anterior_base is None:
+        sys.modules.pop("rotas._base", None)
+    else:
+        sys.modules["rotas._base"] = anterior_base
+
+
+TOKEN_TESTE = "token-secreto-de-teste-123"
+
+
+class _BaseWidgetTestCase(unittest.TestCase):
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        self.conn = db.get_db()
+
+        self._caldav_patch = patch("caldav_client.configurado", return_value=False)
+        self._caldav_patch.start()
+        self.addCleanup(self._caldav_patch.stop)
+
+        self._stub_anterior = _instalar_stub_rotas_base()
+        self.addCleanup(_restaurar_stub_rotas_base, self._stub_anterior)
+
+        self._env_patch = patch.dict(os.environ, {"PAINEL_WIDGET_TOKEN": TOKEN_TESTE})
+        self._env_patch.start()
+        self.addCleanup(self._env_patch.stop)
+
+        import flask
+
+        self.flask_app = flask.Flask(__name__, template_folder=str(Path(__file__).resolve().parent.parent / "templates"))
+        self.flask_app.register_blueprint(n3a_widget.bp)
+        self.client = self.flask_app.test_client()
+
+    def tearDown(self):
+        self.conn.close()
+
+
+# --------------------------------------------------------------------------
+# Token: header Authorization: Bearer, ?token=, token errado, sem token,
+# sem PAINEL_WIDGET_TOKEN configurado.
+# --------------------------------------------------------------------------
+
+
+class TokenTestCase(_BaseWidgetTestCase):
+    def test_sem_token_nenhum_e_401(self):
+        res = self.client.get("/api/widget")
+        self.assertEqual(res.status_code, 401)
+
+    def test_token_certo_via_header_bearer_e_200(self):
+        res = self.client.get("/api/widget", headers={"Authorization": f"Bearer {TOKEN_TESTE}"})
+        self.assertEqual(res.status_code, 200)
+
+    def test_token_certo_via_query_e_200(self):
+        res = self.client.get(f"/api/widget?token={TOKEN_TESTE}")
+        self.assertEqual(res.status_code, 200)
+
+    def test_token_errado_via_header_e_401(self):
+        res = self.client.get("/api/widget", headers={"Authorization": "Bearer errado-123"})
+        self.assertEqual(res.status_code, 401)
+
+    def test_token_errado_via_query_e_401(self):
+        res = self.client.get("/api/widget?token=errado-123")
+        self.assertEqual(res.status_code, 401)
+
+    def test_header_sem_prefixo_bearer_e_ignorado(self):
+        res = self.client.get("/api/widget", headers={"Authorization": TOKEN_TESTE})
+        self.assertEqual(res.status_code, 401)
+
+    def test_sem_painel_widget_token_configurado_fica_sempre_fechado(self):
+        """"401 sem/errado" - sem PAINEL_WIDGET_TOKEN configurado no
+        ambiente, a rota nunca fica aberta pra quem achar a URL (mesmo
+        mandando ALGUM token na requisicao, nao ha nada pra comparar)."""
+        os.environ.pop("PAINEL_WIDGET_TOKEN", None)
+        try:
+            res = self.client.get(f"/api/widget?token={TOKEN_TESTE}")
+            self.assertEqual(res.status_code, 401)
+        finally:
+            os.environ["PAINEL_WIDGET_TOKEN"] = TOKEN_TESTE  # restaura pro patch.dict no tearDown
+
+    def test_pagina_widget_tambem_exige_token(self):
+        res = self.client.get("/widget")
+        self.assertEqual(res.status_code, 401)
+
+    def test_pagina_widget_com_token_via_query_funciona(self):
+        res = self.client.get(f"/widget?token={TOKEN_TESTE}")
+        self.assertEqual(res.status_code, 200)
+
+
+# --------------------------------------------------------------------------
+# Formato exato das chaves (/api/widget de ponta a ponta)
+# --------------------------------------------------------------------------
+
+
+class FormatoApiTestCase(_BaseWidgetTestCase):
+    def _get(self, query=""):
+        return self.client.get(f"/api/widget?token={TOKEN_TESTE}{query}")
+
+    def test_json_tem_exatamente_as_8_chaves_de_topo(self):
+        res = self._get()
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(
+            set(data.keys()),
+            {"versao", "atualizado_em", "estado", "foco", "proxima_conta", "habitos", "custo_ia", "linhas"},
+        )
+
+    def test_versao_1(self):
+        self.assertEqual(self._get().get_json()["versao"], 1)
+
+    def test_atualizado_em_e_iso_z(self):
+        data = self._get().get_json()
+        # Formato "AAAA-MM-DDTHH:MM:SSZ"
+        datetime.strptime(data["atualizado_em"], "%Y-%m-%dT%H:%M:%SZ")
+
+    def test_content_type_json(self):
+        res = self._get()
+        self.assertIn("application/json", res.content_type)
+
+
+# --------------------------------------------------------------------------
+# Coleta de dados real (banco de teste) - foco, proxima_conta, habitos.
+# --------------------------------------------------------------------------
+
+
+class ColetaFocoTestCase(_BaseWidgetTestCase):
+    def test_sem_nenhuma_tarefa_com_horario_foco_e_null(self):
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertIsNone(data["foco"])
+        self.assertNotIn("Foco:", " ".join(data["linhas"]))
+
+    def test_tarefa_pendente_com_horario_hoje_vira_foco(self):
+        hoje = date.today().isoformat()
+        agora = datetime.now()
+        daqui_a_pouco = (agora + timedelta(minutes=19)).strftime("%H:%M")
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES ('Revisar contrato', ?, ?)",
+            (hoje, daqui_a_pouco),
+        )
+        self.conn.commit()
+
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertIsNotNone(data["foco"])
+        self.assertEqual(data["foco"]["titulo"], "Revisar contrato")
+        self.assertIsInstance(data["foco"]["em_minutos"], int)
+        self.assertGreaterEqual(data["foco"]["em_minutos"], 0)
+        self.assertTrue(any(l.startswith("Foco: Revisar contrato em") for l in data["linhas"]))
+
+    def test_tarefa_concluida_nunca_vira_foco(self):
+        hoje = date.today().isoformat()
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora, completed_at) VALUES ('Feita', ?, '23:59', datetime('now'))",
+            (hoje,),
+        )
+        self.conn.commit()
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertIsNone(data["foco"])
+
+
+class ColetaProximaContaTestCase(_BaseWidgetTestCase):
+    def test_sem_nenhuma_conta_pessoal_e_null(self):
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertIsNone(data["proxima_conta"])
+
+    def test_conta_pessoal_mais_proxima_aparece(self):
+        hoje = date.today()
+        dia_vencimento = ((hoje + timedelta(days=3)).day) or 1
+        db.create_conta_pessoal(self.conn, "Cartao", dia_vencimento, 450.0)
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertIsNotNone(data["proxima_conta"])
+        self.assertEqual(data["proxima_conta"]["nome"], "Cartao")
+        self.assertIn("em_dias", data["proxima_conta"])
+        self.assertNotIn("valor", data["proxima_conta"])
+
+    def test_sem_mostrar_valores_nao_tem_valor_em_reais(self):
+        hoje = date.today()
+        dia_vencimento = ((hoje + timedelta(days=3)).day) or 1
+        db.create_conta_pessoal(self.conn, "Cartao", dia_vencimento, 450.0)
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertNotIn("valor", data["proxima_conta"])
+        self.assertNotIn("R$", " ".join(data["linhas"]))
+
+    def test_com_mostrar_valores_1_tem_valor_de_conta_pessoal(self):
+        hoje = date.today()
+        dia_vencimento = ((hoje + timedelta(days=3)).day) or 1
+        db.create_conta_pessoal(self.conn, "Cartao", dia_vencimento, 450.0)
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}&mostrar_valores=1").get_json()
+        self.assertEqual(data["proxima_conta"]["valor"], 450.0)
+
+    def test_conta_construtora_nunca_traz_valor_mesmo_com_mostrar_valores(self):
+        with patch.object(
+            app,
+            "_buscar_contas_a_vencer_construtora",
+            return_value={
+                "status": "ok",
+                "contas": [{"fornecedor": "Fornecedor X", "dias_ate_vencer": 2, "valor": 15000.0}],
+            },
+        ):
+            data = self.client.get(f"/api/widget?token={TOKEN_TESTE}&mostrar_valores=1").get_json()
+        self.assertIsNotNone(data["proxima_conta"])
+        self.assertEqual(data["proxima_conta"]["nome"], "Fornecedor X")
+        self.assertNotIn("valor", data["proxima_conta"])
+
+
+class ColetaHabitosTestCase(_BaseWidgetTestCase):
+    def test_sem_habito_nenhum_e_null(self):
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertIsNone(data["habitos"])
+
+    def test_habitos_devidos_hoje_contam_feitos_e_total(self):
+        h1 = db.create_habito(self.conn, "Meditar", None, "diario", None, None, None)
+        db.create_habito(self.conn, "Ler", None, "diario", None, None, None)
+        db.alternar_habito_dia(self.conn, date.today().isoformat(), h1)
+
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertEqual(data["habitos"], {"feitos": 1, "total": 2})
+        self.assertIn("Habitos: 1/2", data["linhas"])
+
+    def test_habito_nao_devido_hoje_nao_conta(self):
+        outro_dia = (date.today().weekday() + 3) % 7  # garante um dia diferente de hoje
+        db.create_habito(self.conn, "So terca", None, "dias_semana", str(outro_dia), None, None)
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertIsNone(data["habitos"])
+
+
+class ColetaCustoIaTestCase(_BaseWidgetTestCase):
+    def test_sem_nenhum_gasto_registrado_percentual_e_0(self):
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertIsNotNone(data["custo_ia"])
+        self.assertEqual(data["custo_ia"]["percentual_teto"], 0)
+
+    def test_gasto_registrado_reflete_no_percentual(self):
+        import ia.medicao as medicao
+
+        db.definir_teto_mensal_ia(self.conn, 10.0)  # USD
+        self.conn.commit()
+        # teto e gasto no MESMO cambio (BRL = USD * cambio_usd_brl()), entao
+        # a fracao 5/10 = 50% independe do valor exato do cambio fixo.
+        medicao.registrar_uso("chat", "anthropic", "claude-sonnet-5", custo_usd=5.0)
+
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+        self.assertEqual(data["custo_ia"]["percentual_teto"], 50)
+        self.assertIn("IA: 50% do teto", data["linhas"])
+
+
+# --------------------------------------------------------------------------
+# Estado "erro" - qualquer excecao na coleta vira estado=erro, nunca 500.
+# --------------------------------------------------------------------------
+
+
+class EstadoErroTestCase(_BaseWidgetTestCase):
+    def test_excecao_na_coleta_vira_estado_erro_nunca_500(self):
+        with patch.object(app, "_visao_do_dia_itens", side_effect=RuntimeError("banco caiu")):
+            res = self.client.get(f"/api/widget?token={TOKEN_TESTE}")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["estado"], "erro")
+        self.assertIsNone(data["foco"])
+        self.assertIsNone(data["proxima_conta"])
+        self.assertIsNone(data["habitos"])
+        self.assertIsNone(data["custo_ia"])
+        self.assertEqual(data["linhas"], [])
+
+    def test_pagina_widget_tambem_nunca_quebra_com_excecao_na_coleta(self):
+        with patch.object(app, "_buscar_contas_a_vencer_construtora", side_effect=RuntimeError("timeout")):
+            res = self.client.get(f"/widget?token={TOKEN_TESTE}")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"N\xc3\xa3o foi poss\xc3\xadvel carregar", res.data)
+
+
+# --------------------------------------------------------------------------
+# Pagina HTML (/widget) - renderiza, tem meta refresh, sem PIN.
+# --------------------------------------------------------------------------
+
+
+class PaginaWidgetTestCase(_BaseWidgetTestCase):
+    def test_pagina_renderiza_200_html(self):
+        res = self.client.get(f"/widget?token={TOKEN_TESTE}")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("text/html", res.content_type)
+
+    def test_pagina_tem_meta_refresh_900(self):
+        res = self.client.get(f"/widget?token={TOKEN_TESTE}")
+        self.assertIn(b'http-equiv="refresh" content="900"', res.data)
+
+    def test_pagina_sem_dado_nenhum_mostra_estado_vazio(self):
+        res = self.client.get(f"/widget?token={TOKEN_TESTE}")
+        # sem IA configurada com gasto = percentual 0, entao normalmente
+        # "normal" (custo_ia sempre presente) - so testa que a pagina nunca
+        # quebra e sempre devolve 200 com algum corpo.
+        self.assertGreater(len(res.data), 0)
+
+    def test_pagina_com_foco_mostra_titulo_da_tarefa(self):
+        hoje = date.today().isoformat()
+        agora = datetime.now()
+        daqui_a_pouco = (agora + timedelta(minutes=19)).strftime("%H:%M")
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES ('Revisar contrato', ?, ?)",
+            (hoje, daqui_a_pouco),
+        )
+        self.conn.commit()
+        res = self.client.get(f"/widget?token={TOKEN_TESTE}")
+        self.assertIn(b"Revisar contrato", res.data)
+
+    def test_pagina_nao_pede_pin_nem_sessao(self):
+        """Sem login/sessao nenhuma no client - so o token na URL basta."""
+        res = self.client.get(f"/widget?token={TOKEN_TESTE}")
+        self.assertEqual(res.status_code, 200)
+
+
+if __name__ == "__main__":
+    unittest.main()

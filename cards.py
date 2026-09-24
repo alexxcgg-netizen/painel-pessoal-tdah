@@ -21,7 +21,9 @@ import re
 import time
 from datetime import date, timedelta
 
+import calculos
 import db
+import financas_recorrentes as fr
 import vida
 
 # ---- rotulos humanos -------------------------------------------------------
@@ -108,6 +110,10 @@ ABA_POR_ENTIDADE = {
     "viagem": ("vida", "Abrir Viagens"),
     "evento": ("vida", "Abrir Agenda"),
     "treino": ("vida", "Abrir Treinos"),
+    # Fase 7 (N1, ligado na C1): secao Assinaturas mora na aba gastos
+    # (templates/secoes/gastos/assinaturas.html).
+    "assinatura": ("gastos", "Abrir Assinaturas"),
+    "compra_parcelada": ("gastos", "Abrir Assinaturas"),
 }
 
 # Campos com valor em dinheiro, por type - removidos no modo visitante
@@ -120,6 +126,15 @@ CAMPOS_SENSIVEIS = {
     # modo visitante, mas os cards do chat/historico vazavam sono/passos.
     "saude_dia": ("agua_copos", "passos", "sono_horas", "treino_min"),
     "saude_treino": ("sessoes",),
+    # Fase 7 (N1, ligado na C1 - checklist de docs/contrato-assinaturas.md).
+    # `proximas_cobrancas`/`proxima_cobranca` saem inteiros no modo
+    # visitante (trazem `valor` dentro).
+    "assinatura": ("valor",),
+    "compra_parcelada": ("valor_total", "valor_parcela"),
+    "resumo_financeiro_recorrente": (
+        "total_mensal", "assinaturas_total", "parcelas_total", "total_mes",
+        "proximas_cobrancas", "proxima_cobranca",
+    ),
 }
 
 # Action que MUDA dado (nunca sai no modo visitante - o servidor tambem
@@ -141,6 +156,10 @@ TIPOS_CARD = (
     "sugestao",
     "habito",
     "saude_dia",
+    # Fase 7 (N1, ligado na C1)
+    "assinatura",
+    "compra_parcelada",
+    "resumo_financeiro_recorrente",
 )
 
 
@@ -359,7 +378,7 @@ def card_meta(conn, id_: int, actions_extra=None) -> dict | None:
         return None
     alvo = float(row["valor_alvo"] or 0)
     guardado = float(row["valor_guardado"] or 0)
-    percentual = round(min(100.0, guardado / alvo * 100), 1) if alvo > 0 else 0.0
+    percentual = calculos.percentual_meta_exibicao(guardado, alvo)  # C1: funcao unica
     data = {
         "id": row["id"],
         "titulo": row["titulo"],
@@ -681,6 +700,103 @@ def _acoes_desfazer(criar_token, itens: list[dict]) -> list[dict]:
     return [acao_desfazer(token, itens)] if token else []
 
 
+# ---- Fase 7 (N1, ligado na C1): assinatura / compra parcelada --------------
+# Dado no formato de docs/contrato-assinaturas.md (N1). Alem dele, cada card
+# leva os nomes que o renderizador ja escrito em static/js/cards-tipos.js (V1)
+# le - `cartao`/`em_dias` (assinatura), `restantes`/`termina_em` (parcela),
+# `total_mes`/`n_assinaturas`/`n_parcelas`/`proxima_cobranca` (resumo) - pra
+# tela funcionar sem mexer no JS. Anotado pra C2 escolher um nome so.
+
+
+def assinatura_para_card(a: dict, hoje: date, *, consulta: bool = False, actions: list | None = None) -> dict:
+    proxima = fr.proxima_cobranca_assinatura(a, hoje)
+    data = {
+        "id": a["id"],
+        "nome": a["nome"],
+        "valor": a["valor"],
+        "dia_cobranca": a["dia_cobranca"],
+        "cartao_ou_forma": a.get("cartao_ou_forma"),
+        "categoria": a.get("categoria"),
+        "ativa": bool(a.get("ativa")),
+        "inicio": a.get("inicio"),
+        "cancelada_em": a.get("cancelada_em"),
+        "proxima_cobranca": proxima.isoformat() if proxima else None,
+        # nomes do renderizador V1
+        "cartao": a.get("cartao_ou_forma"),
+        "em_dias": (proxima - hoje).days if proxima else None,
+    }
+    if consulta:
+        data["consulta"] = True
+    return novo_card("assinatura", data, actions)
+
+
+def compra_parcelada_para_card(c: dict, hoje: date, *, consulta: bool = False, actions: list | None = None) -> dict:
+    info = fr.parcela_info(c, hoje)
+    try:
+        termina_em = calculos.data_ultima_parcela(c["primeira_parcela"], c["n_parcelas"]).isoformat()
+    except (ValueError, TypeError, KeyError):
+        termina_em = None
+    data = {
+        "id": c["id"],
+        "descricao": c["descricao"],
+        "valor_total": c["valor_total"],
+        "n_parcelas": c["n_parcelas"],
+        "valor_parcela": c["valor_parcela"],
+        "cartao": c.get("cartao"),
+        "primeira_parcela": c["primeira_parcela"],
+        "categoria": c.get("categoria"),
+        "parcela_atual": info["parcela_atual_calculada"],
+        "parcelas_restantes": info["parcelas_restantes"],
+        "mes_termino": info["mes_termino"],
+        "quitada": info["quitada"],
+        # nomes do renderizador V1
+        "restantes": info["parcelas_restantes"],
+        "termina_em": termina_em,
+    }
+    if consulta:
+        data["consulta"] = True
+    return novo_card("compra_parcelada", data, actions)
+
+
+def resumo_recorrente_para_card(resumo: dict) -> dict:
+    data = dict(resumo)
+    proximas = data.get("proximas_cobrancas") or []
+    primeira = proximas[0] if proximas and isinstance(proximas[0], dict) else None
+    data.update({
+        "consulta": True,
+        # nomes do renderizador V1
+        "total_mes": data.get("total_mensal"),
+        "n_assinaturas": data.get("n_assinaturas_ativas"),
+        "n_parcelas": data.get("n_compras_em_andamento"),
+        "proxima_cobranca": {"nome": primeira.get("nome"), "data": primeira.get("data")} if primeira else None,
+    })
+    return novo_card("resumo_financeiro_recorrente", data, [])
+
+
+def card_assinatura(conn, id_: int, hoje: date | None = None, actions_extra=None) -> dict | None:
+    a = fr.obter_assinatura(conn, id_)
+    if not a:
+        return None
+    return assinatura_para_card(a, hoje or date.today(), actions=_com_abrir(actions_extra, "assinatura", id_))
+
+
+def card_compra_parcelada(conn, id_: int, hoje: date | None = None, actions_extra=None) -> dict | None:
+    c = fr.obter_compra_parcelada(conn, id_)
+    if not c:
+        return None
+    return compra_parcelada_para_card(c, hoje or date.today(),
+                                      actions=_com_abrir(actions_extra, "compra_parcelada", id_))
+
+
+def card_resumo_financeiro_recorrente(conn, hoje: date | None = None) -> dict:
+    return resumo_recorrente_para_card(fr.resumo_financeiro_recorrente(conn, hoje or date.today()))
+
+
+def _com_abrir(actions_extra, entidade: str, id_: int) -> list:
+    aba, rotulo = ABA_POR_ENTIDADE[entidade]
+    return list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, entidade, id_)]
+
+
 def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
     """Efeitos dos modulos da Fase 6 (US-E7). `criar_token` None = consulta
     (sem Desfazer). O token guarda so o que o executor declarou (ids exatos)."""
@@ -711,6 +827,12 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_saude_dia(conn)
     if entidade == "sugestao":
         return card_sugestao(ef.get("titulo"), ef.get("inicio"), ef.get("duracao_min"), ef.get("porque"))
+    if entidade == "assinatura" and isinstance(id_, int):
+        return card_assinatura(conn, id_, actions_extra=desfazer)
+    if entidade == "compra_parcelada" and isinstance(id_, int):
+        return card_compra_parcelada(conn, id_, actions_extra=desfazer)
+    if entidade == "resumo_financeiro_recorrente":
+        return card_resumo_financeiro_recorrente(conn)
     return None
 
 

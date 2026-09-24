@@ -1,0 +1,25 @@
+/* static/css/secoes/hoje/visao-do-dia.css - secao hoje > visao-do-dia (HTML: templates/secoes/hoje/visao-do-dia.html).
+   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao). O
+   seletor Dia/Semana/Mes era 3 pilulas soltas de 34px flutuando sem nenhum
+   "trilho" por baixo - vira um segmented control com camada propria (trilho
+   recuado + pilula ativa levantada), no mesmo espirito das --shadow-card
+   ja usadas nos cards. */
+.visao-dia-seletor {
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.visao-dia-periodo-btn {
+  min-height: 44px;
+}
+
+.visao-dia-periodo-btn.active {
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--accent) 55%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+#visao-dia-foco {
+  box-shadow: var(--glass-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}

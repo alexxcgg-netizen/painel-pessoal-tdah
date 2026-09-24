@@ -5,6 +5,169 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-24 - Fase 7 (v12): IA híbrida, visual novo, assinaturas e parcelas, assistente proativo
+
+**Resumo para o Alex.** A Fase 7 rodou em 47 faixas paralelas (mais a Etapa 0), integradas na branch
+`fase7/integracao`. Rollback: tag local `pre-fase-7` / commit `789171d`.
+- A IA virou **híbrida**: cada função (chat, captura, nota fiscal...) tem um arquivo em
+  `ia/config.d/` que diz qual modelo usar (Claude, GPT-6 Luna/Sol ou Gemini). Tudo nasce
+  `ativo: false`, então nada muda até você aprovar o teste A/B (`scripts/ab_teste_ia.py`).
+- **Teto único de R$ 40/mês** para toda chamada de IA, com gasto contado uma vez só e um card
+  novo "Custo de IA" no Painel (por função, projeção, CSV).
+- O chat ficou mais barato: resumo fixo do histórico + cache de prompt, e datas ("sexta que
+  vem") calculadas em código, não pela IA. Contas de dinheiro também (`calculos.py`).
+- **Assinaturas e compras parceladas**: "assinei Netflix 55 por mês", "comprei geladeira 3000
+  em 12x no nubank" viram cadastro sem IA, com Desfazer e seção nova junto do cartão.
+- **Assistente proativo**: a "Caixa" no topo da Hoje junta perguntas ("Pagou a luz?"),
+  briefing da manhã e da noite, regras em português ("me avisa se gastar mais de 300 com
+  mercado"), replanejar o dia, sinais do iPhone e propostas de memória. Tela nova
+  "Assistente" com liga/desliga de cada aviso e horário de silêncio.
+- **Telegram** por webhook (texto, link, voz, foto de nota), **widget do iPhone** (Scriptable,
+  Widgy, Glimpse, Atalhos e base WidgetKit) e "tomei um copo de água" sem IA.
+- **Visual novo** sem trocar cor, fonte nem animação: cards com profundidade, botão
+  "adicionar" grande que abre um painel de baixo (bottom sheet), seções recolhíveis, toque
+  de 44px e foco visível em todo o app.
+- A Construtora no painel mostra só gastos, entradas e o tempo até a próxima conta.
+- Pendências que dependem de você estão em `TODO.md` ("Pendências abertas pós-Fase 7").
+
+### IA (A1-A15)
+- **Núcleo** (A1, `ia/core.py`): `chamar_ia(funcao, ...)` lê `ia/config.d/<funcao>.json`
+  (formato em `ia/config.d/README.md`), usa `alvo` se `ativo` senão `modelo_atual`, tenta os
+  `fallback` em ordem, 1 retry em erro de rede, valida JSON contra schema (raiz sempre objeto)
+  e consulta o teto antes. `registrar_adapter()` para dublês. Exceções `FalhaChamadaIA`
+  (`TetoEstourado`, `ErroProvedor`, `RespostaInvalida`, herdam de `ValueError`; C1).
+- **Adapters** `ia/adapters/{anthropic,openai,gemini}.py` (A2/A3/A15): erro de rede sobe como
+  exceção (retry no núcleo), erro de API vira `Resposta(ok=False)`. Anthropic: `cache_control`
+  só no `contexto_fixo`; esforço vazio ou Haiku não manda effort/thinking. OpenAI:
+  `reasoning_effort`, `service_tier="flex"` (`ia/lote.py`), converte imagem e PDF
+  (`file_data` data URI, C1). Gemini: SDK `google-genai` com import tardio.
+- **Medição e teto** (A4): tabela `uso_ia` (só metadados), `ia/medicao.py`, `ia/teto.py`
+  (`teto_permite`, `nivel_alerta` 80%/100%), preços em `ia/precos.json` lidos só por
+  `ia/precos.py` (fonte única; câmbio fixo R$ 5,50). Gasto do mês com fonte única
+  `ia.medicao.gasto_mes_atual` (`uso_ia` + `api_usage` legado só antes da 1ª linha de
+  `uso_ia` do mês; C1).
+- **Histórico do chat** (A5, `ia/historico.py`): resumo fixo (`chat_resumo_historico`,
+  reconstruído acima de ~6.000 tokens ou na virada do dia) + últimas mensagens na íntegra
+  (máx. 20, sem buraco, C1).
+- **Chat** (A6, `ia/funcoes/chat.py`): contexto do dia fora do system, 4 breakpoints de cache,
+  limites de saída (chat 500 → refaz com 1500), `resolver_data_relativa`/`resolver_quando_data`.
+  Opções novas entram por `claude_client.opcoes_chat(...)` (contextvar) para não quebrar os
+  40+ dublês de 4 argumentos. Chat com tools continua no SDK Anthropic direto.
+- **Migrações** A7 (captura/intent/resumo/essencial + `resolver_data`), A8 (planejamento:
+  mala, link truncado em 12.000 caracteres, quebra de tarefa, plano do dia) e A9 (nota fiscal
+  e cotação PDF com `confianca` < 0,7 refazendo 1x) passaram a usar `chamar_ia`, com mesma
+  assinatura. O teto passou a valer nessas rotas.
+- **A10**: `construtora_cliente.py` (cache 60s, timeout 5s, `CONSTRUTORA_API_MOCK=1`; só
+  `gastos_do_mes`, `entradas_do_mes`, `proxima_conta`) e regra local `a10_agua.py`.
+- **A11** A/B (`scripts/ab_teste_ia.py`, `--dry-run`, `docs/ab-teste.md`); **A12** suíte
+  paralela `scripts/suite.sh` (`TESTES_JOBS`, `TESTES_TIMEOUT`), `tests/conftest.py` e
+  `docs/testes.md`; **A13** `calculos.py` (Decimal, `ROUND_HALF_EVEN`, `docs/calculos.md`);
+  **A14** `ia/roteador_chat.py` (local/luna/padrão, flag `ia/roteador_chat.json` desligada).
+
+### Finanças, Telegram e widgets (N1-N3)
+- **N1** assinaturas e compras parceladas: migração `202609241300_n1_assinaturas.sql`,
+  `financas_recorrentes.py`, regra local `n1_financas.py`, rotas `rotas/n1_financas.py`
+  (`/api/financas/*`, `POST /api/financas/desfazer/<token>`), contrato em
+  `docs/contrato-assinaturas.md`. C1: valida antes do INSERT e lê tolerando linha ruim;
+  cards em `cards.py` (valor escondido no modo visitante) e Desfazer geral também funciona.
+- **N2** `telegram_captura.py` + `POST /api/telegram/webhook` (segredo, um chat permitido,
+  idempotência por `update_id`, voz via Groq). `TELEGRAM_MODO` e `TELEGRAM_BOT_TOKEN_CAPTURA`
+  (C1) garantem que webhook e polling nunca rodam juntos no mesmo bot
+  (`docs/telegram-captura.md` §7).
+- **N3** `GET /api/widget` e `GET /widget` (`PAINEL_WIDGET_TOKEN`, sem R$ por padrão),
+  `scriptable/scriptable-widget.js` (4 tamanhos, cache do último JSON bom), docs
+  `docs/widget-*.md` (Widgy, API Widget, Glimpse, Atalhos, comparativo) e
+  `native/widgetkit/` (Swift não compilado, precisa de Mac).
+
+### Assistente proativo (P1a-P9)
+- **Caixa** (P1a/P1b): `assistente/caixa.py`, tabela `assistente_itens` (dedupe por
+  `chave_unica`), `POST /api/tick` (`PAINEL_TICK_TOKEN`, cron externo a cada 5 min,
+  `docs/tick.md`), `GET /api/assistente/saude`. A `origem` é `<arquivo do gatilho>:<resto>`;
+  a Caixa acha o `ao_resolver` pelo prefixo. Faixa compacta no topo da Hoje, selo na barra e
+  aba "Assistente" (Caixa, Regras, Avisos).
+- **Gatilhos** em `assistente/gatilhos/`: P2 perguntas (conta, reunião, tarefa vencida,
+  lembrete, espera), P3 briefing manhã/noite (07:30/21:00, `rotas/p3_briefing.py`), P4 regras
+  em português (`assistente/regras.py`, tabela `p4_regras`, IA só se o parser local falhar),
+  P5 replanejar o dia (sugestão das 14h com flag desligada), P7 `POST /api/sinal`
+  (`PAINEL_SINAL_TOKEN`, `docs/atalhos-sinais.md`), P9 memória viva (domingo à noite, números
+  em código e IA só redige).
+- **Central de avisos** (P8, `assistente/avisos.py`): ~50 tipos, canal push/caixa/ambos,
+  silêncio 22h-7h. C1: a Caixa respeita tipo desligado, `TIPO_POR_ORIGEM` mapeia a origem
+  (faixa P nova precisa cadastrar lá) e o fechamento antigo das 21h fica calado com a P3.
+- Vida amorosa/relacionamento nunca vira pergunta, regra nem memória (filtro por palavra).
+
+### Visual (V0a-V6)
+- **Componentes** (V0a-V0d): `static/css/ui/tokens.css` (forma, espaço, elevação, `--anel-foco`,
+  `--toque-min`) e o guia `docs/MASTER.md`; `ui/componentes/{botao,card,chip,campo,
+  lista-item,secao,bottom-sheet,navegacao}.css`; `static/js/ui/secao-recolhivel.js`
+  (estado em `localStorage` por `data-secao-id`) e `static/js/ui/bottom-sheet.js`
+  (`abrirBottomSheet`/`fecharBottomSheet`, foco preso, ESC, `data-fecha-ao-enviar` +
+  `bottomsheet:sucesso`). Autor escreve só `<div class="bottom-sheet" hidden>`.
+- **Telas**: V1 Hoje (brain dump num toque, botões do topo), V2 Painel (card "Custo de IA",
+  `rotas/v2_custo_ia.py`, memória recolhível), V3 Hábitos/Projetos/Agenda/Tarefas, V4 demais
+  seções da Vida, V5 Viagens/Lugares/Cotações/Aviação, V6 Gastos/Bancos/Construtora
+  (seção "Assinaturas e parcelas", `id="assinaturas-financas-box"`).
+
+### Polimento (C1, C2, C3a-c)
+- **C1 backend**: chat com A5 + `medir_uso`, teto único, mensagens de erro certas (402 teto,
+  502 provedor), construtora só pelo cliente novo (nunca lucro/margem/VGV),
+  `calculos.percentual_meta_exibicao` (1 casa), fuzz de 184 cenários (`scripts/ralph-c1-backend/
+  fuzz.py`, 15 erros 500 corrigidos), conftest com SDKs apontando para `127.0.0.1:9`.
+- **C2 visual** (V0-V3, P1b): abas com `#tab-x:not([hidden])`, componentes com guarda
+  `[hidden]`, sheet vai para o `<body>` enquanto aberto, adicionar em sheet em Datas,
+  Medicamentos, Esperando e Diário, 44px em tudo, checkbox do app, Avisos recolhíveis.
+- **C3a Vida, C3b Viagens/Aviação, C3c Finanças**: sheets só no componente (sem CSS
+  provisório), bloco interno em vez de card dentro de card, nada de botão nativo, números em
+  mono, validação pt-BR de valor (`type=text inputmode=decimal`), Leaflet com 180px, listas
+  tolerantes a resposta fora do formato. Fuzz de UI com 56, 71 e 98 cenários.
+
+### Integração (M1)
+- `style.css`: foco global com `var(--anel-foco)`, `[hidden] { display: none !important }`,
+  animação da aba com fill `backwards`, comentário que engolia `.garantia-chip` corrigido.
+- Desfazer da N1 pela rota própria (`Cards.urlDesfazer`), reabertura rápida de sheet sem timer
+  velho, placeholder a 4,82:1 (`.campo` em `--superficie-1`), seção recolhida com `inert`.
+- Consolidação final (`fase7/m1-final`): este CHANGELOG (os `changelog.d/*.md` foram
+  apagados, ver `changelog.d/README.md`), "Aprendizados da Fase 7" no `AGENTS.md`, `TODO.md`,
+  `STATUS.md`, `.env.example` (`TELEGRAM_MODO`, `TELEGRAM_BOT_TOKEN_CAPTURA`), service
+  worker v15, `docs/MASTER.md` (campo em `--superficie-1`), "Seu progresso" com percentual
+  em pt-BR e `docs/tick.md` com `<TOKEN>` (gitleaks zerado).
+
+## 2026-09-24 (Fase 7, Etapa 0 / X1) - extracao estrutural do backend
+
+Mudanca estrutural pura (zero mudanca de comportamento) pra ~20 faixas paralelas nao
+editarem o mesmo arquivo. Branch `fase7/e0-backend`.
+- `claude_client.py` dividido em `ia/legado.py` + `ia/funcoes/{chat,captura,planejamento,
+  visao}.py`; `claude_client.py` vira fachada que reexporta tudo (codigo movido sem
+  alteracao, AST identico).
+- `rotas/`: Blueprints com carga automatica (`rotas.registrar_todas(app)` no fim do
+  `app.py`), `rotas._base.app_modulo()`, e `ROTAS_COM_TOKEN`/`PREFIXOS_COM_TOKEN` por
+  modulo liberados no `_verificar_autenticacao` (a rota checa o proprio token).
+- `migracoes/*.sql` aplicadas pelo `db.init_db()` (uma vez so, tabela
+  `migracoes_aplicadas`, uma transacao por arquivo, `db.ErroMigracao` com o nome).
+- `classificador_local/` (regras em `regras/*.py`) como primeira camada de
+  `_classificar_intent`, da captura e do chat - com `regras/` vazio nada muda.
+- `assistente/gatilhos/` com `executar_todos(conn, agora)` (sem endpoint ainda).
+- Testes: `tests/test_fase7_infra_{rotas,migracoes,classificador,gatilhos}.py`.
+
+## 2026-09-24 (Fase 7, X2) - frontend dividido por secao (so estrutura)
+
+Mudanca estrutural pura pra ~10 faixas de visual rodarem em paralelo sem editar o mesmo
+arquivo. Zero mudanca de comportamento/visual: HTML renderizado de `/` identico (fora os
+acrescimos vazios abaixo), mesmos globais JS, mesmo DOM depois de abrir todas as abas,
+screenshots Hoje/Vida iguais. Branch `fase7/e0-frontend`. Mapa: `docs/agentes/mapa-frontend.md`.
+- `templates/index.html` so faz `{% include %}`: `head.html`, `secoes/topo/`,
+  `abas/<aba>.html` -> `secoes/<aba>/<secao>.html` (uma por h2), `navegacao.html`, `scripts.html`.
+- `app.js`/`vida.js` -> `static/js/nucleo/*.js` (compartilhado + `init.js` com a carga inicial)
+  e `static/js/secoes/<aba>/<secao>.js` (mesmos nomes do HTML). Ordem de carga conferida por
+  analise estatica e no navegador.
+- `static/css/fase7.css` (depois do `style.css`) importa camadas vazias: `ui/tokens.css`,
+  `ui/componentes/*.css`, `secoes/<aba>.css`, `secoes/<aba>/<secao>.css`.
+- Vazios pras faixas: aba `assistente` (escondida, sem botao), `#caixa-assistente` no topo da
+  Hoje, `secoes/assistente/{caixa,regras,avisos}` (HTML/JS/CSS), `ui/bottom-sheet.js`,
+  `ui/secao-recolhivel.js`.
+- Service worker v14 com todos os arquivos novos no precache; teste
+  `tests/test_fase7_estrutura_frontend.py` guarda isso.
+
 ## 2026-09-23 (Fase 6) - correcoes da revisao independente (codigo + seguranca)
 
 Revisao independente da Fase 6 (seguranca + codigo) achou 14 pontos; todos

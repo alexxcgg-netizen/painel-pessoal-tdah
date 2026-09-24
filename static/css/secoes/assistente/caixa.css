@@ -1,0 +1,143 @@
+/* static/css/secoes/assistente/caixa.css - secao assistente > caixa (HTML: templates/secoes/assistente/caixa.html).
+   Fase 7 (X2): carrega DEPOIS do style.css (via fase7.css), entao regra aqui
+   sobrescreve por cascata sem precisar editar o style.css.
+
+   Fase 7 (P1b): a casca de secao recolhivel (.secao-recolhivel/.secao-cabecalho/
+   .chevron/.secao-conteudo) e o cartao generico (.card, .chip) JA vem estilizados
+   por static/css/ui/componentes/{secao,card,chip}.css (faixa V0c, mesclada na
+   integracao) - aqui e so o que e especifico da Caixa (o item, os botoes de
+   resposta, a animacao de sumir, o aviso de atraso). .btn ainda nao tem CSS
+   (faixa V0b, static/css/ui/componentes/botao.css, ainda vazio quando esta
+   faixa foi escrita) - .caixa-item-opcao tem estilo proprio ate la. */
+
+/* C2: .card + .secao-recolhivel no mesmo elemento somavam os dois paddings (card 16px +
+   cabecalho/conteudo 16px) - o card fica sem padding e a secao cuida do respiro. */
+.caixa-compacta.card {
+  padding: 0;
+  gap: 0;
+}
+
+/* C2: o amarelo #ffc45c era cor NOVA (fora da paleta do style.css). O aviso agora e bloco
+   interno neutro com uma barra de 3px na cor ja existente --cor-bancos (dourado) e texto
+   --text (contraste alto); o icone/texto continuam dizendo que e aviso. */
+.caixa-aviso-atraso {
+  margin: 0 0 var(--espaco-2);
+  padding: var(--espaco-2) var(--espaco-3);
+  border-radius: var(--raio-sm);
+  background: var(--superficie-3);
+  border: var(--linha) solid var(--borda-sutil);
+  border-left: 3px solid var(--cor-bancos);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.caixa-compacta-lista,
+.caixa-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* C2: item e "card sobre card" (receita do MASTER): superficie-3, raio menor, plano -
+   antes era um .card completo dentro do card da secao (3 niveis de caixa). */
+.caixa-item {
+  padding: var(--espaco-2) var(--espaco-3) var(--espaco-3);
+  gap: var(--espaco-1);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.caixa-item.card {
+  background: var(--superficie-3);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
+}
+
+.caixa-item-saindo {
+  opacity: 0;
+  transform: translateX(12px) scale(0.98);
+}
+
+/* .chip.chip--compacto (ui/componentes/chip.css) ja da fundo/borda/raio/padding -
+   aqui e so o toque de rotulo (maiusculo, letterspacing) e o respiro embaixo. */
+/* C2: align-self - no .card (flex coluna, stretch) o rotulo virava uma pilula da largura
+   toda. Agora e um rotulo pequeno a esquerda. */
+.caixa-item-tipo {
+  align-self: flex-start;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.66rem;
+  margin-bottom: 2px;
+}
+
+.caixa-item-titulo {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.caixa-item-corpo {
+  margin: 0 0 8px;
+  color: var(--text-muted, #a7afbc);
+  font-size: 0.92em;
+}
+
+.caixa-item-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* C2: o estilo provisorio de .caixa-item-opcao saiu - o botao ja e .btn.btn-secundario
+   (ui/componentes/botao.css). So o tamanho do texto da resposta fica aqui. */
+.caixa-item-opcao {
+  font-weight: 600;
+}
+
+.caixa-item-resposta {
+  margin: 0;
+  color: var(--text-muted, #a7afbc);
+  font-size: 0.88em;
+}
+
+.caixa-item-historico {
+  opacity: 0.85;
+}
+
+.caixa-vazio {
+  list-style: none;
+  padding: 14px;
+  text-align: center;
+  color: var(--text-faint, #788292);
+  font-size: 0.9em;
+}
+
+/* C2: "Ver tudo" era --accent (#45454a) sobre a superficie: 2.2:1. Agora --text-muted
+   (mesma paleta, ~8:1) com peso 600; o sublinhado continua dizendo que e link. */
+.caixa-vertudo {
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--espaco-1);
+  min-height: var(--toque-min);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .caixa-vertudo:hover {
+    color: var(--text);
+  }
+}
+
+#secao-caixa-assistente h2 {
+  margin: 0;
+  font-size: 1.05em;
+}
+
+.caixa-lista-historico {
+  margin-top: 4px;
+}

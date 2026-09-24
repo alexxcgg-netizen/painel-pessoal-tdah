@@ -1,0 +1,40 @@
+# Fase 7 C3a (polimento visual da aba Vida) - worktree painel-pessoal-tdah-fase7-c3a-vida, branch fase7/c3a-vida, porta 5131
+# A V4 nao deixou APRENDIZADOS.md (so progress). Scripts: servidor.py comum.py auditar.py fuzz.py capturar.py
+
+## H1 auditoria (auditar.py) - FEITA. Achados [c3a] todos corrigidos na H2 (0 restante):
+sheet preso/emoldurado; toque < 44px (dica "!", acoes da linha 28px, link do salvo, checklist,
+campos 36px, anexo 21px, "Ver"); botao nativo ("Adicionar exercicio", "Ver", "Choose File");
+titulo do cabecalho centralizado; item = card dentro de card; sheets sem titulo; campo sem .campo;
+rotulo em MAIUSCULAS; chip da garantia sem pilula; resumo do salvo numa coluna ao lado; 1a linha de
+"Ainda usa?" cortada. Contraste: so "salvo lido" (4.3) -> resolvido tirando o preenchimento. Emoji: 0.
+Botao adicionar: os 10 ja eram .btn.btn-adicionar + sheet. Secao sem recolhivel: 0 minha.
+
+## H2 correcoes - FEITA. H3 fuzz - FEITA (56/56, 0 erro de console, 0 excecao, 0 saida de rede)
+- Apos merge da C2: sheet vai pro <body>; titulo .bottom-sheet-titulo; botao "Salvar <coisa>";
+  vida.css sem NENHUMA regra de sheet; guarda [hidden] e fill-mode meus sairam (viraram globais).
+- Escopo: regras de lista/acoes/dica/campo inline so em `.vida-acabamento` (minhas 14 secoes).
+- Fuzz achou e corrigi: loaders quebravam com GET em formato errado ({} no lugar de lista) ->
+  Array.isArray em 13 loaders; toque em "abrir" durante o fechamento do sheet -> ignorado.
+- Trava de rede (pedido URGENTE do integrador): servidor.py com base URL 127.0.0.1:9, chaves
+  "teste-fake", *_proxy apagados e connect() fora do loopback/porta do proxy RECUSADO e logado;
+  Playwright aborta host externo e dubla /api/summary/today. Contagem de tentativas: 0.
+## H4 testes - FEITA: 6 suites vida/estrutura 199 passed; JS 219/219; c2/m1/c3b 21 passed.
+## H5 - FEITA: merge c3c; capturar.py -> c3a-vida-secoes.png e c3a-vida-sheet.png (fora do git,
+## .gitignore da pasta); fuzz final 56/56; changelog.d/c3a-vida.md.
+
+## PENDENCIAS pra outros donos (nao editei)
+1. static/js/ui/bottom-sheet.js (V0d/C2) fecharBottomSheet: setTimeout(finalizar,240) nao e
+   cancelado se o sheet reabre na janela -> finalizar esconde o sheet que continua em `abertos`:
+   nunca mais abre e o body fica com scroll travado. Guardar o timer e clearTimeout no abrir.
+   (Contornado nos meus 10 botoes de abrir.)
+2. static/css/ui/componentes/campo.css (C2): placeholder --text-faint sobre --superficie-3 = 4.3:1
+   (< 4.5) em todo sheet. Sugestao: fundo --superficie-1 no .campo do sheet (da 4.7:1).
+   Nas minhas secoes (campo inline) ja uso --superficie-1.
+3. static/css/style.css l.~2102: comentario "(... .limite-cartao-*/ .pessoa-barra-*)" fecha no
+   "*/" do meio e engole `.garantia-chip {}`. Trocar "-*/" por "-* /". (Reposto em garantia.css.)
+4. c3b: viagens.css/lugares.css `.dica-toggle::after { inset:-12px }` + o ::after do componente
+   (left/top 50% + translate -50%) = area de toque deslocada pro canto (hit-test falha).
+   Remover o ::after local (o do secao.css ja da 44px).
+5. secao.css (V0c): .secao-conteudo recolhida (max-height 0) continua no Tab do teclado.
+6. Minhas regras de sheet saem do CSS da aba; `#sheet-garantia .garantia-anexo` e
+   `#sheet-ficha #ficha-ex-add-btn` ficam por id na CSS da secao (valem no <body>).

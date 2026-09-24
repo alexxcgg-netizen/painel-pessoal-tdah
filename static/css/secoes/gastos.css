@@ -1,0 +1,150 @@
+/* static/css/secoes/gastos.css - estilos da aba gastos inteira (templates/abas/gastos.html).
+   Fase 7 (faixa v6-financas): acabamento/profundidade (docs/agentes/fase7-visual.md)
+   pras 3 secoes da aba (gastos, assinaturas, metas) - sem mudar cor, fonte nem
+   animacao, so radius/borda fina/elevacao sutil em cima do que ja existe.
+   Escopado em #tab-gastos pra nunca vazar pra outra aba (outras faixas tem
+   seu proprio arquivo pro mesmo tipo de acabamento). */
+
+#tab-gastos .card-vida,
+#tab-gastos .resumo-texto,
+#tab-gastos .resumo-semanal-box,
+#tab-gastos .grafico-card {
+  border-radius: var(--raio, var(--radius));
+  border: 1px solid var(--borda-sutil, var(--border));
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+#tab-gastos .card-vida {
+  background: var(--superficie-2, var(--surface-2));
+}
+
+#tab-gastos #lista-gastos > .item,
+#tab-gastos #lista-metas > .item {
+  background: var(--superficie-2, var(--surface-2));
+  border: 1px solid var(--borda-sutil, var(--border));
+  border-radius: var(--raio-sm, var(--radius-sm));
+  padding: 0.65rem 0.8rem;
+  margin-bottom: 0.5rem;
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+@media (hover: hover) {
+  #tab-gastos #lista-gastos > .item:hover,
+  #tab-gastos #lista-metas > .item:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--elevacao-2, inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 3px 10px -3px rgba(0, 0, 0, 0.5));
+  }
+}
+
+/* Categoria do gasto como chip (contrato .chip.chip--compacto, ver
+   static/css/ui/componentes/chip.css) - mesmo comportamento de antes (toque
+   pra corrigir vira <select>), so o acabamento muda. Sem delta proprio: o
+   componente ja cobre o visual. */
+#tab-gastos .gasto-categoria.chip {
+  cursor: pointer;
+}
+
+/* ---- Fase 7 (faixa C3c): toque, contraste e numero em mono ---- */
+
+/* Chip de categoria (agora <button>): texto em --text (a cor da categoria
+   sobre o fundo tingido dava 3.2-4.0:1), a cor da categoria fica no fundo
+   (style.css) e numa borda fina. Visual de 32px; o ::after invisivel
+   completa a area de toque de 44px (receita do Chip, MASTER #5). */
+#tab-gastos .gasto-categoria.chip {
+  position: relative;
+  min-height: 28px;
+  border: var(--linha, 1px) solid var(--borda-forte, var(--border-strong));
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+#tab-gastos .gasto-categoria.chip[data-cat] {
+  color: var(--text);
+}
+
+#tab-gastos .gasto-categoria.chip::after {
+  content: "";
+  position: absolute;
+  inset: -8px -4px;
+}
+
+#tab-gastos .gasto-categoria.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+#tab-gastos .valor-mono,
+#tab-gastos .gasto-valor,
+#tab-gastos .meta-detalhe {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Frases com valor (fim do mes, resumo semanal): so o numero em mono. */
+#tab-gastos .fim-mes-linha,
+#tab-gastos .resumo-semanal-detalhe {
+  overflow-wrap: anywhere;
+}
+
+/* Valor gigante nao vaza do card em 390px. */
+#tab-gastos .gasto-valor,
+#tab-gastos .resumo-semanal-valor {
+  overflow-wrap: anywhere;
+}
+
+#tab-gastos #lista-gastos .item-linha > div:first-child {
+  min-width: 0;
+}
+
+/* Acoes e campos com a altura minima de toque (MASTER #9). */
+#tab-gastos .btn-corrigir-gasto {
+  min-height: var(--toque-min, 44px);
+  padding: 0 var(--espaco-2, 0.6rem);
+  font-size: 0.8rem;
+}
+
+#tab-gastos .form-linha .campo,
+#tab-gastos .meta-guardar .campo {
+  min-height: var(--toque-min, 44px);
+}
+
+#tab-gastos .meta-guardar .btn {
+  min-height: var(--toque-min, 44px);
+}
+
+#tab-gastos .ofx-input-label {
+  min-height: var(--toque-min, 44px);
+  box-sizing: border-box;
+}
+
+/* Link "CSV" no titulo da secao: pilula pequena de 44px de area. */
+#tab-gastos .btn-exportar-csv {
+  position: relative;
+  min-height: 32px;
+  font-size: 0.7rem;
+}
+
+#tab-gastos .btn-exportar-csv::after {
+  content: "";
+  position: absolute;
+  inset: -6px -4px;
+}
+
+/* Selo "meta batida!": icone de traco no lugar do emoji. */
+#tab-gastos .badge-meta-batida {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--espaco-1, 0.25rem);
+}
+
+#tab-gastos .badge-meta-batida svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Dica dentro do campo fica na fonte de texto; so o numero digitado e mono. */
+#tab-gastos .valor-mono::placeholder {
+  font-family: var(--font-body);
+}

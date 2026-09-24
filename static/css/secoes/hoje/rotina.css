@@ -1,0 +1,7 @@
+/* static/css/secoes/hoje/rotina.css - secao hoje > rotina (HTML: templates/secoes/hoje/rotina.html).
+   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao). O
+   box em volta (#rotina-box) ja e .card-vida - so os itens do checklist
+   tinham 40px de toque (perto dos 44px pedidos, mas nao em cima). */
+#rotina-lista.checklist .checklist-item label {
+  min-height: 44px;
+}

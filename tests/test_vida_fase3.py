@@ -243,10 +243,21 @@ class AvisosFase3TestCase(VidaBaseTestCase):
     def test_aprender_no_domingo(self):
         conn = self._conn()
         aid = db.create_aprender(conn, "FII", None)
-        conn.execute("UPDATE aprender SET criado_em = datetime('now', '-10 days') WHERE id = ?", (aid,))
-        conn.commit()
         domingo = datetime.combine(date.today(), datetime.min.time()).replace(hour=11)
         domingo -= timedelta(days=(domingo.weekday() - 6) % 7)
+        # "-10 dias" tem que ser relativo ao `domingo` calculado acima, nao
+        # ao relogio real (`datetime('now', ...)` do SQLite) - `domingo` e
+        # o domingo mais recente, ate 6 dias ANTES de hoje. Com o offset
+        # preso ao relogio real, "parado" (dias entre `domingo` e
+        # `criado_em`) encolhia pra 10 - (offset de hoje ate domingo), e
+        # cai abaixo do limiar de 7 dias do aviso sempre que o teste roda
+        # numa quinta, sexta ou sabado (offset >= 4) - ver
+        # `changelog.d/a12-testes.md`.
+        conn.execute(
+            "UPDATE aprender SET criado_em = ? WHERE id = ?",
+            ((domingo - timedelta(days=10)).isoformat(), aid),
+        )
+        conn.commit()
         textos = [c for t, c in self._tipos(domingo) if t == "aprender"]
         self.assertEqual(len(textos), 1)
         self.assertIn('"FII"', textos[0])

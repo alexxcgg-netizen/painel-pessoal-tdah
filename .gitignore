@@ -1,9 +1,12 @@
 __pycache__/
 *.pyc
-.venv/
+.venv
 venv/
 .env
 data/
 vapid_private.pem
 .claude/*
 !.claude/settings.json
+
+# Fase 7: exemplos reais do Alex pro teste A/B de IA (nunca versionar)
+fixtures_reais/

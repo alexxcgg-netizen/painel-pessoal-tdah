@@ -1,0 +1,10 @@
+{
+  "funcao": "classify_capture",
+  "ativo": false,
+  "modelo_atual": {"provedor": "anthropic", "modelo": "claude-haiku-4-5-20251001"},
+  "alvo": {"provedor": "openai", "modelo": "gpt-6-luna", "esforco": "medio"},
+  "fallback": [{"provedor": "anthropic", "modelo": "claude-haiku-4-5-20251001"}],
+  "max_tokens_saida": 300,
+  "cache": {"ativo": false, "ttl": "5m"},
+  "modo": "padrao"
+}

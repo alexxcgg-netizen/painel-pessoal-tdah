@@ -1,0 +1,193 @@
+/* static/css/secoes/gastos/assinaturas.css - secao gastos > assinaturas
+   (HTML: templates/secoes/gastos/assinaturas.html).
+   Fase 7 (faixa v6-financas). Usa as classes do contrato de UI (docs/MASTER.md):
+   .btn.btn-adicionar, .bottom-sheet, .card, .card--destaque, .chip, .campo,
+   .lista/.lista-item. static/css/ui/componentes/* ja fazem a base de cada um -
+   aqui so ficam os ajustes proprios desta secao. Numeros sempre em
+   --font-tech (mono) + tabular-nums.
+   Fase 7 (faixa C3c): sai a moldura provisoria do sheet (.bottom-sheet-financas
+   pintava a moldura da V0d real: painel saia da tela, 2 pegadores). O sheet
+   agora e 100% do componente (ui/componentes/bottom-sheet.css, V0d + C2);
+   aqui so o rotulo sem maiusculas, o erro e o numero em mono. Sem guarda
+   [hidden] local: card.css/lista-item.css ja respeitam (C2). Tambem ficam aqui as classes de apoio
+   reusadas pelas outras secoes desta faixa (contas pessoais, construtora):
+   .btn-icone-financas, .sheet-erro, .valor-mono dentro dos sheets. */
+
+#assinaturas-financas-box .valor-mono,
+.bottom-sheet-financas .valor-mono {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+}
+
+.bottom-sheet-financas .valor-mono::placeholder {
+  font-family: var(--font-body);
+}
+
+/* ---- Card "Comprometido este mes" (unico --elevacao-2 da secao) ---- */
+
+#comprometido-box p {
+  margin: 0;
+}
+
+#assinaturas-financas-box .valor-comprometido {
+  font-size: clamp(1.5rem, 7vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+#assinaturas-financas-box .chips-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2, 0.5rem);
+}
+
+#assinaturas-financas-box .chips-linha .chip {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+}
+
+#assinaturas-financas-box .grafico-limite-cartao-card {
+  margin: 0;
+  padding: var(--espaco-3, 1rem) 0 0;
+  border: none;
+  border-top: var(--linha, 1px) solid var(--borda-sutil, var(--border));
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+}
+
+#assinaturas-financas-box .grafico-legenda {
+  margin: var(--espaco-1, 0.25rem) 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ---- Botoes de adicionar: 2 CTAs lado a lado -> variante --pilula do
+   proprio contrato (MASTER #5), nao a largura cheia padrao. ---- */
+
+#assinaturas-financas-box .botoes-adicionar-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2, 0.5rem);
+  margin: var(--espaco-3, 1rem) 0 var(--espaco-4, 1.5rem);
+}
+
+#assinaturas-financas-box .botoes-adicionar-linha .btn-adicionar--pilula {
+  flex: 1 1 auto;
+}
+
+/* ---- Listas ----
+   `.lista` + `.card` no mesmo elemento = "lista dentro de card" (MASTER #5).
+   lista-item.css importa depois de card.css e zera padding/gap - reaplico. */
+
+#assinaturas-financas-box .lista.card {
+  gap: 0;
+  padding: var(--espaco-2, 0.5rem) var(--espaco-3, 1rem);
+}
+
+#assinaturas-financas-box .lista-subtitulo {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: var(--espaco-4, 1.5rem) 0 var(--espaco-2, 0.5rem);
+}
+
+/* Titulo quebra em vez de cortar com reticencias (em 390px o nome sumia). */
+#assinaturas-financas-box .lista-item-titulo {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#assinaturas-financas-box .lista-item {
+  padding: var(--espaco-2, 0.5rem) 0;
+}
+
+/* Valor da linha: dado (MASTER #7) em --text - a cor da aba fica so no
+   icone/borda (a --cor-financeiro dava 4:1 de contraste sobre o card). */
+#assinaturas-financas-box .lista-item-valor {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--text);
+}
+
+#assinaturas-financas-box .chip-cartao-financas {
+  align-self: flex-start;
+  margin-top: var(--espaco-1, 0.25rem);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#assinaturas-financas-box .parcela-progresso {
+  margin-top: var(--espaco-1, 0.35rem);
+}
+
+/* "Hoje/ja passou": indicador na cor da aba (barra), nunca so a cor (o
+   texto "hoje" ja vem na linha). */
+#assinaturas-financas-box .item-atencao {
+  box-shadow: inset 3px 0 0 var(--cor-financeiro);
+  padding-left: var(--espaco-2, 0.5rem);
+}
+
+/* ---- Acoes de linha (reusado por contas pessoais) ---- */
+
+.lista-item-acoes .btn-icone-financas {
+  width: var(--toque-min, 44px);
+  min-width: var(--toque-min, 44px);
+  padding: 0;
+  color: var(--text-muted);
+}
+
+.lista-item-acoes .btn-icone-financas svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  .lista-item-acoes .btn-apagar-financas:hover:not(:disabled) {
+    color: var(--danger);
+  }
+}
+
+.lista-item-acoes .btn-apagar-financas:focus-visible {
+  color: var(--danger);
+}
+
+.lista-item-acoes .btn-cancelar-assinatura {
+  padding: 0 var(--espaco-2, 0.6rem);
+  font-size: 0.8rem;
+}
+
+/* ---- Miolo do bottom sheet (moldura, titulo e linha de acoes sao do
+   componente ui/componentes/bottom-sheet.css) ---- */
+
+/* MASTER #5 (Campo) e #11: rotulo 0.8rem --text-muted, sem MAIUSCULAS (o
+   .campo-rotulo antigo do style.css forca uppercase; campo.css nao desfaz). */
+.bottom-sheet-financas .campo-rotulo {
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Erro (MASTER #6): texto --danger + icone, dentro do proprio sheet. */
+.sheet-erro {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--espaco-2, 0.5rem);
+  margin: 0 0 var(--espaco-2, 0.5rem);
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+.sheet-erro[hidden] {
+  display: none;
+}
+
+.sheet-erro svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}

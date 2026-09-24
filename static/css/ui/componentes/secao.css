@@ -1,0 +1,141 @@
+/* static/css/ui/componentes/secao.css - componente: cabecalho/corpo de secao recolhivel.
+   Fase 7 (V0c). Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve
+   por cascata sem precisar editar o style.css.
+
+   Contrato (fase7-visual.md):
+   <section class="secao-recolhivel" data-aberto="false" data-secao-id="memoria">
+     <button class="secao-cabecalho" aria-expanded="false">Titulo <span class="chevron"></span></button>
+     <div class="secao-conteudo">...</div>
+   </section>
+
+   Comportamento (abre/fecha, aria-expanded, localStorage) fica em
+   static/js/ui/secao-recolhivel.js. Aqui e so a casca visual + a transicao.
+
+   Tokens (V0a, static/css/ui/tokens.css): usados com fallback var(--x, valor) porque a V0a
+   pode ainda nao ter chegado na integracao quando esta faixa roda - ver fase7-visual.md. Cor
+   so as que ja existem em style.css (--surface, --text, --border...). Zero cor/fonte/animacao
+   nova: so forma e profundidade. */
+
+.secao-recolhivel {
+  --secao-dur: 0.3s;
+  border-radius: var(--raio, var(--radius, 20px));
+  background: var(--superficie-2, color-mix(in srgb, var(--surface, #121212) 92%, white 2%));
+  border: 1px solid var(--borda-sutil, var(--border, rgba(218, 226, 243, 0.09)));
+  overflow: hidden;
+}
+
+/* Botao-cabecalho: area de toque minima de 44px, sem estilo de botao nativo, acessivel por
+   teclado (foco visivel) e por leitor de tela (aria-expanded, atualizado pelo JS). */
+.secao-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2, 16px);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--espaco-2, 16px) var(--espaco-3, 24px);
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: inherit;
+  transition: background var(--secao-dur, 0.3s) ease;
+}
+
+/* C2: display do componente vence o [hidden] do navegador - guarda explicita. */
+.secao-recolhivel[hidden],
+.secao-cabecalho[hidden],
+.chevron[hidden] {
+  display: none;
+}
+
+.secao-cabecalho:hover {
+  background: var(--superficie-3, rgba(255, 255, 255, 0.03));
+}
+
+/* C2: a secao tem overflow:hidden, entao um anel por fora seria cortado - o anel fica POR
+   DENTRO (outline com offset negativo), na mesma cor do --anel-foco (--text a 55%). */
+.secao-cabecalho:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--text) 55%, transparent);
+  outline-offset: -4px;
+  box-shadow: none;
+}
+
+.secao-cabecalho::-moz-focus-inner {
+  border: 0;
+}
+
+/* Chevron: seta de tracco (mesma familia visual dos icones inline de nucleo/icones.js -
+   stroke, linecap/linejoin round), sem emoji. Gira ao abrir; some em vez de girar quando o
+   usuario pede menos movimento. */
+.chevron {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  background-color: var(--text-muted, currentColor);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  transition: transform var(--secao-dur, 0.3s) var(--ease-suave, ease);
+}
+
+.secao-recolhivel[data-aberto="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+/* Corpo: max-height animado pelo JS (mede scrollHeight na abertura/fechamento). Sem JS, o
+   estado inicial vem so do data-aberto do HTML (grau razoavel de fallback). */
+.secao-conteudo {
+  overflow: hidden;
+  max-height: 0;
+  padding: 0 var(--espaco-3, 24px);
+  transition: max-height var(--secao-dur, 0.3s) var(--ease-suave, ease),
+    padding var(--secao-dur, 0.3s) var(--ease-suave, ease);
+}
+
+.secao-recolhivel[data-aberto="true"] .secao-conteudo {
+  max-height: none;
+  padding: 0 var(--espaco-3, 24px) var(--espaco-3, 24px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+  .secao-conteudo {
+    transition: none;
+  }
+}
+
+/* C2: ajuda da secao (o "!" de .dica-colapsavel, desenhado no style.css). O botao tem 20px;
+   a area de toque sobe pra 44px com um ::after invisivel (o visual nao muda) e o foco usa
+   o --anel-foco. */
+.dica-toggle {
+  position: relative;
+}
+
+.dica-toggle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--toque-min);
+  height: var(--toque-min);
+  transform: translate(-50%, -50%);
+}
+
+.dica-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}

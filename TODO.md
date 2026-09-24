@@ -291,3 +291,60 @@ Se um dia o Alex quiser trocar pra AeroDataBox (limite maior, HTTPS de verdade, 
 precisa cadastrar cartao no RapidAPI primeiro): so trocar a URL/parsing dentro de
 `voo_status.py` (`_buscar_na_api`/`_mapear_resposta`) - o cache (`voo_status_cache`) e o
 contrato de dado que o front consome (`status_voo`) nao mudam.
+
+## Fase 7 - IA hibrida + visual novo + financas + assistente proativo (briefing v12)
+Integracao na branch `fase7/integracao` (so vai pra `main` no fim da 7C). Estado ao vivo em
+`STATUS.md`. Regras de toda faixa: `docs/agentes/fase7-regras-faixa.md`. Rollback: tag local
+`pre-fase-7` / commit `789171d` (push de tag bloqueado neste ambiente, 403).
+
+Decisoes do Alex na rodada de perguntas (2026-09-24):
+- Execucao: subagentes em paralelo dentro da sessao (sem tmux/VPS), commit+push a cada passo.
+- Visual: NAO mexer em cores, cor de destaque, fontes nem animacoes. So modernizar o que parece
+  antigo/"Windows 1990": cards atualizados, profundidade, sair do generico.
+- Etapa 0 pode levar o tempo que precisar pra separar o front monolitico.
+- Cambio fixo R$ 5,50 (teto R$ 40/mes).
+
+### Etapa 0
+- [x] Branch `fase7/integracao`, contratos `ia/contrato.py` e `assistente/contrato.py`, `ia/roteador_chat.py`
+- [x] `scripts/testes.sh`, regras comuns, `.gitignore` (fixtures_reais/, .venv symlink)
+- [x] X1 extracao backend: claude_client -> ia/funcoes/*, rotas/ (Blueprint), migracoes/, classificador_local/, assistente/gatilhos/
+- [x] X2 extracao frontend: templates/secoes, static/js/secoes, camadas CSS vazias, mapa-frontend.md
+- [x] donos.json + scripts/checar_donos.py
+
+### Fase 7A - backend
+- [x] A1 nucleo (ia/core.py) - [x] A2 adapter Anthropic - [x] A3 adapter OpenAI - [x] A4 medicao e teto
+- [x] (integracao) custo com fonte unica ia/precos.py; adapter Anthropic sem effort vazio/Haiku; datas do chat em codigo; liga/desliga de aviso no push
+- [x] A5 historico - [x] A6 chat - [x] A7 migracao 1 - [x] A8 migracao 2 - [x] A9 visao
+- [x] A10 decisoes Fase 6 - [x] A11 A/B - [x] A12 infra testes - [x] A13 calculos
+- [x] A14 roteador - [x] A15 Gemini
+- [x] N1 assinaturas/parcelas - [x] N2 Telegram - [x] N3a endpoint widget - [x] N3b Scriptable
+- [x] N3c/N3d docs widget - [x] N3e WidgetKit
+- [x] P1a Caixa - [x] P1b Caixa UI - [x] P2 perguntas - [x] P3 briefing - [x] P4 regras
+- [x] P5 replanejar - [x] P7 sinais iPhone - [x] P8 central de avisos - [x] P9 memoria viva
+
+### Fase 7B - visual
+- [x] V0a tokens/MASTER.md - [x] V0b botoes - [x] V0c secoes/cards - [x] V0d bottom sheet/navegacao
+- [x] V1 Hoje - [x] V2 Painel - [x] V3 Habitos/Projetos/Agenda/Tarefas - [x] V4 Vida (demais)
+- [x] V5 Viagens/Lugares/Cotacoes/Aviacao - [x] V6 Financeiro/Contas/Cartao/demais
+
+### Fase 7C - polimento e deploy
+- [x] C1 backend - [x] C2 visual (V0-V3, P1b) - [x] C3 visual (V4-V6: C3a Vida, C3b Viagens, C3c Financas)
+- [x] M1: m1-front (foco global, `[hidden]`, Desfazer da N1, sheet/campo/secao)
+- [x] M1: CHANGELOG/AGENTS/TODO/STATUS consolidados, `.env.example`, service worker v15, gitleaks zerado
+- [ ] M1: suite completa na integracao e merge na main (integrador)
+
+### Pendencias abertas pos-Fase 7 (perguntas pro Alex)
+- [ ] **Modo economia do teto**: `ia.teto.FUNCOES_ESSENCIAIS_MODO_ECONOMIA` usa nomes
+  ("intent", "captura") que nao batem com os do `chamar_ia` ("classify_intent"...), entao a
+  100% do teto de R$ 40 tudo para. Manter "o teto vale pra tudo" ou liberar a classificacao?
+- [ ] **Aviso de teto por push no teto padrao**: `notificacoes.teto_ia_perto_ou_estourado`
+  ainda le o teto antigo (so quando configurado, `api_usage`) e nao avisa no padrao de R$ 40.
+  Ligar no `ia.teto.nivel_alerta`?
+- [ ] **Memoria ("O que eu lembro sobre voce")**: o adicionar de cada grupo ficou inline.
+  Prefere bottom-sheet como no resto do app?
+- [ ] **Cards de assinatura/parcela no modo visitante**: o front mostra o valor (decisao da
+  V1), o servidor esconde (`cards.py`, contrato N1 marca como sensivel). Qual vale?
+- [ ] **Visao no GPT-6 Luna**: ao ligar `ativo: true` em `extrair_nota_fiscal_foto`/
+  `extrair_item_cotacao_pdf`, conferir a primeira chamada real (PDF via `file_data`).
+- [ ] **`telegram_bot.py` e o erro 409**: com webhook ativo no mesmo token o loop de polling
+  so loga. Fazer ele parar sozinho?

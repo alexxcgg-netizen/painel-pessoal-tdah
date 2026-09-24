@@ -1,0 +1,39 @@
+      <div class="card painel-secao-card">
+      <h2 style="--secao-cor: var(--cor-bancos)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.5 6 2 6.5H4C4.5 14 6 12.5 6 8Z"/><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0"/></svg>
+        Datas importantes
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao das datas importantes"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Validade de licenca/exame medico, seguro, revisao, aniversario - qualquer data que so
+          importa quando estiver perto. Peca no chat pra registrar (ex: "meu exame medico de piloto
+          vence dia 15 de janeiro, todo ano"). Avisa por notificacao push nos ultimos 7 dias.
+        </p>
+      </div>
+      <button type="button" id="lembrete-abrir-btn" class="btn btn-adicionar" data-abre-sheet="lembrete-sheet">
+        Nova data
+      </button>
+
+      <div class="bottom-sheet" id="lembrete-sheet" hidden aria-labelledby="lembrete-sheet-titulo">
+        <h3 class="bottom-sheet-titulo" id="lembrete-sheet-titulo">Nova data importante</h3>
+        <form id="lembrete-form" class="form-linha" style="--form-cor: var(--cor-bancos)" data-fecha-ao-enviar>
+          <input type="text" id="lembrete-titulo" class="campo" placeholder="O que vence?" required />
+          <input type="date" id="lembrete-data" class="campo" aria-label="Data de vencimento" required />
+          <label class="check-recorrente">
+            <input type="checkbox" id="lembrete-recorrente" />
+            todo ano
+          </label>
+          <div class="form-linha">
+            <button type="submit" id="lembrete-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar data</button>
+            <button type="button" class="btn btn-secundario" data-fecha-sheet>Cancelar</button>
+          </div>
+        </form>
+      </div>
+      <p id="lembretes-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.5 6 2 6.5H4C4.5 14 6 12.5 6 8Z"/><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0"/></svg>
+        Nada guardado ainda. Manda um lembrete na captura.
+      </p>
+      <ul id="lista-lembretes"></ul>
+      </div>
+

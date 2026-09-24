@@ -1,0 +1,28 @@
+{
+ "erros_console": [],
+ "falhas_rede": [],
+ "falhas_ambiente_ignoradas": [
+  [
+   "falhou",
+   "https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+  ],
+  [
+   502,
+   "http://127.0.0.1:5199/api/summary/today"
+  ]
+ ],
+ "checagens": {
+  "viagem_sheet_visivel_apos_abrir": true,
+  "viagem_criada_na_lista": true,
+  "lugar_sheet_visivel_apos_abrir": true,
+  "lugar_criado_na_lista": true,
+  "aviacao_presente_#voo-form": true,
+  "aviacao_presente_#lista-voos": true,
+  "aviacao_presente_#metar-form": true,
+  "aviacao_presente_#voos-stats-grid": true,
+  "voo_registrado_na_lista": true,
+  "cotacao_sheet_visivel_apos_abrir": true,
+  "cotacao_criada_na_lista": true,
+  "grafico_comparacao_renderizado": true
+ }
+}

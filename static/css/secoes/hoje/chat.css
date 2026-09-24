@@ -1,0 +1,48 @@
+/* static/css/secoes/hoje/chat.css - secao hoje > chat (HTML: templates/secoes/hoje/chat.html).
+   Fase 7 (V1): conferido - #chat-form/#chat-input/#chat-send/#chat-mic ja
+   tinham bastante profundidade (vidro com blur+sombra em camadas, gradiente
+   no botao de enviar, 42-44px de toque) no style.css. Nada achatado aqui pra
+   corrigir; os cards da resposta (.card-resultado/.card-contrato) tambem ja
+   sao o padrao mais elevado do app - ficam vazios de proposito. */
+
+/* C2: campo, microfone e enviar tinham 41-42px (style.css) - sobem pro alvo minimo. */
+#chat-form :is(#chat-input, #chat-mic, #chat-send) {
+  min-height: var(--toque-min);
+}
+
+#chat-form #chat-mic {
+  min-width: var(--toque-min);
+}
+
+/* C2: lista curta de "Proximas cobrancas" no card resumo_financeiro_recorrente (contrato
+   N1): linha com divisor (nao card no card), valor em mono a direita. */
+.card-recorrentes {
+  list-style: none;
+  margin: var(--espaco-1) 0 0;
+  padding: 0;
+}
+
+.card-recorrente-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--espaco-2);
+  padding: var(--espaco-1) 0;
+  border-bottom: var(--linha) solid var(--borda-sutil);
+}
+
+.card-recorrente-item:last-child {
+  border-bottom: none;
+}
+
+.card-recorrente-item strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.card-recorrente-valor {
+  margin-left: auto;
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}

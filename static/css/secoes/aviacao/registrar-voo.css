@@ -1,0 +1,18 @@
+/* static/css/secoes/aviacao/registrar-voo.css - secao aviacao > registrar-voo (HTML: templates/secoes/aviacao/registrar-voo.html).
+   Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve por cascata sem
+   precisar editar o style.css.
+
+   Fase 7 C3b: o formulario saiu do meio da aba (era um bloco "glass" sempre aberto) e foi
+   pro bottom-sheet compartilhado #voo-sheet (V0d), aberto pelo .btn.btn-adicionar
+   "Registrar voo". O miolo comum dos sheets da faixa (titulo, rotulos, pares de campo,
+   rodape) fica em secoes/vida/viagens.css. Aqui so o que e so do voo. */
+
+/* Data, hora e horas sao numeros que o olho confere: mono tabular (MASTER.md 7). */
+#voo-sheet :is(#voo-data, #voo-hora, #voo-horas):not(:placeholder-shown) {
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+#voo-sheet #voo-obs {
+  min-height: 88px;
+}

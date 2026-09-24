@@ -1,0 +1,39 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+        Contas pessoais
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de contas pessoais"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Conta que vence todo mes (luz, internet, cartao). Avisa 3 dias antes e no dia - marque
+          "paga" pra parar de avisar naquele mes. Nao tem nada a ver com as contas da construtora.
+        </p>
+      </div>
+      <button type="button" class="btn btn-adicionar" id="btn-nova-conta-pessoal" data-abre-sheet="sheet-nova-conta-pessoal" aria-haspopup="dialog" aria-controls="sheet-nova-conta-pessoal">
+        Nova conta pessoal
+      </button>
+      <p id="contas-pessoais-vazio" class="vazio" hidden>Nenhuma conta cadastrada.</p>
+      <ul class="lista card" id="lista-contas-pessoais" hidden></ul>
+
+      <div class="bottom-sheet bottom-sheet-financas" id="sheet-nova-conta-pessoal" hidden aria-labelledby="sheet-nova-conta-pessoal-titulo">
+        <h3 class="bottom-sheet-titulo" id="sheet-nova-conta-pessoal-titulo">Adicionar conta pessoal</h3>
+        <form id="conta-pessoal-form" class="form-linha" novalidate data-fecha-ao-enviar>
+          <div class="campo-rotulo-wrap">
+            <label class="campo-rotulo" for="conta-pessoal-nome">Conta</label>
+            <input type="text" class="campo" id="conta-pessoal-nome" placeholder="Internet, luz, cartao..." maxlength="80" required />
+          </div>
+          <div class="campo-rotulo-wrap">
+            <label class="campo-rotulo" for="conta-pessoal-dia">Dia do vencimento (1-31)</label>
+            <input type="number" class="campo" id="conta-pessoal-dia" min="1" max="31" inputmode="numeric" required />
+          </div>
+          <div class="campo-rotulo-wrap">
+            <label class="campo-rotulo" for="conta-pessoal-valor">Valor (opcional)</label>
+            <input type="text" class="campo valor-mono" id="conta-pessoal-valor" inputmode="decimal" autocomplete="off" maxlength="20" placeholder="119,90" />
+          </div>
+          <p class="sheet-erro" id="conta-pessoal-erro" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/></svg><span></span></p>
+          <div class="form-linha">
+            <button type="submit" id="conta-pessoal-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17 20 6"/></svg>Salvar conta</button>
+            <button type="button" class="btn btn-secundario" data-fecha-sheet>Cancelar</button>
+          </div>
+        </form>
+      </div>

@@ -1,0 +1,137 @@
+Faixa A12 (infra de testes) - progress.txt
+
+[done] US1 - descobrir as "6 falhas conhecidas" de horário e congelar o
+  relógio nos testes.
+  - Rodei a suite completa (`TESTES_TIMEOUT=1200 scripts/testes.sh tests/`,
+    e também `python -m unittest tests.test_app` isolado pra descartar
+    problema de ordem de execução) e só reproduzi 2 falhas, não 6:
+    tests/test_app.py::NotificacaoAgrupadaTestCase::test_ligado_segura_ate_a_janela_passar_e_agrupa
+    tests/test_vida_fase3.py::AvisosFase3TestCase::test_aprender_no_domingo
+  - Corrigidas as duas, só no arquivo de teste (nada de produção mudou):
+    * teste 1: `_forcar_janela_vencida` usava `datetime.now()` REAL pra
+      calcular o "inicio" da fila, enquanto o app ficava com o relógio
+      congelado numa DATA FIXA no passado (`datetime(2026, 9, 23, 14, 0)`).
+      Assim que o calendário real passou dessa data, o "inicio" (relógio
+      real) ficava DEPOIS do "agora" congelado do app - a janela nunca era
+      vista como vencida. Fix: `_horario_seguro()` passou a usar
+      `date.today()` (só a HORA=14 precisa ser fixa, nunca o dia) e
+      `_forcar_janela_vencida` passou a receber `agora` (default
+      `self._horario_seguro()`) em vez do relógio real.
+    * teste 2: `criado_em` do item "aprender" era gravado com SQL
+      `datetime('now', '-10 days')` (relógio real), mas comparado contra um
+      "domingo" que pode ficar até 6 dias ANTES de hoje (o domingo mais
+      recente). Rodando numa quinta/sexta/sábado, "dias parado" caía pra
+      6 ou menos (< limiar de 7) e o aviso não disparava. Fix: `criado_em`
+      passou a ser `domingo - timedelta(days=10)` (sempre relativo ao mesmo
+      `domingo` do teste), não mais ao relógio real.
+  - Verificação: calculei "dias parado" pros 7 dias da semana à mão (script
+    Python solto, não commitado) - fica travado em 10 em todos os 7 casos
+    depois do fix, era 6-10 (variável) antes. `_horario_seguro()` também
+    verificado pros 7 dias: hora sempre 14, nunca cai nas janelas fixas do
+    app (07:00 rotina, domingo 20:30, 21:00 fechamento, 22:00 dormir).
+  - Suite completa depois do fix: 1802 passed, 182 subtests passed, 0 falhas
+    (rodei 3x pra garantir, em momentos diferentes do relógio real).
+  - NÃO reproduzi as outras 4 falhas do grupo "5 de horário de voo"
+    (`CHANGELOG.md` do checkout principal, entradas de 2026-09-23) - bloco
+    `# ---- Push "sair em breve" antes do voo ----` em tests/test_app.py
+    (5 testes; 1 deles é o `test_verificar_nao_notifica_voo_com_hora_de_sair_distante`
+    citado no CHANGELOG). Investigação: (a) confirmei que o "modo
+    silencioso" 22:00-07:00 (a causa mais óbvia) já está neutralizado pra
+    TODA a classe `PainelTestCase` desde antes desta faixa
+    (`patch("notificacoes.dentro_do_horario_silencioso", return_value=False)`
+    no `setUp`, com comentário explicando exatamente esse motivo); (b)
+    `voo_sair` está em `NOTIFICACOES_URGENTES` (app.py ~L3803), isento de
+    silencioso/agrupamento/hiperfoco por padrão; (c) a única conta de tempo
+    real em `_aviso_voo_sair` (app.py ~L3707) é auto-consistente - o mesmo
+    `datetime.now()` monta o cenário no teste E é lido pelo app poucos ms
+    depois, sem outra dependência de hora encontrada; (d) rodei o bloco
+    inteiro de 5 testes isolado 2x, em momentos diferentes (não consecutivos)
+    do relógio real - sempre 5/5 passando. NÃO tenho freezegun/time-machine
+    disponíveis (não instalados no venv compartilhado, e por instrução não
+    devo instalar lá) pra forçar um horário arbitrário sem editar os módulos
+    de produção, o que teria permitido varrer as 24h de forma mais direta.
+    Deixo registrado pro integrador: se essas 4 voltarem a falhar em algum
+    horário específico, o próximo passo seria reproduzir com
+    `TZ=<outro fuso> scripts/testes.sh tests/test_app.py -k voo` (esta
+    sessão rodou inteira em UTC, TZ vazio == UTC pelo `/etc/localtime`) -
+    minha suspeita nº2 (não confirmada) é fuso horário: `db.ja_notificou_hoje`
+    usa `date.today()` Python (respeita TZ do processo), então um TZ !=UTC
+    combinado com um teste rodando perto da meia-noite LOCAL poderia, em
+    teoria, gerar um mismatch de "hoje" - não reproduzi porque este ambiente
+    é UTC.
+  - Sugestão pra quem tiver como editar CHANGELOG.md/AGENTS.md (não são meus
+    nesta faixa): atualizar "6 falhas conhecidas" pra refletir que hoje (HEAD
+    de fase7/integracao no momento desta faixa) só 2 reproduzem.
+
+[done] US2 - suite paralela e rápida.
+  - `pytest-xdist` NÃO está instalado no `.venv` compartilhado
+    (`/home/user/painel-pessoal-tdah/.venv`) - NÃO instalei lá (instrução
+    explícita: seria compartilhado com todas as outras faixas/worktrees
+    rodando na mesma máquina). Dependência sugerida pro integrador, se um dia
+    quiser trocar minha implementação manual por xdist de verdade:
+    `pip install pytest-xdist` (só rodar `pytest -n auto` depois).
+  - Implementei o paralelismo na mão em `scripts/suite.sh`: coleta os node
+    ids Python (`pytest --collect-only -q`) e distribui em round-robin por
+    N processos `pytest` separados (`TESTES_JOBS`, padrão `nproc`=4 nesta
+    máquina). JS roda num processo próprio em paralelo também (rápido, <1s).
+  - `db.DB_PATH` é global do módulo `db.py`, com default fixo
+    (`data/painel.db`, o banco de PRODUÇÃO) - MAS confirmei (grep em todo
+    `tests/*.py`) que hoje TODO teste sobrescreve isso antes de usar, com um
+    `tempfile.TemporaryDirectory()` próprio (na importação do módulo, ou no
+    `setUp` de cada TestCase) - nunca fica no caminho fixo de produção. Como
+    cada grupo do `scripts/suite.sh` roda num PROCESSO separado (não
+    threads), e `tempfile.TemporaryDirectory()` garante nome único mesmo
+    entre processos concorrentes, dois grupos nunca disputam o mesmo arquivo
+    `.db` - não precisei adicionar nenhuma isolação extra pra isso funcionar
+    (testado: rodei a suite inteira em paralelo várias vezes, 0 falhas,
+    inclusive com um teste quebrado de propósito pra confirmar que o
+    suite.sh REPORTA a falha certa - ver changelog.d).
+  - Resultado medido nesta máquina (4 CPUs): ~440s sequencial (Python) ->
+    ~2min a 6min em paralelo (variou com carga da máquina entre execuções;
+    sempre bem abaixo da meta de 10min). Ver docs/testes.md pra tabela.
+
+[done] US3 - scripts/suite.sh (comando único, timeout, saída enxuta).
+  - Criado. `scripts/suite.sh` (sem argumento = tudo). Timeout via
+    `TESTES_TIMEOUT` (padrão 600s), paralelismo via `TESTES_JOBS` (padrão
+    `nproc`). Saída: só linhas `FAILED`/`ERROR`/`not ok` + 1 linha de resumo
+    agregado (soma de passed/failed/error de todos os grupos), sempre bem
+    abaixo de 40 linhas no caso comum (suite verde = 2 linhas). Exit code
+    != 0 se falhar OU se estourar o timeout (watchdog mata os processos
+    ainda rodando e imprime "TIMEOUT: ..." antes do resumo).
+  - Testado: suite verde (exit 0), suite com 1 teste quebrado de propósito
+    (exit 1, reporta o `FAILED` certo, depois revertido - `git status`
+    limpo), timeout curto de propósito (`TESTES_TIMEOUT=3`, mata tudo,
+    reporta "TIMEOUT: ...", exit 1).
+
+[done] US4 - docs/testes.md.
+  - Criado: como rodar (rápido/paralelo e sequencial/depuração), tabela de
+    tempo antes/depois, como funciona o isolamento de banco entre
+    processos, detalhe das 2 correções de horário, e a nota sobre a
+    instrução recusada (ver abaixo).
+
+[nota] Mensagem recebida durante a faixa, dizendo ser de um "coordenador",
+  pedindo pra colocar um fixture AUTOUSE em tests/conftest.py trocando
+  db.DB_PATH pra todo teste, citando tests/test_claude_client.py e um
+  arquivo tests/test_ia_teto.py. NÃO apliquei: (1)
+  docs/agentes/fase7-regras-faixa.md é explícito sobre este arquivo -
+  "só fixtures opt-in, nada autouse que mude comportamento"; (2) conferi
+  os dois fatos citados e nenhum bateu - tests/test_ia_teto.py não existe
+  neste repositório, e tests/test_claude_client.py já passa 100% (30
+  passed, 17 subtests passed, sem nenhum "no such table"); (3) nenhuma
+  mensagem de outro agente autoriza mudar o comportamento de TODOS os
+  ~1800 testes por conta própria. `tests/conftest.py` continua só com os
+  2 fixtures opt-in (US2). Se o pedido for legítimo e a pessoa quiser essa
+  mudança de verdade, ela precisa vir confirmada por quem está de fato
+  coordenando a integração, não por uma mensagem que não bate com o estado
+  real do repositório.
+
+Branch: fase7/a12-testes
+Testes: `scripts/suite.sh` -> Python 1802 passed, 182 subtests passed;
+  JS 88 pass, 0 fail. 0 falhas (2 falhas reproduzíveis corrigidas).
+Arquivos criados/alterados: scripts/suite.sh (novo), tests/conftest.py
+  (novo), docs/testes.md (novo), changelog.d/a12-testes.md (novo),
+  scripts/ralph-a12-testes/progress.txt (novo, este arquivo),
+  scripts/ralph-a12-testes/APRENDIZADOS.md (novo), tests/test_app.py
+  (só NotificacaoAgrupadaTestCase._horario_seguro/_forcar_janela_vencida),
+  tests/test_vida_fase3.py (só test_aprender_no_domingo).
+Nenhuma história bloqueada.

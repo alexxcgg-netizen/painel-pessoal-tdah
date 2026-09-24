@@ -1,0 +1,13 @@
+/* static/css/secoes/vida/lista-de-compras.css - secao vida > lista-de-compras (HTML: templates/secoes/vida/lista-de-compras.html).
+   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
+   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Fase 7 C3a: linha do checklist de compras com 44px de alvo (era 40px) e divisor sutil
+   entre itens (MASTER 5, lista dentro de card = linha com divisor, nao card). */
+#lista-compras .checklist-item label {
+  min-height: var(--toque-min, 44px);
+}
+
+#lista-compras .checklist-item + .checklist-item {
+  border-top: var(--linha, 1px) solid var(--borda-sutil);
+}

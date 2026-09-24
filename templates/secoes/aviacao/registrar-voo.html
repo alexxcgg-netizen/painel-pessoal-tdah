@@ -1,0 +1,39 @@
+      <button type="button" id="voo-abrir-btn" class="btn btn-adicionar">Registrar voo</button>
+
+      <div class="bottom-sheet" id="voo-sheet" aria-labelledby="voo-sheet-titulo" hidden>
+        <h3 id="voo-sheet-titulo" class="sheet-titulo">Registrar voo</h3>
+        <p class="dica-metas sheet-dica">
+          Ja realizado (com horas) ou so agendado (sem horas ainda). Da tambem pra pedir no chat
+          ("vou voar pra Blumenau semana que vem" ou "voei 1,5h hoje, treino de pouso").
+        </p>
+        <form id="voo-form" class="sheet-form">
+          <div class="sheet-form-par">
+            <div>
+              <label class="campo-rotulo" for="voo-data">Data</label>
+              <input type="text" id="voo-data" class="campo" placeholder="dd/mm/aaaa" inputmode="numeric" required />
+            </div>
+            <div>
+              <label class="campo-rotulo" for="voo-hora">Hora (opcional)</label>
+              <input type="text" id="voo-hora" class="campo" placeholder="hh:mm" inputmode="numeric" maxlength="5" />
+            </div>
+          </div>
+          <div class="sheet-form-par">
+            <div>
+              <label class="campo-rotulo" for="voo-origem">De onde (opcional)</label>
+              <input type="text" id="voo-origem" class="campo" placeholder="Ex: SSBL" maxlength="80" />
+            </div>
+            <div>
+              <label class="campo-rotulo" for="voo-destino">Pra onde</label>
+              <input type="text" id="voo-destino" class="campo" placeholder="Ex: Florianopolis" maxlength="80" required />
+            </div>
+          </div>
+          <label class="campo-rotulo" for="voo-horas">Horas voadas</label>
+          <input type="text" id="voo-horas" class="campo" placeholder="Ex: 1,5 (em branco se so agendado)" inputmode="decimal" maxlength="6" />
+          <label class="campo-rotulo" for="voo-obs">Diario de bordo (opcional)</label>
+          <textarea id="voo-obs" class="campo" placeholder="O que rolou no voo? Ex: fui de Blumenau, passei em Curitiba e voltei" rows="3" maxlength="2000"></textarea>
+          <div class="sheet-acoes">
+            <button type="button" id="voo-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+            <button type="submit" id="voo-btn" class="btn btn-primario">Salvar voo</button>
+          </div>
+        </form>
+      </div>

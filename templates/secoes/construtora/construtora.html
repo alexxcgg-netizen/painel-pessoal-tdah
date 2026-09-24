@@ -1,0 +1,32 @@
+      <h2 style="--secao-cor: var(--cor-construtora)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l6-4"/><path d="M10 5 20 9"/><path d="M20 9v3"/><path d="M14 21V13"/><path d="M14 13h6"/><path d="M4 21h16"/></svg>
+        Construtora
+      </h2>
+      {# Decisao do Alex (Fase 7, faixa A10 - docs/contrato-api-construtora.md):
+         o painel pessoal mostra SO gastos, entradas e tempo ate a proxima
+         conta a pagar da construtora - nunca lucro/margem/detalhamento por
+         obra, mesmo que a API externa devolva mais campo que isso. #}
+      <div id="construtora-card" class="card card--destaque" hidden>
+        <div class="construtora-stats">
+          <div class="construtora-stat construtora-stat--entrada">
+            <span class="construtora-stat-rotulo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
+              Entradas
+            </span>
+            <span class="valor-mono construtora-stat-valor" id="construtora-entradas">R$ 0</span>
+          </div>
+          <div class="construtora-stat construtora-stat--saida">
+            <span class="construtora-stat-rotulo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m18 13-6 6-6-6"/></svg>
+              Gastos
+            </span>
+            <span class="valor-mono construtora-stat-valor" id="construtora-saidas">R$ 0</span>
+          </div>
+        </div>
+        <p class="construtora-proxima-conta" id="construtora-proxima-conta">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+          <span id="construtora-proxima-conta-texto"></span>
+        </p>
+      </div>
+      <p id="construtora-info" class="resumo-texto">Carregando...</p>
+

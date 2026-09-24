@@ -1,0 +1,65 @@
+{
+ "erros_console": [],
+ "falhas_rede": [],
+ "falhas_ambiente_ignoradas": [
+  [
+   "falhou",
+   "https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+  ],
+  [
+   502,
+   "http://127.0.0.1:5183/api/summary/today"
+  ]
+ ],
+ "medidas": [
+  {
+   "seletor": ".btn-primario",
+   "achou": true,
+   "altura": 44,
+   "largura": 326,
+   "outlineNoFoco": "none",
+   "cursor": "pointer"
+  },
+  {
+   "seletor": ".btn-secundario",
+   "achou": true,
+   "altura": 44,
+   "largura": 326,
+   "outlineNoFoco": "none",
+   "cursor": "pointer"
+  },
+  {
+   "seletor": ".btn-perigo",
+   "achou": true,
+   "altura": 44,
+   "largura": 326,
+   "outlineNoFoco": "none",
+   "cursor": "pointer"
+  },
+  {
+   "seletor": ".btn-fab",
+   "achou": true,
+   "altura": 56,
+   "largura": 56,
+   "outlineNoFoco": "none",
+   "cursor": "pointer"
+  },
+  {
+   "seletor": ".btn-adicionar",
+   "achou": true,
+   "altura": 52,
+   "largura": 326,
+   "outlineNoFoco": "none",
+   "cursor": "pointer"
+  }
+ ],
+ "nao_encontrados": [],
+ "abaixo_de_44px": [],
+ "foco_visivel": {
+  "tag": "BUTTON",
+  "classe": "btn btn-secundario",
+  "outline": "none",
+  "boxShadow": "color(srgb 0.270588 0.270588 0.290196 / 0.4) 0px 0px 0px 3px"
+ },
+ "foco_ok": true
+}

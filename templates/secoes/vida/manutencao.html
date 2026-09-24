@@ -1,0 +1,53 @@
+      <section class="secao-recolhivel vida-acabamento" data-aberto="true" data-secao-id="vida-manutencao" style="--secao-cor: var(--cor-bancos)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-manutencao">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5l3 3 5.8-5.8a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-.4-.4-2.1 2.5-2.5Z"/></svg>
+          Manutencao
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+        <div class="secao-conteudo" id="conteudo-vida-manutencao">
+          <div class="dica-colapsavel">
+            <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de manutencao"></button>
+            <p class="dica-metas dica-texto" hidden>
+              Coisa que precisa ser feita de tempos em tempos - casa, carro, equipamento ou qualquer outra.
+              Pra Casa/Equipamento/Outro: um item so, avisa uma semana antes e "feita hoje" reinicia a contagem.
+              Pra Carro: cada manutencao feita vira um registro novo (com km, se souber) - preenche "proxima em km"
+              ou "proxima em data" (ou os dois) pra eu avisar quando estiver perto.
+            </p>
+          </div>
+          <button type="button" id="manutencao-abrir-btn" class="btn btn-adicionar">Adicionar manutencao</button>
+          <p id="manutencoes-vazio" class="vazio" hidden>Nada cadastrado.</p>
+          <ul id="lista-manutencoes"></ul>
+        </div>
+      </section>
+
+      <div class="bottom-sheet" id="sheet-manutencao" hidden aria-labelledby="sheet-manutencao-titulo">
+        <h3 class="bottom-sheet-titulo" id="sheet-manutencao-titulo">Adicionar manutencao</h3>
+        <form id="manutencao-form" class="form-linha">
+          <select id="manutencao-tipo" class="campo" aria-label="Tipo de manutencao">
+            <option value="outro">Outro</option>
+            <option value="casa">Casa</option>
+            <option value="carro">Carro</option>
+            <option value="equipamento">Equipamento</option>
+          </select>
+          <input type="text" id="manutencao-item" class="campo" placeholder="Item (ex: Troca de oleo)" maxlength="80" required />
+          <span id="manutencao-campos-tempo" class="form-linha-sub">
+            <label class="campo-rotulo" for="manutencao-meses">A cada quantos meses</label>
+            <input type="number" id="manutencao-meses" class="campo" placeholder="6" min="1" max="120" inputmode="numeric" />
+            <label class="campo-rotulo" for="manutencao-ultima">Ultima vez (opcional)</label>
+            <input type="date" id="manutencao-ultima" class="campo" />
+          </span>
+          <span id="manutencao-campos-carro" class="form-linha-sub" hidden>
+            <label class="campo-rotulo" for="manutencao-data">Data</label>
+            <input type="date" id="manutencao-data" class="campo" />
+            <input type="number" id="manutencao-km" class="campo" placeholder="Km atual (opcional)" aria-label="Km atual (opcional)" min="0" step="1" inputmode="numeric" />
+            <input type="number" id="manutencao-proxima-km" class="campo" placeholder="Proxima em km (opcional)" aria-label="Proxima em km (opcional)" min="0" step="1" inputmode="numeric" />
+            <label class="campo-rotulo" for="manutencao-proxima-data">Proxima em data (opcional)</label>
+            <input type="date" id="manutencao-proxima-data" class="campo" />
+          </span>
+          <div class="form-linha">
+            <button type="submit" id="manutencao-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar manutencao</button>
+            <button type="button" id="manutencao-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </form>
+      </div>
+

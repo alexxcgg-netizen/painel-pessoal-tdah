@@ -1,0 +1,63 @@
+/* static/css/secoes/vida/lugares.css - secao vida > lugares (HTML: templates/secoes/vida/lugares.html).
+   Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve por cascata sem
+   precisar editar o style.css.
+
+   Fase 7 C3b: o sheet "Novo lugar" usa o componente compartilhado (V0d) e o miolo comum
+   dos sheets da faixa fica em secoes/vida/viagens.css (#lugar-sheet ja esta la). Aqui so a
+   lista. O mapa (Leaflet) nao muda: mesmo SRI, mesmo popup por textContent. */
+
+/* M1 r2: a area de toque de 44px da dica "!" vem so do componente (ui/componentes/secao.css,
+   `.dica-toggle::after` centrado). O ::after local com `inset: -12px` somava com o do
+   componente (left/top 50% + translate) e jogava a area de toque pro canto. */
+
+/* Bloco interno dentro do card da secao (mesma receita de #lista-viagens). */
+#lista-lugares > li.item {
+  background: var(--superficie-3);
+  border-color: var(--borda-sutil);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+#lista-lugares .item-acoes > button {
+  min-height: var(--toque-min);
+  padding-inline: var(--espaco-3);
+  border-radius: var(--raio-sm);
+}
+
+/* "Ver no mapa" era um <button> cru (cinza nativo, 21px); agora .btn.btn-secundario
+   compacto, alinhado a esquerda embaixo do nome. */
+#lista-lugares .lugar-mapa-btn {
+  min-height: var(--toque-min);
+  padding-inline: var(--espaco-3);
+  font-size: 0.85rem;
+}
+
+/* Moldura do mapa: borda fina em vez de sombra (MASTER.md 1.2). */
+#lista-lugares .lugar-mapa {
+  border-radius: var(--raio-sm);
+  border-color: var(--borda-sutil);
+  background: var(--superficie-2);
+  color: var(--text-muted);
+}
+
+/* Achado real (Playwright, C3b): o Leaflet usa o PROPRIO .lugar-mapa como container
+   (L.map(mapaEl)), entao ele ganha a classe .leaflet-container - e o
+   `.leaflet-container { height: 100% }` do style.css (declarado depois de .lugar-mapa,
+   mesma especificidade) trocava os 180px por 100% de um pai sem altura: o mapa abria com
+   26px. O `:has(.leaflet-container)` do style.css nunca casava (e o proprio elemento, nao
+   um filho). Aqui a altura volta e o padding/flex do texto de fallback saem. */
+#lista-lugares .lugar-mapa.leaflet-container {
+  display: block;
+  height: 180px;
+  padding: 0;
+}
+
+/* Controles de zoom do Leaflet: 30px de fabrica -> 44px (MASTER.md 9), so tamanho;
+   icone, cor e comportamento continuam os do Leaflet. */
+#lista-lugares .leaflet-bar a {
+  width: var(--toque-min);
+  height: var(--toque-min);
+  line-height: var(--toque-min);
+}

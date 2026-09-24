@@ -1,0 +1,105 @@
+# Fase 7 - faixa V4 (vida: garantia, ideias-presente, pessoas, treino, peso-e-medidas,
+# manutencao, quero-aprender, salvos e demais) - progress.txt
+
+## Historia 1: contrato de UI (secao-recolhivel + btn-adicionar + bottom-sheet) - FEITA
+Duas rodadas: escrevi tudo antes do merge com origin/fase7/integracao (chutando a forma
+final do contrato pela doc), depois fiz `git merge origin/fase7/integracao` (V0a-tokens,
+V0b-botoes e V0c-secoes JA CHEGARAM nesta integracao; so V0d/bottom-sheet continua vazio) e
+corrigi 4 coisas que so dava pra ver com o CSS/JS real na mao:
+
+1. Removi a classe extra `card` dos `<section class="secao-recolhivel">` - `.card` (V0c) e
+   um componente DIFERENTE (bloco fixo, padding proprio, display:flex column), incompativel
+   com `.secao-recolhivel` (precisa do padding/altura vivendo em `.secao-conteudo` pra
+   animar). Combinar os dois duplicava padding/border-radius e quebrava a transicao.
+2. Troquei `<h2 class="secao-secundaria"><button class="secao-cabecalho">` (heading>button)
+   por `<button class="secao-cabecalho">` DIRETO como filho do `<section>`, sem h2 no meio -
+   o contrato real (`docs/agentes/fase7-visual.md` + `ui/componentes/secao.css`) exige isso
+   porque `.secao-cabecalho { border-radius: inherit }` copia o raio do PAI NO DOM (que
+   precisa ser o proprio `.secao-recolhivel`, senao herda 0 do h2). O icone perdeu a cor de
+   `h2 svg { color: var(--secao-cor) }` (so casa com a tag h2) - repus isso com uma regra
+   generica `#tab-vida .secao-cabecalho svg { color: var(--secao-cor, var(--accent)) }` em
+   static/css/secoes/vida.css (+ mesma regra em painel/peso-e-medidas.css, que fica em
+   #tab-painel). Cada secao continua declarando `style="--secao-cor: var(--cor-x)"", so que
+   agora direto no `<section>` em vez do h2.
+3. Tirei o SVG "+" que eu tinha colocado a mao dentro de cada `.btn-adicionar` - o componente
+   real (`ui/componentes/botao.css`, V0b) ja injeta um "+" sozinho via `::before` (selo
+   circular). Com o meu SVG manual ficava com DOIS "+". Botao agora e so texto
+   (`<button class="btn btn-adicionar">Adicionar produto</button>`).
+4. Removi e depois REPUS a classe extra "lista-item" nos `<li class="item">` (achei que
+   colidia com `.item`/`.item-linha`/`.item-titulo` - `.lista-item` tem estrutura propria
+   `<li class="lista-item"><div class="lista-item-corpo">...`, misturar as duas troca o
+   padding de "0.75rem 0.85rem" pra "8px 0" e acrescenta um border-bottom por cima do glass
+   border que o `.item` ja tem). Antes de "consertar" isso sozinho, conferi como a faixa
+   V3-organizacao (habitos/projetos/agenda/tarefas, ja mergeada em integracao) resolveu o
+   MESMO dilema: eles fazem exatamente `li.classList.add("lista-item")` em cima do
+   `criarEl("li","item ...")` da nucleo/vida-base.js, sem "consertar" o padding. Seguindo o
+   padrao ja aceito/mergeado (consistencia entre faixas pesa mais que minha opiniao sobre o
+   resultado visual), repus "lista-item" nos meus <li>. Nao mexi em nucleo/vida-base.js.
+- Fechamento do bottom-sheet: copiei o padrao real que a faixa V3-organizacao ja usou em
+  habitos/projetos/agenda/tarefas (ja mergeada em integracao) - sem cabecalho custom com X,
+  so um `<button class="btn btn-secundario">Cancelar</button>` do lado do botao de
+  submit, dentro de um `<div class="form-linha">` aninhado no form. Cancelar tambem reseta o
+  form (`form.reset()`), igual ao habitos.js.
+- Abertura/fechamento: `window.abrirBottomSheet`/`fecharBottomSheet` com fallback inline
+  (`sheet.hidden = true/false`) - `static/js/ui/bottom-sheet.js` (V0d) continua vazio nesta
+  integracao, entao o fallback e o caminho que roda de verdade por enquanto.
+- Fallback visual local do `.bottom-sheet` (padding/borda/raio/fundo com tokens que ja
+  existem em style.css) em vida.css e painel/peso-e-medidas.css, no mesmo padrao que
+  habitos.css ja usava - enquanto V0d nao chega, o sheet nao fica com cara de <div> cru.
+
+## Secoes da faixa (14 + peso-e-medidas) - todas convertidas
+garantia, ideias-de-presente, pessoas, treino, manutencao, quero-aprender, salvos,
+lista-de-compras, pra-responder, painel/peso-e-medidas: `.secao-recolhivel` + `.btn-adicionar`
++ `.bottom-sheet` (form movido pro sheet, mesmos ids/rotas/payload de sempre).
+ainda-usa: `.secao-recolhivel` sem form (so lista) - id "assinaturas-box" migrou pro
+`<section>`, `$("#assinaturas-box").hidden = ...` em ainda-usa.js continua igual.
+mensagem-dificil, vale-a-pena: `.secao-recolhivel` com o form INLINE (nao sao "lista + item
+novo", sao acao unica de IA - "Escrever pra mim"/"Analisar" - entao nao levam bottom-sheet).
+seu-progresso: `.secao-recolhivel` read-only (dashboard, sem form).
+revisao-trimestral: `.secao-recolhivel` com `data-aberto="false"` (unica que comeca
+RECOLHIDA - secao longa/pouco usada, pedido explicito do Alex pra "qualquer secao longa
+parecida"). O JS de V0c (`ligarUma`) fecha o `.secao-conteudo` sozinho no load a partir do
+`data-aberto`, sem eu precisar botar `hidden` a mao no HTML.
+templates/abas/vida.html: novo wrapper `<div class="vida-secoes">` em volta dos includes
+(mesma ordem) - ponto unico de ritmo vertical (`margin-bottom` entre secoes em vida.css).
+
+## CSS: onde apliquei profundidade extra (alem do que .secao-recolhivel/.btn-adicionar ja dao)
+garantia.css, pessoas.css, treino.css, painel/peso-e-medidas.css: sombra em camadas/borda
+fina em elementos exclusivamente meus (barra de progresso da garantia, avatar/trilho de
+pessoas, linha de exercicio da ficha, stepper de medidas) - tokens que ja existiam em
+style.css (--radius-sm, --border-strong, --surface-2), sem cor/fonte/animacao nova.
+
+## Testes
+`scripts/testes.sh tests/test_vida.py tests/test_vida_fase2.py tests/test_vida_fase3.py
+tests/test_vida_revisao.py tests/test_vida_rotas.py tests/test_fase7_estrutura_frontend.py`
+-> 198 passed, 1 failed (`test_aprender_no_domingo`, falha conhecida dependente do dia da
+semana - AGENTS.md ja avisa disso, nao mexi em nada que essa suite cobre). gitleaks: no
+leaks found.
+
+## Historia 2 (ultima): verificacao Playwright - FEITA
+`scripts/ralph-v4-vida/servidor.py` (banco de teste temporario, nunca o real, mesmo padrao
+de ralph-v3-organizacao/ralph-v0d-sheet-nav) + `verificar.py` (Playwright headless 390x844,
+porta 5160): loga por PIN, abre a aba Vida, confere as 13 `.secao-recolhivel[data-secao-id]`
+da faixa (vida.html) presentes, rola o documento inteiro, abre Garantia pelo
+`#garantia-abrir-btn` novo, cria "Geladeira teste (playwright)", confere que aparece em
+`#lista-garantias` e que o sheet fecha (aguarda a animacao do V0d, ~240ms, com
+`state="attached"` no wait_for_selector - `state="visible"`, o default, nunca resolve pra um
+elemento com `hidden`). 2 screenshots: `v4-vida-rolagem.png` (a aba Vida inteira, via
+`locator("#tab-vida").screenshot()` - ver bug abaixo sobre por que nao e a viewport/document
+inteiros) e `v4-garantia-sheet-aberto.png` (form aberto, antes de salvar). Resultado: zero
+erro de console, zero falha de rede (fora fonts.googleapis.com e /api/summary/today, sem
+internet no sandbox - mesma excecao que ralph-v3-organizacao ja documentou), tudo OK.
+PNGs ficam so na pasta (nao commitados - README da fase pede pra nao versionar PNG grande).
+
+BUG PRE-EXISTENTE encontrado, FORA dos meus arquivos (nao mexi, so anoto):
+`static/css/secoes/painel.css` linha 8 tem `#tab-painel { display: flex; ... }` com
+seletor de ID, SEM o guard `:not([hidden])` que `.tab-content:not([hidden])` (style.css)
+usa. ID bate mais forte que classe+atributo, entao o Painel fica SEMPRE no fluxo do
+documento (display:flex) mesmo com o atributo `hidden` presente, nao importa qual aba
+esteja ativa - conferido tanto no load inicial (Hoje ativa) quanto depois de trocar pra
+Vida. Isso empurra o conteudo de QUALQUER outra aba pra baixo do Painel inteiro (11+ secoes)
+sempre que o usuario rola a pagina, nao so um problema de screenshot. `static/css/secoes/
+painel.css` e dono de outra faixa (Painel/V2), entao so anotei aqui em vez de consertar -
+quem tiver aquele arquivo na lista precisa acrescentar `:not([hidden])` na regra
+`#tab-painel { display: flex }` (ou trocar o seletor de ID por `.tab-content` com
+`:not([hidden])`, que ja existe em style.css e resolveria sozinho).

@@ -1,0 +1,31 @@
+# A15 Gemini Adapter — Progress
+
+## Stories
+- [x] S1: Create adapters/ directory and basic AdapterGemini class
+- [x] S2: Implement chamar() method with google-genai SDK
+- [x] S3: Create comprehensive tests (test_ia_adapter_gemini.py) — 15 tests, all passing
+- [ ] S4: Create provider documentation
+- [ ] S5: Create changelog entry
+
+## Completed
+- Adapter: ia/adapters/gemini.py — implements Adapter interface with late SDK import
+- Tests: tests/test_ia_adapter_gemini.py — 15 comprehensive tests, 100% pass rate
+- Error handling: Network/timeout errors bubble up for retry; API errors return Resposta(ok=False)
+- Pricing: Uses centralized ia.precos.custo_usd function
+- JSON extraction: Handles both raw JSON and markdown-wrapped JSON responses
+
+## Dependencies
+- google-genai SDK (late import, only loaded when adapter is used)
+- GEMINI_API_KEY environment variable (read at initialization)
+
+## Blocker: core.py registration
+- core.py (A1's file) needs to add "gemini" to MODULOS_ADAPTER and _NOMES_CLASSE_ADAPTER
+- This is a minimal structural change, not a business logic change
+- Once added: MODULOS_ADAPTER["gemini"] = "ia.adapters.gemini"
+- And: _NOMES_CLASSE_ADAPTER["gemini"] = ("AdapterGemini", "GeminiAdapter")
+
+## Notes
+- SDK import via late binding inside methods (no top-level import)
+- Read ia/precos.json if it exists, else use 0.0 as cost
+- Test with fake client injection
+- All tests must pass before delivery

@@ -220,6 +220,15 @@
   box-sizing: border-box;
 }
 
+/* Rede de seguranca do atributo hidden (M1). O [hidden] do navegador e uma regra
+   fraca (display: none na folha do agente de usuario); qualquer `display: flex`
+   em classe ou id do app vencia, e `el.hidden = true` deixava o elemento na tela
+   (achado pela C2, V4 e V6: abas, cards, chips, sheets). As guardas por componente
+   (.classe[hidden]) continuam; esta regra cobre as secoes que ainda nao tem. */
+[hidden] {
+  display: none !important;
+}
+
 @keyframes auroraMove {
   0%,
   100% {
@@ -430,9 +439,15 @@ button:active:not(:disabled) {
   transition: transform 0.09s cubic-bezier(0.4, 0, 1, 1);
 }
 
+/* Foco global (M1): antes era um anel de --accent-2 a 45%, que quase sumia no
+   fundo preto. Agora usa o mesmo --anel-foco dos componentes da Fase 7
+   (static/css/ui/tokens.css, carregado pelo fase7.css). O outline transparente
+   nao aparece no modo normal, mas vira uma borda visivel no modo de alto
+   contraste do sistema (forced-colors), onde o box-shadow e descartado. */
 :focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 45%, transparent);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--anel-foco);
   border-radius: 8px;
 }
 
@@ -988,7 +1003,7 @@ header {
    de tomar conta do preenchimento inteiro do botao/aba. */
 
 .tab-content:not([hidden]) {
-  animation: tabEntra 0.32s var(--ease-suave) both;
+  animation: tabEntra 0.32s var(--ease-suave) backwards;
 }
 
 /* Transicao direcional entre abas (pedido explicito: efeitos "premium",
@@ -1000,10 +1015,10 @@ header {
    exigiria as duas abas visiveis ao mesmo tempo por um instante, mais
    arriscado (dado carregando, foco, etc) pro ganho visual que traria. */
 .tab-content.entra-direita:not([hidden]) {
-  animation: tabEntraDireita 0.36s var(--ease-suave) both;
+  animation: tabEntraDireita 0.36s var(--ease-suave) backwards;
 }
 .tab-content.entra-esquerda:not([hidden]) {
-  animation: tabEntraEsquerda 0.36s var(--ease-suave) both;
+  animation: tabEntraEsquerda 0.36s var(--ease-suave) backwards;
 }
 
 @keyframes tabEntraDireita {
@@ -2100,16 +2115,19 @@ li.item.saindo {
 
 /* Fase 6 US-F5: Garantia de Produtos mais interativa - chip de status
    (reusa .pessoa-titulo-linha, US-F3, pro layout titulo+chip) e barra de
-   "quanto do prazo ja passou" (mesmo espirito de .limite-cartao-*/
+   "quanto do prazo ja passou" (mesmo espirito de .limite-cartao-* /
    .pessoa-barra-*). Sem campo novo no backend - data_compra/vencimento/
-   dias_ate ja vinham prontos de /api/garantias. */
+   dias_ate ja vinham prontos de /api/garantias.
+   M1 r2: o comentario fechava no ".limite-cartao-" + "*" + "/" e engolia esta regra (virava
+   parte de um seletor invalido). Corrigido; o `text-transform: uppercase` daqui saiu junto,
+   porque nunca chegou a valer e o MASTER/C3a pedem chip sem caixa-alta (a regra por id em
+   secoes/vida/garantia.css, da C3a, segue vencendo o resto). */
 .garantia-chip {
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  text-transform: uppercase;
   white-space: nowrap;
   border: 1px solid var(--border);
   background: var(--surface-2);

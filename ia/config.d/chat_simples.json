@@ -1,0 +1,10 @@
+{
+  "funcao": "chat_simples",
+  "ativo": false,
+  "modelo_atual": {"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "baixo"},
+  "alvo": {"provedor": "openai", "modelo": "gpt-6-luna", "esforco": "baixo"},
+  "fallback": [{"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "baixo"}],
+  "max_tokens_saida": 300,
+  "cache": {"ativo": true, "ttl": "5m"},
+  "modo": "padrao"
+}

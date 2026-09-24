@@ -1,0 +1,123 @@
+/* static/css/secoes/bancos.css - estilos da aba bancos inteira (templates/abas/bancos.html).
+   Fase 7 (faixa v6-financas): acabamento/profundidade (docs/agentes/fase7-visual.md)
+   pras 2 secoes da aba (bancos, ofx) - sem mudar cor, fonte nem animacao, so
+   radius/borda fina/elevacao sutil em cima do que ja existe. Escopado em
+   #tab-bancos pra nunca vazar pra outra aba. */
+
+#tab-bancos .card-vida {
+  background: var(--superficie-2, var(--surface-2));
+  border: 1px solid var(--borda-sutil, var(--border));
+  border-radius: var(--raio, var(--radius));
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+#tab-bancos #lista-bancos > .item {
+  background: var(--superficie-2, var(--surface-2));
+  border: 1px solid var(--borda-sutil, var(--border));
+  border-radius: var(--raio-sm, var(--radius-sm));
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.55rem;
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+@media (hover: hover) {
+  #tab-bancos #lista-bancos > .item:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--elevacao-2, inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 3px 10px -3px rgba(0, 0, 0, 0.5));
+  }
+}
+
+/* Tipo da conta (conta/cartao) como chip (contrato .chip.chip--compacto, ver
+   static/css/ui/componentes/chip.css) no lugar do texto entre parenteses de
+   antes - mesmo dado, so o acabamento muda (bancos.js monta o elemento).
+   So o delta desta secao: posicao (nasce dentro do span de titulo) + a cor
+   da aba na borda/texto (principio #3 do MASTER: cor e da aba, componente
+   fica neutro por padrao). */
+#tab-bancos .banco-tipo-chip {
+  margin-left: 0.45rem;
+  vertical-align: middle;
+  color: var(--cor-bancos);
+  border-color: color-mix(in srgb, var(--cor-bancos) 40%, var(--borda-sutil, var(--border)));
+}
+
+#tab-bancos .banco-saldo {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Fase 7 (faixa C3c): numero em mono, toque de 44px, campos do contrato ---- */
+
+#tab-bancos .valor-mono {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-bancos #patrimonio-total {
+  overflow-wrap: anywhere;
+}
+
+#tab-bancos #lista-bancos .item-linha > div:first-child {
+  min-width: 0;
+}
+
+#tab-bancos .limite-cartao .form-linha {
+  display: flex;
+  gap: var(--espaco-2, 0.5rem);
+  align-items: stretch;
+}
+
+#tab-bancos .limite-cartao .campo {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--toque-min, 44px);
+}
+
+#tab-bancos .limite-cartao .btn {
+  flex-shrink: 0;
+}
+
+#tab-bancos #importar-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2, 0.5rem);
+}
+
+#tab-bancos #importar-form .campo {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: var(--toque-min, 44px);
+}
+
+#tab-bancos #importar-form .ofx-input-label,
+#tab-bancos #importar-form #importar-btn {
+  flex: 1 1 100%;
+  min-height: var(--toque-min, 44px);
+  box-sizing: border-box;
+}
+
+#tab-bancos #conectar-btn {
+  width: 100%;
+}
+
+#tab-bancos .limite-cartao {
+  border-top-color: var(--borda-sutil, var(--border));
+}
+
+#tab-bancos .limite-cartao-trilho {
+  background: var(--superficie-3, var(--surface-3));
+  border-color: var(--borda-sutil, var(--border));
+}
+
+#tab-bancos .ofx-input-label {
+  border-radius: var(--raio-sm, var(--radius-sm));
+  background: var(--superficie-2, var(--surface-2));
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+#tab-bancos .btn-conectar {
+  border-radius: var(--raio-sm, var(--radius-sm));
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
+}

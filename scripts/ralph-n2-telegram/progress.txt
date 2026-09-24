@@ -1,0 +1,47 @@
+Faixa N2 (captura por Telegram) - progress.txt
+
+[done] H1: telegram_captura.py - texto/audio/foto/link, tudo via DI (nunca
+  importa app.py). Link = texto que e' SO uma URL http(s) (leitura.
+  validar_url, sem duplicar checagem de SSRF).
+[done] H2: transcrever() via Groq (whisper-large-v3-turbo, mais barato -
+  pesquisado 2026-09-24, ver docs/telegram-captura.md #5). teto.
+  teto_permite("transcricao") antes, medicao.registrar_uso depois; custo
+  pela duracao que o Telegram ja manda (voice.duration).
+[done] H3: rotas/n2_telegram.py - webhook, secret (hmac.compare_digest),
+  allowlist de chat (200 silencioso), idempotencia por update_id.
+  Escrito quando a infra de Blueprint (Etapa 0/X1) ainda nao estava em
+  fase7/integracao (STATUS.md ja listava N2 como dependente dela), pro
+  contrato exato lido no worktree paralelo e0-backend, com fallback
+  local _garantir_tabela. Etapa 0 chegou em fase7/integracao (c67486c)
+  ainda durante esta faixa - `git fetch && git merge
+  origin/fase7/integracao` (sem -edit) rodou limpo, SEM conflito
+  nenhum. Confirmado end-to-end: `import app` real registra
+  /api/telegram/webhook via rotas.registrar_todas, aparece em
+  rotas.CAMINHOS_COM_TOKEN, e db.init_db() aplica a migracao de
+  verdade (nao so o fallback).
+[done] H4: migracoes/202609241310_n2_telegram.sql - confirmado aplicado
+  pelo runner real (`migracoes_aplicadas`) apos o merge.
+[done] H5: docs/telegram-captura.md (BotFather, chat_id, secret,
+  setWebhook, precos de transcricao, convivencia com o bot antigo).
+[done] H6: tests/test_fase7_n2_telegram_{captura,transcricao,rota}.py -
+  61 testes, 0 falhas, nenhuma chamada real. Teste de rota registra um
+  `rotas._base` MINIMO em sys.modules SO se a infra real nao existir
+  ainda (`try: import rotas._base` primeiro) - depois do merge, usa a
+  infra de verdade sem alteracao; os 61 testes continuam verdes.
+
+Nada bloqueado - faixa 100% integrada com a Etapa 0 (merge ja feito
+nesta branch). Racional completo em APRENDIZADOS.md.
+
+PRA O INTEGRADOR: TELEGRAM_BOT_TOKEN e' compartilhado com telegram_bot.py
+(Fase 3, polling) - Telegram nao deixa webhook+getUpdates juntos no mesmo
+token (409). Ver docs/telegram-captura.md #7 (3 opcoes, recomendo bot
+separado). Env vars novas (faltam em .env.example): TELEGRAM_CHAT_ID_
+PERMITIDO, TELEGRAM_WEBHOOK_SECRET, GROQ_API_KEY (so audio), APP_URL_
+PUBLICA (opcional). Sem dependencia nova.
+
+Testes: scripts/testes.sh tests/test_fase7_n2_telegram_captura.py
+  tests/test_fase7_n2_telegram_transcricao.py
+  tests/test_fase7_n2_telegram_rota.py -> "61 passed".
+gitleaks detect --no-git --source . -> "no leaks found".
+
+Branch: fase7/n2-telegram (worktree a partir de fase7/integracao).

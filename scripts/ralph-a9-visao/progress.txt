@@ -1,0 +1,82 @@
+Faixa A9 (visao: nota fiscal e cotacao em PDF) - Fase 7 - branch fase7/a9-visao
+
+Historias (15-30min cada):
+[x] H1 - Ler regras da faixa (docs/agentes/fase7-regras-faixa.md) + mapear
+    ia.core.chamar_ia/ia.contrato (mensagens/schema/opcoes), ia/adapters/
+    anthropic.py e openai.py (formato de imagem/PDF), ia/config.d/README.md.
+[x] H2 - ia/funcoes/visao.py: extrair_nota_fiscal_foto/extrair_item_cotacao_pdf
+    migradas pra ia.core.chamar_ia, schema JSON com campo novo "confianca"
+    (0-1, nao "required" - ver compat abaixo), CONFIANCA_MINIMA=0.7,
+    _chamar_com_retry (refaz 1x se ok=False - baixa confianca/JSON invalido/
+    erro tecnico - levanta RuntimeError se as duas falharem). Mesma
+    assinatura/retorno tuple[dict, dict] de hoje.
+[x] H3 - Confirmado no SDK openai 3.19.2 instalado: GPT-6 Luna aceita PDF
+    direto (content part "file"/file_data na Chat Completions API) - NAO
+    precisei converter pagina em imagem, NAO precisei de lib nova (pip list
+    do .venv so tem pillow). Detalhe em APRENDIZADOS.md.
+[x] H4 - Confirmado: ia/adapters/anthropic.py NAO converte o formato de
+    imagem/documento (so repassa `mensagens` cru). Resolvido SEM editar
+    nenhum adapter: mensagens desta faixa usam o formato nativo Anthropic
+    (ativo:false hoje, unica tentativa real e sempre anthropic/sonnet).
+    Registrado: quando `ativo` virar true, este arquivo tambem precisa
+    passar a montar mensagens no formato openai - so trocar o JSON NAO
+    basta pra estas 2 funcoes. Detalhe em APRENDIZADOS.md.
+[x] H5 - ia/config.d/extrair_nota_fiscal_foto.json e
+    extrair_item_cotacao_pdf.json: ativo:false, modelo_atual anthropic/
+    claude-sonnet-5 (confirmado: e o modelo de hoje, ia.legado.SONNET),
+    alvo openai/gpt-6-luna esforco medio, fallback claude-sonnet-5,
+    max_tokens_saida 500.
+[x] H6 - ia/lote.py: processar_lote(funcao, itens, ...) generico, sempre
+    forca opcoes["modo"]="flex". Nada usa ainda (foto continua na hora, modo
+    padrao) - base pronta pra extrato bancario em lote no futuro.
+[x] H7 - tests/test_fase7_a9_extracao_visao.py (16 casos, tudo dublê, PDF/
+    imagem sinteticos gerados no teste - imagem via Pillow): retorno
+    identico + formato de mensagem (image/document blocks), fallback por
+    confianca baixa (2 chamadas explicitas, config ativo:false real),
+    fallback por JSON invalido, falha total levanta RuntimeError, fallback
+    AUTOMATICO via config quando ativo:true (openai baixa confianca -> cai
+    sozinho pro fallback anthropic dentro de 1 chamada de chamar_ia, graças
+    ao "confianca.minimum" no schema), client compartilhado confirmado
+    (adapter._client is ia.legado.client), lote sempre modo flex + resiliente
+    a item que falha + montar_mensagens.
+[x] H8 - Achado rodando os testes (nao previsto no briefing): ia.teto
+    precisa de banco com schema (tabela `configuracoes`). Isso quebra
+    tests/test_claude_client.py (30 testes, 6 sobre minhas 2 funcoes) SE
+    rodado sozinho, mas passa rodado junto com tests/test_app.py (que
+    inicializa um banco temp na importacao) - confirmado nos dois sentidos.
+    Nao editei db.py/ia/teto.py/test_claude_client.py. Detalhe completo em
+    APRENDIZADOS.md.
+[x] H9 - changelog.d/a9-visao.md + este progress.txt + APRENDIZADOS.md.
+
+Bloqueios: nenhum.
+
+Fora da minha lista de arquivos (nao editei): ia/core.py, ia/adapters/
+anthropic.py, ia/adapters/openai.py, ia/legado.py, db.py, ia/teto.py,
+tests/test_claude_client.py, tests/test_app.py, AGENTS.md, CHANGELOG.md,
+TODO.md, README.md, STATUS.md.
+
+Nota pro integrador (importante):
+1. tests/test_claude_client.py::ExtrairItemCotacaoPdfTestCase e
+   ExtrairNotaFiscalFotoTestCase (6 testes) so passam se rodados JUNTO com
+   tests/test_app.py na mesma sessao do pytest (test_app.py inicializa o
+   banco de teste na importacao - efeito colateral usado por
+   ia.teto.teto_permite, que agora essas 2 funcoes chamam via
+   ia.core.chamar_ia). Rodei os dois juntos e confirmei 30 passed. Rodando
+   so test_claude_client.py sozinho, os 6 falham por banco sem schema - nao
+   e regressao minha, e um gap de fixture pre-existente que so ficou visivel
+   porque migrei estas 2 funcoes pra passar por ia.core (que agora, corretamente,
+   checa teto). Sugestao pro integrador: dar a test_claude_client.py o mesmo
+   fixture de banco que tests/test_ia_teto.py ja tem (_BaseTetoTestCase), ou
+   sempre rodar a suite completa (nunca so esse arquivo isolado).
+2. Migracao pro GPT-6 Luna (ativo:true) nestas 2 funcoes NAO e so trocar o
+   JSON: ia/funcoes/visao.py ainda monta mensagens no formato nativo
+   Anthropic (unico formato usado hoje). Ver APRENDIZADOS.md.
+
+Testes: scripts/testes.sh tests/test_fase7_a9_extracao_visao.py -> 16
+passed. scripts/testes.sh tests/test_app.py tests/test_claude_client.py ->
+552 passed (+ 1 falha conhecida, time-dependente, ver regras da faixa - nao
+relacionada a mim) antes do fix do schema; depois do fix (confianca fora de
+"required"), reconfirmado via unittest direto (import test_app + roda so as
+2 classes de test_claude_client.py) -> 6 passed, 0 failed. scripts/testes.sh
+tests/test_ia_core.py -> 46 passed (sanity, nao e meu). gitleaks detect
+--no-git --source . -> no leaks found.

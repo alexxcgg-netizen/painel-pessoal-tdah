@@ -210,9 +210,13 @@
   "use strict";
   const Cards = raiz.Cards || (typeof require === "function" ? require("./cards.js") : null);
   if (!Cards) return;
-  const { esc, numeroValido } = Cards;
+  const { esc, numeroValido, moeda } = Cards;
 
   const ICONES = Object.assign(Cards.ICONES || {}, {
+    assinatura:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>',
+    parcela:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="7.5" width="16" height="11" rx="2"/><rect x="5.5" y="4.5" width="16" height="11" rx="2"/><path d="M9 10h4"/></svg>',
     agenda:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>',
     projeto:
@@ -616,5 +620,172 @@
     );
   });
 
-  Object.assign(Cards, { blocoDoDia, progressoProjeto, minutosPorAtividade, semanaHabito, horaCurta, fmtPassos, fmtSono });
+  // ---- assinatura / compra_parcelada / resumo_financeiro_recorrente ---------
+  // C2: alinhado ao contrato publicado pela N1 (docs/contrato-assinaturas.md, secao
+  // "Cards"). A V1 tinha escrito contra um formato provisorio; os nomes antigos continuam
+  // aceitos so como reserva (contrato e "so aditivo", mas o card nao pode quebrar se um
+  // dado velho aparecer): cartao -> cartao_ou_forma, restantes -> parcelas_restantes,
+  // termina_em -> mes_termino, total_mes -> total_mensal, n_assinaturas ->
+  // n_assinaturas_ativas, n_parcelas -> n_compras_em_andamento, proxima_cobranca ->
+  // proximas_cobrancas[].
+  // Valor: o renderizador nao usa MOEDA_OCULTA (decisao da V1: "sao do proprio Alex"). O
+  // contrato marca os campos de dinheiro como sensiveis - quando cards.py os puser em
+  // CAMPOS_SENSIVEIS, o SERVIDOR tira o valor no modo visitante e o card mostra "—".
+
+  function emDiasTexto(n) {
+    if (!numeroValido(n)) return "";
+    if (n <= 0) return "hoje";
+    if (n === 1) return "amanhã";
+    return `em ${n} dias`;
+  }
+
+  // dias ate uma data ISO (a partir de hoje, pelo relogio do aparelho); null se invalida
+  function diasAte(iso, agora) {
+    const d = Cards.parseDia(iso);
+    if (!d) return null;
+    return Cards.diasEntre(agora instanceof Date ? agora : new Date(), d);
+  }
+
+  // "2027-08" -> "ago 2027" (mes_termino do contrato)
+  function mesCurto(anoMes) {
+    if (typeof anoMes !== "string") return "";
+    const m = anoMes.match(/^(\d{4})-(\d{2})$/);
+    if (!m) return Cards.diaMesCurto(anoMes); // reserva: data ISO completa (formato antigo)
+    const dia = Cards.diaMesCurto(`${m[1]}-${m[2]}-01`);
+    return dia ? `${dia.split(" ")[1]} ${m[1]}` : "";
+  }
+
+  function primeiroNumero(...valores) {
+    for (const v of valores) if (numeroValido(v)) return v;
+    return null;
+  }
+
+  function textoOuVazio(v) {
+    return typeof v === "string" ? v : "";
+  }
+
+  Cards.registrar("assinatura", (data, card, ctx) => {
+    const cancelada = data.ativa === false || Boolean(data.cancelada_em);
+    const chip = cancelada
+      ? `<span class="card-chip card-chip-neutro">${
+          data.cancelada_em ? `Cancelada em ${esc(Cards.diaMesCurto(data.cancelada_em))}` : "Cancelada"
+        }</span>`
+      : "";
+    const detalhe = [
+      numeroValido(data.dia_cobranca) ? `todo dia ${data.dia_cobranca}` : "",
+      textoOuVazio(data.cartao_ou_forma) || textoOuVazio(data.cartao),
+      textoOuVazio(data.categoria),
+    ]
+      .filter(Boolean)
+      .map(esc)
+      .join(" · ");
+    const prox = !cancelada && typeof data.proxima_cobranca === "string" ? data.proxima_cobranca : "";
+    const dias = primeiroNumero(data.em_dias, prox ? diasAte(prox, ctx && ctx.agora) : null);
+    const proxLinha = [prox ? `Próxima cobrança: ${Cards.diaMesCurto(prox)}` : "", prox ? emDiasTexto(dias) : ""]
+      .filter(Boolean)
+      .join(" · ");
+    const valorTxt = numeroValido(data.valor) ? `${moeda(data.valor)} /mês` : "—";
+    return (
+      eyebrow(ICONES.assinatura, "Assinatura", chip) +
+      `<p class="card-titulo">${esc(data.nome)}</p>` +
+      `<p class="card-valor-grande">${esc(valorTxt)}</p>` +
+      (detalhe ? `<p class="card-linha-meta">${detalhe}</p>` : "") +
+      (proxLinha ? `<p class="card-linha-meta">${esc(proxLinha)}</p>` : "")
+    );
+  });
+
+  Cards.registrar("compra_parcelada", (data) => {
+    const atual = numeroValido(data.parcela_atual) ? data.parcela_atual : null;
+    const total = numeroValido(data.n_parcelas) ? data.n_parcelas : null;
+    const restantes = primeiroNumero(
+      data.parcelas_restantes,
+      data.restantes,
+      atual !== null && total !== null ? Math.max(0, total - atual) : null
+    );
+    const quitada = data.quitada === true;
+    const pct = quitada ? 100 : atual !== null && total ? limitar((atual / total) * 100, 0, 100) : 0;
+    const progresso =
+      (atual !== null && total) || quitada
+        ? `<div class="card-progresso"><div class="meta-progresso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}">` +
+          `<div class="meta-progresso-barra${pct >= 100 ? " completa" : ""}" style="width:${pct.toFixed(1)}%"></div></div></div>`
+        : "";
+    const termino = mesCurto(textoOuVazio(data.mes_termino) || textoOuVazio(data.termina_em));
+    const detalhe = [
+      atual !== null && total !== null ? `Parcela ${atual} de ${total}` : "",
+      !quitada && restantes !== null ? `${restantes} ${restantes === 1 ? "restante" : "restantes"}` : "",
+      termino ? `${quitada ? "terminou" : "termina"} ${termino}` : "",
+      textoOuVazio(data.cartao),
+    ]
+      .filter(Boolean)
+      .map(esc)
+      .join(" · ");
+    const totalLinha = numeroValido(data.valor_total) ? `Total ${moeda(data.valor_total)}` : "";
+    const chip = quitada ? '<span class="card-chip card-chip-neutro">Quitada</span>' : "";
+    const valorTxt = numeroValido(data.valor_parcela) ? `${moeda(data.valor_parcela)} /mês` : "—";
+    return (
+      eyebrow(ICONES.parcela, "Compra parcelada", chip) +
+      `<p class="card-titulo">${esc(data.descricao)}</p>` +
+      `<p class="card-valor-grande">${esc(valorTxt)}</p>` +
+      progresso +
+      (detalhe ? `<p class="card-linha-meta">${detalhe}</p>` : "") +
+      (totalLinha ? `<p class="card-linha-meta">${esc(totalLinha)}</p>` : "")
+    );
+  });
+
+  // proximas_cobrancas do contrato (ate 5); aceita o objeto unico provisorio da V1
+  function proximasCobrancas(data) {
+    if (Array.isArray(data.proximas_cobrancas)) {
+      return data.proximas_cobrancas.filter((c) => c && typeof c === "object");
+    }
+    const unica = data.proxima_cobranca;
+    return unica && typeof unica === "object" ? [unica] : [];
+  }
+
+  Cards.registrar("resumo_financeiro_recorrente", (data) => {
+    const total = primeiroNumero(data.total_mensal, data.total_mes);
+    const totalTxt = total !== null ? moeda(total) : "—";
+    const nAss = primeiroNumero(data.n_assinaturas_ativas, data.n_assinaturas);
+    const nPar = primeiroNumero(data.n_compras_em_andamento, data.n_parcelas);
+    const detalhe = [
+      nAss !== null
+        ? `${nAss} ${nAss === 1 ? "assinatura" : "assinaturas"}` +
+          (numeroValido(data.assinaturas_total) ? ` (${moeda(data.assinaturas_total)})` : "")
+        : "",
+      nPar !== null
+        ? `${nPar} ${nPar === 1 ? "parcela ativa" : "parcelas ativas"}` +
+          (numeroValido(data.parcelas_total) ? ` (${moeda(data.parcelas_total)})` : "")
+        : "",
+    ]
+      .filter(Boolean)
+      .map(esc)
+      .join(" · ");
+    const itens = proximasCobrancas(data)
+      .slice(0, 3)
+      .map((c) => {
+        const nome = textoOuVazio(c.nome) || textoOuVazio(c.descricao) || "—";
+        const quando = [
+          typeof c.data === "string" ? Cards.diaMesCurto(c.data) : "",
+          textoOuVazio(c.label) || emDiasTexto(c.dias),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const valor = numeroValido(c.valor) ? moeda(c.valor) : "";
+        return (
+          `<li class="card-recorrente-item"><strong>${esc(nome)}</strong>` +
+          (quando ? `<span class="card-linha-meta">${esc(quando)}</span>` : "") +
+          (valor ? `<span class="card-recorrente-valor">${esc(valor)}</span>` : "") +
+          "</li>"
+        );
+      })
+      .join("");
+    const mes = mesCurto(textoOuVazio(data.mes));
+    return (
+      eyebrow(ICONES.resumo, mes ? `Recorrentes · ${mes}` : "Recorrentes do mês") +
+      `<p class="card-valor-grande">${esc(totalTxt)}</p>` +
+      (detalhe ? `<p class="card-linha-meta">${detalhe}</p>` : "") +
+      (itens ? `<p class="card-linha-meta">Próximas cobranças</p><ul class="card-recorrentes">${itens}</ul>` : "")
+    );
+  });
+
+  Object.assign(Cards, { blocoDoDia, progressoProjeto, minutosPorAtividade, semanaHabito, horaCurta, fmtPassos, fmtSono, emDiasTexto, mesCurto, diasAte });
 })(typeof window !== "undefined" ? window : globalThis);

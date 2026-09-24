@@ -1,0 +1,91 @@
+/* static/css/ui/componentes/lista-item.css - componente: itens de lista.
+   Fase 7 (V0c). Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve
+   por cascata sem precisar editar o style.css.
+
+   Uso:
+   <ul class="lista">
+     <li class="lista-item">
+       <div class="lista-item-corpo">...</div>
+       <div class="lista-item-acoes">...</div>
+     </li>
+   </ul>
+   Linha divisoria sutil (sem o `.lista-item` de cima nem debaixo de tudo), area de toque
+   minima 44px, acoes alinhadas a direita. Zero cor/fonte nova. */
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lista-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2, 16px);
+  min-height: 44px;
+  padding: var(--espaco-1, 8px) 0;
+  border-bottom: 1px solid var(--borda-sutil, var(--border, rgba(218, 226, 243, 0.09)));
+}
+
+/* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de
+   classe, e a regra do autor ganha da do UA) - sem isso, campo/botao escondido pelo JS
+   continuava na tela (ex.: "Quantas vezes por semana" no sheet de habito). */
+.lista[hidden],
+.lista-item[hidden],
+.lista-item-corpo[hidden],
+.lista-item-acoes[hidden] {
+  display: none;
+}
+
+.lista-item:last-child {
+  border-bottom: none;
+}
+
+.lista-item-corpo {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.lista-item-titulo {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lista-item-meta {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.lista-item-acoes {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-1, 8px);
+}
+
+@media (hover: hover) {
+  .lista-item {
+    transition: background 0.15s ease;
+  }
+  /* C2: veu de hover do MASTER (a superficie-2 some em cima de um card que ja e -2) */
+  .lista-item:hover {
+    background: var(--veu-hover);
+  }
+}
+
+/* C2: linha focavel (tabindex/link de card) ganha o anel da V0a. */
+.lista-item:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+  border-radius: var(--raio-xs);
+}

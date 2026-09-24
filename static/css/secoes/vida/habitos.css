@@ -1,0 +1,61 @@
+/* static/css/secoes/vida/habitos.css - secao vida > habitos (HTML: templates/secoes/vida/habitos.html).
+   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
+   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* C2: sai o CSS provisorio da V3 (.btn-adicionar e .bottom-sheet SEM escopo, copiado igual
+   em 4 arquivos). Ele pintava a MOLDURA do sheet (a camada fixa de tela cheia) com fundo,
+   borda e padding, e brigava com os componentes reais (ui/componentes/botao.css e
+   bottom-sheet.css), que ja estao na integracao. Aqui fica so o respiro da secao. */
+#habito-abrir-btn {
+  margin-block: var(--espaco-2) var(--espaco-3);
+}
+
+/* C2: .habito-dias-semana (style.css) tem display:flex e vencia o [hidden] - os 7 dias
+   apareciam no sheet mesmo com "Todo dia" escolhido. */
+#habito-dias-semana-campo[hidden] {
+  display: none;
+}
+
+/* C2: rede de seguranca do foco nesta secao (so a lista; botao e sheet ja usam os componentes). O :focus-visible global do style.css usa
+   --accent-2 (#08080a) a 45% e some no preto; varios elementos da aba ainda tinham
+   box-shadow proprio que tampava ate esse anel fraco. Aqui todo alvo focavel da aba usa o
+   --anel-foco da V0a. (A troca do global e com o integrador - ver progress.txt.) */
+#lista-habitos :is(button, a[href], input, select, textarea, summary, [tabindex]):not(.secao-cabecalho):focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+/* C2: acoes da lista (marcar hoje, apagar) - visual compacto, toque de 44px por ::after. */
+#lista-habitos li button:not(.btn):not(.chip) {
+  position: relative;
+}
+
+#lista-habitos li button:not(.btn):not(.chip)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--toque-min));
+  height: var(--toque-min);
+  transform: translate(-50%, -50%);
+}
+
+/* C2: rotulos (meta, horario, dias) sao .chip--compacto, nao alvos grandes. */
+#lista-habitos .chip.chip--compacto {
+  min-height: 24px;
+  padding: 0.15rem var(--espaco-2);
+  font-size: 0.72rem;
+}
+
+/* C2: o habito era uma linha so (titulo+acoes | semana) e o nome quebrava em 2 linhas
+   ("Beber / agua") por falta de espaco. Agora empilha: titulo e acoes em cima, a semana
+   (7 bolinhas) embaixo, com a largura toda. */
+#lista-habitos > .lista-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--espaco-2);
+}
+
+#lista-habitos > .lista-item > .item-linha .item-titulo {
+  margin-right: var(--espaco-2);
+}

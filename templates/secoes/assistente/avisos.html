@@ -1,0 +1,32 @@
+{# Fase 7, faixa P1b: secao "Avisos" da tela Assistente - liga/desliga por
+   tipo, canal (push/caixa/ambos) e horario de silencio global (faixa P8,
+   assistente/avisos.py). Conteudo preenchido via JS (static/js/secoes/assistente/avisos.js). #}
+<section class="card secao-avisos-assistente" id="secao-avisos-assistente" aria-label="Avisos do assistente">
+  <h2>Avisos</h2>
+
+  <form id="avisos-silencio-form" class="avisos-silencio-form">
+    <p class="avisos-silencio-titulo">Horario de silencio (padrao pra todos os tipos)</p>
+    <div class="avisos-silencio-campos">
+      <label class="avisos-silencio-campo">
+        <span class="campo-rotulo">Inicio</span>
+        <input type="time" id="avisos-silencio-inicio" class="campo" name="inicio" required>
+      </label>
+      <label class="avisos-silencio-campo">
+        <span class="campo-rotulo">Fim</span>
+        <input type="time" id="avisos-silencio-fim" class="campo" name="fim" required>
+      </label>
+      <button type="submit" class="btn btn-primario">Salvar</button>
+    </div>
+  </form>
+
+  {# C2: 50 tipos = ~8000px de tela. A lista comeca recolhida (estado salvo por secao). #}
+  <section class="secao-recolhivel avisos-tipos" data-aberto="false" data-secao-id="assistente-avisos-tipos">
+    <button type="button" class="secao-cabecalho" aria-expanded="false">
+      <span class="avisos-tipos-titulo">Tipos de aviso <span id="avisos-contagem" class="avisos-contagem"></span></span>
+      <span class="chevron" aria-hidden="true"></span>
+    </button>
+    <div class="secao-conteudo">
+      <ul id="avisos-lista" class="lista avisos-lista"></ul>
+    </div>
+  </section>
+</section>

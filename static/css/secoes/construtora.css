@@ -1,0 +1,132 @@
+/* static/css/secoes/construtora.css - estilos da aba construtora inteira
+   (templates/abas/construtora.html).
+   Fase 7 (faixa v6-financas): acabamento/profundidade (docs/MASTER.md) pras
+   secoes construtora/contas-a-pagar (cotacoes e de outra faixa, nao mexe
+   aqui). Sem mudar cor, fonte nem animacao. Escopado em #tab-construtora.
+   Fase 7 (faixa C3c): valores em --text (a --cor-construtora dava 3.2:1 de
+   contraste no numero) com a cor da aba so numa barra de 3px + icone de
+   seta (cor nunca e o unico sinal); contas a pagar viram .lista-item dentro
+   de .card (MASTER #5). */
+
+#tab-construtora .valor-mono {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-construtora .construtora-stats {
+  display: flex;
+  gap: var(--espaco-3, 1rem);
+}
+
+#tab-construtora .construtora-stat {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-1, 0.25rem);
+  padding-left: var(--espaco-2, 0.5rem);
+  border-left: 3px solid var(--cor-painel);
+}
+
+#tab-construtora .construtora-stat--saida {
+  border-left-color: var(--cor-construtora);
+}
+
+#tab-construtora .construtora-stat-rotulo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--espaco-1, 0.25rem);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+#tab-construtora .construtora-stat-rotulo svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--cor-painel);
+}
+
+#tab-construtora .construtora-stat--saida .construtora-stat-rotulo svg {
+  color: var(--cor-construtora);
+}
+
+#tab-construtora .construtora-stat-valor {
+  /* Em 390px, "R$ 132.500,00" em mono a 1.4rem estoura a coluna (2 stats lado
+     a lado) - clamp() encolhe antes de faltar espaco e overflow-wrap e o
+     ultimo recurso (achado da V6, mantido). */
+  font-size: clamp(0.95rem, 4.6vw, 1.4rem);
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+#tab-construtora .construtora-proxima-conta {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-2, 0.5rem);
+  margin: 0;
+  padding-top: var(--espaco-2, 0.5rem);
+  border-top: var(--linha, 1px) solid var(--borda-sutil, var(--border));
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+#tab-construtora .construtora-proxima-conta svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--cor-construtora);
+}
+
+/* ---- Contas a pagar: lista dentro de card ---- */
+
+#tab-construtora #lista-contas-a-vencer.lista.card {
+  gap: 0;
+  padding: var(--espaco-2, 0.5rem) var(--espaco-3, 1rem);
+}
+
+#tab-construtora #lista-contas-a-vencer .lista-item {
+  padding: var(--espaco-2, 0.5rem) 0;
+}
+
+#tab-construtora #lista-contas-a-vencer .lista-item-titulo {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#tab-construtora #lista-contas-a-vencer .lista-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espaco-1, 0.25rem) var(--espaco-2, 0.5rem);
+}
+
+#tab-construtora #lista-contas-a-vencer .lista-item-valor {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--text);
+}
+
+#tab-construtora .selo-vencida {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--espaco-1, 0.25rem);
+  padding: 0.1rem var(--espaco-2, 0.5rem);
+  border-radius: var(--raio-pilula, 999px);
+  border: var(--linha, 1px) solid color-mix(in srgb, var(--danger) 35%, transparent);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+#tab-construtora .selo-vencida svg {
+  width: 14px;
+  height: 14px;
+}
+
+#tab-construtora .conta-vencida {
+  box-shadow: inset 3px 0 0 var(--danger);
+  padding-left: var(--espaco-2, 0.5rem);
+}

@@ -1,0 +1,48 @@
+Faixa: n3e-widgetkit (Fase 7, N3e — Base WidgetKit, não testável aqui)
+Branch: fase7/n3e-widgetkit (a partir de fase7/integracao)
+
+[feita] H1 - Ler regras da faixa + achar contrato JSON/paleta de cor real
+  - Li docs/agentes/fase7-regras-faixa.md, o prompt da tarefa (JSON de
+    /api/widget dado explicitamente), docs/WIDGET_TELA_BLOQUEIO.md e
+    scriptable/widget_lockscreen.js (widget irmao ja existente, faixa
+    diferente) pra manter consistencia de nomes de campo/decisoes.
+  - Confirmado: GET /api/widget (Authorization: Bearer) NAO existe ainda
+    no app.py desta integracao - so existe /api/atalho/resumo (token via
+    X-Webhook-Token, campos diferentes: tarefas_pendentes/gasto_hoje/...).
+    Fora do escopo desta faixa (so native/widgetkit/**, scripts/ralph-*,
+    changelog.d/*) - registrado no README como nota de escopo.
+  - Cores lidas de static/css/style.css :root (nao inventadas): --surface
+    #121212, --text #eceef3, --text-muted #a7afbc, --text-faint #788292,
+    --cor-painel #41aa75 (esmeralda, accent escolhido - mesma logica de
+    identidade por aba do app web), --danger #ff5c72, --border rgba(...).
+
+[feita] H2 - Config.swift (App Group)
+  - UserDefaults(suiteName:) com appGroupID placeholder documentado no
+    README pra trocar; duas chaves (url base + token) + cache do ultimo
+    payload bom (pra fallback quando a rede falha).
+
+[feita] H3 - PainelWidget.swift (modelo + provider + views)
+  - Codable batendo com o JSON exato do prompt (snake_case via
+    CodingKeys). TimelineProvider com fetch async, refresh a cada ~20 min
+    (Timeline policy .after), fallback pro cache do App Group em erro de
+    rede, estados normal/vazio/erro nas 5 familias
+    (systemSmall/systemMedium/accessoryCircular/accessoryRectangular/
+    accessoryInline). Accessory* sem cor customizada (doc ja registrada:
+    iOS renderiza monocromatico nesses slots).
+
+[feita] H4 - PainelWidgetBundle.swift + README.md
+  - Bundle @main de uma linha. README com passo a passo PWABuilder ->
+    Xcode -> Widget Extension -> App Group -> instalar, deixando claro
+    que exige Mac+Xcode+conta paga (fora do simulador) e que nada foi
+    compilado/testado aqui.
+
+Bloqueios: nenhum.
+Fora do escopo (nao mexi): rota /api/widget no backend, tela de
+configuracoes do App Group no app principal, icone do widget, ATS no
+Info.plist - todos citados no README como "proximos passos de quem for
+compilar".
+
+Testes: N/A por design da faixa (N3e = "Base WidgetKit - nao testavel
+aqui", sem Mac/Xcode neste ambiente). Nenhum python/pytest tocado - nao
+rodei scripts/testes.sh porque nao alterei nenhum arquivo Python/JS do
+app.
