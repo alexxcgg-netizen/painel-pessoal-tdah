@@ -1,11 +1,9 @@
-      <section class="secao-recolhivel card" data-aberto="true" data-secao-id="vida-lista-de-compras">
-        <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
-          <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-lista-de-compras">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg>
-            Lista de compras
-            <span class="chevron" aria-hidden="true"></span>
-          </button>
-        </h2>
+      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-lista-de-compras" style="--secao-cor: var(--cor-financeiro)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-lista-de-compras">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg>
+          Lista de compras
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
         <div class="secao-conteudo" id="conteudo-vida-lista-de-compras">
           <div class="dica-colapsavel">
             <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de lista de compras"></button>
@@ -13,25 +11,19 @@
               Enche sozinha quando voce fala "acabou o cafe" no chat. Se tiver o Atalho de localizacao, avisa a lista quando voce chega no mercado (so se tiver item).
             </p>
           </div>
-          <button type="button" id="compra-abrir-btn" class="btn btn-adicionar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Adicionar item
-          </button>
+          <button type="button" id="compra-abrir-btn" class="btn btn-adicionar">Adicionar item</button>
           <p id="compras-vazio" class="vazio" hidden>Lista vazia.</p>
           <ul id="lista-compras" class="checklist lista-compras"></ul>
         </div>
       </section>
 
       <div class="bottom-sheet" id="sheet-compra" hidden>
-        <div class="bottom-sheet-cabecalho">
-          <h3 class="card-titulo">Novo item na lista</h3>
-          <button type="button" id="compra-fechar-btn" class="bottom-sheet-fechar" aria-label="Fechar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
-        </div>
         <form id="compra-form" class="form-linha">
           <input type="text" id="compra-item" placeholder="O que acabou?" maxlength="60" required />
-          <button type="submit" id="compra-btn" class="btn btn-primario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+          <div class="form-linha">
+            <button type="submit" id="compra-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="button" id="compra-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
         </form>
       </div>
 

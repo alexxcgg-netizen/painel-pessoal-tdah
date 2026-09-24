@@ -1,11 +1,9 @@
-      <section class="secao-recolhivel card" data-aberto="true" data-secao-id="vida-pessoas">
-        <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
-          <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-pessoas">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"/></svg>
-            Pessoas
-            <span class="chevron" aria-hidden="true"></span>
-          </button>
-        </h2>
+      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-pessoas" style="--secao-cor: var(--cor-painel)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-pessoas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"/></svg>
+          Pessoas
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
         <div class="secao-conteudo" id="conteudo-vida-pessoas">
           <div class="dica-colapsavel">
             <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de pessoas"></button>
@@ -15,29 +13,23 @@
               domingo" registra e zera a contagem.
             </p>
           </div>
-          <button type="button" id="pessoa-abrir-btn" class="btn btn-adicionar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Adicionar pessoa
-          </button>
+          <button type="button" id="pessoa-abrir-btn" class="btn btn-adicionar">Adicionar pessoa</button>
           <p id="pessoas-vazio" class="vazio" hidden>Ninguem na lista ainda.</p>
-          <ul id="lista-pessoas" class="lista-simples"></ul>
+          <ul id="lista-pessoas"></ul>
         </div>
       </section>
 
       <div class="bottom-sheet" id="sheet-pessoa" hidden>
-        <div class="bottom-sheet-cabecalho">
-          <h3 class="card-titulo">Nova pessoa</h3>
-          <button type="button" id="pessoa-fechar-btn" class="bottom-sheet-fechar" aria-label="Fechar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
-        </div>
         <form id="pessoa-form" class="form-linha">
           <input type="text" id="pessoa-nome" placeholder="Nome (ex: Mae)" maxlength="60" required />
           <input type="number" id="pessoa-freq" placeholder="A cada quantos dias?" min="1" max="365" inputmode="numeric" />
-          <button type="submit" id="pessoa-btn" class="btn btn-primario">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Adicionar
-          </button>
+          <div class="form-linha">
+            <button type="submit" id="pessoa-btn" class="btn btn-primario btn-com-icone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Adicionar
+            </button>
+            <button type="button" id="pessoa-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
         </form>
       </div>
 

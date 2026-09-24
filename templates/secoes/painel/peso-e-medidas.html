@@ -1,30 +1,19 @@
-      <section class="secao-recolhivel card" data-aberto="true" data-secao-id="painel-peso-e-medidas">
-        <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
-          <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-painel-peso-e-medidas">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M7 8l5-4 5 4M7 16l5 4 5-4"/></svg>
-            Peso e medidas
-            <span class="chevron" aria-hidden="true"></span>
-          </button>
-        </h2>
+      <section class="secao-recolhivel" data-aberto="true" data-secao-id="painel-peso-e-medidas" style="--secao-cor: var(--cor-financeiro)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-painel-peso-e-medidas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M7 8l5-4 5 4M7 16l5 4 5-4"/></svg>
+          Peso e medidas
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
         <div class="secao-conteudo" id="conteudo-painel-peso-e-medidas">
-          <button type="button" id="medida-abrir-btn" class="btn btn-adicionar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Adicionar medida
-          </button>
+          <button type="button" id="medida-abrir-btn" class="btn btn-adicionar">Adicionar medida</button>
           <p id="medidas-oculto-visitante" class="vazio" hidden>Oculto no modo visitante.</p>
           <p id="medidas-vazio" class="vazio" hidden>Nenhuma medida registrada ainda.</p>
           <div id="grafico-medidas" class="grafico-container medida-grafico" hidden></div>
-          <ul id="lista-medidas" class="lista-simples"></ul>
+          <ul id="lista-medidas"></ul>
         </div>
       </section>
 
       <div class="bottom-sheet" id="sheet-medida" hidden>
-        <div class="bottom-sheet-cabecalho">
-          <h3 class="card-titulo">Nova medida</h3>
-          <button type="button" id="medida-fechar-btn" class="bottom-sheet-fechar" aria-label="Fechar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
-        </div>
         <form id="medida-form" class="form-linha">
           <select id="medida-tipo-select" aria-label="Tipo de medida">
             <option value="peso">Peso</option>
@@ -54,10 +43,13 @@
             <option value="outra">outra...</option>
           </select>
           <input type="text" id="medida-unidade-outra" placeholder="Unidade" maxlength="10" hidden />
-          <button type="submit" id="medida-btn" class="btn btn-primario">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Adicionar
-          </button>
+          <div class="form-linha">
+            <button type="submit" id="medida-btn" class="btn btn-primario btn-com-icone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Adicionar
+            </button>
+            <button type="button" id="medida-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
         </form>
       </div>
 

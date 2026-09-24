@@ -1,11 +1,9 @@
-      <section class="secao-recolhivel card" data-aberto="true" data-secao-id="vida-ideias-presente">
-        <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
-          <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-ideias-presente">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7Z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7Z"/></svg>
-            Ideias de presente
-            <span class="chevron" aria-hidden="true"></span>
-          </button>
-        </h2>
+      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-ideias-presente" style="--secao-cor: var(--cor-painel)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-ideias-presente">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7Z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7Z"/></svg>
+          Ideias de presente
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
         <div class="secao-conteudo" id="conteudo-vida-ideias-presente">
           <div class="dica-colapsavel">
             <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de ideias de presente"></button>
@@ -13,27 +11,21 @@
               Anota ideia de presente pra uma pessoa ao longo do ano - marca "comprado" quando resolver, pra nao esquecer na hora certa.
             </p>
           </div>
-          <button type="button" id="ideia-presente-abrir-btn" class="btn btn-adicionar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Adicionar ideia
-          </button>
+          <button type="button" id="ideia-presente-abrir-btn" class="btn btn-adicionar">Adicionar ideia</button>
           <p id="ideias-presente-vazio" class="vazio" hidden>Nenhuma ideia guardada.</p>
-          <ul id="lista-ideias-presente" class="lista-simples"></ul>
+          <ul id="lista-ideias-presente"></ul>
         </div>
       </section>
 
       <div class="bottom-sheet" id="sheet-ideia-presente" hidden>
-        <div class="bottom-sheet-cabecalho">
-          <h3 class="card-titulo">Nova ideia de presente</h3>
-          <button type="button" id="ideia-presente-fechar-btn" class="bottom-sheet-fechar" aria-label="Fechar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
-        </div>
         <form id="ideia-presente-form" class="form-linha">
           <input type="text" id="ideia-presente-pessoa" placeholder="Pra quem?" maxlength="80" required />
           <input type="text" id="ideia-presente-ideia" placeholder="Ideia de presente" maxlength="200" required />
           <input type="text" id="ideia-presente-ocasiao" placeholder="Ocasiao (opcional)" maxlength="60" />
-          <button type="submit" id="ideia-presente-btn" class="btn btn-primario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+          <div class="form-linha">
+            <button type="submit" id="ideia-presente-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="button" id="ideia-presente-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
         </form>
       </div>
 

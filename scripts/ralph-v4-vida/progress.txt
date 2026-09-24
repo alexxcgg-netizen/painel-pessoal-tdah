@@ -1,64 +1,81 @@
 # Fase 7 - faixa V4 (vida: garantia, ideias-presente, pessoas, treino, peso-e-medidas,
 # manutencao, quero-aprender, salvos e demais) - progress.txt
 
-## Historia 1: estrutura .secao-recolhivel + .card em todas as secoes da faixa - EM ANDAMENTO
-- Padrao adotado: cada secao vira <section class="secao-recolhivel card" data-secao-id="vida-X">
-  com o <h2 class="secao-secundaria" style="--secao-cor:..."> ORIGINAL preservado por fora
-  (mantem `h2 svg { color: var(--secao-cor) }` de style.css intacto) e um
-  <button class="secao-cabecalho" aria-expanded aria-controls> NOVO por dentro do h2 (padrao
-  ARIA de accordion: heading > button - h2 aceita button como phrasing content, o inverso
-  seria HTML invalido). O <div class="secao-conteudo" id="conteudo-vida-X"> vem depois do h2,
-  fora dele.
-- Botoes "Adicionar" viram .btn.btn-adicionar que abre .bottom-sheet com o form (mesmo id de
-  form/inputs/botao submit de sempre - zero mudanca de rota/payload). Abertura/fechamento:
-  window.abrirBottomSheet?.(sheet) / window.fecharBottomSheet?.(sheet) com fallback inline
-  (sheet.hidden = true/false), pois static/js/ui/bottom-sheet.js (V0d) ainda esta vazio nesta
-  branch. Idem pra static/js/ui/secao-recolhivel.js (V0c vazio): nao fiz toggle de abrir/fechar
-  aqui (colapso automatico so liga quando V0c chegar) - so a marcacao estrutural
-  (data-aberto="true", aria-expanded, .chevron) ja esta no HTML.
-- NAO reimplementei CSS generico de .secao-cabecalho/.btn-adicionar/.bottom-sheet/.card (isso e
-  job de V0a-V0d - ui/tokens.css e ui/componentes/*.css ainda vazios nesta branch). So mexi no
-  CSS proprio de cada secao (secoes/vida/<secao>.css) pra profundidade especifica onde fazia
-  sentido, sem cor/fonte/animacao novas.
-- Adicionei classe "lista-item" (alem da "item" que ja existia) nos <li> que eu crio via JS nas
-  minhas secoes, pra herdar o contrato quando ui/componentes/lista-item.css chegar.
+## Historia 1: contrato de UI (secao-recolhivel + btn-adicionar + bottom-sheet) - FEITA
+Duas rodadas: escrevi tudo antes do merge com origin/fase7/integracao (chutando a forma
+final do contrato pela doc), depois fiz `git merge origin/fase7/integracao` (V0a-tokens,
+V0b-botoes e V0c-secoes JA CHEGARAM nesta integracao; so V0d/bottom-sheet continua vazio) e
+corrigi 4 coisas que so dava pra ver com o CSS/JS real na mao:
 
-## Secoes da faixa (14 + peso-e-medidas) e status - todas com html/js convertidas
-- [x] vida/garantia - html+js+css (profundidade na barra/item)
-- [x] vida/ideias-de-presente - html+js
-- [x] vida/pessoas - html+js+css (profundidade no avatar/trilho/item)
-- [x] vida/treino - html+js+css (profundidade na linha de exercicio/item)
-- [x] vida/manutencao - html+js
-- [x] vida/quero-aprender - html+js
-- [x] vida/salvos - html+js
-- [x] vida/lista-de-compras - html+js
-- [x] vida/pra-responder - html+js
-- [x] vida/ainda-usa - html+js (sem form, so wrap em secao-recolhivel/card; id
-      "assinaturas-box" migrou pro <section>, `$("#assinaturas-box").hidden = ...`
-      em ainda-usa.js continua funcionando sem mudanca)
-- [x] vida/mensagem-dificil - html (form de acao unica, sem bottom-sheet - so wrap)
-- [x] vida/vale-a-pena - html (form de acao unica, sem bottom-sheet - so wrap)
-- [x] vida/seu-progresso - html (read-only - so wrap)
-- [x] vida/revisao-trimestral - html (so wrap; comeca RECOLHIDA - data-aberto="false" +
-      secao-conteudo com `hidden`, unica secao da faixa assim, por ser longa/pouco usada)
-- [x] painel/peso-e-medidas - html+js+css (profundidade no stepper/item)
-- [x] templates/abas/vida.html - novo wrapper `<div class="vida-secoes">` em volta dos
-      includes (ordem inalterada), pra dar ponto unico de ritmo vertical no futuro
-- [x] static/css/secoes/vida.css - so comentario + 1 regra de scroll-margin (nao
-      reimplementei espacamento entre .secao-recolhivel pq h2.secao-secundaria ja cuida
-      disso via margin-top/border-top existente em style.css, e nao quero brigar de
-      especificidade com o que V0c vai definir pra .card/.secao-recolhivel)
+1. Removi a classe extra `card` dos `<section class="secao-recolhivel">` - `.card` (V0c) e
+   um componente DIFERENTE (bloco fixo, padding proprio, display:flex column), incompativel
+   com `.secao-recolhivel` (precisa do padding/altura vivendo em `.secao-conteudo` pra
+   animar). Combinar os dois duplicava padding/border-radius e quebrava a transicao.
+2. Troquei `<h2 class="secao-secundaria"><button class="secao-cabecalho">` (heading>button)
+   por `<button class="secao-cabecalho">` DIRETO como filho do `<section>`, sem h2 no meio -
+   o contrato real (`docs/agentes/fase7-visual.md` + `ui/componentes/secao.css`) exige isso
+   porque `.secao-cabecalho { border-radius: inherit }` copia o raio do PAI NO DOM (que
+   precisa ser o proprio `.secao-recolhivel`, senao herda 0 do h2). O icone perdeu a cor de
+   `h2 svg { color: var(--secao-cor) }` (so casa com a tag h2) - repus isso com uma regra
+   generica `#tab-vida .secao-cabecalho svg { color: var(--secao-cor, var(--accent)) }` em
+   static/css/secoes/vida.css (+ mesma regra em painel/peso-e-medidas.css, que fica em
+   #tab-painel). Cada secao continua declarando `style="--secao-cor: var(--cor-x)"", so que
+   agora direto no `<section>` em vez do h2.
+3. Tirei o SVG "+" que eu tinha colocado a mao dentro de cada `.btn-adicionar` - o componente
+   real (`ui/componentes/botao.css`, V0b) ja injeta um "+" sozinho via `::before` (selo
+   circular). Com o meu SVG manual ficava com DOIS "+". Botao agora e so texto
+   (`<button class="btn btn-adicionar">Adicionar produto</button>`).
+4. Revertly a classe extra "lista-item" que eu tinha posto nos `<li>` que ja usam `.item`
+   (nucleo/vida-base.js: criarEl/itemSimples, usado em TODO o app, nao so na Vida).
+   `.lista-item` (ui/componentes/lista-item.css, V0c) e um componente com estrutura/CSS
+   PROPRIA (`<li class="lista-item"><div class="lista-item-corpo">...`), incompativel com
+   `.item`/`.item-linha`/`.item-titulo` que ja existe (glass/borda/sombra/animacao proprios
+   em style.css) - misturar as duas duplicava padding e desenhava uma borda extra por cima
+   do card que o `.item` ja tem. `.item` sozinho ja da bastante profundidade (glass, borda,
+   sombra, hover) - nao precisa do `.lista-item` por cima. Nao mexi em nucleo/vida-base.js
+   (fora dos meus arquivos).
+- Fechamento do bottom-sheet: copiei o padrao real que a faixa V3-organizacao ja usou em
+  habitos/projetos/agenda/tarefas (ja mergeada em integracao) - sem cabecalho custom com X,
+  so um `<button class="btn btn-secundario">Cancelar</button>` do lado do botao de
+  submit, dentro de um `<div class="form-linha">` aninhado no form. Cancelar tambem reseta o
+  form (`form.reset()`), igual ao habitos.js.
+- Abertura/fechamento: `window.abrirBottomSheet`/`fecharBottomSheet` com fallback inline
+  (`sheet.hidden = true/false`) - `static/js/ui/bottom-sheet.js` (V0d) continua vazio nesta
+  integracao, entao o fallback e o caminho que roda de verdade por enquanto.
+- Fallback visual local do `.bottom-sheet` (padding/borda/raio/fundo com tokens que ja
+  existem em style.css) em vida.css e painel/peso-e-medidas.css, no mesmo padrao que
+  habitos.css ja usava - enquanto V0d nao chega, o sheet nao fica com cara de <div> cru.
 
-## CSS: onde apliquei profundidade AGORA (nao esperei V0a-V0d)
-Usei tokens que JA EXISTEM (nao sao stub) em style.css - --radius-sm, --border,
---border-strong, --surface-2 - pra dar sombra em camadas/borda fina em elementos que sao
-INEQUIVOCAMENTE meus (nao sao as classes-contrato .card/.secao-cabecalho/.btn-adicionar/
-.bottom-sheet, que ficam por conta de V0b-V0d): garantia.css, pessoas.css, treino.css,
-painel/peso-e-medidas.css. As demais secoes ficaram so com a estrutura (html/js prontos,
-css "vazio de proposito" original) - dava pra polir mais, mas escolhi nao arriscar
-especificidade contra os componentes compartilhados antes deles chegarem na integracao.
+## Secoes da faixa (14 + peso-e-medidas) - todas convertidas
+garantia, ideias-de-presente, pessoas, treino, manutencao, quero-aprender, salvos,
+lista-de-compras, pra-responder, painel/peso-e-medidas: `.secao-recolhivel` + `.btn-adicionar`
++ `.bottom-sheet` (form movido pro sheet, mesmos ids/rotas/payload de sempre).
+ainda-usa: `.secao-recolhivel` sem form (so lista) - id "assinaturas-box" migrou pro
+`<section>`, `$("#assinaturas-box").hidden = ...` em ainda-usa.js continua igual.
+mensagem-dificil, vale-a-pena: `.secao-recolhivel` com o form INLINE (nao sao "lista + item
+novo", sao acao unica de IA - "Escrever pra mim"/"Analisar" - entao nao levam bottom-sheet).
+seu-progresso: `.secao-recolhivel` read-only (dashboard, sem form).
+revisao-trimestral: `.secao-recolhivel` com `data-aberto="false"` (unica que comeca
+RECOLHIDA - secao longa/pouco usada, pedido explicito do Alex pra "qualquer secao longa
+parecida"). O JS de V0c (`ligarUma`) fecha o `.secao-conteudo` sozinho no load a partir do
+`data-aberto`, sem eu precisar botar `hidden` a mao no HTML.
+templates/abas/vida.html: novo wrapper `<div class="vida-secoes">` em volta dos includes
+(mesma ordem) - ponto unico de ritmo vertical (`margin-bottom` entre secoes em vida.css).
 
-## Pendente (ultima historia)
-- git merge origin/fase7/integracao pra pegar V0a-V0d, reconferir icones/cor do cabecalho.
-- Playwright 390x844, rolagem inteira da aba Vida + 1 bottom-sheet aberto + 1 item criado,
-  zero erro de console, 2 screenshots em scripts/ralph-v4-vida/.
+## CSS: onde apliquei profundidade extra (alem do que .secao-recolhivel/.btn-adicionar ja dao)
+garantia.css, pessoas.css, treino.css, painel/peso-e-medidas.css: sombra em camadas/borda
+fina em elementos exclusivamente meus (barra de progresso da garantia, avatar/trilho de
+pessoas, linha de exercicio da ficha, stepper de medidas) - tokens que ja existiam em
+style.css (--radius-sm, --border-strong, --surface-2), sem cor/fonte/animacao nova.
+
+## Testes
+`scripts/testes.sh tests/test_vida.py tests/test_vida_fase2.py tests/test_vida_fase3.py
+tests/test_vida_revisao.py tests/test_vida_rotas.py tests/test_fase7_estrutura_frontend.py`
+-> 198 passed, 1 failed (`test_aprender_no_domingo`, falha conhecida dependente do dia da
+semana - AGENTS.md ja avisa disso, nao mexi em nada que essa suite cobre). gitleaks: no
+leaks found.
+
+## Pendente
+- Historia 2 (ultima): Playwright 390x844, rolagem inteira da aba Vida + 1 bottom-sheet
+  aberto por botao novo + 1 item criado, zero erro de console, 2 screenshots em
+  scripts/ralph-v4-vida/.

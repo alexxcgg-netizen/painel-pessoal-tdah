@@ -48,7 +48,7 @@ async function loadPessoas() {
   lista.innerHTML = "";
   $("#pessoas-vazio").hidden = pessoas.length > 0;
   pessoas.forEach((p) => {
-    const li = criarEl("li", "item lista-item pessoa-item" + (p.atrasada ? " item-atencao" : ""));
+    const li = criarEl("li", "item pessoa-item" + (p.atrasada ? " item-atencao" : ""));
     const linha = criarEl("div", "item-linha");
     const cabecalho = criarEl("div", "pessoa-cabecalho");
 
@@ -116,7 +116,8 @@ $("#pessoa-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#pessoa-fechar-btn").addEventListener("click", () => {
+$("#pessoa-cancelar-btn").addEventListener("click", () => {
+  $("#pessoa-form").reset();
   const sheet = $("#sheet-pessoa");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;

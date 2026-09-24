@@ -9,7 +9,7 @@ async function loadAssinaturasRevisao() {
   const lista = $("#lista-assinaturas");
   lista.innerHTML = "";
   pendentes.forEach((a) => {
-    const li = criarEl("li", "item lista-item");
+    const li = criarEl("li", "item");
     const linha = criarEl("div", "item-linha");
     const wrap = criarEl("div");
     wrap.appendChild(criarEl("span", "item-titulo", a.descricao));

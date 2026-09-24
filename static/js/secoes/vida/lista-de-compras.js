@@ -9,7 +9,7 @@ async function loadCompras() {
   lista.innerHTML = "";
   $("#compras-vazio").hidden = itens.length > 0;
   itens.forEach((c) => {
-    const li = criarEl("li", "checklist-item lista-item");
+    const li = criarEl("li", "checklist-item");
     const label = criarEl("label");
     const cb = document.createElement("input");
     cb.type = "checkbox";
@@ -39,7 +39,8 @@ $("#compra-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#compra-fechar-btn").addEventListener("click", () => {
+$("#compra-cancelar-btn").addEventListener("click", () => {
+  $("#compra-form").reset();
   const sheet = $("#sheet-compra");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;

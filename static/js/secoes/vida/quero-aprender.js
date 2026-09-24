@@ -23,7 +23,7 @@ async function loadAprender() {
           if (ok) loadAprender();
           return ok;
         }, false),
-      ], "lista-item" + (a.dias_parado >= 14 ? " item-atencao" : ""))
+      ], a.dias_parado >= 14 ? "item-atencao" : "")
     );
   });
 }
@@ -38,7 +38,8 @@ $("#aprender-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#aprender-fechar-btn").addEventListener("click", () => {
+$("#aprender-cancelar-btn").addEventListener("click", () => {
+  $("#aprender-form").reset();
   const sheet = $("#sheet-aprender");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;

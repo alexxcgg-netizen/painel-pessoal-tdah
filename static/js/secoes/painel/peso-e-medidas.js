@@ -35,7 +35,7 @@ async function loadMedidas() {
 
   medidas.forEach((m, idx) => {
     const li = document.createElement("li");
-    li.className = "item lista-item";
+    li.className = "item";
 
     const linha = document.createElement("div");
     linha.className = "item-linha";
@@ -163,7 +163,10 @@ $("#medida-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#medida-fechar-btn").addEventListener("click", () => {
+$("#medida-cancelar-btn").addEventListener("click", () => {
+  $("#medida-form").reset();
+  $("#medida-tipo-outro").hidden = true;
+  $("#medida-unidade-outra").hidden = true;
   const sheet = $("#sheet-medida");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;

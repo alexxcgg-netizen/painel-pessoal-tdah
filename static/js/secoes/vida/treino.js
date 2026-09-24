@@ -139,7 +139,6 @@ async function loadTreino() {
   fichas.forEach((f) => {
     const n = f.exercicios.split("\n").filter((l) => l.trim()).length;
     const li = itemSimples(f.grupo, [`${n} exercicio(s)`], [(el) => botaoApagar(`/api/treino/fichas/${f.id}`, el)]);
-    li.classList.add("lista-item");
     li.appendChild(renderExerciciosFicha(f));
     lista.appendChild(li);
   });
@@ -168,7 +167,10 @@ $("#ficha-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#ficha-fechar-btn").addEventListener("click", () => {
+$("#ficha-cancelar-btn").addEventListener("click", () => {
+  $("#ficha-form").reset();
+  fichaExerciciosPendentes = [];
+  renderFichaExerciciosPendentes();
   const sheet = $("#sheet-ficha");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;

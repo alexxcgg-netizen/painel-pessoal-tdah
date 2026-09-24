@@ -17,7 +17,7 @@ async function loadResponder() {
           if (ok) loadResponder();
           return ok;
         }),
-      ], "lista-item" + (r.dias >= 2 ? " item-atencao" : ""))
+      ], r.dias >= 2 ? "item-atencao" : "")
     );
   });
 }
@@ -32,7 +32,8 @@ $("#responder-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#responder-fechar-btn").addEventListener("click", () => {
+$("#responder-cancelar-btn").addEventListener("click", () => {
+  $("#responder-form").reset();
   const sheet = $("#sheet-responder");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;

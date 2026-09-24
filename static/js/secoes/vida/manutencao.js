@@ -25,8 +25,7 @@ async function loadManutencoes() {
         itemSimples(
           m.item,
           [rotuloTipo, fmtDataBr(m.data), ...textoProximaManutencaoCarro(m)],
-          [(el) => botaoApagar(`/api/manutencoes/${m.id}`, el)],
-          "lista-item"
+          [(el) => botaoApagar(`/api/manutencoes/${m.id}`, el)]
         )
       );
       return;
@@ -45,7 +44,7 @@ async function loadManutencoes() {
           return ok;
         }),
         (el) => botaoApagar(`/api/manutencoes/${m.id}`, el),
-      ], "lista-item" + (m.dias_ate <= 7 ? " item-atencao" : ""))
+      ], m.dias_ate <= 7 ? "item-atencao" : "")
     );
   });
 }
@@ -66,7 +65,8 @@ $("#manutencao-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#manutencao-fechar-btn").addEventListener("click", () => {
+$("#manutencao-cancelar-btn").addEventListener("click", () => {
+  $("#manutencao-form").reset();
   const sheet = $("#sheet-manutencao");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;

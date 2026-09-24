@@ -20,7 +20,7 @@ async function loadSalvos() {
       );
     }
     acoes.push((el) => botaoApagar(`/api/salvos/${sv.id}`, el));
-    const li = itemSimples(sv.titulo || sv.url, [], acoes, "lista-item" + (sv.lido_em ? " lido" : ""));
+    const li = itemSimples(sv.titulo || sv.url, [], acoes, sv.lido_em ? "lido" : "");
     let host = sv.url;
     try {
       host = new URL(sv.url).hostname.replace(/^www\./, "");
@@ -45,7 +45,8 @@ $("#salvo-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#salvo-fechar-btn").addEventListener("click", () => {
+$("#salvo-cancelar-btn").addEventListener("click", () => {
+  $("#salvo-form").reset();
   const sheet = $("#sheet-salvo");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;

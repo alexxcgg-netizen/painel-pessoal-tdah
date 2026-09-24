@@ -17,9 +17,9 @@ async function loadIdeiasPresente() {
       if (r) loadIdeiasPresente();
       else btnComprado.disabled = false;
     });
-    const item = itemSimples(`${i.pessoa}: ${i.ideia}`, [i.ocasiao], [btnComprado, (el) => botaoApagar(`/api/ideias-presente/${i.id}`, el)]);
-    item.classList.add("lista-item");
-    lista.appendChild(item);
+    lista.appendChild(
+      itemSimples(`${i.pessoa}: ${i.ideia}`, [i.ocasiao], [btnComprado, (el) => botaoApagar(`/api/ideias-presente/${i.id}`, el)])
+    );
   });
 }
 
@@ -33,7 +33,8 @@ $("#ideia-presente-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#ideia-presente-fechar-btn").addEventListener("click", () => {
+$("#ideia-presente-cancelar-btn").addEventListener("click", () => {
+  $("#ideia-presente-form").reset();
   const sheet = $("#sheet-ideia-presente");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;

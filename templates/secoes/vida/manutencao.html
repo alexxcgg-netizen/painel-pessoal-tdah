@@ -1,11 +1,9 @@
-      <section class="secao-recolhivel card" data-aberto="true" data-secao-id="vida-manutencao">
-        <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
-          <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-manutencao">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5l3 3 5.8-5.8a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-.4-.4-2.1 2.5-2.5Z"/></svg>
-            Manutencao
-            <span class="chevron" aria-hidden="true"></span>
-          </button>
-        </h2>
+      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-manutencao" style="--secao-cor: var(--cor-bancos)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-manutencao">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5l3 3 5.8-5.8a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-.4-.4-2.1 2.5-2.5Z"/></svg>
+          Manutencao
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
         <div class="secao-conteudo" id="conteudo-vida-manutencao">
           <div class="dica-colapsavel">
             <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de manutencao"></button>
@@ -16,22 +14,13 @@
               ou "proxima em data" (ou os dois) pra eu avisar quando estiver perto.
             </p>
           </div>
-          <button type="button" id="manutencao-abrir-btn" class="btn btn-adicionar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Adicionar manutencao
-          </button>
+          <button type="button" id="manutencao-abrir-btn" class="btn btn-adicionar">Adicionar manutencao</button>
           <p id="manutencoes-vazio" class="vazio" hidden>Nada cadastrado.</p>
-          <ul id="lista-manutencoes" class="lista-simples"></ul>
+          <ul id="lista-manutencoes"></ul>
         </div>
       </section>
 
       <div class="bottom-sheet" id="sheet-manutencao" hidden>
-        <div class="bottom-sheet-cabecalho">
-          <h3 class="card-titulo">Nova manutencao</h3>
-          <button type="button" id="manutencao-fechar-btn" class="bottom-sheet-fechar" aria-label="Fechar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
-        </div>
         <form id="manutencao-form" class="form-linha">
           <select id="manutencao-tipo" aria-label="Tipo de manutencao">
             <option value="outro">Outro</option>
@@ -50,7 +39,10 @@
             <input type="number" id="manutencao-proxima-km" placeholder="Proxima em km (opcional)" min="0" step="1" inputmode="numeric" />
             <input type="date" id="manutencao-proxima-data" aria-label="Proxima em data (opcional)" />
           </span>
-          <button type="submit" id="manutencao-btn" class="btn btn-primario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+          <div class="form-linha">
+            <button type="submit" id="manutencao-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="button" id="manutencao-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
         </form>
       </div>
 

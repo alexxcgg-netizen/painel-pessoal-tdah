@@ -2,6 +2,28 @@
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
 
+/* Fase 7 V4: contrato secao-recolhivel ao pe da letra (button filho direto do section, sem
+   h2 no meio - ver nota longa em static/css/secoes/vida.css) - repete aqui so pro icone
+   colorido, ja que esta secao esta na aba Painel, fora do escopo de #tab-vida. */
+#tab-painel .secao-cabecalho svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--secao-cor, var(--accent));
+  opacity: 0.9;
+}
+
+/* Fallback local do bottom-sheet enquanto ui/componentes/bottom-sheet.css (V0d) continua
+   vazio nesta branch - mesmos tokens que ja existem em style.css. */
+#sheet-medida.bottom-sheet {
+  margin-block: 0.5rem 1rem;
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-card);
+}
+
 /* Fase 7 V4: profundidade sutil no stepper e no item da lista - mesma cor de sempre
    (--border, --radius-sm ja existem em style.css), so troca sombra pesada por borda
    fina + leve elevacao. Nada de cor/fonte/animacao nova. */

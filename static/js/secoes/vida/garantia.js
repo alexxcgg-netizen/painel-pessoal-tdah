@@ -34,7 +34,7 @@ async function loadGarantias() {
     .slice()
     .sort((a, b) => a.dias_ate - b.dias_ate)
     .forEach((g) => {
-      const li = criarEl("li", "item lista-item garantia-item" + (g.dias_ate <= 15 ? " item-atencao" : ""));
+      const li = criarEl("li", "item garantia-item" + (g.dias_ate <= 15 ? " item-atencao" : ""));
       const linha = criarEl("div", "item-linha");
 
       const wrap = criarEl("div");
@@ -76,7 +76,8 @@ $("#garantia-abrir-btn").addEventListener("click", () => {
   else sheet.hidden = false;
 });
 
-$("#garantia-fechar-btn").addEventListener("click", () => {
+$("#garantia-cancelar-btn").addEventListener("click", () => {
+  $("#garantia-form").reset();
   const sheet = $("#sheet-garantia");
   if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
   else sheet.hidden = true;
