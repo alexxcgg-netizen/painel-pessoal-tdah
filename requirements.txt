@@ -1,6 +1,7 @@
 flask
 python-dotenv
 anthropic
+openai
 requests
 pywebpush
 caldav

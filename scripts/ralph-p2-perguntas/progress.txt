@@ -1,0 +1,94 @@
+Fase 7 - Faixa P2 (Perguntas de acompanhamento) - progress.txt
+
+Status: historias principais concluidas. 79/79 testes verdes
+(scripts/testes.sh tests/test_fase7_p2_perguntas.py).
+
+Historias feitas:
+1. assistente/perguntas.py - logica pura (filtro de relacionamento, textos
+   das perguntas, parse de data livre, adiar de tarefa, limiar de espera em
+   dias, flag ligado/desligado). OK.
+2. assistente/gatilhos/p2_perguntas.py - executar(conn, agora) com os 5
+   gatilhos do prompt (conta pessoal vencendo, evento/reuniao terminado,
+   tarefa vencida, lembrete sem resposta, espera parada) + ao_resolver
+   despachando pela origem do item. OK.
+3. tests/test_fase7_p2_perguntas.py - 79 testes (logica pura + gatilho +
+   idempotencia + ao_resolver), relogio sempre injetado. OK.
+
+Nao precisei de migracao (tabela/coluna nova): contas_pessoais(_pagas),
+esperas, notas, tasks, lembretes ja tinham tudo que os 5 gatilhos precisam
+(marcar_conta_paga, resolver_espera, create_nota, complete_task,
+delete_lembrete - todas em db.py, existentes). Anotado aqui porque a regra
+da faixa pede pra registrar mesmo quando a resposta for "nao precisei".
+
+Formato de origem/chave_unica (definicao do integrador, aplicada): todo
+item enfileirado aqui usa `p2_perguntas:<subtipo>:<id>:<data>` (ex.:
+`p2_perguntas:conta:7:2026-09-24`). A P1a despacha `ao_resolver` dividindo
+`origem` no PRIMEIRO ":" e importa `assistente/gatilhos/p2_perguntas.py`
+(nome do arquivo == parte antes do primeiro ":"); `ao_resolver` aqui so
+precisa entender o resto ("<subtipo>:id[:data]").
+
+`enfileirar` (assistente.contrato, implementado na P1a) ainda nao existe
+nesta integracao no momento em que fechei esta faixa - import tardio
+dentro da funcao (`from assistente.contrato import enfileirar`), como o
+gatilho de exemplo de `assistente/gatilhos/__init__.py` (Etapa 0) manda.
+Testado com `assistente.contrato.enfileirar` trocado por
+`unittest.mock.patch.object` (nao precisa da P1a pronta pra rodar os
+testes desta faixa). `aviso_permitido` (P8) NAO e chamado por esta faixa -
+ver duvida registrada abaixo.
+
+Merges feitos durante o trabalho (`git fetch && git merge
+origin/fase7/integracao`, sem conflito nas duas vezes):
+1. trouxe P8/avisos.py, P7/sinais.py, migracoes/, rotas/ (faixas ja
+   integradas antes de mim).
+2. trouxe a infra X1 da Etapa 0 (`rotas/__init__.py` com Blueprint,
+   `assistente/gatilhos/__init__.py` real com `executar_todos`/
+   `nomes_gatilhos`, `classificador_local/`, `ia/funcoes/`,
+   `migracoes/README.md`) - meu `assistente/gatilhos/__init__.py` proprio
+   (vazio, so pra virar pacote) foi substituido pelo real no merge, como
+   devia.
+
+Bloqueios: nenhum. P1a (assistente/caixa.py, que implementa
+assistente/contrato.py) continua ausente da integracao no momento em que
+fechei esta faixa - nao bloqueou nada porque executar/ao_resolver sao
+testaveis direto, sem o autoloader.
+
+AVISO pro integrador (achado ao rodar `scripts/testes.sh
+tests/test_fase7_infra_gatilhos.py` isolado, so por curiosidade - NAO e
+suite minha): como meu arquivo real ja existe em `assistente/gatilhos/`,
+o `nomes_gatilhos()`/`executar_todos()` de verdade (Etapa 0) agora o
+enxerga sempre que QUALQUER teste que use `assistente.gatilhos.__path__`
+rodar (inclusive os testes deles, que assumiam a pasta vazia/so com
+modulos de mentira). `test_fase7_infra_gatilhos.py::
+test_pasta_real_sem_gatilho_nenhum_ainda` e outros 2 quebram por causa
+disso (comparam dict/lista exatos). Isso so aparece rodando os DOIS
+arquivos de teste juntos (ou a suite completa) - sozinho,
+`tests/test_fase7_p2_perguntas.py` continua 79/79. Nao e algo que eu deva
+consertar (arquivo `tests/test_fase7_infra_gatilhos.py` nao e meu), so
+fica documentado aqui pro integrador ajustar quando outras faixas P forem
+chegando (o mesmo vai acontecer com P3/P4/P5/P7/P9).
+
+DUVIDA pro integrador sobre assistente/avisos.py (P8): o docstring de
+`assistente/avisos.py` diz que as chaves `pergunta_conta`, `reuniao`,
+`tarefa_vencida`, `lembrete`, `espera` sao "a chave que essas faixas [P2..]
+devem usar ao chamar aviso_permitido/enfileirar". Mas `enfileirar` (contrato
+fixo, assistente/contrato.py) NAO tem parametro pra passar um tipo de aviso
+granular (so aceita tipo=pergunta|aviso|sugestao|briefing|proposta_memoria).
+Por isso NAO chamei aviso_permitido diretamente nesta faixa - decidi que
+gate de push por silencio/tipo-desligado e responsabilidade de quem
+efetivamente despacha o push (P1a, dentro do proprio enfileirar, ou algum
+worker que ela alimentar), nao de cada gatilho que so cria o item da Caixa.
+Se a intencao real for diferente (cada faixa P consultando aviso_permitido
+ela mesma antes de enfileirar), preciso que o integrador confirme - nao
+quis adivinhar e arriscar esconder pergunta da Caixa (nao so do push) por
+engano. Mapeamento pronto se for preciso: conta->pergunta_conta,
+evento->reuniao, tarefa->tarefa_vencida, lembrete->lembrete,
+espera->espera (os 3 primeiros sao meus subtipos internos, os 2 ultimos ja
+batem exato).
+
+Flag: assistente.p2.ativo (padrao ligado). Config nova:
+assistente.p2.espera_dias (padrao 3, inteiro em texto) - usa
+db.obter_configuracao/definir_configuracao, ja existentes.
+
+Arquivos meus: assistente/perguntas.py, assistente/gatilhos/p2_perguntas.py,
+tests/test_fase7_p2_perguntas.py. (assistente/gatilhos/__init__.py NAO e
+mais meu - e o real da Etapa 0, trazido pelo merge.)

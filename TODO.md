@@ -291,3 +291,42 @@ Se um dia o Alex quiser trocar pra AeroDataBox (limite maior, HTTPS de verdade, 
 precisa cadastrar cartao no RapidAPI primeiro): so trocar a URL/parsing dentro de
 `voo_status.py` (`_buscar_na_api`/`_mapear_resposta`) - o cache (`voo_status_cache`) e o
 contrato de dado que o front consome (`status_voo`) nao mudam.
+
+## Fase 7 - IA hibrida + visual novo + financas + assistente proativo (briefing v12)
+Integracao na branch `fase7/integracao` (so vai pra `main` no fim da 7C). Estado ao vivo em
+`STATUS.md`. Regras de toda faixa: `docs/agentes/fase7-regras-faixa.md`. Rollback: tag local
+`pre-fase-7` / commit `789171d` (push de tag bloqueado neste ambiente, 403).
+
+Decisoes do Alex na rodada de perguntas (2026-09-24):
+- Execucao: subagentes em paralelo dentro da sessao (sem tmux/VPS), commit+push a cada passo.
+- Visual: NAO mexer em cores, cor de destaque, fontes nem animacoes. So modernizar o que parece
+  antigo/"Windows 1990": cards atualizados, profundidade, sair do generico.
+- Etapa 0 pode levar o tempo que precisar pra separar o front monolitico.
+- Cambio fixo R$ 5,50 (teto R$ 40/mes).
+
+### Etapa 0
+- [x] Branch `fase7/integracao`, contratos `ia/contrato.py` e `assistente/contrato.py`, `ia/roteador_chat.py`
+- [x] `scripts/testes.sh`, regras comuns, `.gitignore` (fixtures_reais/, .venv symlink)
+- [ ] X1 extracao backend: claude_client -> ia/funcoes/*, rotas/ (Blueprint), migracoes/, classificador_local/, assistente/gatilhos/
+- [ ] X2 extracao frontend: templates/secoes, static/js/secoes, camadas CSS vazias, mapa-frontend.md
+- [ ] donos.json + scripts/checar_donos.py
+
+### Fase 7A - backend
+- [x] A1 nucleo (ia/core.py) - [x] A2 adapter Anthropic - [x] A3 adapter OpenAI - [x] A4 medicao e teto
+- [x] (integracao) custo com fonte unica ia/precos.py
+- [x] A5 historico - [ ] A6 chat - [ ] A7 migracao 1 - [ ] A8 migracao 2 - [ ] A9 visao
+- [ ] A10 decisoes Fase 6 - [ ] A11 A/B - [ ] A12 infra testes - [x] A13 calculos
+- [x] A14 roteador - [x] A15 Gemini
+- [ ] N1 assinaturas/parcelas - [ ] N2 Telegram - [ ] N3a endpoint widget - [x] N3b Scriptable
+- [x] N3c/N3d docs widget - [x] N3e WidgetKit
+- [ ] P1a Caixa - [ ] P1b Caixa UI - [ ] P2 perguntas - [ ] P3 briefing - [ ] P4 regras
+- [ ] P5 replanejar - [ ] P7 sinais iPhone - [ ] P8 central de avisos - [ ] P9 memoria viva
+
+### Fase 7B - visual
+- [ ] V0a tokens/MASTER.md - [ ] V0b botoes - [ ] V0c secoes/cards - [ ] V0d bottom sheet/navegacao
+- [ ] V1 Hoje - [ ] V2 Painel - [ ] V3 Habitos/Projetos/Agenda/Tarefas - [ ] V4 Vida (demais)
+- [ ] V5 Viagens/Lugares/Cotacoes/Aviacao - [ ] V6 Financeiro/Contas/Cartao/demais
+
+### Fase 7C - polimento e deploy
+- [ ] C1 backend - [ ] C2 visual (V0-V3, P1b) - [ ] C3 visual (V4-V6)
+- [ ] M1: CHANGELOG/AGENTS/TODO consolidados, service worker, gitleaks, suite completa, merge na main

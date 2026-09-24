@@ -1,0 +1,54 @@
+{
+ "erros_console": [],
+ "falhas_rede": [],
+ "falhas_ambiente_ignoradas": [
+  [
+   "falhou",
+   "https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+  ],
+  [
+   502,
+   "http://127.0.0.1:5170/api/summary/today"
+  ]
+ ],
+ "tokens": {
+  "--raio": "20px",
+  "--raio-sm": "14px",
+  "--raio-lg": "calc(20px + 8px)",
+  "--raio-pilula": "999px",
+  "--espaco-1": "0.25rem",
+  "--espaco-2": "0.5rem",
+  "--espaco-3": "1rem",
+  "--espaco-4": "1.5rem",
+  "--espaco-5": "2rem",
+  "--espaco-6": "3rem",
+  "--elevacao-1": "inset 0 1px 0 color-mix(in srgb, #eceef3 5%, transparent),\n    0 1px 2px rgba(0, 0, 0, 0.45)",
+  "--elevacao-2": "inset 0 1px 0 color-mix(in srgb, #eceef3 7%, transparent),\n    0 1px 1px rgba(0, 0, 0, 0.5), 0 8px 18px -10px rgba(0, 0, 0, 0.6)",
+  "--elevacao-3": "inset 0 1px 0 color-mix(in srgb, #eceef3 9%, transparent),\n    0 1px 1px rgba(0, 0, 0, 0.5), 0 12px 24px -12px rgba(0, 0, 0, 0.6),\n    0 32px 56px -28px rgba(0, 0, 0, 0.7)",
+  "--borda-sutil": "rgba(218, 226, 243, 0.09)",
+  "--borda-forte": "rgba(218, 226, 243, 0.18)",
+  "--superficie-1": "#121212",
+  "--superficie-2": "color-mix(in srgb, #181818 94%, transparent)",
+  "--superficie-3": "color-mix(in srgb, #1e1e1e 96%, transparent)",
+  "--realce-superficie": "linear-gradient(\n    180deg,\n    color-mix(in srgb, #eceef3 3.5%, transparent) 0%,\n    transparent 42%\n  )",
+  "--fonte-mono": "\"IBM Plex Mono\", \"SF Mono\", \"Menlo\", \"Consolas\", monospace",
+  "--transicao-rapida": "0.15s ease",
+  "--transicao-media": "0.22s cubic-bezier(0.34, 1.56, 0.64, 1)",
+  "--toque-min": "44px",
+  "--anel-foco": "0 0 0 2px #000000, 0 0 0 4px color-mix(in srgb, #eceef3 55%, transparent)"
+ },
+ "sonda": {
+  "sombra": "color(srgb 0.92549 0.933333 0.952941 / 0.09) 0px 1px 0px 0px inset, rgba(0, 0, 0, 0.5) 0px 1px 1px 0px, rgba(0, 0, 0, 0.6) 0px 12px 24px -12px, rgba(0, 0, 0, 0.7) 0px 32px 56px -28px",
+  "fundo": "linear-gradient(color(srgb 0.92549 0.933333 0.952941 / 0.035) 0%, rgba(0, 0, 0, 0) 42%), none",
+  "cor_fundo": "color(srgb 0.0941176 0.0941176 0.0941176 / 0.94)",
+  "borda": "rgba(218, 226, 243, 0.09)",
+  "raio": "28px",
+  "padding": "24px",
+  "fonte": "\"IBM Plex Mono\", \"SF Mono\", Menlo, Consolas, monospace",
+  "veu": "color(srgb 0 0 0 / 0.6)",
+  "transicao": "0.22s cubic-bezier(0.34, 1.56, 0.64, 1)",
+  "toque": "44px",
+  "z": "41"
+ },
+ "tokens_faltando": []
+}

@@ -1,0 +1,42 @@
+Faixa P7 (sinais do iPhone via app Atalhos) - progress.txt
+
+FEITO
+- migracoes/202609241240_p7_sinais.sql: tabela `sinais` (id, tipo, lugar,
+  quando, recebido_em) + indice tipo+quando. Documenta a relacao com
+  /api/atalho/local (app.py, ja existente) - nao duplica, so complementa.
+- assistente/sinais.py: ultimos_sinais(conn, tipo=None, desde=None),
+  sinal_recente(conn, tipo, lugar=None, janela_min=10, agora=None) - pro
+  motor de regras da P4 consultar. Tambem TIPOS_VALIDOS, token_valido,
+  quando_valido, gravar (logica pura/testavel, usada pela rota) e reagir
+  (reacoes embutidas, flag assistente.p7.reacoes, ligada por padrao):
+  'acordei' tenta assistente.gatilhos.p3_briefing.garantir_briefing(conn,
+  agora) de forma tardia/defensiva (P3 pode nao existir ainda - nome de
+  funcao e um PALPITE, combinar com a P3/integracao antes de contar com
+  isso); 'cheguei' no mercado poe a lista de compras pendente na Caixa via
+  assistente.caixa.enfileirar (import tardio), 1x por dia (chave_unica).
+- rotas/p7_sinais.py: Blueprint bp, ROTAS_COM_TOKEN={"/api/sinal"}, so glue
+  Flask fina (a validacao/gravacao real esta em assistente/sinais.py).
+- docs/atalhos-sinais.md: passo a passo dos 4 tipos de automacao + tabela
+  comparando com /api/atalho/local + sugestoes de automacoes pra TDAH.
+- tests/test_fase7_p7_sinais.py: 46 testes + 11 subtests, 0 falhas (token,
+  quando, gravar, consultas, reacoes - tudo sem precisar da infra de rotas).
+
+BLOQUEADO (nao por escolha - infra da Etapa 0/X1 ainda nao chegou)
+- tests/test_fase7_p7_rota_sinal.py: teste HTTP fim-a-fim de POST /api/sinal
+  (token certo/errado/ausente, tipo invalido, gravacao via client, reacao)
+  ja escrito, mas fica com skip automatico ate rotas/__init__.py e
+  rotas/_base.py (branch fase7/e0-backend, commit 4b68396, "rotas por
+  Blueprint com carga automatica") chegarem em fase7/integracao - conferido
+  varias vezes (git fetch + git show origin/fase7/integracao:rotas/__init__.py)
+  entre 24/09 ~02:29 e o fim desta sessao, sem sucesso. Assim que a
+  integracao mesclar essa infra e esta branch atualizar (git merge
+  origin/fase7/integracao), o arquivo passa a rodar sozinho, sem precisar
+  editar nada.
+
+PERGUNTA PRA INTEGRACAO
+- Nome/assinatura real de assistente.gatilhos.p3_briefing.garantir_briefing
+  (chutado em assistente/sinais.py:_reagir_acordei) - confirmar com a P3.
+
+DEPENDENCIA NOVA / ENV NOVA
+- PAINEL_SINAL_TOKEN (novo, .env.example nao mexido por mim - e do
+  integrador). Ver docs/atalhos-sinais.md.
