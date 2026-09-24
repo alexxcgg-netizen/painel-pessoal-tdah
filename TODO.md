@@ -331,7 +331,7 @@ Decisoes do Alex na rodada de perguntas (2026-09-24):
 - [x] C1 backend - [x] C2 visual (V0-V3, P1b) - [x] C3 visual (V4-V6: C3a Vida, C3b Viagens, C3c Financas)
 - [x] M1: m1-front (foco global, `[hidden]`, Desfazer da N1, sheet/campo/secao)
 - [x] M1: CHANGELOG/AGENTS/TODO/STATUS consolidados, `.env.example`, service worker v15, gitleaks zerado
-- [ ] M1: suite completa na integracao e merge na main (integrador)
+- [x] M1: suite completa na integracao e merge na main (integrador)
 
 ### Pendencias abertas pos-Fase 7 (perguntas pro Alex)
 - [ ] **Modo economia do teto**: `ia.teto.FUNCOES_ESSENCIAIS_MODO_ECONOMIA` usa nomes
