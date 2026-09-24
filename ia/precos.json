@@ -38,7 +38,7 @@
       "cache_leitura": 0.2,
       "cache_escrita": 5.0
     },
-    "gemini-3-5-flash-lite": {
+    "gemini-3.5-flash-lite": {
       "entrada": 0.3,
       "saida": 2.5,
       "cache_leitura": null,

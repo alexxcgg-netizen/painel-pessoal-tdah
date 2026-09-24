@@ -1,0 +1,50 @@
+Faixa A10 (decisoes da Fase 6, backend) - Fase 7 - branch fase7/a10-decisoes
+
+Historias (15-30min cada):
+[x] H1 - Ler regras da faixa (docs/agentes/fase7-regras-faixa.md) + o prompt
+    da faixa. Criar worktree propria (o ambiente deu a integracao, nao uma
+    worktree de faixa - segui a regra e criei fase7/a10-decisoes a partir de
+    fase7/integracao). Mapear app.py: _buscar_resumo_construtora/
+    _buscar_contas_a_vencer_construtora/_cache_construtora_get/set/
+    _construtora_contexto_* (linhas 1466-1697, mais 4451 e 7788-7802) e o
+    contrato real em financeiro-construtora/painel_web/web_server.py
+    (so leitura, nunca editei nada la) + CHANGELOG.md v3.99.14/16 de la.
+[x] H2 - construtora_cliente.py novo: ClienteConstrutora (le env a cada
+    chamada, cache/throttle 60s por chave, timeout 5s, nunca levanta
+    excecao) + modo mock (CONSTRUTORA_API_MOCK=1 ou mock=True, dados
+    sinteticos pt-BR incluindo 1 conta ja vencida). API publica: so
+    gastos_do_mes()/entradas_do_mes()/proxima_conta(com_valor=False) -
+    nada de faturamento/margem/lucro pro painel pessoal (decisao do Alex).
+    NAO liguei em app.py (compartilhado, fora da minha lista).
+[x] H3 - docs/contrato-api-construtora.md: contrato completo (campos,
+    exemplos, erros, timeout/cache/mock) + secao final com a lista exata de
+    pontos em app.py que o integrador troca, e onde a regra antiga "nunca
+    numero da construtora" aparece hoje (claude_client.py:172-181 e
+    :1691-1699 - CHAT_SYSTEM_PROMPT/DECISAO_PROMPT; nada em cards.py).
+[x] H4 - tests/test_fase7_a10_construtora_cliente.py: 52 testes + 25
+    subtests (config ausente, chamada real com mock de requests.get,
+    timeout/connection error/HTTPError/JSON invalido, cache por endpoint e
+    por `dias` (nao mistura, expira, erro nunca fica em cache, instancia
+    isolada), modo mock por injecao e por env var (todas as variacoes
+    truthy/falsy), API de alto nivel completa. 100% verde.
+[ ] H5 - classificador_local/regras/a10_agua.py + testes: BLOQUEADA. Infra
+    de classificador_local (Etapa 0 X1) ainda nao chegou em
+    fase7/integracao (confirmado: `git ls-tree -r origin/fase7/integracao |
+    grep classificador` vazio, HEAD de la em ed0dcce no ultimo fetch).
+    Existe um molde em painel-pessoal-tdah-fase7-e0b/classificador_local/
+    (README com exemplo quase identico ao meu caso: "tomei um copo de
+    agua" -> db.registrar_hidratacao) mas essa worktree e de outra faixa
+    (e0-backend), ainda nao mesclada. Vou continuar checando
+    origin/fase7/integracao a cada ~10min (regra da faixa, ate 60min);
+    se nao chegar, fica blocked mesmo - pergunta especifica: "quando
+    classificador_local/ (Etapa 0 X1) entra em fase7/integracao?".
+
+Bloqueios: H5 (ver acima) - so a infra de classificador_local, o resto da
+faixa (cliente da construtora) esta pronto e testado.
+
+Fora da minha lista de arquivos (nao editei): app.py, claude_client.py,
+cards.py, AGENTS.md, CHANGELOG.md, TODO.md, financeiro-construtora/ inteiro
+(outro repositorio, regra do topo de fase7-regras-faixa.md).
+
+Testes: scripts/testes.sh tests/test_fase7_a10_construtora_cliente.py ->
+52 passed, 25 subtests passed.

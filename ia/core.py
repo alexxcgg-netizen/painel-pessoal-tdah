@@ -46,6 +46,7 @@ ESPERA_RETRY_S = 0.5
 MODULOS_ADAPTER = {
     "anthropic": "ia.adapters.anthropic",
     "openai": "ia.adapters.openai",
+    "gemini": "ia.adapters.gemini",
 }
 
 # Nomes de classe procurados no modulo do adapter, em ordem, se o modulo nao
@@ -53,6 +54,7 @@ MODULOS_ADAPTER = {
 _NOMES_CLASSE_ADAPTER = {
     "anthropic": ("AdapterAnthropic", "AnthropicAdapter"),
     "openai": ("AdapterOpenAI", "AdapterOpenAi", "OpenAIAdapter"),
+    "gemini": ("AdapterGemini",),
 }
 
 _NOME_FUNCAO_OK = re.compile(r"^[a-z0-9][a-z0-9_]*$")

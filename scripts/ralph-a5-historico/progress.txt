@@ -1,0 +1,42 @@
+Faixa A5 (historico do chat) - Fase 7 - branch fase7/a5-historico
+
+Historias (15-30min cada):
+[x] H1 - Ler regras da faixa + mapear schema chat_mensagens (db.py) e o
+    contrato ia.core.chamar_ia/ia.contrato (mensagens = [{"role","content"}],
+    contexto_fixo = bloco cacheavel, config em ia/config.d/<funcao>.json).
+[x] H2 - migracoes/202609241100_a5_historico.sql: tabela chat_resumo_historico
+    (linha unica id=1: resumo, ultimo_mensagem_id, dia, atualizado_em).
+[x] H3 - ia/config.d/resumo_historico.json (ativo:false, modelo_atual Haiku
+    4.5, alvo openai gpt-6-luna esforco medio, max_tokens_saida 400).
+[x] H4 - ia/historico.py: _obter_estado/_salvar_estado/_mensagens_desde,
+    _estimar_tokens (len//4), _cortar_para_verbatim (alinha o corte numa
+    mensagem 'user', pra nunca quebrar um par user/assistant ao meio).
+[x] H5 - precisa_reconstruir(conn, agora=None): >6000 tokens no historico
+    alem do resumo OU dia mudou (agora injetavel).
+[x] H6 - _reconstruir + montar_contexto(conn, agora=None) -> {"contexto_fixo",
+    "mensagens"}. Falha da IA (ok=False ou texto vazio) mantem resumo/
+    marcador antigos, nunca derruba a chamada. Virada de dia sem nada pra
+    dobrar so atualiza o marcador (nao chama IA a toa).
+[x] H7 - tests/test_ia_historico.py (24 casos): banco vazio, tabela ausente
+    (migracao nao aplicada ainda), poucas mensagens (tudo na integra, sem
+    IA), corte alinhado, reconstrucao por tamanho e por dia, contexto_fixo
+    identico entre chamadas sem reconstrucao (o ponto central do mecanismo),
+    falha de IA, sequencia de reconstrucoes usando o resumo anterior como
+    contexto_fixo da chamada seguinte, config carrega via
+    core.carregar_todas_configs().
+[x] H8 - changelog.d/a5-historico.md + este progress.txt + APRENDIZADOS.md.
+
+Bloqueios: nenhum.
+
+Fora da minha lista de arquivos (nao editei): db.py, ia/funcoes/chat.py,
+claude_client.py, app.py, AGENTS.md, CHANGELOG.md.
+
+Nota pro integrador: migracoes/ e changelog.d/ ainda nao existem em
+fase7/integracao (infra da Etapa 0 pra isso nao chegou) - criei os
+diretorios com so os arquivos desta faixa dentro. O SQL da migracao foi
+testado aplicando direto (executescript) num banco :memory:, nao pelo
+runner (que ainda nao existe).
+
+Testes: scripts/testes.sh tests/test_ia_historico.py -> 24 passed.
+scripts/testes.sh tests/test_ia_core.py (nao e meu, so sanity de que nao
+quebrei nada importando ia.core) -> 45 passed, 35 subtests passed.

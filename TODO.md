@@ -314,11 +314,11 @@ Decisoes do Alex na rodada de perguntas (2026-09-24):
 ### Fase 7A - backend
 - [x] A1 nucleo (ia/core.py) - [x] A2 adapter Anthropic - [x] A3 adapter OpenAI - [x] A4 medicao e teto
 - [x] (integracao) custo com fonte unica ia/precos.py
-- [ ] A5 historico - [ ] A6 chat - [ ] A7 migracao 1 - [ ] A8 migracao 2 - [ ] A9 visao
-- [ ] A10 decisoes Fase 6 - [ ] A11 A/B - [ ] A12 infra testes - [ ] A13 calculos
-- [ ] A14 roteador - [ ] A15 Gemini
-- [ ] N1 assinaturas/parcelas - [ ] N2 Telegram - [ ] N3a endpoint widget - [ ] N3b Scriptable
-- [ ] N3c/N3d docs widget - [ ] N3e WidgetKit
+- [x] A5 historico - [ ] A6 chat - [ ] A7 migracao 1 - [ ] A8 migracao 2 - [ ] A9 visao
+- [ ] A10 decisoes Fase 6 - [ ] A11 A/B - [ ] A12 infra testes - [x] A13 calculos
+- [x] A14 roteador - [x] A15 Gemini
+- [ ] N1 assinaturas/parcelas - [ ] N2 Telegram - [ ] N3a endpoint widget - [x] N3b Scriptable
+- [x] N3c/N3d docs widget - [x] N3e WidgetKit
 - [ ] P1a Caixa - [ ] P1b Caixa UI - [ ] P2 perguntas - [ ] P3 briefing - [ ] P4 regras
 - [ ] P5 replanejar - [ ] P7 sinais iPhone - [ ] P8 central de avisos - [ ] P9 memoria viva
 
