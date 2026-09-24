@@ -1,0 +1,70 @@
+Faixa V0b (botoes) - branch fase7/v0b-botoes
+
+[feito] Worktree a partir de fase7/integracao + merge origin/fase7/e0-frontend (conflito
+so em AGENTS.md/CHANGELOG.md, resolvido somando os 2 lados - commit c667885).
+
+[feito] static/css/ui/componentes/botao.css: .btn base + .btn-primario/.btn-secundario/
+.btn-perigo/.btn-fab (+.btn-fab--mais)/.btn-adicionar (+--pilula). So reusa cor existente
+(--accent/--danger/--surface-*, zero cor nova). Tokens de forma V0a ainda nao existem em
+tokens.css -> var(--token-v0a, fallback-no-token-que-ja-existe), resolve sozinho quando a
+V0a entrar. Icone "+" sem emoji: pseudo-elemento com 2 barras (badge do .btn-adicionar) e
+CSS mask com SVG inline (.btn-fab--mais, var --btn-icone-mais). disabled/is-carregando
+(spinner)/:focus-visible proprio. Toque >=44px (48px .btn-adicionar). Duracoes 100%
+reaproveitadas de style.css.
+
+2 bugs achados e corrigidos (documentados em APRENDIZADOS.md): (1) comentario CSS com
+"*" + "/" adjacentes no meio da prosa fechava o comentario ali e derrubava a regra :root
+inteira do CSSOM (icone virava quadrado solido); (2) .btn:focus-visible e .is-carregando
+empatavam em especificidade com cada variante e perdiam a cascata por ordem - movidos pro
+fim do arquivo.
+
+[feito, so leitura - nao editei HTML] Inventario "adicionar/criar/+novo" em
+templates/secoes/ (grep). Todos: <button type="submit" class="btn-com-icone"> com SVG "+"
+inline. V3-V6 trocam por class="btn btn-adicionar".
+  painel/memoria.html:20,27,34        (sem id) "Adicionar" x3 (rotina/planos/outras coisas)
+  painel/medicamentos.html:18         #medicamento-btn
+  painel/datas-importantes.html:20    #lembrete-btn
+  painel/peso-e-medidas.html:34       #medida-btn
+  painel/brain-dump.html:17           #brain-dump-btn
+  painel/esperando-resposta.html:18   #espera-btn
+  painel/diario-de-decisao.html:16    #diario-decisao-btn
+  painel/devo-sair.html:22            #viagem-btn
+  vida/habitos.html:32                #habito-btn
+  vida/projetos.html:17               #projeto-btn
+  vida/agenda-painel.html:20          #evento-btn ("Criar evento")
+  vida/pra-responder.html:14          #responder-btn
+  vida/lista-de-compras.html:13       #compra-btn
+  vida/pessoas.html:16                #pessoa-btn
+  vida/treino.html:17                 #ficha-ex-add-btn (add exercicio)
+  vida/treino.html:23                 #ficha-btn ("Salvar ficha")
+  vida/contas-pessoais.html:16        #conta-pessoal-btn
+  vida/manutencao.html:32             #manutencao-btn
+  vida/garantia.html:16               #garantia-btn
+  vida/viagens.html:19                #viagem-nova-btn
+  vida/lugares.html:14                #lugar-btn
+  vida/ideias-de-presente.html:15     #ideia-presente-btn
+  vida/quero-aprender.html:7          #aprender-btn
+  vida/salvos.html:7                  #salvo-btn ("Salvar e resumir")
+  vida/mensagem-dificil.html:8        #mensagem-btn (gera texto c/ IA, avaliar variante)
+  vida/vale-a-pena.html:8             #decisao-btn
+  tarefas/tarefas.html:9              #nova-tarefa-btn
+  gastos/gastos.html:81               #custo-ia-teto-btn (config, nao item - avaliar .btn-primario)
+  construtora/cotacoes.html:14        #cotacao-btn
+  bancos/ofx.html:22                  #importar-btn
+  aviacao/registrar-voo.html:20       #voo-btn
+  Sem botao de adicionar hoje: ainda-usa, seu-progresso, metas, contas-a-pagar,
+  construtora, proximos-voos, assistente/{regras,avisos} (vazios da Etapa 0).
+  Fora do escopo (nao e "adicionar"): captura-btn/duvida-btn, comando-voz-*,
+  nf-confirmar/cancelar-btn, chat-send, metar-btn, conectar-btn, revisao-periodo-btn,
+  links de exportar/backup.
+
+[feito] Verificacao: scripts/ralph-v0b-botoes/servidor.py (app + banco temporario, porta
+5183) + verificar.py (Playwright 390x844, login teste, injeta 1 botao de cada tipo via
+page.evaluate dentro de #tab-hoje ja existente, 1 screenshot v0b-botoes.png). Resultado:
+OK - zero erro console/pageerror, zero falha de rede alem das de ambiente ja conhecidas da
+V0a (fonts sem CA valido, /api/summary/today 502 com IA-dublê), todos os botoes >=44px,
+anel de foco confirmado trocando o box-shadow de repouso de verdade. JSON em
+v0b-resultado.json.
+
+Fora do escopo desta faixa (donos: V0a tokens.css, V0c secao-recolhivel.js, V0d
+bottom-sheet.js, V3-V6 trocam os botoes azuis do inventario acima pelos .btn-adicionar).
