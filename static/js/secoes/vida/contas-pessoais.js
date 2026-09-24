@@ -1,6 +1,57 @@
 // static/js/secoes/vida/contas-pessoais.js - Secao vida > contas-pessoais (HTML: templates/secoes/vida/contas-pessoais.html).
 // Fase 7 (X2): extraido sem mudanca de logica do antigo vida.js 389-455.
+// Fase 7 (faixa v6-financas): botao "adicionar" -> .btn-adicionar + .bottom-sheet
+// (docs/agentes/fase7-visual.md). Mesmo padrao de fallback de
+// static/js/secoes/gastos/assinaturas.js (comentado la, nao repetido aqui):
+// usa window.abrirBottomSheet/fecharBottomSheet (faixa V0d) quando existir,
+// senao cai num fallback local com fundo escurecido + ESC. O painel sobe pra
+// document.body na carga do script pela mesma razao (position: fixed dentro
+// de .tab-content, que fica com transform depois da troca de aba).
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
+
+(function () {
+  const el = document.getElementById("sheet-nova-conta-pessoal");
+  if (el && el.parentElement !== document.body) document.body.appendChild(el);
+})();
+
+let backdropContaPessoal = null;
+
+function abrirSheetContaPessoal(id) {
+  if (typeof window.abrirBottomSheet === "function") {
+    window.abrirBottomSheet(id);
+    return;
+  }
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!backdropContaPessoal) {
+    backdropContaPessoal = criarEl("div", "bottom-sheet-backdrop-fallback");
+    backdropContaPessoal.addEventListener("click", () => fecharSheetContaPessoal(id));
+    document.body.appendChild(backdropContaPessoal);
+  }
+  backdropContaPessoal.hidden = false;
+  el.hidden = false;
+}
+
+function fecharSheetContaPessoal(id) {
+  if (typeof window.fecharBottomSheet === "function") {
+    window.fecharBottomSheet(id);
+    return;
+  }
+  const el = document.getElementById(id);
+  if (el) el.hidden = true;
+  if (backdropContaPessoal) backdropContaPessoal.hidden = true;
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || typeof window.abrirBottomSheet === "function") return;
+  const el = document.getElementById("sheet-nova-conta-pessoal");
+  if (el && !el.hidden) fecharSheetContaPessoal("sheet-nova-conta-pessoal");
+});
+
+$("#btn-nova-conta-pessoal").addEventListener("click", () => abrirSheetContaPessoal("sheet-nova-conta-pessoal"));
+document.querySelectorAll("#sheet-nova-conta-pessoal [data-fechar-sheet]").forEach((btn) => {
+  btn.addEventListener("click", () => fecharSheetContaPessoal(btn.dataset.fecharSheet));
+});
 
 async function loadContasPessoais() {
   const contas = await apiFetch("/api/contas-pessoais");
@@ -64,6 +115,7 @@ $("#conta-pessoal-form").addEventListener("submit", async (e) => {
   if (!r) return;
   ["#conta-pessoal-nome", "#conta-pessoal-dia", "#conta-pessoal-valor"].forEach((s) => ($(s).value = ""));
   pulsarSucesso($("#conta-pessoal-nome"));
+  fecharSheetContaPessoal("sheet-nova-conta-pessoal");
   loadContasPessoais();
 });
 
