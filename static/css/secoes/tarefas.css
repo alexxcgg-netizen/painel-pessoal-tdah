@@ -10,3 +10,19 @@
   outline: none;
   box-shadow: var(--anel-foco);
 }
+
+/* C2: acoes da tarefa (quebrar em passos, editar, concluir) ficam com o visual compacto de
+   28px e ganham area de toque de 44px com ::after invisivel. */
+#tab-tarefas li button:not(.btn):not(.chip) {
+  position: relative;
+}
+
+#tab-tarefas li button:not(.btn):not(.chip)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--toque-min));
+  height: var(--toque-min);
+  transform: translate(-50%, -50%);
+}

@@ -18,3 +18,47 @@
   outline: none;
   box-shadow: var(--anel-foco);
 }
+
+/* C2: acoes da lista (marcar hoje, apagar) - visual compacto, toque de 44px por ::after. */
+#lista-projetos li button:not(.btn):not(.chip) {
+  position: relative;
+}
+
+#lista-projetos li button:not(.btn):not(.chip)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--toque-min));
+  height: var(--toque-min);
+  transform: translate(-50%, -50%);
+}
+
+/* C2: rotulos (meta, horario, dias) sao .chip--compacto, nao alvos grandes. */
+#lista-projetos .chip.chip--compacto {
+  min-height: 24px;
+  padding: 0.15rem var(--espaco-2);
+  font-size: 0.72rem;
+}
+
+/* C2: o <li class="lista-item"> e so o embrulho do card do projeto - como lista-item (flex,
+   space-between) ele encolhia o card pela largura do texto. Vira bloco e o card ocupa a
+   linha toda; o status volta a ter a cor de estado do style.css (o .chip apagava). */
+#lista-projetos > .lista-item {
+  display: block;
+  padding: 0;
+  border-bottom: none;
+  margin-bottom: var(--espaco-2);
+}
+
+#lista-projetos .projeto-status-atrasado.chip {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+#lista-projetos .projeto-status-no_rumo.chip {
+  color: var(--accent-text);
+  background: var(--accent-fill);
+  border-color: var(--borda-forte);
+}

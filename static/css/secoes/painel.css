@@ -128,9 +128,9 @@
 #tab-painel li button:not(.btn)::after {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 50%;
   top: 50%;
+  width: max(100%, var(--toque-min));
   height: var(--toque-min);
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
 }

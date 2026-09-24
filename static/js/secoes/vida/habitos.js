@@ -69,7 +69,7 @@ async function loadHabitos() {
       h.passou_batido ? "item-atencao" : ""
     );
     li.classList.add("lista-item");
-    li.querySelectorAll(".item-quando").forEach((el) => el.classList.add("chip"));
+    li.querySelectorAll(".item-quando").forEach((el) => el.classList.add("chip", "chip--compacto"));
     li.appendChild(renderHabitoSemana(h.ultimos_7));
     li.dataset.entidade = "habito"; // destino do link de card (Fase 6, US-E7)
     li.dataset.id = h.id;

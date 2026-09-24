@@ -9,3 +9,56 @@
 #tarefa-abrir-btn {
   margin-block: var(--espaco-2) var(--espaco-3);
 }
+
+/* C2: rotulos da tarefa (rotina, prazo, atrasada, travada, esforco) sao .chip--compacto -
+   rotulo, nao botao grande. O .chip (carrega depois do style.css) apagava a cor de alerta
+   do .item-tag-travada; aqui ela volta (mesmas cores do style.css, nada novo). */
+#tab-tarefas .chip.chip--compacto {
+  min-height: 24px;
+  padding: 0.15rem var(--espaco-2);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: middle;
+}
+
+#tab-tarefas .item-titulo .chip--compacto {
+  margin-left: var(--espaco-1);
+}
+
+#tab-tarefas .item-tag-travada.chip {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+#tab-tarefas .item-quando.chip {
+  margin: var(--espaco-1) var(--espaco-1) 0 0;
+  color: var(--text-muted);
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "definir esforco" e clicavel (vira <select>): visual compacto, toque de 44px por ::after */
+#tab-tarefas .item-tag-esforco.chip {
+  position: relative;
+  cursor: pointer;
+  font-family: var(--fonte-texto);
+}
+
+#tab-tarefas .item-tag-esforco::after {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: var(--toque-min);
+  transform: translateY(-50%);
+}
+
+/* Energia agora: Baixa/Media/Alta viram chips (eram botoes nativos brancos). */
+#energia-botoes {
+  gap: var(--espaco-2);
+}
+
+#energia-botoes .chip {
+  flex: 1 1 0;
+}

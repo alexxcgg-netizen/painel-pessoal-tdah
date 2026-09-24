@@ -24,3 +24,38 @@
   outline: none;
   box-shadow: var(--anel-foco);
 }
+
+/* C2: acoes da lista (marcar hoje, apagar) - visual compacto, toque de 44px por ::after. */
+#lista-habitos li button:not(.btn):not(.chip) {
+  position: relative;
+}
+
+#lista-habitos li button:not(.btn):not(.chip)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--toque-min));
+  height: var(--toque-min);
+  transform: translate(-50%, -50%);
+}
+
+/* C2: rotulos (meta, horario, dias) sao .chip--compacto, nao alvos grandes. */
+#lista-habitos .chip.chip--compacto {
+  min-height: 24px;
+  padding: 0.15rem var(--espaco-2);
+  font-size: 0.72rem;
+}
+
+/* C2: o habito era uma linha so (titulo+acoes | semana) e o nome quebrava em 2 linhas
+   ("Beber / agua") por falta de espaco. Agora empilha: titulo e acoes em cima, a semana
+   (7 bolinhas) embaixo, com a largura toda. */
+#lista-habitos > .lista-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--espaco-2);
+}
+
+#lista-habitos > .lista-item > .item-linha .item-titulo {
+  margin-right: var(--espaco-2);
+}
