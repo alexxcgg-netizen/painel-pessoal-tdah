@@ -337,6 +337,28 @@ o front (`fmtMoeda`).
 - Front: nome, meta ("15 min · qualquer dia conta · às 8h"), 7 círculos (hoje
   tracejado, dias feitos acesos), "Hábitos ativos: 4 → 5", caixa de contexto.
 
+### `assinatura`, `compra_parcelada`, `resumo_financeiro_recorrente` (Fase 7, N1 - ligados na C1)
+
+Contrato completo do `data` em `docs/contrato-assinaturas.md` (faixa N1). Builders em
+`cards.py` (`assinatura_para_card`, `compra_parcelada_para_card`,
+`resumo_recorrente_para_card`, `card_assinatura`, `card_compra_parcelada`,
+`card_resumo_financeiro_recorrente`) - o classificador local da N1 usa os mesmos.
+
+- Além dos campos do contrato N1, o `data` leva os nomes que o renderizador de
+  `static/js/cards-tipos.js` (V1) já lê: `cartao`/`em_dias` (assinatura),
+  `restantes`/`termina_em` (data ISO da última parcela) (parcela),
+  `total_mes`/`n_assinaturas`/`n_parcelas`/`proxima_cobranca {nome, data}` (resumo).
+  Pendente pra C2: escolher um nome só e aposentar o outro.
+- Modo visitante (`CAMPOS_SENSIVEIS`): somem `valor` (assinatura), `valor_total`/
+  `valor_parcela` (parcela) e `total_mensal`/`assinaturas_total`/`parcelas_total`/
+  `total_mes`/`proximas_cobrancas`/`proxima_cobranca` (resumo).
+- Abrir em: aba `gastos` (seção Assinaturas).
+- **Desfazer:** o token da N1 (criar assinatura, cancelar assinatura, criar compra
+  parcelada) funciona na rota GERAL `POST /api/desfazer/<token>` desde a C1 - o
+  botão não precisa saber de qual faixa é o card. A rota própria
+  `POST /api/financas/desfazer/<token>` continua valendo (mesmo token, 409 na outra
+  depois de usado numa).
+
 ### Campo aditivo `consulta` (US-E7)
 
 Qualquer card que veio de uma **consulta** (nada foi criado - "me mostra o

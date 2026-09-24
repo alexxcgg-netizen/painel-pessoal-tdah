@@ -3626,6 +3626,18 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
             cur = conn.execute("DELETE FROM hidratacao_registros WHERE id = ?", (id_,))
         elif entidade == "treino":
             cur = conn.execute("DELETE FROM treinos WHERE id = ?", (id_,))
+        # ---- Fase 7 (N1, ligado na C1): o Desfazer geral tambem entende os
+        # tokens da N1 (financas_recorrentes.criar_token_desfazer grava
+        # {"entidade", "acao", "id"} na mesma tabela) - antes a rota geral
+        # marcava o token como desfeito sem reverter nada. Mesma transacao.
+        elif entidade == "assinatura" and item.get("acao") == "cancelar":
+            cur = conn.execute(
+                "UPDATE assinatura SET ativa = 1, cancelada_em = NULL WHERE id = ? AND ativa = 0", (id_,)
+            )
+        elif entidade == "assinatura":
+            cur = conn.execute("DELETE FROM assinatura WHERE id = ?", (id_,))
+        elif entidade == "compra_parcelada":
+            cur = conn.execute("DELETE FROM compra_parcelada WHERE id = ?", (id_,))
         else:
             continue
         if cur.rowcount:

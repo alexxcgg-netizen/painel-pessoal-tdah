@@ -30,3 +30,9 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
   sem push. Bug achado: P3 usava origem "p3_briefing_noite:" (prefixo != arquivo), a P1a
   nunca achava o ao_resolver (humor do fechamento nao gravava) - agora "p3_briefing:noite:".
   Teste p3_gatilho poluia p1a_caixa no mesmo processo (pop do sys.modules) - corrigido.
+[done] H7 N1 nos cards: assinatura/compra_parcelada/resumo_financeiro_recorrente em
+  TIPOS_CARD, CAMPOS_SENSIVEIS e ABA_POR_ENTIDADE (aba gastos); builders em cards.py (N1
+  usa). Bug: /api/desfazer geral marcava token N1 como desfeito sem reverter - agora
+  reverte (mesma transacao). PARA C2: data leva aliases pro renderizador V1 (cartao,
+  em_dias, restantes, termina_em, total_mes, n_assinaturas, n_parcelas, proxima_cobranca)
+  - escolher um nome so. V1 diz "nunca esconde valor"; servidor esconde no modo visitante.
