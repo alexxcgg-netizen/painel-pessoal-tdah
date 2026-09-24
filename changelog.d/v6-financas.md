@@ -25,3 +25,13 @@
   `id="assinaturas-box"` (recorrência detectada por histórico, não tem
   relação com a assinatura declarada da faixa N1) - a seção nova nasceu com
   `id="assinaturas-financas-box"` pra não colidir.
+- História final: `git merge origin/fase7/integracao` trouxe V0a/V0b/V0c
+  prontos (só o bottom-sheet, V0d, seguiu vazio) e a API da faixa N1 - a
+  faixa foi realinhada com `docs/MASTER.md` (classes exatas do contrato,
+  `.lista`+`.lista-item` em vez de `li.item`) e 2 bugs só apareceram
+  rodando o Playwright de verdade: a API de assinaturas/parcelas devolve
+  `{assinaturas: [...]}` (não array puro) e `.card` (V0c) não tem guarda
+  `[hidden]`, então `el.hidden = true` não escondia mais o card - ambos
+  corrigidos, mais detalhe em `scripts/ralph-v6-financas/APRENDIZADOS.md`
+  #6/#7. Verificação 390x844 com fluxo completo (criar assinatura + parcela
+  pelo formulário de verdade), zero erro de console.

@@ -15,13 +15,20 @@ Faixa v6-financas (Fase 7) - progresso
   assinaturas ativas, parcelas em andamento, total comprometido, mini
   grafico (SVG proprio, ver APRENDIZADOS.md #2) do impacto no limite do
   cartao. 2 bottom sheets (nova assinatura / nova parcela).
-[done] H6 - git merge origin/fase7/integracao + Playwright 390x844
-  (Gastos/Bancos/Construtora, CONSTRUTORA_API_MOCK=1), 2 screenshots em
-  scripts/ralph-v6-financas/.
+[done] H6 - git merge origin/fase7/integracao (trouxe V0a/V0b/V0c prontos +
+  a API da faixa N1 - so V0d/bottom-sheet seguiu vazia) + realinhamento com
+  docs/MASTER.md (.btn.btn-adicionar precisa da classe base, .card--destaque
+  nao .card-destaque, .campo direto no input, .lista+.lista-item no lugar de
+  li.item, fix de 2 bugs achados so testando: `assinaturas.forEach` (API
+  devolve {assinaturas:[...]}, nao array puro) e `.card[hidden]` nao escondia
+  (V0c sem guarda de hidden)) + Playwright 390x844 (Gastos/Bancos/Construtora,
+  fluxo completo de criar assinatura+parcela pelo formulario de verdade),
+  zero erro de console, 2 screenshots em scripts/ralph-v6-financas/.
 
-Detalhe de cada decisao/assumpcao (API da N1 ainda fora da integracao, por
-que nao usei Chart.js de verdade, bug de position:fixed em .tab-content,
-colisao de id corrigida, construtora_cliente.py ainda nao ligado em app.py):
+Detalhe de cada decisao/assumpcao/achado (API da N1, por que nao usei
+Chart.js de verdade, bug de position:fixed em .tab-content, colisao de id
+corrigida, construtora_cliente.py ainda nao ligado em app.py, bug do
+.card[hidden] na V0c, CONSTRUTORA_API_MOCK so afeta a API nova):
 ver scripts/ralph-v6-financas/APRENDIZADOS.md.
 
 Testes rodados (so os do meu modulo): test_fase7_estrutura_frontend.py,

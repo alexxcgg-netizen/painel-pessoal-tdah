@@ -1,0 +1,14 @@
+{
+ "erros_console": [],
+ "falhas_rede": [],
+ "falhas_ambiente_ignoradas": [
+  [
+   "falhou",
+   "https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+  ],
+  [
+   502,
+   "http://127.0.0.1:5194/api/summary/today"
+  ]
+ ]
+}

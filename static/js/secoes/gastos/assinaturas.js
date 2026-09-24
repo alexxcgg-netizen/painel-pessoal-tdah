@@ -202,8 +202,9 @@ async function loadComprometido() {
 }
 
 async function loadAssinaturasAtivas() {
-  const assinaturas = await apiFetch("/api/financas/assinaturas?ativas=1");
-  if (!assinaturas) return;
+  const data = await apiFetch("/api/financas/assinaturas?ativas=1");
+  if (!data) return;
+  const assinaturas = data.assinaturas || [];
   const lista = $("#lista-assinaturas-ativas");
   lista.innerHTML = "";
   $("#assinaturas-ativas-vazio").hidden = assinaturas.length > 0;
@@ -211,8 +212,9 @@ async function loadAssinaturasAtivas() {
 }
 
 async function loadParcelasEmAndamento() {
-  const parcelas = await apiFetch("/api/financas/parcelas?em_andamento=1");
-  if (!parcelas) return;
+  const data = await apiFetch("/api/financas/parcelas?em_andamento=1");
+  if (!data) return;
+  const parcelas = data.parcelas || [];
   const lista = $("#lista-parcelas");
   lista.innerHTML = "";
   $("#parcelas-vazio").hidden = parcelas.length > 0;

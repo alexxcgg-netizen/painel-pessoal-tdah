@@ -66,4 +66,37 @@
    antiga (`/api/construtora/resumo`, ainda em uso) ja devolvia - certo pro
    Alex hoje (decisao dele, so gastos/entradas/tempo ate a proxima conta),
    mas o ideal e o integrador trocar essa rota pra usar
-   `construtora_cliente.py` e o JSON ja sair enxuto do back tambem.
+   `construtora_cliente.py` e o JSON ja sair enxuto do back tambem. Efeito
+   colateral pro Playwright da historia final: `CONSTRUTORA_API_MOCK=1`
+   (pedido no prompt da faixa) so e lido por `construtora_cliente.py`, nao
+   pela rota antiga que `construtora.js` ainda chama - sozinho, ele nao
+   mostra dado nenhum (cai no estado "nao configurado", tambem valido de
+   testar). Pra exercitar o card populado de verdade no screenshot, subi um
+   `http.server` local imitando os 2 endpoints externos
+   (`docs/contrato-api-construtora.md`) e apontei `CONSTRUTORA_API_URL`/
+   `CONSTRUTORA_API_KEY` pra ele so na hora da verificacao (nao faz parte do
+   app nem do commit).
+
+6. **`.card` (V0c, `static/css/ui/componentes/card.css`) nao tem guarda
+   `[hidden]`**: a classe declara `display: flex` sem `:not([hidden])`, entao
+   empata em especificidade com o `[hidden] { display: none }` do UA e ganha
+   por vir de um stylesheet de autor carregado depois - um `<div class="card">`
+   com o atributo `hidden` aplicado via JS (`el.hidden = true`) continua
+   aparecendo na tela. Mesmo problema ja resolvido em `style.css` pra outras
+   classes que setam `display` (grep `"sobrescreveria o atributo hidden"` -
+   `.card-vida[hidden]`, `#assinaturas-box[hidden]` etc, todas com
+   `display: none` explicito). Corrigi localmente
+   (`#assinaturas-financas-box .card[hidden]`/`#tab-construtora .card[hidden]`
+   nos meus 2 arquivos), mas o certo e a V0c adicionar
+   `.card[hidden] { display: none; }` no proprio `card.css` - toda faixa que
+   usar `.card hidden` (nao so esta) tem o mesmo problema.
+
+7. **`--font-tech` (mono) e mais largo que fonte proporcional - estoura
+   layout de 2 colunas em 390px**: `R$ 132.500,00` em 1.4rem/700 dentro de
+   uma coluna de ~170px (2 stats lado a lado no card da Construtora)
+   ultrapassava a borda do card (achado so vendo o screenshot, nao no
+   codigo). Corrigido com `font-size: clamp(0.95rem, 4.6vw, 1.4rem)` +
+   `min-width: 0` no pai flex + `overflow-wrap: anywhere` como ultimo
+   recurso (`secoes/construtora.css`). Vale a pena qualquer faixa que ponha
+   2+ valores monetarios grandes lado a lado testar em 390px de verdade
+   (nao só ler o CSS) - o numero mono e mais largo do que parece.

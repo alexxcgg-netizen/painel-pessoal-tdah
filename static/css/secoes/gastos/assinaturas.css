@@ -13,6 +13,18 @@
    classe, ela ganha por ordem de carga). Numeros sempre em --font-tech
    (mono) + tabular-nums, pedido explicito da faixa. */
 
+/* Achado real (ver scripts/ralph-v6-financas/APRENDIZADOS.md): .card (V0c)
+   declara `display: flex` sem guarda `:not([hidden])`, empatando em
+   especificidade com o `[hidden] { display: none }` do UA e vencendo por vir
+   de um stylesheet de autor carregado depois - o card reaparece mesmo com o
+   atributo `hidden` presente. Mesmo problema ja documentado (e corrigido) em
+   style.css pra .card-vida/outras classes (grep "sobrescreveria o atributo
+   hidden"); aplico a mesma correcao aqui pro `.card` novo, so no que esta
+   secao usa. */
+#assinaturas-financas-box .card[hidden] {
+  display: none;
+}
+
 #assinaturas-financas-box .valor-mono {
   font-family: var(--font-tech);
   font-variant-numeric: tabular-nums;
