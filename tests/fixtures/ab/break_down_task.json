@@ -1,0 +1,7 @@
+[
+  {"id": "quebra_organizar_recibos", "entrada": {"title": "organizar os recibos da obra do mes"}, "esperado": {"min": 3, "max": 6}},
+  {"id": "quebra_preparar_prova_piloto", "entrada": {"title": "estudar pra prova teorica do curso de piloto"}, "esperado": {"min": 3, "max": 6}},
+  {"id": "quebra_trocar_pneu", "entrada": {"title": "levar o carro pra trocar os pneus"}, "esperado": {"min": 3, "max": 6}},
+  {"id": "quebra_planejar_viagem", "entrada": {"title": "planejar a viagem de ferias pra Florianopolis"}, "esperado": {"min": 3, "max": 6}},
+  {"id": "quebra_arrumar_garagem", "entrada": {"title": "arrumar a garagem que esta uma bagunca"}, "esperado": {"min": 3, "max": 6}}
+]

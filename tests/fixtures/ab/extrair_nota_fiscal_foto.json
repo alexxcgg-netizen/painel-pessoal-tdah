@@ -1,0 +1,29 @@
+[
+  {
+    "_comentario": "imagem_b64 aqui e so um placeholder de 1x1px (o --dry-run nunca envia isso pra nenhuma API - a resposta e fabricada a partir de 'esperado'). Pra testar com fotos reais, use --fixtures-reais com imagem_path apontando pra uma foto de verdade.",
+    "id": "nota_mercado",
+    "entrada": {"imagem_b64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "media_type": "image/png"},
+    "esperado": {"valor": 87.50, "estabelecimento": "Supermercado Bom Preco", "data": "2026-09-20"}
+  },
+  {
+    "id": "nota_farmacia",
+    "entrada": {"imagem_b64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "media_type": "image/png"},
+    "esperado": {"valor": 32.00, "estabelecimento": "Farmacia Popular", "data": "2026-09-22"}
+  },
+  {
+    "id": "nota_posto_combustivel",
+    "entrada": {"imagem_b64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "media_type": "image/jpeg"},
+    "esperado": {"valor": 210.00, "estabelecimento": "Posto Ipiranga", "data": "2026-09-19"}
+  },
+  {
+    "id": "nota_restaurante",
+    "entrada": {"imagem_b64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "media_type": "image/jpeg"},
+    "esperado": {"valor": 58.90, "estabelecimento": "Restaurante Sabor Caseiro", "data": "2026-09-21"}
+  },
+  {
+    "id": "nota_material_construcao",
+    "entrada": {"imagem_b64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "media_type": "image/jpeg"},
+    "esperado": {"valor": 640.00, "estabelecimento": "Casa do Construtor", "data": "2026-09-18"},
+    "simulacao_dry_run": {"luna_medio": {"api_falhou": true}}
+  }
+]
