@@ -317,7 +317,7 @@ Decisoes do Alex na rodada de perguntas (2026-09-24):
 - [x] A5 historico - [ ] A6 chat - [ ] A7 migracao 1 - [ ] A8 migracao 2 - [ ] A9 visao
 - [x] A10 decisoes Fase 6 - [x] A11 A/B - [ ] A12 infra testes - [x] A13 calculos
 - [x] A14 roteador - [x] A15 Gemini
-- [ ] N1 assinaturas/parcelas - [x] N2 Telegram - [x] N3a endpoint widget - [x] N3b Scriptable
+- [x] N1 assinaturas/parcelas - [x] N2 Telegram - [x] N3a endpoint widget - [x] N3b Scriptable
 - [x] N3c/N3d docs widget - [x] N3e WidgetKit
 - [x] P1a Caixa - [ ] P1b Caixa UI - [x] P2 perguntas - [x] P3 briefing - [x] P4 regras
 - [x] P5 replanejar - [x] P7 sinais iPhone - [x] P8 central de avisos - [x] P9 memoria viva
