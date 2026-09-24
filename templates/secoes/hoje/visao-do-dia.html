@@ -1,0 +1,39 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-hoje)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+        Visao do dia
+      </h2>
+      <div class="visao-dia-seletor" role="tablist" aria-label="Periodo da visao do dia">
+        <button type="button" class="visao-dia-periodo-btn active" data-periodo="dia" role="tab" aria-selected="true">Dia</button>
+        <button type="button" class="visao-dia-periodo-btn" data-periodo="semana" role="tab" aria-selected="false">Semana</button>
+        <button type="button" class="visao-dia-periodo-btn" data-periodo="mes" role="tab" aria-selected="false">Mes</button>
+      </div>
+
+      <div id="visao-dia-periodo-dia">
+        <p id="visao-dia-status" class="visao-dia-status shimmer">Carregando...</p>
+
+        <div id="visao-dia-foco" class="card-vida visao-dia-foco-card" hidden>
+          <span class="visao-dia-foco-label">Em foco agora</span>
+          <p id="visao-dia-foco-titulo" class="visao-dia-foco-titulo"></p>
+          <p id="visao-dia-foco-em" class="visao-dia-foco-em"></p>
+          <div class="visao-dia-foco-acoes">
+            <button type="button" id="visao-dia-foco-hiperfoco" class="btn-com-icone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+              Comecar foco
+            </button>
+            <button type="button" id="visao-dia-foco-concluir" class="btn-link">Concluir</button>
+          </div>
+        </div>
+        <p id="visao-dia-foco-vazio" class="dica-metas" hidden>Nada marcado com hora agora.</p>
+
+        <p id="visao-dia-resumo" class="visao-dia-resumo"></p>
+
+        <ul id="visao-dia-timeline" class="linha-do-tempo"></ul>
+        <p id="visao-dia-vazio" class="vazio" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          Nada marcado pra hoje ainda.
+        </p>
+      </div>
+
+      <div id="visao-dia-periodo-agregado" hidden>
+        <ul id="visao-dia-periodo-lista" class="visao-dia-periodo-lista"></ul>
+      </div>

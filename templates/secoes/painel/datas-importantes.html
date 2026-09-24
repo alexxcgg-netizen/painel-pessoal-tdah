@@ -1,0 +1,30 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.5 6 2 6.5H4C4.5 14 6 12.5 6 8Z"/><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0"/></svg>
+        Datas importantes
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao das datas importantes"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Validade de licenca/exame medico, seguro, revisao, aniversario - qualquer data que so
+          importa quando estiver perto. Peca no chat pra registrar (ex: "meu exame medico de piloto
+          vence dia 15 de janeiro, todo ano"). Avisa por notificacao push nos ultimos 7 dias.
+        </p>
+      </div>
+      <form id="lembrete-form" class="form-linha" style="--form-cor: var(--cor-bancos)">
+        <input type="text" id="lembrete-titulo" placeholder="O que vence?" required />
+        <input type="date" id="lembrete-data" aria-label="Data de vencimento" required />
+        <label class="check-recorrente">
+          <input type="checkbox" id="lembrete-recorrente" />
+          todo ano
+        </label>
+        <button type="submit" id="lembrete-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar
+        </button>
+      </form>
+      <p id="lembretes-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.5 6 2 6.5H4C4.5 14 6 12.5 6 8Z"/><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0"/></svg>
+        Nada guardado ainda. Manda um lembrete na captura.
+      </p>
+      <ul id="lista-lembretes"></ul>
+
