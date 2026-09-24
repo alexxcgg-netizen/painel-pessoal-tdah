@@ -1,0 +1,33 @@
+# Fase 7 - faixa C3a (polimento visual da aba Vida) - progress.txt
+# Worktree /home/user/painel-pessoal-tdah-fase7-c3a-vida, branch fase7/c3a-vida, porta 5131.
+# Obs: a V4 nao deixou scripts/ralph-v4-vida/APRENDIZADOS.md (so progress.txt) - li so o progress.
+
+## Historia 1: auditoria Playwright 390x844 (auditar.py, banco temporario + dubles) - FEITA
+Achados (antes das correcoes; [c3a] = arquivo meu, [outro] = so anoto):
+1. Console: 0 erro do app. So ruido de rede sem internet (fonts.googleapis, /api/summary/today 502).
+2. [c3a] BUG GRAVE: vida.css `#tab-vida .bottom-sheet` e peso-e-medidas.css `#sheet-medida.bottom-sheet`
+   (fallback da V4 de antes da V0d) pintam a MOLDURA fixa do V0d (inset:0) com fundo/padding/borda -
+   o veu some e o sheet vira um bloco escuro com borda ocupando a tela toda.
+3. [c3a] Toque < 44px: .dica-toggle 20x20 (todas as secoes); .item-acoes button 28px (Apagar,
+   feita hoje, respondi, mexi hoje, aprendi, vi, marcar comprado, uso/nao uso mais); a.salvo-link 19px;
+   label do checklist de compras 40px; inputs dos sheets 36-39px; #garantia-anexo 21px;
+   #revisao-periodo-btn 38x21; #ficha-ex-add-btn 22px; #mensagem-btn/#decisao-btn 35px.
+4. [c3a] Botao nativo do navegador (branco/cinza): #ficha-ex-add-btn "Adicionar exercicio",
+   #revisao-periodo-btn "Ver", e o "Choose File" do #garantia-anexo.
+5. Contraste < 4.5:1: nenhum texto estatico (menor: --text-faint em .item-titulo de salvo lido,
+   4.57; chip "vence em" 4.99). So falso positivo durante o fadeInUp dos li (opacity).
+6. Botao adicionar: todos os 10 da faixa ja sao .btn.btn-adicionar + bottom-sheet (V4). [outro]
+   habitos/projetos/agenda (c2-visual), contas-pessoais (c3c), viagens/lugares (c3b) tambem ja sao.
+7. Emoji como icone: nenhum (fonte e runtime).
+8. Secao sem .secao-recolhivel: [outro] habitos, projetos, agenda-painel (c2-visual), contas-pessoais
+   (c3c-financas), viagens, lugares (c3b-viagens) - h2 solto direto no .vida-secoes.
+9. [hidden] visivel: [outro] #habito-dias-semana-campo (display:flex) e #habito-vezes-semana.campo -
+   `.campo { display:block }` (static/css/ui/componentes/campo.css l.9) vence o [hidden] do UA.
+   Integrador/c2: acrescentar `.campo[hidden] { display: none; }` em campo.css.
+10. Inconsistencia com MASTER: [c3a] cabecalho da secao com titulo CENTRALIZADO (space-between com
+   3 filhos) - MASTER pede titulo a esquerda e chevron a direita; item de lista = card com borda
+   tingida dentro do card da secao (MASTER: bloco interno = --superficie-3 + --raio-sm + elevacao-0);
+   sheets sem titulo; campos sem .campo; rotulo "USO DO CELULAR" todo em maiusculas.
+11. [outro] BUG style.css l.2100-2104: comentario "(... .limite-cartao-*/ .pessoa-barra-*)" fecha o
+   comentario no "*/" do meio e engole a regra `.garantia-chip { ... }` (chip sai 16px, sem pilula).
+   Correcao certa: trocar "-*/" por "-* /" no comentario. Aqui reponho a regra em garantia.css.
