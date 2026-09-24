@@ -2,8 +2,10 @@
 client.messages.create (o SDK), nunca a rede de verdade - nenhum teste aqui
 pode fazer uma chamada HTTP real. Cobre: chamada basica, cache ligado com
 contexto grande o bastante, cache desligado/contexto pequeno (sem
-cache_control), erro de API vira Resposta(ok=False), schema com JSON valido e
-invalido na resposta."""
+cache_control), erro de conexao/timeout SOBE como excecao (retry e com o
+ia/core.py, faixa A1), erro de status (4xx/5xx) vira Resposta(ok=False),
+schema com JSON valido e invalido na resposta, e a descoberta do adapter via
+criar_adapter()."""
 
 import os
 import unittest
@@ -14,7 +16,7 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
 import anthropic
 
-from ia.adapters.anthropic import AdapterAnthropic
+from ia.adapters.anthropic import AdapterAnthropic, criar_adapter
 from ia.contrato import Resposta
 
 
@@ -195,26 +197,45 @@ class TestCache(unittest.TestCase):
 
 
 class TestErroDeApi(unittest.TestCase):
+    """Contrato (ajustado pelo nucleo A1): erro de rede/timeout do SDK SOBE
+    como excecao (o ia/core.py so faz retry se a excecao subir) - o adapter
+    NUNCA converte esses dois em Resposta(ok=False). Os demais erros do SDK
+    (status HTTP 4xx/5xx) continuam virando Resposta(ok=False, erro=...)."""
+
     def setUp(self):
         self.adapter = AdapterAnthropic(client=Mock())
 
-    def test_erro_de_conexao_vira_resposta_ok_false(self):
+    def test_erro_de_conexao_sobe_como_excecao_marcada_retentavel(self):
         self.adapter._client.messages.create.side_effect = anthropic.APIConnectionError(
             message="falha de rede simulada", request=Mock()
         )
 
-        resposta = self.adapter.chamar(
-            modelo="claude-opus-5", esforco="medio", sistema="s",
-            contexto_fixo="", mensagens=[{"role": "user", "content": "x"}],
-            schema=None, max_tokens_saida=100, cache={}, modo="padrao",
+        with self.assertRaises(anthropic.APIConnectionError) as ctx:
+            self.adapter.chamar(
+                modelo="claude-opus-5", esforco="medio", sistema="s",
+                contexto_fixo="", mensagens=[{"role": "user", "content": "x"}],
+                schema=None, max_tokens_saida=100, cache={}, modo="padrao",
+            )
+
+        self.assertIn("falha de rede simulada", str(ctx.exception))
+        self.assertTrue(ctx.exception.retentavel)
+
+    def test_timeout_sobe_como_excecao_marcada_retentavel(self):
+        # APITimeoutError e subclasse de APIConnectionError - precisa subir
+        # igual, pro core conseguir dar retry num timeout de verdade.
+        self.adapter._client.messages.create.side_effect = anthropic.APITimeoutError(
+            request=Mock()
         )
 
-        self.assertIsInstance(resposta, Resposta)
-        self.assertFalse(resposta.ok)
-        self.assertIn("falha de rede simulada", resposta.erro)
-        self.assertEqual(resposta.provedor, "anthropic")
-        self.assertEqual(resposta.modelo, "claude-opus-5")
-        self.assertGreaterEqual(resposta.latencia_ms, 0)
+        with self.assertRaises(anthropic.APITimeoutError) as ctx:
+            self.adapter.chamar(
+                modelo="claude-opus-5", esforco="medio", sistema="s",
+                contexto_fixo="", mensagens=[{"role": "user", "content": "x"}],
+                schema=None, max_tokens_saida=100, cache={}, modo="padrao",
+            )
+
+        self.assertIsInstance(ctx.exception, anthropic.APIConnectionError)
+        self.assertTrue(ctx.exception.retentavel)
 
     def test_erro_de_status_vira_resposta_ok_false(self):
         response_fake = Mock()
@@ -351,6 +372,23 @@ class TestClienteSemApiKey(unittest.TestCase):
                 del os.environ["ANTHROPIC_API_KEY"]
             adapter = AdapterAnthropic()
             self.assertIsNotNone(adapter)
+
+
+class TestCriarAdapter(unittest.TestCase):
+    def test_criar_adapter_devolve_instancia_utilizavel(self):
+        # ia/core.py (faixa A1) descobre o adapter por criar_adapter() ou
+        # pela classe AdapterAnthropic - as duas formas tem que funcionar.
+        adapter = criar_adapter()
+        self.assertIsInstance(adapter, AdapterAnthropic)
+
+        adapter._client = Mock()
+        adapter._client.messages.create.return_value = _resposta_fake("ok")
+        resposta = adapter.chamar(
+            modelo="claude-opus-5", esforco="baixo", sistema="s",
+            contexto_fixo="", mensagens=[{"role": "user", "content": "x"}],
+            schema=None, max_tokens_saida=100, cache={}, modo="padrao",
+        )
+        self.assertTrue(resposta.ok)
 
 
 if __name__ == "__main__":

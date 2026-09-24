@@ -173,7 +173,20 @@ class AdapterAnthropic(Adapter):
         inicio = time.monotonic()
         try:
             resposta_api = self._client.messages.create(**kwargs)
-        except anthropic.APIError as e:
+        except anthropic.APIConnectionError as e:
+            # Erro de rede/timeout (inclui anthropic.APITimeoutError, que e
+            # subclasse de APIConnectionError) - o ia/core.py (faixa A1) e
+            # quem decide retry/fallback, e so faz isso se a excecao SUBIR.
+            # Por isso este caso (so este) e re-levantado em vez de virar
+            # Resposta(ok=False, ...). Marca .retentavel = True pra deixar a
+            # decisao explicita pra quem pegar a excecao mais acima.
+            e.retentavel = True
+            raise
+        except anthropic.APIStatusError as e:
+            # Erro de status HTTP (4xx/5xx) - nao e problema de rede, e
+            # resposta da API (credencial invalida, rate limit, 500 etc). Vira
+            # Resposta(ok=False, ...) normal, nao sobe.
+            e.retentavel = False
             latencia_ms = int((time.monotonic() - inicio) * 1000)
             return Resposta(
                 ok=False,
@@ -183,7 +196,20 @@ class AdapterAnthropic(Adapter):
                 latencia_ms=latencia_ms,
                 erro=str(e),
             )
-        except Exception as e:  # defesa extra: SDK nunca deve vazar cru pro chamador
+        except anthropic.APIError as e:
+            # Qualquer outro erro do SDK nao coberto pelos dois casos acima
+            # (ex: erro de validacao da resposta) - trata como nao-retentavel.
+            e.retentavel = False
+            latencia_ms = int((time.monotonic() - inicio) * 1000)
+            return Resposta(
+                ok=False,
+                provedor="anthropic",
+                modelo=modelo,
+                esforco=esforco,
+                latencia_ms=latencia_ms,
+                erro=str(e),
+            )
+        except Exception as e:  # defesa extra: bug nosso, nao do SDK/rede
             latencia_ms = int((time.monotonic() - inicio) * 1000)
             return Resposta(
                 ok=False,
@@ -228,3 +254,10 @@ class AdapterAnthropic(Adapter):
             fallback_usado=False,
             erro=None,
         )
+
+
+def criar_adapter() -> AdapterAnthropic:
+    """Ponto de descoberta pro ia/core.py (faixa A1): instancia o adapter com
+    o client padrao (le ANTHROPIC_API_KEY do ambiente). O nucleo tambem pode
+    instanciar AdapterAnthropic diretamente - as duas formas funcionam."""
+    return AdapterAnthropic()
