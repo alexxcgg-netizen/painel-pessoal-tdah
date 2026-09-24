@@ -12,11 +12,11 @@
         </p>
       </div>
       <button type="button" id="evento-abrir-btn" class="btn btn-adicionar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Criar evento
       </button>
 
-      <div class="bottom-sheet" id="evento-sheet" hidden>
+      <div class="bottom-sheet" id="evento-sheet" hidden aria-labelledby="evento-sheet-titulo">
+        <h3 class="bottom-sheet-titulo" id="evento-sheet-titulo">Criar evento</h3>
         <form id="evento-form" class="form-linha">
           <input type="text" id="evento-titulo" class="campo" placeholder="Titulo" maxlength="120" required />
           <input type="date" id="evento-data" class="campo" aria-label="Data" required />

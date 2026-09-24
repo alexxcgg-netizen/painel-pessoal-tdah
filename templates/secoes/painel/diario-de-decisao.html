@@ -11,14 +11,21 @@
           Depois preenche o resultado com um toque, quando souber como foi.
         </p>
       </div>
-      <form id="diario-decisao-form" class="form-linha">
-        <input type="text" id="diario-decisao-texto" placeholder="O que voce decidiu?" maxlength="200" required />
-        <input type="text" id="diario-decisao-contexto" placeholder="Por que? (opcional)" maxlength="300" />
-        <button type="submit" id="diario-decisao-btn" class="btn-com-icone">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          Registrar
-        </button>
-      </form>
+      <button type="button" id="diario-decisao-abrir-btn" class="btn btn-adicionar" data-abre-sheet="diario-decisao-sheet">
+        Registrar decisão
+      </button>
+
+      <div class="bottom-sheet" id="diario-decisao-sheet" hidden aria-labelledby="diario-decisao-sheet-titulo">
+        <h3 class="bottom-sheet-titulo" id="diario-decisao-sheet-titulo">Registrar decisão</h3>
+        <form id="diario-decisao-form" class="form-linha" data-fecha-ao-enviar>
+          <input type="text" id="diario-decisao-texto" class="campo" placeholder="O que voce decidiu?" maxlength="200" required />
+          <input type="text" id="diario-decisao-contexto" class="campo" placeholder="Por que? (opcional)" maxlength="300" />
+          <div class="form-linha">
+            <button type="submit" id="diario-decisao-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar decisão</button>
+            <button type="button" class="btn btn-secundario" data-fecha-sheet>Cancelar</button>
+          </div>
+        </form>
+      </div>
       <p id="diario-decisoes-vazio" class="vazio" hidden>Nenhuma decisao registrada ainda.</p>
       <ul id="lista-diario-decisoes"></ul>
       </div>

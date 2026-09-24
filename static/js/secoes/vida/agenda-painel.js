@@ -34,7 +34,7 @@ async function loadEventosCriados() {
       (el) => botaoApagar(`/api/agenda/eventos/${e.uid}`, el),
     ]);
     li.classList.add("lista-item");
-    li.querySelectorAll(".item-quando").forEach((el) => el.classList.add("chip"));
+    li.querySelectorAll(".item-quando").forEach((el) => el.classList.add("chip", "chip--compacto"));
     lista.appendChild(li);
   });
 }

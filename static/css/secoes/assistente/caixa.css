@@ -10,17 +10,25 @@
    (faixa V0b, static/css/ui/componentes/botao.css, ainda vazio quando esta
    faixa foi escrita) - .caixa-item-opcao tem estilo proprio ate la. */
 
-.caixa-compacta {
-  margin-bottom: 16px;
+/* C2: .card + .secao-recolhivel no mesmo elemento somavam os dois paddings (card 16px +
+   cabecalho/conteudo 16px) - o card fica sem padding e a secao cuida do respiro. */
+.caixa-compacta.card {
+  padding: 0;
+  gap: 0;
 }
 
+/* C2: o amarelo #ffc45c era cor NOVA (fora da paleta do style.css). O aviso agora e bloco
+   interno neutro com uma barra de 3px na cor ja existente --cor-bancos (dourado) e texto
+   --text (contraste alto); o icone/texto continuam dizendo que e aviso. */
 .caixa-aviso-atraso {
-  margin: 0 0 10px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm, 14px);
-  background: rgba(255, 196, 92, 0.12);
-  color: #ffc45c;
-  font-size: 0.85em;
+  margin: 0 0 var(--espaco-2);
+  padding: var(--espaco-2) var(--espaco-3);
+  border-radius: var(--raio-sm);
+  background: var(--superficie-3);
+  border: var(--linha) solid var(--borda-sutil);
+  border-left: 3px solid var(--cor-bancos);
+  color: var(--text);
+  font-size: 0.85rem;
 }
 
 .caixa-compacta-lista,
@@ -33,10 +41,18 @@
   gap: 8px;
 }
 
+/* C2: item e "card sobre card" (receita do MASTER): superficie-3, raio menor, plano -
+   antes era um .card completo dentro do card da secao (3 niveis de caixa). */
 .caixa-item {
-  /* fundo/borda/raio/sombra ja vem de .card (ui/componentes/card.css) */
-  padding: var(--espaco-2, 12px) var(--espaco-3, 16px);
+  padding: var(--espaco-2) var(--espaco-3) var(--espaco-3);
+  gap: var(--espaco-1);
   transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.caixa-item.card {
+  background: var(--superficie-3);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
 }
 
 .caixa-item-saindo {
@@ -46,10 +62,14 @@
 
 /* .chip.chip--compacto (ui/componentes/chip.css) ja da fundo/borda/raio/padding -
    aqui e so o toque de rotulo (maiusculo, letterspacing) e o respiro embaixo. */
+/* C2: align-self - no .card (flex coluna, stretch) o rotulo virava uma pilula da largura
+   toda. Agora e um rotulo pequeno a esquerda. */
 .caixa-item-tipo {
+  align-self: flex-start;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  font-size: 0.66rem;
+  margin-bottom: 2px;
 }
 
 .caixa-item-titulo {
@@ -69,19 +89,10 @@
   gap: 8px;
 }
 
+/* C2: o estilo provisorio de .caixa-item-opcao saiu - o botao ja e .btn.btn-secundario
+   (ui/componentes/botao.css). So o tamanho do texto da resposta fica aqui. */
 .caixa-item-opcao {
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: var(--radius-sm, 14px);
-  border: 1px solid var(--border-strong, rgba(218, 226, 243, 0.18));
-  background: var(--surface-3, #1e1e1e);
-  color: var(--text, #eceef3);
-  font: inherit;
-  cursor: pointer;
-}
-
-.caixa-item-opcao:active {
-  transform: scale(0.97);
+  font-weight: 600;
 }
 
 .caixa-item-resposta {
@@ -102,22 +113,28 @@
   font-size: 0.9em;
 }
 
+/* C2: "Ver tudo" era --accent (#45454a) sobre a superficie: 2.2:1. Agora --text-muted
+   (mesma paleta, ~8:1) com peso 600; o sublinhado continua dizendo que e link. */
 .caixa-vertudo {
-  display: inline-block;
-  margin-top: 8px;
-  color: var(--accent, #45454a);
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--espaco-1);
+  min-height: var(--toque-min);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
   text-decoration: underline;
-  min-height: 44px;
-  line-height: 44px;
+  text-underline-offset: 3px;
 }
 
-#secao-caixa-assistente {
-  padding: 16px;
-  margin-bottom: 16px;
+@media (hover: hover) {
+  .caixa-vertudo:hover {
+    color: var(--text);
+  }
 }
 
 #secao-caixa-assistente h2 {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 1.05em;
 }
 

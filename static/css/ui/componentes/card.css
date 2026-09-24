@@ -20,13 +20,23 @@
 .card {
   position: relative;
   border-radius: var(--raio, var(--radius, 20px));
-  background: var(--superficie-2, color-mix(in srgb, var(--surface, #121212) 92%, white 2%));
-  border: 1px solid var(--borda-sutil, var(--border, rgba(218, 226, 243, 0.09)));
-  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.35));
-  padding: var(--espaco-3, 24px);
+  /* C2: receita do MASTER - realce de topo (luz fraca) como 1a camada do fundo. */
+  background: var(--realce-superficie), var(--superficie-2);
+  border: var(--linha) solid var(--borda-sutil);
+  box-shadow: var(--elevacao-1);
+  padding: var(--espaco-3);
   display: flex;
   flex-direction: column;
   gap: var(--espaco-2, 16px);
+}
+
+/* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de
+   classe, e a regra do autor ganha da do UA) - sem isso, campo/botao escondido pelo JS
+   continuava na tela (ex.: "Quantas vezes por semana" no sheet de habito). */
+.card[hidden],
+.card-cabecalho[hidden],
+.card-acao[hidden] {
+  display: none;
 }
 
 .card--compacto {
@@ -87,4 +97,10 @@
     box-shadow: var(--elevacao-2, inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 4px rgba(0, 0, 0, 0.4),
       0 8px 20px -12px rgba(0, 0, 0, 0.5));
   }
+}
+
+/* C2: card focavel (link de card, tabindex) ganha o anel da V0a junto com a elevacao. */
+.card:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco), var(--elevacao-1);
 }

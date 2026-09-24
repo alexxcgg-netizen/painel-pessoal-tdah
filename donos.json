@@ -375,6 +375,12 @@
       "static/js/secoes/vida/contas-pessoais.js",
       "static/css/secoes/vida/contas-pessoais.css",
       "tests/test_fase7_c3c_financas*"
+    ],
+    "m1-front": [
+      "static/css/style.css",
+      "static/js/cards.js",
+      "tests/js/m1_*",
+      "tests/test_fase7_m1_front*"
     ]
   }
 }

@@ -13,14 +13,21 @@
           sem voce marcar como resolvido.
         </p>
       </div>
-      <form id="espera-form" class="form-linha">
-        <input type="text" id="espera-quem" placeholder="De quem? (ex: fornecedor de ferro)" required />
-        <input type="text" id="espera-sobre" placeholder="Sobre o que?" required />
-        <button type="submit" id="espera-btn" class="btn-com-icone">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          Adicionar
-        </button>
-      </form>
+      <button type="button" id="espera-abrir-btn" class="btn btn-adicionar" data-abre-sheet="espera-sheet">
+        Nova espera
+      </button>
+
+      <div class="bottom-sheet" id="espera-sheet" hidden aria-labelledby="espera-sheet-titulo">
+        <h3 class="bottom-sheet-titulo" id="espera-sheet-titulo">Esperando resposta de quem?</h3>
+        <form id="espera-form" class="form-linha" data-fecha-ao-enviar>
+          <input type="text" id="espera-quem" class="campo" placeholder="De quem? (ex: fornecedor de ferro)" required />
+          <input type="text" id="espera-sobre" class="campo" placeholder="Sobre o que?" required />
+          <div class="form-linha">
+            <button type="submit" id="espera-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar espera</button>
+            <button type="button" class="btn btn-secundario" data-fecha-sheet>Cancelar</button>
+          </div>
+        </form>
+      </div>
       <p id="esperas-vazio" class="vazio" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3.5 2"/></svg>
         Nenhuma resposta pendente no momento.

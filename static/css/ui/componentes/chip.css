@@ -25,14 +25,22 @@
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
+/* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de
+   classe, e a regra do autor ganha da do UA) - sem isso, campo/botao escondido pelo JS
+   continuava na tela (ex.: "Quantas vezes por semana" no sheet de habito). */
+.chip[hidden] {
+  display: none;
+}
+
 .chip:hover {
   color: var(--text);
   border-color: var(--border-strong, rgba(218, 226, 243, 0.18));
 }
 
+/* C2: foco com o --anel-foco (o outline --accent #45454a sumia no preto). */
 .chip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--anel-foco);
 }
 
 .chip--ativo {

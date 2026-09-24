@@ -134,12 +134,13 @@ $("#espera-form").addEventListener("submit", async (e) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ quem, sobre }),
   });
-  setBotaoCarregando(btn, false, "Adicionar");
+  setBotaoCarregando(btn, false, "Salvar espera");
   if (!data) return;
 
   quemInput.value = "";
   sobreInput.value = "";
   pulsarSucesso(quemInput);
+  e.target.dispatchEvent(new CustomEvent("bottomsheet:sucesso", { bubbles: true })); // C2: fecha o sheet
   loadEsperas();
   loadStreak();
 });

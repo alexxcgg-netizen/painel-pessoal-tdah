@@ -295,3 +295,20 @@ rótulo ficam na fonte de texto, menores e em `--text-muted`.
 - [ ] Alvos de 44px ou mais, foco visível com `--anel-foco` e estados de hover, pressionado e desabilitado.
 - [ ] Playwright 390x844, banco de teste, sem erro de console e no máximo 2 screenshots por tela.
       Modelo pronto: `scripts/ralph-v0a-tokens/servidor.py` + `verificar.py`.
+
+## 13. Adendos da C2 (polimento final)
+
+- **`[hidden]` sempre vence.** Componente que define `display` numa classe precisa da
+  guarda `.classe[hidden] { display: none }`. Container de aba usa `#tab-x:not([hidden])`.
+  `tests/test_fase7_c2_visual.py` cobra as duas regras.
+- **Bottom-sheet:** o título vai em `<h3 class="bottom-sheet-titulo">` como primeiro filho
+  do `.bottom-sheet`. O formulário com `.form-linha` vira coluna, e o último `.form-linha`
+  dele é a linha de ações (`.btn-primario` "Salvar X" + `.btn-secundario` Cancelar com
+  `data-fecha-sheet`). Aberto, o sheet mora no `<body>`: não estilize o conteúdo dele com
+  `#tab-x ...`, use os componentes ou `.bottom-sheet #id`.
+- **Rótulo dentro de card** (tipo de item, status, prazo) é `.chip.chip--compacto`, com
+  24px e sem área de 44px. `.chip` sozinho é para o que se toca.
+- **Checkbox:** o `campo.css` estiliza todo `input[type=checkbox]` com `:where()`
+  (especificidade zero). Não use `accent-color` para "consertar" o visual.
+- **Ação pequena em linha de lista:** mantenha o visual compacto e amplie o toque com
+  `::after` invisível de `max(100%, var(--toque-min))` × `var(--toque-min)`.
