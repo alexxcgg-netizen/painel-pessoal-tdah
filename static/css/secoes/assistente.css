@@ -4,39 +4,24 @@
    Fase 7 (P1b): espacamento da aba (as 3 secoes - caixa/regras/avisos - ja se
    estilizam sozinhas nos proprios arquivos secoes/assistente/*.css). */
 
-#tab-assistente {
-  padding: 16px;
+/* C2: `:not([hidden])` - mesmo bug do #tab-painel: o `display: flex` por id vencia o
+   `[hidden]` e a aba Assistente aparecia no fim de todas as outras abas. */
+/* C2: sem o padding proprio de 16px - as outras abas ja alinham pela margem do <main>;
+   com ele os cards do Assistente ficavam 16px mais estreitos que os do Painel. */
+#tab-assistente:not([hidden]) {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--espaco-3);
 }
 
-/* .nav-selo (selo de pendencias no icone de Hoje e no botao da aba
-   Assistente, templates/navegacao.html) e .tab-btn-icone (o wrapper que da
-   o `position: relative` pro selo) moram aqui porque esta faixa nao tem
-   arquivo CSS proprio da barra de navegacao - static/css/ui/componentes/navegacao.css
-   e da faixa V0d (nao editar, ver docs/agentes/fase7-regras-faixa.md) e
-   ainda esta vazio de proposito. Anotado tambem em progress.txt pro
-   integrador mover pra la se preferir, quando V0d entrar na integracao -
-   as regras continuam validas por cima (cascata so refina). */
-.tab-btn-icone {
-  position: relative;
-  display: inline-flex;
-}
+/* C2: .nav-selo/.tab-btn-icone mudaram pra ui/componentes/navegacao.css (havia duas
+   versoes brigando, esta e a da V0d). */
 
-.nav-selo {
-  position: absolute;
-  top: -6px;
-  right: -8px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--danger, #ff5c72);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 16px;
-  text-align: center;
+/* C2: rede de seguranca do foco nesta aba. O :focus-visible global do style.css usa
+   --accent-2 (#08080a) a 45% e some no preto; varios elementos da aba ainda tinham
+   box-shadow proprio que tampava ate esse anel fraco. Aqui todo alvo focavel da aba usa o
+   --anel-foco da V0a. (A troca do global e com o integrador - ver progress.txt.) */
+#tab-assistente :is(button, a[href], input, select, textarea, summary, [tabindex]):not(.secao-cabecalho):focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
 }
-

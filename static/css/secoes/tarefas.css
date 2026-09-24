@@ -1,3 +1,28 @@
 /* static/css/secoes/tarefas.css - estilos da aba tarefas inteira (templates/abas/tarefas.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* C2: rede de seguranca do foco nesta aba. O :focus-visible global do style.css usa
+   --accent-2 (#08080a) a 45% e some no preto; varios elementos da aba ainda tinham
+   box-shadow proprio que tampava ate esse anel fraco. Aqui todo alvo focavel da aba usa o
+   --anel-foco da V0a. (A troca do global e com o integrador - ver progress.txt.) */
+#tab-tarefas :is(button, a[href], input, select, textarea, summary, [tabindex]):not(.secao-cabecalho):focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+/* C2: acoes da tarefa (quebrar em passos, editar, concluir) ficam com o visual compacto de
+   28px e ganham area de toque de 44px com ::after invisivel. */
+#tab-tarefas li button:not(.btn):not(.chip) {
+  position: relative;
+}
+
+#tab-tarefas li button:not(.btn):not(.chip)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--toque-min));
+  height: var(--toque-min);
+  transform: translate(-50%, -50%);
+}

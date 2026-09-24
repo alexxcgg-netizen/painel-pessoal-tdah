@@ -106,12 +106,13 @@ $("#medicamento-form").addEventListener("submit", async (e) => {
       horario,
     }),
   });
-  setBotaoCarregando(btn, false, "Adicionar");
+  setBotaoCarregando(btn, false, "Salvar remédio");
   if (!data) return;
 
   nomeInput.value = "";
   dosagemInput.value = "";
   horarioInput.value = "";
   pulsarSucesso(nomeInput);
+  e.target.dispatchEvent(new CustomEvent("bottomsheet:sucesso", { bubbles: true })); // C2: fecha o sheet
   loadMedicamentos();
 });

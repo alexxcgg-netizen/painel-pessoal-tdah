@@ -27,7 +27,8 @@
   pointer-events: none;
 }
 
-.bottom-sheet[hidden] {
+.bottom-sheet[hidden],
+.bottom-sheet-painel[hidden] {
   display: none;
 }
 
@@ -59,7 +60,9 @@
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  background: var(--realce-superficie), var(--superficie-2, var(--surface-2, #181818));
+  /* C2: --surface-2 opaco (mesma cor da --superficie-2, sem os 6% de transparencia): o texto
+     da tela de baixo (ex.: o botao "Novo remedio") aparecia fantasma atras dos campos. */
+  background: var(--realce-superficie), var(--surface-2);
   border-top: var(--linha, 1px) solid var(--borda-forte, var(--border-strong, rgba(218, 226, 243, 0.18)));
   border-radius: var(--raio-lg, var(--radius, 20px)) var(--raio-lg, var(--radius, 20px)) 0 0;
   /* Profundidade por camada (borda fina + realce especular no topo) em vez
@@ -97,6 +100,43 @@
   border-radius: var(--raio-pilula, 999px);
   background: var(--borda-forte, var(--border-strong, rgba(218, 226, 243, 0.18)));
   touch-action: none;
+}
+
+/* C2: titulo do sheet (repete o verbo do botao que abriu - MASTER, receita Bottom-sheet)
+   e formulario empilhado. Os forms vieram das secoes com .form-linha (linha que quebra),
+   que dentro do sheet deixava campo com largura quebrada; aqui vira coluna de campos com
+   a linha de acoes no fim (botao principal ocupa o espaco, Cancelar ao lado). */
+.bottom-sheet-titulo {
+  margin: 0 0 var(--espaco-3);
+  font-family: var(--fonte-titulo);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.bottom-sheet-painel > form.form-linha {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--espaco-2);
+  margin-bottom: 0;
+}
+
+.bottom-sheet-painel > form.form-linha > .form-linha:last-child {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: var(--espaco-2);
+  margin: var(--espaco-2) 0 0;
+}
+
+.bottom-sheet-painel > form.form-linha > .form-linha:last-child > .btn {
+  flex: 0 0 auto;
+  min-height: var(--toque-confortavel);
+}
+
+.bottom-sheet-painel > form.form-linha > .form-linha:last-child > .btn-primario {
+  flex: 1 1 auto;
 }
 
 /* Em telas maiores que o iPhone, o painel fica flutuante (nao gruda nas

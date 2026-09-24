@@ -7,17 +7,26 @@
   <form id="avisos-silencio-form" class="avisos-silencio-form">
     <p class="avisos-silencio-titulo">Horario de silencio (padrao pra todos os tipos)</p>
     <div class="avisos-silencio-campos">
-      <label class="campo">
-        Inicio
-        <input type="time" id="avisos-silencio-inicio" name="inicio" required>
+      <label class="avisos-silencio-campo">
+        <span class="campo-rotulo">Inicio</span>
+        <input type="time" id="avisos-silencio-inicio" class="campo" name="inicio" required>
       </label>
-      <label class="campo">
-        Fim
-        <input type="time" id="avisos-silencio-fim" name="fim" required>
+      <label class="avisos-silencio-campo">
+        <span class="campo-rotulo">Fim</span>
+        <input type="time" id="avisos-silencio-fim" class="campo" name="fim" required>
       </label>
       <button type="submit" class="btn btn-primario">Salvar</button>
     </div>
   </form>
 
-  <ul id="avisos-lista" class="avisos-lista"></ul>
+  {# C2: 50 tipos = ~8000px de tela. A lista comeca recolhida (estado salvo por secao). #}
+  <section class="secao-recolhivel avisos-tipos" data-aberto="false" data-secao-id="assistente-avisos-tipos">
+    <button type="button" class="secao-cabecalho" aria-expanded="false">
+      <span class="avisos-tipos-titulo">Tipos de aviso <span id="avisos-contagem" class="avisos-contagem"></span></span>
+      <span class="chevron" aria-hidden="true"></span>
+    </button>
+    <div class="secao-conteudo">
+      <ul id="avisos-lista" class="lista avisos-lista"></ul>
+    </div>
+  </section>
 </section>

@@ -151,6 +151,45 @@
     if (body && body.classList) body.classList.remove("bottom-sheet-bloqueado");
   }
 
+  // ---- portal: o sheet sobe pro <body> enquanto esta aberto ----
+  //
+  // C2 (bug real): toda .tab-content roda a animacao de entrada do style.css com
+  // `animation-fill-mode: both`, que DEIXA um `transform` aplicado na aba. Um ancestral
+  // com transform vira o "containing block" de todo `position: fixed` de dentro e cria
+  // um stacking context proprio - o sheet deixava de cobrir a tela (ficava preso a
+  // altura da aba) e a barra de abas (#tabbar, z-index 10 na raiz) passava POR CIMA do
+  // painel. Solucao: ao abrir, o sheet vai pro fim do <body> (um comentario marca o
+  // lugar original); ao terminar de fechar, volta exatamente pro mesmo lugar. Quem busca
+  // o sheet por id/querySelector continua achando; so os seletores CSS escopados pela aba
+  // (#tab-x .algo) deixam de valer ENQUANTO ele esta aberto - por isso o visual do sheet
+  // mora nos componentes (.campo, .btn, .bottom-sheet-*), nunca no CSS da aba.
+  const marcaPorSheet = new WeakMap();
+
+  function levarParaBody(sheet) {
+    const doc = sheet.ownerDocument || raiz.document;
+    const body = doc && doc.body;
+    const pai = sheet.parentNode;
+    if (!body || !pai || pai === body || marcaPorSheet.has(sheet)) return;
+    if (typeof doc.createComment !== "function" || typeof pai.insertBefore !== "function") return;
+    const marca = doc.createComment("bottom-sheet:" + (sheet.id || ""));
+    pai.insertBefore(marca, sheet);
+    marcaPorSheet.set(sheet, marca);
+    body.appendChild(sheet);
+  }
+
+  function devolverAoLugar(sheet) {
+    const marca = marcaPorSheet.get(sheet);
+    if (!marca) return;
+    marcaPorSheet.delete(sheet);
+    const pai = marca.parentNode;
+    if (pai && typeof pai.insertBefore === "function") {
+      pai.insertBefore(sheet, marca);
+      pai.removeChild && pai.removeChild(marca);
+    }
+    // marca sem pai (a secao inteira foi re-renderizada): o sheet fica no body, escondido -
+    // continua achavel por id e abre normal da proxima vez.
+  }
+
   // ---- estrutura interna (montada sozinha na 1a abertura) ----
 
   function encontrarFilhoComClasse(el, classe) {
@@ -275,6 +314,7 @@
     const doc = raiz.document;
     origemPorSheet.set(sheet, (doc && doc.activeElement) || null);
 
+    levarParaBody(sheet);
     sheet.hidden = false;
     if (!sheet.getAttribute || !sheet.getAttribute("role")) {
       sheet.setAttribute && sheet.setAttribute("role", "dialog");
@@ -305,12 +345,16 @@
     abertos.splice(indice, 1);
 
     const finalizar = () => {
+      // C2: reaberto durante a animacao de fechar (toque rapido duplo) - o fechamento
+      // antigo nao pode esconder o sheet que ja esta aberto de novo.
+      if (abertos.includes(sheet)) return;
       sheet.hidden = true;
       if (sheet.classList) {
         sheet.classList.remove(CLASSE_ABERTO);
         sheet.classList.remove(CLASSE_FECHANDO);
       }
       sheet.removeAttribute && sheet.removeAttribute("aria-modal");
+      devolverAoLugar(sheet);
 
       if (!abertos.length) liberarScrollDoBody();
 
