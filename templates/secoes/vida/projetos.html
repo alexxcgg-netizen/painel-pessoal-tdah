@@ -11,11 +11,22 @@
           visual, sem migrar dado nenhum.
         </p>
       </div>
-      <form id="projeto-form" class="form-linha">
-        <input type="text" id="projeto-nome" placeholder="Projeto (ex: Reforma do quarto)" maxlength="120" required />
-        <input type="date" id="projeto-prazo" aria-label="Prazo final (opcional)" />
-        <button type="submit" id="projeto-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
-      </form>
+      <button type="button" id="projeto-abrir-btn" class="btn btn-adicionar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Novo projeto
+      </button>
+
+      <div class="bottom-sheet" id="projeto-sheet" hidden>
+        <form id="projeto-form" class="form-linha">
+          <input type="text" id="projeto-nome" class="campo" placeholder="Projeto (ex: Reforma do quarto)" maxlength="120" required />
+          <input type="date" id="projeto-prazo" class="campo" aria-label="Prazo final (opcional)" />
+          <div class="form-linha">
+            <button type="submit" id="projeto-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="button" id="projeto-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </form>
+      </div>
+
       <p id="projetos-vazio" class="vazio" hidden>Nenhum projeto cadastrado.</p>
       <ul id="lista-projetos" class="lista-projetos"></ul>
 

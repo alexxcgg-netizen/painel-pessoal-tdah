@@ -1,6 +1,27 @@
 // static/js/secoes/vida/agenda-painel.js - Secao vida > agenda-painel (HTML: templates/secoes/vida/agenda-painel.html).
 // Fase 7 (X2): extraido sem mudanca de logica do antigo vida.js 869-904.
+// Fase 7 (V3-organizacao): botao "Criar evento" abre o formulario num bottom-sheet
+// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/fecharBottomSheet
+// (faixa V0d) quando existir; fallback so alterna o atributo hidden do painel.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
+
+function abrirPainelEvento() {
+  const sheet = $("#evento-sheet");
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+}
+
+function fecharPainelEvento() {
+  const sheet = $("#evento-sheet");
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+}
+
+$("#evento-abrir-btn").addEventListener("click", abrirPainelEvento);
+$("#evento-cancelar-btn").addEventListener("click", () => {
+  $("#evento-form").reset();
+  fecharPainelEvento();
+});
 
 async function loadEventosCriados() {
   const eventos = await apiFetch("/api/agenda/eventos-criados");
@@ -9,11 +30,12 @@ async function loadEventosCriados() {
   lista.innerHTML = "";
   $("#eventos-criados-vazio").hidden = eventos.length > 0;
   eventos.forEach((e) => {
-    lista.appendChild(
-      itemSimples(e.titulo, [`${fmtDataBr(e.inicio.slice(0, 10))} ${e.inicio.slice(11, 16)}-${e.fim.slice(11, 16)}`], [
-        (el) => botaoApagar(`/api/agenda/eventos/${e.uid}`, el),
-      ])
-    );
+    const li = itemSimples(e.titulo, [`${fmtDataBr(e.inicio.slice(0, 10))} ${e.inicio.slice(11, 16)}-${e.fim.slice(11, 16)}`], [
+      (el) => botaoApagar(`/api/agenda/eventos/${e.uid}`, el),
+    ]);
+    li.classList.add("lista-item");
+    li.querySelectorAll(".item-quando").forEach((el) => el.classList.add("chip"));
+    lista.appendChild(li);
   });
 }
 
@@ -33,7 +55,10 @@ ligarForm(
     return corpo;
   },
   "/api/agenda/eventos",
-  loadEventosCriados
+  () => {
+    fecharPainelEvento();
+    loadEventosCriados();
+  }
 );
 
 // ---- Fase 2: treino ----
