@@ -6,7 +6,7 @@ async function loadCotacoes() {
   const data = await apiFetch("/api/cotacoes");
   const list = $("#lista-cotacoes");
   list.innerHTML = "";
-  if (!data) return;
+  if (!Array.isArray(data)) return; // null (erro ja mostrado) ou resposta fora do formato
   $("#cotacoes-oculto-visitante").hidden = !modoVisitanteAtivo;
   $("#cotacoes-vazio").hidden = modoVisitanteAtivo || data.length > 0;
   data.forEach((c) => list.appendChild(criarItemCotacao(c)));
@@ -130,7 +130,7 @@ function criarItemCotacao(c) {
 async function preencherDetalheCotacao(cotacaoId, container) {
   container.textContent = "Carregando...";
   const data = await apiFetch(`/api/cotacoes/${cotacaoId}`);
-  if (!data) {
+  if (!data || !Array.isArray(data.itens)) {
     container.textContent = "";
     return;
   }
@@ -148,20 +148,39 @@ async function preencherDetalheCotacao(cotacaoId, container) {
       const itemLi = document.createElement("li");
       itemLi.className = "cotacao-item" + (i === 0 && item.valor != null ? " cotacao-item-menor" : "");
 
+      // Fornecedor a esquerda, valor em mono/tabular a direita (MASTER 7:
+      // numero que o olho compara) - so apresentacao, o valor vem pronto.
       const texto = document.createElement("span");
-      const partes = [item.fornecedor || "fornecedor sem nome"];
-      partes.push(item.valor != null ? fmtMoeda(item.valor) : "sem valor");
-      if (item.prazo_texto) partes.push(item.prazo_texto);
-      texto.textContent = partes.join(" - ");
+      texto.className = "cotacao-item-texto";
+      const nome = document.createElement("span");
+      nome.className = "cotacao-item-fornecedor";
+      nome.textContent = item.fornecedor || "fornecedor sem nome";
+      texto.appendChild(nome);
+      if (item.prazo_texto) {
+        const prazo = document.createElement("span");
+        prazo.className = "cotacao-item-prazo";
+        prazo.textContent = item.prazo_texto;
+        texto.appendChild(prazo);
+      }
       itemLi.appendChild(texto);
+      const valorEl = document.createElement("span");
+      valorEl.className = "cotacao-item-valor";
+      valorEl.textContent = item.valor != null ? fmtMoeda(item.valor) : "sem valor";
+      itemLi.appendChild(valorEl);
 
       const btnApagar = document.createElement("button");
       btnApagar.type = "button";
       btnApagar.className = "cotacao-item-apagar";
-      btnApagar.setAttribute("aria-label", "Apagar item");
-      btnApagar.textContent = "×";
+      btnApagar.setAttribute("aria-label", `Apagar ${item.fornecedor || "fornecedor"}`);
+      btnApagar.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
       btnApagar.addEventListener("click", async () => {
-        await apiFetch(`/api/cotacoes/${cotacaoId}/itens/${item.id}`, { method: "DELETE" });
+        btnApagar.disabled = true;
+        const ok = await apiFetch(`/api/cotacoes/${cotacaoId}/itens/${item.id}`, { method: "DELETE" });
+        if (!ok) {
+          btnApagar.disabled = false;
+          return;
+        }
         preencherDetalheCotacao(cotacaoId, container);
         loadCotacoes();
       });
@@ -187,17 +206,24 @@ async function preencherDetalheCotacao(cotacaoId, container) {
   formItem.className = "form-linha cotacao-add-form";
   const inputFornecedor = document.createElement("input");
   inputFornecedor.type = "text";
+  inputFornecedor.className = "campo";
   inputFornecedor.placeholder = "Fornecedor";
+  inputFornecedor.setAttribute("aria-label", "Fornecedor");
+  inputFornecedor.maxLength = 120;
   inputFornecedor.required = true;
   const inputValor = document.createElement("input");
   inputValor.type = "text";
+  inputValor.className = "campo";
   inputValor.inputMode = "decimal";
   inputValor.placeholder = "Valor R$";
+  inputValor.setAttribute("aria-label", "Valor em reais");
+  inputValor.maxLength = 18;
   inputValor.required = true;
   const btnAdd = document.createElement("button");
   btnAdd.type = "submit";
-  btnAdd.className = "btn btn-secundario btn-com-icone";
-  btnAdd.textContent = "+ Adicionar";
+  btnAdd.className = "btn btn-secundario";
+  btnAdd.textContent = "Adicionar";
+  btnAdd.setAttribute("aria-label", "Adicionar fornecedor");
   formItem.appendChild(inputFornecedor);
   formItem.appendChild(inputValor);
   formItem.appendChild(btnAdd);
@@ -206,11 +232,17 @@ async function preencherDetalheCotacao(cotacaoId, container) {
     const fornecedor = inputFornecedor.value.trim();
     const valor = parseFloat(inputValor.value.trim().replace(",", "."));
     if (!fornecedor || Number.isNaN(valor)) return;
+    if (!Number.isFinite(valor) || valor < 0) {
+      mostrarErro("Valor invalido - use um numero positivo (ex: 4200,50).");
+      return;
+    }
+    setBotaoCarregando(btnAdd, true, "salvando...");
     const r = await apiFetch(`/api/cotacoes/${cotacaoId}/itens`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fornecedor, valor }),
     });
+    setBotaoCarregando(btnAdd, false, "Adicionar");
     if (r) {
       preencherDetalheCotacao(cotacaoId, container);
       loadCotacoes();
@@ -244,13 +276,12 @@ async function preencherDetalheCotacao(cotacaoId, container) {
   container.appendChild(uploadLabel);
 }
 
-// Fase 7 (V5-extra): botao "Nova cotacao" abre o formulario num bottom-sheet
-// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/
-// fecharBottomSheet (faixa V0d) quando existir; fallback minimo enquanto
-// essa faixa nao chega na integracao (mesmo padrao de secoes/vida/habitos.js
-// e secoes/vida/viagens.js).
+// Fase 7 (V5-extra/C3b): "Nova cotacao" abre o formulario no bottom-sheet
+// compartilhado (static/js/ui/bottom-sheet.js, V0d). Fallback so pro caso de
+// o componente nao ter carregado: alterna o atributo hidden.
 function abrirPainelCotacao() {
   const sheet = $("#cotacao-sheet");
+  if (typeof levarSheetProBody === "function") levarSheetProBody(sheet); // ver secoes/vida/viagens.js
   if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
   else sheet.hidden = false;
 }
@@ -266,23 +297,20 @@ $("#cotacao-cancelar-btn").addEventListener("click", () => {
   $("#cotacao-form").reset();
   fecharPainelCotacao();
 });
-$("#cotacao-sheet").addEventListener("click", (e) => {
-  if (typeof window.abrirBottomSheet !== "function" && e.target === e.currentTarget) fecharPainelCotacao();
-});
-document.addEventListener("keydown", (e) => {
-  if (typeof window.abrirBottomSheet !== "function" && e.key === "Escape" && !$("#cotacao-sheet").hidden) fecharPainelCotacao();
-});
 
 $("#cotacao-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = $("#cotacao-titulo");
+  const btn = $("#cotacao-btn");
   const titulo = input.value.trim();
-  if (!titulo) return;
+  if (!titulo || btn.disabled) return;
+  setBotaoCarregando(btn, true, "salvando...");
   const r = await apiFetch("/api/cotacoes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ titulo }),
   });
+  setBotaoCarregando(btn, false, "Salvar cotacao");
   if (r) {
     input.value = "";
     fecharPainelCotacao();

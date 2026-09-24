@@ -1,0 +1,136 @@
+{
+ "erros_console": [],
+ "falhas_rede": [],
+ "falhas_ambiente": [
+  [
+   502,
+   "http://127.0.0.1:5132/api/summary/today"
+  ]
+ ],
+ "secoes": {
+  "viagens": {
+   "toque": [],
+   "contraste": [],
+   "emoji": [],
+   "hiddenVisivel": [],
+   "addFora": [],
+   "crus": [],
+   "recolhivel": true,
+   "altura": 1853
+  },
+  "lugares": {
+   "toque": [
+    {
+     "el": "a \"Leaflet\"",
+     "w": 51,
+     "h": 14
+    },
+    {
+     "el": "a \"OpenStreetMap\"",
+     "w": 83,
+     "h": 14
+    }
+   ],
+   "contraste": [],
+   "emoji": [
+    {
+     "el": "div.leaflet-control-attribution.leaflet-control \"Leaflet | © OpenStreetMap\"",
+     "texto": "©"
+    }
+   ],
+   "hiddenVisivel": [],
+   "addFora": [
+    "a.leaflet-control-zoom-in \"Zoom in\""
+   ],
+   "crus": [],
+   "recolhivel": true,
+   "altura": 792
+  },
+  "viagem_sheet": {
+   "toque": [],
+   "contraste": [],
+   "emoji": [],
+   "hiddenVisivel": [],
+   "addFora": [],
+   "crus": [],
+   "recolhivel": false,
+   "altura": 844
+  },
+  "sheets_geo": {
+   "viagem-sheet": {
+    "aberto": true,
+    "bg": "rgba(0, 0, 0, 0)",
+    "padding": "0px",
+    "borda": "0px",
+    "fundo": true,
+    "alca": true,
+    "painelTopo": 470,
+    "painelFim": 844,
+    "foco": "viagem-nova-destino"
+   },
+   "lugar-sheet": {
+    "aberto": true,
+    "bg": "rgba(0, 0, 0, 0)",
+    "padding": "0px",
+    "borda": "0px",
+    "fundo": true,
+    "alca": true,
+    "painelTopo": 515,
+    "painelFim": 844,
+    "foco": "lugar-nome"
+   },
+   "cotacao-sheet": {
+    "aberto": true,
+    "bg": "rgba(0, 0, 0, 0)",
+    "padding": "0px",
+    "borda": "0px",
+    "fundo": true,
+    "alca": true,
+    "painelTopo": 598,
+    "painelFim": 844,
+    "foco": "cotacao-titulo"
+   },
+   "voo-sheet": {
+    "aberto": true,
+    "bg": "rgba(0, 0, 0, 0)",
+    "padding": "0px",
+    "borda": "0px",
+    "fundo": true,
+    "alca": true,
+    "painelTopo": 224,
+    "painelFim": 844,
+    "foco": "voo-data"
+   }
+  },
+  "cotacoes": {
+   "toque": [],
+   "contraste": [],
+   "emoji": [],
+   "hiddenVisivel": [],
+   "addFora": [],
+   "crus": [],
+   "recolhivel": true,
+   "altura": 754
+  },
+  "aviacao": {
+   "toque": [],
+   "contraste": [],
+   "emoji": [],
+   "hiddenVisivel": [],
+   "addFora": [],
+   "crus": [],
+   "recolhivel": true,
+   "altura": 1506
+  },
+  "voo_sheet": {
+   "toque": [],
+   "contraste": [],
+   "emoji": [],
+   "hiddenVisivel": [],
+   "addFora": [],
+   "crus": [],
+   "recolhivel": false,
+   "altura": 844
+  }
+ }
+}
