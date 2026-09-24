@@ -1,55 +1,149 @@
 /* static/css/secoes/vida/viagens.css - secao vida > viagens (HTML: templates/secoes/vida/viagens.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve por cascata sem
+   precisar editar o style.css.
 
-/* Fase 7 V5-extra: o botao "Nova viagem" (.btn.btn-adicionar) e os campos/
-   botoes do formulario (.campo, .btn-primario, .btn-secundario) ja usam o
-   componente compartilhado real (ui/componentes/{botao,campo}.css - V0b/
-   V0c, ja na integracao). Só o painel deslizante em si (.bottom-sheet)
-   ainda nao tem componente compartilhado (ui/componentes/bottom-sheet.css -
-   V0d - continua vazio) - por isso o acabamento de "sheet de verdade"
-   (fundo escurecido, desliza de baixo) fica aqui, escopado por ID
-   (#viagem-sheet), nunca a classe .bottom-sheet inteira - assim nao regride
-   nem entra em conflito com o fallback mais simples que outras secoes (ex:
-   vida/habitos) ja definiram pra essa mesma classe, e some sozinho quando
-   a V0d chegar (ela estiliza globalmente e ganha por carregar depois). */
-#viagem-sheet.bottom-sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
+   Fase 7 C3b: o painel deslizante agora e o componente compartilhado de verdade
+   (ui/componentes/bottom-sheet.css + ui/js/bottom-sheet.js, V0d). O acabamento local
+   escopado por ID que a V5-extra deixou (fundo escurecido, painel, animacao) saiu - o
+   template tambem parou de escrever `.bottom-sheet-painel` na mao, senao o V0d nao monta
+   o fundo/alca/toque-fora. Sem cor, fonte ou animacao nova: so tokens da V0a. */
+
+/* ---------- Sheets da faixa C3b (viagem, lugar, cotacao, voo) ----------
+   Os 4 formularios da faixa usam o MESMO miolo (titulo + rotulo acima do campo + botoes
+   no rodape, MASTER.md 5 "Bottom-sheet"/"Campo"). Fica num lugar so, escopado pelos 4 IDs,
+   pra nao repetir o bloco em lugares.css/cotacoes.css/registrar-voo.css. */
+
+/* Neutraliza vazamento de CSS de OUTRAS faixas: `.bottom-sheet` sem escopo em
+   secoes/vida/habitos.css e `#tab-vida .bottom-sheet` em secoes/vida.css pintam margem,
+   padding, borda e fundo no elemento fixo que cobre a tela inteira (o painel de verdade e
+   o `.bottom-sheet-painel` de dentro). Remover quando esses dois arquivos pararem de
+   estilizar a classe pura - anotado no progress da C3b pro integrador/C3a. */
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet).bottom-sheet {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-titulo {
+  margin: 0 0 var(--espaco-3);
+  font-family: var(--fonte-titulo);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-dica {
+  margin: calc(-1 * var(--espaco-2)) 0 var(--espaco-3);
+  color: var(--text-muted);
+}
+
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-form {
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
+  flex-direction: column;
+  margin: 0;
 }
 
-#viagem-sheet.bottom-sheet[hidden] {
-  display: none;
+/* rotulo -> campo com meio-passo; campo -> proximo rotulo com um passo inteiro.
+   O `.campo-rotulo` antigo do style.css (~l.3353) e todo em MAIUSCULAS e o campo.css (V0c)
+   nao desfaz isso; a receita do MASTER (5 "Campo" e 11) pede rotulo normal, 0.8rem. */
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-form .campo-rotulo {
+  margin: 0 0 var(--espaco-1);
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
-#viagem-sheet .bottom-sheet-painel {
-  width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
-  overflow-y: auto;
-  background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius) var(--radius) 0 0;
-  box-shadow: var(--shadow-card-hover);
-  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
-  animation: fadeInUp 0.3s var(--ease-bounce) both;
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-form > .campo,
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-form-par {
+  margin-bottom: var(--espaco-3);
 }
 
-#viagem-sheet #viagem-nova-form {
-  margin-bottom: 0;
+/* dois campos curtos lado a lado (datas, hora, origem/destino) */
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-form-par {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--espaco-2);
 }
 
-/* Cartao de status de voo dentro da viagem - mesmo acabamento "glass" ja
-   usado nos demais paineis (reaproveita --glass-*), so pra ficar coerente
-   com o resto da lista em vez do fundo transparente herdado do style.css. */
-.viagem-voo-box {
-  padding: 0.6rem 0.7rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  box-shadow: var(--shadow-card);
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-form-par > div {
+  min-width: 0;
+}
+
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) input[type="date"].campo {
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-acoes {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: var(--espaco-2);
+  margin-top: var(--espaco-2);
+}
+
+:is(#viagem-sheet, #lugar-sheet, #cotacao-sheet, #voo-sheet) .sheet-acoes .btn {
+  min-height: var(--toque-confortavel);
+}
+
+/* ---------- Secao Viagens ---------- */
+
+/* O "!" da dica tem 20px de visual; a area de toque chega a 44px por um ::after
+   invisivel (MASTER.md 9) - o ::before ja e o proprio "!". */
+[data-secao-id="vida-viagens"] .dica-toggle {
+  position: relative;
+}
+
+[data-secao-id="vida-viagens"] .dica-toggle::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
+
+/* Cada viagem ja esta dentro do card da secao (.secao-recolhivel): vira bloco interno
+   (superficie-3 + borda fina, sem vidro nem sombra), nao card dentro de card. */
+#lista-viagens > li.item {
+  background: var(--superficie-3);
+  border-color: var(--borda-sutil);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+#lista-viagens .item-acoes > button {
+  min-height: var(--toque-min);
+  padding-inline: var(--espaco-3);
+  border-radius: var(--raio-sm);
+}
+
+/* Status do voo da viagem: um nivel abaixo do bloco - so divisor fino, sem outra caixa. */
+#lista-viagens .viagem-voo-box {
+  margin-top: var(--espaco-2);
+  padding-top: var(--espaco-2);
+  border-top: var(--linha) solid var(--borda-sutil);
+}
+
+#lista-viagens .viagem-voo-form {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--espaco-2);
+  margin-bottom: var(--espaco-1);
+}
+
+#lista-viagens .viagem-voo-form .campo {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* numero do voo digitado em mono (dado), placeholder continua na fonte de texto */
+#lista-viagens .viagem-voo-form .campo:not(:placeholder-shown) {
+  font-family: var(--fonte-mono);
+  letter-spacing: 0.04em;
+}
+
+#lista-viagens .viagem-voo-form .btn {
+  flex: 0 0 auto;
 }

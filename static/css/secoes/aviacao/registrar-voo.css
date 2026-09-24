@@ -1,23 +1,18 @@
 /* static/css/secoes/aviacao/registrar-voo.css - secao aviacao > registrar-voo (HTML: templates/secoes/aviacao/registrar-voo.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve por cascata sem
+   precisar editar o style.css.
 
-/* Formulario ganha o mesmo acabamento "glass" dos demais paineis da aba
-   (reusa --glass-*, ja tingido por --cor-aviacao dentro de #tab-aviacao -
-   ver style.css ~linha 1079) em vez do fundo transparente herdado do
-   style.css - so moldura, sem cor nova. */
-#voo-form.form-linha {
-  padding: 0.85rem 0.9rem;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  background: var(--glass-bg);
-  box-shadow: var(--glass-shadow);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+   Fase 7 C3b: o formulario saiu do meio da aba (era um bloco "glass" sempre aberto) e foi
+   pro bottom-sheet compartilhado #voo-sheet (V0d), aberto pelo .btn.btn-adicionar
+   "Registrar voo". O miolo comum dos sheets da faixa (titulo, rotulos, pares de campo,
+   rodape) fica em secoes/vida/viagens.css. Aqui so o que e so do voo. */
+
+/* Data, hora e horas sao numeros que o olho confere: mono tabular (MASTER.md 7). */
+#voo-sheet :is(#voo-data, #voo-hora, #voo-horas):not(:placeholder-shown) {
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Botao "Registrar" usa o componente real .btn.btn-primario (ui/componentes/
-   botao.css, V0b, ja na integracao) - CTA cheio, cor de destaque do app,
-   48px de altura minima. Antes (so .btn-com-icone) ficava com a aparencia
-   crua do navegador, mesmo problema descrito no fase7-visual.md pros
-   botoes "adicionar". */
+#voo-sheet #voo-obs {
+  min-height: 88px;
+}
