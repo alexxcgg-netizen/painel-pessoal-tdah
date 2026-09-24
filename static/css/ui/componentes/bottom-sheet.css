@@ -60,7 +60,9 @@
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  background: var(--realce-superficie), var(--superficie-2, var(--surface-2, #181818));
+  /* C2: --surface-2 opaco (mesma cor da --superficie-2, sem os 6% de transparencia): o texto
+     da tela de baixo (ex.: o botao "Novo remedio") aparecia fantasma atras dos campos. */
+  background: var(--realce-superficie), var(--surface-2);
   border-top: var(--linha, 1px) solid var(--borda-forte, var(--border-strong, rgba(218, 226, 243, 0.18)));
   border-radius: var(--raio-lg, var(--radius, 20px)) var(--raio-lg, var(--radius, 20px)) 0 0;
   /* Profundidade por camada (borda fina + realce especular no topo) em vez

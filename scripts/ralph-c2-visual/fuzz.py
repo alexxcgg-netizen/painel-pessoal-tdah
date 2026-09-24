@@ -50,12 +50,16 @@ def ok_console(m):
 def invariantes(page):
     return page.evaluate("""() => {
       const r = [];
+      // marca de lugar que o portal deixa (so existe pra sheet que saiu de dentro de uma aba)
+      const marcas = new Set();
+      const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT);
+      for (let n = tw.nextNode(); n; n = tw.nextNode()) marcas.add(n.textContent);
       const abertos = [...document.querySelectorAll('.bottom-sheet.bottom-sheet--aberto')];
       for (const s of document.querySelectorAll('.bottom-sheet')) {
         const aberto = s.classList.contains('bottom-sheet--aberto');
         if (!aberto && !s.hidden && !s.classList.contains('bottom-sheet--fechando')) r.push('sheet visivel sem estar aberto: ' + s.id);
         if (aberto && s.hidden) r.push('sheet aberto mas hidden: ' + s.id);
-        if (!aberto && !s.classList.contains('bottom-sheet--fechando') && s.parentElement === document.body) r.push('sheet fechado ficou no body: ' + s.id);
+        if (!aberto && !s.classList.contains('bottom-sheet--fechando') && s.parentElement === document.body && marcas.has('bottom-sheet:' + s.id)) r.push('sheet fechado ficou no body: ' + s.id);
       }
       if (!abertos.length && document.body.classList.contains('bottom-sheet-bloqueado')) r.push('body travado sem sheet aberto');
       for (const sec of document.querySelectorAll('.secao-recolhivel')) {
