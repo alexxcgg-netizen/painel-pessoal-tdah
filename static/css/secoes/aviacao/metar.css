@@ -20,21 +20,5 @@
   font-family: var(--font-tech);
 }
 
-#metar-btn.btn-com-icone {
-  min-height: 48px;
-  padding: 0.7rem 1.1rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: var(--cor-aviacao-fill);
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.88rem;
-  box-shadow: 0 0 14px -4px color-mix(in srgb, var(--cor-aviacao) 55%, transparent);
-}
-
-@media (hover: hover) {
-  #metar-btn.btn-com-icone:hover:not(:disabled) {
-    filter: brightness(1.08);
-    box-shadow: 0 4px 18px -4px color-mix(in srgb, var(--cor-aviacao) 60%, transparent);
-  }
-}
+/* Botao "Consultar" usa o componente real .btn.btn-primario (ui/componentes/
+   botao.css, V0b, ja na integracao) - mesmo raciocinio de registrar-voo.css. */

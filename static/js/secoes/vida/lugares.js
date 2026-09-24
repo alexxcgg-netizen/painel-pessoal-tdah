@@ -105,41 +105,40 @@ async function loadLugares() {
   });
 }
 
-// Contrato Fase 7B (V0d): abrirBottomSheet/fecharBottomSheet reais moram em
-// static/js/ui/bottom-sheet.js. Fallback minimo enquanto essa faixa nao
-// chega na integracao (ver mesmo padrao em secoes/vida/viagens.js).
-function abrirSheetLugar() {
+// Fase 7 (V5-extra): botao "Novo lugar" abre o formulario num bottom-sheet
+// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/
+// fecharBottomSheet (faixa V0d) quando existir; fallback minimo enquanto
+// essa faixa nao chega na integracao (mesmo padrao de secoes/vida/habitos.js
+// e secoes/vida/viagens.js).
+function abrirPainelLugar() {
   const sheet = $("#lugar-sheet");
-  if (window.abrirBottomSheet) {
-    window.abrirBottomSheet(sheet);
-  } else {
-    sheet.hidden = false;
-  }
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
 }
 
-function fecharSheetLugar() {
+function fecharPainelLugar() {
   const sheet = $("#lugar-sheet");
-  if (window.fecharBottomSheet) {
-    window.fecharBottomSheet(sheet);
-  } else {
-    sheet.hidden = true;
-  }
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
 }
 
-$("#lugar-abrir").addEventListener("click", () => abrirSheetLugar());
-$("#lugar-sheet-fechar").addEventListener("click", () => fecharSheetLugar());
+$("#lugar-abrir-btn").addEventListener("click", abrirPainelLugar);
+$("#lugar-cancelar-btn").addEventListener("click", () => {
+  $("#lugar-form").reset();
+  fecharPainelLugar();
+});
 $("#lugar-sheet").addEventListener("click", (e) => {
-  if (!window.abrirBottomSheet && e.target === e.currentTarget) fecharSheetLugar();
+  if (typeof window.abrirBottomSheet !== "function" && e.target === e.currentTarget) fecharPainelLugar();
 });
 document.addEventListener("keydown", (e) => {
-  if (!window.abrirBottomSheet && e.key === "Escape" && !$("#lugar-sheet").hidden) fecharSheetLugar();
+  if (typeof window.abrirBottomSheet !== "function" && e.key === "Escape" && !$("#lugar-sheet").hidden) fecharPainelLugar();
 });
 
 ligarForm("#lugar-form", "#lugar-btn", "Adicionar", () => {
   const nome = $("#lugar-nome").value.trim();
   return nome ? { nome, cidade: $("#lugar-cidade").value.trim() } : null;
 }, "/api/lugares", () => {
-  fecharSheetLugar();
+  fecharPainelLugar();
   loadLugares();
 });
 

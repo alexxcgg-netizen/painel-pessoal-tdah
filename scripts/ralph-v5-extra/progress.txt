@@ -1,71 +1,37 @@
 Faixa V5-extra (Viagens, Lugares, Cotacoes, Aviacao) - Fase 7 - branch fase7/v5-extra
 
-Historias (15-30min cada):
-[x] H1 - Ler regras da faixa (fase7-regras-faixa.md, fase7-visual.md,
-    mapa-frontend.md). Criar worktree propria a partir de fase7/integracao
-    (`git worktree add -b fase7/v5-extra .../painel-pessoal-tdah-fase7-v5-extra
-    fase7/integracao`) + `git merge origin/fase7/e0-frontend` (ja estava
-    contido na integracao - "Already up to date"). Levantamento: todos os
-    arquivos das 7 secoes (aviacao/horas-voadas, registrar-voo,
-    proximos-voos, metar; vida/viagens, lugares; construtora/cotacoes) e o
-    container templates/abas/aviacao.html ja existiam como stub cheio (nao
-    vazio - a Etapa 0 X2 extraiu a logica real do app.js/vida.js antigos, so
-    o CSS de camada ficou vazio de proposito). Achado importante: V0a-V0d
-    (tokens/botao/secao/bottom-sheet) ainda NAO tem nenhuma linha real
-    escrita em nenhuma branch (so v0a fez um levantamento) - confirmado
-    lendo os 4 worktrees antes de comecar.
-[x] H2 - Botao "adicionar" (.btn-adicionar) + bottom-sheet (.bottom-sheet)
-    pras 3 secoes com form de criacao pequeno: vida/viagens (Nova viagem),
-    vida/lugares (Novo lugar), construtora/cotacoes (Nova cotacao). Mesmas
-    rotas (POST /api/viagens, /api/lugares, /api/cotacoes), fecha e recarrega
-    a lista ao salvar (via callback `depois` de ligarForm / do proprio
-    listener de submit). JS: abrirBottomSheet/fecharBottomSheet reais ficam
-    em static/js/ui/bottom-sheet.js (V0d, ainda vazio) - uso
-    `window.abrirBottomSheet?.(...)` como a doc pede, com fallback local
-    (so alterna o atributo [hidden] + toque-fora/ESC minimos) que cede lugar
-    automatico assim que a implementacao real da V0d existir (checo
-    `if (window.abrirBottomSheet)` antes do fallback). CSS: cada sheet e
-    escopado por ID (#viagem-sheet, #lugar-sheet, #cotacao-sheet), nunca a
-    classe .bottom-sheet inteira, pra nao vazar visual pra sheets de outras
-    faixas quando ui/componentes/bottom-sheet.css (V0b/V0d) chegar - a
-    cascata (secoes/<aba>/<secao>.css carrega DEPOIS de componentes/*.css)
-    garante que o componente compartilhado real nao regride o que ja esta
-    aqui, so passa a valer nos detalhes que eu nao defini.
-[x] H3 - Acabamento "profundidade" no resto das secoes de Aviacao, sem
-    tocar cor/fonte/animacao (reusa --glass-*, --cor-aviacao(-fill),
-    --shadow-card, --radius* - tudo ja existente em style.css):
-    - templates/abas/aviacao.html ganhou o titulo de aba "Aviacao" (faltava -
-      unico container das 8 abas sem h2 proprio; horas-voadas.html virou
-      secao-secundaria pra nao duplicar o papel de titulo de aba).
-    - #voo-form e #metar-form (registrar-voo.css/metar.css): moldura "glass"
-      igual aos demais paineis da aba (reusa --glass-bg/border/shadow, ja
-      tingido por --cor-aviacao dentro de #tab-aviacao).
-    - #voo-btn e #metar-btn: eram <button> cru (sem fundo/cor definidos -
-      literalmente o mesmo problema descrito no fase7-visual.md pros botoes
-      "+"), viraram CTA cheio com --cor-aviacao-fill, 48px de altura minima.
-    - cotacoes: grade sutil (reusa a classe .grafico-grid ja existente) no
-      grafico de comparacao de fornecedores; botao "+ Adicionar" fornecedor
-      e label de upload de PDF ganharam contorno (tambem eram cru).
-    - lugares: sombra glass no mapa Leaflet so quando ja carregado
-      (:has(.leaflet-container)) - moldura/borda/raio ja existiam em
-      style.css, nao duplicados.
-    NAO mexido: mapa Leaflet (SRI, popup via textContent - revisao Fase 6),
-    style.css, nucleo/*, templates/index.html/head.html/scripts.html,
-    service-worker.js (nenhum arquivo novo, todos ja existiam da Etapa 0).
-[x] H4 - Testes: `python test_backend.py` nao existe nesse repo (regra de
-    /home/user/financeiro-construtora, projeto errado - este e o painel
-    pessoal). Rodados os testes do proprio modulo via scripts/testes.sh:
-    test_fase7_estrutura_frontend.py, test_fase6_f3_{viagens,lugares_mapa,
-    cotacoes_grafico}.py, test_voos.py, test_metar.py, test_vida_{fase2,
-    fase3,revisao}.py, test_fase6_{e2_modulos,e4_chat,revisao_seguranca}.py,
-    test_notificacoes.py, test_app.py - todos passando (exit 0, nenhum
-    FAILED/ERROR). `node --check` nos 3 JS alterados: OK. gitleaks detect
-    --no-git: "no leaks found".
-[ ] H5 (ultima) - git merge origin/fase7/integracao + Playwright 390x844
-    (Vida: Viagens/Lugares; Aviacao; Construtora: Cotacoes) + 2 screenshots
-    em scripts/ralph-v5-extra/ + zero erro de console.
+Historias:
+[x] H1 - Regras lidas. Worktree propria a partir de fase7/integracao + merge
+    origin/fase7/e0-frontend (ja incluso - "Already up to date"). As 7 secoes
+    + templates/abas/aviacao.html ja existiam como stub cheio (Etapa 0 X2 so
+    deixou o CSS de camada vazio). V0a-V0d ainda sem nada real em nenhuma
+    branch nesse momento.
+[x] H2/H3 - Botao "adicionar" (.btn-adicionar) + bottom-sheet pras 3 secoes
+    com form pequeno (viagens/lugares/cotacoes: mesmas rotas, fecha e
+    recarrega a lista ao salvar). Acabamento glass (--glass-*, --cor-aviacao
+    etc, tudo ja existente) nos formularios de registrar-voo/metar, titulo de
+    aba novo em aviacao.html (unica sem h2 proprio), grade sutil no grafico
+    de cotacoes (.grafico-grid), sombra no mapa Leaflet ja carregado.
+[x] H4 - Testes do modulo 100% verdes (ver lista completa no changelog.d/
+    v5-extra.md). gitleaks: sem leak novo (os 2 achados sao SEU_TOKEN_AQUI em
+    docs/tick.md, pre-existente, fora do meu escopo).
+[x] H5 (ultima) - git merge origin/fase7/integracao: trouxe V0a/V0b/V0c reais
+    (tokens, botao, secao, campo, card - so V0d/bottom-sheet continua vazio).
+    Corrigi as 3 secoes pro contrato REAL (nao so o documentado): botao vira
+    class="btn btn-adicionar" (nao so .btn-adicionar - o CSS real seleciona
+    as DUAS classes), id `<nome>-abrir-btn`, inputs com class="campo", submit
+    com .btn.btn-primario e um botao Cancelar com .btn.btn-secundario
+    (mesmo padrao ja usado por vida/habitos.js e as demais secoes de
+    V3-organizacao) - removi meu CSS de CTA proprio, agora so o componente
+    compartilhado. .bottom-sheet em si (unico sem componente ainda) continua
+    com CSS escopado por ID (#viagem-sheet/#lugar-sheet/#cotacao-sheet),
+    nunca a classe pura - ver scripts/ralph-v5-extra/APRENDIZADOS.md pro
+    porque disso importar de verdade (evita regredir os bottom-sheet ja
+    integrados de outras faixas). Playwright 390x844 real (banco de teste,
+    porta 5199): cria viagem, lugar, voo e cotacao com 2 fornecedores de
+    verdade pela UI, confere lista/grafico atualizando, zero erro de
+    console/pageerror, 2 screenshots (vida-viagens-lugares, aviacao) em
+    scripts/ralph-v5-extra/ (nao versionados, so os .py/.json) - resultado OK
+    em scripts/ralph-v5-extra/v5-extra-resultado.json.
 
-Nota pro integrador: enquanto V0b/V0d nao chegarem em fase7/integracao, os
-3 botoes "adicionar" desta faixa usam o fallback local (funcional, so sem
-foco preso/toque-fora "de verdade") - nada a fazer da parte de quem
-integra, o fallback cede lugar sozinho.
+Branch: fase7/v5-extra (pushed). Sem bloqueios. Nao abri PR.

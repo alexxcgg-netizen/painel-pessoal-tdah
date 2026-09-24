@@ -9,24 +9,21 @@
           pra cotacao de ferro") ou anexa o PDF do orcamento direto aqui.
         </p>
       </div>
-      <button type="button" id="cotacao-abrir" class="btn-adicionar">
+      <button type="button" id="cotacao-abrir-btn" class="btn btn-adicionar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Nova cotacao
       </button>
       <div class="bottom-sheet" id="cotacao-sheet" hidden>
         <div class="bottom-sheet-painel">
-          <div class="bottom-sheet-cabecalho">
-            <h3>Nova cotacao</h3>
-            <button type="button" id="cotacao-sheet-fechar" class="bottom-sheet-fechar" aria-label="Fechar">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
           <form id="cotacao-form" class="form-linha">
-            <input type="text" id="cotacao-titulo" placeholder="Material/servico (ex: portas, ferro)" required />
-            <button type="submit" id="cotacao-btn" class="btn-com-icone">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-              Criar
-            </button>
+            <input type="text" id="cotacao-titulo" class="campo" placeholder="Material/servico (ex: portas, ferro)" required />
+            <div class="form-linha">
+              <button type="submit" id="cotacao-btn" class="btn btn-primario btn-com-icone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                Criar
+              </button>
+              <button type="button" id="cotacao-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+            </div>
           </form>
         </div>
       </div>

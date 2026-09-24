@@ -151,37 +151,35 @@ async function loadViagens() {
   });
 }
 
-// Contrato Fase 7B (V0d): abrirBottomSheet/fecharBottomSheet reais moram em
-// static/js/ui/bottom-sheet.js (fundo escurecido, ESC, toque fora, foco
-// preso). Enquanto essa faixa nao chega na integracao, usa um fallback
-// minimo so pra secao continuar testavel (so mostra/esconde via [hidden]).
-function abrirSheetViagem() {
+// Fase 7 (V5-extra): botao "Nova viagem" abre o formulario num bottom-sheet
+// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/
+// fecharBottomSheet (faixa V0d) quando existir; se a faixa ainda nao chegou
+// nesta branch, cai no fallback de so alternar o atributo hidden do painel
+// (mesmo padrao ja usado em secoes/vida/habitos.js).
+function abrirPainelViagem() {
   const sheet = $("#viagem-sheet");
-  if (window.abrirBottomSheet) {
-    window.abrirBottomSheet(sheet);
-  } else {
-    sheet.hidden = false;
-  }
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
 }
 
-function fecharSheetViagem() {
+function fecharPainelViagem() {
   const sheet = $("#viagem-sheet");
-  if (window.fecharBottomSheet) {
-    window.fecharBottomSheet(sheet);
-  } else {
-    sheet.hidden = true;
-  }
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
 }
 
-$("#viagem-nova-abrir").addEventListener("click", () => abrirSheetViagem());
-$("#viagem-sheet-fechar").addEventListener("click", () => fecharSheetViagem());
-// fallback de toque-fora/ESC (a versao definitiva e da V0d) - so age quando
-// a API real ainda nao existe, pra nao duplicar comportamento dela depois.
+$("#viagem-abrir-btn").addEventListener("click", abrirPainelViagem);
+$("#viagem-cancelar-btn").addEventListener("click", () => {
+  $("#viagem-nova-form").reset();
+  fecharPainelViagem();
+});
+// toque-fora/ESC so no fallback (a versao definitiva e da V0d, que ja cuida
+// disso sozinha quando abrirBottomSheet existir).
 $("#viagem-sheet").addEventListener("click", (e) => {
-  if (!window.abrirBottomSheet && e.target === e.currentTarget) fecharSheetViagem();
+  if (typeof window.abrirBottomSheet !== "function" && e.target === e.currentTarget) fecharPainelViagem();
 });
 document.addEventListener("keydown", (e) => {
-  if (!window.abrirBottomSheet && e.key === "Escape" && !$("#viagem-sheet").hidden) fecharSheetViagem();
+  if (typeof window.abrirBottomSheet !== "function" && e.key === "Escape" && !$("#viagem-sheet").hidden) fecharPainelViagem();
 });
 
 ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Adicionar", () => {
@@ -191,6 +189,6 @@ ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Adicionar", () => {
     ? { destino, data_ida: ida, data_volta: $("#viagem-nova-volta").value || null, internacional: $("#viagem-nova-internacional").checked }
     : null;
 }, "/api/viagens", () => {
-  fecharSheetViagem();
+  fecharPainelViagem();
   loadViagens();
 });
