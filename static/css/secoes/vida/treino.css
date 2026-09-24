@@ -12,3 +12,13 @@
 #lista-fichas li.item {
   border-radius: var(--radius-sm);
 }
+
+/* Fase 7 C3a: "Adicionar exercicio" era botao nativo branco do navegador - agora e
+   .btn.btn-secundario (V0b) e fica do tamanho do texto, colado aos campos do exercicio. */
+#sheet-ficha #ficha-ex-add-btn {
+  align-self: flex-start;
+}
+
+#sheet-ficha .ficha-exercicios-vazio {
+  margin: 0;
+}

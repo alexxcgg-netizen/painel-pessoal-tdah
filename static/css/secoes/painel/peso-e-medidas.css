@@ -1,36 +1,126 @@
 /* static/css/secoes/painel/peso-e-medidas.css - secao painel > peso-e-medidas (HTML: templates/secoes/painel/peso-e-medidas.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve por cascata.
 
-/* Fase 7 V4: contrato secao-recolhivel ao pe da letra (button filho direto do section, sem
-   h2 no meio - ver nota longa em static/css/secoes/vida.css) - repete aqui so pro icone
-   colorido, ja que esta secao esta na aba Painel, fora do escopo de #tab-vida. */
-#tab-painel .secao-cabecalho svg {
-  width: 15px;
-  height: 15px;
+   Fase 7 V4: contrato secao-recolhivel ao pe da letra (button filho direto do section).
+   Fase 7 C3a: mesmo polimento da aba Vida (static/css/secoes/vida.css), repetido aqui porque
+   esta secao mora na aba Painel, fora do escopo de #tab-vida. Escopado na propria secao e no
+   proprio sheet pra nao mexer nas secoes da c2-visual. Removido o "fallback" do sheet da V4
+   (`#sheet-medida.bottom-sheet { fundo/padding/borda }`): com a V0d real ele pintava a moldura
+   fixa da tela inteira e escondia o veu. Nenhuma cor, fonte ou animacao nova. */
+
+/* Mesmo bug da moldura do sheet explicado em secoes/vida.css (transform preso pelo
+   `animation ... both` da .tab-content): sem isso o #sheet-medida fica preso dentro da aba
+   Painel em vez de cobrir a tela. Mesma animacao, so sem segurar o ultimo quadro. */
+#tab-painel.tab-content:not([hidden]) {
+  animation-fill-mode: backwards;
+}
+
+[data-secao-id="painel-peso-e-medidas"] .secao-cabecalho svg {
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   color: var(--secao-cor, var(--accent));
   opacity: 0.9;
 }
 
-/* Fallback local do bottom-sheet enquanto ui/componentes/bottom-sheet.css (V0d) continua
-   vazio nesta branch - mesmos tokens que ja existem em style.css. */
-#sheet-medida.bottom-sheet {
-  margin-block: 0.5rem 1rem;
-  padding: 1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  box-shadow: var(--shadow-card);
+/* [hidden] vence o `display:block` do .campo (ver progress: campo.css l.9). */
+[data-secao-id="painel-peso-e-medidas"] [hidden],
+#sheet-medida [hidden] {
+  display: none;
 }
 
-/* Fase 7 V4: profundidade sutil no stepper e no item da lista - mesma cor de sempre
-   (--border, --radius-sm ja existem em style.css), so troca sombra pesada por borda
-   fina + leve elevacao. Nada de cor/fonte/animacao nova. */
+/* Stepper: borda fina e o campo no meio com a receita do .campo (MASTER 5). */
 #medida-valor-stepper.stepper {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  gap: var(--espaco-2, 0.5rem);
 }
 
+#sheet-medida .campo {
+  min-height: var(--toque-min, 44px);
+  padding: 0 var(--espaco-3, 0.75rem);
+  background-color: var(--superficie-1); /* contraste do placeholder: ver secoes/vida.css */
+  border: var(--linha, 1px) solid var(--borda-sutil);
+  border-radius: var(--raio-sm);
+  font-size: 0.92rem;
+}
+
+#sheet-medida select.campo {
+  padding-right: var(--espaco-5, 2rem);
+}
+
+#sheet-medida .campo:focus,
+#sheet-medida .campo:focus-visible {
+  outline: none;
+  border-color: var(--borda-forte);
+  box-shadow: var(--anel-foco);
+}
+
+#sheet-medida form.form-linha {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--espaco-2, 0.5rem);
+  margin-bottom: 0;
+}
+
+#sheet-medida form.form-linha > * {
+  flex: 0 0 auto;
+}
+
+#sheet-medida form.form-linha > .form-linha {
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: nowrap;
+  gap: var(--espaco-2, 0.5rem);
+  margin: var(--espaco-2, 0.5rem) 0 0;
+}
+
+#sheet-medida form.form-linha > .form-linha > .btn-primario {
+  flex: 1 1 auto;
+}
+
+/* Item da lista = bloco interno do card da secao (MASTER 5, "card sobre card"). */
 #lista-medidas li.item {
-  border-radius: var(--radius-sm);
+  background: var(--superficie-3);
+  border: var(--linha, 1px) solid var(--borda-sutil);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+#lista-medidas li.item + li.item {
+  margin-top: var(--espaco-2, 0.5rem);
+}
+
+/* "Apagar" vira icone de 44px em --text-muted, --danger so no hover/foco (mesma regra e
+   mesma ressalva do :has() que em secoes/vida.css). */
+#lista-medidas .item-acoes > button.btn-com-icone:has(> svg:first-child path[d^="M4 7h16"]) {
+  width: var(--toque-min, 44px);
+  min-height: var(--toque-min, 44px);
+  padding: 0;
+  font-size: 0;
+  gap: 0;
+  border-color: transparent;
+  border-radius: var(--raio-sm);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+#lista-medidas .item-acoes > button.btn-com-icone:has(> svg:first-child path[d^="M4 7h16"]) svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  #lista-medidas .item-acoes > button.btn-com-icone:has(> svg:first-child path[d^="M4 7h16"]):hover:not(:disabled) {
+    color: var(--danger);
+    background: var(--danger-bg);
+    border-color: transparent;
+  }
+}
+
+#lista-medidas .item-acoes > button.btn-com-icone:has(> svg:first-child path[d^="M4 7h16"]):focus-visible {
+  outline: none;
+  color: var(--danger);
+  box-shadow: var(--anel-foco);
 }

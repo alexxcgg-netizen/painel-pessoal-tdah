@@ -1,3 +1,39 @@
 /* static/css/secoes/vida/revisao-trimestral.css - secao vida > revisao-trimestral (HTML: templates/secoes/vida/revisao-trimestral.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Fase 7 C3a: seletor de periodo em grade de 2 colunas (Periodo | Trimestre, Ano | Ver) em
+   vez de 4 controles de alturas diferentes quebrando linha; "Ver" deixou de ser botao nativo
+   (agora .btn.btn-secundario). O resultado vira bloco interno, igual ao de Seu progresso. */
+#conteudo-vida-revisao-trimestral .revisao-periodo-linha {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--espaco-2, 0.5rem);
+  margin-bottom: var(--espaco-3, 1rem);
+}
+
+#conteudo-vida-revisao-trimestral .revisao-periodo-linha > * {
+  min-width: 0;
+}
+
+#revisao-periodo-box.card-vida {
+  background: var(--superficie-3);
+  border: var(--linha, 1px) solid var(--borda-sutil);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: var(--espaco-3, 1rem);
+}
+
+#revisao-periodo-box .progresso-item {
+  background: transparent;
+  border-color: var(--borda-sutil);
+}
+
+#revisao-periodo-box .decisao-rotulo {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}

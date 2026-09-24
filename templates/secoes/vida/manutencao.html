@@ -20,24 +20,37 @@
         </div>
       </section>
 
-      <div class="bottom-sheet" id="sheet-manutencao" hidden>
+      <div class="bottom-sheet" id="sheet-manutencao" hidden aria-labelledby="sheet-manutencao-titulo">
+        <h3 class="vida-sheet-titulo" id="sheet-manutencao-titulo">Adicionar manutencao</h3>
         <form id="manutencao-form" class="form-linha">
-          <select id="manutencao-tipo" aria-label="Tipo de manutencao">
+          <select id="manutencao-tipo" class="campo" aria-label="Tipo de manutencao">
             <option value="outro">Outro</option>
             <option value="casa">Casa</option>
             <option value="carro">Carro</option>
             <option value="equipamento">Equipamento</option>
           </select>
-          <input type="text" id="manutencao-item" placeholder="Item (ex: Troca de oleo)" maxlength="80" required />
+          <input type="text" id="manutencao-item" class="campo" placeholder="Item (ex: Troca de oleo)" maxlength="80" required />
           <span id="manutencao-campos-tempo" class="form-linha-sub">
-            <input type="number" id="manutencao-meses" placeholder="A cada X meses" min="1" max="120" inputmode="numeric" />
-            <input type="date" id="manutencao-ultima" aria-label="Ultima vez (opcional)" />
+            <label class="vida-campo">
+              <span class="campo-rotulo">A cada quantos meses</span>
+              <input type="number" id="manutencao-meses" class="campo" placeholder="6" min="1" max="120" inputmode="numeric" />
+            </label>
+            <label class="vida-campo">
+              <span class="campo-rotulo">Ultima vez (opcional)</span>
+              <input type="date" id="manutencao-ultima" class="campo" />
+            </label>
           </span>
           <span id="manutencao-campos-carro" class="form-linha-sub" hidden>
-            <input type="date" id="manutencao-data" aria-label="Data" />
-            <input type="number" id="manutencao-km" placeholder="Km atual (opcional)" min="0" step="1" inputmode="numeric" />
-            <input type="number" id="manutencao-proxima-km" placeholder="Proxima em km (opcional)" min="0" step="1" inputmode="numeric" />
-            <input type="date" id="manutencao-proxima-data" aria-label="Proxima em data (opcional)" />
+            <label class="vida-campo">
+              <span class="campo-rotulo">Data</span>
+              <input type="date" id="manutencao-data" class="campo" />
+            </label>
+            <input type="number" id="manutencao-km" class="campo" placeholder="Km atual (opcional)" aria-label="Km atual (opcional)" min="0" step="1" inputmode="numeric" />
+            <input type="number" id="manutencao-proxima-km" class="campo" placeholder="Proxima em km (opcional)" aria-label="Proxima em km (opcional)" min="0" step="1" inputmode="numeric" />
+            <label class="vida-campo">
+              <span class="campo-rotulo">Proxima em data (opcional)</span>
+              <input type="date" id="manutencao-proxima-data" class="campo" />
+            </label>
           </span>
           <div class="form-linha">
             <button type="submit" id="manutencao-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>

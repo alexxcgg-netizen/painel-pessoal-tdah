@@ -201,8 +201,12 @@ def main():
             b.close()
     finally:
         srv.terminate()
+    import re
+    outra = re.compile(r"habito|projeto|evento|agenda|conta-pessoa|contas pesso|viage|lugar", re.I)
     for a in achados:
         a["dono"] = OUTRAS.get(a.get("secao"), "c3a")
+        if a["dono"] == "c3a" and (a.get("secao") in ("?", "habito-sheet") or a.get("secao", "").startswith(("sheet-habito", "sheet-projeto", "sheet-evento", "sheet-viagem", "sheet-lugar"))) and outra.search(a["el"] + a.get("secao", "")):
+            a["dono"] = "outro"
     res = {"erros_console": erros, "rede_4xx5xx": [r for r in rede if not any(h in str(r[1]) for h in comum.HOSTS_IGNORADOS)],
            "achados": achados}
     if "--json" in sys.argv:

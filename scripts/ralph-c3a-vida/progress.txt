@@ -31,3 +31,26 @@ Achados (antes das correcoes; [c3a] = arquivo meu, [outro] = so anoto):
 11. [outro] BUG style.css l.2100-2104: comentario "(... .limite-cartao-*/ .pessoa-barra-*)" fecha o
    comentario no "*/" do meio e engole a regra `.garantia-chip { ... }` (chip sai 16px, sem pilula).
    Correcao certa: trocar "-*/" por "-* /" no comentario. Aqui reponho a regra em garantia.css.
+12. [outro] BUG da moldura do sheet: `.tab-content:not([hidden]) { animation: tabEntra .. both }`
+   (style.css l.990-1006) prende `transform: matrix(1,0,0,1,0,0)` na aba -> vira bloco de contencao
+   do position:fixed; TODO sheet dentro de aba mede a aba inteira (~4700px), nao a tela. Contorno
+   meu so em #tab-vida (vida.css) e #tab-painel (peso-e-medidas.css): `animation-fill-mode: backwards`
+   (mesma animacao, so nao segura o ultimo quadro). Integrador: levar pro .tab-content global,
+   ou a V0d mover o sheet pro <body> ao abrir.
+13. [outro] .secao-conteudo recolhida (max-height 0) continua no Tab do teclado (secao.css/V0c):
+   sugerir `visibility:hidden` com atraso no fechamento.
+
+## Historia 2: correcoes nos meus arquivos - FEITA (auditoria re-rodada: 0 achado [c3a])
+- vida.css: tirei o fallback de sheet; titulo do cabecalho a esquerda; guarda [hidden]; dica
+  "!" com 44px (::after + linha de 44px); li interno = --superficie-3/raio-sm/elevacao-0;
+  acoes da linha com 44px; "Apagar" vira icone 44px (--text-muted -> --danger no hover) via
+  :has() no ICONE_TRASH; forms dos sheets em coluna; .campo com a receita do MASTER.
+- Desvio consciente: fundo do .campo = --superficie-1 (placeholder --text-faint: 4.3 -> 4.7:1).
+- Salvo lido: sem preenchimento (titulo --text-faint 4.3 -> 4.6:1). Nenhuma cor nova.
+- Templates: .campo em todos os campos; titulo em cada sheet (aria-labelledby); rotulo visivel
+  nos campos de data; #ficha-ex-add-btn e #revisao-periodo-btn viram .btn.btn-secundario;
+  #mensagem-btn/#decisao-btn viram .btn.btn-primario.
+- garantia.css: chip reposto (bug do comentario, item 11) e input de arquivo estilizado.
+- seu-progresso/revisao: bloco interno + rotulo sem caixa-alta; salvos/compras: alvo 44px.
+- peso-e-medidas.css: mesmo pacote, escopado na secao e no #sheet-medida.
+- Testes: 199 passed (6 suites vida/estrutura), JS 196/196.
