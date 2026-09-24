@@ -5,7 +5,9 @@
    so reaproveita os tokens de forma/profundidade (V0a, static/css/ui/tokens.css) e as
    cores de identidade por secao que ja existiam (--cor-hoje/--cor-tarefas/...). */
 
-#tab-painel {
+/* C2: `:not([hidden])` - sem isso o `display: flex` (id) vencia o `[hidden]` do navegador
+   e a aba Painel inteira aparecia embaixo de TODAS as outras abas. */
+#tab-painel:not([hidden]) {
   display: flex;
   flex-direction: column;
   gap: var(--espaco-4, 20px);

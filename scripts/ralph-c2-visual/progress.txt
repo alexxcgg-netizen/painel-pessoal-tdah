@@ -1,0 +1,6 @@
+Faixa C2 (c2-visual) - polimento final de V0a-V3 e P1b. Branch fase7/c2-visual, porta 5120.
+Scripts: servidor.py (banco temp + Caixa sintetica + duble iCloud), levantamento.py (auditoria).
+
+Historias
+[x] H0 bug: #tab-painel/#tab-assistente com display:flex por id venciam [hidden] -> Painel e
+    Assistente apareciam embaixo de TODAS as abas. Corrigido com :not([hidden]) + teste.

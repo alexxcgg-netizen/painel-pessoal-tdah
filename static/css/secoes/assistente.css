@@ -4,7 +4,9 @@
    Fase 7 (P1b): espacamento da aba (as 3 secoes - caixa/regras/avisos - ja se
    estilizam sozinhas nos proprios arquivos secoes/assistente/*.css). */
 
-#tab-assistente {
+/* C2: `:not([hidden])` - mesmo bug do #tab-painel: o `display: flex` por id vencia o
+   `[hidden]` e a aba Assistente aparecia no fim de todas as outras abas. */
+#tab-assistente:not([hidden]) {
   padding: 16px;
   display: flex;
   flex-direction: column;
