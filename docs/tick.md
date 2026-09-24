@@ -97,7 +97,7 @@ aqui).
 
 ```
 */5 * * * * curl -fsS -X POST https://seu-dominio/api/tick \
-  -H "Authorization: Bearer SEU_TOKEN_AQUI" >/dev/null 2>&1
+  -H "Authorization: Bearer <TOKEN>" >/dev/null 2>&1
 ```
 
 (`crontab -e`, cole a linha acima trocando URL e token.)
@@ -113,7 +113,7 @@ Description=Tick do assistente do Painel Pessoal
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/curl -fsS -X POST https://seu-dominio/api/tick \
-  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+  -H "Authorization: Bearer <TOKEN>"
 ```
 
 `/etc/systemd/system/painel-tick.timer`:
