@@ -20,38 +20,52 @@ esperas, notas, tasks, lembretes ja tinham tudo que os 5 gatilhos precisam
 delete_lembrete - todas em db.py, existentes). Anotado aqui porque a regra
 da faixa pede pra registrar mesmo quando a resposta for "nao precisei".
 
-Dependencias da Etapa 0 que AINDA NAO chegaram na integracao (git log
-origin/fase7/integracao --oneline, checado em 2026-09-24): assistente/caixa.py
-(P1a: enfileirar/resolver/executar_todos) e assistente/avisos.py (P8:
-aviso_permitido). Como o contrato manda (fase7-assistente.md), o gatilho
-importa os dois de forma tardia (dentro da funcao) e so usa enfileirar (nao
-usa aviso_permitido - quem manda push e a P1a/P8). Testado com
-assistente.caixa.enfileirar mockado via sys.modules (nao precisa da P1a
-pronta pra rodar os testes desta faixa).
+Formato de origem/chave_unica (definicao do integrador, aplicada): todo
+item enfileirado aqui usa `p2_perguntas:<subtipo>:<id>:<data>` (ex.:
+`p2_perguntas:conta:7:2026-09-24`). A P1a despacha `ao_resolver` dividindo
+`origem` no PRIMEIRO ":" e importa `assistente/gatilhos/p2_perguntas.py`
+(nome do arquivo == parte antes do primeiro ":"); `ao_resolver` aqui so
+precisa entender o resto ("<subtipo>:id[:data]").
 
-ATENCAO pro integrador (P1a): o arquivo desta faixa se chama
-assistente/gatilhos/p2_perguntas.py (com sufixo "_perguntas", pedido assim
-no prompt da faixa), nao so "p2.py". Toda origem/chave_unica criada aqui usa
-o formato "p2_<subtipo>:<id>:<data>" (ex.: "p2_conta:7:2026-09-24") - o
-prefixo antes do primeiro "_" e sempre "p2". Se o mecanismo de
-"o prefixo e o nome do arquivo do gatilho" (fase7-assistente.md) fizer
-correspondencia EXATA de nome de arquivo (prefixo == "assistente/gatilhos/p2.py"),
-ele NAO vai achar este arquivo. Preciso que o roteamento de ao_resolver use
-"comeca com" (glob "p2_*.py" ou startswith), nao igualdade exata - e o que
-o glob "assistente/gatilhos/p2_*" na lista de arquivos desta faixa sugere
-que era a intencao. Se a P1a implementar so por igualdade exata, o
-ao_resolver desta faixa nunca vai ser chamado e isso precisa ser corrigido
-na integracao (nao e algo que eu, faixa P2, possa consertar sem mexer em
-assistente/caixa.py, que nao e meu arquivo).
+`enfileirar` (assistente.contrato, implementado na P1a) ainda nao existe
+nesta integracao no momento em que fechei esta faixa - import tardio
+dentro da funcao (`from assistente.contrato import enfileirar`), como o
+gatilho de exemplo de `assistente/gatilhos/__init__.py` (Etapa 0) manda.
+Testado com `assistente.contrato.enfileirar` trocado por
+`unittest.mock.patch.object` (nao precisa da P1a pronta pra rodar os
+testes desta faixa). `aviso_permitido` (P8) NAO e chamado por esta faixa -
+ver duvida registrada abaixo.
 
-Bloqueios: nenhum no momento. Fiz as historias que nao dependem da P1a
-primeiro, como a regra manda; nao cheguei a precisar esperar 60min porque
-todo o trabalho desta faixa (executar/ao_resolver) e testavel diretamente
-sem o autoloader da P1a. Dei `git fetch && git merge origin/fase7/integracao`
-antes de fechar a faixa (trouxe P8/avisos.py, P7/sinais.py, migracoes/,
-rotas/ etc. - sem conflito, ff/merge limpo). P1a (assistente/caixa.py) e o
-autoloader dos gatilhos continuam ausentes da integracao no momento em que
-fechei esta faixa.
+Merges feitos durante o trabalho (`git fetch && git merge
+origin/fase7/integracao`, sem conflito nas duas vezes):
+1. trouxe P8/avisos.py, P7/sinais.py, migracoes/, rotas/ (faixas ja
+   integradas antes de mim).
+2. trouxe a infra X1 da Etapa 0 (`rotas/__init__.py` com Blueprint,
+   `assistente/gatilhos/__init__.py` real com `executar_todos`/
+   `nomes_gatilhos`, `classificador_local/`, `ia/funcoes/`,
+   `migracoes/README.md`) - meu `assistente/gatilhos/__init__.py` proprio
+   (vazio, so pra virar pacote) foi substituido pelo real no merge, como
+   devia.
+
+Bloqueios: nenhum. P1a (assistente/caixa.py, que implementa
+assistente/contrato.py) continua ausente da integracao no momento em que
+fechei esta faixa - nao bloqueou nada porque executar/ao_resolver sao
+testaveis direto, sem o autoloader.
+
+AVISO pro integrador (achado ao rodar `scripts/testes.sh
+tests/test_fase7_infra_gatilhos.py` isolado, so por curiosidade - NAO e
+suite minha): como meu arquivo real ja existe em `assistente/gatilhos/`,
+o `nomes_gatilhos()`/`executar_todos()` de verdade (Etapa 0) agora o
+enxerga sempre que QUALQUER teste que use `assistente.gatilhos.__path__`
+rodar (inclusive os testes deles, que assumiam a pasta vazia/so com
+modulos de mentira). `test_fase7_infra_gatilhos.py::
+test_pasta_real_sem_gatilho_nenhum_ainda` e outros 2 quebram por causa
+disso (comparam dict/lista exatos). Isso so aparece rodando os DOIS
+arquivos de teste juntos (ou a suite completa) - sozinho,
+`tests/test_fase7_p2_perguntas.py` continua 79/79. Nao e algo que eu deva
+consertar (arquivo `tests/test_fase7_infra_gatilhos.py` nao e meu), so
+fica documentado aqui pro integrador ajustar quando outras faixas P forem
+chegando (o mesmo vai acontecer com P3/P4/P5/P7/P9).
 
 DUVIDA pro integrador sobre assistente/avisos.py (P8): o docstring de
 `assistente/avisos.py` diz que as chaves `pergunta_conta`, `reuniao`,
@@ -66,16 +80,15 @@ worker que ela alimentar), nao de cada gatilho que so cria o item da Caixa.
 Se a intencao real for diferente (cada faixa P consultando aviso_permitido
 ela mesma antes de enfileirar), preciso que o integrador confirme - nao
 quis adivinhar e arriscar esconder pergunta da Caixa (nao so do push) por
-engano. Os textos das minhas perguntas ja usam titulo humano (ex.: 'Pagou
-"Internet"?'), entao mapear pra essas 5 chaves de avisos.py, se for preciso,
-e trivial (conta->pergunta_conta, evento->reuniao, tarefa->tarefa_vencida,
-lembrete->lembrete, espera->espera).
+engano. Mapeamento pronto se for preciso: conta->pergunta_conta,
+evento->reuniao, tarefa->tarefa_vencida, lembrete->lembrete,
+espera->espera (os 3 primeiros sao meus subtipos internos, os 2 ultimos ja
+batem exato).
 
 Flag: assistente.p2.ativo (padrao ligado). Config nova:
 assistente.p2.espera_dias (padrao 3, inteiro em texto) - usa
 db.obter_configuracao/definir_configuracao, ja existentes.
 
 Arquivos meus: assistente/perguntas.py, assistente/gatilhos/p2_perguntas.py,
-assistente/gatilhos/__init__.py (vazio, so pra virar pacote - se a Etapa 0
-trouxer outro __init__.py junto, mesclar sem problema, esta vazio),
-tests/test_fase7_p2_perguntas.py.
+tests/test_fase7_p2_perguntas.py. (assistente/gatilhos/__init__.py NAO e
+mais meu - e o real da Etapa 0, trazido pelo merge.)

@@ -22,7 +22,8 @@
     "ja respondeu" resolve (`db.resolver_espera`), "cobrar" so fecha o item
     sem mudar estado.
   - `ao_resolver(conn, item, resposta, texto, agora=None)` despacha pelo
-    prefixo/subtipo de `item["origem"]` pro handler certo.
+    subtipo de `item["origem"]` (formato `p2_perguntas:<subtipo>:...`,
+    definido pelo integrador) pro handler certo.
   - Vida amorosa/relacionamento (decisao do Alex, ja documentada em
     `db.py`) nunca vira pergunta - filtro de palavra-chave em
     `assistente/perguntas.py:eh_relacionamento`, aplicado nos 5 gatilhos.
@@ -34,7 +35,8 @@
 - Nao precisou de migracao/tabela nova - `contas_pessoais(_pagas)`,
   `esperas`, `notas`, `tasks`, `lembretes` ja tinham tudo (ver
   `scripts/ralph-p2-perguntas/progress.txt`).
-- `assistente/caixa.py` (P1a) ainda nao existe nesta integracao - import
-  tardio de `enfileirar` dentro da funcao, mockado nos testes via
-  `sys.modules` (nenhuma dependencia da P1a pronta pra rodar
-  `tests/test_fase7_p2_perguntas.py`, 79 testes, relogio sempre injetado).
+- `assistente.contrato.enfileirar` (implementado na P1a) ainda nao existe
+  nesta integracao - import tardio dentro da funcao, mockado nos testes
+  com `unittest.mock.patch.object` (nenhuma dependencia da P1a pronta pra
+  rodar `tests/test_fase7_p2_perguntas.py`, 79 testes, relogio sempre
+  injetado).

@@ -7,18 +7,20 @@ o Alex responde.
 Contrato comum: docs/agentes/fase7-assistente.md
 Regras da faixa: docs/agentes/fase7-regras-faixa.md
 
-`enfileirar`/`resolver` (assistente/caixa.py, faixa P1a) ainda nao existem
-nesta integracao - importados tardiamente (dentro da funcao) como o
-contrato manda, pra essa faixa nao depender da P1a estar pronta. Idem pra
-`aviso_permitido` (faixa P8), que NAO e usado aqui: quem cria perguntas na
-Caixa nao manda push diretamente, isso e responsabilidade da P1a/P8.
+`enfileirar` (assistente.contrato, implementado na faixa P1a) ainda nao
+existe nesta integracao - importado tardiamente (dentro da funcao) como o
+gatilho de exemplo de `assistente/gatilhos/__init__.py` manda, pra essa
+faixa nao depender da P1a estar pronta. Idem pra `aviso_permitido` (faixa
+P8), que NAO e usado aqui: quem cria perguntas na Caixa nao manda push
+diretamente, isso e responsabilidade da P1a/P8.
 
-Convenção de `origem`/`chave_unica` usada por todo item criado aqui:
-`p2_<subtipo>:<id-da-entidade>:<referencia-de-data>` (ex.:
-`p2_conta:7:2026-09-24`). O prefixo antes do primeiro "_" ("p2") e o que a
-P1a usa pra achar de volta este arquivo (qualquer `assistente/gatilhos/p2_*.py`
-serve, ver `docs/agentes/fase7-assistente.md`); manter os quatro pedaços
-"p2_<subtipo>:id:data" tambem deixa o dado auto-descritivo pra depurar.
+Convenção de `origem`/`chave_unica` usada por todo item criado aqui (regra
+do integrador): `p2_perguntas:<subtipo>:<id-da-entidade>:<referencia-de-data>`
+(ex.: `p2_perguntas:conta:7:2026-09-24`). A P1a despacha `ao_resolver`
+dividindo `origem` no PRIMEIRO ":" - a parte antes ("p2_perguntas") tem que
+bater com o nome deste arquivo sem `.py`, e e o que ela usa pra importar
+`assistente/gatilhos/p2_perguntas.py`; o resto ("<subtipo>:id:data") e
+lido por `ao_resolver` abaixo pra saber qual entidade atualizar.
 """
 
 from datetime import date, datetime, timedelta
@@ -36,9 +38,13 @@ OPCOES_LEMBRETE = ["feito", "adiar"]
 OPCOES_ESPERA = ["cobrar", "ja_respondeu", "adiar"]
 
 
+PREFIXO = "p2_perguntas"  # nome deste arquivo sem .py - usado em todo origem/chave_unica
+
+
 def _enfileirar(**kwargs):
-    # Late import de proposito (contrato, P1a ainda nao mergeada aqui).
-    from assistente.caixa import enfileirar
+    # Late import de proposito (assistente.contrato, implementado na P1a -
+    # ainda nao mergeado aqui; ver docstring de assistente/gatilhos/__init__.py).
+    from assistente.contrato import enfileirar
 
     return enfileirar(**kwargs)
 
@@ -75,7 +81,7 @@ def _perguntar_contas_pessoais(conn, hoje: date) -> None:
             continue
         if conta_paga(conn, conta["id"], vencimento.isoformat()):
             continue
-        chave = f"p2_conta:{conta['id']}:{vencimento.isoformat()}"
+        chave = f"{PREFIXO}:conta:{conta['id']}:{vencimento.isoformat()}"
         valor = conta.get("valor")
         corpo = f"Vence hoje. Valor: R$ {valor:.2f}" if valor else "Vence hoje."
         _enfileirar(
@@ -128,8 +134,8 @@ def _perguntar_eventos_terminados(conn, agora: datetime) -> None:
             continue
         if fim > agora:
             continue
-        chave_id = vida.id_estavel("p2_evento", titulo, evento.get("inicio"), evento.get("fim"))
-        chave = f"p2_evento:{chave_id}:{hoje.isoformat()}"
+        chave_id = vida.id_estavel("p2_perguntas_evento", titulo, evento.get("inicio"), evento.get("fim"))
+        chave = f"{PREFIXO}:evento:{chave_id}:{hoje.isoformat()}"
         _enfileirar(
             tipo="pergunta",
             titulo=perguntas.texto_pergunta_evento(titulo),
@@ -172,7 +178,7 @@ def _perguntar_tarefas_vencidas(conn, hoje: date) -> None:
         titulo = row["title"]
         if perguntas.eh_relacionamento(titulo):
             continue
-        chave = f"p2_tarefa:{row['id']}:{row['due_date']}"
+        chave = f"{PREFIXO}:tarefa:{row['id']}:{row['due_date']}"
         dias_atraso = (hoje - date.fromisoformat(row["due_date"])).days
         _enfileirar(
             tipo="pergunta",
@@ -215,7 +221,7 @@ def _perguntar_lembretes(conn, hoje: date) -> None:
         proxima = notificacoes.proxima_ocorrencia_lembrete(base, bool(lembrete["recorrente"]), hoje)
         if proxima > hoje:
             continue
-        chave = f"p2_lembrete:{lembrete['id']}:{proxima.isoformat()}"
+        chave = f"{PREFIXO}:lembrete:{lembrete['id']}:{proxima.isoformat()}"
         _enfileirar(
             tipo="pergunta",
             titulo=perguntas.texto_pergunta_lembrete(titulo),
@@ -260,7 +266,7 @@ def _perguntar_esperas(conn, hoje: date) -> None:
             continue
         if (hoje - criado).days < dias:
             continue
-        chave = f"p2_espera:{espera['id']}:{criado.isoformat()}"
+        chave = f"{PREFIXO}:espera:{espera['id']}:{criado.isoformat()}"
         dias_passados = (hoje - criado).days
         _enfileirar(
             tipo="pergunta",
@@ -284,16 +290,19 @@ def _resolver_espera(conn, espera_id: int, resposta: str) -> None:
 
 
 def ao_resolver(conn, item, resposta: str, texto: str = "", agora: datetime | None = None) -> None:
-    """Chamado pela P1a quando o Alex responde um item cuja origem comeca
-    com o prefixo desta faixa. `agora` e opcional (nao faz parte do
+    """Chamado pela P1a quando o Alex responde um item cujo origem comeca
+    com "p2_perguntas:" (ela despacha dividindo origem no PRIMEIRO ":" e
+    importando este arquivo pelo nome). Aqui a gente so precisa entender o
+    resto: "<subtipo>:id[:data]". `agora` e opcional (nao faz parte do
     contrato fixo) so pra dar um relogio controlavel em teste; em producao
     cai no relogio real se nao vier."""
     dados = item if isinstance(item, dict) else dict(item)
     origem = dados.get("origem") or ""
-    partes = origem.split(":")
-    if len(partes) < 2:
+    _, _, resto = origem.partition(":")
+    partes = resto.split(":")
+    subtipo = partes[0]
+    if not subtipo:
         return
-    subtipo = partes[0][len("p2_"):] if partes[0].startswith("p2_") else partes[0]
     hoje = (agora or datetime.now()).date()
 
     try:
@@ -301,11 +310,11 @@ def ao_resolver(conn, item, resposta: str, texto: str = "", agora: datetime | No
             _resolver_conta(conn, int(partes[1]), partes[2], resposta)
         elif subtipo == "evento":
             _resolver_evento(conn, dados.get("corpo") or "", resposta, texto)
-        elif subtipo == "tarefa":
+        elif subtipo == "tarefa" and len(partes) >= 2:
             _resolver_tarefa(conn, int(partes[1]), resposta, texto, hoje)
-        elif subtipo == "lembrete":
+        elif subtipo == "lembrete" and len(partes) >= 2:
             _resolver_lembrete(conn, int(partes[1]), resposta, hoje)
-        elif subtipo == "espera":
+        elif subtipo == "espera" and len(partes) >= 2:
             _resolver_espera(conn, int(partes[1]), resposta)
     except (TypeError, ValueError):
         # origem malformada/id nao numerico - nao derruba o resolver da P1a.
