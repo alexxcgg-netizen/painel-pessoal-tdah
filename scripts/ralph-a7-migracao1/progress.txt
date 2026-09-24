@@ -1,0 +1,144 @@
+Faixa A7 (Migracao 1: captura/intent/resumo) - progress.txt
+
+[done] Historia 1: ia/funcoes/captura.py reescrito - classify_capture,
+  classify_intent, summarize_day, escolher_essencial agora chamam
+  ia.core.chamar_ia(funcao, mensagens, contexto_fixo=..., schema=...) em vez
+  do SDK Anthropic direto. Mesma assinatura, mesmo formato de retorno
+  (tupla resultado/lista/texto, dict usage) que claude_client.py ja
+  expunha - confirmado lendo todo consumo em app.py (_call_claude,
+  _log_usage, parsed["..."] direto). ErroIA (subclasse de ValueError)
+  levantada quando chamar_ia devolve ok=False, pra continuar batendo no
+  except (ValueError, KeyError) de app.py:_call_claude (app.py nao foi
+  editado - ver ressalva abaixo). *_PROMPT/ACOES_INTENT/CONFIANCA_MINIMA_INTENT
+  continuam existindo (agora como alias do *_CONTEXTO_FIXO de cada funcao),
+  pra claude_client.py (nao e meu arquivo) continuar importando sem
+  ImportError.
+[done] Historia 2: prompts reescritos - contexto_fixo com a parte estavel
+  (regras, formato JSON, exemplo minimo), mensagens com o que varia (hoje,
+  contexto_correcao, texto do usuario / listas do resumo do dia / tarefas
+  candidatas). Curto e direto, testado que funciona igual com JSON
+  minimalista (schema explicito faz o adapter reforcar o formato nos dois
+  lados, Haiku e Luna).
+[done] Historia 3: resolver_data(texto, hoje) implementada - o modelo so
+  devolve "quando" em texto livre (nunca mais quando_data/prazo calculado
+  por ele - CAPTURE_SCHEMA nem tem mais esses 2 campos). Cobre amanha,
+  depois de amanha, hoje (+hora), dia N (mes atual ou proximo, pulando mes
+  sem esse dia), <dia da semana> que vem / proximo(a) (nunca hoje) vs
+  <dia da semana> sozinho (pode ser hoje), semana/mes que vem, em N
+  dias/semanas/meses/anos (mes reaproveita calculos.data_ultima_parcela em
+  vez de duplicar aritmetica de mes - docs/calculos.md secao 1.3 item 4),
+  ate <mes> (ultimo dia do mes, ano seguinte se o mes ja passou), datas
+  invalidas (dia 45, unidade desconhecida, tipo errado, vazio) -> None,
+  nunca excecao. Regra "hora sem dia -> assume hoje" preservada em
+  classify_capture (nao dentro de resolver_data, que so cuida da pista de
+  data).
+[done] Historia 4: 4 configs em ia/config.d/ (classify_intent max 150,
+  classify_capture 300, summarize_day 400, escolher_essencial 300) - todas
+  ativo:false, modelo_atual anthropic claude-haiku-4-5-20251001, alvo
+  openai gpt-6-luna esforco medio, fallback com o proprio Haiku. Validado
+  com ia.core.carregar_todas_configs() (nao levanta ConfigIAErro).
+[done] Historia 5: tests/test_fase7_a7_resolver_data.py (45 testes,
+  incluindo fuzz com ~28 entradas maliciosas/invalidas/unicode/gigante que
+  nunca podem levantar excecao) e tests/test_fase7_a7_captura.py (41 testes:
+  formato de retorno das 4 funcoes com chamar_ia mockado, sanitizacao de
+  classify_intent preservada, resolver_data integrado em classify_capture,
+  ErroIA em toda funcao quando ok=False, e uma classe de integracao real
+  com ia/core.py - config temporaria + AdapterDuble registrado via
+  core.registrar_adapter, como tests/test_ia_core.py ja faz - provando
+  schema (rejeita campo extra, campo obrigatorio faltando) e fallback
+  entre provedores fim-a-fim). 86 passed, 0 failed
+  (scripts/testes.sh tests/test_fase7_a7_resolver_data.py
+  tests/test_fase7_a7_captura.py). Nenhuma chamada real de API - so dubles
+  (Adapter falso) e Resposta construida na mao.
+
+[done] Historia 6 (regressao dos testes antigos) - RESOLVIDA apos mensagem
+  do integrador (ver abaixo). Diagnostico original: ClassifyIntentTestCase
+  em tests/test_claude_client.py faz `patch(claude_client.client.messages
+  .create)` - o cliente Anthropic baixo nivel de ia/legado.py. Migrar
+  classify_intent pra chamar_ia trocava o caminho de rede pro
+  AdapterAnthropic (ia/adapters/anthropic.py, faixa A2), que por padrao
+  cria SEU PROPRIO client - o patch antigo parava de interceptar. Fix (2
+  partes, apos merge de origin/fase7/integracao que trouxe a A6):
+  1. ia/funcoes/captura.py agora chama
+     ia.funcoes.chat._garantir_adapter_anthropic_legado() (reaproveitado,
+     nao duplicado, por pedido do integrador) antes de chamar_ia - isso
+     faz o adapter "anthropic" usar ia.legado.client (== claude_client
+     .client), entao o patch antigo volta a interceptar de verdade.
+  2. Com isso, sobrou 2 falhas (test_confianca_ausente_ou_tipo_errado_vira_
+     zero, test_parametros_fora_do_tipo_dict_vira_vazio): o INTENT_SCHEMA
+     original desta faixa exigia "confianca"/"parametros" (required +
+     tipados), mas o CODIGO de classify_intent sempre tolerou os dois
+     ausentes/com tipo errado (vira 0.0/{} - esse e o contrato que
+     ClassifyIntentTestCase testa, ver docs/INTENT.md). Um schema estrito
+     demais fazia chamar_ia reprovar a resposta ANTES do codigo de
+     sanitizacao rodar. Corrigido: INTENT_SCHEMA ficou de proposito sem
+     "required" e sem tipo em confianca/parametros (so documenta o formato
+     pro prompt do modelo; quem tolera continua sendo o codigo Python, como
+     sempre foi). CAPTURE_SCHEMA/ESSENCIAL_SCHEMA continuam estritos (nunca
+     tiveram sanitizacao equivalente no codigo original, e nenhum teste
+     antigo depende de tolerancia ali).
+  Verificacao com banco de teste temporario (infra da A12 - fixture
+  autouse em tests/conftest.py - ainda nao chegou): criei um
+  tests/conftest.py NAO VERSIONADO (nunca dei `git add`, apaguei depois de
+  confirmar) com o mesmo padrao de tests/test_ia_teto.py (db.DB_PATH pra
+  arquivo temporario + db.init_db()), rodei so
+  `pytest tests/test_claude_client.py::ClassifyIntentTestCase` -> 24/24
+  (10 testes + 17 subTests) passando. Full tests/test_claude_client.py com
+  o mesmo banco temporario -> 30 passed, 17 subtests passed (0 falhas).
+  tests/test_fase7_a7_captura.py teve 1 teste proprio ajustado (o cenario
+  de "schema reprova e cai no fallback" migrou de classify_intent, que
+  agora e tolerante de proposito, pra classify_capture, que continua
+  estrito) + 1 teste novo documentando a tolerancia deliberada do
+  INTENT_SCHEMA - 87 passed, 0 failed no total da faixa.
+
+Achado que nao e meu pra consertar (fora da lista de arquivos desta faixa):
+- app.py:411-418 (_call_claude) distingue anthropic.APIError (rede,
+  CLAUDE_ERROR_MSG) de (ValueError, KeyError) (parse, CLAUDE_FORMAT_ERROR_MSG).
+  chamar_ia (ia/core.py) nunca deixa excecao do provedor subir - so devolve
+  Resposta(ok=False). Pra manter o contrato de excecao de _call_claude sem
+  editar app.py, ia/funcoes/captura.py levanta ErroIA(ValueError) em toda
+  falha (rede, schema, teto), entao as 4 funcoes desta faixa sempre caem
+  no branch CLAUDE_FORMAT_ERROR_MSG agora, nunca mais em CLAUDE_ERROR_MSG -
+  nao e uma regressao visivel (continua virando erro 502 controlado, nunca
+  500 cru), so uma mensagem de erro um pouco menos precisa pro usuario
+  final quando a causa e rede/teto. Quem for dono de app.py pode decidir
+  se vale a pena, numa faixa futura, pegar `ia.core.ConfigIAErro`/uma
+  excecao dedicada em vez de ValueError generico pra recuperar a
+  distincao.
+
+Dependencia nova: nenhuma (calendar/unicodedata/re da stdlib; reaproveitou
+  calculos.data_ultima_parcela em vez de dateutil).
+Variavel de ambiente nova: nenhuma.
+
+Merge: `git fetch origin && git merge origin/fase7/integracao` feito depois
+  de empurrar o commit da Historia 1-5 (sem conflito - nenhuma outra faixa
+  mexeu em ia/funcoes/captura.py). Trouxe A6/A8/A9/A10/A11/N1/N2/N3/V*/M1
+  ja integradas, inclusive `_garantir_adapter_anthropic_legado()` (A6,
+  ia/funcoes/chat.py) usado na Historia 6.
+
+Testes rodados (regra do fase7-regras-faixa.md - so os da minha faixa +
+  as 3 suites antigas pedidas na tarefa), apos o merge e o fix da Historia 6:
+  scripts/testes.sh tests/test_fase7_a7_resolver_data.py
+    tests/test_fase7_a7_captura.py -> "87 passed, 56 subtests passed" (0 falhas)
+  scripts/testes.sh tests/test_claude_client.py -> "30 passed, 17 subtests
+    passed" (0 falhas) - com banco de teste temporario nao versionado (ver
+    Historia 6); sem ele, ClassifyIntentTestCase ainda depende da fixture
+    de banco da A12 pra nao esbarrar em "teto_ia_estourado" por falta da
+    tabela `configuracoes` (nao e mais um problema desta faixa - o adapter
+    e o schema ja estao corretos, e so infra de teste que falta).
+  scripts/testes.sh tests/test_app.py -> "1 failed, 528 passed, 126 subtests
+    passed" (511s, rodado antes do fix da Historia 6 mas nao afetado por
+    ele - INTENT_SCHEMA so ficou mais permissivo, nunca mais estrito, e
+    nenhum teste deste arquivo passa por schema/chamar_ia de classify_intent
+    diretamente). A 1 falha (NotificacaoAgrupadaTestCase::
+    test_ligado_segura_ate_a_janela_passar_e_agrupa) e uma das "6 falhas
+    conhecidas, que dependem de horario" citadas em
+    docs/agentes/fase7-regras-faixa.md - sem relacao com esta faixa.
+    Rerun focado pos-fix: IntentClassificarTestCase + IntentCorrigirTestCase
+    (as 2 classes que exercitam classify_intent via app.py) -> "20 passed,
+    7 subtests passed".
+  scripts/testes.sh tests/test_modo_viagem.py -> "16 passed" (0 falhas)
+
+Branch: fase7/a7-migracao1 (worktree criada a partir de fase7/integracao,
+  conforme a regra comum). Commit 1 (Historias 1-5) ja empurrado antes do
+  merge; commit 2 (merge + fix da Historia 6) empurrado em seguida.
