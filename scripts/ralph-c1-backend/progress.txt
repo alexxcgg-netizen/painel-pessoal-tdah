@@ -1,0 +1,11 @@
+Faixa C1 (polimento do backend) - branch fase7/c1-backend - estado
+Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
+  tests/test_fase7_infra_rotas.py (so no paralelo; sozinho passa - nao e meu arquivo).
+
+[done] H1 chat + A5 + medicao: app passa contexto_fixo/conn/medir_uso=True via
+  claude_client.opcoes_chat (contextvar - 40+ dubles fake_chat(m,c,mem,ex) em
+  arquivos que nao sao meus quebrariam com kwargs). Fonte unica do gasto:
+  ia.medicao.gasto_mes_atual = uso_ia + api_usage SO antes da 1a linha de uso_ia
+  do mes (virada). Teto unico: app._teto_ia_estourado(funcao) -> ia.teto (R$40).
+  _chamar_json direto (decisao/msg dificil ativo:false) checa teto e grava uso_ia.
+  ia/historico: vai literal tudo que nao foi resumido (max 20), sem buraco.

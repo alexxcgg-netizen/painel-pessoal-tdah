@@ -108,12 +108,16 @@ def _chamar_com_retry(funcao: str, mensagens: list, *, schema: dict) -> Resposta
     sozinho numa unica chamada; este retry vira so uma rede de seguranca
     extra por cima disso, nunca o unico mecanismo.
 
-    Levanta RuntimeError se as duas tentativas falharem - mesmo espirito do
-    codigo antigo, que deixava json.JSONDecodeError subir cru quando a IA
+    Levanta ia.core.FalhaChamadaIA (TetoEstourado/ErroProvedor/
+    RespostaInvalida, subclasses de ValueError - C1) se as duas tentativas
+    falharem - mesmo espirito do codigo antigo, que deixava json.JSONDecodeError subir cru quando a IA
     nao devolvia JSON valido (nunca inventa um retorno "de mentira" so pra
     manter o tipo tuple[dict, dict])."""
     _registrar_adapter_anthropic_compartilhado()
     resp = core.chamar_ia(funcao, mensagens, schema=schema)
+    if not resp.ok and core.classificar_falha(resp.erro) == "teto":
+        # C1: teto bloqueado nao adianta refazer - sobe direto.
+        raise core.excecao_de_resposta(funcao, resp)
     if not resp.ok:
         log.warning(
             "ia.funcoes.visao: %s falhou (confianca baixa/JSON invalido/erro tecnico: %s) - refazendo",
@@ -122,9 +126,9 @@ def _chamar_com_retry(funcao: str, mensagens: list, *, schema: dict) -> Resposta
         _registrar_adapter_anthropic_compartilhado()
         resp = core.chamar_ia(funcao, mensagens, schema=schema)
     if not resp.ok:
-        raise RuntimeError(
-            f"ia.funcoes.visao: falha ao extrair via IA em '{funcao}' mesmo apos refazer: {resp.erro}"
-        )
+        # C1: excecao dedicada (subclasse de ValueError, que app._call_claude
+        # traduz): antes era RuntimeError, que o app nao capturava (500 cru).
+        raise core.excecao_de_resposta(funcao, resp)
     return resp
 
 

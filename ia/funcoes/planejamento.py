@@ -54,7 +54,9 @@ def _falhar(funcao: str, resp: Resposta) -> None:
     scripts/ralph-a8-migracao2/progress.txt pro integrador avaliar se vale
     a pena app.py reconhecer resp.erro == "teto_ia_estourado" (nao editamos
     app.py, fora da lista de arquivos desta faixa)."""
-    raise ValueError(f"{funcao}: {resp.erro or 'falha na chamada de IA'}")
+    # C1: excecao dedicada (subclasse de ValueError): teto -> TetoEstourado,
+    # rede/provedor -> ErroProvedor, JSON/schema -> RespostaInvalida.
+    raise core.excecao_de_resposta(funcao, resp)
 
 
 # --------------------------------------------------------------------------

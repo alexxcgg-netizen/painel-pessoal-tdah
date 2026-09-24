@@ -101,16 +101,54 @@ def _limite_utc_inicio_mes() -> str:
     return inicio_mes_local.astimezone(timezone.utc).replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
 
 
+def _gasto_legado_antes_da_medicao(conn, inicio_mes: str) -> float:
+    """Custo em `api_usage` (tabela antiga, gravada por `app._log_usage`) do
+    mes corrente que aconteceu ANTES da primeira linha de `uso_ia` do mes.
+
+    Fase 7, faixa C1 - fonte unica do gasto do mes: desde a C1 toda chamada
+    de IA do app entra em `uso_ia` exatamente uma vez (ia.core.chamar_ia, o
+    chat com `medir_uso=True` e o caminho direto de `_chamar_json`). O
+    `api_usage` continua recebendo a copia antiga (card antigo/historico),
+    entao somar as duas tabelas contaria a mesma chamada 2 vezes. So o que a
+    medicao nova ainda NAO via (mes da virada pro deploy da Fase 7, ou teste
+    que so grava a tabela antiga) entra aqui - por construcao nunca se
+    sobrepoe a uma linha de `uso_ia` (a linha nova e gravada antes da antiga
+    em toda chamada). Tabela antiga ausente -> 0."""
+    try:
+        primeira = conn.execute(
+            "SELECT MIN(criado_em) AS primeira FROM uso_ia WHERE criado_em >= ?",
+            (inicio_mes,),
+        ).fetchone()["primeira"]
+        if primeira is None:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM api_usage WHERE created_at >= ?",
+                (inicio_mes,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM api_usage "
+                "WHERE created_at >= ? AND created_at < ?",
+                (inicio_mes, primeira),
+            ).fetchone()
+        return float(row["total"] or 0.0)
+    except Exception:  # noqa: BLE001 - tabela antiga ausente/estranha nunca derruba o teto
+        return 0.0
+
+
 def gasto_mes_atual() -> float:
-    """Soma `uso_ia.custo_usd` do mes corrente (calendario local), em USD."""
+    """Gasto de IA do mes corrente (calendario local), em USD - a FONTE UNICA
+    que o teto (ia/teto.py) e o card de custo usam: soma de `uso_ia` mais o
+    legado de `api_usage` anterior a medicao nova (ver
+    `_gasto_legado_antes_da_medicao`). Cada chamada conta uma vez so."""
     conn = db.get_db()
     try:
         garantir_tabela(conn)
+        inicio_mes = _limite_utc_inicio_mes()
         row = conn.execute(
             "SELECT COALESCE(SUM(custo_usd), 0) AS total FROM uso_ia WHERE criado_em >= ?",
-            (_limite_utc_inicio_mes(),),
+            (inicio_mes,),
         ).fetchone()
-        return float(row["total"])
+        return float(row["total"]) + _gasto_legado_antes_da_medicao(conn, inicio_mes)
     finally:
         conn.close()
 

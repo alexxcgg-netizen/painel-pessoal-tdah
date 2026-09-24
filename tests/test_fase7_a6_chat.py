@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
-import anthropic
 
 import claude_client
 from ia import core, legado
@@ -224,8 +223,10 @@ class LimitesSaidaTestCase(unittest.TestCase):
         self.assertEqual(set(uso) >= {"model", "input_tokens", "output_tokens", "cost_usd"}, True)
 
     def test_decisao_manda_700_e_mensagem_dificil_500(self):
-        with patch.object(claude_client.client.messages, "create",
-                          return_value=_resp([_texto('{"resumo": "x"}')])) as m:
+        with patch("ia.teto.teto_permite", return_value=True), \
+                patch("ia.medicao.registrar_uso"), \
+                patch.object(claude_client.client.messages, "create",
+                             return_value=_resp([_texto('{"resumo": "x"}')])) as m:
             claude_client.analisar_decisao("vale a pena?", [])
             self.assertEqual(m.call_args.kwargs["max_tokens"], 700)
             claude_client.redigir_mensagem_dificil("cobrar", "Joao")
@@ -245,6 +246,33 @@ class LimitesSaidaTestCase(unittest.TestCase):
         with patch.object(chat_mod, "_config_ia", return_value=cfg):
             (_, _, _), g = _chat(H1)
         self.assertEqual(g.chamadas[0]["model"], "claude-sonnet-5")
+
+
+class CaminhoDiretoMedidoTestCase(unittest.TestCase):
+    """C1: decisao/mensagem dificil com `ativo: false` (SDK direto) tambem
+    respeitam o teto unico e gravam em uso_ia (fonte unica do gasto)."""
+
+    def test_caminho_direto_grava_uso_ia_uma_vez(self):
+        with patch("ia.teto.teto_permite", return_value=True) as teto, \
+                patch("ia.medicao.registrar_uso") as reg, \
+                patch.object(claude_client.client.messages, "create",
+                             return_value=_resp([_texto('{"resumo": "x"}')], in_tok=30, out_tok=7)):
+            _dados, uso = claude_client.analisar_decisao("vale a pena?", [])
+        teto.assert_called_once_with("analisar_decisao")
+        reg.assert_called_once()
+        args, kwargs = reg.call_args
+        self.assertEqual(args, ("analisar_decisao", "anthropic", "claude-sonnet-5"))
+        self.assertEqual((kwargs["tokens_in"], kwargs["tokens_out"]), (30, 7))
+        self.assertAlmostEqual(kwargs["custo_usd"], uso["cost_usd"], places=9)
+
+    def test_caminho_direto_com_teto_estourado_nao_chama_api(self):
+        with patch("ia.teto.teto_permite", return_value=False), \
+                patch("ia.medicao.registrar_uso") as reg, \
+                patch.object(claude_client.client.messages, "create") as create:
+            with self.assertRaises(core.TetoEstourado):
+                claude_client.redigir_mensagem_dificil("cobrar", None)
+        create.assert_not_called()
+        reg.assert_not_called()
 
 
 class ConfigsTestCase(unittest.TestCase):
@@ -412,12 +440,17 @@ class ContratoJsonTestCase(unittest.TestCase):
         self.assertEqual(chamar.call_args.args[0], "redigir_mensagem_dificil")
         self.assertIn("nao informado", chamar.call_args.args[1][0]["content"])
 
-    def test_falha_no_contrato_vira_apierror_e_json_ruim_vira_valueerror(self):
+    def test_falha_no_contrato_vira_excecao_dedicada_e_json_ruim_vira_valueerror(self):
+        # C1: teto -> core.TetoEstourado; rede/provedor -> core.ErroProvedor
+        # (ambas ValueError; app._call_claude traduz em TETO_IA_MSG/CLAUDE_ERROR_MSG).
         with patch.object(chat_mod, "_config_ia", return_value=self._cfg_ativo("analisar_decisao")):
             with patch.object(core, "chamar_ia", return_value=Resposta(ok=False, erro="teto_ia_estourado")):
-                with self.assertRaises(anthropic.APIError) as ctx:
+                with self.assertRaises(core.TetoEstourado) as ctx:
                     claude_client.analisar_decisao("vale?", [])
                 self.assertIn("teto_ia_estourado", str(ctx.exception))
+            with patch.object(core, "chamar_ia", return_value=Resposta(ok=False, erro="openai/gpt-6-sol: timeout")):
+                with self.assertRaises(core.ErroProvedor):
+                    claude_client.analisar_decisao("vale?", [])
             with patch.object(core, "chamar_ia", return_value=Resposta(ok=True, texto="nao e json")):
                 with self.assertRaises(ValueError):
                     claude_client.analisar_decisao("vale?", [])

@@ -229,12 +229,12 @@ class FallbackConfiancaEJsonTestCase(BaseA9):
             _resp_texto(_json_nota_fiscal(confianca=0.2)),
             _resp_texto(_json_nota_fiscal(confianca=0.3)),
         )
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):  # C1: FalhaChamadaIA (era RuntimeError, virava 500)
             visao.extrair_nota_fiscal_foto(_imagem_sintetica_png(), "image/png")
 
     def test_erro_tecnico_nas_duas_tentativas_levanta_erro(self):
         self._mock_anthropic(RuntimeError("timeout simulado"), RuntimeError("timeout simulado"))
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):  # C1: FalhaChamadaIA (era RuntimeError, virava 500)
             visao.extrair_item_cotacao_pdf(_pdf_sintetico())
 
     def test_confianca_no_limiar_nao_refaz(self):

@@ -71,6 +71,81 @@ class ConfigIAErro(ValueError):
 
 
 # --------------------------------------------------------------------------
+# Excecoes de falha de chamada (Fase 7, faixa C1)
+# --------------------------------------------------------------------------
+# chamar_ia nunca levanta: devolve Resposta(ok=False, erro=...). As funcoes de
+# ia/funcoes/* que precisam levantar usam excecao_de_resposta() pra escolher a
+# excecao certa, e app._call_claude traduz cada uma na mensagem certa:
+#   TetoEstourado    -> app.TETO_IA_MSG (402)
+#   ErroProvedor     -> app.CLAUDE_ERROR_MSG (502) - rede, timeout, 5xx, adapter
+#   RespostaInvalida -> app.CLAUDE_FORMAT_ERROR_MSG (502) - JSON/schema
+# Todas herdam de ValueError de proposito: quem ja capturava ValueError
+# (codigo e testes antigos das faixas A7/A8/A9) continua funcionando.
+
+ERRO_TETO = "teto_ia_estourado"
+
+# Prefixos que _chamar_uma_vez usa pra erro de FORMATO (a IA respondeu, mas
+# fora do JSON/schema). Qualquer outro erro de tentativa e do provedor.
+PREFIXOS_ERRO_FORMATO = (
+    "resposta sem JSON",
+    "JSON invalido na resposta",
+    "JSON fora do schema",
+    "JSON precisa ser objeto",
+)
+
+
+class FalhaChamadaIA(ValueError):
+    """Base das falhas de chamada de IA (ver quadro acima). `erro` guarda o
+    texto de Resposta.erro (nunca conteudo de prompt)."""
+
+    def __init__(self, mensagem: str = "", erro: str = ""):
+        super().__init__(mensagem or erro or "falha ao chamar IA")
+        self.erro = erro or mensagem
+
+
+class TetoEstourado(FalhaChamadaIA):
+    """O teto mensal de IA (ia/teto.py) bloqueou a chamada."""
+
+
+class ErroProvedor(FalhaChamadaIA):
+    """Rede, timeout, erro do provedor ou do adapter em todas as tentativas."""
+
+
+class RespostaInvalida(FalhaChamadaIA):
+    """A IA respondeu, mas fora do formato pedido (JSON/schema) em todas as
+    tentativas."""
+
+
+def classificar_falha(erro: Optional[str]) -> str:
+    """"teto" | "formato" | "provedor" a partir de Resposta.erro de
+    chamar_ia. O erro agregado tem o formato "prov/modelo: erro | ..."; e
+    "formato" so quando TODAS as tentativas falharam por formato."""
+    texto = (erro or "").strip()
+    if not texto:
+        return "provedor"
+    if texto == ERRO_TETO or texto.endswith(": " + ERRO_TETO):
+        return "teto"
+    partes = [p.strip() for p in texto.split(" | ") if p.strip()]
+
+    def _e_formato(parte: str) -> bool:
+        detalhe = parte.split(": ", 1)[1] if ": " in parte else parte
+        return detalhe.startswith(PREFIXOS_ERRO_FORMATO) or parte.startswith(PREFIXOS_ERRO_FORMATO)
+
+    if partes and all(_e_formato(p) for p in partes):
+        return "formato"
+    return "provedor"
+
+
+def excecao_de_resposta(funcao: str, resp: Optional[Resposta]) -> FalhaChamadaIA:
+    """Excecao certa pra uma Resposta(ok=False) de chamar_ia. A mensagem
+    carrega "<funcao>: <erro>" (os testes antigos procuram o erro no str)."""
+    erro = (resp.erro if resp is not None else None) or "falha na chamada de IA"
+    tipo = classificar_falha(erro)
+    classe = {"teto": TetoEstourado, "formato": RespostaInvalida}.get(tipo, ErroProvedor)
+    return classe(f"{funcao}: {erro}", erro=erro)
+
+
+# --------------------------------------------------------------------------
 # Config
 # --------------------------------------------------------------------------
 
@@ -467,7 +542,7 @@ def chamar_ia(funcao: str, mensagens: list, *, sistema: str = "",
     if not opcoes.get("ignorar_teto") and not _teto_permite(funcao):
         principal = config["alvo"] if config["ativo"] else config["modelo_atual"]
         return Resposta(ok=False, provedor=principal["provedor"], modelo=principal["modelo"],
-                        esforco=principal["esforco"], erro="teto_ia_estourado")
+                        esforco=principal["esforco"], erro=ERRO_TETO)
 
     kwargs = {
         "sistema": sistema,

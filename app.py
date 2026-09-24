@@ -52,6 +52,9 @@ import vida
 import voo_status
 import voos as voos_module
 import db
+import ia.core
+import ia.historico
+import ia.teto
 from assistente import avisos as avisos_assistente
 from db import (
     CAMPOS_SAUDE,
@@ -409,10 +412,32 @@ def _texto_seguro(valor, padrao: str = "") -> str:
 _TETO_IA_LOCK = threading.Lock()
 
 
+def _teto_ia_estourado(funcao: str = "chat") -> bool:
+    """Fase 7 (C1): teto UNICO de IA pra todo o app - ia.teto.teto_permite
+    (R$40/mes por padrao, ou o teto configurado no card financeiro), sobre o
+    gasto do mes de ia.medicao.gasto_mes_atual (fonte unica: cada chamada
+    conta uma vez). Substitui o teto antigo (resumo_custo_api, so api_usage e
+    so quando configurado). Erro no calculo bloqueia (mesma regra do ia.core)."""
+    try:
+        return not ia.teto.teto_permite(funcao)
+    except Exception:  # noqa: BLE001
+        app.logger.exception("teto de IA: falha ao consultar (bloqueando por seguranca)")
+        return True
+
+
 def _call_claude(fn, *args):
-    """Chama uma funcao do claude_client e traduz falhas em uma resposta de erro pronta pra devolver."""
+    """Chama uma funcao do claude_client e traduz falhas em uma resposta de erro pronta pra devolver.
+
+    Fase 7 (C1): as funcoes migradas pro ia.core levantam excecoes dedicadas
+    (todas subclasses de ValueError) - teto estourado vira TETO_IA_MSG (402),
+    rede/provedor vira CLAUDE_ERROR_MSG (502) e so JSON/schema ruim continua
+    CLAUDE_FORMAT_ERROR_MSG (502)."""
     try:
         return fn(*args), None
+    except ia.core.TetoEstourado:
+        return None, (jsonify({"error": TETO_IA_MSG}), 402)
+    except ia.core.ErroProvedor:
+        return None, (jsonify({"error": CLAUDE_ERROR_MSG}), 502)
     except anthropic.APIError:
         return None, (jsonify({"error": CLAUDE_ERROR_MSG}), 502)
     except (ValueError, KeyError):
@@ -867,7 +892,7 @@ def _classificar_intent(conn, texto: str, somente_local: bool = False):
         return None, None
 
     with _TETO_IA_LOCK:
-        if resumo_custo_api(conn)["teto_estourado"]:
+        if _teto_ia_estourado("classify_intent"):
             return {
                 "acao": "desconhecido",
                 "confianca": 0.0,
@@ -3433,11 +3458,24 @@ def _processar_mensagem_chat(
         # O caminho local acima (sem IA) continua funcionando com o teto
         # estourado.
         with _TETO_IA_LOCK:
-            if resumo_custo_api(conn)["teto_estourado"]:
+            if _teto_ia_estourado("chat"):
                 return None, [], TETO_IA_MSG
+            # Fase 7 (C1): historico da A5 (resumo fixo + so o que ainda nao
+            # foi resumido, na integra - nunca os dois) e medicao nova
+            # (medir_uso=True grava cada rodada em uso_ia; o _log_usage
+            # abaixo so alimenta a tabela antiga do card antigo).
+            mensagens_ia, contexto_fixo = _historico_chat_para_ia(conn, texto, mensagens)
             try:
-                resposta, acoes, usage = claude_client.chat(mensagens, contexto, memorias_texto, executores)
+                # opcoes_chat == passar contexto_fixo/conn/medir_uso=True como
+                # kwargs (ver ia/funcoes/chat.py: dubles de teste tem a
+                # assinatura antiga de 4 argumentos).
+                with claude_client.opcoes_chat(contexto_fixo=contexto_fixo, conn=conn, medir_uso=True):
+                    resposta, acoes, usage = claude_client.chat(mensagens_ia, contexto, memorias_texto, executores)
+            except ia.core.TetoEstourado:
+                return None, [], TETO_IA_MSG
             except anthropic.APIError:
+                return None, [], CLAUDE_ERROR_MSG
+            except ia.core.ErroProvedor:
                 return None, [], CLAUDE_ERROR_MSG
             except (ValueError, KeyError):
                 return None, [], CLAUDE_FORMAT_ERROR_MSG
@@ -3458,6 +3496,24 @@ def _processar_mensagem_chat(
     if detalhes is not None:
         detalhes.update(envelope_cards)
     return resposta, acoes, None
+
+
+def _historico_chat_para_ia(conn, texto: str, mensagens_antigas: list) -> tuple[list, str]:
+    """(mensagens, contexto_fixo) pro claude_client.chat - Fase 7 (C1).
+
+    Usa ia.historico.montar_contexto (A5): o resumo das mensagens antigas vai
+    em `contexto_fixo` e SO as mensagens que ainda nao entraram no resumo vao
+    na integra (as mesmas mensagens nunca aparecem nos dois). A mensagem nova
+    ainda nao foi salva em chat_mensagens (e salva depois da resposta), entao
+    entra aqui no fim. Qualquer falha da A5 cai no historico antigo (ultimas
+    20 mensagens, sem resumo) - o chat nunca quebra por causa disso."""
+    try:
+        ctx = ia.historico.montar_contexto(conn)
+        mensagens = list(ctx["mensagens"]) + [{"role": "user", "content": texto}]
+        return mensagens, ctx["contexto_fixo"] or ""
+    except Exception:  # noqa: BLE001
+        app.logger.exception("chat: montar_contexto (A5) falhou - usando historico antigo")
+        return mensagens_antigas, ""
 
 
 def _criar_token_desfazer(conn):
@@ -8038,7 +8094,7 @@ def extrair_nota_fiscal():
     # _classificar_intent (fecha a mesma janela TOCTOU nos dois pontos que
     # respeitam o teto).
     with _TETO_IA_LOCK:
-        if resumo_custo_api(conn)["teto_estourado"]:
+        if _teto_ia_estourado("extrair_nota_fiscal_foto"):
             conn.close()
             return jsonify({"error": TETO_IA_MSG}), 402
 

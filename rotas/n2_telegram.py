@@ -111,7 +111,8 @@ def _extrair_nota_fiscal(image_bytes: bytes, media_type: str) -> tuple[dict | No
     conn = db.get_db()
     try:
         with app._TETO_IA_LOCK:
-            if db.resumo_custo_api(conn)["teto_estourado"]:
+            # C1: teto unico do app (ia.teto via app._teto_ia_estourado).
+            if app._teto_ia_estourado("extrair_nota_fiscal_foto"):
                 return None, app.TETO_IA_MSG
             resultado, erro = app._call_claude(claude_client.extrair_nota_fiscal_foto, image_bytes, media_type)
             if erro:

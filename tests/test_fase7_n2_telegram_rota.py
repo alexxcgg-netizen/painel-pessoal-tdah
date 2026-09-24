@@ -96,6 +96,11 @@ class FakeApp:
         self.chamadas_salvar_link.append((conn, url))
         return self._resultado_salvar
 
+    teto_estourado = False
+
+    def _teto_ia_estourado(self, funcao="chat"):
+        return self.teto_estourado
+
     def _call_claude(self, fn, *args):
         return fn(*args), None
 
@@ -275,14 +280,14 @@ def test_link_valido_chama_salvar_link(app_flask, monkeypatch):
 
 
 def test_extrair_nota_fiscal_recusa_com_teto_estourado(app_flask, monkeypatch):
-    monkeypatch.setattr(db, "resumo_custo_api", lambda conn: {"teto_estourado": True})
+    _app_atual[0].teto_estourado = True
     dados, erro = n2_telegram._extrair_nota_fiscal(b"jpeg", "image/jpeg")
     assert dados is None
     assert erro == _app_atual[0].TETO_IA_MSG
 
 
 def test_extrair_nota_fiscal_devolve_dados_no_sucesso(app_flask, monkeypatch):
-    monkeypatch.setattr(db, "resumo_custo_api", lambda conn: {"teto_estourado": False})
+    _app_atual[0].teto_estourado = False
     monkeypatch.setattr(
         n2_telegram.claude_client,
         "extrair_nota_fiscal_foto",
@@ -294,7 +299,7 @@ def test_extrair_nota_fiscal_devolve_dados_no_sucesso(app_flask, monkeypatch):
 
 
 def test_extrair_nota_fiscal_erro_na_chamada_vira_mensagem_curta(app_flask, monkeypatch):
-    monkeypatch.setattr(db, "resumo_custo_api", lambda conn: {"teto_estourado": False})
+    _app_atual[0].teto_estourado = False
 
     def _app_call_claude_com_erro(fn, *args):
         return None, ("erro-flask-fake", 502)
