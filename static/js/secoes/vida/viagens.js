@@ -151,10 +151,46 @@ async function loadViagens() {
   });
 }
 
+// Contrato Fase 7B (V0d): abrirBottomSheet/fecharBottomSheet reais moram em
+// static/js/ui/bottom-sheet.js (fundo escurecido, ESC, toque fora, foco
+// preso). Enquanto essa faixa nao chega na integracao, usa um fallback
+// minimo so pra secao continuar testavel (so mostra/esconde via [hidden]).
+function abrirSheetViagem() {
+  const sheet = $("#viagem-sheet");
+  if (window.abrirBottomSheet) {
+    window.abrirBottomSheet(sheet);
+  } else {
+    sheet.hidden = false;
+  }
+}
+
+function fecharSheetViagem() {
+  const sheet = $("#viagem-sheet");
+  if (window.fecharBottomSheet) {
+    window.fecharBottomSheet(sheet);
+  } else {
+    sheet.hidden = true;
+  }
+}
+
+$("#viagem-nova-abrir").addEventListener("click", () => abrirSheetViagem());
+$("#viagem-sheet-fechar").addEventListener("click", () => fecharSheetViagem());
+// fallback de toque-fora/ESC (a versao definitiva e da V0d) - so age quando
+// a API real ainda nao existe, pra nao duplicar comportamento dela depois.
+$("#viagem-sheet").addEventListener("click", (e) => {
+  if (!window.abrirBottomSheet && e.target === e.currentTarget) fecharSheetViagem();
+});
+document.addEventListener("keydown", (e) => {
+  if (!window.abrirBottomSheet && e.key === "Escape" && !$("#viagem-sheet").hidden) fecharSheetViagem();
+});
+
 ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Adicionar", () => {
   const destino = $("#viagem-nova-destino").value.trim();
   const ida = $("#viagem-nova-ida").value;
   return destino && ida
     ? { destino, data_ida: ida, data_volta: $("#viagem-nova-volta").value || null, internacional: $("#viagem-nova-internacional").checked }
     : null;
-}, "/api/viagens", loadViagens);
+}, "/api/viagens", () => {
+  fecharSheetViagem();
+  loadViagens();
+});

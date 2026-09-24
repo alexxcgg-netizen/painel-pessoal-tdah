@@ -1,3 +1,139 @@
 /* static/css/secoes/vida/viagens.css - secao vida > viagens (HTML: templates/secoes/vida/viagens.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Fase 7 V5: botao "adicionar" grande (contrato .btn-adicionar) no lugar do
+   antigo submit pequeno/generico da lista. Estilo local (ID) so pra esta
+   secao - o visual GLOBAL do contrato fica em ui/componentes/botao.css
+   (V0b); ate la, mesmo com esse arquivo ainda vazio, a secao ja fica com
+   acabamento correto e nao regride quando o componente compartilhado chegar
+   (a cascata: esta camada carrega DEPOIS de componentes/botao.css). Reusa
+   as variaveis --glass-* (ja tingidas por --cor-painel dentro de #tab-vida,
+   ver style.css ~linha 1064) - nenhuma cor nova. */
+#viagem-nova-abrir.btn-adicionar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 48px;
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  color: var(--cor-painel);
+  font-weight: 700;
+  font-size: 0.9rem;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  cursor: pointer;
+}
+
+#viagem-nova-abrir.btn-adicionar svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  #viagem-nova-abrir.btn-adicionar:hover {
+    border-color: var(--cor-painel);
+    box-shadow: var(--shadow-card-hover);
+  }
+}
+
+/* Painel deslizante - fallback local ate ui/componentes/bottom-sheet.css
+   (V0d) chegar. So afeta #viagem-sheet (id), nunca a classe .bottom-sheet
+   inteira, pra nao vazar pra sheets de outras secoes/faixas. */
+#viagem-sheet.bottom-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+#viagem-sheet.bottom-sheet[hidden] {
+  display: none;
+}
+
+#viagem-sheet .bottom-sheet-painel {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow-card-hover);
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+#viagem-sheet .bottom-sheet-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+#viagem-sheet .bottom-sheet-cabecalho h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--cor-painel);
+}
+
+#viagem-sheet .bottom-sheet-fechar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+#viagem-sheet .bottom-sheet-fechar svg {
+  width: 16px;
+  height: 16px;
+}
+
+#viagem-sheet #viagem-nova-form {
+  margin-bottom: 0;
+}
+
+#viagem-sheet #viagem-nova-btn.btn-com-icone {
+  min-height: 48px;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--cor-painel-fill);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 14px -4px color-mix(in srgb, var(--cor-painel) 55%, transparent);
+}
+
+@media (hover: hover) {
+  #viagem-sheet #viagem-nova-btn.btn-com-icone:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 4px 18px -4px color-mix(in srgb, var(--cor-painel) 60%, transparent);
+  }
+}
+
+/* Cartao de status de voo dentro da viagem - mesmo acabamento "glass" ja
+   usado nos demais paineis (reaproveita --glass-*), so pra ficar coerente
+   com o resto da lista em vez do fundo transparente herdado do style.css. */
+.viagem-voo-box {
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-card);
+}

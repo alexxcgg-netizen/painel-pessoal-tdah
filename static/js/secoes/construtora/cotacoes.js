@@ -30,6 +30,21 @@ function graficoComparacaoCotacoes(itens) {
   svg.setAttribute("role", "img");
   const titulo = comValor.map((i) => `${i.fornecedor || "fornecedor"}: ${fmtMoeda(i.valor)}`).join(", ");
   svg.setAttribute("aria-label", `Comparacao de fornecedores - ${titulo}`);
+
+  // Grade sutil (mesma classe/opacidade do grafico-grid de charts.js - so
+  // uma marca de escala no fornecedor mais caro, recessiva, nunca compete
+  // com as barras em si).
+  const linhaGradeNs = "http://www.w3.org/2000/svg";
+  const grade = document.createElementNS(linhaGradeNs, "line");
+  grade.setAttribute("x1", String(xBarra + larguraMax));
+  grade.setAttribute("y1", "0");
+  grade.setAttribute("x2", String(xBarra + larguraMax));
+  grade.setAttribute("y2", String(comValor.length * alturaLinha));
+  grade.setAttribute("stroke", "var(--border)");
+  grade.setAttribute("stroke-width", "1");
+  grade.setAttribute("class", "grafico-grid");
+  svg.appendChild(grade);
+
   comValor.forEach((item, i) => {
     const y = i * alturaLinha;
     const w = Math.max(4, (item.valor / max) * larguraMax);
@@ -229,6 +244,36 @@ async function preencherDetalheCotacao(cotacaoId, container) {
   container.appendChild(uploadLabel);
 }
 
+// Contrato Fase 7B (V0d): abrirBottomSheet/fecharBottomSheet reais moram em
+// static/js/ui/bottom-sheet.js. Fallback minimo enquanto essa faixa nao
+// chega na integracao (mesmo padrao de secoes/vida/viagens.js).
+function abrirSheetCotacao() {
+  const sheet = $("#cotacao-sheet");
+  if (window.abrirBottomSheet) {
+    window.abrirBottomSheet(sheet);
+  } else {
+    sheet.hidden = false;
+  }
+}
+
+function fecharSheetCotacao() {
+  const sheet = $("#cotacao-sheet");
+  if (window.fecharBottomSheet) {
+    window.fecharBottomSheet(sheet);
+  } else {
+    sheet.hidden = true;
+  }
+}
+
+$("#cotacao-abrir").addEventListener("click", () => abrirSheetCotacao());
+$("#cotacao-sheet-fechar").addEventListener("click", () => fecharSheetCotacao());
+$("#cotacao-sheet").addEventListener("click", (e) => {
+  if (!window.abrirBottomSheet && e.target === e.currentTarget) fecharSheetCotacao();
+});
+document.addEventListener("keydown", (e) => {
+  if (!window.abrirBottomSheet && e.key === "Escape" && !$("#cotacao-sheet").hidden) fecharSheetCotacao();
+});
+
 $("#cotacao-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = $("#cotacao-titulo");
@@ -241,6 +286,7 @@ $("#cotacao-form").addEventListener("submit", async (e) => {
   });
   if (r) {
     input.value = "";
+    fecharSheetCotacao();
     loadCotacoes();
   }
 });

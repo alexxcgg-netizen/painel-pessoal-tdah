@@ -1,3 +1,151 @@
 /* static/css/secoes/construtora/cotacoes.css - secao construtora > cotacoes (HTML: templates/secoes/construtora/cotacoes.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Fase 7 V5: mesmo padrao de botao "adicionar" + bottom-sheet de
+   secoes/vida/viagens.css (comentarios completos la). Estilo local (ID),
+   substituido por ui/componentes/{botao,bottom-sheet}.css (V0b/V0d) assim
+   que chegarem na integracao. Tinge com --cor-construtora (aba desta
+   secao), nunca uma cor nova. */
+#cotacao-abrir.btn-adicionar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 48px;
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  color: var(--cor-construtora);
+  font-weight: 700;
+  font-size: 0.9rem;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  cursor: pointer;
+}
+
+#cotacao-abrir.btn-adicionar svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  #cotacao-abrir.btn-adicionar:hover {
+    border-color: var(--cor-construtora);
+    box-shadow: var(--shadow-card-hover);
+  }
+}
+
+#cotacao-sheet.bottom-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+#cotacao-sheet.bottom-sheet[hidden] {
+  display: none;
+}
+
+#cotacao-sheet .bottom-sheet-painel {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow-card-hover);
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+#cotacao-sheet .bottom-sheet-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+#cotacao-sheet .bottom-sheet-cabecalho h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--cor-construtora);
+}
+
+#cotacao-sheet .bottom-sheet-fechar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+#cotacao-sheet .bottom-sheet-fechar svg {
+  width: 16px;
+  height: 16px;
+}
+
+#cotacao-sheet #cotacao-form {
+  margin-bottom: 0;
+}
+
+#cotacao-sheet #cotacao-btn.btn-com-icone {
+  min-height: 48px;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--cor-construtora-fill);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 14px -4px color-mix(in srgb, var(--cor-construtora) 55%, transparent);
+}
+
+@media (hover: hover) {
+  #cotacao-sheet #cotacao-btn.btn-com-icone:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 4px 18px -4px color-mix(in srgb, var(--cor-construtora) 60%, transparent);
+  }
+}
+
+/* Botao "+ Adicionar" fornecedor (dentro do detalhe expandido) e upload de
+   PDF - ficavam com a aparencia crua do navegador (mesmo problema do botao
+   grande, so que numa acao secundaria: aqui basta contorno, sem preenchido,
+   pra nao competir com o "Criar" do bottom-sheet). */
+.cotacao-add-form button[type="submit"] {
+  min-height: 44px;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  color: var(--cor-construtora);
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  .cotacao-add-form button[type="submit"]:hover:not(:disabled) {
+    border-color: var(--cor-construtora);
+    background: var(--surface-2);
+  }
+}
+
+@media (hover: hover) {
+  .cotacao-upload-label:hover {
+    border-color: var(--cor-construtora);
+    color: var(--text);
+  }
+}

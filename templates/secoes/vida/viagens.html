@@ -8,16 +8,30 @@
           Viagem pessoal (voo do aeroclube fica na aba Aviacao). "Montar mala" pede um checklist pra IA baseado no destino e no clima. Avisa de documento 3 dias antes e no dia.
         </p>
       </div>
-      <form id="viagem-nova-form" class="form-linha">
-        <input type="text" id="viagem-nova-destino" placeholder="Destino" maxlength="80" required />
-        <input type="date" id="viagem-nova-ida" aria-label="Data de ida" required />
-        <input type="date" id="viagem-nova-volta" aria-label="Data de volta (opcional)" />
-        <label class="checkbox-linha">
-          <input type="checkbox" id="viagem-nova-internacional" />
-          <span>Viagem internacional</span>
-        </label>
-        <button type="submit" id="viagem-nova-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
-      </form>
+      <button type="button" id="viagem-nova-abrir" class="btn-adicionar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nova viagem
+      </button>
+      <div class="bottom-sheet" id="viagem-sheet" hidden>
+        <div class="bottom-sheet-painel">
+          <div class="bottom-sheet-cabecalho">
+            <h3>Nova viagem</h3>
+            <button type="button" id="viagem-sheet-fechar" class="bottom-sheet-fechar" aria-label="Fechar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <form id="viagem-nova-form" class="form-linha">
+            <input type="text" id="viagem-nova-destino" placeholder="Destino" maxlength="80" required />
+            <input type="date" id="viagem-nova-ida" aria-label="Data de ida" required />
+            <input type="date" id="viagem-nova-volta" aria-label="Data de volta (opcional)" />
+            <label class="checkbox-linha">
+              <input type="checkbox" id="viagem-nova-internacional" />
+              <span>Viagem internacional</span>
+            </label>
+            <button type="submit" id="viagem-nova-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+          </form>
+        </div>
+      </div>
       <p id="viagens-vazio" class="vazio" hidden>Nenhuma viagem marcada.</p>
       <ul id="lista-viagens"></ul>
 

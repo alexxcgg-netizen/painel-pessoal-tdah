@@ -1,3 +1,40 @@
 /* static/css/secoes/aviacao/registrar-voo.css - secao aviacao > registrar-voo (HTML: templates/secoes/aviacao/registrar-voo.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Formulario ganha o mesmo acabamento "glass" dos demais paineis da aba
+   (reusa --glass-*, ja tingido por --cor-aviacao dentro de #tab-aviacao -
+   ver style.css ~linha 1079) em vez do fundo transparente herdado do
+   style.css - so moldura, sem cor nova. */
+#voo-form.form-linha {
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+/* Botao "Registrar" ficava com a aparencia crua do navegador (mesmo
+   problema descrito no fase7-visual.md p/ os botoes "adicionar" -
+   .btn-com-icone sozinho nao define fundo/cor). Vira CTA cheio, cor da
+   aba, altura minima de 48px. */
+#voo-btn.btn-com-icone {
+  min-height: 48px;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--cor-aviacao-fill);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  box-shadow: 0 0 14px -4px color-mix(in srgb, var(--cor-aviacao) 55%, transparent);
+}
+
+@media (hover: hover) {
+  #voo-btn.btn-com-icone:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 4px 18px -4px color-mix(in srgb, var(--cor-aviacao) 60%, transparent);
+  }
+}

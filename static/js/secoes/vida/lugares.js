@@ -105,9 +105,42 @@ async function loadLugares() {
   });
 }
 
+// Contrato Fase 7B (V0d): abrirBottomSheet/fecharBottomSheet reais moram em
+// static/js/ui/bottom-sheet.js. Fallback minimo enquanto essa faixa nao
+// chega na integracao (ver mesmo padrao em secoes/vida/viagens.js).
+function abrirSheetLugar() {
+  const sheet = $("#lugar-sheet");
+  if (window.abrirBottomSheet) {
+    window.abrirBottomSheet(sheet);
+  } else {
+    sheet.hidden = false;
+  }
+}
+
+function fecharSheetLugar() {
+  const sheet = $("#lugar-sheet");
+  if (window.fecharBottomSheet) {
+    window.fecharBottomSheet(sheet);
+  } else {
+    sheet.hidden = true;
+  }
+}
+
+$("#lugar-abrir").addEventListener("click", () => abrirSheetLugar());
+$("#lugar-sheet-fechar").addEventListener("click", () => fecharSheetLugar());
+$("#lugar-sheet").addEventListener("click", (e) => {
+  if (!window.abrirBottomSheet && e.target === e.currentTarget) fecharSheetLugar();
+});
+document.addEventListener("keydown", (e) => {
+  if (!window.abrirBottomSheet && e.key === "Escape" && !$("#lugar-sheet").hidden) fecharSheetLugar();
+});
+
 ligarForm("#lugar-form", "#lugar-btn", "Adicionar", () => {
   const nome = $("#lugar-nome").value.trim();
   return nome ? { nome, cidade: $("#lugar-cidade").value.trim() } : null;
-}, "/api/lugares", loadLugares);
+}, "/api/lugares", () => {
+  fecharSheetLugar();
+  loadLugares();
+});
 
 // ---- Fase 5: ideias de presente ----
