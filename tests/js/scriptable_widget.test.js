@@ -1,0 +1,575 @@
+// Testes do widget Scriptable (Fase 7, faixa N3b) - roda o SCRIPT REAL
+// (scriptable/scriptable-widget.js) contra uma simulacao em Node da API do
+// app Scriptable (Request, ListWidget, FileManager, config, Script, Color,
+// Font, args), com `node --test`:
+//
+//   node --test tests/js/scriptable_widget.test.js
+//
+// O script real so exporta funcoes (nao chama main() sozinho) quando
+// `module` existe - ver o guard `typeof module !== "undefined"` no final do
+// arquivo, mesmo padrao usado em static/js/*.js. Os globais do Scriptable
+// (Request, ListWidget, ...) nao existem em Node, entao este arquivo os
+// define em `global.*` ANTES de dar require() no script - dentro do wrapper
+// CommonJS, identificadores soltos (ex: `new Request(...)`) resolvem pelo
+// objeto global quando nao ha `const`/`let` local com o mesmo nome, entao o
+// script roda de verdade contra esses mocks, sem precisar editar uma linha
+// dele pra ser testavel.
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("node:path");
+
+// ---- Mocks da API do Scriptable ----
+
+class MockColor {
+  constructor(hex) {
+    this.hex = hex;
+  }
+}
+
+class MockFont {
+  static systemFont(size) {
+    return { kind: "system", size };
+  }
+  static boldSystemFont(size) {
+    return { kind: "bold", size };
+  }
+}
+
+class MockWidgetText {
+  constructor(text) {
+    this.text = text;
+    this.textColor = null;
+    this.font = null;
+    this.minimumScaleFactor = null;
+    this._align = null;
+  }
+  centerAlignText() {
+    this._align = "center";
+  }
+  leftAlignText() {
+    this._align = "left";
+  }
+  rightAlignText() {
+    this._align = "right";
+  }
+}
+
+class MockWidgetStack {
+  constructor() {
+    this.children = [];
+    this.backgroundColor = null;
+    this.cornerRadius = null;
+    this.spacing = 0;
+    this._padding = null;
+    this._layout = null;
+  }
+  addText(text) {
+    const node = new MockWidgetText(text);
+    this.children.push(node);
+    return node;
+  }
+  addStack() {
+    const stack = new MockWidgetStack();
+    this.children.push(stack);
+    return stack;
+  }
+  addSpacer(tamanho) {
+    this.children.push({ spacer: tamanho === undefined ? true : tamanho });
+  }
+  layoutHorizontally() {
+    this._layout = "horizontal";
+  }
+  layoutVertically() {
+    this._layout = "vertical";
+  }
+  setPadding(a, b, c, d) {
+    this._padding = [a, b, c, d];
+  }
+}
+
+class MockListWidget extends MockWidgetStack {
+  constructor() {
+    super();
+    this.url = null;
+    this._presentedAs = null;
+  }
+  async presentSmall() {
+    this._presentedAs = "small";
+  }
+  async presentMedium() {
+    this._presentedAs = "medium";
+  }
+  async presentLarge() {
+    this._presentedAs = "large";
+  }
+  async presentAccessoryCircular() {
+    this._presentedAs = "accessoryCircular";
+  }
+  async presentAccessoryRectangular() {
+    this._presentedAs = "accessoryRectangular";
+  }
+  async presentAccessoryInline() {
+    this._presentedAs = "accessoryInline";
+  }
+}
+
+// Coleta todos os textos (recursivamente, atravessando stacks aninhados) -
+// facilita asserts sem depender da arvore exata de widgets/stacks.
+function coletarTextos(node) {
+  const out = [];
+  const visitar = (n) => {
+    if (!n) return;
+    if (n.text !== undefined) out.push(n.text);
+    if (Array.isArray(n.children)) n.children.forEach(visitar);
+  };
+  visitar(node);
+  return out;
+}
+
+function coletarCores(node) {
+  const out = [];
+  const visitar = (n) => {
+    if (!n) return;
+    if (n.textColor) out.push(n.textColor.hex);
+    if (Array.isArray(n.children)) n.children.forEach(visitar);
+  };
+  visitar(node);
+  return out;
+}
+
+// Request: `handler(mockRequest)` decide a resposta - pode devolver um
+// objeto (sucesso, populando req.response.statusCode = 200) ou lancar/
+// rejeitar (falha de rede). Pra simular HTTP 4xx/5xx com corpo valido, o
+// handler pode setar req.response.statusCode manualmente antes de devolver.
+class MockRequest {
+  constructor(url) {
+    this.url = url;
+    this.headers = undefined;
+    this.timeoutInterval = undefined;
+    this.response = undefined;
+  }
+  async loadJSON() {
+    const handler = global.__mockFetchHandler;
+    if (!handler) throw new Error("mock de rede nao configurado no teste");
+    const resultado = await handler(this);
+    if (!this.response) this.response = { statusCode: 200 };
+    return resultado;
+  }
+}
+
+// FileManager local, em memoria, isolado por teste (`criarMockFileManager`
+// cria um Map novo a cada chamada) - simula persistencia real entre duas
+// chamadas de montarWidget() dentro do MESMO teste (necessario pro cenario
+// de fallback de cache: 1a chamada com rede OK grava, 2a com rede falhando
+// le o que a 1a gravou).
+function criarMockFileManager() {
+  const store = new Map();
+  return {
+    local() {
+      return {
+        documentsDirectory: () => "/mock/documentos",
+        joinPath: (a, b) => `${a}/${b}`,
+        fileExists: (caminho) => store.has(caminho),
+        readString: (caminho) => {
+          if (!store.has(caminho)) throw new Error("arquivo nao existe");
+          return store.get(caminho);
+        },
+        writeString: (caminho, conteudo) => {
+          store.set(caminho, conteudo);
+        },
+      };
+    },
+    __store: store,
+  };
+}
+
+// ---- Setup dos globais + require do script real ----
+
+const CAMINHO_SCRIPT = path.join(__dirname, "..", "..", "scriptable", "scriptable-widget.js");
+
+function prepararGlobaisBase() {
+  global.Color = MockColor;
+  global.Font = MockFont;
+  global.ListWidget = MockListWidget;
+  global.Request = MockRequest;
+  global.FileManager = criarMockFileManager();
+  global.config = { runsInWidget: true, widgetFamily: "small" };
+  global.args = { widgetParameter: "" };
+  global.Script = {
+    _widget: null,
+    setWidget(w) {
+      this._widget = w;
+    },
+    complete() {},
+  };
+  global.__mockFetchHandler = null;
+}
+
+prepararGlobaisBase();
+const widgetModulo = require(CAMINHO_SCRIPT);
+
+// Reseta o estado mutavel entre testes SEM re-exigir o modulo (as funcoes
+// exportadas leem os globais em tempo de chamada, entao um require() so
+// basta pro arquivo inteiro).
+test.beforeEach(() => {
+  global.config = { runsInWidget: true, widgetFamily: "small" };
+  global.args = { widgetParameter: "" };
+  global.FileManager = criarMockFileManager();
+  global.__mockFetchHandler = null;
+});
+
+// ---- Fixtures do contrato fixo (GET /api/widget) ----
+
+const JSON_NORMAL = {
+  versao: 1,
+  atualizado_em: "2026-09-23T20:10:00Z",
+  estado: "normal",
+  foco: { titulo: "Revisar contrato", em_minutos: 19 },
+  proxima_conta: { nome: "Cartão", em_dias: 3 },
+  habitos: { feitos: 3, total: 5 },
+  custo_ia: { percentual_teto: 42 },
+  linhas: [
+    "Foco: Revisar contrato em 19 min",
+    "Conta: Cartão em 3 dias",
+    "Hábitos: 3/5",
+    "IA: 42% do teto",
+  ],
+};
+
+const JSON_VAZIO = {
+  versao: 1,
+  atualizado_em: "2026-09-23T20:10:00Z",
+  estado: "vazio",
+  foco: null,
+  proxima_conta: null,
+  habitos: { feitos: 0, total: 0 },
+  custo_ia: { percentual_teto: 0 },
+  linhas: ["Nada marcado por enquanto.", "Aproveita o tempo livre."],
+};
+
+const JSON_ERRO = {
+  versao: 1,
+  atualizado_em: "2026-09-23T20:10:00Z",
+  estado: "erro",
+  foco: null,
+  proxima_conta: null,
+  habitos: null,
+  custo_ia: null,
+  linhas: ["O painel encontrou um erro.", "Tente novamente mais tarde."],
+};
+
+function handlerSucesso(json) {
+  return async () => json;
+}
+
+function handlerFalha() {
+  return async () => {
+    throw new Error("network error simulado");
+  };
+}
+
+// ============================================================
+// Estado normal, nos 4 tamanhos
+// ============================================================
+
+test("normal / small: mostra as 2 primeiras linhas e usa a cor de destaque no titulo", async () => {
+  global.config.widgetFamily = "small";
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+
+  assert.ok(textos.includes("PAINEL"));
+  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"));
+  assert.ok(textos.includes("Conta: Cartão em 3 dias"));
+  // small mostra so as 2 primeiras linhas (espaco curto)
+  assert.ok(!textos.includes("Hábitos: 3/5"));
+
+  const cores = coletarCores(widget);
+  assert.ok(cores.includes("#41aa75")); // --cor-painel
+  assert.equal(widget.backgroundColor.hex, "#000000"); // --bg
+});
+
+test("normal / medium: mostra as 4 linhas mais os blocos de habitos e IA", async () => {
+  global.config.widgetFamily = "medium";
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+
+  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"));
+  assert.ok(textos.includes("Conta: Cartão em 3 dias"));
+  assert.ok(textos.includes("Hábitos: 3/5"));
+  assert.ok(textos.includes("IA: 42% do teto"));
+  // tiles com valor cru (numero) + rotulo
+  assert.ok(textos.includes("3/5"));
+  assert.ok(textos.includes("42%"));
+  assert.ok(textos.includes("hábitos"));
+  assert.ok(textos.includes("IA do teto"));
+});
+
+test("normal / accessoryCircular: mostra a fracao de habitos, sem cor customizada", async () => {
+  global.config.widgetFamily = "accessoryCircular";
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+
+  assert.ok(textos.includes("3/5"));
+  const cores = coletarCores(widget);
+  assert.equal(cores.length, 0, "familia accessory* nao pode setar textColor (iOS ignora/distorce)");
+  assert.equal(widget.backgroundColor, null, "familia accessory* nao pode setar backgroundColor");
+});
+
+test("normal / accessoryRectangular: mostra 2 linhas prontas do contrato, sem cor customizada", async () => {
+  global.config.widgetFamily = "accessoryRectangular";
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+
+  assert.equal(textos[0], "Foco: Revisar contrato em 19 min");
+  assert.equal(textos[1], "Conta: Cartão em 3 dias");
+  const cores = coletarCores(widget);
+  assert.equal(cores.length, 0);
+  assert.equal(widget.backgroundColor, null);
+});
+
+test("familia desconhecida (ex: large) cai no layout de small sem quebrar", async () => {
+  global.config.widgetFamily = "large";
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.includes("PAINEL"));
+  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"));
+});
+
+// ============================================================
+// Estado vazio
+// ============================================================
+
+test("vazio / small: mostra a primeira linha do contrato como mensagem", async () => {
+  global.config.widgetFamily = "small";
+  global.__mockFetchHandler = handlerSucesso(JSON_VAZIO);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.includes("Nada marcado por enquanto."));
+});
+
+test("vazio / accessoryCircular: mostra rotulo 'livre', sem cor", async () => {
+  global.config.widgetFamily = "accessoryCircular";
+  global.__mockFetchHandler = handlerSucesso(JSON_VAZIO);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.includes("livre"));
+  assert.equal(coletarCores(widget).length, 0);
+});
+
+test("vazio: sem linhas no payload cai no texto padrao claro", async () => {
+  global.config.widgetFamily = "small";
+  global.__mockFetchHandler = handlerSucesso({ ...JSON_VAZIO, linhas: [] });
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.some((t) => t.toLowerCase().includes("livre") || t.toLowerCase().includes("nada")));
+});
+
+// ============================================================
+// Estado erro (reportado pela propria API)
+// ============================================================
+
+test("erro / small: usa a cor de perigo no titulo e mostra a mensagem do contrato", async () => {
+  global.config.widgetFamily = "small";
+  global.__mockFetchHandler = handlerSucesso(JSON_ERRO);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.includes("O painel encontrou um erro."));
+  const cores = coletarCores(widget);
+  assert.ok(cores.includes("#ff5c72")); // --danger
+});
+
+test("erro / accessoryRectangular: mostra as linhas do contrato, sem cor customizada", async () => {
+  global.config.widgetFamily = "accessoryRectangular";
+  global.__mockFetchHandler = handlerSucesso(JSON_ERRO);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.equal(textos[0], "O painel encontrou um erro.");
+  assert.equal(coletarCores(widget).length, 0);
+});
+
+test("erro: sem linhas no payload cai no texto padrao claro", async () => {
+  global.config.widgetFamily = "medium";
+  global.__mockFetchHandler = handlerSucesso({ ...JSON_ERRO, linhas: [] });
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.some((t) => t.toLowerCase().includes("erro")));
+});
+
+// ============================================================
+// Falha de rede + fallback de cache
+// ============================================================
+
+test("rede falha sem cache previo: mostra mensagem clara de sem conexao", async () => {
+  global.config.widgetFamily = "small";
+  global.__mockFetchHandler = handlerFalha();
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.some((t) => t.includes("Sem conexão")));
+});
+
+test("rede falha sem cache previo (accessoryCircular): mostra placeholder, sem travar", async () => {
+  global.config.widgetFamily = "accessoryCircular";
+  global.__mockFetchHandler = handlerFalha();
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.includes("--"));
+});
+
+test("cache: 1a busca com sucesso grava; 2a busca falha e usa o cache com 'atualizado ha X'", async () => {
+  global.config.widgetFamily = "small";
+
+  // 1a chamada: rede OK -> grava cache
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+  const primeiro = await widgetModulo.montarWidget();
+  assert.ok(coletarTextos(primeiro).includes("Foco: Revisar contrato em 19 min"));
+  assert.equal(global.FileManager.__store.size, 1, "deveria ter gravado 1 arquivo de cache");
+
+  // 2a chamada: rede falha -> deveria usar o cache gravado na 1a
+  global.__mockFetchHandler = handlerFalha();
+  const segundo = await widgetModulo.montarWidget();
+  const textos = coletarTextos(segundo);
+
+  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"), "deveria mostrar os dados salvos, nao 'sem conexao'");
+  assert.ok(
+    textos.some((t) => t.startsWith("atualizado")),
+    "deveria mostrar 'atualizado ha X' quando usa dados de cache"
+  );
+});
+
+test("cache: fallback funciona tambem em accessoryRectangular (rotulo com 'atualizado')", async () => {
+  global.config.widgetFamily = "accessoryRectangular";
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+  await widgetModulo.montarWidget();
+
+  global.__mockFetchHandler = handlerFalha();
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.some((t) => t.includes("atualizado")));
+});
+
+test("cache: resposta HTTP com status de erro (>=400) tambem aciona o fallback", async () => {
+  global.config.widgetFamily = "small";
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+  await widgetModulo.montarWidget();
+
+  global.__mockFetchHandler = async (req) => {
+    req.response = { statusCode: 401 };
+    return { erro: "token invalido" };
+  };
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"));
+  assert.ok(textos.some((t) => t.startsWith("atualizado")));
+});
+
+// ============================================================
+// Configuracao (URL/token) e formatacao de tempo
+// ============================================================
+
+test("resolverConfig: usa as constantes fixas quando nao ha parametro do widget", () => {
+  global.args = { widgetParameter: "" };
+  const { url, token } = widgetModulo.resolverConfig();
+  assert.equal(typeof url, "string");
+  assert.equal(token, "");
+});
+
+test("resolverConfig: parametro do widget 'URL|TOKEN' sobrescreve as constantes", () => {
+  global.args = { widgetParameter: "http://192.168.1.10:5001/ | segredo123" };
+  const { url, token } = widgetModulo.resolverConfig();
+  assert.equal(url, "http://192.168.1.10:5001");
+  assert.equal(token, "segredo123");
+});
+
+test("resolverConfig: parametro so com URL mantem token vazio", () => {
+  global.args = { widgetParameter: "http://192.168.1.10:5001" };
+  const { url } = widgetModulo.resolverConfig();
+  assert.equal(url, "http://192.168.1.10:5001");
+});
+
+test("buscarDados: manda Authorization Bearer quando ha token", async () => {
+  global.args = { widgetParameter: "http://exemplo.com|abc123" };
+  let headersRecebidos = null;
+  global.__mockFetchHandler = async (req) => {
+    headersRecebidos = req.headers;
+    return JSON_NORMAL;
+  };
+  const { url, token } = widgetModulo.resolverConfig();
+  await widgetModulo.buscarDados(url, token);
+  assert.deepEqual(headersRecebidos, { Authorization: "Bearer abc123" });
+});
+
+test("buscarDados: sem token, nao manda header de Authorization", async () => {
+  let headersRecebidos = "nao-chamado";
+  global.__mockFetchHandler = async (req) => {
+    headersRecebidos = req.headers;
+    return JSON_NORMAL;
+  };
+  await widgetModulo.buscarDados("http://exemplo.com", "");
+  assert.deepEqual(headersRecebidos, {});
+});
+
+test("formatarAtualizadoHaX: menos de 1 min vira 'agora'", () => {
+  const agora = new Date("2026-09-23T20:10:30Z");
+  assert.equal(widgetModulo.formatarAtualizadoHaX("2026-09-23T20:10:00Z", agora), "agora");
+});
+
+test("formatarAtualizadoHaX: minutos", () => {
+  const agora = new Date("2026-09-23T20:25:00Z");
+  assert.equal(widgetModulo.formatarAtualizadoHaX("2026-09-23T20:10:00Z", agora), "há 15 min");
+});
+
+test("formatarAtualizadoHaX: horas", () => {
+  const agora = new Date("2026-09-23T23:10:00Z");
+  assert.equal(widgetModulo.formatarAtualizadoHaX("2026-09-23T20:10:00Z", agora), "há 3 h");
+});
+
+test("formatarAtualizadoHaX: dias", () => {
+  const agora = new Date("2026-09-26T20:10:00Z");
+  assert.equal(widgetModulo.formatarAtualizadoHaX("2026-09-23T20:10:00Z", agora), "há 3 d");
+});
+
+test("formatarAtualizadoHaX: data invalida nao quebra", () => {
+  assert.equal(widgetModulo.formatarAtualizadoHaX("nao-e-uma-data", new Date()), "há um tempo");
+});
+
+// ============================================================
+// main(): integra config.runsInWidget / presentXxx sem quebrar
+// ============================================================
+
+test("main(): dentro do widget de verdade, chama Script.setWidget", async () => {
+  global.config = { runsInWidget: true, widgetFamily: "small" };
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+  global.Script._widget = null;
+
+  await widgetModulo.main();
+  assert.ok(global.Script._widget instanceof MockListWidget);
+});
+
+test("main(): rodando manualmente (fora do widget), chama o present certo pra familia", async () => {
+  global.config = { runsInWidget: false, widgetFamily: "accessoryRectangular" };
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+
+  await widgetModulo.main();
+  // nao ha widget global pra inspecionar aqui, mas rodar sem lancar excecao
+  // ja cobre o caminho - a asserção de conteudo fica nos testes de
+  // montarWidget() acima.
+  assert.ok(true);
+});

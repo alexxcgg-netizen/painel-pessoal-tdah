@@ -131,6 +131,62 @@ db.init_db()
   `CACHE_NAME`**; `tests/test_fase7_estrutura_frontend.py` falha se esquecer.
 - **CSS novo vai nas camadas de `static/css/fase7.css`** (carregam depois do `style.css`,
   sobrescrevem por cascata) - nao editar nem dividir o `style.css`.
+### Fase 7, faixa A2 (adapter Anthropic, `ia/adapters/anthropic.py`)
+- **Arquivo se chama `anthropic.py` DENTRO do pacote `ia.adapters` e faz
+  `import anthropic` (o SDK) sem sombra nenhuma** - Python 3 usa import
+  absoluto por padrão, então `import anthropic` dentro de
+  `ia/adapters/anthropic.py` resolve pro pacote instalado de verdade, não
+  pro próprio módulo (isso só quebraria com import relativo implícito, que
+  não existe em Python 3, ou rodando o arquivo como script solto). Confirmado
+  na prática (`ia.adapters.anthropic` importa e instancia
+  `anthropic.Anthropic()` normal). Vale o mesmo cuidado pro adapter da OpenAI
+  (`ia/adapters/openai.py` importando `import openai`).
+- **`AdapterAnthropic(client=...)` aceita um cliente injetado no
+  construtor** - é assim que os testes trocam `client.messages.create` por
+  mock sem tocar rede nenhuma (`AdapterAnthropic(client=Mock())`); sem
+  argumento, cria `anthropic.Anthropic(api_key=os.environ.get(...))` normal.
+  Quem escrever `ia/core.py` (faixa A1) e for instanciar os adapters direto
+  pode aproveitar o mesmo padrão de injeção se precisar mockar em teste de
+  integração.
+- **`cache_control` só é aplicado ao bloco de `contexto_fixo`, nunca ao
+  bloco de `sistema`** - o `sistema` (+ instrução de schema, se houver) e o
+  `contexto_fixo` (+ `cache_control` quando elegível) viram blocos
+  SEPARADOS na lista de `system=[...]`, nessa ordem. `CACHE_MIN_TOKENS_POR_MODELO`
+  e a aproximação de tokens (`len(texto)//4`) são só o MECANISMO de
+  liga/desliga - os números são palpite, não os valores oficiais da
+  Anthropic (a faixa A4 fica de reconferir contra `ia/precos.json`/doc
+  oficial).
+- **`ia/precos.json` ainda não existe** (a faixa A4 está criando em
+  paralelo) - `_calcular_custo_usd` já lê defensivamente (`custo_usd=0.0`
+  se o arquivo não existir ou tiver formato inesperado) assumindo um layout
+  provisório (`{"<modelo>": {"input_por_mtok", "output_por_mtok",
+  "cache_leitura_por_mtok", "cache_escrita_por_mtok"}}`) - se a A4 definir
+  um formato diferente, só essa função precisa mudar.
+### Fase 7, Etapa 0 / X1 (extracao estrutural do backend) - onde cada faixa escreve
+Objetivo: nenhuma faixa da Fase 7 edita o mesmo arquivo que outra. Antes de mexer em
+`app.py`/`db.py`/`claude_client.py`, veja se o ponto de extensao abaixo resolve:
+- **IA antiga**: `claude_client.py` e so fachada (reexporta). Codigo em `ia/legado.py`
+  (client, HAIKU/SONNET, PRICING, `_extract_json`, `_usage`) e `ia/funcoes/{chat,captura,
+  planejamento,visao}.py` (donas A6/A7/A8/A9). Funcao nova -> arquivo do grupo + 1 linha de
+  reexport na fachada. Pegadinha: `patch("claude_client._usage")` NAO pega as funcoes de
+  `ia/funcoes/*` (patche `ia.funcoes.<grupo>._usage`); `patch("claude_client.chat")` e
+  `claude_client.client.messages` continuam valendo (app chama `claude_client.X` na hora).
+- **Rotas**: arquivo novo `rotas/<assunto>.py` com `bp = Blueprint(...)` - registrado
+  sozinho no fim de `app.py`. Helpers do app via `rotas._base.app_modulo()` DENTRO da rota
+  (nunca `import app` no topo). Login ja e global; rota com token proprio declara
+  `ROTAS_COM_TOKEN`/`PREFIXOS_COM_TOKEN` no modulo e checa o token ela mesma. Molde no
+  docstring de `rotas/__init__.py`.
+- **Schema**: `migracoes/AAAAMMDDHHMM_<faixa>_<descricao>.sql` (ver `migracoes/README.md`),
+  nunca editar `init_db()` nem migracao existente. Sem BEGIN/COMMIT no arquivo.
+- **Frase resolvida sem IA**: `classificador_local/regras/<faixa>_<nome>.py` com
+  `casar(texto)` + `executar(conn, parametros)` (ver `classificador_local/README.md`).
+  Ja plugado em chat, captura e intent - nao mexa nesses fluxos do `app.py`.
+- **Assistente proativo**: `assistente/gatilhos/<nome>.py` com `executar(conn, agora)`;
+  `assistente.gatilhos.executar_todos` isola excecao por modulo e commita por gatilho.
+- Testes de infra que injetam modulo falso sem deixar arquivo no repo: acrescentam uma
+  pasta temporaria ao `__path__` do pacote (`rotas`, `classificador_local.regras`,
+  `assistente.gatilhos`). Blueprint novo depois da 1a requisicao do app precisa de
+  `patch.object(app.app, "_got_first_request", False)` no teste (Flask 3.1).
 
 ### Fase 6, revisao independente (codigo + seguranca) - correcoes
 - **Todo card novo com dado sensivel (dinheiro OU saude) entra em
