@@ -21,6 +21,7 @@ editarem o mesmo arquivo. Branch `fase7/e0-backend`.
   `_classificar_intent`, da captura e do chat - com `regras/` vazio nada muda.
 - `assistente/gatilhos/` com `executar_todos(conn, agora)` (sem endpoint ainda).
 - Testes: `tests/test_fase7_infra_{rotas,migracoes,classificador,gatilhos}.py`.
+
 ## 2026-09-24 (Fase 7, X2) - frontend dividido por secao (so estrutura)
 
 Mudanca estrutural pura pra ~10 faixas de visual rodarem em paralelo sem editar o mesmo

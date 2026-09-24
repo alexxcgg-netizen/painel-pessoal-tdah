@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="refresh" content="900" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#000000" />
+  <title>Widget - Painel Pessoal</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    /* Paleta copiada de static/css/style.css (:root) - o "Preto puro" e os
+       tokens de texto/superficie do app atual, sem inventar cor nova.
+       --cor-painel (esmeralda) e o mesmo tom ja usado pra identidade da aba
+       Painel; --danger e reservado so pra alerta, igual no resto do app. */
+    :root {
+      --bg: #000000;
+      --surface: #121212;
+      --surface-2: #181818;
+      --border: rgba(218, 226, 243, 0.09);
+      --border-strong: rgba(218, 226, 243, 0.18);
+      --text: #eceef3;
+      --text-muted: #a7afbc;
+      --text-faint: #788292;
+      --cor-painel: #41aa75;
+      --danger: #ff5c72;
+      --radius: 20px;
+      --radius-sm: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Sora", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      padding: 24px 16px 32px;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 420px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin: 0 0 6px;
+    }
+
+    .cartao {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+    }
+
+    .rotulo {
+      font-size: 11px;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 0 0 6px;
+    }
+
+    .valor {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+      line-height: 1.3;
+    }
+
+    .sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 4px 0 0;
+    }
+
+    .estado-vazio {
+      color: var(--text-faint);
+      font-size: 14px;
+      text-align: center;
+      padding: 24px 16px;
+    }
+
+    .estado-erro {
+      border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+    }
+
+    .estado-erro .valor {
+      color: var(--danger);
+    }
+
+    .barra {
+      margin-top: 8px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+
+    .barra > span {
+      display: block;
+      height: 100%;
+      background: var(--cor-painel);
+    }
+
+    .barra.alerta > span {
+      background: var(--danger);
+    }
+
+    .rodape {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--text-faint);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Painel Pessoal — widget</h1>
+
+    {% if r.estado == 'erro' %}
+      <div class="cartao estado-erro">
+        <p class="rotulo">Erro</p>
+        <p class="valor">Não foi possível carregar o resumo agora.</p>
+      </div>
+    {% elif r.estado == 'vazio' %}
+      <div class="cartao">
+        <p class="estado-vazio">Nada pra mostrar agora.</p>
+      </div>
+    {% else %}
+      {% if r.foco %}
+        <div class="cartao">
+          <p class="rotulo">Foco</p>
+          <p class="valor">{{ r.foco.titulo }}</p>
+          <p class="sub">em {{ r.foco.em_minutos }} min</p>
+        </div>
+      {% endif %}
+
+      {% if r.proxima_conta %}
+        <div class="cartao">
+          <p class="rotulo">Próxima conta</p>
+          <p class="valor">{{ r.proxima_conta.nome }}</p>
+          <p class="sub">
+            {%- if r.proxima_conta.em_dias is none -%}
+              data não informada
+            {%- elif r.proxima_conta.em_dias < 0 -%}
+              vencida há {{ -r.proxima_conta.em_dias }} dia(s)
+            {%- elif r.proxima_conta.em_dias == 0 -%}
+              vence hoje
+            {%- else -%}
+              em {{ r.proxima_conta.em_dias }} dia(s)
+            {%- endif -%}
+            {%- if r.proxima_conta.valor is defined %} · R$ {{ "%.2f"|format(r.proxima_conta.valor) }}{% endif -%}
+          </p>
+        </div>
+      {% endif %}
+
+      {% if r.habitos %}
+        <div class="cartao">
+          <p class="rotulo">Hábitos</p>
+          <p class="valor">{{ r.habitos.feitos }}/{{ r.habitos.total }}</p>
+          <div class="barra">
+            <span style="width: {{ (r.habitos.feitos / r.habitos.total * 100) if r.habitos.total else 0 }}%"></span>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if r.custo_ia %}
+        <div class="cartao">
+          <p class="rotulo">IA</p>
+          <p class="valor">{{ r.custo_ia.percentual_teto }}% do teto</p>
+          <div class="barra {{ 'alerta' if r.custo_ia.percentual_teto >= 80 else '' }}">
+            <span style="width: {{ [r.custo_ia.percentual_teto, 100] | min }}%"></span>
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
+
+    <p class="rodape">Atualizado {{ r.atualizado_em }}</p>
+  </main>
+</body>
+</html>

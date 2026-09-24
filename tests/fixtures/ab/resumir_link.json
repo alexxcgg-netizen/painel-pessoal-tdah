@@ -1,0 +1,27 @@
+[
+  {
+    "id": "link_noticia_juros",
+    "entrada": {"titulo": "Banco Central mantem taxa de juros", "texto": "O Banco Central decidiu manter a taxa Selic em reuniao nesta quarta-feira, citando inflacao ainda acima da meta. Analistas esperavam o mesmo resultado. O proximo encontro do comite esta marcado para o fim do ano."},
+    "esperado": {"contem": ["juros"]}
+  },
+  {
+    "id": "link_artigo_construcao",
+    "entrada": {"titulo": "Preco do cimento sobe 8% no trimestre", "texto": "O preco medio do cimento subiu 8% nos ultimos tres meses, segundo levantamento do setor. Construtoras pequenas e medias sentem mais o impacto no orcamento das obras em andamento."},
+    "esperado": {"contem": ["cimento"]}
+  },
+  {
+    "id": "link_pagina_login",
+    "entrada": {"titulo": "Acesse sua conta", "texto": "Email\nSenha\nEsqueci minha senha\nEntrar\nCriar conta nova"},
+    "esperado": {"contem": []}
+  },
+  {
+    "id": "link_curso_piloto",
+    "entrada": {"titulo": "Requisitos para licenca de piloto comercial", "texto": "Para obter a licenca de piloto comercial no Brasil e preciso completar um minimo de horas de voo, passar em exames teoricos da ANAC e realizar exame medico aeronautico valido. O processo costuma levar de 12 a 18 meses."},
+    "esperado": {"contem": ["licenca"]}
+  },
+  {
+    "id": "link_dica_produtividade",
+    "entrada": {"titulo": "Tecnica pomodoro para quem tem dificuldade de foco", "texto": "A tecnica consiste em trabalhar em blocos de 25 minutos com pausas curtas entre eles. Pessoas com dificuldade de manter foco relatam melhora ao dividir tarefas grandes em blocos menores."},
+    "esperado": {"contem": ["pomodoro"]}
+  }
+]
