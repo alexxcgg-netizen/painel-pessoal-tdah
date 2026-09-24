@@ -1,0 +1,42 @@
+Faixa P8 (central de avisos) - progress.txt
+
+HISTORIAS FEITAS
+1. assistente/avisos.py: aviso_permitido(tipo, agora=None), esta_ligado(tipo),
+   canal(tipo), definir_tipo(tipo, ligado=, canal=, silencio_inicio=,
+   silencio_fim=), definir_silencio_global(inicio, fim), listar_estado(),
+   estado_tipo(tipo). Catalogo TIPOS (~49 chaves): 6 proatividades Fase 6 +
+   ~32 tipos ja existentes em app.py/notificacoes.py + 11 novos do prompt
+   (pergunta_conta, reuniao, tarefa_vencida, lembrete, espera, briefing_manha,
+   briefing_noite, regra, sinal, memoria_viva, replanejar). DONE.
+2. Persistencia: configuracoes.assistente_avisos_config (JSON, so overrides) -
+   nao migracoes/*.sql porque a infra de migracao automatica (e0-backend)
+   ainda nao estava em origin/fase7/integracao quando comecei. Motivo
+   completo no docstring do topo de assistente/avisos.py. DONE.
+3. rotas/p8_avisos.py: GET /api/assistente/avisos, PUT .../<tipo>, PUT
+   .../silencio. Nao depende de rotas/_base.py (tambem ainda nao existia) -
+   so db + flask; roda hoje e continua funcionando quando registrar_todas
+   integrar (Blueprint bp padrao). DONE.
+4. tests/test_fase7_p8_avisos.py (29) + tests/test_fase7_p8_rotas.py (13) =
+   42 testes, 0 falhas. Cobre catalogo, liga/desliga, canal, silencio global
+   cruzando meia-noite, silencio por tipo (override parcial ignorado, limpar
+   com ""), tipo desconhecido (permitido por padrao, decisao documentada),
+   rotas 200/400/404. DONE.
+
+INTEGRACAO PENDENTE (fora do meu escopo, regra #5 do prompt)
+- app.py:4512 `for tipo, ref_id, titulo, corpo in avisos:` dentro de
+  verificar_e_notificar() (comeca em app.py:4215; Fase 6 E8 e tudo antes
+  cai nesse mesmo loop via avisos.extend nas linhas 4433-4436). Acrescentar
+  logo apos a 4512, antes dos checks de hiperfoco/silencioso/viagem ja
+  existentes:
+      from assistente.avisos import aviso_permitido
+      if not aviso_permitido(tipo):
+          continue
+  Os `tipo` que esse loop ja usa batem 1:1 com as chaves de TIPOS em
+  assistente/avisos.py - zero traducao de nome.
+- canal(tipo) ainda nao e consultado (push antigo sempre manda web+Telegram
+  juntos); quem separar isso decide onde usar.
+- Faixas P2-P9 (quando existirem) chamam aviso_permitido(tipo) com as
+  chaves "novas" do catalogo (fim de TIPOS) antes de mandar push do item.
+
+BLOQUEIOS: nenhum. rotas/migracoes (e0-backend) nao estavam integradas
+quando comecei; nao bloqueou nada do escopo desta faixa.
