@@ -1,0 +1,28 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3.5 2"/></svg>
+        Esperando resposta de
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de esperando resposta de"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Threads em aberto com outras pessoas - fornecedor, corretora, qualquer terceiro que voce
+          esta esperando responder. Diferente de tarefa: nao e algo que voce precisa fazer, e algo
+          que voce esta aguardando alguem mais fazer. Peca no chat ("to esperando resposta do
+          fornecedor de ferro sobre o preco") ou registra aqui direto. Avisa se passar de 5 dias
+          sem voce marcar como resolvido.
+        </p>
+      </div>
+      <form id="espera-form" class="form-linha">
+        <input type="text" id="espera-quem" placeholder="De quem? (ex: fornecedor de ferro)" required />
+        <input type="text" id="espera-sobre" placeholder="Sobre o que?" required />
+        <button type="submit" id="espera-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar
+        </button>
+      </form>
+      <p id="esperas-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3.5 2"/></svg>
+        Nenhuma resposta pendente no momento.
+      </p>
+      <ul id="lista-esperas"></ul>
+

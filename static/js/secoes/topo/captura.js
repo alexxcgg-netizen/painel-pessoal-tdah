@@ -1,0 +1,231 @@
+// static/js/secoes/topo/captura.js - Secao topo > captura (HTML: templates/secoes/topo/captura.html).
+// Fase 7 (X2): extraido sem mudanca de logica do antigo app.js 308-366, app.js 374-455, app.js 563-649.
+// Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
+
+function criarCardResultado(parsed) {
+  const card = document.createElement("div");
+  card.className = `card-resultado card-resultado-${parsed.tipo}`;
+
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "card-resultado-eyebrow";
+  const rotulos = { tarefa: "Tarefa criada", gasto: "Gasto registrado", meta: "Meta criada" };
+  const icones = { tarefa: ICONE_TAREFA_CARD, gasto: ICONE_GASTO_CARD, meta: ICONE_META_CARD };
+  eyebrow.innerHTML = `${icones[parsed.tipo] || ""}<span>${rotulos[parsed.tipo] || "Criado"}</span>`;
+  card.appendChild(eyebrow);
+
+  const titulo = document.createElement("p");
+  titulo.className = "card-resultado-titulo";
+  titulo.textContent = parsed.titulo;
+  card.appendChild(titulo);
+
+  if (parsed.tipo === "gasto") {
+    const valor = document.createElement("p");
+    valor.className = "card-resultado-valor";
+    valor.textContent = `-${fmtMoeda(parsed.valor)}`;
+    card.appendChild(valor);
+    if (parsed.categoria) {
+      const tag = document.createElement("span");
+      tag.className = "gasto-categoria";
+      tag.dataset.cat = parsed.categoria;
+      tag.textContent = parsed.categoria;
+      card.appendChild(tag);
+    }
+  } else if (parsed.tipo === "meta") {
+    const valor = document.createElement("p");
+    valor.className = "card-resultado-valor";
+    valor.textContent = fmtMoeda(parsed.valor);
+    card.appendChild(valor);
+    const detalhe = document.createElement("p");
+    detalhe.className = "card-resultado-detalhe";
+    detalhe.textContent = parsed.prazo ? `Prazo: ${parsed.prazo}` : "Sem prazo definido";
+    card.appendChild(detalhe);
+  } else {
+    const detalhe = document.createElement("p");
+    detalhe.className = "card-resultado-detalhe";
+    detalhe.textContent = parsed.hora
+      ? `${parsed.quando || "hoje"} as ${parsed.hora}`
+      : parsed.quando || "sem prazo definido";
+    card.appendChild(detalhe);
+  }
+
+  return card;
+}
+
+// Fase 6 (docs/CARDS.md): resposta da captura com o contrato de cards vira
+// os cards do registro (static/js/cards.js); resposta de um servidor mais
+// velho (sem `cards`) cai no card de resultado antigo acima.
+function criarCardsCaptura(data) {
+  if (data && Array.isArray(data.cards) && data.cards.length && typeof Cards !== "undefined") {
+    return Cards.criarGrupo(data.cards, data.passos);
+  }
+  return criarCardResultado(data);
+}
+
+// Card provisorio mostrado quando a captura foi enfileirada offline - sem
+// classificacao da IA ainda (ela so roda quando a requisicao de verdade
+// chegar no servidor), entao mostra o texto cru + um aviso, no lugar do
+// card com titulo/categoria/valor que so a resposta real traz. `id` e o
+// mesmo client_id usado no corpo da requisicao e na fila (liga o card na
+// tela ao item que vai sincronizar depois, pra poder trocar pelo real).
+function criarCardCapturaPendente(id, text) {
+  const card = document.createElement("div");
+  card.className = "card-resultado card-resultado-pendente";
+  card.id = `fila-${id}`;
+
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "card-resultado-eyebrow";
+  eyebrow.innerHTML = `${ICONE_TAREFA_CARD}<span>Sem conexao - salvo, vai sincronizar</span>`;
+  card.appendChild(eyebrow);
+
+  const titulo = document.createElement("p");
+  titulo.className = "card-resultado-titulo";
+  titulo.textContent = text;
+  card.appendChild(titulo);
+
+  return card;
+}
+
+// Mostra/esconde o indicador discreto de fila offline - some sozinho quando
+// tudo sincroniza (n chega a 0). Chamado pela propria FilaOffline (a cada
+// item processado) e no carregamento da pagina.
+function atualizarIndicadorOffline(n) {
+  const banner = $("#offline-banner");
+  if (!banner) return;
+  if (n > 0) {
+    banner.textContent = `Sem conexao - ${n} ${n === 1 ? "item pendente" : "itens pendentes"}, vai sincronizar quando voltar.`;
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+}
+
+if (typeof FilaOffline !== "undefined") {
+  // Assim que uma captura enfileirada sincroniza de verdade, troca o card
+  // provisorio pelo resultado real (ou, no raro caso de a IA ainda ficar em
+  // duvida, avisa em vez de travar a fila esperando o Alex responder) e
+  // recarrega as mesmas telas que o caminho online ja recarrega.
+  FilaOffline.registrarCallback("capture", (data, item) => {
+    const cardPendente = document.getElementById(`fila-${item.id}`);
+    if (data && data.duvida) {
+      if (cardPendente) cardPendente.remove();
+      const aviso = document.createElement("p");
+      aviso.className = "card-resultado-detalhe";
+      aviso.textContent = `Capturado offline, mas ficou em duvida: "${data.duvida}". Repete a captura quando puder pra confirmar.`;
+      $("#chat-mensagens").appendChild(aviso);
+    } else if (data) {
+      const novoCard = criarCardsCaptura(data);
+      if (cardPendente) cardPendente.replaceWith(novoCard);
+      else $("#chat-mensagens").appendChild(novoCard);
+    }
+    loadUso();
+    loadSummary();
+    loadStreak();
+    if (data && data.memoria) loadMemorias();
+    if (!$("#tab-tarefas").hidden) loadTasks();
+    if (!$("#tab-gastos").hidden) {
+      loadExpenses();
+      loadMetas();
+    }
+  });
+
+  FilaOffline.registrarCallback("erro", (item, corpo, status) => {
+    const cardPendente = document.getElementById(`fila-${item.id}`);
+    if (cardPendente) cardPendente.remove();
+    mostrarErro((corpo && corpo.error) || `Nao consegui sincronizar um item pendente (HTTP ${status}). Foi descartado.`);
+  });
+
+  // Nota fiscal tirada sem internet (US-C8): a extracao em si nao pode
+  // esperar so no navegador porque depende da API de visao - fica na fila
+  // igual qualquer outra escrita, e quando sincronizar mostra a MESMA tela
+  // de confirmacao de quem tirou a foto com internet (nunca salva sozinho).
+  FilaOffline.registrarCallback("nota_fiscal_extrair", (data) => {
+    if (data && !data.duvida) mostrarConfirmacaoNotaFiscal(data);
+  });
+}
+
+async function enviarCaptura(text, clarificacao) {
+  const capturaBtn = $("#captura-btn");
+  const duvidaBtn = $("#duvida-btn");
+  setBotaoCarregando(capturaBtn, true, "Pensando...");
+  duvidaBtn.disabled = true;
+
+  const clientId = crypto.randomUUID();
+  const data = await apiFetch(
+    "/api/capture",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, clarificacao, client_id: clientId }),
+    },
+    { tipo: "capture", id: clientId }
+  );
+
+  setBotaoCarregando(capturaBtn, false, "Adicionar");
+  duvidaBtn.disabled = false;
+
+  if (!data) return;
+
+  if (data.__enfileirado) {
+    // otimista: o Alex nao pode ficar sem poder anotar nada so por falta de
+    // sinal - mostra como se tivesse dado certo, sincroniza sozinho depois.
+    textoPendente = null;
+    $("#duvida-box").hidden = true;
+    pulsarSucesso($("#captura-input"));
+    vibrar(20);
+    const listaChat = $("#chat-mensagens");
+    listaChat.querySelector(".chat-vazio")?.remove();
+    listaChat.appendChild(criarCardCapturaPendente(clientId, text));
+    listaChat.scrollTop = listaChat.scrollHeight;
+    return;
+  }
+
+  loadUso();
+
+  if (data.duvida) {
+    textoPendente = data.texto_original;
+    $("#duvida-texto").textContent = data.duvida;
+    $("#duvida-input").value = "";
+    $("#duvida-box").hidden = false;
+    return;
+  }
+
+  textoPendente = null;
+  $("#duvida-box").hidden = true;
+  pulsarSucesso($("#captura-input"));
+  vibrar(20);
+  tocarSomSucesso();
+  const listaChat = $("#chat-mensagens");
+  listaChat.querySelector(".chat-vazio")?.remove();
+  listaChat.appendChild(criarCardsCaptura(data));
+  listaChat.scrollTop = listaChat.scrollHeight;
+  loadSummary();
+  loadStreak();
+  if (data.memoria) loadMemorias();
+  if (!$("#tab-tarefas").hidden) loadTasks();
+  if (!$("#tab-gastos").hidden) {
+    loadExpenses();
+    loadMetas();
+  }
+}
+
+$("#captura-btn").addEventListener("click", () => {
+  const input = $("#captura-input");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  enviarCaptura(text, "");
+});
+
+$("#captura-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("#captura-btn").click();
+});
+
+$("#duvida-btn").addEventListener("click", () => {
+  const resposta = $("#duvida-input").value.trim();
+  if (!resposta || !textoPendente) return;
+  enviarCaptura(textoPendente, resposta);
+});
+
+$("#duvida-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("#duvida-btn").click();
+});
