@@ -117,6 +117,38 @@ db.init_db()
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
+### Fase 7, faixa A2 (adapter Anthropic, `ia/adapters/anthropic.py`)
+- **Arquivo se chama `anthropic.py` DENTRO do pacote `ia.adapters` e faz
+  `import anthropic` (o SDK) sem sombra nenhuma** - Python 3 usa import
+  absoluto por padrão, então `import anthropic` dentro de
+  `ia/adapters/anthropic.py` resolve pro pacote instalado de verdade, não
+  pro próprio módulo (isso só quebraria com import relativo implícito, que
+  não existe em Python 3, ou rodando o arquivo como script solto). Confirmado
+  na prática (`ia.adapters.anthropic` importa e instancia
+  `anthropic.Anthropic()` normal). Vale o mesmo cuidado pro adapter da OpenAI
+  (`ia/adapters/openai.py` importando `import openai`).
+- **`AdapterAnthropic(client=...)` aceita um cliente injetado no
+  construtor** - é assim que os testes trocam `client.messages.create` por
+  mock sem tocar rede nenhuma (`AdapterAnthropic(client=Mock())`); sem
+  argumento, cria `anthropic.Anthropic(api_key=os.environ.get(...))` normal.
+  Quem escrever `ia/core.py` (faixa A1) e for instanciar os adapters direto
+  pode aproveitar o mesmo padrão de injeção se precisar mockar em teste de
+  integração.
+- **`cache_control` só é aplicado ao bloco de `contexto_fixo`, nunca ao
+  bloco de `sistema`** - o `sistema` (+ instrução de schema, se houver) e o
+  `contexto_fixo` (+ `cache_control` quando elegível) viram blocos
+  SEPARADOS na lista de `system=[...]`, nessa ordem. `CACHE_MIN_TOKENS_POR_MODELO`
+  e a aproximação de tokens (`len(texto)//4`) são só o MECANISMO de
+  liga/desliga - os números são palpite, não os valores oficiais da
+  Anthropic (a faixa A4 fica de reconferir contra `ia/precos.json`/doc
+  oficial).
+- **`ia/precos.json` ainda não existe** (a faixa A4 está criando em
+  paralelo) - `_calcular_custo_usd` já lê defensivamente (`custo_usd=0.0`
+  se o arquivo não existir ou tiver formato inesperado) assumindo um layout
+  provisório (`{"<modelo>": {"input_por_mtok", "output_por_mtok",
+  "cache_leitura_por_mtok", "cache_escrita_por_mtok"}}`) - se a A4 definir
+  um formato diferente, só essa função precisa mudar.
+
 ### Fase 6, revisao independente (codigo + seguranca) - correcoes
 - **Todo card novo com dado sensivel (dinheiro OU saude) entra em
   `cards.CAMPOS_SENSIVEIS`** - a mascara do modo visitante e por type; type
