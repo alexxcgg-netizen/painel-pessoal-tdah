@@ -54,18 +54,67 @@ class ErroCaptura(Exception):
     subindo ate o Flask (que responderia 500 e o Telegram reenviaria)."""
 
 
+# ---- Webhook (N2) x polling antigo (telegram_bot.py) - Fase 7, faixa C1 ----
+# A API do Telegram nao deixa getUpdates (polling) e webhook no MESMO bot (409).
+# modo_telegram() decide quem roda; app.iniciar_telegram so sobe o polling e
+# rotas/n2_telegram.py so processa o webhook quando o modo deixa. Ver
+# docs/telegram-captura.md, secao 7.
+MODOS_TELEGRAM = ("auto", "polling", "webhook", "ambos", "desligado")
+
+
+def token_captura() -> str:
+    """Token do bot de captura (webhook): TELEGRAM_BOT_TOKEN_CAPTURA se
+    existir (bot separado, recomendado), senao o mesmo TELEGRAM_BOT_TOKEN do
+    bot antigo."""
+    return os.environ.get("TELEGRAM_BOT_TOKEN_CAPTURA") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+
+
+def modo_telegram(env=None) -> dict:
+    """{"polling": bool, "webhook": bool, "bots_separados": bool, "modo": str,
+    "motivo": str}. Flag TELEGRAM_MODO (auto|polling|webhook|ambos|desligado,
+    padrao auto). Com bots separados (TELEGRAM_BOT_TOKEN_CAPTURA diferente de
+    TELEGRAM_BOT_TOKEN) os dois podem rodar juntos. Com um bot so, NUNCA os
+    dois: `auto` escolhe webhook se TELEGRAM_WEBHOOK_SECRET estiver
+    configurado (o Alex ja fez o setWebhook - polling daria 409), senao
+    polling; `ambos` com um bot so vira webhook (e avisa no motivo)."""
+    env = os.environ if env is None else env
+    modo = (env.get("TELEGRAM_MODO") or "auto").strip().lower()
+    if modo not in MODOS_TELEGRAM:
+        modo = "auto"
+    token_antigo = env.get("TELEGRAM_BOT_TOKEN") or ""
+    token_cap = env.get("TELEGRAM_BOT_TOKEN_CAPTURA") or ""
+    separados = bool(token_cap) and token_cap != token_antigo
+
+    if modo == "desligado":
+        polling = webhook = False
+        motivo = "TELEGRAM_MODO=desligado"
+    elif separados:
+        polling = modo in ("auto", "polling", "ambos")
+        webhook = modo in ("auto", "webhook", "ambos")
+        motivo = "bots separados: cada um no seu modo"
+    elif modo == "auto":
+        webhook = bool(env.get("TELEGRAM_WEBHOOK_SECRET"))
+        polling = not webhook
+        motivo = "auto: webhook configurado" if webhook else "auto: sem webhook, polling antigo"
+    elif modo == "ambos":
+        polling, webhook = False, True
+        motivo = "ambos com um bot so da 409 no Telegram - ficou so o webhook"
+    else:
+        polling, webhook = modo == "polling", modo == "webhook"
+        motivo = f"TELEGRAM_MODO={modo}"
+    return {"polling": polling, "webhook": webhook, "bots_separados": separados, "modo": modo, "motivo": motivo}
+
+
 def configurado() -> bool:
-    return bool(os.environ.get("TELEGRAM_BOT_TOKEN")) and bool(os.environ.get("TELEGRAM_CHAT_ID_PERMITIDO"))
+    return bool(token_captura()) and bool(os.environ.get("TELEGRAM_CHAT_ID_PERMITIDO"))
 
 
 def _url_bot(metodo: str) -> str:
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
-    return f"https://api.telegram.org/bot{token}/{metodo}"
+    return f"https://api.telegram.org/bot{token_captura()}/{metodo}"
 
 
 def _url_arquivo(file_path: str) -> str:
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
-    return f"https://api.telegram.org/file/bot{token}/{file_path}"
+    return f"https://api.telegram.org/file/bot{token_captura()}/{file_path}"
 
 
 def extrair_chat_id(update: dict) -> str | None:

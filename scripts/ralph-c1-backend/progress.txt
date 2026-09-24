@@ -39,3 +39,7 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
 [done] H8 A9 ativo=true: adapter OpenAI converte image/document (formato Anthropic) em
   image_url/file (file_data data URI - guia oficial PDF da OpenAI); nao-PDF -> ok=False
   -> fallback. Gemini NAO converte (documentado em docs/ia-provedores.md).
+[done] H9 Telegram: telegram_captura.modo_telegram (flag TELEGRAM_MODO + deteccao por
+  TELEGRAM_WEBHOOK_SECRET; TELEGRAM_BOT_TOKEN_CAPTURA = bot separado). app.iniciar_telegram
+  so sobe polling quando pode; webhook fora do modo -> 503. docs/telegram-captura.md #7.
+  PARA integrador: .env.example ganha TELEGRAM_MODO e TELEGRAM_BOT_TOKEN_CAPTURA.

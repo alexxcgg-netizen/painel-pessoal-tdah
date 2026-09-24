@@ -48,6 +48,7 @@ import push_client
 import rotas
 import streak
 import telegram_bot
+import telegram_captura
 import uber_client
 import viagem
 import vida
@@ -3759,6 +3760,12 @@ def iniciar_telegram():
     """So roda quando o app sobe de verdade (mesma guarda de iniciar_scheduler,
     nao duplica a thread na recarga do Flask em modo debug)."""
     if not telegram_bot.configurado():
+        return
+    # Fase 7 (C1): polling (este bot) e webhook da N2 nunca juntos no mesmo
+    # bot - telegram_captura.modo_telegram decide (flag TELEGRAM_MODO).
+    modo = telegram_captura.modo_telegram()
+    if not modo["polling"]:
+        app.logger.info("Telegram: polling antigo desligado (%s)", modo["motivo"])
         return
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         telegram_bot.iniciar_thread(_telegram_chat_fn, callback_fn=_telegram_callback_fn)

@@ -129,6 +129,11 @@ def _extrair_nota_fiscal(image_bytes: bytes, media_type: str) -> tuple[dict | No
 def webhook():
     if not _secret_valido(request.headers.get(CABECALHO_SECRETO)):
         return jsonify({"error": "token invalido"}), 401
+    # C1: com um bot so, webhook e polling nunca rodam juntos (409 no
+    # Telegram). Webhook fora do modo -> 503, o Telegram guarda e reenvia o
+    # update (aparece em getWebhookInfo.last_error_message) - nada se perde.
+    if not telegram_captura.modo_telegram()["webhook"]:
+        return jsonify({"error": "webhook desligado (TELEGRAM_MODO)"}), 503
 
     corpo = request.get_json(silent=True)
     if not isinstance(corpo, dict):

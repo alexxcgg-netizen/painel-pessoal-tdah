@@ -111,25 +111,33 @@ desligar o webhook (ex.: voltar a usar só o bot de conversa por polling nesse t
 
 `telegram_bot.py` usa **long polling** (`getUpdates`) — a API do Telegram **não permite**
 `getUpdates` funcionando ao mesmo tempo que um webhook estiver registrado pro mesmo bot
-(`getUpdates` passa a devolver erro 409 assim que `setWebhook` roda pra esse token). Três
-caminhos possíveis — quem integra escolhe:
+(`getUpdates` passa a devolver erro 409 assim que `setWebhook` roda pra esse token).
 
-1. **Dois bots separados** (recomendado, e o que este guia assume): um novo bot só pra captura
-   (seção 1), com seu próprio `TELEGRAM_BOT_TOKEN`. Só que a tarefa desta faixa pediu que os
-   dois usassem a MESMA variável `TELEGRAM_BOT_TOKEN` — nesse caso, **use dois bots com o
-   MESMO nome de variável só se forem rodar em processos/ambientes diferentes**; rodando no
-   mesmo processo, dá conflito de variável (os dois "TELEGRAM_BOT_TOKEN" apontariam pro mesmo
-   bot). O mais simples de verdade: crie uma variável própria pro token do bot de captura (ex.
-   `TELEGRAM_BOT_TOKEN_CAPTURA`) se for manter os dois ativos — decisão de nome pro integrador,
-   já que `.env.example` é arquivo compartilhado (fora do escopo desta faixa).
-2. **Um bot só, migrado inteiro pra webhook**: desliga `telegram_bot.iniciar_thread` (polling)
-   em `app.py` e faz `rotas/n2_telegram.py` (ou um webhook maior) também tratar mensagem de
-   texto como conversa (chamando `app._processar_mensagem_chat`) quando não parecer uma captura
-   — misturaria os dois fluxos, não implementado aqui (fora do escopo desta faixa).
-3. **Um bot só, mantendo o polling e desligando o webhook** (`deleteWebhook`) quando quiser usar
-   o outro modo — troca manual, não automática.
+**Desde a Fase 7 (C1) o painel garante que os dois nunca rodam juntos no mesmo bot.** Quem
+decide é `telegram_captura.modo_telegram()`, lido por `app.iniciar_telegram` (sobe ou não o
+polling) e por `POST /api/telegram/webhook` (processa ou responde `503`):
 
-Registrado em `scripts/ralph-n2-telegram/progress.txt` pro integrador decidir.
+| Variável | Efeito |
+| :--- | :--- |
+| `TELEGRAM_MODO` | `auto` (padrão), `polling`, `webhook`, `ambos` ou `desligado`. |
+| `TELEGRAM_BOT_TOKEN_CAPTURA` | Token de um **bot separado** só pra captura (recomendado). Sem ela, a captura usa o mesmo `TELEGRAM_BOT_TOKEN` do bot antigo. |
+
+Regras:
+
+- **Bots separados** (`TELEGRAM_BOT_TOKEN_CAPTURA` diferente de `TELEGRAM_BOT_TOKEN`): os dois
+  podem rodar juntos (`auto`/`ambos`); `polling`/`webhook` liga só um deles.
+- **Um bot só**: nunca os dois. `auto` escolhe o **webhook** quando `TELEGRAM_WEBHOOK_SECRET`
+  está configurado (sinal de que o `setWebhook` foi feito - o polling daria 409), senão o
+  **polling**. `ambos` com um bot só vira webhook. `polling`/`webhook` forçam o modo.
+- Webhook fora do modo responde **503** (depois de conferir o segredo, que continua dando 401
+  se estiver errado): o Telegram guarda o update e reenvia, e o erro aparece em
+  `getWebhookInfo` (`last_error_message`) - nada se perde.
+- Pra voltar pro polling com um bot só: `TELEGRAM_MODO=polling` **e** `deleteWebhook` no
+  Telegram (senão o `getUpdates` continua dando 409).
+
+Recomendação: criar um bot só pra captura (seção 1) e pôr o token dele em
+`TELEGRAM_BOT_TOKEN_CAPTURA`. As duas variáveis novas precisam entrar no `.env.example`
+(integrador).
 
 ## 8. O que cada tipo de mensagem faz
 
