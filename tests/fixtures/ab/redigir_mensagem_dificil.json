@@ -1,0 +1,22 @@
+[
+  {
+    "id": "mensagem_cobrar_fornecedor",
+    "entrada": {"situacao": "fornecedor atrasou a entrega do material ha 10 dias e nao respondeu meu ultimo whatsapp", "para_quem": "fornecedor de material de construcao"}
+  },
+  {
+    "id": "mensagem_dizer_nao_convite",
+    "entrada": {"situacao": "fui convidado pra um evento de familia no mesmo fim de semana que tenho prova do curso de piloto", "para_quem": "tio"}
+  },
+  {
+    "id": "mensagem_desculpa_atraso",
+    "entrada": {"situacao": "esqueci de responder uma mensagem importante do socio da construtora ha 3 dias", "para_quem": "socio da construtora"}
+  },
+  {
+    "id": "mensagem_conflito_vizinho",
+    "entrada": {"situacao": "vizinho reclamou de barulho de obra fora do horario permitido e quero explicar sem ser grosso", "para_quem": "vizinho"}
+  },
+  {
+    "id": "mensagem_cancelar_compromisso",
+    "entrada": {"situacao": "preciso cancelar um jantar de ultima hora por causa de uma entrega urgente na obra", "para_quem": "amigo"}
+  }
+]

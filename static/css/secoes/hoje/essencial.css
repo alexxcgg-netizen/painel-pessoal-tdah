@@ -1,3 +1,14 @@
 /* static/css/secoes/hoje/essencial.css - secao hoje > essencial (HTML: templates/secoes/hoje/essencial.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao). O
+   box em volta (#essencial-box) ja e .card-vida - so o botao "trocar" por
+   item (.btn-link) tinha 32px de toque, abaixo dos 44px pedidos. Escopado em
+   #essencial-lista pra nao mexer no .btn-link de outras abas. */
+#essencial-lista .btn-link {
+  min-height: 44px;
+  padding: 0.35rem 0.5rem;
+}
+
+#essencial-modo-btn {
+  min-height: 44px;
+  padding: 0.35rem 0.2rem;
+}

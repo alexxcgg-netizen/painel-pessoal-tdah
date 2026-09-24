@@ -1,0 +1,27 @@
+[
+  {
+    "id": "capture_gasto_mercado",
+    "entrada": {"text": "gastei 45 reais no mercado hoje"},
+    "esperado": {"tipo": "gasto", "valor": 45, "status": "real"}
+  },
+  {
+    "id": "capture_tarefa_simples",
+    "entrada": {"text": "levar o carro pra revisao semana que vem"},
+    "esperado": {"tipo": "tarefa"}
+  },
+  {
+    "id": "capture_meta_financeira",
+    "entrada": {"text": "quero juntar 5000 reais ate dezembro pra viagem"},
+    "esperado": {"tipo": "meta", "valor": 5000}
+  },
+  {
+    "id": "capture_gasto_planejado",
+    "entrada": {"text": "penso em comprar um fone novo mes que vem, uns 300 reais"},
+    "esperado": {"tipo": "gasto", "valor": 300, "status": "planejado"}
+  },
+  {
+    "id": "capture_tarefa_com_hora",
+    "entrada": {"text": "consulta com o dentista amanha as 14h"},
+    "esperado": {"tipo": "tarefa"}
+  }
+]

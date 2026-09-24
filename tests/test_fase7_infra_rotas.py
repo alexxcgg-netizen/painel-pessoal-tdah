@@ -39,13 +39,15 @@ class _PastaRotasTemporaria:
         self.tmp = tempfile.TemporaryDirectory()
         for nome, codigo in self.modulos.items():
             (Path(self.tmp.name) / f"{nome}.py").write_text(textwrap.dedent(codigo))
-        rotas.__path__.append(self.tmp.name)
+        # So a pasta temporaria: modulos reais das faixas nao interferem no teste.
+        self._path_antes = list(rotas.__path__)
+        rotas.__path__[:] = [self.tmp.name]
         self.caminhos_antes = set(rotas.CAMINHOS_COM_TOKEN)
         self.prefixos_antes = rotas.PREFIXOS_COM_TOKEN
         return self
 
     def __exit__(self, *exc):
-        rotas.__path__.remove(self.tmp.name)
+        rotas.__path__[:] = self._path_antes
         rotas.CAMINHOS_COM_TOKEN.clear()
         rotas.CAMINHOS_COM_TOKEN.update(self.caminhos_antes)
         rotas.PREFIXOS_COM_TOKEN = self.prefixos_antes
@@ -87,9 +89,13 @@ class RegistrarTodasTestCase(unittest.TestCase):
                 return jsonify({{"ok": True, "eco": app._texto_seguro(corpo.get("t"))}})
             """
 
-    def test_pacote_real_nao_tem_rota_de_exemplo(self):
-        self.assertEqual([n for n in rotas.nomes_modulos() if not n.startswith("_")], [])
+    def test_pacote_real_so_tem_rota_de_verdade(self):
+        # Todo modulo publico real de rotas/ e uma rota de faixa (com bp), nunca exemplo.
+        import importlib
         self.assertIn("_base", rotas.nomes_modulos())
+        for nome in rotas.nomes_modulos():
+            if not nome.startswith("_"):
+                self.assertTrue(hasattr(importlib.import_module(f"rotas.{nome}"), "bp"), nome)
 
     def test_registra_bp_em_ordem_alfabetica_e_ignora_modulo_sem_bp(self):
         s = self.sufixo

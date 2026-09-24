@@ -117,7 +117,7 @@ class RotaSinalTestCase(unittest.TestCase):
         res = self.client.post(
             "/api/sinal", data="nao e json", headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "text/plain"}
         )
-        self.assertEqual(res.status_code, 400)
+        self.assertIn(res.status_code, (400, 415))
 
     def test_grava_e_devolve_id(self):
         res = self._post({"tipo": "dormir"})

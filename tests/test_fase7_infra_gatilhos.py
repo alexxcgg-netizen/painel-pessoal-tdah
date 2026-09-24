@@ -27,11 +27,13 @@ class _PastaGatilhos:
         self.tmp = tempfile.TemporaryDirectory()
         for nome, codigo in self.modulos.items():
             (Path(self.tmp.name) / f"{nome}.py").write_text(textwrap.dedent(codigo))
-        gatilhos.__path__.append(self.tmp.name)
+        # So a pasta temporaria: modulos reais das faixas nao interferem no teste.
+        self._path_antes = list(gatilhos.__path__)
+        gatilhos.__path__[:] = [self.tmp.name]
         return self
 
     def __exit__(self, *exc):
-        gatilhos.__path__.remove(self.tmp.name)
+        gatilhos.__path__[:] = self._path_antes
         for nome in self.modulos:
             sys.modules.pop(f"assistente.gatilhos.{nome}", None)
         self.tmp.cleanup()
@@ -64,9 +66,10 @@ class GatilhosTestCase(unittest.TestCase):
     def log(self):
         return [r[0] for r in self.conn.execute("SELECT nome FROM log_gatilho ORDER BY rowid")]
 
-    def test_pasta_real_sem_gatilho_nenhum_ainda(self):
-        self.assertEqual(gatilhos.nomes_gatilhos(), [])
-        self.assertEqual(gatilhos.executar_todos(self.conn, self.agora), {})
+    def test_sem_gatilho_nenhum_nao_executa_nada(self):
+        with _PastaGatilhos({}):
+            self.assertEqual(gatilhos.nomes_gatilhos(), [])
+            self.assertEqual(gatilhos.executar_todos(self.conn, self.agora), {})
 
     def test_roda_todos_em_ordem_alfabetica_e_ignora_modulo_sem_executar(self):
         s = self.s

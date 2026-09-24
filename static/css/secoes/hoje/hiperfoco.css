@@ -1,3 +1,13 @@
 /* static/css/secoes/hoje/hiperfoco.css - secao hoje > hiperfoco (HTML: templates/secoes/hoje/hiperfoco.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao). Os
+   3 botoes de duracao (25/50/90 min) eram pilulas lisas de 34px; a faixa
+   "Em hiperfoco" tambem nao tinha nenhuma sombra. */
+#hiperfoco-box .hiperfoco-btn {
+  min-height: 44px;
+  padding: 0.35rem 0.9rem;
+  box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.5);
+}
+
+#hiperfoco-box .hiperfoco-ligado {
+  box-shadow: var(--shadow-card), 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}

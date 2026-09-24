@@ -1,0 +1,22 @@
+[
+  {
+    "id": "chat_gasto_mercado",
+    "entrada": {"mensagem": "gastei 65 reais no mercado hoje de manha"}
+  },
+  {
+    "id": "chat_pedido_ajuda_vago",
+    "entrada": {"mensagem": "to travado, nao sei nem por onde comecar hoje"}
+  },
+  {
+    "id": "chat_correcao",
+    "entrada": {"mensagem": "nao, isso que eu falei antes era gasto, nao tarefa"}
+  },
+  {
+    "id": "chat_pergunta_curta",
+    "entrada": {"mensagem": "quanto eu ja gastei esse mes com mercado?"}
+  },
+  {
+    "id": "chat_varias_coisas",
+    "entrada": {"mensagem": "lembra de ligar pro dentista amanha as 10h e tambem gastei 40 reais de uber hoje"}
+  }
+]
