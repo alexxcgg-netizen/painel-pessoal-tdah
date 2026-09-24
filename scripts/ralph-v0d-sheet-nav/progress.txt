@@ -1,0 +1,49 @@
+Faixa V0d (v0d-sheet-nav) - bottom sheet + barra de navegacao inferior
+Branch: fase7/v0d-sheet-nav (de origin/fase7/integracao + merge origin/fase7/e0-frontend,
+depois merge origin/fase7/integracao de novo na ultima historia pra pegar v0a-tokens real)
+Porta de verificacao: 5104 (servidor.py, banco temporario em /tmp/v0d-db-*)
+
+Historias
+- [x] H1 static/js/ui/bottom-sheet.js: abrirBottomSheet/fecharBottomSheet globais, monta
+       sozinho .bottom-sheet-fundo/.bottom-sheet-painel/.bottom-sheet-alca na 1a abertura
+       (autor so escreve <div class="bottom-sheet" hidden>...</div>), ESC, toque fora,
+       arrastar (Pointer Events, opcional), foco preso e devolvido, aria-modal/role,
+       scroll do body travado, prefers-reduced-motion, evento bottomsheet:fechado.
+- [x] H2 static/css/ui/componentes/bottom-sheet.css (segue a receita do docs/MASTER.md) e
+       static/css/ui/componentes/navegacao.css (acabamento por cima do #tabbar que ja existe
+       em style.css: min-height 44px, indicador de aba ativa, .nav-selo).
+- [x] H3 tests/js/bottom_sheet.test.js: 23 testes com DOM minimo simulado no proprio arquivo
+       (sem jsdom - projeto nao tem package.json/node_modules de proposito). Cobre abrir/
+       fechar, ESC, foco preso (Tab e Shift+Tab) e devolvido, bottomsheet:fechado (com bolha
+       ate o document), data-fecha-ao-enviar + bottomsheet:sucesso, e os helpers puros
+       elementosFocaveis/ehFocavel.
+- [x] H4 Playwright 390x844 (scripts/ralph-v0d-sheet-nav/servidor.py + verificar.py): injeta
+       um .bottom-sheet de teste (nao ha nenhum real no HTML ainda - so faixas futuras tipo
+       P1b vao usar a API), abre, confere aria-modal/role/estrutura montada/foco no 1o campo/
+       scroll bloqueado, Tab preso, ESC fecha + evento dispara + foco volta + scroll libera,
+       e .tab-btn com min-height 44px. 0 erro de console (so as falhas de ambiente
+       conhecidas: Google Fonts sem CA valido no sandbox, /api/summary/today 502 com IA
+       dublê). 01-barra.png e 02-sheet-aberto.png NAO versionados (deixados fora do commit).
+
+Contrato novo que outras faixas vao usar (documentado tambem no topo do .js)
+- Formulario dentro de um sheet que deve fechar sozinho ao salvar com sucesso: atributo
+  `data-fecha-ao-enviar` no <form> + no handler de sucesso (DEPOIS do fetch confirmar,
+  nunca so no submit) disparar:
+    form.dispatchEvent(new CustomEvent("bottomsheet:sucesso", { bubbles: true }))
+  bottom-sheet.js ouve isso delegado no document e fecha o sheet ancestral mais proximo.
+- Gatilhos declarativos prontos (fora da API chamada na mao): `data-abre-sheet="id"` num
+  botao abre esse sheet no clique; `data-fecha-sheet` dentro de um sheet fecha o ancestral.
+- `.nav-selo`: `<span class="nav-selo">` como filho direto do `.tab-btn`, logo apos o `<svg>`,
+  com um numero curto dentro. Estilo ja pronto em navegacao.css, so falta o HTML (P1b poe
+  isso na aba Hoje).
+
+Notas pro integrador / outras faixas
+- Icones de templates/navegacao.html JA sao SVG de traco (stroke) em todas as 7 abas, nao
+  emoji - nada pra P1b trocar aqui.
+- bottom-sheet.js MOVE o conteudo original do autor pra dentro de um `.bottom-sheet-painel`
+  criado em runtime (idempotente, so na 1a abertura). `sheet.querySelector(...)` continua
+  achando tudo normal, so muda quem e o pai imediato - relevante se algum codigo futuro
+  assumir que o conteudo e filho DIRETO de `.bottom-sheet` (nao e mais).
+- Nao editei fase7.css/service-worker.js/scripts.html - a Etapa 0 ja tinha registrado
+  bottom-sheet.js/.css e navegacao.css nos 3 lugares certos, conferido com grep antes de
+  comecar (nenhuma pendencia pro integrador aqui).
