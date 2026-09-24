@@ -323,7 +323,7 @@ class TestFallback(BaseIACore):
         self.assertEqual(resp.provedor, "anthropic")
 
     def test_provedor_desconhecido(self):
-        self.escrever_config(ativo=True, alvo={"provedor": "gemini", "modelo": "x"})
+        self.escrever_config(ativo=True, alvo={"provedor": "provedor-inexistente", "modelo": "x"})
         resp = core.chamar_ia("classify_capture", self.MSGS)
         self.assertTrue(resp.ok)
         self.assertTrue(resp.fallback_usado)
@@ -570,3 +570,11 @@ class TestFuzz(BaseIACore):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProvedorGeminiRegistrado(unittest.TestCase):
+    def test_core_acha_o_adapter_gemini(self):
+        from ia import core
+        from ia.adapters.gemini import AdapterGemini
+        self.assertIn("gemini", core.MODULOS_ADAPTER)
+        self.assertIsInstance(core._obter_adapter("gemini"), AdapterGemini)

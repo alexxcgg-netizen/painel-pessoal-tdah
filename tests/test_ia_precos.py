@@ -37,3 +37,8 @@ class TestCustoComArquivoReal(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestChavesBatemComIdsDosModelos(unittest.TestCase):
+    def test_gemini_flash_lite_tem_preco(self):
+        self.assertGreater(precos.custo_usd("gemini-3.5-flash-lite", 1_000_000, 0), 0)
