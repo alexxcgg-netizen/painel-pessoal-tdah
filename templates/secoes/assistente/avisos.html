@@ -1,1 +1,23 @@
-{# Fase 7: secao avisos do assistente (aba Assistente) - vazio de proposito, a faixa dona preenche. #}
+{# Fase 7, faixa P1b: secao "Avisos" da tela Assistente - liga/desliga por
+   tipo, canal (push/caixa/ambos) e horario de silencio global (faixa P8,
+   assistente/avisos.py). Conteudo preenchido via JS (static/js/secoes/assistente/avisos.js). #}
+<section class="card secao-avisos-assistente" id="secao-avisos-assistente" aria-label="Avisos do assistente">
+  <h2>Avisos</h2>
+
+  <form id="avisos-silencio-form" class="avisos-silencio-form">
+    <p class="avisos-silencio-titulo">Horario de silencio (padrao pra todos os tipos)</p>
+    <div class="avisos-silencio-campos">
+      <label class="campo">
+        Inicio
+        <input type="time" id="avisos-silencio-inicio" name="inicio" required>
+      </label>
+      <label class="campo">
+        Fim
+        <input type="time" id="avisos-silencio-fim" name="fim" required>
+      </label>
+      <button type="submit" class="btn btn-primario">Salvar</button>
+    </div>
+  </form>
+
+  <ul id="avisos-lista" class="avisos-lista"></ul>
+</section>

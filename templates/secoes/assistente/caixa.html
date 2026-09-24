@@ -1,1 +1,19 @@
-{# Fase 7: secao caixa de entrada do assistente (aba Assistente) - vazio de proposito, a faixa dona preenche. #}
+{# Fase 7, faixa P1b: secao "Caixa" da tela Assistente - todos os itens
+   pendentes mais o historico (itens resolvidos). Conteudo preenchido via JS
+   (static/js/secoes/assistente/caixa.js), este HTML so da os pontos de
+   montagem - mesma logica de renderizacao da faixa compacta em Hoje
+   (#caixa-assistente), reaproveitada por CaixaAssistente.renderListaHTML. #}
+<section class="card secao-caixa-assistente" id="secao-caixa-assistente" aria-label="Caixa do assistente">
+  <h2 id="caixa-secao-titulo">Pendencias do assistente (0)</h2>
+  <ul id="caixa-lista-pendentes" class="caixa-lista"></ul>
+
+  <section class="secao-recolhivel" data-aberto="false" data-secao-id="caixa-historico">
+    <button type="button" class="secao-cabecalho" aria-expanded="false">
+      Historico
+      <span class="chevron" aria-hidden="true"></span>
+    </button>
+    <div class="secao-conteudo">
+      <ul id="caixa-lista-historico" class="caixa-lista caixa-lista-historico"></ul>
+    </div>
+  </section>
+</section>
