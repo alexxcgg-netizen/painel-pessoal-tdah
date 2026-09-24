@@ -1,3 +1,40 @@
 /* static/css/secoes/vida.css - estilos da aba vida inteira (templates/abas/vida.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 V4: `.vida-secoes` e o wrapper novo que agrupa todas as secoes da aba (adicionado
+   em templates/abas/vida.html), ponto unico de ritmo vertical/ordem da aba.
+
+   Depois do merge com origin/fase7/integracao (V0a/V0b/V0c ja chegaram nesta branch;
+   V0d/bottom-sheet.css/.js ainda nao): meu <section class="secao-recolhivel"> segue o
+   contrato AO PE DA LETRA (docs/agentes/fase7-visual.md) - <button class="secao-cabecalho">
+   e filho DIRETO do <section>, sem <h2> no meio (o `.secao-cabecalho { border-radius:
+   inherit }` de ui/componentes/secao.css so funciona assim: `inherit` pega o raio do PAI no
+   DOM, que precisa ser o proprio .secao-recolhivel). Por isso o icone de cada secao perdeu a
+   cor de destaque que vinha de `h2 svg { color: var(--secao-cor) }` (style.css) - repost
+   aqui, generico pra toda a aba, cada secao so declara `style="--secao-cor: var(--cor-x)"`
+   no proprio <section> como antes fazia no <h2>. */
+#tab-vida .secao-cabecalho svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--secao-cor, var(--accent));
+  opacity: 0.9;
+}
+
+/* Ritmo vertical entre secoes - `.secao-recolhivel` (ui/componentes/secao.css, V0c) nao
+   define margem externa de proposito (cada aba decide o espacamento). */
+#tab-vida .vida-secoes > .secao-recolhivel {
+  margin-bottom: 1rem;
+}
+
+/* Bottom sheet: fallback local enquanto ui/componentes/bottom-sheet.css (V0d) continua
+   vazio nesta branch - mesmos tokens que ja existem em style.css (--radius, --surface-2,
+   --border), no padrao que a faixa V3-organizacao ja usou em secoes/vida/habitos.css pra
+   consistencia. Quando V0d chegar (cascata: componentes -> secoes/vida.css), a regra dela
+   ganha por vir depois - aqui fica so como reforco enquanto isso. */
+#tab-vida .bottom-sheet {
+  margin-block: 0.5rem 1rem;
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-card);
+}

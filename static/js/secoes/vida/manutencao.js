@@ -25,7 +25,8 @@ async function loadManutencoes() {
         itemSimples(
           m.item,
           [rotuloTipo, fmtDataBr(m.data), ...textoProximaManutencaoCarro(m)],
-          [(el) => botaoApagar(`/api/manutencoes/${m.id}`, el)]
+          [(el) => botaoApagar(`/api/manutencoes/${m.id}`, el)],
+          "lista-item"
         )
       );
       return;
@@ -44,7 +45,7 @@ async function loadManutencoes() {
           return ok;
         }),
         (el) => botaoApagar(`/api/manutencoes/${m.id}`, el),
-      ], m.dias_ate <= 7 ? "item-atencao" : "")
+      ], "lista-item" + (m.dias_ate <= 7 ? " item-atencao" : ""))
     );
   });
 }
@@ -53,6 +54,23 @@ $("#manutencao-tipo").addEventListener("change", () => {
   const carro = $("#manutencao-tipo").value === "carro";
   $("#manutencao-campos-carro").hidden = !carro;
   $("#manutencao-campos-tempo").hidden = carro;
+});
+
+// Fase 7 V4: botao "Adicionar manutencao" abre o formulario num bottom-sheet
+// (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
+// integracao, cai no fallback inline (so hidden) - retestado depois do merge
+// com origin/fase7/integracao.
+$("#manutencao-abrir-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-manutencao");
+  if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+});
+
+$("#manutencao-cancelar-btn").addEventListener("click", () => {
+  $("#manutencao-form").reset();
+  const sheet = $("#sheet-manutencao");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
 });
 
 ligarForm("#manutencao-form", "#manutencao-btn", "Adicionar", () => {
@@ -83,6 +101,11 @@ ligarForm("#manutencao-form", "#manutencao-btn", "Adicionar", () => {
     return null;
   }
   return { tipo, item, intervalo_meses: meses, ultima_vez: $("#manutencao-ultima").value || null };
-}, "/api/manutencoes", loadManutencoes);
+}, "/api/manutencoes", (r) => {
+  const sheet = $("#sheet-manutencao");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+  loadManutencoes(r);
+});
 
 // ---- Fase 5 + Fase 6 (US-F5): garantia de produtos ----

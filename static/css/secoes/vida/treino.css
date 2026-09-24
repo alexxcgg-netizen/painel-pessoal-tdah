@@ -1,3 +1,14 @@
 /* static/css/secoes/vida/treino.css - secao vida > treino (HTML: templates/secoes/vida/treino.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Fase 7 V4: profundidade sutil nas linhas de exercicio da ficha - mesma cor de
+   fundo/borda de sempre (--surface-2, --border ja existem em style.css), so troca o
+   visual chapado por borda fina + sombra leve. Nada de cor/fonte/animacao nova. */
+#lista-fichas .ficha-exercicio-linha {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+#lista-fichas li.item {
+  border-radius: var(--radius-sm);
+}
