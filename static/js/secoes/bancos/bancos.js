@@ -13,7 +13,8 @@ function criarItemBanco(conta) {
   const nome = document.createElement("span");
   nome.className = "item-titulo";
   const rotuloTipo = conta.tipo === "cartao" ? "cartao" : "conta";
-  nome.textContent = conta.banco.charAt(0).toUpperCase() + conta.banco.slice(1);
+  const banco = textoFinancas(conta.banco, "banco");
+  nome.textContent = banco.charAt(0).toUpperCase() + banco.slice(1);
   const tipoChip = document.createElement("span");
   tipoChip.className = "chip chip--compacto banco-tipo-chip";
   tipoChip.textContent = rotuloTipo;
@@ -21,18 +22,18 @@ function criarItemBanco(conta) {
   info.appendChild(nome);
 
   const stats = document.createElement("span");
-  stats.className = "item-quando";
+  stats.className = "item-quando valor-mono";
   stats.textContent = conta.ultima_transacao
-    ? `${conta.total_transacoes} transacao(oes) - ${fmtMoeda(conta.total_gasto)} em gastos - ultima em ${conta.ultima_transacao}`
+    ? `${numeroFinancas(conta.total_transacoes) ?? 0} transacao(oes) \u00b7 ${fmtMoedaFinancas(conta.total_gasto)} em gastos \u00b7 ultima em ${conta.ultima_transacao}`
     : "nenhuma transacao ainda";
   info.appendChild(stats);
 
   linha.appendChild(info);
 
-  if (conta.saldo !== null && conta.saldo !== undefined) {
+  if (numeroFinancas(conta.saldo) !== null) {
     const saldo = document.createElement("span");
     saldo.className = "banco-saldo" + (conta.saldo < 0 ? " banco-saldo-negativo" : "");
-    saldo.textContent = fmtMoeda(conta.saldo);
+    saldo.textContent = fmtMoedaFinancas(conta.saldo);
     linha.appendChild(saldo);
   }
 
@@ -52,23 +53,25 @@ function criarLimiteCartaoBox(conta) {
   const box = document.createElement("div");
   box.className = "limite-cartao";
 
-  if (conta.limite_info) {
+  const fracao = conta.limite_info ? numeroFinancas(conta.limite_info.fracao) : null;
+  if (fracao !== null) {
     const barra = document.createElement("div");
     barra.className = "limite-cartao-trilho";
     const preenchido = document.createElement("div");
-    preenchido.className = "limite-cartao-preenchido" + (conta.limite_info.fracao >= 0.9 ? " limite-cartao-alerta" : "");
-    preenchido.style.width = `${Math.min(conta.limite_info.fracao * 100, 100)}%`;
+    preenchido.className = "limite-cartao-preenchido" + (fracao >= 0.9 ? " limite-cartao-alerta" : "");
+    preenchido.style.width = `${Math.max(0, Math.min(fracao * 100, 100))}%`;
     barra.appendChild(preenchido);
     box.appendChild(barra);
     const texto = document.createElement("p");
-    texto.className = "item-quando";
-    texto.textContent = `${fmtMoeda(conta.gasto_ciclo)} de ${fmtMoeda(conta.limite)} (${Math.round(conta.limite_info.fracao * 100)}%) - sobra ${fmtMoeda(conta.limite_info.sobra)}`;
+    texto.className = "item-quando valor-mono";
+    texto.textContent = `${fmtMoedaFinancas(conta.gasto_ciclo)} de ${fmtMoedaFinancas(conta.limite)} (${Math.round(fracao * 100)}%) \u00b7 sobra ${fmtMoedaFinancas(conta.limite_info.sobra)}`;
     box.appendChild(texto);
   }
 
   const linha = document.createElement("div");
   linha.className = "form-linha";
   const input = document.createElement("input");
+  input.className = "campo valor-mono";
   input.type = "number";
   input.min = "0";
   input.step = "0.01";
@@ -78,15 +81,22 @@ function criarLimiteCartaoBox(conta) {
   if (conta.limite != null) input.value = conta.limite;
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "btn-com-icone";
+  btn.className = "btn btn-secundario";
   btn.textContent = "Salvar limite";
   btn.addEventListener("click", async () => {
     setBotaoCarregando(btn, true, "salvando...");
     const valor = input.value.trim();
+    // Fase 7 (C3c): texto/negativo/infinito nao vai pro back como NaN/null silencioso.
+    const numero = valor === "" ? null : Number(valor);
+    if (numero !== null && !(Number.isFinite(numero) && numero >= 0)) {
+      setBotaoCarregando(btn, false, "Salvar limite");
+      mostrarErro("Limite precisa ser um numero maior ou igual a zero (ou em branco).");
+      return;
+    }
     const ok = await apiFetch(`/api/bancos/${conta.id}/limite`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ limite: valor === "" ? null : Number(valor) }),
+      body: JSON.stringify({ limite: numero }),
     });
     setBotaoCarregando(btn, false, "Salvar limite");
     if (ok) loadBancos();
@@ -105,27 +115,32 @@ async function loadBancos() {
   ]);
 
   if (status) {
-    $("#bancos-status").textContent = status.info;
+    $("#bancos-status").textContent = typeof status.info === "string" ? status.info : "";
     $("#conectar-btn").hidden = !status.sincronizacao_automatica;
     // aviso discreto - so aparece quando ENCRYPTION_KEY nao esta configurada
     // (ver docs/SEGURANCA.md); nao bloqueia nada, so avisa.
     $("#cripto-aviso").hidden = status.criptografia_ativa !== false;
   }
 
-  if (patrimonio) {
-    $("#patrimonio-total").textContent = fmtMoeda(patrimonio.patrimonio_total);
+  if (patrimonio && typeof patrimonio === "object") {
+    $("#patrimonio-total").textContent = fmtMoedaFinancas(patrimonio.patrimonio_total);
     const detalhes = [];
-    if (patrimonio.saldo_bancario) detalhes.push(`saldo em conta/cartao: ${fmtMoeda(patrimonio.saldo_bancario)}`);
-    if (patrimonio.valor_guardado_metas) detalhes.push(`guardado em metas: ${fmtMoeda(patrimonio.valor_guardado_metas)}`);
-    $("#patrimonio-detalhe").textContent = detalhes.join(" - ");
-    $("#patrimonio-box").hidden = patrimonio.contas.length === 0 && patrimonio.metas.length === 0;
+    if (numeroFinancas(patrimonio.saldo_bancario)) detalhes.push("saldo em conta/cartao: ", { r: patrimonio.saldo_bancario });
+    if (numeroFinancas(patrimonio.valor_guardado_metas)) {
+      if (detalhes.length) detalhes.push(" \u00b7 ");
+      detalhes.push("guardado em metas: ", { r: patrimonio.valor_guardado_metas });
+    }
+    preencherLinhaComValores($("#patrimonio-detalhe"), detalhes);
+    const nContas = Array.isArray(patrimonio.contas) ? patrimonio.contas.length : 0;
+    const nMetas = Array.isArray(patrimonio.metas) ? patrimonio.metas.length : 0;
+    $("#patrimonio-box").hidden = nContas === 0 && nMetas === 0;
   }
 
-  if (!contas) return;
+  if (!Array.isArray(contas)) return;
   const list = $("#lista-bancos");
   list.innerHTML = "";
   $("#bancos-vazio").hidden = contas.length > 0;
-  contas.forEach((c) => list.appendChild(criarItemBanco(c)));
+  contas.filter((c) => c && typeof c === "object").forEach((c) => list.appendChild(criarItemBanco(c)));
 }
 
 let pluggyScriptCarregado = null;

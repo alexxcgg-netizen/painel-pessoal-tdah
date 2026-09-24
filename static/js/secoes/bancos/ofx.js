@@ -35,7 +35,8 @@ $("#importar-form").addEventListener("submit", async (e) => {
   if (!data) return;
   $("#ofx-input").value = "";
   atualizarOfxLabel();
+  const n = (v) => numeroFinancas(v) ?? 0;
   $("#bancos-status").textContent =
-    `Importado: ${data.novas} nova(s), ${data.duplicadas} ja existiam de ${data.encontradas} encontradas.`;
+    `Importado: ${n(data.novas)} nova(s), ${n(data.duplicadas)} ja existiam de ${n(data.encontradas)} encontradas.`;
   loadBancos();
 });

@@ -1,22 +1,57 @@
 /* static/css/secoes/vida/contas-pessoais.css - secao vida > contas-pessoais
    (HTML: templates/secoes/vida/contas-pessoais.html).
    Fase 7 (faixa v6-financas): botao "adicionar" -> .btn.btn-adicionar +
-   .bottom-sheet (docs/MASTER.md). A base visual do sheet (posicao fixa,
-   pegador, cabecalho, botao de salvar, fundo escurecido de fallback) mora em
-   static/css/secoes/gastos/assinaturas.css, sob .bottom-sheet-financas /
-   .bottom-sheet-backdrop-fallback - esta faixa e dona dos dois arquivos,
-   reusa em vez de duplicar (fase7.css importa todo CSS de secao, a regra
-   vale aqui tambem, nao so na aba Gastos). Aqui so o que e proprio desta
-   secao: o ajuste de padding/gap de `.lista.card` (mesma razao comentada em
-   assinaturas.css - lista-item.css zera o padding/gap do card por ordem de
-   import). */
+   .bottom-sheet (docs/MASTER.md).
+   Fase 7 (faixa C3c): a moldura do sheet e 100% da V0d; o miolo (cabecalho,
+   rotulo, erro, botao salvar) e os botoes de acao de linha
+   (.btn-icone-financas) moram em static/css/secoes/gastos/assinaturas.css
+   (mesma faixa, reusa em vez de duplicar - fase7.css importa todo CSS de
+   secao). Aqui so o que e proprio desta secao. */
 
 #btn-nova-conta-pessoal {
-  margin: 0.6rem 0 0.9rem;
+  margin: var(--espaco-2, 0.5rem) 0 var(--espaco-3, 1rem);
 }
 
 #lista-contas-pessoais.lista.card {
   gap: 0;
-  padding: var(--espaco-3, 1rem);
-  margin: 0 0 0.5rem;
+  padding: var(--espaco-2, 0.5rem) var(--espaco-3, 1rem);
+  margin: 0 0 var(--espaco-2, 0.5rem);
+}
+
+#lista-contas-pessoais .lista-item {
+  padding: var(--espaco-2, 0.5rem) 0;
+}
+
+/* Nome quebra em vez de sumir com reticencias (valor agora vai na linha de
+   baixo, em mono - MASTER #7). */
+#lista-contas-pessoais .lista-item-titulo {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#lista-contas-pessoais .lista-item-meta {
+  font-variant-numeric: tabular-nums;
+}
+
+#lista-contas-pessoais .lista-item-meta.valor-mono,
+#sheet-nova-conta-pessoal .valor-mono {
+  font-family: var(--font-tech);
+}
+
+/* Perto de vencer: barra na cor da aba + o texto ("vence hoje", "em 2 dias")
+   ja diz o motivo - cor nunca e o unico sinal. */
+#lista-contas-pessoais .item-atencao {
+  box-shadow: inset 3px 0 0 var(--cor-financeiro);
+  padding-left: var(--espaco-2, 0.5rem);
+}
+
+#lista-contas-pessoais .btn-pagar-conta {
+  padding: 0 var(--espaco-2, 0.6rem);
+  font-size: 0.8rem;
+  gap: var(--espaco-1, 0.25rem);
+}
+
+#lista-contas-pessoais .btn-pagar-conta svg {
+  width: 16px;
+  height: 16px;
 }

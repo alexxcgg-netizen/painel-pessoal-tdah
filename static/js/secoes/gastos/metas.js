@@ -13,7 +13,7 @@ function criarItemMeta(meta) {
   titulo.textContent = meta.titulo;
   li.appendChild(titulo);
 
-  const pct = Math.min(100, (meta.valor_guardado / meta.valor_alvo) * 100 || 0);
+  const pct = Math.max(0, Math.min(100, (meta.valor_guardado / meta.valor_alvo) * 100 || 0));
   const barra = document.createElement("div");
   barra.className = "meta-progresso";
   const barraInterna = document.createElement("div");
@@ -22,15 +22,18 @@ function criarItemMeta(meta) {
   barra.appendChild(barraInterna);
   li.appendChild(barra);
   if (pct >= 100) {
+    // Fase 7 (C3c): icone de traco no lugar do emoji (MASTER #8).
     const badge = document.createElement("span");
-    badge.className = "badge-sucesso";
-    badge.textContent = "meta batida! \u{1F389}";
+    badge.className = "badge-sucesso badge-meta-batida";
+    badge.innerHTML = ICONE_CHECK;
+    badge.appendChild(document.createTextNode("meta batida!"));
     li.appendChild(badge);
   }
 
   const detalhe = document.createElement("p");
   detalhe.className = "meta-detalhe";
-  const guardadoTxt = `${fmtMoeda(meta.valor_guardado)} de ${fmtMoeda(meta.valor_alvo)} guardado`;
+  detalhe.classList.add("valor-mono");
+  const guardadoTxt = `${fmtMoedaFinancas(meta.valor_guardado)} de ${fmtMoedaFinancas(meta.valor_alvo)} guardado`;
   const diasTxt =
     pct < 100 && meta.dias_restantes != null
       ? meta.dias_restantes >= 0
@@ -39,15 +42,15 @@ function criarItemMeta(meta) {
       : "";
   const prazoTxt = meta.prazo
     ? meta.por_mes != null
-      ? ` - guarde ${fmtMoeda(meta.por_mes)}/mes ate ${meta.prazo}${diasTxt}`
+      ? ` - guarde ${fmtMoedaFinancas(meta.por_mes)}/mes ate ${meta.prazo}${diasTxt}`
       : ` - prazo: ${meta.prazo}${diasTxt}`
     : " - sem prazo definido";
   detalhe.textContent = guardadoTxt + prazoTxt;
   li.appendChild(detalhe);
   if (meta.previsao && pct < 100) {
     const previsao = document.createElement("p");
-    previsao.className = "meta-detalhe";
-    previsao.textContent = `No ritmo atual (${fmtMoeda(meta.previsao.ritmo_mensal)}/mes), bate em ${fmtDataBr(meta.previsao.data_prevista)}.`;
+    previsao.className = "meta-detalhe valor-mono";
+    previsao.textContent = `No ritmo atual (${fmtMoedaFinancas(meta.previsao.ritmo_mensal)}/mes), bate em ${fmtDataFinancas(meta.previsao.data_prevista)}.`;
     li.appendChild(previsao);
   }
 
@@ -61,10 +64,13 @@ function criarItemMeta(meta) {
   const input = document.createElement("input");
   input.type = "text";
   input.inputMode = "decimal";
+  input.className = "campo valor-mono";
   input.placeholder = "guardei R$...";
+  input.setAttribute("aria-label", `Quanto guardou pra ${meta.titulo}`);
   aplicarMascaraMoeda(input);
   const btn = document.createElement("button");
-  btn.className = "btn-com-icone";
+  btn.type = "button";
+  btn.className = "btn btn-secundario btn-com-icone";
   btn.innerHTML = `${ICONE_PLUS}Registrar`;
   btn.addEventListener("click", async () => {
     const valor = valorMascaraParaNumero(input.value);
@@ -90,7 +96,7 @@ function criarItemMeta(meta) {
 
 async function loadMetas() {
   const metas = await apiFetch("/api/metas");
-  if (!metas) return;
+  if (!Array.isArray(metas)) return;
   const list = $("#lista-metas");
   list.innerHTML = "";
   $("#metas-vazio").hidden = metas.length > 0;
@@ -99,7 +105,7 @@ async function loadMetas() {
   metas.forEach(async (m) => {
     const historico = await apiFetch(`/api/metas/${m.id}/historico`);
     const container = $(`#grafico-meta-${m.id}`);
-    if (historico && container) {
+    if (historico && Array.isArray(historico.pontos) && container) {
       desenharGraficoLinha(container, historico.pontos, {
         cor: "var(--cor-hoje)",
         valorAlvo: historico.valor_alvo,
