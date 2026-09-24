@@ -117,6 +117,32 @@ db.init_db()
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
+### Fase 7, Etapa 0 / X1 (extracao estrutural do backend) - onde cada faixa escreve
+Objetivo: nenhuma faixa da Fase 7 edita o mesmo arquivo que outra. Antes de mexer em
+`app.py`/`db.py`/`claude_client.py`, veja se o ponto de extensao abaixo resolve:
+- **IA antiga**: `claude_client.py` e so fachada (reexporta). Codigo em `ia/legado.py`
+  (client, HAIKU/SONNET, PRICING, `_extract_json`, `_usage`) e `ia/funcoes/{chat,captura,
+  planejamento,visao}.py` (donas A6/A7/A8/A9). Funcao nova -> arquivo do grupo + 1 linha de
+  reexport na fachada. Pegadinha: `patch("claude_client._usage")` NAO pega as funcoes de
+  `ia/funcoes/*` (patche `ia.funcoes.<grupo>._usage`); `patch("claude_client.chat")` e
+  `claude_client.client.messages` continuam valendo (app chama `claude_client.X` na hora).
+- **Rotas**: arquivo novo `rotas/<assunto>.py` com `bp = Blueprint(...)` - registrado
+  sozinho no fim de `app.py`. Helpers do app via `rotas._base.app_modulo()` DENTRO da rota
+  (nunca `import app` no topo). Login ja e global; rota com token proprio declara
+  `ROTAS_COM_TOKEN`/`PREFIXOS_COM_TOKEN` no modulo e checa o token ela mesma. Molde no
+  docstring de `rotas/__init__.py`.
+- **Schema**: `migracoes/AAAAMMDDHHMM_<faixa>_<descricao>.sql` (ver `migracoes/README.md`),
+  nunca editar `init_db()` nem migracao existente. Sem BEGIN/COMMIT no arquivo.
+- **Frase resolvida sem IA**: `classificador_local/regras/<faixa>_<nome>.py` com
+  `casar(texto)` + `executar(conn, parametros)` (ver `classificador_local/README.md`).
+  Ja plugado em chat, captura e intent - nao mexa nesses fluxos do `app.py`.
+- **Assistente proativo**: `assistente/gatilhos/<nome>.py` com `executar(conn, agora)`;
+  `assistente.gatilhos.executar_todos` isola excecao por modulo e commita por gatilho.
+- Testes de infra que injetam modulo falso sem deixar arquivo no repo: acrescentam uma
+  pasta temporaria ao `__path__` do pacote (`rotas`, `classificador_local.regras`,
+  `assistente.gatilhos`). Blueprint novo depois da 1a requisicao do app precisa de
+  `patch.object(app.app, "_got_first_request", False)` no teste (Flask 3.1).
+
 ### Fase 6, revisao independente (codigo + seguranca) - correcoes
 - **Todo card novo com dado sensivel (dinheiro OU saude) entra em
   `cards.CAMPOS_SENSIVEIS`** - a mascara do modo visitante e por type; type
