@@ -5,24 +5,15 @@
    cada secao declara `style="--secao-cor: var(--cor-x)"` no proprio <section>.
 
    Fase 7 C3a (polimento): so forma e profundidade com os tokens da V0a (MASTER.md secoes 4-5).
-   Nenhuma cor, fonte ou animacao nova. Quase tudo escopado em `#tab-vida .secao-recolhivel`
-   pra so pegar secao ja convertida pro contrato.
+   Nenhuma cor, fonte ou animacao nova. Nivel de ABA (vale pra toda secao recolhivel da aba):
+   so cabecalho, ritmo entre secoes e a guarda do [hidden]. O resto (lista, acoes, dica, campo,
+   formulario) fica escopado em `.vida-acabamento`, classe que marca as secoes e os sheets da
+   faixa C3a - as secoes de outras faixas (habitos, viagens, lugares...) nao sao tocadas; se
+   quiserem o mesmo acabamento, basta acrescentar a classe no <section>/.bottom-sheet delas.
 
    Removido na C3a: o "fallback" `#tab-vida .bottom-sheet { fundo/padding/borda }` da V4. Ele
    era de antes da V0d e, com o componente real (moldura `position:fixed; inset:0`), pintava a
    tela inteira de --surface-2 com borda - o veu sumia e o sheet virava um bloco escuro. */
-
-/* BUG da moldura do sheet: `.tab-content:not([hidden]) { animation: tabEntra ... both }`
-   (style.css ~l.990) deixa `transform: matrix(1,0,0,1,0,0)` preso na aba depois da entrada.
-   Qualquer transform no ancestral vira o bloco de contencao do `position: fixed` - o
-   .bottom-sheet (V0d, `inset: 0`) passava a medir a ABA inteira (~4700px de altura), o veu nao
-   cobria a tela e o painel ficava preso dentro de uma caixa. `backwards` mantem a MESMA
-   animacao (mesmos quadros e duracao) e so nao segura o ultimo quadro depois que ela termina -
-   o estado final ja e identico ao sem transform. Anotado no progress pro integrador levar pro
-   `.tab-content` global (vale pra todas as abas com sheet). */
-#tab-vida.tab-content:not([hidden]) {
-  animation-fill-mode: backwards;
-}
 
 #tab-vida .secao-cabecalho svg {
   width: 18px;
@@ -67,21 +58,21 @@
    por um ::after invisivel (MASTER 9 permite). O ::before ja e o "!" do style.css. */
 /* A linha da dica ganha 44px de altura: o ::after abaixo precisa desse espaco, porque o
    .secao-conteudo tem overflow:hidden e cortava a parte de cima da area de toque. */
-#tab-vida .secao-recolhivel .dica-colapsavel {
+#tab-vida .secao-recolhivel.vida-acabamento .dica-colapsavel {
   min-height: var(--toque-min, 44px);
   align-items: center;
   margin: 0 0 var(--espaco-1, 0.25rem);
 }
 
-#tab-vida .secao-recolhivel .dica-colapsavel .dica-texto:not([hidden]) {
+#tab-vida .secao-recolhivel.vida-acabamento .dica-colapsavel .dica-texto:not([hidden]) {
   padding: var(--espaco-2, 0.5rem) 0;
 }
 
-#tab-vida .secao-recolhivel .dica-toggle {
+#tab-vida .secao-recolhivel.vida-acabamento .dica-toggle {
   position: relative;
 }
 
-#tab-vida .secao-recolhivel .dica-toggle::after {
+#tab-vida .secao-recolhivel.vida-acabamento .dica-toggle::after {
   content: "";
   position: absolute;
   inset: -13px; /* 18px de caixa interna + 2x13 = 44px */
@@ -91,7 +82,7 @@
 /* ---------- Item de lista dentro do card da secao = bloco interno (MASTER 5, "card sobre
    card"): --superficie-3, --raio-sm, --elevacao-0 e borda sutil, em vez do vidro com borda
    tingida (que repetia o card de fora e deixava tudo com cara de caixa dentro de caixa). */
-#tab-vida .secao-recolhivel li.item {
+#tab-vida .secao-recolhivel.vida-acabamento li.item {
   background: var(--superficie-3);
   border: var(--linha, 1px) solid var(--borda-sutil);
   border-radius: var(--raio-sm);
@@ -103,37 +94,37 @@
 /* O li tem `.item` (style.css) e `.lista-item` (V0c, display:flex em LINHA). Quando o li tem
    mais de um filho (resumo do salvo, conversas da pessoa) o segundo ia parar numa coluna ao
    lado do titulo. Empilha: a linha titulo + acoes continua em linha dentro do .item-linha. */
-#tab-vida .secao-recolhivel li.item.lista-item {
+#tab-vida .secao-recolhivel.vida-acabamento li.item.lista-item {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
 }
 
-#tab-vida .secao-recolhivel li.item + li.item {
+#tab-vida .secao-recolhivel.vida-acabamento li.item + li.item {
   margin-top: var(--espaco-2, 0.5rem);
 }
 
 @media (hover: hover) {
-  #tab-vida .secao-recolhivel li.item:hover {
+  #tab-vida .secao-recolhivel.vida-acabamento li.item:hover {
     border-color: var(--borda-forte);
   }
 }
 
 /* Item que pede atencao (vence logo, pessoa atrasada...) mantem a borda tingida da aba e
    ganha a elevacao 1 - hierarquia por profundidade, nao por cor nova. */
-#tab-vida .secao-recolhivel li.item.item-atencao {
+#tab-vida .secao-recolhivel.vida-acabamento li.item.item-atencao {
   border-color: var(--glass-border);
   box-shadow: var(--elevacao-1);
 }
 
 /* ---------- Acoes da linha: alvo de 44px (antes 28px). */
-#tab-vida .secao-recolhivel .item-acoes {
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes {
   margin-left: auto;
   align-items: center;
   gap: var(--espaco-1, 0.25rem);
 }
 
-#tab-vida .secao-recolhivel .item-acoes button {
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes button {
   min-height: var(--toque-min, 44px);
   min-width: var(--toque-min, 44px);
   padding: 0 var(--espaco-3, 0.75rem);
@@ -146,7 +137,7 @@
    em --text-muted que so ganha --danger no hover/foco (receita da lista-item no MASTER). O
    texto continua no DOM (font-size 0), entao o nome acessivel segue "Apagar". Se o icone
    mudar um dia, o :has() deixa de casar e o botao volta a ser o de texto, sem quebrar. */
-#tab-vida .secao-recolhivel .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]) {
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]) {
   width: var(--toque-min, 44px);
   padding: 0;
   font-size: 0;
@@ -156,35 +147,48 @@
   color: var(--text-muted);
 }
 
-#tab-vida .secao-recolhivel .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]) svg {
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]) svg {
   width: 18px;
   height: 18px;
 }
 
 @media (hover: hover) {
-  #tab-vida .secao-recolhivel .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]):hover:not(:disabled) {
+  #tab-vida .secao-recolhivel.vida-acabamento .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]):hover:not(:disabled) {
     color: var(--danger);
     background: var(--danger-bg);
     border-color: transparent;
   }
 }
 
-#tab-vida .secao-recolhivel .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]):focus-visible {
+#tab-vida .secao-recolhivel.vida-acabamento .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]):focus-visible {
   outline: none;
   color: var(--danger);
   box-shadow: var(--anel-foco);
 }
 
 /* ---------- Estado vazio: frase curta em --text-muted, sem caixa pesada (MASTER 6). */
-#tab-vida .secao-recolhivel .vazio {
+#tab-vida .secao-recolhivel.vida-acabamento .vazio {
   margin: var(--espaco-2, 0.5rem) 0 0;
+}
+
+/* Neutraliza o `.bottom-sheet { margin/padding/borda/fundo }` SEM escopo de
+   secoes/vida/{habitos,projetos,agenda-painel}.css (faixa c2-visual): ele pinta a moldura fixa
+   do V0d (inset:0) e deixava o sheet com 8px de folga e borda (moldura 8px/820px em vez de
+   0/844). Remover quando aqueles arquivos escoparem a regra - anotado no progress. */
+#tab-vida .bottom-sheet.vida-acabamento {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
 /* ---------- Formularios dos bottom-sheets da aba e os inline de acao unica (Mensagem
    dificil, Vale a pena?). Os campos usam `.campo` (V0c); aqui so o layout: uma coluna, 8px
    entre campos, e a linha de botoes no fim com o principal ocupando o espaco. */
-#tab-vida .bottom-sheet form.form-linha,
-#tab-vida .secao-recolhivel form.form-linha {
+#tab-vida .bottom-sheet.vida-acabamento form.form-linha,
+#tab-vida .secao-recolhivel.vida-acabamento form.form-linha {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -194,19 +198,19 @@
 
 /* No sheet (painel flex em coluna), `flex: 1` herdado do style.css nos inputs virava ALTURA
    (campo de 170px). Aqui cada campo fica do tamanho dele. */
-#tab-vida .bottom-sheet form.form-linha > *,
-#tab-vida .bottom-sheet .form-linha-sub > *,
-#tab-vida .secao-recolhivel form.form-linha > * {
+#tab-vida .bottom-sheet.vida-acabamento form.form-linha > *,
+#tab-vida .bottom-sheet.vida-acabamento .form-linha-sub > *,
+#tab-vida .secao-recolhivel.vida-acabamento form.form-linha > * {
   flex: 0 0 auto;
 }
 
-#tab-vida .bottom-sheet .form-linha-sub:not([hidden]) {
+#tab-vida .bottom-sheet.vida-acabamento .form-linha-sub:not([hidden]) {
   display: flex;
   flex-direction: column;
   gap: var(--espaco-2, 0.5rem);
 }
 
-#tab-vida .bottom-sheet form.form-linha > .form-linha {
+#tab-vida .bottom-sheet.vida-acabamento form.form-linha > .form-linha {
   display: flex;
   flex-direction: row-reverse;
   flex-wrap: nowrap;
@@ -214,11 +218,11 @@
   margin: var(--espaco-2, 0.5rem) 0 0;
 }
 
-#tab-vida .bottom-sheet form.form-linha > .form-linha > .btn-primario {
+#tab-vida .bottom-sheet.vida-acabamento form.form-linha > .form-linha > .btn-primario {
   flex: 1 1 auto;
 }
 
-#tab-vida .bottom-sheet form.form-linha > .form-linha > .btn-secundario {
+#tab-vida .bottom-sheet.vida-acabamento form.form-linha > .form-linha > .btn-secundario {
   flex: 0 0 auto;
 }
 
@@ -237,8 +241,8 @@
    MASTER: fundo --superficie-1 (campo "afundado" no card/sheet) em vez de --superficie-3,
    porque o placeholder em --text-faint sobre --superficie-3 dava 4.3:1 (abaixo de 4.5). Sobre
    --superficie-1 da 4.7:1 - resolvido pela superficie, sem cor nova. */
-#tab-vida .bottom-sheet .campo,
-#tab-vida .secao-recolhivel .campo {
+#tab-vida .bottom-sheet.vida-acabamento .campo,
+#tab-vida .secao-recolhivel.vida-acabamento .campo {
   min-height: var(--toque-min, 44px);
   padding: 0 var(--espaco-3, 0.75rem);
   background-color: var(--superficie-1);
@@ -247,20 +251,20 @@
   font-size: 0.92rem;
 }
 
-#tab-vida .bottom-sheet select.campo,
-#tab-vida .secao-recolhivel select.campo {
+#tab-vida .bottom-sheet.vida-acabamento select.campo,
+#tab-vida .secao-recolhivel.vida-acabamento select.campo {
   padding-right: var(--espaco-5, 2rem);
 }
 
-#tab-vida .bottom-sheet textarea.campo,
-#tab-vida .secao-recolhivel textarea.campo {
+#tab-vida .bottom-sheet.vida-acabamento textarea.campo,
+#tab-vida .secao-recolhivel.vida-acabamento textarea.campo {
   padding: var(--espaco-2, 0.5rem) var(--espaco-3, 0.75rem);
 }
 
-#tab-vida .bottom-sheet .campo:focus-visible,
-#tab-vida .secao-recolhivel .campo:focus-visible,
-#tab-vida .bottom-sheet .campo:focus,
-#tab-vida .secao-recolhivel .campo:focus {
+#tab-vida .bottom-sheet.vida-acabamento .campo:focus-visible,
+#tab-vida .secao-recolhivel.vida-acabamento .campo:focus-visible,
+#tab-vida .bottom-sheet.vida-acabamento .campo:focus,
+#tab-vida .secao-recolhivel.vida-acabamento .campo:focus {
   outline: none;
   border-color: var(--borda-forte);
   box-shadow: var(--anel-foco);
@@ -294,6 +298,6 @@
 
 /* Paragrafo de explicacao no topo do conteudo (ex.: Ainda usa?): o `margin-top` negativo do
    style.css (pensado pra colar no h2 antigo) cortava a primeira linha contra o cabecalho. */
-#tab-vida .secao-recolhivel .secao-conteudo > .dica-metas:first-child {
+#tab-vida .secao-recolhivel.vida-acabamento .secao-conteudo > .dica-metas:first-child {
   margin-top: 0;
 }

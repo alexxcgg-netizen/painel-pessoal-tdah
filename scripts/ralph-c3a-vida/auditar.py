@@ -164,10 +164,12 @@ def main():
     try:
         with sync_playwright() as p:
             b = p.chromium.launch(executable_path=comum.CHROME, headless=True)
-            ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1)
+            ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1,
+                                service_workers="block")
             comum.logar(ctx)
             print("seed", comum.semear(ctx), file=sys.stderr)
             page = ctx.new_page()
+            comum.proteger_rede(page)
             comum.ligar_coleta(page, erros, rede)
             comum.dubles_leitura(page)
             comum.abrir_vida(page)
@@ -207,11 +209,12 @@ def main():
         a["dono"] = OUTRAS.get(a.get("secao"), "c3a")
         if a["dono"] == "c3a" and (a.get("secao") in ("?", "habito-sheet") or a.get("secao", "").startswith(("sheet-habito", "sheet-projeto", "sheet-evento", "sheet-viagem", "sheet-lugar"))) and outra.search(a["el"] + a.get("secao", "")):
             a["dono"] = "outro"
-    res = {"erros_console": erros, "rede_4xx5xx": [r for r in rede if not any(h in str(r[1]) for h in comum.HOSTS_IGNORADOS)],
+    res = {"saidas_bloqueadas_no_servidor": comum.saidas_bloqueadas(), "erros_console": erros, "rede_4xx5xx": [r for r in rede if not any(h in str(r[1]) for h in comum.HOSTS_IGNORADOS)],
            "achados": achados}
     if "--json" in sys.argv:
         print(json.dumps(res, ensure_ascii=False, indent=1))
     else:
+        print("tentativas de saida pra fora do loopback (bloqueadas no servidor):", len(res["saidas_bloqueadas_no_servidor"]))
         print("erros console:", len(erros))
         for e in erros:
             print("  ", e)

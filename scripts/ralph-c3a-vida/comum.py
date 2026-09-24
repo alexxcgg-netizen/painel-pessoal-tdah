@@ -27,11 +27,16 @@ PIN = "135790"
 HOSTS_IGNORADOS = ("fonts.googleapis.com", "fonts.gstatic.com", "cdn.jsdelivr.net", "/api/summary/today")
 
 
+LOG_SERVIDOR = os.path.join(os.environ.get("TMPDIR", "/tmp"), f"c3a-vida-servidor-{PORTA}.log")
+
+
 def subir_servidor():
+    """Sobe servidor.py com a saida num arquivo de log (um PIPE que ninguem le enche com o
+    log de requisicoes do werkzeug e TRAVA o servidor no meio do fuzz)."""
     env = dict(os.environ)
     env["PORTA"] = PORTA
-    srv = subprocess.Popen([PY, os.path.join(AQUI, "servidor.py"), REPO], env=env,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    log = open(LOG_SERVIDOR, "w")
+    srv = subprocess.Popen([PY, os.path.join(AQUI, "servidor.py"), REPO], env=env, stdout=log, stderr=subprocess.STDOUT)
     for _ in range(80):
         try:
             urllib.request.urlopen(BASE + "/", timeout=1)
@@ -41,8 +46,24 @@ def subir_servidor():
                 break
             time.sleep(0.5)
     srv.terminate()
-    print("servidor nao respondeu", (srv.stdout.read() if srv.stdout else "")[-3000:])
+    print("servidor nao respondeu", open(LOG_SERVIDOR).read()[-3000:])
     sys.exit(2)
+
+
+def saidas_bloqueadas():
+    """Tentativas de conexao pra fora do loopback que o servidor.py barrou."""
+    try:
+        return [l.strip() for l in open(LOG_SERVIDOR) if "SAIDA-BLOQUEADA" in l]
+    except OSError:
+        return []
+
+
+def proteger_rede(page):
+    """Navegador: aborta tudo que nao for o app local e responde /api/summary/today (que chama
+    IA no servidor) com duble. Registrar ANTES de qualquer goto."""
+    page.route(lambda url: not url.startswith(BASE), lambda r: r.abort())
+    page.route("**/api/summary/today", lambda r: _json(r, {
+        "summary": "Dia de teste (duble, sem IA).", "gasto_hoje": 0, "gasto_planejado": 0, "tarefas_concluidas": 0}))
 
 
 def logar(ctx):
@@ -89,7 +110,9 @@ def _json(route, dados, status=200):
 
 
 def dubles_leitura(page):
-    """GETs que dependem de dado dificil de semear - respondidos com dublê sintetico."""
+    """GETs que dependem de dado dificil de semear - respondidos com dublê sintetico. Liga
+    tambem a protecao de rede (proteger_rede)."""
+    proteger_rede(page)
     page.route("**/api/assinaturas/revisao", lambda r: _json(r, [
         {"descricao": "Streaming de video", "valor": 39.9, "categoria": "Lazer"},
         {"descricao": "Armazenamento na nuvem", "valor": 9.9, "categoria": "Servicos"}])

@@ -8,19 +8,23 @@
    (`#sheet-medida.bottom-sheet { fundo/padding/borda }`): com a V0d real ele pintava a moldura
    fixa da tela inteira e escondia o veu. Nenhuma cor, fonte ou animacao nova. */
 
-/* Mesmo bug da moldura do sheet explicado em secoes/vida.css (transform preso pelo
-   `animation ... both` da .tab-content): sem isso o #sheet-medida fica preso dentro da aba
-   Painel em vez de cobrir a tela. Mesma animacao, so sem segurar o ultimo quadro. */
-#tab-painel.tab-content:not([hidden]) {
-  animation-fill-mode: backwards;
-}
-
 [data-secao-id="painel-peso-e-medidas"] .secao-cabecalho svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
   color: var(--secao-cor, var(--accent));
   opacity: 0.9;
+}
+
+/* Neutraliza o `.bottom-sheet` sem escopo de secoes/vida/{habitos,projetos,agenda-painel}.css
+   (ver secoes/vida.css) na moldura fixa deste sheet. */
+#sheet-medida.bottom-sheet {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
 /* [hidden] vence o `display:block` do .campo (ver progress: campo.css l.9). */
