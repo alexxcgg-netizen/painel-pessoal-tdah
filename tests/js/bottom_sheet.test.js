@@ -626,3 +626,79 @@ test("reabrir durante a animacao de fechar: o fechamento antigo nao esconde o sh
     globalThis.matchMedia = anteriorMM;
   }
 });
+
+// M1 (rodada 2): o timer do fechamento antigo tem que ser CANCELADO ao reabrir. So o guarda
+// `abertos.includes` nao bastava: fechar -> reabrir -> fechar de novo deixava o 1o timer
+// vivo, e ele finalizava o 2o fechamento antes da hora (e "fechado" saia duas vezes).
+function comAnimacao(t, corpo) {
+  const anteriorMM = globalThis.matchMedia;
+  globalThis.matchMedia = () => ({ matches: false }); // pode animar
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    corpo();
+  } finally {
+    globalThis.matchMedia = anteriorMM;
+  }
+}
+
+test("reabrir na janela cancela o timer antigo: 2o fechamento dura a animacao inteira", (t) => {
+  comAnimacao(t, () => {
+    const { doc } = ambiente;
+    const aba = doc.createElement("section");
+    const sheet = novoSheet(doc, "sheet-timer");
+    aba.appendChild(sheet);
+    let fechados = 0;
+    sheet.addEventListener("bottomsheet:fechado", () => fechados++);
+
+    BottomSheet.abrirBottomSheet(sheet);
+    BottomSheet.fecharBottomSheet(sheet); // timer A: finaliza em t=240
+    t.mock.timers.tick(200);
+    BottomSheet.abrirBottomSheet(sheet); // t=200: reabre -> cancela A
+    t.mock.timers.tick(20);
+    BottomSheet.fecharBottomSheet(sheet); // t=220: timer B finaliza em t=460
+    t.mock.timers.tick(30); // t=250: A ja teria disparado aqui
+    assert.equal(sheet.hidden, false, "timer antigo nao pode cortar a animacao nova");
+    assert.equal(fechados, 0);
+    t.mock.timers.tick(300); // t=550
+    assert.equal(sheet.hidden, true);
+    assert.equal(fechados, 1, "bottomsheet:fechado sai uma vez so");
+    assert.equal(sheet.parentNode, aba);
+    assert.ok(!doc.body.classList.contains("bottom-sheet-bloqueado"));
+  });
+});
+
+test("abrir/fechar/reabrir rapido 20 vezes: termina aberto, no body, scroll travado; depois fecha limpo", (t) => {
+  comAnimacao(t, () => {
+    const { doc } = ambiente;
+    const aba = doc.createElement("section");
+    const sheet = novoSheet(doc, "sheet-rajada");
+    aba.appendChild(sheet);
+    let fechados = 0;
+    sheet.addEventListener("bottomsheet:fechado", () => fechados++);
+
+    for (let i = 0; i < 20; i++) {
+      BottomSheet.abrirBottomSheet(sheet);
+      t.mock.timers.tick(50);
+      BottomSheet.fecharBottomSheet(sheet);
+      t.mock.timers.tick(100); // dentro da janela de 240ms
+    }
+    BottomSheet.abrirBottomSheet(sheet);
+    t.mock.timers.tick(1000);
+    assert.equal(sheet.hidden, false);
+    assert.ok(sheet.classList.contains("bottom-sheet--aberto"));
+    assert.ok(!sheet.classList.contains("bottom-sheet--fechando"));
+    assert.equal(sheet.parentNode, doc.body);
+    assert.ok(doc.body.classList.contains("bottom-sheet-bloqueado"));
+    assert.equal(fechados, 0, "nenhum fechamento chegou a finalizar");
+
+    BottomSheet.fecharBottomSheet(sheet);
+    t.mock.timers.tick(1000);
+    assert.equal(sheet.hidden, true);
+    assert.equal(sheet.parentNode, aba);
+    assert.equal(fechados, 1);
+    assert.ok(!doc.body.classList.contains("bottom-sheet-bloqueado"));
+    // e continua abrindo depois disso
+    BottomSheet.abrirBottomSheet(sheet);
+    assert.equal(sheet.hidden, false);
+  });
+});

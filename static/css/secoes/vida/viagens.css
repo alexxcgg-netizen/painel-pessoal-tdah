@@ -90,17 +90,9 @@
 
 /* ---------- Secao Viagens ---------- */
 
-/* O "!" da dica tem 20px de visual; a area de toque chega a 44px por um ::after
-   invisivel (MASTER.md 9) - o ::before ja e o proprio "!". */
-[data-secao-id="vida-viagens"] .dica-toggle {
-  position: relative;
-}
-
-[data-secao-id="vida-viagens"] .dica-toggle::after {
-  content: "";
-  position: absolute;
-  inset: -12px;
-}
+/* M1 r2: a area de toque de 44px da dica "!" vem so do componente (ui/componentes/secao.css,
+   `.dica-toggle::after` centrado). O ::after local com `inset: -12px` somava com o do
+   componente (left/top 50% + translate) e jogava a area de toque pro canto. */
 
 /* Cada viagem ja esta dentro do card da secao (.secao-recolhivel): vira bloco interno
    (superficie-3 + borda fina, sem vidro nem sombra), nao card dentro de card. */
