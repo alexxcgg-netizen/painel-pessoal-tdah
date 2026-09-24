@@ -38,6 +38,18 @@ Historias
     contas a pagar viram .lista-item; guardas numeroFinancas/fmtMoedaFinancas (sem R$ NaN).
 [ ] H2b merge integracao (gambiarra .card[hidden]; sheet ainda com moldura torta pelo CSS V3
     sem escopo em habitos/projetos/tarefas/agenda-painel.css - C2 remove na branch dela)
-[ ] H3 fuzz de UI (>=50 cenarios)
+[~] H3 fuzz.py: 97 cenarios, 94 OK. Falham 2 so pelo bug da V0d (reabrir durante a animacao de
+    fechar esconde o sheet; C2 ja corrigiu no bottom-sheet.js dela) - reroda apos o merge.
+PENDENCIAS FORA DA MINHA LISTA (anotar pro integrador/N1):
+- N1 (financas_recorrentes.py/rotas/n1_financas.py): POST /api/financas/parcelas com
+  primeira_parcela invalida ("abc", ano 9999) devolve 400 MAS a linha ja foi gravada -> GET
+  /parcelas e /comprometido passam a dar 500 pra sempre. valor 1e308 em assinatura -> 500.
+  A UI desta faixa ja barra (data 2000-2100, teto R$100 mi), mas o back precisa validar antes
+  do INSERT.
+- app.py GET /api/construtora/resumo ainda manda lucro_liquido/margem no JSON (tela nao mostra:
+  construtora.js le so tot_entradas/tot_saidas). Ideal: rota usar construtora_cliente.py.
+- static/js/charts.js: rotulo do valor maximo sai do SVG com valor grande (388>359px).
+- style.css .dica-toggle "!" 20x20 (toque<44) - usado em contas pessoais e cotacoes.
+- gitleaks: 2 achados pre-existentes em docs/tick.md (curl-auth-header), nao sao desta faixa.
 [ ] H4 testes do modulo + N1 + JS
 [ ] H5 screenshots finais + changelog.d/c3c-financas.md
