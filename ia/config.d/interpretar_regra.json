@@ -1,0 +1,10 @@
+{
+  "funcao": "interpretar_regra",
+  "ativo": false,
+  "modelo_atual": {"provedor": "anthropic", "modelo": "claude-haiku-4-5-20251001"},
+  "alvo": {"provedor": "openai", "modelo": "gpt-6-luna", "esforco": "medio"},
+  "fallback": [{"provedor": "openai", "modelo": "gpt-6-sol", "esforco": "medio"}],
+  "max_tokens_saida": 400,
+  "cache": {"ativo": false, "ttl": "5m"},
+  "modo": "padrao"
+}
