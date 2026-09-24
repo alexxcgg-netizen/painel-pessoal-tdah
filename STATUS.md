@@ -1,13 +1,13 @@
 # STATUS - Fase 7 (atualizado pelo integrador a cada rodada)
 
-Atualizado: 2026-09-24 (rodada 6)
+Atualizado: 2026-09-24 (rodada 7)
 
 ## Resumo
 - Integracao: `fase7/integracao` (nada vai pra `main` ate o fim da 7C).
 - Etapa 0 completa: contratos, extracao do backend (X1) e do frontend (X2), donos.json, testes.sh, integrar.sh.
-- Integradas (34): A1, A2, A3, A4, A5, A6, A8, A9, A10, A11, A13, A14, A15, N1, N2, N3a, N3b,
-  N3c/N3d, N3e, P1a, P1b, P2, P3, P4, P5, P7, P8, P9, V0a, V0b, V0c, V0d, V1, V2, V3 (+ X1, X2).
-- Rodando (5): A7 (commit/push + adapter legado), A12 (infra de testes + conftest com banco temporario), V4, V5, V6.
+- Integradas (38): todas as faixas A, N, P e V, menos a V5 (+ X1, X2).
+- Rodando (3): V5 (Viagens/Aviacao), C1 (polimento backend), C2 (polimento visual V0-V3/P1b).
+- Proxima: C3 (visual V4-V6) quando a V5 entrar; depois M1 final e merge na main.
 - Falta depois: 7C (C1 backend, C2/C3 visual), consolidacao M1 (CHANGELOG/AGENTS/TODO,
   service worker, gitleaks, suite completa) e merge na main.
 - Bloqueadas: nenhuma.
@@ -32,7 +32,8 @@ Atualizado: 2026-09-24 (rodada 6)
 - [feito] loadCustoIAV2 ligado na aba painel; aba assistente no ORDEM_ABAS.
 - Chat: passar contexto_fixo da A5 + medir_uso=True (A6) - cuidado com contagem dupla de uso
   (_log_usage antigo + uso_ia novo) e historico duplicado - vai pra C1.
-- tests/test_claude_client.py precisa de banco temporario (A12 via conftest).
+- [feito] tests/conftest.py: rede de seguranca que nunca deixa teste gravar no data/painel.db do checkout.
+- [feito] Regra local da P4 engolia remedio/tarefa recorrente/brain dump - corrigido.
 - Push antigo `fechamento_noturno` (21h) duplica o briefing da noite da P3 - desligar um.
 - `POST /api/plano-do-dia` antigo nao checa teto (P5) - vira automatico com A8.
 - Trocar acesso a construtora em app.py pelo construtora_cliente.py (A10, docs/contrato-api-construtora.md).
