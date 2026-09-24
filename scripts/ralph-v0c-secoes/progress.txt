@@ -1,0 +1,40 @@
+Faixa V0c (secoes recolhiveis, cards, chips, campos, itens de lista) - progress.txt
+
+[feita] Historia 1: secao.css + secao-recolhivel.js
+  - .secao-recolhivel[data-aberto], .secao-cabecalho (botao 44px, aria-expanded,
+    focus-visible sem azul padrao), .chevron (mask SVG de traco, gira 180deg),
+    .secao-conteudo (max-height animado, prefers-reduced-motion respeitado).
+  - ligarSecoesRecolhiveis(raiz) global e idempotente; MutationObserver liga secoes
+    inseridas depois; estado por data-secao-id em localStorage (try/catch, sem id nao
+    salva); padrao fechado quando data-aberto="false".
+
+[feita] Historia 2: card.css, chip.css, campo.css, lista-item.css
+  - .card/.card-titulo/.card--destaque/.card--compacto: superficie em camada, borda
+    fina, elevacao (box-shadow leve, nao pesada), raio dos tokens, numeros em
+    --font-numeros.
+  - .chip/.chip--ativo/.chip--compacto: pilula, 44px de toque.
+  - .campo: input/select/textarea, foco com box-shadow proprio (outline:none).
+  - .lista/.lista-item/.lista-item-corpo/.lista-item-acoes: divisoria sutil, 44px.
+
+[feita] Historia 3: tokens
+  - Tudo com var(--x, fallback) encadeado ate as variaveis que ja existem em
+    style.css (--radius, --radius-sm, --surface-2/3, --border) - V0a (tokens.css)
+    ainda nao estava na integracao quando essa faixa rodou.
+
+[feita] Historia 4: tests/js/secao_recolhivel.test.js
+  - 18 casos, node --test, DOM simulado minimo (ElementoFalso com
+    classList/dataset/querySelector(All)/addEventListener). 0 falhas.
+  - Suite completa de tests/js/*.test.js (134 testes) e
+    tests/test_fase7_estrutura_frontend.py tambem passando depois da mudanca.
+
+[feita] Historia 5: verificacao Playwright 390x844
+  - scripts/ralph-v0c-secoes/servidor.py (banco temp, porta 5185, mesmo molde do
+    V0b) + verificar.py: injeta secao+card+chips+campo+lista em #tab-hoje, clica no
+    cabecalho, confere aria-expanded/data-aberto/localStorage, mede 44px, confere
+    foco visivel do campo (box-shadow, nao outline azul), 0 erro de console/rede
+    (fora falhas de ambiente ja conhecidas: fonts.googleapis.com, /api/summary/today
+    com chave de IA falsa). Screenshots fechada/aberta -> "OK".
+  - PNGs e v0c-resultado.json ficam fora do commit (grandes, so pra conferencia
+    local) - a pasta scripts/ralph-v0c-secoes/ com servidor.py/verificar.py entra.
+
+Nada bloqueado. Nenhum arquivo fora da lista da faixa foi editado.
