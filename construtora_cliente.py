@@ -144,6 +144,15 @@ class ClienteConstrutora:
     def _cache_set(self, chave: str, dados) -> None:
         self._cache[chave] = (time.time(), dados)
 
+    def configurado(self) -> bool:
+        """True se da pra consultar a API: modo mock ligado OU
+        CONSTRUTORA_API_URL e CONSTRUTORA_API_KEY presentes (Fase 7, C1 -
+        a rota /api/construtora/resumo do app usa isto)."""
+        if self._mock_ativo():
+            return True
+        base_url, api_key = self._config()
+        return bool(base_url and api_key)
+
     def limpar_cache(self) -> None:
         """So pra teste/depuracao - zera o cache desta instancia."""
         self._cache.clear()
@@ -275,6 +284,12 @@ def entradas_do_mes() -> float | None:
 
 def proxima_conta(com_valor: bool = False) -> dict | None:
     return _cliente_padrao().proxima_conta(com_valor=com_valor)
+
+
+def cliente_padrao() -> ClienteConstrutora:
+    """A instancia padrao (a mesma das funcoes de modulo acima) - o app usa
+    ela pra compartilhar cache/throttle com gastos_do_mes/proxima_conta."""
+    return _cliente_padrao()
 
 
 def limpar_cache_padrao() -> None:

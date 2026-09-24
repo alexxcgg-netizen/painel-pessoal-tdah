@@ -32,6 +32,7 @@ import cards
 import claude_client
 import classificador_local
 import clima
+import construtora_cliente
 import criptografia
 import estudo
 import gastos
@@ -1527,75 +1528,64 @@ def _saude_contexto_resumo(conn) -> str | None:
     return ", ".join(partes)
 
 
-_CACHE_CONSTRUTORA = {}  # chave -> (timestamp, dados)
-_CACHE_CONSTRUTORA_TTL_SEGUNDOS = 60
+# Fase 7 (C1): toda leitura da construtora passa por construtora_cliente.py
+# (faixa A10, contrato em docs/contrato-api-construtora.md) - cache/throttle de
+# 60s, timeout de 5s, nunca levanta, modo mock (CONSTRUTORA_API_MOCK=1). A
+# instancia e a padrao do modulo (mesmo cache de gastos_do_mes/proxima_conta).
+# _CACHE_CONSTRUTORA e o MESMO dict de cache do cliente (testes antigos fazem
+# app._CACHE_CONSTRUTORA.clear() entre casos - continua valendo).
+_CLIENTE_CONSTRUTORA = construtora_cliente.cliente_padrao()
+_CACHE_CONSTRUTORA = _CLIENTE_CONSTRUTORA._cache
+
+# O que o painel pessoal pode mostrar da construtora (decisao do Alex, A10):
+# so gastos, entradas e o tempo ate a proxima conta. Nunca lucro, margem nem
+# VGV - esses campos sao descartados aqui, logo na entrada.
+CAMPOS_RESUMO_CONSTRUTORA_PERMITIDOS = ("status", "tot_entradas", "tot_saidas")
+CAMPOS_CONTA_CONSTRUTORA_PERMITIDOS = ("vencimento", "valor", "fornecedor", "descricao", "dias_ate_vencer")
 
 
-def _cache_construtora_get(chave: str):
-    """None tanto pra 'nunca guardado' quanto pra 'expirou' - o chamador trata os
-    dois igual (vai buscar de novo)."""
-    entrada = _CACHE_CONSTRUTORA.get(chave)
-    if not entrada:
+def _filtrar_resumo_construtora(dados) -> dict | None:
+    if not isinstance(dados, dict):
         return None
-    timestamp, dados = entrada
-    if datetime.now().timestamp() - timestamp > _CACHE_CONSTRUTORA_TTL_SEGUNDOS:
+    return {k: dados[k] for k in CAMPOS_RESUMO_CONSTRUTORA_PERMITIDOS if k in dados}
+
+
+def _filtrar_contas_construtora(dados) -> dict | None:
+    """Mantem o envelope {"status", "contas"} e so os campos permitidos de
+    cada conta; conta malformada (sem dias_ate_vencer numerico) sai da lista
+    - melhor nao mostrar do que quebrar quem ordena/compara por dias."""
+    if not isinstance(dados, dict):
         return None
-    return dados
-
-
-def _cache_construtora_set(chave: str, dados):
-    _CACHE_CONSTRUTORA[chave] = (datetime.now().timestamp(), dados)
+    contas = []
+    for conta in dados.get("contas") or []:
+        if not isinstance(conta, dict):
+            continue
+        dias = conta.get("dias_ate_vencer")
+        if isinstance(dias, bool) or not isinstance(dias, (int, float)):
+            continue
+        contas.append({k: conta.get(k) for k in CAMPOS_CONTA_CONSTRUTORA_PERMITIDOS})
+    return {"status": dados.get("status"), "contas": contas}
 
 
 def _buscar_resumo_construtora() -> dict | None:
-    """Busca o resumo financeiro na API da construtora - None se nao configurado ou
-    se a chamada falhar por qualquer motivo (nunca quebra quem chamar). Cacheado por
-    60s (mesmo processo) - o resumo do dia, o chat e a aba Construtora podem pedir
-    isso tudo em sequencia rapida, e o lado da construtora tem rate limit de 20
-    req/min por IP na integracao externa."""
-    base_url = os.environ.get("CONSTRUTORA_API_URL")
-    api_key = os.environ.get("CONSTRUTORA_API_KEY")
-    if not base_url or not api_key:
-        return None
-    cacheado = _cache_construtora_get("resumo")
-    if cacheado is not None:
-        return cacheado
-    try:
-        resp = requests.get(f"{base_url}/api/resumo", headers={"X-API-Key": api_key}, timeout=5)
-        resp.raise_for_status()
-        dados = resp.json()
-        _cache_construtora_set("resumo", dados)
-        return dados
-    except requests.RequestException:
-        return None
+    """Resumo da construtora ja filtrado (so status/tot_entradas/tot_saidas) -
+    None se nao configurado ou se a chamada falhar. Via construtora_cliente."""
+    return _filtrar_resumo_construtora(_CLIENTE_CONSTRUTORA.resumo())
 
 
 def _buscar_contas_a_vencer_construtora(dias: int = 30) -> dict | None:
-    """Busca as contas a pagar a vencer/vencidas na API da construtora - None se nao
-    configurado ou se a chamada falhar por qualquer motivo (nunca quebra quem chamar).
-    Mesmo cache de 60s de `_buscar_resumo_construtora`, por chave separada (o `dias`
-    pedido pode variar)."""
-    base_url = os.environ.get("CONSTRUTORA_API_URL")
-    api_key = os.environ.get("CONSTRUTORA_API_KEY")
-    if not base_url or not api_key:
-        return None
-    cache_chave = f"contas:{dias}"
-    cacheado = _cache_construtora_get(cache_chave)
-    if cacheado is not None:
-        return cacheado
-    try:
-        resp = requests.get(
-            f"{base_url}/api/contas_a_vencer",
-            headers={"X-API-Key": api_key},
-            params={"dias": dias},
-            timeout=5,
-        )
-        resp.raise_for_status()
-        dados = resp.json()
-        _cache_construtora_set(cache_chave, dados)
-        return dados
-    except requests.RequestException:
-        return None
+    """Contas a pagar a vencer/vencidas da construtora - None se nao
+    configurado ou se a chamada falhar. Via construtora_cliente (cache por
+    `dias`)."""
+    return _filtrar_contas_construtora(_CLIENTE_CONSTRUTORA.contas_a_vencer(dias=dias))
+
+
+def _quando_conta_construtora(dias_ate: int, passado: str = "vencida ha") -> str:
+    if dias_ate < 0:
+        return f"{passado} {abs(int(dias_ate))} dia(s)"
+    if dias_ate == 0:
+        return "vence hoje"
+    return f"vence em {int(dias_ate)} dia(s)"
 
 
 def _ajustar_saldo_se_banco_citado(conn, banco: str | None, delta: float) -> dict | None:
@@ -1724,8 +1714,8 @@ def _id_estavel_teto_ia(nivel: str, ano_mes: str) -> int:
 
 def _construtora_contexto_contas() -> str | None:
     """Frase factual sobre a proxima conta a pagar da construtora (vencendo ou ja
-    vencida) pro resumo do dia / chat - so numeros que ja vieram prontos da API,
-    nenhuma conta feita aqui nem pela IA."""
+    vencida) pro resumo do dia / chat - so nome e tempo ate vencer (Fase 7 C1:
+    decisao do Alex, A10 - valor de conta nunca vai de bandeja)."""
     dados = _buscar_contas_a_vencer_construtora(dias=30)
     if not dados or dados.get("status") != "ok":
         return None
@@ -1733,28 +1723,23 @@ def _construtora_contexto_contas() -> str | None:
     if not contas:
         return None
     proxima = contas[0]
-    dias_ate = proxima["dias_ate_vencer"]
-    if dias_ate < 0:
-        quando = f"vencida ha {abs(dias_ate)} dia(s)"
-    elif dias_ate == 0:
-        quando = "vence hoje"
-    else:
-        quando = f"vence em {dias_ate} dia(s)"
+    quando = _quando_conta_construtora(proxima["dias_ate_vencer"])
     quem = proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor nao informado"
     extra = f", mais {len(contas) - 1} outra(s) conta(s) em aberto" if len(contas) > 1 else ""
-    return f"proxima conta a pagar da construtora: {quem}, R$ {proxima['valor']:.2f}, {quando}{extra}"
+    return f"proxima conta a pagar da construtora: {quem}, {quando}{extra}"
 
 
 def _construtora_contexto_resumo() -> str | None:
-    """Frase factual pro resumo do dia / chat - so numeros que ja vieram prontos da
-    API da construtora, nenhuma conta feita aqui nem pela IA."""
+    """Frase factual pro resumo do dia / chat - so gastos (saidas), entradas e
+    tempo ate a proxima conta, que ja vieram prontos da API da construtora
+    (nenhuma conta feita aqui nem pela IA; nunca lucro, margem nem VGV)."""
     dados = _buscar_resumo_construtora()
     if not dados or dados.get("status") != "ok":
         return None
-    texto = (
-        f"entradas R$ {dados['tot_entradas']:.2f}, saidas R$ {dados['tot_saidas']:.2f}, "
-        f"lucro liquido R$ {dados['lucro_liquido']:.2f}, margem {dados['margem']:.1f}%"
-    )
+    entradas, saidas = dados.get("tot_entradas"), dados.get("tot_saidas")
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (entradas, saidas)):
+        return None
+    texto = f"entradas R$ {entradas:.2f}, saidas R$ {saidas:.2f}"
     contas_texto = _construtora_contexto_contas()
     if contas_texto:
         texto += f"; {contas_texto}"
@@ -4604,17 +4589,13 @@ def verificar_e_notificar():
             if ja_notificou_hoje(conn, "conta_a_vencer", ref_id):
                 continue
             quem = conta.get("fornecedor") or conta.get("descricao") or "fornecedor nao informado"
-            if dias_ate < 0:
-                quando = f"venceu ha {abs(dias_ate)} dia(s)"
-            elif dias_ate == 0:
-                quando = "vence hoje"
-            else:
-                quando = f"vence em {dias_ate} dia(s)"
+            quando = _quando_conta_construtora(dias_ate, passado="venceu ha")
+            # C1: so nome e tempo ate vencer (valor nunca de bandeja no push).
             avisos.append((
                 "conta_a_vencer",
                 ref_id,
                 "Conta a pagar (construtora)",
-                f"{quem}: R$ {conta['valor']:.2f} - {quando}.",
+                f"{quem} - {quando}.",
             ))
 
     for tarefa in notificacoes.tarefas_aguardando_bom_tempo(conn):
@@ -7938,9 +7919,11 @@ def meta_historico(goal_id):
 
 @app.route("/api/construtora/resumo", methods=["GET"])
 def construtora_resumo():
-    base_url = os.environ.get("CONSTRUTORA_API_URL")
-    api_key = os.environ.get("CONSTRUTORA_API_KEY")
-    if not base_url or not api_key:
+    """Aba Construtora. Fase 7 (C1): via construtora_cliente (vale o modo
+    mock CONSTRUTORA_API_MOCK=1) e so com o que o painel pessoal pode mostrar:
+    `dados` = status/tot_entradas/tot_saidas (nunca lucro, margem, VGV) e a
+    lista de contas a vencer (que a propria aba pede)."""
+    if not _CLIENTE_CONSTRUTORA.configurado():
         return jsonify({"configurado": False})
 
     dados = _buscar_resumo_construtora()

@@ -16,3 +16,8 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
 [done] H3 fechamento_noturno x P3: app._briefing_noite_p3_substitui_fechamento -
   com assistente.p3.ativo ligada E PAINEL_TICK_TOKEN configurado, o push antigo
   das 21h fica calado (sem tick o briefing nunca sai, entao o antigo continua).
+[done] H4 construtora: app le so via construtora_cliente (instancia padrao, mesmo cache;
+  _CACHE_CONSTRUTORA = o dict do cliente). Filtro na entrada: resumo so status/entradas/
+  saidas; contas so 5 campos. Contexto IA e push de conta: nome + tempo, sem valor
+  (valor so na lista da aba, que o Alex abre). Rota aceita CONSTRUTORA_API_MOCK=1.
+  PARA C2: a aba Construtora continua igual (dados.tot_entradas/tot_saidas + contas).
