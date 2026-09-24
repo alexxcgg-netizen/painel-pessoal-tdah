@@ -75,9 +75,13 @@ def listar_caixa():
 def responder_caixa(item_id):
     """Body: {"resposta": "sim"|"nao"|"adiar"|"aceitar"|"recusar"|<opcao
     propria do item>, "texto": opcional}."""
-    body = request.get_json(silent=True) or {}
-    resposta = (body.get("resposta") or "").strip()
-    texto = body.get("texto") or ""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):  # C1: lista/texto no corpo nao vira 500
+        body = {}
+    resposta = body.get("resposta")
+    resposta = resposta.strip() if isinstance(resposta, str) else ""
+    texto = body.get("texto")
+    texto = texto[:4000] if isinstance(texto, str) else ""
     if not resposta:
         return jsonify({"error": "resposta obrigatoria"}), 400
     try:

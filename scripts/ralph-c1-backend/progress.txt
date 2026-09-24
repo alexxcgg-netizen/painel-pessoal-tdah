@@ -43,3 +43,9 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
   TELEGRAM_WEBHOOK_SECRET; TELEGRAM_BOT_TOKEN_CAPTURA = bot separado). app.iniciar_telegram
   so sobe polling quando pode; webhook fora do modo -> 503. docs/telegram-captura.md #7.
   PARA integrador: .env.example ganha TELEGRAM_MODO e TELEGRAM_BOT_TOKEN_CAPTURA.
+[done] H10 fuzz: scripts/ralph-c1-backend/fuzz.py (172 cenarios: chat, tick, sinal, financas,
+  p4, assistente, JSON ruim, gigante, datas/valores ruins, 20 threads na Caixa+teto, 20
+  ticks paralelos, integrity_check, guarda de socket: 0 conexao externa). Achou 15 -> 0:
+  N1 (Decimal NaN/inf/bool/gigante -> 500; data invalida gravada quebrava a listagem;
+  100000 parcelas passava do ano 9999), p4 confirmar/pausar e caixa responder com corpo
+  lista/tipo errado. Regressao em tests/test_fase7_c1_robustez.py.

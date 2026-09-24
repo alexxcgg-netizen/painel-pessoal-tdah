@@ -42,7 +42,9 @@ def listar_avisos():
 
 @bp.route("/api/assistente/avisos/silencio", methods=["PUT"])
 def atualizar_silencio_global():
-    corpo = request.get_json(silent=True) or {}
+    corpo = request.get_json(silent=True)
+    if not isinstance(corpo, dict):
+        corpo = {}
     inicio = corpo.get("inicio")
     fim = corpo.get("fim")
     if not isinstance(inicio, str) or not isinstance(fim, str):

@@ -64,10 +64,52 @@ def _decripto(valor: str) -> str:
 
 def _d(valor) -> Decimal:
     """Converte pra Decimal SEM passar por float (str(valor) evita o erro de
-    representacao binaria que `Decimal(0.1)` teria)."""
+    representacao binaria que `Decimal(0.1)` teria). C1: entrada que nao e
+    numero finito (texto, bool, NaN, infinito) vira ValueError - antes subia
+    decimal.InvalidOperation e a rota respondia 500."""
     if isinstance(valor, Decimal):
-        return valor
-    return Decimal(str(valor))
+        d = valor
+    else:
+        if isinstance(valor, bool) or not isinstance(valor, (int, float, str)):
+            raise ValueError("valor precisa ser um numero")
+        try:
+            d = Decimal(str(valor).strip())
+        except (ArithmeticError, ValueError):
+            raise ValueError(f"valor invalido: {str(valor)[:40]!r}") from None
+    if not d.is_finite():
+        raise ValueError("valor precisa ser um numero finito")
+    return d
+
+
+# C1: teto de sanidade pra valor digitado (acima disso e erro de digitacao, e
+# um valor gigante quebrava o arredondamento com InvalidOperation -> 500) e
+# pro numero de parcelas (40 anos; com 100000 a data da ultima parcela passava
+# do ano 9999 e a listagem inteira quebrava).
+VALOR_MAXIMO = Decimal("1000000000")
+N_PARCELAS_MAX = 480
+
+
+def _valor_entrada(valor, campo: str) -> Decimal:
+    d = _d(valor)
+    if d <= 0:
+        raise ValueError(f"{campo} precisa ser positivo")
+    if d > VALOR_MAXIMO:
+        raise ValueError(f"{campo} grande demais")
+    return d
+
+
+def _data_entrada(texto, campo: str) -> str:
+    """Data ISO (AAAA-MM-DD) valida, entre 1900 e 2200 - C1: antes gravava
+    qualquer texto e a listagem quebrava depois (500 em toda leitura)."""
+    if not isinstance(texto, str):
+        raise ValueError(f"{campo} precisa ser uma data AAAA-MM-DD")
+    try:
+        d = date.fromisoformat(texto.strip()[:10])
+    except ValueError:
+        raise ValueError(f"{campo} invalida (use AAAA-MM-DD)") from None
+    if not (1900 <= d.year <= 2200):
+        raise ValueError(f"{campo} fora do intervalo")
+    return d.isoformat()
 
 
 def _money(valor: Decimal) -> float:
@@ -121,12 +163,10 @@ def criar_assinatura(
     nome = (nome or "").strip()
     if not nome:
         raise ValueError("nome da assinatura vazio")
-    valor_dec = _d(valor)
-    if valor_dec <= 0:
-        raise ValueError("valor da assinatura precisa ser positivo")
-    if not isinstance(dia_cobranca, int) or not (1 <= dia_cobranca <= 31):
+    valor_dec = _valor_entrada(valor, "valor da assinatura")
+    if isinstance(dia_cobranca, bool) or not isinstance(dia_cobranca, int) or not (1 <= dia_cobranca <= 31):
         raise ValueError("dia_cobranca precisa ser um inteiro entre 1 e 31")
-    inicio = inicio or (hoje or date.today()).isoformat()
+    inicio = _data_entrada(inicio, "inicio") if inicio else (hoje or date.today()).isoformat()
     cur = conn.execute(
         """INSERT INTO assinatura
            (nome, valor, dia_cobranca, cartao_ou_forma, categoria, ativa, inicio, observacao)
@@ -174,10 +214,10 @@ def atualizar_assinatura(conn: sqlite3.Connection, id_: int, **campos) -> bool:
     editaveis = {"nome", "valor", "dia_cobranca", "cartao_ou_forma", "categoria", "observacao"}
     campos_validos = {k: v for k, v in campos.items() if k in editaveis and v is not None}
     if "valor" in campos_validos:
-        campos_validos["valor"] = _money(_d(campos_validos["valor"]))
+        campos_validos["valor"] = _money(_valor_entrada(campos_validos["valor"], "valor da assinatura"))
     if "dia_cobranca" in campos_validos:
         dia = campos_validos["dia_cobranca"]
-        if not isinstance(dia, int) or not (1 <= dia <= 31):
+        if isinstance(dia, bool) or not isinstance(dia, int) or not (1 <= dia <= 31):
             raise ValueError("dia_cobranca precisa ser um inteiro entre 1 e 31")
     if "nome" in campos_validos:
         campos_validos["nome"] = str(campos_validos["nome"]).strip()
@@ -240,21 +280,23 @@ def criar_compra_parcelada(
     descricao = (descricao or "").strip()
     if not descricao:
         raise ValueError("descricao da compra parcelada vazia")
-    if not isinstance(n_parcelas, int) or n_parcelas <= 0:
+    if isinstance(n_parcelas, bool) or not isinstance(n_parcelas, int) or n_parcelas <= 0:
         raise ValueError("n_parcelas precisa ser um inteiro positivo")
+    if n_parcelas > N_PARCELAS_MAX:
+        raise ValueError(f"n_parcelas no maximo {N_PARCELAS_MAX}")
     if valor_total is None and valor_parcela is None:
         raise ValueError("informe valor_total ou valor_parcela")
     if valor_parcela is not None:
-        valor_parcela_dec = _d(valor_parcela)
-        if valor_parcela_dec <= 0:
-            raise ValueError("valor_parcela precisa ser positivo")
-        valor_total_dec = _d(valor_total) if valor_total is not None else valor_parcela_dec * n_parcelas
+        valor_parcela_dec = _valor_entrada(valor_parcela, "valor_parcela")
+        valor_total_dec = (_valor_entrada(valor_total, "valor_total") if valor_total is not None
+                           else valor_parcela_dec * n_parcelas)
     else:
-        valor_total_dec = _d(valor_total)
-        if valor_total_dec <= 0:
-            raise ValueError("valor_total precisa ser positivo")
+        valor_total_dec = _valor_entrada(valor_total, "valor_total")
         valor_parcela_dec = valor_total_dec / n_parcelas
-    primeira_parcela = primeira_parcela or (hoje or date.today()).isoformat()
+    if valor_total_dec > VALOR_MAXIMO * N_PARCELAS_MAX:
+        raise ValueError("valor_total grande demais")
+    primeira_parcela = (_data_entrada(primeira_parcela, "primeira_parcela") if primeira_parcela
+                        else (hoje or date.today()).isoformat())
     cur = conn.execute(
         """INSERT INTO compra_parcelada
            (descricao, valor_total, n_parcelas, parcela_atual, valor_parcela, cartao, primeira_parcela, categoria)
