@@ -2919,9 +2919,16 @@ def _processar_mensagem_chat(
     def exec_gerar_plano(_entrada):
         pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
         eventos = _eventos_de_hoje_com_seguranca(conn)
-        plano_texto, usage_plano = claude_client.plano_do_dia(
-            [r["title"] for r in pendentes], eventos, memorias_texto
-        )
+        try:
+            plano_texto, usage_plano = claude_client.plano_do_dia(
+                [r["title"] for r in pendentes], eventos, memorias_texto
+            )
+        except ia.core.TetoEstourado:
+            # C1: falha da IA dentro de uma ferramenta vira resultado de erro
+            # pro modelo explicar, em vez de derrubar a conversa inteira.
+            return {"erro": TETO_IA_MSG}
+        except ia.core.FalhaChamadaIA:
+            return {"erro": "nao consegui gerar o plano agora - tenta de novo em instantes"}
         _log_usage(conn, usage_plano, "plano_dia")
         return {"plano": plano_texto}
 

@@ -9,3 +9,7 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
   do mes (virada). Teto unico: app._teto_ia_estourado(funcao) -> ia.teto (R$40).
   _chamar_json direto (decisao/msg dificil ativo:false) checa teto e grava uso_ia.
   ia/historico: vai literal tudo que nao foi resumido (max 20), sem buraco.
+[done] H2 erros de IA: ia.core.FalhaChamadaIA(ValueError) > TetoEstourado/ErroProvedor/
+  RespostaInvalida + classificar_falha/excecao_de_resposta. A6/A7/A8/A9 levantam a certa;
+  _call_claude: teto 402 TETO_IA_MSG, provedor 502 CLAUDE_ERROR_MSG. Visao levantava
+  RuntimeError (500 cru) - corrigido. Plano dentro do chat com teto nao derruba a conversa.
