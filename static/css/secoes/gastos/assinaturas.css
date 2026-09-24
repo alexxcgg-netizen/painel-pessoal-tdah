@@ -2,39 +2,39 @@
    (HTML: templates/secoes/gastos/assinaturas.html).
    Fase 7 (faixa v6-financas). Usa as classes do contrato de UI (docs/MASTER.md):
    .btn.btn-adicionar, .bottom-sheet, .card, .card--destaque, .chip, .campo,
-   .lista/.lista-item. static/css/ui/componentes/{botao,card,chip,campo,
-   lista-item}.css (V0b/V0c) ja fazem a base de cada um - aqui so ficam os
-   ajustes proprios desta secao (nao redeclara nada que ja vem de la, pra nao
-   descumprir "so as classes do contrato" do checklist do MASTER). O
-   bottom-sheet e excecao: static/css/ui/componentes/bottom-sheet.css segue
-   vazio (V0d nao entrou nesta integracao) - o visual completo do sheet mora
-   aqui mesmo, seguindo a receita do MASTER #5 (raio-lg, elevacao-3, veu-fundo,
-   pegador), pra sumir sozinho quando a V0d preencher o arquivo dela (mesma
-   classe, ela ganha por ordem de carga). Numeros sempre em --font-tech
-   (mono) + tabular-nums, pedido explicito da faixa. */
+   .lista/.lista-item. static/css/ui/componentes/* ja fazem a base de cada um -
+   aqui so ficam os ajustes proprios desta secao. Numeros sempre em
+   --font-tech (mono) + tabular-nums.
+   Fase 7 (faixa C3c): sai a moldura provisoria do sheet (.bottom-sheet-financas
+   pintava a moldura da V0d real: painel saia da tela, 2 pegadores). O sheet
+   agora e 100% do componente (ui/componentes/bottom-sheet.css, V0d + C2);
+   aqui so o rotulo sem maiusculas, o erro e o numero em mono. Sem guarda
+   [hidden] local: card.css/lista-item.css ja respeitam (C2). Tambem ficam aqui as classes de apoio
+   reusadas pelas outras secoes desta faixa (contas pessoais, construtora):
+   .btn-icone-financas, .sheet-erro, .valor-mono dentro dos sheets. */
 
-/* Achado real (ver scripts/ralph-v6-financas/APRENDIZADOS.md): .card (V0c)
-   declara `display: flex` sem guarda `:not([hidden])`, empatando em
-   especificidade com o `[hidden] { display: none }` do UA e vencendo por vir
-   de um stylesheet de autor carregado depois - o card reaparece mesmo com o
-   atributo `hidden` presente. Mesmo problema ja documentado (e corrigido) em
-   style.css pra .card-vida/outras classes (grep "sobrescreveria o atributo
-   hidden"); aplico a mesma correcao aqui pro `.card` novo, so no que esta
-   secao usa. */
-#assinaturas-financas-box .card[hidden] {
-  display: none;
-}
-
-#assinaturas-financas-box .valor-mono {
+#assinaturas-financas-box .valor-mono,
+.bottom-sheet-financas .valor-mono {
   font-family: var(--font-tech);
   font-variant-numeric: tabular-nums;
 }
 
+.bottom-sheet-financas .valor-mono::placeholder {
+  font-family: var(--font-body);
+}
+
+/* ---- Card "Comprometido este mes" (unico --elevacao-2 da secao) ---- */
+
+#comprometido-box p {
+  margin: 0;
+}
+
 #assinaturas-financas-box .valor-comprometido {
-  font-size: 1.9rem;
+  font-size: clamp(1.5rem, 7vw, 1.9rem);
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 #assinaturas-financas-box .chips-linha {
@@ -43,27 +43,35 @@
   gap: var(--espaco-2, 0.5rem);
 }
 
+#assinaturas-financas-box .chips-linha .chip {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+}
+
 #assinaturas-financas-box .grafico-limite-cartao-card {
-  margin-top: var(--espaco-3, 1rem);
-  padding-top: var(--espaco-3, 1rem);
+  margin: 0;
+  padding: var(--espaco-3, 1rem) 0 0;
+  border: none;
   border-top: var(--linha, 1px) solid var(--borda-sutil, var(--border));
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
 }
 
 #assinaturas-financas-box .grafico-legenda {
-  margin: 0.35rem 0 0;
-  font-size: 0.72rem;
-  color: var(--text-faint);
+  margin: var(--espaco-1, 0.25rem) 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
-/* ---- Botoes de adicionar: 2 CTAs lado a lado, contexto inline de cabecalho
-   de secao -> variante --pilula do proprio contrato (MASTER #5), nao a
-   largura cheia padrao (essa e pra 1 botao so por secao). ---- */
+/* ---- Botoes de adicionar: 2 CTAs lado a lado -> variante --pilula do
+   proprio contrato (MASTER #5), nao a largura cheia padrao. ---- */
 
 #assinaturas-financas-box .botoes-adicionar-linha {
   display: flex;
   flex-wrap: wrap;
   gap: var(--espaco-2, 0.5rem);
-  margin: 0 0 var(--espaco-4, 1.5rem);
+  margin: var(--espaco-3, 1rem) 0 var(--espaco-4, 1.5rem);
 }
 
 #assinaturas-financas-box .botoes-adicionar-linha .btn-adicionar--pilula {
@@ -71,150 +79,115 @@
 }
 
 /* ---- Listas ----
-   `.lista` (reset de <ul>, sem padding/gap) + `.card` (superficie/padding/gap)
-   no mesmo elemento = "lista dentro de card" com so classes do contrato
-   (MASTER #5: "lista dentro de card e so linha", nao card dentro de card).
-   `ui/componentes/lista-item.css` importa DEPOIS de card.css (fase7.css), entao
-   o padding/gap zerados de `.lista` ganham do `.card` no empate de
-   especificidade - reaplico os dois aqui (2 classes + #id, especificidade
-   maior que qualquer um dos componentes sozinho) pra sobrar respiro em volta
-   das linhas e nao dobrar o espacamento vertical (a divisoria de
-   `.lista-item` ja separa as linhas, gap extra so duplicaria). */
+   `.lista` + `.card` no mesmo elemento = "lista dentro de card" (MASTER #5).
+   lista-item.css importa depois de card.css e zera padding/gap - reaplico. */
 
 #assinaturas-financas-box .lista.card {
   gap: 0;
-  padding: var(--espaco-3, 1rem);
+  padding: var(--espaco-2, 0.5rem) var(--espaco-3, 1rem);
 }
 
 #assinaturas-financas-box .lista-subtitulo {
   font-size: 0.8rem;
+  font-weight: 600;
   color: var(--text-muted);
-  margin: var(--espaco-4, 1.2rem) 0 var(--espaco-2, 0.5rem);
+  margin: var(--espaco-4, 1.5rem) 0 var(--espaco-2, 0.5rem);
 }
 
+/* Titulo quebra em vez de cortar com reticencias (em 390px o nome sumia). */
+#assinaturas-financas-box .lista-item-titulo {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#assinaturas-financas-box .lista-item {
+  padding: var(--espaco-2, 0.5rem) 0;
+}
+
+/* Valor da linha: dado (MASTER #7) em --text - a cor da aba fica so no
+   icone/borda (a --cor-financeiro dava 4:1 de contraste sobre o card). */
 #assinaturas-financas-box .lista-item-valor {
   flex-shrink: 0;
   font-weight: 700;
-  color: var(--cor-financeiro);
-}
-
-#assinaturas-financas-box .lista-item .chip--compacto {
-  margin-top: 0.15rem;
-}
-
-#assinaturas-financas-box .parcela-progresso {
-  margin-top: 0.4rem;
-}
-
-#assinaturas-financas-box .item-atencao .lista-item-titulo {
   color: var(--text);
 }
 
-/* ---- Bottom sheet: visual completo (receita do MASTER #5), enquanto
-   static/css/ui/componentes/bottom-sheet.css (V0d) segue vazio nesta
-   integracao. `assinaturas.js` sobe estes 2 paineis pra `document.body` na
-   carga do script (ver comentario la) pra `position: fixed` funcionar
-   direito mesmo dentro de `.tab-content` (que fica com `transform` aplicado
-   depois da animacao de troca de aba) - por isso o escopo aqui e a classe
-   propria `.bottom-sheet-financas`, nao mais `#assinaturas-financas-box`
-   (os paineis deixam de ser descendentes dele assim que o script roda).
-   Reusada tambem por static/js/secoes/vida/contas-pessoais.js (mesma
-   faixa, evita duplicar). ---- */
-
-.bottom-sheet-financas {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: var(--camada-sheet, 41);
-  max-height: min(82vh, 640px);
-  overflow-y: auto;
-  background: var(--realce-superficie, none), var(--superficie-2, var(--surface-2));
-  border: var(--linha, 1px) solid var(--borda-forte, var(--border-strong));
-  border-bottom: none;
-  border-radius: var(--raio-lg, 28px) var(--raio-lg, 28px) 0 0;
-  padding: var(--espaco-4, 1.5rem) var(--espaco-4, 1.5rem) calc(var(--espaco-4, 1.5rem) + env(safe-area-inset-bottom, 0px));
-  box-shadow: var(--elevacao-3, 0 -8px 24px -6px rgba(0, 0, 0, 0.55));
-  transition: transform var(--transicao-lenta, 0.3s ease);
+#assinaturas-financas-box .chip-cartao-financas {
+  align-self: flex-start;
+  margin-top: var(--espaco-1, 0.25rem);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.bottom-sheet-financas[hidden] {
+#assinaturas-financas-box .parcela-progresso {
+  margin-top: var(--espaco-1, 0.35rem);
+}
+
+/* "Hoje/ja passou": indicador na cor da aba (barra), nunca so a cor (o
+   texto "hoje" ja vem na linha). */
+#assinaturas-financas-box .item-atencao {
+  box-shadow: inset 3px 0 0 var(--cor-financeiro);
+  padding-left: var(--espaco-2, 0.5rem);
+}
+
+/* ---- Acoes de linha (reusado por contas pessoais) ---- */
+
+.lista-item-acoes .btn-icone-financas {
+  width: var(--toque-min, 44px);
+  min-width: var(--toque-min, 44px);
+  padding: 0;
+  color: var(--text-muted);
+}
+
+.lista-item-acoes .btn-icone-financas svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  .lista-item-acoes .btn-apagar-financas:hover:not(:disabled) {
+    color: var(--danger);
+  }
+}
+
+.lista-item-acoes .btn-apagar-financas:focus-visible {
+  color: var(--danger);
+}
+
+.lista-item-acoes .btn-cancelar-assinatura {
+  padding: 0 var(--espaco-2, 0.6rem);
+  font-size: 0.8rem;
+}
+
+/* ---- Miolo do bottom sheet (moldura, titulo e linha de acoes sao do
+   componente ui/componentes/bottom-sheet.css) ---- */
+
+/* MASTER #5 (Campo) e #11: rotulo 0.8rem --text-muted, sem MAIUSCULAS (o
+   .campo-rotulo antigo do style.css forca uppercase; campo.css nao desfaz). */
+.bottom-sheet-financas .campo-rotulo {
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Erro (MASTER #6): texto --danger + icone, dentro do proprio sheet. */
+.sheet-erro {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--espaco-2, 0.5rem);
+  margin: 0 0 var(--espaco-2, 0.5rem);
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+.sheet-erro[hidden] {
   display: none;
 }
 
-.bottom-sheet-financas .bottom-sheet-pegador {
-  width: 36px;
-  height: 4px;
-  margin: 0 auto var(--espaco-3, 1rem);
-  border-radius: 999px;
-  background: var(--borda-forte, var(--border-strong));
-}
-
-.bottom-sheet-financas .bottom-sheet-cabecalho {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--espaco-3, 0.9rem);
-}
-
-.bottom-sheet-financas .bottom-sheet-cabecalho h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.bottom-sheet-financas .bottom-sheet-fechar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--toque-min, 44px);
-  height: var(--toque-min, 44px);
-  border-radius: 50%;
-  border: var(--linha, 1px) solid var(--borda-sutil, var(--border));
-  background: var(--superficie-3, var(--surface-3));
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.bottom-sheet-financas .bottom-sheet-fechar:focus-visible {
-  box-shadow: var(--anel-foco, 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--text) 55%, transparent));
-}
-
-.bottom-sheet-financas .bottom-sheet-fechar svg {
-  width: 16px;
-  height: 16px;
-}
-
-.bottom-sheet-financas .campo-grupo {
-  margin-bottom: var(--espaco-3, 0.7rem);
-}
-
-.bottom-sheet-financas .btn-sheet-salvar {
-  width: 100%;
-  margin-top: var(--espaco-2, 0.5rem);
-}
-
-/* Veu atras do sheet (--veu-fundo, --camada-veu - MASTER #5), fallback ate a
-   V0d ligar de verdade. Classe global de proposito (nao escopada a esta
-   secao): reusada por contas-pessoais.js. */
-.bottom-sheet-backdrop-fallback {
-  position: fixed;
-  inset: 0;
-  z-index: var(--camada-veu, 40);
-  background: var(--veu-fundo, rgba(0, 0, 0, 0.6));
-  animation: assinaturasBackdropEntra var(--transicao-rapida, 0.15s ease) both;
-}
-
-@keyframes assinaturasBackdropEntra {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bottom-sheet-backdrop-fallback {
-    animation: none;
-  }
+.sheet-erro svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
 }

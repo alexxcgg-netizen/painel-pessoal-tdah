@@ -15,12 +15,24 @@ no futuro e quiser a mesma garantia sem repetir o boilerplate.
 """
 
 import importlib
+import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+# Integrador (Fase 7): nenhum teste fala com provedor de IA de verdade. Os SDKs
+# da Anthropic e da OpenAI leem *_BASE_URL do ambiente ao criar o cliente;
+# apontando pra uma porta morta local, uma chamada que escapou do dublê falha na
+# hora (erro de conexao) em vez de sair pra internet. Roda antes de qualquer
+# `import app`/`ia.*` porque o pytest carrega o conftest primeiro.
+os.environ["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:9"
+os.environ["OPENAI_BASE_URL"] = "http://127.0.0.1:9"
+os.environ["GOOGLE_GEMINI_BASE_URL"] = "http://127.0.0.1:9"
+for _chave in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"):
+    os.environ[_chave] = "teste-fake"
 
 
 @pytest.fixture
