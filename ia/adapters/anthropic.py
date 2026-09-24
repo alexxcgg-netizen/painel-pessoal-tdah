@@ -136,10 +136,14 @@ class AdapterAnthropic(Adapter):
         if blocos_sistema:
             kwargs["system"] = blocos_sistema
 
-        esforco_api = MAPA_ESFORCO.get(esforco, esforco)
-        if esforco != "baixo":
-            kwargs["thinking"] = {"type": "adaptive"}
-        kwargs["output_config"] = {"effort": esforco_api}
+        # Esforco vazio (config sem "esforco") e modelos Haiku (sem suporte a
+        # effort nem a thinking adaptativo) vao sem os dois campos: mandar
+        # {"effort": ""} ou effort pro Haiku a API recusa.
+        if esforco and not modelo.startswith("claude-haiku"):
+            esforco_api = MAPA_ESFORCO.get(esforco, esforco)
+            if esforco != "baixo":
+                kwargs["thinking"] = {"type": "adaptive"}
+            kwargs["output_config"] = {"effort": esforco_api}
 
         inicio = time.monotonic()
         try:

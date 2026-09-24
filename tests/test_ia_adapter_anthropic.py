@@ -117,6 +117,31 @@ class TestChamadaBasica(unittest.TestCase):
             kwargs = self.adapter._client.messages.create.call_args.kwargs
             self.assertEqual(kwargs["output_config"], {"effort": esforco})
 
+    def test_esforco_vazio_nao_manda_effort_nem_thinking(self):
+        self.adapter._client.messages.create.return_value = _resposta_fake("ok")
+
+        for esforco in ("", None):
+            self.adapter.chamar(
+                modelo="claude-sonnet-5", esforco=esforco, sistema="s",
+                contexto_fixo="", mensagens=[{"role": "user", "content": "x"}],
+                schema=None, max_tokens_saida=100, cache={}, modo="padrao",
+            )
+            kwargs = self.adapter._client.messages.create.call_args.kwargs
+            self.assertNotIn("output_config", kwargs)
+            self.assertNotIn("thinking", kwargs)
+
+    def test_haiku_nunca_recebe_effort_nem_thinking(self):
+        self.adapter._client.messages.create.return_value = _resposta_fake("ok")
+
+        self.adapter.chamar(
+            modelo="claude-haiku-4-5-20251001", esforco="medio", sistema="s",
+            contexto_fixo="", mensagens=[{"role": "user", "content": "x"}],
+            schema=None, max_tokens_saida=100, cache={}, modo="padrao",
+        )
+        kwargs = self.adapter._client.messages.create.call_args.kwargs
+        self.assertNotIn("output_config", kwargs)
+        self.assertNotIn("thinking", kwargs)
+
 
 class TestCache(unittest.TestCase):
     def setUp(self):
