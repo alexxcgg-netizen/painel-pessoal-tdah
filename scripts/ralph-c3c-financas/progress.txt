@@ -1,0 +1,35 @@
+Faixa C3c (c3c-financas) - polimento de Gastos/Assinaturas+parcelas/Bancos/Construtora/Contas pessoais.
+Branch fase7/c3c-financas, porta 5133. Scripts: servidor.py (banco temp + semente + construtora mock), auditar.py.
+
+H1 Levantamento (390x844, auditar.py; 0 erro de console, 0 falha de rede fora Google Fonts/IA duble)
+- Console/pageerror: 0. Construtora: nenhum lucro/margem/VGV na tela (so JSON da rota antiga traz).
+- SHEETS QUEBRADOS: .bottom-sheet-financas (CSS provisorio da V6) pinta a moldura da V0d real: painel
+  sai 90px acima da tela (titulo cortado), 2 pegadores, borda na moldura. Afeta os 3 sheets.
+- Botao nativo cinza (sem .btn): Cancelar/Apagar (assinaturas, parcelas), paga/Apagar (contas
+  pessoais), Salvar (teto IA), Salvar limite (Bancos). Todos 21-22px de altura.
+- Toque <44: chips de categoria do gasto 22px (clicaveis), "e tarefa" 28px, input teto IA 36px,
+  CSV 23px, label nota fiscal/OFX 41px, selects OFX 38px, Importar 35px, input limite 36px,
+  meta "guardei R$" 30px + Registrar 30px, dica-toggle "!" 20px (contas pessoais).
+- Contraste <4.5: chip categoria cor --cor-tarefas/--cor-financeiro (3.2 e 4.0:1), valor da
+  lista de proximas cobrancas em --cor-financeiro (4.0:1), saidas da Construtora --cor-construtora
+  (3.2:1), selo "meta batida" (1.2:1).
+- R$ estourando em 390px: titulo de conta pessoal "Condominio - R$ 987.654,32" cortado com
+  reticencias (valor some); titulo de assinatura longa cortado; rotulo de barra do grafico de
+  limite (R$ 129.999,99) encosta na borda do SVG.
+- Emoji como icone: "meta batida! (emoji de festa)" em metas.js.
+- Adicionar fora do padrao: submit do sheet de conta pessoal diz "Adicionar" com "+" (MASTER:
+  botao final diz o que faz -> "Salvar conta"). Foco ao abrir vai pro X, nao pro 1o campo.
+- MASTER: R$ fora de mono em chips/meta/legenda (fim do mes, resumo semanal, patrimonio,
+  meta-detalhe, lista-item-meta); card de Comprometido com vao enorme entre rotulo e valor;
+  chip do cartao esticado na largura toda da linha; fmtMoeda(undefined) -> "R$ NaN" se a API
+  mandar campo faltando (sem guarda).
+- Fora da minha lista (nao edito): abas Painel/Assistente vazando em Bancos/Construtora
+  (C2 ja corrigiu na branch dela); cotacoes.* (Construtora) e a dica-toggle global sao de
+  outra faixa/style.css; .card sem guarda [hidden] (C2 corrigindo em card.css).
+
+Historias
+[x] H1 levantamento
+[ ] H2 correcoes nos meus arquivos + merge integracao (gambiarra .card[hidden])
+[ ] H3 fuzz de UI (>=50 cenarios)
+[ ] H4 testes do modulo + N1 + JS
+[ ] H5 screenshots finais + changelog.d/c3c-financas.md
