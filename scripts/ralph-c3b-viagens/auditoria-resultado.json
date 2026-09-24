@@ -1,0 +1,269 @@
+{
+ "erros_console": [],
+ "falhas_rede": [],
+ "falhas_ambiente": [
+  [
+   502,
+   "http://127.0.0.1:5132/api/summary/today"
+  ]
+ ],
+ "secoes": {
+  "viagens": {
+   "toque": [
+    {
+     "el": "button.dica-toggle \"Ver explicacao de viagens\"",
+     "w": 20,
+     "h": 20
+    },
+    {
+     "el": "button.btn-com-icone \"montar mala\"",
+     "w": 101,
+     "h": 28
+    },
+    {
+     "el": "button.btn-com-icone \"Apagar\"",
+     "w": 83,
+     "h": 28
+    },
+    {
+     "el": "input \"Numero do voo da viagem para G\"",
+     "w": 203,
+     "h": 36
+    },
+    {
+     "el": "button.btn-com-icone \"salvar\"",
+     "w": 56,
+     "h": 21
+    },
+    {
+     "el": "button.btn-com-icone \"montar mala\"",
+     "w": 101,
+     "h": 28
+    },
+    {
+     "el": "button.btn-com-icone \"Apagar\"",
+     "w": 83,
+     "h": 28
+    },
+    {
+     "el": "input \"Numero do voo da viagem para L\"",
+     "w": 203,
+     "h": 36
+    },
+    {
+     "el": "button.btn-com-icone \"salvar\"",
+     "w": 56,
+     "h": 21
+    }
+   ],
+   "contraste": [],
+   "emoji": [],
+   "hiddenVisivel": [],
+   "addFora": [],
+   "crus": [
+    "button.btn-com-icone \"montar mala\" bg=rgb(24, 24, 24) h=28",
+    "button.btn-com-icone \"Apagar\" bg=rgb(24, 24, 24) h=28",
+    "button.btn-com-icone \"salvar\" bg=rgb(239, 239, 239) h=21",
+    "button.btn-com-icone \"montar mala\" bg=rgb(24, 24, 24) h=28",
+    "button.btn-com-icone \"Apagar\" bg=rgb(24, 24, 24) h=28",
+    "button.btn-com-icone \"salvar\" bg=rgb(239, 239, 239) h=21"
+   ],
+   "recolhivel": false,
+   "altura": 1662
+  },
+  "lugares": {
+   "toque": [
+    {
+     "el": "button.dica-toggle \"Ver explicacao de lugares que \"",
+     "w": 20,
+     "h": 20
+    },
+    {
+     "el": "button.btn-com-icone \"Apagar\"",
+     "w": 83,
+     "h": 28
+    },
+    {
+     "el": "button.btn-com-icone \"esconder mapa\"",
+     "w": 119,
+     "h": 21
+    },
+    {
+     "el": "a.leaflet-control-zoom-in \"Zoom in\"",
+     "w": 30,
+     "h": 30
+    },
+    {
+     "el": "a.leaflet-control-zoom-out \"Zoom out\"",
+     "w": 30,
+     "h": 30
+    },
+    {
+     "el": "a \"Leaflet\"",
+     "w": 51,
+     "h": 14
+    },
+    {
+     "el": "a \"OpenStreetMap\"",
+     "w": 83,
+     "h": 14
+    },
+    {
+     "el": "button.btn-com-icone \"Apagar\"",
+     "w": 83,
+     "h": 28
+    },
+    {
+     "el": "button.btn-com-icone \"esconder mapa\"",
+     "w": 119,
+     "h": 21
+    }
+   ],
+   "contraste": [],
+   "emoji": [
+    {
+     "el": "div.leaflet-control-attribution.leaflet-control \"Leaflet | © OpenStreetMap\"",
+     "texto": "©"
+    }
+   ],
+   "hiddenVisivel": [],
+   "addFora": [
+    "a.leaflet-control-zoom-in \"Zoom in\""
+   ],
+   "crus": [
+    "button.btn-com-icone \"Apagar\" bg=rgb(24, 24, 24) h=28",
+    "button.btn-com-icone \"esconder mapa\" bg=rgb(239, 239, 239) h=21",
+    "button.btn-com-icone \"Apagar\" bg=rgb(24, 24, 24) h=28",
+    "button.btn-com-icone \"esconder mapa\" bg=rgb(239, 239, 239) h=21"
+   ],
+   "recolhivel": false,
+   "altura": 551
+  },
+  "viagem_sheet": {
+   "toque": [],
+   "contraste": [],
+   "emoji": [],
+   "hiddenVisivel": [],
+   "addFora": [],
+   "crus": [],
+   "recolhivel": false,
+   "altura": 6590
+  },
+  "viagem_sheet_geo": {
+   "bg": "rgba(0, 0, 0, 0.55)",
+   "padding": "16px",
+   "border": "1px",
+   "fundo": false,
+   "alca": false,
+   "painelTop": 377,
+   "painelH": 352
+  },
+  "cotacoes": {
+   "toque": [
+    {
+     "el": "button.dica-toggle \"Ver explicacao das cotacoes\"",
+     "w": 20,
+     "h": 20
+    },
+    {
+     "el": "button.cotacao-item-apagar \"Apagar item\"",
+     "w": 24,
+     "h": 21
+    },
+    {
+     "el": "button.cotacao-item-apagar \"Apagar item\"",
+     "w": 24,
+     "h": 21
+    },
+    {
+     "el": "button.cotacao-item-apagar \"Apagar item\"",
+     "w": 24,
+     "h": 21
+    },
+    {
+     "el": "input",
+     "w": 203,
+     "h": 36
+    },
+    {
+     "el": "input",
+     "w": 203,
+     "h": 36
+    },
+    {
+     "el": "label.cotacao-upload-label \"Anexar PDF do orcamento\"",
+     "w": 302,
+     "h": 39
+    }
+   ],
+   "contraste": [],
+   "emoji": [],
+   "hiddenVisivel": [],
+   "addFora": [],
+   "crus": [
+    "button.cotacao-item-apagar \"Apagar item\" bg=rgba(0, 0, 0, 0) h=21",
+    "button.cotacao-item-apagar \"Apagar item\" bg=rgba(0, 0, 0, 0) h=21",
+    "button.cotacao-item-apagar \"Apagar item\" bg=rgba(0, 0, 0, 0) h=21"
+   ],
+   "recolhivel": false,
+   "altura": 705
+  },
+  "aviacao": {
+   "toque": [
+    {
+     "el": "button.dica-toggle \"Ver explicacao do registro de \"",
+     "w": 20,
+     "h": 20
+    },
+    {
+     "el": "a.btn-com-icone \"Windy\"",
+     "w": 49,
+     "h": 28
+    },
+    {
+     "el": "button.btn-com-icone \"Quando sair?\"",
+     "w": 103,
+     "h": 28
+    },
+    {
+     "el": "button.btn-com-icone \"Apagar\"",
+     "w": 83,
+     "h": 28
+    },
+    {
+     "el": "button.dica-toggle \"Ver explicacao do METAR/TAF\"",
+     "w": 20,
+     "h": 20
+    },
+    {
+     "el": "button#metar-ouvir.btn-ouvir \"Ouvir METAR\"",
+     "w": 30,
+     "h": 30
+    },
+    {
+     "el": "button#taf-ouvir.btn-ouvir \"Ouvir TAF\"",
+     "w": 30,
+     "h": 30
+    }
+   ],
+   "contraste": [
+    {
+     "el": "a.btn-com-icone \"Windy\"",
+     "ratio": 1.89,
+     "cor": "rgb(0, 0, 238)",
+     "px": 16,
+     "peso": 400
+    }
+   ],
+   "emoji": [],
+   "hiddenVisivel": [],
+   "addFora": [],
+   "crus": [
+    "button.btn-com-icone \"Quando sair?\" bg=rgb(24, 24, 24) h=28",
+    "button.btn-com-icone \"Apagar\" bg=rgb(24, 24, 24) h=28"
+   ],
+   "recolhivel": false,
+   "altura": 1948
+  }
+ }
+}

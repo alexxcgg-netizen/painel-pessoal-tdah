@@ -1,0 +1,23 @@
+Faixa C3b (Viagens, Lugares, Cotacoes, Aviacao) - Fase 7 - branch fase7/c3b-viagens
+Worktree /home/user/painel-pessoal-tdah-fase7-c3b-viagens, porta 5132, banco sintetico (servidor.py).
+
+[x] H1 - Auditoria Playwright 390x844 (auditar.py -> auditoria-resultado.json):
+  - Console: 0 erros (fora /api/summary/today 502 = IA com chave falsa, ambiente).
+  - Toque <44px: .dica-toggle 20px (4 secoes); .item-acoes (mala/Apagar/Quando sair/
+    Windy) 28px; "salvar" voo 21px; "ver/esconder mapa" 21px; x apagar fornecedor
+    24x21; inputs do voo/fornecedor 36px (sem .campo); label PDF 39px; .btn-ouvir 30px;
+    zoom do Leaflet 30px (terceiro, nao mexo).
+  - Contraste <4.5: link "Windy" azul nativo do navegador (rgb 0,0,238) = 1.89:1.
+  - Botao cru/nativo: "salvar" voo e "ver mapa" com cinza nativo (#efefef) - cara de
+    "Windows 1990"; "+ Adicionar" fornecedor com "+" em texto.
+  - Botao adicionar: os 3 .btn.btn-adicionar ok; Registrar voo e form longo SEMPRE
+    aberto (MASTER 11: vai pro bottom-sheet com .btn-adicionar).
+  - Emoji como icone: nenhum ("x" em texto no apagar fornecedor e glifo, vira SVG).
+  - Sem .secao-recolhivel: Viagens (~1660px c/ 2 viagens), Lugares, Cotacoes, Proximos
+    voos e METAR.
+  - MASTER: sheets sem titulo e submit "Adicionar"/"Criar" (receita pede "Salvar X");
+    sheets com .bottom-sheet-painel escrito a mao -> o V0d nao monta fundo/alca/toque-fora
+    (e o CSS local por ID duplica o componente); valores R$/horas sem tabular-nums.
+  - hidden: nenhum card visivel com [hidden].
+  - Vazamento externo: static/css/secoes/vida/habitos.css (dono c3a) estiliza
+    `.bottom-sheet` SEM escopo (margin/padding/borda/fundo) e pega TODO sheet do app.
