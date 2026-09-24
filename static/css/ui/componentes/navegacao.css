@@ -1,3 +1,83 @@
-/* static/css/ui/componentes/navegacao.css - componente: barra de navegacao inferior (templates/navegacao.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+/* static/css/ui/componentes/navegacao.css - componente: barra de navegacao inferior
+   (templates/navegacao.html, NAO editar aqui - HTML e da faixa P1b).
+   Fase 7 (V0d): acabamento POR CIMA da tabbar que ja existe (#tabbar em
+   style.css - vidro, blur, glow, sombra em duas distancias; nao editar nem
+   duplicar isso aqui). Esta folha carrega DEPOIS de style.css e so
+   acrescenta o que falta: area de toque garantida de 44px, borda fina mais
+   precisa (camada, nao cor nova), um indicador de aba ativa mais discreto
+   (um pontinho, alem do realce que o style.css ja da) e o selo de
+   contagem (.nav-selo). Nenhuma cor/fonte/animacao NOVA - so var() que ja
+   existem, com fallback pros tokens novos de forma da V0a.
+
+   Icones: templates/navegacao.html ja usa SVG de traco (stroke) em todas as
+   abas, nao emoji - nao ha troca de icone pra listar aqui pra P1b.
+
+   Contrato do selo (P1b poe isso no HTML, ver progress.txt): um
+   `<span class="nav-selo">` como filho direto do `.tab-btn`, logo depois do
+   `<svg>`, com um numero curto dentro (ex: contagem de "Hoje"). */
+
+#tabbar {
+  border-color: var(--borda-sutil, var(--border-strong, rgba(255, 255, 255, 0.1)));
+}
+
+.tab-btn {
+  min-height: var(--toque-min, 44px);
+  position: relative;
+}
+
+/* Pontinho de aba ativa: reforco pequeno alem do "cartao aceso" que o
+   style.css ja desenha - ajuda a identificar a aba corrente num relance,
+   mesmo com o olho fora do centro da barra. */
+.tab-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0.1rem;
+  width: 3px;
+  height: 3px;
+  border-radius: var(--raio-pilula, 999px);
+  background: currentColor;
+  opacity: 0;
+  transform: translate(-50%, 3px) scale(0.6);
+  transition: opacity var(--transicao-rapida, 0.15s ease), transform var(--transicao-media, 0.22s ease);
+}
+
+.tab-btn.active::after {
+  opacity: 0.85;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.tab-btn svg {
+  position: relative;
+}
+
+.nav-selo {
+  position: absolute;
+  /* O icone (20px) fica centralizado no botao - ancora no centro + metade
+     da largura do icone, em vez de percentual, pra nao depender da largura
+     variavel do botao (a barra tem 7 abas dividindo o espaco). */
+  top: 0.05rem;
+  left: calc(50% + 4px);
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--raio-pilula, 999px);
+  background: var(--danger, #ff5c72);
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1;
+  /* "recorte" contra o fundo em vez de borda propria - le como selo de
+     verdade sobreposto ao icone, nao como um chip colado do lado. */
+  box-shadow: 0 0 0 2px var(--bg, #000);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-btn::after {
+    transition-duration: 0.001ms;
+  }
+}
