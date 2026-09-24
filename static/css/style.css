@@ -988,7 +988,7 @@ header {
    de tomar conta do preenchimento inteiro do botao/aba. */
 
 .tab-content:not([hidden]) {
-  animation: tabEntra 0.32s var(--ease-suave) both;
+  animation: tabEntra 0.32s var(--ease-suave) backwards;
 }
 
 /* Transicao direcional entre abas (pedido explicito: efeitos "premium",
@@ -1000,10 +1000,10 @@ header {
    exigiria as duas abas visiveis ao mesmo tempo por um instante, mais
    arriscado (dado carregando, foco, etc) pro ganho visual que traria. */
 .tab-content.entra-direita:not([hidden]) {
-  animation: tabEntraDireita 0.36s var(--ease-suave) both;
+  animation: tabEntraDireita 0.36s var(--ease-suave) backwards;
 }
 .tab-content.entra-esquerda:not([hidden]) {
-  animation: tabEntraEsquerda 0.36s var(--ease-suave) both;
+  animation: tabEntraEsquerda 0.36s var(--ease-suave) backwards;
 }
 
 @keyframes tabEntraDireita {

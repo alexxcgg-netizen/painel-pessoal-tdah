@@ -1,48 +1,161 @@
 /* static/css/secoes/construtora/cotacoes.css - secao construtora > cotacoes (HTML: templates/secoes/construtora/cotacoes.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve por cascata sem
+   precisar editar o style.css.
 
-/* Fase 7 V5-extra: mesmo padrao de secoes/vida/viagens.css (comentario
-   completo la) - .btn-adicionar/.campo/.btn-primario/.btn-secundario ja
-   usam o componente compartilhado real (V0b/V0c). So o painel deslizante
-   em si ainda nao tem componente (ui/componentes/bottom-sheet.css - V0d),
-   por isso o acabamento de sheet fica aqui, escopado por ID
-   (#cotacao-sheet), nunca a classe .bottom-sheet inteira. */
-#cotacao-sheet.bottom-sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: flex-end;
+   Fase 7 C3b: secao recolhivel (V0c) + sheet compartilhado (V0d). O miolo comum dos sheets
+   da faixa (#cotacao-sheet incluso) fica em secoes/vida/viagens.css. Sem cor nova: a cor da
+   aba (--cor-construtora) so no icone do cabecalho e no hover do anexo, como antes. */
+
+/* Ritmo e icone do cabecalho - mesma receita que secoes/vida.css usa pra aba Vida
+   (#tab-construtora nao tem essa regra generica, e o arquivo da aba e de outra faixa). */
+[data-secao-id="construtora-cotacoes"] {
+  margin-top: var(--espaco-4);
+}
+
+[data-secao-id="construtora-cotacoes"] .secao-cabecalho svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--secao-cor, var(--accent));
+  opacity: 0.9;
+}
+
+[data-secao-id="construtora-cotacoes"] .dica-toggle {
+  position: relative;
+}
+
+[data-secao-id="construtora-cotacoes"] .dica-toggle::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
+
+/* Cada cotacao: bloco interno dentro do card da secao (nao card sobre card). */
+#lista-cotacoes > li.cotacao-card {
+  background: var(--superficie-3);
+  border-color: var(--borda-sutil);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+#lista-cotacoes .cotacao-cabecalho {
+  min-height: var(--toque-confortavel);
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
 }
 
-#cotacao-sheet.bottom-sheet[hidden] {
-  display: none;
+#lista-cotacoes .cotacao-cabecalho:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
 }
 
-#cotacao-sheet .bottom-sheet-painel {
-  width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
-  overflow-y: auto;
-  background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius) var(--radius) 0 0;
-  box-shadow: var(--shadow-card-hover);
-  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
-  animation: fadeInUp 0.3s var(--ease-bounce) both;
+/* Fornecedores: lista com divisor (terceiro nivel vira linha, nao caixa). */
+#lista-cotacoes .cotacao-itens {
+  gap: 0;
 }
 
-#cotacao-sheet #cotacao-form {
-  margin-bottom: 0;
+#lista-cotacoes .cotacao-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--espaco-2);
+  min-height: var(--toque-confortavel);
+  padding: 0 0 0 var(--espaco-1);
+  border: 0;
+  border-bottom: var(--linha) solid var(--borda-sutil);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
-/* Label de upload de PDF (dentro do detalhe expandido de uma cotacao) - o
-   botao "+ Adicionar" fornecedor ao lado ja usa .btn.btn-secundario real;
-   a label de upload nao tem componente equivalente (nao e um <button>),
-   entao so o hover ganha a mesma cor da aba, sem cor nova. */
+#lista-cotacoes .cotacao-item:last-child {
+  border-bottom: 0;
+}
+
+/* Menor preco: indicado pela barra fina a esquerda + peso do numero (a cor nunca e o
+   unico sinal - o grafico abaixo repete a ordem). */
+#lista-cotacoes .cotacao-item-menor {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--ok, #42bb91) 70%, transparent);
+  padding-left: var(--espaco-2);
+}
+
+#lista-cotacoes .cotacao-item-menor .cotacao-item-valor {
+  font-weight: 700;
+}
+
+#lista-cotacoes .cotacao-item-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#lista-cotacoes .cotacao-item-prazo {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+#lista-cotacoes .cotacao-item-valor {
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* "x" de apagar fornecedor: SVG de traco, 44px de area, --text-faint -> --danger so no
+   hover/foco (MASTER.md 5 "Lista-item"). */
+#lista-cotacoes .cotacao-item-apagar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--toque-min);
+  height: var(--toque-min);
+  padding: 0;
+  border-radius: var(--raio-xs);
+  color: var(--text-faint);
+}
+
+#lista-cotacoes .cotacao-item-apagar svg {
+  width: 16px;
+  height: 16px;
+}
+
+#lista-cotacoes .cotacao-item-apagar:focus-visible {
+  outline: none;
+  color: var(--danger);
+  box-shadow: var(--anel-foco);
+}
+
+@media (hover: hover) {
+  #lista-cotacoes .cotacao-item-apagar:hover {
+    color: var(--danger);
+    background: var(--veu-hover);
+  }
+}
+
+/* Form de fornecedor dentro do detalhe: fornecedor em cima, valor + botao embaixo. */
+#lista-cotacoes .cotacao-add-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--espaco-2);
+  margin: var(--espaco-3) 0 var(--espaco-2);
+}
+
+#lista-cotacoes .cotacao-add-form .campo:first-child {
+  grid-column: 1 / -1;
+}
+
+#lista-cotacoes .cotacao-add-form .campo[inputmode="decimal"] {
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Anexar PDF: label (nao e <button>), entao ganha a altura minima aqui. */
+#lista-cotacoes .cotacao-upload-label {
+  min-height: var(--toque-min);
+  border-radius: var(--raio-sm);
+}
+
 @media (hover: hover) {
   .cotacao-upload-label:hover {
     border-color: var(--cor-construtora);

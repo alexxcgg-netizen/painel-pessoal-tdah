@@ -14,7 +14,11 @@ async function loadVoosResumo() {
 
   const data = await apiFetch("/api/voos/resumo");
   vazioTexto.textContent = textoOriginal;
-  if (!data) return;
+  // null (erro ja mostrado) ou resposta fora do formato: deixa a tela como estava
+  if (!data || typeof data !== "object" || !Array.isArray(data.proximos)) {
+    vazioEl.hidden = $("#lista-voos").children.length > 0;
+    return;
+  }
 
   animarNumero($("#voo-horas-semana"), data.horas_semana, fmtHoras);
   animarNumero($("#voo-horas-mes"), data.horas_mes, fmtHoras);
@@ -37,7 +41,7 @@ async function loadVoosResumo() {
   data.proximos.forEach((v) => list.appendChild(criarItemVoo(v)));
 
   const historico = await apiFetch("/api/voos/historico");
-  if (historico) {
+  if (Array.isArray(historico)) {
     desenharGraficoLinha($("#grafico-voos"), historico, {
       cor: "var(--cor-aviacao)",
       formatarValor: fmtHoras,

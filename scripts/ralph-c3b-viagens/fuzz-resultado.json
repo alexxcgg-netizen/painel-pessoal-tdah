@@ -1,0 +1,433 @@
+{
+ "total": 71,
+ "ok": 71,
+ "falhas": [],
+ "cenarios": [
+  {
+   "cenario": "mapa: CDN do Leaflet fora -> aviso, sem excecao",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "mapa: abrir/fechar 11x rapido termina aberto com 180px",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: abrir+ESC 8x rapido",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: toque fora fecha",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: Cancelar fecha, limpa e devolve o foco",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: clique duplo no botao abre 1 sheet so",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: salvar com API 500 mantem sheet e mostra erro",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: salvar com JSON invalido nao quebra",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: strings gigantes (12k, emoji, HTML) salvam e fecham",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lugar: abrir+ESC 8x rapido",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lugar: toque fora fecha",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lugar: Cancelar fecha, limpa e devolve o foco",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lugar: clique duplo no botao abre 1 sheet so",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lugar: salvar com API 500 mantem sheet e mostra erro",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lugar: salvar com JSON invalido nao quebra",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lugar: strings gigantes (12k, emoji, HTML) salvam e fecham",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: abrir+ESC 8x rapido",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: toque fora fecha",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: Cancelar fecha, limpa e devolve o foco",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: clique duplo no botao abre 1 sheet so",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: salvar com API 500 mantem sheet e mostra erro",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: salvar com JSON invalido nao quebra",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: strings gigantes (12k, emoji, HTML) salvam e fecham",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: abrir+ESC 8x rapido",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: toque fora fecha",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: Cancelar fecha, limpa e devolve o foco",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: clique duplo no botao abre 1 sheet so",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: salvar com API 500 mantem sheet e mostra erro",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: salvar com JSON invalido nao quebra",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: strings gigantes (12k, emoji, HTML) salvam e fecham",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: volta antes da ida bloqueia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: data de ida invalida nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: data 31/02 nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: data texto nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: horas negativas nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: horas texto nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: hora 25:99 nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: toque triplo em Salvar gera 1 voo so",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: fornecedor com valor negativo nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: fornecedor com valor infinito nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: fornecedor com valor texto nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: fornecedor com valor vazio nao envia",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: adicionar fornecedor com API 500",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: adicionar fornecedor com API json",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: apagar fornecedor com API 500 mantem o item",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "cotacao: detalhe com JSON invalido",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista viagens: GET 500",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista viagens: GET json",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista viagens: GET objeto",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista lugares: GET 500",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista lugares: GET json",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista lugares: GET objeto",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista cotacoes: GET 500",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista cotacoes: GET json",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista cotacoes: GET objeto",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista voos/resumo: GET 500",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista voos/resumo: GET json",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lista voos/resumo: GET objeto",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "metar: API 500",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "metar: JSON invalido",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "metar: sem dado (ZZZZ)",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "metar: HTML no campo",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "secao vida-viagens: 9 toques rapidos terminam fechada e salva",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "secao vida-lugares: 9 toques rapidos terminam fechada e salva",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "secao construtora-cotacoes: 9 toques rapidos terminam fechada e salva",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "secao aviacao-proximos-voos: 9 toques rapidos terminam fechada e salva",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "secao aviacao-metar: 9 toques rapidos terminam fechada e salva",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: montar mala com API 500",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "viagem: numero do voo com API 500",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "voo: apagar com API 500 mantem o voo",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  },
+  {
+   "cenario": "lugar: ESC com salvamento lento em andamento",
+   "ok": true,
+   "detalhe": "",
+   "erros": []
+  }
+ ]
+}

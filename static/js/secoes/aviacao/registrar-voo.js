@@ -4,9 +4,33 @@
 
 aplicarMascaraData($("#voo-data"));
 
+// Fase 7 (C3b): o formulario de voo (longo, 6 campos) saiu do meio da aba e
+// foi pro bottom-sheet compartilhado (static/js/ui/bottom-sheet.js, V0d), que
+// abre pelo .btn-adicionar "Registrar voo" (MASTER.md 11: formulario nao fica
+// sempre aberto na secao). Fallback so pro caso de o componente nao carregar.
+function abrirPainelVoo() {
+  const sheet = $("#voo-sheet");
+  if (typeof levarSheetProBody === "function") levarSheetProBody(sheet); // ver secoes/vida/viagens.js
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+}
+
+function fecharPainelVoo() {
+  const sheet = $("#voo-sheet");
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+}
+
+$("#voo-abrir-btn").addEventListener("click", abrirPainelVoo);
+$("#voo-cancelar-btn").addEventListener("click", () => {
+  $("#voo-form").reset();
+  fecharPainelVoo();
+});
+
 $("#voo-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#voo-btn");
+  if (btn.disabled) return; // ja salvando - evita voo duplicado com toque duplo
   const dataInput = $("#voo-data");
   const horaInput = $("#voo-hora");
   const origemInput = $("#voo-origem");
@@ -45,7 +69,7 @@ $("#voo-form").addEventListener("submit", async (e) => {
       observacao: obsInput.value.trim() || undefined,
     }),
   });
-  setBotaoCarregando(btn, false, "Registrar");
+  setBotaoCarregando(btn, false, "Salvar voo");
   if (!data) return;
 
   dataInput.value = "";
@@ -54,7 +78,7 @@ $("#voo-form").addEventListener("submit", async (e) => {
   destinoInput.value = "";
   horasInput.value = "";
   obsInput.value = "";
-  pulsarSucesso(destinoInput);
+  fecharPainelVoo();
   loadVoosResumo();
   loadStreak();
 });

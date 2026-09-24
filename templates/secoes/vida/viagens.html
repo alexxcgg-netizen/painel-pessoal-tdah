@@ -1,34 +1,44 @@
-      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-aviacao)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg>
-        Viagens
-      </h2>
-      <div class="dica-colapsavel">
-        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de viagens"></button>
-        <p class="dica-metas dica-texto" hidden>
-          Viagem pessoal (voo do aeroclube fica na aba Aviacao). "Montar mala" pede um checklist pra IA baseado no destino e no clima. Avisa de documento 3 dias antes e no dia.
-        </p>
-      </div>
-      <button type="button" id="viagem-abrir-btn" class="btn btn-adicionar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-        Nova viagem
-      </button>
-      <div class="bottom-sheet" id="viagem-sheet" hidden>
-        <div class="bottom-sheet-painel">
-          <form id="viagem-nova-form" class="form-linha">
-            <input type="text" id="viagem-nova-destino" class="campo" placeholder="Destino" maxlength="80" required />
-            <input type="date" id="viagem-nova-ida" class="campo" aria-label="Data de ida" required />
-            <input type="date" id="viagem-nova-volta" class="campo" aria-label="Data de volta (opcional)" />
-            <label class="checkbox-linha">
-              <input type="checkbox" id="viagem-nova-internacional" />
-              <span>Viagem internacional</span>
-            </label>
-            <div class="form-linha">
-              <button type="submit" id="viagem-nova-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
-              <button type="button" id="viagem-cancelar-btn" class="btn btn-secundario">Cancelar</button>
-            </div>
-          </form>
+      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-viagens" style="--secao-cor: var(--cor-aviacao)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-viagens">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg>
+          Viagens
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+        <div class="secao-conteudo" id="conteudo-vida-viagens">
+          <div class="dica-colapsavel">
+            <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de viagens"></button>
+            <p class="dica-metas dica-texto" hidden>
+              Viagem pessoal (voo do aeroclube fica na aba Aviacao). "Montar mala" pede um checklist pra IA baseado no destino e no clima. Avisa de documento 3 dias antes e no dia.
+            </p>
+          </div>
+          <button type="button" id="viagem-abrir-btn" class="btn btn-adicionar">Nova viagem</button>
+          <p id="viagens-vazio" class="vazio" hidden>Nenhuma viagem marcada.</p>
+          <ul id="lista-viagens"></ul>
         </div>
-      </div>
-      <p id="viagens-vazio" class="vazio" hidden>Nenhuma viagem marcada.</p>
-      <ul id="lista-viagens"></ul>
+      </section>
 
+      <div class="bottom-sheet" id="viagem-sheet" aria-labelledby="viagem-sheet-titulo" hidden>
+        <h3 id="viagem-sheet-titulo" class="sheet-titulo">Nova viagem</h3>
+        <form id="viagem-nova-form" class="sheet-form">
+          <label class="campo-rotulo" for="viagem-nova-destino">Destino</label>
+          <input type="text" id="viagem-nova-destino" class="campo" placeholder="Ex: Gramado" maxlength="80" required />
+          <div class="sheet-form-par">
+            <div>
+              <label class="campo-rotulo" for="viagem-nova-ida">Ida</label>
+              <input type="date" id="viagem-nova-ida" class="campo" required />
+            </div>
+            <div>
+              <label class="campo-rotulo" for="viagem-nova-volta">Volta (opcional)</label>
+              <input type="date" id="viagem-nova-volta" class="campo" />
+            </div>
+          </div>
+          <label class="checkbox-linha">
+            <input type="checkbox" id="viagem-nova-internacional" />
+            <span>Viagem internacional</span>
+          </label>
+          <div class="sheet-acoes">
+            <button type="button" id="viagem-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+            <button type="submit" id="viagem-nova-btn" class="btn btn-primario">Salvar viagem</button>
+          </div>
+        </form>
+      </div>
