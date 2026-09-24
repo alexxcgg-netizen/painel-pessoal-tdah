@@ -1,0 +1,52 @@
+Faixa P9 (memoria viva) - progress.txt
+
+[done] Historia 1: ia/config.d/propor_memoria.json - config nova (ativo:
+  false, modelo_atual Haiku 4.5, alvo openai gpt-6-luna esforco medio,
+  max_tokens_saida 500), formato igual ao README.md do config.d.
+
+[done] Historia 2: assistente/memoria_viva.py - deteccao de fatos 100%
+  code-side (treino_horario via habito_marcacoes.marcado_em, sono_medio via
+  saude_dados.sono_horas, gasto_recorrente reaproveitando
+  gastos.detectar_gastos_recorrentes, rotina_consistente via
+  rotina_marcacoes) + 1 chamada de ia.core.chamar_ia("propor_memoria", ...)
+  POR FATO (nao 1 chamada com todos juntos - ver motivo no docstring do
+  modulo: assim cada proposta herda a `chave` estavel do fato, nao do texto
+  que a IA escreveu, que pode variar semana a semana). Schema exatamente
+  como pedido no prompt ({"propostas":[{"acao","memoria_id","texto",
+  "motivo"}]}). Filtro contem_assunto_proibido (vida amorosa + financeiro
+  da construtora) roda 2x: no texto de origem (nome de habito/item de
+  rotina/descricao de gasto) ANTES de virar fato, e de novo no texto que a
+  IA devolveu, antes de qualquer enfileiramento.
+
+[done] Historia 3: assistente/gatilhos/p9_memoria.py - executar(conn,
+  agora) idempotente por semana ISO (so roda domingo >=19h, mesma janela
+  que o resto do app.py ja usa pra tarefa semanal), flag
+  assistente.p9_memoria.ativo (padrao ligado). ao_resolver(conn, item,
+  resposta, texto): aceitar aplica com create_memoria/update_memoria/
+  delete_memoria (db.py ja existentes); recusar so grava em
+  p9_memoria_recusas (nunca repropoe a mesma chave por 8 semanas). Import
+  de assistente.caixa e tardio, atras de uma funcao _caixa() (infra da P1a
+  nao integrada ainda - ver APRENDIZADOS.md pra nota de integracao sobre o
+  formato de `origem`).
+
+[done] Historia 4: tests/test_fase7_p9_memoria_viva.py (deteccao de fato +
+  chamada de IA mockada + filtro, com fuzzing de texto/entrada corrompida)
+  e tests/test_fase7_p9_gatilho.py (executar/ao_resolver, Caixa mockada,
+  relogio sempre injetado). 58 passed (52 subtests) - 0 failed.
+  `scripts/testes.sh tests/test_fase7_p9_memoria_viva.py
+  tests/test_fase7_p9_gatilho.py`. gitleaks detect --no-git --source . ->
+  no leaks found.
+
+[bloqueado-parcial] Infra da Etapa 0 (migracoes/*.sql aplicado sozinho,
+  assistente/caixa.py da P1a) ainda nao estava na integracao no momento
+  desta faixa (mesmo depois de mesclar origin/fase7/integracao, que trouxe
+  A5/A13/A15/N3b mas nao P1a/Etapa 0 X1). Resolvido sem bloquear: as 2
+  tabelas que este modulo precisa (p9_memoria_propostas, p9_memoria_
+  recusas) sao criadas sob demanda (CREATE TABLE IF NOT EXISTS) direto em
+  p9_memoria.py, alem do .sql em migracoes/ ficar pronto pra quando a
+  infra chegar (reaplicar depois e inofensivo). O import de assistente.
+  caixa fica atras de _caixa(), reconferir quando a P1a integrar (ver
+  APRENDIZADOS.md).
+
+Nenhuma dependencia nova (so os modulos que ja existiam: db, gastos, vida,
+ia.core). Nenhuma variavel de ambiente nova.
