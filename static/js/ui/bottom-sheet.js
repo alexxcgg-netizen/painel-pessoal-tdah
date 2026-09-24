@@ -58,6 +58,18 @@
   // Elemento com foco antes de cada sheet abrir, pra devolver ao fechar.
   const origemPorSheet = new WeakMap();
   const inicializados = new WeakSet();
+  // M1 (rodada 2): timer do `finalizar` pendente de cada sheet que esta fechando.
+  // Reabrir dentro da janela da animacao CANCELA o timer - sem isso o fechamento
+  // antigo disparava no meio de um fechamento novo (escondia o sheet antes da hora,
+  // devolvia o foco e emitia "bottomsheet:fechado" duas vezes).
+  const timerPorSheet = new Map();
+
+  function cancelarFinalizarPendente(sheet) {
+    if (!timerPorSheet.has(sheet)) return;
+    const id = timerPorSheet.get(sheet);
+    timerPorSheet.delete(sheet);
+    if (raiz.clearTimeout) raiz.clearTimeout(id);
+  }
 
   function ehElemento(v) {
     return !!v && typeof v === "object" && v.nodeType === 1;
@@ -308,6 +320,7 @@
     const sheet = resolverElemento(elOuId);
     if (!ehElemento(sheet) || abertos.includes(sheet)) return;
 
+    cancelarFinalizarPendente(sheet);
     ligarListenersGlobais();
     const painel = garantirEstrutura(sheet);
 
@@ -344,7 +357,10 @@
 
     abertos.splice(indice, 1);
 
+    cancelarFinalizarPendente(sheet);
+
     const finalizar = () => {
+      timerPorSheet.delete(sheet);
       // C2: reaberto durante a animacao de fechar (toque rapido duplo) - o fechamento
       // antigo nao pode esconder o sheet que ja esta aberto de novo.
       if (abertos.includes(sheet)) return;
@@ -381,7 +397,7 @@
     if (sheet.classList && podeAnimar()) {
       sheet.classList.add(CLASSE_FECHANDO);
       sheet.classList.remove(CLASSE_ABERTO);
-      if (raiz.setTimeout) raiz.setTimeout(finalizar, DURACAO_TRANSICAO_MS);
+      if (raiz.setTimeout) timerPorSheet.set(sheet, raiz.setTimeout(finalizar, DURACAO_TRANSICAO_MS));
       else finalizar();
     } else {
       finalizar();
