@@ -173,6 +173,20 @@ Objetivo: nenhuma faixa da Fase 7 edita o mesmo arquivo que outra. Antes de mexe
   pasta temporaria ao `__path__` do pacote (`rotas`, `classificador_local.regras`,
   `assistente.gatilhos`). Blueprint novo depois da 1a requisicao do app precisa de
   `patch.object(app.app, "_got_first_request", False)` no teste (Flask 3.1).
+### Fase 7, X2 (frontend dividido por secao) - LER ANTES DE MEXER NO FRONT
+- **`static/js/app.js` e `static/js/vida.js` nao existem mais** (nem o `index.html`
+  monolitico): viraram `static/js/nucleo/*.js` + `static/js/secoes/<aba>/<secao>.js` e
+  `templates/abas/` + `templates/secoes/<aba>/<secao>.html`. Nota antiga que diz "em
+  `app.js`"/"em `vida.js`" -> procurar a funcao pelo nome (`grep -rn "function nome"
+  static/js`). Mapa secao -> HTML/JS/CSS: `docs/agentes/mapa-frontend.md`.
+- **Scripts classicos, escopo global, ordem importa** (`templates/scripts.html`): codigo que
+  RODA na carga e chama funcao de outro arquivo vai no `nucleo/init.js` (ultimo antes de
+  `visao-dia.js`/`voz-comando.js`), senao `ReferenceError` - antes, no arquivo unico, o
+  hoisting escondia isso.
+- **Arquivo JS/CSS novo = entrada nova no `ASSETS` do `static/service-worker.js` + subir
+  `CACHE_NAME`**; `tests/test_fase7_estrutura_frontend.py` falha se esquecer.
+- **CSS novo vai nas camadas de `static/css/fase7.css`** (carregam depois do `style.css`,
+  sobrescrevem por cascata) - nao editar nem dividir o `style.css`.
 
 ### Fase 6, revisao independente (codigo + seguranca) - correcoes
 - **Todo card novo com dado sensivel (dinheiro OU saude) entra em

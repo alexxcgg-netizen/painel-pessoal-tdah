@@ -1,0 +1,37 @@
+  <section id="captura">
+    <input type="text" id="captura-input" placeholder="Digite algo: tarefa, lembrete, gasto ou meta..." />
+    <button id="captura-btn" class="btn-com-icone">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      Adicionar
+    </button>
+  </section>
+
+  <section id="duvida-box" hidden>
+    <p id="duvida-texto"></p>
+    <input type="text" id="duvida-input" placeholder="Responde aqui..." />
+    <button id="duvida-btn" class="btn-com-icone">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2.5-8.5L3 11Z"/></svg>
+      Enviar
+    </button>
+  </section>
+
+  <section id="comando-voz">
+    <button type="button" id="comando-voz-btn" class="btn-com-icone" aria-label="Comando de voz">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>
+      Comando de voz
+    </button>
+    <p id="comando-voz-status" class="comando-voz-status" hidden></p>
+  </section>
+
+  <section id="comando-voz-confirmar" hidden>
+    <p id="comando-voz-confirmar-texto"></p>
+    <div id="comando-voz-confirmar-opcoes" class="comando-voz-opcoes"></div>
+    <div class="comando-voz-confirmar-botoes">
+      <button type="button" id="comando-voz-confirmar-sim" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
+        Confirmar
+      </button>
+      <button type="button" id="comando-voz-confirmar-nao" class="btn-link">Cancelar</button>
+    </div>
+  </section>
+
