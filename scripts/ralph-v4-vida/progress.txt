@@ -25,15 +25,16 @@ corrigi 4 coisas que so dava pra ver com o CSS/JS real na mao:
    real (`ui/componentes/botao.css`, V0b) ja injeta um "+" sozinho via `::before` (selo
    circular). Com o meu SVG manual ficava com DOIS "+". Botao agora e so texto
    (`<button class="btn btn-adicionar">Adicionar produto</button>`).
-4. Revertly a classe extra "lista-item" que eu tinha posto nos `<li>` que ja usam `.item`
-   (nucleo/vida-base.js: criarEl/itemSimples, usado em TODO o app, nao so na Vida).
-   `.lista-item` (ui/componentes/lista-item.css, V0c) e um componente com estrutura/CSS
-   PROPRIA (`<li class="lista-item"><div class="lista-item-corpo">...`), incompativel com
-   `.item`/`.item-linha`/`.item-titulo` que ja existe (glass/borda/sombra/animacao proprios
-   em style.css) - misturar as duas duplicava padding e desenhava uma borda extra por cima
-   do card que o `.item` ja tem. `.item` sozinho ja da bastante profundidade (glass, borda,
-   sombra, hover) - nao precisa do `.lista-item` por cima. Nao mexi em nucleo/vida-base.js
-   (fora dos meus arquivos).
+4. Removi e depois REPUS a classe extra "lista-item" nos `<li class="item">` (achei que
+   colidia com `.item`/`.item-linha`/`.item-titulo` - `.lista-item` tem estrutura propria
+   `<li class="lista-item"><div class="lista-item-corpo">...`, misturar as duas troca o
+   padding de "0.75rem 0.85rem" pra "8px 0" e acrescenta um border-bottom por cima do glass
+   border que o `.item` ja tem). Antes de "consertar" isso sozinho, conferi como a faixa
+   V3-organizacao (habitos/projetos/agenda/tarefas, ja mergeada em integracao) resolveu o
+   MESMO dilema: eles fazem exatamente `li.classList.add("lista-item")` em cima do
+   `criarEl("li","item ...")` da nucleo/vida-base.js, sem "consertar" o padding. Seguindo o
+   padrao ja aceito/mergeado (consistencia entre faixas pesa mais que minha opiniao sobre o
+   resultado visual), repus "lista-item" nos meus <li>. Nao mexi em nucleo/vida-base.js.
 - Fechamento do bottom-sheet: copiei o padrao real que a faixa V3-organizacao ja usou em
   habitos/projetos/agenda/tarefas (ja mergeada em integracao) - sem cabecalho custom com X,
   so um `<button class="btn btn-secundario">Cancelar</button>` do lado do botao de
@@ -75,7 +76,30 @@ tests/test_vida_revisao.py tests/test_vida_rotas.py tests/test_fase7_estrutura_f
 semana - AGENTS.md ja avisa disso, nao mexi em nada que essa suite cobre). gitleaks: no
 leaks found.
 
-## Pendente
-- Historia 2 (ultima): Playwright 390x844, rolagem inteira da aba Vida + 1 bottom-sheet
-  aberto por botao novo + 1 item criado, zero erro de console, 2 screenshots em
-  scripts/ralph-v4-vida/.
+## Historia 2 (ultima): verificacao Playwright - FEITA
+`scripts/ralph-v4-vida/servidor.py` (banco de teste temporario, nunca o real, mesmo padrao
+de ralph-v3-organizacao/ralph-v0d-sheet-nav) + `verificar.py` (Playwright headless 390x844,
+porta 5160): loga por PIN, abre a aba Vida, confere as 13 `.secao-recolhivel[data-secao-id]`
+da faixa (vida.html) presentes, rola o documento inteiro, abre Garantia pelo
+`#garantia-abrir-btn` novo, cria "Geladeira teste (playwright)", confere que aparece em
+`#lista-garantias` e que o sheet fecha (aguarda a animacao do V0d, ~240ms, com
+`state="attached"` no wait_for_selector - `state="visible"`, o default, nunca resolve pra um
+elemento com `hidden`). 2 screenshots: `v4-vida-rolagem.png` (a aba Vida inteira, via
+`locator("#tab-vida").screenshot()` - ver bug abaixo sobre por que nao e a viewport/document
+inteiros) e `v4-garantia-sheet-aberto.png` (form aberto, antes de salvar). Resultado: zero
+erro de console, zero falha de rede (fora fonts.googleapis.com e /api/summary/today, sem
+internet no sandbox - mesma excecao que ralph-v3-organizacao ja documentou), tudo OK.
+PNGs ficam so na pasta (nao commitados - README da fase pede pra nao versionar PNG grande).
+
+BUG PRE-EXISTENTE encontrado, FORA dos meus arquivos (nao mexi, so anoto):
+`static/css/secoes/painel.css` linha 8 tem `#tab-painel { display: flex; ... }` com
+seletor de ID, SEM o guard `:not([hidden])` que `.tab-content:not([hidden])` (style.css)
+usa. ID bate mais forte que classe+atributo, entao o Painel fica SEMPRE no fluxo do
+documento (display:flex) mesmo com o atributo `hidden` presente, nao importa qual aba
+esteja ativa - conferido tanto no load inicial (Hoje ativa) quanto depois de trocar pra
+Vida. Isso empurra o conteudo de QUALQUER outra aba pra baixo do Painel inteiro (11+ secoes)
+sempre que o usuario rola a pagina, nao so um problema de screenshot. `static/css/secoes/
+painel.css` e dono de outra faixa (Painel/V2), entao so anotei aqui em vez de consertar -
+quem tiver aquele arquivo na lista precisa acrescentar `:not([hidden])` na regra
+`#tab-painel { display: flex }` (ou trocar o seletor de ID por `.tab-content` com
+`:not([hidden])`, que ja existe em style.css e resolveria sozinho).

@@ -17,7 +17,7 @@ async function loadResponder() {
           if (ok) loadResponder();
           return ok;
         }),
-      ], r.dias >= 2 ? "item-atencao" : "")
+      ], "lista-item" + (r.dias >= 2 ? " item-atencao" : ""))
     );
   });
 }

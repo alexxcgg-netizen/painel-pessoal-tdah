@@ -139,6 +139,7 @@ async function loadTreino() {
   fichas.forEach((f) => {
     const n = f.exercicios.split("\n").filter((l) => l.trim()).length;
     const li = itemSimples(f.grupo, [`${n} exercicio(s)`], [(el) => botaoApagar(`/api/treino/fichas/${f.id}`, el)]);
+    li.classList.add("lista-item");
     li.appendChild(renderExerciciosFicha(f));
     lista.appendChild(li);
   });

@@ -18,7 +18,7 @@ async function loadIdeiasPresente() {
       else btnComprado.disabled = false;
     });
     lista.appendChild(
-      itemSimples(`${i.pessoa}: ${i.ideia}`, [i.ocasiao], [btnComprado, (el) => botaoApagar(`/api/ideias-presente/${i.id}`, el)])
+      itemSimples(`${i.pessoa}: ${i.ideia}`, [i.ocasiao], [btnComprado, (el) => botaoApagar(`/api/ideias-presente/${i.id}`, el)], "lista-item")
     );
   });
 }

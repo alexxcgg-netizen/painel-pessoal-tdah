@@ -23,7 +23,7 @@ async function loadAprender() {
           if (ok) loadAprender();
           return ok;
         }, false),
-      ], a.dias_parado >= 14 ? "item-atencao" : "")
+      ], "lista-item" + (a.dias_parado >= 14 ? " item-atencao" : ""))
     );
   });
 }

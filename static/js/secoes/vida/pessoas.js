@@ -48,7 +48,7 @@ async function loadPessoas() {
   lista.innerHTML = "";
   $("#pessoas-vazio").hidden = pessoas.length > 0;
   pessoas.forEach((p) => {
-    const li = criarEl("li", "item pessoa-item" + (p.atrasada ? " item-atencao" : ""));
+    const li = criarEl("li", "item lista-item pessoa-item" + (p.atrasada ? " item-atencao" : ""));
     const linha = criarEl("div", "item-linha");
     const cabecalho = criarEl("div", "pessoa-cabecalho");
 

@@ -25,7 +25,8 @@ async function loadManutencoes() {
         itemSimples(
           m.item,
           [rotuloTipo, fmtDataBr(m.data), ...textoProximaManutencaoCarro(m)],
-          [(el) => botaoApagar(`/api/manutencoes/${m.id}`, el)]
+          [(el) => botaoApagar(`/api/manutencoes/${m.id}`, el)],
+          "lista-item"
         )
       );
       return;
@@ -44,7 +45,7 @@ async function loadManutencoes() {
           return ok;
         }),
         (el) => botaoApagar(`/api/manutencoes/${m.id}`, el),
-      ], m.dias_ate <= 7 ? "item-atencao" : "")
+      ], "lista-item" + (m.dias_ate <= 7 ? " item-atencao" : ""))
     );
   });
 }

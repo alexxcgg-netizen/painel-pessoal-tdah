@@ -35,7 +35,7 @@ async function loadMedidas() {
 
   medidas.forEach((m, idx) => {
     const li = document.createElement("li");
-    li.className = "item";
+    li.className = "item lista-item";
 
     const linha = document.createElement("div");
     linha.className = "item-linha";
