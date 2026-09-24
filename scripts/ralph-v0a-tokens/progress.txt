@@ -6,8 +6,9 @@ Historias
 - [x] H1 levantamento da identidade atual + screenshots de referencia (referencia-hoje/vida.png,
        nao versionados - regerar com verificar.py referencia)
 - [x] H2 static/css/ui/tokens.css (so :root, nenhuma regra visual)
-- [ ] H3 docs/MASTER.md (guia das faixas V0b-V6)
-- [ ] H4 verificacao Playwright (depois-*) + changelog.d/v0a-tokens.md
+- [x] H3 docs/MASTER.md (guia das faixas V0b-V6)
+- [x] H4 verificacao Playwright (depois-*: 0 erro de console, tokens e sonda OK, diff de pixel
+       referencia x depois = 0 em Hoje e Vida) + changelog.d/v0a-tokens.md
 
 Levantamento (static/css/style.css, :root linhas 1-217)
 - Superficies: --bg #000, --surface #121212, --surface-2 #181818, --surface-3 #1e1e1e
