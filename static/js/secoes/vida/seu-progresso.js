@@ -2,6 +2,15 @@
 // Fase 7 (X2): extraido sem mudanca de logica do antigo vida.js 1698-1740.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
 
+// Fase 7 M1: desde a C1 o `pct` da meta vem com 1 casa (calculos.percentual_meta_exibicao,
+// ex.: 33.3). Na tela vai em pt-BR, com virgula ("33,3%"; inteiro fica "100%"), no mesmo
+// padrao de toLocaleString("pt-BR") de nucleo/formatos.js. Valor fora do formato vira "-".
+function fmtPctMeta(pct) {
+  const n = typeof pct === "number" ? pct : Number.parseFloat(pct);
+  if (pct == null || pct === "" || !Number.isFinite(n)) return "-";
+  return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+}
+
 async function loadProgresso() {
   const p = await apiFetch("/api/progresso?dias=30");
   // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
@@ -23,7 +32,7 @@ async function loadProgresso() {
     });
     const metas = $("#progresso-metas");
     metas.innerHTML = "";
-    (Array.isArray(p.metas) ? p.metas : []).forEach((m) => metas.appendChild(criarEl("li", null, `${m.titulo}: ${m.pct}%`)));
+    (Array.isArray(p.metas) ? p.metas : []).forEach((m) => metas.appendChild(criarEl("li", null, `${m.titulo}: ${fmtPctMeta(m.pct)}`)));
   }
   const revisao = await apiFetch("/api/revisao-mensal");
   const revEl = $("#revisao-mes");
