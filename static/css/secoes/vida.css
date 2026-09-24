@@ -1,3 +1,14 @@
 /* static/css/secoes/vida.css - estilos da aba vida inteira (templates/abas/vida.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 V4: `.vida-secoes` e o wrapper novo que agrupa todas as secoes da aba (adicionado
+   em templates/abas/vida.html), pensado como ponto unico de ritmo vertical/ordem da aba no
+   futuro. O espacamento entre secoes hoje continua vindo do `h2.secao-secundaria`
+   (margin-top/border-top, ja definido em style.css) - nao duplicado aqui de proposito, pra
+   nao brigar por especificidade com o que as faixas V0a-V0d (ui/tokens.css e
+   ui/componentes/*.css - ainda vazios nesta branch) vao definir pra `.secao-recolhivel`/
+   `.card`/`.secao-cabecalho` quando entrarem na integracao. Revisitar depois do
+   `git merge origin/fase7/integracao` (ultima historia da faixa). */
+
+#tab-vida .vida-secoes > .secao-recolhivel + .secao-recolhivel,
+#tab-vida .vida-secoes > .bottom-sheet + .secao-recolhivel {
+  scroll-margin-top: 1rem;
+}

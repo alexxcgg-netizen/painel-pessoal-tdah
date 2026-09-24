@@ -35,7 +35,7 @@ async function loadMedidas() {
 
   medidas.forEach((m, idx) => {
     const li = document.createElement("li");
-    li.className = "item";
+    li.className = "item lista-item";
 
     const linha = document.createElement("div");
     linha.className = "item-linha";
@@ -153,6 +153,22 @@ function medidaAjustarValor(delta) {
 $("#medida-valor-menos").addEventListener("click", () => medidaAjustarValor(-medidaStepAtual()));
 $("#medida-valor-mais").addEventListener("click", () => medidaAjustarValor(medidaStepAtual()));
 
+// Fase 7 V4: botao "Adicionar medida" abre o formulario num bottom-sheet
+// (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
+// integracao, cai no fallback inline (so hidden) - retestado depois do merge
+// com origin/fase7/integracao.
+$("#medida-abrir-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-medida");
+  if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+});
+
+$("#medida-fechar-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-medida");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+});
+
 $("#medida-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#medida-btn");
@@ -177,6 +193,9 @@ $("#medida-form").addEventListener("submit", async (e) => {
   valorInput.value = "";
   $("#medida-tipo-outro").value = "";
   $("#medida-unidade-outra").value = "";
+  const sheet = $("#sheet-medida");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
   pulsarSucesso(valorInput);
   loadMedidas();
 });

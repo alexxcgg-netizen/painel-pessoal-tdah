@@ -23,14 +23,35 @@ async function loadAprender() {
           if (ok) loadAprender();
           return ok;
         }, false),
-      ], a.dias_parado >= 14 ? "item-atencao" : "")
+      ], "lista-item" + (a.dias_parado >= 14 ? " item-atencao" : ""))
     );
   });
 }
 
+// Fase 7 V4: botao "Adicionar tema" abre o formulario num bottom-sheet
+// (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
+// integracao, cai no fallback inline (so hidden) - retestado depois do merge
+// com origin/fase7/integracao.
+$("#aprender-abrir-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-aprender");
+  if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+});
+
+$("#aprender-fechar-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-aprender");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+});
+
 ligarForm("#aprender-form", "#aprender-btn", "Adicionar", () => {
   const tema = $("#aprender-tema").value.trim();
   return tema ? { tema } : null;
-}, "/api/aprender", loadAprender);
+}, "/api/aprender", (r) => {
+  const sheet = $("#sheet-aprender");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+  loadAprender(r);
+});
 
 // ---- Fase 3: links salvos ----

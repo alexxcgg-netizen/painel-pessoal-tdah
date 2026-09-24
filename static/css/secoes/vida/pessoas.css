@@ -1,3 +1,20 @@
 /* static/css/secoes/vida/pessoas.css - secao vida > pessoas (HTML: templates/secoes/vida/pessoas.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Fase 7 V4: profundidade sutil no avatar e na trilha de "dias sem falar" -
+   mesma paleta/gradiente de sempre (--accent-gradient, --border-strong ja existem em
+   style.css), so acrescenta sombra em camadas + borda fina em vez do visual chapado de
+   antes. Nada de cor/fonte/animacao nova. */
+#lista-pessoas .pessoa-avatar {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 2px 6px -2px rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--border-strong);
+}
+
+#lista-pessoas .pessoa-barra-trilho {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+#lista-pessoas li.item.pessoa-item {
+  border-radius: var(--radius-sm);
+}

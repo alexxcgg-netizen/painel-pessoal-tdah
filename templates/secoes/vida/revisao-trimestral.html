@@ -1,32 +1,39 @@
-      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>
-        Revisão trimestral/anual
-      </h2>
-      <div class="dica-colapsavel">
-        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao da revisao trimestral e anual"></button>
-        <p class="dica-metas dica-texto" hidden>
-          Panorama geral de um periodo maior - financeiro, tarefas concluidas, saude e decisoes do
-          diario - pra parar e olhar o quadro completo, nao so o mes.
-        </p>
-      </div>
-      <div class="form-linha">
-        <select id="revisao-periodo-tipo">
-          <option value="trimestre">Trimestre</option>
-          <option value="ano">Ano</option>
-        </select>
-        <select id="revisao-periodo-trimestre">
-          <option value="1">T1 (jan-mar)</option>
-          <option value="2">T2 (abr-jun)</option>
-          <option value="3">T3 (jul-set)</option>
-          <option value="4">T4 (out-dez)</option>
-        </select>
-        <input type="number" id="revisao-periodo-ano" min="2000" max="2100" step="1" />
-        <button type="button" id="revisao-periodo-btn" class="btn-com-icone">Ver</button>
-      </div>
-      <div class="card-vida" id="revisao-periodo-box" hidden>
-        <p class="card-vida-meta" id="revisao-periodo-titulo"></p>
-        <div class="progresso-grid" id="revisao-periodo-grid"></div>
-        <p class="decisao-rotulo" id="revisao-periodo-decisoes-titulo" hidden>Decisões do período</p>
-        <ul id="revisao-periodo-decisoes" class="progresso-metas"></ul>
-      </div>
+      <section class="secao-recolhivel card" data-aberto="false" data-secao-id="vida-revisao-trimestral">
+        <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
+          <button type="button" class="secao-cabecalho" aria-expanded="false" aria-controls="conteudo-vida-revisao-trimestral">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>
+            Revisão trimestral/anual
+            <span class="chevron" aria-hidden="true"></span>
+          </button>
+        </h2>
+        <div class="secao-conteudo" id="conteudo-vida-revisao-trimestral" hidden>
+          <div class="dica-colapsavel">
+            <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao da revisao trimestral e anual"></button>
+            <p class="dica-metas dica-texto" hidden>
+              Panorama geral de um periodo maior - financeiro, tarefas concluidas, saude e decisoes do
+              diario - pra parar e olhar o quadro completo, nao so o mes.
+            </p>
+          </div>
+          <div class="form-linha">
+            <select id="revisao-periodo-tipo">
+              <option value="trimestre">Trimestre</option>
+              <option value="ano">Ano</option>
+            </select>
+            <select id="revisao-periodo-trimestre">
+              <option value="1">T1 (jan-mar)</option>
+              <option value="2">T2 (abr-jun)</option>
+              <option value="3">T3 (jul-set)</option>
+              <option value="4">T4 (out-dez)</option>
+            </select>
+            <input type="number" id="revisao-periodo-ano" min="2000" max="2100" step="1" />
+            <button type="button" id="revisao-periodo-btn" class="btn-com-icone">Ver</button>
+          </div>
+          <div class="card-vida" id="revisao-periodo-box" hidden>
+            <p class="card-vida-meta" id="revisao-periodo-titulo"></p>
+            <div class="progresso-grid" id="revisao-periodo-grid"></div>
+            <p class="decisao-rotulo" id="revisao-periodo-decisoes-titulo" hidden>Decisões do período</p>
+            <ul id="revisao-periodo-decisoes" class="progresso-metas"></ul>
+          </div>
+        </div>
+      </section>
 

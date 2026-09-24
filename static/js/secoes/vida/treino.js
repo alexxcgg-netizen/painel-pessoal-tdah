@@ -139,6 +139,7 @@ async function loadTreino() {
   fichas.forEach((f) => {
     const n = f.exercicios.split("\n").filter((l) => l.trim()).length;
     const li = itemSimples(f.grupo, [`${n} exercicio(s)`], [(el) => botaoApagar(`/api/treino/fichas/${f.id}`, el)]);
+    li.classList.add("lista-item");
     li.appendChild(renderExerciciosFicha(f));
     lista.appendChild(li);
   });
@@ -157,6 +158,22 @@ async function loadTreino() {
   }
 }
 
+// Fase 7 V4: botao "Nova ficha" abre o formulario num bottom-sheet
+// (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
+// integracao, cai no fallback inline (so hidden) - retestado depois do merge
+// com origin/fase7/integracao.
+$("#ficha-abrir-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-ficha");
+  if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+});
+
+$("#ficha-fechar-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-ficha");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+});
+
 ligarForm(
   "#ficha-form",
   "#ficha-btn",
@@ -174,6 +191,9 @@ ligarForm(
   (r) => {
     fichaExerciciosPendentes = [];
     renderFichaExerciciosPendentes();
+    const sheet = $("#sheet-ficha");
+    if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+    else sheet.hidden = true;
     loadTreino(r);
   }
 );

@@ -1,20 +1,40 @@
-      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 7v5c0 4.5 3.4 8.4 9 10 5.6-1.6 9-5.5 9-10V7l-9-4Z"/><path d="m9 12 2 2 4-4"/></svg>
-        Garantia de produtos
-      </h2>
-      <div class="dica-colapsavel">
-        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de garantia de produtos"></button>
-        <p class="dica-metas dica-texto" hidden>
-          Guarda o prazo de garantia de um produto (e a nota fiscal, se quiser anexar). Avisa 15 dias antes de vencer.
-        </p>
+      <section class="secao-recolhivel card" data-aberto="true" data-secao-id="vida-garantia">
+        <h2 class="secao-secundaria" style="--secao-cor: var(--cor-bancos)">
+          <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-garantia">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 7v5c0 4.5 3.4 8.4 9 10 5.6-1.6 9-5.5 9-10V7l-9-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+            Garantia de produtos
+            <span class="chevron" aria-hidden="true"></span>
+          </button>
+        </h2>
+        <div class="secao-conteudo" id="conteudo-vida-garantia">
+          <div class="dica-colapsavel">
+            <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de garantia de produtos"></button>
+            <p class="dica-metas dica-texto" hidden>
+              Guarda o prazo de garantia de um produto (e a nota fiscal, se quiser anexar). Avisa 15 dias antes de vencer.
+            </p>
+          </div>
+          <button type="button" id="garantia-abrir-btn" class="btn btn-adicionar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Adicionar produto
+          </button>
+          <p id="garantias-vazio" class="vazio" hidden>Nenhum produto cadastrado.</p>
+          <ul id="lista-garantias" class="lista-simples"></ul>
+        </div>
+      </section>
+
+      <div class="bottom-sheet" id="sheet-garantia" hidden>
+        <div class="bottom-sheet-cabecalho">
+          <h3 class="card-titulo">Novo produto</h3>
+          <button type="button" id="garantia-fechar-btn" class="bottom-sheet-fechar" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <form id="garantia-form" class="form-linha">
+          <input type="text" id="garantia-produto" placeholder="Produto (ex: Geladeira)" maxlength="120" required />
+          <input type="date" id="garantia-data-compra" aria-label="Data da compra" required />
+          <input type="number" id="garantia-prazo" placeholder="Garantia (meses)" min="1" max="600" inputmode="numeric" required />
+          <input type="file" id="garantia-anexo" accept=".pdf,.jpg,.jpeg,.png" aria-label="Nota fiscal (opcional)" />
+          <button type="submit" id="garantia-btn" class="btn btn-primario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+        </form>
       </div>
-      <form id="garantia-form" class="form-linha">
-        <input type="text" id="garantia-produto" placeholder="Produto (ex: Geladeira)" maxlength="120" required />
-        <input type="date" id="garantia-data-compra" aria-label="Data da compra" required />
-        <input type="number" id="garantia-prazo" placeholder="Garantia (meses)" min="1" max="600" inputmode="numeric" required />
-        <input type="file" id="garantia-anexo" accept=".pdf,.jpg,.jpeg,.png" aria-label="Nota fiscal (opcional)" />
-        <button type="submit" id="garantia-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
-      </form>
-      <p id="garantias-vazio" class="vazio" hidden>Nenhum produto cadastrado.</p>
-      <ul id="lista-garantias"></ul>
 

@@ -1,15 +1,22 @@
-      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-4 3 3 5-6"/></svg>
-        Seu progresso
-      </h2>
-      <div class="card-vida" id="progresso-box">
-        <p class="card-vida-meta">Ultimos 30 dias - so fato, sem nota.</p>
-        <div class="progresso-grid" id="progresso-grid"></div>
-        <ul id="progresso-metas" class="progresso-metas"></ul>
-      </div>
-      <p id="revisao-mes" class="dica-metas" hidden></p>
-      <div id="uso-apps-box" hidden>
-        <p class="decisao-rotulo">Uso do celular (7 dias)</p>
-        <ul id="lista-uso-apps" class="uso-apps"></ul>
-      </div>
+      <section class="secao-recolhivel card" data-aberto="true" data-secao-id="vida-seu-progresso">
+        <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
+          <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-seu-progresso">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-4 3 3 5-6"/></svg>
+            Seu progresso
+            <span class="chevron" aria-hidden="true"></span>
+          </button>
+        </h2>
+        <div class="secao-conteudo" id="conteudo-vida-seu-progresso">
+          <div class="card-vida" id="progresso-box">
+            <p class="card-vida-meta">Ultimos 30 dias - so fato, sem nota.</p>
+            <div class="progresso-grid" id="progresso-grid"></div>
+            <ul id="progresso-metas" class="progresso-metas"></ul>
+          </div>
+          <p id="revisao-mes" class="dica-metas" hidden></p>
+          <div id="uso-apps-box" hidden>
+            <p class="decisao-rotulo">Uso do celular (7 dias)</p>
+            <ul id="lista-uso-apps" class="uso-apps"></ul>
+          </div>
+        </div>
+      </section>
 

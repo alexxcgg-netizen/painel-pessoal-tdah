@@ -1,0 +1,64 @@
+# Fase 7 - faixa V4 (vida: garantia, ideias-presente, pessoas, treino, peso-e-medidas,
+# manutencao, quero-aprender, salvos e demais) - progress.txt
+
+## Historia 1: estrutura .secao-recolhivel + .card em todas as secoes da faixa - EM ANDAMENTO
+- Padrao adotado: cada secao vira <section class="secao-recolhivel card" data-secao-id="vida-X">
+  com o <h2 class="secao-secundaria" style="--secao-cor:..."> ORIGINAL preservado por fora
+  (mantem `h2 svg { color: var(--secao-cor) }` de style.css intacto) e um
+  <button class="secao-cabecalho" aria-expanded aria-controls> NOVO por dentro do h2 (padrao
+  ARIA de accordion: heading > button - h2 aceita button como phrasing content, o inverso
+  seria HTML invalido). O <div class="secao-conteudo" id="conteudo-vida-X"> vem depois do h2,
+  fora dele.
+- Botoes "Adicionar" viram .btn.btn-adicionar que abre .bottom-sheet com o form (mesmo id de
+  form/inputs/botao submit de sempre - zero mudanca de rota/payload). Abertura/fechamento:
+  window.abrirBottomSheet?.(sheet) / window.fecharBottomSheet?.(sheet) com fallback inline
+  (sheet.hidden = true/false), pois static/js/ui/bottom-sheet.js (V0d) ainda esta vazio nesta
+  branch. Idem pra static/js/ui/secao-recolhivel.js (V0c vazio): nao fiz toggle de abrir/fechar
+  aqui (colapso automatico so liga quando V0c chegar) - so a marcacao estrutural
+  (data-aberto="true", aria-expanded, .chevron) ja esta no HTML.
+- NAO reimplementei CSS generico de .secao-cabecalho/.btn-adicionar/.bottom-sheet/.card (isso e
+  job de V0a-V0d - ui/tokens.css e ui/componentes/*.css ainda vazios nesta branch). So mexi no
+  CSS proprio de cada secao (secoes/vida/<secao>.css) pra profundidade especifica onde fazia
+  sentido, sem cor/fonte/animacao novas.
+- Adicionei classe "lista-item" (alem da "item" que ja existia) nos <li> que eu crio via JS nas
+  minhas secoes, pra herdar o contrato quando ui/componentes/lista-item.css chegar.
+
+## Secoes da faixa (14 + peso-e-medidas) e status - todas com html/js convertidas
+- [x] vida/garantia - html+js+css (profundidade na barra/item)
+- [x] vida/ideias-de-presente - html+js
+- [x] vida/pessoas - html+js+css (profundidade no avatar/trilho/item)
+- [x] vida/treino - html+js+css (profundidade na linha de exercicio/item)
+- [x] vida/manutencao - html+js
+- [x] vida/quero-aprender - html+js
+- [x] vida/salvos - html+js
+- [x] vida/lista-de-compras - html+js
+- [x] vida/pra-responder - html+js
+- [x] vida/ainda-usa - html+js (sem form, so wrap em secao-recolhivel/card; id
+      "assinaturas-box" migrou pro <section>, `$("#assinaturas-box").hidden = ...`
+      em ainda-usa.js continua funcionando sem mudanca)
+- [x] vida/mensagem-dificil - html (form de acao unica, sem bottom-sheet - so wrap)
+- [x] vida/vale-a-pena - html (form de acao unica, sem bottom-sheet - so wrap)
+- [x] vida/seu-progresso - html (read-only - so wrap)
+- [x] vida/revisao-trimestral - html (so wrap; comeca RECOLHIDA - data-aberto="false" +
+      secao-conteudo com `hidden`, unica secao da faixa assim, por ser longa/pouco usada)
+- [x] painel/peso-e-medidas - html+js+css (profundidade no stepper/item)
+- [x] templates/abas/vida.html - novo wrapper `<div class="vida-secoes">` em volta dos
+      includes (ordem inalterada), pra dar ponto unico de ritmo vertical no futuro
+- [x] static/css/secoes/vida.css - so comentario + 1 regra de scroll-margin (nao
+      reimplementei espacamento entre .secao-recolhivel pq h2.secao-secundaria ja cuida
+      disso via margin-top/border-top existente em style.css, e nao quero brigar de
+      especificidade com o que V0c vai definir pra .card/.secao-recolhivel)
+
+## CSS: onde apliquei profundidade AGORA (nao esperei V0a-V0d)
+Usei tokens que JA EXISTEM (nao sao stub) em style.css - --radius-sm, --border,
+--border-strong, --surface-2 - pra dar sombra em camadas/borda fina em elementos que sao
+INEQUIVOCAMENTE meus (nao sao as classes-contrato .card/.secao-cabecalho/.btn-adicionar/
+.bottom-sheet, que ficam por conta de V0b-V0d): garantia.css, pessoas.css, treino.css,
+painel/peso-e-medidas.css. As demais secoes ficaram so com a estrutura (html/js prontos,
+css "vazio de proposito" original) - dava pra polir mais, mas escolhi nao arriscar
+especificidade contra os componentes compartilhados antes deles chegarem na integracao.
+
+## Pendente (ultima historia)
+- git merge origin/fase7/integracao pra pegar V0a-V0d, reconferir icones/cor do cabecalho.
+- Playwright 390x844, rolagem inteira da aba Vida + 1 bottom-sheet aberto + 1 item criado,
+  zero erro de console, 2 screenshots em scripts/ralph-v4-vida/.

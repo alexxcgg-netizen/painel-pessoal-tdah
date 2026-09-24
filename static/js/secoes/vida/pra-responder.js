@@ -17,14 +17,35 @@ async function loadResponder() {
           if (ok) loadResponder();
           return ok;
         }),
-      ], r.dias >= 2 ? "item-atencao" : "")
+      ], "lista-item" + (r.dias >= 2 ? " item-atencao" : ""))
     );
   });
 }
 
+// Fase 7 V4: botao "Adicionar pendencia" abre o formulario num bottom-sheet
+// (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
+// integracao, cai no fallback inline (so hidden) - retestado depois do merge
+// com origin/fase7/integracao.
+$("#responder-abrir-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-responder");
+  if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+});
+
+$("#responder-fechar-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-responder");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+});
+
 ligarForm("#responder-form", "#responder-btn", "Adicionar", () => {
   const quem = $("#responder-quem").value.trim();
   return quem ? { quem, sobre: $("#responder-sobre").value.trim() } : null;
-}, "/api/responder", loadResponder);
+}, "/api/responder", (r) => {
+  const sheet = $("#sheet-responder");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+  loadResponder(r);
+});
 
 // ---- Fase 2: lista de compras ----

@@ -34,7 +34,7 @@ async function loadGarantias() {
     .slice()
     .sort((a, b) => a.dias_ate - b.dias_ate)
     .forEach((g) => {
-      const li = criarEl("li", "item garantia-item" + (g.dias_ate <= 15 ? " item-atencao" : ""));
+      const li = criarEl("li", "item lista-item garantia-item" + (g.dias_ate <= 15 ? " item-atencao" : ""));
       const linha = criarEl("div", "item-linha");
 
       const wrap = criarEl("div");
@@ -66,6 +66,22 @@ async function loadGarantias() {
     });
 }
 
+// Fase 7 V4: botao "Adicionar produto" abre o formulario num bottom-sheet
+// (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
+// integracao, cai no fallback inline (so hidden/classe) - retestado depois do
+// merge com origin/fase7/integracao.
+$("#garantia-abrir-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-garantia");
+  if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+});
+
+$("#garantia-fechar-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-garantia");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+});
+
 $("#garantia-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const produto = $("#garantia-produto").value.trim();
@@ -87,6 +103,9 @@ $("#garantia-form").addEventListener("submit", async (e) => {
   setBotaoCarregando(btn, false, "Adicionar");
   if (!r) return;
   $("#garantia-form").reset();
+  const sheet = $("#sheet-garantia");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
   pulsarSucesso($("#garantia-produto"));
   loadGarantias();
 });
