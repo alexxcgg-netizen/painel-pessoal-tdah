@@ -75,3 +75,73 @@
   equivalente ja esta em `migracoes/202609241250_p9_memoria_recusas.sql`
   pronto pra quando o runner automatico chegar (reaplicar e inofensivo,
   e so `IF NOT EXISTS`).
+
+## Atualizacao apos aviso do integrador (commit c67486c: Etapa 0 X1 completa)
+
+- `git fetch origin && git merge origin/fase7/integracao` trouxe o resto
+  da Etapa 0 X1 (`rotas/` com Blueprint+`ROTAS_COM_TOKEN` e carga
+  automatica, `migracoes/*.sql` agora REALMENTE aplicado sozinho por
+  `db.init_db()` -> `aplicar_migracoes()`, `classificador_local/`,
+  `assistente/gatilhos/__init__.py` real com `executar_todos`) + faixas P7
+  (sinais) e P8 (avisos). Sem conflito de merge: a minha
+  `assistente/gatilhos/__init__.py` (vazia, criada so pra virar pacote)
+  foi automaticamente substituida pela real da integracao - nao precisei
+  apagar nada a mao (o Git resolveu sozinho porque a minha nao tinha
+  conteudo pra divergir). Meu `migracoes/202609241250_p9_memoria_recusas
+  .sql` ja seguia o formato `AAAAMMDDHHMM_<faixa>_<descricao>.sql` do
+  `migracoes/README.md` novo, entao nao precisou renomear - e agora e
+  aplicado de verdade (meu `_garantir_tabelas()` em `p9_memoria.py`
+  virou so um cinto-de-seguranca redundante, mantive porque e inofensivo
+  e nao custa nada). `assistente/caixa.py` da P1a **ainda nao chegou**
+  na integracao (so a infra X1 chegou) - o design com `_caixa()` +
+  tabela propria `p9_memoria_propostas` continua sendo a decisao certa.
+
+- Depois do merge, reconferido: 58/58 testes desta faixa continuam
+  passando, `gitleaks detect --no-git --source .` continua sem achados.
+
+- Rodei a suite inteira (`tests/`, sem `tests/js`) pra caçar colisao de
+  verdade (nao so os meus arquivos). Resultado: 10 falhas, NENHUMA em
+  `assistente/memoria_viva.py`, `assistente/gatilhos/p9_memoria.py`,
+  `ia/config.d/propor_memoria.json` ou nos meus 2 `tests/test_fase7_p9_*`
+  - todas em arquivos que eu nunca editei:
+  - `test_app.py::NotificacaoAgrupadaTestCase::test_ligado_segura_ate_a_
+    janela_passar_e_agrupa` e `test_vida_fase3.py::AvisosFase3TestCase::
+    test_aprender_no_domingo`: dependem de horario/`datetime.now()`
+    mockado de um jeito sensivel a quando o teste roda - exatamente a
+    familia das "6 falhas conhecidas, que dependem de horario (voo/
+    agrupamento)" que `fase7-regras-faixa.md` ja avisa que existem.
+  - `test_fase7_infra_rotas.py` (8 falhas, `ValueError: The name
+    'p7_sinais' is already registered...`): registro duplicado de
+    Blueprint Flask - percebi (via `ps aux`) varias sessoes de outras
+    faixas rodando pytest ao mesmo tempo no mesmo container (vi processos
+    de `p1a-caixa` e `a12-testes` ativos) - pode ser efeito colateral de
+    rodar a suite inteira em paralelo com workers de outra faixa tambem
+    testando `rotas/`. De qualquer forma, `rotas/` nao e arquivo meu.
+  - `test_fase7_a14_roteador.py::RobustezTestCase::
+    test_classificador_local_ausente_nao_quebra` e
+    `test_fase7_p7_rota_sinal.py::RotaSinalTestCase::
+    test_corpo_nao_json_nao_derruba_a_rota` (415 vs 400 esperado): fora
+    do meu escopo, arquivos de outras faixas.
+
+- Efeito colateral ESPERADO (nao bug meu - e inerente a QUALQUER faixa P
+  que adicione seu primeiro gatilho real em `assistente/gatilhos/`): 3
+  testes em `tests/test_fase7_infra_gatilhos.py` passaram a falhar so
+  porque assumiam, literalmente, que a pasta real estava vazia
+  (`test_pasta_real_sem_gatilho_nenhum_ainda`:
+  `self.assertEqual(gatilhos.nomes_gatilhos(), [])`) ou comparavam o
+  dict de resultado de `executar_todos` por IGUALDADE EXATA
+  (`test_roda_todos_em_ordem_alfabetica...`,
+  `test_com_conexao_real_do_painel`), sem deixar espaco pra um gatilho
+  de verdade que ja exista no pacote. Meu `p9_memoria.executar` continua
+  se comportando corretamente nesses testes (nunca levanta excecao -
+  devolve `{"ok": False, "erro": "...no such table: configuracoes"}` no
+  teste com conexao sqlite "crua" sem `db.init_db()`, e `{"ok": True,
+  "resultado": None}` no teste com conexao real, porque o horario do
+  teste nao e domingo >=19h) - so a asserção de igualdade estrita do
+  teste que nao previa nenhum gatilho concorrente. NAO editei
+  `tests/test_fase7_infra_gatilhos.py` (nao esta na minha lista de
+  arquivos). A mesma quebra vai acontecer de novo assim que a proxima
+  faixa P integrar o proprio gatilho - quem for atualizar essas 3 asserts
+  (pra "contem p9_memoria" em vez de "esta vazio", e pra so checar as
+  chaves do modulo/pasta de teste em vez do dict inteiro) e o
+  integrador/dono da Etapa 0, nao uma faixa P individual.
