@@ -225,6 +225,7 @@ def abrir_aba(page, aba):
 
 
 def main():
+    global saidas_externas
     saida_json = None
     if "--json" in sys.argv:
         saida_json = sys.argv[sys.argv.index("--json") + 1]
@@ -236,6 +237,13 @@ def main():
         logar(ctx)
         semear(ctx)
         page = ctx.new_page()
+        # Nenhuma requisicao do navegador pra fora (fora Google Fonts): anota e falha no fim.
+        saidas_externas = []
+        page.on("request", lambda req: saidas_externas.append(req.url)
+                if not req.url.startswith(("http://127.0.0.1", "data:", "blob:")) and "fonts.g" not in req.url else None)
+        # Nunca deixa o resumo do dia (IA) chegar no servidor: resposta duble.
+        page.route("**/api/summary/today", lambda route: route.fulfill(
+            status=200, content_type="application/json", body='{"resumo": "Resumo de teste (duble)."}'))
         page.on("console", lambda m: erros.append(("console." + m.type, m.text)) if m.type == "error" else None)
         page.on("pageerror", lambda e: erros.append(("pageerror", str(e))))
         page.on("response", lambda resp: falhas_rede.append((resp.status, resp.url)) if resp.status >= 400 else None)
@@ -261,8 +269,6 @@ def main():
                     return {top: r.top, bottom: r.bottom, h: r.height, vh: innerHeight}; }""", s)
                 if geo["bottom"] > geo["vh"] + 1 or geo["top"] < 0:
                     achados[tela + s.replace("#", ":")].append({"tipo": "sheet-fora-da-tela", "el": s, "texto": "", "detalhe": json.dumps(geo)})
-                if screenshots and s == "#sheet-nova-assinatura":
-                    page.screenshot(path=os.path.join(AQUI, "sheet-assinatura.png"), animations="disabled")
                 page.keyboard.press("Escape")
                 time.sleep(0.4)
             if screenshots and tela == "gastos":
@@ -293,6 +299,7 @@ def main():
     print("console:", erros)
     print("rede:", falhas_rede)
     print("construtora proibidos:", proibidos)
+    print("requisicoes externas do navegador:", saidas_externas)
 
 
 if __name__ == "__main__":

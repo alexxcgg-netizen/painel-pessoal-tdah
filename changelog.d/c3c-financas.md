@@ -3,10 +3,16 @@
 Gastos (com Assinaturas e parcelas), Bancos, Construtora e Contas pessoais (aba
 Vida). Sem cor, fonte nem animação nova (decisão do Alex).
 
-- **Bottom sheets só pelo componente da V0d.** Saíram a moldura provisória
-  `.bottom-sheet-financas`, o pegador duplicado e o fallback local de
-  abrir/fechar, que pintavam a moldura do componente real e deixavam o título
-  do sheet de parcela fora da tela. O foco vai para o 1º campo ao abrir.
+- **Bottom sheets no padrão do componente compartilhado (V0d + C2).** Os 3
+  sheets da V6 (assinatura, parcela, conta pessoal) perderam a moldura, o
+  pegador, o cabeçalho com X e o fallback próprios. Agora abrem por
+  `data-abre-sheet`, têm `.bottom-sheet-titulo`, usam `form.form-linha` com
+  `data-fecha-ao-enviar` (o JS dispara `bottomsheet:sucesso` só depois de o
+  POST dar certo) e terminam com "Salvar X" + Cancelar. O sheet de parcela
+  não abre mais com o topo fora da tela em 390x844. O portal para o `<body>`
+  passou a ser do componente, e o reparent local saiu.
+- **Sem gambiarra de `[hidden]`:** saíram as guardas locais de `.card[hidden]`
+  e `.lista.card[hidden]` (`card.css` e `lista-item.css` já respeitam, pela C2).
 - **Formulários com validação própria em pt-BR** (`novalidate`), com o erro
   dentro do sheet (texto `--danger` + ícone). O valor em R$ aceita vírgula e
   milhar (`21,90`, `1.234,56`). Teto de R$ 100 milhões, 1 a 600 parcelas,
@@ -37,4 +43,6 @@ Vida). Sem cor, fonte nem animação nova (decisão do Alex).
 - Emoji do selo "meta batida!" trocado por ícone de traço.
 - Verificação: `scripts/ralph-c3c-financas/` (`servidor.py` com banco
   temporário e Construtora em mock, `auditar.py` para o levantamento,
-  `fuzz.py` com 97 cenários de UI).
+  `fuzz.py` com 98 cenários de UI). O `servidor.py` bloqueia qualquer conexão
+  de saída (IA com chave falsa + base URL morta + socket só loopback, sem proxy)
+  e os roteiros interceptam `/api/summary/today`.

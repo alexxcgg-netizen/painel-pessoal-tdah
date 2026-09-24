@@ -7,18 +7,11 @@
    --font-tech (mono) + tabular-nums.
    Fase 7 (faixa C3c): sai a moldura provisoria do sheet (.bottom-sheet-financas
    pintava a moldura da V0d real: painel saia da tela, 2 pegadores). O sheet
-   agora e 100% do componente (ui/componentes/bottom-sheet.css); aqui so o
-   miolo (cabecalho, campos, erro). Tambem ficam aqui as classes de apoio
+   agora e 100% do componente (ui/componentes/bottom-sheet.css, V0d + C2);
+   aqui so o rotulo sem maiusculas, o erro e o numero em mono. Sem guarda
+   [hidden] local: card.css/lista-item.css ja respeitam (C2). Tambem ficam aqui as classes de apoio
    reusadas pelas outras secoes desta faixa (contas pessoais, construtora):
    .btn-icone-financas, .sheet-erro, .valor-mono dentro dos sheets. */
-
-/* Achado real (ver scripts/ralph-v6-financas/APRENDIZADOS.md #6): .card (V0c)
-   declara `display: flex` sem guarda `:not([hidden])` - o card reaparece mesmo
-   com o atributo `hidden`. A faixa C2 corrige no proprio card.css; enquanto
-   isso nao entra na integracao, a guarda local fica aqui. */
-#assinaturas-financas-box .card[hidden] {
-  display: none;
-}
 
 #assinaturas-financas-box .valor-mono,
 .bottom-sheet-financas .valor-mono {
@@ -92,10 +85,6 @@
 #assinaturas-financas-box .lista.card {
   gap: 0;
   padding: var(--espaco-2, 0.5rem) var(--espaco-3, 1rem);
-}
-
-#assinaturas-financas-box .lista.card[hidden] {
-  display: none;
 }
 
 #assinaturas-financas-box .lista-subtitulo {
@@ -172,51 +161,8 @@
   font-size: 0.8rem;
 }
 
-/* ---- Miolo do bottom sheet (a moldura e da V0d) ---- */
-
-.bottom-sheet-financas .bottom-sheet-cabecalho {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--espaco-2, 0.5rem);
-  margin-bottom: var(--espaco-3, 1rem);
-}
-
-.bottom-sheet-financas .bottom-sheet-cabecalho h3 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.bottom-sheet-financas .bottom-sheet-fechar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: var(--toque-min, 44px);
-  height: var(--toque-min, 44px);
-  padding: 0;
-  border-radius: 50%;
-  border: var(--linha, 1px) solid var(--borda-sutil, var(--border));
-  background: var(--superficie-3, var(--surface-3));
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.bottom-sheet-financas .bottom-sheet-fechar:focus-visible {
-  outline: none;
-  box-shadow: var(--anel-foco);
-}
-
-.bottom-sheet-financas .bottom-sheet-fechar svg {
-  width: 16px;
-  height: 16px;
-}
-
-.bottom-sheet-financas .campo-grupo {
-  margin-bottom: var(--espaco-3, 1rem);
-}
+/* ---- Miolo do bottom sheet (moldura, titulo e linha de acoes sao do
+   componente ui/componentes/bottom-sheet.css) ---- */
 
 /* MASTER #5 (Campo) e #11: rotulo 0.8rem --text-muted, sem MAIUSCULAS (o
    .campo-rotulo antigo do style.css forca uppercase; campo.css nao desfaz). */
@@ -224,17 +170,6 @@
   font-size: 0.8rem;
   text-transform: none;
   letter-spacing: 0;
-}
-
-.bottom-sheet-financas .campo {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.bottom-sheet-financas .btn-sheet-salvar {
-  width: 100%;
-  min-height: var(--toque-confortavel, 48px);
-  margin-top: var(--espaco-2, 0.5rem);
 }
 
 /* Erro (MASTER #6): texto --danger + icone, dentro do proprio sheet. */

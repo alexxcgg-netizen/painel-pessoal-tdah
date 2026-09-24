@@ -22,10 +22,10 @@
    antes do INSERT. Também zerou o banco de teste: reinicie o `servidor.py`
    depois de qualquer fuzz direto na API.
 
-4. **V0d: reabrir durante a animação de fechar esconde o sheet.** O
-   `setTimeout` do fechamento dispara depois da reabertura e põe `hidden`.
-   A C2 corrigiu no `bottom-sheet.js` dela. Não contornei localmente, para não
-   criar outra gambiarra.
+4. **V0d: reabrir durante a animação de fechar escondia o sheet.** O
+   `setTimeout` do fechamento disparava depois da reabertura e punha
+   `hidden`. A C2 corrigiu no `bottom-sheet.js`, e depois do merge o fuzz
+   passou. Não contornei localmente.
 
 5. **O auditor de toque precisa entender `::after`.** A receita do Chip no
    MASTER completa os 44px com um `::after` invisível, e o
@@ -37,3 +37,18 @@
    `.badge-sucesso` (texto escuro sobre degradê claro) aparece com 1,2:1 no
    auditor, porque ele só lê `background-color`. É falso positivo, conferido
    no screenshot.
+
+7. **Na API síncrona do Playwright, `page.route` só responde durante uma
+   chamada ao Playwright.** Com `time.sleep` no roteiro, a resposta forçada
+   fica parada e a tela mostra "Carregando..." (falso positivo). Use
+   `page.wait_for_timeout`.
+
+8. **O proxy de saída do sandbox escuta em loopback (`127.0.0.1:40971`).** Uma
+   guarda de socket do tipo "só loopback" deixa passar tudo o que vai pelo
+   proxy. O `servidor.py` tira as variáveis `*_proxy` e bloqueia também a
+   porta do proxy. Todo `connect` bloqueado aparece como `BLOQUEADO` no log.
+
+9. **Sheet do componente volta para dentro da aba ao fechar (portal da C2).**
+   Então campos de um sheet fechado entram na varredura da aba. O fuzz
+   ignora `input` dentro de `.bottom-sheet`, porque ali está o texto que o
+   próprio fuzz digitou.

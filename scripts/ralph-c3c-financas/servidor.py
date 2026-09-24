@@ -22,7 +22,47 @@ sys.path.insert(0, repo)
 os.chdir(repo)
 for k in ("TELEGRAM_BOT_TOKEN", "RENDER", "PAINEL_PIN_INICIAL", "PLUGGY_CLIENT_ID", "PLUGGY_CLIENT_SECRET"):
     os.environ.pop(k, None)
-os.environ.setdefault("ANTHROPIC_API_KEY", "sk-teste-falso")  # duble: nenhuma chamada real
+# Nenhuma chamada real de IA (pedido do integrador): chave falsa + base URL
+# apontando pra uma porta morta local ANTES de importar o app (load_dotenv nao
+# sobrescreve variavel ja definida). Gemini/Groq tambem com chave falsa.
+for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY",
+          "GOOGLE_MAPS_API_KEY", "AVIATIONSTACK_API_KEY"):
+    os.environ[k] = "teste-fake"
+for k in ("ANTHROPIC_BASE_URL", "OPENAI_BASE_URL", "GROQ_BASE_URL", "GOOGLE_GEMINI_BASE_URL"):
+    os.environ[k] = "http://127.0.0.1:9"
+
+# Rede de seguranca: qualquer conexao de saida que nao seja loopback e
+# recusada no socket (e anotada no log com BLOQUEADO) - garante que nada sai
+# do ambiente, seja qual for o SDK/biblioteca que tentar.
+import socket  # noqa: E402
+from urllib.parse import urlparse  # noqa: E402
+
+# O proxy de saida do ambiente escuta em loopback: tira as variaveis de proxy
+# (SDK tenta direto e cai no bloqueio abaixo) e bloqueia a porta dele tambem.
+_portas_proxy = set()
+for k in list(os.environ):
+    if k.lower() in ("http_proxy", "https_proxy", "all_proxy"):
+        try:
+            _portas_proxy.add(urlparse(os.environ[k]).port)
+        except ValueError:
+            pass
+        os.environ.pop(k, None)
+
+_connect_original = socket.socket.connect
+
+
+def _connect_so_loopback(self, endereco):
+    host = endereco[0] if isinstance(endereco, tuple) else endereco
+    porta = endereco[1] if isinstance(endereco, tuple) and len(endereco) > 1 else None
+    if isinstance(host, str) and not host.startswith("/") and (
+        host not in ("127.0.0.1", "::1", "localhost") or porta in _portas_proxy
+    ):
+        print(f"BLOQUEADO conexao de saida para {endereco!r}", flush=True)
+        raise ConnectionRefusedError(f"saida bloqueada no harness de teste: {endereco!r}")
+    return _connect_original(self, endereco)
+
+
+socket.socket.connect = _connect_so_loopback
 os.environ["CONSTRUTORA_API_MOCK"] = "1"
 os.environ["CONSTRUTORA_API_URL"] = "http://mock.invalido"
 os.environ["CONSTRUTORA_API_KEY"] = "chave-falsa-de-teste"

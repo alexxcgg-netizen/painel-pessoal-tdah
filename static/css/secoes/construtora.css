@@ -8,13 +8,6 @@
    seta (cor nunca e o unico sinal); contas a pagar viram .lista-item dentro
    de .card (MASTER #5). */
 
-/* Achado real (scripts/ralph-v6-financas/APRENDIZADOS.md #6): .card (V0c) sem
-   guarda [hidden]. A faixa C2 corrige no card.css; ate entrar na integracao,
-   a guarda local fica aqui. */
-#tab-construtora .card[hidden] {
-  display: none;
-}
-
 #tab-construtora .valor-mono {
   font-family: var(--font-tech);
   font-variant-numeric: tabular-nums;
@@ -91,10 +84,6 @@
 #tab-construtora #lista-contas-a-vencer.lista.card {
   gap: 0;
   padding: var(--espaco-2, 0.5rem) var(--espaco-3, 1rem);
-}
-
-#tab-construtora #lista-contas-a-vencer.lista.card[hidden] {
-  display: none;
 }
 
 #tab-construtora #lista-contas-a-vencer .lista-item {

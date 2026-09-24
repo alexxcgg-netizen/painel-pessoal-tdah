@@ -50,7 +50,12 @@ def texto_ruim(page):
           if (!p || p.closest('[hidden]') || !p.getClientRects().length) continue;
           if (rx.test(n.textContent)) achados.push(s + ': ' + n.textContent.trim().slice(0, 60));
         }
-        for (const inp of el.querySelectorAll('input')) if (rx.test(inp.value)) achados.push(s + ' input: ' + inp.value);
+        // campo de formulario de sheet guarda o que o PROPRIO fuzz digitou ("NaN" de proposito):
+        // so confere input preenchido pelo app (ex: limite do cartao vindo da API).
+        for (const inp of el.querySelectorAll('input')) {
+          if (inp.closest('.bottom-sheet')) continue;
+          if (rx.test(inp.value)) achados.push(s + ' input: ' + inp.value);
+        }
       }
       return achados;
     }""", [RAIZES, RUIM.pattern])
@@ -124,6 +129,7 @@ def contar(page, url, chave):
 
 
 def main():
+    global saidas_externas
     with sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME, headless=True)
         ctx = b.new_context(viewport={"width": 390, "height": 844})
@@ -134,6 +140,13 @@ def main():
                                  headers={"Content-Type": "application/json"})
         assert r.status == 200, r.text()
         page = ctx.new_page()
+        # Nenhuma requisicao do navegador pra fora (fora Google Fonts): anota e falha no fim.
+        saidas_externas = []
+        page.on("request", lambda req: saidas_externas.append(req.url)
+                if not req.url.startswith(("http://127.0.0.1", "data:", "blob:")) and "fonts.g" not in req.url else None)
+        # Nunca deixa o resumo do dia (IA) chegar no servidor: resposta duble.
+        page.route("**/api/summary/today", lambda route: route.fulfill(
+            status=200, content_type="application/json", body='{"resumo": "Resumo de teste (duble)."}'))
 
         def on_console(m):
             if m.type != "error":
@@ -352,10 +365,10 @@ def main():
             for _ in range(8):
                 page.click("#btn-nova-parcela")
                 page.wait_for_timeout(50)
-                page.click("#sheet-nova-parcela .bottom-sheet-fechar")
+                page.click("#sheet-nova-parcela [data-fecha-sheet]")
             page.wait_for_timeout(600)
             return True if not sheet_aberto(page, "sheet-nova-parcela") else "ficou aberto"
-        cenario(page, "sheet parcela: 8x abre + X", abre_fecha_x)
+        cenario(page, "sheet parcela: 8x abre + Cancelar", abre_fecha_x)
 
         def abre_fecha_fundo():
             fechar_sheets(page)
@@ -506,6 +519,7 @@ def main():
 
         b.close()
 
+    resultados.append(("nenhuma requisicao externa do navegador", not saidas_externas, str(saidas_externas[:3])))
     falhas = [r for r in resultados if not r[1]]
     for nome, ok, det in resultados:
         print(("OK   " if ok else "FALHA"), nome, ("- " + det if det else ""))

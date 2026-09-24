@@ -2,7 +2,7 @@
 // Fase 7 (faixa v6-financas): consome a API da faixa N1 (/api/financas/*, contrato
 // em docs/contrato-assinaturas.md) - CRUD puro, sem IA. Script classico (escopo
 // global compartilhado) - a ordem de carga esta em templates/scripts.html.
-// Fase 7 (faixa C3c): sheet so pelo componente real da V0d (sem fallback local),
+// Fase 7 (faixa C3c): sheet so pelo componente compartilhado (V0d + C2),
 // validacao propria com erro dentro do sheet, guarda contra NaN/undefined vindo
 // da API e acoes da lista com as classes do contrato (.btn.btn-secundario).
 
@@ -55,26 +55,11 @@ function botaoApagarFinancas(url, li, nome) {
   return btn;
 }
 
-// Abre o sheet (V0d) e poe o foco no 1o campo (MASTER #9) - o componente foca
-// o 1o focavel, que aqui e o X do cabecalho.
-function abrirSheetFinancas(id) {
-  const el = document.getElementById(id);
-  if (!el || typeof window.abrirBottomSheet !== "function") return;
-  const erro = el.querySelector(".sheet-erro");
-  if (erro) erro.hidden = true;
-  window.abrirBottomSheet(el);
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      const campo = el.querySelector("input:not([type=hidden]), select, textarea");
-      if (campo && !el.hidden) campo.focus();
-    })
-  );
-}
-
-function fecharSheetFinancas(id) {
-  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(id);
-}
-
+// Sheets: componente compartilhado (static/js/ui/bottom-sheet.js). Abre por
+// `data-abre-sheet` no botao (o componente foca o 1o campo, sobe o sheet pro
+// <body> e devolve ao fechar); fecha no sucesso via "bottomsheet:sucesso" no
+// <form data-fecha-ao-enviar>. Aqui so o que e desta faixa: o erro de
+// validacao some quando o sheet fecha (nao reaparece velho ao reabrir).
 function mostrarErroSheet(idErro, msg) {
   const p = document.getElementById(idErro);
   if (!p) return;
@@ -82,20 +67,16 @@ function mostrarErroSheet(idErro, msg) {
   p.hidden = false;
 }
 
-// `position: fixed` so e relativo a viewport quando nenhum ancestral tem
-// `transform` - `.tab-content` fica com transform depois da animacao de troca
-// de aba. Os paineis sobem pra `document.body` uma vez, na carga.
-function subirSheetsFinancas(ids) {
-  ids.forEach((id) => {
-    const el = document.getElementById(id);
-    if (el && el.parentElement !== document.body) document.body.appendChild(el);
-  });
+function sucessoSheetFinancas(form) {
+  form.reset();
+  form.dispatchEvent(new CustomEvent("bottomsheet:sucesso", { bubbles: true }));
 }
 
-subirSheetsFinancas(["sheet-nova-assinatura", "sheet-nova-parcela"]);
-
-$("#btn-nova-assinatura").addEventListener("click", () => abrirSheetFinancas("sheet-nova-assinatura"));
-$("#btn-nova-parcela").addEventListener("click", () => abrirSheetFinancas("sheet-nova-parcela"));
+document.addEventListener("bottomsheet:fechado", (e) => {
+  const sheet = e.target;
+  if (!sheet || !sheet.classList || !sheet.classList.contains("bottom-sheet-financas")) return;
+  sheet.querySelectorAll(".sheet-erro").forEach((p) => (p.hidden = true));
+});
 
 // ---- Listas (contrato .lista-item: docs/MASTER.md #5) ----
 
@@ -335,8 +316,7 @@ $("#form-nova-assinatura").addEventListener("submit", async (e) => {
   setBotaoCarregando(btn, false, "Salvar assinatura");
   salvandoAssinatura = false;
   if (!r) return mostrarErroSheet("assinatura-erro", "Nao consegui salvar agora. Confere os campos e tenta de novo.");
-  $("#form-nova-assinatura").reset();
-  fecharSheetFinancas("sheet-nova-assinatura");
+  sucessoSheetFinancas($("#form-nova-assinatura"));
   loadAssinaturas();
 });
 
@@ -379,8 +359,7 @@ $("#form-nova-parcela").addEventListener("submit", async (e) => {
   setBotaoCarregando(btn, false, "Salvar parcela");
   salvandoParcela = false;
   if (!r) return mostrarErroSheet("parcela-erro", "Nao consegui salvar agora. Confere os campos e tenta de novo.");
-  $("#form-nova-parcela").reset();
-  fecharSheetFinancas("sheet-nova-parcela");
+  sucessoSheetFinancas($("#form-nova-parcela"));
   loadAssinaturas();
 });
 

@@ -1,22 +1,13 @@
 // static/js/secoes/vida/contas-pessoais.js - Secao vida > contas-pessoais (HTML: templates/secoes/vida/contas-pessoais.html).
 // Fase 7 (X2): extraido sem mudanca de logica do antigo vida.js 389-455.
 // Fase 7 (faixa v6-financas): botao "adicionar" -> .btn-adicionar + .bottom-sheet.
-// Fase 7 (faixa C3c): sheet so pelo componente da V0d (sem fallback local),
-// validacao em pt-BR dentro do sheet, valor fora do titulo (nao some mais com
+// Fase 7 (faixa C3c): sheet so pelo componente compartilhado (abre por
+// data-abre-sheet, fecha por "bottomsheet:sucesso"), validacao em pt-BR dentro do sheet, valor fora do titulo (nao some mais com
 // reticencias em 390px) e acoes com as classes do contrato. Os helpers
-// *Financas (numeroFinancas, fmtMoedaFinancas, abrirSheetFinancas...) moram em
+// *Financas (numeroFinancas, fmtMoedaFinancas, sucessoSheetFinancas...) moram em
 // static/js/secoes/gastos/assinaturas.js, que carrega DEPOIS deste arquivo -
 // por isso so sao chamados dentro de handlers/loads, nunca no topo.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
-
-// Sobe o painel pra document.body (mesma razao de assinaturas.js: `.tab-content`
-// fica com transform e prende o `position: fixed`).
-(function () {
-  const el = document.getElementById("sheet-nova-conta-pessoal");
-  if (el && el.parentElement !== document.body) document.body.appendChild(el);
-})();
-
-$("#btn-nova-conta-pessoal").addEventListener("click", () => abrirSheetFinancas("sheet-nova-conta-pessoal"));
 
 function quandoContaPessoal(c) {
   const venc = fmtDataFinancas(c.proximo_vencimento);
@@ -93,7 +84,6 @@ $("#conta-pessoal-form").addEventListener("submit", async (e) => {
   setBotaoCarregando(btn, false, "Salvar conta");
   salvandoContaPessoal = false;
   if (!r) return mostrarErroSheet("conta-pessoal-erro", "Nao consegui salvar agora. Confere os campos e tenta de novo.");
-  $("#conta-pessoal-form").reset();
-  fecharSheetFinancas("sheet-nova-conta-pessoal");
+  sucessoSheetFinancas($("#conta-pessoal-form"));
   loadContasPessoais();
 });

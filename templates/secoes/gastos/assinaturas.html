@@ -11,11 +11,12 @@
    acontecer; esta e DECLARADA antes/no momento da contratacao. Os dois
    convivem sem se sobrepor (ver financas_recorrentes.py).
 
-   Contrato de UI: docs/MASTER.md. Os 2 paineis usam o componente real da V0d
-   (static/js/ui/bottom-sheet.js monta fundo/painel/alca sozinho - por isso
-   nao ha pegador escrito aqui). Fase 7 C3c: formularios com `novalidate` +
-   validacao propria em assinaturas.js, com o erro dentro do proprio sheet
-   (.sheet-erro, MASTER #6 "Erro"), em vez do balao nativo em ingles. #}
+   Contrato de UI: docs/MASTER.md. Fase 7 C3c: os 2 paineis seguem o padrao do
+   componente compartilhado (static/js/ui/bottom-sheet.js, V0d + C2): abre por
+   data-abre-sheet, .bottom-sheet-titulo, form.form-linha data-fecha-ao-enviar
+   (assinaturas.js dispara "bottomsheet:sucesso" so depois do POST dar certo) e
+   linha final "Salvar X" + Cancelar. `novalidate` + validacao em pt-BR em
+   assinaturas.js, com o erro dentro do sheet (.sheet-erro, MASTER #6). #}
 <div id="assinaturas-financas-box">
   <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/><path d="M12 8v4l2.5 1.5"/></svg>
@@ -41,10 +42,10 @@
   </p>
 
   <div class="botoes-adicionar-linha">
-    <button type="button" class="btn btn-adicionar btn-adicionar--pilula" id="btn-nova-assinatura" aria-haspopup="dialog" aria-controls="sheet-nova-assinatura">
+    <button type="button" class="btn btn-adicionar btn-adicionar--pilula" id="btn-nova-assinatura" data-abre-sheet="sheet-nova-assinatura" aria-haspopup="dialog" aria-controls="sheet-nova-assinatura">
       Nova assinatura
     </button>
-    <button type="button" class="btn btn-adicionar btn-adicionar--pilula" id="btn-nova-parcela" aria-haspopup="dialog" aria-controls="sheet-nova-parcela">
+    <button type="button" class="btn btn-adicionar btn-adicionar--pilula" id="btn-nova-parcela" data-abre-sheet="sheet-nova-parcela" aria-haspopup="dialog" aria-controls="sheet-nova-parcela">
       Nova compra parcelada
     </button>
   </div>
@@ -61,79 +62,69 @@
   <p id="parcelas-vazio" class="vazio" hidden>Nenhuma compra parcelada em andamento.</p>
   <ul class="lista card" id="lista-parcelas" hidden></ul>
 
-  <div class="bottom-sheet bottom-sheet-financas" id="sheet-nova-assinatura" hidden>
-    <div class="bottom-sheet-cabecalho">
-      <h3>Adicionar assinatura</h3>
-      <button type="button" class="bottom-sheet-fechar" data-fecha-sheet="sheet-nova-assinatura" aria-label="Fechar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
-    <form id="form-nova-assinatura" novalidate>
-      <div class="campo-grupo">
+  <div class="bottom-sheet bottom-sheet-financas" id="sheet-nova-assinatura" hidden aria-labelledby="sheet-nova-assinatura-titulo">
+    <h3 class="bottom-sheet-titulo" id="sheet-nova-assinatura-titulo">Adicionar assinatura</h3>
+    <form id="form-nova-assinatura" class="form-linha" novalidate data-fecha-ao-enviar>
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="assinatura-nome">Nome</label>
         <input type="text" class="campo" id="assinatura-nome" placeholder="Netflix, academia..." maxlength="80" required />
       </div>
-      <div class="campo-grupo">
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="assinatura-valor">Valor mensal (R$)</label>
         <input type="text" class="campo valor-mono" id="assinatura-valor" inputmode="decimal" autocomplete="off" placeholder="21,90" maxlength="20" required />
       </div>
-      <div class="campo-grupo">
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="assinatura-dia">Dia da cobranca (1-31)</label>
         <input type="number" class="campo" id="assinatura-dia" min="1" max="31" inputmode="numeric" required />
       </div>
-      <div class="campo-grupo">
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="assinatura-cartao">Cartao ou forma (opcional)</label>
         <input type="text" class="campo" id="assinatura-cartao" placeholder="nubank, pix, debito automatico..." maxlength="60" />
       </div>
-      <div class="campo-grupo">
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="assinatura-categoria">Categoria (opcional)</label>
         <input type="text" class="campo" id="assinatura-categoria" placeholder="lazer, saude..." maxlength="40" />
       </div>
       <p class="sheet-erro" id="assinatura-erro" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/></svg><span></span></p>
-      <button type="submit" class="btn btn-primario btn-sheet-salvar" id="assinatura-salvar-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-        Salvar assinatura
-      </button>
+      <div class="form-linha">
+        <button type="submit" id="assinatura-salvar-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17 20 6"/></svg>Salvar assinatura</button>
+        <button type="button" class="btn btn-secundario" data-fecha-sheet>Cancelar</button>
+      </div>
     </form>
   </div>
 
-  <div class="bottom-sheet bottom-sheet-financas" id="sheet-nova-parcela" hidden>
-    <div class="bottom-sheet-cabecalho">
-      <h3>Adicionar compra parcelada</h3>
-      <button type="button" class="bottom-sheet-fechar" data-fecha-sheet="sheet-nova-parcela" aria-label="Fechar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
-    <form id="form-nova-parcela" novalidate>
-      <div class="campo-grupo">
+  <div class="bottom-sheet bottom-sheet-financas" id="sheet-nova-parcela" hidden aria-labelledby="sheet-nova-parcela-titulo">
+    <h3 class="bottom-sheet-titulo" id="sheet-nova-parcela-titulo">Adicionar compra parcelada</h3>
+    <form id="form-nova-parcela" class="form-linha" novalidate data-fecha-ao-enviar>
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="parcela-descricao">Descricao</label>
         <input type="text" class="campo" id="parcela-descricao" placeholder="Geladeira, celular..." maxlength="120" required />
       </div>
-      <div class="campo-grupo">
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="parcela-n">Numero de parcelas</label>
         <input type="number" class="campo" id="parcela-n" min="1" max="600" step="1" inputmode="numeric" required />
       </div>
-      <div class="campo-grupo">
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="parcela-valor-total">Valor total (R$)</label>
         <input type="text" class="campo valor-mono" id="parcela-valor-total" inputmode="decimal" autocomplete="off" maxlength="20" placeholder="ou preenche so o valor da parcela" />
       </div>
-      <div class="campo-grupo">
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="parcela-valor-parcela">Valor da parcela (R$)</label>
         <input type="text" class="campo valor-mono" id="parcela-valor-parcela" inputmode="decimal" autocomplete="off" maxlength="20" placeholder="ou preenche so o valor total" />
       </div>
-      <div class="campo-grupo">
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="parcela-cartao">Cartao (opcional)</label>
         <input type="text" class="campo" id="parcela-cartao" placeholder="nubank, itau..." maxlength="60" />
       </div>
-      <div class="campo-grupo">
+      <div class="campo-rotulo-wrap">
         <label class="campo-rotulo" for="parcela-primeira">Primeira parcela (opcional, padrao hoje)</label>
         <input type="date" class="campo" id="parcela-primeira" min="2000-01-01" max="2100-12-31" />
       </div>
       <p class="sheet-erro" id="parcela-erro" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/></svg><span></span></p>
-      <button type="submit" class="btn btn-primario btn-sheet-salvar" id="parcela-salvar-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-        Salvar parcela
-      </button>
+      <div class="form-linha">
+        <button type="submit" id="parcela-salvar-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17 20 6"/></svg>Salvar parcela</button>
+        <button type="button" class="btn btn-secundario" data-fecha-sheet>Cancelar</button>
+      </div>
     </form>
   </div>
 </div>

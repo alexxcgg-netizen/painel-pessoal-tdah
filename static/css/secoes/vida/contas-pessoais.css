@@ -18,10 +18,6 @@
   margin: 0 0 var(--espaco-2, 0.5rem);
 }
 
-#lista-contas-pessoais.lista.card[hidden] {
-  display: none;
-}
-
 #lista-contas-pessoais .lista-item {
   padding: var(--espaco-2, 0.5rem) 0;
 }

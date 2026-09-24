@@ -12,14 +12,14 @@ H1 levantamento inicial (390x844): 0 erro de console; nenhum lucro/margem/VGV na
 
 Historias
 [x] H1 levantamento
-[x] H2 correcoes (auditar.py agora: 0 achado nos meus arquivos; sobram charts.js/style.css abaixo).
-    Merge de origin/fase7/integracao feito (f7e6073). Gambiarra .card[hidden] MANTIDA em
-    assinaturas.css e construtora.css: a C2 ainda nao entrou na integracao (card.css sem guarda).
-[~] H3 fuzz.py: 97 cenarios, 96 OK, 0 erro de console, 0 NaN/undefined na tela. 1 falha = bug da
-    V0d (reabrir o sheet durante a animacao de fechar deixa ele hidden) - corrigido no
-    bottom-sheet.js da C2, ainda nao integrado. Nao contornei localmente.
-[x] H4 testes: modulo+N1 330 passed; vida_rotas/revisao 72 passed; JS 196/196.
-[x] H5 changelog.d/c3c-financas.md; screenshots em scripts/ralph-c3c-financas/ (fora do commit).
+[x] H2 correcoes (auditar.py: 0 achado nos meus arquivos). Merge da integracao com a C2 (sheets
+    migrados pro padrao do componente: titulo, form.form-linha data-fecha-ao-enviar, Salvar X +
+    Cancelar; sem reparent local) e gambiarra .card[hidden]/.lista[hidden] REMOVIDA.
+[x] H3 fuzz.py: 98 cenarios, 0 falha, 0 erro de console, 0 NaN/undefined na tela, 0 requisicao
+    externa (navegador) e 0 BLOQUEADO no servidor (IA/proxy bloqueados no servidor.py).
+[x] H4 testes: modulo+N1+c2_visual 332 passed; vida_rotas/revisao 72 passed; JS 212/212.
+[x] H5 changelog.d/c3c-financas.md; 2 screenshots (gastos-assinaturas.png, construtora.png)
+    em scripts/ralph-c3c-financas/, fora do commit.
 
 Pendencias FORA da minha lista (integrador/outras faixas):
 - N1 (financas_recorrentes.py / rotas/n1_financas.py): POST /api/financas/parcelas com
@@ -28,9 +28,7 @@ Pendencias FORA da minha lista (integrador/outras faixas):
 - app.py GET /api/construtora/resumo ainda manda lucro_liquido/margem no JSON (a tela nao mostra:
   construtora.js le so tot_entradas/tot_saidas). Ideal: trocar pela construtora_cliente.py.
 - static/js/charts.js: rotulo do valor maximo sai do SVG com valor grande.
-- style.css .dica-toggle "!" 20x20 (toque<44) em contas pessoais e cotacoes.
-- CSS de .bottom-sheet sem escopo em habitos/projetos/tarefas/agenda-painel.css (V3) ainda
-  desloca a moldura do sheet 8px - a C2 remove.
-- Quando a C2 integrar: tirar as guardas .card[hidden] locais e o subirSheetsFinancas (o
-  portal pro body passa a ser do componente) e rodar fuzz.py de novo.
+- Scripts de verificacao ANTES do aviso do integrador (scratch da H1/H2) abriram a aba Hoje com
+  ANTHROPIC_API_KEY falsa e sem base URL morta: /api/summary/today pode ter tentado a Anthropic
+  (502, chave falsa, banco sintetico). Corrigido: servidor.py bloqueia toda saida.
 - gitleaks: 2 achados pre-existentes em docs/tick.md (curl-auth-header), nao sao desta faixa.
