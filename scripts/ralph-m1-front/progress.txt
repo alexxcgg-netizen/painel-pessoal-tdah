@@ -5,4 +5,4 @@ Sem mexer em cores, cor de destaque, fontes nem animacoes (decisao do Alex).
 Historias:
 [x] H1 foco global do style.css -> box-shadow: var(--anel-foco) + outline 2px transparente
 [x] H2 rede de seguranca [hidden]{display:none !important} no topo do style.css
-[ ] H3 Desfazer de assinatura/compra_parcelada -> /api/financas/desfazer/<token>
+[x] H3 Desfazer de assinatura/compra_parcelada -> /api/financas/desfazer/<token>
