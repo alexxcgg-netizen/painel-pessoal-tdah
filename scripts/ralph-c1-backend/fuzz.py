@@ -273,6 +273,38 @@ def cenarios_financas():
     cenario("desfazer financas token gigante", "POST", f"{base}/desfazer/{'a' * 3000}")
     cenario("desfazer geral token lixo", "POST", "/api/desfazer/naoexiste", esperado=404)
 
+    # Achado da C3c (integrador): data invalida nao pode gravar a linha, e
+    # linha ruim ja gravada (banco antigo) nao pode derrubar as leituras.
+    conn = db.get_db()
+    antes = conn.execute("SELECT COUNT(*) AS n FROM compra_parcelada").fetchone()["n"]
+    conn.close()
+    cenario("parcela data invalida -> 400", "POST", f"{base}/parcelas", esperado=400,
+            json={"descricao": "c3c", "valor_total": 100, "n_parcelas": 2, "primeira_parcela": "2026-99-01"})
+    conn = db.get_db()
+    depois = conn.execute("SELECT COUNT(*) AS n FROM compra_parcelada").fetchone()["n"]
+    conn.execute("INSERT INTO compra_parcelada (descricao, valor_total, n_parcelas, parcela_atual, valor_parcela, "
+                 "primeira_parcela) VALUES ('legado ruim', 100, 2, 1, 50, 'lixo')")
+    conn.execute("INSERT INTO assinatura (nome, valor, dia_cobranca, ativa, inicio) VALUES ('legado', 'NaN', 5, 1, 'x')")
+    conn.commit()
+    conn.close()
+    checar("parcela data invalida nao grava linha", depois == antes, f"{antes} -> {depois}")
+    for rota in ("assinaturas", "parcelas", "comprometido"):
+        cenario(f"{rota} GET com linha ruim no banco", "GET", f"{base}/{rota}", esperado=200)
+    for valor in (1e308, "inf", "NaN", 1e10):
+        cenario(f"assinatura valor {valor} -> 400", "POST", f"{base}/assinaturas", esperado=400,
+                json={"nome": "grande", "valor": valor, "dia_cobranca": 1})
+
+
+def cenarios_construtora():
+    """Achado da C3c: /api/construtora/resumo nunca manda lucro/margem/VGV."""
+    with patch.dict(os.environ, {"CONSTRUTORA_API_MOCK": "1"}):
+        app._CACHE_CONSTRUTORA.clear()
+        res = CLIENTE.get("/api/construtora/resumo")
+    corpo = res.get_data(as_text=True).lower()
+    checar("construtora mock -> 200", res.status_code == 200, str(res.status_code))
+    checar("construtora sem lucro/margem/vgv", not any(p in corpo for p in ("lucro", "margem", "vgv")), corpo[:200])
+    cenario("construtora sem config", "GET", "/api/construtora/resumo", esperado=200)
+
 
 def cenarios_p4():
     regra = {"gatilho": "horario", "condicao": {"tipo": "diario", "hora": "18:00"},
@@ -419,8 +451,8 @@ def main() -> int:
     patches = _instalar_dubles()
     try:
         CLIENTE = _cliente_logado()
-        for bloco in (cenarios_chat, cenarios_tick, cenarios_sinal, cenarios_financas, cenarios_p4,
-                      cenarios_assistente, concorrencia, integridade):
+        for bloco in (cenarios_chat, cenarios_tick, cenarios_sinal, cenarios_financas, cenarios_construtora,
+                      cenarios_p4, cenarios_assistente, concorrencia, integridade):
             try:
                 bloco()
             except Exception as exc:  # noqa: BLE001

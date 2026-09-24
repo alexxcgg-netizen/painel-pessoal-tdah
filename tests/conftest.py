@@ -15,12 +15,24 @@ no futuro e quiser a mesma garantia sem repetir o boilerplate.
 """
 
 import importlib
+import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+# Fase 7 / C1 (aviso URGENTE do integrador): nenhum teste pode chegar na API
+# real de IA. Carregado antes de qualquer arquivo de teste, entao os clientes
+# criados na importacao (ia.legado.client, adapters) ja nascem apontando pra
+# uma porta local fechada - uma chamada que escape de um duble falha na hora,
+# sem sair da maquina. Chave da Anthropic sempre falsa (as outras ficam como
+# estao: ha testes que conferem o comportamento SEM chave).
+os.environ["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:9"
+os.environ["OPENAI_BASE_URL"] = "http://127.0.0.1:9"
+os.environ["GOOGLE_GEMINI_BASE_URL"] = "http://127.0.0.1:9"
+os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
 
 @pytest.fixture

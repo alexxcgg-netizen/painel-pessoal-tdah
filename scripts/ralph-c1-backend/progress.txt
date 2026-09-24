@@ -49,3 +49,10 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
   N1 (Decimal NaN/inf/bool/gigante -> 500; data invalida gravada quebrava a listagem;
   100000 parcelas passava do ano 9999), p4 confirmar/pausar e caixa responder com corpo
   lista/tipo errado. Regressao em tests/test_fase7_c1_robustez.py.
+[done] Pedidos do integrador: (a) conftest aponta ANTHROPIC/OPENAI/GEMINI_BASE_URL pra
+  127.0.0.1:9 (nenhum teste sai da maquina); fuzz com guarda de socket (0 conexao externa).
+  (b) N1: validacao antes do INSERT + leituras pulam linha ruim ja gravada (log) - GET
+  parcelas/comprometido nunca mais 500; 1e308/inf/NaN -> 400 (teto 1e9). (c) construtora
+  sem lucro/margem ja na H4 (fuzz confere). (d) vazamentos entre testes: n2_telegram_rota
+  (rotas._base.app_modulo na importacao), n3a (atributo rotas._base), a10 (_padrao mock),
+  p3_gatilho (sys.modules caixa), p3_rotas (checagem via sys.modules) - todos corrigidos.

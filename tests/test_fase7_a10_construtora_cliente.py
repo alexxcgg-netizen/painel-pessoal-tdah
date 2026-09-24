@@ -434,6 +434,11 @@ class TestFuncoesDeModulo(unittest.TestCase):
     def setUp(self):
         import construtora_cliente
 
+        # C1: restaura a instancia padrao no fim - antes o mock vazava pros
+        # testes seguintes do mesmo processo (widget/app passavam a ver a
+        # conta sintetica da construtora).
+        self._padrao_original = construtora_cliente._padrao
+        self.addCleanup(setattr, construtora_cliente, "_padrao", self._padrao_original)
         construtora_cliente._padrao = ClienteConstrutora(mock=True)
 
     def test_gastos_do_mes_modulo(self):

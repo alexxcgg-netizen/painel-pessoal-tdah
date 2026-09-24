@@ -56,6 +56,40 @@ class RobustezTestCase(unittest.TestCase):
         for rota in ("/api/financas/assinaturas", "/api/financas/parcelas", "/api/financas/comprometido"):
             self.assertEqual(self.client.get(rota).status_code, 200, rota)
 
+    def test_parcela_com_data_invalida_nao_grava_nada(self):
+        res = self.client.post("/api/financas/parcelas", json={
+            "descricao": "Y", "valor_total": 100, "n_parcelas": 2, "primeira_parcela": "2026-99-01"})
+        self.assertEqual(res.status_code, 400)
+        conn = db.get_db()
+        n = conn.execute("SELECT COUNT(*) AS n FROM compra_parcelada").fetchone()["n"]
+        conn.close()
+        self.assertEqual(n, 0)
+
+    def test_linha_ruim_ja_gravada_nao_derruba_as_leituras(self):
+        """Banco que ja ficou com lixo antes da C1: as leituras pulam a linha."""
+        self.client.post("/api/financas/assinaturas", json={"nome": "Boa", "valor": 10, "dia_cobranca": 5})
+        self.client.post("/api/financas/parcelas", json={"descricao": "Boa", "valor_total": 100, "n_parcelas": 2})
+        conn = db.get_db()
+        conn.execute("INSERT INTO compra_parcelada (descricao, valor_total, n_parcelas, parcela_atual, "
+                     "valor_parcela, primeira_parcela) VALUES ('ruim', 100, 2, 1, 50, '2026-99-01')")
+        conn.execute("INSERT INTO compra_parcelada (descricao, valor_total, n_parcelas, parcela_atual, "
+                     "valor_parcela, primeira_parcela) VALUES ('ruim2', 100, 100000, 1, 1, '2026-01-01')")
+        conn.execute("INSERT INTO assinatura (nome, valor, dia_cobranca, ativa, inicio) "
+                     "VALUES ('ruim', 'NaN', 5, 1, 'ontem')")
+        conn.commit()
+        ids_ruins = [r["id"] for r in conn.execute(
+            "SELECT id FROM compra_parcelada WHERE descricao LIKE 'ruim%'").fetchall()]
+        conn.close()
+        for rota in ("/api/financas/assinaturas", "/api/financas/parcelas", "/api/financas/comprometido",
+                     f"/api/financas/parcelas/{ids_ruins[0]}"):
+            with self.subTest(rota=rota):
+                self.assertLess(self.client.get(rota).status_code, 500)
+        parcelas = self.client.get("/api/financas/parcelas").get_json()
+        self.assertEqual(str(parcelas).count("ruim"), 0)
+        self.assertIn("Boa", str(parcelas))
+        # a linha ruim continua apagavel pelo id
+        self.assertEqual(self.client.delete(f"/api/financas/parcelas/{ids_ruins[0]}").status_code, 200)
+
     def test_parcelas_demais_e_400(self):
         res = self.client.post("/api/financas/parcelas",
                                json={"descricao": "Z", "valor_parcela": 1, "n_parcelas": 100000})

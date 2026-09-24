@@ -106,14 +106,19 @@ class PreviaRotaTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 400)
 
     def test_previa_nao_enfileira_nada(self):
-        # "monta sem enviar" (contrato) - so confere que a rota nunca precisa
-        # importar assistente.caixa (que nem existe nesta integracao ainda).
-        import sys
+        # "monta sem enviar" (contrato). C1: antes conferia que
+        # assistente.caixa nunca entrava em sys.modules - frágil (dependia da
+        # ordem dos testes; qualquer import do app ja carrega a Caixa). Agora
+        # confere o que importa: nenhuma chamada a enfileirar.
+        from unittest.mock import patch
 
-        self.assertNotIn("assistente.caixa", sys.modules)
-        res = self.client.get("/api/assistente/briefing/previa?tipo=manha")
-        self.assertEqual(res.status_code, 200)
-        self.assertNotIn("assistente.caixa", sys.modules)
+        from assistente import caixa
+
+        with patch.object(caixa, "enfileirar", side_effect=AssertionError("previa nao enfileira")) as enf:
+            for tipo in ("manha", "noite"):
+                res = self.client.get(f"/api/assistente/briefing/previa?tipo={tipo}")
+                self.assertEqual(res.status_code, 200)
+        enf.assert_not_called()
 
 
 if __name__ == "__main__":

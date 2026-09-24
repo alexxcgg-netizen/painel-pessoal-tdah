@@ -153,6 +153,19 @@ margem, lucro ou detalhamento por obra do lado do painel pessoal):
 pra quem precisar injetar `base_url`/`api_key`/`mock`/`timeout`/`cache_ttl` (testes,
 outro ambiente, etc) - ver docstring em `construtora_cliente.py`.
 
+## Ligado no `app.py` (Fase 7, faixa C1)
+
+Desde a C1, `app.py` lê a construtora **só** por este cliente (instância padrão,
+`construtora_cliente.cliente_padrao()`): `_buscar_resumo_construtora`/
+`_buscar_contas_a_vencer_construtora` continuam existindo (outras faixas usam), mas
+agora delegam pro cliente e **filtram na entrada** - o resumo sai só com `status`,
+`tot_entradas` e `tot_saidas` (nunca `lucro_liquido`, `margem` nem VGV) e cada conta só
+com `vencimento`, `valor`, `fornecedor`, `descricao`, `dias_ate_vencer`. O contexto do
+chat/resumo do dia e o push de conta a vencer mostram só nome + tempo até vencer (sem
+valor); a lista da aba Construtora continua com o valor de cada conta.
+`GET /api/construtora/resumo` funciona com `CONSTRUTORA_API_MOCK=1` (sem URL/chave). A
+tabela abaixo fica como histórico do que foi trocado.
+
 ## O que este documento **não** é
 
 `construtora_cliente.py` é um cliente **novo**, ainda não ligado a nada em

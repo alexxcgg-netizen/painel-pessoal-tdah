@@ -71,9 +71,12 @@ class _Base(unittest.TestCase):
 
 class UsaOClienteA10TestCase(_Base):
     def test_app_usa_a_instancia_padrao_do_cliente(self):
-        self.assertIs(app._CLIENTE_CONSTRUTORA, construtora_cliente.cliente_padrao())
-        # o cache antigo e o MESMO dict do cliente (clear() dos testes antigos vale)
-        self.assertIs(app._CACHE_CONSTRUTORA, app._CLIENTE_CONSTRUTORA._cache)
+        self.assertIs(app._cliente_construtora(), construtora_cliente.cliente_padrao())
+        # clear() dos testes antigos limpa o cache do cliente padrao
+        cliente = construtora_cliente.cliente_padrao()
+        cliente._cache_set("resumo", {"status": "ok"})
+        app._CACHE_CONSTRUTORA.clear()
+        self.assertIsNone(cliente._cache_get("resumo"))
 
     def test_app_nao_chama_requests_direto_pra_construtora(self):
         import inspect

@@ -1533,11 +1533,21 @@ def _saude_contexto_resumo(conn) -> str | None:
 # Fase 7 (C1): toda leitura da construtora passa por construtora_cliente.py
 # (faixa A10, contrato em docs/contrato-api-construtora.md) - cache/throttle de
 # 60s, timeout de 5s, nunca levanta, modo mock (CONSTRUTORA_API_MOCK=1). A
-# instancia e a padrao do modulo (mesmo cache de gastos_do_mes/proxima_conta).
-# _CACHE_CONSTRUTORA e o MESMO dict de cache do cliente (testes antigos fazem
-# app._CACHE_CONSTRUTORA.clear() entre casos - continua valendo).
-_CLIENTE_CONSTRUTORA = construtora_cliente.cliente_padrao()
-_CACHE_CONSTRUTORA = _CLIENTE_CONSTRUTORA._cache
+# instancia e a padrao do modulo (mesmo cache de gastos_do_mes/proxima_conta),
+# buscada a cada uso (se alguem trocar a instancia padrao, o app acompanha).
+def _cliente_construtora() -> "construtora_cliente.ClienteConstrutora":
+    return construtora_cliente.cliente_padrao()
+
+
+class _CacheConstrutoraCompat:
+    """Testes antigos fazem app._CACHE_CONSTRUTORA.clear() entre casos -
+    continua valendo: limpa o cache do cliente padrao."""
+
+    def clear(self) -> None:
+        construtora_cliente.limpar_cache_padrao()
+
+
+_CACHE_CONSTRUTORA = _CacheConstrutoraCompat()
 
 # O que o painel pessoal pode mostrar da construtora (decisao do Alex, A10):
 # so gastos, entradas e o tempo ate a proxima conta. Nunca lucro, margem nem
@@ -1572,14 +1582,14 @@ def _filtrar_contas_construtora(dados) -> dict | None:
 def _buscar_resumo_construtora() -> dict | None:
     """Resumo da construtora ja filtrado (so status/tot_entradas/tot_saidas) -
     None se nao configurado ou se a chamada falhar. Via construtora_cliente."""
-    return _filtrar_resumo_construtora(_CLIENTE_CONSTRUTORA.resumo())
+    return _filtrar_resumo_construtora(_cliente_construtora().resumo())
 
 
 def _buscar_contas_a_vencer_construtora(dias: int = 30) -> dict | None:
     """Contas a pagar a vencer/vencidas da construtora - None se nao
     configurado ou se a chamada falhar. Via construtora_cliente (cache por
     `dias`)."""
-    return _filtrar_contas_construtora(_CLIENTE_CONSTRUTORA.contas_a_vencer(dias=dias))
+    return _filtrar_contas_construtora(_cliente_construtora().contas_a_vencer(dias=dias))
 
 
 def _quando_conta_construtora(dias_ate: int, passado: str = "vencida ha") -> str:
@@ -7943,7 +7953,7 @@ def construtora_resumo():
     mock CONSTRUTORA_API_MOCK=1) e so com o que o painel pessoal pode mostrar:
     `dados` = status/tot_entradas/tot_saidas (nunca lucro, margem, VGV) e a
     lista de contas a vencer (que a propria aba pede)."""
-    if not _CLIENTE_CONSTRUTORA.configurado():
+    if not _cliente_construtora().configurado():
         return jsonify({"configurado": False})
 
     dados = _buscar_resumo_construtora()

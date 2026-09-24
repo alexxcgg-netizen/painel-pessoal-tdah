@@ -32,6 +32,7 @@ percebi diferenca de comportamento que justificasse esperar).
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 import sqlite3
 from calendar import monthrange
@@ -57,6 +58,9 @@ def _cripto(texto: str) -> str:
 
 def _decripto(valor: str) -> str:
     return criptografia.descriptografar(valor) if criptografia else valor
+
+
+log = logging.getLogger(__name__)
 
 
 # ---- dinheiro (Decimal interno, float na borda) -----------------------------
@@ -177,9 +181,65 @@ def criar_assinatura(
     return cur.lastrowid
 
 
+# ---- linhas ruins ja gravadas (C1) -------------------------------------------
+# Antes da C1 a rota gravava data/numero invalido e toda leitura depois dava
+# 500 pra sempre. A escrita agora valida tudo antes do INSERT; a LEITURA pula
+# (e loga) linha que nao da pra calcular, em vez de derrubar a lista inteira.
+# A linha continua no banco (nunca apaga dado sozinho) - some das listas e
+# calculos, e o DELETE por id continua funcionando.
+
+
+def _numero_ok(valor, *, positivo: bool = True) -> bool:
+    try:
+        d = _d(valor)
+    except ValueError:
+        return False
+    return (d > 0 or not positivo) and d <= VALOR_MAXIMO * N_PARCELAS_MAX
+
+
+def _data_ok(texto) -> bool:
+    try:
+        _data_entrada(texto, "data")
+        return True
+    except ValueError:
+        return False
+
+
+def assinatura_valida(a: dict) -> bool:
+    dia = a.get("dia_cobranca")
+    return (
+        _numero_ok(a.get("valor"))
+        and isinstance(dia, int) and not isinstance(dia, bool) and 1 <= dia <= 31
+        and _data_ok(a.get("inicio"))
+        and (a.get("cancelada_em") in (None, "") or _data_ok(a.get("cancelada_em")))
+    )
+
+
+def compra_valida(c: dict) -> bool:
+    n = c.get("n_parcelas")
+    return (
+        isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= N_PARCELAS_MAX
+        and _numero_ok(c.get("valor_total")) and _numero_ok(c.get("valor_parcela"))
+        and _data_ok(c.get("primeira_parcela"))
+    )
+
+
+def _so_validas(linhas: list[dict], valida, tabela: str) -> list[dict]:
+    boas = []
+    for linha in linhas:
+        if valida(linha):
+            boas.append(linha)
+        else:
+            log.warning("financas_recorrentes: %s id=%s com dado invalido - ignorada na leitura",
+                        tabela, linha.get("id"))
+    return boas
+
+
 def obter_assinatura(conn: sqlite3.Connection, id_: int) -> dict | None:
     row = conn.execute("SELECT * FROM assinatura WHERE id = ?", (id_,)).fetchone()
-    return dict(row) if row else None
+    if not row or not assinatura_valida(dict(row)):
+        return None
+    return dict(row)
 
 
 def listar_assinaturas(conn: sqlite3.Connection, apenas_ativas: bool = False) -> list[dict]:
@@ -187,7 +247,7 @@ def listar_assinaturas(conn: sqlite3.Connection, apenas_ativas: bool = False) ->
     if apenas_ativas:
         sql += " WHERE ativa = 1"
     sql += " ORDER BY nome COLLATE NOCASE"
-    return [dict(r) for r in conn.execute(sql).fetchall()]
+    return _so_validas([dict(r) for r in conn.execute(sql).fetchall()], assinatura_valida, "assinatura")
 
 
 def buscar_assinatura_por_nome(conn: sqlite3.Connection, nome: str, apenas_ativas: bool = True) -> dict | None:
@@ -204,7 +264,7 @@ def buscar_assinatura_por_nome(conn: sqlite3.Connection, nome: str, apenas_ativa
     sql += " ORDER BY (LOWER(nome) = LOWER(?)) DESC, id DESC LIMIT 1"
     params.append(nome)
     row = conn.execute(sql, params).fetchone()
-    return dict(row) if row else None
+    return dict(row) if row and assinatura_valida(dict(row)) else None
 
 
 def atualizar_assinatura(conn: sqlite3.Connection, id_: int, **campos) -> bool:
@@ -317,11 +377,16 @@ def criar_compra_parcelada(
 
 def obter_compra_parcelada(conn: sqlite3.Connection, id_: int) -> dict | None:
     row = conn.execute("SELECT * FROM compra_parcelada WHERE id = ?", (id_,)).fetchone()
-    return dict(row) if row else None
+    if not row or not compra_valida(dict(row)):
+        return None
+    return dict(row)
 
 
 def listar_compras_parceladas(conn: sqlite3.Connection, apenas_em_andamento: bool = False, hoje: date | None = None) -> list[dict]:
-    rows = [dict(r) for r in conn.execute("SELECT * FROM compra_parcelada ORDER BY primeira_parcela DESC").fetchall()]
+    rows = _so_validas(
+        [dict(r) for r in conn.execute("SELECT * FROM compra_parcelada ORDER BY primeira_parcela DESC").fetchall()],
+        compra_valida, "compra_parcelada",
+    )
     if not apenas_em_andamento:
         return rows
     hoje = hoje or date.today()
@@ -337,7 +402,7 @@ def buscar_compra_parcelada_por_descricao(conn: sqlite3.Connection, descricao: s
         "ORDER BY (LOWER(descricao) = LOWER(?)) DESC, id DESC LIMIT 1",
         (f"%{descricao}%", descricao),
     ).fetchone()
-    return dict(row) if row else None
+    return dict(row) if row and compra_valida(dict(row)) else None
 
 
 def excluir_compra_parcelada(conn: sqlite3.Connection, id_: int) -> bool:
