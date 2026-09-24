@@ -151,10 +151,44 @@ async function loadViagens() {
   });
 }
 
+// Fase 7 (V5-extra): botao "Nova viagem" abre o formulario num bottom-sheet
+// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/
+// fecharBottomSheet (faixa V0d) quando existir; se a faixa ainda nao chegou
+// nesta branch, cai no fallback de so alternar o atributo hidden do painel
+// (mesmo padrao ja usado em secoes/vida/habitos.js).
+function abrirPainelViagem() {
+  const sheet = $("#viagem-sheet");
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+}
+
+function fecharPainelViagem() {
+  const sheet = $("#viagem-sheet");
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+}
+
+$("#viagem-abrir-btn").addEventListener("click", abrirPainelViagem);
+$("#viagem-cancelar-btn").addEventListener("click", () => {
+  $("#viagem-nova-form").reset();
+  fecharPainelViagem();
+});
+// toque-fora/ESC so no fallback (a versao definitiva e da V0d, que ja cuida
+// disso sozinha quando abrirBottomSheet existir).
+$("#viagem-sheet").addEventListener("click", (e) => {
+  if (typeof window.abrirBottomSheet !== "function" && e.target === e.currentTarget) fecharPainelViagem();
+});
+document.addEventListener("keydown", (e) => {
+  if (typeof window.abrirBottomSheet !== "function" && e.key === "Escape" && !$("#viagem-sheet").hidden) fecharPainelViagem();
+});
+
 ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Adicionar", () => {
   const destino = $("#viagem-nova-destino").value.trim();
   const ida = $("#viagem-nova-ida").value;
   return destino && ida
     ? { destino, data_ida: ida, data_volta: $("#viagem-nova-volta").value || null, internacional: $("#viagem-nova-internacional").checked }
     : null;
-}, "/api/viagens", loadViagens);
+}, "/api/viagens", () => {
+  fecharPainelViagem();
+  loadViagens();
+});

@@ -8,11 +8,22 @@
           Restaurante, hotel, bar - pra lembrar de novo quando voltar pra mesma cidade (aparece junto da viagem).
         </p>
       </div>
-      <form id="lugar-form" class="form-linha">
-        <input type="text" id="lugar-nome" placeholder="Nome do lugar" maxlength="80" required />
-        <input type="text" id="lugar-cidade" placeholder="Cidade" maxlength="60" />
-        <button type="submit" id="lugar-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
-      </form>
+      <button type="button" id="lugar-abrir-btn" class="btn btn-adicionar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Novo lugar
+      </button>
+      <div class="bottom-sheet" id="lugar-sheet" hidden>
+        <div class="bottom-sheet-painel">
+          <form id="lugar-form" class="form-linha">
+            <input type="text" id="lugar-nome" class="campo" placeholder="Nome do lugar" maxlength="80" required />
+            <input type="text" id="lugar-cidade" class="campo" placeholder="Cidade" maxlength="60" />
+            <div class="form-linha">
+              <button type="submit" id="lugar-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+              <button type="button" id="lugar-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </div>
       <p id="lugares-vazio" class="vazio" hidden>Nenhum lugar guardado.</p>
       <ul id="lista-lugares"></ul>
 

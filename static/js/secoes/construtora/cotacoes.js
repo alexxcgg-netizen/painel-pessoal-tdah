@@ -30,6 +30,21 @@ function graficoComparacaoCotacoes(itens) {
   svg.setAttribute("role", "img");
   const titulo = comValor.map((i) => `${i.fornecedor || "fornecedor"}: ${fmtMoeda(i.valor)}`).join(", ");
   svg.setAttribute("aria-label", `Comparacao de fornecedores - ${titulo}`);
+
+  // Grade sutil (mesma classe/opacidade do grafico-grid de charts.js - so
+  // uma marca de escala no fornecedor mais caro, recessiva, nunca compete
+  // com as barras em si).
+  const linhaGradeNs = "http://www.w3.org/2000/svg";
+  const grade = document.createElementNS(linhaGradeNs, "line");
+  grade.setAttribute("x1", String(xBarra + larguraMax));
+  grade.setAttribute("y1", "0");
+  grade.setAttribute("x2", String(xBarra + larguraMax));
+  grade.setAttribute("y2", String(comValor.length * alturaLinha));
+  grade.setAttribute("stroke", "var(--border)");
+  grade.setAttribute("stroke-width", "1");
+  grade.setAttribute("class", "grafico-grid");
+  svg.appendChild(grade);
+
   comValor.forEach((item, i) => {
     const y = i * alturaLinha;
     const w = Math.max(4, (item.valor / max) * larguraMax);
@@ -181,7 +196,7 @@ async function preencherDetalheCotacao(cotacaoId, container) {
   inputValor.required = true;
   const btnAdd = document.createElement("button");
   btnAdd.type = "submit";
-  btnAdd.className = "btn-com-icone";
+  btnAdd.className = "btn btn-secundario btn-com-icone";
   btnAdd.textContent = "+ Adicionar";
   formItem.appendChild(inputFornecedor);
   formItem.appendChild(inputValor);
@@ -229,6 +244,35 @@ async function preencherDetalheCotacao(cotacaoId, container) {
   container.appendChild(uploadLabel);
 }
 
+// Fase 7 (V5-extra): botao "Nova cotacao" abre o formulario num bottom-sheet
+// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/
+// fecharBottomSheet (faixa V0d) quando existir; fallback minimo enquanto
+// essa faixa nao chega na integracao (mesmo padrao de secoes/vida/habitos.js
+// e secoes/vida/viagens.js).
+function abrirPainelCotacao() {
+  const sheet = $("#cotacao-sheet");
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+}
+
+function fecharPainelCotacao() {
+  const sheet = $("#cotacao-sheet");
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+}
+
+$("#cotacao-abrir-btn").addEventListener("click", abrirPainelCotacao);
+$("#cotacao-cancelar-btn").addEventListener("click", () => {
+  $("#cotacao-form").reset();
+  fecharPainelCotacao();
+});
+$("#cotacao-sheet").addEventListener("click", (e) => {
+  if (typeof window.abrirBottomSheet !== "function" && e.target === e.currentTarget) fecharPainelCotacao();
+});
+document.addEventListener("keydown", (e) => {
+  if (typeof window.abrirBottomSheet !== "function" && e.key === "Escape" && !$("#cotacao-sheet").hidden) fecharPainelCotacao();
+});
+
 $("#cotacao-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = $("#cotacao-titulo");
@@ -241,6 +285,7 @@ $("#cotacao-form").addEventListener("submit", async (e) => {
   });
   if (r) {
     input.value = "";
+    fecharPainelCotacao();
     loadCotacoes();
   }
 });

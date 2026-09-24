@@ -1,3 +1,47 @@
 /* static/css/secoes/vida/lugares.css - secao vida > lugares (HTML: templates/secoes/vida/lugares.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Fase 7 V5-extra: mesmo padrao de secoes/vida/viagens.css (comentario
+   completo la) - .btn-adicionar/.campo/.btn-primario/.btn-secundario ja
+   usam o componente compartilhado real (V0b/V0c). So o painel deslizante
+   em si ainda nao tem componente (ui/componentes/bottom-sheet.css - V0d),
+   por isso o acabamento de sheet fica aqui, escopado por ID
+   (#lugar-sheet), nunca a classe .bottom-sheet inteira. */
+#lugar-sheet.bottom-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+#lugar-sheet.bottom-sheet[hidden] {
+  display: none;
+}
+
+#lugar-sheet .bottom-sheet-painel {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow-card-hover);
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+#lugar-sheet #lugar-form {
+  margin-bottom: 0;
+}
+
+/* .lugar-mapa ja tem moldura (borda/raio/overflow) e o fallback do mapa em
+   style.css - so acrescenta a sombra "glass" coerente com o resto da lista
+   quando o Leaflet ja carregou de verdade (nao mexe em tiles/marker/popup). */
+.lugar-mapa:has(.leaflet-container) {
+  box-shadow: var(--shadow-card);
+}

@@ -1,3 +1,55 @@
 /* static/css/secoes/vida/viagens.css - secao vida > viagens (HTML: templates/secoes/vida/viagens.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* Fase 7 V5-extra: o botao "Nova viagem" (.btn.btn-adicionar) e os campos/
+   botoes do formulario (.campo, .btn-primario, .btn-secundario) ja usam o
+   componente compartilhado real (ui/componentes/{botao,campo}.css - V0b/
+   V0c, ja na integracao). Só o painel deslizante em si (.bottom-sheet)
+   ainda nao tem componente compartilhado (ui/componentes/bottom-sheet.css -
+   V0d - continua vazio) - por isso o acabamento de "sheet de verdade"
+   (fundo escurecido, desliza de baixo) fica aqui, escopado por ID
+   (#viagem-sheet), nunca a classe .bottom-sheet inteira - assim nao regride
+   nem entra em conflito com o fallback mais simples que outras secoes (ex:
+   vida/habitos) ja definiram pra essa mesma classe, e some sozinho quando
+   a V0d chegar (ela estiliza globalmente e ganha por carregar depois). */
+#viagem-sheet.bottom-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+#viagem-sheet.bottom-sheet[hidden] {
+  display: none;
+}
+
+#viagem-sheet .bottom-sheet-painel {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow-card-hover);
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+#viagem-sheet #viagem-nova-form {
+  margin-bottom: 0;
+}
+
+/* Cartao de status de voo dentro da viagem - mesmo acabamento "glass" ja
+   usado nos demais paineis (reaproveita --glass-*), so pra ficar coerente
+   com o resto da lista em vez do fundo transparente herdado do style.css. */
+.viagem-voo-box {
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-card);
+}
