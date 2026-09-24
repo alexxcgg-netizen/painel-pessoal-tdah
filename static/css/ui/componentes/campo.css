@@ -81,12 +81,17 @@ select.campo {
   box-shadow: var(--anel-foco);
 }
 
-/* Rotulo companheiro do campo (opcional) - segue o mesmo espacamento em grade de 8px. */
+/* Rotulo companheiro do campo (opcional) - segue o mesmo espacamento em grade de 8px.
+   C2: o .campo-rotulo do style.css e todo em MAIUSCULAS com espacamento de letra; o MASTER
+   pede rotulo normal (0.8rem, --text-muted) e lista "rotulo todo em maiusculas" em "Nao
+   fazer". Desfeito aqui (mesma fonte, mesma cor). */
 .campo-rotulo {
   display: block;
-  margin-bottom: var(--espaco-1, 8px);
-  font-size: 0.78rem;
+  margin-bottom: var(--espaco-1);
+  font-size: 0.8rem;
   font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
   color: var(--text-muted);
 }
 
