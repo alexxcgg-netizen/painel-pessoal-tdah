@@ -13,3 +13,36 @@
 #chat-form #chat-mic {
   min-width: var(--toque-min);
 }
+
+/* C2: lista curta de "Proximas cobrancas" no card resumo_financeiro_recorrente (contrato
+   N1): linha com divisor (nao card no card), valor em mono a direita. */
+.card-recorrentes {
+  list-style: none;
+  margin: var(--espaco-1) 0 0;
+  padding: 0;
+}
+
+.card-recorrente-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--espaco-2);
+  padding: var(--espaco-1) 0;
+  border-bottom: var(--linha) solid var(--borda-sutil);
+}
+
+.card-recorrente-item:last-child {
+  border-bottom: none;
+}
+
+.card-recorrente-item strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.card-recorrente-valor {
+  margin-left: auto;
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
