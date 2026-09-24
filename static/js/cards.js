@@ -339,6 +339,17 @@
     procurar();
   }
 
+  // Tipos de card cujo Desfazer usa a rota propria da N1 (docs/contrato-assinaturas.md,
+  // rotas/n1_financas.py): o desfazer generico (/api/desfazer/<token>) ainda nao conhece
+  // essas entidades e responde 404. Quando o generico aprender, basta esvaziar a lista.
+  const TIPOS_DESFAZER_FINANCAS = ["assinatura", "compra_parcelada"];
+
+  // Funcao PURA: tipo do card (data-card-type) + token -> URL do POST de desfazer.
+  function urlDesfazer(tipoCard, token) {
+    const base = TIPOS_DESFAZER_FINANCAS.includes(tipoCard) ? "/api/financas/desfazer/" : "/api/desfazer/";
+    return base + encodeURIComponent(token == null ? "" : String(token));
+  }
+
   const handlers = {};
 
   // Liga a delegacao de eventos UMA vez no container (#chat-mensagens).
@@ -367,7 +378,8 @@
       if (acao === "desfazer" && typeof handlers.apiFetch === "function") {
         if (btn.disabled) return;
         btn.disabled = true;
-        const res = await handlers.apiFetch(`/api/desfazer/${encodeURIComponent(btn.dataset.token)}`, {
+        const tipoCard = cardEl ? cardEl.dataset.cardType : undefined;
+        const res = await handlers.apiFetch(urlDesfazer(tipoCard, btn.dataset.token), {
           method: "POST",
         });
         if (!res) {
@@ -439,6 +451,7 @@
     textoContagem,
     fmtDuracao,
     criarGrupo,
+    urlDesfazer,
     ligar,
     atualizarContagens,
   };

@@ -1,0 +1,25 @@
+Faixa M1 (m1-front): pendencias da C2 em arquivos sem dono. Branch fase7/m1-front, porta 5140.
+Donos: static/css/style.css, static/js/cards.js, tests/js/m1_*, tests/test_fase7_m1_front*.
+Sem mexer em cores, cor de destaque, fontes nem animacoes (decisao do Alex).
+
+Historias: [x] todas. Bloqueadas: nenhuma.
+[x] H1 foco global do style.css -> box-shadow: var(--anel-foco) + outline 2px transparente
+[x] H2 rede de seguranca [hidden]{display:none !important} logo apos :root/* no style.css
+[x] H3 Desfazer de assinatura/compra_parcelada -> /api/financas/desfazer/<token>
+       (Cards.urlDesfazer pura, exportada; lista TIPOS_DESFAZER_FINANCAS)
+
+Verificacao: JS 219/219; estrutura_frontend + c2_visual + m1_front 11/11.
+Playwright 390x844 (porta 5140, banco temp do servidor.py da C2): 25 Tabs com anel,
+sheet #projeto-sheet abre/fecha (foco volta ao botao), Desfazer bate na rota N1
+(interceptada), 0 erros de console.
+
+PENDENTE PRO INTEGRADOR (fora dos meus arquivos)
+1. static/css/ui/tokens.css ~l.106: o comentario do --anel-foco diz que o foco global do
+   style.css usa --accent-2; ficou desatualizado (dono: V0a/C2).
+2. scripts/ralph-c2-visual/servidor.py nao duble o summarize_day: /api/summary/today
+   faz chamada real a Anthropic com chave falsa (401 -> 502 + erro no console). Na M1
+   dublei no Playwright (ctx.route). Sugestao: dublar ia.core no servidor.py.
+3. gitleaks acusa 2 achados preexistentes em docs/tick.md (l.99 e l.115, curl com
+   header Authorization de exemplo). Nao sao da M1.
+4. Quando db.ENTIDADES_DESFAZIVEIS aprender assinatura/compra_parcelada, esvaziar
+   TIPOS_DESFAZER_FINANCAS em static/js/cards.js.

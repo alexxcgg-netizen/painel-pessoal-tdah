@@ -220,6 +220,15 @@
   box-sizing: border-box;
 }
 
+/* Rede de seguranca do atributo hidden (M1). O [hidden] do navegador e uma regra
+   fraca (display: none na folha do agente de usuario); qualquer `display: flex`
+   em classe ou id do app vencia, e `el.hidden = true` deixava o elemento na tela
+   (achado pela C2, V4 e V6: abas, cards, chips, sheets). As guardas por componente
+   (.classe[hidden]) continuam; esta regra cobre as secoes que ainda nao tem. */
+[hidden] {
+  display: none !important;
+}
+
 @keyframes auroraMove {
   0%,
   100% {
@@ -430,9 +439,15 @@ button:active:not(:disabled) {
   transition: transform 0.09s cubic-bezier(0.4, 0, 1, 1);
 }
 
+/* Foco global (M1): antes era um anel de --accent-2 a 45%, que quase sumia no
+   fundo preto. Agora usa o mesmo --anel-foco dos componentes da Fase 7
+   (static/css/ui/tokens.css, carregado pelo fase7.css). O outline transparente
+   nao aparece no modo normal, mas vira uma borda visivel no modo de alto
+   contraste do sistema (forced-colors), onde o box-shadow e descartado. */
 :focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 45%, transparent);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--anel-foco);
   border-radius: 8px;
 }
 
