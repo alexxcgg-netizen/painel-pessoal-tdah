@@ -1,61 +1,37 @@
-Faixa C3b (Viagens, Lugares, Cotacoes, Aviacao) - Fase 7 - branch fase7/c3b-viagens
+Faixa C3b (Viagens, Lugares, Cotacoes, Aviacao) - Fase 7 - branch fase7/c3b-viagens (pushed, sem PR)
 Worktree /home/user/painel-pessoal-tdah-fase7-c3b-viagens, porta 5132, banco sintetico (servidor.py).
 
 [x] H1 - Auditoria Playwright 390x844 (auditar.py -> auditoria-resultado.json):
   - Console: 0 erros (fora /api/summary/today 502 = IA com chave falsa, ambiente).
-  - Toque <44px: .dica-toggle 20px (4 secoes); .item-acoes (mala/Apagar/Quando sair/
-    Windy) 28px; "salvar" voo 21px; "ver/esconder mapa" 21px; x apagar fornecedor
-    24x21; inputs do voo/fornecedor 36px (sem .campo); label PDF 39px; .btn-ouvir 30px;
-    zoom do Leaflet 30px (terceiro, nao mexo).
-  - Contraste <4.5: link "Windy" azul nativo do navegador (rgb 0,0,238) = 1.89:1.
-  - Botao cru/nativo: "salvar" voo e "ver mapa" com cinza nativo (#efefef) - cara de
-    "Windows 1990"; "+ Adicionar" fornecedor com "+" em texto.
-  - Botao adicionar: os 3 .btn.btn-adicionar ok; Registrar voo e form longo SEMPRE
-    aberto (MASTER 11: vai pro bottom-sheet com .btn-adicionar).
-  - Emoji como icone: nenhum ("x" em texto no apagar fornecedor e glifo, vira SVG).
-  - Sem .secao-recolhivel: Viagens (~1660px c/ 2 viagens), Lugares, Cotacoes, Proximos
-    voos e METAR.
-  - MASTER: sheets sem titulo e submit "Adicionar"/"Criar" (receita pede "Salvar X");
-    sheets com .bottom-sheet-painel escrito a mao -> o V0d nao monta fundo/alca/toque-fora
-    (e o CSS local por ID duplica o componente); valores R$/horas sem tabular-nums.
-  - hidden: nenhum card visivel com [hidden].
-  - Vazamento externo: static/css/secoes/vida/habitos.css (dono c3a) estiliza
-    `.bottom-sheet` SEM escopo (margin/padding/borda/fundo) e pega TODO sheet do app.
+  - Toque <44px: .dica-toggle 20px; .item-acoes 28px; "salvar" voo e "ver mapa" 21px;
+    x do fornecedor 24x21; inputs sem .campo 36px; label PDF 39px; .btn-ouvir 30px; zoom 30px.
+  - Contraste <4.5: link "Windy" azul nativo (rgb 0,0,238) = 1.89:1.
+  - Botao nativo: "salvar" voo e "ver mapa" cinza #efefef; "+ Adicionar" com "+" em texto.
+  - Adicionar: Registrar voo = form longo sempre aberto (MASTER 11). Emoji: nenhum.
+  - Sem .secao-recolhivel: Viagens (~1660px), Lugares, Cotacoes, Proximos voos, METAR.
+  - MASTER: sheets sem titulo, submit "Adicionar/Criar"; .bottom-sheet-painel escrito a mao
+    (V0d nao monta fundo/alca/toque-fora) + CSS local duplicado; R$ sem tabular-nums.
+  - hidden: nenhum card visivel com [hidden]. Mapa Leaflet abria com 26px (achado na H2).
+[x] H2 - Correcoes so nos arquivos da C3b. Re-auditoria: 0 erro, 0 alvo <44px, 0 contraste
+  <4.5, 0 botao nativo (sobra atribuicao do Leaflet, 14px, terceiro/legal). 5 secoes
+  recolhiveis; voo vai pro sheet; 4 sheets no V0d real com titulo/rotulo/"Salvar X"; itens
+  como bloco interno; mapa 180px; valores mono; guardas Array.isArray.
+[x] H3 - fuzz.py: 71/71 cenarios, 0 erro de console, 0 pageerror (lista no changelog.d).
+[x] H4 - 6 suites do modulo + tests/test_fase7_c3b_viagens.py (novo) = 129 passed;
+  --js tests/js/*.test.js = 196/196.
+[x] H5 - integracao sem commit novo; 2 screenshots (nao versionados, nem vendor/);
+  changelog.d/c3b-viagens.md + APRENDIZADOS.md. Sem dependencia/env nova.
 
-[x] H2 - Correcoes (so arquivos da C3b). Re-auditoria: 0 erro de console, 0 alvo <44px,
-  0 contraste <4.5, 0 botao nativo (sobra so atribuicao do Leaflet: link 14px e "(c)",
-  terceiro/legal, nao mexo). Feito: Viagens/Lugares/Cotacoes/Proximos voos/METAR viram
-  .secao-recolhivel (abertas); Registrar voo vira .btn-adicionar + #voo-sheet; os 4
-  sheets sem .bottom-sheet-painel a mao (V0d monta fundo/alca/toque-fora), com titulo,
-  rotulo acima do campo e "Salvar X"; CSS local duplicado do sheet removido; itens viram
-  bloco interno (sem card no card); "Salvar"/"Ver no mapa" -> .btn.btn-secundario; Windy
-  sem azul nativo; x do fornecedor vira SVG 44px; valores R$ em mono tabular; mapa do
-  Leaflet abria com 26px (bug antigo de cascata) -> 180px; guardas Array.isArray.
-  PARA O INTEGRADOR (arquivos fora da minha lista, NAO editados):
-  - static/css/style.css ~l.990: `.tab-content` anima com fill `both` e deixa transform
-    -> todo `position:fixed` dentro da aba (TODOS os .bottom-sheet do app) cobre a aba e
-    nao a tela; painel abria no meio/fora da tela. Contorno local: levarSheetProBody()
-    em secoes/vida/viagens.js. Correcao certa: fill `backwards` ou V0d portar pro <body>.
-  - static/css/secoes/vida/habitos.css (`.bottom-sheet` sem escopo) e secoes/vida.css
-    (`#tab-vida .bottom-sheet`) pintam o overlay fixo inteiro; neutralizado nos meus 4 IDs.
-  - style.css ~l.3353 `.campo-rotulo` em MAIUSCULAS; campo.css (V0c) nao reseta.
-  - card de timeline da viagem (cards.js) fica card-dentro-de-bloco; e de cards.js.
-
-[x] H3 - Fuzz de UI (fuzz.py -> fuzz-resultado.json): 71/71 cenarios, 0 erro de console,
-  0 pageerror. Cobre: 4 sheets x (abrir+ESC 8x, toque fora, Cancelar limpa e devolve
-  foco, clique duplo, POST 500, POST JSON invalido, strings de 12k com emoji/HTML);
-  datas invalidas (volta<ida, 2026-13-45, 31/02, texto), horas negativas/texto, hora
-  25:99, toque triplo em Salvar voo (1 POST so); fornecedor negativo/1e999/texto/vazio,
-  POST/DELETE 500 e JSON invalido; GET 500/JSON invalido/objeto fora do formato nas 4
-  listas; METAR 500/JSON/ZZZZ/"<img"; 5 secoes recolhiveis 9x rapido; mala/numero de
-  voo/apagar voo com 500; ESC com salvamento lento; CDN do Leaflet fora; mapa 11x.
-  (2 falhas da 1a rodada eram do script: rascunho de cenario anterior e cotacao-alvo.)
-
-[x] H4 - Testes: scripts/testes.sh (6 do modulo + tests/test_fase7_c3b_viagens.py novo,
-  7 guardas de estrutura) = 129 passed, 0 falha; --js tests/js/*.test.js = 196/196.
-
-[x] H5 - origin/fase7/integracao sem commit novo (nada a mesclar). Banco novo, auditoria
-  final 0 erro; 2 screenshots (c3b-viagem-sheet.png, c3b-aviacao.png) nesta pasta, NAO
-  versionados (nem vendor/ do Leaflet, baixado por comum.py). changelog.d/c3b-viagens.md
-  e APRENDIZADOS.md escritos. Sem dependencia nem variavel de ambiente nova.
-  Branch fase7/c3b-viagens (pushed). Sem PR.
+PARA O INTEGRADOR (fora da minha lista, NAO editado):
+  - static/css/style.css ~l.990: `.tab-content` anima com fill `both` e deixa transform ->
+    todo `position:fixed` dentro de aba (TODOS os .bottom-sheet do app) cobre a ABA, nao a
+    tela; painel abre fora da tela. Contorno local: levarSheetProBody() em
+    secoes/vida/viagens.js. Correcao certa: fill `backwards` ou o V0d portar pro <body>.
+  - secoes/vida/habitos.css (`.bottom-sheet` sem escopo) e secoes/vida.css
+    (`#tab-vida .bottom-sheet`) pintam o overlay fixo inteiro; neutralizado nos meus 4 IDs
+    em secoes/vida/viagens.css - tirar quando essas regras sairem.
+  - style.css ~l.3353 `.campo-rotulo` em MAIUSCULAS e campo.css (V0c) nao reseta; resetei
+    so nos meus sheets.
+  - .dica-toggle (20px) e global em style.css: ampliei o toque so nas minhas secoes.
+  - Card de timeline da viagem (cards.js) fica card dentro do bloco da viagem.
+  - Titulos sem acento ("Cotacoes", "Proximos voos"): mantidos (copy fora do escopo visual).
