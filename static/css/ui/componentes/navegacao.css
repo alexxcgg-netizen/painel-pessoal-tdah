@@ -47,6 +47,12 @@
   transform: translate(-50%, 0) scale(1);
 }
 
+/* C2: foco visivel na barra (o global do style.css usa --accent-2 e some no vidro escuro). */
+.tab-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
 .tab-btn svg {
   position: relative;
 }

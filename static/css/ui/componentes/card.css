@@ -97,3 +97,9 @@
       0 8px 20px -12px rgba(0, 0, 0, 0.5));
   }
 }
+
+/* C2: card focavel (link de card, tabindex) ganha o anel da V0a junto com a elevacao. */
+.card:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco), var(--elevacao-1);
+}

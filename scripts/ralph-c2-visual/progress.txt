@@ -1,6 +1,25 @@
 Faixa C2 (c2-visual) - polimento final de V0a-V3 e P1b. Branch fase7/c2-visual, porta 5120.
 Scripts: servidor.py (banco temp + Caixa sintetica + duble iCloud), levantamento.py (auditoria).
 
+H1 Levantamento (390x844; Hoje, Painel, Tarefas, Vida[Habitos/Projetos/Agenda], Assistente)
+- Console/pageerror: 0 (fora Google Fonts sem CA e /api/summary/today 502 da IA duble).
+- BUGS: #tab-painel/#tab-assistente com display:flex venciam [hidden] (vazavam em toda aba);
+  Custo de IA incluido 2x no Painel; sheet preso na aba (transform da animacao) com a barra
+  por cima; CSS provisorio da V3 pintava a moldura do sheet; .campo/.card/.btn venciam [hidden].
+- Toque <44px: checkbox da essencial 20px; dica-toggle "!" 20px (todas as secoes); chat 41px;
+  campos do Painel 36px; acoes de tarefa/habito 28px; energia Baixa/Media/Alta 21px.
+- Contraste <4.5: "Ver tudo" da Caixa (cor --accent sobre superficie, 2.2:1).
+- Adicionar sem .btn-adicionar+sheet: Painel datas-importantes, medicamentos,
+  esperando-resposta, diario-de-decisao ("Registrar" nativo branco), memoria (3 inline).
+- Emoji de interface: nenhum nas abas da C2.
+- Longas: Avisos do assistente (50 tipos, ~8000px) sem recolher.
+- Foco: anel quase invisivel em tudo (global do style.css) + chip/campo/secao/btn usavam
+  --accent (#45454a) no foco.
+- MASTER: .btn-adicionar com '+' duplicado (svg + selo); cartao-dentro-de-cartao na
+  Caixa/Avisos; selo de tipo da Caixa em pilula de largura total; chips de tarefa 44px de
+  altura como rotulo; energia e "Registrar" com botao nativo; .nav-selo duplicado
+  (navegacao.css x assistente.css).
+
 Historias
-[x] H0 bug: #tab-painel/#tab-assistente com display:flex por id venciam [hidden] -> Painel e
-    Assistente apareciam embaixo de TODAS as abas. Corrigido com :not([hidden]) + teste.
+[x] H0 abas vazando (:not([hidden])) + teste
+[x] H2a Custo de IA duplicado; sheet no body + reabrir rapido; guardas [hidden]

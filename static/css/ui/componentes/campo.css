@@ -31,11 +31,13 @@
   border-color: var(--border-strong, rgba(218, 226, 243, 0.18));
 }
 
+/* C2: receita do MASTER (borda forte + --anel-foco). O anel antigo era --accent-soft-bg
+   (#45454a a 16%) e ficava invisivel. */
 .campo:focus,
 .campo:focus-visible {
-  border-color: var(--accent);
-  background: var(--superficie-3, rgba(255, 255, 255, 0.03));
-  box-shadow: 0 0 0 3px var(--accent-soft-bg, color-mix(in srgb, var(--accent) 16%, transparent));
+  border-color: var(--borda-forte);
+  background: var(--superficie-3);
+  box-shadow: var(--anel-foco);
 }
 
 /* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de

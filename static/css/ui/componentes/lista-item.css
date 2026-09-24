@@ -81,3 +81,10 @@
     background: var(--superficie-2, rgba(255, 255, 255, 0.02));
   }
 }
+
+/* C2: linha focavel (tabindex/link de card) ganha o anel da V0a. */
+.lista-item:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+  border-radius: var(--raio-xs);
+}

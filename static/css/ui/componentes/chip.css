@@ -37,9 +37,10 @@
   border-color: var(--border-strong, rgba(218, 226, 243, 0.18));
 }
 
+/* C2: foco com o --anel-foco (o outline --accent #45454a sumia no preto). */
 .chip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--anel-foco);
 }
 
 .chip--ativo {

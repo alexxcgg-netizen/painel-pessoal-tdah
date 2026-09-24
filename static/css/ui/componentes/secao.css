@@ -58,9 +58,12 @@
   background: var(--superficie-3, rgba(255, 255, 255, 0.03));
 }
 
+/* C2: a secao tem overflow:hidden, entao um anel por fora seria cortado - o anel fica POR
+   DENTRO (outline com offset negativo), na mesma cor do --anel-foco (--text a 55%). */
 .secao-cabecalho:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: 2px solid color-mix(in srgb, var(--text) 55%, transparent);
+  outline-offset: -4px;
+  box-shadow: none;
 }
 
 .secao-cabecalho::-moz-focus-inner {
@@ -113,4 +116,26 @@
   .secao-conteudo {
     transition: none;
   }
+}
+
+/* C2: ajuda da secao (o "!" de .dica-colapsavel, desenhado no style.css). O botao tem 20px;
+   a area de toque sobe pra 44px com um ::after invisivel (o visual nao muda) e o foco usa
+   o --anel-foco. */
+.dica-toggle {
+  position: relative;
+}
+
+.dica-toggle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--toque-min);
+  height: var(--toque-min);
+  transform: translate(-50%, -50%);
+}
+
+.dica-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
 }

@@ -89,13 +89,20 @@ AUDITORIA_JS = r"""
   const vistos = new Set();
   for (const el of interativos) {
     if (!dentro(el) || !visivel(el)) continue;
+    el.dataset.c2meu = '1';  // o teste de foco usa so o que e da C2
     const r = el.getBoundingClientRect();
     // input checkbox/radio dentro de label: vale a area do label
     let alvo = r;
     if ((el.type === 'checkbox' || el.type === 'radio') && el.closest('label')) alvo = el.closest('label').getBoundingClientRect();
-    if (Math.round(alvo.height) < 44 || Math.round(alvo.width) < 44) {
+    // area de toque ampliada por ::after invisivel (ex.: .dica-toggle) conta
+    const pa = getComputedStyle(el, '::after');
+    let aw = alvo.width, ah = alvo.height;
+    if (pa.content !== 'none' && pa.position === 'absolute') {
+      aw = Math.max(aw, parseFloat(pa.width) || 0); ah = Math.max(ah, parseFloat(pa.height) || 0);
+    }
+    if (Math.round(ah) < 44 || Math.round(aw) < 44) {
       const k = nome(el);
-      if (!vistos.has(k)) { vistos.add(k); saida.toque.push(k + ' ' + Math.round(alvo.width) + 'x' + Math.round(alvo.height)); }
+      if (!vistos.has(k)) { vistos.add(k); saida.toque.push(k + ' ' + Math.round(aw) + 'x' + Math.round(ah)); }
     }
     const txt = (el.textContent || '').trim();
     if (el.tagName === 'BUTTON' && /^(\+|adicionar|criar|nov[oa]\b)/i.test(txt) && !el.classList.contains('btn-adicionar'))
@@ -195,7 +202,7 @@ def main():
             resultado[aba] = page.evaluate(AUDITORIA_JS, escopo)
             # foco: Tab pelos primeiros elementos da aba e mede se algo muda no elemento focado
             sem_anel = []
-            ids = page.evaluate("""(r) => [...document.querySelector(r).querySelectorAll('button, input:not([type=hidden]), select, textarea')]
+            ids = page.evaluate("""(r) => [...document.querySelector(r).querySelectorAll('[data-c2meu]')].filter(e => e.matches('button, input:not([type=hidden]), select, textarea'))
                 .filter(e => { const b = e.getBoundingClientRect(); return b.width && b.height && !e.closest('[hidden]') && !e.disabled; })
                 .slice(0, 25).map((e, i) => { e.dataset.c2foco = r + String(i); return r + String(i); })""", escopo["raiz"])
             for i in ids:
@@ -206,15 +213,16 @@ def main():
                 }""", i)
                 page.keyboard.press("Shift")  # heuristica do :focus-visible: ultima interacao foi teclado
                 page.evaluate("(i) => document.querySelector('[data-c2foco=\"' + CSS.escape(i) + '\"]').focus()", i)
+                page.wait_for_timeout(350)  # box-shadow tem transicao (0.15-0.2s): le o valor final
                 depois = page.evaluate("""(i) => {
                     const e = document.querySelector('[data-c2foco="' + CSS.escape(i) + '"]');
                     if (!e.matches(':focus-visible')) return 'sem-fv';
                     const a = getComputedStyle(e); return a.boxShadow + '|' + a.outlineStyle + a.outlineWidth + a.outlineColor + '|' + a.borderColor;
                 }""", i)
                 if depois != "sem-fv":
-                    # anel "quase invisivel" do style.css: outline com --accent-2 (#08080a)
-                    fraco = ("rgba(8, 8, 10" in depois and "box-shadow" not in depois and depois.split("|")[0] == info["antes"].split("|")[0])
-                    if depois == info["antes"] or fraco:
+                    # anel visivel = o --anel-foco da V0a (--text a 55%) no box-shadow ou no outline.
+                    # O global do style.css (--accent-2 #08080a a 45%) conta como SEM anel.
+                    if "0.55)" not in depois:
                         sem_anel.append(info["nome"])
             resultado[aba]["foco"] = sem_anel
             page.keyboard.press("Escape")

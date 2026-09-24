@@ -306,10 +306,9 @@
    mesma especificidade do box-shadow de cada variante, .btn + 1 classe) - nunca o azul
    padrao do navegador; mesmo raciocinio do anel que #captura-input/#duvida-input ja usam
    em style.css. ---------- */
-.btn:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
+/* C2: o anel antigo (--accent a 40%, #45454a) sumia no preto. Agora o --anel-foco da V0a
+   (folga do fundo + anel do --text a 55%), igual em todas as variantes. */
+.btn:focus-visible,
 .btn.btn-perigo:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 40%, transparent);
+  box-shadow: var(--anel-foco);
 }
