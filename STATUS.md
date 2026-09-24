@@ -3,7 +3,7 @@
 Atualizado: 2026-09-24 (final)
 
 ## Estado
-**Fase 7 concluída na integração, aguardando merge na main.**
+**Fase 7 concluída na integração, mergeada na main (deploy Render).**
 - Integração: `fase7/integracao`. Consolidação final da documentação na branch
   `fase7/m1-final` (sai dela pra integração, depois `main`).
 - Falta: suíte completa na integração depois do `m1-final` e o merge na `main` (integrador).
