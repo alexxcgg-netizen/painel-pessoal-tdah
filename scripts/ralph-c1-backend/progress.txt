@@ -21,3 +21,6 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
   saidas; contas so 5 campos. Contexto IA e push de conta: nome + tempo, sem valor
   (valor so na lista da aba, que o Alex abre). Rota aceita CONSTRUTORA_API_MOCK=1.
   PARA C2: a aba Construtora continua igual (dados.tot_entradas/tot_saidas + contas).
+[done] H5 percentual de meta: calculos.percentual_meta_exibicao (float, 1 casa) em
+  cards.card_meta, app._consultar_meta e /api/progresso (mudou de int pra 1 casa:
+  seu-progresso.js mostra "33.3%" - PARA C2 conferir se quer Math.round na tela).

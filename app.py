@@ -28,6 +28,7 @@ import aprendizado
 import auth
 import bank_ofx
 import caldav_client
+import calculos
 import cards
 import claude_client
 import classificador_local
@@ -2606,8 +2607,8 @@ def _consultar_meta(conn, termo) -> dict:
     metas = [g for g in list_goals(conn) if not termo_n or _casa_termo(termo_n, g["titulo"])][:3]
     itens = []
     for g in metas:
-        alvo = float(g["valor_alvo"] or 0)
-        pct = round(min(100.0, float(g["valor_guardado"] or 0) / alvo * 100)) if alvo > 0 else 0
+        # C1: mesma funcao do card de meta (calculos.percentual_meta_exibicao)
+        pct = calculos.percentual_meta_exibicao(g["valor_guardado"], g["valor_alvo"])
         itens.append({"titulo": g["titulo"], "percentual": pct, "prazo": g["prazo"]})
     return {
         "encontradas": len(itens),
@@ -7444,7 +7445,7 @@ def progresso():
     conn = get_db()
     fatos = _fatos_periodo(conn, hoje - timedelta(days=dias - 1), hoje)
     metas_lista = [
-        {"titulo": g["titulo"], "pct": min(100, round(100 * g["valor_guardado"] / g["valor_alvo"])) if g["valor_alvo"] else 0}
+        {"titulo": g["titulo"], "pct": calculos.percentual_meta_exibicao(g["valor_guardado"], g["valor_alvo"])}
         for g in list_goals(conn)
     ]
     conn.close()

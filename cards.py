@@ -21,6 +21,7 @@ import re
 import time
 from datetime import date, timedelta
 
+import calculos
 import db
 import vida
 
@@ -359,7 +360,7 @@ def card_meta(conn, id_: int, actions_extra=None) -> dict | None:
         return None
     alvo = float(row["valor_alvo"] or 0)
     guardado = float(row["valor_guardado"] or 0)
-    percentual = round(min(100.0, guardado / alvo * 100), 1) if alvo > 0 else 0.0
+    percentual = calculos.percentual_meta_exibicao(guardado, alvo)  # C1: funcao unica
     data = {
         "id": row["id"],
         "titulo": row["titulo"],
