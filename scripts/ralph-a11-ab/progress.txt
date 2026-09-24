@@ -1,0 +1,46 @@
+Faixa A11 (Teste A/B de IA) - progress.txt
+
+Estado: CONCLUÍDO (histórias abaixo, todas em ~15-30min cada).
+
+Histórias feitas:
+1. Levantamento: li ia/core.py, ia/contrato.py, ia/config.d/README.md e as
+   branches locais fase7/a2-adapter-anthropic, fase7/a3-adapter-openai,
+   fase7/a4-medicao-teto (nenhuma mergeada em fase7/integracao ainda - só
+   fase7/a1-nucleo está lá) pra descobrir nomes reais de modelo
+   (claude-sonnet-5, gpt-6-sol, gpt-6-luna, claude-haiku-4-5-20251001,
+   gemini-3-5-flash-lite) e o formato dos adapters. passes: true
+2. scripts/ab_teste_ia.py: núcleo (MODELOS, _chamar_com_override reaproveitando
+   ia.core._obter_adapter/_chamar_uma_vez/_erro_de_rede/_teto_permite,
+   AdapterDubleAB, AdapterGeminiRest). passes: true
+3. scripts/ab_teste_ia.py: montar_*/avaliar_*/fabricar_* das 14 funções +
+   FUNCOES + schemas. passes: true
+4. scripts/ab_teste_ia.py: execução (executar_funcao/executar), recomendação
+   (avaliar_recomendacao), relatório HTML + gabarito separado, CLI. passes: true
+5. tests/fixtures/ab/*.json (14 arquivos, 5-6 fixtures cada, com
+   simulacao_dry_run em alguns pra exercitar erro/json inválido/pulado).
+   passes: true
+6. tests/test_ab_teste_ia.py (58 testes, --dry-run, achei e corrigi 1 bug real
+   no processo: gemini_flash_lite entrava/saía de FUNCOES na hora de IMPORTAR
+   o módulo, não na hora de rodar - GEMINI_API_KEY setada num teste não tinha
+   efeito; corrigido com candidatos_efetivos() calculado em tempo de execução).
+   passes: true
+7. docs/ab-teste.md + changelog.d/a11-ab.md. passes: true
+
+Bloqueado: nenhuma história (tudo dentro do escopo da faixa deu pra fazer só
+com --dry-run). O que NÃO dá pra fazer agora, fora do meu controle:
+- Rodar de verdade (sem --dry-run) exige ia/adapters/anthropic.py (A2) e
+  ia/adapters/openai.py (A3) mergeados em fase7/integracao - ainda não
+  estavam em 2026-09-24. O código do modo real já está escrito e usa a mesma
+  descoberta de adapter do núcleo, então deve "só funcionar" quando essas
+  faixas chegarem - não testei isso de verdade (não dá, sem os adapters).
+
+Dependência nova: nenhuma (scripts/ab_teste_ia.py só usa requests, já em
+requirements.txt, pro AdapterGeminiRest - nenhuma lib nova).
+
+Testes: `scripts/testes.sh tests/test_ab_teste_ia.py` -> 58 passed.
+gitleaks detect --no-git --source . --no-banner --redact -> no leaks found.
+
+Arquivos criados: scripts/ab_teste_ia.py, tests/fixtures/ab/*.json (14),
+tests/test_ab_teste_ia.py, docs/ab-teste.md, changelog.d/a11-ab.md,
+scripts/ralph-a11-ab/progress.txt, scripts/ralph-a11-ab/APRENDIZADOS.md.
+Branch: fase7/a11-ab (worktree /home/user/painel-pessoal-tdah-fase7-a11-ab).

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "mala_viagem_praia",
+    "entrada": {"destino": "Florianopolis", "dias": 4, "motivo": "ferias", "clima_texto": "sol, 28 graus"},
+    "esperado": {"contem": ["protetor solar"]}
+  },
+  {
+    "id": "mala_voo_curso_piloto",
+    "entrada": {"destino": "Sao Paulo", "dias": 2, "motivo": "prova do curso de piloto", "clima_texto": "nublado, 18 graus"},
+    "esperado": {"contem": ["documento"]}
+  },
+  {
+    "id": "mala_viagem_frio",
+    "entrada": {"destino": "Gramado", "dias": 5, "motivo": "ferias em familia", "clima_texto": "frio, 8 graus"},
+    "esperado": {"contem": ["casaco"]}
+  },
+  {
+    "id": "mala_viagem_trabalho",
+    "entrada": {"destino": "Belo Horizonte", "dias": 1, "motivo": "reuniao com fornecedor", "clima_texto": "sem previsao"},
+    "esperado": {"contem": ["carregador"]},
+    "simulacao_dry_run": {"luna_medio": {"sem_conteudo_esperado": true}}
+  },
+  {
+    "id": "mala_viagem_longa",
+    "entrada": {"destino": "Lisboa", "dias": 10, "motivo": "ferias", "clima_texto": "ameno, 20 graus"},
+    "esperado": {"contem": ["passaporte"]}
+  }
+]

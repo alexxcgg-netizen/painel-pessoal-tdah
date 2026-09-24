@@ -1,3 +1,54 @@
 /* static/css/ui/componentes/chip.css - componente: chips/tags.
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (V0c). Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve
+   por cascata sem precisar editar o style.css.
+
+   Uso: <button class="chip">Rotulo</button> / <span class="chip chip--ativo">Rotulo</span>.
+   Area de toque minima 44px quando for elemento clicavel (min-height 44px). Zero cor/fonte
+   nova: --accent e as cores de superficie ja existem em style.css. */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--espaco-1, 8px);
+  min-height: 44px;
+  padding: 0 var(--espaco-2, 16px);
+  border-radius: 999px;
+  border: 1px solid var(--borda-sutil, var(--border, rgba(218, 226, 243, 0.09)));
+  background: var(--superficie-2, color-mix(in srgb, var(--surface, #121212) 92%, white 2%));
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong, rgba(218, 226, 243, 0.18));
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.chip--ativo {
+  color: var(--accent-text, var(--text));
+  background: var(--accent-soft-bg, color-mix(in srgb, var(--accent) 16%, transparent));
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--borda-sutil, var(--border)));
+}
+
+.chip--ativo:hover {
+  border-color: var(--accent);
+}
+
+/* Chip fora de contexto clicavel (soh rotulo, ex: tag dentro de um card) pode ser menor -
+   quem precisar disso usa .chip--compacto explicitamente, area de toque nao se aplica. */
+.chip--compacto {
+  min-height: 0;
+  padding: 0.2rem var(--espaco-1, 8px);
+  cursor: default;
+}

@@ -1,0 +1,67 @@
+Faixa N1 (assinaturas e compras parceladas) - Fase 7 - branch fase7/n1-assinaturas
+
+Historias (15-30min cada):
+[x] H1 - Ler regras da faixa + docs/CARDS.md, docs/INTENT.md, gastos.py
+    (deteccao existente de recorrente/assinatura) e vida.fracao_limite_cartao
+    (US-E15) pra nao duplicar conceito.
+[x] H2 - docs/contrato-assinaturas.md publicado PRIMEIRO (commit+push
+    isolado, d59aee6) - formato de rota/card pras faixas V1/V6.
+[x] H3 - migracoes/202609241300_n1_assinaturas.sql: tabelas assinatura e
+    compra_parcelada.
+[x] H4 - financas_recorrentes.py: CRUD + derivados (total mensal, proximas
+    cobrancas, parcela_info, impacto no limite por cartao,
+    valor_para_aviso_custos_fixos) + mecanismo de Desfazer proprio (ver
+    bloqueio abaixo). 62 testes.
+[x] H5 - classificador_local/regras/n1_financas.py (casar/executar) + 48
+    testes, incluindo fuzz de 60+ entradas estranhas.
+[x] H6 - rotas/n1_financas.py (Blueprint bp, CRUD + /api/financas/comprometido
+    + /api/financas/desfazer/<token>) + 28 testes via app.py de verdade
+    (login real, /api/chat ponta a ponta).
+[x] H7 - changelog.d/n1-assinaturas.md + este progress.txt.
+
+Bloqueios: nenhum (faixa completa). Duas notas pro integrador:
+
+1. Desfazer PROPRIO (nao o generico /api/desfazer/<token>): db.py
+   (ENTIDADES_DESFAZIVEIS) e app.py (_desfazer_itens) nao sao meus arquivos
+   e ainda nao conhecem "assinatura"/"compra_parcelada". Implementei um
+   mecanismo local (financas_recorrentes.criar_token_desfazer/
+   aplicar_desfazer + rotas/n1_financas.py POST /api/financas/desfazer/
+   <token>) que grava na MESMA tabela acoes_desfazer (schema generico, ja
+   existia) - convive sem conflito, so muda a rota que o botao chama.
+   Documentado em docs/contrato-assinaturas.md ("Desfazer"). Quando algum
+   dia alguem acrescentar as duas entidades no mecanismo geral, dá pra
+   aposentar o local sem mudar o formato do token no card.
+2. cards.py (ABA_POR_ENTIDADE, CAMPOS_SENSIVEIS, TIPOS_CARD) e
+   static/js/cards-tipos.js nao sao meus arquivos - os cards
+   assinatura/compra_parcelada/resumo_financeiro_recorrente usam
+   cards.novo_card/envelope (helpers genericos, so leitura) mas ainda nao
+   estao cadastrados la, entao hoje caem no fallback "Este trecho nao pode
+   ser exibido" do frontend (sem quebrar nada). Checklist completo de 4
+   passos pra quem for ligar a UI (V1/V6) em
+   docs/contrato-assinaturas.md ("Relacao com o que ja existe").
+
+Infra da Etapa 0/X1 (rotas/, migracoes/, classificador_local/) chegou em
+fase7/integracao NO MEIO desta faixa (aviso do integrador, commit
+c67486c) - fiz merge e adaptei os 2 arquivos que ja tinha escrito pro
+contrato real (antes: rotas registrado num Flask app isolado pelos
+proprios testes; classificador testado so chamando a funcao direto). Achado
+nesse processo: casar() so repassa "parametros" pro executar() (nao
+"acao"), entao a sub-acao interna desta faixa (que tem 1 arquivo cobrindo 7
+frases) precisou entrar DENTRO de parametros tambem.
+
+Testes: scripts/testes.sh tests/test_fase7_n1_calculos.py
+tests/test_fase7_n1_classificador.py tests/test_fase7_n1_rotas.py ->
+138 passed, 100 subtests passed.
+
+Nota (nao e bug meu, achado ao rodar a suite completa por sanidade):
+tests/test_fase7_infra_rotas.py (RegistrarTodasTestCase,
+RotasComTokenTestCase) e tests/test_fase7_infra_classificador.py
+(CasarTestCase test_pasta_real_de_regras_esta_vazia,
+IntegracaoAppTestCase) ja falhavam ANTES desta faixa (confirmado
+removendo temporariamente meus arquivos e rodando de novo - quebra em
+"p7_sinais" em vez de "n1_financas"): esses testes de infra chamam
+rotas.registrar_todas(app.app) UMA SEGUNDA VEZ no mesmo processo/app real
+(pra registrar um blueprint temporario de teste), o que colide com
+QUALQUER blueprint real ja registrado no import de app.py (Flask recusa
+registrar duas vezes o mesmo nome). Nao sao meus arquivos
+(tests/test_fase7_infra_*.py) - anotado aqui pro integrador.

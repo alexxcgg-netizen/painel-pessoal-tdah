@@ -307,24 +307,24 @@ Decisoes do Alex na rodada de perguntas (2026-09-24):
 ### Etapa 0
 - [x] Branch `fase7/integracao`, contratos `ia/contrato.py` e `assistente/contrato.py`, `ia/roteador_chat.py`
 - [x] `scripts/testes.sh`, regras comuns, `.gitignore` (fixtures_reais/, .venv symlink)
-- [ ] X1 extracao backend: claude_client -> ia/funcoes/*, rotas/ (Blueprint), migracoes/, classificador_local/, assistente/gatilhos/
-- [ ] X2 extracao frontend: templates/secoes, static/js/secoes, camadas CSS vazias, mapa-frontend.md
-- [ ] donos.json + scripts/checar_donos.py
+- [x] X1 extracao backend: claude_client -> ia/funcoes/*, rotas/ (Blueprint), migracoes/, classificador_local/, assistente/gatilhos/
+- [x] X2 extracao frontend: templates/secoes, static/js/secoes, camadas CSS vazias, mapa-frontend.md
+- [x] donos.json + scripts/checar_donos.py
 
 ### Fase 7A - backend
 - [x] A1 nucleo (ia/core.py) - [x] A2 adapter Anthropic - [x] A3 adapter OpenAI - [x] A4 medicao e teto
 - [x] (integracao) custo com fonte unica ia/precos.py
-- [x] A5 historico - [ ] A6 chat - [ ] A7 migracao 1 - [ ] A8 migracao 2 - [ ] A9 visao
-- [ ] A10 decisoes Fase 6 - [ ] A11 A/B - [ ] A12 infra testes - [x] A13 calculos
+- [x] A5 historico - [ ] A6 chat - [ ] A7 migracao 1 - [x] A8 migracao 2 - [ ] A9 visao
+- [x] A10 decisoes Fase 6 - [x] A11 A/B - [ ] A12 infra testes - [x] A13 calculos
 - [x] A14 roteador - [x] A15 Gemini
-- [ ] N1 assinaturas/parcelas - [ ] N2 Telegram - [ ] N3a endpoint widget - [x] N3b Scriptable
+- [x] N1 assinaturas/parcelas - [x] N2 Telegram - [x] N3a endpoint widget - [x] N3b Scriptable
 - [x] N3c/N3d docs widget - [x] N3e WidgetKit
-- [ ] P1a Caixa - [ ] P1b Caixa UI - [ ] P2 perguntas - [ ] P3 briefing - [ ] P4 regras
-- [ ] P5 replanejar - [ ] P7 sinais iPhone - [ ] P8 central de avisos - [ ] P9 memoria viva
+- [x] P1a Caixa - [ ] P1b Caixa UI - [x] P2 perguntas - [x] P3 briefing - [x] P4 regras
+- [x] P5 replanejar - [x] P7 sinais iPhone - [x] P8 central de avisos - [x] P9 memoria viva
 
 ### Fase 7B - visual
-- [ ] V0a tokens/MASTER.md - [ ] V0b botoes - [ ] V0c secoes/cards - [ ] V0d bottom sheet/navegacao
-- [ ] V1 Hoje - [ ] V2 Painel - [ ] V3 Habitos/Projetos/Agenda/Tarefas - [ ] V4 Vida (demais)
+- [x] V0a tokens/MASTER.md - [ ] V0b botoes - [x] V0c secoes/cards - [ ] V0d bottom sheet/navegacao
+- [ ] V1 Hoje - [ ] V2 Painel - [x] V3 Habitos/Projetos/Agenda/Tarefas - [ ] V4 Vida (demais)
 - [ ] V5 Viagens/Lugares/Cotacoes/Aviacao - [ ] V6 Financeiro/Contas/Cartao/demais
 
 ### Fase 7C - polimento e deploy

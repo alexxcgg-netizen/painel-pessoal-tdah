@@ -23,7 +23,16 @@ for faixa in "$@"; do
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01VJzoYB1yYVL6gVFtBEB1Q7"; then
-    echo "[$faixa] CONFLITO - merge abortado"; git merge --abort; falhas=1; continue
+    conflitos=$(git diff --name-only --diff-filter=U)
+    so_compartilhados=1
+    for c in $conflitos; do case "$c" in AGENTS.md|CHANGELOG.md|TODO.md|STATUS.md) ;; *) so_compartilhados=0;; esac; done
+    if [ -n "$conflitos" ] && [ $so_compartilhados -eq 1 ]; then
+      # Faixas nao editam esses arquivos: o conflito vem so da resolucao de merge delas. Fica a versao da integracao.
+      git checkout --ours -- $conflitos && git add -- $conflitos && git commit -q --no-edit
+      echo "[$faixa] conflito so em compartilhados ($conflitos): mantida a versao da integracao"
+    else
+      echo "[$faixa] CONFLITO - merge abortado: $conflitos"; git merge --abort; falhas=1; continue
+    fi
   fi
   ok=0
   [ -n "$testes" ] && { scripts/testes.sh $testes || ok=1; }

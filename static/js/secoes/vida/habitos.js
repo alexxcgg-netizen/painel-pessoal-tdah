@@ -1,6 +1,29 @@
 // static/js/secoes/vida/habitos.js - Secao vida > habitos (HTML: templates/secoes/vida/habitos.html).
 // Fase 7 (X2): extraido sem mudanca de logica do antigo vida.js 698-790.
+// Fase 7 (V3-organizacao): botao "Novo habito" abre o formulario num bottom-sheet
+// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/fecharBottomSheet
+// (faixa V0d) quando existir; se a faixa ainda nao chegou nesta branch, cai no fallback de
+// so alternar o atributo hidden do painel.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
+
+function abrirPainelHabito() {
+  const sheet = $("#habito-sheet");
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+}
+
+function fecharPainelHabito() {
+  const sheet = $("#habito-sheet");
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+}
+
+$("#habito-abrir-btn").addEventListener("click", abrirPainelHabito);
+$("#habito-cancelar-btn").addEventListener("click", () => {
+  $("#habito-form").reset();
+  atualizarCamposFrequenciaHabito();
+  fecharPainelHabito();
+});
 
 function atualizarCamposFrequenciaHabito() {
   const tipo = $("#habito-frequencia-tipo").value;
@@ -45,6 +68,8 @@ async function loadHabitos() {
       ],
       h.passou_batido ? "item-atencao" : ""
     );
+    li.classList.add("lista-item");
+    li.querySelectorAll(".item-quando").forEach((el) => el.classList.add("chip"));
     li.appendChild(renderHabitoSemana(h.ultimos_7));
     li.dataset.entidade = "habito"; // destino do link de card (Fase 6, US-E7)
     li.dataset.id = h.id;
@@ -87,6 +112,7 @@ ligarForm(
       .querySelectorAll("input")
       .forEach((c) => (c.checked = false));
     atualizarCamposFrequenciaHabito();
+    fecharPainelHabito();
     loadHabitos();
   }
 );

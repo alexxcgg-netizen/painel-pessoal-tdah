@@ -10,27 +10,38 @@
           mostra os ultimos 7 dias. No chat: "meditar 15 min todo dia as 8h".
         </p>
       </div>
-      <form id="habito-form" class="form-linha">
-        <input type="text" id="habito-nome" placeholder="Habito (ex: Meditar)" maxlength="80" required />
-        <input type="text" id="habito-meta" placeholder="Meta (opcional, ex: 15 min)" maxlength="60" />
-        <select id="habito-frequencia-tipo" aria-label="Frequencia">
-          <option value="diario">Todo dia</option>
-          <option value="dias_semana">Dias fixos da semana</option>
-          <option value="n_vezes_semana">X vezes por semana</option>
-        </select>
-        <div id="habito-dias-semana-campo" class="habito-dias-semana" hidden>
-          <label><input type="checkbox" value="0" />Seg</label>
-          <label><input type="checkbox" value="1" />Ter</label>
-          <label><input type="checkbox" value="2" />Qua</label>
-          <label><input type="checkbox" value="3" />Qui</label>
-          <label><input type="checkbox" value="4" />Sex</label>
-          <label><input type="checkbox" value="5" />Sab</label>
-          <label><input type="checkbox" value="6" />Dom</label>
-        </div>
-        <input type="number" id="habito-vezes-semana" placeholder="Quantas vezes por semana" min="1" max="7" inputmode="numeric" hidden />
-        <input type="time" id="habito-horario" aria-label="Horario de lembrete (opcional)" />
-        <button type="submit" id="habito-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
-      </form>
+      <button type="button" id="habito-abrir-btn" class="btn btn-adicionar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Novo hábito
+      </button>
+
+      <div class="bottom-sheet" id="habito-sheet" hidden>
+        <form id="habito-form" class="form-linha">
+          <input type="text" id="habito-nome" class="campo" placeholder="Habito (ex: Meditar)" maxlength="80" required />
+          <input type="text" id="habito-meta" class="campo" placeholder="Meta (opcional, ex: 15 min)" maxlength="60" />
+          <select id="habito-frequencia-tipo" class="campo" aria-label="Frequencia">
+            <option value="diario">Todo dia</option>
+            <option value="dias_semana">Dias fixos da semana</option>
+            <option value="n_vezes_semana">X vezes por semana</option>
+          </select>
+          <div id="habito-dias-semana-campo" class="habito-dias-semana" hidden>
+            <label><input type="checkbox" value="0" />Seg</label>
+            <label><input type="checkbox" value="1" />Ter</label>
+            <label><input type="checkbox" value="2" />Qua</label>
+            <label><input type="checkbox" value="3" />Qui</label>
+            <label><input type="checkbox" value="4" />Sex</label>
+            <label><input type="checkbox" value="5" />Sab</label>
+            <label><input type="checkbox" value="6" />Dom</label>
+          </div>
+          <input type="number" id="habito-vezes-semana" class="campo" placeholder="Quantas vezes por semana" min="1" max="7" inputmode="numeric" hidden />
+          <input type="time" id="habito-horario" class="campo" aria-label="Horario de lembrete (opcional)" />
+          <div class="form-linha">
+            <button type="submit" id="habito-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="button" id="habito-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </form>
+      </div>
+
       <p id="habitos-vazio" class="vazio" hidden>Nenhum habito cadastrado.</p>
       <ul id="lista-habitos" class="lista-habitos"></ul>
 
