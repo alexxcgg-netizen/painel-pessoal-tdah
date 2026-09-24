@@ -15,7 +15,6 @@ import json
 import os
 import re
 import sys
-import time
 
 from playwright.sync_api import sync_playwright
 
@@ -69,7 +68,7 @@ def cenario(page, nome, fn):
             ok, detalhe = False, r
     except Exception as e:  # noqa: BLE001
         ok, detalhe = False, f"excecao no roteiro: {e!r}"[:300]
-    time.sleep(0.15)
+    page.wait_for_timeout(150)
     novos = erros_pagina[antes:]
     if novos:
         ok = False
@@ -81,9 +80,11 @@ def cenario(page, nome, fn):
     resultados.append((nome, ok, detalhe.strip()))
 
 
+# Na API sincrona, o handler de page.route so roda durante uma chamada ao
+# Playwright: por isso wait_for_timeout (bombeia eventos) e nunca time.sleep.
 def abrir_aba(page, aba):
     page.click(f"button.tab-btn[data-tab='{aba}']")
-    time.sleep(0.9)
+    page.wait_for_timeout(900)
 
 
 def recarregar(page, aba):
@@ -102,7 +103,7 @@ def fechar_sheets(page):
         if not aberto:
             return
         page.keyboard.press("Escape")
-        time.sleep(0.35)
+        page.wait_for_timeout(350)
 
 
 def preencher(page, campos):
@@ -158,10 +159,10 @@ def main():
                 fechar_sheets(page)
                 n0 = contar(page, "/api/financas/assinaturas", "assinaturas")
                 page.click("#btn-nova-assinatura")
-                time.sleep(0.35)
+                page.wait_for_timeout(350)
                 preencher(page, {"#assinatura-nome": nome, "#assinatura-valor": valor, "#assinatura-dia": dia})
                 page.click("#assinatura-salvar-btn")
-                time.sleep(0.6)
+                page.wait_for_timeout(600)
                 n1 = contar(page, "/api/financas/assinaturas", "assinaturas")
                 msg = erro_visivel(page, "assinatura-erro")
                 if espera_erro:
@@ -203,10 +204,10 @@ def main():
         def dia31_mes_curto():
             fechar_sheets(page)
             page.click("#btn-nova-assinatura")
-            time.sleep(0.3)
+            page.wait_for_timeout(300)
             preencher(page, {"#assinatura-nome": "Dia31Teste", "#assinatura-valor": "9,90", "#assinatura-dia": "31"})
             page.click("#assinatura-salvar-btn")
-            time.sleep(0.8)
+            page.wait_for_timeout(800)
             lst = page.request.get(BASE + "/api/financas/assinaturas").json()["assinaturas"]
             a = [x for x in lst if x["nome"] == "Dia31Teste"]
             if not a:
@@ -226,11 +227,11 @@ def main():
             fechar_sheets(page)
             n0 = contar(page, "/api/financas/assinaturas", "assinaturas")
             page.click("#btn-nova-assinatura")
-            time.sleep(0.3)
+            page.wait_for_timeout(300)
             preencher(page, {"#assinatura-nome": "Duplo", "#assinatura-valor": "5", "#assinatura-dia": "2"})
             page.evaluate("(() => { const f = document.getElementById('form-nova-assinatura'); "
                           "f.requestSubmit(); f.requestSubmit(); f.requestSubmit(); })()")
-            time.sleep(1.0)
+            page.wait_for_timeout(1000)
             n1 = contar(page, "/api/financas/assinaturas", "assinaturas")
             fechar_sheets(page)
             return True if n1 == n0 + 1 else f"criou {n1 - n0} vezes"
@@ -242,13 +243,13 @@ def main():
                 fechar_sheets(page)
                 n0 = contar(page, "/api/financas/parcelas", "parcelas")
                 page.click("#btn-nova-parcela")
-                time.sleep(0.35)
+                page.wait_for_timeout(350)
                 base = {"#parcela-descricao": "Compra teste", "#parcela-n": "10", "#parcela-valor-total": "",
                         "#parcela-valor-parcela": "", "#parcela-primeira": ""}
                 base.update(campos)
                 preencher(page, base)
                 page.click("#parcela-salvar-btn")
-                time.sleep(0.6)
+                page.wait_for_timeout(600)
                 n1 = contar(page, "/api/financas/parcelas", "parcelas")
                 msg = erro_visivel(page, "parcela-erro")
                 if espera_erro:
@@ -298,10 +299,10 @@ def main():
                 n0 = len(page.request.get(BASE + "/api/contas-pessoais").json())
                 page.locator("#btn-nova-conta-pessoal").scroll_into_view_if_needed()
                 page.click("#btn-nova-conta-pessoal")
-                time.sleep(0.35)
+                page.wait_for_timeout(350)
                 preencher(page, {"#conta-pessoal-nome": nome, "#conta-pessoal-dia": dia, "#conta-pessoal-valor": valor})
                 page.click("#conta-pessoal-btn")
-                time.sleep(0.6)
+                page.wait_for_timeout(600)
                 n1 = len(page.request.get(BASE + "/api/contas-pessoais").json())
                 msg = erro_visivel(page, "conta-pessoal-erro")
                 if espera_erro and (n1 != n0 or not msg):
@@ -328,14 +329,14 @@ def main():
                 for _ in range(vezes):
                     page.click(btn)
                     page.keyboard.press("Escape")
-                time.sleep(0.6)
+                page.wait_for_timeout(600)
                 page.click(btn)
-                time.sleep(0.5)
+                page.wait_for_timeout(500)
                 if not sheet_aberto(page, sid):
                     return "nao reabriu depois da rajada"
                 foco = page.evaluate("document.activeElement && document.activeElement.id")
                 page.keyboard.press("Escape")
-                time.sleep(0.5)
+                page.wait_for_timeout(500)
                 if sheet_aberto(page, sid):
                     return "ESC nao fechou"
                 if not foco or not foco.startswith(("assinatura-", "parcela-", "conta-pessoal-")):
@@ -350,25 +351,25 @@ def main():
             fechar_sheets(page)
             for _ in range(8):
                 page.click("#btn-nova-parcela")
-                time.sleep(0.05)
+                page.wait_for_timeout(50)
                 page.click("#sheet-nova-parcela .bottom-sheet-fechar")
-            time.sleep(0.6)
+            page.wait_for_timeout(600)
             return True if not sheet_aberto(page, "sheet-nova-parcela") else "ficou aberto"
         cenario(page, "sheet parcela: 8x abre + X", abre_fecha_x)
 
         def abre_fecha_fundo():
             fechar_sheets(page)
             page.click("#btn-nova-assinatura")
-            time.sleep(0.4)
+            page.wait_for_timeout(400)
             page.mouse.click(195, 20)  # toque no fundo escurecido
-            time.sleep(0.5)
+            page.wait_for_timeout(500)
             return True if not sheet_aberto(page, "sheet-nova-assinatura") else "toque fora nao fechou"
         cenario(page, "sheet assinatura: toque fora fecha", abre_fecha_fundo)
 
         def dois_sheets():
             fechar_sheets(page)
             page.evaluate("document.getElementById('btn-nova-assinatura').click(); document.getElementById('btn-nova-parcela').click();")
-            time.sleep(0.5)
+            page.wait_for_timeout(500)
             fechar_sheets(page)
             aberto = page.evaluate("[...document.querySelectorAll('.bottom-sheet')].some(s => !s.hidden)")
             return True if not aberto else "sheet preso aberto"
@@ -377,13 +378,13 @@ def main():
         def erro_some_ao_reabrir():
             fechar_sheets(page)
             page.click("#btn-nova-assinatura")
-            time.sleep(0.3)
+            page.wait_for_timeout(300)
             preencher(page, {"#assinatura-nome": "", "#assinatura-valor": "", "#assinatura-dia": ""})
             page.click("#assinatura-salvar-btn")
-            time.sleep(0.2)
+            page.wait_for_timeout(200)
             fechar_sheets(page)
             page.click("#btn-nova-assinatura")
-            time.sleep(0.3)
+            page.wait_for_timeout(300)
             msg = erro_visivel(page, "assinatura-erro")
             fechar_sheets(page)
             return True if not msg else "erro velho continua no sheet"
@@ -395,7 +396,7 @@ def main():
                 page.route(padrao, lambda route: json_resp(route, corpo, status))
                 try:
                     recarregar(page, aba)
-                    time.sleep(0.6)
+                    page.wait_for_timeout(600)
                     if checar:
                         return checar()
                     return True
@@ -490,10 +491,10 @@ def main():
             try:
                 recarregar(page, "gastos")
                 page.click("#btn-nova-assinatura")
-                time.sleep(0.3)
+                page.wait_for_timeout(300)
                 preencher(page, {"#assinatura-nome": "X", "#assinatura-valor": "10", "#assinatura-dia": "3"})
                 page.click("#assinatura-salvar-btn")
-                time.sleep(0.6)
+                page.wait_for_timeout(600)
                 msg = erro_visivel(page, "assinatura-erro")
                 aberto = sheet_aberto(page, "sheet-nova-assinatura")
                 btn_ok = page.evaluate("!document.getElementById('assinatura-salvar-btn').disabled")
