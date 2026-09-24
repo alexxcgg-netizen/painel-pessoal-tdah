@@ -325,8 +325,26 @@ Decisoes do Alex na rodada de perguntas (2026-09-24):
 ### Fase 7B - visual
 - [x] V0a tokens/MASTER.md - [x] V0b botoes - [x] V0c secoes/cards - [x] V0d bottom sheet/navegacao
 - [x] V1 Hoje - [x] V2 Painel - [x] V3 Habitos/Projetos/Agenda/Tarefas - [x] V4 Vida (demais)
-- [ ] V5 Viagens/Lugares/Cotacoes/Aviacao - [x] V6 Financeiro/Contas/Cartao/demais
+- [x] V5 Viagens/Lugares/Cotacoes/Aviacao - [x] V6 Financeiro/Contas/Cartao/demais
 
 ### Fase 7C - polimento e deploy
-- [ ] C1 backend - [ ] C2 visual (V0-V3, P1b) - [ ] C3 visual (V4-V6)
-- [ ] M1: CHANGELOG/AGENTS/TODO consolidados, service worker, gitleaks, suite completa, merge na main
+- [x] C1 backend - [x] C2 visual (V0-V3, P1b) - [x] C3 visual (V4-V6: C3a Vida, C3b Viagens, C3c Financas)
+- [x] M1: m1-front (foco global, `[hidden]`, Desfazer da N1, sheet/campo/secao)
+- [x] M1: CHANGELOG/AGENTS/TODO/STATUS consolidados, `.env.example`, service worker v15, gitleaks zerado
+- [ ] M1: suite completa na integracao e merge na main (integrador)
+
+### Pendencias abertas pos-Fase 7 (perguntas pro Alex)
+- [ ] **Modo economia do teto**: `ia.teto.FUNCOES_ESSENCIAIS_MODO_ECONOMIA` usa nomes
+  ("intent", "captura") que nao batem com os do `chamar_ia` ("classify_intent"...), entao a
+  100% do teto de R$ 40 tudo para. Manter "o teto vale pra tudo" ou liberar a classificacao?
+- [ ] **Aviso de teto por push no teto padrao**: `notificacoes.teto_ia_perto_ou_estourado`
+  ainda le o teto antigo (so quando configurado, `api_usage`) e nao avisa no padrao de R$ 40.
+  Ligar no `ia.teto.nivel_alerta`?
+- [ ] **Memoria ("O que eu lembro sobre voce")**: o adicionar de cada grupo ficou inline.
+  Prefere bottom-sheet como no resto do app?
+- [ ] **Cards de assinatura/parcela no modo visitante**: o front mostra o valor (decisao da
+  V1), o servidor esconde (`cards.py`, contrato N1 marca como sensivel). Qual vale?
+- [ ] **Visao no GPT-6 Luna**: ao ligar `ativo: true` em `extrair_nota_fiscal_foto`/
+  `extrair_item_cotacao_pdf`, conferir a primeira chamada real (PDF via `file_data`).
+- [ ] **`telegram_bot.py` e o erro 409**: com webhook ativo no mesmo token o loop de polling
+  so loga. Fazer ele parar sozinho?
