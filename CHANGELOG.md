@@ -7,7 +7,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 
 ## 2026-09-24 - Fase 7 (v12): IA híbrida, visual novo, assinaturas e parcelas, assistente proativo
 
-**Resumo para o Alex.** A Fase 7 rodou em ~45 faixas paralelas, integradas na branch
+**Resumo para o Alex.** A Fase 7 rodou em 47 faixas paralelas (mais a Etapa 0), integradas na branch
 `fase7/integracao`. Rollback: tag local `pre-fase-7` / commit `789171d`.
 - A IA virou **híbrida**: cada função (chat, captura, nota fiscal...) tem um arquivo em
   `ia/config.d/` que diz qual modelo usar (Claude, GPT-6 Luna/Sol ou Gemini). Tudo nasce
