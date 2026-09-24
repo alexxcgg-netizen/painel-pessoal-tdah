@@ -50,3 +50,6 @@ Worktree /home/user/painel-pessoal-tdah-fase7-c3b-viagens, porta 5132, banco sin
   listas; METAR 500/JSON/ZZZZ/"<img"; 5 secoes recolhiveis 9x rapido; mala/numero de
   voo/apagar voo com 500; ESC com salvamento lento; CDN do Leaflet fora; mapa 11x.
   (2 falhas da 1a rodada eram do script: rascunho de cenario anterior e cotacao-alvo.)
+
+[x] H4 - Testes: scripts/testes.sh (6 do modulo + tests/test_fase7_c3b_viagens.py novo,
+  7 guardas de estrutura) = 129 passed, 0 falha; --js tests/js/*.test.js = 196/196.
