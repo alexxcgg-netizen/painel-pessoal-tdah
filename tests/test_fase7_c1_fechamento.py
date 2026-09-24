@@ -97,7 +97,7 @@ class FechamentoXBriefingTestCase(unittest.TestCase):
         self.assertNotIn(TITULO_ANTIGO, titulos_antigos)
         itens = [i for i in caixa.listar(db.get_db()) if i["tipo"] == "briefing"]
         self.assertEqual(len(itens), 1)
-        self.assertTrue(itens[0]["origem"].startswith("p3_briefing_noite:"))
+        self.assertTrue(itens[0]["origem"].startswith("p3_briefing:noite:"))
         self.assertEqual(titulos_tick, [itens[0]["titulo"]])
 
 

@@ -24,3 +24,9 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
 [done] H5 percentual de meta: calculos.percentual_meta_exibicao (float, 1 casa) em
   cards.card_meta, app._consultar_meta e /api/progresso (mudou de int pra 1 casa:
   seu-progresso.js mostra "33.3%" - PARA C2 conferir se quer Math.round na tela).
+[done] H6 Caixa x P8: avisos.TIPO_POR_ORIGEM/tipo_de_origem (origem do item -> chave de
+  TIPOS). caixa.enfileirar nao cria item de tipo desligado (so esta_ligado); push em
+  processar_repeticoes usa aviso_permitido completo com a chave fina + canal "caixa" =
+  sem push. Bug achado: P3 usava origem "p3_briefing_noite:" (prefixo != arquivo), a P1a
+  nunca achava o ao_resolver (humor do fechamento nao gravava) - agora "p3_briefing:noite:".
+  Teste p3_gatilho poluia p1a_caixa no mesmo processo (pop do sys.modules) - corrigido.

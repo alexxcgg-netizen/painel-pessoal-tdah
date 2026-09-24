@@ -30,9 +30,15 @@ from assistente.gatilhos import p3_briefing  # noqa: E402
 assert app  # usado so pra nao sobrar import "nao usado" pro linter
 
 
+_SENTINELA = object()
+_caixa_original: list = []  # vazio = nada instalado; [modulo ou _SENTINELA] = instalado
+
+
 def _instalar_caixa_falsa():
     """Sobe um modulo assistente.caixa falso em sys.modules, com enfileirar
-    mockado - a P1a ainda nao existe nesta integracao (fase7/integracao)."""
+    mockado (isola o gatilho da Caixa real da P1a)."""
+    if not _caixa_original:
+        _caixa_original.append(sys.modules.get("assistente.caixa", _SENTINELA))
     modulo = types.ModuleType("assistente.caixa")
     modulo.enfileirar = MagicMock(return_value="item-fake-id")
     sys.modules["assistente.caixa"] = modulo
@@ -40,7 +46,18 @@ def _instalar_caixa_falsa():
 
 
 def _remover_caixa_falsa():
-    sys.modules.pop("assistente.caixa", None)
+    """C1: devolve o modulo REAL que estava la (antes so fazia pop - o
+    proximo import criava um 2o objeto assistente.caixa, e os patch() de
+    tests/test_fase7_p1a_caixa.py passavam a mirar o objeto errado quando
+    os dois arquivos rodavam no mesmo processo, nessa ordem). Chamar 2x
+    (no meio do teste e no tearDown) e seguro."""
+    if not _caixa_original:
+        return
+    original = _caixa_original.pop()
+    if original is _SENTINELA:
+        sys.modules.pop("assistente.caixa", None)
+    else:
+        sys.modules["assistente.caixa"] = original
 
 
 class JanelaTestCase(unittest.TestCase):
@@ -88,7 +105,7 @@ class ExecutarTestCase(unittest.TestCase):
         kwargs = chamadas[0].kwargs
         self.assertEqual(kwargs["tipo"], "briefing")
         self.assertEqual(kwargs["chave_unica"], "p3_manha:2026-06-15")
-        self.assertEqual(kwargs["origem"], "p3_briefing_manha:2026-06-15")
+        self.assertEqual(kwargs["origem"], "p3_briefing:manha:2026-06-15")
         self.assertEqual(kwargs["titulo"], "Bom dia")
 
     def test_dispara_noite_na_janela_padrao_com_opcoes(self):
@@ -99,7 +116,7 @@ class ExecutarTestCase(unittest.TestCase):
         self.assertEqual(len(chamadas), 1)
         kwargs = chamadas[0].kwargs
         self.assertEqual(kwargs["chave_unica"], "p3_noite:2026-06-15")
-        self.assertEqual(kwargs["origem"], "p3_briefing_noite:2026-06-15")
+        self.assertEqual(kwargs["origem"], "p3_briefing:noite:2026-06-15")
         self.assertEqual(kwargs["opcoes"], briefing.OPCOES_FECHAMENTO)
 
     def test_nao_dispara_fora_de_qualquer_janela(self):
@@ -160,7 +177,7 @@ class AoResolverTestCase(unittest.TestCase):
         self.conn.close()
 
     def test_resposta_valida_salva_humor(self):
-        item = {"origem": "p3_briefing_noite:2026-06-15"}
+        item = {"origem": "p3_briefing:noite:2026-06-15"}
         p3_briefing.ao_resolver(self.conn, item, "Bom")
 
         checkin = db.get_checkin(self.conn, "2026-06-15")
@@ -168,7 +185,7 @@ class AoResolverTestCase(unittest.TestCase):
         self.assertEqual(checkin["humor"], 4)
 
     def test_resposta_sem_opcao_correspondente_nao_salva(self):
-        item = {"origem": "p3_briefing_noite:2026-06-15"}
+        item = {"origem": "p3_briefing:noite:2026-06-15"}
         p3_briefing.ao_resolver(self.conn, item, "adiar")
 
         checkin = db.get_checkin(self.conn, "2026-06-15")
@@ -180,7 +197,7 @@ class AoResolverTestCase(unittest.TestCase):
         self.assertIsNone(db.get_checkin(self.conn, date.today().isoformat()))
 
     def test_origem_do_briefing_da_manha_e_ignorada(self):
-        item = {"origem": "p3_briefing_manha:2026-06-15"}
+        item = {"origem": "p3_briefing:manha:2026-06-15"}
         p3_briefing.ao_resolver(self.conn, item, "Bom")
         self.assertIsNone(db.get_checkin(self.conn, "2026-06-15"))
 
