@@ -1,0 +1,56 @@
+[
+  {
+    "id": "essencial_uma_com_prazo",
+    "entrada": {
+      "tarefas": [
+        {"id": 1, "title": "pagar imposto de renda", "due_date": "2026-09-25", "hora": null},
+        {"id": 2, "title": "arrumar a garagem", "due_date": null, "hora": null},
+        {"id": 3, "title": "academia", "due_date": null, "hora": null}
+      ]
+    },
+    "esperado": {"ids": [1]}
+  },
+  {
+    "id": "essencial_duas_com_hora",
+    "entrada": {
+      "tarefas": [
+        {"id": 10, "title": "reuniao com fornecedor", "due_date": "2026-09-24", "hora": "14:00"},
+        {"id": 11, "title": "prova do curso de piloto", "due_date": "2026-09-24", "hora": "09:00"},
+        {"id": 12, "title": "ler um livro", "due_date": null, "hora": null}
+      ]
+    },
+    "esperado": {"ids": [10, 11]}
+  },
+  {
+    "id": "essencial_nenhuma_urgente",
+    "entrada": {
+      "tarefas": [
+        {"id": 20, "title": "organizar fotos antigas", "due_date": null, "hora": null},
+        {"id": 21, "title": "academia", "due_date": null, "hora": null}
+      ]
+    },
+    "esperado": {"ids": [20]}
+  },
+  {
+    "id": "essencial_prazo_vencendo_hoje",
+    "entrada": {
+      "tarefas": [
+        {"id": 30, "title": "entregar cotacao pro cliente", "due_date": "2026-09-24", "hora": null},
+        {"id": 31, "title": "assistir serie", "due_date": null, "hora": null}
+      ]
+    },
+    "esperado": {"ids": [30]},
+    "simulacao_dry_run": {"luna_medio": {"ids_errados": [999]}}
+  },
+  {
+    "id": "essencial_tres_tarefas_travando",
+    "entrada": {
+      "tarefas": [
+        {"id": 40, "title": "separar documentos do IPVA", "due_date": "2026-09-30", "hora": null},
+        {"id": 41, "title": "responder cliente que esta esperando orcamento", "due_date": "2026-09-24", "hora": null},
+        {"id": 42, "title": "arrumar armario", "due_date": null, "hora": null}
+      ]
+    },
+    "esperado": {"ids": [41]}
+  }
+]

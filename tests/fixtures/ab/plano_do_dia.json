@@ -1,0 +1,27 @@
+[
+  {
+    "id": "plano_dia_com_reuniao",
+    "entrada": {"agora": "08:00", "eventos": ["reuniao com fornecedor as 14h"], "tarefas": ["responder cliente", "organizar recibos"]},
+    "esperado": {"contem": ["reuniao"]}
+  },
+  {
+    "id": "plano_dia_livre",
+    "entrada": {"agora": "07:30", "eventos": [], "tarefas": ["ler um capitulo do livro", "arrumar a garagem"]},
+    "esperado": {"contem": []}
+  },
+  {
+    "id": "plano_dia_cheio",
+    "entrada": {"agora": "06:00", "eventos": ["aula de voo as 09h", "dentista as 15h"], "tarefas": ["comprar presente", "pagar contas", "ligar pro fornecedor"]},
+    "esperado": {"contem": ["dentista"]}
+  },
+  {
+    "id": "plano_dia_so_tarefas",
+    "entrada": {"agora": "09:00", "eventos": [], "tarefas": ["revisar contrato", "responder email pendente"]},
+    "esperado": {"contem": []}
+  },
+  {
+    "id": "plano_dia_prova",
+    "entrada": {"agora": "07:00", "eventos": ["prova teorica as 09h"], "tarefas": ["revisar anotacoes"]},
+    "esperado": {"contem": ["prova"]}
+  }
+]

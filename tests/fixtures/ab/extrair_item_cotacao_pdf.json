@@ -1,0 +1,28 @@
+[
+  {
+    "_comentario": "pdf_b64 aqui e um PDF minimo/vazio, so placeholder (--dry-run nunca envia isso pra nenhuma API). Pra testar com PDFs reais, use --fixtures-reais com pdf_path. Candidato luna_medio (OpenAI/A3) fica sempre 'pulado' nesta funcao - ver montar_cotacao_pdf e docs/ab-teste.md.",
+    "id": "cotacao_material_eletrico",
+    "entrada": {"pdf_b64": "JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0Y="},
+    "esperado": {"fornecedor": "Eletro Materiais LTDA", "valor": 4200.00}
+  },
+  {
+    "id": "cotacao_cimento",
+    "entrada": {"pdf_b64": "JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0Y="},
+    "esperado": {"fornecedor": "Cimentos Sao Jose", "valor": 15800.00}
+  },
+  {
+    "id": "cotacao_madeira",
+    "entrada": {"pdf_b64": "JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0Y="},
+    "esperado": {"fornecedor": "Madeireira Vale Verde", "valor": 3100.50}
+  },
+  {
+    "id": "cotacao_hidraulica",
+    "entrada": {"pdf_b64": "JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0Y="},
+    "esperado": {"fornecedor": "Hidraulica Central", "valor": 980.00}
+  },
+  {
+    "id": "cotacao_tijolo",
+    "entrada": {"pdf_b64": "JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0Y="},
+    "esperado": {"fornecedor": "Ceramica Boa Vista", "valor": 6750.00}
+  }
+]
