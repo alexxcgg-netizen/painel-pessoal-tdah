@@ -1,0 +1,27 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-construtora)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5l2 2 4-5"/><rect x="3.5" y="4" width="17" height="16" rx="2"/></svg>
+        Cotacoes
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao das cotacoes"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Compare precos de fornecedor de material de obra. Fala no chat ("fornecedor tal, R$5000,
+          pra cotacao de ferro") ou anexa o PDF do orcamento direto aqui.
+        </p>
+      </div>
+      <form id="cotacao-form" class="form-linha">
+        <input type="text" id="cotacao-titulo" placeholder="Material/servico (ex: portas, ferro)" required />
+        <button type="submit" id="cotacao-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Nova cotacao
+        </button>
+      </form>
+      <p id="cotacoes-oculto-visitante" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        Oculto no modo visitante.
+      </p>
+      <p id="cotacoes-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5l2 2 4-5"/><rect x="3.5" y="4" width="17" height="16" rx="2"/></svg>
+        Nenhuma cotacao ainda.
+      </p>
+      <ul id="lista-cotacoes"></ul>

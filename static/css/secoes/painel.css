@@ -1,0 +1,74 @@
+/* static/css/secoes/painel.css - estilos da aba painel inteira (templates/abas/painel.html).
+   Fase 7, faixa V2: acabamento das secoes do Painel - superficie em camada (`.card`,
+   V0c) em vez do separador plano antigo (`.secao-secundaria`, so uma borda no topo -
+   pedido explicito do Alex pra sair do "Windows 1990"). Zero cor/fonte/animacao nova:
+   so reaproveita os tokens de forma/profundidade (V0a, static/css/ui/tokens.css) e as
+   cores de identidade por secao que ja existiam (--cor-hoje/--cor-tarefas/...). */
+
+#tab-painel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-4, 20px);
+}
+
+/* Cada `<div class="card painel-secao-card">` (envolve o antigo h2 + conteudo de uma
+   secao) ganha uma faixa fina no topo com a cor de identidade da propria secao (a
+   mesma --secao-cor que ja ia no style="" do h2) - reduz a cor a um acento pequeno em
+   vez de "pintar" o card inteiro, seguindo a mesma logica que style.css ja usa pro
+   resto do app (comentario "as 7 abas paravam de misturar cor"). */
+#tab-painel .painel-secao-card {
+  position: relative;
+  padding-top: calc(var(--espaco-3, 24px) + 3px);
+}
+
+#tab-painel .painel-secao-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--espaco-3, 24px);
+  right: var(--espaco-3, 24px);
+  height: 3px;
+  border-radius: 0 0 999px 999px;
+  background: var(--secao-cor, var(--accent));
+  opacity: 0.65;
+}
+
+#tab-painel .painel-secao-card h2 {
+  margin: 0 0 var(--espaco-1, 8px);
+  padding: 0;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-1, 8px);
+  font-size: 1rem;
+}
+
+#tab-painel .painel-secao-card h2 svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--secao-cor, var(--accent));
+}
+
+/* As duas secoes recolhiveis de memoria.html (H1) reaproveitam o mesmo acento de cor
+   no icone do cabecalho - o resto (fundo, borda, chevron, animacao) e inteiramente de
+   static/css/ui/componentes/secao.css (V0c), nao duplicado aqui. */
+#tab-painel .secao-recolhivel + .secao-recolhivel {
+  margin-top: 0;
+}
+
+#tab-painel .secao-cabecalho svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--secao-cor, var(--accent));
+}
+
+#tab-painel .secao-cabecalho span:not(.chevron) {
+  flex: 1;
+}
+
+/* localStorage guarda estado por data-secao-id (static/js/ui/secao-recolhivel.js) - sem
+   JS (JS bloqueado/erro), o estado inicial vem so do data-aberto="false" do HTML: a
+   secao aparece fechada, o que e o comportamento pedido (fallback aceitavel, contrato
+   documentado em secao.css). */

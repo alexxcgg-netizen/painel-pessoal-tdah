@@ -1,0 +1,42 @@
+{
+ "resultados": {
+  "faixa_compacta": {
+   "titulo": "Pendencias do assistente (4)",
+   "quantidade_itens_mostrados": 3,
+   "selo_hoje": "4",
+   "selo_hoje_visivel": true
+  },
+  "recolhivel": {
+   "fechou_no_1o_clique": true
+  },
+  "responder": {
+   "item_sumiu": true,
+   "selo_depois": "3"
+  },
+  "ver_tudo_abre_assistente": true,
+  "secao_caixa": {
+   "pendentes": 3,
+   "historico": 2
+  },
+  "secao_regras": {
+   "quantidade": 1,
+   "pausou": true
+  },
+  "secao_avisos": {
+   "quantidade_tipos": 50,
+   "form_silencio_visivel": true
+  }
+ },
+ "erros_console": [],
+ "falhas_rede": [],
+ "falhas_ambiente_ignoradas": [
+  [
+   "falhou",
+   "https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+  ],
+  [
+   502,
+   "http://127.0.0.1:5147/api/summary/today"
+  ]
+ ]
+}

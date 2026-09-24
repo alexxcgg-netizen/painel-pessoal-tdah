@@ -1,0 +1,185 @@
+Faixa V1-hoje (Fase 7) - progress.txt
+Branch: fase7/v1-hoje (worktree /home/user/painel-pessoal-tdah-fase7-v1-hoje,
+partiu de fase7/integracao + merge de origin/fase7/e0-frontend, conflitos em
+AGENTS.md/CHANGELOG.md resolvidos mantendo os dois blocos).
+
+## Historias concluidas
+
+1. Acabamento das secoes da Hoje + topo - FEITO.
+   Contrato de classes (.card, .card-titulo, .chip, .btn-*) ainda esta vazio
+   nos arquivos static/css/ui/tokens.css e ui/componentes/*.css (faixas V0a-
+   V0d ainda nao entraram na integracao - conferi as 4 branches locais
+   fase7/v0a-tokens..v0d-sheet-nav, so tem o merge do e0-frontend, sem
+   trabalho ainda). Segui a instrucao de docs/agentes/fase7-visual.md: usei
+   as classes do contrato mesmo assim (.card/.card-titulo nos 5 boxes
+   .card-vida da Hoje) pra herdar de graca quando a V0c entrar, e ate la
+   escrevi CSS proprio (escopado por #id/#tab-hoje) reaproveitando os tokens
+   que JA EXISTEM no style.css (--shadow-card, --shadow-card-hover, --border,
+   --accent-gradient etc - nenhuma cor/fonte/animacao nova).
+   Achados concretos (a Hoje "ja estava boa" no geral, como o prompt avisou -
+   a maior parte de .card-vida/.stat-tile/.chat-form ja tinha profundidade
+   em camadas de rounds anteriores de design):
+   - BUG real corrigido: #silencio-btn, #modo-viagem-btn e #modo-visitante-btn
+     dividiam a classe .btn-silencio (unica com `right` definido) e
+     renderizavam EXATAMENTE empilhados - so o ultimo do DOM recebia toque.
+     Cada um ganhou posicao propria em topo/cabecalho.css (conferido com
+     getBoundingClientRect via Playwright: 5 retangulos sem overlap, x de
+     164 a 374px em 390px de viewport). Efeito colateral aceito: o titulo
+     "Painel Pessoal" agora quebra em 2 linhas (antes cabia numa linha
+     porque so ~3 posicoes de botao apareciam visualmente) - nao ha como
+     mostrar 5 icones ja escondidos sem tirar espaco de algum lugar; achei
+     melhor deixar o titulo quebrar do que manter 2 botoes invisiveis.
+   - #brain-dump-btn ("Guardar") e #resumo-manha-btn ("Ouvir resumo da
+     manha") eram <button> crus: a classe .btn-com-icone (style.css) so
+     cuida do layout do icone, sem fundo/borda/padding em repouso. Sao os 2
+     casos mais literais de "Windows 1990" que achei no meu escopo. Dei o
+     mesmo tratamento do #captura-btn/#chat-send (Guardar, mesma familia de
+     acao) e do #comando-voz-btn (resumo da manha, acao secundaria).
+   - Pilulas abaixo de 44px de toque, sem sombra: .checkin-opcao (36px),
+     .hiperfoco-btn (34px), .comando-voz-opcao, .visao-dia-periodo-btn
+     (seletor Dia/Semana/Mes, virou "segmented control" com trilho),
+     .item-acoes button dentro do brain dump, .btn-link do "trocar" da
+     essencial e do "encerrar" do hiperfoco. Todos escopados por #id/classe
+     pai (nunca a regra global do style.css) pra nao vazar pra outras abas
+     que reusam as mesmas classes (.item-acoes, .btn-link, .card-vida
+     aparecem em Vida/Painel tambem).
+   - #chat-form e as secoes so-texto (sobrecarga, previa-noite) ja estavam
+     bem cobertas - arquivos ficaram com comentario de "conferido, nada pra
+     corrigir" em vez de CSS inventado sem necessidade.
+   - #caixa-assistente (topo da Hoje, ponto de montagem da P1b) ganhou
+     `margin-bottom` so quando `:not(:empty)` - nao sobra vao vazio antes da
+     P1b existir.
+
+2. Brain dump (decisao D3) - FEITO.
+   "Processar" (por item, static/js/secoes/painel/brain-dump.js) chamava
+   `enviarChat(item.texto, { rota: "/api/brain-dump/<id>/converter", corpo:
+   { tipo: "assistente" } })` + `showTab("hoje")` - MESMA rota que ja existia
+   (`POST /api/brain-dump/<id>/converter` com `tipo: "assistente"`, ver
+   app.py:5134, ja tratava esse tipo antes da minha mudanca). Nenhuma mudanca
+   de backend foi necessaria: extrai isso pra `processarBrainDumpNoAssistente
+   (itemId, texto)` e chamo direto no fim do submit do form (depois do
+   `POST /api/brain-dump` que guarda o item e devolve `{id, ok}`). Removi o
+   botao "Processar" por item (e a funcao antiga). Atualizei o texto da dica
+   colapsavel em brain-dump.html pra refletir o fluxo novo.
+   Limite aceito: se a chamada da IA falhar (teto atingido, erro), o backend
+   ja reverte `processado` pra 0 sozinho (app.py:5177) e o item volta pra
+   lista pendente - so que sem um botao "so tentar de novo com o
+   assistente" (a instrucao pedia pra TIRAR o Processar, entao nao recriei
+   um). O usuario ainda converte na mao (-> tarefa/nota/gasto) ou apaga.
+   Testado manualmente via Playwright (guardar_texto == "Guardar",
+   .btn-brain-processar sumiu do DOM).
+
+3. Botao de agua ("+1 copo") - NAO ESTA no meu escopo, achado registrado.
+   Procurei "copo"/"agua"/"hidratacao" nos arquivos que sao meus
+   (hoje/*, topo/*, painel/brain-dump.*) e nao existe nenhum botao de agua
+   ali. O botao real ("+1 copo de agua", `#hidratacao-registrar` ou
+   equivalente) mora em `templates/secoes/painel/saude-hoje.html` +
+   `static/js/secoes/painel/saude-hoje.js` - aba Painel, donos.json lista
+   isso como de outra faixa (nao v1-hoje). O que EU tenho no meu escopo e o
+   card `saude_dia` em `static/js/cards-tipos.js` (renderizador do card que
+   aparece no CHAT depois de registrar agua) - esse ja tinha bastante
+   acabamento (fileira de gotas, `.card-hora-grande`) e nao mexi (nao achei
+   nada achatado nele). Se o Alex queria o botao real de +1 copo (fora do
+   chat), isso pertence a outra faixa (v2-painel, pelo donos.json) - avisar
+   o integrador.
+
+4. Cards novos (assinatura, compra_parcelada, resumo_financeiro_recorrente)
+   - FEITO.
+   docs/contrato-assinaturas.md NAO existe ainda em lugar nenhum que
+   consegui ler (nem na integracao, nem em `git show origin/fase7/
+   n1-assinaturas:docs/contrato-assinaturas.md` - branch n1-assinaturas so
+   tem o merge do e0-frontend, N1 ainda nao publicou o doc). Usei o formato
+   de fallback exatamente como descrito no prompt:
+     assinatura: {nome, valor, dia_cobranca, proxima_cobranca, em_dias,
+       cartao, categoria, ativa}
+     compra_parcelada: {descricao, valor_parcela, parcela_atual, n_parcelas,
+       restantes, termina_em, cartao}
+   SUPOSICAO minha (nao veio no prompt, documentando explicitamente):
+   `resumo_financeiro_recorrente` = { total_mes (numero), n_assinaturas
+   (numero), n_parcelas (numero), proxima_cobranca: { nome, data } | null }.
+   Se a N1 publicar um formato diferente pra esse tipo especifico, so
+   `static/js/cards-tipos.js` (Cards.registrar("resumo_financeiro_
+   recorrente", ...)) + o teste correspondente em tests/js/
+   cards_tipos_fase7.test.js precisam mudar - nada de app.py, ja que builder
+   de servidor pra esses 3 tipos e da N1 (cards.py, fora do meu escopo).
+   Sem MOEDA_OCULTA/`data.oculto` em nenhum dos 3 (pedido explicito: "sao
+   do proprio Alex", diferente de `transacao`/`meta`) - valor sempre
+   aparece, so vira "—" quando o campo vem faltando/invalido (nunca lanca
+   excecao). Reusei classes ja existentes (.card-titulo, .card-valor-grande,
+   .card-linha-meta, .card-chip, .meta-progresso/.card-progresso) - ZERO CSS
+   novo precisou entrar em style.css ou nos arquivos das secoes, porque o
+   invólucro `.card-resultado.card-contrato-<type>` + o rodape de actions
+   (Desfazer) ja vem de graca do registro (static/js/cards.js,
+   renderizarCardHTML/rodapeHTML) - as duas funcoes novas so retornam o
+   HTML de dentro, igual todo tipo existente.
+   Testes: tests/js/cards_tipos_fase7.test.js (18 casos: render com dado de
+   exemplo, escape de HTML, NAO esconder valor mesmo com `oculto: true`,
+   resiliencia com data vazia/malformada, Desfazer no rodape padrao,
+   plural/singular de "restante(s)"/"assinatura(s)"). `node --test
+   tests/js/cards_tipos_fase7.test.js` -> 16 pass / 0 fail (depois 18 apos
+   o ajuste do teste "restantes = 1"; rodei de novo junto com cards.test.js
+   -> 67 pass / 0 fail, sem regressao nos tipos existentes).
+
+5. #caixa-assistente - FEITO (ja estava no lugar certo, so ganhou espaco).
+   `<div id="caixa-assistente"></div>` continua o primeiro filho de
+   `#tab-hoje` em templates/abas/hoje.html (nao mexi na ordem/estrutura).
+   CSS de espaco condicional em secoes/hoje.css (ver historia 1).
+
+6. Playwright 390x844 - FEITO.
+   scripts/ralph-v1-hoje/servidor.py (copia do padrao de scripts/
+   ralph-v0c-secoes, banco SQLite temporario, PORTA=5113) +
+   scripts/ralph-v1-hoje/verificar.py: confere Hoje visivel por padrao,
+   #caixa-assistente antes de #saudacao-texto no DOM, injeta 1 card de cada
+   tipo novo via Cards.criarGrupo (mesmo pipeline do chat) e confere que
+   nenhum vira fallback e 2 deles tem Desfazer, confirma que
+   .btn-brain-processar sumiu e #brain-dump-btn continua "Guardar", 0 erro
+   de console/pageerror (fora fonte do Google e /api/summary/today com
+   chave de IA falsa, mesma lista de falhas de ambiente que V0a/V0c usam).
+   Resultado: OK (json completo em v1-hoje-resultado.json).
+   2 screenshots: v1-hoje.png (aba Hoje, full_page - inclui os 3 cards
+   novos injetados no fim do chat pra conferencia visual) e
+   v1-brain-dump.png (aba Painel, secao brain dump, botao "Guardar" ja
+   sem o "Processar" ao lado). PNGs ficam so no disco (scripts/ralph-*/ ja
+   tem PNG de outras faixas sem entrar no git - AGENTS.md pede pra nao
+   versionar; nao dei `git add` neles).
+
+## Arquivos alterados
+templates/abas/hoje.html - nao mudou (ja estava certo).
+templates/secoes/hoje/{sobrecarga,previa-noite,rotina,checkin,essencial}.html
+  - classe .card + .card-titulo adicionadas (aditivo, sem remover .card-vida).
+templates/secoes/painel/brain-dump.html - texto da dica atualizado (D3).
+static/js/secoes/painel/brain-dump.js - Processar por item removido;
+  Guardar chama processarBrainDumpNoAssistente() depois de salvar.
+static/js/cards-tipos.js - 3 renderizadores novos + 2 icones novos
+  (assinatura, parcela) + helper emDiasTexto.
+tests/js/cards_tipos_fase7.test.js - novo.
+static/css/secoes/hoje.css, topo.css, topo/cabecalho.css, topo/captura.css,
+  hoje/{saudacao,checkin,hiperfoco,visao-do-dia,essencial,rotina,sobrecarga,
+  previa-noite,chat}.css, painel/brain-dump.css - acabamento (ver historia 1).
+scripts/ralph-v1-hoje/{servidor.py,verificar.py,progress.txt} - novo.
+
+## Testes rodados
+node --test tests/js/cards.test.js tests/js/cards_tipos_fase7.test.js
+  -> 67 pass / 0 fail.
+node --test tests/js/visao_dia.test.js tests/js/voz_comando.test.js
+  -> 27 pass / 0 fail (conferindo que o CSS de visao-do-dia nao quebrou
+  nada de JS - esses testes nao tocam CSS, so confirmam que o arquivo JS
+  que compartilho por include continua igual, ja que nao editei
+  static/js/visao-dia.js nem static/js/voz-comando.js).
+PAINEL_PY=.../python scripts/testes.sh tests/test_fase6_e4_chat.py
+  -> 43 pass / 0 fail (brain dump/chat no backend, nao toquei em app.py mas
+  confirmei que a mudanca no frontend nao quebrou o contrato).
+Playwright (scripts/ralph-v1-hoje/verificar.py) -> OK, 0 erro de console.
+
+## Nao rodei (fora do escopo da faixa)
+scripts/testes.sh tests/test_painel_web.py e tests/test_telegram_bot.py -
+  regra 5/6 do AGENTS.md deste repo pedem isso so quando o commit mexe em
+  painel_web/ ou telegram_bot.py/email_service.py/scheduler_service.py, que
+  eu nao toquei.
+Suite Python completa (e' do integrador, conforme docs/agentes/
+  fase7-regras-faixa.md).
+
+## Nada bloqueado
+Todas as 6 historias da faixa foram concluidas. Sem pendencia que dependa
+de infra que ainda nao chegou na integracao (usei os tokens/componentes que
+ja existem no style.css atual em vez de esperar V0a-V0d).

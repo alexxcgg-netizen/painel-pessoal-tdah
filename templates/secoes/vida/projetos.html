@@ -1,0 +1,32 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 13h5"/></svg>
+        Projetos
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de projetos"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Qualquer coisa com etapas e prazo - reforma, lancamento, ate a expansao da construtora como
+          projeto (so nome/etapa/marco, nunca numero financeiro - isso fica no sistema da construtora).
+          Viagem continua separada (aba Aviacao/Vida) - o card de viagem so empresta esse mesmo formato
+          visual, sem migrar dado nenhum.
+        </p>
+      </div>
+      <button type="button" id="projeto-abrir-btn" class="btn btn-adicionar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Novo projeto
+      </button>
+
+      <div class="bottom-sheet" id="projeto-sheet" hidden>
+        <form id="projeto-form" class="form-linha">
+          <input type="text" id="projeto-nome" class="campo" placeholder="Projeto (ex: Reforma do quarto)" maxlength="120" required />
+          <input type="date" id="projeto-prazo" class="campo" aria-label="Prazo final (opcional)" />
+          <div class="form-linha">
+            <button type="submit" id="projeto-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="button" id="projeto-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </form>
+      </div>
+
+      <p id="projetos-vazio" class="vazio" hidden>Nenhum projeto cadastrado.</p>
+      <ul id="lista-projetos" class="lista-projetos"></ul>
+

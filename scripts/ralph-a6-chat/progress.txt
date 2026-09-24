@@ -1,0 +1,33 @@
+Faixa A6 (chat) - branch fase7/a6-chat - estado
+S1 done  configs chat/chat_simples/analisar_decisao/redigir_mensagem_dificil (ativo:false, sonnet-5 esforco baixo, alvo openai gpt-6-sol medio; chat_simples alvo gpt-6-luna)
+S2 done  chat(): layout de cache estavel (system fixo no dia, bloco fixo A5 cacheado, contexto do dia na msg nova), 4 breakpoints, max_tokens 500 (+1 retry a 1500 se cortar)
+S3 done  roteador A14 antes de responder (luna -> chamar_ia("chat_simples") sem tools; marcador -> cai pro padrao)
+S4 done  analisar_decisao 700 / redigir 500 pela config; ativo:true -> ia.core.chamar_ia
+S5 done  resolver_data_relativa/resolver_quando_data + testes
+S6 done  testes tests/test_fase7_a6_{chat,datas}.py, APRENDIZADOS, changelog.d/a6-chat.md
+
+PARA O INTEGRADOR (arquivos que nao sao meus):
+1. app.py ~linha 2831 (exec_registrar_tarefa, dentro do pipeline do chat):
+     quando_data = entrada.get("quando_data")
+   trocar por:
+     quando_data = claude_client.resolver_quando_data(entrada, date.today())
+   (+ reexportar resolver_quando_data/resolver_data_relativa em claude_client.py).
+   Depois disso da pra tirar "quando_data" do schema do registrar_tarefa (CHAT_TOOLS)
+   - mas tests/test_claude_client.py:114 exige o campo; ajustar junto.
+2. app.py ~linha 3436 (pipeline do chat): ligar A5 + medicao nova:
+     ctx = ia.historico.montar_contexto(conn)
+     mensagens = ctx["mensagens"] + [{"role": "user", "content": texto}]
+     claude_client.chat(mensagens, contexto, memorias_texto, executores,
+                        contexto_fixo=ctx["contexto_fixo"], conn=conn, medir_uso=True)
+   (hoje o app manda as ultimas 20 mensagens e nao passa kwargs novos: continua funcionando igual).
+   Com medir_uso=True o chat devolve o texto de ia.teto.TETO_IA_MSG como resposta se o teto novo bloquear.
+3. donos.json: faltou "ia/config.d/chat_simples.json" na lista da a6-chat (o prompt da faixa lista como meu).
+4. ia/adapters/anthropic.py (A2): esforco "" vira output_config={"effort": ""} (invalido pro SDK:
+   Literal low|medium|high|xhigh|max) e liga thinking adaptativo. resumo_historico.json (A5) tem
+   modelo_atual sem esforco -> vai quebrar na API real. Minhas configs usam "baixo" explicito.
+5. Testes que chamam funcoes via ia.core.chamar_ia gravam uso_ia/consultam teto em db.DB_PATH
+   (data/painel.db do checkout = banco real no checkout principal). Sugestao: tests/conftest.py autouse
+   apontando db.DB_PATH pra tmp. Por isso decisao/mensagem dificil so usam chamar_ia com ativo:true.
+6. Falha pre-existente (nao e da A6): tests/test_fase7_a14_roteador.py::RobustezTestCase::
+   test_classificador_local_ausente_nao_quebra (falha igual na integracao sem minhas mudancas).
+Dependencia nova: nenhuma. Variavel de ambiente nova: nenhuma.

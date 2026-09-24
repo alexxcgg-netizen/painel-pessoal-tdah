@@ -1,0 +1,14 @@
+/* static/css/secoes/hoje/checkin.css - secao hoje > checkin (HTML: templates/secoes/hoje/checkin.html).
+   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao). O
+   box em volta (#checkin-box) ja e .card-vida (glass-bg/glass-border/
+   glass-shadow) - so as pilulas de opcao por dentro (bom/medio/ruim etc)
+   eram lisas, sem sombra, com 36px de toque (abaixo dos 44px pedidos). */
+#checkin-box .checkin-opcao {
+  min-height: 44px;
+  min-width: 3.6rem;
+  box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.5);
+}
+
+#checkin-box .checkin-opcao.escolhida {
+  box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--accent) 45%, transparent);
+}

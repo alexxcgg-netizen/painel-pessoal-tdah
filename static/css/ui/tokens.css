@@ -1,0 +1,127 @@
+/* static/css/ui/tokens.css - tokens de FORMA e PROFUNDIDADE da Fase 7 (faixa V0a).
+
+   Regra do Alex (fase7-visual.md): cores, fontes e animacoes NAO mudam. Por isso este arquivo:
+   - nao cria cor nova: tudo aqui deriva das variaveis que ja existem no :root do style.css
+     (--surface*, --border*, --text, --bg, --font-*, --ease-*, --radius*). Os unicos literais
+     sao preto translucido nas sombras (sombra e ausencia de luz, nao cor) e medidas;
+   - so declara variaveis no :root. Nenhum seletor de elemento/classe: nada muda na tela ate um
+     componente (V0b-V0d) ou uma secao (V1-V6) usar os tokens;
+   - tema: o app so tem tema escuro (o style.css declara "color-scheme: dark light" mas nao tem
+     paleta clara). Tema claro nao foi inventado aqui.
+
+   Pegadinha (a mesma documentada no style.css perto de #tab-hoje): variavel composta resolve
+   os var() de dentro no elemento onde foi DECLARADA. Tudo aqui so depende de variaveis fixas
+   do :root (nao de --glass-tint/--secao-cor), entao pode ser herdado sem congelar cor errada.
+   Borda tingida pela cor da aba: use var(--glass-border), que cada #tab-X ja redeclara.
+
+   Guia de uso (receitas, estados, contrato de classes): docs/MASTER.md.
+   Carrega depois do style.css via static/css/fase7.css. */
+
+:root {
+  /* ---------- Raios ----------
+     Reaproveitam os dois raios da identidade atual (20px / 14px). Hierarquia: quanto maior e
+     mais "de fora" o bloco, maior o raio; elemento dentro de card usa raio menor
+     (raio interno ~ raio externo - padding) pra curva ficar concentrica. */
+  --raio-xs: 10px; /* miniatura, badge quadrado, icone com fundo (10px ja aparece no style.css) */
+  --raio-sm: var(--radius-sm); /* 14px - campo, botao, item dentro de card */
+  --raio: var(--radius); /* 20px - card, lista-item solto, secao */
+  --raio-lg: calc(var(--radius) + 8px); /* 28px - bottom-sheet (cantos de cima), card hero */
+  --raio-pilula: 999px; /* chip, botao pilula, toggle (999px ja usado 47x no style.css) */
+
+  /* ---------- Espaco (grade de 8px) ----------
+     Em rem (1rem = 16px; o app nao muda a base) pra respeitar o zoom de texto do sistema.
+     --espaco-1 (4px) e o meio-passo: so gap icone-texto e ajuste fino. */
+  --espaco-1: 0.25rem; /*  4px */
+  --espaco-2: 0.5rem; /*  8px - gap padrao entre itens de linha (o mais usado hoje) */
+  --espaco-3: 1rem; /* 16px - padding interno de card, gap entre cards */
+  --espaco-4: 1.5rem; /* 24px - padding de bottom-sheet, respiro de card destaque */
+  --espaco-5: 2rem; /* 32px - separacao entre secoes */
+  --espaco-6: 3rem; /* 48px - topo/fim de aba, estado vazio */
+
+  /* ---------- Superficies (camadas) ----------
+     -1 = fundo de secao. -2 = card. -3 = elemento dentro de card (campo, chip, item aninhado)
+     ou card "em cima" de outro. Derivadas das superficies atuais com transparencia leve: o
+     preto + aurora do app aparece so um tico por baixo, o que da sensacao de camada sem voltar
+     ao "Liquid Glass" que o Alex desligou no Round 8 (continua quase opaco, 94-96%). */
+  --superficie-1: var(--surface);
+  --superficie-2: color-mix(in srgb, var(--surface-2) 94%, transparent);
+  --superficie-3: color-mix(in srgb, var(--surface-3) 96%, transparent);
+  /* realce de topo (luz vinda de cima, bem fraca). Usar como PRIMEIRA camada do background:
+     background: var(--realce-superficie), var(--superficie-2); */
+  --realce-superficie: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--text) 3.5%, transparent) 0%,
+    transparent 42%
+  );
+  /* veus pra hover/pressionado: a mesma superficie + um tico do proprio --text por cima */
+  --veu-hover: color-mix(in srgb, var(--text) 4%, transparent);
+  --veu-pressionado: color-mix(in srgb, var(--text) 7%, transparent);
+  /* fundo escurecido atras do bottom-sheet (o --bg preto a 60%) */
+  --veu-fundo: color-mix(in srgb, var(--bg) 60%, transparent);
+
+  /* ---------- Bordas ----------
+     Borda fina (1px) no lugar de sombra pesada. Cores = as do style.css. */
+  --linha: 1px;
+  --borda-sutil: var(--border); /* rgba(218,226,243,.09) - contorno padrao de card/campo */
+  --borda-forte: var(--border-strong); /* .18 - hover, card destaque, divisor ativo */
+
+  /* ---------- Elevacao (profundidade por camadas) ----------
+     Sempre em camadas: realce interno de 1px no topo (luz), contato curto e escuro (a caixa
+     "encosta" no fundo) e, a partir do nivel 2, uma queda longa e suave (distancia). Nunca uma
+     sombra unica grande e cinza. Mais leves que --shadow-card de proposito: a borda fina faz
+     o contorno, a sombra so sugere altura.
+     0 = plano (so o realce)   1 = card comum, lista-item, campo
+     2 = card destaque, hover de card, chip ativo   3 = bottom-sheet, menu flutuante, FAB */
+  --elevacao-0: inset 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent);
+  --elevacao-1: inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.45);
+  --elevacao-2: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent),
+    0 1px 1px rgba(0, 0, 0, 0.5), 0 8px 18px -10px rgba(0, 0, 0, 0.6);
+  --elevacao-3: inset 0 1px 0 color-mix(in srgb, var(--text) 9%, transparent),
+    0 1px 1px rgba(0, 0, 0, 0.5), 0 12px 24px -12px rgba(0, 0, 0, 0.6),
+    0 32px 56px -28px rgba(0, 0, 0, 0.7);
+
+  /* ---------- Tipografia ----------
+     As mesmas familias carregadas hoje no head.html (Sora + IBM Plex Mono). Nada novo. */
+  --fonte-texto: var(--font-body);
+  --fonte-titulo: var(--font-display);
+  --fonte-mono: var(--font-tech); /* numeros, horas, R$, contadores, METAR */
+
+  /* ---------- Movimento ----------
+     As MESMAS duracoes/curvas que o app ja usa (style.css: button, li.item, .cotacao-cabecalho):
+     0.15s ease (cor/borda), 0.22s bounce (soltar), 0.09s ease-in (afundar), 0.3s suave. */
+  --duracao-rapida: 0.15s;
+  --duracao-media: 0.22s;
+  --duracao-lenta: 0.3s;
+  --transicao-rapida: var(--duracao-rapida) ease; /* cor, fundo, borda, opacidade */
+  --transicao-media: var(--duracao-media) var(--ease-bounce); /* transform ao soltar */
+  --transicao-lenta: var(--duracao-lenta) var(--ease-suave); /* abrir/fechar, sheet */
+  --transicao-pressionar: 0.09s cubic-bezier(0.4, 0, 1, 1); /* afundar no toque */
+  --escala-pressionado: 0.97; /* card/linha inteira; o button global do style.css usa 0.93 */
+
+  /* ---------- Toque e foco ---------- */
+  --toque-min: 44px; /* area minima de qualquer alvo tocavel */
+  --toque-confortavel: 48px; /* .btn-adicionar, .btn-primario de rodape, linha de lista */
+  /* anel de foco visivel no preto: folga da cor do fundo + anel do --text a 55%.
+     (o :focus-visible global do style.css usa --accent-2 #08080a e quase some no preto) */
+  --anel-foco: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--text) 55%, transparent);
+
+  /* ---------- Camadas (z-index) ----------
+     Existentes: #tabbar 10, grao do body::after 50, confete 90. O sheet fica acima da barra
+     de abas e abaixo do grao (a textura continua por cima de tudo, como no resto do app). */
+  --camada-fab: 20;
+  --camada-veu: 40;
+  --camada-sheet: 41;
+}
+
+/* Movimento reduzido: componentes que usam os tokens ficam instantaneos (o style.css ja faz o
+   mesmo com as proprias animacoes nos blocos prefers-reduced-motion). */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duracao-rapida: 0.01ms;
+    --duracao-media: 0.01ms;
+    --duracao-lenta: 0.01ms;
+    --transicao-pressionar: 0.01ms linear;
+    --escala-pressionado: 1;
+  }
+}

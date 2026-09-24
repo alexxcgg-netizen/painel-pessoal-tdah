@@ -1,0 +1,86 @@
+/* static/css/secoes/assistente/regras.css - secao assistente > regras (HTML: templates/secoes/assistente/regras.html).
+   Fase 7 (X2): carrega DEPOIS do style.css (via fase7.css), entao regra aqui
+   sobrescreve por cascata sem precisar editar o style.css.
+   Fase 7 (P1b): .card/.chip.chip--compacto (ui/componentes/{card,chip}.css,
+   faixa V0c, ja mesclada) dao fundo/borda/raio/sombra do item e do rotulo de
+   gatilho - aqui e so o que e especifico de Regras. .btn ainda sem CSS
+   (faixa V0b, static/css/ui/componentes/botao.css, vazio quando esta faixa
+   foi escrita) - .regra-acoes .btn tem estilo proprio ate la. */
+
+#secao-regras-assistente {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+#secao-regras-assistente h2 {
+  margin: 0 0 12px;
+  font-size: 1.05em;
+}
+
+.regras-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.regra-item {
+  /* fundo/borda/raio/sombra ja vem de .card */
+  padding: var(--espaco-2, 12px) var(--espaco-3, 16px);
+}
+
+.regra-gatilho {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.regra-texto {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.regra-status {
+  margin: 0 0 8px;
+  font-size: 0.85em;
+}
+
+.regra-status-pausada {
+  color: #ffc45c;
+}
+
+.regra-status-ativa {
+  color: var(--text-muted, #a7afbc);
+}
+
+.regra-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.regra-acoes .btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm, 14px);
+  border: 1px solid var(--border-strong, rgba(218, 226, 243, 0.18));
+  background: var(--surface-3, #1e1e1e);
+  color: var(--text, #eceef3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.regra-acoes .btn-perigo {
+  border-color: color-mix(in srgb, var(--danger, #ff5c72) 50%, var(--border-strong, rgba(218, 226, 243, 0.18)));
+  color: var(--danger, #ff5c72);
+}
+
+.regras-vazio {
+  list-style: none;
+  padding: 14px;
+  text-align: center;
+  color: var(--text-faint, #788292);
+  font-size: 0.9em;
+}

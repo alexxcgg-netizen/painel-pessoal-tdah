@@ -1,0 +1,23 @@
+/* static/css/secoes/topo/captura.css - secao topo > captura (HTML: templates/secoes/topo/captura.html).
+   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao). */
+
+/* #captura-btn/#duvida-btn (gradiente) e #duvida-box/#comando-voz-confirmar
+   ja tinham bastante profundidade (--shadow-card, glow). O que sobrava chapado
+   era o botao "Comando de voz" e as opcoes de confirmacao (pilulas soltas,
+   sem sombra, abaixo de 44px de toque). */
+#comando-voz-btn {
+  min-height: 44px;
+  box-shadow: var(--shadow-card);
+}
+
+@media (hover: hover) {
+  #comando-voz-btn:hover:not(:disabled) {
+    box-shadow: var(--shadow-card-hover);
+  }
+}
+
+.comando-voz-opcao {
+  min-height: 44px;
+  padding: 0.35rem 0.85rem;
+  box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.5);
+}

@@ -1,0 +1,6 @@
+/* static/css/secoes/hoje/chat.css - secao hoje > chat (HTML: templates/secoes/hoje/chat.html).
+   Fase 7 (V1): conferido - #chat-form/#chat-input/#chat-send/#chat-mic ja
+   tinham bastante profundidade (vidro com blur+sombra em camadas, gradiente
+   no botao de enviar, 42-44px de toque) no style.css. Nada achatado aqui pra
+   corrigir; os cards da resposta (.card-resultado/.card-contrato) tambem ja
+   sao o padrao mais elevado do app - ficam vazios de proposito. */

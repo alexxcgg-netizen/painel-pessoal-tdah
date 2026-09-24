@@ -1,10 +1,31 @@
 """Chat com tool-use, analise de decisao e mensagem dificil.
-Dona futura: faixa A6 (Fase 7). Extraido de claude_client.py sem mudar
-comportamento; claude_client.py reexporta estes nomes."""
-import json
-from datetime import date
+Dona: faixa A6 (Fase 7). claude_client.py reexporta estes nomes (os testes
+fazem patch("claude_client.chat") e patch.object(claude_client.client.messages,
+"create") - os dois continuam valendo).
 
-from ia.legado import SONNET, _extract_json, _usage, client
+Fase 7 / A6 (ver comentario "layout de cache estavel" mais abaixo):
+- chat(): system fixo no dia + bloco fixo do historico (A5) cacheado + so o
+  contexto do dia e a mensagem nova variando; max_tokens 500 (config), com
+  1 retry a 1500 se cortar; roteador A14 (flag) antes de responder.
+- analisar_decisao/redigir_mensagem_dificil: limite de saida pela config;
+  com `ativo: true` na config passam por ia.core.chamar_ia (ver _chamar_json).
+- resolver_data_relativa/resolver_quando_data: data do registrar_tarefa
+  resolvida em codigo (docs/calculos.md)."""
+import copy
+import json
+import logging
+import re
+import time
+import unicodedata
+from calendar import monthrange
+from datetime import date, datetime, timedelta
+
+import anthropic
+
+from ia import core, legado, precos
+from ia.legado import PRICING, SONNET, _extract_json, _usage, client  # noqa: F401
+
+log = logging.getLogger(__name__)
 
 
 CHAT_SYSTEM_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pessoal dele
@@ -90,7 +111,7 @@ toda vez que a construtora aparecer na conversa.
 
 Nunca cite um valor em R$ especifico da construtora na resposta (faturamento, saldo de caixa,
 valor de conta a pagar, margem, etc) - esses numeros moram so no financeiro-construtora, sistema
-separado do painel pessoal; mesmo que um numero assim apareca de relance no contexto abaixo, nao
+separado do painel pessoal; mesmo que um numero assim apareca de relance no contexto de agora, nao
 repita ele aqui. Fale do negocio em termos qualitativos (nome do projeto, etapa, prazo, decisao),
 nunca com o valor exato.
 
@@ -202,8 +223,9 @@ e so o item pontual que ja esta sendo registrado por outra ferramenta, chame tam
 Isso e raro - a grande maioria das mensagens nao tem nada de duravel pra guardar aqui, entao so
 use quando for claramente o caso, nunca por excesso de zelo.
 
-Contexto de agora:
-{contexto}
+O contexto de agora (tarefas pendentes, gastos, compromissos, saude, clima, voos) NAO fica aqui:
+ele chega junto da mensagem mais recente do Alex, num bloco que comeca com "Contexto de agora"
+(gerado pelo painel, nao foi o Alex que escreveu). Use sempre o bloco mais recente.
 
 Coisas duraveis que voce sabe sobre o Alex:
 {memorias}"""
@@ -1283,36 +1305,386 @@ CHAT_TOOLS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Fase 7 / A6: chat com layout de cache estavel
+# ---------------------------------------------------------------------------
+#
+# Ordem que o provedor ve (tools -> system -> messages) e onde fica cada coisa:
+#
+#   tools    CHAT_TOOLS (fixo; breakpoint 1 no ultimo tool)
+#   system   CHAT_SYSTEM_PROMPT com {hoje} e {memorias} (string; muda no maximo
+#            1x por dia ou quando nasce memoria nova - nada que muda a cada
+#            chamada fica aqui)
+#   msg[0]   1o bloco = "bloco fixo do historico" (resumo da A5, ou um texto
+#            fixo quando nao ha resumo) - breakpoint 2 (cobre tools+system+resumo)
+#   ...      historico estavel na integra - breakpoint 3 no ultimo bloco dele
+#   ultima   mensagem do usuario = [bloco "Contexto de agora" (muda a cada
+#            chamada), texto novo] - breakpoint 4 "rolante" (move pro ultimo
+#            tool_result a cada rodada do loop de tools)
+#
+# Maximo de 4 breakpoints por request e lookback de 20 posicoes (conferido no
+# guia de prompt caching da Anthropic, secao "API reference" e "20-block
+# lookback window"). Sonnet 5 so cacheia prefixo >= 1024 tokens (abaixo disso o
+# cache_control e ignorado em silencio, sem erro).
+#
+# Por que o system continua string (e nao lista de blocos com cache_control):
+# os testes existentes (tests/test_claude_client.py) fazem
+# assertIn("<trecho>", kwargs["system"]) e conferem data de hoje e memorias no
+# system. Com o breakpoint 2 logo depois do system (1o bloco das mensagens) o
+# efeito de cache e o mesmo: o prefixo tools+system fica cacheado.
+#
+# Por que o chat NAO passa por ia.core.chamar_ia: o contrato (ia/contrato.py,
+# Adapter.chamar) nao tem parametro de tools nem devolve tool_use/stop_reason.
+# O menor caminho seguro foi manter o SDK Anthropic direto (ia.legado.client)
+# com o layout de cache acima, lendo modelo/max_tokens/cache de
+# ia/config.d/chat.json e medindo por ia.medicao.registrar_uso +
+# ia.teto.teto_permite (quando medir_uso=True). O que faltaria pra levar o chat
+# com tools pro contrato esta em scripts/ralph-a6-chat/APRENDIZADOS.md.
+
+FUNCAO_CHAT = "chat"
+FUNCAO_CHAT_SIMPLES = "chat_simples"
+FUNCAO_DECISAO = "analisar_decisao"
+FUNCAO_MENSAGEM_DIFICIL = "redigir_mensagem_dificil"
+
+# Rodadas do loop de tool-use (igual a antes).
+RODADAS_MAX = 4
+# max_tokens padrao se ia/config.d/chat.json estiver ausente/invalido.
+MAX_TOKENS_CHAT_PADRAO = 500
+# Teto antigo do chat (brain dump US-E6: 8+ tool_use numa rodada). Se uma
+# rodada bater no limite de 500 (stop_reason "max_tokens"), ela e refeita UMA
+# vez com este teto - assim o limite novo corta custo no caso comum sem
+# perder tarefa no meio de um brain dump longo.
+MAX_TOKENS_CHAT_ESCALADO = 1500
+
+# Resposta do caminho barato (roteador -> "luna") quando a mensagem precisa
+# de ferramenta: o chat cai pro caminho padrao (com tools).
+MARCADOR_PRECISA_FERRAMENTA = "__PRECISA_FERRAMENTA__"
+
+TEXTO_SEM_RESUMO = "Resumo da conversa anterior: nenhum (valem so as mensagens abaixo)."
+PREFIXO_RESUMO = "Resumo da conversa anterior (gerado pelo painel):\n"
+PREFIXO_CONTEXTO_AGORA = "Contexto de agora (gerado pelo painel, nao foi o Alex que escreveu):\n"
+
+CHAT_SIMPLES_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pessoal dele. Hoje e
+{hoje}. Ele tem TDAH - responda direto e curto, tom de colega, sem enrolacao e sem emoji em
+excesso. Nunca cite valor em R$ especifico da construtora dele.
+
+Voce NAO tem ferramentas aqui. Se a mensagem pedir para registrar, marcar, agendar, consultar ou
+mudar qualquer coisa no painel (tarefa, gasto, renda, meta, voo, habito, remedio, nota, lembrete,
+projeto, agenda, saldo), ou se voce precisar de um dado que nao esta no contexto, responda
+exatamente {marcador} e nada mais.
+
+Coisas duraveis que voce sabe sobre o Alex:
+{memorias}"""
+
+
+def _texto_memorias(memorias, vazio: str = "nenhuma ainda") -> str:
+    return "\n".join(f"- {m}" for m in memorias or []) or vazio
+
+
+def montar_sistema_chat(memorias, hoje: date | None = None) -> str:
+    """System do chat: so o que e estavel no dia (regras, data, memorias)."""
+    return CHAT_SYSTEM_PROMPT.format(
+        hoje=(hoje or date.today()).isoformat(),
+        memorias=_texto_memorias(memorias),
+    )
+
+
+def _config_ia(funcao: str):
+    """Config de ia/config.d/<funcao>.json via ia.core (mesma validacao/cache
+    por mtime). Config quebrada nunca derruba o chat: loga e devolve None
+    (usa os padroes de hoje)."""
+    try:
+        return core._carregar_config(funcao)
+    except Exception:  # noqa: BLE001
+        log.exception("chat: config de IA %s invalida, usando padrao", funcao)
+        return None
+
+
+def _modelo_chat(config) -> str:
+    """Modelo Anthropic do chat com tools. Se o Alex virar `ativo: true` com
+    um alvo de outro provedor (ex.: openai/gpt-6-sol), o chat com tools ainda
+    nao consegue ir pra la (contrato sem tools) - fica no modelo_atual."""
+    if not config:
+        return SONNET
+    principal = config["alvo"] if config["ativo"] and config["alvo"] else config["modelo_atual"]
+    if principal["provedor"] != "anthropic":
+        log.warning("chat: alvo %s/%s ainda nao suporta tools; usando modelo_atual",
+                    principal["provedor"], principal["modelo"])
+        principal = config["modelo_atual"]
+    if principal["provedor"] != "anthropic":
+        return SONNET
+    return principal["modelo"]
+
+
+def _cache_control(config):
+    """{"type": "ephemeral"[, "ttl": "1h"]} se o cache estiver ligado na
+    config do chat (padrao: ligado), senao None."""
+    cache = config["cache"] if config else {"ativo": True, "ttl": "5m"}
+    if not cache.get("ativo"):
+        return None
+    controle = {"type": "ephemeral"}
+    if cache.get("ttl") == "1h":
+        controle["ttl"] = "1h"
+    return controle
+
+
+def _como_blocos(conteudo) -> list:
+    """Conteudo de mensagem -> lista de blocos (copiados; nunca muta o
+    historico de quem chamou). Texto vazio some (a API recusa bloco vazio)."""
+    if isinstance(conteudo, str):
+        return [{"type": "text", "text": conteudo}] if conteudo else []
+    if isinstance(conteudo, list):
+        return [copy.deepcopy(b) if isinstance(b, dict) else b for b in conteudo]
+    if conteudo is None:
+        return []
+    return [{"type": "text", "text": str(conteudo)}]
+
+
+def _separar_nova(historico) -> tuple[list, dict | None]:
+    """(mensagens estaveis, mensagem nova do usuario ou None)."""
+    hist = [m for m in historico or [] if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
+    if hist and hist[-1]["role"] == "user":
+        return hist[:-1], hist[-1]
+    return hist, None
+
+
+def texto_bloco_historico_fixo(contexto_fixo: str = "") -> str:
+    if isinstance(contexto_fixo, str) and contexto_fixo.strip():
+        return PREFIXO_RESUMO + contexto_fixo.strip()
+    return TEXTO_SEM_RESUMO
+
+
+def montar_mensagens_chat(historico, contexto: str, contexto_fixo: str = "", cache_control=None) -> list:
+    """Monta `messages` no layout de cache estavel (ver comentario do topo).
+    Com `cache_control`, marca: bloco fixo do historico, fim do historico
+    estavel e ultimo bloco da mensagem nova (rolante)."""
+    estaveis, nova = _separar_nova(historico)
+    msgs = []
+    for m in estaveis:
+        blocos = _como_blocos(m.get("content"))
+        if blocos:
+            msgs.append({"role": m["role"], "content": blocos})
+    ultimo_estavel = len(msgs) - 1
+
+    bloco_agora = {"type": "text", "text": PREFIXO_CONTEXTO_AGORA + (contexto or "nenhum")}
+    final = [bloco_agora] + (_como_blocos(nova.get("content")) if nova else [])
+    msgs.append({"role": "user", "content": final})
+
+    bloco_fixo = {"type": "text", "text": texto_bloco_historico_fixo(contexto_fixo)}
+    if msgs[0]["role"] == "user":
+        msgs[0]["content"].insert(0, bloco_fixo)
+    else:
+        msgs.insert(0, {"role": "user", "content": [bloco_fixo]})
+        ultimo_estavel += 1
+
+    if cache_control:
+        bloco_fixo["cache_control"] = dict(cache_control)
+        if ultimo_estavel >= 0:
+            ultimo_bloco = msgs[ultimo_estavel]["content"][-1]
+            if isinstance(ultimo_bloco, dict) and ultimo_bloco is not bloco_fixo:
+                ultimo_bloco["cache_control"] = dict(cache_control)
+        rolante = msgs[-1]["content"][-1]
+        if isinstance(rolante, dict) and "cache_control" not in rolante:
+            rolante["cache_control"] = dict(cache_control)
+    return msgs
+
+
+def _tools_com_cache(cache_control) -> list:
+    if not cache_control:
+        return CHAT_TOOLS
+    tools = list(CHAT_TOOLS)
+    tools[-1] = {**tools[-1], "cache_control": dict(cache_control)}
+    return tools
+
+
+def _custo_usd(modelo: str, tokens_in: int, tokens_out: int, cache_lido: int, cache_escrito: int,
+               ttl: str) -> float:
+    custo = precos.custo_usd(modelo, tokens_in, tokens_out, cache_lido, cache_escrito, ttl_cache=ttl)
+    if custo or modelo not in PRICING:
+        return custo
+    entrada, saida = PRICING[modelo]
+    return (tokens_in / 1_000_000) * entrada + (tokens_out / 1_000_000) * saida
+
+
+def _registrar_uso(funcao: str, modelo: str, uso: dict, latencia_ms: int, ok: bool = True) -> None:
+    """ia.medicao.registrar_uso (tabela uso_ia, sem conteudo de prompt).
+    Medicao nunca derruba o chat."""
+    try:
+        from ia.medicao import registrar_uso
+
+        registrar_uso(
+            funcao, "anthropic", modelo,
+            tokens_in=uso["input_tokens"], tokens_out=uso["output_tokens"],
+            tokens_cache_lido=uso["cache_read_input_tokens"],
+            tokens_cache_escrito=uso["cache_creation_input_tokens"],
+            custo_usd=uso["cost_usd"], latencia_ms=latencia_ms, ok=ok,
+        )
+    except Exception:  # noqa: BLE001
+        log.exception("chat: falha ao registrar uso de %s", funcao)
+
+
+def _teto_permite(funcao: str) -> bool:
+    """ia.teto.teto_permite; erro no calculo bloqueia (mesma regra do ia.core)."""
+    try:
+        from ia.teto import teto_permite
+
+        return bool(teto_permite(funcao))
+    except Exception:  # noqa: BLE001
+        log.exception("chat: falha ao consultar teto de %s", funcao)
+        return False
+
+
+def _mensagem_teto() -> str:
+    try:
+        from ia.teto import TETO_IA_MSG
+
+        return TETO_IA_MSG
+    except Exception:  # noqa: BLE001
+        return "teto mensal de gasto com IA estourado"
+
+
+def _uso_da_resposta(response, modelo: str, ttl: str) -> dict:
+    u = getattr(response, "usage", None)
+    tokens_in = int(getattr(u, "input_tokens", 0) or 0)
+    tokens_out = int(getattr(u, "output_tokens", 0) or 0)
+    cache_lido = int(getattr(u, "cache_read_input_tokens", 0) or 0)
+    cache_escrito = int(getattr(u, "cache_creation_input_tokens", 0) or 0)
+    modelo_resp = getattr(response, "model", None) or modelo
+    return {
+        "model": modelo_resp,
+        "input_tokens": tokens_in,
+        "output_tokens": tokens_out,
+        "cache_read_input_tokens": cache_lido,
+        "cache_creation_input_tokens": cache_escrito,
+        "cost_usd": _custo_usd(modelo_resp, tokens_in, tokens_out, cache_lido, cache_escrito, ttl),
+    }
+
+
+def _decidir_rota(mensagem, historico_anterior, conn) -> str:
+    """ia.roteador_chat.decidir (faixa A14). Flag desligada -> sempre
+    "padrao". Qualquer erro -> "padrao" (o roteador so economiza)."""
+    try:
+        from ia import roteador_chat
+
+        destino = roteador_chat.decidir(mensagem, {"historico": historico_anterior, "conn": conn})
+    except Exception:  # noqa: BLE001
+        log.exception("chat: roteador falhou, seguindo no padrao")
+        return "padrao"
+    return destino if destino in ("local", "luna", "padrao") else "padrao"
+
+
+def _texto_de(conteudo) -> str:
+    if isinstance(conteudo, str):
+        return conteudo
+    if isinstance(conteudo, list):
+        return "\n".join(b.get("text", "") for b in conteudo if isinstance(b, dict) and b.get("type") == "text")
+    return ""
+
+
+def _responder_simples(historico, contexto, memorias, contexto_fixo):
+    """Caminho barato (roteador -> "luna"): resposta direta SEM tools via
+    chamar_ia("chat_simples"). Devolve (texto, [], usage) ou None pra cair no
+    caminho padrao (falha, teto, ou o modelo disse que precisa de ferramenta)."""
+    estaveis, nova = _separar_nova(historico)
+    mensagens = [{"role": m["role"], "content": _texto_de(m.get("content"))} for m in estaveis]
+    mensagens = [m for m in mensagens if m["content"]]
+    texto_novo = _texto_de(nova.get("content")) if nova else ""
+    mensagens.append({"role": "user", "content": PREFIXO_CONTEXTO_AGORA + (contexto or "nenhum")
+                      + ("\n\n" + texto_novo if texto_novo else "")})
+    if mensagens[0]["role"] != "user":
+        mensagens.insert(0, {"role": "user", "content": TEXTO_SEM_RESUMO})
+    sistema = CHAT_SIMPLES_PROMPT.format(
+        hoje=date.today().isoformat(), marcador=MARCADOR_PRECISA_FERRAMENTA,
+        memorias=_texto_memorias(memorias),
+    )
+    try:
+        _garantir_adapter_anthropic_legado()
+        resp = core.chamar_ia(FUNCAO_CHAT_SIMPLES, mensagens, sistema=sistema,
+                              contexto_fixo=texto_bloco_historico_fixo(contexto_fixo))
+    except Exception:  # noqa: BLE001
+        log.exception("chat: caminho simples falhou, seguindo no padrao")
+        return None
+    texto = (resp.texto or "").strip()
+    if not resp.ok or not texto or MARCADOR_PRECISA_FERRAMENTA in texto:
+        return None
+    return texto, [], {
+        "model": resp.modelo,
+        "input_tokens": resp.tokens_in,
+        "output_tokens": resp.tokens_out,
+        "cache_read_input_tokens": resp.tokens_cache_lido,
+        "cache_creation_input_tokens": resp.tokens_cache_escrito,
+        "cost_usd": resp.custo_usd,
+    }
+
+
 def chat(
-    historico: list[dict], contexto: str, memorias: list[str], executores: dict
+    historico: list[dict], contexto: str, memorias: list[str], executores: dict,
+    *, contexto_fixo: str = "", conn=None, medir_uso: bool = False,
 ) -> tuple[str, list[str], dict]:
     """Roda o loop de tool-use: manda o historico + ferramentas, se a IA
     pedir pra usar uma ferramenta, chama o executor correspondente (que
     mexe no banco, em app.py) e devolve o resultado pra IA continuar, ate
     ela responder so com texto (ou ate um limite de rodadas, pra nunca
-    ficar preso num loop)."""
-    system = CHAT_SYSTEM_PROMPT.format(
-        hoje=date.today().isoformat(),
-        contexto=contexto,
-        memorias="\n".join(f"- {m}" for m in memorias) or "nenhuma ainda",
-    )
-    mensagens = list(historico)
-    acoes: list[str] = []
-    usage_total = {"model": SONNET, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+    ficar preso num loop).
 
-    for _ in range(4):
+    Fase 7 (A6), tudo opcional e compativel com a chamada antiga:
+    - contexto_fixo: resumo da A5 (ia.historico.montar_contexto) - vira o
+      bloco fixo cacheado no inicio das mensagens.
+    - conn: repassada pro roteador (ia.roteador_chat) consultar padroes.
+    - medir_uso: True = consulta ia.teto.teto_permite("chat") antes e grava
+      cada rodada em uso_ia (ia.medicao.registrar_uso). Padrao False pra nao
+      gravar no banco em quem chama sem conn (testes antigos); o app liga."""
+    estaveis, nova = _separar_nova(historico)
+    mensagem_nova = _texto_de(nova.get("content")) if nova else ""
+    rota = _decidir_rota(mensagem_nova, estaveis, conn)
+    # "local": o app ja tentou classificador_local/_plano_local_chat antes de
+    # chegar aqui e nao resolveu - entao aqui segue como "padrao".
+    if rota == "luna":
+        simples = _responder_simples(historico, contexto, memorias, contexto_fixo)
+        if simples is not None:
+            return simples
+
+    config = _config_ia(FUNCAO_CHAT)
+    modelo = _modelo_chat(config)
+    max_tokens = config["max_tokens_saida"] if config else MAX_TOKENS_CHAT_PADRAO
+    controle = _cache_control(config)
+    ttl = (controle or {}).get("ttl", "5m")
+    usage_total = {
+        "model": modelo, "input_tokens": 0, "output_tokens": 0,
+        "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "cost_usd": 0.0,
+    }
+
+    if medir_uso and not _teto_permite(FUNCAO_CHAT):
+        return _mensagem_teto(), [], usage_total
+
+    system = montar_sistema_chat(memorias)
+    tools = _tools_com_cache(controle)
+    mensagens = montar_mensagens_chat(historico, contexto, contexto_fixo, controle)
+    rolante = mensagens[-1]["content"][-1] if controle else None
+    acoes: list[str] = []
+
+    def rodada(limite: int):
+        inicio = time.monotonic()
         response = client.messages.create(
-            model=SONNET,
-            # brain dump (US-E6): 8+ tool_use numa rodada so cabem com folga
-            max_tokens=1500,
+            model=modelo,
+            max_tokens=limite,
             system=system,
-            tools=CHAT_TOOLS,
+            tools=tools,
             messages=mensagens,
         )
-        u = _usage(response)
-        usage_total["input_tokens"] += u["input_tokens"]
-        usage_total["output_tokens"] += u["output_tokens"]
-        usage_total["cost_usd"] += u["cost_usd"]
+        uso = _uso_da_resposta(response, modelo, ttl)
+        for chave in ("input_tokens", "output_tokens", "cache_read_input_tokens",
+                      "cache_creation_input_tokens", "cost_usd"):
+            usage_total[chave] += uso[chave]
+        if medir_uso:
+            _registrar_uso(FUNCAO_CHAT, uso["model"], uso, int((time.monotonic() - inicio) * 1000))
+        return response
+
+    for _ in range(RODADAS_MAX):
+        response = rodada(max_tokens)
+        if response.stop_reason == "max_tokens" and max_tokens < MAX_TOKENS_CHAT_ESCALADO:
+            # cortou no limite novo: refaz a rodada com o teto antigo (1x)
+            response = rodada(MAX_TOKENS_CHAT_ESCALADO)
 
         if response.stop_reason != "tool_use":
             texto = "".join(b.text for b in response.content if b.type == "text").strip()
@@ -1335,12 +1707,90 @@ def chat(
                 }
             )
         mensagens.append({"role": "user", "content": resultados})
+        # breakpoint rolante: sai do bloco anterior e vai pro ultimo
+        # tool_result, pra rodada seguinte ler o loop inteiro do cache
+        if controle and resultados:
+            if isinstance(rolante, dict):
+                rolante.pop("cache_control", None)
+            rolante = resultados[-1]
+            rolante["cache_control"] = dict(controle)
 
     return (
         "Isso ficou complicado demais pra eu processar de uma vez - tenta pedir uma coisa por vez.",
         acoes,
         usage_total,
     )
+
+
+# ---------------------------------------------------------------------------
+# Funcoes sem tools: passam por ia.core.chamar_ia (config em ia/config.d/)
+# ---------------------------------------------------------------------------
+
+
+class FalhaIA(anthropic.APIError):
+    """Resposta(ok=False) de chamar_ia (rede, provedor, teto) vira isto -
+    subclasse de anthropic.APIError pra app._call_claude continuar
+    devolvendo CLAUDE_ERROR_MSG (502) igual antes."""
+
+    def __init__(self, mensagem: str):
+        super().__init__(mensagem, None, body=None)
+
+
+def _garantir_adapter_anthropic_legado() -> None:
+    """Faz o adapter "anthropic" do ia.core usar o MESMO cliente do resto do
+    app (ia.legado.client == claude_client.client), se ninguem registrou outro
+    adapter antes (ex.: dubles de teste de outras faixas). Motivo: um cliente
+    so no processo, e os testes/guardas que fazem
+    patch.object(claude_client.client.messages, "create") continuam cobrindo
+    tambem estas chamadas (nenhuma chamada real escapa). Em producao e
+    equivalente (mesma ANTHROPIC_API_KEY)."""
+    try:
+        from ia.adapters.anthropic import AdapterAnthropic
+    except ImportError:
+        return
+    with core._TRAVA:
+        ja_registrado = "anthropic" in core._FABRICAS_REGISTRADAS
+    if not ja_registrado:
+        core.registrar_adapter("anthropic", lambda: AdapterAnthropic(client=legado.client))
+
+
+MAX_TOKENS_JSON_PADRAO = 600  # limite antigo, se a config estiver quebrada
+
+
+def _chamar_json(funcao: str, conteudo: str) -> tuple[dict, dict]:
+    """Chamada sem tools que devolve JSON (decisao, mensagem dificil).
+
+    - config `ativo: true` -> ia.core.chamar_ia (alvo + fallback, teto e
+      medicao em uso_ia pelo proprio nucleo).
+    - config `ativo: false` (padrao) -> o MESMO caminho de hoje (SDK direto
+      no modelo_atual), so que com o limite de saida da config (700/500).
+      Motivo: chamar_ia sempre consulta o teto e grava uso_ia no banco de
+      db.DB_PATH; os testes antigos que chamam estas funcoes com o cliente
+      mockado (tests/test_claude_client.py) nao isolam o banco - pelo nucleo
+      eles quebrariam (tabela ausente) ou, rodados no checkout principal,
+      gravariam uso falso no banco real. Ver progress.txt/APRENDIZADOS."""
+    config = _config_ia(funcao)
+    if not (config and config["ativo"]):
+        atual = config["modelo_atual"] if config else {"provedor": "anthropic", "modelo": SONNET}
+        modelo = atual["modelo"] if atual["provedor"] == "anthropic" else SONNET
+        response = client.messages.create(
+            model=modelo,
+            max_tokens=config["max_tokens_saida"] if config else MAX_TOKENS_JSON_PADRAO,
+            messages=[{"role": "user", "content": conteudo}],
+        )
+        return _extract_json(response.content[0].text), _usage(response)
+
+    _garantir_adapter_anthropic_legado()
+    resp = core.chamar_ia(funcao, [{"role": "user", "content": conteudo}])
+    if not resp.ok:
+        raise FalhaIA(f"{funcao}: {resp.erro}")
+    dados = _extract_json(resp.texto or "")
+    return dados, {
+        "model": resp.modelo,
+        "input_tokens": resp.tokens_in,
+        "output_tokens": resp.tokens_out,
+        "cost_usd": resp.custo_usd,
+    }
 
 
 DECISAO_PROMPT = """Ajude a decidir rapido se vale a pena. A pessoa tem TDAH e quer clareza, nao
@@ -1368,19 +1818,10 @@ Responda SO com JSON, sem markdown:
 
 
 def analisar_decisao(pergunta: str, memorias: list[str] | None = None) -> tuple[dict, dict]:
-    response = client.messages.create(
-        model=SONNET,
-        max_tokens=600,
-        messages=[
-            {
-                "role": "user",
-                "content": DECISAO_PROMPT.format(
-                    pergunta=pergunta, memorias="\n".join(f"- {m}" for m in memorias or []) or "nenhuma"
-                ),
-            }
-        ],
-    )
-    return _extract_json(response.content[0].text), _usage(response)
+    """Card "vale a pena?". Fase 7 (A6): config em
+    ia/config.d/analisar_decisao.json (limite 700; ver _chamar_json)."""
+    conteudo = DECISAO_PROMPT.format(pergunta=pergunta, memorias=_texto_memorias(memorias, "nenhuma"))
+    return _chamar_json(FUNCAO_DECISAO, conteudo)
 
 
 MENSAGEM_DIFICIL_PROMPT = """Ajude a escrever uma mensagem dificil (cobrar alguem, dizer nao, pedir
@@ -1395,16 +1836,238 @@ Responda SO com JSON, sem markdown:
 
 
 def redigir_mensagem_dificil(situacao: str, para_quem: str | None) -> tuple[dict, dict]:
-    response = client.messages.create(
-        model=SONNET,
-        max_tokens=600,
-        messages=[
-            {
-                "role": "user",
-                "content": MENSAGEM_DIFICIL_PROMPT.format(
-                    situacao=situacao, para_quem=para_quem or "nao informado"
-                ),
-            }
-        ],
+    """Fase 7 (A6): config em ia/config.d/redigir_mensagem_dificil.json
+    (limite 500; ver _chamar_json)."""
+    conteudo = MENSAGEM_DIFICIL_PROMPT.format(situacao=situacao, para_quem=para_quem or "nao informado")
+    return _chamar_json(FUNCAO_MENSAGEM_DIFICIL, conteudo)
+
+
+# ---------------------------------------------------------------------------
+# Data relativa -> data absoluta EM CODIGO (docs/calculos.md, secao 1.2/1.3)
+# ---------------------------------------------------------------------------
+#
+# Hoje o modelo preenche `quando_data` de `registrar_tarefa` fazendo a conta
+# de calendario sozinho ("amanha", "sexta", "daqui 6 meses"). O certo e o
+# modelo devolver so a pista em texto (`quando`) e o codigo resolver a data.
+# `resolver_data_relativa` e esse resolvedor; `resolver_quando_data` e o que o
+# executor do app.py deve chamar (ver scripts/ralph-a6-chat/progress.txt).
+#
+# Regras (texto normalizado: minusculo, sem acento, sem "-feira"):
+#   AAAA-MM-DD, DD/MM, DD/MM/AA(AA), "15 de outubro [de 2026]"  -> data dita
+#       (sem ano: este ano, ou o proximo se ja passou)
+#   "hoje"/"hj"/"agora" -> hoje | "amanha" -> +1 | "depois de amanha" -> +2
+#   "daqui a/em/dentro de N dia(s)|semana(s)|mes(es)|ano(s)" (N em numero ou
+#       por extenso: um, dois, ..., dez, quinze, vinte, trinta) -> soma;
+#       mes/ano somam no calendario (31/01 + 1 mes = 28 ou 29/02)
+#   "dia 15" -> dia 15 deste mes, ou do proximo se ja passou
+#   "fim/final do mes" -> ultimo dia do mes | "fim/final do ano" -> 31/12
+#   dia da semana ("sexta", "proxima sexta", "sexta que vem") -> a PROXIMA
+#       ocorrencia depois de hoje (1 a 7 dias; "sexta" dito numa sexta = a
+#       sexta seguinte - pra hoje o Alex diz "hoje");
+#       "<dia> da semana que vem"/"<dia> da proxima semana" -> aquele dia na
+#       semana seguinte (segunda a domingo)
+#   Vago ("essa semana", "semana que vem" sozinho, "mes que vem", "quando
+#   der", "algum dia", "fim de semana") ou data impossivel (31/02) -> None.
+
+_DIAS_SEMANA = {"segunda": 0, "terca": 1, "quarta": 2, "quinta": 3, "sexta": 4, "sabado": 5, "domingo": 6}
+_MESES = {
+    "janeiro": 1, "fevereiro": 2, "marco": 3, "abril": 4, "maio": 5, "junho": 6, "julho": 7,
+    "agosto": 8, "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
+}
+_NUMEROS = {
+    "um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4, "cinco": 5, "seis": 6,
+    "sete": 7, "oito": 8, "nove": 9, "dez": 10, "onze": 11, "doze": 12, "quinze": 15,
+    "vinte": 20, "trinta": 30,
+}
+# Nada alem de ~10 anos pra frente (evita overflow e data absurda vinda de "em 99999 dias").
+_LIMITE_DIAS = 3660
+_LIMITE_TEXTO = 300
+_INVALIDA = object()
+
+_RE_ISO = re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")
+_RE_BARRA = re.compile(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2}|\d{4}))?\b")
+_RE_MES_EXTENSO = re.compile(r"\b(\d{1,2}) de (" + "|".join(_MESES) + r")(?: de (\d{4}))?\b")
+_RE_QUANTIDADE = re.compile(
+    r"\b(?:daqui a|daqui|em|dentro de)\s+(\d{1,4}|" + "|".join(_NUMEROS) + r")\s+"
+    r"(dias?|semanas?|mes|meses|anos?)\b"
+)
+_RE_DIA_SOLTO = re.compile(r"\bdia (\d{1,2})\b")
+_RE_DIA_SEMANA = re.compile(r"\b(" + "|".join(_DIAS_SEMANA) + r")\b")
+_RE_SEMANA_QUE_VEM = re.compile(r"\b(?:semana que vem|proxima semana)\b")
+
+
+def _normalizar_data_texto(texto: str) -> str:
+    sem_acento = "".join(
+        c for c in unicodedata.normalize("NFKD", texto) if not unicodedata.combining(c)
     )
-    return _extract_json(response.content[0].text), _usage(response)
+    t = sem_acento.lower().replace("-feira", "").replace(" feira", "")
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _como_hoje(hoje) -> date:
+    if isinstance(hoje, datetime):
+        return hoje.date()
+    if isinstance(hoje, date):
+        return hoje
+    if isinstance(hoje, str):
+        return date.fromisoformat(hoje.strip())
+    raise ValueError(f"hoje invalido: {hoje!r}")
+
+
+def _data_ou_invalida(ano: int, mes: int, dia: int):
+    try:
+        return date(ano, mes, dia)
+    except ValueError:
+        return _INVALIDA
+
+
+def _somar_meses(base: date, meses: int) -> date:
+    total = base.month - 1 + meses
+    ano, mes = base.year + total // 12, total % 12 + 1
+    return date(ano, mes, min(base.day, monthrange(ano, mes)[1]))
+
+
+def _regra_data_explicita(t: str, hoje: date):
+    m = _RE_ISO.search(t)
+    if m:
+        return _data_ou_invalida(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    m = _RE_BARRA.search(t)
+    if m:
+        dia, mes, ano = int(m.group(1)), int(m.group(2)), m.group(3)
+        if ano:
+            ano_int = int(ano) + (2000 if len(ano) == 2 else 0)
+            return _data_ou_invalida(ano_int, mes, dia)
+        d = _data_ou_invalida(hoje.year, mes, dia)
+        if d is not _INVALIDA and d < hoje:
+            d = _data_ou_invalida(hoje.year + 1, mes, dia)
+        return d
+    m = _RE_MES_EXTENSO.search(t)
+    if m:
+        dia, mes = int(m.group(1)), _MESES[m.group(2)]
+        if m.group(3):
+            return _data_ou_invalida(int(m.group(3)), mes, dia)
+        d = _data_ou_invalida(hoje.year, mes, dia)
+        if d is not _INVALIDA and d < hoje:
+            d = _data_ou_invalida(hoje.year + 1, mes, dia)
+        return d
+    return None
+
+
+def _regra_palavra(t: str, hoje: date):
+    if re.search(r"\bdepois de amanha\b", t):
+        return hoje + timedelta(days=2)
+    if re.search(r"\bamanha\b", t):
+        return hoje + timedelta(days=1)
+    if re.search(r"\b(?:hoje|hj|agora)\b", t):
+        return hoje
+    return None
+
+
+def _regra_quantidade(t: str, hoje: date):
+    m = _RE_QUANTIDADE.search(t)
+    if not m:
+        return None
+    bruto, unidade = m.group(1), m.group(2)
+    n = int(bruto) if bruto.isdigit() else _NUMEROS[bruto]
+    if unidade.startswith("dia"):
+        dias = n
+    elif unidade.startswith("semana"):
+        dias = 7 * n
+    else:
+        meses = n if unidade.startswith("mes") else 12 * n
+        if meses * 31 > _LIMITE_DIAS:
+            return _INVALIDA
+        return _somar_meses(hoje, meses)
+    if dias > _LIMITE_DIAS:
+        return _INVALIDA
+    return hoje + timedelta(days=dias)
+
+
+def _regra_dia_solto(t: str, hoje: date):
+    m = _RE_DIA_SOLTO.search(t)
+    if not m:
+        return None
+    dia = int(m.group(1))
+    d = _data_ou_invalida(hoje.year, hoje.month, dia)
+    if d is not _INVALIDA and d >= hoje:
+        return d
+    proximo = _somar_meses(hoje.replace(day=1), 1)
+    return _data_ou_invalida(proximo.year, proximo.month, dia)
+
+
+def _regra_fim(t: str, hoje: date):
+    if re.search(r"\b(?:fim|final) do mes\b", t):
+        return hoje.replace(day=monthrange(hoje.year, hoje.month)[1])
+    if re.search(r"\b(?:fim|final) do ano\b", t):
+        return date(hoje.year, 12, 31)
+    return None
+
+
+def _regra_dia_semana(t: str, hoje: date):
+    m = _RE_DIA_SEMANA.search(t)
+    if not m:
+        return None
+    alvo = _DIAS_SEMANA[m.group(1)]
+    if _RE_SEMANA_QUE_VEM.search(t):
+        segunda_que_vem = hoje + timedelta(days=7 - hoje.weekday())
+        return segunda_que_vem + timedelta(days=alvo)
+    return hoje + timedelta(days=(alvo - hoje.weekday() - 1) % 7 + 1)
+
+
+_REGRAS_DATA = (
+    _regra_data_explicita,
+    _regra_palavra,
+    _regra_quantidade,
+    _regra_dia_solto,
+    _regra_fim,
+    _regra_dia_semana,
+)
+
+
+def resolver_data_relativa(texto, hoje) -> date | None:
+    """Resolve a pista de prazo em texto livre ("amanha", "sexta que vem",
+    "daqui 6 meses", "15/10") pra uma data absoluta, a partir de `hoje`
+    (date, datetime ou "AAAA-MM-DD"). Vago, impossivel ou nao reconhecido ->
+    None (nunca chuta). Deterministico: mesma entrada, mesma saida. `hoje`
+    invalido levanta ValueError (erro de programacao)."""
+    hoje = _como_hoje(hoje)
+    if not isinstance(texto, str):
+        return None
+    t = _normalizar_data_texto(texto)
+    if not t or len(t) > _LIMITE_TEXTO:
+        return None
+    for regra in _REGRAS_DATA:
+        try:
+            resultado = regra(t, hoje)
+        except (ValueError, OverflowError):
+            return None
+        if resultado is _INVALIDA:
+            return None
+        if resultado is not None:
+            return resultado
+    return None
+
+
+def resolver_quando_data(entrada, hoje=None) -> str | None:
+    """`due_date` (AAAA-MM-DD) de uma tarefa do tool `registrar_tarefa`,
+    resolvida em codigo. Ordem: (1) pista `quando` resolvida por
+    resolver_data_relativa; (2) transicao: `quando_data` que o modelo ainda
+    manda, se for uma data valida; (3) regra do tool: `hora` sem nenhuma
+    referencia de dia = hoje. Nada disso -> None (tarefa sem data)."""
+    if not isinstance(entrada, dict):
+        return None
+    hoje = _como_hoje(hoje or date.today())
+    quando = entrada.get("quando")
+    if isinstance(quando, str) and quando.strip():
+        resolvida = resolver_data_relativa(quando, hoje)
+        if resolvida is not None:
+            return resolvida.isoformat()
+    do_modelo = entrada.get("quando_data")
+    if isinstance(do_modelo, str):
+        try:
+            return date.fromisoformat(do_modelo.strip()).isoformat()
+        except ValueError:
+            pass
+    if not (isinstance(quando, str) and quando.strip()) and entrada.get("hora"):
+        return hoje.isoformat()
+    return None

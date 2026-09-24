@@ -1,0 +1,35 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-hoje)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>
+        Agenda (calendario "Painel")
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao da agenda"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Cria evento num calendario SEPARADO no seu iCloud, chamado "Painel" - nunca mexe em nenhum
+          outro calendario seu. So da pra apagar por aqui o que foi criado por aqui. Precisa de
+          ICLOUD_USERNAME/ICLOUD_APP_PASSWORD configurados no servidor. No chat: "reuniao terca dia 29
+          das 14h as 15h, lembrar 30 min antes".
+        </p>
+      </div>
+      <button type="button" id="evento-abrir-btn" class="btn btn-adicionar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Criar evento
+      </button>
+
+      <div class="bottom-sheet" id="evento-sheet" hidden>
+        <form id="evento-form" class="form-linha">
+          <input type="text" id="evento-titulo" class="campo" placeholder="Titulo" maxlength="120" required />
+          <input type="date" id="evento-data" class="campo" aria-label="Data" required />
+          <input type="time" id="evento-hora-inicio" class="campo" aria-label="Hora de inicio" required />
+          <input type="time" id="evento-hora-fim" class="campo" aria-label="Hora de fim" required />
+          <input type="number" id="evento-lembrar" class="campo" placeholder="Lembrar quantos min antes (opcional)" min="0" max="1440" inputmode="numeric" />
+          <div class="form-linha">
+            <button type="submit" id="evento-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Criar evento</button>
+            <button type="button" id="evento-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </form>
+      </div>
+
+      <p id="eventos-criados-vazio" class="vazio" hidden>Nenhum evento criado pelo painel ainda.</p>
+      <ul id="lista-eventos-criados"></ul>
+

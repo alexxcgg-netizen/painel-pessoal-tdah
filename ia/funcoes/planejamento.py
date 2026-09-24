@@ -1,42 +1,239 @@
 """Quebra/requebra de tarefa, plano do dia, mala de viagem e resumo de link.
-Dona futura: faixa A8 (Fase 7). Extraido de claude_client.py sem mudar
-comportamento; claude_client.py reexporta estes nomes."""
+Dona: faixa A8 (Fase 7, Migracao 2). Migrado de chamada direta ao SDK Anthropic
+(ia/legado.py) pra ia.core.chamar_ia (ia/config.d/<funcao>.json escolhe o
+modelo). claude_client.py continua reexportando estes nomes.
+
+Assinatura e retorno de cada funcao publica sao IDENTICOS aos de antes da
+migracao: tupla (resultado, usage), com `usage` no formato que app.py espera
+(app.py:359 `_log_usage` le usage["model"/"input_tokens"/"output_tokens"/
+"cost_usd"]) - ver `_usage_de` abaixo.
+
+Prompt fixo (instrucao que nunca muda) vai em `contexto_fixo`; os dados que
+mudam a cada chamada (titulo da tarefa, destino, texto da pagina...) vao nas
+`mensagens`, como manda ia/config.d/README.md - isso deixa o prefixo estavel
+pronto pro cache de prompt do provedor, mesmo com `cache.ativo: false` hoje.
+
+Erro (rede, provedor, teto mensal estourado, JSON fora do schema) nunca sobe
+de ia.core.chamar_ia - vira Resposta(ok=False, erro=...). Pra nao mudar o
+contrato de app.py:_call_claude (so pega anthropic.APIError e
+(ValueError, KeyError)), toda falha aqui vira ValueError - ver `_falhar`. Isso
+inclui teto_ia_estourado, que antes da migracao NENHUMA destas 5 funcoes
+verificava (so classify_capture/classify_intent, ver app.py:869); com
+chamar_ia isso passa a valer de graca pra estas 5 tambem (resolve a pendencia
+"mala e PDF de cotacao fora do teto" da Fase 6 - PDF de cotacao e da faixa
+A9/ia/funcoes/visao.py, fora do escopo A8)."""
 from datetime import datetime
 
-from ia.legado import HAIKU, SONNET, _extract_json, _usage, client
+from ia import core
+from ia.contrato import Resposta
+
+# --------------------------------------------------------------------------
+# Helpers compartilhados pelas 5 funcoes desta faixa
+# --------------------------------------------------------------------------
 
 
-BREAKDOWN_PROMPT = """Quebre esta tarefa em 3 a 6 passos pequenos e concretos, cada um algo que da pra fazer de uma vez.
-Responda so com um JSON de lista de strings, sem markdown.
+def _usage_de(resp: Resposta) -> dict:
+    """Usage no formato que app.py espera (app.py:359 _log_usage)."""
+    return {
+        "model": resp.modelo,
+        "input_tokens": resp.tokens_in,
+        "output_tokens": resp.tokens_out,
+        "cost_usd": resp.custo_usd,
+    }
 
-Tarefa: {title}"""
+
+def _falhar(funcao: str, resp: Resposta) -> None:
+    """Levanta ValueError com a mensagem de erro do nucleo. app.py:411
+    (_call_claude) so pega anthropic.APIError e (ValueError, KeyError) - com
+    chamar_ia nunca mais sobe anthropic.APIError (o nucleo absorve o erro do
+    provedor e devolve Resposta(ok=False)), entao toda falha (rede, provedor,
+    JSON fora do schema, teto) cai no mesmo bucket ValueError -> 502
+    CLAUDE_FORMAT_ERROR_MSG. Antes da migracao havia 2 mensagens diferentes
+    (CLAUDE_ERROR_MSG pra erro de rede/provedor, CLAUDE_FORMAT_ERROR_MSG pra
+    JSON invalido) - a distincao se perde aqui. Anotado em
+    scripts/ralph-a8-migracao2/progress.txt pro integrador avaliar se vale
+    a pena app.py reconhecer resp.erro == "teto_ia_estourado" (nao editamos
+    app.py, fora da lista de arquivos desta faixa)."""
+    raise ValueError(f"{funcao}: {resp.erro or 'falha na chamada de IA'}")
 
 
-PLANO_PROMPT = """Voce ajuda uma pessoa com TDAH a organizar o resto do dia. Agora sao {agora}.
+# --------------------------------------------------------------------------
+# break_down_task
+# --------------------------------------------------------------------------
 
-Os compromissos da agenda abaixo tem horario FIXO e nao podem mudar - use como ancoras.
-As tarefas pendentes NAO tem horario marcado - sugira em que ordem encaixa-las ao longo do
-dia (antes, entre ou depois dos compromissos), pensando em coisas como: tarefa rapida
-antes de sair de casa, tarefa que depende de estar em algum lugar perto de um compromisso
-que ja leva pra la, tarefa urgente primeiro se nao houver pista de prioridade.
+FUNCAO_BREAKDOWN = "break_down_task"
 
-Coisas duraveis que voce sabe sobre a pessoa (use so se ajudar a ordenar melhor, nao force):
-{memorias}
+BREAKDOWN_PROMPT = """Quebre a tarefa em 3 a 6 passos pequenos e concretos, cada um algo que da pra
+fazer de uma vez. Responda so com o JSON pedido, sem explicacao, sem markdown."""
 
-Responda em lista numerada curta (maximo 6 itens), cada item uma linha, direto ao ponto.
-Tom neutro, sem cobranca. Se nao houver tarefa nem compromisso nenhum, diga isso em uma frase.
-
-Compromissos de hoje (hora fixa): {eventos}
-Tarefas pendentes (sem hora fixa): {tarefas}"""
+SCHEMA_BREAKDOWN = {
+    "type": "object",
+    "properties": {
+        "passos": {"type": "array", "items": {"type": "string"}, "minItems": 3, "maxItems": 6},
+    },
+    "required": ["passos"],
+    "additionalProperties": False,
+}
 
 
 def break_down_task(title: str) -> tuple[list[str], dict]:
-    response = client.messages.create(
-        model=SONNET,
-        max_tokens=300,
-        messages=[{"role": "user", "content": BREAKDOWN_PROMPT.format(title=title)}],
+    resp = core.chamar_ia(
+        FUNCAO_BREAKDOWN,
+        [{"role": "user", "content": f"Tarefa: {title}"}],
+        contexto_fixo=BREAKDOWN_PROMPT,
+        schema=SCHEMA_BREAKDOWN,
     )
-    return _extract_json(response.content[0].text), _usage(response)
+    if not resp.ok:
+        _falhar(FUNCAO_BREAKDOWN, resp)
+    return resp.dados["passos"], _usage_de(resp)
+
+
+# --------------------------------------------------------------------------
+# requebrar_tarefa
+# --------------------------------------------------------------------------
+
+FUNCAO_REQUEBRAR = "requebrar_tarefa"
+
+REQUEBRAR_PROMPT = """A tarefa esta travada ha alguns dias - a pessoa tem TDAH e o jeito que ela
+estava quebrada nao funcionou. Proponha um jeito DIFERENTE de atacar, em 3 a 5 passos. O primeiro
+passo tem que ser ridiculamente facil, de 2 a 5 minutos (abrir o arquivo, mandar uma mensagem de
+uma linha, separar o material) - o objetivo e so comecar. Sem repetir os passos antigos do mesmo
+jeito. Responda so com o JSON pedido, sem explicacao, sem markdown."""
+
+SCHEMA_REQUEBRAR = {
+    "type": "object",
+    "properties": {
+        "passos": {"type": "array", "items": {"type": "string"}, "minItems": 3, "maxItems": 5},
+    },
+    "required": ["passos"],
+    "additionalProperties": False,
+}
+
+
+def requebrar_tarefa(titulo: str, dias: int, passos_antigos: list[str]) -> tuple[list[str], dict]:
+    conteudo = (
+        f"Tarefa: {titulo}\n"
+        f"Dias travada: {dias}\n"
+        f"Passos antigos que nao andaram: {'; '.join(passos_antigos) or 'nenhum'}"
+    )
+    resp = core.chamar_ia(
+        FUNCAO_REQUEBRAR,
+        [{"role": "user", "content": conteudo}],
+        contexto_fixo=REQUEBRAR_PROMPT,
+        schema=SCHEMA_REQUEBRAR,
+    )
+    if not resp.ok:
+        _falhar(FUNCAO_REQUEBRAR, resp)
+    return resp.dados["passos"], _usage_de(resp)
+
+
+# --------------------------------------------------------------------------
+# gerar_mala
+# --------------------------------------------------------------------------
+
+FUNCAO_MALA = "gerar_mala"
+
+MALA_PROMPT = """Monte um checklist de mala CURTO e pratico pra uma viagem. A pessoa tem TDAH: itens
+concretos, sem obviedade tipo "roupas" solto - diga quantidade quando fizer sentido. Maximo 15
+itens. Inclua documento se for voo/viagem longa. Responda so com o JSON pedido, sem explicacao,
+sem markdown."""
+
+SCHEMA_MALA = {
+    "type": "object",
+    "properties": {
+        "itens": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 15},
+    },
+    "required": ["itens"],
+    "additionalProperties": False,
+}
+
+
+def gerar_mala(destino: str, dias: int, motivo: str | None, clima_texto: str | None) -> tuple[list[str], dict]:
+    conteudo = (
+        f"Destino: {destino}\n"
+        f"Dias: {dias}\n"
+        f"Motivo: {motivo or 'nao informado'}\n"
+        f"Clima previsto: {clima_texto or 'sem previsao'}"
+    )
+    resp = core.chamar_ia(
+        FUNCAO_MALA,
+        [{"role": "user", "content": conteudo}],
+        contexto_fixo=MALA_PROMPT,
+        schema=SCHEMA_MALA,
+    )
+    if not resp.ok:
+        _falhar(FUNCAO_MALA, resp)
+    return resp.dados["itens"], _usage_de(resp)
+
+
+# --------------------------------------------------------------------------
+# resumir_link
+# --------------------------------------------------------------------------
+
+FUNCAO_RESUMO_LINK = "resumir_link"
+
+# Texto da pagina e truncado ANTES de mandar pro modelo (custo/teto): 12.000
+# caracteres, cortando no fim de frase mais proximo do limite (". ", "! ",
+# "? ") pra nao mandar uma sentenca pela metade. Se nao achar um fim de frase
+# a menos de metade do limite de distancia, corta seco mesmo (texto sem
+# pontuacao reconhecivel, ex.: paginas so com listas/tabelas).
+LIMITE_TEXTO_RESUMO_LINK = 12_000
+
+RESUMO_LINK_PROMPT = """Resuma pra uma pessoa com TDAH decidir se vale ler/ver agora: 3 a 5 pontos
+curtos com o que importa de verdade, em portugues do Brasil. Se o texto for so pagina de
+login/cookie/erro sem conteudo, diga isso numa frase. Nao invente o que nao esta no texto.
+Responda so com o resumo em topicos comecando com "- ", sem introducao."""
+
+
+def _truncar_para_resumo(texto: str, limite: int = LIMITE_TEXTO_RESUMO_LINK) -> str:
+    """Corta `texto` em ate `limite` caracteres. Prefere parar no fim de uma frase
+    (". ", "! ", "? ", ou as mesmas seguidas de quebra de linha) mais proximo do
+    limite, contanto que isso nao jogue fora mais da metade do trecho; senao corta
+    seco no limite mesmo."""
+    if len(texto) <= limite:
+        return texto
+    cortado = texto[:limite]
+    melhor = -1
+    for marca in (". ", "! ", "? ", ".\n", "!\n", "?\n"):
+        pos = cortado.rfind(marca)
+        if pos > melhor:
+            melhor = pos
+    if melhor >= limite // 2:
+        return cortado[: melhor + 1].rstrip()
+    return cortado.rstrip()
+
+
+def resumir_link(titulo: str | None, texto: str) -> tuple[str, dict]:
+    texto_truncado = _truncar_para_resumo(texto)
+    conteudo = f"Titulo: {titulo or 'sem titulo'}\nTexto (pode estar cortado):\n{texto_truncado}"
+    resp = core.chamar_ia(
+        FUNCAO_RESUMO_LINK,
+        [{"role": "user", "content": conteudo}],
+        contexto_fixo=RESUMO_LINK_PROMPT,
+    )
+    if not resp.ok:
+        _falhar(FUNCAO_RESUMO_LINK, resp)
+    return (resp.texto or "").strip(), _usage_de(resp)
+
+
+# --------------------------------------------------------------------------
+# plano_do_dia
+# --------------------------------------------------------------------------
+
+FUNCAO_PLANO_DO_DIA = "plano_do_dia"
+
+PLANO_PROMPT = """Voce ajuda uma pessoa com TDAH a organizar o resto do dia.
+
+Os compromissos da agenda tem horario FIXO e nao podem mudar - use como ancoras. As tarefas
+pendentes NAO tem horario marcado - sugira em que ordem encaixa-las ao longo do dia (antes, entre
+ou depois dos compromissos), pensando em coisas como: tarefa rapida antes de sair de casa, tarefa
+que depende de estar em algum lugar perto de um compromisso que ja leva pra la, tarefa urgente
+primeiro se nao houver pista de prioridade.
+
+Coisas duraveis que voce sabe sobre a pessoa servem so se ajudarem a ordenar melhor - nao force.
+
+Responda em lista numerada curta (maximo 6 itens), cada item uma linha, direto ao ponto. Tom
+neutro, sem cobranca. Se nao houver tarefa nem compromisso nenhum, diga isso em uma frase."""
 
 
 def plano_do_dia(
@@ -45,95 +242,17 @@ def plano_do_dia(
     eventos_fmt = [
         f"{e['titulo']} as {e['inicio'][11:16]}" for e in eventos if not e.get("dia_inteiro")
     ]
-    response = client.messages.create(
-        model=SONNET,
-        max_tokens=400,
-        messages=[
-            {
-                "role": "user",
-                "content": PLANO_PROMPT.format(
-                    agora=datetime.now().strftime("%H:%M"),
-                    eventos=eventos_fmt or "nenhum",
-                    tarefas=tarefas or "nenhuma",
-                    memorias=memorias or "nenhuma ainda",
-                ),
-            }
-        ],
+    conteudo = (
+        f"Agora sao {datetime.now().strftime('%H:%M')}.\n"
+        f"Compromissos de hoje (hora fixa): {eventos_fmt or 'nenhum'}\n"
+        f"Tarefas pendentes (sem hora fixa): {tarefas or 'nenhuma'}\n"
+        f"Coisas duraveis sobre a pessoa: {memorias or 'nenhuma ainda'}"
     )
-    return response.content[0].text.strip(), _usage(response)
-
-
-REQUEBRAR_PROMPT = """A tarefa abaixo esta travada ha {dias} dias - a pessoa tem TDAH e o jeito
-que ela estava quebrada nao funcionou. Proponha um jeito DIFERENTE de atacar, em 3 a 5 passos.
-O primeiro passo tem que ser ridiculamente facil, de 2 a 5 minutos (abrir o arquivo, mandar uma
-mensagem de uma linha, separar o material) - o objetivo e so comecar. Sem repetir os passos
-antigos do mesmo jeito.
-
-Tarefa: {titulo}
-Passos antigos que nao andaram: {passos}
-
-Responda so com um JSON de lista de strings, sem markdown."""
-
-
-def requebrar_tarefa(titulo: str, dias: int, passos_antigos: list[str]) -> tuple[list[str], dict]:
-    response = client.messages.create(
-        model=SONNET,
-        max_tokens=350,
-        messages=[
-            {
-                "role": "user",
-                "content": REQUEBRAR_PROMPT.format(
-                    titulo=titulo, dias=dias, passos="; ".join(passos_antigos) or "nenhum"
-                ),
-            }
-        ],
+    resp = core.chamar_ia(
+        FUNCAO_PLANO_DO_DIA,
+        [{"role": "user", "content": conteudo}],
+        contexto_fixo=PLANO_PROMPT,
     )
-    return _extract_json(response.content[0].text), _usage(response)
-
-
-MALA_PROMPT = """Monte um checklist de mala CURTO e pratico pra uma viagem. A pessoa tem TDAH:
-itens concretos, sem obviedade tipo "roupas" solto - diga quantidade quando fizer sentido.
-Maximo 15 itens. Inclua documento se for voo/viagem longa.
-
-Destino: {destino}
-Dias: {dias}
-Motivo: {motivo}
-Clima previsto: {clima}
-
-Responda so com um JSON de lista de strings, sem markdown."""
-
-
-def gerar_mala(destino: str, dias: int, motivo: str | None, clima_texto: str | None) -> tuple[list[str], dict]:
-    response = client.messages.create(
-        model=HAIKU,
-        max_tokens=400,
-        messages=[
-            {
-                "role": "user",
-                "content": MALA_PROMPT.format(
-                    destino=destino, dias=dias, motivo=motivo or "nao informado", clima=clima_texto or "sem previsao"
-                ),
-            }
-        ],
-    )
-    return _extract_json(response.content[0].text), _usage(response)
-
-
-RESUMO_LINK_PROMPT = """Resuma pra uma pessoa com TDAH decidir se vale ler/ver agora: 3 a 5
-pontos curtos com o que importa de verdade, em portugues do Brasil. Se o texto for so pagina de
-login/cookie/erro sem conteudo, diga isso numa frase. Nao invente o que nao esta no texto.
-
-Titulo: {titulo}
-Texto (pode estar cortado):
-{texto}
-
-Responda so com o resumo em topicos comecando com "- ", sem introducao."""
-
-
-def resumir_link(titulo: str | None, texto: str) -> tuple[str, dict]:
-    response = client.messages.create(
-        model=HAIKU,
-        max_tokens=400,
-        messages=[{"role": "user", "content": RESUMO_LINK_PROMPT.format(titulo=titulo or "sem titulo", texto=texto)}],
-    )
-    return response.content[0].text.strip(), _usage(response)
+    if not resp.ok:
+        _falhar(FUNCAO_PLANO_DO_DIA, resp)
+    return (resp.texto or "").strip(), _usage_de(resp)

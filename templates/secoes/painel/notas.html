@@ -1,0 +1,21 @@
+      <div class="card painel-secao-card">
+      <h2 style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+        Notas
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao das notas"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Anotacoes mais longas que nao sao tarefa nem gasto nem lembrete - um roteiro, uma lista
+          de coisas a verificar, um plano. Peca no chat ("anota isso: ...", "cria uma nota sobre
+          ...") e depois pergunta de volta ("o que eu anotei sobre Portugal?") que ele acha pelo
+          titulo, conteudo ou tag.
+        </p>
+      </div>
+      <p id="notas-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+        Nenhuma nota ainda. Manda "anota isso: ..." na captura.
+      </p>
+      <ul id="lista-notas"></ul>
+      </div>
+

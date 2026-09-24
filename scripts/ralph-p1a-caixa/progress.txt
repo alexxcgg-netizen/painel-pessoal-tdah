@@ -1,0 +1,135 @@
+Faixa P1a (nucleo da Caixa do assistente) - progress.txt
+
+HISTORIAS FEITAS
+1. migracoes/202609241200_p1a_assistente_itens.sql: tabela assistente_itens
+   (id, tipo, titulo, corpo, opcoes JSON, origem, chave_unica UNIQUE parcial
+   quando != '', estado, resposta, resposta_texto, criado_em, vence_em,
+   adiado_ate, repetir JSON, pushes_hoje, ultimo_push_em, resolvido_em) +
+   4 indices. Horario do ultimo tick reaproveita `configuracoes`
+   (CHAVE_ULTIMO_TICK = "assistente.ultimo_tick_em"), sem tabela nova so
+   pra isso (contrato permitia as duas formas). DONE.
+2. assistente/caixa.py: enfileirar/resolver com a assinatura exata de
+   assistente/contrato.py (sem `conn` - cada uma abre/fecha a propria).
+   listar(conn, estado=None, limite=200) ordenado por urgencia (pergunta
+   vencida > pergunta > aviso > sugestao > briefing > proposta_memoria,
+   depois vence_em com nulos por ultimo). contar_pendentes(conn).
+   processar_repeticoes(conn, agora): insistencia 2h/4h, max 3/dia (padrao
+   `repetir`, item pode sobrescrever), 1 push por item por chamada,
+   respeitando aviso_permitido (import tardio + fallback fixo 22h-7h se
+   assistente/avisos ainda nao existisse - hoje ja existe de verdade, P8).
+   Tambem reativa item `adiado` cujo adiado_ate passou. expirar(conn,
+   agora): vence quem passou de vence_em (pendente ou adiado). ao_resolver:
+   origem = '<modulo_gatilho>:<resto>', divide no PRIMEIRO ':' (definicao
+   do integrador, nao no '_') e chama assistente.gatilhos.<modulo>.
+   ao_resolver(conn, item, resposta, texto) se existir - no-op silencioso
+   se nao existir ou se ele proprio lancar excecao. Filtro de
+   fora-de-escopo (vida amorosa/relacionamento, PALAVRAS_FORA_DE_ESCOPO)
+   centralizado em enfileirar - devolve "" sem criar nada. enviar_push(conn,
+   titulo, corpo, url="") - wrapper fino sobre push_client.py +
+   db.list_push_subscriptions/delete_push_subscription (o "de verdade" em
+   app.py esta acoplado a variaveis locais da rota - ver docstring da
+   funcao). DONE.
+3. rotas/p1a_caixa.py (Blueprint bp, registrado sozinho por
+   rotas.registrar_todas): GET /api/assistente/caixa (sessao - lista +
+   contagem pro selo, ?estado=/?limite= opcionais), POST
+   /api/assistente/caixa/<id>/responder (sessao), POST /api/tick
+   (ROTAS_COM_TOKEN, token via header "Authorization: Bearer
+   <PAINEL_TICK_TOKEN>", 401 fixo se PAINEL_TICK_TOKEN nao estiver
+   configurado - nunca cai pra sessao, diferente do padrao de
+   PAINEL_ATALHOS_TOKEN), GET /api/assistente/saude (ultimo_tick_em +
+   atrasado=true se > 15min, pra UI mostrar aviso). Smoke-test manual com
+   app.py de verdade (import app + test_client): rotas aparecem no
+   url_map, /api/tick com token certo devolve 200, /api/assistente/caixa
+   sem sessao devolve 401 (via _verificar_autenticacao global, sem
+   decorator nenhum na rota). DONE.
+4. docs/tick.md: por que precisa de cron EXTERNO (Render grátis dorme sem
+   requisicao HTTP - thread/loop interno nao acorda o processo), opcao
+   gratuita (cron-job.org, header Authorization: Bearer) e opcao VPS
+   propria (cron ou systemd timer, com unit files prontos). DONE.
+5. tests/test_fase7_p1a_caixa.py (70 casos) + tests/test_fase7_p1a_rotas.py
+   (27 casos) = 97 testes, 0 falhas (`scripts/testes.sh
+   tests/test_fase7_p1a_caixa.py tests/test_fase7_p1a_rotas.py`). Cobre:
+   dedupe por chave_unica (incl. 5x seguidas = idempotencia de tick
+   duplicado), filtro fora-de-escopo (amoroso, case-insensitive, corpo
+   tambem, e um caso "nao deveria bloquear" pra provar que o filtro nao e
+   largo demais), fuzzing leve de enfileirar (strings gigantes, unicode/
+   emoji, string tipo SQL-injection, opcoes/repetir/vence_em malformados,
+   tipos invalidos), resolver (padrao/adiar/opcao propria do item/dict,
+   resposta invalida, item inexistente, id nao numerico, idempotencia de
+   item ja resolvido/expirado), ao_resolver (chamado com args certos, NAO
+   chamado em adiar, gatilho inexistente/sem ao_resolver/com bug nao
+   quebra resolver, origem sem ':' ou vazia), listar (ordenacao completa
+   dos 6 tipos, vence_em com nulos por ultimo, filtro de estado, estado
+   invalido, limite), contar_pendentes, expirar (pendente/adiado vencido,
+   nao mexe em resolvido/nao vencido, idempotente), processar_repeticoes
+   (push imediato no 1o tick, nao antes de 2h, sim em 2h, nao antes de 4h,
+   sim em 4h, teto de 3/dia mesmo com tempo sobrando, reset no dia
+   seguinte, silencio 22h-7h segura e libera depois, idempotencia de 2
+   chamadas no mesmo instante, config `repetir` propria do item, reativa
+   adiado no momento exato, usa assistente.avisos quando existe/cai no
+   fallback se NotImplementedError), enviar_push (sem push configurado,
+   apaga inscricao morta, mantem inscricao viva, subscription_json
+   corrompido nao quebra), rotas (listar/filtrar/limite/erro 400,
+   responder 200/400/404/adiar, tick 401 sem header/token errado/sem
+   Bearer/sem token no servidor, tick 200 processa e registra
+   configuracoes, tick idempotente 2x seguidas, tick chama
+   assistente.gatilhos.executar_todos DE VERDADE - relatorio vazio {} sem
+   gatilho nenhum registrado - e repassa o relatorio dela, erro inesperado
+   no proprio agregador nao derruba a rota, saude sem tick/logo apos
+   tick/atrasado apos 15min/valor corrompido). Relogio sempre injetado
+   (caixa._agora monkeypatched onde o contrato fecha a assinatura, ou o
+   parametro `agora`/rotas_p1a.datetime mockado onde da). DONE.
+
+INTEGRACAO JA CONFIRMADA (rodei de verdade, nao e suposicao)
+- Etapa 0/X1 (rotas/_base.py, migracoes/, assistente/gatilhos/) chegou em
+  origin/fase7/integracao (c67486c) durante esta faixa - fiz merge na
+  minha branch e ajustei: _aviso_permitido agora detecta via
+  inspect.signature se a assistente.avisos.aviso_permitido real aceita
+  `agora=` (aceita, P8 ja existe) e passa o meu `agora` injetado, em vez
+  de deixar ela cair no `datetime.now()` dela; rotas/p1a_caixa.py importa
+  `assistente.gatilhos.executar_todos` de verdade no topo (nao precisa
+  mais de fallback de ImportError - o pacote existe).
+- Smoke-test manual (`import app` + test_client, DB_PATH temporario):
+  as 4 rotas aparecem no url_map, /api/tick com PAINEL_TICK_TOKEN certo
+  devolve 200 processando de verdade, /api/assistente/caixa sem sessao
+  devolve 401 (a checagem global de app.py, sem eu ter escrito decorator
+  nenhum). Migracao aplica sozinha via db.init_db() (confirmado:
+  migracoes_aplicadas tem a linha, tabela assistente_itens + 5 indices
+  existem).
+- aviso_permitido real de P8 e por TIPO ESPECIFICO (~49 chaves tipo
+  "pergunta_conta", "tarefa_vencida"...), diferente do meu `item["tipo"]`
+  (so 5 categorias amplas: pergunta/aviso/sugestao/briefing/
+  proposta_memoria - a ordenacao da Caixa, nao o "tipo de notificacao" do
+  catalogo do P8). Como meu tipo nunca bate com uma chave do catalogo,
+  aviso_permitido cai no comportamento documentado pra tipo desconhecido:
+  permitido, respeitando so o SILENCIO GLOBAL (nao o liga/desliga por
+  tipo especifico do P8). Funciona e e seguro (nunca fica mudo por
+  engano), mas o toggle fino do P8 nao alcanca itens da Caixa por
+  enquanto - se o integrador quiser ligar isso, o jeito mais limpo seria
+  as faixas produtoras (P2..P9) passarem a chave do catalogo do P8 em
+  algum campo (`origem` ja carrega o gatilho, nao a chave de aviso) -
+  decisao de integracao, nao mudei o contrato pra isso.
+
+ACHADO FORA DO MEU ESCOPO (nao mexi, so anotando)
+- tests/test_fase7_infra_rotas.py (arquivo do X1, nao meu) tem
+  `test_pacote_real_nao_tem_rota_de_exemplo` e mais 6 testes que assumem
+  `rotas/` so tem `_base.py` (nenhum blueprint de faixa registrado ainda).
+  Isso ja quebra so com p7_sinais.py/p8_avisos.py (testei sem meu
+  rotas/p1a_caixa.py: os mesmos 7 testes falham, so troca qual blueprint
+  aparece na mensagem de erro "already registered"). Causa: `import app`
+  (linha 24 do arquivo de teste) ja chama `rotas.registrar_todas(app.app)`
+  uma vez ao carregar o modulo (fim de app.py); o helper `_registrar_no_app`
+  de cada teste chama `rotas.registrar_todas` de novo pra pegar o
+  blueprint de teste temporario, o que tenta re-registrar TODOS os
+  blueprints reais (incluindo os ja registrados na importacao) no mesmo
+  app.app - Flask recusa registrar o mesmo objeto Blueprint 2x no mesmo
+  app. Pre-existente a esta faixa, nao e algo que rotas/p1a_caixa.py
+  causou ou pode corrigir sozinho (o teste e do integrador). Confirmado
+  rodando so `tests/test_fase7_infra_rotas.py` com e sem meu arquivo.
+
+VARIAVEL DE AMBIENTE NOVA (falta entrar no .env.example - nao e arquivo meu)
+- PAINEL_TICK_TOKEN: token do POST /api/tick (header "Authorization:
+  Bearer <token>"). Sem ele configurado no servidor, a rota fica sempre
+  fechada (nunca cai pra sessao). Ver docs/tick.md.
+
+BLOQUEIOS: nenhum.

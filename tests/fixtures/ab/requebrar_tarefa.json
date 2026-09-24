@@ -1,0 +1,7 @@
+[
+  {"id": "requebrar_relatorio", "entrada": {"titulo": "fechar o relatorio mensal da obra", "dias": 6, "passos_antigos": ["abrir a planilha", "preencher os dados"]}, "esperado": {"min": 3, "max": 5}},
+  {"id": "requebrar_estudo_ingles", "entrada": {"titulo": "estudar ingles pra prova do curso de piloto", "dias": 10, "passos_antigos": ["baixar o app"]}, "esperado": {"min": 3, "max": 5}},
+  {"id": "requebrar_organizar_documentos", "entrada": {"titulo": "organizar os documentos do IPVA", "dias": 4, "passos_antigos": []}, "esperado": {"min": 3, "max": 5}},
+  {"id": "requebrar_ligar_fornecedor", "entrada": {"titulo": "ligar pro fornecedor de material eletrico", "dias": 8, "passos_antigos": ["procurar o numero", "escrever o que falar"]}, "esperado": {"min": 3, "max": 5}},
+  {"id": "requebrar_academia", "entrada": {"titulo": "voltar pra academia", "dias": 15, "passos_antigos": ["comprar roupa nova", "escolher horario"]}, "esperado": {"min": 3, "max": 5}}
+]

@@ -1,0 +1,22 @@
+/* static/css/secoes/hoje.css - estilos da aba hoje inteira (templates/abas/hoje.html).
+   Fase 7 (V1): acabamento geral da aba (profundidade, sem mexer em
+   cor/fonte/animacao). A aba ja estava boa (cards .card-vida com
+   glass-bg/glass-border/glass-shadow, stat-tile com gradiente+sombra em
+   camadas) - o resto do polimento fica nos arquivos por secao
+   (secoes/hoje/*.css) e no topo (secoes/topo/*.css). */
+
+/* #caixa-assistente (ponto de montagem da faixa P1b, no topo da Hoje - ver
+   templates/abas/hoje.html) so ganha espaco no layout quando tiver conteudo
+   dentro - `:not(:empty)` evita um vao vazio na tela antes da P1b existir. */
+#caixa-assistente:not(:empty) {
+  margin-bottom: 1rem;
+}
+
+/* Contrato de UI (docs/agentes/fase7-visual.md): os 5 boxes .card-vida da
+   Hoje (sobrecarga, previa-noite, rotina, checkin, essencial) tambem ganham
+   a classe .card, pra herdar de graca o acabamento de static/css/ui/
+   componentes/card.css quando a faixa V0c entrar na integracao (ainda vazio
+   agora - ver docs/agentes/mapa-frontend.md). Ate la, a profundidade de
+   .card-vida (glass-bg/glass-border/glass-shadow, ja no style.css) continua
+   valendo sozinha. */
+

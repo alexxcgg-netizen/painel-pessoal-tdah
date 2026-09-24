@@ -1,0 +1,34 @@
+Faixa: p5-replanejar (Fase 7, faixa P5 - "Replanejar o dia")
+Branch: fase7/p5-replanejar (a partir de fase7/integracao @ 7702e4c)
+
+Estado: histórias concluídas, sem bloqueios.
+
+Histórias:
+1. [feito] classificador_local/regras/p5_replanejar.py: casar() reconhece
+   "replaneja meu dia", "atrasei", "perdi a manha" e variações pt-BR
+   (com/sem acento, regex, sem IA). executar() monta card
+   {cards, resumo_texto, passos} tipo "replanejamento" com actions
+   aplicar_replanejamento + desfazer_replanejamento.
+2. [feito] assistente/replanejar.py: coletar_restante_do_dia (tarefas de
+   hoje não feitas + agenda restante via caldav_client, resiliente a
+   falha) + propor_plano (chama claude_client.plano_do_dia, teto-gated) +
+   aplicar_plano/desfazer_plano (persistência em `configuracoes`, chave
+   `p5_ordem_dia:<dia>`, token de desfazer de uso único).
+3. [feito] assistente/gatilhos/p5_replanejar.py: sugestão às 14h se houver
+   tarefa atrasada (notificacoes.tarefas_atrasadas), flag `replanejar_auto`
+   DESLIGADA por padrão, idempotente (chave_unica por dia), ao_resolver
+   ("sim"/"aceitar" dispara o replanejamento).
+4. [feito] tests/test_fase7_p5_replanejar.py: 32 testes, plano_do_dia
+   sempre mockado, sem chamada real de API. 100% verde.
+
+Dependências ainda não mergeadas na integração (não bloqueiam - lógica
+pura já cobre tudo, ver APRENDIZADOS.md):
+- classificador_local/ (motor que descobre casar/executar sozinho) - Etapa 0.
+- assistente/gatilhos (loader automático de executar_todos) - Etapa 0.
+- assistente/caixa.py (P1a) - import tardio já usado, testado com módulo
+  fake injetado em sys.modules (assistente.caixa não existe nesta branch).
+- rotas/p5_*.py (fora dos arquivos desta faixa) - ver APRENDIZADOS.md sobre
+  como ligar o botão "Aplicar".
+
+Comando de teste: scripts/testes.sh tests/test_fase7_p5_replanejar.py
+gitleaks detect --no-git --source . -q: sem achados antes do commit.

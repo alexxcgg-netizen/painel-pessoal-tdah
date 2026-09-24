@@ -20,6 +20,15 @@
   ausente, timeout/erro de rede/HTTP de erro/JSON inválido, cache por endpoint e
   por `dias`, modo mock por injeção e por variável de ambiente, API de alto
   nível) - 100% verde, sem nenhuma chamada de rede real.
-- **Ação "tomei um copo de água" sem IA (`classificador_local/regras/a10_agua.py`):
-  bloqueada.** Depende da infra `classificador_local/` (Etapa 0 X1), que ainda
-  não chegou em `fase7/integracao` - ver `scripts/ralph-a10-decisoes/progress.txt`.
+- **Ação "tomei um copo de água" sem IA (`classificador_local/regras/a10_agua.py`).**
+  Reconhece "tomei/bebi (mais) N copo(s) (de água)", "mais N copo(s)", "+N
+  copo(s)/água", "bebi/tomei (mais) água" (N por extenso ou dígito), sempre por
+  `fullmatch` (nunca rouba frase de outra regra) - e explicitamente NÃO casa
+  "conta de água", "água sanitária" e afins. Registra pela MESMA função que o
+  botão "+1 copo" já usa (`db.registrar_hidratacao`), uma vez por copo quando a
+  frase pede mais de um ("tomei 2 copos" → 2 registros, 2 cards `saude_dia`, cada
+  um com Desfazer independente) - guarda `_QUANTIDADE_MAXIMA=20` contra
+  typo/fuzzing tipo "tomei 9999 copos". `tests/test_fase7_a10_agua.py`: 29 testes
+  + 109 subtests (48 variações positivas, 30 negativas, registro, acumulação no
+  dia, Desfazer, e o caminho completo via chat/Telegram/captura/intent com a IA
+  mockada) - 100% verde.

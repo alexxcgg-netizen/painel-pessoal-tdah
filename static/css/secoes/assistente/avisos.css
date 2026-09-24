@@ -1,0 +1,129 @@
+/* static/css/secoes/assistente/avisos.css - secao assistente > avisos (HTML: templates/secoes/assistente/avisos.html).
+   Fase 7 (X2): carrega DEPOIS do style.css (via fase7.css), entao regra aqui
+   sobrescreve por cascata sem precisar editar o style.css.
+   Fase 7 (P1b): .card (ui/componentes/card.css, faixa V0c, ja mesclada) da
+   fundo/borda/raio/sombra de .aviso-item - aqui so ajusta o layout em linha
+   (o .card padrao e coluna) e o que e especifico de Avisos. O formulario de
+   silencio nao usa .card (e um <form>), entao mantem o proprio fundo. */
+
+#secao-avisos-assistente {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+#secao-avisos-assistente h2 {
+  margin: 0 0 12px;
+  font-size: 1.05em;
+}
+
+.avisos-silencio-form {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm, 14px);
+  background: var(--surface-2, #181818);
+  border: 1px solid var(--border, rgba(218, 226, 243, 0.09));
+}
+
+.avisos-silencio-titulo {
+  margin: 0 0 10px;
+  font-size: 0.88em;
+  color: var(--text-muted, #a7afbc);
+}
+
+.avisos-silencio-campos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.avisos-silencio-campos .campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85em;
+  color: var(--text-muted, #a7afbc);
+}
+
+.avisos-silencio-campos input[type="time"] {
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm, 14px);
+  border: 1px solid var(--border-strong, rgba(218, 226, 243, 0.18));
+  background: var(--surface-3, #1e1e1e);
+  color: var(--text, #eceef3);
+  font: inherit;
+}
+
+.avisos-silencio-campos button {
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: var(--radius-sm, 14px);
+  border: none;
+  background: var(--accent, #45454a);
+  color: var(--accent-text, #f4eeff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.avisos-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aviso-item {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.aviso-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.aviso-ligado {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent, #45454a);
+}
+
+.aviso-label {
+  margin: 0;
+  font-weight: 500;
+}
+
+.aviso-canal-campo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--text-muted, #a7afbc);
+}
+
+.aviso-canal {
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm, 14px);
+  border: 1px solid var(--border-strong, rgba(218, 226, 243, 0.18));
+  background: var(--surface-3, #1e1e1e);
+  color: var(--text, #eceef3);
+  font: inherit;
+}
+
+.avisos-vazio {
+  list-style: none;
+  padding: 14px;
+  text-align: center;
+  color: var(--text-faint, #788292);
+  font-size: 0.9em;
+}

@@ -1,0 +1,43 @@
+/* static/css/secoes/painel/brain-dump.css - secao painel > brain-dump (HTML: templates/secoes/painel/brain-dump.html).
+   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao). O
+   #brain-dump-texto (input type=text dentro de .form-linha) ja e estilizado
+   pelo style.css - mas #brain-dump-btn ("Guardar") era um <button> cru: a
+   classe .btn-com-icone so cuida do layout do icone (display:flex/gap), sem
+   nenhum fundo/borda/padding proprios - ficava o botao de navegador puro, o
+   caso mais literal de "Windows 1990" da faixa. Reusa o MESMO tratamento do
+   #captura-btn/#chat-send (gradiente + sombra), ja que e o mesmo tipo de
+   acao (enviar/guardar um formulario de texto curto). */
+#brain-dump-btn {
+  min-height: 44px;
+  padding: 0.7rem 1.1rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--accent-gradient);
+  background-size: 160% 160%;
+  color: var(--accent-text);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: background-position 0.4s ease, box-shadow 0.2s ease, transform 0.18s var(--ease-bounce);
+}
+
+@media (hover: hover) {
+  #brain-dump-btn:hover:not(:disabled) {
+    background-position: 100% 0;
+    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+}
+
+#brain-dump-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Os itens da lista (<li class="item">) ja tem bastante profundidade
+   (glass-bg/glass-border/glass-shadow, style.css) - so os botoes de acao por
+   dentro (-> tarefa/nota/gasto, apagar) tinham ~30px de toque. Escopado em
+   #lista-brain-dump pra nao mexer nas outras listas .item-acoes do app. */
+#lista-brain-dump .item-acoes button {
+  min-height: 44px;
+  padding: 0.4rem 0.7rem;
+}

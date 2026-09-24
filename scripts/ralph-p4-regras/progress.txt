@@ -1,0 +1,92 @@
+Faixa P4 (regras em portugues) - progress.txt
+
+HISTORIAS FEITAS
+1. assistente/regras.py: motor puro. interpretar_regra_local(texto) - parser
+   regex sem IA pra "todo dia as HH:MM me lembra de X", "toda <dia da
+   semana> as HH:MM me lembra de X" (aceita "toda"/"todo", concordancia
+   varia) e "me avisa se gastar mais de VALOR com CATEGORIA (na
+   semana|no mes|hoje)". normalizar_regra(bruto) valida/normaliza os 5
+   gatilhos (horario, gasto_categoria, habito_nao_feito_ate, tarefa_vencida,
+   sinal_iphone) - MESMA validacao pro resultado do parser local e da IA.
+   fora_de_escopo(texto) recusa vida amorosa/relacionamento por
+   palavra-chave, checado ANTES de chamar IA e de novo em normalizar_regra
+   (defesa em profundidade). DONE.
+2. interpretar_regra(texto): local primeiro, ia.core.chamar_ia("interpretar_regra",
+   ...) so se o local nao bater. Schema em ia/config.d/interpretar_regra.json
+   (ativo=false, Haiku atual, alvo openai/gpt-6-luna medio, fallback
+   gpt-6-sol medio, max_tokens_saida=400). Nunca levanta - sempre
+   {"ok", "regra", "fonte", "erro"}. DONE.
+3. Avaliadores por gatilho (avaliar_horario, avaliar_gasto_categoria,
+   avaliar_habito_nao_feito_ate, avaliar_tarefa_vencida, avaliar_sinal_iphone)
+   + avaliar_regra(conn, regra, agora, ultima_vez) dispatcher. Idempotencia:
+   cada um compara `ultima_vez` contra a janela atual (dia/semana/mes/data
+   conforme o gatilho) - nao precisa de tabela extra de "ja disparei".
+   avaliar_sinal_iphone usa assistente.sinais.ultimos_sinais (faixa P7,
+   tabela `sinais`) com import tardio + fallback defensivo (tabela pode
+   nao existir). DONE.
+4. assistente/gatilhos/p4_regras.py: executar(conn, agora) le p4_regras
+   ativa=1, pula pausada_ate no futuro, chama avaliar_regra, enfileira
+   (import tardio de assistente.caixa, cai no stub de assistente/contrato.py
+   enquanto a P1a nao existir) e grava ultima_vez. Regra "horario tipo data"
+   e desativada apos disparar (ja cumpriu o proposito). Uma regra com erro
+   (json invalido, gatilho desconhecido) e ignorada sem derrubar as outras.
+   origem = "p4_regras:<id>" (o PREFIXO antes do primeiro ":" tem que ser o
+   nome do arquivo do gatilho sem .py - confirmado com o integrador). DONE.
+5. classificador_local/regras/p4_regra.py: casar(texto) reconhece a
+   intencao ("me avisa se...", "me lembra de...", "todo dia as...", "toda
+   <dia>...") e devolve {"acao": "criar_regra", "confianca": 1.0,
+   "parametros": {"texto": ...}} (contrato de classificador_local/__init__.py,
+   Etapa 0/X1). executar(conn, parametros) chama assistente.regras.interpretar_regra
+   e devolve o envelope {cards, resumo_texto, passos} com o card
+   "p4_regra_confirmacao" (Confirmar/Cancelar) ou um card vazio com a razao
+   da recusa (nao entendeu / fora de escopo). DONE.
+6. migracoes/202609241230_p4_regras.sql: tabela p4_regras (id,
+   texto_original, json, ativa, pausada_ate, criada_em, ultima_vez) - nome
+   da tabela e "p4_regras" (nao so "regras") pra nao colidir com nada
+   generico. Aplicada automaticamente por db.init_db() (infra X1, ja
+   confirmado em teste: tests/test_fase7_p4_rotas.py::TestMigracaoAplicada). DONE.
+7. rotas/p4_regras.py (Blueprint bp, sessao/PIN, sem token): GET
+   /api/p4_regras (listar), POST /api/p4_regras/confirmar (cria a partir do
+   json do card - reusa normalizar_regra, recusa 400 com a mesma mensagem
+   de vida amorosa/relacionamento se for o caso), POST
+   /api/p4_regras/<id>/pausar ({"ate": ISO} ou {"dias": N}; sem nenhum dos
+   dois, pausa indeterminadamente ate /retomar), POST
+   /api/p4_regras/<id>/retomar, DELETE /api/p4_regras/<id>. Registrado
+   sozinho por rotas.registrar_todas (confirmado: app.py ja chama isso). DONE.
+8. Testes (tests/test_fase7_p4_*.py, 167 testes + 41 subtests, 0 falhas):
+   test_fase7_p4_parser.py (parser local + normalizar_regra + recusa de
+   vida amorosa/relacionamento + resumo), test_fase7_p4_interpretacao_ia.py
+   (interpretar_regra com ia.core.chamar_ia mockada via patch.object(core,
+   "chamar_ia") - schema, fallback, recusa sem chamar IA, config carrega),
+   test_fase7_p4_gatilhos.py (avaliadores puros + gatilho.executar:
+   idempotencia por dia/semana, pausa, regra de data se desativa, json
+   invalido nao derruba as outras, sinal_iphone com tabela `sinais` real),
+   test_fase7_p4_classificador.py (casar/executar via classificador_local
+   de verdade, nao so o modulo isolado), test_fase7_p4_rotas.py (CRUD
+   completo com Flask+db.init_db() real, como test_fase7_p8_rotas.py). DONE.
+
+INTEGRACAO PENDENTE (fora dos meus arquivos, regra #5 do prompt)
+- docs/CARDS.md e cards.py NAO tem o card "p4_regra_confirmacao" nem os
+  actions "confirmar_regra"/"cancelar_regra" documentados/registrados -
+  falta 1) entrada em docs/CARDS.md, 2) renderizador em
+  static/js/cards-tipos.js. Contrato completo do card esta no docstring de
+  classificador_local/regras/p4_regra.py. O botao "Confirmar" deve chamar
+  POST /api/p4_regras/confirmar com {"texto_original": data.texto_original,
+  "json": {"gatilho":..., "condicao":..., "acao":..., "texto":...}}
+  (os 4 campos saem direto de card.data). "Cancelar" so descarta o card, sem
+  chamada nenhuma.
+- assistente/caixa.py (P1a) ainda nao existe: assistente/gatilhos/p4_regras.py
+  ja esta pronto pro import tardio (from assistente.caixa import enfileirar)
+  e cai no stub de assistente/contrato.py (NotImplementedError, capturado e
+  logado, nunca derruba o tick) ate la.
+- A secao "Regras" da tela (listar/pausar/apagar via
+  rotas/p4_regras.py) e de outra faixa (UI), conforme o prompt.
+
+BLOQUEIOS: nenhum. A infra da Etapa 0 (rotas/ com Blueprint, migracoes/,
+classificador_local/, assistente/gatilhos/) chegou em origin/fase7/integracao
+NO MEIO do trabalho (aviso do integrador) - fiz merge, ajustei o `origem`
+pro formato certo ("p4_regras:<id>", prefixo = nome do arquivo do gatilho)
+e o formato de retorno de casar() pro contrato novo (acao/confianca/parametros),
+e troquei a consulta de sinal_iphone pra usar assistente.sinais (tabela real
+`sinais`, faixa P7, ja integrada) em vez do nome que eu tinha chutado
+("sinais_iphone").

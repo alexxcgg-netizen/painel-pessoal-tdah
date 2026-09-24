@@ -1,0 +1,54 @@
+Faixa v3-organizacao (Fase 7B) - progress.txt
+
+Escopo: vida/habitos, vida/projetos, vida/agenda-painel, tarefas/tarefas -
+troca do botao azul pequeno por .btn-adicionar + bottom-sheet, contrato de
+classes (.lista-item, .card, .chip, .campo), mesmas rotas de sempre.
+
+Historias:
+[x] H1 - Worktree a partir de fase7/integracao + merge origin/fase7/e0-frontend
+    (conflito de merge so em AGENTS.md/CHANGELOG.md, resolvido mantendo os dois
+    blocos - ambos eram so acrescimo de secao "Padroes descobertos"/changelog).
+[x] H2 - vida/habitos: .btn-adicionar "Novo habito" abre bottom-sheet com o
+    form existente; fecha e recarrega lista no sucesso (mesma rota POST
+    /api/habitos). Itens da lista ganham .lista-item; meta/horario/dias
+    viram .chip.
+[x] H3 - vida/projetos: idem, .btn-adicionar "Novo projeto"; card do projeto
+    ganha .card (alem de card-vida ja existente); badge de status vira .chip.
+[x] H4 - vida/agenda-painel: idem, .btn-adicionar "Criar evento"; lista de
+    eventos ganha .lista-item/.chip.
+[x] H5 - tarefas/tarefas: idem, .btn-adicionar "Nova tarefa"; item de tarefa
+    ganha .lista-item; tags (rotina/atrasada/travada/esforco) viram .chip.
+[x] H6 - Playwright 390x844 (porta 5150+, banco de teste temporario, ver
+    scripts/ralph-v3-organizacao/servidor.py): abre cada form pelo botao
+    novo, cria 1 item em cada secao, confere que aparece na lista. Zero
+    erro de console. 2 screenshots (v3-vida.png, v3-tarefas.png).
+
+Bloqueado: nenhuma.
+
+Infra V0a-V0d (tokens/botoes/secoes/bottom-sheet) ainda NAO chegou na
+fase7/integracao nesta data (2026-09-24) - static/css/ui/tokens.css,
+ui/componentes/{botao,bottom-sheet,card,chip,campo,lista-item,secao}.css e
+static/js/ui/{bottom-sheet,secao-recolhivel}.js continuam vazios (so
+comentario). Usei as classes do contrato mesmo assim (fase7-visual.md
+manda) e chamei window.abrirBottomSheet?.(...)/window.fecharBottomSheet?.(...)
+com fallback de so alternar o atributo `hidden` do painel (mostra o form
+inline) quando a funcao nao existe - e o que roda hoje. Adicionei so um
+CSS minimo, escopado em cada secoes/<aba>/<secao>.css (nao toquei em
+ui/componentes/*), usando tokens que JA existiam em style.css (--radius*,
+--surface-*, --border*) - nada de cor nova - so pra o .btn-adicionar/
+.bottom-sheet nao ficarem quebrados/sem estilo nenhum enquanto V0b/V0c/V0d
+nao chegam. Quando a faixa v3-organizacao rodar de novo depois de
+`git merge origin/fase7/integracao` com V0a-V0d dentro, os testes acima
+(H6) devem ser refeitos - so pra confirmar que o bottom-sheet de verdade
+(fundo escurecido, ESC, foco preso) funciona igual ao fallback.
+
+iCloud (agenda-painel): sem ICLOUD_USERNAME/ICLOUD_APP_PASSWORD no
+ambiente, POST /api/agenda/eventos daria 400 (caldav_client.NaoConfiguradoError).
+scripts/ralph-v3-organizacao/servidor.py troca caldav_client.criar_evento por
+um duble local (nenhuma chamada de rede real, nenhuma credencial) so pra
+poder testar a UI (bottom-sheet + lista) de ponta a ponta - mesmo espirito
+de dublê/mock pedido nas regras da faixa.
+
+Nada fora dos arquivos donos foi editado (so AGENTS.md/CHANGELOG.md no
+commit de merge, pra resolver o conflito - conteudo dos dois lados
+preservado).

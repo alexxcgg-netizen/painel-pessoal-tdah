@@ -1,0 +1,38 @@
+      <h2 style="--secao-cor: var(--cor-tarefas)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg>
+        Tarefas
+      </h2>
+
+      <button type="button" id="tarefa-abrir-btn" class="btn btn-adicionar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nova tarefa
+      </button>
+
+      <div class="bottom-sheet" id="tarefa-sheet" hidden>
+        <form id="nova-tarefa-form" class="form-linha" style="--form-cor: var(--cor-tarefas)">
+          <input type="text" id="nova-tarefa-titulo" class="campo" placeholder="O que precisa ser feito?" maxlength="200" required />
+          <input type="date" id="nova-tarefa-prazo" class="campo" aria-label="Prazo (opcional)" />
+          <div class="form-linha">
+            <button type="submit" id="nova-tarefa-btn" class="btn btn-primario btn-com-icone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Adicionar
+            </button>
+            <button type="button" id="tarefa-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </form>
+      </div>
+
+      <p class="card-vida-meta">Como ta sua energia agora?</p>
+      <div class="form-linha" id="energia-botoes">
+        <button type="button" class="btn-com-icone" data-nivel="baixa">Baixa</button>
+        <button type="button" class="btn-com-icone" data-nivel="media">Média</button>
+        <button type="button" class="btn-com-icone" data-nivel="alta">Alta</button>
+      </div>
+      <p id="sugestao-energia-vazio" class="vazio" hidden>Nenhuma tarefa compatível com esse nível agora.</p>
+      <ul id="lista-sugestao-energia"></ul>
+
+      <p id="tarefas-vazio" class="vazio" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9"/></svg>
+        Nenhuma tarefa pendente. Ta tudo feito.
+      </p>
+      <ul id="lista-tarefas"></ul>

@@ -1,0 +1,42 @@
+/* static/css/secoes/assistente.css - estilos da aba assistente inteira (templates/abas/assistente.html).
+   Fase 7 (X2): carrega DEPOIS do style.css (via fase7.css), entao regra aqui
+   sobrescreve por cascata sem precisar editar o style.css.
+   Fase 7 (P1b): espacamento da aba (as 3 secoes - caixa/regras/avisos - ja se
+   estilizam sozinhas nos proprios arquivos secoes/assistente/*.css). */
+
+#tab-assistente {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* .nav-selo (selo de pendencias no icone de Hoje e no botao da aba
+   Assistente, templates/navegacao.html) e .tab-btn-icone (o wrapper que da
+   o `position: relative` pro selo) moram aqui porque esta faixa nao tem
+   arquivo CSS proprio da barra de navegacao - static/css/ui/componentes/navegacao.css
+   e da faixa V0d (nao editar, ver docs/agentes/fase7-regras-faixa.md) e
+   ainda esta vazio de proposito. Anotado tambem em progress.txt pro
+   integrador mover pra la se preferir, quando V0d entrar na integracao -
+   as regras continuam validas por cima (cascata so refina). */
+.tab-btn-icone {
+  position: relative;
+  display: inline-flex;
+}
+
+.nav-selo {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger, #ff5c72);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
