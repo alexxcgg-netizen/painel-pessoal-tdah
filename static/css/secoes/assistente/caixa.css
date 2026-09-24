@@ -1,3 +1,177 @@
 /* static/css/secoes/assistente/caixa.css - secao assistente > caixa (HTML: templates/secoes/assistente/caixa.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (X2): carrega DEPOIS do style.css (via fase7.css), entao regra aqui
+   sobrescreve por cascata sem precisar editar o style.css.
+
+   Fase 7 (P1b): estilo minimo, escrito antes da faixa V0a-V0d (tokens/botao/
+   secao/card) entrarem na integracao - reaproveita as variaveis de cor que
+   ja existem em style.css (--surface, --text, --border, --radius...) em vez
+   de inventar cor nova, e usa so as classes do contrato de fase7-visual.md
+   (.card, .chip, .btn, .secao-recolhivel). Quando V0a-V0d forem mescladas
+   (ultima historia desta faixa faz `git merge origin/fase7/integracao`),
+   estas regras continuam validas por cima - a cascata so refina. */
+
+#caixa-assistente .secao-recolhivel,
+#secao-caixa-assistente .secao-recolhivel {
+  border: 1px solid var(--border, rgba(218, 226, 243, 0.09));
+  border-radius: var(--radius, 20px);
+  overflow: hidden;
+}
+
+.caixa-compacta {
+  margin-bottom: 16px;
+}
+
+.secao-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: var(--text, #eceef3);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.secao-cabecalho .chevron {
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+  flex: none;
+}
+
+.secao-recolhivel[data-aberto="false"] .secao-cabecalho .chevron {
+  transform: rotate(-45deg);
+}
+
+.secao-recolhivel[data-aberto="false"] .secao-conteudo {
+  display: none;
+}
+
+.secao-conteudo {
+  padding: 0 16px 16px;
+}
+
+.caixa-aviso-atraso {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm, 14px);
+  background: rgba(255, 196, 92, 0.12);
+  color: #ffc45c;
+  font-size: 0.85em;
+}
+
+.caixa-compacta-lista,
+.caixa-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.caixa-item {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm, 14px);
+  background: var(--surface-2, #181818);
+  border: 1px solid var(--border, rgba(218, 226, 243, 0.09));
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.caixa-item-saindo {
+  opacity: 0;
+  transform: translateX(12px) scale(0.98);
+}
+
+.caixa-item-tipo {
+  display: inline-block;
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #a7afbc);
+  border: 1px solid var(--border-strong, rgba(218, 226, 243, 0.18));
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-bottom: 6px;
+}
+
+.caixa-item-titulo {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.caixa-item-corpo {
+  margin: 0 0 8px;
+  color: var(--text-muted, #a7afbc);
+  font-size: 0.92em;
+}
+
+.caixa-item-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.caixa-item-opcao {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm, 14px);
+  border: 1px solid var(--border-strong, rgba(218, 226, 243, 0.18));
+  background: var(--surface-3, #1e1e1e);
+  color: var(--text, #eceef3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.caixa-item-opcao:active {
+  transform: scale(0.97);
+}
+
+.caixa-item-resposta {
+  margin: 0;
+  color: var(--text-muted, #a7afbc);
+  font-size: 0.88em;
+}
+
+.caixa-item-historico {
+  opacity: 0.85;
+}
+
+.caixa-vazio {
+  list-style: none;
+  padding: 14px;
+  text-align: center;
+  color: var(--text-faint, #788292);
+  font-size: 0.9em;
+}
+
+.caixa-vertudo {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--accent, #45454a);
+  text-decoration: underline;
+  min-height: 44px;
+  line-height: 44px;
+}
+
+#secao-caixa-assistente {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+#secao-caixa-assistente h2 {
+  margin: 0 0 12px;
+  font-size: 1.05em;
+}
+
+.caixa-lista-historico {
+  margin-top: 4px;
+}
