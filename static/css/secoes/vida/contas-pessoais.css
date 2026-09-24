@@ -1,64 +1,22 @@
 /* static/css/secoes/vida/contas-pessoais.css - secao vida > contas-pessoais
    (HTML: templates/secoes/vida/contas-pessoais.html).
-   Fase 7 (faixa v6-financas): botao "adicionar" -> .btn-adicionar +
-   .bottom-sheet (docs/agentes/fase7-visual.md). A base visual do painel
-   (posicao fixa, cabecalho, .campo, botao de salvar, fundo escurecido de
-   fallback) ja esta em static/css/secoes/gastos/assinaturas.css, sob as
-   classes .bottom-sheet-financas / .bottom-sheet-backdrop-fallback - esta
-   faixa e dona dos dois arquivos, entao reusa em vez de duplicar ~80 linhas
-   (fase7.css importa todo CSS de secao, entao a regra vale aqui tambem,
-   nao so na aba Gastos). Aqui so o que e proprio desta secao. */
-
-#lista-contas-pessoais {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-#lista-contas-pessoais > .item {
-  background: var(--superficie-2, var(--surface-2));
-  border: 1px solid var(--borda-sutil, var(--border));
-  border-radius: var(--raio-sm, var(--radius-sm));
-  padding: 0.65rem 0.8rem;
-  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
-}
+   Fase 7 (faixa v6-financas): botao "adicionar" -> .btn.btn-adicionar +
+   .bottom-sheet (docs/MASTER.md). A base visual do sheet (posicao fixa,
+   pegador, cabecalho, botao de salvar, fundo escurecido de fallback) mora em
+   static/css/secoes/gastos/assinaturas.css, sob .bottom-sheet-financas /
+   .bottom-sheet-backdrop-fallback - esta faixa e dona dos dois arquivos,
+   reusa em vez de duplicar (fase7.css importa todo CSS de secao, a regra
+   vale aqui tambem, nao so na aba Gastos). Aqui so o que e proprio desta
+   secao: o ajuste de padding/gap de `.lista.card` (mesma razao comentada em
+   assinaturas.css - lista-item.css zera o padding/gap do card por ordem de
+   import). */
 
 #btn-nova-conta-pessoal {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  min-height: 48px;
   margin: 0.6rem 0 0.9rem;
-  padding: 0.7rem 1.1rem;
-  border-radius: var(--raio-sm, 14px);
-  border: 1px solid var(--borda-sutil, var(--border));
-  background: var(--superficie-2, var(--surface-2));
-  color: var(--text);
-  font-size: 0.92rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
 }
 
-#btn-nova-conta-pessoal svg {
-  width: 20px;
-  height: 20px;
-  color: var(--cor-financeiro);
-  flex-shrink: 0;
-}
-
-@media (hover: hover) {
-  #btn-nova-conta-pessoal:hover {
-    border-color: color-mix(in srgb, var(--cor-financeiro) 45%, var(--border));
-    box-shadow: var(--elevacao-2, inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 3px 10px -3px rgba(0, 0, 0, 0.5));
-  }
-}
-
-#btn-nova-conta-pessoal:active {
-  transform: scale(0.98);
+#lista-contas-pessoais.lista.card {
+  gap: 0;
+  padding: var(--espaco-3, 1rem);
+  margin: 0 0 0.5rem;
 }

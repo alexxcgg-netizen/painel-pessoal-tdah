@@ -37,17 +37,10 @@
   }
 }
 
-/* Categoria do gasto como chip (contrato .chip) - mesmo comportamento de
-   antes (toque pra corrigir vira <select>), so o acabamento muda. */
+/* Categoria do gasto como chip (contrato .chip.chip--compacto, ver
+   static/css/ui/componentes/chip.css) - mesmo comportamento de antes (toque
+   pra corrigir vira <select>), so o acabamento muda. Sem delta proprio: o
+   componente ja cobre o visual. */
 #tab-gastos .gasto-categoria.chip {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 0.12rem 0.55rem;
-  background: var(--superficie-3, var(--surface-3));
-  border: 1px solid var(--borda-sutil, var(--border));
-}
-
-#tab-gastos .gasto-valor {
-  font-variant-numeric: tabular-nums;
+  cursor: pointer;
 }

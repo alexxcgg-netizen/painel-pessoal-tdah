@@ -28,23 +28,17 @@
   }
 }
 
-/* Tipo da conta (conta/cartao) como chip (contrato .chip) no lugar do texto
-   entre parenteses de antes - mesmo dado, so o acabamento muda
-   (static/js/secoes/bancos/bancos.js monta o elemento). */
+/* Tipo da conta (conta/cartao) como chip (contrato .chip.chip--compacto, ver
+   static/css/ui/componentes/chip.css) no lugar do texto entre parenteses de
+   antes - mesmo dado, so o acabamento muda (bancos.js monta o elemento).
+   So o delta desta secao: posicao (nasce dentro do span de titulo) + a cor
+   da aba na borda/texto (principio #3 do MASTER: cor e da aba, componente
+   fica neutro por padrao). */
 #tab-bancos .banco-tipo-chip {
-  display: inline-flex;
-  align-items: center;
   margin-left: 0.45rem;
-  padding: 0.05rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-family: var(--font-tech);
-  color: var(--cor-bancos);
-  background: color-mix(in srgb, var(--cor-bancos) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--cor-bancos) 35%, var(--border));
   vertical-align: middle;
+  color: var(--cor-bancos);
+  border-color: color-mix(in srgb, var(--cor-bancos) 40%, var(--borda-sutil, var(--border)));
 }
 
 #tab-bancos .banco-saldo {

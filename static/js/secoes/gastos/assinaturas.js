@@ -4,10 +4,9 @@
 // classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
 
 // ---- Bottom sheet: usa a API do contrato (static/js/ui/bottom-sheet.js, faixa V0d)
-// quando ela ja estiver carregada; enquanto isso nao acontece (ou nalgum navegador
-// que falhe ao carregar aquele arquivo), cai pro fallback direto no atributo
-// `hidden`, que sozinho ja cobre a funcionalidade (so sem fundo escurecido/ESC/
-// foco preso - isso vem de graca quando a V0d entrar na integracao). ----
+// quando ela ja estiver carregada; enquanto isso nao acontece (static/js/ui/bottom-sheet.js
+// segue vazio nesta integracao), cai pro fallback local logo abaixo (hidden + fundo
+// escurecido + ESC + foco no primeiro campo/de volta no botao, docs/MASTER.md #9). ----
 
 // `position: fixed` so posiciona relativo a viewport de verdade quando NENHUM
 // ancestral tem `transform` - a troca de aba (nucleo/navegacao.js) deixa
@@ -23,17 +22,16 @@
 });
 
 let backdropAssinaturas = null;
+let sheetOrigemAssinaturas = null;
 
-function abrirSheetAssinaturas(id) {
+function abrirSheetAssinaturas(id, origem) {
   if (typeof window.abrirBottomSheet === "function") {
     window.abrirBottomSheet(id);
     return;
   }
-  // Fallback sem a V0d ainda na integracao: fundo escurecido + ESC feitos
-  // aqui mesmo (funcionalidade minima - foco preso fica pra quando a V0d
-  // entrar, que substitui este caminho inteiro).
   const el = document.getElementById(id);
   if (!el) return;
+  sheetOrigemAssinaturas = origem || document.activeElement;
   if (!backdropAssinaturas) {
     backdropAssinaturas = criarEl("div", "bottom-sheet-backdrop-fallback");
     backdropAssinaturas.addEventListener("click", () => fecharSheetAssinaturas(id));
@@ -41,6 +39,8 @@ function abrirSheetAssinaturas(id) {
   }
   backdropAssinaturas.hidden = false;
   el.hidden = false;
+  const primeiroCampo = el.querySelector("input, select, textarea");
+  if (primeiroCampo) primeiroCampo.focus();
 }
 
 function fecharSheetAssinaturas(id) {
@@ -51,6 +51,10 @@ function fecharSheetAssinaturas(id) {
   const el = document.getElementById(id);
   if (el) el.hidden = true;
   if (backdropAssinaturas) backdropAssinaturas.hidden = true;
+  if (sheetOrigemAssinaturas) {
+    sheetOrigemAssinaturas.focus();
+    sheetOrigemAssinaturas = null;
+  }
 }
 
 document.addEventListener("keydown", (e) => {
@@ -61,51 +65,51 @@ document.addEventListener("keydown", (e) => {
   });
 });
 
-$("#btn-nova-assinatura").addEventListener("click", () => abrirSheetAssinaturas("sheet-nova-assinatura"));
-$("#btn-nova-parcela").addEventListener("click", () => abrirSheetAssinaturas("sheet-nova-parcela"));
+$("#btn-nova-assinatura").addEventListener("click", (e) => abrirSheetAssinaturas("sheet-nova-assinatura", e.currentTarget));
+$("#btn-nova-parcela").addEventListener("click", (e) => abrirSheetAssinaturas("sheet-nova-parcela", e.currentTarget));
 document.querySelectorAll("#assinaturas-financas-box [data-fechar-sheet]").forEach((btn) => {
   btn.addEventListener("click", () => fecharSheetAssinaturas(btn.dataset.fecharSheet));
 });
 
-// ---- Listas ----
+// ---- Listas (contrato .lista-item: docs/MASTER.md #5) ----
 
 function criarChipCartao(texto) {
-  const chip = criarEl("span", "chip chip-neutro", texto);
-  return chip;
+  return criarEl("span", "chip chip--compacto", texto);
+}
+
+function criarLinhaLista(titulo, metaPartes, valorTexto) {
+  const li = criarEl("li", "lista-item");
+  const corpo = criarEl("div", "lista-item-corpo");
+  corpo.appendChild(criarEl("span", "lista-item-titulo", titulo));
+  corpo.appendChild(criarEl("span", "lista-item-meta", metaPartes.filter(Boolean).join(" - ")));
+  li.appendChild(corpo);
+  if (valorTexto != null) li.appendChild(criarEl("span", "valor-mono lista-item-valor", valorTexto));
+  return li;
 }
 
 function criarItemProximaCobranca(item) {
   const nome = item.tipo === "assinatura" ? item.nome : item.descricao;
-  const li = criarEl("li", "item lista-item" + (item.dias <= 0 ? " item-atencao" : ""));
-  const linha = criarEl("div", "item-linha");
-  const wrap = criarEl("div");
-  wrap.appendChild(criarEl("span", "item-titulo", nome));
-  const detalhePartes = [item.label];
-  if (item.tipo === "compra_parcelada") detalhePartes.push(`parcela ${item.parcela_atual}/${item.n_parcelas}`);
+  const metaPartes = [item.label];
+  if (item.tipo === "compra_parcelada") metaPartes.push(`parcela ${item.parcela_atual}/${item.n_parcelas}`);
   const formaOuCartao = item.tipo === "assinatura" ? item.cartao_ou_forma : item.cartao;
-  if (formaOuCartao) detalhePartes.push(formaOuCartao);
-  wrap.appendChild(criarEl("span", "item-quando", detalhePartes.join(" - ")));
-  linha.appendChild(wrap);
-  linha.appendChild(criarEl("span", "valor-mono item-valor", fmtMoeda(item.valor)));
-  li.appendChild(linha);
+  if (formaOuCartao) metaPartes.push(formaOuCartao);
+  const li = criarLinhaLista(nome, metaPartes, fmtMoeda(item.valor));
+  if (item.dias <= 0) li.classList.add("item-atencao");
   return li;
 }
 
 function criarItemAssinaturaAtiva(a) {
-  const li = criarEl("li", "item lista-item");
-  const linha = criarEl("div", "item-linha");
-  const wrap = criarEl("div");
-  wrap.appendChild(criarEl("span", "item-titulo", a.nome));
-  const detalhe = [`${fmtMoeda(a.valor)}/mes`, `dia ${a.dia_cobranca}`];
-  if (a.proxima_cobranca) detalhe.push(`proxima ${fmtDataBr(a.proxima_cobranca)}`);
-  wrap.appendChild(criarEl("span", "item-quando", detalhe.join(" - ")));
-  linha.appendChild(wrap);
-  if (a.cartao_ou_forma) linha.appendChild(criarChipCartao(a.cartao_ou_forma));
-  li.appendChild(linha);
+  const metaPartes = [`${fmtMoeda(a.valor)}/mes`, `dia ${a.dia_cobranca}`];
+  if (a.proxima_cobranca) metaPartes.push(`proxima ${fmtDataBr(a.proxima_cobranca)}`);
+  const li = criarEl("li", "lista-item");
+  const corpo = criarEl("div", "lista-item-corpo");
+  corpo.appendChild(criarEl("span", "lista-item-titulo", a.nome));
+  corpo.appendChild(criarEl("span", "lista-item-meta", metaPartes.join(" - ")));
+  if (a.cartao_ou_forma) corpo.appendChild(criarChipCartao(a.cartao_ou_forma));
+  li.appendChild(corpo);
 
-  const acoes = criarEl("div", "item-acoes");
-  const btnCancelar = criarEl("button", "btn-com-icone");
-  btnCancelar.textContent = "Cancelar";
+  const acoes = criarEl("div", "lista-item-acoes");
+  const btnCancelar = criarEl("button", "btn-com-icone", "Cancelar");
   btnCancelar.addEventListener("click", async () => {
     btnCancelar.disabled = true;
     const r = await apiFetch(`/api/financas/assinaturas/${a.id}/cancelar`, { method: "POST" });
@@ -118,39 +122,29 @@ function criarItemAssinaturaAtiva(a) {
   });
   acoes.appendChild(btnCancelar);
   acoes.appendChild(botaoApagar(`/api/financas/assinaturas/${a.id}`, li));
-  const linhaAcoes = criarEl("div", "item-linha");
-  linhaAcoes.appendChild(acoes);
-  li.appendChild(linhaAcoes);
+  li.appendChild(acoes);
   return li;
 }
 
 function criarItemParcela(c, info) {
-  const li = criarEl("li", "item lista-item");
-  const linha = criarEl("div", "item-linha");
-  const wrap = criarEl("div");
-  wrap.appendChild(criarEl("span", "item-titulo", c.descricao));
-  const detalhe = [
-    `${fmtMoeda(c.valor_parcela)}/mes`,
-    `parcela ${info.parcela_atual_calculada}/${c.n_parcelas}`,
-    `termina ${info.mes_termino_nome}`,
-  ];
-  wrap.appendChild(criarEl("span", "item-quando", detalhe.join(" - ")));
-  linha.appendChild(wrap);
-  if (c.cartao) linha.appendChild(criarChipCartao(c.cartao));
-  li.appendChild(linha);
+  const metaPartes = [`${fmtMoeda(c.valor_parcela)}/mes`, `parcela ${info.parcela_atual_calculada}/${c.n_parcelas}`, `termina ${info.mes_termino_nome}`];
+  const li = criarEl("li", "lista-item");
+  const corpo = criarEl("div", "lista-item-corpo");
+  corpo.appendChild(criarEl("span", "lista-item-titulo", c.descricao));
+  corpo.appendChild(criarEl("span", "lista-item-meta", metaPartes.join(" - ")));
+  if (c.cartao) corpo.appendChild(criarChipCartao(c.cartao));
 
   const progresso = criarEl("div", "meta-progresso parcela-progresso");
   const pct = Math.min(100, (info.parcelas_pagas / c.n_parcelas) * 100);
   const barra = criarEl("div", "meta-progresso-barra");
   barra.style.width = `${pct}%`;
   progresso.appendChild(barra);
-  li.appendChild(progresso);
+  corpo.appendChild(progresso);
+  li.appendChild(corpo);
 
-  const linhaAcoes = criarEl("div", "item-linha");
-  const acoes = criarEl("div", "item-acoes");
+  const acoes = criarEl("div", "lista-item-acoes");
   acoes.appendChild(botaoApagar(`/api/financas/parcelas/${c.id}`, li));
-  linhaAcoes.appendChild(acoes);
-  li.appendChild(linhaAcoes);
+  li.appendChild(acoes);
   return li;
 }
 

@@ -15,14 +15,16 @@
 })();
 
 let backdropContaPessoal = null;
+let sheetOrigemContaPessoal = null;
 
-function abrirSheetContaPessoal(id) {
+function abrirSheetContaPessoal(id, origem) {
   if (typeof window.abrirBottomSheet === "function") {
     window.abrirBottomSheet(id);
     return;
   }
   const el = document.getElementById(id);
   if (!el) return;
+  sheetOrigemContaPessoal = origem || document.activeElement;
   if (!backdropContaPessoal) {
     backdropContaPessoal = criarEl("div", "bottom-sheet-backdrop-fallback");
     backdropContaPessoal.addEventListener("click", () => fecharSheetContaPessoal(id));
@@ -30,6 +32,8 @@ function abrirSheetContaPessoal(id) {
   }
   backdropContaPessoal.hidden = false;
   el.hidden = false;
+  const primeiroCampo = el.querySelector("input, select, textarea");
+  if (primeiroCampo) primeiroCampo.focus();
 }
 
 function fecharSheetContaPessoal(id) {
@@ -40,6 +44,10 @@ function fecharSheetContaPessoal(id) {
   const el = document.getElementById(id);
   if (el) el.hidden = true;
   if (backdropContaPessoal) backdropContaPessoal.hidden = true;
+  if (sheetOrigemContaPessoal) {
+    sheetOrigemContaPessoal.focus();
+    sheetOrigemContaPessoal = null;
+  }
 }
 
 document.addEventListener("keydown", (e) => {
@@ -48,7 +56,7 @@ document.addEventListener("keydown", (e) => {
   if (el && !el.hidden) fecharSheetContaPessoal("sheet-nova-conta-pessoal");
 });
 
-$("#btn-nova-conta-pessoal").addEventListener("click", () => abrirSheetContaPessoal("sheet-nova-conta-pessoal"));
+$("#btn-nova-conta-pessoal").addEventListener("click", (e) => abrirSheetContaPessoal("sheet-nova-conta-pessoal", e.currentTarget));
 document.querySelectorAll("#sheet-nova-conta-pessoal [data-fechar-sheet]").forEach((btn) => {
   btn.addEventListener("click", () => fecharSheetContaPessoal(btn.dataset.fecharSheet));
 });
@@ -61,11 +69,10 @@ async function loadContasPessoais() {
   $("#contas-pessoais-vazio").hidden = contas.length > 0;
   contas.forEach((c) => {
     const urgente = !c.paga && c.dias_ate_vencer <= 3;
-    const li = criarEl("li", "item" + (urgente ? " item-atencao" : ""));
-    const linha = criarEl("div", "item-linha");
-    const wrap = criarEl("div");
+    const li = criarEl("li", "lista-item" + (urgente ? " item-atencao" : ""));
+    const corpo = criarEl("div", "lista-item-corpo");
     const titulo = c.valor != null ? `${c.nome} - ${fmtMoeda(c.valor)}` : c.nome;
-    wrap.appendChild(criarEl("span", "item-titulo", titulo));
+    corpo.appendChild(criarEl("span", "lista-item-titulo", titulo));
     const quando = c.paga
       ? `paga (vencimento ${fmtDataBr(c.proximo_vencimento)})`
       : c.dias_ate_vencer < 0
@@ -73,10 +80,10 @@ async function loadContasPessoais() {
       : c.dias_ate_vencer === 0
       ? "vence hoje"
       : `vence ${fmtDataBr(c.proximo_vencimento)} - em ${c.dias_ate_vencer} dia(s)`;
-    wrap.appendChild(criarEl("span", "item-quando", quando));
-    linha.appendChild(wrap);
+    corpo.appendChild(criarEl("span", "lista-item-meta", quando));
+    li.appendChild(corpo);
 
-    const acoes = criarEl("div", "item-acoes");
+    const acoes = criarEl("div", "lista-item-acoes");
     if (!c.paga) {
       const pagar = criarEl("button", "primario btn-com-icone");
       pagar.innerHTML = `${ICONE_CHECK}paga`;
@@ -89,8 +96,7 @@ async function loadContasPessoais() {
       acoes.appendChild(pagar);
     }
     acoes.appendChild(botaoApagar(`/api/contas-pessoais/${c.id}`, li));
-    linha.appendChild(acoes);
-    li.appendChild(linha);
+    li.appendChild(acoes);
     lista.appendChild(li);
   });
 }
