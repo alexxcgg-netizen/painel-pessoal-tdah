@@ -40,3 +40,13 @@ Worktree /home/user/painel-pessoal-tdah-fase7-c3b-viagens, porta 5132, banco sin
     (`#tab-vida .bottom-sheet`) pintam o overlay fixo inteiro; neutralizado nos meus 4 IDs.
   - style.css ~l.3353 `.campo-rotulo` em MAIUSCULAS; campo.css (V0c) nao reseta.
   - card de timeline da viagem (cards.js) fica card-dentro-de-bloco; e de cards.js.
+
+[x] H3 - Fuzz de UI (fuzz.py -> fuzz-resultado.json): 71/71 cenarios, 0 erro de console,
+  0 pageerror. Cobre: 4 sheets x (abrir+ESC 8x, toque fora, Cancelar limpa e devolve
+  foco, clique duplo, POST 500, POST JSON invalido, strings de 12k com emoji/HTML);
+  datas invalidas (volta<ida, 2026-13-45, 31/02, texto), horas negativas/texto, hora
+  25:99, toque triplo em Salvar voo (1 POST so); fornecedor negativo/1e999/texto/vazio,
+  POST/DELETE 500 e JSON invalido; GET 500/JSON invalido/objeto fora do formato nas 4
+  listas; METAR 500/JSON/ZZZZ/"<img"; 5 secoes recolhiveis 9x rapido; mala/numero de
+  voo/apagar voo com 500; ESC com salvamento lento; CDN do Leaflet fora; mapa 11x.
+  (2 falhas da 1a rodada eram do script: rascunho de cenario anterior e cotacao-alvo.)
