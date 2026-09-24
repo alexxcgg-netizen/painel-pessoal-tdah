@@ -1,3 +1,308 @@
 /* static/css/ui/componentes/botao.css - componente: botoes.
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (V0b). Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve
+   por cascata sem precisar editar o style.css nem criar cor nova - tudo aqui reusa
+   --accent/--accent-text/--danger/--surface-2/--surface-3/--border-strong etc, ja
+   definidos no style.css. CUIDADO: um asterisco imediatamente seguido de barra, DENTRO de
+   um comentario CSS, fecha o comentario ali mesmo e corrompe o parse do resto do arquivo -
+   bug real, ja pego aqui (nao escreva notacao de wildcard tipo "prefixo-" + asterisco +
+   "/" + "--outro" + asterisco em prosa; separe com espaco ou escreva o nome por extenso).
+
+   Tokens de forma da V0a (--raio, --raio-sm, --espaco-1..6, --elevacao-1..3, --borda-sutil,
+   --superficie-2/--superficie-3) ainda nao entraram em static/css/ui/tokens.css nesta
+   integracao. Por isso todo uso abaixo e var(--token-v0a, fallback), com o fallback
+   encadeado nos tokens que ja existem no style.css (--radius/--radius-sm/--shadow-card/
+   --surface-2/--surface-3/--border-strong) - quando a V0a entrar, o var(--token-v0a, ...)
+   passa a resolver pro valor dela automaticamente, sem precisar editar este arquivo. */
+
+:root {
+  /* icone "+" de traco (stroke), reaproveitado pelo .btn-adicionar e pelo .btn-fab quando
+     o chamador nao injeta o proprio conteudo. SVG inline via CSS mask - nunca emoji. */
+  --btn-icone-mais: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>");
+}
+
+/* ---------- .btn: base compartilhada por todos os modificadores ---------- */
+.btn {
+  /* reset do botao nativo do navegador - e daqui que some o azul padrao de foco/tap */
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--espaco-2, 8px);
+  box-sizing: border-box;
+  min-height: 44px; /* area de toque minima */
+  padding: var(--espaco-2, 8px) var(--espaco-4, 16px);
+  border: 1px solid transparent;
+  border-radius: var(--raio-sm, var(--radius-sm, 14px));
+  background: var(--superficie-2, var(--surface-2));
+  color: var(--text);
+  font: 700 0.92rem/1.2 var(--font-body);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  /* mesmas duracoes/easings ja usados no resto do app (style.css) - nao inventa timing novo */
+  transition: transform 0.18s var(--ease-bounce), background 0.16s ease, box-shadow 0.2s ease,
+    border-color 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
+}
+
+.btn svg {
+  flex: 0 0 auto;
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.btn:focus-visible {
+  /* so o outline: none entra aqui (nunca o azul padrao do navegador). O box-shadow do anel
+     de foco em si fica la embaixo, junto do estado carregando - mesmo motivo: precisa
+     vencer o box-shadow que cada .btn-primario/secundario/perigo/fab/adicionar ja define,
+     com a MESMA especificidade (.btn + 1 classe), entao so ganha ficando depois na cascata. */
+  outline: none;
+}
+
+@media (hover: hover) {
+  .btn:hover:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(-1px);
+  }
+}
+
+.btn:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(0) scale(0.97);
+}
+
+/* ---------- estado desabilitado (vale pra qualquer .btn-*) ---------- */
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: saturate(0.7);
+}
+
+@keyframes btn-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .btn.is-carregando::after {
+    transition: none !important;
+    animation-duration: 0.001ms !important;
+  }
+}
+
+/* ---------- .btn-primario: acao principal, preenchimento na cor de destaque ---------- */
+.btn.btn-primario {
+  border-color: transparent;
+  background: var(--accent-gradient-ink, var(--accent));
+  background-size: 160% 160%;
+  color: var(--accent-text);
+  box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+@media (hover: hover) {
+  .btn.btn-primario:hover:not(:disabled):not([aria-disabled="true"]) {
+    background-position: 100% 0;
+    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+}
+
+.btn.btn-primario:active:not(:disabled):not([aria-disabled="true"]) {
+  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ---------- .btn-secundario: superficie elevada neutra, borda sutil ---------- */
+.btn.btn-secundario {
+  background: var(--superficie-2, var(--surface-2));
+  border-color: var(--borda-sutil, var(--border-strong));
+  color: var(--text);
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05));
+}
+
+@media (hover: hover) {
+  .btn.btn-secundario:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: var(--superficie-3, var(--surface-3));
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--borda-sutil, var(--border-strong)));
+  }
+}
+
+.btn.btn-secundario:active:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--superficie-2, var(--surface-2));
+}
+
+/* ---------- .btn-perigo: acao destrutiva, usa --danger ja existente ---------- */
+.btn.btn-perigo {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--danger) 0%, color-mix(in srgb, var(--danger) 70%, black 30%) 100%);
+  color: #fff;
+  box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+@media (hover: hover) {
+  .btn.btn-perigo:hover:not(:disabled):not([aria-disabled="true"]) {
+    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--danger) 65%, transparent);
+    filter: brightness(1.06);
+  }
+}
+
+.btn.btn-perigo:active:not(:disabled):not([aria-disabled="true"]) {
+  filter: brightness(0.96);
+}
+
+/* ---------- .btn-fab: botao circular flutuante (acao rapida) ---------- */
+.btn.btn-fab {
+  min-height: 0;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+  border-color: transparent;
+  background: var(--accent-gradient-ink, var(--accent));
+  color: var(--accent-text);
+  box-shadow: var(--elevacao-3, var(--shadow-card-hover));
+  flex: 0 0 auto;
+}
+
+.btn.btn-fab svg {
+  width: 1.4em;
+  height: 1.4em;
+}
+
+@media (hover: hover) {
+  .btn.btn-fab:hover:not(:disabled):not([aria-disabled="true"]) {
+    filter: brightness(1.08);
+  }
+}
+
+.btn.btn-fab:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(0) scale(0.94);
+}
+
+/* variante sem SVG filho: icone "+" via CSS mask (SVG inline) no proprio pseudo-elemento,
+   pra quando o chamador nao injeta um <svg> dentro do .btn-fab */
+.btn.btn-fab.btn-fab--mais::before {
+  content: "";
+  width: 1.4em;
+  height: 1.4em;
+  background-color: currentColor;
+  -webkit-mask: var(--btn-icone-mais) center / contain no-repeat;
+  mask: var(--btn-icone-mais) center / contain no-repeat;
+}
+
+/* ---------- .btn-adicionar: CTA grande e unico pra "adicionar/criar/+ novo" ----------
+   Substitui os botoes azuis pequenos espalhados pelas secoes (ver progress.txt pra lista).
+   Largura total no contexto de secao por padrao; .btn-adicionar--pilula da o formato de
+   pilula generosa pra contexto inline (barra de acoes, cabecalho de secao). */
+.btn.btn-adicionar {
+  width: 100%;
+  min-height: 48px;
+  gap: var(--espaco-3, 12px);
+  padding: var(--espaco-3, 12px) var(--espaco-5, 24px);
+  border-radius: var(--raio, var(--radius, 20px));
+  border: 1px solid var(--borda-sutil, var(--border-strong));
+  background: var(--superficie-2, var(--surface-2));
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 45%);
+  color: var(--text);
+  font-size: 1rem;
+  box-shadow: var(--elevacao-2, var(--shadow-card));
+}
+
+/* pilula generosa - largura pelo conteudo, cantos totalmente arredondados */
+.btn.btn-adicionar.btn-adicionar--pilula {
+  width: auto;
+  border-radius: 999px;
+  padding-inline: var(--espaco-6, 32px);
+}
+
+/* selo do icone "+" - traço via pseudo-elemento (duas barras em background-image,
+   nunca emoji), sobre um chip circular na cor de destaque existente (--accent-soft-bg). */
+.btn.btn-adicionar::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: var(--accent-soft-bg, color-mix(in srgb, var(--accent) 16%, transparent));
+  background-image: linear-gradient(var(--accent-text, var(--text)), var(--accent-text, var(--text))),
+    linear-gradient(var(--accent-text, var(--text)), var(--accent-text, var(--text)));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 2.2px, 2.2px 12px; /* barra horizontal + barra vertical = "+" */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  transition: transform 0.18s var(--ease-bounce);
+}
+
+@media (hover: hover) {
+  .btn.btn-adicionar:hover:not(:disabled):not([aria-disabled="true"]) {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--borda-sutil, var(--border-strong)));
+    box-shadow: var(--elevacao-3, var(--shadow-card-hover));
+  }
+
+  .btn.btn-adicionar:hover:not(:disabled):not([aria-disabled="true"])::before {
+    transform: rotate(90deg);
+  }
+}
+
+.btn.btn-adicionar:active:not(:disabled):not([aria-disabled="true"]) {
+  box-shadow: var(--elevacao-1, var(--shadow-card));
+}
+
+.btn.btn-adicionar.is-carregando::before {
+  opacity: 0;
+}
+
+/* ---------- estado carregando (vale pra qualquer .btn-*, por isso fica por ultimo: ----------
+   precisa vencer o `color`/`background` de cada variante acima com a mesma especificidade).
+   Uso: <button class="btn btn-primario is-carregando" disabled aria-busy="true"><span>Salvar</span></button>
+   O texto/icone somem (opacity) sem mudar a largura do botao; um spinner de traco assume o
+   lugar central. */
+.btn.is-carregando {
+  position: relative;
+  color: transparent;
+  pointer-events: none;
+}
+
+.btn.is-carregando > * {
+  opacity: 0;
+}
+
+.btn.is-carregando::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  color: var(--text);
+  animation: btn-girar 0.7s linear infinite;
+}
+
+.btn.btn-primario.is-carregando::after,
+.btn.btn-adicionar.is-carregando::after,
+.btn.btn-fab.is-carregando::after {
+  color: var(--accent-text);
+}
+
+.btn.btn-perigo.is-carregando::after {
+  color: #fff;
+}
+
+/* ---------- anel de foco visivel (fica por ultimo pelo mesmo motivo do carregando acima:
+   mesma especificidade do box-shadow de cada variante, .btn + 1 classe) - nunca o azul
+   padrao do navegador; mesmo raciocinio do anel que #captura-input/#duvida-input ja usam
+   em style.css. ---------- */
+.btn:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.btn.btn-perigo:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 40%, transparent);
+}

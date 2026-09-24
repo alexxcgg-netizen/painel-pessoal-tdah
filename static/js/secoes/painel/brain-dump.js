@@ -28,26 +28,12 @@ async function loadBrainDump() {
     const acoes = document.createElement("div");
     acoes.className = "item-acoes";
 
-    // US-E6: "Processar" manda o despejo inteiro pro assistente (mesmo
-    // pipeline do chat) - cada coisa misturada no texto vira um card na aba
-    // Hoje, com Desfazer independente.
-    const processar = async (btn) => {
-      btn.disabled = true;
-      showTab("hoje");
-      const data = await enviarChat(item.texto, {
-        rota: `/api/brain-dump/${item.id}/converter`,
-        corpo: { tipo: "assistente" },
-      });
-      btn.disabled = false;
-      if (data) loadBrainDump();
-    };
-    const processarBtn = document.createElement("button");
-    processarBtn.className = "btn-com-icone btn-brain-processar";
-    processarBtn.textContent = "Processar";
-    processarBtn.setAttribute("aria-label", "Processar com o assistente");
-    processarBtn.addEventListener("click", () => processar(processarBtn));
-    acoes.appendChild(processarBtn);
-
+    // Fase 7 (V1, decisao D3 do Alex): "Guardar" ja processa em cards num
+    // toque so (ver processarBrainDump, chamado direto no submit do form
+    // logo abaixo) - o botao "Processar" por item saiu daqui. Os itens que
+    // sobrarem pendentes (de antes dessa mudanca, ou porque a IA falhou na
+    // hora de guardar) continuam podendo virar tarefa/nota/gasto na mao ou
+    // serem apagados.
     const converterPara = async (tipo) => {
       const corpo = { tipo };
       if (tipo === "gasto") {
@@ -105,6 +91,20 @@ async function loadBrainDump() {
   });
 }
 
+// Fase 7 (V1, decisao D3 do Alex): mesma chamada que o antigo botao
+// "Processar" por item fazia (US-E6) - o texto inteiro vai pro pipeline do
+// chat (`/api/brain-dump/<id>/converter` com `tipo: "assistente"`), que
+// devolve o MESMO contrato de /api/chat: cada coisa misturada (gasto, tarefa,
+// lembrete...) vira um card na aba Hoje, com Desfazer independente em cada
+// um. `showTab("hoje")` leva o Alex pra ver os cards surgirem.
+async function processarBrainDumpNoAssistente(itemId, texto) {
+  showTab("hoje");
+  return enviarChat(texto, {
+    rota: `/api/brain-dump/${itemId}/converter`,
+    corpo: { tipo: "assistente" },
+  });
+}
+
 $("#brain-dump-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#brain-dump-btn");
@@ -118,10 +118,22 @@ $("#brain-dump-form").addEventListener("submit", async (e) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ texto }),
   });
-  setBotaoCarregando(btn, false, "Guardar");
-  if (!data) return;
+  if (!data) {
+    setBotaoCarregando(btn, false, "Guardar");
+    return;
+  }
 
   input.value = "";
   pulsarSucesso(input);
+  loadBrainDump();
+
+  // "Guardar" ja processa em cards num toque so - nao espera outro toque
+  // num botao "Processar" separado. Se a IA falhar (teto atingido, erro),
+  // o item continua pendente na lista (o servidor devolve `processado` pro
+  // estado anterior) e da pra converter na mao (-> tarefa/nota/gasto) ou
+  // apagar.
+  setBotaoCarregando(btn, true, "processando...");
+  await processarBrainDumpNoAssistente(data.id, texto);
+  setBotaoCarregando(btn, false, "Guardar");
   loadBrainDump();
 });

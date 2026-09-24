@@ -1,0 +1,22 @@
+[
+  {
+    "id": "decisao_trocar_carro",
+    "entrada": {"pergunta": "vale a pena trocar meu carro agora ou espero mais um ano?"}
+  },
+  {
+    "id": "decisao_curso_piloto",
+    "entrada": {"pergunta": "vale investir num simulador de voo pra treinar em casa entre as aulas de piloto?"}
+  },
+  {
+    "id": "decisao_socio_construtora",
+    "entrada": {"pergunta": "vale a pena propor pro meu pai e pro socio abrir uma frente nova de obra esse ano?"}
+  },
+  {
+    "id": "decisao_mudanca_apartamento",
+    "entrada": {"pergunta": "vale a pena me mudar pra um apartamento mais perto do trabalho mesmo pagando mais caro?"}
+  },
+  {
+    "id": "decisao_curso_online",
+    "entrada": {"pergunta": "vale a pena pagar um curso online de ingles ou da pra aprender sozinho com app gratis?"}
+  }
+]

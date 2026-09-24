@@ -268,9 +268,11 @@ class RobustezTestCase(_BaseRoteadorTestCase):
         # Etapa 0 (X1) pode nao ter extraido classificador_local ainda nesta
         # instalacao - garante que o import tardio/defensivo nao propaga.
         import sys
+        from unittest.mock import patch
 
-        self.assertNotIn("classificador_local", sys.modules)
-        destino = roteador.decidir("oi")
+        # Simula o pacote ausente (None em sys.modules faz o import levantar ImportError).
+        with patch.dict(sys.modules, {"classificador_local": None}):
+            destino = roteador.decidir("oi")
         self.assertIn(destino, ("luna", "padrao", "local"))
 
     def test_classificador_local_que_lanca_excecao_nao_quebra(self):

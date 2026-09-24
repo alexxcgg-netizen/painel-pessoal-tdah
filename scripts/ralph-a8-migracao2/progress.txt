@@ -1,0 +1,86 @@
+Faixa A8 (Migracao 2: planejamento) - progress.txt
+
+[done] Historia 1: ia/funcoes/planejamento.py reescrito pra
+  ia.core.chamar_ia("<funcao>", ...) nas 5 funcoes (break_down_task,
+  requebrar_tarefa, gerar_mala, resumir_link, plano_do_dia). Assinatura e
+  retorno (tupla resultado/usage) identicos a antes; usage montado a partir
+  de Resposta no formato que app.py:359 (_log_usage) le
+  (model/input_tokens/output_tokens/cost_usd). claude_client.py nao foi
+  editado - continua reexportando os mesmos nomes (BREAKDOWN_PROMPT,
+  MALA_PROMPT, PLANO_PROMPT, REQUEBRAR_PROMPT, RESUMO_LINK_PROMPT + as 5
+  funcoes), que agora sao os prompts fixos passados como contexto_fixo.
+[done] Historia 2: schema JSON pras 3 funcoes que devolvem lista
+  (break_down_task/requebrar_tarefa: {"passos":[...]}, gerar_mala:
+  {"itens":[...]}) - ia.core exige objeto no topo do JSON, entao a lista
+  crua de antes foi embrulhada num objeto com 1 campo e desembrulhada de
+  volta antes de devolver (resp.dados["passos"|"itens"]) pra manter o
+  retorno Python identico (list[str]). resumir_link/plano_do_dia continuam
+  texto livre (schema=None).
+[done] Historia 3: resumir_link trunca o texto ANTES de mandar (custo/teto):
+  ia/funcoes/planejamento.py:LIMITE_TEXTO_RESUMO_LINK = 12_000 caracteres,
+  cortando no fim de frase (". "/"! "/"? ", tambem com \n) mais proximo do
+  limite quando isso nao descarta mais da metade do trecho; senao corta
+  seco. Testado em tests/test_fase7_a8_planejamento.py::TestTruncarParaResumo.
+[done] Historia 4: 5 configs em ia/config.d/ (gerar_mala.json,
+  resumir_link.json: saida 500, fallback Haiku 4.5; break_down_task.json,
+  requebrar_tarefa.json: saida 600, fallback openai/gpt-6-sol/medio;
+  plano_do_dia.json: saida 800, fallback openai/gpt-6-sol/medio). Todas
+  ativo:false, modelo_atual = o que cada funcao usava hoje (Haiku pras 2
+  primeiras, Sonnet pras 3 ultimas - conferido no codigo antigo antes de
+  escrever o JSON), alvo = openai/gpt-6-luna/medio.
+[done] Historia 5: tests/test_fase7_a8_planejamento.py (35 testes): retorno
+  idêntico via dublê de core.chamar_ia, args passados (funcao/contexto_fixo/
+  schema/mensagens), schema (min/maxItems, required), truncamento,
+  configs (formato normalizado + valores esperados), e uma classe de
+  integracao fim-a-fim com o ia/core.py real + AdapterDuble (fallback,
+  teto bloqueando SEM chamar nenhum adapter, JSON fora do schema). 35
+  passed, 0 failed. Testes antigos que tocam estas 5 funcoes (grep
+  gerar_mala|resumir_link|break_down|requebrar|plano_do_dia em tests/):
+  test_claude_client.py, test_app.py, test_vida_rotas.py, test_vida_fase2.py,
+  test_vida_fase3.py - todos continuam passando (a 1 falha vista em
+  test_vida_fase3.py::test_aprender_no_domingo e uma das 6 falhas conhecidas
+  que dependem do dia da semana - hoje e quinta, nao domingo -, nao
+  relacionada a esta faixa; roteiro rodado com data real do sistema, sem
+  mock de data).
+
+Nenhuma historia bloqueada.
+
+Achados fora da lista de arquivos desta faixa (nao editei app.py, so anoto):
+- app.py:2364-2386 (rota POST /api/plano-do-dia): hoje NAO checa o teto
+  mensal de IA antes de chamar claude_client.plano_do_dia (diferente da
+  rota de captura, que checa em app.py:869). Com a migracao pra
+  chamar_ia, o teto passa a ser checado de graca DENTRO de
+  ia.core.chamar_ia (chamado por plano_do_dia) - confirmado com teste de
+  integracao (TestIntegracaoComNucleoReal.test_teto_estourado_bloqueia_sem_chamar_nenhum_adapter).
+  O mesmo vale pras outras 4 rotas desta faixa (breakdown_task em
+  app.py:1063, requebrar_tarefa em app.py:~5819, gerar_mala_rota em
+  app.py:6383, _salvar_link/resumir_link em app.py:~7252): nenhuma delas
+  checava teto antes: agora todas ganham a protecao de graca.
+- app.py:411 (_call_claude) so pega (anthropic.APIError, ValueError,
+  KeyError) do jeito antigo. chamar_ia NUNCA levanta anthropic.APIError
+  (o erro do provedor vira Resposta(ok=False, erro=...) dentro do
+  nucleo) - por isso ia/funcoes/planejamento.py agora levanta ValueError
+  em qualquer falha (rede, provedor, schema, teto_ia_estourado), pra
+  continuar caindo no except (ValueError, KeyError) de _call_claude e
+  devolver 502. Efeito colateral: a mensagem que o usuario ve pra
+  "teto estourado" fica igual a de "JSON invalido" (CLAUDE_FORMAT_ERROR_MSG),
+  em vez de uma mensagem especifica tipo a de app.py:875
+  ("teto_ia_estourado": True). Se quiser essa distincao na tela, app.py
+  precisaria reconhecer str(erro).startswith("teto_ia_estourado") vindo
+  do ValueError - fora do escopo desta faixa (nao mexi em app.py).
+
+Dependencia nova: nenhuma.
+Variavel de ambiente nova: nenhuma.
+
+Testes rodados:
+  scripts/testes.sh tests/test_fase7_a8_planejamento.py -> 35 passed
+  scripts/testes.sh tests/test_claude_client.py tests/test_ia_core.py
+    tests/test_ia_historico.py -> 100 passed, 52 subtests passed
+  scripts/testes.sh tests/test_vida_rotas.py tests/test_vida_fase2.py
+    tests/test_vida_fase3.py -> 1 failed (test_aprender_no_domingo, falha
+    conhecida dependente do dia da semana, nao relacionada), 126 passed
+  scripts/testes.sh tests/test_app.py -> 1 failed
+    (NotificacaoAgrupadaTestCase::test_ligado_segura_ate_a_janela_passar_e_agrupa,
+    teste de agrupamento de notificacao por janela de tempo - nao toca em
+    nenhuma das 5 funcoes desta faixa nem em ia/*, mais uma das falhas
+    conhecidas dependentes de horario), 528 passed, 126 subtests passed.

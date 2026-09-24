@@ -1,0 +1,47 @@
+Faixa N3a (endpoint e pagina do widget) - Fase 7
+
+ESTADO: historia unica concluida (endpoint + pagina + testes), infra da
+Etapa 0 ja mergeada e validada end-to-end via app.py real. Nao aberto PR
+(regra da faixa).
+
+Feito:
+- rotas/n3a_widget.py: Blueprint `bp`, ROTAS_COM_TOKEN={"/api/widget"},
+  PREFIXOS_COM_TOKEN=("/widget",). Funcao pura `montar_widget`/`estado_erro`
+  (testavel sem banco/Flask) + coleta (`coletar_resumo`) reaproveitando
+  app._visao_do_dia_itens/_proximo_item_em_foco, app._contas_pessoais_com_
+  status, app._buscar_contas_a_vencer_construtora (API read-only da
+  construtora), db.list_habitos/marcacoes_habito_no_periodo/habito_marcado +
+  vida.habito_devido_em, e ia.teto._fracao_teto. GET /api/widget (JSON) e
+  GET /widget (HTML, templates/widget.html) - token via Authorization:
+  Bearer OU ?token=, hmac.compare_digest, 401 sem/errado OU sem
+  PAINEL_WIDGET_TOKEN configurado (decisao: NAO abrir sem token por padrao -
+  ver discrepancia abaixo).
+- templates/widget.html: pagina leve, escura, paleta copiada de
+  static/css/style.css (:root), meta refresh 900s, sem JS.
+- tests/test_fase7_n3a_widget_montagem.py (28) e tests/test_fase7_n3a_
+  widget_api.py (33). 61/61 passam. Validado tambem manualmente com
+  `python app.py`-style boot (app.app.test_client()) apos o merge da Etapa 0
+  X1 (rotas.registrar_todas): rota registrada, funciona sem PIN/sessao, 401
+  sem token. Screenshot Playwright 390x844 (estado normal + mostrar_valores)
+  conferido visualmente, nao commitado (so verificacao).
+
+Nota tecnica: import de `rotas._base.app_modulo` fica DENTRO de cada funcao
+de rota (lazy), nao no topo do arquivo - deixou o modulo testavel antes
+mesmo da Etapa 0 mergear (namespace package implicito do Python, PEP 420).
+Ver APRENDIZADOS.md.
+
+Discrepancia encontrada (avisar integrador): docs/widget-widgy.md e
+docs/widget-api-widget.md (faixa N3c/N3d, escritos antes deste endpoint
+existir) dizem "sem PAINEL_WIDGET_TOKEN configurado = funciona sem
+autenticacao". Esta faixa implementou o oposto (sempre 401 sem token
+configurado). Nao editei esses dois docs (nao sao meus). Integrador decide.
+
+`tests/test_fase7_infra_rotas.py` tem 7 falhas pre-existentes (nao causadas
+por mim - reproduzem removendo rotas/n3a_widget.py tambem): esperam o
+pacote rotas/ "real" vazio, mas p7_sinais.py/p8_avisos.py (ja integrados
+antes de mim) ja quebram essa premissa.
+
+Variavel de ambiente NOVA (nao esta em .env.example, nao editei):
+PAINEL_WIDGET_TOKEN=
+
+Nenhuma dependencia nova.

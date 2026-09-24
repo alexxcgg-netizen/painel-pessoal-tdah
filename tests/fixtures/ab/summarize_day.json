@@ -1,0 +1,47 @@
+[
+  {
+    "id": "resumo_dia_cheio",
+    "entrada": {
+      "done": ["responder cliente", "pagar conta de luz"],
+      "pending": ["revisar contrato", "ligar pro fornecedor"],
+      "expenses": ["mercado 45", "uber 20"],
+      "eventos": ["reuniao as 14h", "aula de voo as 18h"]
+    },
+    "esperado": {"contem": ["reuniao"]}
+  },
+  {
+    "id": "resumo_dia_tranquilo",
+    "entrada": {"done": [], "pending": [], "expenses": [], "eventos": []},
+    "esperado": {"contem": []}
+  },
+  {
+    "id": "resumo_dia_so_gastos",
+    "entrada": {
+      "done": [],
+      "pending": ["organizar recibos"],
+      "expenses": ["farmacia 30", "mercado 80", "gasolina 120"],
+      "eventos": []
+    },
+    "esperado": {"contem": []}
+  },
+  {
+    "id": "resumo_dia_muitas_tarefas",
+    "entrada": {
+      "done": ["academia"],
+      "pending": ["estudar pra prova", "ligar pro dentista", "organizar mala"],
+      "expenses": [],
+      "eventos": ["prova as 9h"]
+    },
+    "esperado": {"contem": ["prova"]}
+  },
+  {
+    "id": "resumo_dia_compromisso_unico",
+    "entrada": {
+      "done": ["revisar cotacao"],
+      "pending": [],
+      "expenses": ["material de obra 800"],
+      "eventos": ["reuniao com socio as 10h"]
+    },
+    "esperado": {"contem": ["reuniao"]}
+  }
+]

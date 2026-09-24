@@ -210,9 +210,13 @@
   "use strict";
   const Cards = raiz.Cards || (typeof require === "function" ? require("./cards.js") : null);
   if (!Cards) return;
-  const { esc, numeroValido } = Cards;
+  const { esc, numeroValido, moeda } = Cards;
 
   const ICONES = Object.assign(Cards.ICONES || {}, {
+    assinatura:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>',
+    parcela:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="7.5" width="16" height="11" rx="2"/><rect x="5.5" y="4.5" width="16" height="11" rx="2"/><path d="M9 10h4"/></svg>',
     agenda:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>',
     projeto:
@@ -616,5 +620,105 @@
     );
   });
 
-  Object.assign(Cards, { blocoDoDia, progressoProjeto, minutosPorAtividade, semanaHabito, horaCurta, fmtPassos, fmtSono });
+  // ---- assinatura / compra_parcelada (Fase 7, faixa V1 - contrato N1) -----
+  // Formato de `data` combinado com a faixa N1 (docs/contrato-assinaturas.md,
+  // se ja estiver na integracao) - suposicao registrada em
+  // scripts/ralph-v1-hoje/progress.txt enquanto a N1 nao entra. Diferente de
+  // `transacao`/`meta`, esses dois NUNCA escondem valor (Alex pediu
+  // explicitamente: "sao do proprio Alex", sem MOEDA_OCULTA/`data.oculto`).
+
+  function emDiasTexto(n) {
+    if (!numeroValido(n)) return "";
+    if (n <= 0) return "hoje";
+    if (n === 1) return "amanhã";
+    return `em ${n} dias`;
+  }
+
+  Cards.registrar("assinatura", (data) => {
+    const ativa = data.ativa !== false;
+    const chip = ativa ? "" : '<span class="card-chip card-chip-neutro">Inativa</span>';
+    const detalhe = [
+      numeroValido(data.dia_cobranca) ? `dia ${data.dia_cobranca}` : "",
+      data.cartao,
+      data.categoria,
+    ]
+      .filter(Boolean)
+      .map(esc)
+      .join(" · ");
+    const prox = data.proxima_cobranca ? Cards.diaMesCurto(data.proxima_cobranca) : "";
+    const emDias = emDiasTexto(data.em_dias);
+    const proxLinha = [prox ? `Próxima cobrança: ${prox}` : "", emDias].filter(Boolean).join(" · ");
+    const valorTxt = numeroValido(data.valor) ? `${moeda(data.valor)} /mês` : "—";
+    return (
+      eyebrow(ICONES.assinatura, "Assinatura", chip) +
+      `<p class="card-titulo">${esc(data.nome)}</p>` +
+      `<p class="card-valor-grande">${esc(valorTxt)}</p>` +
+      (detalhe ? `<p class="card-linha-meta">${detalhe}</p>` : "") +
+      (proxLinha ? `<p class="card-linha-meta">${esc(proxLinha)}</p>` : "")
+    );
+  });
+
+  Cards.registrar("compra_parcelada", (data) => {
+    const atual = numeroValido(data.parcela_atual) ? data.parcela_atual : null;
+    const total = numeroValido(data.n_parcelas) ? data.n_parcelas : null;
+    const restantes = numeroValido(data.restantes)
+      ? data.restantes
+      : atual !== null && total !== null
+        ? Math.max(0, total - atual)
+        : null;
+    const pct = atual !== null && total ? limitar((atual / total) * 100, 0, 100) : 0;
+    const progresso =
+      atual !== null && total
+        ? `<div class="card-progresso"><div class="meta-progresso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}">` +
+          `<div class="meta-progresso-barra${pct >= 100 ? " completa" : ""}" style="width:${pct.toFixed(1)}%"></div></div></div>`
+        : "";
+    const detalhe = [
+      atual !== null && total !== null ? `Parcela ${atual} de ${total}` : "",
+      restantes !== null ? `${restantes} ${restantes === 1 ? "restante" : "restantes"}` : "",
+      data.termina_em ? `termina ${Cards.diaMesCurto(data.termina_em)}` : "",
+      data.cartao || "",
+    ]
+      .filter(Boolean)
+      .map(esc)
+      .join(" · ");
+    const valorTxt = numeroValido(data.valor_parcela) ? `${moeda(data.valor_parcela)} /mês` : "—";
+    return (
+      eyebrow(ICONES.parcela, "Compra parcelada") +
+      `<p class="card-titulo">${esc(data.descricao)}</p>` +
+      `<p class="card-valor-grande">${esc(valorTxt)}</p>` +
+      progresso +
+      (detalhe ? `<p class="card-linha-meta">${detalhe}</p>` : "")
+    );
+  });
+
+  // ---- resumo_financeiro_recorrente (agregado; formato NAO fechado com a
+  // N1 ainda - suposicao registrada em scripts/ralph-v1-hoje/progress.txt) --
+
+  Cards.registrar("resumo_financeiro_recorrente", (data) => {
+    const totalTxt = numeroValido(data.total_mes) ? moeda(data.total_mes) : "—";
+    const detalhe = [
+      numeroValido(data.n_assinaturas)
+        ? `${data.n_assinaturas} ${data.n_assinaturas === 1 ? "assinatura" : "assinaturas"}`
+        : "",
+      numeroValido(data.n_parcelas)
+        ? `${data.n_parcelas} ${data.n_parcelas === 1 ? "parcela ativa" : "parcelas ativas"}`
+        : "",
+    ]
+      .filter(Boolean)
+      .map(esc)
+      .join(" · ");
+    const prox =
+      data.proxima_cobranca && typeof data.proxima_cobranca === "object" && data.proxima_cobranca.nome
+        ? `<p class="card-linha-meta">Próxima cobrança: <strong>${esc(data.proxima_cobranca.nome)}</strong>` +
+          `${data.proxima_cobranca.data ? ` · ${esc(Cards.diaMesCurto(data.proxima_cobranca.data))}` : ""}</p>`
+        : "";
+    return (
+      eyebrow(ICONES.resumo, "Recorrentes do mês") +
+      `<p class="card-valor-grande">${esc(totalTxt)}</p>` +
+      (detalhe ? `<p class="card-linha-meta">${detalhe}</p>` : "") +
+      prox
+    );
+  });
+
+  Object.assign(Cards, { blocoDoDia, progressoProjeto, minutosPorAtividade, semanaHabito, horaCurta, fmtPassos, fmtSono, emDiasTexto });
 })(typeof window !== "undefined" ? window : globalThis);
