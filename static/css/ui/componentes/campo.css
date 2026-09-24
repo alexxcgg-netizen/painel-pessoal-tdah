@@ -12,7 +12,11 @@
   padding: 0.65rem var(--espaco-2, 16px);
   border-radius: var(--raio-sm, var(--radius-sm, 14px));
   border: 1px solid var(--borda-sutil, var(--border, rgba(218, 226, 243, 0.09)));
-  background: var(--superficie-2, color-mix(in srgb, var(--surface, #121212) 92%, white 2%));
+  /* M1 r2 (contraste): --superficie-1 (campo "afundado"). O placeholder em --text-faint dava
+     4.3:1 sobre --superficie-3 (foco e .form-linha, ex.: todo sheet) e 4.57:1 sobre
+     --superficie-2; sobre --superficie-1 da 4.83:1 (>= 4.5, WCAG AA). Sem cor nova - mesmo
+     desvio do MASTER que a C3a ja fez no campo inline da aba Vida (vida.css). */
+  background: var(--superficie-1, var(--surface, #121212));
   color: var(--text);
   font: inherit;
   font-size: 0.92rem;
@@ -36,7 +40,9 @@
 .campo:focus,
 .campo:focus-visible {
   border-color: var(--borda-forte);
-  background: var(--superficie-3);
+  /* M1 r2: o fundo NAO clareia no foco (--superficie-3 derrubava o placeholder pra 4.3:1).
+     O foco continua visivel pela borda forte + --anel-foco. */
+  background: var(--superficie-1);
   box-shadow: var(--anel-foco);
 }
 
@@ -72,7 +78,7 @@ select.campo {
 .form-linha :is(input, select, textarea).campo {
   padding: 0.65rem var(--espaco-3);
   border-color: var(--borda-sutil);
-  background: var(--superficie-3);
+  background: var(--superficie-1); /* M1 r2: contraste do placeholder (ver .campo) */
   font-size: 0.92rem;
 }
 
