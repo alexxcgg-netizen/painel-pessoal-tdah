@@ -45,7 +45,7 @@ function criarCardProjeto(p, liWrapper) {
   const box = criarEl("div", "card-vida projeto-card card");
   const topo = criarEl("div", "card-vida-topo");
   topo.appendChild(criarEl("h3", null, p.nome));
-  topo.appendChild(criarEl("span", `projeto-status projeto-status-${p.status} chip`, STATUS_PROJETO_ROTULO[p.status] || p.status));
+  topo.appendChild(criarEl("span", `projeto-status projeto-status-${p.status} chip chip--compacto`, STATUS_PROJETO_ROTULO[p.status] || p.status));
   box.appendChild(topo);
   const meta = [`${p.etapas_feitas}/${p.total_etapas} etapas (${p.percentual}%)`];
   if (p.prazo_final) meta.push(`prazo ${fmtDataBr(p.prazo_final)}`);
@@ -90,7 +90,7 @@ async function loadProjetos() {
 ligarForm(
   "#projeto-form",
   "#projeto-btn",
-  "Adicionar",
+  "Salvar projeto",
   () => {
     const nome = $("#projeto-nome").value.trim();
     return nome ? { nome, prazo_final: $("#projeto-prazo").value || null } : null;

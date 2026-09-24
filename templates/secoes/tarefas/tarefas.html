@@ -4,18 +4,18 @@
       </h2>
 
       <button type="button" id="tarefa-abrir-btn" class="btn btn-adicionar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Nova tarefa
       </button>
 
-      <div class="bottom-sheet" id="tarefa-sheet" hidden>
+      <div class="bottom-sheet" id="tarefa-sheet" hidden aria-labelledby="tarefa-sheet-titulo">
+        <h3 class="bottom-sheet-titulo" id="tarefa-sheet-titulo">Nova tarefa</h3>
         <form id="nova-tarefa-form" class="form-linha" style="--form-cor: var(--cor-tarefas)">
           <input type="text" id="nova-tarefa-titulo" class="campo" placeholder="O que precisa ser feito?" maxlength="200" required />
           <input type="date" id="nova-tarefa-prazo" class="campo" aria-label="Prazo (opcional)" />
           <div class="form-linha">
             <button type="submit" id="nova-tarefa-btn" class="btn btn-primario btn-com-icone">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-              Adicionar
+              Salvar tarefa
             </button>
             <button type="button" id="tarefa-cancelar-btn" class="btn btn-secundario">Cancelar</button>
           </div>
@@ -23,10 +23,10 @@
       </div>
 
       <p class="card-vida-meta">Como ta sua energia agora?</p>
-      <div class="form-linha" id="energia-botoes">
-        <button type="button" class="btn-com-icone" data-nivel="baixa">Baixa</button>
-        <button type="button" class="btn-com-icone" data-nivel="media">Média</button>
-        <button type="button" class="btn-com-icone" data-nivel="alta">Alta</button>
+      <div class="form-linha" id="energia-botoes" role="group" aria-label="Energia agora">
+        <button type="button" class="chip" data-nivel="baixa" aria-pressed="false">Baixa</button>
+        <button type="button" class="chip" data-nivel="media" aria-pressed="false">Média</button>
+        <button type="button" class="chip" data-nivel="alta" aria-pressed="false">Alta</button>
       </div>
       <p id="sugestao-energia-vazio" class="vazio" hidden>Nenhuma tarefa compatível com esse nível agora.</p>
       <ul id="lista-sugestao-energia"></ul>

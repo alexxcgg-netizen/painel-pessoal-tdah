@@ -125,11 +125,12 @@ $("#diario-decisao-form").addEventListener("submit", async (e) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ decisao, contexto: contextoInput.value.trim() }),
   });
-  setBotaoCarregando(btn, false, "Registrar");
+  setBotaoCarregando(btn, false, "Salvar decisão");
   if (!data) return;
 
   textoInput.value = "";
   contextoInput.value = "";
   pulsarSucesso(textoInput);
+  e.target.dispatchEvent(new CustomEvent("bottomsheet:sucesso", { bubbles: true })); // C2: fecha o sheet
   loadDecisoes();
 });

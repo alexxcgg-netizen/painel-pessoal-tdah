@@ -30,7 +30,12 @@ async function carregarSugestaoEnergia(nivel) {
 
   $("#energia-botoes")
     .querySelectorAll("button")
-    .forEach((b) => b.classList.toggle("primario", b.dataset.nivel === nivel));
+    .forEach((b) => {
+      const ativo = b.dataset.nivel === nivel;
+      b.classList.toggle("primario", ativo);
+      b.classList.toggle("chip--ativo", ativo); // C2: chip do contrato
+      b.setAttribute("aria-pressed", ativo ? "true" : "false");
+    });
 
   const list = $("#lista-sugestao-energia");
   list.innerHTML = "";
@@ -50,8 +55,10 @@ const NIVEIS_ENERGIA = ["baixa", "media", "alta"];
 // criarSeletorCategoriaGasto (tag que vira <select> num toque), pra
 // vida.tarefas_compativeis_com_energia ter o que filtrar.
 function criarTagEsforco(t) {
-  const tag = document.createElement("span");
-  tag.className = "item-quando item-tag-esforco chip";
+  // C2: <button> (era <span> clicavel: sem teclado nem foco) e chip compacto (rotulo, nao CTA).
+  const tag = document.createElement("button");
+  tag.type = "button";
+  tag.className = "item-quando item-tag-esforco chip chip--compacto";
   tag.textContent = t.esforco ? `esforço: ${t.esforco}` : "definir esforço";
   tag.title = "toque pra marcar o esforco dessa tarefa";
   tag.addEventListener("click", () => {
@@ -101,14 +108,14 @@ function criarItemTarefa(t) {
   titulo.textContent = t.title;
   if (t.recorrente_origem_id) {
     const tagRotina = document.createElement("span");
-    tagRotina.className = "item-tag-tarefa chip";
+    tagRotina.className = "item-tag-tarefa chip chip--compacto";
     tagRotina.textContent = "rotina";
     titulo.appendChild(tagRotina);
   }
   tituloWrap.appendChild(titulo);
   if (t.due_at || t.hora || t.due_date) {
     const quando = document.createElement("span");
-    quando.className = "item-quando chip";
+    quando.className = "item-quando chip chip--compacto";
     // Fase 6 (US-F10): due_at (texto livre tipo "amanha") continua tendo
     // prioridade quando existe (e o que o chat grava) - due_date sozinho
     // (o formulario direto novo grava so isso, sem passar pela IA) cai no
@@ -125,7 +132,7 @@ function criarItemTarefa(t) {
   // do escopo desta historia mexer nesse caminho tambem).
   if (t.due_date && !t.due_at && !t.hora && t.due_date < hojeIsoLocal()) {
     const tagAtrasada = document.createElement("span");
-    tagAtrasada.className = "item-tag-travada chip";
+    tagAtrasada.className = "item-tag-travada chip chip--compacto";
     tagAtrasada.textContent = "atrasada";
     titulo.appendChild(tagAtrasada);
   }
@@ -136,7 +143,7 @@ function criarItemTarefa(t) {
 
   if (t.empacada_dias) {
     const tagTravada = document.createElement("span");
-    tagTravada.className = "item-tag-travada chip";
+    tagTravada.className = "item-tag-travada chip chip--compacto";
     tagTravada.textContent = `travada ha ${t.empacada_dias} dias`;
     titulo.appendChild(tagTravada);
 
@@ -325,7 +332,7 @@ $("#nova-tarefa-form").addEventListener("submit", async (e) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ titulo, due_date: prazoInput.value || null }),
   });
-  setBotaoCarregando(btn, false, "Adicionar");
+  setBotaoCarregando(btn, false, "Salvar tarefa");
   if (!data) return;
 
   tituloInput.value = "";

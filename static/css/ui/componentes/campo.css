@@ -31,11 +31,21 @@
   border-color: var(--border-strong, rgba(218, 226, 243, 0.18));
 }
 
+/* C2: receita do MASTER (borda forte + --anel-foco). O anel antigo era --accent-soft-bg
+   (#45454a a 16%) e ficava invisivel. */
 .campo:focus,
 .campo:focus-visible {
-  border-color: var(--accent);
-  background: var(--superficie-3, rgba(255, 255, 255, 0.03));
-  box-shadow: 0 0 0 3px var(--accent-soft-bg, color-mix(in srgb, var(--accent) 16%, transparent));
+  border-color: var(--borda-forte);
+  background: var(--superficie-3);
+  box-shadow: var(--anel-foco);
+}
+
+/* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de
+   classe, e a regra do autor ganha da do UA) - sem isso, campo/botao escondido pelo JS
+   continuava na tela (ex.: "Quantas vezes por semana" no sheet de habito). */
+.campo[hidden],
+.campo-rotulo[hidden] {
+  display: none;
 }
 
 .campo:disabled {
@@ -56,11 +66,105 @@ select.campo {
   background-size: 16px;
 }
 
-/* Rotulo companheiro do campo (opcional) - segue o mesmo espacamento em grade de 8px. */
+/* C2: .campo dentro de .form-linha (formulario legado do style.css). A regra antiga
+   `.form-linha input[type="text"]` (0,2,1) vencia o .campo (0,1,0) e trocava fundo, fonte e o
+   foco pelo tom da aba. Com o mesmo peso (0,2,1 / 0,3,1) e carregando depois, o .campo ganha. */
+.form-linha :is(input, select, textarea).campo {
+  padding: 0.65rem var(--espaco-3);
+  border-color: var(--borda-sutil);
+  background: var(--superficie-3);
+  font-size: 0.92rem;
+}
+
+.form-linha :is(input, select, textarea).campo:focus {
+  border-color: var(--borda-forte);
+  box-shadow: var(--anel-foco);
+}
+
+/* Rotulo companheiro do campo (opcional) - segue o mesmo espacamento em grade de 8px.
+   C2: o .campo-rotulo do style.css e todo em MAIUSCULAS com espacamento de letra; o MASTER
+   pede rotulo normal (0.8rem, --text-muted) e lista "rotulo todo em maiusculas" em "Nao
+   fazer". Desfeito aqui (mesma fonte, mesma cor). */
 .campo-rotulo {
   display: block;
-  margin-bottom: var(--espaco-1, 8px);
-  font-size: 0.78rem;
+  margin-bottom: var(--espaco-1);
+  font-size: 0.8rem;
   font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
   color: var(--text-muted);
+}
+
+/* C2: caixa de marcar do app inteiro. O checkbox nativo (quadrado branco do navegador)
+   era o ultimo "Windows 1990" das listas. :where() deixa esta regra com especificidade
+   zero: tamanho, margem e accent-color que as secoes ja definem no style.css continuam
+   valendo; aqui entra so a aparencia (superficie em camada, borda fina, marca de traco).
+   Sem cor nova: borda --borda-forte, marcado em --accent-fill com a marca em --accent-text. */
+:where(input[type="checkbox"]) {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: var(--linha) solid var(--borda-forte);
+  border-radius: 6px;
+  background: var(--superficie-3);
+  box-shadow: var(--elevacao-0);
+  color: var(--accent-text);
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background var(--transicao-rapida), border-color var(--transicao-rapida);
+}
+
+:where(input[type="checkbox"])::before {
+  content: "";
+  width: 70%;
+  height: 70%;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5 10 17 19 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5 10 17 19 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: scale(0);
+  transition: transform var(--transicao-rapida);
+}
+
+:where(input[type="checkbox"]):checked {
+  background: var(--accent-fill);
+  border-color: var(--text-muted);
+}
+
+:where(input[type="checkbox"]):checked::before {
+  transform: scale(1);
+}
+
+@media (hover: hover) {
+  :where(input[type="checkbox"]):hover:not(:disabled) {
+    border-color: var(--text-muted);
+  }
+}
+
+:where(input[type="checkbox"]):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:where(input[type="checkbox"]):focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+/* Solto (fora de <label>), a caixa de 20px ganha area de toque de 44px com um ::after
+   invisivel. Dentro de label, quem da a area e o proprio label (e evita sobrepor vizinhos
+   em linhas densas, tipo os 7 dias do habito). */
+:where(input[type="checkbox"]:not(label *))::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--toque-min);
+  height: var(--toque-min);
+  transform: translate(-50%, -50%);
 }

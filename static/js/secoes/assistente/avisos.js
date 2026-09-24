@@ -27,26 +27,36 @@ const AvisosAssistente = (function () {
     return CANAIS.map((c) => `<option value="${c}"${c === tipo.canal ? " selected" : ""}>${ROTULO_CANAL[c]}</option>`).join("");
   }
 
+  // C2: cada tipo e uma LINHA da lista (.lista-item com divisor), nao um card dentro do
+  // card da secao; o canal e um <select class="campo"> direto (antes era um <label
+  // class="campo"> com outro campo dentro - caixa dentro de caixa).
   function renderTipoHTML(tipo) {
+    const rotulo = esc(tipo.label);
     return (
-      `<li class="card aviso-item" data-tipo="${esc(tipo.tipo)}">` +
+      `<li class="lista-item aviso-item" data-tipo="${esc(tipo.tipo)}">` +
       `<label class="aviso-toggle">` +
       `<input type="checkbox" class="aviso-ligado" data-tipo="${esc(tipo.tipo)}"${tipo.ligado ? " checked" : ""}>` +
-      `<span class="card-titulo aviso-label">${esc(tipo.label)}</span>` +
+      `<span class="aviso-label">${rotulo}</span>` +
       `</label>` +
-      `<label class="campo aviso-canal-campo">` +
-      `Canal` +
-      `<select class="aviso-canal" data-tipo="${esc(tipo.tipo)}">${renderOpcoesCanalHTML(tipo)}</select>` +
-      `</label>` +
+      `<select class="campo aviso-canal" data-tipo="${esc(tipo.tipo)}" aria-label="Canal: ${rotulo}">${renderOpcoesCanalHTML(tipo)}</select>` +
       `</li>`
     );
   }
 
+  // "12 de 50 ligados" - vai no cabecalho da secao recolhivel (a lista comeca fechada).
+  function textoContagem(tipos) {
+    if (!Array.isArray(tipos) || !tipos.length) return "";
+    const ligados = tipos.filter((t) => t && t.ligado).length;
+    return `${ligados} de ${tipos.length} ligados`;
+  }
+
   function renderListaHTML(tipos) {
-    if (!Array.isArray(tipos) || !tipos.length) {
+    // C2 (achado no fuzz): item null/nao-objeto na lista derrubava a secao inteira.
+    const validos = Array.isArray(tipos) ? tipos.filter((t) => t && typeof t === "object") : [];
+    if (!validos.length) {
       return `<li class="avisos-vazio">Nenhum tipo de aviso cadastrado.</li>`;
     }
-    return tipos.map(renderTipoHTML).join("");
+    return validos.map(renderTipoHTML).join("");
   }
 
   // Sempre HH:MM valido (o backend recusa qualquer outra coisa) - so
@@ -55,7 +65,7 @@ const AvisosAssistente = (function () {
     return typeof valor === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(valor);
   }
 
-  return { esc, CANAIS, ROTULO_CANAL, renderTipoHTML, renderListaHTML, horaValida };
+  return { esc, CANAIS, ROTULO_CANAL, renderTipoHTML, renderListaHTML, horaValida, textoContagem };
 })();
 
 if (typeof module !== "undefined" && module.exports) {
@@ -84,6 +94,7 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       if (!dados) return;
       lista.innerHTML = AvisosAssistente.renderListaHTML(dados.tipos);
       wireItens(lista);
+      atualizarContagem(dados.tipos);
 
       const inicio = document.getElementById("avisos-silencio-inicio");
       const fim = document.getElementById("avisos-silencio-fim");
@@ -91,6 +102,13 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
         if (AvisosAssistente.horaValida(dados.silencio.inicio)) inicio.value = dados.silencio.inicio;
         if (AvisosAssistente.horaValida(dados.silencio.fim)) fim.value = dados.silencio.fim;
       }
+    }
+
+    let tiposAtuais = [];
+    function atualizarContagem(tipos) {
+      if (Array.isArray(tipos)) tiposAtuais = tipos;
+      const el = document.getElementById("avisos-contagem");
+      if (el) el.textContent = AvisosAssistente.textoContagem(tiposAtuais);
     }
 
     async function atualizarTipo(tipo, campos) {
@@ -101,6 +119,9 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
         body: JSON.stringify(campos),
       });
       if (!r) return;
+      const atual = tiposAtuais.find((t) => t && t.tipo === tipo);
+      if (atual) Object.assign(atual, campos);
+      atualizarContagem();
       vibrar(15);
     }
 

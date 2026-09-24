@@ -48,6 +48,10 @@ async function loadSummary() {
   const dadosPraMostrar = data || lerResumoCache();
   if (!dadosPraMostrar) {
     resumoEl.textContent = "Nao consegui gerar o resumo agora.";
+    // C2: sem resumo (IA fora/teto), o tile "gasto hoje" ficava no shimmer pra sempre.
+    const gastoEl = $("#stat-gasto");
+    gastoEl.classList.remove("shimmer");
+    gastoEl.textContent = "—";
     return;
   }
   animarNumero($("#stat-gasto"), dadosPraMostrar.gasto_hoje, fmtMoeda);

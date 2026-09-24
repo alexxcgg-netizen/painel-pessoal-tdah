@@ -12,15 +12,22 @@
           Losartana 50mg todo dia as 8h") ou cadastra direto aqui.
         </p>
       </div>
-      <form id="medicamento-form" class="form-linha" style="--form-cor: var(--cor-painel)">
-        <input type="text" id="medicamento-nome" placeholder="Nome do remedio" required />
-        <input type="text" id="medicamento-dosagem" placeholder="Dosagem (ex: 50mg)" />
-        <input type="time" id="medicamento-horario" required />
-        <button type="submit" id="medicamento-btn" class="btn-com-icone">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          Adicionar
-        </button>
-      </form>
+      <button type="button" id="medicamento-abrir-btn" class="btn btn-adicionar" data-abre-sheet="medicamento-sheet">
+        Novo remédio
+      </button>
+
+      <div class="bottom-sheet" id="medicamento-sheet" hidden aria-labelledby="medicamento-sheet-titulo">
+        <h3 class="bottom-sheet-titulo" id="medicamento-sheet-titulo">Novo remédio</h3>
+        <form id="medicamento-form" class="form-linha" style="--form-cor: var(--cor-painel)" data-fecha-ao-enviar>
+          <input type="text" id="medicamento-nome" class="campo" placeholder="Nome do remedio" required />
+          <input type="text" id="medicamento-dosagem" class="campo" placeholder="Dosagem (ex: 50mg)" />
+          <input type="time" id="medicamento-horario" class="campo" aria-label="Horario" required />
+          <div class="form-linha">
+            <button type="submit" id="medicamento-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar remédio</button>
+            <button type="button" class="btn btn-secundario" data-fecha-sheet>Cancelar</button>
+          </div>
+        </form>
+      </div>
       <p id="medicamentos-vazio" class="vazio" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="8.5" width="13" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9 15l6-6"/></svg>
         Nenhum remedio cadastrado ainda.

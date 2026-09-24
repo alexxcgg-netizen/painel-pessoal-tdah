@@ -120,13 +120,14 @@ $("#lembrete-form").addEventListener("submit", async (e) => {
       recorrente: $("#lembrete-recorrente").checked,
     }),
   });
-  setBotaoCarregando(btn, false, "Adicionar");
+  setBotaoCarregando(btn, false, "Salvar data");
   if (!data) return;
 
   tituloInput.value = "";
   dataInput.value = "";
   $("#lembrete-recorrente").checked = false;
   pulsarSucesso(tituloInput);
+  e.target.dispatchEvent(new CustomEvent("bottomsheet:sucesso", { bubbles: true })); // C2: fecha o sheet
   loadLembretes();
   loadStreak();
 });
