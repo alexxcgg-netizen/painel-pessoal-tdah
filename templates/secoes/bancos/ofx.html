@@ -3,14 +3,14 @@
         Importar extrato (OFX)
       </h2>
       <form id="importar-form">
-        <select id="banco-select">
+        <select id="banco-select" class="campo" aria-label="Banco do extrato">
           <option value="nubank">Nubank</option>
           <option value="caixa">Caixa</option>
           <option value="viacredi">Viacredi</option>
           <option value="bradesco">Bradesco</option>
           <option value="outro">Outro</option>
         </select>
-        <select id="tipo-select">
+        <select id="tipo-select" class="campo" aria-label="Tipo de conta">
           <option value="conta">Conta</option>
           <option value="cartao">Cartao de credito</option>
         </select>
@@ -19,7 +19,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4M8 8l4-4 4 4"/><path d="M4.5 15.5V18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5"/></svg>
           <span>Escolher extrato (.ofx, .qfx)</span>
         </label>
-        <button type="submit" id="importar-btn" class="btn-com-icone">
+        <button type="submit" id="importar-btn" class="btn btn-primario btn-com-icone">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4M8 8l4-4 4 4"/><path d="M4.5 15.5V18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5"/></svg>
           Importar extrato
         </button>

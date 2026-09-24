@@ -43,6 +43,63 @@
 
 #tab-bancos .banco-saldo {
   font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Fase 7 (faixa C3c): numero em mono, toque de 44px, campos do contrato ---- */
+
+#tab-bancos .valor-mono {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+}
+
+#tab-bancos #patrimonio-total {
+  overflow-wrap: anywhere;
+}
+
+#tab-bancos #lista-bancos .item-linha > div:first-child {
+  min-width: 0;
+}
+
+#tab-bancos .limite-cartao .form-linha {
+  display: flex;
+  gap: var(--espaco-2, 0.5rem);
+  align-items: stretch;
+}
+
+#tab-bancos .limite-cartao .campo {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--toque-min, 44px);
+}
+
+#tab-bancos .limite-cartao .btn {
+  flex-shrink: 0;
+}
+
+#tab-bancos #importar-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2, 0.5rem);
+}
+
+#tab-bancos #importar-form .campo {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: var(--toque-min, 44px);
+}
+
+#tab-bancos #importar-form .ofx-input-label,
+#tab-bancos #importar-form #importar-btn {
+  flex: 1 1 100%;
+  min-height: var(--toque-min, 44px);
+  box-sizing: border-box;
+}
+
+#tab-bancos #conectar-btn {
+  width: 100%;
 }
 
 #tab-bancos .limite-cartao {

@@ -1,92 +1,60 @@
 // static/js/secoes/vida/contas-pessoais.js - Secao vida > contas-pessoais (HTML: templates/secoes/vida/contas-pessoais.html).
 // Fase 7 (X2): extraido sem mudanca de logica do antigo vida.js 389-455.
-// Fase 7 (faixa v6-financas): botao "adicionar" -> .btn-adicionar + .bottom-sheet
-// (docs/agentes/fase7-visual.md). Mesmo padrao de fallback de
-// static/js/secoes/gastos/assinaturas.js (comentado la, nao repetido aqui):
-// usa window.abrirBottomSheet/fecharBottomSheet (faixa V0d) quando existir,
-// senao cai num fallback local com fundo escurecido + ESC. O painel sobe pra
-// document.body na carga do script pela mesma razao (position: fixed dentro
-// de .tab-content, que fica com transform depois da troca de aba).
+// Fase 7 (faixa v6-financas): botao "adicionar" -> .btn-adicionar + .bottom-sheet.
+// Fase 7 (faixa C3c): sheet so pelo componente da V0d (sem fallback local),
+// validacao em pt-BR dentro do sheet, valor fora do titulo (nao some mais com
+// reticencias em 390px) e acoes com as classes do contrato. Os helpers
+// *Financas (numeroFinancas, fmtMoedaFinancas, abrirSheetFinancas...) moram em
+// static/js/secoes/gastos/assinaturas.js, que carrega DEPOIS deste arquivo -
+// por isso so sao chamados dentro de handlers/loads, nunca no topo.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
 
+// Sobe o painel pra document.body (mesma razao de assinaturas.js: `.tab-content`
+// fica com transform e prende o `position: fixed`).
 (function () {
   const el = document.getElementById("sheet-nova-conta-pessoal");
   if (el && el.parentElement !== document.body) document.body.appendChild(el);
 })();
 
-let backdropContaPessoal = null;
-let sheetOrigemContaPessoal = null;
+$("#btn-nova-conta-pessoal").addEventListener("click", () => abrirSheetFinancas("sheet-nova-conta-pessoal"));
 
-function abrirSheetContaPessoal(id, origem) {
-  if (typeof window.abrirBottomSheet === "function") {
-    window.abrirBottomSheet(id);
-    return;
-  }
-  const el = document.getElementById(id);
-  if (!el) return;
-  sheetOrigemContaPessoal = origem || document.activeElement;
-  if (!backdropContaPessoal) {
-    backdropContaPessoal = criarEl("div", "bottom-sheet-backdrop-fallback");
-    backdropContaPessoal.addEventListener("click", () => fecharSheetContaPessoal(id));
-    document.body.appendChild(backdropContaPessoal);
-  }
-  backdropContaPessoal.hidden = false;
-  el.hidden = false;
-  const primeiroCampo = el.querySelector("input, select, textarea");
-  if (primeiroCampo) primeiroCampo.focus();
+function quandoContaPessoal(c) {
+  const venc = fmtDataFinancas(c.proximo_vencimento);
+  const dias = numeroFinancas(c.dias_ate_vencer);
+  if (c.paga) return `paga (vencimento ${venc})`;
+  if (dias === null) return `vence ${venc}`;
+  if (dias < 0) return `venceu ${venc} · ha ${-dias} dia(s)`;
+  if (dias === 0) return "vence hoje";
+  return `vence ${venc} · em ${dias} dia(s)`;
 }
-
-function fecharSheetContaPessoal(id) {
-  if (typeof window.fecharBottomSheet === "function") {
-    window.fecharBottomSheet(id);
-    return;
-  }
-  const el = document.getElementById(id);
-  if (el) el.hidden = true;
-  if (backdropContaPessoal) backdropContaPessoal.hidden = true;
-  if (sheetOrigemContaPessoal) {
-    sheetOrigemContaPessoal.focus();
-    sheetOrigemContaPessoal = null;
-  }
-}
-
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape" || typeof window.abrirBottomSheet === "function") return;
-  const el = document.getElementById("sheet-nova-conta-pessoal");
-  if (el && !el.hidden) fecharSheetContaPessoal("sheet-nova-conta-pessoal");
-});
-
-$("#btn-nova-conta-pessoal").addEventListener("click", (e) => abrirSheetContaPessoal("sheet-nova-conta-pessoal", e.currentTarget));
-document.querySelectorAll("#sheet-nova-conta-pessoal [data-fechar-sheet]").forEach((btn) => {
-  btn.addEventListener("click", () => fecharSheetContaPessoal(btn.dataset.fecharSheet));
-});
 
 async function loadContasPessoais() {
   const contas = await apiFetch("/api/contas-pessoais");
-  if (!contas) return;
+  if (!Array.isArray(contas)) return;
   const lista = $("#lista-contas-pessoais");
   lista.innerHTML = "";
-  $("#contas-pessoais-vazio").hidden = contas.length > 0;
-  contas.forEach((c) => {
-    const urgente = !c.paga && c.dias_ate_vencer <= 3;
+  const validas = contas.filter((c) => c && typeof c === "object");
+  lista.hidden = validas.length === 0;
+  $("#contas-pessoais-vazio").hidden = validas.length > 0;
+  validas.forEach((c) => {
+    const dias = numeroFinancas(c.dias_ate_vencer);
+    const urgente = !c.paga && dias !== null && dias <= 3;
+    const nome = textoFinancas(c.nome, "Conta sem nome");
     const li = criarEl("li", "lista-item" + (urgente ? " item-atencao" : ""));
     const corpo = criarEl("div", "lista-item-corpo");
-    const titulo = c.valor != null ? `${c.nome} - ${fmtMoeda(c.valor)}` : c.nome;
-    corpo.appendChild(criarEl("span", "lista-item-titulo", titulo));
-    const quando = c.paga
-      ? `paga (vencimento ${fmtDataBr(c.proximo_vencimento)})`
-      : c.dias_ate_vencer < 0
-      ? `venceu ${fmtDataBr(c.proximo_vencimento)} - ha ${-c.dias_ate_vencer} dia(s)`
-      : c.dias_ate_vencer === 0
-      ? "vence hoje"
-      : `vence ${fmtDataBr(c.proximo_vencimento)} - em ${c.dias_ate_vencer} dia(s)`;
-    corpo.appendChild(criarEl("span", "lista-item-meta", quando));
+    corpo.appendChild(criarEl("span", "lista-item-titulo", nome));
+    const metaPartes = [];
+    if (numeroFinancas(c.valor) !== null) metaPartes.push(fmtMoedaFinancas(c.valor));
+    metaPartes.push(quandoContaPessoal(c));
+    corpo.appendChild(criarEl("span", "lista-item-meta valor-mono", metaPartes.join(" · ")));
     li.appendChild(corpo);
 
     const acoes = criarEl("div", "lista-item-acoes");
     if (!c.paga) {
-      const pagar = criarEl("button", "primario btn-com-icone");
-      pagar.innerHTML = `${ICONE_CHECK}paga`;
+      const pagar = criarEl("button", "btn btn-secundario btn-pagar-conta");
+      pagar.type = "button";
+      pagar.innerHTML = `${ICONE_CHECK}<span>Paga</span>`;
+      pagar.setAttribute("aria-label", `Marcar ${nome} como paga`);
       pagar.addEventListener("click", async () => {
         pagar.disabled = true;
         const r = await apiFetch(`/api/contas-pessoais/${c.id}/paga`, { method: "POST" });
@@ -95,34 +63,37 @@ async function loadContasPessoais() {
       });
       acoes.appendChild(pagar);
     }
-    acoes.appendChild(botaoApagar(`/api/contas-pessoais/${c.id}`, li));
+    acoes.appendChild(botaoApagarFinancas(`/api/contas-pessoais/${c.id}`, li, nome));
     li.appendChild(acoes);
     lista.appendChild(li);
   });
 }
 
+let salvandoContaPessoal = false;
 $("#conta-pessoal-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (salvandoContaPessoal) return;
   const nome = $("#conta-pessoal-nome").value.trim();
-  const dia = Number($("#conta-pessoal-dia").value);
-  const valorTxt = $("#conta-pessoal-valor").value.trim();
-  if (!nome || !(dia >= 1 && dia <= 31)) {
-    mostrarErro("Confere o nome e o dia de vencimento (1 a 31).");
-    return;
-  }
+  const dia = lerInteiroFinancas($("#conta-pessoal-dia"));
+  const valor = lerValorFinancas($("#conta-pessoal-valor"));
+  if (!nome) return mostrarErroSheet("conta-pessoal-erro", "Da um nome pra conta.");
+  if (dia === null || dia < 1 || dia > 31)
+    return mostrarErroSheet("conta-pessoal-erro", "Dia do vencimento vai de 1 a 31 (dia 31 em mes curto vence no ultimo dia).");
+  if (valor !== null && !valorValidoFinancas(valor))
+    return mostrarErroSheet("conta-pessoal-erro", "Valor precisa ser um numero maior que zero (ou deixa em branco).");
+  $("#conta-pessoal-erro").hidden = true;
   const btn = $("#conta-pessoal-btn");
-  setBotaoCarregando(btn, true, "salvando...");
+  salvandoContaPessoal = true;
+  setBotaoCarregando(btn, true, "Salvando...");
   const r = await apiFetch("/api/contas-pessoais", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nome, dia_vencimento: dia, valor: valorTxt ? Number(valorTxt) : null }),
+    body: JSON.stringify({ nome: nome.slice(0, 80), dia_vencimento: dia, valor }),
   });
-  setBotaoCarregando(btn, false, "Adicionar");
-  if (!r) return;
-  ["#conta-pessoal-nome", "#conta-pessoal-dia", "#conta-pessoal-valor"].forEach((s) => ($(s).value = ""));
-  pulsarSucesso($("#conta-pessoal-nome"));
-  fecharSheetContaPessoal("sheet-nova-conta-pessoal");
+  setBotaoCarregando(btn, false, "Salvar conta");
+  salvandoContaPessoal = false;
+  if (!r) return mostrarErroSheet("conta-pessoal-erro", "Nao consegui salvar agora. Confere os campos e tenta de novo.");
+  $("#conta-pessoal-form").reset();
+  fecharSheetFinancas("sheet-nova-conta-pessoal");
   loadContasPessoais();
 });
-
-// ---- Assinaturas: "ainda usa?" ----

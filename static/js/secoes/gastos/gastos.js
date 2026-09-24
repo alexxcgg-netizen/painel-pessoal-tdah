@@ -156,12 +156,16 @@ function criarItemGasto(e) {
   const info = document.createElement("div");
   const valor = document.createElement("span");
   valor.className = "gasto-valor";
-  valor.textContent = fmtMoeda(e.amount);
-  const cat = document.createElement("span");
+  valor.textContent = fmtMoedaFinancas(e.amount);
+  // Fase 7 (C3c): <button> de verdade (teclado/leitor de tela), visual de chip
+  // compacto com area de toque de 44px completada por ::after (gastos.css).
+  const cat = document.createElement("button");
+  cat.type = "button";
   cat.className = "gasto-categoria chip chip--compacto";
   cat.dataset.cat = e.category;
   cat.textContent = e.category;
   cat.title = "toque pra corrigir a categoria";
+  cat.setAttribute("aria-label", `Categoria ${e.category}: toque pra corrigir`);
   cat.addEventListener("click", () => {
     const select = criarSeletorCategoriaGasto(e, cat, li);
     cat.replaceWith(select);
@@ -185,7 +189,8 @@ function criarItemGasto(e) {
   const acoes = document.createElement("div");
   acoes.className = "item-acoes";
   const btnCorrigirTipo = document.createElement("button");
-  btnCorrigirTipo.className = "btn-com-icone";
+  btnCorrigirTipo.type = "button";
+  btnCorrigirTipo.className = "btn btn-secundario btn-com-icone btn-corrigir-gasto";
   btnCorrigirTipo.title = "isso nao e um gasto?";
   btnCorrigirTipo.innerHTML = `${ICONE_CORRIGIR}e tarefa`;
   btnCorrigirTipo.addEventListener("click", async () => {
@@ -215,14 +220,21 @@ function criarItemGasto(e) {
 
 async function loadExpenses() {
   const expenses = await apiFetch("/api/expenses");
-  if (!expenses) return;
+  if (!Array.isArray(expenses)) return;
   const list = $("#lista-gastos");
   list.innerHTML = "";
   $("#gastos-oculto-visitante").hidden = !modoVisitanteAtivo;
   $("#gastos-vazio").hidden = modoVisitanteAtivo || expenses.length > 0;
   expenses.forEach((e) => list.appendChild(criarItemGasto(e)));
 
-  const historico = await apiFetch("/api/expenses/historico?dias=14");
+  const historicoBruto = await apiFetch("/api/expenses/historico?dias=14");
+  // Fase 7 (C3c): ponto sem total numerico viraria <rect height="NaN"> (erro
+  // de console) - descarta antes de desenhar.
+  const historico = Array.isArray(historicoBruto)
+    ? historicoBruto
+        .filter((d) => d && typeof d.data === "string")
+        .map((d) => ({ ...d, total: numeroFinancas(d.total) || 0 }))
+    : null;
   if (historico) {
     desenharGraficoBarras($("#grafico-gastos"), historico, {
       cor: "var(--cor-financeiro)",
@@ -236,10 +248,12 @@ async function loadExpenses() {
 }
 
 function preencherCustoIA(data) {
-  if (!data) return;
+  if (!data || typeof data !== "object") return;
+  // Fase 7 (C3c): fmtUSD(undefined) viraria "$NaN".
+  const usd = (v) => (numeroFinancas(v) === null ? "\u2014" : fmtUSD(v));
   $("#custo-ia-box").hidden = false;
-  $("#custo-ia-mes").textContent = `${fmtUSD(data.mes_atual_usd)} esse mes`;
-  $("#custo-ia-30dias").textContent = `Ultimos 30 dias: ${fmtUSD(data.ultimos_30_dias_usd)}.`;
+  $("#custo-ia-mes").textContent = `${usd(data.mes_atual_usd)} esse mes`;
+  $("#custo-ia-30dias").textContent = `Ultimos 30 dias: ${usd(data.ultimos_30_dias_usd)}.`;
 
   const inputTeto = $("#custo-ia-teto-input");
   if (document.activeElement !== inputTeto) {
@@ -253,7 +267,8 @@ function preencherCustoIA(data) {
       "resolver por padrao ja aprendido em vez de chamar a IA, ate o mes virar.";
     aviso.hidden = false;
   } else if (data.teto_perto) {
-    aviso.textContent = `Perto do teto mensal (ja usou ${Math.round(data.fracao_teto * 100)}%).`;
+    const fracao = numeroFinancas(data.fracao_teto);
+    aviso.textContent = fracao === null ? "Perto do teto mensal." : `Perto do teto mensal (ja usou ${Math.round(fracao * 100)}%).`;
     aviso.hidden = false;
   } else {
     aviso.hidden = true;
@@ -277,7 +292,7 @@ $("#custo-ia-teto-form").addEventListener("submit", async (e) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ teto_mensal_usd }),
   });
-  setBotaoCarregando(btn, false, "Salvar");
+  setBotaoCarregando(btn, false, "Salvar teto");
   if (!data) return;
   preencherCustoIA(data);
   pulsarSucesso(input);
@@ -286,25 +301,24 @@ $("#custo-ia-teto-form").addEventListener("submit", async (e) => {
 async function loadResumoSemanal() {
   const data = await apiFetch("/api/gastos/resumo-semanal");
   const box = $("#resumo-semanal-box");
-  if (!data || data.total_semana <= 0) {
+  const total = data && typeof data === "object" ? numeroFinancas(data.total_semana) : null;
+  if (total === null || total <= 0) {
     box.hidden = true;
     return;
   }
 
-  $("#resumo-semanal-total").textContent = fmtMoeda(data.total_semana);
+  $("#resumo-semanal-total").textContent = fmtMoedaFinancas(total);
 
   const partes = [];
-  if (data.variacao_pct !== null) {
-    partes.push(
-      data.variacao_pct >= 0
-        ? `${data.variacao_pct}% a mais que a semana passada`
-        : `${Math.abs(data.variacao_pct)}% a menos que a semana passada`
-    );
+  const variacao = numeroFinancas(data.variacao_pct);
+  if (variacao !== null) {
+    partes.push(variacao >= 0 ? `${variacao}% a mais que a semana passada` : `${Math.abs(variacao)}% a menos que a semana passada`);
   }
-  if (data.categoria_top) {
-    partes.push(`maior peso: ${data.categoria_top} (${fmtMoeda(data.categoria_top_valor)})`);
+  if (typeof data.categoria_top === "string" && data.categoria_top) {
+    if (partes.length) partes.push(" \u00b7 ");
+    partes.push(`maior peso: ${data.categoria_top} (`, { r: data.categoria_top_valor }, ")");
   }
-  $("#resumo-semanal-detalhe").textContent = partes.join(" - ");
+  preencherLinhaComValores($("#resumo-semanal-detalhe"), partes);
 
   box.hidden = false;
 }
@@ -316,10 +330,26 @@ async function loadFimMes() {
   $("#fim-mes-box").hidden = semDado;
   if (semDado) return;
   const p = s.projecao;
-  $("#fim-mes-dias").textContent = `faltam ${p.dias_restantes} dia(s)`;
-  $("#fim-mes-agora").textContent = `Agora: ${fmtMoeda(s.renda_mes)} entrou, ${fmtMoeda(s.gasto_mes)} saiu - sobra ${fmtMoeda(s.sobra)}.`;
-  const contas = p.contas_pendentes ? ` (com ${fmtMoeda(p.contas_pendentes)} de contas que ainda vencem)` : "";
-  $("#fim-mes-projecao").textContent = `No ritmo de ${fmtMoeda(p.ritmo_diario)}/dia, deve sobrar ${fmtMoeda(p.sobra_projetada)} no fim do mes${contas}.`;
+  const dias = numeroFinancas(p.dias_restantes);
+  $("#fim-mes-dias").textContent = dias === null ? "" : `faltam ${dias} dia(s)`;
+  preencherLinhaComValores($("#fim-mes-agora"), [
+    "Agora: ", { r: s.renda_mes }, " entrou, ", { r: s.gasto_mes }, " saiu \u00b7 sobra ", { r: s.sobra }, ".",
+  ]);
+  const partes = ["No ritmo de ", { r: p.ritmo_diario }, "/dia, deve sobrar ", { r: p.sobra_projetada }, " no fim do mes"];
+  if (numeroFinancas(p.contas_pendentes)) partes.push(" (com ", { r: p.contas_pendentes }, " de contas que ainda vencem)");
+  partes.push(".");
+  preencherLinhaComValores($("#fim-mes-projecao"), partes);
+}
+
+// Fase 7 (C3c): frase com valores em R$ - o texto fica na fonte de texto e
+// cada valor num <span class="valor-mono"> (MASTER #7, numero em mono). So
+// textContent/createTextNode, nada de innerHTML com dado.
+function preencherLinhaComValores(el, partes) {
+  el.textContent = "";
+  partes.forEach((parte) => {
+    if (parte && typeof parte === "object") el.appendChild(criarEl("span", "valor-mono", fmtMoedaFinancas(parte.r)));
+    else el.appendChild(document.createTextNode(String(parte)));
+  });
 }
 
 // ---- Fase 5 (US-C22): sinal de sobrecarga ----

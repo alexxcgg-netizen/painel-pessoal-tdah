@@ -20,10 +20,10 @@
         <div id="nota-fiscal-confirmacao" hidden>
           <p class="card-vida-meta" id="nota-fiscal-status"></p>
           <div class="form-linha">
-            <input type="number" step="0.01" min="0.01" id="nf-valor" placeholder="Valor (R$)" />
-            <input type="text" id="nf-estabelecimento" placeholder="Estabelecimento" />
-            <input type="date" id="nf-data" />
-            <select id="nf-categoria">
+            <input type="number" step="0.01" min="0.01" id="nf-valor" class="campo valor-mono" placeholder="Valor (R$)" aria-label="Valor da nota" />
+            <input type="text" id="nf-estabelecimento" class="campo" placeholder="Estabelecimento" aria-label="Estabelecimento" />
+            <input type="date" id="nf-data" class="campo" aria-label="Data da nota" />
+            <select id="nf-categoria" class="campo" aria-label="Categoria">
               <option value="">Categoria automatica</option>
               <option value="mercado">Mercado</option>
               <option value="transporte">Transporte</option>
@@ -34,11 +34,11 @@
             </select>
           </div>
           <div class="form-linha">
-            <button type="button" id="nf-confirmar-btn" class="btn-com-icone">
+            <button type="button" id="nf-confirmar-btn" class="btn btn-primario btn-com-icone">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
               Confirmar e salvar
             </button>
-            <button type="button" id="nf-cancelar-btn" class="btn-com-icone">Cancelar</button>
+            <button type="button" id="nf-cancelar-btn" class="btn btn-secundario">Cancelar</button>
           </div>
         </div>
       </div>
@@ -77,8 +77,8 @@
         <p class="fim-mes-linha" id="custo-ia-30dias"></p>
         <p class="fim-mes-linha" id="custo-ia-teto-aviso" hidden></p>
         <form id="custo-ia-teto-form" class="form-linha">
-          <input type="number" id="custo-ia-teto-input" min="0" step="0.5" inputmode="decimal" placeholder="Teto mensal em USD (opcional)" />
-          <button type="submit" id="custo-ia-teto-btn" class="btn-com-icone">Salvar</button>
+          <input type="number" id="custo-ia-teto-input" class="campo valor-mono" min="0" step="0.5" inputmode="decimal" placeholder="Teto mensal em USD (opcional)" aria-label="Teto mensal de gasto com IA em USD" />
+          <button type="submit" id="custo-ia-teto-btn" class="btn btn-secundario">Salvar teto</button>
         </form>
       </div>
 

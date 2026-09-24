@@ -114,8 +114,17 @@ JS_AUDITAR = r"""
           (el.classList.contains('chip') && cs.cursor === 'pointer');
         if (clicavel) {
           const r = el.getBoundingClientRect();
-          // area estendida por ::after invisivel nao e medivel aqui: so reporta
-          if (r.height < 44 || r.width < 44) add('toque<44', el, Math.round(r.width) + 'x' + Math.round(r.height));
+          // area estendida por ::after absoluto (receita do Chip no MASTER)
+          const pa = getComputedStyle(el, '::after');
+          let h = r.height, w = r.width;
+          if (pa.content !== 'none' && pa.position === 'absolute') {
+            h = Math.max(h, r.height - (parseFloat(pa.top) || 0) - (parseFloat(pa.bottom) || 0));
+            w = Math.max(w, r.width - (parseFloat(pa.left) || 0) - (parseFloat(pa.right) || 0));
+          }
+          // rotulo de campo: o alvo e o proprio campo (medido a parte)
+          const rotuloDeCampo = tag === 'LABEL' && el.htmlFor && document.getElementById(el.htmlFor) &&
+            !['file', 'checkbox', 'radio'].includes(document.getElementById(el.htmlFor).type);
+          if (!rotuloDeCampo && (h < 43.5 || w < 43.5)) add('toque<44', el, Math.round(w) + 'x' + Math.round(h));
           // botao nativo sem estilo (cinza/azul padrao do navegador)
           if (tag === 'BUTTON') {
             const bg = cs.backgroundColor;
@@ -153,9 +162,9 @@ JS_AUDITAR = r"""
               }
               p = p.parentElement;
             }
-            if (!/Plex|mono/i.test(cs.fontFamily) && !/Sora/.test(cs.fontFamily.split(',')[0]) )
-              add('master:numero-sem-mono', el, cs.fontFamily.split(',')[0]);
-            else if (!/Plex|mono/i.test(cs.fontFamily)) add('master:numero-sem-mono', el, cs.fontFamily.split(',')[0]);
+            // stat-tile grande fica em Sora (MASTER #7); o resto do R$ vai em mono
+            const statTile = el.closest('.stat-tile-valor, .resumo-semanal-valor');
+            if (!statTile && !/Plex|mono/i.test(cs.fontFamily)) add('master:numero-sem-mono', el, cs.fontFamily.split(',')[0]);
           }
           if (/\bNaN\b|\bundefined\b|\bnull\b/.test(textoProprio)) add('NaN/undefined', el, textoProprio.slice(0, 40));
         }
