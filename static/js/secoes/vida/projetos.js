@@ -1,6 +1,27 @@
 // static/js/secoes/vida/projetos.js - Secao vida > projetos (HTML: templates/secoes/vida/projetos.html).
 // Fase 7 (X2): extraido sem mudanca de logica do antigo vida.js 791-868.
+// Fase 7 (V3-organizacao): botao "Novo projeto" abre o formulario num bottom-sheet
+// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/fecharBottomSheet
+// (faixa V0d) quando existir; fallback so alterna o atributo hidden do painel.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
+
+function abrirPainelProjeto() {
+  const sheet = $("#projeto-sheet");
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+}
+
+function fecharPainelProjeto() {
+  const sheet = $("#projeto-sheet");
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+}
+
+$("#projeto-abrir-btn").addEventListener("click", abrirPainelProjeto);
+$("#projeto-cancelar-btn").addEventListener("click", () => {
+  $("#projeto-form").reset();
+  fecharPainelProjeto();
+});
 
 function renderProjetoBarra(p) {
   const wrap = criarEl("div", "projeto-barra");
@@ -21,10 +42,10 @@ function renderProjetoBarra(p) {
 const STATUS_PROJETO_ROTULO = { no_rumo: "no rumo", atrasado: "atrasado", pausado: "pausado" };
 
 function criarCardProjeto(p, liWrapper) {
-  const box = criarEl("div", "card-vida projeto-card");
+  const box = criarEl("div", "card-vida projeto-card card");
   const topo = criarEl("div", "card-vida-topo");
   topo.appendChild(criarEl("h3", null, p.nome));
-  topo.appendChild(criarEl("span", `projeto-status projeto-status-${p.status}`, STATUS_PROJETO_ROTULO[p.status] || p.status));
+  topo.appendChild(criarEl("span", `projeto-status projeto-status-${p.status} chip`, STATUS_PROJETO_ROTULO[p.status] || p.status));
   box.appendChild(topo);
   const meta = [`${p.etapas_feitas}/${p.total_etapas} etapas (${p.percentual}%)`];
   if (p.prazo_final) meta.push(`prazo ${fmtDataBr(p.prazo_final)}`);
@@ -58,7 +79,7 @@ async function loadProjetos() {
   lista.innerHTML = "";
   $("#projetos-vazio").hidden = projetos.length > 0;
   projetos.forEach((p) => {
-    const li = criarEl("li");
+    const li = criarEl("li", "lista-item");
     li.dataset.entidade = "projeto"; // destino do link de card (Fase 6, US-E7)
     li.dataset.id = p.id;
     li.appendChild(criarCardProjeto(p, li));
@@ -75,7 +96,10 @@ ligarForm(
     return nome ? { nome, prazo_final: $("#projeto-prazo").value || null } : null;
   },
   "/api/projetos",
-  loadProjetos
+  () => {
+    fecharPainelProjeto();
+    loadProjetos();
+  }
 );
 
 // ---- Fase 6 (US-E14): Agenda no calendario "Painel" (CalDAV) ----
