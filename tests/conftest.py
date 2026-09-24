@@ -82,3 +82,24 @@ def relogio_congelado():
     finally:
         for p in reversed(ativos):
             p.stop()
+
+
+@pytest.fixture(autouse=True)
+def _nunca_o_banco_do_checkout(tmp_path):
+    """Rede de seguranca (integrador, Fase 7): so age quando `db.DB_PATH`
+    ainda aponta pro banco padrao do checkout (`data/painel.db`). Quem ja
+    isola o proprio banco (quase toda a suite) nao muda nada. O caso que
+    pega: teste com conexao em memoria cujo codigo abre `db.get_db()` por
+    dentro (ex.: assistente.caixa.enfileirar, ia.core.chamar_ia -> teto e
+    uso_ia), que antes gravava no `data/painel.db` de quem rodasse."""
+    db = importlib.import_module("db")
+    if Path(db.DB_PATH).resolve() != db.DB_PATH_PRODUCAO:
+        yield
+        return
+    original = db.DB_PATH
+    db.DB_PATH = tmp_path / "painel_teste.db"
+    db.init_db()
+    try:
+        yield
+    finally:
+        db.DB_PATH = original
