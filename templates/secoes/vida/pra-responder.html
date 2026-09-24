@@ -1,18 +1,30 @@
-      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5h-2"/></svg>
-        Pra responder
-      </h2>
-      <div class="dica-colapsavel">
-        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de pra responder"></button>
-        <p class="dica-metas dica-texto" hidden>
-          Mensagem importante que VOCE precisa responder e deixou pra depois. Lembra todo dia as 10h ate voce marcar "respondi". No chat: "tenho que responder o Joao sobre o orcamento".
-        </p>
+      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-pra-responder" style="--secao-cor: var(--cor-tarefas)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-pra-responder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5h-2"/></svg>
+          Pra responder
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+        <div class="secao-conteudo" id="conteudo-vida-pra-responder">
+          <div class="dica-colapsavel">
+            <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de pra responder"></button>
+            <p class="dica-metas dica-texto" hidden>
+              Mensagem importante que VOCE precisa responder e deixou pra depois. Lembra todo dia as 10h ate voce marcar "respondi". No chat: "tenho que responder o Joao sobre o orcamento".
+            </p>
+          </div>
+          <button type="button" id="responder-abrir-btn" class="btn btn-adicionar">Adicionar pendencia</button>
+          <p id="responder-vazio" class="vazio" hidden>Nada pendente pra responder.</p>
+          <ul id="lista-responder"></ul>
+        </div>
+      </section>
+
+      <div class="bottom-sheet" id="sheet-responder" hidden>
+        <form id="responder-form" class="form-linha">
+          <input type="text" id="responder-quem" placeholder="Pra quem?" maxlength="60" required />
+          <input type="text" id="responder-sobre" placeholder="Sobre o que? (opcional)" maxlength="200" />
+          <div class="form-linha">
+            <button type="submit" id="responder-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="button" id="responder-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </form>
       </div>
-      <form id="responder-form" class="form-linha">
-        <input type="text" id="responder-quem" placeholder="Pra quem?" maxlength="60" required />
-        <input type="text" id="responder-sobre" placeholder="Sobre o que? (opcional)" maxlength="200" />
-        <button type="submit" id="responder-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
-      </form>
-      <p id="responder-vazio" class="vazio" hidden>Nada pendente pra responder.</p>
-      <ul id="lista-responder"></ul>
 

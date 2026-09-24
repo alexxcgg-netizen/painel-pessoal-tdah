@@ -52,6 +52,7 @@ import vida
 import voo_status
 import voos as voos_module
 import db
+from assistente import avisos as avisos_assistente
 from db import (
     CAMPOS_SAUDE,
     cards_de_mensagem_chat,
@@ -2828,7 +2829,9 @@ def _processar_mensagem_chat(
             # token de desfazer, e cards.RegistroExecucao tira antes da IA ver.
             return {"ok": True, "recorrente": True, "_efeito": {"entidade": "tarefa", "id": cur.lastrowid}}
 
-        quando_data = entrada.get("quando_data")
+        # Fase 7 (A6): data relativa ("sexta", "amanha") resolvida em codigo;
+        # o quando_data do modelo so vale como transicao (docs/calculos.md).
+        quando_data = claude_client.resolver_quando_data(entrada, date.today())
         cur = conn.execute(
             "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo) "
             "VALUES (?, ?, ?, ?, ?, ?)",
@@ -4564,6 +4567,11 @@ def verificar_e_notificar():
 
     enviados = 0
     for tipo, ref_id, titulo, corpo in avisos:
+        # Fase 7 (P8): tipo desligado na tela Assistente > Avisos nao sai.
+        # So o liga/desliga: o silencio continua sendo o de baixo (que deixa
+        # passar urgente); aviso_permitido() completo calaria urgente a noite.
+        if not avisos_assistente.esta_ligado(tipo, conn=conn):
+            continue
         if em_hiperfoco and tipo not in vida.CRITICOS_HIPERFOCO:
             if tipo in vida.AVISOS_JANELA_CURTA:
                 _adiar_aviso(conn, tipo, titulo, corpo)

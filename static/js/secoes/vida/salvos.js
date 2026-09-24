@@ -20,7 +20,7 @@ async function loadSalvos() {
       );
     }
     acoes.push((el) => botaoApagar(`/api/salvos/${sv.id}`, el));
-    const li = itemSimples(sv.titulo || sv.url, [], acoes, sv.lido_em ? "lido" : "");
+    const li = itemSimples(sv.titulo || sv.url, [], acoes, "lista-item" + (sv.lido_em ? " lido" : ""));
     let host = sv.url;
     try {
       host = new URL(sv.url).hostname.replace(/^www\./, "");
@@ -35,6 +35,23 @@ async function loadSalvos() {
   });
 }
 
+// Fase 7 V4: botao "Salvar link" abre o formulario num bottom-sheet
+// (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
+// integracao, cai no fallback inline (so hidden) - retestado depois do merge
+// com origin/fase7/integracao.
+$("#salvo-abrir-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-salvo");
+  if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+});
+
+$("#salvo-cancelar-btn").addEventListener("click", () => {
+  $("#salvo-form").reset();
+  const sheet = $("#sheet-salvo");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+});
+
 $("#salvo-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const url = $("#salvo-url").value.trim();
@@ -45,6 +62,9 @@ $("#salvo-form").addEventListener("submit", async (e) => {
   setBotaoCarregando(btn, false, "Salvar e resumir");
   if (!r) return;
   $("#salvo-url").value = "";
+  const sheet = $("#sheet-salvo");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
   if (r.aviso) mostrarErro(r.aviso);
   loadSalvos();
 });

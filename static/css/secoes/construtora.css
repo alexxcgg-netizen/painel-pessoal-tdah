@@ -1,3 +1,78 @@
-/* static/css/secoes/construtora.css - estilos da aba construtora inteira (templates/abas/construtora.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+/* static/css/secoes/construtora.css - estilos da aba construtora inteira
+   (templates/abas/construtora.html).
+   Fase 7 (faixa v6-financas): acabamento/profundidade (docs/MASTER.md) pras
+   secoes construtora/contas-a-pagar (cotacoes e de outra faixa, nao mexe
+   aqui). Sem mudar cor, fonte nem animacao. static/css/ui/componentes/card.css
+   (V0c) ja faz a base do .card (superficie/borda/raio/padding/sombra) - aqui
+   so o que e proprio desta secao. Escopado em #tab-construtora. */
+
+/* Achado real (ver scripts/ralph-v6-financas/APRENDIZADOS.md): .card (V0c)
+   declara `display: flex` sem guarda `:not([hidden])`, entao o atributo
+   `hidden` sozinho nao esconde mais o card (empata em especificidade com o
+   `[hidden]` do UA e perde por vir de um stylesheet de autor mais antigo).
+   Mesmo problema ja resolvido em style.css pra outras classes (grep
+   "sobrescreveria o atributo hidden") - aplico a mesma correcao aqui. */
+#tab-construtora .card[hidden] {
+  display: none;
+}
+
+#tab-construtora .construtora-stats {
+  display: flex;
+  gap: var(--espaco-3, 0.9rem);
+}
+
+#tab-construtora .construtora-stat {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+#tab-construtora .construtora-stat-rotulo {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+#tab-construtora .construtora-stat-valor {
+  /* Achado real: em 390px, "R$ 132.500,00" em --font-tech (mono, mais largo
+     que fonte proporcional) a 1.4rem estoura a coluna (2 stats lado a lado
+     no card) - clamp() encolhe a fonte antes de faltar espaco (fica legivel
+     em vez de cortar o numero), e overflow-wrap/min-width no pai deixam o
+     valor quebrar como ultimo recurso em vez de vazar do card. */
+  font-size: clamp(0.95rem, 4.6vw, 1.4rem);
+  font-weight: 700;
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+#tab-construtora .construtora-stat-entrada {
+  color: var(--cor-painel);
+}
+
+#tab-construtora .construtora-stat-saida {
+  color: var(--cor-construtora);
+}
+
+#tab-construtora .construtora-proxima-conta {
+  margin: var(--espaco-3, 0.8rem) 0 0;
+  padding-top: var(--espaco-2, 0.6rem);
+  border-top: var(--linha, 1px) solid var(--borda-sutil, var(--border));
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+#tab-construtora #lista-contas-a-vencer > .item {
+  background: var(--superficie-2, var(--surface-2));
+  border: 1px solid var(--borda-sutil, var(--border));
+  border-radius: var(--raio-sm, var(--radius-sm));
+  padding: 0.65rem 0.8rem;
+  margin-bottom: 0.5rem;
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+#tab-construtora .item-quando {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+}

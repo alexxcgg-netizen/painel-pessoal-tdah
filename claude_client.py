@@ -43,6 +43,7 @@ from ia.funcoes.chat import (
     analisar_decisao,
     chat,
     redigir_mensagem_dificil,
+    resolver_quando_data,
 )
 from ia.funcoes.planejamento import (
     BREAKDOWN_PROMPT,

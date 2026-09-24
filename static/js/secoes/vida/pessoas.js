@@ -48,7 +48,7 @@ async function loadPessoas() {
   lista.innerHTML = "";
   $("#pessoas-vazio").hidden = pessoas.length > 0;
   pessoas.forEach((p) => {
-    const li = criarEl("li", "item pessoa-item" + (p.atrasada ? " item-atencao" : ""));
+    const li = criarEl("li", "item lista-item pessoa-item" + (p.atrasada ? " item-atencao" : ""));
     const linha = criarEl("div", "item-linha");
     const cabecalho = criarEl("div", "pessoa-cabecalho");
 
@@ -106,6 +106,23 @@ async function loadPessoas() {
   });
 }
 
+// Fase 7 V4: botao "Adicionar" abre o formulario num bottom-sheet
+// (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
+// integracao, cai no fallback inline (so hidden) - retestado depois do merge
+// com origin/fase7/integracao.
+$("#pessoa-abrir-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-pessoa");
+  if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+});
+
+$("#pessoa-cancelar-btn").addEventListener("click", () => {
+  $("#pessoa-form").reset();
+  const sheet = $("#sheet-pessoa");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+});
+
 $("#pessoa-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const nome = $("#pessoa-nome").value.trim();
@@ -122,6 +139,9 @@ $("#pessoa-form").addEventListener("submit", async (e) => {
   if (!r) return;
   $("#pessoa-nome").value = "";
   $("#pessoa-freq").value = "";
+  const sheet = $("#sheet-pessoa");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
   pulsarSucesso($("#pessoa-nome"));
   loadPessoas();
 });

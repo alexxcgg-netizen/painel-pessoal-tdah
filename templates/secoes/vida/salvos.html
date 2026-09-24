@@ -1,11 +1,23 @@
-      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-tarefas)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
-        Salvos pra ver depois
-      </h2>
-      <form id="salvo-form" class="form-linha">
-        <input type="text" id="salvo-url" placeholder="Cola o link (artigo ou video)" inputmode="url" maxlength="2000" required />
-        <button type="submit" id="salvo-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar e resumir</button>
-      </form>
-      <p id="salvos-vazio" class="vazio" hidden>Nenhum link salvo.</p>
-      <ul id="lista-salvos"></ul>
+      <section class="secao-recolhivel" data-aberto="true" data-secao-id="vida-salvos" style="--secao-cor: var(--cor-tarefas)">
+        <button type="button" class="secao-cabecalho" aria-expanded="true" aria-controls="conteudo-vida-salvos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+          Salvos pra ver depois
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+        <div class="secao-conteudo" id="conteudo-vida-salvos">
+          <button type="button" id="salvo-abrir-btn" class="btn btn-adicionar">Salvar link</button>
+          <p id="salvos-vazio" class="vazio" hidden>Nenhum link salvo.</p>
+          <ul id="lista-salvos"></ul>
+        </div>
+      </section>
+
+      <div class="bottom-sheet" id="sheet-salvo" hidden>
+        <form id="salvo-form" class="form-linha">
+          <input type="text" id="salvo-url" placeholder="Cola o link (artigo ou video)" inputmode="url" maxlength="2000" required />
+          <div class="form-linha">
+            <button type="submit" id="salvo-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar e resumir</button>
+            <button type="button" id="salvo-cancelar-btn" class="btn btn-secundario">Cancelar</button>
+          </div>
+        </form>
+      </div>
 

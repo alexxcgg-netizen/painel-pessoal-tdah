@@ -158,7 +158,7 @@ function criarItemGasto(e) {
   valor.className = "gasto-valor";
   valor.textContent = fmtMoeda(e.amount);
   const cat = document.createElement("span");
-  cat.className = "gasto-categoria";
+  cat.className = "gasto-categoria chip chip--compacto";
   cat.dataset.cat = e.category;
   cat.textContent = e.category;
   cat.title = "toque pra corrigir a categoria";

@@ -1,1 +1,138 @@
-{# Fase 7: secao gastos > assinaturas - assinaturas (hoje o "Ainda usa?" mora em secoes/vida/ainda-usa.html). Vazio de proposito (criado na X2), a faixa dona preenche. #}
+{# Fase 7 (faixa v6-financas): secao gastos > assinaturas - assinaturas e compras
+   parceladas DECLARADAS a mao pelo Alex (API da faixa N1, /api/financas/*,
+   contrato em rotas/n1_financas.py + financas_recorrentes.py). Fica junto do
+   cartao de proposito (mesmo bloco de "quanto ja esta comprometido" que o
+   limite do cartao usa em secoes/bancos/bancos.html) - por isso o include
+   desta secao mora logo depois de secoes/gastos/gastos.html em
+   templates/abas/gastos.html, antes de metas.
+
+   Diferente do "Ainda usa?" (secoes/vida/ainda-usa.html, /api/assinaturas/revisao):
+   aquela DETECTA recorrencia observando o historico de gasto depois dela
+   acontecer; esta e DECLARADA antes/no momento da contratacao. Os dois
+   convivem sem se sobrepor (ver financas_recorrentes.py).
+
+   Contrato de UI: docs/MASTER.md (V0a-V0c ja entraram em fase7/integracao;
+   so o bottom-sheet ainda nao - static/js/ui/bottom-sheet.js e
+   static/css/ui/componentes/bottom-sheet.css seguem vazios, faixa V0d -
+   ver o fallback comentado em assinaturas.js/assinaturas.css). #}
+<div id="assinaturas-financas-box">
+  <h2 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/><path d="M12 8v4l2.5 1.5"/></svg>
+    Assinaturas e parcelas
+  </h2>
+
+  <div class="card card--destaque" id="comprometido-box" hidden>
+    <p class="card-legenda">Comprometido este mes</p>
+    <p class="valor-mono valor-comprometido" id="comprometido-total">R$ 0</p>
+    <div class="chips-linha">
+      <span class="chip chip--compacto" id="chip-assinaturas">0 assinaturas</span>
+      <span class="chip chip--compacto" id="chip-parcelas">0 parcelas</span>
+    </div>
+    <div class="grafico-card grafico-limite-cartao-card" id="limite-cartao-card" hidden>
+      <p class="grafico-titulo" id="limite-cartao-titulo">Limite comprometido</p>
+      <div class="grafico-container" id="grafico-limite-cartao"></div>
+      <p class="grafico-legenda" id="limite-cartao-legenda"></p>
+    </div>
+  </div>
+  <p id="comprometido-vazio" class="vazio" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg>
+    Nada comprometido esse mes ainda.
+  </p>
+
+  <div class="botoes-adicionar-linha">
+    <button type="button" class="btn btn-adicionar btn-adicionar--pilula" id="btn-nova-assinatura" aria-haspopup="dialog" aria-controls="sheet-nova-assinatura">
+      Nova assinatura
+    </button>
+    <button type="button" class="btn btn-adicionar btn-adicionar--pilula" id="btn-nova-parcela" aria-haspopup="dialog" aria-controls="sheet-nova-parcela">
+      Nova compra parcelada
+    </button>
+  </div>
+
+  <h3 class="lista-subtitulo">Proximas cobrancas</h3>
+  <p id="proximas-cobrancas-vazio" class="vazio" hidden>Nenhuma cobranca prevista.</p>
+  <ul class="lista card" id="lista-proximas-cobrancas"></ul>
+
+  <h3 class="lista-subtitulo">Assinaturas ativas</h3>
+  <p id="assinaturas-ativas-vazio" class="vazio" hidden>Nenhuma assinatura ativa ainda.</p>
+  <ul class="lista card" id="lista-assinaturas-ativas"></ul>
+
+  <h3 class="lista-subtitulo">Compras parceladas em andamento</h3>
+  <p id="parcelas-vazio" class="vazio" hidden>Nenhuma compra parcelada em andamento.</p>
+  <ul class="lista card" id="lista-parcelas"></ul>
+
+  <div class="bottom-sheet bottom-sheet-financas" id="sheet-nova-assinatura" hidden>
+    <div class="bottom-sheet-pegador" aria-hidden="true"></div>
+    <div class="bottom-sheet-cabecalho">
+      <h3>Adicionar assinatura</h3>
+      <button type="button" class="bottom-sheet-fechar" data-fechar-sheet="sheet-nova-assinatura" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <form id="form-nova-assinatura">
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="assinatura-nome">Nome</label>
+        <input type="text" class="campo" id="assinatura-nome" placeholder="Netflix, academia..." maxlength="80" required />
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="assinatura-valor">Valor mensal (R$)</label>
+        <input type="number" class="campo" id="assinatura-valor" min="0.01" step="0.01" inputmode="decimal" required />
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="assinatura-dia">Dia da cobranca (1-31)</label>
+        <input type="number" class="campo" id="assinatura-dia" min="1" max="31" inputmode="numeric" required />
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="assinatura-cartao">Cartao ou forma (opcional)</label>
+        <input type="text" class="campo" id="assinatura-cartao" placeholder="nubank, pix, debito automatico..." maxlength="60" />
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="assinatura-categoria">Categoria (opcional)</label>
+        <input type="text" class="campo" id="assinatura-categoria" placeholder="lazer, saude..." maxlength="40" />
+      </div>
+      <button type="submit" class="btn btn-primario btn-sheet-salvar" id="assinatura-salvar-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Salvar assinatura
+      </button>
+    </form>
+  </div>
+
+  <div class="bottom-sheet bottom-sheet-financas" id="sheet-nova-parcela" hidden>
+    <div class="bottom-sheet-pegador" aria-hidden="true"></div>
+    <div class="bottom-sheet-cabecalho">
+      <h3>Adicionar compra parcelada</h3>
+      <button type="button" class="bottom-sheet-fechar" data-fechar-sheet="sheet-nova-parcela" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <form id="form-nova-parcela">
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="parcela-descricao">Descricao</label>
+        <input type="text" class="campo" id="parcela-descricao" placeholder="Geladeira, celular..." maxlength="120" required />
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="parcela-n">Numero de parcelas</label>
+        <input type="number" class="campo" id="parcela-n" min="1" step="1" inputmode="numeric" required />
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="parcela-valor-total">Valor total (R$)</label>
+        <input type="number" class="campo" id="parcela-valor-total" min="0.01" step="0.01" inputmode="decimal" placeholder="ou preenche so o valor da parcela" />
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="parcela-valor-parcela">Valor da parcela (R$)</label>
+        <input type="number" class="campo" id="parcela-valor-parcela" min="0.01" step="0.01" inputmode="decimal" placeholder="ou preenche so o valor total" />
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="parcela-cartao">Cartao (opcional)</label>
+        <input type="text" class="campo" id="parcela-cartao" placeholder="nubank, itau..." maxlength="60" />
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-rotulo" for="parcela-primeira">Primeira parcela (opcional, padrao hoje)</label>
+        <input type="date" class="campo" id="parcela-primeira" />
+      </div>
+      <button type="submit" class="btn btn-primario btn-sheet-salvar" id="parcela-salvar-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Salvar parcela
+      </button>
+    </form>
+  </div>
+</div>

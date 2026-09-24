@@ -1,3 +1,53 @@
 /* static/css/secoes/aviacao/metar.css - secao aviacao > metar (HTML: templates/secoes/aviacao/metar.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve por cascata sem
+   precisar editar o style.css.
+
+   Fase 7 C3b: a secao agora e .secao-recolhivel (ja e o card). A moldura "glass" que o
+   formulario tinha virou redundante (card dentro de card) e saiu: busca em linha - campo
+   + botao - e os blocos METAR/TAF como bloco interno (superficie-3, borda fina). */
+
+#metar-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--espaco-2);
+  margin-bottom: var(--espaco-3);
+}
+
+#metar-icao {
+  text-align: center;
+}
+
+/* codigo digitado: mono, caixa alta e espacado; o placeholder fica na fonte de texto */
+#metar-icao:not(:placeholder-shown) {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--fonte-mono);
+}
+
+#metar-resultado .metar-bloco {
+  background: var(--superficie-3);
+  border-color: var(--borda-sutil);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
+}
+
+#metar-resultado .metar-campo-valor {
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Ouvir": 30px de visual (circulo), 44px de area de toque via ::after. */
+#metar-resultado .btn-ouvir {
+  position: relative;
+}
+
+#metar-resultado .btn-ouvir::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+}
+
+#metar-resultado .btn-ouvir:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}

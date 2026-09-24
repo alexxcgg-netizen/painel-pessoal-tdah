@@ -13,7 +13,11 @@ function criarItemBanco(conta) {
   const nome = document.createElement("span");
   nome.className = "item-titulo";
   const rotuloTipo = conta.tipo === "cartao" ? "cartao" : "conta";
-  nome.textContent = `${conta.banco.charAt(0).toUpperCase() + conta.banco.slice(1)} (${rotuloTipo})`;
+  nome.textContent = conta.banco.charAt(0).toUpperCase() + conta.banco.slice(1);
+  const tipoChip = document.createElement("span");
+  tipoChip.className = "chip chip--compacto banco-tipo-chip";
+  tipoChip.textContent = rotuloTipo;
+  nome.appendChild(tipoChip);
   info.appendChild(nome);
 
   const stats = document.createElement("span");

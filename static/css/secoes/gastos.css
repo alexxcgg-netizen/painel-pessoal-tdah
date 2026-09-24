@@ -1,3 +1,46 @@
 /* static/css/secoes/gastos.css - estilos da aba gastos inteira (templates/abas/gastos.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (faixa v6-financas): acabamento/profundidade (docs/agentes/fase7-visual.md)
+   pras 3 secoes da aba (gastos, assinaturas, metas) - sem mudar cor, fonte nem
+   animacao, so radius/borda fina/elevacao sutil em cima do que ja existe.
+   Escopado em #tab-gastos pra nunca vazar pra outra aba (outras faixas tem
+   seu proprio arquivo pro mesmo tipo de acabamento). */
+
+#tab-gastos .card-vida,
+#tab-gastos .resumo-texto,
+#tab-gastos .resumo-semanal-box,
+#tab-gastos .grafico-card {
+  border-radius: var(--raio, var(--radius));
+  border: 1px solid var(--borda-sutil, var(--border));
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+#tab-gastos .card-vida {
+  background: var(--superficie-2, var(--surface-2));
+}
+
+#tab-gastos #lista-gastos > .item,
+#tab-gastos #lista-metas > .item {
+  background: var(--superficie-2, var(--surface-2));
+  border: 1px solid var(--borda-sutil, var(--border));
+  border-radius: var(--raio-sm, var(--radius-sm));
+  padding: 0.65rem 0.8rem;
+  margin-bottom: 0.5rem;
+  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.4));
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+@media (hover: hover) {
+  #tab-gastos #lista-gastos > .item:hover,
+  #tab-gastos #lista-metas > .item:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--elevacao-2, inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 3px 10px -3px rgba(0, 0, 0, 0.5));
+  }
+}
+
+/* Categoria do gasto como chip (contrato .chip.chip--compacto, ver
+   static/css/ui/componentes/chip.css) - mesmo comportamento de antes (toque
+   pra corrigir vira <select>), so o acabamento muda. Sem delta proprio: o
+   componente ja cobre o visual. */
+#tab-gastos .gasto-categoria.chip {
+  cursor: pointer;
+}

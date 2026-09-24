@@ -48,15 +48,17 @@ function carregarLeaflet() {
 // impossiveis de garantir com varios navegadores abertos ao mesmo tempo.
 function criarBlocoMapaLugar(l) {
   const box = criarEl("div", "lugar-mapa-box");
-  const btn = criarEl("button", "btn-com-icone", "ver no mapa");
+  const btn = criarEl("button", "btn btn-secundario lugar-mapa-btn", "Ver no mapa");
   btn.type = "button";
+  btn.setAttribute("aria-expanded", "false");
   const mapaEl = criarEl("div", "lugar-mapa");
   mapaEl.hidden = true;
   let iniciado = false;
   btn.addEventListener("click", async () => {
     const abrir = mapaEl.hidden;
     mapaEl.hidden = !abrir;
-    btn.textContent = abrir ? "esconder mapa" : "ver no mapa";
+    btn.textContent = abrir ? "Esconder mapa" : "Ver no mapa";
+    btn.setAttribute("aria-expanded", String(abrir));
     if (!abrir || iniciado) return;
     if (l.geocode_status !== "ok" || l.lat == null || l.lng == null) {
       mapaEl.textContent =
@@ -92,7 +94,7 @@ function criarBlocoMapaLugar(l) {
 
 async function loadLugares() {
   const lugares = await apiFetch("/api/lugares");
-  if (!lugares) return;
+  if (!Array.isArray(lugares)) return; // null (erro ja mostrado) ou resposta fora do formato
   const lista = $("#lista-lugares");
   lista.innerHTML = "";
   $("#lugares-vazio").hidden = lugares.length > 0;
@@ -105,9 +107,32 @@ async function loadLugares() {
   });
 }
 
-ligarForm("#lugar-form", "#lugar-btn", "Adicionar", () => {
+// Fase 7 (V5-extra/C3b): "Novo lugar" abre o formulario no bottom-sheet
+// compartilhado (static/js/ui/bottom-sheet.js, V0d). Fallback so pro caso de
+// o componente nao ter carregado: alterna o atributo hidden.
+function abrirPainelLugar() {
+  const sheet = $("#lugar-sheet");
+  if (typeof levarSheetProBody === "function") levarSheetProBody(sheet); // ver secoes/vida/viagens.js
+  if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+}
+
+function fecharPainelLugar() {
+  const sheet = $("#lugar-sheet");
+  if (typeof window.fecharBottomSheet === "function") window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+}
+
+$("#lugar-abrir-btn").addEventListener("click", abrirPainelLugar);
+$("#lugar-cancelar-btn").addEventListener("click", () => {
+  $("#lugar-form").reset();
+  fecharPainelLugar();
+});
+
+ligarForm("#lugar-form", "#lugar-btn", "Salvar lugar", () => {
   const nome = $("#lugar-nome").value.trim();
   return nome ? { nome, cidade: $("#lugar-cidade").value.trim() } : null;
-}, "/api/lugares", loadLugares);
-
-// ---- Fase 5: ideias de presente ----
+}, "/api/lugares", () => {
+  fecharPainelLugar();
+  loadLugares();
+});

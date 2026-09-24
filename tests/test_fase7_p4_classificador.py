@@ -51,7 +51,17 @@ class TestCasarDireto(unittest.TestCase):
                 self.assertIsNotNone(p4_regra.casar(frase))
 
     def test_frases_nao_reconhecidas(self):
-        frases = ["oi", "quanto eu gastei esse mes?", "cria uma tarefa pra amanha", ""]
+        frases = [
+            "oi", "quanto eu gastei esse mes?", "cria uma tarefa pra amanha", "",
+            # recorrencia sem pedido ao assistente: remedio/tarefa, fica com a IA
+            "tenho que tomar Losartana 50mg todo dia as 8h",
+            "tenho que tomar remedio todo dia as 8h",
+            "academia toda segunda e quarta",
+            # brain dump: varias frases ou texto longo nunca vira uma regra so
+            "Gastei 45 no mercado. Me lembra de renovar o CMA dia 1 de outubro.",
+            "me lembra de " + "x" * 200,
+            "me avisa se\nchover amanha",
+        ]
         for frase in frases:
             with self.subTest(frase=frase):
                 self.assertIsNone(p4_regra.casar(frase))

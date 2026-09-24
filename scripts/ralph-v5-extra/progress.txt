@@ -1,0 +1,37 @@
+Faixa V5-extra (Viagens, Lugares, Cotacoes, Aviacao) - Fase 7 - branch fase7/v5-extra
+
+Historias:
+[x] H1 - Regras lidas. Worktree propria a partir de fase7/integracao + merge
+    origin/fase7/e0-frontend (ja incluso - "Already up to date"). As 7 secoes
+    + templates/abas/aviacao.html ja existiam como stub cheio (Etapa 0 X2 so
+    deixou o CSS de camada vazio). V0a-V0d ainda sem nada real em nenhuma
+    branch nesse momento.
+[x] H2/H3 - Botao "adicionar" (.btn-adicionar) + bottom-sheet pras 3 secoes
+    com form pequeno (viagens/lugares/cotacoes: mesmas rotas, fecha e
+    recarrega a lista ao salvar). Acabamento glass (--glass-*, --cor-aviacao
+    etc, tudo ja existente) nos formularios de registrar-voo/metar, titulo de
+    aba novo em aviacao.html (unica sem h2 proprio), grade sutil no grafico
+    de cotacoes (.grafico-grid), sombra no mapa Leaflet ja carregado.
+[x] H4 - Testes do modulo 100% verdes (ver lista completa no changelog.d/
+    v5-extra.md). gitleaks: sem leak novo (os 2 achados sao SEU_TOKEN_AQUI em
+    docs/tick.md, pre-existente, fora do meu escopo).
+[x] H5 (ultima) - git merge origin/fase7/integracao: trouxe V0a/V0b/V0c reais
+    (tokens, botao, secao, campo, card - so V0d/bottom-sheet continua vazio).
+    Corrigi as 3 secoes pro contrato REAL (nao so o documentado): botao vira
+    class="btn btn-adicionar" (nao so .btn-adicionar - o CSS real seleciona
+    as DUAS classes), id `<nome>-abrir-btn`, inputs com class="campo", submit
+    com .btn.btn-primario e um botao Cancelar com .btn.btn-secundario
+    (mesmo padrao ja usado por vida/habitos.js e as demais secoes de
+    V3-organizacao) - removi meu CSS de CTA proprio, agora so o componente
+    compartilhado. .bottom-sheet em si (unico sem componente ainda) continua
+    com CSS escopado por ID (#viagem-sheet/#lugar-sheet/#cotacao-sheet),
+    nunca a classe pura - ver scripts/ralph-v5-extra/APRENDIZADOS.md pro
+    porque disso importar de verdade (evita regredir os bottom-sheet ja
+    integrados de outras faixas). Playwright 390x844 real (banco de teste,
+    porta 5199): cria viagem, lugar, voo e cotacao com 2 fornecedores de
+    verdade pela UI, confere lista/grafico atualizando, zero erro de
+    console/pageerror, 2 screenshots (vida-viagens-lugares, aviacao) em
+    scripts/ralph-v5-extra/ (nao versionados, so os .py/.json) - resultado OK
+    em scripts/ralph-v5-extra/v5-extra-resultado.json.
+
+Branch: fase7/v5-extra (pushed). Sem bloqueios. Nao abri PR.

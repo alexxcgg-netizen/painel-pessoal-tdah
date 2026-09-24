@@ -29,10 +29,32 @@ async function loadCompras() {
   });
 }
 
+// Fase 7 V4: botao "Adicionar item" abre o formulario num bottom-sheet
+// (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
+// integracao, cai no fallback inline (so hidden) - retestado depois do merge
+// com origin/fase7/integracao.
+$("#compra-abrir-btn").addEventListener("click", () => {
+  const sheet = $("#sheet-compra");
+  if (window.abrirBottomSheet) window.abrirBottomSheet(sheet);
+  else sheet.hidden = false;
+});
+
+$("#compra-cancelar-btn").addEventListener("click", () => {
+  $("#compra-form").reset();
+  const sheet = $("#sheet-compra");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+});
+
 ligarForm("#compra-form", "#compra-btn", "Adicionar", () => {
   const item = $("#compra-item").value.trim();
   return item ? { itens: [item] } : null;
-}, "/api/compras", loadCompras);
+}, "/api/compras", (r) => {
+  const sheet = $("#sheet-compra");
+  if (window.fecharBottomSheet) window.fecharBottomSheet(sheet);
+  else sheet.hidden = true;
+  loadCompras(r);
+});
 
 // ---- Fase 6 (US-E12): Habitos - NOVO, separado da Rotina guiada (rotina
 // manha/noite continua em loadRotina acima) ----
