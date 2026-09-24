@@ -130,7 +130,26 @@ def passo_contraste_varredura(page):
     return falhas
 
 
-PASSOS = [passo_contraste, passo_contraste_varredura]
+def passo_garantia_chip(page):
+    """H3: a regra `.garantia-chip` do style.css existe no CSSOM (comentario nao engole mais) e o
+    chip continua sem caixa-alta."""
+    falhas = []
+    tem = page.evaluate("""() => [...document.styleSheets].filter(s => (s.href || '').includes('/style.css'))
+        .some(s => [...s.cssRules].some(r => r.selectorText === '.garantia-chip'))""")
+    print("regra .garantia-chip no CSSOM do style.css:", tem)
+    if not tem:
+        falhas.append(".garantia-chip continua fora do CSSOM do style.css")
+    ir_para_aba(page, "vida")
+    chip = page.locator("#lista-garantias .garantia-chip").first
+    chip.wait_for(state="attached", timeout=5000)
+    tt = chip.evaluate("e => getComputedStyle(e).textTransform")
+    print("text-transform do chip de garantia:", tt)
+    if tt != "none":
+        falhas.append(f"chip de garantia em caixa-alta ({tt})")
+    return falhas
+
+
+PASSOS = [passo_contraste, passo_contraste_varredura, passo_garantia_chip]
 
 if __name__ == "__main__":
     sys.exit(main())
