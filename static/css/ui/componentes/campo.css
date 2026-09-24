@@ -1,3 +1,66 @@
 /* static/css/ui/componentes/campo.css - componente: campos de formulario.
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+   Fase 7 (V0c). Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve
+   por cascata sem precisar editar o style.css.
+
+   Uso: <input class="campo">, <select class="campo">, <textarea class="campo">. Foco visivel
+   sem o azul padrao do navegador (pedido explicito). Zero cor/fonte nova. */
+
+.campo {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem var(--espaco-2, 16px);
+  border-radius: var(--raio-sm, var(--radius-sm, 14px));
+  border: 1px solid var(--borda-sutil, var(--border, rgba(218, 226, 243, 0.09)));
+  background: var(--superficie-2, color-mix(in srgb, var(--surface, #121212) 92%, white 2%));
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.campo::placeholder {
+  color: var(--text-faint);
+}
+
+.campo:hover {
+  border-color: var(--border-strong, rgba(218, 226, 243, 0.18));
+}
+
+.campo:focus,
+.campo:focus-visible {
+  border-color: var(--accent);
+  background: var(--superficie-3, rgba(255, 255, 255, 0.03));
+  box-shadow: 0 0 0 3px var(--accent-soft-bg, color-mix(in srgb, var(--accent) 16%, transparent));
+}
+
+.campo:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+textarea.campo {
+  min-height: 88px;
+  resize: vertical;
+}
+
+select.campo {
+  padding-right: var(--espaco-4, 32px);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a7afbc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--espaco-2, 16px) center;
+  background-size: 16px;
+}
+
+/* Rotulo companheiro do campo (opcional) - segue o mesmo espacamento em grade de 8px. */
+.campo-rotulo {
+  display: block;
+  margin-bottom: var(--espaco-1, 8px);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
