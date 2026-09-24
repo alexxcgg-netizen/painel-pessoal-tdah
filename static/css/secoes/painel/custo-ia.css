@@ -1,3 +1,109 @@
-/* static/css/secoes/painel/custo-ia.css - secao painel > custo-ia (HTML: templates/secoes/painel/custo-ia.html).
-   Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
-   regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+/* static/css/secoes/painel/custo-ia.css - Secao painel > custo-ia (HTML: templates/secoes/
+   painel/custo-ia.html). Fase 7, faixa V2. Carrega DEPOIS de secoes/painel.css (cascata),
+   so completa o `.card` generico (V0c) com o layout proprio desta secao - zero cor/fonte/
+   animacao nova, so os tokens de forma/profundidade (V0a) com fallback. */
+
+.custo-ia-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-2, 16px);
+}
+
+.custo-ia-topo {
+  display: flex;
+  align-items: baseline;
+  gap: var(--espaco-2, 16px);
+  flex-wrap: wrap;
+}
+
+.custo-ia-gasto {
+  font-family: var(--font-numeros, "Sora", monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1.6rem;
+  color: var(--text);
+}
+
+.custo-ia-mes-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.custo-ia-nivel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--raio-sm, var(--radius-sm, 14px));
+  background: var(--superficie-3, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--borda-sutil, var(--border));
+}
+
+.custo-ia-nivel-aviso {
+  color: #d8ab4c;
+  border-color: color-mix(in srgb, #d8ab4c 45%, var(--borda-sutil, var(--border)));
+}
+
+.custo-ia-nivel-estourado {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--borda-sutil, var(--border)));
+}
+
+.custo-ia-grafico {
+  margin-top: var(--espaco-1, 8px);
+}
+
+.custo-ia-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.custo-ia-tabela th,
+.custo-ia-tabela td {
+  text-align: left;
+  padding: 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--borda-sutil, var(--border));
+}
+
+.custo-ia-tabela th:last-child,
+.custo-ia-tabela td:last-child {
+  text-align: right;
+  font-family: var(--font-numeros, "Sora", monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.custo-ia-tabela th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.custo-ia-tabela tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* .btn-com-icone (style.css) so define o layout (flex/gap) - o "cromo" de botao
+   (fundo/borda/padding) normal vem do <button> nativo (color-scheme: dark no :root
+   ja da o visual escuro de graca). Como exportar e um link de download (<a>, pra
+   funcionar sem JS e permitir "salvar como"), reproduzimos aqui o mesmo cromo. */
+.custo-ia-exportar {
+  align-self: flex-start;
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--raio-sm, var(--radius-sm, 14px));
+  border: 1px solid var(--borda-sutil, var(--border));
+  background: var(--superficie-3, rgba(255, 255, 255, 0.04));
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.2s var(--ease-bounce, ease);
+}
+
+@media (hover: hover) {
+  .custo-ia-exportar:hover {
+    border-color: color-mix(in srgb, var(--cor-painel) 45%, var(--borda-sutil, var(--border)));
+    transform: translateY(-1px);
+  }
+}
