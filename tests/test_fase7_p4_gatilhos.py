@@ -584,21 +584,26 @@ class TestGatilhoExecutar(Base):
             gatilho.executar(self.conn, datetime(2026, 9, 29, 9, 0))  # semana seguinte
         self.assertEqual(mock_enf2.call_count, 1)
 
-    def test_usa_stub_do_contrato_quando_caixa_nao_existe(self):
-        # assistente.caixa (faixa P1a) ainda nao existe neste branch -
-        # _enfileirar precisa cair no stub de assistente/contrato.py, que
-        # levanta NotImplementedError (nunca falha silenciosamente).
+    def test_caixa_real_recebe_o_item_e_grava_ultima_vez(self):
+        # import tardio de verdade (assistente.caixa da P1a) - so o
+        # enfileirar e dublado, pra nao abrir o banco padrao do checkout.
         regra = {"gatilho": "horario", "condicao": {"tipo": "diario", "hora": "18:00"},
                  "acao": {"mensagem": "x"}, "texto": "x"}
         _inserir_regra(self.conn, regra)
-        # sem mock nenhum - exercita o import tardio de verdade
-        gatilho.executar(self.conn, datetime(2026, 9, 24, 18, 0))
-        # NotImplementedError e engolido pelo try/except de _processar_regra
-        # (uma regra com problema nao derruba o tick) - so confirmamos que
-        # nao propagou e que ultima_vez NAO foi gravado (o disparo falhou).
+        with patch("assistente.caixa.enfileirar", return_value=1) as enf:
+            gatilho.executar(self.conn, datetime(2026, 9, 24, 18, 0))
+        self.assertEqual(enf.call_count, 1)
+        linha = self.conn.execute("SELECT ultima_vez FROM p4_regras WHERE ativa = 1").fetchone()
+        self.assertIsNotNone(linha["ultima_vez"])
+
+    def test_falha_na_caixa_nao_derruba_o_tick_nem_grava_ultima_vez(self):
+        regra = {"gatilho": "horario", "condicao": {"tipo": "diario", "hora": "18:00"},
+                 "acao": {"mensagem": "x"}, "texto": "x"}
+        _inserir_regra(self.conn, regra)
+        with patch("assistente.caixa.enfileirar", side_effect=RuntimeError("banco travado")):
+            gatilho.executar(self.conn, datetime(2026, 9, 24, 18, 0))
         linha = self.conn.execute("SELECT ultima_vez FROM p4_regras WHERE ativa = 1").fetchone()
         self.assertIsNone(linha["ultima_vez"])
-
 
 if __name__ == "__main__":
     unittest.main()

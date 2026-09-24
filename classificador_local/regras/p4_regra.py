@@ -30,6 +30,12 @@ from assistente import regras as motor
 _PADROES_INTENCAO = (
     re.compile(r"\bme\s+avisa(?:r)?\s+se\b", re.IGNORECASE),
     re.compile(r"\bme\s+lembr\w*\s+de\b", re.IGNORECASE),
+)
+# Recorrencia ("todo dia as 8h", "toda segunda") so vira regra quando vem
+# junto de um pedido ao assistente ("me avisa/manda/lembra/pergunta/cobra").
+# Sozinha ela e tarefa recorrente ou remedio ("tenho que tomar Losartana todo
+# dia as 8h") e fica com a IA (registrar_tarefa/registrar_medicamento).
+_PADROES_RECORRENCIA = (
     re.compile(r"\btodo(?:s)?\s+(?:os\s+)?dias?\s+(?:às|as|a)\s+\d", re.IGNORECASE),
     re.compile(
         r"\btod[ao](?:s)?\s+(?:a|as|o|os)?\s*"
@@ -37,6 +43,11 @@ _PADROES_INTENCAO = (
         re.IGNORECASE,
     ),
 )
+_PEDIDO_AO_ASSISTENTE = re.compile(r"\bme\s+(?:avisa|lembr\w*|manda|pergunta|cobra)\b", re.IGNORECASE)
+# Brain dump (varias frases ou texto longo) nunca vira UMA regra: segue pra
+# IA, que separa os itens (um deles pode ser o "me lembra de..." de la).
+_TAMANHO_MAXIMO = 160
+_VARIAS_FRASES = re.compile(r"[.!?;]\s+\S")
 
 
 def casar(texto: str) -> dict | None:
@@ -46,9 +57,14 @@ def casar(texto: str) -> dict | None:
     executar() repassa pra assistente.regras.interpretar_regra."""
     if not isinstance(texto, str) or not texto.strip():
         return None
-    for padrao in _PADROES_INTENCAO:
-        if padrao.search(texto):
-            return {"acao": "criar_regra", "confianca": 1.0, "parametros": {"texto": texto.strip()}}
+    limpo = texto.strip()
+    if len(limpo) > _TAMANHO_MAXIMO or "\n" in limpo or _VARIAS_FRASES.search(limpo):
+        return None
+    pedido = any(p.search(limpo) for p in _PADROES_INTENCAO) or (
+        _PEDIDO_AO_ASSISTENTE.search(limpo) and any(p.search(limpo) for p in _PADROES_RECORRENCIA)
+    )
+    if pedido:
+        return {"acao": "criar_regra", "confianca": 1.0, "parametros": {"texto": limpo}}
     return None
 
 

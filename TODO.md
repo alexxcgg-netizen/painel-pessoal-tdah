@@ -313,18 +313,18 @@ Decisoes do Alex na rodada de perguntas (2026-09-24):
 
 ### Fase 7A - backend
 - [x] A1 nucleo (ia/core.py) - [x] A2 adapter Anthropic - [x] A3 adapter OpenAI - [x] A4 medicao e teto
-- [x] (integracao) custo com fonte unica ia/precos.py
-- [x] A5 historico - [ ] A6 chat - [ ] A7 migracao 1 - [x] A8 migracao 2 - [ ] A9 visao
+- [x] (integracao) custo com fonte unica ia/precos.py; adapter Anthropic sem effort vazio/Haiku; datas do chat em codigo; liga/desliga de aviso no push
+- [x] A5 historico - [x] A6 chat - [ ] A7 migracao 1 - [x] A8 migracao 2 - [x] A9 visao
 - [x] A10 decisoes Fase 6 - [x] A11 A/B - [ ] A12 infra testes - [x] A13 calculos
 - [x] A14 roteador - [x] A15 Gemini
 - [x] N1 assinaturas/parcelas - [x] N2 Telegram - [x] N3a endpoint widget - [x] N3b Scriptable
 - [x] N3c/N3d docs widget - [x] N3e WidgetKit
-- [x] P1a Caixa - [ ] P1b Caixa UI - [x] P2 perguntas - [x] P3 briefing - [x] P4 regras
+- [x] P1a Caixa - [x] P1b Caixa UI - [x] P2 perguntas - [x] P3 briefing - [x] P4 regras
 - [x] P5 replanejar - [x] P7 sinais iPhone - [x] P8 central de avisos - [x] P9 memoria viva
 
 ### Fase 7B - visual
-- [x] V0a tokens/MASTER.md - [ ] V0b botoes - [x] V0c secoes/cards - [ ] V0d bottom sheet/navegacao
-- [ ] V1 Hoje - [ ] V2 Painel - [x] V3 Habitos/Projetos/Agenda/Tarefas - [ ] V4 Vida (demais)
+- [x] V0a tokens/MASTER.md - [x] V0b botoes - [x] V0c secoes/cards - [x] V0d bottom sheet/navegacao
+- [x] V1 Hoje - [x] V2 Painel - [x] V3 Habitos/Projetos/Agenda/Tarefas - [ ] V4 Vida (demais)
 - [ ] V5 Viagens/Lugares/Cotacoes/Aviacao - [ ] V6 Financeiro/Contas/Cartao/demais
 
 ### Fase 7C - polimento e deploy

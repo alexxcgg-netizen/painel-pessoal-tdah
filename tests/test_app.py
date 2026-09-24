@@ -3327,7 +3327,9 @@ class PainelTestCase(unittest.TestCase):
         row = conn.execute("SELECT due_at, due_date FROM tasks").fetchone()
         conn.close()
         self.assertEqual(row["due_at"], "amanha")
-        self.assertEqual(row["due_date"], "2026-09-19")
+        # Fase 7 (A6): "amanha" e resolvido em codigo; a conta do modelo
+        # (quando_data) so vale quando nao ha pista de dia.
+        self.assertEqual(row["due_date"], (date.today() + timedelta(days=1)).isoformat())
 
     def test_chat_usa_executor_de_memoria_de_verdade(self):
         def fake_chat(mensagens, contexto, memorias, executores):
