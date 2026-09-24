@@ -1,55 +1,36 @@
 Faixa C3c (c3c-financas) - polimento de Gastos/Assinaturas+parcelas/Bancos/Construtora/Contas pessoais.
-Branch fase7/c3c-financas, porta 5133. Scripts: servidor.py (banco temp + semente + construtora mock), auditar.py.
+Branch fase7/c3c-financas, porta 5133. Scripts: servidor.py (banco temp+semente+construtora mock),
+auditar.py (levantamento), fuzz.py (97 cenarios). Detalhes em APRENDIZADOS.md.
 
-H1 Levantamento (390x844, auditar.py; 0 erro de console, 0 falha de rede fora Google Fonts/IA duble)
-- Console/pageerror: 0. Construtora: nenhum lucro/margem/VGV na tela (so JSON da rota antiga traz).
-- SHEETS QUEBRADOS: .bottom-sheet-financas (CSS provisorio da V6) pinta a moldura da V0d real: painel
-  sai 90px acima da tela (titulo cortado), 2 pegadores, borda na moldura. Afeta os 3 sheets.
-- Botao nativo cinza (sem .btn): Cancelar/Apagar (assinaturas, parcelas), paga/Apagar (contas
-  pessoais), Salvar (teto IA), Salvar limite (Bancos). Todos 21-22px de altura.
-- Toque <44: chips de categoria do gasto 22px (clicaveis), "e tarefa" 28px, input teto IA 36px,
-  CSV 23px, label nota fiscal/OFX 41px, selects OFX 38px, Importar 35px, input limite 36px,
-  meta "guardei R$" 30px + Registrar 30px, dica-toggle "!" 20px (contas pessoais).
-- Contraste <4.5: chip categoria cor --cor-tarefas/--cor-financeiro (3.2 e 4.0:1), valor da
-  lista de proximas cobrancas em --cor-financeiro (4.0:1), saidas da Construtora --cor-construtora
-  (3.2:1), selo "meta batida" (1.2:1).
-- R$ estourando em 390px: titulo de conta pessoal "Condominio - R$ 987.654,32" cortado com
-  reticencias (valor some); titulo de assinatura longa cortado; rotulo de barra do grafico de
-  limite (R$ 129.999,99) encosta na borda do SVG.
-- Emoji como icone: "meta batida! (emoji de festa)" em metas.js.
-- Adicionar fora do padrao: submit do sheet de conta pessoal diz "Adicionar" com "+" (MASTER:
-  botao final diz o que faz -> "Salvar conta"). Foco ao abrir vai pro X, nao pro 1o campo.
-- MASTER: R$ fora de mono em chips/meta/legenda (fim do mes, resumo semanal, patrimonio,
-  meta-detalhe, lista-item-meta); card de Comprometido com vao enorme entre rotulo e valor;
-  chip do cartao esticado na largura toda da linha; fmtMoeda(undefined) -> "R$ NaN" se a API
-  mandar campo faltando (sem guarda).
-- Fora da minha lista (nao edito): abas Painel/Assistente vazando em Bancos/Construtora
-  (C2 ja corrigiu na branch dela); cotacoes.* (Construtora) e a dica-toggle global sao de
-  outra faixa/style.css; .card sem guarda [hidden] (C2 corrigindo em card.css).
+H1 levantamento inicial (390x844): 0 erro de console; nenhum lucro/margem/VGV na Construtora.
+- Sheets quebrados (CSS provisorio da V6 pintava a moldura da V0d: titulo fora da tela, 2 pegadores).
+- Botao nativo cinza 21px: Cancelar/Apagar/Paga/Salvar teto/Salvar limite. Toque<44 em chips de
+  categoria, "e tarefa", inputs/selects/labels de OFX, nota fiscal, teto IA, meta, CSV.
+- Contraste <4.5 em chip de categoria, valor de proximas cobrancas e saidas da Construtora.
+- R$ cortado em 390px (titulo "Condominio - R$ 987.654,32"); emoji no selo "meta batida";
+  submit "Adicionar" no sheet; R$ fora de mono; vao no card Comprometido; fmtMoeda(undefined)=R$ NaN.
 
 Historias
 [x] H1 levantamento
-[x] H2a correcoes (auditar.py depois: 0 achado meu; sobram so charts.js e dica-toggle, fora da lista):
-    sheets so pela V0d (sem pegador/moldura/fallback), foco no 1o campo, form novalidate + erro
-    pt-BR no sheet, valor em texto decimal (aceita 21,90), teto R$100 mi / 600 parcelas / data
-    2000-2100; acoes .btn.btn-secundario 44px (apagar = icone); chip categoria <button> + ::after
-    44px; R$ em mono; titulos quebram; Construtora: so tot_entradas/tot_saidas lidos (lista
-    branca), "Gastos"/"Entradas" com barra+icone, erro no lugar do "Carregando..." eterno;
-    contas a pagar viram .lista-item; guardas numeroFinancas/fmtMoedaFinancas (sem R$ NaN).
-[ ] H2b merge integracao (gambiarra .card[hidden]; sheet ainda com moldura torta pelo CSS V3
-    sem escopo em habitos/projetos/tarefas/agenda-painel.css - C2 remove na branch dela)
-[~] H3 fuzz.py: 97 cenarios, 94 OK. Falham 2 so pelo bug da V0d (reabrir durante a animacao de
-    fechar esconde o sheet; C2 ja corrigiu no bottom-sheet.js dela) - reroda apos o merge.
-PENDENCIAS FORA DA MINHA LISTA (anotar pro integrador/N1):
-- N1 (financas_recorrentes.py/rotas/n1_financas.py): POST /api/financas/parcelas com
-  primeira_parcela invalida ("abc", ano 9999) devolve 400 MAS a linha ja foi gravada -> GET
-  /parcelas e /comprometido passam a dar 500 pra sempre. valor 1e308 em assinatura -> 500.
-  A UI desta faixa ja barra (data 2000-2100, teto R$100 mi), mas o back precisa validar antes
-  do INSERT.
-- app.py GET /api/construtora/resumo ainda manda lucro_liquido/margem no JSON (tela nao mostra:
-  construtora.js le so tot_entradas/tot_saidas). Ideal: rota usar construtora_cliente.py.
-- static/js/charts.js: rotulo do valor maximo sai do SVG com valor grande (388>359px).
-- style.css .dica-toggle "!" 20x20 (toque<44) - usado em contas pessoais e cotacoes.
+[x] H2 correcoes (auditar.py agora: 0 achado nos meus arquivos; sobram charts.js/style.css abaixo).
+    Merge de origin/fase7/integracao feito (f7e6073). Gambiarra .card[hidden] MANTIDA em
+    assinaturas.css e construtora.css: a C2 ainda nao entrou na integracao (card.css sem guarda).
+[~] H3 fuzz.py: 97 cenarios, 96 OK, 0 erro de console, 0 NaN/undefined na tela. 1 falha = bug da
+    V0d (reabrir o sheet durante a animacao de fechar deixa ele hidden) - corrigido no
+    bottom-sheet.js da C2, ainda nao integrado. Nao contornei localmente.
+[x] H4 testes: modulo+N1 330 passed; vida_rotas/revisao 72 passed; JS 196/196.
+[x] H5 changelog.d/c3c-financas.md; screenshots em scripts/ralph-c3c-financas/ (fora do commit).
+
+Pendencias FORA da minha lista (integrador/outras faixas):
+- N1 (financas_recorrentes.py / rotas/n1_financas.py): POST /api/financas/parcelas com
+  primeira_parcela invalida ("abc", ano 9999) devolve 400 MAS grava a linha -> GET /parcelas e
+  /comprometido dao 500 pra sempre. Assinatura com valor 1e308 -> 500. UI desta faixa ja barra.
+- app.py GET /api/construtora/resumo ainda manda lucro_liquido/margem no JSON (a tela nao mostra:
+  construtora.js le so tot_entradas/tot_saidas). Ideal: trocar pela construtora_cliente.py.
+- static/js/charts.js: rotulo do valor maximo sai do SVG com valor grande.
+- style.css .dica-toggle "!" 20x20 (toque<44) em contas pessoais e cotacoes.
+- CSS de .bottom-sheet sem escopo em habitos/projetos/tarefas/agenda-painel.css (V3) ainda
+  desloca a moldura do sheet 8px - a C2 remove.
+- Quando a C2 integrar: tirar as guardas .card[hidden] locais e o subirSheetsFinancas (o
+  portal pro body passa a ser do componente) e rodar fuzz.py de novo.
 - gitleaks: 2 achados pre-existentes em docs/tick.md (curl-auth-header), nao sao desta faixa.
-[ ] H4 testes do modulo + N1 + JS
-[ ] H5 screenshots finais + changelog.d/c3c-financas.md
