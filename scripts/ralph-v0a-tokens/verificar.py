@@ -45,6 +45,25 @@ with sync_playwright() as p:
     tokens = page.evaluate(
         "(ns) => { const cs = getComputedStyle(document.documentElement);"
         " return Object.fromEntries(ns.map(n => [n, cs.getPropertyValue(n).trim()])); }", TOKENS)
+    # sonda: aplica os tokens compostos num elemento temporario e confere que o navegador
+    # aceitou o valor (var() invalido vira o valor inicial: 'none', transparente, 0px...)
+    sonda = page.evaluate("""() => {
+      const d = document.createElement('div');
+      d.style.cssText = 'position:absolute;left:-9999px;width:10px;height:10px;' +
+        'box-shadow:var(--elevacao-3);background:var(--realce-superficie),var(--superficie-2);' +
+        'border:var(--linha) solid var(--borda-sutil);border-radius:var(--raio-lg);' +
+        'padding:var(--espaco-4);font-family:var(--fonte-mono);outline:1px solid var(--veu-fundo);' +
+        'transition:opacity var(--transicao-media);min-height:var(--toque-min);z-index:var(--camada-sheet)';
+      document.body.appendChild(d);
+      const c = getComputedStyle(d);
+      const r = {sombra: c.boxShadow, fundo: c.backgroundImage, cor_fundo: c.backgroundColor,
+        borda: c.borderTopColor, raio: c.borderTopLeftRadius, padding: c.paddingTop,
+        fonte: c.fontFamily, veu: c.outlineColor, transicao: c.transitionDuration + ' ' +
+        c.transitionTimingFunction, toque: c.minHeight, z: c.zIndex};
+      d.remove();
+      return r;
+    }""")
+    sonda_ruim = [k for k, v in sonda.items() if v in ("", "none", "rgba(0, 0, 0, 0)", "0px", "auto", "0s ease")]
     page.click("button.tab-btn[data-tab='vida']")
     try:
         page.wait_for_load_state("networkidle", timeout=8000)
@@ -63,7 +82,9 @@ falhas_ambiente = [f for f in falhas_rede if any(a in f[1] for a in AMBIENTE)]
 falhas_rede = [f for f in falhas_rede if f not in falhas_ambiente]
 erros = [e for e in erros if not e[1].startswith("Failed to load resource")] if not falhas_rede else erros
 faltando = [n for n, v in tokens.items() if not v]
-res = {"erros_console": erros, "falhas_rede": falhas_rede, "falhas_ambiente_ignoradas": falhas_ambiente, "tokens": tokens, "tokens_faltando": faltando}
+if prefixo != "referencia":
+    faltando += [f"sonda:{k}={sonda[k]!r}" for k in sonda_ruim]
+res = {"erros_console": erros, "falhas_rede": falhas_rede, "falhas_ambiente_ignoradas": falhas_ambiente, "tokens": tokens, "sonda": sonda, "tokens_faltando": faltando}
 json.dump(res, open(os.path.join(AQUI, f"{prefixo}-resultado.json"), "w"), indent=1, ensure_ascii=False)
 print(json.dumps({"erros_console": erros, "falhas_rede": falhas_rede,
                   "falhas_ambiente_ignoradas": falhas_ambiente, "tokens_faltando": faltando},

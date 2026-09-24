@@ -5,7 +5,7 @@ Porta de verificacao: 5170 (servidor.py, banco temporario em /tmp/v0a-db-*)
 Historias
 - [x] H1 levantamento da identidade atual + screenshots de referencia (referencia-hoje/vida.png,
        nao versionados - regerar com verificar.py referencia)
-- [ ] H2 static/css/ui/tokens.css (so :root, nenhuma regra visual)
+- [x] H2 static/css/ui/tokens.css (so :root, nenhuma regra visual)
 - [ ] H3 docs/MASTER.md (guia das faixas V0b-V6)
 - [ ] H4 verificacao Playwright (depois-*) + changelog.d/v0a-tokens.md
 
