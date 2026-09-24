@@ -220,6 +220,15 @@
   box-sizing: border-box;
 }
 
+/* Rede de seguranca do atributo hidden (M1). O [hidden] do navegador e uma regra
+   fraca (display: none na folha do agente de usuario); qualquer `display: flex`
+   em classe ou id do app vencia, e `el.hidden = true` deixava o elemento na tela
+   (achado pela C2, V4 e V6: abas, cards, chips, sheets). As guardas por componente
+   (.classe[hidden]) continuam; esta regra cobre as secoes que ainda nao tem. */
+[hidden] {
+  display: none !important;
+}
+
 @keyframes auroraMove {
   0%,
   100% {
