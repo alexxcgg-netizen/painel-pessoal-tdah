@@ -786,6 +786,98 @@ def init_db():
     _migrar_manutencoes_unificadas(conn)
     _seed_memorias_categorizadas_fase6(conn)
     conn.close()
+    # Fase 7: mudanca de schema nova mora em migracoes/*.sql (ver
+    # migracoes/README.md) - SEMPRE por ultimo, depois de tudo acima.
+    aplicar_migracoes()
+
+
+# ---- Migracoes por arquivo (Fase 7, Etapa 0) -------------------------------
+# Cada faixa cria migracoes/AAAAMMDDHHMM_<faixa>_<descricao>.sql em vez de
+# editar init_db(). Aplicadas em ordem alfabetica, uma vez so por banco
+# (tabela migracoes_aplicadas), cada arquivo numa transacao propria.
+
+MIGRACOES_DIR = Path(__file__).parent / "migracoes"
+
+_RE_COMENTARIO_INICIAL = re.compile(r"^(\s|--[^\n]*(\n|$)|/\*.*?\*/)+", re.S)
+_CONTROLE_TRANSACAO = {"BEGIN", "COMMIT", "END", "ROLLBACK", "SAVEPOINT", "RELEASE"}
+
+
+class ErroMigracao(RuntimeError):
+    """Uma migracao de migracoes/ falhou - ja desfeita inteira (ROLLBACK)."""
+
+
+def _sem_comentario_inicial(comando: str) -> str:
+    return _RE_COMENTARIO_INICIAL.sub("", comando, count=1)
+
+
+def _comandos_sql(texto: str) -> list[str]:
+    """Divide um script SQL em comandos, respeitando string com ';' e corpo
+    de trigger (BEGIN ... END;) - usa o proprio parser do sqlite
+    (complete_statement). Pedaco so de comentario/espaco e descartado."""
+    comandos = []
+    inicio = 0
+    for i, ch in enumerate(texto):
+        if ch == ";" and sqlite3.complete_statement(texto[inicio:i + 1]):
+            comandos.append(texto[inicio:i + 1])
+            inicio = i + 1
+    comandos.append(texto[inicio:])
+    return [c for c in comandos if _sem_comentario_inicial(c).strip()]
+
+
+def _primeira_palavra(comando: str) -> str:
+    palavras = _sem_comentario_inicial(comando).split(None, 1)
+    return palavras[0].rstrip(";").upper() if palavras else ""
+
+
+def aplicar_migracoes() -> list[str]:
+    """Aplica os migracoes/*.sql que ainda nao rodaram neste banco (ordem
+    alfabetica) e devolve os nomes aplicados agora. Cada arquivo roda numa
+    transacao `BEGIN IMMEDIATE` junto com o registro em migracoes_aplicadas -
+    falhou, ROLLBACK e ErroMigracao com o nome do arquivo (nunca deixa o
+    banco pela metade). Chamada pelo init_db()."""
+    pasta = Path(MIGRACOES_DIR)
+    DB_PATH.parent.mkdir(exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, isolation_level=None, timeout=30)
+    aplicadas = []
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS migracoes_aplicadas (nome TEXT PRIMARY KEY, aplicada_em TEXT NOT NULL)"
+        )
+        arquivos = sorted(pasta.glob("*.sql")) if pasta.is_dir() else []
+        for arquivo in arquivos:
+            nome = arquivo.name
+            if conn.execute("SELECT 1 FROM migracoes_aplicadas WHERE nome = ?", (nome,)).fetchone():
+                continue
+            try:
+                comandos = _comandos_sql(arquivo.read_text(encoding="utf-8-sig"))
+            except (OSError, UnicodeDecodeError) as e:
+                raise ErroMigracao(f"migracao {nome}: nao consegui ler o arquivo ({e})") from e
+            proibido = next((c for c in comandos if _primeira_palavra(c) in _CONTROLE_TRANSACAO), None)
+            if proibido:
+                raise ErroMigracao(
+                    f"migracao {nome}: sem BEGIN/COMMIT/ROLLBACK/SAVEPOINT no arquivo - a transacao e "
+                    f"de quem aplica (achei: {_sem_comentario_inicial(proibido).strip()[:60]!r})"
+                )
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                # outro processo pode ter aplicado entre a checagem e o lock
+                if conn.execute("SELECT 1 FROM migracoes_aplicadas WHERE nome = ?", (nome,)).fetchone():
+                    conn.execute("ROLLBACK")
+                    continue
+                for comando in comandos:
+                    conn.execute(comando)
+                conn.execute(
+                    "INSERT INTO migracoes_aplicadas (nome, aplicada_em) VALUES (?, datetime('now'))", (nome,)
+                )
+                conn.execute("COMMIT")
+            except Exception as e:
+                if conn.in_transaction:
+                    conn.execute("ROLLBACK")
+                raise ErroMigracao(f"migracao {nome} falhou e foi desfeita inteira: {e}") from e
+            aplicadas.append(nome)
+    finally:
+        conn.close()
+    return aplicadas
 
 
 def _garantir_indices(conn):

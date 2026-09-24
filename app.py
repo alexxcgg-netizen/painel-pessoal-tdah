@@ -30,6 +30,7 @@ import bank_ofx
 import caldav_client
 import cards
 import claude_client
+import classificador_local
 import clima
 import criptografia
 import estudo
@@ -42,6 +43,7 @@ import noticias
 import notificacoes
 import pluggy_client
 import push_client
+import rotas
 import streak
 import telegram_bot
 import uber_client
@@ -464,6 +466,10 @@ def _verificar_autenticacao():
         "/api/atalho/comando-voz",
     ):
         return None
+    # Fase 7: rota maquina-a-maquina declarada por um blueprint de rotas/
+    # (ROTAS_COM_TOKEN / PREFIXOS_COM_TOKEN) - a propria rota checa o token.
+    if rotas.rota_com_token(path):
+        return None
 
     conn = get_db()
     try:
@@ -668,6 +674,24 @@ def _executar_captura(text: str, clarificacao: str, client_id: str = ""):
         conn.close()
         if cache:
             return cache
+
+    # Fase 7 (Etapa 0): regra local (classificador_local/regras/) resolve sem
+    # IA - casou e executou, a resposta e so o envelope de cards da regra.
+    local = classificador_local.casar(text)
+    if local:
+        conn = get_db()
+        envelope_local = classificador_local.executar(conn, local, _criar_token_desfazer(conn))
+        if envelope_local is not None:
+            corpo = {"acao": local["acao"], "regra_local": local["regra"]}
+            corpo.update(envelope_local)
+            if client_id:
+                _gravar_resposta_capture(conn, client_id, corpo, 201)
+            _marcar_atividade(conn)
+            conn.commit()
+            conn.close()
+            return jsonify(_resposta_contrato(corpo)), 201
+        conn.close()
+
     inicio_captura = time.perf_counter()
 
     full_text = f"{text}. Contexto adicional: {clarificacao}" if clarificacao else text
@@ -793,7 +817,21 @@ def _classificar_intent(conn, texto: str, somente_local: bool = False):
     -> onde buscar" (aprendizado.consulta_conhecida) - consulta de formato
     conhecido resolve local, sem API. `somente_local=True` (usado pelo chat,
     que ja tem a propria IA com tool-use depois) para aqui e devolve
-    (None, None) quando nenhuma camada local resolveu - nunca chama a API."""
+    (None, None) quando nenhuma camada local resolveu - nunca chama a API.
+
+    Fase 7 (Etapa 0): a PRIMEIRA camada e classificador_local (regras por
+    arquivo em classificador_local/regras/) - so classifica aqui, com o
+    campo aditivo "regra_local"; quem executa e chat/captura."""
+    local = classificador_local.casar(texto)
+    if local:
+        return {
+            "acao": local["acao"],
+            "confianca": local["confianca"],
+            "parametros": local["parametros"],
+            "precisa_confirmacao": local["precisa_confirmacao"],
+            "regra_local": local["regra"],
+        }, None
+
     padrao = aprendizado.padrao_intent_confiavel(conn, texto)
     conhecida = aprendizado.consulta_conhecida(texto)
     if padrao:
@@ -2740,6 +2778,22 @@ def _processar_mensagem_chat(
     envelope do contrato de cards (docs/CARDS.md: cards, resumo_texto,
     passos). O Telegram nao passa e continua recebendo so o texto."""
     materializar_tarefas_recorrentes(conn)
+
+    # Fase 7 (Etapa 0): regra local (classificador_local/regras/) antes de
+    # qualquer IA - casou e executou, responde so com os cards da regra.
+    local = classificador_local.casar(texto)
+    if local:
+        envelope_local = classificador_local.executar(conn, local, _criar_token_desfazer(conn))
+        if envelope_local is not None:
+            resposta = envelope_local["resumo_texto"] or "Feito."
+            envelope_local["resumo_texto"] = resposta
+            salvar_mensagem_chat(conn, "user", texto)
+            salvar_mensagem_chat(conn, "assistant", resposta, envelope_local["cards"])
+            _marcar_atividade(conn)
+            if detalhes is not None:
+                detalhes.update(envelope_local)
+            return resposta, [local["acao"]], None
+
     historico = list(reversed(list_chat_mensagens(conn, limit=20)))
     mensagens = [{"role": r["papel"], "content": r["texto"]} for r in historico]
     mensagens.append({"role": "user", "content": texto})
@@ -8374,6 +8428,11 @@ def iniciar_scheduler():
         # rodar_backup_automatico_semanal pro que ele faz
         scheduler.add_job(rodar_backup_automatico_semanal, "cron", day_of_week="sun", hour=3, minute=0)
         scheduler.start()
+
+
+# Fase 7: rotas por Blueprint (rotas/*.py, carga automatica) - SEMPRE no fim,
+# depois de todo helper que os blueprints usam via rotas._base.app_modulo().
+rotas.registrar_todas(app)
 
 
 if __name__ == "__main__":
