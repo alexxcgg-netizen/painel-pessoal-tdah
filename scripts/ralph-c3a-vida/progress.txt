@@ -19,6 +19,8 @@ Botao adicionar: os 10 ja eram .btn.btn-adicionar + sheet. Secao sem recolhivel:
   "teste-fake", *_proxy apagados e connect() fora do loopback/porta do proxy RECUSADO e logado;
   Playwright aborta host externo e dubla /api/summary/today. Contagem de tentativas: 0.
 ## H4 testes - FEITA: 6 suites vida/estrutura 199 passed; JS 219/219; c2/m1/c3b 21 passed.
+## H5 - FEITA: merge c3c; capturar.py -> c3a-vida-secoes.png e c3a-vida-sheet.png (fora do git,
+## .gitignore da pasta); fuzz final 56/56; changelog.d/c3a-vida.md.
 
 ## PENDENCIAS pra outros donos (nao editei)
 1. static/js/ui/bottom-sheet.js (V0d/C2) fecharBottomSheet: setTimeout(finalizar,240) nao e

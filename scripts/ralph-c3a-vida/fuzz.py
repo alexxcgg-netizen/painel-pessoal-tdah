@@ -292,9 +292,8 @@ def montar_cenarios():
             page.route("**/api/mensagem-dificil", responde(status, corpo))
             page.fill("#mensagem-situacao", GIGANTE)
             page.click("#mensagem-btn")
-            time.sleep(0.5)
+            page.wait_for_function("!document.getElementById('mensagem-btn').disabled", timeout=4000)
             page.unroute("**/api/mensagem-dificil")
-            assert not page.evaluate("document.getElementById('mensagem-btn').disabled"), "botao travado"
         fechar_tudo(page)
     cen.append(c13)
 
@@ -305,9 +304,8 @@ def montar_cenarios():
             page.route("**/api/decisao", responde(status, corpo))
             page.fill("#decisao-pergunta", GIGANTE)
             page.click("#decisao-btn")
-            time.sleep(0.5)
+            page.wait_for_function("!document.getElementById('decisao-btn').disabled", timeout=4000)
             page.unroute("**/api/decisao")
-            assert not page.evaluate("document.getElementById('decisao-btn').disabled"), "botao travado"
         fechar_tudo(page)
     cen.append(c14)
 

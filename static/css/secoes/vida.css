@@ -149,6 +149,11 @@
   box-shadow: var(--anel-foco);
 }
 
+/* Respiro entre o botao de adicionar e a lista (grade de 8px) - antes encostavam. */
+#tab-vida .secao-recolhivel.vida-acabamento .btn-adicionar {
+  margin-bottom: var(--espaco-3, 1rem);
+}
+
 /* ---------- Estado vazio: frase curta em --text-muted, sem caixa pesada (MASTER 6). */
 #tab-vida .secao-recolhivel.vida-acabamento .vazio {
   margin: var(--espaco-2, 0.5rem) 0 0;
