@@ -42,6 +42,7 @@ import noticias
 import notificacoes
 import pluggy_client
 import push_client
+import rotas
 import streak
 import telegram_bot
 import uber_client
@@ -463,6 +464,10 @@ def _verificar_autenticacao():
         "/api/atalho/app",
         "/api/atalho/comando-voz",
     ):
+        return None
+    # Fase 7: rota maquina-a-maquina declarada por um blueprint de rotas/
+    # (ROTAS_COM_TOKEN / PREFIXOS_COM_TOKEN) - a propria rota checa o token.
+    if rotas.rota_com_token(path):
         return None
 
     conn = get_db()
@@ -8374,6 +8379,11 @@ def iniciar_scheduler():
         # rodar_backup_automatico_semanal pro que ele faz
         scheduler.add_job(rodar_backup_automatico_semanal, "cron", day_of_week="sun", hour=3, minute=0)
         scheduler.start()
+
+
+# Fase 7: rotas por Blueprint (rotas/*.py, carga automatica) - SEMPRE no fim,
+# depois de todo helper que os blueprints usam via rotas._base.app_modulo().
+rotas.registrar_todas(app)
 
 
 if __name__ == "__main__":
