@@ -13,3 +13,6 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
   RespostaInvalida + classificar_falha/excecao_de_resposta. A6/A7/A8/A9 levantam a certa;
   _call_claude: teto 402 TETO_IA_MSG, provedor 502 CLAUDE_ERROR_MSG. Visao levantava
   RuntimeError (500 cru) - corrigido. Plano dentro do chat com teto nao derruba a conversa.
+[done] H3 fechamento_noturno x P3: app._briefing_noite_p3_substitui_fechamento -
+  com assistente.p3.ativo ligada E PAINEL_TICK_TOKEN configurado, o push antigo
+  das 21h fica calado (sem tick o briefing nunca sai, entao o antigo continua).

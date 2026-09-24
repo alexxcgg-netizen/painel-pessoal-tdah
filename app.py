@@ -4332,6 +4332,25 @@ def _avisos_proatividade_e8(conn, agora: datetime) -> list[tuple[str, int, str, 
     return avisos
 
 
+def _briefing_noite_p3_substitui_fechamento(conn) -> bool:
+    """Fase 7 (C1): True quando o briefing da noite da P3 (assistente/
+    briefing.py, item "briefing" da Caixa, push pelo /api/tick) e quem fala
+    com o Alex a noite - ai o push antigo `fechamento_noturno` fica calado pra
+    nao chegar 2 pushes parecidos as 21h. Precisa das duas coisas: a flag
+    `assistente.p3.ativo` ligada (padrao) E o tick configurado
+    (PAINEL_TICK_TOKEN) - sem tick o briefing nunca sai, entao o fechamento
+    antigo continua. Qualquer erro -> False (mantem o aviso antigo)."""
+    if not os.environ.get("PAINEL_TICK_TOKEN"):
+        return False
+    try:
+        from assistente import briefing as briefing_p3
+
+        return bool(briefing_p3.ativo(conn))
+    except Exception:  # noqa: BLE001
+        app.logger.exception("C1: falha ao consultar a flag do briefing da P3")
+        return False
+
+
 def verificar_e_notificar():
     """Roda as verificacoes proativas e manda pra quem tiver canal configurado
     (push web e/ou Telegram) - cada tipo de aviso so dispara uma vez por dia
@@ -4556,7 +4575,14 @@ def verificar_e_notificar():
 
     # Fechamento ativo do dia (21h, uma hora antes da hora_de_dormir) - manda
     # o fechamento sozinho em vez de esperar o Alex abrir a aba Painel.
-    if notificacoes.fechamento_noturno_devido() and not ja_notificou_hoje(conn, "fechamento_noturno"):
+    # Fase 7 (C1): com o briefing da noite da P3 valendo (flag
+    # assistente.p3.ativo + tick configurado), o fechamento antigo sai de cena
+    # - o briefing da P3 ja traz o mesmo fechamento e sai por push pela Caixa.
+    if (
+        notificacoes.fechamento_noturno_devido()
+        and not _briefing_noite_p3_substitui_fechamento(conn)
+        and not ja_notificou_hoje(conn, "fechamento_noturno")
+    ):
         avisos.append(
             ("fechamento_noturno", 0, "Fechando o dia", notificacoes.mensagem_fechamento_noturno(conn))
         )
