@@ -1,0 +1,23 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="5"/></svg>
+        Diário de decisão
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao do diario de decisao"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Decisao importante que voce quer poder revisar depois se deu certo - o que decidiu, o
+          contexto/motivo na hora. No chat: "decidi trocar de corretora por causa da taxa menor".
+          Depois preenche o resultado com um toque, quando souber como foi.
+        </p>
+      </div>
+      <form id="diario-decisao-form" class="form-linha">
+        <input type="text" id="diario-decisao-texto" placeholder="O que voce decidiu?" maxlength="200" required />
+        <input type="text" id="diario-decisao-contexto" placeholder="Por que? (opcional)" maxlength="300" />
+        <button type="submit" id="diario-decisao-btn" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Registrar
+        </button>
+      </form>
+      <p id="diario-decisoes-vazio" class="vazio" hidden>Nenhuma decisao registrada ainda.</p>
+      <ul id="lista-diario-decisoes"></ul>
+

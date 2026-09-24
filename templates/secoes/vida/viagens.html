@@ -1,0 +1,23 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-aviacao)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg>
+        Viagens
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de viagens"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Viagem pessoal (voo do aeroclube fica na aba Aviacao). "Montar mala" pede um checklist pra IA baseado no destino e no clima. Avisa de documento 3 dias antes e no dia.
+        </p>
+      </div>
+      <form id="viagem-nova-form" class="form-linha">
+        <input type="text" id="viagem-nova-destino" placeholder="Destino" maxlength="80" required />
+        <input type="date" id="viagem-nova-ida" aria-label="Data de ida" required />
+        <input type="date" id="viagem-nova-volta" aria-label="Data de volta (opcional)" />
+        <label class="checkbox-linha">
+          <input type="checkbox" id="viagem-nova-internacional" />
+          <span>Viagem internacional</span>
+        </label>
+        <button type="submit" id="viagem-nova-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+      <p id="viagens-vazio" class="vazio" hidden>Nenhuma viagem marcada.</p>
+      <ul id="lista-viagens"></ul>
+

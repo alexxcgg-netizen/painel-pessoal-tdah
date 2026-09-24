@@ -1,0 +1,19 @@
+      <h2 class="secao-secundaria" style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7Z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7Z"/></svg>
+        Ideias de presente
+      </h2>
+      <div class="dica-colapsavel">
+        <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de ideias de presente"></button>
+        <p class="dica-metas dica-texto" hidden>
+          Anota ideia de presente pra uma pessoa ao longo do ano - marca "comprado" quando resolver, pra nao esquecer na hora certa.
+        </p>
+      </div>
+      <form id="ideia-presente-form" class="form-linha">
+        <input type="text" id="ideia-presente-pessoa" placeholder="Pra quem?" maxlength="80" required />
+        <input type="text" id="ideia-presente-ideia" placeholder="Ideia de presente" maxlength="200" required />
+        <input type="text" id="ideia-presente-ocasiao" placeholder="Ocasiao (opcional)" maxlength="60" />
+        <button type="submit" id="ideia-presente-btn" class="btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+      </form>
+      <p id="ideias-presente-vazio" class="vazio" hidden>Nenhuma ideia guardada.</p>
+      <ul id="lista-ideias-presente"></ul>
+
