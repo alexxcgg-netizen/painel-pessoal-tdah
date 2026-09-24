@@ -13,6 +13,7 @@ antes do autoloader de `migracoes/` (Etapa 0/X1) estar de pe.
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 import sqlite3
 from datetime import datetime, timedelta
@@ -230,11 +231,15 @@ def resolver(item_id: str, resposta: str, texto: str = "") -> None:
 
 
 def _chamar_ao_resolver(conn: sqlite3.Connection, item: dict, resposta: str, texto: str) -> None:
-    """origem = '<prefixo>:<id-do-dono>' (ex.: 'p2_conta:123'). O prefixo e
-    exatamente o nome do modulo assistente/gatilhos/<prefixo>.py - se ele
-    (ou o ao_resolver dentro dele) nao existir, e um no-op silencioso: as
-    faixas P2..P9 ainda podem nao ter sido escritas, e um bug numa delas
-    nunca pode derrubar o resolver de outra."""
+    """origem = '<modulo_do_gatilho>:<resto>' (ex.: 'p9_memoria:semana-39:abc',
+    'p2_perguntas:conta:12:2026-09-24'). Definicao do integrador (substitui
+    o texto ambiguo do contrato): <modulo_do_gatilho> e o nome EXATO do
+    arquivo em assistente/gatilhos/ sem '.py' - divide no PRIMEIRO ':',
+    nunca no '_' (o nome do modulo pode ter '_' dentro, ex. p2_perguntas).
+    Se o modulo (ou o ao_resolver dentro dele) nao existir, e um no-op
+    silencioso: so registra a resposta, sem erro - as faixas P2..P9 ainda
+    podem nao ter sido escritas, e um bug numa delas nunca pode derrubar o
+    resolver de outra."""
     origem = item.get("origem") or ""
     prefixo = origem.split(":", 1)[0].strip()
     if not prefixo:
@@ -304,15 +309,33 @@ def expirar(conn: sqlite3.Connection, agora: datetime) -> int:
     return cur.rowcount
 
 
+def _fallback_silencio_padrao(agora: datetime) -> bool:
+    return not notificacoes.dentro_do_horario_silencioso(agora, "22:00", "07:00")
+
+
 def _aviso_permitido(tipo: str, agora: datetime) -> bool:
+    """Import tardio de assistente.avisos.aviso_permitido (faixa P8) - se
+    ainda nao existir (ou for so o stub NotImplementedError de
+    assistente/contrato.py), cai no fallback fixo (permitido fora de
+    22h-7h, sem olhar configuracoes). A implementacao real de P8 aceita um
+    `agora` opcional (pra ser testavel sem depender do relogio real) -
+    passamos o nosso quando ela aceita esse parametro (checado via
+    inspect, em vez de tentar/capturar TypeError, pra nao confundir um bug
+    de verdade dentro dela com "essa versao nao tem agora")."""
     try:
         from assistente.avisos import aviso_permitido
     except (ImportError, ModuleNotFoundError):
-        return not notificacoes.dentro_do_horario_silencioso(agora, "22:00", "07:00")
+        return _fallback_silencio_padrao(agora)
     try:
+        aceita_agora = "agora" in inspect.signature(aviso_permitido).parameters
+    except (TypeError, ValueError):
+        aceita_agora = False
+    try:
+        if aceita_agora:
+            return bool(aviso_permitido(tipo, agora=agora))
         return bool(aviso_permitido(tipo))
     except NotImplementedError:
-        return not notificacoes.dentro_do_horario_silencioso(agora, "22:00", "07:00")
+        return _fallback_silencio_padrao(agora)
 
 
 def enviar_push(conn: sqlite3.Connection, titulo: str, corpo: str, url: str = "") -> bool:

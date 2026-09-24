@@ -1,16 +1,14 @@
 """Faixa P1a (Fase 7) - testes de rotas/p1a_caixa.py: o Blueprint e testado
-isolado (Flask app minimo, so com `bp` registrado) porque o autoloader que
-registra os blueprints de verdade em app.py e o dispara-sozinho da checagem
-de sessao pro que NAO esta em ROTAS_COM_TOKEN sao infra da Etapa 0/X1, ainda
-nao mesclada nesta integracao - ver docs/agentes/fase7-regras-faixa.md.
-Isso testa a logica das rotas (JSON, status code, checagem de token do
-tick) sem depender dessa mescla."""
+isolado (Flask app minimo, so com `bp` registrado, sem passar por
+rotas.registrar_todas/app.py) pra nao depender do resto do app (PIN,
+demais blueprints) so pra testar a logica DESTE blueprint - sessao/PIN em
+volta de /api/assistente/caixa* e coberta pelo `@app.before_request`
+global de app.py (rotas/_base.py, Etapa 0/X1), nao por este blueprint.
+Isso testa JSON, status code e a checagem de token do /api/tick."""
 
 import json
 import os
-import sys
 import tempfile
-import types
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -220,47 +218,32 @@ class RotasP1aTestCase(unittest.TestCase):
         ).fetchone()["n"]
         self.assertEqual(total, 1)
 
-    def test_tick_chama_executar_todos_quando_existe(self):
-        chamadas = []
-
-        def executar_todos_falso(conn, agora):
-            chamadas.append(agora)
-            return {"ok": True}
-
-        modulo = types.ModuleType("assistente.gatilhos")
-        modulo.executar_todos = executar_todos_falso
-        sys.modules["assistente.gatilhos"] = modulo
+    def test_tick_chama_executar_todos_de_verdade(self):
+        # assistente.gatilhos.executar_todos (Etapa 0/X1) roda de verdade -
+        # sem gatilho nenhum registrado (nenhum arquivo meu em
+        # assistente/gatilhos/), devolve {} (relatorio vazio), nao None.
         self._datetime_travado(self.AGORA_TESTE)
-        try:
-            resp = self.client.post("/api/tick", headers={"Authorization": "Bearer token-de-teste-123"})
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(resp.get_json()["gatilhos"], {"ok": True})
-            self.assertEqual(chamadas, [self.AGORA_TESTE])
-        finally:
-            sys.modules.pop("assistente.gatilhos", None)
-
-    def test_tick_gatilho_com_bug_nao_derruba_a_rota(self):
-        def executar_todos_com_bug(conn, agora):
-            raise RuntimeError("bug de outra faixa")
-
-        modulo = types.ModuleType("assistente.gatilhos")
-        modulo.executar_todos = executar_todos_com_bug
-        sys.modules["assistente.gatilhos"] = modulo
-        try:
-            resp = self.client.post("/api/tick", headers={"Authorization": "Bearer token-de-teste-123"})
-            self.assertEqual(resp.status_code, 200)
-            self.assertTrue(resp.get_json()["ok"])
-            self.assertIn("erro", resp.get_json()["gatilhos"])
-        finally:
-            sys.modules.pop("assistente.gatilhos", None)
-
-    def test_tick_sem_assistente_gatilhos_nao_quebra(self):
-        # assistente.gatilhos nao existe ainda nesta integracao (Etapa 0/X1) -
-        # a rota tem que continuar funcionando mesmo assim.
-        self.assertNotIn("assistente.gatilhos", sys.modules)
         resp = self.client.post("/api/tick", headers={"Authorization": "Bearer token-de-teste-123"})
         self.assertEqual(resp.status_code, 200)
-        self.assertIsNone(resp.get_json()["gatilhos"])
+        self.assertEqual(resp.get_json()["gatilhos"], {})
+
+    def test_tick_repassa_relatorio_de_executar_todos(self):
+        with patch("rotas.p1a_caixa.executar_todos", return_value={"p2_perguntas": {"ok": True}}) as mock_exec:
+            self._datetime_travado(self.AGORA_TESTE)
+            resp = self.client.post("/api/tick", headers={"Authorization": "Bearer token-de-teste-123"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["gatilhos"], {"p2_perguntas": {"ok": True}})
+        mock_exec.assert_called_once()
+        self.assertEqual(mock_exec.call_args.args[1], self.AGORA_TESTE)
+
+    def test_tick_erro_inesperado_no_agregador_nao_derruba_a_rota(self):
+        # executar_todos ja isola erro de CADA gatilho sozinha; isto cobre um
+        # bug inesperado na propria agregadora (ex.: pkgutil falhando).
+        with patch("rotas.p1a_caixa.executar_todos", side_effect=RuntimeError("bug inesperado")):
+            resp = self.client.post("/api/tick", headers={"Authorization": "Bearer token-de-teste-123"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.get_json()["ok"])
+        self.assertIn("erro", resp.get_json()["gatilhos"])
 
     # ---- GET /api/assistente/saude ---------------------------------------
 

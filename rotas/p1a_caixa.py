@@ -20,6 +20,7 @@ from flask import Blueprint, jsonify, request
 
 import db
 from assistente import caixa
+from assistente.gatilhos import executar_todos
 
 bp = Blueprint("p1a_caixa", __name__)
 
@@ -92,27 +93,22 @@ def responder_caixa(item_id):
 def tick():
     """Chamado a cada poucos minutos por um cron externo (docs/tick.md).
     Roda todo gatilho do assistente (assistente.gatilhos.executar_todos -
-    Etapa 0/X1; se ainda nao existir nesta integracao, so pula essa parte
-    sem quebrar o resto do tick), depois repeticao e expiracao da Caixa, e
-    registra o horario pra /api/assistente/saude. Idempotente por
-    construcao: rodar 2x no mesmo minuto nao duplica item (chave_unica) nem
-    manda push a mais (processar_repeticoes respeita pushes_hoje)."""
+    Etapa 0/X1; ela mesma isola a excecao de CADA gatilho, entao um gatilho
+    com bug nunca derruba os outros nem o resto do tick), depois repeticao
+    e expiracao da Caixa, e registra o horario pra /api/assistente/saude.
+    Idempotente por construcao: rodar 2x no mesmo minuto nao duplica item
+    (chave_unica) nem manda push a mais (processar_repeticoes respeita
+    pushes_hoje)."""
     if not _token_valido():
         return jsonify({"error": "token invalido"}), 401
 
     agora = datetime.now()
     conn = db.get_db()
     try:
-        gatilhos_resultado = None
         try:
-            from assistente.gatilhos import executar_todos
-        except ImportError:
-            executar_todos = None
-        if executar_todos is not None:
-            try:
-                gatilhos_resultado = executar_todos(conn, agora)
-            except Exception as exc:  # 1 gatilho com bug nao pode derrubar o tick inteiro
-                gatilhos_resultado = {"erro": str(exc)}
+            gatilhos_resultado = executar_todos(conn, agora)
+        except Exception as exc:  # nunca deixa um bug do proprio agregador derrubar o tick
+            gatilhos_resultado = {"erro": str(exc)}
 
         repeticoes = caixa.processar_repeticoes(conn, agora)
         expirados = caixa.expirar(conn, agora)
