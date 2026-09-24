@@ -5,10 +5,10 @@ O **Widgy** é um app de widgets personalizáveis que lê dados em JSON via HTTP
 ## Antes de começar
 
 - Instale o **Widgy** (App Store, versão gratuita com recursos básicos).
-- Tenha o endereço do painel e o token de acesso (se configurado).
-- O endpoint que o Widgy vai chamar: `GET /api/widget`
-  - **Com token**: `GET /api/widget?token=<PAINEL_WIDGET_TOKEN>`
-  - **Sem token**: `GET /api/widget` (funciona se não houver autenticação configurada)
+- Configure `PAINEL_WIDGET_TOKEN` no `.env` do painel **antes** de tentar usar
+  o widget — sem ele, o endpoint sempre devolve 401, mesmo sem nenhum token
+  na URL (nunca fica aberto por padrão).
+- O endpoint que o Widgy vai chamar: `GET /api/widget?token=<PAINEL_WIDGET_TOKEN>`
 
 ## Estrutura do JSON
 
