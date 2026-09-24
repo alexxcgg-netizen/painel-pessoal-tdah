@@ -21,3 +21,22 @@ Worktree /home/user/painel-pessoal-tdah-fase7-c3b-viagens, porta 5132, banco sin
   - hidden: nenhum card visivel com [hidden].
   - Vazamento externo: static/css/secoes/vida/habitos.css (dono c3a) estiliza
     `.bottom-sheet` SEM escopo (margin/padding/borda/fundo) e pega TODO sheet do app.
+
+[x] H2 - Correcoes (so arquivos da C3b). Re-auditoria: 0 erro de console, 0 alvo <44px,
+  0 contraste <4.5, 0 botao nativo (sobra so atribuicao do Leaflet: link 14px e "(c)",
+  terceiro/legal, nao mexo). Feito: Viagens/Lugares/Cotacoes/Proximos voos/METAR viram
+  .secao-recolhivel (abertas); Registrar voo vira .btn-adicionar + #voo-sheet; os 4
+  sheets sem .bottom-sheet-painel a mao (V0d monta fundo/alca/toque-fora), com titulo,
+  rotulo acima do campo e "Salvar X"; CSS local duplicado do sheet removido; itens viram
+  bloco interno (sem card no card); "Salvar"/"Ver no mapa" -> .btn.btn-secundario; Windy
+  sem azul nativo; x do fornecedor vira SVG 44px; valores R$ em mono tabular; mapa do
+  Leaflet abria com 26px (bug antigo de cascata) -> 180px; guardas Array.isArray.
+  PARA O INTEGRADOR (arquivos fora da minha lista, NAO editados):
+  - static/css/style.css ~l.990: `.tab-content` anima com fill `both` e deixa transform
+    -> todo `position:fixed` dentro da aba (TODOS os .bottom-sheet do app) cobre a aba e
+    nao a tela; painel abria no meio/fora da tela. Contorno local: levarSheetProBody()
+    em secoes/vida/viagens.js. Correcao certa: fill `backwards` ou V0d portar pro <body>.
+  - static/css/secoes/vida/habitos.css (`.bottom-sheet` sem escopo) e secoes/vida.css
+    (`#tab-vida .bottom-sheet`) pintam o overlay fixo inteiro; neutralizado nos meus 4 IDs.
+  - style.css ~l.3353 `.campo-rotulo` em MAIUSCULAS; campo.css (V0c) nao reseta.
+  - card de timeline da viagem (cards.js) fica card-dentro-de-bloco; e de cards.js.

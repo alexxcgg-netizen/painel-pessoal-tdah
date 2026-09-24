@@ -5,7 +5,7 @@
 function renderItensMala(v, li) {
   const antigo = li.querySelector(".mala");
   if (antigo) antigo.remove();
-  if (!v.itens.length) return;
+  if (!Array.isArray(v.itens) || !v.itens.length) return;
   const ul = criarEl("ul", "checklist mala");
   v.itens.forEach((item) => {
     const itemLi = criarEl("li", "checklist-item" + (item.feito ? " feito" : ""));
@@ -46,11 +46,12 @@ function criarBlocoVoo(v, li) {
   const form = criarEl("form", "form-linha viagem-voo-form");
   const input = document.createElement("input");
   input.type = "text";
+  input.className = "campo";
   input.placeholder = "Numero do voo (ex: LA3251)";
   input.maxLength = 12;
   input.value = v.numero_voo || "";
   input.setAttribute("aria-label", `Numero do voo da viagem para ${v.destino}`);
-  const salvarBtn = criarEl("button", "btn-com-icone", v.numero_voo ? "atualizar" : "salvar");
+  const salvarBtn = criarEl("button", "btn btn-secundario", v.numero_voo ? "Atualizar" : "Salvar");
   salvarBtn.type = "submit";
   form.appendChild(input);
   form.appendChild(salvarBtn);
@@ -81,10 +82,10 @@ function criarBlocoVoo(v, li) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ numero_voo: input.value.trim() }),
     });
-    setBotaoCarregando(salvarBtn, false, v.numero_voo ? "atualizar" : "salvar");
+    setBotaoCarregando(salvarBtn, false, v.numero_voo ? "Atualizar" : "Salvar");
     if (!r) return;
     v.numero_voo = r.numero_voo;
-    salvarBtn.textContent = v.numero_voo ? "atualizar" : "salvar";
+    salvarBtn.textContent = v.numero_voo ? "Atualizar" : "Salvar";
     carregarStatus();
   });
 
@@ -122,14 +123,16 @@ function criarStatusVooEl(r) {
 
 async function loadViagens() {
   const viagens = await apiFetch("/api/viagens");
-  if (!viagens) return;
+  if (!Array.isArray(viagens)) return; // null (erro ja mostrado) ou resposta fora do formato
   const lista = $("#lista-viagens");
   lista.innerHTML = "";
   $("#viagens-vazio").hidden = viagens.length > 0;
   viagens.forEach((v) => {
     const datas = v.data_volta ? `${fmtDataBr(v.data_ida)} a ${fmtDataBr(v.data_volta)}` : fmtDataBr(v.data_ida);
     const quando = v.dias_ate > 0 ? `em ${v.dias_ate} dia(s)` : v.dias_ate === 0 ? "hoje" : "em andamento";
-    const lugares = v.lugares.length ? `voce curtiu la: ${v.lugares.map((l) => l.nome).join(", ")}` : null;
+    v.itens = Array.isArray(v.itens) ? v.itens : [];
+    const lugaresV = Array.isArray(v.lugares) ? v.lugares : [];
+    const lugares = lugaresV.length ? `voce curtiu la: ${lugaresV.map((l) => l.nome).join(", ")}` : null;
     const tipoViagem = v.internacional ? "internacional" : "nacional";
     const malaBtn = criarEl("button", "btn-com-icone", v.itens.length ? "refazer mala" : "montar mala");
     let li;
@@ -151,13 +154,23 @@ async function loadViagens() {
   });
 }
 
-// Fase 7 (V5-extra): botao "Nova viagem" abre o formulario num bottom-sheet
-// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/
-// fecharBottomSheet (faixa V0d) quando existir; se a faixa ainda nao chegou
-// nesta branch, cai no fallback de so alternar o atributo hidden do painel
-// (mesmo padrao ja usado em secoes/vida/habitos.js).
+// Fase 7 (V5-extra/C3b): "Nova viagem" abre o formulario no bottom-sheet
+// compartilhado (static/js/ui/bottom-sheet.js, V0d - ESC, toque fora, foco
+// preso e devolvido ficam todos la). Fallback so pro caso de o componente
+// nao ter carregado: alterna o atributo hidden.
+// A aba (.tab-content) entra com `animation: ... both`, que deixa um `transform`
+// no fim - e todo ancestral com transform vira o bloco de contencao de um
+// `position: fixed`. Resultado: o sheet cobria a ABA inteira (milhares de px)
+// em vez da tela, e o painel abria longe da borda de baixo. Enquanto isso nao
+// e corrigido no style.css/bottom-sheet.js (anotado no progress da C3b), os
+// sheets da faixa C3b vao pro <body> na primeira abertura (idempotente).
+function levarSheetProBody(sheet) {
+  if (sheet && document.body && sheet.parentElement !== document.body) document.body.appendChild(sheet);
+}
+
 function abrirPainelViagem() {
   const sheet = $("#viagem-sheet");
+  levarSheetProBody(sheet);
   if (typeof window.abrirBottomSheet === "function") window.abrirBottomSheet(sheet);
   else sheet.hidden = false;
 }
@@ -173,21 +186,35 @@ $("#viagem-cancelar-btn").addEventListener("click", () => {
   $("#viagem-nova-form").reset();
   fecharPainelViagem();
 });
-// toque-fora/ESC so no fallback (a versao definitiva e da V0d, que ja cuida
-// disso sozinha quando abrirBottomSheet existir).
-$("#viagem-sheet").addEventListener("click", (e) => {
-  if (typeof window.abrirBottomSheet !== "function" && e.target === e.currentTarget) fecharPainelViagem();
-});
-document.addEventListener("keydown", (e) => {
-  if (typeof window.abrirBottomSheet !== "function" && e.key === "Escape" && !$("#viagem-sheet").hidden) fecharPainelViagem();
-});
 
-ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Adicionar", () => {
+// Card de viagem no chat (Fase 6, US-E7) destaca o <li> via cards.js
+// (classe .item-destacado). Com a secao recolhida o <li> esta escondido e o
+// destaque nao aparece - entao reabre a secao quando isso acontece.
+function abrirSecaoSeDestacado(listaSel) {
+  const lista = $(listaSel);
+  if (!lista || typeof MutationObserver === "undefined") return;
+  new MutationObserver((mutacoes) => {
+    const destacado = mutacoes.some((m) => m.target.classList && m.target.classList.contains("item-destacado"));
+    if (!destacado) return;
+    const secao = lista.closest(".secao-recolhivel");
+    if (secao && secao.dataset.aberto !== "true") {
+      const cab = secao.querySelector(".secao-cabecalho");
+      if (cab) cab.click();
+    }
+  }).observe(lista, { attributes: true, attributeFilter: ["class"], subtree: true });
+}
+abrirSecaoSeDestacado("#lista-viagens");
+
+ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Salvar viagem", () => {
   const destino = $("#viagem-nova-destino").value.trim();
   const ida = $("#viagem-nova-ida").value;
-  return destino && ida
-    ? { destino, data_ida: ida, data_volta: $("#viagem-nova-volta").value || null, internacional: $("#viagem-nova-internacional").checked }
-    : null;
+  const volta = $("#viagem-nova-volta").value || null;
+  if (!destino || !ida) return null;
+  if (volta && volta < ida) {
+    mostrarErro("A volta nao pode ser antes da ida.");
+    return null;
+  }
+  return { destino, data_ida: ida, data_volta: volta, internacional: $("#viagem-nova-internacional").checked };
 }, "/api/viagens", () => {
   fecharPainelViagem();
   loadViagens();

@@ -54,7 +54,11 @@ COLETOR = r"""
     if (el.matches('input[type=checkbox], input[type=radio]') && el.closest('label')) alvo = el.closest('label');
     if (el.matches('input[type=file]') && el.closest('label')) return;
     const r = alvo.getBoundingClientRect();
-    if (r.height < 43.5 || r.width < 43.5) toque.push({el: nome(el), w: Math.round(r.width), h: Math.round(r.height)});
+    // area de toque ampliada por ::after invisivel (position:absolute + inset negativo)
+    const depois = getComputedStyle(alvo, '::after');
+    let extra = 0;
+    if (depois.content !== 'none' && depois.position === 'absolute') extra = Math.max(0, -parseFloat(depois.top) || 0) * 2;
+    if (r.height + extra < 43.5 || r.width + extra < 43.5) toque.push({el: nome(el), w: Math.round(r.width), h: Math.round(r.height)});
   });
   // --- contraste
   const parse = c => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; };
@@ -108,18 +112,26 @@ COLETOR = r"""
     const t = el.textContent.trim().toLowerCase();
     if (/^(\+|nova|novo|adicionar|\+ adicionar|criar)/.test(t) && !(el.classList.contains('btn'))) addFora.push(nome(el));
   });
-  // --- botoes crus (sem .btn nem estilo de componente) - aparencia antiga
+  // --- botao/link com aparencia nativa do navegador (cinza #efefef ou azul de link)
   const crus = [];
   tocaveis.forEach(el => {
-    if (el.tagName !== 'BUTTON' || !visivel(el)) return;
-    if (el.classList.contains('btn') || el.classList.contains('dica-toggle') || el.classList.contains('btn-ouvir') || el.closest('.leaflet-container')) return;
-    crus.push(nome(el) + ' bg=' + getComputedStyle(el).backgroundColor + ' h=' + Math.round(el.getBoundingClientRect().height));
+    if (!el.matches('button, a') || !visivel(el) || el.closest('.leaflet-container')) return;
+    const cs = getComputedStyle(el);
+    if (cs.backgroundColor === 'rgb(239, 239, 239)' || cs.color === 'rgb(0, 0, 238)' || cs.color === 'rgb(85, 26, 139)')
+      crus.push(nome(el) + ' bg=' + cs.backgroundColor + ' cor=' + cs.color);
   });
   const recolhivel = elems.some(e => e.matches('.secao-recolhivel') || e.querySelector('.secao-recolhivel'));
   const altura = elems.reduce((s, e) => s + (visivel(e) ? e.getBoundingClientRect().height : 0), 0);
   return {toque, contraste, emoji, hiddenVisivel, addFora, crus, recolhivel, altura: Math.round(altura)};
 }
 """
+
+
+GEO_SHEET = """(id) => { const s = document.getElementById(id); const cs = getComputedStyle(s);
+    const p = s.querySelector('.bottom-sheet-painel'); const r = p.getBoundingClientRect();
+    return {aberto: !s.hidden, bg: cs.backgroundColor, padding: cs.padding, borda: cs.borderTopWidth,
+            fundo: !!s.querySelector('.bottom-sheet-fundo'), alca: !!s.querySelector('.bottom-sheet-alca'),
+            painelTopo: Math.round(r.top), painelFim: Math.round(r.bottom), foco: document.activeElement && document.activeElement.id}; }"""
 
 
 def main():
@@ -148,16 +160,21 @@ def main():
             btn.click()
         page.wait_for_selector("#lista-lugares .leaflet-container", timeout=8000)
         page.wait_for_timeout(600)
-        res["viagens"] = page.evaluate(COLETOR, ["#tab-vida", "Viagens"])
-        res["lugares"] = page.evaluate(COLETOR, ["#tab-vida", "Lugares que gostei"])
+        res["viagens"] = page.evaluate(COLETOR, ['[data-secao-id="vida-viagens"]', None])
+        res["lugares"] = page.evaluate(COLETOR, ['[data-secao-id="vida-lugares"]', None])
         page.click("#viagem-abrir-btn")
         page.wait_for_timeout(500)
         res["viagem_sheet"] = page.evaluate(COLETOR, ["#viagem-sheet", None])
-        res["viagem_sheet_geo"] = page.evaluate("""() => { const s = document.querySelector('#viagem-sheet');
-            const cs = getComputedStyle(s); const p = s.querySelector('.bottom-sheet-painel');
-            return {bg: cs.backgroundColor, padding: cs.padding, border: cs.borderTopWidth,
-                    fundo: !!s.querySelector('.bottom-sheet-fundo'), alca: !!s.querySelector('.bottom-sheet-alca'),
-                    painelTop: Math.round(p.getBoundingClientRect().top), painelH: Math.round(p.getBoundingClientRect().height)}; }""")
+        res["sheets_geo"] = {}
+        for sid, abre in (("viagem-sheet", None), ("lugar-sheet", "#lugar-abrir-btn")):
+            if abre:
+                page.click(abre)
+                page.wait_for_timeout(500)
+            res["sheets_geo"][sid] = page.evaluate(GEO_SHEET, sid)
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(400)
+        page.click("#viagem-abrir-btn")
+        page.wait_for_timeout(500)
         if shots:
             page.screenshot(path=os.path.join(AQUI, "c3b-viagem-sheet.png"))
         page.keyboard.press("Escape")
@@ -168,7 +185,12 @@ def main():
         page.wait_for_selector("#lista-cotacoes li", timeout=8000)
         page.click("#lista-cotacoes .cotacao-cabecalho")
         page.wait_for_selector("#lista-cotacoes .cotacao-grafico", timeout=8000)
-        res["cotacoes"] = page.evaluate(COLETOR, ["#tab-construtora", "Cotacoes"])
+        page.click("#cotacao-abrir-btn")
+        page.wait_for_timeout(500)
+        res["sheets_geo"]["cotacao-sheet"] = page.evaluate(GEO_SHEET, "cotacao-sheet")
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(400)
+        res["cotacoes"] = page.evaluate(COLETOR, ['[data-secao-id="construtora-cotacoes"]', None])
 
         # Aviacao
         abrir_aba(page, "aviacao")
@@ -178,6 +200,12 @@ def main():
         page.wait_for_selector("#metar-resultado:not([hidden])", timeout=8000)
         page.wait_for_timeout(500)
         res["aviacao"] = page.evaluate(COLETOR, ["#tab-aviacao", None])
+        page.click("#voo-abrir-btn")
+        page.wait_for_timeout(500)
+        res["sheets_geo"]["voo-sheet"] = page.evaluate(GEO_SHEET, "voo-sheet")
+        res["voo_sheet"] = page.evaluate(COLETOR, ["#voo-sheet", None])
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(400)
         if shots:
             page.screenshot(path=os.path.join(AQUI, "c3b-aviacao.png"), full_page=False)
         b.close()
