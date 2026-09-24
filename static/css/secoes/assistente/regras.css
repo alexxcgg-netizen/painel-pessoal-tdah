@@ -7,13 +7,8 @@
    (faixa V0b, static/css/ui/componentes/botao.css, vazio quando esta faixa
    foi escrita) - .regra-acoes .btn tem estilo proprio ate la. */
 
-#secao-regras-assistente {
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
 #secao-regras-assistente h2 {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 1.05em;
 }
 
@@ -26,15 +21,25 @@
   gap: 8px;
 }
 
+/* C2: mesmo tratamento do item da Caixa - bloco interno (superficie-3), nao card no card,
+   e o rotulo do gatilho pequeno a esquerda (antes esticava na largura toda). */
 .regra-item {
-  /* fundo/borda/raio/sombra ja vem de .card */
-  padding: var(--espaco-2, 12px) var(--espaco-3, 16px);
+  padding: var(--espaco-2) var(--espaco-3) var(--espaco-3);
+  gap: var(--espaco-1);
+}
+
+.regra-item.card {
+  background: var(--superficie-3);
+  border-radius: var(--raio-sm);
+  box-shadow: var(--elevacao-0);
 }
 
 .regra-gatilho {
+  align-self: flex-start;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  font-size: 0.66rem;
+  margin-bottom: 2px;
 }
 
 .regra-texto {
@@ -47,8 +52,10 @@
   font-size: 0.85em;
 }
 
+/* C2: #ffc45c era cor nova; volta pra paleta (--cor-bancos, dourado, ~4.6:1) com peso. */
 .regra-status-pausada {
-  color: #ffc45c;
+  color: var(--cor-bancos);
+  font-weight: 600;
 }
 
 .regra-status-ativa {
@@ -61,21 +68,8 @@
   gap: 8px;
 }
 
-.regra-acoes .btn {
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: var(--radius-sm, 14px);
-  border: 1px solid var(--border-strong, rgba(218, 226, 243, 0.18));
-  background: var(--surface-3, #1e1e1e);
-  color: var(--text, #eceef3);
-  font: inherit;
-  cursor: pointer;
-}
-
-.regra-acoes .btn-perigo {
-  border-color: color-mix(in srgb, var(--danger, #ff5c72) 50%, var(--border-strong, rgba(218, 226, 243, 0.18)));
-  color: var(--danger, #ff5c72);
-}
+/* C2: o estilo provisorio de .regra-acoes .btn/.btn-perigo saiu - os botoes usam os
+   componentes (.btn-secundario / .btn-perigo, ui/componentes/botao.css). */
 
 .regras-vazio {
   list-style: none;

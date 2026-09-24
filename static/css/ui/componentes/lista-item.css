@@ -77,8 +77,9 @@
   .lista-item {
     transition: background 0.15s ease;
   }
+  /* C2: veu de hover do MASTER (a superficie-2 some em cima de um card que ja e -2) */
   .lista-item:hover {
-    background: var(--superficie-2, rgba(255, 255, 255, 0.02));
+    background: var(--veu-hover);
   }
 }
 

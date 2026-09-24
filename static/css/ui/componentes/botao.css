@@ -142,18 +142,20 @@
   background: var(--superficie-2, var(--surface-2));
 }
 
-/* ---------- .btn-perigo: acao destrutiva, usa --danger ja existente ---------- */
+/* ---------- .btn-perigo: acao destrutiva, usa --danger ja existente ----------
+   C2: receita do MASTER (texto --danger, fundo --danger-bg, borda --danger a ~35%). O bloco
+   vermelho cheio com brilho gritava mais que a acao principal da tela. */
 .btn.btn-perigo {
-  border-color: transparent;
-  background: linear-gradient(135deg, var(--danger) 0%, color-mix(in srgb, var(--danger) 70%, black 30%) 100%);
-  color: #fff;
-  box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--danger) 55%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: var(--danger-bg);
+  color: var(--danger);
+  box-shadow: var(--elevacao-0);
 }
 
 @media (hover: hover) {
   .btn.btn-perigo:hover:not(:disabled):not([aria-disabled="true"]) {
-    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--danger) 65%, transparent);
-    filter: brightness(1.06);
+    border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+    box-shadow: var(--elevacao-1);
   }
 }
 
@@ -212,11 +214,12 @@
   padding: var(--espaco-3, 12px) var(--espaco-5, 24px);
   border-radius: var(--raio, var(--radius, 20px));
   border: 1px solid var(--borda-sutil, var(--border-strong));
-  background: var(--superficie-2, var(--surface-2));
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 45%);
+  /* C2: realce de topo = o token da V0a (era um branco literal a 5%) e --elevacao-1 em
+     repouso, como no MASTER (a -2 fica pro hover). */
+  background: var(--realce-superficie), var(--superficie-2);
   color: var(--text);
   font-size: 1rem;
-  box-shadow: var(--elevacao-2, var(--shadow-card));
+  box-shadow: var(--elevacao-1);
 }
 
 /* pilula generosa - largura pelo conteudo, cantos totalmente arredondados */
@@ -246,8 +249,8 @@
 
 @media (hover: hover) {
   .btn.btn-adicionar:hover:not(:disabled):not([aria-disabled="true"]) {
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--borda-sutil, var(--border-strong)));
-    box-shadow: var(--elevacao-3, var(--shadow-card-hover));
+    border-color: var(--borda-forte);
+    box-shadow: var(--elevacao-2);
   }
 
   .btn.btn-adicionar:hover:not(:disabled):not([aria-disabled="true"])::before {
@@ -299,7 +302,7 @@
 }
 
 .btn.btn-perigo.is-carregando::after {
-  color: #fff;
+  color: var(--danger);
 }
 
 /* ---------- anel de foco visivel (fica por ultimo pelo mesmo motivo do carregando acima:

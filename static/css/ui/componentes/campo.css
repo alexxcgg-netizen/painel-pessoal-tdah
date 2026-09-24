@@ -89,3 +89,77 @@ select.campo {
   font-weight: 600;
   color: var(--text-muted);
 }
+
+/* C2: caixa de marcar do app inteiro. O checkbox nativo (quadrado branco do navegador)
+   era o ultimo "Windows 1990" das listas. :where() deixa esta regra com especificidade
+   zero: tamanho, margem e accent-color que as secoes ja definem no style.css continuam
+   valendo; aqui entra so a aparencia (superficie em camada, borda fina, marca de traco).
+   Sem cor nova: borda --borda-forte, marcado em --accent-fill com a marca em --accent-text. */
+:where(input[type="checkbox"]) {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: var(--linha) solid var(--borda-forte);
+  border-radius: 6px;
+  background: var(--superficie-3);
+  box-shadow: var(--elevacao-0);
+  color: var(--accent-text);
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background var(--transicao-rapida), border-color var(--transicao-rapida);
+}
+
+:where(input[type="checkbox"])::before {
+  content: "";
+  width: 70%;
+  height: 70%;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5 10 17 19 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5 10 17 19 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: scale(0);
+  transition: transform var(--transicao-rapida);
+}
+
+:where(input[type="checkbox"]):checked {
+  background: var(--accent-fill);
+  border-color: var(--text-muted);
+}
+
+:where(input[type="checkbox"]):checked::before {
+  transform: scale(1);
+}
+
+@media (hover: hover) {
+  :where(input[type="checkbox"]):hover:not(:disabled) {
+    border-color: var(--text-muted);
+  }
+}
+
+:where(input[type="checkbox"]):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:where(input[type="checkbox"]):focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+/* Solto (fora de <label>), a caixa de 20px ganha area de toque de 44px com um ::after
+   invisivel. Dentro de label, quem da a area e o proprio label (e evita sobrepor vizinhos
+   em linhas densas, tipo os 7 dias do habito). */
+:where(input[type="checkbox"]:not(label *))::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--toque-min);
+  height: var(--toque-min);
+  transform: translate(-50%, -50%);
+}

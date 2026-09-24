@@ -20,10 +20,11 @@
 .card {
   position: relative;
   border-radius: var(--raio, var(--radius, 20px));
-  background: var(--superficie-2, color-mix(in srgb, var(--surface, #121212) 92%, white 2%));
-  border: 1px solid var(--borda-sutil, var(--border, rgba(218, 226, 243, 0.09)));
-  box-shadow: var(--elevacao-1, inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.35));
-  padding: var(--espaco-3, 24px);
+  /* C2: receita do MASTER - realce de topo (luz fraca) como 1a camada do fundo. */
+  background: var(--realce-superficie), var(--superficie-2);
+  border: var(--linha) solid var(--borda-sutil);
+  box-shadow: var(--elevacao-1);
+  padding: var(--espaco-3);
   display: flex;
   flex-direction: column;
   gap: var(--espaco-2, 16px);
