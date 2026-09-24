@@ -36,3 +36,6 @@ Base: suite completa na integracao = 3311 passed, 1 falha intermitente em
   reverte (mesma transacao). PARA C2: data leva aliases pro renderizador V1 (cartao,
   em_dias, restantes, termina_em, total_mes, n_assinaturas, n_parcelas, proxima_cobranca)
   - escolher um nome so. V1 diz "nunca esconde valor"; servidor esconde no modo visitante.
+[done] H8 A9 ativo=true: adapter OpenAI converte image/document (formato Anthropic) em
+  image_url/file (file_data data URI - guia oficial PDF da OpenAI); nao-PDF -> ok=False
+  -> fallback. Gemini NAO converte (documentado em docs/ia-provedores.md).

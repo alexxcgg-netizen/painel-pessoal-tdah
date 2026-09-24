@@ -46,6 +46,12 @@ formato que ia/adapters/openai.py espera (`image_url`/`file` - ver
 scripts/ralph-a9-visao/APRENDIZADOS.md pro que foi confirmado no SDK
 instalado sobre PDF) - so trocar `ativo` no JSON NAO basta pra estas duas
 funcoes, ao contrario das funcoes so-texto.
+
+Fase 7 (C1): resolvido do lado do adapter - ia/adapters/openai.py agora
+converte o formato nativo da Anthropic (image -> image_url com data URI;
+document PDF -> content part `file` com `file_data` em data URI). Trocar
+`ativo` pra true nas 2 configs basta. Limite: o adapter Gemini ainda repassa
+as mensagens cruas (sem imagem/PDF) - nao aponte visao pro Gemini.
 """
 from __future__ import annotations
 

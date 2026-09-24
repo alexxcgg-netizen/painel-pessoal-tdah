@@ -85,7 +85,32 @@ class AdapterOpenAI(Adapter):
 
     @staticmethod
     def _converter_parte_conteudo(parte: dict) -> dict:
+        if not isinstance(parte, dict):
+            return {"type": "text", "text": str(parte)}
         tipo = parte.get("type")
+        fonte = parte.get("source")
+        # Fase 7 (C1): formato NATIVO da Anthropic, que ia/funcoes/visao.py
+        # (A9) monta - {"type": "image"|"document", "source": {"type":
+        # "base64", "media_type": ..., "data": ...}}. Sem isto, com
+        # `ativo: true` a imagem ia vazia (sem data_b64) e o PDF ia cru (a
+        # API recusa) - toda chamada caia no fallback Anthropic pagando 2x.
+        if tipo in ("image", "document") and isinstance(fonte, dict):
+            if fonte.get("type") != "base64" or not isinstance(fonte.get("data"), str):
+                raise ValueError(f"{tipo} sem base64 nao suportado no adapter OpenAI")
+            mime = fonte.get("media_type") or ("image/png" if tipo == "image" else "application/pdf")
+            if tipo == "image":
+                return {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{fonte['data']}"}}
+            if mime != "application/pdf":
+                # Chat Completions so aceita PDF em `file_data` (guia oficial
+                # "PDF files", developers.openai.com, lido em 2026-09-24).
+                raise ValueError(f"documento {mime!r} nao suportado no adapter OpenAI (so PDF)")
+            # Content part `File` (SDK instalado: openai.types.chat.
+            # chat_completion_content_part_param.File/FileFile) com data URI,
+            # como no guia oficial de PDF.
+            return {
+                "type": "file",
+                "file": {"filename": "documento.pdf", "file_data": f"data:application/pdf;base64,{fonte['data']}"},
+            }
         if tipo == "image":
             mime = parte.get("mime", "image/png")
             data_b64 = parte.get("data_b64", "")
@@ -94,6 +119,7 @@ class AdapterOpenAI(Adapter):
                 "image_url": {"url": f"data:{mime};base64,{data_b64}"},
             }
         if tipo == "text":
+            # C1: sem cache_control (campo da Anthropic, a OpenAI recusa).
             return {"type": "text", "text": parte.get("text", "")}
         # Tipo desconhecido: repassa como esta (best-effort, nao quebra).
         return parte

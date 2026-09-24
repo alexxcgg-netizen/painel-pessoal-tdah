@@ -86,6 +86,28 @@ do cutoff):
   conta como "foi passado"). Confirmado rodando o construtor sem a env var no
   ambiente e comparando com passar `api_key=""` explicitamente.
 
+### Imagem e PDF no formato da Anthropic (Fase 7, C1)
+
+`ia/funcoes/visao.py` (A9) monta as mensagens no formato NATIVO da Anthropic
+(`{"type": "image"|"document", "source": {"type": "base64", "media_type", "data"}}`).
+Desde a C1 o adapter OpenAI converte:
+
+- `image` -> `{"type": "image_url", "image_url": {"url": "data:<mime>;base64,<...>"}}`;
+- `document` PDF -> `{"type": "file", "file": {"filename": "documento.pdf",
+  "file_data": "data:application/pdf;base64,<...>"}}` (content part `File`/`FileFile`
+  do SDK instalado; data URI conforme o guia oficial "PDF files" em
+  developers.openai.com, lido em 2026-09-24 - Chat Completions so aceita PDF em
+  `file_data`);
+- documento que nao e PDF, ou `source` que nao e base64 -> `ValueError` dentro do
+  adapter, que vira `Resposta(ok=False)` e cai no fallback (Anthropic, formato nativo);
+- `cache_control` dos blocos de texto e descartado (campo so da Anthropic).
+
+Ligar `ativo: true` em `extrair_nota_fiscal_foto.json`/`extrair_item_cotacao_pdf.json`
+basta. Ainda nao validado com chamada real (proibido nos testes) - na primeira vez em
+producao, conferir o `uso_ia` (provedor openai, ok=1). Limite conhecido: o adapter
+Gemini repassa as mensagens cruas, sem converter imagem/PDF - nao apontar visao pro
+Gemini.
+
 ### TODOs (nao confirmado, documentado em comentario `# TODO` no codigo)
 
 - **Preco (`ia/precos.json`)**: a faixa A4 esta criando esse arquivo em paralelo. O
