@@ -1,0 +1,8 @@
+Faixa M1 (m1-front): pendencias da C2 em arquivos sem dono. Branch fase7/m1-front, porta 5140.
+Donos: static/css/style.css, static/js/cards.js, tests/js/m1_*, tests/test_fase7_m1_front*.
+Sem mexer em cores, cor de destaque, fontes nem animacoes (decisao do Alex).
+
+Historias:
+[x] H1 foco global do style.css -> box-shadow: var(--anel-foco) + outline 2px transparente
+[ ] H2 rede de seguranca [hidden]{display:none !important} no topo do style.css
+[ ] H3 Desfazer de assinatura/compra_parcelada -> /api/financas/desfazer/<token>
