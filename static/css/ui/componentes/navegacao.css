@@ -76,6 +76,11 @@
   pointer-events: none;
 }
 
+/* C2: guarda do [hidden] (o selo some com hidden quando a contagem zera). */
+.nav-selo[hidden] {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tab-btn::after {
     transition-duration: 0.001ms;

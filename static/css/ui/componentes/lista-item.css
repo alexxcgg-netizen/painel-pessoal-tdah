@@ -30,6 +30,16 @@
   border-bottom: 1px solid var(--borda-sutil, var(--border, rgba(218, 226, 243, 0.09)));
 }
 
+/* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de
+   classe, e a regra do autor ganha da do UA) - sem isso, campo/botao escondido pelo JS
+   continuava na tela (ex.: "Quantas vezes por semana" no sheet de habito). */
+.lista[hidden],
+.lista-item[hidden],
+.lista-item-corpo[hidden],
+.lista-item-acoes[hidden] {
+  display: none;
+}
+
 .lista-item:last-child {
   border-bottom: none;
 }

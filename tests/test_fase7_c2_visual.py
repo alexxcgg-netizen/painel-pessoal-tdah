@@ -47,5 +47,32 @@ class AbaEscondidaTestCase(unittest.TestCase):
         self.assertEqual(ruins, [], "use #tab-x:not([hidden]) ao definir display")
 
 
+class ComponenteRespeitaHiddenTestCase(unittest.TestCase):
+    """Bug real (C2, tambem achado pela V4/V6): `.card { display: flex }` vence o `[hidden]` do
+    navegador, entao `el.hidden = true` nao escondia mais nada. Todo componente que define
+    display numa classe simples precisa de uma guarda `.classe[hidden] { display: none }`."""
+
+    def test_guarda_hidden_em_todo_display_de_componente(self):
+        faltando = []
+        for arq in sorted((CSS / "ui" / "componentes").glob("*.css")):
+            regras = _regras(arq.read_text(encoding="utf-8"))
+            guardas = set()
+            for seletor, corpo in regras:
+                if re.search(r"display\s*:\s*none", corpo):
+                    for parte in seletor.split(","):
+                        m = re.fullmatch(r"\s*(\.[\w-]+)\[hidden\]\s*", parte)
+                        if m:
+                            guardas.add(m.group(1))
+            for seletor, corpo in regras:
+                m = re.search(r"(^|;)\s*display\s*:\s*([\w-]+)", corpo)
+                if not m or m.group(2) == "none":
+                    continue
+                for parte in seletor.split(","):
+                    parte = parte.strip()
+                    if re.fullmatch(r"\.[\w-]+", parte) and parte not in guardas:
+                        faltando.append(f"{arq.name}: {parte}")
+        self.assertEqual(faltando, [], "acrescente .classe[hidden] { display: none; }")
+
+
 if __name__ == "__main__":
     unittest.main()

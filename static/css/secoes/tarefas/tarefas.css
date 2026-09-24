@@ -2,45 +2,10 @@
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
 
-/* Fase 7 (V3-organizacao): botao grande "adicionar" + painel do formulario.
-   So tokens que ja existem em style.css (--radius*, --surface-*, --border*) - nao cria
-   cor nova. Quando a faixa V0b/V0c preencher os componentes compartilhados
-   (ui/componentes/botao.css, .../bottom-sheet.css), essas regras continuam validas como
-   ajuste fino especifico da secao (cascata: componentes -> secoes/<aba>/<secao>.css). */
-.btn-adicionar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  min-height: 48px;
-  margin-block: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-2);
-  color: var(--text);
-  font-weight: 700;
-  font-size: 0.95rem;
-  cursor: pointer;
-}
-
-.btn-adicionar svg {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-
-@media (hover: hover) {
-  .btn-adicionar:hover {
-    background: var(--surface-3);
-  }
-}
-
-.bottom-sheet {
-  margin-block: 0.5rem 1rem;
-  padding: 1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
+/* C2: sai o CSS provisorio da V3 (.btn-adicionar e .bottom-sheet SEM escopo, copiado igual
+   em 4 arquivos). Ele pintava a MOLDURA do sheet (a camada fixa de tela cheia) com fundo,
+   borda e padding, e brigava com os componentes reais (ui/componentes/botao.css e
+   bottom-sheet.css), que ja estao na integracao. Aqui fica so o respiro da secao. */
+#tarefa-abrir-btn {
+  margin-block: var(--espaco-2) var(--espaco-3);
 }

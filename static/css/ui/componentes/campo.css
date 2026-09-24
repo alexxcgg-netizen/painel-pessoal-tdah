@@ -38,6 +38,14 @@
   box-shadow: 0 0 0 3px var(--accent-soft-bg, color-mix(in srgb, var(--accent) 16%, transparent));
 }
 
+/* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de
+   classe, e a regra do autor ganha da do UA) - sem isso, campo/botao escondido pelo JS
+   continuava na tela (ex.: "Quantas vezes por semana" no sheet de habito). */
+.campo[hidden],
+.campo-rotulo[hidden] {
+  display: none;
+}
+
 .campo:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -54,6 +62,21 @@ select.campo {
   background-repeat: no-repeat;
   background-position: right var(--espaco-2, 16px) center;
   background-size: 16px;
+}
+
+/* C2: .campo dentro de .form-linha (formulario legado do style.css). A regra antiga
+   `.form-linha input[type="text"]` (0,2,1) vencia o .campo (0,1,0) e trocava fundo, fonte e o
+   foco pelo tom da aba. Com o mesmo peso (0,2,1 / 0,3,1) e carregando depois, o .campo ganha. */
+.form-linha :is(input, select, textarea).campo {
+  padding: 0.65rem var(--espaco-3);
+  border-color: var(--borda-sutil);
+  background: var(--superficie-3);
+  font-size: 0.92rem;
+}
+
+.form-linha :is(input, select, textarea).campo:focus {
+  border-color: var(--borda-forte);
+  box-shadow: var(--anel-foco);
 }
 
 /* Rotulo companheiro do campo (opcional) - segue o mesmo espacamento em grade de 8px. */

@@ -11,11 +11,11 @@
         </p>
       </div>
       <button type="button" id="habito-abrir-btn" class="btn btn-adicionar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Novo hábito
       </button>
 
-      <div class="bottom-sheet" id="habito-sheet" hidden>
+      <div class="bottom-sheet" id="habito-sheet" hidden aria-labelledby="habito-sheet-titulo">
+        <h3 class="bottom-sheet-titulo" id="habito-sheet-titulo">Novo hábito</h3>
         <form id="habito-form" class="form-linha">
           <input type="text" id="habito-nome" class="campo" placeholder="Habito (ex: Meditar)" maxlength="80" required />
           <input type="text" id="habito-meta" class="campo" placeholder="Meta (opcional, ex: 15 min)" maxlength="60" />
@@ -36,7 +36,7 @@
           <input type="number" id="habito-vezes-semana" class="campo" placeholder="Quantas vezes por semana" min="1" max="7" inputmode="numeric" hidden />
           <input type="time" id="habito-horario" class="campo" aria-label="Horario de lembrete (opcional)" />
           <div class="form-linha">
-            <button type="submit" id="habito-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="submit" id="habito-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar hábito</button>
             <button type="button" id="habito-cancelar-btn" class="btn btn-secundario">Cancelar</button>
           </div>
         </form>

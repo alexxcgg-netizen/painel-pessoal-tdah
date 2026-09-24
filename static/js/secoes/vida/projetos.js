@@ -90,7 +90,7 @@ async function loadProjetos() {
 ligarForm(
   "#projeto-form",
   "#projeto-btn",
-  "Adicionar",
+  "Salvar projeto",
   () => {
     const nome = $("#projeto-nome").value.trim();
     return nome ? { nome, prazo_final: $("#projeto-prazo").value || null } : null;

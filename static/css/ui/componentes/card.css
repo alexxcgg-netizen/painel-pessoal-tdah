@@ -29,6 +29,15 @@
   gap: var(--espaco-2, 16px);
 }
 
+/* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de
+   classe, e a regra do autor ganha da do UA) - sem isso, campo/botao escondido pelo JS
+   continuava na tela (ex.: "Quantas vezes por semana" no sheet de habito). */
+.card[hidden],
+.card-cabecalho[hidden],
+.card-acao[hidden] {
+  display: none;
+}
+
 .card--compacto {
   padding: var(--espaco-2, 16px);
   gap: var(--espaco-1, 8px);

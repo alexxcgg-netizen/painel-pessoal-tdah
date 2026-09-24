@@ -325,7 +325,7 @@ $("#nova-tarefa-form").addEventListener("submit", async (e) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ titulo, due_date: prazoInput.value || null }),
   });
-  setBotaoCarregando(btn, false, "Adicionar");
+  setBotaoCarregando(btn, false, "Salvar tarefa");
   if (!data) return;
 
   tituloInput.value = "";

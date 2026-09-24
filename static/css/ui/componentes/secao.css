@@ -47,6 +47,13 @@
   transition: background var(--secao-dur, 0.3s) ease;
 }
 
+/* C2: display do componente vence o [hidden] do navegador - guarda explicita. */
+.secao-recolhivel[hidden],
+.secao-cabecalho[hidden],
+.chevron[hidden] {
+  display: none;
+}
+
 .secao-cabecalho:hover {
   background: var(--superficie-3, rgba(255, 255, 255, 0.03));
 }

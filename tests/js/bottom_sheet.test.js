@@ -111,6 +111,24 @@ class FakeElement {
     this.children.push(filho);
     return filho;
   }
+  // C2: insertBefore/removeChild pro portal (o sheet sobe pro body ao abrir).
+  insertBefore(novo, referencia) {
+    if (novo.parentNode) {
+      const i = novo.parentNode.children.indexOf(novo);
+      if (i !== -1) novo.parentNode.children.splice(i, 1);
+    }
+    const j = this.children.indexOf(referencia);
+    novo.parentNode = this;
+    if (j === -1) this.children.push(novo);
+    else this.children.splice(j, 0, novo);
+    return novo;
+  }
+  removeChild(filho) {
+    const i = this.children.indexOf(filho);
+    if (i !== -1) this.children.splice(i, 1);
+    filho.parentNode = null;
+    return filho;
+  }
   addEventListener(tipo, fn) {
     if (!this._listeners.has(tipo)) this._listeners.set(tipo, new Set());
     this._listeners.get(tipo).add(fn);
@@ -157,6 +175,10 @@ class FakeDocument {
     const el = new FakeElement(tag);
     el.ownerDocument = this;
     return el;
+  }
+  createComment(texto) {
+    // comentario so precisa de parentNode (marca do lugar original do sheet)
+    return { nodeType: 8, textContent: String(texto), parentNode: null, children: [] };
   }
   // Nao ha arvore real ligada ao document nesse DOM minimo - registra o id
   // manualmente na criacao (getElementById dos testes usa esse indice).
@@ -537,4 +559,70 @@ test("elementosFocaveis encontra em qualquer profundidade, na ordem do DOM", () 
   assert.equal(focaveis.length, 2);
   assert.equal(focaveis[0], a);
   assert.equal(focaveis[1], b);
+});
+
+// ---- C2: portal pro body e reabrir durante a animacao de fechar ----
+
+test("abrir leva o sheet pro body e fechar devolve pro mesmo lugar", () => {
+  const { doc } = ambiente;
+  const aba = doc.createElement("section");
+  const antes = doc.createElement("p");
+  const depois = doc.createElement("p");
+  const sheet = novoSheet(doc, "sheet-portal");
+  sheet.appendChild(novoBotao(doc, "Salvar"));
+  aba.appendChild(antes);
+  aba.appendChild(sheet);
+  aba.appendChild(depois);
+
+  BottomSheet.abrirBottomSheet("sheet-portal");
+  assert.equal(sheet.parentNode, doc.body, "aberto: filho direto do body");
+  assert.equal(aba.children.indexOf(sheet), -1);
+
+  BottomSheet.fecharBottomSheet("sheet-portal");
+  assert.equal(sheet.parentNode, aba, "fechado: volta pra aba");
+  assert.deepEqual(aba.children, [antes, sheet, depois], "mesma posicao, sem sobra da marca");
+});
+
+test("sheet que ja e filho do body nao e movido nem quebra", () => {
+  const { doc } = ambiente;
+  const sheet = novoSheet(doc, "sheet-body");
+  doc.body.appendChild(sheet);
+  BottomSheet.abrirBottomSheet(sheet);
+  BottomSheet.fecharBottomSheet(sheet);
+  assert.equal(sheet.parentNode, doc.body);
+  assert.equal(sheet.hidden, true);
+});
+
+test("sheet solto (sem pai) abre e fecha sem portal", () => {
+  const { doc } = ambiente;
+  const sheet = novoSheet(doc, "sheet-solto");
+  assert.doesNotThrow(() => BottomSheet.abrirBottomSheet(sheet));
+  assert.equal(sheet.hidden, false);
+  BottomSheet.fecharBottomSheet(sheet);
+  assert.equal(sheet.hidden, true);
+});
+
+test("reabrir durante a animacao de fechar: o fechamento antigo nao esconde o sheet", (t) => {
+  const { doc } = ambiente;
+  const anteriorMM = globalThis.matchMedia;
+  globalThis.matchMedia = () => ({ matches: false }); // pode animar
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const aba = doc.createElement("section");
+    const sheet = novoSheet(doc, "sheet-rapido");
+    aba.appendChild(sheet);
+    BottomSheet.abrirBottomSheet(sheet);
+    BottomSheet.fecharBottomSheet(sheet); // agenda o finalizar (240ms)
+    BottomSheet.abrirBottomSheet(sheet); // toque rapido: abre de novo
+    t.mock.timers.tick(500);
+    assert.equal(sheet.hidden, false, "continua visivel");
+    assert.ok(sheet.classList.contains("bottom-sheet--aberto"));
+    assert.equal(sheet.parentNode, doc.body, "continua no body enquanto aberto");
+    BottomSheet.fecharBottomSheet(sheet);
+    t.mock.timers.tick(500);
+    assert.equal(sheet.hidden, true);
+    assert.equal(sheet.parentNode, aba);
+  } finally {
+    globalThis.matchMedia = anteriorMM;
+  }
 });

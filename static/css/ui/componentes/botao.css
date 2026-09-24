@@ -49,6 +49,13 @@
     border-color 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
 }
 
+/* C2: o display do componente vence o [hidden] do navegador (mesma especificidade de
+   classe, e a regra do autor ganha da do UA) - sem isso, campo/botao escondido pelo JS
+   continuava na tela (ex.: "Quantas vezes por semana" no sheet de habito). */
+.btn[hidden] {
+  display: none;
+}
+
 .btn svg {
   flex: 0 0 auto;
   width: 1.1em;

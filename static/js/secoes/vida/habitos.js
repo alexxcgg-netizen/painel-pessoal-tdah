@@ -80,7 +80,7 @@ async function loadHabitos() {
 ligarForm(
   "#habito-form",
   "#habito-btn",
-  "Adicionar",
+  "Salvar hábito",
   () => {
     const nome = $("#habito-nome").value.trim();
     if (!nome) return null;
