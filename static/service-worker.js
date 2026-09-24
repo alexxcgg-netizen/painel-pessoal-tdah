@@ -28,7 +28,10 @@
 // de status de voo (vida.js), barra do chat e CSS duplicado (style.css).
 // v14: Fase 7 (X2) - app.js/vida.js divididos em static/js/nucleo/*.js +
 // static/js/secoes/<aba>/<secao>.js; todos entram no precache pro app abrir offline.
-const CACHE_NAME = "painel-pessoal-v14";
+// v15: fim da Fase 7 - CSS/JS das faixas V/C/P1b/M1 (componentes, bottom-sheet, Caixa,
+// custo de IA, assinaturas...) mudaram depois do v14; o iPhone que ja tem o v14 precisa
+// buscar tudo de novo. Lista conferida contra scripts.html/head.html/fase7.css.
+const CACHE_NAME = "painel-pessoal-v15";
 const ASSETS = [
   "/",
   "/static/css/style.css",

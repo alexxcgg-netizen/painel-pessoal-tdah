@@ -172,8 +172,9 @@ card (receita acima). Dentro de card, é só linha. Ação secundária (apagar) 
 à direita, `--text-faint`, e vira `--danger` só no hover ou foco.
 
 ### Campo
-`min-height: var(--toque-min); background: var(--superficie-3); border: var(--linha) solid var(--borda-sutil); border-radius: var(--raio-sm); padding: 0 var(--espaco-3); font: inherit; color: var(--text);`.
-Placeholder em `--text-faint`. No foco: `border-color: var(--borda-forte); box-shadow: var(--anel-foco);`.
+`min-height: var(--toque-min); background: var(--superficie-1); border: var(--linha) solid var(--borda-sutil); border-radius: var(--raio-sm); padding: 0 var(--espaco-3); font: inherit; color: var(--text);`.
+Placeholder em `--text-faint` (4,82:1 sobre `--superficie-1`; sobre `--superficie-3` dava 4,3:1 e
+reprovava). O fundo continua `--superficie-1` no foco e dentro de `.form-linha` (todo sheet). No foco: `border-color: var(--borda-forte); box-shadow: var(--anel-foco);`.
 Rótulo acima do campo (0.8rem, `--text-muted`). Não use o placeholder como único rótulo em formulário longo.
 
 ### Chip
@@ -251,8 +252,8 @@ rótulo ficam na fonte de texto, menores e em `--text-muted`.
 
 - Área tocável de `--toque-min` (44px) ou mais em tudo. O visual pode ser menor, desde que o
   padding ou um `::after` complete a área.
-- Contraste de texto de 4.5:1 ou mais (o `--text-faint` sobre `--superficie-3` fica perto do
-  limite, então use só para dica, nunca para dado).
+- Contraste de texto de 4.5:1 ou mais (o `--text-faint` sobre `--superficie-3` fica abaixo do
+  limite, 4,3:1, então use só para dica, nunca para dado; em campo o fundo é `--superficie-1`).
 - A cor nunca é o único sinal: sempre vem com ícone ou texto.
 - O `hidden` e o `aria-expanded` refletem o estado real. O foco vai para o primeiro campo do sheet ao abrir
   e volta para o botão de origem ao fechar.
