@@ -1,0 +1,87 @@
+Faixa p1b-caixa-ui (Fase 7) - progress.txt
+
+Escopo: faixa compacta da Caixa do assistente na aba Hoje (#caixa-assistente,
+montada via JS), selo de pendencias na barra, tela Assistente (Caixa/Regras/
+Avisos).
+
+Historias:
+[x] H1 - Worktree a partir de fase7/integracao (git worktree add -b
+    fase7/p1b-caixa-ui). Leitura de fase7-regras-faixa.md, fase7-visual.md,
+    fase7-assistente.md, mapa-frontend.md. Contrato das APIs de p1a-caixa e
+    p4-regras lido via `git show origin/fase7/<faixa>:<arquivo>` (nenhuma das
+    duas estava na integracao no inicio da faixa).
+[x] H2 - static/js/secoes/assistente/caixa.js: monta a faixa compacta
+    "Pendencias do assistente (N)" dentro de #caixa-assistente (recolhivel,
+    3 itens mais urgentes, botoes de um toque a partir de item.opcoes com
+    fallback por tipo quando o item nao traz opcoes proprias). Responder
+    chama POST /api/assistente/caixa/<id>/responder e o item some com
+    animacao (classe .caixa-item-saindo + transitionend, timeout de
+    seguranca). Aviso discreto quando GET /api/assistente/saude diz que o
+    tick esta atrasado.
+[x] H3 - Selo .nav-selo (numero de pendencias) no icone de Hoje e no novo
+    botao "Assistente" da barra (templates/navegacao.html, icone de traco
+    SVG, sem emoji - nao havia progress.txt de v0d-sheet-nav com nota de
+    emoji->traco pra aplicar, conferido nas duas fontes possiveis).
+[x] H4 - Tela Assistente (templates/abas/assistente.html ja tinha a
+    estrutura de includes, nao precisou editar): secao Caixa (todos os
+    itens pendentes + historico recolhivel), secao Regras (listar/pausar/
+    retomar/apagar, rotas/p4_regras.py) e secao Avisos (liga/desliga por
+    tipo, canal push/caixa/ambos, horario de silencio global,
+    rotas/p8_avisos.py - ja estava na integracao desde o inicio).
+[x] H5 - tests/js/caixa_assistente.test.js: 23 testes (node --test) da
+    logica pura de static/js/secoes/assistente/caixa.js (render,
+    normalizarOpcoes, textoContagem, textoAtraso, escaping). 100% verde.
+[x] H6 (ultima) - git merge origin/fase7/integracao (sem conflito - trouxe
+    X1, V0a/V0c, V3, e IMPORTANTE: as faixas p1a-caixa e p4-regras, que ate
+    entao so existiam nos branches origin/fase7/p1a-caixa e
+    origin/fase7/p4-regras). Depois do merge, limpei CSS proprio que
+    duplicava/conflitava com static/css/ui/componentes/{secao,card,chip}.css
+    (V0c, ja real) e troquei o toggle proprio de .secao-recolhivel por
+    delegar pra window.ligarSecoesRecolhiveis (V0c) com fallback. Playwright
+    headless 390x844 (scripts/ralph-p1b-caixa-ui/{servidor,verificar}.py,
+    porta 5100+42): banco de teste temporario com itens sinteticos inseridos
+    via assistente.caixa.enfileirar/resolver (tabela assistente_itens, P1a)
+    e uma regra direto em p4_regras (P4). Resultado: faixa compacta (4
+    pendentes, 3 mostrados, selo "4"), recolher/expandir ok, responder faz o
+    item sumir (selo cai pra "3"), "Ver tudo" abre a aba Assistente
+    (clicando o botao de verdade, nao chamando showTab() direto - assim os
+    listeners de regras.js/avisos.js tambem disparam), secao Caixa (3
+    pendentes + 2 no historico), Regras (1 regra, pausar funciona), Avisos
+    (50 tipos do catalogo + form de silencio). Zero erro de console, zero
+    falha de rede (fora as 2 conhecidas: Google Fonts sem internet e
+    /api/summary/today, que dependem de IA/clima reais, fora do escopo
+    desta faixa - mesmo criterio das faixas V0a/V3). 2 screenshots:
+    p1b-hoje.png, p1b-assistente.png (NAO versionados - fora do commit, ver
+    regra do PNG grande em fase7-visual.md).
+
+Bloqueado: nenhuma.
+
+Nota pro integrador (arquivos que nao sao meus):
+- templates/abas/hoje.html ja tinha <div id="caixa-assistente"></div> - nao
+  editei esse arquivo, so montei o conteudo via JS.
+- static/js/nucleo/navegacao.js (showTab/ORDEM_ABAS) nao e meu arquivo.
+  ORDEM_ABAS = ["hoje","painel","vida","tarefas","gastos","bancos",
+  "construtora","aviacao"] NAO inclui "assistente" - a troca de aba
+  funciona (showTab() alterna hidden/.active em qualquer id, independente
+  do array), so a animacao de direcao (entra-direita/entra-esquerda) fica
+  sempre "entra-esquerda" pra ela. Pra corrigir, so acrescentar "assistente"
+  no fim do array (linha 10 hoje). Nao adicionei loadX() nenhum no corpo de
+  showTab() pra "assistente": cada secao minha (caixa/regras/avisos.js) ja
+  recarrega os proprios dados sozinha no clique do botao da barra
+  (`.tab-btn[data-tab="assistente"]`).
+- .nav-selo/.tab-btn-icone: static/css/ui/componentes/navegacao.css (V0d)
+  segue vazio (V0d nao chegou na integracao nesta rodada) - coloquei o CSS
+  do selo em static/css/secoes/assistente.css (arquivo meu) com comentario
+  explicando. Quando V0d chegar, o integrador pode mover pra
+  navegacao.css se preferir (a regra continua valendo por cima).
+- static/js/ui/{bottom-sheet,secao-recolhivel}.js: nao editei. Uso
+  window.ligarSecoesRecolhiveis(secao) (V0c, ja na integracao) com um
+  fallback minimo local pro caso raro de rodar sem ele carregado.
+- .btn/.btn-primario/.btn-secundario/.btn-perigo ainda sem CSS
+  (static/css/ui/componentes/botao.css, V0b, nao chegou na integracao nesta
+  rodada) - .caixa-item-opcao e .regra-acoes .btn tem estilo proprio
+  provisorio em secoes/assistente/{caixa,regras}.css, comentado como tal.
+  Quando V0b chegar, a cascata (componentes carrega ANTES de secoes/<aba>/
+  <secao>.css) faz minha regra mais especifica ganhar - funciona, so nao
+  fica 100% no visual padrao ate o integrador decidir se remove o meu
+  fallback ou deixa (ambos funcionam).

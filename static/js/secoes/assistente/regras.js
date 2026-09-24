@@ -52,7 +52,7 @@ const RegrasAssistente = (function () {
       : `<button type="button" class="btn btn-secundario regra-pausar" data-id="${esc(regra.id)}">Pausar</button>`;
     return (
       `<li class="card regra-item" data-id="${esc(regra.id)}">` +
-      `<span class="chip regra-gatilho">${esc(rotuloGatilho(regra))}</span>` +
+      `<span class="chip chip--compacto regra-gatilho">${esc(rotuloGatilho(regra))}</span>` +
       `<p class="card-titulo regra-texto">${esc(regra.texto_original)}</p>` +
       `<p class="regra-status ${status.pausada ? "regra-status-pausada" : "regra-status-ativa"}">${esc(status.texto)}</p>` +
       `<div class="regra-acoes">` +

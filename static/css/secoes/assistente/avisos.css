@@ -1,7 +1,10 @@
 /* static/css/secoes/assistente/avisos.css - secao assistente > avisos (HTML: templates/secoes/assistente/avisos.html).
    Fase 7 (X2): carrega DEPOIS do style.css (via fase7.css), entao regra aqui
    sobrescreve por cascata sem precisar editar o style.css.
-   Fase 7 (P1b): mesmo raciocinio de secoes/assistente/caixa.css. */
+   Fase 7 (P1b): .card (ui/componentes/card.css, faixa V0c, ja mesclada) da
+   fundo/borda/raio/sombra de .aviso-item - aqui so ajusta o layout em linha
+   (o .card padrao e coluna) e o que e especifico de Avisos. O formulario de
+   silencio nao usa .card (e um <form>), entao mantem o proprio fundo. */
 
 #secao-avisos-assistente {
   padding: 16px;
@@ -74,15 +77,10 @@
 }
 
 .aviso-item {
-  display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: var(--radius-sm, 14px);
-  background: var(--surface-2, #181818);
-  border: 1px solid var(--border, rgba(218, 226, 243, 0.09));
 }
 
 .aviso-toggle {

@@ -115,7 +115,7 @@ const CaixaAssistente = (function () {
     const corpo = item.corpo ? `<p class="caixa-item-corpo">${esc(item.corpo)}</p>` : "";
     return (
       `<li class="card caixa-item" data-item-id="${esc(item.id)}" data-tipo="${esc(item.tipo)}">` +
-      `<span class="chip caixa-item-tipo">${esc(ROTULO_TIPO[item.tipo] || item.tipo)}</span>` +
+      `<span class="chip chip--compacto caixa-item-tipo">${esc(ROTULO_TIPO[item.tipo] || item.tipo)}</span>` +
       `<p class="card-titulo caixa-item-titulo">${esc(item.titulo)}</p>` +
       corpo +
       `<div class="caixa-item-acoes">${renderBotoesHTML(item)}</div>` +
@@ -136,7 +136,7 @@ const CaixaAssistente = (function () {
     const textoResp = item.resposta_texto ? ` - "${esc(item.resposta_texto)}"` : "";
     return (
       `<li class="card caixa-item caixa-item-historico" data-item-id="${esc(item.id)}">` +
-      `<span class="chip caixa-item-tipo">${esc(ROTULO_TIPO[item.tipo] || item.tipo)}</span>` +
+      `<span class="chip chip--compacto caixa-item-tipo">${esc(ROTULO_TIPO[item.tipo] || item.tipo)}</span>` +
       `<p class="card-titulo caixa-item-titulo">${esc(item.titulo)}</p>` +
       `<p class="caixa-item-resposta">Resposta: ${esc(rotuloResposta)}${textoResp}</p>` +
       `</li>`
@@ -184,36 +184,29 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       });
     }
 
-    // Toggle proprio de `.secao-recolhivel`, so pra passar no Playwright ANTES
-    // da faixa V0c (static/js/ui/secao-recolhivel.js, hoje vazia de proposito)
-    // ser mesclada e assumir toda `.secao-recolhivel` da pagina sozinha - ver
-    // docs/agentes/fase7-visual.md ("ele liga sozinho toda .secao-recolhivel").
-    // Guarda de idempotencia (dataset.temToggle) evita ligar o listener 2x.
+    // Toggle de `.secao-recolhivel`: a faixa V0c (static/js/ui/secao-recolhivel.js,
+    // ja mesclada na integracao) liga sozinha toda `.secao-recolhivel` da
+    // pagina, inclusive a que este arquivo injeta via innerHTML depois do
+    // carregamento (ela observa o DOM com MutationObserver) - ver
+    // docs/agentes/fase7-visual.md. So chamamos `ligarSecoesRecolhiveis`
+    // explicitamente por seguranca (idempotente - `ligarUma` nunca liga a
+    // mesma secao 2x) com um fallback minimo pro caso raro de rodar sem
+    // aquele script carregado (ex.: alguem abrir este HTML fora da pagina
+    // inteira, em teste manual).
     function wireToggleRecolhivel(secao) {
       if (!secao) return;
+      if (typeof window.ligarSecoesRecolhiveis === "function") {
+        window.ligarSecoesRecolhiveis(secao);
+        return;
+      }
       const cabecalho = secao.querySelector(".secao-cabecalho");
       if (!cabecalho || cabecalho.dataset.temToggle) return;
       cabecalho.dataset.temToggle = "1";
-      const chaveStorage = "secao-aberta:" + (secao.dataset.secaoId || "");
       cabecalho.addEventListener("click", () => {
         const aberto = secao.dataset.aberto !== "false";
         secao.dataset.aberto = aberto ? "false" : "true";
         cabecalho.setAttribute("aria-expanded", String(!aberto));
-        try {
-          localStorage.setItem(chaveStorage, aberto ? "0" : "1");
-        } catch {
-          // localStorage pode falhar (privado/quota) - so nao persiste, sem quebrar nada
-        }
       });
-      try {
-        const salvo = localStorage.getItem(chaveStorage);
-        if (salvo === "0" || salvo === "1") {
-          secao.dataset.aberto = salvo === "1" ? "true" : "false";
-          cabecalho.setAttribute("aria-expanded", String(salvo === "1"));
-        }
-      } catch {
-        // idem - segue com o padrao do markup
-      }
     }
 
     function montarFaixaCompacta() {
@@ -241,7 +234,13 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       if (linkVerTudo) {
         linkVerTudo.addEventListener("click", (ev) => {
           ev.preventDefault();
-          if (typeof showTab === "function") showTab("assistente");
+          // Clica o botao de verdade (em vez de chamar showTab() direto): assim o
+          // listener de clique de regras.js/avisos.js (cada secao carrega os
+          // proprios dados no clique da aba, ver comentario mais abaixo) tambem
+          // dispara - equivalente ao Alex tocar na aba Assistente na barra.
+          const btn = document.querySelector('.tab-btn[data-tab="assistente"]');
+          if (btn) btn.click();
+          else if (typeof showTab === "function") showTab("assistente");
         });
       }
     }

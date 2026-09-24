@@ -1,8 +1,11 @@
 /* static/css/secoes/assistente/regras.css - secao assistente > regras (HTML: templates/secoes/assistente/regras.html).
    Fase 7 (X2): carrega DEPOIS do style.css (via fase7.css), entao regra aqui
    sobrescreve por cascata sem precisar editar o style.css.
-   Fase 7 (P1b): mesmo raciocinio de secoes/assistente/caixa.css (escrito
-   antes de V0a-V0d entrarem na integracao, reaproveita variaveis de style.css). */
+   Fase 7 (P1b): .card/.chip.chip--compacto (ui/componentes/{card,chip}.css,
+   faixa V0c, ja mesclada) dao fundo/borda/raio/sombra do item e do rotulo de
+   gatilho - aqui e so o que e especifico de Regras. .btn ainda sem CSS
+   (faixa V0b, static/css/ui/componentes/botao.css, vazio quando esta faixa
+   foi escrita) - .regra-acoes .btn tem estilo proprio ate la. */
 
 #secao-regras-assistente {
   padding: 16px;
@@ -24,21 +27,13 @@
 }
 
 .regra-item {
-  padding: 12px 14px;
-  border-radius: var(--radius-sm, 14px);
-  background: var(--surface-2, #181818);
-  border: 1px solid var(--border, rgba(218, 226, 243, 0.09));
+  /* fundo/borda/raio/sombra ja vem de .card */
+  padding: var(--espaco-2, 12px) var(--espaco-3, 16px);
 }
 
 .regra-gatilho {
-  display: inline-block;
-  font-size: 0.72em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted, #a7afbc);
-  border: 1px solid var(--border-strong, rgba(218, 226, 243, 0.18));
-  border-radius: 999px;
-  padding: 2px 8px;
   margin-bottom: 6px;
 }
 
