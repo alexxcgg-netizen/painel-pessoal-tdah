@@ -43,7 +43,8 @@ async function alternarConversasPessoa(li, pessoaId) {
 
 async function loadPessoas() {
   const pessoas = await apiFetch("/api/pessoas");
-  if (!pessoas) return;
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (!Array.isArray(pessoas)) return;
   const lista = $("#lista-pessoas");
   lista.innerHTML = "";
   $("#pessoas-vazio").hidden = pessoas.length > 0;

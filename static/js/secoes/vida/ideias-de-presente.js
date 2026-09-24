@@ -4,7 +4,8 @@
 
 async function loadIdeiasPresente() {
   const itens = await apiFetch("/api/ideias-presente");
-  if (!itens) return;
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (!Array.isArray(itens)) return;
   const lista = $("#lista-ideias-presente");
   lista.innerHTML = "";
   $("#ideias-presente-vazio").hidden = itens.length > 0;

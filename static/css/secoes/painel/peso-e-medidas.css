@@ -2,11 +2,11 @@
    Carrega DEPOIS do style.css (via fase7.css), entao regra aqui sobrescreve por cascata.
 
    Fase 7 V4: contrato secao-recolhivel ao pe da letra (button filho direto do section).
-   Fase 7 C3a: mesmo polimento da aba Vida (static/css/secoes/vida.css), repetido aqui porque
-   esta secao mora na aba Painel, fora do escopo de #tab-vida. Escopado na propria secao e no
-   proprio sheet pra nao mexer nas secoes da c2-visual. Removido o "fallback" do sheet da V4
-   (`#sheet-medida.bottom-sheet { fundo/padding/borda }`): com a V0d real ele pintava a moldura
-   fixa da tela inteira e escondia o veu. Nenhuma cor, fonte ou animacao nova. */
+   Fase 7 C3a: mesmo polimento das secoes da aba Vida (static/css/secoes/vida.css), repetido
+   aqui porque esta secao mora na aba Painel. Escopado na propria secao (nao mexe nas secoes da
+   c2-visual). Removido o "fallback" do sheet da V4 (`#sheet-medida.bottom-sheet { fundo/
+   padding/borda }`), que pintava a moldura fixa da tela inteira e escondia o veu. Nenhuma cor,
+   fonte ou animacao nova. */
 
 [data-secao-id="painel-peso-e-medidas"] .secao-cabecalho svg {
   width: 18px;
@@ -16,70 +16,12 @@
   opacity: 0.9;
 }
 
-/* Neutraliza o `.bottom-sheet` sem escopo de secoes/vida/{habitos,projetos,agenda-painel}.css
-   (ver secoes/vida.css) na moldura fixa deste sheet. */
-#sheet-medida.bottom-sheet {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-}
-
-/* [hidden] vence o `display:block` do .campo (ver progress: campo.css l.9). */
-[data-secao-id="painel-peso-e-medidas"] [hidden],
-#sheet-medida [hidden] {
-  display: none;
-}
-
-/* Stepper: borda fina e o campo no meio com a receita do .campo (MASTER 5). */
+/* Sheet (#sheet-medida): segue o componente compartilhado (ui/componentes/bottom-sheet.css:
+   titulo .bottom-sheet-titulo, form em coluna, botao principal "Salvar medida" ocupando a
+   linha). Aqui so o respiro do stepper, que e desta secao. O sheet sobe pro <body> ao abrir,
+   entao so seletor por id alcanca - nada de #tab-painel. */
 #medida-valor-stepper.stepper {
   gap: var(--espaco-2, 0.5rem);
-}
-
-#sheet-medida .campo {
-  min-height: var(--toque-min, 44px);
-  padding: 0 var(--espaco-3, 0.75rem);
-  background-color: var(--superficie-1); /* contraste do placeholder: ver secoes/vida.css */
-  border: var(--linha, 1px) solid var(--borda-sutil);
-  border-radius: var(--raio-sm);
-  font-size: 0.92rem;
-}
-
-#sheet-medida select.campo {
-  padding-right: var(--espaco-5, 2rem);
-}
-
-#sheet-medida .campo:focus,
-#sheet-medida .campo:focus-visible {
-  outline: none;
-  border-color: var(--borda-forte);
-  box-shadow: var(--anel-foco);
-}
-
-#sheet-medida form.form-linha {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--espaco-2, 0.5rem);
-  margin-bottom: 0;
-}
-
-#sheet-medida form.form-linha > * {
-  flex: 0 0 auto;
-}
-
-#sheet-medida form.form-linha > .form-linha {
-  display: flex;
-  flex-direction: row-reverse;
-  flex-wrap: nowrap;
-  gap: var(--espaco-2, 0.5rem);
-  margin: var(--espaco-2, 0.5rem) 0 0;
-}
-
-#sheet-medida form.form-linha > .form-linha > .btn-primario {
-  flex: 1 1 auto;
 }
 
 /* Item da lista = bloco interno do card da secao (MASTER 5, "card sobre card"). */

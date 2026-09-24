@@ -71,6 +71,16 @@ def cenario(nome):
     return deco
 
 
+def responde(status, corpo, so_post=False):
+    """Handler de page.route que devolve status/corpo fixos (fabrica, pra nao cair na
+    armadilha do lambda com parametro padrao: o Playwright chama handler(route, request))."""
+    def handler(route, _request=None):
+        if so_post and route.request.method != "POST":
+            return route.continue_()
+        return route.fulfill(status=status, content_type="application/json", body=corpo)
+    return handler
+
+
 def esperar_fechado(page, sid, ms=1500):
     page.wait_for_function(f"document.getElementById('sheet-{sid}').hidden === true", timeout=ms)
 
@@ -121,13 +131,13 @@ def montar_cenarios():
                 # clique "cru" (sem esperar o botao ficar estavel/livre) = dedo apressado
                 page.evaluate(f"document.querySelector('{SHEETS[sid][0]}').click()")
                 time.sleep(0.03)
-                page.evaluate(f"document.querySelector('#sheet-{sid} .btn-secundario').click()")
+                page.evaluate(f"document.querySelector('#sheet-{sid} [id$=cancelar-btn]').click()")
                 time.sleep(0.03)
             esperar_fechado(page, sid, 2500)
             time.sleep(0.3)
             # nao pode ter ficado preso: abre e fecha de novo pelo caminho normal
             abrir_sheet(page, sid)
-            page.click(f"#sheet-{sid} .btn-secundario")
+            page.click(f"#sheet-{sid} [id$=cancelar-btn]")
             esperar_fechado(page, sid)
             time.sleep(0.3)
             assert not page.evaluate("document.body.classList.contains('bottom-sheet-bloqueado')"), "scroll do body ficou travado"
@@ -279,7 +289,7 @@ def montar_cenarios():
     def c13(page):
         page.locator("#mensagem-situacao").scroll_into_view_if_needed()
         for corpo, status in (('{"error":"falhou"}', 500), ("nao-json", 200)):
-            page.route("**/api/mensagem-dificil", lambda r, c=corpo, s=status: r.fulfill(status=s, content_type="application/json", body=c))
+            page.route("**/api/mensagem-dificil", responde(status, corpo))
             page.fill("#mensagem-situacao", GIGANTE)
             page.click("#mensagem-btn")
             time.sleep(0.5)
@@ -292,7 +302,7 @@ def montar_cenarios():
     def c14(page):
         page.locator("#decisao-pergunta").scroll_into_view_if_needed()
         for corpo, status in (('{"error":"falhou"}', 500), ("nao-json", 200)):
-            page.route("**/api/decisao", lambda r, c=corpo, s=status: r.fulfill(status=s, content_type="application/json", body=c))
+            page.route("**/api/decisao", responde(status, corpo))
             page.fill("#decisao-pergunta", GIGANTE)
             page.click("#decisao-btn")
             time.sleep(0.5)
@@ -320,14 +330,16 @@ def montar_cenarios():
     def c16(page):
         page.click('.tab-btn[data-tab="painel"]')
         time.sleep(0.8)
+        page.locator("#medida-abrir-btn").scroll_into_view_if_needed()
         for _ in range(6):
-            page.locator("#medida-abrir-btn").scroll_into_view_if_needed()
-            page.click("#medida-abrir-btn")
-            page.click("#medida-cancelar-btn")
+            page.evaluate("document.getElementById('medida-abrir-btn').click()")
+            time.sleep(0.03)
+            page.evaluate("document.getElementById('medida-cancelar-btn').click()")
+            time.sleep(0.03)
         esperar_fechado(page, "medida", 2500)
+        time.sleep(0.3)
         for corpo, status in (('{"error":"falha"}', 500), ("{oops", 200)):
-            page.route("**/api/medidas", lambda r, c=corpo, s=status: r.fulfill(status=s, content_type="application/json", body=c)
-                       if r.request.method == "POST" else r.continue_())
+            page.route("**/api/medidas", responde(status, corpo, so_post=True))
             page.click("#medida-abrir-btn")
             esperar_aberto(page, "medida")
             page.fill("#medida-valor", "81.3")

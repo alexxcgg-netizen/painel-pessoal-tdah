@@ -6,14 +6,16 @@
 
    Fase 7 C3a (polimento): so forma e profundidade com os tokens da V0a (MASTER.md secoes 4-5).
    Nenhuma cor, fonte ou animacao nova. Nivel de ABA (vale pra toda secao recolhivel da aba):
-   so cabecalho, ritmo entre secoes e a guarda do [hidden]. O resto (lista, acoes, dica, campo,
-   formulario) fica escopado em `.vida-acabamento`, classe que marca as secoes e os sheets da
-   faixa C3a - as secoes de outras faixas (habitos, viagens, lugares...) nao sao tocadas; se
-   quiserem o mesmo acabamento, basta acrescentar a classe no <section>/.bottom-sheet delas.
+   so cabecalho e ritmo entre secoes. O resto (lista, acoes, dica, campo inline) fica escopado
+   em `.vida-acabamento`, classe que marca as secoes da faixa C3a - as secoes de outras faixas
+   (habitos, viagens, lugares...) nao sao tocadas; se quiserem o mesmo acabamento, basta
+   acrescentar a classe no <section> delas.
 
-   Removido na C3a: o "fallback" `#tab-vida .bottom-sheet { fundo/padding/borda }` da V4. Ele
-   era de antes da V0d e, com o componente real (moldura `position:fixed; inset:0`), pintava a
-   tela inteira de --surface-2 com borda - o veu sumia e o sheet virava um bloco escuro. */
+   Bottom-sheet: NENHUMA regra aqui. O sheet sobe pro <body> enquanto esta aberto (V0d/C2), entao
+   seletor da aba nao o alcanca - o visual dele (titulo, form em coluna, botoes, campos) mora nos
+   componentes (ui/componentes/bottom-sheet.css, campo.css, botao.css). Saiu na C3a o antigo
+   "fallback" `#tab-vida .bottom-sheet { fundo/padding/borda }` da V4, que pintava a moldura
+   fixa da tela inteira. */
 
 #tab-vida .secao-cabecalho svg {
   width: 18px;
@@ -47,17 +49,9 @@
   box-shadow: var(--elevacao-1);
 }
 
-/* [hidden] vale mais que qualquer `display` de componente dentro da aba (ex.: `.campo {
-   display:block }` em ui/componentes/campo.css vence o [hidden] do navegador). Anotado no
-   progress pro dono do campo.css corrigir na origem. */
-#tab-vida [hidden] {
-  display: none;
-}
-
-/* ---------- Dica colapsavel ("!"): o circulo continua com 20px, a area de toque vai a 44px
-   por um ::after invisivel (MASTER 9 permite). O ::before ja e o "!" do style.css. */
-/* A linha da dica ganha 44px de altura: o ::after abaixo precisa desse espaco, porque o
-   .secao-conteudo tem overflow:hidden e cortava a parte de cima da area de toque. */
+/* ---------- Dica colapsavel ("!"): a area de toque de 44px e do componente (::after em
+   ui/componentes/secao.css, C2). Aqui a LINHA da dica ganha 44px de altura: sem isso o
+   .secao-conteudo (overflow:hidden) cortava a metade de cima dessa area, colada no cabecalho. */
 #tab-vida .secao-recolhivel.vida-acabamento .dica-colapsavel {
   min-height: var(--toque-min, 44px);
   align-items: center;
@@ -66,17 +60,6 @@
 
 #tab-vida .secao-recolhivel.vida-acabamento .dica-colapsavel .dica-texto:not([hidden]) {
   padding: var(--espaco-2, 0.5rem) 0;
-}
-
-#tab-vida .secao-recolhivel.vida-acabamento .dica-toggle {
-  position: relative;
-}
-
-#tab-vida .secao-recolhivel.vida-acabamento .dica-toggle::after {
-  content: "";
-  position: absolute;
-  inset: -13px; /* 18px de caixa interna + 2x13 = 44px */
-  border-radius: var(--raio-sm);
 }
 
 /* ---------- Item de lista dentro do card da secao = bloco interno (MASTER 5, "card sobre
@@ -171,23 +154,9 @@
   margin: var(--espaco-2, 0.5rem) 0 0;
 }
 
-/* Neutraliza o `.bottom-sheet { margin/padding/borda/fundo }` SEM escopo de
-   secoes/vida/{habitos,projetos,agenda-painel}.css (faixa c2-visual): ele pinta a moldura fixa
-   do V0d (inset:0) e deixava o sheet com 8px de folga e borda (moldura 8px/820px em vez de
-   0/844). Remover quando aqueles arquivos escoparem a regra - anotado no progress. */
-#tab-vida .bottom-sheet.vida-acabamento {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-}
-
-/* ---------- Formularios dos bottom-sheets da aba e os inline de acao unica (Mensagem
-   dificil, Vale a pena?). Os campos usam `.campo` (V0c); aqui so o layout: uma coluna, 8px
-   entre campos, e a linha de botoes no fim com o principal ocupando o espaco. */
-#tab-vida .bottom-sheet.vida-acabamento form.form-linha,
+/* ---------- Formularios INLINE de acao unica (Mensagem dificil, Vale a pena?, periodo da
+   Revisao): uma coluna com 8px entre campos. O `flex: 1` herdado do style.css nos inputs
+   do .form-linha vira ALTURA numa coluna - aqui cada campo fica do tamanho dele. */
 #tab-vida .secao-recolhivel.vida-acabamento form.form-linha {
   display: flex;
   flex-direction: column;
@@ -196,104 +165,18 @@
   margin-bottom: 0;
 }
 
-/* No sheet (painel flex em coluna), `flex: 1` herdado do style.css nos inputs virava ALTURA
-   (campo de 170px). Aqui cada campo fica do tamanho dele. */
-#tab-vida .bottom-sheet.vida-acabamento form.form-linha > *,
-#tab-vida .bottom-sheet.vida-acabamento .form-linha-sub > *,
 #tab-vida .secao-recolhivel.vida-acabamento form.form-linha > * {
   flex: 0 0 auto;
 }
 
-#tab-vida .bottom-sheet.vida-acabamento .form-linha-sub:not([hidden]) {
-  display: flex;
-  flex-direction: column;
-  gap: var(--espaco-2, 0.5rem);
-}
-
-#tab-vida .bottom-sheet.vida-acabamento form.form-linha > .form-linha {
-  display: flex;
-  flex-direction: row-reverse;
-  flex-wrap: nowrap;
-  gap: var(--espaco-2, 0.5rem);
-  margin: var(--espaco-2, 0.5rem) 0 0;
-}
-
-#tab-vida .bottom-sheet.vida-acabamento form.form-linha > .form-linha > .btn-primario {
-  flex: 1 1 auto;
-}
-
-#tab-vida .bottom-sheet.vida-acabamento form.form-linha > .form-linha > .btn-secundario {
-  flex: 0 0 auto;
-}
-
-/* Titulo do sheet: repete o verbo do botao que abriu (MASTER 5, bottom-sheet). Sem o
-   `#tab-vida` de proposito: o sheet de Peso e medidas mora na aba Painel e usa a mesma classe. */
-.bottom-sheet .vida-sheet-titulo {
-  margin: 0 0 var(--espaco-3, 1rem);
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--text);
-}
-
-/* Campo (MASTER 5): o `.form-linha input[type=...]` do style.css (0,2,1) vence o `.campo`
-   (0,1,0) em fundo, padding e fonte - aqui a receita do MASTER volta a valer dentro da aba:
-   borda sutil, --raio-sm, 44px; foco com --borda-forte + --anel-foco. Desvio consciente do
-   MASTER: fundo --superficie-1 (campo "afundado" no card/sheet) em vez de --superficie-3,
-   porque o placeholder em --text-faint sobre --superficie-3 dava 4.3:1 (abaixo de 4.5). Sobre
-   --superficie-1 da 4.7:1 - resolvido pela superficie, sem cor nova. */
-#tab-vida .bottom-sheet.vida-acabamento .campo,
+/* Campo inline (dentro do card da secao, nao no sheet). Desvio consciente do MASTER: fundo
+   --superficie-1 (campo "afundado" no card) em vez de --superficie-3, porque o placeholder em
+   --text-faint sobre --superficie-3 dava 4.3:1 (abaixo de 4.5). Sobre --superficie-1 da 4.7:1 -
+   resolvido pela superficie, sem cor nova. (O mesmo vale pro .campo do sheet, que e do
+   componente campo.css - anotado no progress.) */
 #tab-vida .secao-recolhivel.vida-acabamento .campo {
   min-height: var(--toque-min, 44px);
-  padding: 0 var(--espaco-3, 0.75rem);
   background-color: var(--superficie-1);
-  border: var(--linha, 1px) solid var(--borda-sutil);
-  border-radius: var(--raio-sm);
-  font-size: 0.92rem;
-}
-
-#tab-vida .bottom-sheet.vida-acabamento select.campo,
-#tab-vida .secao-recolhivel.vida-acabamento select.campo {
-  padding-right: var(--espaco-5, 2rem);
-}
-
-#tab-vida .bottom-sheet.vida-acabamento textarea.campo,
-#tab-vida .secao-recolhivel.vida-acabamento textarea.campo {
-  padding: var(--espaco-2, 0.5rem) var(--espaco-3, 0.75rem);
-}
-
-#tab-vida .bottom-sheet.vida-acabamento .campo:focus-visible,
-#tab-vida .secao-recolhivel.vida-acabamento .campo:focus-visible,
-#tab-vida .bottom-sheet.vida-acabamento .campo:focus,
-#tab-vida .secao-recolhivel.vida-acabamento .campo:focus {
-  outline: none;
-  border-color: var(--borda-forte);
-  box-shadow: var(--anel-foco);
-}
-
-/* Linha de 2 campos curtos lado a lado (ex.: Series + Reps, Data + Meses) - grade de 8px. */
-#tab-vida .vida-campos-par {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--espaco-2, 0.5rem);
-}
-
-#tab-vida .vida-campos-par > .campo {
-  min-width: 0;
-}
-
-/* Rotulo acima do campo (MASTER 5: "rotulo acima do campo, 0.8rem, --text-muted") - o
-   `.campo-rotulo` e da V0c; o <label class="vida-campo"> so empilha rotulo + campo. */
-#tab-vida .vida-campo {
-  display: flex;
-  flex-direction: column;
-  gap: var(--espaco-1, 0.25rem);
-  min-width: 0;
-}
-
-#tab-vida .vida-campo > .campo-rotulo {
-  margin: 0;
-  text-transform: none;
-  letter-spacing: 0;
 }
 
 /* Paragrafo de explicacao no topo do conteudo (ex.: Ainda usa?): o `margin-top` negativo do

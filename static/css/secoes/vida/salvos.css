@@ -14,7 +14,9 @@
 /* Salvo ja visto: o titulo fica em --text-faint (style.css). Sobre o bloco interno
    (--superficie-3) isso dava 4.3:1; o item lido perde o preenchimento e fica so com a borda
    (mais "plano" = ja resolvido, hierarquia por profundidade) e o contraste volta a 4.6:1. */
-#lista-salvos li.item.lido {
+/* (mesma especificidade da regra de bloco interno em secoes/vida.css; este arquivo carrega
+   depois, entao ganha no empate) */
+#lista-salvos > li.item.lista-item.lido {
   background: transparent;
   box-shadow: none;
 }

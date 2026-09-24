@@ -18,15 +18,13 @@
         </div>
       </section>
 
-      <div class="bottom-sheet vida-acabamento" id="sheet-ficha" hidden aria-labelledby="sheet-ficha-titulo">
-        <h3 class="vida-sheet-titulo" id="sheet-ficha-titulo">Nova ficha de treino</h3>
+      <div class="bottom-sheet" id="sheet-ficha" hidden aria-labelledby="sheet-ficha-titulo">
+        <h3 class="bottom-sheet-titulo" id="sheet-ficha-titulo">Nova ficha de treino</h3>
         <form id="ficha-form" class="form-linha">
           <input type="text" id="ficha-grupo" class="campo" placeholder="Grupo (ex: Peito)" maxlength="40" required />
           <input type="text" id="ficha-ex-nome" class="campo" placeholder="Exercicio (ex: Supino reto)" maxlength="80" />
-          <div class="vida-campos-par">
-            <input type="number" id="ficha-ex-series" class="campo" placeholder="Series" aria-label="Series" min="1" max="30" inputmode="numeric" />
-            <input type="text" id="ficha-ex-reps" class="campo" placeholder="Reps (ex: 8-12)" aria-label="Repeticoes" maxlength="20" />
-          </div>
+          <input type="number" id="ficha-ex-series" class="campo" placeholder="Series" aria-label="Series" min="1" max="30" inputmode="numeric" />
+          <input type="text" id="ficha-ex-reps" class="campo" placeholder="Reps (ex: 8-12)" aria-label="Repeticoes" maxlength="20" />
           <input type="text" id="ficha-ex-carga" class="campo" placeholder="Carga (opcional)" aria-label="Carga (opcional)" maxlength="30" />
           <button type="button" id="ficha-ex-add-btn" class="btn btn-secundario btn-com-icone">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>

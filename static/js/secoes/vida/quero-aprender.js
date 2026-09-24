@@ -4,7 +4,8 @@
 
 async function loadAprender() {
   const itens = await apiFetch("/api/aprender");
-  if (!itens) return;
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (!Array.isArray(itens)) return;
   const lista = $("#lista-aprender");
   lista.innerHTML = "";
   $("#aprender-vazio").hidden = itens.length > 0;

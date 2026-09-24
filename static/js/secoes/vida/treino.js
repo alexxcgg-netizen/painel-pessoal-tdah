@@ -7,7 +7,8 @@ let fichasTreinoCache = null;
 async function obterFichasTreino(forcar = false) {
   if (!fichasTreinoCache || forcar) {
     const fichas = await apiFetch("/api/treino/fichas");
-    if (fichas) fichasTreinoCache = fichas;
+    // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+    if (Array.isArray(fichas)) fichasTreinoCache = fichas;
   }
   return fichasTreinoCache || [];
 }
@@ -145,7 +146,7 @@ async function loadTreino() {
   });
   const treinos = await apiFetch("/api/treino");
   const recentes = $("#treinos-recentes");
-  if (treinos && treinos.length) {
+  if (Array.isArray(treinos) && treinos.length) {
     recentes.hidden = false;
     recentes.textContent =
       "Ultimos treinos: " +

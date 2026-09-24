@@ -4,7 +4,8 @@
 
 async function loadProgresso() {
   const p = await apiFetch("/api/progresso?dias=30");
-  if (p) {
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (p && typeof p === "object") {
     const grid = $("#progresso-grid");
     grid.innerHTML = "";
     [
@@ -22,19 +23,20 @@ async function loadProgresso() {
     });
     const metas = $("#progresso-metas");
     metas.innerHTML = "";
-    p.metas.forEach((m) => metas.appendChild(criarEl("li", null, `${m.titulo}: ${m.pct}%`)));
+    (Array.isArray(p.metas) ? p.metas : []).forEach((m) => metas.appendChild(criarEl("li", null, `${m.titulo}: ${m.pct}%`)));
   }
   const revisao = await apiFetch("/api/revisao-mensal");
   const revEl = $("#revisao-mes");
-  revEl.hidden = !revisao;
-  if (revisao) revEl.textContent = revisao.texto;
+  revEl.hidden = !(revisao && revisao.texto);
+  if (revisao && revisao.texto) revEl.textContent = revisao.texto;
 
   const uso = await apiFetch("/api/uso-apps?dias=7");
-  $("#uso-apps-box").hidden = !uso || !uso.apps.length;
-  if (uso && uso.apps.length) {
+  const apps = uso && Array.isArray(uso.apps) ? uso.apps : [];
+  $("#uso-apps-box").hidden = !apps.length;
+  if (apps.length) {
     const lista = $("#lista-uso-apps");
     lista.innerHTML = "";
-    uso.apps.forEach((a) => {
+    apps.forEach((a) => {
       const li = criarEl("li");
       li.appendChild(criarEl("span", null, a.app));
       li.appendChild(criarEl("span", "progresso-rotulo", a.texto));

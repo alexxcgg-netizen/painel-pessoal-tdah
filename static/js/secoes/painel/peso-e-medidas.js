@@ -20,7 +20,8 @@ function dadosGraficoMedida(medidas) {
 
 async function loadMedidas() {
   const medidas = await apiFetch("/api/medidas");
-  if (!medidas) return;
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (!Array.isArray(medidas)) return;
 
   const list = $("#lista-medidas");
   list.innerHTML = "";

@@ -14,7 +14,8 @@ function textoProximaManutencaoCarro(m) {
 
 async function loadManutencoes() {
   const itens = await apiFetch("/api/manutencoes");
-  if (!itens) return;
+  // Fase 7 C3a: resposta fora do formato (ex.: {} no lugar de lista) nao derruba a secao.
+  if (!Array.isArray(itens)) return;
   const lista = $("#lista-manutencoes");
   lista.innerHTML = "";
   $("#manutencoes-vazio").hidden = itens.length > 0;

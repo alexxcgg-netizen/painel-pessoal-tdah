@@ -1,56 +1,38 @@
-# Fase 7 - faixa C3a (polimento visual da aba Vida) - progress.txt
-# Worktree /home/user/painel-pessoal-tdah-fase7-c3a-vida, branch fase7/c3a-vida, porta 5131.
-# Obs: a V4 nao deixou scripts/ralph-v4-vida/APRENDIZADOS.md (so progress.txt) - li so o progress.
+# Fase 7 C3a (polimento visual da aba Vida) - worktree painel-pessoal-tdah-fase7-c3a-vida, branch fase7/c3a-vida, porta 5131
+# A V4 nao deixou APRENDIZADOS.md (so progress). Scripts: servidor.py comum.py auditar.py fuzz.py capturar.py
 
-## Historia 1: auditoria Playwright 390x844 (auditar.py, banco temporario + dubles) - FEITA
-Achados (antes das correcoes; [c3a] = arquivo meu, [outro] = so anoto):
-1. Console: 0 erro do app. So ruido de rede sem internet (fonts.googleapis, /api/summary/today 502).
-2. [c3a] BUG GRAVE: vida.css `#tab-vida .bottom-sheet` e peso-e-medidas.css `#sheet-medida.bottom-sheet`
-   (fallback da V4 de antes da V0d) pintam a MOLDURA fixa do V0d (inset:0) com fundo/padding/borda -
-   o veu some e o sheet vira um bloco escuro com borda ocupando a tela toda.
-3. [c3a] Toque < 44px: .dica-toggle 20x20 (todas as secoes); .item-acoes button 28px (Apagar,
-   feita hoje, respondi, mexi hoje, aprendi, vi, marcar comprado, uso/nao uso mais); a.salvo-link 19px;
-   label do checklist de compras 40px; inputs dos sheets 36-39px; #garantia-anexo 21px;
-   #revisao-periodo-btn 38x21; #ficha-ex-add-btn 22px; #mensagem-btn/#decisao-btn 35px.
-4. [c3a] Botao nativo do navegador (branco/cinza): #ficha-ex-add-btn "Adicionar exercicio",
-   #revisao-periodo-btn "Ver", e o "Choose File" do #garantia-anexo.
-5. Contraste < 4.5:1: nenhum texto estatico (menor: --text-faint em .item-titulo de salvo lido,
-   4.57; chip "vence em" 4.99). So falso positivo durante o fadeInUp dos li (opacity).
-6. Botao adicionar: todos os 10 da faixa ja sao .btn.btn-adicionar + bottom-sheet (V4). [outro]
-   habitos/projetos/agenda (c2-visual), contas-pessoais (c3c), viagens/lugares (c3b) tambem ja sao.
-7. Emoji como icone: nenhum (fonte e runtime).
-8. Secao sem .secao-recolhivel: [outro] habitos, projetos, agenda-painel (c2-visual), contas-pessoais
-   (c3c-financas), viagens, lugares (c3b-viagens) - h2 solto direto no .vida-secoes.
-9. [hidden] visivel: [outro] #habito-dias-semana-campo (display:flex) e #habito-vezes-semana.campo -
-   `.campo { display:block }` (static/css/ui/componentes/campo.css l.9) vence o [hidden] do UA.
-   Integrador/c2: acrescentar `.campo[hidden] { display: none; }` em campo.css.
-10. Inconsistencia com MASTER: [c3a] cabecalho da secao com titulo CENTRALIZADO (space-between com
-   3 filhos) - MASTER pede titulo a esquerda e chevron a direita; item de lista = card com borda
-   tingida dentro do card da secao (MASTER: bloco interno = --superficie-3 + --raio-sm + elevacao-0);
-   sheets sem titulo; campos sem .campo; rotulo "USO DO CELULAR" todo em maiusculas.
-11. [outro] BUG style.css l.2100-2104: comentario "(... .limite-cartao-*/ .pessoa-barra-*)" fecha o
-   comentario no "*/" do meio e engole a regra `.garantia-chip { ... }` (chip sai 16px, sem pilula).
-   Correcao certa: trocar "-*/" por "-* /" no comentario. Aqui reponho a regra em garantia.css.
-12. [outro] BUG da moldura do sheet: `.tab-content:not([hidden]) { animation: tabEntra .. both }`
-   (style.css l.990-1006) prende `transform: matrix(1,0,0,1,0,0)` na aba -> vira bloco de contencao
-   do position:fixed; TODO sheet dentro de aba mede a aba inteira (~4700px), nao a tela. Contorno
-   meu so em #tab-vida (vida.css) e #tab-painel (peso-e-medidas.css): `animation-fill-mode: backwards`
-   (mesma animacao, so nao segura o ultimo quadro). Integrador: levar pro .tab-content global,
-   ou a V0d mover o sheet pro <body> ao abrir.
-13. [outro] .secao-conteudo recolhida (max-height 0) continua no Tab do teclado (secao.css/V0c):
-   sugerir `visibility:hidden` com atraso no fechamento.
+## H1 auditoria (auditar.py) - FEITA. Achados [c3a] todos corrigidos na H2 (0 restante):
+sheet preso/emoldurado; toque < 44px (dica "!", acoes da linha 28px, link do salvo, checklist,
+campos 36px, anexo 21px, "Ver"); botao nativo ("Adicionar exercicio", "Ver", "Choose File");
+titulo do cabecalho centralizado; item = card dentro de card; sheets sem titulo; campo sem .campo;
+rotulo em MAIUSCULAS; chip da garantia sem pilula; resumo do salvo numa coluna ao lado; 1a linha de
+"Ainda usa?" cortada. Contraste: so "salvo lido" (4.3) -> resolvido tirando o preenchimento. Emoji: 0.
+Botao adicionar: os 10 ja eram .btn.btn-adicionar + sheet. Secao sem recolhivel: 0 minha.
 
-## Historia 2: correcoes nos meus arquivos - FEITA (auditoria re-rodada: 0 achado [c3a])
-- vida.css: tirei o fallback de sheet; titulo do cabecalho a esquerda; guarda [hidden]; dica
-  "!" com 44px (::after + linha de 44px); li interno = --superficie-3/raio-sm/elevacao-0;
-  acoes da linha com 44px; "Apagar" vira icone 44px (--text-muted -> --danger no hover) via
-  :has() no ICONE_TRASH; forms dos sheets em coluna; .campo com a receita do MASTER.
-- Desvio consciente: fundo do .campo = --superficie-1 (placeholder --text-faint: 4.3 -> 4.7:1).
-- Salvo lido: sem preenchimento (titulo --text-faint 4.3 -> 4.6:1). Nenhuma cor nova.
-- Templates: .campo em todos os campos; titulo em cada sheet (aria-labelledby); rotulo visivel
-  nos campos de data; #ficha-ex-add-btn e #revisao-periodo-btn viram .btn.btn-secundario;
-  #mensagem-btn/#decisao-btn viram .btn.btn-primario.
-- garantia.css: chip reposto (bug do comentario, item 11) e input de arquivo estilizado.
-- seu-progresso/revisao: bloco interno + rotulo sem caixa-alta; salvos/compras: alvo 44px.
-- peso-e-medidas.css: mesmo pacote, escopado na secao e no #sheet-medida.
-- Testes: 199 passed (6 suites vida/estrutura), JS 196/196.
+## H2 correcoes - FEITA. H3 fuzz - FEITA (56/56, 0 erro de console, 0 excecao, 0 saida de rede)
+- Apos merge da C2: sheet vai pro <body>; titulo .bottom-sheet-titulo; botao "Salvar <coisa>";
+  vida.css sem NENHUMA regra de sheet; guarda [hidden] e fill-mode meus sairam (viraram globais).
+- Escopo: regras de lista/acoes/dica/campo inline so em `.vida-acabamento` (minhas 14 secoes).
+- Fuzz achou e corrigi: loaders quebravam com GET em formato errado ({} no lugar de lista) ->
+  Array.isArray em 13 loaders; toque em "abrir" durante o fechamento do sheet -> ignorado.
+- Trava de rede (pedido URGENTE do integrador): servidor.py com base URL 127.0.0.1:9, chaves
+  "teste-fake", *_proxy apagados e connect() fora do loopback/porta do proxy RECUSADO e logado;
+  Playwright aborta host externo e dubla /api/summary/today. Contagem de tentativas: 0.
+## H4 testes - FEITA: 6 suites vida/estrutura 199 passed; JS 219/219; c2/m1/c3b 21 passed.
+
+## PENDENCIAS pra outros donos (nao editei)
+1. static/js/ui/bottom-sheet.js (V0d/C2) fecharBottomSheet: setTimeout(finalizar,240) nao e
+   cancelado se o sheet reabre na janela -> finalizar esconde o sheet que continua em `abertos`:
+   nunca mais abre e o body fica com scroll travado. Guardar o timer e clearTimeout no abrir.
+   (Contornado nos meus 10 botoes de abrir.)
+2. static/css/ui/componentes/campo.css (C2): placeholder --text-faint sobre --superficie-3 = 4.3:1
+   (< 4.5) em todo sheet. Sugestao: fundo --superficie-1 no .campo do sheet (da 4.7:1).
+   Nas minhas secoes (campo inline) ja uso --superficie-1.
+3. static/css/style.css l.~2102: comentario "(... .limite-cartao-*/ .pessoa-barra-*)" fecha no
+   "*/" do meio e engole `.garantia-chip {}`. Trocar "-*/" por "-* /". (Reposto em garantia.css.)
+4. c3b: viagens.css/lugares.css `.dica-toggle::after { inset:-12px }` + o ::after do componente
+   (left/top 50% + translate -50%) = area de toque deslocada pro canto (hit-test falha).
+   Remover o ::after local (o do secao.css ja da 44px).
+5. secao.css (V0c): .secao-conteudo recolhida (max-height 0) continua no Tab do teclado.
+6. Minhas regras de sheet saem do CSS da aba; `#sheet-garantia .garantia-anexo` e
+   `#sheet-ficha #ficha-ex-add-btn` ficam por id na CSS da secao (valem no <body>).

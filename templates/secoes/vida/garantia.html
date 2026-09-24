@@ -17,24 +17,18 @@
         </div>
       </section>
 
-      <div class="bottom-sheet vida-acabamento" id="sheet-garantia" hidden aria-labelledby="sheet-garantia-titulo">
-        <h3 class="vida-sheet-titulo" id="sheet-garantia-titulo">Adicionar produto</h3>
+      <div class="bottom-sheet" id="sheet-garantia" hidden aria-labelledby="sheet-garantia-titulo">
+        <h3 class="bottom-sheet-titulo" id="sheet-garantia-titulo">Adicionar produto</h3>
         <form id="garantia-form" class="form-linha">
           <input type="text" id="garantia-produto" class="campo" placeholder="Produto (ex: Geladeira)" maxlength="120" required />
-          <label class="vida-campo">
-            <span class="campo-rotulo">Data da compra</span>
-            <input type="date" id="garantia-data-compra" class="campo" required />
-          </label>
-          <label class="vida-campo">
-            <span class="campo-rotulo">Garantia (meses)</span>
-            <input type="number" id="garantia-prazo" class="campo" placeholder="12" min="1" max="600" inputmode="numeric" required />
-          </label>
-          <label class="vida-campo">
-            <span class="campo-rotulo">Nota fiscal (opcional)</span>
-            <input type="file" id="garantia-anexo" class="garantia-anexo" accept=".pdf,.jpg,.jpeg,.png" />
-          </label>
+          <label class="campo-rotulo" for="garantia-data-compra">Data da compra</label>
+          <input type="date" id="garantia-data-compra" class="campo" required />
+          <label class="campo-rotulo" for="garantia-prazo">Garantia (meses)</label>
+          <input type="number" id="garantia-prazo" class="campo" placeholder="12" min="1" max="600" inputmode="numeric" required />
+          <label class="campo-rotulo" for="garantia-anexo">Nota fiscal (opcional)</label>
+          <input type="file" id="garantia-anexo" class="garantia-anexo" accept=".pdf,.jpg,.jpeg,.png" />
           <div class="form-linha">
-            <button type="submit" id="garantia-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button>
+            <button type="submit" id="garantia-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar produto</button>
             <button type="button" id="garantia-cancelar-btn" class="btn btn-secundario">Cancelar</button>
           </div>
         </form>
