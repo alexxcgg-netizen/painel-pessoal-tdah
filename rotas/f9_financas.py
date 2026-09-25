@@ -78,7 +78,7 @@ def _linhas_banco(conn, de: date, ate: date) -> list[dict]:
         data_tx = (t.get("data") or "")[:10]
         if not data_tx or not (de_s <= data_tx <= ate_s):
             continue
-        info = financas_descricao.descrever(t, por_external_id)
+        info = financas_descricao.descrever({**t, "categoria": t.get("categoria_pluggy")}, por_external_id)
         conta = contas_por_id.get(t.get("bank_account_id"))
         valor = _valor_com_sinal(t.get("tipo_operacao"), t.get("valor"))
         transferencia_ou_fatura = _eh_transferencia_ou_pagamento_fatura(
@@ -91,7 +91,7 @@ def _linhas_banco(conn, de: date, ate: date) -> list[dict]:
                 "descricao": info.get("descricao") or "Sem descrição",
                 "categoria": info.get("categoria") or t.get("categoria") or "Outros",
                 "valor": round(valor, 2),
-                "origem": (conta["banco"] if conta and conta.get("banco") else "banco"),
+                "origem": (conta["banco"].capitalize() if conta and conta.get("banco") else "Banco"),
                 "tipo_conta": conta["tipo"] if conta else None,
                 "estorno_de": info.get("estorno_de"),
                 "eh_saida": valor < 0,

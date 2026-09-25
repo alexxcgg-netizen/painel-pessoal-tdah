@@ -103,6 +103,18 @@ class ExtratoSinalTestCase(_BaseTestCase):
         self.assertEqual(item["valor"], -55.90)
         self.assertEqual(item["tipo_conta"], "cartao")
 
+    def test_categoria_vem_do_pluggy_e_origem_capitalizada(self):
+        cartao_id = self._conta("nubank", "cartao")
+        self._tx(cartao_id, "c9", _iso(1), 30.0, "DEBIT", descricao="Raia362",
+                 categoria_pluggy="Pharmacy", categoria="outros")
+
+        corpo = self.client.get("/api/financas/extrato").get_json()
+        item = corpo["itens"][0]
+        self.assertEqual(item["categoria"], "Farmácia")
+        self.assertEqual(item["origem"], "Nubank")
+        resumo = self.client.get("/api/financas/resumo").get_json()
+        self.assertEqual(resumo["por_categoria"][0]["categoria"], "Farmácia")
+
     def test_entrada_credit_na_conta_aparece_positiva(self):
         conta_id = self._conta("Nubank", "conta")
         self._tx(conta_id, "e1", _iso(1), 200.0, "CREDIT", descricao="Salario")
