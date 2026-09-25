@@ -21,6 +21,13 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
   verde #4ADE80, 4 Luxo dourado #D4AF37, 5 Radar laranja #FF8A00, 6 Orbital violeta #A78BFA,
   7 Mínimo branco, 8 Colmeia turquesa #2DD4BF, 9 Cockpit magenta #FF3DCB (B612),
   10 Rota azul-gelo #A5D8FF.
+- **Rodada 2 do laboratório** (o dono recusou as 10 HUD: "muito falso, coisa de filme; quero
+  parecer app real, tipo ChatGPT; gostei de finanças por categoria; tem que ter gráficos"):
+  20 direções de apps reais publicadas em https://claude.ai/artifact/KsbJFGMP9cfwovHcDhY1Qb
+  (fonte em `docs/fase9-lab2/`). 1 Conversa, 2 iOS Nativo, 3 Carteira, 4 Widgets, 5 Bento,
+  6 Produtividade, 7 Documento, 8 Jornal, 9 Caderno, 10 Histórias, 11 Banco Digital,
+  12 Resumo Saúde, 13 Brutalista, 14 Linha do Dia, 15 Busca, 16 Colunas, 17 Vidro,
+  18 Planilha, 19 Braun, 20 Carro. Claras: 7, 8, 9, 13, 18, 19. AGUARDANDO escolha.
 - **Etapa C** (C1 tokens ... C6 componentes) só começa com a escolha do dono.
 - Pluggy real (medido): cartão manda compra com amount positivo + `DEBIT`; saída decidida por
   `tipo_operacao`. Cartão tem parcelas futuras até 2027. 384 transações cartão + 29 conta.
