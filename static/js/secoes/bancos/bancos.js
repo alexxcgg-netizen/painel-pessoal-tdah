@@ -108,32 +108,16 @@ function criarLimiteCartaoBox(conta) {
 }
 
 async function loadBancos() {
-  const [contas, status, patrimonio] = await Promise.all([
+  const [contas, status] = await Promise.all([
     apiFetch("/api/bancos"),
     apiFetch("/api/bancos/sync-status"),
-    apiFetch("/api/patrimonio"),
   ]);
 
   if (status) {
     $("#bancos-status").textContent = typeof status.info === "string" ? status.info : "";
-    $("#conectar-btn").hidden = !status.sincronizacao_automatica;
     // aviso discreto - so aparece quando ENCRYPTION_KEY nao esta configurada
     // (ver docs/SEGURANCA.md); nao bloqueia nada, so avisa.
     $("#cripto-aviso").hidden = status.criptografia_ativa !== false;
-  }
-
-  if (patrimonio && typeof patrimonio === "object") {
-    $("#patrimonio-total").textContent = fmtMoedaFinancas(patrimonio.patrimonio_total);
-    const detalhes = [];
-    if (numeroFinancas(patrimonio.saldo_bancario)) detalhes.push("saldo em conta/cartao: ", { r: patrimonio.saldo_bancario });
-    if (numeroFinancas(patrimonio.valor_guardado_metas)) {
-      if (detalhes.length) detalhes.push(" \u00b7 ");
-      detalhes.push("guardado em metas: ", { r: patrimonio.valor_guardado_metas });
-    }
-    preencherLinhaComValores($("#patrimonio-detalhe"), detalhes);
-    const nContas = Array.isArray(patrimonio.contas) ? patrimonio.contas.length : 0;
-    const nMetas = Array.isArray(patrimonio.metas) ? patrimonio.metas.length : 0;
-    $("#patrimonio-box").hidden = nContas === 0 && nMetas === 0;
   }
 
   if (!Array.isArray(contas)) return;
@@ -142,47 +126,3 @@ async function loadBancos() {
   $("#bancos-vazio").hidden = contas.length > 0;
   contas.filter((c) => c && typeof c === "object").forEach((c) => list.appendChild(criarItemBanco(c)));
 }
-
-let pluggyScriptCarregado = null;
-
-function carregarPluggyScript() {
-  if (pluggyScriptCarregado) return pluggyScriptCarregado;
-  pluggyScriptCarregado = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://cdn.pluggy.ai/pluggy-connect/latest/pluggy-connect.js";
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-  return pluggyScriptCarregado;
-}
-
-$("#conectar-btn").addEventListener("click", async () => {
-  const btn = $("#conectar-btn");
-  setBotaoCarregando(btn, true, "Abrindo...");
-
-  const [tokenData] = await Promise.all([
-    apiFetch("/api/bancos/conectar/token", { method: "POST" }),
-    carregarPluggyScript().catch(() => mostrarErro("Nao consegui carregar o widget de conexao.")),
-  ]);
-
-  setBotaoCarregando(btn, false, "Conectar banco automaticamente");
-  if (!tokenData) return;
-
-  const widget = new PluggyConnect({
-    connectToken: tokenData.connect_token,
-    includeSandbox: false,
-    onSuccess: async ({ item }) => {
-      setBotaoCarregando(btn, true, "Sincronizando...");
-      const data = await apiFetch("/api/bancos/conectar/finalizar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ item_id: item.id }),
-      });
-      setBotaoCarregando(btn, false, "Conectar banco automaticamente");
-      if (data) loadBancos();
-    },
-    onError: () => mostrarErro("A conexao com o banco falhou. Tenta de novo."),
-  });
-  widget.init();
-});

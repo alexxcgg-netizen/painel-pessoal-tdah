@@ -26,7 +26,6 @@ load_dotenv()
 import agenda
 import aprendizado
 import auth
-import bank_ofx
 import caldav_client
 import calculos
 import cards
@@ -7766,40 +7765,6 @@ def _categorizar_transacoes_importadas(conn, transacoes: list[dict]) -> list[dic
     for t in transacoes:
         t["categoria"] = gastos.sugerir_categoria(t.get("descricao", ""), historico)
     return transacoes
-
-
-@app.route("/api/bancos/importar", methods=["POST"])
-def importar_extrato():
-    banco = request.form.get("banco", "").strip().lower()
-    tipo = request.form.get("tipo", "conta").strip().lower()
-    if tipo not in ("conta", "cartao"):
-        tipo = "conta"
-    arquivo = request.files.get("arquivo")
-    if not banco or not arquivo:
-        return jsonify({"error": "informe o banco e o arquivo OFX"}), 400
-
-    texto = bank_ofx.decode_ofx(arquivo.read())
-    try:
-        transacoes = bank_ofx.parse_transactions(texto)
-    except ValueError:
-        return jsonify({"error": "nao consegui ler as datas/valores desse arquivo OFX"}), 400
-
-    if not transacoes:
-        return jsonify({"error": "nenhuma transacao encontrada nesse arquivo"}), 400
-
-    conn = get_db()
-    conta_id = get_or_create_bank_account(conn, banco, tipo)
-    transacoes = _categorizar_transacoes_importadas(conn, transacoes)
-    novas = insert_bank_transactions(conn, conta_id, transacoes)
-    conn.close()
-    return jsonify(
-        {
-            "conta_id": conta_id,
-            "encontradas": len(transacoes),
-            "novas": novas,
-            "duplicadas": len(transacoes) - novas,
-        }
-    )
 
 
 @app.route("/api/bancos", methods=["GET"])
