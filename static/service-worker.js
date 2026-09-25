@@ -113,6 +113,8 @@ const ASSETS = [
   "/static/css/secoes/gastos/metas.css",
   "/static/css/secoes/gastos/assinaturas.css",
   "/static/css/secoes/gastos/conversa.css",
+  "/static/css/secoes/hoje/conversa.css",
+  "/static/js/secoes/hoje/conversa.js",
   "/static/css/secoes/bancos/bancos.css",
   "/static/css/secoes/construtora/construtora.css",
   "/static/css/secoes/construtora/contas-a-pagar.css",
