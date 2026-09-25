@@ -204,9 +204,10 @@ class TelaFinancasConversaUiTestCase(unittest.TestCase):
         self.assertLess(pos_conversa, pos_extrato)
         self.assertLess(pos_extrato, pos_extrato_completo)
 
-    def test_metas_e_construtora_recolhidos(self):
+    def test_metas_recolhidas_e_construtora_em_aba_propria(self):
         self.assertIn('data-secao-id="metas"', self.corpo)
-        self.assertIn('data-secao-id="construtora"', self.corpo)
+        self.assertNotIn('data-secao-id="construtora"', self.corpo)
+        self.assertIn('id="tab-construtora"', self.corpo)
 
     def test_ids_antigos_de_resumo_continuam_no_html(self):
         # Contrato de tests/test_fase9_ui.py (nao e meu arquivo) - o card

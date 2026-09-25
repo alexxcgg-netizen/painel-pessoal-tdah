@@ -1,10 +1,6 @@
 // static/js/secoes/vida/viagens.js - Secao vida > viagens (HTML: templates/secoes/vida/viagens.html).
 // Fase 7 (X2): extraido sem mudanca de logica do antigo vida.js 1263-1419.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
-// Fase 9 (C5): o aviaozinho animado da linha do tempo (calculo puro + HTML)
-// vive em static/js/secoes/vida/viagens-aviao.js (window.ViagemAviao,
-// carregado ANTES deste arquivo) - aqui so monta o bloco por viagem e liga a
-// animacao (IntersectionObserver) quando a secao fica de fato visivel.
 
 function renderItensMala(v, li) {
   const antigo = li.querySelector(".mala");
@@ -125,59 +121,6 @@ function criarStatusVooEl(r) {
   return box;
 }
 
-// US-F11 + Fase 9 C5: aviaozinho SVG andando na linha do tempo ate a data da
-// viagem, MESMA janela (planejamento -> ida) do card de cima (US-F11), so
-// que ele nunca reimplementa - so consome ViagemAviao.renderAviaoHTML com o
-// que /api/viagens ja manda por viagem (data_ida, criado_em, marcos_planejamento).
-function renderBlocoAviao(v) {
-  if (typeof ViagemAviao === "undefined" || typeof ViagemAviao.renderAviaoHTML !== "function") return null;
-  const html = ViagemAviao.renderAviaoHTML(v, new Date());
-  if (!html) return null;
-  const envelope = document.createElement("div");
-  envelope.innerHTML = html;
-  return envelope.firstElementChild;
-}
-
-// Dispara a animacao so quando o bloco fica de fato visivel na tela (secao
-// aberta E rolada ate ele) - nunca escondido (secao recolhida ou o grupo
-// "Mundo" da aba Vida ainda fechado, window.VidaGrupos.abrirSecao). Cada
-// aviao anima uma vez so (dataset.animado), com balanco continuo depois.
-function ligarAnimacaoAviao(bloco) {
-  if (!bloco) return;
-  const aviaoEl = bloco.querySelector(".viagem-aviao-aviao");
-  if (!aviaoEl) return;
-  const reduzMovimento =
-    typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  function disparar() {
-    if (aviaoEl.dataset.animado === "1") return;
-    aviaoEl.dataset.animado = "1";
-    if (reduzMovimento) {
-      // Aparece direto na posicao final, sem deslizar nem balancar.
-      aviaoEl.classList.add("sem-transicao", "em-voo");
-      return;
-    }
-    // Um frame de folga pra garantir que o navegador ja pintou o aviao em
-    // left:0% antes de ligar a transicao (senao ela nunca dispara).
-    requestAnimationFrame(() => requestAnimationFrame(() => aviaoEl.classList.add("em-voo")));
-  }
-
-  const alvo = bloco.closest("li") || bloco;
-  if (typeof IntersectionObserver === "function") {
-    const obs = new IntersectionObserver((entradas) => {
-      entradas.forEach((entrada) => {
-        if (entrada.isIntersecting && entrada.boundingClientRect.height > 0) {
-          disparar();
-          obs.unobserve(entrada.target);
-        }
-      });
-    }, { threshold: 0.01 });
-    obs.observe(alvo);
-  } else {
-    disparar(); // navegador sem IntersectionObserver: nunca quebra, so anima direto
-  }
-}
-
 async function loadViagens() {
   const viagens = await apiFetch("/api/viagens");
   if (!Array.isArray(viagens)) return; // null (erro ja mostrado) ou resposta fora do formato
@@ -205,11 +148,6 @@ async function loadViagens() {
     const timelineBox = criarEl("div", "viagem-timeline-box");
     li.appendChild(timelineBox);
     renderTimelineViagem(v.id, timelineBox);
-    const blocoAviao = renderBlocoAviao(v);
-    if (blocoAviao) {
-      li.appendChild(blocoAviao);
-      ligarAnimacaoAviao(blocoAviao);
-    }
     li.dataset.entidade = "viagem"; // destino do link de card (Fase 6, US-E7)
     li.dataset.id = v.id;
     lista.appendChild(li);

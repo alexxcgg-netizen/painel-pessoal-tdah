@@ -3,29 +3,6 @@
         Tarefas
       </h2>
 
-      {# Fase 9, faixa P-tarefas: mensagem estilo "Conversa" - texto calculado em
-         JS (loadResumoTarefas), sem IA. Mesmo par dot+frase de fc-msg/fc-frase
-         (static/css/secoes/gastos/conversa.css) e conversa-dot/conversa-fala
-         (static/css/secoes/hoje/conversa.css), so com prefixo tf- por secao. #}
-      <div class="tf-msg">
-        <span class="tf-dot" aria-hidden="true"></span>
-        <p class="tf-frase" id="tf-frase-resumo">Carregando suas tarefas...</p>
-      </div>
-
-      <div class="tf-card" id="tf-card-grafico">
-        <div class="tf-card-topo"><span>Concluídas nos últimos 7 dias</span></div>
-        <div id="tf-grafico-semana" class="tf-grafico-semana"></div>
-      </div>
-
-      {# Seletor segmentado Pendentes | Hoje | Concluidas - contrato:
-         tests/test_fase9_p_tarefas.py. Reusa .chip (ja carregado, mesmo padrao
-         de #energia-botoes logo abaixo) em vez de criar componente novo. #}
-      <div class="tf-seletor" id="tarefas-seletor" role="group" aria-label="Filtro de tarefas">
-        <button type="button" class="chip tf-seg-btn" data-estado="pendentes" aria-pressed="true">Pendentes</button>
-        <button type="button" class="chip tf-seg-btn" data-estado="hoje" aria-pressed="false">Hoje</button>
-        <button type="button" class="chip tf-seg-btn" data-estado="concluidas" aria-pressed="false">Concluídas</button>
-      </div>
-
       <button type="button" id="tarefa-abrir-btn" class="btn btn-adicionar">
         Nova tarefa
       </button>
@@ -45,22 +22,17 @@
         </form>
       </div>
 
-      {# So faz sentido triar tarefa PENDENTE por energia - some da tela quando o
-         seletor esta em Hoje/Concluidas (loadTasks cuida do hidden), ids de
-         dentro ficam intactos (contrato do smoke test acima). #}
-      <div id="tf-bloco-energia">
-        <p class="card-vida-meta">Como ta sua energia agora?</p>
-        <div class="form-linha" id="energia-botoes" role="group" aria-label="Energia agora">
-          <button type="button" class="chip" data-nivel="baixa" aria-pressed="false">Baixa</button>
-          <button type="button" class="chip" data-nivel="media" aria-pressed="false">Média</button>
-          <button type="button" class="chip" data-nivel="alta" aria-pressed="false">Alta</button>
-        </div>
-        <p id="sugestao-energia-vazio" class="vazio" hidden>Nenhuma tarefa compatível com esse nível agora.</p>
-        <ul id="lista-sugestao-energia"></ul>
+      <p class="card-vida-meta">Como ta sua energia agora?</p>
+      <div class="form-linha" id="energia-botoes" role="group" aria-label="Energia agora">
+        <button type="button" class="chip" data-nivel="baixa" aria-pressed="false">Baixa</button>
+        <button type="button" class="chip" data-nivel="media" aria-pressed="false">Média</button>
+        <button type="button" class="chip" data-nivel="alta" aria-pressed="false">Alta</button>
       </div>
+      <p id="sugestao-energia-vazio" class="vazio" hidden>Nenhuma tarefa compatível com esse nível agora.</p>
+      <ul id="lista-sugestao-energia"></ul>
 
       <p id="tarefas-vazio" class="vazio" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9"/></svg>
-        <span id="tarefas-vazio-texto">Nenhuma tarefa pendente. Ta tudo feito.</span>
+        Nenhuma tarefa pendente. Ta tudo feito.
       </p>
       <ul id="lista-tarefas"></ul>

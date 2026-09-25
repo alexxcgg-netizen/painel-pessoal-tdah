@@ -1,56 +1,30 @@
     <section id="tab-vida" class="tab-content" hidden>
-      {# Fase 9 C4: tela de entrada em grupos (cartoes + navegacao) - ver
-         templates/secoes/vida/grupos.html e static/js/secoes/vida/grupos.js.
-         As ~30 secoes abaixo continuam sendo as mesmas de sempre (mesmo id,
-         mesmo JS); so ganharam [hidden] por padrao e um jeito de serem
-         achadas por id de grupo - grupos.js decide qual fica visivel. #}
-{% include "secoes/vida/grupos.html" %}
-
-      {# Fase 9 C-abas: consolidacao de 8 abas em 4 - aba Aviacao inteira, no topo.
-         C4: escondida por padrao (data-grupo-secao a mostra/esconde). #}
-      <section id="secao-aviacao" data-grupo-secao="secao-aviacao" hidden>
-        <h2 style="--secao-cor: var(--cor-aviacao)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v16M12 9 3 14M12 9l9 5M12 16l-4 3M12 16l4 3"/></svg>
-          Aviação
-        </h2>
-{% include "secoes/aviacao/horas-voadas.html" %}
-{% include "secoes/aviacao/registrar-voo.html" %}
-{% include "secoes/aviacao/proximos-voos.html" %}
-{% include "secoes/aviacao/metar.html" %}
-      </section>
+      <h2 style="--secao-cor: var(--cor-painel)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/></svg>
+        Vida
+      </h2>
 
       <div class="vida-secoes">
-        <div class="grupo-item" data-grupo-secao="vida-habitos" hidden>{% include "secoes/vida/habitos.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-projetos" hidden>{% include "secoes/vida/projetos.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-agenda-painel" hidden>{% include "secoes/vida/agenda-painel.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-pra-responder" hidden>{% include "secoes/vida/pra-responder.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-lista-de-compras" hidden>{% include "secoes/vida/lista-de-compras.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-pessoas" hidden>{% include "secoes/vida/pessoas.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-treino" hidden>{% include "secoes/vida/treino.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-contas-pessoais" hidden>{% include "secoes/vida/contas-pessoais.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-ainda-usa" hidden>{% include "secoes/vida/ainda-usa.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-manutencao" hidden>{% include "secoes/vida/manutencao.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-garantia" hidden>{% include "secoes/vida/garantia.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-viagens" hidden>{% include "secoes/vida/viagens.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-lugares" hidden>{% include "secoes/vida/lugares.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-ideias-presente" hidden>{% include "secoes/vida/ideias-de-presente.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-quero-aprender" hidden>{% include "secoes/vida/quero-aprender.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-salvos" hidden>{% include "secoes/vida/salvos.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-mensagem-dificil" hidden>{% include "secoes/vida/mensagem-dificil.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-vale-a-pena" hidden>{% include "secoes/vida/vale-a-pena.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-seu-progresso" hidden>{% include "secoes/vida/seu-progresso.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="vida-revisao-trimestral" hidden>{% include "secoes/vida/revisao-trimestral.html" %}</div>
-        {# Fase 9 C-abas: consolidacao de 8 abas em 4 - migrado do Painel, depois
-           das secoes atuais da Vida #}
-        <div class="grupo-item" data-grupo-secao="painel-saude-hoje" hidden>{% include "secoes/painel/saude-hoje.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="painel-medicamentos" hidden>{% include "secoes/painel/medicamentos.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="painel-peso-e-medidas" hidden>{% include "secoes/painel/peso-e-medidas.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="painel-datas-importantes" hidden>{% include "secoes/painel/datas-importantes.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="painel-memoria-rotina-planos" hidden>{% include "secoes/painel/memoria.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="painel-notas" hidden>{% include "secoes/painel/notas.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="painel-diario-de-decisao" hidden>{% include "secoes/painel/diario-de-decisao.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="painel-brain-dump" hidden>{% include "secoes/painel/brain-dump.html" %}</div>
-        <div class="grupo-item" data-grupo-secao="painel-esperando-resposta" hidden>{% include "secoes/painel/esperando-resposta.html" %}</div>
+{% include "secoes/vida/habitos.html" %}
+{% include "secoes/vida/projetos.html" %}
+{% include "secoes/vida/agenda-painel.html" %}
+{% include "secoes/vida/pra-responder.html" %}
+{% include "secoes/vida/lista-de-compras.html" %}
+{% include "secoes/vida/pessoas.html" %}
+{% include "secoes/vida/treino.html" %}
+{% include "secoes/vida/contas-pessoais.html" %}
+{% include "secoes/vida/ainda-usa.html" %}
+{% include "secoes/vida/manutencao.html" %}
+{% include "secoes/vida/garantia.html" %}
+{% include "secoes/vida/viagens.html" %}
+{% include "secoes/vida/lugares.html" %}
+{% include "secoes/vida/ideias-de-presente.html" %}
+{% include "secoes/vida/quero-aprender.html" %}
+{% include "secoes/vida/salvos.html" %}
+{% include "secoes/vida/mensagem-dificil.html" %}
+{% include "secoes/vida/vale-a-pena.html" %}
+{% include "secoes/vida/seu-progresso.html" %}
+{% include "secoes/vida/revisao-trimestral.html" %}
       </div>
     </section>
 

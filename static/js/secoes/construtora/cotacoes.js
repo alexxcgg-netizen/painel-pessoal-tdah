@@ -317,4 +317,3 @@ $("#cotacao-form").addEventListener("submit", async (e) => {
     loadCotacoes();
   }
 });
-

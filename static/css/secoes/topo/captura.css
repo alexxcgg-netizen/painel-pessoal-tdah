@@ -1,32 +1,41 @@
 /* static/css/secoes/topo/captura.css - secao topo > captura (HTML: templates/secoes/topo/captura.html).
-   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao).
+   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao). */
 
-   Fase 9 (P-topo): #comando-voz-btn e #hiperfoco-box mudaram pra dentro do
-   cabecalho (templates/secoes/topo/cabecalho.html, estilo em secoes/topo.css) -
-   o acabamento deles saiu daqui. O que sobra e so a linha 2 do topo em si
-   (campo + botao de enviar, estilo campo de chat) e a caixa de confirmacao de
-   um comando de voz reconhecido (#comando-voz-confirmar, que continua aqui). */
-
-/* #captura-btn: era um botao com rotulo "Adicionar" (gradiente, padding largo);
-   agora e so o icone (seta), redondo, do tamanho do campo ao lado - mesmo
-   espirito do #chat-send (secoes/hoje/chat.css), pra ler como "campo de chat"
-   de verdade. */
-#captura-btn {
-  width: 44px;
-  height: 44px;
+/* #captura-btn/#duvida-btn (gradiente) e #duvida-box/#comando-voz-confirmar
+   ja tinham bastante profundidade (--shadow-card, glow). O que sobrava chapado
+   era o botao "Comando de voz" e as opcoes de confirmacao (pilulas soltas,
+   sem sombra, abaixo de 44px de toque). */
+#comando-voz-btn {
   min-height: 44px;
-  padding: 0;
-  border-radius: 50%;
-  flex-shrink: 0;
+  box-shadow: var(--shadow-card);
 }
 
-#captura-btn svg {
-  width: 19px;
-  height: 19px;
+@media (hover: hover) {
+  #comando-voz-btn:hover:not(:disabled) {
+    box-shadow: var(--shadow-card-hover);
+  }
 }
 
 .comando-voz-opcao {
   min-height: 44px;
   padding: 0.35rem 0.85rem;
   box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.5);
+}
+
+/* D3 (Fase 8): #hiperfoco-box mudou de secoes/hoje/hiperfoco.html pra ca,
+   ao lado do botao "Comando de voz" - linha que quebra em telas estreitas
+   (botao de voz numa "linha", aviso de hiperfoco na de baixo) sem nunca
+   encolher o alvo de toque dos botoes (que ja tem min-height: 44px no
+   hiperfoco.css, mantido). */
+.comando-voz-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.comando-voz-principal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }

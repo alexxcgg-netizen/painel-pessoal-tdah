@@ -33,10 +33,7 @@
 // buscar tudo de novo. Lista conferida contra scripts.html/head.html/fase7.css.
 // v16: Fase 8 F1 - gastos.js/gastos.html mudaram (lista unificada com selo de origem
 // Nubank/manual, botao "Sincronizar Nubank").
-// v20: Fase 9 C-abas - 8 abas viram 4 (Hoje/Tarefas/Financas/Vida) + folha de
-// Configuracoes; index.html/varios templates mudaram, e secoes/config/sheet-config.css
-// e novo - o iPhone que ja tem um cache antigo precisa buscar tudo de novo.
-const CACHE_NAME = "painel-pessoal-v23";
+const CACHE_NAME = "painel-pessoal-v24";
 const ASSETS = [
   "/",
   "/static/css/style.css",
@@ -60,7 +57,6 @@ const ASSETS = [
   "/static/css/secoes/construtora.css",
   "/static/css/secoes/aviacao.css",
   "/static/css/secoes/assistente.css",
-  "/static/css/secoes/config/sheet-config.css",
   "/static/css/secoes/topo/cabecalho.css",
   "/static/css/secoes/topo/captura.css",
   "/static/css/secoes/hoje/saudacao.css",
@@ -107,17 +103,11 @@ const ASSETS = [
   "/static/css/secoes/vida/vale-a-pena.css",
   "/static/css/secoes/vida/seu-progresso.css",
   "/static/css/secoes/vida/revisao-trimestral.css",
-  "/static/css/secoes/vida/grupos.css",
   "/static/css/secoes/tarefas/tarefas.css",
   "/static/css/secoes/gastos/gastos.css",
+  "/static/css/secoes/gastos/conversa.css",
   "/static/css/secoes/gastos/metas.css",
   "/static/css/secoes/gastos/assinaturas.css",
-  "/static/css/secoes/gastos/conversa.css",
-  "/static/css/secoes/tarefas/conversa.css",
-  "/static/css/secoes/vida/viagens-conversa.css",
-  "/static/js/secoes/vida/viagens-aviao.js",
-  "/static/css/secoes/hoje/conversa.css",
-  "/static/js/secoes/hoje/conversa.js",
   "/static/css/secoes/bancos/bancos.css",
   "/static/css/secoes/construtora/construtora.css",
   "/static/css/secoes/construtora/contas-a-pagar.css",
@@ -191,7 +181,6 @@ const ASSETS = [
   "/static/js/secoes/vida/vale-a-pena.js",
   "/static/js/secoes/vida/seu-progresso.js",
   "/static/js/secoes/vida/revisao-trimestral.js",
-  "/static/js/secoes/vida/grupos.js",
   "/static/js/secoes/tarefas/tarefas.js",
   "/static/js/secoes/gastos/gastos.js",
   "/static/js/secoes/gastos/metas.js",

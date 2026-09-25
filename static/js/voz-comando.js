@@ -42,18 +42,14 @@ const VozComando = (function () {
 
   // Mapa tela -> sinonimos aceitos em parametros.tela (texto livre vindo da
   // IA - claude_client.INTENT_PROMPT nao fixa um enum pra esse campo).
-  //
-  // Fase 9 (C-nav): a barra caiu de 8 pra 4 abas (hoje/tarefas/gastos/vida).
-  // Sinonimos das abas antigas continuam reconhecidos aqui - so a CHAVE do
-  // mapa (o valor devolvido por resolverTela) mudou pro destino novo, pra
-  // nenhuma tela resolvida apontar pra uma aba que nao existe mais (painel/
-  // assistente -> hoje, construtora/obra/empresa -> gastos, aviacao/voo/
-  // piloto -> vida). Ver contrato em docs/fase9-mapa-abas.md.
   const MAPA_TELAS = {
-    hoje: ["hoje", "inicio", "principal", "home", "painel", "resumo do dia", "resumo", "assistente"],
-    vida: ["vida", "rotina", "check-in", "checkin", "hiperfoco", "aviacao", "voo", "piloto"],
+    hoje: ["hoje", "inicio", "principal", "home"],
+    painel: ["painel", "resumo do dia", "resumo"],
+    vida: ["vida", "rotina", "check-in", "checkin", "hiperfoco"],
     tarefas: ["tarefa", "afazer", "pendencia"],
-    gastos: ["gasto", "despesa", "financ", "meta", "banco", "extrato", "conta", "construtora", "obra", "empresa"],
+    gastos: ["gasto", "despesa", "financ", "meta", "banco", "extrato", "conta"],
+    construtora: ["construtora", "obra", "empresa"],
+    aviacao: ["aviacao", "voo", "piloto"],
   };
 
   function _normalizarTexto(t) {

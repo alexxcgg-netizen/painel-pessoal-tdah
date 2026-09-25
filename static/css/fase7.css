@@ -16,14 +16,12 @@
 @import url("secoes/hoje.css");
 @import url("secoes/painel.css");
 @import url("secoes/vida.css");
-@import url("secoes/vida/grupos.css");
 @import url("secoes/tarefas.css");
 @import url("secoes/gastos.css");
 @import url("secoes/bancos.css");
 @import url("secoes/construtora.css");
 @import url("secoes/aviacao.css");
 @import url("secoes/assistente.css");
-@import url("secoes/config/sheet-config.css");
 @import url("secoes/topo/cabecalho.css");
 @import url("secoes/topo/captura.css");
 @import url("secoes/hoje/saudacao.css");
@@ -35,7 +33,6 @@
 @import url("secoes/hoje/hiperfoco.css");
 @import url("secoes/hoje/chat.css");
 @import url("secoes/hoje/visao-do-dia.css");
-@import url("secoes/hoje/conversa.css");
 @import url("secoes/painel/resumo.css");
 @import url("secoes/painel/agenda-de-hoje.css");
 @import url("secoes/painel/fechamento.css");
@@ -63,7 +60,6 @@
 @import url("secoes/vida/manutencao.css");
 @import url("secoes/vida/garantia.css");
 @import url("secoes/vida/viagens.css");
-@import url("secoes/vida/viagens-conversa.css");
 @import url("secoes/vida/lugares.css");
 @import url("secoes/vida/ideias-de-presente.css");
 @import url("secoes/vida/quero-aprender.css");
@@ -73,7 +69,6 @@
 @import url("secoes/vida/seu-progresso.css");
 @import url("secoes/vida/revisao-trimestral.css");
 @import url("secoes/tarefas/tarefas.css");
-@import url("secoes/tarefas/conversa.css");
 @import url("secoes/gastos/gastos.css");
 @import url("secoes/gastos/metas.css");
 @import url("secoes/gastos/assinaturas.css");

@@ -129,8 +129,7 @@ function anexarCardsResposta(lista, cards, passos) {
 function recarregarAposMudancaDeCard() {
   loadSummary();
   loadStreak();
-  // Fase 9 C-abas: datas-importantes (loadLembretes) migrou de #tab-painel pra #tab-vida.
-  if (!$("#tab-vida").hidden) loadLembretes();
+  if (!$("#tab-painel").hidden) loadLembretes();
   if (!$("#tab-tarefas").hidden) loadTasks();
   if (!$("#tab-gastos").hidden) {
     loadExpenses();
@@ -192,12 +191,8 @@ async function enviarChat(texto, opcoes = {}) {
     tocarSomSucesso();
     loadSummary();
     loadUso();
-    // Fase 9 C-abas: agenda-de-hoje migrou pra #tab-hoje; memoria/lembretes/esperas
-    // migraram pra #tab-vida (antes as 4 estavam juntas em #tab-painel).
-    if (!$("#tab-hoje").hidden) {
+    if (!$("#tab-painel").hidden) {
       loadAgenda();
-    }
-    if (!$("#tab-vida").hidden) {
       loadMemorias();
       loadLembretes();
       loadEsperas();

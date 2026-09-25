@@ -347,3 +347,27 @@
     animation: none;
   }
 }
+
+/* "Ultimos dias" recolhivel (pedido do dono: aparecia demais) */
+#fc-card-ultimos-dias > summary.fc-resumo-recolhivel {
+  list-style: none;
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#fc-card-ultimos-dias > summary::-webkit-details-marker {
+  display: none;
+}
+#fc-card-ultimos-dias > summary .chevron {
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+#fc-card-ultimos-dias[open] > summary .chevron {
+  transform: rotate(-135deg);
+}

@@ -62,4 +62,3 @@ async function loadNotas() {
     list.appendChild(li);
   });
 }
-

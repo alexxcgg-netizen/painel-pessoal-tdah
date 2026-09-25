@@ -137,4 +137,3 @@ $("#brain-dump-form").addEventListener("submit", async (e) => {
   setBotaoCarregando(btn, false, "Guardar");
   loadBrainDump();
 });
-

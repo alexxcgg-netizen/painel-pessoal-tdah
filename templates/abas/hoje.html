@@ -1,106 +1,13 @@
     <section id="tab-hoje" class="tab-content">
-{% include "secoes/hoje/conversa.html" %}
-      {# Fase 9 (P-topo): ponto de montagem dinamico das pendencias do assistente
-         (static/js/secoes/assistente/caixa.js preenche sozinho) - antes ficava
-         ACIMA da conversa, agora vem logo depois dela, recolhido por padrao. Se
-         houver pendencia, a propria conversa (renderConversaPendencias em
-         static/js/secoes/hoje/conversa.js) mostra uma mensagem que abre/rola ate
-         aqui - nao precisa mais aparecer expandido de cara. #}
       <div id="caixa-assistente"></div>
-{% include "secoes/hoje/chat.html" %}
-
-      {# Fase 9 C2: o resto da pilha antiga vira secoes recolhidas por padrao (padrao
-         reutilizavel de static/js/ui/secao-recolhivel.js/static/css/ui/componentes/secao.css -
-         liga sozinho, nao precisa de JS novo aqui) - a conversa acima ja resume o essencial,
-         o detalhe fica a um toque de distancia. Nenhum id antigo foi removido. #}
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-saudacao">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Saudacao<span class="chevron"></span></button>
-        <div class="secao-conteudo">
 {% include "secoes/hoje/saudacao.html" %}
-        </div>
-      </section>
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-sobrecarga">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Sobrecarga do dia<span class="chevron"></span></button>
-        <div class="secao-conteudo">
 {% include "secoes/hoje/sobrecarga.html" %}
-        </div>
-      </section>
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-previa-noite">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Como foi a noite<span class="chevron"></span></button>
-        <div class="secao-conteudo">
 {% include "secoes/hoje/previa-noite.html" %}
-        </div>
-      </section>
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-rotina">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Rotina<span class="chevron"></span></button>
-        <div class="secao-conteudo">
 {% include "secoes/hoje/rotina.html" %}
-        </div>
-      </section>
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-checkin">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Check-in<span class="chevron"></span></button>
-        <div class="secao-conteudo">
 {% include "secoes/hoje/checkin.html" %}
-        </div>
-      </section>
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-essencial">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">So o essencial<span class="chevron"></span></button>
-        <div class="secao-conteudo">
 {% include "secoes/hoje/essencial.html" %}
 {% include "secoes/hoje/hiperfoco.html" %}
-        </div>
-      </section>
-
+{% include "secoes/hoje/chat.html" %}
 {% include "secoes/hoje/visao-do-dia.html" %}
-
-      {# Fase 9 C-abas: consolidacao de 8 abas em 4 - migrado do Painel #}
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-resumo">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Resumo do dia<span class="chevron"></span></button>
-        <div class="secao-conteudo">
-{% include "secoes/painel/resumo.html" %}
-        </div>
-      </section>
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-agenda">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Agenda de hoje<span class="chevron"></span></button>
-        <div class="secao-conteudo">
-{% include "secoes/painel/agenda-de-hoje.html" %}
-        </div>
-      </section>
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-plano-do-dia">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Plano do dia<span class="chevron"></span></button>
-        <div class="secao-conteudo">
-{% include "secoes/painel/plano-do-dia.html" %}
-        </div>
-      </section>
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-devo-sair">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Devo sair ate que horas?<span class="chevron"></span></button>
-        <div class="secao-conteudo">
-{% include "secoes/painel/devo-sair.html" %}
-        </div>
-      </section>
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-fechamento">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Fechamento de hoje<span class="chevron"></span></button>
-        <div class="secao-conteudo">
-{% include "secoes/painel/fechamento.html" %}
-        </div>
-      </section>
-
-      {# migrado do Assistente - "caixa" ja injetada dinamicamente em
-         #caixa-assistente (topo desta aba) via static/js/secoes/assistente/caixa.js,
-         nao duplicar aqui #}
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="hoje-avisos-assistente">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Avisos<span class="chevron"></span></button>
-        <div class="secao-conteudo">
-{% include "secoes/assistente/avisos.html" %}
-        </div>
-      </section>
     </section>
+

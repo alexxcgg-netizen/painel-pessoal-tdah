@@ -1,67 +1,102 @@
-{# Fase 9 (P-topo): topo reduzido a ~2 linhas (direcao "Conversa"). Linha 1 aqui
-   (titulo + icones); linha 2 e templates/secoes/topo/captura.html. Os 5 botoes que
-   ocupavam o cabecalho inteiro (lua/aviao/olho/exportar/sair) + "gasto com IA" foram
-   pra dentro da folha de Configuracoes (templates/secoes/config/sheet-config.html) -
-   mesmos ids/handlers de sempre (static/js/secoes/topo/cabecalho.js), so mudou o lugar.
-   CSS: static/css/secoes/topo.css (layout da linha) + secoes/topo/cabecalho.css
-   (acabamento por botao). #}
   <div class="aurora" aria-hidden="true"></div>
-  <header class="topo-cabecalho">
-    <div class="topo-linha1">
-      <h1>Painel</h1>
-
-      <div class="topo-acoes">
-        {# So faz sentido na aba Hoje (onde a secao "visao do dia" existe) - CSS
-           (topo.css) esconde/mostra sozinho conforme #tab-hoje fica visivel, sem
-           precisar de JS extra pra isso. #}
-        <button type="button" id="btn-visao-dia" class="btn-topo-icone" title="Visão do dia" aria-label="Abrir visão do dia">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
-        </button>
-
-        <div class="topo-comando-voz-wrap">
-          <button type="button" id="comando-voz-btn" class="btn-topo-icone" aria-label="Comando de voz" title="Comando de voz">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>
-          </button>
-          {# Aviso critico (mesma fonte de dado que o cartao de aviso da conversa do
-             Hoje: /api/sobrecarga, ligado em static/js/secoes/topo/cabecalho.js) -
-             so aparece quando ha algo urgente, em qualquer aba (o topo e global). #}
-          <span id="topo-aviso-critico" class="topo-aviso-critico" hidden aria-hidden="true"></span>
-          <p id="comando-voz-status" class="comando-voz-status" hidden></p>
-        </div>
-
-        <div class="topo-popover" id="hiperfoco-popover-wrap">
-          {# Icone de ampulheta (nao o mesmo relogio do #btn-visao-dia - os dois
-             abrem coisas diferentes, precisavam ser visualmente distintos). #}
-          <button type="button" id="hiperfoco-toggle-btn" class="btn-topo-icone" aria-haspopup="true" aria-expanded="false" aria-controls="hiperfoco-box" aria-label="Hiperfoco" title="Hiperfoco">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14M5 2h14M17 22v-5.5a5 5 0 0 0-2.5-4.5 5 5 0 0 0 2.5-4.5V2M7 2v5.5A5 5 0 0 0 9.5 12 5 5 0 0 0 7 16.5V22"/></svg>
-          </button>
-          {# Mesmo miolo de sempre (ids/handlers de static/js/secoes/hoje/hiperfoco.js
-             intactos) - so passou a viver dentro de um popover fechado por padrao em
-             vez de sempre visivel ao lado do campo de captura. #}
-          <div id="hiperfoco-box" class="hiperfoco-box topo-popover-painel card" hidden>
-            <div id="hiperfoco-inativo" class="hiperfoco-linha">
-              <span class="card-vida-meta">Hiperfoco (so aviso critico passa):</span>
-              <div class="hiperfoco-botoes">
-                <button type="button" class="hiperfoco-btn" data-minutos="25">25 min</button>
-                <button type="button" class="hiperfoco-btn" data-minutos="50">50 min</button>
-                <button type="button" class="hiperfoco-btn" data-minutos="90">90 min</button>
-              </div>
-            </div>
-            <div id="hiperfoco-ativo" class="hiperfoco-linha hiperfoco-ligado" hidden>
-              <span><strong>Em hiperfoco</strong> - <span id="hiperfoco-restante"></span></span>
-              <button type="button" id="hiperfoco-parar" class="btn-link">encerrar</button>
-            </div>
-          </div>
-        </div>
-
-        <button id="btn-config" class="btn-topo-icone" title="Configurações" aria-label="Configurações" aria-haspopup="dialog" aria-controls="sheet-config" data-abre-sheet="sheet-config">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 13.5c.1-.5.1-1 0-1.5l1.9-1.3-1.5-2.6-2.2.6a7.6 7.6 0 0 0-1.3-.8L15.9 5h-3l-.4 2.2c-.5.2-.9.5-1.3.8l-2.2-.6-1.5 2.6L9.4 11.7c-.1.5-.1 1 0 1.5l-1.9 1.3 1.5 2.6 2.2-.6c.4.3.8.6 1.3.8l.4 2.2h3l.4-2.2c.5-.2.9-.5 1.3-.8l2.2.6 1.5-2.6-1.9-1.4Z"/></svg>
-        </button>
-      </div>
-    </div>
-
+  <header>
+    <h1>Painel Pessoal</h1>
+    <p id="uso-custo" class="custo-ia"></p>
     <button id="push-btn" class="btn-push" hidden>Ativar notificacoes</button>
+    <button id="silencio-btn" class="btn-silencio" title="Horario silencioso" aria-label="Configurar horario silencioso" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>
+    </button>
+    <button id="modo-viagem-btn" class="btn-silencio" title="Modo viagem" aria-label="Configurar modo viagem" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg>
+    </button>
+    <button id="modo-visitante-btn" class="btn-silencio" title="Modo visitante" aria-label="Ativar modo visitante (esconde financeiro, saude e decisoes)" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button id="backup-btn" class="btn-backup" title="Exportar / backup" aria-label="Exportar ou baixar backup" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+    </button>
+    <button id="logout-btn" class="btn-logout" title="Sair" aria-label="Sair">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+    </button>
   </header>
+
+  <div id="backup-painel" hidden>
+    <p class="silencio-titulo">Exportar / backup</p>
+    <p class="silencio-descricao">
+      Backup manual, na hora - o automatico semanal (se configurado) roda sozinho pelo
+      scheduler. Ver <code>docs/BACKUP.md</code> pra detalhes de cada formato e como restaurar.
+    </p>
+    <div class="backup-opcoes">
+      <a href="/api/backup/exportar" class="btn-com-icone" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Banco (.db)
+      </a>
+      <a href="/api/backup/exportar-json" class="btn-com-icone" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Tudo em JSON
+      </a>
+      <a href="/api/backup/exportar-csv-completo" class="btn-com-icone" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Tudo em CSV (.zip)
+      </a>
+    </div>
+  </div>
+
+  <div id="silencio-painel" hidden>
+    <p class="silencio-titulo">Horario silencioso</p>
+    <p class="silencio-descricao">
+      Avisos que podem esperar (gasto, meta, lembrete, tarefa parada) ficam represados nessa
+      janela. O que e urgente pra agora (hora de um compromisso, hora de sair pro voo) continua
+      avisando na hora, mesmo dentro do silencio.
+    </p>
+    <div class="silencio-campos">
+      <label>Das <input type="text" id="silencio-inicio" inputmode="numeric" placeholder="22:00" /></label>
+      <label>ate <input type="text" id="silencio-fim" inputmode="numeric" placeholder="07:00" /></label>
+      <button type="button" id="silencio-salvar" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
+        Salvar
+      </button>
+    </div>
+    <p id="silencio-status"></p>
+  </div>
+
+  <div id="modo-viagem-painel" hidden>
+    <p class="silencio-titulo">Modo viagem</p>
+    <p class="silencio-descricao">
+      Enquanto ativo, suprime avisos de rotina domestica (rotina da manha, hora de dormir,
+      fechamento do dia, manutencao) - o resto continua normal. Data de inicio/fim e opcional:
+      se preencher, o modo liga/desliga sozinho nessa janela.
+    </p>
+    <div class="silencio-campos">
+      <label>
+        <input type="checkbox" id="modo-viagem-ativo" />
+        Ativo
+      </label>
+      <label>De <input type="date" id="modo-viagem-inicio" aria-label="Data de inicio (opcional)" /></label>
+      <label>ate <input type="date" id="modo-viagem-fim" aria-label="Data de fim (opcional)" /></label>
+      <button type="button" id="modo-viagem-salvar" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
+        Salvar
+      </button>
+    </div>
+    <p id="modo-viagem-status"></p>
+  </div>
+
+  <div id="modo-visitante-painel" hidden>
+    <p class="silencio-titulo">Modo visitante ativo</p>
+    <p class="silencio-descricao">
+      Financeiro, saude e diario de decisao estao ocultos. Digita o PIN pra desativar.
+    </p>
+    <div class="silencio-campos">
+      <label>PIN <input type="password" id="modo-visitante-pin" inputmode="numeric" maxlength="6" placeholder="000000" /></label>
+      <button type="button" id="modo-visitante-desativar" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
+        Desativar
+      </button>
+    </div>
+    <p id="modo-visitante-status"></p>
+  </div>
 
   <p id="erro-banner" class="erro" hidden></p>
   <p id="offline-banner" class="offline-banner" hidden></p>
+
