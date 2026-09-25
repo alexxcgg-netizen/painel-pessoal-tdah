@@ -116,6 +116,22 @@ def atualizar_assinatura(id_: int):
     return jsonify(a)
 
 
+@bp.route("/api/financas/assinaturas/<int:id_>/avisar_antes_cobrar", methods=["POST"])
+def alternar_aviso_cobranca(id_: int):
+    """Fase 8/F3: liga/desliga o aviso proativo (3/2/1 dia antes) desta
+    assinatura. Desligado por padrao - so quem ligar aqui recebe aviso
+    (assistente/gatilhos/f8_aviso_cobranca.py)."""
+    corpo = _corpo_json()
+    ligado = bool(corpo.get("ligado"))
+    conn = db.get_db()
+    fr.atualizar_assinatura(conn, id_, avisar_antes_cobrar=ligado)
+    a = fr.obter_assinatura(conn, id_)
+    conn.close()
+    if not a:
+        return _erro("assinatura nao encontrada", 404)
+    return jsonify(a)
+
+
 @bp.route("/api/financas/assinaturas/<int:id_>/cancelar", methods=["POST"])
 def cancelar_assinatura(id_: int):
     conn = db.get_db()

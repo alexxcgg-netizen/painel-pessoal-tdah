@@ -119,6 +119,30 @@ function criarItemAssinaturaAtiva(a) {
   corpo.appendChild(criarEl("span", "lista-item-titulo", nome));
   corpo.appendChild(criarEl("span", "lista-item-meta valor-mono", metaPartes.join(" · ")));
   if (textoFinancas(a.cartao_ou_forma, "")) corpo.appendChild(criarChipCartao(a.cartao_ou_forma));
+
+  // Fase 8/F3: interruptor "avisar antes de cobrar" - desligado por padrao
+  // (a.avisar_antes_cobrar vem 0/1 do banco). Mesmo padrao visual de
+  // static/js/secoes/assistente/avisos.js (.aviso-toggle/.aviso-label).
+  const labelAviso = criarEl("label", "aviso-toggle assinatura-aviso-toggle");
+  const chkAviso = document.createElement("input");
+  chkAviso.type = "checkbox";
+  chkAviso.className = "aviso-ligado";
+  chkAviso.checked = !!a.avisar_antes_cobrar;
+  chkAviso.setAttribute("aria-label", `Avisar antes de cobrar: ${nome}`);
+  chkAviso.addEventListener("change", async () => {
+    chkAviso.disabled = true;
+    const r = await apiFetch(`/api/financas/assinaturas/${a.id}/avisar_antes_cobrar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ligado: chkAviso.checked }),
+    });
+    if (!r) chkAviso.checked = !chkAviso.checked;
+    chkAviso.disabled = false;
+  });
+  labelAviso.appendChild(chkAviso);
+  labelAviso.appendChild(criarEl("span", "aviso-label", "Avisar antes de cobrar"));
+  corpo.appendChild(labelAviso);
+
   li.appendChild(corpo);
 
   const acoes = criarEl("div", "lista-item-acoes");
