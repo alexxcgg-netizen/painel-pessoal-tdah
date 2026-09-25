@@ -7,8 +7,23 @@
   min-height: 44px;
   min-width: 3.6rem;
   box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.5);
+  /* Fase 8 (D2): o JS so preenche o texto do botao em minusculo ("ruim",
+     "ok", "bom" - checkin.js, nao mexido aqui). Capitaliza so na exibicao. */
+  text-transform: capitalize;
 }
 
 #checkin-box .checkin-opcao.escolhida {
   box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* Fase 8 (D2): LED verde de tarefa concluida (indicador da .linha-do-tempo,
+   regra original em style.css perto de "tarefas com horario"). Nao editamos
+   style.css global - sobrescrevemos aqui, que carrega depois no fase7.css.
+   Pedido: mais escuro/sobrio, usando --cor-sucesso, sem o glow saturado
+   original (#42bb91 solido + sombra forte que parecia "brilho de brinquedo").
+   Logica de conclusao (JS) nao muda, so a cor/sombra do ponto. */
+.linha-do-tempo li.item.concluido::before {
+  border-color: var(--cor-sucesso);
+  background: color-mix(in srgb, var(--cor-sucesso) 70%, black 30%);
+  box-shadow: 0 0 3px 0 color-mix(in srgb, var(--cor-sucesso) 30%, transparent);
 }
