@@ -864,7 +864,7 @@ class PainelTestCase(unittest.TestCase):
         with patch("pluggy_client.configurado", return_value=True), patch(
             "pluggy_client.get_item", return_value=item_fake
         ), patch("pluggy_client.get_accounts", return_value=contas_fake), patch(
-            "pluggy_client.get_transactions", return_value=transacoes_fake
+            "pluggy_client.get_transactions", return_value=(transacoes_fake, False)
         ):
             res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "item-1"})
 
@@ -4434,7 +4434,7 @@ class PainelTestCase(unittest.TestCase):
         with patch("pluggy_client.configurado", return_value=True), patch(
             "pluggy_client.get_item", return_value=item_fake
         ), patch("pluggy_client.get_accounts", return_value=contas_fake), patch(
-            "pluggy_client.get_transactions", return_value=[]
+            "pluggy_client.get_transactions", return_value=([], False)
         ):
             res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "item-1"})
         self.assertEqual(res.status_code, 200)
@@ -4450,7 +4450,7 @@ class PainelTestCase(unittest.TestCase):
         with patch("pluggy_client.configurado", return_value=True), patch(
             "pluggy_client.get_item", return_value=item_fake
         ), patch("pluggy_client.get_accounts", return_value=contas_fake), patch(
-            "pluggy_client.get_transactions", return_value=[]
+            "pluggy_client.get_transactions", return_value=([], False)
         ):
             res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "item-1"})
         self.assertEqual(res.status_code, 200)

@@ -7993,7 +7993,10 @@ def bancos_conectar_finalizar():
         if saldo_pluggy is not None:
             atualizar_saldo_conta(conn, conta_id, saldo_pluggy)
         try:
-            transacoes_pluggy = pluggy_client.get_transactions(conta_pluggy["id"])
+            # (Connect: primeira importacao do item, sem reconciliacao de
+            # remocao - isso e so na sincronizacao recorrente do Nubank em
+            # rotas/f8_banco.py.) `truncado` nao muda esse fluxo hoje.
+            transacoes_pluggy, _truncado = pluggy_client.get_transactions(conta_pluggy["id"])
         except requests.RequestException:
             conn.close()
             return jsonify({"error": "nao consegui buscar as transacoes na Pluggy agora"}), 502
