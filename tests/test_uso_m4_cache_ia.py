@@ -9,6 +9,7 @@ POST /login)."""
 import os
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -61,11 +62,11 @@ class ResumoDiaCacheTestCase(unittest.TestCase):
         conn.commit()
         conn.close()
 
-    def _inserir_tarefa(self, title: str, prioridade=None):
+    def _inserir_tarefa(self, title: str, due_date=None):
         conn = db.get_db()
         conn.execute(
-            "INSERT INTO tasks (title, prioridade) VALUES (?, ?)",
-            (title, prioridade),
+            "INSERT INTO tasks (title, due_date) VALUES (?, ?)",
+            (title, due_date),
         )
         conn.commit()
         conn.close()
@@ -100,13 +101,13 @@ class ResumoDiaCacheTestCase(unittest.TestCase):
 
     def test_tarefa_importante_nova_invalida_cache(self):
         self._get_resumo()
-        self._inserir_tarefa("responder o banco urgente", prioridade="urgente")
+        self._inserir_tarefa("responder o banco", due_date=date.today().isoformat())
         _, mock2 = self._get_resumo()
         self.assertEqual(mock2.call_count, 1)
 
-    def test_tarefa_importante_alta_tambem_invalida_cache(self):
+    def test_tarefa_atrasada_nova_tambem_invalida_cache(self):
         self._get_resumo()
-        self._inserir_tarefa("assinar contrato", prioridade="alta")
+        self._inserir_tarefa("assinar contrato", due_date=(date.today() - timedelta(days=2)).isoformat())
         _, mock2 = self._get_resumo()
         self.assertEqual(mock2.call_count, 1)
 
@@ -116,9 +117,15 @@ class ResumoDiaCacheTestCase(unittest.TestCase):
         _, mock2 = self._get_resumo()
         self.assertEqual(mock2.call_count, 0)
 
+    def test_tarefa_pro_futuro_nao_invalida_cache(self):
+        self._get_resumo()
+        self._inserir_tarefa("renovar CMA", due_date=(date.today() + timedelta(days=10)).isoformat())
+        _, mock2 = self._get_resumo()
+        self.assertEqual(mock2.call_count, 0)
+
     def test_tarefa_importante_concluida_hoje_invalida_cache(self):
         conn = db.get_db()
-        cur = conn.execute("INSERT INTO tasks (title, prioridade) VALUES (?, ?)", ("pagar imposto", "alta"))
+        cur = conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("pagar imposto", date.today().isoformat()))
         task_id = cur.lastrowid
         conn.commit()
         conn.close()

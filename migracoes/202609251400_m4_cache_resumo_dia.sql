@@ -1,17 +1,11 @@
 -- Faixa M4 (uso diario): cache do resumo de IA do dia - antes o texto era
 -- gerado de novo a cada GET /api/summary/today (todo load de pagina), agora
--- fica valido ate algo relevante mudar (tarefa importante nova/concluida
+-- fica valido ate algo relevante mudar (tarefa de hoje/atrasada nova/concluida
 -- hoje, gasto real grande novo hoje ou virar o dia). Ver app.py,
 -- _impressao_resumo_dia/summary_today (~linha 2020-2095).
 --
--- `prioridade` em tasks e novo (nunca existiu campo de prioridade/urgencia
--- nessa tabela - conferido antes de escrever essa migracao): usado so como
--- parte da "impressao digital" que decide se o cache ainda vale. NULL
--- (tarefa comum, maioria) nunca invalida o cache sozinho; 'alta'/'urgente'
--- invalidam. Nenhuma rota nova pra definir isso aqui (fora do escopo desta
--- faixa) - o campo fica pronto pra quem passar a marcar tarefa como
--- importante.
-ALTER TABLE tasks ADD COLUMN prioridade TEXT;
+-- "Tarefa importante" = tarefa com data pra hoje ou atrasada (tasks nao tem
+-- campo de prioridade; tarefa sem data ou pro futuro nao invalida o cache).
 
 -- Uma linha por dia (`data` = date.today().isoformat(), chave primaria).
 -- `impressao` e a fingerprint do que era relevante quando `resposta_json`

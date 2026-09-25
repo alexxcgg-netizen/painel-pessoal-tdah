@@ -2045,8 +2045,8 @@ def resumo_manha_rota():
 
 # Faixa M4 (uso diario): o texto da IA do resumo do dia so precisa ser gerado
 # de novo quando algo relevante muda - nao a cada carregamento da pagina.
-# "Relevante" = tarefa importante (prioridade alta/urgente) nova/concluida
-# hoje, ou gasto real de hoje acima deste limiar (R$100). Abaixo disso (ex.:
+# "Relevante" = tarefa importante (com data pra hoje ou atrasada - a tabela
+# tasks nao tem campo de prioridade) nova/concluida hoje, ou gasto real de hoje acima deste limiar (R$100). Abaixo disso (ex.:
 # marcar uma tarefa comum, um cafe de R$8), o cache de hoje continua valendo.
 GASTO_GRANDE_LIMIAR_RESUMO = 100.0
 
@@ -2059,11 +2059,12 @@ def _impressao_resumo_dia(conn, today: str, n_eventos: int) -> str:
     pra concluida hoje tambem contar como mudanca relevante, mesmo que o id
     ja aparecesse antes."""
     tarefas_pendentes = conn.execute(
-        "SELECT id FROM tasks WHERE prioridade IN ('alta', 'urgente') AND completed_at IS NULL ORDER BY id"
+        "SELECT id FROM tasks WHERE due_date IS NOT NULL AND due_date <= ? AND completed_at IS NULL ORDER BY id",
+        (today,),
     ).fetchall()
     tarefas_concluidas_hoje = conn.execute(
-        "SELECT id FROM tasks WHERE prioridade IN ('alta', 'urgente') AND date(completed_at) = ? ORDER BY id",
-        (today,),
+        "SELECT id FROM tasks WHERE due_date IS NOT NULL AND due_date <= ? AND date(completed_at) = ? ORDER BY id",
+        (today, today),
     ).fetchall()
     gastos_grandes = conn.execute(
         "SELECT id FROM expenses WHERE tipo = 'real' AND date(created_at) = ? AND amount >= ? ORDER BY id",
