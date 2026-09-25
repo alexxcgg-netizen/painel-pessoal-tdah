@@ -5,6 +5,21 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-25 - Fase 9: volta ao painel antigo (pedido do dono), só Finanças nova
+
+O dono não gostou do redesign "Conversa" (4 abas, verde sobre preto) e pediu o painel de antes.
+`templates/` e `static/` voltaram ao commit `14a0939` (último antes da mudança visual; código do
+app idêntico ao merge da Etapa A `77c559e`): 8 abas, cores por aba, Hoje/Tarefas/Vida/Aviação/
+Construtora/Assistente como eram. `app.py` também voltou (sai o filtro `?estado=` de `/api/tasks`).
+**Exceção: aba Finanças fica a nova** (topo com resumo, gasto por categoria, evolução do mês,
+fatura x conta; "Últimos dias" agora recolhível), no destaque cinza do tema antigo.
+Dependências da Finanças nova mantidas: `rotas/f9_financas.py` (`por_dia_mes`), 5 tokens no
+`tokens.css` antigo (`--cor-alerta`, `--cor-texto-2`, `--fonte-base`, `--raio-cartao`,
+`--raio-pequeno`), service worker v24 (acima da v23 já instalada). Bugs antigos corrigidos (com
+aval do dono): comentário do `tokens.css` que anulava `--cor-bg` (fundo transparente/claro →
+escuro como desenhado) e `bancos.css` preso a `#tab-bancos` (ícone de banco gigante). Teste
+`tests/test_fase9_volta_painel.py`. As entradas "Etapa C" abaixo descrevem o que foi revertido.
+
 ## 2026-09-25 - Fase 9 (Etapa C, parte 3): polimento final
 
 - **Topo em 2 linhas** (todas as abas): título curto + ícones de voz (com ponto de aviso

@@ -10,6 +10,12 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
 2. Worktree por faixa a partir de `origin/main`; nunca editar `/home/user/financeiro-construtora`.
 
 ## Fase 9 (CONCLUÍDA em 2026-09-25) - ler primeiro
+- **ATENÇÃO — REVERTIDO**: o dono recusou o redesign "Conversa". O app voltou ao painel antigo
+  (templates/static/app.py do commit `14a0939`, 8 abas, cores por aba) e **só a aba Finanças é a
+  nova**. Tudo abaixo sobre 4 abas/Conversa/grupos da Vida/topo em 2 linhas NÃO está mais no app
+  (fica no histórico git e em `docs/fase9-lab*`). Backend da Etapa A continua (sync idempotente,
+  extrato, resumo com `por_dia_mes`, descrições). Fundo agora escuro (bug do comentário CSS
+  corrigido) e ícone de banco corrigido. Cache v24.
 - **Tudo na main** e publicado no Render (deploy automático): Etapa A (Finanças unificada, sync
   idempotente + reconciliação, extrato 15 dias, sem OFX), laboratórios B (10 HUD recusadas → 20
   apps reais → escolhida **1 "Conversa"**; Vida = variante **Grupos**), Etapa C completa.
