@@ -57,6 +57,17 @@
       <p class="conversa-vazio" id="proximos-vazio" hidden>Nada marcado por enquanto.</p>
     </div>
   </div>
+
+  {# Fase 9 (P-topo): #caixa-assistente (pendencias do assistente) mudou pra
+     depois da conversa, recolhida por padrao (templates/abas/hoje.html) - com
+     pendencia, esta linha aparece e, ao tocar, abre/rola ate a caixa
+     (static/js/secoes/hoje/conversa.js, renderConversaPendencias). #}
+  <div class="msg-linha" id="conversa-pendencias-linha" hidden>
+    <span class="conversa-dot" aria-hidden="true"></span>
+    <button type="button" class="card conversa-card conversa-card--toque" id="conversa-pendencias" aria-label="Ver pendencias do assistente">
+      <p class="conversa-fala" id="conversa-pendencias-texto">Tenho pendencias pra voce.</p>
+    </button>
+  </div>
 </div>
 
 <div class="conversa-chips" id="conversa-chips">

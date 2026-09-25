@@ -63,6 +63,7 @@
 @import url("secoes/vida/manutencao.css");
 @import url("secoes/vida/garantia.css");
 @import url("secoes/vida/viagens.css");
+@import url("secoes/vida/viagens-conversa.css");
 @import url("secoes/vida/lugares.css");
 @import url("secoes/vida/ideias-de-presente.css");
 @import url("secoes/vida/quero-aprender.css");
@@ -72,6 +73,7 @@
 @import url("secoes/vida/seu-progresso.css");
 @import url("secoes/vida/revisao-trimestral.css");
 @import url("secoes/tarefas/tarefas.css");
+@import url("secoes/tarefas/conversa.css");
 @import url("secoes/gastos/gastos.css");
 @import url("secoes/gastos/metas.css");
 @import url("secoes/gastos/assinaturas.css");
