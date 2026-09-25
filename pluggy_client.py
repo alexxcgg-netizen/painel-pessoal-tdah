@@ -89,16 +89,30 @@ def get_transactions(account_id: str) -> list[dict]:
 
 
 def normalizar_transacoes(transacoes_pluggy: list[dict]) -> list[dict]:
-    """Converte pro mesmo formato que bank_ofx.parse_transactions ja produz,
-    pra reaproveitar db.insert_bank_transactions sem duplicar logica."""
+    """Converte pro mesmo formato que bank_ofx.parse_transactions ja produz
+    (external_id = id da transacao na Pluggy - chave de idempotencia da
+    sincronizacao), mais os campos ricos que a Fase 9 passou a guardar
+    (estabelecimento/categoria da Pluggy/descricao crua/tipo de operacao/
+    estorno). Nao inventa nome de exibicao - isso e financas_descricao.py."""
     normalizadas = []
     for t in transacoes_pluggy:
+        merchant = t.get("merchant") or {}
+        estabelecimento = merchant.get("businessName") or merchant.get("name")
+        descricao = t.get("description") or ""
         normalizadas.append(
             {
                 "external_id": t["id"],
                 "data": str(t["date"])[:10],
                 "valor": t["amount"],
-                "descricao": t.get("description") or "",
+                "descricao": descricao,
+                "estabelecimento": estabelecimento,
+                "categoria_pluggy": t.get("category"),
+                "descricao_original": descricao,
+                "tipo_operacao": t.get("type") or t.get("operationType"),
+                # A Pluggy nao documenta um campo estavel ligando um estorno
+                # a transacao original em /v2/transactions; se um dia vier
+                # (ex: "originalTransactionId"), so entao deixa de ser NULL.
+                "estorno_de_external_id": t.get("originalTransactionId"),
             }
         )
     return normalizadas

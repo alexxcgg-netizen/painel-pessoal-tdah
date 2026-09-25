@@ -118,6 +118,109 @@ def _montar_gastos_unificados(conn) -> list[dict]:
     return unificado
 
 
+_CAMPOS_COMPARAVEIS = (
+    "data",
+    "valor",
+    "descricao",
+    "estabelecimento",
+    "categoria_pluggy",
+    "descricao_original",
+    "tipo_operacao",
+    "estorno_de_external_id",
+)
+
+
+def _upsert_bank_transacoes(conn, bank_account_id: int, transacoes: list[dict]) -> dict:
+    """Upsert de verdade por `external_id` (o id da transacao na Pluggy) -
+    chave de idempotencia da sincronizacao: nova -> insere; ja existe e
+    mudou (valor/data/descricao/estabelecimento/categoria da Pluggy/tipo de
+    operacao/estorno) -> atualiza; ja existe e igual -> nao mexe. Roda em
+    `rotas/f8_banco.py` (nao em db.py) e usa as mesmas rotinas de
+    criptografia de campo que db.py ja usa, pra ficar no mesmo padrao de
+    dado em repouso sem duplicar a logica de cifrar/decifrar.
+
+    A `categoria` (a nossa, decidida por gastos.sugerir_categoria) NUNCA e
+    sobrescrita numa atualizacao - so e gravada na insercao. Se um dia
+    existir edicao manual de categoria pelo usuario, uma sincronizacao nao
+    apaga essa escolha."""
+    novas = atualizadas = sem_mudanca = 0
+    for t in transacoes:
+        existente = conn.execute(
+            "SELECT * FROM bank_transactions WHERE bank_account_id = ? AND external_id = ?",
+            (bank_account_id, t["external_id"]),
+        ).fetchone()
+
+        if existente is None:
+            conn.execute(
+                """INSERT INTO bank_transactions
+                   (bank_account_id, data, descricao, valor, external_id, categoria,
+                    estabelecimento, categoria_pluggy, descricao_original, tipo_operacao,
+                    estorno_de_external_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    bank_account_id,
+                    t["data"],
+                    db.criptografia.criptografar(t["descricao"]),
+                    db._cnum(t["valor"]),
+                    t["external_id"],
+                    t.get("categoria"),
+                    t.get("estabelecimento"),
+                    t.get("categoria_pluggy"),
+                    t.get("descricao_original"),
+                    t.get("tipo_operacao"),
+                    t.get("estorno_de_external_id"),
+                ),
+            )
+            novas += 1
+            continue
+
+        atual = {
+            "data": existente["data"],
+            "valor": db._dnum(existente["valor"], float),
+            "descricao": db.criptografia.descriptografar(existente["descricao"]),
+            "estabelecimento": existente["estabelecimento"],
+            "categoria_pluggy": existente["categoria_pluggy"],
+            "descricao_original": existente["descricao_original"],
+            "tipo_operacao": existente["tipo_operacao"],
+            "estorno_de_external_id": existente["estorno_de_external_id"],
+        }
+        novo = {
+            "data": t["data"],
+            "valor": float(t["valor"]) if t["valor"] is not None else None,
+            "descricao": t["descricao"],
+            "estabelecimento": t.get("estabelecimento"),
+            "categoria_pluggy": t.get("categoria_pluggy"),
+            "descricao_original": t.get("descricao_original"),
+            "tipo_operacao": t.get("tipo_operacao"),
+            "estorno_de_external_id": t.get("estorno_de_external_id"),
+        }
+        if all(atual[campo] == novo[campo] for campo in _CAMPOS_COMPARAVEIS):
+            sem_mudanca += 1
+            continue
+
+        conn.execute(
+            """UPDATE bank_transactions
+               SET data = ?, descricao = ?, valor = ?, estabelecimento = ?,
+                   categoria_pluggy = ?, descricao_original = ?, tipo_operacao = ?,
+                   estorno_de_external_id = ?
+               WHERE id = ?""",
+            (
+                novo["data"],
+                db.criptografia.criptografar(novo["descricao"]),
+                db._cnum(novo["valor"]),
+                novo["estabelecimento"],
+                novo["categoria_pluggy"],
+                novo["descricao_original"],
+                novo["tipo_operacao"],
+                novo["estorno_de_external_id"],
+                existente["id"],
+            ),
+        )
+        atualizadas += 1
+
+    return {"novas": novas, "atualizadas": atualizadas, "sem_mudanca": sem_mudanca}
+
+
 def _erro_amigavel_pluggy(exc: Exception) -> tuple[str, int]:
     """Converte qualquer erro de rede/HTTP da Pluggy numa mensagem que pode
     ir pra tela sem vazar corpo cru de resposta nem cabecalho com chave."""
@@ -153,7 +256,14 @@ def sincronizar_nubank():
     conn = db.get_db()
     try:
         resumo = []
+        total_novas = total_atualizadas = total_sem_mudanca = 0
         for conta_pluggy in contas_pluggy:
+            # tipo da conta Pluggy decide o "balde" em bank_accounts: CREDIT
+            # -> cartao (saldo = fatura em aberto, positivo = quanto se
+            # deve - o `balance` que a Pluggy devolve pra uma conta CREDIT),
+            # qualquer outro tipo (ex: BANK) -> conta (saldo = dinheiro
+            # disponivel de verdade). Nao soma cartao com conta em nenhum
+            # lugar - cada um fica na sua linha de bank_accounts.
             tipo = "cartao" if conta_pluggy.get("type") == "CREDIT" else "conta"
             conta_id = db.get_or_create_bank_account(conn, "nubank", tipo)
             saldo_pluggy = conta_pluggy.get("balance")
@@ -166,13 +276,31 @@ def sincronizar_nubank():
                 return jsonify({"error": mensagem}), status
             transacoes = pluggy_client.normalizar_transacoes(transacoes_pluggy)
             transacoes = app._categorizar_transacoes_importadas(conn, transacoes)
-            novas = db.insert_bank_transactions(conn, conta_id, transacoes)
-            resumo.append({"conta_id": conta_id, "tipo": tipo, "novas": novas})
+            contagem = _upsert_bank_transacoes(conn, conta_id, transacoes)
+            total_novas += contagem["novas"]
+            total_atualizadas += contagem["atualizadas"]
+            total_sem_mudanca += contagem["sem_mudanca"]
+            resumo.append({"conta_id": conta_id, "tipo": tipo, **contagem})
         conn.commit()
     finally:
         conn.close()
 
-    return jsonify({"banco": "nubank", "item_status": item.get("status"), "contas": resumo})
+    mensagem = (
+        f"{total_novas} nova(s), {total_atualizadas} atualizada(s), "
+        f"{total_sem_mudanca} sem mudanca"
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "banco": "nubank",
+            "item_status": item.get("status"),
+            "contas": resumo,
+            "novas": total_novas,
+            "atualizadas": total_atualizadas,
+            "sem_mudanca": total_sem_mudanca,
+            "mensagem": mensagem,
+        }
+    )
 
 
 @bp.route("/api/gastos/unificados", methods=["GET"])
