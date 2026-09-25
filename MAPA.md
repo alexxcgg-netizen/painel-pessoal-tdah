@@ -89,6 +89,120 @@
 | donos.json | — | _comentario, faixas | Mapeia dono de cada arquivo (faixa) — _comentario é informativo, faixas é o dict de padrões |
 | scripts/checar_donos.py | — | main(), validar_sobreposicoes(), validar_faixa() | Valida que nenhum arquivo pertence a duas faixas, pode checar diff de um branch |
 
+## Fase 9 - Finanças e abas
+
+### Backend: Rotas e Integrações
+
+| Arquivo | Linhas | Função/Rota | O que faz |
+|---------|--------|-------------|----------|
+| rotas/f8_banco.py | 36-46 | `_normalizar_nome()`, `_cobranca_bate_com_gasto()` | Normaliza nomes de estabelecimentos, compara cobrança com gasto para duplicatas |
+| rotas/f8_banco.py | 71-87 | `cruzar_proximas_cobrancas_com_gastos()` | Junta transações pendentes de fechamento com histórico de gastos |
+| rotas/f8_banco.py | 88-120 | `_montar_gastos_unificados()` | Agrega gastos real (cartão + débito) com pendências, monta lista unificada |
+| rotas/f8_banco.py | 132-177 | `@bp.route("/api/bancos/sincronizar-nubank", POST)` | Sincroniza transações do Pluggy, normaliza, insere no banco |
+| rotas/f8_banco.py | 178-190 | `@bp.route("/api/gastos/unificados", GET)` | Retorna gastos do mês com reais + pendências, pagos separado de pendente |
+| rotas/f8_banco.py | 191-206 | `@bp.route("/api/gastos/proximas-cobrancas", GET)` | Lista fechamentos de cartão não batidos, valor em aberto |
+| pluggy_client.py | 20-47 | `configurado()`, `_api_key()`, `_headers()` | Verifica config, carrega chave do .env, monta headers de autenticação Pluggy |
+| pluggy_client.py | 49-68 | `create_connect_token()`, `get_item()`, `get_accounts()`, `get_transactions()` | Fluxo Connect (token), lista contas, busca transações de uma conta |
+| pluggy_client.py | 91-103 | `normalizar_transacoes()` | Converte resposta Pluggy (merchant, category, date) em formato interno |
+
+### Backend: Rotas app.py (Bancos, Gastos, Patrimônio, Metas, Assinaturas)
+
+| Linha | Rota | Método | O que faz |
+|-------|------|--------|-----------|
+| 1277 | `/api/gastos-fixos` | GET | Lista gastos mensais fixos (aluguel, internet, etc) |
+| 1529 | `/api/gastos/resumo-semanal` | GET | Retorna gasto acumulado por dia da semana |
+| 6179 | `/api/assinaturas/revisao` | GET | Lista assinaturas para revisão (com data próxima cobrança) |
+| 6187 | `/api/assinaturas/revisao` | POST | Atualiza revisão de assinatura (marcada, pendência, motivo) |
+| 7771 | `/api/bancos/importar` | POST | Upload de OFX, processa transações |
+| 7805 | `/api/bancos` | GET | Lista contas com saldo, limite, último sync |
+| 7847 | `/api/bancos/<id>/limite` | POST | Atualiza limite de crédito de uma conta |
+| 7891 | `/api/patrimonio` | GET | Retorna patrimônio (contas + investimentos) |
+| 7910 | `/api/bancos/<id>/transacoes` | GET | Lista transações de uma conta (últimos 100) |
+| 7920 | `/api/bancos/sync-status` | GET | Status do último sync com Pluggy (timestamp, sucesso/erro) |
+| 7959 | `/api/bancos/conectar/token` | POST | Gera token de conexão Pluggy |
+| 7970 | `/api/bancos/conectar/finalizar` | POST | Finaliza fluxo Connect (salva conta nova no banco) |
+| 8009 | `/api/metas` | GET | Lista metas de poupança com progresso |
+| 8024 | `/api/metas/<id>/guardar` | POST | Registra depósito em meta |
+| 8043 | `/api/metas/<id>/historico` | GET | Histórico de depósitos de uma meta |
+
+### Backend: Tabelas (db.py)
+
+| Linhas | Tabela | Colunas principais | O que armazena |
+|--------|--------|-------------------|-----------------|
+| 107-123 | `expenses` | id, data, valor, categoria, tipo, descricao, pago, pago_em | Gastos reais (débito + crédito) com categorias |
+| 125-133 | `bank_accounts` | id, instituicao, saldo, limite, tipo, sincronizado_em | Contas corrente/poupança, cartões com saldo e limite |
+| 134-143 | `bank_transactions` | id, account_id, data, valor, categoria, descricao, pluggy_id | Transações Pluggy normalizado, evita duplicata via pluggy_id |
+| 145-160 | `goals` | id, nome, valor_alvo, valor_atual, criado_em, prazo | Metas de poupança com progresso |
+| 424-441 | `assinaturas_revisao` | id, assinatura_id, data_proxima_cobranca, em_revisao, motivo_revisao | Rastreamento de assinaturas em revisão |
+
+### Frontend: Abas (templates/abas/*.html)
+
+| Arquivo | Linhas | Elemento | O que faz |
+|---------|--------|----------|-----------|
+| gastos.html | — | #aba-gastos | Inclui assinaturas, metas, resumo semanal, histórico gastos |
+| bancos.html | — | #aba-bancos | Inclui sincronização Pluggy, OFX upload, saldo de contas, transações |
+| vida.html | — | #aba-vida | Inclui 20 seções (hábitos, projetos, agenda, compras, pessoas, treino, contas, manutenção, garantia, viagens, lugares, presentes, aprender, salvos, mensagem difícil, vale a pena, progresso, revisão) |
+| painel.html | — | #aba-painel | Inclui fechamento, medicamentos, datas, agenda hoje, peso, notas, brain dump, esperando resposta, diário decisão, resumo, memória, devo sair |
+| hoje.html | — | #aba-hoje | Chat, hiperfoco, clima, saudação, checkin, essencial, rotina, prévia noite |
+| tarefas.html | — | #aba-tarefas | Timeline de tarefas, prioridades, hiperfoco integrado |
+| aviacao.html | — | #aba-aviacao | Voos, simulador, docs de aviação |
+| construtora.html | — | #aba-construtora | Contas a pagar empresa, cotações materiais |
+| assistente.html | — | #aba-assistente | Chat com IA, briefing, regras, avisos |
+
+### Frontend: Navegação e Seções
+
+| Arquivo | Linhas | Elemento | O que faz |
+|---------|--------|----------|-----------|
+| templates/navegacao.html | 1-44 | nav#tabbar | 9 botões de abas (Hoje, Painel, Vida, Tarefas, Financeiro, Bancos, Construtora, Aviação, Assistente) |
+| templates/secoes/bancos/bancos.html | — | #bancos-list, .conta-card | Cards de contas com saldo, limite, botão sincronizar Pluggy |
+| templates/secoes/bancos/ofx.html | — | #ofx-upload, input[type=file] | Zona de drop/upload de arquivo OFX |
+| templates/secoes/gastos/gastos.html | — | #gastos-chart, #gastos-list | Gráfico de gastos, lista de transações por data |
+| templates/secoes/gastos/assinaturas.html | — | #assinaturas-lista, .assinatura-card | Cards de assinaturas com botões editar/cancelar |
+| templates/secoes/gastos/metas.html | — | #metas-lista, .meta-card | Cards de metas com progresso barra |
+
+### Frontend: JavaScript (static/js/secoes/)
+
+| Arquivo | Funções top-level | O que faz |
+|---------|------------------|-----------|
+| static/js/secoes/bancos/bancos.js | `criarItemBanco()`, `criarLimiteCartaoBox()`, `loadBancos()`, `carregarPluggyScript()` | Renderiza cards de conta, limite cartão, carrega via /api/bancos, inicia fluxo Connect |
+| static/js/secoes/bancos/ofx.js | `atualizarOfxLabel()` | Controla label do upload OFX (drag/drop feedback) |
+| static/js/secoes/gastos/assinaturas.js | `numeroFinancas()`, `fmtMoedaFinancas()`, `fmtDataFinancas()`, `textoFinancas()`, `loadAssinaturas()`, `loadAssinaturasAtivas()`, `loadComprometido()` | Formatadores, renderiza assinaturas, mostra impacto na fatura |
+| static/js/secoes/gastos/gastos.js | (funções de gráfico) | Renderiza gráfico de gastos |
+| static/js/secoes/gastos/metas.js | (funções de meta) | Renderiza metas e histórico |
+
+### Frontend: CSS
+
+| Arquivo | Linhas | Variáveis/Seletores | O que define |
+|---------|--------|---------------------|--------------|
+| static/css/ui/tokens.css | 20-152 | `--raio-*`, `--espacamento-*`, `--superficies-*`, `--tipografia-*`, `--movimento-*`, `--z-*` | Tokens globais de design (raios, espaço, cor, tipografia, animação, z-index) |
+| static/css/secoes/gastos/* | — | `.gasto-*, .assinatura-*, .meta-*` | Estilo de cards, gráficos e listas de gastos |
+| static/css/secoes/bancos/* | — | `.conta-*, .ofx-*` | Estilo de cards de conta e upload OFX |
+
+### Vida - Seções (20 arquivos em templates/secoes/vida/)
+
+| id | Nome | Arquivo | Resumo |
+|----|------|---------|--------|
+| habitos | Hábitos | habitos.html | Rastreamento diário de hábitos (exercício, meditação, leitura, etc) |
+| projetos | Projetos | projetos.html | Lista de projetos em andamento com progresso |
+| agenda | Agenda | agenda-painel.html | Calendário de eventos importantes |
+| compras | Lista de Compras | lista-de-compras.html | Items a comprar com status |
+| pessoas | Pessoas | pessoas.html | Contatos com última vez que conversou |
+| treino | Treino | treino.html | Fichas e histórico de exercícios |
+| contas | Contas Pessoais | contas-pessoais.html | Credenciais e logins (criptografado) |
+| manutencao | Manutenção | manutencao.html | Agendamento de manutenções (carro, casa, etc) |
+| garantia | Garantia | garantia.html | Documentos de garantia e validade |
+| viagens | Viagens | viagens.html | Destinos planejados com datas |
+| lugares | Lugares | lugares.html | Recomendações (restaurante, loja, etc) |
+| presentes | Presentes | ideias-de-presente.html | Ideias de presente para amigos/família |
+| aprender | Aprender | quero-aprender.html | Tópicos para estudar |
+| salvos | Salvos | salvos.html | Bookmarks, artigos, vídeos |
+| mensagem_dificil | Mensagem Difícil | mensagem-dificil.html | Rascunhos de mensagens difíceis |
+| vale_a_pena | Vale a Pena | vale-a-pena.html | Análise de decisões financeiras |
+| progresso | Progresso | seu-progresso.html | Histórico de metas e conquistas |
+| revisao | Revisão | revisao-trimestral.html | Checklist de revisão trimestral |
+| pra_responder | Pra Responder | pra-responder.html | Perguntas abertas em espera |
+| ainda_usa | Ainda Usa | ainda-usa.html | Itens/assinaturas questionáveis |
+
 ## Pendências/Observações
 
 - `static/js/secoes/hoje/visao-do-dia.js`: Arquivo vazio ou comentários apenas (funções estão em `static/js/visao-dia.js`).
