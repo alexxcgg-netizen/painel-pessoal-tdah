@@ -50,12 +50,3 @@ async function loadVoosResumo() {
   }
 }
 
-// Fase 9 C-abas: esta secao so carregava via navegacao.js (`if (name === "aviacao")`),
-// gatilho que sumiu com a aba Aviacao. Agora mora dentro de #tab-vida (topo,
-// #secao-aviacao) - carrega quando a tab-btn "vida" e clicada.
-if (typeof document !== "undefined") {
-  const btnAbaVidaVoos = document.querySelector('.tab-btn[data-tab="vida"]');
-  if (btnAbaVidaVoos) {
-    btnAbaVidaVoos.addEventListener("click", loadVoosResumo);
-  }
-}

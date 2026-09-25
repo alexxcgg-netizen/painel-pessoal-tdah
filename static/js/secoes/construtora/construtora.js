@@ -71,12 +71,3 @@ async function loadConstrutora() {
   contas.forEach((c) => listaContas.appendChild(criarItemContaAVencer(c)));
 }
 
-// Fase 9 C-abas: esta secao so carregava via navegacao.js (`if (name === "construtora")`),
-// gatilho que sumiu com a aba Construtora. Agora mora dentro de #tab-gastos (Financas) -
-// carrega quando a tab-btn "gastos" e clicada.
-if (typeof document !== "undefined") {
-  const btnAbaGastosConstrutora = document.querySelector('.tab-btn[data-tab="gastos"]');
-  if (btnAbaGastosConstrutora) {
-    btnAbaGastosConstrutora.addEventListener("click", loadConstrutora);
-  }
-}

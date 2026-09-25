@@ -1059,8 +1059,7 @@ header {
 #tab-hoje,
 #tab-vida,
 #tab-tarefas,
-#tab-gastos,
-#tab-bancos {
+#tab-gastos {
   /* Fase 8 D1: mesma reducao de 30-35% pra 14-15% que o :root - a cor da
      aba deixa de pintar borda/sombra do card, ficando so um tico sutil. */
   --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
@@ -1078,9 +1077,6 @@ header {
 }
 #tab-gastos {
   --glass-tint: var(--cor-financeiro);
-}
-#tab-bancos {
-  --glass-tint: var(--cor-bancos);
 }
 /* Fase 9 C-abas: #tab-painel/#tab-construtora/#tab-aviacao deixaram de existir
    (conteudo migrou pra dentro de #tab-hoje/#tab-vida/#tab-gastos) - o --glass-tint
@@ -3028,6 +3024,13 @@ li.item.item-planejado {
 #importar-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.secao-secundaria > svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  vertical-align: -3px;
 }
 
 .secao-secundaria {
