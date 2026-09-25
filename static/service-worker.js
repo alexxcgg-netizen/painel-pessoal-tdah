@@ -31,7 +31,9 @@
 // v15: fim da Fase 7 - CSS/JS das faixas V/C/P1b/M1 (componentes, bottom-sheet, Caixa,
 // custo de IA, assinaturas...) mudaram depois do v14; o iPhone que ja tem o v14 precisa
 // buscar tudo de novo. Lista conferida contra scripts.html/head.html/fase7.css.
-const CACHE_NAME = "painel-pessoal-v15";
+// v16: Fase 8 F1 - gastos.js/gastos.html mudaram (lista unificada com selo de origem
+// Nubank/manual, botao "Sincronizar Nubank").
+const CACHE_NAME = "painel-pessoal-v16";
 const ASSETS = [
   "/",
   "/static/css/style.css",
