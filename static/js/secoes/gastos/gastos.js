@@ -232,8 +232,9 @@ function criarItemGasto(e) {
   return li;
 }
 
-// Fase 8 (F1): sincroniza o item Nubank ja autorizado na Pluggy (sem widget
-// de Connect - so bate na rota que le PLUGGY_ITEM_ID_NUBANK do .env).
+// Fase 9 (f9-ui): botao unico de sincronizacao da aba Financas - bate na
+// rota que le PLUGGY_ITEM_ID_NUBANK do .env (rotas/f8_banco.py, nao e meu).
+// Resposta esperada: {ok, novas, atualizadas, sem_mudanca, mensagem}.
 const btnSincronizarNubank = $("#btn-sincronizar-nubank");
 if (btnSincronizarNubank) {
   btnSincronizarNubank.addEventListener("click", async () => {
@@ -241,12 +242,117 @@ if (btnSincronizarNubank) {
     setBotaoCarregando(btnSincronizarNubank, true, "Sincronizando...");
     status.hidden = true;
     const data = await apiFetch("/api/bancos/sincronizar-nubank", { method: "POST" });
-    setBotaoCarregando(btnSincronizarNubank, false, "Sincronizar Nubank");
+    setBotaoCarregando(btnSincronizarNubank, false, "Sincronizar");
     if (data) {
-      status.textContent = "Nubank sincronizado.";
+      const n = (v) => numeroFinancas(v) ?? 0;
+      status.textContent =
+        typeof data.mensagem === "string" && data.mensagem
+          ? data.mensagem
+          : `${n(data.novas)} nova(s), ${n(data.atualizadas)} atualizada(s), ${n(data.sem_mudanca)} sem mudanca.`;
       status.hidden = false;
       loadExpenses();
+      loadBancos();
+      if (typeof loadResumoFinancas === "function") loadResumoFinancas();
+      if (typeof loadExtratoFinancas === "function") loadExtratoFinancas();
     }
+  });
+}
+
+// Fase 9 (f9-ui): resumo do topo (GET /api/financas/resumo) - substitui o uso
+// de /api/patrimonio na interface. Fatura e saldo nunca sao somados - sao
+// mostrados separados, porque fatura e divida, nao dinheiro disponivel.
+async function loadResumoFinancas() {
+  const resumo = await apiFetch("/api/financas/resumo");
+  const box = $("#resumo-financas-box");
+  if (!resumo || typeof resumo !== "object") {
+    if (box) box.hidden = true;
+    return;
+  }
+  $("#resumo-financas-mes").textContent = typeof resumo.mes === "string" ? resumo.mes : "";
+  $("#resumo-financas-gasto").textContent = fmtMoedaFinancas(resumo.gasto_mes);
+  $("#resumo-financas-fatura").textContent = fmtMoedaFinancas(resumo.fatura_atual);
+  $("#resumo-financas-saldo").textContent = fmtMoedaFinancas(resumo.saldo_conta);
+  $("#resumo-financas-patrimonio").textContent = fmtMoedaFinancas(resumo.patrimonio);
+  box.hidden = false;
+}
+
+// Fase 9 (f9-ui): extrato paginado de 15 em 15 dias (GET /api/financas/extrato)
+// - contrato implementado em paralelo por outra faixa (rotas/f9_financas.py).
+let extratoFinancasProximoAntes = null;
+
+function criarItemExtratoFinancas(item) {
+  const li = document.createElement("li");
+  li.className = "item";
+
+  const linha = document.createElement("div");
+  linha.className = "item-linha";
+
+  const info = document.createElement("div");
+  const titulo = document.createElement("span");
+  titulo.className = "item-titulo";
+  titulo.textContent = item.descricao || "(sem descricao)";
+  const origemChip = document.createElement("span");
+  origemChip.className = "chip chip--compacto";
+  origemChip.textContent = item.origem === "Nubank" ? "Nubank" : "manual";
+  titulo.appendChild(origemChip);
+  if (item.tipo_conta) {
+    const tipoChip = document.createElement("span");
+    tipoChip.className = "chip chip--compacto";
+    tipoChip.textContent = item.tipo_conta === "cartao" ? "cartao" : "conta";
+    titulo.appendChild(tipoChip);
+  }
+  if (item.estorno_de) {
+    const estornoChip = document.createElement("span");
+    estornoChip.className = "chip chip--compacto";
+    estornoChip.textContent = "estorno";
+    titulo.appendChild(estornoChip);
+  }
+  info.appendChild(titulo);
+
+  const detalhe = document.createElement("span");
+  detalhe.className = "item-quando";
+  detalhe.textContent = [item.data, item.categoria].filter(Boolean).join(" · ");
+  info.appendChild(detalhe);
+  linha.appendChild(info);
+
+  const valor = document.createElement("span");
+  const numero = numeroFinancas(item.valor) ?? 0;
+  valor.className = "valor-mono" + (numero < 0 ? " banco-saldo-negativo" : "");
+  valor.textContent = fmtMoedaFinancas(numero);
+  linha.appendChild(valor);
+
+  li.appendChild(linha);
+  return li;
+}
+
+async function loadExtratoFinancas(antes, acumular) {
+  const btnMais = $("#btn-carregar-mais-extrato");
+  const params = new URLSearchParams({ dias: "15" });
+  if (antes) params.set("antes", antes);
+  const resposta = await apiFetch(`/api/financas/extrato?${params.toString()}`);
+  const list = $("#lista-extrato-financas");
+  if (!resposta || !Array.isArray(resposta.itens)) {
+    if (!acumular) {
+      list.innerHTML = "";
+      $("#extrato-financas-vazio").hidden = false;
+    }
+    if (btnMais) btnMais.hidden = true;
+    return;
+  }
+  if (!acumular) list.innerHTML = "";
+  $("#extrato-financas-vazio").hidden = list.children.length > 0 || resposta.itens.length > 0;
+  resposta.itens.forEach((item) => list.appendChild(criarItemExtratoFinancas(item)));
+  extratoFinancasProximoAntes = resposta.proximo_antes || null;
+  if (btnMais) btnMais.hidden = !extratoFinancasProximoAntes;
+}
+
+const btnCarregarMaisExtrato = $("#btn-carregar-mais-extrato");
+if (btnCarregarMaisExtrato) {
+  btnCarregarMaisExtrato.addEventListener("click", async () => {
+    if (!extratoFinancasProximoAntes) return;
+    setBotaoCarregando(btnCarregarMaisExtrato, true, "Carregando...");
+    await loadExtratoFinancas(extratoFinancasProximoAntes, true);
+    setBotaoCarregando(btnCarregarMaisExtrato, false, "Carregar mais 15 dias");
   });
 }
 

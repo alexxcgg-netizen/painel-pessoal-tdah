@@ -5,6 +5,40 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-25 - Fase 9 (Etapa A): Finanças numa aba só, sincronização sem duplicar
+
+Bancos e Gastos viraram uma aba só, **Finanças**, com um único botão **Sincronizar**. A
+sincronização do Nubank não duplica mais, o cartão fica separado da conta corrente e os
+gastos aparecem com nome legível.
+
+- **Sincronização idempotente** (`rotas/f8_banco.py`, `pluggy_client.py`): upsert pelo id da
+  transação Pluggy (`novas`/`atualizadas`/`sem_mudanca`) + reconciliação por conta: dentro do
+  período devolvido pelo Pluggy, linha cujo id não voltou é apagada (`removidas`). Causa das
+  duplicadas no deploy: reconexão do item fez o Pluggy reimportar o histórico com ids novos.
+  Nunca reconcilia se a busca veio truncada ou vazia; nunca toca em `expenses`.
+  `get_transactions` agora devolve `(transacoes, truncado)`.
+- **Cartão x conta**: `bank_accounts.tipo` = `cartao` (Pluggy `CREDIT`, saldo = fatura em
+  aberto) ou `conta` (`BANK`, saldo = dinheiro). Colunas novas em `bank_transactions`
+  (migração `202609251300_f9_sync.sql`): `estabelecimento`, `categoria_pluggy`,
+  `descricao_original`, `tipo_operacao`, `estorno_de_external_id`.
+- **Sinal do valor**: no cartão o Pluggy manda compra com amount positivo + `DEBIT`; saída é
+  decidida por `tipo_operacao`, não pelo sinal. Parcelas futuras (até 2027) não entram.
+- **Descrição** (`financas_descricao.py`, puro): tabela local razão social → nome conhecido
+  (Arcos Dourados → McDonald's, Raia362 → Droga Raia...), casamento por palavra inteira
+  (sem "Praia" → Droga Raia), "Pix · Nome", categorias do Pluggy em português, estorno com a
+  compra original quando houver vínculo. Sem IA (`precisa_ia()` só sinaliza).
+- **Extrato e resumo** (`rotas/f9_financas.py`): `GET /api/financas/extrato?antes=&dias=15`
+  (janelas de 15 dias, `proximo_antes`) e `GET /api/financas/resumo` (gasto do mês sem
+  pagamento de fatura/transferência, por categoria, fatura, saldo, patrimônio).
+  `/api/patrimonio` passou a tratar o cartão como dívida (`fatura_aberta`).
+- **Tela**: aba Finanças única, botão Sincronizar único (sai Pluggy Connect da interface; rotas
+  `/api/bancos/conectar/*` ficam no backend), últimos 15 dias + "Carregar mais 15 dias",
+  extrato completo e assinaturas recolhidos. **Importar OFX removido** (rota, `bank_ofx.py`,
+  template, JS, CSS, testes).
+- Verificado com a conta real (banco temporário): 413 transações (384 cartão, 29 conta),
+  3 sincronizações seguidas = 0 novas na 2ª e 3ª; setembro R$ 1.122,75, fatura
+  R$ 2.377,35, conta R$ 7,25.
+
 ## 2026-09-25 - Fase 8: visual dark + financeiro/banco unificado
 
 Fechamento da Fase 8: tema escuro mais sóbrio no visual todo, e no financeiro a

@@ -60,7 +60,7 @@ test("resolverTela reconhece sinonimos comuns por aba", () => {
   assert.equal(resolverTela("tarefas"), "tarefas");
   assert.equal(resolverTela("aviação"), "aviacao");
   assert.equal(resolverTela("Construtora"), "construtora");
-  assert.equal(resolverTela("os bancos"), "bancos");
+  assert.equal(resolverTela("os bancos"), "gastos");
 });
 
 test("resolverTela ignora acento/caixa", () => {
@@ -161,7 +161,7 @@ test("classificarLocalmente resolve um pedido de navegacao claro sem precisar de
 test("classificarLocalmente reconhece variacoes de verbo de navegacao", () => {
   assert.equal(classificarLocalmente("mostra as tarefas").parametros.tela, "tarefas");
   assert.equal(classificarLocalmente("vai pra aviacao").parametros.tela, "aviacao");
-  assert.equal(classificarLocalmente("navega pros bancos").parametros.tela, "bancos");
+  assert.equal(classificarLocalmente("navega pros bancos").parametros.tela, "gastos");
 });
 
 test("classificarLocalmente devolve null pra qualquer coisa fora do padrao de navegacao simples", () => {

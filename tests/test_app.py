@@ -48,38 +48,6 @@ def _tool_block(nome, entrada, id_):
     return SimpleNamespace(type="tool_use", name=nome, input=entrada, id=id_)
 
 
-OFX_AMOSTRA = """
-OFXHEADER:100
-DATA:OFXSGML
-VERSION:102
-
-<OFX>
-<BANKMSGSRSV1>
-<STMTTRNRS>
-<STMTRS>
-<BANKTRANLIST>
-<STMTTRN>
-<TRNTYPE>DEBIT
-<DTPOSTED>20250115120000[-3:BRT]
-<TRNAMT>-45.90
-<FITID>202501150001
-<MEMO>PADARIA CENTRAL
-</STMTTRN>
-<STMTTRN>
-<TRNTYPE>CREDIT
-<DTPOSTED>20250116080000[-3:BRT]
-<TRNAMT>1500.00
-<FITID>202501160002
-<MEMO>SALARIO
-</STMTTRN>
-</BANKTRANLIST>
-</STMTRS>
-</STMTTRNRS>
-</BANKMSGSRSV1>
-</OFX>
-"""
-
-
 PIN_TESTE = "123456"
 
 
@@ -668,76 +636,6 @@ class PainelTestCase(unittest.TestCase):
         self.assertIn(30, dias_pedidos)
         self.assertIn(7, dias_pedidos)
 
-    def test_importar_extrato_ofx_cria_conta_e_transacoes(self):
-        res = self.client.post(
-            "/api/bancos/importar",
-            data={
-                "banco": "nubank",
-                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "extrato.ofx"),
-            },
-            content_type="multipart/form-data",
-        )
-        self.assertEqual(res.status_code, 200)
-        body = res.get_json()
-        self.assertEqual(body["encontradas"], 2)
-        self.assertEqual(body["novas"], 2)
-        self.assertEqual(body["duplicadas"], 0)
-
-        contas = self.client.get("/api/bancos").get_json()
-        self.assertEqual(len(contas), 1)
-        self.assertEqual(contas[0]["banco"], "nubank")
-        self.assertEqual(contas[0]["total_transacoes"], 2)
-
-        transacoes = self.client.get(f"/api/bancos/{contas[0]['id']}/transacoes").get_json()
-        self.assertEqual(len(transacoes), 2)
-        valores = sorted(t["valor"] for t in transacoes)
-        self.assertEqual(valores, [-45.9, 1500.0])
-
-    def test_importar_extrato_categoriza_sozinho_com_historico_claro(self):
-        conn = db.get_db()
-        conn.execute(
-            "INSERT INTO expenses (amount, category, description) VALUES (?, ?, ?)",
-            (18.0, "mercado", "compra na padaria central de manha"),
-        )
-        conn.execute(
-            "INSERT INTO expenses (amount, category, description) VALUES (?, ?, ?)",
-            (12.5, "mercado", "pao na padaria central"),
-        )
-        conn.commit()
-        conn.close()
-
-        self.client.post(
-            "/api/bancos/importar",
-            data={
-                "banco": "nubank",
-                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "extrato.ofx"),
-            },
-            content_type="multipart/form-data",
-        )
-        contas = self.client.get("/api/bancos").get_json()
-        transacoes = self.client.get(f"/api/bancos/{contas[0]['id']}/transacoes").get_json()
-
-        padaria = next(t for t in transacoes if t["valor"] == -45.9)
-        self.assertEqual(padaria["categoria"], "mercado")
-
-        # SALARIO nao tem nada parecido no historico - fica sem categoria em
-        # vez de arriscar um palpite
-        salario = next(t for t in transacoes if t["valor"] == 1500.0)
-        self.assertIsNone(salario["categoria"])
-
-    def test_importar_extrato_sem_historico_fica_sem_categoria(self):
-        self.client.post(
-            "/api/bancos/importar",
-            data={
-                "banco": "nubank",
-                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "extrato.ofx"),
-            },
-            content_type="multipart/form-data",
-        )
-        contas = self.client.get("/api/bancos").get_json()
-        transacoes = self.client.get(f"/api/bancos/{contas[0]['id']}/transacoes").get_json()
-        self.assertTrue(all(t["categoria"] is None for t in transacoes))
-
     def test_patrimonio_sem_nada_cadastrado_e_zero(self):
         res = self.client.get("/api/patrimonio")
         self.assertEqual(res.status_code, 200)
@@ -762,17 +660,21 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(len(corpo["contas"]), 2)
 
     def test_patrimonio_desconta_saldo_negativo_de_cartao(self):
+        # Fase 9/f9-api: bank_accounts.saldo pra tipo='cartao' e gravado
+        # POSITIVO (fatura em aberto = quanto se deve), nunca negativo -
+        # a rota que desconta a divida, nao o sinal gravado.
         conn = db.get_db()
         conta_conta = db.get_or_create_bank_account(conn, "nubank", "conta")
         conta_cartao = db.get_or_create_bank_account(conn, "nubank", "cartao")
         db.atualizar_saldo_conta(conn, conta_conta, 1000.0)
-        db.atualizar_saldo_conta(conn, conta_cartao, -400.0)
+        db.atualizar_saldo_conta(conn, conta_cartao, 400.0)
         conn.commit()
         conn.close()
 
         res = self.client.get("/api/patrimonio")
         corpo = res.get_json()
-        self.assertEqual(corpo["saldo_bancario"], 600.0)
+        self.assertEqual(corpo["saldo_bancario"], 1000.0)
+        self.assertEqual(corpo["fatura_aberta"], 400.0)
         self.assertEqual(corpo["patrimonio_total"], 600.0)
 
     def test_patrimonio_inclui_valor_guardado_em_metas(self):
@@ -801,30 +703,6 @@ class PainelTestCase(unittest.TestCase):
         corpo = res.get_json()
         self.assertEqual(corpo["saldo_bancario"], 0)
         self.assertEqual(corpo["contas"], [])
-
-    def test_reimportar_mesmo_extrato_nao_duplica(self):
-        self.client.post(
-            "/api/bancos/importar",
-            data={"banco": "viacredi", "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "e.ofx")},
-            content_type="multipart/form-data",
-        )
-        res = self.client.post(
-            "/api/bancos/importar",
-            data={"banco": "viacredi", "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "e.ofx")},
-            content_type="multipart/form-data",
-        )
-        body = res.get_json()
-        self.assertEqual(body["novas"], 0)
-        self.assertEqual(body["duplicadas"], 2)
-
-        contas = self.client.get("/api/bancos").get_json()
-        self.assertEqual(contas[0]["total_transacoes"], 2)
-
-    def test_importar_sem_arquivo_da_erro(self):
-        res = self.client.post(
-            "/api/bancos/importar", data={"banco": "nubank"}, content_type="multipart/form-data"
-        )
-        self.assertEqual(res.status_code, 400)
 
     def test_bancos_sync_status_sem_configuracao(self):
         res = self.client.get("/api/bancos/sync-status")
@@ -864,7 +742,7 @@ class PainelTestCase(unittest.TestCase):
         with patch("pluggy_client.configurado", return_value=True), patch(
             "pluggy_client.get_item", return_value=item_fake
         ), patch("pluggy_client.get_accounts", return_value=contas_fake), patch(
-            "pluggy_client.get_transactions", return_value=transacoes_fake
+            "pluggy_client.get_transactions", return_value=(transacoes_fake, False)
         ):
             res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "item-1"})
 
@@ -878,30 +756,6 @@ class PainelTestCase(unittest.TestCase):
         tipos = sorted(c["tipo"] for c in contas)
         self.assertEqual(tipos, ["cartao", "conta"])
         self.assertEqual(sum(c["total_transacoes"] for c in contas), 2)
-
-    def test_importar_com_tipo_cartao_fica_separado_da_conta(self):
-        self.client.post(
-            "/api/bancos/importar",
-            data={
-                "banco": "nubank",
-                "tipo": "conta",
-                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "e.ofx"),
-            },
-            content_type="multipart/form-data",
-        )
-        self.client.post(
-            "/api/bancos/importar",
-            data={
-                "banco": "nubank",
-                "tipo": "cartao",
-                "arquivo": (io.BytesIO(OFX_AMOSTRA.encode()), "e.ofx"),
-            },
-            content_type="multipart/form-data",
-        )
-        contas = self.client.get("/api/bancos").get_json()
-        self.assertEqual(len(contas), 2)
-        tipos = sorted(c["tipo"] for c in contas)
-        self.assertEqual(tipos, ["cartao", "conta"])
 
     def test_captura_meta_calcula_guardar_por_mes(self):
         from datetime import date
@@ -4434,7 +4288,7 @@ class PainelTestCase(unittest.TestCase):
         with patch("pluggy_client.configurado", return_value=True), patch(
             "pluggy_client.get_item", return_value=item_fake
         ), patch("pluggy_client.get_accounts", return_value=contas_fake), patch(
-            "pluggy_client.get_transactions", return_value=[]
+            "pluggy_client.get_transactions", return_value=([], False)
         ):
             res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "item-1"})
         self.assertEqual(res.status_code, 200)
@@ -4450,7 +4304,7 @@ class PainelTestCase(unittest.TestCase):
         with patch("pluggy_client.configurado", return_value=True), patch(
             "pluggy_client.get_item", return_value=item_fake
         ), patch("pluggy_client.get_accounts", return_value=contas_fake), patch(
-            "pluggy_client.get_transactions", return_value=[]
+            "pluggy_client.get_transactions", return_value=([], False)
         ):
             res = self.client.post("/api/bancos/conectar/finalizar", json={"item_id": "item-1"})
         self.assertEqual(res.status_code, 200)

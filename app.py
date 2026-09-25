@@ -26,7 +26,6 @@ load_dotenv()
 import agenda
 import aprendizado
 import auth
-import bank_ofx
 import caldav_client
 import calculos
 import cards
@@ -7768,40 +7767,6 @@ def _categorizar_transacoes_importadas(conn, transacoes: list[dict]) -> list[dic
     return transacoes
 
 
-@app.route("/api/bancos/importar", methods=["POST"])
-def importar_extrato():
-    banco = request.form.get("banco", "").strip().lower()
-    tipo = request.form.get("tipo", "conta").strip().lower()
-    if tipo not in ("conta", "cartao"):
-        tipo = "conta"
-    arquivo = request.files.get("arquivo")
-    if not banco or not arquivo:
-        return jsonify({"error": "informe o banco e o arquivo OFX"}), 400
-
-    texto = bank_ofx.decode_ofx(arquivo.read())
-    try:
-        transacoes = bank_ofx.parse_transactions(texto)
-    except ValueError:
-        return jsonify({"error": "nao consegui ler as datas/valores desse arquivo OFX"}), 400
-
-    if not transacoes:
-        return jsonify({"error": "nenhuma transacao encontrada nesse arquivo"}), 400
-
-    conn = get_db()
-    conta_id = get_or_create_bank_account(conn, banco, tipo)
-    transacoes = _categorizar_transacoes_importadas(conn, transacoes)
-    novas = insert_bank_transactions(conn, conta_id, transacoes)
-    conn.close()
-    return jsonify(
-        {
-            "conta_id": conta_id,
-            "encontradas": len(transacoes),
-            "novas": novas,
-            "duplicadas": len(transacoes) - novas,
-        }
-    )
-
-
 @app.route("/api/bancos", methods=["GET"])
 def listar_bancos():
     if _modo_visitante_ativo():
@@ -7859,22 +7824,25 @@ def definir_limite_cartao_rota(conta_id):
 
 def _patrimonio_consolidado(conn) -> dict:
     """Soma tudo que o projeto ja sabe que tem valor monetario num so numero
-    (US-C12): saldo das contas/cartoes (bank_accounts.saldo, ja
-    criptografado em repouso desde a Fase 4 - list_bank_accounts
-    descriptografa, nenhuma coluna nova pra proteger aqui) + o que ja foi
-    guardado nas metas financeiras (goals.valor_guardado - dinheiro
-    separado, entao conta como patrimonio tanto quanto o saldo em conta).
-    Soma o saldo de cada conta como esta gravado (sinal ja reflete divida
-    em cartao quando existir - a mesma convencao que a aba Bancos ja usa
-    pra mostrar saldo negativo, nao inventa um sinal novo aqui)."""
+    (US-C12, corrigido na Fase 9/f9-api): saldo das contas/cartoes
+    (bank_accounts.saldo, ja criptografado em repouso desde a Fase 4 -
+    list_bank_accounts descriptografa, nenhuma coluna nova pra proteger
+    aqui) + o que ja foi guardado nas metas financeiras (goals.valor_guardado
+    - dinheiro separado, entao conta como patrimonio tanto quanto o saldo em
+    conta) - MENOS a fatura em aberto do cartao. bank_accounts.saldo pra
+    tipo='cartao' e sempre gravado POSITIVO (= quanto se deve - ver
+    AGENTS.md da faixa f9-api), nunca dinheiro disponivel, entao nunca entra
+    como saldo bancario - so como divida, subtraindo do total."""
     contas = list_bank_accounts(conn)
-    saldo_bancario = sum(c["saldo"] or 0 for c in contas)
+    saldo_bancario = sum(c["saldo"] or 0 for c in contas if c["tipo"] == "conta")
+    fatura_aberta = sum(c["saldo"] or 0 for c in contas if c["tipo"] == "cartao")
     metas = list_goals(conn)
     valor_guardado_metas = sum(g["valor_guardado"] or 0 for g in metas)
     return {
         "saldo_bancario": round(saldo_bancario, 2),
+        "fatura_aberta": round(fatura_aberta, 2),
         "valor_guardado_metas": round(valor_guardado_metas, 2),
-        "patrimonio_total": round(saldo_bancario + valor_guardado_metas, 2),
+        "patrimonio_total": round(saldo_bancario + valor_guardado_metas - fatura_aberta, 2),
         "contas": [
             {"banco": c["banco"], "tipo": c["tipo"], "saldo": c["saldo"]}
             for c in contas
@@ -7894,6 +7862,7 @@ def patrimonio_rota():
         return jsonify(
             {
                 "saldo_bancario": 0,
+                "fatura_aberta": 0,
                 "valor_guardado_metas": 0,
                 "patrimonio_total": 0,
                 "contas": [],
@@ -7993,7 +7962,10 @@ def bancos_conectar_finalizar():
         if saldo_pluggy is not None:
             atualizar_saldo_conta(conn, conta_id, saldo_pluggy)
         try:
-            transacoes_pluggy = pluggy_client.get_transactions(conta_pluggy["id"])
+            # (Connect: primeira importacao do item, sem reconciliacao de
+            # remocao - isso e so na sincronizacao recorrente do Nubank em
+            # rotas/f8_banco.py.) `truncado` nao muda esse fluxo hoje.
+            transacoes_pluggy, _truncado = pluggy_client.get_transactions(conta_pluggy["id"])
         except requests.RequestException:
             conn.close()
             return jsonify({"error": "nao consegui buscar as transacoes na Pluggy agora"}), 502

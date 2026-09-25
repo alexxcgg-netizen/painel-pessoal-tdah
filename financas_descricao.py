@@ -54,10 +54,15 @@ _PREFIXOS_ADQUIRENTE = [
 _SUFIXO_UF = re.compile(r"\s+[A-Z]{2}$")
 _SUFIXO_PARCELA = re.compile(r"\s*[-/]?\s*(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s*[/xX]\s*(\d{1,2})\s*$")
 _SUFIXO_NUMEROS_SOLTOS = re.compile(r"\s+\d{4,}$")
+_SUFIXO_CIDADE_TRUNCADA = re.compile(r"\s+[A-Z][a-z]{3,6}$")  # Palavras de 5-7 chars que parecem cidades truncadas
 
 _SIGLAS_CURTAS = {
     "bk", "kfc", "cia", "sa", "ltda", "ne", "sp", "rj", "mg", "df", "pr", "sc", "rs",
     "usa", "uk", "tv", "app", "99", "c&a",
+}
+
+_PREPOSICOES_BAIXAS = {
+    "de", "da", "do", "di", "du", "em", "em", "por", "para", "com", "sem", "sob", "e", "ou",
 }
 
 
@@ -83,12 +88,13 @@ def _extrair_parcela(s):
 
 def _titulo(s):
     """Normaliza caixa para Titulo, preservando siglas curtas em maiusculo quando
-    ja vinham em maiusculo (heuristica simples), e sem alterar tokens com digitos."""
+    ja vinham em maiusculo (heuristica simples), e sem alterar tokens com digitos.
+    Preposicoes ficam em minuscula (exceto primeira palavra)."""
     if not s:
         return s
     palavras = s.split(" ")
     resultado = []
-    for p in palavras:
+    for i, p in enumerate(palavras):
         if not p:
             continue
         p_lower = p.lower()
@@ -97,6 +103,9 @@ def _titulo(s):
             resultado.append(p.upper())
         elif any(c.isdigit() for c in p):
             resultado.append(p)
+        elif i > 0 and p_norm in _PREPOSICOES_BAIXAS:
+            # Preposicoes ficam em minuscula (exceto na primeira posicao)
+            resultado.append(p_lower)
         else:
             resultado.append(p_lower.capitalize())
     return " ".join(resultado)
@@ -122,6 +131,9 @@ def limpar_texto(bruto):
     s = _SUFIXO_UF.sub("", s).strip()
     # remove numeros longos soltos no fim (codigos de terminal etc.)
     s = _SUFIXO_NUMEROS_SOLTOS.sub("", s).strip()
+    # Para "Posto" entries, remove sufixo de cidade truncada
+    if s.upper().startswith("POSTO"):
+        s = _SUFIXO_CIDADE_TRUNCADA.sub("", s).strip()
     s = re.sub(r"\s+", " ", s).strip(" *-")
 
     s_titulo = _titulo(s)
@@ -145,8 +157,10 @@ TABELA_ESTABELECIMENTOS = {
     "uber": ("Uber", "Transporte"),
     "99app": ("99", "Transporte"),
     "99 tecnologia": ("99", "Transporte"),
+    "raia": ("Droga Raia", "Farmácia"),
     "raia drogasil": ("Droga Raia", "Farmácia"),
     "drogasil": ("Droga Raia", "Farmácia"),
+    "drogaraia": ("Droga Raia", "Farmácia"),
     "carrefour": ("Carrefour", "Mercado"),
     "assai": ("Assaí", "Mercado"),
     "atacadao": ("Atacadão", "Mercado"),
@@ -157,8 +171,11 @@ TABELA_ESTABELECIMENTOS = {
     "amazon": ("Amazon", "Compras Online"),
     "netflix": ("Netflix", "Streaming"),
     "spotify": ("Spotify", "Streaming"),
+    "apple": ("Apple", "Assinaturas"),
     "apple.com/bill": ("Apple", "Assinaturas"),
     "apple com bill": ("Apple", "Assinaturas"),
+    "anthropic": ("Claude", "Serviços Digitais"),
+    "claude": ("Claude", "Serviços Digitais"),
     "google": ("Google", "Serviços"),
     "shell": ("Shell", "Combustível"),
     "raizen": ("Raízen", "Combustível"),
@@ -219,13 +236,45 @@ TABELA_ESTABELECIMENTOS = {
     "vivara": ("Vivara", "Compras"),
 }
 
+# Chaves cujo nome final deve preservar quem enviou/recebeu (Pix, TED, DOC...).
+_CHAVES_TRANSFERENCIA = {"pix"}
+
+_PALAVRAS_FILTRAR_TRANSFERENCIA = {
+    "pix", "ted", "doc", "transferencia", "enviado", "enviada", "recebido",
+    "recebida", "via", "pelo", "pela",
+} | _PREPOSICOES_BAIXAS
+
+
+def _extrair_nome_transferencia(texto):
+    """Remove o rotulo (Pix/TED/...) e palavras de preenchimento, mantendo o
+    nome de quem enviou/recebeu quando houver."""
+    if not texto:
+        return None
+    palavras = [p for p in texto.split(" ") if p]
+    restantes = [p for p in palavras if _normalizar(p) not in _PALAVRAS_FILTRAR_TRANSFERENCIA]
+    nome = " ".join(restantes).strip(" -:")
+    return nome or None
+
+
+def _compilar_padrao_chave(chave):
+    """Casamento por palavra inteira: a chave so "bate" quando nao esta colada a
+    outras letras (digitos, espacos e pontuacao contam como limite de palavra).
+    Isso vale tanto para chaves de uma palavra quanto para frases - so as bordas
+    da chave inteira importam, entao chaves "coladas" (ex.: "drogaraia",
+    "apple.com/bill") continuam funcionando sem tratamento especial."""
+    return re.compile(r"(?<![a-z])" + re.escape(chave) + r"(?![a-z])")
+
+
 _TABELA_ITENS_ORDENADOS = sorted(TABELA_ESTABELECIMENTOS.items(), key=lambda kv: -len(kv[0]))
+_TABELA_COMPILADA = [
+    (chave, _compilar_padrao_chave(chave), valor) for chave, valor in _TABELA_ITENS_ORDENADOS
+]
 
 
 def _buscar_na_tabela(texto_normalizado):
-    for chave, valor in _TABELA_ITENS_ORDENADOS:
-        if chave in texto_normalizado:
-            return valor
+    for chave, padrao, valor in _TABELA_COMPILADA:
+        if padrao.search(texto_normalizado):
+            return chave, valor
     return None
 
 
@@ -256,6 +305,10 @@ MAPA_CATEGORIAS_PLUGGY = {
     "investments": "Investimentos",
     "taxes": "Impostos",
     "education": "Educação",
+    "electronics": "Eletrônicos",
+    "wellness and fitness": "Academia e bem-estar",
+    "digital services": "Serviços digitais",
+    "tax on financial operations": "Impostos",
 }
 
 
@@ -330,14 +383,20 @@ def descrever(tx, por_external_id=None):
 
         nome_tabela = None
         categoria_tabela = None
+        chave_tabela = None
         if limpo:
             achado = _buscar_na_tabela(_normalizar(limpo))
             if achado:
-                nome_tabela, categoria_tabela = achado
+                chave_tabela, (nome_tabela, categoria_tabela) = achado
         elif bruto:
             achado = _buscar_na_tabela(_normalizar(bruto))
             if achado:
-                nome_tabela, categoria_tabela = achado
+                chave_tabela, (nome_tabela, categoria_tabela) = achado
+
+        if chave_tabela in _CHAVES_TRANSFERENCIA and nome_tabela:
+            nome_pessoa = _extrair_nome_transferencia(limpo or bruto)
+            if nome_pessoa:
+                nome_tabela = f"{nome_tabela} · {nome_pessoa}"
 
         nome_final = nome_tabela if nome_tabela else limpo
         if parcela and nome_final:

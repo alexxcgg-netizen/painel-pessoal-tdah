@@ -164,6 +164,10 @@ def test_estabelecimento_string_vazia_cai_para_descricao_original():
     ("Investments", "Investimentos"),
     ("Taxes", "Impostos"),
     ("Education", "Educação"),
+    ("Electronics", "Eletrônicos"),
+    ("Wellness and fitness", "Academia e bem-estar"),
+    ("Digital services", "Serviços digitais"),
+    ("Tax on financial operations", "Impostos"),
 ])
 def test_categoria_pluggy_traduzida(categoria_pluggy, esperado):
     resultado = descrever({"descricao_original": "LOJA QUALQUER", "categoria": categoria_pluggy})
@@ -183,6 +187,68 @@ def test_categoria_none_retorna_none():
 def test_categoria_sugerida_pela_tabela_quando_pluggy_ausente():
     resultado = descrever({"descricao_original": "IFD*IFOOD"})
     assert resultado["categoria"] == "Delivery"
+
+
+# ---------------------------------------------------------------------------
+# Casos especificos - descrição e categorias
+# ---------------------------------------------------------------------------
+
+def test_raia_seguida_de_numero_eh_droga_raia():
+    """Caso 1: Raia362 deve ser reconhecido como Droga Raia"""
+    resultado = descrever({"descricao_original": "Raia362"})
+    assert resultado["descricao"] == "Droga Raia"
+    assert resultado["categoria"] == "Farmácia"
+
+
+def test_raia_maiuscula_com_numero():
+    """Caso 1b: RAIA 123 deve ser Droga Raia"""
+    resultado = descrever({"descricao_original": "RAIA 123"})
+    assert resultado["descricao"] == "Droga Raia"
+
+
+def test_drogaraia_palavra_unica():
+    """Caso 1c: DROGARAIA deve ser Droga Raia"""
+    resultado = descrever({"descricao_original": "DROGARAIA"})
+    assert resultado["descricao"] == "Droga Raia"
+
+
+def test_apple_computer_brasil_ltda():
+    """Caso 2: Apple Computer Brasil LTDA deve ser simplesmente Apple"""
+    resultado = descrever({"descricao_original": "Apple Computer Brasil LTDA"})
+    assert resultado["descricao"] == "Apple"
+
+
+def test_apple_com_bill():
+    """Caso 2b: APPLE.COM/BILL deve ser Apple"""
+    resultado = descrever({"descricao_original": "APPLE.COM/BILL"})
+    assert resultado["descricao"] == "Apple"
+
+
+def test_anthropic_claude_sub():
+    """Caso 3: Anthropic* Claude Sub deve ser reconhecido como Claude"""
+    resultado = descrever({"descricao_original": "Anthropic* Claude Sub"})
+    assert resultado["descricao"] == "Claude"
+
+
+def test_claude_ai():
+    """Caso 3b: CLAUDE.AI deve ser reconhecido como Claude"""
+    resultado = descrever({"descricao_original": "CLAUDE.AI"})
+    assert resultado["descricao"] == "Claude"
+
+
+def test_iof_de_compra_internacional():
+    """Caso 4: IOF de compra internacional deve limpar para IOF compra internacional"""
+    resultado = descrever({"descricao_original": "IOF de compra internacional"})
+    # Deve remover "de" quando em minúsculas
+    assert "IOF" in resultado["descricao"]
+    # Não deve ter "De" em maiúsculas
+    assert "De Compra" not in resultado["descricao"]
+
+
+def test_posto_sonho_meu_truncado():
+    """Caso 5: Posto Sonho Meu Brusqu (com cidade truncada) deve ser Posto Sonho Meu"""
+    resultado = descrever({"descricao_original": "Posto Sonho Meu Brusqu"})
+    assert resultado["descricao"] == "Posto Sonho Meu"
 
 
 # ---------------------------------------------------------------------------
@@ -350,3 +416,64 @@ def test_desempenho_5000_descricoes_menos_de_1_segundo():
         descrever(tx)
     duracao = time.perf_counter() - inicio
     assert duracao < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Casamento por palavra inteira (falsos positivos de "contem")
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("bruto,esperado", [
+    ("Quiosque da Praia", "Quiosque da Praia"),
+    ("Barraia Lanches", "Barraia Lanches"),
+    ("Claudete Modas", "Claudete Modas"),
+    ("Pineapple Store", "Pineapple Store"),
+    ("Seashell Restaurante", "Seashell Restaurante"),
+    ("Golden Burger", "Golden Burger"),
+    ("Vivone Materiais de Construcao", "Vivone Materiais de Construcao"),
+    ("Azulejos Bom Preco", "Azulejos Bom Preco"),
+    ("Uberlandia Materiais", "Uberlandia Materiais"),
+])
+def test_falsos_positivos_de_substring_nao_casam(bruto, esperado):
+    resultado = descrever({"descricao_original": bruto})
+    assert resultado["descricao"] == esperado
+
+
+@pytest.mark.parametrize("bruto,esperado", [
+    ("Raia362", "Droga Raia"),
+    ("RAIA 123", "Droga Raia"),
+    ("DROGARAIA", "Droga Raia"),
+    ("Apple Computer Brasil LTDA", "Apple"),
+    ("APPLE.COM/BILL", "Apple"),
+    ("Anthropic* Claude Sub", "Claude"),
+    ("CLAUDE.AI", "Claude"),
+    ("ARCOS DOURADOS COMERCIO", "McDonald's"),
+    ("IFD*IFOOD", "iFood"),
+])
+def test_casos_verdadeiros_continuam_casando(bruto, esperado):
+    resultado = descrever({"descricao_original": bruto})
+    assert resultado["descricao"] == esperado
+
+
+# ---------------------------------------------------------------------------
+# Pix / transferencia preserva o nome de quem enviou/recebeu
+# ---------------------------------------------------------------------------
+
+def test_pix_com_nome_mantem_nome_apos_rotulo():
+    resultado = descrever({"descricao_original": "Pix Claudio Souza"})
+    assert resultado["descricao"] == "Pix · Claudio Souza"
+    assert resultado["categoria"] == "Transferência"
+
+
+def test_pix_enviado_mantem_nome():
+    resultado = descrever({"descricao_original": "Pix enviado Claudio Souza"})
+    assert resultado["descricao"] == "Pix · Claudio Souza"
+
+
+def test_pix_recebido_mantem_nome():
+    resultado = descrever({"descricao_original": "Pix recebido de Maria Oliveira"})
+    assert resultado["descricao"] == "Pix · Maria Oliveira"
+
+
+def test_pix_sem_nome_fica_so_pix():
+    resultado = descrever({"descricao_original": "Pix"})
+    assert resultado["descricao"] == "Pix"

@@ -47,8 +47,7 @@ const VozComando = (function () {
     painel: ["painel", "resumo do dia", "resumo"],
     vida: ["vida", "rotina", "check-in", "checkin", "hiperfoco"],
     tarefas: ["tarefa", "afazer", "pendencia"],
-    gastos: ["gasto", "despesa", "financ", "meta"],
-    bancos: ["banco", "extrato", "conta"],
+    gastos: ["gasto", "despesa", "financ", "meta", "banco", "extrato", "conta"],
     construtora: ["construtora", "obra", "empresa"],
     aviacao: ["aviacao", "voo", "piloto"],
   };

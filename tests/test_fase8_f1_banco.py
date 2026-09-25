@@ -59,7 +59,7 @@ class _BaseTestCase(unittest.TestCase):
 
 
 class SincronizarNubankTestCase(_BaseTestCase):
-    @patch("pluggy_client.get_transactions", return_value=TRANSACOES_OK)
+    @patch("pluggy_client.get_transactions", return_value=(TRANSACOES_OK, False))
     @patch("pluggy_client.get_accounts", return_value=CONTAS_OK)
     @patch("pluggy_client.get_item", return_value=ITEM_OK)
     def test_sincronizar_grava_transacoes_com_origem_nubank(self, *_mocks):
@@ -78,7 +78,7 @@ class SincronizarNubankTestCase(_BaseTestCase):
         self.assertEqual(transacoes[0]["descricao"], "IFOOD")
         conn.close()
 
-    @patch("pluggy_client.get_transactions", return_value=TRANSACOES_OK)
+    @patch("pluggy_client.get_transactions", return_value=(TRANSACOES_OK, False))
     @patch("pluggy_client.get_accounts", return_value=CONTAS_OK)
     @patch("pluggy_client.get_item", return_value=ITEM_OK)
     def test_sincronizar_nao_apaga_lancamento_manual(self, *_mocks):
