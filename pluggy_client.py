@@ -68,21 +68,23 @@ def get_accounts(item_id: str) -> list[dict]:
 
 
 def get_transactions(account_id: str) -> list[dict]:
+    # /transactions (page/pageSize) responde 410 ENDPOINT_DEPRECATED desde
+    # 2026-09: a Pluggy so aceita /v2/transactions com cursor em `next`.
     transacoes = []
-    pagina = 1
-    while True:
-        resp = requests.get(
-            f"{BASE_URL}/transactions",
-            headers=_headers(),
-            params={"accountId": account_id, "page": pagina, "pageSize": 500},
-            timeout=20,
-        )
+    url, params = f"{BASE_URL}/v2/transactions", {"accountId": account_id}
+    for _ in range(100):
+        resp = requests.get(url, headers=_headers(), params=params, timeout=20)
         resp.raise_for_status()
         body = resp.json()
         transacoes.extend(body.get("results", []))
-        if pagina >= body.get("totalPages", 1):
+        cursor = body.get("next")
+        if not cursor:
             break
-        pagina += 1
+        # `next` pode vir como URL pronta ou so o cursor
+        if str(cursor).startswith("http"):
+            url, params = cursor, None
+        else:
+            params = {"accountId": account_id, "cursor": cursor}
     return transacoes
 
 
