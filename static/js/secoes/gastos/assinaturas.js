@@ -94,21 +94,6 @@ function criarLinhaLista(titulo, metaPartes, valorTexto) {
   return li;
 }
 
-function criarItemProximaCobranca(item) {
-  const ehAssinatura = item.tipo === "assinatura";
-  const nome = textoFinancas(ehAssinatura ? item.nome : item.descricao, "Sem nome");
-  const metaPartes = [textoFinancas(item.label, fmtDataFinancas(item.data))];
-  const atual = numeroFinancas(item.parcela_atual);
-  const total = numeroFinancas(item.n_parcelas);
-  if (!ehAssinatura && atual !== null && total !== null) metaPartes.push(`parcela ${atual}/${total}`);
-  const formaOuCartao = ehAssinatura ? item.cartao_ou_forma : item.cartao;
-  if (textoFinancas(formaOuCartao, "")) metaPartes.push(formaOuCartao);
-  const li = criarLinhaLista(nome, metaPartes, fmtMoedaFinancas(item.valor));
-  const dias = numeroFinancas(item.dias);
-  if (dias !== null && dias <= 0) li.classList.add("item-atencao");
-  return li;
-}
-
 function criarItemAssinaturaAtiva(a) {
   const nome = textoFinancas(a.nome, "Sem nome");
   const metaPartes = [`${fmtMoedaFinancas(a.valor)}/mes`];
@@ -244,13 +229,9 @@ async function loadComprometido() {
     $("#chip-parcelas").textContent = `${nP} parcela(s) · ${fmtMoedaFinancas(total.parcelas_total || 0)}`;
   }
   desenharLimiteCartao(data.impacto_limite_cartao);
-
-  const proximas = Array.isArray(data.proximas_cobrancas) ? data.proximas_cobrancas.filter((i) => i && typeof i === "object") : [];
-  const listaProximas = $("#lista-proximas-cobrancas");
-  listaProximas.innerHTML = "";
-  listaProximas.hidden = proximas.length === 0;
-  $("#proximas-cobrancas-vazio").hidden = proximas.length > 0;
-  proximas.forEach((item) => listaProximas.appendChild(criarItemProximaCobranca(item)));
+  // Fase 8: lista antiga de "proximas cobrancas" removida (dedup com o bloco
+  // unificado da aba Gastos - ver gastos.js). data.proximas_cobrancas nao e
+  // mais usada aqui.
 }
 
 async function loadAssinaturasAtivas() {
