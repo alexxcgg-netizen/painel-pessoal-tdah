@@ -90,7 +90,8 @@ function showTab(name) {
     const rolarQuandoExistir = () => {
       const alvo = document.getElementById(idSecao);
       if (alvo) {
-        alvo.scrollIntoView({ behavior: "smooth", block: "start" });
+        const abriuPeloGrupo = window.VidaGrupos && window.VidaGrupos.abrirSecao(idSecao);
+        if (!abriuPeloGrupo) alvo.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
       tentativas += 1;
