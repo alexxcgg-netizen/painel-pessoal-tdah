@@ -1,0 +1,192 @@
+/* static/css/secoes/vida/viagens-conversa.css - secao vida > viagens, aviaozinho
+   animado (HTML: templates/secoes/vida/viagens.html via
+   static/js/secoes/vida/viagens.js + viagens-aviao.js). Fase 9 (C5): direcao
+   "Conversa" (docs em POLISH.md desta faixa) - so tokens de
+   static/css/ui/tokens.css (--cor-*, --espaco-*, --raio-cartao). Sem glow,
+   sem sombra luminosa, sem LED. O card US-F11 acima (linha do tempo vertical
+   de cards-tipos.js) NAO muda - este arquivo so acrescenta o cartao novo
+   logo abaixo dele. */
+
+.viagem-aviao-card {
+  margin-top: var(--espaco-3, 16px);
+  padding: var(--espaco-4, 24px) var(--espaco-3, 16px) var(--espaco-3, 16px);
+  width: 100%;
+  max-width: 430px;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio-cartao, 14px);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.viagem-aviao-trilha {
+  position: relative;
+  padding-inline: 34px;
+}
+
+.viagem-aviao-eixo {
+  position: relative;
+  display: block;
+  /* espaco extra embaixo pra ate 3 rotulos empilhados quando os marcos caem
+     todos perto do mesmo ponto (viagem criada perto da ida - ver
+     calcularRaias em viagens-aviao.js) */
+  height: 78px;
+}
+
+.viagem-aviao-linha {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 28px;
+  height: 2px;
+  background: var(--cor-borda);
+  border-radius: 2px;
+}
+
+.viagem-aviao-marcos {
+  position: absolute;
+  inset: 0;
+}
+
+.viagem-aviao-marco {
+  position: absolute;
+  top: 28px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.viagem-aviao-marco-ponto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cor-superficie-2);
+  border: 1px solid var(--cor-texto-fraco);
+}
+
+.viagem-aviao-marco-embarque .viagem-aviao-marco-ponto {
+  background: var(--cor-acento);
+  border-color: var(--cor-acento);
+}
+
+.viagem-aviao-marco-rotulo {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.65rem;
+  color: var(--cor-texto-fraco);
+}
+
+/* ponto perto de uma borda da linha (ex: "embarque" sempre em 100%, ou
+   passagem/hotel/seguro empilhados perto de 0% numa viagem marcada de
+   ultima hora) - ancora o rotulo NA borda em vez de centralizar nela, senao
+   metade do texto estoura o padding lateral e fica cortado pelo
+   overflow:hidden do cartao. */
+.viagem-aviao-marco-rotulo.viagem-aviao-borda-inicio {
+  left: 0;
+  transform: translateX(0);
+}
+.viagem-aviao-marco-rotulo.viagem-aviao-borda-fim {
+  left: auto;
+  right: 0;
+  transform: translateX(0);
+}
+
+/* aviaozinho: comeca em left:0% (inicio da janela) e desliza ate a fracao de
+   "hoje" (--aviao-fracao, 0..1) so quando .em-voo entra - ver
+   ligarAnimacaoAviao em viagens.js (IntersectionObserver: so quando a secao
+   fica visivel de verdade, nunca escondida). */
+.viagem-aviao-aviao {
+  position: absolute;
+  top: 28px;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--cor-acento);
+  transition: left 1.2s cubic-bezier(0.22, 0.9, 0.32, 1);
+  will-change: left;
+}
+
+.viagem-aviao-aviao.em-voo {
+  left: calc(var(--aviao-fracao, 0) * 100%);
+}
+
+.viagem-aviao-svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  transform: rotate(35deg);
+}
+
+/* balanco continuo (1-2px), so comeca depois que o deslize terminou (delay
+   igual a duracao da transicao de left). */
+.viagem-aviao-aviao.em-voo .viagem-aviao-svg {
+  animation: viagem-aviao-balanco 2.6s ease-in-out 1.2s infinite;
+}
+
+.viagem-aviao-legenda {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--cor-texto-2);
+}
+
+/* mesma logica de borda do rotulo dos marcos acima - "faltam N dias" e mais
+   largo que o icone do aviao, entao perto de 0%/100% ele sozinho ja estoura
+   o padding lateral se continuar centralizado no aviao. */
+.viagem-aviao-legenda.viagem-aviao-borda-inicio {
+  left: 0;
+  transform: translateX(0);
+}
+.viagem-aviao-legenda.viagem-aviao-borda-fim {
+  left: auto;
+  right: 0;
+  transform: translateX(0);
+}
+
+@keyframes viagem-aviao-balanco {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* prefers-reduced-motion / fallback sem-transicao (JS aplica as duas classes
+   direto quando o navegador pede menos movimento): aparece na posicao final
+   sem deslizar nem balancar. */
+.viagem-aviao-aviao.sem-transicao {
+  transition: none;
+}
+
+.viagem-aviao-aviao.sem-transicao .viagem-aviao-svg {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viagem-aviao-aviao {
+    transition: none;
+  }
+  .viagem-aviao-aviao .viagem-aviao-svg {
+    animation: none;
+  }
+}
+
+/* telas bem estreitas (390px, padrao do app): sem rolagem horizontal - o
+   cartao ja nasce 100% da largura disponivel (max-width so trava um teto). */
+@media (max-width: 400px) {
+  .viagem-aviao-card {
+    padding-inline: var(--espaco-2, 8px);
+  }
+  .viagem-aviao-trilha {
+    padding-inline: 22px;
+  }
+}
