@@ -213,14 +213,9 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       const raiz = document.getElementById("caixa-assistente");
       if (!raiz || raiz.dataset.montado) return;
       raiz.dataset.montado = "1";
-      // Fase 9 (P-topo): a caixa mudou de lugar (antes do topo da conversa pra
-      // depois dela) e agora comeca RECOLHIDA por padrao (contrato geral de
-      // secao-recolhivel.js) - com pendencia, a propria conversa mostra uma
-      // mensagem que abre esta caixa (renderConversaPendencias em
-      // static/js/secoes/hoje/conversa.js), entao nao precisa mais comecar aberta.
       raiz.innerHTML =
-        '<section class="secao-recolhivel card caixa-compacta" data-aberto="false" data-secao-id="caixa-assistente">' +
-        '<button type="button" class="secao-cabecalho" aria-expanded="false">' +
+        '<section class="secao-recolhivel card caixa-compacta" data-aberto="true" data-secao-id="caixa-assistente">' +
+        '<button type="button" class="secao-cabecalho" aria-expanded="true">' +
         '<span id="caixa-compacta-titulo">' +
         CaixaAssistente.textoContagem(0) +
         "</span>" +

@@ -111,16 +111,3 @@ async function loadCustoIAV2() {
   custoIaV2PreencherTabela(dados.por_funcao);
   if (!semUso) custoIaV2PreencherGrafico(dados.por_dia);
 }
-
-// Fase 9 C-abas: este card so carregava via navegacao.js (`if (name === "painel")`),
-// gatilho que sumiu com a aba Painel. Agora mora dentro do sheet de Configuracoes
-// (#sheet-config) - carrega quando o botao que abre o sheet (#btn-config) e clicado.
-if (typeof document !== "undefined") {
-  const btnConfigCustoIa = document.getElementById("btn-config");
-  if (btnConfigCustoIa) {
-    btnConfigCustoIa.addEventListener("click", () => {
-      loadCustoIAV2();
-      if (typeof loadTesteIA === "function") loadTesteIA();
-    });
-  }
-}

@@ -37,14 +37,14 @@
     <p class="fc-patrimonio">Patrimonio: <span class="valor-mono" id="fc-patrimonio-valor">R$ 0</span></p>
   </div>
 
-  <div class="fc-card" id="fc-card-ultimos-dias">
-    <div class="fc-card-topo"><span>Ultimos dias</span></div>
+  <details class="fc-card" id="fc-card-ultimos-dias">
+    <summary class="fc-card-topo fc-resumo-recolhivel"><span>Últimos dias</span><span class="chevron" aria-hidden="true"></span></summary>
     <p id="extrato-financas-vazio" class="vazio" hidden>Nenhum lancamento nesse periodo.</p>
     <ul id="lista-extrato-financas" class="fc-lista-extrato"></ul>
     <button type="button" id="btn-carregar-mais-extrato" class="btn btn-secundario" hidden>
       Carregar mais 15 dias
     </button>
-  </div>
+  </details>
 
   <div class="fc-chips" id="fc-chips-perguntas">
     <button type="button" class="chip" data-pergunta="Onde gastei mais?">Onde gastei mais?</button>

@@ -75,12 +75,8 @@ class EstruturaFrontendFase7TestCase(unittest.TestCase):
             self.assertIn(f"secoes/{aba}/{secao}.css", imports, f"secao {aba}/{secao} sem CSS de camada")
 
     def test_aba_assistente_existe_escondida_e_ponto_de_montagem_na_hoje(self):
-        # Fase 9 (C-abas): a aba Assistente (#tab-assistente) foi consolidada -
-        # "avisos" migrou pra dentro de #tab-hoje e "regras" pro sheet de
-        # Configuracoes (#sheet-config); so o ponto de montagem dinamico
-        # #caixa-assistente (ja em Hoje desde a P1b) continua de pe.
         corpo = self.client.get("/").get_data(as_text=True)
-        self.assertNotIn('id="tab-assistente"', corpo)
+        self.assertIn('<section id="tab-assistente" class="tab-content" hidden>', corpo)
         self.assertIn('<div id="caixa-assistente"></div>', corpo)
 
 

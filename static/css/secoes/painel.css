@@ -5,16 +5,12 @@
    so reaproveita os tokens de forma/profundidade (V0a, static/css/ui/tokens.css) e as
    cores de identidade por secao que ja existiam (--cor-hoje/--cor-tarefas/...). */
 
-/* Fase 9 C-abas: #tab-painel deixou de existir como container proprio - as secoes
-   `.painel-secao-card` migraram pra dentro de #tab-hoje, #tab-vida (fim de
-   .vida-secoes) e #sheet-config (custo-ia). O sheet, quando aberto, e movido pro
-   <body> (ver static/js/ui/bottom-sheet.js) - qualquer seletor escopado por aba
-   NAO alcancaria o conteudo la dentro - entao as regras abaixo ficam sem prefixo de
-   container de proposito, valem em qualquer um dos 3 destinos. */
-.painel-secao-card {
-  margin-bottom: var(--espaco-4, 20px);
-  position: relative;
-  padding-top: calc(var(--espaco-3, 24px) + 3px);
+/* C2: `:not([hidden])` - sem isso o `display: flex` (id) vencia o `[hidden]` do navegador
+   e a aba Painel inteira aparecia embaixo de TODAS as outras abas. */
+#tab-painel:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-4, 20px);
 }
 
 /* Cada `<div class="card painel-secao-card">` (envolve o antigo h2 + conteudo de uma
@@ -22,7 +18,12 @@
    mesma --secao-cor que ja ia no style="" do h2) - reduz a cor a um acento pequeno em
    vez de "pintar" o card inteiro, seguindo a mesma logica que style.css ja usa pro
    resto do app (comentario "as 7 abas paravam de misturar cor"). */
-.painel-secao-card::before {
+#tab-painel .painel-secao-card {
+  position: relative;
+  padding-top: calc(var(--espaco-3, 24px) + 3px);
+}
+
+#tab-painel .painel-secao-card::before {
   content: "";
   position: absolute;
   top: 0;
@@ -34,7 +35,7 @@
   opacity: 0.65;
 }
 
-.painel-secao-card h2 {
+#tab-painel .painel-secao-card h2 {
   margin: 0 0 var(--espaco-1, 8px);
   padding: 0;
   border: none;
@@ -44,7 +45,7 @@
   font-size: 1rem;
 }
 
-.painel-secao-card h2 svg {
+#tab-painel .painel-secao-card h2 svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
@@ -54,20 +55,18 @@
 /* As duas secoes recolhiveis de memoria.html (H1) reaproveitam o mesmo acento de cor
    no icone do cabecalho - o resto (fundo, borda, chevron, animacao) e inteiramente de
    static/css/ui/componentes/secao.css (V0c), nao duplicado aqui. */
-.secao-recolhivel + .secao-recolhivel {
+#tab-painel .secao-recolhivel + .secao-recolhivel {
   margin-top: 0;
 }
 
-/* Escopo por data-secao-id="painel-*" (unico jeito de nao vazar pra outras abas
-   agora que .secao-cabecalho e generico demais pra de-escopar sem risco). */
-[data-secao-id^="painel-"] .secao-cabecalho svg {
+#tab-painel .secao-cabecalho svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
   color: var(--secao-cor, var(--accent));
 }
 
-[data-secao-id^="painel-"] .secao-cabecalho span:not(.chevron) {
+#tab-painel .secao-cabecalho span:not(.chevron) {
   flex: 1;
 }
 
@@ -80,10 +79,7 @@
    --accent-2 (#08080a) a 45% e some no preto; varios elementos da aba ainda tinham
    box-shadow proprio que tampava ate esse anel fraco. Aqui todo alvo focavel da aba usa o
    --anel-foco da V0a. (A troca do global e com o integrador - ver progress.txt.) */
-/* De-escopado (sem prefixo de aba) de proposito: as secoes desta faixa agora vivem em
-   3 lugares diferentes (#tab-hoje, #tab-vida, #sheet-config) e o sheet, aberto, mora
-   fora de qualquer #tab-x (vai pro <body>) - nao daria pra escopar por container. */
-:is(button, a[href], input, select, textarea, summary, [tabindex]):not(.secao-cabecalho):focus-visible {
+#tab-painel :is(button, a[href], input, select, textarea, summary, [tabindex]):not(.secao-cabecalho):focus-visible {
   outline: none;
   box-shadow: var(--anel-foco);
 }
@@ -112,29 +108,24 @@
   font-size: 0.85rem;
 }
 
-:is(#lembrete-abrir-btn, #medicamento-abrir-btn, #espera-abrir-btn, #diario-decisao-abrir-btn) {
+#tab-painel :is(#lembrete-abrir-btn, #medicamento-abrir-btn, #espera-abrir-btn, #diario-decisao-abrir-btn) {
   margin-block: var(--espaco-1) var(--espaco-3);
 }
 
 /* C2: alvos de toque de 44px nas secoes do Painel da C2. Campos do "Devo sair" e do brain
-   dump (36px no style.css), "Gerar plano do dia", "Calcular" e o link de exportar CSV.
-   IDs sao unicos na pagina - de-escopado de #tab-painel funciona igual em qualquer
-   destino novo (#tab-hoje, #tab-vida, #sheet-config). */
-:is(#viagem-origem, #viagem-destino, #viagem-chegar, #brain-dump-texto),
-:is(#plano-btn, #viagem-btn, #custo-ia-v2-exportar) {
+   dump (36px no style.css), "Gerar plano do dia", "Calcular" e o link de exportar CSV. */
+#tab-painel :is(#viagem-origem, #viagem-destino, #viagem-chegar, #brain-dump-texto),
+#tab-painel :is(#plano-btn, #viagem-btn, #custo-ia-v2-exportar) {
   min-height: var(--toque-min);
 }
 
 /* Botoes de acao pequenos dentro das listas (Apagar, Editar, Salvar...): o visual continua
-   compacto (28px), a area de toque sobe pra 44px com um ::after invisivel.
-   Escopado por .painel-secao-card / data-secao-id="painel-*" pra nao vazar pra
-   listas de outras abas (Tarefas, Vida original) agora que o container
-   #tab-painel nao existe mais. */
-:is(.painel-secao-card, [data-secao-id^="painel-"]) li button:not(.btn) {
+   compacto (28px), a area de toque sobe pra 44px com um ::after invisivel. */
+#tab-painel li button:not(.btn) {
   position: relative;
 }
 
-:is(.painel-secao-card, [data-secao-id^="painel-"]) li button:not(.btn)::after {
+#tab-painel li button:not(.btn)::after {
   content: "";
   position: absolute;
   left: 50%;

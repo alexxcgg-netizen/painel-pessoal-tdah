@@ -134,4 +134,3 @@ $("#diario-decisao-form").addEventListener("submit", async (e) => {
   e.target.dispatchEvent(new CustomEvent("bottomsheet:sucesso", { bubbles: true })); // C2: fecha o sheet
   loadDecisoes();
 });
-

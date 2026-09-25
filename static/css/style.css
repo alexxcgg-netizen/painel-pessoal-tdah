@@ -189,13 +189,11 @@
     rgba(255, 255, 255, 0.04) 24%,
     transparent 55%
   );
-  /* Fase 9 C1 (direcao "Conversa"): sem glow/LED ambiente no vidro global -
-     halo removido, so sobra a superficie + borda fina (--glass-highlight
-     continua, e so um brilho especular branco bem fraco, nao cor). As
-     redefinicoes locais de --glass-glow em .stat-tile/.card-resultado (mais
-     abaixo) NAO foram tocadas aqui de proposito: usam --tile-cor/--card-cor,
-     cor por aba/cartao - fora do escopo desta faixa (ver relatorio). */
-  --glass-glow: none;
+  --glass-glow: radial-gradient(
+    120% 90% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 12%, transparent) 0%,
+    transparent 62%
+  );
   --glass-bg: var(--surface-2);
   --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
   --glass-blur: none;
@@ -477,7 +475,7 @@ button:active:not(:disabled) {
 
 body {
   position: relative;
-  font-family: var(--fonte-base, var(--font-body));
+  font-family: var(--font-body);
   max-width: 480px;
   margin: 0 auto;
   padding: calc(1.25rem + env(safe-area-inset-top)) 1rem
@@ -511,12 +509,15 @@ body {
   inset: -20%;
   z-index: -1;
   pointer-events: none;
-  /* Fase 9 C1 (direcao "Conversa"): fundo achatado, sem gradiente/aurora - a
-     referencia (docs/fase9-lab2/d01.js) e um preto neutro liso. Estrutura do
-     elemento mantida (outros HTML/telas referenciam .aurora), so o
-     background/animation viram none. */
-  background: none;
-  animation: none;
+  /* Fase 8 D1: gradiente roxo/verde saturado (round anterior) trocado por
+     um realce neutro cinza, bem fraco - mesma posicao/estrutura, sem cor
+     de identidade tingindo o fundo. */
+  background: radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.05), transparent 45%),
+    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, 0.04), transparent 42%),
+    radial-gradient(circle at 50% 85%, rgba(255, 255, 255, 0.03), transparent 48%),
+    radial-gradient(circle at 88% 92%, rgba(255, 255, 255, 0.03), transparent 40%);
+  filter: blur(60px);
+  animation: auroraMove 20s ease-in-out infinite;
 }
 
 /* "Efeito rainbow" (pedido explicito): um brilho de fundo trocando bem
@@ -533,10 +534,15 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  /* Fase 9 C1: "efeito rainbow" (mancha radial animada) removido - direcao
-     "Conversa" pede fundo liso, sem gradiente. */
-  background: none;
-  animation: none;
+  /* Fase 8 D1: "efeito rainbow" roxo/verde saturado removido - agora e so
+     um brilho ambiente cinza neutro, bem fraco, na mesma estrutura/posicao/
+     animacao de antes (nada de layout mudou, so a cor deixou de tingir). */
+  background: radial-gradient(65% 55% at 22% 70%, rgba(255, 255, 255, 0.05), transparent 60%),
+    radial-gradient(60% 50% at 78% 28%, rgba(255, 255, 255, 0.04), transparent 60%),
+    radial-gradient(45% 40% at 50% 50%, rgba(255, 255, 255, 0.03), transparent 62%);
+  background-size: 180% 180%, 180% 180%, 220% 220%;
+  mix-blend-mode: screen;
+  animation: rainbowDrift 26s ease-in-out infinite, rainbowDriftExtra 37s ease-in-out infinite;
 }
 
 @keyframes rainbowDrift {
@@ -573,10 +579,17 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  /* Fase 9 C1: reflexo/"shine" diagonal removido junto com o resto do
-     .aurora - fundo liso na direcao "Conversa". */
-  background: none;
-  animation: none;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.05) 47%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.05) 53%,
+    transparent 70%
+  );
+  background-size: 260% 260%;
+  mix-blend-mode: overlay;
+  animation: auroraShine 34s linear infinite;
 }
 
 /* Fase 6 (US-E1c): 0% e 100% eram DIFERENTES (120% -20% -> -20% 120%) - a
@@ -981,17 +994,16 @@ header {
   color: var(--accent-text);
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
-  /* Fase 9 C1 (direcao "Conversa"): "LED" removido - era um glow ambiente
-     continuo (0 0 16px) em cima da cor de acento, pedido explicito do round
-     anterior; a nova direcao pede "sem glow, sem LED". Fica so uma sombra de
-     queda neutra (preta) pra dar elevacao, sem cor. */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 18px -6px rgba(0, 0, 0, 0.65);
+  /* "LED" pedido explicito: glow ambiente pequeno e continuo (nao so na sombra de
+     queda) em cima da cor de acento - e o que faz uma superficie escura parecer
+     "acesa" em vez de so escura. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent),
+    0 0 16px -2px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .tab-btn.active svg {
-  /* Fase 9 C1: drop-shadow colorido (glow no icone) removido junto com o LED
-     acima. */
-  filter: none;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent));
 }
 
 /* Pedido do Alex (inspirado no app Pierre - preto/branco quase puro, cor so
@@ -1057,9 +1069,12 @@ header {
    nao precisa mais ser redeclarado aqui; so borda e sombra continuam
    tingidas por secao mesmo com o painel opaco.) */
 #tab-hoje,
+#tab-painel,
 #tab-vida,
 #tab-tarefas,
-#tab-gastos {
+#tab-gastos,
+#tab-construtora,
+#tab-aviacao {
   /* Fase 8 D1: mesma reducao de 30-35% pra 14-15% que o :root - a cor da
      aba deixa de pintar borda/sombra do card, ficando so um tico sutil. */
   --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
@@ -1068,6 +1083,9 @@ header {
 }
 #tab-hoje {
   --glass-tint: var(--cor-hoje);
+}
+#tab-painel {
+  --glass-tint: var(--cor-painel);
 }
 #tab-vida {
   --glass-tint: var(--cor-painel);
@@ -1078,9 +1096,12 @@ header {
 #tab-gastos {
   --glass-tint: var(--cor-financeiro);
 }
-/* Fase 9 C-abas: #tab-painel/#tab-construtora/#tab-aviacao deixaram de existir
-   (conteudo migrou pra dentro de #tab-hoje/#tab-vida/#tab-gastos) - o --glass-tint
-   de cada secao migrada passa a ser o da aba que a recebeu (modo bruto, sem redesenho). */
+#tab-construtora {
+  --glass-tint: var(--cor-construtora);
+}
+#tab-aviacao {
+  --glass-tint: var(--cor-aviacao);
+}
 
 /* Antes aparecia sem nenhuma transicao (so o [hidden] saindo). Um erro
    merece mais destaque que qualquer outro elemento novo na tela, mas um
@@ -1181,7 +1202,7 @@ header {
   color: var(--accent-text);
   font-weight: 700;
   cursor: pointer;
-  box-shadow: none;
+  box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
   transition: background-position 0.4s ease, box-shadow 0.2s ease, transform 0.18s var(--ease-bounce);
 }
 
@@ -1189,7 +1210,7 @@ header {
   #captura-btn:hover:not(:disabled),
   #duvida-btn:hover:not(:disabled) {
     background-position: 100% 0;
-    box-shadow: none;
+    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
   }
 }
 
@@ -1338,12 +1359,22 @@ header {
   flex: 1;
   min-width: 0;
   position: relative;
-  /* Fase 9 P-comp: sem glass-glow colorido no tile (era halo radial na cor
-     da aba/tile). --glass-tint continua so pra colorir levemente o
-     gradiente de fundo (nao um shadow/glow), --glass-glow fica "none" (nao
-     herda o :root, redeclarado aqui de proposito pra nao voltar). */
+  /* Glass "por cima", nao "atraves de": a cor de fundo abaixo e a MESMA
+     formula ja validada por acessibilidade (nao mexida) - o vidro entra so
+     como duas camadas de luz por cima (brilho branco + halo da cor,
+     --tile-cor no lugar do --glass-tint da secao pra cada tile continuar com
+     a propria identidade mesmo dentro da mesma aba). Sem backdrop-filter de
+     proposito: o fundo continua opaco, entao nao teria nada real pra borrar -
+     ver nota no bloco --glass-* no topo do arquivo. Redefine --glass-glow
+     aqui tambem (nao so --glass-tint) pela mesma pegadinha de indirecao
+     documentada la em cima - senao herdaria o halo da COR DA ABA, nao da
+     cor propria do tile. */
   --glass-tint: var(--tile-cor, var(--accent));
-  --glass-glow: none;
+  --glass-glow: radial-gradient(
+    95% 75% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
+    transparent 62%
+  );
   background: var(--glass-highlight), var(--glass-glow),
     linear-gradient(
       155deg,
@@ -1364,7 +1395,8 @@ header {
   gap: 0.2rem;
   text-align: center;
   overflow: hidden;
-  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile-cor, var(--accent)) 30%, rgba(255, 255, 255, 0.45)),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
   transition: transform 0.2s var(--ease-snap), box-shadow 0.2s ease, border-color 0.2s ease;
   animation: fadeInUp 0.4s var(--ease-bounce) both;
 }
@@ -1441,8 +1473,8 @@ header {
   color: var(--text);
   letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
-  /* Fase 9 P-comp: sem brilho/LED no numero - so o pop de escala no update. */
-  text-shadow: none;
+  /* brilho de repouso (nao so no pop) - da o "LED" que faltava no numero de destaque */
+  text-shadow: 0 0 12px color-mix(in srgb, var(--tile-cor, var(--accent)) 35%, transparent);
 }
 
 .stat-tile-valor.num-pop {
@@ -1452,12 +1484,15 @@ header {
 @keyframes numPop {
   0% {
     transform: scale(1);
+    text-shadow: none;
   }
   40% {
     transform: scale(1.18);
+    text-shadow: 0 0 16px color-mix(in srgb, var(--tile-cor, var(--accent)) 70%, transparent);
   }
   100% {
     transform: scale(1);
+    text-shadow: none;
   }
 }
 
@@ -2260,7 +2295,7 @@ li.item.saindo {
 
 .linha-do-tempo li.item.proximo {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-card);
 }
 
 .linha-do-tempo li.item.proximo::before {
@@ -2270,7 +2305,7 @@ li.item.saindo {
   height: 12px;
   border-color: var(--accent);
   background: var(--accent);
-  box-shadow: none;
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 /* tarefas com horario: bolinha verde se feita, vermelha se o horario passou
@@ -2283,7 +2318,7 @@ li.item.saindo {
 .linha-do-tempo li.item.concluido::before {
   border-color: #42bb91;
   background: #42bb91;
-  box-shadow: none;
+  box-shadow: 0 0 6px 0 rgba(66, 187, 145, 0.5);
 }
 
 .linha-do-tempo li.item.perdido {
@@ -2293,7 +2328,7 @@ li.item.saindo {
 .linha-do-tempo li.item.perdido::before {
   border-color: var(--danger);
   background: var(--danger);
-  box-shadow: none;
+  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--danger) 50%, transparent);
 }
 
 /* US-F11 (Fase 6 F3): linha do tempo de planejamento de viagem, dentro do
@@ -2349,7 +2384,7 @@ li.item.saindo {
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  box-shadow: none;
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 .card-marcos-planejamento {
@@ -2493,7 +2528,7 @@ li.item.saindo {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   vertical-align: middle;
-  box-shadow: none;
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 .item-badge-vencida {
@@ -2701,7 +2736,7 @@ li.item.saindo {
 
 .visao-dia-periodo-lista .visao-dia-periodo-dia-hoje {
   border-color: var(--accent);
-  box-shadow: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .visao-dia-periodo-lista .visao-dia-periodo-contagem {
@@ -2849,7 +2884,7 @@ li.item.item-planejado {
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
   margin-left: 0.4rem;
-  box-shadow: none;
+  box-shadow: 0 0 6px -1px color-mix(in srgb, var(--cor-bancos) 55%, transparent);
 }
 
 /* Categoria de gasto vira <select> ali mesmo quando tocada - correcao rapida
@@ -3003,7 +3038,7 @@ li.item.item-planejado {
 @media (hover: hover) {
   #importar-btn:hover:not(:disabled) {
     filter: brightness(1.08);
-    box-shadow: var(--shadow-card-hover);
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-bancos) 55%, transparent);
   }
 }
 
@@ -3051,7 +3086,7 @@ li.item.item-planejado {
 @media (hover: hover) {
   .btn-conectar:hover:not(:disabled) {
     background: rgba(168, 139, 220, 0.22);
-    box-shadow: var(--shadow-card-hover);
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--accent) 45%, transparent);
   }
 }
 
@@ -3198,7 +3233,7 @@ li.item.item-planejado {
   background: linear-gradient(90deg, #42bb91, #d8ab4c, #42bb91);
   background-size: 200% 100%;
   animation: shimmer 1.8s linear infinite;
-  box-shadow: none;
+  box-shadow: 0 0 10px rgba(66, 187, 145, 0.5);
 }
 
 @keyframes shimmer {
@@ -3241,13 +3276,13 @@ li.item.item-planejado {
   cursor: pointer;
   flex-shrink: 0;
   gap: 0.32rem;
-  box-shadow: none;
+  box-shadow: 0 0 10px -3px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
 }
 
 @media (hover: hover) {
   .meta-guardar button:hover:not(:disabled) {
     background: rgba(66, 187, 145, 0.24);
-    box-shadow: var(--shadow-card-hover);
+    box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--cor-financeiro) 50%, transparent);
   }
 }
 
@@ -3261,7 +3296,7 @@ li.item.item-planejado {
   color: #0b1f16;
   background: linear-gradient(90deg, #42bb91, #d8ab4c);
   animation: fadeInUp 0.4s var(--ease-bounce);
-  box-shadow: none;
+  box-shadow: 0 0 10px -2px rgba(66, 187, 145, 0.6);
 }
 
 #viagem-form {
@@ -3511,18 +3546,20 @@ li.item.item-planejado {
 }
 
 .chat-bolha.user {
-  /* Fase 9 C1: glow colorido removido (halo -8px do acento) - sombra neutra
-     de elevacao, igual o resto da direcao "Conversa". */
-  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 4px 16px -8px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .card-resultado {
   --card-cor: var(--accent);
-  /* Fase 9 P-comp: mesmo raciocinio do .stat-tile - sem halo colorido, so o
-     gradiente de fundo tingido levemente pelo --card-cor. --glass-glow
-     redeclarado "none" aqui de proposito (nao so no :root). */
+  /* Mesmo raciocinio do .stat-tile (incluindo redefinir --glass-glow, nao so
+     --glass-tint - mesma pegadinha de indirecao) - ver nota no bloco
+     --glass-* no topo do arquivo. */
   --glass-tint: var(--card-cor);
-  --glass-glow: none;
+  --glass-glow: radial-gradient(
+    95% 75% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
+    transparent 62%
+  );
   align-self: stretch;
   background: var(--glass-highlight), var(--glass-glow),
     linear-gradient(
@@ -3533,7 +3570,8 @@ li.item.item-planejado {
   border: 1px solid color-mix(in srgb, var(--card-cor) 28%, var(--border));
   border-radius: var(--radius);
   padding: 0.8rem 0.9rem;
-  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-cor) 28%, rgba(255, 255, 255, 0.45)),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
   animation: cardResultadoEntra 0.4s var(--ease-bounce) both;
 }
 
@@ -3847,7 +3885,7 @@ li.item.item-planejado {
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 700;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 4px 16px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .saudacao-texto {
@@ -5417,7 +5455,7 @@ body.modo-essencial #essencial-box {
 .card-btn-despertar.ativo {
   border-color: color-mix(in srgb, var(--card-cor) 70%, transparent);
   background: color-mix(in srgb, var(--card-cor) 22%, var(--surface-3));
-  box-shadow: none;
+  box-shadow: 0 0 12px -3px color-mix(in srgb, var(--card-cor) 70%, transparent);
 }
 
 .card-contrato-fallback {
@@ -5457,7 +5495,8 @@ body.modo-essencial #essencial-box {
 @keyframes itemDestacado {
   0%,
   35% {
-    box-shadow: 0 0 0 2px var(--border-strong);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-text) 55%, transparent),
+      0 0 22px -4px color-mix(in srgb, var(--accent-text) 45%, transparent);
   }
   100% {
     box-shadow: none;
@@ -5618,7 +5657,7 @@ body.modo-essencial #essencial-box {
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--bolinha);
-  box-shadow: none;
+  box-shadow: 0 0 8px -1px var(--bolinha);
 }
 
 .card-bolinha[data-cat="mercado"] {
@@ -5653,12 +5692,12 @@ body.modo-essencial #essencial-box {
   letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  text-shadow: none;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--card-cor) 35%, transparent);
 }
 
 .card-valor-grande.entrada {
   color: var(--cor-painel);
-  text-shadow: none;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--cor-painel) 40%, transparent);
 }
 
 .card-valor-grande.oculto {
@@ -5706,7 +5745,7 @@ body.modo-essencial #essencial-box {
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  text-shadow: none;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--card-cor) 40%, transparent);
 }
 
 .card-contagem-viva {
@@ -5734,7 +5773,7 @@ body.modo-essencial #essencial-box {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  text-shadow: none;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--card-cor) 35%, transparent);
 }
 
 /* resumo_final */
@@ -5849,7 +5888,7 @@ body.modo-essencial #essencial-box {
 
 .card-contrato .meta-progresso-barra:not(.completa) {
   background: linear-gradient(90deg, color-mix(in srgb, var(--card-cor) 55%, var(--surface-3)), var(--card-cor));
-  box-shadow: none;
+  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--card-cor) 65%, transparent);
 }
 
 /* ---- cards de visual complexo (US-E4) ------------------------------------- */
@@ -5910,7 +5949,7 @@ body.modo-essencial #essencial-box {
 
 .card-gota.cheia svg {
   fill: color-mix(in srgb, var(--card-cor) 55%, transparent);
-  filter: none;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--card-cor) 55%, transparent));
 }
 
 .card-gota.nova svg {
@@ -5983,7 +6022,7 @@ body.modo-essencial #essencial-box {
   bottom: 0;
   border-radius: 999px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--card-cor) 70%, white 10%), var(--card-cor));
-  box-shadow: none;
+  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--card-cor) 80%, transparent);
   transform-origin: left center;
   animation: cardBlocoEntra 0.6s var(--ease-bounce) 0.15s both;
 }
@@ -6271,7 +6310,7 @@ body.modo-essencial #essencial-box {
 
 .card-graf-barra {
   fill: var(--card-cor);
-  filter: none;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--card-cor) 55%, transparent));
 }
 
 /* US-F14: grafico de comparacao de cotacoes fica fora do sistema de card
@@ -6350,7 +6389,7 @@ body.modo-essencial #essencial-box {
 .card-habito-dia.feito .card-habito-circ {
   background: var(--card-cor);
   border-color: var(--card-cor);
-  box-shadow: none;
+  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--card-cor) 75%, transparent);
   animation: checkPop 0.35s var(--ease-bounce);
 }
 

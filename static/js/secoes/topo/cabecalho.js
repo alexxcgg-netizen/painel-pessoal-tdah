@@ -4,15 +4,8 @@
 
 async function loadUso() {
   const data = await apiFetch("/api/uso/total");
-  // Fase 9 (P-topo): #uso-custo saiu do cabecalho - o custo de IA ja aparece,
-  // mais completo (grafico, tabela por funcao, projecao), dentro da folha de
-  // Configuracoes (templates/secoes/painel/custo-ia.html). Varias outras
-  // faixas ainda chamam loadUso() pra atualizar aquele texto (captura.js,
-  // chat.js, gastos.js, plano-do-dia.js, nucleo/init.js) - guarda contra
-  // elemento ausente em vez de editar cada chamador.
-  const el = $("#uso-custo");
-  if (!data || !el) return;
-  el.textContent = `gasto com IA ate agora: ${fmtUSD(data.custo_usd)}`;
+  if (!data) return;
+  $("#uso-custo").textContent = `gasto com IA ate agora: ${fmtUSD(data.custo_usd)}`;
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -233,96 +226,3 @@ function initBackup() {
     painel.hidden = false;
   });
 }
-
-// ---- Fase 9 (P-topo): popover do hiperfoco no cabecalho -------------------
-// #hiperfoco-box (mesmo miolo/ids/handlers de static/js/secoes/hoje/hiperfoco.js,
-// so mudou de lugar - antes sempre visivel do lado do campo de captura, agora um
-// popover fechado por padrao, aberto pelo botao-relogio #hiperfoco-toggle-btn).
-function initHiperfocoPopover() {
-  const btn = $("#hiperfoco-toggle-btn");
-  const box = $("#hiperfoco-box");
-  if (!btn || !box) return;
-
-  function fechar() {
-    if (box.hidden) return;
-    box.hidden = true;
-    btn.setAttribute("aria-expanded", "false");
-  }
-
-  function abrir() {
-    box.hidden = false;
-    btn.setAttribute("aria-expanded", "true");
-  }
-
-  btn.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    if (box.hidden) abrir();
-    else fechar();
-  });
-
-  // Clique fora fecha (fora do botao e fora do proprio popover).
-  document.addEventListener("click", (ev) => {
-    if (box.hidden) return;
-    if (box.contains(ev.target) || ev.target === btn) return;
-    fechar();
-  });
-
-  document.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape" && !box.hidden) {
-      fechar();
-      btn.focus();
-    }
-  });
-
-  // Escolher uma duracao ou encerrar o hiperfoco fecha o popover sozinho -
-  // os handlers de verdade (POST/DELETE /api/hiperfoco) continuam intactos em
-  // hiperfoco.js, este listener so reage ao mesmo clique pra fechar a caixa.
-  box.addEventListener("click", (ev) => {
-    if (ev.target.closest(".hiperfoco-btn, #hiperfoco-parar")) {
-      setTimeout(fechar, 150);
-    }
-  });
-}
-
-// ---- Fase 9 (P-topo): aviso critico no topo (global, todas as abas) -------
-// Mesma fonte de dado que o cartao de aviso da conversa do Hoje
-// (GET /api/sobrecarga, ja consumido por static/js/secoes/hoje/conversa.js) -
-// aqui so controla um ponto discreto ancorado no botao de comando de voz,
-// visivel em qualquer aba (o topo e global, nao so na Hoje). Nao reimplementa
-// nenhum calculo de sobrecarga, so le o mesmo campo `sobrecarregado`.
-async function atualizarAvisoCriticoTopo() {
-  const el = $("#topo-aviso-critico");
-  if (!el) return;
-  const dados = await apiFetch("/api/sobrecarga");
-  el.hidden = !(dados && dados.sobrecarregado);
-}
-
-function initAvisoCriticoTopo() {
-  if (!$("#topo-aviso-critico")) return;
-  atualizarAvisoCriticoTopo();
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") atualizarAvisoCriticoTopo();
-  });
-  setInterval(atualizarAvisoCriticoTopo, 5 * 60 * 1000);
-}
-
-// ---- Fase 9 (P-topo): atalho do relogio pra "visao do dia" (so aba Hoje) --
-// O botao so aparece na aba Hoje (CSS em secoes/topo.css, casado com o
-// [hidden] que showTab() ja alterna em #tab-hoje) - aqui so abre a secao
-// (mesmo contrato de static/js/ui/secao-recolhivel.js: clica no cabecalho de
-// verdade em vez de chamar a API interna direto) e rola ate ela.
-function initAtalhoVisaoDia() {
-  const btn = $("#btn-visao-dia");
-  if (!btn) return;
-  btn.addEventListener("click", () => {
-    const secao = document.querySelector('[data-secao-id="visao-dia-hoje"]');
-    if (!secao) return;
-    const cabecalhoSecao = secao.querySelector(".secao-cabecalho");
-    if (secao.dataset.aberto !== "true" && cabecalhoSecao) cabecalhoSecao.click();
-    secao.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-}
-
-initHiperfocoPopover();
-initAvisoCriticoTopo();
-initAtalhoVisaoDia();
