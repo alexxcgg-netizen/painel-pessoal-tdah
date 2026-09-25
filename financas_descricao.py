@@ -54,10 +54,15 @@ _PREFIXOS_ADQUIRENTE = [
 _SUFIXO_UF = re.compile(r"\s+[A-Z]{2}$")
 _SUFIXO_PARCELA = re.compile(r"\s*[-/]?\s*(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s*[/xX]\s*(\d{1,2})\s*$")
 _SUFIXO_NUMEROS_SOLTOS = re.compile(r"\s+\d{4,}$")
+_SUFIXO_CIDADE_TRUNCADA = re.compile(r"\s+[A-Z][a-z]{3,6}$")  # Palavras de 5-7 chars que parecem cidades truncadas
 
 _SIGLAS_CURTAS = {
     "bk", "kfc", "cia", "sa", "ltda", "ne", "sp", "rj", "mg", "df", "pr", "sc", "rs",
     "usa", "uk", "tv", "app", "99", "c&a",
+}
+
+_PREPOSICOES_BAIXAS = {
+    "de", "da", "do", "di", "du", "em", "em", "por", "para", "com", "sem", "sob", "e", "ou",
 }
 
 
@@ -83,12 +88,13 @@ def _extrair_parcela(s):
 
 def _titulo(s):
     """Normaliza caixa para Titulo, preservando siglas curtas em maiusculo quando
-    ja vinham em maiusculo (heuristica simples), e sem alterar tokens com digitos."""
+    ja vinham em maiusculo (heuristica simples), e sem alterar tokens com digitos.
+    Preposicoes ficam em minuscula (exceto primeira palavra)."""
     if not s:
         return s
     palavras = s.split(" ")
     resultado = []
-    for p in palavras:
+    for i, p in enumerate(palavras):
         if not p:
             continue
         p_lower = p.lower()
@@ -97,6 +103,9 @@ def _titulo(s):
             resultado.append(p.upper())
         elif any(c.isdigit() for c in p):
             resultado.append(p)
+        elif i > 0 and p_norm in _PREPOSICOES_BAIXAS:
+            # Preposicoes ficam em minuscula (exceto na primeira posicao)
+            resultado.append(p_lower)
         else:
             resultado.append(p_lower.capitalize())
     return " ".join(resultado)
@@ -122,6 +131,9 @@ def limpar_texto(bruto):
     s = _SUFIXO_UF.sub("", s).strip()
     # remove numeros longos soltos no fim (codigos de terminal etc.)
     s = _SUFIXO_NUMEROS_SOLTOS.sub("", s).strip()
+    # Para "Posto" entries, remove sufixo de cidade truncada
+    if s.upper().startswith("POSTO"):
+        s = _SUFIXO_CIDADE_TRUNCADA.sub("", s).strip()
     s = re.sub(r"\s+", " ", s).strip(" *-")
 
     s_titulo = _titulo(s)
@@ -145,8 +157,10 @@ TABELA_ESTABELECIMENTOS = {
     "uber": ("Uber", "Transporte"),
     "99app": ("99", "Transporte"),
     "99 tecnologia": ("99", "Transporte"),
+    "raia": ("Droga Raia", "Farmácia"),
     "raia drogasil": ("Droga Raia", "Farmácia"),
     "drogasil": ("Droga Raia", "Farmácia"),
+    "drogaraia": ("Droga Raia", "Farmácia"),
     "carrefour": ("Carrefour", "Mercado"),
     "assai": ("Assaí", "Mercado"),
     "atacadao": ("Atacadão", "Mercado"),
@@ -157,8 +171,11 @@ TABELA_ESTABELECIMENTOS = {
     "amazon": ("Amazon", "Compras Online"),
     "netflix": ("Netflix", "Streaming"),
     "spotify": ("Spotify", "Streaming"),
+    "apple": ("Apple", "Assinaturas"),
     "apple.com/bill": ("Apple", "Assinaturas"),
     "apple com bill": ("Apple", "Assinaturas"),
+    "anthropic": ("Claude", "Serviços Digitais"),
+    "claude": ("Claude", "Serviços Digitais"),
     "google": ("Google", "Serviços"),
     "shell": ("Shell", "Combustível"),
     "raizen": ("Raízen", "Combustível"),
@@ -256,6 +273,10 @@ MAPA_CATEGORIAS_PLUGGY = {
     "investments": "Investimentos",
     "taxes": "Impostos",
     "education": "Educação",
+    "electronics": "Eletrônicos",
+    "wellness and fitness": "Academia e bem-estar",
+    "digital services": "Serviços digitais",
+    "tax on financial operations": "Impostos",
 }
 
 

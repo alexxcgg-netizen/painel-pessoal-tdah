@@ -164,6 +164,10 @@ def test_estabelecimento_string_vazia_cai_para_descricao_original():
     ("Investments", "Investimentos"),
     ("Taxes", "Impostos"),
     ("Education", "Educação"),
+    ("Electronics", "Eletrônicos"),
+    ("Wellness and fitness", "Academia e bem-estar"),
+    ("Digital services", "Serviços digitais"),
+    ("Tax on financial operations", "Impostos"),
 ])
 def test_categoria_pluggy_traduzida(categoria_pluggy, esperado):
     resultado = descrever({"descricao_original": "LOJA QUALQUER", "categoria": categoria_pluggy})
@@ -183,6 +187,68 @@ def test_categoria_none_retorna_none():
 def test_categoria_sugerida_pela_tabela_quando_pluggy_ausente():
     resultado = descrever({"descricao_original": "IFD*IFOOD"})
     assert resultado["categoria"] == "Delivery"
+
+
+# ---------------------------------------------------------------------------
+# Casos especificos - descrição e categorias
+# ---------------------------------------------------------------------------
+
+def test_raia_seguida_de_numero_eh_droga_raia():
+    """Caso 1: Raia362 deve ser reconhecido como Droga Raia"""
+    resultado = descrever({"descricao_original": "Raia362"})
+    assert resultado["descricao"] == "Droga Raia"
+    assert resultado["categoria"] == "Farmácia"
+
+
+def test_raia_maiuscula_com_numero():
+    """Caso 1b: RAIA 123 deve ser Droga Raia"""
+    resultado = descrever({"descricao_original": "RAIA 123"})
+    assert resultado["descricao"] == "Droga Raia"
+
+
+def test_drogaraia_palavra_unica():
+    """Caso 1c: DROGARAIA deve ser Droga Raia"""
+    resultado = descrever({"descricao_original": "DROGARAIA"})
+    assert resultado["descricao"] == "Droga Raia"
+
+
+def test_apple_computer_brasil_ltda():
+    """Caso 2: Apple Computer Brasil LTDA deve ser simplesmente Apple"""
+    resultado = descrever({"descricao_original": "Apple Computer Brasil LTDA"})
+    assert resultado["descricao"] == "Apple"
+
+
+def test_apple_com_bill():
+    """Caso 2b: APPLE.COM/BILL deve ser Apple"""
+    resultado = descrever({"descricao_original": "APPLE.COM/BILL"})
+    assert resultado["descricao"] == "Apple"
+
+
+def test_anthropic_claude_sub():
+    """Caso 3: Anthropic* Claude Sub deve ser reconhecido como Claude"""
+    resultado = descrever({"descricao_original": "Anthropic* Claude Sub"})
+    assert resultado["descricao"] == "Claude"
+
+
+def test_claude_ai():
+    """Caso 3b: CLAUDE.AI deve ser reconhecido como Claude"""
+    resultado = descrever({"descricao_original": "CLAUDE.AI"})
+    assert resultado["descricao"] == "Claude"
+
+
+def test_iof_de_compra_internacional():
+    """Caso 4: IOF de compra internacional deve limpar para IOF compra internacional"""
+    resultado = descrever({"descricao_original": "IOF de compra internacional"})
+    # Deve remover "de" quando em minúsculas
+    assert "IOF" in resultado["descricao"]
+    # Não deve ter "De" em maiúsculas
+    assert "De Compra" not in resultado["descricao"]
+
+
+def test_posto_sonho_meu_truncado():
+    """Caso 5: Posto Sonho Meu Brusqu (com cidade truncada) deve ser Posto Sonho Meu"""
+    resultado = descrever({"descricao_original": "Posto Sonho Meu Brusqu"})
+    assert resultado["descricao"] == "Posto Sonho Meu"
 
 
 # ---------------------------------------------------------------------------
