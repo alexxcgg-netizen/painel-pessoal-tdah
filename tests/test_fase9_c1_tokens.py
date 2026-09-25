@@ -127,3 +127,27 @@ class SemGlowNemAuroraTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_nenhum_comentario_css_fecha_antes_da_hora():
+    """Um '*/' dentro do texto (ex.: '--surface*/') fecha o comentario cedo e o
+    resto vira lixo que engole a declaracao seguinte (bug real: --cor-bg sumia
+    e o fundo do app ficava transparente)."""
+    import glob
+    import re
+
+    problemas = []
+    for caminho in glob.glob("static/css/**/*.css", recursive=True):
+        texto = open(caminho, encoding="utf-8").read()
+        sem_comentarios = re.sub(r"/\*.*?\*/", "", texto, flags=re.S)
+        if "*/" in sem_comentarios:
+            problemas.append(caminho)
+    assert problemas == []
+
+
+def test_cor_bg_sobrevive_aos_comentarios():
+    import re
+
+    texto = open("static/css/ui/tokens.css", encoding="utf-8").read()
+    sem_comentarios = re.sub(r"/\*.*?\*/", "", texto, flags=re.S)
+    assert re.search(r"(^|[;{\s])--cor-bg:\s*#0e0f0e;", sem_comentarios)

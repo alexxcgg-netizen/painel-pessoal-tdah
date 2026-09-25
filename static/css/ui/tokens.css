@@ -21,8 +21,8 @@
   /* ---------- Cor base (fase 9 C1 - direcao "Conversa", chat escuro estilo
      ChatGPT com cartoes/graficos embutidos) ----------
      Fonte unica dos tokens de COR base do app (o resto do arquivo e forma/
-     profundidade, nao cor). O style.css aponta suas variaveis --bg/--surface*/
-     --border*/--text*/--accent/--success pra estas aqui, em vez de redeclarar
+     profundidade, nao cor). O style.css aponta suas variaveis --bg, --surface-(n),
+     --border-(n), --text-(n), --accent e --success pra estas aqui, em vez de redeclarar
      os hex. Paleta escolhida no laboratorio visual (docs/fase9-lab2/d01.js,
      direcao 1 "Conversa"): fundo quase-preto neutro, acento verde-agua unico,
      sem glow/LED. */
