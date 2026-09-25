@@ -2,4 +2,88 @@
    templates/secoes/config/sheet-config.html). Fase 9 (C-abas): a moldura do sheet
    (fundo, painel, alca, titulo) e do componente generico (ui/componentes/bottom-sheet.css);
    o miolo (custo-ia.html, regras.html) reaproveita .painel-secao-card/.card ja de-escopados
-   em secoes/painel.css - vazio de proposito por enquanto. */
+   em secoes/painel.css.
+
+   Fase 9 (P-topo): os 5 botoes que antes lotavam o cabecalho (silencio/viagem/
+   visitante/backup/sair) vieram pra ca como linhas de lista - a logica/ids sao os
+   mesmos de sempre (static/js/secoes/topo/cabecalho.js), so o botao virou uma linha
+   de lista horizontal (icone + rotulo) em vez do circulo 2.1rem/2.3rem que so cabia
+   ancorado com position:absolute no cabecalho. Os paineis que cada um abre
+   (#silencio-painel etc.) continuam com o visual "glass" que ja tinham em
+   style.css - so nao sao mais posicionados em absoluto, entao seguem naturalmente
+   a linha, como um accordion dentro da folha. */
+
+.sheet-config-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-1, 4px);
+  margin-bottom: var(--espaco-4, 16px);
+}
+
+.sheet-config-linha + .sheet-config-linha {
+  border-top: 1px solid var(--cor-borda, var(--border));
+}
+
+.sheet-config-item {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-3, 12px);
+  width: 100%;
+  min-height: var(--toque-min, 44px);
+  padding: 0.65rem 0.25rem;
+  border: none;
+  background: transparent;
+  color: var(--cor-texto, var(--text));
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--raio-pequeno, 9px);
+}
+
+.sheet-config-item svg {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  color: var(--cor-texto-fraco, var(--text-muted));
+}
+
+@media (hover: hover) {
+  .sheet-config-item:hover {
+    background: var(--cor-superficie-2, var(--surface-2));
+  }
+}
+
+.sheet-config-item:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+.sheet-config-item.ativo,
+.sheet-config-item[aria-expanded="true"],
+.sheet-config-item[aria-pressed="true"] {
+  color: var(--cor-acento, var(--accent));
+}
+
+.sheet-config-item.ativo svg,
+.sheet-config-item[aria-expanded="true"] svg,
+.sheet-config-item[aria-pressed="true"] svg {
+  color: var(--cor-acento, var(--accent));
+}
+
+.sheet-config-item--perigo:hover {
+  color: var(--danger);
+}
+
+.sheet-config-item--perigo svg {
+  color: inherit;
+}
+
+/* Paineis abertos por cada linha (silencio/viagem/visitante/backup) ganham um
+   respiro em cima pra nao colar na linha que os abriu. */
+#silencio-painel,
+#modo-viagem-painel,
+#modo-visitante-painel,
+#backup-painel {
+  margin: 0 0 0.75rem;
+}

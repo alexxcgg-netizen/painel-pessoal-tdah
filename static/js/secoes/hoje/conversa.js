@@ -149,15 +149,54 @@ async function renderConversaProximos() {
   });
 }
 
+// Fase 9 (P-topo): #caixa-assistente (pendencias do assistente) mudou pra
+// depois da conversa, recolhida por padrao - se houver pendencia, a conversa
+// avisa com uma ultima mensagem que abre/rola ate a caixa. Mesma rota que
+// static/js/secoes/assistente/caixa.js ja consome (GET /api/assistente/caixa)
+// - so leitura, nao duplica nenhum calculo.
+async function renderConversaPendencias() {
+  const linha = $("#conversa-pendencias-linha");
+  if (!linha) return;
+  const dados = await apiFetch("/api/assistente/caixa");
+  const n = dados && Number(dados.pendentes) > 0 ? Number(dados.pendentes) : 0;
+  if (!n) {
+    linha.hidden = true;
+    return;
+  }
+  $("#conversa-pendencias-texto").textContent = `Tenho ${n} pendencia${n === 1 ? "" : "s"} pra voce.`;
+  linha.hidden = false;
+}
+
 async function loadConversaHoje() {
   const saudacaoEl = $("#conversa-saudacao");
   if (saudacaoEl) saudacaoEl.textContent = textoSaudacaoConversa();
-  await Promise.all([renderConversaAviso(), renderConversaGasto(), renderConversaFoco(), renderConversaProximos()]);
+  await Promise.all([
+    renderConversaAviso(),
+    renderConversaGasto(),
+    renderConversaFoco(),
+    renderConversaProximos(),
+    renderConversaPendencias(),
+  ]);
 }
 
 const btnGastoMes = $("#card-gasto-mes");
 if (btnGastoMes) {
   btnGastoMes.addEventListener("click", () => showTab("gastos"));
+}
+
+// Toca na mensagem "Tenho N pendencias" (renderConversaPendencias acima) ->
+// abre a caixa recolhida (mesmo contrato de secao-recolhivel.js: clica no
+// cabecalho de verdade, nao chama API interna nenhuma) e rola ate ela.
+const btnPendencias = $("#conversa-pendencias");
+if (btnPendencias) {
+  btnPendencias.addEventListener("click", () => {
+    const caixa = document.getElementById("caixa-assistente");
+    if (!caixa) return;
+    const secao = caixa.querySelector(".secao-recolhivel");
+    const cabecalhoSecao = secao && secao.querySelector(".secao-cabecalho");
+    if (secao && secao.dataset.aberto !== "true" && cabecalhoSecao) cabecalhoSecao.click();
+    caixa.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 $("#conversa-chips")

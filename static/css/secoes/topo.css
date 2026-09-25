@@ -1,7 +1,185 @@
 /* static/css/secoes/topo.css - estilos do topo fora das abas (cabecalho + captura).
    Fase 7 (V1): acabamento por elemento ficou em secoes/topo/cabecalho.css e
-   secoes/topo/captura.css (mais especifico que "o topo inteiro"). Vazio de
-   proposito aqui. */
+   secoes/topo/captura.css (mais especifico que "o topo inteiro").
+
+   Fase 9 (P-topo): o topo (global, vale pra todas as abas - cabecalho.html +
+   captura.html sao includes-irmaos de index.html, fora de qualquer #tab-*) caiu
+   pra ~2 linhas, direcao "Conversa": linha 1 e o layout aqui embaixo (titulo +
+   icones pequenos); linha 2 e so o #captura (estilo campo de chat, acabamento em
+   secoes/topo/captura.css). Os 5 botoes que lotavam o cabecalho inteiro
+   (lua/aviao/olho/exportar/sair) + "gasto com IA" sairam daqui pra dentro da
+   folha de Configuracoes (secoes/config/sheet-config.css) - o que sobra aqui e
+   so o essencial: relogio (visao do dia, so na aba Hoje), comando de voz, aviso
+   critico e hiperfoco (agora um popover, nao mais sempre visivel). Nenhum
+   cor/fonte nova - so var() de ui/tokens.css. Sem glow/sombra luminosa (pedido
+   explicito da direcao "Conversa"). */
+
+.topo-cabecalho {
+  /* zera o padding-right de 7.95rem do `header` base (style.css) - aquele
+     respiro existia so pra abrir espaco pros 6 botoes ancorados em
+     position:absolute que nao existem mais aqui. */
+  padding: 0;
+}
+
+.topo-linha1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2, 8px);
+}
+
+.topo-linha1 h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+/* Botao-icone generico do topo (visao do dia / comando de voz / hiperfoco /
+   config) - 44px de toque (--toque-min), visual discreto (sem fundo/borda em
+   repouso, so um leve destaque em hover/aberto). */
+.btn-topo-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--toque-min, 44px);
+  height: var(--toque-min, 44px);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--cor-texto-2, var(--text-muted));
+  cursor: pointer;
+  border-radius: var(--raio-pequeno, 9px);
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+.btn-topo-icone svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* #comando-voz-btn tinha uma regra antiga por id em style.css (padding largo,
+   borda + fundo "pilula", pensada pra quando ele tinha rotulo de texto do lado
+   do campo de captura) - um seletor por id vence a classe .btn-topo-icone
+   independente da ordem dos arquivos, entao precisa de outro id aqui (mesma
+   especificidade, style.css carrega antes) pra voltar a ser so o icone
+   discreto igual aos outros 3 botoes da linha. */
+#comando-voz-btn {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-weight: inherit;
+}
+
+@media (hover: hover) {
+  .btn-topo-icone:hover {
+    color: var(--cor-acento, var(--accent));
+    background: var(--cor-superficie-2, var(--surface-2));
+  }
+}
+
+.btn-topo-icone[aria-expanded="true"] {
+  color: var(--cor-acento, var(--accent));
+  background: var(--cor-acento-suave, var(--accent-soft-bg));
+}
+
+/* Relogio "visao do dia" (abre/rola ate #visao-dia-hoje, static/js/secoes/topo/
+   cabecalho.js) - so faz sentido dentro da aba Hoje (onde a secao existe). O
+   topo e global (renderiza uma vez so, fora de qualquer #tab-*), entao quem
+   decide mostrar/esconder e o proprio CSS, seguindo o [hidden] que showTab()
+   (nucleo/navegacao.js) ja alterna em #tab-hoje - sem duplicar essa logica em
+   JS novo aqui. */
+#btn-visao-dia {
+  display: none;
+}
+
+body:has(#tab-hoje:not([hidden])) #btn-visao-dia {
+  display: inline-flex;
+}
+
+/* Comando de voz + aviso critico: o ponto fica ancorado no botao (mesma ideia
+   do .nav-selo em ui/componentes/navegacao.css, so sem numero - so precisa
+   dizer "tem algo urgente"), e o status transitorio ("Ouvindo...", etc.,
+   static/js/voz-comando.js) aparece como uma bolha pequena logo abaixo, sem
+   empurrar o layout da linha (position:absolute). */
+.topo-comando-voz-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.topo-aviso-critico {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cor-alerta);
+  box-shadow: 0 0 0 2px var(--cor-bg, var(--bg));
+  pointer-events: none;
+}
+
+.topo-aviso-critico[hidden] {
+  display: none;
+}
+
+.comando-voz-status {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: min(240px, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--raio-pequeno, 9px);
+  background: var(--cor-superficie, var(--surface));
+  border: 1px solid var(--cor-borda, var(--border));
+  box-shadow: var(--shadow-card);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--cor-texto-2, var(--text-muted));
+  white-space: normal;
+}
+
+/* Hiperfoco: o botao de relogio abre um popover ancorado com os mesmos 3
+   botoes/estado de sempre (ids intactos, wiring em static/js/secoes/hoje/
+   hiperfoco.js) - so deixou de ficar sempre visivel do lado do campo de
+   captura. Abrir/fechar e static/js/secoes/topo/cabecalho.js. */
+.topo-popover {
+  position: relative;
+  display: inline-flex;
+}
+
+.topo-popover-painel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 2rem));
+}
+
+.topo-popover-painel[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .topo-popover-painel {
+    animation: fadeInUp 0.18s var(--ease-suave) both;
+  }
+}
 
 /* C2: rede de seguranca do foco no topo. O :focus-visible global do style.css usa
    --accent-2 (#08080a) a 45% e some no preto; varios elementos da aba ainda tinham

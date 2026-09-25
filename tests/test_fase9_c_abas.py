@@ -119,7 +119,9 @@ class Fase9CAbasTestCase(unittest.TestCase):
         self.assertIn('id="regras-lista"', bloco)
 
     def test_botao_config_no_cabecalho(self):
-        inicio = self.corpo.index("<header>")
+        # Fase 9 (P-topo): o <header> ganhou uma classe (layout da linha 1,
+        # secoes/topo.css) - o teste so procurava a tag sem atributo nenhum.
+        inicio = self.corpo.index("<header")
         fim = self.corpo.index("</header>")
         cabecalho = self.corpo[inicio:fim]
         self.assertIn('id="btn-config"', cabecalho)
