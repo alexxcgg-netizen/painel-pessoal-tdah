@@ -5,6 +5,50 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-25 - Fase 8: visual dark + financeiro/banco unificado
+
+Fechamento da Fase 8: tema escuro mais sóbrio no visual todo, e no financeiro a
+sincronização com o Nubank (via Pluggy) passa a aparecer junto dos gastos manuais, com
+aviso quando algo parece estar duplicado, e as assinaturas ganham um interruptor pra
+avisar antes de cobrar.
+
+- **D1** Tema escuro neutro: tokens `--cor-bg` / `--cor-superficie` / `--cor-superficie-2`
+  / `--cor-borda` / `--cor-texto` / `--cor-texto-fraco` / `--cor-acento` / `--cor-sucesso`
+  em `static/css/ui/tokens.css`; aurora e vidro colorido de fundo neutralizados.
+- **D2** Humor "Ruim/Ok/Bom" com inicial maiúscula; LED de tarefa concluída mais sóbrio.
+- **D3** Hiperfoco subiu pro topo, ao lado do comando de voz
+  (`templates/secoes/topo/captura.html`); chat também subiu de posição.
+- **D4** Checkbox marcado usa `--cor-sucesso`.
+- **D5** "Visão do dia" recolhida por padrão, com reloginho mostrando o próximo horário.
+- **D6** Clima já existia antes desta fase (`clima.py`, `/api/clima/hoje`, `#clima-chip`) -
+  nada mudou aqui.
+- **F1** `rotas/f8_banco.py`: `POST /api/bancos/sincronizar-nubank` (usa o item já
+  conectado via `PLUGGY_ITEM_ID_NUBANK`, sem passar pelo Connect de novo) e
+  `GET /api/gastos/unificados`, que junta gasto manual e gasto do Nubank com selo de
+  origem.
+- **F2** `GET /api/gastos/proximas-cobrancas` + bloco novo na aba Gastos
+  (`#gastos-proximas-cobrancas-box`) com aviso de possível duplicidade (nome
+  normalizado, ±R$0,50, ±5 dias) entre cobrança prevista e gasto já lançado.
+- **F3** Interruptor "Avisar antes de cobrar" por assinatura (migração
+  `202609251200`, desligado por padrão) + gatilho
+  `assistente/gatilhos/f8_aviso_cobranca.py` (avisa 3/2/1 dias antes, mensagem
+  "amanhã" no último dia, idempotente - não avisa duas vezes pro mesmo ciclo).
+- **Dedup** A lista antiga de "próximas cobranças" dentro da seção Assinaturas
+  (`#lista-proximas-cobrancas` / `#proximas-cobrancas-vazio`,
+  `templates/secoes/gastos/assinaturas.html` + `criarItemProximaCobranca` em
+  `static/js/secoes/gastos/assinaturas.js`) foi removida por duplicar o bloco novo da
+  F2. Criar/editar assinatura e o interruptor da F3 continuam intactos.
+
+Pendências pra próxima sessão:
+- O item Pluggy `ce7aa441` está devolvendo `404 ITEM_NOT_FOUND` com as credenciais
+  atuais - parece ter sido conectado em outra aplicação Pluggy. Precisa reconectar pelo
+  botão "Conectar banco" do painel.
+- Compra parcelada ainda não tem o interruptor de aviso (só assinatura tem).
+- Aba Tarefas continua só listando pendentes.
+
+Variável de ambiente nova: `PLUGGY_ITEM_ID_NUBANK` (`PLUGGY_CLIENT_ID`/`PLUGGY_CLIENT_SECRET`
+já existiam) - só o nome documentado no `.env.example`, nunca o valor real.
+
 ## 2026-09-24 - Modo teste de IA
 
 - Toggle "Modo teste de IA" no card **Custo de IA** (aba Painel): liga uma resposta de
