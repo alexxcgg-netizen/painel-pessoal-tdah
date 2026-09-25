@@ -22,6 +22,7 @@
 @import url("secoes/construtora.css");
 @import url("secoes/aviacao.css");
 @import url("secoes/assistente.css");
+@import url("secoes/config/sheet-config.css");
 @import url("secoes/topo/cabecalho.css");
 @import url("secoes/topo/captura.css");
 @import url("secoes/hoje/saudacao.css");

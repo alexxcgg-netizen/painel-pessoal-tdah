@@ -1,0 +1,10 @@
+{# Fase 9 C-abas: consolidacao de 8 abas em 4 - folha de Configuracoes, aberta pelo
+   botao ⚙ #btn-config (templates/secoes/topo/cabecalho.html). Reune o que sobrou do
+   Painel (custo de IA) e do Assistente (regras) que nao teve destino em nenhuma das
+   4 abas novas. Segue o contrato de bottom-sheet (static/js/ui/bottom-sheet.js):
+   so <div class="bottom-sheet" hidden>...</div>, o componente monta o resto sozinho. #}
+<div class="bottom-sheet" id="sheet-config" hidden aria-labelledby="sheet-config-titulo">
+  <h3 class="bottom-sheet-titulo" id="sheet-config-titulo">Configurações</h3>
+{% include "secoes/painel/custo-ia.html" %}
+{% include "secoes/assistente/regras.html" %}
+</div>

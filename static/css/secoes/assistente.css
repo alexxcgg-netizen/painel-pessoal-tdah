@@ -1,27 +1,11 @@
-/* static/css/secoes/assistente.css - estilos da aba assistente inteira (templates/abas/assistente.html).
-   Fase 7 (X2): carrega DEPOIS do style.css (via fase7.css), entao regra aqui
-   sobrescreve por cascata sem precisar editar o style.css.
-   Fase 7 (P1b): espacamento da aba (as 3 secoes - caixa/regras/avisos - ja se
-   estilizam sozinhas nos proprios arquivos secoes/assistente/*.css). */
+/* static/css/secoes/assistente.css - Fase 7 (X2/P1b): estilos da antiga aba
+   assistente inteira (templates/abas/assistente.html).
 
-/* C2: `:not([hidden])` - mesmo bug do #tab-painel: o `display: flex` por id vencia o
-   `[hidden]` e a aba Assistente aparecia no fim de todas as outras abas. */
-/* C2: sem o padding proprio de 16px - as outras abas ja alinham pela margem do <main>;
-   com ele os cards do Assistente ficavam 16px mais estreitos que os do Painel. */
-#tab-assistente:not([hidden]) {
-  display: flex;
-  flex-direction: column;
-  gap: var(--espaco-3);
-}
-
-/* C2: .nav-selo/.tab-btn-icone mudaram pra ui/componentes/navegacao.css (havia duas
-   versoes brigando, esta e a da V0d). */
-
-/* C2: rede de seguranca do foco nesta aba. O :focus-visible global do style.css usa
-   --accent-2 (#08080a) a 45% e some no preto; varios elementos da aba ainda tinham
-   box-shadow proprio que tampava ate esse anel fraco. Aqui todo alvo focavel da aba usa o
-   --anel-foco da V0a. (A troca do global e com o integrador - ver progress.txt.) */
-#tab-assistente :is(button, a[href], input, select, textarea, summary, [tabindex]):not(.secao-cabecalho):focus-visible {
-  outline: none;
-  box-shadow: var(--anel-foco);
-}
+   Fase 9 C-abas: #tab-assistente deixou de existir. `avisos` (secoes/assistente/avisos.html)
+   migrou pra #tab-hoje (ja tem seu proprio foco/gap em secoes/hoje.css); `regras.html` migrou
+   pro sheet de Configuracoes (#sheet-config - o gap/foco generico de .painel-secao-card e do
+   focus-visible de secoes/painel.css cobre o conteudo do sheet, ja que la de-escoparam de
+   proposito por causa do sheet mover pro <body> quando aberto). `caixa.html` (historico
+   completo) nao ganhou destino no contrato da Fase 9 - a faixa compacta ja injetada em
+   #caixa-assistente (Hoje) continua funcionando via caixa.js; o arquivo continua no disco,
+   so nao e mais incluido em nenhum template. */

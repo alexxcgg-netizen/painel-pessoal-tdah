@@ -134,3 +134,13 @@ $("#diario-decisao-form").addEventListener("submit", async (e) => {
   e.target.dispatchEvent(new CustomEvent("bottomsheet:sucesso", { bubbles: true })); // C2: fecha o sheet
   loadDecisoes();
 });
+
+// Fase 9 C-abas: esta secao so carregava via navegacao.js (`if (name === "painel")`),
+// gatilho que sumiu com a aba Painel. Agora mora dentro de #tab-vida - carrega quando
+// a tab-btn "vida" e clicada (mesmo padrao que init.js ja usa pra loadVidaAba()).
+if (typeof document !== "undefined") {
+  const btnAbaVidaDecisoes = document.querySelector('.tab-btn[data-tab="vida"]');
+  if (btnAbaVidaDecisoes) {
+    btnAbaVidaDecisoes.addEventListener("click", loadDecisoes);
+  }
+}

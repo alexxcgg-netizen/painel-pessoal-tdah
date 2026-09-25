@@ -1057,13 +1057,10 @@ header {
    nao precisa mais ser redeclarado aqui; so borda e sombra continuam
    tingidas por secao mesmo com o painel opaco.) */
 #tab-hoje,
-#tab-painel,
 #tab-vida,
 #tab-tarefas,
 #tab-gastos,
-#tab-bancos,
-#tab-construtora,
-#tab-aviacao {
+#tab-bancos {
   /* Fase 8 D1: mesma reducao de 30-35% pra 14-15% que o :root - a cor da
      aba deixa de pintar borda/sombra do card, ficando so um tico sutil. */
   --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
@@ -1072,9 +1069,6 @@ header {
 }
 #tab-hoje {
   --glass-tint: var(--cor-hoje);
-}
-#tab-painel {
-  --glass-tint: var(--cor-painel);
 }
 #tab-vida {
   --glass-tint: var(--cor-painel);
@@ -1088,12 +1082,9 @@ header {
 #tab-bancos {
   --glass-tint: var(--cor-bancos);
 }
-#tab-construtora {
-  --glass-tint: var(--cor-construtora);
-}
-#tab-aviacao {
-  --glass-tint: var(--cor-aviacao);
-}
+/* Fase 9 C-abas: #tab-painel/#tab-construtora/#tab-aviacao deixaram de existir
+   (conteudo migrou pra dentro de #tab-hoje/#tab-vida/#tab-gastos) - o --glass-tint
+   de cada secao migrada passa a ser o da aba que a recebeu (modo bruto, sem redesenho). */
 
 /* Antes aparecia sem nenhuma transicao (so o [hidden] saindo). Um erro
    merece mais destaque que qualquer outro elemento novo na tela, mas um

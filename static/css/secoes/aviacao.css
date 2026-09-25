@@ -6,11 +6,11 @@
    formulario de voo foi pro bottom-sheet (V0d). Aqui so o ritmo da aba e o que vale pras 4
    secoes: icone do cabecalho na cor da aba, dica com 44px de toque. Sem cor/fonte nova. */
 
-#tab-aviacao > .secao-recolhivel {
+#secao-aviacao > .secao-recolhivel {
   margin-top: var(--espaco-4);
 }
 
-#tab-aviacao .secao-cabecalho svg {
+#secao-aviacao .secao-cabecalho svg {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
@@ -19,17 +19,17 @@
 }
 
 /* "Registrar voo" (.btn.btn-adicionar) logo abaixo do grafico de horas. */
-#tab-aviacao > #voo-abrir-btn {
+#secao-aviacao > #voo-abrir-btn {
   margin-top: var(--espaco-3);
 }
 
 /* O "!" das dicas tem 20px de visual; a area de toque chega a 44px por um ::after
    invisivel (o ::before ja e o proprio "!"). */
-#tab-aviacao .dica-toggle {
+#secao-aviacao .dica-toggle {
   position: relative;
 }
 
-#tab-aviacao .dica-toggle::after {
+#secao-aviacao .dica-toggle::after {
   content: "";
   position: absolute;
   inset: -12px;
