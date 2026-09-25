@@ -62,11 +62,20 @@ document.addEventListener("modo-visitante-mudou", () => {
 });
 // ---- Carga inicial + recarga ao trocar de aba ----
 
-function loadVidaHoje() {
+// M1 (uso): saudacao/sobrecarga/previa-noite/rotina/checkin mudaram de
+// aba Hoje pra Painel (Hoje ficou so com chat, foco atual e agenda do dia)
+// - o load desse grupo agora acompanha a aba Painel, nao mais a Hoje.
+// showTab("painel") em navegacao.js ja recarrega esse grupo a cada troca
+// pra aba; aqui so cobre a carga inicial da pagina e o retorno de
+// segundo plano (visibilitychange), igual antes.
+function loadPainelVidaMovida() {
   loadSobrecarga();
   loadPreviaNoite();
   loadRotina();
   loadCheckin();
+}
+
+function loadVidaHoje() {
   loadEssencial();
   loadHiperfoco();
 }
@@ -100,7 +109,11 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") loadVidaHoje();
+  if (document.visibilityState === "visible") {
+    loadVidaHoje();
+    loadPainelVidaMovida();
+  }
 });
 
 loadVidaHoje();
+loadPainelVidaMovida();

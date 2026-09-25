@@ -7,7 +7,7 @@
 // esquerda voltando) - o mesmo tipo de pista de direcao que apps premium
 // usam em transicao de aba, em vez de um fade generico igual pra qualquer
 // troca.
-const ORDEM_ABAS = ["hoje", "painel", "vida", "tarefas", "gastos", "construtora", "aviacao", "assistente"];
+const ORDEM_ABAS = ["hoje", "painel", "aviacao", "vida", "tarefas", "gastos", "construtora", "assistente"];
 let abaAtual = "hoje";
 
 function showTab(name) {
@@ -28,6 +28,10 @@ function showTab(name) {
     btn.classList.toggle("active", btn.dataset.tab === name);
   });
   if (name === "painel") {
+    loadSobrecarga();
+    loadPreviaNoite();
+    loadRotina();
+    loadCheckin();
     loadSummary();
     loadAgenda();
     loadFechamentoDoDia();
