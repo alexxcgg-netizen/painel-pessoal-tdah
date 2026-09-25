@@ -27,7 +27,10 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
   (fonte em `docs/fase9-lab2/`). 1 Conversa, 2 iOS Nativo, 3 Carteira, 4 Widgets, 5 Bento,
   6 Produtividade, 7 Documento, 8 Jornal, 9 Caderno, 10 Histórias, 11 Banco Digital,
   12 Resumo Saúde, 13 Brutalista, 14 Linha do Dia, 15 Busca, 16 Colunas, 17 Vidro,
-  18 Planilha, 19 Braun, 20 Carro. Claras: 7, 8, 9, 13, 18, 19. AGUARDANDO escolha.
+  18 Planilha, 19 Braun, 20 Carro. Claras: 7, 8, 9, 13, 18, 19.
+- **ESCOLHA DO DONO: direção 1 "Conversa"** (gostou muito de Hoje e Finanças; Vida "dá pra
+  melhorar" -> 6 variantes só da Vida em teste). Etapa C começou por C1 (tokens da Conversa:
+  fundo #0e0f0e, cartão #111312, acento #159C82, Inter) na branch fase9/c1-tokens.
 - **Etapa C** (C1 tokens ... C6 componentes) só começa com a escolha do dono.
 - Pluggy real (medido): cartão manda compra com amount positivo + `DEBIT`; saída decidida por
   `tipo_operacao`. Cartão tem parcelas futuras até 2027. 384 transações cartão + 29 conta.
