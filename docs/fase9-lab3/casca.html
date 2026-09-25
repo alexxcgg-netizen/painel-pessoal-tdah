@@ -1,0 +1,93 @@
+<title>Conversa: Vida</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?__FONTES__&family=Inter:wght@400;500&display=swap">
+<style>
+:root{color-scheme:dark;--bg:#000;--linha:#262626;--texto:#e8e8e8;--fraco:#9a9a9a;--sel:#ffffff}
+html,body{background:var(--bg);color:var(--texto)}
+body{font-family:Inter,system-ui,-apple-system,sans-serif;padding-inline:16px;padding-block:12px 32px}
+.casca{max-width:430px;margin-inline:auto;display:grid;gap:10px}
+.barra{display:flex;align-items:center;gap:8px}
+.seta{min-width:44px;min-height:44px;border:1px solid var(--linha);background:transparent;color:var(--texto);font:inherit;font-size:18px;border-radius:0;cursor:pointer}
+.casca>*{min-width:0}
+.nums{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.nums::-webkit-scrollbar{display:none}
+.num{flex:0 0 auto;min-width:36px;min-height:44px;border:1px solid transparent;background:transparent;color:var(--fraco);font:inherit;font-size:13px;cursor:pointer}
+.num[aria-current="true"]{color:var(--sel);border-color:var(--sel)}
+.info{display:flex;gap:10px;align-items:baseline;min-height:20px;font-size:12px;color:var(--fraco);letter-spacing:.02em}
+.info b{color:var(--texto);font-weight:500;text-transform:uppercase;letter-spacing:.12em;font-size:12px;white-space:nowrap}
+.telas{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--linha)}
+.tela{min-height:44px;background:transparent;border:0;color:var(--fraco);font:inherit;font-size:12px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.tela+.tela{border-left:1px solid var(--linha)}
+.tela[aria-selected="true"]{color:var(--bg);background:var(--sel)}
+button:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+#palco{min-height:760px;border:1px solid var(--linha);background:#000;overflow:hidden;position:relative}
+.nota{font-size:11px;color:var(--fraco);line-height:1.5}
+</style>
+<div class="casca">
+  <div class="barra">
+    <button class="seta" id="ant" aria-label="Direção anterior">‹</button>
+    <div class="nums" id="nums" role="tablist" aria-label="Direções"></div>
+    <button class="seta" id="prox" aria-label="Próxima direção">›</button>
+  </div>
+  <div class="info" id="info"></div>
+  <div class="telas" role="tablist" aria-label="Telas">
+    <button class="tela" data-tela="hoje" id="t-hoje">Hoje</button>
+    <button class="tela" data-tela="financas" id="t-financas">Finanças</button>
+    <button class="tela" data-tela="vida" id="t-vida">Vida</button>
+  </div>
+  <div id="palco"></div>
+  <p class="nota" id="nota"></p>
+</div>
+<script>window.DADOS = __DADOS__;</script>
+__DIRECOES__
+<script>
+(function(){
+  const D = window.DADOS, DIR = window.DIRECOES || {};
+  const CLARAS = [];
+  const ids = Object.keys(DIR).map(Number).sort((a,b)=>a-b);
+  const reduzido = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ler = k => { try { return localStorage.getItem(k); } catch(e) { return null; } };
+  const gravar = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
+  let atual = Number((location.hash.match(/^#d(\d+)$/)||[])[1]) || Number(ler("lab-dir")) || ids[0];
+  if (!DIR[atual]) atual = ids[0];
+  let tela = ler("lab-tela") || "hoje";
+  let limpar = null, host = null;
+  const nums = document.getElementById("nums");
+  ids.forEach(n => {
+    const b = document.createElement("button");
+    b.className = "num"; b.textContent = String(n).padStart(2,"0"); b.id = "n"+n;
+    b.setAttribute("aria-label", "Direção " + n + ": " + DIR[n].nome);
+    b.onclick = () => ir(n); nums.appendChild(b);
+  });
+  function desenhar(){
+    if (limpar) { try { limpar(); } catch(e) {} limpar = null; }
+    const palco = document.getElementById("palco");
+    palco.innerHTML = ""; host = document.createElement("div"); host.style.colorScheme = CLARAS.includes(atual) ? "light" : "dark"; palco.appendChild(host);
+    const root = host.attachShadow({mode:"open"});
+    const d = DIR[atual];
+    document.getElementById("info").innerHTML = "";
+    const b = document.createElement("b"); b.textContent = String(atual).padStart(2,"0") + " " + d.nome;
+    const s = document.createElement("span"); s.textContent = d.ideia;
+    document.getElementById("info").append(b, s);
+    document.querySelectorAll(".num").forEach(x => x.setAttribute("aria-current", x.id === "n"+atual ? "true" : "false"));
+    document.querySelectorAll(".tela").forEach(x => x.setAttribute("aria-selected", x.dataset.tela === tela ? "true" : "false"));
+    document.getElementById("n"+atual).scrollIntoView({block:"nearest",inline:"center"});
+    try {
+      limpar = d.render(root, D, { tela, reduzido, irPara: t => { tela = t; gravar("lab-tela", t); desenhar(); } }) || null;
+    } catch (e) {
+      root.innerHTML = '<p style="color:#fff;padding:16px;font-family:monospace">Erro nesta direção: ' + String(e.message).replace(/</g,"&lt;") + '</p>';
+    }
+  }
+  function ir(n){ atual = n; gravar("lab-dir", n); history.replaceState(null, "", "#d"+n); desenhar(); }
+  const passo = k => ir(ids[(ids.indexOf(atual) + k + ids.length) % ids.length]);
+  document.getElementById("ant").onclick = () => passo(-1);
+  document.getElementById("prox").onclick = () => passo(1);
+  document.querySelectorAll(".tela").forEach(x => x.onclick = () => { tela = x.dataset.tela; gravar("lab-tela", tela); desenhar(); });
+  addEventListener("hashchange", () => { const n = Number((location.hash.match(/^#d(\d+)$/)||[])[1]); if (DIR[n] && n !== atual) ir(n); });
+  addEventListener("keydown", e => { if (e.key === "ArrowRight") passo(1); if (e.key === "ArrowLeft") passo(-1); });
+  const fonte = D.fonte_financas === "pluggy_real" ? "dados reais do Nubank" : "dados de exemplo";
+  document.getElementById("nota").textContent = "Retrato de " + (D.gerado_em || "").slice(0,10) + " · finanças com " + fonte + (D._dubla && D._dubla.length ? " · exemplo em: " + D._dubla.join(", ") : "") + ". Nada aqui altera o app.";
+  desenhar();
+})();
+</script>
