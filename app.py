@@ -1000,12 +1000,39 @@ def intent_corrigir():
 
 @app.route("/api/tasks", methods=["GET"])
 def list_tasks():
+    """Fase 9, faixa P-tarefas: sem `estado` (ou `estado=pendentes`) mantem o
+    comportamento de sempre - pendentes, mais recente primeiro. `?estado=concluidas`
+    e um caminho novo, opt-in: as ultimas `limite` (default 30, teto 100) tarefas
+    concluidas, mais recente primeiro por completed_at - pro seletor
+    Pendentes/Hoje/Concluidas da aba (aba filtra "Hoje" no proprio JS, sem rota
+    nova, ja que da pra fazer client-side a partir da lista de pendentes)."""
+    estado = (request.args.get("estado") or "pendentes").strip().lower()
+    if estado not in ("pendentes", "concluidas"):
+        return jsonify({"error": "estado invalido (use pendentes ou concluidas)"}), 400
+
     conn = get_db()
     materializar_tarefas_recorrentes(conn)
-    rows = conn.execute(
-        "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
-        "ORDER BY created_at DESC"
-    ).fetchall()
+    if estado == "concluidas":
+        limite_bruto = request.args.get("limite", "30")
+        try:
+            limite = int(limite_bruto)
+        except (TypeError, ValueError):
+            conn.close()
+            return jsonify({"error": "limite invalido"}), 400
+        limite = max(1, min(limite, 100))
+        rows = conn.execute(
+            # completed_at so tem resolucao de segundo (sqlite datetime('now')) -
+            # duas conclusoes no mesmo segundo empatam; `id DESC` desempata pra
+            # sempre ficar deterministico (mais recente primeiro).
+            "SELECT * FROM tasks WHERE completed_at IS NOT NULL AND recorrencia IS NULL "
+            "ORDER BY completed_at DESC, id DESC LIMIT ?",
+            (limite,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
+            "ORDER BY created_at DESC"
+        ).fetchall()
     # Uma query so pras subtarefas de todas as tasks (em vez de uma query por task -
     # nao pesava nada com poucas tarefas, mas escala mal conforme o historico cresce).
     task_ids = [row["id"] for row in rows]
