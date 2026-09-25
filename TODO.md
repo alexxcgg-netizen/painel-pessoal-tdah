@@ -1,7 +1,7 @@
 # FASE 9 (em andamento) - Finanças unificada + laboratório HUD
 - [ ] Etapa 0: REGRAS-OPERACAO.md salvo + MAPA.md (financas) + donos.json fase9
 - [ ] A f9-sync: sync idempotente por id Pluggy, limpar duplicadas, cartao x conta, guardar estabelecimento/categoria/estorno
-- [ ] A f9-desc: financas_descricao.py (razao social -> nome conhecido, estorno)
+- [x] A f9-desc: financas_descricao.py (razao social -> nome conhecido, estorno)
 - [ ] A f9-ui: aba unica Financas, um botao Sincronizar, sem OFX, "carregar mais 15 dias"
 - [ ] A f9-api (onda 2): /api/financas/extrato (15 dias) + /api/financas/resumo + patrimonio sem fatura positiva
 - [ ] B: laboratorio 10 direcoes (artefato) -> PARAR, dono escolhe
