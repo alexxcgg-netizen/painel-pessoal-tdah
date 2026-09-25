@@ -9,5 +9,15 @@
 {% include "secoes/hoje/hiperfoco.html" %}
 {% include "secoes/hoje/chat.html" %}
 {% include "secoes/hoje/visao-do-dia.html" %}
+      {# Fase 9 C-abas: consolidacao de 8 abas em 4 - migrado do Painel #}
+{% include "secoes/painel/resumo.html" %}
+{% include "secoes/painel/agenda-de-hoje.html" %}
+{% include "secoes/painel/plano-do-dia.html" %}
+{% include "secoes/painel/devo-sair.html" %}
+{% include "secoes/painel/fechamento.html" %}
+      {# migrado do Assistente - "caixa" ja injetada dinamicamente em
+         #caixa-assistente (topo desta aba) via static/js/secoes/assistente/caixa.js,
+         nao duplicar aqui #}
+{% include "secoes/assistente/avisos.html" %}
     </section>
 

@@ -202,7 +202,8 @@ function criarItemTarefa(t) {
         loadTasks();
         loadSummary();
         loadStreak();
-        if (!$("#tab-painel").hidden) loadFechamentoDoDia();
+        // Fase 9 C-abas: fechamento-do-dia migrou de #tab-painel pra #tab-hoje.
+        if (!$("#tab-hoje").hidden) loadFechamentoDoDia();
       }, 220);
     }
   });

@@ -146,10 +146,15 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
 
     wireFormSilencio();
 
-    const btnAbaAssistente = document.querySelector('.tab-btn[data-tab="assistente"]');
-    if (btnAbaAssistente) {
-      btnAbaAssistente.addEventListener("click", carregarAvisos);
+    // Fase 9 C-abas: a aba Assistente sumiu - avisos.html agora mora dentro de
+    // #tab-hoje. Gatilho passou do clique na antiga tab-btn "assistente" pro clique
+    // na tab-btn "hoje" - e, como Hoje e a aba padrao (ja ativa sem clique nenhum no
+    // carregamento da pagina), tambem carrega uma vez de cara aqui embaixo.
+    const btnAbaHoje = document.querySelector('.tab-btn[data-tab="hoje"]');
+    if (btnAbaHoje) {
+      btnAbaHoje.addEventListener("click", carregarAvisos);
     }
+    carregarAvisos();
 
     window.carregarAvisosAssistente = carregarAvisos;
   })();

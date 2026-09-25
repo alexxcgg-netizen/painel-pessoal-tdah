@@ -317,3 +317,13 @@ $("#cotacao-form").addEventListener("submit", async (e) => {
     loadCotacoes();
   }
 });
+
+// Fase 9 C-abas: esta secao so carregava via navegacao.js (`if (name === "construtora")`),
+// gatilho que sumiu com a aba Construtora. Agora mora dentro de #tab-gastos (Financas) -
+// carrega quando a tab-btn "gastos" e clicada.
+if (typeof document !== "undefined") {
+  const btnAbaGastosCotacoes = document.querySelector('.tab-btn[data-tab="gastos"]');
+  if (btnAbaGastosCotacoes) {
+    btnAbaGastosCotacoes.addEventListener("click", loadCotacoes);
+  }
+}
