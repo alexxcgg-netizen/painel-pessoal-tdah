@@ -5,6 +5,21 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-25 - Fase 9 (Etapa C, parte 2): Hoje, Finanças e Vida no estilo Conversa
+
+- **Hoje** (`#conversa-hoje`): o topo da aba virou uma conversa com o assistente — saudação,
+  cartão do gasto do mês com gráfico de área do acumulado (mês anterior tracejado) e
+  hoje/fatura/conta, "em foco agora", "próximos"; chips de pergunta que usam o chat existente. As
+  seções antigas continuam na página, recolhidas.
+- **Finanças**: `GET /api/financas/resumo` ganhou `por_dia_mes` e `por_dia_mes_anterior`. Topo da
+  aba com frase-resumo calculada em código, gasto por categoria (barras), evolução do mês (SVG) e
+  fatura x conta; metas e Construtora recolhidas.
+- **Vida** (`#vida-grupos`, variante "Grupos" escolhida pelo dono): 7 grupos (Aviação em
+  destaque, Rotina, Saúde, Pessoas, Coisas, Mundo, Mente) com contador e mini gráfico; a aba abre
+  só nos grupos e mostra uma seção por vez (`window.VidaGrupos.abrirSecao`). Deep link da Aviação
+  abre o grupo.
+- Service worker v22 (precache dos arquivos novos).
+
 ## 2026-09-25 - Fase 9 (Etapa C, parte 1): visual "Conversa" e 4 abas
 
 O dono escolheu a direção **"Conversa"** (app como chat de assistente, com cartões e gráficos)
