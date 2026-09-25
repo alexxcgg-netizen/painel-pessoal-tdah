@@ -1,15 +1,7 @@
-      <div id="hiperfoco-box" class="hiperfoco-box">
-        <div id="hiperfoco-inativo" class="hiperfoco-linha">
-          <span class="card-vida-meta">Hiperfoco (so aviso critico passa):</span>
-          <div class="hiperfoco-botoes">
-            <button type="button" class="hiperfoco-btn" data-minutos="25">25 min</button>
-            <button type="button" class="hiperfoco-btn" data-minutos="50">50 min</button>
-            <button type="button" class="hiperfoco-btn" data-minutos="90">90 min</button>
-          </div>
-        </div>
-        <div id="hiperfoco-ativo" class="hiperfoco-linha hiperfoco-ligado" hidden>
-          <span><strong>Em hiperfoco</strong> - <span id="hiperfoco-restante"></span></span>
-          <button type="button" id="hiperfoco-parar" class="btn-link">encerrar</button>
-        </div>
-      </div>
-
+{# D3 (Fase 8): #hiperfoco-box mudou de lugar - agora vive em
+   templates/secoes/topo/captura.html, ao lado do botao "Comando de voz",
+   no topo (fora da aba Hoje). O CSS continua em
+   static/css/secoes/hoje/hiperfoco.css e o JS em
+   static/js/secoes/hoje/hiperfoco.js (selecionam por ID, funcionam
+   igual independente de onde o HTML mora). Este include foi removido
+   de templates/abas/hoje.html; arquivo mantido vazio de proposito. #}

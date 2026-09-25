@@ -21,3 +21,21 @@
   padding: 0.35rem 0.85rem;
   box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.5);
 }
+
+/* D3 (Fase 8): #hiperfoco-box mudou de secoes/hoje/hiperfoco.html pra ca,
+   ao lado do botao "Comando de voz" - linha que quebra em telas estreitas
+   (botao de voz numa "linha", aviso de hiperfoco na de baixo) sem nunca
+   encolher o alvo de toque dos botoes (que ja tem min-height: 44px no
+   hiperfoco.css, mantido). */
+.comando-voz-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.comando-voz-principal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}

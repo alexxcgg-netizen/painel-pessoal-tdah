@@ -5,6 +5,16 @@
    corrigir; os cards da resposta (.card-resultado/.card-contrato) tambem ja
    sao o padrao mais elevado do app - ficam vazios de proposito. */
 
+/* D3 (Fase 8): #chat-lista tinha min-height: 40vh no style.css global -
+   com poucas mensagens (ou vazio) isso deixava um vao grande entre o
+   ultimo card da aba Hoje e a barra sticky do chat. Reduzido so aqui
+   (secao hoje, seletor por ID vence a classe .chat-lista do style.css),
+   sem tocar no style.css global nem no max-height (58vh, mantido pra
+   lista comprida continuar rolando dentro da propria caixa). */
+#chat-mensagens {
+  min-height: 18vh;
+}
+
 /* C2: campo, microfone e enviar tinham 41-42px (style.css) - sobem pro alvo minimo. */
 #chat-form :is(#chat-input, #chat-mic, #chat-send) {
   min-height: var(--toque-min);
