@@ -232,6 +232,7 @@ from db import (
     media_passos_ultimos_dias,
     obter_brain_dump,
     obter_configuracao,
+    obter_resumo_dia_cache,
     obter_status_voo_cache,
     reclassificar_gasto_para_tarefa,
     reclassificar_tarefa_para_gasto,
@@ -255,6 +256,7 @@ from db import (
     salvar_ficha_treino,
     salvar_geocode_lugar,
     salvar_mensagem_chat,
+    salvar_resumo_dia_cache,
     salvar_status_voo_cache,
     save_push_subscription,
     substituir_itens_viagem,
@@ -2029,6 +2031,43 @@ def resumo_manha_rota():
     return jsonify({"texto": texto})
 
 
+# Faixa M4 (uso diario): o texto da IA do resumo do dia so precisa ser gerado
+# de novo quando algo relevante muda - nao a cada carregamento da pagina.
+# "Relevante" = tarefa importante (prioridade alta/urgente) nova/concluida
+# hoje, ou gasto real de hoje acima deste limiar (R$100). Abaixo disso (ex.:
+# marcar uma tarefa comum, um cafe de R$8), o cache de hoje continua valendo.
+GASTO_GRANDE_LIMIAR_RESUMO = 100.0
+
+
+def _impressao_resumo_dia(conn, today: str, n_eventos: int) -> str:
+    """Fingerprint barata do que e relevante pro resumo do dia - se nao
+    mudou desde a ultima geracao, o texto de antes ainda serve. So ids (nao
+    o conteudo inteiro), e pendente/concluida hoje ficam em dois grupos
+    separados (nao so um OR) pra uma tarefa importante que MUDA de pendente
+    pra concluida hoje tambem contar como mudanca relevante, mesmo que o id
+    ja aparecesse antes."""
+    tarefas_pendentes = conn.execute(
+        "SELECT id FROM tasks WHERE prioridade IN ('alta', 'urgente') AND completed_at IS NULL ORDER BY id"
+    ).fetchall()
+    tarefas_concluidas_hoje = conn.execute(
+        "SELECT id FROM tasks WHERE prioridade IN ('alta', 'urgente') AND date(completed_at) = ? ORDER BY id",
+        (today,),
+    ).fetchall()
+    gastos_grandes = conn.execute(
+        "SELECT id FROM expenses WHERE tipo = 'real' AND date(created_at) = ? AND amount >= ? ORDER BY id",
+        (today, GASTO_GRANDE_LIMIAR_RESUMO),
+    ).fetchall()
+    return "|".join(
+        [
+            today,
+            "tp:" + ",".join(str(r["id"]) for r in tarefas_pendentes),
+            "tc:" + ",".join(str(r["id"]) for r in tarefas_concluidas_hoje),
+            "g:" + ",".join(str(r["id"]) for r in gastos_grandes),
+            f"e:{n_eventos}",
+        ]
+    )
+
+
 @app.route("/api/summary/today", methods=["GET"])
 def summary_today():
     today = date.today().isoformat()
@@ -2063,6 +2102,24 @@ def summary_today():
         (today,),
     ).fetchone()["total"]
     eventos = _eventos_de_hoje_com_seguranca(conn)
+
+    # Faixa M4: so o texto (summary) vem do cache - gasto_hoje/gasto_planejado/
+    # tarefas_concluidas/eventos_hoje acima sao recalculados sempre, frescos.
+    forcar = request.args.get("forcar") == "1"
+    impressao = _impressao_resumo_dia(conn, today, len(eventos))
+    cache = None if forcar else obter_resumo_dia_cache(conn, today)
+    if cache and cache["impressao"] == impressao:
+        conn.close()
+        return jsonify(
+            {
+                "summary": json.loads(cache["resposta_json"])["summary"],
+                "gasto_hoje": gasto_hoje,
+                "gasto_planejado": gasto_planejado,
+                "tarefas_concluidas": len(done),
+                "eventos_hoje": len(eventos),
+            }
+        )
+
     memorias = list_memorias(conn)
     saude = _saude_contexto_resumo(conn)
     construtora = _construtora_contexto_resumo()
@@ -2085,6 +2142,7 @@ def summary_today():
     text, usage = result
 
     _log_usage(conn, usage, "resumo_dia")
+    salvar_resumo_dia_cache(conn, today, impressao, json.dumps({"summary": text}))
     conn.close()
     return jsonify(
         {
