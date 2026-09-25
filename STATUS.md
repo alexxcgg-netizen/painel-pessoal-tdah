@@ -9,6 +9,13 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
    pras áreas da fase nova) e o topo do `CHANGELOG.md`.
 2. Worktree por faixa a partir de `origin/main`; nunca editar `/home/user/financeiro-construtora`.
 
+## Melhorias de uso diário M1–M5 (2026-09-25) - na main
+Hoje enxuto (resto no Painel) + Aviação 3ª na barra; sync Nubank às 4h (só roda se o Render
+free estiver acordado); "Ver concluídas" nas Tarefas; resumo de IA em cache diário; aviso de
+parcela 3-2-1. Cache v25. Detalhe no topo do `CHANGELOG.md`. Lição: 4 das 5 faixas passaram do
+teto de 40 chamadas (M1 83, M2 86, M3 79, M4 94; M5 37) — faixas que mexem em app.py/UI
+precisam de brief com linhas exatas ou divisão menor.
+
 ## Fase 9 (CONCLUÍDA em 2026-09-25) - ler primeiro
 - **ATENÇÃO — REVERTIDO**: o dono recusou o redesign "Conversa". O app voltou ao painel antigo
   (templates/static/app.py do commit `14a0939`, 8 abas, cores por aba) e **só a aba Finanças é a

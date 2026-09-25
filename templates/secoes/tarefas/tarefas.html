@@ -36,3 +36,11 @@
         Nenhuma tarefa pendente. Ta tudo feito.
       </p>
       <ul id="lista-tarefas"></ul>
+
+      <!-- M3 (uso diario): concluida some da lista acima mas NUNCA e apagada - aqui
+           da pra ver de novo (busca preguicosa, so no toque) e desmarcar. -->
+      <button type="button" id="tarefas-concluidas-toggle" class="btn btn-secundario" aria-expanded="false" aria-controls="lista-tarefas-concluidas">
+        Ver concluídas
+      </button>
+      <p id="tarefas-concluidas-vazio" class="vazio" hidden>Nenhuma tarefa concluída ainda.</p>
+      <ul id="lista-tarefas-concluidas" hidden></ul>

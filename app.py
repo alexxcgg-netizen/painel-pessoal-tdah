@@ -232,6 +232,7 @@ from db import (
     media_passos_ultimos_dias,
     obter_brain_dump,
     obter_configuracao,
+    obter_resumo_dia_cache,
     obter_status_voo_cache,
     reclassificar_gasto_para_tarefa,
     reclassificar_tarefa_para_gasto,
@@ -255,6 +256,7 @@ from db import (
     salvar_ficha_treino,
     salvar_geocode_lugar,
     salvar_mensagem_chat,
+    salvar_resumo_dia_cache,
     salvar_status_voo_cache,
     save_push_subscription,
     substituir_itens_viagem,
@@ -1002,10 +1004,22 @@ def intent_corrigir():
 def list_tasks():
     conn = get_db()
     materializar_tarefas_recorrentes(conn)
-    rows = conn.execute(
-        "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
-        "ORDER BY created_at DESC"
-    ).fetchall()
+    # M3 (uso diario): "Ver concluidas" na aba Tarefas - concluida NUNCA e apagada
+    # (so sai da lista padrao por esse filtro completed_at IS NULL), so busca as
+    # ultimas quando o dono pedir explicitamente via ?estado=concluidas (a UI so
+    # chama isso ao tocar no botao - preguicoso, nunca no carregamento normal).
+    # Qualquer outro valor (ou nenhum) cai no comportamento padrao de sempre.
+    estado = request.args.get("estado", "")
+    if estado == "concluidas":
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE completed_at IS NOT NULL AND recorrencia IS NULL "
+            "ORDER BY completed_at DESC LIMIT 50"
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
+            "ORDER BY created_at DESC"
+        ).fetchall()
     # Uma query so pras subtarefas de todas as tasks (em vez de uma query por task -
     # nao pesava nada com poucas tarefas, mas escala mal conforme o historico cresce).
     task_ids = [row["id"] for row in rows]
@@ -2029,6 +2043,44 @@ def resumo_manha_rota():
     return jsonify({"texto": texto})
 
 
+# Faixa M4 (uso diario): o texto da IA do resumo do dia so precisa ser gerado
+# de novo quando algo relevante muda - nao a cada carregamento da pagina.
+# "Relevante" = tarefa importante (com data pra hoje ou atrasada - a tabela
+# tasks nao tem campo de prioridade) nova/concluida hoje, ou gasto real de hoje acima deste limiar (R$100). Abaixo disso (ex.:
+# marcar uma tarefa comum, um cafe de R$8), o cache de hoje continua valendo.
+GASTO_GRANDE_LIMIAR_RESUMO = 100.0
+
+
+def _impressao_resumo_dia(conn, today: str, n_eventos: int) -> str:
+    """Fingerprint barata do que e relevante pro resumo do dia - se nao
+    mudou desde a ultima geracao, o texto de antes ainda serve. So ids (nao
+    o conteudo inteiro), e pendente/concluida hoje ficam em dois grupos
+    separados (nao so um OR) pra uma tarefa importante que MUDA de pendente
+    pra concluida hoje tambem contar como mudanca relevante, mesmo que o id
+    ja aparecesse antes."""
+    tarefas_pendentes = conn.execute(
+        "SELECT id FROM tasks WHERE due_date IS NOT NULL AND due_date <= ? AND completed_at IS NULL ORDER BY id",
+        (today,),
+    ).fetchall()
+    tarefas_concluidas_hoje = conn.execute(
+        "SELECT id FROM tasks WHERE due_date IS NOT NULL AND due_date <= ? AND date(completed_at) = ? ORDER BY id",
+        (today, today),
+    ).fetchall()
+    gastos_grandes = conn.execute(
+        "SELECT id FROM expenses WHERE tipo = 'real' AND date(created_at) = ? AND amount >= ? ORDER BY id",
+        (today, GASTO_GRANDE_LIMIAR_RESUMO),
+    ).fetchall()
+    return "|".join(
+        [
+            today,
+            "tp:" + ",".join(str(r["id"]) for r in tarefas_pendentes),
+            "tc:" + ",".join(str(r["id"]) for r in tarefas_concluidas_hoje),
+            "g:" + ",".join(str(r["id"]) for r in gastos_grandes),
+            f"e:{n_eventos}",
+        ]
+    )
+
+
 @app.route("/api/summary/today", methods=["GET"])
 def summary_today():
     today = date.today().isoformat()
@@ -2063,6 +2115,24 @@ def summary_today():
         (today,),
     ).fetchone()["total"]
     eventos = _eventos_de_hoje_com_seguranca(conn)
+
+    # Faixa M4: so o texto (summary) vem do cache - gasto_hoje/gasto_planejado/
+    # tarefas_concluidas/eventos_hoje acima sao recalculados sempre, frescos.
+    forcar = request.args.get("forcar") == "1"
+    impressao = _impressao_resumo_dia(conn, today, len(eventos))
+    cache = None if forcar else obter_resumo_dia_cache(conn, today)
+    if cache and cache["impressao"] == impressao:
+        conn.close()
+        return jsonify(
+            {
+                "summary": json.loads(cache["resposta_json"])["summary"],
+                "gasto_hoje": gasto_hoje,
+                "gasto_planejado": gasto_planejado,
+                "tarefas_concluidas": len(done),
+                "eventos_hoje": len(eventos),
+            }
+        )
+
     memorias = list_memorias(conn)
     saude = _saude_contexto_resumo(conn)
     construtora = _construtora_contexto_resumo()
@@ -2085,6 +2155,7 @@ def summary_today():
     text, usage = result
 
     _log_usage(conn, usage, "resumo_dia")
+    salvar_resumo_dia_cache(conn, today, impressao, json.dumps({"summary": text}))
     conn.close()
     return jsonify(
         {
@@ -7889,14 +7960,31 @@ def transacoes_banco(conta_id):
 @app.route("/api/bancos/sync-status", methods=["GET"])
 def bancos_sync_status():
     configurado = pluggy_client.configurado()
+    info = (
+        "Conecte um banco automaticamente pra sincronizar sem precisar exportar OFX."
+        if configurado
+        else "Sincronizacao automatica ainda nao configurada - veja o README (integracao com Pluggy)."
+    )
+    # uso/m2-sync: carimbo do ultimo sync bom (manual OU automatico de
+    # madrugada, ver rodar_sincronizacao_nubank_automatica/iniciar_scheduler
+    # abaixo - os dois gravam com a mesma chave em rotas/f8_banco.py) - so
+    # acrescenta na mesma frase, sem lugar novo na tela.
+    ultimo_sync = None
+    if configurado:
+        import rotas.f8_banco
+
+        conn = get_db()
+        try:
+            ultimo_sync = obter_configuracao(conn, rotas.f8_banco.CHAVE_ULTIMO_SYNC_NUBANK_OK)
+        finally:
+            conn.close()
+        if ultimo_sync:
+            info += f" Ultima sincronizacao: {ultimo_sync[:16].replace('T', ' as ')}."
     return jsonify(
         {
             "sincronizacao_automatica": configurado,
-            "info": (
-                "Conecte um banco automaticamente pra sincronizar sem precisar exportar OFX."
-                if configurado
-                else "Sincronizacao automatica ainda nao configurada - veja o README (integracao com Pluggy)."
-            ),
+            "info": info,
+            "ultimo_sync_nubank_ok": ultimo_sync,
             "criptografia_ativa": criptografia.configurada(),
         }
     )
@@ -8605,6 +8693,44 @@ def push_testar():
     return jsonify({"enviados": enviados, "total": len(subscriptions)})
 
 
+def rodar_sincronizacao_nubank_automatica():
+    """Job do scheduler (ver iniciar_scheduler, uso/m2-sync): sincroniza o
+    Nubank de madrugada sem o Alex precisar abrir o painel e apertar o
+    botao manual. Chama a MESMA `rotas.f8_banco.sincronizar_nubank(conn)`
+    que a rota `POST /api/bancos/sincronizar-nubank` usa - a logica de sync
+    (upsert por external_id + reconciliacao de removidas) mora so la,
+    nunca duplicada aqui; esse job so abre conexao propria, chama e loga.
+
+    So roda se a Pluggy JA estiver configurada (PLUGGY_CLIENT_ID/SECRET +
+    PLUGGY_ITEM_ID_NUBANK) - senao sai em silencio (sem log nenhum): a
+    maioria dos ambientes (dev, teste, primeiro deploy antes do Alex
+    cadastrar o item) nao tem isso configurado, e isso NAO e uma falha.
+
+    Resiliente de proposito: qualquer erro (rede fora do ar, credencial
+    Pluggy expirada, item desconectado) fica so no log - o ultimo sync bom
+    que ja estava salvo continua intacto (sincronizar_nubank nunca commita
+    uma leva pela metade, ver comentario la), nunca apaga nada por causa de
+    uma falha daqui. Nunca deixa uma excecao subir e derrubar o scheduler."""
+    if not pluggy_client.configurado() or not os.environ.get("PLUGGY_ITEM_ID_NUBANK"):
+        return
+
+    import rotas.f8_banco
+
+    conn = get_db()
+    try:
+        resultado = rotas.f8_banco.sincronizar_nubank(conn)
+    except Exception as e:
+        app.logger.error("sincronizacao automatica do Nubank: excecao inesperada: %s", e)
+        return
+    finally:
+        conn.close()
+
+    if resultado.get("ok"):
+        app.logger.info("sincronizacao automatica do Nubank: %s", resultado.get("mensagem"))
+    else:
+        app.logger.error("sincronizacao automatica do Nubank falhou: %s", resultado.get("error"))
+
+
 def iniciar_scheduler():
     """So roda quando o app sobe de verdade (nao na chamada de recarga do
     Flask em modo debug, que sobe o processo duas vezes)."""
@@ -8620,6 +8746,14 @@ def iniciar_scheduler():
         # backup semanal (domingo 3h da manha - baixo uso), ver
         # rodar_backup_automatico_semanal pro que ele faz
         scheduler.add_job(rodar_backup_automatico_semanal, "cron", day_of_week="sun", hour=3, minute=0)
+        # sync automatico do Nubank as 4h de Brasilia (uso/m2-sync). O
+        # BackgroundScheduler usa o fuso local do processo, e nao existe TZ
+        # configurado nem no .env nem no render.yaml - o Render (producao de
+        # teste, ver render.yaml) sobe o container em UTC, e sem TZ setado
+        # localmente o Python tambem cai em UTC. 4h em Brasilia (America/
+        # Sao_Paulo, fixo em UTC-3 desde que o Brasil aboliu o horario de
+        # verao em 2019, sem trocas de horario pra acompanhar) = 7h UTC.
+        scheduler.add_job(rodar_sincronizacao_nubank_automatica, "cron", hour=7, minute=0)
         scheduler.start()
 
 

@@ -2942,6 +2942,31 @@ def salvar_status_voo_cache(conn, numero_voo: str, data: str, resposta_json: str
     conn.commit()
 
 
+# ---- Faixa M4 (uso diario): cache do resumo de IA do dia -------------------
+# Mesmo espirito do cache de voo acima - uma linha por dia (`data`), guarda a
+# "impressao" (fingerprint do que era relevante) junto com a resposta, pra
+# `app.py` decidir se ainda vale ou se precisa chamar a IA de novo.
+
+def obter_resumo_dia_cache(conn, data: str) -> dict | None:
+    row = conn.execute("SELECT * FROM resumo_dia_cache WHERE data = ?", (data,)).fetchone()
+    return dict(row) if row else None
+
+
+def salvar_resumo_dia_cache(conn, data: str, impressao: str, resposta_json: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO resumo_dia_cache (data, impressao, resposta_json, gerado_em)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(data) DO UPDATE SET
+            impressao = excluded.impressao,
+            resposta_json = excluded.resposta_json,
+            gerado_em = excluded.gerado_em
+        """,
+        (data, impressao, resposta_json),
+    )
+    conn.commit()
+
+
 def create_manutencao(
     conn,
     tipo: str,

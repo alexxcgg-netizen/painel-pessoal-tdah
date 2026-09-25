@@ -5,6 +5,36 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-25 - Melhorias de uso diário (M1–M5)
+
+- **M1 Hoje enxuto + Aviação na barra**: Hoje ficou só com `#caixa-assistente`, chat, foco
+  (Só o essencial + hiperfoco) e Visão do dia. Saudação, sobrecarga, prévia da noite, rotina e
+  check-in foram pro topo do Painel (mesma ordem, mesmos IDs); os `load*` deles agora rodam ao
+  abrir o Painel (`init.js`/`navegacao.js`). `ORDEM_ABAS` e barra: hoje, painel, **aviacao**,
+  vida, tarefas, gastos, construtora, assistente. Teste `tests/test_uso_m1_hoje_nav.py`.
+- **M2 Sync Nubank às 4h (Brasília = 7h UTC)**: `sincronizar_nubank(conn)` em `rotas/f8_banco.py`
+  usada pela rota manual e pelo job `rodar_sincronizacao_nubank_automatica` (scheduler do
+  `app.py`); lock contra duas syncs juntas; sem Pluggy configurado não faz nada; falha só vai pro
+  log e não apaga nada. Último sync bom em `configuracoes`, exposto em `GET /api/bancos/sync-status`.
+  Obs.: no Render free a instância dorme sem acesso, então o job só roda se o app estiver acordado.
+  Teste `tests/test_uso_m2_sync.py`.
+- **M3 Tarefas "Ver concluídas"**: botão mostra/esconde (carrega só no toque) via
+  `GET /api/tasks?estado=concluidas` (até 50, mais recentes primeiro; sem o parâmetro nada muda);
+  desmarcar usa o `/api/tasks/<id>/reabrir` que já existia. Conferido: nada apaga concluída
+  automaticamente. Teste `tests/test_uso_m3_tarefas.py`.
+- **M4 Resumo de IA em cache**: `GET /api/summary/today` guarda o texto em `resumo_dia_cache`
+  (migração `202609251400_m4_cache_resumo_dia.sql`) e só chama a IA de novo quando muda a
+  "impressão": virou o dia, gasto real de hoje ≥ R$ 100 novo, tarefa com data pra hoje/atrasada
+  nova ou concluída hoje (tasks não tem campo de prioridade). Números (gasto_hoje etc.) sempre
+  frescos; erro da IA não grava cache; `?forcar=1` regera (teto R$ 40 continua via `_call_claude`).
+  Teste `tests/test_uso_m4_cache_ia.py`.
+- **M5 Aviso de parcela 3-2-1 dias**: `assistente/gatilhos/f8_aviso_cobranca.py` virou gatilho
+  com duas fontes (assinatura e parcela, adaptadores usando `proxima_cobranca_assinatura` e
+  `parcela_info`); chave de dedup distingue fonte e número da parcela. Texto: "Parcela 3/10 de X,
+  R$ Y, em 2 dias". Parcela avisa por padrão; desliga pelo mesmo toggle `aviso_cobranca`.
+  Teste `tests/test_uso_m5_parcela.py`.
+- Service worker v25.
+
 ## 2026-09-25 - Redesenho visual da tela de login/PIN
 
 Só camada visual (`templates/login.html`, `templates/configurar_pin.html`, `static/css/login.css`,

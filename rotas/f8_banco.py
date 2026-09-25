@@ -16,8 +16,9 @@ hora) continua em app.py, sem mudanca.
 
 import os
 import re
+import threading
 import unicodedata
-from datetime import date
+from datetime import date, datetime
 
 import requests
 from flask import Blueprint, jsonify
@@ -31,6 +32,16 @@ bp = Blueprint("f8_banco", __name__)
 
 _TOLERANCIA_VALOR = 0.50
 _TOLERANCIA_DIAS = 5
+
+# Fase 9 (faixa uso/m2-sync): trava simples pra nunca rodar duas
+# sincronizacoes do Nubank ao mesmo tempo - o botao manual (rota abaixo) e o
+# job de madrugada do scheduler (app.py, ver iniciar_scheduler) chamam a
+# MESMA sincronizar_nubank() e podem colidir por acaso (Alex acordado
+# sincronizando na mao as 4h). So processo em memoria (gunicorn roda com
+# --workers 1, ver render.yaml), nao precisa de lock no banco.
+_lock_sincronizacao_nubank = threading.Lock()
+
+CHAVE_ULTIMO_SYNC_NUBANK_OK = "ultimo_sync_nubank_ok"
 
 
 def _normalizar_nome(texto: str) -> str:
@@ -269,29 +280,49 @@ def _erro_amigavel_pluggy(exc: Exception) -> tuple[str, int]:
     return "nao consegui falar com a Pluggy agora, tenta de novo mais tarde", 502
 
 
-@bp.route("/api/bancos/sincronizar-nubank", methods=["POST"])
-def sincronizar_nubank():
-    app = app_modulo()
-    recusa = app._recusar_no_modo_visitante()
-    if recusa:
-        return recusa
+def sincronizar_nubank(conn) -> dict:
+    """Nucleo de verdade da sincronizacao com o Nubank via Pluggy - fonte
+    unica usada tanto pela rota manual (`POST /api/bancos/sincronizar-nubank`
+    abaixo) quanto pelo job automatico de madrugada do scheduler (ver
+    `iniciar_scheduler`/`rodar_sincronizacao_nubank_automatica` em app.py):
+    os dois so CHAMAM essa funcao, nenhum reimplementa a logica.
 
-    if not pluggy_client.configurado():
-        return jsonify({"error": "sincronizacao automatica nao configurada"}), 400
+    Nao decide HTTP nem sessao (isso fica com quem chama) - devolve sempre
+    um dict, nunca deixa `requests.RequestException` subir (vira
+    `{"ok": False, "error": ..., "status": ...}`). `pluggy_client.configurado()`
+    e responsabilidade de quem chama (a rota devolve 400 direto sem nem
+    tentar; o job so entra aqui quando ja sabe que esta configurado, senao
+    fica em silencio - ver app.py).
 
-    item_id = os.environ.get("PLUGGY_ITEM_ID_NUBANK")
-    if not item_id:
-        return jsonify({"error": "PLUGGY_ITEM_ID_NUBANK nao configurado"}), 400
+    So concede a corrida (lock) pra uma sincronizacao por vez (botao manual
+    x job automatico) - quem perde devolve erro amigavel na hora em vez de
+    esperar e arriscar duas escritas concorrentes no mesmo `conn`/banco.
+
+    Idempotente e seguro contra falha parcial: se a Pluggy falhar no meio
+    (ex: no 2o cartao de N), a funcao devolve erro SEM commitar nada dessa
+    chamada - quem fechar `conn` sem commit descarta a transacao inteira
+    (nunca fica pela metade), e o ultimo sync bom que ja estava commitado
+    continua intacto no banco."""
+    if not _lock_sincronizacao_nubank.acquire(blocking=False):
+        return {
+            "ok": False,
+            "error": "ja tem uma sincronizacao do Nubank rodando, tenta de novo em instantes",
+            "status": 409,
+        }
 
     try:
-        item = pluggy_client.get_item(item_id)
-        contas_pluggy = pluggy_client.get_accounts(item_id)
-    except requests.RequestException as exc:
-        mensagem, status = _erro_amigavel_pluggy(exc)
-        return jsonify({"error": mensagem}), status
+        item_id = os.environ.get("PLUGGY_ITEM_ID_NUBANK")
+        if not item_id:
+            return {"ok": False, "error": "PLUGGY_ITEM_ID_NUBANK nao configurado", "status": 400}
 
-    conn = db.get_db()
-    try:
+        try:
+            item = pluggy_client.get_item(item_id)
+            contas_pluggy = pluggy_client.get_accounts(item_id)
+        except requests.RequestException as exc:
+            mensagem, status = _erro_amigavel_pluggy(exc)
+            return {"ok": False, "error": mensagem, "status": status}
+
+        app = app_modulo()
         resumo = []
         total_novas = total_atualizadas = total_sem_mudanca = total_removidas = 0
         for conta_pluggy in contas_pluggy:
@@ -310,7 +341,7 @@ def sincronizar_nubank():
                 transacoes_pluggy, truncado = pluggy_client.get_transactions(conta_pluggy["id"])
             except requests.RequestException as exc:
                 mensagem, status = _erro_amigavel_pluggy(exc)
-                return jsonify({"error": mensagem}), status
+                return {"ok": False, "error": mensagem, "status": status}
             transacoes = pluggy_client.normalizar_transacoes(transacoes_pluggy)
             transacoes = app._categorizar_transacoes_importadas(conn, transacoes)
             contagem = _upsert_bank_transacoes(conn, conta_id, transacoes)
@@ -321,16 +352,18 @@ def sincronizar_nubank():
             total_sem_mudanca += contagem["sem_mudanca"]
             total_removidas += removidas
             resumo.append({"conta_id": conta_id, "tipo": tipo, **contagem})
-        conn.commit()
-    finally:
-        conn.close()
 
-    mensagem = (
-        f"{total_novas} nova(s), {total_atualizadas} atualizada(s), "
-        f"{total_sem_mudanca} sem mudanca, {total_removidas} removida(s)"
-    )
-    return jsonify(
-        {
+        mensagem = (
+            f"{total_novas} nova(s), {total_atualizadas} atualizada(s), "
+            f"{total_sem_mudanca} sem mudanca, {total_removidas} removida(s)"
+        )
+        # marca o sync bom ANTES do commit final: definir_configuracao ja
+        # commita (db.py), entao esse commit cobre a leva toda (transacoes +
+        # o carimbo) de uma vez so - so grava quando chega ate aqui sem
+        # nenhum erro/excecao no meio.
+        db.definir_configuracao(conn, CHAVE_ULTIMO_SYNC_NUBANK_OK, datetime.now().isoformat(timespec="seconds"))
+        conn.commit()
+        return {
             "ok": True,
             "banco": "nubank",
             "item_status": item.get("status"),
@@ -341,7 +374,29 @@ def sincronizar_nubank():
             "removidas": total_removidas,
             "mensagem": mensagem,
         }
-    )
+    finally:
+        _lock_sincronizacao_nubank.release()
+
+
+@bp.route("/api/bancos/sincronizar-nubank", methods=["POST"])
+def sincronizar_nubank_rota():
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+
+    if not pluggy_client.configurado():
+        return jsonify({"error": "sincronizacao automatica nao configurada"}), 400
+
+    conn = db.get_db()
+    try:
+        resultado = sincronizar_nubank(conn)
+    finally:
+        conn.close()
+
+    if not resultado.get("ok"):
+        return jsonify({"error": resultado.get("error", "falha na sincronizacao")}), resultado.get("status", 502)
+    return jsonify(resultado)
 
 
 @bp.route("/api/gastos/unificados", methods=["GET"])
