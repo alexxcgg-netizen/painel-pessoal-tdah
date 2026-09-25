@@ -250,6 +250,60 @@ if (btnSincronizarNubank) {
   });
 }
 
+// Fase 8 (F2): "Proximas cobrancas" (assinaturas + parcelas da Fase 7) no
+// topo da lista unificada de gastos. A data ja vem calculada do backend
+// (financas_recorrentes.proximas_cobrancas) - aqui e so exibicao.
+function criarItemGastosProximaCobranca(c) {
+  const li = document.createElement("li");
+  li.className = "item";
+  li.dataset.entidade = c.tipo === "assinatura" ? "assinatura" : "compra_parcelada";
+  li.dataset.id = c.id;
+
+  const linha = document.createElement("div");
+  linha.className = "item-linha";
+
+  const info = document.createElement("div");
+  const valor = document.createElement("span");
+  valor.className = "gasto-valor";
+  valor.textContent = fmtMoedaFinancas(c.valor);
+  info.appendChild(valor);
+
+  const nome = document.createElement("span");
+  nome.className = "gasto-categoria chip chip--compacto";
+  nome.textContent = c.nome || c.descricao || "";
+  info.appendChild(nome);
+
+  const quando = document.createElement("span");
+  quando.className = "item-quando";
+  quando.textContent = c.label || "";
+  info.appendChild(quando);
+
+  if (c.duplicado) {
+    const aviso = document.createElement("span");
+    aviso.className = "badge-planejado";
+    aviso.textContent = c.aviso || "possível duplicidade";
+    info.appendChild(aviso);
+  }
+
+  linha.appendChild(info);
+  li.appendChild(linha);
+  return li;
+}
+
+async function loadGastosProximasCobrancas() {
+  const cobrancas = await apiFetch("/api/gastos/proximas-cobrancas");
+  const box = $("#gastos-proximas-cobrancas-box");
+  const list = $("#gastos-lista-proximas-cobrancas");
+  if (!box || !list) return;
+  if (!Array.isArray(cobrancas) || cobrancas.length === 0 || modoVisitanteAtivo) {
+    box.hidden = true;
+    return;
+  }
+  list.innerHTML = "";
+  cobrancas.forEach((c) => list.appendChild(criarItemGastosProximaCobranca(c)));
+  box.hidden = false;
+}
+
 async function loadExpenses() {
   // Fase 8 (F1): lista unificada (manual + banco), cada item com "origem".
   const expenses = await apiFetch("/api/gastos/unificados");
@@ -259,6 +313,7 @@ async function loadExpenses() {
   $("#gastos-oculto-visitante").hidden = !modoVisitanteAtivo;
   $("#gastos-vazio").hidden = modoVisitanteAtivo || expenses.length > 0;
   expenses.forEach((e) => list.appendChild(criarItemGasto(e)));
+  loadGastosProximasCobrancas();
 
   const historicoBruto = await apiFetch("/api/expenses/historico?dias=14");
   // Fase 7 (C3c): ponto sem total numerico viraria <rect height="NaN"> (erro

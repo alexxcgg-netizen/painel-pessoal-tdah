@@ -2,6 +2,12 @@
 autorizado, sem passar pelo Connect) + lista unificada de gastos com selo de
 origem (Nubank/manual) na tela de Financeiro > Gastos.
 
+Fase 8, Faixa F2: "Proximas cobrancas" (assinaturas + parcelas, Fase 7) na
+mesma tela, reusando financas_recorrentes.proximas_cobrancas (nao recalcula
+data em lugar nenhum) + cruzamento com o que ja veio do banco pra nao
+duplicar uma cobranca que ja foi cadastrada manualmente e tambem apareceu
+como transacao do Nubank.
+
 So usa o item_id de PLUGGY_ITEM_ID_NUBANK (.env) - nunca inventa nem aceita
 item_id vindo do corpo da requisicao pra essa rota (evita que qualquer um
 sincronize um item alheio). O fluxo de Connect (usuario escolhe o banco na
@@ -9,15 +15,107 @@ hora) continua em app.py, sem mudanca.
 """
 
 import os
+import re
+import unicodedata
+from datetime import date
 
 import requests
 from flask import Blueprint, jsonify
 
 import db
+import financas_recorrentes as fr
 import pluggy_client
 from rotas._base import app_modulo
 
 bp = Blueprint("f8_banco", __name__)
+
+_TOLERANCIA_VALOR = 0.50
+_TOLERANCIA_DIAS = 5
+
+
+def _normalizar_nome(texto: str) -> str:
+    """Sem acento, minusculo, so letras/numeros/espaco - pra comparar nome
+    de assinatura/parcela com descricao de transacao bancaria sem que
+    acento ou caixa atrapalhe o "contem"."""
+    texto = texto or ""
+    sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+    sem_acento = sem_acento.lower()
+    return re.sub(r"[^a-z0-9 ]", " ", sem_acento).strip()
+
+
+def _cobranca_bate_com_gasto(cobranca: dict, gasto: dict) -> bool:
+    nome_cobranca = _normalizar_nome(cobranca.get("nome") or cobranca.get("descricao") or "")
+    nome_gasto = _normalizar_nome(gasto.get("description") or "")
+    if not nome_cobranca or not nome_gasto:
+        return False
+    if nome_cobranca not in nome_gasto and nome_gasto not in nome_cobranca:
+        return False
+
+    valor_cobranca = cobranca.get("valor")
+    valor_gasto = gasto.get("amount")
+    if valor_cobranca is None or valor_gasto is None:
+        return False
+    if abs(float(valor_cobranca) - float(valor_gasto)) > _TOLERANCIA_VALOR:
+        return False
+
+    try:
+        data_cobranca = date.fromisoformat(cobranca["data"])
+        data_gasto = date.fromisoformat(str(gasto.get("created_at"))[:10])
+    except (KeyError, ValueError, TypeError):
+        return False
+    if abs((data_cobranca - data_gasto).days) > _TOLERANCIA_DIAS:
+        return False
+    return True
+
+
+def cruzar_proximas_cobrancas_com_gastos(cobrancas: list[dict], gastos: list[dict]) -> list[dict]:
+    """Funcao pura (sem banco): marca cada cobranca (assinatura/parcela)
+    com `duplicado`/`aviso` quando ela bate (nome parecido + valor com
+    tolerancia de R$0,50 + data a +-5 dias) com um gasto que veio do
+    banco (origem != 'manual') - pra tela mostrar so uma vez com aviso
+    em vez de duas cobrancas iguais (cadastrada e tambem sincronizada)."""
+    gastos_do_banco = [g for g in gastos if g.get("origem") and g.get("origem") != "manual"]
+    resultado = []
+    for cobranca in cobrancas:
+        item = dict(cobranca)
+        bate = any(_cobranca_bate_com_gasto(cobranca, g) for g in gastos_do_banco)
+        item["duplicado"] = bate
+        item["aviso"] = "possível duplicidade: cadastrada e também veio do Nubank" if bate else None
+        resultado.append(item)
+    return resultado
+
+
+def _montar_gastos_unificados(conn) -> list[dict]:
+    """Monta a lista unica (manual + banco) - usada tanto pela rota
+    /api/gastos/unificados quanto pelo cruzamento de proximas cobrancas."""
+    expenses_reais = conn.execute(
+        "SELECT amount, category, description, source_text, created_at "
+        "FROM expenses WHERE tipo = 'real' ORDER BY created_at DESC"
+    ).fetchall()
+    unificado = []
+    for r in expenses_reais:
+        item = dict(r)
+        item["origem"] = "manual"
+        unificado.append(item)
+
+    contas_por_id = {c["id"]: c for c in db.list_bank_accounts(conn)}
+    for r in db.list_all_bank_transactions(conn):
+        if r["valor"] is None or r["valor"] >= 0:
+            continue
+        conta = contas_por_id.get(r["bank_account_id"])
+        banco = (conta["banco"] if conta else "banco").strip()
+        unificado.append(
+            {
+                "amount": -r["valor"],
+                "category": r["categoria"] or "outros",
+                "description": r["descricao"],
+                "source_text": None,
+                "created_at": r["data"],
+                "origem": banco.capitalize() if banco else "banco",
+            }
+        )
+    unificado.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return unificado
 
 
 def _erro_amigavel_pluggy(exc: Exception) -> tuple[str, int]:
@@ -82,36 +180,27 @@ def gastos_unificados():
     """Gastos manuais (expenses) + gastos automaticos (bank_transactions),
     numa lista so, cada item com 'origem' ('manual' ou o nome do banco,
     ex: 'Nubank'). Nao apaga nem altera nada - so leitura."""
-    app = app_modulo()
     conn = db.get_db()
     try:
-        expenses_reais = conn.execute(
-            "SELECT amount, category, description, source_text, created_at "
-            "FROM expenses WHERE tipo = 'real' ORDER BY created_at DESC"
-        ).fetchall()
-        unificado = []
-        for r in expenses_reais:
-            item = dict(r)
-            item["origem"] = "manual"
-            unificado.append(item)
-
-        contas_por_id = {c["id"]: c for c in db.list_bank_accounts(conn)}
-        for r in db.list_all_bank_transactions(conn):
-            if r["valor"] is None or r["valor"] >= 0:
-                continue
-            conta = contas_por_id.get(r["bank_account_id"])
-            banco = (conta["banco"] if conta else "banco").strip()
-            unificado.append(
-                {
-                    "amount": -r["valor"],
-                    "category": r["categoria"] or "outros",
-                    "description": r["descricao"],
-                    "source_text": None,
-                    "created_at": r["data"],
-                    "origem": banco.capitalize() if banco else "banco",
-                }
-            )
-        unificado.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+        unificado = _montar_gastos_unificados(conn)
     finally:
         conn.close()
     return jsonify(unificado)
+
+
+@bp.route("/api/gastos/proximas-cobrancas", methods=["GET"])
+def proximas_cobrancas():
+    """Assinaturas + parcelas (Fase 7) que vao cobrar em breve, pra tela de
+    Financeiro > Gastos mostrar junto com os gastos do banco. Reusa
+    financas_recorrentes.proximas_cobrancas (a mesma conta de data usada na
+    tela de Assinaturas) e so acrescenta o cruzamento de duplicidade com o
+    que ja veio do Nubank - nao recalcula nenhuma data aqui."""
+    conn = db.get_db()
+    try:
+        hoje = date.today()
+        cobrancas = fr.proximas_cobrancas(conn, hoje=hoje)
+        gastos = _montar_gastos_unificados(conn)
+        cobrancas = cruzar_proximas_cobrancas_com_gastos(cobrancas, gastos)
+    finally:
+        conn.close()
+    return jsonify(cobrancas)
