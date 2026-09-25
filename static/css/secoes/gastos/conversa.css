@@ -1,0 +1,272 @@
+/* static/css/secoes/gastos/conversa.css - Fase 9, faixa C3: topo da aba
+   Financas no estilo "Conversa" (docs/fase9-lab2/d01.js, direcao 1) -
+   mensagem do assistente + cartoes com grafico. So os tokens de
+   static/css/ui/tokens.css (--cor-*, --fonte-base, --raio-cartao,
+   --raio-pequeno, --raio-pilula): nenhuma cor solta. Carregado por
+   static/css/fase7.css (depois dos tokens, antes do resto de gastos). */
+
+.fc-conversa {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-3, 16px);
+  margin-bottom: var(--espaco-4, 24px);
+  font-family: var(--fonte-base);
+}
+
+/* Mensagem do assistente: bolinha de acento + texto, igual ao "dot"+"bubble"
+   da referencia (d01.js .dot/.bubble). */
+.fc-msg {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.fc-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--cor-bg);
+  border: 1px solid var(--cor-acento);
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fc-dot::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cor-acento);
+}
+
+.fc-frase {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--cor-texto-2);
+}
+
+/* Cartoes: mesma receita da referencia (superficie + borda fina + raio de
+   14px), sem sombra luminosa. */
+.fc-card {
+  border: 1px solid var(--cor-borda);
+  background: var(--cor-superficie);
+  border-radius: var(--raio-cartao);
+  padding: var(--espaco-3, 16px);
+}
+
+.fc-card-topo {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cor-texto-fraco);
+  margin-bottom: var(--espaco-2, 8px);
+}
+
+/* ---------- Gasto por categoria: barras horizontais ---------- */
+.fc-catlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.fc-catrow {
+  display: grid;
+  grid-template-columns: minmax(0, 96px) 1fr auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 20px;
+}
+
+.fc-catnome {
+  font-size: 0.72rem;
+  color: var(--cor-texto-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc-catbarwrap {
+  height: 9px;
+  border-radius: var(--raio-pequeno, 9px);
+  background: var(--cor-superficie-2);
+  overflow: hidden;
+}
+
+.fc-catbar {
+  height: 100%;
+  border-radius: var(--raio-pequeno, 9px);
+  background: var(--cor-acento);
+  width: 0%;
+  transition: width var(--duracao-lenta, 0.3s) var(--ease-suave, ease);
+}
+
+.fc-catval {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--cor-texto);
+  min-width: 60px;
+  text-align: right;
+}
+
+/* ---------- Evolucao do mes: SVG desenhado a mao ---------- */
+.fc-chart-wrap {
+  width: 100%;
+}
+
+.fc-chart-acum {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.fc-chart-acum .fc-area {
+  fill: var(--cor-acento);
+  opacity: 0.16;
+}
+
+.fc-chart-acum .fc-linha {
+  fill: none;
+  stroke: var(--cor-acento);
+  stroke-width: 2;
+}
+
+.fc-chart-acum .fc-ponto {
+  fill: var(--cor-acento);
+}
+
+.fc-chart-acum .fc-eixo {
+  stroke: var(--cor-borda);
+}
+
+.fc-chart-acum .fc-ref {
+  stroke: var(--cor-texto-fraco);
+  stroke-dasharray: 3 3;
+  fill: none;
+}
+
+.fc-chart-acum .fc-ref-lbl,
+.fc-chart-acum .fc-eixo-lbl {
+  fill: var(--cor-texto-fraco);
+  font-size: 8.5px;
+  font-family: var(--fonte-base);
+}
+
+.fc-chart-acum .fc-valor-final {
+  fill: var(--cor-texto);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--fonte-base);
+}
+
+/* Entrada leve (linha "desenhando"): so quando o navegador roda animacao. */
+.fc-chart-acum .fc-linha,
+.fc-chart-acum .fc-area {
+  animation: fc-entrada var(--duracao-lenta, 0.3s) var(--ease-suave, ease) both;
+}
+
+@keyframes fc-entrada {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- Fatura x conta ---------- */
+.fc-fvcbars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fc-fvclbl {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--cor-texto-2);
+  margin-bottom: 5px;
+}
+
+.fc-fvclbl b {
+  color: var(--cor-texto);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.fc-fvctrack {
+  height: 12px;
+  border-radius: var(--raio-pequeno, 9px);
+  background: var(--cor-superficie-2);
+  overflow: hidden;
+}
+
+.fc-fvcfill {
+  height: 100%;
+  border-radius: var(--raio-pequeno, 9px);
+  width: 0%;
+  transition: width var(--duracao-lenta, 0.3s) var(--ease-suave, ease);
+}
+
+.fc-fvcfill--alerta {
+  background: var(--cor-alerta);
+}
+
+.fc-fvcfill--acento {
+  background: var(--cor-acento);
+}
+
+.fc-patrimonio {
+  margin: var(--espaco-2, 8px) 0 0;
+  font-size: 0.78rem;
+  color: var(--cor-texto-fraco);
+}
+
+/* ---------- Cartao "Ultimos dias": lista igual ao resto do app (classe
+   .item ja existe em gastos.css), so o titulo do cartao e novo. ---------- */
+#fc-card-ultimos-dias #lista-extrato-financas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------- Chips de pergunta rapida ---------- */
+.fc-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.fc-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.fc-chips .chip {
+  flex-shrink: 0;
+}
+
+/* Resumo antigo (fim-mes/resumo-financas-box de antes desta faixa) fica
+   redundante com os cartoes novos - some da tela, mas os ids continuam no
+   HTML (contrato de tests/test_fase9_ui.py). */
+#resumo-financas-box {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-catbar,
+  .fc-fvcfill {
+    transition: none;
+  }
+  .fc-chart-acum .fc-linha,
+  .fc-chart-acum .fc-area {
+    animation: none;
+  }
+}
