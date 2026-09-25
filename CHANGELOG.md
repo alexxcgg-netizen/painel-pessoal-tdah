@@ -5,6 +5,23 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-25 - Fase 9 (Etapa C, parte 3): polimento final
+
+- **Topo em 2 linhas** (todas as abas): título curto + ícones de voz (com ponto de aviso
+  crítico via `/api/sobrecarga`), hiperfoco (popover 25/50/90), relógio da visão do dia (só no
+  Hoje) e ⚙; linha 2 = campo de captura com botão de enviar em ícone. Lua/avião/olho/exportar/sair
+  foram para a folha ⚙ (mesmos ids/handlers). "Pendências do assistente" depois da conversa,
+  recolhidas; a conversa avisa "Tenho N pendências".
+- **Tarefas**: seletor Pendentes | Hoje | Concluídas (concluídas voltaram a aparecer, com
+  reabrir), `GET /api/tasks?estado=pendentes|concluidas&limite=` (sem parâmetro = igual antes),
+  frase-resumo e gráfico real de concluídas nos últimos 7 dias, checkbox redondo.
+- **Viagens**: aviãozinho animado na linha do tempo (desliza até hoje, balanço leve,
+  `prefers-reduced-motion`), marcos passagem/hotel/seguro/embarque, "faltam N dias"; cálculo
+  puro em `static/js/secoes/vida/viagens-aviao.js` com testes `node --test`.
+- **Componentes**: brilhos coloridos removidos de cartões/badges/botões/linha do tempo (barra de
+  vidro intocada), checkbox estilo Conversa, "últimos dias" de Finanças como lista leve.
+- Service worker v23. Suíte: 3776 Python + 240 JS ok; só a falha antiga dependente de data.
+
 ## 2026-09-25 - Fase 9 (Etapa C, parte 2): Hoje, Finanças e Vida no estilo Conversa
 
 - **Hoje** (`#conversa-hoje`): o topo da aba virou uma conversa com o assistente — saudação,

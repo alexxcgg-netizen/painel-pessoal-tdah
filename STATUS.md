@@ -9,45 +9,25 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
    pras áreas da fase nova) e o topo do `CHANGELOG.md`.
 2. Worktree por faixa a partir de `origin/main`; nunca editar `/home/user/financeiro-construtora`.
 
-## Fase 9 (em andamento) - ler primeiro
-- **Etapa A concluída e na main** (ver CHANGELOG 2026-09-25 Fase 9): aba única Finanças, botão
-  Sincronizar único, sync idempotente + reconciliação por id (causa das duplicadas: reconexão
-  do item Pluggy = ids novos), cartão x conta (`bank_accounts.tipo`), `financas_descricao.py`,
-  `GET /api/financas/extrato` (15 dias) e `/resumo`, OFX removido, cache SW v18.
-  Suíte: 3660 Python ok + 226 JS ok; única falha = `test_formato_da_resposta` (data, antiga).
-- **Etapa B publicada, PARADA esperando o dono escolher:** laboratório com 10 direções
-  (https://claude.ai/artifact/GCruFZzZ9MFT6RcFmokxuH). Fonte em `docs/fase9-lab/` (casca, d01..d10.js, montar.py,
-  CONTRATO.md); o `dados_lab.json` com dados reais NÃO é versionado (montar.py lê de `../dados_lab.json`). Direções: 1 Reator ciano #22D3EE, 2 Tático vermelho #FF3B3B, 3 Terminal
-  verde #4ADE80, 4 Luxo dourado #D4AF37, 5 Radar laranja #FF8A00, 6 Orbital violeta #A78BFA,
-  7 Mínimo branco, 8 Colmeia turquesa #2DD4BF, 9 Cockpit magenta #FF3DCB (B612),
-  10 Rota azul-gelo #A5D8FF.
-- **Rodada 2 do laboratório** (o dono recusou as 10 HUD: "muito falso, coisa de filme; quero
-  parecer app real, tipo ChatGPT; gostei de finanças por categoria; tem que ter gráficos"):
-  20 direções de apps reais publicadas em https://claude.ai/artifact/KsbJFGMP9cfwovHcDhY1Qb
-  (fonte em `docs/fase9-lab2/`). 1 Conversa, 2 iOS Nativo, 3 Carteira, 4 Widgets, 5 Bento,
-  6 Produtividade, 7 Documento, 8 Jornal, 9 Caderno, 10 Histórias, 11 Banco Digital,
-  12 Resumo Saúde, 13 Brutalista, 14 Linha do Dia, 15 Busca, 16 Colunas, 17 Vidro,
-  18 Planilha, 19 Braun, 20 Carro. Claras: 7, 8, 9, 13, 18, 19.
-- **ESCOLHA DO DONO: direção 1 "Conversa"** (gostou muito de Hoje e Finanças; Vida "dá pra
-  melhorar" -> 6 variantes só da Vida em teste). Etapa C começou por C1 (tokens da Conversa:
-  fundo #0e0f0e, cartão #111312, acento #159C82, Inter) na branch fase9/c1-tokens.
-- **Abas (decisão delegada pelo dono, "tu escolhe a menor maneira"): 8 → 4** — Hoje (+Assistente
-  +resumo/agenda/plano/devo sair/fechamento do Painel), Tarefas, Finanças (+Construtora no fim,
-  `#secao-construtora`), Vida (+Aviação no topo `#secao-aviacao`, +saúde/medicamentos/peso/datas/
-  memória/notas/decisões/brain dump/esperando resposta do Painel) + folha ⚙ `#sheet-config`
-  (custo de IA/modo teste/exportar + regras do assistente). Barra de vidro mantida (pedido do dono).
-  **Na main** (merge fase9/int-abas): suíte 3692 ok, só a falha antiga de data. Mapa:
-  `docs/fase9-mapa-abas.md`. C1 (tokens Conversa + fix do fundo transparente) também na main.
-  Próximo: C2 Hoje em formato Conversa, C3 Finanças com gráficos da Conversa, C4 Vida (após
-  escolha), C5 viagens com aviãozinho, Tarefas no estilo novo.
-- Vida: dono escolheu a variante **3 Grupos** (https://claude.ai/artifact/CKmFmoe1Z65hN2i43TkTp2).
-  Grupos: Aviação (destaque), Rotina, Saúde, Pessoas, Coisas, Mundo, Mente. Faixa fase9/c4-vida.
-- **Etapa C** (C1 tokens ... C6 componentes) só começa com a escolha do dono.
-- Pluggy real (medido): cartão manda compra com amount positivo + `DEBIT`; saída decidida por
-  `tipo_operacao`. Cartão tem parcelas futuras até 2027. 384 transações cartão + 29 conta.
-- Teto de chamadas estourado nesta fase: f9-ui 99, f9-api 63, Haiku mapa 43, Haiku nomes 43,
-  C1 74, C-abas 189 (283k de contexto!). Faixa que mexe em muitos templates+CSS+JS precisa
-  ser quebrada por aba destino (uma faixa por aba), não por tipo de mudança.
+## Fase 9 (CONCLUÍDA em 2026-09-25) - ler primeiro
+- **Tudo na main** e publicado no Render (deploy automático): Etapa A (Finanças unificada, sync
+  idempotente + reconciliação, extrato 15 dias, sem OFX), laboratórios B (10 HUD recusadas → 20
+  apps reais → escolhida **1 "Conversa"**; Vida = variante **Grupos**), Etapa C completa.
+- App agora: **4 abas** (Hoje / Tarefas / Finanças / Vida) na barra de vidro + ⚙ no topo. Mapa
+  de onde foi cada seção: `docs/fase9-mapa-abas.md`. Direção visual: tokens em
+  `static/css/ui/tokens.css`; referências `docs/fase9-lab2/d01.js`, `docs/fase9-lab3/v03.js`.
+- Suíte final: 3776 Python + 240 JS ok; única falha = `test_formato_da_resposta` (data, antiga).
+- **Pendente para o dono**: abrir o app no iPhone (fechar e abrir para pegar o cache v23),
+  entrar com o PIN, tocar em Sincronizar (Render free zera o banco a cada deploy), e dizer o
+  que ajustar. Laboratórios: HUD https://claude.ai/artifact/GCruFZzZ9MFT6RcFmokxuH, apps reais
+  https://claude.ai/artifact/KsbJFGMP9cfwovHcDhY1Qb, Vida https://claude.ai/artifact/CKmFmoe1Z65hN2i43TkTp2.
+- **Pendências técnicas**: compra parcelada sem interruptor de aviso; testes que leem `.env` real;
+  teste dependente de data; revogar a chave da API do Render colada no chat; página carrega
+  `summarize_day` (IA) a cada abertura — conferir se o teto de R$ 40/mês segura; `AGENTS.md` tem
+  55k caracteres (regra: ≤ 12k) — enxugar numa fase própria.
+- **Lições de custo desta fase**: faixas de UI grandes estouraram o teto (f9-ui 99, C-abas 189,
+  P-topo 158, P-viagens 109, P-tarefas 104 chamadas). Regra prática: faixa de front = 1 aba ou 1
+  componente, e prints só no fim (debug de Playwright foi o maior consumo).
 
 ## Feito
 - **Antes da Fase 8:** modo teste de IA (toggle no card Custo de IA, aba Painel; config

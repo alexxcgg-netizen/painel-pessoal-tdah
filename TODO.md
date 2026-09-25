@@ -5,7 +5,7 @@
 - [x] A f9-ui: aba unica Financas, um botao Sincronizar, sem OFX, "carregar mais 15 dias"
 - [x] A f9-api (onda 2): /api/financas/extrato (15 dias) + /api/financas/resumo + patrimonio sem fatura positiva
 - [x] B: laboratorio 10 direcoes publicado (https://claude.ai/artifact/GCruFZzZ9MFT6RcFmokxuH) -> AGUARDANDO escolha do dono
-- [ ] C: aplicar direcao escolhida (C1-C6)
+- [x] C: direcao Conversa aplicada (C1 tokens, 8->4 abas, Hoje/Financas/Vida, topo, Tarefas, Viagens, componentes)
 
 # TODO - execucao do BRIEFING.md
 
