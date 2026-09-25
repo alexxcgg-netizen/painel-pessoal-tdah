@@ -40,7 +40,8 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
   `docs/fase9-mapa-abas.md`. C1 (tokens Conversa + fix do fundo transparente) também na main.
   Próximo: C2 Hoje em formato Conversa, C3 Finanças com gráficos da Conversa, C4 Vida (após
   escolha), C5 viagens com aviãozinho, Tarefas no estilo novo.
-- Vida: 6 variantes publicadas (https://claude.ai/artifact/CKmFmoe1Z65hN2i43TkTp2), aguardando escolha.
+- Vida: dono escolheu a variante **3 Grupos** (https://claude.ai/artifact/CKmFmoe1Z65hN2i43TkTp2).
+  Grupos: Aviação (destaque), Rotina, Saúde, Pessoas, Coisas, Mundo, Mente. Faixa fase9/c4-vida.
 - **Etapa C** (C1 tokens ... C6 componentes) só começa com a escolha do dono.
 - Pluggy real (medido): cartão manda compra com amount positivo + `DEBIT`; saída decidida por
   `tipo_operacao`. Cartão tem parcelas futuras até 2027. 384 transações cartão + 29 conta.
