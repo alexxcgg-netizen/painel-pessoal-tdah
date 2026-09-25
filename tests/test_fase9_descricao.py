@@ -416,3 +416,64 @@ def test_desempenho_5000_descricoes_menos_de_1_segundo():
         descrever(tx)
     duracao = time.perf_counter() - inicio
     assert duracao < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Casamento por palavra inteira (falsos positivos de "contem")
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("bruto,esperado", [
+    ("Quiosque da Praia", "Quiosque da Praia"),
+    ("Barraia Lanches", "Barraia Lanches"),
+    ("Claudete Modas", "Claudete Modas"),
+    ("Pineapple Store", "Pineapple Store"),
+    ("Seashell Restaurante", "Seashell Restaurante"),
+    ("Golden Burger", "Golden Burger"),
+    ("Vivone Materiais de Construcao", "Vivone Materiais de Construcao"),
+    ("Azulejos Bom Preco", "Azulejos Bom Preco"),
+    ("Uberlandia Materiais", "Uberlandia Materiais"),
+])
+def test_falsos_positivos_de_substring_nao_casam(bruto, esperado):
+    resultado = descrever({"descricao_original": bruto})
+    assert resultado["descricao"] == esperado
+
+
+@pytest.mark.parametrize("bruto,esperado", [
+    ("Raia362", "Droga Raia"),
+    ("RAIA 123", "Droga Raia"),
+    ("DROGARAIA", "Droga Raia"),
+    ("Apple Computer Brasil LTDA", "Apple"),
+    ("APPLE.COM/BILL", "Apple"),
+    ("Anthropic* Claude Sub", "Claude"),
+    ("CLAUDE.AI", "Claude"),
+    ("ARCOS DOURADOS COMERCIO", "McDonald's"),
+    ("IFD*IFOOD", "iFood"),
+])
+def test_casos_verdadeiros_continuam_casando(bruto, esperado):
+    resultado = descrever({"descricao_original": bruto})
+    assert resultado["descricao"] == esperado
+
+
+# ---------------------------------------------------------------------------
+# Pix / transferencia preserva o nome de quem enviou/recebeu
+# ---------------------------------------------------------------------------
+
+def test_pix_com_nome_mantem_nome_apos_rotulo():
+    resultado = descrever({"descricao_original": "Pix Claudio Souza"})
+    assert resultado["descricao"] == "Pix · Claudio Souza"
+    assert resultado["categoria"] == "Transferência"
+
+
+def test_pix_enviado_mantem_nome():
+    resultado = descrever({"descricao_original": "Pix enviado Claudio Souza"})
+    assert resultado["descricao"] == "Pix · Claudio Souza"
+
+
+def test_pix_recebido_mantem_nome():
+    resultado = descrever({"descricao_original": "Pix recebido de Maria Oliveira"})
+    assert resultado["descricao"] == "Pix · Maria Oliveira"
+
+
+def test_pix_sem_nome_fica_so_pix():
+    resultado = descrever({"descricao_original": "Pix"})
+    assert resultado["descricao"] == "Pix"

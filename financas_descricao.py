@@ -236,13 +236,45 @@ TABELA_ESTABELECIMENTOS = {
     "vivara": ("Vivara", "Compras"),
 }
 
+# Chaves cujo nome final deve preservar quem enviou/recebeu (Pix, TED, DOC...).
+_CHAVES_TRANSFERENCIA = {"pix"}
+
+_PALAVRAS_FILTRAR_TRANSFERENCIA = {
+    "pix", "ted", "doc", "transferencia", "enviado", "enviada", "recebido",
+    "recebida", "via", "pelo", "pela",
+} | _PREPOSICOES_BAIXAS
+
+
+def _extrair_nome_transferencia(texto):
+    """Remove o rotulo (Pix/TED/...) e palavras de preenchimento, mantendo o
+    nome de quem enviou/recebeu quando houver."""
+    if not texto:
+        return None
+    palavras = [p for p in texto.split(" ") if p]
+    restantes = [p for p in palavras if _normalizar(p) not in _PALAVRAS_FILTRAR_TRANSFERENCIA]
+    nome = " ".join(restantes).strip(" -:")
+    return nome or None
+
+
+def _compilar_padrao_chave(chave):
+    """Casamento por palavra inteira: a chave so "bate" quando nao esta colada a
+    outras letras (digitos, espacos e pontuacao contam como limite de palavra).
+    Isso vale tanto para chaves de uma palavra quanto para frases - so as bordas
+    da chave inteira importam, entao chaves "coladas" (ex.: "drogaraia",
+    "apple.com/bill") continuam funcionando sem tratamento especial."""
+    return re.compile(r"(?<![a-z])" + re.escape(chave) + r"(?![a-z])")
+
+
 _TABELA_ITENS_ORDENADOS = sorted(TABELA_ESTABELECIMENTOS.items(), key=lambda kv: -len(kv[0]))
+_TABELA_COMPILADA = [
+    (chave, _compilar_padrao_chave(chave), valor) for chave, valor in _TABELA_ITENS_ORDENADOS
+]
 
 
 def _buscar_na_tabela(texto_normalizado):
-    for chave, valor in _TABELA_ITENS_ORDENADOS:
-        if chave in texto_normalizado:
-            return valor
+    for chave, padrao, valor in _TABELA_COMPILADA:
+        if padrao.search(texto_normalizado):
+            return chave, valor
     return None
 
 
@@ -351,14 +383,20 @@ def descrever(tx, por_external_id=None):
 
         nome_tabela = None
         categoria_tabela = None
+        chave_tabela = None
         if limpo:
             achado = _buscar_na_tabela(_normalizar(limpo))
             if achado:
-                nome_tabela, categoria_tabela = achado
+                chave_tabela, (nome_tabela, categoria_tabela) = achado
         elif bruto:
             achado = _buscar_na_tabela(_normalizar(bruto))
             if achado:
-                nome_tabela, categoria_tabela = achado
+                chave_tabela, (nome_tabela, categoria_tabela) = achado
+
+        if chave_tabela in _CHAVES_TRANSFERENCIA and nome_tabela:
+            nome_pessoa = _extrair_nome_transferencia(limpo or bruto)
+            if nome_pessoa:
+                nome_tabela = f"{nome_tabela} · {nome_pessoa}"
 
         nome_final = nome_tabela if nome_tabela else limpo
         if parcela and nome_final:
