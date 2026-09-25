@@ -36,14 +36,17 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
   `#secao-construtora`), Vida (+Aviação no topo `#secao-aviacao`, +saúde/medicamentos/peso/datas/
   memória/notas/decisões/brain dump/esperando resposta do Painel) + folha ⚙ `#sheet-config`
   (custo de IA/modo teste/exportar + regras do assistente). Barra de vidro mantida (pedido do dono).
-  Faixas: fase9/c-nav (barra, navegacao.js, voz) e fase9/c-abas (templates). Mapa:
-  `docs/fase9-mapa-abas.md`. C1 (tokens Conversa + fix do fundo transparente) já na main.
+  **Na main** (merge fase9/int-abas): suíte 3692 ok, só a falha antiga de data. Mapa:
+  `docs/fase9-mapa-abas.md`. C1 (tokens Conversa + fix do fundo transparente) também na main.
+  Próximo: C2 Hoje em formato Conversa, C3 Finanças com gráficos da Conversa, C4 Vida (após
+  escolha), C5 viagens com aviãozinho, Tarefas no estilo novo.
 - Vida: 6 variantes publicadas (https://claude.ai/artifact/CKmFmoe1Z65hN2i43TkTp2), aguardando escolha.
 - **Etapa C** (C1 tokens ... C6 componentes) só começa com a escolha do dono.
 - Pluggy real (medido): cartão manda compra com amount positivo + `DEBIT`; saída decidida por
   `tipo_operacao`. Cartão tem parcelas futuras até 2027. 384 transações cartão + 29 conta.
-- Teto de chamadas estourado nesta fase: f9-ui 99, f9-api 63, Haiku mapa 43, Haiku nomes 43
-  (tetos 40/35/20). Faixas de UI grandes ainda precisam ser quebradas em duas.
+- Teto de chamadas estourado nesta fase: f9-ui 99, f9-api 63, Haiku mapa 43, Haiku nomes 43,
+  C1 74, C-abas 189 (283k de contexto!). Faixa que mexe em muitos templates+CSS+JS precisa
+  ser quebrada por aba destino (uma faixa por aba), não por tipo de mudança.
 
 ## Feito
 - **Antes da Fase 8:** modo teste de IA (toggle no card Custo de IA, aba Painel; config

@@ -5,6 +5,28 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-25 - Fase 9 (Etapa C, parte 1): visual "Conversa" e 4 abas
+
+O dono escolheu a direção **"Conversa"** (app como chat de assistente, com cartões e gráficos)
+no segundo laboratório (20 direções de apps reais; as 10 de HUD da 1ª rodada foram recusadas).
+
+- **C1 tokens**: paleta Conversa em `static/css/ui/tokens.css` (fundo `#0e0f0e`, cartão
+  `#111312`, acento `#159C82`, alerta `#e0928f`), fonte Inter, raios; brilho/LED colorido
+  removidos (a barra de vidro da navegação ficou igual, a pedido do dono).
+- **Bug antigo corrigido**: um comentário do `tokens.css` continha `--surface*/`, que fechava o
+  comentário cedo e anulava `--cor-bg` — o fundo do app era transparente (branco em vários
+  navegadores) desde a Fase 8. Teste que acusa `*/` perdido em qualquer CSS.
+- **8 abas → 4** (decisão delegada pelo dono): Hoje (+Assistente, +resumo/agenda/plano do
+  dia/devo sair/fechamento do Painel), Tarefas, Finanças (+Construtora em `#secao-construtora`),
+  Vida (+Aviação no topo em `#secao-aviacao`, +saúde/medicamentos/peso/datas/memória/notas/
+  decisões/brain dump/esperando resposta do Painel). Botão ⚙ no cabeçalho abre `#sheet-config`
+  (custo de IA, modo teste, exportar CSV, regras do assistente). Nomes antigos (voz, links,
+  `showTab("painel")`) redirecionam para o destino novo. Carregamentos de dados num lugar só
+  (`static/js/nucleo/navegacao.js`).
+- `bancos.css` saiu de `#tab-bancos` (aba extinta na Etapa A) para `#tab-gastos` — o ícone de
+  banco aparecia gigante. Teste que acusa CSS/JS/template preso a aba removida.
+- Service worker v20.
+
 ## 2026-09-25 - Fase 9 (Etapa A): Finanças numa aba só, sincronização sem duplicar
 
 Bancos e Gastos viraram uma aba só, **Finanças**, com um único botão **Sincronizar**. A
