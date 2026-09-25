@@ -18,19 +18,39 @@
    Carrega depois do style.css via static/css/fase7.css. */
 
 :root {
-  /* ---------- Cor base (fase 8 D1 - tema neutro estilo ChatGPT) ----------
+  /* ---------- Cor base (fase 9 C1 - direcao "Conversa", chat escuro estilo
+     ChatGPT com cartoes/graficos embutidos) ----------
      Fonte unica dos tokens de COR base do app (o resto do arquivo e forma/
-     profundidade, nao cor). O style.css aponta suas variaveis --bg/--surface*/
-     --border*/--text*/--accent/--success pra estas aqui, em vez de redeclarar
-     os hex. Nada de roxo/verde saturado de fundo: cinza neutro quase-preto. */
-  --cor-bg: #171717;
-  --cor-superficie: #212121;
-  --cor-superficie-2: #2a2a2a;
-  --cor-borda: rgba(255, 255, 255, 0.09);
+     profundidade, nao cor). O style.css aponta suas variaveis --bg, --surface-(n),
+     --border-(n), --text-(n), --accent e --success pra estas aqui, em vez de redeclarar
+     os hex. Paleta escolhida no laboratorio visual (docs/fase9-lab2/d01.js,
+     direcao 1 "Conversa"): fundo quase-preto neutro, acento verde-agua unico,
+     sem glow/LED. */
+  --cor-bg: #0e0f0e;
+  --cor-superficie: #111312;
+  --cor-superficie-2: #1a1c1b;
+  --cor-borda: #1f211f;
   --cor-texto: #ececec;
-  --cor-texto-fraco: #a9a9a9;
-  --cor-acento: #8e8ea0;
-  --cor-sucesso: #4caf7d;
+  --cor-texto-2: #c2c5c3;
+  --cor-texto-fraco: #8a8e8b;
+  --cor-acento: #159c82;
+  --cor-acento-suave: rgba(21, 156, 130, 0.15);
+  --cor-alerta: #e0928f;
+  --cor-alerta-suave: rgba(232, 145, 143, 0.12);
+  --cor-sucesso: #159c82;
+
+  /* Tipografia (fase 9 C1): Inter no lugar de Sora/system-ui pra bater com a
+     referencia "Conversa" - carregada em templates/head.html. */
+  --fonte-base: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui,
+    sans-serif;
+
+  /* Raios (fase 9 C1): cartao/bolha 14px (bolha ganha canto de 3px do lado de
+     quem fala no proprio componente, nao aqui), blocos pequenos 9px, pilula
+     99px - nomes novos da direcao "Conversa"; os --raio-* antigos abaixo
+     continuam servindo o resto do app que esta faixa nao reestrutura. */
+  --raio-cartao: 14px;
+  --raio-bolha: 14px;
+  --raio-pequeno: 9px;
 
   /* Sobrescreve as variaveis do style.css (carregado antes) com os tokens
      acima - fonte unica de verdade fica aqui. */
@@ -51,7 +71,7 @@
   --raio-sm: var(--radius-sm); /* 14px - campo, botao, item dentro de card */
   --raio: var(--radius); /* 20px - card, lista-item solto, secao */
   --raio-lg: calc(var(--radius) + 8px); /* 28px - bottom-sheet (cantos de cima), card hero */
-  --raio-pilula: 999px; /* chip, botao pilula, toggle (999px ja usado 47x no style.css) */
+  --raio-pilula: 99px; /* fase 9 C1: valor da direcao "Conversa" (era 999px; sem diferenca visual em pilulas normais, so um pouco menos redondo em cantos grandes) */
 
   /* ---------- Espaco (grade de 8px) ----------
      Em rem (1rem = 16px; o app nao muda a base) pra respeitar o zoom de texto do sistema.

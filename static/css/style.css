@@ -189,11 +189,13 @@
     rgba(255, 255, 255, 0.04) 24%,
     transparent 55%
   );
-  --glass-glow: radial-gradient(
-    120% 90% at 88% 116%,
-    color-mix(in srgb, var(--glass-tint) 12%, transparent) 0%,
-    transparent 62%
-  );
+  /* Fase 9 C1 (direcao "Conversa"): sem glow/LED ambiente no vidro global -
+     halo removido, so sobra a superficie + borda fina (--glass-highlight
+     continua, e so um brilho especular branco bem fraco, nao cor). As
+     redefinicoes locais de --glass-glow em .stat-tile/.card-resultado (mais
+     abaixo) NAO foram tocadas aqui de proposito: usam --tile-cor/--card-cor,
+     cor por aba/cartao - fora do escopo desta faixa (ver relatorio). */
+  --glass-glow: none;
   --glass-bg: var(--surface-2);
   --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
   --glass-blur: none;
@@ -475,7 +477,7 @@ button:active:not(:disabled) {
 
 body {
   position: relative;
-  font-family: var(--font-body);
+  font-family: var(--fonte-base, var(--font-body));
   max-width: 480px;
   margin: 0 auto;
   padding: calc(1.25rem + env(safe-area-inset-top)) 1rem
@@ -509,15 +511,12 @@ body {
   inset: -20%;
   z-index: -1;
   pointer-events: none;
-  /* Fase 8 D1: gradiente roxo/verde saturado (round anterior) trocado por
-     um realce neutro cinza, bem fraco - mesma posicao/estrutura, sem cor
-     de identidade tingindo o fundo. */
-  background: radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.05), transparent 45%),
-    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, 0.04), transparent 42%),
-    radial-gradient(circle at 50% 85%, rgba(255, 255, 255, 0.03), transparent 48%),
-    radial-gradient(circle at 88% 92%, rgba(255, 255, 255, 0.03), transparent 40%);
-  filter: blur(60px);
-  animation: auroraMove 20s ease-in-out infinite;
+  /* Fase 9 C1 (direcao "Conversa"): fundo achatado, sem gradiente/aurora - a
+     referencia (docs/fase9-lab2/d01.js) e um preto neutro liso. Estrutura do
+     elemento mantida (outros HTML/telas referenciam .aurora), so o
+     background/animation viram none. */
+  background: none;
+  animation: none;
 }
 
 /* "Efeito rainbow" (pedido explicito): um brilho de fundo trocando bem
@@ -534,15 +533,10 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  /* Fase 8 D1: "efeito rainbow" roxo/verde saturado removido - agora e so
-     um brilho ambiente cinza neutro, bem fraco, na mesma estrutura/posicao/
-     animacao de antes (nada de layout mudou, so a cor deixou de tingir). */
-  background: radial-gradient(65% 55% at 22% 70%, rgba(255, 255, 255, 0.05), transparent 60%),
-    radial-gradient(60% 50% at 78% 28%, rgba(255, 255, 255, 0.04), transparent 60%),
-    radial-gradient(45% 40% at 50% 50%, rgba(255, 255, 255, 0.03), transparent 62%);
-  background-size: 180% 180%, 180% 180%, 220% 220%;
-  mix-blend-mode: screen;
-  animation: rainbowDrift 26s ease-in-out infinite, rainbowDriftExtra 37s ease-in-out infinite;
+  /* Fase 9 C1: "efeito rainbow" (mancha radial animada) removido - direcao
+     "Conversa" pede fundo liso, sem gradiente. */
+  background: none;
+  animation: none;
 }
 
 @keyframes rainbowDrift {
@@ -579,17 +573,10 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    115deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.05) 47%,
-    rgba(255, 255, 255, 0.09) 50%,
-    rgba(255, 255, 255, 0.05) 53%,
-    transparent 70%
-  );
-  background-size: 260% 260%;
-  mix-blend-mode: overlay;
-  animation: auroraShine 34s linear infinite;
+  /* Fase 9 C1: reflexo/"shine" diagonal removido junto com o resto do
+     .aurora - fundo liso na direcao "Conversa". */
+  background: none;
+  animation: none;
 }
 
 /* Fase 6 (US-E1c): 0% e 100% eram DIFERENTES (120% -20% -> -20% 120%) - a
@@ -994,16 +981,17 @@ header {
   color: var(--accent-text);
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
-  /* "LED" pedido explicito: glow ambiente pequeno e continuo (nao so na sombra de
-     queda) em cima da cor de acento - e o que faz uma superficie escura parecer
-     "acesa" em vez de so escura. */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent),
-    0 0 16px -2px color-mix(in srgb, var(--accent) 55%, transparent);
+  /* Fase 9 C1 (direcao "Conversa"): "LED" removido - era um glow ambiente
+     continuo (0 0 16px) em cima da cor de acento, pedido explicito do round
+     anterior; a nova direcao pede "sem glow, sem LED". Fica so uma sombra de
+     queda neutra (preta) pra dar elevacao, sem cor. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 18px -6px rgba(0, 0, 0, 0.65);
 }
 
 .tab-btn.active svg {
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent));
+  /* Fase 9 C1: drop-shadow colorido (glow no icone) removido junto com o LED
+     acima. */
+  filter: none;
 }
 
 /* Pedido do Alex (inspirado no app Pierre - preto/branco quase puro, cor so
@@ -1206,7 +1194,7 @@ header {
   color: var(--accent-text);
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: none;
   transition: background-position 0.4s ease, box-shadow 0.2s ease, transform 0.18s var(--ease-bounce);
 }
 
@@ -1214,7 +1202,7 @@ header {
   #captura-btn:hover:not(:disabled),
   #duvida-btn:hover:not(:disabled) {
     background-position: 100% 0;
-    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+    box-shadow: none;
   }
 }
 
@@ -2309,7 +2297,7 @@ li.item.saindo {
   height: 12px;
   border-color: var(--accent);
   background: var(--accent);
-  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: none;
 }
 
 /* tarefas com horario: bolinha verde se feita, vermelha se o horario passou
@@ -3543,7 +3531,9 @@ li.item.item-planejado {
 }
 
 .chat-bolha.user {
-  box-shadow: 0 4px 16px -8px color-mix(in srgb, var(--accent) 55%, transparent);
+  /* Fase 9 C1: glow colorido removido (halo -8px do acento) - sombra neutra
+     de elevacao, igual o resto da direcao "Conversa". */
+  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.65);
 }
 
 .card-resultado {
