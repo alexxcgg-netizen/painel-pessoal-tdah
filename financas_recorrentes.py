@@ -269,10 +269,16 @@ def buscar_assinatura_por_nome(conn: sqlite3.Connection, nome: str, apenas_ativa
 
 def atualizar_assinatura(conn: sqlite3.Connection, id_: int, **campos) -> bool:
     """Atualiza so os campos editaveis presentes em `campos` (nome, valor,
-    dia_cobranca, cartao_ou_forma, categoria, observacao). Ignora chave
-    desconhecida em vez de falhar (corpo de request pode trazer lixo)."""
-    editaveis = {"nome", "valor", "dia_cobranca", "cartao_ou_forma", "categoria", "observacao"}
+    dia_cobranca, cartao_ou_forma, categoria, observacao,
+    avisar_antes_cobrar - Fase 8/F3, interruptor de aviso proativo). Ignora
+    chave desconhecida em vez de falhar (corpo de request pode trazer lixo)."""
+    editaveis = {
+        "nome", "valor", "dia_cobranca", "cartao_ou_forma", "categoria", "observacao",
+        "avisar_antes_cobrar",
+    }
     campos_validos = {k: v for k, v in campos.items() if k in editaveis and v is not None}
+    if "avisar_antes_cobrar" in campos_validos:
+        campos_validos["avisar_antes_cobrar"] = 1 if campos_validos["avisar_antes_cobrar"] else 0
     if "valor" in campos_validos:
         campos_validos["valor"] = _money(_valor_entrada(campos_validos["valor"], "valor da assinatura"))
     if "dia_cobranca" in campos_validos:
