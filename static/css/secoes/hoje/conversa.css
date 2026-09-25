@@ -1,0 +1,267 @@
+/* static/css/secoes/hoje/conversa.css - secao hoje > conversa (HTML:
+   templates/secoes/hoje/conversa.html, JS: static/js/secoes/hoje/conversa.js).
+   Fase 9 (C2): topo da aba Hoje em formato de chat (direcao visual "Conversa"
+   escolhida pelo Alex, docs/fase9-lab2/d01.js). So tokens de static/css/ui/tokens.css
+   (--cor-*, --fonte-base, --raio-*) - nenhuma cor/fonte nova aqui, sem glow. */
+
+.conversa-hoje {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-4, 16px);
+  padding: var(--espaco-2, 8px) 0;
+}
+
+.msg-linha {
+  display: flex;
+  gap: var(--espaco-2, 8px);
+  align-items: flex-start;
+}
+
+/* Bolinha de acento do assistente (mesma ideia da referencia: circulo vazado com um
+   ponto colorido no meio, sem avatar de verdade). */
+.conversa-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--cor-bg);
+  border: 1px solid var(--cor-acento);
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.conversa-dot::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cor-acento);
+}
+
+.conversa-bolha {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversa-fala {
+  margin: 0 0 var(--espaco-2, 8px);
+  color: var(--cor-texto-2);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* Cartoes reaproveitam .card (ui/componentes/card.css) - so o que e especifico da
+   conversa (cabecalho compacto, numeros, mini-valores, grafico) fica aqui. */
+.conversa-card {
+  gap: var(--espaco-2, 8px);
+}
+
+.conversa-card--toque {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+}
+
+.conversa-card--toque:hover {
+  border-color: var(--border-strong, rgba(218, 226, 243, 0.18));
+}
+
+.conversa-card--toque:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+.conversa-card--aviso {
+  border-color: var(--cor-alerta);
+  background: var(--cor-alerta-suave);
+}
+
+.conversa-card--aviso .card-titulo {
+  color: var(--cor-alerta);
+}
+
+.conversa-aviso-texto {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--cor-texto);
+  line-height: 1.4;
+}
+
+.card-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2, 8px);
+}
+
+.conversa-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: var(--raio-pilula, 999px);
+  font-variant-numeric: tabular-nums;
+}
+
+.conversa-pill--down {
+  color: var(--cor-acento);
+  background: var(--cor-acento-suave);
+}
+
+.conversa-pill--up {
+  color: var(--cor-alerta);
+  background: var(--cor-alerta-suave);
+}
+
+.conversa-valor {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--cor-texto);
+}
+
+.conversa-grafico {
+  width: 100%;
+}
+
+.conversa-svg-grafico {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.conversa-svg-grafico .area {
+  fill: var(--cor-acento);
+  opacity: 0.16;
+}
+
+.conversa-svg-grafico .linha {
+  fill: none;
+  stroke: var(--cor-acento);
+  stroke-width: 2;
+}
+
+.conversa-svg-grafico .ponto {
+  fill: var(--cor-acento);
+}
+
+.conversa-svg-grafico .eixo {
+  stroke: var(--cor-borda);
+}
+
+.conversa-svg-grafico .ref {
+  stroke: var(--cor-texto-fraco);
+  stroke-dasharray: 3 3;
+}
+
+.conversa-svg-grafico .ref-lbl,
+.conversa-svg-grafico .eixo-lbl {
+  fill: var(--cor-texto-fraco);
+  font-size: 8.5px;
+  font-family: var(--fonte-base);
+}
+
+.conversa-mini-linha {
+  display: flex;
+  gap: var(--espaco-2, 8px);
+}
+
+.conversa-mini {
+  flex: 1;
+  text-align: center;
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio-pequeno, 9px);
+  padding: var(--espaco-2, 8px) var(--espaco-1, 4px);
+}
+
+.conversa-mini-rotulo {
+  display: block;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cor-texto-fraco);
+}
+
+.conversa-mini-valor {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--cor-texto);
+}
+
+.conversa-foco-texto {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--cor-texto);
+}
+
+.conversa-proximos-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.conversa-proximo-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--espaco-2, 8px);
+  padding: var(--espaco-1, 4px) 0;
+  border-bottom: 1px solid var(--cor-borda);
+  font-size: 0.82rem;
+}
+
+.conversa-proximo-item:last-child {
+  border-bottom: none;
+}
+
+.conversa-proximo-titulo {
+  color: var(--cor-texto-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversa-proximo-hora {
+  color: var(--cor-texto-fraco);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.conversa-vazio {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--cor-texto-fraco);
+}
+
+/* Chips de sugestao acima do campo de chat - reaproveitam .chip (ui/componentes/chip.css),
+   so a faixa horizontal sem quebra de linha e propria daqui. */
+.conversa-chips {
+  display: flex;
+  gap: var(--espaco-2, 8px);
+  overflow-x: auto;
+  padding: var(--espaco-1, 4px) 0 var(--espaco-3, 12px);
+  scrollbar-width: none;
+  margin-top: var(--espaco-2, 8px);
+}
+
+.conversa-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.conversa-chips .chip {
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversa-card--toque {
+    transition: none;
+  }
+}

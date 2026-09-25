@@ -85,12 +85,10 @@
         Oculto no modo visitante.
       </p>
 
-      <h3 class="secao-secundaria" style="--secao-cor: var(--cor-financeiro)">Extrato (ultimos dias)</h3>
-      <p id="extrato-financas-vazio" class="vazio" hidden>Nenhum lancamento nesse periodo.</p>
-      <ul id="lista-extrato-financas"></ul>
-      <button type="button" id="btn-carregar-mais-extrato" class="btn btn-secundario" hidden>
-        Carregar mais 15 dias
-      </button>
+      {# Fase 9 (C3): "Extrato (ultimos dias)" mudou de lugar - o mesmo
+         #lista-extrato-financas/#btn-carregar-mais-extrato agora mora no
+         cartao "Ultimos dias" do topo estilo Conversa
+         (secoes/gastos/conversa.html), pra nao duplicar id. #}
 
       <section class="secao-recolhivel" data-aberto="false" data-secao-id="gastos-extrato-completo">
         <button type="button" class="secao-cabecalho" aria-expanded="false">Extrato completo <span class="chevron"></span></button>

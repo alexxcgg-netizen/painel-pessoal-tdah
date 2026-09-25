@@ -1,0 +1,84 @@
+{# templates/secoes/vida/grupos.html - Fase 9 C4 (faixa "Vida").
+   Tela de entrada da aba Vida na direcao visual "Conversa" (variante "Grupos",
+   docs/fase9-lab3/v03.js): mensagem do assistente + grade de 7 cartoes de grupo.
+   Tocar um cartao abre, logo abaixo, a lista das secoes daquele grupo; tocar
+   numa secao mostra so ela (as ~29 outras seguem escondidas via [hidden] nos
+   wrappers que templates/abas/vida.html declara em volta de cada include).
+
+   O mapeamento grupo -> ids de secao mora no <script type="application/json">
+   no fim deste arquivo (unica fonte de verdade lida tanto por static/js/secoes/
+   vida/grupos.js quanto por tests/test_fase9_c4.py, que confere que cobre,
+   sem sobrar nem repetir, todo `[data-grupo-secao]` que vida.html declarar). #}
+<div id="vida-grupos">
+  <div class="vg-msg">
+    <span class="vg-ponto" aria-hidden="true"></span>
+    <div class="vg-bolha">
+      <p>Sua vida em 7 áreas. Toque numa para abrir.</p>
+    </div>
+  </div>
+
+  <div class="vg-grade" id="vg-grade" role="list" aria-label="Grupos da aba Vida"></div>
+
+  <div class="vg-grupo-aberto" id="vg-grupo-aberto" hidden>
+    <div class="vg-msg">
+      <span class="vg-ponto" aria-hidden="true"></span>
+      <div class="vg-bolha">
+        <p id="vg-grupo-aberto-titulo">&nbsp;</p>
+        <div class="vg-lista" id="vg-grupo-aberto-lista" role="list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vg-secao-aberta" id="vg-secao-aberta" hidden>
+    <button type="button" class="vg-voltar" id="vg-voltar-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      <span>Voltar aos grupos</span>
+    </button>
+  </div>
+
+  <script type="application/json" id="vida-grupos-dados">
+{
+  "grupos": [
+    {"chave": "aviacao", "nome": "Aviação", "destaque": true, "ids": ["secao-aviacao"]},
+    {"chave": "rotina", "nome": "Rotina", "ids": ["vida-habitos", "vida-treino", "vida-revisao-trimestral", "vida-seu-progresso", "vida-agenda-painel"]},
+    {"chave": "saude", "nome": "Saúde", "ids": ["painel-saude-hoje", "painel-medicamentos", "painel-peso-e-medidas"]},
+    {"chave": "pessoas", "nome": "Pessoas", "ids": ["vida-pessoas", "vida-ideias-presente", "vida-mensagem-dificil", "painel-datas-importantes", "painel-esperando-resposta", "vida-pra-responder"]},
+    {"chave": "coisas", "nome": "Coisas", "ids": ["vida-contas-pessoais", "vida-manutencao", "vida-garantia", "vida-lista-de-compras", "vida-salvos", "vida-ainda-usa"]},
+    {"chave": "mundo", "nome": "Mundo", "ids": ["vida-viagens", "vida-lugares", "vida-quero-aprender", "vida-projetos", "vida-vale-a-pena"]},
+    {"chave": "mente", "nome": "Mente", "ids": ["painel-memoria-rotina-planos", "painel-notas", "painel-diario-de-decisao", "painel-brain-dump"]}
+  ],
+  "nomes": {
+    "secao-aviacao": "Aviação",
+    "vida-habitos": "Hábitos",
+    "vida-treino": "Treino",
+    "vida-revisao-trimestral": "Revisão trimestral",
+    "vida-seu-progresso": "Seu progresso",
+    "vida-agenda-painel": "Agenda",
+    "painel-saude-hoje": "Saúde",
+    "painel-medicamentos": "Medicamentos",
+    "painel-peso-e-medidas": "Peso e medidas",
+    "vida-pessoas": "Pessoas",
+    "vida-ideias-presente": "Ideias de presente",
+    "vida-mensagem-dificil": "Mensagem difícil",
+    "painel-datas-importantes": "Datas importantes",
+    "painel-esperando-resposta": "Esperando resposta",
+    "vida-pra-responder": "Pra responder",
+    "vida-contas-pessoais": "Contas pessoais",
+    "vida-manutencao": "Manutenção",
+    "vida-garantia": "Garantia",
+    "vida-lista-de-compras": "Lista de compras",
+    "vida-salvos": "Salvos",
+    "vida-ainda-usa": "Ainda usa?",
+    "vida-viagens": "Viagens",
+    "vida-lugares": "Lugares",
+    "vida-quero-aprender": "Quero aprender",
+    "vida-projetos": "Projetos",
+    "vida-vale-a-pena": "Vale a pena",
+    "painel-memoria-rotina-planos": "Memória",
+    "painel-notas": "Notas",
+    "painel-diario-de-decisao": "Diário de decisão",
+    "painel-brain-dump": "Brain dump"
+  }
+}
+  </script>
+</div>

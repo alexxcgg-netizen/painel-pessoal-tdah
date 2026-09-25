@@ -274,6 +274,202 @@ async function loadResumoFinancas() {
   $("#resumo-financas-saldo").textContent = fmtMoedaFinancas(resumo.saldo_conta);
   $("#resumo-financas-patrimonio").textContent = fmtMoedaFinancas(resumo.patrimonio);
   box.hidden = false;
+
+  // Fase 9 (C3): topo "Conversa" - mesma resposta de /api/financas/resumo,
+  // sem chamada extra a API.
+  const fraseEl = $("#fc-frase-resumo");
+  if (fraseEl) fraseEl.textContent = calcularFraseResumoFinancas(resumo);
+  renderizarCategoriaFinancas(resumo.por_categoria);
+  renderizarEvolucaoFinancas(resumo.por_dia_mes, resumo.por_dia_mes_anterior);
+  renderizarFaturaContaFinancas(resumo.fatura_atual, resumo.saldo_conta, resumo.patrimonio);
+}
+
+// ---- Fase 9 (C3): topo "Conversa" da aba Financas (docs/fase9-lab2/d01.js,
+// direcao 1) - frase-resumo + 3 cartoes com grafico, consumindo o mesmo
+// GET /api/financas/resumo que o card antigo (#resumo-financas-box, que fica
+// so como fallback escondido - static/css/secoes/gastos/conversa.css). ----
+
+const NOMES_MES_FINANCAS = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+// Formatador proprio (nao usa fmtMoedaFinancas) pra calcularFraseResumoFinancas
+// continuar uma funcao pura, testavel com `node --test` sem carregar o resto
+// do app (fmtMoedaFinancas/fmtMoeda vivem em outros arquivos globais).
+function _fmtMoedaFraseFinancas(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "R$ 0";
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+// Funcao pura: so le o objeto `resumo` (formato de GET /api/financas/resumo)
+// e devolve a frase - nenhum acesso a DOM/rede, por isso testavel isolada.
+// "Mesmo dia do mes passado": procura em por_dia_mes_anterior o item com o
+// mesmo `dia` do ultimo item de por_dia_mes (hoje); se o mes passado for mais
+// curto (ex.: hoje e dia 31 e fevereiro nao tem dia 31), usa o ultimo dia
+// disponivel do mes anterior em vez de nao comparar nada.
+function calcularFraseResumoFinancas(resumo) {
+  const r = resumo && typeof resumo === "object" ? resumo : {};
+  const porDiaMes = Array.isArray(r.por_dia_mes) ? r.por_dia_mes : [];
+  const porDiaMesAnterior = Array.isArray(r.por_dia_mes_anterior) ? r.por_dia_mes_anterior : [];
+  const ultimo = porDiaMes.length ? porDiaMes[porDiaMes.length - 1] : null;
+  const valorHoje =
+    ultimo && Number.isFinite(Number(ultimo.acumulado)) ? Number(ultimo.acumulado) : Number(r.gasto_mes) || 0;
+
+  let mesTxt = "";
+  if (typeof r.mes === "string" && /^\d{4}-\d{2}$/.test(r.mes)) {
+    const idx = Number(r.mes.slice(5, 7)) - 1;
+    mesTxt = NOMES_MES_FINANCAS[idx] || "";
+  }
+
+  let frase = `Você gastou ${_fmtMoedaFraseFinancas(valorHoje)}${mesTxt ? ` em ${mesTxt}` : ""} até agora`;
+
+  const diaAlvo = ultimo ? ultimo.dia : null;
+  let comparavel = diaAlvo != null ? porDiaMesAnterior.find((d) => d && d.dia === diaAlvo) || null : null;
+  if (!comparavel && porDiaMesAnterior.length) comparavel = porDiaMesAnterior[porDiaMesAnterior.length - 1];
+  const valorAnterior =
+    comparavel && Number.isFinite(Number(comparavel.acumulado)) ? Number(comparavel.acumulado) : null;
+
+  if (valorAnterior !== null && valorAnterior > 0) {
+    const pct = Math.round(((valorHoje - valorAnterior) / valorAnterior) * 100);
+    const comparativo = pct >= 0 ? `${pct}% a mais` : `${Math.abs(pct)}% a menos`;
+    frase += `, ${comparativo} que no mesmo dia do mês passado.`;
+  } else {
+    frase += ".";
+  }
+  return frase;
+}
+
+// Card "Gasto por categoria": barras horizontais, top 8 (a API ja manda so
+// os 8 maiores), cor unica de acento com opacidade decrescente - nunca
+// arco-iris (regra da faixa).
+function renderizarCategoriaFinancas(categorias) {
+  const lista = $("#fc-lista-categoria");
+  const vazio = $("#fc-categoria-vazio");
+  if (!lista) return;
+  lista.innerHTML = "";
+  const cats = Array.isArray(categorias)
+    ? categorias.filter((c) => c && typeof c.categoria === "string" && numeroFinancas(c.valor) !== null)
+    : [];
+  if (cats.length === 0) {
+    if (vazio) vazio.hidden = false;
+    return;
+  }
+  if (vazio) vazio.hidden = true;
+  const max = Math.max.apply(
+    null,
+    cats.map((c) => numeroFinancas(c.valor) || 0).concat([1])
+  );
+  cats.slice(0, 8).forEach((c, i) => {
+    const valor = numeroFinancas(c.valor) || 0;
+    const li = document.createElement("li");
+    li.className = "fc-catrow";
+    li.appendChild(criarEl("span", "fc-catnome", c.categoria));
+    const barWrap = document.createElement("div");
+    barWrap.className = "fc-catbarwrap";
+    const bar = document.createElement("div");
+    bar.className = "fc-catbar";
+    bar.style.width = `${max ? (valor / max) * 100 : 0}%`;
+    bar.style.opacity = Math.max(0.35, 1 - i * 0.09).toFixed(2);
+    barWrap.appendChild(bar);
+    li.appendChild(barWrap);
+    li.appendChild(criarEl("span", "fc-catval", fmtMoedaFinancas(valor)));
+    lista.appendChild(li);
+  });
+}
+
+// Card "Evolucao do mes": SVG desenhado a mao (sem lib de grafico) -
+// acumulado deste mes (linha + area solida) e a mesma janela de dias do mes
+// anterior sobreposta (linha tracejada), pra comparar "no mesmo ponto do
+// mes". viewBox responsivo (escala com a largura do card).
+function renderizarEvolucaoFinancas(porDiaMes, porDiaMesAnterior) {
+  const container = $("#fc-grafico-evolucao");
+  if (!container) return;
+  const dias = Array.isArray(porDiaMes)
+    ? porDiaMes.filter((d) => d && typeof d.dia === "number" && numeroFinancas(d.acumulado) !== null)
+    : [];
+  if (dias.length === 0) {
+    container.innerHTML = '<p class="vazio">Sem gastos registrados esse mes ainda.</p>';
+    return;
+  }
+  const anterior = Array.isArray(porDiaMesAnterior)
+    ? porDiaMesAnterior.filter((d) => d && typeof d.dia === "number" && numeroFinancas(d.acumulado) !== null)
+    : [];
+
+  const w = 300;
+  const h = 110;
+  const padB = 18;
+  const padT = 12;
+  const n = dias.length;
+  const nComp = Math.min(n, anterior.length);
+  const valores = dias.map((d) => d.acumulado);
+  const valoresAnterior = anterior.slice(0, nComp).map((d) => d.acumulado);
+  const maxVal = Math.max.apply(null, valores.concat(valoresAnterior, [1]));
+  const stepX = n > 1 ? w / (n - 1) : 0;
+  const escalaY = (v) => padT + (h - padB - padT) - (v / maxVal) * (h - padB - padT);
+
+  const ptsAtual = dias.map((d, i) => [i * stepX, escalaY(d.acumulado)]);
+  const caminhoAtual = ptsAtual.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  const baseY = (h - padB).toFixed(1);
+  const area = `${caminhoAtual} L${ptsAtual[n - 1][0].toFixed(1)},${baseY} L0,${baseY} Z`;
+  const ultimo = ptsAtual[n - 1];
+
+  let caminhoAnterior = "";
+  if (nComp > 1) {
+    const ptsAnterior = anterior.slice(0, nComp).map((d, i) => [i * stepX, escalaY(d.acumulado)]);
+    caminhoAnterior = ptsAnterior.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  }
+
+  const valorFinalTxt = fmtMoedaFinancas(dias[n - 1].acumulado);
+  container.innerHTML = `<svg viewBox="0 0 ${w} ${h}" class="fc-chart-acum" role="img" aria-label="Gasto acumulado do mes, dia a dia, comparado ao mesmo periodo do mes anterior">
+      <line x1="0" y1="${baseY}" x2="${w}" y2="${baseY}" class="fc-eixo"></line>
+      ${caminhoAnterior ? `<path d="${caminhoAnterior}" class="fc-ref"></path>` : ""}
+      <path d="${area}" class="fc-area"></path>
+      <path d="${caminhoAtual}" class="fc-linha"></path>
+      <circle cx="${ultimo[0].toFixed(1)}" cy="${ultimo[1].toFixed(1)}" r="3" class="fc-ponto"></circle>
+      <text x="${ultimo[0].toFixed(1)}" y="${Math.max(10, ultimo[1] - 8).toFixed(1)}" class="fc-valor-final" text-anchor="${n > 1 ? "end" : "middle"}">${valorFinalTxt}</text>
+      <text x="0" y="${h}" class="fc-eixo-lbl">dia 1</text>
+      <text x="${w}" y="${h}" class="fc-eixo-lbl" text-anchor="end">dia ${dias[n - 1].dia}</text>
+    </svg>
+    ${caminhoAnterior ? '<p class="fc-card-topo" style="margin:8px 0 0">- - - mes anterior (mesmo período)</p>' : ""}`;
+}
+
+// Card "Fatura x conta": duas barras comparativas (fatura em --cor-alerta,
+// conta em --cor-acento) + patrimonio numa linha pequena.
+function renderizarFaturaContaFinancas(fatura, saldoConta, patrimonio) {
+  const faturaEl = $("#fc-fatura-valor");
+  const contaEl = $("#fc-conta-valor");
+  const faturaBarra = $("#fc-fatura-barra");
+  const contaBarra = $("#fc-conta-barra");
+  const patrimonioEl = $("#fc-patrimonio-valor");
+  if (!faturaEl || !contaEl || !faturaBarra || !contaBarra || !patrimonioEl) return;
+
+  const faturaValor = numeroFinancas(fatura) || 0;
+  const contaValor = numeroFinancas(saldoConta) || 0;
+  const max = Math.max(faturaValor, contaValor, 1);
+  faturaEl.textContent = fmtMoedaFinancas(faturaValor);
+  contaEl.textContent = fmtMoedaFinancas(contaValor);
+  faturaBarra.style.width = `${(faturaValor / max) * 100}%`;
+  contaBarra.style.width = `${(contaValor / max) * 100}%`;
+  patrimonioEl.textContent = fmtMoedaFinancas(patrimonio);
+}
+
+// Chips de pergunta rapida (OPCIONAL no escopo da faixa): so preenchem o
+// campo do chat do app - nunca chamam IA sozinhos.
+document.querySelectorAll("#fc-chips-perguntas .chip").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const campo = $("#captura-input");
+    if (!campo) return;
+    campo.value = btn.dataset.pergunta || btn.textContent.trim();
+    campo.focus();
+  });
+});
+
+// Exportavel pra `node --test` (funcao pura, sem DOM) sem quebrar o script
+// classico no navegador (`module` nao existe la).
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { calcularFraseResumoFinancas };
 }
 
 // Fase 9 (f9-ui): extrato paginado de 15 em 15 dias (GET /api/financas/extrato)

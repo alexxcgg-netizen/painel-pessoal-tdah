@@ -1,4 +1,7 @@
     <section id="tab-gastos" class="tab-content" hidden>
+      {# Fase 9 (C3): topo da aba, estilo "Conversa" (docs/fase9-lab2/d01.js) -
+         resumo + graficos, acima de tudo o que ja existia. #}
+{% include "secoes/gastos/conversa.html" %}
 {% include "secoes/bancos/bancos.html" %}
 {% include "secoes/gastos/gastos.html" %}
       <section class="secao-recolhivel" data-aberto="false" data-secao-id="assinaturas">
@@ -7,12 +10,22 @@
 {% include "secoes/gastos/assinaturas.html" %}
         </div>
       </section>
+      <section class="secao-recolhivel" data-aberto="false" data-secao-id="metas">
+        <button type="button" class="secao-cabecalho" aria-expanded="false">Metas <span class="chevron"></span></button>
+        <div class="secao-conteudo">
 {% include "secoes/gastos/metas.html" %}
+        </div>
+      </section>
       {# Fase 9 C-abas: consolidacao de 8 abas em 4 - aba Construtora inteira, no fim #}
-      <section id="secao-construtora">
+      <section class="secao-recolhivel" data-aberto="false" data-secao-id="construtora">
+        <button type="button" class="secao-cabecalho" aria-expanded="false">Construtora <span class="chevron"></span></button>
+        <div class="secao-conteudo">
+          <section id="secao-construtora">
 {% include "secoes/construtora/construtora.html" %}
 {% include "secoes/construtora/contas-a-pagar.html" %}
 {% include "secoes/construtora/cotacoes.html" %}
+          </section>
+        </div>
       </section>
     </section>
 

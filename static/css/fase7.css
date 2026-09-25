@@ -16,6 +16,7 @@
 @import url("secoes/hoje.css");
 @import url("secoes/painel.css");
 @import url("secoes/vida.css");
+@import url("secoes/vida/grupos.css");
 @import url("secoes/tarefas.css");
 @import url("secoes/gastos.css");
 @import url("secoes/bancos.css");
@@ -34,6 +35,7 @@
 @import url("secoes/hoje/hiperfoco.css");
 @import url("secoes/hoje/chat.css");
 @import url("secoes/hoje/visao-do-dia.css");
+@import url("secoes/hoje/conversa.css");
 @import url("secoes/painel/resumo.css");
 @import url("secoes/painel/agenda-de-hoje.css");
 @import url("secoes/painel/fechamento.css");
@@ -73,6 +75,7 @@
 @import url("secoes/gastos/gastos.css");
 @import url("secoes/gastos/metas.css");
 @import url("secoes/gastos/assinaturas.css");
+@import url("secoes/gastos/conversa.css");
 @import url("secoes/bancos/bancos.css");
 @import url("secoes/construtora/construtora.css");
 @import url("secoes/construtora/contas-a-pagar.css");
