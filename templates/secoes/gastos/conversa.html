@@ -1,0 +1,53 @@
+{# templates/secoes/gastos/conversa.html - Fase 9, faixa C3: topo da aba
+   Financas no estilo "Conversa" (docs/fase9-lab2/d01.js, direcao 1). Mensagem
+   do assistente com a frase-resumo + 3 cartoes com grafico (categoria,
+   evolucao do mes, fatura x conta) + "ultimos 15 dias" (mesma lista/paginacao
+   de sempre, so reestilizada). Preenchido por JS
+   (static/js/secoes/gastos/gastos.js, loadResumoFinancas/loadExtratoFinancas)
+   a partir de GET /api/financas/resumo e GET /api/financas/extrato. #}
+<section id="financas-conversa" class="fc-conversa" aria-label="Resumo de financas">
+  <div class="fc-msg">
+    <span class="fc-dot" aria-hidden="true"></span>
+    <p class="fc-frase" id="fc-frase-resumo">Carregando o resumo do mes...</p>
+  </div>
+
+  <div class="fc-card" id="fc-card-categoria">
+    <div class="fc-card-topo"><span>Gasto por categoria</span></div>
+    <ul class="fc-catlist" id="fc-lista-categoria"></ul>
+    <p class="vazio" id="fc-categoria-vazio" hidden>Nenhum gasto por categoria ainda esse mes.</p>
+  </div>
+
+  <div class="fc-card" id="fc-card-evolucao">
+    <div class="fc-card-topo"><span>Evolucao do mes</span></div>
+    <div id="fc-grafico-evolucao" class="fc-chart-wrap"></div>
+  </div>
+
+  <div class="fc-card" id="fc-card-fatura-conta">
+    <div class="fc-card-topo"><span>Fatura &times; conta</span></div>
+    <div class="fc-fvcbars">
+      <div class="fc-fvcrow">
+        <div class="fc-fvclbl"><span>Fatura atual (a pagar)</span><b id="fc-fatura-valor">R$ 0</b></div>
+        <div class="fc-fvctrack"><div class="fc-fvcfill fc-fvcfill--alerta" id="fc-fatura-barra"></div></div>
+      </div>
+      <div class="fc-fvcrow">
+        <div class="fc-fvclbl"><span>Saldo em conta</span><b id="fc-conta-valor">R$ 0</b></div>
+        <div class="fc-fvctrack"><div class="fc-fvcfill fc-fvcfill--acento" id="fc-conta-barra"></div></div>
+      </div>
+    </div>
+    <p class="fc-patrimonio">Patrimonio: <span class="valor-mono" id="fc-patrimonio-valor">R$ 0</span></p>
+  </div>
+
+  <div class="fc-card" id="fc-card-ultimos-dias">
+    <div class="fc-card-topo"><span>Ultimos dias</span></div>
+    <p id="extrato-financas-vazio" class="vazio" hidden>Nenhum lancamento nesse periodo.</p>
+    <ul id="lista-extrato-financas" class="fc-lista-extrato"></ul>
+    <button type="button" id="btn-carregar-mais-extrato" class="btn btn-secundario" hidden>
+      Carregar mais 15 dias
+    </button>
+  </div>
+
+  <div class="fc-chips" id="fc-chips-perguntas">
+    <button type="button" class="chip" data-pergunta="Onde gastei mais?">Onde gastei mais?</button>
+    <button type="button" class="chip" data-pergunta="Quanto sobra até o fim do mês?">Quanto sobra até o fim do mês?</button>
+  </div>
+</section>

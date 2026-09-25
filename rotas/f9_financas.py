@@ -225,6 +225,30 @@ def _gasto_periodo(conn, de: date, ate: date) -> tuple[float, list[dict]]:
     return total, top_categorias
 
 
+def _acumulado_por_dia(conn, de: date, ate: date) -> list[dict]:
+    """Gasto acumulado dia a dia de `de` ate `ate` (mesmas regras de
+    _gasto_periodo: saida real, sem transferencia/pagamento de fatura). Usado
+    pelo card "Evolucao do mes" (Fase 9, faixa C3) - o ultimo item sempre bate
+    com o total que _gasto_periodo(de, ate) devolveria."""
+    linhas = [
+        linha
+        for linha in _linhas_banco(conn, de, ate) + _linhas_manuais(conn, de, ate)
+        if linha["eh_saida"] and not linha["transferencia_ou_fatura"]
+    ]
+    por_data: dict[str, float] = {}
+    for linha in linhas:
+        por_data[linha["data"]] = por_data.get(linha["data"], 0.0) + (-linha["valor"])
+
+    resultado = []
+    acumulado = 0.0
+    dia_atual = de
+    while dia_atual <= ate:
+        acumulado += por_data.get(dia_atual.isoformat(), 0.0)
+        resultado.append({"dia": dia_atual.day, "acumulado": round(acumulado, 2)})
+        dia_atual += timedelta(days=1)
+    return resultado
+
+
 @bp.route("/api/financas/resumo", methods=["GET"])
 def resumo():
     app = app_modulo()
@@ -235,6 +259,8 @@ def resumo():
                 "gasto_mes": 0,
                 "gasto_mes_anterior": 0,
                 "por_categoria": [],
+                "por_dia_mes": [],
+                "por_dia_mes_anterior": [],
                 "fatura_atual": 0,
                 "saldo_conta": 0,
                 "patrimonio": 0,
@@ -252,6 +278,8 @@ def resumo():
     try:
         gasto_mes, por_categoria = _gasto_periodo(conn, primeiro_dia_mes, hoje)
         gasto_mes_anterior, _ = _gasto_periodo(conn, primeiro_dia_mes_anterior, ultimo_dia_mes_anterior)
+        por_dia_mes = _acumulado_por_dia(conn, primeiro_dia_mes, hoje)
+        por_dia_mes_anterior = _acumulado_por_dia(conn, primeiro_dia_mes_anterior, ultimo_dia_mes_anterior)
 
         contas = db.list_bank_accounts(conn)
         fatura_atual = round(sum((c["saldo"] or 0) for c in contas if c["tipo"] == "cartao"), 2)
@@ -268,6 +296,8 @@ def resumo():
             "gasto_mes": round(gasto_mes, 2),
             "gasto_mes_anterior": round(gasto_mes_anterior, 2),
             "por_categoria": por_categoria,
+            "por_dia_mes": por_dia_mes,
+            "por_dia_mes_anterior": por_dia_mes_anterior,
             "fatura_atual": fatura_atual,
             "saldo_conta": saldo_conta,
             "patrimonio": patrimonio,

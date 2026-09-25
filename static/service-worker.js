@@ -36,7 +36,7 @@
 // v20: Fase 9 C-abas - 8 abas viram 4 (Hoje/Tarefas/Financas/Vida) + folha de
 // Configuracoes; index.html/varios templates mudaram, e secoes/config/sheet-config.css
 // e novo - o iPhone que ja tem um cache antigo precisa buscar tudo de novo.
-const CACHE_NAME = "painel-pessoal-v20";
+const CACHE_NAME = "painel-pessoal-v21";
 const ASSETS = [
   "/",
   "/static/css/style.css",
@@ -111,6 +111,7 @@ const ASSETS = [
   "/static/css/secoes/gastos/gastos.css",
   "/static/css/secoes/gastos/metas.css",
   "/static/css/secoes/gastos/assinaturas.css",
+  "/static/css/secoes/gastos/conversa.css",
   "/static/css/secoes/bancos/bancos.css",
   "/static/css/secoes/construtora/construtora.css",
   "/static/css/secoes/construtora/contas-a-pagar.css",
