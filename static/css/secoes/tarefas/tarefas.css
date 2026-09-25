@@ -62,3 +62,23 @@
 #energia-botoes .chip {
   flex: 1 1 0;
 }
+
+/* M3 (uso diario): "Ver concluidas" - .btn/.btn-secundario ja garante os 44px
+   de toque (ui/componentes/botao.css), aqui so o respiro em volta das duas
+   listas e o visual "feito" (mesma receita de .subtarefa.concluida no style.css). */
+#tarefas-concluidas-toggle {
+  margin-block: var(--espaco-3) var(--espaco-2);
+}
+
+#lista-tarefas-concluidas .item-titulo {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+#lista-tarefas-concluidas .item-quando.chip {
+  margin: var(--espaco-1) var(--espaco-1) 0 0;
+  color: var(--text-muted);
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}

@@ -1002,10 +1002,22 @@ def intent_corrigir():
 def list_tasks():
     conn = get_db()
     materializar_tarefas_recorrentes(conn)
-    rows = conn.execute(
-        "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
-        "ORDER BY created_at DESC"
-    ).fetchall()
+    # M3 (uso diario): "Ver concluidas" na aba Tarefas - concluida NUNCA e apagada
+    # (so sai da lista padrao por esse filtro completed_at IS NULL), so busca as
+    # ultimas quando o dono pedir explicitamente via ?estado=concluidas (a UI so
+    # chama isso ao tocar no botao - preguicoso, nunca no carregamento normal).
+    # Qualquer outro valor (ou nenhum) cai no comportamento padrao de sempre.
+    estado = request.args.get("estado", "")
+    if estado == "concluidas":
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE completed_at IS NOT NULL AND recorrencia IS NULL "
+            "ORDER BY completed_at DESC LIMIT 50"
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
+            "ORDER BY created_at DESC"
+        ).fetchall()
     # Uma query so pras subtarefas de todas as tasks (em vez de uma query por task -
     # nao pesava nada com poucas tarefas, mas escala mal conforme o historico cresce).
     task_ids = [row["id"] for row in rows]

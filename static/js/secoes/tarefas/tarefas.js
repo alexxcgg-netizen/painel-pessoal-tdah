@@ -203,6 +203,10 @@ function criarItemTarefa(t) {
         loadSummary();
         loadStreak();
         if (!$("#tab-painel").hidden) loadFechamentoDoDia();
+        // M3: concluida some da lista principal mas, se "Ver concluidas" ja
+        // ta aberto, essa que acabou de ser marcada deveria aparecer nela.
+        const listaConcluidas = $("#lista-tarefas-concluidas");
+        if (listaConcluidas && !listaConcluidas.hidden) loadTarefasConcluidas();
       }, 220);
     }
   });
@@ -311,6 +315,86 @@ async function loadTasks() {
   $("#tarefas-vazio").hidden = tasks.length > 0;
   tasks.forEach((t) => list.appendChild(criarItemTarefa(t)));
 }
+
+// ---- "Ver concluidas" (M3, uso diario) ----------------------------------
+// Concluida some da lista principal (filtro no /api/tasks padrao), mas NUNCA
+// e apagada - aqui da pra ver de novo e desmarcar (POST /api/tasks/:id/reabrir,
+// mesma rota que ja existe pro checkbox do card em tarefas_criadas). Busca
+// preguicosa: so bate a API quando o dono toca no botao, nunca junto do
+// loadTasks() normal.
+function rotuloToggleConcluidas(mostrando) {
+  return mostrando ? "Esconder concluídas" : "Ver concluídas";
+}
+
+function criarItemTarefaConcluida(t) {
+  const li = document.createElement("li");
+  li.className = "item lista-item item-concluida";
+  li.dataset.entidade = "tarefa";
+  li.dataset.id = t.id;
+
+  const linha = document.createElement("div");
+  linha.className = "item-linha";
+
+  const tituloWrap = document.createElement("div");
+  const titulo = document.createElement("span");
+  titulo.className = "item-titulo";
+  titulo.textContent = t.title;
+  tituloWrap.appendChild(titulo);
+
+  if (t.completed_at) {
+    const quando = document.createElement("span");
+    quando.className = "item-quando chip chip--compacto";
+    quando.textContent = `concluída ${fmtDataBr(t.completed_at.slice(0, 10))}`;
+    tituloWrap.appendChild(quando);
+  }
+
+  const acoes = document.createElement("div");
+  acoes.className = "item-acoes";
+
+  const btnDesmarcar = document.createElement("button");
+  btnDesmarcar.className = "btn-com-icone";
+  btnDesmarcar.textContent = "desmarcar";
+  btnDesmarcar.title = "voltar essa tarefa pra pendente";
+  btnDesmarcar.addEventListener("click", async () => {
+    setBotaoCarregando(btnDesmarcar, true, "desmarcando...");
+    const data = await apiFetch(`/api/tasks/${t.id}/reabrir`, { method: "POST" });
+    if (data) {
+      loadTasks();
+      loadTarefasConcluidas();
+    } else {
+      setBotaoCarregando(btnDesmarcar, false, "desmarcar");
+    }
+  });
+  acoes.appendChild(btnDesmarcar);
+
+  linha.appendChild(tituloWrap);
+  linha.appendChild(acoes);
+  li.appendChild(linha);
+  return li;
+}
+
+async function loadTarefasConcluidas() {
+  const tasks = await apiFetch("/api/tasks?estado=concluidas");
+  if (!tasks) return;
+  const list = $("#lista-tarefas-concluidas");
+  list.innerHTML = "";
+  $("#tarefas-concluidas-vazio").hidden = tasks.length > 0;
+  tasks.forEach((t) => list.appendChild(criarItemTarefaConcluida(t)));
+}
+
+$("#tarefas-concluidas-toggle").addEventListener("click", async () => {
+  const btn = $("#tarefas-concluidas-toggle");
+  const list = $("#lista-tarefas-concluidas");
+  const vaiMostrar = list.hidden;
+  if (vaiMostrar) {
+    await loadTarefasConcluidas(); // so busca aqui - nunca no carregamento normal da aba
+  } else {
+    $("#tarefas-concluidas-vazio").hidden = true;
+  }
+  list.hidden = !vaiMostrar;
+  btn.textContent = rotuloToggleConcluidas(vaiMostrar);
+  btn.setAttribute("aria-expanded", vaiMostrar ? "true" : "false");
+});
 
 // Fase 6 (US-F10): formulario direto na aba Tarefas - titulo obrigatorio,
 // prazo OPCIONAL (POST /api/tasks novo, sem passar pela IA - o chat/captura
