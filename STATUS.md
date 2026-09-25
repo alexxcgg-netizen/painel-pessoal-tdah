@@ -16,9 +16,8 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
   `GET /api/financas/extrato` (15 dias) e `/resumo`, OFX removido, cache SW v18.
   Suíte: 3660 Python ok + 226 JS ok; única falha = `test_formato_da_resposta` (data, antiga).
 - **Etapa B publicada, PARADA esperando o dono escolher:** laboratório com 10 direções
-  (https://claude.ai/artifact/GCruFZzZ9MFT6RcFmokxuH). Fonte local (não versionada) no
-  scratchpad da sessão: `lab/casca.html`, `lab/d01..d10.js`, `lab/montar.py`,
-  `dados_lab.json`. Direções: 1 Reator ciano #22D3EE, 2 Tático vermelho #FF3B3B, 3 Terminal
+  (https://claude.ai/artifact/GCruFZzZ9MFT6RcFmokxuH). Fonte em `docs/fase9-lab/` (casca, d01..d10.js, montar.py,
+  CONTRATO.md); o `dados_lab.json` com dados reais NÃO é versionado (montar.py lê de `../dados_lab.json`). Direções: 1 Reator ciano #22D3EE, 2 Tático vermelho #FF3B3B, 3 Terminal
   verde #4ADE80, 4 Luxo dourado #D4AF37, 5 Radar laranja #FF8A00, 6 Orbital violeta #A78BFA,
   7 Mínimo branco, 8 Colmeia turquesa #2DD4BF, 9 Cockpit magenta #FF3DCB (B612),
   10 Rota azul-gelo #A5D8FF.
