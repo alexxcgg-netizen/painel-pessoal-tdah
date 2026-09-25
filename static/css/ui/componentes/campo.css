@@ -138,8 +138,10 @@ select.campo {
 }
 
 :where(input[type="checkbox"]):checked {
-  background: var(--accent-fill);
-  border-color: var(--text-muted);
+  /* Fase 8 (D4): marcado usa --cor-sucesso (verde de "feito"), nao mais a
+     cor de acento neutra - fica claro que e conclusao, nao selecao. */
+  background: var(--cor-sucesso);
+  border-color: var(--cor-sucesso);
 }
 
 :where(input[type="checkbox"]):checked::before {
