@@ -23,3 +23,61 @@
 #visao-dia-foco {
   box-shadow: var(--glass-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
 }
+
+/* Fase 8 (D5): Visao do dia comeca recolhida - so o cabecalho com o indicador
+   (relogio + hora do proximo item, ou "hoje") fica visivel; o resto (seletor
+   Dia/Semana/Mes, foco, linha do tempo) mora dentro do .secao-conteudo do
+   componente .secao-recolhivel (static/css/ui/componentes/secao.css cuida da
+   casca/transicao - aqui e so o indicador, especifico desta secao). */
+.visao-dia-cabecalho {
+  gap: 0.5rem;
+}
+
+/* O titulo era um <h2> (regra global "h2 svg" do style.css cuidava do
+   tamanho do icone) - virou <span> pra caber dentro do <button> do
+   cabecalho recolhivel (h2 nao e conteudo de fraseado, invalido dentro de
+   button). Repete aqui, escopado na classe, so pra manter o mesmo tamanho
+   de icone de antes. */
+.visao-dia-cabecalho .secao-secundaria svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--secao-cor, var(--cor-acento));
+  opacity: 0.9;
+}
+
+.visao-dia-cabecalho .secao-secundaria {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 1rem;
+}
+
+.visao-dia-indicador {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: var(--cor-superficie-2);
+  border: 1px solid var(--cor-borda);
+  color: var(--cor-texto-fraco);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.visao-dia-indicador svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.secao-recolhivel[data-aberto="true"] .visao-dia-indicador {
+  display: none;
+}

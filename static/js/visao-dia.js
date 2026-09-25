@@ -64,6 +64,32 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
     const timelineEl = document.getElementById("visao-dia-timeline");
     const vazioEl = document.getElementById("visao-dia-vazio");
     const periodoListaEl = document.getElementById("visao-dia-periodo-lista");
+    const indicadorTextoEl = document.getElementById("visao-dia-indicador-texto");
+
+    // Fase 8 (D5): indicador do cabecalho recolhido - hora do proximo item da
+    // linha do tempo (o primeiro ainda nao passado), ou "em foco" quando ja
+    // tem algo rolando agora, ou "hoje" quando nao ha nada com hora marcada.
+    function atualizarIndicador(data) {
+      if (!indicadorTextoEl) return;
+      if (data.em_foco && data.em_foco.em_texto) {
+        indicadorTextoEl.textContent = data.em_foco.em_texto;
+        return;
+      }
+      const agora = new Date();
+      const proximo = (data.timeline || []).find((ev) => {
+        if (!ev || ev.dia_inteiro || !ev.inicio) return false;
+        const inicio = new Date(ev.inicio);
+        return !Number.isNaN(inicio.getTime()) && inicio >= agora;
+      });
+      if (!proximo) {
+        indicadorTextoEl.textContent = "hoje";
+        return;
+      }
+      const inicio = new Date(proximo.inicio);
+      const hh = String(inicio.getHours()).padStart(2, "0");
+      const mm = String(inicio.getMinutes()).padStart(2, "0");
+      indicadorTextoEl.textContent = `${hh}:${mm}`;
+    }
 
     // Duracao padrao do hiperfoco disparado pelo card (a mais curta das 3
     // opcoes ja existentes em #hiperfoco-box - o menos disruptivo por
@@ -89,6 +115,7 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       statusEl.textContent = data.status;
       renderEmFoco(data.em_foco);
       resumoEl.textContent = VisaoDia.textoResumoDia(data.total_itens, data.total_concluidas);
+      atualizarIndicador(data);
 
       timelineEl.innerHTML = "";
       vazioEl.hidden = data.timeline.length > 0;
