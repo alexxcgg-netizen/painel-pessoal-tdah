@@ -159,18 +159,23 @@ function criarItemGasto(e) {
   valor.textContent = fmtMoedaFinancas(e.amount);
   // Fase 7 (C3c): <button> de verdade (teclado/leitor de tela), visual de chip
   // compacto com area de toque de 44px completada por ::after (gastos.css).
-  const cat = document.createElement("button");
-  cat.type = "button";
+  // Fase 8 (F1): gasto de origem bancaria (sem e.id, veio de bank_transactions)
+  // nao tem rota /api/expenses/<id>/... pra editar - chip vira so exibicao.
+  const editavel = e.origem === undefined || e.origem === "manual";
+  const cat = document.createElement(editavel ? "button" : "span");
+  if (editavel) cat.type = "button";
   cat.className = "gasto-categoria chip chip--compacto";
   cat.dataset.cat = e.category;
   cat.textContent = e.category;
-  cat.title = "toque pra corrigir a categoria";
-  cat.setAttribute("aria-label", `Categoria ${e.category}: toque pra corrigir`);
-  cat.addEventListener("click", () => {
-    const select = criarSeletorCategoriaGasto(e, cat, li);
-    cat.replaceWith(select);
-    select.focus();
-  });
+  if (editavel) {
+    cat.title = "toque pra corrigir a categoria";
+    cat.setAttribute("aria-label", `Categoria ${e.category}: toque pra corrigir`);
+    cat.addEventListener("click", () => {
+      const select = criarSeletorCategoriaGasto(e, cat, li);
+      cat.replaceWith(select);
+      select.focus();
+    });
+  }
   info.appendChild(valor);
   info.appendChild(cat);
   if (e.tipo === "planejado") {
@@ -178,6 +183,15 @@ function criarItemGasto(e) {
     badge.className = "badge-planejado";
     badge.textContent = "planejado";
     info.appendChild(badge);
+  }
+  // Fase 8 (F1): selo de origem - "manual" (digitado) ou o nome do banco
+  // (ex: "Nubank", sincronizado automatico). Reusa a classe badge-planejado
+  // (ja usa var(--cor-bancos)) em vez de criar cor nova.
+  if (e.origem) {
+    const origem = document.createElement("span");
+    origem.className = "badge-planejado";
+    origem.textContent = e.origem === "manual" ? "manual" : e.origem;
+    info.appendChild(origem);
   }
   if (e.description) {
     const desc = document.createElement("span");
@@ -210,7 +224,7 @@ function criarItemGasto(e) {
       setBotaoCarregando(btnCorrigirTipo, false, "e tarefa");
     }
   });
-  acoes.appendChild(btnCorrigirTipo);
+  if (editavel) acoes.appendChild(btnCorrigirTipo);
 
   linha.appendChild(info);
   linha.appendChild(acoes);
@@ -218,8 +232,27 @@ function criarItemGasto(e) {
   return li;
 }
 
+// Fase 8 (F1): sincroniza o item Nubank ja autorizado na Pluggy (sem widget
+// de Connect - so bate na rota que le PLUGGY_ITEM_ID_NUBANK do .env).
+const btnSincronizarNubank = $("#btn-sincronizar-nubank");
+if (btnSincronizarNubank) {
+  btnSincronizarNubank.addEventListener("click", async () => {
+    const status = $("#sincronizar-nubank-status");
+    setBotaoCarregando(btnSincronizarNubank, true, "Sincronizando...");
+    status.hidden = true;
+    const data = await apiFetch("/api/bancos/sincronizar-nubank", { method: "POST" });
+    setBotaoCarregando(btnSincronizarNubank, false, "Sincronizar Nubank");
+    if (data) {
+      status.textContent = "Nubank sincronizado.";
+      status.hidden = false;
+      loadExpenses();
+    }
+  });
+}
+
 async function loadExpenses() {
-  const expenses = await apiFetch("/api/expenses");
+  // Fase 8 (F1): lista unificada (manual + banco), cada item com "origem".
+  const expenses = await apiFetch("/api/gastos/unificados");
   if (!Array.isArray(expenses)) return;
   const list = $("#lista-gastos");
   list.innerHTML = "";
