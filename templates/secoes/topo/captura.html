@@ -15,12 +15,28 @@
     </button>
   </section>
 
-  <section id="comando-voz">
-    <button type="button" id="comando-voz-btn" class="btn-com-icone" aria-label="Comando de voz">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>
-      Comando de voz
-    </button>
-    <p id="comando-voz-status" class="comando-voz-status" hidden></p>
+  <section id="comando-voz" class="comando-voz-linha">
+    <div class="comando-voz-principal">
+      <button type="button" id="comando-voz-btn" class="btn-com-icone" aria-label="Comando de voz">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>
+        Comando de voz
+      </button>
+      <p id="comando-voz-status" class="comando-voz-status" hidden></p>
+    </div>
+    <div id="hiperfoco-box" class="hiperfoco-box">
+      <div id="hiperfoco-inativo" class="hiperfoco-linha">
+        <span class="card-vida-meta">Hiperfoco (so aviso critico passa):</span>
+        <div class="hiperfoco-botoes">
+          <button type="button" class="hiperfoco-btn" data-minutos="25">25 min</button>
+          <button type="button" class="hiperfoco-btn" data-minutos="50">50 min</button>
+          <button type="button" class="hiperfoco-btn" data-minutos="90">90 min</button>
+        </div>
+      </div>
+      <div id="hiperfoco-ativo" class="hiperfoco-linha hiperfoco-ligado" hidden>
+        <span><strong>Em hiperfoco</strong> - <span id="hiperfoco-restante"></span></span>
+        <button type="button" id="hiperfoco-parar" class="btn-link">encerrar</button>
+      </div>
+    </div>
   </section>
 
   <section id="comando-voz-confirmar" hidden>
