@@ -1,6 +1,12 @@
     <section id="tab-gastos" class="tab-content" hidden>
+{% include "secoes/bancos/bancos.html" %}
 {% include "secoes/gastos/gastos.html" %}
+      <section class="secao-recolhivel" data-aberto="false" data-secao-id="assinaturas">
+        <button type="button" class="secao-cabecalho" aria-expanded="false">Assinaturas <span class="chevron"></span></button>
+        <div class="secao-conteudo">
 {% include "secoes/gastos/assinaturas.html" %}
+        </div>
+      </section>
 {% include "secoes/gastos/metas.html" %}
     </section>
 
