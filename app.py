@@ -7889,14 +7889,31 @@ def transacoes_banco(conta_id):
 @app.route("/api/bancos/sync-status", methods=["GET"])
 def bancos_sync_status():
     configurado = pluggy_client.configurado()
+    info = (
+        "Conecte um banco automaticamente pra sincronizar sem precisar exportar OFX."
+        if configurado
+        else "Sincronizacao automatica ainda nao configurada - veja o README (integracao com Pluggy)."
+    )
+    # uso/m2-sync: carimbo do ultimo sync bom (manual OU automatico de
+    # madrugada, ver rodar_sincronizacao_nubank_automatica/iniciar_scheduler
+    # abaixo - os dois gravam com a mesma chave em rotas/f8_banco.py) - so
+    # acrescenta na mesma frase, sem lugar novo na tela.
+    ultimo_sync = None
+    if configurado:
+        import rotas.f8_banco
+
+        conn = get_db()
+        try:
+            ultimo_sync = obter_configuracao(conn, rotas.f8_banco.CHAVE_ULTIMO_SYNC_NUBANK_OK)
+        finally:
+            conn.close()
+        if ultimo_sync:
+            info += f" Ultima sincronizacao: {ultimo_sync[:16].replace('T', ' as ')}."
     return jsonify(
         {
             "sincronizacao_automatica": configurado,
-            "info": (
-                "Conecte um banco automaticamente pra sincronizar sem precisar exportar OFX."
-                if configurado
-                else "Sincronizacao automatica ainda nao configurada - veja o README (integracao com Pluggy)."
-            ),
+            "info": info,
+            "ultimo_sync_nubank_ok": ultimo_sync,
             "criptografia_ativa": criptografia.configurada(),
         }
     )
@@ -8605,6 +8622,44 @@ def push_testar():
     return jsonify({"enviados": enviados, "total": len(subscriptions)})
 
 
+def rodar_sincronizacao_nubank_automatica():
+    """Job do scheduler (ver iniciar_scheduler, uso/m2-sync): sincroniza o
+    Nubank de madrugada sem o Alex precisar abrir o painel e apertar o
+    botao manual. Chama a MESMA `rotas.f8_banco.sincronizar_nubank(conn)`
+    que a rota `POST /api/bancos/sincronizar-nubank` usa - a logica de sync
+    (upsert por external_id + reconciliacao de removidas) mora so la,
+    nunca duplicada aqui; esse job so abre conexao propria, chama e loga.
+
+    So roda se a Pluggy JA estiver configurada (PLUGGY_CLIENT_ID/SECRET +
+    PLUGGY_ITEM_ID_NUBANK) - senao sai em silencio (sem log nenhum): a
+    maioria dos ambientes (dev, teste, primeiro deploy antes do Alex
+    cadastrar o item) nao tem isso configurado, e isso NAO e uma falha.
+
+    Resiliente de proposito: qualquer erro (rede fora do ar, credencial
+    Pluggy expirada, item desconectado) fica so no log - o ultimo sync bom
+    que ja estava salvo continua intacto (sincronizar_nubank nunca commita
+    uma leva pela metade, ver comentario la), nunca apaga nada por causa de
+    uma falha daqui. Nunca deixa uma excecao subir e derrubar o scheduler."""
+    if not pluggy_client.configurado() or not os.environ.get("PLUGGY_ITEM_ID_NUBANK"):
+        return
+
+    import rotas.f8_banco
+
+    conn = get_db()
+    try:
+        resultado = rotas.f8_banco.sincronizar_nubank(conn)
+    except Exception as e:
+        app.logger.error("sincronizacao automatica do Nubank: excecao inesperada: %s", e)
+        return
+    finally:
+        conn.close()
+
+    if resultado.get("ok"):
+        app.logger.info("sincronizacao automatica do Nubank: %s", resultado.get("mensagem"))
+    else:
+        app.logger.error("sincronizacao automatica do Nubank falhou: %s", resultado.get("error"))
+
+
 def iniciar_scheduler():
     """So roda quando o app sobe de verdade (nao na chamada de recarga do
     Flask em modo debug, que sobe o processo duas vezes)."""
@@ -8620,6 +8675,14 @@ def iniciar_scheduler():
         # backup semanal (domingo 3h da manha - baixo uso), ver
         # rodar_backup_automatico_semanal pro que ele faz
         scheduler.add_job(rodar_backup_automatico_semanal, "cron", day_of_week="sun", hour=3, minute=0)
+        # sync automatico do Nubank as 4h de Brasilia (uso/m2-sync). O
+        # BackgroundScheduler usa o fuso local do processo, e nao existe TZ
+        # configurado nem no .env nem no render.yaml - o Render (producao de
+        # teste, ver render.yaml) sobe o container em UTC, e sem TZ setado
+        # localmente o Python tambem cai em UTC. 4h em Brasilia (America/
+        # Sao_Paulo, fixo em UTC-3 desde que o Brasil aboliu o horario de
+        # verao em 2019, sem trocas de horario pra acompanhar) = 7h UTC.
+        scheduler.add_job(rodar_sincronizacao_nubank_automatica, "cron", hour=7, minute=0)
         scheduler.start()
 
 
