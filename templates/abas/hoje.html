@@ -1,6 +1,12 @@
     <section id="tab-hoje" class="tab-content">
-      <div id="caixa-assistente"></div>
 {% include "secoes/hoje/conversa.html" %}
+      {# Fase 9 (P-topo): ponto de montagem dinamico das pendencias do assistente
+         (static/js/secoes/assistente/caixa.js preenche sozinho) - antes ficava
+         ACIMA da conversa, agora vem logo depois dela, recolhido por padrao. Se
+         houver pendencia, a propria conversa (renderConversaPendencias em
+         static/js/secoes/hoje/conversa.js) mostra uma mensagem que abre/rola ate
+         aqui - nao precisa mais aparecer expandido de cara. #}
+      <div id="caixa-assistente"></div>
 {% include "secoes/hoje/chat.html" %}
 
       {# Fase 9 C2: o resto da pilha antiga vira secoes recolhidas por padrao (padrao

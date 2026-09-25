@@ -1,8 +1,13 @@
+  {# Fase 9 (P-topo): linha 2 do topo - campo de captura estilo campo de chat
+     (input + botao de enviar so com icone). Mesmos ids/comportamento de sempre
+     (static/js/secoes/topo/captura.js) - so o botao trocou o rotulo de texto
+     "Adicionar" por icone (seta, mesmo desenho do envio do chat/duvida) + texto
+     so pra leitor de tela (.sr-only, definido em style.css). #}
   <section id="captura">
     <input type="text" id="captura-input" placeholder="Digite algo: tarefa, lembrete, gasto ou meta..." />
-    <button id="captura-btn" class="btn-com-icone">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-      Adicionar
+    <button id="captura-btn" class="btn-com-icone" aria-label="Adicionar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2.5-8.5L3 11Z"/></svg>
+      <span class="sr-only">Adicionar</span>
     </button>
   </section>
 
@@ -15,30 +20,10 @@
     </button>
   </section>
 
-  <section id="comando-voz" class="comando-voz-linha">
-    <div class="comando-voz-principal">
-      <button type="button" id="comando-voz-btn" class="btn-com-icone" aria-label="Comando de voz">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>
-        Comando de voz
-      </button>
-      <p id="comando-voz-status" class="comando-voz-status" hidden></p>
-    </div>
-    <div id="hiperfoco-box" class="hiperfoco-box">
-      <div id="hiperfoco-inativo" class="hiperfoco-linha">
-        <span class="card-vida-meta">Hiperfoco (so aviso critico passa):</span>
-        <div class="hiperfoco-botoes">
-          <button type="button" class="hiperfoco-btn" data-minutos="25">25 min</button>
-          <button type="button" class="hiperfoco-btn" data-minutos="50">50 min</button>
-          <button type="button" class="hiperfoco-btn" data-minutos="90">90 min</button>
-        </div>
-      </div>
-      <div id="hiperfoco-ativo" class="hiperfoco-linha hiperfoco-ligado" hidden>
-        <span><strong>Em hiperfoco</strong> - <span id="hiperfoco-restante"></span></span>
-        <button type="button" id="hiperfoco-parar" class="btn-link">encerrar</button>
-      </div>
-    </div>
-  </section>
-
+  {# comando de voz (botao) e hiperfoco (popover) mudaram pra linha 1 do topo
+     (templates/secoes/topo/cabecalho.html) - so a caixa de confirmacao de um
+     comando reconhecido continua aqui (aparece por cima da captura quando
+     precisa, ids/handlers intactos em static/js/voz-comando.js). #}
   <section id="comando-voz-confirmar" hidden>
     <p id="comando-voz-confirmar-texto"></p>
     <div id="comando-voz-confirmar-opcoes" class="comando-voz-opcoes"></div>

@@ -1,81 +1,22 @@
 /* static/css/secoes/topo/cabecalho.css - secao topo > cabecalho (HTML: templates/secoes/topo/cabecalho.html).
-   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao) +
-   um bug de layout pre-existente corrigido de passagem (ver nota abaixo). */
+   Fase 9 (P-topo): cabecalho reduzido a uma linha (titulo + 4 icones: visao do
+   dia/comando de voz/hiperfoco/config) - o layout em si (flex da linha, tamanho dos
+   botoes, popover do hiperfoco, ponto de aviso critico) mora em secoes/topo.css
+   (arquivo compartilhado do "topo inteiro", grep por .topo-* pra achar cada peca).
+   Este arquivo fica vazio de proposito: os 5 botoes que tinham acabamento em
+   camadas aqui antes (silencio/viagem/visitante/backup/sair, posicionados em
+   position:absolute pra caber lado a lado) viraram linhas de lista dentro da
+   folha de Configuracoes - acabamento deles agora e
+   static/css/secoes/config/sheet-config.css. */
 
-/* Os 5 botoes-icone do cabecalho (silencio, viagem, visitante, backup,
-   logout) eram achatados (so borda fina, sem sombra nenhuma) - o
-   "Windows 1990" mais literal da aba. Reaproveita --shadow-card (o mesmo
-   token de profundidade em 4 camadas ja usado pelos cards) em vez de
-   inventar sombra nova, so troca o raio 50% por uma borda mais precisa. */
-header .btn-silencio,
-header .btn-backup,
-header .btn-logout {
-  box-shadow: var(--shadow-card);
-}
-
-@media (hover: hover) {
-  header .btn-silencio:hover,
-  header .btn-backup:hover,
-  header .btn-logout:hover {
-    box-shadow: var(--shadow-card-hover);
-  }
-}
-
-/* Bug pre-existente: #silencio-btn, #modo-viagem-btn e #modo-visitante-btn
-   dividem a classe .btn-silencio (so essa classe tem `right`), entao os 3
-   renderizavam exatamente empilhados no mesmo lugar (so o ultimo do DOM
-   recebia toque). Cada botao ganha a propria posicao; a area de toque tambem
-   sobe de 2.1rem (33.6px) pra 2.3rem (36.8px, o mais perto de 44px que cabe
-   nos 5 botoes lado a lado sem espremer o titulo "Painel Pessoal" num
-   cabecalho de 390px) - grade de 8px (passo de 2.7rem = 43.2px). */
-header {
-  padding-right: 16.4rem;
-}
-
-#logout-btn,
-#backup-btn,
-#modo-visitante-btn,
-#modo-viagem-btn,
-#silencio-btn {
-  width: 2.3rem;
-  height: 2.3rem;
-}
-
-#logout-btn {
-  right: 0;
-}
-
-#backup-btn {
-  right: 2.7rem;
-}
-
-#modo-visitante-btn {
-  right: 5.4rem;
-}
-
-#modo-viagem-btn {
-  right: 8.1rem;
-}
-
-#silencio-btn {
-  right: 10.8rem;
-}
-
-/* Fase 9 C-abas: 6o botao do cabecalho (folha de Configuracoes). Pedido explicito
-   de 44px de toque (--toque-min) em vez do 2.3rem (36.8px) dos outros 5 - modo
-   bruto, sem redesenhar a fileira inteira agora; so garante que nao sobrepoe o
-   #silencio-btn (10.8rem + 2.3rem = 13.1rem de ponta) nem estoura o header. */
-#btn-config {
-  right: 13.6rem;
-  width: var(--toque-min, 44px);
-  height: var(--toque-min, 44px);
-}
-
-/* .btn-push (pill "Ativar notificacoes") - mesma logica: achatada, sem
-   profundidade, abaixo dos 44px de toque. */
+/* .btn-push (pill "Ativar notificacoes") continua no cabecalho (caso raro, so
+   aparece quando o navegador suporta push e ainda nao esta inscrito) - mesmo
+   acabamento de profundidade de sempre, sem depender mais de position:absolute
+   (o cabecalho nao tem mais os 6 botoes ancorados que exigiam isso). */
 .btn-push {
   min-height: 44px;
   padding: 0.5rem 0.95rem;
+  margin-top: 0.5rem;
   box-shadow: var(--shadow-card);
 }
 
