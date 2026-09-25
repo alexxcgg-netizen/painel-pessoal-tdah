@@ -383,5 +383,37 @@
       "static/css/secoes/vida/lugares.css",
       "tests/js/m1b_*"
     ]
+  },
+  "fase9": {
+    "_comentario": "Donos da Fase 9 (Etapa A). Compartilhados (AGENTS.md, CHANGELOG.md, TODO.md, STATUS.md, MAPA.md, donos.json, static/service-worker.js, static/css/ui/tokens.css, tests/conftest.py) sao do integrador.",
+    "f9-sync": [
+      "rotas/f8_banco.py",
+      "pluggy_client.py",
+      "migracoes/*f9_sync*.sql",
+      "tests/test_fase9_sync.py"
+    ],
+    "f9-desc": [
+      "financas_descricao.py",
+      "tests/test_fase9_descricao.py"
+    ],
+    "f9-ui": [
+      "templates/abas/bancos.html",
+      "templates/abas/gastos.html",
+      "templates/secoes/bancos/*",
+      "templates/secoes/gastos/gastos.html",
+      "static/js/secoes/bancos/*",
+      "static/js/secoes/gastos/gastos.js",
+      "templates/navegacao.html",
+      "templates/index.html",
+      "templates/scripts.html",
+      "bank_ofx.py",
+      "app.py:/api/bancos/importar",
+      "tests/test_fase9_ui.py"
+    ],
+    "f9-api (onda 2)": [
+      "rotas/f9_financas.py",
+      "app.py:/api/patrimonio",
+      "tests/test_fase9_api.py"
+    ]
   }
 }

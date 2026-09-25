@@ -1,5 +1,7 @@
 # AGENTS.md — regras operacionais + padrões descobertos (painel-pessoal-tdah)
 
+> **Antes de qualquer fase, leia `REGRAS-OPERACAO.md`** (economia de contexto, tetos de subagente, modelos, relatório padrão).
+
 Este arquivo é complementar ao `CLAUDE.md` (que tem as regras gerais do projeto, incluindo
 o isolamento em relação ao `financeiro-construtora`). `CLAUDE.md` é a regra principal;
 este arquivo guarda duas coisas específicas:
