@@ -1,29 +1,23 @@
 :root {
-  color-scheme: dark light;
-  --bg: #09090d;
-  --surface: #16181f;
-  --surface-2: #1c1f28;
-  --border: rgba(218, 226, 243, 0.09);
-  --border-strong: rgba(218, 226, 243, 0.18);
-  --text: #eceef3;
-  --text-muted: #a7afbc;
-  --text-faint: #788292;
-  --accent: #41aa75;
-  --accent-2: #6d3fd1;
-  --accent-fill: color-mix(in srgb, var(--accent) 30%, black 70%);
-  --accent-2-fill: color-mix(in srgb, var(--accent-2) 30%, black 70%);
-  --accent-gradient: linear-gradient(135deg, var(--accent-fill) 0%, var(--accent-2-fill) 100%);
-  --accent-text: #f4eeff;
-  --danger: #ff5c72;
-  --danger-bg: rgba(255, 92, 114, 0.14);
-  --ok: #41aa75;
-  --radius: 20px;
-  --radius-sm: 14px;
-  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px rgba(0, 0, 0, 0.22),
-    0 10px 26px -16px rgba(0, 0, 0, 0.55);
-  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  color-scheme: dark;
+  --fundo: #000;
+  --superficie: #0b0b0d;
+  --superficie-2: #111113;
+  --borda: rgba(255, 255, 255, 0.14);
+  --borda-fraca: rgba(255, 255, 255, 0.08);
+  --texto: #f2f2f4;
+  --texto-muted: #a8a8b3;
+  --texto-faint: #77777f;
+  /* mesmo valor de --cor-acento em static/css/ui/tokens.css (a tela de login
+     nao carrega tokens.css, entao o valor e replicado aqui) */
+  --acento: #8e8ea0;
+  --acento-fraco: rgba(142, 142, 160, 0.14);
+  /* mesmo valor de --cor-alerta em static/css/ui/tokens.css */
+  --perigo: #e5746f;
+  --perigo-fraco: rgba(229, 116, 111, 0.14);
+  --raio: 14px;
+  --raio-sm: 10px;
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
   --font-display: "Sora", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: "Sora", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   --font-tech: "IBM Plex Mono", "SF Mono", "Menlo", "Consolas", monospace;
@@ -36,6 +30,7 @@
 html,
 body {
   height: 100%;
+  background: #000;
 }
 
 body {
@@ -45,129 +40,83 @@ body {
   align-items: center;
   justify-content: center;
   padding: env(safe-area-inset-top, 1.5rem) 1.25rem env(safe-area-inset-bottom, 1.5rem);
-  background: var(--bg);
-  color: var(--text);
+  background: var(--fundo);
+  color: var(--texto);
   font-family: var(--font-body);
   overflow-x: hidden;
-}
-
-.aurora {
-  position: fixed;
-  inset: -20%;
-  z-index: -1;
-  pointer-events: none;
-  background: radial-gradient(circle at 18% 18%, rgba(168, 139, 220, 0.18), transparent 45%),
-    radial-gradient(circle at 82% 12%, rgba(98, 159, 209, 0.14), transparent 40%),
-    radial-gradient(circle at 50% 85%, rgba(66, 187, 145, 0.09), transparent 45%);
-  filter: blur(60px);
-  animation: auroraMove 24s ease-in-out infinite;
-  transition: filter 0.6s ease;
-}
-
-body[data-estado="bloqueado"] .aurora {
-  background: radial-gradient(circle at 18% 18%, rgba(237, 113, 129, 0.16), transparent 45%),
-    radial-gradient(circle at 82% 12%, rgba(216, 171, 76, 0.12), transparent 40%),
-    radial-gradient(circle at 50% 85%, rgba(237, 113, 129, 0.08), transparent 45%);
-}
-
-@keyframes auroraMove {
-  0%,
-  100% {
-    transform: translate(-10%, -10%) rotate(0deg);
-  }
-  50% {
-    transform: translate(8%, 6%) rotate(8deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .aurora {
-    animation: none;
-  }
 }
 
 .cartao {
   position: relative;
   width: 100%;
   max-width: 380px;
-  background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 70%);
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) + 6px);
-  box-shadow: var(--shadow-card);
+  background: var(--superficie);
+  border: 1px solid var(--borda-fraca);
+  border-radius: var(--raio);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 30px -20px rgba(0, 0, 0, 0.7);
   padding: 2.25rem 1.75rem 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  animation: cartaoEntra 0.55s var(--ease-bounce) both;
+  animation: cartaoEntra 0.4s var(--ease-suave) both;
 }
 
 @keyframes cartaoEntra {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.97);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
 .icone-cadeado {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent-gradient);
-  background-size: 160% 160%;
-  color: var(--accent-text);
+  background: var(--acento-fraco);
+  border: 1px solid var(--borda);
+  color: var(--acento);
   margin-bottom: 1.1rem;
-  box-shadow: 0 10px 26px -10px color-mix(in srgb, var(--accent) 55%, transparent);
-  animation: iconeSurge 0.7s var(--ease-bounce) 0.1s both, iconeRespira 4.5s ease-in-out 0.8s infinite;
+  animation: iconeEntra 0.4s var(--ease-suave) 0.05s both;
 }
 
 .icone-cadeado svg {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
 }
 
-@keyframes iconeSurge {
+@keyframes iconeEntra {
   from {
     opacity: 0;
-    transform: scale(0.5) rotate(-12deg);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: scale(1) rotate(0deg);
-  }
-}
-
-@keyframes iconeRespira {
-  0%,
-  100% {
-    box-shadow: 0 10px 26px -10px color-mix(in srgb, var(--accent) 55%, transparent);
-  }
-  50% {
-    box-shadow: 0 12px 34px -8px color-mix(in srgb, var(--accent) 75%, transparent);
+    transform: translateY(0);
   }
 }
 
 h1 {
   font-family: var(--font-display);
   margin: 0 0 0.3rem;
-  font-size: 1.45rem;
+  font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .subtitulo {
   margin: 0 0 1.75rem;
-  color: var(--text-muted);
+  color: var(--texto-muted);
   font-size: 0.86rem;
   line-height: 1.5;
-  max-width: 30ch;
+  max-width: 32ch;
 }
 
 .pin-grupo {
@@ -178,11 +127,12 @@ h1 {
 .pin-grupo-rotulo {
   display: block;
   text-align: left;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-family: var(--font-tech);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--texto-faint);
   margin-bottom: 0.5rem;
 }
 
@@ -194,104 +144,120 @@ h1 {
 
 .pin-caixa {
   width: 100%;
-  max-width: 46px;
-  aspect-ratio: 1;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--border-strong);
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--text);
+  min-width: 44px;
+  max-width: 48px;
+  height: 56px;
+  border-radius: var(--raio-sm);
+  border: 1.5px solid var(--borda);
+  background: var(--superficie-2);
+  color: var(--texto);
   font-family: var(--font-tech);
-  font-size: 1.35rem;
+  font-size: 1.4rem;
   font-weight: 600;
   text-align: center;
-  caret-color: var(--accent);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s var(--ease-bounce),
-    background 0.18s ease;
+  caret-color: var(--acento);
+  -webkit-text-security: disc;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.pin-caixa.mostra-digito {
+  -webkit-text-security: none;
 }
 
 .pin-caixa:focus {
-  outline: none;
-  border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
-  transform: translateY(-2px);
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+  border-color: var(--acento);
+  background: var(--superficie);
+}
+
+.pin-caixa:focus {
+  animation: cursorAceso 1.1s ease-in-out infinite;
+}
+
+@keyframes cursorAceso {
+  0%,
+  100% {
+    border-color: var(--acento);
+  }
+  50% {
+    border-color: var(--borda);
+  }
 }
 
 .pin-caixa.preenchida {
-  animation: pinPop 0.22s var(--ease-bounce);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-strong));
+  animation: slotPreenche 0.18s var(--ease-suave);
+  border-color: var(--acento);
 }
 
-@keyframes pinPop {
-  0% {
+@keyframes slotPreenche {
+  from {
+    opacity: 0.55;
+    transform: scale(0.96);
+    border-color: var(--acento);
+  }
+  to {
+    opacity: 1;
     transform: scale(1);
   }
-  45% {
-    transform: scale(1.14);
-  }
-  100% {
-    transform: scale(1);
-  }
+}
+
+.pin-caixa:disabled {
+  border-color: var(--borda-fraca);
+  background: var(--superficie);
+  color: var(--texto-faint);
+  opacity: 0.6;
+  cursor: not-allowed;
+  animation: none;
 }
 
 .pin-grupo.erro .pin-caixa {
-  border-color: var(--danger);
-  color: var(--danger);
+  border-color: var(--perigo);
+  color: var(--perigo);
+  animation: flashUmaVez 0.4s var(--ease-suave);
 }
 
-.pin-grupo.erro .pin-linha {
-  animation: shake 0.45s var(--ease-suave);
-}
-
-@keyframes shake {
-  10%,
-  90% {
-    transform: translateX(-1px);
+@keyframes flashUmaVez {
+  0% {
+    background: var(--perigo-fraco);
   }
-  20%,
-  80% {
-    transform: translateX(3px);
-  }
-  30%,
-  50%,
-  70% {
-    transform: translateX(-7px);
-  }
-  40%,
-  60% {
-    transform: translateX(7px);
+  100% {
+    background: var(--superficie-2);
   }
 }
 
 .pin-grupo.sucesso .pin-caixa {
-  border-color: var(--ok);
-  color: var(--ok);
-  background: rgba(66, 187, 145, 0.1);
+  border-color: var(--acento);
+  color: var(--acento);
+  background: var(--acento-fraco);
 }
 
 .mensagem {
   min-height: 1.4rem;
   font-size: 0.82rem;
   margin: 0.9rem 0 0;
-  color: var(--danger);
+  color: var(--perigo);
   opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s ease;
 }
 
 .mensagem.visivel {
   opacity: 1;
-  transform: translateY(0);
 }
 
 .mensagem.info {
-  color: var(--text-muted);
+  color: var(--texto-muted);
 }
 
+/* barra de progresso fina, corre enquanto #espera esta visivel (verificando) */
 .espera {
+  position: relative;
   margin-top: 1.5rem;
-  display: flex;
-  gap: 0.4rem;
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--borda-fraca);
+  overflow: hidden;
 }
 
 .espera[hidden] {
@@ -299,46 +265,44 @@ h1 {
 }
 
 .espera span {
-  width: 6px;
-  height: 6px;
+  display: none;
+}
+
+.espera::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 35%;
   border-radius: 999px;
-  background: var(--accent-fill);
-  animation: pontoEspera 1s ease-in-out infinite;
+  background: var(--acento);
+  animation: barraCorrendo 1s ease-in-out infinite;
 }
 
-.espera span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.espera span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-@keyframes pontoEspera {
-  0%,
-  60%,
-  100% {
-    opacity: 0.25;
-    transform: scale(0.8);
+@keyframes barraCorrendo {
+  0% {
+    transform: translateX(-100%);
   }
-  30% {
-    opacity: 1;
-    transform: scale(1.15);
+  100% {
+    transform: translateX(385%);
   }
 }
 
 .rodape {
   margin-top: 1.75rem;
   font-size: 0.72rem;
-  color: var(--text-faint);
+  color: var(--texto-faint);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .cartao,
   .icone-cadeado,
   .pin-caixa,
-  .pin-grupo.erro .pin-linha,
-  .espera span {
+  .pin-caixa:focus,
+  .pin-grupo.erro .pin-caixa,
+  .espera::after {
     animation: none !important;
+    transition: none !important;
   }
 }

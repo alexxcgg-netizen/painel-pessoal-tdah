@@ -17,6 +17,15 @@ function configurarGrupo(grupoEl, aoCompletar) {
     // reforca o reflow pra animacao poder rodar de novo em digitos seguidos
     void caixa.offsetWidth;
     caixa.classList.add("preenchida");
+
+    // mostra o digito por um instante (estilo teclado de banco) e depois
+    // mascara com -webkit-text-security - so afeta a exibicao, o valor lido
+    // por valor()/postJson continua sendo caixa.value normalmente
+    caixa.classList.add("mostra-digito");
+    clearTimeout(caixa._timerMascara);
+    caixa._timerMascara = setTimeout(() => {
+      caixa.classList.remove("mostra-digito");
+    }, 400);
   }
 
   caixas.forEach((caixa, i) => {
