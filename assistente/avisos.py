@@ -172,9 +172,10 @@ TIPOS: dict[str, dict] = {
     "sinal": _tipo("Sinal do iPhone (ex: cheguei no mercado)"),
     "memoria_viva": _tipo("Proposta de memoria viva"),
     "replanejar": _tipo("Sugestao de replanejar a semana"),
-    # -- Fase 8, faixa F3: aviso de cobranca proxima (assinatura com o
-    # interruptor "avisar antes de cobrar" ligado) --
-    "aviso_cobranca": _tipo("Assinatura vai cobrar em breve"),
+    # -- Fase 8, faixa F3 (+ uso/m5-parcela): aviso de cobranca proxima -
+    # assinatura (com o interruptor "avisar antes de cobrar" ligado) ou
+    # parcela de compra parcelada (avisa por padrao) --
+    "aviso_cobranca": _tipo("Assinatura ou parcela vai cobrar em breve"),
 }
 
 
@@ -204,6 +205,7 @@ TIPO_POR_ORIGEM: dict[tuple[str, str | None], str] = {
     ("p7_sinais", None): "sinal",
     ("p9_memoria", None): "memoria_viva",
     ("f8_aviso_cobranca", "assinatura"): "aviso_cobranca",
+    ("f8_aviso_cobranca", "parcela"): "aviso_cobranca",
 }
 
 
