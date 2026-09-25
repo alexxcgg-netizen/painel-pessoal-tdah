@@ -1338,22 +1338,12 @@ header {
   flex: 1;
   min-width: 0;
   position: relative;
-  /* Glass "por cima", nao "atraves de": a cor de fundo abaixo e a MESMA
-     formula ja validada por acessibilidade (nao mexida) - o vidro entra so
-     como duas camadas de luz por cima (brilho branco + halo da cor,
-     --tile-cor no lugar do --glass-tint da secao pra cada tile continuar com
-     a propria identidade mesmo dentro da mesma aba). Sem backdrop-filter de
-     proposito: o fundo continua opaco, entao nao teria nada real pra borrar -
-     ver nota no bloco --glass-* no topo do arquivo. Redefine --glass-glow
-     aqui tambem (nao so --glass-tint) pela mesma pegadinha de indirecao
-     documentada la em cima - senao herdaria o halo da COR DA ABA, nao da
-     cor propria do tile. */
+  /* Fase 9 P-comp: sem glass-glow colorido no tile (era halo radial na cor
+     da aba/tile). --glass-tint continua so pra colorir levemente o
+     gradiente de fundo (nao um shadow/glow), --glass-glow fica "none" (nao
+     herda o :root, redeclarado aqui de proposito pra nao voltar). */
   --glass-tint: var(--tile-cor, var(--accent));
-  --glass-glow: radial-gradient(
-    95% 75% at 88% 116%,
-    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
-    transparent 62%
-  );
+  --glass-glow: none;
   background: var(--glass-highlight), var(--glass-glow),
     linear-gradient(
       155deg,
@@ -1374,8 +1364,7 @@ header {
   gap: 0.2rem;
   text-align: center;
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile-cor, var(--accent)) 30%, rgba(255, 255, 255, 0.45)),
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
   transition: transform 0.2s var(--ease-snap), box-shadow 0.2s ease, border-color 0.2s ease;
   animation: fadeInUp 0.4s var(--ease-bounce) both;
 }
@@ -1452,8 +1441,8 @@ header {
   color: var(--text);
   letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
-  /* brilho de repouso (nao so no pop) - da o "LED" que faltava no numero de destaque */
-  text-shadow: 0 0 12px color-mix(in srgb, var(--tile-cor, var(--accent)) 35%, transparent);
+  /* Fase 9 P-comp: sem brilho/LED no numero - so o pop de escala no update. */
+  text-shadow: none;
 }
 
 .stat-tile-valor.num-pop {
@@ -1463,15 +1452,12 @@ header {
 @keyframes numPop {
   0% {
     transform: scale(1);
-    text-shadow: none;
   }
   40% {
     transform: scale(1.18);
-    text-shadow: 0 0 16px color-mix(in srgb, var(--tile-cor, var(--accent)) 70%, transparent);
   }
   100% {
     transform: scale(1);
-    text-shadow: none;
   }
 }
 
@@ -2274,7 +2260,7 @@ li.item.saindo {
 
 .linha-do-tempo li.item.proximo {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-card);
+  box-shadow: var(--shadow-card);
 }
 
 .linha-do-tempo li.item.proximo::before {
@@ -2297,7 +2283,7 @@ li.item.saindo {
 .linha-do-tempo li.item.concluido::before {
   border-color: #42bb91;
   background: #42bb91;
-  box-shadow: 0 0 6px 0 rgba(66, 187, 145, 0.5);
+  box-shadow: none;
 }
 
 .linha-do-tempo li.item.perdido {
@@ -2307,7 +2293,7 @@ li.item.saindo {
 .linha-do-tempo li.item.perdido::before {
   border-color: var(--danger);
   background: var(--danger);
-  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--danger) 50%, transparent);
+  box-shadow: none;
 }
 
 /* US-F11 (Fase 6 F3): linha do tempo de planejamento de viagem, dentro do
@@ -2363,7 +2349,7 @@ li.item.saindo {
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 65%, transparent);
+  box-shadow: none;
 }
 
 .card-marcos-planejamento {
@@ -2507,7 +2493,7 @@ li.item.saindo {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   vertical-align: middle;
-  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 65%, transparent);
+  box-shadow: none;
 }
 
 .item-badge-vencida {
@@ -2715,7 +2701,7 @@ li.item.saindo {
 
 .visao-dia-periodo-lista .visao-dia-periodo-dia-hoje {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: none;
 }
 
 .visao-dia-periodo-lista .visao-dia-periodo-contagem {
@@ -2863,7 +2849,7 @@ li.item.item-planejado {
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
   margin-left: 0.4rem;
-  box-shadow: 0 0 6px -1px color-mix(in srgb, var(--cor-bancos) 55%, transparent);
+  box-shadow: none;
 }
 
 /* Categoria de gasto vira <select> ali mesmo quando tocada - correcao rapida
@@ -3017,7 +3003,7 @@ li.item.item-planejado {
 @media (hover: hover) {
   #importar-btn:hover:not(:disabled) {
     filter: brightness(1.08);
-    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-bancos) 55%, transparent);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -3065,7 +3051,7 @@ li.item.item-planejado {
 @media (hover: hover) {
   .btn-conectar:hover:not(:disabled) {
     background: rgba(168, 139, 220, 0.22);
-    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--accent) 45%, transparent);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -3212,7 +3198,7 @@ li.item.item-planejado {
   background: linear-gradient(90deg, #42bb91, #d8ab4c, #42bb91);
   background-size: 200% 100%;
   animation: shimmer 1.8s linear infinite;
-  box-shadow: 0 0 10px rgba(66, 187, 145, 0.5);
+  box-shadow: none;
 }
 
 @keyframes shimmer {
@@ -3255,13 +3241,13 @@ li.item.item-planejado {
   cursor: pointer;
   flex-shrink: 0;
   gap: 0.32rem;
-  box-shadow: 0 0 10px -3px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
+  box-shadow: none;
 }
 
 @media (hover: hover) {
   .meta-guardar button:hover:not(:disabled) {
     background: rgba(66, 187, 145, 0.24);
-    box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--cor-financeiro) 50%, transparent);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
@@ -3275,7 +3261,7 @@ li.item.item-planejado {
   color: #0b1f16;
   background: linear-gradient(90deg, #42bb91, #d8ab4c);
   animation: fadeInUp 0.4s var(--ease-bounce);
-  box-shadow: 0 0 10px -2px rgba(66, 187, 145, 0.6);
+  box-shadow: none;
 }
 
 #viagem-form {
@@ -3532,15 +3518,11 @@ li.item.item-planejado {
 
 .card-resultado {
   --card-cor: var(--accent);
-  /* Mesmo raciocinio do .stat-tile (incluindo redefinir --glass-glow, nao so
-     --glass-tint - mesma pegadinha de indirecao) - ver nota no bloco
-     --glass-* no topo do arquivo. */
+  /* Fase 9 P-comp: mesmo raciocinio do .stat-tile - sem halo colorido, so o
+     gradiente de fundo tingido levemente pelo --card-cor. --glass-glow
+     redeclarado "none" aqui de proposito (nao so no :root). */
   --glass-tint: var(--card-cor);
-  --glass-glow: radial-gradient(
-    95% 75% at 88% 116%,
-    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
-    transparent 62%
-  );
+  --glass-glow: none;
   align-self: stretch;
   background: var(--glass-highlight), var(--glass-glow),
     linear-gradient(
@@ -3551,8 +3533,7 @@ li.item.item-planejado {
   border: 1px solid color-mix(in srgb, var(--card-cor) 28%, var(--border));
   border-radius: var(--radius);
   padding: 0.8rem 0.9rem;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-cor) 28%, rgba(255, 255, 255, 0.45)),
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
   animation: cardResultadoEntra 0.4s var(--ease-bounce) both;
 }
 
@@ -3866,7 +3847,7 @@ li.item.item-planejado {
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 700;
-  box-shadow: 0 4px 16px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: var(--shadow-card);
 }
 
 .saudacao-texto {
@@ -5436,7 +5417,7 @@ body.modo-essencial #essencial-box {
 .card-btn-despertar.ativo {
   border-color: color-mix(in srgb, var(--card-cor) 70%, transparent);
   background: color-mix(in srgb, var(--card-cor) 22%, var(--surface-3));
-  box-shadow: 0 0 12px -3px color-mix(in srgb, var(--card-cor) 70%, transparent);
+  box-shadow: none;
 }
 
 .card-contrato-fallback {
@@ -5476,8 +5457,7 @@ body.modo-essencial #essencial-box {
 @keyframes itemDestacado {
   0%,
   35% {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-text) 55%, transparent),
-      0 0 22px -4px color-mix(in srgb, var(--accent-text) 45%, transparent);
+    box-shadow: 0 0 0 2px var(--border-strong);
   }
   100% {
     box-shadow: none;
@@ -5638,7 +5618,7 @@ body.modo-essencial #essencial-box {
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--bolinha);
-  box-shadow: 0 0 8px -1px var(--bolinha);
+  box-shadow: none;
 }
 
 .card-bolinha[data-cat="mercado"] {
@@ -5673,12 +5653,12 @@ body.modo-essencial #essencial-box {
   letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  text-shadow: 0 0 12px color-mix(in srgb, var(--card-cor) 35%, transparent);
+  text-shadow: none;
 }
 
 .card-valor-grande.entrada {
   color: var(--cor-painel);
-  text-shadow: 0 0 12px color-mix(in srgb, var(--cor-painel) 40%, transparent);
+  text-shadow: none;
 }
 
 .card-valor-grande.oculto {
@@ -5726,7 +5706,7 @@ body.modo-essencial #essencial-box {
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  text-shadow: 0 0 14px color-mix(in srgb, var(--card-cor) 40%, transparent);
+  text-shadow: none;
 }
 
 .card-contagem-viva {
@@ -5754,7 +5734,7 @@ body.modo-essencial #essencial-box {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  text-shadow: 0 0 12px color-mix(in srgb, var(--card-cor) 35%, transparent);
+  text-shadow: none;
 }
 
 /* resumo_final */
@@ -5869,7 +5849,7 @@ body.modo-essencial #essencial-box {
 
 .card-contrato .meta-progresso-barra:not(.completa) {
   background: linear-gradient(90deg, color-mix(in srgb, var(--card-cor) 55%, var(--surface-3)), var(--card-cor));
-  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--card-cor) 65%, transparent);
+  box-shadow: none;
 }
 
 /* ---- cards de visual complexo (US-E4) ------------------------------------- */
@@ -5930,7 +5910,7 @@ body.modo-essencial #essencial-box {
 
 .card-gota.cheia svg {
   fill: color-mix(in srgb, var(--card-cor) 55%, transparent);
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--card-cor) 55%, transparent));
+  filter: none;
 }
 
 .card-gota.nova svg {
@@ -6003,7 +5983,7 @@ body.modo-essencial #essencial-box {
   bottom: 0;
   border-radius: 999px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--card-cor) 70%, white 10%), var(--card-cor));
-  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--card-cor) 80%, transparent);
+  box-shadow: none;
   transform-origin: left center;
   animation: cardBlocoEntra 0.6s var(--ease-bounce) 0.15s both;
 }
@@ -6291,7 +6271,7 @@ body.modo-essencial #essencial-box {
 
 .card-graf-barra {
   fill: var(--card-cor);
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--card-cor) 55%, transparent));
+  filter: none;
 }
 
 /* US-F14: grafico de comparacao de cotacoes fica fora do sistema de card
@@ -6370,7 +6350,7 @@ body.modo-essencial #essencial-box {
 .card-habito-dia.feito .card-habito-circ {
   background: var(--card-cor);
   border-color: var(--card-cor);
-  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--card-cor) 75%, transparent);
+  box-shadow: none;
   animation: checkPop 0.35s var(--ease-bounce);
 }
 
