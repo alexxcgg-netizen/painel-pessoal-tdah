@@ -228,12 +228,89 @@
   color: var(--cor-texto-fraco);
 }
 
-/* ---------- Cartao "Ultimos dias": lista igual ao resto do app (classe
-   .item ja existe em gastos.css), so o titulo do cartao e novo. ---------- */
+/* ---------- Cartao "Ultimos dias": lista leve estilo Conversa (C6/P-comp).
+   Antes cada lancamento reaproveitava o "cartao" genero .item do
+   style.css (fundo/borda/sombra por item, igual usado em Hoje/Tarefas/Vida)
+   - aqui isso vira uma linha fina dentro do UNICO cartao que e
+   #fc-card-ultimos-dias/.fc-card; o .item/.item-linha/.item-titulo/
+   .item-quando globais NAO mudam (outras abas continuam com o cartao
+   pesado de proposito). Nao mexe em id/classe nem no JS que gera cada <li>
+   (gastos.js criarItemExtratoFinancas) - so reestiliza o que ja existe. */
 #fc-card-ultimos-dias #lista-extrato-financas {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+#fc-card-ultimos-dias #lista-extrato-financas li.item {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0;
+  min-height: 56px;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--cor-borda);
+}
+
+#fc-card-ultimos-dias #lista-extrato-financas li.item:last-child {
+  border-bottom: none;
+}
+
+#fc-card-ultimos-dias #lista-extrato-financas .item-linha {
+  width: 100%;
+  padding: 10px 0;
+  gap: 12px;
+}
+
+#fc-card-ultimos-dias #lista-extrato-financas .item-linha > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+#fc-card-ultimos-dias #lista-extrato-financas .item-titulo {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--cor-texto);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#fc-card-ultimos-dias #lista-extrato-financas .item-titulo .chip {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 4px;
+  font-size: 10px;
+  padding: 1px 6px;
+  background: var(--cor-superficie-2);
+  border: none;
+  color: var(--cor-texto-fraco);
+}
+
+#fc-card-ultimos-dias #lista-extrato-financas .item-quando {
+  font-size: 13px;
+  color: var(--cor-texto-fraco);
+  margin-top: 2px;
+}
+
+#fc-card-ultimos-dias #lista-extrato-financas .valor-mono {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cor-acento);
+  flex-shrink: 0;
+  white-space: nowrap;
+  align-self: center;
+}
+
+#fc-card-ultimos-dias #lista-extrato-financas .valor-mono.banco-saldo-negativo {
+  color: var(--cor-texto);
 }
 
 /* ---------- Chips de pergunta rapida ---------- */

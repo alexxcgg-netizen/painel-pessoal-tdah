@@ -105,7 +105,8 @@ select.campo {
    era o ultimo "Windows 1990" das listas. :where() deixa esta regra com especificidade
    zero: tamanho, margem e accent-color que as secoes ja definem no style.css continuam
    valendo; aqui entra so a aparencia (superficie em camada, borda fina, marca de traco).
-   Sem cor nova: borda --borda-forte, marcado em --accent-fill com a marca em --accent-text. */
+   Fase 9 P-comp: estilo "Conversa" - quadrado raio 6px, borda 1.5px em --cor-texto-fraco
+   (repouso), marcado = fundo --cor-acento com o traco em branco. Sem glow. */
 :where(input[type="checkbox"]) {
   -webkit-appearance: none;
   appearance: none;
@@ -116,11 +117,11 @@ select.campo {
   width: 20px;
   height: 20px;
   margin: 0;
-  border: var(--linha) solid var(--borda-forte);
+  border: 1.5px solid var(--cor-texto-fraco);
   border-radius: 6px;
   background: var(--superficie-3);
   box-shadow: var(--elevacao-0);
-  color: var(--accent-text);
+  color: #fff;
   cursor: pointer;
   vertical-align: middle;
   transition: background var(--transicao-rapida), border-color var(--transicao-rapida);
@@ -138,10 +139,11 @@ select.campo {
 }
 
 :where(input[type="checkbox"]):checked {
-  /* Fase 8 (D4): marcado usa --cor-sucesso (verde de "feito"), nao mais a
-     cor de acento neutra - fica claro que e conclusao, nao selecao. */
-  background: var(--cor-sucesso);
-  border-color: var(--cor-sucesso);
+  /* Fase 9 P-comp: marcado = fundo --cor-acento (estilo "Conversa"). Na
+     paleta atual --cor-sucesso e --cor-acento sao a mesma cor (#159c82),
+     entao isto nao muda o pixel - so alinha a intencao/nomeacao. */
+  background: var(--cor-acento);
+  border-color: var(--cor-acento);
 }
 
 :where(input[type="checkbox"]):checked::before {
@@ -160,8 +162,10 @@ select.campo {
 }
 
 :where(input[type="checkbox"]):focus-visible {
+  /* Fase 9 P-comp: anel de foco proprio (2px --cor-acento, sem blur) em vez
+     do --anel-foco neutro global - mais visivel numa caixa pequena de 20px. */
   outline: none;
-  box-shadow: var(--anel-foco);
+  box-shadow: 0 0 0 2px var(--cor-acento);
 }
 
 /* Solto (fora de <label>), a caixa de 20px ganha area de toque de 44px com um ::after
