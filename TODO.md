@@ -1,10 +1,10 @@
-# MELHORIAS DE USO DIARIO (pos-reversao/login) - em andamento
-- [ ] M1 Hoje enxuto (chat + foco + agenda; resto vai pro Painel) + Aviacao sobe na barra
-- [ ] M2 Sync Nubank automatico ~4h (scheduler), botao manual mantido, falha so loga
-- [ ] M3 Tarefas: "ver concluidas" (toca mostra/esconde), nunca apaga
-- [ ] M4 Resumo de IA em cache 1x/dia, invalida so por mudanca relevante
-- [ ] M5 Aviso de parcela 3-2-1 dias reusando o aviso de assinatura
-- [ ] Fechamento: suite completa 1x, merge main, SW/CHANGELOG/STATUS
+# MELHORIAS DE USO DIARIO (pos-reversao/login) - concluido 2026-09-25
+- [x] M1 Hoje enxuto (chat + foco + agenda; resto vai pro Painel) + Aviacao sobe na barra
+- [x] M2 Sync Nubank automatico ~4h (scheduler), botao manual mantido, falha so loga
+- [x] M3 Tarefas: "ver concluidas" (toca mostra/esconde), nunca apaga
+- [x] M4 Resumo de IA em cache 1x/dia, invalida so por mudanca relevante
+- [x] M5 Aviso de parcela 3-2-1 dias reusando o aviso de assinatura
+- [x] Fechamento: suite completa 1x, merge main, SW/CHANGELOG/STATUS
 
 # FASE 9 (em andamento) - Finanças unificada + laboratório HUD
 - [x] Etapa 0: REGRAS-OPERACAO.md salvo + MAPA.md (financas) + donos.json fase9
