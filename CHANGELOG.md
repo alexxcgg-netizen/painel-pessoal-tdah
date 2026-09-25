@@ -5,6 +5,16 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-25 - Redesenho visual da tela de login/PIN
+
+Só camada visual (`templates/login.html`, `templates/configurar_pin.html`, `static/css/login.css`,
+toggle de máscara em `static/js/login.js`); autenticação, POST `/login {pin}`, bloqueio 429 e
+redirect intactos. Fundo `#000` sem aurora, destaque único `#8e8ea0` (o `--cor-acento` do painel,
+sai o verde `#41aa75`), erro `#e5746f`. 6 slots 48x56 em IBM Plex Mono: dígito aparece ~400 ms e
+vira ponto; preenchimento com fade + escala 0.96→1; barra fina corre em `#espera` enquanto
+verifica; erro pisca uma vez e limpa; bloqueado = slots cinza + mensagem de minutos;
+`prefers-reduced-motion` sem animação. Teste `tests/test_login_visual.py`.
+
 ## 2026-09-25 - Fase 9: volta ao painel antigo (pedido do dono), só Finanças nova
 
 O dono não gostou do redesign "Conversa" (4 abas, verde sobre preto) e pediu o painel de antes.
