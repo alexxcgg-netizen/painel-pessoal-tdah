@@ -70,3 +70,4 @@ async function loadConstrutora() {
   listaContas.hidden = contas.length === 0;
   contas.forEach((c) => listaContas.appendChild(criarItemContaAVencer(c)));
 }
+

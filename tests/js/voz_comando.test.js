@@ -58,13 +58,16 @@ test("resolverTela reconhece sinonimos comuns por aba", () => {
   assert.equal(resolverTela("gastos"), "gastos");
   assert.equal(resolverTela("financeiro"), "gastos");
   assert.equal(resolverTela("tarefas"), "tarefas");
-  assert.equal(resolverTela("aviação"), "aviacao");
-  assert.equal(resolverTela("Construtora"), "construtora");
+  // Fase 9 (C-nav): sinonimos antigos continuam reconhecidos, mas resolvem
+  // pro destino novo (aviacao -> vida, construtora -> gastos) - nenhuma
+  // tela resolvida e uma aba que nao existe mais na barra de 4.
+  assert.equal(resolverTela("aviação"), "vida");
+  assert.equal(resolverTela("Construtora"), "gastos");
   assert.equal(resolverTela("os bancos"), "gastos");
 });
 
 test("resolverTela ignora acento/caixa", () => {
-  assert.equal(resolverTela("AVIAÇÃO"), "aviacao");
+  assert.equal(resolverTela("AVIAÇÃO"), "vida");
   assert.equal(resolverTela("chEck-In"), "vida");
 });
 
@@ -160,7 +163,8 @@ test("classificarLocalmente resolve um pedido de navegacao claro sem precisar de
 
 test("classificarLocalmente reconhece variacoes de verbo de navegacao", () => {
   assert.equal(classificarLocalmente("mostra as tarefas").parametros.tela, "tarefas");
-  assert.equal(classificarLocalmente("vai pra aviacao").parametros.tela, "aviacao");
+  // Fase 9 (C-nav): "aviacao" nao e mais uma aba - a sinonimo resolve pra vida.
+  assert.equal(classificarLocalmente("vai pra aviacao").parametros.tela, "vida");
   assert.equal(classificarLocalmente("navega pros bancos").parametros.tela, "gastos");
 });
 

@@ -135,9 +135,12 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       carregarRegras();
     }
 
-    const btnAbaAssistente = document.querySelector('.tab-btn[data-tab="assistente"]');
-    if (btnAbaAssistente) {
-      btnAbaAssistente.addEventListener("click", carregarRegras);
+    // Fase 9 C-abas: a aba Assistente sumiu - regras.html agora mora dentro do
+    // sheet de Configuracoes (#sheet-config, templates/secoes/config/sheet-config.html).
+    // Gatilho passou do clique na antiga tab-btn pro clique no botao que abre o sheet.
+    const btnConfig = document.getElementById("btn-config");
+    if (btnConfig) {
+      btnConfig.addEventListener("click", carregarRegras);
     }
 
     window.carregarRegrasAssistente = carregarRegras;

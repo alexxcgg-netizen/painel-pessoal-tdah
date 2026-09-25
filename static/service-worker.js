@@ -33,7 +33,10 @@
 // buscar tudo de novo. Lista conferida contra scripts.html/head.html/fase7.css.
 // v16: Fase 8 F1 - gastos.js/gastos.html mudaram (lista unificada com selo de origem
 // Nubank/manual, botao "Sincronizar Nubank").
-const CACHE_NAME = "painel-pessoal-v19";
+// v20: Fase 9 C-abas - 8 abas viram 4 (Hoje/Tarefas/Financas/Vida) + folha de
+// Configuracoes; index.html/varios templates mudaram, e secoes/config/sheet-config.css
+// e novo - o iPhone que ja tem um cache antigo precisa buscar tudo de novo.
+const CACHE_NAME = "painel-pessoal-v20";
 const ASSETS = [
   "/",
   "/static/css/style.css",
@@ -57,6 +60,7 @@ const ASSETS = [
   "/static/css/secoes/construtora.css",
   "/static/css/secoes/aviacao.css",
   "/static/css/secoes/assistente.css",
+  "/static/css/secoes/config/sheet-config.css",
   "/static/css/secoes/topo/cabecalho.css",
   "/static/css/secoes/topo/captura.css",
   "/static/css/secoes/hoje/saudacao.css",

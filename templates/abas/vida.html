@@ -1,4 +1,16 @@
     <section id="tab-vida" class="tab-content" hidden>
+      {# Fase 9 C-abas: consolidacao de 8 abas em 4 - aba Aviacao inteira, no topo #}
+      <section id="secao-aviacao">
+        <h2 style="--secao-cor: var(--cor-aviacao)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v16M12 9 3 14M12 9l9 5M12 16l-4 3M12 16l4 3"/></svg>
+          Aviação
+        </h2>
+{% include "secoes/aviacao/horas-voadas.html" %}
+{% include "secoes/aviacao/registrar-voo.html" %}
+{% include "secoes/aviacao/proximos-voos.html" %}
+{% include "secoes/aviacao/metar.html" %}
+      </section>
+
       <h2 style="--secao-cor: var(--cor-painel)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/></svg>
         Vida
@@ -25,6 +37,17 @@
 {% include "secoes/vida/vale-a-pena.html" %}
 {% include "secoes/vida/seu-progresso.html" %}
 {% include "secoes/vida/revisao-trimestral.html" %}
+        {# Fase 9 C-abas: consolidacao de 8 abas em 4 - migrado do Painel, depois
+           das secoes atuais da Vida #}
+{% include "secoes/painel/saude-hoje.html" %}
+{% include "secoes/painel/medicamentos.html" %}
+{% include "secoes/painel/peso-e-medidas.html" %}
+{% include "secoes/painel/datas-importantes.html" %}
+{% include "secoes/painel/memoria.html" %}
+{% include "secoes/painel/notas.html" %}
+{% include "secoes/painel/diario-de-decisao.html" %}
+{% include "secoes/painel/brain-dump.html" %}
+{% include "secoes/painel/esperando-resposta.html" %}
       </div>
     </section>
 

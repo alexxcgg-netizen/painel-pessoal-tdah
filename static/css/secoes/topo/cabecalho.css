@@ -29,7 +29,7 @@ header .btn-logout {
    nos 5 botoes lado a lado sem espremer o titulo "Painel Pessoal" num
    cabecalho de 390px) - grade de 8px (passo de 2.7rem = 43.2px). */
 header {
-  padding-right: 13.6rem;
+  padding-right: 16.4rem;
 }
 
 #logout-btn,
@@ -59,6 +59,16 @@ header {
 
 #silencio-btn {
   right: 10.8rem;
+}
+
+/* Fase 9 C-abas: 6o botao do cabecalho (folha de Configuracoes). Pedido explicito
+   de 44px de toque (--toque-min) em vez do 2.3rem (36.8px) dos outros 5 - modo
+   bruto, sem redesenhar a fileira inteira agora; so garante que nao sobrepoe o
+   #silencio-btn (10.8rem + 2.3rem = 13.1rem de ponta) nem estoura o header. */
+#btn-config {
+  right: 13.6rem;
+  width: var(--toque-min, 44px);
+  height: var(--toque-min, 44px);
 }
 
 /* .btn-push (pill "Ativar notificacoes") - mesma logica: achatada, sem

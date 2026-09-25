@@ -1,0 +1,5 @@
+/* static/css/secoes/config/sheet-config.css - secao config > sheet-config (HTML:
+   templates/secoes/config/sheet-config.html). Fase 9 (C-abas): a moldura do sheet
+   (fundo, painel, alca, titulo) e do componente generico (ui/componentes/bottom-sheet.css);
+   o miolo (custo-ia.html, regras.html) reaproveita .painel-secao-card/.card ja de-escopados
+   em secoes/painel.css - vazio de proposito por enquanto. */
