@@ -9,6 +9,25 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
    pras áreas da fase nova) e o topo do `CHANGELOG.md`.
 2. Worktree por faixa a partir de `origin/main`; nunca editar `/home/user/financeiro-construtora`.
 
+## Fase 9 (em andamento) - ler primeiro
+- **Etapa A concluída e na main** (ver CHANGELOG 2026-09-25 Fase 9): aba única Finanças, botão
+  Sincronizar único, sync idempotente + reconciliação por id (causa das duplicadas: reconexão
+  do item Pluggy = ids novos), cartão x conta (`bank_accounts.tipo`), `financas_descricao.py`,
+  `GET /api/financas/extrato` (15 dias) e `/resumo`, OFX removido, cache SW v18.
+  Suíte: 3660 Python ok + 226 JS ok; única falha = `test_formato_da_resposta` (data, antiga).
+- **Etapa B publicada, PARADA esperando o dono escolher:** laboratório com 10 direções
+  (https://claude.ai/artifact/GCruFZzZ9MFT6RcFmokxuH). Fonte local (não versionada) no
+  scratchpad da sessão: `lab/casca.html`, `lab/d01..d10.js`, `lab/montar.py`,
+  `dados_lab.json`. Direções: 1 Reator ciano #22D3EE, 2 Tático vermelho #FF3B3B, 3 Terminal
+  verde #4ADE80, 4 Luxo dourado #D4AF37, 5 Radar laranja #FF8A00, 6 Orbital violeta #A78BFA,
+  7 Mínimo branco, 8 Colmeia turquesa #2DD4BF, 9 Cockpit magenta #FF3DCB (B612),
+  10 Rota azul-gelo #A5D8FF.
+- **Etapa C** (C1 tokens ... C6 componentes) só começa com a escolha do dono.
+- Pluggy real (medido): cartão manda compra com amount positivo + `DEBIT`; saída decidida por
+  `tipo_operacao`. Cartão tem parcelas futuras até 2027. 384 transações cartão + 29 conta.
+- Teto de chamadas estourado nesta fase: f9-ui 99, f9-api 63, Haiku mapa 43, Haiku nomes 43
+  (tetos 40/35/20). Faixas de UI grandes ainda precisam ser quebradas em duas.
+
 ## Feito
 - **Antes da Fase 8:** modo teste de IA (toggle no card Custo de IA, aba Painel; config
   `configuracoes.modo_teste_ia`, desligado por padrão; resposta de cards fixa sem chamar IA
