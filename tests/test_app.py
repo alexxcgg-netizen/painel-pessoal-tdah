@@ -660,17 +660,21 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(len(corpo["contas"]), 2)
 
     def test_patrimonio_desconta_saldo_negativo_de_cartao(self):
+        # Fase 9/f9-api: bank_accounts.saldo pra tipo='cartao' e gravado
+        # POSITIVO (fatura em aberto = quanto se deve), nunca negativo -
+        # a rota que desconta a divida, nao o sinal gravado.
         conn = db.get_db()
         conta_conta = db.get_or_create_bank_account(conn, "nubank", "conta")
         conta_cartao = db.get_or_create_bank_account(conn, "nubank", "cartao")
         db.atualizar_saldo_conta(conn, conta_conta, 1000.0)
-        db.atualizar_saldo_conta(conn, conta_cartao, -400.0)
+        db.atualizar_saldo_conta(conn, conta_cartao, 400.0)
         conn.commit()
         conn.close()
 
         res = self.client.get("/api/patrimonio")
         corpo = res.get_json()
-        self.assertEqual(corpo["saldo_bancario"], 600.0)
+        self.assertEqual(corpo["saldo_bancario"], 1000.0)
+        self.assertEqual(corpo["fatura_aberta"], 400.0)
         self.assertEqual(corpo["patrimonio_total"], 600.0)
 
     def test_patrimonio_inclui_valor_guardado_em_metas(self):
