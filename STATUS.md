@@ -31,6 +31,14 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
 - **ESCOLHA DO DONO: direção 1 "Conversa"** (gostou muito de Hoje e Finanças; Vida "dá pra
   melhorar" -> 6 variantes só da Vida em teste). Etapa C começou por C1 (tokens da Conversa:
   fundo #0e0f0e, cartão #111312, acento #159C82, Inter) na branch fase9/c1-tokens.
+- **Abas (decisão delegada pelo dono, "tu escolhe a menor maneira"): 8 → 4** — Hoje (+Assistente
+  +resumo/agenda/plano/devo sair/fechamento do Painel), Tarefas, Finanças (+Construtora no fim,
+  `#secao-construtora`), Vida (+Aviação no topo `#secao-aviacao`, +saúde/medicamentos/peso/datas/
+  memória/notas/decisões/brain dump/esperando resposta do Painel) + folha ⚙ `#sheet-config`
+  (custo de IA/modo teste/exportar + regras do assistente). Barra de vidro mantida (pedido do dono).
+  Faixas: fase9/c-nav (barra, navegacao.js, voz) e fase9/c-abas (templates). Mapa:
+  `docs/fase9-mapa-abas.md`. C1 (tokens Conversa + fix do fundo transparente) já na main.
+- Vida: 6 variantes publicadas (https://claude.ai/artifact/CKmFmoe1Z65hN2i43TkTp2), aguardando escolha.
 - **Etapa C** (C1 tokens ... C6 componentes) só começa com a escolha do dono.
 - Pluggy real (medido): cartão manda compra com amount positivo + `DEBIT`; saída decidida por
   `tipo_operacao`. Cartão tem parcelas futuras até 2027. 384 transações cartão + 29 conta.
