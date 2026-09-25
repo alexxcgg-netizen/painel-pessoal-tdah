@@ -67,10 +67,17 @@ def get_accounts(item_id: str) -> list[dict]:
     return resp.json().get("results", [])
 
 
-def get_transactions(account_id: str) -> list[dict]:
+def get_transactions(account_id: str) -> tuple[list[dict], bool]:
+    """Devolve (transacoes, truncado). `truncado=True` quando o laco bateu
+    no teto de paginas (100) sem a Pluggy parar de mandar `next` - sinal de
+    que a busca nao terminou e a lista devolvida NAO e o historico completo
+    da conta. Quem chama usa isso pra decidir se pode confiar na lista como
+    fonte da verdade pra reconciliar (apagar) transacoes que sumiram - uma
+    busca truncada nunca pode apagar nada (ver rotas/f8_banco.py)."""
     # /transactions (page/pageSize) responde 410 ENDPOINT_DEPRECATED desde
     # 2026-09: a Pluggy so aceita /v2/transactions com cursor em `next`.
     transacoes = []
+    truncado = False
     url, params = f"{BASE_URL}/v2/transactions", {"accountId": account_id}
     for _ in range(100):
         resp = requests.get(url, headers=_headers(), params=params, timeout=20)
@@ -85,7 +92,9 @@ def get_transactions(account_id: str) -> list[dict]:
             url, params = cursor, None
         else:
             params = {"accountId": account_id, "cursor": cursor}
-    return transacoes
+    else:
+        truncado = True
+    return transacoes, truncado
 
 
 def normalizar_transacoes(transacoes_pluggy: list[dict]) -> list[dict]:

@@ -221,6 +221,43 @@ def _upsert_bank_transacoes(conn, bank_account_id: int, transacoes: list[dict]) 
     return {"novas": novas, "atualizadas": atualizadas, "sem_mudanca": sem_mudanca}
 
 
+def _reconciliar_transacoes_removidas(
+    conn, bank_account_id: int, transacoes: list[dict], truncado: bool
+) -> int:
+    """Depois do upsert, o que a Pluggy devolveu agora e tratado como fonte
+    da verdade pro intervalo de datas [menor data, maior data] dessa leva -
+    apaga de `bank_transactions` (so dessa `bank_account_id`) qualquer linha
+    com `data` dentro desse intervalo cujo `external_id` NAO veio nessa
+    resposta (ex.: o item Pluggy foi reconectado e reimportou o historico
+    inteiro com ids novos - as linhas com os ids antigos, mesma janela de
+    datas, ficam orfas e sao removidas aqui). `data` NAO e campo
+    criptografado (so `valor`/`descricao` sao - ver criptografia.py), entao
+    o filtro por intervalo roda direto em SQL, sem precisar decifrar nada.
+
+    Transacao fora desse intervalo (historico mais antigo que a Pluggy nao
+    devolve mais) fica intocada. Nunca toca em `expenses` (gasto manual).
+
+    So roda quando a busca terminou completa: uma lista vazia ou uma busca
+    truncada (`truncado=True`, bateu no teto de paginas do
+    pluggy_client.get_transactions) nao pode ser tratada como fonte da
+    verdade - apagaria transacao real por engano - entao devolve 0 sem
+    tocar no banco."""
+    if truncado or not transacoes:
+        return 0
+
+    ids_atuais = [t["external_id"] for t in transacoes]
+    datas = [t["data"] for t in transacoes]
+    dmin, dmax = min(datas), max(datas)
+    placeholders = ",".join("?" for _ in ids_atuais)
+    cur = conn.execute(
+        "DELETE FROM bank_transactions "
+        "WHERE bank_account_id = ? AND data BETWEEN ? AND ? "
+        f"AND external_id NOT IN ({placeholders})",
+        (bank_account_id, dmin, dmax, *ids_atuais),
+    )
+    return cur.rowcount
+
+
 def _erro_amigavel_pluggy(exc: Exception) -> tuple[str, int]:
     """Converte qualquer erro de rede/HTTP da Pluggy numa mensagem que pode
     ir pra tela sem vazar corpo cru de resposta nem cabecalho com chave."""
@@ -256,7 +293,7 @@ def sincronizar_nubank():
     conn = db.get_db()
     try:
         resumo = []
-        total_novas = total_atualizadas = total_sem_mudanca = 0
+        total_novas = total_atualizadas = total_sem_mudanca = total_removidas = 0
         for conta_pluggy in contas_pluggy:
             # tipo da conta Pluggy decide o "balde" em bank_accounts: CREDIT
             # -> cartao (saldo = fatura em aberto, positivo = quanto se
@@ -270,16 +307,19 @@ def sincronizar_nubank():
             if saldo_pluggy is not None:
                 db.atualizar_saldo_conta(conn, conta_id, saldo_pluggy)
             try:
-                transacoes_pluggy = pluggy_client.get_transactions(conta_pluggy["id"])
+                transacoes_pluggy, truncado = pluggy_client.get_transactions(conta_pluggy["id"])
             except requests.RequestException as exc:
                 mensagem, status = _erro_amigavel_pluggy(exc)
                 return jsonify({"error": mensagem}), status
             transacoes = pluggy_client.normalizar_transacoes(transacoes_pluggy)
             transacoes = app._categorizar_transacoes_importadas(conn, transacoes)
             contagem = _upsert_bank_transacoes(conn, conta_id, transacoes)
+            removidas = _reconciliar_transacoes_removidas(conn, conta_id, transacoes, truncado)
+            contagem["removidas"] = removidas
             total_novas += contagem["novas"]
             total_atualizadas += contagem["atualizadas"]
             total_sem_mudanca += contagem["sem_mudanca"]
+            total_removidas += removidas
             resumo.append({"conta_id": conta_id, "tipo": tipo, **contagem})
         conn.commit()
     finally:
@@ -287,7 +327,7 @@ def sincronizar_nubank():
 
     mensagem = (
         f"{total_novas} nova(s), {total_atualizadas} atualizada(s), "
-        f"{total_sem_mudanca} sem mudanca"
+        f"{total_sem_mudanca} sem mudanca, {total_removidas} removida(s)"
     )
     return jsonify(
         {
@@ -298,6 +338,7 @@ def sincronizar_nubank():
             "novas": total_novas,
             "atualizadas": total_atualizadas,
             "sem_mudanca": total_sem_mudanca,
+            "removidas": total_removidas,
             "mensagem": mensagem,
         }
     )
