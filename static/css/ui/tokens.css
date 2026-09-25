@@ -18,6 +18,31 @@
    Carrega depois do style.css via static/css/fase7.css. */
 
 :root {
+  /* ---------- Cor base (fase 8 D1 - tema neutro estilo ChatGPT) ----------
+     Fonte unica dos tokens de COR base do app (o resto do arquivo e forma/
+     profundidade, nao cor). O style.css aponta suas variaveis --bg/--surface*/
+     --border*/--text*/--accent/--success pra estas aqui, em vez de redeclarar
+     os hex. Nada de roxo/verde saturado de fundo: cinza neutro quase-preto. */
+  --cor-bg: #171717;
+  --cor-superficie: #212121;
+  --cor-superficie-2: #2a2a2a;
+  --cor-borda: rgba(255, 255, 255, 0.09);
+  --cor-texto: #ececec;
+  --cor-texto-fraco: #a9a9a9;
+  --cor-acento: #8e8ea0;
+  --cor-sucesso: #4caf7d;
+
+  /* Sobrescreve as variaveis do style.css (carregado antes) com os tokens
+     acima - fonte unica de verdade fica aqui. */
+  --bg: var(--cor-bg);
+  --surface: var(--cor-superficie);
+  --surface-2: var(--cor-superficie-2);
+  --border: var(--cor-borda);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text: var(--cor-texto);
+  --text-muted: var(--cor-texto-fraco);
+  --accent: var(--cor-acento);
+
   /* ---------- Raios ----------
      Reaproveitam os dois raios da identidade atual (20px / 14px). Hierarquia: quanto maior e
      mais "de fora" o bloco, maior o raio; elemento dentro de card usa raio menor
