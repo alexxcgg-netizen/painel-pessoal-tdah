@@ -7824,22 +7824,25 @@ def definir_limite_cartao_rota(conta_id):
 
 def _patrimonio_consolidado(conn) -> dict:
     """Soma tudo que o projeto ja sabe que tem valor monetario num so numero
-    (US-C12): saldo das contas/cartoes (bank_accounts.saldo, ja
-    criptografado em repouso desde a Fase 4 - list_bank_accounts
-    descriptografa, nenhuma coluna nova pra proteger aqui) + o que ja foi
-    guardado nas metas financeiras (goals.valor_guardado - dinheiro
-    separado, entao conta como patrimonio tanto quanto o saldo em conta).
-    Soma o saldo de cada conta como esta gravado (sinal ja reflete divida
-    em cartao quando existir - a mesma convencao que a aba Bancos ja usa
-    pra mostrar saldo negativo, nao inventa um sinal novo aqui)."""
+    (US-C12, corrigido na Fase 9/f9-api): saldo das contas/cartoes
+    (bank_accounts.saldo, ja criptografado em repouso desde a Fase 4 -
+    list_bank_accounts descriptografa, nenhuma coluna nova pra proteger
+    aqui) + o que ja foi guardado nas metas financeiras (goals.valor_guardado
+    - dinheiro separado, entao conta como patrimonio tanto quanto o saldo em
+    conta) - MENOS a fatura em aberto do cartao. bank_accounts.saldo pra
+    tipo='cartao' e sempre gravado POSITIVO (= quanto se deve - ver
+    AGENTS.md da faixa f9-api), nunca dinheiro disponivel, entao nunca entra
+    como saldo bancario - so como divida, subtraindo do total."""
     contas = list_bank_accounts(conn)
-    saldo_bancario = sum(c["saldo"] or 0 for c in contas)
+    saldo_bancario = sum(c["saldo"] or 0 for c in contas if c["tipo"] == "conta")
+    fatura_aberta = sum(c["saldo"] or 0 for c in contas if c["tipo"] == "cartao")
     metas = list_goals(conn)
     valor_guardado_metas = sum(g["valor_guardado"] or 0 for g in metas)
     return {
         "saldo_bancario": round(saldo_bancario, 2),
+        "fatura_aberta": round(fatura_aberta, 2),
         "valor_guardado_metas": round(valor_guardado_metas, 2),
-        "patrimonio_total": round(saldo_bancario + valor_guardado_metas, 2),
+        "patrimonio_total": round(saldo_bancario + valor_guardado_metas - fatura_aberta, 2),
         "contas": [
             {"banco": c["banco"], "tipo": c["tipo"], "saldo": c["saldo"]}
             for c in contas
@@ -7859,6 +7862,7 @@ def patrimonio_rota():
         return jsonify(
             {
                 "saldo_bancario": 0,
+                "fatura_aberta": 0,
                 "valor_guardado_metas": 0,
                 "patrimonio_total": 0,
                 "contas": [],
