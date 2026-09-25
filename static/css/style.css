@@ -3,14 +3,19 @@
   /* Round 8 (decisao final, testada ao vivo no comparador do artefato entre
      18 cores x 5 fundos): "Preto puro" - a versao mais escura das 5 opcoes
      de fundo testadas. Antes era um preto azulado (#09090d/#16181f/...). */
-  --bg: #000000;
-  --surface: #121212;
-  --surface-2: #181818;
-  --surface-3: #1e1e1e;
-  --border: rgba(218, 226, 243, 0.09);
-  --border-strong: rgba(218, 226, 243, 0.18);
-  --text: #eceef3;
-  --text-muted: #a7afbc;
+  /* Fase 8 D1: cor base agora vem de static/css/ui/tokens.css (--cor-bg,
+     --cor-superficie...), que carrega depois deste arquivo via fase7.css e
+     sobrescreve estas variaveis. Fundo neutro estilo ChatGPT (~#171717),
+     sem roxo/verde saturado. Os hex abaixo sao so o fallback se tokens.css
+     nao carregar. */
+  --bg: #171717;
+  --surface: #212121;
+  --surface-2: #2a2a2a;
+  --surface-3: #303030;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text: #ececec;
+  --text-muted: #a9a9a9;
   --text-faint: #788292;
 
   /* paleta joia - pedido explicito do Alex: menos "LED"/pastel-brilhante,
@@ -172,6 +177,11 @@
      precisar de translucidez. `--glass-highlight`/`--glass-glow` continuam
      definidos (a barra de abas ainda usa `--glass-highlight`) mesmo sem
      entrar mais em `--glass-bg`. */
+  /* Fase 8 D1: o tingimento colorido do "vidro" (--glass-tint pintando borda/
+     sombra/glow com a cor cheia da secao) foi neutralizado - os mixes abaixo
+     usam uma fracao bem menor da cor (12-15% em vez de 30-35%), entao borda
+     e sombra ficam quase cinza (a cor da secao continua servindo pra
+     icone/titulo, sem pintar fundo). */
   --glass-tint: var(--accent);
   --glass-highlight: linear-gradient(
     180deg,
@@ -181,14 +191,14 @@
   );
   --glass-glow: radial-gradient(
     120% 90% at 88% 116%,
-    color-mix(in srgb, var(--glass-tint) 30%, transparent) 0%,
+    color-mix(in srgb, var(--glass-tint) 12%, transparent) 0%,
     transparent 62%
   );
   --glass-bg: var(--surface-2);
-  --glass-border: color-mix(in srgb, var(--glass-tint) 32%, var(--border-strong));
+  --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
   --glass-blur: none;
   --glass-shadow: 0 3px 8px -4px rgba(0, 0, 0, 0.55),
-    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 35%, transparent), var(--shadow-card-hover);
+    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 15%, transparent), var(--shadow-card-hover);
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
@@ -499,10 +509,13 @@ body {
   inset: -20%;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(circle at 18% 18%, rgba(109, 63, 209, 0.28), transparent 45%),
-    radial-gradient(circle at 82% 12%, rgba(36, 70, 125, 0.26), transparent 42%),
-    radial-gradient(circle at 50% 85%, rgba(14, 125, 108, 0.18), transparent 48%),
-    radial-gradient(circle at 88% 92%, rgba(162, 124, 47, 0.14), transparent 40%);
+  /* Fase 8 D1: gradiente roxo/verde saturado (round anterior) trocado por
+     um realce neutro cinza, bem fraco - mesma posicao/estrutura, sem cor
+     de identidade tingindo o fundo. */
+  background: radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.05), transparent 45%),
+    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, 0.04), transparent 42%),
+    radial-gradient(circle at 50% 85%, rgba(255, 255, 255, 0.03), transparent 48%),
+    radial-gradient(circle at 88% 92%, rgba(255, 255, 255, 0.03), transparent 40%);
   filter: blur(60px);
   animation: auroraMove 20s ease-in-out infinite;
 }
@@ -521,14 +534,12 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  /* v2 ("mais tecnologico, mais chique"): terceira mancha (verde-azulado, ainda
-     dentro do par roxo/verde - nao e uma cor nova) com o proprio ciclo, rodando
-     fora de fase das outras duas - em vez de um "ping-pong" de 2 pontos, agora
-     o caminho parece mais organico/mesh-gradient, tipo os fundos animados da
-     Apple (Fitness/Music), sem nunca cruzar pra vermelho/laranja/amarelo. */
-  background: radial-gradient(65% 55% at 22% 70%, rgba(109, 63, 209, 0.45), transparent 60%),
-    radial-gradient(60% 50% at 78% 28%, rgba(65, 170, 117, 0.42), transparent 60%),
-    radial-gradient(45% 40% at 50% 50%, rgba(50, 150, 160, 0.28), transparent 62%);
+  /* Fase 8 D1: "efeito rainbow" roxo/verde saturado removido - agora e so
+     um brilho ambiente cinza neutro, bem fraco, na mesma estrutura/posicao/
+     animacao de antes (nada de layout mudou, so a cor deixou de tingir). */
+  background: radial-gradient(65% 55% at 22% 70%, rgba(255, 255, 255, 0.05), transparent 60%),
+    radial-gradient(60% 50% at 78% 28%, rgba(255, 255, 255, 0.04), transparent 60%),
+    radial-gradient(45% 40% at 50% 50%, rgba(255, 255, 255, 0.03), transparent 62%);
   background-size: 180% 180%, 180% 180%, 220% 220%;
   mix-blend-mode: screen;
   animation: rainbowDrift 26s ease-in-out infinite, rainbowDriftExtra 37s ease-in-out infinite;
@@ -1065,9 +1076,11 @@ header {
 #tab-bancos,
 #tab-construtora,
 #tab-aviacao {
-  --glass-border: color-mix(in srgb, var(--glass-tint) 32%, var(--border-strong));
+  /* Fase 8 D1: mesma reducao de 30-35% pra 14-15% que o :root - a cor da
+     aba deixa de pintar borda/sombra do card, ficando so um tico sutil. */
+  --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
   --glass-shadow: 0 3px 8px -4px rgba(0, 0, 0, 0.55),
-    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 35%, transparent), var(--shadow-card-hover);
+    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 15%, transparent), var(--shadow-card-hover);
 }
 #tab-hoje {
   --glass-tint: var(--cor-hoje);
