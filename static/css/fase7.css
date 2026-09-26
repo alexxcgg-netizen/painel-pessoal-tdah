@@ -5,6 +5,7 @@
    e ai lembrar do precache em static/service-worker.js). */
 @import url("ui/tokens.css");
 @import url("ui/movimento.css");
+@import url("ui/desempenho.css");
 @import url("ui/componentes/botao.css");
 @import url("ui/componentes/secao.css");
 @import url("ui/componentes/card.css");

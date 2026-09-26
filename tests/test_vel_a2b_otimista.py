@@ -179,14 +179,39 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
                 page.wait_for_selector("#nova-tarefa-titulo", state="visible")
                 page.fill("#nova-tarefa-titulo", titulo)
 
-                t0 = time.time()
-                page.click("#nova-tarefa-btn", force=True)
-                page.wait_for_function(
-                    "(titulo) => document.querySelector('#lista-tarefas')?.textContent.includes(titulo)",
-                    arg=titulo,
-                    timeout=150,
+                # Vel (limpa/v-abas): media com o relogio do Python (time.time()
+                # em volta de page.click()+wait_for_function) inclui a viagem
+                # IPC do Playwright ate o browser - fica instavel sob carga
+                # (CPU concorrente), estourando os 150ms mesmo quando a
+                # atualizacao otimista em si e instantanea. Mede-se agora
+                # DENTRO da pagina (performance.now no pointerdown ate o
+                # frame em que o item otimista aparece), a mesma regua de
+                # scripts/medir_velocidade.py (JS_LER_EVENTO/clicar_e_medir).
+                page.evaluate(
+                    """(titulo) => {
+                        window.__t0_a2d = null;
+                        window.__t_visivel_a2d = null;
+                        document.addEventListener('pointerdown', () => {
+                            if (window.__t0_a2d === null) window.__t0_a2d = performance.now();
+                        }, {capture: true, once: true});
+                    }""",
+                    titulo,
                 )
-                dt_ms = (time.time() - t0) * 1000
+                page.click("#nova-tarefa-btn", force=True)
+                dt_ms = page.evaluate(
+                    """(titulo) => new Promise((resolve) => {
+                        const t0 = window.__t0_a2d ?? performance.now();
+                        const limite = performance.now() + 150;
+                        (function tick() {
+                            const achou = document.querySelector('#lista-tarefas')?.textContent.includes(titulo);
+                            if (achou) { resolve(performance.now() - t0); return; }
+                            if (performance.now() > limite) { resolve(null); return; }
+                            requestAnimationFrame(tick);
+                        })();
+                    })""",
+                    titulo,
+                )
+                self.assertIsNotNone(dt_ms, "tarefa nao apareceu em 150ms (deveria ser otimista)")
                 self.assertLess(dt_ms, 150, f"tarefa demorou {dt_ms:.0f}ms pra aparecer (deveria ser otimista)")
                 self.assertEqual(len(rotas_paradas), 1, "o POST deveria estar pendente nesse ponto")
                 self.assertTrue(

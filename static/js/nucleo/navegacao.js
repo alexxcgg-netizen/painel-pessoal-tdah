@@ -107,11 +107,13 @@ function showTab(name) {
     // antes do paint). Meta: INP < 100ms.
     requestAnimationFrame(() => {
       setTimeout(() => {
+        // Limpa (D): loadExpenses() ja chama loadExtratoFinancas() por dentro
+        // (gastos.js) - chamar de novo aqui duplicava o GET /api/financas/extrato
+        // a cada troca pra aba Gastos.
         loadExpenses();
         loadMetas();
         loadBancos();
         if (typeof loadResumoFinancas === "function") loadResumoFinancas();
-        if (typeof loadExtratoFinancas === "function") loadExtratoFinancas();
       }, 0);
     });
   }
