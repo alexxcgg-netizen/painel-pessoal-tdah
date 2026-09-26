@@ -74,7 +74,7 @@ function criarCardCapturaPendente(id, text) {
 
   const eyebrow = document.createElement("div");
   eyebrow.className = "card-resultado-eyebrow";
-  eyebrow.innerHTML = `${ICONE_TAREFA_CARD}<span>Sem conexao - salvo, vai sincronizar</span>`;
+  eyebrow.innerHTML = `${ICONE_TAREFA_CARD}<span>Sem conexão - salvo, vai sincronizar</span>`;
   card.appendChild(eyebrow);
 
   const titulo = document.createElement("p");
@@ -113,7 +113,7 @@ function atualizarIndicadorOffline(n) {
   if (!banner) return;
   if (n > 0) {
     banner.classList.remove("c2-toast-sai");
-    banner.textContent = `Sem conexao - ${n} ${n === 1 ? "item pendente" : "itens pendentes"}, vai sincronizar quando voltar.`;
+    banner.textContent = `Sem conexão - ${n} ${n === 1 ? "item pendente" : "itens pendentes"}, vai sincronizar quando voltar.`;
     banner.hidden = false;
   } else if (!banner.hidden) {
     if (typeof saidaAnimada === "function") {
@@ -137,7 +137,7 @@ if (typeof FilaOffline !== "undefined") {
       if (cardPendente) cardPendente.remove();
       const aviso = document.createElement("p");
       aviso.className = "card-resultado-detalhe";
-      aviso.textContent = `Capturado offline, mas ficou em duvida: "${data.duvida}". Repete a captura quando puder pra confirmar.`;
+      aviso.textContent = `Capturado offline, mas ficou em dúvida: "${data.duvida}". Repete a captura quando puder pra confirmar.`;
       $("#chat-mensagens").appendChild(aviso);
     } else if (data) {
       const novoCard = criarCardsCaptura(data);
@@ -158,7 +158,7 @@ if (typeof FilaOffline !== "undefined") {
   FilaOffline.registrarCallback("erro", (item, corpo, status) => {
     const cardPendente = document.getElementById(`fila-${item.id}`);
     if (cardPendente) cardPendente.remove();
-    mostrarErro((corpo && corpo.error) || `Nao consegui sincronizar um item pendente (HTTP ${status}). Foi descartado.`);
+    mostrarErro((corpo && corpo.error) || `Não consegui sincronizar um item pendente (HTTP ${status}). Foi descartado.`);
   });
 
   // Nota fiscal tirada sem internet (US-C8): a extracao em si nao pode

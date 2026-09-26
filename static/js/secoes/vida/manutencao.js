@@ -7,8 +7,8 @@ const ROTULO_TIPO_MANUTENCAO = { casa: "Casa", carro: "Carro", equipamento: "Equ
 function textoProximaManutencaoCarro(m) {
   const partes = [];
   if (m.km != null) partes.push(`${m.km} km na hora`);
-  if (m.proxima_em_km != null) partes.push(`proxima em ${m.proxima_em_km} km`);
-  if (m.proxima_em_data) partes.push(`proxima em ${fmtDataBr(m.proxima_em_data)}`);
+  if (m.proxima_em_km != null) partes.push(`próxima em ${m.proxima_em_km} km`);
+  if (m.proxima_em_data) partes.push(`próxima em ${fmtDataBr(m.proxima_em_data)}`);
   return partes;
 }
 
@@ -37,7 +37,7 @@ async function loadManutencoes() {
         ? `passou do prazo ha ${-m.dias_ate} dia(s)`
         : m.dias_ate === 0
         ? "vence hoje"
-        : `proxima em ${fmtDataBr(m.proxima)} (${m.dias_ate} dias)`;
+        : `próxima em ${fmtDataBr(m.proxima)} (${m.dias_ate} dias)`;
     lista.appendChild(
       itemSimples(m.item, [rotuloTipo, `a cada ${m.intervalo_meses} mes(es)`, quando], [
         botaoAcao("feita hoje", async () => {
@@ -57,7 +57,7 @@ $("#manutencao-tipo").addEventListener("change", () => {
   $("#manutencao-campos-tempo").hidden = carro;
 });
 
-// Fase 7 V4: botao "Adicionar manutencao" abre o formulario num bottom-sheet
+// Fase 7 V4: botao "Adicionar manutenção" abre o formulario num bottom-sheet
 // (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
 // integracao, cai no fallback inline (so hidden) - retestado depois do merge
 // com origin/fase7/integracao.

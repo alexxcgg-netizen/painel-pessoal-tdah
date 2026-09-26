@@ -99,7 +99,7 @@ async function loadMedidas() {
       cor: "var(--cor-financeiro)",
       formatarValor: (v) => `${v}${dadosGrafico.unidade}`,
       altura: 80,
-      rotulo: `Evolucao de ${dadosGrafico.tipo}`,
+      rotulo: `Evolução de ${dadosGrafico.tipo}`,
     });
   }
 }

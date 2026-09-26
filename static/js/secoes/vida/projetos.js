@@ -53,7 +53,7 @@ function criarCardProjeto(p, liWrapper) {
   box.appendChild(renderProjetoBarra(p));
   if (p.proxima_etapa) {
     const linha = criarEl("div", "form-linha");
-    linha.appendChild(criarEl("span", "item-quando", `Proxima: ${p.proxima_etapa.texto}`));
+    linha.appendChild(criarEl("span", "item-quando", `Próxima: ${p.proxima_etapa.texto}`));
     linha.appendChild(
       botaoAcao("concluir", async () => {
         const r = await jsonPost(`/api/projetos/etapas/${p.proxima_etapa.id}/concluir`);

@@ -92,7 +92,7 @@ $("#medicamento-form").addEventListener("submit", async (e) => {
   const nome = nomeInput.value.trim();
   const horario = horarioInput.value.trim();
   if (!nome || !horario) {
-    mostrarErro("Confere o nome e o horario do remedio.");
+    mostrarErro("Confere o nome e o horário do remédio.");
     return;
   }
 

@@ -23,7 +23,7 @@ function criarItemContaAVencer(c) {
   const li = criarEl("li", "lista-item" + (vencida ? " conta-vencida" : ""));
 
   const corpo = criarEl("div", "lista-item-corpo");
-  const titulo = textoFinancas(c.fornecedor, "") || textoFinancas(c.descricao, "") || "Fornecedor nao informado";
+  const titulo = textoFinancas(c.fornecedor, "") || textoFinancas(c.descricao, "") || "Fornecedor não informado";
   corpo.appendChild(criarEl("span", "lista-item-titulo", titulo));
 
   const meta = criarEl("span", "lista-item-meta");

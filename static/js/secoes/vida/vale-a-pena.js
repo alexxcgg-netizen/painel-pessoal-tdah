@@ -10,7 +10,7 @@
 // ler o resto.
 const INCLINACAO_INFO = {
   vale: { rotulo: "Vale a pena", classe: "decisao-veredito-vale" },
-  nao_vale: { rotulo: "Nao vale a pena", classe: "decisao-veredito-nao-vale" },
+  nao_vale: { rotulo: "Não vale a pena", classe: "decisao-veredito-nao-vale" },
   depende: { rotulo: "Depende", classe: "decisao-veredito-depende" },
 };
 

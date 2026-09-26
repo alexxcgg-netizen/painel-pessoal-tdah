@@ -23,7 +23,7 @@ async function loadResponder() {
   });
 }
 
-// Fase 7 V4: botao "Adicionar pendencia" abre o formulario num bottom-sheet
+// Fase 7 V4: botao "Adicionar pendência" abre o formulario num bottom-sheet
 // (static/js/ui/bottom-sheet.js, faixa V0d). Enquanto essa faixa nao chega na
 // integracao, cai no fallback inline (so hidden) - retestado depois do merge
 // com origin/fase7/integracao.

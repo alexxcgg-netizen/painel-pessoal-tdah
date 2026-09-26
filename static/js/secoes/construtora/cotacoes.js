@@ -233,7 +233,7 @@ async function preencherDetalheCotacao(cotacaoId, container) {
     const valor = parseFloat(inputValor.value.trim().replace(",", "."));
     if (!fornecedor || Number.isNaN(valor)) return;
     if (!Number.isFinite(valor) || valor < 0) {
-      mostrarErro("Valor invalido - use um numero positivo (ex: 4200,50).");
+      mostrarErro("Valor inválido - use um número positivo (ex: 4200,50).");
       return;
     }
     setBotaoCarregando(btnAdd, true, "salvando...");

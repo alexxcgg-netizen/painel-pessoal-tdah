@@ -13,13 +13,13 @@
 
 function rotuloProximaConta(contas) {
   const comDias = contas.filter((c) => numeroFinancas(c.dias_ate_vencer) !== null);
-  if (comDias.length === 0) return "Nenhuma conta em aberto nos proximos 30 dias.";
+  if (comDias.length === 0) return "Nenhuma conta em aberto nos próximos 30 dias.";
   const proxima = comDias.reduce((m, c) => (Number(c.dias_ate_vencer) < Number(m.dias_ate_vencer) ? c : m));
   const dias = Number(proxima.dias_ate_vencer);
-  if (dias < 0) return `Proxima conta venceu ha ${Math.abs(dias)} dia(s).`;
-  if (dias === 0) return "Proxima conta vence hoje.";
-  if (dias === 1) return "Proxima conta vence amanha.";
-  return `Proxima conta em ${dias} dias.`;
+  if (dias < 0) return `Próxima conta venceu ha ${Math.abs(dias)} dia(s).`;
+  if (dias === 0) return "Próxima conta vence hoje.";
+  if (dias === 1) return "Próxima conta vence amanha.";
+  return `Próxima conta em ${dias} dias.`;
 }
 
 async function loadConstrutora() {
@@ -37,11 +37,11 @@ async function loadConstrutora() {
   const data = await apiFetch("/api/construtora/resumo");
   info.classList.remove("carregando");
   if (!data || typeof data !== "object") {
-    info.textContent = "Nao consegui falar com a construtora agora. Tenta de novo daqui a pouco.";
+    info.textContent = "Não consegui falar com a construtora agora. Tenta de novo daqui a pouco.";
     return;
   }
   if (!data.configurado) {
-    info.textContent = "Ainda nao conectado a API da construtora.";
+    info.textContent = "Ainda não conectado a API da construtora.";
     return;
   }
   if (data.erro) {

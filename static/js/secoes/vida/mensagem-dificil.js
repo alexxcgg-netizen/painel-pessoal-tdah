@@ -42,7 +42,7 @@ $("#mensagem-form").addEventListener("submit", async (e) => {
           copiar.innerHTML = `${ICONE_COPIAR}Copiar`;
         }, 1800);
       } catch {
-        copiar.textContent = "nao deu - segura no texto";
+        copiar.textContent = "não deu - segura no texto";
       }
     });
     topo.appendChild(copiar);

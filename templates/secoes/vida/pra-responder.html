@@ -8,22 +8,22 @@
           <div class="dica-colapsavel">
             <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicacao de pra responder"></button>
             <p class="dica-metas dica-texto" hidden>
-              Mensagem importante que VOCE precisa responder e deixou pra depois. Lembra todo dia as 10h ate voce marcar "respondi". No chat: "tenho que responder o Joao sobre o orcamento".
+              Mensagem importante que VOCÊ precisa responder e deixou pra depois. Lembra todo dia as 10h até você marcar "respondi". No chat: "tenho que responder o Joao sobre o orcamento".
             </p>
           </div>
-          <button type="button" id="responder-abrir-btn" class="btn btn-adicionar">Adicionar pendencia</button>
+          <button type="button" id="responder-abrir-btn" class="btn btn-adicionar">Adicionar pendência</button>
           <p id="responder-vazio" class="vazio" hidden>Nada pendente pra responder.</p>
           <ul id="lista-responder"></ul>
         </div>
       </section>
 
       <div class="bottom-sheet" id="sheet-responder" hidden aria-labelledby="sheet-responder-titulo">
-        <h3 class="bottom-sheet-titulo" id="sheet-responder-titulo">Adicionar pendencia</h3>
+        <h3 class="bottom-sheet-titulo" id="sheet-responder-titulo">Adicionar pendência</h3>
         <form id="responder-form" class="form-linha">
           <input type="text" id="responder-quem" class="campo" placeholder="Pra quem?" maxlength="60" required />
           <input type="text" id="responder-sobre" class="campo" placeholder="Sobre o que? (opcional)" maxlength="200" />
           <div class="form-linha">
-            <button type="submit" id="responder-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar pendencia</button>
+            <button type="submit" id="responder-btn" class="btn btn-primario btn-com-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Salvar pendência</button>
             <button type="button" id="responder-cancelar-btn" class="btn btn-secundario">Cancelar</button>
           </div>
         </form>

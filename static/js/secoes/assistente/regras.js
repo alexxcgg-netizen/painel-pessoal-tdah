@@ -22,9 +22,9 @@ const RegrasAssistente = (function () {
   }
 
   const ROTULO_GATILHO = {
-    horario: "Horario",
+    horario: "Horário",
     gasto_categoria: "Gasto por categoria",
-    habito_nao_feito_ate: "Habito nao feito",
+    habito_nao_feito_ate: "Hábito não feito",
     tarefa_vencida: "Tarefa vencida",
     sinal_iphone: "Sinal do iPhone",
   };
@@ -42,7 +42,7 @@ const RegrasAssistente = (function () {
     if (String(regra.pausada_ate).startsWith("9999")) {
       return { pausada: true, texto: "Pausada" };
     }
-    return { pausada: true, texto: `Pausada ate ${esc(regra.pausada_ate)}` };
+    return { pausada: true, texto: `Pausada até ${esc(regra.pausada_ate)}` };
   }
 
   function renderRegraHTML(regra) {
@@ -128,7 +128,7 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
 
     async function apagar(id) {
       if (!id) return;
-      if (!window.confirm("Apagar esta regra? Nao da pra desfazer.")) return;
+      if (!window.confirm("Apagar esta regra? Não dá pra desfazer.")) return;
       const r = await apiFetch(`/api/p4_regras/${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r) return;
       vibrar(15);

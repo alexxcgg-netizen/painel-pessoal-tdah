@@ -29,7 +29,7 @@ function criarBotaoOuvirChat(texto) {
   return btn;
 }
 
-// Ritmo humano (pedido explicito: "diferentes ritmos... mas nao algo devagar"):
+// Ritmo humano (pedido explicito: "diferentes ritmos... mas não algo devagar"):
 // o passo base continua limitando a duracao TOTAL (nao fica mais lento que
 // antes - a media do jitter e 1.0x), mas cada palavra varia +-20% em vez de
 // ser um metronomo identico, palavras bem curtas (ate 2 letras - "e", "a",
@@ -141,7 +141,7 @@ if (typeof Cards !== "undefined") {
   Cards.ligar($("#chat-mensagens"), {
     apiFetch,
     // A aba Vida so carrega as listas no clique da tabbar (vida.js) - o
-    // link "Abrir Projetos/Habitos/Viagens" de um card (US-E7) precisa
+    // link "Abrir Projetos/Hábitos/Viagens" de um card (US-E7) precisa
     // disparar o mesmo carregamento, senao a lista de destino fica vazia.
     showTab: (aba) => {
       showTab(aba);

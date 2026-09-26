@@ -73,7 +73,7 @@ async function loadUberPendentes() {
 
     const preco = document.createElement("p");
     preco.className = "uber-pendente-preco";
-    preco.textContent = p.preco_texto || "preco nao disponivel";
+    preco.textContent = p.preco_texto || "preço não disponível";
     card.appendChild(preco);
 
     const acoes = document.createElement("div");

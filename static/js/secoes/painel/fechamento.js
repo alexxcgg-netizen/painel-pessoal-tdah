@@ -10,7 +10,7 @@ async function loadFechamentoDoDia() {
   concluidasEl.textContent =
     data.concluidas.length > 0
       ? `Feito hoje: ${data.concluidas.join(", ")}.`
-      : "Nada concluido hoje ainda.";
+      : "Nada concluído hoje ainda.";
 
   const pendentesEl = $("#fechamento-pendentes");
   pendentesEl.textContent =

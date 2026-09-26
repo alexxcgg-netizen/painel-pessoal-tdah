@@ -19,7 +19,7 @@ async function loadAssinaturasRevisao() {
     const acoes = criarEl("div", "item-acoes");
     [
       ["usa", "uso"],
-      ["nao_usa", "nao uso mais"],
+      ["nao_usa", "não uso mais"],
     ].forEach(([resposta, rotulo]) => {
       const b = criarEl("button", resposta === "usa" ? "btn-com-icone" : "primario btn-com-icone", rotulo);
       b.addEventListener("click", async () => {
