@@ -13,27 +13,69 @@ function reduzirMovimento() {
   }
 }
 
-// Troca de aba: View Transitions nativo onde existe (Chromium/Safari 18+),
-// cross-fade + translateY 8px via ::view-transition-old/new(root) em
-// static/css/ui/movimento.css. Sem suporte, ou com "reduzir movimento", `fn`
-// roda direto e style.css cuida do fallback (.entra-direita/.entra-esquerda,
-// ou nenhuma animacao com reduzir movimento - os --dur-* zeram sozinhos).
+// Troca de aba: View Transitions nativo SO no Safari (o alvo real e o
+// iPhone) - cross-fade + translateY 8px via ::view-transition-old/new(root)
+// em static/css/ui/movimento.css. No Chromium (inclusive Chromium headless
+// dos testes) e em qualquer navegador sem suporte, `fn` roda direto e
+// style.css cuida do fallback (.entra-direita/.entra-esquerda), sem chamar
+// a API nativa.
+//
 // ACHADO (Vis C2, medido com Playwright/Chromium headless CPU 4x): chamar
-// document.startViewTransition aqui deixava o overlay de
+// document.startViewTransition no Chromium deixava o overlay de
 // ::view-transition-group(root) "vivo" depois da troca (a promise finished
 // as vezes nao resolve nesse Chromium headless) e ele intercepta o proximo
 // toque - quebrou o teste tests/test_vel_a2b_otimista.py (concluir tarefa
 // direto depois de trocar pra aba Tarefas parava de responder ao toque
-// real, so a chamadas .click() sinteticas continuavam funcionando). Erro
-// silencioso (sem pageerror), so detectavel pelo toque real nao gerar POST -
-// por isso a funcao fica pronta (CSS em ui/movimento.css ja cobre o
-// ::view-transition-*(root)) mas SEM religar o startViewTransition real
-// ate confirmar num Chromium mais novo/nao-headless. Fallback (CSS
-// entra-direita/entra-esquerda -> tabEntra, ambos no token --dur-media/
-// --ease-saida + translateY(--deslocamento-entrada) em style.css) cobre a
-// troca de aba sozinho, sem esse risco.
+// real, so as chamadas .click() sinteticas continuavam funcionando). Erro
+// silencioso (sem pageerror), so detectavel pelo toque real nao gerar POST.
+//
+// Faixa limpa/A-anim: religa a chamada real, mas SO quando o motor NAO e
+// Chromium (navigator.userAgent tem "Safari" e nao tem "Chrome"/"CriOS" -
+// Chromium/Chrome/Edge/Opera/o proprio Chrome no iOS (CriOS) sempre
+// incluem "Chrome" na UA; so o Safari de verdade tem "Safari" sem
+// "Chrome"). Alem disso, um timeout de seguranca chama
+// transition.skipTransition() em 400ms: se por qualquer motivo a promise
+// "finished" nunca resolver nesse Safari tambem, a transicao e forcada a
+// terminar em vez de ficar com o overlay vivo travando o proximo toque -
+// mesmo risco do achado acima, agora coberto. Nenhum teste deste repo roda
+// em WebKit real (so Chromium, que sempre cai no fallback CSS), entao esse
+// caminho novo nunca é exercitado pela suite - fica documentado aqui pro
+// dono confirmar num Safari 18 de verdade antes de confiar 100%.
+function ehSafariNaoChromium() {
+  try {
+    const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+    return ua.indexOf("Safari") !== -1 && ua.indexOf("Chrome") === -1 && ua.indexOf("CriOS") === -1;
+  } catch (erro) {
+    return false; // sem navigator (ambiente de teste sem DOM real): assume que nao e Safari
+  }
+}
+
 function trocarAba(fn) {
-  fn();
+  const podeUsarNativo =
+    typeof document !== "undefined" &&
+    typeof document.startViewTransition === "function" &&
+    !reduzirMovimento() &&
+    ehSafariNaoChromium();
+  if (!podeUsarNativo) {
+    fn();
+    return;
+  }
+  let transition;
+  try {
+    transition = document.startViewTransition(fn);
+  } catch (erro) {
+    fn(); // startViewTransition rejeitou antes de rodar fn (raro) - roda direto, sem perder a troca
+    return;
+  }
+  if (transition && typeof transition.skipTransition === "function") {
+    setTimeout(() => {
+      try {
+        transition.skipTransition();
+      } catch (erro) {
+        /* ja tinha terminado sozinha - nada a fazer */
+      }
+    }, 400);
+  }
 }
 
 // Cards entrando escalonado (30ms), so os 8 primeiros QUE APARECEM SEM
@@ -179,6 +221,28 @@ function ligarDetalheAnimado(details) {
   });
 }
 
+// Tarefa concluida: fecha o espaco que ela deixa na lista sem "pular".
+// tarefas.js ja marca .saindo IMEDIATAMENTE no toque (sincrono, nada mais
+// nessa linha - e o que a Vel A2b mede em <150ms). Esta funcao roda so
+// DEPOIS, dentro de um requestAnimationFrame chamado por tarefas.js (nunca
+// no clique em si), e liga o colapso de altura (grid-template-rows 1fr ->
+// 0fr, tecnica da skill animacoes-interface) que ja existe em
+// li.item.c2-colapsavel/c2-saindo-colapsa (ui/movimento.css) - so faltava
+// alguem ligar as classes. Duas etapas (a classe base primeiro, a que
+// dispara a transicao so no rAF seguinte) pra garantir que o navegador
+// registre o "1fr" antes de mudar pra "0fr" (senao nao ha transicao pra
+// ver). Confere .saindo de novo antes da 2a classe: se o POST falhou nesse
+// meio tempo (erro 500) e tarefas.js ja tirou .saindo pra devolver o item,
+// aqui desiste sem colapsar por baixo do usuario.
+function colapsarSaidaLista(li) {
+  if (!li || !li.classList || typeof requestAnimationFrame !== "function") return;
+  if (reduzirMovimento()) return; // reduzir movimento: sem colapso animado, li.remove() de tarefas.js ja basta
+  li.classList.add("c2-colapsavel");
+  requestAnimationFrame(() => {
+    if (li.isConnected && li.classList.contains("saindo")) li.classList.add("c2-saindo-colapsa");
+  });
+}
+
 // Toast/aviso fixo (banner de erro, offline, "servidor acordando" -
 // nucleo/api.js, secoes/topo/captura.js): entra com o CSS de cada banner
 // (translateY + opacity, --dur-media, ja tocava sozinho ao [hidden] sair) -
@@ -215,8 +279,10 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     reduzirMovimento,
     trocarAba,
+    ehSafariNaoChromium,
     marcarEntradaEscalonada,
     animarConclusaoTarefa,
+    colapsarSaidaLista,
     animarGraficoNaEntrada,
     saidaAnimada,
     ligarDetalheAnimado,

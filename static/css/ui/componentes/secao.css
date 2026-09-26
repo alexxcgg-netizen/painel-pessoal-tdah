@@ -94,18 +94,29 @@
   transform: rotate(180deg);
 }
 
-/* Corpo: max-height animado pelo JS (mede scrollHeight na abertura/fechamento). Sem JS, o
-   estado inicial vem so do data-aberto do HTML (grau razoavel de fallback). */
+/* Corpo: tecnica grid-template-rows 0fr -> 1fr da skill animacoes-interface
+   (ui/secao-recolhivel.js liga sozinho, sem medir altura em JS - so reage
+   ao data-aberto do <section> por CSS puro). O grid so tem UMA linha
+   explicita; o conteudo real fica dentro de um wrapper unico
+   (.secao-conteudo-interno, criado pelo JS) - e ELE que leva o
+   overflow:hidden, nao o grid container, senao o navegador cortaria o
+   proprio scrollbar/sombra do conteudo aberto. Sem JS (grau de fallback,
+   igual antes), o estado inicial vem so do data-aberto do HTML. */
 .secao-conteudo {
-  overflow: hidden;
-  max-height: 0;
+  display: grid;
+  grid-template-rows: 0fr;
   padding: 0 var(--espaco-3, 24px);
-  transition: max-height var(--secao-dur, 0.3s) var(--ease-suave, ease),
-    padding var(--secao-dur, 0.3s) var(--ease-suave, ease);
+  transition: grid-template-rows var(--dur-longa, 0.3s) var(--ease-padrao, ease),
+    padding var(--dur-longa, 0.3s) var(--ease-padrao, ease);
+}
+
+.secao-conteudo > .secao-conteudo-interno {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .secao-recolhivel[data-aberto="true"] .secao-conteudo {
-  max-height: none;
+  grid-template-rows: 1fr;
   padding: 0 var(--espaco-3, 24px) var(--espaco-3, 24px);
 }
 
