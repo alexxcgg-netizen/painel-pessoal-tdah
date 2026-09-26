@@ -6246,37 +6246,6 @@ def _assinaturas_pendentes_revisao(conn, hoje: date) -> list[dict]:
     return pendentes
 
 
-@app.route("/api/assinaturas/revisao", methods=["GET"])
-def assinaturas_revisao():
-    conn = get_db()
-    resultado = _assinaturas_pendentes_revisao(conn, date.today())
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/assinaturas/revisao", methods=["POST"])
-def responder_assinatura_rota():
-    body = _corpo_json()
-    descricao = (body.get("descricao") or "").strip() if isinstance(body.get("descricao"), str) else ""
-    resposta = body.get("resposta")
-    if not descricao or len(descricao) > 200 or resposta not in ("usa", "nao_usa"):
-        return jsonify({"error": "mande descricao e resposta ('usa' ou 'nao_usa')"}), 400
-    valor = body.get("valor")
-    valor = valor if isinstance(valor, (int, float)) and not isinstance(valor, bool) and math.isfinite(valor) else None
-    conn = get_db()
-    responder_assinatura(
-        conn, gastos._normalizar_descricao(descricao), date.today().strftime("%Y-%m"), descricao, valor, resposta
-    )
-    tarefa_id = None
-    if resposta == "nao_usa":
-        cur = conn.execute("INSERT INTO tasks (title) VALUES (?)", (f"Cancelar assinatura: {descricao}",))
-        tarefa_id = cur.lastrowid
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True, "tarefa_id": tarefa_id})
-
-
 def _pessoas_com_status(conn, hoje: date) -> list[dict]:
     pessoas = list_pessoas(conn)
     atrasadas = {p["id"] for p, _ in vida.pessoas_sem_contato(pessoas, hoje)}
@@ -7927,26 +7896,6 @@ def _patrimonio_consolidado(conn) -> dict:
     }
 
 
-@app.route("/api/patrimonio", methods=["GET"])
-def patrimonio_rota():
-    if _modo_visitante_ativo():
-        return jsonify(
-            {
-                "saldo_bancario": 0,
-                "fatura_aberta": 0,
-                "valor_guardado_metas": 0,
-                "patrimonio_total": 0,
-                "contas": [],
-                "metas": [],
-                "oculto": True,
-            }
-        )
-    conn = get_db()
-    resultado = _patrimonio_consolidado(conn)
-    conn.close()
-    return jsonify(resultado)
-
-
 @app.route("/api/bancos/<int:conta_id>/transacoes", methods=["GET"])
 def transacoes_banco(conta_id):
     if _modo_visitante_ativo():
@@ -7986,29 +7935,6 @@ def bancos_sync_status():
             "info": info,
             "ultimo_sync_nubank_ok": ultimo_sync,
             "criptografia_ativa": criptografia.configurada(),
-        }
-    )
-
-
-@app.route("/api/seguranca/status", methods=["GET"])
-def seguranca_status():
-    """Rota de diagnostico: diz se a criptografia em repouso (Open Finance +
-    saude) esta ligada agora. Ver docs/SEGURANCA.md. Sem ENCRYPTION_KEY
-    configurada, o app segue funcionando normalmente (decisao de design
-    documentada) mas os campos sensiveis ficam em texto plano no banco -
-    esta rota existe pra isso nunca ficar escondido, so silencioso no log."""
-    ativa = criptografia.configurada()
-    return jsonify(
-        {
-            "criptografia_ativa": ativa,
-            "aviso": (
-                None
-                if ativa
-                else (
-                    "ENCRYPTION_KEY nao configurada - dado do Open Finance e de saude esta "
-                    "em texto plano no banco. Rode python scripts/gerar_chave_criptografia.py."
-                )
-            ),
         }
     )
 
@@ -8253,111 +8179,6 @@ def apagar_item_cotacao(cotacao_id, item_id):
 
 
 TAMANHO_MAX_IMAGEM_BYTES = 10 * 1024 * 1024  # 10MB - foto de celular cabe folgado
-
-
-@app.route("/api/notas-fiscais/extrair", methods=["POST"])
-def extrair_nota_fiscal():
-    """Recebe a foto de uma nota fiscal (base64, nao multipart - de proposito:
-    o corpo em JSON e o mesmo formato que /api/capture ja usa, entao a fila
-    offline (fila-offline.js, generica pra qualquer url/method/headers/body)
-    consegue reenfileirar essa chamada sem precisar de nenhum tratamento
-    especial pra FormData/Blob quando a foto e tirada sem internet) e extrai
-    valor/estabelecimento/data via claude_client (API de visao da Anthropic -
-    decisao ja tomada com o Alex, sem OCR local). So extrai: NUNCA grava o
-    gasto direto, porque a leitura por IA pode errar o valor - a confirmacao
-    e o fluxo de registro ficam com /api/notas-fiscais/confirmar (US-C9)."""
-    body = _corpo_json()
-    imagem_b64 = body.get("imagem_base64")
-    media_type = (body.get("media_type") or "").strip().lower()
-    if not imagem_b64 or not isinstance(imagem_b64, str):
-        return jsonify({"error": "anexe uma foto da nota fiscal"}), 400
-    if media_type not in claude_client.MEDIA_TYPES_IMAGEM_VALIDOS:
-        return jsonify({"error": "formato de imagem nao suportado (use jpeg, png, webp ou heic)"}), 400
-
-    try:
-        image_bytes = base64.b64decode(imagem_b64, validate=True)
-    except (binascii.Error, ValueError):
-        return jsonify({"error": "imagem invalida (base64 malformado)"}), 400
-    if not image_bytes:
-        return jsonify({"error": "imagem vazia"}), 400
-    if len(image_bytes) > TAMANHO_MAX_IMAGEM_BYTES:
-        return jsonify({"error": "foto maior que 10MB - manda uma foto menor"}), 400
-
-    conn = get_db()
-    # Mesmo teto mensal da US-A6 (ver _classificar_intent) - extracao por
-    # visao usa Sonnet, mais caro que o Haiku do classificador de intent,
-    # entao e a chamada mais cara do app pra deixar sem controle de gasto.
-    # Revisao de seguranca da Fase 5 achou que so o classificador de intent
-    # respeitava o teto - corrigido aqui. Mesmo _TETO_IA_LOCK da
-    # _classificar_intent (fecha a mesma janela TOCTOU nos dois pontos que
-    # respeitam o teto).
-    with _TETO_IA_LOCK:
-        if _teto_ia_estourado("extrair_nota_fiscal_foto"):
-            conn.close()
-            return jsonify({"error": TETO_IA_MSG}), 402
-
-        result, error = _call_claude(claude_client.extrair_nota_fiscal_foto, image_bytes, media_type)
-        if error:
-            conn.close()
-            return error
-        dados, usage = result
-
-        _log_usage(conn, usage, "nota_fiscal")
-        conn.commit()
-    conn.close()
-    return jsonify(dados), 200
-
-
-@app.route("/api/notas-fiscais/confirmar", methods=["POST"])
-def confirmar_nota_fiscal():
-    """Segundo passo do fluxo (US-C9): recebe o valor/estabelecimento/data
-    que o Alex CONFIRMOU na tela (pode ter editado o que a IA leu errado -
-    nunca salva o que veio de /extrair sem passar por aqui) e vira um gasto
-    de verdade, com a MESMA sugestao automatica de categoria ja usada pro
-    extrato bancario (gastos.sugerir_categoria, historico de gastos
-    categorizados manualmente - nao um classificador novo e paralelo)."""
-    body = _corpo_json()
-    valor = body.get("valor")
-    estabelecimento = _texto_seguro(body.get("estabelecimento")).strip()
-    data_compra = _texto_seguro(body.get("data")).strip() or None
-    categoria_informada = _texto_seguro(body.get("categoria")).strip() or None
-
-    if not isinstance(valor, (int, float)) or isinstance(valor, bool) or valor <= 0:
-        return jsonify({"error": "informe um valor valido (maior que zero)"}), 400
-    if not estabelecimento:
-        return jsonify({"error": "informe o estabelecimento"}), 400
-    if data_compra:
-        try:
-            date.fromisoformat(data_compra)
-        except ValueError:
-            return jsonify({"error": "data invalida (use AAAA-MM-DD)"}), 400
-
-    conn = get_db()
-    categoria = categoria_informada
-    if not categoria:
-        historico = conn.execute(
-            "SELECT category, description, source_text FROM expenses "
-            "WHERE tipo = 'real' AND category IS NOT NULL"
-        ).fetchall()
-        categoria = gastos.sugerir_categoria(estabelecimento, [dict(r) for r in historico]) or "outros"
-
-    created_at = f"{data_compra} 12:00:00" if data_compra else None
-    if created_at:
-        cur = conn.execute(
-            "INSERT INTO expenses (amount, category, description, source_text, tipo, created_at) "
-            "VALUES (?, ?, ?, ?, 'real', ?)",
-            (valor, categoria, estabelecimento, f"Nota fiscal (foto): {estabelecimento}", created_at),
-        )
-    else:
-        cur = conn.execute(
-            "INSERT INTO expenses (amount, category, description, source_text, tipo) "
-            "VALUES (?, ?, ?, ?, 'real')",
-            (valor, categoria, estabelecimento, f"Nota fiscal (foto): {estabelecimento}"),
-        )
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify({"id": cur.lastrowid, "ok": True, "categoria": categoria}), 201
 
 
 def _token_atalho_valido(obrigatorio: bool = False) -> bool:
@@ -8608,30 +8429,6 @@ def definir_silencio():
 
     conn.close()
     return jsonify(resultado)
-
-
-@app.route("/api/aprendizado", methods=["GET"])
-def aprendizado_status():
-    """Transparencia do que o painel aprendeu do seu historico - pra nunca
-    virar caixa preta: mostra o limiar em uso hoje pra cada tipo de
-    cutucada, se veio do padrao ou foi aprendido, quantas amostras
-    embasaram isso, e o quanto (em media) voce demora pra resolver depois
-    de ser cutucado."""
-    conn = get_db()
-    # titulo/quem vazio nao bate com nenhum historico especifico (nenhum
-    # token pra comparar), entao cai direto no caminho global - o mesmo
-    # limiar_tarefa/limiar_espera usados de verdade em cada cobranca, so que
-    # aqui mostrando o valor "base" (sem o ajuste fino por titulo/quem
-    # especifico de uma tarefa em particular).
-    dias_tarefa, info_tarefa = aprendizado.limiar_tarefa(conn, "")
-    dias_espera, info_espera = aprendizado.limiar_espera(conn, "")
-    conn.close()
-    return jsonify(
-        {
-            "tarefa_parada": {"dias_atual": dias_tarefa, **info_tarefa},
-            "espera_parada": {"dias_atual": dias_espera, **info_espera},
-        }
-    )
 
 
 @app.route("/api/push/status", methods=["GET"])
