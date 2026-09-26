@@ -9,6 +9,13 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
    pras áreas da fase nova) e o topo do `CHANGELOG.md`.
 2. Worktree por faixa a partir de `origin/main`; nunca editar `/home/user/financeiro-construtora`.
 
+## Velocidade + cor Gelo preto + animações (2026-09-26) - na main
+Detalhe no topo do CHANGELOG. Medir: `.venv/bin/python scripts/medir_velocidade.py --out-dir X --rotulo Y`
+(`--repo` mede outro checkout). Pendências: aba Gastos ~360 ms até pronta (meta 200); "lista fecha o
+buraco" ao concluir não entrou (instabilizava teste otimista); sem WebKit pra validar Safari; um teste
+de fundo tenta IA de verdade e loga "readonly database" (ruído antigo). Lição: subagentes estouraram o
+teto de 40 chamadas em quase todas as faixas de UI; e sempre checar o exit code do pytest, não o tail.
+
 ## Melhorias de uso diário M1–M5 (2026-09-25) - na main
 Hoje enxuto (resto no Painel) + Aviação 3ª na barra; sync Nubank às 4h (só roda se o Render
 free estiver acordado); "Ver concluídas" nas Tarefas; resumo de IA em cache diário; aviso de
