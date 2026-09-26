@@ -88,7 +88,7 @@ def _linhas_banco(conn, de: date, ate: date) -> list[dict]:
             {
                 "id": f"bt-{t['id']}",
                 "data": data_tx,
-                "descricao": info.get("descricao") or "Sem descrição",
+                "descricao": info.get("descricao") or "Sem descricao",
                 "categoria": info.get("categoria") or t.get("categoria") or "Outros",
                 "valor": round(valor, 2),
                 "origem": (conta["banco"].capitalize() if conta and conta.get("banco") else "Banco"),
@@ -118,7 +118,7 @@ def _linhas_manuais(conn, de: date, ate: date) -> list[dict]:
             {
                 "id": f"exp-{r['id']}",
                 "data": data_txt,
-                "descricao": r["description"] or "Sem descrição",
+                "descricao": r["description"] or "Sem descricao",
                 "categoria": financas_descricao.rotulo_categoria_manual(r["category"]),
                 "valor": round(valor, 2),
                 "origem": "manual",

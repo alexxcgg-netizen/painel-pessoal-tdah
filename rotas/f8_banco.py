@@ -91,7 +91,7 @@ def cruzar_proximas_cobrancas_com_gastos(cobrancas: list[dict], gastos: list[dic
         item = dict(cobranca)
         bate = any(_cobranca_bate_com_gasto(cobranca, g) for g in gastos_do_banco)
         item["duplicado"] = bate
-        item["aviso"] = "possível duplicidade: cadastrada e também veio do Nubank" if bate else None
+        item["aviso"] = "possivel duplicidade: cadastrada e tambem veio do Nubank" if bate else None
         resultado.append(item)
     return resultado
 

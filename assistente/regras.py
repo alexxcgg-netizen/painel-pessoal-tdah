@@ -52,7 +52,7 @@ GATILHOS_VALIDOS = {
 _TIPOS_HORARIO = {"diario", "semanal", "data"}
 _PERIODOS = {"semana", "mes", "dia"}
 _TIPOS_SINAL = {"cheguei", "sai", "acordei", "dormir", "carregando"}
-_NOME_DIA_SEMANA = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+_NOME_DIA_SEMANA = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"]
 
 FUNCAO_IA_INTERPRETAR_REGRA = "interpretar_regra"
 
@@ -422,12 +422,12 @@ def montar_resumo_regra(regra: dict) -> str:
         hora = condicao.get("hora", "")
         mensagem = acao.get("mensagem") or regra.get("texto", "")
         if tipo == "diario":
-            quando = f"todo dia às {hora}"
+            quando = f"todo dia as {hora}"
         elif tipo == "semanal":
             dia = _NOME_DIA_SEMANA[condicao.get("dia_semana", 0)]
-            quando = f"toda {dia} às {hora}"
+            quando = f"toda {dia} as {hora}"
         else:
-            quando = f"em {condicao.get('data', '?')} às {hora}"
+            quando = f"em {condicao.get('data', '?')} as {hora}"
         return f'Vou te lembrar {quando}: "{mensagem}".'
 
     if gatilho == "gasto_categoria":
@@ -443,8 +443,8 @@ def montar_resumo_regra(regra: dict) -> str:
         nome = condicao.get("habito_nome", "?")
         hora = condicao.get("hora")
         if hora:
-            return f'Vou te avisar se "{nome}" ainda nao estiver marcado até as {hora}.'
-        return f'Vou te avisar quando "{nome}" passar do horário e ainda nao estiver marcado.'
+            return f'Vou te avisar se "{nome}" ainda nao estiver marcado ate as {hora}.'
+        return f'Vou te avisar quando "{nome}" passar do horario e ainda nao estiver marcado.'
 
     if gatilho == "tarefa_vencida":
         return "Vou te avisar quando alguma tarefa vencer."
@@ -678,9 +678,9 @@ def avaliar_regra(conn, regra: dict, agora: datetime,
         if not deve:
             return False, "", {}
         if len(tarefas) == 1:
-            mensagem = f'A tarefa "{tarefas[0]["title"]}" está vencida.'
+            mensagem = f'A tarefa "{tarefas[0]["title"]}" esta vencida.'
         else:
-            mensagem = f"Você tem {len(tarefas)} tarefas vencidas."
+            mensagem = f"Voce tem {len(tarefas)} tarefas vencidas."
         return True, mensagem, {"titulo": "Tarefa vencida", "janela": agora.date().isoformat()}
 
     if gatilho == "sinal_iphone":

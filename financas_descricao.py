@@ -388,7 +388,7 @@ def descrever(tx, por_external_id=None):
     """Decide o texto de exibicao para uma transacao. Nunca levanta excecao."""
     try:
         if not isinstance(tx, dict):
-            return {"descricao": "Sem descrição", "categoria": None, "estorno_de": None}
+            return {"descricao": "Sem descricao", "categoria": None, "estorno_de": None}
         if not _tem_como_dict(por_external_id):
             por_external_id = {}
 
@@ -435,7 +435,7 @@ def descrever(tx, por_external_id=None):
             if isinstance(origem_tx, dict):
                 sub = descrever(origem_tx, por_external_id={})
                 desc_origem = sub.get("descricao")
-                if desc_origem and desc_origem != "Sem descrição":
+                if desc_origem and desc_origem != "Sem descricao":
                     return {
                         "descricao": f"Estorno: {desc_origem}",
                         "categoria": categoria_final if categoria_final else sub.get("categoria"),
@@ -458,9 +458,9 @@ def descrever(tx, por_external_id=None):
         if nome_final:
             return {"descricao": nome_final, "categoria": categoria_final, "estorno_de": None}
 
-        return {"descricao": "Sem descrição", "categoria": categoria_final, "estorno_de": None}
+        return {"descricao": "Sem descricao", "categoria": categoria_final, "estorno_de": None}
     except Exception:
-        return {"descricao": "Sem descrição", "categoria": None, "estorno_de": None}
+        return {"descricao": "Sem descricao", "categoria": None, "estorno_de": None}
 
 
 def precisa_ia(tx):
@@ -468,7 +468,7 @@ def precisa_ia(tx):
     try:
         resultado = descrever(tx, {})
         descricao = resultado.get("descricao")
-        if not descricao or descricao == "Sem descrição":
+        if not descricao or descricao == "Sem descricao":
             return True
         # sobrou so codigo/numeral: sem nenhuma letra
         if not re.search(r"[A-Za-zÀ-ÿ]", descricao):

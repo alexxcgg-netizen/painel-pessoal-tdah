@@ -386,7 +386,7 @@ class TestProximasCobrancas(unittest.TestCase):
         fr.criar_assinatura(self.conn, "Depois", 10, 30, hoje=self.hoje)
         itens = {i["nome"]: i for i in fr.proximas_cobrancas(self.conn, self.hoje)}
         self.assertEqual(itens["Hoje"]["label"], "hoje")
-        self.assertEqual(itens["Amanha"]["label"], "amanhã")
+        self.assertEqual(itens["Amanha"]["label"], "amanha")
         self.assertEqual(itens["Depois"]["label"], "em 6 dias")
 
     def test_inclui_parcelas(self):

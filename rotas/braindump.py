@@ -128,7 +128,7 @@ def converter_brain_dump(item_id):
         descricao = _texto_seguro(body.get("titulo")) or item["texto"]
         novo_id = criar_gasto_de_brain_dump(conn, valor, body.get("categoria"), descricao, item["texto"])
         efeitos.append({"entidade": "gasto", "id": novo_id})
-        passo = {"modulo": "Finanças", "descricao": f'Registrou o gasto "{cards._titulo_curto(descricao)}"'}
+        passo = {"modulo": "Financas", "descricao": f'Registrou o gasto "{cards._titulo_curto(descricao)}"'}
         resumo = "Virou gasto."
     passo["ms"] = int(round((time.perf_counter() - inicio) * 1000))
 
