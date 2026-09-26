@@ -157,8 +157,13 @@ li.item.c2-colapsavel.c2-saindo-colapsa {
 }
 /* chevron do <summary> (ja existe via .fc-resumo-recolhivel/estilo da secao) -
    gira ao abrir, some com reduzir movimento (mesmo criterio do chevron de
-   .secao-recolhivel, componente/secao.css). */
-details:has(> .c2-details-externo:not(.c2-details-fechado)) summary .chevron {
+   .secao-recolhivel, componente/secao.css).
+   Vel: era um seletor :has() (details:has(> .c2-details-externo:not(...)))
+   - :has() forca o navegador a reavaliar essa combinacao em qualquer recalc
+   de estilo da subarvore, inclusive quando a aba/lista em volta e revelada
+   (caminho quente da troca de aba). movimento.js.ligarDetalheAnimado agora
+   poe/tira a classe direto no <summary> no toggle, sem precisar de :has(). */
+summary.c2-resumo-aberto .chevron {
   transform: rotate(180deg);
 }
 summary .chevron {

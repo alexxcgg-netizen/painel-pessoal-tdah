@@ -36,20 +36,35 @@ function trocarAba(fn) {
   fn();
 }
 
-// Cards entrando escalonado (30ms), so os 8 primeiros, so na 1a vez que a
-// aba/lista abre nesta sessao de pagina (dataset flag no container - troca
-// de aba de volta NAO repete a entrada, senao vira "tudo pisca de novo" a
-// cada toque, o que o brief pede pra evitar).
+// Cards entrando escalonado (30ms), so os 8 primeiros QUE APARECEM SEM
+// ROLAR, so na 1a vez que a aba/lista abre nesta sessao de pagina (dataset
+// flag no container - troca de aba de volta NAO repete a entrada, senao vira
+// "tudo pisca de novo" a cada toque, o que o brief pede pra evitar).
+// Vel: chamado de dentro de um requestAnimationFrame (navegacao.js), ja
+// depois da aba revelada - por isso o getBoundingClientRect aqui (forca
+// layout) roda no lugar certo (rAF, antes do proximo paint) e so nos
+// primeiros itens: para de olhar a lista assim que um item cai fora da
+// janela (ordem vertical - o resto abaixo tambem estaria fora), nunca mede
+// nem escreve estilo na lista inteira quando ela e grande (Painel/Vida podem
+// ter mais de 8 filhos).
 function marcarEntradaEscalonada(container, seletorItens) {
   if (!container || container.dataset.c2Entrou === "1") return;
   container.dataset.c2Entrou = "1";
   if (reduzirMovimento()) return;
   const itens = container.querySelectorAll(seletorItens || ":scope > *");
-  itens.forEach((el, i) => {
-    if (i >= 8) return;
-    el.style.setProperty("--i", i);
+  const alturaJanela = typeof window !== "undefined" && typeof window.innerHeight === "number" ? window.innerHeight : null;
+  let marcados = 0;
+  for (let i = 0; i < itens.length && marcados < 8; i++) {
+    const el = itens[i];
+    if (alturaJanela !== null && typeof el.getBoundingClientRect === "function") {
+      const r = el.getBoundingClientRect();
+      if (r.top >= alturaJanela) break; // abaixo da dobra: para (ordem vertical, o resto tambem esta)
+      if (r.bottom <= 0) continue; // acima da dobra (raro aqui, mas nao conta)
+    }
+    el.style.setProperty("--i", marcados);
     el.classList.add("c2-entra");
-  });
+    marcados++;
+  }
 }
 
 // Concluir tarefa: prepara o SVG do check (stroke-dasharray = comprimento
@@ -78,25 +93,39 @@ function animarConclusaoTarefa(li) {
 function animarGraficoNaEntrada(container) {
   if (!container || reduzirMovimento()) return;
   if (typeof IntersectionObserver !== "function") return; // ambiente sem DOM real (teste)
-  const barras = container.querySelectorAll(".fc-catbar");
-  barras.forEach((b, i) => {
-    b.style.setProperty("--i", i);
-  });
-  const linha = container.querySelector(".fc-linha");
-  if (linha && typeof linha.getTotalLength === "function") {
-    try {
-      linha.style.setProperty("--c2-linha-len", linha.getTotalLength());
-    } catch (erro) {
-      /* sem getBBox - segue sem medir */
-    }
-  }
+  // Vel: loadResumoFinancas roda de novo a cada troca de aba/refresh (nao so
+  // na 1a vez) - sem esta marca, um IntersectionObserver novo era criado e
+  // disparava TODA vez que a aba Financas era revisitada (o container ja
+  // esta na tela assim que a aba aparece), repetindo querySelectorAll +
+  // getTotalLength + escrita de estilo em toda troca, nao so na entrada real
+  // do card. Mesma marca dataset usada em marcarEntradaEscalonada.
+  if (container.dataset.c2GraficoEntrou === "1") return;
+  container.dataset.c2GraficoEntrou = "1";
+  // Vel: nada de medir (getTotalLength forca layout) nem escrever --i no
+  // momento em que a aba Financas acabou de carregar - so quando o card de
+  // verdade entra na tela (isIntersecting) e dentro de um requestAnimationFrame,
+  // pra nao competir com o "resultado visivel" da troca de aba/loadResumoFinancas.
   const obs = new IntersectionObserver(
     (entradas, observer) => {
       entradas.forEach((entrada) => {
         if (!entrada.isIntersecting) return;
-        barras.forEach((b) => b.classList.add("c2-barra-desenha"));
-        if (linha) linha.classList.add("c2-linha-desenha");
         observer.disconnect();
+        requestAnimationFrame(() => {
+          const barras = container.querySelectorAll(".fc-catbar");
+          barras.forEach((b, i) => {
+            b.style.setProperty("--i", i);
+          });
+          const linha = container.querySelector(".fc-linha");
+          if (linha && typeof linha.getTotalLength === "function") {
+            try {
+              linha.style.setProperty("--c2-linha-len", linha.getTotalLength());
+            } catch (erro) {
+              /* sem getBBox - segue sem medir */
+            }
+          }
+          barras.forEach((b) => b.classList.add("c2-barra-desenha"));
+          if (linha) linha.classList.add("c2-linha-desenha");
+        });
       });
     },
     { threshold: 0.2 }
@@ -132,6 +161,13 @@ function ligarDetalheAnimado(details) {
   details.open = true; // fica sempre aberto no DOM - o wrapper controla o visual
   details.dataset.c2Aberto = abertoInicial ? "1" : "0";
   summary.setAttribute("aria-expanded", abertoInicial ? "true" : "false");
+  // Vel: o chevron usava seletor CSS :has() (detalhe do wrapper) pra saber se
+  // esta aberto - :has() e caro de recalcular a cada mudanca de estilo/DOM
+  // (inclusive quando a aba/lista em volta e revelada), e entrava no caminho
+  // quente da troca de aba. Uma classe setada aqui no toggle (summary sabe o
+  // proprio estado, sem o navegador precisar varrer os filhos) substitui os
+  // seletores :has() em movimento.css/conversa.css sem mudar o visual.
+  summary.classList.toggle("c2-resumo-aberto", abertoInicial);
 
   summary.addEventListener("click", (evento) => {
     if (evento && typeof evento.preventDefault === "function") evento.preventDefault();
@@ -139,6 +175,7 @@ function ligarDetalheAnimado(details) {
     details.dataset.c2Aberto = aberto ? "0" : "1";
     summary.setAttribute("aria-expanded", aberto ? "false" : "true");
     externo.classList.toggle("c2-details-fechado", aberto);
+    summary.classList.toggle("c2-resumo-aberto", !aberto);
   });
 }
 

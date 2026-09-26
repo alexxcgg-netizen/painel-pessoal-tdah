@@ -44,22 +44,29 @@ function showTab(name) {
       elNovo.classList.remove("entra-direita", "entra-esquerda");
       elNovo.hidden = false;
       if (direcao) elNovo.classList.add(direcao);
-      // Vis (C2): cards entrando escalonados (30ms, 8 primeiros) SO na 1a
-      // abertura de Painel/Vida nesta sessao de pagina (marcarEntradaEscalonada
-      // ja se marca sozinha, nao repete em trocas seguintes) - roda no MESMO
-      // tick que revela a aba (hidden=false, linha de cima), antes do proximo
-      // paint, senao os cards apareceriam prontos por 1 frame e "pulariam" pra
-      // entrada. Deliberadamente NAO em Tarefas (deixa test_vel_a2b_otimista
-      // instavel - achado da faixa anterior).
-      if (typeof marcarEntradaEscalonada === "function") {
-        if (name === "painel") marcarEntradaEscalonada(elNovo);
-        else if (name === "vida") marcarEntradaEscalonada(elNovo.querySelector(".vida-secoes"));
-      }
     }
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.tab === name);
     });
   });
+  // Vis (C2) + Vel (medir_velocidade.py "resultado visivel" = ate #tab-X sem
+  // hidden): a aba precisa aparecer PRIMEIRO - a marcacao escalonada (30ms, 8
+  // primeiros, SO na 1a abertura de Painel/Vida nesta sessao) nunca entra na
+  // MESMA tarefa sincrona que tira o hidden (linhas acima), senao o trabalho
+  // de marcar os cards atrasa exatamente o "resultado visivel" medido. Um
+  // rAF aqui roda no MESMO frame, ANTES do proximo paint (nao um frame
+  // depois) - por isso nao ha "flash": e a 1a vez que esses cards pintam
+  // (estavam dentro da aba escondida), a classe c2-entra ja chega antes
+  // desse 1o paint. marcarEntradaEscalonada (movimento.js) so mede/marca
+  // quem esta dentro da viewport, no maximo 8 - nunca percorre/mede a lista
+  // inteira. Deliberadamente NAO em Tarefas (deixa test_vel_a2b_otimista
+  // instavel - achado da faixa anterior).
+  if (elNovo && typeof marcarEntradaEscalonada === "function" && (name === "painel" || name === "vida")) {
+    requestAnimationFrame(() => {
+      if (name === "painel") marcarEntradaEscalonada(elNovo);
+      else marcarEntradaEscalonada(elNovo.querySelector(".vida-secoes"));
+    });
+  }
   if (name === "painel") {
     // Vel (A2c): os 5 primeiros sao os que aparecem sem rolar (mesma ordem
     // de templates/abas/painel.html); o resto (abaixo da dobra) espera um
