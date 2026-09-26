@@ -1,0 +1,342 @@
+/* static/css/base/abas-barra.css
+   Fatia de static/css/style.css original (linhas 927-1263), extraida na R2-css
+   pra dividir o arquivo monolitico. Conteudo idêntico ao trecho original -
+   só este comentário de cabeçalho foi acrescentado. Ordem de carga: ver
+   templates/head.html. */
+/* Round 4 (pedido explicito, com print de referencia do Instagram): a barra
+   parava de ficar colada/reta na borda de baixo da tela - virou uma pilula
+   flutuante de verdade, separada da borda e do conteudo por um respiro
+   (bottom com margem + border-radius 999px), com sombra em duas distancias
+   (uma curta/escura simulando o "pouco de ar" logo embaixo dela, uma longa/
+   suave simulando a altura real que ela flutua sobre o conteudo) - e assim
+   que uma barra "no ar" le como no ar, uma sombra so nunca convence. Fica
+   neutra (nao tingida por --glass-tint da secao) de proposito: e a UNICA
+   peca de chrome que aparece em toda tela ao mesmo tempo, tingir ela mudaria
+   de cor a cada troca de aba e ia ficar estranho. */
+#tabbar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(0.85rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: calc(100% - 0.8rem);
+  max-width: 472px;
+  display: flex;
+  gap: 0.05rem;
+  padding: 0.45rem 0.3rem;
+  border-radius: 999px;
+  background: var(--glass-highlight),
+    linear-gradient(165deg, rgba(28, 29, 36, 0.6) 0%, rgba(8, 9, 12, 0.68) 100%);
+  backdrop-filter: blur(38px) saturate(160%) brightness(1.08);
+  -webkit-backdrop-filter: blur(38px) saturate(160%) brightness(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 3px 8px -3px rgba(0, 0, 0, 0.5), 0 26px 44px -18px rgba(0, 0, 0, 0.7);
+  z-index: 10;
+}
+
+.tab-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.4rem 0.05rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--text-muted);
+  font-size: 0.61rem;
+  line-height: 1.15;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.2s var(--ease-snap),
+    box-shadow 0.2s ease;
+}
+
+.tab-btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.tab-btn span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (hover: hover) {
+  .tab-btn:hover:not(.active) {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+}
+
+.tab-btn.active {
+  /* Fica com a cor de marca (--accent), nao vira arco-iris por secao - decisao
+     antiga e deliberada (ver comentario logo abaixo), mantida mesmo no pedido
+     de vidro colorido em tudo. O que muda aqui e so o acabamento: brilho
+     especular por cima, igual o resto do vidro colorido do painel. */
+  background: var(--glass-highlight),
+    linear-gradient(
+      140deg,
+      color-mix(in srgb, var(--accent-fill) 85%, white 15%) 0%,
+      var(--accent-fill) 100%
+    );
+  color: var(--accent-text);
+  font-weight: 700;
+  transform: translateY(-3px) scale(1.04);
+  /* Paleta "Gelo preto" (pedido explicito: sem glow/sombra luminosa/LED) - o
+     glow ambiente continuo que existia aqui foi removido; sobra so a sombra
+     de queda comum. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent);
+}
+
+.tab-btn.active svg {
+  /* sem drop-shadow/glow nesta paleta - so a cor do icone (regra abaixo) muda. */
+}
+
+/* Icone da barra de abas na cor de identidade da propria aba (ativo = cor
+   cheia; inativo = a mesma cor a ~60% via color-mix) - pedido explicito da
+   paleta "Gelo preto". O rotulo de texto abaixo do icone continua neutro
+   (--text-muted, regra generica de .tab-btn acima); so o svg troca de cor. */
+.tab-btn[data-tab="hoje"] svg { color: color-mix(in srgb, var(--cor-aba-hoje) 60%, transparent); }
+.tab-btn[data-tab="painel"] svg { color: color-mix(in srgb, var(--cor-aba-painel) 60%, transparent); }
+.tab-btn[data-tab="aviacao"] svg { color: color-mix(in srgb, var(--cor-aba-aviacao) 60%, transparent); }
+.tab-btn[data-tab="vida"] svg { color: color-mix(in srgb, var(--cor-aba-vida) 60%, transparent); }
+.tab-btn[data-tab="tarefas"] svg { color: color-mix(in srgb, var(--cor-aba-tarefas) 60%, transparent); }
+.tab-btn[data-tab="gastos"] svg { color: color-mix(in srgb, var(--cor-aba-gastos) 60%, transparent); }
+.tab-btn[data-tab="construtora"] svg { color: color-mix(in srgb, var(--cor-aba-construtora) 60%, transparent); }
+.tab-btn[data-tab="assistente"] svg { color: color-mix(in srgb, var(--cor-aba-assistente) 60%, transparent); }
+.tab-btn.active[data-tab="hoje"] svg { color: var(--cor-aba-hoje); }
+.tab-btn.active[data-tab="painel"] svg { color: var(--cor-aba-painel); }
+.tab-btn.active[data-tab="aviacao"] svg { color: var(--cor-aba-aviacao); }
+.tab-btn.active[data-tab="vida"] svg { color: var(--cor-aba-vida); }
+.tab-btn.active[data-tab="tarefas"] svg { color: var(--cor-aba-tarefas); }
+.tab-btn.active[data-tab="gastos"] svg { color: var(--cor-aba-gastos); }
+.tab-btn.active[data-tab="construtora"] svg { color: var(--cor-aba-construtora); }
+.tab-btn.active[data-tab="assistente"] svg { color: var(--cor-aba-assistente); }
+
+/* Pedido do Alex (inspirado no app Pierre - preto/branco quase puro, cor so
+   nos detalhes pequenos): as 7 abas paravam de "misturar cor" - a aba ativa
+   agora e sempre a mesma cor de marca (--accent-fill), nao uma cor
+   diferente por secao. A identidade de secao continua existindo, so que
+   reduzida a acento pequeno (faixa fina do stat-tile, icone do h2) em vez
+   de tomar conta do preenchimento inteiro do botao/aba. */
+
+.tab-content:not([hidden]) {
+  /* Vis (C2): fallback de quem nao tem View Transitions (static/js/nucleo/
+     movimento.js chama document.startViewTransition quando existe - a
+     animacao de la, ::view-transition-new(root) em ui/movimento.css, ja
+     cobre esse navegador e esta teria rodado em dobro). --dur-media/
+     --ease-saida (entrando) + --deslocamento-entrada no lugar do 0.18s/
+     translateX(16px) solto de antes - mesmo tempo (~200ms), agora no token. */
+  animation: tabEntra var(--dur-media) var(--ease-saida) backwards;
+}
+
+/* Transicao direcional antiga (entra-direita/entra-esquerda): Vis (C2)
+   substituiu por opacity + translateY(--deslocamento-entrada), igual ao
+   fallback de View Transitions acima (era so pra manter as duas classes que
+   navegacao.js ainda usa/pode usar funcionando, sem duplicar keyframe -
+   ambas agora sao so um alias do tabEntra de cima). `overflow-x: hidden` no
+   body (ja existia) continua evitando scroll horizontal. So a aba que ENTRA
+   e animada (a que sai so fica `hidden` na hora). */
+.tab-content.entra-direita:not([hidden]),
+.tab-content.entra-esquerda:not([hidden]) {
+  animation: tabEntra var(--dur-media) var(--ease-saida) backwards;
+}
+
+/* Cada aba redefine --glass-tint pra sua cor de identidade. Pegadinha real de
+   CSS (nao bug de digitar errado): os tokens compostos (--glass-border/
+   --glass-shadow, la no topo do arquivo) so resolvem o var(--glass-tint) QUE
+   ELES CONTEM uma unica vez, no elemento onde cada um foi DECLARADO (:root) -
+   um filho la embaixo (li.item, por exemplo) herda a STRING JA PRONTA com a
+   cor do :root "congelada" dentro, nunca recalcula com o proprio --glass-tint
+   dele, por mais que --glass-tint em si esteja correto nesse filho. Testado e
+   confirmado via getComputedStyle antes de escrever isso. Por isso cada aba
+   abaixo redefine o CONJUNTO INTEIRO (nao so --glass-tint) - assim quem
+   calcula --glass-border/--glass-shadow e a propria secao, com a cor certa, e
+   so ENTAO os filhos herdam a string ja tingida certa. (Round 8: --glass-bg
+   virou `var(--surface-2)` fixo - nao depende mais de --glass-tint - entao
+   nao precisa mais ser redeclarado aqui; so borda e sombra continuam
+   tingidas por secao mesmo com o painel opaco.) */
+#tab-hoje,
+#tab-painel,
+#tab-vida,
+#tab-tarefas,
+#tab-gastos,
+#tab-construtora,
+#tab-aviacao,
+#tab-assistente {
+  /* Fase 8 D1: mesma reducao de 30-35% pra 14-15% que o :root - a cor da
+     aba deixa de pintar borda/sombra do card, ficando so um tico sutil. */
+  --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
+  --glass-shadow: 0 3px 8px -4px rgba(0, 0, 0, 0.55),
+    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 15%, transparent), var(--shadow-card-hover),
+    var(--geada-brilho);
+}
+#tab-hoje {
+  --glass-tint: var(--cor-hoje);
+}
+#tab-painel {
+  --glass-tint: var(--cor-painel);
+}
+#tab-vida {
+  --glass-tint: var(--cor-vida);
+}
+#tab-tarefas {
+  --glass-tint: var(--cor-tarefas);
+}
+#tab-gastos {
+  --glass-tint: var(--cor-financeiro);
+}
+#tab-construtora {
+  --glass-tint: var(--cor-construtora);
+}
+#tab-aviacao {
+  --glass-tint: var(--cor-aviacao);
+}
+#tab-assistente {
+  --glass-tint: var(--cor-assistente);
+}
+
+/* Antes aparecia sem nenhuma transicao (so o [hidden] saindo). Um erro
+   merece mais destaque que qualquer outro elemento novo na tela, mas um
+   "shake" literal lê como alarme/"sinistro" (pedido explicito: nada
+   chamativo) - em vez disso, um leve overshoot-e-assenta (sobe um pouco
+   além do tamanho final e volta), o mesmo tipo de acabamento premium usado
+   no resto do app via --ease-bounce. */
+.erro {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  animation: erroEntra var(--dur-media, 0.22s) var(--ease-bounce) both;
+}
+
+@keyframes erroEntra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Indicador discreto da fila offline (BRIEFING Fase 4, item 2) - deliberadamente
+   NAO usa --danger/.erro: nao e um erro, e so um "aviso" tranquilo (o app
+   continua funcionando normal, so essas 2-3 acoes criticas ficam represadas
+   ate a rede voltar), entao usa --accent-soft-bg/--accent em vez do vermelho.
+   Entra/sai suave (--ease-suave, sem overshoot - nao e uma confirmacao "ganhei
+   algo" como o .erro que usa --ease-bounce, e so um estado que vai e volta). */
+.offline-banner {
+  background: var(--accent-soft-bg);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--text);
+  padding: 0.55rem 0.8rem;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+  animation: offlineBannerEntra var(--dur-media, 0.22s) var(--ease-suave) both;
+}
+
+@keyframes offlineBannerEntra {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#captura {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+#captura-input,
+#duvida-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  color: var(--text);
+  font-size: 0.95rem;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+#captura-input:focus,
+#duvida-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+#captura-input.sucesso,
+.form-linha input.sucesso {
+  animation: pulseBorda 0.7s ease;
+}
+
+#captura-btn,
+#duvida-btn {
+  padding: 0.7rem 1.1rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  /* Faixa vis/C1b-cor: era --accent-gradient (accent-fill -> accent-2-fill,
+     os dois escurecidos quase ate preto) - lia como botao cinza/preto, nao
+     "botao principal". Botao principal = fundo --cor-destaque cheio, texto
+     --cor-sobre-destaque (par validado ~14.6:1). Sombra neutra (--elevacao),
+     nunca glow colorido - regra da paleta. */
+  background: var(--cor-destaque);
+  color: var(--cor-sobre-destaque);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--elevacao-1, 0 1px 2px rgba(0, 0, 0, 0.45));
+  transition: background-position 0.4s ease, box-shadow 0.2s ease, transform 0.18s var(--ease-bounce);
+}
+
+@media (hover: hover) {
+  #captura-btn:hover:not(:disabled),
+  #duvida-btn:hover:not(:disabled) {
+    box-shadow: var(--elevacao-2, 0 8px 18px -10px rgba(0, 0, 0, 0.6));
+    filter: brightness(1.05);
+  }
+}
+
+#captura-btn:disabled,
+#duvida-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#duvida-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  padding: 0.85rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow-card), 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+#duvida-box[hidden] {
+  display: none;
+}
+

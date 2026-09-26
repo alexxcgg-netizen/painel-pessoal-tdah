@@ -1,0 +1,445 @@
+/* static/css/base/layout.css
+   Fatia de static/css/style.css original (linhas 487-926), extraida na R2-css
+   pra dividir o arquivo monolitico. Conteudo idêntico ao trecho original -
+   só este comentário de cabeçalho foi acrescentado. Ordem de carga: ver
+   templates/head.html. */
+body {
+  position: relative;
+  font-family: var(--font-body);
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(1.25rem + env(safe-area-inset-top)) 1rem
+    calc(6.4rem + env(safe-area-inset-bottom));
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.45;
+  letter-spacing: -0.006em;
+  overflow-x: hidden;
+  /* Fonte geometrica de traco fino (era Jost, agora Sora) sem isso renderiza
+     "esgarcada"/fraca em telas de alta densidade - pedido explicito do Alex
+     ("fonte fina/feia"), principalmente visivel em texto pequeno (placeholder,
+     select, badge). Nao muda a fonte, so como o rasterizador desenha ela. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Placeholder sem regra propria herdava a opacidade bem baixa que o navegador
+   aplica por padrao - em cima de uma fonte ja fina isso lia como "quebrado". Peso
+   500 (em vez do 400 padrao) + opacidade total (a cor ja e escura o bastante
+   pra nao competir com o texto digitado). */
+::placeholder {
+  color: var(--text-faint);
+  opacity: 1;
+  font-weight: 500;
+}
+
+.aurora {
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  /* Faixa vis/C1b-cor (paleta "Gelo preto"): a nevoa branca (Fase 8 D1) lia como
+     cinza por cima do preto puro do fundo - trocada por um tico quase
+     imperceptivel (<=0.015) de azul-gelo (--cor-destaque), mesma posicao/
+     estrutura/animacao de antes. So cor, o fundo continua lendo como #000. */
+  background: radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--cor-destaque) 1.5%, transparent), transparent 45%),
+    radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--cor-destaque) 1.2%, transparent), transparent 42%),
+    radial-gradient(circle at 50% 85%, color-mix(in srgb, var(--cor-destaque) 1%, transparent), transparent 48%),
+    radial-gradient(circle at 88% 92%, color-mix(in srgb, var(--cor-destaque) 1%, transparent), transparent 40%);
+  filter: blur(60px);
+  animation: auroraMove 20s ease-in-out infinite;
+}
+
+/* "Efeito rainbow" (pedido explicito): um brilho de fundo trocando bem
+   devagar entre roxo e verde - a mesma dupla de cor da identidade original
+   do app (ametista + esmeralda), independente de qual --accent estiver
+   ativo no momento (isso e puramente ambiente/decorativo, nao segue a
+   paleta escolhida). Em vez de animar hue-rotate (que passaria por
+   vermelho/laranja no meio do caminho - errado, ele pediu especificamente
+   "entre o roxo e o verde"), sao duas manchas radiais FIXAS nessas duas
+   cores, e o que anima e a POSICAO de fundo de um canvas maior - a mancha
+   roxa e a verde ficam se revezando em qual fica mais "em foco", sem nunca
+   passar por outra cor. 26s de ciclo = "bem devagarzinho" de verdade. */
+.aurora::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Faixa vis/C1b-cor: mesma troca da .aurora acima - branco (lia cinza) por
+     um tico quase imperceptivel (<=0.015) de azul-gelo, mesma estrutura/
+     posicao/animacao de antes. */
+  background: radial-gradient(65% 55% at 22% 70%, color-mix(in srgb, var(--cor-destaque) 1.5%, transparent), transparent 60%),
+    radial-gradient(60% 50% at 78% 28%, color-mix(in srgb, var(--cor-destaque) 1.2%, transparent), transparent 60%),
+    radial-gradient(45% 40% at 50% 50%, color-mix(in srgb, var(--cor-destaque) 1%, transparent), transparent 62%);
+  background-size: 180% 180%, 180% 180%, 220% 220%;
+  mix-blend-mode: screen;
+  animation: rainbowDrift 26s ease-in-out infinite, rainbowDriftExtra 37s ease-in-out infinite;
+}
+
+@keyframes rainbowDrift {
+  0%,
+  100% {
+    background-position: 0% 20%, 0% 20%, 60% 40%;
+    opacity: 0.5;
+  }
+  35% {
+    background-position: 60% 55%, 40% 65%, 30% 70%;
+    opacity: 0.72;
+  }
+  70% {
+    background-position: 100% 80%, 90% 30%, 70% 20%;
+    opacity: 0.85;
+  }
+}
+
+@keyframes rainbowDriftExtra {
+  0%,
+  100% {
+    background-position: 20% 30%;
+  }
+  50% {
+    background-position: 80% 65%;
+  }
+}
+
+/* Camada de brilho fino, tipo um reflexo de vidro/metal escovado cruzando a
+   tela bem devagar (referencia: o "shine" que passa nos produtos da Apple em
+   paginas de marketing) - branco bem sutil (nao mexe na paleta roxo/verde),
+   so pra dar aquele acabamento premium/tecnologico sem virar "luz piscando". */
+.aurora::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.05) 47%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.05) 53%,
+    transparent 70%
+  );
+  background-size: 260% 260%;
+  mix-blend-mode: overlay;
+  animation: auroraShine 34s linear infinite;
+}
+
+/* Fase 6 (US-E1c): 0% e 100% eram DIFERENTES (120% -20% -> -20% 120%) - a
+   causa real do "salto" no fundo era essa (ver progress-e1.txt): um keyframe
+   assimetrico sempre da um pulo visivel na virada do ciclo, porque o
+   navegador nao tem pra onde interpolar depois do ultimo frame - ele so
+   reseta pro 0% instantaneamente. As outras animacoes do .aurora
+   (auroraMove, rainbowDrift, rainbowDriftExtra) ja tinham 0%/100% iguais
+   por isso nunca pulavam. Correcao: vira ida-e-volta (0%/100% iguais, 50%
+   no destino que era o 100% antigo) - mesmo padrao ja usado em rainbowDrift,
+   continua "bem devagarzinho" (34s no total, 17s cada trecho), so que
+   oscilando em vez de andar so numa direcao. */
+@keyframes auroraShine {
+  0%,
+  100% {
+    background-position: 120% -20%;
+  }
+  50% {
+    background-position: -20% 120%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .aurora::before,
+  .aurora::after {
+    animation: none;
+  }
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  /* Faixa vis/C1b-cor: 0.035 branco lia como veu cinza por cima do preto puro
+     - reduzido a quase imperceptivel (pedido: <=0.015), so textura, sem tingir. */
+  opacity: 0.014;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  margin: 0 0 0.15rem;
+  letter-spacing: -0.02em;
+  background: var(--accent-gradient-titulo);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradientFlow 7s ease-in-out infinite;
+}
+
+h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.75rem;
+}
+
+h2 svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--secao-cor, var(--accent));
+  opacity: 0.9;
+}
+
+.custo-ia {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0 0 0.5rem;
+}
+
+.btn-push {
+  font-size: 0.72rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+}
+
+@media (hover: hover) {
+  .btn-push:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.btn-push:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+header {
+  position: relative;
+  padding-right: 7.95rem;
+}
+
+.btn-logout {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-bounce);
+}
+
+.btn-logout svg {
+  width: 15px;
+  height: 15px;
+}
+
+@media (hover: hover) {
+  .btn-logout:hover {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+    transform: scale(1.06);
+  }
+}
+
+.btn-backup {
+  position: absolute;
+  top: 0;
+  right: 2.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-bounce);
+}
+
+.btn-backup svg {
+  width: 15px;
+  height: 15px;
+}
+
+.btn-backup.ativo {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+@media (hover: hover) {
+  .btn-backup:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    transform: scale(1.06);
+  }
+}
+
+.btn-silencio {
+  position: absolute;
+  top: 0;
+  right: 5.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-bounce);
+}
+
+.btn-silencio svg {
+  width: 15px;
+  height: 15px;
+}
+
+.btn-silencio.ativo {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+@media (hover: hover) {
+  .btn-silencio:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    transform: scale(1.06);
+  }
+}
+
+#silencio-painel,
+#backup-painel,
+#modo-viagem-painel,
+#modo-visitante-painel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.95rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+#silencio-painel[hidden],
+#backup-painel[hidden],
+#modo-viagem-painel[hidden],
+#modo-visitante-painel[hidden] {
+  display: none;
+}
+
+.backup-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.backup-opcoes a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+  transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-bounce);
+}
+
+.backup-opcoes a svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+@media (hover: hover) {
+  .backup-opcoes a:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    transform: translateY(-1px);
+  }
+}
+
+.silencio-titulo {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.silencio-descricao {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.silencio-campos {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.silencio-campos label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.silencio-campos input {
+  width: 5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-tech);
+  font-size: 0.9rem;
+}
+
+#silencio-status {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--text-faint);
+}
+
