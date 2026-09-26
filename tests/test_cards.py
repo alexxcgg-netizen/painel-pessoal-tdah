@@ -141,9 +141,9 @@ class ChatContratoTestCase(ContratoCardsBase):
         self.assertEqual(meta["prazo"], "2026-12-22")
         resumo = corpo["cards"][-1]["data"]
         self.assertEqual(resumo["passos_total"], 5)
-        self.assertEqual(resumo["modulos"], ["Financas", "Tarefas", "Metas", "Lembretes"])
+        self.assertEqual(resumo["modulos"], ["Finanças", "Tarefas", "Metas", "Lembretes"])
         textos = {linha["modulo"]: linha["texto"] for linha in resumo["linhas"]}
-        self.assertEqual(textos["Financas"], "1 gasto registrado, 1 entrada registrada")
+        self.assertEqual(textos["Finanças"], "1 gasto registrado, 1 entrada registrada")
         self.assertNotIn("45", json.dumps(resumo))  # resumo_final nunca carrega valor
 
     def test_gasto_com_banco_mostra_meio_e_saldo(self):
@@ -168,7 +168,7 @@ class ChatContratoTestCase(ContratoCardsBase):
         corpo = self._chat(fake_chat)
         self.assertEqual(corpo["cards"], [])
         self.assertTrue(corpo["passos"][0]["erro"])
-        self.assertEqual(corpo["passos"][0]["modulo"], "Saude")
+        self.assertEqual(corpo["passos"][0]["modulo"], "Saúde")
 
     def test_historico_devolve_cards_da_resposta(self):
         def fake_chat(mensagens, contexto, memorias, executores):

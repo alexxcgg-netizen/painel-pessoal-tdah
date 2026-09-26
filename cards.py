@@ -38,39 +38,39 @@ MODULO_POR_TOOL = {
     "sugerir_tarefa_para_agora": "Tarefas",
     "registrar_feito": "Tarefas",
     "gerar_plano_do_dia": "Tarefas",
-    "registrar_gasto": "Financas",
-    "registrar_renda": "Financas",
-    "definir_orcamento": "Financas",
-    "registrar_conta_pessoal": "Financas",
-    "rotular_cobranca_generica": "Financas",
-    "consultar_gastos_fixos": "Financas",
-    "consultar_sobra_do_mes": "Financas",
-    "calcular_gasto_viagem": "Financas",
+    "registrar_gasto": "Finanças",
+    "registrar_renda": "Finanças",
+    "definir_orcamento": "Finanças",
+    "registrar_conta_pessoal": "Finanças",
+    "rotular_cobranca_generica": "Finanças",
+    "consultar_gastos_fixos": "Finanças",
+    "consultar_sobra_do_mes": "Finanças",
+    "calcular_gasto_viagem": "Finanças",
     "registrar_meta": "Metas",
     "consultar_meta": "Metas",
-    "registrar_habito": "Habitos",
-    "marcar_habito": "Habitos",
-    "consultar_habitos": "Habitos",
+    "registrar_habito": "Hábitos",
+    "marcar_habito": "Hábitos",
+    "consultar_habitos": "Hábitos",
     "criar_projeto": "Projetos",
     "adicionar_etapa": "Projetos",
     "concluir_etapa": "Projetos",
     "consultar_projeto": "Projetos",
     "agendar_evento": "Agenda",
-    "consultar_treinos": "Saude",
-    "consultar_saude_dia": "Saude",
+    "consultar_treinos": "Saúde",
+    "consultar_saude_dia": "Saúde",
     "registrar_lembrete": "Lembretes",
-    "registrar_medicamento": "Saude",
-    "registrar_hidratacao": "Saude",
-    "registrar_medida": "Saude",
-    "registrar_checkin": "Saude",
-    "salvar_ficha_treino": "Saude",
-    "registrar_treino": "Saude",
+    "registrar_medicamento": "Saúde",
+    "registrar_hidratacao": "Saúde",
+    "registrar_medida": "Saúde",
+    "registrar_checkin": "Saúde",
+    "salvar_ficha_treino": "Saúde",
+    "registrar_treino": "Saúde",
     "registrar_viagem": "Viagens",
     "registrar_lugar": "Viagens",
     "sugerir_horario_livre": "Agenda",
-    "registrar_voo": "Aviacao",
+    "registrar_voo": "Aviação",
     "adicionar_compras": "Compras",
-    "registrar_memoria": "Memoria",
+    "registrar_memoria": "Memória",
     "salvar_nota": "Notas",
     "consultar_notas": "Notas",
 }
@@ -80,22 +80,22 @@ MODULO_POR_TOOL = {
 # nao passa pelo mascaramento do modo visitante.
 DESCRICAO_TOOL = {
     "gerar_plano_do_dia": "Montou o plano do dia",
-    "registrar_hidratacao": "Registrou um copo de agua",
+    "registrar_hidratacao": "Registrou um copo de água",
     "registrar_checkin": "Registrou o check-in",
     "registrar_treino": "Registrou o treino",
-    "registrar_memoria": "Guardou uma memoria",
-    "consultar_noticias": "Buscou noticias",
+    "registrar_memoria": "Guardou uma memória",
+    "consultar_noticias": "Buscou notícias",
     "consultar_notas": "Consultou as notas",
     "consultar_gastos_fixos": "Consultou os gastos fixos",
-    "consultar_sobra_do_mes": "Calculou a sobra do mes",
-    "sugerir_horario_livre": "Procurou horario livre",
+    "consultar_sobra_do_mes": "Calculou a sobra do mês",
+    "sugerir_horario_livre": "Procurou horário livre",
     "sugerir_tarefa_para_agora": "Escolheu uma tarefa pra agora",
     "consultar_projeto": "Buscou o projeto",
     "consultar_meta": "Buscou a meta",
-    "consultar_habitos": "Buscou os habitos",
+    "consultar_habitos": "Buscou os hábitos",
     "consultar_treinos": "Buscou os treinos",
-    "consultar_saude_dia": "Buscou a saude do dia",
-    "marcar_habito": "Marcou o habito de hoje",
+    "consultar_saude_dia": "Buscou a saúde do dia",
+    "marcar_habito": "Marcou o hábito de hoje",
     "concluir_etapa": "Concluiu a etapa do projeto",
 }
 
@@ -105,7 +105,7 @@ ABA_POR_ENTIDADE = {
     "renda": ("gastos", "Abrir no extrato"),
     "meta": ("gastos", "Abrir Metas"),
     "lembrete": ("painel", "Abrir em Lembretes"),
-    "habito": ("vida", "Abrir Habitos"),
+    "habito": ("vida", "Abrir Hábitos"),
     "projeto": ("vida", "Abrir Projetos"),
     "viagem": ("vida", "Abrir Viagens"),
     "evento": ("vida", "Abrir Agenda"),
@@ -190,7 +190,7 @@ def acao_desfazer(token: str, alvo: list[dict]) -> dict:
 
 
 def acao_despertar(lembrete_id: int, ativo: bool) -> dict:
-    return {"tipo": "despertar", "rotulo": "Desperta voce", "lembrete_id": lembrete_id, "ativo": bool(ativo)}
+    return {"tipo": "despertar", "rotulo": "Desperta você", "lembrete_id": lembrete_id, "ativo": bool(ativo)}
 
 
 def envelope(cards_lista: list[dict], resumo_texto: str, passos: list[dict]) -> dict:
@@ -268,7 +268,7 @@ def _descricao_passo(tool: str, entrada) -> str:
     if tool == "registrar_lembrete":
         return f'Criou o lembrete "{_titulo_curto(entrada.get("titulo"))}"'
     if tool == "registrar_habito":
-        return f'Criou o habito "{_titulo_curto(entrada.get("nome"))}"'
+        return f'Criou o hábito "{_titulo_curto(entrada.get("nome"))}"'
     if tool == "criar_projeto":
         return f'Criou o projeto "{_titulo_curto(entrada.get("nome"))}"'
     if tool == "adicionar_etapa":
@@ -419,7 +419,7 @@ def card_lembrete(conn, id_: int, actions_extra=None) -> dict | None:
 # ---- cards dos modulos da Fase 6 (US-E7: habito, projeto/viagem, agenda,
 # saude, sugestao) - adaptadores de formato + builders ----------------------
 
-DIAS_SEMANA_CURTOS = ("seg", "ter", "qua", "qui", "sex", "sab", "dom")
+DIAS_SEMANA_CURTOS = ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
 
 
 def semana_seg_dom(datas_feitas, hoje: date) -> list[dict]:
@@ -581,7 +581,7 @@ def card_saude_treino(conn, dias=7, registrado: bool = False, hoje: date | None 
         }
         for r in rows
     ]
-    periodo = "hoje" if dias == 1 else f"ultimos {dias} dias"
+    periodo = "hoje" if dias == 1 else f"últimos {dias} dias"
     aba, rotulo = ABA_POR_ENTIDADE["treino"]
     actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo)]
     return novo_card("saude_treino", {"periodo": periodo, "sessoes": sessoes, "registrado": bool(registrado)}, actions)
@@ -612,7 +612,7 @@ def card_sugestao(titulo, inicio, duracao_min, porque=None) -> dict | None:
     if not isinstance(inicio, str) or len(inicio) < 16:
         return None
     data = {
-        "titulo": _titulo_curto(titulo, 80) or "Horario livre",
+        "titulo": _titulo_curto(titulo, 80) or "Horário livre",
         "inicio": inicio[:16],
         "duracao_min": duracao_min if isinstance(duracao_min, int) and duracao_min > 0 else None,
         "porque": porque or None,
@@ -636,7 +636,7 @@ def card_resumo_final(cards_lista: list[dict], passos: list[dict]) -> dict | Non
             chave = ("Tarefas", "tarefa")
             contagem[chave] = contagem.get(chave, 0) + len(d.get("tarefas") or [])
         elif t == "transacao":
-            chave = ("Financas", "renda" if d.get("sentido") == "entrada" else "gasto")
+            chave = ("Finanças", "renda" if d.get("sentido") == "entrada" else "gasto")
             contagem[chave] = contagem.get(chave, 0) + 1
         elif t == "meta":
             contagem[("Metas", "meta")] = contagem.get(("Metas", "meta"), 0) + 1
@@ -647,11 +647,11 @@ def card_resumo_final(cards_lista: list[dict], passos: list[dict]) -> dict | Non
         elif t in ("agenda", "habito", "projeto_viagem", "saude_treino", "sugestao", "saude_dia"):
             modulo = {
                 "agenda": "Agenda",
-                "habito": "Habitos",
+                "habito": "Hábitos",
                 "projeto_viagem": "Projetos",
-                "saude_treino": "Saude",
+                "saude_treino": "Saúde",
                 "sugestao": "Agenda",
-                "saude_dia": "Saude",
+                "saude_dia": "Saúde",
             }[t]
             contagem[(modulo, t)] = contagem.get((modulo, t), 0) + 1
     frases = {
@@ -661,11 +661,11 @@ def card_resumo_final(cards_lista: list[dict], passos: list[dict]) -> dict | Non
         "meta": ("meta criada", "metas criadas"),
         "lembrete": ("lembrete criado", "lembretes criados"),
         "agenda": ("evento na agenda", "eventos na agenda"),
-        "habito": ("habito atualizado", "habitos atualizados"),
+        "habito": ("hábito atualizado", "hábitos atualizados"),
         "projeto_viagem": ("projeto atualizado", "projetos atualizados"),
         "saude_treino": ("registro de treino", "registros de treino"),
-        "sugestao": ("horario sugerido", "horarios sugeridos"),
-        "saude_dia": ("registro de saude", "registros de saude"),
+        "sugestao": ("horário sugerido", "horários sugeridos"),
+        "saude_dia": ("registro de saúde", "registros de saúde"),
         "viagem": ("viagem registrada", "viagens registradas"),
     }
     por_modulo: dict[str, list[str]] = {}

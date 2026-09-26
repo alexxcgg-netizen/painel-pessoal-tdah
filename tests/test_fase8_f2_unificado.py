@@ -95,7 +95,7 @@ class ProximasCobrancasRotaTestCase(_BaseTestCase):
         corpo = resp.get_json()
         self.assertEqual(len(corpo), 1)
         self.assertTrue(corpo[0]["duplicado"])
-        self.assertIn("possivel duplicidade", corpo[0]["aviso"])
+        self.assertIn("possível duplicidade", corpo[0]["aviso"])
 
     def test_nunca_chama_pluggy_de_verdade(self):
         import pluggy_client

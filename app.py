@@ -742,7 +742,7 @@ def _executar_captura(text: str, clarificacao: str, client_id: str = ""):
             (parsed["valor"], parsed.get("categoria") or "outros", parsed["titulo"], full_text, status_gasto),
         )
         efeito = {"entidade": "gasto", "id": cur.lastrowid}
-        passo_gravar = {"modulo": "Financas", "descricao": f'Registrou o gasto "{parsed["titulo"]}"'}
+        passo_gravar = {"modulo": "Finanças", "descricao": f'Registrou o gasto "{parsed["titulo"]}"'}
         resumo_texto = "Gasto registrado."
     elif parsed["tipo"] == "meta":
         goal_id = create_goal(conn, parsed["titulo"], parsed["valor"], parsed.get("prazo"))
@@ -1784,7 +1784,7 @@ def _porque_sugestao(conn, titulo: str, janela: dict) -> str:
     """Texto da caixa "Com a sua rotina em mente" (card sugestao): o fato
     real da agenda de hoje + a memoria de rotina (US-E10, categoria
     sua_rotina) que fala do mesmo assunto, quando existir. Nunca inventa."""
-    partes = [f"Hoje o maior espaco livre na sua agenda vai das {janela['inicio']} as {janela['fim']}."]
+    partes = [f"Hoje o maior espaço livre na sua agenda vai das {janela['inicio']} às {janela['fim']}."]
     palavras = [p for p in aprendizado.normalizar_consulta(titulo).split() if len(p) >= 4]
     palavras += [_SINONIMOS_ROTINA[p] for p in palavras if p in _SINONIMOS_ROTINA]
     if palavras:
@@ -1807,7 +1807,7 @@ def _sugerir_horario_livre(conn, entrada: dict) -> dict:
     janela = agenda.maior_janela_livre(compromissos, inicio_dia, fim_dia, duracao) if inicio_dia < fim_dia else None
     if not janela:
         return {"encontrado": False}
-    titulo = _texto_curto(entrada.get("titulo"), 80) or "Horario livre"
+    titulo = _texto_curto(entrada.get("titulo"), 80) or "Horário livre"
     return {
         "encontrado": True,
         **janela,
@@ -1971,30 +1971,30 @@ def _frase_local(chamada: dict) -> str:
     res = chamada["resultado"] if isinstance(chamada.get("resultado"), dict) else {}
     entrada = chamada.get("entrada") if isinstance(chamada.get("entrada"), dict) else {}
     if res.get("erro"):
-        return "Nao consegui buscar isso agora."
+        return "Não consegui buscar isso agora."
     if tool == "consultar_projeto":
         n = res.get("encontrados", 0)
         if not n:
-            return "Nao achei projeto nem viagem com esse nome." if entrada.get("termo") else "Voce ainda nao tem projeto nem viagem cadastrados."
-        return "Aqui esta o projeto." if n == 1 else f"Aqui estao {n} projetos."
+            return "Não achei projeto nem viagem com esse nome." if entrada.get("termo") else "Você ainda não tem projeto nem viagem cadastrados."
+        return "Aqui está o projeto." if n == 1 else f"Aqui estão {n} projetos."
     if tool == "consultar_meta":
         n = res.get("encontradas", 0)
-        return "Nao achei nenhuma meta." if not n else ("Aqui esta a meta." if n == 1 else f"Aqui estao {n} metas.")
+        return "Não achei nenhuma meta." if not n else ("Aqui está a meta." if n == 1 else f"Aqui estão {n} metas.")
     if tool == "consultar_treinos":
         dias = res.get("dias", 7)
-        periodo = "hoje" if dias == 1 else f"nos ultimos {dias} dias"
+        periodo = "hoje" if dias == 1 else f"nos últimos {dias} dias"
         return f"Seus treinos {periodo}." if res.get("sessoes") else f"Nenhum treino registrado {periodo}."
     if tool == "consultar_habitos":
-        return "Seus habitos." if res.get("encontrados") else "Voce ainda nao tem habito cadastrado."
+        return "Seus hábitos." if res.get("encontrados") else "Você ainda não tem hábito cadastrado."
     if tool == "consultar_saude_dia":
-        return "Sua saude hoje."
+        return "Sua saúde hoje."
     if tool == "sugerir_horario_livre":
         if res.get("encontrado"):
-            return f"Da pra encaixar as {res['inicio']}."
-        return "Hoje nao sobrou um espaco livre desse tamanho na agenda."
+            return f"Dá pra encaixar às {res['inicio']}."
+        return "Hoje não sobrou um espaço livre desse tamanho na agenda."
     if tool == "registrar_hidratacao":
         total = res.get("total_hoje")
-        return f"+1 copo de agua. {total} hoje." if total else "+1 copo de agua."
+        return f"+1 copo de água. {total} hoje." if total else "+1 copo de água."
     return "Feito."
 
 
@@ -2109,12 +2109,12 @@ def _resposta_exemplo_teste_ia() -> tuple[str, list[str], dict]:
     ]
     passos = [
         {"modulo": "Tarefas", "descricao": 'Criou a tarefa "Exemplo: revisar contrato (modo teste)"', "ms": 0},
-        {"modulo": "Financas", "descricao": 'Registrou o gasto "Exemplo: mercado (modo teste)"', "ms": 0},
+        {"modulo": "Finanças", "descricao": 'Registrou o gasto "Exemplo: mercado (modo teste)"', "ms": 0},
         {"modulo": "Assistente", "descricao": 'Criou o lembrete "Exemplo: ligar pro dentista (modo teste)"', "ms": 0},
     ]
     resposta = (
-        "Modo teste de IA ligado - isso e um exemplo fixo, sem chamar nenhuma IA de "
-        "verdade. Da uma olhada no formato dos cards abaixo; desliga em Painel > "
+        "Modo teste de IA ligado - isso é um exemplo fixo, sem chamar nenhuma IA de "
+        "verdade. Dá uma olhada no formato dos cards abaixo; desliga em Painel > "
         "Custo de IA pra voltar ao chat normal."
     )
     return resposta, [], cards.envelope(cards_lista, resposta, passos)

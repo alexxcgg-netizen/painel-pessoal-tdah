@@ -631,7 +631,7 @@ def _label_dias(dias: int) -> str:
     if dias <= 0:
         return "hoje" if dias == 0 else "atrasada"
     if dias == 1:
-        return "amanha"
+        return "amanhã"
     return f"em {dias} dias"
 
 

@@ -262,7 +262,7 @@ class ConsultaChatLocalTestCase(Base):
         corpo = self.chat_local("como foram meus treinos nos últimos 7 dias?")
         self.assertEqual(self.tipos(corpo), ["saude_treino"])
         d = corpo["cards"][0]["data"]
-        self.assertEqual(d["periodo"], "ultimos 7 dias")
+        self.assertEqual(d["periodo"], "últimos 7 dias")
         self.assertEqual(len(d["sessoes"]), 3)  # o de 9 dias atras fica fora
         self.assertEqual(sum(s["minutos"] for s in d["sessoes"]), 150)
         self.assertEqual(d["sessoes"][1]["atividade"], "Corrida")
@@ -314,7 +314,7 @@ class SugestaoTestCase(Base):
         self.assertEqual(d["inicio"], f"{hoje}T17:30")  # 17:30-22:00 e o maior espaco
         self.assertEqual(d["duracao_min"], 45)  # media dos treinos registrados
         self.assertEqual(d["titulo"], "Treino")
-        self.assertIn("17:30 as 22:00", d["porque"])
+        self.assertIn("17:30 às 22:00", d["porque"])
         self.assertIn("Treino sem horario fixo", d["porque"])  # memoria sua_rotina (US-E10)
         self.assertIn("17:30", corpo["resumo_texto"])
 
@@ -327,7 +327,7 @@ class SugestaoTestCase(Base):
         with self._agora(21, 40):
             corpo = self.chat_local("como encaixo meu treino hoje?")
         self.assertEqual(corpo["cards"], [])
-        self.assertIn("nao sobrou", corpo["resumo_texto"])
+        self.assertIn("não sobrou", corpo["resumo_texto"])
 
     def test_memoria_editada_pelo_alex_aparece_na_caixa(self):
         self.conn.execute("UPDATE memorias SET texto = 'Prefere treinar depois das 18h' WHERE texto LIKE 'Treino sem%'")
@@ -606,12 +606,12 @@ class BrainDumpCardsTestCase(Base):
         self.assertGreaterEqual(len(tipos) - 1, 8)
         resumo = corpo["cards"][-1]["data"]
         self.assertEqual(resumo["passos_total"], 9)
-        for modulo in ("Viagens", "Financas", "Habitos", "Lembretes", "Agenda", "Saude"):
+        for modulo in ("Viagens", "Finanças", "Hábitos", "Lembretes", "Agenda", "Saúde"):
             self.assertIn(modulo, resumo["modulos"])
         textos = {linha["modulo"]: linha["texto"] for linha in resumo["linhas"]}
-        self.assertEqual(textos["Financas"], "2 gastos registrados, 1 entrada registrada")
+        self.assertEqual(textos["Finanças"], "2 gastos registrados, 1 entrada registrada")
         self.assertEqual(textos["Viagens"], "1 viagem registrada")
-        self.assertEqual(textos["Habitos"], "2 habitos atualizados")
+        self.assertEqual(textos["Hábitos"], "2 hábitos atualizados")
         self.assertNotIn("45", str(resumo))
         # cada card tem o proprio Desfazer (tokens independentes)
         tokens = [self.desfazer_de(c) for c in corpo["cards"][:-1]]
