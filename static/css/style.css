@@ -1014,7 +1014,10 @@ header {
    de tomar conta do preenchimento inteiro do botao/aba. */
 
 .tab-content:not([hidden]) {
-  animation: tabEntra 0.32s var(--ease-suave) backwards;
+  /* Vel (A2c): 0.32s -> 0.18s (pedido: animacao de entrada de aba <=200ms -
+     so encurta a duracao, continua so transform/opacity, ver entra-direita/
+     entra-esquerda abaixo). */
+  animation: tabEntra 0.18s var(--ease-suave) backwards;
 }
 
 /* Transicao direcional entre abas (pedido explicito: efeitos "premium",
@@ -1026,10 +1029,13 @@ header {
    exigiria as duas abas visiveis ao mesmo tempo por um instante, mais
    arriscado (dado carregando, foco, etc) pro ganho visual que traria. */
 .tab-content.entra-direita:not([hidden]) {
-  animation: tabEntraDireita 0.36s var(--ease-suave) backwards;
+  /* Vel (A2c): 0.36s -> 0.18s (medido: era a animacao mais longa da troca de
+     aba; CPU 4x fazia cada frame de composicao do vidro/backdrop-filter
+     custar mais, e a animacao ficava rodando por mais tempo pra compensar). */
+  animation: tabEntraDireita 0.18s var(--ease-suave) backwards;
 }
 .tab-content.entra-esquerda:not([hidden]) {
-  animation: tabEntraEsquerda 0.36s var(--ease-suave) backwards;
+  animation: tabEntraEsquerda 0.18s var(--ease-suave) backwards;
 }
 
 @keyframes tabEntraDireita {

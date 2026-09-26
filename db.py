@@ -1201,6 +1201,21 @@ def list_all_bank_transactions(conn) -> list[dict]:
     return [_descriptografar_transacao(dict(r)) for r in rows]
 
 
+def list_bank_transactions_by_ids(conn, ids: list[int]) -> list[dict]:
+    """Mesma descriptografia de list_all_bank_transactions, mas so pras
+    linhas pedidas (por id) - usado pela paginacao de /api/gastos/unificados
+    (rotas/f8_banco.py, Fase vel/A2a) pra nao pagar o custo de decifrar
+    (Fernet) as transacoes bancarias inteiras so pra montar uma pagina de
+    30 itens. Lista de ids vazia devolve lista vazia sem tocar no banco."""
+    if not ids:
+        return []
+    marcadores = ",".join("?" * len(ids))
+    rows = conn.execute(
+        f"SELECT * FROM bank_transactions WHERE id IN ({marcadores})", ids
+    ).fetchall()
+    return [_descriptografar_transacao(dict(r)) for r in rows]
+
+
 def buscar_conta_por_nome(conn, nome: str) -> dict | None:
     """Acha a conta bancaria cujo nome mais parece com o texto informado (ex: o
     Alex escreveu "Nubank" ou "nubank" no chat) - correspondencia parcial e sem
