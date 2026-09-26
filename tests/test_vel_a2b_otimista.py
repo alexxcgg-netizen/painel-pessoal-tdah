@@ -20,7 +20,8 @@ import auth  # noqa: E402
 import db  # noqa: E402
 
 _tmp_dir = tempfile.TemporaryDirectory()
-db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+_DB_PROPRIO = Path(_tmp_dir.name) / "painel.db"
+db.DB_PATH = _DB_PROPRIO
 db.garantir_banco_nao_producao()
 
 import app as app_module  # noqa: E402
@@ -62,6 +63,18 @@ _CHROME = "/opt/pw-browsers/chromium"
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
 @unittest.skipUnless(_pronto, "servidor de teste nao respondeu")
 class VelA2bOtimistaTestCase(unittest.TestCase):
+    def setUp(self):
+        # Outros modulos de teste tambem trocam db.DB_PATH na importacao; o
+        # servidor deste modulo roda no mesmo processo, entao reaponta pro
+        # banco proprio antes de cada teste (senao: "no such table" quando a
+        # suite roda junta).
+        db.DB_PATH = _DB_PROPRIO
+        db.init_db()
+        conn = db.get_db()
+        auth.definir_pin(conn, PIN, PIN)
+        conn.commit()
+        conn.close()
+
     def test_concluir_tarefa_otimista_some_rapido_e_volta_em_erro(self):
         with sync_playwright() as p:
             kwargs = {"headless": True}
