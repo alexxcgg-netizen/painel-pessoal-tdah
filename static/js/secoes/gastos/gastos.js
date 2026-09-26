@@ -606,15 +606,36 @@ async function loadGastosProximasCobrancas() {
   box.hidden = false;
 }
 
+// Faixa vel/A2a: /api/gastos/unificados agora pagina (30 por vez) - a aba
+// travava de 4 a 9s montando um <li> pra cada gasto manual + transacao
+// bancaria de uma vez so (3000+1500 no cenario medido). `proximo` guarda o
+// cursor da API pra "Carregar mais" pedir a pagina seguinte.
+const LIMITE_PAGINA_GASTOS_UNIFICADOS = 30;
+let gastosUnificadosProximo = null;
+
 async function loadExpenses() {
   // Fase 8 (F1): lista unificada (manual + banco), cada item com "origem".
-  const expenses = await apiFetch("/api/gastos/unificados");
-  if (!Array.isArray(expenses)) return;
+  gastosUnificadosProximo = null;
   const list = $("#lista-gastos");
+  const esqueleto = $("#gastos-esqueleto");
+  const btnMaisGastos = $("#btn-carregar-mais-gastos");
   list.innerHTML = "";
+  if (btnMaisGastos) btnMaisGastos.hidden = true;
+  if (esqueleto) esqueleto.hidden = false;
+
+  const resposta = await apiFetch(`/api/gastos/unificados?limite=${LIMITE_PAGINA_GASTOS_UNIFICADOS}`);
+  if (esqueleto) esqueleto.hidden = true;
+  const expenses = resposta && Array.isArray(resposta.itens) ? resposta.itens : null;
+  if (!expenses) return;
+
   $("#gastos-oculto-visitante").hidden = !modoVisitanteAtivo;
   $("#gastos-vazio").hidden = modoVisitanteAtivo || expenses.length > 0;
-  expenses.forEach((e) => list.appendChild(criarItemGasto(e)));
+  // Uma unica inserção no DOM (DocumentFragment) em vez de N appendChild.
+  const fragmentoGastos = document.createDocumentFragment();
+  expenses.forEach((e) => fragmentoGastos.appendChild(criarItemGasto(e)));
+  list.appendChild(fragmentoGastos);
+  gastosUnificadosProximo = resposta.proximo || null;
+  if (btnMaisGastos) btnMaisGastos.hidden = !gastosUnificadosProximo;
   loadGastosProximasCobrancas();
 
   const historicoBruto = await apiFetch("/api/expenses/historico?dias=14");
@@ -635,6 +656,32 @@ async function loadExpenses() {
 
   loadResumoSemanal();
   loadCustoIA();
+}
+
+async function carregarMaisGastosUnificados() {
+  if (!gastosUnificadosProximo) return;
+  const list = $("#lista-gastos");
+  const btnMaisGastos = $("#btn-carregar-mais-gastos");
+  const params = new URLSearchParams({
+    limite: String(LIMITE_PAGINA_GASTOS_UNIFICADOS),
+    antes: gastosUnificadosProximo,
+  });
+  const resposta = await apiFetch(`/api/gastos/unificados?${params.toString()}`);
+  const itens = resposta && Array.isArray(resposta.itens) ? resposta.itens : [];
+  const fragmentoGastos = document.createDocumentFragment();
+  itens.forEach((e) => fragmentoGastos.appendChild(criarItemGasto(e)));
+  list.appendChild(fragmentoGastos);
+  gastosUnificadosProximo = (resposta && resposta.proximo) || null;
+  if (btnMaisGastos) btnMaisGastos.hidden = !gastosUnificadosProximo;
+}
+
+const btnCarregarMaisGastos = $("#btn-carregar-mais-gastos");
+if (btnCarregarMaisGastos) {
+  btnCarregarMaisGastos.addEventListener("click", async () => {
+    setBotaoCarregando(btnCarregarMaisGastos, true, "Carregando...");
+    await carregarMaisGastosUnificados();
+    setBotaoCarregando(btnCarregarMaisGastos, false, "Carregar mais");
+  });
 }
 
 function preencherCustoIA(data) {

@@ -21,7 +21,7 @@ import unicodedata
 from datetime import date, datetime
 
 import requests
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 import db
 import financas_recorrentes as fr
@@ -127,6 +127,180 @@ def _montar_gastos_unificados(conn) -> list[dict]:
         )
     unificado.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return unificado
+
+
+_LIMITE_PADRAO_GASTOS_UNIFICADOS = 30
+_LIMITE_MAXIMO_GASTOS_UNIFICADOS = 200
+
+
+def _limite_paginacao_gastos(bruto) -> int:
+    """`limite` da paginacao de /api/gastos/unificados - 30 por padrao,
+    nunca mais que 200 (protege contra `?limite=999999` decifrar tudo de
+    proposito) e nunca <= 0 (cai no padrao em vez de devolver pagina
+    vazia por acidente)."""
+    try:
+        valor = int(bruto)
+    except (TypeError, ValueError):
+        return _LIMITE_PADRAO_GASTOS_UNIFICADOS
+    if valor <= 0:
+        return _LIMITE_PADRAO_GASTOS_UNIFICADOS
+    return min(valor, _LIMITE_MAXIMO_GASTOS_UNIFICADOS)
+
+
+def _decodificar_cursor_gastos(bruto: str | None):
+    """cursor = "data|origem_src|id" (origem_src e' 'e' de expenses ou 'b'
+    de bank_transactions) - a MESMA chave usada em `_candidatos_gastos` pra
+    saber onde a pagina anterior parou. Cursor invalido/corrompido nunca
+    derruba a rota - so volta pro comeco da lista, como se nao tivesse
+    cursor nenhum."""
+    if not bruto:
+        return None
+    partes = bruto.split("|", 2)
+    if len(partes) != 3:
+        return None
+    data, origem_src, id_txt = partes
+    if origem_src not in ("e", "b"):
+        return None
+    try:
+        id_valor = int(id_txt)
+    except ValueError:
+        return None
+    return (data, origem_src, id_valor)
+
+
+def _candidatos_gastos(conn, cursor, tamanho: int):
+    """So os `id`+`data`+origem das linhas de expenses (tipo='real') e
+    bank_transactions, da mais recente pra mais antiga - SEM decifrar nada
+    (`data` nao e campo criptografado, so `valor`/`descricao` sao - ver
+    docs/SEGURANCA.md). Usado pra decidir a ORDEM da pagina antes de pagar
+    o custo de decifrar (Fernet) e so decifrar depois a janela que
+    realmente vai virar item da pagina (Fase vel/A2a: aba Gastos travando
+    ao decifrar as 3000+ transacoes bancarias so pra montar 30 itens)."""
+    sql = (
+        "SELECT id, data, origem_src FROM ("
+        "  SELECT id, created_at AS data, 'e' AS origem_src FROM expenses WHERE tipo = 'real'"
+        "  UNION ALL"
+        "  SELECT id, data AS data, 'b' AS origem_src FROM bank_transactions"
+        ") candidatos"
+    )
+    params: list = []
+    if cursor is not None:
+        data_c, origem_c, id_c = cursor
+        sql += (
+            " WHERE data < ?"
+            " OR (data = ? AND origem_src < ?)"
+            " OR (data = ? AND origem_src = ? AND id < ?)"
+        )
+        params.extend([data_c, data_c, origem_c, data_c, origem_c, id_c])
+    sql += " ORDER BY data DESC, origem_src DESC, id DESC LIMIT ?"
+    params.append(tamanho)
+    return conn.execute(sql, params).fetchall()
+
+
+def _materializar_candidatos_gastos(conn, candidatos) -> list[tuple]:
+    """Decifra so a janela de candidatos pedida (nunca a tabela inteira) e
+    devolve pares (linha_candidata, item_ou_None) NA MESMA ORDEM dos
+    candidatos - item vem None quando a transacao bancaria decifrada
+    acabou sendo entrada (valor >= 0), que nao e gasto e por isso fica de
+    fora da lista unificada. Devolver o par (nao so os itens aceitos) e o
+    que deixa o cursor da pagina avancar pro ultimo candidato ESCANEADO,
+    mesmo quando ele foi descartado - sem isso a paginacao pularia ou
+    repetiria linha toda vez que uma transacao positiva aparecesse no
+    meio do caminho."""
+    ids_expenses = [c["id"] for c in candidatos if c["origem_src"] == "e"]
+    ids_bancos = [c["id"] for c in candidatos if c["origem_src"] == "b"]
+
+    expenses_por_id = {}
+    if ids_expenses:
+        marcadores = ",".join("?" * len(ids_expenses))
+        rows = conn.execute(
+            "SELECT id, amount, category, description, source_text, created_at "
+            f"FROM expenses WHERE id IN ({marcadores})",
+            ids_expenses,
+        ).fetchall()
+        expenses_por_id = {r["id"]: r for r in rows}
+
+    bancos_por_id = {}
+    if ids_bancos:
+        contas_por_id = {c["id"]: c for c in db.list_bank_accounts(conn)}
+        for r in db.list_bank_transactions_by_ids(conn, ids_bancos):
+            conta = contas_por_id.get(r["bank_account_id"])
+            banco = (conta["banco"] if conta else "banco").strip()
+            r = dict(r)
+            r["_banco"] = banco.capitalize() if banco else "banco"
+            bancos_por_id[r["id"]] = r
+
+    pares = []
+    for c in candidatos:
+        if c["origem_src"] == "e":
+            e = expenses_por_id.get(c["id"])
+            item = None
+            if e is not None:
+                item = {
+                    "amount": e["amount"],
+                    "category": e["category"],
+                    "description": e["description"],
+                    "source_text": e["source_text"],
+                    "created_at": e["created_at"],
+                    "origem": "manual",
+                }
+            pares.append((c, item))
+        else:
+            b = bancos_por_id.get(c["id"])
+            item = None
+            if b is not None and b["valor"] is not None and b["valor"] < 0:
+                item = {
+                    "amount": -b["valor"],
+                    "category": b["categoria"] or "outros",
+                    "description": b["descricao"],
+                    "source_text": None,
+                    "created_at": b["data"],
+                    "origem": b["_banco"],
+                }
+            pares.append((c, item))
+    return pares
+
+
+_TENTATIVAS_MAXIMAS_PAGINACAO_GASTOS = 6
+
+
+def _montar_gastos_unificados_paginado(conn, limite: int, cursor_bruto: str | None) -> tuple[list[dict], str | None]:
+    """Mesmo item final de `_montar_gastos_unificados`, mas pagina: pede
+    candidatos (id+data, sem decifrar) em janelas, decifra so a janela e
+    para assim que junta `limite` itens - nunca decifra a tabela inteira
+    so pra devolver uma pagina. Devolve (itens, proximo) onde `proximo` e
+    o cursor pra pedir a pagina seguinte, ou None quando acabou a lista."""
+    cursor = _decodificar_cursor_gastos(cursor_bruto)
+    itens: list[dict] = []
+    ultimo_candidato = None
+    janela = max(limite * 3, 60)
+    esgotado = False
+
+    for _ in range(_TENTATIVAS_MAXIMAS_PAGINACAO_GASTOS):
+        candidatos = _candidatos_gastos(conn, cursor, janela)
+        if not candidatos:
+            esgotado = True
+            break
+        pares = _materializar_candidatos_gastos(conn, candidatos)
+        completou = False
+        for linha, item in pares:
+            ultimo_candidato = linha
+            if item is not None:
+                itens.append(item)
+                if len(itens) >= limite:
+                    completou = True
+                    break
+        cursor = (ultimo_candidato["data"], ultimo_candidato["origem_src"], ultimo_candidato["id"])
+        if completou:
+            break
+        if len(candidatos) < janela:
+            esgotado = True
+            break
+
+    proximo = None
+    if not esgotado and ultimo_candidato is not None:
+        proximo = f"{cursor[0]}|{cursor[1]}|{cursor[2]}"
+    return itens[:limite], proximo
 
 
 _CAMPOS_COMPARAVEIS = (
@@ -403,13 +577,31 @@ def sincronizar_nubank_rota():
 def gastos_unificados():
     """Gastos manuais (expenses) + gastos automaticos (bank_transactions),
     numa lista so, cada item com 'origem' ('manual' ou o nome do banco,
-    ex: 'Nubank'). Nao apaga nem altera nada - so leitura."""
+    ex: 'Nubank'). Nao apaga nem altera nada - so leitura.
+
+    Sem parametros (comportamento antigo, intacto): devolve a lista
+    completa como array JSON puro - e o que os testes de Fase 8 e qualquer
+    consumidor que precise da lista inteira (ex: futuro CSV/somatorio)
+    devem continuar usando, com `?tudo=1` de forma explicita se algum dia
+    passarem a mandar `limite`/`antes` tambem por outro motivo.
+
+    Com `?limite=N` (padrao 30, teto 200) e/ou `?antes=<cursor>`: pagina -
+    devolve `{"itens": [...], "proximo": <cursor ou null>}`. O formato de
+    CADA item nao muda em nenhum dos dois casos (Fase vel/A2a: aba Gastos
+    travando ao renderizar/decifrar tudo de uma vez so pra abrir a aba)."""
+    limite_bruto = request.args.get("limite")
+    cursor_bruto = request.args.get("antes")
+    tudo = request.args.get("tudo")
     conn = db.get_db()
     try:
-        unificado = _montar_gastos_unificados(conn)
+        if tudo or (not limite_bruto and not cursor_bruto):
+            unificado = _montar_gastos_unificados(conn)
+            return jsonify(unificado)
+        limite = _limite_paginacao_gastos(limite_bruto)
+        itens, proximo = _montar_gastos_unificados_paginado(conn, limite, cursor_bruto)
     finally:
         conn.close()
-    return jsonify(unificado)
+    return jsonify({"itens": itens, "proximo": proximo})
 
 
 @bp.route("/api/gastos/proximas-cobrancas", methods=["GET"])
