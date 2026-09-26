@@ -166,6 +166,7 @@ function criarItemGasto(e) {
   if (editavel) cat.type = "button";
   cat.className = "gasto-categoria chip chip--compacto";
   cat.dataset.cat = e.category;
+  cat.style.setProperty("--cat-cor", corDaCategoria(e.category));
   cat.textContent = e.category;
   if (editavel) {
     cat.title = "toque pra corrigir a categoria";
@@ -342,8 +343,9 @@ function calcularFraseResumoFinancas(resumo) {
 }
 
 // Card "Gasto por categoria": barras horizontais, top 8 (a API ja manda so
-// os 8 maiores), cor unica de acento com opacidade decrescente - nunca
-// arco-iris (regra da faixa).
+// os 8 maiores). Faixa vis/C1: cada barra usa a cor fixa da propria
+// categoria (corDaCategoria, nucleo/cores.js) - antes era cor unica de
+// acento com opacidade decrescente.
 function renderizarCategoriaFinancas(categorias) {
   const lista = $("#fc-lista-categoria");
   const vazio = $("#fc-categoria-vazio");
@@ -370,8 +372,9 @@ function renderizarCategoriaFinancas(categorias) {
     barWrap.className = "fc-catbarwrap";
     const bar = document.createElement("div");
     bar.className = "fc-catbar";
+    bar.style.background = corDaCategoria(c.categoria);
     bar.style.width = `${max ? (valor / max) * 100 : 0}%`;
-    bar.style.opacity = Math.max(0.35, 1 - i * 0.09).toFixed(2);
+    bar.style.opacity = Math.max(0.55, 1 - i * 0.05).toFixed(2);
     barWrap.appendChild(bar);
     li.appendChild(barWrap);
     li.appendChild(criarEl("span", "fc-catval", fmtMoedaFinancas(valor)));

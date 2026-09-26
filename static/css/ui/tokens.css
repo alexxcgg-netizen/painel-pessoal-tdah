@@ -18,22 +18,63 @@
    Carrega depois do style.css via static/css/fase7.css. */
 
 :root {
-  /* ---------- Cor base (fase 8 D1 - tema neutro estilo ChatGPT) ----------
-     Fonte unica dos tokens de COR base do app (o resto do arquivo e forma/
-     profundidade, nao cor). O style.css aponta suas variaveis --bg, --surface-(n),
-     --border-(n), --text-(n), --accent e --success pra estas aqui, em vez de redeclarar
-     os hex. Nada de roxo/verde saturado de fundo: cinza neutro quase-preto. */
-  --cor-bg: #171717;
-  --cor-superficie: #212121;
-  --cor-superficie-2: #2a2a2a;
-  --cor-borda: rgba(255, 255, 255, 0.09);
-  --cor-texto: #ececec;
-  --cor-texto-fraco: #a9a9a9;
-  --cor-acento: #8e8ea0;
-  --cor-sucesso: #4caf7d;
-  /* Fase 9 (volta ao painel antigo): tokens usados so pela aba Financas nova. */
-  --cor-texto-2: #cfcfcf;
-  --cor-alerta: #e5746f;
+  /* ---------- Cor base (faixa vis/C1 - paleta "Gelo preto") ----------
+     Trocada por pedido do dono ("cinza demais, sem vida"): fundo preto de
+     verdade + acento azul-gelo, categorias com 8 tons distintos (nao mais
+     cinza neutro). Fonte unica dos tokens de COR base do app (o resto do
+     arquivo e forma/profundidade, nao cor). O style.css aponta suas
+     variaveis --bg, --surface-(n), --border-(n), --text-(n), --accent e
+     --danger pra estas aqui, em vez de redeclarar os hex. Sem glow/sombra
+     luminosa/LED nesta paleta - identidade de cor vem de icone/texto/borda
+     fina, nunca de brilho ambiente continuo. */
+  --cor-fundo: #000;
+  --cor-superficie: #080b0e;
+  --cor-superficie-2: #0e1216;
+  --cor-borda: #1f272e;
+  --cor-texto: #f2f7fa;
+  --cor-texto-2: #aebbc6;
+  --cor-texto-fraco: #86939e;
+  --cor-destaque: #bfe6ff;
+  --cor-destaque-suave: #14212a;
+  --cor-sobre-destaque: #04101a;
+  --cor-entrada: #64d88f;
+  --cor-saida: #f47671;
+  --cor-alerta: #fac02e;
+  --cor-info: #5fa1f2;
+
+  /* Categorias 1-8 (grafico de gasto por categoria, ponto do extrato -
+     static/js/nucleo/cores.js - e identidade das 8 abas, --cor-aba-* logo
+     abaixo). Estaveis: a posicao de cada cor nesta lista nunca muda. */
+  --cor-cat-1: #7cc4e8;
+  --cor-cat-2: #9aa8f0;
+  --cor-cat-3: #b79cf0;
+  --cor-cat-4: #e39fc9;
+  --cor-cat-5: #f0a58f;
+  --cor-cat-6: #e8cf8a;
+  --cor-cat-7: #9fdcb0;
+  --cor-cat-8: #7fd9d0;
+
+  /* Identidade de cada aba = uma das 8 cores de categoria acima, 1 pra 1. */
+  --cor-aba-hoje: var(--cor-cat-1);
+  --cor-aba-painel: var(--cor-cat-2);
+  --cor-aba-aviacao: var(--cor-cat-3);
+  --cor-aba-vida: var(--cor-cat-4);
+  --cor-aba-tarefas: var(--cor-cat-5);
+  --cor-aba-gastos: var(--cor-cat-6);
+  --cor-aba-construtora: var(--cor-cat-7);
+  --cor-aba-assistente: var(--cor-cat-8);
+
+  /* "Geada" nos cartoes - realce fino de vidro-gelo, sem blur/glow: usar
+     como PRIMEIRA camada de background (background: var(--geada), <cor>)
+     e somar --geada-brilho ao box-shadow. */
+  --geada: linear-gradient(180deg, rgba(200, 230, 255, 0.045), rgba(200, 230, 255, 0) 45%);
+  --geada-brilho: inset 0 1px 0 rgba(220, 240, 255, 0.07);
+
+  /* Nomes antigos (quem ja usa continua funcionando, sem quebrar nada) -
+     agora so apontam pros tokens novos acima. */
+  --cor-bg: var(--cor-fundo);
+  --cor-acento: var(--cor-destaque);
+  --cor-sucesso: var(--cor-entrada);
   --fonte-base: var(--font-body);
   --raio-cartao: 14px;
   --raio-pequeno: 9px;
@@ -147,9 +188,10 @@
   /* ---------- Toque e foco ---------- */
   --toque-min: 44px; /* area minima de qualquer alvo tocavel */
   --toque-confortavel: 48px; /* .btn-adicionar, .btn-primario de rodape, linha de lista */
-  /* anel de foco visivel no preto: folga da cor do fundo + anel do --text a 55%.
-     (o :focus-visible global do style.css usa --accent-2 #08080a e quase some no preto) */
-  --anel-foco: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--text) 55%, transparent);
+  /* anel de foco visivel no preto: folga da cor do fundo + anel na cor de destaque.
+     Faixa vis/C1b-cor: era --text a 55% (branco neutro) - o pedido explicito e foco
+     em --cor-destaque (identidade da paleta), nao branco generico. */
+  --anel-foco: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--cor-destaque) 70%, transparent);
 
   /* ---------- Camadas (z-index) ----------
      Existentes: #tabbar 10, grao do body::after 50, confete 90. O sheet fica acima da barra

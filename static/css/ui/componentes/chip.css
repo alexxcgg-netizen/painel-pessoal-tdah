@@ -43,14 +43,18 @@
   box-shadow: var(--anel-foco);
 }
 
+/* Faixa vis/C1b-cor: --accent-soft-bg (16% de accent sobre transparente, quase
+   invisivel no preto) + --accent-text (texto quase branco) liam como chip cinza,
+   nao "chip selecionado". --cor-destaque-suave e um token solido pensado exatamente
+   pra isso (tokens.css); borda/texto em --cor-destaque cheio (contraste ~12.5:1). */
 .chip--ativo {
-  color: var(--accent-text, var(--text));
-  background: var(--accent-soft-bg, color-mix(in srgb, var(--accent) 16%, transparent));
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--borda-sutil, var(--border)));
+  color: var(--cor-destaque, var(--text));
+  background: var(--cor-destaque-suave, color-mix(in srgb, var(--accent) 16%, transparent));
+  border-color: var(--cor-destaque, var(--accent));
 }
 
 .chip--ativo:hover {
-  border-color: var(--accent);
+  border-color: var(--cor-destaque, var(--accent));
 }
 
 /* Chip fora de contexto clicavel (soh rotulo, ex: tag dentro de um card) pode ser menor -
