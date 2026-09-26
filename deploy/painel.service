@@ -6,7 +6,7 @@ After=network.target
 # Ajusta esses tres caminhos/usuario pro seu servidor - o resto pode ficar como esta.
 User=painel
 WorkingDirectory=/home/painel/painel-pessoal-tdah
-ExecStart=/home/painel/painel-pessoal-tdah/.venv/bin/gunicorn -w 1 -b 127.0.0.1:5001 wsgi:app
+ExecStart=/home/painel/painel-pessoal-tdah/.venv/bin/gunicorn -w 1 --threads 8 -b 127.0.0.1:5001 wsgi:app
 
 Restart=on-failure
 RestartSec=5

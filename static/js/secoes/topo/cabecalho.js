@@ -120,9 +120,20 @@ function initModoVisitante() {
     document.dispatchEvent(new CustomEvent("modo-visitante-mudou", { detail: { ativo } }));
   }
 
+  // Estado inicial: a pagina ja carrega tudo no modo normal (init.js), entao
+  // so avisa as secoes (evento modo-visitante-mudou -> recarrega gastos,
+  // bancos, saude, medidas, previa, decisoes) se o modo visitante JA estiver
+  // ligado. Antes disparava sempre e duplicava 6 chamadas em toda abertura.
   (async () => {
     const dados = await apiFetch("/api/modo-visitante");
-    if (dados) aplicarEstado(Boolean(dados.ativo));
+    if (!dados) return;
+    if (dados.ativo) {
+      aplicarEstado(true);
+    } else {
+      modoVisitanteAtivo = false;
+      btn.classList.remove("ativo");
+      btn.setAttribute("aria-pressed", "false");
+    }
   })();
 
   btn.addEventListener("click", async () => {

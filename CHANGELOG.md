@@ -5,6 +5,29 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-26 - Auditoria de uso real (desempenho + categoria duplicada)
+
+Teste local com volume grande (3000 transações, 1500 gastos, 400 tarefas), rede externa
+bloqueada, Chromium 390x844 passando pelas 8 abas: 0 erro de JS, 0 rolagem horizontal,
+nenhuma rota acima de 260 ms. Achados e correções:
+- **Servidor atendia uma requisição por vez** (gunicorn 1 worker síncrono): uma chamada de IA
+  lenta travava as ~35 chamadas da abertura e qualquer toque. `--threads 8` no `render.yaml`
+  (e no `deploy/painel.service`/`DEPLOY.md`), ainda 1 processo. Medido com IA simulada de 3 s:
+  mediana das chamadas 3,7 s → 0,8 s; lista de tarefas 3,7 s → 0,7 s; gravação durante IA
+  lenta em 5–14 ms, sem "database is locked".
+- **6 chamadas duplicadas em toda abertura**: o estado inicial do modo visitante disparava
+  `modo-visitante-mudou` mesmo desligado (recarregava gastos, bancos, saúde, medidas, prévia,
+  decisões). Agora só dispara se o modo já estiver ligado (`static/js/secoes/topo/cabecalho.js`).
+  Abertura: 39 → 28 chamadas de API.
+- **Categoria duplicada em Finanças**: gasto do chat/manual (`mercado`) e do Nubank (`Mercado`)
+  viravam duas barras. `financas_descricao.rotulo_categoria_manual` dá o mesmo rótulo (Mercado,
+  Transporte, Lazer, Contas, Saúde, Outros); usado em `rotas/f9_financas.py`. Teste
+  `tests/test_perf_categorias.py`.
+- Service worker v26.
+- Anotado, sem mudança: página tem ~18 mil elementos (as 8 abas no DOM) e 163 arquivos
+  estáticos (servidos pelo cache do service worker depois da 1ª abertura); fontes do Google não
+  carregam offline (cai na fonte do sistema).
+
 ## 2026-09-25 - Melhorias de uso diário (M1–M5)
 
 - **M1 Hoje enxuto + Aviação na barra**: Hoje ficou só com `#caixa-assistente`, chat, foco
