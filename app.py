@@ -1391,23 +1391,6 @@ def _criar_evento_agenda(conn, titulo, data, hora_inicio, hora_fim, lembrar_min_
     return {"ok": True, **resultado}
 
 
-@app.route("/api/agenda/eventos", methods=["POST"])
-def criar_evento_agenda_rota():
-    recusa = _recusar_no_modo_visitante()  # escreve no iCloud real do Alex
-    if recusa:
-        return recusa
-    body = _corpo_json()
-    conn = get_db()
-    resultado = _criar_evento_agenda(
-        conn, body.get("titulo"), body.get("data"), body.get("hora_inicio"), body.get("hora_fim"),
-        body.get("lembrar_min_antes"),
-    )
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
 def _apagar_evento_agenda(conn, uid: str) -> dict:
     # A guarda de verdade e essa: SO apaga se o painel registrou que foi ele
     # quem criou. Nunca chega a chamar o iCloud se o uid nao estiver aqui.
@@ -1421,27 +1404,6 @@ def _apagar_evento_agenda(conn, uid: str) -> dict:
         return {"erro": "nao consegui apagar o evento no iCloud agora - tenta de novo"}
     esquecer_evento_criado(conn, uid)
     return {"ok": True}
-
-
-@app.route("/api/agenda/eventos/<uid>", methods=["DELETE"])
-def apagar_evento_agenda_rota(uid):
-    recusa = _recusar_no_modo_visitante()  # apaga no iCloud real do Alex
-    if recusa:
-        return recusa
-    conn = get_db()
-    resultado = _apagar_evento_agenda(conn, uid)
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado)
-
-
-@app.route("/api/agenda/eventos-criados", methods=["GET"])
-def eventos_criados_rota():
-    conn = get_db()
-    resultado = list_eventos_criados(conn)
-    conn.close()
-    return jsonify(resultado)
 
 
 def _resumo_falado_manha(conn) -> str:
@@ -1462,14 +1424,6 @@ def _resumo_falado_manha(conn) -> str:
     else:
         agenda_texto = f"{len(eventos)} compromissos hoje."
     return f"Bom dia. {agenda_texto} {notificacoes.resumo_manha_gastos_pendentes(conn)}"
-
-
-@app.route("/api/resumo-manha", methods=["GET"])
-def resumo_manha_rota():
-    conn = get_db()
-    texto = _resumo_falado_manha(conn)
-    conn.close()
-    return jsonify({"texto": texto})
 
 
 # Faixa M4 (uso diario): o texto da IA do resumo do dia so precisa ser gerado
@@ -1510,93 +1464,6 @@ def _impressao_resumo_dia(conn, today: str, n_eventos: int) -> str:
     )
 
 
-@app.route("/api/summary/today", methods=["GET"])
-def summary_today():
-    today = date.today().isoformat()
-    conn = get_db()
-    materializar_tarefas_recorrentes(conn)
-    done = conn.execute("SELECT title FROM tasks WHERE date(completed_at) = ?", (today,)).fetchall()
-    pending = conn.execute(
-        "SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
-    ).fetchall()
-    if _modo_visitante_ativo():
-        # US-C20: nem chama a IA - o resumo em texto livre poderia mencionar
-        # valor gasto ou dado de saude, e nao da pra garantir que um prompt
-        # "sem esses dados" nunca vaze nada por inferencia. Mais seguro nao
-        # gerar o texto nenhum enquanto o modo visitante estiver ativo.
-        eventos = _eventos_de_hoje_com_seguranca(conn)
-        conn.close()
-        return jsonify(
-            {
-                "summary": "Resumo oculto no modo visitante.",
-                "gasto_hoje": None,
-                "gasto_planejado": None,
-                "tarefas_concluidas": len(done),
-                "eventos_hoje": len(eventos),
-            }
-        )
-    expenses = conn.execute(
-        "SELECT amount, category FROM expenses WHERE date(created_at) = ? AND tipo = 'real'", (today,)
-    ).fetchall()
-    gasto_hoje = sum(r["amount"] for r in expenses)
-    gasto_planejado = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'planejado'",
-        (today,),
-    ).fetchone()["total"]
-    eventos = _eventos_de_hoje_com_seguranca(conn)
-
-    # Faixa M4: so o texto (summary) vem do cache - gasto_hoje/gasto_planejado/
-    # tarefas_concluidas/eventos_hoje acima sao recalculados sempre, frescos.
-    forcar = request.args.get("forcar") == "1"
-    impressao = _impressao_resumo_dia(conn, today, len(eventos))
-    cache = None if forcar else obter_resumo_dia_cache(conn, today)
-    if cache and cache["impressao"] == impressao:
-        conn.close()
-        return jsonify(
-            {
-                "summary": json.loads(cache["resposta_json"])["summary"],
-                "gasto_hoje": gasto_hoje,
-                "gasto_planejado": gasto_planejado,
-                "tarefas_concluidas": len(done),
-                "eventos_hoje": len(eventos),
-            }
-        )
-
-    memorias = list_memorias(conn)
-    saude = _saude_contexto_resumo(conn)
-    construtora = _construtora_contexto_resumo()
-    clima_hoje = _clima_contexto_resumo()
-
-    result, error = _call_claude(
-        claude_client.summarize_day,
-        [r["title"] for r in done],
-        [r["title"] for r in pending],
-        [dict(r) for r in expenses],
-        [e["titulo"] for e in eventos],
-        [m["texto"] for m in memorias],
-        saude,
-        construtora,
-        clima_hoje,
-    )
-    if error:
-        conn.close()
-        return error
-    text, usage = result
-
-    _log_usage(conn, usage, "resumo_dia")
-    salvar_resumo_dia_cache(conn, today, impressao, json.dumps({"summary": text}))
-    conn.close()
-    return jsonify(
-        {
-            "summary": text,
-            "gasto_hoje": gasto_hoje,
-            "gasto_planejado": gasto_planejado,
-            "tarefas_concluidas": len(done),
-            "eventos_hoje": len(eventos),
-        }
-    )
-
-
 def _previa_noite_anterior(conn, hoje: date) -> dict:
     """Fase 5 (US-C21): resumo factual (sem IA) de como foi a noite anterior,
     a partir de dado ja existente - sono (saude_dados, se o Atalho mandou;
@@ -1633,16 +1500,6 @@ def _previa_noite_anterior(conn, hoje: date) -> dict:
     }
 
 
-@app.route("/api/previa-noite", methods=["GET"])
-def previa_noite_rota():
-    if _modo_visitante_ativo():
-        return jsonify({"oculto": True})
-    conn = get_db()
-    resultado = _previa_noite_anterior(conn, date.today())
-    conn.close()
-    return jsonify(resultado)
-
-
 def _sinal_sobrecarga_hoje(conn) -> dict:
     """Fase 5 (US-C22): monta os sinais de hoje e chama notificacoes.
     sinal_sobrecarga pra combinar. semana_pesada usa a mesma deteccao da
@@ -1671,14 +1528,6 @@ def _sinal_sobrecarga_hoje(conn) -> dict:
     return notificacoes.sinal_sobrecarga(n_atrasadas, seguidas >= 3, semana_pesada=semana_pesada)
 
 
-@app.route("/api/sobrecarga", methods=["GET"])
-def sobrecarga_rota():
-    conn = get_db()
-    resultado = _sinal_sobrecarga_hoje(conn)
-    conn.close()
-    return jsonify(resultado)
-
-
 def _tarefas_pendentes_sem_horario_hoje(conn):
     """Tarefas pendentes que NAO viram ancora de horario fixo hoje - ou
     porque nao tem hora marcada, ou porque a hora e de outro dia. Evita
@@ -1690,54 +1539,6 @@ def _tarefas_pendentes_sem_horario_hoje(conn):
         "AND NOT (due_date = ? AND hora IS NOT NULL)",
         (hoje,),
     ).fetchall()
-
-
-@app.route("/api/fechamento-do-dia", methods=["GET"])
-def fechamento_do_dia():
-    """Ritual de fechamento (inspirado no 'shutdown' do Sunsama): o que foi
-    concluido hoje e o que ainda ficou marcado pra hoje e nao foi feito -
-    sem cobranca, a tarefa continua pendente naturalmente e reaparece
-    amanha, isso aqui e so uma fotografia pra fechar o dia com a cabeca
-    tranquila."""
-    hoje = date.today().isoformat()
-    conn = get_db()
-    concluidas = conn.execute(
-        "SELECT title FROM tasks WHERE date(completed_at) = ? ORDER BY completed_at", (hoje,)
-    ).fetchall()
-    pendentes_hoje = conn.execute(
-        "SELECT title FROM tasks WHERE completed_at IS NULL AND due_date = ? "
-        "ORDER BY hora IS NULL, hora",
-        (hoje,),
-    ).fetchall()
-    conn.close()
-    return jsonify(
-        {
-            "concluidas": [r["title"] for r in concluidas],
-            "pendentes_hoje": [r["title"] for r in pendentes_hoje],
-        }
-    )
-
-
-@app.route("/api/calendario/hoje", methods=["GET"])
-def calendario_hoje():
-    conn = get_db()
-    materializar_tarefas_recorrentes(conn)
-    configurado = caldav_client.configurado()
-    erro = None
-    icloud_eventos = []
-    if configurado:
-        try:
-            icloud_eventos = caldav_client.eventos_do_dia(date.today())
-        except Exception:
-            erro = "Nao consegui falar com o iCloud agora."
-    eventos = _compromissos_de_hoje(conn, icloud_eventos)
-    eventos += _tarefas_concluidas_com_horario_hoje(conn)
-    eventos.sort(key=lambda e: e["inicio"])
-    conn.close()
-    resposta = {"configurado": configurado, "eventos": eventos}
-    if erro:
-        resposta["erro"] = erro
-    return jsonify(resposta)
 
 
 # ---- Fase 6, US-E9: visao do dia (aba Hoje, abaixo do chat) ----------------
@@ -1839,26 +1640,6 @@ def _proximo_item_em_foco(itens: list[dict], agora: datetime) -> dict | None:
     }
 
 
-@app.route("/api/visao-dia/hoje", methods=["GET"])
-def visao_dia_hoje():
-    conn = get_db()
-    materializar_tarefas_recorrentes(conn)
-    hoje = date.today()
-    agora = datetime.now()
-    itens = _visao_do_dia_itens(conn, hoje)
-    conn.close()
-    concluidas = sum(1 for i in itens if i.get("concluido"))
-    return jsonify(
-        {
-            "status": _status_do_dia(itens, agora),
-            "em_foco": _proximo_item_em_foco(itens, agora),
-            "total_itens": len(itens),
-            "total_concluidas": concluidas,
-            "timeline": itens,
-        }
-    )
-
-
 def _contagem_dia(conn, dia: date) -> dict:
     """Contagem agregada simples de um dia (tarefas + habitos devidos +
     eventos criados no calendario Painel, que sao locais - a agenda do
@@ -1889,53 +1670,6 @@ def _contagem_dia(conn, dia: date) -> dict:
         "total": total_tarefas + total_eventos + total_habitos,
         "concluidas": concluidas_tarefas + concluidos_habitos,
     }
-
-
-@app.route("/api/visao-dia/periodo", methods=["GET"])
-def visao_dia_periodo():
-    tipo = request.args.get("tipo", "semana")
-    hoje = date.today()
-    if tipo == "mes":
-        inicio = hoje.replace(day=1)
-        fim = vida.somar_meses(inicio, 1) - timedelta(days=1)
-    else:
-        tipo = "semana"
-        inicio, fim_iso = _semana_de(hoje)
-        inicio = date.fromisoformat(inicio)
-        fim = date.fromisoformat(fim_iso)
-    conn = get_db()
-    dias = []
-    d = inicio
-    while d <= fim:
-        dias.append(_contagem_dia(conn, d))
-        d += timedelta(days=1)
-    conn.close()
-    return jsonify({"tipo": tipo, "dias": dias})
-
-
-@app.route("/api/plano-do-dia", methods=["POST"])
-def plano_do_dia():
-    conn = get_db()
-    pending = _tarefas_pendentes_sem_horario_hoje(conn)
-    eventos = _eventos_de_hoje_com_seguranca(conn)
-    memorias = list_memorias(conn)
-
-    result, error = _call_claude(
-        claude_client.plano_do_dia,
-        [r["title"] for r in pending],
-        eventos,
-        [m["texto"] for m in memorias],
-    )
-    if error:
-        conn.close()
-        return error
-    texto, usage = result
-
-    _log_usage(conn, usage, "plano_dia")
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify({"plano": texto})
 
 
 def _contexto_chat(conn) -> str:
