@@ -13,13 +13,13 @@
       <p id="sincronizar-nubank-status" class="dica-metas" hidden></p>
       <div id="resumo-financas-box" class="card-vida" hidden>
         <div class="card-vida-topo">
-          <h3>Resumo do mes</h3>
+          <h3>Resumo do mês</h3>
           <span class="card-vida-meta" id="resumo-financas-mes"></span>
         </div>
         <p class="fim-mes-linha">Gasto no mes: <strong id="resumo-financas-gasto">R$ 0</strong></p>
         <p class="fim-mes-linha">Fatura atual (a pagar): <strong id="resumo-financas-fatura">R$ 0</strong></p>
         <p class="fim-mes-linha">Saldo em conta: <strong id="resumo-financas-saldo">R$ 0</strong></p>
-        <p class="fim-mes-linha">Patrimonio: <strong id="resumo-financas-patrimonio">R$ 0</strong></p>
+        <p class="fim-mes-linha">Patrimônio: <strong id="resumo-financas-patrimonio">R$ 0</strong></p>
       </div>
       <div id="nota-fiscal-box" class="card-vida">
         <div class="card-vida-topo">
@@ -39,12 +39,12 @@
             <input type="text" id="nf-estabelecimento" class="campo" placeholder="Estabelecimento" aria-label="Estabelecimento" />
             <input type="date" id="nf-data" class="campo" aria-label="Data da nota" />
             <select id="nf-categoria" class="campo" aria-label="Categoria">
-              <option value="">Categoria automatica</option>
+              <option value="">Categoria automática</option>
               <option value="mercado">Mercado</option>
               <option value="transporte">Transporte</option>
               <option value="lazer">Lazer</option>
               <option value="contas">Contas</option>
-              <option value="saude">Saude</option>
+              <option value="saude">Saúde</option>
               <option value="outros">Outros</option>
             </select>
           </div>
@@ -59,7 +59,7 @@
       </div>
       <div id="fim-mes-box" class="card-vida" hidden>
         <div class="card-vida-topo">
-          <h3>Fim do mes</h3>
+          <h3>Fim do mês</h3>
           <span class="card-vida-meta" id="fim-mes-dias"></span>
         </div>
         <p class="fim-mes-linha" id="fim-mes-agora"></p>
@@ -67,11 +67,11 @@
       </div>
       <div id="resumo-semanal-box" class="resumo-semanal-box" hidden>
         <span class="resumo-semanal-valor" id="resumo-semanal-total">R$ 0</span>
-        <span class="resumo-semanal-label">gasto nos ultimos 7 dias</span>
+        <span class="resumo-semanal-label">gasto nos últimos 7 dias</span>
         <p class="resumo-semanal-detalhe" id="resumo-semanal-detalhe"></p>
       </div>
       <div class="grafico-card">
-        <p class="grafico-titulo">Gasto nos ultimos 14 dias</p>
+        <p class="grafico-titulo">Gasto nos últimos 14 dias</p>
         <div class="grafico-container" id="grafico-gastos"></div>
       </div>
       <div id="gastos-proximas-cobrancas-box" class="card-vida" hidden>
@@ -80,35 +80,15 @@
         </div>
         <ul id="gastos-lista-proximas-cobrancas"></ul>
       </div>
-      <p id="gastos-oculto-visitante" class="vazio" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-        Oculto no modo visitante.
-      </p>
-
-      {# Fase 9 (C3): "Extrato (ultimos dias)" mudou de lugar - o mesmo
-         #lista-extrato-financas/#btn-carregar-mais-extrato agora mora no
-         cartao "Ultimos dias" do topo estilo Conversa
-         (secoes/gastos/conversa.html), pra nao duplicar id. #}
-
-      <section class="secao-recolhivel" data-aberto="false" data-secao-id="gastos-extrato-completo">
-        <button type="button" class="secao-cabecalho" aria-expanded="false">Extrato completo <span class="chevron"></span></button>
-        <div class="secao-conteudo">
-          <p id="gastos-vazio" class="vazio" hidden>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>
-            Nenhum gasto registrado ainda. Manda ai que eu anoto.
-          </p>
-          <div id="gastos-esqueleto" class="lista-esqueleto" hidden aria-hidden="true">
-            <div class="esqueleto-linha-gasto"></div>
-            <div class="esqueleto-linha-gasto"></div>
-            <div class="esqueleto-linha-gasto"></div>
-            <div class="esqueleto-linha-gasto"></div>
-          </div>
-          <ul id="lista-gastos"></ul>
-          <button type="button" id="btn-carregar-mais-gastos" class="btn btn-secundario" hidden>
-            Carregar mais
-          </button>
-        </div>
-      </section>
+      {# Faixa limpa/d-financas: a lista antiga daqui (#lista-gastos,
+         "Extrato completo", paginada via /api/gastos/unificados) e o aviso
+         de visitante que vinha junto (#gastos-oculto-visitante) saíram -
+         era a mesma coisa que o cartão "Últimos dias" do topo estilo
+         Conversa (secoes/gastos/conversa.html, #lista-extrato-financas,
+         GET /api/financas/extrato), só que duplicada. As ações que só essa
+         lista tinha (corrigir categoria, "é tarefa") migraram pros itens
+         manuais de lá - ver criarItemExtratoFinancas em gastos.js. A rota
+         /api/gastos/unificados continua funcionando pra quem mais a usa. #}
 
       <div id="custo-ia-box" class="card-vida" hidden>
         <div class="card-vida-topo">
