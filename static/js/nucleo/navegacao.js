@@ -15,37 +15,55 @@ function showTab(name) {
   const indiceNovo = ORDEM_ABAS.indexOf(name);
   const direcao =
     indiceNovo > indiceAtual ? "entra-direita" : indiceNovo < indiceAtual ? "entra-esquerda" : null;
+
+  // Vel (A2c): antes isto rodava sobre TODAS as 8 abas em toda troca (8x
+  // classList.remove + 8x escrita de `.hidden`, so pra trocar 2). So a aba
+  // que sai e a que entra precisam mudar - menos escrita = menos trabalho de
+  // estilo/layout pro navegador considerar a cada troca (medido: troca de
+  // aba leve custava ~730ms com CPU 4x, a maior parte em TaskDuration fora
+  // de Script/Layout/RecalcStyle explicitos - ver ANALISE_A2C.md).
+  const elAnterior = document.getElementById(`tab-${abaAtual}`);
+  const elNovo = document.getElementById(`tab-${name}`);
   abaAtual = name;
 
-  document.querySelectorAll(".tab-content").forEach((el) => {
-    el.classList.remove("entra-direita", "entra-esquerda");
-    el.hidden = el.id !== `tab-${name}`;
-  });
-  if (direcao) {
-    document.getElementById(`tab-${name}`).classList.add(direcao);
+  if (elAnterior && elAnterior !== elNovo) {
+    elAnterior.classList.remove("entra-direita", "entra-esquerda");
+    elAnterior.hidden = true;
+  }
+  if (elNovo) {
+    elNovo.classList.remove("entra-direita", "entra-esquerda");
+    elNovo.hidden = false;
+    if (direcao) elNovo.classList.add(direcao);
   }
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === name);
   });
   if (name === "painel") {
+    // Vel (A2c): os 5 primeiros sao os que aparecem sem rolar (mesma ordem
+    // de templates/abas/painel.html); o resto (abaixo da dobra) espera um
+    // tick (requestAnimationFrame) pra nao competir por CPU com o primeiro
+    // paint/animacao da troca de aba - pedido do brief ("os que ficam
+    // abaixo da dobra podem esperar requestAnimationFrame/um tick").
     loadSobrecarga();
     loadPreviaNoite();
     loadRotina();
     loadCheckin();
     loadSummary();
-    loadAgenda();
-    loadFechamentoDoDia();
-    loadSaude();
-    loadMemorias();
-    loadLembretes();
-    loadMedicamentos();
-    loadMedidas();
-    loadEsperas();
-    loadNotas();
-    loadDecisoes();
-    loadBrainDump();
-    if (typeof loadCustoIAV2 === "function") loadCustoIAV2();
-    if (typeof loadTesteIA === "function") loadTesteIA();
+    requestAnimationFrame(() => {
+      loadAgenda();
+      loadFechamentoDoDia();
+      loadSaude();
+      loadMemorias();
+      loadLembretes();
+      loadMedicamentos();
+      loadMedidas();
+      loadEsperas();
+      loadNotas();
+      loadDecisoes();
+      loadBrainDump();
+      if (typeof loadCustoIAV2 === "function") loadCustoIAV2();
+      if (typeof loadTesteIA === "function") loadTesteIA();
+    });
   }
   if (name === "tarefas") loadTasks();
   if (name === "gastos") {
