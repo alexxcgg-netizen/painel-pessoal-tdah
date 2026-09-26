@@ -96,14 +96,14 @@ def pausar(regra_id):
     conn = db.get_db()
     try:
         if not _regra_existe(conn, regra_id):
-            return jsonify({"error": "regra nao encontrada"}), 404
+            return jsonify({"error": "regra não encontrada"}), 404
 
         ate = corpo.get("ate")
         if ate:
             try:
                 datetime.fromisoformat(str(ate))
             except ValueError:
-                return jsonify({"error": "'ate' invalido (use ISO, ex: 2026-10-01)"}), 400
+                return jsonify({"error": "'até' inválido (use ISO, ex: 2026-10-01)"}), 400
             pausada_ate = str(ate)
         elif corpo.get("dias") is not None:
             try:
@@ -128,7 +128,7 @@ def retomar(regra_id):
     conn = db.get_db()
     try:
         if not _regra_existe(conn, regra_id):
-            return jsonify({"error": "regra nao encontrada"}), 404
+            return jsonify({"error": "regra não encontrada"}), 404
         conn.execute(
             "UPDATE p4_regras SET pausada_ate = NULL, ativa = 1 WHERE id = ?", (regra_id,)
         )
@@ -145,7 +145,7 @@ def apagar(regra_id):
         cur = conn.execute("DELETE FROM p4_regras WHERE id = ?", (regra_id,))
         conn.commit()
         if cur.rowcount == 0:
-            return jsonify({"error": "regra nao encontrada"}), 404
+            return jsonify({"error": "regra não encontrada"}), 404
         return jsonify({"ok": True})
     finally:
         conn.close()

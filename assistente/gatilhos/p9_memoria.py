@@ -107,10 +107,10 @@ def _recusas_recentes(conn, agora: datetime, dias: int = DIAS_SEM_REPROPOR) -> s
 
 def _titulo_e_corpo(proposta: dict) -> tuple[str, str]:
     if proposta["acao"] == "adicionar":
-        return "Adicionar a 'O que eu lembro sobre voce'?", proposta["texto"]
+        return "Adicionar a 'O que eu lembro sobre você'?", proposta["texto"]
     if proposta["acao"] == "alterar":
-        return "Atualizar uma memoria existente?", proposta["texto"]
-    return "Remover uma memoria desatualizada?", proposta["texto"]
+        return "Atualizar uma memória existente?", proposta["texto"]
+    return "Remover uma memória desatualizada?", proposta["texto"]
 
 
 def executar(conn, agora: datetime) -> None:

@@ -5,6 +5,32 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-26/27 - Limpeza: acentos, Finanças com uma lista, app.py e style.css divididos, abas e animações
+
+- **Acentos**: todo texto de tela em templates/JS (83 arquivos) e 448 mensagens que vêm do servidor
+  (erros, avisos, notificações, respostas do chat). Troca feita por script determinístico
+  (`scratchpad/limpa/acentuar.py`): só frases dentro de strings, nunca chaves, rotas, logs, SQL,
+  comparações nem o widget do Scriptable (contrato de texto exato, ficou sem acento). Conferido:
+  toda linha alterada só ganhou acento, e as 262 rotas registradas são idênticas às de antes.
+- **Finanças com uma lista só**: saiu a lista antiga de gastos; fica o extrato "Últimos dias".
+  Corrigir categoria e "é tarefa" viraram ações ao tocar num gasto manual.
+- **app.py** 8.768 → 5.103 linhas: 216 rotas em ~60 blueprints por domínio em `rotas/`
+  (registro automático). Ficou em app.py: login/PIN, healthz, index, desfazer, scheduler e helpers
+  compartilhados que os testes substituem com `patch("app.X")` (os blueprints leem via
+  `app_modulo()` em tempo de requisição).
+- **style.css** (6.450 linhas) → 12 arquivos em `static/css/base/` e `static/css/secoes-antigas/`
+  (≤ 820 linhas cada), carregados por `<link>` na mesma ordem; concatenação idêntica byte a byte
+  ao original e prints das 8 abas idênticos pixel a pixel.
+- **Abas grandes**: `static/css/ui/desempenho.css` (`content-visibility: auto` no que fica abaixo
+  da dobra em Painel/Gastos), extrato não é mais buscado 2x. Gastos 397 → ~250–280 ms,
+  Painel 244 → ~200 ms (meta 200; causa medida: layout/pintura, não JS).
+- **Animações**: a lista fecha o espaço ao concluir tarefa (grid 1fr→0fr depois do toque);
+  seções recolhíveis sem pulo (grid 0fr→1fr, sem medir altura); View Transitions religado só no
+  Safari com trava de 400 ms (Chromium segue com CSS). `.secao-conteudo[hidden]` guardado.
+- Teste otimista agora mede dentro da página (não falha mais sob carga). Service worker v32.
+- Lições: dois agentes erraram acentuação (um tirou acentos); daqui em diante acentuação é por
+  script com verificação de sentido. Conferir exit code e não o `tail`.
+
 ## 2026-09-26 - Velocidade, cor "Gelo preto" e animações
 
 **Velocidade** (medida com Playwright, CPU 4x, régua de Event Timing/INP em `scripts/medir_velocidade.py`):

@@ -106,7 +106,7 @@ def status_voo(numero_voo: str, data: str, obter_cache, salvar_cache, agora: dat
 
     numero_voo = (numero_voo or "").strip().upper()
     if not numero_voo:
-        return {"configurado": True, "erro": "informe o numero do voo"}
+        return {"configurado": True, "erro": "informe o número do voo"}
 
     agora = agora or datetime.now()
     cache = obter_cache(numero_voo, data)
@@ -152,4 +152,4 @@ def _resposta_depois_de_erro(anterior: dict | None, anterior_em: str | None) -> 
         hora = datetime.fromisoformat(anterior_em).strftime("%H:%M") if anterior_em else "antes"
         resultado["buscado_em_texto"] = f"{hora} (rede falhou agora)"
         return resultado
-    return {"configurado": True, "erro": "nao consegui consultar o status do voo agora"}
+    return {"configurado": True, "erro": "não consegui consultar o status do voo agora"}

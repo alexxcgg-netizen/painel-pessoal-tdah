@@ -83,7 +83,7 @@ class RotaSinalTestCase(unittest.TestCase):
     def test_sem_token_401(self):
         res = self.client.post("/api/sinal", json={"tipo": "acordei"})
         self.assertEqual(res.status_code, 401)
-        self.assertEqual(res.get_json(), {"error": "token invalido"})
+        self.assertEqual(res.get_json(), {"error": "token inválido"})
 
     def test_token_errado_401(self):
         res = self._post({"tipo": "acordei"}, token="errado")
@@ -107,7 +107,7 @@ class RotaSinalTestCase(unittest.TestCase):
     def test_tipo_invalido_400(self):
         res = self._post({"tipo": "voando"})
         self.assertEqual(res.status_code, 400)
-        self.assertIn("tipo invalido", res.get_json()["error"])
+        self.assertIn("tipo inválido", res.get_json()["error"])
 
     def test_tipo_ausente_400(self):
         res = self._post({})

@@ -76,9 +76,9 @@ class LogicaFase2TestCase(unittest.TestCase):
     def test_mensagem_chegou_casa(self):
         agora = datetime(2026, 9, 23, 12, 10)
         msg = vida.mensagem_chegou_casa(agora, {"titulo": "Obra", "inicio": "2026-09-23T14:00:00"}, [])
-        self.assertEqual(msg, "Proximo: Obra as 14:00 - sai ate 13:30.")
+        self.assertEqual(msg, "Próximo: Obra as 14:00 - sai até 13:30.")
         msg = vida.mensagem_chegou_casa(agora, {"titulo": "Obra", "inicio": "2026-09-23T12:30:00"}, [])
-        self.assertEqual(msg, "Proximo: Obra as 12:30 - sai ja.")
+        self.assertEqual(msg, "Próximo: Obra as 12:30 - sai já.")
         self.assertIsNone(vida.mensagem_chegou_casa(agora, None, ["x"]))
         noite = datetime(2026, 9, 23, 19, 0)
         self.assertIn("a, b, c e mais 1", vida.mensagem_chegou_casa(noite, None, ["a", "b", "c", "d"]))
@@ -545,7 +545,7 @@ class AtalhoLocalTestCase(VidaBaseTestCase):
             dt.fromisoformat = datetime.fromisoformat
             self._tarefa("Obra do Jorge", due=hoje, hora="14:00")
             r = self._local(evento="chegou", lugar="Casa")
-        self.assertEqual(r.get_json()["mensagem"], "Proximo: Obra do Jorge as 14:00 - sai ate 13:30.")
+        self.assertEqual(r.get_json()["mensagem"], "Próximo: Obra do Jorge as 14:00 - sai até 13:30.")
 
     def test_saiu_de_casa_checklist_e_dedup(self):
         with patch("app.datetime") as dt:

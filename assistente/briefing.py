@@ -186,7 +186,7 @@ def _proxima_conta_construtora() -> dict | None:
     if not contas:
         return None
     proxima = contas[0]
-    nome = proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor nao informado"
+    nome = proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor não informado"
     return {"nome": nome, "quando": _frase_vencimento(proxima["dias_ate_vencer"])}
 
 
@@ -208,7 +208,7 @@ def reescrever_se_configurado(conn, corpo: str, tipo: str) -> str:
             mensagens=[{"role": "user", "content": corpo}],
             sistema=(
                 "Reescreva o texto a seguir em portugues do Brasil, mantendo todo o "
-                "conteudo e os fatos, tom direto e sem cobranca, frases curtas. "
+                "conteúdo e os fatos, tom direto e sem cobrança, frases curtas. "
                 f"E o briefing da {tipo}. Devolva so o texto reescrito, sem comentario."
             ),
         )
@@ -254,7 +254,7 @@ def montar_manha(conn, hoje: date | None = None) -> dict:
         partes.append("Nenhuma tarefa pendente.")
 
     if habitos:
-        partes.append(f"Habitos de hoje: {', '.join(h['nome'] for h in habitos)}.")
+        partes.append(f"Hábitos de hoje: {', '.join(h['nome'] for h in habitos)}.")
 
     contas_texto = []
     for c in contas_pessoais:
@@ -263,7 +263,7 @@ def montar_manha(conn, hoje: date | None = None) -> dict:
     if conta_construtora:
         contas_texto.append(f"{conta_construtora['nome']} (construtora) {conta_construtora['quando']}")
     if contas_texto:
-        partes.append(f"Contas nos proximos dias: {', '.join(contas_texto)}.")
+        partes.append(f"Contas nos próximos dias: {', '.join(contas_texto)}.")
 
     corpo = reescrever_se_configurado(conn, " ".join(partes), "manha")
 
@@ -303,7 +303,7 @@ def montar_noite(conn, hoje: date | None = None) -> dict:
 
     partes = [resumo]
     if pendentes:
-        partes.append("O que ficou passa pra amanha.")
+        partes.append("O que ficou passa pra amanhã.")
     partes.append("Como foi o dia?")
 
     corpo = reescrever_se_configurado(conn, " ".join(partes), "noite")

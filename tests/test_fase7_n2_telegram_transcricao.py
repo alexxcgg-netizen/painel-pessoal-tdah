@@ -99,7 +99,7 @@ def test_transcrever_resposta_http_erro_levanta_erro_capturado(banco_temporario)
 
 def test_transcrever_texto_vazio_levanta_erro(banco_temporario):
     with patch("telegram_captura.requests.post", return_value=_Resposta(200, {"text": "   "})):
-        with pytest.raises(tc.ErroCaptura, match="nao entendi nada"):
+        with pytest.raises(tc.ErroCaptura, match="não entendi nada"):
             tc.transcrever(b"audio", "audio/ogg", duracao_segundos=3)
 
 

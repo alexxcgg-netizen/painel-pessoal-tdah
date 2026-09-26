@@ -126,7 +126,7 @@ def _corpo(cobranca: dict) -> str:
     valor = cobranca.get("valor")
     if not isinstance(valor, (int, float)):
         return ""
-    return f"Cobranca de R$ {valor:.2f} prevista para {cobranca['proxima'].isoformat()}."
+    return f"Cobrança de R$ {valor:.2f} prevista para {cobranca['proxima'].isoformat()}."
 
 
 def executar(conn, agora: datetime) -> dict:

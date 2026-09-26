@@ -62,7 +62,7 @@ def obter_assinatura(id_: int):
     finally:
         conn.close()
     if not a:
-        return _erro("assinatura nao encontrada", 404)
+        return _erro("assinatura não encontrada", 404)
     return jsonify(a)
 
 
@@ -110,7 +110,7 @@ def atualizar_assinatura(id_: int):
         return _erro(str(e))
     if not alterou:
         conn.close()
-        return _erro("assinatura nao encontrada ou nada pra alterar", 404)
+        return _erro("assinatura não encontrada ou nada pra alterar", 404)
     a = fr.obter_assinatura(conn, id_)
     conn.close()
     return jsonify(a)
@@ -128,7 +128,7 @@ def alternar_aviso_cobranca(id_: int):
     a = fr.obter_assinatura(conn, id_)
     conn.close()
     if not a:
-        return _erro("assinatura nao encontrada", 404)
+        return _erro("assinatura não encontrada", 404)
     return jsonify(a)
 
 
@@ -138,7 +138,7 @@ def cancelar_assinatura(id_: int):
     ok = fr.cancelar_assinatura(conn, id_)
     if not ok:
         conn.close()
-        return _erro("assinatura nao encontrada ou ja cancelada", 404)
+        return _erro("assinatura não encontrada ou já cancelada", 404)
     a = fr.obter_assinatura(conn, id_)
     conn.close()
     return jsonify(a)
@@ -150,7 +150,7 @@ def excluir_assinatura(id_: int):
     ok = fr.excluir_assinatura(conn, id_)
     conn.close()
     if not ok:
-        return _erro("assinatura nao encontrada", 404)
+        return _erro("assinatura não encontrada", 404)
     return jsonify({"ok": True})
 
 
@@ -183,7 +183,7 @@ def obter_parcela(id_: int):
     finally:
         conn.close()
     if not c:
-        return _erro("compra parcelada nao encontrada", 404)
+        return _erro("compra parcelada não encontrada", 404)
     return jsonify(c)
 
 
@@ -193,7 +193,7 @@ def criar_parcela():
     descricao = corpo.get("descricao")
     n_parcelas = corpo.get("n_parcelas")
     if not isinstance(descricao, str) or not descricao.strip():
-        return _erro("descricao obrigatoria")
+        return _erro("descrição obrigatoria")
     if not isinstance(n_parcelas, int):
         return _erro("n_parcelas obrigatorio (inteiro positivo)")
     if corpo.get("valor_total") is None and corpo.get("valor_parcela") is None:
@@ -226,7 +226,7 @@ def excluir_parcela(id_: int):
     ok = fr.excluir_compra_parcelada(conn, id_)
     conn.close()
     if not ok:
-        return _erro("compra parcelada nao encontrada", 404)
+        return _erro("compra parcelada não encontrada", 404)
     return jsonify({"ok": True})
 
 

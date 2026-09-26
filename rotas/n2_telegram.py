@@ -116,7 +116,7 @@ def _extrair_nota_fiscal(image_bytes: bytes, media_type: str) -> tuple[dict | No
                 return None, app.TETO_IA_MSG
             resultado, erro = app._call_claude(claude_client.extrair_nota_fiscal_foto, image_bytes, media_type)
             if erro:
-                return None, "nao consegui ler a foto agora"
+                return None, "não consegui ler a foto agora"
             dados, usage = resultado
             app._log_usage(conn, usage, "nota_fiscal")
             conn.commit()
@@ -128,7 +128,7 @@ def _extrair_nota_fiscal(image_bytes: bytes, media_type: str) -> tuple[dict | No
 @bp.route("/api/telegram/webhook", methods=["POST"])
 def webhook():
     if not _secret_valido(request.headers.get(CABECALHO_SECRETO)):
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
     # C1: com um bot so, webhook e polling nunca rodam juntos (409 no
     # Telegram). Webhook fora do modo -> 503, o Telegram guarda e reenvia o
     # update (aparece em getWebhookInfo.last_error_message) - nada se perde.
@@ -137,7 +137,7 @@ def webhook():
 
     corpo = request.get_json(silent=True)
     if not isinstance(corpo, dict):
-        return jsonify({"error": "corpo invalido"}), 400
+        return jsonify({"error": "corpo inválido"}), 400
 
     update_id = corpo.get("update_id")
     if not isinstance(update_id, int):

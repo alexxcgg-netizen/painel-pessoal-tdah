@@ -181,7 +181,7 @@ def test_sticker_ou_tipo_desconhecido_avisa_o_que_entende():
         extrair_nota_fiscal=_fake_extrair_nota(),
         enviar_mensagem=mensagens,
     )
-    assert "texto, audio" in mensagens.enviadas[0]
+    assert "texto, áudio" in mensagens.enviadas[0]
 
 
 # ---- texto: link ----------------------------------------------------------
@@ -271,7 +271,7 @@ def test_erro_ao_salvar_link_avisa_sem_quebrar(monkeypatch):
         extrair_nota_fiscal=_fake_extrair_nota(),
         enviar_mensagem=mensagens,
     )
-    assert "Nao consegui salvar o link" in mensagens.enviadas[0]
+    assert "Não consegui salvar o link" in mensagens.enviadas[0]
 
 
 # ---- audio ------------------------------------------------------------
@@ -324,7 +324,7 @@ def test_audio_erro_no_download_avisa_sem_transcrever():
         transcrever=lambda *a, **k: chamou_transcricao.append(1) or "nunca",
     )
     assert chamou_transcricao == []
-    assert "Nao consegui baixar o audio" in mensagens.enviadas[0]
+    assert "Não consegui baixar o áudio" in mensagens.enviadas[0]
 
 
 def test_audio_teto_estourado_avisa_sem_capturar():
@@ -467,7 +467,7 @@ def test_foto_erro_no_download_avisa_sem_chamar_ia():
         baixar_arquivo=lambda file_id: None,
     )
     assert extrair.chamadas == []
-    assert "Nao consegui baixar a foto" in mensagens.enviadas[0]
+    assert "Não consegui baixar a foto" in mensagens.enviadas[0]
 
 
 # ---- _eh_link (pura) --------------------------------------------------

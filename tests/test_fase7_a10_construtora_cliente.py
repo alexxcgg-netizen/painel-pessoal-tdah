@@ -410,7 +410,7 @@ class TestApiAltoNivel(unittest.TestCase):
         }
         with patch("requests.get", return_value=_resp_ok(payload)):
             resultado = cliente.proxima_conta()
-        self.assertEqual(resultado["nome"], "fornecedor nao informado")
+        self.assertEqual(resultado["nome"], "fornecedor não informado")
 
     def test_proxima_conta_com_dias_vencida_fica_negativo(self):
         cliente = self._cliente()

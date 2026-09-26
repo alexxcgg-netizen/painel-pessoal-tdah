@@ -214,7 +214,7 @@ class RotasComTokenTestCase(unittest.TestCase):
             client = app.app.test_client()
             res = client.get(f"{self.base}/privada")
             self.assertEqual(res.status_code, 401)
-            self.assertEqual(res.get_json(), {"error": "nao autenticado"})
+            self.assertEqual(res.get_json(), {"error": "não autenticado"})
             self.assertFalse(rotas.rota_com_token(f"{self.base}/privada"))
             self.assertFalse(rotas.rota_com_token(f"{self.base}/tick/extra"))
             self.assertFalse(rotas.rota_com_token("/api/tasks"))

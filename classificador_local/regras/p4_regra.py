@@ -73,7 +73,7 @@ def _card_recusa(mensagem: str) -> dict:
         "cards": [],
         "resumo_texto": mensagem,
         "passos": [
-            {"modulo": "Assistente", "descricao": "Nao criou a regra", "ms": 0, "erro": True}
+            {"modulo": "Assistente", "descricao": "Não criou a regra", "ms": 0, "erro": True}
         ],
     }
 
@@ -87,7 +87,7 @@ def executar(conn, parametros: dict) -> dict:
     resultado = motor.interpretar_regra(texto)
 
     if not resultado["ok"]:
-        mensagem = resultado["erro"] or "Nao entendi essa regra. Pode tentar descrever de outro jeito?"
+        mensagem = resultado["erro"] or "Não entendi essa regra. Pode tentar descrever de outro jeito?"
         return _card_recusa(mensagem)
 
     regra = resultado["regra"]

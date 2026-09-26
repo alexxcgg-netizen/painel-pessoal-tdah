@@ -170,7 +170,7 @@ def extrato():
     if antes_str:
         antes = _parse_data(antes_str)
         if antes is None:
-            return jsonify({"error": "data invalida em 'antes' - use o formato AAAA-MM-DD"}), 400
+            return jsonify({"error": "data inválida em 'antes' - use o formato AAAA-MM-DD"}), 400
     else:
         antes = hoje
 

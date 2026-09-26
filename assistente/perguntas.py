@@ -50,7 +50,7 @@ def texto_pergunta_tarefa(titulo: str) -> str:
 
 
 def texto_pergunta_lembrete(titulo: str) -> str:
-    return f'"{titulo}" - ja resolveu isso?'
+    return f'"{titulo}" - já resolveu isso?'
 
 
 def texto_pergunta_espera(quem: str, sobre: str) -> str:

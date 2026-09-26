@@ -259,7 +259,7 @@ class RotaManualContinuaIgualTestCase(_BaseTestCase):
 
         depois = self.client.get("/api/bancos/sync-status").get_json()
         self.assertIsNotNone(depois["ultimo_sync_nubank_ok"])
-        self.assertIn("Ultima sincronizacao", depois["info"])
+        self.assertIn("Última sincronização", depois["info"])
 
 
 if __name__ == "__main__":

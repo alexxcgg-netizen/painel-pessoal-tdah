@@ -177,7 +177,7 @@ class ResumoChuvaDoDiaTestCase(unittest.TestCase):
     def test_sem_horas_futuras(self):
         r = clima.resumo_chuva_do_dia([_hora(10, 90)], hora_atual=14)
         self.assertFalse(r["alerta"])
-        self.assertIn("Sem mais previsao", r["texto"])
+        self.assertIn("Sem mais previsão", r["texto"])
 
     def test_lista_vazia(self):
         r = clima.resumo_chuva_do_dia([], hora_atual=10)

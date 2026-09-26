@@ -56,7 +56,7 @@ def _dec(valor: Numero, campo: str = "valor") -> Decimal:
     elif isinstance(valor, bool):
         # bool e subclasse de int em Python - nunca faz sentido aqui, e um
         # None/objeto errado que passaria batido pra Decimal(int(True)) = 1.
-        raise ValueError(f"{campo} invalido: {valor!r} (booleano nao e numero)")
+        raise ValueError(f"{campo} inválido: {valor!r} (booleano não e número)")
     elif isinstance(valor, (int, float)):
         d = Decimal(str(valor))
     elif isinstance(valor, str):
@@ -64,11 +64,11 @@ def _dec(valor: Numero, campo: str = "valor") -> Decimal:
         try:
             d = Decimal(texto)
         except InvalidOperation:
-            raise ValueError(f"{campo} invalido: {valor!r} nao e um numero")
+            raise ValueError(f"{campo} inválido: {valor!r} não e um número")
     else:
-        raise ValueError(f"{campo} invalido: {valor!r} (tipo {type(valor).__name__})")
+        raise ValueError(f"{campo} inválido: {valor!r} (tipo {type(valor).__name__})")
     if not d.is_finite():
-        raise ValueError(f"{campo} invalido: {valor!r} (nao e um numero finito)")
+        raise ValueError(f"{campo} inválido: {valor!r} (não e um número finito)")
     return d
 
 
@@ -91,20 +91,20 @@ def _inteiro_positivo(valor, campo: str) -> int:
     except ValueError:
         raise
     if d != d.to_integral_value():
-        raise ValueError(f"{campo} invalido: {valor!r} precisa ser um numero inteiro")
+        raise ValueError(f"{campo} inválido: {valor!r} precisa ser um número inteiro")
     n = int(d)
     if n < 1:
-        raise ValueError(f"{campo} invalido: {valor!r} precisa ser >= 1")
+        raise ValueError(f"{campo} inválido: {valor!r} precisa ser >= 1")
     return n
 
 
 def _inteiro_nao_negativo(valor, campo: str) -> int:
     d = _dec(valor, campo)
     if d != d.to_integral_value():
-        raise ValueError(f"{campo} invalido: {valor!r} precisa ser um numero inteiro")
+        raise ValueError(f"{campo} inválido: {valor!r} precisa ser um número inteiro")
     n = int(d)
     if n < 0:
-        raise ValueError(f"{campo} invalido: {valor!r} nao pode ser negativo")
+        raise ValueError(f"{campo} inválido: {valor!r} não pode ser negativo")
     return n
 
 
@@ -123,8 +123,8 @@ def _para_data(valor, campo: str = "data") -> date:
         try:
             return date.fromisoformat(texto[:10])
         except ValueError:
-            raise ValueError(f"{campo} invalida: {valor!r} nao e uma data AAAA-MM-DD valida")
-    raise ValueError(f"{campo} invalida: {valor!r} (tipo {type(valor).__name__})")
+            raise ValueError(f"{campo} inválida: {valor!r} não e uma data AAAA-MM-DD valida")
+    raise ValueError(f"{campo} inválida: {valor!r} (tipo {type(valor).__name__})")
 
 
 def _somar_meses(base: date, meses: int) -> date:
@@ -267,13 +267,13 @@ def parcela_price(valor: Numero, taxa_mensal: Numero, n: Numero) -> Decimal:
     base = Decimal(1) + taxa_d
     if base <= ZERO:
         raise ValueError(
-            f"taxa_mensal invalida: {taxa_mensal!r} faz (1 + taxa) <= 0, "
-            "a formula da Tabela Price nao existe pra essa taxa"
+            f"taxa_mensal inválida: {taxa_mensal!r} faz (1 + taxa) <= 0, "
+            "a formula da Tabela Price não existe pra essa taxa"
         )
     fator = base ** (-n_int)
     denominador = Decimal(1) - fator
     if denominador == ZERO:
-        raise ValueError(f"taxa_mensal invalida: {taxa_mensal!r} zera o denominador da formula")
+        raise ValueError(f"taxa_mensal inválida: {taxa_mensal!r} zera o denominador da formula")
     parcela = valor_d * taxa_d / denominador
     return _money(parcela)
 
@@ -296,18 +296,18 @@ def tabela_amortizacao(
     `sistema` desconhecido.
     """
     if not isinstance(sistema, str):
-        raise ValueError(f"sistema invalido: {sistema!r} (use 'price' ou 'sac')")
+        raise ValueError(f"sistema inválido: {sistema!r} (use 'price' ou 'sac')")
     sistema_norm = sistema.strip().lower()
     if sistema_norm not in ("price", "sac"):
-        raise ValueError(f"sistema invalido: {sistema!r} (use 'price' ou 'sac')")
+        raise ValueError(f"sistema inválido: {sistema!r} (use 'price' ou 'sac')")
 
     n_int = _inteiro_positivo(n, "n")
     valor_d = _dec(valor, "valor")
     taxa_d = _dec(taxa_mensal, "taxa_mensal")
     if taxa_d != ZERO and (Decimal(1) + taxa_d) <= ZERO:
         raise ValueError(
-            f"taxa_mensal invalida: {taxa_mensal!r} faz (1 + taxa) <= 0, "
-            "a formula de amortizacao nao existe pra essa taxa"
+            f"taxa_mensal inválida: {taxa_mensal!r} faz (1 + taxa) <= 0, "
+            "a formula de amortizacao não existe pra essa taxa"
         )
 
     linhas: list[dict] = []
@@ -410,12 +410,12 @@ def total_por_categoria(itens: list[dict]) -> dict[str, Decimal]:
     totais: dict[str, Decimal] = {}
     for i, item in enumerate(itens):
         if not isinstance(item, dict):
-            raise ValueError(f"itens[{i}] invalido: {item!r} (esperava um dict com 'valor')")
+            raise ValueError(f"itens[{i}] inválido: {item!r} (esperava um dict com 'valor')")
         if "valor" not in item:
-            raise ValueError(f"itens[{i}] invalido: falta a chave 'valor'")
+            raise ValueError(f"itens[{i}] inválido: falta a chave 'valor'")
         categoria = item.get("categoria") or "outros"
         if not isinstance(categoria, str):
-            raise ValueError(f"itens[{i}].categoria invalida: {categoria!r}")
+            raise ValueError(f"itens[{i}].categoria inválida: {categoria!r}")
         categoria = categoria.strip() or "outros"
         valor = _dec(item["valor"], f"itens[{i}].valor")
         totais[categoria] = totais.get(categoria, ZERO) + valor
@@ -436,12 +436,12 @@ def saldo_apos(saldo: Numero, lancamentos: list[dict]) -> Decimal:
     total = _dec(saldo, "saldo")
     for i, lanc in enumerate(lancamentos):
         if not isinstance(lanc, dict) or "valor" not in lanc:
-            raise ValueError(f"lancamentos[{i}] invalido: {lanc!r} (esperava um dict com 'valor')")
+            raise ValueError(f"lancamentos[{i}] inválido: {lanc!r} (esperava um dict com 'valor')")
         valor = _dec(lanc["valor"], f"lancamentos[{i}].valor")
         tipo = lanc.get("tipo")
         if tipo is not None:
             if tipo not in ("entrada", "saida"):
-                raise ValueError(f"lancamentos[{i}].tipo invalido: {tipo!r} (use 'entrada' ou 'saida')")
+                raise ValueError(f"lancamentos[{i}].tipo inválido: {tipo!r} (use 'entrada' ou 'saida')")
             valor = abs(valor) if tipo == "entrada" else -abs(valor)
         total += valor
     return _money(total)
@@ -498,7 +498,7 @@ def comprometido_mensal(assinaturas: list, parcelas: list) -> Decimal:
     for i, item in enumerate(assinaturas):
         if isinstance(item, dict):
             if "valor" not in item:
-                raise ValueError(f"assinaturas[{i}] invalido: falta a chave 'valor'")
+                raise ValueError(f"assinaturas[{i}] inválido: falta a chave 'valor'")
             valor = item["valor"]
         else:
             valor = item
@@ -506,7 +506,7 @@ def comprometido_mensal(assinaturas: list, parcelas: list) -> Decimal:
 
     for i, item in enumerate(parcelas):
         if not isinstance(item, dict) or "valor_parcela" not in item:
-            raise ValueError(f"parcelas[{i}] invalido: {item!r} (esperava um dict com 'valor_parcela')")
+            raise ValueError(f"parcelas[{i}] inválido: {item!r} (esperava um dict com 'valor_parcela')")
         restantes = item.get("parcelas_restantes")
         if restantes is not None and _dec(restantes, f"parcelas[{i}].parcelas_restantes") <= ZERO:
             continue

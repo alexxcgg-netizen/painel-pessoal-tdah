@@ -145,7 +145,7 @@ class RotinaTestCase(VidaBaseTestCase):
             corpos = self._notificar()
         manha = [c for c in corpos if c.startswith("Bom dia")]
         self.assertEqual(len(manha), 1)
-        self.assertIn("beber um copo de agua", manha[0])
+        self.assertIn("beber um copo de água", manha[0])
         with patch("vida.rotina_manha_devida", return_value=True):
             self.assertFalse([c for c in self._notificar() if c.startswith("Bom dia")])
 
@@ -442,7 +442,7 @@ class PessoasTestCase(VidaBaseTestCase):
         conn = self._conn()
         pid = db.create_pessoa(conn, "Mae", 7)
         db.registrar_conversa(conn, pid, "Mae", None, (date.today() - timedelta(days=9)).isoformat())
-        self.assertTrue([c for c in self._notificar() if c == "Faz 9 dias que voce nao fala com Mae."])
+        self.assertTrue([c for c in self._notificar() if c == "Faz 9 dias que você não fala com Mae."])
         self.assertFalse([c for c in self._notificar() if "Mae" in c])
         self.client.post(f"/api/pessoas/{pid}/falei", json={})
         self.assertFalse([c for c in self._notificar() if "Mae" in c])

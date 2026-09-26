@@ -131,7 +131,7 @@ def enfileirar(tipo: str, titulo: str, corpo: str = "", *, opcoes: list | None =
     em vez de duplicar - e o que deixa um gatilho rodar 2x no mesmo tick sem
     problema."""
     if tipo not in TIPOS_VALIDOS:
-        raise ValueError(f"tipo invalido: {tipo!r} (esperado um de {sorted(TIPOS_VALIDOS)})")
+        raise ValueError(f"tipo inválido: {tipo!r} (esperado um de {sorted(TIPOS_VALIDOS)})")
     if not titulo or not titulo.strip():
         raise ValueError("titulo obrigatorio")
     if _fora_de_escopo(titulo, corpo):
@@ -190,7 +190,7 @@ def resolver(item_id: str, resposta: str, texto: str = "") -> None:
             "SELECT * FROM assistente_itens WHERE id = ?", (int(item_id),)
         ).fetchone()
         if row is None:
-            raise ValueError(f"item {item_id!r} nao encontrado")
+            raise ValueError(f"item {item_id!r} não encontrado")
         item = _row_para_dict(row)
 
         if item["estado"] in ("resolvido", "expirado"):
@@ -203,7 +203,7 @@ def resolver(item_id: str, resposta: str, texto: str = "") -> None:
             elif isinstance(opcao, dict) and isinstance(opcao.get("valor"), str):
                 opcoes_validas.add(opcao["valor"])
         if resposta not in opcoes_validas:
-            raise ValueError(f"resposta invalida: {resposta!r} (esperado um de {sorted(opcoes_validas)})")
+            raise ValueError(f"resposta inválida: {resposta!r} (esperado um de {sorted(opcoes_validas)})")
 
         agora = _agora()
         if resposta == "adiar":
@@ -268,7 +268,7 @@ def listar(conn: sqlite3.Connection, estado: str | None = None, limite: int = 20
     _garantir_tabela(conn)
     estado_filtro = estado if estado is not None else "pendente"
     if estado_filtro not in ESTADOS_VALIDOS:
-        raise ValueError(f"estado invalido: {estado_filtro!r} (esperado um de {sorted(ESTADOS_VALIDOS)})")
+        raise ValueError(f"estado inválido: {estado_filtro!r} (esperado um de {sorted(ESTADOS_VALIDOS)})")
 
     agora_str = _fmt(_agora())
     linhas = conn.execute(

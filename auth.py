@@ -43,9 +43,9 @@ def definir_pin(conn, pin: str, confirmacao: str):
     pin = (pin or "").strip()
     confirmacao = (confirmacao or "").strip()
     if not pin.isdigit() or len(pin) != 6:
-        raise ValueError("O PIN precisa ter exatamente 6 digitos numericos.")
+        raise ValueError("O PIN precisa ter exatamente 6 dígitos numericos.")
     if pin != confirmacao:
-        raise ValueError("O PIN e a confirmacao nao sao iguais.")
+        raise ValueError("O PIN e a confirmação não são iguais.")
     definir_configuracao(conn, "pin_hash", generate_password_hash(pin))
 
 

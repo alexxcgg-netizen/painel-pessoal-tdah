@@ -253,7 +253,7 @@ class ClienteConstrutora:
         proxima = contas[0]
         dias_ate = proxima.get("dias_ate_vencer")
         resultado = {
-            "nome": proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor nao informado",
+            "nome": proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor não informado",
             "dias": int(dias_ate) if isinstance(dias_ate, (int, float)) else None,
         }
         if com_valor:

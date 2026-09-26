@@ -101,7 +101,7 @@ def produto_padrao(lat: float, lng: float, access_token: str) -> str:
     resp.raise_for_status()
     produtos = resp.json().get("products", [])
     if not produtos:
-        raise ValueError("nenhum produto Uber disponivel nesse local")
+        raise ValueError("nenhum produto Uber disponível nesse local")
     return produtos[0]["product_id"]
 
 
@@ -133,7 +133,7 @@ def estimar_corrida(
     fare = dados.get("fare") or {}
     return {
         "fare_id": fare.get("fare_id"),
-        "preco_texto": fare.get("display") or "preco nao informado",
+        "preco_texto": fare.get("display") or "preço não informado",
         "eta_minutos": dados.get("pickup_estimate"),
     }
 

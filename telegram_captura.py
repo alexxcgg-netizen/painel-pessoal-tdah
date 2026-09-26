@@ -189,7 +189,7 @@ def transcrever(audio_bytes: bytes, mime: str, *, duracao_segundos: int = 0) -> 
         raise ErroCaptura(ia.teto.TETO_IA_MSG)
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        raise ErroCaptura("transcricao de audio nao configurada (falta GROQ_API_KEY no .env)")
+        raise ErroCaptura("transcrição de áudio não configurada (falta GROQ_API_KEY no .env)")
 
     inicio = time.perf_counter()
     extensao = mimetypes.guess_extension(mime) or ".ogg"
@@ -205,7 +205,7 @@ def transcrever(audio_bytes: bytes, mime: str, *, duracao_segundos: int = 0) -> 
         texto = (resposta.json().get("text") or "").strip()
     except (requests.RequestException, ValueError) as exc:
         ia.medicao.registrar_uso(FUNCAO_TRANSCRICAO, PROVEDOR_TRANSCRICAO, MODELO_TRANSCRICAO, ok=False)
-        raise ErroCaptura("nao consegui transcrever o audio agora - tenta de novo ou manda por texto") from exc
+        raise ErroCaptura("não consegui transcrever o áudio agora - tenta de novo ou manda por texto") from exc
 
     latencia_ms = int(round((time.perf_counter() - inicio) * 1000))
     custo_usd = max(0, int(duracao_segundos or 0)) * PRECO_TRANSCRICAO_USD_POR_SEGUNDO
@@ -218,7 +218,7 @@ def transcrever(audio_bytes: bytes, mime: str, *, duracao_segundos: int = 0) -> 
         ok=True,
     )
     if not texto:
-        raise ErroCaptura("nao entendi nada no audio - tenta falar de novo ou manda por texto")
+        raise ErroCaptura("não entendi nada no áudio - tenta falar de novo ou manda por texto")
     return texto
 
 
@@ -255,7 +255,7 @@ def _processar_texto(texto, *, conn, executar_captura, salvar_link, enviar_mensa
     if url:
         resultado = salvar_link(conn, url)
         if "erro" in resultado:
-            enviar_mensagem(f"Nao consegui salvar o link: {resultado['erro']}")
+            enviar_mensagem(f"Não consegui salvar o link: {resultado['erro']}")
             return
         resumo = resultado.get("resumo") or resultado.get("aviso") or "Link salvo."
         titulo = resultado.get("titulo") or url
@@ -269,11 +269,11 @@ def _processar_texto(texto, *, conn, executar_captura, salvar_link, enviar_mensa
 def _processar_audio(voice, *, executar_captura, enviar_mensagem, baixar_arquivo, transcrever, url_app):
     file_id = voice.get("file_id") if isinstance(voice, dict) else None
     if not file_id:
-        enviar_mensagem("Nao recebi o audio direito - tenta de novo.")
+        enviar_mensagem("Não recebi o áudio direito - tenta de novo.")
         return
     baixado = baixar_arquivo(file_id)
     if not baixado:
-        enviar_mensagem("Nao consegui baixar o audio - tenta de novo.")
+        enviar_mensagem("Não consegui baixar o áudio - tenta de novo.")
         return
     audio_bytes, mime_download = baixado
     mime = voice.get("mime_type") or mime_download
@@ -281,7 +281,7 @@ def _processar_audio(voice, *, executar_captura, enviar_mensagem, baixar_arquivo
     try:
         texto = transcrever(audio_bytes, mime, duracao_segundos=duracao)
     except ErroCaptura as exc:
-        enviar_mensagem(f"Nao consegui processar o audio: {exc}")
+        enviar_mensagem(f"Não consegui processar o áudio: {exc}")
         return
     corpo, _status = executar_captura(texto, "")
     enviar_mensagem(f'🎙️ Entendi: "{texto}"\n\n' + _resumo_captura(corpo, url_app))
@@ -289,18 +289,18 @@ def _processar_audio(voice, *, executar_captura, enviar_mensagem, baixar_arquivo
 
 def _processar_foto(fotos, *, executar_captura, enviar_mensagem, baixar_arquivo, extrair_nota_fiscal, url_app):
     if not fotos:
-        enviar_mensagem("Nao recebi a foto direito - tenta de novo.")
+        enviar_mensagem("Não recebi a foto direito - tenta de novo.")
         return
     # Telegram manda varias resolucoes da mesma foto em 'photo' (PhotoSize) -
     # a maior tem mais detalhe pra ler o valor/estabelecimento.
     maior = max(fotos, key=lambda f: f.get("file_size") or 0)
     file_id = maior.get("file_id")
     if not file_id:
-        enviar_mensagem("Nao recebi a foto direito - tenta de novo.")
+        enviar_mensagem("Não recebi a foto direito - tenta de novo.")
         return
     baixado = baixar_arquivo(file_id)
     if not baixado:
-        enviar_mensagem("Nao consegui baixar a foto - tenta de novo.")
+        enviar_mensagem("Não consegui baixar a foto - tenta de novo.")
         return
     imagem_bytes, _mime = baixado
     # O array 'photo' do Telegram e' sempre JPEG (o proprio Telegram
@@ -308,11 +308,11 @@ def _processar_foto(fotos, *, executar_captura, enviar_mensagem, baixar_arquivo,
     # fora do escopo desta faixa.
     dados, erro = extrair_nota_fiscal(imagem_bytes, "image/jpeg")
     if erro:
-        enviar_mensagem(f"Nao consegui ler a nota fiscal: {erro}")
+        enviar_mensagem(f"Não consegui ler a nota fiscal: {erro}")
         return
     valor = dados.get("valor") if dados else None
     if not isinstance(valor, (int, float)) or isinstance(valor, bool) or valor <= 0:
-        enviar_mensagem("Nao consegui ler um valor claro na foto - manda o gasto por texto mesmo.")
+        enviar_mensagem("Não consegui ler um valor claro na foto - manda o gasto por texto mesmo.")
         return
     estabelecimento = dados.get("estabelecimento")
     texto = f"Gastei R$ {valor} em {estabelecimento}" if estabelecimento else f"Gastei R$ {valor}"
@@ -389,4 +389,4 @@ def processar_atualizacao(
             url_app=url_app,
         )
     else:
-        enviar_mensagem("So entendo texto, audio (mensagem de voz) ou foto de nota fiscal por aqui, por enquanto.")
+        enviar_mensagem("So entendo texto, áudio (mensagem de voz) ou foto de nota fiscal por aqui, por enquanto.")

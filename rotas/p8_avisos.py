@@ -63,7 +63,7 @@ def atualizar_silencio_global():
 def atualizar_aviso(tipo: str):
     corpo = request.get_json(silent=True) or {}
     if not isinstance(corpo, dict):
-        return jsonify({"error": "corpo invalido"}), 400
+        return jsonify({"error": "corpo inválido"}), 400
 
     campos: dict = {}
     if "ligado" in corpo:

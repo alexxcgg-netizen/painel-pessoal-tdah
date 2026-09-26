@@ -82,7 +82,7 @@ class NotificacoesTestCase(unittest.TestCase):
         ontem = (date.today() - timedelta(days=1)).isoformat()
         self.conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("pagar conta", ontem))
         self.conn.commit()
-        self.assertEqual(notificacoes.tarefas_atrasadas(self.conn), "Voce tem 1 tarefa atrasada.")
+        self.assertEqual(notificacoes.tarefas_atrasadas(self.conn), "Você tem 1 tarefa atrasada.")
 
     def test_tarefa_concluida_nao_conta_como_atrasada(self):
         ontem = (date.today() - timedelta(days=1)).isoformat()
@@ -529,7 +529,7 @@ class NotificacoesTestCase(unittest.TestCase):
     def test_resumo_manha_sem_nada_no_historico(self):
         hoje = date.today()
         msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
-        self.assertIn("nao registrou gasto nenhum", msg)
+        self.assertIn("não registrou gasto nenhum", msg)
         self.assertIn("Nenhuma tarefa pendente", msg)
 
     def test_resumo_manha_com_gasto_de_ontem_e_pendentes(self):
@@ -554,7 +554,7 @@ class NotificacoesTestCase(unittest.TestCase):
         )
         self.conn.commit()
         msg = notificacoes.resumo_manha_gastos_pendentes(self.conn, hoje=hoje)
-        self.assertIn("nao registrou gasto nenhum", msg)
+        self.assertIn("não registrou gasto nenhum", msg)
 
     def test_resumo_manha_1_tarefa_pendente_usa_singular(self):
         hoje = date.today()

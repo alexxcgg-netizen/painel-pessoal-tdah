@@ -2995,19 +2995,19 @@ class PainelTestCase(unittest.TestCase):
         conn.close()
 
         resposta = app._telegram_callback_fn(f"completar_tarefa:{task_id}")
-        self.assertIn("Ja estava", resposta)
+        self.assertIn("Já estava", resposta)
 
     def test_telegram_callback_fn_tarefa_inexistente(self):
         resposta = app._telegram_callback_fn("completar_tarefa:99999")
-        self.assertIn("nao existe mais", resposta)
+        self.assertIn("não existe mais", resposta)
 
     def test_telegram_callback_fn_dados_desconhecidos(self):
         resposta = app._telegram_callback_fn("acao_estranha:1")
-        self.assertIn("Nao reconheci", resposta)
+        self.assertIn("Não reconheci", resposta)
 
     def test_telegram_callback_fn_id_nao_numerico_nao_quebra(self):
         resposta = app._telegram_callback_fn("completar_tarefa:abc")
-        self.assertIn("Nao reconheci", resposta)
+        self.assertIn("Não reconheci", resposta)
 
     def test_verificar_agora_manda_botao_de_acao_por_telegram_em_tarefa_parada(self):
         tres_dias = (date.today() - timedelta(days=3)).isoformat()
@@ -3469,7 +3469,7 @@ class PainelTestCase(unittest.TestCase):
 
         def fake_chat(mensagens, contexto, memorias, executores):
             self.assertIn("Blumenau", contexto)
-            self.assertIn("Proximos voos", contexto)
+            self.assertIn("Próximos voos", contexto)
             return "Beleza.", [], fake_usage()
 
         with patch("claude_client.chat", side_effect=fake_chat):
@@ -3532,7 +3532,7 @@ class PainelTestCase(unittest.TestCase):
         resumo_fake = {"alerta": True, "texto": "Risco de chuva entre 14h e 18h (ate 80% de chance).", "cidade": "Brusque"}
 
         def fake_chat(mensagens, contexto, memorias, executores):
-            self.assertIn("Previsao do tempo hoje", contexto)
+            self.assertIn("Previsão do tempo hoje", contexto)
             self.assertIn("80%", contexto)
             return "Beleza.", [], fake_usage()
 
@@ -3830,7 +3830,7 @@ class PainelTestCase(unittest.TestCase):
             self.client.post("/api/notificacoes/verificar-agora")
             self.assertEqual(mock_enviar.call_count, 2)
             corpo = mock_enviar.call_args[0][2]
-            self.assertIn("passou do orcamento", corpo)
+            self.assertIn("passou do orçamento", corpo)
 
     # ---- Gastos fixos/assinaturas ----
 
@@ -6954,7 +6954,7 @@ class AtalhoComandoVozTestCase(unittest.TestCase):
             return_value=(_fake_intent("registrar_tarefa", 0.2), fake_usage()),
         ):
             res = self.client.post("/api/atalho/comando-voz", json={"texto": "texto ambiguo"})
-        self.assertIn("nao tenho certeza", res.get_json()["fala"].lower())
+        self.assertIn("não tenho certeza", res.get_json()["fala"].lower())
 
     def test_erro_da_api_vira_fala_de_erro(self):
         import anthropic

@@ -448,10 +448,10 @@ def _erro_amigavel_pluggy(exc: Exception) -> tuple[str, int]:
     ir pra tela sem vazar corpo cru de resposta nem cabecalho com chave."""
     status = getattr(getattr(exc, "response", None), "status_code", None)
     if status == 404:
-        return "conexao Nubank nao encontrada nessa conta Pluggy - reconectar", 404
+        return "conexão Nubank não encontrada nessa conta Pluggy - reconectar", 404
     if status == 401:
-        return "credenciais da Pluggy invalidas ou expiradas - reconectar", 401
-    return "nao consegui falar com a Pluggy agora, tenta de novo mais tarde", 502
+        return "credenciais da Pluggy inválidas ou expiradas - reconectar", 401
+    return "não consegui falar com a Pluggy agora, tenta de novo mais tarde", 502
 
 
 def sincronizar_nubank(conn) -> dict:
@@ -480,14 +480,14 @@ def sincronizar_nubank(conn) -> dict:
     if not _lock_sincronizacao_nubank.acquire(blocking=False):
         return {
             "ok": False,
-            "error": "ja tem uma sincronizacao do Nubank rodando, tenta de novo em instantes",
+            "error": "já tem uma sincronização do Nubank rodando, tenta de novo em instantes",
             "status": 409,
         }
 
     try:
         item_id = os.environ.get("PLUGGY_ITEM_ID_NUBANK")
         if not item_id:
-            return {"ok": False, "error": "PLUGGY_ITEM_ID_NUBANK nao configurado", "status": 400}
+            return {"ok": False, "error": "PLUGGY_ITEM_ID_NUBANK não configurado", "status": 400}
 
         try:
             item = pluggy_client.get_item(item_id)
@@ -560,7 +560,7 @@ def sincronizar_nubank_rota():
         return recusa
 
     if not pluggy_client.configurado():
-        return jsonify({"error": "sincronizacao automatica nao configurada"}), 400
+        return jsonify({"error": "sincronização automática não configurada"}), 400
 
     conn = db.get_db()
     try:
@@ -569,7 +569,7 @@ def sincronizar_nubank_rota():
         conn.close()
 
     if not resultado.get("ok"):
-        return jsonify({"error": resultado.get("error", "falha na sincronizacao")}), resultado.get("status", 502)
+        return jsonify({"error": resultado.get("error", "falha na sincronização")}), resultado.get("status", 502)
     return jsonify(resultado)
 
 

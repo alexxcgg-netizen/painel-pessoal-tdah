@@ -37,13 +37,13 @@ ROTAS_COM_TOKEN = {"/api/sinal"}
 @bp.route("/api/sinal", methods=["POST"])
 def registrar_sinal():
     if not token_valido(request.headers.get("Authorization"), os.environ.get("PAINEL_SINAL_TOKEN")):
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
     app = app_modulo()
     corpo = app._corpo_json()
 
     tipo = corpo.get("tipo")
     if tipo not in TIPOS_VALIDOS:
-        return jsonify({"error": "tipo invalido - use um de: " + ", ".join(TIPOS_VALIDOS)}), 400
+        return jsonify({"error": "tipo inválido - use um de: " + ", ".join(TIPOS_VALIDOS)}), 400
 
     lugar_bruto = corpo.get("lugar")
     if lugar_bruto is not None and not isinstance(lugar_bruto, str):
