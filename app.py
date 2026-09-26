@@ -4055,16 +4055,6 @@ def _criar_medicamento(conn, nome: str, dosagem: str | None, horario: str, recor
 # classificar em tarefa/nota/gasto na hora; classifica depois com calma.
 
 
-@app.route("/api/streak", methods=["GET"])
-def streak_atual():
-    conn = get_db()
-    dias_ativos = list_dias_ativos(conn)
-    conn.close()
-    hoje = date.today()
-    dias = streak.calcular_streak(dias_ativos, hoje)
-    return jsonify({"dias": dias, "ativo_hoje": hoje.isoformat() in dias_ativos})
-
-
 def _voo_com_clima(voo: dict) -> dict:
     """Anexa previsao do tempo (se der) pro destino/data do voo - nunca
     quebra se a cidade nao for encontrada ou a data estiver fora da janela
@@ -4787,17 +4777,6 @@ def _mensagem_local(conn, evento: str, lugar: str, bateria: int | None, agora: d
 
 # ---- Assistente de vida (BRIEFING.md, Fase 3) ----
 
-@app.route("/api/aprender", methods=["GET"])
-def aprender():
-    hoje = date.today()
-    conn = get_db()
-    resultado = []
-    for a in list_aprender(conn):
-        base = a["ultima_vez"] or a["criado_em"][:10]
-        resultado.append({**a, "dias_parado": (hoje - date.fromisoformat(base)).days})
-    conn.close()
-    return jsonify(resultado)
-
 
 def _criar_aprender(conn, tema, nota) -> dict:
     if isinstance(tema, str) and len(tema.strip()) > 80:
@@ -4807,41 +4786,6 @@ def _criar_aprender(conn, tema, nota) -> dict:
         return {"erro": "informe o tema"}
     nota = nota.strip()[:300] or None if isinstance(nota, str) else None
     return {"ok": True, "id": create_aprender(conn, tema, nota)}
-
-
-@app.route("/api/aprender", methods=["POST"])
-def criar_aprender_rota():
-    body = _corpo_json()
-    conn = get_db()
-    resultado = _criar_aprender(conn, body.get("tema"), body.get("nota"))
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/aprender/<int:aprender_id>/<acao>", methods=["POST"])
-def marcar_aprender_rota(aprender_id, acao):
-    campo = {"retomei": "ultima_vez", "concluido": "concluido_em"}.get(acao)
-    if not campo:
-        return jsonify({"error": "acao invalida"}), 404
-    conn = get_db()
-    ok = marcar_aprender(conn, aprender_id, campo, date.today().isoformat())
-    if ok:
-        _marcar_atividade(conn)
-        conn.commit()
-    conn.close()
-    if not ok:
-        return jsonify({"error": "tema nao encontrado"}), 404
-    return jsonify({"ok": True})
-
-
-@app.route("/api/aprender/<int:aprender_id>", methods=["DELETE"])
-def apagar_aprender(aprender_id):
-    conn = get_db()
-    delete_aprender(conn, aprender_id)
-    conn.close()
-    return jsonify({"ok": True})
 
 
 def _salvar_link(conn, url) -> dict:
@@ -4867,42 +4811,6 @@ def _salvar_link(conn, url) -> dict:
         aviso = "Salvei o link, mas nao deu pra resumir."
     salvo_id = create_salvo(conn, url, titulo, resumo)
     return {"ok": True, "id": salvo_id, "titulo": titulo, "resumo": resumo, "aviso": aviso}
-
-
-@app.route("/api/salvos", methods=["GET"])
-def salvos():
-    conn = get_db()
-    resultado = list_salvos(conn)
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/salvos", methods=["POST"])
-def salvar_link_rota():
-    conn = get_db()
-    resultado = _salvar_link(conn, _corpo_json().get("url"))
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/salvos/<int:salvo_id>/lido", methods=["POST"])
-def salvo_lido(salvo_id):
-    conn = get_db()
-    ok = marcar_salvo_lido(conn, salvo_id)
-    conn.close()
-    if not ok:
-        return jsonify({"error": "link nao encontrado"}), 404
-    return jsonify({"ok": True})
-
-
-@app.route("/api/salvos/<int:salvo_id>", methods=["DELETE"])
-def apagar_salvo(salvo_id):
-    conn = get_db()
-    delete_salvo(conn, salvo_id)
-    conn.close()
-    return jsonify({"ok": True})
 
 
 def _dias_com_rotina(conn, momento: str, inicio: date, fim: date) -> int:
@@ -4966,20 +4874,6 @@ def _fatos_periodo(conn, inicio: date, fim: date) -> dict:
     }
 
 
-@app.route("/api/progresso", methods=["GET"])
-def progresso():
-    dias = min(max(request.args.get("dias", default=30, type=int), 7), 90)
-    hoje = date.today()
-    conn = get_db()
-    fatos = _fatos_periodo(conn, hoje - timedelta(days=dias - 1), hoje)
-    metas_lista = [
-        {"titulo": g["titulo"], "pct": calculos.percentual_meta_exibicao(g["valor_guardado"], g["valor_alvo"])}
-        for g in list_goals(conn)
-    ]
-    conn.close()
-    return jsonify({**fatos, "metas": metas_lista})
-
-
 def _texto_revisao(mes_nome: str, fatos: dict) -> str:
     partes = [f"{fatos['tarefas_feitas']} tarefa(s) feita(s)"]
     if fatos["treinos"]:
@@ -5001,72 +4895,6 @@ def _revisao_do_mes(conn, primeiro: date, ultimo: date) -> dict:
     return {"mes": primeiro.strftime("%Y-%m"), "nome": nome, **fatos, "texto": _texto_revisao(nome, fatos)}
 
 
-@app.route("/api/revisao-mensal", methods=["GET"])
-def revisao_mensal():
-    mes = request.args.get("mes")
-    if mes:
-        try:
-            primeiro = date.fromisoformat(f"{mes}-01")
-            if not 2000 <= primeiro.year <= 2100:
-                raise ValueError
-        except ValueError:
-            return jsonify({"error": "mes deve ser AAAA-MM"}), 400
-        proximo = date(primeiro.year + (primeiro.month == 12), primeiro.month % 12 + 1, 1)
-        ultimo = proximo - timedelta(days=1)
-    else:
-        primeiro, ultimo = vida.mes_anterior(date.today())
-    conn = get_db()
-    resultado = _revisao_do_mes(conn, primeiro, ultimo)
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/revisao-periodo", methods=["GET"])
-def revisao_periodo():
-    """Fase 5 (US-C3): revisao trimestral/anual - agrega financeiro, tarefas
-    concluidas e saude reaproveitando _fatos_periodo (a mesma funcao ja usada
-    pela revisao mensal em /api/revisao-mensal e por /api/progresso, nao
-    duplica calculo), mais as decisoes do diario (US-C2) registradas no
-    periodo."""
-    tipo = request.args.get("tipo", "trimestre")
-    if tipo not in ("trimestre", "ano"):
-        return jsonify({"error": "tipo precisa ser trimestre ou ano"}), 400
-
-    hoje = date.today()
-    try:
-        ano = int(request.args.get("ano", hoje.year))
-        if tipo == "trimestre":
-            trimestre = int(request.args.get("trimestre", vida.trimestre_de(hoje)))
-            primeiro, ultimo = vida.intervalo_trimestre(ano, trimestre)
-        else:
-            trimestre = None
-            primeiro, ultimo = vida.intervalo_ano(ano)
-        if not 2000 <= ano <= 2100:
-            raise ValueError
-    except (ValueError, TypeError):
-        return jsonify({"error": "ano/trimestre invalidos"}), 400
-
-    conn = get_db()
-    fatos = _fatos_periodo(conn, primeiro, ultimo)
-    decisoes_periodo = [
-        d for d in list_diario_decisoes(conn) if primeiro.isoformat() <= d["data"] <= ultimo.isoformat()
-    ]
-    conn.close()
-
-    return jsonify(
-        {
-            "tipo": tipo,
-            "ano": ano,
-            "trimestre": trimestre,
-            "inicio": primeiro.isoformat(),
-            "fim": ultimo.isoformat(),
-            **fatos,
-            "decisoes": decisoes_periodo,
-            "decisoes_com_resultado": sum(1 for d in decisoes_periodo if d["resultado"]),
-        }
-    )
-
-
 def _uso_apps(conn, dias: int) -> dict:
     desde = (datetime.now() - timedelta(days=dias)).isoformat(timespec="seconds")
     minutos = vida.uso_de_apps(list_eventos_app(conn, desde))
@@ -5075,23 +4903,6 @@ def _uso_apps(conn, dias: int) -> dict:
         "apps": [{"app": a, "minutos": m, "texto": vida.formatar_minutos(m)} for a, m in minutos.items()],
         "total_minutos": sum(minutos.values()),
     }
-
-
-@app.route("/api/uso-apps", methods=["GET"])
-def uso_apps():
-    dias = min(max(request.args.get("dias", default=7, type=int), 1), 30)
-    conn = get_db()
-    resultado = _uso_apps(conn, dias)
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/uso/total", methods=["GET"])
-def uso_total():
-    conn = get_db()
-    total = total_cost_usd(conn)
-    conn.close()
-    return jsonify({"custo_usd": round(total, 4)})
 
 
 def _categorizar_transacoes_importadas(conn, transacoes: list[dict]) -> list[dict]:
@@ -5153,58 +4964,6 @@ def _patrimonio_consolidado(conn) -> dict:
             if g["valor_guardado"]
         ],
     }
-
-
-@app.route("/api/metas", methods=["GET"])
-def metas():
-    hoje = date.today()
-    conn = get_db()
-    resultado = []
-    for g in list_goals(conn):
-        meta = _calculo_meta(g)
-        meta["previsao"] = vida.previsao_meta(
-            g["valor_alvo"], g["valor_guardado"], list_goal_deposits(conn, g["id"]), hoje
-        )
-        resultado.append(meta)
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/metas/<int:goal_id>/guardar", methods=["POST"])
-def guardar_meta(goal_id):
-    valor = _corpo_json().get("valor")
-    if isinstance(valor, bool) or not isinstance(valor, (int, float)) or not math.isfinite(valor) or valor <= 0:
-        return jsonify({"error": "informe um valor positivo"}), 400
-
-    conn = get_db()
-    goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
-    if not goal:
-        conn.close()
-        return jsonify({"error": "meta nao encontrada"}), 404
-    add_to_goal(conn, goal_id, valor)
-    goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify(_calculo_meta(dict(goal)))
-
-
-@app.route("/api/metas/<int:goal_id>/historico", methods=["GET"])
-def meta_historico(goal_id):
-    conn = get_db()
-    goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
-    if not goal:
-        conn.close()
-        return jsonify({"error": "meta nao encontrada"}), 404
-    depositos = list_goal_deposits(conn, goal_id)
-    conn.close()
-
-    acumulado = 0.0
-    pontos = [{"data": goal["criado_em"][:10], "acumulado": 0.0}]
-    for d in depositos:
-        acumulado += d["valor"]
-        pontos.append({"data": d["criado_em"][:10], "acumulado": round(acumulado, 2)})
-    return jsonify({"pontos": pontos, "valor_alvo": goal["valor_alvo"]})
 
 
 TAMANHO_MAX_PDF_BYTES = 15 * 1024 * 1024  # 15MB - cabe folgado num orcamento escaneado
