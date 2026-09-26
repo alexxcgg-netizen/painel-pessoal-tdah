@@ -1,7 +1,7 @@
-# LIMPEZA + VELOCIDADE 2 (pedido do dono 2026-09-26) - em andamento
-- [ ] Onda 1: T acentos (templates+JS) | D Finanças com uma lista só | R1 app.py em blueprints
-- [ ] Onda 2: R2 style.css dividido por seção | V montar só a aba aberta (troca de aba <= 200 ms) | acentos no app.py
-- [ ] Onda 3: A animações que faltaram (lista fecha o buraco, Vida sem pulo) | medição final | suíte completa
+# LIMPEZA + VELOCIDADE 2 (pedido do dono 2026-09-26) - concluida
+- [x] Onda 1: T acentos (templates+JS) | D Finanças com uma lista só | R1 app.py em blueprints
+- [x] Onda 2: R2 style.css dividido por seção | V montar só a aba aberta (troca de aba <= 200 ms) | acentos no app.py
+- [x] Onda 3: A animações que faltaram (lista fecha o buraco, Vida sem pulo) | medição final | suíte completa
 
 # FASE VELOCIDADE + COR + ANIMACAO - concluida 2026-09-26 (pendente: aba Gastos ~360ms)
 - [x] A1 medir velocidade (CPU 4x, tabela acao|tempo|meta|causa)

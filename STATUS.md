@@ -9,6 +9,13 @@ Atualizado: 2026-09-25, fim da Fase 8. `main` em dia com `origin/main`; deploy R
    pras áreas da fase nova) e o topo do `CHANGELOG.md`.
 2. Worktree por faixa a partir de `origin/main`; nunca editar `/home/user/financeiro-construtora`.
 
+## Limpeza (2026-09-27) - na main
+Acentos em todas as telas; Finanças com uma lista; app.py 5.103 linhas + ~60 blueprints em
+rotas/; style.css dividido em 12 arquivos; abas grandes ~200–280 ms (meta 200); lista fecha o
+espaço ao concluir. Pendente: app.py ainda tem helpers compartilhados (próximo passo: mover para
+módulos de serviço); widget do Scriptable segue sem acento de propósito; View Transitions só
+validado em código (sem Safari aqui); banco zerando no Render (VPS).
+
 ## Velocidade + cor Gelo preto + animações (2026-09-26) - na main
 Detalhe no topo do CHANGELOG. Medir: `.venv/bin/python scripts/medir_velocidade.py --out-dir X --rotulo Y`
 (`--repo` mede outro checkout). Pendências: aba Gastos ~360 ms até pronta (meta 200); "lista fecha o
