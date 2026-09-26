@@ -81,16 +81,18 @@
      artefato, ex. "preto quase puro") + fundo tambem bem escuro, escurecer
      ainda mais um --accent ja escuro deixava o titulo praticamente
      invisivel (medido: ~1.4:1 de contraste, bem abaixo do minimo legivel) -
-     o Alex confirmou "às vezes ele não aparece". Fix: depois de escurecer
-     (igual antes), mistura de volta 32% de --text (quase branco) como piso
-     minimo de claridade - nao depende de o --accent escolhido ser claro ou
-     escuro pra continuar legivel. Com a paleta validada (esmeralda) o titulo
-     fica um pouco mais claro que antes, mas continua bem mais escuro que o
-     --accent-gradient-ink puro (que e vivido/brilhante). */
+     o Alex confirmou "às vezes ele não aparece".
+
+     Faixa vis/C1b-cor (paleta "Gelo preto"): a formula acima escurecia os DOIS
+     lados do degrade misturando com --accent-2 (#08080a, neutro quase preto)
+     - por isso o titulo lia "cinza" nos prints, nao "azul-gelo". Troca direta:
+     degrade discreto --cor-texto -> --cor-destaque (sem passar por preto no
+     meio), ambos ja claros o bastante pra nunca sumir contra o fundo preto -
+     ver contraste medido em Python (>=15:1 nas duas pontas). */
   --accent-gradient-titulo: linear-gradient(
     135deg,
-    color-mix(in srgb, color-mix(in srgb, var(--accent) 58%, black 42%) 68%, var(--text) 32%) 0%,
-    color-mix(in srgb, color-mix(in srgb, var(--accent-2) 58%, black 42%) 68%, var(--text) 32%) 100%
+    var(--cor-texto) 0%,
+    var(--cor-destaque) 100%
   );
   --accent-text: var(--text);
   --accent-soft-bg: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -517,13 +519,14 @@ body {
   inset: -20%;
   z-index: -1;
   pointer-events: none;
-  /* Fase 8 D1: gradiente roxo/verde saturado (round anterior) trocado por
-     um realce neutro cinza, bem fraco - mesma posicao/estrutura, sem cor
-     de identidade tingindo o fundo. */
-  background: radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.05), transparent 45%),
-    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, 0.04), transparent 42%),
-    radial-gradient(circle at 50% 85%, rgba(255, 255, 255, 0.03), transparent 48%),
-    radial-gradient(circle at 88% 92%, rgba(255, 255, 255, 0.03), transparent 40%);
+  /* Faixa vis/C1b-cor (paleta "Gelo preto"): a nevoa branca (Fase 8 D1) lia como
+     cinza por cima do preto puro do fundo - trocada por um tico quase
+     imperceptivel (<=0.015) de azul-gelo (--cor-destaque), mesma posicao/
+     estrutura/animacao de antes. So cor, o fundo continua lendo como #000. */
+  background: radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--cor-destaque) 1.5%, transparent), transparent 45%),
+    radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--cor-destaque) 1.2%, transparent), transparent 42%),
+    radial-gradient(circle at 50% 85%, color-mix(in srgb, var(--cor-destaque) 1%, transparent), transparent 48%),
+    radial-gradient(circle at 88% 92%, color-mix(in srgb, var(--cor-destaque) 1%, transparent), transparent 40%);
   filter: blur(60px);
   animation: auroraMove 20s ease-in-out infinite;
 }
@@ -542,12 +545,12 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  /* Fase 8 D1: "efeito rainbow" roxo/verde saturado removido - agora e so
-     um brilho ambiente cinza neutro, bem fraco, na mesma estrutura/posicao/
-     animacao de antes (nada de layout mudou, so a cor deixou de tingir). */
-  background: radial-gradient(65% 55% at 22% 70%, rgba(255, 255, 255, 0.05), transparent 60%),
-    radial-gradient(60% 50% at 78% 28%, rgba(255, 255, 255, 0.04), transparent 60%),
-    radial-gradient(45% 40% at 50% 50%, rgba(255, 255, 255, 0.03), transparent 62%);
+  /* Faixa vis/C1b-cor: mesma troca da .aurora acima - branco (lia cinza) por
+     um tico quase imperceptivel (<=0.015) de azul-gelo, mesma estrutura/
+     posicao/animacao de antes. */
+  background: radial-gradient(65% 55% at 22% 70%, color-mix(in srgb, var(--cor-destaque) 1.5%, transparent), transparent 60%),
+    radial-gradient(60% 50% at 78% 28%, color-mix(in srgb, var(--cor-destaque) 1.2%, transparent), transparent 60%),
+    radial-gradient(45% 40% at 50% 50%, color-mix(in srgb, var(--cor-destaque) 1%, transparent), transparent 62%);
   background-size: 180% 180%, 180% 180%, 220% 220%;
   mix-blend-mode: screen;
   animation: rainbowDrift 26s ease-in-out infinite, rainbowDriftExtra 37s ease-in-out infinite;
@@ -634,7 +637,9 @@ body::after {
   inset: 0;
   z-index: 50;
   pointer-events: none;
-  opacity: 0.035;
+  /* Faixa vis/C1b-cor: 0.035 branco lia como veu cinza por cima do preto puro
+     - reduzido a quase imperceptivel (pedido: <=0.015), so textura, sem tingir. */
+  opacity: 0.014;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
@@ -1236,20 +1241,24 @@ header {
   padding: 0.7rem 1.1rem;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--accent-gradient);
-  background-size: 160% 160%;
-  color: var(--accent-text);
+  /* Faixa vis/C1b-cor: era --accent-gradient (accent-fill -> accent-2-fill,
+     os dois escurecidos quase ate preto) - lia como botao cinza/preto, nao
+     "botao principal". Botao principal = fundo --cor-destaque cheio, texto
+     --cor-sobre-destaque (par validado ~14.6:1). Sombra neutra (--elevacao),
+     nunca glow colorido - regra da paleta. */
+  background: var(--cor-destaque);
+  color: var(--cor-sobre-destaque);
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: var(--elevacao-1, 0 1px 2px rgba(0, 0, 0, 0.45));
   transition: background-position 0.4s ease, box-shadow 0.2s ease, transform 0.18s var(--ease-bounce);
 }
 
 @media (hover: hover) {
   #captura-btn:hover:not(:disabled),
   #duvida-btn:hover:not(:disabled) {
-    background-position: 100% 0;
-    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+    box-shadow: var(--elevacao-2, 0 8px 18px -10px rgba(0, 0, 0, 0.6));
+    filter: brightness(1.05);
   }
 }
 
@@ -2727,7 +2736,7 @@ li.item.item-otimista {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--accent-text, var(--accent));
+  color: var(--cor-destaque, var(--accent));
 }
 
 .visao-dia-foco-titulo {
@@ -2821,18 +2830,21 @@ li.item.item-otimista {
   }
 }
 
+/* Faixa vis/C1b-cor: era --accent-fill (accent escurecido 70% - lia cinza/
+   preto) + glow colorido. Botao principal = fundo --cor-destaque cheio,
+   texto --cor-sobre-destaque, sem glow (regra da paleta). */
 .item-acoes button.primario {
-  background: var(--accent-fill);
+  background: var(--cor-destaque);
   border-color: transparent;
-  color: var(--accent-text);
+  color: var(--cor-sobre-destaque);
   font-weight: 700;
-  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--cor-tarefas) 55%, transparent);
+  box-shadow: var(--elevacao-0);
 }
 
 @media (hover: hover) {
   .item-acoes button.primario:hover:not(:disabled) {
-    filter: brightness(1.08);
-    box-shadow: 0 3px 14px -4px color-mix(in srgb, var(--cor-tarefas) 60%, transparent);
+    filter: brightness(1.05);
+    box-shadow: var(--elevacao-1);
   }
 }
 
@@ -3875,16 +3887,19 @@ li.item.item-planejado {
   padding: 0.7rem 1.1rem;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--accent-gradient);
-  color: var(--accent-text);
+  /* Faixa vis/C1b-cor: mesmo fix do #captura-btn - fundo --cor-destaque
+     cheio, texto --cor-sobre-destaque, sombra neutra (sem glow colorido). */
+  background: var(--cor-destaque);
+  color: var(--cor-sobre-destaque);
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: var(--elevacao-1, 0 1px 2px rgba(0, 0, 0, 0.45));
 }
 
 @media (hover: hover) {
   #chat-send:hover:not(:disabled) {
-    box-shadow: 0 6px 26px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+    box-shadow: var(--elevacao-2, 0 8px 18px -10px rgba(0, 0, 0, 0.6));
+    filter: brightness(1.05);
   }
 }
 
@@ -4645,7 +4660,10 @@ li.item.item-planejado {
   border: none;
   padding: 0.35rem 0.2rem;
   min-height: 32px;
-  color: var(--accent-text, var(--accent));
+  /* Faixa vis/C1b-cor: --accent-text SEMPRE resolve (e var(--text), nao
+     invalido) - o fallback ", var(--accent)" nunca era usado, entao o link
+     saia branco/cinza em vez de azul-gelo. Cor direta em --cor-destaque. */
+  color: var(--cor-destaque, var(--accent));
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -4807,12 +4825,15 @@ li.item.item-planejado {
   cursor: pointer;
 }
 
+/* Faixa vis/C1b-cor: --accent-soft-bg (16% sobre transparente) sobre o card
+   escuro quase nao tingia - trocado por --cor-destaque-suave (chip/pilula
+   ativa - mesmo par usado em .chip--ativo). */
 .hiperfoco-ligado {
   padding: 0.6rem 0.85rem;
   border-radius: var(--radius);
-  border: 1px solid var(--accent);
-  background: var(--accent-soft-bg, var(--surface-2));
-  color: var(--text);
+  border: 1px solid var(--cor-destaque);
+  background: var(--cor-destaque-suave, var(--surface-2));
+  color: var(--cor-destaque);
   font-size: 0.88rem;
 }
 
@@ -4980,7 +5001,7 @@ body.modo-essencial #essencial-box {
   border-radius: 50%;
   border: 1px solid var(--accent);
   background: var(--accent-soft-bg, var(--surface-2));
-  color: var(--accent-text, var(--accent));
+  color: var(--cor-destaque, var(--accent));
   font-weight: 800;
   font-size: 1rem;
   cursor: pointer;
@@ -5229,7 +5250,7 @@ body.modo-essencial #essencial-box {
   display: block;
   margin-top: 0.15rem;
   font-size: 0.8rem;
-  color: var(--accent-text, var(--accent));
+  color: var(--cor-destaque, var(--accent));
   overflow-wrap: anywhere;
 }
 
@@ -5647,7 +5668,9 @@ body.modo-essencial #essencial-box {
   height: 20px;
   flex-shrink: 0;
   margin: 0;
-  accent-color: var(--cor-tarefas);
+  /* Faixa vis/C1b-cor: marcador de tarefa em --cor-destaque (identidade global
+     de selecao/foco), nao mais a cor de categoria da aba (--cor-tarefas). */
+  accent-color: var(--cor-destaque);
 }
 
 .card-tarefa input[type="checkbox"]:checked {

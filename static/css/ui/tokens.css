@@ -188,9 +188,10 @@
   /* ---------- Toque e foco ---------- */
   --toque-min: 44px; /* area minima de qualquer alvo tocavel */
   --toque-confortavel: 48px; /* .btn-adicionar, .btn-primario de rodape, linha de lista */
-  /* anel de foco visivel no preto: folga da cor do fundo + anel do --text a 55%.
-     (o :focus-visible global do style.css usa --accent-2 #08080a e quase some no preto) */
-  --anel-foco: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--text) 55%, transparent);
+  /* anel de foco visivel no preto: folga da cor do fundo + anel na cor de destaque.
+     Faixa vis/C1b-cor: era --text a 55% (branco neutro) - o pedido explicito e foco
+     em --cor-destaque (identidade da paleta), nao branco generico. */
+  --anel-foco: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--cor-destaque) 70%, transparent);
 
   /* ---------- Camadas (z-index) ----------
      Existentes: #tabbar 10, grao do body::after 50, confete 90. O sheet fica acima da barra

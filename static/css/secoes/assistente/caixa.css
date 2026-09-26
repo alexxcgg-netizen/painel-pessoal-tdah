@@ -18,15 +18,17 @@
 }
 
 /* C2: o amarelo #ffc45c era cor NOVA (fora da paleta do style.css). O aviso agora e bloco
-   interno neutro com uma barra de 3px na cor ja existente --cor-bancos (dourado) e texto
-   --text (contraste alto); o icone/texto continuam dizendo que e aviso. */
+   interno neutro com uma barra de 3px e texto --text (contraste alto); o icone/texto
+   continuam dizendo que e aviso. Faixa vis/C1b-cor: a barra usava --cor-bancos (dourado
+   de identidade de secao) - trocada por --cor-alerta (token dedicado a aviso na paleta
+   "Gelo preto"), o pedido explicito pra esta barra lateral. */
 .caixa-aviso-atraso {
   margin: 0 0 var(--espaco-2);
   padding: var(--espaco-2) var(--espaco-3);
   border-radius: var(--raio-sm);
   background: var(--superficie-3);
   border: var(--linha) solid var(--borda-sutil);
-  border-left: 3px solid var(--cor-bancos);
+  border-left: 3px solid var(--cor-alerta);
   color: var(--text);
   font-size: 0.85rem;
 }
@@ -113,14 +115,16 @@
   font-size: 0.9em;
 }
 
-/* C2: "Ver tudo" era --accent (#45454a) sobre a superficie: 2.2:1. Agora --text-muted
-   (mesma paleta, ~8:1) com peso 600; o sublinhado continua dizendo que e link. */
+/* C2: "Ver tudo" era --accent (#45454a, palette antiga) sobre a superficie: 2.2:1,
+   por isso virou --text-muted. Faixa vis/C1b-cor: a paleta "Gelo preto" trocou
+   --accent pra --cor-destaque (#bfe6ff, claro) - o motivo do C2 nao existe mais
+   (medido ~13:1 contra --superficie-3), e o pedido agora e link em --cor-destaque. */
 .caixa-vertudo {
   display: inline-flex;
   align-items: center;
   margin-top: var(--espaco-1);
   min-height: var(--toque-min);
-  color: var(--text-muted);
+  color: var(--cor-destaque, var(--text-muted));
   font-weight: 600;
   font-size: 0.9rem;
   text-decoration: underline;
