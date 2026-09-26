@@ -111,7 +111,7 @@ direto na VPS (mais simples que gerar local e copiar).
 ### Testa antes de virar serviço
 
 ```bash
-gunicorn -w 1 -b 127.0.0.1:5001 wsgi:app
+gunicorn -w 1 --threads 8 -b 127.0.0.1:5001 wsgi:app
 ```
 
 Se aparecer erro, é mais fácil de ler rodando na mão do que procurando depois nos

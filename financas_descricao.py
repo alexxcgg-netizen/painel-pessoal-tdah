@@ -324,6 +324,27 @@ def _traduzir_categoria(categoria):
     return MAPA_CATEGORIAS_PLUGGY.get(chave, categoria)
 
 
+# Categorias internas do gasto manual/chat (enum de ia/funcoes/chat.py:
+# mercado, transporte, lazer, contas, saude, outros) -> mesmo rotulo que a
+# categoria Pluggy traduzida usa, pra os dois somarem na mesma barra de
+# "gasto por categoria" (antes "Mercado" do Nubank e "mercado" do chat viravam
+# duas categorias).
+ROTULOS_CATEGORIA_MANUAL = {
+    "mercado": "Mercado",
+    "transporte": "Transporte",
+    "lazer": "Lazer",
+    "contas": "Contas",
+    "saude": "Saúde",
+    "outros": "Outros",
+}
+
+
+def rotulo_categoria_manual(categoria):
+    if not isinstance(categoria, str) or not categoria.strip():
+        return "Outros"
+    chave = categoria.strip().lower()
+    return ROTULOS_CATEGORIA_MANUAL.get(chave) or chave[:1].upper() + chave[1:]
+
 # ---------------------------------------------------------------------------
 # Deteccao de estorno
 # ---------------------------------------------------------------------------

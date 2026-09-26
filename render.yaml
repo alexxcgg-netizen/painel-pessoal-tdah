@@ -8,8 +8,13 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     # 1 worker so: SQLite + app de usuario unico, e o _TETO_IA_LOCK de app.py
-    # e um lock de processo. Timeout alto porque chamada de IA com foto demora.
-    startCommand: gunicorn app:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
+    # e um lock de processo. --threads 8: sem isso o gunicorn atende UMA
+    # requisicao por vez e uma chamada de IA (3-10 s) trava as ~35 chamadas da
+    # abertura e qualquer toque (medido: mediana 3,7 s -> 0,8 s com threads;
+    # escrita durante IA lenta em 5-14 ms, sem "database is locked"). Os locks
+    # de teto sao threading.Lock e o scheduler ja roda em thread propria.
+    # Timeout alto porque chamada de IA com foto demora.
+    startCommand: gunicorn app:app --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:$PORT
     healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION

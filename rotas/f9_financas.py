@@ -119,7 +119,7 @@ def _linhas_manuais(conn, de: date, ate: date) -> list[dict]:
                 "id": f"exp-{r['id']}",
                 "data": data_txt,
                 "descricao": r["description"] or "Sem descrição",
-                "categoria": r["category"] or "Outros",
+                "categoria": financas_descricao.rotulo_categoria_manual(r["category"]),
                 "valor": round(valor, 2),
                 "origem": "manual",
                 "tipo_conta": None,
