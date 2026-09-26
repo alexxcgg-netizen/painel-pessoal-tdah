@@ -4602,56 +4602,6 @@ def _criar_manutencao(conn, body: dict) -> dict:
     return {"ok": True, "manutencao_id": manutencao_id}
 
 
-@app.route("/api/manutencoes", methods=["GET"])
-def manutencoes():
-    conn = get_db()
-    resultado = _manutencoes_com_status(conn, date.today())
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/manutencoes", methods=["POST"])
-def criar_manutencao_rota():
-    body = _corpo_json()
-    conn = get_db()
-    resultado = _criar_manutencao(conn, body)
-    if "ok" in resultado:
-        _marcar_atividade(conn)
-        conn.commit()
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/manutencoes/<int:manutencao_id>/feita", methods=["POST"])
-def manutencao_feita(manutencao_id):
-    conn = get_db()
-    existente = get_manutencao(conn, manutencao_id)
-    if not existente:
-        conn.close()
-        return jsonify({"error": "manutencao nao encontrada"}), 404
-    if existente["tipo"] == "carro":
-        conn.close()
-        return jsonify({"error": "manutencao de carro nao usa 'feita' - adicione um novo registro"}), 400
-    ok = marcar_manutencao_feita(conn, manutencao_id, date.today().isoformat())
-    if ok:
-        _marcar_atividade(conn)
-        conn.commit()
-    conn.close()
-    if not ok:
-        return jsonify({"error": "manutencao nao encontrada"}), 404
-    return jsonify({"ok": True})
-
-
-@app.route("/api/manutencoes/<int:manutencao_id>", methods=["DELETE"])
-def apagar_manutencao(manutencao_id):
-    conn = get_db()
-    delete_manutencao(conn, manutencao_id)
-    conn.close()
-    return jsonify({"ok": True})
-
-
 def _criar_ideia_presente(conn, pessoa, ideia, ocasiao) -> dict:
     pessoa = _texto_curto(pessoa, 80)
     ideia_txt = _texto_curto(ideia, 200)
@@ -4659,43 +4609,6 @@ def _criar_ideia_presente(conn, pessoa, ideia, ocasiao) -> dict:
         return {"erro": "informe a pessoa e a ideia de presente"}
     ideia_id = create_ideia_presente(conn, pessoa, ideia_txt, _texto_curto(ocasiao, 60))
     return {"ok": True, "ideia_id": ideia_id}
-
-
-@app.route("/api/ideias-presente", methods=["GET"])
-def ideias_presente_rota():
-    conn = get_db()
-    resultado = list_ideias_presente(conn)
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/ideias-presente", methods=["POST"])
-def criar_ideia_presente_rota():
-    body = _corpo_json()
-    conn = get_db()
-    resultado = _criar_ideia_presente(conn, body.get("pessoa"), body.get("ideia"), body.get("ocasiao"))
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/ideias-presente/<int:ideia_id>/comprado", methods=["POST"])
-def alternar_ideia_presente_rota(ideia_id):
-    conn = get_db()
-    comprado = alternar_ideia_presente_comprada(conn, ideia_id)
-    conn.close()
-    if comprado is None:
-        return jsonify({"error": "ideia nao encontrada"}), 404
-    return jsonify({"comprado": comprado})
-
-
-@app.route("/api/ideias-presente/<int:ideia_id>", methods=["DELETE"])
-def apagar_ideia_presente_rota(ideia_id):
-    conn = get_db()
-    delete_ideia_presente(conn, ideia_id)
-    conn.close()
-    return jsonify({"ok": True})
 
 
 # ---- Fase 5 (US-C18): cofre de garantia ----
@@ -4740,58 +4653,6 @@ def _criar_garantia(conn, produto, data_compra, prazo_meses, nota_fiscal_anexo) 
         return {"erro": "data de compra invalida (nao pode ser no futuro)"}
     garantia_id = create_garantia(conn, produto, compra, prazo, nota_fiscal_anexo)
     return {"ok": True, "garantia_id": garantia_id}
-
-
-@app.route("/api/garantias", methods=["GET"])
-def garantias_rota():
-    conn = get_db()
-    hoje = date.today()
-    resultado = [_garantia_com_status(g, hoje) for g in list_garantias(conn)]
-    conn.close()
-    resultado.sort(key=lambda g: g["dias_ate"])
-    return jsonify(resultado)
-
-
-@app.route("/api/garantias", methods=["POST"])
-def criar_garantia_rota():
-    conn = get_db()
-    anexo_b64 = None
-    if request.content_type and "multipart/form-data" in request.content_type:
-        produto = request.form.get("produto")
-        data_compra = request.form.get("data_compra")
-        prazo = request.form.get("prazo_garantia_meses")
-        arquivo = request.files.get("nota_fiscal")
-        if arquivo and arquivo.filename:
-            nome = arquivo.filename.lower()
-            if not nome.endswith(EXTENSOES_ANEXO_GARANTIA):
-                conn.close()
-                return jsonify({"error": "anexo precisa ser PDF, JPG ou PNG"}), 400
-            dados = arquivo.read()
-            if len(dados) > TAMANHO_MAX_ANEXO_GARANTIA_BYTES:
-                conn.close()
-                return jsonify({"error": "anexo maior que 5MB - manda um arquivo menor"}), 400
-            if not _conteudo_bate_com_extensao(nome, dados):
-                conn.close()
-                return jsonify({"error": "conteudo do arquivo nao bate com a extensao (PDF, JPG ou PNG de verdade)"}), 400
-            anexo_b64 = base64.b64encode(dados).decode("ascii")
-    else:
-        body = _corpo_json()
-        produto = body.get("produto")
-        data_compra = body.get("data_compra")
-        prazo = body.get("prazo_garantia_meses")
-    resultado = _criar_garantia(conn, produto, data_compra, prazo, anexo_b64)
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/garantias/<int:garantia_id>", methods=["DELETE"])
-def apagar_garantia_rota(garantia_id):
-    conn = get_db()
-    delete_garantia(conn, garantia_id)
-    conn.close()
-    return jsonify({"ok": True})
 
 
 def _ultima_manutencao_carro_por_item(conn) -> list[dict]:
@@ -4871,96 +4732,6 @@ def _adicionar_compras(conn, itens) -> dict:
     if not validos:
         return {"erro": "nenhum item valido"}
     return {"ok": True, "adicionados": adicionados}
-
-
-@app.route("/api/compras", methods=["GET"])
-def compras():
-    conn = get_db()
-    resultado = list_compras_pendentes(conn)
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/compras", methods=["POST"])
-def adicionar_compras_rota():
-    body = _corpo_json()
-    conn = get_db()
-    resultado = _adicionar_compras(conn, body.get("itens", body.get("item")))
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/compras/<int:compra_id>/comprado", methods=["POST"])
-def compra_comprada(compra_id):
-    conn = get_db()
-    marcar_comprado(conn, compra_id)
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/compras/<int:compra_id>", methods=["DELETE"])
-def apagar_compra(compra_id):
-    conn = get_db()
-    delete_compra(conn, compra_id)
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/responder", methods=["GET"])
-def responder_pendentes():
-    hoje = date.today()
-    conn = get_db()
-    resultado = []
-    for r in list_responder_pendentes(conn):
-        dias = (hoje - datetime.fromisoformat(r["criado_em"]).date()).days
-        resultado.append({**r, "dias": dias})
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/responder", methods=["POST"])
-def criar_responder_rota():
-    body = _corpo_json()
-    quem = _texto_curto(body.get("quem"), 60)
-    if not quem:
-        return jsonify({"error": "informe pra quem voce precisa responder"}), 400
-    conn = get_db()
-    responder_id = create_responder(conn, quem, _texto_curto(body.get("sobre"), 200))
-    conn.close()
-    return jsonify({"ok": True, "id": responder_id}), 201
-
-
-@app.route("/api/responder/<int:responder_id>/feito", methods=["POST"])
-def responder_feito(responder_id):
-    conn = get_db()
-    marcar_respondido(conn, responder_id)
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/mensagem-dificil", methods=["POST"])
-def mensagem_dificil():
-    body = _corpo_json()
-    situacao = _texto_curto(body.get("situacao"), 1500)
-    if not situacao:
-        return jsonify({"error": "conte a situacao (ate 1500 caracteres)"}), 400
-    para_quem = _texto_curto(body.get("para_quem"), 60)
-    conn = get_db()
-    result, error = _call_claude(claude_client.redigir_mensagem_dificil, situacao, para_quem)
-    if error:
-        conn.close()
-        return error
-    versoes, usage = result
-    if not isinstance(versoes, dict) or not all(isinstance(versoes.get(k), str) for k in ("direta", "gentil")):
-        conn.close()
-        return jsonify({"error": CLAUDE_FORMAT_ERROR_MSG}), 502
-    _log_usage(conn, usage, "mensagem_dificil")
-    conn.close()
-    return jsonify({"direta": versoes["direta"], "gentil": versoes["gentil"]})
 
 
 def _agenda_pendente_de_hoje(conn) -> list[dict]:
