@@ -55,15 +55,40 @@ async function loadHabitos() {
       h.nome,
       detalhes,
       [
-        botaoAcao(
-          h.feito_hoje ? "feito hoje" : "marcar hoje",
-          async () => {
+        // Vel A2b: marcar habito otimista - texto do botao e o circulo de
+        // "hoje" mudam na hora do toque, sem esperar o POST; desfaz em erro
+        // (mostrarErro ja vem do apiFetch/jsonPost).
+        (li) => {
+          const btn = criarEl("button", "btn-com-icone");
+          const marcarPendente = () => {
+            btn.className = "primario btn-com-icone";
+            btn.innerHTML = `${ICONE_CHECK}marcar hoje`;
+          };
+          const marcarFeito = () => {
+            btn.className = "btn-com-icone";
+            btn.textContent = "feito hoje";
+          };
+          (h.feito_hoje ? marcarFeito : marcarPendente)();
+          btn.addEventListener("click", async () => {
+            if (btn.disabled) return; // evita duplo toque
+            btn.disabled = true;
+            const circuloHoje = li.querySelector(".habito-circulo.hoje");
+            const tinhaFeito = Boolean(circuloHoje && circuloHoje.classList.contains("feito"));
+            const estadoAnterior = h.feito_hoje;
+            h.feito_hoje = true;
+            marcarFeito();
+            if (circuloHoje) circuloHoje.classList.add("feito");
+
             const r = await jsonPost(`/api/habitos/${h.id}/marcar`);
-            if (r) loadHabitos();
-            return r;
-          },
-          !h.feito_hoje
-        ),
+            btn.disabled = false;
+            if (!r) {
+              h.feito_hoje = estadoAnterior;
+              (estadoAnterior ? marcarFeito : marcarPendente)();
+              if (circuloHoje && !tinhaFeito) circuloHoje.classList.remove("feito");
+            }
+          });
+          return btn;
+        },
         (el) => botaoApagar(`/api/habitos/${h.id}`, el),
       ],
       h.passou_batido ? "item-atencao" : ""

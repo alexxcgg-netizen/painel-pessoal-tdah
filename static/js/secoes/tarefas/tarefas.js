@@ -28,15 +28,6 @@ async function carregarSugestaoEnergia(nivel) {
   const tasks = await apiFetch(`/api/tarefas/sugestao-energia?nivel=${nivel}`);
   if (!tasks) return;
 
-  $("#energia-botoes")
-    .querySelectorAll("button")
-    .forEach((b) => {
-      const ativo = b.dataset.nivel === nivel;
-      b.classList.toggle("primario", ativo);
-      b.classList.toggle("chip--ativo", ativo); // C2: chip do contrato
-      b.setAttribute("aria-pressed", ativo ? "true" : "false");
-    });
-
   const list = $("#lista-sugestao-energia");
   list.innerHTML = "";
   $("#sugestao-energia-vazio").hidden = tasks.length > 0;
@@ -46,7 +37,19 @@ async function carregarSugestaoEnergia(nivel) {
 $("#energia-botoes")
   .querySelectorAll("button")
   .forEach((btn) => {
-    btn.addEventListener("click", () => carregarSugestaoEnergia(btn.dataset.nivel));
+    btn.addEventListener("click", () => {
+      // Vel A2b: otimista - o chip ativo troca na hora do toque; a lista de
+      // sugestoes (que depende da rede) chega depois.
+      $("#energia-botoes")
+        .querySelectorAll("button")
+        .forEach((b) => {
+          const ativo = b === btn;
+          b.classList.toggle("primario", ativo);
+          b.classList.toggle("chip--ativo", ativo); // C2: chip do contrato
+          b.setAttribute("aria-pressed", ativo ? "true" : "false");
+        });
+      carregarSugestaoEnergia(btn.dataset.nivel);
+    });
   });
 
 const NIVEIS_ENERGIA = ["baixa", "media", "alta"];
@@ -192,22 +195,37 @@ function criarItemTarefa(t) {
   btnConcluir.className = "primario btn-com-icone";
   btnConcluir.innerHTML = `${ICONE_CHECK}concluir`;
   btnConcluir.addEventListener("click", async () => {
+    if (btnConcluir.disabled) return; // evita duplo toque
+    btnConcluir.disabled = true;
+    // Vel A2b: otimista - marca, anima e remove da lista na hora do toque;
+    // a gravacao (POST) vai por tras. Guarda a posicao pra devolver a
+    // tarefa no mesmo lugar se a rede falhar (mostrarErro ja vem do apiFetch).
+    const pai = li.parentElement;
+    const proximoIrmao = li.nextElementSibling;
+    explodirConcluido(btnConcluir);
+    vibrar(30);
+    tocarSomConcluido();
+    li.classList.add("saindo");
+    const removerTimeout = setTimeout(() => li.remove(), 220);
+
     const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
     if (data) {
-      explodirConcluido(btnConcluir);
-      vibrar(30);
-      tocarSomConcluido();
-      li.classList.add("saindo");
-      setTimeout(() => {
-        loadTasks();
-        loadSummary();
-        loadStreak();
-        if (!$("#tab-painel").hidden) loadFechamentoDoDia();
-        // M3: concluida some da lista principal mas, se "Ver concluidas" ja
-        // ta aberto, essa que acabou de ser marcada deveria aparecer nela.
-        const listaConcluidas = $("#lista-tarefas-concluidas");
-        if (listaConcluidas && !listaConcluidas.hidden) loadTarefasConcluidas();
-      }, 220);
+      loadTasks();
+      loadSummary();
+      loadStreak();
+      if (!$("#tab-painel").hidden) loadFechamentoDoDia();
+      // M3: concluida some da lista principal mas, se "Ver concluidas" ja
+      // ta aberto, essa que acabou de ser marcada deveria aparecer nela.
+      const listaConcluidas = $("#lista-tarefas-concluidas");
+      if (listaConcluidas && !listaConcluidas.hidden) loadTarefasConcluidas();
+    } else {
+      clearTimeout(removerTimeout);
+      li.classList.remove("saindo");
+      btnConcluir.disabled = false;
+      if (pai && !pai.contains(li)) {
+        if (proximoIrmao && proximoIrmao.parentElement === pai) pai.insertBefore(li, proximoIrmao);
+        else pai.appendChild(li);
+      }
     }
   });
   acoes.appendChild(btnConcluir);
@@ -307,13 +325,23 @@ function criarFormularioTarefaParaGasto(t, li) {
   return form;
 }
 
+// Vel A2b: hash barato do ultimo /api/tasks renderizado - troca de aba pra
+// tarefas repete essa chamada toda vez, mas se os dados nao mudaram desde a
+// ultima renderizacao nao vale a pena reconstruir ~100 <li> de novo.
+let _ultimoHashTarefas = null;
+
 async function loadTasks() {
   const tasks = await apiFetch("/api/tasks");
   if (!tasks) return;
+  const hash = calcularHashTarefas(tasks);
+  if (hash === _ultimoHashTarefas) return; // dados iguais - nao reconstroi a lista
+  _ultimoHashTarefas = hash;
   const list = $("#lista-tarefas");
-  list.innerHTML = "";
   $("#tarefas-vazio").hidden = tasks.length > 0;
-  tasks.forEach((t) => list.appendChild(criarItemTarefa(t)));
+  const frag = document.createDocumentFragment();
+  tasks.forEach((t) => frag.appendChild(criarItemTarefa(t)));
+  list.innerHTML = "";
+  list.appendChild(frag);
 }
 
 // ---- "Ver concluidas" (M3, uso diario) ----------------------------------
@@ -425,3 +453,13 @@ $("#nova-tarefa-form").addEventListener("submit", async (e) => {
   fecharPainelTarefa();
   loadTasks();
 });
+
+// Vel A2b: extraido pra teste puro (node --test) - mesma logica usada em
+// loadTasks() pra decidir se reconstroi a lista (nao muda comportamento).
+function calcularHashTarefas(tasks) {
+  return JSON.stringify(tasks);
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { calcularHashTarefas };
+}

@@ -85,6 +85,26 @@ function criarCardCapturaPendente(id, text) {
   return card;
 }
 
+// Vel A2b: card provisorio "Salvando…" mostrado na hora do toque, antes da
+// resposta chegar - mesmo estilo visual do card de fila offline (borda
+// tracejada) mas so um placeholder local, nunca vira item de fila.
+function criarCardCapturaSalvando(text) {
+  const card = document.createElement("div");
+  card.className = "card-resultado card-resultado-pendente";
+
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "card-resultado-eyebrow";
+  eyebrow.innerHTML = `${ICONE_TAREFA_CARD}<span>Salvando…</span>`;
+  card.appendChild(eyebrow);
+
+  const titulo = document.createElement("p");
+  titulo.className = "card-resultado-titulo";
+  titulo.textContent = text;
+  card.appendChild(titulo);
+
+  return card;
+}
+
 // Mostra/esconde o indicador discreto de fila offline - some sozinho quando
 // tudo sincroniza (n chega a 0). Chamado pela propria FilaOffline (a cada
 // item processado) e no carregamento da pagina.
@@ -143,11 +163,20 @@ if (typeof FilaOffline !== "undefined") {
   });
 }
 
-async function enviarCaptura(text, clarificacao) {
+async function enviarCaptura(text, clarificacao, campoOrigem) {
   const capturaBtn = $("#captura-btn");
   const duvidaBtn = $("#duvida-btn");
   setBotaoCarregando(capturaBtn, true, "Pensando...");
   duvidaBtn.disabled = true;
+
+  // Vel A2b: card "Salvando…" aparece na hora do toque (o campo ja foi
+  // limpo por quem chamou); troca pelo card real quando a resposta chegar,
+  // ou some (devolvendo o texto pro campo) se der erro.
+  const listaChat = $("#chat-mensagens");
+  listaChat.querySelector(".chat-vazio")?.remove();
+  const cardSalvando = criarCardCapturaSalvando(text);
+  listaChat.appendChild(cardSalvando);
+  listaChat.scrollTop = listaChat.scrollHeight;
 
   const clientId = crypto.randomUUID();
   const data = await apiFetch(
@@ -163,18 +192,23 @@ async function enviarCaptura(text, clarificacao) {
   setBotaoCarregando(capturaBtn, false, "Adicionar");
   duvidaBtn.disabled = false;
 
-  if (!data) return;
+  if (!data) {
+    // erro (mostrarErro ja foi chamado pelo apiFetch): desfaz o otimista,
+    // devolve o texto pro campo de origem.
+    cardSalvando.remove();
+    if (campoOrigem) campoOrigem.value = text;
+    return;
+  }
 
   if (data.__enfileirado) {
-    // otimista: o Alex nao pode ficar sem poder anotar nada so por falta de
-    // sinal - mostra como se tivesse dado certo, sincroniza sozinho depois.
+    // otimista de fila offline: o Alex nao pode ficar sem poder anotar nada
+    // so por falta de sinal - mostra como se tivesse dado certo, sincroniza
+    // sozinho depois.
     textoPendente = null;
     $("#duvida-box").hidden = true;
     pulsarSucesso($("#captura-input"));
     vibrar(20);
-    const listaChat = $("#chat-mensagens");
-    listaChat.querySelector(".chat-vazio")?.remove();
-    listaChat.appendChild(criarCardCapturaPendente(clientId, text));
+    cardSalvando.replaceWith(criarCardCapturaPendente(clientId, text));
     listaChat.scrollTop = listaChat.scrollHeight;
     return;
   }
@@ -182,6 +216,7 @@ async function enviarCaptura(text, clarificacao) {
   loadUso();
 
   if (data.duvida) {
+    cardSalvando.remove();
     textoPendente = data.texto_original;
     $("#duvida-texto").textContent = data.duvida;
     $("#duvida-input").value = "";
@@ -194,9 +229,7 @@ async function enviarCaptura(text, clarificacao) {
   pulsarSucesso($("#captura-input"));
   vibrar(20);
   tocarSomSucesso();
-  const listaChat = $("#chat-mensagens");
-  listaChat.querySelector(".chat-vazio")?.remove();
-  listaChat.appendChild(criarCardsCaptura(data));
+  cardSalvando.replaceWith(criarCardsCaptura(data));
   listaChat.scrollTop = listaChat.scrollHeight;
   loadSummary();
   loadStreak();
@@ -213,7 +246,7 @@ $("#captura-btn").addEventListener("click", () => {
   const text = input.value.trim();
   if (!text) return;
   input.value = "";
-  enviarCaptura(text, "");
+  enviarCaptura(text, "", input);
 });
 
 $("#captura-input").addEventListener("keydown", (e) => {
@@ -221,9 +254,10 @@ $("#captura-input").addEventListener("keydown", (e) => {
 });
 
 $("#duvida-btn").addEventListener("click", () => {
-  const resposta = $("#duvida-input").value.trim();
+  const input = $("#duvida-input");
+  const resposta = input.value.trim();
   if (!resposta || !textoPendente) return;
-  enviarCaptura(textoPendente, resposta);
+  enviarCaptura(textoPendente, resposta, input);
 });
 
 $("#duvida-input").addEventListener("keydown", (e) => {
