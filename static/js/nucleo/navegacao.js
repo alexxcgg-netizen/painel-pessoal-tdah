@@ -67,11 +67,24 @@ function showTab(name) {
   }
   if (name === "tarefas") loadTasks();
   if (name === "gastos") {
-    loadExpenses();
-    loadMetas();
-    loadBancos();
-    if (typeof loadResumoFinancas === "function") loadResumoFinancas();
-    if (typeof loadExtratoFinancas === "function") loadExtratoFinancas();
+    // Vel (A2d): medido - a aba gastos era a unica com INP MEDIANO alto
+    // (~188ms, nao so no pior caso), porque os 5 loads abaixo rodavam na
+    // MESMA tarefa que revela a aba (elNovo.hidden = false, algumas linhas
+    // acima). O navegador so pinta a revelacao depois que a tarefa toda
+    // termina - entao qualquer trabalho aqui, mesmo o pouco JS sincrono de
+    // cada função antes do primeiro await, competia com esse primeiro paint.
+    // rAF garante que o frame da revelacao ja foi agendado antes de rodar;
+    // setTimeout(0) joga pra DEPOIS desse frame (rAF sozinho ainda roda
+    // antes do paint). Meta: INP < 100ms.
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        loadExpenses();
+        loadMetas();
+        loadBancos();
+        if (typeof loadResumoFinancas === "function") loadResumoFinancas();
+        if (typeof loadExtratoFinancas === "function") loadExtratoFinancas();
+      }, 0);
+    });
   }
   if (name === "construtora") {
     loadConstrutora();
