@@ -4319,14 +4319,6 @@ def _pessoas_com_status(conn, hoje: date) -> list[dict]:
     return resultado
 
 
-@app.route("/api/pessoas", methods=["GET"])
-def pessoas():
-    conn = get_db()
-    resultado = _pessoas_com_status(conn, date.today())
-    conn.close()
-    return jsonify(resultado)
-
-
 def _salvar_pessoa(conn, nome: str, freq: int) -> tuple[int, bool]:
     """Mesmo nome (sem acento/caixa) atualiza a frequencia em vez de duplicar
     a pessoa. Devolve (id, atualizada)."""
@@ -4337,55 +4329,6 @@ def _salvar_pessoa(conn, nome: str, freq: int) -> tuple[int, bool]:
         conn.commit()
         return existente["id"], True
     return create_pessoa(conn, nome, freq), False
-
-
-@app.route("/api/pessoas", methods=["POST"])
-def criar_pessoa_rota():
-    body = _corpo_json()
-    nome = (body.get("nome") or "").strip() if isinstance(body.get("nome"), str) else ""
-    freq_bruta = body.get("frequencia_dias")
-    freq = 14 if freq_bruta in (None, "") else _inteiro_no_intervalo(freq_bruta, 1, 365)
-    if not nome or len(nome) > 60:
-        return jsonify({"error": "informe o nome (ate 60 caracteres)"}), 400
-    if freq is None:
-        return jsonify({"error": "frequencia deve ser de 1 a 365 dias"}), 400
-    conn = get_db()
-    pessoa_id, atualizada = _salvar_pessoa(conn, nome, freq)
-    conn.close()
-    return jsonify({"ok": True, "id": pessoa_id, "atualizada": atualizada}), 200 if atualizada else 201
-
-
-@app.route("/api/pessoas/<int:pessoa_id>", methods=["DELETE"])
-def apagar_pessoa(pessoa_id):
-    conn = get_db()
-    delete_pessoa(conn, pessoa_id)
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/pessoas/<int:pessoa_id>/falei", methods=["POST"])
-def falei_com_pessoa(pessoa_id):
-    sobre_bruto = _corpo_json().get("sobre")
-    sobre = sobre_bruto.strip()[:300] if isinstance(sobre_bruto, str) and sobre_bruto.strip() else None
-    conn = get_db()
-    pessoa = conn.execute("SELECT * FROM pessoas WHERE id = ?", (pessoa_id,)).fetchone()
-    if not pessoa:
-        conn.close()
-        return jsonify({"error": "pessoa nao encontrada"}), 404
-    registrar_conversa(conn, pessoa_id, pessoa["nome"], sobre, date.today().isoformat())
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/conversas", methods=["GET"])
-def conversas():
-    pessoa_id = request.args.get("pessoa_id", type=int)
-    conn = get_db()
-    resultado = list_conversas(conn, pessoa_id=pessoa_id, limite=30)
-    conn.close()
-    return jsonify(resultado)
 
 
 def _registrar_conversa_por_nome(conn, nome: str, sobre: str | None, texto: str | None) -> dict:
@@ -4420,66 +4363,6 @@ def _data_iso_valida(valor) -> str | None:
         return None
 
 
-@app.route("/api/treino/fichas", methods=["GET"])
-def fichas_treino():
-    conn = get_db()
-    resultado = list_fichas_treino(conn)
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/treino/fichas", methods=["POST"])
-def salvar_ficha_treino_rota():
-    body = _corpo_json()
-    grupo = _texto_curto(body.get("grupo"), 40)
-    exercicios = body.get("exercicios")
-    if isinstance(exercicios, list):
-        exercicios = "\n".join(str(e).strip() for e in exercicios if str(e).strip())
-    exercicios = _texto_curto(exercicios, 3000)
-    if not grupo or not exercicios:
-        return jsonify({"error": "informe o grupo e os exercicios (um por linha)"}), 400
-    conn = get_db()
-    ficha_id = salvar_ficha_treino(conn, grupo, exercicios)
-    conn.close()
-    return jsonify({"ok": True, "id": ficha_id}), 201
-
-
-@app.route("/api/treino/fichas/<int:ficha_id>", methods=["DELETE"])
-def apagar_ficha_treino(ficha_id):
-    conn = get_db()
-    delete_ficha_treino(conn, ficha_id)
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/treino", methods=["GET"])
-def treinos():
-    conn = get_db()
-    resultado = list_treinos(conn)
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/treino", methods=["POST"])
-def registrar_treino_rota():
-    body = _corpo_json()
-    grupo = _texto_curto(body.get("grupo"), 40)
-    nota = _texto_curto(body.get("nota"), 300)
-    duracao = body.get("duracao_min")
-    if duracao not in (None, ""):
-        duracao = _inteiro_no_intervalo(duracao, 1, 600)
-        if duracao is None:
-            return jsonify({"error": "duracao deve ser de 1 a 600 minutos"}), 400
-    else:
-        duracao = None
-    conn = get_db()
-    treino_id = registrar_treino(conn, date.today().isoformat(), grupo, duracao, nota)
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True, "id": treino_id}), 201
-
-
 def _clima_texto_para(destino: str, data_iso: str) -> str | None:
     try:
         previsao = clima.previsao_para_cidade_e_data(destino, data_iso)
@@ -4510,32 +4393,6 @@ def _salvar_modo_viagem(conn, ativo: bool, data_inicio: str | None, data_fim: st
     estado = {"ativo": bool(ativo), "data_inicio": data_inicio, "data_fim": data_fim}
     definir_configuracao(conn, "modo_viagem", json.dumps(estado))
     return estado
-
-
-@app.route("/api/modo-viagem", methods=["GET"])
-def modo_viagem_rota():
-    conn = get_db()
-    estado = _modo_viagem_estado(conn)
-    conn.close()
-    return jsonify({**estado, "ativo_agora": viagem.modo_viagem_ativo(estado, date.today())})
-
-
-@app.route("/api/modo-viagem", methods=["POST"])
-def salvar_modo_viagem_rota():
-    body = _corpo_json()
-    ativo = bool(body.get("ativo"))
-    data_inicio = _data_iso_valida(body.get("data_inicio")) if body.get("data_inicio") else None
-    data_fim = _data_iso_valida(body.get("data_fim")) if body.get("data_fim") else None
-    if body.get("data_inicio") and not data_inicio:
-        return jsonify({"error": "data de inicio invalida (AAAA-MM-DD)"}), 400
-    if body.get("data_fim") and not data_fim:
-        return jsonify({"error": "data de fim invalida (AAAA-MM-DD)"}), 400
-    if data_inicio and data_fim and data_fim < data_inicio:
-        return jsonify({"error": "data de fim invalida (tem que ser depois do inicio)"}), 400
-    conn = get_db()
-    estado = _salvar_modo_viagem(conn, ativo, data_inicio, data_fim)
-    conn.close()
-    return jsonify({**estado, "ativo_agora": viagem.modo_viagem_ativo(estado, date.today())})
 
 
 def _viagem_detalhada(conn, v: dict, hoje: date) -> dict:
@@ -4578,14 +4435,6 @@ def _projeto_detalhado(conn, projeto: dict, hoje: date) -> dict:
     return vida.projeto_detalhado(projeto, list_etapas_projeto(conn, projeto["id"]), hoje)
 
 
-@app.route("/api/projetos", methods=["GET"])
-def projetos_rota():
-    conn = get_db()
-    resultado = [_projeto_detalhado(conn, p, date.today()) for p in list_projetos(conn)]
-    conn.close()
-    return jsonify(resultado)
-
-
 def _criar_projeto(conn, nome, prazo_final) -> dict:
     nome = _texto_curto(nome, 120)
     if not nome:
@@ -4597,36 +4446,6 @@ def _criar_projeto(conn, nome, prazo_final) -> dict:
             return {"erro": "prazo invalido (AAAA-MM-DD)"}
     projeto_id = create_projeto(conn, nome, prazo)
     return {"ok": True, "projeto_id": projeto_id}
-
-
-@app.route("/api/projetos", methods=["POST"])
-def criar_projeto_rota():
-    body = _corpo_json()
-    conn = get_db()
-    resultado = _criar_projeto(conn, body.get("nome"), body.get("prazo_final"))
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/projetos/<int:projeto_id>", methods=["DELETE"])
-def apagar_projeto_rota(projeto_id):
-    conn = get_db()
-    delete_projeto(conn, projeto_id)
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/projetos/<int:projeto_id>/status", methods=["POST"])
-def definir_status_projeto_rota(projeto_id):
-    status = _corpo_json().get("status")
-    conn = get_db()
-    ok = definir_status_projeto(conn, projeto_id, status)
-    conn.close()
-    if not ok:
-        return jsonify({"error": "projeto nao encontrado ou status invalido (no_rumo/atrasado/pausado)"}), 400
-    return jsonify({"ok": True})
 
 
 def _adicionar_etapa(conn, projeto_id, texto, data_prevista) -> dict:
@@ -4642,37 +4461,6 @@ def _adicionar_etapa(conn, projeto_id, texto, data_prevista) -> dict:
     if etapa_id is None:
         return {"erro": "projeto nao encontrado"}
     return {"ok": True, "etapa_id": etapa_id}
-
-
-@app.route("/api/projetos/<int:projeto_id>/etapas", methods=["POST"])
-def adicionar_etapa_rota(projeto_id):
-    body = _corpo_json()
-    conn = get_db()
-    resultado = _adicionar_etapa(conn, projeto_id, body.get("texto"), body.get("data_prevista"))
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/projetos/etapas/<int:etapa_id>/concluir", methods=["POST"])
-def concluir_etapa_rota(etapa_id):
-    conn = get_db()
-    projeto_id = concluir_etapa_projeto(conn, etapa_id)
-    conn.close()
-    if projeto_id is None:
-        return jsonify({"error": "etapa nao encontrada"}), 404
-    return jsonify({"ok": True, "projeto_id": projeto_id})
-
-
-@app.route("/api/projetos/etapas/<int:etapa_id>", methods=["DELETE"])
-def apagar_etapa_rota(etapa_id):
-    conn = get_db()
-    projeto_id = apagar_etapa_projeto(conn, etapa_id)
-    conn.close()
-    if projeto_id is None:
-        return jsonify({"error": "etapa nao encontrada"}), 404
-    return jsonify({"ok": True})
 
 
 # Revisao da Fase 6 (achado 8): falha temporaria do Nominatim (rede, 429,
@@ -4714,40 +4502,6 @@ def _criar_lugar(conn, nome, cidade, tipo, nota) -> dict:
     lugar_id = create_lugar(conn, nome, cidade, _texto_curto(tipo, 40), _texto_curto(nota, 300))
     _geocodificar_lugar(conn, lugar_id, nome, cidade)
     return {"ok": True, "lugar_id": lugar_id}
-
-
-@app.route("/api/lugares", methods=["GET"])
-def lugares():
-    conn = get_db()
-    resultado = list_lugares(conn)
-    # US-F13: backfill de lugares que ja existiam antes desta historia (ou
-    # cuja falha temporaria ja esperou GEOCODE_ESPERA_APOS_ERRO) - no MAXIMO
-    # 1 geocode por chamada, pra nunca estourar 1 req/s nem prender o worker.
-    pendente = proximo_lugar_para_geocodificar(conn, _fmt_utc(_agora_utc()))
-    if pendente:
-        _geocodificar_lugar(conn, pendente["id"], pendente["nome"], pendente.get("cidade"))
-        resultado = list_lugares(conn)
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/lugares", methods=["POST"])
-def criar_lugar_rota():
-    body = _corpo_json()
-    conn = get_db()
-    resultado = _criar_lugar(conn, body.get("nome"), body.get("cidade"), body.get("tipo"), body.get("nota"))
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/lugares/<int:lugar_id>", methods=["DELETE"])
-def apagar_lugar(lugar_id):
-    conn = get_db()
-    delete_lugar(conn, lugar_id)
-    conn.close()
-    return jsonify({"ok": True})
 
 
 TIPOS_MANUTENCAO = {"casa", "carro", "equipamento", "outro"}
