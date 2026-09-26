@@ -45,43 +45,37 @@ const SecaoRecolhivel = (function () {
     }
   }
 
-  // ---- altura animada do corpo (max-height medido, ver secao.css pra transicao) ----
+  // ---- altura animada do corpo (tecnica grid 0fr->1fr da skill
+  // animacoes-interface, static/css/ui/componentes/secao.css - nada de
+  // medir scrollHeight em JS: o navegador resolve so com CSS, sem pulo e
+  // sem o "flash" que o max-height tinha ao reabrir com conteudo dinamico
+  // depois de aberto uma vez). O grid so controla UMA linha corretamente
+  // quando ha UM filho direto - por isso .secao-conteudo ganha um wrapper
+  // interno (".secao-conteudo-interno") criado uma vez, envolvendo o que
+  // ja estava dentro dela: mesma API/markup pra quem usa o componente
+  // (Vida/Painel/Aviacao/Assistente continuam escrevendo so
+  // <div class="secao-conteudo">...</div>), o wrapper e um detalhe interno
+  // deste arquivo, no mesmo espirito de ligarDetalheAnimado
+  // (nucleo/movimento.js) pro <details>. ----
 
-  function abrirConteudo(conteudoEl) {
-    if (!conteudoEl || !conteudoEl.style) return;
-    const altura = conteudoEl.scrollHeight || 0;
-    conteudoEl.style.maxHeight = altura + "px";
-    if (typeof conteudoEl.addEventListener !== "function") return;
-    const aoFimTransicao = (evento) => {
-      if (evento && evento.propertyName && evento.propertyName !== "max-height") return;
-      conteudoEl.style.maxHeight = "none"; // libera pra crescer sem limite (conteudo dinamico depois de aberto)
-      if (typeof conteudoEl.removeEventListener === "function") {
-        conteudoEl.removeEventListener("transitionend", aoFimTransicao);
-      }
-    };
-    conteudoEl.addEventListener("transitionend", aoFimTransicao);
-  }
-
-  function fecharConteudo(conteudoEl) {
-    if (!conteudoEl || !conteudoEl.style) return;
-    const atual = conteudoEl.style.maxHeight;
-    if (!atual || atual === "none") {
-      // estava totalmente aberto (sem limite) - fixa a altura atual antes de poder animar pra 0
-      conteudoEl.style.maxHeight = (conteudoEl.scrollHeight || 0) + "px";
+  function envolverConteudo(conteudoEl) {
+    if (!conteudoEl || typeof conteudoEl.querySelector !== "function") return null;
+    if (typeof document === "undefined" || typeof document.createElement !== "function") return null; // sem DOM real (Node/testes): quem chamar segue sem wrapper, so nao anima a altura
+    let interno = conteudoEl.querySelector(":scope > .secao-conteudo-interno");
+    if (interno) return interno;
+    interno = document.createElement("div");
+    interno.className = "secao-conteudo-interno";
+    while (conteudoEl.firstChild) {
+      interno.appendChild(conteudoEl.firstChild);
     }
-    const fecharAgora = () => {
-      conteudoEl.style.maxHeight = "0px";
-    };
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(fecharAgora);
-    } else {
-      fecharAgora();
-    }
+    conteudoEl.appendChild(interno);
+    return interno;
   }
 
   // ---- teclado: conteudo recolhido fora do Tab (M1 r2) ----
   //
-  // Recolhida, a secao so tem max-height 0 + overflow hidden: os botoes/campos de dentro
+  // Recolhida, a secao so tem grid-template-rows 0fr + overflow hidden (no wrapper interno):
+  // os botoes/campos de dentro
   // continuavam no Tab (foco "sumia" dentro de uma caixa de altura zero) e no leitor de tela.
   // `inert` tira tudo isso do Tab, do clique e da arvore de acessibilidade, sem mudar o visual
   // nem a transicao de altura (o conteudo segue visivel enquanto encolhe). Se o foco estava
@@ -108,19 +102,22 @@ const SecaoRecolhivel = (function () {
 
   function definirAberto(secaoEl, cabecalhoEl, conteudoEl, aberto, opts) {
     opts = opts || {};
+    // A visao (grid-template-rows 1fr/0fr) e so CSS reagindo a
+    // data-aberto="true"/"false" no proprio secaoEl (secao.css,
+    // `.secao-recolhivel[data-aberto="true"] .secao-conteudo`) - aqui e so
+    // o estado (DOM/aria/localStorage), sem tocar em nenhum estilo.
+    // opts.semAnimar fica de fora do calculo por isso: o load inicial (1a
+    // vez que a secao e ligada, antes do 1o paint dela) e a troca por
+    // clique passam pelo MESMO caminho, e nenhum dos dois "pisca" - o
+    // navegador so anima transicao quando ja tinha uma pintura anterior
+    // com o valor antigo, o que nunca acontece na 1a atribuicao de um
+    // elemento recem-criado/recem-ligado.
     secaoEl.dataset.aberto = aberto ? "true" : "false";
     if (cabecalhoEl && typeof cabecalhoEl.setAttribute === "function") {
       cabecalhoEl.setAttribute("aria-expanded", aberto ? "true" : "false");
     }
     if (conteudoEl) {
       definirInerte(conteudoEl, cabecalhoEl, !aberto);
-      if (opts.semAnimar) {
-        conteudoEl.style.maxHeight = aberto ? "none" : "0px";
-      } else if (aberto) {
-        abrirConteudo(conteudoEl);
-      } else {
-        fecharConteudo(conteudoEl);
-      }
     }
     if (!opts.semSalvar) salvarEstado(secaoEl.dataset.secaoId, aberto);
   }
@@ -134,6 +131,7 @@ const SecaoRecolhivel = (function () {
     const cabecalhoEl = secaoEl.querySelector(".secao-cabecalho");
     if (!cabecalhoEl) return; // estrutura fora do contrato - nao quebra, so nao liga
     const conteudoEl = secaoEl.querySelector(".secao-conteudo");
+    if (conteudoEl) envolverConteudo(conteudoEl);
 
     secaoEl.dataset.secaoLigada = "1";
 

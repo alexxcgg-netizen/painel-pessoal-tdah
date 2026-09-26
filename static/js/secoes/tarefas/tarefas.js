@@ -220,8 +220,19 @@ function criarItemTarefa(t) {
       } catch (erro) {
         /* reforco visual e cosmetico - a tarefa ja saiu da lista, nao trava por isso */
       }
+      try {
+        // Limpa (A-anim): fecha o espaco da lista suavemente (grid-rows,
+        // movimento.js) - roda no mesmo rAF que o reforco visual acima,
+        // sempre DEPOIS do "saindo" sincrono, nunca no meio do toque.
+        if (typeof colapsarSaidaLista === "function" && li.isConnected) colapsarSaidaLista(li);
+      } catch (erro) {
+        /* colapso e cosmetico - nao trava a saida otimista se falhar */
+      }
     });
-    const removerTimeout = setTimeout(() => li.remove(), 220);
+    // 260ms: da tempo do colapso de altura (--dur-media, comeca ~1 frame
+    // depois do toque) terminar antes da remocao de verdade, sem a lista
+    // "pular" no instante em que o <li> sai do DOM.
+    const removerTimeout = setTimeout(() => li.remove(), 260);
 
     const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
     if (data) {
@@ -236,6 +247,12 @@ function criarItemTarefa(t) {
     } else {
       clearTimeout(removerTimeout);
       li.classList.remove("saindo");
+      // Limpa (A-anim): tira o colapso de altura tambem - o rAF que liga
+      // c2-saindo-colapsa confere .saindo antes de aplicar, mas se ele ja
+      // tinha corrido antes do erro chegar, desfaz aqui pra nao deixar a
+      // linha "achatada" com o item de volta na lista.
+      li.classList.remove("c2-colapsavel");
+      li.classList.remove("c2-saindo-colapsa");
       const tituloRiscado = li.querySelector(".c2-titulo-riscando");
       if (tituloRiscado) tituloRiscado.classList.remove("c2-titulo-riscando");
       const checkDesenhado = li.querySelector(".c2-check-desenha");
