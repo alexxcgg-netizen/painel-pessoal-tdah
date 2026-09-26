@@ -200,9 +200,12 @@ class TelaFinancasConversaUiTestCase(unittest.TestCase):
         self.assertEqual(self.corpo.count('id="btn-carregar-mais-extrato"'), 1)
         pos_extrato = self.corpo.index('id="lista-extrato-financas"')
         pos_conversa = self.corpo.index('id="financas-conversa"')
-        pos_extrato_completo = self.corpo.index('data-secao-id="gastos-extrato-completo"')
         self.assertLess(pos_conversa, pos_extrato)
-        self.assertLess(pos_extrato, pos_extrato_completo)
+        # Faixa limpa/d-financas: a lista antiga que ficava depois do
+        # cartao "Ultimos dias" (data-secao-id="gastos-extrato-completo",
+        # #lista-gastos) saiu - so sobrou esta unica lista de gastos.
+        self.assertNotIn('data-secao-id="gastos-extrato-completo"', self.corpo)
+        self.assertNotIn('id="lista-gastos"', self.corpo)
 
     def test_metas_recolhidas_e_construtora_em_aba_propria(self):
         self.assertIn('data-secao-id="metas"', self.corpo)

@@ -144,94 +144,53 @@ function criarSeletorCategoriaGasto(e, cat, li) {
   return select;
 }
 
-function criarItemGasto(e) {
-  const li = document.createElement("li");
-  li.className = "item" + (e.tipo === "planejado" ? " item-planejado" : "");
-  li.dataset.entidade = "gasto"; // destino do link de card (Fase 6)
-  li.dataset.id = e.id;
-
-  const linha = document.createElement("div");
-  linha.className = "item-linha";
-
-  const info = document.createElement("div");
-  const valor = document.createElement("span");
-  valor.className = "gasto-valor";
-  valor.textContent = fmtMoedaFinancas(e.amount);
-  // Fase 7 (C3c): <button> de verdade (teclado/leitor de tela), visual de chip
-  // compacto com area de toque de 44px completada por ::after (gastos.css).
-  // Fase 8 (F1): gasto de origem bancaria (sem e.id, veio de bank_transactions)
-  // nao tem rota /api/expenses/<id>/... pra editar - chip vira so exibicao.
-  const editavel = e.origem === undefined || e.origem === "manual";
-  const cat = document.createElement(editavel ? "button" : "span");
-  if (editavel) cat.type = "button";
-  cat.className = "gasto-categoria chip chip--compacto";
-  cat.dataset.cat = e.category;
-  cat.style.setProperty("--cat-cor", corDaCategoria(e.category));
-  cat.textContent = e.category;
-  if (editavel) {
-    cat.title = "toque pra corrigir a categoria";
-    cat.setAttribute("aria-label", `Categoria ${e.category}: toque pra corrigir`);
-    cat.addEventListener("click", () => {
-      const select = criarSeletorCategoriaGasto(e, cat, li);
-      cat.replaceWith(select);
-      select.focus();
-    });
-  }
-  info.appendChild(valor);
-  info.appendChild(cat);
-  if (e.tipo === "planejado") {
-    const badge = document.createElement("span");
-    badge.className = "badge-planejado";
-    badge.textContent = "planejado";
-    info.appendChild(badge);
-  }
-  // Fase 8 (F1): selo de origem - "manual" (digitado) ou o nome do banco
-  // (ex: "Nubank", sincronizado automatico). Reusa a classe badge-planejado
-  // (ja usa var(--cor-bancos)) em vez de criar cor nova.
-  if (e.origem) {
-    const origem = document.createElement("span");
-    origem.className = "badge-planejado";
-    origem.textContent = e.origem === "manual" ? "manual" : e.origem;
-    info.appendChild(origem);
-  }
-  if (e.description) {
-    const desc = document.createElement("span");
-    desc.className = "item-quando";
-    desc.textContent = e.description;
-    info.appendChild(desc);
-  }
-
-  const acoes = document.createElement("div");
-  acoes.className = "item-acoes";
-  const btnCorrigirTipo = document.createElement("button");
-  btnCorrigirTipo.type = "button";
-  btnCorrigirTipo.className = "btn btn-secundario btn-com-icone btn-corrigir-gasto";
-  btnCorrigirTipo.title = "isso nao e um gasto?";
-  btnCorrigirTipo.innerHTML = `${ICONE_CORRIGIR}e tarefa`;
-  btnCorrigirTipo.addEventListener("click", async () => {
-    setBotaoCarregando(btnCorrigirTipo, true, "corrigindo...");
-    const data = await apiFetch(`/api/expenses/${e.id}/reclassificar`, {
+// Faixa limpa/d-financas: a lista antiga (#lista-gastos, criarItemGasto)
+// saiu da tela - o extrato novo (criarItemExtratoFinancas, mais abaixo) e a
+// UNICA lista da aba Financas agora. As duas acoes que so existiam ali
+// (corrigir categoria / "e tarefa") continuam vivas e reaproveitadas: viram
+// criarBotaoReclassificarGasto (abaixo) e a mesma criarSeletorCategoriaGasto
+// de sempre, so que chamadas de dentro do item do extrato.
+function criarBotaoReclassificarGasto(expenseId, li) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn-secundario btn-com-icone btn-corrigir-gasto";
+  btn.title = "isso não é um gasto?";
+  btn.innerHTML = `${ICONE_CORRIGIR}é tarefa`;
+  btn.addEventListener("click", async (ev) => {
+    if (ev) ev.stopPropagation();
+    setBotaoCarregando(btn, true, "corrigindo...");
+    const data = await apiFetch(`/api/expenses/${expenseId}/reclassificar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "{}",
     });
     if (data) {
-      li.classList.add("saindo");
+      if (li) li.classList.add("saindo");
       setTimeout(() => {
         loadExpenses();
-        loadTasks();
+        if (typeof loadTasks === "function") loadTasks();
       }, 220);
     } else {
-      setBotaoCarregando(btnCorrigirTipo, false, "e tarefa");
+      setBotaoCarregando(btn, false, "é tarefa");
     }
   });
-  if (editavel) acoes.appendChild(btnCorrigirTipo);
-
-  linha.appendChild(info);
-  linha.appendChild(acoes);
-  li.appendChild(linha);
-  return li;
+  return btn;
 }
+
+// GET /api/financas/extrato ja devolve a categoria traduzida (financas_
+// descricao.rotulo_categoria_manual, ex: "mercado" -> "Mercado") em vez da
+// chave crua que criarSeletorCategoriaGasto espera pra pre-selecionar a
+// opcao atual. So preselecao/exibicao: se o rotulo nao bater com nenhuma
+// chave conhecida, o <select> abre sem nada marcado e a correcao funciona
+// do mesmo jeito (o usuario escolhe a categoria certa).
+const ROTULO_PARA_CATEGORIA_GASTO = {
+  Mercado: "mercado",
+  Transporte: "transporte",
+  Lazer: "lazer",
+  Contas: "contas",
+  Saúde: "saude",
+  Outros: "outros",
+};
 
 // Fase 9 (f9-ui): botao unico de sincronizacao da aba Financas - bate na
 // rota que le PLUGGY_ITEM_ID_NUBANK do .env (rotas/f8_banco.py, nao e meu).
@@ -468,7 +427,7 @@ function renderizarEvolucaoFinancas(porDiaMes, porDiaMesAnterior) {
   }
 
   const valorFinalTxt = fmtMoedaFinancas(dias[n - 1].acumulado);
-  container.innerHTML = `<svg viewBox="0 0 ${w} ${h}" class="fc-chart-acum" role="img" aria-label="Gasto acumulado do mes, dia a dia, comparado ao mesmo periodo do mes anterior">
+  container.innerHTML = `<svg viewBox="0 0 ${w} ${h}" class="fc-chart-acum" role="img" aria-label="Gasto acumulado do mês, dia a dia, comparado ao mesmo período do mês anterior">
       <line x1="0" y1="${baseY}" x2="${w}" y2="${baseY}" class="fc-eixo"></line>
       ${caminhoAnterior ? `<path d="${caminhoAnterior}" class="fc-ref"></path>` : ""}
       <path d="${area}" class="fc-area"></path>
@@ -545,7 +504,7 @@ function criarItemExtratoFinancas(item) {
   const info = document.createElement("div");
   const titulo = document.createElement("span");
   titulo.className = "item-titulo";
-  titulo.textContent = item.descricao || "(sem descricao)";
+  titulo.textContent = item.descricao || "(sem descrição)";
   const origemChip = document.createElement("span");
   origemChip.className = "chip chip--compacto";
   origemChip.textContent = item.origem === "Nubank" ? "Nubank" : "manual";
@@ -553,7 +512,7 @@ function criarItemExtratoFinancas(item) {
   if (item.tipo_conta) {
     const tipoChip = document.createElement("span");
     tipoChip.className = "chip chip--compacto";
-    tipoChip.textContent = item.tipo_conta === "cartao" ? "cartao" : "conta";
+    tipoChip.textContent = item.tipo_conta === "cartao" ? "cartão" : "conta";
     titulo.appendChild(tipoChip);
   }
   if (item.estorno_de) {
@@ -577,6 +536,60 @@ function criarItemExtratoFinancas(item) {
   linha.appendChild(valor);
 
   li.appendChild(linha);
+
+  // Faixa limpa/d-financas: lancamento manual (tem "exp-<id>") ganha as
+  // mesmas acoes que a lista antiga tinha - corrigir categoria e "e tarefa"
+  // (POST /api/expenses/<id>/categoria e /reclassificar, as MESMAS rotas de
+  // sempre). Ficam escondidas ate o toque no item porque essa linha aqui e
+  // fina de proposito (cartao "Ultimos dias", conversa.css) - nao cabem
+  // sempre visiveis como cabiam no card grande da lista antiga.
+  const expenseId = item.origem === "manual" && typeof item.id === "string" && item.id.startsWith("exp-") ? item.id.slice(4) : null;
+  if (expenseId) {
+    li.classList.add("fc-extrato-editavel");
+    li.dataset.entidade = "gasto";
+    li.dataset.id = expenseId;
+    linha.setAttribute("role", "button");
+    linha.setAttribute("tabindex", "0");
+    linha.setAttribute("aria-expanded", "false");
+    linha.title = "toque pra corrigir a categoria ou marcar como tarefa";
+
+    const acoes = document.createElement("div");
+    acoes.className = "item-acoes fc-extrato-acoes";
+    acoes.hidden = true;
+
+    const categoriaRaw = ROTULO_PARA_CATEGORIA_GASTO[item.categoria] || "outros";
+    const catBtn = document.createElement("button");
+    catBtn.type = "button";
+    catBtn.className = "gasto-categoria chip chip--compacto";
+    catBtn.dataset.cat = categoriaRaw;
+    catBtn.style.setProperty("--cat-cor", corDaCategoria(categoriaRaw));
+    catBtn.textContent = item.categoria || categoriaRaw;
+    catBtn.title = "toque pra corrigir a categoria";
+    catBtn.setAttribute("aria-label", `Categoria ${item.categoria}: toque pra corrigir`);
+    catBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const select = criarSeletorCategoriaGasto({ id: expenseId, category: categoriaRaw }, catBtn, li);
+      catBtn.replaceWith(select);
+      select.focus();
+    });
+    acoes.appendChild(catBtn);
+    acoes.appendChild(criarBotaoReclassificarGasto(expenseId, li));
+    li.appendChild(acoes);
+
+    const alternarAcoes = () => {
+      const abrindo = acoes.hidden;
+      acoes.hidden = !abrindo;
+      linha.setAttribute("aria-expanded", String(abrindo));
+    };
+    linha.addEventListener("click", alternarAcoes);
+    linha.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        alternarAcoes();
+      }
+    });
+  }
+
   return li;
 }
 
@@ -586,16 +599,27 @@ async function loadExtratoFinancas(antes, acumular) {
   if (antes) params.set("antes", antes);
   const resposta = await apiFetch(`/api/financas/extrato?${params.toString()}`);
   const list = $("#lista-extrato-financas");
+  const vazioEl = $("#extrato-financas-vazio");
   if (!resposta || !Array.isArray(resposta.itens)) {
     if (!acumular) {
       list.innerHTML = "";
-      $("#extrato-financas-vazio").hidden = false;
+      if (vazioEl) {
+        vazioEl.textContent = "Não consegui carregar o extrato agora.";
+        vazioEl.hidden = false;
+      }
     }
     if (btnMais) btnMais.hidden = true;
     return;
   }
   if (!acumular) list.innerHTML = "";
-  $("#extrato-financas-vazio").hidden = list.children.length > 0 || resposta.itens.length > 0;
+  if (vazioEl) {
+    // Fase 9 (f9-api) ja escondia a lista inteira em modo visitante
+    // (extrato() devolve {itens: [], oculto: true}) - a lista antiga tinha
+    // uma mensagem propria pra isso (#gastos-oculto-visitante); como agora
+    // so sobra esta lista, o mesmo aviso mora aqui.
+    vazioEl.textContent = resposta.oculto ? "Oculto no modo visitante." : "Nenhum lançamento nesse período.";
+    vazioEl.hidden = list.children.length > 0 || resposta.itens.length > 0;
+  }
   resposta.itens.forEach((item) => list.appendChild(criarItemExtratoFinancas(item)));
   extratoFinancasProximoAntes = resposta.proximo_antes || null;
   if (btnMais) btnMais.hidden = !extratoFinancasProximoAntes;
@@ -665,36 +689,21 @@ async function loadGastosProximasCobrancas() {
   box.hidden = false;
 }
 
-// Faixa vel/A2a: /api/gastos/unificados agora pagina (30 por vez) - a aba
-// travava de 4 a 9s montando um <li> pra cada gasto manual + transacao
-// bancaria de uma vez so (3000+1500 no cenario medido). `proximo` guarda o
-// cursor da API pra "Carregar mais" pedir a pagina seguinte.
-const LIMITE_PAGINA_GASTOS_UNIFICADOS = 30;
-let gastosUnificadosProximo = null;
-
+// Faixa limpa/d-financas: a lista antiga (#lista-gastos, paginada por
+// /api/gastos/unificados) saiu da aba - so sobrou o extrato novo
+// (loadExtratoFinancas, GET /api/financas/extrato). A rota /api/gastos/
+// unificados continua existindo pra quem mais a usa (ver rotas/f8_banco.py
+// e tests/test_vel_a2a_gastos.py, tests/test_fase8_f1_banco.py - nao sao
+// meus arquivos, nao mudei nada nela).
+//
+// loadExpenses(), porem, e chamada de fora daqui (navegacao.js, init.js,
+// captura.js, brain-dump.js, chat.js, tarefas.js - nenhum e meu) sempre que
+// um gasto e criado/editado/sincronizado. Continua existindo com o mesmo
+// nome pra nao quebrar quem chama - so que agora recarrega o extrato + os
+// widgets que dependiam dela (grafico de 14 dias, proximas cobrancas,
+// resumo semanal, custo com IA) em vez de montar a lista antiga.
 async function loadExpenses() {
-  // Fase 8 (F1): lista unificada (manual + banco), cada item com "origem".
-  gastosUnificadosProximo = null;
-  const list = $("#lista-gastos");
-  const esqueleto = $("#gastos-esqueleto");
-  const btnMaisGastos = $("#btn-carregar-mais-gastos");
-  list.innerHTML = "";
-  if (btnMaisGastos) btnMaisGastos.hidden = true;
-  if (esqueleto) esqueleto.hidden = false;
-
-  const resposta = await apiFetch(`/api/gastos/unificados?limite=${LIMITE_PAGINA_GASTOS_UNIFICADOS}`);
-  if (esqueleto) esqueleto.hidden = true;
-  const expenses = resposta && Array.isArray(resposta.itens) ? resposta.itens : null;
-  if (!expenses) return;
-
-  $("#gastos-oculto-visitante").hidden = !modoVisitanteAtivo;
-  $("#gastos-vazio").hidden = modoVisitanteAtivo || expenses.length > 0;
-  // Uma unica inserção no DOM (DocumentFragment) em vez de N appendChild.
-  const fragmentoGastos = document.createDocumentFragment();
-  expenses.forEach((e) => fragmentoGastos.appendChild(criarItemGasto(e)));
-  list.appendChild(fragmentoGastos);
-  gastosUnificadosProximo = resposta.proximo || null;
-  if (btnMaisGastos) btnMaisGastos.hidden = !gastosUnificadosProximo;
+  if (typeof loadExtratoFinancas === "function") loadExtratoFinancas();
   loadGastosProximasCobrancas();
 
   const historicoBruto = await apiFetch("/api/expenses/historico?dias=14");
@@ -709,7 +718,7 @@ async function loadExpenses() {
     desenharGraficoBarras($("#grafico-gastos"), historico, {
       cor: "var(--cor-financeiro)",
       formatarValor: fmtMoeda,
-      rotulo: "Gasto diario nos ultimos 14 dias",
+      rotulo: "Gasto diário nos últimos 14 dias",
     });
   }
 
@@ -717,39 +726,13 @@ async function loadExpenses() {
   loadCustoIA();
 }
 
-async function carregarMaisGastosUnificados() {
-  if (!gastosUnificadosProximo) return;
-  const list = $("#lista-gastos");
-  const btnMaisGastos = $("#btn-carregar-mais-gastos");
-  const params = new URLSearchParams({
-    limite: String(LIMITE_PAGINA_GASTOS_UNIFICADOS),
-    antes: gastosUnificadosProximo,
-  });
-  const resposta = await apiFetch(`/api/gastos/unificados?${params.toString()}`);
-  const itens = resposta && Array.isArray(resposta.itens) ? resposta.itens : [];
-  const fragmentoGastos = document.createDocumentFragment();
-  itens.forEach((e) => fragmentoGastos.appendChild(criarItemGasto(e)));
-  list.appendChild(fragmentoGastos);
-  gastosUnificadosProximo = (resposta && resposta.proximo) || null;
-  if (btnMaisGastos) btnMaisGastos.hidden = !gastosUnificadosProximo;
-}
-
-const btnCarregarMaisGastos = $("#btn-carregar-mais-gastos");
-if (btnCarregarMaisGastos) {
-  btnCarregarMaisGastos.addEventListener("click", async () => {
-    setBotaoCarregando(btnCarregarMaisGastos, true, "Carregando...");
-    await carregarMaisGastosUnificados();
-    setBotaoCarregando(btnCarregarMaisGastos, false, "Carregar mais");
-  });
-}
-
 function preencherCustoIA(data) {
   if (!data || typeof data !== "object") return;
   // Fase 7 (C3c): fmtUSD(undefined) viraria "$NaN".
   const usd = (v) => (numeroFinancas(v) === null ? "\u2014" : fmtUSD(v));
   $("#custo-ia-box").hidden = false;
-  $("#custo-ia-mes").textContent = `${usd(data.mes_atual_usd)} esse mes`;
-  $("#custo-ia-30dias").textContent = `Ultimos 30 dias: ${usd(data.ultimos_30_dias_usd)}.`;
+  $("#custo-ia-mes").textContent = `${usd(data.mes_atual_usd)} esse mês`;
+  $("#custo-ia-30dias").textContent = `Últimos 30 dias: ${usd(data.ultimos_30_dias_usd)}.`;
 
   const inputTeto = $("#custo-ia-teto-input");
   if (document.activeElement !== inputTeto) {
@@ -764,7 +747,7 @@ function preencherCustoIA(data) {
     aviso.hidden = false;
   } else if (data.teto_perto) {
     const fracao = numeroFinancas(data.fracao_teto);
-    aviso.textContent = fracao === null ? "Perto do teto mensal." : `Perto do teto mensal (ja usou ${Math.round(fracao * 100)}%).`;
+    aviso.textContent = fracao === null ? "Perto do teto mensal." : `Perto do teto mensal (já usou ${Math.round(fracao * 100)}%).`;
     aviso.hidden = false;
   } else {
     aviso.hidden = true;
