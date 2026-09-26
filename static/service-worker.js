@@ -128,6 +128,7 @@ const ASSETS = [
   "/static/js/nucleo/icones.js",
   "/static/js/nucleo/formatos.js",
   "/static/js/nucleo/api.js",
+  "/static/js/nucleo/cores.js",
   "/static/js/nucleo/navegacao.js",
   "/static/js/nucleo/ui.js",
   "/static/js/nucleo/linha-do-tempo.js",
