@@ -330,6 +330,17 @@ function criarFormularioTarefaParaGasto(t, li) {
 // ultima renderizacao nao vale a pena reconstruir ~100 <li> de novo.
 let _ultimoHashTarefas = null;
 
+// Vel (A2d): medido - abrir a aba tarefas com ~100 itens tinha
+// "resultado visivel" (a aba aparecer de fato) mais lento que o proprio
+// toque (INP), porque a montagem dos ~100 <li> (apos o fetch acima
+// resolver, quase sempre rapido) rodava tudo numa tarefa so, sem deixar o
+// navegador pintar o `hidden = false` da aba no meio do caminho - o loop de
+// medicao (rAF) so via a condicao satisfeita depois que essa tarefa toda
+// terminava. Aqui o primeiro lote (o que cabe na tela sem rolar) monta na
+// hora; o resto entra num frame seguinte (rAF + setTimeout 0, mesmo padrao
+// da aba gastos acima) pra nao competir com esse primeiro paint.
+const LOTE_INICIAL_TAREFAS = 30;
+
 async function loadTasks() {
   const tasks = await apiFetch("/api/tasks");
   if (!tasks) return;
@@ -338,10 +349,21 @@ async function loadTasks() {
   _ultimoHashTarefas = hash;
   const list = $("#lista-tarefas");
   $("#tarefas-vazio").hidden = tasks.length > 0;
+  const primeiroLote = tasks.slice(0, LOTE_INICIAL_TAREFAS);
+  const resto = tasks.slice(LOTE_INICIAL_TAREFAS);
   const frag = document.createDocumentFragment();
-  tasks.forEach((t) => frag.appendChild(criarItemTarefa(t)));
+  primeiroLote.forEach((t) => frag.appendChild(criarItemTarefa(t)));
   list.innerHTML = "";
   list.appendChild(frag);
+  if (resto.length > 0) {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const frag2 = document.createDocumentFragment();
+        resto.forEach((t) => frag2.appendChild(criarItemTarefa(t)));
+        list.appendChild(frag2);
+      }, 0);
+    });
+  }
 }
 
 // ---- "Ver concluidas" (M3, uso diario) ----------------------------------
@@ -424,6 +446,40 @@ $("#tarefas-concluidas-toggle").addEventListener("click", async () => {
   btn.setAttribute("aria-expanded", vaiMostrar ? "true" : "false");
 });
 
+// Vel (A2d): item provisorio pro formulario direto - mesmo espirito visual
+// de criarCardCapturaSalvando (captura.js): titulo real + chip "salvando"
+// (spinner), borda tracejada/opacidade (.item-otimista, static/css/style.css)
+// pra ficar claro que ainda nao confirmou com o servidor.
+function criarItemTarefaOtimista(titulo, prazoDate) {
+  const li = document.createElement("li");
+  li.className = "item lista-item item-otimista";
+
+  const linha = document.createElement("div");
+  linha.className = "item-linha";
+
+  const tituloWrap = document.createElement("div");
+  const tituloEl = document.createElement("span");
+  tituloEl.className = "item-titulo";
+  tituloEl.textContent = titulo;
+  tituloWrap.appendChild(tituloEl);
+
+  if (prazoDate) {
+    const prazoEl = document.createElement("span");
+    prazoEl.className = "item-quando chip chip--compacto";
+    prazoEl.textContent = formatarPrazoTarefa(prazoDate);
+    tituloWrap.appendChild(prazoEl);
+  }
+
+  const salvando = document.createElement("span");
+  salvando.className = "item-quando chip chip--compacto";
+  salvando.innerHTML = `<span class="spinner"></span><span>salvando...</span>`;
+  tituloWrap.appendChild(salvando);
+
+  linha.appendChild(tituloWrap);
+  li.appendChild(linha);
+  return li;
+}
+
 // Fase 6 (US-F10): formulario direto na aba Tarefas - titulo obrigatorio,
 // prazo OPCIONAL (POST /api/tasks novo, sem passar pela IA - o chat/captura
 // ja tinham esse caminho via registrar_tarefa/quando_data havia tempos).
@@ -437,18 +493,36 @@ $("#nova-tarefa-form").addEventListener("submit", async (e) => {
     mostrarErro("Escreve o que precisa ser feito.");
     return;
   }
+  const prazo = prazoInput.value || null;
+
+  // Vel (A2d): otimista - mesmo padrao do botao "concluir" (Vel A2b, acima
+  // nesse arquivo): a tarefa aparece na lista na hora do toque (estado
+  // "salvando"), confirma com os dados reais quando o POST volta; em erro
+  // sai da lista e devolve o texto pro campo (mostrarErro ja vem do
+  // apiFetch).
+  const list = $("#lista-tarefas");
+  const liOtimista = criarItemTarefaOtimista(titulo, prazo);
+  if (list) {
+    list.insertBefore(liOtimista, list.firstChild);
+    $("#tarefas-vazio").hidden = true;
+  }
+  tituloInput.value = "";
+  prazoInput.value = "";
 
   setBotaoCarregando(btn, true, "salvando...");
   const data = await apiFetch("/api/tasks", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ titulo, due_date: prazoInput.value || null }),
+    body: JSON.stringify({ titulo, due_date: prazo }),
   });
   setBotaoCarregando(btn, false, "Salvar tarefa");
-  if (!data) return;
+  liOtimista.remove();
+  if (!data) {
+    tituloInput.value = titulo;
+    if (prazo) prazoInput.value = prazo;
+    return;
+  }
 
-  tituloInput.value = "";
-  prazoInput.value = "";
   pulsarSucesso(tituloInput);
   fecharPainelTarefa();
   loadTasks();

@@ -1771,6 +1771,14 @@ li.item.saindo {
   transform: scale(0.9) translateX(12px);
 }
 
+/* Vel (A2d): tarefa otimista (formulario direto) ainda sem confirmacao do
+   servidor - mesma linguagem visual de .card-resultado-pendente (borda
+   tracejada, levemente apagado). */
+li.item.item-otimista {
+  border-style: dashed;
+  opacity: 0.82;
+}
+
 .burst-wrap {
   position: fixed;
   z-index: 90;

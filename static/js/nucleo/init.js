@@ -104,7 +104,9 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     if (btn.dataset.tab === "hoje") loadVidaHoje();
     if (btn.dataset.tab === "vida") loadVidaAba();
-    if (btn.dataset.tab === "gastos") loadFimMes();
+    // Vel (A2d): mesmo motivo do navegacao.js - nao competir com o primeiro
+    // paint da revelacao da aba gastos.
+    if (btn.dataset.tab === "gastos") requestAnimationFrame(() => setTimeout(loadFimMes, 0));
   });
 });
 

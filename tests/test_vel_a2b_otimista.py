@@ -132,6 +132,89 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
             finally:
                 browser.close()
 
+    def test_nova_tarefa_otimista_aparece_antes_da_resposta_e_some_em_erro(self):
+        # Vel (A2d): mesmo padrao do teste acima (concluir tarefa otimista),
+        # agora pro formulario direto de "nova tarefa" (#nova-tarefa-btn).
+        with sync_playwright() as p:
+            kwargs = {"headless": True}
+            if Path(_CHROME).exists():
+                kwargs["executable_path"] = _CHROME
+            browser = p.chromium.launch(**kwargs)
+            try:
+                ctx = browser.new_context(viewport={"width": 390, "height": 844})
+                r = ctx.request.post(
+                    BASE_URL + "/login",
+                    data=json.dumps({"pin": PIN}),
+                    headers={"Content-Type": "application/json"},
+                )
+                self.assertEqual(r.status, 200, r.text())
+
+                page = ctx.new_page()
+                page.goto(BASE_URL + "/")
+                page.wait_for_load_state("networkidle")
+                page.click('.tab-btn[data-tab="tarefas"]')
+                page.wait_for_selector("#lista-tarefas li")
+
+                # ---- cenario 1: servidor "atrasado" -> a tarefa aparece na
+                # lista (estado "salvando") quase na hora do toque, SEM
+                # esperar a rede.
+                rotas_paradas = []
+                page.route("**/api/tasks", lambda route: rotas_paradas.append(route) if route.request.method == "POST" else route.continue_())
+
+                titulo = f"a2d nova tarefa otimista {int(time.time())}"
+                page.click("#tarefa-abrir-btn")
+                page.wait_for_selector("#nova-tarefa-titulo", state="visible")
+                page.fill("#nova-tarefa-titulo", titulo)
+
+                t0 = time.time()
+                page.click("#nova-tarefa-btn", force=True)
+                page.wait_for_function(
+                    "(titulo) => document.querySelector('#lista-tarefas')?.textContent.includes(titulo)",
+                    arg=titulo,
+                    timeout=150,
+                )
+                dt_ms = (time.time() - t0) * 1000
+                self.assertLess(dt_ms, 150, f"tarefa demorou {dt_ms:.0f}ms pra aparecer (deveria ser otimista)")
+                self.assertEqual(len(rotas_paradas), 1, "o POST deveria estar pendente nesse ponto")
+                self.assertTrue(
+                    page.locator("#lista-tarefas li.item-otimista").count() >= 1,
+                    "o item otimista deveria ter a marca visual .item-otimista",
+                )
+
+                rotas_paradas[0].continue_()
+                page.unroute("**/api/tasks")
+                page.wait_for_timeout(400)
+                self.assertIn(titulo, page.locator("#lista-tarefas").inner_text())
+                self.assertEqual(
+                    page.locator("#lista-tarefas li.item-otimista").count(),
+                    0,
+                    "o item otimista deveria ter sido substituido pelo real",
+                )
+
+                # ---- cenario 2: servidor devolve 500 -> item some e o texto
+                # volta pro campo ----
+                n_antes = page.locator("#lista-tarefas li").count()
+                titulo2 = f"a2d nova tarefa erro {int(time.time())}"
+
+                def erro_500(route):
+                    if route.request.method == "POST":
+                        route.fulfill(status=500, content_type="application/json", body='{"error": "falha simulada"}')
+                    else:
+                        route.continue_()
+
+                page.route("**/api/tasks", erro_500)
+                page.click("#tarefa-abrir-btn")
+                page.wait_for_selector("#nova-tarefa-titulo", state="visible")
+                page.fill("#nova-tarefa-titulo", titulo2)
+                page.click("#nova-tarefa-btn")
+                page.wait_for_timeout(600)
+                n_depois = page.locator("#lista-tarefas li").count()
+                self.assertEqual(n_depois, n_antes, "a lista nao deveria ganhar item permanente depois do erro 500")
+                self.assertNotIn(titulo2, page.locator("#lista-tarefas").inner_text())
+                self.assertEqual(page.locator("#nova-tarefa-titulo").input_value(), titulo2, "o texto deveria voltar pro campo em erro")
+            finally:
+                browser.close()
+
 
 if __name__ == "__main__":
     unittest.main()
