@@ -8118,25 +8118,6 @@ def meta_historico(goal_id):
     return jsonify({"pontos": pontos, "valor_alvo": goal["valor_alvo"]})
 
 
-@app.route("/api/construtora/resumo", methods=["GET"])
-def construtora_resumo():
-    """Aba Construtora. Fase 7 (C1): via construtora_cliente (vale o modo
-    mock CONSTRUTORA_API_MOCK=1) e so com o que o painel pessoal pode mostrar:
-    `dados` = status/tot_entradas/tot_saidas (nunca lucro, margem, VGV) e a
-    lista de contas a vencer (que a propria aba pede)."""
-    if not _cliente_construtora().configurado():
-        return jsonify({"configurado": False})
-
-    dados = _buscar_resumo_construtora()
-    if dados is None:
-        return jsonify({"configurado": True, "erro": "Nao consegui falar com a API da construtora agora."}), 502
-
-    dados_contas = _buscar_contas_a_vencer_construtora(dias=30)
-    contas = dados_contas.get("contas") if dados_contas and dados_contas.get("status") == "ok" else None
-
-    return jsonify({"configurado": True, "dados": dados, "contas": contas})
-
-
 TAMANHO_MAX_PDF_BYTES = 15 * 1024 * 1024  # 15MB - cabe folgado num orcamento escaneado
 
 
