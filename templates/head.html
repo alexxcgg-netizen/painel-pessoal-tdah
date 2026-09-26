@@ -14,7 +14,21 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="/static/css/style.css" />
+  <!-- R2-css: style.css (~6450 linhas) dividido em arquivos por assunto, na MESMA
+       ordem de cascata que o arquivo antigo tinha. Links em paralelo em vez de um
+       so arquivo grande (baixam simultaneamente); nao usar @import encadeado aqui. -->
+  <link rel="stylesheet" href="/static/css/base/variaveis.css" />
+  <link rel="stylesheet" href="/static/css/base/reset.css" />
+  <link rel="stylesheet" href="/static/css/base/botoes.css" />
+  <link rel="stylesheet" href="/static/css/base/layout.css" />
+  <link rel="stylesheet" href="/static/css/base/abas-barra.css" />
+  <link rel="stylesheet" href="/static/css/secoes-antigas/parte-01.css" />
+  <link rel="stylesheet" href="/static/css/secoes-antigas/parte-02.css" />
+  <link rel="stylesheet" href="/static/css/secoes-antigas/parte-03.css" />
+  <link rel="stylesheet" href="/static/css/secoes-antigas/parte-04.css" />
+  <link rel="stylesheet" href="/static/css/secoes-antigas/parte-05.css" />
+  <link rel="stylesheet" href="/static/css/secoes-antigas/parte-06.css" />
+  <link rel="stylesheet" href="/static/css/secoes-antigas/parte-07.css" />
   <link rel="stylesheet" href="/static/css/fase7.css" />
 
   <meta name="theme-color" content="#0d0f14" />

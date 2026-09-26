@@ -1,0 +1,768 @@
+/* static/css/secoes-antigas/parte-02.css
+   Fatia de static/css/style.css original (linhas 2058-2820), extraida na R2-css
+   pra dividir o arquivo monolitico. Conteudo idêntico ao trecho original -
+   só este comentário de cabeçalho foi acrescentado. Ordem de carga: ver
+   templates/head.html. */
+/* Fase 6 US-F3: Pessoas mais util no dia a dia - avatar com iniciais, chip
+   de status pra escanear de relance e barra de "quanto falta pro prazo de
+   contato estourar" (mesmo espirito visual de .limite-cartao-*, US-E15).
+   Nenhum campo/logica novo no backend - so reorganiza/realca dado que
+   /api/pessoas ja devolvia (dias_sem_falar, atrasada, ultima_conversa). */
+.pessoa-cabecalho {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.pessoa-avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--accent-text);
+  background: var(--accent-gradient);
+}
+
+.pessoa-avatar.atrasada {
+  background: linear-gradient(135deg, var(--danger) 0%, color-mix(in srgb, var(--danger) 60%, black 40%) 100%);
+}
+
+.pessoa-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pessoa-titulo-linha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.pessoa-chip {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.pessoa-chip-em-dia {
+  color: var(--cor-painel);
+  border-color: color-mix(in srgb, var(--cor-painel) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-painel) 14%, transparent);
+}
+
+.pessoa-chip-atrasada {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.pessoa-barra-trilho {
+  margin-top: 0.4rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  max-width: 220px;
+}
+
+.pessoa-barra-preenchido {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cor-painel);
+  transition: width 0.35s var(--ease-suave, ease);
+}
+
+.pessoa-barra-preenchido.pessoa-barra-alerta {
+  background: var(--danger);
+}
+
+.pessoa-conversas {
+  margin-top: 0.6rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--border);
+}
+
+.pessoa-conversas-lista li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  padding: 0.2rem 0;
+  color: var(--text-muted);
+}
+
+/* Toque minimo 44px - so escopado pra Pessoas (nao mexe no `.item-acoes
+   button` global, que e compartilhado por toda lista do app fora do escopo
+   desta faixa) - "falei hoje" e a acao mais repetida da secao. */
+#lista-pessoas .item-acoes button {
+  min-height: 44px;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+}
+
+/* Fase 6 US-F5: Garantia de Produtos mais interativa - chip de status
+   (reusa .pessoa-titulo-linha, US-F3, pro layout titulo+chip) e barra de
+   "quanto do prazo ja passou" (mesmo espirito de .limite-cartao-* /
+   .pessoa-barra-*). Sem campo novo no backend - data_compra/vencimento/
+   dias_ate ja vinham prontos de /api/garantias.
+   M1 r2: o comentario fechava no ".limite-cartao-" + "*" + "/" e engolia esta regra (virava
+   parte de um seletor invalido). Corrigido; o `text-transform: uppercase` daqui saiu junto,
+   porque nunca chegou a valer e o MASTER/C3a pedem chip sem caixa-alta (a regra por id em
+   secoes/vida/garantia.css, da C3a, segue vencendo o resto). */
+.garantia-chip {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.garantia-chip-ok {
+  color: var(--cor-painel);
+  border-color: color-mix(in srgb, var(--cor-painel) 45%, var(--border));
+  background: color-mix(in srgb, var(--cor-painel) 14%, transparent);
+}
+
+.garantia-chip-alerta {
+  color: var(--cor-bancos);
+  border-color: color-mix(in srgb, var(--cor-bancos) 55%, var(--border));
+  background: color-mix(in srgb, var(--cor-bancos) 16%, transparent);
+}
+
+.garantia-chip-vencida {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.garantia-barra-trilho {
+  margin-top: 0.4rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  max-width: 260px;
+}
+
+.garantia-barra-preenchido {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cor-painel);
+  transition: width 0.35s var(--ease-suave, ease);
+}
+
+.garantia-barra-alerta {
+  background: var(--cor-bancos);
+}
+
+.garantia-barra-vencida {
+  background: var(--danger);
+}
+
+.voo-diario {
+  margin: 0.4rem 0 0;
+  padding-left: 0.6rem;
+  border-left: 2px solid color-mix(in srgb, var(--cor-aviacao) 45%, var(--border));
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.lembrete-contagem-urgente {
+  /* Fase 6 (US-F7): virou selo (pill) em vez de so texto colorido - "cor da
+     secao" (--cor-bancos, datas importantes) pro caso "vencendo" (ate 7
+     dias); .lembrete-contagem-vencido troca pra --danger so quando ja
+     passou de verdade (unico caso aqui equivalente a erro). */
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cor-bancos);
+  background: color-mix(in srgb, var(--cor-bancos) 16%, transparent);
+}
+
+.lembrete-contagem-vencido {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* Fase 6 (US-F7): mesmo selo (pill), so que na cor da propria secao de
+   Medicamentos (--cor-painel) - informativo (quanto falta pra proxima
+   dose), nunca alerta/urgente, por isso NAO reusa .lembrete-contagem-
+   urgente (aquela e --cor-bancos, da secao Datas importantes). */
+.medicamento-proxima-dose {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cor-painel);
+  background: color-mix(in srgb, var(--cor-painel) 16%, transparent);
+}
+
+.banco-saldo {
+  flex-shrink: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #42bb91;
+}
+
+.banco-saldo-negativo {
+  color: var(--danger);
+}
+
+/* Linha do tempo (inspirada no Tiimo): uma trilha vertical liga os
+   compromissos do dia, o que ja passou fica apagado e o proximo evento ganha
+   um marcador maior + selo "proximo" - ajuda com cegueira de tempo sem
+   precisar ler cada horario com atencao. Classe compartilhada (Fase 6,
+   US-E9) - usada tanto pela agenda de hoje (#lista-agenda, aba Painel)
+   quanto pela visao do dia (#visao-dia-timeline, aba Hoje); mesma marcacao
+   visual, nunca duas implementacoes. */
+.linha-do-tempo {
+  position: relative;
+  padding-left: 1.3rem;
+}
+
+.linha-do-tempo::before {
+  content: "";
+  position: absolute;
+  left: 0.5rem;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  width: 2px;
+  background: var(--border);
+}
+
+.linha-do-tempo li.item {
+  position: relative;
+}
+
+.linha-do-tempo li.item::before {
+  content: "";
+  position: absolute;
+  left: -1.05rem;
+  top: 1.05rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  z-index: 1;
+}
+
+.linha-do-tempo li.item.passado {
+  opacity: 0.5;
+}
+
+.linha-do-tempo li.item.passado::before {
+  border-color: var(--text-faint);
+  background: var(--text-faint);
+}
+
+.linha-do-tempo li.item.proximo {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-card);
+}
+
+.linha-do-tempo li.item.proximo::before {
+  left: -1.1rem;
+  top: 1rem;
+  width: 12px;
+  height: 12px;
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* tarefas com horario: bolinha verde se feita, vermelha se o horario passou
+   sem marcar como feita. So tarefas - compromisso de calendario nao tem como
+   confirmar presenca, entao fica no tratamento neutro (.passado) acima. */
+.linha-do-tempo li.item.concluido {
+  opacity: 0.75;
+}
+
+.linha-do-tempo li.item.concluido::before {
+  border-color: #42bb91;
+  background: #42bb91;
+  box-shadow: 0 0 6px 0 rgba(66, 187, 145, 0.5);
+}
+
+.linha-do-tempo li.item.perdido {
+  opacity: 0.75;
+}
+
+.linha-do-tempo li.item.perdido::before {
+  border-color: var(--danger);
+  background: var(--danger);
+  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--danger) 50%, transparent);
+}
+
+/* US-F11 (Fase 6 F3): linha do tempo de planejamento de viagem, dentro do
+   card projeto_viagem - versao "mini" da mesma .linha-do-tempo (agenda/visao
+   do dia), so com espacamento menor pra caber dentro do card. */
+.linha-do-tempo.mini {
+  padding-left: 1.1rem;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.linha-do-tempo.mini li.item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.linha-do-tempo.mini li.item::before {
+  top: 0.35rem;
+  width: 8px;
+  height: 8px;
+}
+
+.linha-do-tempo.mini li.item .item-titulo {
+  color: var(--text);
+}
+
+.linha-do-tempo.mini li.item.passado .item-titulo {
+  color: var(--text-faint);
+}
+
+/* Marcador HOJE dentro da linha do tempo de planejamento - pill destacada,
+   nao e um marco de verdade (sem bolinha da trilha, so o texto). */
+.linha-do-tempo.mini li.item.hoje-marcador {
+  justify-content: flex-start;
+}
+
+.linha-do-tempo.mini li.item.hoje-marcador::before {
+  display: none;
+}
+
+.linha-do-tempo.mini li.item.hoje-marcador .item-titulo {
+  display: inline-block;
+  padding: 0.08rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--accent-text);
+  font-family: var(--font-tech);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.card-marcos-planejamento {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border);
+}
+
+.card-marcos-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.card-marcos-aviso svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 0.1rem;
+}
+
+/* US-F12: status de voo por numero (AviationStack, ver voo_status.py) */
+.viagem-voo-box {
+  margin-top: 0.5rem;
+}
+
+.viagem-voo-form {
+  margin-bottom: 0.4rem;
+}
+
+.voo-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.voo-status-linha-principal {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.voo-status-chip {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--font-tech);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.voo-status-chip.voo-status-em_voo,
+.voo-status-chip.voo-status-pousou {
+  background: color-mix(in srgb, #42bb91 22%, transparent);
+  border-color: #42bb91;
+  color: #1c8f68;
+}
+
+.voo-status-chip.voo-status-agendado {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.voo-status-chip.voo-status-cancelado,
+.voo-status-chip.voo-status-incidente,
+.voo-status-chip.voo-status-desviado {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.voo-status-aviso {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.voo-status-cache {
+  opacity: 0.7;
+}
+
+/* US-F13: mapa (Leaflet + OpenStreetMap) de um lugar salvo */
+.lugar-mapa-box {
+  margin-top: 0.5rem;
+}
+
+.lugar-mapa {
+  margin-top: 0.5rem;
+  height: 180px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow: hidden;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.75rem;
+}
+
+/* Especificidade igual a `.lugar-mapa` (display:flex) - sem isso o atributo
+   `hidden` perderia pro `display:flex` de cima por ordem de declaracao e o
+   mapa fechado ainda ocuparia espaco vazio na tela (achado real na
+   verificacao headless da US-F13). */
+.lugar-mapa[hidden] {
+  display: none;
+}
+
+/* Quando o Leaflet inicializa dentro do mesmo elemento, ele preenche tudo
+   sozinho (tiles) - o texto de fallback acima só aparece enquanto vazio. */
+.lugar-mapa:has(.leaflet-container) {
+  display: block;
+  padding: 0;
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-body, inherit);
+}
+
+.item-badge-proximo {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--accent-text);
+  font-family: var(--font-tech);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.item-badge-vencida {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cor-construtora) 30%, black 70%);
+  color: #fff;
+  font-family: var(--font-tech);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.item-tag-tarefa {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+/* Fase 6 (US-F8): mesma forma de .item-tag-tarefa (neutra, "aguardando"),
+   so a cor muda quando a decisao ja tem resultado preenchido - mesmo verde
+   ja usado em saldo positivo (.banco-saldo) pro app inteiro falar "ok" com
+   a mesma cor. */
+.diario-status-resolvida {
+  color: #42bb91;
+  border-color: color-mix(in srgb, #42bb91 45%, var(--border));
+  background: color-mix(in srgb, #42bb91 14%, transparent);
+}
+
+/* Fase 6 (US-F8): "esperando ha N dias" - mesmo raciocinio dos 2 niveis de
+   .lembrete-contagem-urgente (Datas importantes), cor da propria secao
+   (--cor-tarefas, "Esperando resposta de") ate 5 dias, --danger depois - o
+   mesmo limiar que ja disparava o push (docs/README, texto da dica desta
+   secao: "avisa se passar de 5 dias"), agora visivel na propria lista. */
+.espera-dias-parado {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cor-tarefas);
+  background: color-mix(in srgb, var(--cor-tarefas) 16%, transparent);
+}
+
+.espera-dias-parado-critico {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* Fase 6 (US-F8): estrela "importante" (/api/esperas/<id>/importante ja
+   existia desde a Fase 5/US-C5 pro calculo de prioridade, so nao tinha
+   toque nenhum na tela pra ligar/desligar). */
+.btn-espera-importante {
+  color: var(--text-muted);
+}
+
+.btn-espera-importante svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.btn-espera-importante.ativo {
+  color: var(--cor-bancos);
+}
+
+/* Fase 6 (US-E9): mesma forma de .item-tag-tarefa, so a cor muda por origem -
+   a visao do dia (e a agenda de hoje, que reusa o mesmo componente) marca
+   cada item da linha do tempo por quem ele veio (Tarefas/Agenda/Habitos). */
+.item-tag-habito,
+.item-tag-calendario {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: var(--surface-2);
+  vertical-align: middle;
+}
+
+.item-tag-habito {
+  color: var(--cor-hoje);
+  border: 1px solid color-mix(in srgb, var(--cor-hoje) 45%, var(--border));
+}
+
+.item-tag-calendario {
+  color: var(--cor-financeiro);
+  border: 1px solid color-mix(in srgb, var(--cor-financeiro) 45%, var(--border));
+}
+
+/* Fase 6 (US-E9): visao do dia (aba Hoje, abaixo do chat) - seletor
+   Dia/Semana/Mes, status, card "em foco agora" e resumo. A linha do tempo em
+   si reusa .linha-do-tempo (ver acima), sem estilo proprio aqui. */
+.visao-dia-seletor {
+  display: flex;
+  gap: 0.4rem;
+  margin: -0.3rem 0 0.85rem;
+}
+
+.visao-dia-periodo-btn {
+  flex: 1;
+  min-height: 34px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.visao-dia-periodo-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-fill);
+  color: var(--accent-text);
+}
+
+.visao-dia-status {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.visao-dia-foco-card {
+  gap: 0.3rem;
+}
+
+.visao-dia-foco-label {
+  font-family: var(--font-tech);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cor-destaque, var(--accent));
+}
+
+.visao-dia-foco-titulo {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.visao-dia-foco-em {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.visao-dia-foco-acoes {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+}
+
+.visao-dia-resumo {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.visao-dia-periodo-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.visao-dia-periodo-lista li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.visao-dia-periodo-lista .visao-dia-periodo-dia-nome {
+  font-weight: 600;
+}
+
+.visao-dia-periodo-lista .visao-dia-periodo-dia-hoje {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.visao-dia-periodo-lista .visao-dia-periodo-contagem {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.item-acoes {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.item-acoes button {
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+  gap: 0.32rem;
+}
+
+.item-acoes button svg,
+.meta-guardar button svg {
+  width: 12px;
+  height: 12px;
+}
+
+@media (hover: hover) {
+  .item-acoes button:hover:not(:disabled) {
+    border-color: #3a4152;
+    background: #262b37;
+  }
+}
+

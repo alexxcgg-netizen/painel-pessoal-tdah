@@ -36,7 +36,20 @@
 const CACHE_NAME = "painel-pessoal-v30";
 const ASSETS = [
   "/",
-  "/static/css/style.css",
+  // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
+  // templates/head.html); style.css em si nao existe mais.
+  "/static/css/base/variaveis.css",
+  "/static/css/base/reset.css",
+  "/static/css/base/botoes.css",
+  "/static/css/base/layout.css",
+  "/static/css/base/abas-barra.css",
+  "/static/css/secoes-antigas/parte-01.css",
+  "/static/css/secoes-antigas/parte-02.css",
+  "/static/css/secoes-antigas/parte-03.css",
+  "/static/css/secoes-antigas/parte-04.css",
+  "/static/css/secoes-antigas/parte-05.css",
+  "/static/css/secoes-antigas/parte-06.css",
+  "/static/css/secoes-antigas/parte-07.css",
   "/static/css/fase7.css",
   "/static/css/ui/tokens.css",
   "/static/css/ui/movimento.css",

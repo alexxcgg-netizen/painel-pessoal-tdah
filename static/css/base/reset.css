@@ -1,0 +1,124 @@
+/* static/css/base/reset.css
+   Fatia de static/css/style.css original (linhas 239-357), extraida na R2-css
+   pra dividir o arquivo monolitico. Conteudo idêntico ao trecho original -
+   só este comentário de cabeçalho foi acrescentado. Ordem de carga: ver
+   templates/head.html. */
+* {
+  box-sizing: border-box;
+}
+
+/* Rede de seguranca do atributo hidden (M1). O [hidden] do navegador e uma regra
+   fraca (display: none na folha do agente de usuario); qualquer `display: flex`
+   em classe ou id do app vencia, e `el.hidden = true` deixava o elemento na tela
+   (achado pela C2, V4 e V6: abas, cards, chips, sheets). As guardas por componente
+   (.classe[hidden]) continuam; esta regra cobre as secoes que ainda nao tem. */
+[hidden] {
+  display: none !important;
+}
+
+@keyframes auroraMove {
+  0%,
+  100% {
+    transform: translate(-10%, -10%) rotate(0deg);
+  }
+  50% {
+    transform: translate(8%, 6%) rotate(8deg);
+  }
+}
+
+@keyframes tabEntra {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseBorda {
+  0% {
+    border-color: #42bb91;
+    box-shadow: 0 0 0 3px rgba(66, 187, 145, 0.15);
+  }
+  100% {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gradientFlow {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes chamaFlicker {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.9;
+  }
+  25% {
+    transform: scale(1.08) rotate(-3deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.95) rotate(2deg);
+    opacity: 0.85;
+  }
+  75% {
+    transform: scale(1.05) rotate(-1deg);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmerCarregando {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes checkPop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+

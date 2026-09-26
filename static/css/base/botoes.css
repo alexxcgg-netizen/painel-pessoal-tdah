@@ -1,0 +1,134 @@
+/* static/css/base/botoes.css
+   Fatia de static/css/style.css original (linhas 358-486), extraida na R2-css
+   pra dividir o arquivo monolitico. Conteudo idêntico ao trecho original -
+   só este comentário de cabeçalho foi acrescentado. Ordem de carga: ver
+   templates/head.html. */
+/* Fisica de toque separada pra pressionar x soltar (pedido explicito: as
+   animacoes pareciam "travadas"/"baratas" - clicar nao dava quase nenhum
+   retorno visual). A causa real: so existia UMA curva (--ease-bounce, com
+   overshoot) usada em cima E embaixo - overshoot faz sentido voltando pro
+   tamanho normal (um "solta e passa um pouco, depois assenta"), mas
+   aplicado tambem na hora de AFUNDAR o botao ele fica errado/nervoso numa
+   amplitude tao pequena (0.94), sem ler como um toque de verdade. Isso
+   copia o padrao real do iOS: afundar e RAPIDO e SEM overshoot (ease-in
+   comum, ~90ms) - a sensacao de "toque registrado na hora"; soltar e um
+   pouco mais lento COM overshoot leve (bounce, ~220ms) - a sensacao de
+   "mola assentando". Um leve opacity tambem ajuda o toque ficar percebido
+   mesmo numa escala pequena. */
+button {
+  font-family: inherit;
+  transition: transform 0.22s var(--ease-bounce), background 0.15s ease, filter 0.15s ease,
+    opacity 0.18s ease, box-shadow 0.2s ease, border-color 0.15s ease;
+}
+
+@media (hover: hover) {
+  button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+button svg {
+  transition: transform 0.2s var(--ease-bounce);
+}
+
+@media (hover: hover) {
+  button:hover:not(:disabled) svg {
+    transform: scale(1.1);
+  }
+}
+
+.btn-com-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.btn-com-icone svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Resumo falado da manha (US-C11) reaproveita o mesmo estado "falando" do
+   METAR/TAF (.btn-ouvir.falando), so que aplicado num botao com rotulo em
+   vez de so icone - mesma cor de destaque, sem duplicar a animacao. */
+.btn-com-icone.falando {
+  background: var(--accent-fill);
+  border-color: transparent;
+  color: var(--accent-text);
+  animation: chamaFlicker 1.2s ease-in-out infinite;
+}
+
+.btn-exportar-csv {
+  margin-left: auto;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-tech);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.btn-exportar-csv svg {
+  width: 12px;
+  height: 12px;
+}
+
+.btn-exportar-csv:hover {
+  color: var(--text);
+  border-color: var(--text-faint);
+}
+
+/* Vis (C2): escala de toque unificada pelo token --escala-pressionado (0.97,
+   tokens.css) em vez do 0.93 solto que so este seletor usava - mesma duracao/
+   curva --dur-rapida + --ease-entrada (elemento "saindo" do estado de
+   repouso) que o resto do sistema de movimento novo usa pra afundar. */
+button:active:not(:disabled) {
+  transform: scale(var(--escala-pressionado, 0.97));
+  opacity: 0.85;
+  transition: transform var(--dur-rapida) var(--ease-entrada), opacity var(--dur-rapida) var(--ease-entrada);
+}
+
+/* Mesma fisica de toque (afunda rapido/sem overshoot, solta com bounce) pros
+   dois elementos "clicaveis" que nao sao <button> (o header de cotacao que
+   expande/colapsa, e o label que abre o seletor de arquivo OFX) - sem isso
+   eles nao tinham NENHUM feedback em toque (so em :hover, que celular
+   nenhum dispara). */
+.cotacao-cabecalho,
+.ofx-input-label {
+  transition: transform 0.22s var(--ease-bounce), border-color 0.15s ease;
+}
+.cotacao-cabecalho:active,
+.ofx-input-label:active {
+  transform: scale(var(--escala-pressionado, 0.97));
+  transition: transform var(--dur-rapida) var(--ease-entrada);
+}
+
+/* Foco global (M1): antes era um anel de --accent-2 a 45%, que quase sumia no
+   fundo preto. Agora usa o mesmo --anel-foco dos componentes da Fase 7
+   (static/css/ui/tokens.css, carregado pelo fase7.css). O outline transparente
+   nao aparece no modo normal, mas vira uma borda visivel no modo de alto
+   contraste do sistema (forced-colors), onde o box-shadow e descartado. */
+:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--anel-foco);
+  border-radius: 8px;
+}
+
+.spinner {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.45em;
+  vertical-align: -0.12em;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: girar 0.6s linear infinite;
+}
+
