@@ -1,0 +1,42 @@
+/* static/css/ui/desempenho.css - Faixa limpa/v-abas (velocidade de troca de aba).
+   Diagnostico (Tracing CDP, CPU 4x, viewport 390x844, script
+   scripts/medir_velocidade.py como regua): na troca hoje->gastos e
+   hoje->painel o navegador gasta bem mais tempo em Layout+Paint+RecalcStyle
+   (~450-530ms somados, medido com trace_diag.py) do que em Script (~100-135ms)
+   - a hipotese de faixas anteriores (custo esta no layout/pintura ao revelar
+   uma aba grande, nao em JS) se confirma. Boa parte do DOM de cada aba fica
+   fora da viewport na 1a tela: 11 de 17 filhos diretos em #tab-gastos, 16 de
+   27 em #tab-painel (medido no mesmo trace).
+
+   content-visibility: auto tira do caminho de layout/pintura o que esta fora
+   da tela ainda (o navegador so faz o trabalho de verdade quando o elemento
+   entra perto do viewport) - Safari 18+ suporta; sem suporte, a regra e
+   ignorada e nada muda (progressive enhancement, sem @supports precisando
+   de fallback proprio). contain-intrinsic-size evita que o scroll pule
+   quando o navegador ainda nao sabe a altura real (reserva uma altura
+   aproximada ate a 1a medicao real).
+
+   #tab-painel: os 5 primeiros cards (saudacao/sobrecarga/previa-noite/
+   rotina/checkin + resumo do dia) ja sao os que aparecem sem rolar (mesma
+   contagem usada em navegacao.js/A2c) - so a partir do 6o filho.
+   IMPORTANTE: marcarEntradaEscalonada (movimento.js, chamada em rAF por
+   navegacao.js) so mede getBoundingClientRect nos 8 primeiros filhos SEM
+   escrever estilo nos que estao fora da tela - continua funcionando igual
+   com content-visibility (le a caixa reservada por contain-intrinsic-size,
+   nao forca o layout real desses filhos escondidos). */
+#tab-painel > .painel-secao-card:nth-child(n + 6),
+#tab-painel > .secao-recolhivel:nth-child(n + 6) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
+}
+
+/* #tab-gastos: as duas secoes no rodape (Assinaturas, Metas) ficam sempre
+   fora da 1a tela e comecam fechadas (data-aberto="false") - aplicar aqui e
+   o candidato mais seguro (nao toca no <details> do extrato, que tem a
+   propria animacao de abrir/fechar em movimento.js/ligarDetalheAnimado, nem
+   nos cards de resumo/grafico do topo, que precisam medir largura/altura
+   reais assim que a aba abre). */
+#tab-gastos > .secao-recolhivel {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}

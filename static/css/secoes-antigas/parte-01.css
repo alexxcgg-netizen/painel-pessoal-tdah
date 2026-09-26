@@ -1,0 +1,799 @@
+/* static/css/secoes-antigas/parte-01.css
+   Fatia de static/css/style.css original (linhas 1264-2057), extraida na R2-css
+   pra dividir o arquivo monolitico. Conteudo idêntico ao trecho original -
+   só este comentário de cabeçalho foi acrescentado. Ordem de carga: ver
+   templates/head.html. */
+/* Comando de voz (Fase 5, Grupo B, US-B1/B2/B3) - #comando-voz-btn reusa o
+   mesmo espirito visual/animacao de #chat-mic (--ease-bounce no toque,
+   pulsarMic enquanto ouve) so que como botao com rotulo, fora do chat. */
+#comando-voz {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+}
+
+#comando-voz-btn {
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-bounce);
+}
+
+#comando-voz-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  #comando-voz-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+#comando-voz-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+#comando-voz-btn.ouvindo {
+  background: var(--accent-fill);
+  border-color: transparent;
+  color: var(--accent-text);
+  animation: pulsarMic 1s ease-in-out infinite;
+}
+
+.comando-voz-status {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  animation: fadeInUp 0.25s var(--ease-suave) both;
+}
+
+#comando-voz-confirmar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0 0 1.5rem;
+  padding: 0.85rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow-card), 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+#comando-voz-confirmar[hidden] {
+  display: none;
+}
+
+#comando-voz-confirmar-texto {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.comando-voz-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.comando-voz-opcao {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+}
+
+.comando-voz-confirmar-botoes {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.btn-conectar[hidden],
+.btn-waze[hidden],
+.btn-uber[hidden],
+.vazio[hidden],
+#saude-grid[hidden],
+#chat-mic[hidden],
+.btn-ouvir[hidden] {
+  display: none;
+}
+
+#duvida-texto {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.stats-grid {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.stat-tile {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  /* Glass "por cima", nao "atraves de": a cor de fundo abaixo e a MESMA
+     formula ja validada por acessibilidade (nao mexida) - o vidro entra so
+     como duas camadas de luz por cima (brilho branco + halo da cor,
+     --tile-cor no lugar do --glass-tint da secao pra cada tile continuar com
+     a propria identidade mesmo dentro da mesma aba). Sem backdrop-filter de
+     proposito: o fundo continua opaco, entao nao teria nada real pra borrar -
+     ver nota no bloco --glass-* no topo do arquivo. Redefine --glass-glow
+     aqui tambem (nao so --glass-tint) pela mesma pegadinha de indirecao
+     documentada la em cima - senao herdaria o halo da COR DA ABA, nao da
+     cor propria do tile. */
+  --glass-tint: var(--tile-cor, var(--accent));
+  --glass-glow: radial-gradient(
+    95% 75% at 88% 116%,
+    color-mix(in srgb, var(--glass-tint) 60%, transparent) 0%,
+    transparent 62%
+  );
+  background: var(--glass-highlight), var(--glass-glow),
+    linear-gradient(
+      155deg,
+      color-mix(
+          in srgb,
+          color-mix(in srgb, var(--tile-cor, var(--accent)) 30%, black 70%) 20%,
+          var(--surface-2)
+        )
+        0%,
+      var(--surface) 78%
+    );
+  border: 1px solid color-mix(in srgb, var(--tile-cor, var(--accent)) 25%, var(--border));
+  border-radius: var(--radius);
+  padding: 0.9rem 0.4rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  text-align: center;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile-cor, var(--accent)) 30%, rgba(255, 255, 255, 0.45)),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.4), var(--shadow-card);
+  transition: transform 0.2s var(--ease-snap), box-shadow 0.2s ease, border-color 0.2s ease;
+  animation: fadeInUp 0.4s var(--ease-bounce) both;
+}
+
+.stat-tile:nth-child(1) {
+  animation-delay: 0.02s;
+}
+
+.stat-tile:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.stat-tile:nth-child(3) {
+  animation-delay: 0.14s;
+}
+
+@media (hover: hover) {
+  .stat-tile:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-card-hover);
+  }
+}
+
+.stat-tile::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--tile-cor, var(--accent)) 0%,
+    color-mix(in srgb, var(--tile-cor, var(--accent)) 80%, white 20%) 100%
+  );
+}
+
+.stat-tile:nth-child(1) {
+  --tile-cor: var(--cor-hoje);
+}
+
+.stat-tile:nth-child(2) {
+  --tile-cor: var(--cor-financeiro);
+}
+
+.stat-tile:nth-child(3) {
+  --tile-cor: var(--cor-bancos);
+}
+
+#saude-grid.stats-grid .stat-tile:nth-child(1) {
+  --tile-cor: var(--cor-financeiro);
+}
+
+#saude-grid.stats-grid .stat-tile:nth-child(2) {
+  --tile-cor: var(--cor-tarefas);
+}
+
+#saude-grid.stats-grid .stat-tile:nth-child(3) {
+  --tile-cor: var(--cor-hoje);
+}
+
+#voos-stats-grid.stats-grid .stat-tile:nth-child(1),
+#voos-stats-grid.stats-grid .stat-tile:nth-child(2),
+#voos-stats-grid.stats-grid .stat-tile:nth-child(3) {
+  --tile-cor: var(--cor-aviacao);
+}
+
+.stat-tile-valor {
+  display: inline-block;
+  font-family: var(--font-numeros);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  /* brilho de repouso (nao so no pop) - da o "LED" que faltava no numero de destaque */
+  text-shadow: 0 0 12px color-mix(in srgb, var(--tile-cor, var(--accent)) 35%, transparent);
+}
+
+.stat-tile-valor.num-pop {
+  animation: numPop 0.32s var(--ease-snap);
+}
+
+@keyframes numPop {
+  0% {
+    transform: scale(1);
+    text-shadow: none;
+  }
+  40% {
+    transform: scale(1.18);
+    text-shadow: 0 0 16px color-mix(in srgb, var(--tile-cor, var(--accent)) 70%, transparent);
+  }
+  100% {
+    transform: scale(1);
+    text-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-tile-valor.num-pop {
+    animation: none;
+  }
+}
+
+.stat-tile-label {
+  font-size: 0.65rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-tile-sub {
+  font-size: 0.62rem;
+  color: var(--cor-bancos);
+  margin-top: 0.1rem;
+}
+
+.resumo-semanal-box {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  margin: 0 0 0.85rem;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+.resumo-semanal-valor {
+  display: block;
+  font-family: var(--font-numeros);
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.resumo-semanal-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 0.1rem;
+}
+
+.resumo-semanal-detalhe {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.grafico-card {
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.9rem 0.6rem;
+  margin: 0 0 0.85rem;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+.grafico-titulo {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.5rem;
+}
+
+.grafico-container {
+  position: relative;
+  width: 100%;
+}
+
+.grafico-vazio {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 1.2rem 0;
+  margin: 0;
+}
+
+.grafico-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-family: var(--font-tech);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow-card);
+  z-index: 5;
+}
+
+.grafico-rotulo-topo {
+  font-family: var(--font-tech);
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--text-muted);
+}
+
+.grafico-barra {
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+@media (hover: hover) {
+  .grafico-barra:hover {
+    filter: brightness(1.18);
+  }
+}
+
+/* grid de referencia - recessivo de proposito, so uma marca de escala no
+   meio do grafico, nunca deve competir com a marca de dado em si */
+.grafico-grid {
+  opacity: 0.5;
+}
+
+.grafico-crosshair {
+  transition: opacity 0.1s ease;
+}
+
+.meta-grafico {
+  margin: 0.5rem 0 0.7rem;
+}
+
+.resumo-texto {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  animation: fadeInUp 0.35s var(--ease-bounce) both;
+}
+
+/* Vis (C2, skill animacoes-interface): o brilho do esqueleto anda por
+   transform (pseudo-elemento), nunca por background-position (repinta a
+   tela inteira a cada frame) - mesmo visual, custo de composicao so. */
+.resumo-texto.carregando,
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  color: transparent;
+  background: var(--surface);
+}
+.resumo-texto.carregando::after,
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    var(--surface-3) 50%,
+    transparent 70%
+  );
+  animation: shimmerCarregando 1.4s ease-in-out infinite;
+}
+
+.stat-tile-valor.shimmer {
+  display: inline-block;
+  width: 2.2em;
+  height: 1.05em;
+  border-radius: 7px;
+  vertical-align: -0.15em;
+}
+
+.stat-linha {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 1.5rem 0 1.1rem;
+  text-align: center;
+  animation: fadeInUp 0.35s var(--ease-suave) both;
+}
+
+.vazio svg {
+  width: 30px;
+  height: 30px;
+  padding: 0.55rem;
+  box-sizing: content-box;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  opacity: 0.85;
+  animation: respirar 2.6s ease-in-out infinite;
+}
+
+@keyframes respirar {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+li.item {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.85rem;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+  transition: opacity 0.25s ease, transform 0.25s var(--ease-suave), box-shadow 0.25s ease,
+    border-color 0.2s ease;
+}
+
+ul li.item:nth-child(1) {
+  animation-delay: 0.02s;
+}
+
+ul li.item:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+ul li.item:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+ul li.item:nth-child(4) {
+  animation-delay: 0.14s;
+}
+
+ul li.item:nth-child(n + 5) {
+  animation-delay: 0.16s;
+}
+
+@media (hover: hover) {
+  li.item:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-card-hover);
+  }
+}
+
+li.item.saindo {
+  opacity: 0;
+  transform: scale(0.9) translateX(12px);
+}
+
+/* Vel (A2d): tarefa otimista (formulario direto) ainda sem confirmacao do
+   servidor - mesma linguagem visual de .card-resultado-pendente (borda
+   tracejada, levemente apagado). */
+li.item.item-otimista {
+  border-style: dashed;
+  opacity: 0.82;
+}
+
+.burst-wrap {
+  position: fixed;
+  z-index: 90;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.burst-particula {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 999px;
+  animation: burstParticula 0.55s var(--ease-snap) both;
+}
+
+@keyframes burstParticula {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty)) scale(0.3);
+  }
+}
+
+.burst-anel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 26px;
+  height: 26px;
+  margin: -13px;
+  border-radius: 999px;
+  border: 2px solid var(--cor-financeiro);
+  animation: burstAnel 0.45s var(--ease-snap) both;
+}
+
+@keyframes burstAnel {
+  0% {
+    opacity: 0.8;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+.item-linha {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hidratacao-linha {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+}
+
+.hidratacao-contador {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* Fase 6 US-F1: numero cresce visivelmente a cada copo (reaproveita o MESMO
+   hook que pulsarSucesso ja chamava em #hidratacao-total desde antes desta
+   historia - so nao existia nenhuma regra de CSS pra `.sucesso` num <span>,
+   entao o toque nao tinha retorno visual nenhum no contador; so o
+   checkPop/cor ja usados em outro lugar do app, sem animacao nova). */
+#hidratacao-total {
+  font-size: 1.25rem;
+  font-weight: 800;
+  display: inline-block;
+  transform-origin: center;
+}
+
+#hidratacao-total.sucesso {
+  animation: checkPop 0.45s var(--ease-bounce);
+  color: var(--cor-financeiro);
+}
+
+/* Botao maior (toque minimo 44px sobrando folga - alvo real ~52px de altura)
+   e com identidade propria (cor da secao "Saude hoje"), pra parar de
+   competir visualmente com os botoes de formulario ao redor dele - e a acao
+   de 1 toque mais repetida da tela, merece se destacar. */
+.hidratacao-btn-grande {
+  min-height: 52px;
+  padding: 0.85rem 1.3rem;
+  border-radius: 999px;
+  border: none;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--accent-text);
+  background: linear-gradient(135deg, var(--cor-financeiro) 0%, var(--cor-financeiro-fill) 100%);
+  box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
+  position: relative;
+  overflow: visible;
+}
+
+.hidratacao-btn-grande svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (hover: hover) {
+  .hidratacao-btn-grande:hover:not(:disabled) {
+    box-shadow: 0 6px 24px -4px color-mix(in srgb, var(--cor-financeiro) 65%, transparent);
+  }
+}
+
+/* Feedback forte ao toque, alem do :active global (afundar/soltar): um
+   "burst" de glow na borda do proprio botao, disparado por JS (classe
+   `.tocando` reaplicada a cada clique). */
+.hidratacao-btn-grande.tocando {
+  animation: hidratacaoGlow 0.5s var(--ease-bounce);
+}
+
+@keyframes hidratacaoGlow {
+  0% {
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
+  }
+  35% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--cor-financeiro) 32%, transparent);
+  }
+  100% {
+    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
+  }
+}
+
+/* "+1" flutuante que sobe e some - some sozinho via JS no fim da animacao
+   (`animationend`) e tambem por um timeout de seguranca, entao nao ha risco
+   de sobrar preso na tela mesmo se o evento nao disparar. */
+.hidratacao-flutuante {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--cor-financeiro);
+  animation: hidratacaoSobe 0.9s ease-out forwards;
+}
+
+@keyframes hidratacaoSobe {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -34px) scale(1);
+  }
+}
+
+.medida-tendencia {
+  font-size: 0.78rem;
+}
+
+.medida-tendencia.subiu {
+  color: var(--cor-construtora);
+}
+
+.medida-tendencia.desceu {
+  color: var(--cor-painel);
+}
+
+/* Fase 6 US-F2: tipo/unidade por seletor (com "outro/outra" pra nao perder
+   a liberdade de texto livre que o campo tinha antes) + valor por stepper -
+   reusa .form-linha input/select existentes, so acrescenta o agrupamento
+   visual do stepper. */
+#medida-tipo-outro,
+#medida-unidade-outra {
+  margin-top: -0.35rem;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.stepper #medida-valor {
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.stepper-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (hover: hover) {
+  .stepper-btn:hover:not(:disabled) {
+    border-color: var(--cor-financeiro);
+    color: var(--cor-financeiro);
+  }
+}
+
+.medida-grafico {
+  margin: 0.6rem 0 0.8rem;
+}
+
+.item-titulo {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+}
+
+.item-quando {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+

@@ -1,0 +1,762 @@
+/* static/css/secoes-antigas/parte-06.css
+   Fatia de static/css/style.css original (linhas 5179-5935), extraida na R2-css
+   pra dividir o arquivo monolitico. Conteudo idêntico ao trecho original -
+   só este comentário de cabeçalho foi acrescentado. Ordem de carga: ver
+   templates/head.html. */
+/* ---- Assistente de vida, Fase 3 ---- */
+
+.progresso-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.progresso-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.progresso-valor {
+  font-family: var(--font-numeros);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.progresso-rotulo {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.progresso-metas,
+.uso-apps {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.uso-apps li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.fim-mes-linha {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.salvo-resumo {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+.salvo-link {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--cor-destaque, var(--accent));
+  overflow-wrap: anywhere;
+}
+
+#aprender-form input[type="text"],
+#salvo-form input[type="text"] {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.item.lido .item-titulo {
+  color: var(--text-faint);
+}
+
+#uso-apps-box[hidden],
+#fim-mes-box[hidden] {
+  display: none !important;
+}
+
+/* ---- Fase 6 (US-E12): Habitos - 7 circulos da semana + checkboxes de dia --- */
+
+.habito-dias-semana {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.2rem 0.1rem;
+}
+
+.habito-dias-semana label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.habito-semana {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.15rem;
+}
+
+.habito-circulo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.habito-circulo.feito {
+  background: var(--accent-fill);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.habito-circulo.hoje {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ---- Fase 6 (US-E13): Projetos - barra de progresso com marcador de hoje - */
+
+.projeto-card {
+  gap: 0.4rem;
+}
+
+.projeto-status {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.projeto-status-atrasado {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.projeto-status-no_rumo {
+  color: var(--accent-text);
+  background: var(--accent-fill);
+  border-color: var(--accent);
+}
+
+.projeto-barra-trilho {
+  position: relative;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: visible;
+}
+
+.projeto-barra-preenchido {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  transition: width 0.35s var(--ease-suave, ease);
+}
+
+.projeto-barra-hoje {
+  position: absolute;
+  top: 50%;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--bg);
+  transform: translate(-50%, -50%);
+}
+
+/* ---- Fase 6 (US-E15): limite do cartao (campo manual) --------------------- */
+
+.limite-cartao {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+
+.limite-cartao-trilho {
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+
+.limite-cartao-preenchido {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  transition: width 0.35s var(--ease-suave, ease);
+}
+
+.limite-cartao-preenchido.limite-cartao-alerta {
+  background: var(--danger);
+}
+
+/* ==========================================================================
+   Cards do contrato (Fase 6, "Padrao Nectar" - docs/CARDS.md)
+   Todo card do registro (static/js/cards.js) e um <article> com as classes
+   `card-resultado card-contrato card-contrato-<type>`: herda o vidro, a
+   borda tingida (--card-cor) e a entrada com --ease-bounce do card de
+   resultado que ja existia - so acrescenta o que o contrato precisa (rodape
+   de actions, fallback, estado desfeito). Nenhuma cor/fonte nova: so os
+   tokens de :root.
+   ========================================================================== */
+.cards-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-self: stretch;
+  margin-left: calc(22px + 0.5rem); /* alinha com a bolha do assistente (avatar + gap) */
+}
+
+.card-contrato {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  transition: opacity 0.3s var(--ease-suave), filter 0.3s var(--ease-suave);
+}
+
+.card-contrato p {
+  margin: 0;
+}
+
+.card-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--card-cor) 18%, var(--border));
+}
+
+.card-rodape-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0.25rem 0.1rem 0.25rem 0.4rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.card-link svg {
+  width: 14px;
+  height: 14px;
+  color: var(--card-cor);
+}
+
+@media (hover: hover) {
+  .card-link:hover {
+    color: var(--text);
+  }
+}
+
+.card-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.card-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.card-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.card-btn-despertar.ativo {
+  border-color: color-mix(in srgb, var(--card-cor) 70%, transparent);
+  background: color-mix(in srgb, var(--card-cor) 22%, var(--surface-3));
+  box-shadow: 0 0 12px -3px color-mix(in srgb, var(--card-cor) 70%, transparent);
+}
+
+.card-contrato-fallback {
+  --card-cor: var(--text-faint);
+  border-style: dashed;
+}
+
+.card-fallback-texto {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+/* Desfeito: o card continua na conversa (historico honesto do que
+   aconteceu), so que apagado e riscado - nunca some de repente. */
+/* (opacidade nos filhos, nao no card: a animacao de entrada do card usa
+   fill-mode "both" e prenderia opacity em 1) */
+.card-contrato.card-desfeito {
+  filter: saturate(0.3);
+}
+
+.card-contrato.card-desfeito > * {
+  opacity: 0.55;
+  transition: opacity 0.3s var(--ease-suave);
+}
+
+.card-contrato.card-desfeito .card-titulo,
+.card-contrato.card-desfeito .card-valor-grande {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+/* Link "Abrir em ..." de um card destaca o item na aba de destino. */
+.item-destacado {
+  animation: itemDestacado 2.2s var(--ease-suave);
+}
+
+@keyframes itemDestacado {
+  0%,
+  35% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-text) 55%, transparent),
+      0 0 22px -4px color-mix(in srgb, var(--accent-text) 45%, transparent);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+/* ---- cards simples (US-E3): cor de identidade por type -------------------- */
+.card-contrato-tarefas_criadas {
+  --card-cor: var(--cor-tarefas);
+}
+
+.card-contrato-transacao,
+.card-contrato-meta {
+  --card-cor: var(--cor-financeiro);
+}
+
+.card-contrato-lembrete {
+  --card-cor: var(--cor-painel);
+}
+
+.card-contrato-resumo_final {
+  --card-cor: var(--text-faint);
+}
+
+.card-contrato .card-resultado-eyebrow {
+  margin-bottom: 0.05rem;
+}
+
+.card-contador {
+  margin-left: auto;
+  min-width: 1.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-family: var(--font-tech);
+  font-size: 0.66rem;
+  text-align: center;
+  color: var(--text);
+  background: color-mix(in srgb, var(--card-cor) 26%, var(--surface-3));
+}
+
+.card-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+  padding: 0.08rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--card-cor);
+  background: color-mix(in srgb, var(--card-cor) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-cor) 38%, transparent);
+  white-space: nowrap;
+}
+
+.card-chip-planejado {
+  --card-cor: var(--cor-bancos);
+}
+
+.card-titulo {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.card-linha-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.card-linha-meta strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.card-seta {
+  color: var(--card-cor);
+  font-weight: 700;
+}
+
+/* tarefas_criadas */
+.card-tarefas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-tarefa {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-height: 42px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-tarefa:last-child {
+  border-bottom: none;
+}
+
+.card-tarefa label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.card-tarefa input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin: 0;
+  /* Faixa vis/C1b-cor: marcador de tarefa em --cor-destaque (identidade global
+     de selecao/foco), nao mais a cor de categoria da aba (--cor-tarefas). */
+  accent-color: var(--cor-destaque);
+}
+
+.card-tarefa input[type="checkbox"]:checked {
+  animation: checkPop 0.35s var(--ease-bounce);
+}
+
+.card-tarefa-titulo {
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: color 0.25s var(--ease-suave);
+}
+
+.card-tarefa.concluida .card-tarefa-titulo {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.card-tarefa-quando {
+  flex-shrink: 0;
+  font-family: var(--font-tech);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* transacao */
+.card-transacao-topo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.card-bolinha {
+  --bolinha: var(--text-faint);
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--bolinha);
+  box-shadow: 0 0 8px -1px var(--bolinha);
+}
+
+.card-bolinha[data-cat="mercado"] {
+  --bolinha: var(--cor-financeiro);
+}
+
+.card-bolinha[data-cat="transporte"] {
+  --bolinha: var(--cor-tarefas);
+}
+
+.card-bolinha[data-cat="lazer"] {
+  --bolinha: var(--cor-aviacao);
+}
+
+.card-bolinha[data-cat="contas"] {
+  --bolinha: var(--cor-bancos);
+}
+
+.card-bolinha[data-cat="saude"] {
+  --bolinha: var(--danger);
+}
+
+.card-bolinha[data-cat="entrada"] {
+  --bolinha: var(--cor-painel);
+}
+
+.card-valor-grande {
+  font-family: var(--font-numeros);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--card-cor) 35%, transparent);
+}
+
+.card-valor-grande.entrada {
+  color: var(--cor-painel);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--cor-painel) 40%, transparent);
+}
+
+.card-valor-grande.oculto {
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.card-saldo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+  margin-top: 0.15rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-3) 80%, transparent);
+  border: 1px solid var(--border);
+  font-size: 0.76rem;
+}
+
+.card-saldo-rotulo {
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.card-saldo-valores {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.card-saldo-valores strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* lembrete */
+.card-hora-grande {
+  font-family: var(--font-tech);
+  font-size: 2.1rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--card-cor) 40%, transparent);
+}
+
+.card-contagem-viva {
+  font-family: var(--font-tech);
+  font-size: 0.76rem;
+  color: var(--card-cor);
+}
+
+.card-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+/* meta */
+.card-meta-valores {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.card-meta-valores strong {
+  font-family: var(--font-numeros);
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--card-cor) 35%, transparent);
+}
+
+/* resumo_final */
+.card-resumo-linhas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+
+.card-resumo-linhas li {
+  display: flex;
+  gap: 0.45rem;
+  line-height: 1.4;
+}
+
+.card-resumo-linhas strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.card-passos {
+  margin-top: 0.25rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border);
+}
+
+.card-passos summary,
+.card-passos-resumo {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 28px;
+  font-family: var(--font-tech);
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  cursor: pointer;
+  list-style: none;
+}
+
+.card-passos summary::-webkit-details-marker {
+  display: none;
+}
+
+.card-passos summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 0.25s var(--ease-bounce);
+}
+
+.card-passos[open] summary::after {
+  transform: rotate(-135deg) translateY(-1px);
+}
+
+.card-passos ol {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  animation: fadeInUp 0.3s var(--ease-bounce) both;
+}
+
+.card-passos li {
+  display: grid;
+  grid-template-columns: 4.6rem 1fr auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.card-passo-modulo {
+  font-family: var(--font-tech);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-passo-ms {
+  font-family: var(--font-tech);
+  font-size: 0.66rem;
+  color: var(--text-faint);
+}
+
+.card-passos li.erro .card-passo-desc {
+  color: var(--danger);
+}
+
+/* Barra de progresso dentro de card: mesma .meta-progresso da aba Financas,
+   so que tingida pela cor de identidade do card (a versao neutra some no
+   fundo escuro do card). Bloco unico (antes eram 2 regras separadas pro
+   mesmo seletor - revisao da Fase 6). */
+.card-contrato .meta-progresso {
+  margin: 0.3rem 0 0.1rem;
+  background: color-mix(in srgb, var(--card-cor) 14%, var(--surface-3));
+}
+
+.card-contrato .meta-progresso-barra:not(.completa) {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--card-cor) 55%, var(--surface-3)), var(--card-cor));
+  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--card-cor) 65%, transparent);
+}
+

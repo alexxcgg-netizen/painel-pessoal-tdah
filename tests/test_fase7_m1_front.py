@@ -11,7 +11,15 @@ import unittest
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
-STYLE = (RAIZ / "static" / "css" / "style.css").read_text(encoding="utf-8")
+# R2-css: style.css foi dividido; :root/[hidden]/:focus-visible (nesta ordem, perto do
+# topo) ficaram em base/variaveis.css + base/reset.css + base/botoes.css, exatamente
+# nas linhas 1-486 do arquivo antigo (nenhum buraco entre eles) - concatenar os tres
+# reproduz o mesmo texto que STYLE lia antes.
+_BASE = RAIZ / "static" / "css" / "base"
+STYLE = "".join(
+    (_BASE / nome).read_text(encoding="utf-8")
+    for nome in ("variaveis.css", "reset.css", "botoes.css")
+)
 TOKENS = (RAIZ / "static" / "css" / "ui" / "tokens.css").read_text(encoding="utf-8")
 
 
