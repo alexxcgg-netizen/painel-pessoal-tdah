@@ -1,3 +1,11 @@
+# FASE VELOCIDADE + COR + ANIMACAO - em andamento
+- [ ] A1 medir velocidade (CPU 4x, tabela acao|tempo|meta|causa)
+- [ ] A2 corrigir o que passou da meta (faixas por causa) + medir de novo
+- [ ] B prévia de 6 paletas publicada -> PARAR, dono escolhe
+- [ ] C1 tokens da paleta escolhida (dono unico) + login
+- [ ] C2 sistema de animacao (skill animacoes-interface)
+- [ ] C3 prints antes/depois + GIF; suite completa; CHANGELOG/STATUS
+
 # MELHORIAS DE USO DIARIO (pos-reversao/login) - concluido 2026-09-25
 - [x] M1 Hoje enxuto (chat + foco + agenda; resto vai pro Painel) + Aviacao sobe na barra
 - [x] M2 Sync Nubank automatico ~4h (scheduler), botao manual mantido, falha so loga
