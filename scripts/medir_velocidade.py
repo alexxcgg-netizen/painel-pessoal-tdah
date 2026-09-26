@@ -411,7 +411,7 @@ def rodar_medicoes(page, ctx, n_rep: int, avisos: list):
             if vis is not None:
                 vis_vals.append(vis)
             lts.append(coletar_longtasks(page))
-            page.wait_for_timeout(400)  # fora da janela medida (deixa a animacao de saida terminar)
+            page.wait_for_timeout(1000)  # fora da janela medida (deixa a animacao de saida terminar; 400 ms dava clique no item saindo)
         registrar("concluir_tarefa", inp_vals, inp_tetos, vis_vals, detalhes, lts)
     bloco("concluir_tarefa", _concluir_tarefa)
 
@@ -546,10 +546,13 @@ def medir_abertura(ctx, com_cache: bool):
 
 # --------------------------------------------------------------------------
 def resumir(vals):
+    # None = amostra que nao chegou ao fim (timeout/elemento ausente): fica fora
+    # da mediana, mas contada em "falhas" pra nao esconder o problema.
+    falhas = sum(1 for v in vals if v is None)
+    vals = sorted(v for v in vals if v is not None)
     if not vals:
-        return {"mediana": None, "pior": None, "n": 0}
-    vals = sorted(vals)
-    return {"mediana": round(statistics.median(vals), 1), "pior": round(vals[-1], 1), "n": len(vals)}
+        return {"mediana": None, "pior": None, "n": 0, "falhas": falhas}
+    return {"mediana": round(statistics.median(vals), 1), "pior": round(vals[-1], 1), "n": len(vals), "falhas": falhas}
 
 
 def pior_detalhe(inp_vals, detalhes):
@@ -558,7 +561,7 @@ def pior_detalhe(inp_vals, detalhes):
     vai o tempo de quem ainda esta fora da meta."""
     if not inp_vals:
         return None
-    idx = max(range(len(inp_vals)), key=lambda i: inp_vals[i])
+    idx = max(range(len(inp_vals)), key=lambda i: -1 if inp_vals[i] is None else inp_vals[i])
     return detalhes[idx] if idx < len(detalhes) else None
 
 
