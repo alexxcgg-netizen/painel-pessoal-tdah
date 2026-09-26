@@ -1134,7 +1134,7 @@ class PainelTestCase(unittest.TestCase):
         res = self.client.get("/api/calendario/hoje")
         eventos = res.get_json()["eventos"]
         self.assertEqual(len(eventos), 1)
-        self.assertEqual(eventos[0]["titulo"], "consulta já feita")
+        self.assertEqual(eventos[0]["titulo"], "consulta ja feita")
         self.assertTrue(eventos[0]["concluido"])
 
     def test_fechamento_do_dia_lista_concluidas_e_pendentes_de_hoje(self):
@@ -2327,7 +2327,7 @@ class PainelTestCase(unittest.TestCase):
             self.assertEqual(res.get_json()["avisos_enviados"], 1)
             corpo = mock_enviar.call_args[0][2]
             self.assertIn("fornecedor de ferro", corpo)
-            self.assertIn("preço do vergalhao", corpo)
+            self.assertIn("preco do vergalhao", corpo)
 
     def test_notificacoes_espera_parada_nao_repete_depois_de_avisada(self):
         cinco_dias = (datetime.now() - timedelta(days=5)).isoformat()
@@ -2874,7 +2874,7 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.post(
                 "/api/medicamentos", json={"nome": "X", "horario": horario_ruim}
             )
-            self.assertEqual(res.status_code, 400, msg=f"deveria rejeitar horário={horario_ruim!r}")
+            self.assertEqual(res.status_code, 400, msg=f"deveria rejeitar horario={horario_ruim!r}")
         self.assertEqual(self.client.get("/api/medicamentos").get_json(), [])
 
     def test_criar_medicamento_recorrencia_invalida_rejeita(self):
@@ -3067,7 +3067,7 @@ class PainelTestCase(unittest.TestCase):
         esperas = self.client.get("/api/esperas").get_json()
         self.assertEqual(len(esperas), 1)
         self.assertEqual(esperas[0]["quem"], "fornecedor de ferro")
-        self.assertEqual(esperas[0]["sobre"], "preço do vergalhao")
+        self.assertEqual(esperas[0]["sobre"], "preco do vergalhao")
 
     def test_chat_resolve_espera_por_quem_aproximado(self):
         conn = db.get_db()
@@ -3519,7 +3519,7 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.get("/api/summary/today")
         self.assertEqual(res.status_code, 200)
         args = mock_summarize.call_args[0]
-        self.assertEqual(args[7], "Risco de chuva entre 14h e 18h (até 80% de chance).")
+        self.assertEqual(args[7], "Risco de chuva entre 14h e 18h (ate 80% de chance).")
 
     def test_resumo_do_dia_sem_cidade_padrao_nao_quebra(self):
         with patch("claude_client.summarize_day", return_value=("Dia ok.", fake_usage())) as mock_summarize:
@@ -5607,7 +5607,7 @@ class PainelTestCase(unittest.TestCase):
         tarefa_aeroclube = por_titulo[
             "Visitar o Aeroclube pra ver o que mudou pra voltar aos voos (se der tempo e nao chover)"
         ]
-        self.assertIn("não chover", tarefa_aeroclube["title"])
+        self.assertIn("nao chover", tarefa_aeroclube["title"])
 
     # ---- Colar trecho exportado do WhatsApp direto no chat ----
     # (o Alex disse que ultimamente anota tudo la, nao no painel - exemplo real
@@ -5892,7 +5892,7 @@ class BackupAutomaticoTestCase(unittest.TestCase):
         conn_verificacao = sqlite3.connect(destino)
         titulo = conn_verificacao.execute("SELECT title FROM tasks").fetchone()[0]
         conn_verificacao.close()
-        self.assertEqual(titulo, "tarefa pro backup automático")
+        self.assertEqual(titulo, "tarefa pro backup automatico")
 
     def test_job_roda_e_produz_arquivo_restauravel_em_backup_dir(self):
         app.rodar_backup_automatico_semanal()
@@ -5903,7 +5903,7 @@ class BackupAutomaticoTestCase(unittest.TestCase):
         conn_verificacao = sqlite3.connect(caminho)
         titulo = conn_verificacao.execute("SELECT title FROM tasks").fetchone()[0]
         conn_verificacao.close()
-        self.assertEqual(titulo, "tarefa pro backup automático")
+        self.assertEqual(titulo, "tarefa pro backup automatico")
 
     def test_job_usa_data_backups_como_padrao_sem_env(self):
         with patch.dict(os.environ, {"BACKUP_DIR": ""}):
@@ -7249,7 +7249,7 @@ class _Fase5GrupoCTestCase(unittest.TestCase):
             "revisao-periodo-btn",
             "revisao-periodo-box",
         ):
-            self.assertIn(f'id="{elemento_id}"', corpo, msg=f"elemento #{elemento_id} sumiu da página")
+            self.assertIn(f'id="{elemento_id}"', corpo, msg=f"elemento #{elemento_id} sumiu da pagina")
 
 
 class DiarioDecisaoTestCase(_Fase5GrupoCTestCase):

@@ -104,7 +104,7 @@ class LogicaFase2TestCase(unittest.TestCase):
         self.assertEqual(vida.dividir_itens_compra("acabou cafe e acucar"), ["cafe", "acucar"])
         self.assertEqual(vida.dividir_itens_compra("acabou cafe e acabou acucar"), ["cafe", "acucar"])
         self.assertEqual(vida.dividir_itens_compra("cafe, acucar e leite"), ["cafe", "acucar", "leite"])
-        self.assertEqual(vida.dividir_itens_compra("acabou o cafe e também o acucar"), ["cafe", "acucar"])
+        self.assertEqual(vida.dividir_itens_compra("acabou o cafe e tambem o acucar"), ["cafe", "acucar"])
         self.assertEqual(vida.dividir_itens_compra("pao de queijo"), ["pao de queijo"])
         self.assertEqual(vida.dividir_itens_compra("papel higienico"), ["papel higienico"])
         # item vazio/so espaco descartado (virgula dupla, texto vazio, None)
@@ -138,9 +138,9 @@ class RegressoesRevisaoFase1TestCase(VidaBaseTestCase):
     def test_agua_pausa_some_no_hiperfoco_sem_acumular(self):
         self.client.post("/api/hiperfoco", json={"minutos": 50})
         with patch("vida.slot_agua_pausa", return_value=11):
-            self.assertFalse([c for c in self._notificar() if "copo de água" in c])
+            self.assertFalse([c for c in self._notificar() if "copo de agua" in c])
         self.client.delete("/api/hiperfoco")
-        self.assertFalse([c for c in self._notificar() if "copo de água" in c])
+        self.assertFalse([c for c in self._notificar() if "copo de agua" in c])
 
     def test_aviso_guardado_de_outro_dia_e_descartado(self):
         conn = self._conn()
@@ -377,7 +377,7 @@ class MigracaoManutencoesUnificadasTestCase(unittest.TestCase):
         self.assertEqual(len(itens), 2)
         por_tipo = {m["tipo"]: m for m in itens}
         self.assertIn("outro", por_tipo)  # linha generica antiga - sem como saber casa/carro/equip, default seguro
-        self.assertEqual(por_tipo["outro"]["item"], "Filtro de água")
+        self.assertEqual(por_tipo["outro"]["item"], "Filtro de agua")
         self.assertEqual(por_tipo["outro"]["intervalo_meses"], 6)
         self.assertIn("carro", por_tipo)
         self.assertEqual(por_tipo["carro"]["item"], "Troca de oleo")

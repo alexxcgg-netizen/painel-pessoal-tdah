@@ -274,7 +274,7 @@ class ResumoChuvaDoDiaTestCase(unittest.TestCase):
                 continue
             pico_pct = max(h["chuva_pct"] for h in futuras)
             if pico_pct < limite:
-                self.assertFalse(r["alerta"], msg=f"não deveria alertar: {horas} hora_atual={hora_atual}")
+                self.assertFalse(r["alerta"], msg=f"nao deveria alertar: {horas} hora_atual={hora_atual}")
                 continue
 
             self.assertTrue(r["alerta"])

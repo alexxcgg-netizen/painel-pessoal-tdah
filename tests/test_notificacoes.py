@@ -170,7 +170,7 @@ class NotificacoesTestCase(unittest.TestCase):
         self.assertEqual(len(avisos), 1)
         espera_id, msg = avisos[0]
         self.assertIn("fornecedor de ferro", msg)
-        self.assertIn("preço do vergalhao", msg)
+        self.assertIn("preco do vergalhao", msg)
         self.assertIn("5 dias", msg)
         self.assertIsInstance(espera_id, int)
 
@@ -769,15 +769,15 @@ class MontarMensagemAgrupadaTestCase(unittest.TestCase):
 
     def test_um_item_so_devolve_sem_alterar(self):
         resultado = notificacoes.montar_mensagem_agrupada([("Tarefas atrasadas", "Voce tem 2 atrasadas.")])
-        self.assertEqual(resultado, ("Tarefas atrasadas", "Você tem 2 atrasadas."))
+        self.assertEqual(resultado, ("Tarefas atrasadas", "Voce tem 2 atrasadas."))
 
     def test_varios_itens_agrupa_numa_mensagem_so(self):
         titulo, corpo = notificacoes.montar_mensagem_agrupada(
             [("Tarefas atrasadas", "Voce tem 2 atrasadas."), ("Orcamento estourado", "Mercado passou do limite.")]
         )
         self.assertEqual(titulo, "2 avisos")
-        self.assertIn("Tarefas atrasadas: Você tem 2 atrasadas.", corpo)
-        self.assertIn("Orçamento estourado: Mercado passou do limite.", corpo)
+        self.assertIn("Tarefas atrasadas: Voce tem 2 atrasadas.", corpo)
+        self.assertIn("Orcamento estourado: Mercado passou do limite.", corpo)
 
 
 class AssinaturasAumentoPrecoTestCase(unittest.TestCase):

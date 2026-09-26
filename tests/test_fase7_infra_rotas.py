@@ -202,7 +202,7 @@ class RotasComTokenTestCase(unittest.TestCase):
             # sem sessao e sem token: quem responde e a rota (401 dela), nao o login
             res = client.post(f"{self.base}/tick")
             self.assertEqual(res.status_code, 401)
-            self.assertEqual(res.get_json(), {"error": "token inválido"})
+            self.assertEqual(res.get_json(), {"error": "token invalido"})
             res = client.post(f"{self.base}/tick", headers={"X-Token": "segredo-teste"})
             self.assertEqual(res.status_code, 200)
             res = client.get(f"{self.base}/widget/tarefas", headers={"X-Token": "segredo-teste"})
@@ -230,7 +230,7 @@ class RotasComTokenTestCase(unittest.TestCase):
 
     def test_tupla_antiga_do_app_continua_liberada(self):
         res = app.app.test_client().post("/api/atalho/capturar", json={"text": "x"})
-        self.assertNotEqual(res.get_json().get("error"), "não autenticado")
+        self.assertNotEqual(res.get_json().get("error"), "nao autenticado")
 
     def test_prefixo_largo_demais_ou_invalido_derruba(self):
         for extra in (

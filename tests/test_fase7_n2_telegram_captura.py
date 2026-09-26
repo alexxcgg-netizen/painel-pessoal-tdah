@@ -116,7 +116,7 @@ def test_texto_normal_chama_executar_captura_e_manda_resumo():
         url_app="https://painel.exemplo/app",
     )
 
-    assert executar.chamadas == [("lembra de ligar pro dentista amanhã", "")]
+    assert executar.chamadas == [("lembra de ligar pro dentista amanha", "")]
     assert salvar.chamadas == []
     assert len(mensagens.enviadas) == 1
     assert "Tarefa criada." in mensagens.enviadas[0]
@@ -395,7 +395,7 @@ def test_foto_usa_a_maior_resolucao_e_cria_gasto():
 
     assert chamadas_download == ["grande"]  # file_size 900 > 100
     assert extrair.chamadas == [(b"jpeg-fake", "image/jpeg")]
-    assert executar.chamadas == [("Gastei R$ 45.9 em Padaria São Jose", "")]
+    assert executar.chamadas == [("Gastei R$ 45.9 em Padaria Sao Jose", "")]
     assert "desfazer" in mensagens.enviadas[0].lower()
 
 

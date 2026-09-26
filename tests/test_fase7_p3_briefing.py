@@ -213,7 +213,7 @@ class MontarNoiteTestCase(unittest.TestCase):
         self.assertEqual(dados["opcoes"], briefing.OPCOES_FECHAMENTO)
         self.assertIn("Nenhuma tarefa concluida hoje.", dados["corpo"])
         self.assertIn("Como foi o dia?", dados["corpo"])
-        self.assertNotIn("passa pra amanhã", dados["corpo"])
+        self.assertNotIn("passa pra amanha", dados["corpo"])
 
     def test_dia_cheio(self):
         self.conn.execute(
