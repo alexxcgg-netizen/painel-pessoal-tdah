@@ -3,20 +3,20 @@
   /* Round 8 (decisao final, testada ao vivo no comparador do artefato entre
      18 cores x 5 fundos): "Preto puro" - a versao mais escura das 5 opcoes
      de fundo testadas. Antes era um preto azulado (#09090d/#16181f/...). */
-  /* Fase 8 D1: cor base agora vem de static/css/ui/tokens.css (--cor-bg,
-     --cor-superficie...), que carrega depois deste arquivo via fase7.css e
-     sobrescreve estas variaveis. Fundo neutro estilo ChatGPT (~#171717),
-     sem roxo/verde saturado. Os hex abaixo sao so o fallback se tokens.css
-     nao carregar. */
-  --bg: #171717;
-  --surface: #212121;
-  --surface-2: #2a2a2a;
-  --surface-3: #303030;
-  --border: rgba(255, 255, 255, 0.09);
+  /* Fase 8 D1 / faixa vis-C1: cor base agora vem de static/css/ui/tokens.css
+     (--cor-fundo, --cor-superficie...), que carrega depois deste arquivo via
+     fase7.css e sobrescreve estas variaveis. Paleta "Gelo preto": fundo
+     preto puro + azul-gelo de destaque. Os hex abaixo sao so o fallback se
+     tokens.css nao carregar. */
+  --bg: #000;
+  --surface: #080b0e;
+  --surface-2: #0e1216;
+  --surface-3: #141a20;
+  --border: #1f272e;
   --border-strong: rgba(255, 255, 255, 0.18);
-  --text: #ececec;
-  --text-muted: #a9a9a9;
-  --text-faint: #788292;
+  --text: #f2f7fa;
+  --text-muted: #aebbc6;
+  --text-faint: #6b7680;
 
   /* paleta joia - pedido explicito do Alex: menos "LED"/pastel-brilhante,
      mais tom de pedra preciosa - roxo, azul, esmeralda, ouro e terracota,
@@ -64,7 +64,7 @@
      esses elementos sempre dependeram de borda/glow/texto pra se
      distinguir, nao do preenchimento em si). Ver o fix separado em
      --accent-gradient-titulo mais abaixo pro titulo continuar legivel. */
-  --accent: #45454a;
+  --accent: #bfe6ff;
   --accent-fill: color-mix(in srgb, var(--accent) 30%, black 70%);
   --accent-2: #08080a;
   --accent-2-fill: color-mix(in srgb, var(--accent-2) 30%, black 70%);
@@ -92,26 +92,33 @@
     color-mix(in srgb, color-mix(in srgb, var(--accent) 58%, black 42%) 68%, var(--text) 32%) 0%,
     color-mix(in srgb, color-mix(in srgb, var(--accent-2) 58%, black 42%) 68%, var(--text) 32%) 100%
   );
-  --accent-text: #f4eeff;
+  --accent-text: var(--text);
   --accent-soft-bg: color-mix(in srgb, var(--accent) 16%, transparent);
 
-  --cor-hoje: var(--accent);
-  --cor-hoje-fill: var(--accent-fill);
-  --cor-painel: #41aa75;
+  /* Faixa vis/C1 (paleta "Gelo preto"): cada --cor-X vira alias de
+     --cor-aba-<nome> (static/css/ui/tokens.css) - nome antigo continua
+     valendo pra quem ja usa (44+ lugares), so a fonte da cor mudou. */
+  --cor-hoje: var(--cor-aba-hoje);
+  --cor-hoje-fill: color-mix(in srgb, var(--cor-hoje) 30%, black 70%);
+  --cor-painel: var(--cor-aba-painel);
   --cor-painel-fill: color-mix(in srgb, var(--cor-painel) 30%, black 70%);
-  --cor-tarefas: #5246d8;
+  --cor-vida: var(--cor-aba-vida);
+  --cor-vida-fill: color-mix(in srgb, var(--cor-vida) 30%, black 70%);
+  --cor-tarefas: var(--cor-aba-tarefas);
   --cor-tarefas-fill: color-mix(in srgb, var(--cor-tarefas) 30%, black 70%);
-  --cor-financeiro: #04759a;
+  --cor-financeiro: var(--cor-aba-gastos);
   --cor-financeiro-fill: color-mix(in srgb, var(--cor-financeiro) 30%, black 70%);
   --cor-bancos: #a27c2f;
   --cor-bancos-fill: color-mix(in srgb, var(--cor-bancos) 30%, black 70%);
-  --cor-construtora: #aa320e;
+  --cor-construtora: var(--cor-aba-construtora);
   --cor-construtora-fill: color-mix(in srgb, var(--cor-construtora) 30%, black 70%);
-  --cor-aviacao: #3d8cfa;
+  --cor-aviacao: var(--cor-aba-aviacao);
   --cor-aviacao-fill: color-mix(in srgb, var(--cor-aviacao) 30%, black 70%);
+  --cor-assistente: var(--cor-aba-assistente);
+  --cor-assistente-fill: color-mix(in srgb, var(--cor-assistente) 30%, black 70%);
 
-  --danger: #ff5c72;
-  --danger-bg: rgba(255, 92, 114, 0.14);
+  --danger: var(--cor-saida);
+  --danger-bg: color-mix(in srgb, var(--danger) 14%, transparent);
   --radius: 20px;
   --radius-sm: 14px;
 
@@ -194,11 +201,12 @@
     color-mix(in srgb, var(--glass-tint) 12%, transparent) 0%,
     transparent 62%
   );
-  --glass-bg: var(--surface-2);
+  --glass-bg: var(--geada), var(--surface-2);
   --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
   --glass-blur: none;
   --glass-shadow: 0 3px 8px -4px rgba(0, 0, 0, 0.55),
-    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 15%, transparent), var(--shadow-card-hover);
+    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 15%, transparent), var(--shadow-card-hover),
+    var(--geada-brilho);
 
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
@@ -994,17 +1002,37 @@ header {
   color: var(--accent-text);
   font-weight: 700;
   transform: translateY(-3px) scale(1.04);
-  /* "LED" pedido explicito: glow ambiente pequeno e continuo (nao so na sombra de
-     queda) em cima da cor de acento - e o que faz uma superficie escura parecer
-     "acesa" em vez de so escura. */
+  /* Paleta "Gelo preto" (pedido explicito: sem glow/sombra luminosa/LED) - o
+     glow ambiente continuo que existia aqui foi removido; sobra so a sombra
+     de queda comum. */
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent),
-    0 0 16px -2px color-mix(in srgb, var(--accent) 55%, transparent);
+    0 6px 18px -6px color-mix(in srgb, var(--accent-fill) 65%, transparent);
 }
 
 .tab-btn.active svg {
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent));
+  /* sem drop-shadow/glow nesta paleta - so a cor do icone (regra abaixo) muda. */
 }
+
+/* Icone da barra de abas na cor de identidade da propria aba (ativo = cor
+   cheia; inativo = a mesma cor a ~60% via color-mix) - pedido explicito da
+   paleta "Gelo preto". O rotulo de texto abaixo do icone continua neutro
+   (--text-muted, regra generica de .tab-btn acima); so o svg troca de cor. */
+.tab-btn[data-tab="hoje"] svg { color: color-mix(in srgb, var(--cor-aba-hoje) 60%, transparent); }
+.tab-btn[data-tab="painel"] svg { color: color-mix(in srgb, var(--cor-aba-painel) 60%, transparent); }
+.tab-btn[data-tab="aviacao"] svg { color: color-mix(in srgb, var(--cor-aba-aviacao) 60%, transparent); }
+.tab-btn[data-tab="vida"] svg { color: color-mix(in srgb, var(--cor-aba-vida) 60%, transparent); }
+.tab-btn[data-tab="tarefas"] svg { color: color-mix(in srgb, var(--cor-aba-tarefas) 60%, transparent); }
+.tab-btn[data-tab="gastos"] svg { color: color-mix(in srgb, var(--cor-aba-gastos) 60%, transparent); }
+.tab-btn[data-tab="construtora"] svg { color: color-mix(in srgb, var(--cor-aba-construtora) 60%, transparent); }
+.tab-btn[data-tab="assistente"] svg { color: color-mix(in srgb, var(--cor-aba-assistente) 60%, transparent); }
+.tab-btn.active[data-tab="hoje"] svg { color: var(--cor-aba-hoje); }
+.tab-btn.active[data-tab="painel"] svg { color: var(--cor-aba-painel); }
+.tab-btn.active[data-tab="aviacao"] svg { color: var(--cor-aba-aviacao); }
+.tab-btn.active[data-tab="vida"] svg { color: var(--cor-aba-vida); }
+.tab-btn.active[data-tab="tarefas"] svg { color: var(--cor-aba-tarefas); }
+.tab-btn.active[data-tab="gastos"] svg { color: var(--cor-aba-gastos); }
+.tab-btn.active[data-tab="construtora"] svg { color: var(--cor-aba-construtora); }
+.tab-btn.active[data-tab="assistente"] svg { color: var(--cor-aba-assistente); }
 
 /* Pedido do Alex (inspirado no app Pierre - preto/branco quase puro, cor so
    nos detalhes pequenos): as 7 abas paravam de "misturar cor" - a aba ativa
@@ -1080,12 +1108,14 @@ header {
 #tab-tarefas,
 #tab-gastos,
 #tab-construtora,
-#tab-aviacao {
+#tab-aviacao,
+#tab-assistente {
   /* Fase 8 D1: mesma reducao de 30-35% pra 14-15% que o :root - a cor da
      aba deixa de pintar borda/sombra do card, ficando so um tico sutil. */
   --glass-border: color-mix(in srgb, var(--glass-tint) 14%, var(--border-strong));
   --glass-shadow: 0 3px 8px -4px rgba(0, 0, 0, 0.55),
-    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 15%, transparent), var(--shadow-card-hover);
+    0 16px 32px -16px color-mix(in srgb, var(--glass-tint) 15%, transparent), var(--shadow-card-hover),
+    var(--geada-brilho);
 }
 #tab-hoje {
   --glass-tint: var(--cor-hoje);
@@ -1094,7 +1124,7 @@ header {
   --glass-tint: var(--cor-painel);
 }
 #tab-vida {
-  --glass-tint: var(--cor-painel);
+  --glass-tint: var(--cor-vida);
 }
 #tab-tarefas {
   --glass-tint: var(--cor-tarefas);
@@ -1107,6 +1137,9 @@ header {
 }
 #tab-aviacao {
   --glass-tint: var(--cor-aviacao);
+}
+#tab-assistente {
+  --glass-tint: var(--cor-assistente);
 }
 
 /* Antes aparecia sem nenhuma transicao (so o [hidden] saindo). Um erro
@@ -2852,29 +2885,13 @@ li.item.item-otimista {
   margin-left: 0.4rem;
 }
 
-.gasto-categoria[data-cat="mercado"] {
-  background: color-mix(in srgb, var(--cor-financeiro-fill) 45%, transparent);
-  color: var(--cor-financeiro);
-}
-
-.gasto-categoria[data-cat="transporte"] {
-  background: color-mix(in srgb, var(--cor-tarefas-fill) 45%, transparent);
-  color: var(--cor-tarefas);
-}
-
-.gasto-categoria[data-cat="lazer"] {
-  background: color-mix(in srgb, var(--cor-hoje-fill) 45%, transparent);
-  color: var(--cor-hoje);
-}
-
-.gasto-categoria[data-cat="contas"] {
-  background: color-mix(in srgb, var(--cor-bancos-fill) 45%, transparent);
-  color: var(--cor-bancos);
-}
-
-.gasto-categoria[data-cat="saude"] {
-  background: color-mix(in srgb, var(--danger) 18%, transparent);
-  color: var(--danger);
+/* Faixa vis/C1: cor fixa por categoria (todas, nao so 5) via --cat-cor -
+   static/js/nucleo/cores.js define --cat-cor inline no elemento
+   (corDaCategoria). --cor-acento e so o fallback se o JS nao correr. */
+.gasto-categoria[data-cat] {
+  background: color-mix(in srgb, var(--cat-cor, var(--cor-acento)) 32%, var(--surface-2));
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--cat-cor, var(--cor-acento)) 55%, var(--border-strong));
 }
 
 /* gasto so cogitado (ainda nao decidido) - borda tracejada pra ficar visualmente

@@ -8,13 +8,13 @@
   --texto: #f2f2f4;
   --texto-muted: #a8a8b3;
   --texto-faint: #77777f;
-  /* mesmo valor de --cor-acento em static/css/ui/tokens.css (a tela de login
-     nao carrega tokens.css, entao o valor e replicado aqui) */
-  --acento: #8e8ea0;
-  --acento-fraco: rgba(142, 142, 160, 0.14);
-  /* mesmo valor de --cor-alerta em static/css/ui/tokens.css */
-  --perigo: #e5746f;
-  --perigo-fraco: rgba(229, 116, 111, 0.14);
+  /* mesmo valor de --cor-destaque em static/css/ui/tokens.css (a tela de
+     login nao carrega tokens.css, entao o valor e replicado aqui) */
+  --acento: #bfe6ff;
+  --acento-fraco: rgba(191, 230, 255, 0.14);
+  /* mesmo valor de --cor-saida em static/css/ui/tokens.css */
+  --perigo: #f47671;
+  --perigo-fraco: rgba(244, 118, 113, 0.14);
   --raio: 14px;
   --raio-sm: 10px;
   --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
