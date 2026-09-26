@@ -24,8 +24,8 @@ function criarItemBanco(conta) {
   const stats = document.createElement("span");
   stats.className = "item-quando valor-mono";
   stats.textContent = conta.ultima_transacao
-    ? `${numeroFinancas(conta.total_transacoes) ?? 0} transacao(oes) \u00b7 ${fmtMoedaFinancas(conta.total_gasto)} em gastos \u00b7 ultima em ${conta.ultima_transacao}`
-    : "nenhuma transacao ainda";
+    ? `${numeroFinancas(conta.total_transacoes) ?? 0} transação(oes) \u00b7 ${fmtMoedaFinancas(conta.total_gasto)} em gastos \u00b7 última em ${conta.ultima_transacao}`
+    : "nenhuma transação ainda";
   info.appendChild(stats);
 
   linha.appendChild(info);
@@ -76,8 +76,8 @@ function criarLimiteCartaoBox(conta) {
   input.min = "0";
   input.step = "0.01";
   input.inputMode = "decimal";
-  input.placeholder = "Limite do cartao (opcional)";
-  input.setAttribute("aria-label", `Limite do cartao ${conta.banco}`);
+  input.placeholder = "Limite do cartão (opcional)";
+  input.setAttribute("aria-label", `Limite do cartão ${conta.banco}`);
   if (conta.limite != null) input.value = conta.limite;
   const btn = document.createElement("button");
   btn.type = "button";
@@ -90,7 +90,7 @@ function criarLimiteCartaoBox(conta) {
     const numero = valor === "" ? null : Number(valor);
     if (numero !== null && !(Number.isFinite(numero) && numero >= 0)) {
       setBotaoCarregando(btn, false, "Salvar limite");
-      mostrarErro("Limite precisa ser um numero maior ou igual a zero (ou em branco).");
+      mostrarErro("Limite precisa ser um número maior ou igual a zero (ou em branco).");
       return;
     }
     const ok = await apiFetch(`/api/bancos/${conta.id}/limite`, {

@@ -47,7 +47,7 @@ class Fase9UiTestCase(unittest.TestCase):
 
     def test_aba_gastos_agora_se_chama_financas(self):
         self.assertIn('data-tab="gastos"', self.corpo)
-        self.assertIn("Financas", self.corpo)
+        self.assertIn("Finanças", self.corpo)
 
     def test_um_unico_botao_de_sincronizar(self):
         self.assertEqual(self.corpo.count('id="btn-sincronizar-nubank"'), 1)

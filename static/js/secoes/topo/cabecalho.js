@@ -5,7 +5,7 @@
 async function loadUso() {
   const data = await apiFetch("/api/uso/total");
   if (!data) return;
-  $("#uso-custo").textContent = `gasto com IA ate agora: ${fmtUSD(data.custo_usd)}`;
+  $("#uso-custo").textContent = `gasto com IA até agora: ${fmtUSD(data.custo_usd)}`;
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -27,7 +27,7 @@ async function initPush() {
   btn.hidden = false;
 
   if (existente) {
-    btn.textContent = "Notificacoes ativadas";
+    btn.textContent = "Notificações ativadas";
     btn.disabled = true;
     return;
   }
@@ -35,7 +35,7 @@ async function initPush() {
   btn.addEventListener("click", async () => {
     const permissao = await Notification.requestPermission();
     if (permissao !== "granted") {
-      mostrarErro("Permissao de notificacao negada no navegador.");
+      mostrarErro("Permissão de notificação negada no navegador.");
       return;
     }
     setBotaoCarregando(btn, true, "Ativando...");
@@ -48,7 +48,7 @@ async function initPush() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(subscription.toJSON()),
     });
-    setBotaoCarregando(btn, false, "Notificacoes ativadas");
+    setBotaoCarregando(btn, false, "Notificações ativadas");
     btn.disabled = true;
   });
 }
@@ -96,7 +96,7 @@ function initSilencio() {
     if (!dados) return;
     inicioInput.value = dados.inicio;
     fimInput.value = dados.fim;
-    status.textContent = `Salvo: das ${dados.inicio} ate ${dados.fim}.`;
+    status.textContent = `Salvo: das ${dados.inicio} até ${dados.fim}.`;
   });
 }
 

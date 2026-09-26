@@ -189,7 +189,7 @@ function desenharLimiteCartao(impactos) {
   // So o primeiro cartao citado (a tela e "mini grafico", nao um dashboard
   // completo) - com limite configurado mostra fracao (%), sem limite mostra
   // o total comprometido em R$ mesmo (nunca inventa um limite).
-  const cartao = textoFinancas(alvo.cartao, "cartao");
+  const cartao = textoFinancas(alvo.cartao, "cartão");
   card.hidden = false;
   $("#limite-cartao-titulo").textContent =
     impactos.length > 1 ? `Limite comprometido · ${cartao} (+${impactos.length - 1})` : `Limite comprometido · ${cartao}`;
@@ -205,12 +205,12 @@ function desenharLimiteCartao(impactos) {
   desenharGraficoBarras($("#grafico-limite-cartao"), dados, {
     cor: "var(--cor-financeiro)",
     formatarValor: temLimite ? (v) => `${v}%` : fmtMoedaFinancas,
-    rotulo: `Projecao de comprometimento do cartao ${cartao} nos proximos meses`,
+    rotulo: `Projeção de comprometimento do cartão ${cartao} nos próximos meses`,
     altura: 84,
   });
   $("#limite-cartao-legenda").textContent = temLimite
-    ? `Limite de ${fmtMoedaFinancas(limite)}. So conta assinatura e parcela: pode ter mais gasto no cartao alem disso.`
-    : "Sem limite configurado pra esse cartao (aba Bancos): mostrando o total comprometido em R$.";
+    ? `Limite de ${fmtMoedaFinancas(limite)}. Só conta assinatura e parcela: pode ter mais gasto no cartão além disso.`
+    : "Sem limite configurado pra esse cartão (aba Bancos): mostrando o total comprometido em R$.";
 }
 
 async function loadComprometido() {
@@ -298,11 +298,11 @@ $("#form-nova-assinatura").addEventListener("submit", async (e) => {
   const nome = $("#assinatura-nome").value.trim();
   const valor = lerValorFinancas($("#assinatura-valor"));
   const dia = lerInteiroFinancas($("#assinatura-dia"));
-  if (!nome) return mostrarErroSheet("assinatura-erro", "Da um nome pra assinatura.");
+  if (!nome) return mostrarErroSheet("assinatura-erro", "Dá um nome pra assinatura.");
   if (!valorValidoFinancas(valor))
-    return mostrarErroSheet("assinatura-erro", "Valor mensal precisa ser um numero maior que zero (ate R$ 100 milhoes).");
+    return mostrarErroSheet("assinatura-erro", "Valor mensal precisa ser um número maior que zero (até R$ 100 milhões).");
   if (dia === null || dia < 1 || dia > 31)
-    return mostrarErroSheet("assinatura-erro", "Dia da cobranca vai de 1 a 31 (dia 31 em mes curto cobra no ultimo dia).");
+    return mostrarErroSheet("assinatura-erro", "Dia da cobrança vai de 1 a 31 (dia 31 em mês curto cobra no último dia).");
   $("#assinatura-erro").hidden = true;
   const btn = $("#assinatura-salvar-btn");
   salvandoAssinatura = true;
@@ -320,7 +320,7 @@ $("#form-nova-assinatura").addEventListener("submit", async (e) => {
   });
   setBotaoCarregando(btn, false, "Salvar assinatura");
   salvandoAssinatura = false;
-  if (!r) return mostrarErroSheet("assinatura-erro", "Nao consegui salvar agora. Confere os campos e tenta de novo.");
+  if (!r) return mostrarErroSheet("assinatura-erro", "Não consegui salvar agora. Confere os campos e tenta de novo.");
   sucessoSheetFinancas($("#form-nova-assinatura"));
   loadAssinaturas();
 });
@@ -335,16 +335,16 @@ $("#form-nova-parcela").addEventListener("submit", async (e) => {
   const valorParcela = lerValorFinancas($("#parcela-valor-parcela"));
   const primeiraInput = $("#parcela-primeira");
   const primeira = primeiraInput.value;
-  if (!descricao) return mostrarErroSheet("parcela-erro", "Da uma descricao pra compra.");
+  if (!descricao) return mostrarErroSheet("parcela-erro", "Dá uma descrição pra compra.");
   if (nParcelas === null || nParcelas < 1 || nParcelas > PARCELAS_MAX_FINANCAS)
-    return mostrarErroSheet("parcela-erro", `Numero de parcelas vai de 1 a ${PARCELAS_MAX_FINANCAS}.`);
+    return mostrarErroSheet("parcela-erro", `Número de parcelas vai de 1 a ${PARCELAS_MAX_FINANCAS}.`);
   if (valorTotal === null && valorParcela === null)
     return mostrarErroSheet("parcela-erro", "Informa o valor total ou o valor da parcela.");
   if ((valorTotal !== null && !valorValidoFinancas(valorTotal)) || (valorParcela !== null && !valorValidoFinancas(valorParcela)))
-    return mostrarErroSheet("parcela-erro", "Valor precisa ser um numero maior que zero (ate R$ 100 milhoes).");
+    return mostrarErroSheet("parcela-erro", "Valor precisa ser um número maior que zero (até R$ 100 milhões).");
   // Campo de data com texto incompleto: o navegador devolve "" mas marca badInput.
   if ((primeiraInput.validity && primeiraInput.validity.badInput) || (primeira && !(primeira >= "2000-01-01" && primeira <= "2100-12-31")))
-    return mostrarErroSheet("parcela-erro", "Data da primeira parcela invalida (use uma data entre 2000 e 2100).");
+    return mostrarErroSheet("parcela-erro", "Data da primeira parcela inválida (use uma data entre 2000 e 2100).");
   $("#parcela-erro").hidden = true;
   const btn = $("#parcela-salvar-btn");
   salvandoParcela = true;

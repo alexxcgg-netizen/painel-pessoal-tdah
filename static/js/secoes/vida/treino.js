@@ -89,7 +89,7 @@ $("#ficha-ex-add-btn").addEventListener("click", () => {
   const nomeInput = $("#ficha-ex-nome");
   const nome = nomeInput.value.trim();
   if (!nome) {
-    mostrarErro("Digite o nome do exercicio antes de adicionar.");
+    mostrarErro("Digite o nome do exercício antes de adicionar.");
     return;
   }
   fichaExerciciosPendentes.push({
@@ -139,7 +139,7 @@ async function loadTreino() {
   $("#fichas-vazio").hidden = fichas.length > 0;
   fichas.forEach((f) => {
     const n = f.exercicios.split("\n").filter((l) => l.trim()).length;
-    const li = itemSimples(f.grupo, [`${n} exercicio(s)`], [(el) => botaoApagar(`/api/treino/fichas/${f.id}`, el)]);
+    const li = itemSimples(f.grupo, [`${n} exercício(s)`], [(el) => botaoApagar(`/api/treino/fichas/${f.id}`, el)]);
     li.classList.add("lista-item");
     li.appendChild(renderExerciciosFicha(f));
     lista.appendChild(li);
@@ -149,7 +149,7 @@ async function loadTreino() {
   if (Array.isArray(treinos) && treinos.length) {
     recentes.hidden = false;
     recentes.textContent =
-      "Ultimos treinos: " +
+      "Últimos treinos: " +
       treinos
         .slice(0, 4)
         .map((t) => [fmtDataBr(t.data), t.grupo, t.duracao_min ? `${t.duracao_min}min` : null].filter(Boolean).join(" "))
@@ -188,7 +188,7 @@ ligarForm(
   () => {
     const grupo = $("#ficha-grupo").value.trim();
     if (!grupo || !fichaExerciciosPendentes.length) {
-      mostrarErro("Informe o grupo e adicione ao menos 1 exercicio antes de salvar.");
+      mostrarErro("Informe o grupo e adicione ao menos 1 exercício antes de salvar.");
       return null;
     }
     const exercicios = fichaExerciciosPendentes.map(serializarExercicio).join("\n");

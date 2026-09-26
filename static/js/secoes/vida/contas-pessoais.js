@@ -69,9 +69,9 @@ $("#conta-pessoal-form").addEventListener("submit", async (e) => {
   const valor = lerValorFinancas($("#conta-pessoal-valor"));
   if (!nome) return mostrarErroSheet("conta-pessoal-erro", "Da um nome pra conta.");
   if (dia === null || dia < 1 || dia > 31)
-    return mostrarErroSheet("conta-pessoal-erro", "Dia do vencimento vai de 1 a 31 (dia 31 em mes curto vence no ultimo dia).");
+    return mostrarErroSheet("conta-pessoal-erro", "Dia do vencimento vai de 1 a 31 (dia 31 em mes curto vence no último dia).");
   if (valor !== null && !valorValidoFinancas(valor))
-    return mostrarErroSheet("conta-pessoal-erro", "Valor precisa ser um numero maior que zero (ou deixa em branco).");
+    return mostrarErroSheet("conta-pessoal-erro", "Valor precisa ser um número maior que zero (ou deixa em branco).");
   $("#conta-pessoal-erro").hidden = true;
   const btn = $("#conta-pessoal-btn");
   salvandoContaPessoal = true;
@@ -83,7 +83,7 @@ $("#conta-pessoal-form").addEventListener("submit", async (e) => {
   });
   setBotaoCarregando(btn, false, "Salvar conta");
   salvandoContaPessoal = false;
-  if (!r) return mostrarErroSheet("conta-pessoal-erro", "Nao consegui salvar agora. Confere os campos e tenta de novo.");
+  if (!r) return mostrarErroSheet("conta-pessoal-erro", "Não consegui salvar agora. Confere os campos e tenta de novo.");
   sucessoSheetFinancas($("#conta-pessoal-form"));
   loadContasPessoais();
 });

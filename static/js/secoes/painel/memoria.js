@@ -78,7 +78,7 @@ function iniciarEdicaoMemoria(m, li, titulo, acoes, editarBtn, apagarBtn, onMudo
   salvarBtn.addEventListener("click", async () => {
     const novoTexto = input.value.trim();
     if (!novoTexto) {
-      mostrarErro("O texto nao pode ficar vazio.");
+      mostrarErro("O texto não pode ficar vazio.");
       return;
     }
     salvarBtn.disabled = true;

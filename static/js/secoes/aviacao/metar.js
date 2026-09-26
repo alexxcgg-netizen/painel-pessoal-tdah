@@ -129,11 +129,11 @@ $("#metar-form").addEventListener("submit", async (e) => {
   if (!data) return;
 
   if (!data.metar && !data.taf) {
-    mostrarErro(data.erro || "nao encontrei dado nenhum pra esse codigo.");
+    mostrarErro(data.erro || "não encontrei dado nenhum pra esse código.");
     return;
   }
-  $("#metar-texto").textContent = data.metar || "sem METAR disponivel agora.";
-  $("#taf-texto").textContent = data.taf || "sem TAF disponivel agora.";
+  $("#metar-texto").textContent = data.metar || "sem METAR disponível agora.";
+  $("#taf-texto").textContent = data.taf || "sem TAF disponível agora.";
   renderCamposMeteo($("#metar-campos"), data.metar_decodificado, data.metar_categoria);
   renderSegmentosTaf($("#taf-segmentos"), data.taf_segmentos);
   metarFaladoAtual = data.metar_falado;

@@ -47,7 +47,7 @@ async function loadSummary() {
 
   const dadosPraMostrar = data || lerResumoCache();
   if (!dadosPraMostrar) {
-    resumoEl.textContent = "Nao consegui gerar o resumo agora.";
+    resumoEl.textContent = "Não consegui gerar o resumo agora.";
     // C2: sem resumo (IA fora/teto), o tile "gasto hoje" ficava no shimmer pra sempre.
     const gastoEl = $("#stat-gasto");
     gastoEl.classList.remove("shimmer");
@@ -64,8 +64,8 @@ async function loadSummary() {
   }
   resumoEl.textContent = dadosPraMostrar.summary;
   $("#resumo-stats").textContent = data
-    ? `${data.tarefas_concluidas} tarefa(s) concluida(s) hoje`
-    : `${dadosPraMostrar.tarefas_concluidas} tarefa(s) concluida(s) - sem conexao, mostrando o ultimo resumo salvo`;
+    ? `${data.tarefas_concluidas} tarefa(s) concluída(s) hoje`
+    : `${dadosPraMostrar.tarefas_concluidas} tarefa(s) concluída(s) - sem conexão, mostrando o último resumo salvo`;
 
   if (data) salvarResumoCache(data);
 }

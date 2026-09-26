@@ -13,20 +13,20 @@ const path = require("node:path");
 
 const CaixaAssistente = require(path.join(__dirname, "..", "..", "static", "js", "secoes", "assistente", "caixa.js"));
 
-// ---- textoContagem (titulo "Pendencias do assistente (N)") ----
+// ---- textoContagem (titulo "Pendências do assistente (N)") ----
 
 test("textoContagem: zero pendencias", () => {
-  assert.equal(CaixaAssistente.textoContagem(0), "Pendencias do assistente (0)");
+  assert.equal(CaixaAssistente.textoContagem(0), "Pendências do assistente (0)");
 });
 
 test("textoContagem: N pendencias", () => {
-  assert.equal(CaixaAssistente.textoContagem(5), "Pendencias do assistente (5)");
+  assert.equal(CaixaAssistente.textoContagem(5), "Pendências do assistente (5)");
 });
 
 test("textoContagem: valor ausente/invalido vira 0", () => {
-  assert.equal(CaixaAssistente.textoContagem(undefined), "Pendencias do assistente (0)");
-  assert.equal(CaixaAssistente.textoContagem(null), "Pendencias do assistente (0)");
-  assert.equal(CaixaAssistente.textoContagem("nao e numero"), "Pendencias do assistente (0)");
+  assert.equal(CaixaAssistente.textoContagem(undefined), "Pendências do assistente (0)");
+  assert.equal(CaixaAssistente.textoContagem(null), "Pendências do assistente (0)");
+  assert.equal(CaixaAssistente.textoContagem("nao e numero"), "Pendências do assistente (0)");
 });
 
 // ---- itensUrgentes (as 3 mais urgentes da faixa compacta) ----
@@ -73,7 +73,7 @@ test("normalizarOpcoes: sem opcoes proprias usa o padrao do tipo (pergunta)", ()
   const item = { tipo: "pergunta", opcoes: null };
   assert.deepEqual(CaixaAssistente.normalizarOpcoes(item), [
     { rotulo: "Sim", valor: "sim" },
-    { rotulo: "Nao", valor: "nao" },
+    { rotulo: "Não", valor: "nao" },
     { rotulo: "Adiar", valor: "adiar" },
   ]);
 });
@@ -110,7 +110,7 @@ test("textoAtraso: atrasado com minutos conhecidos", () => {
 
 test("textoAtraso: atrasado sem nenhum tick registrado ainda", () => {
   const texto = CaixaAssistente.textoAtraso({ atrasado: true, minutos_desde_ultimo_tick: null });
-  assert.match(texto, /ainda nao rodou/);
+  assert.match(texto, /ainda não rodou/);
 });
 
 // ---- render da faixa compacta / lista (renderItemHTML, renderListaHTML) ----
@@ -188,5 +188,5 @@ test("renderHistoricoItemHTML: resposta customizada (nao-padrao) some sem quebra
 });
 
 test("renderHistoricoHTML: vazio mostra mensagem propria", () => {
-  assert.match(CaixaAssistente.renderHistoricoHTML([]), /sem historico/);
+  assert.match(CaixaAssistente.renderHistoricoHTML([]), /sem histórico/);
 });

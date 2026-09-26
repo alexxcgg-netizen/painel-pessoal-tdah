@@ -50,7 +50,7 @@ function criarItemMeta(meta) {
   if (meta.previsao && pct < 100) {
     const previsao = document.createElement("p");
     previsao.className = "meta-detalhe valor-mono";
-    previsao.textContent = `No ritmo atual (${fmtMoedaFinancas(meta.previsao.ritmo_mensal)}/mes), bate em ${fmtDataFinancas(meta.previsao.data_prevista)}.`;
+    previsao.textContent = `No ritmo atual (${fmtMoedaFinancas(meta.previsao.ritmo_mensal)}/mês), bate em ${fmtDataFinancas(meta.previsao.data_prevista)}.`;
     li.appendChild(previsao);
   }
 

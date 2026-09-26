@@ -1,6 +1,6 @@
 // static/js/secoes/vida/habitos.js - Secao vida > habitos (HTML: templates/secoes/vida/habitos.html).
 // Fase 7 (X2): extraido sem mudanca de logica do antigo vida.js 698-790.
-// Fase 7 (V3-organizacao): botao "Novo habito" abre o formulario num bottom-sheet
+// Fase 7 (V3-organizacao): botao "Novo hábito" abre o formulario num bottom-sheet
 // (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/fecharBottomSheet
 // (faixa V0d) quando existir; se a faixa ainda nao chegou nesta branch, cai no fallback de
 // so alternar o atributo hidden do painel.
