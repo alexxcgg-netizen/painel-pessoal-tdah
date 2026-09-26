@@ -610,39 +610,6 @@ def _recusar_no_modo_visitante():
     return None
 
 
-@app.route("/api/modo-visitante", methods=["GET"])
-def modo_visitante_rota():
-    return jsonify({"ativo": _modo_visitante_ativo()})
-
-
-@app.route("/api/modo-visitante", methods=["POST"])
-def alternar_modo_visitante_rota():
-    """Ativar e livre (1 toque, pra dar tempo de esconder a tela antes de
-    passar o celular pra alguem). Desativar exige o PIN de verdade - senao
-    quem ja esta com o celular desbloqueado (a propria pessoa de quem voce
-    esta escondendo o dado) conseguiria desligar sozinha so cutucando um
-    botao."""
-    body = _corpo_json()
-    if bool(body.get("ativar")):
-        session["modo_visitante"] = True
-        return jsonify({"ativo": True})
-
-    ip = request.remote_addr or "desconhecido"
-    conn = get_db()
-    try:
-        pode_tentar, msg_bloqueio = auth.verificar_bloqueio(conn, ip)
-        if not pode_tentar:
-            return jsonify({"error": msg_bloqueio}), 429
-        pin_ok = auth.verificar_pin(conn, body.get("pin"))
-        auth.registrar_tentativa(conn, ip, sucesso=pin_ok)
-    finally:
-        conn.close()
-    if not pin_ok:
-        return jsonify({"error": "PIN incorreto"}), 403
-    session["modo_visitante"] = False
-    return jsonify({"ativo": False})
-
-
 def _modo_teste_ia_ativo(conn) -> bool:
     """Config persistida (tabela `configuracoes`, nao sessao - ao contrario
     do modo visitante): o Alex liga antes de testar o visual no celular pelo
@@ -650,27 +617,6 @@ def _modo_teste_ia_ativo(conn) -> bool:
     de volta. So essa pessoa ve o toggle (fica dentro do login por PIN, igual
     o resto do app - nao ha usuario nenhum alem dela)."""
     return (obter_configuracao(conn, "modo_teste_ia") or "0") == "1"
-
-
-@app.route("/api/configuracoes/teste-ia", methods=["GET"])
-def obter_teste_ia():
-    conn = get_db()
-    try:
-        return jsonify({"ativo": _modo_teste_ia_ativo(conn)})
-    finally:
-        conn.close()
-
-
-@app.route("/api/configuracoes/teste-ia", methods=["POST"])
-def definir_teste_ia():
-    body = _corpo_json()
-    ativo = bool(body.get("ativo"))
-    conn = get_db()
-    try:
-        definir_configuracao(conn, "modo_teste_ia", "1" if ativo else "0")
-    finally:
-        conn.close()
-    return jsonify({"ativo": ativo})
 
 
 @app.route("/")
@@ -4716,12 +4662,6 @@ def verificar_e_notificar():
     return enviados
 
 
-@app.route("/api/notificacoes/verificar-agora", methods=["POST"])
-def notificacoes_verificar_agora():
-    enviados = verificar_e_notificar()
-    return jsonify({"avisos_enviados": enviados})
-
-
 @app.route("/uber/conectar", methods=["GET"])
 def uber_conectar():
     """Passo 1 do OAuth - so o Alex, ja logado no painel, clica nisso pra
@@ -7273,35 +7213,6 @@ def uso_total():
     return jsonify({"custo_usd": round(total, 4)})
 
 
-@app.route("/api/ia/custo", methods=["GET"])
-def ia_custo():
-    """Resumo do gasto com a API da Anthropic pro card financeiro (US-A5) -
-    mes atual e ultimos 30 dias, mais teto/fracao/estourado (US-A6). Ver
-    db.resumo_custo_api."""
-    conn = get_db()
-    resumo = resumo_custo_api(conn)
-    conn.close()
-    return jsonify(resumo)
-
-
-@app.route("/api/ia/teto", methods=["POST"])
-def ia_definir_teto():
-    """Define (ou remove, com null/0) o teto mensal de gasto com IA (US-A6) -
-    editavel via UI no card financeiro."""
-    body = _corpo_json()
-    teto = body.get("teto_mensal_usd")
-    if teto is not None:
-        if isinstance(teto, bool) or not isinstance(teto, (int, float)) or not math.isfinite(teto):
-            return jsonify({"error": "teto_mensal_usd precisa ser um numero"}), 400
-        if teto < 0:
-            return jsonify({"error": "teto_mensal_usd nao pode ser negativo"}), 400
-    conn = get_db()
-    definir_teto_mensal_ia(conn, teto)
-    resumo = resumo_custo_api(conn)
-    conn.close()
-    return jsonify(resumo)
-
-
 def _categorizar_transacoes_importadas(conn, transacoes: list[dict]) -> list[dict]:
     """Decide a categoria de cada transacao importada sozinho, com base no
     historico de gastos que voce ja categorizou manualmente - sem perguntar
@@ -7475,95 +7386,6 @@ def _texto_falado_intent(resultado: dict) -> str:
     if resultado.get("precisa_confirmacao"):
         return f"Acho que entendi {rotulo}{detalhe}, mas nao tenho certeza. Confirma no painel antes de executar."
     return f"Entendi {rotulo}{detalhe}. Confirma no painel pra executar."
-
-
-@app.route("/api/configuracoes/silencio", methods=["GET"])
-def obter_silencio():
-    conn = get_db()
-    inicio = obter_configuracao(conn, "silencio_inicio") or "22:00"
-    fim = obter_configuracao(conn, "silencio_fim") or "07:00"
-    # Fase 5 (US-C4): notificacao agrupada mora no mesmo endpoint/mecanismo
-    # do modo silencioso configuravel (mesma tabela `configuracoes`, mesmo
-    # painel de ajustes de notificacao) em vez de um sistema paralelo -
-    # desligada por padrao pra nao mudar o comportamento de quem nunca
-    # mexeu nisso.
-    agrupar = (obter_configuracao(conn, "notificacoes_agrupar") or "0") == "1"
-    agrupar_janela_min = int(obter_configuracao(conn, "notificacoes_agrupar_janela_min") or "2")
-    conn.close()
-    return jsonify({"inicio": inicio, "fim": fim, "agrupar": agrupar, "agrupar_janela_min": agrupar_janela_min})
-
-
-@app.route("/api/configuracoes/silencio", methods=["POST"])
-def definir_silencio():
-    corpo = _corpo_json()
-    inicio = _normalizar_hora(corpo.get("inicio"))
-    fim = _normalizar_hora(corpo.get("fim"))
-    if not inicio or not fim:
-        return jsonify({"error": "horario invalido - use HH:MM"}), 400
-
-    conn = get_db()
-    definir_configuracao(conn, "silencio_inicio", inicio)
-    definir_configuracao(conn, "silencio_fim", fim)
-
-    resultado = {"ok": True, "inicio": inicio, "fim": fim}
-    if "agrupar" in corpo:
-        agrupar = bool(corpo.get("agrupar"))
-        definir_configuracao(conn, "notificacoes_agrupar", "1" if agrupar else "0")
-        resultado["agrupar"] = agrupar
-    if "agrupar_janela_min" in corpo:
-        try:
-            janela = int(corpo.get("agrupar_janela_min"))
-        except (TypeError, ValueError):
-            conn.close()
-            return jsonify({"error": "agrupar_janela_min precisa ser um numero inteiro"}), 400
-        if janela < 1:
-            conn.close()
-            return jsonify({"error": "agrupar_janela_min precisa ser pelo menos 1"}), 400
-        definir_configuracao(conn, "notificacoes_agrupar_janela_min", str(janela))
-        resultado["agrupar_janela_min"] = janela
-
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/push/status", methods=["GET"])
-def push_status():
-    return jsonify({"configurado": push_client.configurado(), "public_key": push_client.public_key()})
-
-
-@app.route("/api/push/inscrever", methods=["POST"])
-def push_inscrever():
-    subscription = _corpo_json()
-    endpoint = subscription.get("endpoint")
-    if not endpoint:
-        return jsonify({"error": "inscricao invalida"}), 400
-    conn = get_db()
-    save_push_subscription(conn, endpoint, json.dumps(subscription))
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/push/testar", methods=["POST"])
-def push_testar():
-    if not push_client.configurado():
-        return jsonify({"error": "notificacao push nao configurada - veja o README"}), 400
-
-    conn = get_db()
-    subscriptions = list_push_subscriptions(conn)
-    enviados = 0
-    for s in subscriptions:
-        sub_dict = json.loads(s["subscription_json"])
-        ok = push_client.enviar(
-            sub_dict,
-            "Painel Pessoal",
-            "Notificacao de teste - se voce esta vendo isso, esta tudo funcionando!",
-        )
-        if ok:
-            enviados += 1
-        else:
-            delete_push_subscription(conn, s["endpoint"])
-    conn.close()
-    return jsonify({"enviados": enviados, "total": len(subscriptions)})
 
 
 def rodar_sincronizacao_nubank_automatica():
