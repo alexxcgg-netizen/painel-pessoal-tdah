@@ -40,6 +40,7 @@ const ASSETS = [
   "/static/css/fase7.css",
   "/static/css/ui/tokens.css",
   "/static/css/ui/movimento.css",
+  "/static/css/ui/desempenho.css",
   "/static/css/ui/componentes/botao.css",
   "/static/css/ui/componentes/secao.css",
   "/static/css/ui/componentes/card.css",
