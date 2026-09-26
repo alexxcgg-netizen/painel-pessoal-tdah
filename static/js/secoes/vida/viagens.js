@@ -47,10 +47,10 @@ function criarBlocoVoo(v, li) {
   const input = document.createElement("input");
   input.type = "text";
   input.className = "campo";
-  input.placeholder = "Numero do voo (ex: LA3251)";
+  input.placeholder = "Número do voo (ex: LA3251)";
   input.maxLength = 12;
   input.value = v.numero_voo || "";
-  input.setAttribute("aria-label", `Numero do voo da viagem para ${v.destino}`);
+  input.setAttribute("aria-label", `Número do voo da viagem para ${v.destino}`);
   const salvarBtn = criarEl("button", "btn btn-secundario", v.numero_voo ? "Atualizar" : "Salvar");
   salvarBtn.type = "submit";
   form.appendChild(input);
@@ -132,7 +132,7 @@ async function loadViagens() {
     const quando = v.dias_ate > 0 ? `em ${v.dias_ate} dia(s)` : v.dias_ate === 0 ? "hoje" : "em andamento";
     v.itens = Array.isArray(v.itens) ? v.itens : [];
     const lugaresV = Array.isArray(v.lugares) ? v.lugares : [];
-    const lugares = lugaresV.length ? `voce curtiu la: ${lugaresV.map((l) => l.nome).join(", ")}` : null;
+    const lugares = lugaresV.length ? `você curtiu la: ${lugaresV.map((l) => l.nome).join(", ")}` : null;
     const tipoViagem = v.internacional ? "internacional" : "nacional";
     const malaBtn = criarEl("button", "btn-com-icone", v.itens.length ? "refazer mala" : "montar mala");
     let li;
@@ -211,7 +211,7 @@ ligarForm("#viagem-nova-form", "#viagem-nova-btn", "Salvar viagem", () => {
   const volta = $("#viagem-nova-volta").value || null;
   if (!destino || !ida) return null;
   if (volta && volta < ida) {
-    mostrarErro("A volta nao pode ser antes da ida.");
+    mostrarErro("A volta não pode ser antes da ida.");
     return null;
   }
   return { destino, data_ida: ida, data_volta: volta, internacional: $("#viagem-nova-internacional").checked };

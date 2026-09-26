@@ -12,7 +12,7 @@ async function loadSobrecarga() {
   if (!data.sobrecarregado) return;
   $("#sobrecarga-pontuacao").textContent = `${data.pontuacao}/3 sinais`;
   const lista = data.sinais.map((s) => SINAL_TEXTO[s] || s).join(", ");
-  $("#sobrecarga-texto").textContent = `Varios sinais juntos: ${lista}. Talvez valha desacelerar hoje.`;
+  $("#sobrecarga-texto").textContent = `Vários sinais juntos: ${lista}. Talvez valha desacelerar hoje.`;
 }
 
 // ---- Fase 5 (US-C21): previa da noite anterior ----

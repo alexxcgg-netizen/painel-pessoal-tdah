@@ -5,9 +5,9 @@
 
 const CUSTO_IA_V2_ROTULO_NIVEL = {
   normal: "",
-  aviso_80: "Ja passou de 80% do teto do mes - modo economia liga em 100%.",
+  aviso_80: "Já passou de 80% do teto do mes - modo economia liga em 100%.",
   estourado_100:
-    "Teto do mes estourado - so as funcoes essenciais (classificacao/captura) continuam chamando IA ate o mes virar.",
+    "Teto do mes estourado - só as funções essenciais (classificacao/captura) continuam chamando IA até o mes virar.",
 };
 
 function custoIaV2FormatarPercentual(fracao) {
@@ -96,7 +96,7 @@ async function loadCustoIAV2() {
   barra.style.width = `${pct}%`;
   barra.classList.toggle("completa", dados.nivel_alerta === "estourado_100");
   $("#custo-ia-v2-fracao").textContent = `${custoIaV2FormatarPercentual(dados.fracao_teto)} do teto usado`;
-  $("#custo-ia-v2-projecao").textContent = `Projecao ate o fim do mes: ${fmtMoeda(dados.projecao_fim_mes_brl)}.`;
+  $("#custo-ia-v2-projecao").textContent = `Projecao até o fim do mes: ${fmtMoeda(dados.projecao_fim_mes_brl)}.`;
 
   const nivelEl = $("#custo-ia-v2-nivel");
   const textoNivel = CUSTO_IA_V2_ROTULO_NIVEL[dados.nivel_alerta] || "";

@@ -47,12 +47,12 @@ $("#voo-form").addEventListener("submit", async (e) => {
   const horasTxt = horasInput.value.trim();
   const horas = horasTxt ? parseHoras(horasTxt) : null;
   if (horasTxt && !horas) {
-    mostrarErro("Horas invalidas - use um numero tipo 1,5 (ou deixe em branco se so agendado).");
+    mostrarErro("Horas invalidas - use um número tipo 1,5 (ou deixe em branco se só agendado).");
     return;
   }
   const horaTxt = horaInput.value.trim();
   if (horaTxt && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(horaTxt)) {
-    mostrarErro("Horario do voo invalido - use hh:mm (ex: 14:00), ou deixe em branco.");
+    mostrarErro("Horário do voo inválido - use hh:mm (ex: 14:00), ou deixe em branco.");
     return;
   }
 

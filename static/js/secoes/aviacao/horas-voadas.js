@@ -9,7 +9,7 @@ async function loadVoosResumo() {
   // busca a previsao do tempo pra cada voo agendado, entao pode demorar um
   // pouco mais que uma chamada comum - mostra que ta carregando em vez de
   // deixar a lista parecendo vazia/quebrada nesse meio tempo
-  vazioTexto.textContent = "Carregando voos e previsao do tempo...";
+  vazioTexto.textContent = "Carregando voos e previsão do tempo...";
   vazioEl.hidden = false;
 
   const data = await apiFetch("/api/voos/resumo");
@@ -45,7 +45,7 @@ async function loadVoosResumo() {
     desenharGraficoLinha($("#grafico-voos"), historico, {
       cor: "var(--cor-aviacao)",
       formatarValor: fmtHoras,
-      rotulo: "Evolucao das horas de voo acumuladas",
+      rotulo: "Evolução das horas de voo acumuladas",
     });
   }
 }

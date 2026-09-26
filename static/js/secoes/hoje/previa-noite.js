@@ -22,9 +22,9 @@ async function loadPreviaNoite() {
   const partes = [];
   if (data.sono_horas != null) partes.push(`dormiu ${data.sono_horas.toFixed(1)}h`);
   else if (data.sono_checkin != null) partes.push(`marcou o sono como ${data.sono_checkin}/5`);
-  if (data.copos_agua) partes.push(`${data.copos_agua} copo(s) de agua`);
+  if (data.copos_agua) partes.push(`${data.copos_agua} copo(s) de água`);
   if (data.medicamentos_total > 0) {
-    partes.push(`remedio: ${data.medicamentos_tomados}/${data.medicamentos_total} tomado(s)`);
+    partes.push(`remédio: ${data.medicamentos_tomados}/${data.medicamentos_total} tomado(s)`);
   }
 
   box.hidden = partes.length === 0;

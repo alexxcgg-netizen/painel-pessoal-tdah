@@ -29,14 +29,14 @@ const CaixaAssistente = (function () {
   const ROTULO_TIPO = {
     pergunta: "Pergunta",
     aviso: "Aviso",
-    sugestao: "Sugestao",
+    sugestao: "Sugestão",
     briefing: "Briefing",
-    proposta_memoria: "Memoria",
+    proposta_memoria: "Memória",
   };
 
   const ROTULO_RESPOSTA = {
     sim: "Sim",
-    nao: "Nao",
+    nao: "Não",
     adiar: "Adiar",
     aceitar: "Aceitar",
     recusar: "Recusar",
@@ -86,7 +86,7 @@ const CaixaAssistente = (function () {
 
   function textoContagem(pendentes) {
     const n = Number(pendentes) || 0;
-    return `Pendencias do assistente (${n})`;
+    return `Pendências do assistente (${n})`;
   }
 
   // Aviso discreto quando o tick (POST /api/tick, cron externo) esta
@@ -96,10 +96,10 @@ const CaixaAssistente = (function () {
     if (!saude || !saude.atrasado) return null;
     const min = saude.minutos_desde_ultimo_tick;
     if (min === null || min === undefined) {
-      return "O assistente ainda nao rodou nesta instalacao.";
+      return "O assistente ainda não rodou nesta instalação.";
     }
     const minArred = Math.max(0, Math.round(min));
-    return `O assistente esta atrasado (ultima verificacao ha ${minArred} min).`;
+    return `O assistente está atrasado (última verificação há ${minArred} min).`;
   }
 
   function renderBotoesHTML(item) {
@@ -145,7 +145,7 @@ const CaixaAssistente = (function () {
 
   function renderHistoricoHTML(itens) {
     if (!Array.isArray(itens) || !itens.length) {
-      return `<li class="caixa-vazio">Ainda sem historico.</li>`;
+      return `<li class="caixa-vazio">Ainda sem histórico.</li>`;
     }
     return itens.map(renderHistoricoItemHTML).join("");
   }

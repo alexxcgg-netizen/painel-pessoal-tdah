@@ -86,7 +86,7 @@ function criarItemVoo(v) {
       const sairEm = new Date(data.sair_ate);
       const horaTxt = sairEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       saidaResultado.textContent =
-        `Saia ate as ${horaTxt} (viagem de ${data.duracao_minutos}min, ${data.distancia_km}km, ` +
+        `Saia até as ${horaTxt} (viagem de ${data.duracao_minutos}min, ${data.distancia_km}km, ` +
         `com ${data.margem_minutos}min de margem pro voo)`;
       saidaResultado.hidden = false;
     });

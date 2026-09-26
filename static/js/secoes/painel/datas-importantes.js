@@ -106,7 +106,7 @@ $("#lembrete-form").addEventListener("submit", async (e) => {
   // nao mudou nesta historia).
   const dataIso = dataInput.value;
   if (!titulo || !dataIso) {
-    mostrarErro("Confere o titulo e a data de vencimento.");
+    mostrarErro("Confere o título e a data de vencimento.");
     return;
   }
 

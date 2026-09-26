@@ -19,11 +19,11 @@ async function loadProgresso() {
     grid.innerHTML = "";
     [
       [p.tarefas_feitas, "tarefas feitas"],
-      [`${p.rotina_manha_dias}/${p.dias}`, "dias com rotina da manha"],
+      [`${p.rotina_manha_dias}/${p.dias}`, "dias com rotina da manhã"],
       [p.treinos_por_semana, "treinos por semana"],
-      [p.copos_por_dia, "copos de agua por dia"],
-      [p.sono_medio != null ? `${p.sono_medio}h` : "-", "sono medio"],
-      [p.humor_medio || "-", "humor na media"],
+      [p.copos_por_dia, "copos de água por dia"],
+      [p.sono_medio != null ? `${p.sono_medio}h` : "-", "sono médio"],
+      [p.humor_medio || "-", "humor na média"],
     ].forEach(([valor, rotulo]) => {
       const item = criarEl("div", "progresso-item");
       item.appendChild(criarEl("span", "progresso-valor", String(valor)));

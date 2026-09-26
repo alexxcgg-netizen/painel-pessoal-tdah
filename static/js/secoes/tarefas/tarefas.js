@@ -179,7 +179,7 @@ function criarItemTarefa(t) {
 
   const btnCorrigir = document.createElement("button");
   btnCorrigir.className = "btn-com-icone";
-  btnCorrigir.title = "isso nao e uma tarefa?";
+  btnCorrigir.title = "isso não é uma tarefa?";
   btnCorrigir.innerHTML = ICONE_CORRIGIR;
   btnCorrigir.addEventListener("click", () => {
     const jaAberto = li.querySelector(".correcao-form");
@@ -282,7 +282,7 @@ function criarItemTarefa(t) {
   return li;
 }
 
-// Correcao rapida "isso nao e uma tarefa, e um gasto" - formulario minimo
+// Correcao rapida "isso não e uma tarefa, e um gasto" - formulario minimo
 // (o texto original pode nao ter um valor claro, entao pede o valor certo
 // na hora, do jeito que o Alex quiser) que aparece inline no card e some se
 // for cancelado ou depois de corrigir com sucesso.

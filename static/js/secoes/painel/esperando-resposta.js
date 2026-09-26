@@ -124,7 +124,7 @@ $("#espera-form").addEventListener("submit", async (e) => {
   const quem = quemInput.value.trim();
   const sobre = sobreInput.value.trim();
   if (!quem || !sobre) {
-    mostrarErro("Confere quem e sobre o que voce esta esperando.");
+    mostrarErro("Confere quem e sobre o que você está esperando.");
     return;
   }
 
