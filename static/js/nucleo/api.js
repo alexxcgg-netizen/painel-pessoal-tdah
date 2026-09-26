@@ -17,6 +17,40 @@ function limparErro() {
 // uma conexao morta.
 const API_FETCH_TIMEOUT_MS = 45000;
 
+// Vel A2b: aviso discreto e fixo quando uma chamada demora mais de 3s (ex:
+// Render free "acordando" depois de ficar parado) - um so aviso mesmo com
+// varias chamadas lentas ao mesmo tempo (contador), some quando a ultima
+// que disparou o aviso termina. Nao muda assinatura nem retorno do apiFetch.
+const AVISO_LENTO_MS = 3000;
+let _apiFetchPendentesLentos = 0;
+
+function _apiFetchMostrarAvisoLento() {
+  let banner = document.getElementById("acordando-banner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "acordando-banner";
+    banner.setAttribute("role", "status");
+    banner.textContent = "Servidor acordando… (primeiro acesso depois de um tempo parado pode levar até 1 minuto)";
+    banner.style.position = "fixed";
+    banner.style.left = "0";
+    banner.style.right = "0";
+    banner.style.top = "0";
+    banner.style.zIndex = "9999";
+    banner.style.textAlign = "center";
+    banner.style.padding = "0.5rem 1rem";
+    banner.style.fontSize = "0.85rem";
+    banner.style.background = "var(--accent, #2d6cdf)";
+    banner.style.color = "#fff";
+    document.body.appendChild(banner);
+  }
+  banner.hidden = false;
+}
+
+function _apiFetchEsconderAvisoLento() {
+  const banner = document.getElementById("acordando-banner");
+  if (banner) banner.hidden = true;
+}
+
 // `fila`: so pras acoes criticas de captura de dado do usuario (captura,
 // check-in, e desde a Fase 5/US-B5 tambem comando de voz) - o caller passa
 // { tipo: "capture"|"checkin"|"comando_voz", id? } (ver static/js/voz-comando.js
@@ -33,9 +67,23 @@ async function apiFetch(url, options, fila) {
   let res;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
+  let avisouLento = false;
+  const avisoTimeoutId = setTimeout(() => {
+    avisouLento = true;
+    _apiFetchPendentesLentos++;
+    _apiFetchMostrarAvisoLento();
+  }, AVISO_LENTO_MS);
+  const pararAvisoLento = () => {
+    clearTimeout(avisoTimeoutId);
+    if (avisouLento) {
+      _apiFetchPendentesLentos = Math.max(0, _apiFetchPendentesLentos - 1);
+      if (_apiFetchPendentesLentos === 0) _apiFetchEsconderAvisoLento();
+    }
+  };
   try {
     res = await fetch(url, { ...options, signal: controller.signal });
   } catch (e) {
+    pararAvisoLento();
     if (fila) {
       try {
         await FilaOffline.enfileirar({
@@ -62,6 +110,7 @@ async function apiFetch(url, options, fila) {
   } finally {
     clearTimeout(timeoutId);
   }
+  pararAvisoLento();
   let data = null;
   try {
     data = await res.json();

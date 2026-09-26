@@ -56,13 +56,35 @@ function celebrarHidratacao(btn) {
   setTimeout(limpar, 1200);
 }
 
+// Vel A2b: +1 copo otimista - o contador sobe e a animacao roda na hora do
+// toque, sem esperar o POST. Se a rede falhar, desfaz o contador (o aviso ja
+// vem do apiFetch via mostrarErro).
 $("#hidratacao-btn").addEventListener("click", async () => {
   const btn = $("#hidratacao-btn");
+  if (btn.disabled) return; // evita duplo toque
   btn.disabled = true;
+  const totalEl = $("#hidratacao-total");
+  const anterior = totalEl.textContent;
+  totalEl.textContent = calcularProximoTotalHidratacao(anterior);
+  pulsarSucesso(totalEl);
+  celebrarHidratacao(btn);
+
   const data = await apiFetch("/api/hidratacao", { method: "POST" });
   btn.disabled = false;
-  if (!data) return;
-  $("#hidratacao-total").textContent = data.total_hoje;
-  pulsarSucesso($("#hidratacao-total"));
-  celebrarHidratacao(btn);
+  if (!data) {
+    totalEl.textContent = anterior; // desfaz o otimista
+    return;
+  }
+  totalEl.textContent = data.total_hoje; // sincroniza com o valor real do servidor
 });
+
+// Vel A2b: extraido pra teste puro (node --test) - mesma logica usada no
+// clique de +1 copo (otimista) e no desfazer em erro.
+function calcularProximoTotalHidratacao(atualTexto) {
+  const n = parseInt(atualTexto, 10);
+  return Number.isFinite(n) ? n + 1 : atualTexto;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { calcularProximoTotalHidratacao };
+}
