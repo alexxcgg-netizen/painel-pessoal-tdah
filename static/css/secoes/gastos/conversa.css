@@ -368,6 +368,12 @@
   transform: rotate(45deg);
   transition: transform 0.2s ease;
 }
-#fc-card-ultimos-dias[open] > summary .chevron {
+/* Vis (C2): o <details> fica sempre aberto no DOM (movimento.js -
+   ligarDetalheAnimado, wrapper .c2-details-externo/.c2-details-interno cuida
+   do abrir/fechar sem pulo) - o estado visual do chevron passa a vir desse
+   wrapper em vez do atributo nativo [open] (que nao muda mais depois que o
+   JS liga). Antes do JS rodar, sem wrapper ainda, [open] segue valendo. */
+#fc-card-ultimos-dias[open]:not(:has(.c2-details-externo)) > summary .chevron,
+#fc-card-ultimos-dias:has(.c2-details-externo:not(.c2-details-fechado)) > summary .chevron {
   transform: rotate(-135deg);
 }

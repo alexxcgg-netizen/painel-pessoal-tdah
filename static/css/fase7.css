@@ -4,6 +4,7 @@
    importados abaixo; nao editar o style.css nem este arquivo (a nao ser pra arquivo novo -
    e ai lembrar do precache em static/service-worker.js). */
 @import url("ui/tokens.css");
+@import url("ui/movimento.css");
 @import url("ui/componentes/botao.css");
 @import url("ui/componentes/secao.css");
 @import url("ui/componentes/card.css");

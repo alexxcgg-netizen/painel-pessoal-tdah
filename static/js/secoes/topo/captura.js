@@ -112,10 +112,17 @@ function atualizarIndicadorOffline(n) {
   const banner = $("#offline-banner");
   if (!banner) return;
   if (n > 0) {
+    banner.classList.remove("c2-toast-sai");
     banner.textContent = `Sem conexao - ${n} ${n === 1 ? "item pendente" : "itens pendentes"}, vai sincronizar quando voltar.`;
     banner.hidden = false;
-  } else {
-    banner.hidden = true;
+  } else if (!banner.hidden) {
+    if (typeof saidaAnimada === "function") {
+      saidaAnimada(banner, () => {
+        banner.hidden = true;
+      });
+    } else {
+      banner.hidden = true;
+    }
   }
 }
 

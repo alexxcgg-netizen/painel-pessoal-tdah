@@ -22,7 +22,23 @@ function pulsarSucesso(el) {
 
 function animarNumero(el, valorFinal, formatador) {
   el.classList.remove("shimmer");
-  const duracao = 420;
+  // Vis (C2): "reduzir movimento" tem que mostrar o valor final direto, sem
+  // contar (skill animacoes-interface) - antes esta funcao sempre contava,
+  // mesmo com o sistema preferindo menos movimento. Duracao vem do token
+  // --dur-contagem (700ms, tokens.css) quando disponivel, com o 420ms antigo
+  // como fallback (getComputedStyle pode nao existir num teste sem DOM real).
+  if (typeof reduzirMovimento === "function" && reduzirMovimento()) {
+    el.textContent = formatador ? formatador(valorFinal) : Math.round(valorFinal);
+    return;
+  }
+  let duracao = 420;
+  try {
+    const token = getComputedStyle(document.documentElement).getPropertyValue("--dur-contagem").trim();
+    const ms = parseFloat(token);
+    if (ms > 0) duracao = ms;
+  } catch (erro) {
+    /* sem getComputedStyle (ambiente de teste) - segue com o fallback */
+  }
   const inicio = performance.now();
   function passo(agora) {
     const progresso = Math.min(1, (agora - inicio) / duracao);

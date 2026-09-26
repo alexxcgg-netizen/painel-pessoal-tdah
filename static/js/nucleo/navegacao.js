@@ -26,17 +26,39 @@ function showTab(name) {
   const elNovo = document.getElementById(`tab-${name}`);
   abaAtual = name;
 
-  if (elAnterior && elAnterior !== elNovo) {
-    elAnterior.classList.remove("entra-direita", "entra-esquerda");
-    elAnterior.hidden = true;
-  }
-  if (elNovo) {
-    elNovo.classList.remove("entra-direita", "entra-esquerda");
-    elNovo.hidden = false;
-    if (direcao) elNovo.classList.add(direcao);
-  }
-  document.querySelectorAll(".tab-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === name);
+  // Vis (C2): so a troca de hidden/active entra no View Transition (fn
+  // sincrona, do jeito que a API espera) - com suporte nativo o navegador
+  // cross-fada + sobe 8px sozinho (::view-transition-*(root), ui/movimento.
+  // css); sem suporte, ou reduzir movimento, roda direto e cai no CSS de
+  // entra-direita/entra-esquerda/tabEntra que style.css ja tinha (as duas
+  // classes continuam existindo so pra isso, hoje as duas viram o mesmo
+  // keyframe). Os loads de dados abaixo ficam FORA (sao assincronos, nao
+  // fazem parte do "antes/depois" que a VT tira foto).
+  const trocarAbaFn = typeof trocarAba === "function" ? trocarAba : (fn) => fn();
+  trocarAbaFn(() => {
+    if (elAnterior && elAnterior !== elNovo) {
+      elAnterior.classList.remove("entra-direita", "entra-esquerda");
+      elAnterior.hidden = true;
+    }
+    if (elNovo) {
+      elNovo.classList.remove("entra-direita", "entra-esquerda");
+      elNovo.hidden = false;
+      if (direcao) elNovo.classList.add(direcao);
+      // Vis (C2): cards entrando escalonados (30ms, 8 primeiros) SO na 1a
+      // abertura de Painel/Vida nesta sessao de pagina (marcarEntradaEscalonada
+      // ja se marca sozinha, nao repete em trocas seguintes) - roda no MESMO
+      // tick que revela a aba (hidden=false, linha de cima), antes do proximo
+      // paint, senao os cards apareceriam prontos por 1 frame e "pulariam" pra
+      // entrada. Deliberadamente NAO em Tarefas (deixa test_vel_a2b_otimista
+      // instavel - achado da faixa anterior).
+      if (typeof marcarEntradaEscalonada === "function") {
+        if (name === "painel") marcarEntradaEscalonada(elNovo);
+        else if (name === "vida") marcarEntradaEscalonada(elNovo.querySelector(".vida-secoes"));
+      }
+    }
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tab === name);
+    });
   });
   if (name === "painel") {
     // Vel (A2c): os 5 primeiros sao os que aparecem sem rolar (mesma ordem

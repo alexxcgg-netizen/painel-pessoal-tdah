@@ -329,11 +329,8 @@
 }
 
 @keyframes shimmerCarregando {
-  0% {
-    background-position: -200% 0;
-  }
   100% {
-    background-position: 200% 0;
+    transform: translateX(100%);
   }
 }
 
@@ -438,10 +435,14 @@ button svg {
   border-color: var(--text-faint);
 }
 
+/* Vis (C2): escala de toque unificada pelo token --escala-pressionado (0.97,
+   tokens.css) em vez do 0.93 solto que so este seletor usava - mesma duracao/
+   curva --dur-rapida + --ease-entrada (elemento "saindo" do estado de
+   repouso) que o resto do sistema de movimento novo usa pra afundar. */
 button:active:not(:disabled) {
-  transform: scale(0.93);
+  transform: scale(var(--escala-pressionado, 0.97));
   opacity: 0.85;
-  transition: transform 0.09s cubic-bezier(0.4, 0, 1, 1), opacity 0.09s ease;
+  transition: transform var(--dur-rapida) var(--ease-entrada), opacity var(--dur-rapida) var(--ease-entrada);
 }
 
 /* Mesma fisica de toque (afunda rapido/sem overshoot, solta com bounce) pros
@@ -455,8 +456,8 @@ button:active:not(:disabled) {
 }
 .cotacao-cabecalho:active,
 .ofx-input-label:active {
-  transform: scale(0.97);
-  transition: transform 0.09s cubic-bezier(0.4, 0, 1, 1);
+  transform: scale(var(--escala-pressionado, 0.97));
+  transition: transform var(--dur-rapida) var(--ease-entrada);
 }
 
 /* Foco global (M1): antes era um anel de --accent-2 a 45%, que quase sumia no
@@ -1047,50 +1048,25 @@ header {
    de tomar conta do preenchimento inteiro do botao/aba. */
 
 .tab-content:not([hidden]) {
-  /* Vel (A2c): 0.32s -> 0.18s (pedido: animacao de entrada de aba <=200ms -
-     so encurta a duracao, continua so transform/opacity, ver entra-direita/
-     entra-esquerda abaixo). */
-  animation: tabEntra 0.18s var(--ease-suave) backwards;
+  /* Vis (C2): fallback de quem nao tem View Transitions (static/js/nucleo/
+     movimento.js chama document.startViewTransition quando existe - a
+     animacao de la, ::view-transition-new(root) em ui/movimento.css, ja
+     cobre esse navegador e esta teria rodado em dobro). --dur-media/
+     --ease-saida (entrando) + --deslocamento-entrada no lugar do 0.18s/
+     translateX(16px) solto de antes - mesmo tempo (~200ms), agora no token. */
+  animation: tabEntra var(--dur-media) var(--ease-saida) backwards;
 }
 
-/* Transicao direcional entre abas (pedido explicito: efeitos "premium",
-   detalhe minimo) - troca pra uma aba mais a direita na barra desliza
-   entrando pela direita, mais a esquerda entra pela esquerda, em vez do
-   mesmo fade generico pra qualquer troca. `overflow-x: hidden` no body (ja
-   existia) evita scroll horizontal durante o deslize. So a aba que ENTRA e
-   animada (a que sai so fica `hidden` na hora) - dar exit animation tambem
-   exigiria as duas abas visiveis ao mesmo tempo por um instante, mais
-   arriscado (dado carregando, foco, etc) pro ganho visual que traria. */
-.tab-content.entra-direita:not([hidden]) {
-  /* Vel (A2c): 0.36s -> 0.18s (medido: era a animacao mais longa da troca de
-     aba; CPU 4x fazia cada frame de composicao do vidro/backdrop-filter
-     custar mais, e a animacao ficava rodando por mais tempo pra compensar). */
-  animation: tabEntraDireita 0.18s var(--ease-suave) backwards;
-}
+/* Transicao direcional antiga (entra-direita/entra-esquerda): Vis (C2)
+   substituiu por opacity + translateY(--deslocamento-entrada), igual ao
+   fallback de View Transitions acima (era so pra manter as duas classes que
+   navegacao.js ainda usa/pode usar funcionando, sem duplicar keyframe -
+   ambas agora sao so um alias do tabEntra de cima). `overflow-x: hidden` no
+   body (ja existia) continua evitando scroll horizontal. So a aba que ENTRA
+   e animada (a que sai so fica `hidden` na hora). */
+.tab-content.entra-direita:not([hidden]),
 .tab-content.entra-esquerda:not([hidden]) {
-  animation: tabEntraEsquerda 0.18s var(--ease-suave) backwards;
-}
-
-@keyframes tabEntraDireita {
-  from {
-    opacity: 0;
-    transform: translateX(16px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes tabEntraEsquerda {
-  from {
-    opacity: 0;
-    transform: translateX(-16px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
+  animation: tabEntra var(--dur-media) var(--ease-saida) backwards;
 }
 
 /* Cada aba redefine --glass-tint pra sua cor de identidade. Pegadinha real de
@@ -1161,7 +1137,7 @@ header {
   border-radius: var(--radius);
   font-size: 0.85rem;
   margin-bottom: 1rem;
-  animation: erroEntra 0.4s var(--ease-bounce) both;
+  animation: erroEntra var(--dur-media, 0.22s) var(--ease-bounce) both;
 }
 
 @keyframes erroEntra {
@@ -1189,7 +1165,7 @@ header {
   border-radius: var(--radius);
   font-size: 0.8rem;
   margin-bottom: 1rem;
-  animation: offlineBannerEntra 0.35s var(--ease-suave) both;
+  animation: offlineBannerEntra var(--dur-media, 0.22s) var(--ease-suave) both;
 }
 
 @keyframes offlineBannerEntra {
@@ -1695,16 +1671,28 @@ header {
   animation: fadeInUp 0.35s var(--ease-bounce) both;
 }
 
+/* Vis (C2, skill animacoes-interface): o brilho do esqueleto anda por
+   transform (pseudo-elemento), nunca por background-position (repinta a
+   tela inteira a cada frame) - mesmo visual, custo de composicao so. */
 .resumo-texto.carregando,
 .shimmer {
+  position: relative;
+  overflow: hidden;
   color: transparent;
+  background: var(--surface);
+}
+.resumo-texto.carregando::after,
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
   background: linear-gradient(
     100deg,
-    var(--surface) 40%,
+    transparent 30%,
     var(--surface-3) 50%,
-    var(--surface) 60%
+    transparent 70%
   );
-  background-size: 250% 100%;
   animation: shimmerCarregando 1.4s ease-in-out infinite;
 }
 
