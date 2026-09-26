@@ -319,11 +319,8 @@
 }
 
 @keyframes shimmerCarregando {
-  0% {
-    background-position: -200% 0;
-  }
   100% {
-    background-position: 200% 0;
+    transform: translateX(100%);
   }
 }
 
@@ -1102,7 +1099,7 @@ header {
   border-radius: var(--radius);
   font-size: 0.85rem;
   margin-bottom: 1rem;
-  animation: erroEntra 0.4s var(--ease-bounce) both;
+  animation: erroEntra var(--dur-media, 0.22s) var(--ease-bounce) both;
 }
 
 @keyframes erroEntra {
@@ -1130,7 +1127,7 @@ header {
   border-radius: var(--radius);
   font-size: 0.8rem;
   margin-bottom: 1rem;
-  animation: offlineBannerEntra 0.35s var(--ease-suave) both;
+  animation: offlineBannerEntra var(--dur-media, 0.22s) var(--ease-suave) both;
 }
 
 @keyframes offlineBannerEntra {
@@ -1632,16 +1629,28 @@ header {
   animation: fadeInUp 0.35s var(--ease-bounce) both;
 }
 
+/* Vis (C2, skill animacoes-interface): o brilho do esqueleto anda por
+   transform (pseudo-elemento), nunca por background-position (repinta a
+   tela inteira a cada frame) - mesmo visual, custo de composicao so. */
 .resumo-texto.carregando,
 .shimmer {
+  position: relative;
+  overflow: hidden;
   color: transparent;
+  background: var(--surface);
+}
+.resumo-texto.carregando::after,
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
   background: linear-gradient(
     100deg,
-    var(--surface) 40%,
+    transparent 30%,
     var(--surface-3) 50%,
-    var(--surface) 60%
+    transparent 70%
   );
-  background-size: 250% 100%;
   animation: shimmerCarregando 1.4s ease-in-out infinite;
 }
 

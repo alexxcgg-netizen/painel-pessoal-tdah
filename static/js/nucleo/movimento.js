@@ -104,6 +104,74 @@ function animarGraficoNaEntrada(container) {
   obs.observe(container);
 }
 
+// <details> que expande sem "pulo": o navegador mostra/esconde o conteudo
+// de um <details> na hora (sem transicao nenhuma) - aqui o <details> fica
+// SEMPRE aberto no DOM (details.open = true, permanente) e um wrapper novo
+// (grid-template-rows 0fr -> 1fr, filho com overflow:hidden - tecnica da
+// skill animacoes-interface) faz o visual de abrir/fechar. summary.click()
+// tem o comportamento nativo cancelado (preventDefault) pra nao entrar em
+// conflito com esse estado sintetico. Usado por secoes/gastos/gastos.js no
+// <details id="fc-card-ultimos-dias">.
+function ligarDetalheAnimado(details) {
+  if (!details || details.dataset.c2DetalheLigado === "1") return;
+  if (typeof document === "undefined" || typeof document.createElement !== "function") return;
+  const summary = details.querySelector ? details.querySelector("summary") : null;
+  if (!summary) return;
+  details.dataset.c2DetalheLigado = "1";
+
+  const abertoInicial = !!details.open;
+  const externo = document.createElement("div");
+  externo.className = "c2-details-externo" + (abertoInicial ? "" : " c2-details-fechado");
+  const interno = document.createElement("div");
+  interno.className = "c2-details-interno";
+  const filhos = Array.prototype.slice.call(details.children).filter((el) => el !== summary);
+  filhos.forEach((el) => interno.appendChild(el));
+  externo.appendChild(interno);
+  details.appendChild(externo);
+
+  details.open = true; // fica sempre aberto no DOM - o wrapper controla o visual
+  details.dataset.c2Aberto = abertoInicial ? "1" : "0";
+  summary.setAttribute("aria-expanded", abertoInicial ? "true" : "false");
+
+  summary.addEventListener("click", (evento) => {
+    if (evento && typeof evento.preventDefault === "function") evento.preventDefault();
+    const aberto = details.dataset.c2Aberto === "1";
+    details.dataset.c2Aberto = aberto ? "0" : "1";
+    summary.setAttribute("aria-expanded", aberto ? "false" : "true");
+    externo.classList.toggle("c2-details-fechado", aberto);
+  });
+}
+
+// Toast/aviso fixo (banner de erro, offline, "servidor acordando" -
+// nucleo/api.js, secoes/topo/captura.js): entra com o CSS de cada banner
+// (translateY + opacity, --dur-media, ja tocava sozinho ao [hidden] sair) -
+// aqui so cuida da SAIDA, que antes era instantanea ([hidden]=true direto).
+// Adiciona .c2-toast-sai (--dur-rapida, fade), espera o animationend (com
+// timeout de seguranca caso o navegador nao dispare) e so entao chama
+// aoEsconder - nunca trava (reduzirMovimento esconde na hora, sem esperar).
+function saidaAnimada(el, aoEsconder) {
+  if (!el) {
+    if (aoEsconder) aoEsconder();
+    return;
+  }
+  if (reduzirMovimento() || typeof requestAnimationFrame !== "function") {
+    if (aoEsconder) aoEsconder();
+    return;
+  }
+  el.classList.add("c2-toast-sai");
+  let feito = false;
+  const finalizar = () => {
+    if (feito) return;
+    feito = true;
+    el.classList.remove("c2-toast-sai");
+    if (aoEsconder) aoEsconder();
+  };
+  if (typeof el.addEventListener === "function") {
+    el.addEventListener("animationend", finalizar, { once: true });
+  }
+  setTimeout(finalizar, 200);
+}
+
 // Node (tests/js/*.test.js roda sem DOM real) - mesmo padrao de export duplo
 // usado no resto do nucleo (ex: secao-recolhivel.js).
 if (typeof module !== "undefined" && module.exports) {
@@ -113,5 +181,7 @@ if (typeof module !== "undefined" && module.exports) {
     marcarEntradaEscalonada,
     animarConclusaoTarefa,
     animarGraficoNaEntrada,
+    saidaAnimada,
+    ligarDetalheAnimado,
   };
 }

@@ -44,6 +44,17 @@ function showTab(name) {
       elNovo.classList.remove("entra-direita", "entra-esquerda");
       elNovo.hidden = false;
       if (direcao) elNovo.classList.add(direcao);
+      // Vis (C2): cards entrando escalonados (30ms, 8 primeiros) SO na 1a
+      // abertura de Painel/Vida nesta sessao de pagina (marcarEntradaEscalonada
+      // ja se marca sozinha, nao repete em trocas seguintes) - roda no MESMO
+      // tick que revela a aba (hidden=false, linha de cima), antes do proximo
+      // paint, senao os cards apareceriam prontos por 1 frame e "pulariam" pra
+      // entrada. Deliberadamente NAO em Tarefas (deixa test_vel_a2b_otimista
+      // instavel - achado da faixa anterior).
+      if (typeof marcarEntradaEscalonada === "function") {
+        if (name === "painel") marcarEntradaEscalonada(elNovo);
+        else if (name === "vida") marcarEntradaEscalonada(elNovo.querySelector(".vida-secoes"));
+      }
     }
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.tab === name);

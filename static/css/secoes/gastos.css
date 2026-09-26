@@ -166,30 +166,35 @@
 }
 
 #tab-gastos .esqueleto-linha-gasto {
+  position: relative;
+  overflow: hidden;
   height: 3.1rem;
   border-radius: var(--raio-sm, var(--radius-sm));
   background: var(--cor-superficie-2, var(--surface-2));
   border: 1px solid var(--borda-sutil, var(--border));
 }
 
+/* Vis (C2, skill animacoes-interface): brilho por transform (pseudo-
+   elemento) em vez de background-position - mesmo visual, sem repintar a
+   tela a cada frame. */
 @media (prefers-reduced-motion: no-preference) {
-  #tab-gastos .esqueleto-linha-gasto {
+  #tab-gastos .esqueleto-linha-gasto::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
     background: linear-gradient(
       100deg,
-      var(--cor-superficie-2, var(--surface-2)) 40%,
+      transparent 30%,
       var(--cor-superficie, var(--surface)) 50%,
-      var(--cor-superficie-2, var(--surface-2)) 60%
+      transparent 70%
     );
-    background-size: 200% 100%;
     animation: gastos-esqueleto-brilho 1.4s ease-in-out infinite;
   }
 
   @keyframes gastos-esqueleto-brilho {
-    from {
-      background-position: 100% 0;
-    }
-    to {
-      background-position: -100% 0;
+    100% {
+      transform: translateX(100%);
     }
   }
 }
