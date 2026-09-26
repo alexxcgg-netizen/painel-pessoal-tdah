@@ -4081,29 +4081,6 @@ def _checkin_com_rotulos(checkin: dict | None) -> dict | None:
     return {c: vida.ROTULO_CHECKIN.get(checkin.get(c)) for c in vida.CAMPOS_CHECKIN}
 
 
-@app.route("/api/checkin/hoje", methods=["GET"])
-def checkin_hoje():
-    conn = get_db()
-    checkin = get_checkin(conn, date.today().isoformat())
-    conn.close()
-    return jsonify({"checkin": _checkin_com_rotulos(checkin)})
-
-
-@app.route("/api/checkin", methods=["POST"])
-def salvar_checkin_rota():
-    body = _corpo_json()
-    campos = {c: vida.valor_checkin(body.get(c)) for c in vida.CAMPOS_CHECKIN if c in body}
-    campos = {c: v for c, v in campos.items() if v is not None}
-    if not campos:
-        return jsonify({"error": "mande energia, sono ou humor como 'ruim', 'ok' ou 'bom'"}), 400
-    conn = get_db()
-    checkin = salvar_checkin(conn, date.today().isoformat(), campos)
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify({"checkin": _checkin_com_rotulos(checkin)})
-
-
 def _rotina_do_dia(conn, momento: str, dia: str) -> dict:
     itens = list_rotina_itens(conn, momento)
     feitos = rotina_marcadas(conn, dia)
@@ -4114,56 +4091,6 @@ def _rotina_do_dia(conn, momento: str, dia: str) -> dict:
         "feitos": sum(1 for i in lista if i["feito"]),
         "total": len(lista),
     }
-
-
-@app.route("/api/rotina", methods=["GET"])
-def rotina():
-    momento = request.args.get("momento") or vida.momento_rotina(datetime.now())
-    if momento not in vida.ITENS_ROTINA_PADRAO:
-        return jsonify({"error": "momento deve ser 'manha' ou 'noite'"}), 400
-    conn = get_db()
-    resultado = _rotina_do_dia(conn, momento, vida.dia_da_rotina(momento, datetime.now()).isoformat())
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/rotina/<int:item_id>/alternar", methods=["POST"])
-def alternar_rotina(item_id):
-    conn = get_db()
-    existe = conn.execute("SELECT momento FROM rotina_itens WHERE id = ? AND ativo = 1", (item_id,)).fetchone()
-    if not existe:
-        conn.close()
-        return jsonify({"error": "item nao encontrado"}), 404
-    dia = vida.dia_da_rotina(existe["momento"], datetime.now())
-    feito = alternar_rotina_item(conn, dia.isoformat(), item_id)
-    if feito:
-        _marcar_atividade(conn)
-        conn.commit()
-    conn.close()
-    return jsonify({"feito": feito})
-
-
-@app.route("/api/rotina/itens", methods=["POST"])
-def criar_item_rotina():
-    body = _corpo_json()
-    momento = (body.get("momento") or "").strip()
-    texto = (body.get("texto") or "").strip()
-    if momento not in vida.ITENS_ROTINA_PADRAO:
-        return jsonify({"error": "momento deve ser 'manha' ou 'noite'"}), 400
-    if not texto or len(texto) > 120:
-        return jsonify({"error": "escreva o item (ate 120 caracteres)"}), 400
-    conn = get_db()
-    item_id = create_rotina_item(conn, momento, texto)
-    conn.close()
-    return jsonify({"ok": True, "id": item_id}), 201
-
-
-@app.route("/api/rotina/itens/<int:item_id>", methods=["DELETE"])
-def apagar_item_rotina(item_id):
-    conn = get_db()
-    delete_rotina_item(conn, item_id)
-    conn.close()
-    return jsonify({"ok": True})
 
 
 # ---- Fase 6 (US-E12): modulo Habitos - NOVO, separado da Rotina guiada ----
@@ -4202,14 +4129,6 @@ def _habito_detalhado(conn, habito: dict, hoje: date) -> dict:
     }
 
 
-@app.route("/api/habitos", methods=["GET"])
-def habitos_rota():
-    conn = get_db()
-    resultado = [_habito_detalhado(conn, h, date.today()) for h in list_habitos(conn)]
-    conn.close()
-    return jsonify({"habitos": resultado, "ativos_total": len(resultado)})
-
-
 def _criar_habito(conn, nome, meta, frequencia_tipo, dias_semana, vezes_por_semana, horario) -> dict:
     nome = _texto_curto(nome, 80)
     if not nome:
@@ -4238,39 +4157,6 @@ def _criar_habito(conn, nome, meta, frequencia_tipo, dias_semana, vezes_por_sema
     return {"ok": True, "habito_id": habito_id}
 
 
-@app.route("/api/habitos", methods=["POST"])
-def criar_habito_rota():
-    body = _corpo_json()
-    conn = get_db()
-    resultado = _criar_habito(
-        conn, body.get("nome"), body.get("meta"), body.get("frequencia_tipo"),
-        body.get("dias_semana"), body.get("vezes_por_semana"), body.get("horario"),
-    )
-    conn.close()
-    if "erro" in resultado:
-        return jsonify({"error": resultado["erro"]}), 400
-    return jsonify(resultado), 201
-
-
-@app.route("/api/habitos/<int:habito_id>", methods=["DELETE"])
-def apagar_habito_rota(habito_id):
-    conn = get_db()
-    delete_habito(conn, habito_id)
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/habitos/<int:habito_id>/marcar", methods=["POST"])
-def marcar_habito_rota(habito_id):
-    conn = get_db()
-    if not get_habito(conn, habito_id):
-        conn.close()
-        return jsonify({"error": "habito nao encontrado"}), 404
-    feito = alternar_habito_dia(conn, date.today().isoformat(), habito_id)
-    conn.close()
-    return jsonify({"feito": feito})
-
-
 def _estado_hiperfoco(conn) -> dict:
     ate = obter_configuracao(conn, "hiperfoco_ate")
     agora = datetime.now()
@@ -4288,33 +4174,6 @@ def _iniciar_hiperfoco(conn, minutos: int) -> dict:
     definir_configuracao(conn, "hiperfoco_ate", ate.isoformat(timespec="seconds"))
     definir_configuracao(conn, "hiperfoco_minutos", str(minutos))
     return _estado_hiperfoco(conn)
-
-
-@app.route("/api/hiperfoco", methods=["GET"])
-def hiperfoco():
-    conn = get_db()
-    estado = _estado_hiperfoco(conn)
-    conn.close()
-    return jsonify(estado)
-
-
-@app.route("/api/hiperfoco", methods=["POST"])
-def iniciar_hiperfoco_rota():
-    minutos = _corpo_json().get("minutos")
-    if isinstance(minutos, bool) or minutos not in vida.DURACOES_HIPERFOCO:
-        return jsonify({"error": "duracao deve ser 25, 50 ou 90 minutos"}), 400
-    conn = get_db()
-    estado = _iniciar_hiperfoco(conn, minutos)
-    conn.close()
-    return jsonify(estado)
-
-
-@app.route("/api/hiperfoco", methods=["DELETE"])
-def encerrar_hiperfoco():
-    conn = get_db()
-    definir_configuracao(conn, "hiperfoco_ate", "")
-    conn.close()
-    return jsonify({"ativo": False, "ate": None, "minutos_restantes": 0, "segundos_restantes": 0})
 
 
 def _candidatas_essencial(conn, hoje: date) -> list[dict]:
@@ -4376,71 +4235,6 @@ def _essencial_detalhado(conn, hoje: date) -> list[dict]:
     return resultado
 
 
-@app.route("/api/essencial", methods=["GET"])
-def essencial():
-    hoje = date.today()
-    conn = get_db()
-    if obter_configuracao(conn, "essencial_gerado_em") != hoje.isoformat():
-        _gerar_essencial(conn, hoje)
-        definir_configuracao(conn, "essencial_gerado_em", hoje.isoformat())
-    resultado = {
-        "modo_ativo": obter_configuracao(conn, "modo_essencial_data") == hoje.isoformat(),
-        "tarefas": _essencial_detalhado(conn, hoje),
-    }
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/essencial/gerar", methods=["POST"])
-def regerar_essencial():
-    hoje = date.today()
-    conn = get_db()
-    _gerar_essencial(conn, hoje)
-    definir_configuracao(conn, "essencial_gerado_em", hoje.isoformat())
-    tarefas = _essencial_detalhado(conn, hoje)
-    conn.close()
-    return jsonify({"tarefas": tarefas})
-
-
-@app.route("/api/essencial/trocar", methods=["POST"])
-def trocar_essencial():
-    task_id = _corpo_json().get("task_id")
-    hoje = date.today()
-    conn = get_db()
-    atuais = get_essencial(conn, hoje.isoformat())
-    ja_usadas = {e["task_id"] for e in atuais}
-    if isinstance(task_id, bool) or task_id not in ja_usadas:
-        conn.close()
-        return jsonify({"error": "essa tarefa nao esta no essencial de hoje"}), 400
-    restantes = [(e["task_id"], e["motivo"]) for e in atuais if e["task_id"] != task_id]
-    try:
-        rejeitadas = json.loads(obter_configuracao(conn, "essencial_rejeitadas") or "{}")
-    except ValueError:
-        rejeitadas = {}
-    ids_rejeitados = set(rejeitadas.get("ids", [])) if rejeitadas.get("data") == hoje.isoformat() else set()
-    ids_rejeitados.add(task_id)
-    definir_configuracao(
-        conn, "essencial_rejeitadas", json.dumps({"data": hoje.isoformat(), "ids": sorted(ids_rejeitados)})
-    )
-    for t in _candidatas_essencial(conn, hoje):
-        if t["id"] not in ja_usadas and t["id"] not in ids_rejeitados:
-            restantes.append((t["id"], None))
-            break
-    salvar_essencial(conn, hoje.isoformat(), restantes)
-    tarefas = _essencial_detalhado(conn, hoje)
-    conn.close()
-    return jsonify({"tarefas": tarefas})
-
-
-@app.route("/api/essencial/modo", methods=["POST"])
-def modo_essencial():
-    ativo = _corpo_json().get("ativo") is True
-    conn = get_db()
-    definir_configuracao(conn, "modo_essencial_data", date.today().isoformat() if ativo else "")
-    conn.close()
-    return jsonify({"modo_ativo": ativo})
-
-
 def _vencimento_em_aberto(conn, conta, hoje: date) -> date:
     """O vencimento que ainda precisa ser pago: o que passou ha ate 10 dias sem
     marcar como paga (pagar com atraso marca ESSE, nao o do mes seguinte), senao
@@ -4482,62 +4276,6 @@ def _inteiro_no_intervalo(valor, minimo: int, maximo: int) -> int | None:
     if isinstance(valor, float) and valor != numero:
         return None
     return numero if minimo <= numero <= maximo else None
-
-
-@app.route("/api/contas-pessoais", methods=["GET"])
-def contas_pessoais():
-    conn = get_db()
-    resultado = _contas_pessoais_com_status(conn, date.today())
-    conn.close()
-    return jsonify(resultado)
-
-
-@app.route("/api/contas-pessoais", methods=["POST"])
-def criar_conta_pessoal():
-    body = _corpo_json()
-    nome = (body.get("nome") or "").strip()
-    dia = _inteiro_no_intervalo(body.get("dia_vencimento"), 1, 31)
-    if not nome or len(nome) > 80:
-        return jsonify({"error": "informe o nome da conta (ate 80 caracteres)"}), 400
-    if dia is None:
-        return jsonify({"error": "dia de vencimento deve ser de 1 a 31"}), 400
-    valor = body.get("valor")
-    if valor in ("", None):
-        valor = None
-    else:
-        try:
-            valor = float(valor)
-        except (TypeError, ValueError):
-            return jsonify({"error": "valor invalido"}), 400
-        if isinstance(body.get("valor"), bool) or valor < 0 or not math.isfinite(valor):
-            return jsonify({"error": "valor invalido"}), 400
-    conn = get_db()
-    conta_id = create_conta_pessoal(conn, nome, dia, valor)
-    conn.close()
-    return jsonify({"ok": True, "id": conta_id}), 201
-
-
-@app.route("/api/contas-pessoais/<int:conta_id>", methods=["DELETE"])
-def apagar_conta_pessoal(conta_id):
-    conn = get_db()
-    delete_conta_pessoal(conn, conta_id)
-    conn.close()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/contas-pessoais/<int:conta_id>/paga", methods=["POST"])
-def pagar_conta_pessoal(conta_id):
-    conn = get_db()
-    conta = conn.execute("SELECT * FROM contas_pessoais WHERE id = ?", (conta_id,)).fetchone()
-    if not conta:
-        conn.close()
-        return jsonify({"error": "conta nao encontrada"}), 404
-    venc = _vencimento_em_aberto(conn, conta, date.today())
-    marcar_conta_paga(conn, conta_id, venc.isoformat())
-    _marcar_atividade(conn)
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True, "vencimento": venc.isoformat()})
 
 
 def _assinaturas_pendentes_revisao(conn, hoje: date) -> list[dict]:
