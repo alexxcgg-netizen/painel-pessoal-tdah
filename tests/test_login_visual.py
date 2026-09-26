@@ -91,8 +91,10 @@ class LoginVisualTestCase(unittest.TestCase):
                 self.assertNotIn("#e5746f", linha)
 
     def test_css_usa_cor_de_acento_correta_do_painel(self):
-        self.assertIn("--acento: #8e8ea0", CSS)
-        self.assertIn("--perigo: #e5746f", CSS)
+        # Faixa vis/C1 (paleta "Gelo preto"): acento cinza -> azul-gelo,
+        # perigo -> --cor-saida (mesmo tom em tokens.css).
+        self.assertIn("--acento: #bfe6ff", CSS)
+        self.assertIn("--perigo: #f47671", CSS)
 
     def test_css_reduced_motion_zera_animacoes(self):
         self.assertIn("prefers-reduced-motion: reduce", CSS)

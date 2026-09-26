@@ -20,9 +20,38 @@ function pulsarSucesso(el) {
   el.classList.add("sucesso");
 }
 
+// Vel: getComputedStyle forca o navegador a fechar qualquer recalc de
+// estilo pendente antes de responder - caro no caminho quente da troca de
+// aba (Financas chama animarNumero 3x por abertura: frase, fatura, conta).
+// Le o token --dur-contagem uma unica vez por carregamento de pagina em vez
+// de a cada chamada (o valor nao muda depois que a pagina carrega).
+let _c2DuracaoContagemCache = null;
+function _obterDuracaoContagem() {
+  if (_c2DuracaoContagemCache !== null) return _c2DuracaoContagemCache;
+  let duracao = 420;
+  try {
+    const token = getComputedStyle(document.documentElement).getPropertyValue("--dur-contagem").trim();
+    const ms = parseFloat(token);
+    if (ms > 0) duracao = ms;
+  } catch (erro) {
+    /* sem getComputedStyle (ambiente de teste) - segue com o fallback */
+  }
+  _c2DuracaoContagemCache = duracao;
+  return duracao;
+}
+
 function animarNumero(el, valorFinal, formatador) {
   el.classList.remove("shimmer");
-  const duracao = 420;
+  // Vis (C2): "reduzir movimento" tem que mostrar o valor final direto, sem
+  // contar (skill animacoes-interface) - antes esta funcao sempre contava,
+  // mesmo com o sistema preferindo menos movimento. Duracao vem do token
+  // --dur-contagem (700ms, tokens.css) quando disponivel, com o 420ms antigo
+  // como fallback (getComputedStyle pode nao existir num teste sem DOM real).
+  if (typeof reduzirMovimento === "function" && reduzirMovimento()) {
+    el.textContent = formatador ? formatador(valorFinal) : Math.round(valorFinal);
+    return;
+  }
+  const duracao = _obterDuracaoContagem();
   const inicio = performance.now();
   function passo(agora) {
     const progresso = Math.min(1, (agora - inicio) / duracao);

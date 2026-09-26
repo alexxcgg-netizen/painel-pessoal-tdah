@@ -1,10 +1,10 @@
-# FASE VELOCIDADE + COR + ANIMACAO - em andamento
+# FASE VELOCIDADE + COR + ANIMACAO - concluida 2026-09-26 (pendente: aba Gastos ~360ms)
 - [x] A1 medir velocidade (CPU 4x, tabela acao|tempo|meta|causa)
 - [x] A2 corrigir o que passou da meta (faixas por causa) + medir de novo
 - [x] B prévia (8 paletas) -> dono escolheu 8 Gelo preto
-- [ ] C1 tokens da paleta escolhida (dono unico) + login
-- [ ] C2 sistema de animacao (skill animacoes-interface)
-- [ ] C3 prints antes/depois + GIF; suite completa; CHANGELOG/STATUS
+- [x] C1 tokens da paleta escolhida (dono unico) + login
+- [x] C2 sistema de animacao (skill animacoes-interface)
+- [x] C3 prints antes/depois + GIF; suite completa; CHANGELOG/STATUS
 
 # MELHORIAS DE USO DIARIO (pos-reversao/login) - concluido 2026-09-25
 - [x] M1 Hoje enxuto (chat + foco + agenda; resto vai pro Painel) + Aviacao sobe na barra

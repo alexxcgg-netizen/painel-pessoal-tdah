@@ -4,12 +4,24 @@
 
 function mostrarErro(msg) {
   const banner = $("#erro-banner");
+  if (typeof banner.classList !== "undefined") banner.classList.remove("c2-toast-sai");
   banner.textContent = msg;
   banner.hidden = false;
 }
 
+// Vis (C2): saida animada (--dur-rapida, fade) em vez de [hidden]=true na
+// hora - saidaAnimada (movimento.js) ja respeita "reduzir movimento" e cai
+// pra instantaneo sem `movimento.js` carregado (typeof guard).
 function limparErro() {
-  $("#erro-banner").hidden = true;
+  const banner = $("#erro-banner");
+  if (banner.hidden) return;
+  if (typeof saidaAnimada === "function") {
+    saidaAnimada(banner, () => {
+      banner.hidden = true;
+    });
+  } else {
+    banner.hidden = true;
+  }
 }
 
 // 45s porque varias chamadas passam pela IA (classificacao, chat, leitura de PDF de
@@ -30,6 +42,7 @@ function _apiFetchMostrarAvisoLento() {
     banner = document.createElement("div");
     banner.id = "acordando-banner";
     banner.setAttribute("role", "status");
+    banner.setAttribute("aria-live", "polite");
     banner.textContent = "Servidor acordando… (primeiro acesso depois de um tempo parado pode levar até 1 minuto)";
     banner.style.position = "fixed";
     banner.style.left = "0";
@@ -43,12 +56,21 @@ function _apiFetchMostrarAvisoLento() {
     banner.style.color = "#fff";
     document.body.appendChild(banner);
   }
+  banner.classList.remove("c2-toast-sai");
+  banner.classList.add("c2-toast-entra");
   banner.hidden = false;
 }
 
 function _apiFetchEsconderAvisoLento() {
   const banner = document.getElementById("acordando-banner");
-  if (banner) banner.hidden = true;
+  if (!banner || banner.hidden) return;
+  if (typeof saidaAnimada === "function") {
+    saidaAnimada(banner, () => {
+      banner.hidden = true;
+    });
+  } else {
+    banner.hidden = true;
+  }
 }
 
 // `fila`: so pras acoes criticas de captura de dado do usuario (captura,

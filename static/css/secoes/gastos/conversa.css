@@ -368,6 +368,15 @@
   transform: rotate(45deg);
   transition: transform 0.2s ease;
 }
-#fc-card-ultimos-dias[open] > summary .chevron {
+/* Vis (C2): o <details> fica sempre aberto no DOM (movimento.js -
+   ligarDetalheAnimado, wrapper .c2-details-externo/.c2-details-interno cuida
+   do abrir/fechar sem pulo) - o estado visual do chevron vem da classe
+   c2-resumo-aberto que o proprio JS poe no <summary> (setup + toggle), nunca
+   de um seletor :has(). Vel: :has() e caro de reavaliar a cada recalc de
+   estilo (inclusive na revelacao da aba Financas, caminho quente medido em
+   scripts/medir_velocidade.py) - por isso nem o :has() nem o fallback
+   "antes do JS rodar" (script classico, roda antes do 1o paint) precisam
+   mais existir aqui. */
+#fc-card-ultimos-dias > summary.c2-resumo-aberto .chevron {
   transform: rotate(-135deg);
 }

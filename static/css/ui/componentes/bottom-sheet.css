@@ -77,7 +77,7 @@
 }
 
 .bottom-sheet-painel:focus-visible {
-  box-shadow: var(--anel-foco, 0 0 0 2px var(--accent, #45454a)), var(--elevacao-3);
+  box-shadow: var(--anel-foco, 0 0 0 2px var(--accent, #bfe6ff)), var(--elevacao-3);
 }
 
 .bottom-sheet--aberto .bottom-sheet-painel {

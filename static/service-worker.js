@@ -33,12 +33,13 @@
 // buscar tudo de novo. Lista conferida contra scripts.html/head.html/fase7.css.
 // v16: Fase 8 F1 - gastos.js/gastos.html mudaram (lista unificada com selo de origem
 // Nubank/manual, botao "Sincronizar Nubank").
-const CACHE_NAME = "painel-pessoal-v28";
+const CACHE_NAME = "painel-pessoal-v29";
 const ASSETS = [
   "/",
   "/static/css/style.css",
   "/static/css/fase7.css",
   "/static/css/ui/tokens.css",
+  "/static/css/ui/movimento.css",
   "/static/css/ui/componentes/botao.css",
   "/static/css/ui/componentes/secao.css",
   "/static/css/ui/componentes/card.css",
@@ -128,6 +129,8 @@ const ASSETS = [
   "/static/js/nucleo/icones.js",
   "/static/js/nucleo/formatos.js",
   "/static/js/nucleo/api.js",
+  "/static/js/nucleo/cores.js",
+  "/static/js/nucleo/movimento.js",
   "/static/js/nucleo/navegacao.js",
   "/static/js/nucleo/ui.js",
   "/static/js/nucleo/linha-do-tempo.js",

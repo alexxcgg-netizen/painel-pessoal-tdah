@@ -5,6 +5,28 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-26 - Velocidade, cor "Gelo preto" e animações
+
+**Velocidade** (medida com Playwright, CPU 4x, régua de Event Timing/INP em `scripts/medir_velocidade.py`):
+aba Gastos 5,7 s → ~0,3 s (lista paginada `GET /api/gastos/unificados?limite=&antes=`, decifra só a
+página, esqueleto + "carregar mais"); resposta ao toque < 16 ms (mediana) em todas as ações; concluir
+tarefa, energia, captura, hábito, água e salvar tarefa otimistas (desfazem em erro); aviso "Servidor
+acordando…" após 3 s; troca de aba mexe só nas 2 abas envolvidas; Painel carrega o que está na tela
+primeiro; abrir o app instalado 1,35 s → ~0,8–1,0 s. A 1ª medição (relógio do Python em volta do
+Playwright) superestimava tudo; trocada pela régua dentro da página.
+**Cor** — paleta "Gelo preto" escolhida numa prévia de 8 (https://claude.ai/artifact/G4nkBvAVkwEYegguRm4Hds):
+tokens em `static/css/ui/tokens.css` (`--cor-fundo` #000, superfícies preto-azulado, `--cor-destaque`
+#bfe6ff, entrada/saída/alerta/info, `--cor-cat-1..8`, `--cor-aba-*`, `--geada`); `style.css` e login
+apontam pros tokens; névoa cinza do fundo removida; botões principais em azul-gelo; ícone de cada aba
+na sua cor; `static/js/nucleo/cores.js` `corDaCategoria()` (mesma cor no gráfico e no extrato).
+**Animação** — skill `animacoes-interface`: tokens `--dur-*`/`--ease-*`/`--escalonar`; toque 0,97; troca de
+aba por CSS (View Transitions desligado: travava o próximo toque no Chromium); check desenhando e texto
+riscando ao concluir; números contando e gráficos desenhando na 1ª abertura de Finanças; cards
+escalonados em Painel/Vida (depois da aba aparecer); "Últimos dias" abre sem pulo; avisos deslizando;
+esqueleto por transform; tudo desliga com reduzir movimento (`tests/test_vis_c2_animacao.py`).
+**Pendente**: abrir Gastos ~360 ms (era ~290 antes das animações; meta 200); lista não fecha o buraco ao
+concluir; só validado em Chromium (sem WebKit na máquina). Service worker v29.
+
 ## 2026-09-26 - Auditoria de uso real (desempenho + categoria duplicada)
 
 Teste local com volume grande (3000 transações, 1500 gastos, 400 tarefas), rede externa

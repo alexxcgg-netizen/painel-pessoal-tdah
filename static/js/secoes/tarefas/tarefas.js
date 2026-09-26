@@ -205,7 +205,22 @@ function criarItemTarefa(t) {
     explodirConcluido(btnConcluir);
     vibrar(30);
     tocarSomConcluido();
+    // Vis (C2): "saindo" primeiro (e o que a Vel A2b mede - some quase na
+    // hora do toque, sem esperar nada abaixo). O resto do reforco visual
+    // (check desenhando, titulo riscando) vem depois, protegido por
+    // try/catch pra nunca atrasar nem quebrar a saida otimista se o SVG/
+    // getTotalLength falhar em algum navegador.
     li.classList.add("saindo");
+    // rAF: o reforco visual (check desenhando/titulo riscando) roda so DEPOIS
+    // do frame que ja mostra "saindo" - nunca compete com o trabalho sincrono
+    // do proprio toque (o que a Vel A2b mede continua sendo so a linha acima).
+    requestAnimationFrame(() => {
+      try {
+        if (typeof animarConclusaoTarefa === "function" && li.isConnected) animarConclusaoTarefa(li);
+      } catch (erro) {
+        /* reforco visual e cosmetico - a tarefa ja saiu da lista, nao trava por isso */
+      }
+    });
     const removerTimeout = setTimeout(() => li.remove(), 220);
 
     const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
@@ -221,6 +236,10 @@ function criarItemTarefa(t) {
     } else {
       clearTimeout(removerTimeout);
       li.classList.remove("saindo");
+      const tituloRiscado = li.querySelector(".c2-titulo-riscando");
+      if (tituloRiscado) tituloRiscado.classList.remove("c2-titulo-riscando");
+      const checkDesenhado = li.querySelector(".c2-check-desenha");
+      if (checkDesenhado) checkDesenhado.classList.remove("c2-check-desenha");
       btnConcluir.disabled = false;
       if (pai && !pai.contains(li)) {
         if (proximoIrmao && proximoIrmao.parentElement === pai) pai.insertBefore(li, proximoIrmao);

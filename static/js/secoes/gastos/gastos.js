@@ -166,6 +166,7 @@ function criarItemGasto(e) {
   if (editavel) cat.type = "button";
   cat.className = "gasto-categoria chip chip--compacto";
   cat.dataset.cat = e.category;
+  cat.style.setProperty("--cat-cor", corDaCategoria(e.category));
   cat.textContent = e.category;
   if (editavel) {
     cat.title = "toque pra corrigir a categoria";
@@ -275,13 +276,29 @@ async function loadResumoFinancas() {
   $("#resumo-financas-patrimonio").textContent = fmtMoedaFinancas(resumo.patrimonio);
   box.hidden = false;
 
+  // Vis (C2): "numeros contando" so na 1a abertura da aba Financas nesta
+  // sessao de pagina (mesmo padrao de container.dataset usado em
+  // marcarEntradaEscalonada, movimento.js) - loadResumoFinancas roda de novo
+  // a cada troca de aba/refresh, e recontar toda vez ficaria irritante.
+  const conversaEl = $("#financas-conversa");
+  const primeiraAbertura = !!(conversaEl && conversaEl.dataset.c2Contou !== "1");
+  if (conversaEl) conversaEl.dataset.c2Contou = "1";
+
   // Fase 9 (C3): topo "Conversa" - mesma resposta de /api/financas/resumo,
   // sem chamada extra a API.
   const fraseEl = $("#fc-frase-resumo");
-  if (fraseEl) fraseEl.textContent = calcularFraseResumoFinancas(resumo);
+  if (fraseEl) montarFraseResumoFinancas(fraseEl, resumo, primeiraAbertura);
   renderizarCategoriaFinancas(resumo.por_categoria);
   renderizarEvolucaoFinancas(resumo.por_dia_mes, resumo.por_dia_mes_anterior);
-  renderizarFaturaContaFinancas(resumo.fatura_atual, resumo.saldo_conta, resumo.patrimonio);
+  renderizarFaturaContaFinancas(resumo.fatura_atual, resumo.saldo_conta, resumo.patrimonio, primeiraAbertura);
+  // Vis (C2): barra de categoria (scaleX) e linha da evolucao (stroke-
+  // dashoffset) se desenham so na 1a vez que o card aparece na tela
+  // (IntersectionObserver em movimento.js) - nunca a cada atualizacao dos
+  // dados, que e o que loadResumoFinancas faz a cada troca de aba/refresh.
+  if (typeof animarGraficoNaEntrada === "function") {
+    animarGraficoNaEntrada($("#fc-lista-categoria"));
+    animarGraficoNaEntrada($("#fc-grafico-evolucao"));
+  }
 }
 
 // ---- Fase 9 (C3): topo "Conversa" da aba Financas (docs/fase9-lab2/d01.js,
@@ -309,7 +326,11 @@ function _fmtMoedaFraseFinancas(v) {
 // mesmo `dia` do ultimo item de por_dia_mes (hoje); se o mes passado for mais
 // curto (ex.: hoje e dia 31 e fevereiro nao tem dia 31), usa o ultimo dia
 // disponivel do mes anterior em vez de nao comparar nada.
-function calcularFraseResumoFinancas(resumo) {
+// Vis (C2): partes separadas (antes do valor / valor / depois do valor) pra
+// poder animar so o numero com animarNumero (montarFraseResumoFinancas) sem
+// duplicar a logica de calculo - calcularFraseResumoFinancas (texto puro,
+// usado por quem so quer a string) so junta essas 3 partes.
+function partesFraseResumoFinancas(resumo) {
   const r = resumo && typeof resumo === "object" ? resumo : {};
   const porDiaMes = Array.isArray(r.por_dia_mes) ? r.por_dia_mes : [];
   const porDiaMesAnterior = Array.isArray(r.por_dia_mes_anterior) ? r.por_dia_mes_anterior : [];
@@ -323,7 +344,8 @@ function calcularFraseResumoFinancas(resumo) {
     mesTxt = NOMES_MES_FINANCAS[idx] || "";
   }
 
-  let frase = `Você gastou ${_fmtMoedaFraseFinancas(valorHoje)}${mesTxt ? ` em ${mesTxt}` : ""} até agora`;
+  const antes = "Você gastou ";
+  let depois = `${mesTxt ? ` em ${mesTxt}` : ""} até agora`;
 
   const diaAlvo = ultimo ? ultimo.dia : null;
   let comparavel = diaAlvo != null ? porDiaMesAnterior.find((d) => d && d.dia === diaAlvo) || null : null;
@@ -334,16 +356,39 @@ function calcularFraseResumoFinancas(resumo) {
   if (valorAnterior !== null && valorAnterior > 0) {
     const pct = Math.round(((valorHoje - valorAnterior) / valorAnterior) * 100);
     const comparativo = pct >= 0 ? `${pct}% a mais` : `${Math.abs(pct)}% a menos`;
-    frase += `, ${comparativo} que no mesmo dia do mês passado.`;
+    depois += `, ${comparativo} que no mesmo dia do mês passado.`;
   } else {
-    frase += ".";
+    depois += ".";
   }
-  return frase;
+  return { antes, valorHoje, depois };
+}
+
+function calcularFraseResumoFinancas(resumo) {
+  const { antes, valorHoje, depois } = partesFraseResumoFinancas(resumo);
+  return `${antes}${_fmtMoedaFraseFinancas(valorHoje)}${depois}`;
+}
+
+// Vis (C2): preenche a frase no DOM - na 1a abertura da aba, o valor conta
+// (animarNumero, que ja respeita "reduzir movimento" e mostra o valor final
+// direto); nas trocas de aba seguintes so texto, sem recontar.
+function montarFraseResumoFinancas(fraseEl, resumo, primeiraAbertura) {
+  const { antes, valorHoje, depois } = partesFraseResumoFinancas(resumo);
+  if (!primeiraAbertura || typeof animarNumero !== "function") {
+    fraseEl.textContent = `${antes}${_fmtMoedaFraseFinancas(valorHoje)}${depois}`;
+    return;
+  }
+  fraseEl.textContent = "";
+  fraseEl.appendChild(document.createTextNode(antes));
+  const valorEl = document.createElement("span");
+  fraseEl.appendChild(valorEl);
+  fraseEl.appendChild(document.createTextNode(depois));
+  animarNumero(valorEl, valorHoje, _fmtMoedaFraseFinancas);
 }
 
 // Card "Gasto por categoria": barras horizontais, top 8 (a API ja manda so
-// os 8 maiores), cor unica de acento com opacidade decrescente - nunca
-// arco-iris (regra da faixa).
+// os 8 maiores). Faixa vis/C1: cada barra usa a cor fixa da propria
+// categoria (corDaCategoria, nucleo/cores.js) - antes era cor unica de
+// acento com opacidade decrescente.
 function renderizarCategoriaFinancas(categorias) {
   const lista = $("#fc-lista-categoria");
   const vazio = $("#fc-categoria-vazio");
@@ -370,8 +415,9 @@ function renderizarCategoriaFinancas(categorias) {
     barWrap.className = "fc-catbarwrap";
     const bar = document.createElement("div");
     bar.className = "fc-catbar";
+    bar.style.background = corDaCategoria(c.categoria);
     bar.style.width = `${max ? (valor / max) * 100 : 0}%`;
-    bar.style.opacity = Math.max(0.35, 1 - i * 0.09).toFixed(2);
+    bar.style.opacity = Math.max(0.55, 1 - i * 0.05).toFixed(2);
     barWrap.appendChild(bar);
     li.appendChild(barWrap);
     li.appendChild(criarEl("span", "fc-catval", fmtMoedaFinancas(valor)));
@@ -437,7 +483,7 @@ function renderizarEvolucaoFinancas(porDiaMes, porDiaMesAnterior) {
 
 // Card "Fatura x conta": duas barras comparativas (fatura em --cor-alerta,
 // conta em --cor-acento) + patrimonio numa linha pequena.
-function renderizarFaturaContaFinancas(fatura, saldoConta, patrimonio) {
+function renderizarFaturaContaFinancas(fatura, saldoConta, patrimonio, primeiraAbertura) {
   const faturaEl = $("#fc-fatura-valor");
   const contaEl = $("#fc-conta-valor");
   const faturaBarra = $("#fc-fatura-barra");
@@ -448,11 +494,24 @@ function renderizarFaturaContaFinancas(fatura, saldoConta, patrimonio) {
   const faturaValor = numeroFinancas(fatura) || 0;
   const contaValor = numeroFinancas(saldoConta) || 0;
   const max = Math.max(faturaValor, contaValor, 1);
-  faturaEl.textContent = fmtMoedaFinancas(faturaValor);
-  contaEl.textContent = fmtMoedaFinancas(contaValor);
+  // Vis (C2): so conta (animarNumero) na 1a abertura da aba - trocas de aba
+  // seguintes so texto direto, sem recontar (mesma regra da frase-resumo).
+  if (primeiraAbertura && typeof animarNumero === "function") {
+    animarNumero(faturaEl, faturaValor, fmtMoedaFinancas);
+    animarNumero(contaEl, contaValor, fmtMoedaFinancas);
+  } else {
+    faturaEl.textContent = fmtMoedaFinancas(faturaValor);
+    contaEl.textContent = fmtMoedaFinancas(contaValor);
+  }
   faturaBarra.style.width = `${(faturaValor / max) * 100}%`;
   contaBarra.style.width = `${(contaValor / max) * 100}%`;
   patrimonioEl.textContent = fmtMoedaFinancas(patrimonio);
+}
+
+// Vis (C2): "Ultimos dias" (<details>) expande sem pulo - ver
+// ligarDetalheAnimado em nucleo/movimento.js.
+if (typeof ligarDetalheAnimado === "function") {
+  ligarDetalheAnimado($("#fc-card-ultimos-dias"));
 }
 
 // Chips de pergunta rapida (OPCIONAL no escopo da faixa): so preenchem o
