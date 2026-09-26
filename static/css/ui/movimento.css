@@ -1,0 +1,154 @@
+/* static/css/ui/movimento.css - Faixa vis/C2-animacao (skill animacoes-interface).
+   Novo arquivo, dono unico (C2). So consome os tokens de static/css/ui/tokens.css
+   (--dur-*, --ease-*, --escalonar, --deslocamento-entrada, --escala-pressionado) -
+   nenhuma cor/duracao solta aqui. Registrado com 1 linha em static/css/fase7.css
+   (depois de tokens.css). Tudo abaixo anima so transform/opacity; nada trava o
+   proximo toque (nunca desativa pointer-events durante a animacao).
+
+   prefers-reduced-motion: os tokens --dur-*, --escalonar e
+   --deslocamento-entrada ja zeram sozinhos em tokens.css (dono V0a) - as regras abaixo herdam isso sem
+   precisar repetir o media query, exceto onde precisamos SUPRIMIR a
+   animacao inteira (ex: risco de texto, desenho do check) em vez de so
+   encurtar - esses ficam no proprio media query no fim do arquivo. */
+
+/* ---------- 1) View Transitions na troca de aba (Chromium/Safari 18+) ----------
+   document.startViewTransition (static/js/nucleo/movimento.js, chamado por
+   navegacao.js) tira uma foto do <html> antes/depois da troca de hidden dos
+   .tab-content e cross-fada + sobe 8px - MESMO efeito da alternativa em CSS
+   (.tab-content entra-direita/entra-esquerda em style.css), so que via API
+   nativa onde existe. Sem suporte (ou reduzir movimento, que cancela a
+   chamada em JS): cai automaticamente no CSS de style.css, sem duplicar
+   trabalho. */
+::view-transition-old(root) {
+  animation: c2-vt-sai var(--dur-rapida) var(--ease-entrada) both;
+}
+::view-transition-new(root) {
+  animation: c2-vt-entra var(--dur-media) var(--ease-saida) both;
+}
+@keyframes c2-vt-entra {
+  from {
+    opacity: 0;
+    transform: translateY(var(--deslocamento-entrada));
+  }
+}
+@keyframes c2-vt-sai {
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---------- 2) Cards entrando escalonado (so os 8 primeiros, so 1a abertura) ----------
+   static/js/nucleo/movimento.js aplica a classe + --i via JS (marcarEntradaEscalonada);
+   aqui e so o desenho. Usa --dur-media/--ease-saida (entrando) do token, nunca
+   width/height. */
+.c2-entra {
+  animation: c2-entra var(--dur-media) var(--ease-saida) both;
+  animation-delay: calc(min(var(--i, 0), 8) * var(--escalonar));
+}
+@keyframes c2-entra {
+  from {
+    opacity: 0;
+    transform: translateY(var(--deslocamento-entrada));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- 4) Concluir tarefa: check se desenhando + texto riscando ----------
+   SVG do ICONE_CHECK (static/js/nucleo/icones.js) ganha stroke-dasharray via JS
+   (calcularDashCheck, movimento.js) igual ao comprimento do path - aqui so
+   anima o stroke-dashoffset até 0. O texto ganha um pseudo-elemento (linha)
+   que cresce da esquerda pra direita via scaleX (nunca text-decoration
+   animado, que nao anima suave em todo motor). */
+.c2-check-desenha {
+  stroke-dasharray: var(--c2-check-len, 24);
+  stroke-dashoffset: var(--c2-check-len, 24);
+  animation: c2-check-tracar var(--dur-media) var(--ease-saida) forwards;
+}
+@keyframes c2-check-tracar {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.c2-titulo-riscando {
+  position: relative;
+  display: inline-block;
+}
+.c2-titulo-riscando::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: c2-riscar var(--dur-media) var(--ease-saida) forwards;
+}
+@keyframes c2-riscar {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Tarefa saindo da lista sem a lista "pular": o proprio <li.item> vira uma
+   grade de 1 linha (1fr) e a classe .c2-saindo-colapsa fecha pra 0fr ao
+   mesmo tempo que o fade/scale que style.css ja faz em li.item.saindo -
+   overflow:hidden no filho evita o conteudo vazar durante o encolher.
+   Só transform/opacity + grid-template-rows (não width/height diretos). */
+li.item.c2-colapsavel {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-media) var(--ease-entrada);
+}
+li.item.c2-colapsavel > * {
+  overflow: hidden;
+  min-height: 0;
+}
+li.item.c2-colapsavel.c2-saindo-colapsa {
+  grid-template-rows: 0fr;
+}
+
+/* ---------- 6) Graficos se desenhando (categoria/evolucao, so 1a vez) ---------- */
+.fc-catbar.c2-barra-desenha {
+  transform-origin: left;
+  animation: c2-barra-cresce var(--dur-longa) var(--ease-saida) both;
+  animation-delay: calc(min(var(--i, 0), 8) * var(--escalonar));
+}
+@keyframes c2-barra-cresce {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.fc-linha.c2-linha-desenha {
+  animation: c2-linha-traca var(--dur-longa) var(--ease-saida) forwards;
+}
+@keyframes c2-linha-traca {
+  from {
+    stroke-dashoffset: var(--c2-linha-len, 400);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-check-desenha,
+  .c2-titulo-riscando::after,
+  .fc-catbar.c2-barra-desenha,
+  .fc-linha.c2-linha-desenha {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+    transform: none !important;
+  }
+  li.item.c2-colapsavel {
+    transition: none !important;
+  }
+}

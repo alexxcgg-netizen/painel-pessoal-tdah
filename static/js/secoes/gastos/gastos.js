@@ -282,6 +282,14 @@ async function loadResumoFinancas() {
   renderizarCategoriaFinancas(resumo.por_categoria);
   renderizarEvolucaoFinancas(resumo.por_dia_mes, resumo.por_dia_mes_anterior);
   renderizarFaturaContaFinancas(resumo.fatura_atual, resumo.saldo_conta, resumo.patrimonio);
+  // Vis (C2): barra de categoria (scaleX) e linha da evolucao (stroke-
+  // dashoffset) se desenham so na 1a vez que o card aparece na tela
+  // (IntersectionObserver em movimento.js) - nunca a cada atualizacao dos
+  // dados, que e o que loadResumoFinancas faz a cada troca de aba/refresh.
+  if (typeof animarGraficoNaEntrada === "function") {
+    animarGraficoNaEntrada($("#fc-lista-categoria"));
+    animarGraficoNaEntrada($("#fc-grafico-evolucao"));
+  }
 }
 
 // ---- Fase 9 (C3): topo "Conversa" da aba Financas (docs/fase9-lab2/d01.js,
