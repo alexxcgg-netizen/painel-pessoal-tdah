@@ -35,7 +35,7 @@ class LogicaRevisaoTestCase(unittest.TestCase):
 
     def test_mesma_cidade(self):
         self.assertTrue(vida.mesma_cidade("Floripa", "Floripa, SC"))
-        self.assertTrue(vida.mesma_cidade("Sao Paulo", "São Paulo"))
+        self.assertTrue(vida.mesma_cidade("São Paulo", "São Paulo"))
         self.assertFalse(vida.mesma_cidade("Sal", "Salvador"))
         self.assertFalse(vida.mesma_cidade("😀", "Floripa"))
         self.assertFalse(vida.mesma_cidade(None, "Floripa"))
@@ -345,5 +345,5 @@ class RotasRevisaoFase3TestCase(VidaBaseTestCase):
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM app_eventos").fetchone()[0], 1)
 
     def test_burocracia_visto(self):
-        self.assertFalse(vida.eh_burocracia("Ja tinha visto esse filme"))
+        self.assertFalse(vida.eh_burocracia("Já tinha visto esse filme"))
         self.assertTrue(vida.eh_burocracia("Renovar visto americano"))

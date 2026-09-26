@@ -70,7 +70,7 @@ class TetoEstouradoError(RuntimeError):
 NOME_FUNCAO_IA = "plano_do_dia"
 
 TETO_ESTOURADO_MSG = (
-    "teto mensal de gasto com IA estourado - tente de novo mes que vem ou ajuste o teto no card financeiro"
+    "teto mensal de gasto com IA estourado - tente de novo mês que vem ou ajuste o teto no card financeiro"
 )
 
 _CHAVE_ORDEM_PREFIXO = "p5_ordem_dia"

@@ -132,7 +132,7 @@ def criar_evento(titulo: str, inicio: datetime, fim: datetime, lembrar_min_antes
     (nao deixa o servidor CalDAV escolher) pra ficar garantido de bater com
     o que sera gravado localmente."""
     if not configurado():
-        raise NaoConfiguradoError("Agenda do iCloud nao configurada (ICLOUD_USERNAME/ICLOUD_APP_PASSWORD).")
+        raise NaoConfiguradoError("Agenda do iCloud não configurada (ICLOUD_USERNAME/ICLOUD_APP_PASSWORD).")
     uid = str(uuid.uuid4())
     alarm_kwargs = {}
     if lembrar_min_antes is not None and lembrar_min_antes >= 0:
@@ -156,7 +156,7 @@ def apagar_evento(uid: str) -> bool:
     se o evento ja nao existir mais no calendario (idempotente - apagar de
     novo nao e erro)."""
     if not configurado():
-        raise NaoConfiguradoError("Agenda do iCloud nao configurada (ICLOUD_USERNAME/ICLOUD_APP_PASSWORD).")
+        raise NaoConfiguradoError("Agenda do iCloud não configurada (ICLOUD_USERNAME/ICLOUD_APP_PASSWORD).")
     with _client() as client:
         calendario = _calendario_painel(client)
         try:

@@ -25,7 +25,7 @@ def seguranca_status():
                 None
                 if ativa
                 else (
-                    "ENCRYPTION_KEY nao configurada - dado do Open Finance e de saude esta "
+                    "ENCRYPTION_KEY não configurada - dado do Open Finance e de saúde esta "
                     "em texto plano no banco. Rode python scripts/gerar_chave_criptografia.py."
                 )
             ),

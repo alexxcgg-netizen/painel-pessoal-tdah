@@ -300,8 +300,8 @@ def _exigir_pin_em_hospedagem_publica(conn, environ) -> None:
     PAINEL_PIN_INICIAL e obrigatorio la.)"""
     if environ.get("RENDER") and not auth.pin_configurado(conn):
         raise RuntimeError(
-            "Hospedado no Render sem PIN configurado: defina PAINEL_PIN_INICIAL (6 digitos) nas "
-            "variaveis de ambiente do servico - sem isso /configurar-pin ficaria aberto pra quem "
+            "Hospedado no Render sem PIN configurado: defina PAINEL_PIN_INICIAL (6 dígitos) nas "
+            "variaveis de ambiente do serviço - sem isso /configurar-pin ficaria aberto pra quem "
             "abrir a URL primeiro. Ver deploy/RENDER.md."
         )
 
@@ -349,16 +349,16 @@ app.config["MAX_CONTENT_LENGTH"] = TAMANHO_MAX_REQUISICAO_BYTES
 # e mais que qualquer despejo real e segura custo/abuso por mensagem.
 TAMANHO_MAX_TEXTO_CHAT = 4000
 MSG_TEXTO_LONGO = (
-    f"mensagem longa demais (maximo {TAMANHO_MAX_TEXTO_CHAT} caracteres) - divide em partes menores"
+    f"mensagem longa demais (máximo {TAMANHO_MAX_TEXTO_CHAT} caracteres) - divide em partes menores"
 )
 TETO_IA_MSG = (
-    "teto mensal de gasto com IA estourado - tente de novo mes que vem ou ajuste o teto no card financeiro"
+    "teto mensal de gasto com IA estourado - tente de novo mês que vem ou ajuste o teto no card financeiro"
 )
 
 
 @app.errorhandler(413)
 def _corpo_grande_demais(_erro):
-    return jsonify({"error": "envio grande demais (maximo 20MB por vez) - manda um arquivo menor"}), 413
+    return jsonify({"error": "envio grande demais (máximo 20MB por vez) - manda um arquivo menor"}), 413
 
 CLAUDE_ERROR_MSG = "Erro ao falar com a IA. Tenta de novo em instantes."
 CLAUDE_FORMAT_ERROR_MSG = "A IA respondeu em um formato inesperado. Tenta de novo."
@@ -511,7 +511,7 @@ def _verificar_autenticacao():
         if path == "/configurar-pin":
             return None
         if path.startswith("/api/"):
-            return jsonify({"error": "PIN de acesso ainda nao configurado."}), 401
+            return jsonify({"error": "PIN de acesso ainda não configurado."}), 401
         return redirect("/configurar-pin")
 
     if path in ROTAS_PUBLICAS:
@@ -519,7 +519,7 @@ def _verificar_autenticacao():
 
     if not session.get("autenticado"):
         if path.startswith("/api/"):
-            return jsonify({"error": "nao autenticado"}), 401
+            return jsonify({"error": "não autenticado"}), 401
         return redirect("/login")
     return None
 
@@ -538,7 +538,7 @@ def configurar_pin():
     try:
         if auth.pin_configurado(conn):
             if request.method == "POST":
-                return jsonify({"error": "O PIN ja foi configurado."}), 400
+                return jsonify({"error": "O PIN já foi configurado."}), 400
             return redirect("/login")
 
         if request.method == "GET":
@@ -969,7 +969,7 @@ def rodar_backup_automatico_semanal():
         if telegram_bot.configurado():
             try:
                 telegram_bot.enviar_documento(
-                    caminho, legenda=f"Backup automatico semanal do painel - {date.today().isoformat()}"
+                    caminho, legenda=f"Backup automático semanal do painel - {date.today().isoformat()}"
                 )
             except Exception as e:  # nunca deixa uma falha do Telegram derrubar o backup local
                 app.logger.error("backup automatico: falha ao enviar pro Telegram: %s", e)
@@ -994,9 +994,9 @@ def _saude_contexto_resumo(conn) -> str | None:
     if media:
         diff_pct = (dia["passos"] - media) / media * 100
         if diff_pct <= -20:
-            partes.append(f"bem abaixo da media dos ultimos dias ({round(media)} passos)")
+            partes.append(f"bem abaixo da media dos últimos dias ({round(media)} passos)")
         elif diff_pct >= 20:
-            partes.append(f"bem acima da media dos ultimos dias ({round(media)} passos)")
+            partes.append(f"bem acima da media dos últimos dias ({round(media)} passos)")
     if dia.get("sono_horas"):
         partes.append(f"{dia['sono_horas']}h de sono")
     return ", ".join(partes)
@@ -1208,9 +1208,9 @@ def _construtora_contexto_contas() -> str | None:
         return None
     proxima = contas[0]
     quando = _quando_conta_construtora(proxima["dias_ate_vencer"])
-    quem = proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor nao informado"
+    quem = proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor não informado"
     extra = f", mais {len(contas) - 1} outra(s) conta(s) em aberto" if len(contas) > 1 else ""
-    return f"proxima conta a pagar da construtora: {quem}, {quando}{extra}"
+    return f"próxima conta a pagar da construtora: {quem}, {quando}{extra}"
 
 
 def _construtora_contexto_resumo() -> str | None:
@@ -1386,7 +1386,7 @@ def _criar_evento_agenda(conn, titulo, data, hora_inicio, hora_fim, lembrar_min_
     except caldav_client.NaoConfiguradoError as erro:
         return {"erro": str(erro)}
     except Exception:
-        return {"erro": "nao consegui criar o evento no iCloud agora - tenta de novo"}
+        return {"erro": "não consegui criar o evento no iCloud agora - tenta de novo"}
     registrar_evento_criado(conn, resultado["uid"], titulo, resultado["inicio"], resultado["fim"])
     return {"ok": True, **resultado}
 
@@ -1395,13 +1395,13 @@ def _apagar_evento_agenda(conn, uid: str) -> dict:
     # A guarda de verdade e essa: SO apaga se o painel registrou que foi ele
     # quem criou. Nunca chega a chamar o iCloud se o uid nao estiver aqui.
     if not evento_criado_pelo_painel(conn, uid):
-        return {"erro": "esse evento nao foi criado pelo painel - nunca mexo em evento que eu nao criei"}
+        return {"erro": "esse evento não foi criado pelo painel - nunca mexo em evento que eu não criei"}
     try:
         caldav_client.apagar_evento(uid)
     except caldav_client.NaoConfiguradoError as erro:
         return {"erro": str(erro)}
     except Exception:
-        return {"erro": "nao consegui apagar o evento no iCloud agora - tenta de novo"}
+        return {"erro": "não consegui apagar o evento no iCloud agora - tenta de novo"}
     esquecer_evento_criado(conn, uid)
     return {"ok": True}
 
@@ -1615,8 +1615,8 @@ def _status_do_dia(itens: list[dict], agora: datetime) -> str:
     if passados_sem_confirmar == 0:
         return "tudo sob controle"
     if passados_sem_confirmar == 1:
-        return "1 item passou do horario sem confirmar"
-    return f"{passados_sem_confirmar} itens passaram do horario sem confirmar"
+        return "1 item passou do horário sem confirmar"
+    return f"{passados_sem_confirmar} itens passaram do horário sem confirmar"
 
 
 def _proximo_item_em_foco(itens: list[dict], agora: datetime) -> dict | None:
@@ -1697,22 +1697,22 @@ def _contexto_chat(conn) -> str:
     )
     linhas = [
         f"Tarefas pendentes: {', '.join(r['title'] for r in pendentes) or 'nenhuma'}",
-        f"Gasto de hoje (ja realizado): R$ {gasto_hoje:.2f}",
-        f"Gasto planejado/cogitado hoje (ainda nao decidido): R$ {gasto_planejado:.2f}",
-        f"Compromissos de hoje (em ordem de horario): {eventos_txt or 'nenhum'}",
+        f"Gasto de hoje (já realizado): R$ {gasto_hoje:.2f}",
+        f"Gasto planejado/cogitado hoje (ainda não decidido): R$ {gasto_planejado:.2f}",
+        f"Compromissos de hoje (em ordem de horário): {eventos_txt or 'nenhum'}",
     ]
     if saude:
-        linhas.append(f"Saude hoje: {saude}")
+        linhas.append(f"Saúde hoje: {saude}")
     if construtora:
         linhas.append(f"Construtora (financeiro geral): {construtora}")
     if clima_hoje:
-        linhas.append(f"Previsao do tempo hoje: {clima_hoje}")
+        linhas.append(f"Previsão do tempo hoje: {clima_hoje}")
     if proximos_voos:
         voos_txt = ", ".join(
             f"{v['data']} pra {v['destino']}" + (f" ({v['horas']}h)" if v.get("horas") else "")
             for v in proximos_voos
         )
-        linhas.append(f"Proximos voos agendados: {voos_txt}")
+        linhas.append(f"Próximos voos agendados: {voos_txt}")
     esperas_pendentes = list_esperas_pendentes(conn)
     if esperas_pendentes:
         esperas_txt = ", ".join(f"{e['quem']} sobre \"{e['sobre']}\"" for e in esperas_pendentes)
@@ -1726,7 +1726,7 @@ def _contexto_chat(conn) -> str:
         if plano_pendente:
             plano_txt = ", ".join(f"{p['titulo']} ({p['dia']} as {p['hora']})" for p in plano_pendente)
             linhas.append(
-                f"Plano de semana proposto AGUARDANDO confirmacao do Alex (ainda NAO foi criado "
+                f"Plano de semana proposto AGUARDANDO confirmação do Alex (ainda NÃO foi criado "
                 f"no banco): {plano_txt}. Se ele confirmar, chame confirmar_plano_semana; se "
                 f"rejeitar/pedir pra esquecer, chame cancelar_plano_semana."
             )
@@ -2269,7 +2269,7 @@ def _processar_mensagem_chat(
             # pro modelo explicar, em vez de derrubar a conversa inteira.
             return {"erro": TETO_IA_MSG}
         except ia.core.FalhaChamadaIA:
-            return {"erro": "nao consegui gerar o plano agora - tenta de novo em instantes"}
+            return {"erro": "não consegui gerar o plano agora - tenta de novo em instantes"}
         _log_usage(conn, usage_plano, "plano_dia")
         return {"plano": plano_texto}
 
@@ -2303,7 +2303,7 @@ def _processar_mensagem_chat(
         try:
             valor = float(entrada["valor"])
         except (KeyError, TypeError, ValueError):
-            return {"erro": "valor invalido"}
+            return {"erro": "valor inválido"}
         unidade = (entrada.get("unidade") or "").strip() or ("kg" if tipo == "peso" else "cm")
         medida_id = create_medida_corporal(conn, tipo, valor, unidade, date.today().isoformat())
         return {"ok": True, "medida_id": medida_id}
@@ -2425,7 +2425,7 @@ def _processar_mensagem_chat(
     def exec_resolver_espera(entrada):
         espera = espera_pendente_por_quem_aproximado(conn, entrada["quem"])
         if not espera:
-            return {"erro": f"nao achei nenhuma espera em aberto de \"{entrada['quem']}\""}
+            return {"erro": f"não achei nenhuma espera em aberto de \"{entrada['quem']}\""}
         resolver_espera(conn, espera["id"])
         return {"ok": True, "quem": espera["quem"], "sobre": espera["sobre"]}
 
@@ -2466,7 +2466,7 @@ def _processar_mensagem_chat(
         candidatos = notificacoes.cobrancas_genericas_sem_rotulo(conn)
         correspondente = next((c for c in candidatos if abs(c[1] - entrada["valor"]) < 0.01), None)
         if not correspondente:
-            return {"erro": f"nao achei nenhuma cobranca generica de R$ {entrada['valor']:.2f} pra identificar"}
+            return {"erro": f"não achei nenhuma cobrança genérica de R$ {entrada['valor']:.2f} pra identificar"}
         descricao_norm, valor, _msg = correspondente
         definir_apelido_gasto(conn, descricao_norm, valor, entrada["apelido"])
         return {"ok": True, "apelido": entrada["apelido"]}
@@ -2496,7 +2496,7 @@ def _processar_mensagem_chat(
     def exec_distribuir_tarefas_na_semana(entrada):
         titulos = [t.strip() for t in entrada.get("titulos", []) if t and t.strip()]
         if not titulos:
-            return {"erro": "nao veio nenhum titulo de tarefa pra distribuir"}
+            return {"erro": "não veio nenhum titulo de tarefa pra distribuir"}
         dias = agenda.proximos_n_dias(date.today() + timedelta(days=1), 14)
         carga = _carga_por_dia(conn, dias)
         produtividade = aprendizado.produtividade_por_dia_semana(conn)
@@ -2507,7 +2507,7 @@ def _processar_mensagem_chat(
     def exec_confirmar_plano_semana(_entrada):
         bruto = obter_configuracao(conn, "plano_semana_pendente")
         if not bruto:
-            return {"erro": "nao tem nenhum plano de semana pendente pra confirmar"}
+            return {"erro": "não tem nenhum plano de semana pendente pra confirmar"}
         propostas = json.loads(bruto)
         for item in propostas:
             conn.execute(
@@ -2558,14 +2558,14 @@ def _processar_mensagem_chat(
 
     def exec_calcular_gasto_viagem(entrada):
         if not maps_client.configurado():
-            return {"erro": "Google Maps nao configurado"}
+            return {"erro": "Google Maps não configurado"}
         origem = entrada.get("origem") or os.environ.get("ENDERECO_CASA", "").strip()
         if not origem:
-            return {"erro": "preciso saber de onde voce sai (endereco padrao nao configurado)"}
+            return {"erro": "preciso saber de onde você sai (endereço padrao não configurado)"}
         try:
             trajeto = maps_client.tempo_de_viagem(origem, entrada["destino"])
         except (ValueError, requests.RequestException):
-            return {"erro": "nao consegui calcular a rota agora"}
+            return {"erro": "não consegui calcular a rota agora"}
         custo = viagem.custo_combustivel(
             trajeto["distancia_km"], entrada["km_por_litro"], entrada["preco_por_litro"]
         )
@@ -2578,21 +2578,21 @@ def _processar_mensagem_chat(
 
     def exec_sugerir_posto_no_caminho(entrada):
         if not maps_client.configurado():
-            return {"erro": "Google Maps nao configurado"}
+            return {"erro": "Google Maps não configurado"}
         origem = entrada.get("origem") or os.environ.get("ENDERECO_CASA", "").strip()
         if not origem:
-            return {"erro": "preciso saber de onde voce sai (endereco padrao nao configurado)"}
+            return {"erro": "preciso saber de onde você sai (endereço padrao não configurado)"}
         try:
             posto = maps_client.posto_no_meio_do_caminho(origem, entrada["destino"])
         except (ValueError, requests.RequestException):
-            return {"erro": "nao consegui buscar postos agora"}
+            return {"erro": "não consegui buscar postos agora"}
         if not posto:
-            return {"erro": "nao achei nenhum posto perto do meio do caminho"}
+            return {"erro": "não achei nenhum posto perto do meio do caminho"}
         return posto
 
     def exec_agendar_uber(entrada):
         if not uber_client.configurado():
-            return {"erro": "Uber nao conectado ainda"}
+            return {"erro": "Uber não conectado ainda"}
         minutos = max(entrada.get("minutos", 0), 0)
         disparar_em = (datetime.now() + timedelta(minutes=minutos)).isoformat()
         pedido_id = criar_uber_pedido(conn, entrada.get("origem"), entrada["destino"], disparar_em)
@@ -2620,7 +2620,7 @@ def _processar_mensagem_chat(
     def exec_comparar_cotacao(entrada):
         cotacao = cotacao_por_titulo_aproximado(conn, entrada["titulo_cotacao"])
         if not cotacao:
-            return {"erro": f"nao achei nenhuma cotacao com o titulo \"{entrada['titulo_cotacao']}\""}
+            return {"erro": f"não achei nenhuma cotação com o titulo \"{entrada['titulo_cotacao']}\""}
         itens = list_itens_cotacao(conn, cotacao["id"])
         if not itens:
             return {"titulo": cotacao["titulo"], "itens": []}
@@ -2652,7 +2652,7 @@ def _processar_mensagem_chat(
     def exec_marcar_habito(entrada):
         habito = buscar_habito_por_nome(conn, entrada.get("nome"))
         if not habito:
-            return {"erro": f"nao achei nenhum habito chamado \"{entrada.get('nome')}\""}
+            return {"erro": f"não achei nenhum hábito chamado \"{entrada.get('nome')}\""}
         hoje_iso = date.today().isoformat()
         feito = alternar_habito_dia(conn, hoje_iso, habito["id"])
         return {
@@ -2669,7 +2669,7 @@ def _processar_mensagem_chat(
     def exec_adicionar_etapa(entrada):
         projeto = buscar_projeto_por_nome(conn, entrada.get("nome_projeto"))
         if not projeto:
-            return {"erro": f"nao achei nenhum projeto chamado \"{entrada.get('nome_projeto')}\""}
+            return {"erro": f"não achei nenhum projeto chamado \"{entrada.get('nome_projeto')}\""}
         resultado = _adicionar_etapa(conn, projeto["id"], entrada.get("texto"), entrada.get("data_prevista"))
         if resultado.get("ok"):
             resultado["_efeito"] = {"entidade": "projeto_etapa", "id": resultado["etapa_id"], "projeto_id": projeto["id"]}
@@ -2678,11 +2678,11 @@ def _processar_mensagem_chat(
     def exec_concluir_etapa(entrada):
         projeto = buscar_projeto_por_nome(conn, entrada.get("nome_projeto"))
         if not projeto:
-            return {"erro": f"nao achei nenhum projeto chamado \"{entrada.get('nome_projeto')}\""}
+            return {"erro": f"não achei nenhum projeto chamado \"{entrada.get('nome_projeto')}\""}
         etapas = list_etapas_projeto(conn, projeto["id"])
         proxima = next((e for e in etapas if not e["feita"]), None)
         if not proxima:
-            return {"erro": f"o projeto \"{projeto['nome']}\" nao tem etapa pendente"}
+            return {"erro": f"o projeto \"{projeto['nome']}\" não tem etapa pendente"}
         concluir_etapa_projeto(conn, proxima["id"])
         return {
             "ok": True, "projeto": projeto["nome"], "etapa": proxima["texto"],
@@ -2906,9 +2906,9 @@ def _verificar_desfazer_evento(conn, uid) -> None:
         and conn.execute("SELECT 1 FROM eventos_criados WHERE uid = ?", (uid,)).fetchone()
     )
     if not registrado:
-        raise _DesfazerRecusado("esse evento nao foi criado pelo painel - nao da pra desfazer por aqui", 403)
+        raise _DesfazerRecusado("esse evento não foi criado pelo painel - não da pra desfazer por aqui", 403)
     if not caldav_client.configurado():
-        raise _DesfazerRecusado("agenda do iCloud nao configurada - nao da pra desfazer o evento agora", 503)
+        raise _DesfazerRecusado("agenda do iCloud não configurada - não da pra desfazer o evento agora", 503)
 
 
 def _desfazer_itens(conn, itens: list[dict]) -> int:
@@ -2925,7 +2925,7 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
             try:
                 caldav_client.apagar_evento(item["uid"])
             except Exception as e:
-                raise _DesfazerRecusado("nao consegui apagar o evento no iCloud agora - tenta de novo", 502) from e
+                raise _DesfazerRecusado("não consegui apagar o evento no iCloud agora - tenta de novo", 502) from e
             conn.execute("DELETE FROM eventos_criados WHERE uid = ?", (item["uid"],))
             desfeitos += 1
             continue
@@ -3016,9 +3016,9 @@ def desfazer_acao(token):
     try:
         acao = db.obter_acao_desfazer(conn, token)
         if not acao:
-            return jsonify({"error": "nada pra desfazer com esse codigo"}), 404
+            return jsonify({"error": "nada pra desfazer com esse código"}), 404
         if acao["desfeito_em"]:
-            return jsonify({"error": "isso ja foi desfeito"}), 409
+            return jsonify({"error": "isso já foi desfeito"}), 409
         try:
             desfeitos = _desfazer_itens(conn, acao["itens"])
         except _DesfazerRecusado as e:
@@ -3029,7 +3029,7 @@ def desfazer_acao(token):
         )
         if not cur.rowcount:  # dois toques ao mesmo tempo: so um vale
             conn.rollback()
-            return jsonify({"error": "isso ja foi desfeito"}), 409
+            return jsonify({"error": "isso já foi desfeito"}), 409
         conn.commit()
         return jsonify({"ok": True, "desfeitos": desfeitos})
     except Exception:
@@ -3068,18 +3068,18 @@ def _telegram_callback_fn(dados: str) -> str:
     cobranca de tarefa_parada), mas o formato "acao:id" deixa dar pra
     estender pra outros tipos de botao no futuro sem mudar o protocolo."""
     if not dados.startswith("completar_tarefa:"):
-        return "Nao reconheci essa acao."
+        return "Não reconheci essa ação."
     try:
         task_id = int(dados.split(":", 1)[1])
     except ValueError:
-        return "Nao reconheci essa acao."
+        return "Não reconheci essa ação."
     conn = get_db()
     try:
         row = conn.execute("SELECT title, completed_at FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not row:
-            return "Essa tarefa nao existe mais."
+            return "Essa tarefa não existe mais."
         if row["completed_at"]:
-            return "Ja estava marcada como feita."
+            return "Já estava marcada como feita."
         complete_task(conn, task_id)
         _marcar_atividade(conn)
         conn.commit()
@@ -3151,7 +3151,7 @@ def _aviso_voo_sair(voo: dict, janela_minutos: int = 25) -> str | None:
 
     hora_txt = sair_ate.strftime("%H:%M")
     return (
-        f"Saia ate as {hora_txt} pra chegar a tempo do voo das {voo['hora']} "
+        f"Saia até as {hora_txt} pra chegar a tempo do voo das {voo['hora']} "
         f"pra {voo['destino']} (trajeto de {resultado['duracao_minutos']}min)."
     )
 
@@ -3189,7 +3189,7 @@ def _disparar_estimativa_uber(conn, pedido: dict, access_token: str) -> None:
     /api/uber/pedidos/<id>/confirmar) e que o dinheiro entra em jogo."""
     origem = pedido.get("origem") or os.environ.get("ENDERECO_CASA", "").strip()
     if not origem:
-        atualizar_uber_pedido(conn, pedido["id"], status="erro", erro="sem endereco de origem")
+        atualizar_uber_pedido(conn, pedido["id"], status="erro", erro="sem endereço de origem")
         return
     try:
         origem_lat, origem_lng = maps_client.geocodificar(origem)
@@ -3203,7 +3203,7 @@ def _disparar_estimativa_uber(conn, pedido: dict, access_token: str) -> None:
         return
 
     if not estimativa.get("fare_id"):
-        atualizar_uber_pedido(conn, pedido["id"], status="erro", erro="nao consegui obter o preco")
+        atualizar_uber_pedido(conn, pedido["id"], status="erro", erro="não consegui obter o preço")
         return
 
     atualizar_uber_pedido(
@@ -3333,7 +3333,7 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
             duracao = f" de {minutos} min" if minutos else ""
             avisos.append(
                 ("hiperfoco_fim", vida.id_estavel("hiperfoco", ate), "Fim do foco",
-                 f"Seu bloco de foco{duracao} acabou. Levanta, bebe agua, e ve se continua ou para.")
+                 f"Seu bloco de foco{duracao} acabou. Levanta, bebe água, e ve se continua ou para.")
             )
         conn.execute(
             "UPDATE configuracoes SET valor = '' WHERE chave = 'hiperfoco_ate' AND valor = ?", (ate,)
@@ -3360,9 +3360,9 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
         if ja_notificado_alguma_vez(conn, "pessoa_sem_contato", ref):
             continue
         texto = (
-            f"Faz {dias} dias que voce nao fala com {pessoa['nome']}."
+            f"Faz {dias} dias que você não fala com {pessoa['nome']}."
             if pessoa["ultimo_contato"]
-            else f"Ainda nao tem conversa registrada com {pessoa['nome']}."
+            else f"Ainda não tem conversa registrada com {pessoa['nome']}."
         )
         avisos.append(("pessoa_sem_contato", ref, "Faz tempo", texto))
 
@@ -3372,8 +3372,8 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
             pendentes = _assinaturas_pendentes_revisao(conn, hoje)
             if pendentes:
                 avisos.append(
-                    ("revisao_assinaturas", ref, "Revisao do mes",
-                     f"{len(pendentes)} assinatura(s) pra confirmar se voce ainda usa - 1 toque cada no painel.")
+                    ("revisao_assinaturas", ref, "Revisao do mês",
+                     f"{len(pendentes)} assinatura(s) pra confirmar se você ainda usa - 1 toque cada no painel.")
                 )
     return avisos
 
@@ -3394,8 +3394,8 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         if not bebeu_agora:
             copos = contar_hidratacao_dia(conn, hoje_iso)
             avisos.append(
-                ("agua_pausa", slot, "Pausa rapida",
-                 f"Bebe um copo de agua e levanta 2 minutos ({copos} copo(s) hoje).")
+                ("agua_pausa", slot, "Pausa rápida",
+                 f"Bebe um copo de água e levanta 2 minutos ({copos} copo(s) hoje).")
             )
 
     if agora.hour >= 8:
@@ -3431,7 +3431,7 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
                 f"{a['titulo']} as {datetime.fromisoformat(a['inicio']).strftime('%H:%M')}" for a in afetados[:2]
             )
             avisos.append(
-                ("clima_compromisso", 0, "Chuva no seu horario",
+                ("clima_compromisso", 0, "Chuva no seu horário",
                  f"{resumo['texto']} Pega {nomes} - sai mais cedo ou leva guarda-chuva.")
             )
 
@@ -3445,7 +3445,7 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         if data_voo == hoje + timedelta(days=1) and agora.hour >= 19:
             ref = vida.id_estavel("pre_voo", voo["id"], "vespera")
             if not ja_notificado_alguma_vez(conn, "pre_voo", ref):
-                avisos.append(("pre_voo", ref, "Voo amanha", f"Voo amanha pra {destino}. Separa hoje: {checklist_voo}."))
+                avisos.append(("pre_voo", ref, "Voo amanhã", f"Voo amanhã pra {destino}. Separa hoje: {checklist_voo}."))
         if data_voo == hoje and agora.hour >= 6:
             ainda_antes = not voo.get("hora") or agora.strftime("%H:%M") < voo["hora"]
             ref = vida.id_estavel("pre_voo", voo["id"], "dia")
@@ -3474,7 +3474,7 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         ref = vida.id_estavel("manutencao", m["id"], m["proxima"])
         if ja_notificado_alguma_vez(conn, "manutencao", ref):
             continue
-        quando = "ja passou do prazo" if m["dias_ate"] < 0 else "vence hoje" if m["dias_ate"] == 0 else f"vence em {m['dias_ate']} dia(s)"
+        quando = "já passou do prazo" if m["dias_ate"] < 0 else "vence hoje" if m["dias_ate"] == 0 else f"vence em {m['dias_ate']} dia(s)"
         avisos.append(("manutencao", ref, "Manutencao", f"{m['item']}: {quando}."))
 
     # Manutencao de carro por km ou data (US-C14/Fase 6 US-E1a) - mesma
@@ -3514,7 +3514,7 @@ def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         primeiro, ultimo = vida.mes_anterior(hoje)
         ref = vida.id_estavel("revisao_mensal", primeiro.isoformat())
         if not ja_notificado_alguma_vez(conn, "revisao_mensal", ref):
-            avisos.append(("revisao_mensal", ref, "Como foi o mes", _revisao_do_mes(conn, primeiro, ultimo)["texto"]))
+            avisos.append(("revisao_mensal", ref, "Como foi o mês", _revisao_do_mes(conn, primeiro, ultimo)["texto"]))
 
     for lembrete in list_lembretes(conn):
         if not vida.eh_burocracia(lembrete["titulo"]):
@@ -3531,7 +3531,7 @@ def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         if not ja_notificado_alguma_vez(conn, "burocracia", ref):
             avisos.append(
                 ("burocracia", ref, "Prazo chegando",
-                 f"\"{lembrete['titulo']}\" vence em {dias} dias ({proxima.strftime('%d/%m')}) - ja da pra agendar.")
+                 f"\"{lembrete['titulo']}\" vence em {dias} dias ({proxima.strftime('%d/%m')}) - já da pra agendar.")
             )
 
     if agora.weekday() == 6 and agora.hour >= 10:
@@ -3543,7 +3543,7 @@ def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
                 if parado >= 7:
                     avisos.append(
                         ("aprender", ref, "Quer retomar?",
-                         f"Faz {parado} dias que voce nao mexe em \"{a['tema']}\". 20 minutos hoje?")
+                         f"Faz {parado} dias que você não mexe em \"{a['tema']}\". 20 minutos hoje?")
                     )
                     break
 
@@ -3628,7 +3628,7 @@ def _avisos_proatividade_e8(conn, agora: datetime) -> list[tuple[str, int, str, 
                         "mes_seguinte_apertado",
                         ref,
                         f"{nome_mes} vem apertado",
-                        f"custos fixos ja comprometem {pct}%.",
+                        f"custos fixos já comprometem {pct}%.",
                     )
                 )
 
@@ -3749,7 +3749,7 @@ def verificar_e_notificar():
     for categoria, nivel, msg in notificacoes.orcamentos_perto_ou_estourados(conn):
         ref_id = _id_estavel_orcamento(categoria, nivel, ano_mes_atual)
         if not ja_notificado_alguma_vez(conn, "orcamento", ref_id):
-            titulo = "Orcamento estourado" if nivel == "estourado" else "Orcamento quase no limite"
+            titulo = "Orçamento estourado" if nivel == "estourado" else "Orçamento quase no limite"
             avisos.append(("orcamento", ref_id, titulo, msg))
 
     # Teto mensal de gasto com a API da IA (US-A6) - uma vez por nivel+mes,
@@ -3767,7 +3767,7 @@ def verificar_e_notificar():
     for descricao_norm, valor, msg in notificacoes.cobrancas_genericas_sem_rotulo(conn):
         ref_id = _id_estavel_cobranca_generica(descricao_norm, valor)
         if not ja_notificado_alguma_vez(conn, "cobranca_generica", ref_id):
-            avisos.append(("cobranca_generica", ref_id, "Cobranca sem identificar", msg))
+            avisos.append(("cobranca_generica", ref_id, "Cobrança sem identificar", msg))
 
     # Assinatura ja conhecida que subiu de preco (US-C10) - uma vez por
     # descricao+valor novo (mesma chave de dedup de cobranca_generica acima);
@@ -3837,7 +3837,7 @@ def verificar_e_notificar():
                 "compromisso_chegando",
                 ref_id,
                 "Daqui a pouco",
-                f"Daqui a pouco: \"{evento['titulo']}\" as {hora_txt} - ja va se preparando.",
+                f"Daqui a pouco: \"{evento['titulo']}\" as {hora_txt} - já va se preparando.",
             )
         )
 
@@ -3854,7 +3854,7 @@ def verificar_e_notificar():
                 "planejamento_semanal",
                 0,
                 "Como fica sua semana?",
-                "Ja sabe sua agenda dessa semana? Manda pra mim que eu registro tudo.",
+                "Já sabe sua agenda dessa semana? Manda pra mim que eu registro tudo.",
             )
         )
         # Semana pesada (US-C13) - junto do mesmo momento de planejamento
@@ -3892,7 +3892,7 @@ def verificar_e_notificar():
 
     msg = notificacoes.currency_voo_baixa(conn, limiar_dias=21)
     if msg and not ja_notificou_hoje(conn, "currency_voo"):
-        avisos.append(("currency_voo", 0, "Faz tempo que voce nao voa", msg))
+        avisos.append(("currency_voo", 0, "Faz tempo que você não voa", msg))
 
     # Contas a pagar da construtora vencendo/vencidas (v3.99.16 do outro lado):
     # so avisa o que realmente precisa de atencao agora - vencida ou vencendo nos
@@ -3906,7 +3906,7 @@ def verificar_e_notificar():
             ref_id = _id_estavel_conta(conta)
             if ja_notificou_hoje(conn, "conta_a_vencer", ref_id):
                 continue
-            quem = conta.get("fornecedor") or conta.get("descricao") or "fornecedor nao informado"
+            quem = conta.get("fornecedor") or conta.get("descricao") or "fornecedor não informado"
             quando = _quando_conta_construtora(dias_ate, passado="venceu ha")
             # C1: so nome e tempo ate vencer (valor nunca de bandeja no push).
             avisos.append((
@@ -4037,7 +4037,7 @@ def _criar_medicamento(conn, nome: str, dosagem: str | None, horario: str, recor
     recorrencia vierem invalidos, nunca deixa criar um medicamento quebrado."""
     hora_normalizada = _normalizar_hora(horario)
     if not hora_normalizada:
-        return {"erro": "horario invalido - use HH:MM"}
+        return {"erro": "horário inválido - use HH:MM"}
     if not agenda.recorrencia_valida(recorrencia):
         return {"erro": f"recorrencia mal formatada: {recorrencia!r}"}
     titulo_tarefa = f"Tomar {nome}" + (f" ({dosagem})" if dosagem else "")
@@ -4122,7 +4122,7 @@ def _habito_detalhado(conn, habito: dict, hoje: date) -> dict:
 def _criar_habito(conn, nome, meta, frequencia_tipo, dias_semana, vezes_por_semana, horario) -> dict:
     nome = _texto_curto(nome, 80)
     if not nome:
-        return {"erro": "informe o nome do habito"}
+        return {"erro": "informe o nome do hábito"}
     if frequencia_tipo not in ("diario", "dias_semana", "n_vezes_semana"):
         frequencia_tipo = "diario"
     dias_csv, vezes = None, None
@@ -4410,7 +4410,7 @@ def _criar_viagem(conn, destino, data_ida, data_volta, motivo, internacional=Fal
     if not destino or not ida:
         return {"erro": "informe o destino e a data de ida (AAAA-MM-DD)"}
     if data_volta not in (None, "") and (not volta or volta < ida):
-        return {"erro": "data de volta invalida (tem que ser depois da ida)"}
+        return {"erro": "data de volta inválida (tem que ser depois da ida)"}
     viagem_id = create_viagem(conn, destino, ida, volta, _texto_curto(motivo, 80), bool(internacional))
     return {"ok": True, "viagem_id": viagem_id}
 
@@ -4433,7 +4433,7 @@ def _criar_projeto(conn, nome, prazo_final) -> dict:
     if prazo_final not in (None, ""):
         prazo = _data_iso_valida(prazo_final)
         if not prazo:
-            return {"erro": "prazo invalido (AAAA-MM-DD)"}
+            return {"erro": "prazo inválido (AAAA-MM-DD)"}
     projeto_id = create_projeto(conn, nome, prazo)
     return {"ok": True, "projeto_id": projeto_id}
 
@@ -4446,10 +4446,10 @@ def _adicionar_etapa(conn, projeto_id, texto, data_prevista) -> dict:
     if data_prevista not in (None, ""):
         data_p = _data_iso_valida(data_prevista)
         if not data_p:
-            return {"erro": "data da etapa invalida (AAAA-MM-DD)"}
+            return {"erro": "data da etapa inválida (AAAA-MM-DD)"}
     etapa_id = adicionar_etapa_projeto(conn, projeto_id, texto, data_p)
     if etapa_id is None:
-        return {"erro": "projeto nao encontrado"}
+        return {"erro": "projeto não encontrado"}
     return {"ok": True, "etapa_id": etapa_id}
 
 
@@ -4543,7 +4543,7 @@ def _validar_manutencao(body: dict) -> dict:
     unificacao)."""
     tipo = _texto_curto(body.get("tipo"), 20) or "outro"
     if tipo not in TIPOS_MANUTENCAO:
-        return {"erro": "tipo invalido (use casa, carro, equipamento ou outro)"}
+        return {"erro": "tipo inválido (use casa, carro, equipamento ou outro)"}
     item = _texto_curto(body.get("item"), 80)
     if not item:
         return {"erro": "informe o item"}
@@ -4554,15 +4554,15 @@ def _validar_manutencao(body: dict) -> dict:
             return {"erro": "informe a data (AAAA-MM-DD)"}
         km = _numero_positivo_opcional(body.get("km"))
         if km == "invalido":
-            return {"erro": "km invalido (numero maior ou igual a zero)"}
+            return {"erro": "km inválido (número maior ou igual a zero)"}
         proxima_em_km = _numero_positivo_opcional(body.get("proxima_em_km"))
         if proxima_em_km == "invalido":
-            return {"erro": "proxima_em_km invalido (numero maior ou igual a zero)"}
+            return {"erro": "proxima_em_km inválido (número maior ou igual a zero)"}
         proxima_em_data = None
         if body.get("proxima_em_data") not in (None, ""):
             proxima_em_data = _data_iso_valida(body.get("proxima_em_data"))
             if not proxima_em_data:
-                return {"erro": "proxima_em_data invalida (AAAA-MM-DD)"}
+                return {"erro": "proxima_em_data inválida (AAAA-MM-DD)"}
         return {
             "tipo": tipo, "item": item, "intervalo_meses": None, "ultima_vez": data,
             "km": km, "proxima_em_km": proxima_em_km, "proxima_em_data": proxima_em_data,
@@ -4574,7 +4574,7 @@ def _validar_manutencao(body: dict) -> dict:
     ultima_vez = body.get("ultima_vez")
     ultima = _data_iso_valida(ultima_vez) if ultima_vez not in (None, "") else None
     if ultima_vez not in (None, "") and (not ultima or ultima > date.today().isoformat()):
-        return {"erro": "data da ultima vez invalida"}
+        return {"erro": "data da última vez inválida"}
     return {
         "tipo": tipo, "item": item, "intervalo_meses": intervalo, "ultima_vez": ultima,
         "km": None, "proxima_em_km": None, "proxima_em_data": None,
@@ -4640,7 +4640,7 @@ def _criar_garantia(conn, produto, data_compra, prazo_meses, nota_fiscal_anexo) 
     if prazo is None:
         return {"erro": "informe o prazo de garantia em meses (1 a 600)"}
     if compra > date.today().isoformat():
-        return {"erro": "data de compra invalida (nao pode ser no futuro)"}
+        return {"erro": "data de compra inválida (não pode ser no futuro)"}
     garantia_id = create_garantia(conn, produto, compra, prazo, nota_fiscal_anexo)
     return {"ok": True, "garantia_id": garantia_id}
 
@@ -4678,7 +4678,7 @@ def _manutencoes_carro_proximas(conn, hoje: date, dias_aviso: int = 15, km_aviso
             dias_ate = (proxima - hoje).days
             if dias_ate <= dias_aviso:
                 motivo = (
-                    "ja passou do prazo" if dias_ate < 0
+                    "já passou do prazo" if dias_ate < 0
                     else "vence hoje" if dias_ate == 0
                     else f"vence em {dias_ate} dia(s)"
                 )
@@ -4686,7 +4686,7 @@ def _manutencoes_carro_proximas(conn, hoje: date, dias_aviso: int = 15, km_aviso
             km_faltando = m["proxima_em_km"] - km_atual
             if km_faltando <= km_aviso:
                 motivo = (
-                    f"ja passou {abs(km_faltando):.0f}km do previsto" if km_faltando < 0
+                    f"já passou {abs(km_faltando):.0f}km do previsto" if km_faltando < 0
                     else f"faltam {km_faltando:.0f}km pro previsto"
                 )
         if motivo:
@@ -4780,7 +4780,7 @@ def _mensagem_local(conn, evento: str, lugar: str, bateria: int | None, agora: d
 
 def _criar_aprender(conn, tema, nota) -> dict:
     if isinstance(tema, str) and len(tema.strip()) > 80:
-        return {"erro": "tema muito longo (ate 80 caracteres)"}
+        return {"erro": "tema muito longo (até 80 caracteres)"}
     tema = _texto_curto(tema, 80)
     if not tema:
         return {"erro": "informe o tema"}
@@ -4806,9 +4806,9 @@ def _salvar_link(conn, url) -> dict:
                 _log_usage(conn, resultado[1], "resumo_link")
     except (requests.RequestException, OSError, ValueError, LookupError):
         # LinkInvalido e ValueError; OSError cobre socket/SSL fora do requests
-        aviso = "Nao consegui ler a pagina agora - o link ficou salvo."
+        aviso = "Não consegui ler a página agora - o link ficou salvo."
     if resumo is None and aviso is None:
-        aviso = "Salvei o link, mas nao deu pra resumir."
+        aviso = "Salvei o link, mas não deu pra resumir."
     salvo_id = create_salvo(conn, url, titulo, resumo)
     return {"ok": True, "id": salvo_id, "titulo": titulo, "resumo": resumo, "aviso": aviso}
 
@@ -4924,12 +4924,12 @@ def _categorizar_transacoes_importadas(conn, transacoes: list[dict]) -> list[dic
 def _definir_limite_cartao(conn, bank_account_id: int, limite) -> dict:
     if limite in (None, ""):
         ok = definir_limite_conta(conn, bank_account_id, None)
-        return {"ok": True} if ok else {"erro": "conta nao encontrada"}
+        return {"ok": True} if ok else {"erro": "conta não encontrada"}
     valida = isinstance(limite, (int, float)) and not isinstance(limite, bool) and math.isfinite(limite) and limite > 0
     if not valida:
-        return {"erro": "limite precisa ser um numero maior que zero (ou vazio pra apagar)"}
+        return {"erro": "limite precisa ser um número maior que zero (ou vazio pra apagar)"}
     ok = definir_limite_conta(conn, bank_account_id, float(limite))
-    return {"ok": True} if ok else {"erro": "conta nao encontrada"}
+    return {"ok": True} if ok else {"erro": "conta não encontrada"}
 
 
 def _patrimonio_consolidado(conn) -> dict:
@@ -4997,7 +4997,7 @@ _ROTULO_ACAO_INTENT = {
     "registrar_checkin": "um check-in",
     "navegar_tela": "ir pra uma tela do painel",
     "consultar": "uma pergunta",
-    "corrigir_ultimo": "uma correcao do ultimo item",
+    "corrigir_ultimo": "uma correcao do último item",
     "desconhecido": None,
 }
 
@@ -5007,12 +5007,12 @@ def _texto_falado_intent(resultado: dict) -> str:
     "Mostrar Resultado" do app Atalhos) - nunca executa a acao aqui (fora do
     escopo da US-B4, ver docs/INTENT.md), so descreve o que foi entendido."""
     if resultado.get("teto_ia_estourado"):
-        return "O limite mensal de IA ja estourou, nao consegui entender esse comando agora."
+        return "O limite mensal de IA já estourou, não consegui entender esse comando agora."
 
     acao = resultado.get("acao")
     rotulo = _ROTULO_ACAO_INTENT.get(acao)
     if not rotulo:
-        return "Nao entendi esse comando. Tenta de novo com mais detalhe."
+        return "Não entendi esse comando. Tenta de novo com mais detalhe."
 
     parametros = resultado.get("parametros") or {}
     detalhe = ""
@@ -5024,7 +5024,7 @@ def _texto_falado_intent(resultado: dict) -> str:
         detalhe = f': {parametros["pergunta"]}'
 
     if resultado.get("precisa_confirmacao"):
-        return f"Acho que entendi {rotulo}{detalhe}, mas nao tenho certeza. Confirma no painel antes de executar."
+        return f"Acho que entendi {rotulo}{detalhe}, mas não tenho certeza. Confirma no painel antes de executar."
     return f"Entendi {rotulo}{detalhe}. Confirma no painel pra executar."
 
 

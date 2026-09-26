@@ -78,7 +78,7 @@ class StatusDoDiaTestCase(unittest.TestCase):
     def test_um_item_passado_sem_confirmar(self):
         itens = [{"origem": "tarefa", "id": 1, "dia_inteiro": False, "concluido": False, "fim": "2026-09-23T08:00:00"}]
         self.assertEqual(
-            app._status_do_dia(itens, datetime(2026, 9, 23, 10, 0)), "1 item passou do horario sem confirmar"
+            app._status_do_dia(itens, datetime(2026, 9, 23, 10, 0)), "1 item passou do horário sem confirmar"
         )
 
     def test_varios_itens_passados(self):
@@ -87,7 +87,7 @@ class StatusDoDiaTestCase(unittest.TestCase):
             {"origem": "habito", "id": 2, "dia_inteiro": False, "concluido": False, "fim": "2026-09-23T09:00:00"},
         ]
         self.assertEqual(
-            app._status_do_dia(itens, datetime(2026, 9, 23, 10, 0)), "2 itens passaram do horario sem confirmar"
+            app._status_do_dia(itens, datetime(2026, 9, 23, 10, 0)), "2 itens passaram do horário sem confirmar"
         )
 
     def test_calendario_passado_nunca_conta(self):

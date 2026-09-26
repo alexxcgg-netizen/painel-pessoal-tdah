@@ -25,5 +25,5 @@ def clima_hoje_rota():
         return jsonify({"configurado": False})
     resumo = clima.resumo_chuva_hoje_para_cidade(cidade)
     if not resumo:
-        return jsonify({"configurado": True, "erro": "nao consegui buscar a previsao agora"})
+        return jsonify({"configurado": True, "erro": "não consegui buscar a previsão agora"})
     return jsonify({"configurado": True, **resumo})

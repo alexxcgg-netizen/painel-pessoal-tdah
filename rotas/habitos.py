@@ -49,7 +49,7 @@ def marcar_habito_rota(habito_id):
     conn = get_db()
     if not get_habito(conn, habito_id):
         conn.close()
-        return jsonify({"error": "habito nao encontrado"}), 404
+        return jsonify({"error": "hábito não encontrado"}), 404
     feito = alternar_habito_dia(conn, date.today().isoformat(), habito_id)
     conn.close()
     return jsonify({"feito": feito})

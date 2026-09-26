@@ -30,9 +30,9 @@ def ia_definir_teto():
     teto = body.get("teto_mensal_usd")
     if teto is not None:
         if isinstance(teto, bool) or not isinstance(teto, (int, float)) or not math.isfinite(teto):
-            return jsonify({"error": "teto_mensal_usd precisa ser um numero"}), 400
+            return jsonify({"error": "teto_mensal_usd precisa ser um número"}), 400
         if teto < 0:
-            return jsonify({"error": "teto_mensal_usd nao pode ser negativo"}), 400
+            return jsonify({"error": "teto_mensal_usd não pode ser negativo"}), 400
     conn = get_db()
     definir_teto_mensal_ia(conn, teto)
     resumo = resumo_custo_api(conn)

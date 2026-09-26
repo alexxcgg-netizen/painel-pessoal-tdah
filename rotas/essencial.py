@@ -56,7 +56,7 @@ def trocar_essencial():
     ja_usadas = {e["task_id"] for e in atuais}
     if isinstance(task_id, bool) or task_id not in ja_usadas:
         conn.close()
-        return jsonify({"error": "essa tarefa nao esta no essencial de hoje"}), 400
+        return jsonify({"error": "essa tarefa não esta no essencial de hoje"}), 400
     restantes = [(e["task_id"], e["motivo"]) for e in atuais if e["task_id"] != task_id]
     try:
         rejeitadas = json.loads(obter_configuracao(conn, "essencial_rejeitadas") or "{}")

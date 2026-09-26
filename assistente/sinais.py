@@ -59,7 +59,7 @@ def gravar(conn, tipo: str, lugar: str | None, quando: str) -> int:
     devolve o id. `tipo` invalido levanta ValueError - a rota ja valida
     antes de chamar, isto e so um cinto de seguranca pra quem mais usar."""
     if tipo not in TIPOS_VALIDOS:
-        raise ValueError(f"tipo invalido: {tipo!r}")
+        raise ValueError(f"tipo inválido: {tipo!r}")
     cur = conn.execute(
         "INSERT INTO sinais (tipo, lugar, quando) VALUES (?, ?, ?)",
         (tipo, lugar, quando),

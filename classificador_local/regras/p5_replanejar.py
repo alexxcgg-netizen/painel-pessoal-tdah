@@ -95,7 +95,7 @@ def executar(conn, parametros: dict | None = None) -> dict:
     if not replanejar.teto_permite(replanejar.NOME_FUNCAO_IA):
         return cards.envelope(
             [],
-            "O teto mensal de gasto com IA estourou esse mes - nao consigo montar um novo plano agora "
+            "O teto mensal de gasto com IA estourou esse mês - não consigo montar um novo plano agora "
             "(da pra ajustar o teto no card financeiro).",
             [
                 {

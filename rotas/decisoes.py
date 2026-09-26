@@ -29,11 +29,11 @@ def criar_diario_decisao():
     _modo_visitante_ativo = app._modo_visitante_ativo
     _texto_seguro = app._texto_seguro
     if _modo_visitante_ativo():
-        return jsonify({"error": "desative o modo visitante pra usar o diario de decisao"}), 403
+        return jsonify({"error": "desative o modo visitante pra usar o diario de decisão"}), 403
     body = _corpo_json()
     decisao = _texto_seguro(body.get("decisao"))
     if not decisao:
-        return jsonify({"error": "informe a decisao"}), 400
+        return jsonify({"error": "informe a decisão"}), 400
     contexto = _texto_seguro(body.get("contexto")) or None
     revisao_em = _texto_seguro(body.get("revisao_em")) or None
 
@@ -51,7 +51,7 @@ def registrar_resultado_diario_decisao_rota(decisao_id):
     _modo_visitante_ativo = app._modo_visitante_ativo
     _texto_seguro = app._texto_seguro
     if _modo_visitante_ativo():
-        return jsonify({"error": "desative o modo visitante pra usar o diario de decisao"}), 403
+        return jsonify({"error": "desative o modo visitante pra usar o diario de decisão"}), 403
     body = _corpo_json()
     resultado = _texto_seguro(body.get("resultado"))
     if not resultado:
@@ -61,7 +61,7 @@ def registrar_resultado_diario_decisao_rota(decisao_id):
     ok = registrar_resultado_diario_decisao(conn, decisao_id, resultado)
     conn.close()
     if not ok:
-        return jsonify({"error": "decisao nao encontrada"}), 404
+        return jsonify({"error": "decisão não encontrada"}), 404
     return jsonify({"ok": True})
 
 @bp.route("/api/diario-decisoes/<int:decisao_id>", methods=["DELETE"])
@@ -81,11 +81,11 @@ def decisao():
     _modo_visitante_ativo = app._modo_visitante_ativo
     claude_client = app.claude_client
     if _modo_visitante_ativo():
-        return jsonify({"error": "desative o modo visitante pra usar o diario de decisao"}), 403
+        return jsonify({"error": "desative o modo visitante pra usar o diario de decisão"}), 403
     bruto = _corpo_json().get("pergunta")
     pergunta = bruto.strip() if isinstance(bruto, str) else ""
     if not pergunta or len(pergunta) > 1000:
-        return jsonify({"error": "escreva a decisao (ate 1000 caracteres)"}), 400
+        return jsonify({"error": "escreva a decisão (até 1000 caracteres)"}), 400
     conn = get_db()
     memorias = [m["texto"] for m in list_memorias(conn)]
     result, error = _call_claude(claude_client.analisar_decisao, pergunta, memorias)

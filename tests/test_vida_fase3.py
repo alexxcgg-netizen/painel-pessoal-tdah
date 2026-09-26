@@ -95,7 +95,7 @@ class LeituraTestCase(unittest.TestCase):
         <body><h1>Oi</h1><p>Texto   importante</p></body></html>"""
         r = leitura.extrair(pagina)
         self.assertEqual(r["titulo"], "Titulo & tal")
-        self.assertIn("Resumo da pagina", r["texto"])
+        self.assertIn("Resumo da página", r["texto"])
         self.assertIn("Texto importante", r["texto"])
         self.assertNotIn("segredo", r["texto"])
         og = leitura.extrair('<meta content="Video legal" property="og:title"><title>outro</title>')

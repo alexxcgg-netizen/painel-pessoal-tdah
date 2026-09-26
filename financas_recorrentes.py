@@ -75,13 +75,13 @@ def _d(valor) -> Decimal:
         d = valor
     else:
         if isinstance(valor, bool) or not isinstance(valor, (int, float, str)):
-            raise ValueError("valor precisa ser um numero")
+            raise ValueError("valor precisa ser um número")
         try:
             d = Decimal(str(valor).strip())
         except (ArithmeticError, ValueError):
-            raise ValueError(f"valor invalido: {str(valor)[:40]!r}") from None
+            raise ValueError(f"valor inválido: {str(valor)[:40]!r}") from None
     if not d.is_finite():
-        raise ValueError("valor precisa ser um numero finito")
+        raise ValueError("valor precisa ser um número finito")
     return d
 
 
@@ -110,7 +110,7 @@ def _data_entrada(texto, campo: str) -> str:
     try:
         d = date.fromisoformat(texto.strip()[:10])
     except ValueError:
-        raise ValueError(f"{campo} invalida (use AAAA-MM-DD)") from None
+        raise ValueError(f"{campo} inválida (use AAAA-MM-DD)") from None
     if not (1900 <= d.year <= 2200):
         raise ValueError(f"{campo} fora do intervalo")
     return d.isoformat()
@@ -345,11 +345,11 @@ def criar_compra_parcelada(
     ver `parcela_info`)."""
     descricao = (descricao or "").strip()
     if not descricao:
-        raise ValueError("descricao da compra parcelada vazia")
+        raise ValueError("descrição da compra parcelada vazia")
     if isinstance(n_parcelas, bool) or not isinstance(n_parcelas, int) or n_parcelas <= 0:
         raise ValueError("n_parcelas precisa ser um inteiro positivo")
     if n_parcelas > N_PARCELAS_MAX:
-        raise ValueError(f"n_parcelas no maximo {N_PARCELAS_MAX}")
+        raise ValueError(f"n_parcelas no máximo {N_PARCELAS_MAX}")
     if valor_total is None and valor_parcela is None:
         raise ValueError("informe valor_total ou valor_parcela")
     if valor_parcela is not None:
@@ -728,7 +728,7 @@ def aplicar_desfazer(conn: sqlite3.Connection, token: str) -> dict:
     if not row:
         return {"status": 404, "erro": "token desconhecido"}
     if row["desfeito_em"]:
-        return {"status": 409, "erro": "ja desfeito"}
+        return {"status": 409, "erro": "já desfeito"}
     try:
         itens = json.loads(_decripto(row["itens_json"]) or "[]")
     except (TypeError, ValueError):

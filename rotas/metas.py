@@ -42,7 +42,7 @@ def guardar_meta(goal_id):
     goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
     if not goal:
         conn.close()
-        return jsonify({"error": "meta nao encontrada"}), 404
+        return jsonify({"error": "meta não encontrada"}), 404
     add_to_goal(conn, goal_id, valor)
     goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
     _marcar_atividade(conn)
@@ -56,7 +56,7 @@ def meta_historico(goal_id):
     goal = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
     if not goal:
         conn.close()
-        return jsonify({"error": "meta nao encontrada"}), 404
+        return jsonify({"error": "meta não encontrada"}), 404
     depositos = list_goal_deposits(conn, goal_id)
     conn.close()
 

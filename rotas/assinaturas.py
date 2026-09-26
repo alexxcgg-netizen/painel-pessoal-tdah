@@ -34,7 +34,7 @@ def responder_assinatura_rota():
     descricao = (body.get("descricao") or "").strip() if isinstance(body.get("descricao"), str) else ""
     resposta = body.get("resposta")
     if not descricao or len(descricao) > 200 or resposta not in ("usa", "nao_usa"):
-        return jsonify({"error": "mande descricao e resposta ('usa' ou 'nao_usa')"}), 400
+        return jsonify({"error": "mande descrição e resposta ('usa' ou 'nao_usa')"}), 400
     valor = body.get("valor")
     valor = valor if isinstance(valor, (int, float)) and not isinstance(valor, bool) and math.isfinite(valor) else None
     conn = get_db()

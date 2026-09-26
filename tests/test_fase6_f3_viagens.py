@@ -69,8 +69,8 @@ class MarcosPlanejamentoTestCase(unittest.TestCase):
         self.assertIsInstance(detalhe["marcos_planejamento"], list)
         self.assertTrue(len(detalhe["marcos_planejamento"]) >= 3)
         aviso = detalhe["aviso_regra_pratica"].lower()
-        self.assertIn("regra pratica", aviso)
-        self.assertIn("nao e preco em tempo real", aviso)  # deixa explicito que NAO e preco real
+        self.assertIn("regra prática", aviso)
+        self.assertIn("não e preço em tempo real", aviso)  # deixa explicito que NAO e preco real
 
     def test_viagem_sem_data_ida_valida_nao_quebra(self):
         viagem = {"id": 2, "destino": "X", "data_ida": None, "criado_em": "2026-09-01"}
@@ -105,7 +105,7 @@ class ViagensTimelineHTTPTestCase(unittest.TestCase):
         v = next(x for x in listagem if x["id"] == viagem_id)
         self.assertEqual(v["internacional"], 1)
         self.assertTrue(len(v["marcos_planejamento"]) >= 5)  # internacional tem mais marcos
-        self.assertIn("regra pratica", v["aviso_regra_pratica"].lower())
+        self.assertIn("regra prática", v["aviso_regra_pratica"].lower())
 
     def test_criar_viagem_nacional_por_padrao(self):
         ida = (date.today() + timedelta(days=40)).isoformat()

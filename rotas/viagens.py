@@ -30,7 +30,7 @@ def viagem_quando_sair():
     _corpo_json = app._corpo_json
     datetime = app.datetime
     if not maps_client.configurado():
-        return jsonify({"error": "calculadora de deslocamento nao configurada - veja o README"}), 400
+        return jsonify({"error": "calculadora de deslocamento não configurada - veja o README"}), 400
 
     body = _corpo_json()
     destino = (body.get("destino") or "").strip()
@@ -41,7 +41,7 @@ def viagem_quando_sair():
 
     if not destino or not chegar_ate_str or not origem:
         return (
-            jsonify({"error": "informe destino e horario de chegada (e origem, se nao tiver ENDERECO_CASA configurado)"}),
+            jsonify({"error": "informe destino e horário de chegada (e origem, se não tiver ENDERECO_CASA configurado)"}),
             400,
         )
 
@@ -58,7 +58,7 @@ def viagem_quando_sair():
     try:
         resultado = maps_client.horario_de_saida(origem, destino, chegar_ate, margem, modo)
     except requests.RequestException:
-        return jsonify({"error": "nao consegui calcular a rota agora"}), 502
+        return jsonify({"error": "não consegui calcular a rota agora"}), 502
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -110,7 +110,7 @@ def definir_numero_voo_viagem_rota(viagem_id):
     ok = definir_numero_voo_viagem(conn, viagem_id, numero)
     conn.close()
     if not ok:
-        return jsonify({"error": "viagem nao encontrada"}), 404
+        return jsonify({"error": "viagem não encontrada"}), 404
     return jsonify({"ok": True, "numero_voo": numero})
 
 @bp.route("/api/viagens/<int:viagem_id>/voo-status", methods=["GET"])
@@ -123,11 +123,11 @@ def viagem_voo_status_rota(viagem_id):
     registro = conn.execute("SELECT * FROM viagens WHERE id = ?", (viagem_id,)).fetchone()
     if not registro:
         conn.close()
-        return jsonify({"error": "viagem nao encontrada"}), 404
+        return jsonify({"error": "viagem não encontrada"}), 404
     numero_voo = registro["numero_voo"]
     if not numero_voo:
         conn.close()
-        return jsonify({"configurado": voo_status.configurado(), "erro": "informe o numero do voo primeiro"})
+        return jsonify({"configurado": voo_status.configurado(), "erro": "informe o número do voo primeiro"})
     resultado = voo_status.status_voo(
         numero_voo,
         registro["data_ida"],
@@ -158,7 +158,7 @@ def gerar_mala_rota(viagem_id):
     registro = conn.execute("SELECT * FROM viagens WHERE id = ?", (viagem_id,)).fetchone()
     if not registro:
         conn.close()
-        return jsonify({"error": "viagem nao encontrada"}), 404
+        return jsonify({"error": "viagem não encontrada"}), 404
     ida = date.fromisoformat(registro["data_ida"])
     volta = date.fromisoformat(registro["data_volta"]) if registro["data_volta"] else ida
     dias = (volta - ida).days + 1
@@ -184,7 +184,7 @@ def alternar_item_viagem_rota(item_id):
     feito = alternar_item_viagem(conn, item_id)
     conn.close()
     if feito is None:
-        return jsonify({"error": "item nao encontrado"}), 404
+        return jsonify({"error": "item não encontrado"}), 404
     return jsonify({"feito": feito})
 
 @bp.route("/api/viagens/<int:viagem_id>/como-projeto", methods=["GET"])
@@ -195,7 +195,7 @@ def viagem_como_projeto_rota(viagem_id):
     registro = conn.execute("SELECT * FROM viagens WHERE id = ?", (viagem_id,)).fetchone()
     if not registro:
         conn.close()
-        return jsonify({"error": "viagem nao encontrada"}), 404
+        return jsonify({"error": "viagem não encontrada"}), 404
     itens = list_itens_viagem(conn, viagem_id)
     conn.close()
     return jsonify(vida.viagem_como_projeto_detalhada(dict(registro), itens, date.today()))
@@ -213,6 +213,6 @@ def viagem_timeline_card_rota(viagem_id):
     card = cards.card_viagem(conn, viagem_id, date.today(), actions_extra=[])
     conn.close()
     if not card:
-        return jsonify({"error": "viagem nao encontrada"}), 404
+        return jsonify({"error": "viagem não encontrada"}), 404
     card["actions"] = []
     return jsonify(card)

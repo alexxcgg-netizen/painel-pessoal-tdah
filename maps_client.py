@@ -84,7 +84,7 @@ def geocodificar(endereco: str) -> tuple[float, float]:
     resp.raise_for_status()
     resultados = resp.json().get("results") or []
     if not resultados:
-        raise ValueError(f"nao encontrei o endereco: {endereco}")
+        raise ValueError(f"não encontrei o endereço: {endereco}")
     loc = resultados[0]["geometry"]["location"]
     return loc["lat"], loc["lng"]
 

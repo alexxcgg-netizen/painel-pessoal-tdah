@@ -80,17 +80,17 @@ def converter_brain_dump(item_id):
     item = obter_brain_dump(conn, item_id)
     if not item:
         conn.close()
-        return jsonify({"error": "item nao encontrado"}), 404
+        return jsonify({"error": "item não encontrado"}), 404
     if item["processado"]:
         conn.close()
-        return jsonify({"error": "item ja foi processado"}), 400
+        return jsonify({"error": "item já foi processado"}), 400
 
     if tipo == "assistente":
         # reserva o item ANTES da IA (dois toques ao mesmo tempo nao
         # processam o mesmo despejo duas vezes); devolve se a IA falhar.
         if not marcar_brain_dump_processado(conn, item_id):
             conn.close()
-            return jsonify({"error": "item ja foi processado"}), 400
+            return jsonify({"error": "item já foi processado"}), 400
         detalhes: dict = {}
         resposta, acoes, erro = _processar_mensagem_chat(conn, item["texto"], detalhes)
         if erro:

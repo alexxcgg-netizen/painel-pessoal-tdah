@@ -231,7 +231,7 @@ def decodificar_taf(tokens: list[str]) -> list[dict]:
     tempo pode mudar de um jeito muito diferente entre um segmento e
     outro, entao misturar tudo numa decodificacao so daria um resultado
     errado."""
-    segmentos = [{"tipo": "Previsao inicial", "periodo": None, "tokens": []}]
+    segmentos = [{"tipo": "Previsão inicial", "periodo": None, "tokens": []}]
     prob_pendente = None
     for tok in tokens:
         if tok == "RMK":
@@ -256,7 +256,7 @@ def decodificar_taf(tokens: list[str]) -> list[dict]:
             continue
         m = _RE_PERIODO.match(tok)
         if m and not segmentos[-1]["tokens"] and segmentos[-1]["periodo"] is None:
-            segmentos[-1]["periodo"] = f"dia {m.group(1)} {m.group(2)}Z ate dia {m.group(3)} {m.group(4)}Z"
+            segmentos[-1]["periodo"] = f"dia {m.group(1)} {m.group(2)}Z até dia {m.group(3)} {m.group(4)}Z"
             continue
         # token normal de meteo - se tinha um PROB pendente sem TEMPO/BECMG
         # na sequencia (raro, mas a gramatica do TAF permite), abre o
@@ -283,7 +283,7 @@ def resumo_falado_taf(segmentos: list[dict]) -> str:
         if seg.get("periodo"):
             prefixo += f" ({seg['periodo']})"
         blocos.append(f"{prefixo}: {corpo}")
-    return " ".join(blocos) if blocos else "Sem previsao detalhada disponivel."
+    return " ".join(blocos) if blocos else "Sem previsão detalhada disponível."
 
 
 def _tokens_uteis_metar(texto: str) -> list[str]:
@@ -311,7 +311,7 @@ def buscar_metar_taf(icao: str) -> dict:
         return {
             "metar": None,
             "taf": None,
-            "erro": "informe o codigo ICAO do aerodromo",
+            "erro": "informe o código ICAO do aerodromo",
             "metar_decodificado": None,
             "metar_falado": None,
             "metar_categoria": None,
@@ -325,7 +325,7 @@ def buscar_metar_taf(icao: str) -> dict:
         resp.raise_for_status()
         metar = resp.text.strip() or None
     except requests.RequestException:
-        erro = "nao consegui buscar o METAR agora"
+        erro = "não consegui buscar o METAR agora"
 
     try:
         resp = requests.get(TAF_URL, params={"ids": icao, "format": "raw"}, timeout=8)
@@ -333,10 +333,10 @@ def buscar_metar_taf(icao: str) -> dict:
         taf = resp.text.strip() or None
     except requests.RequestException:
         if not erro:
-            erro = "nao consegui buscar o TAF agora"
+            erro = "não consegui buscar o TAF agora"
 
     if not metar and not taf and not erro:
-        erro = f"nenhum dado encontrado pra {icao} - confere o codigo ICAO"
+        erro = f"nenhum dado encontrado pra {icao} - confere o código ICAO"
 
     metar_decodificado = metar_falado = metar_cat = taf_segmentos = taf_falado = None
     if metar:

@@ -26,7 +26,7 @@ def atalho_local():
     _token_atalho_valido = app._token_atalho_valido
     datetime = app.datetime
     if not _token_atalho_valido(obrigatorio=True):
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
     body = _corpo_json()
     evento = body.get("evento")
     lugar = vida.normalizar_nome(body.get("lugar")) if isinstance(body.get("lugar"), str) else ""
@@ -69,7 +69,7 @@ def atalho_app():
     _token_atalho_valido = app._token_atalho_valido
     datetime = app.datetime
     if not _token_atalho_valido(obrigatorio=True):
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
     body = _corpo_json()
     nome = _texto_curto(body.get("app"), 40)
     evento = body.get("evento")
@@ -90,7 +90,7 @@ def atalho_capturar():
     _executar_captura = app._executar_captura
     _token_atalho_valido = app._token_atalho_valido
     if not _token_atalho_valido():
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
 
     body = _corpo_json()
     text = (body.get("text") or "").strip()
@@ -114,12 +114,12 @@ def atalho_comando_voz():
     _texto_falado_intent = app._texto_falado_intent
     _token_atalho_valido = app._token_atalho_valido
     if not _token_atalho_valido():
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
 
     body = _corpo_json()
     texto = (body.get("texto") or body.get("text") or "").strip()
     if not texto:
-        return jsonify({"error": "texto vazio", "fala": "Nao entendi, pode repetir?"}), 400
+        return jsonify({"error": "texto vazio", "fala": "Não entendi, pode repetir?"}), 400
 
     conn = get_db()
     resultado, error = _classificar_intent(conn, texto)
@@ -147,11 +147,11 @@ def atalho_cotacao_pdf():
     _token_atalho_valido = app._token_atalho_valido
     claude_client = app.claude_client
     if not _token_atalho_valido():
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
 
     titulo_cotacao = (request.form.get("titulo_cotacao") or "").strip()
     if not titulo_cotacao:
-        return jsonify({"error": "informe o titulo da cotacao (ex: portas)"}), 400
+        return jsonify({"error": "informe o titulo da cotação (ex: portas)"}), 400
 
     arquivo = request.files.get("arquivo")
     if not arquivo or not arquivo.filename:
@@ -195,7 +195,7 @@ def atalho_resumo():
     date = app.date
     datetime = app.datetime
     if not _token_atalho_valido():
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
 
     conn = get_db()
     hoje = date.today().isoformat()

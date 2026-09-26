@@ -29,7 +29,7 @@ def criar_conta_pessoal():
     nome = (body.get("nome") or "").strip()
     dia = _inteiro_no_intervalo(body.get("dia_vencimento"), 1, 31)
     if not nome or len(nome) > 80:
-        return jsonify({"error": "informe o nome da conta (ate 80 caracteres)"}), 400
+        return jsonify({"error": "informe o nome da conta (até 80 caracteres)"}), 400
     if dia is None:
         return jsonify({"error": "dia de vencimento deve ser de 1 a 31"}), 400
     valor = body.get("valor")
@@ -39,9 +39,9 @@ def criar_conta_pessoal():
         try:
             valor = float(valor)
         except (TypeError, ValueError):
-            return jsonify({"error": "valor invalido"}), 400
+            return jsonify({"error": "valor inválido"}), 400
         if isinstance(body.get("valor"), bool) or valor < 0 or not math.isfinite(valor):
-            return jsonify({"error": "valor invalido"}), 400
+            return jsonify({"error": "valor inválido"}), 400
     conn = get_db()
     conta_id = create_conta_pessoal(conn, nome, dia, valor)
     conn.close()
@@ -64,7 +64,7 @@ def pagar_conta_pessoal(conta_id):
     conta = conn.execute("SELECT * FROM contas_pessoais WHERE id = ?", (conta_id,)).fetchone()
     if not conta:
         conn.close()
-        return jsonify({"error": "conta nao encontrada"}), 404
+        return jsonify({"error": "conta não encontrada"}), 404
     venc = _vencimento_em_aberto(conn, conta, date.today())
     marcar_conta_paga(conn, conta_id, venc.isoformat())
     _marcar_atividade(conn)

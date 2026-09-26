@@ -48,7 +48,7 @@ def criar_garantia_rota():
                 return jsonify({"error": "anexo maior que 5MB - manda um arquivo menor"}), 400
             if not _conteudo_bate_com_extensao(nome, dados):
                 conn.close()
-                return jsonify({"error": "conteudo do arquivo nao bate com a extensao (PDF, JPG ou PNG de verdade)"}), 400
+                return jsonify({"error": "conteúdo do arquivo não bate com a extensao (PDF, JPG ou PNG de verdade)"}), 400
             anexo_b64 = base64.b64encode(dados).decode("ascii")
     else:
         body = _corpo_json()

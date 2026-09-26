@@ -39,7 +39,7 @@ def criar_memoria_rota():
         return jsonify({"error": "informe o texto"}), 400
     categoria = body.get("categoria")
     if categoria is not None and categoria not in CATEGORIAS_MEMORIA:
-        return jsonify({"error": "categoria invalida"}), 400
+        return jsonify({"error": "categoria inválida"}), 400
     conn = get_db()
     memoria_id = create_memoria(conn, texto, None, categoria)
     conn.close()
@@ -64,7 +64,7 @@ def editar_memoria_rota(memoria_id):
     ok = update_memoria(conn, memoria_id, texto)
     conn.close()
     if not ok:
-        return jsonify({"error": "memoria nao encontrada"}), 404
+        return jsonify({"error": "memória não encontrada"}), 404
     return jsonify({"ok": True})
 
 @bp.route("/api/memorias/<int:memoria_id>", methods=["DELETE"])

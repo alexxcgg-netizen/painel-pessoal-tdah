@@ -68,7 +68,7 @@ def calendario_hoje():
         try:
             icloud_eventos = caldav_client.eventos_do_dia(date.today())
         except Exception:
-            erro = "Nao consegui falar com o iCloud agora."
+            erro = "Não consegui falar com o iCloud agora."
     eventos = _compromissos_de_hoje(conn, icloud_eventos)
     eventos += _tarefas_concluidas_com_horario_hoje(conn)
     eventos.sort(key=lambda e: e["inicio"])

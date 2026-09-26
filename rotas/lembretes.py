@@ -79,5 +79,5 @@ def despertar_lembrete(lembrete_id):
     ok = db.definir_despertar_lembrete(conn, lembrete_id, ativo)
     conn.close()
     if not ok:
-        return jsonify({"error": "lembrete nao encontrado"}), 404
+        return jsonify({"error": "lembrete não encontrado"}), 404
     return jsonify({"ok": True, "ativo": ativo})

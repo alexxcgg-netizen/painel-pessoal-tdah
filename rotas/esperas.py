@@ -42,7 +42,7 @@ def resolver_espera_rota(espera_id):
     ok = resolver_espera(conn, espera_id)
     conn.close()
     if not ok:
-        return jsonify({"error": "espera nao encontrada ou ja resolvida"}), 404
+        return jsonify({"error": "espera não encontrada ou já resolvida"}), 404
     return jsonify({"ok": True})
 
 @bp.route("/api/esperas/<int:espera_id>", methods=["DELETE"])
@@ -65,7 +65,7 @@ def marcar_espera_importante_rota(espera_id):
     ok = marcar_espera_importante(conn, espera_id, importante)
     conn.close()
     if not ok:
-        return jsonify({"error": "espera nao encontrada"}), 404
+        return jsonify({"error": "espera não encontrada"}), 404
     return jsonify({"ok": True, "importante": importante})
 
 @bp.route("/api/esperas/prioridade", methods=["GET"])

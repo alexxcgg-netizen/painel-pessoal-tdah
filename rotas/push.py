@@ -22,7 +22,7 @@ def push_inscrever():
     subscription = _corpo_json()
     endpoint = subscription.get("endpoint")
     if not endpoint:
-        return jsonify({"error": "inscricao invalida"}), 400
+        return jsonify({"error": "inscricao inválida"}), 400
     conn = get_db()
     save_push_subscription(conn, endpoint, json.dumps(subscription))
     conn.close()
@@ -31,7 +31,7 @@ def push_inscrever():
 @bp.route("/api/push/testar", methods=["POST"])
 def push_testar():
     if not push_client.configurado():
-        return jsonify({"error": "notificacao push nao configurada - veja o README"}), 400
+        return jsonify({"error": "notificacao push não configurada - veja o README"}), 400
 
     conn = get_db()
     subscriptions = list_push_subscriptions(conn)
@@ -41,7 +41,7 @@ def push_testar():
         ok = push_client.enviar(
             sub_dict,
             "Painel Pessoal",
-            "Notificacao de teste - se voce esta vendo isso, esta tudo funcionando!",
+            "Notificacao de teste - se você esta vendo isso, esta tudo funcionando!",
         )
         if ok:
             enviados += 1

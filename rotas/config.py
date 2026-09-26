@@ -92,7 +92,7 @@ def definir_silencio():
     inicio = _normalizar_hora(corpo.get("inicio"))
     fim = _normalizar_hora(corpo.get("fim"))
     if not inicio or not fim:
-        return jsonify({"error": "horario invalido - use HH:MM"}), 400
+        return jsonify({"error": "horário inválido - use HH:MM"}), 400
 
     conn = get_db()
     definir_configuracao(conn, "silencio_inicio", inicio)
@@ -108,7 +108,7 @@ def definir_silencio():
             janela = int(corpo.get("agrupar_janela_min"))
         except (TypeError, ValueError):
             conn.close()
-            return jsonify({"error": "agrupar_janela_min precisa ser um numero inteiro"}), 400
+            return jsonify({"error": "agrupar_janela_min precisa ser um número inteiro"}), 400
         if janela < 1:
             conn.close()
             return jsonify({"error": "agrupar_janela_min precisa ser pelo menos 1"}), 400

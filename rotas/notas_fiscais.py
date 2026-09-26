@@ -39,12 +39,12 @@ def extrair_nota_fiscal():
     if not imagem_b64 or not isinstance(imagem_b64, str):
         return jsonify({"error": "anexe uma foto da nota fiscal"}), 400
     if media_type not in claude_client.MEDIA_TYPES_IMAGEM_VALIDOS:
-        return jsonify({"error": "formato de imagem nao suportado (use jpeg, png, webp ou heic)"}), 400
+        return jsonify({"error": "formato de imagem não suportado (use jpeg, png, webp ou heic)"}), 400
 
     try:
         image_bytes = base64.b64decode(imagem_b64, validate=True)
     except (binascii.Error, ValueError):
-        return jsonify({"error": "imagem invalida (base64 malformado)"}), 400
+        return jsonify({"error": "imagem inválida (base64 malformado)"}), 400
     if not image_bytes:
         return jsonify({"error": "imagem vazia"}), 400
     if len(image_bytes) > TAMANHO_MAX_IMAGEM_BYTES:
@@ -102,7 +102,7 @@ def confirmar_nota_fiscal():
         try:
             date.fromisoformat(data_compra)
         except ValueError:
-            return jsonify({"error": "data invalida (use AAAA-MM-DD)"}), 400
+            return jsonify({"error": "data inválida (use AAAA-MM-DD)"}), 400
 
     conn = get_db()
     categoria = categoria_informada

@@ -98,7 +98,7 @@ class EstimarCorridaTestCase(unittest.TestCase):
         with patch("uber_client.requests.post", return_value=_resposta({"pickup_estimate": 3})):
             r = uber_client.estimar_corrida(-27.0, -49.0, -27.1, -49.1, "uberx-id", "token-x")
         self.assertIsNone(r["fare_id"])
-        self.assertEqual(r["preco_texto"], "preco nao informado")
+        self.assertEqual(r["preco_texto"], "preço não informado")
 
 
 class PedirCorridaTestCase(unittest.TestCase):

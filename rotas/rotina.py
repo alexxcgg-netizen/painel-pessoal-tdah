@@ -32,7 +32,7 @@ def alternar_rotina(item_id):
     existe = conn.execute("SELECT momento FROM rotina_itens WHERE id = ? AND ativo = 1", (item_id,)).fetchone()
     if not existe:
         conn.close()
-        return jsonify({"error": "item nao encontrado"}), 404
+        return jsonify({"error": "item não encontrado"}), 404
     dia = vida.dia_da_rotina(existe["momento"], datetime.now())
     feito = alternar_rotina_item(conn, dia.isoformat(), item_id)
     if feito:
@@ -51,7 +51,7 @@ def criar_item_rotina():
     if momento not in vida.ITENS_ROTINA_PADRAO:
         return jsonify({"error": "momento deve ser 'manha' ou 'noite'"}), 400
     if not texto or len(texto) > 120:
-        return jsonify({"error": "escreva o item (ate 120 caracteres)"}), 400
+        return jsonify({"error": "escreva o item (até 120 caracteres)"}), 400
     conn = get_db()
     item_id = create_rotina_item(conn, momento, texto)
     conn.close()

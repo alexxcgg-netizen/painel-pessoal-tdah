@@ -31,7 +31,7 @@ def criar_responder_rota():
     body = _corpo_json()
     quem = _texto_curto(body.get("quem"), 60)
     if not quem:
-        return jsonify({"error": "informe pra quem voce precisa responder"}), 400
+        return jsonify({"error": "informe pra quem você precisa responder"}), 400
     conn = get_db()
     responder_id = create_responder(conn, quem, _texto_curto(body.get("sobre"), 200))
     conn.close()
@@ -60,7 +60,7 @@ def mensagem_dificil():
     body = _corpo_json()
     situacao = _texto_curto(body.get("situacao"), 1500)
     if not situacao:
-        return jsonify({"error": "conte a situacao (ate 1500 caracteres)"}), 400
+        return jsonify({"error": "conte a situação (até 1500 caracteres)"}), 400
     para_quem = _texto_curto(body.get("para_quem"), 60)
     conn = get_db()
     result, error = _call_claude(claude_client.redigir_mensagem_dificil, situacao, para_quem)

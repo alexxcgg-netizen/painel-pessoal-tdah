@@ -136,7 +136,7 @@ class ModoMockNaRotaRealTestCase(_Base):
             texto = app._construtora_contexto_resumo()
         self.assertIn("entradas R$", texto)
         self.assertIn("saidas R$", texto)
-        self.assertIn("proxima conta a pagar da construtora", texto)
+        self.assertIn("próxima conta a pagar da construtora", texto)
         self.assertSemProibidos(texto)
 
 
@@ -147,7 +147,7 @@ class ContextoEPushTestCase(_Base):
         with patch.dict(os.environ, ENV_REAL), patch("requests.get", side_effect=_fake_get(contas=contas)):
             texto = app._construtora_contexto_resumo()
         self.assertEqual(texto, "entradas R$ 100000.00, saidas R$ 40000.00; "
-                                "proxima conta a pagar da construtora: Areia & Cia, vence em 3 dia(s)")
+                                "próxima conta a pagar da construtora: Areia & Cia, vence em 3 dia(s)")
         self.assertNotIn("1234", texto)  # valor da conta nunca de bandeja
 
     def test_push_de_conta_a_vencer_sem_valor(self):

@@ -30,14 +30,14 @@ DURACOES_HIPERFOCO = (25, 50, 90)
 
 ITENS_ROTINA_PADRAO = {
     "manha": [
-        "Beber um copo de agua",
+        "Beber um copo de água",
         "Remedio (se tiver hoje)",
-        "Check-in rapido: energia, sono e humor",
+        "Check-in rápido: energia, sono e humor",
         "Olhar as 1-3 coisas essenciais do dia",
     ],
     "noite": [
         "Fechamento do dia (o que foi feito)",
-        "Separar o que precisa pra amanha",
+        "Separar o que precisa pra amanhã",
         "Celular longe da cama",
     ],
 }
@@ -220,7 +220,7 @@ def achar_pessoa(pessoas: list[dict], nome: str) -> dict | None:
 def sugestao_acao_data(titulo: str | None) -> str | None:
     texto = normalizar_nome(titulo)
     if any(palavra in texto for palavra in _PALAVRAS_DATA_SOCIAL):
-        return "Ja pensou em mandar uma mensagem ou algo?"
+        return "Já pensou em mandar uma mensagem ou algo?"
     return None
 
 
@@ -370,7 +370,7 @@ def checklist_saida(agora: datetime, bateria: int | None, academia_hoje: bool, s
     if bateria is not None and bateria < 50:
         itens.append(f"carregador (bateria em {bateria}%)")
     if academia_hoje:
-        itens.append("fone e garrafa de agua (academia hoje)")
+        itens.append("fone e garrafa de água (academia hoje)")
     if saida_noite and agora.weekday() in (4, 5) and agora.hour >= 16:
         itens.append("fazer bigode e cavanhaque antes de sair")
     return itens
@@ -387,13 +387,13 @@ def mensagem_chegou_casa(agora: datetime, proximo: dict | None, pendentes: list[
             inicio = None
         if inicio and inicio > agora:
             sair = inicio - timedelta(minutes=30)
-            quando = "ja" if sair <= agora else f"ate {sair.strftime('%H:%M')}"
-            return f"Proximo: {proximo['titulo']} as {inicio.strftime('%H:%M')} - sai {quando}."
+            quando = "já" if sair <= agora else f"até {sair.strftime('%H:%M')}"
+            return f"Próximo: {proximo['titulo']} as {inicio.strftime('%H:%M')} - sai {quando}."
     if agora.hour >= 18:
         if pendentes:
             lista = ", ".join(pendentes[:3])
             resto = f" e mais {len(pendentes) - 3}" if len(pendentes) > 3 else ""
-            return f"Chegou. Ficou pendente hoje: {lista}{resto}. Sem culpa - vai pra amanha."
+            return f"Chegou. Ficou pendente hoje: {lista}{resto}. Sem culpa - vai pra amanhã."
         return "Chegou. Nada pendente pra hoje - descansa."
     return None
 
@@ -570,7 +570,7 @@ def intervalo_trimestre(ano: int, trimestre: int) -> tuple[date, date]:
     5 (US-C3, revisao trimestral/anual). Trimestre invalido levanta
     ValueError (a rota decide o 400)."""
     if trimestre not in (1, 2, 3, 4):
-        raise ValueError(f"trimestre invalido: {trimestre!r}")
+        raise ValueError(f"trimestre inválido: {trimestre!r}")
     primeiro_mes = 3 * (trimestre - 1) + 1
     primeiro = date(ano, primeiro_mes, 1)
     ultimo_mes = primeiro_mes + 2
@@ -889,7 +889,7 @@ MARCOS_INTERNACIONAL = [
 ]
 
 AVISO_REGRA_PRATICA = (
-    "Regra pratica generica (antecedencia usual de mercado) - nao e preco em "
+    "Regra prática genérica (antecedencia usual de mercado) - não e preço em "
     "tempo real nem consulta a nenhuma companhia aerea."
 )
 

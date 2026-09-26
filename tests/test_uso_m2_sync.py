@@ -88,7 +88,7 @@ class JobRegistradoNoSchedulerTestCase(unittest.TestCase):
             for chamada in instancia.add_job.call_args_list
             if chamada.args and chamada.args[0] is app.rodar_sincronizacao_nubank_automatica
         ]
-        self.assertEqual(len(chamadas_do_job), 1, "job de sync do Nubank nao foi registrado (ou foi 2x)")
+        self.assertEqual(len(chamadas_do_job), 1, "job de sync do Nubank não foi registrado (ou foi 2x)")
         chamada = chamadas_do_job[0]
         self.assertEqual(chamada.args[1], "cron")
         self.assertEqual(chamada.kwargs.get("hour"), 7)
@@ -145,7 +145,7 @@ class JobComPluggyConfiguradaTestCase(_BaseTestCase):
         import sqlite3
 
         self.assertIsInstance(mock_sync.call_args.args[0], sqlite3.Connection)
-        self.assertTrue(any("sincronizacao automatica do Nubank" in linha for linha in logs.output))
+        self.assertTrue(any("sincronização automática do Nubank" in linha for linha in logs.output))
         self.assertTrue(any("1 nova(s)" in linha for linha in logs.output))
 
     def test_excecao_no_pluggy_vira_log_de_erro_sem_subir_e_sem_apagar_dado(self):
@@ -184,7 +184,7 @@ class JobComPluggyConfiguradaTestCase(_BaseTestCase):
                     app.rodar_sincronizacao_nubank_automatica()
                 except Exception as e:
                     self.fail(f"excecao inesperada vazou do job: {e}")
-        self.assertTrue(any("excecao inesperada" in linha for linha in logs.output))
+        self.assertTrue(any("exceção inesperada" in linha for linha in logs.output))
 
 
 class TravaSimplesTestCase(_BaseTestCase):
@@ -259,7 +259,7 @@ class RotaManualContinuaIgualTestCase(_BaseTestCase):
 
         depois = self.client.get("/api/bancos/sync-status").get_json()
         self.assertIsNotNone(depois["ultimo_sync_nubank_ok"])
-        self.assertIn("Ultima sincronizacao", depois["info"])
+        self.assertIn("Última sincronização", depois["info"])
 
 
 if __name__ == "__main__":

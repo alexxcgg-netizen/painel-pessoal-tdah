@@ -183,7 +183,7 @@ def resumo_chuva_do_dia(horas: list[dict], hora_atual: int, limite_pct: int = LI
     fora de ordem ou com horas ja passadas - so as de agora em diante contam)."""
     futuras = sorted((h for h in horas if h["hora"] >= hora_atual), key=lambda h: h["hora"])
     if not futuras:
-        return {"alerta": False, "chovendo_agora": False, "texto": "Sem mais previsao pra hoje."}
+        return {"alerta": False, "chovendo_agora": False, "texto": "Sem mais previsão pra hoje."}
 
     chovendo_agora = futuras[0]["hora"] == hora_atual and futuras[0]["chuva_pct"] >= limite_pct
 
@@ -224,7 +224,7 @@ def resumo_chuva_do_dia(horas: list[dict], hora_atual: int, limite_pct: int = LI
         "hora_inicio": hora_inicio,
         "hora_fim": hora_fim,
         "chuva_pct_max": pico["chuva_pct"],
-        "texto": f"Risco de chuva entre {hora_inicio}h e {fim_txt} (ate {pico['chuva_pct']}% de chance).",
+        "texto": f"Risco de chuva entre {hora_inicio}h e {fim_txt} (até {pico['chuva_pct']}% de chance).",
     }
 
 

@@ -41,9 +41,9 @@ def definir_horarios():
     noite = corpo.get("noite")
 
     if manha is not None and not briefing.horario_valido(manha):
-        return jsonify({"error": "horario 'manha' invalido, use HH:MM"}), 400
+        return jsonify({"error": "horário 'manha' inválido, use HH:MM"}), 400
     if noite is not None and not briefing.horario_valido(noite):
-        return jsonify({"error": "horario 'noite' invalido, use HH:MM"}), 400
+        return jsonify({"error": "horário 'noite' inválido, use HH:MM"}), 400
     if manha is None and noite is None:
         return jsonify({"error": "informe 'manha' e/ou 'noite'"}), 400
 

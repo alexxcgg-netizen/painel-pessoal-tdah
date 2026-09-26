@@ -32,7 +32,7 @@ def construtora_resumo():
 
     dados = app._buscar_resumo_construtora()
     if dados is None:
-        return jsonify({"configurado": True, "erro": "Nao consegui falar com a API da construtora agora."}), 502
+        return jsonify({"configurado": True, "erro": "Não consegui falar com a API da construtora agora."}), 502
 
     dados_contas = app._buscar_contas_a_vencer_construtora(dias=30)
     contas = dados_contas.get("contas") if dados_contas and dados_contas.get("status") == "ok" else None

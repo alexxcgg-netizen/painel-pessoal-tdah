@@ -88,7 +88,7 @@ def responder_caixa(item_id):
         caixa.resolver(item_id, resposta, texto)
     except ValueError as exc:
         mensagem = str(exc)
-        status = 404 if "nao encontrado" in mensagem else 400
+        status = 404 if "não encontrado" in mensagem else 400
         return jsonify({"error": mensagem}), status
     return jsonify({"ok": True})
 
@@ -104,7 +104,7 @@ def tick():
     (chave_unica) nem manda push a mais (processar_repeticoes respeita
     pushes_hoje)."""
     if not _token_valido():
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
 
     agora = datetime.now()
     conn = db.get_db()

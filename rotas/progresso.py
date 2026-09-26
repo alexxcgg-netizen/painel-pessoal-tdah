@@ -52,7 +52,7 @@ def revisao_mensal():
             if not 2000 <= primeiro.year <= 2100:
                 raise ValueError
         except ValueError:
-            return jsonify({"error": "mes deve ser AAAA-MM"}), 400
+            return jsonify({"error": "mês deve ser AAAA-MM"}), 400
         proximo = date(primeiro.year + (primeiro.month == 12), primeiro.month % 12 + 1, 1)
         ultimo = proximo - timedelta(days=1)
     else:
@@ -88,7 +88,7 @@ def revisao_periodo():
         if not 2000 <= ano <= 2100:
             raise ValueError
     except (ValueError, TypeError):
-        return jsonify({"error": "ano/trimestre invalidos"}), 400
+        return jsonify({"error": "ano/trimestre inválidos"}), 400
 
     conn = get_db()
     fatos = _fatos_periodo(conn, primeiro, ultimo)

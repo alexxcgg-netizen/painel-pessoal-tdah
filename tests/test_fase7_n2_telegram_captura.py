@@ -116,7 +116,7 @@ def test_texto_normal_chama_executar_captura_e_manda_resumo():
         url_app="https://painel.exemplo/app",
     )
 
-    assert executar.chamadas == [("lembra de ligar pro dentista amanha", "")]
+    assert executar.chamadas == [("lembra de ligar pro dentista amanhã", "")]
     assert salvar.chamadas == []
     assert len(mensagens.enviadas) == 1
     assert "Tarefa criada." in mensagens.enviadas[0]
@@ -181,7 +181,7 @@ def test_sticker_ou_tipo_desconhecido_avisa_o_que_entende():
         extrair_nota_fiscal=_fake_extrair_nota(),
         enviar_mensagem=mensagens,
     )
-    assert "texto, audio" in mensagens.enviadas[0]
+    assert "texto, áudio" in mensagens.enviadas[0]
 
 
 # ---- texto: link ----------------------------------------------------------
@@ -271,7 +271,7 @@ def test_erro_ao_salvar_link_avisa_sem_quebrar(monkeypatch):
         extrair_nota_fiscal=_fake_extrair_nota(),
         enviar_mensagem=mensagens,
     )
-    assert "Nao consegui salvar o link" in mensagens.enviadas[0]
+    assert "Não consegui salvar o link" in mensagens.enviadas[0]
 
 
 # ---- audio ------------------------------------------------------------
@@ -324,7 +324,7 @@ def test_audio_erro_no_download_avisa_sem_transcrever():
         transcrever=lambda *a, **k: chamou_transcricao.append(1) or "nunca",
     )
     assert chamou_transcricao == []
-    assert "Nao consegui baixar o audio" in mensagens.enviadas[0]
+    assert "Não consegui baixar o áudio" in mensagens.enviadas[0]
 
 
 def test_audio_teto_estourado_avisa_sem_capturar():
@@ -395,7 +395,7 @@ def test_foto_usa_a_maior_resolucao_e_cria_gasto():
 
     assert chamadas_download == ["grande"]  # file_size 900 > 100
     assert extrair.chamadas == [(b"jpeg-fake", "image/jpeg")]
-    assert executar.chamadas == [("Gastei R$ 45.9 em Padaria Sao Jose", "")]
+    assert executar.chamadas == [("Gastei R$ 45.9 em Padaria São Jose", "")]
     assert "desfazer" in mensagens.enviadas[0].lower()
 
 
@@ -467,7 +467,7 @@ def test_foto_erro_no_download_avisa_sem_chamar_ia():
         baixar_arquivo=lambda file_id: None,
     )
     assert extrair.chamadas == []
-    assert "Nao consegui baixar a foto" in mensagens.enviadas[0]
+    assert "Não consegui baixar a foto" in mensagens.enviadas[0]
 
 
 # ---- _eh_link (pura) --------------------------------------------------

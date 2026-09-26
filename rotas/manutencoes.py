@@ -45,17 +45,17 @@ def manutencao_feita(manutencao_id):
     existente = get_manutencao(conn, manutencao_id)
     if not existente:
         conn.close()
-        return jsonify({"error": "manutencao nao encontrada"}), 404
+        return jsonify({"error": "manutencao não encontrada"}), 404
     if existente["tipo"] == "carro":
         conn.close()
-        return jsonify({"error": "manutencao de carro nao usa 'feita' - adicione um novo registro"}), 400
+        return jsonify({"error": "manutencao de carro não usa 'feita' - adicione um novo registro"}), 400
     ok = marcar_manutencao_feita(conn, manutencao_id, date.today().isoformat())
     if ok:
         _marcar_atividade(conn)
         conn.commit()
     conn.close()
     if not ok:
-        return jsonify({"error": "manutencao nao encontrada"}), 404
+        return jsonify({"error": "manutencao não encontrada"}), 404
     return jsonify({"ok": True})
 
 @bp.route("/api/manutencoes/<int:manutencao_id>", methods=["DELETE"])

@@ -80,7 +80,7 @@ def bancos_sync_status():
     info = (
         "Conecte um banco automaticamente pra sincronizar sem precisar exportar OFX."
         if configurado
-        else "Sincronizacao automatica ainda nao configurada - veja o README (integracao com Pluggy)."
+        else "Sincronização automática ainda não configurada - veja o README (integracao com Pluggy)."
     )
     # uso/m2-sync: carimbo do ultimo sync bom (manual OU automatico de
     # madrugada, ver rodar_sincronizacao_nubank_automatica/iniciar_scheduler
@@ -96,7 +96,7 @@ def bancos_sync_status():
         finally:
             conn.close()
         if ultimo_sync:
-            info += f" Ultima sincronizacao: {ultimo_sync[:16].replace('T', ' as ')}."
+            info += f" Última sincronização: {ultimo_sync[:16].replace('T', ' as ')}."
     return jsonify(
         {
             "sincronizacao_automatica": configurado,
@@ -109,11 +109,11 @@ def bancos_sync_status():
 @bp.route("/api/bancos/conectar/token", methods=["POST"])
 def bancos_conectar_token():
     if not pluggy_client.configurado():
-        return jsonify({"error": "sincronizacao automatica nao configurada"}), 400
+        return jsonify({"error": "sincronização automática não configurada"}), 400
     try:
         token = pluggy_client.create_connect_token()
     except requests.RequestException:
-        return jsonify({"error": "nao consegui falar com a Pluggy agora"}), 502
+        return jsonify({"error": "não consegui falar com a Pluggy agora"}), 502
     return jsonify({"connect_token": token})
 
 @bp.route("/api/bancos/conectar/finalizar", methods=["POST"])
@@ -122,7 +122,7 @@ def bancos_conectar_finalizar():
     _categorizar_transacoes_importadas = app._categorizar_transacoes_importadas
     _corpo_json = app._corpo_json
     if not pluggy_client.configurado():
-        return jsonify({"error": "sincronizacao automatica nao configurada"}), 400
+        return jsonify({"error": "sincronização automática não configurada"}), 400
 
     item_id = _corpo_json().get("item_id")
     if not item_id:
@@ -132,7 +132,7 @@ def bancos_conectar_finalizar():
         item = pluggy_client.get_item(item_id)
         contas_pluggy = pluggy_client.get_accounts(item_id)
     except requests.RequestException:
-        return jsonify({"error": "nao consegui buscar os dados na Pluggy agora"}), 502
+        return jsonify({"error": "não consegui buscar os dados na Pluggy agora"}), 502
 
     banco = item.get("connector", {}).get("name", "banco").lower()
 
@@ -151,7 +151,7 @@ def bancos_conectar_finalizar():
             transacoes_pluggy, _truncado = pluggy_client.get_transactions(conta_pluggy["id"])
         except requests.RequestException:
             conn.close()
-            return jsonify({"error": "nao consegui buscar as transacoes na Pluggy agora"}), 502
+            return jsonify({"error": "não consegui buscar as transacoes na Pluggy agora"}), 502
         transacoes = pluggy_client.normalizar_transacoes(transacoes_pluggy)
         transacoes = _categorizar_transacoes_importadas(conn, transacoes)
         novas = insert_bank_transactions(conn, conta_id, transacoes)

@@ -142,7 +142,7 @@ class MontarManhaTestCase(unittest.TestCase):
 
         self.assertIn("1 compromisso na agenda: 09:00 Reuniao.", dados["corpo"])
         self.assertIn("2 tarefas pendentes: Comprar leite, Estudar.", dados["corpo"])
-        self.assertIn("Habitos de hoje: Beber agua.", dados["corpo"])
+        self.assertIn("Hábitos de hoje: Beber agua.", dados["corpo"])
         self.assertIn("Internet vence em 3 dia(s)", dados["corpo"])  # dia_vencimento 18, hoje dia 15
         self.assertIn("Fornecedor XPTO (construtora) vence em 3 dia(s)", dados["corpo"])
 
@@ -213,7 +213,7 @@ class MontarNoiteTestCase(unittest.TestCase):
         self.assertEqual(dados["opcoes"], briefing.OPCOES_FECHAMENTO)
         self.assertIn("Nenhuma tarefa concluida hoje.", dados["corpo"])
         self.assertIn("Como foi o dia?", dados["corpo"])
-        self.assertNotIn("passa pra amanha", dados["corpo"])
+        self.assertNotIn("passa pra amanhã", dados["corpo"])
 
     def test_dia_cheio(self):
         self.conn.execute(
@@ -231,7 +231,7 @@ class MontarNoiteTestCase(unittest.TestCase):
         self.assertEqual(dados["pendentes"], ["Tarefa que ficou"])
         self.assertIn("1 tarefa concluida hoje.", dados["corpo"])
         self.assertIn("Ficou pendente: Tarefa que ficou.", dados["corpo"])
-        self.assertIn("O que ficou passa pra amanha.", dados["corpo"])
+        self.assertIn("O que ficou passa pra amanhã.", dados["corpo"])
         self.assertIn("Como foi o dia?", dados["corpo"])
 
 

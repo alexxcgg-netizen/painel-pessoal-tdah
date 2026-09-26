@@ -204,10 +204,10 @@ def _validar_hora(hora) -> str:
     """Aceita 'HH:MM', 'HHhMM' e 'HHh' (sem minuto = :00); qualquer outra
     coisa (AM/PM, hora fora de 0-23, minuto fora de 0-59...) e invalida."""
     if not isinstance(hora, str) or not hora.strip():
-        raise ValueError(f"hora invalida: {hora!r} (use 'HH:MM')")
+        raise ValueError(f"hora inválida: {hora!r} (use 'HH:MM')")
     m = _RE_HORA_NORM.match(hora)
     if not m:
-        raise ValueError(f"hora invalida: {hora!r} (use 'HH:MM')")
+        raise ValueError(f"hora inválida: {hora!r} (use 'HH:MM')")
     h = int(m.group(1))
     minuto = int(m.group(2)) if m.group(2) else 0
     if not (0 <= h <= 23 and 0 <= minuto <= 59):
@@ -225,7 +225,7 @@ def normalizar_regra(bruto) -> dict:
 
     gatilho = bruto.get("gatilho")
     if gatilho not in GATILHOS_VALIDOS:
-        raise ValueError(f"gatilho invalido: {gatilho!r}")
+        raise ValueError(f"gatilho inválido: {gatilho!r}")
 
     condicao = bruto.get("condicao")
     if not isinstance(condicao, dict):
@@ -235,7 +235,7 @@ def normalizar_regra(bruto) -> dict:
     if acao is None:
         acao = {}
     if not isinstance(acao, dict):
-        raise ValueError("acao precisa ser um objeto")
+        raise ValueError("ação precisa ser um objeto")
 
     texto = bruto.get("texto")
     if not isinstance(texto, str) or not texto.strip():
@@ -244,7 +244,7 @@ def normalizar_regra(bruto) -> dict:
 
     if fora_de_escopo(texto):
         raise ValueError(
-            "Isso e sobre vida amorosa/relacionamento - o assistente nao cria regra pra isso."
+            "Isso e sobre vida amorosa/relacionamento - o assistente não cria regra pra isso."
         )
 
     condicao_norm: dict = {}
@@ -253,7 +253,7 @@ def normalizar_regra(bruto) -> dict:
     if gatilho == "horario":
         tipo = condicao.get("tipo", "diario")
         if tipo not in _TIPOS_HORARIO:
-            raise ValueError(f"tipo de horario invalido: {tipo!r}")
+            raise ValueError(f"tipo de horário inválido: {tipo!r}")
         condicao_norm["tipo"] = tipo
         condicao_norm["hora"] = _validar_hora(condicao.get("hora"))
         if tipo == "semanal":
@@ -261,7 +261,7 @@ def normalizar_regra(bruto) -> dict:
             try:
                 dia = int(dia)
             except (TypeError, ValueError):
-                raise ValueError(f"dia_semana invalido: {condicao.get('dia_semana')!r}") from None
+                raise ValueError(f"dia_semana inválido: {condicao.get('dia_semana')!r}") from None
             if not 0 <= dia <= 6:
                 raise ValueError(f"dia_semana fora do intervalo 0-6: {dia}")
             condicao_norm["dia_semana"] = dia
@@ -270,7 +270,7 @@ def normalizar_regra(bruto) -> dict:
             try:
                 datetime.strptime(str(data_txt), "%Y-%m-%d")
             except (TypeError, ValueError):
-                raise ValueError(f"data invalida: {data_txt!r} (use AAAA-MM-DD)") from None
+                raise ValueError(f"data inválida: {data_txt!r} (use AAAA-MM-DD)") from None
             condicao_norm["data"] = str(data_txt)
         mensagem = acao.get("mensagem") or texto
         acao_norm["mensagem"] = str(mensagem).strip()[:400]
@@ -282,12 +282,12 @@ def normalizar_regra(bruto) -> dict:
         condicao_norm["categoria"] = categoria.strip().lower()
         periodo = condicao.get("periodo", "mes")
         if periodo not in _PERIODOS:
-            raise ValueError(f"periodo invalido: {periodo!r}")
+            raise ValueError(f"período inválido: {periodo!r}")
         condicao_norm["periodo"] = periodo
         try:
             valor = float(condicao.get("valor_limite"))
         except (TypeError, ValueError):
-            raise ValueError(f"valor_limite invalido: {condicao.get('valor_limite')!r}") from None
+            raise ValueError(f"valor_limite inválido: {condicao.get('valor_limite')!r}") from None
         if not (valor > 0):
             raise ValueError("valor_limite precisa ser maior que zero")
         condicao_norm["valor_limite"] = round(valor, 2)
@@ -301,7 +301,7 @@ def normalizar_regra(bruto) -> dict:
             try:
                 condicao_norm["habito_id"] = int(condicao["habito_id"])
             except (TypeError, ValueError):
-                raise ValueError(f"habito_id invalido: {condicao.get('habito_id')!r}") from None
+                raise ValueError(f"habito_id inválido: {condicao.get('habito_id')!r}") from None
         if condicao.get("hora") not in (None, ""):
             condicao_norm["hora"] = _validar_hora(condicao.get("hora"))
 
@@ -311,7 +311,7 @@ def normalizar_regra(bruto) -> dict:
     elif gatilho == "sinal_iphone":
         tipo_sinal = condicao.get("tipo")
         if tipo_sinal not in _TIPOS_SINAL:
-            raise ValueError(f"tipo de sinal invalido: {tipo_sinal!r}")
+            raise ValueError(f"tipo de sinal inválido: {tipo_sinal!r}")
         condicao_norm["tipo"] = tipo_sinal
         lugar = condicao.get("lugar")
         if lugar not in (None, ""):
@@ -340,21 +340,21 @@ SCHEMA_INTERPRETAR_REGRA = {
 }
 
 _SISTEMA_INTERPRETAR_REGRA = (
-    "Voce transforma um pedido em portugues do Alex numa regra estruturada do "
+    "Você transforma um pedido em portugues do Alex numa regra estruturada do "
     "assistente do painel pessoal dele (TDAH). Devolva SOMENTE um objeto JSON "
-    "com os campos gatilho, condicao, acao e texto (texto = o pedido original, "
-    "ate 400 caracteres).\n\n"
-    "gatilho e um destes 5 valores, cada um com o formato de condicao/acao:\n"
-    "- horario: condicao = {tipo: 'diario'|'semanal'|'data', hora: 'HH:MM', "
+    "com os campos gatilho, condicao, ação e texto (texto = o pedido original, "
+    "até 400 caracteres).\n\n"
+    "gatilho e um destes 5 valores, cada um com o formato de condicao/ação:\n"
+    "- horário: condicao = {tipo: 'diario'|'semanal'|'data', hora: 'HH:MM', "
     "dia_semana (0=segunda..6=domingo, so no tipo semanal), data ('AAAA-MM-DD', "
-    "so no tipo data)}. acao = {mensagem: texto curto do lembrete}.\n"
-    "- gasto_categoria: condicao = {categoria: string, periodo: 'semana'|'mes'|'dia', "
-    "valor_limite: numero}. acao = {}.\n"
+    "so no tipo data)}. ação = {mensagem: texto curto do lembrete}.\n"
+    "- gasto_categoria: condicao = {categoria: string, período: 'semana'|'mês'|'dia', "
+    "valor_limite: número}. ação = {}.\n"
     "- habito_nao_feito_ate: condicao = {habito_nome: string, hora: 'HH:MM' opcional}. "
-    "acao = {}.\n"
-    "- tarefa_vencida: condicao = {}. acao = {}.\n"
+    "ação = {}.\n"
+    "- tarefa_vencida: condicao = {}. ação = {}.\n"
     "- sinal_iphone: condicao = {tipo: 'cheguei'|'sai'|'acordei'|'dormir'|'carregando', "
-    "lugar: string opcional}. acao = {mensagem opcional}.\n\n"
+    "lugar: string opcional}. ação = {mensagem opcional}.\n\n"
     "Escolha o gatilho que melhor combina com o pedido. Nunca invente campo fora "
     "desse formato."
 )
@@ -374,7 +374,7 @@ def interpretar_regra(texto: str) -> dict:
     if fora_de_escopo(texto_original):
         return {
             "ok": False, "regra": None, "fonte": None,
-            "erro": "Isso e sobre vida amorosa/relacionamento - o assistente nao mexe nisso.",
+            "erro": "Isso e sobre vida amorosa/relacionamento - o assistente não mexe nisso.",
         }
 
     bruto = interpretar_regra_local(texto_original)
@@ -388,7 +388,7 @@ def interpretar_regra(texto: str) -> dict:
             schema=SCHEMA_INTERPRETAR_REGRA,
         )
         if not resp.ok:
-            return {"ok": False, "regra": None, "fonte": "ia", "erro": resp.erro or "IA nao respondeu"}
+            return {"ok": False, "regra": None, "fonte": "ia", "erro": resp.erro or "IA não respondeu"}
         bruto = resp.dados
 
     try:
@@ -403,10 +403,10 @@ def interpretar_regra(texto: str) -> dict:
 # Resumo em portugues (confirmacao + corpo do aviso)
 # ---------------------------------------------------------------------------
 
-_NOME_PERIODO = {"semana": "por semana", "mes": "por mes", "dia": "por dia"}
+_NOME_PERIODO = {"semana": "por semana", "mes": "por mês", "dia": "por dia"}
 _NOME_SINAL = {
-    "cheguei": "voce chegar", "sai": "voce sair", "acordei": "voce acordar",
-    "dormir": "voce dormir", "carregando": "seu iPhone comecar a carregar",
+    "cheguei": "você chegar", "sai": "você sair", "acordei": "você acordar",
+    "dormir": "você dormir", "carregando": "seu iPhone comecar a carregar",
 }
 
 
@@ -433,7 +433,7 @@ def montar_resumo_regra(regra: dict) -> str:
     if gatilho == "gasto_categoria":
         categoria = condicao.get("categoria", "?")
         limite = condicao.get("valor_limite", 0)
-        periodo = _NOME_PERIODO.get(condicao.get("periodo", "mes"), "por mes")
+        periodo = _NOME_PERIODO.get(condicao.get("periodo", "mes"), "por mês")
         return (
             f'Vou te avisar quando o gasto em "{categoria}" passar de '
             f"R$ {limite:.2f} {periodo}."
@@ -443,8 +443,8 @@ def montar_resumo_regra(regra: dict) -> str:
         nome = condicao.get("habito_nome", "?")
         hora = condicao.get("hora")
         if hora:
-            return f'Vou te avisar se "{nome}" ainda nao estiver marcado até as {hora}.'
-        return f'Vou te avisar quando "{nome}" passar do horário e ainda nao estiver marcado.'
+            return f'Vou te avisar se "{nome}" ainda não estiver marcado até as {hora}.'
+        return f'Vou te avisar quando "{nome}" passar do horário e ainda não estiver marcado.'
 
     if gatilho == "tarefa_vencida":
         return "Vou te avisar quando alguma tarefa vencer."
@@ -478,7 +478,7 @@ def periodo_intervalo(hoje: date, periodo: str) -> tuple[date, date]:
         else:
             prox = hoje.replace(month=hoje.month + 1, day=1)
         return inicio, prox - timedelta(days=1)
-    raise ValueError(f"periodo desconhecido: {periodo!r}")
+    raise ValueError(f"período desconhecido: {periodo!r}")
 
 
 def total_gasto_periodo(conn, categoria: str, inicio: date, fim: date) -> float:
@@ -655,9 +655,9 @@ def avaliar_regra(conn, regra: dict, agora: datetime,
         categoria = condicao["categoria"]
         limite = float(condicao["valor_limite"])
         periodo = condicao.get("periodo", "mes")
-        periodo_txt = {"semana": "essa semana", "mes": "esse mes", "dia": "hoje"}.get(periodo, "esse periodo")
+        periodo_txt = {"semana": "essa semana", "mes": "esse mês", "dia": "hoje"}.get(periodo, "esse período")
         mensagem = (
-            f"Voce ja gastou R$ {total:.2f} com {categoria} {periodo_txt} "
+            f"Você já gastou R$ {total:.2f} com {categoria} {periodo_txt} "
             f"(limite: R$ {limite:.2f})."
         )
         return True, mensagem, {
@@ -669,9 +669,9 @@ def avaliar_regra(conn, regra: dict, agora: datetime,
         deve, habito = avaliar_habito_nao_feito_ate(conn, condicao, agora, ultima_vez)
         if not deve:
             return False, "", {}
-        nome = habito["nome"] if habito else condicao.get("habito_nome", "seu habito")
-        mensagem = f'Voce ainda nao marcou "{nome}" hoje.'
-        return True, mensagem, {"titulo": "Habito pendente", "janela": agora.date().isoformat()}
+        nome = habito["nome"] if habito else condicao.get("habito_nome", "seu hábito")
+        mensagem = f'Você ainda não marcou "{nome}" hoje.'
+        return True, mensagem, {"titulo": "Hábito pendente", "janela": agora.date().isoformat()}
 
     if gatilho == "tarefa_vencida":
         deve, tarefas = avaliar_tarefa_vencida(conn, condicao, agora, ultima_vez)

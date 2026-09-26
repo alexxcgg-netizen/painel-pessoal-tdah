@@ -79,7 +79,7 @@ def intent_corrigir():
     if not texto:
         return jsonify({"error": "texto vazio"}), 400
     if acao_correta not in ACOES_INTENT:
-        return jsonify({"error": "acao_correta invalida"}), 400
+        return jsonify({"error": "acao_correta inválida"}), 400
 
     conn = get_db()
     aprendizado.confirmar_padrao_intent(conn, texto, acao_correta, parametros, forcar_confianca_alta=True)
@@ -105,7 +105,7 @@ def reclassificar_gasto_rota(expense_id):
     expense = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
     if not expense:
         conn.close()
-        return jsonify({"error": "gasto nao encontrado"}), 404
+        return jsonify({"error": "gasto não encontrado"}), 404
 
     novo_id = reclassificar_gasto_para_tarefa(conn, expense_id, due_at, due_date, hora)
     registrar_correcao_classificacao(
@@ -131,7 +131,7 @@ def corrigir_categoria_gasto_rota(expense_id):
     expense = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
     if not expense:
         conn.close()
-        return jsonify({"error": "gasto nao encontrado"}), 404
+        return jsonify({"error": "gasto não encontrado"}), 404
 
     categoria_antiga = expense["category"]
     atualizar_categoria_gasto(conn, expense_id, categoria)

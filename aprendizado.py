@@ -82,7 +82,7 @@ def limiar_personalizado(
         return padrao, {
             "fonte": "padrao",
             "amostras": len(amostras),
-            "motivo": f"historico insuficiente (precisa de pelo menos {minimo_amostras})",
+            "motivo": f"histórico insuficiente (precisa de pelo menos {minimo_amostras})",
         }
     valor = round(_mediana(amostras))
     valor_limitado = max(piso, min(valor, teto))

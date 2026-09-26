@@ -32,11 +32,11 @@ def salvar_modo_viagem_rota():
     data_inicio = _data_iso_valida(body.get("data_inicio")) if body.get("data_inicio") else None
     data_fim = _data_iso_valida(body.get("data_fim")) if body.get("data_fim") else None
     if body.get("data_inicio") and not data_inicio:
-        return jsonify({"error": "data de inicio invalida (AAAA-MM-DD)"}), 400
+        return jsonify({"error": "data de inicio inválida (AAAA-MM-DD)"}), 400
     if body.get("data_fim") and not data_fim:
-        return jsonify({"error": "data de fim invalida (AAAA-MM-DD)"}), 400
+        return jsonify({"error": "data de fim inválida (AAAA-MM-DD)"}), 400
     if data_inicio and data_fim and data_fim < data_inicio:
-        return jsonify({"error": "data de fim invalida (tem que ser depois do inicio)"}), 400
+        return jsonify({"error": "data de fim inválida (tem que ser depois do inicio)"}), 400
     conn = get_db()
     estado = _salvar_modo_viagem(conn, ativo, data_inicio, data_fim)
     conn.close()

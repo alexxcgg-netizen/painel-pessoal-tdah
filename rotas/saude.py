@@ -19,7 +19,7 @@ def saude_importar():
     date = app.date
     token_esperado = os.environ.get("SAUDE_WEBHOOK_TOKEN")
     if token_esperado and request.headers.get("X-Webhook-Token") != token_esperado:
-        return jsonify({"error": "token invalido"}), 401
+        return jsonify({"error": "token inválido"}), 401
 
     body = _corpo_json()
     data = body.get("data") or date.today().isoformat()
@@ -98,13 +98,13 @@ def criar_medida_rota():
     try:
         valor = float(body.get("valor"))
     except (TypeError, ValueError):
-        return jsonify({"error": "valor invalido"}), 400
+        return jsonify({"error": "valor inválido"}), 400
     if not math.isfinite(valor):
-        return jsonify({"error": "valor invalido"}), 400
+        return jsonify({"error": "valor inválido"}), 400
     try:
         date.fromisoformat(data_medida)
     except ValueError:
-        return jsonify({"error": "data invalida - use AAAA-MM-DD"}), 400
+        return jsonify({"error": "data inválida - use AAAA-MM-DD"}), 400
 
     if not unidade:
         unidade = "kg" if tipo == "peso" else "cm"

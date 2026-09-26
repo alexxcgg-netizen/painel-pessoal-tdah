@@ -89,10 +89,10 @@ def _caminhos_com_token(modulo, nome: str) -> tuple[set[str], set[str]]:
     caminhos = getattr(modulo, "ROTAS_COM_TOKEN", None) or ()
     prefixos = getattr(modulo, "PREFIXOS_COM_TOKEN", None) or ()
     if isinstance(caminhos, str) or isinstance(prefixos, str):
-        raise ValueError(f"rotas/{nome}.py: ROTAS_COM_TOKEN/PREFIXOS_COM_TOKEN precisam ser set/tuple, nao str")
+        raise ValueError(f"rotas/{nome}.py: ROTAS_COM_TOKEN/PREFIXOS_COM_TOKEN precisam ser set/tuple, não str")
     for c in list(caminhos) + list(prefixos):
         if not isinstance(c, str) or not c.startswith("/"):
-            raise ValueError(f"rotas/{nome}.py: caminho com token invalido {c!r} (precisa comecar com '/')")
+            raise ValueError(f"rotas/{nome}.py: caminho com token inválido {c!r} (precisa comecar com '/')")
     for p in prefixos:
         if p.rstrip("/") in {x.rstrip("/") for x in _PREFIXOS_PROIBIDOS} or len(p.strip("/")) < 3:
             raise ValueError(f"rotas/{nome}.py: prefixo com token largo demais {p!r}")
@@ -132,7 +132,7 @@ def registrar_todas(app) -> list[str]:
             if regra.rule.startswith(prefixo) and dono != bp_nome:
                 raise ValueError(
                     f"prefixo com token {prefixo!r} cobre a rota {regra.rule!r} ({regra.endpoint}), "
-                    "que nao e do blueprint que declarou o prefixo"
+                    "que não e do blueprint que declarou o prefixo"
                 )
     CAMINHOS_COM_TOKEN.update(caminhos)
     PREFIXOS_COM_TOKEN = tuple(sorted(set(PREFIXOS_COM_TOKEN) | set(prefixos)))

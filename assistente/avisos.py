@@ -124,28 +124,28 @@ TIPOS: dict[str, dict] = {
     "manutencao": _tipo("Manutencao (geral)"),
     "manutencao_veiculo": _tipo("Manutencao do veiculo"),
     "responder": _tipo("Mensagens pra responder"),
-    "revisao_mensal": _tipo("Revisao do mes"),
+    "revisao_mensal": _tipo("Revisao do mês"),
     "tarefas_atrasadas": _tipo("Tarefas atrasadas (resumo)"),
-    "tarefa_parada": _tipo("Tarefa parada (cobranca individual)"),
+    "tarefa_parada": _tipo("Tarefa parada (cobrança individual)"),
     "espera_parada": _tipo("Espera parada"),
     "meta_atrasada": _tipo("Meta fora do ritmo"),
-    "orcamento": _tipo("Orcamento perto ou estourado"),
+    "orcamento": _tipo("Orçamento perto ou estourado"),
     "teto_ia": _tipo("Teto de gasto com IA"),
-    "cobranca_generica": _tipo("Cobranca sem identificar"),
+    "cobranca_generica": _tipo("Cobrança sem identificar"),
     "assinatura_aumento_preco": _tipo("Assinatura ficou mais cara"),
     "gasto_elevado": _tipo("Gasto da semana elevado"),
     "gasto_dia_atipico": _tipo("Gasto do dia fora do padrao"),
     "gasto_categoria_atipico": _tipo("Gasto da categoria fora do padrao"),
     "lembrete_proximo": _tipo("Lembrete: data chegando"),
     "lembrete_despertar": _tipo("Lembrete: hora marcada"),
-    "tarefa_horario": _tipo("Tarefa: horario chegando"),
+    "tarefa_horario": _tipo("Tarefa: horário chegando"),
     "compromisso_chegando": _tipo("Compromisso da agenda chegando"),
     "voo_sair": _tipo("Hora de ir pro voo"),
     "planejamento_semanal": _tipo("Planejamento da semana (domingo)"),
     "semana_pesada": _tipo("Semana pesada pela frente"),
     "hora_de_dormir": _tipo("Hora de desacelerar (dormir)"),
     "fechamento_noturno": _tipo("Fechamento do dia (noite)"),
-    "currency_voo": _tipo("Faz tempo que nao voa"),
+    "currency_voo": _tipo("Faz tempo que não voa"),
     "conta_a_vencer": _tipo("Conta a pagar (construtora)"),
     "clima_tarefa": _tipo("Dia bom pra tarefa pendente (clima)"),
     "uso_apps": _tipo("Resumo semanal de uso do celular"),
@@ -153,15 +153,15 @@ TIPOS: dict[str, dict] = {
     # -- Fase 6 (US-E8), as 6 proatividades: habito, tarefa, cartao, renda,
     # projeto, mes seguinte (mesmo texto de tipo de _avisos_proatividade_e8
     # em app.py) --
-    "habito_passou_batido": _tipo("Habito que passou batido"),
-    "tarefa_horario_passou": _tipo("Tarefa que passou do horario"),
-    "cartao_limite": _tipo("Cartao perto ou estourando o limite"),
-    "renda_comprometida": _tipo("Renda do mes perto de acabar"),
+    "habito_passou_batido": _tipo("Hábito que passou batido"),
+    "tarefa_horario_passou": _tipo("Tarefa que passou do horário"),
+    "cartao_limite": _tipo("Cartão perto ou estourando o limite"),
+    "renda_comprometida": _tipo("Renda do mês perto de acabar"),
     "projeto_poeira": _tipo("Projeto juntando poeira"),
-    "mes_seguinte_apertado": _tipo("Projecao do mes seguinte apertada"),
+    "mes_seguinte_apertado": _tipo("Projecao do mês seguinte apertada"),
     # -- Novos da Fase 7 (contrato assistente/caixa.py - ainda sem funcao
     # correspondente, chave que as faixas P2-P9 devem usar) --
-    "pergunta_conta": _tipo("Pergunta sobre conta (ex: pagou o cartao?)"),
+    "pergunta_conta": _tipo("Pergunta sobre conta (ex: pagou o cartão?)"),
     "reuniao": _tipo("Reuniao ou compromisso"),
     "tarefa_vencida": _tipo("Tarefa vencida"),
     "lembrete": _tipo("Lembrete"),
@@ -170,7 +170,7 @@ TIPOS: dict[str, dict] = {
     "briefing_noite": _tipo("Briefing da noite"),
     "regra": _tipo("Regra aprendida ou aplicada"),
     "sinal": _tipo("Sinal do iPhone (ex: cheguei no mercado)"),
-    "memoria_viva": _tipo("Proposta de memoria viva"),
+    "memoria_viva": _tipo("Proposta de memória viva"),
     "replanejar": _tipo("Sugestao de replanejar a semana"),
     # -- Fase 8, faixa F3 (+ uso/m5-parcela): aviso de cobranca proxima -
     # assinatura (com o interruptor "avisar antes de cobrar" ligado) ou
@@ -296,9 +296,9 @@ def obter_silencio_global(conn=None) -> dict:
 
 def definir_silencio_global(inicio: str, fim: str, conn=None) -> dict:
     if not hora_valida(inicio):
-        raise ValueError(f"inicio de silencio invalido (esperado HH:MM): {inicio!r}")
+        raise ValueError(f"inicio de silencio inválido (esperado HH:MM): {inicio!r}")
     if not hora_valida(fim):
-        raise ValueError(f"fim de silencio invalido (esperado HH:MM): {fim!r}")
+        raise ValueError(f"fim de silencio inválido (esperado HH:MM): {fim!r}")
     with _conexao(conn) as c:
         dado = _carregar(c)
         dado["silencio"] = {"inicio": inicio, "fim": fim}
@@ -373,10 +373,10 @@ def definir_tipo(
     if tipo not in TIPOS:
         raise TipoDesconhecido(tipo)
     if canal is not None and canal not in CANAIS:
-        raise ValueError(f"canal invalido: {canal!r} (use {CANAIS})")
+        raise ValueError(f"canal inválido: {canal!r} (use {CANAIS})")
     for nome, valor in (("silencio_inicio", silencio_inicio), ("silencio_fim", silencio_fim)):
         if valor not in (None, "") and not hora_valida(valor):
-            raise ValueError(f"{nome} invalido (esperado HH:MM ou \"\" pra limpar): {valor!r}")
+            raise ValueError(f"{nome} inválido (esperado HH:MM ou \"\" pra limpar): {valor!r}")
     with _conexao(conn) as c:
         dado = _carregar(c)
         override = dict(_override(dado, tipo))

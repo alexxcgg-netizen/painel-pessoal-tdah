@@ -48,7 +48,7 @@ def definir_status_projeto_rota(projeto_id):
     ok = definir_status_projeto(conn, projeto_id, status)
     conn.close()
     if not ok:
-        return jsonify({"error": "projeto nao encontrado ou status invalido (no_rumo/atrasado/pausado)"}), 400
+        return jsonify({"error": "projeto não encontrado ou status inválido (no_rumo/atrasado/pausado)"}), 400
     return jsonify({"ok": True})
 
 @bp.route("/api/projetos/<int:projeto_id>/etapas", methods=["POST"])
@@ -70,7 +70,7 @@ def concluir_etapa_rota(etapa_id):
     projeto_id = concluir_etapa_projeto(conn, etapa_id)
     conn.close()
     if projeto_id is None:
-        return jsonify({"error": "etapa nao encontrada"}), 404
+        return jsonify({"error": "etapa não encontrada"}), 404
     return jsonify({"ok": True, "projeto_id": projeto_id})
 
 @bp.route("/api/projetos/etapas/<int:etapa_id>", methods=["DELETE"])
@@ -79,5 +79,5 @@ def apagar_etapa_rota(etapa_id):
     projeto_id = apagar_etapa_projeto(conn, etapa_id)
     conn.close()
     if projeto_id is None:
-        return jsonify({"error": "etapa nao encontrada"}), 404
+        return jsonify({"error": "etapa não encontrada"}), 404
     return jsonify({"ok": True})

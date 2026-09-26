@@ -153,7 +153,7 @@ def _fato_treino_horario(conn, agora, dias: int = DIAS_JANELA_TREINO,
     h_media, m_media = divmod(round(media), 60)
     horario_str = f"{h_media:02d}:{m_media:02d}"
     contexto = (
-        f"Nos ultimos {dias} dias, o habito '{habito['nome']}' foi marcado {len(minutos)} vezes, "
+        f"Nos últimos {dias} dias, o hábito '{habito['nome']}' foi marcado {len(minutos)} vezes, "
         f"em media por volta das {horario_str} (desvio-padrao de {round(desvio)} min entre as marcacoes)."
     )
     return {
@@ -173,7 +173,7 @@ def _fato_sono_medio(conn, agora, dias: int = DIAS_JANELA_SONO,
         return None
     media = sum(horas) / len(horas)
     contexto = (
-        f"Nos ultimos {dias} dias, a media de sono registrada foi de {media:.1f}h por noite "
+        f"Nos últimos {dias} dias, a media de sono registrada foi de {media:.1f}h por noite "
         f"({len(horas)} noites com dado de sono)."
     )
     return {
@@ -234,7 +234,7 @@ def _fatos_rotina_consistente(conn, agora, dias: int = DIAS_JANELA_ROTINA,
             if taxa < limiar:
                 continue
             contexto = (
-                f"Nos ultimos {dias} dias, o item de rotina da {momento} '{item['texto']}' foi cumprido "
+                f"Nos últimos {dias} dias, o item de rotina da {momento} '{item['texto']}' foi cumprido "
                 f"em {marcados} desses dias ({taxa * 100:.0f}%)."
             )
             fatos.append({
@@ -290,22 +290,22 @@ SCHEMA_PROPOSTAS = {
 }
 
 SISTEMA_PROPOR_MEMORIA = (
-    "Voce ajuda a manter em dia a secao \"O que eu lembro sobre voce\" de um painel pessoal "
-    "de TDAH, em portugues do Brasil, tom direto e curto. Voce SO redige texto a partir do "
-    "FATO que o codigo ja calculou na mensagem do usuario - nunca invente numero, data, "
-    "horario ou fato novo que nao esteja ali. Pra esse fato, proponha no maximo 1 mudanca "
-    "(adicionar uma memoria nova, alterar ou remover uma existente) - ou nenhuma (lista de "
-    "propostas vazia) se o fato ja estiver bem representado numa memoria existente ou nao "
+    "Você ajuda a manter em dia a secao \"O que eu lembro sobre você\" de um painel pessoal "
+    "de TDAH, em portugues do Brasil, tom direto e curto. Você SO redige texto a partir do "
+    "FATO que o código já calculou na mensagem do usuário - nunca invente número, data, "
+    "horário ou fato novo que não esteja ali. Pra esse fato, proponha no máximo 1 mudanca "
+    "(adicionar uma memória nova, alterar ou remover uma existente) - ou nenhuma (lista de "
+    "propostas vazia) se o fato já estiver bem representado numa memória existente ou não "
     "valer a pena registrar. Regras que nunca podem ser quebradas: (1) nunca proponha nada "
     "sobre vida amorosa, namoro, relacionamento ou date; (2) nunca inclua valor financeiro "
     "da construtora - essa e uma empresa com painel financeiro proprio e separado, aqui so "
-    "interessa habito/rotina/gasto pessoal do dono do painel."
+    "interessa hábito/rotina/gasto pessoal do dono do painel."
 )
 
 
 def _texto_memorias_contexto(memorias: list[dict]) -> str:
     if not memorias:
-        return "(nenhuma memoria cadastrada ainda nessa categoria)"
+        return "(nenhuma memória cadastrada ainda nessa categoria)"
     return "\n".join(f"- id {m['id']}: {m['texto']}" for m in memorias)
 
 
@@ -315,9 +315,9 @@ def propor_para_fato(fato: dict, memorias_contexto: list[dict]) -> list[dict]:
     proposta carrega `chave` (a mesma do fato, code-side) e `categoria`
     (sugerida pelo codigo, nao pela IA)."""
     conteudo = (
-        f"Fato novo detectado pelo codigo:\n{fato['contexto_ia']}\n\n"
+        f"Fato novo detectado pelo código:\n{fato['contexto_ia']}\n\n"
         "Memorias atuais na categoria 'sua_rotina' (decida se e caso de adicionar uma nova, "
-        "ou alterar/remover uma dessas por ela ja cobrir o mesmo assunto):\n"
+        "ou alterar/remover uma dessas por ela já cobrir o mesmo assunto):\n"
         f"{_texto_memorias_contexto(memorias_contexto)}\n\n"
         "Responda so com o JSON do schema combinado - 'propostas' pode ser uma lista vazia."
     )

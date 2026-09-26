@@ -35,7 +35,7 @@ def alternar_ideia_presente_rota(ideia_id):
     comprado = alternar_ideia_presente_comprada(conn, ideia_id)
     conn.close()
     if comprado is None:
-        return jsonify({"error": "ideia nao encontrada"}), 404
+        return jsonify({"error": "ideia não encontrada"}), 404
     return jsonify({"comprado": comprado})
 
 @bp.route("/api/ideias-presente/<int:ideia_id>", methods=["DELETE"])

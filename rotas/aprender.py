@@ -42,7 +42,7 @@ def marcar_aprender_rota(aprender_id, acao):
     date = app.date
     campo = {"retomei": "ultima_vez", "concluido": "concluido_em"}.get(acao)
     if not campo:
-        return jsonify({"error": "acao invalida"}), 404
+        return jsonify({"error": "ação inválida"}), 404
     conn = get_db()
     ok = marcar_aprender(conn, aprender_id, campo, date.today().isoformat())
     if ok:
@@ -50,7 +50,7 @@ def marcar_aprender_rota(aprender_id, acao):
         conn.commit()
     conn.close()
     if not ok:
-        return jsonify({"error": "tema nao encontrado"}), 404
+        return jsonify({"error": "tema não encontrado"}), 404
     return jsonify({"ok": True})
 
 @bp.route("/api/aprender/<int:aprender_id>", methods=["DELETE"])

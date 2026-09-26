@@ -74,7 +74,7 @@ class Fase6E8TestCase(unittest.TestCase):
         self.assertEqual(len(avisos), 1)
         hid, msg = avisos[0]
         self.assertEqual(hid, habito_id)
-        self.assertEqual(msg, "08:00 ja foi e o habito Meditar segue intocado.")
+        self.assertEqual(msg, "08:00 já foi e o hábito Meditar segue intocado.")
 
     def test_habito_nao_passa_batido_antes_de_1h(self):
         db.create_habito(self.conn, "Meditar", None, "diario", None, None, "08:00")
@@ -142,7 +142,7 @@ class Fase6E8TestCase(unittest.TestCase):
         conta, nivel, titulo, corpo = avisos[0]
         self.assertEqual(conta, conta_id)
         self.assertEqual(nivel, "quase")
-        self.assertEqual(titulo, "Cartao em 90% do limite")
+        self.assertEqual(titulo, "Cartão em 90% do limite")
         self.assertEqual(corpo, "nubank: sobram R$ 100.00.")
 
     def test_cartao_estourado(self):
@@ -155,7 +155,7 @@ class Fase6E8TestCase(unittest.TestCase):
         avisos = notificacoes.cartoes_perto_ou_estourados(self.conn, hoje)
         self.assertEqual(len(avisos), 1)
         self.assertEqual(avisos[0][1], "estourado")
-        self.assertEqual(avisos[0][2], "Cartao estourou o limite")
+        self.assertEqual(avisos[0][2], "Cartão estourou o limite")
 
     def test_cartao_abaixo_de_90_nao_avisa(self):
         conta_id = db.get_or_create_bank_account(self.conn, "nubank", "cartao")
@@ -184,7 +184,7 @@ class Fase6E8TestCase(unittest.TestCase):
         self.assertIsNotNone(resultado)
         nivel, titulo, corpo = resultado
         self.assertEqual(nivel, "atencao")
-        self.assertEqual(titulo, "75% da renda ja foi")
+        self.assertEqual(titulo, "75% da renda já foi")
         self.assertEqual(corpo, "sobram R$ 500.00.")
 
     def test_renda_estourada(self):
@@ -417,8 +417,8 @@ class Fase6E8PipelineTestCase(unittest.TestCase):
             app.verificar_e_notificar()
             titulos = [c.args[1] for c in mock_enviar.call_args_list]
             corpos = [c.args[2] for c in mock_enviar.call_args_list]
-        self.assertIn("Cartao estourou o limite", titulos)
-        idx = titulos.index("Cartao estourou o limite")
+        self.assertIn("Cartão estourou o limite", titulos)
+        idx = titulos.index("Cartão estourou o limite")
         self.assertIn("passou R$ 200.00 do limite", corpos[idx])
         # segunda chamada, mesmo estado - nao reenvia (ja_notificado_alguma_vez)
         with patch("push_client.configurado", return_value=True), patch(
@@ -432,7 +432,7 @@ class Fase6E8PipelineTestCase(unittest.TestCase):
             mock_dt2.combine = datetime.combine
             app.verificar_e_notificar()
             titulos2 = [c.args[1] for c in mock_enviar2.call_args_list]
-        self.assertNotIn("Cartao estourou o limite", titulos2)
+        self.assertNotIn("Cartão estourou o limite", titulos2)
 
 
 if __name__ == "__main__":

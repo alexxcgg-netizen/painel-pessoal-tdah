@@ -177,7 +177,7 @@ class ResumoChuvaDoDiaTestCase(unittest.TestCase):
     def test_sem_horas_futuras(self):
         r = clima.resumo_chuva_do_dia([_hora(10, 90)], hora_atual=14)
         self.assertFalse(r["alerta"])
-        self.assertIn("Sem mais previsao", r["texto"])
+        self.assertIn("Sem mais previsão", r["texto"])
 
     def test_lista_vazia(self):
         r = clima.resumo_chuva_do_dia([], hora_atual=10)
@@ -274,7 +274,7 @@ class ResumoChuvaDoDiaTestCase(unittest.TestCase):
                 continue
             pico_pct = max(h["chuva_pct"] for h in futuras)
             if pico_pct < limite:
-                self.assertFalse(r["alerta"], msg=f"nao deveria alertar: {horas} hora_atual={hora_atual}")
+                self.assertFalse(r["alerta"], msg=f"não deveria alertar: {horas} hora_atual={hora_atual}")
                 continue
 
             self.assertTrue(r["alerta"])

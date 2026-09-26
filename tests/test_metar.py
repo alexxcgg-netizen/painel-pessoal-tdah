@@ -259,7 +259,7 @@ class DecodificarTafTestCase(unittest.TestCase):
         tokens = metar._tokens_uteis_taf(taf)
         segs = metar.decodificar_taf(tokens)
         self.assertEqual(len(segs), 3)
-        self.assertEqual(segs[0]["tipo"], "Previsao inicial")
+        self.assertEqual(segs[0]["tipo"], "Previsão inicial")
         self.assertEqual(segs[0]["decodificado"]["teto_ft"], 1300)
         self.assertEqual(segs[1]["tipo"], "Tornando-se")
         self.assertEqual(segs[1]["decodificado"]["teto_ft"], 1000)
@@ -306,7 +306,7 @@ class DecodificarTafTestCase(unittest.TestCase):
         tokens = metar._tokens_uteis_taf(taf)
         segs = metar.decodificar_taf(tokens)
         texto = metar.resumo_falado_taf(segs)
-        self.assertIn("Previsao inicial", texto)
+        self.assertIn("Previsão inicial", texto)
         self.assertIn("Tornando-se", texto)
         self.assertIn("1300", texto)
         self.assertIn("1000", texto)
@@ -314,7 +314,7 @@ class DecodificarTafTestCase(unittest.TestCase):
     def test_resumo_falado_taf_vazio(self):
         self.assertEqual(
             metar.resumo_falado_taf([{"tipo": "Previsao inicial", "periodo": None, "decodificado": metar.decodificar_grupo([])}]),
-            "Sem previsao detalhada disponivel.",
+            "Sem previsão detalhada disponível.",
         )
 
 

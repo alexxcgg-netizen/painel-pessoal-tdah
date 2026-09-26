@@ -48,18 +48,18 @@ def _resolver(host: str) -> list[str]:
     try:
         infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
     except (socket.gaierror, UnicodeError, ValueError, OSError):
-        raise LinkInvalido("nao achei esse endereco")
+        raise LinkInvalido("não achei esse endereço")
     ips = []
     for info in infos:
         try:
             ip = ipaddress.ip_address(info[4][0].split("%")[0])
         except ValueError:
-            raise LinkInvalido("esse endereco nao e publico")
+            raise LinkInvalido("esse endereço não e público")
         if not _ip_permitido(ip):
-            raise LinkInvalido("esse endereco nao e publico")
+            raise LinkInvalido("esse endereço não e público")
         ips.append(str(ip))
     if not ips:
-        raise LinkInvalido("nao achei esse endereco")
+        raise LinkInvalido("não achei esse endereço")
     return ips
 
 
@@ -75,31 +75,31 @@ def _idna(host: str | None) -> str:
     try:
         return (host or "").lower().encode("idna").decode("ascii")
     except UnicodeError:
-        raise LinkInvalido("link invalido")
+        raise LinkInvalido("link inválido")
 
 
 def _alvo(url) -> tuple:
     """(partes do urllib3, ip validado) - ou LinkInvalido."""
     if not isinstance(url, str) or len(url) > 2000:
-        raise LinkInvalido("link invalido")
+        raise LinkInvalido("link inválido")
     url = url.strip()
     if "\\" in url or any(ord(c) < 33 for c in url):
-        raise LinkInvalido("link invalido")
+        raise LinkInvalido("link inválido")
     try:
         partes = parse_url(url)
         padrao = urlparse(url)
         porta_padrao = padrao.port
     except ValueError:
-        raise LinkInvalido("link invalido")
+        raise LinkInvalido("link inválido")
     if partes.scheme not in ("http", "https") or not partes.host:
         raise LinkInvalido("so link http ou https")
     if partes.auth or padrao.username is not None:
-        raise LinkInvalido("link com usuario/senha nao")
+        raise LinkInvalido("link com usuário/senha não")
     host = partes.host.strip("[]").lower()
     # os dois parsers tem que concordar sobre o host e a porta (dominio com
     # acento comparado em punycode, que e o que vai pro DNS)
     if porta_padrao != partes.port or _idna(padrao.hostname) != _idna(host):
-        raise LinkInvalido("link invalido")
+        raise LinkInvalido("link inválido")
     return partes, _resolver(host)[0]
 
 
@@ -150,7 +150,7 @@ def _ler(resposta, prazo: float) -> bytes:
     pedacos, total = [], 0
     while total <= TAMANHO_MAXIMO:
         if time.monotonic() > prazo:
-            raise LinkInvalido("a pagina demorou demais")
+            raise LinkInvalido("a página demorou demais")
         pedaco = ler(65536) if ler else resposta.raw.read(8192)
         if not pedaco:
             break
@@ -185,11 +185,11 @@ def baixar_pagina(url: str) -> str:
                 try:
                     atual = urljoin(atual, resposta.headers.get("Location", ""))
                 except ValueError:
-                    raise LinkInvalido("redirecionamento invalido")
+                    raise LinkInvalido("redirecionamento inválido")
                 continue
             resposta.raise_for_status()
             if resposta.headers.get("Content-Encoding", "identity").strip().lower() not in ("", "identity"):
-                raise LinkInvalido("pagina compactada")
+                raise LinkInvalido("página compactada")
             return _decodificar(_ler(resposta, prazo), resposta.headers.get("Content-Type", ""))
         finally:
             resposta.close()

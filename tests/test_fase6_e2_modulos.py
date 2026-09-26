@@ -407,7 +407,7 @@ class Fase6E2TestCase(unittest.TestCase):
             json={"titulo": "Reuniao", "data": "2026-09-29", "hora_inicio": "14:00", "hora_fim": "15:00"},
         )
         self.assertEqual(res.status_code, 400)
-        self.assertIn("nao configurada", res.get_json()["error"])
+        self.assertIn("não configurada", res.get_json()["error"])
 
     def test_criar_evento_com_caldav_mockado_registra_localmente(self):
         def fake_criar(titulo, inicio, fim, lembrar=None):
@@ -464,7 +464,7 @@ class Fase6E2TestCase(unittest.TestCase):
         ) as mock_apagar:
             res = self.client.delete("/api/agenda/eventos/uid-que-o-painel-nunca-criou")
         self.assertEqual(res.status_code, 400)
-        self.assertIn("nao foi criado pelo painel", res.get_json()["error"])
+        self.assertIn("não foi criado pelo painel", res.get_json()["error"])
         mock_apagar.assert_not_called()
 
     def test_apagar_evento_registrado_funciona_e_esquece_localmente(self):

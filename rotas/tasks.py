@@ -114,7 +114,7 @@ def reabrir_task_rota(task_id):
     ok = db.reabrir_tarefa(conn, task_id)
     conn.close()
     if not ok:
-        return jsonify({"error": "tarefa nao encontrada"}), 404
+        return jsonify({"error": "tarefa não encontrada"}), 404
     return jsonify({"ok": True})
 
 @bp.route("/api/tasks/<int:task_id>/esforco", methods=["POST"])
@@ -130,7 +130,7 @@ def definir_esforco_tarefa_rota(task_id):
     ok = definir_esforco_tarefa(conn, task_id, esforco)
     conn.close()
     if not ok:
-        return jsonify({"error": "tarefa nao encontrada"}), 404
+        return jsonify({"error": "tarefa não encontrada"}), 404
     return jsonify({"ok": True, "esforco": esforco})
 
 @bp.route("/api/tarefas/sugestao-energia", methods=["GET"])
@@ -160,7 +160,7 @@ def breakdown_task(task_id):
     task = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if not task:
         conn.close()
-        return jsonify({"error": "tarefa nao encontrada"}), 404
+        return jsonify({"error": "tarefa não encontrada"}), 404
 
     result, error = _call_claude(claude_client.break_down_task, task["title"])
     if error:
@@ -211,7 +211,7 @@ def reclassificar_tarefa_rota(task_id):
     task = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if not task:
         conn.close()
-        return jsonify({"error": "tarefa nao encontrada"}), 404
+        return jsonify({"error": "tarefa não encontrada"}), 404
 
     resultado = reclassificar_tarefa_para_gasto(conn, task_id, float(valor), categoria, tipo)
     novo_id, subtasks_removidas = resultado
@@ -236,7 +236,7 @@ def requebrar_task(task_id):
     task = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if not task:
         conn.close()
-        return jsonify({"error": "tarefa nao encontrada"}), 404
+        return jsonify({"error": "tarefa não encontrada"}), 404
     subtasks = [
         dict(s)
         for s in conn.execute(

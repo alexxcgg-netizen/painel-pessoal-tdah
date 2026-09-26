@@ -110,6 +110,8 @@
     padding var(--dur-longa, 0.3s) var(--ease-padrao, ease);
 }
 
+.secao-conteudo[hidden] { display: none; }
+
 .secao-conteudo > .secao-conteudo-interno {
   overflow: hidden;
   min-height: 0;

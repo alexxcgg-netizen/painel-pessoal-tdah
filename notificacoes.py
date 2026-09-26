@@ -47,8 +47,8 @@ def tarefas_atrasadas(conn) -> str | None:
     if n == 0:
         return None
     if n == 1:
-        return "Voce tem 1 tarefa atrasada."
-    return f"Voce tem {n} tarefas atrasadas."
+        return "Você tem 1 tarefa atrasada."
+    return f"Você tem {n} tarefas atrasadas."
 
 
 def tarefas_paradas(conn, dias_minimo: int = 3, hoje: date | None = None) -> list[tuple[int, str]]:
@@ -92,7 +92,7 @@ def esperas_paradas(conn, dias_minimo: int = 5, hoje: date | None = None) -> lis
         avisos.append(
             (
                 r["id"],
-                f"Ainda esperando resposta de {r['quem']} sobre \"{r['sobre']}\" - ja fazem {dias} dias.",
+                f"Ainda esperando resposta de {r['quem']} sobre \"{r['sobre']}\" - já fazem {dias} dias.",
             )
         )
     return avisos
@@ -124,7 +124,7 @@ def tarefas_com_horario_chegando(
     for r in rows:
         if r["hora"] > hora_atual:
             avisos.append(
-                (r["id"], f"Daqui a pouco: \"{r['title']}\" as {r['hora']} - ja va se preparando.")
+                (r["id"], f"Daqui a pouco: \"{r['title']}\" as {r['hora']} - já va se preparando.")
             )
         else:
             avisos.append((r["id"], f"\"{r['title']}\" - {r['hora']}."))
@@ -183,14 +183,14 @@ def orcamentos_perto_ou_estourados(conn, hoje: date | None = None) -> list[tuple
             avisos.append((
                 categoria,
                 "estourado",
-                f"Voce ja passou do orcamento de {categoria} esse mes: "
+                f"Você já passou do orçamento de {categoria} esse mês: "
                 f"R$ {gasto:.2f} de um limite de R$ {limite:.2f}.",
             ))
         elif fracao >= 0.9:
             avisos.append((
                 categoria,
                 "quase",
-                f"Voce ja gastou R$ {gasto:.2f} em {categoria} esse mes - "
+                f"Você já gastou R$ {gasto:.2f} em {categoria} esse mês - "
                 f"perto do limite de R$ {limite:.2f}.",
             ))
     return avisos
@@ -211,14 +211,14 @@ def teto_ia_perto_ou_estourado(conn) -> tuple[str, str] | None:
     if resumo["teto_estourado"]:
         return (
             "estourado",
-            f"Voce ja passou do teto mensal de IA: ${gasto:.2f} de um limite de ${teto:.2f}. "
+            f"Você já passou do teto mensal de IA: ${gasto:.2f} de um limite de ${teto:.2f}. "
             "O classificador de intent vai preferir resolver por padrao aprendido (sem "
-            "chamar a API) ate o mes virar.",
+            "chamar a API) até o mês virar.",
         )
     if resumo["teto_perto"]:
         return (
             "quase",
-            f"Voce ja gastou ${gasto:.2f} com a API da IA esse mes - perto do teto de ${teto:.2f}.",
+            f"Você já gastou ${gasto:.2f} com a API da IA esse mês - perto do teto de ${teto:.2f}.",
         )
     return None
 
@@ -265,7 +265,7 @@ def cobrancas_genericas_sem_rotulo(conn) -> list[tuple[str, float, str]]:
         avisos.append((
             descricao_norm,
             valor,
-            f"Cobranca de R$ {valor:.2f} em \"{descricao_original}\" - qual assinatura e essa?",
+            f"Cobrança de R$ {valor:.2f} em \"{descricao_original}\" - qual assinatura e essa?",
         ))
     return avisos
 
@@ -348,8 +348,8 @@ def gasto_semana_elevado(conn, limiar: float = 1.4) -> str | None:
     if media <= 0 or total_atual < limiar * media:
         return None
     return (
-        f"Gasto dessa semana ja esta em R$ {total_atual:.2f}, "
-        f"acima da media das ultimas semanas (R$ {media:.2f})."
+        f"Gasto dessa semana já esta em R$ {total_atual:.2f}, "
+        f"acima da media das últimas semanas (R$ {media:.2f})."
     )
 
 
@@ -522,7 +522,7 @@ def lembretes_proximos(conn, dias: int = 7) -> list[tuple[int, str]]:
         if dias_restantes == 0:
             quando = "e hoje"
         elif dias_restantes == 1:
-            quando = "e amanha"
+            quando = "e amanhã"
         else:
             quando = f"e em {dias_restantes} dias"
         msg = f"\"{row['titulo']}\" {quando} ({proxima.strftime('%d/%m')})."
@@ -591,8 +591,8 @@ def semana_pesada_aviso(conn, hoje: date | None = None) -> str | None:
     if not resultado["sobrecarregada"]:
         return None
     return (
-        f"A semana que vem ja esta com {contagem_proxima} compromisso(s)/tarefa(s) marcado(s), "
-        f"bem acima do seu normal (mediana de {resultado['mediana_historica']:.0f} nas ultimas "
+        f"A semana que vem já esta com {contagem_proxima} compromisso(s)/tarefa(s) marcado(s), "
+        f"bem acima do seu normal (mediana de {resultado['mediana_historica']:.0f} nas últimas "
         f"{resultado['amostras']} semanas). Vale se planejar com folga."
     )
 
@@ -673,9 +673,9 @@ def resumo_manha_gastos_pendentes(conn, hoje: date | None = None) -> str:
 
     partes = []
     if gasto_ontem > 0:
-        partes.append(f"Ontem voce gastou R$ {gasto_ontem:.2f}.")
+        partes.append(f"Ontem você gastou R$ {gasto_ontem:.2f}.")
     else:
-        partes.append("Ontem voce nao registrou gasto nenhum.")
+        partes.append("Ontem você não registrou gasto nenhum.")
     if pendentes == 0:
         partes.append("Nenhuma tarefa pendente.")
     elif pendentes == 1:
@@ -700,7 +700,7 @@ def currency_voo_baixa(conn, limiar_dias: int = 21) -> str | None:
     dias = (hoje - date.fromisoformat(ultima)).days
     if dias < limiar_dias:
         return None
-    return f"Faz {dias} dias que voce nao voa - pode ser hora de marcar um voo pra nao perder o ritmo."
+    return f"Faz {dias} dias que você não voa - pode ser hora de marcar um voo pra não perder o ritmo."
 
 
 def montar_mensagem_agrupada(itens: list[tuple[str, str]]) -> tuple[str, str]:
@@ -761,7 +761,7 @@ def habitos_passaram_batido(conn, agora: datetime | None = None) -> list[tuple[i
         if not vida.habito_passou_batido(habito, agora, marcado_hoje, vezes_feitas_semana):
             continue
         avisos.append(
-            (habito["id"], f"{habito['horario']} ja foi e o habito {habito['nome']} segue intocado.")
+            (habito["id"], f"{habito['horario']} já foi e o hábito {habito['nome']} segue intocado.")
         )
     return avisos
 
@@ -806,10 +806,10 @@ def cartoes_perto_ou_estourados(conn, hoje: date | None = None) -> list[tuple[in
         if not info:
             continue
         if info["fracao"] >= 1:
-            nivel, titulo = "estourado", "Cartao estourou o limite"
+            nivel, titulo = "estourado", "Cartão estourou o limite"
         elif info["fracao"] >= 0.9:
             pct = round(info["fracao"] * 100)
-            nivel, titulo = "quase", f"Cartao em {pct}% do limite"
+            nivel, titulo = "quase", f"Cartão em {pct}% do limite"
         else:
             continue
         if info["sobra"] >= 0:
@@ -837,7 +837,7 @@ def renda_perto_de_acabar(conn, hoje: date | None = None, limiar: float = 0.7) -
     pct = round(fracao * 100)
     sobra = renda_mes - gasto_mes
     nivel = "estourado" if fracao >= 1 else "atencao"
-    titulo = f"{pct}% da renda ja foi"
+    titulo = f"{pct}% da renda já foi"
     corpo = f"sobram R$ {sobra:.2f}." if sobra >= 0 else f"passou R$ {-sobra:.2f} da renda."
     return (nivel, titulo, corpo)
 

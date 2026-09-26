@@ -33,7 +33,7 @@ def criar_cotacao_rota():
         return jsonify({"error": "indisponivel no modo visitante"}), 403
     titulo = (_corpo_json().get("titulo") or "").strip()
     if not titulo:
-        return jsonify({"error": "informe o titulo da cotacao"}), 400
+        return jsonify({"error": "informe o titulo da cotação"}), 400
     conn = get_db()
     cotacao_id = criar_cotacao(conn, titulo)
     conn.close()
@@ -49,7 +49,7 @@ def ver_cotacao(cotacao_id):
     cotacao = get_cotacao(conn, cotacao_id)
     if not cotacao:
         conn.close()
-        return jsonify({"error": "cotacao nao encontrada"}), 404
+        return jsonify({"error": "cotação não encontrada"}), 404
     itens = list_itens_cotacao(conn, cotacao_id)
     conn.close()
     return jsonify({**cotacao, "itens": itens})
@@ -71,14 +71,14 @@ def adicionar_item_cotacao(cotacao_id):
     conn = get_db()
     if not get_cotacao(conn, cotacao_id):
         conn.close()
-        return jsonify({"error": "cotacao nao encontrada"}), 404
+        return jsonify({"error": "cotação não encontrada"}), 404
 
     body = _corpo_json()
     fornecedor = (body.get("fornecedor") or "").strip() or None
     valor = body.get("valor")
     if valor is not None and not isinstance(valor, (int, float)):
         conn.close()
-        return jsonify({"error": "valor precisa ser um numero"}), 400
+        return jsonify({"error": "valor precisa ser um número"}), 400
 
     item_id = criar_item_cotacao(
         conn,
@@ -107,7 +107,7 @@ def adicionar_item_cotacao_pdf(cotacao_id):
     conn = get_db()
     if not get_cotacao(conn, cotacao_id):
         conn.close()
-        return jsonify({"error": "cotacao nao encontrada"}), 404
+        return jsonify({"error": "cotação não encontrada"}), 404
 
     arquivo = request.files.get("arquivo")
     if not arquivo or not arquivo.filename:

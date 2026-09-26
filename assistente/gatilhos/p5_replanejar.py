@@ -27,7 +27,7 @@ import notificacoes
 FLAG_CHAVE = "replanejar_auto"
 CAIXA_TIPO = "sugestao"
 CAIXA_TITULO = "Quer replanejar a tarde?"
-CAIXA_CORPO = "Voce tem tarefas atrasadas hoje - da pra reorganizar o resto do dia."
+CAIXA_CORPO = "Você tem tarefas atrasadas hoje - da pra reorganizar o resto do dia."
 CAIXA_ORIGEM = "p5_replanejar"
 
 # So dispara nessa hora do dia (14h) - o tick pode rodar varias vezes

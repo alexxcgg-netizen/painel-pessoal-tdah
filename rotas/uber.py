@@ -17,7 +17,7 @@ def uber_conectar():
     """Passo 1 do OAuth - so o Alex, ja logado no painel, clica nisso pra
     autorizar o app com a propria conta Uber dele."""
     if not uber_client.configurado():
-        return "Uber ainda nao configurado - defina UBER_CLIENT_ID e UBER_CLIENT_SECRET no .env.", 400
+        return "Uber ainda não configurado - defina UBER_CLIENT_ID e UBER_CLIENT_SECRET no .env.", 400
     redirect_uri = request.host_url.rstrip("/") + "/uber/callback"
     return redirect(uber_client.url_autorizacao(redirect_uri))
 
@@ -32,13 +32,13 @@ def uber_callback():
         return f"Autorizacao da Uber cancelada ou negada ({erro}).", 400
     codigo = request.args.get("code")
     if not codigo:
-        return "Codigo de autorizacao nao recebido.", 400
+        return "Código de autorizacao não recebido.", 400
 
     redirect_uri = request.host_url.rstrip("/") + "/uber/callback"
     try:
         dados = uber_client.trocar_codigo_por_token(codigo, redirect_uri)
     except requests.RequestException:
-        return "Nao consegui trocar o codigo por um token - tenta de novo.", 502
+        return "Não consegui trocar o código por um token - tenta de novo.", 502
 
     conn = get_db()
     definir_configuracao(conn, "uber_access_token", dados["access_token"])
@@ -63,12 +63,12 @@ def uber_confirmar(pedido_id):
     pedido = uber_pedido(conn, pedido_id)
     if not pedido or pedido["status"] != "aguardando_confirmacao":
         conn.close()
-        return jsonify({"error": "pedido nao encontrado ou ja tratado"}), 404
+        return jsonify({"error": "pedido não encontrado ou já tratado"}), 404
 
     access_token = _uber_token_valido(conn)
     if not access_token:
         conn.close()
-        return jsonify({"error": "Uber nao conectado"}), 400
+        return jsonify({"error": "Uber não conectado"}), 400
 
     try:
         resultado = uber_client.pedir_corrida(
@@ -83,7 +83,7 @@ def uber_confirmar(pedido_id):
     except requests.RequestException as e:
         atualizar_uber_pedido(conn, pedido_id, status="erro", erro=str(e))
         conn.close()
-        return jsonify({"error": "nao consegui pedir a corrida agora"}), 502
+        return jsonify({"error": "não consegui pedir a corrida agora"}), 502
 
     atualizar_uber_pedido(
         conn, pedido_id, status="confirmado", request_id=resultado.get("request_id") or ""
@@ -97,7 +97,7 @@ def uber_cancelar(pedido_id):
     pedido = uber_pedido(conn, pedido_id)
     if not pedido:
         conn.close()
-        return jsonify({"error": "pedido nao encontrado"}), 404
+        return jsonify({"error": "pedido não encontrado"}), 404
     atualizar_uber_pedido(conn, pedido_id, status="cancelado")
     conn.close()
     return jsonify({"ok": True})

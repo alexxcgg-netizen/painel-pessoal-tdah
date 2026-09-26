@@ -34,7 +34,7 @@ def salvo_lido(salvo_id):
     ok = marcar_salvo_lido(conn, salvo_id)
     conn.close()
     if not ok:
-        return jsonify({"error": "link nao encontrado"}), 404
+        return jsonify({"error": "link não encontrado"}), 404
     return jsonify({"ok": True})
 
 @bp.route("/api/salvos/<int:salvo_id>", methods=["DELETE"])

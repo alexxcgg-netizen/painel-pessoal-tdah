@@ -40,7 +40,7 @@ def criar_voo():
         return jsonify({"error": "data precisa estar em formato AAAA-MM-DD"}), 400
     if horas is not None:
         if not isinstance(horas, (int, float)) or horas <= 0:
-            return jsonify({"error": "horas precisa ser um numero positivo, ou omitido pra voo agendado"}), 400
+            return jsonify({"error": "horas precisa ser um número positivo, ou omitido pra voo agendado"}), 400
 
     conn = get_db()
     voo_id = create_voo(conn, data_str, destino, origem, horas, observacao, hora)

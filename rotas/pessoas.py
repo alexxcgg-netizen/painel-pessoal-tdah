@@ -30,7 +30,7 @@ def criar_pessoa_rota():
     freq_bruta = body.get("frequencia_dias")
     freq = 14 if freq_bruta in (None, "") else _inteiro_no_intervalo(freq_bruta, 1, 365)
     if not nome or len(nome) > 60:
-        return jsonify({"error": "informe o nome (ate 60 caracteres)"}), 400
+        return jsonify({"error": "informe o nome (até 60 caracteres)"}), 400
     if freq is None:
         return jsonify({"error": "frequencia deve ser de 1 a 365 dias"}), 400
     conn = get_db()
@@ -57,7 +57,7 @@ def falei_com_pessoa(pessoa_id):
     pessoa = conn.execute("SELECT * FROM pessoas WHERE id = ?", (pessoa_id,)).fetchone()
     if not pessoa:
         conn.close()
-        return jsonify({"error": "pessoa nao encontrada"}), 404
+        return jsonify({"error": "pessoa não encontrada"}), 404
     registrar_conversa(conn, pessoa_id, pessoa["nome"], sobre, date.today().isoformat())
     _marcar_atividade(conn)
     conn.commit()
