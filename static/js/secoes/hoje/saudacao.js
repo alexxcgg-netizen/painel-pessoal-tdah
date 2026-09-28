@@ -123,16 +123,19 @@ if (resumoManhaBtn) {
     resumoManhaBtn.addEventListener("click", async () => {
       // falando de novo (mesmo botao) -> cancela, mesmo comportamento de
       // metar-ouvir/taf-ouvir - nunca busca de novo enquanto ja esta falando.
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        resumoManhaBtn.classList.remove("falando");
+      if (vozTocando()) {
+        pararVoz();
         return;
       }
+      desbloquearAudioPremium(); // ainda dentro do toque (iOS) - antes de qualquer await
       setBotaoCarregando(resumoManhaBtn, true, "Preparando...");
-      const data = await apiFetch("/api/resumo-manha");
+      // Voz premium: frase curta (/api/voz/frase) -> falarPremium (cai na voz do
+      // iPhone sozinha). Se a rota nova falhar, o caminho antigo de sempre.
+      let frase = await apiFetch("/api/voz/frase?momento=manha");
+      if (!frase || !frase.texto) frase = await apiFetch("/api/resumo-manha");
       setBotaoCarregando(resumoManhaBtn, false, "Ouvir resumo da manha");
-      if (!data) return;
-      falarTexto(resumoManhaBtn, data.texto);
+      if (!frase || !frase.texto) return;
+      falarPremium(resumoManhaBtn, frase.texto);
     });
   }
 }

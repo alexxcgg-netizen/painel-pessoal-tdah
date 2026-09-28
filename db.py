@@ -711,6 +711,19 @@ def init_db():
             fim TEXT NOT NULL,
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        -- Voz premium (voz_premium.py): cache do audio das frases curtas (chave =
+        -- sha256 de modelo+voz+texto) e contagem de caracteres gastos por mes
+        -- (o plano gratis do ElevenLabs tem ~10 mil creditos/mes).
+        CREATE TABLE IF NOT EXISTS voz_cache (
+            chave TEXT PRIMARY KEY,
+            audio BLOB NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS voz_uso (
+            mes TEXT PRIMARY KEY,
+            caracteres INTEGER NOT NULL DEFAULT 0
+        );
         """
     )
     conn.commit()
