@@ -5,6 +5,23 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-28 - Voz natural (ElevenLabs v4 Turbo) só pra frases curtas
+
+- `voz_premium.py` + `rotas/voz.py`: `GET /api/voz/frase?momento=manha|noite` (frase curta, sem IA:
+  "Bom dia, Alex. Hoje são 6 tarefas, a primeira é X às 9h. O resto tá no painel."),
+  `POST /api/voz/falar` (mp3 200 ou 204) e `GET /api/voz/uso`. O v4 só funciona pelo endpoint
+  `text-to-dialogue` da ElevenLabs.
+- Pensado pro plano grátis (10 mil créditos/mês ≈ 10 mil letras): limite próprio
+  `ELEVENLABS_LIMITE_MES` (padrão 9000), cache do áudio por frase (`voz_cache`: frase repetida não
+  gasta de novo), contagem por mês (`voz_uso`), texto máx. 300 letras. Custo em dinheiro: zero.
+- Onde fala: botão da manhã (frase curta), botão novo "ouvir" no Fechamento do dia (frase da noite) e
+  o "ouvir" do chat (só a primeira frase). Sem chave, limite, erro ou offline: cai sozinho na voz do
+  iPhone (`falarTexto`).
+- iOS: um único `<audio>` é destravado de forma síncrona no toque (`desbloquearAudioPremium`), senão o
+  Safari recusa tocar depois do fetch.
+- Variáveis (só no Render, nunca no git): `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`,
+  `ELEVENLABS_MODELO` (padrão `eleven_v4_turbo`), `ELEVENLABS_LIMITE_MES`. Service worker v33.
+
 ## 2026-09-26/27 - Limpeza: acentos, Finanças com uma lista, app.py e style.css divididos, abas e animações
 
 - **Acentos**: todo texto de tela em templates/JS (83 arquivos) e 448 mensagens que vêm do servidor

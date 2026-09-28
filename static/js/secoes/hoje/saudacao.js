@@ -123,11 +123,11 @@ if (resumoManhaBtn) {
     resumoManhaBtn.addEventListener("click", async () => {
       // falando de novo (mesmo botao) -> cancela, mesmo comportamento de
       // metar-ouvir/taf-ouvir - nunca busca de novo enquanto ja esta falando.
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        resumoManhaBtn.classList.remove("falando");
+      if (vozTocando()) {
+        pararVoz();
         return;
       }
+      desbloquearAudioPremium(); // ainda dentro do toque (iOS) - antes de qualquer await
       setBotaoCarregando(resumoManhaBtn, true, "Preparando...");
       // Voz premium: frase curta (/api/voz/frase) -> falarPremium (cai na voz do
       // iPhone sozinha). Se a rota nova falhar, o caminho antigo de sempre.

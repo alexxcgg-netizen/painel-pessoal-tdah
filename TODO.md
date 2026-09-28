@@ -1,3 +1,9 @@
+# VOZ NATURAL (pedido do dono 2026-09-28) - código pronto, falta a chave
+- [x] Voz ElevenLabs v4 Turbo só em frases curtas (manhã, fechamento, 1ª frase do chat), com
+      limite mensal, cache e volta pra voz do iPhone.
+- [ ] Dono: criar conta Free, pôr `ELEVENLABS_API_KEY` e `ELEVENLABS_VOICE_ID` no Render.
+- [ ] Depois do 1º uso real: conferir no iPhone se toca a voz nova e o gasto em `/api/voz/uso`.
+
 # LIMPEZA + VELOCIDADE 2 (pedido do dono 2026-09-26) - concluida
 - [x] Onda 1: T acentos (templates+JS) | D Finanças com uma lista só | R1 app.py em blueprints
 - [x] Onda 2: R2 style.css dividido por seção | V montar só a aba aberta (troca de aba <= 200 ms) | acentos no app.py

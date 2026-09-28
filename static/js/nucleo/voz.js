@@ -22,32 +22,70 @@ function falarTexto(btn, texto) {
 // (200) ou 204 quando nao ha chave / estourou o limite do mes / deu erro. Em
 // QUALQUER outro caso (204, erro, sem rede, play() recusado) cai na voz de
 // sempre do iPhone (falarTexto) - o premium nunca pode deixar o botao mudo.
-let _audioPremium = null;
+//
+// iOS Safari so deixa um <audio> tocar se ele ja tiver sido "tocado" dentro de
+// um toque do usuario. Como o mp3 so chega depois de um fetch (o gesto ja
+// passou), um UNICO elemento de audio e reaproveitado e destravado de forma
+// sincrona no inicio do clique (desbloquearAudioPremium) - quem tem await antes
+// de chamar falarPremium precisa chamar desbloquearAudioPremium() primeiro.
+const _SILENCIO_WAV =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+let _elementoAudioPremium = null;
+let _audioPremiumTocando = false;
+let _urlPremium = null;
 let _buscandoPremium = false;
 
-function _pararVozPremium() {
-  const audio = _audioPremium;
-  _audioPremium = null;
+function _audioPremium() {
+  if (!_elementoAudioPremium && typeof Audio !== "undefined") {
+    _elementoAudioPremium = new Audio();
+    _elementoAudioPremium.preload = "auto";
+  }
+  return _elementoAudioPremium;
+}
+
+function desbloquearAudioPremium() {
+  const audio = _audioPremium();
+  if (!audio || _audioPremiumTocando) return;
+  try {
+    audio.src = _SILENCIO_WAV;
+    const p = audio.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
+}
+
+function vozTocando() {
+  return _audioPremiumTocando || ("speechSynthesis" in window && window.speechSynthesis.speaking);
+}
+
+function _liberarUrlPremium() {
+  if (_urlPremium) URL.revokeObjectURL(_urlPremium);
+  _urlPremium = null;
+}
+
+function pararVoz() {
+  const audio = _elementoAudioPremium;
+  _audioPremiumTocando = false;
   if (audio) {
     try {
       audio.pause();
     } catch (e) {}
-    if (audio._urlPremium) URL.revokeObjectURL(audio._urlPremium);
   }
+  _liberarUrlPremium();
+  if ("speechSynthesis" in window && window.speechSynthesis.speaking) window.speechSynthesis.cancel();
   document.querySelectorAll(".btn-ouvir.falando").forEach((b) => b.classList.remove("falando"));
 }
 
 async function falarPremium(btn, texto) {
   if (!texto || _buscandoPremium) return;
-  const falandoSintetico = "speechSynthesis" in window && window.speechSynthesis.speaking;
-  if (_audioPremium || falandoSintetico) {
-    _pararVozPremium();
-    if (falandoSintetico) window.speechSynthesis.cancel();
+  if (vozTocando()) {
+    pararVoz();
     return;
   }
-  let audio = null;
+  desbloquearAudioPremium(); // no-op seguro se ja foi destravado neste toque
+  const audio = _audioPremium();
   _buscandoPremium = true;
   try {
+    if (!audio) throw new Error("sem Audio");
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
     let res;
@@ -61,29 +99,28 @@ async function falarPremium(btn, texto) {
     } finally {
       clearTimeout(timer);
     }
-    _buscandoPremium = false;
     if (res.status !== 200) throw new Error("sem audio premium");
     const blob = await res.blob();
     if (!blob.size) throw new Error("audio vazio");
-    audio = new Audio(URL.createObjectURL(blob));
-    audio._urlPremium = audio.src;
-    _audioPremium = audio;
+    _liberarUrlPremium();
+    _urlPremium = URL.createObjectURL(blob);
     const terminar = () => {
-      if (_audioPremium === audio) _audioPremium = null;
+      _audioPremiumTocando = false;
       btn.classList.remove("falando");
-      URL.revokeObjectURL(audio._urlPremium);
+      _liberarUrlPremium();
     };
     audio.onended = terminar;
     audio.onerror = terminar;
+    audio.src = _urlPremium;
+    _audioPremiumTocando = true;
     btn.classList.add("falando");
+    _buscandoPremium = false;
     await audio.play();
   } catch (e) {
     _buscandoPremium = false;
-    if (audio) {
-      if (_audioPremium === audio) _audioPremium = null;
-      btn.classList.remove("falando");
-      URL.revokeObjectURL(audio._urlPremium);
-    }
+    _audioPremiumTocando = false;
+    btn.classList.remove("falando");
+    _liberarUrlPremium();
     falarTexto(btn, texto);
   }
 }

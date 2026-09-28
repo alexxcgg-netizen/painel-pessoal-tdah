@@ -28,11 +28,11 @@ if (fechamentoOuvirBtn) {
     fechamentoOuvirBtn.hidden = true;
   } else {
     fechamentoOuvirBtn.addEventListener("click", async () => {
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        fechamentoOuvirBtn.classList.remove("falando");
+      if (vozTocando()) {
+        pararVoz();
         return;
       }
+      desbloquearAudioPremium(); // ainda dentro do toque (iOS) - antes do await
       const frase = await apiFetch("/api/voz/frase?momento=noite");
       if (!frase || !frase.texto) return;
       falarPremium(fechamentoOuvirBtn, frase.texto);
