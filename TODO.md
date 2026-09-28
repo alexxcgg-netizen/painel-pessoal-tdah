@@ -1,3 +1,12 @@
+# 📌 PENDÊNCIAS DO ALEX (coisas que só você pode fazer)
+- [ ] **Voz nova (ElevenLabs):** criar conta Free em elevenlabs.io → Profile → API Keys → gerar
+      chave; Voice Library → escolher voz em português → copiar o Voice ID. No Render → Environment:
+      `ELEVENLABS_API_KEY` e `ELEVENLABS_VOICE_ID`. Depois tocar "Ouvir resumo da manhã" no iPhone.
+- [ ] **Segurança:** revogar a chave da API do Render que foi colada no chat (Render → Account
+      Settings → API Keys) e gerar outra se precisar.
+- [ ] **Antigravity no PC (opcional):** instalar o `agy`, logar com a conta Google e instalar o
+      plugin `yuting0624/antigravity-for-claude-code`. Usar só pra review/pesquisa, nunca `--yolo`.
+
 # VOZ NATURAL (pedido do dono 2026-09-28) - código pronto, falta a chave
 - [x] Voz ElevenLabs v4 Turbo só em frases curtas (manhã, fechamento, 1ª frase do chat), com
       limite mensal, cache e volta pra voz do iPhone.
