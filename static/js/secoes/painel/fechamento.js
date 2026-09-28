@@ -18,3 +18,24 @@ async function loadFechamentoDoDia() {
       ? `Ainda fica pra depois: ${data.pendentes_hoje.join(", ")}.`
       : "Nada ficou pra tras hoje.";
 }
+
+// Botao "ouvir": frase curta da noite (/api/voz/frase) -> voz premium, que cai
+// sozinha na voz do iPhone (falarPremium em nucleo/voz.js). Mesma regra dos
+// outros .btn-ouvir: sem speechSynthesis o botao some.
+const fechamentoOuvirBtn = $("#fechamento-ouvir");
+if (fechamentoOuvirBtn) {
+  if (!("speechSynthesis" in window)) {
+    fechamentoOuvirBtn.hidden = true;
+  } else {
+    fechamentoOuvirBtn.addEventListener("click", async () => {
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        fechamentoOuvirBtn.classList.remove("falando");
+        return;
+      }
+      const frase = await apiFetch("/api/voz/frase?momento=noite");
+      if (!frase || !frase.texto) return;
+      falarPremium(fechamentoOuvirBtn, frase.texto);
+    });
+  }
+}

@@ -24,7 +24,7 @@ function criarBotaoOuvirChat(texto) {
   if (!("speechSynthesis" in window)) {
     btn.hidden = true;
   } else {
-    btn.addEventListener("click", () => falarTexto(btn, texto));
+    btn.addEventListener("click", () => falarPremium(btn, primeiraFrase(texto)));
   }
   return btn;
 }

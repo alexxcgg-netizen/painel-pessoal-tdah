@@ -129,10 +129,13 @@ if (resumoManhaBtn) {
         return;
       }
       setBotaoCarregando(resumoManhaBtn, true, "Preparando...");
-      const data = await apiFetch("/api/resumo-manha");
+      // Voz premium: frase curta (/api/voz/frase) -> falarPremium (cai na voz do
+      // iPhone sozinha). Se a rota nova falhar, o caminho antigo de sempre.
+      let frase = await apiFetch("/api/voz/frase?momento=manha");
+      if (!frase || !frase.texto) frase = await apiFetch("/api/resumo-manha");
       setBotaoCarregando(resumoManhaBtn, false, "Ouvir resumo da manha");
-      if (!data) return;
-      falarTexto(resumoManhaBtn, data.texto);
+      if (!frase || !frase.texto) return;
+      falarPremium(resumoManhaBtn, frase.texto);
     });
   }
 }
