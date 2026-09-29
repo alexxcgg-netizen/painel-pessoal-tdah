@@ -86,6 +86,12 @@ function _apiFetchEsconderAvisoLento() {
 // caller decidir a UX otimista (ex: mostrar como se tivesse capturado, sem
 // esperar a classificacao da IA que so vai vir quando sincronizar de verdade).
 async function apiFetch(url, options, fila) {
+  // Vel (vel3): escrita ou falha = o que as abas mostram pode estar velho;
+  // a proxima troca de aba recarrega (cache curto em nucleo/navegacao.js).
+  const _metodo = ((options && options.method) || "GET").toUpperCase();
+  const _invalidarSeEscreveu = () => {
+    if (_metodo !== "GET" && typeof invalidarDadosAbas === "function") invalidarDadosAbas();
+  };
   let res;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
@@ -106,6 +112,7 @@ async function apiFetch(url, options, fila) {
     res = await fetch(url, { ...options, signal: controller.signal });
   } catch (e) {
     pararAvisoLento();
+    if (typeof invalidarDadosAbas === "function") invalidarDadosAbas();
     if (fila) {
       try {
         await FilaOffline.enfileirar({
@@ -133,6 +140,7 @@ async function apiFetch(url, options, fila) {
     clearTimeout(timeoutId);
   }
   pararAvisoLento();
+  _invalidarSeEscreveu();
   let data = null;
   try {
     data = await res.json();
@@ -144,6 +152,7 @@ async function apiFetch(url, options, fila) {
     return null;
   }
   if (!res.ok) {
+    if (typeof invalidarDadosAbas === "function") invalidarDadosAbas();
     mostrarErro((data && data.error) || `Erro inesperado (HTTP ${res.status}).`);
     return null;
   }
