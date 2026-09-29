@@ -36,6 +36,15 @@ de colega que ajuda e nao de atendente corporativo. Sem emoji em excesso. Isso e
 SEMPRE, nao so quando ele pedir - so devolva uma resposta mais longa/detalhada quando ele pedir
 explicitamente ("explica melhor", "detalha", "conta mais", "por que").
 
+REGRA DE FONTE UNICA (vale acima de tudo): sobre a vida e os dados do Alex (tarefas, gastos,
+saldo, agenda, compromissos, saude, voos, metas, habitos, projetos, notas, pessoas), a UNICA
+fonte e o bloco "Contexto de agora", as memorias listadas abaixo e o resultado das ferramentas
+desta conversa. Se o dado nao estiver ai, chame a ferramenta `consultar_*` que responde (tarefas
+de outro dia ou ja feitas, gastos de um periodo, agenda de um dia...); se nenhuma responder, diga
+que nao tem isso no painel (ex: "Isso nao ta no painel"). NUNCA estime, arredonde, complete nem
+invente numero, data, horario, nome ou item. Conselho e opiniao geral (pros e contras, como fazer
+algo) pode, mas sem afirmar como fato sobre o Alex nada que nao tenha vindo do painel.
+
 Voce pode registrar tarefas, gastos, metas financeiras, datas importantes e voos (o Alex esta
 fazendo curso de piloto comercial), e gerar o plano do dia, diretamente usando as ferramentas
 disponiveis, sem precisar confirmar antes se o pedido ja veio claro. So pergunte de volta (em
@@ -1304,6 +1313,38 @@ CHAT_TOOLS = [
         "description": "Mostra a saude de hoje: copos de agua, passos, sono e treino (card na tela).",
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "consultar_tarefas",
+        "description": "Lista as tarefas do painel num periodo (titulo, data, hora, quando foi concluida) e o total. Use SEMPRE que o Alex perguntar de tarefas de outro dia/semana, de tarefas ja concluidas, ou quantas tarefas tem - nunca responda de memoria. Sem datas = so hoje (e ai devolve tambem as atrasadas).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "de": {"type": "string", "description": "primeiro dia, AAAA-MM-DD (omita = hoje)"},
+                "ate": {"type": "string", "description": "ultimo dia, AAAA-MM-DD (omita = hoje; maximo 400 dias de periodo)"},
+                "status": {"type": "string", "enum": ["pendentes", "concluidas", "todas"], "description": "padrao pendentes"},
+            },
+        },
+    },
+    {
+        "name": "consultar_gastos",
+        "description": "Soma os gastos reais do painel (manual + banco, mesma conta da aba Financas) num periodo: total, quantidade, por categoria e os 5 maiores. Use SEMPRE que o Alex perguntar quanto gastou (no mes, na semana, em uma categoria, em um dia) - nunca estime. Sem datas = do dia 1 do mes ate hoje.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "de": {"type": "string", "description": "primeiro dia, AAAA-MM-DD (omita = dia 1 do mes atual)"},
+                "ate": {"type": "string", "description": "ultimo dia, AAAA-MM-DD (omita = hoje; maximo 400 dias de periodo)"},
+                "categoria": {"type": "string", "description": "filtra por categoria (ex: mercado, uber, restaurante) - omita pra todas"},
+            },
+        },
+    },
+    {
+        "name": "consultar_agenda",
+        "description": "Mostra os compromissos de um dia (agenda do iCloud + tarefas com hora marcada), ordenados por hora. Use SEMPRE que o Alex perguntar o que tem na agenda/compromissos de hoje, amanha ou outro dia - nunca responda de memoria.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"dia": {"type": "string", "description": "AAAA-MM-DD (omita = hoje)"}},
+        },
+    },
 ]
 
 
@@ -1369,6 +1410,14 @@ PREFIXO_CONTEXTO_AGORA = "Contexto de agora (gerado pelo painel, nao foi o Alex 
 CHAT_SIMPLES_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pessoal dele. Hoje e
 {hoje}. Ele tem TDAH - responda direto e curto, tom de colega, sem enrolacao e sem emoji em
 excesso. Nunca cite valor em R$ especifico da construtora dele.
+
+REGRA DE FONTE UNICA (vale acima de tudo): sobre a vida e os dados do Alex (tarefas, gastos,
+saldo, agenda, compromissos, saude, voos, metas, habitos, projetos, notas, pessoas), a UNICA
+fonte e o bloco "Contexto de agora" e as memorias listadas abaixo. NUNCA estime, arredonde,
+complete nem invente numero, data, horario, nome ou item. Se a resposta nao estiver nesse
+contexto - inclusive qualquer pergunta sobre periodo passado ou futuro que o contexto nao cobre -
+responda exatamente {marcador} e nada mais. Conselho e opiniao geral (pros e contras, como fazer
+algo) pode, mas sem afirmar como fato sobre o Alex nada que nao tenha vindo do painel.
 
 Voce NAO tem ferramentas aqui. Se a mensagem pedir para registrar, marcar, agendar, consultar ou
 mudar qualquer coisa no painel (tarefa, gasto, renda, meta, voo, habito, remedio, nota, lembrete,

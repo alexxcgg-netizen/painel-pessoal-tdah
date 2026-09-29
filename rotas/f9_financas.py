@@ -205,12 +205,19 @@ def extrato():
     )
 
 
-def _gasto_periodo(conn, de: date, ate: date) -> tuple[float, list[dict]]:
-    linhas = [
+def linhas_saida_real(conn, de: date, ate: date) -> list[dict]:
+    """Gasto real de [de, ate]: manual + banco, so saida, sem pagamento de
+    fatura/transferencia. Fonte unica do resumo de Financas e do chat
+    (chat_consultas.consultar_gastos)."""
+    return [
         linha
         for linha in _linhas_banco(conn, de, ate) + _linhas_manuais(conn, de, ate)
         if linha["eh_saida"] and not linha["transferencia_ou_fatura"]
     ]
+
+
+def _gasto_periodo(conn, de: date, ate: date) -> tuple[float, list[dict]]:
+    linhas = linhas_saida_real(conn, de, ate)
     total = sum(-linha["valor"] for linha in linhas)
 
     por_categoria: dict[str, float] = {}
@@ -230,11 +237,7 @@ def _acumulado_por_dia(conn, de: date, ate: date) -> list[dict]:
     _gasto_periodo: saida real, sem transferencia/pagamento de fatura). Usado
     pelo card "Evolucao do mes" (Fase 9, faixa C3) - o ultimo item sempre bate
     com o total que _gasto_periodo(de, ate) devolveria."""
-    linhas = [
-        linha
-        for linha in _linhas_banco(conn, de, ate) + _linhas_manuais(conn, de, ate)
-        if linha["eh_saida"] and not linha["transferencia_ou_fatura"]
-    ]
+    linhas = linhas_saida_real(conn, de, ate)
     por_data: dict[str, float] = {}
     for linha in linhas:
         por_data[linha["data"]] = por_data.get(linha["data"], 0.0) + (-linha["valor"])
