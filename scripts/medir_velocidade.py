@@ -58,7 +58,8 @@ REPO = Path(__file__).resolve().parents[1]
 PORT = 8799
 BASE_URL = f"http://127.0.0.1:{PORT}"
 PIN = "123456"
-CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+_LINUX_CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+CHROME = _LINUX_CHROME if os.path.exists(_LINUX_CHROME) else None
 
 METAS = {
     "toque_botao": 100,

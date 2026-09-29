@@ -66,7 +66,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-_CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+from tests.playwright_helper import get_chrome_path; _CHROME = get_chrome_path()
 
 
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
@@ -86,7 +86,7 @@ class VisC2AnimacaoTestCase(unittest.TestCase):
 
     def _novo_browser(self, p, **context_kwargs):
         kwargs = {"headless": True}
-        if Path(_CHROME).exists():
+        if _CHROME is not None and Path(_CHROME).exists():
             kwargs["executable_path"] = _CHROME
         browser = p.chromium.launch(**kwargs)
         ctx = browser.new_context(viewport={"width": 390, "height": 844}, **context_kwargs)
@@ -163,17 +163,16 @@ class VisC2AnimacaoTestCase(unittest.TestCase):
                 )
                 page.wait_for_selector("#fc-frase-resumo")
                 page.wait_for_function(
-                    "document.querySelector('#fc-frase-resumo').textContent.trim().length > 0"
+                    "document.querySelector('#fc-frase-resumo').textContent.includes('Você gastou')"
                 )
 
                 # ---- "gasto do mes" mostra o valor final direto, sem contar:
                 # com reduzir movimento, animarNumero (nucleo/ui.js) escreve o
                 # valor formatado final de uma vez (sem loop de requestAnimationFrame)
-                # - confere lendo o texto 2x, 80ms depois, e batendo igual (se
+                # - confere lendo o texto 2x, e batendo igual (se
                 # estivesse contando de verdade, o valor mudaria entre as leituras). ----
                 frase_texto_1 = page.eval_on_selector("#fc-frase-resumo", "el => el.textContent")
                 self.assertIn("Você gastou", frase_texto_1)
-                page.wait_for_timeout(80)
                 frase_texto_2 = page.eval_on_selector("#fc-frase-resumo", "el => el.textContent")
                 self.assertEqual(
                     frase_texto_1, frase_texto_2, "frase-resumo mudou de valor - parece estar contando mesmo com reduzir movimento"

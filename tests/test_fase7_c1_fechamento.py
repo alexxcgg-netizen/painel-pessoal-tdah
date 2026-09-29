@@ -80,8 +80,11 @@ class FechamentoXBriefingTestCase(unittest.TestCase):
         """Ponta a ponta: verificar-agora (push antigo) + gatilho da P3 e a
         repeticao da Caixa (o que o /api/tick faz) no mesmo minuto."""
         titulos_antigos = self._titulos_do_verificar({"PAINEL_TICK_TOKEN": "tick-teste"})
+        conn_temp = db.get_db()
+        horario = briefing.horario_noite(conn_temp)
+        conn_temp.close()
         agora = datetime.combine(datetime.now().date(), datetime.strptime(
-            briefing.horario_noite(db.get_db()), "%H:%M").time())
+            horario, "%H:%M").time())
         conn = db.get_db()
         try:
             with patch("push_client.configurado", return_value=True), \
@@ -95,7 +98,9 @@ class FechamentoXBriefingTestCase(unittest.TestCase):
             conn.close()
         # o push antigo (verificar-agora) nao saiu; o do tick e o briefing da P3
         self.assertNotIn(TITULO_ANTIGO, titulos_antigos)
-        itens = [i for i in caixa.listar(db.get_db()) if i["tipo"] == "briefing"]
+        conn_temp2 = db.get_db()
+        itens = [i for i in caixa.listar(conn_temp2) if i["tipo"] == "briefing"]
+        conn_temp2.close()
         self.assertEqual(len(itens), 1)
         self.assertTrue(itens[0]["origem"].startswith("p3_briefing:noite:"))
         self.assertEqual(titulos_tick, [itens[0]["titulo"]])

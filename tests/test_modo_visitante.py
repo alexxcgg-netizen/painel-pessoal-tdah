@@ -68,9 +68,11 @@ class ModoVisitanteTestCase(unittest.TestCase):
         ]
         conn.close()
         self.assertNotIn("modo_visitante", tabelas)
-        valor_config = db.get_db().execute(
+        conn_temp = db.get_db()
+        valor_config = conn_temp.execute(
             "SELECT valor FROM configuracoes WHERE chave = 'modo_visitante'"
         ).fetchone()
+        conn_temp.close()
         self.assertIsNone(valor_config)
 
     def test_estado_some_no_logout(self):

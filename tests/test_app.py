@@ -236,12 +236,15 @@ class PainelTestCase(unittest.TestCase):
         self.assertIn("attachment", res.headers["Content-Disposition"])
         self.assertIn(".db", res.headers["Content-Disposition"])
 
-        with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+        tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        try:
             tmp.write(res.get_data())
-            tmp.flush()
+            tmp.close()
             conn_verificacao = sqlite3.connect(tmp.name)
             titulo = conn_verificacao.execute("SELECT title FROM tasks").fetchone()[0]
             conn_verificacao.close()
+        finally:
+            Path(tmp.name).unlink(missing_ok=True)
         self.assertEqual(titulo, "tarefa pro backup")
 
     def test_exportar_backup_exige_autenticacao(self):
@@ -4340,13 +4343,24 @@ class PainelTestCase(unittest.TestCase):
 
     # ---- Push "sair em breve" antes do voo ----
 
-    def test_verificar_notifica_voo_perto_da_hora_de_sair(self):
-        hoje = date.today().isoformat()
+    @patch("app.datetime")
+    @patch("app.date")
+    @patch("notificacoes.date")
+    def test_verificar_notifica_voo_perto_da_hora_de_sair(self, mock_notif_date, mock_date, mock_dt):
+        agora = datetime(2026, 9, 24, 5, 0)
+        mock_dt.now.return_value = agora
+        mock_dt.fromisoformat = datetime.fromisoformat
+        mock_dt.combine = datetime.combine
+        mock_date.today.return_value = agora.date()
+        mock_date.fromisoformat = date.fromisoformat
+        mock_notif_date.today.return_value = agora.date()
+        mock_notif_date.fromisoformat = date.fromisoformat
+        hoje = "2026-09-24"
         self.client.post("/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "14:00"})
         sub = {"endpoint": "https://exemplo.com/push/voo", "keys": {"p256dh": "x", "auth": "y"}}
         self.client.post("/api/push/inscrever", json=sub)
 
-        sair_em_breve = (datetime.now() + timedelta(minutes=10)).isoformat()
+        sair_em_breve = (agora + timedelta(minutes=10)).isoformat()
         resultado_fake = {
             "sair_ate": sair_em_breve,
             "duracao_minutos": 40,
@@ -4366,13 +4380,24 @@ class PainelTestCase(unittest.TestCase):
         corpo_notificado = mock_enviar.call_args[0][2]
         self.assertIn("Aeroporto", corpo_notificado)
 
-    def test_verificar_nao_notifica_voo_com_hora_de_sair_distante(self):
-        hoje = date.today().isoformat()
+    @patch("app.datetime")
+    @patch("app.date")
+    @patch("notificacoes.date")
+    def test_verificar_nao_notifica_voo_com_hora_de_sair_distante(self, mock_notif_date, mock_date, mock_dt):
+        agora = datetime(2026, 9, 24, 5, 0)
+        mock_dt.now.return_value = agora
+        mock_dt.fromisoformat = datetime.fromisoformat
+        mock_dt.combine = datetime.combine
+        mock_date.today.return_value = agora.date()
+        mock_date.fromisoformat = date.fromisoformat
+        mock_notif_date.today.return_value = agora.date()
+        mock_notif_date.fromisoformat = date.fromisoformat
+        hoje = "2026-09-24"
         self.client.post("/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "22:00"})
         sub = {"endpoint": "https://exemplo.com/push/voo2", "keys": {"p256dh": "x", "auth": "y"}}
         self.client.post("/api/push/inscrever", json=sub)
 
-        sair_longe = (datetime.now() + timedelta(hours=5)).isoformat()
+        sair_longe = (agora + timedelta(hours=5)).isoformat()
         resultado_fake = {
             "sair_ate": sair_longe, "duracao_minutos": 40, "distancia_km": 15.0, "margem_minutos": 60,
         }
@@ -4386,8 +4411,19 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.get_json()["avisos_enviados"], 0)
         mock_enviar.assert_not_called()
 
-    def test_verificar_voo_sem_endereco_casa_nao_quebra(self):
-        hoje = date.today().isoformat()
+    @patch("app.datetime")
+    @patch("app.date")
+    @patch("notificacoes.date")
+    def test_verificar_voo_sem_endereco_casa_nao_quebra(self, mock_notif_date, mock_date, mock_dt):
+        agora = datetime(2026, 9, 24, 5, 0)
+        mock_dt.now.return_value = agora
+        mock_dt.fromisoformat = datetime.fromisoformat
+        mock_dt.combine = datetime.combine
+        mock_date.today.return_value = agora.date()
+        mock_date.fromisoformat = date.fromisoformat
+        mock_notif_date.today.return_value = agora.date()
+        mock_notif_date.fromisoformat = date.fromisoformat
+        hoje = "2026-09-24"
         self.client.post("/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "14:00"})
         sub = {"endpoint": "https://exemplo.com/push/voo3", "keys": {"p256dh": "x", "auth": "y"}}
         self.client.post("/api/push/inscrever", json=sub)
@@ -4402,13 +4438,24 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         mock_enviar.assert_not_called()
 
-    def test_verificar_voo_ja_notificado_nao_repete(self):
-        hoje = date.today().isoformat()
+    @patch("app.datetime")
+    @patch("app.date")
+    @patch("notificacoes.date")
+    def test_verificar_voo_ja_notificado_nao_repete(self, mock_notif_date, mock_date, mock_dt):
+        agora = datetime(2026, 9, 24, 5, 0)
+        mock_dt.now.return_value = agora
+        mock_dt.fromisoformat = datetime.fromisoformat
+        mock_dt.combine = datetime.combine
+        mock_date.today.return_value = agora.date()
+        mock_date.fromisoformat = date.fromisoformat
+        mock_notif_date.today.return_value = agora.date()
+        mock_notif_date.fromisoformat = date.fromisoformat
+        hoje = "2026-09-24"
         self.client.post("/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "14:00"})
         sub = {"endpoint": "https://exemplo.com/push/voo4", "keys": {"p256dh": "x", "auth": "y"}}
         self.client.post("/api/push/inscrever", json=sub)
 
-        sair_em_breve = (datetime.now() + timedelta(minutes=10)).isoformat()
+        sair_em_breve = (agora + timedelta(minutes=10)).isoformat()
         resultado_fake = {
             "sair_ate": sair_em_breve, "duracao_minutos": 40, "distancia_km": 15.0, "margem_minutos": 60,
         }
@@ -4423,8 +4470,19 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res2.get_json()["avisos_enviados"], 0)
         mock_enviar.assert_called_once()
 
-    def test_verificar_voo_ja_realizado_nao_e_candidato(self):
-        hoje = date.today().isoformat()
+    @patch("app.datetime")
+    @patch("app.date")
+    @patch("notificacoes.date")
+    def test_verificar_voo_ja_realizado_nao_e_candidato(self, mock_notif_date, mock_date, mock_dt):
+        agora = datetime(2026, 9, 24, 5, 0)
+        mock_dt.now.return_value = agora
+        mock_dt.fromisoformat = datetime.fromisoformat
+        mock_dt.combine = datetime.combine
+        mock_date.today.return_value = agora.date()
+        mock_date.fromisoformat = date.fromisoformat
+        mock_notif_date.today.return_value = agora.date()
+        mock_notif_date.fromisoformat = date.fromisoformat
+        hoje = "2026-09-24"
         self.client.post(
             "/api/voos", json={"data": hoje, "destino": "Aeroporto", "hora": "14:00", "horas": 1.5}
         )
@@ -5656,7 +5714,9 @@ class PainelTestCase(unittest.TestCase):
         # setada a partir dali, isso apareceria como atrasada sem sentido).
         self.assertTrue(all(t["due_date"] is None for t in tasks))
 
-        msg = app.notificacoes.tarefas_atrasadas(db.get_db())
+        conn = db.get_db()
+        msg = app.notificacoes.tarefas_atrasadas(conn)
+        conn.close()
         self.assertIsNone(msg, "nenhuma das 7 tarefas coladas devia contar como atrasada")
 
     # ---- Sugestao de melhor dia pra tarefa sem data fixa ----
@@ -6363,7 +6423,10 @@ class AutenticacaoTestCase(unittest.TestCase):
     def test_configurar_pin_rejeita_formato_invalido(self):
         res = self.client.post("/configurar-pin", json={"pin": "123", "confirmacao": "123"})
         self.assertEqual(res.status_code, 400)
-        self.assertFalse(auth.pin_configurado(db.get_db()))
+        conn = db.get_db()
+        configurado = auth.pin_configurado(conn)
+        conn.close()
+        self.assertFalse(configurado)
 
     def test_configurar_pin_ja_configurado_nao_deixa_reconfigurar(self):
         self.client.post("/configurar-pin", json={"pin": "111111", "confirmacao": "111111"})

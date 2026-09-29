@@ -5,6 +5,15 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-29 - Correção de testes no Windows e Linux
+
+- Testes de voos e financas corrigidos com mock de datetime para garantir determinismo.
+- Teste reduzir_movimento atualizado com wait for selector/text (eliminado wait_for_timeout).
+- Helper playwright_helper.py adicionado para fallback dinamico do Chromium no Windows.
+- Corrigido vazamentos de conexão SQLite e locks de NamedTemporaryFile (WinError 32) no Windows que quebravam a suíte, em dezenas de testes de backup, telegram bot e rotas.
+- Instalado dependência ausente Pillow no ambiente virtual para testes de extração visual.
+- Corrigido mock de data na criação de assinatura em testes para evitar dependência do dia atual real.
+
 ## 2026-09-28 - Voz natural (ElevenLabs v4 Turbo) só pra frases curtas
 
 - `voz_premium.py` + `rotas/voz.py`: `GET /api/voz/frase?momento=manha|noite` (frase curta, sem IA:

@@ -32,15 +32,13 @@ mv = importlib.util.module_from_spec(_spec)
 sys.path.insert(0, str(REPO / "scripts"))
 _spec.loader.exec_module(mv)
 
-CHROME_DISPONIVEL = Path(mv.CHROME).exists()
+CHROME_DISPONIVEL = mv.CHROME is not None and Path(mv.CHROME).exists()
 
 ABAS = mv.ABAS  # ["hoje", "painel", "aviacao", "vida", "tarefas", "gastos", "construtora", "assistente"]
 
 
 @pytest.fixture(scope="module")
 def app_no_ar():
-    if not CHROME_DISPONIVEL:
-        pytest.skip(f"chromium de teste nao encontrado em {mv.CHROME}")
     tempdir = Path(tempfile.mkdtemp(prefix="test_vel_a2c_"))
     dbpath = tempdir / "teste.db"
     tempos_path = tempdir / "tempos.json"

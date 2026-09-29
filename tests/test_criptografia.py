@@ -268,9 +268,11 @@ class MigracaoTestCase(_BancoIsoladoTestCase):
         db.upsert_saude_dia(conn, hoje, {"passos": 5000})
         conn.close()
 
-        bruto_antes = db.get_db().execute(
+        conn_temp = db.get_db()
+        bruto_antes = conn_temp.execute(
             "SELECT saldo FROM bank_accounts WHERE id = ?", (conta_id,)
         ).fetchone()
+        conn_temp.close()
         self.assertEqual(bruto_antes["saldo"], 500.0)
 
         # agora liga a chave e sobe o app de novo - migracao deve rodar

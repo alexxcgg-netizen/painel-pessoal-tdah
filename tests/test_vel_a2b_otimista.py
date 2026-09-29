@@ -57,7 +57,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-_CHROME = "/opt/pw-browsers/chromium"
+from tests.playwright_helper import get_chrome_path; _CHROME = get_chrome_path()
 
 
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
@@ -78,7 +78,7 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
     def test_concluir_tarefa_otimista_some_rapido_e_volta_em_erro(self):
         with sync_playwright() as p:
             kwargs = {"headless": True}
-            if Path(_CHROME).exists():
+            if _CHROME is not None and Path(_CHROME).exists():
                 kwargs["executable_path"] = _CHROME
             browser = p.chromium.launch(**kwargs)
             try:
@@ -150,7 +150,7 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
         # agora pro formulario direto de "nova tarefa" (#nova-tarefa-btn).
         with sync_playwright() as p:
             kwargs = {"headless": True}
-            if Path(_CHROME).exists():
+            if _CHROME is not None and Path(_CHROME).exists():
                 kwargs["executable_path"] = _CHROME
             browser = p.chromium.launch(**kwargs)
             try:

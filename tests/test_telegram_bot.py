@@ -15,10 +15,16 @@ def tempfile_arquivo():
     """Arquivo temporario de verdade no disco - enviar_documento abre o
     caminho com open(), entao precisa existir mesmo (nao da pra mockar isso
     com um caminho fake sem tambem mockar open, o que esconderia bug real)."""
-    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    try:
         tmp.write(b"conteudo fake de backup")
-        tmp.flush()
+        tmp.close()
         yield tmp.name
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
 
 
 class ConfiguradoTestCase(unittest.TestCase):

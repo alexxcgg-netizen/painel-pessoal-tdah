@@ -59,12 +59,12 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-_CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+from tests.playwright_helper import get_chrome_path; _CHROME = get_chrome_path()
 
 
 def _lancar_browser(p):
     kwargs = {"headless": True}
-    if Path(_CHROME).exists():
+    if _CHROME is not None and Path(_CHROME).exists():
         kwargs["executable_path"] = _CHROME
     return p.chromium.launch(**kwargs)
 

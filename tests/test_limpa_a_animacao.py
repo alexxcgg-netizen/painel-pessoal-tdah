@@ -67,7 +67,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-_CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+from tests.playwright_helper import get_chrome_path; _CHROME = get_chrome_path()
 
 
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
@@ -87,7 +87,7 @@ class LimpaAAnimacaoTestCase(unittest.TestCase):
 
     def _navegador(self, p, **context_kwargs):
         kwargs = {"headless": True}
-        if Path(_CHROME).exists():
+        if _CHROME is not None and Path(_CHROME).exists():
             kwargs["executable_path"] = _CHROME
         browser = p.chromium.launch(**kwargs)
         ctx = browser.new_context(viewport={"width": 390, "height": 844}, **context_kwargs)

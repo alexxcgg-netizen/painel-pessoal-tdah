@@ -1,3 +1,4 @@
+from unittest.mock import patch
 # Testes da faixa N1 (Fase 7) - rotas/n1_financas.py, via app.py de
 # verdade (registrado automaticamente por rotas.registrar_todas na
 # subida - infra da Etapa 0, ja mesclada em fase7/integracao). Mesmo
@@ -202,12 +203,16 @@ class TestCrudParcelas(_Base):
 
 
 class TestComprometido(_Base):
-    def test_formato_da_resposta(self):
+    @patch("rotas.n1_financas.date")
+    def test_formato_da_resposta(self, mock_date):
+        from datetime import date
+        mock_date.today.return_value = date(2026, 9, 1)
+        mock_date.side_effect = lambda *args, **kwargs: date(*args, **kwargs)
         self.client.post(
-            "/api/financas/assinaturas", json={"nome": "Netflix", "valor": 55, "dia_cobranca": 24}
+            "/api/financas/assinaturas", json={"nome": "Netflix", "valor": 55, "dia_cobranca": 24, "inicio": "2026-09-01"}
         )
         self.client.post(
-            "/api/financas/parcelas", json={"descricao": "celular", "n_parcelas": 10, "valor_parcela": 300}
+            "/api/financas/parcelas", json={"descricao": "celular", "n_parcelas": 10, "valor_parcela": 300, "primeira_parcela": "2026-09-01"}
         )
         res = self.client.get("/api/financas/comprometido")
         self.assertEqual(res.status_code, 200)
