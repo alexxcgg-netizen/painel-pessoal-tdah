@@ -27,6 +27,10 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # variaveis vem do painel do Render, entao isso nao muda nada la.
 if not ({"pytest", "unittest"} & set(sys.modules)):
     load_dotenv()
+else:
+    # o app.run() do Flask tambem carrega o .env sozinho (testes de navegador
+    # sobem o servidor com ele) - desliga isso sob teste.
+    os.environ.setdefault("FLASK_SKIP_DOTENV", "1")
 
 import agenda
 import aprendizado
