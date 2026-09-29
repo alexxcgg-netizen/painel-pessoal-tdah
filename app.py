@@ -29,6 +29,7 @@ import auth
 import caldav_client
 import calculos
 import cards
+import chat_consultas
 import claude_client
 import classificador_local
 import clima
@@ -2721,6 +2722,22 @@ def _processar_mensagem_chat(
     def exec_consultar_saude_dia(_entrada):
         return _consultar_saude_dia(conn)
 
+    # Fonte unica (chat_consultas): a IA busca o dado no painel em vez de
+    # responder de memoria. So texto (sem card), nunca levanta excecao.
+    def exec_consultar_tarefas(entrada):
+        return chat_consultas.consultar_tarefas(conn, entrada, materializar=materializar_tarefas_recorrentes)
+
+    def exec_consultar_gastos(entrada):
+        if has_request_context() and _modo_visitante_ativo():
+            return {"erro": "gastos indisponiveis no modo visitante"}
+        return chat_consultas.consultar_gastos(conn, entrada)
+
+    def exec_consultar_agenda(entrada):
+        icloud = None
+        if caldav_client.configurado() and not (has_request_context() and _modo_visitante_ativo()):
+            icloud = caldav_client.eventos_do_dia
+        return chat_consultas.consultar_agenda(conn, entrada, eventos_icloud=icloud)
+
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
@@ -2782,6 +2799,9 @@ def _processar_mensagem_chat(
         "consultar_treinos": exec_consultar_treinos,
         "consultar_habitos": exec_consultar_habitos,
         "consultar_saude_dia": exec_consultar_saude_dia,
+        "consultar_tarefas": exec_consultar_tarefas,
+        "consultar_gastos": exec_consultar_gastos,
+        "consultar_agenda": exec_consultar_agenda,
     }
 
     # Fase 6 (docs/CARDS.md): cronometra cada tool (passos) e recolhe o
