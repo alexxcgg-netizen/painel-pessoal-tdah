@@ -40,3 +40,34 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 120px;
 }
+
+/* vel3 - conteudo de secao/detalhe FECHADO fora de estilo/layout/pintura.
+   Fechados, .secao-recolhivel e o <details> animado (#fc-card-ultimos-dias)
+   so tem grid 0fr + overflow hidden: a caixa tem altura 0, mas o navegador
+   ainda calculava estilo e layout de tudo dentro a cada troca de aba
+   (medido: 1228 nos do extrato em Gastos, ~16 secoes em Vida/Painel). A
+   classe e posta/tirada por nucleo/movimento.js (ocultarConteudoFechado) -
+   ao abrir sai na hora, ao fechar so depois da animacao de altura. Sem
+   suporte a content-visibility, a regra e ignorada e nada muda. */
+.c2-cv-oculto {
+  content-visibility: hidden;
+}
+
+/* Tarefas pendentes: 100 itens = ~1500 nos entrando em estilo/layout na
+   troca de aba; so os que estao perto da tela precisam disso. `auto` no
+   contain-intrinsic-size guarda a altura real depois da 1a vez (o 64px so
+   vale ate la). */
+#lista-tarefas > li.item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 95px;
+}
+
+/* Itens de lista alem do 12o: ficam abaixo da dobra na hora em que a aba
+   aparece - o fadeInUp deles (0.3s, delay 0.16s) ja terminou quando alguem
+   rola ate la, entao nao muda nada visivel; mas 100 tarefas = 100 animacoes
+   simultaneas (uma camada/composicao por item) na troca de aba (medido: troca
+   de Tarefas ~200ms com elas, ~110ms sem nenhuma animacao). Os 12 primeiros
+   (mais que cabem na tela) mantem a animacao e o escalonamento de sempre. */
+ul li.item:nth-child(n + 13) {
+  animation: none;
+}

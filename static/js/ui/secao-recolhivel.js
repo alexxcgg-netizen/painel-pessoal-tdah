@@ -118,6 +118,11 @@ const SecaoRecolhivel = (function () {
     }
     if (conteudoEl) {
       definirInerte(conteudoEl, cabecalhoEl, !aberto);
+      // Vel (vel3): fechada, o conteudo sai de estilo/layout/pintura
+      // (nucleo/movimento.js ocultarConteudoFechado) - sem efeito visual.
+      if (typeof ocultarConteudoFechado === "function" && typeof conteudoEl.querySelector === "function") {
+        ocultarConteudoFechado(conteudoEl.querySelector(":scope > .secao-conteudo-interno"), aberto, !!opts.semAnimar);
+      }
     }
     if (!opts.semSalvar) salvarEstado(secaoEl.dataset.secaoId, aberto);
   }

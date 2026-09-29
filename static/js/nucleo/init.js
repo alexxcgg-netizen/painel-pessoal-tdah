@@ -103,10 +103,26 @@ function loadVidaAba() {
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     if (btn.dataset.tab === "hoje") loadVidaHoje();
-    if (btn.dataset.tab === "vida") loadVidaAba();
+    // Vel (vel3): as 17 cargas de Vida rodavam SINCRONAS dentro do clique
+    // (~38ms medidos com CPU 4x antes do 1o paint da aba) - agora vao pra
+    // depois do frame da revelacao (mesmo padrao de Gastos) e respeitam o
+    // cache curto de navegacao.js (abaPrecisaCarregar).
+    if (btn.dataset.tab === "vida") {
+      requestAnimationFrame(() =>
+        setTimeout(() => {
+          if (abaPrecisaCarregar("vida")) loadVidaAba();
+        }, 0)
+      );
+    }
     // Vel (A2d): mesmo motivo do navegacao.js - nao competir com o primeiro
     // paint da revelacao da aba gastos.
-    if (btn.dataset.tab === "gastos") requestAnimationFrame(() => setTimeout(loadFimMes, 0));
+    if (btn.dataset.tab === "gastos") {
+      requestAnimationFrame(() =>
+        setTimeout(() => {
+          if (abaPrecisaCarregar("gastos-fim-mes")) loadFimMes();
+        }, 0)
+      );
+    }
   });
 });
 

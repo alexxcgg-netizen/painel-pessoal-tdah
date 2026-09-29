@@ -10,6 +10,40 @@
 const ORDEM_ABAS = ["hoje", "painel", "aviacao", "vida", "tarefas", "gastos", "construtora", "assistente"];
 let abaAtual = "hoje";
 
+// Vel (vel3): cache curto de "esta aba ja carregou". Cada troca de aba
+// re-disparava TODOS os GET /api dela (13 em Gastos, 17 em Vida, ~18 em
+// Painel) e re-renderizava tudo, mesmo se nada mudou desde a ultima visita -
+// trabalho de rede + JS + layout que competia com o toque seguinte. Agora a
+// aba so recarrega se: passaram mais de TTL_DADOS_ABA_MS desde a ultima carga,
+// OU algo foi escrito/falhou desde entao (apiFetch chama invalidarDadosAbas()
+// em POST/PUT/PATCH/DELETE e em qualquer erro), OU o app voltou do segundo
+// plano / a rede voltou (dado pode ter mudado por outro lado: Telegram,
+// outro aparelho). A primeira visita sempre carrega.
+const TTL_DADOS_ABA_MS = 30000;
+const _dadosAbaCarregadosEm = {};
+let _versaoDadosAbas = 0;
+
+function invalidarDadosAbas() {
+  _versaoDadosAbas++;
+}
+
+function abaPrecisaCarregar(chave) {
+  const agora = Date.now();
+  const anterior = _dadosAbaCarregadosEm[chave];
+  const idade = anterior ? agora - anterior.em : -1;
+  // idade < 0 = relogio voltou atras: nao confia, recarrega
+  if (anterior && anterior.versao === _versaoDadosAbas && idade >= 0 && idade < TTL_DADOS_ABA_MS) {
+    return false;
+  }
+  _dadosAbaCarregadosEm[chave] = { em: agora, versao: _versaoDadosAbas };
+  return true;
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") invalidarDadosAbas();
+});
+window.addEventListener("online", invalidarDadosAbas);
+
 function showTab(name) {
   const indiceAtual = ORDEM_ABAS.indexOf(abaAtual);
   const indiceNovo = ORDEM_ABAS.indexOf(name);
@@ -67,7 +101,7 @@ function showTab(name) {
       else marcarEntradaEscalonada(elNovo.querySelector(".vida-secoes"));
     });
   }
-  if (name === "painel") {
+  if (name === "painel" && abaPrecisaCarregar("painel")) {
     // Vel (A2c): os 5 primeiros sao os que aparecem sem rolar (mesma ordem
     // de templates/abas/painel.html); o resto (abaixo da dobra) espera um
     // tick (requestAnimationFrame) pra nao competir por CPU com o primeiro
@@ -94,8 +128,8 @@ function showTab(name) {
       if (typeof loadTesteIA === "function") loadTesteIA();
     });
   }
-  if (name === "tarefas") loadTasks();
-  if (name === "gastos") {
+  if (name === "tarefas" && abaPrecisaCarregar("tarefas")) loadTasks();
+  if (name === "gastos" && abaPrecisaCarregar("gastos")) {
     // Vel (A2d): medido - a aba gastos era a unica com INP MEDIANO alto
     // (~188ms, nao so no pior caso), porque os 5 loads abaixo rodavam na
     // MESMA tarefa que revela a aba (elNovo.hidden = false, algumas linhas

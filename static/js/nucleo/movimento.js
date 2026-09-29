@@ -201,6 +201,7 @@ function ligarDetalheAnimado(details) {
   details.appendChild(externo);
 
   details.open = true; // fica sempre aberto no DOM - o wrapper controla o visual
+  ocultarConteudoFechado(interno, abertoInicial, true);
   details.dataset.c2Aberto = abertoInicial ? "1" : "0";
   summary.setAttribute("aria-expanded", abertoInicial ? "true" : "false");
   // Vel: o chevron usava seletor CSS :has() (detalhe do wrapper) pra saber se
@@ -217,8 +218,40 @@ function ligarDetalheAnimado(details) {
     details.dataset.c2Aberto = aberto ? "0" : "1";
     summary.setAttribute("aria-expanded", aberto ? "false" : "true");
     externo.classList.toggle("c2-details-fechado", aberto);
+    ocultarConteudoFechado(interno, !aberto, false);
     summary.classList.toggle("c2-resumo-aberto", !aberto);
   });
+}
+
+// Vel (vel3): secao/detalhe FECHADO so tem grid-template-rows 0fr + overflow
+// hidden - o conteudo continuava entrando em estilo/layout a cada vez que a
+// aba era revelada (extrato de 1200 nos em Gastos, 16 secoes em Vida).
+// `.c2-cv-oculto` (ui/desempenho.css) poe content-visibility:hidden no
+// wrapper interno = o navegador pula estilo/layout/pintura do que ninguem
+// ve, sem mudar nada visual (a caixa ja tem altura 0). Ao ABRIR a classe sai
+// na hora (a transicao 0fr->1fr ja mede o conteudo real); ao FECHAR ela so
+// entra depois da transicao de altura (--dur-longa 360ms; 450ms de folga),
+// senao o conteudo sumiria de repente em vez de encolher junto. `imediato`:
+// estado inicial (nada pra animar).
+const ATRASO_OCULTAR_FECHADO_MS = 450;
+function ocultarConteudoFechado(interno, aberto, imediato) {
+  if (!interno || !interno.classList) return;
+  if (interno._cvTimer) {
+    clearTimeout(interno._cvTimer);
+    interno._cvTimer = null;
+  }
+  if (aberto) {
+    interno.classList.remove("c2-cv-oculto");
+    return;
+  }
+  if (imediato) {
+    interno.classList.add("c2-cv-oculto");
+    return;
+  }
+  interno._cvTimer = setTimeout(() => {
+    interno._cvTimer = null;
+    interno.classList.add("c2-cv-oculto");
+  }, ATRASO_OCULTAR_FECHADO_MS);
 }
 
 // Tarefa concluida: fecha o espaco que ela deixa na lista sem "pular".
@@ -283,6 +316,7 @@ if (typeof module !== "undefined" && module.exports) {
     marcarEntradaEscalonada,
     animarConclusaoTarefa,
     colapsarSaidaLista,
+    ocultarConteudoFechado,
     animarGraficoNaEntrada,
     saidaAnimada,
     ligarDetalheAnimado,
