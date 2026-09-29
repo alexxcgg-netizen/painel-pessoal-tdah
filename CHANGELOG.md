@@ -5,6 +5,21 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-29 - Troca de aba mais rápida (Tarefas, Gastos, Vida, Painel)
+
+- Medido com trace do Chrome antes de mexer: o custo era estilo + layout de conteúdo que nem estava
+  visível (seções/extrato "fechados" só por grid 0fr, 100 itens de tarefa animando juntos) e 13–18
+  GET /api refeitos a cada troca de aba. Blur/backdrop não era causa; sem layout thrash.
+- `content-visibility: hidden` no conteúdo de seção fechada (`.c2-cv-oculto`, some ao abrir na hora,
+  volta 450 ms depois de fechar pra animação ficar igual); `content-visibility: auto` nos itens de
+  tarefa; `fadeInUp` só nos 12 primeiros itens de cada lista (resto está abaixo da dobra).
+- Cache de 30 s por aba (`abaPrecisaCarregar`): não refaz as /api se nada mudou; invalida em qualquer
+  escrita (POST/PUT/PATCH/DELETE, inclusive chat), erro, volta do 2º plano e volta da rede.
+- Vida e fim de mês carregam depois do primeiro frame da aba.
+- Medido (CPU 4x, máquina ruidosa): Tarefas ~350–410 → ~155–230 ms, Gastos ~300–320 → ~150–225 ms;
+  Vida/Painel oscilam perto de 200. Prints das 8 abas idênticos (Tarefas: ~1 px de subpixel num chip).
+- Service worker v34.
+
 ## 2026-09-29 - IA responde só com dados do painel
 
 - **Regra de fonte única** no topo dos dois prompts do chat (`ia/funcoes/chat.py`): sobre a vida e
