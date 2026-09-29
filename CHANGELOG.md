@@ -5,6 +5,21 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-29 - IA responde só com dados do painel
+
+- **Regra de fonte única** no topo dos dois prompts do chat (`ia/funcoes/chat.py`): sobre a vida e
+  os dados do Alex, a única fonte é o "Contexto de agora", as memórias e o resultado das
+  ferramentas. Se não tiver, a IA consulta; se nenhuma consulta responder, diz "Isso não tá no
+  painel". Nunca estima, arredonda nem inventa número, data, horário, nome ou item.
+- **3 consultas novas** (`chat_consultas.py`): `consultar_tarefas` (período + pendentes/concluídas,
+  atrasadas quando é hoje, máx. 30 com total real), `consultar_gastos` (período/categoria, mesma
+  fonte da aba Finanças via `f9_financas.linhas_saida_real`) e `consultar_agenda` (qualquer dia,
+  iCloud + tarefas com hora). Modo visitante: gastos recusa, agenda sem iCloud.
+- Testes nunca leem o `.env` real: `app.py` só chama `load_dotenv()` fora de pytest/unittest
+  (4 testes do Pluggy falhavam só em checkout com `.env` local).
+- Integração do trabalho do Antigravity (testes no Windows): fim de linha normalizado pra LF +
+  `.gitattributes` (`eol=lf`) e Pillow no `requirements.txt`.
+
 ## 2026-09-29 - Correção de testes no Windows e Linux
 
 - Testes de voos e financas corrigidos com mock de datetime para garantir determinismo.

@@ -9,6 +9,7 @@ import math
 import os
 import re
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
@@ -21,7 +22,11 @@ from dotenv import load_dotenv
 from flask import Flask, Response, has_request_context, jsonify, redirect, render_template, request, send_file, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-load_dotenv()
+# Teste nunca le o .env real (regra do projeto): sob pytest/unittest o
+# ambiente vem so do que o proprio teste define. Em producao (Render) as
+# variaveis vem do painel do Render, entao isso nao muda nada la.
+if not ({"pytest", "unittest"} & set(sys.modules)):
+    load_dotenv()
 
 import agenda
 import aprendizado
