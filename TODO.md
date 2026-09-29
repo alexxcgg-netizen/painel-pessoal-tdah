@@ -4,6 +4,8 @@
       `ELEVENLABS_API_KEY` e `ELEVENLABS_VOICE_ID`. Depois tocar "Ouvir resumo da manhã" no iPhone.
 - [ ] **Segurança:** revogar a chave da API do Render que foi colada no chat (Render → Account
       Settings → API Keys) e gerar outra se precisar.
+- [ ] **Antigravity (quando voltar a cota):** antes de trabalhar, `git pull origin main`. O repo agora
+      tem `.gitattributes` (fim de linha LF) — não converter pra CRLF. Suíte está 100% verde no Linux.
 - [ ] **Antigravity no PC (opcional):** instalar o `agy`, logar com a conta Google e instalar o
       plugin `yuting0624/antigravity-for-claude-code`. Usar só pra review/pesquisa, nunca `--yolo`.
 
