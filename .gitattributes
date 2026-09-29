@@ -1,0 +1,14 @@
+# Fim de linha sempre LF no repositório, em qualquer sistema (Windows incluso).
+# Sem isso, um clone no Windows com core.autocrlf pode empurrar CRLF e o diff
+# vira "arquivo inteiro mudou" (aconteceu em 2026-09-29).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.db binary

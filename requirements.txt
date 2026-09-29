@@ -9,4 +9,5 @@ APScheduler
 gunicorn
 cryptography
 playwright  # so pra verificacao visual de tela nova (Fase 5, regra de AGENTS.md) - nao entra no runtime de producao
+Pillow  # so pro teste de extracao visual (tests/test_fase7_a9_extracao_visao.py gera um PNG sintetico) - nao entra no runtime
 google-genai
