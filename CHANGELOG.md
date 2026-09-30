@@ -5,6 +5,27 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-09-30 - Painel e Vida sólidos + animações mais fluidas
+
+- **Vida/Painel**: seções da Vida a partir da 4ª com `content-visibility:auto` ("aba visível" ~50 → ~27 ms).
+  Bug achado: erro em `/api/summary/today` (IA fora/no teto) invalidava o cache de 30 s e o Painel refazia ~18
+  GET a cada visita; sincronizar a fila offline agora invalida o cache (Vida/Painel mostravam dado velho);
+  o relógio de contagem de `cards.js` não roda em 2º plano. Trocar de aba 30x rápido e abrir/fechar seção 7x
+  rápido: sem erro e sem estado quebrado.
+- **Lista quieta**: `li.item` não reanima a lista inteira ao salvar/apagar; só o item novo entra (`c2-entra`,
+  observador em `movimento.js`); 1ª carga escalonada nos 12 primeiros. Saiu o `fadeInUp` com bounce 1.56.
+- **Apagar fecha o espaço** (`removerLiAnimado`: colapso + `transitionend` + timeout de 500 ms) em todas as
+  listas de Painel/Vida/Gastos/Aviação (antes `.saindo` + `setTimeout(250)` com pulo).
+- **Fundo 100% estático** (sem aurora animada, sem `blur(60px)` nem `mix-blend`); efeitos infinitos de
+  enfeite (`chamaFlicker`, `respirar`, `gradientFlow`, shimmer da barra completa) parados; em
+  `prefers-reduced-motion` as infinitas de enfeite viram `animation:none`.
+- **Toque** com retorno de mola; **check de hábito** desenha o traço com pulso 1→1.08→1 (`checkPop` não estala
+  mais); **barras** de projetos/pessoas/garantia/custo-ia por `scaleX` e enchem na 1ª exibição;
+  **números** sempre terminam no valor final (mesmo com `requestAnimationFrame` pausado) e sem `text-shadow`;
+  **copo d'água** enche em nível (`scaleY`, meta 8), sem partículas coloridas nem "+1", botão nunca `disabled`.
+- Fica pra depois: skeleton no lugar de "Carregando...", check em remédio/treino, direção lateral na troca de
+  aba, migrar os ~15 `--ease-bounce` restantes. Service worker v35.
+
 ## 2026-09-29 - Troca de aba mais rápida (Tarefas, Gastos, Vida, Painel)
 
 - Medido com trace do Chrome antes de mexer: o custo era estilo + layout de conteúdo que nem estava
