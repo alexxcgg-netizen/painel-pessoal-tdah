@@ -138,8 +138,7 @@ function criarItemAssinaturaAtiva(a) {
     btnCancelar.disabled = true;
     const r = await apiFetch(`/api/financas/assinaturas/${a.id}/cancelar`, { method: "POST" });
     if (r) {
-      li.classList.add("saindo");
-      setTimeout(loadAssinaturas, 250);
+      removerLiAnimado(li, loadAssinaturas);
     } else {
       btnCancelar.disabled = false;
     }

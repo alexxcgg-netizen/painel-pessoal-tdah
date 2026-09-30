@@ -47,8 +47,8 @@ body {
     radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--cor-destaque) 1.2%, transparent), transparent 42%),
     radial-gradient(circle at 50% 85%, color-mix(in srgb, var(--cor-destaque) 1%, transparent), transparent 48%),
     radial-gradient(circle at 88% 92%, color-mix(in srgb, var(--cor-destaque) 1%, transparent), transparent 40%);
-  filter: blur(60px);
-  animation: auroraMove 20s ease-in-out infinite;
+  /* anim2: fundo 100% estatico (sem animacao, sem blur, sem blend) - a cor e ~1%,
+     o blur nao mudava nada visivel e custava camada/memoria no iPhone. */
 }
 
 /* "Efeito rainbow" (pedido explicito): um brilho de fundo trocando bem
@@ -72,8 +72,7 @@ body {
     radial-gradient(60% 50% at 78% 28%, color-mix(in srgb, var(--cor-destaque) 1.2%, transparent), transparent 60%),
     radial-gradient(45% 40% at 50% 50%, color-mix(in srgb, var(--cor-destaque) 1%, transparent), transparent 62%);
   background-size: 180% 180%, 180% 180%, 220% 220%;
-  mix-blend-mode: screen;
-  animation: rainbowDrift 26s ease-in-out infinite, rainbowDriftExtra 37s ease-in-out infinite;
+  opacity: 0.5; /* = 1o quadro da antiga rainbowDrift */
 }
 
 @keyframes rainbowDrift {
@@ -119,8 +118,7 @@ body {
     transparent 70%
   );
   background-size: 260% 260%;
-  mix-blend-mode: overlay;
-  animation: auroraShine 34s linear infinite;
+  display: none; /* anim2: reflexo branco em overlay sobre preto puro = preto; removido */
 }
 
 /* Fase 6 (US-E1c): 0% e 100% eram DIFERENTES (120% -20% -> -20% 120%) - a
@@ -175,7 +173,6 @@ h1 {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: gradientFlow 7s ease-in-out infinite;
 }
 
 h2 {

@@ -106,10 +106,10 @@
     transform: scale(1);
   }
   40% {
-    transform: scale(1.35);
+    transform: scale(1.08);
   }
   100% {
-    transform: scale(1.15);
+    transform: scale(1);
   }
 }
 
@@ -119,6 +119,17 @@
   *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
+  }
+  /* anim2: as infinitas nao "rodam" em loop de 0.001ms - param de vez.
+     (spinners de carregamento .girar/btn-girar ficam: sao informacao, nao enfeite) */
+  .shimmer::after,
+  .chat-dots span,
+  #chat-mic.ouvindo,
+  #comando-voz-btn.ouvindo,
+  .dica-texto.digitando::after,
+  .pin-caixa:focus,
+  .espera::after {
+    animation: none !important;
   }
 }
 

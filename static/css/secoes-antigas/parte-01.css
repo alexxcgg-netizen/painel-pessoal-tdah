@@ -244,21 +244,16 @@
 }
 
 .stat-tile-valor.num-pop {
-  animation: numPop 0.32s var(--ease-snap);
+  animation: numPop var(--dur-media) var(--ease-mola);
 }
 
 @keyframes numPop {
-  0% {
-    transform: scale(1);
-    text-shadow: none;
-  }
-  40% {
-    transform: scale(1.18);
-    text-shadow: 0 0 16px color-mix(in srgb, var(--tile-cor, var(--accent)) 70%, transparent);
-  }
+  0%,
   100% {
     transform: scale(1);
-    text-shadow: none;
+  }
+  45% {
+    transform: scale(1.04);
   }
 }
 
@@ -473,7 +468,6 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
   opacity: 0.85;
-  animation: respirar 2.6s ease-in-out infinite;
 }
 
 @keyframes respirar {
@@ -505,30 +499,13 @@ li.item {
   box-shadow: var(--glass-shadow);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  animation: fadeInUp 0.3s var(--ease-bounce) both;
   transition: opacity 0.25s ease, transform 0.25s var(--ease-suave), box-shadow 0.25s ease,
     border-color 0.2s ease;
 }
 
-ul li.item:nth-child(1) {
-  animation-delay: 0.02s;
-}
-
-ul li.item:nth-child(2) {
-  animation-delay: 0.06s;
-}
-
-ul li.item:nth-child(3) {
-  animation-delay: 0.1s;
-}
-
-ul li.item:nth-child(4) {
-  animation-delay: 0.14s;
-}
-
-ul li.item:nth-child(n + 5) {
-  animation-delay: 0.16s;
-}
+/* anim2: li.item nao anima mais sozinho (antes: fadeInUp em TODA reconstrucao da lista).
+   Quem entra recebe .c2-entra via nucleo/movimento.js (marcarItensNovos): so o item
+   novo, ou os 12 primeiros na 1a carga da lista. */
 
 @media (hover: hover) {
   li.item:hover {
@@ -638,7 +615,7 @@ li.item.item-otimista {
 }
 
 #hidratacao-total.sucesso {
-  animation: checkPop 0.45s var(--ease-bounce);
+  animation: c2-pulso var(--dur-media) var(--ease-mola);
   color: var(--cor-financeiro);
 }
 
@@ -657,10 +634,12 @@ li.item.item-otimista {
   background: linear-gradient(135deg, var(--cor-financeiro) 0%, var(--cor-financeiro-fill) 100%);
   box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
   position: relative;
-  overflow: visible;
+  overflow: hidden;
+  isolation: isolate;
 }
 
 .hidratacao-btn-grande svg {
+  position: relative;
   width: 20px;
   height: 20px;
 }
@@ -671,54 +650,8 @@ li.item.item-otimista {
   }
 }
 
-/* Feedback forte ao toque, alem do :active global (afundar/soltar): um
-   "burst" de glow na borda do proprio botao, disparado por JS (classe
-   `.tocando` reaplicada a cada clique). */
-.hidratacao-btn-grande.tocando {
-  animation: hidratacaoGlow 0.5s var(--ease-bounce);
-}
-
-@keyframes hidratacaoGlow {
-  0% {
-    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
-  }
-  35% {
-    box-shadow: 0 0 0 10px color-mix(in srgb, var(--cor-financeiro) 32%, transparent);
-  }
-  100% {
-    box-shadow: 0 4px 18px -6px color-mix(in srgb, var(--cor-financeiro) 55%, transparent);
-  }
-}
-
-/* "+1" flutuante que sobe e some - some sozinho via JS no fim da animacao
-   (`animationend`) e tambem por um timeout de seguranca, entao nao ha risco
-   de sobrar preso na tela mesmo se o evento nao disparar. */
-.hidratacao-flutuante {
-  position: absolute;
-  top: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  pointer-events: none;
-  font-weight: 800;
-  font-size: 0.85rem;
-  color: var(--cor-financeiro);
-  animation: hidratacaoSobe 0.9s ease-out forwards;
-}
-
-@keyframes hidratacaoSobe {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, 0) scale(0.8);
-  }
-  15% {
-    opacity: 1;
-    transform: translate(-50%, -6px) scale(1.15);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -34px) scale(1);
-  }
-}
+/* anim2: sem glow/box-shadow animado nem "+1" flutuante: o copo enche (.hidratacao-nivel, ui/movimento.css)
+   e o contador da um micro-pulse. */
 
 .medida-tendencia {
   font-size: 0.78rem;

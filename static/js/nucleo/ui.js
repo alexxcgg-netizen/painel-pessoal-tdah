@@ -42,30 +42,55 @@ function _obterDuracaoContagem() {
 
 function animarNumero(el, valorFinal, formatador) {
   el.classList.remove("shimmer");
+  const escrever = (v) => {
+    el.textContent = formatador ? formatador(v) : Math.round(v);
+  };
+  // uma contagem por elemento: nova chamada cancela a anterior (sem duas
+  // competindo pelo mesmo texto)
+  if (el._c2Contagem) el._c2Contagem();
   // Vis (C2): "reduzir movimento" tem que mostrar o valor final direto, sem
-  // contar (skill animacoes-interface) - antes esta funcao sempre contava,
-  // mesmo com o sistema preferindo menos movimento. Duracao vem do token
-  // --dur-contagem (700ms, tokens.css) quando disponivel, com o 420ms antigo
-  // como fallback (getComputedStyle pode nao existir num teste sem DOM real).
+  // contar (skill animacoes-interface). Duracao vem do token --dur-contagem.
   if (typeof reduzirMovimento === "function" && reduzirMovimento()) {
-    el.textContent = formatador ? formatador(valorFinal) : Math.round(valorFinal);
+    escrever(valorFinal);
     return;
   }
   const duracao = _obterDuracaoContagem();
   const inicio = performance.now();
-  function passo(agora) {
-    const progresso = Math.min(1, (agora - inicio) / duracao);
-    const suavizado = 1 - Math.pow(1 - progresso, 3);
-    const valorAtual = valorFinal * suavizado;
-    el.textContent = formatador ? formatador(valorAtual) : Math.round(valorAtual);
-    if (progresso < 1) {
-      requestAnimationFrame(passo);
-    } else {
-      el.classList.remove("num-pop");
-      void el.offsetWidth;
-      el.classList.add("num-pop");
-    }
+  let acabou = false;
+  let timer = null;
+  const cancelar = () => {
+    acabou = true;
+    clearTimeout(timer);
+    document.removeEventListener("visibilitychange", aoVoltar);
+    if (el._c2Contagem === cancelar) el._c2Contagem = null;
+  };
+  // Sempre termina no valor final: rAF pausa com o app em 2o plano no iOS;
+  // o timeout e o visibilitychange escrevem o valor certo mesmo assim.
+  const terminar = () => {
+    if (acabou) return;
+    cancelar();
+    escrever(valorFinal);
+    el.classList.remove("num-pop");
+    void el.offsetWidth;
+    el.classList.add("num-pop");
+  };
+  function aoVoltar() {
+    if (!document.hidden && performance.now() - inicio >= duracao) terminar();
   }
+  function passo(agora) {
+    if (acabou) return;
+    const progresso = Math.min(1, (agora - inicio) / duracao);
+    if (progresso >= 1) {
+      terminar();
+      return;
+    }
+    const suavizado = 1 - Math.pow(1 - progresso, 3);
+    escrever(valorFinal * suavizado);
+    requestAnimationFrame(passo);
+  }
+  el._c2Contagem = cancelar;
+  document.addEventListener("visibilitychange", aoVoltar);
+  timer = setTimeout(terminar, duracao + 150);
   requestAnimationFrame(passo);
 }
 

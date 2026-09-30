@@ -86,8 +86,7 @@ async function loadEsperas() {
       resolverBtn.disabled = true;
       const ok = await apiFetch(`/api/esperas/${esp.id}/resolver`, { method: "POST" });
       if (ok) {
-        li.classList.add("saindo");
-        setTimeout(() => li.remove(), 250);
+        removerLiAnimado(li);
       } else {
         resolverBtn.disabled = false;
       }
@@ -102,8 +101,7 @@ async function loadEsperas() {
       apagarBtn.disabled = true;
       const ok = await apiFetch(`/api/esperas/${esp.id}`, { method: "DELETE" });
       if (ok) {
-        li.classList.add("saindo");
-        setTimeout(() => li.remove(), 250);
+        removerLiAnimado(li);
       } else {
         apagarBtn.disabled = false;
       }

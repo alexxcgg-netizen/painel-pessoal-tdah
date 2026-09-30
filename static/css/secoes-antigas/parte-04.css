@@ -284,7 +284,6 @@
   justify-content: center;
   background: var(--accent-gradient);
   background-size: 160% 160%;
-  animation: gradientFlow 7s ease-in-out infinite;
   color: var(--accent-text);
   font-family: var(--font-display);
   font-size: 1.05rem;
@@ -332,7 +331,6 @@
   height: 15px;
   color: var(--cor-bancos);
   flex-shrink: 0;
-  animation: chamaFlicker 1.6s ease-in-out infinite;
 }
 
 .clima-chip {
@@ -369,7 +367,6 @@
 
 .clima-chip.alerta .clima-icone {
   color: var(--cor-construtora);
-  animation: chamaFlicker 2s ease-in-out infinite;
 }
 
 .uber-pendente-card {
@@ -779,6 +776,5 @@
 .btn-ouvir.falando {
   background: var(--accent-fill);
   color: var(--accent-text);
-  animation: chamaFlicker 1.2s ease-in-out infinite;
 }
 

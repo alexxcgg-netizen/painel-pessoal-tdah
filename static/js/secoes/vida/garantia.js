@@ -53,7 +53,7 @@ async function loadGarantias() {
       );
       const trilho = criarEl("div", "garantia-barra-trilho");
       const preenchido = criarEl("div", `garantia-barra-preenchido garantia-barra-${chip.classe}`);
-      preenchido.style.width = `${Math.round(garantiaFracaoDecorrida(g) * 100)}%`;
+      definirProgressoBarra(preenchido, Math.round(garantiaFracaoDecorrida(g) * 100));
       trilho.appendChild(preenchido);
       wrap.appendChild(trilho);
       linha.appendChild(wrap);

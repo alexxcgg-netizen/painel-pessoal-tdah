@@ -77,7 +77,10 @@ async function loadHabitos() {
             const estadoAnterior = h.feito_hoje;
             h.feito_hoje = true;
             marcarFeito();
-            if (circuloHoje) circuloHoje.classList.add("feito");
+            if (circuloHoje) {
+              circuloHoje.classList.add("feito");
+              animarCheck(circuloHoje);
+            }
 
             const r = await jsonPost(`/api/habitos/${h.id}/marcar`);
             btn.disabled = false;

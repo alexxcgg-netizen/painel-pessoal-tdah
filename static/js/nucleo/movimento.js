@@ -306,6 +306,156 @@ function saidaAnimada(el, aoEsconder) {
   setTimeout(finalizar, 200);
 }
 
+// ---- anim2: lista sem reanimar + saida que fecha o espaco ----------------
+// Toda lista do app se reconstroi por inteiro (innerHTML="" + appendChild) a
+// cada salvar/apagar/recarregar. Antes, todo li.item tinha fadeInUp fixo no
+// CSS => a lista inteira "piscava". Agora o CSS nao anima li.item; este
+// observador compara, a cada reconstrucao, a "assinatura" dos itens com a da
+// reconstrucao anterior da MESMA lista: so quem e novo recebe .c2-entra. Na 1a
+// carga da lista entram (escalonados) so os 12 primeiros. Nada mede layout.
+const C2_LIMITE_ENTRADA = 12;
+
+function assinaturaItem(li) {
+  const id = li.dataset && (li.dataset.id || li.dataset.c2Id);
+  if (id) return "id:" + id;
+  const t = li.querySelector ? li.querySelector(".item-titulo") : null;
+  return "tx:" + (((t || li).textContent || "").replace(/\s+/g, " ").trim());
+}
+
+// Pura (testada em node): dado o mapa anterior (assinatura -> contagem) e a
+// lista atual de assinaturas, devolve os indices dos itens que devem entrar
+// animados e o novo mapa. anterior=null => 1a carga (entram os primeiros).
+function calcularItensNovos(anterior, assinaturas) {
+  const novo = new Map();
+  assinaturas.forEach((a) => novo.set(a, (novo.get(a) || 0) + 1));
+  const entram = [];
+  if (!anterior) {
+    for (let i = 0; i < assinaturas.length && i < C2_LIMITE_ENTRADA; i++) entram.push(i);
+    return { entram, mapa: novo };
+  }
+  const resto = new Map(anterior);
+  assinaturas.forEach((a, i) => {
+    const n = resto.get(a) || 0;
+    if (n > 0) resto.set(a, n - 1);
+    else if (entram.length < C2_LIMITE_ENTRADA) entram.push(i);
+  });
+  return { entram, mapa: novo };
+}
+
+function entrarItem(li, ordem) {
+  li.style.setProperty("--i", ordem);
+  li.classList.add("c2-entra");
+  let feito = false;
+  const fim = () => {
+    if (feito) return;
+    feito = true;
+    li.classList.remove("c2-entra");
+    li.style.removeProperty("--i");
+  };
+  li.addEventListener("animationend", (e) => { if (e.target === li) fim(); });
+  setTimeout(fim, 900); // seguranca: aba oculta/sem animationend nao deixa transform residual
+}
+
+function processarLista(ul) {
+  if (!ul || !ul.querySelectorAll) return;
+  const lis = Array.from(ul.children).filter((el) => el.tagName === "LI" && el.classList.contains("item"));
+  const r = calcularItensNovos(ul._c2Vistos || null, lis.map(assinaturaItem));
+  ul._c2Vistos = r.mapa;
+  if (reduzirMovimento()) return;
+  r.entram.forEach((idx, ordem) => entrarItem(lis[idx], ordem));
+}
+
+function observarListas() {
+  if (typeof MutationObserver === "undefined" || typeof document === "undefined" || !document.body) return;
+  const ehItem = (n) => n.nodeType === 1 && n.tagName === "LI" && n.classList.contains("item");
+  const pendentes = new Set();
+  const obs = new MutationObserver((registros) => {
+    for (const r of registros) {
+      let mexeu = false;
+      for (const n of r.addedNodes) if (ehItem(n)) { mexeu = true; break; }
+      if (!mexeu) for (const n of r.removedNodes) if (ehItem(n)) { mexeu = true; break; }
+      if (mexeu && r.target && r.target.tagName) pendentes.add(r.target);
+    }
+    pendentes.forEach(processarLista);
+    pendentes.clear();
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+}
+if (typeof document !== "undefined") {
+  if (document.body) observarListas();
+  else document.addEventListener("DOMContentLoaded", observarListas, { once: true });
+}
+
+// Apagar: o li some (fade/scale) e os de baixo sobem deslizando; o li so sai
+// do DOM no fim da transicao (transitionend) ou no timeout de seguranca (aba
+// oculta/Safari nao dispara transitionend). Reduzir movimento: remove na hora.
+function removerLiAnimado(li, aoFim) {
+  if (!li) return;
+  let feito = false;
+  const fim = () => {
+    if (feito) return;
+    feito = true;
+    li.removeEventListener("transitionend", aoTransicao);
+    if (li.parentNode) li.remove();
+    if (aoFim) aoFim();
+  };
+  const aoTransicao = (e) => {
+    if (e.target === li && e.propertyName === "grid-template-rows") fim();
+  };
+  li.classList.add("saindo");
+  if (reduzirMovimento() || typeof requestAnimationFrame !== "function") {
+    fim();
+    return;
+  }
+  li.addEventListener("transitionend", aoTransicao);
+  colapsarSaidaLista(li);
+  setTimeout(fim, 500);
+}
+
+// Barra de progresso via transform (scaleX(var(--p))) em vez de width: a 1a
+// vez que cada tipo de barra aparece na sessao ela "cresce" (c2-barra-p);
+// depois so muda o valor (a transicao CSS cuida). Ver ui/movimento.css.
+const _c2BarrasVistas = new Set();
+function definirProgressoBarra(el, pct) {
+  if (!el) return;
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  el.style.setProperty("--p", String(p / 100));
+  const chave = (el.className || "").split(" ")[0] || el.id;
+  if (_c2BarrasVistas.has(chave) || reduzirMovimento()) return;
+  _c2BarrasVistas.add(chave);
+  el.classList.add("c2-barra-p");
+  const fim = () => el.classList.remove("c2-barra-p");
+  el.addEventListener("animationend", (e) => { if (e.target === el) fim(); }, { once: true });
+  setTimeout(fim, 800);
+}
+
+// Check "desenhado" + micro-pulse suave (1 -> 1.08 -> 1). `alvo` e o botao/
+// circulo; o SVG interno (se houver) ganha o traco.
+function animarCheck(alvo) {
+  if (!alvo || reduzirMovimento()) return;
+  const svg = alvo.querySelector ? alvo.querySelector("svg") : null;
+  const caminho = svg ? svg.querySelector("path, polyline") : null;
+  if (caminho && typeof caminho.getTotalLength === "function") {
+    try {
+      const len = caminho.getTotalLength();
+      if (len > 0) {
+        caminho.style.setProperty("--c2-check-len", len);
+        caminho.classList.remove("c2-check-desenha");
+        void caminho.getBoundingClientRect();
+        caminho.classList.add("c2-check-desenha");
+      }
+    } catch (erro) {
+      /* SVG oculto/sem geometria: so o pulse */
+    }
+  }
+  alvo.classList.remove("c2-pulso");
+  void alvo.offsetWidth;
+  alvo.classList.add("c2-pulso");
+  const fim = () => alvo.classList.remove("c2-pulso");
+  alvo.addEventListener("animationend", (e) => { if (e.target === alvo) fim(); }, { once: true });
+  setTimeout(fim, 600);
+}
+
 // Node (tests/js/*.test.js roda sem DOM real) - mesmo padrao de export duplo
 // usado no resto do nucleo (ex: secao-recolhivel.js).
 if (typeof module !== "undefined" && module.exports) {
@@ -320,5 +470,9 @@ if (typeof module !== "undefined" && module.exports) {
     animarGraficoNaEntrada,
     saidaAnimada,
     ligarDetalheAnimado,
+    calcularItensNovos,
+    removerLiAnimado,
+    animarCheck,
+    definirProgressoBarra,
   };
 }
