@@ -17,6 +17,8 @@ async function loadProgresso() {
   if (p && typeof p === "object") {
     const grid = $("#progresso-grid");
     grid.innerHTML = "";
+    const contar = !window._c2ProgressoContou; // conta so na 1a exibicao (nunca a cada recarga)
+    window._c2ProgressoContou = true;
     [
       [p.tarefas_feitas, "tarefas feitas"],
       [`${p.rotina_manha_dias}/${p.dias}`, "dias com rotina da manhã"],
@@ -26,7 +28,13 @@ async function loadProgresso() {
       [p.humor_medio || "-", "humor na média"],
     ].forEach(([valor, rotulo]) => {
       const item = criarEl("div", "progresso-item");
-      item.appendChild(criarEl("span", "progresso-valor", String(valor)));
+      const valorEl = criarEl("span", "progresso-valor", String(valor));
+      item.appendChild(valorEl);
+      const num = typeof valor === "number" ? valor : NaN; // so numeros puros (nunca "3/7" nem "8h")
+      if (contar && Number.isFinite(num) && num !== 0 && typeof animarNumero === "function") {
+        const casas = (String(valor).split(".")[1] || "").length;
+        animarNumero(valorEl, num, (v) => (casas ? Number(v).toFixed(casas) : String(Math.round(v))));
+      }
       item.appendChild(criarEl("span", "progresso-rotulo", rotulo));
       grid.appendChild(item);
     });

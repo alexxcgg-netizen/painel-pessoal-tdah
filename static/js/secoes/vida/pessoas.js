@@ -68,7 +68,7 @@ async function loadPessoas() {
       const fracao = Math.min(1, p.dias_sem_falar / p.frequencia_dias);
       const trilho = criarEl("div", "pessoa-barra-trilho");
       const preenchido = criarEl("div", "pessoa-barra-preenchido" + (p.atrasada ? " pessoa-barra-alerta" : ""));
-      preenchido.style.width = `${Math.round(fracao * 100)}%`;
+      definirProgressoBarra(preenchido, Math.round(fracao * 100));
       trilho.appendChild(preenchido);
       wrap.appendChild(trilho);
     }

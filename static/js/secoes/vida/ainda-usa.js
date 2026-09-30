@@ -33,11 +33,9 @@ async function loadAssinaturasRevisao() {
           b.disabled = false;
           return;
         }
-        li.classList.add("saindo");
-        setTimeout(() => {
-          li.remove();
+        removerLiAnimado(li, () => {
           if (!$("#lista-assinaturas").children.length) $("#assinaturas-box").hidden = true;
-        }, 250);
+        });
       });
       acoes.appendChild(b);
     });

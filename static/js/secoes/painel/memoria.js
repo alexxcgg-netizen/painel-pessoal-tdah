@@ -35,8 +35,7 @@ function criarItemMemoria(m, onMudou) {
     apagarBtn.disabled = true;
     const ok = await apiFetch(`/api/memorias/${m.id}`, { method: "DELETE" });
     if (ok) {
-      li.classList.add("saindo");
-      setTimeout(() => li.remove(), 250);
+      removerLiAnimado(li);
     } else {
       apagarBtn.disabled = false;
     }

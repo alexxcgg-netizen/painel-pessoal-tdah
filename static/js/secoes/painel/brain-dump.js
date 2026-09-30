@@ -48,13 +48,12 @@ async function loadBrainDump() {
         body: JSON.stringify(corpo),
       });
       if (!data) return;
-      li.classList.add("saindo");
-      setTimeout(() => {
+      removerLiAnimado(li, () => {
         loadBrainDump();
         if (tipo === "tarefa") loadTasks();
         if (tipo === "nota") loadNotas();
         if (tipo === "gasto") loadExpenses();
-      }, 220);
+      });
     };
 
     [
@@ -77,8 +76,7 @@ async function loadBrainDump() {
       apagarBtn.disabled = true;
       const ok = await apiFetch(`/api/brain-dump/${item.id}`, { method: "DELETE" });
       if (ok) {
-        li.classList.add("saindo");
-        setTimeout(() => li.remove(), 250);
+        removerLiAnimado(li);
       } else {
         apagarBtn.disabled = false;
       }

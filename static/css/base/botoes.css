@@ -17,7 +17,7 @@
    mesmo numa escala pequena. */
 button {
   font-family: inherit;
-  transition: transform 0.22s var(--ease-bounce), background 0.15s ease, filter 0.15s ease,
+  transition: transform var(--dur-media) var(--ease-mola), background 0.15s ease, filter 0.15s ease,
     opacity 0.18s ease, box-shadow 0.2s ease, border-color 0.15s ease;
 }
 
@@ -28,7 +28,7 @@ button {
 }
 
 button svg {
-  transition: transform 0.2s var(--ease-bounce);
+  transition: transform var(--dur-media) var(--ease-mola);
 }
 
 @media (hover: hover) {
@@ -57,7 +57,6 @@ button svg {
   background: var(--accent-fill);
   border-color: transparent;
   color: var(--accent-text);
-  animation: chamaFlicker 1.2s ease-in-out infinite;
 }
 
 .btn-exportar-csv {

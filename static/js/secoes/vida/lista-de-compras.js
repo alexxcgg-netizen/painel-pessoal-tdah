@@ -21,6 +21,8 @@ async function loadCompras() {
         return;
       }
       li.classList.add("feito", "saindo");
+      const txt = li.querySelector("span");
+      if (txt) txt.classList.add("c2-titulo-riscando");
       setTimeout(() => loadCompras(), 250);
     });
     label.appendChild(cb);

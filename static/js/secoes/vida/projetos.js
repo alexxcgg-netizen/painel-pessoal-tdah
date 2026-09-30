@@ -27,7 +27,7 @@ function renderProjetoBarra(p) {
   const wrap = criarEl("div", "projeto-barra");
   const trilho = criarEl("div", "projeto-barra-trilho");
   const preenchido = criarEl("div", "projeto-barra-preenchido");
-  preenchido.style.width = `${p.percentual}%`;
+  definirProgressoBarra(preenchido, p.percentual);
   trilho.appendChild(preenchido);
   if (p.posicao_hoje != null) {
     const marcador = criarEl("div", "projeto-barra-hoje");

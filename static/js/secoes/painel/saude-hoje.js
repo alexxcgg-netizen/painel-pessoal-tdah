@@ -23,6 +23,7 @@ async function loadSaude() {
   $("#saude-vazio").hidden = temAlgumDado;
   $("#saude-grid").hidden = !temAlgumDado;
   $("#hidratacao-total").textContent = data.hidratacao_hoje ?? 0;
+  definirNivelCopo(data.hidratacao_hoje ?? 0);
 
   const dicaSono = $("#dica-sono");
   dicaSono.hidden = !data.dica_sono;
@@ -34,48 +35,57 @@ async function loadSaude() {
   if (!temAlgumDado) return;
 
   $("#saude-passos").textContent = dados.passos != null ? dados.passos.toLocaleString("pt-BR") : "-";
+  if (dados.passos != null && !window._c2SaudeContou && typeof animarNumero === "function") {
+    window._c2SaudeContou = true; // conta so na 1a exibicao
+    animarNumero($("#saude-passos"), dados.passos, (v) => Math.round(v).toLocaleString("pt-BR"));
+  }
   $("#saude-distancia").textContent = dados.distancia_km != null ? dados.distancia_km.toFixed(1) : "-";
   $("#saude-sono").textContent = dados.sono_horas != null ? dados.sono_horas.toFixed(1) : "-";
 }
 
-// Fase 6 US-F1: feedback forte ao toque no botao de agua - "+1" flutuante
-// que sobe e some sozinho (por animationend, com timeout de seguranca pra
-// nunca ficar preso na tela em navegador sem o evento/com reduced-motion).
-function celebrarHidratacao(btn) {
-  btn.classList.remove("tocando");
-  void btn.offsetWidth; // forca reflow pra animacao reiniciar em cliques seguidos
-  btn.classList.add("tocando");
+// anim2: o copo "enche" (scaleY do .hidratacao-nivel, meta de 8 copos/dia) e o
+// contador da um micro-pulse - sem particulas, glow nem "+1" flutuante.
+const HIDRATACAO_META_COPOS = 8;
+function definirNivelCopo(total) {
+  const el = document.getElementById("hidratacao-nivel");
+  const n = parseInt(total, 10);
+  if (!el) return;
+  el.style.setProperty("--nivel", String(Number.isFinite(n) ? Math.max(0, Math.min(1, n / HIDRATACAO_META_COPOS)) : 0));
+}
+
+function celebrarHidratacao() {
   vibrar(15);
-  const flutuante = document.createElement("span");
-  flutuante.className = "hidratacao-flutuante";
-  flutuante.textContent = "+1";
-  flutuante.setAttribute("aria-hidden", "true");
-  btn.appendChild(flutuante);
-  const limpar = () => flutuante.remove();
-  flutuante.addEventListener("animationend", limpar, { once: true });
-  setTimeout(limpar, 1200);
 }
 
 // Vel A2b: +1 copo otimista - o contador sobe e a animacao roda na hora do
 // toque, sem esperar o POST. Se a rede falhar, desfaz o contador (o aviso ja
 // vem do apiFetch via mostrarErro).
+let pendenteHidratacao = 0;
 $("#hidratacao-btn").addEventListener("click", async () => {
+  // anim2: o botao NUNCA fica disabled durante o POST (iOS descarta o 2o toque
+  // e perde o :active) - 2 toques rapidos = 2 copos, cada um com seu POST.
   const btn = $("#hidratacao-btn");
-  if (btn.disabled) return; // evita duplo toque
-  btn.disabled = true;
   const totalEl = $("#hidratacao-total");
   const anterior = totalEl.textContent;
+  pendenteHidratacao++;
   totalEl.textContent = calcularProximoTotalHidratacao(anterior);
+  definirNivelCopo(totalEl.textContent);
   pulsarSucesso(totalEl);
   celebrarHidratacao(btn);
 
   const data = await apiFetch("/api/hidratacao", { method: "POST" });
-  btn.disabled = false;
   if (!data) {
-    totalEl.textContent = anterior; // desfaz o otimista
+    pendenteHidratacao = Math.max(0, pendenteHidratacao - 1);
+    // desfaz so este copo (outro toque pode ter somado por cima)
+    const atual = parseInt(totalEl.textContent, 10);
+    totalEl.textContent = Number.isFinite(atual) ? Math.max(0, atual - 1) : anterior;
+    definirNivelCopo(totalEl.textContent);
     return;
   }
+  pendenteHidratacao = Math.max(0, pendenteHidratacao - 1);
+  if (pendenteHidratacao > 0) return; // ha outro POST em voo: o ultimo sincroniza
   totalEl.textContent = data.total_hoje; // sincroniza com o valor real do servidor
+  definirNivelCopo(data.total_hoje);
 });
 
 // Vel A2b: extraido pra teste puro (node --test) - mesma logica usada no

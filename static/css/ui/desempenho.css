@@ -61,13 +61,3 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 95px;
 }
-
-/* Itens de lista alem do 12o: ficam abaixo da dobra na hora em que a aba
-   aparece - o fadeInUp deles (0.3s, delay 0.16s) ja terminou quando alguem
-   rola ate la, entao nao muda nada visivel; mas 100 tarefas = 100 animacoes
-   simultaneas (uma camada/composicao por item) na troca de aba (medido: troca
-   de Tarefas ~200ms com elas, ~110ms sem nenhuma animacao). Os 12 primeiros
-   (mais que cabem na tela) mantem a animacao e o escalonamento de sempre. */
-ul li.item:nth-child(n + 13) {
-  animation: none;
-}

@@ -100,8 +100,7 @@ function criarItemVoo(v) {
     apagarBtn.disabled = true;
     const ok = await apiFetch(`/api/voos/${v.id}`, { method: "DELETE" });
     if (ok) {
-      li.classList.add("saindo");
-      setTimeout(() => loadVoosResumo(), 220);
+      removerLiAnimado(li, () => loadVoosResumo());
     } else {
       apagarBtn.disabled = false;
     }

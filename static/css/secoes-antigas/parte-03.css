@@ -448,8 +448,6 @@ li.item.item-planejado {
 .meta-progresso-barra.completa {
   background: linear-gradient(90deg, #42bb91, #d8ab4c, #42bb91);
   background-size: 200% 100%;
-  animation: shimmer 1.8s linear infinite;
-  box-shadow: 0 0 10px rgba(66, 187, 145, 0.5);
 }
 
 @keyframes shimmer {

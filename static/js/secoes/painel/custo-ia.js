@@ -93,7 +93,7 @@ async function loadCustoIAV2() {
 
   const pct = Math.min(100, Math.max(0, dados.fracao_teto * 100));
   const barra = $("#custo-ia-v2-barra");
-  barra.style.width = `${pct}%`;
+  definirProgressoBarra(barra, pct);
   barra.classList.toggle("completa", dados.nivel_alerta === "estourado_100");
   $("#custo-ia-v2-fracao").textContent = `${custoIaV2FormatarPercentual(dados.fracao_teto)} do teto usado`;
   $("#custo-ia-v2-projecao").textContent = `Projecao até o fim do mes: ${fmtMoeda(dados.projecao_fim_mes_brl)}.`;

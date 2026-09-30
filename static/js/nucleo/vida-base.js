@@ -20,8 +20,7 @@ function botaoApagar(url, li) {
     btn.disabled = true;
     const ok = await apiFetch(url, { method: "DELETE" });
     if (ok) {
-      li.classList.add("saindo");
-      setTimeout(() => li.remove(), 250);
+      removerLiAnimado(li);
     } else {
       btn.disabled = false;
     }
