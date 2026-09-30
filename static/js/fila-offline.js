@@ -168,6 +168,11 @@ const FilaOffline = (function () {
           break;
         }
 
+        // Vel (vel4): esta escrita sai por fetch direto (nao por apiFetch), entao
+        // o cache curto das abas (navegacao.js) nao ficava sabendo - Vida/Painel
+        // continuavam mostrando o dado antigo ate os 30 s vencerem.
+        if (typeof invalidarDadosAbas === "function") invalidarDadosAbas();
+
         let corpo = null;
         try {
           corpo = await res.json();

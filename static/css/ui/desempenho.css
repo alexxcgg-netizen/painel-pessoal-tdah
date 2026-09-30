@@ -71,3 +71,16 @@
 ul li.item:nth-child(n + 13) {
   animation: none;
 }
+
+/* vel4 - Vida: 20 secoes empilhadas (a maioria abre ABERTA, ~580 nos no total);
+   so as 3 primeiras aparecem sem rolar. As demais ficam fora de estilo/
+   layout/pintura ate chegarem perto da tela (content-visibility:auto).
+   Medido (CPU 4x, troca hoje->vida, 2 rodadas x 20): "aba visivel" ~50ms ->
+   ~27ms. 290px = altura media medida de uma secao aberta; o `auto` guarda a
+   altura real depois da 1a vez, entao a barra de rolagem nao pula. Fechada,
+   a secao continua com .c2-cv-oculto no conteudo (regra acima) - as duas
+   coexistem (o pai auto so afeta o que esta longe da tela). */
+.vida-secoes > .secao-recolhivel:nth-child(n + 4) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 290px;
+}
