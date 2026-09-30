@@ -85,6 +85,12 @@ function _apiFetchEsconderAvisoLento() {
 // vez de virar um erro pro usuario - devolve { __enfileirado: true } pro
 // caller decidir a UX otimista (ex: mostrar como se tivesse capturado, sem
 // esperar a classificacao da IA que so vai vir quando sincronizar de verdade).
+const URLS_OPCIONAIS_SEM_INVALIDAR = ["/api/summary/today"];
+function ehUrlOpcionalSemInvalidar(url) {
+  const caminho = String(url || "").split("?")[0];
+  return URLS_OPCIONAIS_SEM_INVALIDAR.includes(caminho);
+}
+
 async function apiFetch(url, options, fila) {
   // Vel (vel3): escrita ou falha = o que as abas mostram pode estar velho;
   // a proxima troca de aba recarrega (cache curto em nucleo/navegacao.js).
@@ -152,7 +158,12 @@ async function apiFetch(url, options, fila) {
     return null;
   }
   if (!res.ok) {
-    if (typeof invalidarDadosAbas === "function") invalidarDadosAbas();
+    // Vel (vel4): o resumo do dia depende de IA (teto de custo/fora do ar ->
+    // 502/429) e a tela ja tem fallback (lerResumoCache). Se o erro dele
+    // invalidasse o cache curto das abas, o Painel refazia os ~18 GET /api a
+    // CADA visita enquanto a IA estivesse fora. Os demais erros continuam
+    // invalidando.
+    if (!ehUrlOpcionalSemInvalidar(url) && typeof invalidarDadosAbas === "function") invalidarDadosAbas();
     mostrarErro((data && data.error) || `Erro inesperado (HTTP ${res.status}).`);
     return null;
   }

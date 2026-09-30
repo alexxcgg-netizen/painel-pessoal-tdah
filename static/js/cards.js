@@ -314,7 +314,12 @@
   let relogio = null;
   function iniciarRelogio() {
     if (relogio || typeof setInterval !== "function") return;
-    relogio = setInterval(() => atualizarContagens(document), 30000);
+    relogio = setInterval(() => {
+      // Vel (vel4): com o app em segundo plano ninguem ve a contagem; ao
+      // voltar, o proximo tick (<= 30 s) e o visibilitychange ja atualizam.
+      if (typeof document !== "undefined" && document.hidden) return;
+      atualizarContagens(document);
+    }, 30000);
   }
 
   function destacarItem(aba, entidade, id) {
