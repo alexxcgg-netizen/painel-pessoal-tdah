@@ -112,6 +112,8 @@ class Anim2TestCase(unittest.TestCase):
         page.wait_for_load_state("networkidle")
         page.click('.tab-btn[data-tab="painel"]')
         page.wait_for_selector("#lista-notas", state="attached")
+        page.evaluate("loadNotas()")  # espera a carga inicial terminar (evita corrida com o teste)
+        page.wait_for_timeout(300)
         return browser, page, erros
 
     def _recarregar_notas(self, page):
