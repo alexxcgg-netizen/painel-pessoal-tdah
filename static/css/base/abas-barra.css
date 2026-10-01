@@ -219,6 +219,32 @@
   animation: erroEntra var(--dur-media, 0.22s) var(--ease-bounce) both;
 }
 
+/* R2 (reformulação): #erro-banner vira TOAST fixo no topo - antes ele entrava no fluxo, empurrava
+   a tela e desalinhava a rolagem até o alvo de uma linha do Mais. Mesma função mostrarErro/
+   limparErro (nucleo/api.js); tocar no toast fecha. Fica acima do conteúdo e da barra, abaixo
+   do véu/folha (camada-veu = 40). */
+#erro-banner {
+  position: fixed;
+  z-index: calc(var(--camada-veu, 40) - 1);
+  top: calc(env(safe-area-inset-top) + 10px);
+  left: var(--espaco-lateral, 18px);
+  right: var(--espaco-lateral, 18px);
+  max-width: 444px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  border-radius: var(--raio-controle, 18px);
+  background: color-mix(in srgb, var(--danger) 16%, #0d1116);
+  font-size: var(--tipo-secundario, 14px);
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow: 0 14px 28px -12px rgba(0, 0, 0, 0.8);
+  cursor: pointer;
+}
+
+#erro-banner[hidden] {
+  display: none;
+}
+
 @keyframes erroEntra {
   from {
     opacity: 0;
