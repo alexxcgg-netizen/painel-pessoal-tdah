@@ -525,3 +525,88 @@ main > .tab-content:not(#tab-assistente):not(#tab-mais) .secao-recolhivel > .sec
 main > .tab-content:not(#tab-assistente):not(#tab-mais) .vida-secoes > :is(.card, .secao-recolhivel) {
   margin: 0 0 var(--espaco-blocos);
 }
+
+/* Estado vazio sem ícone próprio (.vazio sem <svg>, pendências, regras, avisos, gráfico):
+   ganha o mesmo tile de ícone (marca de "tudo certo") pra seguir o padrão do Início -
+   ícone + 1 frase, com a ação logo acima/abaixo. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.vazio:not(:has(> svg)), .caixa-vazio, .regras-vazio, .avisos-vazio, .grafico-vazio) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 12px 6px;
+  list-style: none;
+  font-size: var(--tipo-secundario);
+  line-height: 1.45;
+  color: var(--cor-texto-2);
+  text-align: center;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.vazio:not(:has(> svg)), .caixa-vazio, .regras-vazio, .avisos-vazio, .grafico-vazio)::before {
+  content: "";
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: var(--raio-tile-linha);
+  background: color-mix(in srgb, var(--cor-destaque) 14%, transparent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23bfe6ff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='m8.5 12.3 2.4 2.4 4.6-5'/%3E%3C/svg%3E")
+    center / 22px no-repeat;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.vazio, .caixa-vazio, .regras-vazio, .avisos-vazio, .grafico-vazio)[hidden] {
+  display: none;
+}
+
+/* Ajuda logo abaixo do título de um card (Meu dia, Vida): em vez de uma linha só pra
+   "Como funciona", o (i) fica no canto do card, na altura do título - 44x44 de toque,
+   o texto da ajuda continua abrindo embaixo do título. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card):has(> h2 + .dica-colapsavel) {
+  position: relative;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2:has(+ .dica-colapsavel) {
+  padding-right: 40px;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2 + .dica-colapsavel {
+  margin: 0;
+  gap: 0;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2 + .dica-colapsavel:has(.dica-texto:not([hidden])) {
+  margin: 0 0 12px;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2 + .dica-colapsavel > .dica-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: var(--toque-acao);
+  height: var(--toque-acao);
+  margin: 0;
+  padding: 0;
+  justify-content: center;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2 + .dica-colapsavel > .dica-toggle::after {
+  content: none;
+}
+
+/* C2: guarda do [hidden] dos estados vazios acima (o display deles é flex). */
+.caixa-vazio[hidden],
+.regras-vazio[hidden],
+.avisos-vazio[hidden] {
+  display: none;
+}
+
+/* Linha de lista com ações (Vida, Meu dia, Finanças): com botões de 52px, as ações descem
+   pra baixo do texto quando não cabem do lado (320px) em vez de vazar pela direita. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) li.item > .item-linha {
+  flex-wrap: wrap;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) li.item .item-acoes {
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
+}
