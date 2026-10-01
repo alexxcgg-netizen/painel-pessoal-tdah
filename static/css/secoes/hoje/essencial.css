@@ -12,3 +12,15 @@
   min-height: 44px;
   padding: 0.35rem 0.2rem;
 }
+
+/* R3 (acabamento): alvo de 44x44 em volta do checkbox (essencial.js monta o <label>). */
+.essencial-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--toque-acao);
+  height: var(--toque-acao);
+  margin: -8px 0 -8px -10px;
+  cursor: pointer;
+}

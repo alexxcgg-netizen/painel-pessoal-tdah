@@ -15,7 +15,7 @@ async function loadRotina() {
   box.hidden = !rotinaVisivel(data.momento) || data.total === 0 || completa;
   if (box.hidden) return;
 
-  $("#rotina-titulo").textContent = data.momento === "manha" ? "Rotina da manha" : "Rotina da noite";
+  $("#rotina-titulo").textContent = data.momento === "manha" ? "Rotina da manhã" : "Rotina da noite";
   $("#rotina-progresso").textContent = `${data.feitos} de ${data.total}`;
   const lista = $("#rotina-lista");
   lista.innerHTML = "";

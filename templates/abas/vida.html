@@ -2,15 +2,25 @@
     <section id="tab-vida" class="tab-content" hidden>
 {{ cabecalho_tela("Vida", "Hábitos, pessoas, casa e planos", voltar=True) }}
 
+      {# R3 (acabamento): as seções que não são recolhíveis (hábitos, projetos, agenda, contas)
+         ganham o mesmo card das outras (antes eram soltas, com um filete em cima). #}
       <div class="vida-secoes">
+        <div class="card vida-bloco">
 {% include "secoes/vida/habitos.html" %}
+        </div>
+        <div class="card vida-bloco">
 {% include "secoes/vida/projetos.html" %}
+        </div>
+        <div class="card vida-bloco">
 {% include "secoes/vida/agenda-painel.html" %}
+        </div>
 {% include "secoes/vida/pra-responder.html" %}
 {% include "secoes/vida/lista-de-compras.html" %}
 {% include "secoes/vida/pessoas.html" %}
 {% include "secoes/vida/treino.html" %}
+        <div class="card vida-bloco">
 {% include "secoes/vida/contas-pessoais.html" %}
+        </div>
 {% include "secoes/vida/ainda-usa.html" %}
 {% include "secoes/vida/manutencao.html" %}
 {% include "secoes/vida/garantia.html" %}

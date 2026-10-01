@@ -14,7 +14,7 @@ async function loadAssinaturasRevisao() {
     const linha = criarEl("div", "item-linha");
     const wrap = criarEl("div");
     wrap.appendChild(criarEl("span", "item-titulo", a.descricao));
-    wrap.appendChild(criarEl("span", "item-quando", `${fmtMoeda(a.valor)} por mes`));
+    wrap.appendChild(criarEl("span", "item-quando", `${fmtMoeda(a.valor)} por mês`));
     linha.appendChild(wrap);
     const acoes = criarEl("div", "item-acoes");
     [
