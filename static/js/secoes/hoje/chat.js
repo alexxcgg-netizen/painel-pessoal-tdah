@@ -92,6 +92,55 @@ function criarIndicadorDigitando() {
   return linha;
 }
 
+// R2 (reformulação, etapa 2): estado vazio da tela IA como na prévia aprovada (tela 2) -
+// avatar em tile, "Oi, Alex", frase curta e 6 sugestões em grade 2 colunas. Tocar numa
+// sugestão manda a pergunta pelo MESMO fluxo do chat (enviarChat), que já tira o
+// .chat-vazio da lista (captura.js também tira, ao responder pelo chat).
+const SUGESTOES_CHAT = [
+  ["O que tenho hoje?", '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'],
+  ["Quanto gastei este mês?", '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4"/><rect x="3.5" y="7.5" width="17" height="12" rx="3"/><circle cx="16" cy="13.5" r="1.2"/>'],
+  ["O que está atrasado?", '<path d="M12 4 3 19.5h18z"/><path d="M12 10v4.5M12 17.2v.1"/>'],
+  ["O que vence essa semana?", '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>'],
+  ["Me ajuda a planejar o dia", '<path d="M13 3.5 6 13.5h5.5l-1 7 7-10H12z"/>'],
+  ["Quando é meu próximo voo?", '<path d="M10.5 13.5 3 11l1.5-1.5 7.5 1L16.5 6A1.8 1.8 0 0 1 19 8.5L14.5 13l1 7.5L14 22l-2.5-7.5-3.5 3.5V20l-1.5 1.5-1-3-3-1L4 16h2.5l4-2.5Z"/>'],
+];
+
+function criarChatVazio() {
+  const vazio = document.createElement("div");
+  vazio.className = "chat-vazio chat-vazio-r2";
+  const nome = (typeof NOME_USUARIO === "string" && NOME_USUARIO.trim().split(" ")[0]) || "";
+  const ola = document.createElement("div");
+  ola.className = "chat-ola";
+  ola.innerHTML = `<div class="chat-ola-avatar">${ICONE_ASSISTENTE}</div>`;
+  const titulo = document.createElement("h2");
+  titulo.className = "chat-ola-titulo";
+  titulo.textContent = nome ? `Oi, ${nome}` : "Oi";
+  const frase = document.createElement("p");
+  frase.className = "chat-ola-frase";
+  frase.textContent = "Pergunta o que quiser do seu dia, ou fala uma coisa pra eu anotar.";
+  ola.append(titulo, frase);
+  const grade = document.createElement("div");
+  grade.className = "chat-sugestoes";
+  SUGESTOES_CHAT.forEach(([texto, icone]) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chat-sugestao";
+    btn.dataset.pergunta = texto;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icone}</svg>`;
+    const span = document.createElement("span");
+    span.textContent = texto;
+    btn.appendChild(span);
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return;
+      grade.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      enviarChat(texto);
+    });
+    grade.appendChild(btn);
+  });
+  vazio.append(ola, grade);
+  return vazio;
+}
+
 async function loadChatHistorico() {
   const historico = await apiFetch("/api/chat/historico");
   if (!historico) return;
@@ -99,11 +148,7 @@ async function loadChatHistorico() {
   const lista = $("#chat-mensagens");
   lista.innerHTML = "";
   if (historico.length === 0) {
-    const vazio = document.createElement("p");
-    vazio.className = "chat-vazio";
-    vazio.innerHTML =
-      ICONE_ASSISTENTE + "<br>Fala comigo - posso registrar tarefa, gasto, meta ou montar o plano do dia.";
-    lista.appendChild(vazio);
+    lista.appendChild(criarChatVazio());
     return;
   }
   historico.forEach((m) => {
