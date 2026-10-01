@@ -244,6 +244,8 @@ async function enviarCaptura(text, clarificacao, campoOrigem) {
   loadStreak();
   if (data.memoria) loadMemorias();
   if (!$("#tab-tarefas").hidden) loadTasks();
+  // R2: o "+" fica no Início - número/resumo/"Agora" refletem o que acabou de entrar.
+  if (typeof loadInicio === "function" && !$("#tab-hoje").hidden) loadInicio();
   if (!$("#tab-gastos").hidden) {
     loadExpenses();
     loadMetas();
