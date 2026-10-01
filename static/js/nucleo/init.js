@@ -30,6 +30,12 @@ $("#logout-btn").addEventListener("click", async () => {
 });
 
 mostrarSaudacao();
+// R2: Início (hero, "Agora", números, atalhos) - uma ida a /api/inicio, sem IA. Marca o
+// cache curto de navegacao.js pra não buscar de novo no 1º "aba:aberta" do Início.
+if (typeof loadInicio === "function") {
+  abaPrecisaCarregar("inicio");
+  loadInicio();
+}
 loadSummary();
 loadUso();
 loadStreak();
@@ -106,7 +112,17 @@ function loadVidaAba() {
 document.addEventListener("aba:aberta", (ev) => {
   const aba = ev.detail && ev.detail.aba;
   {
-    if (aba === "hoje") loadVidaHoje();
+    if (aba === "hoje") {
+      loadVidaHoje();
+      // R2: depois do frame da revelação (mesmo padrão de Gastos/Vida) e com o cache curto.
+      if (typeof loadInicio === "function") {
+        requestAnimationFrame(() =>
+          setTimeout(() => {
+            if (abaPrecisaCarregar("inicio")) loadInicio();
+          }, 0)
+        );
+      }
+    }
     // Vel (vel3): as 17 cargas de Vida rodavam SINCRONAS dentro do clique
     // (~38ms medidos com CPU 4x antes do 1o paint da aba) - agora vao pra
     // depois do frame da revelacao (mesmo padrao de Gastos) e respeitam o
@@ -134,6 +150,8 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     loadVidaHoje();
     loadPainelVidaMovida();
+    // R2: o Início é a tela que volta aberta do segundo plano - saudação e números frescos.
+    if (typeof loadInicio === "function" && abaAtual === "hoje") loadInicio();
   }
 });
 

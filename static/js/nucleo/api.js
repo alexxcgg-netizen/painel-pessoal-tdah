@@ -24,6 +24,13 @@ function limparErro() {
   }
 }
 
+// R2: o banner virou toast fixo no topo (static/css/base/abas-barra.css, #erro-banner) - nao
+// empurra mais a tela; tocar nele fecha (a proxima chamada que der certo tambem limpa).
+(function () {
+  const banner = typeof document !== "undefined" ? document.getElementById("erro-banner") : null;
+  if (banner && banner.addEventListener) banner.addEventListener("click", limparErro);
+})();
+
 // 45s porque varias chamadas passam pela IA (classificacao, chat, leitura de PDF de
 // cotacao) - um timeout curto demais aborta uma chamada real em andamento, nao so
 // uma conexao morta.

@@ -221,6 +221,27 @@ function abrirPeloMais(aba, alvo) {
     const reduzir = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const topo = bloco.getBoundingClientRect().top + window.scrollY - 12;
     window.scrollTo({ top: Math.max(0, topo), behavior: reduzir ? "instant" : "smooth" });
+    // R2: os cards ACIMA do alvo ainda estão carregando (a tela acabou de abrir) e, quando
+    // os dados chegam, crescem e empurram o alvo pra cima da tela. Uma correção só, depois
+    // que a carga assenta - e nunca se a pessoa já mexeu na rolagem nesse meio tempo.
+    let mexeu = false;
+    const parar = () => {
+      mexeu = true;
+    };
+    const opts = { passive: true, once: true };
+    window.addEventListener("touchstart", parar, opts);
+    window.addEventListener("wheel", parar, opts);
+    window.addEventListener("keydown", parar, { once: true });
+    setTimeout(() => {
+      window.removeEventListener("touchstart", parar, opts);
+      window.removeEventListener("wheel", parar, opts);
+      window.removeEventListener("keydown", parar, { once: true });
+      if (mexeu || abaAtual !== aba || !bloco.isConnected) return;
+      const desvio = bloco.getBoundingClientRect().top - 12;
+      if (Math.abs(desvio) > 8) {
+        window.scrollTo({ top: Math.max(0, window.scrollY + desvio), behavior: reduzir ? "instant" : "smooth" });
+      }
+    }, 900);
   });
 }
 
