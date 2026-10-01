@@ -41,7 +41,7 @@ async function loadConstrutora() {
     return;
   }
   if (!data.configurado) {
-    info.textContent = "Ainda não conectado a API da construtora.";
+    info.textContent = "Ainda não conectado à API da construtora.";
     return;
   }
   if (data.erro) {

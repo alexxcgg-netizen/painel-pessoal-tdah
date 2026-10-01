@@ -1,3 +1,10 @@
 /* static/css/secoes/construtora/contas-a-pagar.css - secao construtora > contas-a-pagar (HTML: templates/secoes/construtora/contas-a-pagar.html).
    Fase 7 (X2): vazio de proposito. Carrega DEPOIS do style.css (via fase7.css), entao
    regra aqui sobrescreve por cascata sem precisar editar o style.css. */
+
+/* R3 (acabamento): sem a API da construtora conectada, a lista e o vazio ficam escondidos
+   (o card de cima já diz "Ainda não conectado") - o rótulo "Contas a pagar" sozinho, sem
+   nada embaixo, some junto. */
+#tab-construtora h2.secao-secundaria:has(+ #contas-a-vencer-vazio[hidden] + #lista-contas-a-vencer[hidden]) {
+  display: none;
+}
