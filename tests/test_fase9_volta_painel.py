@@ -30,7 +30,10 @@ class VoltaPainelTestCase(_BaseTestCase):
         corpo = self.client.get("/").get_data(as_text=True)
         abas = re.findall(r'class="tab-btn[^"]*"[^>]*data-tab="([a-z]+)"', corpo) or re.findall(
             r'data-tab="([a-z]+)"[^>]*class="tab-btn', corpo)
+        # R1 (reformulacao): barra de 5 - painel/vida/construtora/aviacao continuam
+        # existindo, abertos pela tela Mais (data-abre-tela) em vez de botao na barra.
         for aba in ("hoje", "painel", "vida", "tarefas", "gastos", "construtora", "aviacao", "assistente"):
-            self.assertIn(f'data-tab="{aba}"', corpo)
+            self.assertTrue(f'data-tab="{aba}"' in corpo or f'data-abre-tela="{aba}"' in corpo, aba)
+            self.assertIn(f'id="tab-{aba}"', corpo)
         self.assertIn('id="fc-card-ultimos-dias"', corpo)
         self.assertRegex(corpo, r'<details class="fc-card" id="fc-card-ultimos-dias">')

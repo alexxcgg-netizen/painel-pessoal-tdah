@@ -66,7 +66,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path; _CHROME = get_chrome_path()
+from tests.playwright_helper import get_chrome_path, abrir_tela; _CHROME = get_chrome_path()
 
 
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
@@ -112,7 +112,7 @@ class VisC2AnimacaoTestCase(unittest.TestCase):
                 page.wait_for_timeout(300)
 
                 for aba in ABAS:
-                    page.click(f'.tab-btn[data-tab="{aba}"]')
+                    abrir_tela(page, aba)  # R1: barra de 5 - fora dela, abre pelo Mais
                     page.wait_for_function(
                         f"document.querySelector('#tab-{aba}') && !document.querySelector('#tab-{aba}').hidden"
                     )

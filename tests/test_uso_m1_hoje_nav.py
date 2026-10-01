@@ -61,7 +61,9 @@ class M1HojeNavTestCase(unittest.TestCase):
     def test_hoje_tem_chat_foco_atual_e_agenda(self):
         self.assertIn('id="caixa-assistente"', self.tab_hoje)
         self.assertIn('id="essencial-box"', self.tab_hoje)  # foco atual
-        self.assertIn('id="chat-form"', self.tab_hoje)  # chat
+        # R1 (reformulacao): o chat mudou da aba Hoje (Inicio) pra tela IA
+        # (tab-assistente) - continua a um toque, no item central da barra.
+        self.assertIn('id="chat-form"', _secao(self.corpo, "tab-assistente"))  # chat
         self.assertIn('data-secao-id="visao-dia-hoje"', self.tab_hoje)  # agenda do dia
 
     def test_hoje_nao_tem_mais_saudacao_sobrecarga_e_resto_movido(self):
@@ -105,11 +107,15 @@ class M1HojeNavTestCase(unittest.TestCase):
     # ---- barra de navegacao: Aviacao logo depois de Painel ----
 
     def test_ordem_dos_botoes_na_barra(self):
+        # R1 (reformulacao): barra de 5 itens; Painel (com Aviacao logo depois),
+        # Vida e Construtora sairam da barra e abrem pela tela Mais - a ordem
+        # Painel -> Aviacao continua valendo la (linhas data-abre-tela).
         abas = re.findall(r'data-tab="([a-z]+)" class="tab-btn', self.corpo)
-        self.assertEqual(
-            abas,
-            ["hoje", "painel", "aviacao", "vida", "tarefas", "gastos", "construtora", "assistente"],
-        )
+        self.assertEqual(abas, ["hoje", "tarefas", "assistente", "gastos", "mais"])
+        no_mais = re.findall(r'data-abre-tela="([a-z-]+)"', _secao(self.corpo, "tab-mais"))
+        for aba in ("painel", "aviacao", "vida", "construtora"):
+            self.assertIn(aba, no_mais)
+        self.assertLess(no_mais.index("painel"), no_mais.index("aviacao"))
 
 
 if __name__ == "__main__":

@@ -34,6 +34,9 @@ _spec.loader.exec_module(mv)
 
 CHROME_DISPONIVEL = mv.CHROME is not None and Path(mv.CHROME).exists()
 
+# R1 (reformulacao): barra de 5 - abas fora dela abrem pela tela Mais.
+from tests.playwright_helper import abrir_tela  # noqa: E402
+
 ABAS = mv.ABAS  # ["hoje", "painel", "aviacao", "vida", "tarefas", "gastos", "construtora", "assistente"]
 
 
@@ -78,7 +81,7 @@ def pagina(app_no_ar):
 def test_zero_pageerror_e_conteudo_ao_passar_pelas_8_abas(pagina):
     page, erros = pagina
     for aba in ABAS:
-        page.click(f'.tab-btn[data-tab="{aba}"]')
+        abrir_tela(page, aba)
         page.wait_for_function(
             f"document.querySelector('#tab-{aba}') && !document.querySelector('#tab-{aba}').hidden"
         )
@@ -120,6 +123,10 @@ def test_captura_de_gasto_nao_quebra_pagina(pagina):
     page, erros = pagina
     page.click('.tab-btn[data-tab="hoje"]')
     page.wait_for_timeout(300)
+    # R1: a captura mora na folha do botao "+" (antes no topo de toda tela)
+    page.click("#fab-captura")
+    page.wait_for_selector("#folha-captura.bottom-sheet--aberto")
+    page.wait_for_timeout(350)
     marcador = f"vel a2c {int(time.time())}"
     page.fill("#captura-input", f"gastei 17 reais no mercado {marcador}")
     page.click("#captura-btn")
@@ -127,6 +134,8 @@ def test_captura_de_gasto_nao_quebra_pagina(pagina):
         "document.querySelector('#captura-btn').textContent.includes('Adicionar')", timeout=15000
     )
     page.wait_for_timeout(300)
+    page.keyboard.press("Escape")  # R1: fecha a folha antes de trocar de aba
+    page.wait_for_function("document.getElementById('folha-captura').hidden")
     page.click('.tab-btn[data-tab="gastos"]')
     page.wait_for_timeout(300)
     assert erros == [], f"pageerror ao usar a captura de gasto: {erros}"

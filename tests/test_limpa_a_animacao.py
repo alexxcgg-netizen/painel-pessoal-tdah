@@ -67,7 +67,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path; _CHROME = get_chrome_path()
+from tests.playwright_helper import get_chrome_path, abrir_tela; _CHROME = get_chrome_path()
 
 
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
@@ -160,7 +160,7 @@ class LimpaAAnimacaoTestCase(unittest.TestCase):
                     page.emulate_media(reduced_motion=reduced_motion)
                 page.goto(BASE_URL + "/")
                 page.wait_for_load_state("networkidle")
-                page.click('.tab-btn[data-tab="vida"]')
+                abrir_tela(page, "vida")  # R1: Vida abre pelo Mais (saiu da barra)
                 page.wait_for_selector('.secao-recolhivel[data-secao-id="vida-revisao-trimestral"]')
 
                 # is_visible() do Playwright nao considera overflow:hidden de um

@@ -55,6 +55,9 @@ CHROME_OK = mv.CHROME is not None and Path(mv.CHROME).exists()
 
 ABAS = mv.ABAS
 
+# R1 (reformulacao): barra de 5 - abas fora dela abrem pela tela Mais.
+from tests.playwright_helper import abrir_tela, item_da_barra, js_clicar_aba  # noqa: E402
+
 
 @pytest.fixture(scope="module")
 def app_no_ar():
@@ -114,12 +117,12 @@ def test_trocar_de_aba_30x_rapido_nao_quebra_a_tela(pagina, semente):
     seq = [rnd.choice(ABAS) for _ in range(30)]
     seq[-1] = ["vida", "painel", "tarefas"][semente - 1]
     for aba in seq:
-        page.evaluate(f"document.querySelector('.tab-btn[data-tab=\"{aba}\"]').click()")
+        page.evaluate(js_clicar_aba(aba))  # R1: botao da barra ou linha do Mais
         page.wait_for_timeout(rnd.choice([0, 5, 20, 60]))
     page.wait_for_timeout(1500)
     st = page.evaluate(ESTADO_JS)
     assert st["vis"] == [f"tab-{seq[-1]}"], st
-    assert st["ativo"] == [seq[-1]], st
+    assert st["ativo"] == [item_da_barra(seq[-1])], st  # R1: tela do Mais deixa "Mais" ativo
     assert st["entraEscondida"] == 0, st
     assert st["attrDivergente"] == 0 and st["ocultoMasAberto"] == 0, st
     assert erros == [], erros
@@ -128,7 +131,7 @@ def test_trocar_de_aba_30x_rapido_nao_quebra_a_tela(pagina, semente):
 @pytest.mark.skipif(not CHROME_OK, reason="Chromium do Playwright nao encontrado")
 def test_abrir_e_fechar_secao_da_vida_rapido_termina_consistente(pagina):
     page, erros, _ = pagina
-    page.click('.tab-btn[data-tab="vida"]')
+    abrir_tela(page, "vida")
     page.wait_for_timeout(600)
     cab = page.locator("#tab-vida .secao-cabecalho").nth(2)
     for _ in range(7):
@@ -146,7 +149,7 @@ def test_cache_de_30s_pula_recarga_sem_escrita_e_recarrega_depois_de_escrita(pag
     contar = lambda sufixo: sum(1 for u in gets if u.split("?")[0].endswith(sufixo))  # noqa: E731
 
     def ir(aba):
-        page.click(f'.tab-btn[data-tab="{aba}"]')
+        abrir_tela(page, aba)
         page.wait_for_timeout(700)
 
     ir("painel")
@@ -178,13 +181,13 @@ def test_cache_de_30s_pula_recarga_sem_escrita_e_recarrega_depois_de_escrita(pag
 @pytest.mark.skipif(not CHROME_OK, reason="Chromium do Playwright nao encontrado")
 def test_voltar_do_segundo_plano_recarrega_a_aba(pagina):
     page, erros, gets = pagina
-    page.click('.tab-btn[data-tab="vida"]')
+    abrir_tela(page, "vida")
     page.wait_for_timeout(900)
     page.click('.tab-btn[data-tab="hoje"]')
     page.wait_for_timeout(300)
     base = sum(1 for u in gets if u.split("?")[0].endswith("/api/habitos"))
     page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")  # visibilityState = visible no headless
-    page.click('.tab-btn[data-tab="vida"]')
+    abrir_tela(page, "vida")
     page.wait_for_timeout(900)
     assert sum(1 for u in gets if u.split("?")[0].endswith("/api/habitos")) > base
     assert erros == [], erros

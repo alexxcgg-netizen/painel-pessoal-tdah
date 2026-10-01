@@ -333,6 +333,28 @@ def clicar_e_medir(page, seletor, condicao_visivel: str | None = None, timeout_v
     return inp_ms, inp_teto, visivel_ms, detalhe
 
 
+def abrir_aba(page, aba):
+    """R1 (reformulacao): a barra passou a ter 5 itens - painel, vida, aviacao e
+    construtora sairam dela e abrem pela tela Mais. Abre a aba pelo botao da barra
+    quando ele existe (main antiga ou aba que continua na barra) e, se nao existir,
+    via showTab() - so pra PREPARAR a medida (fora da janela medida)."""
+    if page.locator(f'.tab-btn[data-tab="{aba}"]').count():
+        page.click(f'.tab-btn[data-tab="{aba}"]')
+    else:
+        page.evaluate(f"showTab({aba!r})")
+
+
+def seletor_toque_aba(page, aba):
+    """Seletor do TOQUE medido que abre `aba`: o botao da barra quando existe; senao
+    (R1) a linha da tela Mais que abre essa aba - abre o Mais antes, fora da janela
+    medida. Mesma metrica (INP do toque + ate #tab-X sem hidden), mesmo showTab()."""
+    if page.locator(f'.tab-btn[data-tab="{aba}"]').count():
+        return f'.tab-btn[data-tab="{aba}"]'
+    abrir_aba(page, "mais")
+    page.wait_for_timeout(120)
+    return f'#tab-mais [data-abre-tela="{aba}"]:not([data-alvo])'
+
+
 def coletar_longtasks(page):
     try:
         return page.evaluate("window.__longtasks || []")
@@ -381,10 +403,11 @@ def rodar_medicoes(page, ctx, n_rep: int, avisos: list):
         inp_vals, inp_tetos, vis_vals, detalhes, lts = [], [], [], [], []
         cond = f"(() => {{ const el = document.querySelector('#tab-{aba}'); return !!el && !el.hidden; }})()"
         for i in range(n_rep):
-            page.click(f'.tab-btn[data-tab="{outra}"]')
+            abrir_aba(page, outra)
             page.wait_for_timeout(120)  # preparo, fora da janela medida
+            seletor = seletor_toque_aba(page, aba)
             page.evaluate("window.__longtasks = []")
-            inp, teto, vis, det = clicar_e_medir(page, f'.tab-btn[data-tab="{aba}"]', cond)
+            inp, teto, vis, det = clicar_e_medir(page, seletor, cond)
             inp_vals.append(inp)
             inp_tetos.append(teto)
             detalhes.append(det)
@@ -440,7 +463,7 @@ def rodar_medicoes(page, ctx, n_rep: int, avisos: list):
 
     # ---- 4b) salvar lembrete (aba Painel, formulario direto) ---------------
     def _salvar_lembrete():
-        page.click('.tab-btn[data-tab="painel"]')
+        abrir_aba(page, "painel")
         page.wait_for_timeout(800)
         inp_vals, inp_tetos, vis_vals, detalhes, lts = [], [], [], [], []
         cond = "document.querySelector('#lembrete-btn')?.textContent.includes('Salvar data')"
@@ -465,6 +488,11 @@ def rodar_medicoes(page, ctx, n_rep: int, avisos: list):
     def _salvar_gasto():
         page.click('.tab-btn[data-tab="hoje"]')
         page.wait_for_timeout(300)
+        # R1: a captura mora na folha do botao "+" (antes ficava no topo de toda tela).
+        if page.locator("#fab-captura").count():
+            page.click("#fab-captura")
+            page.wait_for_selector("#folha-captura.bottom-sheet--aberto")
+            page.wait_for_timeout(400)
         inp_vals, inp_tetos, vis_vals, detalhes, lts = [], [], [], [], []
         cond = "document.querySelector('#captura-btn')?.textContent.includes('Adicionar')"
         for i in range(min(n_rep, 5)):  # 3s de IA cada -> 5 bastam pra mediana/pior
@@ -479,10 +507,17 @@ def rodar_medicoes(page, ctx, n_rep: int, avisos: list):
             lts.append(coletar_longtasks(page))
             page.wait_for_timeout(200)
         registrar("salvar_gasto", inp_vals, inp_tetos, vis_vals, detalhes, lts)
+        if page.locator("#folha-captura.bottom-sheet--aberto").count():
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(400)
     bloco("salvar_gasto", _salvar_gasto)
 
     # ---- 5) chat/voz: primeiro sinal de "recebi" ---------------------------
     def _chat_recebi():
+        # R1: o chat mudou da aba Hoje pra tela IA (tab-assistente).
+        if page.locator("#tab-assistente #chat-form").count():
+            abrir_aba(page, "assistente")
+            page.wait_for_timeout(400)
         inp_vals, inp_tetos, vis_vals, detalhes, lts = [], [], [], [], []
         cond = ("document.querySelectorAll('#chat-mensagens .chat-bolha, #chat-mensagens [class*=bolha]').length > 0"
                 " || (document.querySelector('#chat-mensagens')?.textContent.length ?? 0) > 0")
