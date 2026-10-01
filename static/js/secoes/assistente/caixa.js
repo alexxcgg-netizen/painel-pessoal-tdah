@@ -209,41 +209,23 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       });
     }
 
+    // R2 (reformulação): o card "Pendências do assistente" saiu do topo do Início (a lista
+    // inteira mora em Mais › Avisos e regras, que já tem o selo). No Início fica só um aviso
+    // de 1 linha, tocável, que aparece quando há pendência (ou quando o assistente está
+    // atrasado - #caixa-compacta-atraso, preenchido por carregarSaude).
     function montarFaixaCompacta() {
       const raiz = document.getElementById("caixa-assistente");
       if (!raiz || raiz.dataset.montado) return;
       raiz.dataset.montado = "1";
       raiz.innerHTML =
-        '<section class="secao-recolhivel card caixa-compacta" data-aberto="true" data-secao-id="caixa-assistente">' +
-        '<button type="button" class="secao-cabecalho" aria-expanded="true">' +
+        '<button type="button" class="caixa-aviso-linha" id="caixa-compacta-linha" data-abre-tela="ajustes-ia" hidden>' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>' +
         '<span id="caixa-compacta-titulo">' +
         CaixaAssistente.textoContagem(0) +
         "</span>" +
-        '<span class="chevron" aria-hidden="true"></span>' +
+        '<svg class="caixa-aviso-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>' +
         "</button>" +
-        '<div class="secao-conteudo">' +
-        '<p id="caixa-compacta-atraso" class="caixa-aviso-atraso" hidden></p>' +
-        '<ul id="caixa-compacta-lista" class="caixa-compacta-lista"></ul>' +
-        '<a href="#" id="caixa-compacta-vertudo" class="caixa-vertudo">Ver tudo</a>' +
-        "</div>" +
-        "</section>";
-
-      wireToggleRecolhivel(raiz.querySelector(".secao-recolhivel"));
-
-      const linkVerTudo = document.getElementById("caixa-compacta-vertudo");
-      if (linkVerTudo) {
-        linkVerTudo.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          // Clica o botao de verdade (em vez de chamar showTab() direto): assim o
-          // listener de clique de regras.js/avisos.js (cada secao carrega os
-          // proprios dados no clique da aba, ver comentario mais abaixo) tambem
-          // dispara - equivalente ao Alex tocar na aba Assistente na barra.
-          // R1: a lista completa mudou pra tela "ajustes-ia" (Mais › Avisos e regras), sem
-          // botao na barra - showTab dispara "aba:aberta", que regras.js/avisos.js e este
-          // arquivo ouvem pra carregar.
-          if (typeof showTab === "function") showTab("ajustes-ia");
-        });
-      }
+        '<button type="button" class="caixa-aviso-linha caixa-aviso-atraso-linha" data-abre-tela="ajustes-ia" id="caixa-compacta-atraso" hidden></button>';
     }
 
     function wireBotoesResposta(container) {
@@ -259,13 +241,10 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
 
     function renderFaixaCompacta() {
       const titulo = document.getElementById("caixa-compacta-titulo");
-      const lista = document.getElementById("caixa-compacta-lista");
-      if (!titulo || !lista) return;
+      const linha = document.getElementById("caixa-compacta-linha");
+      if (!titulo || !linha) return;
       titulo.textContent = CaixaAssistente.textoContagem(ultimosPendentes);
-      lista.innerHTML = CaixaAssistente.renderListaHTML(CaixaAssistente.itensUrgentes(ultimosItens, 3), {
-        vazio: "Nada pendente por aqui.",
-      });
-      wireBotoesResposta(lista);
+      linha.hidden = ultimosPendentes <= 0;
     }
 
     function renderSecaoCompleta() {
