@@ -39,3 +39,244 @@
   flex-direction: column;
   gap: 0.3rem;
 }
+
+/* =====================================================================
+   R1 (reformulação): captura saiu do topo global. Botão "+" (FAB) visível
+   em Início, Tarefas e Finanças (navegacao.js liga/desliga o hidden) que
+   abre a folha #folha-captura (componente ui/componentes/bottom-sheet.css:
+   véu, alça, foco preso, safe-area e reduced-motion já vêm de lá).
+   ===================================================================== */
+.fab-captura {
+  position: fixed;
+  z-index: var(--camada-fab);
+  right: max(var(--espaco-lateral), calc((100vw - 480px) / 2 + var(--espaco-lateral)));
+  bottom: calc(var(--barra-total) + var(--folga-sobre-barra));
+  width: var(--tamanho-fab);
+  height: var(--tamanho-fab);
+  min-height: var(--tamanho-fab);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--raio-fab);
+  background: var(--cor-destaque);
+  color: var(--cor-sobre-destaque);
+  box-shadow: 0 14px 28px -10px rgba(0, 0, 0, 0.8);
+  transition: transform var(--dur-rapida) var(--ease-padrao);
+}
+
+.fab-captura[hidden] {
+  display: none;
+}
+
+.fab-captura svg {
+  width: 28px;
+  height: 28px;
+}
+
+.fab-captura:active {
+  transform: scale(0.94);
+}
+
+.fab-captura:focus-visible {
+  outline: none;
+  box-shadow: var(--anel-foco);
+}
+
+/* Telas com FAB: o último item da tela não fica atrás do botão. */
+#tab-hoje,
+#tab-tarefas,
+#tab-gastos {
+  padding-bottom: calc(var(--tamanho-fab) + var(--folga-sobre-barra));
+}
+
+/* ---------- Folha ---------- */
+/* Grade de 2 colunas: campo, atalhos e avisos ocupam a largura toda; no rodapé,
+   "Adicionar" e "Falar" lado a lado (#captura e #comando-voz viram display:contents
+   pra os filhos entrarem direto na grade - ids e ordem no DOM continuam os mesmos). */
+.folha-captura .bottom-sheet-painel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 10px;
+  padding: 12px var(--espaco-lateral) calc(22px + env(safe-area-inset-bottom));
+  border-top-left-radius: var(--raio-folha);
+  border-top-right-radius: var(--raio-folha);
+  background: var(--superficie-card);
+}
+
+.folha-titulo {
+  margin: 0;
+  font-family: var(--fonte-titulo);
+  font-size: var(--tipo-titulo-folha);
+  font-weight: var(--peso-titulo);
+  text-transform: none;
+  letter-spacing: -0.01em;
+  color: var(--cor-texto);
+}
+
+.folha-captura .bottom-sheet-painel > * {
+  grid-column: 1 / -1;
+  order: 5;
+}
+
+.folha-captura .bottom-sheet-alca {
+  order: 0;
+}
+
+.folha-captura .folha-titulo {
+  order: 1;
+}
+
+.folha-captura #captura,
+.folha-captura #comando-voz,
+.folha-captura .comando-voz-principal {
+  display: contents;
+}
+
+.folha-captura #captura-input {
+  grid-column: 1 / -1;
+  order: 2;
+}
+
+.folha-captura .folha-atalhos {
+  order: 3;
+}
+
+.folha-captura #duvida-box,
+.folha-captura #captura-retorno {
+  order: 4;
+}
+
+.folha-captura #captura-btn,
+.folha-captura #comando-voz-btn {
+  grid-column: auto;
+  order: 6;
+}
+
+.folha-captura #comando-voz-status,
+.folha-captura #comando-voz-confirmar {
+  grid-column: 1 / -1;
+  order: 7;
+}
+
+.folha-captura #captura-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 58px;
+  padding: 0 16px;
+  border-radius: var(--raio-controle);
+  background: var(--cor-fundo);
+  font-size: var(--tipo-corpo);
+}
+
+.folha-captura #captura-btn {
+  min-height: 60px;
+  padding: 0 16px;
+  justify-content: center;
+  border-radius: var(--raio-controle);
+  border: var(--linha) solid var(--cor-borda);
+  background: var(--cor-superficie);
+  color: var(--cor-texto);
+  font-size: var(--tipo-titulo-card);
+  font-weight: var(--peso-forte);
+  box-shadow: none;
+}
+
+.folha-atalhos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.folha-atalho {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 14px;
+  border-radius: var(--raio-controle);
+  border: var(--linha) solid var(--cor-borda);
+  background: var(--cor-superficie);
+  color: var(--cor-texto);
+  font-family: var(--fonte-texto);
+  font-size: var(--tipo-corpo);
+  font-weight: 700;
+  text-align: left;
+  box-shadow: none;
+}
+
+.folha-atalho[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--cor-destaque) 55%, var(--cor-borda));
+}
+
+.folha-atalho-tile {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+}
+
+.folha-atalho-tile svg {
+  width: 20px;
+  height: 20px;
+}
+
+.folha-retorno {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--cor-entrada) 12%, transparent);
+  color: var(--cor-entrada);
+  font-size: var(--tipo-secundario);
+  font-weight: 600;
+}
+
+.folha-retorno[hidden] {
+  display: none;
+}
+
+.folha-captura #comando-voz-btn.folha-falar {
+  width: 100%;
+  min-height: 60px;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--raio-controle);
+  background: var(--cor-destaque);
+  color: var(--cor-sobre-destaque);
+  font-size: var(--tipo-titulo-card);
+  font-weight: var(--peso-forte);
+  box-shadow: none;
+}
+
+.folha-captura #comando-voz-btn.folha-falar svg {
+  width: 22px;
+  height: 22px;
+}
+
+.folha-captura #comando-voz-status {
+  margin: 0;
+  text-align: center;
+}
+
+.folha-captura #comando-voz-status[hidden],
+.folha-captura #comando-voz-confirmar[hidden],
+.folha-captura #duvida-box[hidden] {
+  display: none;
+}
+
+.folha-captura #duvida-box,
+.folha-captura #comando-voz-confirmar {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fab-captura {
+    transition: none;
+  }
+  .fab-captura:active {
+    transform: none;
+  }
+}

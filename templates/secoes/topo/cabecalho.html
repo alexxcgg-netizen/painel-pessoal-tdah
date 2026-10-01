@@ -1,48 +1,26 @@
-  <div class="aurora" aria-hidden="true"></div>
-  <header>
-    <h1>Painel Pessoal</h1>
-    <p id="uso-custo" class="custo-ia"></p>
-    <button id="push-btn" class="btn-push" hidden>Ativar notificações</button>
-    <button id="silencio-btn" class="btn-silencio" title="Horário silencioso" aria-label="Configurar horário silencioso" aria-expanded="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>
+{# R1 (reformulação): era o topo global (título "Painel Pessoal" + 5 botões redondos +
+   "gasto com IA até agora"), repetido em todas as abas. Virou o conteúdo da tela
+   Configurações (abas/config.html, Mais › Configurações): cada botão redondo é agora uma
+   linha grande, com os MESMOS ids (static/js/secoes/topo/cabecalho.js e nucleo/init.js
+   ligam por id, sem mudança de lógica) e o painel de cada um logo abaixo da linha.
+   O que cada um fazia (e continua fazendo):
+   - lua (#silencio-btn): abre o painel de horário silencioso (GET/POST /api/configuracoes/silencio)
+   - avião (#modo-viagem-btn): abre o painel de modo viagem (GET/POST /api/modo-viagem)
+   - olho (#modo-visitante-btn): liga o modo visitante (POST /api/modo-visitante); ligado,
+     abre o painel do PIN pra desligar
+   - download (#backup-btn): abre o painel de backup (links /api/backup/exportar*)
+   - sair (#logout-btn): POST /logout e volta pro login (init.js)
+   - #push-btn: "Ativar notificações" (só aparece se o push estiver configurado)
+   - #uso-custo: "gasto com IA até agora" (GET /api/uso/total, loadUso) #}
+    <h2 class="rotulo-tela">Avisos</h2>
+    <div class="mais-grupo config-grupo">
+    <button type="button" id="silencio-btn" class="mais-linha config-linha" aria-label="Configurar horário silencioso" aria-expanded="false">
+      <span class="mais-tile tile-azul"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg></span>
+      <span class="mais-textos"><span class="mais-titulo">Horário silencioso</span><span class="mais-sub">Segura os avisos que podem esperar</span></span>
+      <span class="config-estado" aria-hidden="true">Ligado</span>
+      <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
     </button>
-    <button id="modo-viagem-btn" class="btn-silencio" title="Modo viagem" aria-label="Configurar modo viagem" aria-expanded="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg>
-    </button>
-    <button id="modo-visitante-btn" class="btn-silencio" title="Modo visitante" aria-label="Ativar modo visitante (esconde financeiro, saúde e decisões)" aria-pressed="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-    </button>
-    <button id="backup-btn" class="btn-backup" title="Exportar / backup" aria-label="Exportar ou baixar backup" aria-expanded="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-    </button>
-    <button id="logout-btn" class="btn-logout" title="Sair" aria-label="Sair">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-    </button>
-  </header>
-
-  <div id="backup-painel" hidden>
-    <p class="silencio-titulo">Exportar / backup</p>
-    <p class="silencio-descricao">
-      Backup manual, na hora - o automático semanal (se configurado) roda sozinho pelo
-      scheduler. Ver <code>docs/BACKUP.md</code> pra detalhes de cada formato e como restaurar.
-    </p>
-    <div class="backup-opcoes">
-      <a href="/api/backup/exportar" class="btn-com-icone" download>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        Banco (.db)
-      </a>
-      <a href="/api/backup/exportar-json" class="btn-com-icone" download>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        Tudo em JSON
-      </a>
-      <a href="/api/backup/exportar-csv-completo" class="btn-com-icone" download>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        Tudo em CSV (.zip)
-      </a>
-    </div>
-  </div>
-
-  <div id="silencio-painel" hidden>
+  <div id="silencio-painel" class="config-painel" hidden>
     <p class="silencio-titulo">Horário silencioso</p>
     <p class="silencio-descricao">
       Avisos que podem esperar (gasto, meta, lembrete, tarefa parada) ficam represados nessa
@@ -59,8 +37,13 @@
     </div>
     <p id="silencio-status"></p>
   </div>
-
-  <div id="modo-viagem-painel" hidden>
+    <button type="button" id="modo-viagem-btn" class="mais-linha config-linha" aria-label="Configurar modo viagem" aria-expanded="false">
+      <span class="mais-tile tile-roxo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 19h19"/><path d="m3.5 13 4 1.5L17 9a2 2 0 0 1 2.7 2.8L9 17.5l-5.5-2.5Z"/></svg></span>
+      <span class="mais-textos"><span class="mais-titulo">Modo viagem</span><span class="mais-sub">Pausa os avisos de rotina de casa</span></span>
+      <span class="config-estado" aria-hidden="true">Ligado</span>
+      <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+    </button>
+  <div id="modo-viagem-painel" class="config-painel" hidden>
     <p class="silencio-titulo">Modo viagem</p>
     <p class="silencio-descricao">
       Enquanto ativo, suprime avisos de rotina domestica (rotina da manha, hora de dormir,
@@ -81,8 +64,18 @@
     </div>
     <p id="modo-viagem-status"></p>
   </div>
+    <button type="button" id="push-btn" class="mais-linha config-linha btn-push" hidden>Ativar notificações</button>
+    </div>
 
-  <div id="modo-visitante-painel" hidden>
+    <h2 class="rotulo-tela">Privacidade e dados</h2>
+    <div class="mais-grupo config-grupo">
+    <button type="button" id="modo-visitante-btn" class="mais-linha config-linha" aria-label="Ativar modo visitante (esconde financeiro, saúde e decisões)" aria-pressed="false">
+      <span class="mais-tile tile-ambar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+      <span class="mais-textos"><span class="mais-titulo">Modo visitante</span><span class="mais-sub">Esconde financeiro, saúde e decisões</span></span>
+      <span class="config-estado" aria-hidden="true">Ligado</span>
+      <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+    </button>
+  <div id="modo-visitante-painel" class="config-painel" hidden>
     <p class="silencio-titulo">Modo visitante ativo</p>
     <p class="silencio-descricao">
       Financeiro, saúde e diário de decisão estão ocultos. Digita o PIN pra desativar.
@@ -96,7 +89,44 @@
     </div>
     <p id="modo-visitante-status"></p>
   </div>
+    <button type="button" id="backup-btn" class="mais-linha config-linha" aria-label="Exportar ou baixar backup" aria-expanded="false">
+      <span class="mais-tile tile-verde"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
+      <span class="mais-textos"><span class="mais-titulo">Backup e exportar</span><span class="mais-sub">Banco, JSON ou planilhas (CSV)</span></span>
+      <span class="config-estado" aria-hidden="true">Ligado</span>
+      <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+    </button>
+  <div id="backup-painel" class="config-painel" hidden>
+    <p class="silencio-titulo">Exportar / backup</p>
+    <p class="silencio-descricao">
+      Backup manual, na hora - o automático semanal (se configurado) roda sozinho pelo
+      scheduler. Ver <code>docs/BACKUP.md</code> pra detalhes de cada formato e como restaurar.
+    </p>
+    <div class="backup-opcoes">
+      <a href="/api/backup/exportar" class="btn-com-icone" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Banco (.db)
+      </a>
+      <a href="/api/backup/exportar-json" class="btn-com-icone" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Tudo em JSON
+      </a>
+      <a href="/api/backup/exportar-csv-completo" class="btn-com-icone" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Tudo em CSV (.zip)
+      </a>
+    </div>
+  </div>
+    <div class="mais-linha mais-linha-estatica config-linha" id="config-custo-ia">
+      <span class="mais-tile tile-gelo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.5c-.5-1-1.5-1.5-2.5-1.5-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2c-1 0-2-.5-2.5-1.5M12 6.5V8M12 16v1.5"/></svg></span>
+      <span class="mais-textos"><span class="mais-titulo">Custo da IA</span><span id="uso-custo" class="mais-sub custo-ia"></span></span>
+    </div>
+    </div>
 
-  <p id="erro-banner" class="erro" hidden aria-live="polite"></p>
-  <p id="offline-banner" class="offline-banner" hidden aria-live="polite"></p>
-
+    <div class="mais-grupo config-grupo">
+    <button type="button" id="logout-btn" class="mais-linha config-linha config-sair" aria-label="Sair">
+      <span class="mais-tile tile-vermelho"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></span>
+      <span class="mais-textos"><span class="mais-titulo">Sair</span><span class="mais-sub">Bloqueia o painel até digitar o PIN</span></span>
+      <span class="config-estado" aria-hidden="true">Ligado</span>
+      
+    </button>
+    </div>

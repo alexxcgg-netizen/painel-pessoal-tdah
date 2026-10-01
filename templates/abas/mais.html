@@ -1,0 +1,95 @@
+{% from "componentes/cabecalho-tela.html" import cabecalho_tela %}
+    {# R1 (reformulação): tela Mais - tudo o que não cabe na barra de 5. Cada linha com
+       data-abre-tela abre a tela (showTab) e, com data-alvo, rola até a seção e abre a
+       .secao-recolhivel se estiver fechada (static/js/nucleo/navegacao.js, abrirPeloMais).
+       Os subtítulos com id (mais-sub-*) são ganchos pra dado real (onda R2). #}
+    <section id="tab-mais" class="tab-content" hidden>
+{{ cabecalho_tela("Mais", "Tudo o que não cabe na barra") }}
+
+      <h2 class="rotulo-tela"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19.5s-7.5-4.4-7.5-10A4.3 4.3 0 0 1 12 6.8a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10-7.5 10Z"/></svg>Vida</h2>
+      <div class="mais-grupo">
+        <button type="button" class="mais-linha" data-abre-tela="painel">
+          <span class="mais-tile tile-gelo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Meu dia</span><span class="mais-sub" id="mais-sub-painel">Resumo, agenda, rotina e check-in</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="mais-linha" data-abre-tela="painel" data-alvo="#saude-grid">
+          <span class="mais-tile tile-vermelho"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19.5s-7.5-4.4-7.5-10A4.3 4.3 0 0 1 12 6.8a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10-7.5 10Z"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Saúde</span><span class="mais-sub" id="mais-sub-saude">Passos, sono, remédios e peso</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="mais-linha" data-abre-tela="vida" data-alvo="#vida-habitos">
+          <span class="mais-tile tile-ambar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Hábitos e metas</span><span class="mais-sub" id="mais-sub-habitos">Hábitos do dia e projetos</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="mais-linha" data-abre-tela="vida" data-alvo='[data-secao-id="vida-pessoas"]'>
+          <span class="mais-tile tile-azul"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.8 14.6a4.5 4.5 0 0 1 4.7 4.9"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Pessoas</span><span class="mais-sub" id="mais-sub-pessoas">Aniversários e conversas</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="mais-linha" data-abre-tela="vida" data-alvo='[data-secao-id="vida-viagens"]'>
+          <span class="mais-tile tile-verde"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7.5" width="16" height="12" rx="3"/><path d="M9 7.5V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5.5v2"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Viagens e lugares</span><span class="mais-sub" id="mais-sub-viagens">Planos de viagem e lugares salvos</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="mais-linha" data-abre-tela="painel" data-alvo="#lista-notas">
+          <span class="mais-tile tile-gelo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4M9 12h6M9 15.5h6"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Notas e ideias</span><span class="mais-sub" id="mais-sub-notas">Notas rápidas e brain dump</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="mais-linha" data-abre-tela="vida">
+          <span class="mais-tile tile-roxo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20H4z"/><path d="M10 20v-5.5h4V20"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Vida completa</span><span class="mais-sub">Compras, casa, treino, contas e mais</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <h2 class="rotulo-tela"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20.5h16M6 20.5V5.5l8-2v17M14 9.5h4v11"/><path d="M9 8h2M9 11.5h2M9 15h2"/></svg>Trabalho e voo</h2>
+      <div class="mais-grupo">
+        <button type="button" class="mais-linha" data-abre-tela="aviacao">
+          <span class="mais-tile tile-roxo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v16M12 9 3 14M12 9l9 5M12 16l-4 3M12 16l4 3"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Aviação</span><span class="mais-sub" id="mais-sub-aviacao">Horas, METAR e próximo voo</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="mais-linha" data-abre-tela="construtora">
+          <span class="mais-tile tile-ambar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20.5h16M6 20.5V5.5l8-2v17M14 9.5h4v11"/><path d="M9 8h2M9 11.5h2M9 15h2"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Construtora</span><span class="mais-sub" id="mais-sub-construtora">Contas a vencer e cotações</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <h2 class="rotulo-tela"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/></svg>Ajustes</h2>
+      <div class="mais-grupo">
+        {# Hiperfoco (25/50/90): mesmo #hiperfoco-box de antes (static/js/secoes/hoje/hiperfoco.js
+           seleciona por id), que morava no topo global. #}
+        <div class="mais-linha mais-linha-estatica" id="mais-hiperfoco">
+          <span class="mais-tile tile-gelo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3.5 6 13.5h5.5l-1 7 7-10H12z"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Hiperfoco</span><span class="mais-sub">Só aviso crítico passa</span></span>
+        </div>
+        <div id="hiperfoco-box" class="hiperfoco-box">
+          <div id="hiperfoco-inativo" class="hiperfoco-linha">
+            <div class="hiperfoco-botoes" role="group" aria-label="Duração do hiperfoco">
+              <button type="button" class="hiperfoco-btn" data-minutos="25">25 min</button>
+              <button type="button" class="hiperfoco-btn" data-minutos="50">50 min</button>
+              <button type="button" class="hiperfoco-btn" data-minutos="90">90 min</button>
+            </div>
+          </div>
+          <div id="hiperfoco-ativo" class="hiperfoco-linha hiperfoco-ligado" hidden>
+            <span><strong>Em hiperfoco</strong> - <span id="hiperfoco-restante"></span></span>
+            <button type="button" id="hiperfoco-parar" class="btn-link">encerrar</button>
+          </div>
+        </div>
+        <button type="button" class="mais-linha" data-abre-tela="ajustes-ia">
+          <span class="mais-tile tile-azul"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Avisos e regras</span><span class="mais-sub" id="mais-sub-avisos">Pendências, regras e avisos do assistente</span></span>
+          <span class="nav-selo mais-selo" hidden>0</span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="mais-linha" data-abre-tela="config">
+          <span class="mais-tile tile-verde"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/></svg></span>
+          <span class="mais-textos"><span class="mais-titulo">Configurações</span><span class="mais-sub">Silêncio, viagem, visitante, backup, custo da IA, sair</span></span>
+          <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+    </section>

@@ -56,7 +56,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path  # noqa: E402
+from tests.playwright_helper import get_chrome_path, abrir_tela  # noqa: E402
 
 _CHROME = get_chrome_path()
 
@@ -110,7 +110,7 @@ class Anim2TestCase(unittest.TestCase):
         page.on("pageerror", lambda exc: erros.append(str(exc)))
         page.goto(BASE_URL + "/")
         page.wait_for_load_state("networkidle")
-        page.click('.tab-btn[data-tab="painel"]')
+        abrir_tela(page, "painel")  # R1: Painel abre pelo Mais (saiu da barra)
         page.wait_for_selector("#lista-notas", state="attached")
         page.evaluate("loadNotas()")  # espera a carga inicial terminar (evita corrida com o teste)
         page.wait_for_timeout(300)
@@ -333,8 +333,8 @@ class Anim2TestCase(unittest.TestCase):
                             loc.nth(rnd.randrange(loc.count())).locator("button").evaluate("b => b.click()")
                             page.wait_for_timeout(rnd.choice([0, 30, 120, 300]))
                     elif op == "aba":
-                        page.click(f'.tab-btn[data-tab="{rnd.choice(["hoje", "tarefas", "painel"])}"]')
-                        page.click('.tab-btn[data-tab="painel"]')
+                        abrir_tela(page, rnd.choice(["hoje", "tarefas", "painel"]))  # R1: via Mais se fora da barra
+                        abrir_tela(page, "painel")
                     elif op == "reduzido":
                         page.emulate_media(reduced_motion="reduce")
                     elif op == "normal":

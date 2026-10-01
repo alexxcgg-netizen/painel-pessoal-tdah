@@ -323,3 +323,11 @@
 .btn.btn-perigo:focus-visible {
   box-shadow: var(--anel-foco);
 }
+
+/* R1 (reformulação): escala nova - botão de ação com no mínimo 52px de altura e texto 16px.
+   Só os botões "de verdade" (com rótulo); botão-ícone, chip e link de texto ficam como estão. */
+main :is(.btn, .btn-com-icone, .btn-adicionar, .btn-primario):not(.btn-link):not(.cab-tela-acao):not(.cab-tela-voltar),
+.bottom-sheet :is(.btn, .btn-com-icone, .btn-primario):not(.btn-link) {
+  min-height: var(--toque-controle);
+  border-radius: var(--raio-controle);
+}

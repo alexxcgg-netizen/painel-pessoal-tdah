@@ -1,0 +1,27 @@
+{# R1 (reformulação): cabeçalho POR TELA, no lugar do topo global antigo (o bloco de
+   secoes/topo/cabecalho.html + captura.html que aparecia em todas as abas).
+   Uso:  {% from "componentes/cabecalho-tela.html" import cabecalho_tela %}
+         {{ cabecalho_tela("Tarefas", "O que fazer, em ordem") }}
+   voltar=True     -> botão "‹" à esquerda que volta pra tela Mais (telas abertas por Mais).
+   acao_aba        -> botão de ação de 44px à direita que abre essa tela (acao_rotulo = aria-label).
+   acao_icone      -> conteúdo <path .../> do SVG da ação (viewBox 24, traço).
+   id_sub          -> id do subtítulo, pra JS preencher (ex.: data do dia no Início).
+   CSS: static/css/ui/componentes/navegacao.css (.cab-tela). #}
+{% macro cabecalho_tela(titulo, subtitulo, voltar=False, acao_aba=None, acao_rotulo=None, acao_icone=None, id_sub=None) -%}
+      <header class="cab-tela{% if voltar %} cab-tela-com-voltar{% endif %}">
+{%- if voltar %}
+        <button type="button" class="cab-tela-voltar" data-volta-para="mais" aria-label="Voltar para Mais">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 6-6 6 6 6"/></svg>
+        </button>
+{%- endif %}
+        <div class="cab-tela-textos">
+          <h1 class="cab-tela-titulo">{{ titulo }}</h1>
+          <p class="cab-tela-sub"{% if id_sub %} id="{{ id_sub }}"{% endif %}>{{ subtitulo }}</p>
+        </div>
+{%- if acao_aba %}
+        <button type="button" class="cab-tela-acao" data-abre-tela="{{ acao_aba }}" aria-label="{{ acao_rotulo }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ acao_icone | safe }}</svg>
+        </button>
+{%- endif %}
+      </header>
+{%- endmacro %}

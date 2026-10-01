@@ -104,3 +104,8 @@
   outline: none;
   box-shadow: var(--anel-foco), var(--elevacao-1);
 }
+
+/* R1 (reformulação): escala nova - card 22px (via --radius, tokens.css) com padding 16–22. */
+.card {
+  padding: var(--espaco-card);
+}

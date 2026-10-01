@@ -238,9 +238,10 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
           // listener de clique de regras.js/avisos.js (cada secao carrega os
           // proprios dados no clique da aba, ver comentario mais abaixo) tambem
           // dispara - equivalente ao Alex tocar na aba Assistente na barra.
-          const btn = document.querySelector('.tab-btn[data-tab="assistente"]');
-          if (btn) btn.click();
-          else if (typeof showTab === "function") showTab("assistente");
+          // R1: a lista completa mudou pra tela "ajustes-ia" (Mais › Avisos e regras), sem
+          // botao na barra - showTab dispara "aba:aberta", que regras.js/avisos.js e este
+          // arquivo ouvem pra carregar.
+          if (typeof showTab === "function") showTab("ajustes-ia");
         });
       }
     }
@@ -338,13 +339,13 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
     // A aba Assistente ainda nao entra no roteiro de showTab() (nucleo/navegacao.js
     // nao e arquivo desta faixa - anotado em scripts/ralph-p1b-caixa-ui/progress.txt).
     // A propria secao recarrega os dados no clique do botao da barra.
-    const btnAbaAssistente = document.querySelector('.tab-btn[data-tab="assistente"]');
-    if (btnAbaAssistente) {
-      btnAbaAssistente.addEventListener("click", () => {
-        carregarCaixa();
-        carregarHistorico();
-      });
-    }
+    // R1: a caixa mudou pra tela "ajustes-ia" (sem botao na barra) - recarrega quando
+    // ela abre (evento de showTab), por qualquer caminho.
+    document.addEventListener("aba:aberta", (ev) => {
+      if (!ev.detail || ev.detail.aba !== "ajustes-ia") return;
+      carregarCaixa();
+      carregarHistorico();
+    });
 
     window.carregarCaixaAssistente = carregarCaixa;
   })();

@@ -2,8 +2,12 @@
 <html lang="pt-br">
 {% include "head.html" %}
 <body>
-{% include "secoes/topo/cabecalho.html" %}
-{% include "secoes/topo/captura.html" %}
+  <div class="aurora" aria-hidden="true"></div>
+  {# R1: o topo global (secoes/topo/cabecalho.html + captura.html) saiu de cima de todas as
+     telas - cada tela tem o próprio cabeçalho (componentes/cabecalho-tela.html). Os avisos
+     de erro/offline continuam globais, aqui. #}
+  <p id="erro-banner" class="erro" hidden aria-live="polite"></p>
+  <p id="offline-banner" class="offline-banner" hidden aria-live="polite"></p>
   <main>
 {% include "abas/hoje.html" %}
 {% include "abas/painel.html" %}
@@ -14,8 +18,12 @@
 {% include "abas/aviacao.html" %}
 
 {% include "abas/assistente.html" %}
+{% include "abas/ajustes-ia.html" %}
+{% include "abas/mais.html" %}
+{% include "abas/config.html" %}
   </main>
 
+{% include "secoes/topo/captura.html" %}
 {% include "navegacao.html" %}
 {% include "scripts.html" %}
 </body>

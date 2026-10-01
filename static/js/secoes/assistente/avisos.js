@@ -146,10 +146,10 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
 
     wireFormSilencio();
 
-    const btnAbaAssistente = document.querySelector('.tab-btn[data-tab="assistente"]');
-    if (btnAbaAssistente) {
-      btnAbaAssistente.addEventListener("click", carregarAvisos);
-    }
+    // R1: avisos mudaram pra tela "ajustes-ia" (Mais › Avisos e regras).
+    document.addEventListener("aba:aberta", (ev) => {
+      if (ev.detail && ev.detail.aba === "ajustes-ia") carregarAvisos();
+    });
 
     window.carregarAvisosAssistente = carregarAvisos;
   })();

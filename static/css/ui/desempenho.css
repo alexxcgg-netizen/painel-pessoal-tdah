@@ -18,14 +18,15 @@
 
    #tab-painel: os 5 primeiros cards (saudacao/sobrecarga/previa-noite/
    rotina/checkin + resumo do dia) ja sao os que aparecem sem rolar (mesma
-   contagem usada em navegacao.js/A2c) - so a partir do 6o filho.
+   contagem usada em navegacao.js/A2c) - so a partir do 6o card (7o filho:
+   R1 pos o cabecalho da tela .cab-tela como 1o filho).
    IMPORTANTE: marcarEntradaEscalonada (movimento.js, chamada em rAF por
    navegacao.js) so mede getBoundingClientRect nos 8 primeiros filhos SEM
    escrever estilo nos que estao fora da tela - continua funcionando igual
    com content-visibility (le a caixa reservada por contain-intrinsic-size,
    nao forca o layout real desses filhos escondidos). */
-#tab-painel > .painel-secao-card:nth-child(n + 6),
-#tab-painel > .secao-recolhivel:nth-child(n + 6) {
+#tab-painel > .painel-secao-card:nth-child(n + 7),
+#tab-painel > .secao-recolhivel:nth-child(n + 7) {
   content-visibility: auto;
   contain-intrinsic-size: auto 220px;
 }

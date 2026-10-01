@@ -135,10 +135,10 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       carregarRegras();
     }
 
-    const btnAbaAssistente = document.querySelector('.tab-btn[data-tab="assistente"]');
-    if (btnAbaAssistente) {
-      btnAbaAssistente.addEventListener("click", carregarRegras);
-    }
+    // R1: regras mudaram pra tela "ajustes-ia" (Mais › Avisos e regras).
+    document.addEventListener("aba:aberta", (ev) => {
+      if (ev.detail && ev.detail.aba === "ajustes-ia") carregarRegras();
+    });
 
     window.carregarRegrasAssistente = carregarRegras;
   })();

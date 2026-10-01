@@ -236,8 +236,10 @@ async function enviarCaptura(text, clarificacao, campoOrigem) {
   pulsarSucesso($("#captura-input"));
   vibrar(20);
   tocarSomSucesso();
-  cardSalvando.replaceWith(criarCardsCaptura(data));
+  const cardsNovos = criarCardsCaptura(data);
+  cardSalvando.replaceWith(cardsNovos);
   listaChat.scrollTop = listaChat.scrollHeight;
+  avisarRetornoNaFolha(cardsNovos);
   loadSummary();
   loadStreak();
   if (data.memoria) loadMemorias();
@@ -270,3 +272,58 @@ $("#duvida-btn").addEventListener("click", () => {
 $("#duvida-input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") $("#duvida-btn").click();
 });
+
+// ---- R1 (reformulação): folha do botão "+" (secoes/topo/captura.html) ----
+// O resultado da captura continua indo pro histórico (#chat-mensagens, agora na tela IA);
+// a folha mostra uma linha curta de confirmação pra quem está nela não ficar no escuro.
+function avisarRetornoNaFolha(cardsNovos) {
+  const retorno = document.getElementById("captura-retorno");
+  if (!retorno) return;
+  let titulo = "";
+  try {
+    const el = cardsNovos && cardsNovos.querySelector && cardsNovos.querySelector('[class*="titulo"]');
+    titulo = el ? el.textContent.trim() : "";
+  } catch (e) {
+    titulo = "";
+  }
+  retorno.textContent = titulo ? `Salvo: ${titulo}` : "Salvo.";
+  retorno.hidden = false;
+}
+
+// Atalhos (Tarefa, Gasto, Lembrete, Nota): não há fluxo próprio - põem um prefixo no MESMO
+// campo, que já classifica texto livre, e devolvem o foco pra ele.
+(function ligarAtalhosDaFolha() {
+  const campo = document.getElementById("captura-input");
+  const atalhos = document.querySelectorAll(".folha-atalho[data-prefixo]");
+  if (!campo || !atalhos.length) return;
+  const prefixos = Array.from(atalhos, (b) => b.dataset.prefixo);
+  atalhos.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      let texto = campo.value;
+      for (const p of prefixos) {
+        if (texto.toLowerCase().startsWith(p.toLowerCase())) {
+          texto = texto.slice(p.length);
+          break;
+        }
+      }
+      campo.value = btn.dataset.prefixo + texto;
+      atalhos.forEach((b) => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+      campo.focus();
+      try {
+        campo.setSelectionRange(campo.value.length, campo.value.length);
+      } catch (e) {
+        /* input sem seleção (navegador antigo): só o foco já serve */
+      }
+    });
+  });
+  // Folha abrindo de novo: limpa a confirmação da vez anterior.
+  const fab = document.getElementById("fab-captura");
+  if (fab) {
+    fab.addEventListener("click", () => {
+      const retorno = document.getElementById("captura-retorno");
+      if (retorno) retorno.hidden = true;
+      atalhos.forEach((b) => b.setAttribute("aria-pressed", "false"));
+      requestAnimationFrame(() => campo.focus());
+    });
+  }
+})();

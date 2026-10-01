@@ -176,3 +176,11 @@ select.campo {
   height: var(--toque-min);
   transform: translate(-50%, -50%);
 }
+
+/* R1 (reformulação): escala nova - campo com no mínimo 52px de altura e texto 16px
+   (16px também evita o zoom automático do Safari ao focar). */
+main :is(input[type="text"], input[type="number"], input[type="date"], input[type="time"], input[type="search"], input[type="password"], input[type="email"], input[type="url"], input[type="tel"], input:not([type]), select),
+.bottom-sheet :is(input[type="text"], input[type="number"], input[type="date"], input[type="time"], input:not([type]), select) {
+  min-height: var(--toque-controle);
+  font-size: var(--tipo-corpo);
+}
