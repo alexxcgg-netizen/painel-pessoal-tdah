@@ -5,6 +5,20 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-01 - Reformulação, etapa 3: acabamento das telas internas
+
+- Tarefas, Finanças, Meu dia, Vida, Aviação, Construtora, Configurações, Avisos e regras e a folha do + no
+  mesmo padrão do Início: rótulo de seção único (13 px CAIXA ALTA + ícone), cards raio 22 sem gradiente nem
+  borda dourada, botões/campos 52 px, links soltos viram pílulas de 44 px, ajuda "!" vira (i), estados
+  vazios com ícone, acentos corrigidos nos textos de tela.
+- Tarefas: chips numa linha própria, "concluir" grande + editar, "quebrar" em linha inteira (nenhuma ação
+  removida). Finanças: CSV/Nubank viram botões de 52 px, eixo do gráfico legível, "Evolução do mês" com 1 dia
+  mostra o total. Meu dia: números no estilo do Início, avatar sem brilho.
+- Início: faixa "assistente ainda não rodou" só com pendência real. IA: placeholder "Pergunta ou fala algo…",
+  "ouvir" das bolhas com 44 px. Toast de erro some sozinho em 6 s.
+- Teste novo `test_r3_acabamento.py`: em 390 e 320 px nenhum alvo de toque < 44 px, nenhum texto < 12 px,
+  sem overflow horizontal, títulos de seção idênticos. Service worker v38.
+
 ## 2026-10-01 - Reformulação, etapa 2: Início e IA com conteúdo novo
 
 - **Início**: hero ("Bom dia, Alex!" + resumo real + chip "N atrasadas"/"Tudo em dia" + Ouvir), card "Agora"
