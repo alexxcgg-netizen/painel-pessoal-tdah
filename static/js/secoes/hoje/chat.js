@@ -270,6 +270,8 @@ function initVozChat() {
   }
   new MutationObserver(irProFim).observe(lista, { childList: true, subtree: true, characterData: true });
   document.addEventListener("aba:aberta", (ev) => {
-    if (ev.detail && ev.detail.aba === "assistente") requestAnimationFrame(irProFim);
+    // depois do 1º paint da tela (mesmo padrão de Gastos em navegacao.js): não soma
+    // layout ao toque que abriu a IA.
+    if (ev.detail && ev.detail.aba === "assistente") requestAnimationFrame(() => setTimeout(irProFim, 0));
   });
 })();

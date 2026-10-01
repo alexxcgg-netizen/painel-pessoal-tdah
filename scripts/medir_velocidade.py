@@ -352,7 +352,11 @@ def seletor_toque_aba(page, aba):
         return f'.tab-btn[data-tab="{aba}"]'
     abrir_aba(page, "mais")
     page.wait_for_timeout(120)
-    return f'#tab-mais [data-abre-tela="{aba}"]:not([data-alvo])'
+    seletor = f'#tab-mais [data-abre-tela="{aba}"]:not([data-alvo])'
+    # linha abaixo da dobra (ex.: Construtora) ficaria atras da barra: traz pro meio da tela
+    page.locator(seletor).first.evaluate("el => el.scrollIntoView({block: 'center', behavior: 'instant'})")
+    page.wait_for_timeout(80)
+    return seletor
 
 
 def coletar_longtasks(page):

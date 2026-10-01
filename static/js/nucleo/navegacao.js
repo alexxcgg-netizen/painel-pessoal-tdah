@@ -201,11 +201,12 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 // Abre uma tela vinda do Mais (ou da ação de um cabeçalho). `alvo` (opcional) é um seletor
 // CSS dentro da tela: rola até ele e, se estiver numa .secao-recolhivel fechada, abre.
 function abrirPeloMais(aba, alvo) {
+  // Volta pro topo ANTES de revelar a tela nova: com a tela de saída ainda montada o
+  // scroll não força layout da tela que entra dentro do toque (medido: rolar depois do
+  // showTab punha ~30 ms de layout síncrono no INP do toque).
+  if (!alvo) window.scrollTo({ top: 0, behavior: "instant" });
   showTab(aba);
-  if (!alvo) {
-    window.scrollTo({ top: 0, behavior: "instant" });
-    return;
-  }
+  if (!alvo) return;
   // Depois do frame da revelação (a tela acabou de sair do hidden).
   requestAnimationFrame(() => {
     const tela = document.getElementById(`tab-${aba}`);
@@ -226,8 +227,8 @@ function abrirPeloMais(aba, alvo) {
 document.addEventListener("click", (ev) => {
   const voltar = ev.target.closest(".cab-tela-voltar");
   if (voltar) {
-    showTab(voltar.dataset.voltaPara || "mais");
     window.scrollTo({ top: 0, behavior: "instant" });
+    showTab(voltar.dataset.voltaPara || "mais");
     return;
   }
   const abre = ev.target.closest("[data-abre-tela]");
