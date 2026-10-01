@@ -105,7 +105,9 @@ class ExtratoSinalTestCase(_BaseTestCase):
 
     def test_categoria_vem_do_pluggy_e_origem_capitalizada(self):
         cartao_id = self._conta("nubank", "cartao")
-        self._tx(cartao_id, "c9", _iso(1), 30.0, "DEBIT", descricao="Raia362",
+        # hoje (nao ontem): o resumo e do mes corrente e, no dia 1o, "ontem" cai
+        # no mes anterior e por_categoria fica vazio.
+        self._tx(cartao_id, "c9", _iso(0), 30.0, "DEBIT", descricao="Raia362",
                  categoria_pluggy="Pharmacy", categoria="outros")
 
         corpo = self.client.get("/api/financas/extrato").get_json()

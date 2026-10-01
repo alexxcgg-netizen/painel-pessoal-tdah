@@ -7658,7 +7658,14 @@ class NotificacaoAgrupadaTestCase(_Fase5GrupoCTestCase):
         contra o relogio real em outro ponto do teste (ver
         `_forcar_janela_vencida`) fica no passado assim que o calendario
         real avanca, e so a HORA 14 precisa ser fixa aqui, nunca o dia."""
-        return datetime.combine(date.today(), datetime.min.time()).replace(hour=14)
+        hoje = date.today()
+        if hoje.day <= 3:
+            # dias 1-3 do mes disparam sozinhos a "revisao do mes" (_avisos_fase3,
+            # a partir das 9h) - um 4o aviso que nao e o que este teste mede.
+            # Fica no dia 10 do mesmo mes (orcamento e tarefa atrasada continuam
+            # valendo); _forcar_janela_vencida usa este mesmo relogio.
+            hoje = hoje.replace(day=10)
+        return datetime.combine(hoje, datetime.min.time()).replace(hour=14)
 
     def test_desligado_por_padrao_manda_cada_aviso_separado(self):
         self._duas_condicoes_nao_urgentes()
