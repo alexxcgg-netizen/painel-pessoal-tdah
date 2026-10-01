@@ -127,7 +127,7 @@
 main > .tab-content:not(#tab-assistente):not(#tab-mais) h2:not(.cab-tela-titulo):not(.folha-titulo):not(.inicio-saudacao):not(.bottom-sheet-titulo) {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
   margin: 0 0 12px;
   padding: 0;
