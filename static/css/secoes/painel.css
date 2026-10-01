@@ -134,3 +134,26 @@
   height: var(--toque-min);
   transform: translate(-50%, -50%);
 }
+
+/* R3 (acabamento): avatar sem brilho/sombra - tile de 52px no destaque, como os tiles de
+   ícone do Início; saudação no tamanho de título de card. */
+#tab-painel .avatar-usuario {
+  width: var(--tile-icone);
+  height: var(--tile-icone);
+  border: 0;
+  border-radius: var(--raio-tile);
+  background: color-mix(in srgb, var(--cor-destaque) 15%, transparent);
+  color: var(--cor-destaque);
+  box-shadow: none;
+  text-shadow: none;
+}
+
+#tab-painel .saudacao-texto {
+  font-size: 20px;
+  font-weight: var(--peso-titulo);
+}
+
+#tab-painel .saudacao-data {
+  font-size: var(--tipo-secundario);
+  color: var(--cor-texto-2);
+}
