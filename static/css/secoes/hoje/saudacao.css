@@ -31,7 +31,7 @@
    "Acesso rápido" e o aviso de 1 linha das pendências. Medidas copiadas da
    prévia aprovada (scratchpad/redesign/previa.html, tela 1). Sem glow, sem
    vidro: superfície sólida + borda, tokens da escala nova (ui/tokens.css).
-   HTML: templates/secoes/hoje/inicio.html · JS: secoes/hoje/saudacao.js.
+   JS: static/js/secoes/hoje/saudacao.js (loadInicio).
    ===================================================================== */
 #tab-hoje > .rotulo-tela {
   margin-bottom: 12px;
