@@ -7,8 +7,27 @@
 // esquerda voltando) - o mesmo tipo de pista de direcao que apps premium
 // usam em transicao de aba, em vez de um fade generico igual pra qualquer
 // troca.
-const ORDEM_ABAS = ["hoje", "painel", "aviacao", "vida", "tarefas", "gastos", "construtora", "assistente"];
+// R1 (reformulação): a barra tem 5 itens (Início, Tarefas, IA, Finanças, Mais). As telas
+// que saíram da barra (TELAS_DO_MAIS) continuam existindo com os mesmos ids/loaders e abrem
+// pela tela Mais: com uma delas aberta o item "Mais" fica ativo e o cabeçalho da tela tem
+// o "‹" que volta pra Mais. Na direção da animação elas contam como "depois do Mais"
+// (abrir = avança; voltar pra Mais = volta).
+const ORDEM_ABAS = ["hoje", "tarefas", "assistente", "gastos", "mais"];
+const TELAS_DO_MAIS = ["painel", "vida", "aviacao", "construtora", "ajustes-ia", "config"];
+// Telas onde o botão "+" (captura, secoes/topo/captura.html) aparece.
+const TELAS_COM_FAB = ["hoje", "tarefas", "gastos"];
 let abaAtual = "hoje";
+
+function itemDaBarra(name) {
+  return TELAS_DO_MAIS.includes(name) ? "mais" : name;
+}
+
+function posicaoDaAba(name) {
+  const i = ORDEM_ABAS.indexOf(name);
+  if (i >= 0) return i * 100;
+  const j = TELAS_DO_MAIS.indexOf(name);
+  return j >= 0 ? ORDEM_ABAS.indexOf("mais") * 100 + 1 + j : -1;
+}
 
 // Vel (vel3): cache curto de "esta aba ja carregou". Cada troca de aba
 // re-disparava TODOS os GET /api dela (13 em Gastos, 17 em Vida, ~18 em
@@ -45,8 +64,8 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", invalidarDadosAbas);
 
 function showTab(name) {
-  const indiceAtual = ORDEM_ABAS.indexOf(abaAtual);
-  const indiceNovo = ORDEM_ABAS.indexOf(name);
+  const indiceAtual = posicaoDaAba(abaAtual);
+  const indiceNovo = posicaoDaAba(name);
   const direcao =
     indiceNovo > indiceAtual ? "entra-direita" : indiceNovo < indiceAtual ? "entra-esquerda" : null;
 
@@ -79,10 +98,20 @@ function showTab(name) {
       elNovo.hidden = false;
       if (direcao) elNovo.classList.add(direcao);
     }
+    const item = itemDaBarra(name);
     document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.tab === name);
+      const ativo = btn.dataset.tab === item;
+      btn.classList.toggle("active", ativo);
+      if (ativo) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
     });
+    const fab = document.getElementById("fab-captura");
+    if (fab) fab.hidden = !TELAS_COM_FAB.includes(name);
   });
+  // R1: a folha do "+" fecha se algo trocar de tela com ela aberta (ex.: comando de voz
+  // "abre a aba vida").
+  const folha = document.getElementById("folha-captura");
+  if (folha && !folha.hidden && typeof fecharBottomSheet === "function") fecharBottomSheet(folha);
   // Vis (C2) + Vel (medir_velocidade.py "resultado visivel" = ate #tab-X sem
   // hidden): a aba precisa aparecer PRIMEIRO - a marcacao escalonada (30ms, 8
   // primeiros, SO na 1a abertura de Painel/Vida nesta sessao) nunca entra na
@@ -156,8 +185,62 @@ function showTab(name) {
     loadCotacoes();
   }
   if (name === "aviacao") loadVoosResumo();
+  // R1: aviso de "tela aberta" pra quem carrega dados ao abrir uma tela que não tem mais
+  // botão na barra (Vida em init.js; caixa/regras/avisos em ajustes-ia). Antes eles
+  // ouviam o clique do .tab-btn da própria aba; agora vale pra qualquer caminho (barra,
+  // Mais, link de card, comando de voz). Síncrono, no fim da troca - mesma ordem de antes.
+  document.dispatchEvent(new CustomEvent("aba:aberta", { detail: { aba: name } }));
 }
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => showTab(btn.dataset.tab));
 });
+
+// ---- R1: tela Mais, cabeçalho por tela ("‹" e ação) ----
+
+// Abre uma tela vinda do Mais (ou da ação de um cabeçalho). `alvo` (opcional) é um seletor
+// CSS dentro da tela: rola até ele e, se estiver numa .secao-recolhivel fechada, abre.
+function abrirPeloMais(aba, alvo) {
+  showTab(aba);
+  if (!alvo) {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    return;
+  }
+  // Depois do frame da revelação (a tela acabou de sair do hidden).
+  requestAnimationFrame(() => {
+    const tela = document.getElementById(`tab-${aba}`);
+    const el = tela && tela.querySelector(alvo);
+    if (!el) return;
+    const secao = el.closest(".secao-recolhivel") || (el.matches(".secao-recolhivel") ? el : null);
+    if (secao && secao.dataset.aberto === "false") {
+      const cab = secao.querySelector(".secao-cabecalho");
+      if (cab) cab.click();
+    }
+    const bloco = el.closest(".card, .secao-recolhivel") || el;
+    const reduzir = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    bloco.scrollIntoView({ block: "start", behavior: reduzir ? "instant" : "smooth" });
+  });
+}
+
+document.addEventListener("click", (ev) => {
+  const voltar = ev.target.closest(".cab-tela-voltar");
+  if (voltar) {
+    showTab(voltar.dataset.voltaPara || "mais");
+    window.scrollTo({ top: 0, behavior: "instant" });
+    return;
+  }
+  const abre = ev.target.closest("[data-abre-tela]");
+  if (abre) abrirPeloMais(abre.dataset.abreTela, abre.dataset.alvo || null);
+});
+
+// Subtítulo do Início: data de hoje por extenso ("quinta, 1 de outubro").
+(function preencherDataDoInicio() {
+  const el = document.getElementById("cab-inicio-data");
+  if (!el) return;
+  try {
+    const txt = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+    el.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
+  } catch (e) {
+    /* mantém "Hoje" do HTML */
+  }
+})();

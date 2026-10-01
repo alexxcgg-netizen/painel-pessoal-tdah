@@ -143,10 +143,9 @@ if (typeof Cards !== "undefined") {
     // A aba Vida so carrega as listas no clique da tabbar (vida.js) - o
     // link "Abrir Projetos/Hábitos/Viagens" de um card (US-E7) precisa
     // disparar o mesmo carregamento, senao a lista de destino fica vazia.
-    showTab: (aba) => {
-      showTab(aba);
-      if (aba === "vida" && typeof loadVidaAba === "function") loadVidaAba();
-    },
+    // R1: showTab agora dispara "aba:aberta" e init.js carrega Vida por esse evento
+    // (com o cache curto de abaPrecisaCarregar) - chamar loadVidaAba aqui duplicaria.
+    showTab: (aba) => showTab(aba),
     aoMudar: recarregarAposMudancaDeCard,
   });
 }

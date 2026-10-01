@@ -1,53 +1,75 @@
-  <section id="captura">
-    <input type="text" id="captura-input" placeholder="Digite algo: tarefa, lembrete, gasto ou meta..." />
-    <button id="captura-btn" class="btn-com-icone">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-      Adicionar
-    </button>
-  </section>
+{# R1 (reformulação): a captura saiu do topo global. Agora é um botão "+" (FAB, só em
+   Início, Tarefas e Finanças - navegacao.js esconde nas outras) que abre uma folha
+   inferior (componente static/js/ui/bottom-sheet.js: fecha arrastando, tocando no véu ou
+   com ESC; foco preso enquanto aberta; respeita reduced-motion e safe-area).
+   Ids de sempre (#captura, #captura-input, #captura-btn, #duvida-*, #comando-voz-*):
+   static/js/secoes/topo/captura.js e static/js/voz-comando.js continuam ligando por id.
+   Os 4 atalhos não têm fluxo próprio: põem um prefixo no MESMO campo (que já classifica
+   texto livre) e devolvem o foco pra ele. #}
+  <button type="button" id="fab-captura" class="fab-captura" data-abre-sheet="folha-captura" aria-label="Adicionar (tarefa, gasto, lembrete ou nota)" aria-haspopup="dialog">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
 
-  <section id="duvida-box" hidden>
-    <p id="duvida-texto"></p>
-    <input type="text" id="duvida-input" placeholder="Responde aqui..." />
-    <button id="duvida-btn" class="btn-com-icone">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2.5-8.5L3 11Z"/></svg>
-      Enviar
-    </button>
-  </section>
+  <div class="bottom-sheet folha-captura" id="folha-captura" hidden aria-labelledby="folha-captura-titulo">
+    <h2 class="folha-titulo" id="folha-captura-titulo">Adicionar</h2>
 
-  <section id="comando-voz" class="comando-voz-linha">
-    <div class="comando-voz-principal">
-      <button type="button" id="comando-voz-btn" class="btn-com-icone" aria-label="Comando de voz">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>
-        Comando de voz
+    <section id="captura">
+      <input type="text" id="captura-input" placeholder="Escreve do seu jeito: &quot;mercado 80 reais&quot;" autocomplete="off" enterkeyhint="send" aria-label="O que você quer anotar" />
+      <button id="captura-btn" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar
       </button>
-      <p id="comando-voz-status" class="comando-voz-status" hidden></p>
-    </div>
-    <div id="hiperfoco-box" class="hiperfoco-box">
-      <div id="hiperfoco-inativo" class="hiperfoco-linha">
-        <span class="card-vida-meta">Hiperfoco (só aviso crítico passa):</span>
-        <div class="hiperfoco-botoes">
-          <button type="button" class="hiperfoco-btn" data-minutos="25">25 min</button>
-          <button type="button" class="hiperfoco-btn" data-minutos="50">50 min</button>
-          <button type="button" class="hiperfoco-btn" data-minutos="90">90 min</button>
-        </div>
-      </div>
-      <div id="hiperfoco-ativo" class="hiperfoco-linha hiperfoco-ligado" hidden>
-        <span><strong>Em hiperfoco</strong> - <span id="hiperfoco-restante"></span></span>
-        <button type="button" id="hiperfoco-parar" class="btn-link">encerrar</button>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="comando-voz-confirmar" hidden>
-    <p id="comando-voz-confirmar-texto"></p>
-    <div id="comando-voz-confirmar-opcoes" class="comando-voz-opcoes"></div>
-    <div class="comando-voz-confirmar-botoes">
-      <button type="button" id="comando-voz-confirmar-sim" class="btn-com-icone">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
-        Confirmar
+    <div class="folha-atalhos" role="group" aria-label="Atalhos de tipo">
+      <button type="button" class="folha-atalho" data-prefixo="tarefa: ">
+        <span class="folha-atalho-tile tile-gelo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10"/><path d="m3.5 6 1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17"/></svg></span>
+        Tarefa
       </button>
-      <button type="button" id="comando-voz-confirmar-nao" class="btn-link">Cancelar</button>
+      <button type="button" class="folha-atalho" data-prefixo="gastei ">
+        <span class="folha-atalho-tile tile-verde"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4"/><rect x="3.5" y="7.5" width="17" height="12" rx="3"/><circle cx="16" cy="13.5" r="1.2"/></svg></span>
+        Gasto
+      </button>
+      <button type="button" class="folha-atalho" data-prefixo="me lembra de ">
+        <span class="folha-atalho-tile tile-azul"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span>
+        Lembrete
+      </button>
+      <button type="button" class="folha-atalho" data-prefixo="nota: ">
+        <span class="folha-atalho-tile tile-ambar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4M9 12h6M9 15.5h6"/></svg></span>
+        Nota
+      </button>
     </div>
-  </section>
 
+    <section id="duvida-box" hidden>
+      <p id="duvida-texto"></p>
+      <input type="text" id="duvida-input" placeholder="Responde aqui..." />
+      <button id="duvida-btn" class="btn-com-icone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-8-8 18-2.5-8.5L3 11Z"/></svg>
+        Enviar
+      </button>
+    </section>
+
+    <p id="captura-retorno" class="folha-retorno" aria-live="polite" hidden></p>
+
+    <section id="comando-voz" class="comando-voz-linha">
+      <div class="comando-voz-principal">
+        <button type="button" id="comando-voz-btn" class="btn-com-icone folha-falar" aria-label="Comando de voz">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>
+          Falar
+        </button>
+        <p id="comando-voz-status" class="comando-voz-status" hidden></p>
+      </div>
+    </section>
+
+    <section id="comando-voz-confirmar" hidden>
+      <p id="comando-voz-confirmar-texto"></p>
+      <div id="comando-voz-confirmar-opcoes" class="comando-voz-opcoes"></div>
+      <div class="comando-voz-confirmar-botoes">
+        <button type="button" id="comando-voz-confirmar-sim" class="btn-com-icone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.5 11.5 15l4-5"/><circle cx="12" cy="12" r="9"/></svg>
+          Confirmar
+        </button>
+        <button type="button" id="comando-voz-confirmar-nao" class="btn-link">Cancelar</button>
+      </div>
+    </section>
+  </div>

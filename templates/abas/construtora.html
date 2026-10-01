@@ -1,4 +1,6 @@
+{% from "secoes/topo/cabecalho-tela.html" import cabecalho_tela %}
     <section id="tab-construtora" class="tab-content" hidden>
+{{ cabecalho_tela("Construtora", "Contas a vencer e cotações", voltar=True) }}
 {% include "secoes/construtora/construtora.html" %}
 {% include "secoes/construtora/contas-a-pagar.html" %}
 {% include "secoes/construtora/cotacoes.html" %}

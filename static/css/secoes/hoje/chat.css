@@ -56,3 +56,103 @@
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
+
+/* =====================================================================
+   R1 (reformulação): o chat mudou da aba Hoje pra tela IA (#tab-assistente).
+   Lista rola dentro da própria caixa (chat.js faz lista.scrollTop =
+   scrollHeight a cada mensagem) e ocupa a altura da tela entre o cabeçalho
+   e o campo; o campo fica FIXO acima da barra (56px, mic + enviar).
+   A tela IA não usa o translateY da troca de aba: um position:fixed dentro
+   de um pai com transform se prende ao pai durante a animação.
+   ===================================================================== */
+#tab-assistente.tab-content:not([hidden]) {
+  animation-name: tabEntraIA;
+}
+
+@keyframes tabEntraIA {
+  from {
+    opacity: 0;
+  }
+}
+
+#tab-assistente #chat-mensagens {
+  /* 100dvh - topo do body(14) - cabeçalho(~66+22) - campo(56) - respiros - barra */
+  height: calc(100dvh - env(safe-area-inset-top) - 14px - 88px - var(--toque-campo-fixo) - 2 * var(--folga-sobre-barra) - var(--barra-total) - 8px);
+  min-height: 12rem;
+  max-height: none;
+  margin: 0;
+  padding: 0 0 8px;
+}
+
+#tab-assistente {
+  /* o body já reserva a barra; aqui soma o campo fixo */
+  padding-bottom: calc(var(--toque-campo-fixo) + var(--folga-sobre-barra));
+}
+
+#tab-assistente #chat-form {
+  position: fixed;
+  z-index: var(--camada-fab);
+  left: 50%;
+  bottom: calc(var(--barra-total) + var(--folga-sobre-barra));
+  transform: translateX(-50%);
+  width: min(100%, 480px);
+  margin: 0;
+  padding: 0 var(--espaco-lateral);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border-radius: 0;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+#tab-assistente #chat-form #chat-input {
+  flex: 1;
+  min-width: 0;
+  height: var(--toque-campo-fixo);
+  min-height: var(--toque-campo-fixo);
+  padding: 0 16px;
+  border-radius: var(--raio-controle);
+  border: var(--linha) solid var(--cor-borda);
+  background: var(--superficie-card);
+  font-size: var(--tipo-corpo);
+}
+
+#tab-assistente #chat-form #chat-mic,
+#tab-assistente #chat-form #chat-send {
+  flex: 0 0 auto;
+  width: var(--toque-campo-fixo);
+  min-width: var(--toque-campo-fixo);
+  height: var(--toque-campo-fixo);
+  min-height: var(--toque-campo-fixo);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--raio-controle);
+  font-size: 0; /* "Enviar" vira só ícone (aria-label no botão) */
+}
+
+#tab-assistente #chat-form #chat-mic[hidden] {
+  display: none;
+}
+
+#tab-assistente #chat-form #chat-mic {
+  border: var(--linha) solid var(--cor-borda);
+  background: var(--superficie-card);
+  color: var(--cor-texto);
+}
+
+#tab-assistente #chat-form #chat-send {
+  border: 0;
+  background: var(--cor-destaque);
+  color: var(--cor-sobre-destaque);
+  box-shadow: none;
+}
+
+#tab-assistente #chat-form :is(#chat-mic, #chat-send) svg {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+}

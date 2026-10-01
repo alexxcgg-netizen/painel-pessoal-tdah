@@ -100,14 +100,18 @@ function loadVidaAba() {
   loadProgresso();
 }
 
-document.querySelectorAll(".tab-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    if (btn.dataset.tab === "hoje") loadVidaHoje();
+// R1: era um listener no clique de cada .tab-btn - Vida saiu da barra (abre pelo Mais),
+// entao a carga passou a ouvir o evento "aba:aberta" que showTab() dispara no fim da troca
+// (mesma ordem de antes: depois da troca; vale pra qualquer caminho de abertura).
+document.addEventListener("aba:aberta", (ev) => {
+  const aba = ev.detail && ev.detail.aba;
+  {
+    if (aba === "hoje") loadVidaHoje();
     // Vel (vel3): as 17 cargas de Vida rodavam SINCRONAS dentro do clique
     // (~38ms medidos com CPU 4x antes do 1o paint da aba) - agora vao pra
     // depois do frame da revelacao (mesmo padrao de Gastos) e respeitam o
     // cache curto de navegacao.js (abaPrecisaCarregar).
-    if (btn.dataset.tab === "vida") {
+    if (aba === "vida") {
       requestAnimationFrame(() =>
         setTimeout(() => {
           if (abaPrecisaCarregar("vida")) loadVidaAba();
@@ -116,14 +120,14 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     }
     // Vel (A2d): mesmo motivo do navegacao.js - nao competir com o primeiro
     // paint da revelacao da aba gastos.
-    if (btn.dataset.tab === "gastos") {
+    if (aba === "gastos") {
       requestAnimationFrame(() =>
         setTimeout(() => {
           if (abaPrecisaCarregar("gastos-fim-mes")) loadFimMes();
         }, 0)
       );
     }
-  });
+  }
 });
 
 document.addEventListener("visibilitychange", () => {

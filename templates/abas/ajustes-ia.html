@@ -1,0 +1,10 @@
+{% from "secoes/topo/cabecalho-tela.html" import cabecalho_tela %}
+    {# R1: o que era a aba "Assistente" (caixa de pendências, regras, avisos) - aberto por
+       Mais › Avisos e regras (ou pela ação do cabeçalho do Início/IA). Carga dos dados:
+       evento "aba:aberta" com aba "ajustes-ia" (caixa.js, regras.js, avisos.js). #}
+    <section id="tab-ajustes-ia" class="tab-content" hidden>
+{{ cabecalho_tela("Avisos e regras", "Pendências, regras e avisos do assistente", voltar=True) }}
+{% include "secoes/assistente/caixa.html" %}
+{% include "secoes/assistente/regras.html" %}
+{% include "secoes/assistente/avisos.html" %}
+    </section>

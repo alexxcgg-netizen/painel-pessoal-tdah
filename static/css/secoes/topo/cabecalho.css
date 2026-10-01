@@ -1,76 +1,114 @@
-/* static/css/secoes/topo/cabecalho.css - secao topo > cabecalho (HTML: templates/secoes/topo/cabecalho.html).
-   Fase 7 (V1): acabamento (profundidade, sem mexer em cor/fonte/animacao) +
-   um bug de layout pre-existente corrigido de passagem (ver nota abaixo). */
+/* static/css/secoes/topo/cabecalho.css - Configurações (HTML: templates/secoes/topo/cabecalho.html,
+   dentro de templates/abas/config.html, aberta por Mais › Configurações).
+   R1 (reformulação): este arquivo desenhava o topo global antigo (título + 5 botões
+   redondos de 2.3rem posicionados com `right` fixo + "gasto com IA"). O topo saiu de todas
+   as telas; os mesmos botões (mesmos ids) viraram linhas grandes (.mais-linha, desenho em
+   ui/componentes/navegacao.css) e o painel de cada um abre logo abaixo da linha.
+   Aqui só o que é próprio das Configurações. */
 
-/* Os 5 botoes-icone do cabecalho (silencio, viagem, visitante, backup,
-   logout) eram achatados (so borda fina, sem sombra nenhuma) - o
-   "Windows 1990" mais literal da aba. Reaproveita --shadow-card (o mesmo
-   token de profundidade em 4 camadas ja usado pelos cards) em vez de
-   inventar sombra nova, so troca o raio 50% por uma borda mais precisa. */
-header .btn-silencio,
-header .btn-backup,
-header .btn-logout {
-  box-shadow: var(--shadow-card);
+/* Os painéis (#silencio-painel etc.) eram cards soltos no topo (base/layout.css); dentro
+   do grupo viram uma extensão da linha, sem borda/sombra própria. */
+#tab-config .config-painel {
+  margin: 0;
+  padding: 4px 16px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  gap: 12px;
 }
 
-@media (hover: hover) {
-  header .btn-silencio:hover,
-  header .btn-backup:hover,
-  header .btn-logout:hover {
-    box-shadow: var(--shadow-card-hover);
-  }
+#tab-config .config-painel[hidden] {
+  display: none;
 }
 
-/* Bug pre-existente: #silencio-btn, #modo-viagem-btn e #modo-visitante-btn
-   dividem a classe .btn-silencio (so essa classe tem `right`), entao os 3
-   renderizavam exatamente empilhados no mesmo lugar (so o ultimo do DOM
-   recebia toque). Cada botao ganha a propria posicao; a area de toque tambem
-   sobe de 2.1rem (33.6px) pra 2.3rem (36.8px, o mais perto de 44px que cabe
-   nos 5 botoes lado a lado sem espremer o titulo "Painel Pessoal" num
-   cabecalho de 390px) - grade de 8px (passo de 2.7rem = 43.2px). */
-header {
-  padding-right: 13.6rem;
+#tab-config .silencio-titulo {
+  display: none; /* o título já está na linha logo acima */
 }
 
-#logout-btn,
-#backup-btn,
-#modo-visitante-btn,
-#modo-viagem-btn,
-#silencio-btn {
-  width: 2.3rem;
-  height: 2.3rem;
+#tab-config .silencio-descricao {
+  font-size: var(--tipo-secundario);
+  line-height: 1.45;
+  color: var(--cor-texto-2);
 }
 
-#logout-btn {
-  right: 0;
+#tab-config .silencio-campos {
+  gap: 10px;
 }
 
-#backup-btn {
-  right: 2.7rem;
+#tab-config .silencio-campos input:not([type="checkbox"]) {
+  min-height: var(--toque-controle);
+  border-radius: var(--raio-controle);
+  font-size: var(--tipo-corpo);
 }
 
-#modo-visitante-btn {
-  right: 5.4rem;
+#tab-config .config-painel .btn-com-icone {
+  min-height: var(--toque-controle);
+  border-radius: var(--raio-controle);
 }
 
-#modo-viagem-btn {
-  right: 8.1rem;
+#tab-config .backup-opcoes {
+  display: grid;
+  gap: 10px;
 }
 
-#silencio-btn {
-  right: 10.8rem;
+#tab-config .backup-opcoes a {
+  min-height: var(--toque-controle);
+  justify-content: flex-start;
+  border-radius: var(--raio-controle);
 }
 
-/* .btn-push (pill "Ativar notificacoes") - mesma logica: achatada, sem
-   profundidade, abaixo dos 44px de toque. */
-.btn-push {
-  min-height: 44px;
-  padding: 0.5rem 0.95rem;
-  box-shadow: var(--shadow-card);
+/* Estado "Ligado" (modo visitante / modo viagem ativos): o JS de sempre põe .ativo no botão. */
+.config-estado {
+  display: none;
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: var(--raio-pilula);
+  background: color-mix(in srgb, var(--cor-destaque) 14%, transparent);
+  color: var(--cor-destaque);
+  font-size: 13px;
+  font-weight: 700;
 }
 
-@media (hover: hover) {
-  .btn-push:hover:not(:disabled) {
-    box-shadow: var(--shadow-card-hover);
+#modo-visitante-btn.ativo .config-estado,
+#modo-viagem-btn.ativo .config-estado {
+  display: inline-flex;
+}
+
+/* Linha aberta (aria-expanded): seta gira pra baixo. */
+.config-linha[aria-expanded="true"] .mais-seta {
+  transform: rotate(90deg);
+}
+
+.config-linha .mais-seta {
+  transition: transform var(--dur-media) var(--ease-saida);
+}
+
+/* "Ativar notificações" (só aparece com push configurado): linha simples. */
+#tab-config #push-btn {
+  justify-content: center;
+  font-size: var(--tipo-corpo);
+  font-weight: 650;
+  color: var(--cor-destaque);
+}
+
+#tab-config #push-btn:disabled {
+  color: var(--cor-texto-2);
+}
+
+#tab-config .custo-ia {
+  font-size: var(--tipo-secundario);
+  cursor: default;
+}
+
+.config-sair .mais-titulo {
+  color: var(--cor-saida);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .config-linha .mais-seta {
+    transition: none;
   }
 }
