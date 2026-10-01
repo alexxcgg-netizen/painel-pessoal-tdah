@@ -5,6 +5,17 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-01 - Reformulação, etapa 2: Início e IA com conteúdo novo
+
+- **Início**: hero ("Bom dia, Alex!" + resumo real + chip "N atrasadas"/"Tudo em dia" + Ouvir), card "Agora"
+  (próxima tarefa/hábito com concluir otimista; vazio → "Planejar o dia" abre a IA com a frase), 3 números
+  animados e tocáveis (tarefas, gasto hoje, copos d'água), "Acesso rápido" com 8 cards grandes e dado real,
+  depois Só o essencial e Visão do dia. Pendências do assistente viram aviso de 1 linha.
+- Rota nova `GET /api/inicio` (sem IA, sem rede; modo visitante esconde gasto/água/remédio), p50 ~7 ms.
+- **IA**: estado vazio com 6 sugestões que enviam pelo mesmo fluxo do chat; bolhas na escala nova.
+- **Mais**: subtítulos com dado real (hábitos, notas, aviação, saúde, Meu dia).
+- `#erro-banner` virou toast fixo (não empurra a tela). Service worker v37.
+
 ## 2026-10-01 - Reformulação, etapa 1: esqueleto novo (aprovado pela prévia "preto gelo")
 
 - **Barra de 5**: Início · Tarefas · IA (botão central) · Finanças · Mais, nomes inteiros. Painel ("Meu dia"),
