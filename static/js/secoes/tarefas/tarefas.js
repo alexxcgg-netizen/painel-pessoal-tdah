@@ -106,16 +106,22 @@ function criarItemTarefa(t) {
   linha.className = "item-linha";
 
   const tituloWrap = document.createElement("div");
+  tituloWrap.className = "item-textos";
   const titulo = document.createElement("span");
   titulo.className = "item-titulo";
   titulo.textContent = t.title;
+  tituloWrap.appendChild(titulo);
+  // R3 (acabamento): os chips (prazo, atrasada, travada, rotina, esforço) saem de dentro do
+  // título e vão pra uma linha própria embaixo dele - título de 17px respira e os chips
+  // quebram linha sem espremer nada.
+  const chips = document.createElement("div");
+  chips.className = "item-chips";
   if (t.recorrente_origem_id) {
     const tagRotina = document.createElement("span");
     tagRotina.className = "item-tag-tarefa chip chip--compacto";
     tagRotina.textContent = "rotina";
-    titulo.appendChild(tagRotina);
+    chips.appendChild(tagRotina);
   }
-  tituloWrap.appendChild(titulo);
   if (t.due_at || t.hora || t.due_date) {
     const quando = document.createElement("span");
     quando.className = "item-quando chip chip--compacto";
@@ -126,8 +132,8 @@ function criarItemTarefa(t) {
     // nada (gap real: antes uma tarefa so com due_date nao mostrava prazo
     // nenhum na lista).
     const base = t.due_at || (t.due_date ? formatarPrazoTarefa(t.due_date) : "hoje");
-    quando.textContent = t.hora ? `${base} as ${t.hora}` : base;
-    tituloWrap.appendChild(quando);
+    quando.textContent = t.hora ? `${base} às ${t.hora}` : base;
+    chips.appendChild(quando);
   }
   // Mesma tag de atencao que "travada ha X dias" ja usa (--danger) - so
   // quando devido sem due_at/hora ja passou (devido com due_at continua sem
@@ -137,9 +143,8 @@ function criarItemTarefa(t) {
     const tagAtrasada = document.createElement("span");
     tagAtrasada.className = "item-tag-travada chip chip--compacto";
     tagAtrasada.textContent = "atrasada";
-    titulo.appendChild(tagAtrasada);
+    chips.appendChild(tagAtrasada);
   }
-  tituloWrap.appendChild(criarTagEsforco(t));
 
   const acoes = document.createElement("div");
   acoes.className = "item-acoes";
@@ -147,9 +152,14 @@ function criarItemTarefa(t) {
   if (t.empacada_dias) {
     const tagTravada = document.createElement("span");
     tagTravada.className = "item-tag-travada chip chip--compacto";
-    tagTravada.textContent = `travada ha ${t.empacada_dias} dias`;
-    titulo.appendChild(tagTravada);
+    tagTravada.textContent = `travada há ${t.empacada_dias} ${t.empacada_dias === 1 ? "dia" : "dias"}`;
+    chips.appendChild(tagTravada);
+  }
+  chips.appendChild(criarTagEsforco(t));
+  tituloWrap.appendChild(chips);
 
+
+  if (t.empacada_dias) {
     const btnRequebrar = document.createElement("button");
     btnRequebrar.className = "btn-com-icone";
     btnRequebrar.innerHTML = `${ICONE_PASSOS}quebrar diferente`;
@@ -178,8 +188,9 @@ function criarItemTarefa(t) {
   }
 
   const btnCorrigir = document.createElement("button");
-  btnCorrigir.className = "btn-com-icone";
+  btnCorrigir.className = "btn-com-icone tarefa-corrigir";
   btnCorrigir.title = "isso não é uma tarefa?";
+  btnCorrigir.setAttribute("aria-label", "Isso não é uma tarefa? Corrigir");
   btnCorrigir.innerHTML = ICONE_CORRIGIR;
   btnCorrigir.addEventListener("click", () => {
     const jaAberto = li.querySelector(".correcao-form");
