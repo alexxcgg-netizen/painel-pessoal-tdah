@@ -175,6 +175,7 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
   (function () {
     let ultimosItens = [];
     let ultimosPendentes = 0;
+    let ultimoTextoAtraso = null;
 
     function atualizarSelo(pendentes) {
       const n = Number(pendentes) || 0;
@@ -245,6 +246,18 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       if (!titulo || !linha) return;
       titulo.textContent = CaixaAssistente.textoContagem(ultimosPendentes);
       linha.hidden = ultimosPendentes <= 0;
+      renderAtraso();
+    }
+
+    // R3 (acabamento): no Início o aviso de atraso do assistente ("ainda não rodou nesta
+    // instalação", "atrasado há X min") só aparece junto de pendência real - sozinho ele
+    // virava uma faixa amarela permanente numa instalação sem o cron do tick.
+    function renderAtraso() {
+      const aviso = document.getElementById("caixa-compacta-atraso");
+      if (!aviso) return;
+      const mostrar = Boolean(ultimoTextoAtraso) && ultimosPendentes > 0;
+      aviso.textContent = mostrar ? ultimoTextoAtraso : "";
+      aviso.hidden = !mostrar;
     }
 
     function renderSecaoCompleta() {
@@ -279,14 +292,8 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       const dados = await apiFetch("/api/assistente/saude");
       const aviso = document.getElementById("caixa-compacta-atraso");
       if (!aviso) return;
-      const texto = dados ? CaixaAssistente.textoAtraso(dados) : null;
-      if (texto) {
-        aviso.textContent = texto;
-        aviso.hidden = false;
-      } else {
-        aviso.hidden = true;
-        aviso.textContent = "";
-      }
+      ultimoTextoAtraso = dados ? CaixaAssistente.textoAtraso(dados) : null;
+      renderAtraso();
     }
 
     async function responderItem(itemId, valor) {

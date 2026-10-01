@@ -109,3 +109,504 @@
 .card {
   padding: var(--espaco-card);
 }
+
+/* =====================================================================
+   R3 (reformulação, etapa 3 - acabamento): as telas internas (Tarefas,
+   Finanças, Meu dia, Vida, Aviação, Construtora, Configurações, Avisos e
+   regras e a parte de baixo do Início) na MESMA escala de Início/IA/Mais
+   (SPEC + prévia aprovada "preto gelo"). Uma camada só, por cima do que as
+   telas antigas desenhavam: título de seção = rótulo CAIXA ALTA 13px (igual
+   ao .rotulo-tela), card 22px com borda #1f272e e superfície do token (sem
+   gradiente/brilho/faixa colorida), botão/campo 52px raio 18, chip legível
+   (13px) e todo alvo de toque com >= 44px. A IA e o Mais (R2) ficam de fora.
+   O seletor com :not(#id) pesa mais que o "#tab-x .classe" das camadas
+   antigas de propósito: aqui é a regra da escala, não um ajuste de seção.
+   ===================================================================== */
+
+/* ---------- Título de seção: o mesmo rótulo do Início ("AGORA") ---------- */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) h2:not(.cab-tela-titulo):not(.folha-titulo):not(.inicio-saudacao):not(.bottom-sheet-titulo) {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--fonte-texto);
+  font-size: var(--tipo-rotulo-secao);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: var(--tipo-espacamento-rotulo);
+  text-transform: uppercase;
+  color: var(--cor-texto-2);
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) h2:not(.cab-tela-titulo):not(.folha-titulo):not(.inicio-saudacao) > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--cor-destaque);
+  opacity: 1;
+}
+
+/* Seção solta (fora de card) ganha o respiro de bloco no lugar do filete de cima. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) h2.secao-secundaria {
+  margin-top: var(--espaco-blocos);
+}
+
+/* ---------- Cards: raio 22, borda única, superfície do token, sem brilho ---------- */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .card-vida, .painel-secao-card, .grafico-card, .resumo-semanal-box, .fechamento-box, .fc-card, .resumo-texto, .secao-recolhivel, .stat-tile) {
+  border-radius: var(--raio-card);
+  border: var(--linha) solid var(--cor-borda);
+  background: var(--superficie-card);
+  box-shadow: none;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .card-vida, .painel-secao-card, .grafico-card, .resumo-semanal-box, .fechamento-box, .fc-card, .resumo-texto) {
+  padding: var(--espaco-card);
+}
+
+/* Faixa colorida no topo dos cards do Meu dia e dos números: sai (cor fica no ícone). */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.painel-secao-card, .stat-tile)::before {
+  content: none;
+  display: none;
+}
+
+/* Card dentro de card não repete a moldura. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .card-vida, .painel-secao-card, .secao-recolhivel) :is(.card-vida, .grafico-card, .resumo-semanal-box, .fechamento-box) {
+  border-radius: var(--raio-controle);
+  background: var(--cor-fundo);
+}
+
+/* Título de card (h3) e subtítulo. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card-vida-topo h3, .card-vida > h3, .painel-secao-card h3) {
+  margin: 0;
+  font-size: var(--tipo-titulo-card);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cor-texto);
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card-vida-meta, .dica-metas) {
+  font-size: var(--tipo-secundario);
+  color: var(--cor-texto-2);
+}
+
+/* ---------- Números (stat tiles): o padrão dos 3 números do Início ---------- */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .stats-grid {
+  gap: 10px;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .stat-tile {
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 12px;
+  border-radius: var(--raio-controle);
+  text-align: left;
+  animation: none;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .stat-tile-valor {
+  font-family: var(--fonte-texto);
+  font-size: 24px;
+  font-weight: var(--peso-forte);
+  line-height: 1.1;
+  color: var(--cor-texto);
+  text-shadow: none;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .stat-tile-label {
+  font-size: var(--tipo-rotulo-secao);
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.25;
+  color: var(--cor-texto-2);
+}
+
+/* ---------- Linhas de lista: >= 64px, título 17, subtítulo 14 ---------- */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) li.item {
+  min-height: var(--toque-linha);
+  padding: 14px 16px;
+  border-radius: var(--raio-controle);
+  border: var(--linha) solid var(--cor-borda);
+  background: var(--superficie-card);
+  box-shadow: none;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .item-titulo {
+  font-size: var(--tipo-titulo-card);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.item-sub, .item-meta, .item-detalhe) {
+  font-size: var(--tipo-secundario);
+  color: var(--cor-texto-2);
+}
+
+/* ---------- Chips: rótulo legível (13px) e, se for tocável, 44px ---------- */
+main > .tab-content .chip.chip--compacto,
+.bottom-sheet .chip.chip--compacto {
+  min-height: 28px;
+  padding: 4px 11px;
+  font-size: var(--tipo-rotulo-secao);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+main > .tab-content button.chip,
+main > .tab-content button.chip.chip--compacto {
+  min-height: var(--toque-acao);
+  padding: 0 16px;
+  cursor: pointer;
+}
+
+/* ---------- Botões: 52px, raio 18, sem gradiente/sombra ---------- */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.btn, .btn-com-icone, .btn-primario, .btn-secundario, .ofx-input-label):not(.btn-link):not(.cab-tela-acao):not(.cab-tela-voltar):not(.chip) {
+  min-height: var(--toque-controle);
+  padding-inline: 18px;
+  border-radius: var(--raio-controle);
+  font-size: var(--tipo-corpo);
+  font-weight: 700;
+  box-shadow: none;
+  background-image: none;
+}
+
+/* Secundário = o "Ouvir" do Início: fundo preto, borda fina, ícone no destaque. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.btn-secundario, .btn-com-icone:not(.primario):not(.btn-primario):not(.btn-perigo), .ofx-input-label) {
+  border: var(--linha) solid var(--cor-borda);
+  background-color: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.btn-secundario, .btn-com-icone:not(.primario):not(.btn-primario):not(.btn-perigo), .ofx-input-label) > svg {
+  color: var(--cor-destaque);
+}
+
+/* Primário: destaque gelo chapado. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.btn-primario, .btn.primario, button.primario) {
+  border: 0;
+  background: var(--cor-destaque);
+  color: var(--cor-sobre-destaque);
+}
+
+/* "+ Novo ..." (btn-adicionar): botão grande da escala, "+" no destaque, sem gradiente. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .btn.btn-adicionar {
+  min-height: 56px;
+  border-radius: var(--raio-controle);
+  border: var(--linha) solid var(--cor-borda);
+  background: var(--superficie-card);
+  box-shadow: none;
+  font-size: var(--tipo-corpo);
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .btn.btn-adicionar::before {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background-color: color-mix(in srgb, var(--cor-destaque) 15%, transparent);
+  background-image: linear-gradient(var(--cor-destaque), var(--cor-destaque)), linear-gradient(var(--cor-destaque), var(--cor-destaque));
+  box-shadow: none;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .btn.btn-adicionar.btn-adicionar--pilula {
+  max-width: 100%;
+  white-space: normal;
+}
+
+/* Link de texto solto ("trocar", "modo foco no dia", "ver conversas"...) vira botão de
+   texto em pílula com área de toque de 44px. */
+main > .tab-content .btn-link,
+.bottom-sheet .btn-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--toque-acao);
+  padding: 0 14px;
+  border: var(--linha) solid var(--cor-borda);
+  border-radius: var(--raio-pilula);
+  background: var(--cor-fundo);
+  color: var(--cor-destaque);
+  font-size: var(--tipo-secundario);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ---------- Campos: 52px, raio 18, texto 16 ---------- */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea) {
+  min-height: var(--toque-controle);
+  border-radius: var(--raio-controle);
+  font-size: var(--tipo-corpo);
+}
+
+/* Checkbox/rádio: o rótulo em volta é o alvo (>= 44px). */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) label:has(> input[type="checkbox"], > input[type="radio"]) {
+  min-height: var(--toque-acao);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- Ajuda da seção ("!" de 20px) vira "Como funciona" em pílula de 44px ---------- */
+main > .tab-content .dica-colapsavel {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -6px 0 12px;
+}
+
+main > .tab-content .dica-toggle {
+  width: auto;
+  height: auto;
+  min-height: var(--toque-acao);
+  margin: 0 0 0 -10px;
+  padding: 0 12px 0 10px;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--raio-pilula);
+  background: transparent;
+  box-shadow: none;
+  color: var(--cor-texto-fraco);
+  font-family: var(--fonte-texto);
+  font-size: var(--tipo-secundario);
+  font-weight: 500;
+}
+
+main > .tab-content .dica-toggle::before {
+  content: "i";
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-family: var(--fonte-texto);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+main > .tab-content .dica-toggle::after {
+  content: "Como funciona";
+  position: static;
+  width: auto;
+  height: auto;
+  transform: none;
+}
+
+main > .tab-content .dica-toggle[aria-expanded="true"] {
+  color: var(--cor-destaque);
+  box-shadow: none;
+}
+
+main > .tab-content .dica-toggle[aria-expanded="true"]::after {
+  content: "Fechar ajuda";
+}
+
+main > .tab-content .dica-colapsavel .dica-texto {
+  font-size: var(--tipo-secundario);
+  line-height: 1.5;
+  color: var(--cor-texto-2);
+}
+
+/* ---------- Estado vazio: ícone em tile + 1 frase (a ação fica logo acima) ---------- */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 22px 12px 8px;
+  font-size: var(--tipo-secundario);
+  line-height: 1.45;
+  color: var(--cor-texto-2);
+  text-align: center;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .vazio[hidden] {
+  display: none;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .vazio > svg {
+  box-sizing: content-box;
+  width: 22px;
+  height: 22px;
+  padding: 11px;
+  border-radius: var(--raio-tile-linha);
+  background: color-mix(in srgb, var(--cor-destaque) 14%, transparent);
+  color: var(--cor-destaque);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main > .tab-content .stat-tile {
+    animation: none;
+  }
+}
+
+/* Rótulos miúdos herdados (0.72rem) sobem pra 13px; texto de gráfico SVG idem. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.resumo-semanal-label, .grafico-titulo, .progresso-rotulo) {
+  font-size: var(--tipo-rotulo-secao);
+  letter-spacing: 0.02em;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) svg text.grafico-rotulo-topo {
+  font-size: 12px;
+}
+
+/* Tabelas (custo da IA por função): cabem na largura, nada vaza em 320px. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(th, td) {
+  padding: 10px 6px;
+  font-size: var(--tipo-secundario);
+  overflow-wrap: anywhere;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) th {
+  font-size: var(--tipo-rotulo-secao);
+  color: var(--cor-texto-2);
+}
+
+/* "Ouvir" redondo (fechamento do dia, METAR): 44px, no padrão do "Ouvir" do Início. */
+main > .tab-content .btn-ouvir {
+  width: var(--toque-acao);
+  height: var(--toque-acao);
+  flex: none;
+  border: var(--linha) solid var(--cor-borda);
+  background: var(--cor-fundo);
+  color: var(--cor-destaque);
+  box-shadow: none;
+}
+
+main > .tab-content .btn-ouvir svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Cabeçalho de seção recolhível: título de card (17/700) alinhado à esquerda, ícone de
+   18px no destaque e a seta encostada na direita - igual em todas as telas (Aviação e
+   Cotações centralizavam o texto). */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .secao-recolhivel > .secao-cabecalho {
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: var(--toque-linha);
+  padding: 14px var(--espaco-card);
+  font-size: var(--tipo-titulo-card);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  color: var(--cor-texto);
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .secao-recolhivel > .secao-cabecalho > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--cor-destaque);
+  opacity: 1;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .secao-recolhivel > .secao-cabecalho > .chevron {
+  margin-left: auto;
+}
+
+/* Cards empilhados dentro de um wrapper (Vida) respiram como blocos soltos. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .vida-secoes > :is(.card, .secao-recolhivel) {
+  margin: 0 0 var(--espaco-blocos);
+}
+
+/* Estado vazio sem ícone próprio (.vazio sem <svg>, pendências, regras, avisos, gráfico):
+   ganha o mesmo tile de ícone (marca de "tudo certo") pra seguir o padrão do Início -
+   ícone + 1 frase, com a ação logo acima/abaixo. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.vazio:not(:has(> svg)), .caixa-vazio, .regras-vazio, .avisos-vazio, .grafico-vazio) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 12px 6px;
+  list-style: none;
+  font-size: var(--tipo-secundario);
+  line-height: 1.45;
+  color: var(--cor-texto-2);
+  text-align: center;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.vazio:not(:has(> svg)), .caixa-vazio, .regras-vazio, .avisos-vazio, .grafico-vazio)::before {
+  content: "";
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: var(--raio-tile-linha);
+  background: color-mix(in srgb, var(--cor-destaque) 14%, transparent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23bfe6ff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='m8.5 12.3 2.4 2.4 4.6-5'/%3E%3C/svg%3E")
+    center / 22px no-repeat;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.vazio, .caixa-vazio, .regras-vazio, .avisos-vazio, .grafico-vazio)[hidden] {
+  display: none;
+}
+
+/* Ajuda logo abaixo do título de um card (Meu dia, Vida): em vez de uma linha só pra
+   "Como funciona", o (i) fica no canto do card, na altura do título - 44x44 de toque,
+   o texto da ajuda continua abrindo embaixo do título. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card):has(> h2 + .dica-colapsavel) {
+  position: relative;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2:not(.cab-tela-titulo):not(.folha-titulo):has(+ .dica-colapsavel) {
+  padding-right: 44px;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2 + .dica-colapsavel {
+  margin: 0;
+  gap: 0;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2 + .dica-colapsavel:has(.dica-texto:not([hidden])) {
+  margin: 0 0 12px;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2 + .dica-colapsavel > .dica-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: var(--toque-acao);
+  height: var(--toque-acao);
+  margin: 0;
+  padding: 0;
+  justify-content: center;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2 + .dica-colapsavel > .dica-toggle::after {
+  content: none;
+}
+
+/* C2: guarda do [hidden] dos estados vazios acima (o display deles é flex). */
+.caixa-vazio[hidden],
+.regras-vazio[hidden],
+.avisos-vazio[hidden] {
+  display: none;
+}
+
+/* Linha de lista com ações (Vida, Meu dia, Finanças): com botões de 52px, as ações descem
+   pra baixo do texto quando não cabem do lado (320px) em vez de vazar pela direita. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) li.item > .item-linha {
+  flex-wrap: wrap;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) li.item .item-acoes {
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
+}

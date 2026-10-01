@@ -69,7 +69,7 @@ $("#conta-pessoal-form").addEventListener("submit", async (e) => {
   const valor = lerValorFinancas($("#conta-pessoal-valor"));
   if (!nome) return mostrarErroSheet("conta-pessoal-erro", "Da um nome pra conta.");
   if (dia === null || dia < 1 || dia > 31)
-    return mostrarErroSheet("conta-pessoal-erro", "Dia do vencimento vai de 1 a 31 (dia 31 em mes curto vence no último dia).");
+    return mostrarErroSheet("conta-pessoal-erro", "Dia do vencimento vai de 1 a 31 (dia 31 em mês curto vence no último dia).");
   if (valor !== null && !valorValidoFinancas(valor))
     return mostrarErroSheet("conta-pessoal-erro", "Valor precisa ser um número maior que zero (ou deixa em branco).");
   $("#conta-pessoal-erro").hidden = true;

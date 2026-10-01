@@ -113,17 +113,31 @@
   box-sizing: border-box;
 }
 
-/* Link "CSV" no titulo da secao: pilula pequena de 44px de area. */
-#tab-gastos .btn-exportar-csv {
-  position: relative;
-  min-height: 32px;
-  font-size: 0.7rem;
+/* R3 (acabamento): "CSV" e "Sincronizar Nubank" saíram de dentro do título da seção
+   (ficavam pílulas de 32px espremidas no rótulo) - viram uma linha de dois botões
+   secundários de 52px logo abaixo dele. */
+#tab-gastos .gastos-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 var(--espaco-blocos);
 }
 
-#tab-gastos .btn-exportar-csv::after {
-  content: "";
-  position: absolute;
-  inset: -6px -4px;
+#tab-gastos .gastos-acoes > .btn-exportar-csv {
+  flex: 1 1 auto;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--toque-controle);
+  padding: 0 18px;
+  border-radius: var(--raio-controle);
+  font-size: var(--tipo-secundario);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+#tab-gastos .gastos-acoes > .btn-exportar-csv svg {
+  width: 18px;
+  height: 18px;
 }
 
 /* Selo "meta batida!": icone de traco no lugar do emoji. */

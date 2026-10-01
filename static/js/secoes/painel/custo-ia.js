@@ -5,9 +5,9 @@
 
 const CUSTO_IA_V2_ROTULO_NIVEL = {
   normal: "",
-  aviso_80: "Já passou de 80% do teto do mes - modo economia liga em 100%.",
+  aviso_80: "Já passou de 80% do teto do mês - modo economia liga em 100%.",
   estourado_100:
-    "Teto do mes estourado - só as funções essenciais (classificacao/captura) continuam chamando IA até o mes virar.",
+    "Teto do mês estourado - só as funções essenciais (classificacao/captura) continuam chamando IA até o mês virar.",
 };
 
 function custoIaV2FormatarPercentual(fracao) {

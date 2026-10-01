@@ -19,7 +19,7 @@ function criarChipCategoriaVoo(categoria) {
   const chip = document.createElement("span");
   chip.className = `metar-chip-categoria ${info.classe}`;
   chip.textContent = info.rotulo;
-  chip.title = "Classificacao padrao FAA/AIM de teto e visibilidade - confira sempre antes de voar.";
+  chip.title = "Classificacao padrão FAA/AIM de teto e visibilidade - confira sempre antes de voar.";
   return chip;
 }
 

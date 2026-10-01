@@ -28,7 +28,7 @@
 #tab-painel > .painel-secao-card:nth-child(n + 7),
 #tab-painel > .secao-recolhivel:nth-child(n + 7) {
   content-visibility: auto;
-  contain-intrinsic-size: auto 220px;
+  contain-intrinsic-size: auto 300px; /* R3: cards cresceram com a escala nova (média real ~330px) */
 }
 
 /* #tab-gastos: as duas secoes no rodape (Assinaturas, Metas) ficam sempre
@@ -60,7 +60,7 @@
    vale ate la). */
 #lista-tarefas > li.item {
   content-visibility: auto;
-  contain-intrinsic-size: auto 95px;
+  contain-intrinsic-size: auto 210px; /* R3: linha da tarefa na escala nova (chips + ações) tem ~170-240px */
 }
 
 /* vel4 - Vida: 20 secoes empilhadas (a maioria abre ABERTA, ~580 nos no total);

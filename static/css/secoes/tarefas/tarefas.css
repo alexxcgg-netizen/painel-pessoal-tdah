@@ -10,48 +10,118 @@
   margin-block: var(--espaco-2) var(--espaco-3);
 }
 
-/* C2: rotulos da tarefa (rotina, prazo, atrasada, travada, esforco) sao .chip--compacto -
-   rotulo, nao botao grande. O .chip (carrega depois do style.css) apagava a cor de alerta
-   do .item-tag-travada; aqui ela volta (mesmas cores do style.css, nada novo). */
-#tab-tarefas .chip.chip--compacto {
-  min-height: 24px;
-  padding: 0.15rem var(--espaco-2);
-  font-size: 0.72rem;
-  letter-spacing: 0;
-  text-transform: none;
-  vertical-align: middle;
+/* R3 (acabamento): rótulos da tarefa (rotina, prazo, atrasada, travada, esforço) numa linha
+   própria embaixo do título (.item-chips, montada em tarefas.js), em 13px legível. A escala
+   (13px, padding) vem do bloco R3 de ui/componentes/card.css; aqui só as cores de cada um.
+   "definir esforço" é tocável (vira <select>): pílula de 44px de verdade, não mais ::after. */
+#tab-tarefas .item-textos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
 }
 
-#tab-tarefas .item-titulo .chip--compacto {
-  margin-left: var(--espaco-1);
+#tab-tarefas .item-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+#tab-tarefas .item-chips:empty {
+  display: none;
 }
 
 #tab-tarefas .item-tag-travada.chip {
-  color: var(--danger);
-  background: var(--danger-bg);
-  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  color: var(--cor-saida);
+  background: color-mix(in srgb, var(--cor-saida) 13%, transparent);
+  border-color: color-mix(in srgb, var(--cor-saida) 32%, transparent);
 }
 
 #tab-tarefas .item-quando.chip {
-  margin: var(--espaco-1) var(--espaco-1) 0 0;
-  color: var(--text-muted);
-  font-family: var(--fonte-mono);
+  margin: 0;
+  color: var(--cor-texto-2);
   font-variant-numeric: tabular-nums;
 }
 
-/* "definir esforco" e clicavel (vira <select>): visual compacto, toque de 44px por ::after */
 #tab-tarefas .item-tag-esforco.chip {
-  position: relative;
-  cursor: pointer;
+  border-style: dashed;
+  background: transparent;
+  color: var(--cor-texto-2);
   font-family: var(--fonte-texto);
 }
 
-#tab-tarefas .item-tag-esforco::after {
-  content: "";
-  position: absolute;
-  inset: 50% 0 auto;
-  height: var(--toque-min);
-  transform: translateY(-50%);
+#tab-tarefas .item-chips .correcao-select {
+  min-height: var(--toque-acao);
+  width: auto;
+}
+
+/* Linha da tarefa: título + chips em cima, ações numa linha própria embaixo -
+   "quebrar" (secundário) e "concluir" (primário) grandes dividindo a largura, a
+   correção "isso não é uma tarefa?" como quadrado de 52px entre eles. */
+#tab-tarefas #lista-tarefas > li.item,
+#tab-tarefas #lista-tarefas-concluidas > li.item {
+  padding: 16px;
+  border-radius: var(--raio-card);
+}
+
+#tab-tarefas li.item > .item-linha {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 14px;
+}
+
+/* As camadas antigas dão flex: 1 aos filhos da linha (feita pra ser horizontal); na
+   coluna isso igualava as alturas e abria um buraco entre os chips e as ações. */
+#tab-tarefas li.item > .item-linha > * {
+  flex: none;
+}
+
+#tab-tarefas li.item .item-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+
+#tab-tarefas li.item .item-acoes > button {
+  flex: 1 1 100%;
+  order: 3;
+  min-width: 0;
+  min-height: var(--toque-controle);
+  margin: 0;
+  padding: 0 16px;
+  border-radius: var(--raio-controle);
+  font-size: var(--tipo-corpo);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* concluir: primeiro e maior; a correção (só ícone) fica do lado, 52x52. */
+#tab-tarefas li.item .item-acoes > button.primario {
+  order: 1;
+  flex: 1 1 0;
+}
+
+#tab-tarefas li.item .item-acoes > button.tarefa-corrigir {
+  order: 2;
+  flex: 0 0 var(--toque-controle);
+  padding: 0;
+}
+
+#tab-tarefas li.item .item-acoes > button svg {
+  width: 18px;
+  height: 18px;
+}
+
+#tab-tarefas .subtarefas {
+  margin-top: 12px;
+}
+
+#tab-tarefas .subtarefa {
+  min-height: var(--toque-acao);
+  font-size: var(--tipo-corpo);
 }
 
 /* Energia agora: Baixa/Media/Alta viram chips (eram botoes nativos brancos). */
@@ -76,9 +146,5 @@
 }
 
 #lista-tarefas-concluidas .item-quando.chip {
-  margin: var(--espaco-1) var(--espaco-1) 0 0;
-  color: var(--text-muted);
-  font-family: var(--fonte-mono);
-  font-variant-numeric: tabular-nums;
   text-decoration: none;
 }

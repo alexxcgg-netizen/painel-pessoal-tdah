@@ -25,12 +25,5 @@
 
 /* O "!" das dicas tem 20px de visual; a area de toque chega a 44px por um ::after
    invisivel (o ::before ja e o proprio "!"). */
-#tab-aviacao .dica-toggle {
-  position: relative;
-}
-
-#tab-aviacao .dica-toggle::after {
-  content: "";
-  position: absolute;
-  inset: -12px;
-}
+/* R3 (acabamento): a ajuda virou a pílula "Como funciona" de 44px (bloco R3 de
+   ui/componentes/card.css) - o ::after invisível daqui sobrescrevia o rótulo dela. */

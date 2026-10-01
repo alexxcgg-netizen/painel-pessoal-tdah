@@ -171,7 +171,7 @@ function desenharGraficoLinha(container, pontos, opcoes) {
   container.innerHTML = "";
   esconderTooltip(container);
   if (pontos.length < 2) {
-    container.innerHTML = '<p class="grafico-vazio">Ainda sem historico suficiente.</p>';
+    container.innerHTML = '<p class="grafico-vazio">Ainda sem histórico suficiente.</p>';
     return;
   }
 

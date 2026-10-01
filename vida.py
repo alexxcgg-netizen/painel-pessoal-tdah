@@ -31,7 +31,7 @@ DURACOES_HIPERFOCO = (25, 50, 90)
 ITENS_ROTINA_PADRAO = {
     "manha": [
         "Beber um copo de água",
-        "Remedio (se tiver hoje)",
+        "Remédio (se tiver hoje)",
         "Check-in rápido: energia, sono e humor",
         "Olhar as 1-3 coisas essenciais do dia",
     ],

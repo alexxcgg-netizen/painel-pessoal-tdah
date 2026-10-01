@@ -35,9 +35,13 @@ function renderEssencial(tarefas) {
     });
     const textos = criarEl("div", "essencial-textos");
     textos.appendChild(criarEl("span", "essencial-titulo", t.title));
-    const detalhe = [t.hora ? `as ${t.hora}` : null, t.motivo].filter(Boolean).join(" - ");
+    const detalhe = [t.hora ? `às ${t.hora}` : null, t.motivo].filter(Boolean).join(" - ");
     if (detalhe) textos.appendChild(criarEl("span", "essencial-motivo", detalhe));
-    li.appendChild(cb);
+    // R3 (acabamento): o checkbox fica dentro de um <label> de 44x44 - o alvo de toque é o
+    // quadrado inteiro, não só os 20px da caixinha.
+    const alvo = criarEl("label", "essencial-check");
+    alvo.appendChild(cb);
+    li.appendChild(alvo);
     li.appendChild(textos);
     if (!t.feita) {
       const trocar = criarEl("button", "btn-link", "trocar");

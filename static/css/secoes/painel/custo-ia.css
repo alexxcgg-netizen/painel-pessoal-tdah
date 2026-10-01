@@ -75,7 +75,7 @@
 .custo-ia-tabela th {
   color: var(--text-muted);
   font-weight: 600;
-  font-size: 0.72rem;
+  font-size: var(--tipo-rotulo-secao);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }

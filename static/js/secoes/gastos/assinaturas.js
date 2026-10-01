@@ -98,7 +98,7 @@ function criarItemAssinaturaAtiva(a) {
   const nome = textoFinancas(a.nome, "Sem nome");
   const metaPartes = [`${fmtMoedaFinancas(a.valor)}/mes`];
   if (numeroFinancas(a.dia_cobranca) !== null) metaPartes.push(`dia ${a.dia_cobranca}`);
-  if (a.proxima_cobranca) metaPartes.push(`proxima ${fmtDataFinancas(a.proxima_cobranca)}`);
+  if (a.proxima_cobranca) metaPartes.push(`próxima ${fmtDataFinancas(a.proxima_cobranca)}`);
   const li = criarEl("li", "lista-item");
   const corpo = criarEl("div", "lista-item-corpo");
   corpo.appendChild(criarEl("span", "lista-item-titulo", nome));

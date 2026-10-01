@@ -359,3 +359,27 @@ main #tab-assistente h2.chat-ola-titulo,
 #tab-assistente #chat-mensagens {
   min-height: calc(100dvh - env(safe-area-inset-top) - 14px - 76px - var(--toque-campo-fixo) - 2 * var(--folga-sobre-barra) - var(--barra-total) - 8px - 26px);
 }
+
+/* R3 (acabamento): o "ouvir" de cada resposta da IA tinha 26px de alvo. Agora o botão
+   tem 44x44 (toque confortável) e o visual continua discreto: sem moldura, ícone de 16px
+   na cor fraca, que acende no destaque ao tocar/falar. */
+#tab-assistente .btn-ouvir-chat {
+  width: var(--toque-acao);
+  height: var(--toque-acao);
+  margin: 0 -10px -10px 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: var(--cor-texto-fraco);
+}
+
+#tab-assistente .btn-ouvir-chat svg {
+  width: 16px;
+  height: 16px;
+}
+
+#tab-assistente .btn-ouvir-chat:active,
+#tab-assistente .btn-ouvir-chat.falando {
+  color: var(--cor-destaque);
+}

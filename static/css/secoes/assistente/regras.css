@@ -38,7 +38,7 @@
   align-self: flex-start;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-size: 0.66rem;
+  font-size: var(--tipo-rotulo-secao);
   margin-bottom: 2px;
 }
 

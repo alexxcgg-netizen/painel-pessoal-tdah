@@ -61,7 +61,7 @@
 }
 
 .fc-card-topo {
-  font-size: 0.7rem;
+  font-size: var(--tipo-rotulo-secao);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--cor-texto-fraco);
@@ -87,7 +87,7 @@
 }
 
 .fc-catnome {
-  font-size: 0.72rem;
+  font-size: var(--tipo-rotulo-secao);
   color: var(--cor-texto-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -110,7 +110,7 @@
 }
 
 .fc-catval {
-  font-size: 0.72rem;
+  font-size: var(--tipo-rotulo-secao);
   font-variant-numeric: tabular-nums;
   color: var(--cor-texto);
   min-width: 60px;
@@ -153,16 +153,60 @@
   fill: none;
 }
 
-.fc-chart-acum .fc-ref-lbl,
-.fc-chart-acum .fc-eixo-lbl {
+.fc-chart-acum .fc-ref-lbl {
   fill: var(--cor-texto-fraco);
-  font-size: 8.5px;
+  font-size: var(--tipo-rotulo-secao);
   font-family: var(--fonte-base);
+}
+
+/* R3 (acabamento): rótulos do eixo em HTML embaixo do SVG (no SVG eles encolhiam junto
+   com o viewBox e ficavam com ~8px no iPhone pequeno), legenda do mês anterior com
+   traço desenhado em CSS e o estado de 1 dia só (total + quando a linha aparece). */
+.fc-eixo-linha {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: var(--tipo-rotulo-secao);
+  color: var(--cor-texto-fraco);
+}
+
+.fc-legenda-ref {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: var(--tipo-rotulo-secao);
+  color: var(--cor-texto-2);
+}
+
+.fc-legenda-ref > span {
+  width: 18px;
+  border-top: 2px dashed var(--cor-texto-fraco);
+}
+
+.fc-evolucao-um-dia {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0 2px;
+}
+
+.fc-evolucao-um-dia b {
+  font-size: 24px;
+  font-weight: var(--peso-forte);
+  color: var(--cor-texto);
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-evolucao-um-dia span {
+  font-size: var(--tipo-secundario);
+  line-height: 1.45;
+  color: var(--cor-texto-2);
 }
 
 .fc-chart-acum .fc-valor-final {
   fill: var(--cor-texto);
-  font-size: 10px;
+  font-size: var(--tipo-rotulo-secao);
   font-weight: 700;
   font-family: var(--fonte-base);
 }
@@ -189,7 +233,7 @@
 .fc-fvclbl {
   display: flex;
   justify-content: space-between;
-  font-size: 0.72rem;
+  font-size: var(--tipo-rotulo-secao);
   color: var(--cor-texto-2);
   margin-bottom: 5px;
 }
@@ -306,7 +350,7 @@
   display: inline-flex;
   vertical-align: middle;
   margin-left: 4px;
-  font-size: 10px;
+  font-size: var(--tipo-rotulo-secao);
   padding: 1px 6px;
   background: var(--cor-superficie-2);
   border: none;
