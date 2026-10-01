@@ -60,7 +60,7 @@
    vale ate la). */
 #lista-tarefas > li.item {
   content-visibility: auto;
-  contain-intrinsic-size: auto 95px;
+  contain-intrinsic-size: auto 210px; /* R3: linha da tarefa na escala nova (chips + ações) tem ~170-240px */
 }
 
 /* vel4 - Vida: 20 secoes empilhadas (a maioria abre ABERTA, ~580 nos no total);
