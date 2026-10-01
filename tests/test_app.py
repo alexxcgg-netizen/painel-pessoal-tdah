@@ -80,6 +80,9 @@ class PainelTestCase(unittest.TestCase):
         self._silencio_patch = patch("notificacoes.dentro_do_horario_silencioso", return_value=False)
         self._silencio_patch.start()
         self.addCleanup(self._silencio_patch.stop)
+        # dias 1-3 do mes, apos as 9h, a "revisao do mes" entraria em todo
+        # verificar-agora destes testes (relogio real) - ver _sem_revisao_mensal
+        _sem_revisao_mensal(self)
 
     def test_smoke_pagina_principal_carrega(self):
         res = self.client.get("/")
@@ -7138,6 +7141,21 @@ class IaCustoTestCase(unittest.TestCase):
         self.assertTrue(resumo["teto_estourado"])
 
 
+def _sem_revisao_mensal(testcase):
+    """Tira so a "revisao do mes" (_avisos_fase3 dispara sozinha nos dias 1-3,
+    a partir das 9h, pelo relogio real) dos testes que contam OUTROS avisos sem
+    congelar o relogio - senao eles falham 3 dias por mes. O resto da fase 3
+    continua valendo."""
+    original = app._avisos_fase3
+
+    def filtrado(conn, agora):
+        return [a for a in original(conn, agora) if a[0] != "revisao_mensal"]
+
+    patcher = patch("app._avisos_fase3", side_effect=filtrado)
+    patcher.start()
+    testcase.addCleanup(patcher.stop)
+
+
 class TetoIaNotificacaoTestCase(unittest.TestCase):
     """US-A6 (Fase 5): aviso via push/Telegram (mesmo canal ja usado no
     projeto) quando o teto mensal de IA passa de 80%/100% - mesmo padrao
@@ -7151,6 +7169,7 @@ class TetoIaNotificacaoTestCase(unittest.TestCase):
         auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
         conn.commit()
         conn.close()
+        _sem_revisao_mensal(self)
         app._CACHE_CONSTRUTORA.clear()
         self.client = app.app.test_client()
         res = self.client.post("/login", json={"pin": PIN_TESTE})
