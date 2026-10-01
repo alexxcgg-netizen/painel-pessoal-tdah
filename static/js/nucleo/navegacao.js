@@ -218,7 +218,8 @@ function abrirPeloMais(aba, alvo) {
     }
     const bloco = el.closest(".card, .secao-recolhivel") || el;
     const reduzir = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    bloco.scrollIntoView({ block: "start", behavior: reduzir ? "instant" : "smooth" });
+    const topo = bloco.getBoundingClientRect().top + window.scrollY - 12;
+    window.scrollTo({ top: Math.max(0, topo), behavior: reduzir ? "instant" : "smooth" });
   });
 }
 

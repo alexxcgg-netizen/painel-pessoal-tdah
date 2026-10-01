@@ -76,10 +76,15 @@
 }
 
 #tab-assistente #chat-mensagens {
-  /* 100dvh - topo do body(14) - cabeçalho(~66+22) - campo(56) - respiros - barra */
-  height: calc(100dvh - env(safe-area-inset-top) - 14px - 88px - var(--toque-campo-fixo) - 2 * var(--folga-sobre-barra) - var(--barra-total) - 8px);
-  min-height: 12rem;
+  /* A conversa rola com a PÁGINA (padrão de chat no celular; o teclado do iOS se comporta
+     melhor), não numa caixa com rolagem própria: altura mínima = a tela entre o cabeçalho e
+     o campo (pro estado vazio ficar no meio), sem teto. chat.js leva a página pro fim a
+     cada mensagem nova enquanto a tela IA está aberta.
+     100dvh - topo do body(14) - cabeçalho(~54+22) - campo(56) - respiros - barra */
+  height: auto;
+  min-height: calc(100dvh - env(safe-area-inset-top) - 14px - 76px - var(--toque-campo-fixo) - 2 * var(--folga-sobre-barra) - var(--barra-total) - 8px);
   max-height: none;
+  overflow: visible;
   margin: 0;
   padding: 0 0 8px;
 }

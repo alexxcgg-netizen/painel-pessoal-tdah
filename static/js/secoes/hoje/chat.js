@@ -254,3 +254,22 @@ function initVozChat() {
     }
   });
 }
+
+// R1 (reformulação): na tela IA a conversa rola com a página (static/css/secoes/hoje/chat.css),
+// não mais numa caixa com rolagem própria - o `lista.scrollTop = lista.scrollHeight` de cima
+// continua inofensivo; aqui a PÁGINA vai pro fim quando chega mensagem/card novo (inclusive o
+// texto que aparece palavra a palavra) e quando a tela IA abre, sempre deixando a última
+// mensagem logo acima do campo fixo.
+(function () {
+  const lista = document.getElementById("chat-mensagens");
+  if (!lista || typeof MutationObserver === "undefined") return;
+  function irProFim() {
+    const tela = document.getElementById("tab-assistente");
+    if (!tela || tela.hidden || !tela.contains(lista)) return;
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
+  }
+  new MutationObserver(irProFim).observe(lista, { childList: true, subtree: true, characterData: true });
+  document.addEventListener("aba:aberta", (ev) => {
+    if (ev.detail && ev.detail.aba === "assistente") requestAnimationFrame(irProFim);
+  });
+})();
