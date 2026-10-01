@@ -23,7 +23,7 @@
   align-items: center;
   padding: 0.1rem 0.55rem;
   border-radius: var(--raio-pilula, 999px);
-  font-size: 0.72rem;
+  font-size: var(--tipo-rotulo-secao);
   font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
