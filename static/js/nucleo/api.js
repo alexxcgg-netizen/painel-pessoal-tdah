@@ -2,11 +2,21 @@
 // Fase 7 (X2): extraido sem mudanca de logica do antigo app.js 163-240.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
 
+// Toast some sozinho depois de ERRO_TOAST_MS (cobria o título da tela até alguém
+// tocar nele); tocar continua fechando na hora e um erro novo reinicia a contagem.
+const ERRO_TOAST_MS = 6000;
+let _erroToastTimer = null;
+
 function mostrarErro(msg) {
   const banner = $("#erro-banner");
   if (typeof banner.classList !== "undefined") banner.classList.remove("c2-toast-sai");
   banner.textContent = msg;
   banner.hidden = false;
+  if (_erroToastTimer) clearTimeout(_erroToastTimer);
+  _erroToastTimer = setTimeout(() => {
+    _erroToastTimer = null;
+    limparErro();
+  }, ERRO_TOAST_MS);
 }
 
 // Vis (C2): saida animada (--dur-rapida, fade) em vez de [hidden]=true na
