@@ -71,7 +71,7 @@ TELAS = ["tarefas", "gastos", "painel", "vida", "aviacao", "construtora", "confi
 # Auditoria rodada DENTRO da pagina. `sel` = raiz auditada (#tab-X ou #folha-captura).
 # Devolve listas de violacoes (vazias = ok) e os estilos distintos dos titulos de secao.
 # Titulo de secao = .rotulo-tela e qualquer <h2> visivel da tela (o h1 e o do cabecalho;
-# titulo de card e h3). Alvo de toque = botao, link, campo, select, summary, [role=button]
+# titulo de card e h3; a saudacao do Inicio e o hero, nao titulo de secao). Alvo de toque = botao, link, campo, select, summary, [role=button]
 # e o <label> de checkbox/radio/arquivo (o input em si costuma ser escondido/miudo).
 AUDIT_JS = r"""
 (sel) => {
@@ -135,7 +135,7 @@ AUDIT_JS = r"""
     }
   });
   const estilos = {};
-  raiz.querySelectorAll('.rotulo-tela, h2').forEach((el) => {
+  raiz.querySelectorAll('.rotulo-tela, h2:not(.inicio-saudacao)').forEach((el) => {
     if (!visivel(el)) return;
     const cs = getComputedStyle(el);
     const k = [cs.fontSize, cs.fontWeight, cs.letterSpacing, cs.textTransform, cs.color].join(' | ');

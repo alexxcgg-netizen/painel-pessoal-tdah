@@ -124,7 +124,7 @@
    ===================================================================== */
 
 /* ---------- Título de seção: o mesmo rótulo do Início ("AGORA") ---------- */
-main > .tab-content:not(#tab-assistente):not(#tab-mais) h2:not(.cab-tela-titulo):not(.folha-titulo):not(.bottom-sheet-titulo) {
+main > .tab-content:not(#tab-assistente):not(#tab-mais) h2:not(.cab-tela-titulo):not(.folha-titulo):not(.inicio-saudacao):not(.bottom-sheet-titulo) {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -142,7 +142,7 @@ main > .tab-content:not(#tab-assistente):not(#tab-mais) h2:not(.cab-tela-titulo)
   color: var(--cor-texto-2);
 }
 
-main > .tab-content:not(#tab-assistente):not(#tab-mais) h2:not(.cab-tela-titulo):not(.folha-titulo) > svg {
+main > .tab-content:not(#tab-assistente):not(#tab-mais) h2:not(.cab-tela-titulo):not(.folha-titulo):not(.inicio-saudacao) > svg {
   width: 18px;
   height: 18px;
   flex: none;
@@ -374,7 +374,7 @@ main > .tab-content .dica-toggle {
   color: var(--cor-texto-fraco);
   font-family: var(--fonte-texto);
   font-size: var(--tipo-secundario);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 main > .tab-content .dica-toggle::before {
@@ -491,4 +491,37 @@ main > .tab-content .btn-ouvir {
 main > .tab-content .btn-ouvir svg {
   width: 18px;
   height: 18px;
+}
+
+/* Cabeçalho de seção recolhível: título de card (17/700) alinhado à esquerda, ícone de
+   18px no destaque e a seta encostada na direita - igual em todas as telas (Aviação e
+   Cotações centralizavam o texto). */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .secao-recolhivel > .secao-cabecalho {
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: var(--toque-linha);
+  padding: 14px var(--espaco-card);
+  font-size: var(--tipo-titulo-card);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  color: var(--cor-texto);
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .secao-recolhivel > .secao-cabecalho > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--cor-destaque);
+  opacity: 1;
+}
+
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .secao-recolhivel > .secao-cabecalho > .chevron {
+  margin-left: auto;
+}
+
+/* Cards empilhados dentro de um wrapper (Vida) respiram como blocos soltos. */
+main > .tab-content:not(#tab-assistente):not(#tab-mais) .vida-secoes > :is(.card, .secao-recolhivel) {
+  margin: 0 0 var(--espaco-blocos);
 }
