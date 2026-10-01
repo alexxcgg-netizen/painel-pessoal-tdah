@@ -5,6 +5,23 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-01 - Reformulação, etapa 1: esqueleto novo (aprovado pela prévia "preto gelo")
+
+- **Barra de 5**: Início · Tarefas · IA (botão central) · Finanças · Mais, nomes inteiros. Painel ("Meu dia"),
+  Vida, Aviação e Construtora saíram da barra e abrem pela tela **Mais** (mesmos ids/loaders; "‹" volta).
+- **Topo global removido** de todas as telas. Cada tela tem cabeçalho próprio (`componentes/cabecalho-tela.html`).
+  Os 5 botões redondos (silêncio, modo viagem, modo visitante, backup, sair) + notificações + custo da IA
+  viraram linhas em Mais › Configurações (`tab-config`), mesmos ids/JS.
+- **Botão +** (FAB) em Início/Tarefas/Finanças abre folha com o campo de captura, atalhos (Tarefa, Gasto,
+  Lembrete, Nota) e Falar — mesma captura de antes.
+- **Chat mudou pra tela IA** com campo fixo acima da barra; pendências/regras/avisos foram pra
+  Mais › Avisos e regras (`tab-ajustes-ia`). `showTab` dispara `aba:aberta`.
+- **Escala maior**: tokens novos de tipo (12–28), raios (22/18/16/13), toque (≥ 52 px, linhas ≥ 64 px).
+- Testes: 7 novos (`test_r1_esqueleto.py`); testes de navegação ajustados pra abrir telas pelo Mais;
+  2 testes que falhavam nos dias 1–3 do mês corrigidos. Service worker v36.
+- Próximas etapas: conteúdo novo do Início (hero, Agora, números, Acesso rápido) e da IA (sugestões);
+  acabamento das telas internas no mesmo padrão.
+
 ## 2026-09-30 - Painel e Vida sólidos + animações mais fluidas
 
 - **Vida/Painel**: seções da Vida a partir da 4ª com `content-visibility:auto` ("aba visível" ~50 → ~27 ms).
