@@ -564,8 +564,8 @@ main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao
   position: relative;
 }
 
-main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2:has(+ .dica-colapsavel) {
-  padding-right: 40px;
+main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2:not(.cab-tela-titulo):not(.folha-titulo):has(+ .dica-colapsavel) {
+  padding-right: 44px;
 }
 
 main > .tab-content:not(#tab-assistente):not(#tab-mais) :is(.card, .painel-secao-card) > h2 + .dica-colapsavel {
