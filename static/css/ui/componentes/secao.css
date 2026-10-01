@@ -152,3 +152,20 @@
   outline: none;
   box-shadow: var(--anel-foco);
 }
+
+/* R1 (reformulação): rótulo de seção no padrão único CAIXA ALTA 13px, letter-spacing .09em
+   (o h2 global de base/layout.css já era caixa alta; aqui só a escala). Cabeçalho de seção
+   recolhível com toque de 52px. */
+main h2:not(.cab-tela-titulo):not(.folha-titulo) {
+  font-size: var(--tipo-rotulo-secao);
+  letter-spacing: var(--tipo-espacamento-rotulo);
+}
+
+.secao-cabecalho {
+  min-height: var(--toque-controle);
+}
+
+/* Blocos de uma tela respiram 22px entre si (card solto, seção recolhível). */
+main .tab-content > :is(.card, .secao-recolhivel, .painel-secao-card) {
+  margin-bottom: var(--espaco-blocos);
+}

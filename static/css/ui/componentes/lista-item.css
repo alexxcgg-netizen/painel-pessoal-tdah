@@ -89,3 +89,9 @@
   box-shadow: var(--anel-foco);
   border-radius: var(--raio-xs);
 }
+
+/* R1 (reformulação): escala nova - linha de lista com no mínimo 64px de altura. */
+.lista-item,
+main li.item {
+  min-height: var(--toque-linha);
+}

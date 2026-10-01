@@ -199,6 +199,58 @@
   --camada-fab: 20;
   --camada-veu: 40;
   --camada-sheet: 41;
+
+  /* ---------- Escala da reformulação (R1, SPEC "preto gelo" aprovada em 2026-10-01) ----------
+     Prévia de referência: scratchpad/redesign/previa.html. Cores NÃO mudam (paleta acima);
+     aqui só entram tipo, raios, toque, espaço, superfícies nomeadas e medidas de chrome.
+     Quem usa: ui/componentes/navegacao.css (barra, cabeçalho de tela, Mais), secoes/topo/*.css
+     (FAB, folha, Configurações), secoes/hoje/chat.css (campo fixo) e ui/componentes/{card,botao,campo,lista-item,secao}.css (escala básica). */
+  /* Tipo (px fixos de propósito: é a escala da prévia; o zoom de texto do iOS escala tudo junto) */
+  --tipo-rotulo-nav: 12px; /* rótulo da barra de baixo */
+  --tipo-rotulo-secao: 13px; /* rótulo de seção CAIXA ALTA */
+  --tipo-secundario: 14px; /* subtítulo, texto de apoio */
+  --tipo-corpo: 16px; /* texto corrido, campo */
+  --tipo-titulo-card: 17px; /* título de card e de linha */
+  --tipo-titulo-folha: 20px; /* título de folha (bottom sheet) */
+  --tipo-titulo-tela: 24px; /* título do cabeçalho de cada tela */
+  --tipo-hero: 28px; /* saudação grande do Início */
+  --tipo-espacamento-rotulo: 0.09em; /* letter-spacing do rótulo CAIXA ALTA */
+  --peso-titulo: 700;
+  --peso-forte: 800;
+  /* Raios */
+  --raio-card: 22px;
+  --raio-tile: 16px; /* tile de ícone de 52px */
+  --raio-tile-linha: 13px; /* tile de ícone de 42px dentro de linha */
+  --raio-controle: 18px; /* botão e campo */
+  --raio-fab: 20px;
+  --raio-folha: 28px; /* cantos de cima da folha */
+  /* Toque */
+  --toque-controle: 52px; /* altura mínima de botão/campo */
+  --toque-linha: 64px; /* altura mínima de linha de lista */
+  --toque-acao: 44px; /* botão-ícone de ação no cabeçalho */
+  --toque-campo-fixo: 56px; /* campo fixo do chat (tela IA) */
+  --tamanho-fab: 60px;
+  --tile-icone: 52px;
+  --tile-icone-linha: 42px;
+  /* Espaço */
+  --espaco-lateral: 18px; /* gutter das telas */
+  --espaco-blocos: 22px; /* entre blocos de uma tela */
+  --espaco-grade: 12px; /* entre itens de grade */
+  --espaco-card: 18px; /* padding de card (faixa 16–22) */
+  /* Superfícies nomeadas (mesmas cores da paleta, só apelidos de uso) */
+  --superficie-tela: var(--cor-fundo);
+  --superficie-card: var(--cor-superficie-2);
+  --superficie-elevada: color-mix(in srgb, var(--cor-superficie-2) 70%, var(--cor-texto) 4%);
+  --superficie-barra: color-mix(in srgb, var(--cor-superficie-2) 92%, transparent);
+  /* Chrome fixo: a barra de baixo e o que fica acima dela */
+  --altura-barra: 64px; /* área útil da barra (sem a safe-area) */
+  --barra-total: calc(var(--altura-barra) + env(safe-area-inset-bottom));
+  --folga-sobre-barra: 14px; /* respiro entre a barra e o FAB/campo fixo */
+
+  /* Os dois raios-base do app (variaveis.css: 20px/14px) sobem pra escala nova: todo card
+     que usa --radius vira 22px e todo botão/campo que usa --radius-sm vira 18px. */
+  --radius: var(--raio-card);
+  --radius-sm: var(--raio-controle);
 }
 
 /* Movimento reduzido: componentes que usam os tokens ficam instantaneos (o style.css ja faz o
