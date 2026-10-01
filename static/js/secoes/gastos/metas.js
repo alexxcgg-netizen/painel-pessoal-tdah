@@ -42,7 +42,7 @@ function criarItemMeta(meta) {
       : "";
   const prazoTxt = meta.prazo
     ? meta.por_mes != null
-      ? ` - guarde ${fmtMoedaFinancas(meta.por_mes)}/mes ate ${meta.prazo}${diasTxt}`
+      ? ` - guarde ${fmtMoedaFinancas(meta.por_mes)}/mes até ${meta.prazo}${diasTxt}`
       : ` - prazo: ${meta.prazo}${diasTxt}`
     : " - sem prazo definido";
   detalhe.textContent = guardadoTxt + prazoTxt;

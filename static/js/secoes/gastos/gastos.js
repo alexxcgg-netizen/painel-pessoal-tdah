@@ -57,7 +57,7 @@ if (notaFiscalInput) {
     label.innerHTML = htmlOriginal;
     if (!data) return; // erro real ja mostrado por apiFetch
     if (data.__enfileirado) {
-      $("#nota-fiscal-status").textContent = "Sem conexao - a foto foi salva e vai ler assim que voltar.";
+      $("#nota-fiscal-status").textContent = "Sem conexão - a foto foi salva e vai ler assim que voltar.";
       $("#nota-fiscal-confirmacao").hidden = true;
       return;
     }
@@ -395,7 +395,15 @@ function renderizarEvolucaoFinancas(porDiaMes, porDiaMesAnterior) {
     ? porDiaMes.filter((d) => d && typeof d.dia === "number" && numeroFinancas(d.acumulado) !== null)
     : [];
   if (dias.length === 0) {
-    container.innerHTML = '<p class="vazio">Sem gastos registrados esse mes ainda.</p>';
+    container.innerHTML = '<p class="vazio">Sem gastos registrados este mês ainda.</p>';
+    return;
+  }
+  // R3 (acabamento): com 1 dia só, a "linha" seria um ponto solto no meio de um card vazio -
+  // mostra o total do dia com a explicação de quando a linha aparece.
+  if (dias.length === 1) {
+    container.innerHTML =
+      `<div class="fc-evolucao-um-dia"><b>${fmtMoedaFinancas(dias[0].acumulado)}</b>` +
+      `<span>gasto até o dia ${dias[0].dia}. A linha do mês aparece a partir do 2º dia com gasto.</span></div>`;
     return;
   }
   const anterior = Array.isArray(porDiaMesAnterior)
@@ -404,7 +412,7 @@ function renderizarEvolucaoFinancas(porDiaMes, porDiaMesAnterior) {
 
   const w = 300;
   const h = 110;
-  const padB = 18;
+  const padB = 4;
   const padT = 12;
   const n = dias.length;
   const nComp = Math.min(n, anterior.length);
@@ -434,10 +442,9 @@ function renderizarEvolucaoFinancas(porDiaMes, porDiaMesAnterior) {
       <path d="${caminhoAtual}" class="fc-linha"></path>
       <circle cx="${ultimo[0].toFixed(1)}" cy="${ultimo[1].toFixed(1)}" r="3" class="fc-ponto"></circle>
       <text x="${ultimo[0].toFixed(1)}" y="${Math.max(10, ultimo[1] - 8).toFixed(1)}" class="fc-valor-final" text-anchor="${n > 1 ? "end" : "middle"}">${valorFinalTxt}</text>
-      <text x="0" y="${h}" class="fc-eixo-lbl">dia 1</text>
-      <text x="${w}" y="${h}" class="fc-eixo-lbl" text-anchor="end">dia ${dias[n - 1].dia}</text>
     </svg>
-    ${caminhoAnterior ? '<p class="fc-card-topo" style="margin:8px 0 0">- - - mes anterior (mesmo período)</p>' : ""}`;
+    <div class="fc-eixo-linha"><span>dia 1</span><span>dia ${dias[n - 1].dia}</span></div>
+    ${caminhoAnterior ? '<p class="fc-legenda-ref"><span aria-hidden="true"></span>mês anterior (mesmo período)</p>' : ""}`;
 }
 
 // Card "Fatura x conta": duas barras comparativas (fatura em --cor-alerta,
@@ -742,8 +749,8 @@ function preencherCustoIA(data) {
   const aviso = $("#custo-ia-teto-aviso");
   if (data.teto_estourado) {
     aviso.textContent =
-      "Teto estourado esse mes - o classificador de intent (navegacao por voz) vai preferir " +
-      "resolver por padrao ja aprendido em vez de chamar a IA, ate o mes virar.";
+      "Teto estourado esse mês - o classificador de intent (navegacao por voz) vai preferir " +
+      "resolver por padrão já aprendido em vez de chamar a IA, até o mês virar.";
     aviso.hidden = false;
   } else if (data.teto_perto) {
     const fracao = numeroFinancas(data.fracao_teto);
