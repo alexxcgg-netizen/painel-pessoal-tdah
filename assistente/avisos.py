@@ -117,14 +117,14 @@ def _tipo(label: str) -> dict:
 TIPOS: dict[str, dict] = {
     # -- Ja existentes em app.py/verificar_e_notificar (mesmo texto de tipo
     # que os `avisos.append((tipo, ...))` de la usam - ver progress.txt) --
-    "rotina_manha": _tipo("Bom dia (rotina da manha)"),
+    "rotina_manha": _tipo("Bom dia (rotina da manhã)"),
     "conta_pessoal": _tipo("Conta pessoal chegando"),
-    "pessoa_sem_contato": _tipo("Faz tempo sem contato com alguem"),
-    "pre_voo": _tipo("Pre-voo (vespera/dia do voo)"),
-    "manutencao": _tipo("Manutencao (geral)"),
-    "manutencao_veiculo": _tipo("Manutencao do veiculo"),
+    "pessoa_sem_contato": _tipo("Faz tempo sem contato com alguém"),
+    "pre_voo": _tipo("Pré-voo (véspera/dia do voo)"),
+    "manutencao": _tipo("Manutenção (geral)"),
+    "manutencao_veiculo": _tipo("Manutenção do veículo"),
     "responder": _tipo("Mensagens pra responder"),
-    "revisao_mensal": _tipo("Revisao do mês"),
+    "revisao_mensal": _tipo("Revisão do mês"),
     "tarefas_atrasadas": _tipo("Tarefas atrasadas (resumo)"),
     "tarefa_parada": _tipo("Tarefa parada (cobrança individual)"),
     "espera_parada": _tipo("Espera parada"),
@@ -134,8 +134,8 @@ TIPOS: dict[str, dict] = {
     "cobranca_generica": _tipo("Cobrança sem identificar"),
     "assinatura_aumento_preco": _tipo("Assinatura ficou mais cara"),
     "gasto_elevado": _tipo("Gasto da semana elevado"),
-    "gasto_dia_atipico": _tipo("Gasto do dia fora do padrao"),
-    "gasto_categoria_atipico": _tipo("Gasto da categoria fora do padrao"),
+    "gasto_dia_atipico": _tipo("Gasto do dia fora do padrão"),
+    "gasto_categoria_atipico": _tipo("Gasto da categoria fora do padrão"),
     "lembrete_proximo": _tipo("Lembrete: data chegando"),
     "lembrete_despertar": _tipo("Lembrete: hora marcada"),
     "tarefa_horario": _tipo("Tarefa: horário chegando"),
@@ -158,20 +158,20 @@ TIPOS: dict[str, dict] = {
     "cartao_limite": _tipo("Cartão perto ou estourando o limite"),
     "renda_comprometida": _tipo("Renda do mês perto de acabar"),
     "projeto_poeira": _tipo("Projeto juntando poeira"),
-    "mes_seguinte_apertado": _tipo("Projecao do mês seguinte apertada"),
+    "mes_seguinte_apertado": _tipo("Projeção do mês seguinte apertada"),
     # -- Novos da Fase 7 (contrato assistente/caixa.py - ainda sem funcao
     # correspondente, chave que as faixas P2-P9 devem usar) --
     "pergunta_conta": _tipo("Pergunta sobre conta (ex: pagou o cartão?)"),
-    "reuniao": _tipo("Reuniao ou compromisso"),
+    "reuniao": _tipo("Reunião ou compromisso"),
     "tarefa_vencida": _tipo("Tarefa vencida"),
     "lembrete": _tipo("Lembrete"),
     "espera": _tipo("Espera parada"),
-    "briefing_manha": _tipo("Briefing da manha"),
+    "briefing_manha": _tipo("Briefing da manhã"),
     "briefing_noite": _tipo("Briefing da noite"),
     "regra": _tipo("Regra aprendida ou aplicada"),
     "sinal": _tipo("Sinal do iPhone (ex: cheguei no mercado)"),
     "memoria_viva": _tipo("Proposta de memória viva"),
-    "replanejar": _tipo("Sugestao de replanejar a semana"),
+    "replanejar": _tipo("Sugestão de replanejar a semana"),
     # -- Fase 8, faixa F3 (+ uso/m5-parcela): aviso de cobranca proxima -
     # assinatura (com o interruptor "avisar antes de cobrar" ligado) ou
     # parcela de compra parcelada (avisa por padrao) --

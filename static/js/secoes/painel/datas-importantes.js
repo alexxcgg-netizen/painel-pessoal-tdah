@@ -55,11 +55,11 @@ async function loadLembretes() {
         : "item-quando";
       contagem.textContent =
         l.dias_restantes < 0
-          ? `venceu ha ${Math.abs(l.dias_restantes)} dia(s)`
+          ? `venceu há ${Math.abs(l.dias_restantes)} dia(s)`
           : l.dias_restantes === 0
           ? "e hoje"
           : l.dias_restantes === 1
-          ? "e amanha"
+          ? "e amanhã"
           : `faltam ${l.dias_restantes} dias`;
       tituloWrap.appendChild(contagem);
     }

@@ -42,7 +42,7 @@ async function loadEsperas() {
       const critico = esp.dias_parado > 5;
       parado.className = `item-quando espera-dias-parado${critico ? " espera-dias-parado-critico" : ""}`;
       parado.textContent =
-        esp.dias_parado === 0 ? "esperando desde hoje" : `esperando ha ${esp.dias_parado} dia(s)`;
+        esp.dias_parado === 0 ? "esperando desde hoje" : `esperando há ${esp.dias_parado} dia(s)`;
       tituloWrap.appendChild(parado);
     }
     linha.appendChild(tituloWrap);

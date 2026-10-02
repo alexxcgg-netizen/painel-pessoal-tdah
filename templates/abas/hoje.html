@@ -31,7 +31,7 @@
 {%- macro ico(nome) -%}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ ICONES[nome] | safe }}</svg>{%- endmacro %}
       <section class="inicio-hero" id="inicio-hero" aria-labelledby="inicio-saudacao">
         <h2 class="inicio-saudacao" id="inicio-saudacao">Olá!</h2>
-        <p class="inicio-resumo" id="inicio-resumo">Carregando o seu dia…</p>
+        <p class="inicio-resumo esqueleto" id="inicio-resumo" aria-busy="true" style="--esq-altura: 20px; --esq-largura: 78%">Carregando o seu dia…</p>
         <div class="inicio-hero-linha">
           <span class="inicio-chip" id="inicio-chip" hidden>{{ ico("checkc") }}<span id="inicio-chip-texto"></span></span>
           <button type="button" class="inicio-ouvir" id="inicio-ouvir" aria-label="Ouvir o resumo da manhã">{{ ico("som") }}Ouvir</button>

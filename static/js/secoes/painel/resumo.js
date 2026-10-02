@@ -29,6 +29,7 @@ function lerResumoCache() {
 async function loadSummary() {
   const resumoEl = $("#resumo-texto");
   resumoEl.classList.add("carregando");
+  resumoEl.setAttribute("aria-busy", "true");
   resumoEl.textContent = "Carregando...";
 
   const [data, tasks, metas] = await Promise.all([
@@ -44,6 +45,7 @@ async function loadSummary() {
   }
 
   resumoEl.classList.remove("carregando");
+  resumoEl.removeAttribute("aria-busy");
 
   const dadosPraMostrar = data || lerResumoCache();
   if (!dadosPraMostrar) {

@@ -49,7 +49,7 @@ function custoIaV2PreencherGrafico(porDia) {
   desenharGraficoBarras(container, dados, {
     cor: "var(--cor-painel)",
     formatarValor: fmtMoeda,
-    rotulo: "Gasto de IA por dia, esse mes",
+    rotulo: "Gasto de IA por dia, esse mês",
   });
 }
 
@@ -96,7 +96,7 @@ async function loadCustoIAV2() {
   definirProgressoBarra(barra, pct);
   barra.classList.toggle("completa", dados.nivel_alerta === "estourado_100");
   $("#custo-ia-v2-fracao").textContent = `${custoIaV2FormatarPercentual(dados.fracao_teto)} do teto usado`;
-  $("#custo-ia-v2-projecao").textContent = `Projecao até o fim do mes: ${fmtMoeda(dados.projecao_fim_mes_brl)}.`;
+  $("#custo-ia-v2-projecao").textContent = `Projeção até o fim do mês: ${fmtMoeda(dados.projecao_fim_mes_brl)}.`;
 
   const nivelEl = $("#custo-ia-v2-nivel");
   const textoNivel = CUSTO_IA_V2_ROTULO_NIVEL[dados.nivel_alerta] || "";

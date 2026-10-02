@@ -10,9 +10,13 @@ async function loadVoosResumo() {
   // pouco mais que uma chamada comum - mostra que ta carregando em vez de
   // deixar a lista parecendo vazia/quebrada nesse meio tempo
   vazioTexto.textContent = "Carregando voos e previsão do tempo...";
+  vazioEl.classList.add("esqueleto");
+  vazioEl.setAttribute("aria-busy", "true");
   vazioEl.hidden = false;
 
   const data = await apiFetch("/api/voos/resumo");
+  vazioEl.classList.remove("esqueleto");
+  vazioEl.removeAttribute("aria-busy");
   vazioTexto.textContent = textoOriginal;
   // null (erro ja mostrado) ou resposta fora do formato: deixa a tela como estava
   if (!data || typeof data !== "object" || !Array.isArray(data.proximos)) {

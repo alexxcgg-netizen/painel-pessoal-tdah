@@ -34,12 +34,12 @@ async function loadManutencoes() {
     }
     const quando =
       m.dias_ate < 0
-        ? `passou do prazo ha ${-m.dias_ate} dia(s)`
+        ? `passou do prazo há ${-m.dias_ate} dia(s)`
         : m.dias_ate === 0
         ? "vence hoje"
         : `próxima em ${fmtDataBr(m.proxima)} (${m.dias_ate} dias)`;
     lista.appendChild(
-      itemSimples(m.item, [rotuloTipo, `a cada ${m.intervalo_meses} mes(es)`, quando], [
+      itemSimples(m.item, [rotuloTipo, `a cada ${m.intervalo_meses} mês(es)`, quando], [
         botaoAcao("feita hoje", async () => {
           const ok = await jsonPost(`/api/manutencoes/${m.id}/feita`);
           if (ok) loadManutencoes();

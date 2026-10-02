@@ -11,9 +11,9 @@ const ICONE_ALERTA_CONTA =
 
 function quandoContaAVencer(dias) {
   if (dias === null) return "sem data";
-  if (dias < 0) return `venceu ha ${Math.abs(dias)} dia(s)`;
+  if (dias < 0) return `venceu há ${Math.abs(dias)} dia(s)`;
   if (dias === 0) return "vence hoje";
-  if (dias === 1) return "vence amanha";
+  if (dias === 1) return "vence amanhã";
   return `vence em ${dias} dias`;
 }
 

@@ -156,7 +156,7 @@ async function apiFetch(url, options, fila) {
     mostrarErro(
       e && e.name === "AbortError"
         ? "O painel demorou demais pra responder. Tenta de novo."
-        : "Sem conexao com o servidor. Confere se o painel esta rodando."
+        : "Sem conexao com o servidor. Confere se o painel está rodando."
     );
     return null;
   } finally {

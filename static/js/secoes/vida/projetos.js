@@ -32,7 +32,7 @@ function renderProjetoBarra(p) {
   if (p.posicao_hoje != null) {
     const marcador = criarEl("div", "projeto-barra-hoje");
     marcador.style.left = `${p.posicao_hoje}%`;
-    marcador.title = "Posicao de hoje entre inicio e prazo";
+    marcador.title = "Posição de hoje entre início e prazo";
     trilho.appendChild(marcador);
   }
   wrap.appendChild(trilho);

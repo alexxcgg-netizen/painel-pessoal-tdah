@@ -2,6 +2,7 @@
       <h2 style="--secao-cor: var(--cor-painel)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="8.5" width="13" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9 15l6-6"/></svg>
         Medicamentos
+        <span class="secao-contador" id="medicamentos-contador" hidden aria-live="polite"></span>
       </h2>
       <div class="dica-colapsavel">
         <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicação dos medicamentos"></button>
@@ -9,7 +10,7 @@
           Copia o fluxo de Medicamentos do Apple Saúde (nome, dosagem, horário) - o painel não
           consegue ler/gravar direto no Apple Saúde nessa parte específica, então guarda aqui e
           te avisa 10 minutos antes de cada horário, todo dia. Peça no chat (ex: "tenho que tomar
-          Losartana 50mg todo dia as 8h") ou cadastra direto aqui.
+          Losartana 50mg todo dia às 8h") ou cadastra direto aqui.
         </p>
       </div>
       <button type="button" id="medicamento-abrir-btn" class="btn btn-adicionar" data-abre-sheet="medicamento-sheet">

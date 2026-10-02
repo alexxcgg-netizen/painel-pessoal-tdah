@@ -10,7 +10,7 @@ async function loadResponder() {
   lista.innerHTML = "";
   $("#responder-vazio").hidden = itens.length > 0;
   itens.forEach((r) => {
-    const quando = r.dias === 0 ? "de hoje" : `ha ${r.dias} dia(s)`;
+    const quando = r.dias === 0 ? "de hoje" : `há ${r.dias} dia(s)`;
     lista.appendChild(
       itemSimples(r.quem, [r.sobre, quando], [
         botaoAcao("respondi", async () => {

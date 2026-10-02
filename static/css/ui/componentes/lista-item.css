@@ -95,3 +95,112 @@
 main li.item {
   min-height: var(--toque-linha);
 }
+
+/* ---------- R4: "marcar como feito hoje" (Tomei / Feito hoje) ----------
+   Botão grande de 52px na linha; no estado feito vira um selo verde com a hora e o
+   "Desfazer" (alvo de 44px). Check desenhado + pulso vêm do animarCheck (movimento.js). */
+.check-dia {
+  margin-top: 12px;
+  min-width: 0;
+}
+
+.check-dia > .check-dia-marcar {
+  width: 100%;
+  min-height: var(--toque-controle);
+  border-radius: var(--raio-controle);
+  font-size: var(--tipo-corpo);
+  font-weight: var(--peso-titulo);
+}
+
+.check-dia > .check-dia-marcar svg {
+  width: 20px;
+  height: 20px;
+}
+
+.check-dia > .check-dia-feito {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--toque-controle);
+  padding: 4px 4px 4px 12px;
+  border-radius: var(--raio-controle);
+  background: color-mix(in srgb, var(--cor-entrada) 14%, var(--cor-superficie-2));
+}
+
+.check-dia > .check-dia-feito[hidden],
+.check-dia > .check-dia-marcar[hidden] {
+  display: none;
+}
+
+.check-dia-selo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--cor-entrada);
+  color: var(--cor-sobre-destaque);
+}
+
+.check-dia-selo[hidden] {
+  display: none;
+}
+
+.check-dia-selo svg {
+  width: 16px;
+  height: 16px;
+}
+
+.check-dia-texto {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--cor-texto);
+  overflow-wrap: anywhere;
+}
+
+.check-dia-desfazer {
+  flex: none;
+  min-width: var(--toque-min);
+  min-height: var(--toque-min);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--raio-controle);
+  background: transparent;
+  color: var(--cor-texto-2);
+  font: inherit;
+  font-size: var(--tipo-secundario);
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.check-dia-desfazer:active {
+  background: color-mix(in srgb, var(--cor-texto) 8%, transparent);
+}
+
+/* Contador "2 de 3 hoje" no cabeçalho de seção (Medicamentos). */
+.secao-contador {
+  margin-left: auto;
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--cor-superficie-2);
+  border: 1px solid var(--cor-borda);
+  font-size: var(--tipo-rotulo-secao);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cor-texto-2);
+}
+
+.secao-contador.completo {
+  color: var(--cor-entrada);
+  border-color: color-mix(in srgb, var(--cor-entrada) 40%, var(--cor-borda));
+}
+
+.secao-contador[hidden] {
+  display: none;
+}

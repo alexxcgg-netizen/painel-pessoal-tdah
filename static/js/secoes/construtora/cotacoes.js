@@ -128,7 +128,13 @@ function criarItemCotacao(c) {
 }
 
 async function preencherDetalheCotacao(cotacaoId, container) {
-  container.textContent = "Carregando...";
+  container.textContent = "";
+  const carregando = document.createElement("p");
+  carregando.className = "esqueleto";
+  carregando.style.setProperty("--esq-altura", "56px");
+  carregando.setAttribute("aria-busy", "true");
+  carregando.textContent = "Carregando...";
+  container.appendChild(carregando);
   const data = await apiFetch(`/api/cotacoes/${cotacaoId}`);
   if (!data || !Array.isArray(data.itens)) {
     container.textContent = "";

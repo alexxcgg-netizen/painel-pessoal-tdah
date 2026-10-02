@@ -16,9 +16,9 @@ function rotuloProximaConta(contas) {
   if (comDias.length === 0) return "Nenhuma conta em aberto nos próximos 30 dias.";
   const proxima = comDias.reduce((m, c) => (Number(c.dias_ate_vencer) < Number(m.dias_ate_vencer) ? c : m));
   const dias = Number(proxima.dias_ate_vencer);
-  if (dias < 0) return `Próxima conta venceu ha ${Math.abs(dias)} dia(s).`;
+  if (dias < 0) return `Próxima conta venceu há ${Math.abs(dias)} dia(s).`;
   if (dias === 0) return "Próxima conta vence hoje.";
-  if (dias === 1) return "Próxima conta vence amanha.";
+  if (dias === 1) return "Próxima conta vence amanhã.";
   return `Próxima conta em ${dias} dias.`;
 }
 
@@ -28,6 +28,7 @@ async function loadConstrutora() {
   const listaContas = $("#lista-contas-a-vencer");
   info.hidden = false;
   info.classList.add("carregando");
+  info.setAttribute("aria-busy", "true");
   info.textContent = "Carregando...";
   card.hidden = true;
   listaContas.innerHTML = "";
@@ -36,6 +37,7 @@ async function loadConstrutora() {
 
   const data = await apiFetch("/api/construtora/resumo");
   info.classList.remove("carregando");
+  info.removeAttribute("aria-busy");
   if (!data || typeof data !== "object") {
     info.textContent = "Não consegui falar com a construtora agora. Tenta de novo daqui a pouco.";
     return;

@@ -410,14 +410,35 @@
 
 /* Vis (C2, skill animacoes-interface): o brilho do esqueleto anda por
    transform (pseudo-elemento), nunca por background-position (repinta a
-   tela inteira a cada frame) - mesmo visual, custo de composicao so. */
+   tela inteira a cada frame) - mesmo visual, custo de composicao so.
+   R4: esqueleto sutil na escala nova - bloco na superficie 2 com altura
+   reservada (sem salto de layout), brilho translateX 1.4s de opacidade baixa
+   (nada de glow). isolation+overflow:hidden seguram o brilho nos cantos
+   arredondados no Safari. O texto "Carregando..." continua no DOM (color
+   transparente) e o aria-busy="true" avisa o leitor de tela; quem carrega
+   tira a classe e o aria-busy quando os dados chegam. So anima enquanto a
+   classe existe e nunca em tela/aba oculta ([hidden]); reduced-motion: ver
+   reset.css (animation:none). O seletor com [aria-busy] pesa mais que as
+   cores de texto das telas (que carregam depois deste arquivo). */
+.esqueleto[aria-busy="true"],
 .resumo-texto.carregando,
 .shimmer {
   position: relative;
+  isolation: isolate;
   overflow: hidden;
   color: transparent;
-  background: var(--surface);
+  /* superfície 2 com um leve levantamento: aparece também dentro de card que já é superfície 2 */
+  background: color-mix(in srgb, var(--cor-texto) 5%, var(--surface-2));
 }
+.esqueleto {
+  display: block;
+  min-height: var(--esq-altura, 1.5em);
+  width: var(--esq-largura, 100%);
+  max-width: 100%;
+  border-radius: 12px;
+  margin: 0;
+}
+.esqueleto[aria-busy="true"]::after,
 .resumo-texto.carregando::after,
 .shimmer::after {
   content: "";
@@ -427,10 +448,17 @@
   background: linear-gradient(
     100deg,
     transparent 30%,
-    var(--surface-3) 50%,
+    color-mix(in srgb, var(--cor-texto) 8%, transparent) 50%,
     transparent 70%
   );
   animation: shimmerCarregando 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+[hidden] .esqueleto::after,
+[hidden] .resumo-texto.carregando::after,
+[hidden] .shimmer::after,
+.esqueleto[hidden]::after {
+  animation: none;
 }
 
 .stat-tile-valor.shimmer {

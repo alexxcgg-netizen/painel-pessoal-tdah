@@ -6,7 +6,7 @@
 // existia (classe item-atencao), so com um rotulo mais claro que "vence em
 // (X dias)" no meio da frase.
 function garantiaChip(g) {
-  if (g.dias_ate < 0) return { texto: `venceu ha ${-g.dias_ate}d`, classe: "vencida" };
+  if (g.dias_ate < 0) return { texto: `venceu há ${-g.dias_ate}d`, classe: "vencida" };
   if (g.dias_ate === 0) return { texto: "vence hoje", classe: "vencida" };
   if (g.dias_ate <= 15) return { texto: `vence em ${g.dias_ate}d`, classe: "alerta" };
   return { texto: `vence em ${g.dias_ate}d`, classe: "ok" };
@@ -48,7 +48,7 @@ async function loadGarantias() {
         criarEl(
           "span",
           "item-quando",
-          `${g.prazo_garantia_meses} mes(es) - comprado em ${fmtDataBr(g.data_compra)}, vence ${fmtDataBr(g.vencimento)}`
+          `${g.prazo_garantia_meses} mês(es) - comprado em ${fmtDataBr(g.data_compra)}, vence ${fmtDataBr(g.vencimento)}`
         )
       );
       const trilho = criarEl("div", "garantia-barra-trilho");

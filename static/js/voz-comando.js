@@ -84,14 +84,14 @@ const VozComando = (function () {
     registrar_checkin: "abrir o check-in do dia",
     navegar_tela: "navegar pra uma tela",
     consultar: "responder uma pergunta",
-    corrigir_ultimo: "corrigir o ultimo item",
-    desconhecido: "comando nao entendido",
+    corrigir_ultimo: "corrigir o último item",
+    desconhecido: "comando não entendido",
   };
 
   function descreverResultado(resultado) {
-    if (!resultado || typeof resultado !== "object") return "Nao consegui entender o comando.";
+    if (!resultado || typeof resultado !== "object") return "Não consegui entender o comando.";
     if (resultado.teto_ia_estourado) {
-      return "Limite mensal de IA atingido - nao consegui interpretar esse comando agora.";
+      return "Limite mensal de IA atingido - não consegui interpretar esse comando agora.";
     }
     const rotulo = ROTULO_ACAO[resultado.acao] || ROTULO_ACAO.desconhecido;
     const parametros = resultado.parametros || {};
@@ -113,7 +113,7 @@ const VozComando = (function () {
     registrar_checkin: "Era check-in",
     navegar_tela: "Era navegacao",
     consultar: "Era pergunta",
-    corrigir_ultimo: "Era correcao do ultimo item",
+    corrigir_ultimo: "Era correção do último item",
   };
 
   function opcoesDeCorrecao() {
@@ -279,12 +279,12 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
           // adivinhar errado, abre a tela onde o check-in de 1 toque ja
           // existe (static/js/vida.js) pro Alex confirmar com 1 toque.
           if (typeof window.showTab === "function") window.showTab("hoje");
-          mostrarStatus("Abri o check-in do dia pra voce preencher.");
+          mostrarStatus("Abri o check-in do dia pra você preencher.");
           break;
         case "consultar":
         case "corrigir_ultimo":
           // Idem captura: o chat (tool-use) ja sabe responder pergunta sobre
-          // dado existente e corrigir o ultimo item - reusa em vez de duplicar.
+          // dado existente e corrigir o último item - reusa em vez de duplicar.
           if (typeof window.enviarChat === "function") {
             window.enviarChat(texto);
             mostrarStatus("Perguntei pro assistente.");
@@ -404,7 +404,7 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
     // conhecida em PWA standalone no iOS Safari (dispositivo principal do Alex) ----
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      mostrarStatus("Reconhecimento de voz nao suportado neste navegador - use os Atalhos da Siri (ver README).");
+      mostrarStatus("Reconhecimento de voz não suportado neste navegador - use os Atalhos da Siri (ver README).");
       btn.disabled = true;
       return;
     }
