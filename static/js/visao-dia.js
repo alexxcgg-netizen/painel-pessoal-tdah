@@ -112,6 +112,7 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
       if (!data) return;
 
       statusEl.classList.remove("shimmer");
+      statusEl.removeAttribute("aria-busy");
       statusEl.textContent = data.status;
       renderEmFoco(data.em_foco);
       resumoEl.textContent = VisaoDia.textoResumoDia(data.total_itens, data.total_concluidas);

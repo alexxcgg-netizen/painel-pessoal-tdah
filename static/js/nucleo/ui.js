@@ -40,8 +40,24 @@ function _obterDuracaoContagem() {
   return duracao;
 }
 
+// R4: esqueleto de carregamento (CSS: .esqueleto em secoes-antigas/parte-01.css). O texto
+// "Carregando..." fica no DOM (invisivel) + aria-busy; ao chegar o dado, sai tudo.
+function esqueletoLigar(el, texto) {
+  if (!el) return;
+  if (texto !== undefined) el.textContent = texto;
+  el.classList.add("esqueleto");
+  el.setAttribute("aria-busy", "true");
+}
+
+function esqueletoDesligar(el) {
+  if (!el) return;
+  el.classList.remove("esqueleto", "carregando", "shimmer");
+  el.removeAttribute("aria-busy");
+}
+
 function animarNumero(el, valorFinal, formatador) {
   el.classList.remove("shimmer");
+  el.removeAttribute("aria-busy");
   const escrever = (v) => {
     el.textContent = formatador ? formatador(v) : Math.round(v);
   };

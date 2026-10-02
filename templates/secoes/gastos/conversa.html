@@ -5,10 +5,10 @@
    de sempre, so reestilizada). Preenchido por JS
    (static/js/secoes/gastos/gastos.js, loadResumoFinancas/loadExtratoFinancas)
    a partir de GET /api/financas/resumo e GET /api/financas/extrato. #}
-<section id="financas-conversa" class="fc-conversa" aria-label="Resumo de financas">
+<section id="financas-conversa" class="fc-conversa" aria-label="Resumo de finanças">
   <div class="fc-msg">
     <span class="fc-dot" aria-hidden="true"></span>
-    <p class="fc-frase" id="fc-frase-resumo">Carregando o resumo do mes...</p>
+    <p class="fc-frase esqueleto" id="fc-frase-resumo" aria-busy="true" style="--esq-altura: 52px">Carregando o resumo do mês…</p>
   </div>
 
   <div class="fc-card" id="fc-card-categoria">

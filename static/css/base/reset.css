@@ -123,6 +123,8 @@
   /* anim2: as infinitas nao "rodam" em loop de 0.001ms - param de vez.
      (spinners de carregamento .girar/btn-girar ficam: sao informacao, nao enfeite) */
   .shimmer::after,
+  .esqueleto::after,
+  .resumo-texto.carregando::after,
   .chat-dots span,
   #chat-mic.ouvindo,
   #comando-voz-btn.ouvindo,

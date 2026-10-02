@@ -7,7 +7,7 @@
         <button type="button" class="dica-toggle" aria-expanded="false" aria-label="Ver explicação do custo de IA"></button>
         <p class="dica-metas dica-texto" hidden>
           Quanto o assistente gastou chamando IA (Anthropic + OpenAI) esse mês, convertido pelo
-          cambio fixo de <code>ia/precos.json</code>, com projecao até o fim do mês e o quanto
+          cambio fixo de <code>ia/precos.json</code>, com projeção até o fim do mês e o quanto
           isso representa do teto mensal configurado no card financeiro. Só metadados de uso
           (tokens/custo) são guardados - nunca o conteúdo de prompt ou resposta.
         </p>
@@ -24,7 +24,7 @@
       </label>
 
       <div id="custo-ia-v2-box" class="custo-ia-box">
-        <p id="custo-ia-v2-carregando" class="resumo-texto">Carregando...</p>
+        <p id="custo-ia-v2-carregando" class="resumo-texto carregando" aria-busy="true">Carregando...</p>
 
         <div id="custo-ia-v2-conteudo" hidden>
           <div class="custo-ia-topo">

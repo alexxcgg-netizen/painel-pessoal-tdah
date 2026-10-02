@@ -331,6 +331,7 @@ function calcularFraseResumoFinancas(resumo) {
 // (animarNumero, que ja respeita "reduzir movimento" e mostra o valor final
 // direto); nas trocas de aba seguintes so texto, sem recontar.
 function montarFraseResumoFinancas(fraseEl, resumo, primeiraAbertura) {
+  esqueletoDesligar(fraseEl);
   const { antes, valorHoje, depois } = partesFraseResumoFinancas(resumo);
   if (!primeiraAbertura || typeof animarNumero !== "function") {
     fraseEl.textContent = `${antes}${_fmtMoedaFraseFinancas(valorHoje)}${depois}`;
@@ -821,7 +822,7 @@ async function loadFimMes() {
   preencherLinhaComValores($("#fim-mes-agora"), [
     "Agora: ", { r: s.renda_mes }, " entrou, ", { r: s.gasto_mes }, " saiu \u00b7 sobra ", { r: s.sobra }, ".",
   ]);
-  const partes = ["No ritmo de ", { r: p.ritmo_diario }, "/dia, deve sobrar ", { r: p.sobra_projetada }, " no fim do mes"];
+  const partes = ["No ritmo de ", { r: p.ritmo_diario }, "/dia, deve sobrar ", { r: p.sobra_projetada }, " no fim do mês"];
   if (numeroFinancas(p.contas_pendentes)) partes.push(" (com ", { r: p.contas_pendentes }, " de contas que ainda vencem)");
   partes.push(".");
   preencherLinhaComValores($("#fim-mes-projecao"), partes);

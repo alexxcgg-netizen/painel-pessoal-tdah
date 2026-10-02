@@ -231,7 +231,10 @@ function renderAgoraInicio(agora) {
 
 function renderInicio(d) {
   const resumo = document.getElementById("inicio-resumo");
-  if (resumo) resumo.textContent = d.resumo;
+  if (resumo) {
+    esqueletoDesligar(resumo);
+    resumo.textContent = d.resumo;
+  }
   const chip = document.getElementById("inicio-chip");
   if (chip) {
     const atrasadas = Number(d.atrasadas) || 0;
@@ -279,7 +282,14 @@ function renderInicio(d) {
   const hab = d.habitos || { feitos: 0, total: 0 };
   const txtHab = hab.total > 0 ? `${hab.feitos} de ${hab.total} feitos` : "";
   definirSub("inicio-sub-habitos", txtHab);
-  const txtRemedio = d.proximo_remedio ? `Remédio às ${horaFalada(d.proximo_remedio)}` : "";
+  // R4 (Tomei): com remédios cadastrados mostra o progresso do dia; senão o próximo horário.
+  const rem = d.remedios_hoje;
+  const txtRemedio =
+    rem && rem.total > 0
+      ? `${rem.tomados} de ${rem.total} remédios hoje`
+      : d.proximo_remedio
+        ? `Remédio às ${horaFalada(d.proximo_remedio)}`
+        : "";
   definirSub("inicio-sub-saude", txtRemedio);
   const voo = d.proximo_voo;
   const txtVoo = voo ? `Voo ${fmtDiaCurto(voo.data)}${voo.destino ? ` · ${voo.destino}` : ""}` : "";
@@ -303,7 +313,10 @@ async function loadInicio() {
   const d = await apiFetch("/api/inicio");
   if (!d) {
     const resumo = document.getElementById("inicio-resumo");
-    if (resumo && resumo.textContent === "Carregando o seu dia…") resumo.textContent = "Não consegui carregar o resumo agora.";
+    if (resumo && resumo.textContent === "Carregando o seu dia…") {
+      esqueletoDesligar(resumo);
+      resumo.textContent = "Não consegui carregar o resumo agora.";
+    }
     ["inicio-num-tarefas", "inicio-num-gasto", "inicio-num-agua"].forEach((id) => {
       const el = document.getElementById(id);
       if (el && el.textContent === "–") el.textContent = "—";
