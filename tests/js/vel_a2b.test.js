@@ -21,7 +21,7 @@ global.$ = () => ({
   },
 });
 
-const { calcularHashTarefas } = require("../../static/js/secoes/tarefas/tarefas.js");
+const { calcularHashTarefas, proximoLoteTarefas } = require("../../static/js/secoes/tarefas/tarefas.js");
 const { calcularProximoTotalHidratacao } = require("../../static/js/secoes/painel/saude-hoje.js");
 
 test("calcularHashTarefas: mesma lista de tarefas gera o mesmo hash", () => {
@@ -52,4 +52,10 @@ test("calcularProximoTotalHidratacao: soma 1 ao total atual (otimista)", () => {
 test("calcularProximoTotalHidratacao: texto nao numerico devolve o mesmo valor (defesa)", () => {
   assert.equal(calcularProximoTotalHidratacao("-"), "-");
   assert.equal(calcularProximoTotalHidratacao(""), "");
+});
+
+test("proximoLoteTarefas: soma 10 por vez e nunca passa do total", () => {
+  assert.equal(proximoLoteTarefas(100, 10), 20);
+  assert.equal(proximoLoteTarefas(25, 20), 25);
+  assert.equal(proximoLoteTarefas(5, 10), 5);
 });

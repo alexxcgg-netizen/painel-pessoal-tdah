@@ -5,6 +5,11 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-02 - Tarefas: "Ver mais"
+
+- Lista de Tarefas monta 10 por vez; botão "Ver mais (N)" acrescenta mais 10 (antes montava até 100 de uma vez).
+  Service worker v40. Voz escolhida: Roberta (`RGymW84CSmfVugnA5tvA`) - o ID vai só em `ELEVENLABS_VOICE_ID` no Render.
+
 ## 2026-10-02 - Restos da reformulação: skeleton, Tomei / Feito hoje, acentos
 
 - **"Carregando…" virou esqueleto sutil** (Início, Meu dia, Construtora, Custo da IA, Visão do dia, Finanças,

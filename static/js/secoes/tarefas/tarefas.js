@@ -386,7 +386,35 @@ let _ultimoHashTarefas = null;
 // terminava. Aqui o primeiro lote (o que cabe na tela sem rolar) monta na
 // hora; o resto entra num frame seguinte (rAF + setTimeout 0, mesmo padrao
 // da aba gastos acima) pra nao competir com esse primeiro paint.
-const LOTE_INICIAL_TAREFAS = 30;
+const LOTE_INICIAL_TAREFAS = 10;
+
+// Lista longa (100 tarefas) so monta 10 por vez: "Ver mais" acrescenta o proximo
+// lote. O que ja foi mostrado continua mostrado quando a lista recarrega.
+let _tarefasPendentes = [];
+let _tarefasMostradas = LOTE_INICIAL_TAREFAS;
+
+function proximoLoteTarefas(total, mostradas) {
+  return Math.min(total, mostradas + LOTE_INICIAL_TAREFAS);
+}
+
+function atualizarVerMaisTarefas() {
+  const btn = $("#tarefas-ver-mais");
+  if (!btn) return;
+  const faltam = _tarefasPendentes.length - _tarefasMostradas;
+  btn.hidden = faltam <= 0;
+  btn.textContent = `Ver mais (${faltam})`;
+}
+
+function montarListaTarefas() {
+  const list = $("#lista-tarefas");
+  const frag = document.createDocumentFragment();
+  _tarefasPendentes
+    .slice(0, _tarefasMostradas)
+    .forEach((t) => frag.appendChild(criarItemTarefa(t)));
+  list.innerHTML = "";
+  list.appendChild(frag);
+  atualizarVerMaisTarefas();
+}
 
 async function loadTasks() {
   const tasks = await apiFetch("/api/tasks");
@@ -394,24 +422,22 @@ async function loadTasks() {
   const hash = calcularHashTarefas(tasks);
   if (hash === _ultimoHashTarefas) return; // dados iguais - nao reconstroi a lista
   _ultimoHashTarefas = hash;
-  const list = $("#lista-tarefas");
   $("#tarefas-vazio").hidden = tasks.length > 0;
-  const primeiroLote = tasks.slice(0, LOTE_INICIAL_TAREFAS);
-  const resto = tasks.slice(LOTE_INICIAL_TAREFAS);
-  const frag = document.createDocumentFragment();
-  primeiroLote.forEach((t) => frag.appendChild(criarItemTarefa(t)));
-  list.innerHTML = "";
-  list.appendChild(frag);
-  if (resto.length > 0) {
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        const frag2 = document.createDocumentFragment();
-        resto.forEach((t) => frag2.appendChild(criarItemTarefa(t)));
-        list.appendChild(frag2);
-      }, 0);
-    });
-  }
+  _tarefasPendentes = tasks;
+  montarListaTarefas();
 }
+
+$("#tarefas-ver-mais").addEventListener("click", () => {
+  const novoTotal = proximoLoteTarefas(_tarefasPendentes.length, _tarefasMostradas);
+  const list = $("#lista-tarefas");
+  const frag = document.createDocumentFragment();
+  _tarefasPendentes
+    .slice(_tarefasMostradas, novoTotal)
+    .forEach((t) => frag.appendChild(criarItemTarefa(t)));
+  list.appendChild(frag);
+  _tarefasMostradas = novoTotal;
+  atualizarVerMaisTarefas();
+});
 
 // ---- "Ver concluidas" (M3, uso diario) ----------------------------------
 // Concluida some da lista principal (filtro no /api/tasks padrao), mas NUNCA
@@ -582,5 +608,5 @@ function calcularHashTarefas(tasks) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { calcularHashTarefas };
+  module.exports = { calcularHashTarefas, proximoLoteTarefas };
 }
