@@ -60,13 +60,25 @@
   padding-inline: 0;
 }
 
+/* R4: título + contagem ("51 de 51 ligados") - a contagem usa a fonte do sistema (antes era
+   monoespaçada) e quebra como um bloco só pra baixo do título, nunca no meio da frase. */
+.avisos-tipos-titulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--espaco-2);
+  row-gap: 2px;
+  min-width: 0;
+}
+
 .avisos-contagem {
-  margin-left: var(--espaco-2);
-  font-family: var(--fonte-mono);
+  margin-left: 0;
+  font-family: var(--fonte-texto);
   font-variant-numeric: tabular-nums;
-  font-size: 0.78rem;
+  font-size: var(--tipo-secundario);
   font-weight: 500;
-  color: var(--text-muted);
+  white-space: nowrap;
+  color: var(--cor-texto-2);
 }
 
 .aviso-item {
