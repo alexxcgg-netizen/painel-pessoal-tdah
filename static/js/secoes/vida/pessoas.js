@@ -11,8 +11,8 @@ function pessoaChip(p) {
   }
   if (p.dias_sem_falar === 0) return { texto: "falou hoje", classe: "em-dia" };
   return p.atrasada
-    ? { texto: `atrasada ha ${p.dias_sem_falar}d`, classe: "atrasada" }
-    : { texto: `ha ${p.dias_sem_falar}d`, classe: "em-dia" };
+    ? { texto: `atrasada há ${p.dias_sem_falar}d`, classe: "atrasada" }
+    : { texto: `há ${p.dias_sem_falar}d`, classe: "em-dia" };
 }
 
 // Toggle "ver conversas" - reusa GET /api/conversas?pessoa_id= (ja existia,

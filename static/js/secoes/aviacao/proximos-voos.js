@@ -32,7 +32,7 @@ function criarItemVoo(v) {
   const quando = document.createElement("span");
   quando.className = "item-quando";
   let quandoTxt = fmtDataBr(v.data);
-  if (v.hora) quandoTxt += ` as ${v.hora}`;
+  if (v.hora) quandoTxt += ` às ${v.hora}`;
   if (v.horas) quandoTxt += ` - ${fmtHoras(v.horas)} voadas`;
   quando.textContent = quandoTxt;
   tituloWrap.appendChild(quando);
@@ -86,7 +86,7 @@ function criarItemVoo(v) {
       const sairEm = new Date(data.sair_ate);
       const horaTxt = sairEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       saidaResultado.textContent =
-        `Saia até as ${horaTxt} (viagem de ${data.duracao_minutos}min, ${data.distancia_km}km, ` +
+        `Saia até às ${horaTxt} (viagem de ${data.duracao_minutos}min, ${data.distancia_km}km, ` +
         `com ${data.margem_minutos}min de margem pro voo)`;
       saidaResultado.hidden = false;
     });

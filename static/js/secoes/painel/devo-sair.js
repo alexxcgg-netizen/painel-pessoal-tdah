@@ -40,7 +40,7 @@ $("#viagem-form").addEventListener("submit", async (e) => {
 
   const valor = document.createElement("p");
   valor.className = "card-resultado-valor";
-  valor.textContent = `Saia até as ${horaTxt}`;
+  valor.textContent = `Saia até às ${horaTxt}`;
   saida.appendChild(valor);
 
   const detalhe = document.createElement("p");

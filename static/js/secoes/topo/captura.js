@@ -43,7 +43,7 @@ function criarCardResultado(parsed) {
     const detalhe = document.createElement("p");
     detalhe.className = "card-resultado-detalhe";
     detalhe.textContent = parsed.hora
-      ? `${parsed.quando || "hoje"} as ${parsed.hora}`
+      ? `${parsed.quando || "hoje"} às ${parsed.hora}`
       : parsed.quando || "sem prazo definido";
     card.appendChild(detalhe);
   }

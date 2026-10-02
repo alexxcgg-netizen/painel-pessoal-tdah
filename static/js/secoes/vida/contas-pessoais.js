@@ -14,7 +14,7 @@ function quandoContaPessoal(c) {
   const dias = numeroFinancas(c.dias_ate_vencer);
   if (c.paga) return `paga (vencimento ${venc})`;
   if (dias === null) return `vence ${venc}`;
-  if (dias < 0) return `venceu ${venc} · ha ${-dias} dia(s)`;
+  if (dias < 0) return `venceu ${venc} · há ${-dias} dia(s)`;
   if (dias === 0) return "vence hoje";
   return `vence ${venc} · em ${dias} dia(s)`;
 }
