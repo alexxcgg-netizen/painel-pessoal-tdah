@@ -5,6 +5,20 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-02 - Restos da reformulação: skeleton, Tomei / Feito hoje, acentos
+
+- **"Carregando…" virou esqueleto sutil** (Início, Meu dia, Construtora, Custo da IA, Visão do dia, Finanças,
+  cotações, voos): altura reservada, brilho translateX discreto só enquanto carrega, parado em aba oculta e em
+  `prefers-reduced-motion`; texto fica no DOM com `aria-busy`.
+- **Medicamentos: "Tomei"** (`POST/DELETE /api/medicamentos/<id>/tomar`): conclui/reabre a tarefa recorrente
+  de hoje, então agenda e prévia da noite continuam coerentes; "Tomado às HH:MM" + Desfazer; contador
+  "x de y hoje". **Treino: "Feito hoje"** (`/api/treino/fichas/<id>/feito`). Sem tabela nova; otimista;
+  modo visitante esconde. Início/Mais mostram "x de y remédios hoje".
+- Achados: `_proximo_remedio` comparava horário cifrado (corrigido); botão "Apagar" cortado em Vida (regressão
+  da etapa 3).
+- Migração `202610021010_r4_rotina_remedio_acento.sql` (só linhas com o texto exato antigo "Remedio…").
+  Acentos em templates, JS visível e rótulos dos tipos de aviso. Service worker v39.
+
 ## 2026-10-01 - Reformulação, etapa 3: acabamento das telas internas
 
 - Tarefas, Finanças, Meu dia, Vida, Aviação, Construtora, Configurações, Avisos e regras e a folha do + no
