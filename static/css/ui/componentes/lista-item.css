@@ -143,6 +143,10 @@ main li.item {
   color: var(--cor-sobre-destaque);
 }
 
+.check-dia-selo[hidden] {
+  display: none;
+}
+
 .check-dia-selo svg {
   width: 16px;
   height: 16px;
