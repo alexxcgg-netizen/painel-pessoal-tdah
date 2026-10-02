@@ -2858,10 +2858,12 @@ def delete_ficha_treino(conn, ficha_id: int):
     conn.commit()
 
 
-def registrar_treino(conn, data: str, grupo: str | None, duracao_min: int | None, nota: str | None) -> int:
+def registrar_treino(
+    conn, data: str, grupo: str | None, duracao_min: int | None, nota: str | None, origem: str | None = None
+) -> int:
     cur = conn.execute(
-        "INSERT INTO treinos (data, grupo, duracao_min, nota) VALUES (?, ?, ?, ?)",
-        (data, grupo, duracao_min, nota),
+        "INSERT INTO treinos (data, grupo, duracao_min, nota, origem) VALUES (?, ?, ?, ?, ?)",
+        (data, grupo, duracao_min, nota, origem),
     )
     conn.commit()
     return cur.lastrowid
@@ -2891,7 +2893,9 @@ def desfazer_treinos_do_dia_por_grupo(conn, data: str, grupo: str) -> int:
     alvo = vida.normalizar_nome(grupo)
     ids = [
         r["id"]
-        for r in conn.execute("SELECT id, grupo FROM treinos WHERE data = ? AND grupo IS NOT NULL", (data,)).fetchall()
+        for r in conn.execute(
+            "SELECT id, grupo FROM treinos WHERE data = ? AND grupo IS NOT NULL AND origem = 'botao'", (data,)
+        ).fetchall()
         if vida.normalizar_nome(r["grupo"]) == alvo
     ]
     for i in ids:

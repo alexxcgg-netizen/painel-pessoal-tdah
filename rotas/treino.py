@@ -116,7 +116,7 @@ def marcar_ficha_feita(ficha_id):
         ja = treinos_do_dia_por_grupo(conn, hoje).get(chave)
         criou = ja is None
         if criou:
-            registrar_treino(conn, hoje, ficha["grupo"], None, None)
+            registrar_treino(conn, hoje, ficha["grupo"], None, None, origem="botao")
             app._marcar_atividade(conn)
             conn.commit()
             ja = treinos_do_dia_por_grupo(conn, hoje).get(chave)
@@ -127,7 +127,8 @@ def marcar_ficha_feita(ficha_id):
 
 @bp.route("/api/treino/fichas/<int:ficha_id>/feito", methods=["DELETE"])
 def desfazer_ficha_feita(ficha_id):
-    """R4: desfaz o "Feito hoje" da ficha (idempotente)."""
+    """R4: desfaz o "Feito hoje" da ficha (idempotente). So apaga o que o botao marcou;
+    treino registrado pelo chat ou pela tela de treinos fica."""
     app = app_modulo()
     recusa = app._recusar_no_modo_visitante()
     if recusa:

@@ -278,6 +278,13 @@ class FeitoHojeTreinoTestCase(unittest.TestCase):
         self.assertEqual(self.cli.delete(f"/api/treino/fichas/{fid}/feito").status_code, 200)
         self.assertEqual(self.cli.delete(f"/api/treino/fichas/{fid}/feito").status_code, 200)
 
+    def test_desfazer_nao_apaga_treino_registrado_fora_do_botao(self):
+        fid = self.fichas["Peito"]["id"]
+        self.cli.post("/api/treino", json={"grupo": "peito", "duracao_min": 50})
+        self.assertEqual(self._n_treinos(), 1)
+        self.assertEqual(self.cli.delete(f"/api/treino/fichas/{fid}/feito").status_code, 200)
+        self.assertEqual(self._n_treinos(), 1)  # o do chat/tela continua
+
     def test_treino_registrado_pelo_chat_tambem_conta(self):
         self.cli.post("/api/treino", json={"grupo": "peito", "duracao_min": 50})
         self.assertTrue(self._feito("Peito")["feito_hoje"])

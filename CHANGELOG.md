@@ -8,7 +8,9 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 ## 2026-10-02 - Tarefas: "Ver mais"
 
 - Lista de Tarefas monta 10 por vez; botão "Ver mais (N)" acrescenta mais 10 (antes montava até 100 de uma vez).
-  Service worker v40. Voz escolhida: Roberta (`RGymW84CSmfVugnA5tvA`) - o ID vai só em `ELEVENLABS_VOICE_ID` no Render.
+  Service worker v40.
+- **Treino "Desfazer"** agora só apaga o treino marcado pelo botão "Feito hoje" (coluna `treinos.origem = 'botao'`,
+  migração `202610021500_t1_treinos_origem.sql`); treino registrado pelo chat ou pela tela de treinos nunca é apagado. Voz escolhida: Roberta (`RGymW84CSmfVugnA5tvA`) - o ID vai só em `ELEVENLABS_VOICE_ID` no Render.
 
 ## 2026-10-02 - Restos da reformulação: skeleton, Tomei / Feito hoje, acentos
 
