@@ -121,10 +121,10 @@
    texto continua no DOM (font-size 0), entao o nome acessivel segue "Apagar". Se o icone
    mudar um dia, o :has() deixa de casar e o botao volta a ser o de texto, sem quebrar. */
 #tab-vida .secao-recolhivel.vida-acabamento .item-acoes > button.btn-com-icone:not(.primario):has(> svg:first-child path[d^="M4 7h16"]) {
-  width: var(--toque-min, 44px);
-  padding: 0;
-  font-size: 0;
-  gap: 0;
+  /* R4: a escala nova (card.css) devolveu o texto "Apagar" ao botão (16px, 52px de altura);
+     a largura fixa de 44px cortava o texto fora do botão. Volta a largura automática. */
+  width: auto;
+  gap: 8px;
   border-color: transparent;
   background: transparent;
   color: var(--text-muted);

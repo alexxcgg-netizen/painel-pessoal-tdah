@@ -5,16 +5,40 @@ from __future__ import annotations
 from flask import Blueprint, jsonify
 
 from rotas._base import app_modulo
-from db import delete_ficha_treino, get_db, list_fichas_treino, list_treinos, registrar_treino, salvar_ficha_treino
+import vida
+from db import (
+    delete_ficha_treino,
+    desfazer_treinos_do_dia_por_grupo,
+    get_db,
+    get_ficha_treino,
+    list_fichas_treino,
+    list_treinos,
+    registrar_treino,
+    salvar_ficha_treino,
+    treinos_do_dia_por_grupo,
+    utc_para_hora_local,
+)
 
 bp = Blueprint("treino", __name__)
 
 @bp.route("/api/treino/fichas", methods=["GET"])
 def fichas_treino():
+    app = app_modulo()
     conn = get_db()
     resultado = list_fichas_treino(conn)
+    # R4: "Feito hoje" por ficha (treino do dia com o mesmo grupo). Modo visitante: oculto.
+    feitos = None if app._modo_visitante_ativo() else treinos_do_dia_por_grupo(conn, app.date.today().isoformat())
     conn.close()
+    for f in resultado:
+        if feitos is None:
+            f["feito_hoje"] = None
+            f["feito_as"] = None
+        else:
+            criado = feitos.get(vida.normalizar_nome(f["grupo"]))
+            f["feito_hoje"] = criado is not None
+            f["feito_as"] = utc_para_hora_local(criado) if criado else None
     return jsonify(resultado)
+
 
 @bp.route("/api/treino/fichas", methods=["POST"])
 def salvar_ficha_treino_rota():
@@ -72,3 +96,48 @@ def registrar_treino_rota():
     conn.commit()
     conn.close()
     return jsonify({"ok": True, "id": treino_id}), 201
+
+
+@bp.route("/api/treino/fichas/<int:ficha_id>/feito", methods=["POST"])
+def marcar_ficha_feita(ficha_id):
+    """R4: "Feito hoje" - registra um treino simples de hoje com o grupo da ficha
+    (idempotente: se o dia ja tem treino desse grupo, nao duplica)."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    hoje = app.date.today().isoformat()
+    conn = get_db()
+    try:
+        ficha = get_ficha_treino(conn, ficha_id)
+        if not ficha:
+            return jsonify({"error": "ficha não encontrada"}), 404
+        chave = vida.normalizar_nome(ficha["grupo"])
+        ja = treinos_do_dia_por_grupo(conn, hoje).get(chave)
+        criou = ja is None
+        if criou:
+            registrar_treino(conn, hoje, ficha["grupo"], None, None)
+            app._marcar_atividade(conn)
+            conn.commit()
+            ja = treinos_do_dia_por_grupo(conn, hoje).get(chave)
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "feito": True, "hora": utc_para_hora_local(ja)}), (201 if criou else 200)
+
+
+@bp.route("/api/treino/fichas/<int:ficha_id>/feito", methods=["DELETE"])
+def desfazer_ficha_feita(ficha_id):
+    """R4: desfaz o "Feito hoje" da ficha (idempotente)."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    conn = get_db()
+    try:
+        ficha = get_ficha_treino(conn, ficha_id)
+        if not ficha:
+            return jsonify({"error": "ficha não encontrada"}), 404
+        desfazer_treinos_do_dia_por_grupo(conn, app.date.today().isoformat(), ficha["grupo"])
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "feito": False})

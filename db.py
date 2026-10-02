@@ -1911,6 +1911,41 @@ def delete_medicamento(conn, medicamento_id: int):
     conn.commit()
 
 
+def get_medicamento_ativo(conn, medicamento_id: int) -> dict | None:
+    """Um medicamento ativo (descriptografado) ou None - id fora do intervalo do
+    SQLite (inteiro gigante vindo da URL) tambem vira None, nunca erro."""
+    try:
+        row = conn.execute(
+            "SELECT * FROM medicamentos WHERE id = ? AND ativo = 1", (medicamento_id,)
+        ).fetchone()
+    except OverflowError:
+        return None
+    return _descriptografar_medicamento(dict(row)) if row else None
+
+
+def instancia_do_dia_do_medicamento(conn, med: dict, dia: str) -> dict | None:
+    """R4 ("Tomei"): a instancia de `dia` da tarefa recorrente "Tomar X" - e ela que
+    de verdade representa a dose do dia (a agenda, o lembrete e a previa da noite ja
+    contam "tomado" = instancia concluida), entao o botao Tomei usa a mesma fonte em
+    vez de uma tabela paralela. None se o remedio nao cai nesse dia."""
+    row = conn.execute(
+        "SELECT id, completed_at FROM tasks WHERE recorrente_origem_id = ? AND due_date = ? ORDER BY id LIMIT 1",
+        (med["tarefa_modelo_id"], dia),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def utc_para_hora_local(texto_utc: str | None) -> str | None:
+    """"AAAA-MM-DD HH:MM:SS" em UTC (datetime('now') do SQLite) -> "HH:MM" no fuso do processo."""
+    if not texto_utc:
+        return None
+    try:
+        dt = datetime.strptime(texto_utc[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%H:%M")
+    except ValueError:
+        return None
+
+
 def registrar_hidratacao(conn, data: str) -> int:
     """+1 copo no dia informado - conta simples, sem limite de meta (o Alex so
     quer parar de esquecer de beber agua, nao gerenciar meta em ml)."""
@@ -2830,6 +2865,39 @@ def registrar_treino(conn, data: str, grupo: str | None, duracao_min: int | None
     )
     conn.commit()
     return cur.lastrowid
+
+
+def get_ficha_treino(conn, ficha_id: int) -> dict | None:
+    try:
+        row = conn.execute("SELECT * FROM treino_fichas WHERE id = ?", (ficha_id,)).fetchone()
+    except OverflowError:
+        return None
+    return dict(row) if row else None
+
+
+def treinos_do_dia_por_grupo(conn, data: str) -> dict[str, str]:
+    """{grupo normalizado: criado_em UTC do primeiro treino do dia} - base do
+    "Feito hoje" das fichas (treino registrado pelo chat ou pelo botao conta igual)."""
+    rows = conn.execute(
+        "SELECT grupo, criado_em FROM treinos WHERE data = ? AND grupo IS NOT NULL ORDER BY id", (data,)
+    ).fetchall()
+    feitos: dict[str, str] = {}
+    for r in rows:
+        feitos.setdefault(vida.normalizar_nome(r["grupo"]), r["criado_em"])
+    return feitos
+
+
+def desfazer_treinos_do_dia_por_grupo(conn, data: str, grupo: str) -> int:
+    alvo = vida.normalizar_nome(grupo)
+    ids = [
+        r["id"]
+        for r in conn.execute("SELECT id, grupo FROM treinos WHERE data = ? AND grupo IS NOT NULL", (data,)).fetchall()
+        if vida.normalizar_nome(r["grupo"]) == alvo
+    ]
+    for i in ids:
+        conn.execute("DELETE FROM treinos WHERE id = ?", (i,))
+    conn.commit()
+    return len(ids)
 
 
 def list_treinos(conn, limite: int = 20) -> list[dict]:

@@ -132,8 +132,13 @@ function botaoFichaTreino(t, li) {
   return btn;
 }
 
+// Mesmo cuidado de medicamentos.js: toque em "Feito hoje" durante uma carga em voo não é sobrescrito.
+let _treinoVersao = 0;
+
 async function loadTreino() {
+  const versao = _treinoVersao;
   const fichas = await obterFichasTreino(true);
+  if (versao !== _treinoVersao) return loadTreino();
   const lista = $("#lista-fichas");
   lista.innerHTML = "";
   $("#fichas-vazio").hidden = fichas.length > 0;
@@ -141,11 +146,33 @@ async function loadTreino() {
     const n = f.exercicios.split("\n").filter((l) => l.trim()).length;
     const li = itemSimples(f.grupo, [`${n} exercício(s)`], [(el) => botaoApagar(`/api/treino/fichas/${f.id}`, el)]);
     li.classList.add("lista-item");
+    // R4: "Feito hoje" por ficha (some no modo visitante: feito_hoje vem null).
+    if (typeof f.feito_hoje === "boolean") {
+      li.appendChild(
+        criarCheckDia({
+          rotuloMarcar: "Feito hoje",
+          textoFeito: (hora) => (hora ? `Feito às ${hora}` : "Feito hoje"),
+          nome: f.grupo,
+          feito: f.feito_hoje,
+          hora: f.feito_as,
+          marcar: () => apiFetch(`/api/treino/fichas/${f.id}/feito`, { method: "POST" }),
+          desfazer: () => apiFetch(`/api/treino/fichas/${f.id}/feito`, { method: "DELETE" }),
+          aoMudar: () => {
+            _treinoVersao += 1;
+          },
+          depois: () => atualizarTreinosRecentes(),
+        })
+      );
+    }
     li.appendChild(renderExerciciosFicha(f));
     lista.appendChild(li);
   });
-  const treinos = await apiFetch("/api/treino");
+  await atualizarTreinosRecentes();
+}
+
+async function atualizarTreinosRecentes() {
   const recentes = $("#treinos-recentes");
+  const treinos = await apiFetch("/api/treino");
   if (Array.isArray(treinos) && treinos.length) {
     recentes.hidden = false;
     recentes.textContent =

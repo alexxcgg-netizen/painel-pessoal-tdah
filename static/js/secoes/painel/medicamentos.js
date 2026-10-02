@@ -15,7 +15,7 @@ function proximaDoseTexto(horario) {
   alvo.setHours(Number(partes[1]), Number(partes[2]), 0, 0);
   const agora = new Date();
   let diffMin = Math.round((alvo - agora) / 60000);
-  if (diffMin < -1) return `foi ha ${formatarDuracaoMin(-diffMin)}`;
+  if (diffMin < -1) return `foi há ${formatarDuracaoMin(-diffMin)}`;
   if (diffMin <= 1) return "agora";
   return `em ${formatarDuracaoMin(diffMin)}`;
 }
@@ -27,13 +27,32 @@ function formatarDuracaoMin(min) {
   return resto ? `${horas}h${resto}min` : `${horas}h`;
 }
 
+// R4 (Tomei): "2 de 3 hoje" no cabeçalho da seção - conta só os remédios que caem hoje.
+function atualizarContadorMedicamentos(medicamentos) {
+  const el = $("#medicamentos-contador");
+  if (!el) return;
+  const hoje = medicamentos.filter((m) => m.devido_hoje);
+  el.hidden = hoje.length === 0;
+  if (!hoje.length) return;
+  const tomados = hoje.filter((m) => m.tomado_hoje).length;
+  el.textContent = `${tomados} de ${hoje.length} hoje`;
+  el.classList.toggle("completo", tomados === hoje.length);
+}
+
+// Versão das marcações: se o usuário tocou "Tomei"/"Desfazer" enquanto uma carga da lista estava
+// em voo, a resposta dela (mais antiga que o toque) não pode sobrescrever o estado novo na tela.
+let _medicamentosVersao = 0;
+
 async function loadMedicamentos() {
+  const versao = _medicamentosVersao;
   const medicamentos = await apiFetch("/api/medicamentos");
-  if (!medicamentos) return;
+  if (!Array.isArray(medicamentos)) return;
+  if (versao !== _medicamentosVersao) return loadMedicamentos();
 
   const list = $("#lista-medicamentos");
   list.innerHTML = "";
   $("#medicamentos-vazio").hidden = medicamentos.length > 0;
+  atualizarContadorMedicamentos(medicamentos);
 
   medicamentos.forEach((m) => {
     const li = document.createElement("li");
@@ -49,7 +68,7 @@ async function loadMedicamentos() {
     tituloWrap.appendChild(titulo);
     const quando = document.createElement("span");
     quando.className = "item-quando";
-    quando.textContent = `todo dia as ${m.horario}`;
+    quando.textContent = `todo dia às ${m.horario}`;
     tituloWrap.appendChild(quando);
     const proxima = proximaDoseTexto(m.horario);
     if (proxima) {
@@ -78,6 +97,26 @@ async function loadMedicamentos() {
     linha.appendChild(acoes);
 
     li.appendChild(linha);
+
+    // R4: botão grande "Tomei" (só quando o remédio cai hoje e não é modo visitante).
+    if (m.devido_hoje) {
+      li.appendChild(
+        criarCheckDia({
+          rotuloMarcar: "Tomei",
+          textoFeito: (hora) => (hora ? `Tomado às ${hora}` : "Tomado"),
+          nome: m.nome,
+          feito: m.tomado_hoje,
+          hora: m.tomado_as,
+          marcar: () => apiFetch(`/api/medicamentos/${m.id}/tomar`, { method: "POST" }),
+          desfazer: () => apiFetch(`/api/medicamentos/${m.id}/tomar`, { method: "DELETE" }),
+          aoMudar: (feito) => {
+            _medicamentosVersao += 1;
+            m.tomado_hoje = feito;
+            atualizarContadorMedicamentos(medicamentos);
+          },
+        })
+      );
+    }
     list.appendChild(li);
   });
 }

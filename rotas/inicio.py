@@ -116,12 +116,23 @@ def _habitos_de_hoje(conn, app, hoje: _date_cls) -> dict:
 
 
 def _proximo_remedio(conn, agora: _datetime_cls) -> str | None:
-    rows = conn.execute("SELECT horario FROM medicamentos WHERE ativo = 1 ORDER BY horario").fetchall()
+    # list_medicamentos_ativos descriptografa e ordena (o horario e cifrado no banco).
     agora_hhmm = agora.strftime("%H:%M")
-    for r in rows:
-        if (r["horario"] or "") >= agora_hhmm:
-            return r["horario"]
+    for m in db.list_medicamentos_ativos(conn):
+        if (m["horario"] or "") >= agora_hhmm:
+            return m["horario"]
     return None
+
+
+def _remedios_de_hoje(conn, hoje_iso: str) -> dict:
+    """'x de y hoje' (R4 - Tomei): remedios que caem hoje x instancias concluidas."""
+    total = tomados = 0
+    for m in db.list_medicamentos_ativos(conn):
+        inst = db.instancia_do_dia_do_medicamento(conn, m, hoje_iso)
+        if inst:
+            total += 1
+            tomados += 1 if inst["completed_at"] else 0
+    return {"tomados": tomados, "total": total}
 
 
 @bp.route("/api/inicio", methods=["GET"])
@@ -161,7 +172,7 @@ def inicio():
             "SELECT COUNT(*) AS n FROM eventos_criados WHERE date(inicio) = ?", (hoje_iso,)
         ).fetchone()["n"]
 
-        gasto_hoje = gasto_mes = agua = remedio = None
+        gasto_hoje = gasto_mes = agua = remedio = remedios_hoje = None
         if not visitante:
             gasto_hoje = conn.execute(
                 "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
@@ -173,6 +184,7 @@ def inicio():
             ).fetchone()["t"]
             agua = db.contar_hidratacao_dia(conn, hoje_iso)
             remedio = _proximo_remedio(conn, agora)
+            remedios_hoje = _remedios_de_hoje(conn, hoje_iso)
 
         voos_futuros = conn.execute(
             "SELECT data, destino FROM voos WHERE data >= ? ORDER BY data LIMIT 1", (hoje_iso,)
@@ -191,6 +203,7 @@ def inicio():
             "compromissos_hoje": len(tarefas_com_hora) + eventos_locais,
             "habitos": _habitos_de_hoje(conn, app, hoje),
             "proximo_remedio": remedio,
+            "remedios_hoje": remedios_hoje,
             "proximo_voo": dict(voos_futuros) if voos_futuros else None,
             "notas": notas,
             "visitante": visitante,

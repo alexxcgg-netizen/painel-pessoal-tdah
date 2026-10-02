@@ -41,11 +41,10 @@
 /* "Apagar" vira icone de 44px em --text-muted, --danger so no hover/foco (mesma regra e
    mesma ressalva do :has() que em secoes/vida.css). */
 #lista-medidas .item-acoes > button.btn-com-icone:has(> svg:first-child path[d^="M4 7h16"]) {
-  width: var(--toque-min, 44px);
+  /* R4: idem vida.css - com o texto de volta, a largura fixa de 44px cortava o "Apagar". */
+  width: auto;
   min-height: var(--toque-min, 44px);
-  padding: 0;
-  font-size: 0;
-  gap: 0;
+  gap: 8px;
   border-color: transparent;
   border-radius: var(--raio-sm);
   background: transparent;
