@@ -33,7 +33,7 @@ from ia.funcoes import chat as chat_mod  # noqa: E402
 
 HOJE = date.today()
 MES_PASSADO = (HOJE.replace(day=1) - timedelta(days=1)).replace(day=15)
-NAO_TENHO = (r"n[ãa]o (tenho|encontr|consta|h[áa] |ha |achei|vejo|existe|est[áa]|dá|da )|nenhum|nada |sem registro|"
+NAO_TENHO = (r"^\s*n[ãa]o[.,!]|n[ãa]o (tenho|encontr|consta|h[áa] |ha |achei|vejo|existe|est[áa]|dá|da )|n[ãa]o tem|n[ãa]o [ée] algo|nenhum|nada |sem registro|"
              r"n[ãa]o t[áa] no painel|n[ãa]o consigo|n[ãa]o (foi|fui) registrad|zero|R\$ ?0[,.]?0*\b")
 
 
@@ -92,7 +92,7 @@ PERGUNTAS = [
     ("Quanto eu pesava na última medição?", "nao_sei", NAO_TENHO),
     ("Quanto gastei somando este mês e o mês passado?", "fato", r"1[.\s]?549"),
     ("Qual o nome do meu médico?", "nao_sei", NAO_TENHO),
-    ("Quanto tenho investido?", "nao_sei", NAO_TENHO),
+    ("Quanto tenho investido?", "nao_sei", NAO_TENHO + r"|n[ãa]o tem no painel|n[ãa]o [ée] coisa"),
 ]
 
 

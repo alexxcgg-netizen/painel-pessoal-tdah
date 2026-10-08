@@ -1315,7 +1315,7 @@ CHAT_TOOLS = [
     },
     {
         "name": "consultar_tarefas",
-        "description": "Lista as tarefas do painel num periodo (titulo, data, hora, quando foi concluida) e o total. Use SEMPRE que o Alex perguntar de tarefas de outro dia/semana, de tarefas ja concluidas, ou quantas tarefas tem - nunca responda de memoria. Sem datas = so hoje (e ai devolve tambem as atrasadas).",
+        "description": "Lista as tarefas do painel num periodo (titulo, data, hora, quando foi concluida) e o total. Use SEMPRE que o Alex perguntar de tarefas de outro dia/semana, de tarefas ja concluidas, ou quantas tarefas tem - nunca responda de memoria. Sem datas = so hoje (e ai devolve tambem as atrasadas). Pra 'quantas tarefas pendentes tenho no total' use o campo pendentes_total_geral (todas as datas), nunca some de cabeca.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -1333,9 +1333,14 @@ CHAT_TOOLS = [
             "properties": {
                 "de": {"type": "string", "description": "primeiro dia, AAAA-MM-DD (omita = dia 1 do mes atual)"},
                 "ate": {"type": "string", "description": "ultimo dia, AAAA-MM-DD (omita = hoje; maximo 400 dias de periodo)"},
-                "categoria": {"type": "string", "description": "filtra por categoria (ex: mercado, uber, restaurante) - omita pra todas"},
+                "categoria": {"type": "string", "description": "filtra por categoria OU nome do gasto (ex: mercado, uber, netflix, farmacia) - omita pra todas"},
             },
         },
+    },
+    {
+        "name": "consultar_voos",
+        "description": "Diario de voo do painel: total de voos e de horas, os ultimos voos e os voos futuros registrados. Use SEMPRE que o Alex perguntar sobre voos, horas de voo, ultimo ou proximo voo - nunca responda de memoria.",
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "consultar_agenda",

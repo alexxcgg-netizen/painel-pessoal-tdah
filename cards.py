@@ -61,6 +61,7 @@ MODULO_POR_TOOL = {
     "consultar_tarefas": "Tarefas",
     "consultar_gastos": "Finanças",
     "consultar_agenda": "Agenda",
+    "consultar_voos": "Aviação",
     "registrar_lembrete": "Lembretes",
     "registrar_medicamento": "Saúde",
     "registrar_hidratacao": "Saúde",
@@ -101,6 +102,7 @@ DESCRICAO_TOOL = {
     "consultar_tarefas": "Consultou as tarefas",
     "consultar_gastos": "Consultou os gastos",
     "consultar_agenda": "Consultou a agenda",
+    "consultar_voos": "Consultou os voos",
     "marcar_habito": "Marcou o hábito de hoje",
     "concluir_etapa": "Concluiu a etapa do projeto",
 }

@@ -150,6 +150,11 @@ def consultar_tarefas(conn, entrada, materializar=None, hoje: date | None = None
         }
         if total > len(rows):
             resultado["obs"] = f"mostrando as primeiras {len(rows)} de {total}"
+        if status in ("pendentes", "todas"):
+            # total de pendentes em QUALQUER data (o "total" acima so conta o periodo pedido)
+            resultado["pendentes_total_geral"] = conn.execute(
+                f"SELECT COUNT(*) AS n FROM tasks WHERE {_SEM_MODELO} AND completed_at IS NULL"
+            ).fetchone()["n"]
 
         if de == ate == hoje and status in ("pendentes", "todas"):
             hoje_s = hoje.isoformat()
@@ -196,9 +201,11 @@ def consultar_gastos(conn, entrada, hoje: date | None = None) -> dict:
         linhas = f9_financas.linhas_saida_real(conn, de, ate)
         categorias_no_periodo = sorted({l["categoria"] for l in linhas})
         if termo:
+            # casa pela categoria OU pelo nome do gasto (ex.: "netflix", "mercado")
             linhas = [
                 l for l in linhas
-                if termo == (n := aprendizado.normalizar_consulta(l["categoria"])) or termo in n
+                if termo in aprendizado.normalizar_consulta(l["categoria"])
+                or termo in aprendizado.normalizar_consulta(l.get("descricao") or "")
             ]
 
         por_cat: dict[str, float] = {}
@@ -285,11 +292,12 @@ def consultar_agenda(conn, entrada, eventos_icloud=None, hoje: date | None = Non
                 "hora": r["hora"], "ate": None, "titulo": r["title"], "origem": "tarefa",
                 "dia_inteiro": False, "concluida": r["completed_at"] is not None,
             })
-        sem_hora = conn.execute(
-            f"SELECT COUNT(*) AS n FROM tasks WHERE due_date = ? AND completed_at IS NULL "
-            f"AND (hora IS NULL OR hora = '') AND {_SEM_MODELO}",
+        sem_hora_rows = conn.execute(
+            f"SELECT title FROM tasks WHERE due_date = ? AND completed_at IS NULL "
+            f"AND (hora IS NULL OR hora = '') AND {_SEM_MODELO} ORDER BY id",
             (dia_s,),
-        ).fetchone()["n"]
+        ).fetchall()
+        sem_hora = len(sem_hora_rows)
 
         # dia inteiro primeiro, depois por hora
         itens.sort(key=lambda i: (i["hora"] is not None, i["hora"] or ""))
@@ -299,10 +307,44 @@ def consultar_agenda(conn, entrada, eventos_icloud=None, hoje: date | None = Non
             "total": total,
             "compromissos": itens[:LIMITE_EVENTOS_AGENDA],
             "tarefas_pendentes_sem_hora": sem_hora,
+            "tarefas_sem_hora": [r["title"] for r in sem_hora_rows[:LIMITE_EVENTOS_AGENDA]],
             "eventos_icloud": status_icloud,
         }
     except _EntradaInvalida as e:
         return dict(e.erro)
     except Exception:  # noqa: BLE001
         log.exception("chat_consultas.consultar_agenda")
+        return dict(ERRO_GENERICO)
+
+
+# --------------------------------------------------------------------------
+# consultar_voos
+# --------------------------------------------------------------------------
+
+
+def consultar_voos(conn, entrada, hoje: date | None = None) -> dict:
+    """Diario de voo (tabela voos): total de horas, ultimos voos e voos futuros."""
+    try:
+        entrada = _entrada_dict(entrada)
+        hoje = hoje or date.today()
+        rows = conn.execute("SELECT data, origem, destino, horas, observacao FROM voos ORDER BY data DESC, id DESC").fetchall()
+        voos = [
+            {"data": r["data"], "origem": r["origem"], "destino": r["destino"],
+             "horas": r["horas"], "observacao": r["observacao"]}
+            for r in rows
+        ]
+        hoje_s = hoje.isoformat()
+        futuros = [v for v in voos if (v["data"] or "") > hoje_s]
+        passados = [v for v in voos if (v["data"] or "") <= hoje_s]
+        return {
+            "total_voos": len(passados),
+            "total_horas": round(sum(float(v["horas"] or 0) for v in passados), 2),
+            "ultimos_voos": passados[:5],
+            "proximos_voos": sorted(futuros, key=lambda v: v["data"])[:5],
+            "obs": "diario de voo do painel (voos registrados); sem voo futuro registrado = lista vazia",
+        }
+    except _EntradaInvalida as e:
+        return dict(e.erro)
+    except Exception:  # noqa: BLE001
+        log.exception("chat_consultas.consultar_voos")
         return dict(ERRO_GENERICO)

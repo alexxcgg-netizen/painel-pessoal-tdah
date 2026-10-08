@@ -5,6 +5,13 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-08 - Chat: consulta de voos, gasto por nome e tarefas sem hora (exame de alucinação)
+
+- `scripts/exame_ia.py` (30 perguntas, banco temporário, chamadas reais só sob demanda): Haiku 5.5 26/30 e Sonnet 5 23/30
+  de verdade, **nenhuma invenção**; os erros eram falta de ferramenta.
+- Nova tool `consultar_voos` (total de voos/horas, últimos e futuros); `consultar_gastos` agora filtra também pelo
+  nome do gasto (netflix, mercado); `consultar_agenda` devolve os títulos das tarefas sem hora.
+
 ## 2026-10-02 - Tarefas: "Ver mais"
 
 - Lista de Tarefas monta 10 por vez; botão "Ver mais (N)" acrescenta mais 10 (antes montava até 100 de uma vez).

@@ -77,7 +77,7 @@ class PromptsTestCase(unittest.TestCase):
 
 
 class ToolsTestCase(unittest.TestCase):
-    NOVAS = ("consultar_tarefas", "consultar_gastos", "consultar_agenda")
+    NOVAS = ("consultar_tarefas", "consultar_gastos", "consultar_agenda", "consultar_voos")
 
     def test_tools_no_array_com_schema_valido(self):
         por_nome = {t["name"]: t for t in chat_mod.CHAT_TOOLS}
@@ -499,3 +499,61 @@ class FuzzTestCase(_Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GastoPorNomeEVoosTestCase(_Base):
+    def _gasto(self, valor, cat, desc):
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, description, created_at) VALUES (?, ?, ?, ?)",
+            (valor, cat, desc, f"{HOJE.replace(day=1).isoformat()} 12:00:00"),
+        )
+        self.conn.commit()
+
+    def test_gasto_filtra_pelo_nome_alem_da_categoria(self):
+        self._gasto(55.90, "lazer", "Netflix")
+        self._gasto(187.45, "alimentação", "Mercado")
+        r = self.exec["consultar_gastos"]({"categoria": "netflix"})
+        self.assertEqual(r["total"], 55.9)
+        r = self.exec["consultar_gastos"]({"categoria": "mercado"})
+        self.assertEqual(r["total"], 187.45)
+        r = self.exec["consultar_gastos"]({"categoria": "lazer"})
+        self.assertEqual(r["total"], 55.9)
+
+    def test_gasto_sem_resultado_lista_categorias(self):
+        self._gasto(10, "lazer", "Cinema")
+        r = self.exec["consultar_gastos"]({"categoria": "padaria"})
+        self.assertEqual(r["total"], 0)
+        self.assertIn("Lazer", r["categorias_no_periodo"])
+
+    def test_voos_total_ultimo_e_futuro(self):
+        for dias, o, d, h in [(-10, "SBGR", "SBRJ", 1.2), (-30, "SBRJ", "SBGR", 2.0), (7, "SBGR", "SBBR", 1.5)]:
+            self.conn.execute("INSERT INTO voos (data, origem, destino, horas) VALUES (?, ?, ?, ?)", (_iso(dias), o, d, h))
+        self.conn.commit()
+        r = self.exec["consultar_voos"]({})
+        self.assertEqual(r["total_voos"], 2)
+        self.assertEqual(r["total_horas"], 3.2)
+        self.assertEqual(r["ultimos_voos"][0]["destino"], "SBRJ")
+        self.assertEqual(r["proximos_voos"][0]["destino"], "SBBR")
+
+    def test_voos_vazio_e_entrada_maluca_nunca_levanta(self):
+        r = self.exec["consultar_voos"]({})
+        self.assertEqual((r["total_voos"], r["total_horas"], r["proximos_voos"]), (0, 0, []))
+        for lixo in (None, "x", 5, [], {"a": 1}):
+            self.assertIsInstance(self.exec["consultar_voos"](lixo), dict)
+
+    def test_agenda_traz_titulos_das_tarefas_sem_hora(self):
+        self.tarefa("Comprar presente da Ana", _iso(1))
+        r = self.exec["consultar_agenda"]({"dia": _iso(1)})
+        self.assertEqual(r["tarefas_pendentes_sem_hora"], 1)
+        self.assertEqual(r["tarefas_sem_hora"], ["Comprar presente da Ana"])
+
+    def test_pendentes_total_geral_conta_todas_as_datas(self):
+        self.tarefa("hoje", _iso(0))
+        self.tarefa("atrasada", _iso(-3))
+        self.tarefa("semana que vem", _iso(9))
+        self.tarefa("sem data")
+        self.tarefa("feita", _iso(0), concluida=f"{_iso(0)} 09:00:00")
+        r = self.exec["consultar_tarefas"]({})
+        self.assertEqual(r["total"], 1)
+        self.assertEqual(r["pendentes_total_geral"], 4)
+        self.assertNotIn("pendentes_total_geral", self.exec["consultar_tarefas"]({"status": "concluidas"}))

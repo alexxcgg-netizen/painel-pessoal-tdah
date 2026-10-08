@@ -312,8 +312,12 @@ class Fase6E2TestCase(unittest.TestCase):
         self.assertIsNone(restante)
 
     def test_viagem_nao_migra_pra_projetos_mas_expoe_formato_convertido(self):
+        from datetime import date as _date, timedelta as _td
+
+        ida = (_date.today() + _td(days=10)).isoformat()
+        volta = (_date.today() + _td(days=14)).isoformat()
         viagem_id = self.client.post(
-            "/api/viagens", json={"destino": "Floripa", "data_ida": "2026-10-01", "data_volta": "2026-10-05"}
+            "/api/viagens", json={"destino": "Floripa", "data_ida": ida, "data_volta": volta}
         ).get_json()["viagem_id"]
         conn = db.get_db()
         db.substituir_itens_viagem(conn, viagem_id, ["Protetor solar", "Passaporte"])
@@ -327,7 +331,7 @@ class Fase6E2TestCase(unittest.TestCase):
         convertido = res.get_json()
         self.assertEqual(convertido["nome"], "Viagem: Floripa")
         self.assertEqual(convertido["total_etapas"], 2)
-        self.assertEqual(convertido["prazo_final"], "2026-10-05")
+        self.assertEqual(convertido["prazo_final"], volta)
         self.assertIn("percentual", convertido)
 
         # continua existindo em viagens/viagem_itens, intocado

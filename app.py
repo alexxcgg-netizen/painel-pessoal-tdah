@@ -2741,6 +2741,11 @@ def _processar_mensagem_chat(
             return {"erro": "gastos indisponiveis no modo visitante"}
         return chat_consultas.consultar_gastos(conn, entrada)
 
+    def exec_consultar_voos(entrada):
+        if has_request_context() and _modo_visitante_ativo():
+            return {"erro": "voos indisponiveis no modo visitante"}
+        return chat_consultas.consultar_voos(conn, entrada)
+
     def exec_consultar_agenda(entrada):
         icloud = None
         if caldav_client.configurado() and not (has_request_context() and _modo_visitante_ativo()):
@@ -2811,6 +2816,7 @@ def _processar_mensagem_chat(
         "consultar_tarefas": exec_consultar_tarefas,
         "consultar_gastos": exec_consultar_gastos,
         "consultar_agenda": exec_consultar_agenda,
+        "consultar_voos": exec_consultar_voos,
     }
 
     # Fase 6 (docs/CARDS.md): cronometra cada tool (passos) e recolhe o
