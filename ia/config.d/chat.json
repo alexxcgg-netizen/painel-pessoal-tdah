@@ -1,7 +1,7 @@
 {
   "funcao": "chat",
   "ativo": false,
-  "modelo_atual": {"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "baixo"},
+  "modelo_atual": {"provedor": "anthropic", "modelo": "claude-haiku-5-5", "esforco": "baixo"},
   "alvo": {"provedor": "openai", "modelo": "gpt-6-sol", "esforco": "medio"},
   "fallback": [{"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "baixo"}],
   "max_tokens_saida": 500,

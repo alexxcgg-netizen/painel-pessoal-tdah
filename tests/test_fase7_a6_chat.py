@@ -199,7 +199,7 @@ class LimitesSaidaTestCase(unittest.TestCase):
     def test_chat_manda_max_tokens_500(self):
         (_, _, _), g = _chat(H1)
         self.assertEqual(g.chamadas[0]["max_tokens"], 500)
-        self.assertEqual(g.chamadas[0]["model"], "claude-sonnet-5")
+        self.assertEqual(g.chamadas[0]["model"], "claude-haiku-5-5")
 
     def test_corte_no_limite_refaz_a_rodada_com_teto_antigo(self):
         respostas = [
@@ -245,7 +245,7 @@ class LimitesSaidaTestCase(unittest.TestCase):
         cfg["ativo"] = True
         with patch.object(chat_mod, "_config_ia", return_value=cfg):
             (_, _, _), g = _chat(H1)
-        self.assertEqual(g.chamadas[0]["model"], "claude-sonnet-5")
+        self.assertEqual(g.chamadas[0]["model"], "claude-haiku-5-5")
 
 
 class CaminhoDiretoMedidoTestCase(unittest.TestCase):
@@ -284,7 +284,8 @@ class ConfigsTestCase(unittest.TestCase):
             self.assertFalse(cfg["ativo"], funcao)
             self.assertEqual(cfg["max_tokens_saida"], limite, funcao)
             self.assertEqual(cfg["modelo_atual"]["provedor"], "anthropic")
-            self.assertEqual(cfg["modelo_atual"]["modelo"], "claude-sonnet-5")
+            esperado = "claude-haiku-5-5" if funcao == "chat" else "claude-sonnet-5"
+            self.assertEqual(cfg["modelo_atual"]["modelo"], esperado, funcao)
             self.assertEqual(cfg["alvo"], {"provedor": "openai", "modelo": "gpt-6-sol", "esforco": "medio"})
             # esforco explicito: "" viraria output_config.effort="" no adapter
             self.assertIn(cfg["modelo_atual"]["esforco"], ("baixo", "medio"))
@@ -309,7 +310,7 @@ class MedicaoTetoTestCase(unittest.TestCase):
         teto.assert_called_once_with("chat")
         self.assertEqual(reg.call_count, 2)
         args, kwargs = reg.call_args_list[0]
-        self.assertEqual(args, ("chat", "anthropic", "claude-sonnet-5"))
+        self.assertEqual(args, ("chat", "anthropic", "claude-sonnet-5"))  # modelo vem da resposta simulada
         self.assertEqual(kwargs["tokens_in"], 50)
         self.assertEqual(kwargs["tokens_cache_lido"], 900)
         self.assertTrue(kwargs["ok"])

@@ -5,6 +5,12 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-08 - Chat passa para o Claude Haiku 5.5
+
+- `ia/config.d/chat.json`: `modelo_atual` = `claude-haiku-5-5` (exame de 30 perguntas: 29/30 nos dois modelos, nenhuma
+  invenção; Haiku ~20x mais barato). Para voltar ao Sonnet 5: trocar a linha de volta (uma linha). Acompanhar o gasto real
+  em "Custo da IA" por alguns dias.
+
 ## 2026-10-08 - Preços do Claude Haiku 5.5 na tabela de custos
 
 - `ia/precos.json`: `claude-haiku-5-5` (até 100 mil tokens: US$ 0,10 entrada / 0,50 saída / cache 0,125 (5 min), 0,20 (1 h),
