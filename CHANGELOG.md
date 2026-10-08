@@ -5,6 +5,12 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-08 - Preços do Claude Haiku 5.5 na tabela de custos
+
+- `ia/precos.json`: `claude-haiku-5-5` (até 100 mil tokens: US$ 0,10 entrada / 0,50 saída / cache 0,125 (5 min), 0,20 (1 h),
+  leitura 0,01; acima: 0,50 / 2,50 / 0,625 / 1,00 / 0,05). `ia/precos.py` aceita `multiplicador_cache_acima`. O chat
+  ainda usa o Sonnet 5; trocar para o Haiku 5.5 é uma linha em `ia/config.d/chat.json` (decisão do dono).
+
 ## 2026-10-08 - Chat: consulta de voos, gasto por nome e tarefas sem hora (exame de alucinação)
 
 - `scripts/exame_ia.py` (30 perguntas, banco temporário, chamadas reais só sob demanda): Haiku 5.5 26/30 e Sonnet 5 23/30

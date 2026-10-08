@@ -25,6 +25,13 @@
       "cache_escrita_5min": 2.5,
       "cache_escrita_1h": 4.0
     },
+    "claude-haiku-5-5": {
+      "entrada": 0.1, "saida": 0.5, "cache_leitura": 0.01,
+      "cache_escrita_5min": 0.125, "cache_escrita_1h": 0.2,
+      "limiar_tokens_in": 100000, "multiplicador_entrada_acima": 5.0,
+      "multiplicador_saida_acima": 5.0, "multiplicador_cache_acima": 5.0,
+      "_comentario": "Tabela oficial: ate 100 mil tokens de entrada 0,10/0,50 (cache 0,125 5min, 0,20 1h, leitura 0,01); acima, 0,50/2,50 (0,625, 1,00, 0,05)."
+    },
     "claude-haiku-4-5-20251001": {
       "entrada": 1.0,
       "saida": 5.0,

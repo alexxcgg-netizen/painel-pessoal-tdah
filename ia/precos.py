@@ -49,6 +49,10 @@ def custo_usd(modelo: str, tokens_in: int = 0, tokens_out: int = 0,
     if isinstance(limiar, (int, float)) and tokens_in > limiar:
         entrada *= _preco(preco, "multiplicador_entrada_acima") or 1.0
         saida *= _preco(preco, "multiplicador_saida_acima") or 1.0
+        # opcional: cache acima do limiar tambem muda de faixa (ex.: Haiku 5.5, 5x)
+        mult_cache = _preco(preco, "multiplicador_cache_acima") or 1.0
+        cache_leitura *= mult_cache
+        cache_escrita *= mult_cache
 
     total = (
         max(tokens_in, 0) * entrada

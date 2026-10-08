@@ -42,3 +42,20 @@ if __name__ == "__main__":
 class TestChavesBatemComIdsDosModelos(unittest.TestCase):
     def test_gemini_flash_lite_tem_preco(self):
         self.assertGreater(precos.custo_usd("gemini-3.5-flash-lite", 1_000_000, 0), 0)
+
+
+class TestHaiku55(unittest.TestCase):
+    """Tabela oficial: ate 100 mil tokens 0,10/0,50 (cache 0,125 5min, 0,20 1h, leitura 0,01);
+    acima, 0,50/2,50 (0,625, 1,00, 0,05)."""
+
+    def test_faixa_ate_100_mil(self):
+        self.assertAlmostEqual(precos.custo_usd("claude-haiku-5-5", 100_000, 0), 0.01)
+        self.assertAlmostEqual(precos.custo_usd("claude-haiku-5-5", 0, 1_000_000), 0.50)
+        self.assertAlmostEqual(precos.custo_usd("claude-haiku-5-5", 0, 0, 1_000_000, 0), 0.01)
+        self.assertAlmostEqual(precos.custo_usd("claude-haiku-5-5", 0, 0, 0, 1_000_000, "5m"), 0.125)
+        self.assertAlmostEqual(precos.custo_usd("claude-haiku-5-5", 0, 0, 0, 1_000_000, "1h"), 0.20)
+
+    def test_faixa_acima_de_100_mil(self):
+        self.assertAlmostEqual(precos.custo_usd("claude-haiku-5-5", 200_000, 1_000_000), 0.10 + 2.50)
+        self.assertAlmostEqual(precos.custo_usd("claude-haiku-5-5", 100_001, 0, 1_000_000, 0), 0.05 + 0.050005, places=3)
+        self.assertAlmostEqual(precos.custo_usd("claude-haiku-5-5", 100_001, 0, 0, 1_000_000, "1h"), 1.0 + 0.050005, places=3)
