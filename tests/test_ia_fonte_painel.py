@@ -535,6 +535,26 @@ class GastoPorNomeEVoosTestCase(_Base):
         self.assertEqual(r["ultimos_voos"][0]["destino"], "SBRJ")
         self.assertEqual(r["proximos_voos"][0]["destino"], "SBBR")
 
+    def test_voos_da_civ_somam_por_funcao_e_simulador_fica_fora(self):
+        linhas = [
+            (-40, "SSBL", "SSBL", 1.0, "PTXXW", "Piloto em Instrução", None),
+            (-35, "SSBL", "SSPG", 1.2, "PRLOM", "Piloto em Instrução Solo", None),
+            (-30, None, "Simulador", 1.0, None, "Piloto em Instrução", "simulador"),
+        ]
+        for dias, o, d, h, anv, f, tipo in linhas:
+            self.conn.execute(
+                "INSERT INTO voos (data, origem, destino, horas, aeronave, funcao, tipo, fonte) VALUES (?, ?, ?, ?, ?, ?, ?, 'civ')",
+                (_iso(dias), o, d, h, anv, f, tipo),
+            )
+        self.conn.commit()
+        r = self.exec["consultar_voos"]({})
+        self.assertEqual(r["total_voos"], 2)
+        self.assertEqual(r["total_horas"], 2.2)
+        self.assertEqual(r["total_horas_hhmm"], "2:12")
+        self.assertEqual(r["horas_por_funcao"], {"Piloto em Instrução Solo": 1.2, "Piloto em Instrução": 1.0})
+        self.assertEqual(r["horas_por_aeronave"]["PRLOM"], 1.2)
+        self.assertEqual(r["simulador"], {"sessoes": 1, "horas": 1.0})
+
     def test_voos_vazio_e_entrada_maluca_nunca_levanta(self):
         r = self.exec["consultar_voos"]({})
         self.assertEqual((r["total_voos"], r["total_horas"], r["proximos_voos"]), (0, 0, []))

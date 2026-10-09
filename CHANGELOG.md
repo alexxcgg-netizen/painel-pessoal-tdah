@@ -48,6 +48,14 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   cards com um pin. Pegadinha: dentro de `_processar_mensagem_chat` o nome `local` já era a regra do
   classificador local - a localização chama `local_gps`. Service worker v47.
 
+- **Extrato da CIV Digital (ANAC) no diário de voo**: não existe API da ANAC (CIV só pelo SACI/Super App com
+  gov.br). Importados os 44 voos dos prints do Super App (`fonte = 'civ'`) - somam exatamente 49:24 como o
+  consolidado oficial (36:54 instrução, 11:00 solo, 1:30 copiloto); 4 sessões de simulador ficam no diário mas
+  fora do total (igual a CIV). Migração `202610091400_civ_voos_aeronave_funcao.sql` (aeronave, funcao, tipo,
+  fonte); `voos.eh_simulador` filtra resumo/histórico/"dias sem voar"; `consultar_voos` devolve horas por função
+  e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
+  de horas chama `_horas_hhmm`.
+
 ## 2026-10-08 - Chat passa para o Claude Haiku 5.5
 
 - `ia/config.d/chat.json`: `modelo_atual` = `claude-haiku-5-5` (exame de 30 perguntas: 29/30 nos dois modelos, nenhuma

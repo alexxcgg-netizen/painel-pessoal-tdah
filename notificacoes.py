@@ -692,7 +692,8 @@ def currency_voo_baixa(conn, limiar_dias: int = 21) -> str | None:
     limiar."""
     hoje = date.today()
     ultima = conn.execute(
-        "SELECT MAX(data) AS ultima FROM voos WHERE horas IS NOT NULL AND data <= ?",
+        "SELECT MAX(data) AS ultima FROM voos WHERE horas IS NOT NULL AND data <= ? "
+        "AND COALESCE(tipo, '') <> 'simulador'",
         (hoje.isoformat(),),
     ).fetchone()["ultima"]
     if not ultima:

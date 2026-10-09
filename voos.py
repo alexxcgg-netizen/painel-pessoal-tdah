@@ -6,6 +6,12 @@ def inicio_da_semana(hoje: date) -> date:
     return hoje - timedelta(days=hoje.weekday())
 
 
+def eh_simulador(v: dict) -> bool:
+    """Treino em simulador fica no diario, mas nao soma como hora de voo nem
+    conta como "voou" (a CIV da ANAC tambem soma separado)."""
+    return (v.get("tipo") or "").lower() == "simulador"
+
+
 def resumo_horas(voos: list[dict], hoje: date) -> dict:
     """Soma horas voadas (campo 'horas', ja realizado) na semana e no mes
     atuais e no total - pura conta em Python, nunca pela IA. 'voos' e uma
@@ -15,7 +21,7 @@ def resumo_horas(voos: list[dict], hoje: date) -> dict:
     inicio_mes = hoje.replace(day=1).isoformat()
     hoje_iso = hoje.isoformat()
 
-    realizados = [v for v in voos if v.get("horas") is not None and v["data"] <= hoje_iso]
+    realizados = [v for v in voos if v.get("horas") is not None and v["data"] <= hoje_iso and not eh_simulador(v)]
 
     horas_semana = sum(v["horas"] for v in realizados if v["data"] >= inicio_semana)
     horas_mes = sum(v["horas"] for v in realizados if v["data"] >= inicio_mes)
@@ -34,7 +40,7 @@ def historico_horas_acumuladas(voos: list[dict], hoje: date) -> list[dict]:
     futura) - pra desenhar um grafico de evolucao das horas de curso."""
     hoje_iso = hoje.isoformat()
     realizados = sorted(
-        (v for v in voos if v.get("horas") is not None and v["data"] <= hoje_iso),
+        (v for v in voos if v.get("horas") is not None and v["data"] <= hoje_iso and not eh_simulador(v)),
         key=lambda v: v["data"],
     )
     acumulado = 0.0
@@ -59,7 +65,7 @@ def dias_desde_ultimo_voo(voos: list[dict], hoje: date) -> int | None:
     ter 'horas' preenchido - um voo so agendado nao conta como ter voado).
     None se nunca voou ainda (sem voo realizado no historico)."""
     hoje_iso = hoje.isoformat()
-    realizados = [v for v in voos if v.get("horas") is not None and v["data"] <= hoje_iso]
+    realizados = [v for v in voos if v.get("horas") is not None and v["data"] <= hoje_iso and not eh_simulador(v)]
     if not realizados:
         return None
     ultima_data = max(v["data"] for v in realizados)

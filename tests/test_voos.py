@@ -119,3 +119,14 @@ class VoosTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_simulador_nao_soma_hora_nem_conta_como_voou(self):
+        hoje = date(2026, 10, 9)
+        voos = [
+            {"data": "2026-10-01", "horas": 1.0},
+            {"data": "2026-10-08", "horas": 1.0, "tipo": "simulador"},
+        ]
+        self.assertEqual(resumo_horas(voos, hoje)["horas_total"], 1.0)
+        self.assertEqual(dias_desde_ultimo_voo(voos, hoje), 8)
+        self.assertEqual([h["acumulado"] for h in historico_horas_acumuladas(voos, hoje)], [1.0])
+

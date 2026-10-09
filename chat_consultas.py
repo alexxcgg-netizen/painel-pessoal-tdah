@@ -322,26 +322,54 @@ def consultar_agenda(conn, entrada, eventos_icloud=None, hoje: date | None = Non
 # --------------------------------------------------------------------------
 
 
+def _horas_hhmm(horas: float) -> str:
+    """1.2 -> '1:12' (formato da CIV)."""
+    minutos = int(round(float(horas or 0) * 60))
+    return f"{minutos // 60}:{minutos % 60:02d}"
+
+
 def consultar_voos(conn, entrada, hoje: date | None = None) -> dict:
     """Diario de voo (tabela voos): total de horas, ultimos voos e voos futuros."""
     try:
         entrada = _entrada_dict(entrada)
         hoje = hoje or date.today()
-        rows = conn.execute("SELECT data, origem, destino, horas, observacao FROM voos ORDER BY data DESC, id DESC").fetchall()
+        rows = conn.execute(
+            "SELECT data, origem, destino, horas, observacao, aeronave, funcao, tipo, fonte "
+            "FROM voos ORDER BY data DESC, id DESC"
+        ).fetchall()
         voos = [
-            {"data": r["data"], "origem": r["origem"], "destino": r["destino"],
-             "horas": r["horas"], "observacao": r["observacao"]}
+            {"data": r["data"], "origem": r["origem"], "destino": r["destino"], "horas": r["horas"],
+             "observacao": r["observacao"], "aeronave": r["aeronave"], "funcao": r["funcao"],
+             "simulador": (r["tipo"] or "") == "simulador"}
             for r in rows
         ]
         hoje_s = hoje.isoformat()
         futuros = [v for v in voos if (v["data"] or "") > hoje_s]
         passados = [v for v in voos if (v["data"] or "") <= hoje_s]
+        reais = [v for v in passados if not v["simulador"]]
+        sims = [v for v in passados if v["simulador"]]
+
+        def _somar(chave):
+            tot: dict = {}
+            for v in reais:
+                if v["horas"] is not None and v[chave]:
+                    tot[v[chave]] = round(tot.get(v[chave], 0) + float(v["horas"]), 2)
+            return dict(sorted(tot.items(), key=lambda kv: -kv[1]))
+
+        horas_total = round(sum(float(v["horas"] or 0) for v in reais), 2)
         return {
-            "total_voos": len(passados),
-            "total_horas": round(sum(float(v["horas"] or 0) for v in passados), 2),
+            "total_voos": len(reais),
+            "total_horas": horas_total,
+            "total_horas_hhmm": _horas_hhmm(horas_total),
+            "horas_por_funcao": _somar("funcao"),
+            "horas_por_aeronave": _somar("aeronave"),
+            "simulador": {"sessoes": len(sims), "horas": round(sum(float(v["horas"] or 0) for v in sims), 2)},
             "ultimos_voos": passados[:5],
             "proximos_voos": sorted(futuros, key=lambda v: v["data"])[:5],
-            "obs": "diario de voo do painel (voos registrados); sem voo futuro registrado = lista vazia",
+            "obs": (
+                "diario de voo do painel; voos com aeronave/funcao vieram do extrato da CIV Digital (ANAC). "
+                "Simulador fica fora do total de horas de voo (igual a CIV). Fale horas em HH:MM, como a CIV."
+            ),
         }
     except _EntradaInvalida as e:
         return dict(e.erro)
