@@ -1908,6 +1908,19 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(capturado["clima"]["cidade"], "Brusque")
         self.assertTrue(capturado["clima"]["agora"]["chovendo_agora"])
 
+    def test_chat_modo_voz_pede_resposta_falavel_so_quando_pedido(self):
+        contextos = []
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            contextos.append(contexto)
+            return "ok", [], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "oi", "modo": "voz"})
+            self.client.post("/api/chat", json={"mensagem": "oi de novo"})
+        self.assertIn("MODO CONVERSA POR VOZ", contextos[0])
+        self.assertNotIn("MODO CONVERSA POR VOZ", contextos[1])
+
     def test_voz_transcrever_valida_e_devolve_texto(self):
         import io
         import telegram_captura

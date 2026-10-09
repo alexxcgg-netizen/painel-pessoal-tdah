@@ -5,6 +5,27 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-09 - Chat mais esperto + voz de verdade (Roberta) + modo conversa
+
+- **Tarefa duplicada ao "colocar hora"**: nova tool `ajustar_tarefa` (muda hora/data de tarefa pendente existente;
+  0 ou 2+ títulos batendo = erro, nunca chuta). Prompt manda nunca usar `registrar_tarefa` pra isso.
+- **Hora de Brasília** em toda mensagem (linha "Agora:" no contexto do chat, `ZoneInfo("America/Sao_Paulo")`).
+- **Clima**: `CIDADE_PADRAO=Brusque` no `.env`; tool `consultar_clima` (Open-Meteo `current` + resto do dia, ou
+  previsão até 16 dias, qualquer cidade).
+- **Trajeto**: tool `estimar_trajeto` (várias paradas, Google Routes). `maps_client.resolver_lugar` usa Places Text
+  Search (viés ~50 km em Brusque) - "Aeroclube de Blumenau" vira o endereço exato. "casa" = `ENDERECO_CASA` (.env).
+  Chaves `GOOGLE_MAPS_API_KEY` / `ENDERECO_CASA` só no `.env`.
+- **Microfone do chat**: grava o áudio inteiro (MediaRecorder) e transcreve no Whisper/Groq
+  (`POST /api/voz/transcrever`, reaproveita `telegram_captura.transcrever`); reconhecimento do Safari virou reserva.
+- **Voz**: ElevenLabs plano Starter (~35 mil créditos/mês), voz Roberta. `eleven_v4_turbo` custa 0,5 crédito por
+  caractere, então `ELEVENLABS_LIMITE_MES=65000` (caracteres). `voz_premium.MAX_CARACTERES` 300 -> 700; o botão
+  "ouvir" lê a resposta inteira (`textoParaFala`), não só a primeira frase.
+- **Modo conversa** (`static/js/secoes/hoje/conversa.js`, botão `#chat-conversa` ao lado do microfone): ouve ->
+  3 s de silêncio encerra a fala (limiar calibrado no ruído do ambiente) -> transcreve -> chat com `modo: "voz"`
+  (`MODO_VOZ_INSTRUCAO`: 2-4 frases faladas, sem lista/markdown) -> Roberta fala -> microfone reabre. Encerra no
+  toque, com 12 s sem fala ou ao sair do app. Microfone é solto antes de ela falar (no iPhone o som sairia pelo
+  alto-falante de ligação). Service worker v42.
+
 ## 2026-10-08 - Chat passa para o Claude Haiku 5.5
 
 - `ia/config.d/chat.json`: `modelo_atual` = `claude-haiku-5-5` (exame de 30 perguntas: 29/30 nos dois modelos, nenhuma

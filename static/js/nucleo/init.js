@@ -52,6 +52,7 @@ loadSaude();
 loadChatHistorico();
 initViagemOrigemPadrao();
 initVozChat();
+initConversaVoz();
 initDicas();
 initSilencio();
 initModoViagem();

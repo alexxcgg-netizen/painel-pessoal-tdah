@@ -125,6 +125,87 @@ async function falarPremium(btn, texto) {
   }
 }
 
+// Resposta inteira pronta pra voz: sem markdown/setas/emoji e no maximo 700
+// caracteres (mesmo teto de voz_premium.MAX_CARACTERES), cortando no fim de
+// uma frase pra nunca parar no meio de uma palavra.
+const MAX_FALA = 700;
+
+function textoParaFala(texto) {
+  let t = String(texto == null ? "" : texto)
+    .replace(/(^|\n)\s*->\s*/g, "$1")
+    .replace(/->/g, ",")
+    .replace(/[*_#`>]+/g, "")
+    .replace(/\p{Extended_Pictographic}/gu, "")
+    .replace(/\s*\n+\s*/g, ". ")
+    .replace(/\.\s*\./g, ".")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (t.length > MAX_FALA) {
+    const corte = t.slice(0, MAX_FALA);
+    const fim = Math.max(corte.lastIndexOf(". "), corte.lastIndexOf("! "), corte.lastIndexOf("? "));
+    t = fim > 80 ? corte.slice(0, fim + 1) : corte.slice(0, corte.lastIndexOf(" ")).trim();
+  }
+  return t;
+}
+
+// Igual falarPremium, mas devolve uma Promise que so resolve quando a fala
+// TERMINA (ou falha) - o modo conversa precisa disso pra reabrir o microfone
+// so depois que ela parou de falar. Cai na voz do iPhone do mesmo jeito.
+function falarEsperando(texto) {
+  return new Promise(async (resolve) => {
+    const t = textoParaFala(texto);
+    if (!t) return resolve();
+    const audio = _audioPremium();
+    const viaIphone = () => {
+      if (!("speechSynthesis" in window)) return resolve();
+      const u = new SpeechSynthesisUtterance(t);
+      u.lang = "pt-BR";
+      u.rate = 0.98;
+      u.onend = () => resolve();
+      u.onerror = () => resolve();
+      window.speechSynthesis.speak(u);
+    };
+    try {
+      if (!audio) throw new Error("sem Audio");
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 12000);
+      let res;
+      try {
+        res = await fetch("/api/voz/falar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ texto: t }),
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+      if (res.status !== 200) throw new Error("sem audio premium");
+      const blob = await res.blob();
+      if (!blob.size) throw new Error("audio vazio");
+      _liberarUrlPremium();
+      _urlPremium = URL.createObjectURL(blob);
+      const terminar = () => {
+        _audioPremiumTocando = false;
+        _liberarUrlPremium();
+        resolve();
+      };
+      audio.onended = terminar;
+      audio.onerror = terminar;
+      audio.onpause = () => {
+        if (!audio.ended) terminar(); // pararVoz() no meio da fala
+      };
+      audio.src = _urlPremium;
+      _audioPremiumTocando = true;
+      await audio.play();
+    } catch (e) {
+      _audioPremiumTocando = false;
+      _liberarUrlPremium();
+      viaIphone();
+    }
+  });
+}
+
 // Primeira frase de uma resposta do chat (ate . ! ? ou quebra de linha, max 200
 // caracteres; sem pontuacao corta em 200 no ultimo espaco) - so ela vai pra voz
 // premium, pra caber no plano gratis.
@@ -141,5 +222,5 @@ function primeiraFrase(texto) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { primeiraFrase };
+  module.exports = { primeiraFrase, textoParaFala };
 }

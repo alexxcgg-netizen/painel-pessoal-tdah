@@ -234,7 +234,7 @@ class TestSintetizar(_Base):
 
     def test_texto_invalido(self):
         with self._post() as p:
-            for t in ("", "   ", "x" * 301, None, 5, ["a"]):
+            for t in ("", "   ", "x" * (voz_premium.MAX_CARACTERES + 1), None, 5, ["a"]):
                 self.assertIsNone(voz_premium.sintetizar(self.conn, t))
             self.assertIsNotNone(voz_premium.sintetizar(self.conn, "x" * 300))
         self.assertEqual(p.call_count, 1)
@@ -298,7 +298,7 @@ class TestRotas(_Base):
             dict(json={"texto": ["a"]}),
             dict(json={"texto": None}),
             dict(json={"texto": "   "}),
-            dict(json={"texto": "x" * 301}),
+            dict(json={"texto": "x" * (voz_premium.MAX_CARACTERES + 1)}),
             dict(json=[1, 2]),
             dict(json="texto solto"),
         ]

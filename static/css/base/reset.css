@@ -126,7 +126,7 @@
   .esqueleto::after,
   .resumo-texto.carregando::after,
   .chat-dots span,
-  #chat-mic.ouvindo,
+  :is(#chat-mic, #chat-conversa).ouvindo,
   #comando-voz-btn.ouvindo,
   .dica-texto.digitando::after,
   .pin-caixa:focus,

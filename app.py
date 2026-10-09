@@ -2141,8 +2141,16 @@ def _resposta_exemplo_teste_ia() -> tuple[str, list[str], dict]:
     return resposta, [], cards.envelope(cards_lista, resposta, passos)
 
 
+MODO_VOZ_INSTRUCAO = (
+    "MODO CONVERSA POR VOZ: o Alex esta FALANDO com voce e a sua resposta vai ser lida em voz "
+    "alta. Responda como um colega conversando: 2 a 4 frases naturais e completas (nunca so "
+    "uma palavra seca), sem lista, sem markdown, sem emoji, sem setas '->', numeros e horarios "
+    "escritos do jeito que se fala. Pode fazer uma pergunta de volta quando fizer sentido."
+)
+
+
 def _processar_mensagem_chat(
-    conn, texto: str, detalhes: dict | None = None
+    conn, texto: str, detalhes: dict | None = None, modo_voz: bool = False
 ) -> tuple[str | None, list[str], str | None]:
     """Roda o pipeline inteiro de chat (contexto + tool-use + persistencia) -
     fonte unica de verdade da conversa, usada tanto pela rota HTTP /api/chat
@@ -2188,6 +2196,8 @@ def _processar_mensagem_chat(
 
     memorias_texto = [m["texto"] for m in list_memorias(conn)]
     contexto = _contexto_chat(conn)
+    if modo_voz:
+        contexto += "\n" + MODO_VOZ_INSTRUCAO
 
     def exec_registrar_tarefa(entrada):
         recorrencia = entrada.get("recorrencia")

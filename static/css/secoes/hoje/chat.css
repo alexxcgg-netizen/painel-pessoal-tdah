@@ -16,11 +16,11 @@
 }
 
 /* C2: campo, microfone e enviar tinham 41-42px (style.css) - sobem pro alvo minimo. */
-#chat-form :is(#chat-input, #chat-mic, #chat-send) {
+#chat-form :is(#chat-input, #chat-mic, #chat-conversa, #chat-send) {
   min-height: var(--toque-min);
 }
 
-#chat-form #chat-mic {
+#chat-form :is(#chat-mic, #chat-conversa) {
   min-width: var(--toque-min);
 }
 
@@ -125,7 +125,7 @@
   font-size: var(--tipo-corpo);
 }
 
-#tab-assistente #chat-form #chat-mic,
+#tab-assistente #chat-form :is(#chat-mic, #chat-conversa),
 #tab-assistente #chat-form #chat-send {
   flex: 0 0 auto;
   width: var(--toque-campo-fixo);
@@ -139,11 +139,11 @@
   font-size: 0; /* "Enviar" vira só ícone (aria-label no botão) */
 }
 
-#tab-assistente #chat-form #chat-mic[hidden] {
+#tab-assistente #chat-form :is(#chat-mic, #chat-conversa)[hidden] {
   display: none;
 }
 
-#tab-assistente #chat-form #chat-mic {
+#tab-assistente #chat-form :is(#chat-mic, #chat-conversa) {
   border: var(--linha) solid var(--cor-borda);
   background: var(--superficie-card);
   color: var(--cor-texto);
@@ -156,7 +156,7 @@
   box-shadow: none;
 }
 
-#tab-assistente #chat-form :is(#chat-mic, #chat-send) svg {
+#tab-assistente #chat-form :is(#chat-mic, #chat-conversa, #chat-send) svg {
   width: 22px;
   height: 22px;
   margin: 0;
@@ -382,4 +382,54 @@ main #tab-assistente h2.chat-ola-titulo,
 #tab-assistente .btn-ouvir-chat:active,
 #tab-assistente .btn-ouvir-chat.falando {
   color: var(--cor-destaque);
+}
+
+/* Modo conversa por voz (#chat-conversa, static/js/secoes/hoje/conversa.js).
+   Ligado = preenchido como o microfone gravando; cada fase tem um movimento proprio e
+   discreto: ouvindo = o mesmo pulso do microfone, pensando = respira devagar,
+   falando = as barras do icone oscilam fora de fase, como um equalizador. */
+#tab-assistente #chat-form #chat-conversa.conversando {
+  background: var(--accent-fill);
+  border-color: transparent;
+  color: var(--accent-text);
+  transition: background 0.35s var(--ease-suave), color 0.35s var(--ease-suave);
+}
+
+#chat-conversa.conversando[data-estado="ouvindo"] {
+  animation: pulsarMic 1.4s var(--ease-suave) infinite;
+}
+
+#chat-conversa.conversando[data-estado="pensando"] {
+  animation: conversaRespirar 1.6s var(--ease-suave) infinite;
+}
+
+#chat-conversa svg path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+#chat-conversa.conversando[data-estado="falando"] svg path {
+  animation: conversaBarra 0.9s var(--ease-suave) infinite alternate;
+}
+
+#chat-conversa.conversando[data-estado="falando"] svg path:nth-child(2) { animation-delay: -0.3s; }
+#chat-conversa.conversando[data-estado="falando"] svg path:nth-child(3) { animation-delay: -0.6s; }
+#chat-conversa.conversando[data-estado="falando"] svg path:nth-child(4) { animation-delay: -0.15s; }
+#chat-conversa.conversando[data-estado="falando"] svg path:nth-child(5) { animation-delay: -0.45s; }
+
+@keyframes conversaRespirar {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@keyframes conversaBarra {
+  from { transform: scaleY(0.45); }
+  to { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #chat-conversa.conversando,
+  #chat-conversa.conversando svg path {
+    animation: none !important;
+  }
 }

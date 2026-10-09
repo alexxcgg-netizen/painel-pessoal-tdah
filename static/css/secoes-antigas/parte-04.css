@@ -198,7 +198,7 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-#chat-mic {
+:is(#chat-mic, #chat-conversa) {
   flex-shrink: 0;
   width: 42px;
   display: flex;
@@ -212,19 +212,19 @@
   transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
-#chat-mic svg {
+:is(#chat-mic, #chat-conversa) svg {
   width: 19px;
   height: 19px;
 }
 
 @media (hover: hover) {
-  #chat-mic:hover:not(:disabled) {
+  :is(#chat-mic, #chat-conversa):hover:not(:disabled) {
     border-color: var(--accent);
     color: var(--accent);
   }
 }
 
-#chat-mic.ouvindo {
+:is(#chat-mic, #chat-conversa).ouvindo {
   background: var(--accent-fill);
   border-color: transparent;
   color: var(--accent-text);
@@ -232,7 +232,7 @@
 }
 
 /* entre parar de gravar e o texto chegar: some o pulso, fica "respirando" baixo */
-#chat-mic.transcrevendo {
+:is(#chat-mic, #chat-conversa).transcrevendo {
   opacity: 0.55;
   transition: opacity 0.3s var(--ease-suave, ease);
 }

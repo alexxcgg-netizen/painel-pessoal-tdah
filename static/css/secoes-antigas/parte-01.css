@@ -105,7 +105,7 @@
 .btn-uber[hidden],
 .vazio[hidden],
 #saude-grid[hidden],
-#chat-mic[hidden],
+:is(#chat-mic, #chat-conversa)[hidden],
 .btn-ouvir[hidden] {
   display: none;
 }
