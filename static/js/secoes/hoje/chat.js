@@ -277,6 +277,145 @@ function _colocarNoCampo(texto) {
   input.focus();
 }
 
+// Motor único de gravação (microfone do chat e modo conversa). Cada gravação tem o
+// próprio estado - nada de variável compartilhada que um "stop" atrasado possa zerar
+// enquanto outra gravação já começou (era o que travava o microfone).
+//
+// Grava SEM timeslice (`start()` sem intervalo): no iPhone, gravar em pedaços de
+// 0,5-1s gera um mp4 fragmentado com buracos e o Whisper recebia a fala picotada.
+//
+// detectarSilencio: encerra sozinho depois de `silencioMs` calado (só depois de ter
+// ouvido fala de verdade), ou devolve null se ninguém falar em `esperaFalaMs`.
+// O piso de ruído é acompanhado o tempo todo (desce rápido, sobe devagar) e há
+// histerese entre "começou a falar" e "ficou calado" - uma pausa curta, uma
+// respiração ou a voz mais baixa no fim da frase não contam como silêncio.
+function criarGravacao(opcoes = {}) {
+  const {
+    detectarSilencio = false,
+    silencioMs = 3000,
+    esperaFalaMs = 12000,
+    maxMs = MIC_MAX_MS,
+    contextoAudio = null,
+  } = opcoes;
+  let stream = null;
+  let rec = null;
+  let fonte = null;
+  let tick = null;
+  let limite = null;
+  let resultado = null; // null enquanto grava; "fala" | "ninguem" | "cancelada" depois
+  let inicio = 0;
+  let resolver;
+  const pronto = new Promise((r) => (resolver = r));
+  const pedacos = [];
+
+  const soltar = () => {
+    clearInterval(tick);
+    clearTimeout(limite);
+    if (fonte) {
+      try {
+        fonte.disconnect();
+      } catch {}
+    }
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+  };
+
+  function parar(motivo = "fala") {
+    if (resultado !== null) return;
+    resultado = motivo;
+    if (rec && rec.state !== "inactive") {
+      rec.stop(); // o "stop" abaixo solta o microfone e resolve
+    } else {
+      soltar();
+      resolver(null);
+    }
+  }
+
+  function _vigiarSilencio() {
+    const analisador = contextoAudio.createAnalyser();
+    analisador.fftSize = 1024;
+    analisador.smoothingTimeConstant = 0;
+    fonte = contextoAudio.createMediaStreamSource(stream);
+    fonte.connect(analisador);
+    const amostras = new Float32Array(analisador.fftSize);
+    let nivel = 0;
+    let piso = null;
+    let acima = 0;
+    let falou = false;
+    let caladoDesde = 0;
+    const TICK = 50;
+
+    tick = setInterval(() => {
+      analisador.getFloatTimeDomainData(amostras);
+      let soma = 0;
+      for (let i = 0; i < amostras.length; i++) soma += amostras[i] * amostras[i];
+      const rms = Math.sqrt(soma / amostras.length);
+      nivel = nivel ? nivel * 0.7 + rms * 0.3 : rms;
+      if (piso === null) piso = nivel;
+      else if (nivel < piso) piso = piso * 0.8 + nivel * 0.2;
+      else piso += (nivel - piso) * 0.003;
+
+      const limiarFala = Math.max(0.008, piso * 2.5 + 0.004);
+      const limiarSilencio = Math.max(0.005, piso * 1.6 + 0.002);
+      const agora = Date.now();
+
+      if (nivel > limiarFala) {
+        acima++;
+        if (acima >= 3) falou = true; // ~150ms seguidos de voz
+      } else {
+        acima = 0;
+      }
+      if (nivel > limiarSilencio) {
+        caladoDesde = 0;
+      } else if (falou && !caladoDesde) {
+        caladoDesde = agora;
+      }
+
+      if (falou && caladoDesde && agora - caladoDesde >= silencioMs) parar("fala");
+      else if (!falou && agora - inicio >= esperaFalaMs) parar("ninguem");
+    }, TICK);
+  }
+
+  async function iniciar() {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    if (resultado !== null) {
+      // cancelada enquanto o iPhone ainda liberava o microfone
+      soltar();
+      return;
+    }
+    const mime = _mimeGravacao();
+    rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    const tipo = (rec.mimeType || mime || "audio/mp4").split(";")[0];
+    rec.addEventListener("dataavailable", (e) => {
+      if (e.data && e.data.size) pedacos.push(e.data);
+    });
+    rec.addEventListener("stop", () => {
+      const duracaoS = (Date.now() - inicio) / 1000;
+      soltar();
+      if (resultado === null) resultado = "fala"; // parou sozinho (ex: iPhone interrompeu)
+      const blob = new Blob(pedacos, { type: tipo });
+      resolver(resultado === "fala" && blob.size && duracaoS >= 0.6 ? { blob, duracaoS } : null);
+    });
+    inicio = Date.now();
+    rec.start();
+    limite = setTimeout(() => parar("fala"), maxMs);
+    if (detectarSilencio && contextoAudio) _vigiarSilencio();
+  }
+
+  return { iniciar, parar, pronto };
+}
+
+async function transcreverGravacao({ blob, duracaoS }) {
+  const corpo = new FormData();
+  const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
+  corpo.append("audio", blob, `fala.${ext}`);
+  corpo.append("duracao", String(Math.round(duracaoS)));
+  const data = await apiFetch("/api/voz/transcrever", { method: "POST", body: corpo });
+  return data && data.texto ? data.texto : null;
+}
+
 function initVozChat() {
   const micBtn = $("#chat-mic");
   if (!micBtn) return;
@@ -288,75 +427,49 @@ function initVozChat() {
   }
 }
 
+// Ditado: toque liga, toque para; o texto cai no campo pra conferir antes de enviar.
 function initGravadorChat(micBtn) {
-  let gravador = null;
-  let stream = null;
-  let pedacos = [];
-  let inicio = 0;
-  let limiteId = null;
+  let atual = null; // gravação em andamento (ou abrindo o microfone)
   let transcrevendo = false;
 
-  const soltarMicrofone = () => {
-    if (stream) stream.getTracks().forEach((t) => t.stop());
-    stream = null;
-  };
-
-  async function transcrever(blob, duracaoS) {
+  async function transcrever(gravado) {
     const input = $("#chat-input");
     const placeholderOriginal = input.placeholder;
     transcrevendo = true;
-    micBtn.disabled = true;
     micBtn.classList.add("transcrevendo");
     input.placeholder = "Transcrevendo…";
-    const corpo = new FormData();
-    const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
-    corpo.append("audio", blob, `fala.${ext}`);
-    corpo.append("duracao", String(Math.round(duracaoS)));
     try {
-      const data = await apiFetch("/api/voz/transcrever", { method: "POST", body: corpo });
-      if (data && data.texto) _colocarNoCampo(data.texto);
+      const texto = await transcreverGravacao(gravado);
+      if (texto) _colocarNoCampo(texto);
     } finally {
       transcrevendo = false;
-      micBtn.disabled = false;
       micBtn.classList.remove("transcrevendo");
       input.placeholder = placeholderOriginal;
     }
   }
 
   async function comecar() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-    } catch {
-      mostrarErro("Sem acesso ao microfone. Libera nos Ajustes do iPhone pro painel.");
-      return;
-    }
-    const mime = _mimeGravacao();
-    gravador = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-    pedacos = [];
-    gravador.addEventListener("dataavailable", (e) => {
-      if (e.data && e.data.size) pedacos.push(e.data);
-    });
-    gravador.addEventListener("stop", () => {
-      clearTimeout(limiteId);
-      micBtn.classList.remove("ouvindo");
-      soltarMicrofone();
-      const duracaoS = (Date.now() - inicio) / 1000;
-      const blob = new Blob(pedacos, { type: (gravador.mimeType || mime || "audio/mp4").split(";")[0] });
-      gravador = null;
-      if (duracaoS < 0.6 || !blob.size) return; // toque acidental
-      transcrever(blob, duracaoS);
-    });
-    inicio = Date.now();
-    gravador.start(1000);
+    const gravacao = criarGravacao({ maxMs: MIC_MAX_MS });
+    atual = gravacao;
     micBtn.classList.add("ouvindo");
-    limiteId = setTimeout(() => gravador && gravador.state === "recording" && gravador.stop(), MIC_MAX_MS);
+    gravacao.pronto.then((gravado) => {
+      if (atual === gravacao) atual = null;
+      micBtn.classList.remove("ouvindo");
+      if (gravado) transcrever(gravado);
+    });
+    try {
+      await gravacao.iniciar();
+    } catch {
+      gravacao.parar("cancelada");
+      mostrarErro("Sem acesso ao microfone. Libera nos Ajustes do iPhone pro painel.");
+    }
   }
 
   micBtn.hidden = false;
   micBtn.addEventListener("click", () => {
     if (transcrevendo) return;
-    if (gravador && gravador.state === "recording") {
-      gravador.stop();
+    if (atual) {
+      atual.parar("fala");
       return;
     }
     comecar();

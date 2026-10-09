@@ -25,6 +25,12 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   (`MODO_VOZ_INSTRUCAO`: 2-4 frases faladas, sem lista/markdown) -> Roberta fala -> microfone reabre. Encerra no
   toque, com 12 s sem fala ou ao sair do app. Microfone é solto antes de ela falar (no iPhone o som sairia pelo
   alto-falante de ligação). Service worker v42.
+- **Correção depois do 1º teste no iPhone** (fala picotada / microfone travando): motor único `criarGravacao` em
+  `hoje/chat.js` pros dois botões. Grava sem timeslice (`start()` - pedaços de 0,5-1s geravam mp4 com buracos no
+  iPhone), estado por gravação (um "stop" atrasado zerava a gravação nova e travava o botão), detector de silêncio
+  com piso de ruído contínuo + histerese (antes calibrava nos primeiros 400ms - se ele já começava falando, o limiar
+  ia lá em cima e cortava). "Pode falar…" só aparece com o microfone de fato gravando; o botão de ditado some durante
+  a conversa. Service worker v43.
 
 ## 2026-10-08 - Chat passa para o Claude Haiku 5.5
 
