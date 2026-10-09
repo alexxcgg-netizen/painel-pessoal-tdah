@@ -1875,6 +1875,23 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(len(tarefas), 1)
         self.assertEqual(tarefas[0]["title"], "levar carro na oficina")
 
+    def test_chat_ajustar_tarefa_muda_hora_sem_duplicar(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_tarefa"]({"titulo": "Falar com a contabilidade"})
+            ok = executores["ajustar_tarefa"]({"titulo": "contabilidade", "hora": "9:00"})
+            self.assertEqual(ok["ok"], True)
+            self.assertIn("erro", executores["ajustar_tarefa"]({"titulo": "inexistente", "hora": "10:00"}))
+            self.assertIn("erro", executores["ajustar_tarefa"]({"titulo": "contabilidade"}))
+            return "Feito.", ["ajustar_tarefa"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "coloca hora"})
+        self.assertEqual(res.status_code, 200)
+        conn = db.get_db()
+        rows = conn.execute("SELECT hora FROM tasks").fetchall()
+        conn.close()
+        self.assertEqual([r["hora"] for r in rows], ["09:00"])
+
     def test_chat_registrar_tarefa_com_horario_grava_hora(self):
         hoje = date.today().isoformat()
 

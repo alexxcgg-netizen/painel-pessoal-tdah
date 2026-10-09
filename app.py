@@ -2233,6 +2233,35 @@ def _processar_mensagem_chat(
                 resultado["sugestao_dia"] = agenda.sugerir_dia_menos_corrido(carga, dias, produtividade)
         return resultado
 
+    def exec_ajustar_tarefa(entrada):
+        alvo = aprendizado.normalizar_consulta(str(entrada.get("titulo") or ""))
+        if not alvo:
+            return {"erro": "faltou o titulo da tarefa"}
+        hora = _normalizar_hora(entrada.get("hora"))
+        data = entrada.get("quando_data") if isinstance(entrada.get("quando_data"), str) else None
+        try:
+            if data:
+                date.fromisoformat(data)
+        except ValueError:
+            return {"erro": f"data invalida: {data!r}"}
+        if not hora and not data:
+            return {"erro": "informe hora e/ou quando_data"}
+        pend = conn.execute(
+            "SELECT id, title FROM tasks WHERE completed_at IS NULL "
+            "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL)"
+        ).fetchall()
+        achadas = [r for r in pend if alvo in aprendizado.normalizar_consulta(r["title"])]
+        if len(achadas) != 1:
+            return {"erro": "nenhuma tarefa pendente com esse titulo" if not achadas
+                    else "mais de uma tarefa combina, use um titulo mais especifico",
+                    "candidatas": [r["title"] for r in achadas][:5]}
+        if hora:
+            conn.execute("UPDATE tasks SET hora = ? WHERE id = ?", (hora, achadas[0]["id"]))
+        if data:
+            conn.execute("UPDATE tasks SET due_date = ? WHERE id = ?", (data, achadas[0]["id"]))
+        conn.commit()
+        return {"ok": True, "titulo": achadas[0]["title"]}
+
     def exec_registrar_gasto(entrada):
         status_gasto = entrada.get("status") if entrada.get("status") in ("real", "planejado") else "real"
         cur = conn.execute(
@@ -2754,6 +2783,7 @@ def _processar_mensagem_chat(
 
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
+        "ajustar_tarefa": exec_ajustar_tarefa,
         "registrar_gasto": exec_registrar_gasto,
         "registrar_renda": exec_registrar_renda,
         "definir_orcamento": exec_definir_orcamento,

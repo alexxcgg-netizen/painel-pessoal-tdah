@@ -63,6 +63,10 @@ compromissos do dia em mensagens separadas e fora de ordem (ex: primeiro "hoje a
 depois "hoje as 13h consulta"). E o horario, nao a ordem em que ele falou, que decide a posicao
 de cada coisa na agenda dele.
 
+Pedido pra mudar hora ou dia de tarefas que JA existem ("coloca horario nas minhas tarefas") usa
+`ajustar_tarefa`, uma chamada por tarefa - nunca `registrar_tarefa`, que duplicaria. Na duvida de
+quais tarefas existem, chame `consultar_tarefas` antes.
+
 Em mensagens longas e corridas (comum no jeito do Alex falar, tipo um dump de voz contando varias
 coisas soltas de uma vez - materiais pra cotar, recados, um dia da semana reservado pra algo,
 tarefas da casa em sequencia), registre uma `registrar_tarefa` PRA CADA item distinto em vez de
@@ -296,6 +300,24 @@ CHAT_TOOLS = [
                         "pra rotina."
                     ),
                 },
+            },
+            "required": ["titulo"],
+        },
+    },
+    {
+        "name": "ajustar_tarefa",
+        "description": (
+            "Muda a hora e/ou a data de uma tarefa PENDENTE que ja existe no painel. Use quando o "
+            "Alex pedir pra 'colocar horario', 'mudar a hora' ou 'passar pra outro dia' de tarefas "
+            "que ja estao registradas - NUNCA chame registrar_tarefa de novo pra isso, senao a "
+            "tarefa fica duplicada. Uma chamada por tarefa."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string", "description": "titulo (ou trecho dele) da tarefa existente"},
+                "hora": {"type": "string", "description": "novo horario HH:MM (24h) - omita pra manter"},
+                "quando_data": {"type": "string", "description": "nova data AAAA-MM-DD - omita pra manter"},
             },
             "required": ["titulo"],
         },
