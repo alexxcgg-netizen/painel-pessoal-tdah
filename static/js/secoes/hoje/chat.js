@@ -259,9 +259,112 @@ $("#chat-form").addEventListener("submit", (e) => {
   enviarChat(texto);
 });
 
+// Microfone do chat: grava o áudio inteiro (toque liga, toque para) e manda pro
+// Whisper no servidor (/api/voz/transcrever). O reconhecimento nativo do Safari
+// cortava na primeira pausa e errava muito - fica só de reserva pra navegador
+// sem MediaRecorder.
+const MIC_MAX_MS = 120000;
+
+function _mimeGravacao() {
+  const opcoes = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
+  return opcoes.find((m) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
+}
+
+function _colocarNoCampo(texto) {
+  const input = $("#chat-input");
+  const atual = input.value.trim();
+  input.value = atual ? `${atual} ${texto}` : texto;
+  input.focus();
+}
+
 function initVozChat() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const micBtn = $("#chat-mic");
+  if (!micBtn) return;
+  const temGravador = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  if (temGravador) {
+    initGravadorChat(micBtn);
+  } else {
+    initReconhecimentoNativoChat(micBtn);
+  }
+}
+
+function initGravadorChat(micBtn) {
+  let gravador = null;
+  let stream = null;
+  let pedacos = [];
+  let inicio = 0;
+  let limiteId = null;
+  let transcrevendo = false;
+
+  const soltarMicrofone = () => {
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+  };
+
+  async function transcrever(blob, duracaoS) {
+    const input = $("#chat-input");
+    const placeholderOriginal = input.placeholder;
+    transcrevendo = true;
+    micBtn.disabled = true;
+    micBtn.classList.add("transcrevendo");
+    input.placeholder = "Transcrevendo…";
+    const corpo = new FormData();
+    const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
+    corpo.append("audio", blob, `fala.${ext}`);
+    corpo.append("duracao", String(Math.round(duracaoS)));
+    try {
+      const data = await apiFetch("/api/voz/transcrever", { method: "POST", body: corpo });
+      if (data && data.texto) _colocarNoCampo(data.texto);
+    } finally {
+      transcrevendo = false;
+      micBtn.disabled = false;
+      micBtn.classList.remove("transcrevendo");
+      input.placeholder = placeholderOriginal;
+    }
+  }
+
+  async function comecar() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch {
+      mostrarErro("Sem acesso ao microfone. Libera nos Ajustes do iPhone pro painel.");
+      return;
+    }
+    const mime = _mimeGravacao();
+    gravador = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    pedacos = [];
+    gravador.addEventListener("dataavailable", (e) => {
+      if (e.data && e.data.size) pedacos.push(e.data);
+    });
+    gravador.addEventListener("stop", () => {
+      clearTimeout(limiteId);
+      micBtn.classList.remove("ouvindo");
+      soltarMicrofone();
+      const duracaoS = (Date.now() - inicio) / 1000;
+      const blob = new Blob(pedacos, { type: (gravador.mimeType || mime || "audio/mp4").split(";")[0] });
+      gravador = null;
+      if (duracaoS < 0.6 || !blob.size) return; // toque acidental
+      transcrever(blob, duracaoS);
+    });
+    inicio = Date.now();
+    gravador.start(1000);
+    micBtn.classList.add("ouvindo");
+    limiteId = setTimeout(() => gravador && gravador.state === "recording" && gravador.stop(), MIC_MAX_MS);
+  }
+
+  micBtn.hidden = false;
+  micBtn.addEventListener("click", () => {
+    if (transcrevendo) return;
+    if (gravador && gravador.state === "recording") {
+      gravador.stop();
+      return;
+    }
+    comecar();
+  });
+}
+
+function initReconhecimentoNativoChat(micBtn) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) return;
 
   const recognition = new SpeechRecognition();
@@ -276,10 +379,7 @@ function initVozChat() {
   };
 
   recognition.addEventListener("result", (e) => {
-    const texto = e.results[0][0].transcript;
-    const input = $("#chat-input");
-    input.value = texto;
-    input.focus();
+    _colocarNoCampo(e.results[0][0].transcript);
   });
   recognition.addEventListener("end", pararDeOuvir);
   recognition.addEventListener("error", pararDeOuvir);

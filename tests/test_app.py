@@ -1908,6 +1908,35 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(capturado["clima"]["cidade"], "Brusque")
         self.assertTrue(capturado["clima"]["agora"]["chovendo_agora"])
 
+    def test_voz_transcrever_valida_e_devolve_texto(self):
+        import io
+        import telegram_captura
+
+        res = self.client.post("/api/voz/transcrever", data={}, content_type="multipart/form-data")
+        self.assertEqual(res.status_code, 400)
+        res = self.client.post(
+            "/api/voz/transcrever",
+            data={"audio": (io.BytesIO(b"x"), "a.txt", "text/plain")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(res.status_code, 400)
+        with patch("telegram_captura.transcrever", return_value="vou pra Blumenau") as t:
+            res = self.client.post(
+                "/api/voz/transcrever",
+                data={"audio": (io.BytesIO(b"abc"), "fala.m4a", "audio/mp4"), "duracao": "4"},
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), {"texto": "vou pra Blumenau"})
+        self.assertEqual(t.call_args.kwargs["duracao_segundos"], 4)
+        with patch("telegram_captura.transcrever", side_effect=telegram_captura.ErroCaptura("falhou")):
+            res = self.client.post(
+                "/api/voz/transcrever",
+                data={"audio": (io.BytesIO(b"abc"), "fala.webm", "audio/webm;codecs=opus")},
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(res.status_code, 502)
+
     def test_chat_ajustar_tarefa_muda_hora_sem_duplicar(self):
         def fake_chat(mensagens, contexto, memorias, executores):
             executores["registrar_tarefa"]({"titulo": "Falar com a contabilidade"})

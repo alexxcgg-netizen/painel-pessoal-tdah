@@ -231,6 +231,12 @@
   animation: pulsarMic 1s ease-in-out infinite;
 }
 
+/* entre parar de gravar e o texto chegar: some o pulso, fica "respirando" baixo */
+#chat-mic.transcrevendo {
+  opacity: 0.55;
+  transition: opacity 0.3s var(--ease-suave, ease);
+}
+
 @keyframes pulsarMic {
   0%,
   100% {

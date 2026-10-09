@@ -54,6 +54,40 @@ def voz_falar():
     return Response(audio, status=200, mimetype="audio/mpeg")
 
 
+# 2 min de audio do iPhone (mp4/aac) fica bem abaixo disso; o Groq aceita ate 25MB
+TAMANHO_MAX_AUDIO = 15 * 1024 * 1024
+_MIMES_AUDIO = ("audio/mp4", "audio/webm", "audio/ogg", "audio/mpeg", "audio/wav", "audio/x-m4a", "audio/aac")
+
+
+@bp.route("/api/voz/transcrever", methods=["POST"])
+def voz_transcrever():
+    """Microfone do chat: o front grava o audio inteiro (MediaRecorder) e manda
+    aqui; transcreve com o mesmo Whisper/Groq do Telegram. Nao executa nada -
+    so devolve o texto pro campo do chat."""
+    import telegram_captura
+
+    arquivo = request.files.get("audio")
+    if arquivo is None:
+        return jsonify({"erro": "faltou o audio"}), 400
+    mime = (arquivo.mimetype or "").split(";")[0].strip().lower()
+    if mime not in _MIMES_AUDIO:
+        return jsonify({"erro": "formato de audio nao suportado"}), 400
+    audio = arquivo.read(TAMANHO_MAX_AUDIO + 1)
+    if not audio:
+        return jsonify({"erro": "audio vazio"}), 400
+    if len(audio) > TAMANHO_MAX_AUDIO:
+        return jsonify({"erro": "audio longo demais"}), 413
+    try:
+        duracao = int(float(request.form.get("duracao") or 0))
+    except ValueError:
+        duracao = 0
+    try:
+        texto = telegram_captura.transcrever(audio, mime, duracao_segundos=duracao)
+    except telegram_captura.ErroCaptura as e:
+        return jsonify({"erro": str(e)}), 502
+    return jsonify({"texto": texto})
+
+
 @bp.route("/api/voz/uso", methods=["GET"])
 def voz_uso():
     conn = get_db()
