@@ -318,6 +318,7 @@ def _tarefa_dict(row) -> dict:
         "quando": row["due_at"],
         "recorrencia": row["recorrencia"],
         "concluida": bool(row["completed_at"]),
+        "local": row["local"] if "local" in row.keys() else None,
     }
 
 
@@ -326,7 +327,7 @@ def card_tarefas_criadas(conn, ids: list[int], actions_extra: list | None = None
         return None
     marcadores = ",".join("?" for _ in ids)
     rows = conn.execute(
-        f"SELECT id, title, due_date, hora, due_at, recorrencia, completed_at FROM tasks WHERE id IN ({marcadores})",
+        f"SELECT id, title, due_date, hora, due_at, recorrencia, completed_at, local FROM tasks WHERE id IN ({marcadores})",
         list(ids),
     ).fetchall()
     por_id = {r["id"]: r for r in rows}
@@ -419,6 +420,7 @@ def card_lembrete(conn, id_: int, actions_extra=None) -> dict | None:
         "hora": row["hora"] if "hora" in chaves else None,
         "recorrente": bool(row["recorrente"]),
         "despertar": despertar,
+        "local": row["local"] if "local" in chaves else None,
     }
     aba, rotulo = ABA_POR_ENTIDADE["lembrete"]
     actions = list(actions_extra or []) + [

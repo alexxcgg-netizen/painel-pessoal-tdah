@@ -63,7 +63,8 @@ compromissos do dia em mensagens separadas e fora de ordem (ex: primeiro "hoje a
 depois "hoje as 13h consulta"). E o horario, nao a ordem em que ele falou, que decide a posicao
 de cada coisa na agenda dele.
 
-A linha "Agora:" do contexto e a hora exata de Brasilia - use ela pra "daqui a pouco", "hoje a
+A linha "Localização atual" do contexto (quando existe) vem do GPS do celular dele - e onde ele
+esta de verdade; sem ela, nao presuma onde ele esta. A linha "Agora:" do contexto e a hora exata de Brasilia - use ela pra "daqui a pouco", "hoje a
 noite", "quanto falta". Pergunta de tempo/chuva -> `consultar_clima`. Quando o Alex contar que vai
 pra algum lugar ("vou pra Blumenau e depois volto"), chame `estimar_trajeto` com todas as paradas e
 diga km e tempo total, sem ele precisar pedir. Passe o nome do lugar do jeito que ele falou
@@ -282,6 +283,13 @@ CHAT_TOOLS = [
                         "mesmo dia fiquem fora de ordem na agenda."
                     ),
                 },
+                "no_local_atual": {
+                    "type": "boolean",
+                    "description": (
+                        "true SO quando o Alex ligar isso ao lugar onde ele esta agora ('aqui', "
+                        "'quando eu voltar aqui', 'neste lugar') - guarda o endereco do GPS do celular."
+                    ),
+                },
                 "depende_do_tempo": {
                     "type": "boolean",
                     "description": (
@@ -339,7 +347,7 @@ CHAT_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "cidade": {"type": "string", "description": "omita pra usar a cidade padrao (Brusque)"},
+                "cidade": {"type": "string", "description": "omita pra usar onde o Alex esta agora (GPS do celular; sem GPS, Brusque)"},
                 "data": {"type": "string", "description": "AAAA-MM-DD pra previsao de outro dia - omita pra agora/hoje"},
             },
         },
@@ -489,6 +497,13 @@ CHAT_TOOLS = [
                 "recorrente": {
                     "type": "boolean",
                     "description": "true se repete todo ano nessa mesma data (ex: aniversario, validade anual) - false se for so uma vez",
+                },
+                "no_local_atual": {
+                    "type": "boolean",
+                    "description": (
+                        "true SO quando o Alex ligar isso ao lugar onde ele esta agora ('aqui', "
+                        "'quando eu voltar aqui', 'neste lugar') - guarda o endereco do GPS do celular."
+                    ),
                 },
             },
             "required": ["titulo", "data"],

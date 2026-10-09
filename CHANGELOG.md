@@ -38,6 +38,16 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   casa e o link sai sem origem (o Maps usa a localizacao real). Sinal do modo conversa trocado pelo "Suave".
   Service worker v46.
 
+- **Localização do celular** (`static/js/nucleo/localizacao.js`): GPS ao abrir o app e a cada mensagem do chat
+  (reaproveita leitura de até 5 min; espera no máximo 2,5 s). Vai no corpo do `POST /api/chat` (`local`), nunca na
+  URL. `app._local_do_celular` valida (descarta > 6 h, precisão > 5 km, 0,0) e completa com o endereço aproximado
+  via `geocode_nominatim.reverso` (OpenStreetMap, mesma política 1 req/s + cache ~100 m; o Geocoding do Google
+  pede faturamento nesse projeto). Contexto do chat ganha "Localização atual do Alex"; `consultar_clima` sem cidade
+  usa o GPS; rota "daqui" parte do GPS (`maps_client` aceita "lat,lon"); `registrar_tarefa`/`registrar_lembrete`
+  ganham `no_local_atual` -> coluna `local` (migração `202610091200_loc_tarefa_lembrete_local.sql`), mostrada nos
+  cards com um pin. Pegadinha: dentro de `_processar_mensagem_chat` o nome `local` já era a regra do
+  classificador local - a localização chama `local_gps`. Service worker v47.
+
 ## 2026-10-08 - Chat passa para o Claude Haiku 5.5
 
 - `ia/config.d/chat.json`: `modelo_atual` = `claude-haiku-5-5` (exame de 30 perguntas: 29/30 nos dois modelos, nenhuma

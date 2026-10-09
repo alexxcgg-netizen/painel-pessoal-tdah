@@ -25,6 +25,9 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4L12 3z"/></svg>',
   };
 
+  const ICONE_PIN =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.3"/></svg>';
+
   function eyebrow(icone, texto, extra) {
     return `<div class="card-resultado-eyebrow">${icone || ""}<span>${esc(texto)}</span>${extra || ""}</div>`;
   }
@@ -64,6 +67,7 @@
           `<label><input type="checkbox"${id ? ` data-tarefa-id="${id}"` : " disabled"}${marcada} aria-label="Concluir ${esc(t.titulo)}">` +
           `<span class="card-tarefa-titulo">${esc(t.titulo)}</span></label>` +
           `<span class="card-tarefa-quando">${esc(quandoTarefa(t))}</span>` +
+          (t.local ? `<span class="card-local">${ICONE_PIN}${esc(t.local)}</span>` : "") +
           `</li>`
         );
       })
@@ -127,6 +131,7 @@
         `<p class="card-titulo">${esc(data.titulo)}</p>` +
         `<p class="card-hora-grande">${esc(destaque)}</p>` +
         `<p class="card-linha-meta">${esc(dia)}${dia && contagem ? " · " : ""}${contagem}</p>` +
+        (data.local ? `<p class="card-local">${ICONE_PIN}${esc(data.local)}</p>` : "") +
         (botoes ? `<div class="card-botoes">${botoes}</div>` : "")
       );
     },
@@ -540,8 +545,8 @@
       .map((p, i) => {
         const aqui = i === 0 && data.partir_de_onde_estou;
         const nome = aqui ? "Onde você está" : p.nome || p.endereco;
-        const endereco =
-          !aqui && p.endereco && p.endereco !== nome ? `<span class="card-rota-endereco">${esc(p.endereco)}</span>` : "";
+        // "Onde você está": com GPS o servidor manda o endereco aproximado; sem GPS manda vazio
+        const endereco = p.endereco && p.endereco !== nome ? `<span class="card-rota-endereco">${esc(p.endereco)}</span>` : "";
         return `<li class="card-rota-parada"><span class="card-rota-nome">${esc(nome)}</span>${endereco}</li>`;
       })
       .join("");

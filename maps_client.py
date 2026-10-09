@@ -11,6 +11,7 @@ antes de escrever, nao inventados.
 """
 
 import os
+import re
 from datetime import datetime, timedelta
 
 import requests
@@ -35,10 +36,24 @@ _CENTRO_BUSCA = {"latitude": -27.098, "longitude": -48.913}
 _cache_lugares: dict[str, dict | None] = {}
 
 
+_RE_COORD = re.compile(r"^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$")
+
+
+def coordenada(texto: str) -> tuple[float, float] | None:
+    """'-26.91,-49.06' -> (lat, lon); qualquer outra coisa -> None."""
+    m = _RE_COORD.match(texto or "")
+    if not m:
+        return None
+    lat, lon = float(m.group(1)), float(m.group(2))
+    return (lat, lon) if -90 <= lat <= 90 and -180 <= lon <= 180 else None
+
+
 def resolver_lugar(texto: str) -> dict | None:
     """Nome livre ("Aeroclube de Blumenau", "Havan Brusque") -> lugar exato do
     Google (place_id, nome, endereco). None se nao achar ou se a busca falhar -
     quem chama cai no endereco em texto."""
+    if coordenada(texto):
+        return None  # GPS ja e o lugar exato
     chave = texto.strip().lower()
     if chave in _cache_lugares:
         return _cache_lugares[chave]
@@ -74,7 +89,12 @@ def resolver_lugar(texto: str) -> dict | None:
 
 
 def _ponto(texto: str, lugar: dict | None) -> dict:
-    return {"placeId": lugar["place_id"]} if lugar else {"address": texto}
+    if lugar:
+        return {"placeId": lugar["place_id"]}
+    c = coordenada(texto)
+    if c:
+        return {"location": {"latLng": {"latitude": c[0], "longitude": c[1]}}}
+    return {"address": texto}
 
 
 def tempo_de_viagem(origem: str, destino: str, modo: str = "DRIVE", _lugares=(None, None)) -> dict:

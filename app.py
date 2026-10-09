@@ -2149,8 +2149,35 @@ MODO_VOZ_INSTRUCAO = (
 )
 
 
+def _local_do_celular(local) -> dict | None:
+    """Valida a localizacao que o front manda junto da mensagem ({lat, lon,
+    precisao, idade_s}) e completa com o endereco aproximado (OpenStreetMap).
+    Qualquer coisa estranha -> None (o chat segue sem localizacao)."""
+    if not isinstance(local, dict):
+        return None
+    try:
+        lat, lon = float(local.get("lat")), float(local.get("lon"))
+        precisao = float(local.get("precisao") or 0)
+        idade_s = max(0, int(float(local.get("idade_s") or 0)))
+    except (TypeError, ValueError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180) or (lat == 0 and lon == 0):
+        return None
+    if idade_s > 6 * 3600 or precisao > 5000:
+        return None  # velha ou imprecisa demais pra valer como "onde estou"
+    endereco = geocode_nominatim.reverso(lat, lon)
+    return {
+        "lat": round(lat, 5),
+        "lon": round(lon, 5),
+        "precisao_m": round(precisao),
+        "idade_min": idade_s // 60,
+        "rotulo": endereco["rotulo"] if endereco else None,
+        "cidade": endereco["cidade"] if endereco else None,
+    }
+
+
 def _processar_mensagem_chat(
-    conn, texto: str, detalhes: dict | None = None, modo_voz: bool = False
+    conn, texto: str, detalhes: dict | None = None, modo_voz: bool = False, local_gps: dict | None = None
 ) -> tuple[str | None, list[str], str | None]:
     """Roda o pipeline inteiro de chat (contexto + tool-use + persistencia) -
     fonte unica de verdade da conversa, usada tanto pela rota HTTP /api/chat
@@ -2198,6 +2225,22 @@ def _processar_mensagem_chat(
     contexto = _contexto_chat(conn)
     if modo_voz:
         contexto += "\n" + MODO_VOZ_INSTRUCAO
+    local_gps = _local_do_celular(local_gps)
+    if local_gps:
+        onde = local_gps["rotulo"] or f"{local_gps['lat']}, {local_gps['lon']}"
+        quando = "agora" if local_gps["idade_min"] < 2 else f"ha {local_gps['idade_min']} min"
+        contexto += (
+            f"\nLocalização atual do Alex (GPS do celular, {quando}, precisão ~{local_gps['precisao_m']} m): {onde}. "
+            "Use pra 'aqui', 'perto', clima de onde ele está e rota 'daqui'."
+        )
+
+    def _rotulo_local_atual(entrada):
+        """'no_local_atual' -> texto do endereco atual; sem GPS -> dict de erro."""
+        if not entrada.get("no_local_atual"):
+            return None
+        if not local_gps:
+            return {"erro": "nao recebi a localizacao do celular agora - pergunte o lugar ao Alex"}
+        return local_gps["rotulo"] or f"{local_gps['lat']}, {local_gps['lon']}"
 
     def exec_registrar_tarefa(entrada):
         recorrencia = entrada.get("recorrencia")
@@ -2229,9 +2272,12 @@ def _processar_mensagem_chat(
         # Fase 7 (A6): data relativa ("sexta", "amanha") resolvida em codigo;
         # o quando_data do modelo so vale como transicao (docs/calculos.md).
         quando_data = claude_client.resolver_quando_data(entrada, date.today())
+        local_tarefa = _rotulo_local_atual(entrada)
+        if isinstance(local_tarefa, dict):
+            return local_tarefa  # erro: pediu "aqui" sem GPS
         cur = conn.execute(
-            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 entrada["titulo"],
                 entrada.get("quando"),
@@ -2239,6 +2285,7 @@ def _processar_mensagem_chat(
                 _normalizar_hora(entrada.get("hora")),
                 texto,
                 int(bool(entrada.get("depende_do_tempo"))),
+                local_tarefa,
             ),
         )
         conn.commit()
@@ -2284,22 +2331,27 @@ def _processar_mensagem_chat(
         return {"ok": True, "titulo": achadas[0]["title"]}
 
     def exec_consultar_clima(entrada):
-        cidade = (entrada.get("cidade") or os.environ.get("CIDADE_PADRAO", "")).strip()
-        if not cidade:
-            return {"erro": "qual cidade? (cidade padrao nao configurada)"}
-        local = clima.geocodificar_cidade(cidade)
-        if not local:
-            return {"erro": f"nao achei a cidade {cidade!r}"}
+        pedida = (entrada.get("cidade") or "").strip()
+        if not pedida and local_gps:
+            # sem cidade = onde ele esta agora (GPS do celular)
+            local_c = {"lat": local_gps["lat"], "lon": local_gps["lon"], "nome": local_gps["cidade"] or "onde você está"}
+        else:
+            cidade = pedida or os.environ.get("CIDADE_PADRAO", "").strip()
+            if not cidade:
+                return {"erro": "qual cidade? (cidade padrao nao configurada)"}
+            local_c = clima.geocodificar_cidade(cidade)
+            if not local_c:
+                return {"erro": f"nao achei a cidade {cidade!r}"}
         data = entrada.get("data")
         if data and data != _agora_brasilia().date().isoformat():
-            prev = clima.previsao_para_data(local["lat"], local["lon"], data)
-            return {"cidade": local["nome"], "data": data, **prev} if prev else {
+            prev = clima.previsao_para_data(local_c["lat"], local_c["lon"], data)
+            return {"cidade": local_c["nome"], "data": data, **prev} if prev else {
                 "erro": "sem previsao pra essa data (o limite e 16 dias)"}
-        agora = clima.tempo_agora(local["lat"], local["lon"])
+        agora = clima.tempo_agora(local_c["lat"], local_c["lon"])
         if not agora:
             return {"erro": "servico de clima fora do ar agora"}
-        resultado = {"cidade": local["nome"], "agora": agora}
-        horas = clima.previsao_horaria_hoje(local["lat"], local["lon"])
+        resultado = {"cidade": local_c["nome"], "agora": agora}
+        horas = clima.previsao_horaria_hoje(local_c["lat"], local_c["lon"])
         if horas:
             resultado["resto_do_dia"] = clima.resumo_chuva_do_dia(horas, _agora_brasilia().hour)["texto"]
         return resultado
@@ -2311,13 +2363,19 @@ def _processar_mensagem_chat(
         if len(pontos) > 8:
             return {"erro": "paradas demais (maximo 8 pontos)"}
         casa = os.environ.get("ENDERECO_CASA", "").strip()
-        # "daqui": o painel nao sabe o GPS - a conta parte de casa e o link do
-        # Google Maps sai sem origem (o proprio Maps usa a localizacao real)
+        # "daqui": com o GPS do celular a conta parte de onde ele esta; sem GPS,
+        # parte de casa. O link do Google Maps sai sem origem nos dois casos (o
+        # proprio Maps usa a localizacao real na hora de abrir).
         de_onde_estou = pontos[0].lower() in ("aqui", "daqui", "onde estou", "minha localizacao", "minha localização")
+        gps_usado = False
         if de_onde_estou:
-            if not casa:
+            if local_gps:
+                pontos[0] = f"{local_gps['lat']},{local_gps['lon']}"
+                gps_usado = True
+            elif casa:
+                pontos[0] = casa
+            else:
                 return {"erro": "preciso saber de onde voce sai"}
-            pontos[0] = casa
         if casa:
             pontos = [casa if p.lower() in ("casa", "minha casa", "em casa") else p for p in pontos]
         if not maps_client.configurado():
@@ -2329,11 +2387,18 @@ def _processar_mensagem_chat(
         place_ids = resultado.pop("_place_ids", None)
         lugares = resultado["lugares"]
         if de_onde_estou:
-            resultado["obs"] = "km e tempo calculados a partir de casa; o link do Maps parte da localizacao real"
+            if gps_usado:
+                lugares[0]["nome"] = "Onde você está"
+                lugares[0]["endereco"] = local_gps["rotulo"] or "localização atual"
+            else:
+                resultado["obs"] = "sem GPS do celular: km e tempo calculados a partir de casa; o link do Maps parte da localizacao real"
+        paradas = [{"nome": l.get("nome") or l["pedido"], "endereco": l["endereco"]} for l in lugares]
+        if de_onde_estou and not gps_usado:
+            paradas[0]["endereco"] = ""  # o card mostra "Onde você está", nao o endereco de casa
         resultado["_efeito"] = {
             "entidade": "rota",
             "consulta": True,
-            "paradas": [{"nome": l.get("nome") or l["pedido"], "endereco": l["endereco"]} for l in lugares],
+            "paradas": paradas,
             "partir_de_onde_estou": de_onde_estou,
             "distancia_km": resultado["distancia_total_km"],
             "duracao_min": resultado["duracao_total_minutos"],
@@ -2392,7 +2457,13 @@ def _processar_mensagem_chat(
         return {"plano": plano_texto}
 
     def exec_registrar_lembrete(entrada):
+        local_lembrete = _rotulo_local_atual(entrada)
+        if isinstance(local_lembrete, dict):
+            return local_lembrete
         lembrete_id = create_lembrete(conn, entrada["titulo"], entrada["data"], entrada.get("recorrente", False))
+        if local_lembrete:
+            conn.execute("UPDATE lembretes SET local = ? WHERE id = ?", (local_lembrete, lembrete_id))
+            conn.commit()
         return {"ok": True, "_efeito": {"entidade": "lembrete", "id": lembrete_id}}
 
     def exec_registrar_medicamento(entrada):

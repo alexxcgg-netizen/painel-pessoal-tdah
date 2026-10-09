@@ -30,7 +30,7 @@ def chat():
 
     conn = get_db()
     detalhes: dict = {}
-    resposta, acoes, erro = _processar_mensagem_chat(conn, texto, detalhes, modo_voz=body.get("modo") == "voz")
+    resposta, acoes, erro = _processar_mensagem_chat(conn, texto, detalhes, modo_voz=body.get("modo") == "voz", local_gps=body.get("local"))
     conn.close()
     if erro:
         return jsonify({"error": erro}), 402 if erro == TETO_IA_MSG else 502

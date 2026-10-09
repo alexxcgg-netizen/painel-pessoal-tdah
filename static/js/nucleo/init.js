@@ -53,6 +53,7 @@ loadChatHistorico();
 initViagemOrigemPadrao();
 initVozChat();
 initConversaVoz();
+if (typeof iniciarLocalizacao === "function") iniciarLocalizacao();
 initDicas();
 initSilencio();
 initModoViagem();

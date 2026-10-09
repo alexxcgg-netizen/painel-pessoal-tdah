@@ -82,3 +82,43 @@ def geocodificar(nome: str, cidade: str | None) -> dict:
         return {"status": "ok", "lat": float(primeiro["lat"]), "lng": float(primeiro["lon"])}
     except (KeyError, TypeError, ValueError):
         return {"status": "nao_encontrado"}
+
+
+REVERSO_URL = "https://nominatim.openstreetmap.org/reverse"
+# cache por coordenada arredondada (~100 m): mesma esquina nunca consulta 2x
+_cache_reverso: dict[tuple[float, float], dict | None] = {}
+_SIGLAS_UF = {"Santa Catarina": "SC", "Paraná": "PR", "São Paulo": "SP", "Rio Grande do Sul": "RS", "Rio de Janeiro": "RJ"}
+
+
+def reverso(lat: float, lon: float) -> dict | None:
+    """Coordenada do GPS do celular -> {"rotulo", "bairro", "cidade"} aproximado
+    (rua, bairro, cidade). Mesma politica do geocodificar (1 req/s, User-Agent,
+    cache). None em erro ou sem resultado - quem chama usa so a coordenada."""
+    chave = (round(lat, 3), round(lon, 3))
+    if chave in _cache_reverso:
+        return _cache_reverso[chave]
+    _throttle()
+    try:
+        resp = requests.get(
+            REVERSO_URL,
+            params={"lat": lat, "lon": lon, "format": "jsonv2", "zoom": 17, "accept-language": "pt-BR"},
+            headers={"User-Agent": USER_AGENT},
+            timeout=TIMEOUT_SEGUNDOS,
+        )
+        resp.raise_for_status()
+        a = resp.json().get("address") or {}
+    except (requests.RequestException, ValueError):
+        return None  # nao cacheia falha temporaria
+    rua = a.get("road") or a.get("pedestrian") or a.get("footway")
+    bairro = a.get("suburb") or a.get("neighbourhood") or a.get("quarter") or a.get("city_district")
+    cidade = a.get("city") or a.get("town") or a.get("village") or a.get("municipality")
+    partes = [p for p in (rua, bairro, cidade) if p]
+    resultado = None
+    if partes:
+        rotulo = ", ".join(partes)
+        sigla = _SIGLAS_UF.get(a.get("state"))
+        if sigla and cidade:
+            rotulo += f" - {sigla}"
+        resultado = {"rotulo": rotulo, "bairro": bairro, "cidade": cidade}
+    _cache_reverso[chave] = resultado
+    return resultado

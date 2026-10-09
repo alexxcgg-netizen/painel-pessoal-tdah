@@ -1908,6 +1908,66 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(capturado["clima"]["cidade"], "Brusque")
         self.assertTrue(capturado["clima"]["agora"]["chovendo_agora"])
 
+    def test_chat_localizacao_do_celular(self):
+        capturado = {}
+        endereco = {"rotulo": "Rua Teste, Centro, Blumenau - SC", "bairro": "Centro", "cidade": "Blumenau"}
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            capturado.setdefault("ctx", []).append(contexto)
+            if len(capturado["ctx"]) == 1:
+                with patch("clima.tempo_agora", return_value={"condicao": "chuva"}) as t, patch(
+                    "clima.previsao_horaria_hoje", return_value=None
+                ), patch("clima.geocodificar_cidade") as geo:
+                    capturado["clima"] = executores["consultar_clima"]({})
+                    capturado["clima_args"] = t.call_args.args if t.call_args else capturado["clima"]
+                    capturado["geo_chamado"] = geo.called
+                with patch("maps_client.configurado", return_value=True), patch(
+                    "maps_client.resolver_lugar", return_value=None
+                ), patch("maps_client.tempo_de_viagem", return_value={"distancia_km": 5.0, "duracao_minutos": 9}) as tv:
+                    capturado["rota"] = executores["estimar_trajeto"]({"pontos": ["daqui", "Havan Blumenau"]})
+                    capturado["rota_origem"] = tv.call_args.args[0] if tv.call_args else capturado["rota"]
+                capturado["tarefa"] = executores["registrar_tarefa"]({"titulo": "comprar pao", "no_local_atual": True})
+            else:
+                capturado["tarefa_sem_gps"] = executores["registrar_tarefa"]({"titulo": "x", "no_local_atual": True})
+            return "ok", [], fake_usage()
+
+        local = {"lat": -26.9194, "lon": -49.0661, "precisao": 30, "idade_s": 20}
+        with patch("claude_client.chat", side_effect=fake_chat), patch("geocode_nominatim.reverso", return_value=endereco):
+            res = self.client.post("/api/chat", json={"mensagem": "me ajuda com uma coisa aqui", "local": local})
+            self.client.post("/api/chat", json={"mensagem": "me ajuda com outra coisa", "local": {"lat": "abc", "lon": 1}})
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Localização atual do Alex", capturado["ctx"][0])
+        self.assertIn("Rua Teste, Centro, Blumenau - SC", capturado["ctx"][0])
+        self.assertNotIn("Localização atual do Alex", capturado["ctx"][1])  # local invalido = ignorado
+        # clima sem cidade = coordenada do GPS, sem geocodificar Brusque
+        self.assertEqual(capturado["clima"]["cidade"], "Blumenau")
+        self.assertEqual(capturado["clima_args"], (-26.9194, -49.0661))
+        self.assertFalse(capturado["geo_chamado"])
+        # rota "daqui" parte do GPS
+        self.assertEqual(capturado["rota_origem"], "-26.9194,-49.0661")
+        self.assertNotIn("obs", capturado["rota"])
+        # tarefa "aqui" guarda o endereco; sem GPS devolve erro em vez de inventar
+        self.assertTrue(capturado["tarefa"]["ok"])
+        self.assertIn("erro", capturado["tarefa_sem_gps"])
+        conn = db.get_db()
+        locais = [r["local"] for r in conn.execute("SELECT local FROM tasks ORDER BY id").fetchall()]
+        conn.close()
+        self.assertEqual(locais, ["Rua Teste, Centro, Blumenau - SC"])
+        cards_resp = res.get_json()["cards"]
+        tarefas = [c for c in cards_resp if c["type"] == "tarefas_criadas"]
+        self.assertEqual(tarefas[0]["data"]["tarefas"][0]["local"], "Rua Teste, Centro, Blumenau - SC")
+
+    def test_local_do_celular_rejeita_velho_impreciso_e_zero(self):
+        with patch("geocode_nominatim.reverso", return_value=None):
+            self.assertIsNone(app._local_do_celular({"lat": -26.9, "lon": -49.0, "idade_s": 7 * 3600}))
+            self.assertIsNone(app._local_do_celular({"lat": -26.9, "lon": -49.0, "precisao": 9000}))
+            self.assertIsNone(app._local_do_celular({"lat": 0, "lon": 0}))
+            self.assertIsNone(app._local_do_celular({"lat": 95, "lon": 0}))
+            self.assertIsNone(app._local_do_celular("texto"))
+            ok = app._local_do_celular({"lat": -26.9, "lon": -49.0, "precisao": 20, "idade_s": 30})
+        self.assertEqual(ok["lat"], -26.9)
+        self.assertIsNone(ok["rotulo"])
+
     def test_chat_trajeto_vira_card_de_rota_com_link_do_google_maps(self):
         resultados = {}
 

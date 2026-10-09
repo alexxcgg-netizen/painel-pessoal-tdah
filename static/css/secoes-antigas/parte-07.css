@@ -610,3 +610,32 @@
     transition: none;
   }
 }
+
+/* local guardado pelo GPS (tarefa / lembrete criados com "aqui") */
+.card-local {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3rem;
+  margin: 0.15rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.card-local svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  margin-top: 0.08rem;
+  color: var(--card-cor);
+}
+
+.card-tarefa .card-local {
+  flex-basis: 100%;
+}
+
+.card-tarefa:has(.card-local) {
+  flex-wrap: wrap;
+  row-gap: 0;
+  padding-bottom: 0.45rem;
+}

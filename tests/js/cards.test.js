@@ -657,3 +657,21 @@ test("rota: destino, km/tempo, paradas e botao do Google Maps (so link do Maps)"
   assert.ok(!outroSite.includes("evil.example"), outroSite);
   assert.match(Cards.renderizarCardHTML({ type: "rota", data: { paradas: [] } }), /card-contrato-fallback/);
 });
+
+test("local do GPS aparece na tarefa e no lembrete (e some quando nao tem)", () => {
+  const tarefa = Cards.renderizarCardHTML({
+    type: "tarefas_criadas",
+    data: { tarefas: [{ id: 1, titulo: "comprar pão", local: "Rua Exemplo, Centro, Blumenau - SC" }] },
+    actions: [],
+  });
+  assert.match(tarefa, /card-local/);
+  assert.match(tarefa, /Rua Exemplo, Centro, Blumenau - SC/);
+  const semLocal = Cards.renderizarCardHTML({ type: "tarefas_criadas", data: { tarefas: [{ id: 1, titulo: "x" }] }, actions: [] });
+  assert.ok(!semLocal.includes("card-local"), semLocal);
+  const lembrete = Cards.renderizarCardHTML({
+    type: "lembrete",
+    data: { id: 1, titulo: "voltar aqui", data: "2026-10-20", local: "<b>Rua</b>" },
+    actions: [],
+  });
+  assert.match(lembrete, /&lt;b&gt;Rua&lt;\/b&gt;/); // escapado
+});

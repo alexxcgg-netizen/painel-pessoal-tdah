@@ -213,10 +213,18 @@ async function enviarChat(texto, opcoes = {}) {
   lista.appendChild(digitando);
   lista.scrollTop = lista.scrollHeight;
 
+  // GPS do celular junto da mensagem (nucleo/localizacao.js) - espera no máximo ~2,5s,
+  // enquanto os três pontinhos já estão na tela; sem permissão/sinal vai sem.
+  const corpo = Object.assign({}, opcoes.corpo || { mensagem: texto });
+  if (!opcoes.rota && typeof localParaChat === "function") {
+    const local = await localParaChat();
+    if (local) corpo.local = local;
+  }
+
   const data = await apiFetch(opcoes.rota || "/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(opcoes.corpo || { mensagem: texto }),
+    body: JSON.stringify(corpo),
   });
 
   digitando.remove();
