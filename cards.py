@@ -171,6 +171,7 @@ TIPOS_CARD = (
     "assinatura",
     "compra_parcelada",
     "resumo_financeiro_recorrente",
+    "rota",
 )
 
 
@@ -803,6 +804,25 @@ def card_resumo_financeiro_recorrente(conn, hoje: date | None = None) -> dict:
     return resumo_recorrente_para_card(fr.resumo_financeiro_recorrente(conn, hoje or date.today()))
 
 
+def card_rota(ef: dict) -> dict | None:
+    """Trajeto calculado pelo estimar_trajeto (nao vem do banco). So aceita link
+    do proprio Google Maps - o front tambem confere antes de abrir."""
+    url = ef.get("url")
+    paradas = [p for p in (ef.get("paradas") or []) if isinstance(p, dict)]
+    if not isinstance(url, str) or not url.startswith("https://www.google.com/maps/") or len(paradas) < 2:
+        return None
+    return novo_card(
+        "rota",
+        {
+            "paradas": paradas,
+            "partir_de_onde_estou": bool(ef.get("partir_de_onde_estou")),
+            "distancia_km": ef.get("distancia_km"),
+            "duracao_min": ef.get("duracao_min"),
+        },
+        [{"tipo": "abrir_link", "rotulo": "Abrir no Google Maps", "url": url}],
+    )
+
+
 def _com_abrir(actions_extra, entidade: str, id_: int) -> list:
     aba, rotulo = ABA_POR_ENTIDADE[entidade]
     return list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, entidade, id_)]
@@ -844,6 +864,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_compra_parcelada(conn, id_, actions_extra=desfazer)
     if entidade == "resumo_financeiro_recorrente":
         return card_resumo_financeiro_recorrente(conn)
+    if entidade == "rota":
+        return card_rota(ef)
     return None
 
 

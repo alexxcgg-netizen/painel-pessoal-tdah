@@ -427,3 +427,11 @@ O card original fica guardado no elemento (`data-card-json`) pra depuração.
    `tests/js/cards.test.js` (pelo menos: renderiza com dado de exemplo, escapa
    HTML, dado faltando não quebra).
 5. **Headless**: conferir o card em 390px (ver `AGENTS.md`, regra 5).
+
+## `rota` (aditivo, 2026-10-09)
+
+Gerado pelo `estimar_trajeto` do chat (nao vem do banco). `data`: `paradas` (lista de `{nome, endereco}`, da
+partida ao fim), `distancia_km`, `duracao_min`, `partir_de_onde_estou` (bool - a primeira parada vira "Onde voce
+esta"). `actions`: uma `abrir_link` (`{tipo, rotulo, url}`) com o link universal do Google Maps; o front so
+renderiza `abrir_link` quando a `url` comeca com `https://www.google.com/maps/` (qualquer outra e ignorada).
+

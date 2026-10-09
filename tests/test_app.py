@@ -1908,6 +1908,38 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(capturado["clima"]["cidade"], "Brusque")
         self.assertTrue(capturado["clima"]["agora"]["chovendo_agora"])
 
+    def test_chat_trajeto_vira_card_de_rota_com_link_do_google_maps(self):
+        resultados = {}
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            lugares = {
+                "Aeroclube de Blumenau": {"place_id": "PID_AERO", "nome": "Aeroclube de Blumenau", "endereco": "R. Ernst Kaestner, 1255, Blumenau - SC"},
+            }
+            with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 1, Brusque - SC"}), patch(
+                "maps_client.configurado", return_value=True
+            ), patch("maps_client.resolver_lugar", side_effect=lambda t: lugares.get(t)), patch(
+                "maps_client.tempo_de_viagem", return_value={"distancia_km": 47.7, "duracao_minutos": 52}
+            ):
+                resultados["daqui"] = executores["estimar_trajeto"]({"pontos": ["daqui", "Aeroclube de Blumenau"]})
+            return "Calculei a rota.", ["estimar_trajeto"], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            res = self.client.post("/api/chat", json={"mensagem": "planeja uma rota daqui pro aeroclube"})
+        self.assertEqual(res.status_code, 200)
+        # a IA nao ve o place_id nem o link
+        self.assertNotIn("_place_ids", resultados["daqui"])
+        self.assertNotIn("_efeito", resultados["daqui"])
+        self.assertIn("localizacao real", resultados["daqui"]["obs"])
+        rotas = [c for c in res.get_json()["cards"] if c["type"] == "rota"]
+        self.assertEqual(len(rotas), 1)
+        card = rotas[0]
+        self.assertTrue(card["data"]["partir_de_onde_estou"])
+        self.assertEqual(card["data"]["distancia_km"], 47.7)
+        url = card["actions"][0]["url"]
+        self.assertTrue(url.startswith("https://www.google.com/maps/dir/?"), url)
+        self.assertIn("destination_place_id=PID_AERO", url)
+        self.assertNotIn("origin=", url)  # Maps usa a localizacao real
+
     def test_chat_modo_voz_pede_resposta_falavel_so_quando_pedido(self):
         contextos = []
 

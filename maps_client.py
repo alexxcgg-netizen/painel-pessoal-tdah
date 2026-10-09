@@ -124,10 +124,52 @@ def trajeto(pontos: list[str]) -> dict:
             {"pedido": p, "nome": l["nome"], "endereco": l["endereco"]} if l else {"pedido": p, "endereco": p}
             for p, l in zip(pontos, lugares)
         ],
+        # chave "_" = so pro servidor (o card), a IA nao ve
+        "_place_ids": [l["place_id"] if l else None for l in lugares],
         "trechos": trechos,
         "distancia_total_km": round(sum(t["distancia_km"] for t in trechos), 1),
         "duracao_total_minutos": sum(t["duracao_minutos"] for t in trechos),
     }
+
+
+MAPS_DIR_URL = "https://www.google.com/maps/dir/"
+
+
+def _rotulo_lugar(lugar: dict) -> str:
+    nome = (lugar.get("nome") or "").strip()
+    endereco = (lugar.get("endereco") or lugar.get("pedido") or "").strip()
+    if nome and endereco and not endereco.lower().startswith(nome.lower()[:12]):
+        return f"{nome}, {endereco}"
+    return endereco or nome
+
+
+def link_rota(lugares: list[dict], place_ids: list | None = None, partir_de_onde_estou: bool = False) -> str:
+    """Link universal do Google Maps (Maps URLs, api=1) com a rota de carro ja
+    montada - no iPhone abre o app do Google Maps se instalado, senao o site.
+    partir_de_onde_estou: sem origem no link, o Maps usa a localizacao real."""
+    from urllib.parse import urlencode
+
+    ids = list(place_ids or [None] * len(lugares))
+    rotulos = [_rotulo_lugar(l) for l in lugares]
+    if partir_de_onde_estou:
+        rotulos, ids = rotulos[1:], ids[1:]
+        origem, origem_id = None, None
+    else:
+        origem, origem_id = rotulos[0], ids[0]
+        rotulos, ids = rotulos[1:], ids[1:]
+    params = {"api": "1", "travelmode": "driving", "destination": rotulos[-1]}
+    if ids[-1]:
+        params["destination_place_id"] = ids[-1]
+    if origem:
+        params["origin"] = origem
+        if origem_id:
+            params["origin_place_id"] = origem_id
+    meio, meio_ids = rotulos[:-1], ids[:-1]
+    if meio:
+        params["waypoints"] = "|".join(meio)
+        if all(meio_ids):
+            params["waypoint_place_ids"] = "|".join(meio_ids)
+    return MAPS_DIR_URL + "?" + urlencode(params)
 
 
 def horario_de_saida(

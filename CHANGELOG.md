@@ -32,6 +32,12 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   ia lá em cima e cortava). "Pode falar…" só aparece com o microfone de fato gravando; o botão de ditado some durante
   a conversa. Service worker v43.
 
+- **Card de rota** (`type: "rota"`, aditivo em docs/CARDS.md): `estimar_trajeto` declara `_efeito` `rota` com as
+  paradas, km/tempo e o link do Google Maps (`maps_client.link_rota`, Maps URLs `api=1` com `place_id` de cada
+  parada). Action nova `abrir_link` - o front so aceita `https://www.google.com/maps/`. "daqui" = conta parte de
+  casa e o link sai sem origem (o Maps usa a localizacao real). Sinal do modo conversa trocado pelo "Suave".
+  Service worker v46.
+
 ## 2026-10-08 - Chat passa para o Claude Haiku 5.5
 
 - `ia/config.d/chat.json`: `modelo_atual` = `claude-haiku-5-5` (exame de 30 perguntas: 29/30 nos dois modelos, nenhuma

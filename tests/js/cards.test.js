@@ -624,3 +624,36 @@ test("saude_dia/saude_treino com oculto: so o aviso, nenhum numero de saude", ()
   assert.ok(!treino.includes("Perna"), treino);
   assert.ok(!treino.includes("card-contrato-fallback"), treino);
 });
+
+test("rota: destino, km/tempo, paradas e botao do Google Maps (so link do Maps)", () => {
+  const url = "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=Aeroclube";
+  const card = {
+    type: "rota",
+    data: {
+      paradas: [
+        { nome: "Rua Exemplo, 10", endereco: "Rua Exemplo, 10, Brusque - SC" },
+        { nome: "Aeroclube de Blumenau", endereco: "R. Ernst Kaestner, 1255 - Itoupava Central, Blumenau - SC" },
+        { nome: "Rua Exemplo, 10", endereco: "Rua Exemplo, 10, Brusque - SC" },
+      ],
+      distancia_km: 118.6,
+      duracao_min: 136,
+    },
+    actions: [{ tipo: "abrir_link", rotulo: "Abrir no Google Maps", url }],
+  };
+  const html = Cards.renderizarCardHTML(card);
+  assert.ok(!html.includes("card-contrato-fallback"), html);
+  assert.match(html, /Rota · ida e volta/);
+  assert.match(html, /Aeroclube de Blumenau/);
+  assert.match(html, /119 km · 2h16/);
+  assert.match(html, /href="https:\/\/www\.google\.com\/maps\/dir\/\?api=1&amp;travelmode=driving/);
+  assert.match(html, /target="_blank"/);
+
+  const deOndeEstou = Cards.renderizarCardHTML({ ...card, data: { ...card.data, partir_de_onde_estou: true } });
+  assert.match(deOndeEstou, /Onde você está/);
+
+  const malicioso = Cards.renderizarCardHTML({ ...card, actions: [{ tipo: "abrir_link", rotulo: "x", url: "javascript:alert(1)" }] });
+  assert.ok(!malicioso.includes("javascript:"), malicioso);
+  const outroSite = Cards.renderizarCardHTML({ ...card, actions: [{ tipo: "abrir_link", rotulo: "x", url: "https://evil.example/maps/" }] });
+  assert.ok(!outroSite.includes("evil.example"), outroSite);
+  assert.match(Cards.renderizarCardHTML({ type: "rota", data: { paradas: [] } }), /card-contrato-fallback/);
+});

@@ -189,6 +189,9 @@
   const ICONE_SINO =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
 
+  const ICONE_MAPA =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6 9 4Z"/><path d="M9 4v14M15 6v14"/></svg>';
+
   function acoesDoTipo(card, tipo) {
     return (Array.isArray(card && card.actions) ? card.actions : []).filter(
       (a) => a && typeof a === "object" && a.tipo === tipo
@@ -210,6 +213,11 @@
     if (acao.tipo === "despertar" && acao.lembrete_id !== undefined) {
       const ativo = Boolean(acao.ativo);
       return `<button type="button" class="card-btn card-btn-despertar${ativo ? " ativo" : ""}" data-acao="despertar" data-lembrete-id="${esc(acao.lembrete_id)}" aria-pressed="${ativo}">${ICONE_SINO}<span>${esc(acao.rotulo || "Desperta você")}</span></button>`;
+    }
+    // link externo (card de rota -> Google Maps). So https do proprio Google Maps;
+    // qualquer outra URL e ignorada, mesmo que o servidor mande.
+    if (acao.tipo === "abrir_link" && typeof acao.url === "string" && /^https:\/\/www\.google\.com\/maps\//.test(acao.url)) {
+      return `<a class="card-btn card-btn-link" href="${esc(acao.url)}" target="_blank" rel="noopener noreferrer">${ICONE_MAPA}<span>${esc(acao.rotulo || "Abrir")}</span></a>`;
     }
     return ""; // tipo de action desconhecido: ignora (nunca quebra o card)
   }

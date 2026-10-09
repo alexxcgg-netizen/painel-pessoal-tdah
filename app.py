@@ -2311,14 +2311,35 @@ def _processar_mensagem_chat(
         if len(pontos) > 8:
             return {"erro": "paradas demais (maximo 8 pontos)"}
         casa = os.environ.get("ENDERECO_CASA", "").strip()
+        # "daqui": o painel nao sabe o GPS - a conta parte de casa e o link do
+        # Google Maps sai sem origem (o proprio Maps usa a localizacao real)
+        de_onde_estou = pontos[0].lower() in ("aqui", "daqui", "onde estou", "minha localizacao", "minha localização")
+        if de_onde_estou:
+            if not casa:
+                return {"erro": "preciso saber de onde voce sai"}
+            pontos[0] = casa
         if casa:
             pontos = [casa if p.lower() in ("casa", "minha casa", "em casa") else p for p in pontos]
         if not maps_client.configurado():
             return {"erro": "Google Maps nao configurado (falta GOOGLE_MAPS_API_KEY no .env) - diga isso ao Alex, nao estime"}
         try:
-            return maps_client.trajeto(pontos)
+            resultado = maps_client.trajeto(pontos)
         except (ValueError, requests.RequestException):
             return {"erro": "nao consegui calcular a rota agora"}
+        place_ids = resultado.pop("_place_ids", None)
+        lugares = resultado["lugares"]
+        if de_onde_estou:
+            resultado["obs"] = "km e tempo calculados a partir de casa; o link do Maps parte da localizacao real"
+        resultado["_efeito"] = {
+            "entidade": "rota",
+            "consulta": True,
+            "paradas": [{"nome": l.get("nome") or l["pedido"], "endereco": l["endereco"]} for l in lugares],
+            "partir_de_onde_estou": de_onde_estou,
+            "distancia_km": resultado["distancia_total_km"],
+            "duracao_min": resultado["duracao_total_minutos"],
+            "url": maps_client.link_rota(lugares, place_ids, de_onde_estou),
+        }
+        return resultado
 
     def exec_registrar_gasto(entrada):
         status_gasto = entrada.get("status") if entrada.get("status") in ("real", "planejado") else "real"

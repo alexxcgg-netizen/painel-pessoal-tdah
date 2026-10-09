@@ -362,7 +362,9 @@ CHAT_TOOLS = [
                     "description": (
                         "lugares em ordem, do ponto de partida ao final. Use a palavra 'casa' pra "
                         "casa do Alex (em Brusque) - se ele nao disse de onde sai, comece por 'casa'; "
-                        "'volto pra casa'/'volto pra Brusque' sem outro lugar tambem termina em 'casa'."
+                        "'volto pra casa'/'volto pra Brusque' sem outro lugar tambem termina em 'casa'. "
+                        "'daqui'/'de onde estou' = comece por 'aqui'. O painel mostra sozinho um card "
+                        "com botao pra abrir a rota no Google Maps - nao cole link na resposta."
                     ),
                 },
             },

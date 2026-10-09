@@ -520,3 +520,93 @@
   color: var(--text);
   font-weight: 700;
 }
+
+/* ---- card de rota (estimar_trajeto -> Google Maps) -------------------------
+   Paradas numa linha do tempo vertical (pontinho + fio ligando uma na outra);
+   km/tempo no mesmo estilo tecnico dos horarios grandes, um pouco menor; o
+   botao do Maps e o unico preenchido do card - e a acao principal. */
+.card-contrato-rota {
+  --card-cor: var(--cor-aviacao);
+}
+
+.card-rota-numeros {
+  font-size: 1.6rem;
+  margin: 0.15rem 0 0.35rem;
+}
+
+.card-rota-paradas {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+}
+
+.card-rota-parada {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  padding: 0 0 0.7rem 1.35rem;
+}
+
+.card-rota-parada::before {
+  content: "";
+  position: absolute;
+  left: 0.2rem;
+  top: 0.38rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  border: 2px solid var(--card-cor);
+  background: var(--surface);
+}
+
+.card-rota-parada:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: calc(0.45rem - 1px);
+  top: 1.05rem;
+  bottom: 0.1rem;
+  width: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--card-cor) 35%, transparent);
+}
+
+.card-rota-parada:last-child {
+  padding-bottom: 0.1rem;
+}
+
+.card-rota-parada:last-child::before {
+  background: var(--card-cor);
+}
+
+.card-rota-nome {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.card-rota-endereco {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.card-btn-link {
+  text-decoration: none;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--card-cor) 85%, black 15%);
+  color: #fff;
+  transition: transform 0.25s var(--ease-bounce), filter 0.2s var(--ease-suave);
+}
+
+.card-btn-link:active {
+  transform: scale(0.96);
+  filter: brightness(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-btn-link {
+    transition: none;
+  }
+}

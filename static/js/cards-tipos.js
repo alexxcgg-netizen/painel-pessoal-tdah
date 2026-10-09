@@ -231,6 +231,8 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2.5 20.5 6 17 9.5"/><path d="M3.5 11V9.5A3.5 3.5 0 0 1 7 6h13.5M7 21.5 3.5 18 7 14.5"/><path d="M20.5 13v1.5A3.5 3.5 0 0 1 17 18H3.5"/></svg>',
     check:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17 19 7"/></svg>',
+    rota:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="5" r="2.2"/><path d="M8.2 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.8"/></svg>',
     bandeira:
       '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4" fill="none"/><path d="M5 4h11l-2 4 2 4H5z"/></svg>',
   });
@@ -515,6 +517,39 @@
       `<p class="card-hora-grande">${esc(inicio ? Cards.hhmm(inicio) : "—")}</p>` +
       (linha ? `<p class="card-linha-meta card-primeira-maiuscula">${linha}</p>` : "") +
       porque
+    );
+  });
+
+  // ---- rota (estimar_trajeto -> botao do Google Maps) ---------------------------
+
+  function kmTexto(km) {
+    if (!numeroValido(km)) return "";
+    return `${Number(km).toLocaleString("pt-BR", { maximumFractionDigits: km < 10 ? 1 : 0 })} km`;
+  }
+
+  Cards.registrar("rota", (data) => {
+    const paradas = lista(data.paradas).filter((p) => p && typeof p === "object");
+    if (paradas.length < 2) return null;
+    const destino = paradas[paradas.length - 1];
+    const voltaPraOrigem = paradas.length > 2 && paradas[0].endereco === destino.endereco;
+    const alvo = voltaPraOrigem ? paradas[paradas.length - 2] : destino;
+    const numeros = [kmTexto(data.distancia_km), numeroValido(data.duracao_min) ? Cards.fmtDuracao(data.duracao_min) : ""]
+      .filter(Boolean)
+      .join(" · ");
+    const itens = paradas
+      .map((p, i) => {
+        const aqui = i === 0 && data.partir_de_onde_estou;
+        const nome = aqui ? "Onde você está" : p.nome || p.endereco;
+        const endereco =
+          !aqui && p.endereco && p.endereco !== nome ? `<span class="card-rota-endereco">${esc(p.endereco)}</span>` : "";
+        return `<li class="card-rota-parada"><span class="card-rota-nome">${esc(nome)}</span>${endereco}</li>`;
+      })
+      .join("");
+    return (
+      eyebrow(ICONES.rota, voltaPraOrigem ? "Rota · ida e volta" : "Rota") +
+      `<p class="card-titulo">${esc(alvo.nome || alvo.endereco)}</p>` +
+      (numeros ? `<p class="card-hora-grande card-rota-numeros">${esc(numeros)}</p>` : "") +
+      `<ol class="card-rota-paradas">${itens}</ol>`
     );
   });
 
