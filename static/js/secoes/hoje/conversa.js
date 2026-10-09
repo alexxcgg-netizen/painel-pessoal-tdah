@@ -32,6 +32,31 @@ function _conversaEstado(estado) {
   input.placeholder = textos[estado] || Conversa.placeholderOriginal;
 }
 
+// Sinal curtinho quando o microfone de fato abriu ("pode falar", subindo) e quando a
+// conversa termina (descendo) - duas notas senoidais com ataque/queda suaves, volume
+// baixo; nada de "bip" seco. Toca pelo mesmo AudioContext da conversa.
+function _conversaSinal(subindo) {
+  const ctx = Conversa.ctx;
+  if (!ctx || ctx.state === "closed") return;
+  try {
+    const notas = subindo ? [660, 990] : [880, 587];
+    const t0 = ctx.currentTime + 0.02;
+    notas.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const ganho = ctx.createGain();
+      const inicio = t0 + i * 0.09;
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, inicio);
+      ganho.gain.setValueAtTime(0.0001, inicio);
+      ganho.gain.exponentialRampToValueAtTime(0.09, inicio + 0.015);
+      ganho.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.16);
+      osc.connect(ganho).connect(ctx.destination);
+      osc.start(inicio);
+      osc.stop(inicio + 0.18);
+    });
+  } catch {}
+}
+
 // Uma fala do Alex: {blob, duracaoS} quando ele fica ~3s calado depois de ter falado,
 // ou null se ninguém falou / a conversa foi encerrada no meio.
 async function _conversaOuvirUmaFala() {
@@ -55,7 +80,10 @@ async function _conversaOuvirUmaFala() {
     mostrarErro("Sem acesso ao microfone. Libera nos Ajustes do iPhone pro painel.");
     return null;
   }
-  if (Conversa.ativa) _conversaEstado("ouvindo");
+  if (Conversa.ativa) {
+    _conversaEstado("ouvindo");
+    _conversaSinal(true);
+  }
   const gravado = await gravacao.pronto;
   if (Conversa.gravacao === gravacao) Conversa.gravacao = null;
   return Conversa.ativa ? gravado : null;
@@ -107,6 +135,7 @@ function encerrarConversa() {
   if (Conversa.gravacao) Conversa.gravacao.parar("cancelada");
   Conversa.gravacao = null;
   if (estavaAtiva && vozTocando()) pararVoz();
+  if (estavaAtiva) _conversaSinal(false);
   if (!Conversa.btn) return;
   Conversa.btn.classList.remove("conversando");
   Conversa.btn.setAttribute("aria-pressed", "false");
