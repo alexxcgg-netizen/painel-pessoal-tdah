@@ -1875,6 +1875,39 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(len(tarefas), 1)
         self.assertEqual(tarefas[0]["title"], "levar carro na oficina")
 
+    def test_chat_contexto_tem_hora_de_brasilia_e_clima_trajeto(self):
+        capturado = {}
+
+        def fake_chat(mensagens, contexto, memorias, executores):
+            capturado["ctx"] = contexto
+            with patch("maps_client.configurado", return_value=False):
+                capturado["sem_maps"] = executores["estimar_trajeto"]({"pontos": ["Brusque", "Blumenau"]})
+            capturado["um_ponto"] = executores["estimar_trajeto"]({"pontos": ["Brusque"]})
+            with patch("maps_client.configurado", return_value=True), patch(
+                "maps_client.resolver_lugar", return_value=None
+            ), patch(
+                "maps_client.tempo_de_viagem",
+                side_effect=[{"distancia_km": 25.4, "duracao_minutos": 35}, {"distancia_km": 25.6, "duracao_minutos": 33}],
+            ):
+                capturado["traj"] = executores["estimar_trajeto"]({"pontos": ["Brusque", "Blumenau", "Brusque"]})
+            with patch.dict(os.environ, {"CIDADE_PADRAO": "Brusque"}), patch(
+                "clima.geocodificar_cidade", return_value={"lat": -27.1, "lon": -48.9, "nome": "Brusque"}
+            ), patch("clima.tempo_agora", return_value={"condicao": "chuva", "chovendo_agora": True}), patch(
+                "clima.previsao_horaria_hoje", return_value=None
+            ):
+                capturado["clima"] = executores["consultar_clima"]({})
+            return "ok", [], fake_usage()
+
+        with patch("claude_client.chat", side_effect=fake_chat):
+            self.client.post("/api/chat", json={"mensagem": "vou pra blumenau"})
+        self.assertRegex(capturado["ctx"], r"Agora: .+, \d{2}/\d{2}/\d{4}, \d{2}:\d{2} \(horário de Brasília\)")
+        self.assertIn("erro", capturado["um_ponto"])
+        self.assertIn("GOOGLE_MAPS_API_KEY", capturado["sem_maps"]["erro"])
+        self.assertEqual(capturado["traj"]["distancia_total_km"], 51.0)
+        self.assertEqual(capturado["traj"]["duracao_total_minutos"], 68)
+        self.assertEqual(capturado["clima"]["cidade"], "Brusque")
+        self.assertTrue(capturado["clima"]["agora"]["chovendo_agora"])
+
     def test_chat_ajustar_tarefa_muda_hora_sem_duplicar(self):
         def fake_chat(mensagens, contexto, memorias, executores):
             executores["registrar_tarefa"]({"titulo": "Falar com a contabilidade"})

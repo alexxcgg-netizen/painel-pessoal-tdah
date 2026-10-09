@@ -63,6 +63,12 @@ compromissos do dia em mensagens separadas e fora de ordem (ex: primeiro "hoje a
 depois "hoje as 13h consulta"). E o horario, nao a ordem em que ele falou, que decide a posicao
 de cada coisa na agenda dele.
 
+A linha "Agora:" do contexto e a hora exata de Brasilia - use ela pra "daqui a pouco", "hoje a
+noite", "quanto falta". Pergunta de tempo/chuva -> `consultar_clima`. Quando o Alex contar que vai
+pra algum lugar ("vou pra Blumenau e depois volto"), chame `estimar_trajeto` com todas as paradas e
+diga km e tempo total, sem ele precisar pedir. Passe o nome do lugar do jeito que ele falou
+("Aeroclube de Blumenau") - a ferramenta acha o endereco exato; cite o endereco que ela devolveu.
+
 Pedido pra mudar hora ou dia de tarefas que JA existem ("coloca horario nas minhas tarefas") usa
 `ajustar_tarefa`, uma chamada por tarefa - nunca `registrar_tarefa`, que duplicaria. Na duvida de
 quais tarefas existem, chame `consultar_tarefas` antes.
@@ -320,6 +326,47 @@ CHAT_TOOLS = [
                 "quando_data": {"type": "string", "description": "nova data AAAA-MM-DD - omita pra manter"},
             },
             "required": ["titulo"],
+        },
+    },
+    {
+        "name": "consultar_clima",
+        "description": (
+            "Tempo de verdade (Open-Meteo): se esta chovendo AGORA, temperatura, sensacao, umidade, "
+            "vento e o risco de chuva no resto do dia - ou a previsao de um dia futuro (ate 16 "
+            "dias). Use SEMPRE que o Alex perguntar do tempo/chuva/frio/calor, de qualquer cidade - "
+            "nunca responda de cabeca nem so pela linha de previsao do contexto."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "cidade": {"type": "string", "description": "omita pra usar a cidade padrao (Brusque)"},
+                "data": {"type": "string", "description": "AAAA-MM-DD pra previsao de outro dia - omita pra agora/hoje"},
+            },
+        },
+    },
+    {
+        "name": "estimar_trajeto",
+        "description": (
+            "Distancia (km) e tempo de carro de um trajeto real pelo Google Maps, com quantas paradas "
+            "precisar - ex: 'vou pra Blumenau e depois volto pra Brusque' vira pontos "
+            "['Brusque', 'Blumenau', 'Brusque']. Use sempre que o Alex contar que vai pra algum "
+            "lugar ou perguntar distancia/tempo de viagem, sem ele precisar pedir - nunca estime km "
+            "ou tempo de cabeca. Nao calcula combustivel."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pontos": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "lugares em ordem, do ponto de partida ao final. Use a palavra 'casa' pra "
+                        "casa do Alex (em Brusque) - se ele nao disse de onde sai, comece por 'casa'; "
+                        "'volto pra casa'/'volto pra Brusque' sem outro lugar tambem termina em 'casa'."
+                    ),
+                },
+            },
+            "required": ["pontos"],
         },
     },
     {

@@ -15,6 +15,7 @@ import threading
 import time
 import zipfile
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import anthropic
 import requests
@@ -1682,6 +1683,14 @@ def _contagem_dia(conn, dia: date) -> dict:
     }
 
 
+_DIAS_SEMANA = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
+
+
+def _agora_brasilia() -> datetime:
+    """Hora oficial de Brasilia independente do fuso da maquina."""
+    return datetime.now(ZoneInfo("America/Sao_Paulo"))
+
+
 def _contexto_chat(conn) -> str:
     """Resumo factual do agora pro chat usar como contexto - mesma logica
     do resumo do dia, so que em formato de linhas pro system prompt."""
@@ -1705,7 +1714,9 @@ def _contexto_chat(conn) -> str:
         f"{e['titulo']} as {e['inicio'][11:16]}" if not e.get("dia_inteiro") else f"{e['titulo']} (dia todo)"
         for e in eventos
     )
+    agora = _agora_brasilia()
     linhas = [
+        f"Agora: {_DIAS_SEMANA[agora.weekday()]}, {agora:%d/%m/%Y}, {agora:%H:%M} (horário de Brasília)",
         f"Tarefas pendentes: {', '.join(r['title'] for r in pendentes) or 'nenhuma'}",
         f"Gasto de hoje (já realizado): R$ {gasto_hoje:.2f}",
         f"Gasto planejado/cogitado hoje (ainda não decidido): R$ {gasto_planejado:.2f}",
@@ -2262,6 +2273,43 @@ def _processar_mensagem_chat(
         conn.commit()
         return {"ok": True, "titulo": achadas[0]["title"]}
 
+    def exec_consultar_clima(entrada):
+        cidade = (entrada.get("cidade") or os.environ.get("CIDADE_PADRAO", "")).strip()
+        if not cidade:
+            return {"erro": "qual cidade? (cidade padrao nao configurada)"}
+        local = clima.geocodificar_cidade(cidade)
+        if not local:
+            return {"erro": f"nao achei a cidade {cidade!r}"}
+        data = entrada.get("data")
+        if data and data != _agora_brasilia().date().isoformat():
+            prev = clima.previsao_para_data(local["lat"], local["lon"], data)
+            return {"cidade": local["nome"], "data": data, **prev} if prev else {
+                "erro": "sem previsao pra essa data (o limite e 16 dias)"}
+        agora = clima.tempo_agora(local["lat"], local["lon"])
+        if not agora:
+            return {"erro": "servico de clima fora do ar agora"}
+        resultado = {"cidade": local["nome"], "agora": agora}
+        horas = clima.previsao_horaria_hoje(local["lat"], local["lon"])
+        if horas:
+            resultado["resto_do_dia"] = clima.resumo_chuva_do_dia(horas, _agora_brasilia().hour)["texto"]
+        return resultado
+
+    def exec_estimar_trajeto(entrada):
+        pontos = [p.strip() for p in (entrada.get("pontos") or []) if isinstance(p, str) and p.strip()]
+        if len(pontos) < 2:
+            return {"erro": "preciso de pelo menos origem e destino"}
+        if len(pontos) > 8:
+            return {"erro": "paradas demais (maximo 8 pontos)"}
+        casa = os.environ.get("ENDERECO_CASA", "").strip()
+        if casa:
+            pontos = [casa if p.lower() in ("casa", "minha casa", "em casa") else p for p in pontos]
+        if not maps_client.configurado():
+            return {"erro": "Google Maps nao configurado (falta GOOGLE_MAPS_API_KEY no .env) - diga isso ao Alex, nao estime"}
+        try:
+            return maps_client.trajeto(pontos)
+        except (ValueError, requests.RequestException):
+            return {"erro": "nao consegui calcular a rota agora"}
+
     def exec_registrar_gasto(entrada):
         status_gasto = entrada.get("status") if entrada.get("status") in ("real", "planejado") else "real"
         cur = conn.execute(
@@ -2784,6 +2832,8 @@ def _processar_mensagem_chat(
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "ajustar_tarefa": exec_ajustar_tarefa,
+        "consultar_clima": exec_consultar_clima,
+        "estimar_trajeto": exec_estimar_trajeto,
         "registrar_gasto": exec_registrar_gasto,
         "registrar_renda": exec_registrar_renda,
         "definir_orcamento": exec_definir_orcamento,

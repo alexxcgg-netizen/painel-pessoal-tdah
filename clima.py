@@ -237,3 +237,50 @@ def resumo_chuva_hoje_para_cidade(cidade: str) -> dict | None:
         return None
     resumo = resumo_chuva_do_dia(horas, datetime.now().hour)
     return {**resumo, "cidade": local["nome"]}
+
+
+# descricao curta dos codigos WMO mais comuns - so traduz o codigo que a API
+# devolveu, nunca deduz nada
+_DESCRICAO_WMO = {
+    0: "céu limpo", 1: "quase limpo", 2: "parcialmente nublado", 3: "nublado",
+    45: "neblina", 48: "neblina", 51: "garoa fraca", 53: "garoa", 55: "garoa forte",
+    61: "chuva fraca", 63: "chuva", 65: "chuva forte", 66: "chuva congelante", 67: "chuva congelante",
+    80: "pancadas fracas", 81: "pancadas de chuva", 82: "pancadas fortes",
+    95: "trovoada", 96: "trovoada com granizo", 99: "trovoada com granizo",
+}
+
+
+def descricao_codigo(codigo) -> str:
+    return _DESCRICAO_WMO.get(codigo, "condição desconhecida")
+
+
+def tempo_agora(lat: float, lon: float) -> dict | None:
+    """Condicao ATUAL (medida/estimada a cada 15 min pelo Open-Meteo) + a
+    chance de chuva das proximas horas de hoje. None em erro de rede."""
+    try:
+        resp = requests.get(
+            FORECAST_URL,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "current": "temperature_2m,apparent_temperature,precipitation,weathercode,"
+                "relative_humidity_2m,wind_speed_10m",
+                "timezone": "America/Sao_Paulo",
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        atual = resp.json()["current"]
+        codigo = atual.get("weathercode")
+        return {
+            "medido_em": atual.get("time"),
+            "condicao": descricao_codigo(codigo),
+            "chovendo_agora": (atual.get("precipitation") or 0) > 0 or codigo in _CODIGOS_CHUVA,
+            "precipitacao_mm": atual.get("precipitation"),
+            "temperatura": atual.get("temperature_2m"),
+            "sensacao": atual.get("apparent_temperature"),
+            "umidade_pct": atual.get("relative_humidity_2m"),
+            "vento_kmh": atual.get("wind_speed_10m"),
+        }
+    except (requests.RequestException, ValueError, KeyError):
+        return None

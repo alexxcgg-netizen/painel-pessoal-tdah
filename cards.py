@@ -101,6 +101,8 @@ DESCRICAO_TOOL = {
     "consultar_saude_dia": "Buscou a saúde do dia",
     "consultar_tarefas": "Consultou as tarefas",
     "ajustar_tarefa": "Ajustou uma tarefa",
+    "consultar_clima": "Consultou o tempo",
+    "estimar_trajeto": "Calculou o trajeto",
     "consultar_gastos": "Consultou os gastos",
     "consultar_agenda": "Consultou a agenda",
     "consultar_voos": "Consultou os voos",
