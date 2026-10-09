@@ -32,27 +32,61 @@ function _conversaEstado(estado) {
   input.placeholder = textos[estado] || Conversa.placeholderOriginal;
 }
 
-// Sinal curtinho quando o microfone de fato abriu ("pode falar", subindo) e quando a
-// conversa termina (descendo) - duas notas senoidais com ataque/queda suaves, volume
-// baixo; nada de "bip" seco. Toca pelo mesmo AudioContext da conversa.
+// Sinal "Suave" (escolhido pelo Alex entre 3 amostras): quando o microfone de fato abriu
+// ("pode falar", Dó -> Sol subindo) e quando a conversa termina (Sol -> Dó descendo).
+// Cada nota: fundamental + 2º e 3º harmônicos bem baixos (corpo quente, nada "eletrônico"),
+// entrada redonda de 30ms (curva seno, sem estalo), queda exponencial longa e um eco curto
+// de sala pequena. Toca pelo mesmo AudioContext da conversa.
+const _SINAL_NOTAS = { sobe: [523.25, 783.99], desce: [783.99, 523.25] };
+const _SINAL_PARCIAIS = [
+  [1, 1.0, 0],
+  [2, 0.18, 6],
+  [3, 0.05, 10],
+]; // [harmônico, volume, queda extra por segundo]
+const _SINAL_ATAQUE = 0.03;
+let _sinalCurvaAtaque = null;
+
 function _conversaSinal(subindo) {
   const ctx = Conversa.ctx;
   if (!ctx || ctx.state === "closed") return;
   try {
-    const notas = subindo ? [660, 990] : [880, 587];
+    if (!_sinalCurvaAtaque) {
+      _sinalCurvaAtaque = new Float32Array(32);
+      for (let i = 0; i < 32; i++) _sinalCurvaAtaque[i] = Math.sin((0.5 * Math.PI * i) / 31);
+    }
+    const pico = subindo ? 0.1 : 0.09;
+    // eco curto: duas repetições que somem (sala pequena)
+    const saida = ctx.createGain();
+    saida.connect(ctx.destination);
+    [
+      [0.11, 0.18],
+      [0.187, 0.09],
+    ].forEach(([atraso, ganho]) => {
+      const d = ctx.createDelay(0.5);
+      const g = ctx.createGain();
+      d.delayTime.value = atraso;
+      g.gain.value = ganho;
+      saida.connect(d).connect(g).connect(ctx.destination);
+    });
+
     const t0 = ctx.currentTime + 0.02;
-    notas.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const ganho = ctx.createGain();
-      const inicio = t0 + i * 0.09;
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, inicio);
-      ganho.gain.setValueAtTime(0.0001, inicio);
-      ganho.gain.exponentialRampToValueAtTime(0.09, inicio + 0.015);
-      ganho.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.16);
-      osc.connect(ganho).connect(ctx.destination);
-      osc.start(inicio);
-      osc.stop(inicio + 0.18);
+    (subindo ? _SINAL_NOTAS.sobe : _SINAL_NOTAS.desce).forEach((freq, i) => {
+      const inicio = t0 + i * 0.12;
+      const queda = i === 0 ? 0.22 : 0.3;
+      _SINAL_PARCIAIS.forEach(([harm, volume, quedaExtra]) => {
+        const osc = ctx.createOscillator();
+        const ganho = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq * harm, inicio);
+        const alvo = pico * volume;
+        ganho.gain.setValueAtTime(0, inicio);
+        ganho.gain.setValueCurveAtTime(_sinalCurvaAtaque.map((v) => v * alvo), inicio, _SINAL_ATAQUE);
+        // queda exponencial: constante de tempo combinada (nota + harmônico)
+        ganho.gain.setTargetAtTime(0, inicio + _SINAL_ATAQUE, 1 / (1 / queda + quedaExtra));
+        osc.connect(ganho).connect(saida);
+        osc.start(inicio);
+        osc.stop(inicio + _SINAL_ATAQUE + queda * 6);
+      });
     });
   } catch {}
 }
