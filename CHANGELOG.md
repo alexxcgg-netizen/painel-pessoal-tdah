@@ -56,6 +56,18 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-10 - IA reajusta tarefa sozinha + "tarefa criada" mostra o dia
+
+- **"Não consegui renomear a tarefa"** (print do Alex): `_achar` era busca literal; "lavar o carro" não achava
+  "Lavar os carros por dentro" e a IA desistia. Agora: igual → contém → parecido por palavras (sem o/os/de/pra,
+  plural, acento; escolhe só se ganhar com folga) e, sem achar, devolve `existentes` pra IA tentar de novo. Prompt:
+  quando o Alex corrige algo que existe, ajustar na hora. Reproduzido com a mensagem real e a IA de verdade: renomeou
+  as duas tarefas do carro sozinha.
+- **`tarefas_criadas` com `agenda_do_dia`** (aditivo): o card mostra o dia inteiro com a tarefa nova "pousando" no
+  lugar dela (selo NOVA, brilho, entrada depois das outras). Itens animados começam invisíveis no 1º quadro (antes
+  apareciam e "piscavam"). Risco do título concluído repetido por linha (`1lh`), funciona em título de 2 linhas.
+  Service worker v53.
+
 ## 2026-10-10 - Notificações de verdade (service worker na raiz) + cartões de tarefa caprichados
 
 - **Bug antigo: o service worker NUNCA controlou a página.** Registrado de `/static/service-worker.js`, o alcance

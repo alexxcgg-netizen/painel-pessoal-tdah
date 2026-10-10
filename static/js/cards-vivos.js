@@ -946,7 +946,11 @@
     raizEl.querySelectorAll('[data-vivo="dia"]').forEach((ol) => {
       ol.querySelectorAll(".vivo-comp").forEach((li, i) => {
         li.classList.remove("entrou");
-        setTimeout(() => li.classList.add("entrou"), 120 + i * 90);
+        li.style.opacity = "0";
+        setTimeout(() => {
+          li.style.opacity = "";
+          li.classList.add("entrou");
+        }, 120 + i * 90);
       });
     });
     raizEl.querySelectorAll('[data-vivo="viagem"]').forEach((el) => animarViagem(el.querySelector("[data-cenario-bloco]:not([hidden])")));
@@ -985,12 +989,35 @@
       );
       topo.closest(".card-contrato").querySelectorAll(".vivo-tarefa").forEach((li, i) => {
         li.classList.remove("entrou");
-        setTimeout(() => li.classList.add("entrou"), 150 + i * 70);
+        li.style.opacity = "0";
+        setTimeout(() => {
+          li.style.opacity = "";
+          li.classList.add("entrou");
+        }, 150 + i * 70);
       });
     });
-    raizEl.querySelectorAll(".card-contrato-tarefas_criadas .card-tarefa").forEach((li, i) => {
-      li.classList.remove("vivo-caiu");
-      setTimeout(() => li.classList.add("vivo-caiu"), 120 + i * 110);
+    raizEl.querySelectorAll(".card-contrato-tarefas_criadas").forEach((card) => {
+      const dia = card.querySelector('[data-vivo="criadas"]');
+      if (!dia) {
+        card.querySelectorAll(".card-tarefa").forEach((li, i) => {
+          li.classList.remove("vivo-caiu");
+          setTimeout(() => li.classList.add("vivo-caiu"), 120 + i * 110);
+        });
+        return;
+      }
+      // as do dia entram primeiro (apagadas); a nova abre espaco e pousa por ultimo
+      const itens = [...dia.querySelectorAll(".vivo-dia-item")];
+      itens.forEach((li) => {
+        li.classList.remove("entrou", "pousou");
+        li.style.opacity = "0"; // escondido ja no 1o quadro (senao aparece e "pisca" antes de entrar)
+      });
+      const entrar = (li, classe) => {
+        li.style.opacity = ""; // a animacao (fill both) assume dali em diante
+        li.classList.add(classe);
+      };
+      itens.filter((li) => !li.classList.contains("vivo-nova")).forEach((li, i) => setTimeout(() => entrar(li, "entrou"), 80 + i * 60));
+      const depois = 200 + itens.length * 60;
+      itens.filter((li) => li.classList.contains("vivo-nova")).forEach((li, i) => setTimeout(() => entrar(li, "pousou"), depois + i * 180));
     });
     raizEl.querySelectorAll('[data-vivo="clima"] .vivo-hora i').forEach((b, i) => {
       b.style.transform = "scaleY(0)";

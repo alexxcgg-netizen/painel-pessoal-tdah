@@ -157,3 +157,22 @@ test("tarefas_lista: anel, frase, atrasadas e caixinha com id", () => {
   assert.match(h, /Atrasadas/);
   assert.match(html("tarefas_lista", { de: "2026-10-10", ate: "2026-10-10", hoje: "2026-10-10", total: 2, feitas: 2, itens: [] }), /Tudo feito/);
 });
+
+test("tarefas_criadas com o dia em volta: linha do tempo, selo 'nova' e checkbox redondo", () => {
+  const d = new Date();
+  const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const h = html("tarefas_criadas", {
+    tarefas: [{ id: 12, titulo: "Visitar a irmã", data: hoje, hora: "17:00" }],
+    dia: hoje,
+    agenda_do_dia: [
+      { id: 12, titulo: "Visitar a irmã", hora: "17:00", nova: true },
+      { id: 11, titulo: "Date", hora: "20:30" },
+    ],
+  });
+  semFallback(h);
+  assert.match(h, /Seu dia hoje: <strong>2<\/strong> tarefas/);
+  assert.equal((h.match(/vivo-nova/g) || []).length, 1);
+  assert.match(h, /vivo-selo-nova">nova/);
+  // sem o dia (dado antigo): lista simples de antes
+  assert.ok(!html("tarefas_criadas", { tarefas: [{ id: 1, titulo: "x" }] }).includes("vivo-dia-lista"));
+});

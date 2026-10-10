@@ -2343,21 +2343,51 @@ def _processar_mensagem_chat(
         }
 
     def _achar(tabela, sql_where, params, texto, coluna_titulo, extra_sql=""):
+        """Acha UM registro pelo nome que a IA mandou. 1) igual; 2) contem o trecho;
+        3) parecido por palavras (sem o/os/de/pra, plural, acento - "lavar o carro" acha
+        "Lavar os carros por dentro"). So escolhe quando um ganha com folga; senao devolve
+        erro COM a lista do que existe, pra IA tentar de novo com o nome certo (antes ela
+        recebia "nenhum registro" e dizia ao Alex que nao conseguia renomear)."""
         alvo = aprendizado.normalizar_consulta(str(texto or ""))
         if not alvo:
             return None, {"erro": "faltou dizer qual registro (titulo ou um trecho dele)"}
         rows = conn.execute(f"SELECT * FROM {tabela} WHERE {sql_where} {extra_sql}", params).fetchall()
-        achadas = [r for r in rows if alvo in aprendizado.normalizar_consulta(r[coluna_titulo] or "")]
-        exatas = [r for r in achadas if aprendizado.normalizar_consulta(r[coluna_titulo] or "") == alvo]
+        norm = {r["id"]: aprendizado.normalizar_consulta(r[coluna_titulo] or "") for r in rows}
+        exatas = [r for r in rows if norm[r["id"]] == alvo]
         if len(exatas) == 1:
             return exatas[0], None
-        if len(achadas) != 1:
-            return None, {
-                "erro": "nenhum registro com esse nome" if not achadas
-                else "mais de um registro combina - peça pro Alex dizer qual",
-                "candidatas": [r[coluna_titulo] for r in achadas][:6],
-            }
-        return achadas[0], None
+        contem = [r for r in rows if alvo in norm[r["id"]] or (len(norm[r["id"]]) >= 4 and norm[r["id"]] in alvo)]
+        if len(contem) == 1:
+            return contem[0], None
+        base = contem or rows
+        notas = sorted(((_parecido(alvo, norm[r["id"]]), r) for r in base), key=lambda x: -x[0])
+        if notas and notas[0][0] >= 0.6 and (len(notas) == 1 or notas[0][0] - notas[1][0] >= 0.2):
+            return notas[0][1], None
+        if contem:
+            return None, {"erro": "mais de um registro combina - peça pro Alex dizer qual (ou use o titulo exato)",
+                          "candidatas": [r[coluna_titulo] for r in contem][:8]}
+        return None, {
+            "erro": "nenhum registro com esse nome - tente de novo com um dos titulos de 'existentes'",
+            "existentes": [r[coluna_titulo] for _, r in notas][:12],
+        }
+
+    _PALAVRAS_VAZIAS = {"o", "os", "a", "as", "um", "uma", "de", "do", "da", "dos", "das", "no", "na", "nos",
+                        "nas", "pra", "pro", "para", "por", "com", "e", "em", "ao", "que", "meu", "minha"}
+
+    def _palavras(texto_norm):
+        saida = set()
+        for p in re.findall(r"[a-z0-9]+", texto_norm):
+            if p in _PALAVRAS_VAZIAS:
+                continue
+            saida.add(p[:-1] if len(p) > 4 and p.endswith("s") else p)  # carros ~ carro
+        return saida
+
+    def _parecido(alvo_norm, titulo_norm):
+        """Fracao das palavras do pedido que aparecem no titulo (0..1)."""
+        a, t = _palavras(alvo_norm), _palavras(titulo_norm)
+        if not a or not t:
+            return 0.0
+        return len(a & t) / len(a)
 
     def _data_valida(valor):
         if valor in (None, ""):

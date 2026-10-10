@@ -18,7 +18,7 @@ class TarefasVerMaisTestCase(unittest.TestCase):
 
     def test_service_worker_versao_nova(self):
         sw = (RAIZ / "static/service-worker.js").read_text(encoding="utf-8")
-        self.assertIn("painel-pessoal-v52", sw)
+        self.assertIn("painel-pessoal-v53", sw)
 
 
 if __name__ == "__main__":

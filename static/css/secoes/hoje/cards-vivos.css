@@ -330,13 +330,55 @@
 .card-contrato-tarefas_criadas { --card-cor: var(--cor-cat-5); }
 :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa-titulo {
   text-decoration: none;
-  background: linear-gradient(currentColor, currentColor) left 56% / 0% 1.5px no-repeat;
+  /* o titulo e bloco (filho de flex): o risco e uma faixa de 1 linha de altura repetida
+     pra baixo (1lh), entao titulo de 2 linhas ganha um risco em cada linha */
+  line-height: 1.35;
+  background-image: linear-gradient(
+    transparent calc(55% - 0.75px),
+    currentColor calc(55% - 0.75px),
+    currentColor calc(55% + 0.75px),
+    transparent calc(55% + 0.75px)
+  );
+  background-repeat: repeat-y;
+  background-position: left top;
+  background-size: 0% 1lh;
   transition: background-size 0.45s var(--ease-suave), color 0.35s var(--ease-suave);
 }
 :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa.concluida .card-tarefa-titulo {
   text-decoration: none;
-  background-size: 100% 1.5px;
+  background-size: 100% 1lh;
   color: var(--text-faint);
+}
+
+/* tarefa criada dentro do dia dela */
+.vivo-dia-resumo { margin: 0.1rem 0 0.35rem; }
+.vivo-dia-item:not(.vivo-nova) .card-tarefa-titulo { color: var(--text-muted); }
+.vivo-dia-item.entrou { animation: vivoEntra 0.45s var(--ease-suave) both; }
+.vivo-nova {
+  position: relative;
+  border-radius: 12px;
+  margin-inline: -0.45rem;
+  padding-inline: 0.45rem;
+  background: color-mix(in srgb, var(--card-cor) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-cor) 35%, transparent);
+}
+.vivo-nova .card-tarefa-titulo { font-weight: 600; }
+.vivo-nova.pousou { animation: vivoPousa 0.75s var(--ease-bounce) both; }
+@keyframes vivoPousa {
+  0% { opacity: 0; transform: translateX(24px) scale(0.96); box-shadow: inset 0 0 0 1px transparent, 0 0 0 0 color-mix(in srgb, var(--card-cor) 0%, transparent); }
+  60% { opacity: 1; transform: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-cor) 35%, transparent), 0 0 18px 2px color-mix(in srgb, var(--card-cor) 40%, transparent); }
+  100% { opacity: 1; transform: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-cor) 35%, transparent), 0 0 0 0 transparent; }
+}
+.vivo-selo-nova {
+  margin-right: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--card-cor);
+  color: #05080b;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /* proxima tarefa do dia */
@@ -386,7 +428,9 @@
   .vivo-tarefa.entrou,
   .vivo-tarefa.vivo-acabou .card-tarefa-titulo,
   .card-contrato-tarefas_criadas .card-tarefa.vivo-caiu,
-  .vivo-tarefas-topo.completo .vivo-anel-caixa { animation: none !important; }
+  .vivo-tarefas-topo.completo .vivo-anel-caixa,
+  .vivo-dia-item.entrou,
+  .vivo-nova.pousou { animation: none !important; }
   :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"],
   :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"]::after,
   :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa-titulo { transition: none !important; }

@@ -88,6 +88,29 @@
       })
       .join("");
     const contador = tarefas.length > 1 ? `<span class="card-contador">${tarefas.length}</span>` : "";
+    const agenda = lista(data.agenda_do_dia).filter((t) => t && t.titulo);
+    // cartao vivo (2026-10-10): com o dia em volta, a tarefa nova aparece no lugar dela
+    // na linha do tempo (as outras do dia apagadas; a nova "pousa" com brilho)
+    if (agenda.length > 1 && agenda.some((t) => t.nova)) {
+      const linhas = agenda
+        .map(
+          (t) =>
+            `<li class="card-tarefa vivo-dia-item${t.nova ? " vivo-nova" : ""}${t.concluida ? " concluida" : ""}">` +
+            `<label><input type="checkbox" data-tarefa-id="${esc(t.id)}"${t.concluida ? " checked" : ""} aria-label="Concluir ${esc(t.titulo)}">` +
+            `<span class="card-tarefa-titulo">${esc(t.titulo)}</span></label>` +
+            `<span class="card-tarefa-quando">${t.nova ? '<span class="vivo-selo-nova">nova</span>' : ""}${esc(t.hora || "sem hora")}</span>` +
+            `</li>`
+        )
+        .join("");
+      const novas = agenda.filter((t) => t.nova).length;
+      const rotuloDia = diaRelativoTarefa(data.dia);
+      return (
+        eyebrow(ICONES.tarefa, titulo, contador) +
+        `<p class="card-linha-meta vivo-dia-resumo">Seu dia ${esc(rotuloDia)}: <strong>${agenda.length}</strong> tarefas` +
+        `${novas > 1 ? `, ${novas} novas` : ""}</p>` +
+        `<ul class="card-tarefas vivo-dia-lista" data-vivo="criadas">${linhas}</ul>`
+      );
+    }
     return eyebrow(ICONES.tarefa, titulo, contador) + `<ul class="card-tarefas">${itens}</ul>`;
   });
 

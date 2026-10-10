@@ -96,6 +96,25 @@ class VivoTestCase(unittest.TestCase):
         self.assertTrue(res[0]["ok"])
         self.assertIsNotNone(self.sql("SELECT completed_at FROM tasks WHERE title LIKE '%aeroporto%'")[0][0])
 
+    def test_ajustar_tarefa_acha_nome_parecido_e_renomeia(self):
+        # caso real (10/10): a IA mandou um nome diferente do titulo e recebia "nenhum registro"
+        self.sql("INSERT INTO tasks (title, due_date) VALUES ('Lavar os carros por dentro', ?)", (HOJE,))
+        self.sql("INSERT INTO tasks (title, due_date) VALUES ('Passar pretinho na Fiorino', ?)", (HOJE,))
+        for pedido in ("lavar o carro", "Lavar carros", "lavar os carros"):
+            _, res = self.chat([("ajustar_tarefa", {"titulo": pedido, "novo_titulo": f"Limpar por dentro ({pedido})"})])
+            self.assertTrue(res[0].get("ok"), (pedido, res[0]))
+            self.sql("UPDATE tasks SET title = 'Lavar os carros por dentro' WHERE id = 1")
+        _, res = self.chat([("ajustar_tarefa", {"titulo": "comprar pao", "hora": "10:00"})])
+        self.assertIn("erro", res[0])
+        self.assertIn("Lavar os carros por dentro", res[0]["existentes"])
+
+    def test_tarefa_criada_vem_com_o_dia_em_volta(self):
+        self.sql("INSERT INTO tasks (title, due_date, hora) VALUES ('Date', ?, '20:30')", (HOJE,))
+        corpo, _ = self.chat([("registrar_tarefa", {"titulo": "Visitar a irma", "quando_data": HOJE, "hora": "17:00"})])
+        card = next(c for c in corpo["cards"] if c["type"] == "tarefas_criadas")
+        agenda = card["data"]["agenda_do_dia"]
+        self.assertEqual([(t["titulo"], t["nova"]) for t in agenda], [("Visitar a irma", True), ("Date", False)])
+
     def test_mover_tarefas_da_tarde_um_card_um_desfazer(self):
         for titulo, hora in (("manha", "09:00"), ("tarde 1", "13:00"), ("tarde 2", "16:00")):
             self.sql("INSERT INTO tasks (title, due_date, hora) VALUES (?, ?, ?)", (titulo, HOJE, hora))

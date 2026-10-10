@@ -353,7 +353,24 @@ def card_tarefas_criadas(conn, ids: list[int], actions_extra: list | None = None
         return None
     aba, rotulo = ABA_POR_ENTIDADE["tarefa"]
     actions = [acao_abrir_aba(aba, rotulo, "tarefa", tarefas[0]["id"])] + list(actions_extra or [])
-    return novo_card("tarefas_criadas", {"tarefas": tarefas}, actions)
+    data = {"tarefas": tarefas}
+    # cartao vivo (2026-10-10): o DIA em volta da tarefa nova - as outras do mesmo dia, pra
+    # ela "pousar" no lugar certo da linha do tempo
+    dia = next((t["data"] for t in tarefas if t.get("data") and not t.get("recorrencia")), None)
+    if dia:
+        novos = {t["id"] for t in tarefas}
+        outras = conn.execute(
+            "SELECT id, title, hora, completed_at FROM tasks WHERE due_date = ? "
+            "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL) ORDER BY hora IS NULL, hora, id LIMIT 12",
+            (dia,),
+        ).fetchall()
+        data["dia"] = dia
+        data["agenda_do_dia"] = [
+            {"id": r["id"], "titulo": r["title"], "hora": r["hora"], "concluida": bool(r["completed_at"]),
+             "nova": r["id"] in novos}
+            for r in outras
+        ]
+    return novo_card("tarefas_criadas", data, actions)
 
 
 def card_transacao(conn, entidade: str, id_: int, meio=None, saldo=None, actions_extra=None) -> dict | None:
