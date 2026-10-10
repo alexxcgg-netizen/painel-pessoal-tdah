@@ -436,10 +436,85 @@
       `<span class="vivo-anel-feito">${ICONE_FEITO}</span></div>` +
       `<div><p class="vivo-tarefas-frase">${esc(fraseTarefas(feitas, total, atrasadas.length))}</p>` +
       `<p class="vivo-sub vivo-tarefas-conta">${feitas} ${feitas === 1 ? "feita" : "feitas"} de ${total}</p></div></div>` +
+      (umDia && !data.so_concluidas ? trilhaDia(itens, { hoje: ehHoje }) : "") +
       corpo +
       (data.mais ? `<p class="vivo-sub vivo-mais">+${esc(data.mais)} na aba Tarefas</p>` : "")
     );
   });
+
+  // ================================================================ trilha do dia
+  // A "assinatura" das tarefas (como o aviaozinho do diario de voo): uma estrada que
+  // atravessa o dia, uma bandeirinha fincada na hora de cada tarefa (feita = cheia com
+  // visto, proxima = balanca) e o marcador "voce" andando ate a hora de agora.
+  // Puro: posicoes calculadas aqui (nada de getPointAtLength), entao o historico e os
+  // testes ja veem tudo no lugar; CardsVivos.animar so toca a entrada.
+  const TRILHA_W = 340;
+  const TRILHA_X0 = 18;
+  const TRILHA_X1 = 322;
+  const trilhaY = (x) => 58 + 9 * Math.sin(((x - TRILHA_X0) / (TRILHA_X1 - TRILHA_X0)) * Math.PI * 2.2);
+  function trilhaCaminho() {
+    let d = "";
+    for (let i = 0; i <= 48; i++) {
+      const x = TRILHA_X0 + ((TRILHA_X1 - TRILHA_X0) * i) / 48;
+      d += `${i ? " L" : "M"}${x.toFixed(1)} ${trilhaY(x).toFixed(1)}`;
+    }
+    return d;
+  }
+  const TRILHA_D = trilhaCaminho();
+  const BANDEIRA =
+    '<path class="vivo-bandeira-pano" d="M0 -32 L17 -26 L0 -20 Z"/><path class="vivo-bandeira-check" d="M3 -26.2 l3 2.8 5-5.4"/>';
+
+  // itens: [{id, titulo, hora, concluida, nova}] (so os com hora entram na trilha)
+  function trilhaDia(itens, opcoes = {}) {
+    const comHora = lista(itens).filter((t) => t && /^\d{2}:\d{2}$/.test(t.hora || ""));
+    if (!comHora.length) return "";
+    const mins = comHora.map((t) => minutosDe(t.hora));
+    const d = new Date();
+    const agora = d.getHours() * 60 + d.getMinutes();
+    const comAgora = opcoes.hoje ? mins.concat([agora]) : mins;
+    // janela do dia: da primeira coisa - 1h ate a ultima + 1h (no minimo 6h de largura)
+    let ini = Math.max(0, Math.floor((Math.min(...comAgora) - 60) / 60) * 60);
+    let fim = Math.min(24 * 60, Math.ceil((Math.max(...comAgora) + 60) / 60) * 60);
+    if (fim - ini < 360) fim = Math.min(24 * 60, ini + 360);
+    if (fim - ini < 360) ini = Math.max(0, fim - 360);
+    const xDe = (m) => TRILHA_X0 + ((TRILHA_X1 - TRILHA_X0) * (Math.min(fim, Math.max(ini, m)) - ini)) / (fim - ini);
+    const fracAgora = opcoes.hoje ? (xDe(agora) - TRILHA_X0) / (TRILHA_X1 - TRILHA_X0) : 0;
+
+    // proxima pendente (so hoje): a que balanca
+    const proxima = opcoes.hoje ? comHora.filter((t) => !t.concluida && minutosDe(t.hora) >= agora - 15)[0] : null;
+    const bandeiras = comHora
+      .map((t, i) => {
+        const x = xDe(minutosDe(t.hora));
+        const y = trilhaY(x);
+        const cls = ["vivo-bandeira", t.concluida ? "feita" : "", t.nova ? "nova" : "", proxima === t ? "proxima" : ""]
+          .filter(Boolean)
+          .join(" ");
+        return (
+          `<g class="${cls}" data-id="${esc(t.id)}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" style="--i:${i}">` +
+          `<title>${esc(t.hora)} · ${esc(t.titulo)}</title>` +
+          `<g class="vivo-bandeira-haste"><line x1="0" y1="0" x2="0" y2="-33" class="vivo-bandeira-pau"/>${BANDEIRA}</g>` +
+          `<circle r="2.6" class="vivo-bandeira-base"/></g>`
+        );
+      })
+      .join("");
+    const hora = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}h`;
+    const xv = xDe(agora);
+    const voce = opcoes.hoje
+      ? `<g class="vivo-voce" transform="translate(${xv.toFixed(1)} ${trilhaY(xv).toFixed(1)})"><circle r="10" class="vivo-voce-halo"/>` +
+        `<circle r="5" class="vivo-voce-ponto"/><text y="22" text-anchor="middle">agora</text></g>`
+      : "";
+    return (
+      `<svg class="vivo-trilha" viewBox="0 0 ${TRILHA_W} 96" role="img" aria-label="Trilha do dia com ${comHora.length} tarefas com horário" ` +
+      `data-vivo="trilha" data-frac="${fracAgora.toFixed(4)}" data-ini="${ini}" data-fim="${fim}">` +
+      `<path class="vivo-trilha-estrada" d="${TRILHA_D}"/><path class="vivo-trilha-faixa" d="${TRILHA_D}"/>` +
+      `<path class="vivo-trilha-feito" d="${TRILHA_D}" pathLength="1" stroke-dasharray="${fracAgora.toFixed(4)} 1"/>` +
+      bandeiras +
+      voce +
+      `<text x="${TRILHA_X0}" y="92" class="vivo-trilha-hora">${hora(ini)}</text>` +
+      `<text x="${TRILHA_X1}" y="92" text-anchor="end" class="vivo-trilha-hora">${hora(fim)}</text></svg>`
+    );
+  }
+  Cards.trilhaDia = trilhaDia; // cards-tipos.js (tarefas_criadas) tambem desenha a trilha
 
   // proxima tarefa do dia (so "Tarefas de hoje"): destaque + "em 40 min"
   function marcarProxima(topo) {
@@ -455,6 +530,9 @@
       const m = li.dataset.min === "" ? null : +li.dataset.min;
       if (!proxima && m !== null && m >= agora - 15 && !li.classList.contains("concluida")) proxima = li;
     });
+    // a bandeirinha que balanca acompanha a proxima tarefa
+    const idProxima = proxima && proxima.querySelector("input[data-tarefa-id]") ? proxima.querySelector("input[data-tarefa-id]").dataset.tarefaId : null;
+    card.querySelectorAll(".vivo-bandeira").forEach((b) => b.classList.toggle("proxima", !!idProxima && b.dataset.id === idProxima));
     if (!proxima) return;
     proxima.classList.add("proxima");
     const falta = +proxima.dataset.min - agora;
@@ -850,6 +928,17 @@
         if (!mudouConclusao) return;
         muts.forEach((m) => {
           const li = m.target;
+          const caixa = li.querySelector && li.querySelector("input[data-tarefa-id]");
+          const bandeira = caixa && card.querySelector(`.vivo-bandeira[data-id="${caixa.dataset.tarefaId}"]`);
+          if (bandeira) {
+            const feita = li.classList.contains("concluida");
+            bandeira.classList.toggle("feita", feita);
+            if (feita) {
+              bandeira.classList.remove("hasteou", "proxima");
+              void bandeira.getBoundingClientRect();
+              bandeira.classList.add("hasteou");
+            }
+          }
           if (li.classList && li.classList.contains("concluida") && !(m.oldValue || "").includes("concluida")) {
             li.classList.remove("vivo-acabou");
             void li.offsetWidth;
@@ -1018,6 +1107,31 @@
       itens.filter((li) => !li.classList.contains("vivo-nova")).forEach((li, i) => setTimeout(() => entrar(li, "entrou"), 80 + i * 60));
       const depois = 200 + itens.length * 60;
       itens.filter((li) => li.classList.contains("vivo-nova")).forEach((li, i) => setTimeout(() => entrar(li, "pousou"), depois + i * 180));
+    });
+    raizEl.querySelectorAll('[data-vivo="trilha"]').forEach((svg) => {
+      const frac = +svg.dataset.frac || 0;
+      const feito = svg.querySelector(".vivo-trilha-feito");
+      const voce = svg.querySelector(".vivo-voce");
+      const bandeiras = [...svg.querySelectorAll(".vivo-bandeira")];
+      bandeiras.forEach((b) => b.classList.remove("fincou"));
+      bandeiras.forEach((b) => b.classList.add("esperando"));
+      const alvoVoce = voce ? voce.getAttribute("transform") : null;
+      tween(1600, (e) => {
+        const f = frac * e;
+        if (feito) feito.setAttribute("stroke-dasharray", `${f.toFixed(4)} 1`);
+        if (voce) {
+          const x = TRILHA_X0 + (TRILHA_X1 - TRILHA_X0) * f;
+          voce.setAttribute("transform", `translate(${x.toFixed(1)} ${trilhaY(x).toFixed(1)})`);
+        }
+      }).then(() => alvoVoce && voce.setAttribute("transform", alvoVoce));
+      // bandeiras na ordem do dia; a "nova" (tarefa criada) finca por ultimo, com quique
+      const ordem = bandeiras.filter((b) => !b.classList.contains("nova")).concat(bandeiras.filter((b) => b.classList.contains("nova")));
+      ordem.forEach((b, i) =>
+        setTimeout(() => {
+          b.classList.remove("esperando");
+          b.classList.add("fincou");
+        }, 250 + i * 160 + (b.classList.contains("nova") ? 350 : 0))
+      );
     });
     raizEl.querySelectorAll('[data-vivo="clima"] .vivo-hora i').forEach((b, i) => {
       b.style.transform = "scaleY(0)";

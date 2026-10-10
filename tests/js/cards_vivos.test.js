@@ -176,3 +176,20 @@ test("tarefas_criadas com o dia em volta: linha do tempo, selo 'nova' e checkbox
   // sem o dia (dado antigo): lista simples de antes
   assert.ok(!html("tarefas_criadas", { tarefas: [{ id: 1, titulo: "x" }] }).includes("vivo-dia-lista"));
 });
+
+test("trilha do dia: bandeira por tarefa com hora, feita/nova/proxima e 'voce' so hoje", () => {
+  const itens = [
+    { id: 1, titulo: "Tapetes", hora: "09:00", concluida: true },
+    { id: 2, titulo: "Irmã", hora: "17:00", nova: true },
+    { id: 3, titulo: "Date", hora: "20:30" },
+    { id: 4, titulo: "Sem hora" },
+  ];
+  const hoje = Cards.trilhaDia(itens, { hoje: true });
+  assert.equal((hoje.match(/class="vivo-bandeira[ "]/g) || []).length, 3); // sem hora fica fora
+  assert.match(hoje, /vivo-bandeira feita" data-id="1"/);
+  assert.match(hoje, /vivo-bandeira nova[^"]*" data-id="2"/);
+  assert.match(hoje, /vivo-voce/);
+  assert.ok(!Cards.trilhaDia(itens, { hoje: false }).includes("vivo-voce"));
+  assert.equal(Cards.trilhaDia([{ id: 9, titulo: "x" }]), "");
+  assert.match(Cards.trilhaDia([{ id: 1, titulo: "<b>", hora: "10:00" }], { hoje: true }), /&lt;b&gt;/);
+});

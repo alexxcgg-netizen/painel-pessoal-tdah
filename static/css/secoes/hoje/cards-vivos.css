@@ -350,6 +350,34 @@
   color: var(--text-faint);
 }
 
+/* ---- trilha do dia (bandeirinhas) ------------------------------------------- */
+.vivo-trilha { width: 100%; height: auto; display: block; overflow: visible; margin: 0.15rem 0 0.35rem; }
+.vivo-trilha-estrada { fill: none; stroke: var(--surface-3); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.vivo-trilha-faixa { fill: none; stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 2 5; stroke-linecap: round; }
+.vivo-trilha-feito { fill: none; stroke: color-mix(in srgb, var(--card-cor) 70%, transparent); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.vivo-trilha text { font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace; }
+.vivo-trilha-hora { font-size: 9.5px; fill: var(--text-faint); }
+.vivo-voce text { font-size: 8.5px; fill: var(--card-cor); font-weight: 600; }
+.vivo-voce-halo { fill: var(--card-cor); opacity: 0.18; }
+.vivo-voce-ponto { fill: var(--text); stroke: var(--card-cor); stroke-width: 2; }
+.vivo-bandeira-pau { stroke: var(--text-muted); stroke-width: 1.4; stroke-linecap: round; }
+.vivo-bandeira-pano { fill: var(--surface); stroke: var(--card-cor); stroke-width: 1.4; stroke-linejoin: round; }
+.vivo-bandeira-check { fill: none; stroke: #05080b; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.vivo-bandeira-base { fill: var(--card-cor); }
+.vivo-bandeira.feita .vivo-bandeira-pano { fill: var(--card-cor); }
+.vivo-bandeira.feita .vivo-bandeira-check { opacity: 1; }
+.vivo-bandeira.nova .vivo-bandeira-pano { fill: color-mix(in srgb, var(--card-cor) 35%, var(--surface)); stroke-width: 2; }
+.vivo-bandeira-haste { transform-box: fill-box; transform-origin: 50% 100%; }
+.vivo-bandeira.proxima .vivo-bandeira-pano { animation: vivoTremula 1.6s var(--ease-suave) infinite; transform-box: fill-box; transform-origin: 0% 50%; }
+@keyframes vivoTremula { 0%, 100% { transform: skewY(0deg) scaleX(1); } 50% { transform: skewY(-6deg) scaleX(0.9); } }
+.vivo-bandeira.esperando .vivo-bandeira-haste { transform: scaleY(0); }
+.vivo-bandeira.fincou .vivo-bandeira-haste { animation: vivoFinca 0.6s var(--ease-bounce) both; }
+.vivo-bandeira.nova.fincou .vivo-bandeira-haste { animation: vivoFincaNova 0.9s var(--ease-bounce) both; }
+.vivo-bandeira.hasteou .vivo-bandeira-pano { animation: vivoHasteia 0.7s var(--ease-bounce); transform-box: fill-box; transform-origin: 0% 100%; }
+@keyframes vivoFinca { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes vivoFincaNova { 0% { transform: translateY(-34px) scaleY(1); opacity: 0; } 55% { transform: translateY(0) scaleY(0.82); opacity: 1; } 100% { transform: none; } }
+@keyframes vivoHasteia { 0% { transform: translateY(14px) scale(0.7); } 100% { transform: none; } }
+
 /* tarefa criada dentro do dia dela */
 .vivo-dia-resumo { margin: 0.1rem 0 0.35rem; }
 .vivo-dia-item:not(.vivo-nova) .card-tarefa-titulo { color: var(--text-muted); }
@@ -430,7 +458,10 @@
   .card-contrato-tarefas_criadas .card-tarefa.vivo-caiu,
   .vivo-tarefas-topo.completo .vivo-anel-caixa,
   .vivo-dia-item.entrou,
-  .vivo-nova.pousou { animation: none !important; }
+  .vivo-nova.pousou,
+  .vivo-bandeira .vivo-bandeira-haste,
+  .vivo-bandeira .vivo-bandeira-pano { animation: none !important; }
+  .vivo-bandeira.esperando .vivo-bandeira-haste { transform: none; }
   :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"],
   :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"]::after,
   :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa-titulo { transition: none !important; }

@@ -56,6 +56,14 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-10 - Trilha do dia (a "assinatura" das tarefas)
+
+- `Cards.trilhaDia` (cards-vivos.js, puro): estrada ondulada do começo ao fim do dia, uma bandeirinha fincada na hora
+  de cada tarefa (feita = cheia com visto; próxima = tremula; nova = cai do alto com quique) e o marcador "você" andando
+  até agora, pintando o caminho percorrido. Entra no `tarefas_lista` (um dia) e no `tarefas_criadas` com
+  `agenda_do_dia`. Marcar a caixinha hasteia a bandeira dela e a "próxima" passa pra seguinte. Conferido em quadros
+  da animação no Chromium (Playwright). Service worker v54.
+
 ## 2026-10-10 - IA reajusta tarefa sozinha + "tarefa criada" mostra o dia
 
 - **"Não consegui renomear a tarefa"** (print do Alex): `_achar` era busca literal; "lavar o carro" não achava

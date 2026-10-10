@@ -108,6 +108,7 @@
         eyebrow(ICONES.tarefa, titulo, contador) +
         `<p class="card-linha-meta vivo-dia-resumo">Seu dia ${esc(rotuloDia)}: <strong>${agenda.length}</strong> tarefas` +
         `${novas > 1 ? `, ${novas} novas` : ""}</p>` +
+        (typeof Cards.trilhaDia === "function" ? Cards.trilhaDia(agenda, { hoje: rotuloDia === "hoje" }) : "") +
         `<ul class="card-tarefas vivo-dia-lista" data-vivo="criadas">${linhas}</ul>`
       );
     }
