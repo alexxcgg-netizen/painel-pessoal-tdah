@@ -149,17 +149,26 @@ class TestSintetizar(_Base):
             p.assert_not_called()
 
     def test_payload(self):
+        # padrao (2026-10-10): flash v2.5 pelo text-to-speech - bem mais rapido que o v4
         with self._post() as p:
             self.assertEqual(voz_premium.sintetizar(self.conn, "Bom dia, Alex."), b"MP3DATA")
         args, kw = p.call_args
-        self.assertEqual(args[0], "https://api.elevenlabs.io/v1/text-to-dialogue")
+        self.assertEqual(args[0], "https://api.elevenlabs.io/v1/text-to-speech/voz-fake")
         self.assertEqual(kw["params"], {"output_format": "mp3_44100_64"})
         self.assertEqual(kw["headers"], {"xi-api-key": "chave-fake"})
+        self.assertEqual(kw["json"], {"text": "Bom dia, Alex.", "model_id": "eleven_flash_v2_5", "language_code": "pt"})
+        self.assertEqual(kw["timeout"], 10)
+
+    def test_payload_v4_vai_pelo_dialogue(self):
+        os.environ["ELEVENLABS_MODELO"] = "eleven_v4_turbo"
+        with self._post() as p:
+            voz_premium.sintetizar(self.conn, "Bom dia, Alex.")
+        args, kw = p.call_args
+        self.assertEqual(args[0], "https://api.elevenlabs.io/v1/text-to-dialogue")
         self.assertEqual(
             kw["json"],
             {"inputs": [{"text": "Bom dia, Alex.", "voice_id": "voz-fake"}], "model_id": "eleven_v4_turbo"},
         )
-        self.assertEqual(kw["timeout"], 15)
 
     def test_modelo_por_env(self):
         os.environ["ELEVENLABS_MODELO"] = "outro_modelo"

@@ -18,113 +18,6 @@ function falarTexto(btn, texto) {
   window.speechSynthesis.speak(utter);
 }
 
-// Voz premium (ElevenLabs, so frases curtas) - POST /api/voz/falar devolve mp3
-// (200) ou 204 quando nao ha chave / estourou o limite do mes / deu erro. Em
-// QUALQUER outro caso (204, erro, sem rede, play() recusado) cai na voz de
-// sempre do iPhone (falarTexto) - o premium nunca pode deixar o botao mudo.
-//
-// iOS Safari so deixa um <audio> tocar se ele ja tiver sido "tocado" dentro de
-// um toque do usuario. Como o mp3 so chega depois de um fetch (o gesto ja
-// passou), um UNICO elemento de audio e reaproveitado e destravado de forma
-// sincrona no inicio do clique (desbloquearAudioPremium) - quem tem await antes
-// de chamar falarPremium precisa chamar desbloquearAudioPremium() primeiro.
-const _SILENCIO_WAV =
-  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
-let _elementoAudioPremium = null;
-let _audioPremiumTocando = false;
-let _urlPremium = null;
-let _buscandoPremium = false;
-
-function _audioPremium() {
-  if (!_elementoAudioPremium && typeof Audio !== "undefined") {
-    _elementoAudioPremium = new Audio();
-    _elementoAudioPremium.preload = "auto";
-  }
-  return _elementoAudioPremium;
-}
-
-function desbloquearAudioPremium() {
-  const audio = _audioPremium();
-  if (!audio || _audioPremiumTocando) return;
-  try {
-    audio.src = _SILENCIO_WAV;
-    const p = audio.play();
-    if (p && p.catch) p.catch(() => {});
-  } catch (e) {}
-}
-
-function vozTocando() {
-  return _audioPremiumTocando || ("speechSynthesis" in window && window.speechSynthesis.speaking);
-}
-
-function _liberarUrlPremium() {
-  if (_urlPremium) URL.revokeObjectURL(_urlPremium);
-  _urlPremium = null;
-}
-
-function pararVoz() {
-  const audio = _elementoAudioPremium;
-  _audioPremiumTocando = false;
-  if (audio) {
-    try {
-      audio.pause();
-    } catch (e) {}
-  }
-  _liberarUrlPremium();
-  if ("speechSynthesis" in window && window.speechSynthesis.speaking) window.speechSynthesis.cancel();
-  document.querySelectorAll(".btn-ouvir.falando").forEach((b) => b.classList.remove("falando"));
-}
-
-async function falarPremium(btn, texto) {
-  if (!texto || _buscandoPremium) return;
-  if (vozTocando()) {
-    pararVoz();
-    return;
-  }
-  desbloquearAudioPremium(); // no-op seguro se ja foi destravado neste toque
-  const audio = _audioPremium();
-  _buscandoPremium = true;
-  try {
-    if (!audio) throw new Error("sem Audio");
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
-    let res;
-    try {
-      res = await fetch("/api/voz/falar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto }),
-        signal: ctrl.signal,
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-    if (res.status !== 200) throw new Error("sem audio premium");
-    const blob = await res.blob();
-    if (!blob.size) throw new Error("audio vazio");
-    _liberarUrlPremium();
-    _urlPremium = URL.createObjectURL(blob);
-    const terminar = () => {
-      _audioPremiumTocando = false;
-      btn.classList.remove("falando");
-      _liberarUrlPremium();
-    };
-    audio.onended = terminar;
-    audio.onerror = terminar;
-    audio.src = _urlPremium;
-    _audioPremiumTocando = true;
-    btn.classList.add("falando");
-    _buscandoPremium = false;
-    await audio.play();
-  } catch (e) {
-    _buscandoPremium = false;
-    _audioPremiumTocando = false;
-    btn.classList.remove("falando");
-    _liberarUrlPremium();
-    falarTexto(btn, texto);
-  }
-}
-
 // Resposta inteira pronta pra voz: sem markdown/setas/emoji e no maximo 700
 // caracteres (mesmo teto de voz_premium.MAX_CARACTERES), cortando no fim de
 // uma frase pra nunca parar no meio de uma palavra.
@@ -148,62 +41,221 @@ function textoParaFala(texto) {
   return t;
 }
 
-// Igual falarPremium, mas devolve uma Promise que so resolve quando a fala
-// TERMINA (ou falha) - o modo conversa precisa disso pra reabrir o microfone
-// so depois que ela parou de falar. Cai na voz do iPhone do mesmo jeito.
-function falarEsperando(texto) {
-  return new Promise(async (resolve) => {
-    const t = textoParaFala(texto);
-    if (!t) return resolve();
-    const audio = _audioPremium();
-    const viaIphone = () => {
-      if (!("speechSynthesis" in window)) return resolve();
-      const u = new SpeechSynthesisUtterance(t);
-      u.lang = "pt-BR";
-      u.rate = 0.98;
-      u.onend = () => resolve();
-      u.onerror = () => resolve();
-      window.speechSynthesis.speak(u);
-    };
-    try {
-      if (!audio) throw new Error("sem Audio");
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 12000);
-      let res;
+// Voz premium (ElevenLabs) - POST /api/voz/falar devolve mp3 (200) ou 204 quando nao ha
+// chave / estourou o limite / deu erro. Em QUALQUER falha cai na voz do iPhone.
+//
+// Tocador reescrito em 2026-10-10 (a Roberta "as vezes nao falava / bugava"):
+//  - cada fala tem uma GERACAO; falar de novo ou parar invalida a anterior, e todo
+//    callback confere a geracao antes de mexer em qualquer coisa (antes, o onpause que o
+//    modo conversa deixava no elemento compartilhado apagava o audio do botao "ouvir");
+//  - resposta longa e dividida em 2 partes buscadas EM PARALELO: a primeira frase comeca a
+//    tocar enquanto o resto ainda e gerado;
+//  - vigia de tempo: se o audio/voz do iPhone nunca avisar que acabou, a promessa resolve
+//    sozinha - o modo conversa nunca mais fica parado esperando.
+//
+// iOS Safari so deixa um <audio> tocar se ele ja tiver sido "tocado" dentro de um toque do
+// usuario: um UNICO elemento e reaproveitado e destravado no inicio do clique
+// (desbloquearAudioPremium) - quem tem await antes de falar precisa chamar isso primeiro.
+const _SILENCIO_WAV =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+const VOZ_TIMEOUT_MS = 9000;
+let _elementoAudioPremium = null;
+let _vozGeracao = 0;
+let _vozAtiva = false; // buscando OU tocando (premium ou iPhone)
+let _vozBotao = null;
+let _vozFimAtual = null; // encerra na hora a fala em andamento (pararVoz chama)
+const _vozUrls = new Set();
+
+function _audioPremium() {
+  if (!_elementoAudioPremium && typeof Audio !== "undefined") {
+    _elementoAudioPremium = new Audio();
+    _elementoAudioPremium.preload = "auto";
+  }
+  return _elementoAudioPremium;
+}
+
+function desbloquearAudioPremium() {
+  const audio = _audioPremium();
+  if (!audio || _vozAtiva) return;
+  try {
+    audio.onended = audio.onerror = audio.onpause = null;
+    audio.src = _SILENCIO_WAV;
+    const p = audio.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
+}
+
+function vozTocando() {
+  return _vozAtiva || ("speechSynthesis" in window && window.speechSynthesis.speaking);
+}
+
+function _liberarUrls() {
+  _vozUrls.forEach((u) => URL.revokeObjectURL(u));
+  _vozUrls.clear();
+}
+
+function _marcarBotao(btn, ligado) {
+  if (btn && btn.classList) btn.classList.toggle("falando", ligado);
+}
+
+function pararVoz() {
+  _vozGeracao++;
+  _vozAtiva = false;
+  const fim = _vozFimAtual;
+  _vozFimAtual = null;
+  if (fim) fim(); // quem espera a fala (modo conversa) fica sabendo na hora
+  const audio = _elementoAudioPremium;
+  if (audio) {
+    audio.onended = audio.onerror = audio.onpause = null;
+    // o silencio do destravamento continua: pausar ele logo depois do play() no iOS pode
+    // desfazer o "destravado" antes da fala chegar
+    if (audio.src !== _SILENCIO_WAV) {
       try {
-        res = await fetch("/api/voz/falar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ texto: t }),
-          signal: ctrl.signal,
-        });
-      } finally {
-        clearTimeout(timer);
-      }
-      if (res.status !== 200) throw new Error("sem audio premium");
-      const blob = await res.blob();
-      if (!blob.size) throw new Error("audio vazio");
-      _liberarUrlPremium();
-      _urlPremium = URL.createObjectURL(blob);
-      const terminar = () => {
-        _audioPremiumTocando = false;
-        _liberarUrlPremium();
-        resolve();
-      };
-      audio.onended = terminar;
-      audio.onerror = terminar;
-      audio.onpause = () => {
-        if (!audio.ended) terminar(); // pararVoz() no meio da fala
-      };
-      audio.src = _urlPremium;
-      _audioPremiumTocando = true;
-      await audio.play();
-    } catch (e) {
-      _audioPremiumTocando = false;
-      _liberarUrlPremium();
-      viaIphone();
+        audio.pause();
+      } catch (e) {}
     }
+  }
+  _liberarUrls();
+  if ("speechSynthesis" in window && window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+  document.querySelectorAll(".btn-ouvir.falando").forEach((b) => b.classList.remove("falando"));
+  _vozBotao = null;
+}
+
+// Divide em ate 2 partes: a primeira frase (ou o que couber em ~160 caracteres) e o resto.
+function _partesFala(t) {
+  if (t.length <= 180) return [t];
+  const m = t.slice(0, 200).match(/^.{40,}?[.!?](\s|$)/);
+  const corte = m ? m[0].length : t.slice(0, 160).lastIndexOf(" ");
+  if (corte <= 0 || corte >= t.length - 20) return [t];
+  return [t.slice(0, corte).trim(), t.slice(corte).trim()];
+}
+
+async function _buscarAudio(texto, geracao) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), VOZ_TIMEOUT_MS);
+  try {
+    const res = await fetch("/api/voz/falar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto }),
+      signal: ctrl.signal,
+    });
+    if (res.status !== 200) return null;
+    const blob = await res.blob();
+    if (!blob.size || geracao !== _vozGeracao) return null;
+    const url = URL.createObjectURL(blob);
+    _vozUrls.add(url);
+    return url;
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Toca uma URL e resolve true quando termina, false se falhou/foi cancelada.
+function _tocarUrl(url, geracao) {
+  return new Promise((resolve) => {
+    const audio = _audioPremium();
+    if (!audio || geracao !== _vozGeracao) return resolve(false);
+    let vigia = null;
+    let acabou = false;
+    const acabar = (ok) => {
+      if (acabou) return;
+      acabou = true;
+      clearTimeout(vigia);
+      if (_vozFimAtual === cancelar) _vozFimAtual = null;
+      audio.onended = audio.onerror = audio.onpause = audio.onloadedmetadata = null;
+      resolve(ok && geracao === _vozGeracao);
+    };
+    const cancelar = () => acabar(false);
+    _vozFimAtual = cancelar;
+    audio.onended = () => acabar(true);
+    audio.onerror = () => acabar(false);
+    audio.onpause = () => {
+      if (!audio.ended) acabar(false);
+    };
+    audio.onloadedmetadata = () => {
+      // vigia: duracao do audio + folga (nunca espera pra sempre)
+      clearTimeout(vigia);
+      const seg = isFinite(audio.duration) ? audio.duration : 60;
+      vigia = setTimeout(() => acabar(true), (seg + 3) * 1000);
+    };
+    vigia = setTimeout(() => acabar(true), 90000);
+    audio.src = url;
+    const p = audio.play();
+    if (p && p.catch) p.catch(() => acabar(false));
   });
+}
+
+// Voz do iPhone com vigia de tempo (no iOS, fora de um toque, ela as vezes nem comeca
+// e nunca chama onend).
+function _falarIphone(texto, geracao) {
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window) || geracao !== _vozGeracao) return resolve();
+    const u = new SpeechSynthesisUtterance(texto);
+    u.lang = "pt-BR";
+    u.rate = 0.98;
+    let vigia = null;
+    const acabar = () => {
+      clearTimeout(vigia);
+      if (_vozFimAtual === acabar) _vozFimAtual = null;
+      resolve();
+    };
+    vigia = setTimeout(acabar, texto.length * 85 + 2500);
+    _vozFimAtual = acabar;
+    u.onend = u.onerror = acabar;
+    window.speechSynthesis.speak(u);
+  });
+}
+
+// Nucleo: busca as partes em paralelo e toca em sequencia; qualquer falha cai no iPhone
+// a partir daquela parte. Resolve quando a fala acabou (ou foi interrompida).
+async function _falar(texto, btn) {
+  const t = textoParaFala(texto);
+  if (!t) return;
+  pararVoz();
+  const geracao = _vozGeracao;
+  _vozAtiva = true;
+  _vozBotao = btn || null;
+  _marcarBotao(btn, true); // ja mostra que esta vindo (antes so acendia quando tocava)
+  try {
+    const partes = _partesFala(t);
+    const buscas = partes.map((parte) => _buscarAudio(parte, geracao));
+    for (let i = 0; i < partes.length; i++) {
+      if (geracao !== _vozGeracao) return;
+      const url = await buscas[i];
+      if (geracao !== _vozGeracao) return;
+      const tocou = url ? await _tocarUrl(url, geracao) : false;
+      if (geracao !== _vozGeracao) return;
+      if (!tocou) {
+        await _falarIphone(partes.slice(i).join(" "), geracao);
+        return;
+      }
+    }
+  } finally {
+    if (geracao === _vozGeracao) {
+      _vozAtiva = false;
+      _marcarBotao(btn, false);
+      _liberarUrls();
+    }
+  }
+}
+
+// Botao "ouvir": toque de novo no mesmo botao = parar.
+async function falarPremium(btn, texto) {
+  if (!texto) return;
+  if (vozTocando() && _vozBotao === btn) {
+    pararVoz();
+    return;
+  }
+  desbloquearAudioPremium(); // dentro do toque, antes de qualquer await
+  await _falar(texto, btn);
+}
+
+// Modo conversa: resolve so quando a fala TERMINA (pra reabrir o microfone depois).
+function falarEsperando(texto) {
+  return _falar(texto, null);
 }
 
 // Primeira frase de uma resposta do chat (ate . ! ? ou quebra de linha, max 200
@@ -222,5 +274,5 @@ function primeiraFrase(texto) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { primeiraFrase, textoParaFala };
+  module.exports = { primeiraFrase, textoParaFala, _partesFala };
 }

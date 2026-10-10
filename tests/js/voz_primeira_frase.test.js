@@ -49,3 +49,15 @@ test("entradas vazias ou estranhas nao quebram", () => {
   assert.equal(primeiraFrase("..."), "...");
   assert.equal(primeiraFrase("Gastou R$ 1.500,50 hoje. Sobrou pouco."), "Gastou R$ 1.500,50 hoje.");
 });
+
+test("_partesFala: resposta longa vira primeira frase + resto; curta fica inteira", () => {
+  const { _partesFala } = require(path.join(__dirname, "..", "..", "static", "js", "nucleo", "voz.js"));
+  assert.deepEqual(_partesFala("Oi Alex, tudo certo."), ["Oi Alex, tudo certo."]);
+  const longa =
+    "Você tem quarenta e nove horas e vinte e quatro minutos de voo, em quarenta e quatro voos. " +
+    "A maior parte foi em instrução, e onze horas foram solo. Seu último voo foi em outubro do ano passado.";
+  const partes = _partesFala(longa);
+  assert.equal(partes.length, 2);
+  assert.ok(partes[0].endsWith("voos."), partes[0]);
+  assert.equal(partes.join(" "), longa);
+});

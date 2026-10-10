@@ -23,10 +23,14 @@ import requests
 log = logging.getLogger(__name__)
 
 URL_DIALOGO = "https://api.elevenlabs.io/v1/text-to-dialogue"
-MODELO_PADRAO = "eleven_v4_turbo"
+URL_TTS = "https://api.elevenlabs.io/v1/text-to-speech/{voz}"
+# 2026-10-10: flash v2.5 gera ~231 caracteres em ~0,9 s; o v4 turbo levava ~3,5 s (medido) -
+# na conversa por voz isso era a "demora" da Roberta. Mesmo custo (0,5 credito/caractere).
+# v4/v3 so funcionam pelo text-to-dialogue; o resto usa o text-to-speech normal.
+MODELO_PADRAO = "eleven_flash_v2_5"
 LIMITE_MES_PADRAO = 9000
 MAX_CARACTERES = 700  # resposta falada inteira (modo conversa: 2-4 frases)
-TIMEOUT_S = 15
+TIMEOUT_S = 10
 NOME_PADRAO = "Alex"
 MAX_TITULO = 60
 
@@ -163,12 +167,17 @@ def sintetizar(conn, texto) -> bytes | None:
     if uso_do_mes(conn, mes) + len(texto) > limite_mes():
         return None
 
+    modelo = _modelo()
+    if modelo.startswith(("eleven_v4", "eleven_v3")):
+        url, corpo = URL_DIALOGO, {"inputs": [{"text": texto, "voice_id": _voz()}], "model_id": modelo}
+    else:
+        url, corpo = URL_TTS.format(voz=_voz()), {"text": texto, "model_id": modelo, "language_code": "pt"}
     try:
         resp = requests.post(
-            URL_DIALOGO,
+            url,
             params={"output_format": "mp3_44100_64"},
             headers={"xi-api-key": _chave()},
-            json={"inputs": [{"text": texto, "voice_id": _voz()}], "model_id": _modelo()},
+            json=corpo,
             timeout=TIMEOUT_S,
         )
     except Exception as exc:  # rede, timeout, SSL... nunca derruba a rota

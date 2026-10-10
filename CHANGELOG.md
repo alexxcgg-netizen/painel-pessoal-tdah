@@ -56,6 +56,18 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-10 - Voz da Roberta: rápida e sem travar
+
+- **Demora**: `eleven_v4_turbo` levava ~3,5 s pra gerar ~230 caracteres (medido); `eleven_flash_v2_5` leva ~0,9 s,
+  mesmo custo (0,5 crédito/caractere). Padrão virou flash (`.env` `ELEVENLABS_MODELO`); `voz_premium` usa o
+  text-to-speech normal pro flash e o text-to-dialogue só pra v4/v3. Timeout do servidor 10 s.
+- **"Às vezes não fala / buga"**: tocador de `static/js/nucleo/voz.js` reescrito. Antes, o `onpause` que o modo
+  conversa deixava no `<audio>` compartilhado disparava depois e revogava o blob do botão "ouvir" no meio da fala;
+  e se a voz do iPhone (plano B) não começasse, a conversa esperava pra sempre. Agora: geração por fala (qualquer
+  callback velho é ignorado), `pararVoz` encerra na hora quem espera (`_vozFimAtual`), vigia de tempo no áudio e na
+  voz do iPhone, e resposta longa vira 2 partes buscadas em paralelo (a primeira frase toca em ~0,5 s enquanto o resto
+  gera). Botão "ouvir" acende já durante a busca. Service worker v49.
+
 ## 2026-10-09 (tarde) - IA que edita + cartões vivos
 
 **IA edita, com Desfazer** (nunca apaga, nunca muda valor de dinheiro): `ajustar_tarefa` (hora, dia, título,
