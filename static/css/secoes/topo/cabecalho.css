@@ -73,8 +73,16 @@
 }
 
 #modo-visitante-btn.ativo .config-estado,
-#modo-viagem-btn.ativo .config-estado {
+#modo-viagem-btn.ativo .config-estado,
+#push-btn .config-estado {
   display: inline-flex;
+}
+
+/* Notificacoes (2026-10-10): a linha aparece SEMPRE - antes sumia sem explicar quando o
+   iPhone nao deixava (aberto pelo Safari em vez do icone). Estado em cinza = falta algo. */
+#push-btn:not(.ativo) .config-estado {
+  background: var(--surface-3);
+  color: var(--text-muted);
 }
 
 /* Linha aberta (aria-expanded): seta gira pra baixo. */

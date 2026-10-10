@@ -56,6 +56,15 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-10 - Notificações ligadas e sempre visíveis
+
+- Chaves VAPID geradas (`scripts/gerar_chaves_push.py`; `vapid_private.pem` fora do git, pública no `.env`).
+- `#push-btn` (Mais › Configurações › Avisos) virou uma linha igual às outras e aparece SEMPRE com o estado:
+  Indisponível (iPhone sem instalar na Tela de Início - o iOS só libera push pra app instalado), Desligado,
+  Bloqueado (Ajustes), Ligado (toque = notificação de teste via `/api/push/testar`). Antes ficava `hidden` sem
+  explicar nada. `initPush` roda mesmo sem service worker, espera o `serviceWorker.ready` no máximo 6 s e
+  reenvia a inscrição existente pro servidor. Service worker v51.
+
 ## 2026-10-10 - Transcrição mais fiel + cartão vivo de tarefas
 
 - **Fala transcrita errada / palavra inventada no fim** ("...à noite tenho um date. Idiota."): o Whisper inventa frase

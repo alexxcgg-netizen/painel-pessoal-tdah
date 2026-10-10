@@ -15,42 +15,109 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
+// Notificacoes (reescrito 2026-10-10): a linha fica SEMPRE visivel em Mais › Configurações
+// e diz o que falta quando nao da pra ativar - antes ela sumia em silencio (iPhone so libera
+// push pra app instalado na Tela de Início; tela aberta antes das chaves existirem).
+function _pushIos() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent || "");
+}
+
+function _pushInstalado() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function _pushEstado(btn, estado, sub, ligado) {
+  $("#push-estado").textContent = estado;
+  $("#push-sub").textContent = sub;
+  btn.classList.toggle("ativo", !!ligado);
+}
+
+async function _pushRegistro() {
+  // ready nunca resolve se o service worker nao registrou - nao deixa a tela esperando pra sempre
+  return Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 6000))]);
+}
+
 async function initPush() {
   const btn = $("#push-btn");
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  if (!btn) return;
+  let acao = null; // o que o toque faz no estado atual
+  btn.addEventListener("click", () => acao && acao());
 
-  const status = await apiFetch("/api/push/status");
-  if (!status || !status.configurado) return;
-
-  const reg = await navigator.serviceWorker.ready;
-  const existente = await reg.pushManager.getSubscription();
-  btn.hidden = false;
-
-  if (existente) {
-    btn.textContent = "Notificações ativadas";
-    btn.disabled = true;
+  const semSuporte = !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window);
+  if (semSuporte) {
+    const msg = _pushIos() && !_pushInstalado()
+      ? "No iPhone: Compartilhar › Adicionar à Tela de Início e abrir pelo ícone"
+      : "Este navegador não recebe notificações";
+    _pushEstado(btn, "Indisponível", msg, false);
+    acao = () => mostrarErro(msg + ".");
     return;
   }
 
-  btn.addEventListener("click", async () => {
-    const permissao = await Notification.requestPermission();
-    if (permissao !== "granted") {
-      mostrarErro("Permissão de notificação negada no navegador.");
-      return;
-    }
-    setBotaoCarregando(btn, true, "Ativando...");
-    const subscription = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(status.public_key),
-    });
-    await apiFetch("/api/push/inscrever", {
+  const status = await apiFetch("/api/push/status");
+  if (!status || !status.configurado) {
+    _pushEstado(btn, "Desligado", "Falta configurar as chaves no servidor", false);
+    acao = () => mostrarErro("As notificações ainda não foram configuradas no servidor do painel.");
+    return;
+  }
+  if (Notification.permission === "denied") {
+    _pushEstado(btn, "Bloqueado", "Libere em Ajustes › Notificações › Painel", false);
+    acao = () => mostrarErro("As notificações estão bloqueadas. Libere em Ajustes › Notificações › Painel.");
+    return;
+  }
+
+  const reg = await _pushRegistro();
+  if (!reg) {
+    _pushEstado(btn, "Indisponível", "Feche e abra o app de novo", false);
+    acao = () => location.reload();
+    return;
+  }
+
+  const prontoParaTeste = () => {
+    _pushEstado(btn, "Ligado", "Toque pra receber um teste", true);
+    acao = async () => {
+      const r = await apiFetch("/api/push/testar", { method: "POST" });
+      if (r) _pushEstado(btn, "Ligado", r.enviados ? "Teste enviado - deve chegar já" : "Toque pra receber um teste", true);
+    };
+  };
+
+  const existente = await reg.pushManager.getSubscription();
+  if (existente) {
+    // garante que o servidor conhece essa inscricao (ex: depois de trocar as chaves)
+    apiFetch("/api/push/inscrever", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(subscription.toJSON()),
+      body: JSON.stringify(existente.toJSON()),
     });
-    setBotaoCarregando(btn, false, "Notificações ativadas");
-    btn.disabled = true;
-  });
+    prontoParaTeste();
+    return;
+  }
+
+  _pushEstado(btn, "Desligado", "Toque pra receber lembretes, chuva, contas e voos", false);
+  acao = async () => {
+    // a permissao tem que ser pedida DENTRO do toque (iPhone)
+    const permissao = await Notification.requestPermission();
+    if (permissao !== "granted") {
+      _pushEstado(btn, "Bloqueado", "Libere em Ajustes › Notificações › Painel", false);
+      return;
+    }
+    _pushEstado(btn, "Ativando…", "Um instante", false);
+    try {
+      const assinatura = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(status.public_key),
+      });
+      const ok = await apiFetch("/api/push/inscrever", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(assinatura.toJSON()),
+      });
+      if (!ok) throw new Error("servidor recusou");
+      prontoParaTeste();
+    } catch (e) {
+      _pushEstado(btn, "Desligado", "Não deu pra ativar - toque pra tentar de novo", false);
+      mostrarErro("Não consegui ativar as notificações agora. Tenta de novo.");
+    }
+  };
 }
 
 function initSilencio() {

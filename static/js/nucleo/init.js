@@ -4,8 +4,8 @@
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/service-worker.js");
-  initPush();
 }
+initPush();
 
 if (typeof FilaOffline !== "undefined") {
   // Mostra o indicador se ja existia algo pendente de uma sessao offline
