@@ -170,6 +170,21 @@ class VivoTestCase(unittest.TestCase):
             corpo, _ = self.chat([("consultar_agenda", {})])
 
 
+class TarefasListaTestCase(VivoTestCase):
+    def test_o_que_tenho_hoje_vira_card_com_anel_e_atrasadas(self):
+        ontem = (date.today() - timedelta(days=1)).isoformat()
+        self.sql("INSERT INTO tasks (title, due_date, hora) VALUES ('Lavar os carros', ?, '14:00')", (HOJE,))
+        self.sql("INSERT INTO tasks (title, due_date, completed_at) VALUES ('Contabilidade', ?, datetime('now'))", (HOJE,))
+        self.sql("INSERT INTO tasks (title, due_date) VALUES ('Pagar boleto', ?)", (ontem,))
+        corpo, _ = self.chat([("consultar_tarefas", {"status": "todas"})])
+        card = next(c for c in corpo["cards"] if c["type"] == "tarefas_lista")
+        d = card["data"]
+        self.assertEqual((d["total"], d["feitas"]), (2, 1))
+        self.assertEqual([t["titulo"] for t in d["itens"]], ["Lavar os carros", "Contabilidade"])
+        self.assertTrue(all(isinstance(t["id"], int) for t in d["itens"]))  # caixinha conclui pelo id
+        self.assertEqual([t["titulo"] for t in d["atrasadas"]], ["Pagar boleto"])
+
+
 class ViagemComprasTestCase(unittest.TestCase):
     def test_carnaval_pela_pascoa(self):
         self.assertEqual(viagem_compras.pascoa(2027), date(2027, 3, 28))

@@ -315,6 +315,11 @@ function criarGravacao(opcoes = {}) {
   let tick = null;
   let limite = null;
   let resultado = null; // null enquanto grava; "fala" | "ninguem" | "cancelada" depois
+  // onde a voz comecou/terminou (ms desde o inicio) - vai pro servidor descartar o que o
+  // Whisper "ouvir" fora disso (ele inventa palavra em silencio: "E ai", "Idiota."...)
+  let falaDesdeMs = null;
+  let falaAteMs = null;
+  let vadAtivo = false;
   let inicio = 0;
   let resolver;
   const pronto = new Promise((r) => (resolver = r));
@@ -363,7 +368,9 @@ function criarGravacao(opcoes = {}) {
       for (let i = 0; i < amostras.length; i++) soma += amostras[i] * amostras[i];
       const rms = Math.sqrt(soma / amostras.length);
       nivel = nivel ? nivel * 0.7 + rms * 0.3 : rms;
-      if (piso === null) piso = nivel;
+      // piso comeca BAIXO (nao no 1o quadro): se o Alex ja comeca falando, a propria voz
+      // virava o "ruido de fundo" e so era percebida depois da primeira pausa
+      if (piso === null) piso = Math.min(nivel, 0.004);
       else if (nivel < piso) piso = piso * 0.8 + nivel * 0.2;
       else piso += (nivel - piso) * 0.003;
 
@@ -373,16 +380,21 @@ function criarGravacao(opcoes = {}) {
 
       if (nivel > limiarFala) {
         acima++;
-        if (acima >= 3) falou = true; // ~150ms seguidos de voz
+        if (acima >= 3) {
+          if (!falou) falaDesdeMs = Math.max(0, agora - inicio - 3 * TICK);
+          falou = true; // ~150ms seguidos de voz
+        }
       } else {
         acima = 0;
       }
+      if (falou && nivel > limiarSilencio) falaAteMs = agora - inicio;
       if (nivel > limiarSilencio) {
         caladoDesde = 0;
       } else if (falou && !caladoDesde) {
         caladoDesde = agora;
       }
 
+      if (!detectarSilencio) return; // ditado: so mede onde teve voz, quem para e o toque
       if (falou && caladoDesde && agora - caladoDesde >= silencioMs) parar("fala");
       else if (!falou && agora - inicio >= esperaFalaMs) parar("ninguem");
     }, TICK);
@@ -408,19 +420,36 @@ function criarGravacao(opcoes = {}) {
       soltar();
       if (resultado === null) resultado = "fala"; // parou sozinho (ex: iPhone interrompeu)
       const blob = new Blob(pedacos, { type: tipo });
-      resolver(resultado === "fala" && blob.size && duracaoS >= 0.6 ? { blob, duracaoS } : null);
+      // o detector rodou e nunca ouviu voz: nao manda (so silencio = Whisper inventa frase)
+      if (vadAtivo && falaDesdeMs === null) return resolver(resultado === "fala" ? { semVoz: true } : null);
+      resolver(
+        resultado === "fala" && blob.size && duracaoS >= 0.6
+          ? {
+              blob,
+              duracaoS,
+              falaDesdeS: falaDesdeMs !== null ? falaDesdeMs / 1000 : null,
+              falaAteS: falaAteMs !== null ? falaAteMs / 1000 : null,
+            }
+          : null
+      );
     });
     inicio = Date.now();
     rec.start();
     limite = setTimeout(() => parar("fala"), maxMs);
-    if (detectarSilencio && contextoAudio) _vigiarSilencio();
+    if (contextoAudio) {
+      vadAtivo = true;
+      _vigiarSilencio();
+    }
   }
 
   return { iniciar, parar, pronto };
 }
 
-async function transcreverGravacao({ blob, duracaoS }) {
+async function transcreverGravacao({ blob, duracaoS, falaDesdeS, falaAteS }) {
   const corpo = new FormData();
+  // so o FIM da fala vai pro servidor: e no silencio do fim que o Whisper inventa palavra; cortar
+  // o comeco por medicao arriscaria perder a primeira frase de verdade
+  if (falaAteS !== null && falaAteS !== undefined) corpo.append("fala_ate", falaAteS.toFixed(2));
   const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
   corpo.append("audio", blob, `fala.${ext}`);
   corpo.append("duracao", String(Math.round(duracaoS)));
@@ -460,14 +489,35 @@ function initGravadorChat(micBtn) {
     }
   }
 
+  let ctxAudio = null;
+  function avisoBreve(texto) {
+    const input = $("#chat-input");
+    const original = input.placeholder;
+    input.placeholder = texto;
+    setTimeout(() => {
+      if (input.placeholder === texto) input.placeholder = original;
+    }, 2200);
+  }
+
   async function comecar() {
-    const gravacao = criarGravacao({ maxMs: MIC_MAX_MS });
+    // o detector de voz (mesmo do modo conversa) so mede onde teve fala - quem para e o toque
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx && !ctxAudio) {
+      try {
+        ctxAudio = new Ctx();
+      } catch {
+        ctxAudio = null;
+      }
+    }
+    if (ctxAudio && ctxAudio.state === "suspended") ctxAudio.resume().catch(() => {});
+    const gravacao = criarGravacao({ maxMs: MIC_MAX_MS, contextoAudio: ctxAudio });
     atual = gravacao;
     micBtn.classList.add("ouvindo");
     gravacao.pronto.then((gravado) => {
       if (atual === gravacao) atual = null;
       micBtn.classList.remove("ouvindo");
-      if (gravado) transcrever(gravado);
+      if (gravado && gravado.semVoz) avisoBreve("Não ouvi nada - tenta de novo");
+      else if (gravado) transcrever(gravado);
     });
     try {
       await gravacao.iniciar();

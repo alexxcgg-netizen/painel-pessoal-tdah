@@ -3144,7 +3144,11 @@ def _processar_mensagem_chat(
     # Fonte unica (chat_consultas): a IA busca o dado no painel em vez de
     # responder de memoria. So texto (sem card), nunca levanta excecao.
     def exec_consultar_tarefas(entrada):
-        return chat_consultas.consultar_tarefas(conn, entrada, materializar=materializar_tarefas_recorrentes)
+        r = chat_consultas.consultar_tarefas(conn, entrada, materializar=materializar_tarefas_recorrentes)
+        if isinstance(r, dict) and not r.get("erro") and isinstance(r.get("periodo"), dict):
+            r["_efeito"] = {"entidade": "tarefas_lista", "consulta": True, "de": r["periodo"].get("de"),
+                            "ate": r["periodo"].get("ate"), "status": r.get("status")}
+        return r
 
     def exec_consultar_gastos(entrada):
         if has_request_context() and _modo_visitante_ativo():

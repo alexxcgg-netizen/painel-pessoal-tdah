@@ -188,6 +188,7 @@ TIPOS_CARD = (
     "dia",
     "viagem_janelas",
     "agua",
+    "tarefas_lista",
 )
 
 
@@ -1001,6 +1002,55 @@ def card_viagem_janelas(ef: dict) -> dict | None:
     })
 
 
+_SEM_MODELO_SQL = "NOT (recorrencia IS NOT NULL AND due_date IS NULL)"
+
+
+def card_tarefas_lista(conn, ef: dict, hoje: date | None = None) -> dict | None:
+    """Cartao vivo das tarefas (consultar_tarefas): anel de feitas/total no periodo,
+    atrasadas em destaque e a lista com caixinha pra concluir ali mesmo (mesmo
+    handler de data-tarefa-id do card tarefas_criadas)."""
+    hoje = hoje or date.today()
+    try:
+        de = date.fromisoformat(str(ef.get("de")))
+        ate = date.fromisoformat(str(ef.get("ate")))
+    except ValueError:
+        return None
+    de_s, ate_s, hoje_s = de.isoformat(), ate.isoformat(), hoje.isoformat()
+    so_concluidas = ef.get("status") == "concluidas"
+    linhas = conn.execute(
+        "SELECT id, title, hora, due_date, completed_at FROM tasks "
+        f"WHERE {_SEM_MODELO_SQL} AND due_date BETWEEN ? AND ? "
+        "ORDER BY due_date, hora IS NULL, hora, id",
+        (de_s, ate_s),
+    ).fetchall()
+    feitas = [r for r in linhas if r["completed_at"]]
+    pendentes = [r for r in linhas if not r["completed_at"]]
+    atrasadas = []
+    if de <= hoje <= ate and not so_concluidas:
+        atrasadas = conn.execute(
+            "SELECT id, title, hora, due_date, completed_at FROM tasks "
+            f"WHERE {_SEM_MODELO_SQL} AND completed_at IS NULL AND due_date < ? ORDER BY due_date, id LIMIT 6",
+            (hoje_s,),
+        ).fetchall()
+
+    def item(r, atrasada=False):
+        return {"id": r["id"], "titulo": r["title"], "hora": r["hora"], "data": r["due_date"],
+                "concluida": bool(r["completed_at"]), "atrasada": atrasada}
+
+    mostrar = feitas if so_concluidas else pendentes + feitas
+    return novo_card(
+        "tarefas_lista",
+        {
+            "de": de_s, "ate": ate_s, "hoje": hoje_s, "so_concluidas": so_concluidas,
+            "total": len(linhas), "feitas": len(feitas),
+            "itens": [item(r) for r in mostrar[:14]],
+            "atrasadas": [item(r, True) for r in atrasadas],
+            "mais": max(0, len(mostrar) - 14),
+        },
+        [acao_abrir_aba("tarefas", "Abrir Tarefas")],
+    )
+
+
 def card_agua(conn, actions_extra=None, dia: date | None = None) -> dict:
     iso = (dia or date.today()).isoformat()
     meta = db.obter_configuracao(conn, "agua_meta_copos")
@@ -1063,6 +1113,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_dia(ef)
     if entidade == "viagem_janelas":
         return card_viagem_janelas(ef)
+    if entidade == "tarefas_lista":
+        return card_tarefas_lista(conn, ef)
     return None
 
 

@@ -127,6 +127,7 @@ async function _conversaLaco() {
   while (Conversa.ativa) {
     const fala = await _conversaOuvirUmaFala();
     if (!Conversa.ativa || !fala) break;
+    if (fala.semVoz) continue; // barulho sem voz: volta a ouvir sem mandar nada
 
     _conversaEstado("pensando");
     const texto = await transcreverGravacao(fala);

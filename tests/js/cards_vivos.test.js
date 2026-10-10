@@ -138,3 +138,22 @@ test("treino: aneis da semana fechados nos dias treinados", () => {
   // sem semana (dado antigo): card continua como antes
   assert.ok(!html("saude_treino", { periodo: "hoje", sessoes: [] }).includes("vivo-semana"));
 });
+
+test("tarefas_lista: anel, frase, atrasadas e caixinha com id", () => {
+  const h = html("tarefas_lista", {
+    de: "2026-10-10", ate: "2026-10-10", hoje: "2026-10-10", total: 3, feitas: 1,
+    itens: [
+      { id: 7, titulo: "Lavar os carros", hora: "14:00" },
+      { id: 8, titulo: "<Contabilidade>", concluida: true },
+    ],
+    atrasadas: [{ id: 3, titulo: "Pagar boleto", data: "2026-10-09", atrasada: true }],
+  });
+  semFallback(h);
+  assert.match(h, /Tarefas de hoje/);
+  assert.match(h, /2 faltam · 1 atrasada/);
+  assert.match(h, /data-tarefa-id="7"/);
+  assert.match(h, /data-tarefa-id="8" checked/);
+  assert.match(h, /&lt;Contabilidade&gt;/);
+  assert.match(h, /Atrasadas/);
+  assert.match(html("tarefas_lista", { de: "2026-10-10", ate: "2026-10-10", hoje: "2026-10-10", total: 2, feitas: 2, itens: [] }), /Tudo feito/);
+});

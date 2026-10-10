@@ -39,12 +39,45 @@ TAMANHO_MAX_ARQUIVO = 20 * 1024 * 1024  # 20MB - mesmo teto que a Bot API do Tel
 # transcricao de audio - ver transcrever() abaixo e docs/telegram-captura.md.
 FUNCAO_TRANSCRICAO = "transcricao"
 PROVEDOR_TRANSCRICAO = "groq"
-MODELO_TRANSCRICAO = "whisper-large-v3-turbo"
-# Groq, US$0,04/hora de audio (console.groq.com/docs/model/whisper-large-v3-turbo,
-# pesquisado em 2026-09-24 - ver docs/telegram-captura.md pra comparacao com
-# as alternativas e a data). Convertido pra "por segundo" porque o Telegram
-# manda a duracao do audio em segundos (message.voice.duration).
-PRECO_TRANSCRICAO_USD_POR_SEGUNDO = 0.04 / 3600
+# 2026-10-10: large-v3 (cheio) no lugar do turbo - mais preciso em portugues e o unico dos
+# dois que devolve no_speech_prob util por trecho (o turbo "ouvia" um "E ai" em audio so de
+# silencio com no_speech_prob 0). Groq: US$0,111/hora de audio (antes 0,04 do turbo).
+MODELO_TRANSCRICAO = "whisper-large-v3"
+PRECO_TRANSCRICAO_USD_POR_SEGUNDO = 0.111 / 3600
+# Vocabulario do Alex pro Whisper acertar nome proprio (prompt curto: prompt longo vaza pro
+# texto quando o audio e quase silencio).
+PROMPT_TRANSCRICAO = (
+    "Alex falando com o assistente do painel pessoal. Brusque, Blumenau, aeroclube, CIV, ANAC, "
+    "SSBL, PR-LOM, PT-XXW, Fiorino, contabilidade, notas fiscais, Roberta."
+)
+# trecho com no_speech_prob acima disso e descartado (o Whisper inventa frase em silencio:
+# "Legenda Adriana Zanotto", "E ai", "Idiota." no fim da fala...)
+LIMITE_SEM_FALA = 0.6
+MARGEM_FALA_S = 0.6
+
+
+def texto_dos_trechos(resposta: dict, fala_desde: float | None = None, fala_ate: float | None = None) -> str:
+    """Monta o texto so com os trechos que sao fala de verdade: descarta trecho que o
+    Whisper marcou como provavel silencio e, quando o app mediu onde a voz comecou/terminou
+    (fala_desde/fala_ate, em segundos desde o inicio da gravacao), trecho que cai inteiro
+    fora disso - e ai que nasce a palavra inventada do fim. Sem `segments` (resposta
+    simples), usa `text` como veio."""
+    trechos = resposta.get("segments")
+    if not isinstance(trechos, list):
+        return (resposta.get("text") or "").strip()
+    bons = []
+    for t in trechos:
+        if not isinstance(t, dict):
+            continue
+        if float(t.get("no_speech_prob") or 0) >= LIMITE_SEM_FALA:
+            continue
+        ini, fim = float(t.get("start") or 0), float(t.get("end") or 0)
+        if fala_ate is not None and ini > fala_ate + MARGEM_FALA_S:
+            continue
+        if fala_desde is not None and fim < fala_desde - MARGEM_FALA_S:
+            continue
+        bons.append((t.get("text") or "").strip())
+    return " ".join(b for b in bons if b).strip()
 
 
 class ErroCaptura(Exception):
@@ -172,7 +205,8 @@ def baixar_arquivo(file_id: str) -> tuple[bytes, str] | None:
         return None
 
 
-def transcrever(audio_bytes: bytes, mime: str, *, duracao_segundos: int = 0) -> str:
+def transcrever(audio_bytes: bytes, mime: str, *, duracao_segundos: int = 0,
+                fala_desde: float | None = None, fala_ate: float | None = None) -> str:
     """Transcreve audio pt-BR via Groq (whisper-large-v3-turbo - escolha
     documentada em docs/telegram-captura.md). Levanta ErroCaptura em
     qualquer situacao que impeca a transcricao (teto de IA estourado,
@@ -198,11 +232,13 @@ def transcrever(audio_bytes: bytes, mime: str, *, duracao_segundos: int = 0) -> 
             "https://api.groq.com/openai/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {api_key}"},
             files={"file": (f"audio{extensao}", audio_bytes, mime)},
-            data={"model": MODELO_TRANSCRICAO, "language": "pt"},
+            data={"model": MODELO_TRANSCRICAO, "language": "pt", "response_format": "verbose_json",
+                  "temperature": "0", "prompt": PROMPT_TRANSCRICAO},
             timeout=TIMEOUT_TELEGRAM * 4,
         )
         resposta.raise_for_status()
-        texto = (resposta.json().get("text") or "").strip()
+        corpo = resposta.json()
+        texto = texto_dos_trechos(corpo if isinstance(corpo, dict) else {}, fala_desde, fala_ate)
     except (requests.RequestException, ValueError) as exc:
         ia.medicao.registrar_uso(FUNCAO_TRANSCRICAO, PROVEDOR_TRANSCRICAO, MODELO_TRANSCRICAO, ok=False)
         raise ErroCaptura("não consegui transcrever o áudio agora - tenta de novo ou manda por texto") from exc

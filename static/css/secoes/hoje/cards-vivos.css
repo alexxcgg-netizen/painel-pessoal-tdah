@@ -10,6 +10,7 @@
 .card-contrato-dia { --card-cor: var(--cor-cat-2); }
 .card-contrato-viagem_janelas { --card-cor: var(--cor-cat-4); }
 .card-contrato-agua { --card-cor: var(--cor-cat-1); }
+.card-contrato-tarefas_lista { --card-cor: var(--cor-cat-5); }
 
 .vivo-num {
   font-family: var(--font-tech);
@@ -268,12 +269,34 @@
 .vivo-semana-anel { fill: none; stroke: var(--card-cor); stroke-width: 4; stroke-linecap: round; }
 .vivo-semana-check { fill: none; stroke: var(--card-cor); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 
+/* ---- tarefas (anel de feitas + lista com caixinha) -------------------------- */
+.vivo-tarefas-topo { display: flex; align-items: center; gap: 0.85rem; margin: 0.25rem 0 0.55rem; }
+.vivo-anel-caixa { position: relative; width: 58px; height: 58px; flex-shrink: 0; }
+.vivo-anel-tarefas { width: 100%; height: 100%; display: block; }
+.vivo-anel-fundo { fill: none; stroke: var(--surface-3); stroke-width: 5; }
+.vivo-anel-cheio { fill: none; stroke: var(--card-cor); stroke-width: 5; stroke-linecap: round; }
+.vivo-anel-num { position: absolute; inset: 0; display: grid; place-content: center; font-size: 1rem; }
+.vivo-anel-num small { font-size: 0.68rem; color: var(--text-faint); font-weight: 500; }
+.vivo-tarefas-frase { margin: 0; font-weight: 600; font-size: 0.98rem; text-wrap: balance; }
+.vivo-grupo { margin: 0.5rem 0 0.15rem; font-family: var(--font-tech); font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+.vivo-grupo-alerta { color: var(--cor-cat-5); }
+.vivo-lista-tarefas { margin: 0; }
+.vivo-tarefa.atrasada .card-tarefa-quando { color: var(--cor-cat-5); }
+.vivo-tarefa.entrou { animation: vivoEntra 0.5s var(--ease-suave) both; }
+.vivo-tarefa.vivo-acabou .card-tarefa-titulo { display: inline-block; animation: vivoRisca 0.45s var(--ease-suave); }
+@keyframes vivoRisca { 0% { transform: translateX(0); } 40% { transform: translateX(4px); } 100% { transform: none; } }
+.card-contrato-tarefas_criadas .card-tarefa.vivo-caiu { animation: vivoCai 0.6s var(--ease-bounce) both; }
+@keyframes vivoCai { from { opacity: 0; transform: translateY(-10px) scale(0.97); } to { opacity: 1; transform: none; } }
+
 @media (prefers-reduced-motion: reduce) {
   .vivo-mudanca.entrou .vivo-para,
   .vivo-mudanca.entrou .vivo-de,
   .vivo-legenda > div.entrou,
   .vivo-comp.entrou,
   .vivo-comp.proximo::before,
-  .vivo-dica.entrou { animation: none !important; }
+  .vivo-dica.entrou,
+  .vivo-tarefa.entrou,
+  .vivo-tarefa.vivo-acabou .card-tarefa-titulo,
+  .card-contrato-tarefas_criadas .card-tarefa.vivo-caiu { animation: none !important; }
   .vivo-agora, .vivo-copinhos i, .vivo-rota-pino { transition: none !important; }
 }

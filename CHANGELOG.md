@@ -56,6 +56,22 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-10 - Transcrição mais fiel + cartão vivo de tarefas
+
+- **Fala transcrita errada / palavra inventada no fim** ("...à noite tenho um date. Idiota."): o Whisper inventa frase
+  em silêncio (testado: só silêncio virava "E aí" / "Legenda Adriana Zanotto"). Agora: `whisper-large-v3` (cheio, mais
+  preciso em pt e com `no_speech_prob` útil; US$0,111/h), `verbose_json` + `temperature 0` + prompt curto com o
+  vocabulário do Alex (Brusque, Blumenau, aeroclube, CIV, PR-LOM, Fiorino...), e `telegram_captura.texto_dos_trechos`
+  descarta trecho marcado como silêncio e trecho que começa depois do FIM da fala que o app mediu (`fala_ate`).
+- App: `criarGravacao` mede onde teve voz também no ditado (AudioContext no toque); se não ouviu voz nenhuma, nem manda
+  ("Não ouvi nada"). Pegadinha corrigida no detector: o piso de ruído começava no 1º quadro - se ele já começava
+  falando, a própria voz virava "ruído" (simulador pegou: fala detectada só aos 5,5 s). Só o fim da fala vai pro
+  servidor (cortar o começo por medição arriscaria perder a primeira frase).
+- **Cartão `tarefas_lista`** (`consultar_tarefas`): anel feitas/total que enche, frase "2 faltam · 1 atrasada",
+  atrasadas em destaque, caixinha pra concluir ali (mesmo `data-tarefa-id` do `tarefas_criadas`); o anel recalcula
+  pelo DOM (MutationObserver na classe `.concluida`, que o cards.js só põe depois do servidor confirmar).
+  `tarefas_criadas` ganhou entrada animada. Service worker v50.
+
 ## 2026-10-10 - Voz da Roberta: rápida e sem travar
 
 - **Demora**: `eleven_v4_turbo` levava ~3,5 s pra gerar ~230 caracteres (medido); `eleven_flash_v2_5` leva ~0,9 s,

@@ -345,6 +345,66 @@
     );
   });
 
+  // ============================================================= tarefas_lista
+  const R_ANEL = 22;
+  const C_ANEL = +(2 * Math.PI * R_ANEL).toFixed(2);
+  function anelTarefas(feitas, total) {
+    const frac = total > 0 ? feitas / total : 0;
+    return (
+      `<svg class="vivo-anel-tarefas" viewBox="0 0 54 54" aria-hidden="true" data-c="${C_ANEL}">` +
+      `<circle cx="27" cy="27" r="${R_ANEL}" class="vivo-anel-fundo"/>` +
+      `<circle cx="27" cy="27" r="${R_ANEL}" class="vivo-anel-cheio" transform="rotate(-90 27 27)" ` +
+      `stroke-dasharray="${C_ANEL}" stroke-dashoffset="${(C_ANEL * (1 - frac)).toFixed(2)}"/></svg>`
+    );
+  }
+  function linhaTarefa(t) {
+    const quando = [t.atrasada && t.data ? diaMes(t.data) : "", t.hora || ""].filter(Boolean).join(" · ");
+    return (
+      `<li class="card-tarefa vivo-tarefa${t.concluida ? " concluida" : ""}${t.atrasada ? " atrasada" : ""}">` +
+      `<label><input type="checkbox" data-tarefa-id="${esc(t.id)}"${t.concluida ? " checked" : ""} aria-label="Concluir ${esc(t.titulo)}">` +
+      `<span class="card-tarefa-titulo">${esc(t.titulo)}</span></label>` +
+      (quando ? `<span class="card-tarefa-quando">${esc(quando)}</span>` : "") +
+      `</li>`
+    );
+  }
+  function fraseTarefas(feitas, total, atrasadas) {
+    const pend = total - feitas;
+    if (total === 0) return atrasadas ? `Nada pra hoje · ${atrasadas} atrasada${atrasadas > 1 ? "s" : ""}` : "Nada marcado nesse período.";
+    if (pend === 0) return "Tudo feito. Dia limpo.";
+    return `${pend} ${pend === 1 ? "falta" : "faltam"}${atrasadas ? ` · ${atrasadas} atrasada${atrasadas > 1 ? "s" : ""}` : ""}`;
+  }
+  Cards.registrar("tarefas_lista", (data) => {
+    const itens = lista(data.itens).filter((t) => t && t.titulo);
+    const atrasadas = lista(data.atrasadas).filter((t) => t && t.titulo);
+    const ehHoje = data.de === data.ate && data.de === data.hoje;
+    const titulo = data.so_concluidas
+      ? "Concluídas"
+      : ehHoje
+        ? "Tarefas de hoje"
+        : data.de === data.ate
+          ? `Tarefas · ${diaMes(data.de)}`
+          : `Tarefas · ${diaMes(data.de)} a ${diaMes(data.ate)}`;
+    const total = Number(data.total) || 0;
+    const feitas = Number(data.feitas) || 0;
+    const blocoAtrasadas = atrasadas.length
+      ? `<p class="vivo-grupo vivo-grupo-alerta">Atrasadas</p><ul class="card-tarefas vivo-lista-tarefas">${atrasadas.map(linhaTarefa).join("")}</ul>`
+      : "";
+    const blocoItens = itens.length
+      ? (atrasadas.length ? `<p class="vivo-grupo">${ehHoje ? "Hoje" : "No período"}</p>` : "") +
+        `<ul class="card-tarefas vivo-lista-tarefas">${itens.map(linhaTarefa).join("")}</ul>`
+      : "";
+    return (
+      olho(ICONES.dia, titulo) +
+      `<div class="vivo-tarefas-topo" data-vivo="tarefas" data-total="${total}" data-feitas="${feitas}" data-atrasadas="${atrasadas.length}">` +
+      `<div class="vivo-anel-caixa">${anelTarefas(feitas, total)}<span class="vivo-num vivo-anel-num">${feitas}<small>/${total}</small></span></div>` +
+      `<div><p class="vivo-tarefas-frase">${esc(fraseTarefas(feitas, total, atrasadas.length))}</p>` +
+      `<p class="vivo-sub vivo-tarefas-conta">${feitas} ${feitas === 1 ? "feita" : "feitas"} de ${total}</p></div></div>` +
+      blocoAtrasadas +
+      blocoItens +
+      (data.mais ? `<p class="vivo-sub">+${esc(data.mais)} na aba Tarefas</p>` : "")
+    );
+  });
+
   // ===================================================================== motor
   const reduzido = () => !!(raiz.matchMedia && raiz.matchMedia("(prefers-reduced-motion: reduce)").matches);
   function bezier(x1, y1, x2, y2) {
@@ -690,6 +750,47 @@
         ol._relogio = setInterval(() => (ol.isConnected ? semRolar(() => posicionarAgora(ol)) : clearInterval(ol._relogio)), 60000);
     });
     raizEl.querySelectorAll(".vivo-rota-mapa").forEach((svg) => rotaCarro(svg, 1));
+    raizEl.querySelectorAll('[data-vivo="tarefas"]').forEach((topo) => {
+      const card = topo.closest(".card-contrato");
+      if (!card || card._tarefasLigado || typeof MutationObserver === "undefined") return;
+      card._tarefasLigado = true;
+      // O anel segue o que esta DE FATO concluido: cards.js so marca o <li> com
+      // .concluida depois que o servidor confirmou (e desmarca a caixinha se falhar).
+      const recontar = () => {
+        const lis = [...card.querySelectorAll(".vivo-tarefa")];
+        const total = +topo.dataset.total;
+        const feitas = Math.min(total, lis.filter((li) => !li.classList.contains("atrasada") && li.classList.contains("concluida")).length);
+        const atras = lis.filter((li) => li.classList.contains("atrasada") && !li.classList.contains("concluida")).length;
+        if (feitas === +topo.dataset.feitas && atras === +topo.dataset.atrasadas) return;
+        topo.dataset.feitas = feitas;
+        topo.dataset.atrasadas = atras;
+        const anel = topo.querySelector(".vivo-anel-cheio");
+        const C = +topo.querySelector(".vivo-anel-tarefas").dataset.c;
+        if (anel) {
+          anel.style.transition = "stroke-dashoffset .7s var(--ease-suave)";
+          anel.setAttribute("stroke-dashoffset", (C * (1 - (total ? feitas / total : 0))).toFixed(2));
+        }
+        semRolar(() => {
+          const num = topo.querySelector(".vivo-anel-num");
+          if (num) num.innerHTML = `${feitas}<small>/${total}</small>`;
+          const frase = topo.querySelector(".vivo-tarefas-frase");
+          if (frase) frase.textContent = fraseTarefas(feitas, total, atras);
+          const conta = topo.querySelector(".vivo-tarefas-conta");
+          if (conta) conta.textContent = `${feitas} ${feitas === 1 ? "feita" : "feitas"} de ${total}`;
+        });
+      };
+      new MutationObserver((muts) => {
+        muts.forEach((m) => {
+          const li = m.target;
+          if (li.classList && li.classList.contains("concluida") && !(m.oldValue || "").includes("concluida")) {
+            li.classList.remove("vivo-acabou");
+            void li.offsetWidth;
+            li.classList.add("vivo-acabou");
+          }
+        });
+        recontar();
+      }).observe(card, { subtree: true, attributes: true, attributeFilter: ["class"], attributeOldValue: true });
+    });
     // viagem: trocar cenario (no feriado / fora)
     raizEl.querySelectorAll(".vivo-alternar").forEach((b) => {
       if (b._ligado) return;
@@ -798,6 +899,27 @@
       await esperar(80 + i * 260);
       anel.style.transition = "stroke-dashoffset .8s var(--ease-suave)";
       anel.setAttribute("stroke-dashoffset", 0);
+    });
+    raizEl.querySelectorAll('[data-vivo="tarefas"]').forEach((topo) => {
+      const anel = topo.querySelector(".vivo-anel-cheio");
+      const C = +topo.querySelector(".vivo-anel-tarefas").dataset.c;
+      const alvo = anel.getAttribute("stroke-dashoffset");
+      anel.style.transition = "none";
+      anel.setAttribute("stroke-dashoffset", C);
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          anel.style.transition = "stroke-dashoffset 1.2s var(--ease-suave)";
+          anel.setAttribute("stroke-dashoffset", alvo);
+        })
+      );
+      topo.closest(".card-contrato").querySelectorAll(".vivo-tarefa").forEach((li, i) => {
+        li.classList.remove("entrou");
+        setTimeout(() => li.classList.add("entrou"), 150 + i * 70);
+      });
+    });
+    raizEl.querySelectorAll(".card-contrato-tarefas_criadas .card-tarefa").forEach((li, i) => {
+      li.classList.remove("vivo-caiu");
+      setTimeout(() => li.classList.add("vivo-caiu"), 120 + i * 110);
     });
     raizEl.querySelectorAll('[data-vivo="clima"] .vivo-hora i').forEach((b, i) => {
       b.style.transform = "scaleY(0)";

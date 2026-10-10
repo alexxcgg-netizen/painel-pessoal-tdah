@@ -451,4 +451,4 @@ final; a animação só entra em resposta nova (`CardsVivos.animar`). Campos (`d
 | `agua` | `data, copos, meta` + `desfazer` (visitante: `oculto`) |
 | `rota` (+) | `traco{w, h, pontos[[x,y]], paradas[[x,y]]}` - caminho real já projetado |
 | `saude_treino` (+) | `semana[{data, feito, hoje}] (seg..dom), meta_semana` |
-
+| `tarefas_lista` | `de, ate, hoje, so_concluidas, total, feitas, itens[{id, titulo, hora, data, concluida}], atrasadas[...], mais` |

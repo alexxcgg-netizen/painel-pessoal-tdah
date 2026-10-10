@@ -81,8 +81,19 @@ def voz_transcrever():
         duracao = int(float(request.form.get("duracao") or 0))
     except ValueError:
         duracao = 0
+
+    def _segundos(campo):
+        try:
+            v = float(request.form.get(campo))
+        except (TypeError, ValueError):
+            return None
+        return v if 0 <= v <= 600 else None
+
     try:
-        texto = telegram_captura.transcrever(audio, mime, duracao_segundos=duracao)
+        # onde a voz comecou/terminou (o app mede): o que o Whisper "ouvir" fora disso e inventado
+        texto = telegram_captura.transcrever(
+            audio, mime, duracao_segundos=duracao, fala_desde=_segundos("fala_desde"), fala_ate=_segundos("fala_ate")
+        )
     except telegram_captura.ErroCaptura as e:
         return jsonify({"erro": str(e)}), 502
     return jsonify({"texto": texto})
