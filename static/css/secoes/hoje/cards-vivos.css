@@ -288,6 +288,94 @@
 .card-contrato-tarefas_criadas .card-tarefa.vivo-caiu { animation: vivoCai 0.6s var(--ease-bounce) both; }
 @keyframes vivoCai { from { opacity: 0; transform: translateY(-10px) scale(0.97); } to { opacity: 1; transform: none; } }
 
+/* ---- caixinha redonda + risco que atravessa (cards de tarefa) -------------------
+   Antes: checkbox nativo quadrado e o risco aparecia seco. Agora o visto se desenha
+   com um pulinho (--ease-bounce) e a linha corre da esquerda pra direita. */
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--card-cor) 55%, var(--border-strong));
+  background: transparent;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+  transition: background 0.3s var(--ease-suave), border-color 0.3s var(--ease-suave), transform 0.35s var(--ease-bounce);
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"]::after {
+  content: "";
+  width: 10px;
+  height: 6px;
+  border-left: 2.4px solid #05080b;
+  border-bottom: 2.4px solid #05080b;
+  transform: translateY(-1px) rotate(-45deg) scale(0);
+  transition: transform 0.35s var(--ease-bounce);
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"]:checked {
+  background: var(--card-cor);
+  border-color: var(--card-cor);
+  animation: none;
+  transform: scale(1.06);
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"]:checked::after {
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"]:active { transform: scale(0.9); }
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--card-cor);
+  outline-offset: 2px;
+}
+.card-contrato-tarefas_criadas { --card-cor: var(--cor-cat-5); }
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa-titulo {
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) left 56% / 0% 1.5px no-repeat;
+  transition: background-size 0.45s var(--ease-suave), color 0.35s var(--ease-suave);
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa.concluida .card-tarefa-titulo {
+  text-decoration: none;
+  background-size: 100% 1.5px;
+  color: var(--text-faint);
+}
+
+/* proxima tarefa do dia */
+.vivo-tarefa.proxima .card-tarefa-titulo { font-weight: 600; }
+.vivo-tarefa.proxima .card-tarefa-quando { color: var(--card-cor); }
+.vivo-falta-tarefa {
+  margin-right: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-cor) 16%, transparent);
+  color: var(--card-cor);
+  font-size: 0.66rem;
+}
+
+/* tudo feito: o anel brilha e o numero vira um visto */
+.vivo-anel-feito {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  color: var(--card-cor);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.4s var(--ease-suave), transform 0.5s var(--ease-bounce);
+}
+.vivo-anel-feito svg { width: 24px; height: 24px; }
+.vivo-tarefas-topo.completo .vivo-anel-num { opacity: 0; transform: scale(0.7); }
+.vivo-anel-num { transition: opacity 0.3s var(--ease-suave), transform 0.3s var(--ease-suave); }
+.vivo-tarefas-topo.completo .vivo-anel-feito { opacity: 1; transform: none; }
+.vivo-tarefas-topo.completo .vivo-anel-cheio { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--card-cor) 70%, transparent)); }
+.vivo-tarefas-topo.completo .vivo-anel-caixa { animation: vivoComemora 0.9s var(--ease-bounce) 1; }
+@keyframes vivoComemora { 0% { transform: scale(1); } 35% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+/* estado vazio */
+.vivo-vazio { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0 0.2rem; color: var(--text-muted); font-size: 0.86rem; }
+.vivo-vazio svg { width: 20px; height: 20px; color: var(--card-cor); flex-shrink: 0; }
+.vivo-vazio p { margin: 0; }
+.vivo-mais { margin-top: 0.4rem; }
+
 @media (prefers-reduced-motion: reduce) {
   .vivo-mudanca.entrou .vivo-para,
   .vivo-mudanca.entrou .vivo-de,
@@ -297,6 +385,10 @@
   .vivo-dica.entrou,
   .vivo-tarefa.entrou,
   .vivo-tarefa.vivo-acabou .card-tarefa-titulo,
-  .card-contrato-tarefas_criadas .card-tarefa.vivo-caiu { animation: none !important; }
+  .card-contrato-tarefas_criadas .card-tarefa.vivo-caiu,
+  .vivo-tarefas-topo.completo .vivo-anel-caixa { animation: none !important; }
+  :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"],
+  :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa input[type="checkbox"]::after,
+  :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa-titulo { transition: none !important; }
   .vivo-agora, .vivo-copinhos i, .vivo-rota-pino { transition: none !important; }
 }

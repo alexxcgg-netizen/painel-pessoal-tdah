@@ -357,10 +357,23 @@
       `stroke-dasharray="${C_ANEL}" stroke-dashoffset="${(C_ANEL * (1 - frac)).toFixed(2)}"/></svg>`
     );
   }
+  // "hoje" / "amanhã" / "ontem" / "sex 16 out"
+  function diaRelativo(iso) {
+    const d = Cards.parseDia(iso);
+    const h = Cards.parseDia(isoHoje());
+    if (!d || !h) return "";
+    const dif = Math.round((d - h) / 86400000);
+    if (dif === 0) return "hoje";
+    if (dif === 1) return "amanhã";
+    if (dif === -1) return "ontem";
+    const sem = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+    return `${sem} ${d.getDate()} ${MESES[d.getMonth()]}`;
+  }
+  const minutosDe = (hora) => (hora && /^\d{2}:\d{2}$/.test(hora) ? +hora.slice(0, 2) * 60 + +hora.slice(3) : "");
   function linhaTarefa(t) {
-    const quando = [t.atrasada && t.data ? diaMes(t.data) : "", t.hora || ""].filter(Boolean).join(" · ");
+    const quando = [t.atrasada && t.data ? diaRelativo(t.data) : "", t.hora || ""].filter(Boolean).join(" · ");
     return (
-      `<li class="card-tarefa vivo-tarefa${t.concluida ? " concluida" : ""}${t.atrasada ? " atrasada" : ""}">` +
+      `<li class="card-tarefa vivo-tarefa${t.concluida ? " concluida" : ""}${t.atrasada ? " atrasada" : ""}" data-min="${t.atrasada ? "" : minutosDe(t.hora)}">` +
       `<label><input type="checkbox" data-tarefa-id="${esc(t.id)}"${t.concluida ? " checked" : ""} aria-label="Concluir ${esc(t.titulo)}">` +
       `<span class="card-tarefa-titulo">${esc(t.titulo)}</span></label>` +
       (quando ? `<span class="card-tarefa-quando">${esc(quando)}</span>` : "") +
@@ -369,41 +382,90 @@
   }
   function fraseTarefas(feitas, total, atrasadas) {
     const pend = total - feitas;
-    if (total === 0) return atrasadas ? `Nada pra hoje · ${atrasadas} atrasada${atrasadas > 1 ? "s" : ""}` : "Nada marcado nesse período.";
-    if (pend === 0) return "Tudo feito. Dia limpo.";
+    if (total === 0) return atrasadas ? `Nada pra hoje · ${atrasadas} atrasada${atrasadas > 1 ? "s" : ""}` : "Nada marcado.";
+    if (pend === 0) return atrasadas ? `Hoje feito · ${atrasadas} atrasada${atrasadas > 1 ? "s" : ""}` : "Tudo feito. Dia limpo.";
     return `${pend} ${pend === 1 ? "falta" : "faltam"}${atrasadas ? ` · ${atrasadas} atrasada${atrasadas > 1 ? "s" : ""}` : ""}`;
   }
+  const grupo = (titulo, itens, extra = "") =>
+    `${titulo ? `<p class="vivo-grupo${extra}">${esc(titulo)}</p>` : ""}<ul class="card-tarefas vivo-lista-tarefas">${itens.map(linhaTarefa).join("")}</ul>`;
+  const ICONE_FEITO =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="vivo-feito-traco" d="M5 12.5 10 17 19 7"/></svg>';
+
   Cards.registrar("tarefas_lista", (data) => {
     const itens = lista(data.itens).filter((t) => t && t.titulo);
     const atrasadas = lista(data.atrasadas).filter((t) => t && t.titulo);
     const ehHoje = data.de === data.ate && data.de === data.hoje;
+    const umDia = data.de === data.ate;
     const titulo = data.so_concluidas
       ? "Concluídas"
       : ehHoje
         ? "Tarefas de hoje"
-        : data.de === data.ate
-          ? `Tarefas · ${diaMes(data.de)}`
+        : umDia
+          ? `Tarefas · ${diaRelativo(data.de)}`
           : `Tarefas · ${diaMes(data.de)} a ${diaMes(data.ate)}`;
     const total = Number(data.total) || 0;
     const feitas = Number(data.feitas) || 0;
-    const blocoAtrasadas = atrasadas.length
-      ? `<p class="vivo-grupo vivo-grupo-alerta">Atrasadas</p><ul class="card-tarefas vivo-lista-tarefas">${atrasadas.map(linhaTarefa).join("")}</ul>`
-      : "";
-    const blocoItens = itens.length
-      ? (atrasadas.length ? `<p class="vivo-grupo">${ehHoje ? "Hoje" : "No período"}</p>` : "") +
-        `<ul class="card-tarefas vivo-lista-tarefas">${itens.map(linhaTarefa).join("")}</ul>`
-      : "";
+    const completo = total > 0 && feitas >= total;
+
+    let corpo = "";
+    if (atrasadas.length) corpo += grupo("Atrasadas", atrasadas, " vivo-grupo-alerta");
+    if (!umDia) {
+      // varios dias: um grupo por dia, na ordem
+      const porDia = new Map();
+      itens.forEach((t) => {
+        const k = t.data || "";
+        if (!porDia.has(k)) porDia.set(k, []);
+        porDia.get(k).push(t);
+      });
+      porDia.forEach((lista_, dia) => (corpo += grupo(dia ? diaRelativo(dia) : "Sem data", lista_)));
+    } else if (itens.length) {
+      const comHora = itens.filter((t) => t.hora);
+      const semHora = itens.filter((t) => !t.hora);
+      const rotuloHoje = atrasadas.length ? (ehHoje ? "Hoje" : diaRelativo(data.de)) : "";
+      if (comHora.length) corpo += grupo(rotuloHoje, comHora);
+      if (semHora.length) corpo += grupo(comHora.length || rotuloHoje ? "Sem horário" : "", semHora);
+    }
+    if (!itens.length && !atrasadas.length) {
+      corpo = `<div class="vivo-vazio">${ICONE_FEITO}<p>${data.so_concluidas ? "Nenhuma tarefa concluída no período." : "Nada marcado. Dia livre."}</p></div>`;
+    }
+
     return (
       olho(ICONES.dia, titulo) +
-      `<div class="vivo-tarefas-topo" data-vivo="tarefas" data-total="${total}" data-feitas="${feitas}" data-atrasadas="${atrasadas.length}">` +
-      `<div class="vivo-anel-caixa">${anelTarefas(feitas, total)}<span class="vivo-num vivo-anel-num">${feitas}<small>/${total}</small></span></div>` +
+      `<div class="vivo-tarefas-topo${completo ? " completo" : ""}" data-vivo="tarefas" data-total="${total}" data-feitas="${feitas}" data-atrasadas="${atrasadas.length}" data-hoje="${ehHoje ? 1 : 0}">` +
+      `<div class="vivo-anel-caixa">${anelTarefas(feitas, total)}<span class="vivo-num vivo-anel-num">${feitas}<small>/${total}</small></span>` +
+      `<span class="vivo-anel-feito">${ICONE_FEITO}</span></div>` +
       `<div><p class="vivo-tarefas-frase">${esc(fraseTarefas(feitas, total, atrasadas.length))}</p>` +
       `<p class="vivo-sub vivo-tarefas-conta">${feitas} ${feitas === 1 ? "feita" : "feitas"} de ${total}</p></div></div>` +
-      blocoAtrasadas +
-      blocoItens +
-      (data.mais ? `<p class="vivo-sub">+${esc(data.mais)} na aba Tarefas</p>` : "")
+      corpo +
+      (data.mais ? `<p class="vivo-sub vivo-mais">+${esc(data.mais)} na aba Tarefas</p>` : "")
     );
   });
+
+  // proxima tarefa do dia (so "Tarefas de hoje"): destaque + "em 40 min"
+  function marcarProxima(topo) {
+    const card = topo.closest(".card-contrato");
+    if (!card || topo.dataset.hoje !== "1") return;
+    const d = new Date();
+    const agora = d.getHours() * 60 + d.getMinutes();
+    let proxima = null;
+    card.querySelectorAll(".vivo-tarefa").forEach((li) => {
+      li.classList.remove("proxima");
+      const velho = li.querySelector(".vivo-falta-tarefa");
+      if (velho) velho.remove();
+      const m = li.dataset.min === "" ? null : +li.dataset.min;
+      if (!proxima && m !== null && m >= agora - 15 && !li.classList.contains("concluida")) proxima = li;
+    });
+    if (!proxima) return;
+    proxima.classList.add("proxima");
+    const falta = +proxima.dataset.min - agora;
+    const quando = proxima.querySelector(".card-tarefa-quando");
+    if (quando) {
+      const etiqueta = document.createElement("span");
+      etiqueta.className = "vivo-falta-tarefa";
+      etiqueta.textContent = falta <= 0 ? "agora" : `em ${fmtHmin(falta)}`;
+      quando.prepend(etiqueta);
+    }
+  }
 
   // ===================================================================== motor
   const reduzido = () => !!(raiz.matchMedia && raiz.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -761,9 +823,11 @@
         const total = +topo.dataset.total;
         const feitas = Math.min(total, lis.filter((li) => !li.classList.contains("atrasada") && li.classList.contains("concluida")).length);
         const atras = lis.filter((li) => li.classList.contains("atrasada") && !li.classList.contains("concluida")).length;
+        semRolar(() => marcarProxima(topo));
         if (feitas === +topo.dataset.feitas && atras === +topo.dataset.atrasadas) return;
         topo.dataset.feitas = feitas;
         topo.dataset.atrasadas = atras;
+        topo.classList.toggle("completo", total > 0 && feitas >= total);
         const anel = topo.querySelector(".vivo-anel-cheio");
         const C = +topo.querySelector(".vivo-anel-tarefas").dataset.c;
         if (anel) {
@@ -780,6 +844,10 @@
         });
       };
       new MutationObserver((muts) => {
+        const mudouConclusao = muts.some(
+          (m) => m.target.classList && (m.oldValue || "").includes("concluida") !== m.target.classList.contains("concluida")
+        );
+        if (!mudouConclusao) return;
         muts.forEach((m) => {
           const li = m.target;
           if (li.classList && li.classList.contains("concluida") && !(m.oldValue || "").includes("concluida")) {
@@ -790,6 +858,9 @@
         });
         recontar();
       }).observe(card, { subtree: true, attributes: true, attributeFilter: ["class"], attributeOldValue: true });
+      semRolar(() => marcarProxima(topo));
+      if (topo.dataset.hoje === "1" && !topo._relogio)
+        topo._relogio = setInterval(() => (topo.isConnected ? semRolar(() => marcarProxima(topo)) : clearInterval(topo._relogio)), 60000);
     });
     // viagem: trocar cenario (no feriado / fora)
     raizEl.querySelectorAll(".vivo-alternar").forEach((b) => {

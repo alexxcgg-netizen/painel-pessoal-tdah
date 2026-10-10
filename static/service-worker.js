@@ -33,7 +33,7 @@
 // buscar tudo de novo. Lista conferida contra scripts.html/head.html/fase7.css.
 // v16: Fase 8 F1 - gastos.js/gastos.html mudaram (lista unificada com selo de origem
 // Nubank/manual, botao "Sincronizar Nubank").
-const CACHE_NAME = "painel-pessoal-v51";
+const CACHE_NAME = "painel-pessoal-v52";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -243,6 +243,10 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  // alcance "/" (pra notificacao funcionar), mas so os arquivos de /static/ passam por aqui:
+  // dados (/api), login e a pagina continuam indo direto pro servidor, como sempre foi.
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin || !url.pathname.startsWith("/static/")) return;
   event.respondWith(
     fetch(event.request)
       .then((res) => {

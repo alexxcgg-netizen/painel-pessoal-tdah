@@ -46,10 +46,25 @@
 
   // ---- tarefas_criadas ------------------------------------------------------
 
+  function diaRelativoTarefa(iso) {
+    // os dois pelo mesmo parseDia (ele devolve o dia ao meio-dia) - comparar com a meia-noite
+    // de hoje dava meio dia de diferenca e "hoje" virava "amanhã"
+    const d = Cards.parseDia(iso);
+    const agora = new Date();
+    const h = Cards.parseDia(
+      `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}-${String(agora.getDate()).padStart(2, "0")}`
+    );
+    if (!d || !h) return Cards.dataCurta(iso);
+    const dif = Math.round((d - h) / 86400000);
+    if (dif === 0) return "hoje";
+    if (dif === 1) return "amanhã";
+    return Cards.dataCurta(iso);
+  }
+
   function quandoTarefa(t) {
     const partes = [];
     if (t.recorrencia) partes.push("rotina");
-    else if (t.data) partes.push(Cards.dataCurta(t.data));
+    else if (t.data) partes.push(diaRelativoTarefa(t.data));
     else if (t.quando) partes.push(String(t.quando));
     if (t.hora) partes.push(String(t.hora));
     return partes.length ? partes.join(" · ") : "sem data";

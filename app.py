@@ -490,7 +490,7 @@ def _verificar_autenticacao():
     forjar acesso exigiria adivinhar o PIN de verdade, nao mexer no
     navegador."""
     path = request.path
-    if path.startswith("/static/"):
+    if path.startswith("/static/") or path == "/service-worker.js":
         return None
     if path == "/healthz":
         return None
@@ -629,6 +629,18 @@ def _modo_teste_ia_ativo(conn) -> bool:
     de volta. So essa pessoa ve o toggle (fica dentro do login por PIN, igual
     o resto do app - nao ha usuario nenhum alem dela)."""
     return (obter_configuracao(conn, "modo_teste_ia") or "0") == "1"
+
+
+@app.route("/service-worker.js")
+def service_worker_raiz():
+    """O mesmo static/service-worker.js, mas servido da RAIZ (2026-10-10). Registrado de
+    /static/, o alcance dele era so /static/ - nunca controlava a pagina principal, entao
+    `serviceWorker.ready` nunca resolvia e o iPhone nunca deixava assinar as notificacoes
+    (a linha ficava "Indisponivel")."""
+    res = send_file(os.path.join(app.static_folder, "service-worker.js"), mimetype="application/javascript")
+    res.headers["Cache-Control"] = "no-cache"
+    res.headers["Service-Worker-Allowed"] = "/"
+    return res
 
 
 @app.route("/")

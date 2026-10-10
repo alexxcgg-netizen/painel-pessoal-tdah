@@ -3,7 +3,13 @@
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/static/service-worker.js");
+  // da RAIZ, com alcance "/": so assim ele controla a pagina e o iPhone libera notificacao.
+  // O registro antigo (de /static/, que nunca controlou nada) e removido.
+  navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
+  navigator.serviceWorker.getRegistrations
+    && navigator.serviceWorker.getRegistrations().then((regs) =>
+      regs.filter((r) => /\/static\/$/.test(r.scope)).forEach((r) => r.unregister())
+    );
 }
 initPush();
 

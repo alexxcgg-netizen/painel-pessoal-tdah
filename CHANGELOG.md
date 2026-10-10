@@ -56,6 +56,21 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-10 - Notificações de verdade (service worker na raiz) + cartões de tarefa caprichados
+
+- **Bug antigo: o service worker NUNCA controlou a página.** Registrado de `/static/service-worker.js`, o alcance
+  dele era só `/static/`; `serviceWorker.ready` nunca resolvia e o iPhone nunca deixava assinar notificação (a linha
+  ficava "Indisponível"). Agora a rota `/service-worker.js` (sem login, `Service-Worker-Allowed: /`, `no-cache`) serve
+  o mesmo arquivo e `init.js` registra com `scope: "/"` (e remove o registro velho de `/static/`). O handler de
+  `fetch` continua mexendo SÓ em `/static/` - página, login e `/api` vão direto pro servidor (interceptar
+  navegação com redirect quebra no Safari). Conferido no Chromium do Playwright: registra em `/`, `ready` resolve,
+  página controlada. Service worker v52.
+- **Cartões de tarefa**: caixinha redonda com o visto se desenhando (pulinho `--ease-bounce`), risco que atravessa o
+  título (background-size), próxima tarefa do dia em destaque com "em 40 min" (relógio a cada minuto), grupos
+  "Atrasadas / Hoje / Sem horário" e um grupo por dia em período de vários dias, comemoração quando acaba (anel
+  brilha e o número vira um visto) e estado vazio. Datas relativas ("hoje", "amanhã"). Pegadinha: `Cards.parseDia`
+  devolve o dia ao MEIO-DIA - comparar com a meia-noite de hoje fazia "hoje" virar "amanhã".
+
 ## 2026-10-10 - Notificações ligadas e sempre visíveis
 
 - Chaves VAPID geradas (`scripts/gerar_chaves_push.py`; `vapid_private.pem` fora do git, pública no `.env`).

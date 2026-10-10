@@ -112,6 +112,16 @@ class PainelTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertGreater(len(res.get_data()), 0)
 
+    def test_service_worker_na_raiz_sem_login_e_com_alcance_total(self):
+        # alcance "/" (senao nunca controla a pagina e o iPhone nao libera notificacao)
+        anonimo = app.app.test_client()
+        res = anonimo.get("/service-worker.js")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.headers["Service-Worker-Allowed"], "/")
+        self.assertIn("no-cache", res.headers["Cache-Control"])
+        self.assertIn("javascript", res.mimetype)
+        self.assertIn(b"addEventListener(\"push\"", res.get_data())
+
     def test_captura_gasto_direto(self):
         parsed = {
             "tipo": "gasto",
