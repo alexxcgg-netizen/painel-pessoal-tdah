@@ -322,7 +322,7 @@ class DesfazerTestCase(_Base):
         conn.close()
 
         self.assertEqual(self.contar_registros_hoje(), 2)
-        cards_saude = [c for c in env["cards"] if c["type"] == "saude_dia"]
+        cards_saude = [c for c in env["cards"] if c["type"] == "agua"]
         self.assertEqual(len(cards_saude), 2)
         tokens = [a["token"] for c in cards_saude for a in c["actions"] if a.get("tipo") == "desfazer"]
         self.assertEqual(len(tokens), 2)
@@ -342,7 +342,7 @@ class IntegracaoChatTestCase(_Base):
         corpo = res.get_json()
         self.assertEqual(corpo["resposta"], "+1 copo de água. 1 hoje.")
         self.assertEqual(corpo["acoes"], ["registrar_hidratacao_a10"])
-        self.assertEqual(corpo["cards"][0]["type"], "saude_dia")
+        self.assertEqual(corpo["cards"][0]["type"], "agua")
         self.assertTrue(any(a.get("tipo") == "desfazer" for a in corpo["cards"][0]["actions"]))
         self.assertEqual(self.contar_registros_hoje(), 1)
 

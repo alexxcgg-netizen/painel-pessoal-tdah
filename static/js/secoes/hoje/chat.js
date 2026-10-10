@@ -165,6 +165,8 @@ function anexarCardsResposta(lista, cards, passos) {
   if (!Array.isArray(cards) || cards.length === 0 || typeof Cards === "undefined") return null;
   const grupo = Cards.criarGrupo(cards, passos);
   lista.appendChild(grupo);
+  // cartoes vivos: liga ceu/aviao/onda (historico tambem, parado no estado final)
+  if (typeof CardsVivos !== "undefined") CardsVivos.preparar(grupo);
   return grupo;
 }
 
@@ -234,7 +236,9 @@ async function enviarChat(texto, opcoes = {}) {
   // resumo_texto = contrato da Fase 6; `resposta` = mesmo texto no campo
   // legado (fallback se um backend mais velho responder).
   lista.appendChild(criarBolhaChat("assistant", data.resumo_texto || data.resposta, true));
-  anexarCardsResposta(lista, data.cards, data.passos);
+  const grupoCards = anexarCardsResposta(lista, data.cards, data.passos);
+  // so a resposta NOVA ganha a entrada animada (o historico abre parado)
+  if (grupoCards && typeof CardsVivos !== "undefined") CardsVivos.animar(grupoCards);
   lista.scrollTop = lista.scrollHeight;
   loadStreak();
 
@@ -532,6 +536,9 @@ function initReconhecimentoNativoChat(micBtn) {
   function irProFim() {
     const tela = document.getElementById("tab-assistente");
     if (!tela || tela.hidden || !tela.contains(lista)) return;
+    // cartoes vivos (static/js/cards-vivos.js) mexem no texto de numeros/relogio - isso nao e
+    // mensagem nova, entao nao pode puxar a tela pro fim enquanto o Alex le mais acima
+    if (document.documentElement.dataset.vivoSemRolar) return;
     window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
   }
   new MutationObserver(irProFim).observe(lista, { childList: true, subtree: true, characterData: true });

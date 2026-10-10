@@ -101,6 +101,12 @@ DESCRICAO_TOOL = {
     "consultar_saude_dia": "Buscou a saúde do dia",
     "consultar_tarefas": "Consultou as tarefas",
     "ajustar_tarefa": "Ajustou uma tarefa",
+    "mover_tarefas": "Moveu as tarefas",
+    "ajustar_lembrete": "Ajustou um lembrete",
+    "ajustar_voo": "Corrigiu um voo",
+    "ajustar_gasto": "Ajustou um gasto",
+    "definir_meta_horas_voo": "Definiu a meta de horas",
+    "planejar_compras_viagem": "Planejou as compras da viagem",
     "consultar_clima": "Consultou o tempo",
     "estimar_trajeto": "Calculou o trajeto",
     "consultar_gastos": "Consultou os gastos",
@@ -136,7 +142,9 @@ CAMPOS_SENSIVEIS = {
     # sensivel quanto dinheiro - /api/saude/hoje ja devolvia `oculto` no
     # modo visitante, mas os cards do chat/historico vazavam sono/passos.
     "saude_dia": ("agua_copos", "passos", "sono_horas", "treino_min"),
-    "saude_treino": ("sessoes",),
+    "saude_treino": ("sessoes", "semana"),
+    "agua": ("copos",),
+    "gastos_resumo": ("total", "por_categoria", "maiores"),
     # Fase 7 (N1, ligado na C1 - checklist de docs/contrato-assinaturas.md).
     # `proximas_cobrancas`/`proxima_cobranca` saem inteiros no modo
     # visitante (trazem `valor` dentro).
@@ -172,6 +180,14 @@ TIPOS_CARD = (
     "compra_parcelada",
     "resumo_financeiro_recorrente",
     "rota",
+    # cartoes vivos (2026-10-09): animados no front (static/js/cards-vivos.js)
+    "edicao",
+    "voo_resumo",
+    "clima",
+    "gastos_resumo",
+    "dia",
+    "viagem_janelas",
+    "agua",
 )
 
 
@@ -598,7 +614,26 @@ def card_saude_treino(conn, dias=7, registrado: bool = False, hoje: date | None 
     periodo = "hoje" if dias == 1 else f"últimos {dias} dias"
     aba, rotulo = ABA_POR_ENTIDADE["treino"]
     actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo)]
-    return novo_card("saude_treino", {"periodo": periodo, "sessoes": sessoes, "registrado": bool(registrado)}, actions)
+    # aditivo (cartoes vivos): a semana seg..dom com os dias treinados - os aneis do card
+    segunda = hoje - timedelta(days=hoje.weekday())
+    feitos = {
+        r["data"] for r in conn.execute(
+            "SELECT DISTINCT data FROM treinos WHERE data BETWEEN ? AND ?",
+            (segunda.isoformat(), (segunda + timedelta(days=6)).isoformat()),
+        ).fetchall()
+    }
+    semana = [
+        {"data": (segunda + timedelta(days=i)).isoformat(), "feito": (segunda + timedelta(days=i)).isoformat() in feitos,
+         "hoje": segunda + timedelta(days=i) == hoje}
+        for i in range(7)
+    ]
+    meta = db.obter_configuracao(conn, "treino_meta_semana")
+    return novo_card(
+        "saude_treino",
+        {"periodo": periodo, "sessoes": sessoes, "registrado": bool(registrado), "semana": semana,
+         "meta_semana": int(meta) if meta and meta.isdigit() else None},
+        actions,
+    )
 
 
 def card_saude_dia(conn, dia: date | None = None, registrado: str | None = None, actions_extra=None) -> dict:
@@ -820,9 +855,159 @@ def card_rota(ef: dict) -> dict | None:
             "partir_de_onde_estou": bool(ef.get("partir_de_onde_estou")),
             "distancia_km": ef.get("distancia_km"),
             "duracao_min": ef.get("duracao_min"),
+            "traco": ef.get("traco") if isinstance(ef.get("traco"), dict) else None,
         },
         [{"tipo": "abrir_link", "rotulo": "Abrir no Google Maps", "url": url}],
     )
+
+
+# ---- cartoes vivos (2026-10-09) ----------------------------------------------
+
+_NOME_CAMPO = {
+    "title": "título", "hora": "hora", "due_date": "dia", "due_at": "prazo", "completed_at": "status",
+    "titulo": "título", "data": "data", "recorrente": "repete todo ano", "despertar": "desperta você",
+    "origem": "origem", "destino": "destino", "horas": "tempo de voo", "aeronave": "aeronave",
+    "funcao": "função", "observacao": "observação", "category": "categoria", "description": "descrição",
+}
+
+
+def _valor_legivel(campo: str, valor):
+    if campo == "completed_at":
+        return "concluída" if valor else "pendente"
+    if valor is None or valor == "":
+        return "—"
+    if campo in ("due_date", "data") and isinstance(valor, str):
+        try:
+            d = date.fromisoformat(valor[:10])
+            return f"{DIAS_SEMANA_CURTOS[d.weekday()]}, {d:%d/%m}"
+        except ValueError:
+            return valor
+    if campo == "horas":
+        minutos = int(round(float(valor) * 60))
+        return f"{minutos // 60}:{minutos % 60:02d}"
+    if campo in ("recorrente", "despertar"):
+        return "sim" if valor else "não"
+    return str(valor)
+
+
+def card_edicao(efeitos: list[dict], actions_extra=None) -> dict | None:
+    itens = []
+    for ef in efeitos:
+        antes, depois = ef.get("antes") or {}, ef.get("depois") or {}
+        mudancas = [
+            {"campo": _NOME_CAMPO.get(c, c), "de": _valor_legivel(c, antes.get(c)), "para": _valor_legivel(c, depois.get(c))}
+            for c in depois
+        ]
+        if mudancas:
+            itens.append({"rotulo": ef.get("rotulo") or "Registro", "titulo": _titulo_curto(ef.get("titulo"), 70),
+                          "mudancas": mudancas})
+    if not itens:
+        return None
+    return novo_card("edicao", {"itens": itens}, list(actions_extra or []))
+
+
+def card_voo_resumo(conn, hoje: date | None = None) -> dict | None:
+    hoje = hoje or date.today()
+    rows = conn.execute(
+        "SELECT data, origem, destino, horas, aeronave, funcao, tipo FROM voos "
+        "WHERE horas IS NOT NULL AND data <= ? ORDER BY data, id",
+        (hoje.isoformat(),),
+    ).fetchall()
+    reais = [r for r in rows if (r["tipo"] or "") != "simulador"]
+    if not reais:
+        return None
+    total = 0
+    por_funcao: dict = {}
+    por_aeronave: dict = {}
+    primeiro_solo = None
+    for r in reais:
+        minutos = int(round(float(r["horas"]) * 60))
+        if primeiro_solo is None and "solo" in (r["funcao"] or "").lower():
+            primeiro_solo = {"minutos": total, "data": r["data"]}
+        total += minutos
+        if r["funcao"]:
+            por_funcao[r["funcao"]] = por_funcao.get(r["funcao"], 0) + minutos
+        if r["aeronave"]:
+            por_aeronave[r["aeronave"]] = por_aeronave.get(r["aeronave"], 0) + minutos
+    ultimo = reais[-1]
+    meta = db.obter_configuracao(conn, "aviacao_meta_horas")
+    return novo_card(
+        "voo_resumo",
+        {
+            "total_min": total,
+            "voos": len(reais),
+            "por_funcao": [{"nome": k, "min": v} for k, v in sorted(por_funcao.items(), key=lambda kv: -kv[1])],
+            "por_aeronave": [{"nome": k, "min": v} for k, v in sorted(por_aeronave.items(), key=lambda kv: -kv[1])],
+            "primeiro_solo": primeiro_solo,
+            "ultimo": {"data": ultimo["data"], "aeronave": ultimo["aeronave"], "origem": ultimo["origem"],
+                       "destino": ultimo["destino"]},
+            "dias_sem_voar": (hoje - date.fromisoformat(ultimo["data"])).days,
+            "simulador_min": sum(int(round(float(r["horas"]) * 60)) for r in rows if (r["tipo"] or "") == "simulador"),
+            "meta_horas": int(meta) if meta and meta.isdigit() else 150,
+            "meta_definida": bool(meta and meta.isdigit()),
+        },
+        [acao_abrir_aba("aviacao", "Abrir Aviação")],
+    )
+
+
+def card_clima(ef: dict) -> dict | None:
+    agora = ef.get("agora")
+    if not isinstance(agora, dict):
+        return None
+    horas = [h for h in (ef.get("proximas_horas") or []) if isinstance(h, dict)][:8]
+    return novo_card("clima", {"lugar": _titulo_curto(ef.get("lugar"), 40), "agora": {
+        k: agora.get(k) for k in ("condicao", "chovendo_agora", "temperatura", "sensacao", "umidade_pct", "vento_kmh")
+    }, "proximas_horas": horas})
+
+
+def card_gastos_resumo(ef: dict) -> dict | None:
+    d = ef.get("dados")
+    if not isinstance(d, dict):
+        return None
+    cats = [c for c in (d.get("por_categoria") or []) if isinstance(c, dict)]
+    return novo_card(
+        "gastos_resumo",
+        {
+            "periodo": d.get("periodo"),
+            "total": d.get("total"),
+            "quantidade": d.get("quantidade"),
+            "por_categoria": cats[:8],
+            "maiores": (d.get("maiores") or [])[:3],
+            "categoria_filtrada": d.get("categoria_filtrada"),
+        },
+        [acao_abrir_aba("gastos", "Abrir Finanças")],
+    )
+
+
+def card_dia(ef: dict) -> dict | None:
+    d = ef.get("dados")
+    if not isinstance(d, dict):
+        return None
+    itens = [
+        {k: c.get(k) for k in ("hora", "ate", "titulo", "origem", "concluida", "dia_inteiro")}
+        for c in (d.get("compromissos") or []) if isinstance(c, dict)
+    ]
+    return novo_card("dia", {"dia": d.get("dia"), "compromissos": itens,
+                             "tarefas_sem_hora": (d.get("tarefas_sem_hora") or [])[:8]})
+
+
+def card_viagem_janelas(ef: dict) -> dict | None:
+    plano = ef.get("plano")
+    if not isinstance(plano, dict) or not isinstance(plano.get("cenarios"), dict):
+        return None
+    return novo_card("viagem_janelas", {
+        "destino": ef.get("destino"), "mes": plano.get("mes"), "dia_definido": plano.get("dia_definido"),
+        "internacional": plano.get("internacional"), "cenarios": plano["cenarios"], "fontes": plano.get("fontes"),
+    })
+
+
+def card_agua(conn, actions_extra=None, dia: date | None = None) -> dict:
+    iso = (dia or date.today()).isoformat()
+    meta = db.obter_configuracao(conn, "agua_meta_copos")
+    return novo_card("agua", {
+        "data": iso, "copos": db.contar_hidratacao_dia(conn, iso),
+        "meta": int(meta) if meta and meta.isdigit() else 8,
+    }, list(actions_extra or []))
 
 
 def _com_abrir(actions_extra, entidade: str, id_: int) -> list:
@@ -855,7 +1040,7 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
     if entidade == "treinos":
         return card_saude_treino(conn, ef.get("dias") or 7)
     if entidade == "hidratacao":
-        return card_saude_dia(conn, registrado="agua" if not ef.get("consulta") else None, actions_extra=desfazer)
+        return card_agua(conn, actions_extra=desfazer)
     if entidade == "saude_dia":
         return card_saude_dia(conn)
     if entidade == "sugestao":
@@ -868,6 +1053,16 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_resumo_financeiro_recorrente(conn)
     if entidade == "rota":
         return card_rota(ef)
+    if entidade == "voo_resumo":
+        return card_voo_resumo(conn)
+    if entidade == "clima":
+        return card_clima(ef)
+    if entidade == "gastos_resumo":
+        return card_gastos_resumo(ef)
+    if entidade == "dia":
+        return card_dia(ef)
+    if entidade == "viagem_janelas":
+        return card_viagem_janelas(ef)
     return None
 
 
@@ -883,9 +1078,23 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
     tarefas_ids: list[int] = []
     pos_tarefas = None
     tarefas_itens: list[dict] = []
+    edicoes: list[dict] = []
+    pos_edicoes = None
+    vistos_consulta: set = set()
     for ef in efeitos:
         entidade = ef.get("entidade")
         id_ = ef.get("id")
+        if entidade == "edicao" and isinstance(id_, int):
+            if pos_edicoes is None:
+                pos_edicoes = len(saida)
+                saida.append(None)
+            edicoes.append(ef)
+            continue
+        # o mesmo card de consulta (ex: voo_resumo depois de editar 2 voos) sai uma vez so
+        if entidade in ("voo_resumo",):
+            if entidade in vistos_consulta:
+                continue
+            vistos_consulta.add(entidade)
         if entidade == "tarefa" and isinstance(id_, int):
             if pos_tarefas is None:
                 pos_tarefas = len(saida)
@@ -918,6 +1127,8 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
     if pos_tarefas is not None:
         card = card_tarefas_criadas(conn, tarefas_ids, _acoes_desfazer(criar_token, tarefas_itens))
         saida[pos_tarefas] = card
+    if pos_edicoes is not None:
+        saida[pos_edicoes] = card_edicao(edicoes, _acoes_desfazer(criar_token, edicoes))
     saida = [c for c in saida if c]
     return saida
 

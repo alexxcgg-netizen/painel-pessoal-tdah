@@ -1722,7 +1722,18 @@ def salvar_mensagem_chat(conn, papel: str, texto: str, cards: list | None = None
     conn.commit()
 
 
+# Edicao feita pela IA (2026-10-09): o Desfazer volta EXATAMENTE os valores
+# antigos dessas colunas. Lista fechada - nada de tabela/coluna vinda da IA, e
+# nenhuma coluna de dinheiro (expenses.amount fica de fora de proposito).
+EDICAO_COLUNAS = {
+    "tasks": ("title", "hora", "due_date", "due_at", "completed_at"),
+    "lembretes": ("titulo", "data", "recorrente", "despertar"),
+    "voos": ("data", "origem", "destino", "horas", "aeronave", "funcao", "observacao"),
+    "expenses": ("category", "description"),
+}
+
 ENTIDADES_DESFAZIVEIS = (
+    "edicao",
     "tarefa", "gasto", "renda", "lembrete", "meta", "evento",
     # Fase 6 (US-E7): modulos ligados aos cards
     "habito", "habito_marcacao", "projeto", "projeto_etapa", "etapa_concluida", "viagem", "hidratacao", "treino",
@@ -1753,6 +1764,22 @@ def criar_acao_desfazer(conn, itens: list[dict]) -> str | None:
                 continue
             limpo["data"] = dia
             limpo["feito"] = item["feito"]
+        if item["entidade"] == "edicao":
+            tabela, antes = item.get("tabela"), item.get("antes")
+            colunas = EDICAO_COLUNAS.get(tabela)
+            if not colunas or not isinstance(antes, dict) or not antes:
+                continue
+            valores = {}
+            for col, val in antes.items():
+                if col not in colunas:
+                    continue
+                if val is not None and not isinstance(val, (str, int, float)):
+                    continue
+                valores[col] = val[:500] if isinstance(val, str) else val
+            if not valores:
+                continue
+            limpo["tabela"] = tabela
+            limpo["antes"] = valores
         if "id" in limpo or "uid" in limpo:
             limpos.append(limpo)
     if not limpos:

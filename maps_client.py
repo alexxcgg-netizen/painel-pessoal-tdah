@@ -114,7 +114,7 @@ def tempo_de_viagem(origem: str, destino: str, modo: str = "DRIVE", _lugares=(No
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": os.environ["GOOGLE_MAPS_API_KEY"],
-        "X-Goog-FieldMask": "routes.duration,routes.distanceMeters",
+        "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
     }
     resp = requests.post(URL, json=body, headers=headers, timeout=15)
     resp.raise_for_status()
@@ -127,6 +127,59 @@ def tempo_de_viagem(origem: str, destino: str, modo: str = "DRIVE", _lugares=(No
     return {
         "duracao_minutos": round(duracao_segundos / 60),
         "distancia_km": round(rota["distanceMeters"] / 1000, 1),
+        "_polyline": (rota.get("polyline") or {}).get("encodedPolyline"),
+    }
+
+
+def decodificar_polyline(codigo: str) -> list[tuple[float, float]]:
+    """Formato 'encoded polyline' do Google -> [(lat, lon), ...]."""
+    pontos, i, lat, lon = [], 0, 0, 0
+    while i < len(codigo):
+        for eixo in (0, 1):
+            resultado, desloc = 0, 0
+            while True:
+                b = ord(codigo[i]) - 63
+                i += 1
+                resultado |= (b & 0x1F) << desloc
+                desloc += 5
+                if b < 0x20:
+                    break
+            delta = ~(resultado >> 1) if resultado & 1 else resultado >> 1
+            if eixo == 0:
+                lat += delta
+            else:
+                lon += delta
+        pontos.append((lat / 1e5, lon / 1e5))
+    return pontos
+
+
+def traco_desenhavel(pontos: list[tuple[float, float]], marcos: list[int], largura=320, altura=200,
+                     margem=22, maximo=90) -> dict | None:
+    """Projeta o caminho num quadro largura x altura (norte pra cima, proporcao
+    real corrigida pela latitude) e reduz pra no maximo `maximo` pontos.
+    `marcos` = indice de cada parada dentro de `pontos`."""
+    import math
+
+    if len(pontos) < 2:
+        return None
+    lat_med = sum(p[0] for p in pontos) / len(pontos)
+    fx = math.cos(math.radians(lat_med))
+    xs = [p[1] * fx for p in pontos]
+    ys = [-p[0] for p in pontos]
+    minx, maxx, miny, maxy = min(xs), max(xs), min(ys), max(ys)
+    escala = min((largura - 2 * margem) / max(maxx - minx, 1e-9), (altura - 2 * margem) / max(maxy - miny, 1e-9))
+    offx = (largura - (maxx - minx) * escala) / 2
+    offy = (altura - (maxy - miny) * escala) / 2
+
+    def proj(i):
+        return [round(offx + (xs[i] - minx) * escala, 1), round(offy + (ys[i] - miny) * escala, 1)]
+
+    passo = max(1, len(pontos) // maximo)
+    indices = sorted(set(range(0, len(pontos), passo)) | {len(pontos) - 1} | set(marcos))
+    return {
+        "w": largura, "h": altura,
+        "pontos": [proj(i) for i in indices],
+        "paradas": [proj(i) for i in marcos],
     }
 
 
@@ -135,9 +188,14 @@ def trajeto(pontos: list[str]) -> dict:
     trecho calculado pela Routes API. Levanta ValueError/RequestException
     como tempo_de_viagem."""
     lugares = [resolver_lugar(p) for p in pontos]
-    trechos = []
+    trechos, caminho, marcos = [], [], [0]
     for i, (origem, destino) in enumerate(zip(pontos, pontos[1:])):
         t = tempo_de_viagem(origem, destino, _lugares=(lugares[i], lugares[i + 1]))
+        codigo = t.pop("_polyline", None)
+        if codigo:
+            pts = decodificar_polyline(codigo)
+            caminho.extend(pts if not caminho else pts[1:])
+            marcos.append(len(caminho) - 1)
         trechos.append({"de": origem, "para": destino, **t})
     return {
         "lugares": [
@@ -146,6 +204,7 @@ def trajeto(pontos: list[str]) -> dict:
         ],
         # chave "_" = so pro servidor (o card), a IA nao ve
         "_place_ids": [l["place_id"] if l else None for l in lugares],
+        "_traco": traco_desenhavel(caminho, marcos) if len(marcos) == len(pontos) else None,
         "trechos": trechos,
         "distancia_total_km": round(sum(t["distancia_km"] for t in trechos), 1),
         "duracao_total_minutos": sum(t["duracao_minutos"] for t in trechos),

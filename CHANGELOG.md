@@ -56,6 +56,36 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-09 (tarde) - IA que edita + cartões vivos
+
+**IA edita, com Desfazer** (nunca apaga, nunca muda valor de dinheiro): `ajustar_tarefa` (hora, dia, título,
+concluir/reabrir), `mover_tarefas` (dia inteiro ou manhã/tarde/noite), `ajustar_lembrete`, `ajustar_voo`
+(aeronave, função, rota, tempo, observação, data), `ajustar_gasto` (só categoria/descrição), `definir_meta_horas_voo`.
+- Desfazer de edição: entidade `edicao` em `acoes_desfazer` guarda os valores ANTIGOS das colunas mudadas;
+  `db.EDICAO_COLUNAS` é a lista fechada de tabela/coluna (sem `expenses.amount`). `_desfazer_itens` faz o UPDATE.
+- Achar o registro é sempre busca exata no banco (`_achar`): 0 ou 2+ = erro com as candidatas, nunca chute.
+- Modo visitante: toda edição recusada no executor.
+- Edições da mesma resposta viram UM card `edicao` (antes riscado → depois) com UM Desfazer.
+
+**Cartões vivos** (protótipo aprovado: https://claude.ai/artifact/A81nC3Yim5toSYRtJs34TU), `static/js/cards-vivos.js`
++ `static/css/secoes/hoje/cards-vivos.css`: tipos novos `edicao`, `voo_resumo`, `clima`, `gastos_resumo`, `dia`,
+`viagem_janelas`, `agua`; `rota` ganhou o mapa com o caminho REAL do Google (`routes.polyline` →
+`maps_client.decodificar_polyline`/`traco_desenhavel`, projetado em 320x200 no servidor) e `saude_treino` os anéis da
+semana. Renderizador puro devolve o estado final; `CardsVivos.preparar` (céu em canvas, avião no arco, onda) e
+`CardsVivos.animar` (só resposta nova). Céu: chuva/garoa/trovoada/limpo/neblina, noite com estrelas e lua; só anima
+visível (IntersectionObserver). Pegadinha: o auto-rolar do chat (MutationObserver em `chat.js`) puxava a tela pro
+fim a cada atualização de número/relógio - `CardsVivos` marca `data-vivo-sem-rolar` e `irProFim` ignora.
+- Consultas devolvem `_efeito` do card: `consultar_voos`/`registrar_voo` → `voo_resumo` (horas por função/aeronave,
+  1º solo, meta em `configuracoes.aviacao_meta_horas`, padrão 150 marcada como exemplo), `consultar_clima` → `clima`,
+  `consultar_gastos` → `gastos_resumo` (mascarado no visitante), `consultar_agenda` → `dia`; água → card `agua`
+  (meta `configuracoes.agua_meta_copos`, padrão 8).
+- **Viagem**: `viagem_compras.py` (puro) + tool `planejar_compras_viagem` → card `viagem_janelas`. Janelas das pesquisas
+  (voo nacional 3-8 semanas; feriado 90-120 dias; internacional 2-8 meses / alta 4-10; hotel alta 3-6 meses) e alta
+  temporada detectada (Carnaval pela Páscoa, Semana Santa, julho, Natal/Réveillon). Só o mês → dois cenários
+  (no feriado / fora) com botão de alternar no card. Não salva a viagem.
+- Checagem com a IA de verdade (banco temporário, Haiku 5.5): 10/10 ferramentas certas, incluindo recusar mudar valor.
+- Service worker v48.
+
 ## 2026-10-08 - Chat passa para o Claude Haiku 5.5
 
 - `ia/config.d/chat.json`: `modelo_atual` = `claude-haiku-5-5` (exame de 30 perguntas: 29/30 nos dois modelos, nenhuma

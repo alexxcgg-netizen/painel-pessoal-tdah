@@ -50,6 +50,7 @@ import gastos
 import geocode_nominatim
 import leitura
 import maps_client
+import viagem_compras
 import metar
 import noticias
 import notificacoes
@@ -2301,34 +2302,250 @@ def _processar_mensagem_chat(
                 resultado["sugestao_dia"] = agenda.sugerir_dia_menos_corrido(carga, dias, produtividade)
         return resultado
 
-    def exec_ajustar_tarefa(entrada):
-        alvo = aprendizado.normalizar_consulta(str(entrada.get("titulo") or ""))
+    # ---- Edicao pela IA (2026-10-09): muda, nunca apaga, nunca mexe em valor de
+    # dinheiro; cada mudanca vira um card "edicao" com Desfazer (volta os valores
+    # antigos - db.EDICAO_COLUNAS). Achar o registro e SEMPRE por busca exata no
+    # banco: 0 ou 2+ resultados = erro com as candidatas, nunca chute.
+    def _recusa_visitante():
+        if has_request_context() and _modo_visitante_ativo():
+            return {"erro": "no modo visitante nada pode ser alterado"}
+        return None
+
+    def _editar(tabela, id_, novos: dict, rotulo: str, titulo: str):
+        """Aplica `novos` (coluna -> valor) e devolve o efeito do card com os
+        valores antigos so das colunas que mudaram de fato."""
+        colunas = db.EDICAO_COLUNAS[tabela]
+        novos = {c: v for c, v in novos.items() if c in colunas}
+        if not novos:
+            return None
+        atual = conn.execute(f"SELECT {', '.join(colunas)} FROM {tabela} WHERE id = ?", (id_,)).fetchone()
+        if not atual:
+            return None
+        mudou = {c: v for c, v in novos.items() if atual[c] != v}
+        if not mudou:
+            return None
+        conn.execute(f"UPDATE {tabela} SET {', '.join(c + ' = ?' for c in mudou)} WHERE id = ?", [*mudou.values(), id_])
+        return {
+            "entidade": "edicao", "tabela": tabela, "id": id_, "rotulo": rotulo, "titulo": titulo,
+            "antes": {c: atual[c] for c in mudou}, "depois": mudou,
+        }
+
+    def _achar(tabela, sql_where, params, texto, coluna_titulo, extra_sql=""):
+        alvo = aprendizado.normalizar_consulta(str(texto or ""))
         if not alvo:
-            return {"erro": "faltou o titulo da tarefa"}
-        hora = _normalizar_hora(entrada.get("hora"))
-        data = entrada.get("quando_data") if isinstance(entrada.get("quando_data"), str) else None
-        try:
-            if data:
-                date.fromisoformat(data)
-        except ValueError:
-            return {"erro": f"data invalida: {data!r}"}
-        if not hora and not data:
-            return {"erro": "informe hora e/ou quando_data"}
-        pend = conn.execute(
-            "SELECT id, title FROM tasks WHERE completed_at IS NULL "
-            "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL)"
-        ).fetchall()
-        achadas = [r for r in pend if alvo in aprendizado.normalizar_consulta(r["title"])]
+            return None, {"erro": "faltou dizer qual registro (titulo ou um trecho dele)"}
+        rows = conn.execute(f"SELECT * FROM {tabela} WHERE {sql_where} {extra_sql}", params).fetchall()
+        achadas = [r for r in rows if alvo in aprendizado.normalizar_consulta(r[coluna_titulo] or "")]
+        exatas = [r for r in achadas if aprendizado.normalizar_consulta(r[coluna_titulo] or "") == alvo]
+        if len(exatas) == 1:
+            return exatas[0], None
         if len(achadas) != 1:
-            return {"erro": "nenhuma tarefa pendente com esse titulo" if not achadas
-                    else "mais de uma tarefa combina, use um titulo mais especifico",
-                    "candidatas": [r["title"] for r in achadas][:5]}
-        if hora:
-            conn.execute("UPDATE tasks SET hora = ? WHERE id = ?", (hora, achadas[0]["id"]))
+            return None, {
+                "erro": "nenhum registro com esse nome" if not achadas
+                else "mais de um registro combina - peça pro Alex dizer qual",
+                "candidatas": [r[coluna_titulo] for r in achadas][:6],
+            }
+        return achadas[0], None
+
+    def _data_valida(valor):
+        if valor in (None, ""):
+            return None
+        if not isinstance(valor, str):
+            raise ValueError("data invalida")
+        date.fromisoformat(valor)
+        return valor
+
+    def exec_ajustar_tarefa(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        status = entrada.get("status")
+        cond = "completed_at IS NOT NULL" if status == "reabrir" else "completed_at IS NULL"
+        tarefa, erro = _achar("tasks", f"{cond} AND NOT (recorrencia IS NOT NULL AND due_date IS NULL)", (),
+                              entrada.get("titulo"), "title")
+        if erro:
+            return erro
+        try:
+            data = _data_valida(entrada.get("quando_data"))
+        except ValueError:
+            return {"erro": f"data invalida: {entrada.get('quando_data')!r}"}
+        novos = {}
+        if entrada.get("sem_hora"):
+            novos["hora"] = None
+        elif entrada.get("hora"):
+            hora = _normalizar_hora(entrada.get("hora"))
+            if not hora:
+                return {"erro": f"hora invalida: {entrada.get('hora')!r}"}
+            novos["hora"] = hora
         if data:
-            conn.execute("UPDATE tasks SET due_date = ? WHERE id = ?", (data, achadas[0]["id"]))
+            novos["due_date"] = data
+        novo_titulo = (entrada.get("novo_titulo") or "").strip()
+        if novo_titulo:
+            novos["title"] = novo_titulo[:200]
+        if status == "concluir":
+            novos["completed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        elif status == "reabrir":
+            novos["completed_at"] = None
+        if not novos:
+            return {"erro": "nada pra mudar - informe hora, quando_data, novo_titulo ou status"}
+        efeito = _editar("tasks", tarefa["id"], novos, "Tarefa", tarefa["title"])
         conn.commit()
-        return {"ok": True, "titulo": achadas[0]["title"]}
+        if not efeito:
+            return {"ok": True, "titulo": tarefa["title"], "obs": "ja estava assim, nada mudou"}
+        return {"ok": True, "titulo": tarefa["title"], "_efeito": efeito}
+
+    def exec_mover_tarefas(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        try:
+            de = _data_valida(entrada.get("de_data")) or date.today().isoformat()
+            para = _data_valida(entrada.get("para_data"))
+        except ValueError:
+            return {"erro": "data invalida"}
+        if not para:
+            return {"erro": "faltou para_data"}
+        periodo = entrada.get("periodo") or "dia_todo"
+        faixas = {"manha": ("00:00", "11:59"), "tarde": ("12:00", "17:59"), "noite": ("18:00", "23:59")}
+        rows = conn.execute(
+            "SELECT id, title, hora, due_date FROM tasks WHERE completed_at IS NULL AND due_date = ? "
+            "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL) AND recorrente_origem_id IS NULL ORDER BY hora, id",
+            (de,),
+        ).fetchall()
+        if periodo in faixas:
+            a, b = faixas[periodo]
+            rows = [r for r in rows if r["hora"] and a <= r["hora"] <= b]
+        if not rows:
+            return {"erro": "nenhuma tarefa pendente nesse dia/periodo", "dia": de, "periodo": periodo}
+        efeitos = []
+        for r in rows[:30]:
+            ef = _editar("tasks", r["id"], {"due_date": para}, "Tarefa", r["title"])
+            if ef:
+                efeitos.append(ef)
+        conn.commit()
+        return {"ok": True, "movidas": [r["title"] for r in rows[:30]], "para": para, "_efeito": efeitos}
+
+    def exec_ajustar_lembrete(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        lembrete, erro = _achar("lembretes", "1 = 1", (), entrada.get("titulo"), "titulo")
+        if erro:
+            return erro
+        try:
+            data = _data_valida(entrada.get("data"))
+        except ValueError:
+            return {"erro": f"data invalida: {entrada.get('data')!r}"}
+        novos = {}
+        if data:
+            novos["data"] = data
+        if (entrada.get("novo_titulo") or "").strip():
+            novos["titulo"] = entrada["novo_titulo"].strip()[:200]
+        if isinstance(entrada.get("recorrente"), bool):
+            novos["recorrente"] = int(entrada["recorrente"])
+        if isinstance(entrada.get("despertar"), bool):
+            novos["despertar"] = int(entrada["despertar"])
+        if not novos:
+            return {"erro": "nada pra mudar"}
+        efeito = _editar("lembretes", lembrete["id"], novos, "Lembrete", lembrete["titulo"])
+        conn.commit()
+        return {"ok": True, "titulo": lembrete["titulo"], **({"_efeito": efeito} if efeito else {"obs": "ja estava assim"})}
+
+    def exec_ajustar_voo(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        try:
+            dia = _data_valida(entrada.get("data_do_voo"))
+        except ValueError:
+            return {"erro": "data_do_voo invalida"}
+        if not dia:
+            return {"erro": "faltou data_do_voo (AAAA-MM-DD)"}
+        rows = conn.execute("SELECT * FROM voos WHERE data = ? ORDER BY id", (dia,)).fetchall()
+        filtro_origem = (entrada.get("origem_atual") or "").strip().upper()
+        filtro_destino = (entrada.get("destino_atual") or "").strip().upper()
+        if filtro_origem:
+            rows = [r for r in rows if (r["origem"] or "").upper() == filtro_origem]
+        if filtro_destino:
+            rows = [r for r in rows if (r["destino"] or "").upper() == filtro_destino]
+        if len(rows) != 1:
+            return {
+                "erro": "nenhum voo nesse dia" if not rows else "mais de um voo nesse dia - informe origem_atual/destino_atual",
+                "voos_do_dia": [f"{r['origem'] or '?'}-{r['destino']}" for r in rows][:6],
+            }
+        voo = rows[0]
+        novos = {}
+        for campo in ("aeronave", "funcao", "origem", "destino", "observacao"):
+            valor = entrada.get(campo)
+            if isinstance(valor, str) and valor.strip():
+                v = valor.strip()[:300]
+                novos[campo] = v.upper().replace("-", "") if campo == "aeronave" else v
+        if entrada.get("horas") not in (None, ""):
+            try:
+                horas = float(entrada["horas"])
+            except (TypeError, ValueError):
+                return {"erro": "horas invalidas"}
+            if not 0 < horas <= 24:
+                return {"erro": "horas fora do razoavel (0 a 24)"}
+            novos["horas"] = round(horas, 2)
+        try:
+            nova_data = _data_valida(entrada.get("nova_data"))
+        except ValueError:
+            return {"erro": "nova_data invalida"}
+        if nova_data:
+            novos["data"] = nova_data
+        if not novos:
+            return {"erro": "nada pra mudar"}
+        efeito = _editar("voos", voo["id"], novos, "Voo", f"{dia} {voo['origem'] or ''}-{voo['destino']}".strip())
+        conn.commit()
+        return {"ok": True, **({"_efeito": [efeito, {"entidade": "voo_resumo", "consulta": True}]} if efeito else {"obs": "ja estava assim"})}
+
+    def exec_ajustar_gasto(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        desde = (date.today() - timedelta(days=120)).isoformat()
+        gasto, erro = _achar("expenses", "date(created_at) >= ?", (desde,), entrada.get("descricao_atual"), "description",
+                             "ORDER BY id DESC")
+        if erro:
+            return erro
+        novos = {}
+        if (entrada.get("categoria") or "").strip():
+            novos["category"] = entrada["categoria"].strip().lower()[:60]
+        if (entrada.get("nova_descricao") or "").strip():
+            novos["description"] = entrada["nova_descricao"].strip()[:200]
+        if not novos:
+            return {"erro": "nada pra mudar (so categoria e descricao podem mudar; valor nunca)"}
+        efeito = _editar("expenses", gasto["id"], novos, "Gasto", gasto["description"] or gasto["category"])
+        conn.commit()
+        return {"ok": True, **({"_efeito": efeito} if efeito else {"obs": "ja estava assim"})}
+
+    def exec_definir_meta_horas_voo(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        try:
+            horas = int(float(entrada.get("horas")))
+        except (TypeError, ValueError):
+            return {"erro": "horas invalidas"}
+        if not 1 <= horas <= 20000:
+            return {"erro": "meta fora do razoavel"}
+        definir_configuracao(conn, "aviacao_meta_horas", str(horas))
+        return {"ok": True, "meta_horas": horas, "_efeito": {"entidade": "voo_resumo", "consulta": True}}
+
+    def exec_planejar_compras_viagem(entrada):
+        try:
+            ida = date.fromisoformat(entrada["data_ida"]) if entrada.get("data_ida") else None
+            mes = entrada.get("mes") if not ida else None
+            if mes and not re.fullmatch(r"\d{4}-\d{2}", str(mes)):
+                return {"erro": "mes deve ser AAAA-MM"}
+            plano = viagem_compras.planejar(ida=ida, mes=mes, internacional=bool(entrada.get("internacional")),
+                                            hoje=date.today())
+        except (ValueError, KeyError) as e:
+            return {"erro": f"nao consegui planejar: {e}"}
+        destino = (entrada.get("destino") or "").strip()[:80] or None
+        return {**plano, "destino": destino,
+                "_efeito": {"entidade": "viagem_janelas", "consulta": True, "plano": plano, "destino": destino}}
 
     def exec_consultar_clima(entrada):
         pedida = (entrada.get("cidade") or "").strip()
@@ -2352,8 +2569,18 @@ def _processar_mensagem_chat(
             return {"erro": "servico de clima fora do ar agora"}
         resultado = {"cidade": local_c["nome"], "agora": agora}
         horas = clima.previsao_horaria_hoje(local_c["lat"], local_c["lon"])
+        hora_agora = _agora_brasilia().hour
         if horas:
-            resultado["resto_do_dia"] = clima.resumo_chuva_do_dia(horas, _agora_brasilia().hour)["texto"]
+            resultado["resto_do_dia"] = clima.resumo_chuva_do_dia(horas, hora_agora)["texto"]
+        bairro = local_gps["rotulo"].split(",")[1].strip() if (not pedida and local_gps and local_gps.get("rotulo")
+                                                               and local_gps["rotulo"].count(",") >= 1) else None
+        resultado["_efeito"] = {
+            "entidade": "clima", "consulta": True, "lugar": bairro or local_c["nome"], "agora": agora,
+            "proximas_horas": [
+                {"hora": h["hora"], "chuva_pct": h["chuva_pct"], "temp": h["temp"]}
+                for h in sorted(horas or [], key=lambda h: h["hora"]) if h["hora"] >= hora_agora
+            ][:8],
+        }
         return resultado
 
     def exec_estimar_trajeto(entrada):
@@ -2385,6 +2612,7 @@ def _processar_mensagem_chat(
         except (ValueError, requests.RequestException):
             return {"erro": "nao consegui calcular a rota agora"}
         place_ids = resultado.pop("_place_ids", None)
+        traco = resultado.pop("_traco", None)
         lugares = resultado["lugares"]
         if de_onde_estou:
             if gps_usado:
@@ -2403,6 +2631,7 @@ def _processar_mensagem_chat(
             "distancia_km": resultado["distancia_total_km"],
             "duracao_min": resultado["duracao_total_minutos"],
             "url": maps_client.link_rota(lugares, place_ids, de_onde_estou),
+            "traco": traco,
         }
         return resultado
 
@@ -2639,7 +2868,7 @@ def _processar_mensagem_chat(
                  _normalizar_hora(entrada.get("hora")), existente["id"]),
             )
             conn.commit()
-            return {"ok": True, "atualizado": True}
+            return {"ok": True, "atualizado": True, "_efeito": {"entidade": "voo_resumo", "consulta": True}}
         create_voo(
             conn,
             entrada["data"],
@@ -2649,6 +2878,8 @@ def _processar_mensagem_chat(
             entrada.get("observacao"),
             _normalizar_hora(entrada.get("hora")),
         )
+        if entrada.get("horas"):
+            return {"ok": True, "_efeito": {"entidade": "voo_resumo", "consulta": True}}
         return {"ok": True}
 
     def exec_rotular_cobranca_generica(entrada):
@@ -2918,22 +3149,37 @@ def _processar_mensagem_chat(
     def exec_consultar_gastos(entrada):
         if has_request_context() and _modo_visitante_ativo():
             return {"erro": "gastos indisponiveis no modo visitante"}
-        return chat_consultas.consultar_gastos(conn, entrada)
+        r = chat_consultas.consultar_gastos(conn, entrada)
+        if isinstance(r, dict) and not r.get("erro"):
+            r["_efeito"] = {"entidade": "gastos_resumo", "consulta": True, "dados": r}
+        return r
 
     def exec_consultar_voos(entrada):
         if has_request_context() and _modo_visitante_ativo():
             return {"erro": "voos indisponiveis no modo visitante"}
-        return chat_consultas.consultar_voos(conn, entrada)
+        r = chat_consultas.consultar_voos(conn, entrada)
+        if isinstance(r, dict) and not r.get("erro"):
+            r["_efeito"] = {"entidade": "voo_resumo", "consulta": True}
+        return r
 
     def exec_consultar_agenda(entrada):
         icloud = None
         if caldav_client.configurado() and not (has_request_context() and _modo_visitante_ativo()):
             icloud = caldav_client.eventos_do_dia
-        return chat_consultas.consultar_agenda(conn, entrada, eventos_icloud=icloud)
+        r = chat_consultas.consultar_agenda(conn, entrada, eventos_icloud=icloud)
+        if isinstance(r, dict) and not r.get("erro"):
+            r["_efeito"] = {"entidade": "dia", "consulta": True, "dados": r}
+        return r
 
     executores = {
         "registrar_tarefa": exec_registrar_tarefa,
         "ajustar_tarefa": exec_ajustar_tarefa,
+        "mover_tarefas": exec_mover_tarefas,
+        "ajustar_lembrete": exec_ajustar_lembrete,
+        "ajustar_voo": exec_ajustar_voo,
+        "ajustar_gasto": exec_ajustar_gasto,
+        "definir_meta_horas_voo": exec_definir_meta_horas_voo,
+        "planejar_compras_viagem": exec_planejar_compras_viagem,
         "consultar_clima": exec_consultar_clima,
         "estimar_trajeto": exec_estimar_trajeto,
         "registrar_gasto": exec_registrar_gasto,
@@ -3092,7 +3338,8 @@ def _criar_token_desfazer(conn):
         traduzidos = []
         for ef in itens:
             item = {"entidade": ef.get("entidade"), "id": ef.get("id"), "uid": ef.get("uid"),
-                    "data": ef.get("data"), "feito": ef.get("feito")}
+                    "data": ef.get("data"), "feito": ef.get("feito"),
+                    "tabela": ef.get("tabela"), "antes": ef.get("antes")}
             saldo = ef.get("saldo")
             if ef.get("entidade") in ("gasto", "renda") and isinstance(saldo, dict):
                 antes, depois = saldo.get("antes"), saldo.get("depois")
@@ -3148,7 +3395,14 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
             continue
         if not isinstance(id_, int):
             continue
-        if entidade == "tarefa":
+        if entidade == "edicao":
+            colunas = db.EDICAO_COLUNAS.get(item.get("tabela"))
+            antes = {c: v for c, v in (item.get("antes") or {}).items() if colunas and c in colunas}
+            if not antes:
+                continue
+            sets = ", ".join(f"{c} = ?" for c in antes)  # nomes vindos da lista fechada acima
+            cur = conn.execute(f"UPDATE {item['tabela']} SET {sets} WHERE id = ?", [*antes.values(), id_])
+        elif entidade == "tarefa":
             # rotina recorrente: o modelo + as instancias materializadas dele
             ids = [id_] + [
                 r["id"] for r in conn.execute("SELECT id FROM tasks WHERE recorrente_origem_id = ?", (id_,)).fetchall()

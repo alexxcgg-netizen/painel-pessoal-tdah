@@ -1,0 +1,279 @@
+/* static/css/secoes/hoje/cards-vivos.css - cartoes vivos do chat (static/js/cards-vivos.js).
+   Mesmo sistema do resto dos cards (--card-cor por tipo, --font-tech nos numeros,
+   --ease-suave/--ease-bounce). Tudo tem estado final estatico; a animacao so entra nas
+   respostas novas e some com prefers-reduced-motion. */
+
+.card-contrato-edicao { --card-cor: var(--cor-cat-2); }
+.card-contrato-voo_resumo { --card-cor: var(--cor-cat-3); }
+.card-contrato-clima { --card-cor: var(--cor-cat-8); padding: 0; overflow: hidden; }
+.card-contrato-gastos_resumo { --card-cor: var(--cor-cat-6); }
+.card-contrato-dia { --card-cor: var(--cor-cat-2); }
+.card-contrato-viagem_janelas { --card-cor: var(--cor-cat-4); }
+.card-contrato-agua { --card-cor: var(--cor-cat-1); }
+
+.vivo-num {
+  font-family: var(--font-tech);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.vivo-grande { font-size: 2.35rem; line-height: 1; letter-spacing: -0.04em; }
+.vivo-sub { margin: 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; }
+.vivo-cabeca { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin: 0.25rem 0 0.35rem; }
+.vivo-nota {
+  margin: 0.5rem 0 0;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+.vivo-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.35rem 0; }
+
+/* ---- edicao: antes riscado -> depois ------------------------------------- */
+.vivo-edicao { list-style: none; margin: 0.2rem 0 0; padding: 0; display: grid; gap: 0.6rem; }
+.vivo-edicao-titulo { margin: 0 0 0.2rem; display: flex; align-items: center; gap: 0.45rem; font-weight: 600; font-size: 0.9rem; }
+.vivo-edicao-titulo .card-chip { margin-left: 0; }
+.vivo-mudanca {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 5.6rem auto auto 1fr;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+}
+.vivo-mudanca-campo { color: var(--text-faint); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.vivo-de { color: var(--text-faint); text-decoration-color: color-mix(in srgb, var(--card-cor) 70%, transparent); }
+.vivo-seta { color: var(--card-cor); }
+.vivo-para { color: var(--text); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.vivo-mudanca.entrou .vivo-para { animation: vivoPara 0.6s var(--ease-bounce) both; }
+.vivo-mudanca.entrou .vivo-de { animation: vivoDe 0.5s var(--ease-suave) both; }
+@keyframes vivoPara { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+@keyframes vivoDe { from { text-decoration-color: transparent; } }
+
+/* ---- voo ------------------------------------------------------------------ */
+.vivo-arco { width: 100%; height: auto; display: block; overflow: visible; color: var(--card-cor); margin: 0.1rem 0 0.4rem; }
+.vivo-arco text { font-family: var(--font-tech); font-size: 10px; fill: var(--text-faint); }
+.vivo-arco-base { fill: none; stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 3 6; stroke-linecap: round; }
+.vivo-arco-rastro { fill: none; stroke: var(--card-cor); stroke-width: 3; stroke-linecap: round; opacity: 0.9; }
+.vivo-aviao { color: var(--card-cor); }
+.vivo-aviao-halo { fill: var(--card-cor); opacity: 0.16; }
+.vivo-marco { fill: var(--text-faint); }
+.vivo-marco-agora { fill: var(--card-cor); }
+.vivo-arco .vivo-marco-txt-agora { fill: var(--card-cor); font-weight: 600; }
+.vivo-barras { display: grid; gap: 0.5rem; }
+.vivo-barra-linha { display: grid; grid-template-columns: 1fr auto; gap: 0.2rem 0.6rem; font-size: 0.8rem; color: var(--text-muted); }
+.vivo-barra-linha .vivo-num { color: var(--text); }
+.vivo-trilho { grid-column: 1 / -1; height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.vivo-trilho i { display: block; height: 100%; border-radius: inherit; background: var(--card-cor); transform-origin: left; }
+.vivo-anvs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.55rem; }
+.vivo-anv {
+  font-family: var(--font-tech);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.vivo-anv b { color: var(--text); font-weight: 600; margin-left: 0.3rem; }
+
+/* ---- clima ---------------------------------------------------------------- */
+.vivo-ceu { position: relative; height: 176px; }
+.vivo-ceu canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.vivo-ceu .card-resultado-eyebrow { position: absolute; top: 0.85rem; left: 1rem; right: 1rem; z-index: 1; }
+.vivo-ceu-rodape {
+  position: absolute;
+  inset: auto 1rem 0.85rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.6rem;
+  z-index: 1;
+}
+.vivo-direita { text-align: right; }
+.vivo-direita b { color: var(--text); font-size: 0.85rem; }
+.vivo-rotulo-horas { padding: 0.8rem 1rem 0; }
+.vivo-horas {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.35rem;
+  align-items: end;
+  height: 68px;
+  padding: 0.4rem 1rem 0.9rem;
+}
+.vivo-hora { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0.25rem; height: 100%; }
+.vivo-hora i { width: 100%; max-width: 16px; border-radius: 5px 5px 2px 2px; background: color-mix(in srgb, var(--card-cor) 75%, transparent); transform-origin: bottom; }
+.vivo-hora small { font-family: var(--font-tech); font-size: 0.6rem; color: var(--text-faint); }
+.card-contrato-clima .card-rodape { padding: 0 1rem 0.9rem; }
+
+/* ---- gastos --------------------------------------------------------------- */
+.vivo-rosca-linha { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 0.85rem; align-items: center; margin-top: 0.4rem; }
+.vivo-rosca { position: relative; width: 108px; height: 108px; }
+.vivo-rosca svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.vivo-rosca-fundo { stroke: var(--surface-3); }
+.vivo-rosca-meio { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.vivo-rosca-meio small { font-family: var(--font-tech); font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+.vivo-rosca-meio .vivo-num { font-size: 0.9rem; }
+.vivo-legenda { display: grid; gap: 0.45rem; font-size: 0.78rem; min-width: 0; }
+.vivo-legenda > div { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; }
+.vivo-legenda i { width: 9px; height: 9px; border-radius: 3px; }
+.vivo-legenda span:nth-child(2) { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
+.vivo-legenda > div.entrou { animation: vivoEntra 0.55s var(--ease-suave) both; }
+@keyframes vivoEntra { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+
+/* ---- dia ------------------------------------------------------------------ */
+.vivo-linha-tempo { position: relative; list-style: none; margin: 0.25rem 0 0; padding: 0 0 0 1.55rem; }
+.vivo-linha-tempo::before {
+  content: "";
+  position: absolute;
+  left: 0.42rem; top: 0.5rem; bottom: 0.5rem;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+.vivo-comp { position: relative; display: grid; grid-template-columns: 3.1rem minmax(0, 1fr); gap: 0.6rem; padding: 0.45rem 0; align-items: baseline; font-size: 0.86rem; transition: opacity 0.5s var(--ease-suave); }
+.vivo-comp::before {
+  content: "";
+  position: absolute;
+  left: -1.42rem; top: 0.72rem;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+}
+.vivo-comp time { font-family: var(--font-tech); font-variant-numeric: tabular-nums; font-size: 0.78rem; color: var(--text-muted); }
+.vivo-comp.passou, .vivo-comp.feito { opacity: 0.45; }
+.vivo-comp.feito span { text-decoration: line-through; }
+.vivo-comp.passou::before { background: var(--text-faint); border-color: var(--text-faint); }
+.vivo-comp.proximo::before { background: var(--card-cor); border-color: var(--card-cor); animation: vivoPulso 1.8s var(--ease-suave) infinite; }
+.vivo-comp.proximo time { color: var(--card-cor); }
+.vivo-comp.entrou { animation: vivoEntra 0.5s var(--ease-suave) both; }
+.vivo-agora {
+  position: absolute;
+  left: 0; right: 0;
+  height: 0;
+  list-style: none;
+  border-top: 1.5px dashed color-mix(in srgb, var(--cor-cat-5) 80%, transparent);
+  transition: top 1.4s var(--ease-suave);
+  pointer-events: none;
+}
+.vivo-agora span { position: absolute; right: 0; top: -0.55rem; font-family: var(--font-tech); font-size: 0.6rem; color: var(--cor-cat-5); background: var(--surface); padding-left: 0.35rem; }
+@keyframes vivoPulso {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--card-cor) 55%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.vivo-chip-tarefa {
+  font-size: 0.74rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+/* ---- viagem --------------------------------------------------------------- */
+.vivo-alternar {
+  font: inherit;
+  font-size: 0.74rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.25s var(--ease-suave), color 0.25s var(--ease-suave);
+}
+.vivo-alternar[aria-pressed="true"] { background: var(--card-cor); color: #05080b; border-color: transparent; }
+.vivo-alternar:focus-visible { outline: 2px solid var(--card-cor); outline-offset: 2px; }
+.vivo-janelas { width: 100%; height: auto; display: block; overflow: visible; margin: 0.35rem 0 0.2rem; }
+.vivo-janelas text { font-family: var(--font-tech); font-size: 9.5px; fill: var(--text-faint); }
+.vivo-grade { stroke: var(--border); stroke-width: 1; }
+.vivo-faixa { opacity: 0.9; }
+.vivo-faixa-passagem { fill: var(--cor-cat-3); }
+.vivo-faixa-hotel { fill: var(--cor-cat-4); }
+.vivo-janelas .vivo-faixa-rot { font-family: var(--font-body); font-size: 10px; font-weight: 600; fill: var(--text-muted); }
+.vivo-viagem-linha { stroke: var(--card-cor); stroke-width: 2; }
+.vivo-viagem-ponto { fill: var(--card-cor); }
+.vivo-hoje { stroke: var(--cor-cat-5); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.vivo-janelas .vivo-hoje-txt { fill: var(--cor-cat-5); font-weight: 600; }
+.vivo-dicas { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
+.vivo-dica { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.15rem 0.6rem; align-items: start; font-size: 0.84rem; }
+.vivo-dica b { font-weight: 600; }
+.vivo-dica p { margin: 0; grid-column: 2; font-size: 0.76rem; color: var(--text-muted); }
+.vivo-dica.entrou { animation: vivoSobe 0.55s var(--ease-suave) both; }
+@keyframes vivoSobe { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.vivo-selo {
+  font-family: var(--font-tech);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  margin-top: 0.1rem;
+}
+.vivo-selo-agora { background: color-mix(in srgb, var(--cor-cat-7) 20%, transparent); color: var(--cor-cat-7); }
+.vivo-selo-em_breve { background: var(--surface-3); color: var(--text-muted); }
+.vivo-selo-passou { background: color-mix(in srgb, var(--cor-cat-5) 18%, transparent); color: var(--cor-cat-5); }
+
+/* ---- agua ----------------------------------------------------------------- */
+.vivo-agua { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 1rem; align-items: center; margin-top: 0.3rem; }
+.vivo-copo { width: 84px; height: auto; display: block; }
+.vivo-copo-fundo { fill: var(--surface-2); }
+.vivo-onda-1 { fill: color-mix(in srgb, var(--card-cor) 80%, transparent); }
+.vivo-onda-2 { fill: color-mix(in srgb, var(--card-cor) 40%, transparent); }
+.vivo-copo-borda { fill: none; stroke: color-mix(in srgb, var(--card-cor) 55%, var(--border)); stroke-width: 2.5; stroke-linejoin: round; }
+.vivo-agua-info { display: grid; gap: 0.45rem; min-width: 0; }
+.vivo-copinhos { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.vivo-copinhos i {
+  width: 13px; height: 17px;
+  border-radius: 3px 3px 5px 5px;
+  border: 1.5px solid color-mix(in srgb, var(--card-cor) 55%, var(--border));
+  transition: background 0.5s var(--ease-suave), transform 0.5s var(--ease-bounce);
+}
+.vivo-copinhos i.cheio { background: var(--card-cor); border-color: var(--card-cor); }
+
+/* ---- rota (mapa do caminho real) ------------------------------------------- */
+.vivo-mapa {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 10;
+  margin: 0.4rem 0 0.5rem;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.vivo-rota-mapa { width: 100%; height: 100%; display: block; }
+.vivo-grade-linha { stroke: var(--border); stroke-width: 0.6; }
+.vivo-rota-sombra { fill: none; stroke: color-mix(in srgb, var(--card-cor) 18%, transparent); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+.vivo-rota-caminho { fill: none; stroke: var(--card-cor); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.vivo-pino-origem { fill: var(--surface); stroke: var(--card-cor); stroke-width: 2.5; }
+.vivo-pino-halo { fill: var(--card-cor); opacity: 0.18; }
+.vivo-pino-destino { fill: var(--card-cor); }
+.vivo-pino-nome { font-family: var(--font-body); font-size: 11px; font-weight: 600; fill: var(--text-muted); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; }
+.vivo-rota-pino { transition: opacity 0.4s var(--ease-suave); }
+.vivo-carro { fill: var(--text); }
+.vivo-carro-halo { fill: var(--card-cor); opacity: 0.25; }
+
+/* ---- treino (aneis da semana) --------------------------------------------- */
+.vivo-semana { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.35rem; margin: 0.35rem 0 0.2rem; }
+.vivo-semana-dia { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+.vivo-semana-dia svg { width: 100%; max-width: 38px; height: auto; display: block; }
+.vivo-semana-dia small { font-family: var(--font-tech); font-size: 0.62rem; color: var(--text-faint); }
+.vivo-semana-dia.hoje small { color: var(--card-cor); font-weight: 600; }
+.vivo-semana-fundo { fill: none; stroke: var(--surface-3); stroke-width: 4; }
+.vivo-semana-anel { fill: none; stroke: var(--card-cor); stroke-width: 4; stroke-linecap: round; }
+.vivo-semana-check { fill: none; stroke: var(--card-cor); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vivo-mudanca.entrou .vivo-para,
+  .vivo-mudanca.entrou .vivo-de,
+  .vivo-legenda > div.entrou,
+  .vivo-comp.entrou,
+  .vivo-comp.proximo::before,
+  .vivo-dica.entrou { animation: none !important; }
+  .vivo-agora, .vivo-copinhos i, .vivo-rota-pino { transition: none !important; }
+}

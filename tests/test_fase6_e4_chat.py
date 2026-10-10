@@ -271,9 +271,10 @@ class ConsultaChatLocalTestCase(Base):
     def test_tomei_um_copo_de_agua_incrementa_e_mostra_saude_do_dia(self):
         db.registrar_hidratacao(self.conn, self.hoje.isoformat())
         corpo = self.chat_local("tomei um copo de agua")
-        self.assertEqual(self.tipos(corpo), ["saude_dia"])
+        # cartao vivo (2026-10-09): agua tem card proprio (copo enchendo), nao mais o saude_dia
+        self.assertEqual(self.tipos(corpo), ["agua"])
         d = corpo["cards"][0]["data"]
-        self.assertEqual((d["agua_copos"], d["registrado"], d["data"]), (2, "agua", self.hoje.isoformat()))
+        self.assertEqual((d["copos"], d["meta"], d["data"]), (2, 8, self.hoje.isoformat()))
         self.assertEqual(db.contar_hidratacao_dia(self.conn, self.hoje.isoformat()), 2)
         self.assertIn("2 hoje", corpo["resumo_texto"])
         token = self.desfazer_de(corpo["cards"][0])
@@ -660,7 +661,7 @@ class BrainDumpCardsTestCase(Base):
     def test_consulta_no_brain_dump_resolve_local(self):
         item_id = self.client.post("/api/brain-dump", json={"texto": "tomei um copo de agua"}).get_json()["id"]
         res = self._processar(item_id, fake=ia_proibida)
-        self.assertEqual(self.tipos(res.get_json()), ["saude_dia"])
+        self.assertEqual(self.tipos(res.get_json()), ["agua"])
 
     def test_converter_tarefa_e_gasto_devolvem_contrato(self):
         item_id = self.client.post("/api/brain-dump", json={"texto": "levar carro na revisao"}).get_json()["id"]

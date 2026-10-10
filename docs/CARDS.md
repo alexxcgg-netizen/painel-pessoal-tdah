@@ -435,3 +435,20 @@ partida ao fim), `distancia_km`, `duracao_min`, `partir_de_onde_estou` (bool - a
 esta"). `actions`: uma `abrir_link` (`{tipo, rotulo, url}`) com o link universal do Google Maps; o front so
 renderiza `abrir_link` quando a `url` comeca com `https://www.google.com/maps/` (qualquer outra e ignorada).
 
+## Cartões vivos (aditivo, 2026-10-09)
+
+Renderizados em `static/js/cards-vivos.js` (rota e saude_treino em `cards-tipos.js`). O HTML já sai no estado
+final; a animação só entra em resposta nova (`CardsVivos.animar`). Campos (`data`):
+
+| type | data |
+| :--- | :--- |
+| `edicao` | `itens: [{rotulo, titulo, mudancas: [{campo, de, para}]}]` + action `desfazer` (volta os valores antigos) |
+| `voo_resumo` | `total_min, voos, por_funcao[{nome,min}], por_aeronave[{nome,min}], primeiro_solo{minutos,data}, ultimo{data,aeronave,origem,destino}, dias_sem_voar, simulador_min, meta_horas, meta_definida` |
+| `clima` | `lugar, agora{condicao, chovendo_agora, temperatura, sensacao, umidade_pct, vento_kmh}, proximas_horas[{hora, chuva_pct, temp}]` |
+| `gastos_resumo` | `periodo{de,ate}, total, quantidade, por_categoria[{categoria,valor}], maiores, categoria_filtrada` (visitante: `oculto`) |
+| `dia` | `dia, compromissos[{hora, ate, titulo, origem, concluida, dia_inteiro}], tarefas_sem_hora[]` |
+| `viagem_janelas` | `destino, mes, dia_definido, internacional, cenarios{no_feriado?, fora?: {ida, alta{nome,de,ate}?, janelas[{item, inicio, fim, status: agora/em_breve/passou, dias}]}}, fontes` |
+| `agua` | `data, copos, meta` + `desfazer` (visitante: `oculto`) |
+| `rota` (+) | `traco{w, h, pontos[[x,y]], paradas[[x,y]]}` - caminho real já projetado |
+| `saude_treino` (+) | `semana[{data, feito, hoje}] (seg..dom), meta_semana` |
+

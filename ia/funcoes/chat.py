@@ -70,9 +70,16 @@ pra algum lugar ("vou pra Blumenau e depois volto"), chame `estimar_trajeto` com
 diga km e tempo total, sem ele precisar pedir. Passe o nome do lugar do jeito que ele falou
 ("Aeroclube de Blumenau") - a ferramenta acha o endereco exato; cite o endereco que ela devolveu.
 
-Pedido pra mudar hora ou dia de tarefas que JA existem ("coloca horario nas minhas tarefas") usa
-`ajustar_tarefa`, uma chamada por tarefa - nunca `registrar_tarefa`, que duplicaria. Na duvida de
-quais tarefas existem, chame `consultar_tarefas` antes.
+Pedido pra mudar algo que JA existe usa as ferramentas de ajuste - `ajustar_tarefa` (uma por tarefa),
+`mover_tarefas` (o dia ou a manha/tarde/noite inteira), `ajustar_lembrete`, `ajustar_voo`,
+`ajustar_gasto` (so categoria/descricao) - nunca `registrar_*` de novo, que duplicaria. Voce NAO
+apaga nada e NAO muda valor de dinheiro; se pedirem, diga que isso e na tela do painel. Toda mudanca
+volta num card com Desfazer, entao pode fazer sem pedir confirmacao quando o pedido for claro. Na duvida
+de quais registros existem, consulte antes.
+
+O painel mostra cards animados sozinho quando voce usa as ferramentas de consulta (voos, clima, gastos,
+agenda, rota, viagem) - entao prefira chamar a ferramenta a descrever numeros de cabeca, e na resposta
+de texto comente o que importa em vez de repetir tudo que o card ja mostra.
 
 Em mensagens longas e corridas (comum no jeito do Alex falar, tipo um dump de voz contando varias
 coisas soltas de uma vez - materiais pra cotar, recados, um dia da semana reservado pra algo,
@@ -321,19 +328,123 @@ CHAT_TOOLS = [
     {
         "name": "ajustar_tarefa",
         "description": (
-            "Muda a hora e/ou a data de uma tarefa PENDENTE que ja existe no painel. Use quando o "
-            "Alex pedir pra 'colocar horario', 'mudar a hora' ou 'passar pra outro dia' de tarefas "
-            "que ja estao registradas - NUNCA chame registrar_tarefa de novo pra isso, senao a "
-            "tarefa fica duplicada. Uma chamada por tarefa."
+            "Muda uma tarefa que JA existe: hora, dia, titulo, concluir ou reabrir. Use quando o Alex "
+            "pedir pra remarcar, mudar horario, passar pra outro dia, renomear ou marcar como feita - "
+            "NUNCA registrar_tarefa de novo (duplicaria). Uma chamada por tarefa. Nao apaga nada: o card "
+            "mostra o antes/depois com Desfazer. Na duvida de quais tarefas existem, consultar_tarefas antes."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "titulo": {"type": "string", "description": "titulo (ou trecho dele) da tarefa existente"},
-                "hora": {"type": "string", "description": "novo horario HH:MM (24h) - omita pra manter"},
-                "quando_data": {"type": "string", "description": "nova data AAAA-MM-DD - omita pra manter"},
+                "titulo": {"type": "string", "description": "titulo (ou trecho) da tarefa existente"},
+                "hora": {"type": "string", "description": "novo horario HH:MM (24h)"},
+                "sem_hora": {"type": "boolean", "description": "true pra tirar o horario"},
+                "quando_data": {"type": "string", "description": "novo dia AAAA-MM-DD"},
+                "novo_titulo": {"type": "string"},
+                "status": {"type": "string", "enum": ["concluir", "reabrir"]},
             },
             "required": ["titulo"],
+        },
+    },
+    {
+        "name": "mover_tarefas",
+        "description": (
+            "Move de uma vez TODAS as tarefas pendentes de um dia (ou so as da manha/tarde/noite) pra "
+            "outro dia - ex: 'passa tudo de hoje pra amanha', 'joga a tarde de hoje pra sexta'. Mantem "
+            "os horarios. Um card so com Desfazer de tudo."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "de_data": {"type": "string", "description": "AAAA-MM-DD (omita = hoje)"},
+                "para_data": {"type": "string", "description": "AAAA-MM-DD"},
+                "periodo": {"type": "string", "enum": ["dia_todo", "manha", "tarde", "noite"]},
+            },
+            "required": ["para_data"],
+        },
+    },
+    {
+        "name": "ajustar_lembrete",
+        "description": "Muda um lembrete que ja existe (data, titulo, se repete todo ano, se desperta). Nunca apaga.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string", "description": "titulo (ou trecho) do lembrete existente"},
+                "data": {"type": "string", "description": "nova data AAAA-MM-DD"},
+                "novo_titulo": {"type": "string"},
+                "recorrente": {"type": "boolean"},
+                "despertar": {"type": "boolean"},
+            },
+            "required": ["titulo"],
+        },
+    },
+    {
+        "name": "ajustar_voo",
+        "description": (
+            "Corrige ou completa um voo do diario (vindo da CIV ou do chat): aeronave, funcao a bordo, "
+            "origem, destino, tempo de voo, observacao ou data. Ache o voo pela data; se houver mais de "
+            "um no dia, use origem_atual/destino_atual. Nunca apaga voo."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "data_do_voo": {"type": "string", "description": "AAAA-MM-DD do voo a corrigir"},
+                "origem_atual": {"type": "string", "description": "ICAO de origem atual, se ha mais de um voo no dia"},
+                "destino_atual": {"type": "string", "description": "ICAO de destino atual, se ha mais de um voo no dia"},
+                "aeronave": {"type": "string", "description": "matricula, ex: PR-LOM"},
+                "funcao": {"type": "string", "description": "como na CIV, ex: 'Piloto em Instrução Solo'"},
+                "origem": {"type": "string"},
+                "destino": {"type": "string"},
+                "horas": {"type": "number", "description": "tempo de voo em horas decimais (1:12 = 1.2)"},
+                "observacao": {"type": "string"},
+                "nova_data": {"type": "string", "description": "AAAA-MM-DD, so se a data estiver errada"},
+            },
+            "required": ["data_do_voo"],
+        },
+    },
+    {
+        "name": "ajustar_gasto",
+        "description": (
+            "Troca a CATEGORIA ou a DESCRICAO de um gasto recente (ultimos 120 dias). O VALOR NUNCA muda "
+            "por aqui - se o Alex pedir pra mudar valor, diga que valor so muda na aba Finanças."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "descricao_atual": {"type": "string", "description": "descricao (ou trecho) do gasto"},
+                "categoria": {"type": "string"},
+                "nova_descricao": {"type": "string"},
+            },
+            "required": ["descricao_atual"],
+        },
+    },
+    {
+        "name": "definir_meta_horas_voo",
+        "description": "Define a meta de horas de voo do Alex (ex: 150) - aparece no card do diario de voo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"horas": {"type": "number"}},
+            "required": ["horas"],
+        },
+    },
+    {
+        "name": "planejar_compras_viagem",
+        "description": (
+            "Quando comprar passagem e reservar hotel pra uma viagem, pelas janelas de preco das pesquisas "
+            "(nacional x internacional, alta temporada como Carnaval/fim de ano/julho detectada sozinha). "
+            "Use SEMPRE que o Alex falar de uma viagem futura com mes ou data - mesmo sem pedir - e mostre "
+            "o card. So o mes ('fevereiro do ano que vem') = mande 'mes'; dia certo = 'data_ida'. Nunca "
+            "prometa preco: sao tendencias. ISSO NAO SALVA a viagem - nao diga que registrou; pra guardar "
+            "a viagem no painel use registrar_viagem (se ele pedir ou se ja tiver as datas)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "data_ida": {"type": "string", "description": "AAAA-MM-DD, se o dia esta definido"},
+                "mes": {"type": "string", "description": "AAAA-MM, se so o mes esta definido"},
+                "destino": {"type": "string"},
+                "internacional": {"type": "boolean"},
+            },
         },
     },
     {

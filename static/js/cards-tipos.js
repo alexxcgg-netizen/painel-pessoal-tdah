@@ -491,8 +491,28 @@
           `<span class="card-sessao-dur">${esc(Cards.fmtDuracao(s.minutos))}</span></li>`
       )
       .join("");
+    // Cartao vivo (2026-10-09): aneis seg..dom que se fecham nos dias treinados
+    const semana = lista(data.semana).filter((d) => d && typeof d === "object").slice(0, 7);
+    const RA = 15, CA = +(2 * Math.PI * RA).toFixed(2);
+    const feitosSemana = semana.filter((d) => d.feito).length;
+    const aneis = semana.length === 7
+      ? `<div class="vivo-semana" aria-label="${feitosSemana} dias com treino nesta semana">` +
+        semana
+          .map(
+            (d, i) =>
+              `<div class="vivo-semana-dia${d.hoje ? " hoje" : ""}"><svg viewBox="0 0 40 40" aria-hidden="true">` +
+              `<circle cx="20" cy="20" r="${RA}" class="vivo-semana-fundo"/>` +
+              `<circle cx="20" cy="20" r="${RA}" class="vivo-semana-anel" data-feito="${d.feito ? 1 : 0}" data-c="${CA}" transform="rotate(-90 20 20)" stroke-dasharray="${CA}" stroke-dashoffset="${d.feito ? 0 : CA}"/>` +
+              (d.feito ? `<path d="M14 20.5l4 4 8-9" class="vivo-semana-check"/>` : "") +
+              `</svg><small>${["S", "T", "Q", "Q", "S", "S", "D"][i]}</small></div>`
+          )
+          .join("") +
+        `</div>` +
+        `<p class="card-linha-meta">Nesta semana: <strong>${feitosSemana}</strong>${numeroValido(data.meta_semana) ? ` de ${esc(data.meta_semana)}` : ""} ${feitosSemana === 1 ? "dia" : "dias"} com treino</p>`
+      : "";
     return (
       eyebrow(ICONES.treino, "Treinos", chip) +
+      aneis +
       (data.periodo ? `<p class="card-titulo card-primeira-maiuscula">${esc(data.periodo)}</p>` : "") +
       `<p class="card-linha-meta">Sessões registradas: <strong>${sessoes.length}</strong> · Tempo de atividade: <strong>${esc(Cards.fmtDuracao(totalMin))}</strong></p>` +
       (itens ? `<ul class="card-sessoes">${itens}</ul>` : "") +
@@ -553,10 +573,54 @@
     return (
       eyebrow(ICONES.rota, voltaPraOrigem ? "Rota · ida e volta" : "Rota") +
       `<p class="card-titulo">${esc(alvo.nome || alvo.endereco)}</p>` +
+      mapaRota(data.traco, paradas.map((p, i) => (i === 0 && data.partir_de_onde_estou ? "Você" : p.nome || p.endereco))) +
       (numeros ? `<p class="card-hora-grande card-rota-numeros">${esc(numeros)}</p>` : "") +
       `<ol class="card-rota-paradas">${itens}</ol>`
     );
   });
+
+  // Cartao vivo (2026-10-09): o caminho REAL que o Google calculou (servidor ja projeta
+  // num quadro 320x200, norte pra cima), desenhado se formando com o carrinho andando
+  // (animacao em static/js/cards-vivos.js). Sem `traco` (rota antiga) = sem mapa.
+  function mapaRota(traco, nomes) {
+    if (!traco || typeof traco !== "object") return "";
+    const pts = lista(traco.pontos).filter((p) => Array.isArray(p) && p.length === 2 && p.every(numeroValido));
+    const paradas = lista(traco.paradas).filter((p) => Array.isArray(p) && p.length === 2 && p.every(numeroValido));
+    if (pts.length < 2 || paradas.length < 2) return "";
+    const w = numeroValido(traco.w) ? traco.w : 320;
+    const h = numeroValido(traco.h) ? traco.h : 200;
+    const d = "M" + pts.map((p) => `${p[0]} ${p[1]}`).join(" L");
+    // fracao (aproximada pelo indice) de cada parada ao longo do caminho - o pino acende quando o carro passa
+    const frac = (p) => {
+      const i = pts.findIndex((q) => q[0] === p[0] && q[1] === p[1]);
+      return i < 0 ? 1 : i / (pts.length - 1);
+    };
+    const vistos = new Set();
+    const pinos = paradas
+      .map((p, i) => {
+        const chave = `${p[0]},${p[1]}`;
+        if (vistos.has(chave)) return "";
+        vistos.add(chave);
+        const ultimo = i === paradas.length - 1 || (i > 0 && i === paradas.length - 2);
+        const nome = String((nomes && nomes[i]) || "").split(",")[0].slice(0, 24);
+        // rotulo pro lado que tem mais espaco no quadro
+        const aDireita = p[0] < w * 0.62;
+        return (
+          `<g class="vivo-rota-pino" data-frac="${(i === 0 ? 0 : frac(p)).toFixed(3)}" transform="translate(${p[0]} ${p[1]})">` +
+          (i === 0 ? `<circle r="6" class="vivo-pino-origem"/>` : `<circle r="12" class="vivo-pino-halo"/><circle r="6" class="vivo-pino-destino"${ultimo ? "" : ""}/>`) +
+          (nome ? `<text class="vivo-pino-nome" x="${aDireita ? 12 : -12}" y="4" text-anchor="${aDireita ? "start" : "end"}">${esc(nome)}</text>` : "") +
+          `</g>`
+        );
+      })
+      .join("");
+    return (
+      `<div class="vivo-mapa"><svg class="vivo-rota-mapa" viewBox="0 0 ${w} ${h}" role="img" aria-label="Caminho da rota">` +
+      `<defs><pattern id="vivo-grade-mapa" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" class="vivo-grade-linha"/></pattern></defs>` +
+      `<rect width="${w}" height="${h}" fill="url(#vivo-grade-mapa)"/>` +
+      `<path class="vivo-rota-sombra" d="${d}"/><path class="vivo-rota-caminho" d="${d}"/>${pinos}` +
+      `<g class="vivo-rota-carro"><circle r="9" class="vivo-carro-halo"/><circle r="4.5" class="vivo-carro"/></g></svg></div>`
+    );
+  }
 
   // ---- habito -------------------------------------------------------------------
 
