@@ -12,7 +12,18 @@ documento é só leitura do que já existe lá (código-fonte de
 `painel_web/web_server.py` e `CHANGELOG.md` das versões `v3.99.14`/`v3.99.16`),
 nunca uma proposta de mudança nele.
 
-## Decisão do Alex (Fase 7, faixa A10)
+## Atualização 2026-10-10 (decisão do Alex, substitui a A10 abaixo)
+
+> O card agora mostra 4 números prontos da construtora v3.99.90+: `saldo_caixa`
+> (Dinheiro hoje), `a_receber` (A receber das vendas), `lucro_obras_fechadas`
+> (+ `obras_fechadas`) e `estoque_a_venda` (+ `unidades_a_venda`). "Entradas x
+> Gastos" saiu da tela. `lucro_liquido` e `margem` (gerais) continuam fora - a
+> lista branca em `app.py` (`CAMPOS_RESUMO_CONSTRUTORA_PERMITIDOS`) descarta.
+> Cada conta de `/api/contas_a_vencer` traz `pagador` (`"empresa"` | `"socio"`);
+> `"socio"` = o Ademir paga em espécie, selo "Ademir paga", não conta como saída
+> do caixa. Campo faltando = só aquele número some. Nada é recalculado aqui.
+
+## Decisão do Alex (Fase 7, faixa A10) - histórico, ver atualização acima
 
 > O painel pessoal mostra **só** gastos, entradas e tempo até a próxima conta a
 > pagar da construtora - vindos desta API, que nunca é tocada diretamente

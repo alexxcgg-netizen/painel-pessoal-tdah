@@ -56,6 +56,22 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-10 - Card da Construtora: 4 números prontos + "Ademir paga"
+
+- **Decisão do Alex (substitui a regra A10 "nunca lucro/margem/VGV")**: "Entradas x Gastos" saiu (parecia prejuízo -
+  comparava todo gasto, até de obra recém-começada, só com o que já entrou). O card mostra 4 números prontos da
+  construtora v3.99.90+: **Dinheiro hoje** (`saldo_caixa`), **A receber das vendas** (`a_receber`), **Lucro das
+  obras prontas** (`lucro_obras_fechadas`, verde, com "N obra(s) fechada(s)") e **À venda** (`estoque_a_venda` +
+  "N unidades"). `lucro_liquido`/`margem` gerais continuam descartados na lista branca (`app.py`).
+- Cada número que não vier some sozinho (`hidden`), o card não quebra; nada é recalculado aqui. De R$ 100 mil pra cima
+  sem centavos (`fmtNumeroGrande`, só formatação) - "R$ 1.258.000,00" quebrava linha em 390px.
+- Contas com `pagador: "socio"` ganham o selo **"Ademir paga"** e não contam como "Próxima conta" (não saem do caixa);
+  o contexto da IA também pula essas na próxima conta e explica quando só sobram elas.
+- Contexto do resumo/chat: os 4 números com "(numeros prontos da construtora, nao recalcule)"; se nenhum vier, só a
+  próxima conta. Conferido em 390px com o dado real: 48.915,81 / 1.258.000 / 371.009 / 1.160.000 (4 unidades).
+- Bug de CSS achado na conferência: as cores de borda por número perdiam pra regra base `.construtora-stat` (mesma
+  especificidade, declarada depois) - agora sob `.construtora-stats--4`. SW v55.
+
 ## 2026-10-10 - Trilha do dia (a "assinatura" das tarefas)
 
 - `Cards.trilhaDia` (cards-vivos.js, puro): estrada ondulada do começo ao fim do dia, uma bandeirinha fincada na hora

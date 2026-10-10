@@ -34,6 +34,8 @@ function criarItemContaAVencer(c) {
     meta.appendChild(selo);
   }
   meta.appendChild(document.createTextNode(quandoContaAVencer(dias)));
+  // pagador "socio": o Ademir paga em especie, nao sai do caixa da empresa
+  if (c.pagador === "socio") meta.appendChild(criarEl("span", "selo-socio", "Ademir paga"));
   corpo.appendChild(meta);
   li.appendChild(corpo);
 

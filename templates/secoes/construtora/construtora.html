@@ -2,25 +2,29 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l6-4"/><path d="M10 5 20 9"/><path d="M20 9v3"/><path d="M14 21V13"/><path d="M14 13h6"/><path d="M4 21h16"/></svg>
         Construtora
       </h2>
-      {# Decisao do Alex (Fase 7, faixa A10 - docs/contrato-api-construtora.md):
-         o painel pessoal mostra SO gastos, entradas e tempo ate a proxima
-         conta a pagar da construtora - nunca lucro/margem/detalhamento por
-         obra, mesmo que a API externa devolva mais campo que isso. #}
+      {# Decisao do Alex (2026-10-10, substitui a A10): 4 numeros prontos da construtora -
+         Dinheiro hoje, A receber das vendas, Lucro das obras prontas (verde) e A venda (com
+         as unidades). Cada numero que nao vier some sozinho, sem quebrar o card. Nada e
+         recalculado aqui. "Entradas x Gastos" saiu: parecia prejuizo e nao era. #}
       <div id="construtora-card" class="card card--destaque" hidden>
-        <div class="construtora-stats">
-          <div class="construtora-stat construtora-stat--entrada">
-            <span class="construtora-stat-rotulo">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
-              Entradas
-            </span>
-            <span class="valor-mono construtora-stat-valor" id="construtora-entradas">R$ 0</span>
+        <div class="construtora-stats construtora-stats--4">
+          <div class="construtora-stat" id="construtora-stat-caixa" hidden>
+            <span class="construtora-stat-rotulo">Dinheiro hoje</span>
+            <span class="valor-mono construtora-stat-valor" id="construtora-caixa">R$ 0</span>
           </div>
-          <div class="construtora-stat construtora-stat--saida">
-            <span class="construtora-stat-rotulo">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m18 13-6 6-6-6"/></svg>
-              Gastos
-            </span>
-            <span class="valor-mono construtora-stat-valor" id="construtora-saidas">R$ 0</span>
+          <div class="construtora-stat construtora-stat--receber" id="construtora-stat-receber" hidden>
+            <span class="construtora-stat-rotulo">A receber das vendas</span>
+            <span class="valor-mono construtora-stat-valor" id="construtora-receber">R$ 0</span>
+          </div>
+          <div class="construtora-stat construtora-stat--lucro" id="construtora-stat-lucro" hidden>
+            <span class="construtora-stat-rotulo">Lucro das obras prontas</span>
+            <span class="valor-mono construtora-stat-valor" id="construtora-lucro">R$ 0</span>
+            <span class="construtora-stat-sub" id="construtora-lucro-sub"></span>
+          </div>
+          <div class="construtora-stat construtora-stat--venda" id="construtora-stat-venda" hidden>
+            <span class="construtora-stat-rotulo">À venda</span>
+            <span class="valor-mono construtora-stat-valor" id="construtora-venda">R$ 0</span>
+            <span class="construtora-stat-sub" id="construtora-venda-sub"></span>
           </div>
         </div>
         <p class="construtora-proxima-conta" id="construtora-proxima-conta">

@@ -23,11 +23,16 @@ import construtora_cliente  # noqa: E402
 
 PIN_TESTE = "123456"
 ENV_REAL = {"CONSTRUTORA_API_URL": "https://construtora.exemplo.com", "CONSTRUTORA_API_KEY": "chave"}
-PROIBIDOS = ("lucro", "margem", "vgv", "52500", "60000")
+# Decisao do Alex 10/10: o "lucro das obras prontas" (pronto da construtora) pode aparecer;
+# o lucro_liquido/margem GERAIS e o vgv continuam fora (52500/61234 = lucro_liquido dos dubles).
+PROIBIDOS = ("margem", "vgv", "52500", "61234", "999999")
 
 RESUMO_COM_TUDO = {
     "status": "ok", "tot_entradas": 100000.0, "tot_saidas": 40000.0,
-    "lucro_liquido": 60000.0, "margem": 60.0, "vgv": 999999.0,
+    "lucro_liquido": 61234.0, "margem": 60.0, "vgv": 999999.0,
+    "saldo_caixa": 48915.81, "a_receber": 1258000.0, "lucro_obras_fechadas": 371009.45,
+    "obras_fechadas": 1, "estoque_a_venda": 1160000.0, "unidades_a_venda": 4,
+    "vendido": 2330000.0,
 }
 
 
@@ -95,7 +100,11 @@ class UsaOClienteA10TestCase(_Base):
             res = self.client.get("/api/construtora/resumo")
         corpo = res.get_json()
         self.assertTrue(corpo["configurado"])
-        self.assertEqual(corpo["dados"], {"status": "ok", "tot_entradas": 100000.0, "tot_saidas": 40000.0})
+        self.assertEqual(corpo["dados"], {
+            "status": "ok", "tot_entradas": 100000.0, "tot_saidas": 40000.0,
+            "saldo_caixa": 48915.81, "a_receber": 1258000.0, "lucro_obras_fechadas": 371009.45,
+            "obras_fechadas": 1, "estoque_a_venda": 1160000.0, "unidades_a_venda": 4,
+        })  # lucro_liquido/margem/vgv/vendido nunca passam
         self.assertEqual(corpo["contas"][0]["fornecedor"], "Fornecedor X")
         self.assertNotIn("obra", corpo["contas"][0])
         self.assertSemProibidos(res.get_data(as_text=True))
@@ -125,7 +134,7 @@ class ModoMockNaRotaRealTestCase(_Base):
         self.assertEqual(res.status_code, 200)
         corpo = res.get_json()
         self.assertTrue(corpo["configurado"])
-        self.assertEqual(set(corpo["dados"]), {"status", "tot_entradas", "tot_saidas"})
+        self.assertEqual(set(corpo["dados"]), set(app.CAMPOS_RESUMO_CONSTRUTORA_PERMITIDOS))
         self.assertGreater(len(corpo["contas"]), 0)
         self.assertTrue(any(c["dias_ate_vencer"] < 0 for c in corpo["contas"]))  # mock tem uma vencida
         self.assertSemProibidos(res.get_data(as_text=True))
@@ -134,8 +143,8 @@ class ModoMockNaRotaRealTestCase(_Base):
         with patch.dict(os.environ, {"CONSTRUTORA_API_MOCK": "1"}), \
                 patch("requests.get", side_effect=AssertionError("mock nao usa rede")):
             texto = app._construtora_contexto_resumo()
-        self.assertIn("entradas R$", texto)
-        self.assertIn("saidas R$", texto)
+        self.assertIn("dinheiro em caixa hoje R$", texto)
+        self.assertIn("a receber das vendas", texto)
         self.assertIn("próxima conta a pagar da construtora", texto)
         self.assertSemProibidos(texto)
 
@@ -146,9 +155,28 @@ class ContextoEPushTestCase(_Base):
                    "descricao": "", "dias_ate_vencer": 3}]
         with patch.dict(os.environ, ENV_REAL), patch("requests.get", side_effect=_fake_get(contas=contas)):
             texto = app._construtora_contexto_resumo()
-        self.assertEqual(texto, "entradas R$ 100000.00, saidas R$ 40000.00; "
+        self.assertEqual(texto, "dinheiro em caixa hoje R$ 48915.81, a receber das vendas ja feitas R$ 1258000.00, "
+                                "lucro das obras prontas R$ 371009.45, a venda R$ 1160000.00 (4 unidades) "
+                                "(numeros prontos da construtora, nao recalcule); "
                                 "próxima conta a pagar da construtora: Areia & Cia, vence em 3 dia(s)")
         self.assertNotIn("1234", texto)  # valor da conta nunca de bandeja
+        self.assertSemProibidos(texto)
+
+    def test_campo_novo_faltando_nao_quebra_e_socio_nao_e_a_proxima_do_caixa(self):
+        contas = [
+            {"vencimento": "2026-10-12", "valor": 5000.0, "fornecedor": "Terreno", "descricao": "",
+             "dias_ate_vencer": 2, "pagador": "socio"},
+            {"vencimento": "2026-10-15", "valor": 900.0, "fornecedor": "Brita Norte", "descricao": "",
+             "dias_ate_vencer": 5, "pagador": "empresa"},
+        ]
+        so_antigos = {"status": "ok", "tot_entradas": 1.0, "tot_saidas": 2.0}
+        with patch.dict(os.environ, ENV_REAL), patch("requests.get", side_effect=_fake_get(resumo=so_antigos, contas=contas)):
+            texto = app._construtora_contexto_resumo()
+            res = self.client.get("/api/construtora/resumo")
+        # sem os numeros novos: nada de entradas x gastos, so a proxima conta QUE SAI DO CAIXA
+        self.assertEqual(texto, "próxima conta a pagar da construtora: Brita Norte, vence em 5 dia(s), "
+                                "mais 1 outra(s) conta(s) em aberto")
+        self.assertEqual(res.get_json()["contas"][0]["pagador"], "socio")
 
     def test_push_de_conta_a_vencer_sem_valor(self):
         self.client.post("/api/push/inscrever",

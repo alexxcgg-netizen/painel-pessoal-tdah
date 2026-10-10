@@ -1048,8 +1048,18 @@ _CACHE_CONSTRUTORA = _CacheConstrutoraCompat()
 # O que o painel pessoal pode mostrar da construtora (decisao do Alex, A10):
 # so gastos, entradas e o tempo ate a proxima conta. Nunca lucro, margem nem
 # VGV - esses campos sao descartados aqui, logo na entrada.
-CAMPOS_RESUMO_CONSTRUTORA_PERMITIDOS = ("status", "tot_entradas", "tot_saidas")
-CAMPOS_CONTA_CONSTRUTORA_PERMITIDOS = ("vencimento", "valor", "fornecedor", "descricao", "dias_ate_vencer")
+# Decisao do Alex (2026-10-10, substitui a regra A10 "nunca lucro/margem/VGV"): o card
+# mostra Dinheiro hoje (saldo_caixa), A receber das vendas (a_receber), Lucro das obras
+# prontas (lucro_obras_fechadas, so obra com tudo vendido e recebido) e A venda
+# (estoque_a_venda + unidades_a_venda) - numeros prontos da construtora v3.99.90+,
+# nada recalculado aqui. "Entradas x Gastos" parecia prejuizo e saiu da tela.
+# lucro_liquido e margem (gerais) continuam descartados na entrada.
+CAMPOS_RESUMO_CONSTRUTORA_PERMITIDOS = (
+    "status", "tot_entradas", "tot_saidas", "saldo_caixa", "a_receber",
+    "lucro_obras_fechadas", "obras_fechadas", "estoque_a_venda", "unidades_a_venda",
+)
+# pagador: "empresa" | "socio" ("socio" = o Ademir paga em especie, nao sai do caixa)
+CAMPOS_CONTA_CONSTRUTORA_PERMITIDOS = ("vencimento", "valor", "fornecedor", "descricao", "dias_ate_vencer", "pagador")
 
 
 def _filtrar_resumo_construtora(dados) -> dict | None:
@@ -1230,25 +1240,40 @@ def _construtora_contexto_contas() -> str | None:
     contas = dados.get("contas") or []
     if not contas:
         return None
-    proxima = contas[0]
+    # proxima conta que sai do CAIXA da empresa (pagador "socio" = o Ademir paga em especie)
+    da_empresa = [c for c in contas if c.get("pagador") != "socio"]
+    proxima = (da_empresa or contas)[0]
     quando = _quando_conta_construtora(proxima["dias_ate_vencer"])
     quem = proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor não informado"
+    socio = " (o Ademir paga em espécie, não sai do caixa da empresa)" if proxima.get("pagador") == "socio" else ""
     extra = f", mais {len(contas) - 1} outra(s) conta(s) em aberto" if len(contas) > 1 else ""
-    return f"próxima conta a pagar da construtora: {quem}, {quando}{extra}"
+    return f"próxima conta a pagar da construtora: {quem}, {quando}{socio}{extra}"
 
 
 def _construtora_contexto_resumo() -> str | None:
-    """Frase factual pro resumo do dia / chat - so gastos (saidas), entradas e
-    tempo ate a proxima conta, que ja vieram prontos da API da construtora
-    (nenhuma conta feita aqui nem pela IA; nunca lucro, margem nem VGV)."""
+    """Frase factual pro resumo do dia / chat com os 4 numeros do card (decisao do Alex
+    10/10) e o tempo ate a proxima conta - tudo pronto da API da construtora, nenhuma
+    conta feita aqui nem pela IA."""
     dados = _buscar_resumo_construtora()
     if not dados or dados.get("status") != "ok":
         return None
-    entradas, saidas = dados.get("tot_entradas"), dados.get("tot_saidas")
-    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (entradas, saidas)):
-        return None
-    texto = f"entradas R$ {entradas:.2f}, saidas R$ {saidas:.2f}"
+    def _num(v):
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+    partes = []
+    if _num(dados.get("saldo_caixa")):
+        partes.append(f"dinheiro em caixa hoje R$ {dados['saldo_caixa']:.2f}")
+    if _num(dados.get("a_receber")):
+        partes.append(f"a receber das vendas ja feitas R$ {dados['a_receber']:.2f}")
+    if _num(dados.get("lucro_obras_fechadas")):
+        partes.append(f"lucro das obras prontas R$ {dados['lucro_obras_fechadas']:.2f}")
+    if _num(dados.get("estoque_a_venda")):
+        unid = dados.get("unidades_a_venda")
+        partes.append(f"a venda R$ {dados['estoque_a_venda']:.2f}" + (f" ({int(unid)} unidades)" if _num(unid) else ""))
     contas_texto = _construtora_contexto_contas()
+    if not partes:
+        return contas_texto  # campo novo faltando: so a proxima conta (ou nada)
+    texto = ", ".join(partes) + " (numeros prontos da construtora, nao recalcule)"
     if contas_texto:
         texto += f"; {contas_texto}"
     return texto

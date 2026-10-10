@@ -3462,6 +3462,8 @@ class PainelTestCase(unittest.TestCase):
             "tot_saidas": 40000.0,
             "lucro_liquido": 60000.0,
             "margem": 60.0,
+            "saldo_caixa": 48915.81,
+            "a_receber": 1258000.0,
         }
         with patch.dict(
             os.environ,
@@ -3472,12 +3474,12 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.get("/api/summary/today")
         self.assertEqual(res.status_code, 200)
         args = mock_summarize.call_args[0]
-        # C1: so gastos/entradas (+ tempo ate a proxima conta) - nunca lucro/margem
-        self.assertIn("saidas R$ 40000.00", args[6])
-        self.assertIn("entradas R$ 100000.00", args[6])
-        self.assertNotIn("lucro", args[6])
+        # 10/10: dinheiro hoje + a receber; nunca lucro_liquido/margem gerais, nem entradas x gastos
+        self.assertIn("dinheiro em caixa hoje R$ 48915.81", args[6])
+        self.assertIn("a receber das vendas ja feitas R$ 1258000.00", args[6])
         self.assertNotIn("margem", args[6])
         self.assertNotIn("60000", args[6])
+        self.assertNotIn("40000", args[6])
 
     def test_resumo_do_dia_sem_construtora_configurada_nao_quebra(self):
         with patch(
@@ -3497,12 +3499,15 @@ class PainelTestCase(unittest.TestCase):
             "tot_saidas": 40000.0,
             "lucro_liquido": 60000.0,
             "margem": 60.0,
+            "saldo_caixa": 48915.81,
+            "lucro_obras_fechadas": 371009.45,
         }
 
         def fake_chat(mensagens, contexto, memorias, executores):
             self.assertIn("Construtora", contexto)
-            self.assertIn("40000.00", contexto)
-            self.assertNotIn("60000.00", contexto)  # C1: lucro nunca vai pro chat
+            self.assertIn("48915.81", contexto)
+            self.assertIn("371009.45", contexto)  # lucro das obras prontas: liberado pelo Alex 10/10
+            self.assertNotIn("60000.00", contexto)  # lucro_liquido geral continua fora
             return "Beleza.", [], fake_usage()
 
         with patch.dict(

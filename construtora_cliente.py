@@ -49,6 +49,13 @@ _MOCK_RESUMO = {
     "tot_saidas": _MOCK_TOT_SAIDAS,
     "lucro_liquido": _MOCK_TOT_ENTRADAS - _MOCK_TOT_SAIDAS,
     "margem": round((_MOCK_TOT_ENTRADAS - _MOCK_TOT_SAIDAS) / _MOCK_TOT_ENTRADAS * 100, 1),
+    # campos da v3.99.90 do financeiro-construtora (valores de exemplo do mock)
+    "saldo_caixa": 52300.0,
+    "a_receber": 640000.0,
+    "lucro_obras_fechadas": 120000.0,
+    "obras_fechadas": 1,
+    "estoque_a_venda": 900000.0,
+    "unidades_a_venda": 3,
 }
 
 # candidatas sinteticas (pt-BR) pro mock de contas a vencer - "dias" e

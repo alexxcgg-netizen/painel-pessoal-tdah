@@ -11,8 +11,16 @@
 // contra NaN/undefined.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
 
+// So formatacao, nao conta: de R$ 100 mil pra cima os centavos nao dizem nada e fazem o
+// valor quebrar linha no celular ("R$ 1.258.000" em vez de "R$ 1.258.000,00").
+function fmtNumeroGrande(v) {
+  if (Math.abs(v) < 100000) return fmtMoedaFinancas(v);
+  return `R$ ${Math.round(v).toLocaleString("pt-BR")}`;
+}
+
 function rotuloProximaConta(contas) {
-  const comDias = contas.filter((c) => numeroFinancas(c.dias_ate_vencer) !== null);
+  // "socio" = o Ademir paga em especie, nao sai do caixa da empresa -> nao conta aqui
+  const comDias = contas.filter((c) => numeroFinancas(c.dias_ate_vencer) !== null && c.pagador !== "socio");
   if (comDias.length === 0) return "Nenhuma conta em aberto nos próximos 30 dias.";
   const proxima = comDias.reduce((m, c) => (Number(c.dias_ate_vencer) < Number(m.dias_ate_vencer) ? c : m));
   const dias = Number(proxima.dias_ate_vencer);
@@ -51,21 +59,33 @@ async function loadConstrutora() {
     return;
   }
 
-  // Lista branca: so estes dois campos do resumo sao usados (nunca lucro/margem/VGV).
+  // 4 numeros prontos da construtora (decisao do Alex 10/10). Cada um que nao vier some
+  // sozinho; nada e somado nem recalculado aqui.
   const d = data.dados && typeof data.dados === "object" ? data.dados : {};
-  const entradas = numeroFinancas(d.tot_entradas);
-  const gastos = numeroFinancas(d.tot_saidas);
   const contas = Array.isArray(data.contas) ? data.contas.filter((c) => c && typeof c === "object") : [];
+  const numeros = {
+    caixa: numeroFinancas(d.saldo_caixa),
+    receber: numeroFinancas(d.a_receber),
+    lucro: numeroFinancas(d.lucro_obras_fechadas),
+    venda: numeroFinancas(d.estoque_a_venda),
+  };
+  const algum = Object.values(numeros).some((v) => v !== null);
 
-  if (entradas === null && gastos === null && contas.length === 0) {
+  if (!algum && contas.length === 0) {
     info.textContent = "A construtora respondeu sem dado utilizavel agora.";
     return;
   }
 
   info.hidden = true;
   card.hidden = false;
-  $("#construtora-entradas").textContent = fmtMoedaFinancas(entradas);
-  $("#construtora-saidas").textContent = fmtMoedaFinancas(gastos);
+  Object.entries(numeros).forEach(([chave, valor]) => {
+    $(`#construtora-stat-${chave}`).hidden = valor === null;
+    if (valor !== null) $(`#construtora-${chave}`).textContent = fmtNumeroGrande(valor);
+  });
+  const obras = numeroFinancas(d.obras_fechadas);
+  $("#construtora-lucro-sub").textContent = obras ? `${obras} ${obras === 1 ? "obra fechada" : "obras fechadas"}` : "";
+  const unidades = numeroFinancas(d.unidades_a_venda);
+  $("#construtora-venda-sub").textContent = unidades !== null ? `${unidades} ${unidades === 1 ? "unidade" : "unidades"}` : "";
   $("#construtora-proxima-conta-texto").textContent = rotuloProximaConta(contas);
 
   $("#contas-a-vencer-vazio").hidden = contas.length > 0;

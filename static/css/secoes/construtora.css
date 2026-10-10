@@ -18,6 +18,46 @@
   gap: var(--espaco-3, 1rem);
 }
 
+/* 4 numeros (2026-10-10): grade 2x2 - no celular cada coluna tem metade da largura e o
+   valor encolhe com o clamp() de sempre antes de faltar espaco */
+#tab-construtora .construtora-stats--4 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--espaco-3, 1rem) var(--espaco-3, 1rem);
+}
+#tab-construtora .construtora-stat[hidden] { display: none; }
+/* .construtora-stats--4 na frente: a regra base .construtora-stat vem depois no arquivo
+   e, com a mesma especificidade, apagava a cor da borda */
+#tab-construtora .construtora-stats--4 .construtora-stat--receber { border-left-color: var(--cor-construtora); }
+#tab-construtora .construtora-stats--4 .construtora-stat--lucro { border-left-color: var(--cor-entrada); }
+#tab-construtora .construtora-stats--4 .construtora-stat--lucro .construtora-stat-valor { color: var(--cor-entrada); }
+#tab-construtora .construtora-stats--4 .construtora-stat--venda { border-left-color: var(--text-faint); }
+/* valor numa linha so: "R$ 1.258.000" nao pode deixar um pedaco sozinho embaixo */
+#tab-construtora .construtora-stats--4 .construtora-stat-valor {
+  font-size: clamp(0.9rem, 4.2vw, 1.3rem);
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+#tab-construtora .construtora-stat-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+#tab-construtora .selo-socio {
+  /* linha propria, alinhado com o "vence em" (inline ficava recuado ao quebrar) */
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  margin-top: 0.3rem;
+  padding: 0.1rem var(--espaco-2, 0.5rem);
+  border-radius: var(--raio-pilula, 999px);
+  border: var(--linha, 1px) solid color-mix(in srgb, var(--cor-construtora) 40%, transparent);
+  background: color-mix(in srgb, var(--cor-construtora) 14%, transparent);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 #tab-construtora .construtora-stat {
   flex: 1 1 0;
   min-width: 0;
