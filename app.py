@@ -50,6 +50,7 @@ import gastos
 import geocode_nominatim
 import leitura
 import maps_client
+import vida_assistente
 import viagem_compras
 import metar
 import noticias
@@ -1759,8 +1760,8 @@ def _contexto_chat(conn) -> str:
         f"Gasto de hoje (já realizado): R$ {gasto_hoje:.2f}",
         f"Gasto planejado/cogitado hoje (ainda não decidido): R$ {gasto_planejado:.2f}",
         f"Compromissos de hoje (em ordem de horário): {eventos_txt or 'nenhum'}",
-        f"Tempo que o Alex leva pra se arrumar pra sair (date, festa, jantar): {_minutos_se_arrumar(conn)} min",
     ]
+    linhas.extend(vida_assistente.linhas_contexto(conn, agora.replace(tzinfo=None)))
     if saude:
         linhas.append(f"Saúde hoje: {saude}")
     if construtora:
@@ -2577,16 +2578,217 @@ def _processar_mensagem_chat(
                              "ORDER BY id DESC")
         if erro:
             return erro
+        return _ajustar_transacao("expenses", "Gasto", gasto, entrada)
+
+    def _valor_corrigido(entrada):
+        """Valor novo pedido pelo Alex ("errei, foi 45") - so numero positivo razoavel."""
+        bruto = entrada.get("valor")
+        if bruto in (None, ""):
+            return None, None
+        try:
+            valor = round(float(bruto), 2)
+        except (TypeError, ValueError):
+            return None, {"erro": "valor invalido"}
+        if not 0 < valor < 1_000_000:
+            return None, {"erro": "valor fora do razoavel"}
+        return valor, None
+
+    def _ajustar_transacao(tabela, rotulo, registro, entrada):
         novos = {}
         if (entrada.get("categoria") or "").strip():
             novos["category"] = entrada["categoria"].strip().lower()[:60]
         if (entrada.get("nova_descricao") or "").strip():
             novos["description"] = entrada["nova_descricao"].strip()[:200]
+        valor, erro = _valor_corrigido(entrada)
+        if erro:
+            return erro
+        if valor is not None:
+            novos["amount"] = valor
         if not novos:
-            return {"erro": "nada pra mudar (so categoria e descricao podem mudar; valor nunca)"}
-        efeito = _editar("expenses", gasto["id"], novos, "Gasto", gasto["description"] or gasto["category"])
+            return {"erro": "nada pra mudar (valor, categoria ou descricao)"}
+        efeito = _editar(tabela, registro["id"], novos, rotulo, registro["description"] or registro["category"])
         conn.commit()
         return {"ok": True, **({"_efeito": efeito} if efeito else {"obs": "ja estava assim"})}
+
+    def exec_ajustar_renda(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        desde = (date.today() - timedelta(days=120)).isoformat()
+        renda, erro = _achar("incomes", "date(created_at) >= ?", (desde,), entrada.get("descricao_atual"), "description",
+                             "ORDER BY id DESC")
+        if erro:
+            return erro
+        return _ajustar_transacao("incomes", "Renda", renda, entrada)
+
+    def exec_apagar_tarefa(entrada):
+        """Apaga uma tarefa errada/duplicada (pedido do Alex). Volta inteira no Desfazer."""
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        tarefa, erro = _achar("tasks", "recorrencia IS NULL AND recorrente_origem_id IS NULL", (),
+                              entrada.get("titulo"), "title", "ORDER BY id DESC")
+        if erro:
+            return erro
+        if conn.execute("SELECT 1 FROM subtasks WHERE task_id = ?", (tarefa["id"],)).fetchone():
+            return {"erro": "essa tarefa tem passos quebrados - conclua em vez de apagar, ou o Alex apaga na tela"}
+        linha = {c: tarefa[c] for c in db.TAREFA_RESTAURAVEL if c in tarefa.keys()}
+        conn.execute("DELETE FROM tasks WHERE id = ?", (tarefa["id"],))
+        conn.commit()
+        return {"ok": True, "apagada": tarefa["title"], "_efeito": {
+            "entidade": "tarefa_apagada", "id": tarefa["id"], "linha": linha, "rotulo": "Tarefa",
+            "titulo": tarefa["title"], "antes": {"situacao": "na lista"}, "depois": {"situacao": "apagada"},
+        }}
+
+    def exec_registrar_acordei(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        agora = _agora_brasilia().replace(tzinfo=None, second=0, microsecond=0)
+        hora = _normalizar_hora(entrada.get("hora"))
+        quando = agora
+        if hora:
+            h, m = map(int, hora.split(":"))
+            quando = agora.replace(hour=h, minute=m)
+            if quando > agora:
+                return {"erro": "essa hora ainda nao chegou - confirme com o Alex quando ele acordou"}
+        vida_assistente.registrar_acordou(conn, quando)
+        conn.commit()
+        resultado = {"ok": True, "acordou": f"{quando:%H:%M}"}
+        p = vida_assistente.perfil(conn, agora.date())
+        if p["peso_kg"]:
+            resultado["meta_comida"] = vida_assistente.metas_comida(p["peso_kg"], p["altura_cm"], p["idade"], p["objetivo"])
+            resultado["primeira_refeicao_ate"] = f"{quando + timedelta(hours=1):%H:%M}"
+        return resultado
+
+    def exec_atualizar_perfil(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        feito = {}
+        altura = entrada.get("altura_cm")
+        if altura not in (None, ""):
+            try:
+                altura = float(altura)
+            except (TypeError, ValueError):
+                return {"erro": "altura invalida"}
+            altura = altura * 100 if altura < 3 else altura  # "1,69" -> 169
+            if not 120 <= altura <= 230:
+                return {"erro": "altura fora do razoavel"}
+            definir_configuracao(conn, "perfil_altura_cm", f"{altura:.0f}")
+            feito["altura_cm"] = round(altura)
+        objetivo = entrada.get("objetivo")
+        if objetivo:
+            if objetivo not in vida_assistente.OBJETIVOS:
+                return {"erro": f"objetivo deve ser um de {list(vida_assistente.OBJETIVOS)}"}
+            definir_configuracao(conn, "perfil_objetivo", objetivo)
+            feito["objetivo"] = objetivo
+        academia = (entrada.get("academia") or "").strip()[:80]
+        if academia:
+            definir_configuracao(conn, "perfil_academia", academia)
+            feito["academia"] = academia
+        peso = entrada.get("peso_kg")
+        if peso not in (None, ""):
+            try:
+                peso = float(peso)
+            except (TypeError, ValueError):
+                return {"erro": "peso invalido"}
+            if not 30 <= peso <= 250:
+                return {"erro": "peso fora do razoavel"}
+            create_medida_corporal(conn, "peso", peso, "kg", date.today().isoformat())
+            feito["peso_kg"] = peso
+        if not feito:
+            return {"erro": "nada pra atualizar"}
+        conn.commit()
+        return {"ok": True, **feito}
+
+    def exec_salvar_lugar_apelido(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        chave = vida_assistente.salvar_apelido(conn, entrada.get("apelido") or "", entrada.get("endereco") or "")
+        if not chave:
+            return {"erro": "apelido ou endereco vazio (casa ja usa o endereco de casa)"}
+        conn.commit()
+        return {"ok": True, "apelido": chave, "endereco": entrada["endereco"].strip()[:200]}
+
+    def exec_planejar_dia(entrada):
+        """Monta o dia inteiro de uma vez: cada bloco vira tarefa com hora (ou ajusta a hora de
+        uma tarefa que ja existe com o mesmo nome) - um card so com a trilha do dia e Desfazer."""
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        try:
+            dia = _data_valida(entrada.get("data")) or _agora_brasilia().date().isoformat()
+        except ValueError:
+            return {"erro": "data invalida"}
+        blocos = entrada.get("blocos")
+        if not isinstance(blocos, list) or not blocos:
+            return {"erro": "mande os blocos do dia (titulo + hora)"}
+        if len(blocos) > 30:
+            return {"erro": "blocos demais (maximo 30)"}
+        pendentes = conn.execute(
+            "SELECT id, title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
+            "AND (due_date = ? OR due_date IS NULL)", (dia,),
+        ).fetchall()
+        normal = {r["id"]: aprendizado.normalizar_consulta(r["title"]) for r in pendentes}
+        efeitos, ignorados, usados = [], [], set()
+        for bloco in blocos:
+            if not isinstance(bloco, dict):
+                continue
+            # o "(ate HH:MM)" quem poe e o codigo, a partir do `fim` validado (a IA as vezes
+            # escrevia um "ate" errado direto no titulo)
+            titulo = re.sub(r"\s*\(at[eé] \d{1,2}[:h]\d{2}\)", "", str(bloco.get("titulo") or "")).strip()[:150]
+            hora = _normalizar_hora(bloco.get("hora"))
+            if not titulo or not hora:
+                ignorados.append(titulo or "(sem titulo)")
+                continue
+            fim = _normalizar_hora(bloco.get("fim"))
+            if fim and fim > hora and f"até {fim}" not in titulo:
+                titulo = f"{titulo} (até {fim})"
+            local = str(bloco.get("local") or "").strip()[:200] or None
+            if local:
+                local = vida_assistente.resolver_lugar(conn, local)
+            alvo = aprendizado.normalizar_consulta(str(bloco.get("titulo") or ""))
+            palavras_alvo = _palavras(alvo)
+
+            def _mesma(r):
+                n = normal[r["id"]]
+                if n == alvo:
+                    return True
+                if len(alvo) < 4:
+                    return False
+                if alvo in n or (len(n) >= 6 and n in alvo):
+                    return True
+                # todas as palavras de um lado no outro ("pegar cnd" ~ "pegar a cnd"), 2+ palavras
+                p = _palavras(n)
+                menor, maior = (palavras_alvo, p) if len(palavras_alvo) <= len(p) else (p, palavras_alvo)
+                return len(menor) >= 2 and menor <= maior
+
+            existente = next((r for r in pendentes if r["id"] not in usados and _mesma(r)), None)
+            if existente:
+                usados.add(existente["id"])
+                novos = {"hora": hora, "due_date": dia}
+                if local:
+                    novos["local"] = local
+                ef = _editar("tasks", existente["id"], novos, "Tarefa", existente["title"])
+                if ef:
+                    efeitos.append(ef)
+                continue
+            cur = conn.execute(
+                "INSERT INTO tasks (title, due_date, hora, source_text, local) VALUES (?, ?, ?, ?, ?)",
+                (titulo, dia, hora, texto, local),
+            )
+            efeitos.append({"entidade": "tarefa", "id": cur.lastrowid})
+        conn.commit()
+        if not efeitos:
+            return {"erro": "nenhum bloco valido (cada um precisa de titulo e hora HH:MM)", "ignorados": ignorados}
+        criadas = sum(1 for e in efeitos if e["entidade"] == "tarefa")
+        resultado = {"ok": True, "dia": dia, "criadas": criadas, "horario_ajustado": len(efeitos) - criadas,
+                     "_efeito": efeitos}
+        if ignorados:
+            resultado["ignorados_sem_hora"] = ignorados
+        return resultado
 
     def exec_definir_meta_horas_voo(entrada):
         recusa = _recusa_visitante()
@@ -2687,6 +2889,7 @@ def _processar_mensagem_chat(
                 return {"erro": "preciso saber de onde voce sai"}
         if casa:
             pontos = [casa if p.lower() in ("casa", "minha casa", "em casa") else p for p in pontos]
+        pontos = [vida_assistente.resolver_lugar(conn, p) for p in pontos]  # "obra", "aeroclube"...
         if not maps_client.configurado():
             return {"erro": "Google Maps nao configurado (falta GOOGLE_MAPS_API_KEY no .env) - diga isso ao Alex, nao estime"}
         try:
@@ -3266,6 +3469,12 @@ def _processar_mensagem_chat(
         "ajustar_gasto": exec_ajustar_gasto,
         "definir_meta_horas_voo": exec_definir_meta_horas_voo,
         "ajustar_tempo_se_arrumar": exec_ajustar_tempo_se_arrumar,
+        "ajustar_renda": exec_ajustar_renda,
+        "apagar_tarefa": exec_apagar_tarefa,
+        "registrar_acordei": exec_registrar_acordei,
+        "atualizar_perfil": exec_atualizar_perfil,
+        "salvar_lugar_apelido": exec_salvar_lugar_apelido,
+        "planejar_dia": exec_planejar_dia,
         "planejar_compras_viagem": exec_planejar_compras_viagem,
         "consultar_clima": exec_consultar_clima,
         "estimar_trajeto": exec_estimar_trajeto,
@@ -3426,7 +3635,7 @@ def _criar_token_desfazer(conn):
         for ef in itens:
             item = {"entidade": ef.get("entidade"), "id": ef.get("id"), "uid": ef.get("uid"),
                     "data": ef.get("data"), "feito": ef.get("feito"),
-                    "tabela": ef.get("tabela"), "antes": ef.get("antes")}
+                    "tabela": ef.get("tabela"), "antes": ef.get("antes"), "linha": ef.get("linha")}
             saldo = ef.get("saldo")
             if ef.get("entidade") in ("gasto", "renda") and isinstance(saldo, dict):
                 antes, depois = saldo.get("antes"), saldo.get("depois")
@@ -3489,6 +3698,15 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
                 continue
             sets = ", ".join(f"{c} = ?" for c in antes)  # nomes vindos da lista fechada acima
             cur = conn.execute(f"UPDATE {item['tabela']} SET {sets} WHERE id = ?", [*antes.values(), id_])
+        elif entidade == "tarefa_apagada":
+            # volta a tarefa que a IA apagou, com o mesmo id (colunas da lista fechada)
+            linha = {c: v for c, v in (item.get("linha") or {}).items() if c in db.TAREFA_RESTAURAVEL}
+            if linha.get("id") != id_ or not linha.get("title"):
+                continue
+            cur = conn.execute(
+                f"INSERT OR IGNORE INTO tasks ({', '.join(linha)}) VALUES ({', '.join('?' for _ in linha)})",
+                list(linha.values()),
+            )
         elif entidade == "tarefa":
             # rotina recorrente: o modelo + as instancias materializadas dele
             ids = [id_] + [
@@ -3685,7 +3903,7 @@ def _aviso_bom_tempo_pra_tarefa(tarefa: dict) -> str | None:
     return f"{quando} parece um dia bom (pouca chance de chuva) pra: {tarefa['title']}."
 
 
-def _aviso_voo_sair(voo: dict, janela_minutos: int = 25) -> str | None:
+def _aviso_voo_sair(voo: dict, janela_minutos: int = 25, conn=None) -> str | None:
     """Se o voo tem horario hoje e a hora de sair de casa (calculada com
     transito real) ja esta dentro da janela de aviso, devolve a mensagem
     de push. None se nao configurado, a rota nao puder ser calculada, ou
@@ -3696,9 +3914,16 @@ def _aviso_voo_sair(voo: dict, janela_minutos: int = 25) -> str | None:
     origem = os.environ.get("ENDERECO_CASA", "").strip()
     if not origem:
         return None
+    # 2026-10-11: o Alex tem que estar no aeroclube X min ANTES (briefing, padrao 30) - e o
+    # lugar e de onde o voo SAI (origem, ex: SSBL), nao o destino da navegacao.
+    briefing = vida_assistente.voo_briefing_min(conn) if conn is not None else 30
+    lugar = voo.get("origem") or voo["destino"]
+    if conn is not None:
+        lugar = vida_assistente.resolver_lugar(conn, lugar)
     try:
-        chegar_ate = datetime.fromisoformat(f"{voo['data']}T{voo['hora']}")
-        resultado = maps_client.horario_de_saida(origem, voo["destino"], chegar_ate, margem_minutos=60)
+        hora_voo = datetime.fromisoformat(f"{voo['data']}T{voo['hora']}")
+        chegar_ate = hora_voo - timedelta(minutes=briefing)
+        resultado = maps_client.horario_de_saida(origem, lugar, chegar_ate, margem_minutos=10)
     except (ValueError, requests.RequestException):
         return None
 
@@ -3707,10 +3932,9 @@ def _aviso_voo_sair(voo: dict, janela_minutos: int = 25) -> str | None:
     if not (0 <= minutos_pra_sair <= janela_minutos):
         return None
 
-    hora_txt = sair_ate.strftime("%H:%M")
     return (
-        f"Saia até as {hora_txt} pra chegar a tempo do voo das {voo['hora']} "
-        f"pra {voo['destino']} (trajeto de {resultado['duracao_minutos']}min)."
+        f"Saia até as {sair_ate:%H:%M} pra chegar no briefing das {chegar_ate:%H:%M} "
+        f"(voo das {voo['hora']} pra {voo['destino']}, {resultado['duracao_minutos']} min de trajeto)."
     )
 
 
@@ -4260,10 +4484,7 @@ def _trajeto_min_aviso(local: str):
 
 
 def _minutos_se_arrumar(conn) -> int:
-    try:
-        return max(5, min(180, int(obter_configuracao(conn, "tempo_se_arrumar_min") or 40)))
-    except ValueError:
-        return 40
+    return vida_assistente.se_arrumar_min(conn)
 
 
 def verificar_e_notificar():
@@ -4423,7 +4644,8 @@ def verificar_e_notificar():
     # muda pelo chat) e "hora de sair" no lugar do "daqui a pouco" de 10 min, que pra esses
     # chegaria tarde demais (ele ja devia estar saindo).
     planos_sair = notificacoes.plano_se_arrumar(
-        conn, datetime.now(), _minutos_se_arrumar(conn), trajeto_min=_trajeto_min_aviso
+        conn, datetime.now(), _minutos_se_arrumar(conn),
+        trajeto_min=lambda local: _trajeto_min_aviso(vida_assistente.resolver_lugar(conn, local)),
     )
     ids_sair = {p["id"] for p in planos_sair}
     for tipo_sair, ref_sair, titulo_sair, corpo_sair in notificacoes.avisos_se_arrumar(planos_sair):
@@ -4434,11 +4656,22 @@ def verificar_e_notificar():
         if not ja_notificou_hoje(conn, "tarefa_preparo", tarefa_id):
             avisos.append(("tarefa_preparo", tarefa_id, "Daqui a pouco", msg))
 
+    refeicoes_hoje = {
+        r["id"]: r["title"] for r in conn.execute(
+            "SELECT id, title FROM tasks WHERE due_date = ? AND hora IS NOT NULL AND completed_at IS NULL",
+            (date.today().isoformat(),),
+        ).fetchall() if notificacoes.e_refeicao(r["title"])
+    }
     for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(conn):
         if tarefa_id in ids_sair:
             continue
         if not ja_notificou_hoje(conn, "tarefa_horario", tarefa_id):
-            avisos.append(("tarefa_horario", tarefa_id, "Lembrete", msg))
+            if tarefa_id in refeicoes_hoje:
+                # "Comer: almoco - arroz, feijao, frango" -> "Hora de comer" / "Almoco - arroz..."
+                corpo = re.sub(r"^\s*comer\s*:?\s*", "", refeicoes_hoje[tarefa_id], flags=re.I) or msg
+                avisos.append(("tarefa_horario", tarefa_id, "Hora de comer", corpo[:1].upper() + corpo[1:]))
+            else:
+                avisos.append(("tarefa_horario", tarefa_id, "Lembrete", msg))
 
     # Compromisso do calendario do iCloud chegando (so origem="calendario" -
     # tarefa com horario ja tem o aviso acima, senao duplicaria). Pedido
@@ -4474,7 +4707,7 @@ def verificar_e_notificar():
     for voo in notificacoes.voos_de_hoje_com_horario(conn):
         if ja_notificou_hoje(conn, "voo_sair", voo["id"]):
             continue
-        msg = _aviso_voo_sair(voo)
+        msg = _aviso_voo_sair(voo, conn=conn)
         if msg:
             avisos.append(("voo_sair", voo["id"], "Hora de ir pro voo", msg))
 

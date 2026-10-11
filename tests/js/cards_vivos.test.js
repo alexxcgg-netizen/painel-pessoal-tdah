@@ -193,3 +193,24 @@ test("trilha do dia: bandeira por tarefa com hora, feita/nova/proxima e 'voce' s
   assert.equal(Cards.trilhaDia([{ id: 9, titulo: "x" }]), "");
   assert.match(Cards.trilhaDia([{ id: 1, titulo: "<b>", hora: "10:00" }], { hoje: true }), /&lt;b&gt;/);
 });
+
+test("planejar_dia: 'Comer:' vira icone de prato, '(até HH:MM)' vai pra coluna da hora, dia todo novo sem selo", () => {
+  assert.deepEqual(Cards.partesTarefa("Comer: almoço - arroz <b> (até 12:00)"), { titulo: "Almoço - arroz <b>", fim: "12:00", tipo: "comer" });
+  assert.deepEqual(Cards.partesTarefa("Voo - briefing 13:30"), { titulo: "Voo - briefing 13:30", fim: "", tipo: "voo" });
+  assert.deepEqual(Cards.partesTarefa("Lavar o carro"), { titulo: "Lavar o carro", fim: "", tipo: "" });
+  const agenda = [
+    { id: 1, titulo: "Comer: café - ovos (até 06:00)", hora: "05:30", nova: true },
+    { id: 2, titulo: "Ver números (até 07:00)", hora: "06:00", nova: true },
+  ];
+  const h = html("tarefas_criadas", { tarefas: agenda, dia: "2026-10-11", agenda_do_dia: agenda });
+  semFallback(h);
+  assert.match(h, /Dia montado/);
+  assert.match(h, /card-tarefa-icone" data-tipo="comer"/);
+  assert.match(h, /05:30<span class="card-tarefa-fim">–06:00<\/span>/);
+  assert.ok(!h.includes("vivo-selo-nova"), "dia todo novo nao leva selo");
+  assert.ok(!h.includes("Comer:"));
+  assert.ok(!h.includes("<b>"));
+  // nova no meio de antigas: selo continua
+  const misto = [{ id: 1, titulo: "Antiga", hora: "08:00" }, { id: 2, titulo: "Nova", hora: "09:00", nova: true }];
+  assert.match(html("tarefas_criadas", { tarefas: [misto[1]], dia: "2026-10-11", agenda_do_dia: misto }), /vivo-selo-nova/);
+});

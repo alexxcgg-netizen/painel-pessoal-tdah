@@ -438,7 +438,50 @@
     });
   }
 
+  // Bloco do planejar_dia (2026-10-11): "Comer: almoco - arroz..." e "... (até 12:00)" sao
+  // convencao do servidor; na tela viram icone de prato e "11:30 –12:00" na coluna da hora.
+  const ICONE_TIPO_TAREFA = {
+    comer:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10"/><path d="M17 21V3c-2.2 0-3.5 2.6-3.5 6.5 0 2.4 1.2 3.5 3.5 3.5"/></svg>',
+    voo:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 13.5 3 11l1.5-1.5 8 1L17 6a2 2 0 0 1 3 3l-4.5 4.5 1 8L15 23l-2.5-7.5"/></svg>',
+  };
+
+  function partesTarefa(titulo) {
+    let t = String(titulo == null ? "" : titulo).trim();
+    let fim = "";
+    const m = t.match(/\s*\(at[eé] (\d{2}:\d{2})\)\s*$/i);
+    if (m) {
+      fim = m[1];
+      t = t.slice(0, m.index).trim();
+    }
+    let tipo = "";
+    if (/^comer\s*:/i.test(t)) {
+      tipo = "comer";
+      t = t.replace(/^comer\s*:\s*/i, "");
+      t = t.charAt(0).toUpperCase() + t.slice(1);
+    } else if (/^voo\b/i.test(t)) {
+      tipo = "voo";
+    }
+    return { titulo: t || String(titulo || ""), fim, tipo };
+  }
+
+  // HTML do titulo (icone + texto escapado) e da coluna de hora ("11:30" + "–12:00").
+  function tituloTarefaHTML(titulo) {
+    const p = partesTarefa(titulo);
+    const icone = p.tipo ? `<span class="card-tarefa-icone" data-tipo="${p.tipo}">${ICONE_TIPO_TAREFA[p.tipo]}</span>` : "";
+    return `${icone}${esc(p.titulo)}`;
+  }
+
+  function horaTarefaHTML(titulo, hora) {
+    const p = partesTarefa(titulo);
+    return `${esc(hora || "")}${p.fim && hora ? `<span class="card-tarefa-fim">–${esc(p.fim)}</span>` : ""}`;
+  }
+
   const Cards = {
+    partesTarefa,
+    tituloTarefaHTML,
+    horaTarefaHTML,
     TEXTO_FALLBACK,
     MOEDA_OCULTA,
     registrar,

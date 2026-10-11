@@ -375,8 +375,8 @@
     return (
       `<li class="card-tarefa vivo-tarefa${t.concluida ? " concluida" : ""}${t.atrasada ? " atrasada" : ""}" data-min="${t.atrasada ? "" : minutosDe(t.hora)}">` +
       `<label><input type="checkbox" data-tarefa-id="${esc(t.id)}"${t.concluida ? " checked" : ""} aria-label="Concluir ${esc(t.titulo)}">` +
-      `<span class="card-tarefa-titulo">${esc(t.titulo)}</span></label>` +
-      (quando ? `<span class="card-tarefa-quando">${esc(quando)}</span>` : "") +
+      `<span class="card-tarefa-titulo">${Cards.tituloTarefaHTML(t.titulo)}</span></label>` +
+      (quando ? `<span class="card-tarefa-quando">${esc(quando)}${t.hora && !t.atrasada && Cards.partesTarefa(t.titulo).fim ? `<span class="card-tarefa-fim">–${esc(Cards.partesTarefa(t.titulo).fim)}</span>` : ""}</span>` : "") +
       `</li>`
     );
   }
@@ -491,7 +491,7 @@
           .join(" ");
         return (
           `<g class="${cls}" data-id="${esc(t.id)}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" style="--i:${i}">` +
-          `<title>${esc(t.hora)} · ${esc(t.titulo)}</title>` +
+          `<title>${esc(t.hora)} · ${esc(Cards.partesTarefa(t.titulo).titulo)}</title>` +
           `<g class="vivo-bandeira-haste"><line x1="0" y1="0" x2="0" y2="-33" class="vivo-bandeira-pau"/>${BANDEIRA}</g>` +
           `<circle r="2.6" class="vivo-bandeira-base"/></g>`
         );

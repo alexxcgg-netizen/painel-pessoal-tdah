@@ -147,8 +147,13 @@ def _sem_acento(texto: str) -> str:
     return "".join(c for c in base if not unicodedata.combining(c))
 
 
+def e_refeicao(titulo: str) -> bool:
+    """Bloco de comida do planejar_dia ("Comer: almoco - arroz, feijao, frango")."""
+    return _sem_acento(titulo).startswith("comer")
+
+
 def e_compromisso_de_sair(titulo: str) -> bool:
-    return bool(_PALAVRAS_SAIR.search(_sem_acento(titulo)))
+    return not e_refeicao(titulo) and bool(_PALAVRAS_SAIR.search(_sem_acento(titulo)))
 
 
 def plano_se_arrumar(
@@ -230,7 +235,7 @@ def tarefas_preparo(
     ).fetchall()
     avisos = []
     for r in rows:
-        if r["id"] in ignorar:
+        if r["id"] in ignorar or e_refeicao(r["title"]):  # comer: o aviso na hora basta
             continue
         try:
             quando = datetime.combine(agora.date(), datetime.strptime(r["hora"], "%H:%M").time())

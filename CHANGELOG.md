@@ -56,6 +56,38 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-11 - Assistente de vida: "acordei agora, monta meu dia"
+
+- **Pedido do Alex**: abrir de manhã, contar o dia ("acordei agora, tenho números da empresa, CND, voo em
+  Blumenau às 14h, passar na obra") e receber o dia inteiro com hora, incluindo quando comer pra ganhar massa.
+- `vida_assistente.py` (novo, puro): perfil (peso da última medida - **lido pelo `db._dnum`, o valor é
+  criptografado em repouso**; altura, idade pelo nascimento, objetivo, academia), meta de comida calculada em
+  código (Mifflin-St Jeor x1,5 + 350 kcal pra ganhar massa; 2 g/kg de proteína; 5 refeições), rotinas fixas
+  (voo: 30 min de briefing antes + 30 de debriefing depois, configuráveis; se arrumar), lugares com apelido
+  (`configuracoes.lugares_apelidos`: "obra" -> o loteamento da obra; "aeroclube"; ICAO
+  SSBL -> aeroclube) e "acordou hoje às". Tudo vira linhas no contexto do chat.
+- Ferramentas novas do chat: `planejar_dia` (cada bloco vira tarefa com hora; tarefa que já existe com o mesmo
+  nome só ganha a hora; um card "Dia montado" com a trilha e um Desfazer pra tudo), `registrar_acordei`,
+  `atualizar_perfil`, `salvar_lugar_apelido`, `apagar_tarefa` (volta inteira no Desfazer, mesmo id - entidade
+  `tarefa_apagada` com a linha guardada na lista fechada `db.TAREFA_RESTAURAVEL`), `ajustar_renda`; `registrar_voo`
+  ganhou `hora` no schema (o executor já aceitava).
+- **Permissão de editar (pedido do Alex)**: `ajustar_gasto`/`ajustar_renda` corrigem o VALOR que ele digitou
+  quando ele diz que errou (`EDICAO_COLUNAS` ganhou `amount` em expenses/incomes e `local` em tasks). Banco
+  (bank_transactions) e construtora continuam fora - nem estão na lista. Modo visitante mascara o valor no card.
+- Prompt "ASSISTENTE DE VIDA - MONTAR O DIA": começa de quando acordou, durações realistas + folga, trajeto real
+  (`estimar_trajeto` entende apelido), voo num bloco só, nunca mais de 4 h sem comer (lanche pra levar no voo),
+  academia sugerida só com o ok dele, responde em linhas "HH:MM - o que".
+- **Bug achado no teste com a IA real**: o Haiku 5.5 pensa antes de agir e "monta meu dia" gastava >4000 tokens
+  só pensando - a rodada voltava cortada e o chat respondia "Beleza." sem montar nada. Degrau novo
+  `MAX_TOKENS_CHAT_TETO = 12000` (500 -> 4000 -> 12000, só paga o que gera), `RODADAS_MAX` 4 -> 6, e rodada cortada
+  sem texto agora diz que não terminou em vez de "Beleza.".
+- Avisos: voo avisa a hora de sair pra chegar no BRIEFING, indo pro aeroclube (origem do voo, não o destino);
+  refeição do plano ("Comer: almoço - ...") avisa "Hora de comer" com o que comer, não leva o aviso de 30 min e
+  nunca conta como date. Card: "Comer:" vira ícone de prato, "Voo" de avião, "(até HH:MM)" vai pra coluna da hora
+  (`Cards.partesTarefa`), dia todo novo sem 13 selos "nova". SW v57.
+- Testado com a IA de verdade numa cópia do banco (mensagem dele): monta 13 blocos, trajeto Brusque-aeroclube
+  63 min, lanche pra levar antes do briefing, corrige "errei, foi 58" e apaga "já fiz ontem".
+
 ## 2026-10-11 - Notificações de verdade + "hora de se arrumar"
 
 - **Bug: NENHUM aviso automático saiu, nunca.** O painel subia com `waitress app:app`, que não chama

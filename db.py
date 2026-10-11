@@ -1726,14 +1726,24 @@ def salvar_mensagem_chat(conn, papel: str, texto: str, cards: list | None = None
 # antigos dessas colunas. Lista fechada - nada de tabela/coluna vinda da IA, e
 # nenhuma coluna de dinheiro (expenses.amount fica de fora de proposito).
 EDICAO_COLUNAS = {
-    "tasks": ("title", "hora", "due_date", "due_at", "completed_at"),
+    "tasks": ("title", "hora", "due_date", "due_at", "completed_at", "local"),
     "lembretes": ("titulo", "data", "recorrente", "despertar"),
     "voos": ("data", "origem", "destino", "horas", "aeronave", "funcao", "observacao"),
-    "expenses": ("category", "description"),
+    # 2026-10-11 (pedido do Alex): valor de gasto/renda que ELE digitou pode ser corrigido pela
+    # IA ("errei o valor"). Banco (bank_transactions) e construtora continuam fora - nem
+    # estao nesta lista, e a construtora nem e guardada aqui.
+    "expenses": ("category", "description", "amount"),
+    "incomes": ("category", "description", "amount"),
 }
 
+# Colunas que voltam quando o Desfazer restaura uma tarefa apagada pela IA.
+TAREFA_RESTAURAVEL = (
+    "id", "title", "source_text", "due_at", "due_date", "completed_at", "created_at", "hora",
+    "depende_do_tempo", "esforco", "local",
+)
+
 ENTIDADES_DESFAZIVEIS = (
-    "edicao",
+    "edicao", "tarefa_apagada",
     "tarefa", "gasto", "renda", "lembrete", "meta", "evento",
     # Fase 6 (US-E7): modulos ligados aos cards
     "habito", "habito_marcacao", "projeto", "projeto_etapa", "etapa_concluida", "viagem", "hidratacao", "treino",
@@ -1780,6 +1790,15 @@ def criar_acao_desfazer(conn, itens: list[dict]) -> str | None:
                 continue
             limpo["tabela"] = tabela
             limpo["antes"] = valores
+        if item["entidade"] == "tarefa_apagada":
+            linha = item.get("linha")
+            if not isinstance(linha, dict) or linha.get("id") != item.get("id"):
+                continue
+            limpo["linha"] = {
+                c: (v[:2000] if isinstance(v, str) else v)
+                for c, v in linha.items()
+                if c in TAREFA_RESTAURAVEL and (v is None or isinstance(v, (str, int, float)))
+            }
         if "id" in limpo or "uid" in limpo:
             limpos.append(limpo)
     if not limpos:

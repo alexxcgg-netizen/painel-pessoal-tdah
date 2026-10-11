@@ -886,6 +886,7 @@ _NOME_CAMPO = {
     "titulo": "título", "data": "data", "recorrente": "repete todo ano", "despertar": "desperta você",
     "origem": "origem", "destino": "destino", "horas": "tempo de voo", "aeronave": "aeronave",
     "funcao": "função", "observacao": "observação", "category": "categoria", "description": "descrição",
+    "amount": "valor", "local": "lugar", "situacao": "situação",
 }
 
 
@@ -894,6 +895,8 @@ def _valor_legivel(campo: str, valor):
         return "concluída" if valor else "pendente"
     if valor is None or valor == "":
         return "—"
+    if campo == "amount" and isinstance(valor, (int, float)):
+        return "R$ " + f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     if campo in ("due_date", "data") and isinstance(valor, str):
         try:
             d = date.fromisoformat(valor[:10])
@@ -1153,7 +1156,7 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
     for ef in efeitos:
         entidade = ef.get("entidade")
         id_ = ef.get("id")
-        if entidade == "edicao" and isinstance(id_, int):
+        if entidade in ("edicao", "tarefa_apagada") and isinstance(id_, int):
             if pos_edicoes is None:
                 pos_edicoes = len(saida)
                 saida.append(None)
@@ -1233,6 +1236,11 @@ def mascarar_cards(cards_lista: list) -> list:
     saida = []
     for card in cards_lista or []:
         c = copy.deepcopy(card)
+        if c.get("type") == "edicao" and isinstance(c.get("data"), dict):
+            for item in c["data"].get("itens") or []:
+                for m in item.get("mudancas") or []:
+                    if m.get("campo") == "valor":
+                        m["de"] = m["para"] = "R$ •••"
         campos = CAMPOS_SENSIVEIS.get(c.get("type"))
         if campos and isinstance(c.get("data"), dict):
             for campo in campos:

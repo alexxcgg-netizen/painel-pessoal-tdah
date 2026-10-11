@@ -511,6 +511,33 @@
   white-space: nowrap;
 }
 
+/* bloco com fim ("11:30" e, embaixo, "–12:00") - planejar_dia */
+.card-tarefa-fim {
+  display: block;
+  text-align: right;
+  font-size: 0.64rem;
+  color: var(--text-faint);
+  line-height: 1.15;
+}
+
+/* "Comer:" e "Voo" viram icone pequeno antes do titulo */
+.card-tarefa-icone {
+  display: inline-flex;
+  vertical-align: -0.16em;
+  margin-right: 0.35em;
+  color: var(--cor-entrada, var(--text-muted));
+}
+.card-tarefa-icone[data-tipo="voo"] {
+  color: var(--cor-painel, var(--text-muted));
+}
+.card-tarefa-icone svg {
+  width: 0.95em;
+  height: 0.95em;
+}
+.card-tarefa.concluida .card-tarefa-icone {
+  opacity: 0.5;
+}
+
 /* transacao */
 .card-transacao-topo {
   display: flex;

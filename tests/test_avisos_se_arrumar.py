@@ -203,9 +203,9 @@ class RotasEPayloadTestCase(_Base):
         self.assertEqual(app._url_do_aviso("qualquer_coisa"), "/")
 
     def test_contexto_do_chat_tem_o_tempo_de_se_arrumar(self):
-        self.assertIn("se arrumar pra sair (date, festa, jantar): 40 min", app._contexto_chat(self.conn))
+        self.assertIn("se arrumar pra sair (date, festa, jantar) = 40 min", app._contexto_chat(self.conn))
         db.definir_configuracao(self.conn, "tempo_se_arrumar_min", "lixo")
-        self.assertIn(": 40 min", app._contexto_chat(self.conn))
+        self.assertIn("= 40 min", app._contexto_chat(self.conn))
 
 
 if __name__ == "__main__":

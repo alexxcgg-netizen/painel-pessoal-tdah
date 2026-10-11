@@ -70,8 +70,8 @@ pra algum lugar ("vou pra Blumenau e depois volto"), chame `estimar_trajeto` com
 diga km e tempo total, sem ele precisar pedir. Passe o nome do lugar do jeito que ele falou
 ("Aeroclube de Blumenau") - a ferramenta acha o endereco exato; cite o endereco que ela devolveu.
 
-Compromisso de SAIR (date, festa, jantar, aniversario, balada): o Alex leva o tempo da linha "Tempo
-que o Alex leva pra se arrumar" (40 min hoje) pra ficar pronto - bem mais que pra sair pro trabalho.
+Compromisso de SAIR (date, festa, jantar, aniversario, balada): o Alex leva o tempo de se arrumar da
+linha "Rotinas fixas" (40 min hoje) pra ficar pronto - bem mais que pra sair pro trabalho.
 Quando ele pedir pra organizar o dia (ou contar o dia com um desses), monte a ordem DE TRAS PRA FRENTE:
 horario do compromisso - trajeto (`estimar_trajeto` se souber o lugar; senao ~15 min em Brusque) = hora
 de sair; menos o tempo de se arrumar = hora de comecar a se arrumar. Diga essas duas horas na resposta
@@ -86,10 +86,44 @@ e as 17h", "o date e 20h30"), ajuste o registro existente na hora (ex: `ajustar_
 
 Pedido pra mudar algo que JA existe usa as ferramentas de ajuste - `ajustar_tarefa` (uma por tarefa),
 `mover_tarefas` (o dia ou a manha/tarde/noite inteira), `ajustar_lembrete`, `ajustar_voo`,
-`ajustar_gasto` (so categoria/descricao) - nunca `registrar_*` de novo, que duplicaria. Voce NAO
-apaga nada e NAO muda valor de dinheiro; se pedirem, diga que isso e na tela do painel. Toda mudanca
-volta num card com Desfazer, entao pode fazer sem pedir confirmacao quando o pedido for claro. Na duvida
-de quais registros existem, consulte antes.
+`ajustar_gasto`/`ajustar_renda` - nunca `registrar_*` de novo, que duplicaria. Voce TEM permissao
+(pedido do proprio Alex) pra corrigir o que ele ou voce registrou: titulo, hora, dia, e o VALOR de
+gasto/renda quando ele disser que errou o valor. Tarefa errada ou duplicada -> `apagar_tarefa`. Se voce
+mesmo percebe que registrou errado na conversa (duplicou, titulo trocado), corrija na hora sem esperar
+ele pedir. O que voce NUNCA mexe: transacao do banco (Nubank) e numero da construtora - se ele pedir,
+diga que esses vem prontos de la. Toda mudanca volta num card com Desfazer, entao pode fazer sem pedir
+confirmacao quando o pedido for claro. Na duvida de quais registros existem, consulte antes.
+
+ASSISTENTE DE VIDA - MONTAR O DIA. O Alex usa voce de manha pra organizar o dia inteiro, tipo "acordei
+agora, hoje tenho X, Y e o voo". Quando ele disser que acordou, chame `registrar_acordei`. Quando ele
+contar o dia (ou pedir pra organizar), monte TUDO com horario e chame `planejar_dia` uma vez com todos
+os blocos, em ordem:
+- Comece da linha "Agora:" (ou "Acordou hoje as"); nada antes disso. Estime duracao realista de cada
+  coisa (ligacao/pedido por mensagem 10-15 min, buscar documento num orgao 30-60 min, analisar numeros
+  da empresa ~1 h) e deixe 10-15 min de folga entre blocos.
+- Deslocamento e bloco proprio quando for fora de Brusque ou longe: `estimar_trajeto` pra ter o tempo
+  real (use os apelidos da linha "Lugares do Alex", ex: 'obra'); em Brusque, ~15 min.
+- Voo: siga "Rotinas fixas" - chegar no aeroclube o tempo de briefing antes da decolagem e ficar o
+  debriefing depois de pousar. O voo e UM bloco so: titulo "Voo - briefing 13:30, decola 14:00,
+  debriefing ate 16:30", hora = chegada pro briefing, fim = fim do debriefing, local = 'aeroclube'
+  (nao quebre em briefing/voo/debriefing separados). Se ele nao disse a hora do voo, pergunte antes
+  de montar o resto em volta.
+- Comida (use a linha "Meta de comida", nunca invente outro numero): refeicoes a cada 3-4 h a partir de
+  quando acordou, cada uma um bloco "Comer: <refeicao> - <o que comer, comida simples de casa/
+  restaurante, com a proteina>" (ex: "Comer: almoco - arroz, feijao, 150 g de frango, salada"). Pra
+  ganhar massa NUNCA passe de 4 h sem comer: se voo, trajeto ou obra cair no meio, poe um bloco
+  "Comer: lanche pra levar - <algo pratico: banana + barra de proteina, sanduiche de frango>" na
+  hora certa (pode ser no carro/antes do briefing). Quantidade de refeicoes = a da meta. Treino:
+  lanche com carbo 1-2 h antes e refeicao com proteina ate 2 h depois.
+- Academia: se o perfil diz que ele esta parado e quer voltar, sugira um horario que caiba (1 h) e
+  pergunte se entra no plano - nao enfie sem ele topar.
+- Date/festa: "Rotinas fixas" (tempo de se arrumar) - o painel ja avisa "hora de se arrumar" e "hora
+  de sair" sozinho, nao crie bloco pra isso.
+- Na resposta, liste o dia em linhas curtas "HH:MM - o que" (o card ja mostra a trilha) e termine com
+  1 frase do que importa (ex: "o almoco tem que ser antes das 12h30 por causa do voo"). Depois de
+  montado, se ele mudar algo, use ajustar_tarefa/mover_tarefas/apagar_tarefa em cima do que existe.
+Coisas fixas que ele contar sobre si (peso, altura, objetivo, academia) -> `atualizar_perfil`; lugar
+fixo com apelido (obra, aeroclube) -> `salvar_lugar_apelido`; regra de rotina duravel -> `registrar_memoria`.
 
 O painel mostra cards animados sozinho quando voce usa as ferramentas de consulta (voos, clima, gastos,
 agenda, rota, viagem) - entao prefira chamar a ferramenta a descrever numeros de cabeca, e na resposta
@@ -419,17 +453,118 @@ CHAT_TOOLS = [
     {
         "name": "ajustar_gasto",
         "description": (
-            "Troca a CATEGORIA ou a DESCRICAO de um gasto recente (ultimos 120 dias). O VALOR NUNCA muda "
-            "por aqui - se o Alex pedir pra mudar valor, diga que valor so muda na aba Finanças."
+            "Corrige um gasto que o Alex registrou (ultimos 120 dias): categoria, descricao ou VALOR. Valor so "
+            "quando ELE disser que o valor esta errado ('errei, foi 45', 'nao foi 80, foi 58'). Nunca mexe em "
+            "transacao do banco (Nubank) nem em numero da construtora - esses nao passam por aqui."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "descricao_atual": {"type": "string", "description": "descricao (ou trecho) do gasto"},
+                "valor": {"type": "number", "description": "valor certo em reais - so se o Alex corrigiu o valor"},
                 "categoria": {"type": "string"},
                 "nova_descricao": {"type": "string"},
             },
             "required": ["descricao_atual"],
+        },
+    },
+    {
+        "name": "ajustar_renda",
+        "description": "Corrige uma renda/entrada que o Alex registrou (valor, categoria ou descricao) - mesmas regras do ajustar_gasto.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "descricao_atual": {"type": "string"},
+                "valor": {"type": "number"},
+                "categoria": {"type": "string"},
+                "nova_descricao": {"type": "string"},
+            },
+            "required": ["descricao_atual"],
+        },
+    },
+    {
+        "name": "apagar_tarefa",
+        "description": (
+            "Apaga uma tarefa errada ou duplicada (ex: voce registrou duas vezes, ou o Alex diz 'tira essa, "
+            "nao vou mais'). Prefira ajustar_tarefa quando o certo for corrigir; apagar e pra o que nao devia "
+            "existir. Volta inteira no Desfazer do card. Rotina recorrente nao se apaga por aqui."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"titulo": {"type": "string", "description": "titulo (ou trecho) da tarefa"}},
+            "required": ["titulo"],
+        },
+    },
+    {
+        "name": "registrar_acordei",
+        "description": (
+            "O Alex acabou de acordar ('acordei agora', 'acordei as 8'). Guarda a hora (sem 'hora' = agora) - "
+            "o dia dele se monta a partir dela. Devolve a meta de comida e ate quando fazer a 1a refeicao."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"hora": {"type": "string", "description": "HH:MM, so se ele disse uma hora; omita = agora"}},
+        },
+    },
+    {
+        "name": "atualizar_perfil",
+        "description": (
+            "Atualiza o perfil do corpo/rotina do Alex: peso (kg), altura, objetivo (ganhar_massa, manter, "
+            "perder) e situacao da academia ('parado ha 2 meses', 'treinando 4x/semana'). A meta de comida "
+            "do contexto sai daqui."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "peso_kg": {"type": "number"},
+                "altura_cm": {"type": "number", "description": "em cm (169) - 1.69 tambem e aceito"},
+                "objetivo": {"type": "string", "enum": ["ganhar_massa", "manter", "perder"]},
+                "academia": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "salvar_lugar_apelido",
+        "description": (
+            "Guarda um lugar fixo do Alex com apelido ('a obra fica no loteamento tal, bairro tal, "
+            "Brusque'; 'o aeroclube'). Depois 'obra' vira esse endereco no estimar_trajeto, no planejar_dia e "
+            "nos avisos. Diferente de registrar_lugar (lugar que ele gostou numa viagem)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "apelido": {"type": "string", "description": "como ele chama: 'obra', 'aeroclube', 'escritorio'"},
+                "endereco": {"type": "string", "description": "endereco ou nome que o Google acha, com cidade"},
+            },
+            "required": ["apelido", "endereco"],
+        },
+    },
+    {
+        "name": "planejar_dia",
+        "description": (
+            "Monta o dia do Alex com horario: cada bloco vira uma tarefa com hora (tarefa que ja existe com "
+            "o mesmo nome so ganha a hora, nao duplica). Um card com a trilha do dia e um Desfazer pra tudo. "
+            "Use quando ele contar o que tem pra fazer e pedir pra organizar - ver as regras de 'Montar o dia'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "data": {"type": "string", "description": "AAAA-MM-DD (omita = hoje)"},
+                "blocos": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "titulo": {"type": "string", "description": "curto e concreto; refeicao comeca com 'Comer:'"},
+                            "hora": {"type": "string", "description": "inicio HH:MM"},
+                            "fim": {"type": "string", "description": "fim HH:MM, quando fizer sentido"},
+                            "local": {"type": "string", "description": "apelido ('obra') ou endereco, se tiver"},
+                        },
+                        "required": ["titulo", "hora"],
+                    },
+                },
+            },
+            "required": ["blocos"],
         },
     },
     {
@@ -445,7 +580,7 @@ CHAT_TOOLS = [
         "name": "ajustar_tempo_se_arrumar",
         "description": (
             "Muda quanto tempo o Alex leva pra se arrumar pra SAIR (date, festa, jantar) - hoje esta na linha "
-            "'Tempo que o Alex leva pra se arrumar' do contexto. Use quando ele disser que demora outro tempo "
+            "'Rotinas fixas' do contexto. Use quando ele disser que demora outro tempo "
             "('agora levo uma hora pra me arrumar'). O painel usa isso no aviso 'Hora de se arrumar'."
         ),
         "input_schema": {
@@ -954,6 +1089,7 @@ CHAT_TOOLS = [
                     "type": "number",
                     "description": "horas voadas - so inclua se o voo ja aconteceu e o Alex disse quanto tempo",
                 },
+                "hora": {"type": "string", "description": "HH:MM da decolagem prevista, se ele disse"},
                 "observacao": {
                     "type": "string",
                     "description": (
@@ -1618,15 +1754,22 @@ FUNCAO_CHAT_SIMPLES = "chat_simples"
 FUNCAO_DECISAO = "analisar_decisao"
 FUNCAO_MENSAGEM_DIFICIL = "redigir_mensagem_dificil"
 
-# Rodadas do loop de tool-use (igual a antes).
-RODADAS_MAX = 4
+# Rodadas do loop de tool-use. 6 (era 4) desde o planejar_dia (2026-10-11): "acordei + monta
+# meu dia" e acordei -> trajeto(s) -> planejar_dia -> texto, e com 4 cortava no meio.
+RODADAS_MAX = 6
 # max_tokens padrao se ia/config.d/chat.json estiver ausente/invalido.
 MAX_TOKENS_CHAT_PADRAO = 500
 # Teto antigo do chat (brain dump US-E6: 8+ tool_use numa rodada). Se uma
 # rodada bater no limite de 500 (stop_reason "max_tokens"), ela e refeita UMA
 # vez com este teto - assim o limite novo corta custo no caso comum sem
-# perder tarefa no meio de um brain dump longo.
-MAX_TOKENS_CHAT_ESCALADO = 1500
+# perder tarefa no meio de um brain dump longo. 4000 (era 1500) desde o planejar_dia: o dia
+# inteiro (10-15 blocos com titulo/hora/fim/local) + a resposta passava de 1500 e a rodada
+# voltava cortada ("Beleza." sem montar nada). So custa o que de fato for gerado.
+MAX_TOKENS_CHAT_ESCALADO = 4000
+# Ultimo degrau: o modelo do chat pensa (thinking) antes de agir, e "monta meu dia inteiro" gastou
+# 4000 so pensando (medido 2026-10-11) - cortava antes de chamar o planejar_dia. So acontece em
+# pedido grande; pergunta comum para nos 500.
+MAX_TOKENS_CHAT_TETO = 12000
 
 # Resposta do caminho barato (roteador -> "luna") quando a mensagem precisa
 # de ferramenta: o chat cai pro caminho padrao (com tools).
@@ -1992,9 +2135,14 @@ def chat(
         if response.stop_reason == "max_tokens" and max_tokens < MAX_TOKENS_CHAT_ESCALADO:
             # cortou no limite novo: refaz a rodada com o teto antigo (1x)
             response = rodada(MAX_TOKENS_CHAT_ESCALADO)
+            if response.stop_reason == "max_tokens":
+                response = rodada(MAX_TOKENS_CHAT_TETO)  # pedido grande (montar o dia inteiro)
 
         if response.stop_reason != "tool_use":
             texto = "".join(b.text for b in response.content if b.type == "text").strip()
+            if not texto and response.stop_reason == "max_tokens":
+                # cortou sem dizer nada: melhor admitir do que um "Beleza." que finge que fez
+                texto = "Não consegui terminar de montar isso agora - manda de novo que eu refaço."
             return texto or "Beleza.", acoes, usage_total
 
         mensagens.append({"role": "assistant", "content": response.content})

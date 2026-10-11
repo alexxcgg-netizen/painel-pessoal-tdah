@@ -80,7 +80,7 @@
         return (
           `<li class="card-tarefa${t.concluida ? " concluida" : ""}">` +
           `<label><input type="checkbox"${id ? ` data-tarefa-id="${id}"` : " disabled"}${marcada} aria-label="Concluir ${esc(t.titulo)}">` +
-          `<span class="card-tarefa-titulo">${esc(t.titulo)}</span></label>` +
+          `<span class="card-tarefa-titulo">${Cards.tituloTarefaHTML(t.titulo)}</span></label>` +
           `<span class="card-tarefa-quando">${esc(quandoTarefa(t))}</span>` +
           (t.local ? `<span class="card-local">${ICONE_PIN}${esc(t.local)}</span>` : "") +
           `</li>`
@@ -92,22 +92,28 @@
     // cartao vivo (2026-10-10): com o dia em volta, a tarefa nova aparece no lugar dela
     // na linha do tempo (as outras do dia apagadas; a nova "pousa" com brilho)
     if (agenda.length > 1 && agenda.some((t) => t.nova)) {
+      // dia inteiro montado de uma vez (planejar_dia): todas sao novas, entao o selo "nova"
+      // e o pouso com brilho nao distinguem nada - so marca quando ha nova no meio de antigas
+      const todasNovas = agenda.every((t) => t.nova);
+      const destaca = (t) => t.nova && !todasNovas;
       const linhas = agenda
         .map(
           (t) =>
-            `<li class="card-tarefa vivo-dia-item${t.nova ? " vivo-nova" : ""}${t.concluida ? " concluida" : ""}">` +
-            `<label><input type="checkbox" data-tarefa-id="${esc(t.id)}"${t.concluida ? " checked" : ""} aria-label="Concluir ${esc(t.titulo)}">` +
-            `<span class="card-tarefa-titulo">${esc(t.titulo)}</span></label>` +
-            `<span class="card-tarefa-quando">${t.nova ? '<span class="vivo-selo-nova">nova</span>' : ""}${esc(t.hora || "sem hora")}</span>` +
+            `<li class="card-tarefa vivo-dia-item${destaca(t) ? " vivo-nova" : ""}${t.concluida ? " concluida" : ""}">` +
+            `<label><input type="checkbox" data-tarefa-id="${esc(t.id)}"${t.concluida ? " checked" : ""} aria-label="Concluir ${esc(Cards.partesTarefa(t.titulo).titulo)}">` +
+            `<span class="card-tarefa-titulo">${Cards.tituloTarefaHTML(t.titulo)}</span></label>` +
+            `<span class="card-tarefa-quando">${destaca(t) ? '<span class="vivo-selo-nova">nova</span>' : ""}${t.hora ? Cards.horaTarefaHTML(t.titulo, t.hora) : "sem hora"}</span>` +
             `</li>`
         )
         .join("");
       const novas = agenda.filter((t) => t.nova).length;
       const rotuloDia = diaRelativoTarefa(data.dia);
+      const resumo = todasNovas
+        ? `Seu dia ${esc(rotuloDia)}, montado: <strong>${agenda.length}</strong> blocos`
+        : `Seu dia ${esc(rotuloDia)}: <strong>${agenda.length}</strong> tarefas${novas > 1 ? `, ${novas} novas` : ""}`;
       return (
-        eyebrow(ICONES.tarefa, titulo, contador) +
-        `<p class="card-linha-meta vivo-dia-resumo">Seu dia ${esc(rotuloDia)}: <strong>${agenda.length}</strong> tarefas` +
-        `${novas > 1 ? `, ${novas} novas` : ""}</p>` +
+        eyebrow(ICONES.tarefa, todasNovas ? "Dia montado" : titulo, contador) +
+        `<p class="card-linha-meta vivo-dia-resumo">${resumo}</p>` +
         (typeof Cards.trilhaDia === "function" ? Cards.trilhaDia(agenda, { hoje: rotuloDia === "hoje" }) : "") +
         `<ul class="card-tarefas vivo-dia-lista" data-vivo="criadas">${linhas}</ul>`
       );

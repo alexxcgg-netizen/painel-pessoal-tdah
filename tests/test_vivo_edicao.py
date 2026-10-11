@@ -127,18 +127,25 @@ class VivoTestCase(unittest.TestCase):
         self.desfazer(cards[0])
         self.assertEqual({r[0] for r in self.sql("SELECT due_date FROM tasks")}, {HOJE})
 
-    def test_ajustar_gasto_nunca_mexe_no_valor(self):
+    def test_ajustar_gasto_corrige_valor_digitado_e_desfaz(self):
+        # 2026-10-11: o Alex liberou corrigir valor que ELE digitou ("errei, foi 45")
         self.sql("INSERT INTO expenses (amount, category, description) VALUES (42.5, 'outros', 'almoco no centro')")
-        corpo, res = self.chat([("ajustar_gasto", {"descricao_atual": "almoco", "categoria": "Restaurante", "valor": 1})])
+        corpo, res = self.chat([("ajustar_gasto", {"descricao_atual": "almoco", "categoria": "Restaurante", "valor": 45})])
         self.assertTrue(res[0]["ok"])
-        self.assertEqual(tuple(self.sql("SELECT amount, category FROM expenses")[0]), (42.5, "restaurante"))
-        self.desfazer(next(c for c in corpo["cards"] if c["type"] == "edicao"))
-        self.assertEqual(self.sql("SELECT category FROM expenses")[0][0], "outros")
+        self.assertEqual(tuple(self.sql("SELECT amount, category FROM expenses")[0]), (45.0, "restaurante"))
+        card = next(c for c in corpo["cards"] if c["type"] == "edicao")
+        self.assertIn({"campo": "valor", "de": "R$ 42,50", "para": "R$ 45,00"}, card["data"]["itens"][0]["mudancas"])
+        self.desfazer(card)
+        self.assertEqual(tuple(self.sql("SELECT amount, category FROM expenses")[0]), (42.5, "outros"))
+        _, res = self.chat([("ajustar_gasto", {"descricao_atual": "almoco", "valor": -3})])
+        self.assertIn("erro", res[0])
 
     def test_desfazer_so_aceita_tabela_e_coluna_da_lista(self):
         conn = db.get_db()
         try:
-            self.assertIsNone(db.criar_acao_desfazer(conn, [{"entidade": "edicao", "id": 1, "tabela": "expenses", "antes": {"amount": 1}}]))
+            # banco (Nubank) nunca entra na lista de edicao
+            self.assertIsNone(db.criar_acao_desfazer(conn, [{"entidade": "edicao", "id": 1, "tabela": "bank_transactions", "antes": {"valor": 1}}]))
+            self.assertIsNone(db.criar_acao_desfazer(conn, [{"entidade": "edicao", "id": 1, "tabela": "expenses", "antes": {"created_at": "x"}}]))
             self.assertIsNone(db.criar_acao_desfazer(conn, [{"entidade": "edicao", "id": 1, "tabela": "auth", "antes": {"pin": "x"}}]))
             self.assertIsNotNone(db.criar_acao_desfazer(conn, [{"entidade": "edicao", "id": 1, "tabela": "tasks", "antes": {"hora": "09:00", "x": 1}}]))
         finally:
