@@ -13,7 +13,11 @@ bp = Blueprint("push", __name__)
 
 @bp.route("/api/push/status", methods=["GET"])
 def push_status():
-    return jsonify({"configurado": push_client.configurado(), "public_key": push_client.public_key()})
+    return jsonify({
+        "configurado": push_client.configurado(),
+        "public_key": push_client.public_key(),
+        "agendador": app_modulo().estado_agendador(),
+    })
 
 @bp.route("/api/push/inscrever", methods=["POST"])
 def push_inscrever():
@@ -41,7 +45,9 @@ def push_testar():
         ok = push_client.enviar(
             sub_dict,
             "Painel Pessoal",
-            "Notificacao de teste - se você esta vendo isso, esta tudo funcionando!",
+            "Teste ok - é assim que os avisos vão chegar. Toque pra abrir as tarefas.",
+            url="/?aba=tarefas",
+            tag="teste",
         )
         if ok:
             enviados += 1

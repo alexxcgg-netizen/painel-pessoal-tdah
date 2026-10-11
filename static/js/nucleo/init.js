@@ -13,6 +13,27 @@ if ("serviceWorker" in navigator) {
 }
 initPush();
 
+// Toque numa notificacao: "/?aba=tarefas" abre direto na aba do aviso.
+function abrirAbaDoAviso(url) {
+  let aba = null;
+  try {
+    aba = new URL(url, location.origin).searchParams.get("aba");
+  } catch {
+    return;
+  }
+  if (aba && /^[a-z-]+$/.test(aba) && document.getElementById(`tab-${aba}`)) showTab(aba);
+}
+if (new URLSearchParams(location.search).has("aba")) {
+  const urlAviso = location.href;
+  history.replaceState(null, "", location.pathname); // recarregar nao volta pra aba do aviso
+  requestAnimationFrame(() => abrirAbaDoAviso(urlAviso));
+}
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (ev) => {
+    if (ev.data && ev.data.tipo === "abrir-aviso") abrirAbaDoAviso(ev.data.url);
+  });
+}
+
 if (typeof FilaOffline !== "undefined") {
   // Mostra o indicador se ja existia algo pendente de uma sessao offline
   // anterior (app fechado/pagina recarregada antes de sincronizar), e

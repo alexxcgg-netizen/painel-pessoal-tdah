@@ -56,6 +56,30 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-11 - Notificações de verdade + "hora de se arrumar"
+
+- **Bug: NENHUM aviso automático saiu, nunca.** O painel subia com `waitress app:app`, que não chama
+  `iniciar_scheduler()` (só o `wsgi.py` chama). O iPhone estava inscrito e `notificacoes_enviadas` estava vazia -
+  ontem "Visitar a irmã 17:00" e "Date 20:30" passaram sem aviso. `iniciar_painel.bat` agora sobe `wsgi:app`;
+  primeira checagem 30 s depois de subir (não espera 5 min).
+- **Heartbeat**: `_AGENDADOR` + `estado_agendador()`; `/api/push/status` devolve `agendador.ligado`. A linha
+  Notificações (Mais › Configurações) mostra "Parado - reinicie o painel" se o agendador não rodar - o mesmo
+  bug nunca mais fica invisível.
+- **Hora de se arrumar / Hora de sair** (pedido do Alex: "demoro 40 minutos pra me arrumar" pra date/festa):
+  `notificacoes.plano_se_arrumar` reconhece compromisso de sair pelo título (date, festa, jantar, aniversário,
+  balada, happy hour...) e conta de trás pra frente: hora - trajeto (Google, de casa até o `local` da tarefa, 1
+  consulta por local por dia e só a menos de 4 h; sem local = 15 min de folga) = sair; menos o tempo de se arrumar
+  = começar. Pra esses, o "daqui a pouco" de 10 min sai de cena (chegaria tarde). Tarefa "se arrumar" já marcada
+  pelo Alex não duplica. Tempo em `configuracoes.tempo_se_arrumar_min` (padrão 40), muda pelo chat com a tool
+  nova `ajustar_tempo_se_arrumar`; o contexto do chat mostra o tempo e o prompt manda organizar o dia de trás
+  pra frente dizendo a hora de começar a se arrumar e de sair.
+- **Aviso ~30 min antes** de tarefa com hora (`tarefa_preparo`, 15-34 min antes) - 10 min era pouco pra largar o
+  que está fazendo. Os três tipos novos furam o horário silencioso (são presos a horário) e aparecem em
+  Assistente › Avisos pra desligar.
+- **Push melhor**: payload com `url` (`/?aba=tarefas`, `construtora`, `gastos`, `aviacao`...) e `tag`
+  (`tipo-id`: repetido substitui em vez de empilhar, com `renotify`), TTL de 6 h. Toque no aviso abre na aba
+  certa: app aberto troca de aba sem recarregar (postMessage do SW), fechado abre direto. SW v56.
+
 ## 2026-10-10 - Card da Construtora: 4 números prontos + "Ademir paga"
 
 - **Decisão do Alex (substitui a regra A10 "nunca lucro/margem/VGV")**: "Entradas x Gastos" saiu (parecia prejuízo -

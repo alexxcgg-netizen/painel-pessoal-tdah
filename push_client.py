@@ -30,14 +30,21 @@ def public_key() -> str:
     return os.environ.get("VAPID_PUBLIC_KEY", "")
 
 
-def enviar(subscription_info: dict, titulo: str, corpo: str) -> bool:
+def enviar(subscription_info: dict, titulo: str, corpo: str, url: str = "", tag: str = "") -> bool:
     """Manda uma notificacao. Retorna False se a inscricao morreu
     (usuario desinstalou/bloqueou) - nesse caso o chamador deve apagar
-    essa inscricao do banco."""
+    essa inscricao do banco. `url` = onde o toque abre (ex: "/?aba=tarefas");
+    `tag` = o mesmo aviso repetido SUBSTITUI o anterior em vez de empilhar."""
+    dados = {"titulo": titulo, "corpo": corpo}
+    if url:
+        dados["url"] = url
+    if tag:
+        dados["tag"] = tag
     try:
         webpush(
             subscription_info=subscription_info,
-            data=json.dumps({"titulo": titulo, "corpo": corpo}),
+            data=json.dumps(dados, ensure_ascii=False),
+            ttl=60 * 60 * 6,  # aviso de horario nao faz sentido chegar no dia seguinte
             vapid_private_key=str(PRIVATE_KEY_PATH),
             vapid_claims={"sub": os.environ.get("VAPID_SUBJECT", "mailto:voce@exemplo.com")},
         )

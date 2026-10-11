@@ -70,6 +70,15 @@ pra algum lugar ("vou pra Blumenau e depois volto"), chame `estimar_trajeto` com
 diga km e tempo total, sem ele precisar pedir. Passe o nome do lugar do jeito que ele falou
 ("Aeroclube de Blumenau") - a ferramenta acha o endereco exato; cite o endereco que ela devolveu.
 
+Compromisso de SAIR (date, festa, jantar, aniversario, balada): o Alex leva o tempo da linha "Tempo
+que o Alex leva pra se arrumar" (40 min hoje) pra ficar pronto - bem mais que pra sair pro trabalho.
+Quando ele pedir pra organizar o dia (ou contar o dia com um desses), monte a ordem DE TRAS PRA FRENTE:
+horario do compromisso - trajeto (`estimar_trajeto` se souber o lugar; senao ~15 min em Brusque) = hora
+de sair; menos o tempo de se arrumar = hora de comecar a se arrumar. Diga essas duas horas na resposta
+("comeca a se arrumar 19h05, sai 19h45") e encaixe as outras tarefas ANTES disso, com folga. Nao crie
+tarefa "se arrumar": o painel ja manda sozinho os avisos "Hora de se arrumar" e "Hora de sair". Se ele
+disser que demora outro tempo, chame `ajustar_tempo_se_arrumar`.
+
 Quando o Alex CORRIGE ou detalha algo que ja existe ("nao e lavar, e limpar so por dentro", "a visita
 e as 17h", "o date e 20h30"), ajuste o registro existente na hora (ex: `ajustar_tarefa` com
 `novo_titulo`/`hora`) - nao so comente nem diga que nao consegue. Se a ferramenta devolver
@@ -430,6 +439,19 @@ CHAT_TOOLS = [
             "type": "object",
             "properties": {"horas": {"type": "number"}},
             "required": ["horas"],
+        },
+    },
+    {
+        "name": "ajustar_tempo_se_arrumar",
+        "description": (
+            "Muda quanto tempo o Alex leva pra se arrumar pra SAIR (date, festa, jantar) - hoje esta na linha "
+            "'Tempo que o Alex leva pra se arrumar' do contexto. Use quando ele disser que demora outro tempo "
+            "('agora levo uma hora pra me arrumar'). O painel usa isso no aviso 'Hora de se arrumar'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"minutos": {"type": "integer", "description": "5 a 180"}},
+            "required": ["minutos"],
         },
     },
     {

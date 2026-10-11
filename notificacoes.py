@@ -3,6 +3,8 @@ IA), se ha algo notavel o bastante pra mandar uma notificacao push. A
 orquestracao (deduplicar por dia, mandar o push, marcar como enviado) fica
 em app.py."""
 
+import re
+import unicodedata
 from datetime import date, datetime, timedelta
 
 import aprendizado
@@ -128,6 +130,115 @@ def tarefas_com_horario_chegando(
             )
         else:
             avisos.append((r["id"], f"\"{r['title']}\" - {r['hora']}."))
+    return avisos
+
+
+# Compromisso de SAIR (date, festa...) - o Alex leva bem mais tempo pra se arrumar pra
+# esses (pedido dele, 2026-10-11: "demoro 40 minutos pra me arrumar" pra date/festa).
+_PALAVRAS_SAIR = re.compile(
+    r"\b(date|encontro|jantar|janta|festa|festinha|balada|aniversario|niver|casamento|formatura|"
+    r"show|churrasco|happy hour|boate|role|barzinho|bar|pub|sair com|saida com)\b"
+)
+_ARRUMAR = re.compile(r"\b(se arrumar|me arrumar|arrumar pra|banho e arrumar)\b")
+
+
+def _sem_acento(texto: str) -> str:
+    base = unicodedata.normalize("NFKD", (texto or "").lower())
+    return "".join(c for c in base if not unicodedata.combining(c))
+
+
+def e_compromisso_de_sair(titulo: str) -> bool:
+    return bool(_PALAVRAS_SAIR.search(_sem_acento(titulo)))
+
+
+def plano_se_arrumar(
+    conn, agora: datetime | None = None, minutos_arrumar: int = 40, trajeto_min=None, folga_sem_trajeto: int = 15,
+) -> list[dict]:
+    """Compromissos de sair de HOJE (pendentes, com hora, ainda nao comecados) com a conta
+    de tras pra frente: evento - trajeto = saida; saida - tempo de se arrumar = comecar.
+    `trajeto_min(local) -> int | None` vem de fora (rede) pra esta funcao continuar pura;
+    sem local/sem resposta usa `folga_sem_trajeto` (Brusque e pequena). Se o Alex ja tem
+    uma tarefa "se arrumar" marcada hoje, o aviso de se arrumar fica com ela (nao duplica)."""
+    agora = agora or datetime.now()
+    hoje = agora.date().isoformat()
+    rows = conn.execute(
+        "SELECT id, title, hora, local, completed_at FROM tasks WHERE due_date = ? AND hora IS NOT NULL",
+        (hoje,),
+    ).fetchall()
+    ja_tem_arrumar = any(_ARRUMAR.search(_sem_acento(r["title"])) for r in rows)
+    planos = []
+    for r in rows:
+        if r["completed_at"] or not e_compromisso_de_sair(r["title"]):
+            continue
+        try:
+            evento = datetime.combine(agora.date(), datetime.strptime(r["hora"], "%H:%M").time())
+        except ValueError:
+            continue
+        if evento <= agora:
+            continue
+        trajeto = None
+        if r["local"] and trajeto_min and (evento - agora) <= timedelta(hours=4):
+            trajeto = trajeto_min(r["local"])
+        caminho = trajeto if isinstance(trajeto, int) and trajeto >= 0 else folga_sem_trajeto
+        saida = evento - timedelta(minutes=caminho)
+        planos.append({
+            "id": r["id"], "titulo": r["title"], "hora": r["hora"], "local": r["local"],
+            "trajeto_min": trajeto if isinstance(trajeto, int) else None, "caminho_min": caminho,
+            "evento": evento, "saida": saida, "comecar": saida - timedelta(minutes=minutos_arrumar),
+            "minutos_arrumar": minutos_arrumar, "ja_tem_tarefa_arrumar": ja_tem_arrumar,
+        })
+    return planos
+
+
+def avisos_se_arrumar(planos: list[dict], agora: datetime | None = None) -> list[tuple[str, int, str, str]]:
+    """(tipo, id, titulo, corpo) - 'se_arrumar' ~na hora de comecar e 'hora_de_sair' ~na hora
+    de sair. Tick de 5 min: dispara a partir de 4 min antes (nunca atrasa mais que o tick)."""
+    agora = agora or datetime.now()
+    margem = timedelta(minutes=4)
+    avisos = []
+    for p in planos:
+        nome, hora = p["titulo"], p["hora"]
+        sai = p["saida"].strftime("%H:%M")
+        if not p["ja_tem_tarefa_arrumar"] and p["comecar"] - margem <= agora < p["saida"]:
+            atrasado = agora > p["comecar"] + timedelta(minutes=10)
+            corpo = (
+                f"{nome} às {hora}. "
+                + ("Já passou da hora de começar - " if atrasado else "Começa agora: ")
+                + f"{p['minutos_arrumar']} min pra ficar pronto e sair às {sai}."
+            )
+            avisos.append(("se_arrumar", p["id"], "Hora de se arrumar", corpo))
+        if p["saida"] - margem <= agora < p["evento"]:
+            if p["trajeto_min"] is not None:
+                corpo = f"{nome} às {hora} - {p['trajeto_min']} min até lá. Saindo agora você chega na hora."
+            else:
+                corpo = f"{nome} às {hora} - hora de ir saindo pra chegar com folga."
+            avisos.append(("hora_de_sair", p["id"], "Hora de sair", corpo))
+    return avisos
+
+
+def tarefas_preparo(
+    conn, agora: datetime | None = None, de_min: int = 15, ate_min: int = 34, ignorar: set | None = None,
+) -> list[tuple[int, str]]:
+    """Aviso ANTES do 'daqui a pouco' de 10 min (TDAH: 10 min e pouco pra largar o que esta
+    fazendo): tarefa de hoje com hora entre 15 e ~30 min a frente. Compromisso de sair fica
+    de fora (`ignorar`) - esses ja tem 'se arrumar' e 'hora de sair'."""
+    agora = agora or datetime.now()
+    ignorar = ignorar or set()
+    rows = conn.execute(
+        "SELECT id, title, hora FROM tasks WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL",
+        (agora.date().isoformat(),),
+    ).fetchall()
+    avisos = []
+    for r in rows:
+        if r["id"] in ignorar:
+            continue
+        try:
+            quando = datetime.combine(agora.date(), datetime.strptime(r["hora"], "%H:%M").time())
+        except ValueError:
+            continue
+        falta = (quando - agora).total_seconds() / 60
+        if de_min <= falta < ate_min:
+            avisos.append((r["id"], f"{r['title']} às {r['hora']} - faltam {round(falta)} min, vai fechando o que tá fazendo."))
     return avisos
 
 

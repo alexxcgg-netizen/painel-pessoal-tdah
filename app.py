@@ -1759,6 +1759,7 @@ def _contexto_chat(conn) -> str:
         f"Gasto de hoje (já realizado): R$ {gasto_hoje:.2f}",
         f"Gasto planejado/cogitado hoje (ainda não decidido): R$ {gasto_planejado:.2f}",
         f"Compromissos de hoje (em ordem de horário): {eventos_txt or 'nenhum'}",
+        f"Tempo que o Alex leva pra se arrumar pra sair (date, festa, jantar): {_minutos_se_arrumar(conn)} min",
     ]
     if saude:
         linhas.append(f"Saúde hoje: {saude}")
@@ -2600,6 +2601,20 @@ def _processar_mensagem_chat(
         definir_configuracao(conn, "aviacao_meta_horas", str(horas))
         return {"ok": True, "meta_horas": horas, "_efeito": {"entidade": "voo_resumo", "consulta": True}}
 
+    def exec_ajustar_tempo_se_arrumar(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        try:
+            minutos = int(float(entrada.get("minutos")))
+        except (TypeError, ValueError):
+            return {"erro": "minutos invalidos"}
+        if not 5 <= minutos <= 180:
+            return {"erro": "fora do razoavel (5 a 180 min)"}
+        definir_configuracao(conn, "tempo_se_arrumar_min", str(minutos))
+        conn.commit()
+        return {"ok": True, "minutos": minutos}
+
     def exec_planejar_compras_viagem(entrada):
         try:
             ida = date.fromisoformat(entrada["data_ida"]) if entrada.get("data_ida") else None
@@ -3250,6 +3265,7 @@ def _processar_mensagem_chat(
         "ajustar_voo": exec_ajustar_voo,
         "ajustar_gasto": exec_ajustar_gasto,
         "definir_meta_horas_voo": exec_definir_meta_horas_voo,
+        "ajustar_tempo_se_arrumar": exec_ajustar_tempo_se_arrumar,
         "planejar_compras_viagem": exec_planejar_compras_viagem,
         "consultar_clima": exec_consultar_clima,
         "estimar_trajeto": exec_estimar_trajeto,
@@ -3767,7 +3783,7 @@ def _disparar_estimativa_uber(conn, pedido: dict, access_token: str) -> None:
 # outros respeitam o modo silencioso (ver verificar_e_notificar).
 NOTIFICACOES_URGENTES = {
     "tarefa_horario", "compromisso_chegando", "voo_sair", "hora_de_dormir", "rotina_manha", "hiperfoco_fim",
-    "adiado_hiperfoco",
+    "adiado_hiperfoco", "tarefa_preparo", "se_arrumar", "hora_de_sair",
 }
 
 # Fase 5 (US-C16): avisos de rotina DOMESTICA (casa) que nao fazem sentido
@@ -4196,11 +4212,66 @@ def _briefing_noite_p3_substitui_fechamento(conn) -> bool:
         return False
 
 
+# Onde o toque na notificacao abre (?aba= -> init.js/service worker abrem a aba certa).
+_ABA_DO_AVISO = {
+    "tarefa": "tarefas", "se_arrumar": "tarefas", "hora_de_sair": "tarefas", "compromisso": "tarefas",
+    "lembrete": "tarefas", "espera": "tarefas", "conta_a_vencer": "construtora", "orcamento": "gastos",
+    "gasto": "gastos", "cobranca": "gastos", "assinatura": "gastos", "cartao": "gastos", "renda": "gastos",
+    "voo": "aviacao", "pre_voo": "aviacao", "currency": "aviacao", "meta": "painel", "habito": "vida",
+}
+
+
+def _url_do_aviso(tipo: str) -> str:
+    for prefixo, aba in _ABA_DO_AVISO.items():
+        if tipo.startswith(prefixo):
+            return f"/?aba={aba}"
+    return "/"
+
+
+# Heartbeat do agendador - a tela de Notificacoes mostra se ele esta rodando de verdade.
+# Bug real (2026-10-11): o painel subia com `waitress app:app`, que nunca chama
+# iniciar_scheduler() - nenhum aviso automatico saiu, nunca, e nada na tela mostrava isso.
+_AGENDADOR = {"iniciado": False, "ultimo_tick": None}
+
+
+def estado_agendador() -> dict:
+    ultimo = _AGENDADOR["ultimo_tick"]
+    vivo = _AGENDADOR["iniciado"] and (ultimo is None or datetime.now() - ultimo < timedelta(minutes=12))
+    return {"ligado": bool(vivo), "ultimo_tick": ultimo.isoformat(timespec="minutes") if ultimo else None}
+
+
+_CACHE_TRAJETO_AVISO: dict = {}
+
+
+def _trajeto_min_aviso(local: str):
+    """Minutos de carro de casa ate o local, 1 consulta por local por dia (o tick roda a cada
+    5 min - sem cache seriam ~50 chamadas ao Google por compromisso). Falha = None."""
+    chave = (date.today().isoformat(), local.strip().lower())
+    if chave not in _CACHE_TRAJETO_AVISO:
+        casa = os.environ.get("ENDERECO_CASA", "").strip()
+        minutos = None
+        if casa and maps_client.configurado():
+            try:
+                minutos = int(maps_client.tempo_de_viagem(casa, local)["duracao_minutos"])
+            except Exception as e:  # rede/Google fora: aviso sai com a folga padrao
+                app.logger.warning("trajeto pro aviso de sair: %s", e)
+        _CACHE_TRAJETO_AVISO[chave] = minutos
+    return _CACHE_TRAJETO_AVISO[chave]
+
+
+def _minutos_se_arrumar(conn) -> int:
+    try:
+        return max(5, min(180, int(obter_configuracao(conn, "tempo_se_arrumar_min") or 40)))
+    except ValueError:
+        return 40
+
+
 def verificar_e_notificar():
     """Roda as verificacoes proativas e manda pra quem tiver canal configurado
     (push web e/ou Telegram) - cada tipo de aviso so dispara uma vez por dia
     (dedup em notificacoes_enviadas). Chamado pelo scheduler (ver
     iniciar_scheduler) e pelo endpoint manual."""
+    _AGENDADOR["ultimo_tick"] = datetime.now()
     # Materializa ANTES de qualquer early-return de canal - rotina recorrente
     # (remedio, academia) tem que aparecer mesmo se push/Telegram nao
     # estiverem configurados ainda, nao pode ficar refem de notificacao.
@@ -4348,7 +4419,24 @@ def verificar_e_notificar():
         if not ja_notificou_hoje(conn, "lembrete_despertar", lembrete_id):
             avisos.append(("lembrete_despertar", lembrete_id, "Lembrete", msg))
 
+    # Compromisso de sair (date, festa...): "hora de se arrumar" (tempo dele: 40 min padrao,
+    # muda pelo chat) e "hora de sair" no lugar do "daqui a pouco" de 10 min, que pra esses
+    # chegaria tarde demais (ele ja devia estar saindo).
+    planos_sair = notificacoes.plano_se_arrumar(
+        conn, datetime.now(), _minutos_se_arrumar(conn), trajeto_min=_trajeto_min_aviso
+    )
+    ids_sair = {p["id"] for p in planos_sair}
+    for tipo_sair, ref_sair, titulo_sair, corpo_sair in notificacoes.avisos_se_arrumar(planos_sair):
+        if not ja_notificou_hoje(conn, tipo_sair, ref_sair):
+            avisos.append((tipo_sair, ref_sair, titulo_sair, corpo_sair))
+
+    for tarefa_id, msg in notificacoes.tarefas_preparo(conn, ignorar=ids_sair):
+        if not ja_notificou_hoje(conn, "tarefa_preparo", tarefa_id):
+            avisos.append(("tarefa_preparo", tarefa_id, "Daqui a pouco", msg))
+
     for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(conn):
+        if tarefa_id in ids_sair:
+            continue
         if not ja_notificou_hoje(conn, "tarefa_horario", tarefa_id):
             avisos.append(("tarefa_horario", tarefa_id, "Lembrete", msg))
 
@@ -4486,10 +4574,13 @@ def verificar_e_notificar():
     agrupar_ligado = (obter_configuracao(conn, "notificacoes_agrupar") or "0") == "1"
     agrupar_janela_min = int(obter_configuracao(conn, "notificacoes_agrupar_janela_min") or "2")
 
-    def _despachar(titulo: str, corpo: str, botoes=None):
+    def _despachar(titulo: str, corpo: str, botoes=None, tipo: str = "", ref_id=0):
         for s in subs:
             sub_dict = json.loads(s["subscription_json"])
-            ok = push_client.enviar(sub_dict, titulo, corpo)
+            if tipo:
+                ok = push_client.enviar(sub_dict, titulo, corpo, url=_url_do_aviso(tipo), tag=f"{tipo}-{ref_id}")
+            else:
+                ok = push_client.enviar(sub_dict, titulo, corpo)
             if not ok:
                 delete_push_subscription(conn, s["endpoint"])
         if telegram_ok:
@@ -4518,7 +4609,7 @@ def verificar_e_notificar():
         # como feita com um toque, sem precisar abrir o app nem digitar nada
         # (o pedido especifico do Alex pra esse canal).
         botoes = [("Marcar como feito", f"completar_tarefa:{ref_id}")] if tipo == "tarefa_parada" else None
-        _despachar(titulo, corpo, botoes)
+        _despachar(titulo, corpo, botoes, tipo=tipo, ref_id=ref_id)
         marcar_notificado(conn, tipo, ref_id)
         if tipo == "garantia_vencendo":
             marcar_garantia_notificada(conn, ref_id)
@@ -5618,8 +5709,12 @@ def iniciar_scheduler():
         # 5 min pra tarefa-com-horario (ver notificacoes.tarefas_com_horario_chegando)
         # virar push perto da hora certa - as outras checagens (atrasada, meta, gasto,
         # lembrete) sao lentas por natureza e nao se importam com a checagem ser mais
-        # frequente, o dedup em notificacoes_enviadas ja evita reenvio.
-        scheduler.add_job(verificar_e_notificar, "interval", minutes=5)
+        # frequente, o dedup em notificacoes_enviadas ja evita reenvio. Primeira
+        # checagem logo ao subir (sem esperar 5 min) - painel reiniciado perto de um
+        # horario nao perde o aviso.
+        scheduler.add_job(
+            verificar_e_notificar, "interval", minutes=5, next_run_time=datetime.now() + timedelta(seconds=30)
+        )
         # backup semanal (domingo 3h da manha - baixo uso), ver
         # rodar_backup_automatico_semanal pro que ele faz
         scheduler.add_job(rodar_backup_automatico_semanal, "cron", day_of_week="sun", hour=3, minute=0)
@@ -5632,6 +5727,7 @@ def iniciar_scheduler():
         # verao em 2019, sem trocas de horario pra acompanhar) = 7h UTC.
         scheduler.add_job(rodar_sincronizacao_nubank_automatica, "cron", hour=7, minute=0)
         scheduler.start()
+        _AGENDADOR["iniciado"] = True
 
 
 # Fase 7: rotas por Blueprint (rotas/*.py, carga automatica) - SEMPRE no fim,

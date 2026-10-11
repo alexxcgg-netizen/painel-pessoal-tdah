@@ -72,8 +72,16 @@ async function initPush() {
     return;
   }
 
+  // inscrito no iPhone nao basta: quem dispara os avisos e o agendador do servidor
+  // (bug real: ficou desligado sem ninguem ver). Mostra quando ele nao esta rodando.
+  const agendadorParado = status.agendador && status.agendador.ligado === false;
   const prontoParaTeste = () => {
-    _pushEstado(btn, "Ligado", "Toque pra receber um teste", true);
+    if (agendadorParado) {
+      _pushEstado(btn, "Parado", "O servidor não está mandando avisos - reinicie o painel", false);
+      acao = () => mostrarErro("O iPhone está pronto, mas o agendador do servidor está parado. Reinicie o painel no computador.");
+      return;
+    }
+    _pushEstado(btn, "Ligado", "Avisos chegando sozinhos · toque pra um teste", true);
     acao = async () => {
       const r = await apiFetch("/api/push/testar", { method: "POST" });
       if (r) _pushEstado(btn, "Ligado", r.enviados ? "Teste enviado - deve chegar já" : "Toque pra receber um teste", true);

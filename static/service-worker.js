@@ -33,7 +33,7 @@
 // buscar tudo de novo. Lista conferida contra scripts.html/head.html/fase7.css.
 // v16: Fase 8 F1 - gastos.js/gastos.html mudaram (lista unificada com selo de origem
 // Nubank/manual, botao "Sincronizar Nubank").
-const CACHE_NAME = "painel-pessoal-v55";
+const CACHE_NAME = "painel-pessoal-v56";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -266,16 +266,34 @@ self.addEventListener("push", (event) => {
     dados = { titulo: "Painel Pessoal", corpo: event.data ? event.data.text() : "" };
   }
   const titulo = dados.titulo || "Painel Pessoal";
-  event.waitUntil(
-    self.registration.showNotification(titulo, {
-      body: dados.corpo || "",
-      icon: "/static/icons/icon-192.png",
-      badge: "/static/icons/icon-192.png",
-    })
-  );
+  const opcoes = {
+    body: dados.corpo || "",
+    icon: "/static/icons/icon-192.png",
+    badge: "/static/icons/icon-192.png",
+    timestamp: Date.now(),
+    data: { url: typeof dados.url === "string" && dados.url.startsWith("/") ? dados.url : "/" },
+  };
+  // mesmo aviso de novo (mesma tag) substitui o anterior em vez de empilhar - e ainda toca
+  if (dados.tag) {
+    opcoes.tag = String(dados.tag);
+    opcoes.renotify = true;
+  }
+  event.waitUntil(self.registration.showNotification(titulo, opcoes));
 });
 
+// Toque no aviso: abre na aba certa. App ja aberto -> traz pra frente e troca de aba
+// (postMessage, sem recarregar); fechado -> abre direto no ?aba=.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow("/"));
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((janelas) => {
+      const aberta = janelas.find((j) => new URL(j.url).origin === self.location.origin);
+      if (aberta) {
+        aberta.postMessage({ tipo: "abrir-aviso", url });
+        return aberta.focus();
+      }
+      return clients.openWindow(url);
+    })
+  );
 });
