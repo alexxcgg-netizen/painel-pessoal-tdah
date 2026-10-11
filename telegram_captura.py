@@ -22,6 +22,9 @@ real. Quem monta as pecas de verdade (banco,
 
 from __future__ import annotations
 
+import difflib
+import re
+
 import mimetypes
 import os
 import time
@@ -55,6 +58,37 @@ PROMPT_TRANSCRICAO = (
 LIMITE_SEM_FALA = 0.6
 MARGEM_FALA_S = 0.6
 
+# 2026-10-11 (print do Alex): o Whisper as vezes REPETE o prompt de vocabulario no fim da fala
+# ("... em Brusque mesmo. Bursque, Bblumenau, aeroclube, CIV, ANAC, SSBL, PR-LOM...") - eco do
+# prompt, alucinacao conhecida quando o audio termina em silencio. Corta a enumeracao final
+# quando ela e, na maior parte, a propria lista (com erro de grafia: comparacao aproximada).
+_VOCAB_PROMPT = [
+    v.strip().lower() for v in PROMPT_TRANSCRICAO.split(". ", 1)[1].rstrip(".").split(",") if v.strip()
+]
+_FRASE_PROMPT = PROMPT_TRANSCRICAO.split(". ", 1)[0].lower()
+
+
+def _parece_vocab(item: str) -> bool:
+    item = re.sub(r"[^\w\- ]", "", item.lower()).strip()
+    if not item:
+        return False
+    return any(difflib.SequenceMatcher(None, item, v).ratio() >= 0.75 for v in _VOCAB_PROMPT)
+
+
+def tirar_eco_do_prompt(texto: str) -> str:
+    """Tira do FIM do texto a lista de vocabulario repetida pelo Whisper (e a frase de abertura
+    do prompt, se vier). So corta enumeracao de 4+ itens curtos em que 60%+ batem com a lista -
+    "fui pra Brusque e Blumenau" (fala normal) nunca e cortado."""
+    texto = (texto or "").strip()
+    if _FRASE_PROMPT[:30] in texto.lower():
+        texto = texto[: texto.lower().index(_FRASE_PROMPT[:30])].strip()
+    m = re.search(r"((?:[\w\-]+(?: [\w\-]+)?\s*,\s*){3,}[\w\-]+(?: [\w\-]+)?\s*[.!]?)\s*$", texto)
+    if m:
+        itens = [i for i in re.split(r"\s*,\s*", m.group(1).rstrip(".! ")) if i]
+        if len(itens) >= 4 and sum(_parece_vocab(i) for i in itens) >= 0.6 * len(itens):
+            texto = texto[: m.start()].rstrip(" ,")
+    return texto
+
 
 def texto_dos_trechos(resposta: dict, fala_desde: float | None = None, fala_ate: float | None = None) -> str:
     """Monta o texto so com os trechos que sao fala de verdade: descarta trecho que o
@@ -64,7 +98,7 @@ def texto_dos_trechos(resposta: dict, fala_desde: float | None = None, fala_ate:
     simples), usa `text` como veio."""
     trechos = resposta.get("segments")
     if not isinstance(trechos, list):
-        return (resposta.get("text") or "").strip()
+        return tirar_eco_do_prompt(resposta.get("text") or "")
     bons = []
     for t in trechos:
         if not isinstance(t, dict):
@@ -77,7 +111,7 @@ def texto_dos_trechos(resposta: dict, fala_desde: float | None = None, fala_ate:
         if fala_desde is not None and fim < fala_desde - MARGEM_FALA_S:
             continue
         bons.append((t.get("text") or "").strip())
-    return " ".join(b for b in bons if b).strip()
+    return tirar_eco_do_prompt(" ".join(b for b in bons if b))
 
 
 class ErroCaptura(Exception):

@@ -210,3 +210,30 @@ class RotasEPayloadTestCase(_Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EcoDoPromptDoWhisperTestCase(unittest.TestCase):
+    """Print do Alex 2026-10-11: o Whisper repetiu a lista de vocabulario no fim da fala."""
+
+    def test_corta_a_lista_repetida_no_fim_mesmo_com_erro_de_grafia(self):
+        import telegram_captura as tc
+        fala = ("Tres horas da tarde, tenho que buscar a minha mae ali no Dom Joaquim, em Brusque mesmo. "
+                "Bursque, Bblumenau, aeroclube, CIV, ANAC, SSBL, PR-LOM, PT-XXW, Fiorino, contabilidade, notas fiscais, Roberta.")
+        self.assertEqual(tc.tirar_eco_do_prompt(fala),
+                         "Tres horas da tarde, tenho que buscar a minha mae ali no Dom Joaquim, em Brusque mesmo.")
+        self.assertEqual(tc.tirar_eco_do_prompt("Oi. Alex falando com o assistente do painel pessoal. Brusque, Blumenau"), "Oi.")
+        resposta = {"segments": [
+            {"text": " Vou dormir agora.", "start": 0, "end": 2, "no_speech_prob": 0.01},
+            {"text": " Brusque, Blumenau, aeroclube, CIV, ANAC, SSBL.", "start": 2, "end": 4, "no_speech_prob": 0.1},
+        ]}
+        self.assertEqual(tc.texto_dos_trechos(resposta), "Vou dormir agora.")
+
+    def test_fala_normal_com_os_nomes_fica_intacta(self):
+        import telegram_captura as tc
+        for fala in (
+            "Amanha vou pra Blumenau no aeroclube voar o PR-LOM.",
+            "Comprei arroz, feijao, frango, ovos e banana.",
+            "Passa na contabilidade, pega as notas fiscais, depois Fiorino.",
+            "Brusque, Blumenau e Gaspar.",
+        ):
+            self.assertEqual(tc.tirar_eco_do_prompt(fala), fala, fala)

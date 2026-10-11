@@ -56,6 +56,14 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-11 - Transcrição: corta o eco da lista de vocabulário
+
+- Print do Alex: a fala terminou com "Bursque, Bblumenau, aeroclube, CIV, ANAC, SSBL, PR-LOM, PT-XXW, Fiorino,
+  contabilidade, notas fiscais, Roberta." - não foi ele: é o `PROMPT_TRANSCRICAO` repetido pelo Whisper (alucinação
+  conhecida quando o áudio termina em silêncio). `telegram_captura.tirar_eco_do_prompt` corta do fim uma enumeração
+  de 4+ itens curtos em que 60%+ batem (aproximado, difflib >= 0,75) com a lista, e a frase de abertura do prompt se
+  vier. Fala normal com os mesmos nomes ("passa na contabilidade, pega as notas fiscais, depois Fiorino") fica intacta.
+
 ## 2026-10-11 - Assistente de vida: "acordei agora, monta meu dia"
 
 - **Pedido do Alex**: abrir de manhã, contar o dia ("acordei agora, tenho números da empresa, CND, voo em
