@@ -490,6 +490,14 @@ def init_db():
             feito INTEGER NOT NULL DEFAULT 0
         );
 
+        -- 2026-10-11: rotina recorrente "excluida" num dia = pulada so naquele dia (senao
+        -- materializar_tarefas_recorrentes recriava a instancia no proximo tick).
+        CREATE TABLE IF NOT EXISTS tarefas_puladas (
+            origem_id INTEGER NOT NULL,
+            data TEXT NOT NULL,
+            PRIMARY KEY (origem_id, data)
+        );
+
         CREATE TABLE IF NOT EXISTS lugares (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
@@ -1739,8 +1747,9 @@ EDICAO_COLUNAS = {
 # Colunas que voltam quando o Desfazer restaura uma tarefa apagada pela IA.
 TAREFA_RESTAURAVEL = (
     "id", "title", "source_text", "due_at", "due_date", "completed_at", "created_at", "hora",
-    "depende_do_tempo", "esforco", "local",
+    "depende_do_tempo", "esforco", "local", "recorrente_origem_id",
 )
+SUBTAREFA_RESTAURAVEL = ("title", "completed_at", "position")
 
 ENTIDADES_DESFAZIVEIS = (
     "edicao", "tarefa_apagada",
@@ -1799,6 +1808,17 @@ def criar_acao_desfazer(conn, itens: list[dict]) -> str | None:
                 for c, v in linha.items()
                 if c in TAREFA_RESTAURAVEL and (v is None or isinstance(v, (str, int, float)))
             }
+            subs = item.get("subtarefas")
+            if isinstance(subs, list):
+                limpo["subtarefas"] = [
+                    {c: (s[c][:500] if isinstance(s.get(c), str) else s.get(c)) for c in SUBTAREFA_RESTAURAVEL
+                     if s.get(c) is None or isinstance(s.get(c), (str, int, float))}
+                    for s in subs[:100] if isinstance(s, dict) and isinstance(s.get("title"), str)
+                ]
+            pulo = item.get("pulo")
+            if isinstance(pulo, dict) and isinstance(pulo.get("origem_id"), int) and isinstance(pulo.get("data"), str) \
+                    and re.fullmatch(r"\d{4}-\d{2}-\d{2}", pulo["data"]):
+                limpo["pulo"] = {"origem_id": pulo["origem_id"], "data": pulo["data"]}
         if "id" in limpo or "uid" in limpo:
             limpos.append(limpo)
     if not limpos:

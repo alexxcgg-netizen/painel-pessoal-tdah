@@ -148,3 +148,179 @@
 #lista-tarefas-concluidas .item-quando.chip {
   text-decoration: none;
 }
+
+
+/* ---- Arrastar pra excluir (2026-10-11) - static/js/secoes/tarefas/arrastar-excluir.js ----
+   Os filhos do item deslizam juntos (--arrasto) e o vermelho cresce da direita atras deles.
+   touch-action: pan-y = a rolagem vertical continua do navegador; so o arrasto lateral e nosso. */
+#tab-tarefas #lista-tarefas > li.item.arrastavel {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+#tab-tarefas li.arrastavel > :not(.arrasta-fundo) {
+  position: relative;
+  z-index: 1;
+  transform: translate3d(var(--arrasto, 0px), 0, 0);
+}
+#tab-tarefas li.arrastavel.arrasta-animando > :not(.arrasta-fundo) {
+  transition: transform 0.42s var(--ease-snap), opacity 0.28s var(--ease-suave);
+}
+#tab-tarefas li.arrastavel.arrasta-saindo > :not(.arrasta-fundo) {
+  opacity: 0;
+}
+#tab-tarefas li.arrastavel > .arrasta-fundo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  z-index: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  overflow: hidden;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--danger) 62%, #120607) 0%, var(--danger) 100%);
+  transition: filter 0.2s var(--ease-suave);
+}
+#tab-tarefas li.arrastavel.arrasta-animando > .arrasta-fundo {
+  transition: width 0.42s var(--ease-snap), filter 0.2s var(--ease-suave);
+}
+/* passou do ponto de excluir direto: o vermelho acende */
+#tab-tarefas li.arrastavel.arrasta-total > .arrasta-fundo {
+  filter: brightness(1.18) saturate(1.1);
+}
+#tab-tarefas li.arrastavel .arrasta-excluir {
+  flex: none;
+  width: 92px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  opacity: 0;
+  transition: opacity 0.18s var(--ease-suave);
+}
+#tab-tarefas li.arrastavel.arrasta-mostrando .arrasta-excluir {
+  opacity: 1;
+}
+#tab-tarefas li.arrastavel .arrasta-excluir svg {
+  width: 22px;
+  height: 22px;
+  transition: transform 0.32s var(--ease-bounce);
+}
+#tab-tarefas li.arrastavel.arrasta-total .arrasta-excluir svg {
+  transform: scale(1.2) rotate(-8deg);
+}
+
+/* Toast "Desfazer" - acima da barra de abas, mesmo vidro escuro da barra do chat */
+#desfazer-toast {
+  position: fixed;
+  z-index: calc(var(--camada-veu, 40) - 1);
+  left: var(--espaco-lateral, 18px);
+  right: var(--espaco-lateral, 18px);
+  bottom: calc(5.6rem + env(safe-area-inset-bottom));
+  max-width: 444px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px 12px 16px;
+  overflow: hidden;
+  border-radius: var(--raio-controle, 18px);
+  border: 1px solid var(--glass-border);
+  background: linear-gradient(165deg, rgba(28, 29, 36, 0.97) 0%, rgba(8, 9, 12, 0.98) 100%);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  box-shadow: 0 16px 32px -14px rgba(0, 0, 0, 0.85);
+  color: var(--text);
+  font-size: var(--tipo-secundario, 14px);
+  opacity: 0;
+  transform: translate3d(0, 14px, 0) scale(0.98);
+  transition: opacity 0.24s var(--ease-suave), transform 0.38s var(--ease-bounce);
+}
+#desfazer-toast[hidden] {
+  display: none;
+}
+#desfazer-toast.visivel {
+  opacity: 1;
+  transform: none;
+}
+#desfazer-toast .desfazer-texto {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#desfazer-toast .desfazer-btn {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+  font-weight: 650;
+}
+#desfazer-toast .desfazer-btn[hidden] {
+  display: none;
+}
+/* barrinha do tempo que falta pra sumir */
+#desfazer-toast .desfazer-tempo {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  transform-origin: left center;
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+  animation: desfazerTempo var(--desfazer-ms, 5000ms) linear forwards;
+}
+@keyframes desfazerTempo {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #desfazer-toast,
+  #tab-tarefas li.arrastavel > .arrasta-fundo,
+  #tab-tarefas li.arrastavel .arrasta-excluir,
+  #tab-tarefas li.arrastavel .arrasta-excluir svg {
+    transition: none;
+  }
+  #desfazer-toast .desfazer-tempo {
+    animation: none;
+  }
+}
+
+/* com o "Desfazer" na tela, o + flutuante sai de cena (nao fica espiando atras do toast) */
+.fab-captura {
+  /* mantem o transform do toque (captura.css) e soma o fade */
+  transition: transform var(--dur-rapida) var(--ease-padrao), opacity 0.22s var(--ease-suave);
+}
+@media (prefers-reduced-motion: reduce) {
+  .fab-captura {
+    transition: none;
+  }
+}
+body.desfazer-visivel .fab-captura {
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
+}

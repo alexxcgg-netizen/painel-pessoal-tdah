@@ -1317,8 +1317,9 @@ def materializar_tarefas_recorrentes(conn, hoje: date | None = None) -> int:
         if not agenda.recorrencia_bate_no_dia(m["recorrencia"], hoje):
             continue
         ja_existe = conn.execute(
-            "SELECT 1 FROM tasks WHERE recorrente_origem_id = ? AND due_date = ?",
-            (m["id"], hoje_iso),
+            "SELECT 1 FROM tasks WHERE recorrente_origem_id = ? AND due_date = ? "
+            "UNION ALL SELECT 1 FROM tarefas_puladas WHERE origem_id = ? AND data = ?",
+            (m["id"], hoje_iso, m["id"], hoje_iso),
         ).fetchone()
         if ja_existe:
             continue
@@ -1331,6 +1332,34 @@ def materializar_tarefas_recorrentes(conn, hoje: date | None = None) -> int:
     if criadas:
         conn.commit()
     return criadas
+
+
+def apagar_tarefa_com_desfazer(conn, tarefa) -> dict:
+    """Apaga a tarefa (e os passos dela) e devolve o efeito `tarefa_apagada` com tudo que o
+    Desfazer precisa pra devolver igual: a linha, os passos e - se for o dia de uma rotina - o
+    "pulo" daquele dia (sem ele, materializar_tarefas_recorrentes recriava a tarefa no proximo
+    tick). Sem commit: quem chama decide. Usado pela IA (apagar_tarefa) e pelo arrastar-pra-
+    excluir da aba Tarefas (DELETE /api/tasks/<id>)."""
+    linha = {c: tarefa[c] for c in db.TAREFA_RESTAURAVEL if c in tarefa.keys()}
+    subtarefas = [
+        {c: s[c] for c in db.SUBTAREFA_RESTAURAVEL}
+        for s in conn.execute(
+            "SELECT title, completed_at, position FROM subtasks WHERE task_id = ? ORDER BY position", (tarefa["id"],)
+        ).fetchall()
+    ]
+    efeito = {
+        "entidade": "tarefa_apagada", "id": tarefa["id"], "linha": linha, "subtarefas": subtarefas,
+        "rotulo": "Tarefa", "titulo": tarefa["title"],
+        "antes": {"situacao": "na lista"}, "depois": {"situacao": "apagada"},
+    }
+    origem = tarefa["recorrente_origem_id"] if "recorrente_origem_id" in tarefa.keys() else None
+    if origem and tarefa["due_date"]:
+        conn.execute("INSERT OR IGNORE INTO tarefas_puladas (origem_id, data) VALUES (?, ?)", (origem, tarefa["due_date"]))
+        efeito["pulo"] = {"origem_id": origem, "data": tarefa["due_date"]}
+        efeito["depois"] = {"situacao": "pulada hoje (a rotina continua)"}
+    conn.execute("DELETE FROM subtasks WHERE task_id = ?", (tarefa["id"],))
+    conn.execute("DELETE FROM tasks WHERE id = ?", (tarefa["id"],))
+    return efeito
 
 
 def _tarefas_com_horario_hoje(conn) -> list[dict]:
@@ -2626,19 +2655,15 @@ def _processar_mensagem_chat(
         recusa = _recusa_visitante()
         if recusa:
             return recusa
-        tarefa, erro = _achar("tasks", "recorrencia IS NULL AND recorrente_origem_id IS NULL", (),
-                              entrada.get("titulo"), "title", "ORDER BY id DESC")
+        tarefa, erro = _achar("tasks", "recorrencia IS NULL", (), entrada.get("titulo"), "title", "ORDER BY id DESC")
         if erro:
             return erro
-        if conn.execute("SELECT 1 FROM subtasks WHERE task_id = ?", (tarefa["id"],)).fetchone():
-            return {"erro": "essa tarefa tem passos quebrados - conclua em vez de apagar, ou o Alex apaga na tela"}
-        linha = {c: tarefa[c] for c in db.TAREFA_RESTAURAVEL if c in tarefa.keys()}
-        conn.execute("DELETE FROM tasks WHERE id = ?", (tarefa["id"],))
+        efeito = apagar_tarefa_com_desfazer(conn, tarefa)
         conn.commit()
-        return {"ok": True, "apagada": tarefa["title"], "_efeito": {
-            "entidade": "tarefa_apagada", "id": tarefa["id"], "linha": linha, "rotulo": "Tarefa",
-            "titulo": tarefa["title"], "antes": {"situacao": "na lista"}, "depois": {"situacao": "apagada"},
-        }}
+        resultado = {"ok": True, "apagada": tarefa["title"], "_efeito": efeito}
+        if efeito.get("pulo"):
+            resultado["obs"] = "era o dia de hoje de uma rotina: so hoje foi pulado, a rotina continua nos outros dias"
+        return resultado
 
     def exec_registrar_acordei(entrada):
         recusa = _recusa_visitante()
@@ -3635,7 +3660,8 @@ def _criar_token_desfazer(conn):
         for ef in itens:
             item = {"entidade": ef.get("entidade"), "id": ef.get("id"), "uid": ef.get("uid"),
                     "data": ef.get("data"), "feito": ef.get("feito"),
-                    "tabela": ef.get("tabela"), "antes": ef.get("antes"), "linha": ef.get("linha")}
+                    "tabela": ef.get("tabela"), "antes": ef.get("antes"), "linha": ef.get("linha"),
+                    "subtarefas": ef.get("subtarefas"), "pulo": ef.get("pulo")}
             saldo = ef.get("saldo")
             if ef.get("entidade") in ("gasto", "renda") and isinstance(saldo, dict):
                 antes, depois = saldo.get("antes"), saldo.get("depois")
@@ -3707,6 +3733,17 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
                 f"INSERT OR IGNORE INTO tasks ({', '.join(linha)}) VALUES ({', '.join('?' for _ in linha)})",
                 list(linha.values()),
             )
+            if cur.rowcount:
+                for s in item.get("subtarefas") or []:
+                    if isinstance(s, dict) and isinstance(s.get("title"), str):
+                        conn.execute(
+                            "INSERT INTO subtasks (task_id, title, completed_at, position) VALUES (?, ?, ?, ?)",
+                            (id_, s["title"], s.get("completed_at"), s.get("position") or 0),
+                        )
+                pulo = item.get("pulo")
+                if isinstance(pulo, dict):
+                    conn.execute("DELETE FROM tarefas_puladas WHERE origem_id = ? AND data = ?",
+                                 (pulo.get("origem_id"), pulo.get("data")))
         elif entidade == "tarefa":
             # rotina recorrente: o modelo + as instancias materializadas dele
             ids = [id_] + [

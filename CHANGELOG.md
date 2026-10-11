@@ -56,6 +56,21 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-11 - Excluir tarefa arrastando pro lado (sem concluir)
+
+- Pedido do Alex: excluir tarefa sem marcar como concluída. Escolha dele: **arrastar pro lado**, igual ao Mail do
+  iPhone (`static/js/secoes/tarefas/arrastar-excluir.js`). Arrasta e aparece "Excluir" vermelho com lixeira; soltar
+  no meio deixa aberto (toque fora fecha); arrastar até 56% da largura acende o vermelho (+ vibração) e exclui
+  direto. Rolagem vertical continua do navegador (`touch-action: pan-y` + decisão pelos primeiros 9 px). Os filhos
+  do item deslizam via `--arrasto` (sem embrulhar - o CSS da aba usa `li.item > .item-linha`).
+- Sem "tem certeza?": a linha sai (conteúdo pra esquerda, depois a altura fecha) e um toast "'X' excluída ·
+  Desfazer" fica 5 s acima da barra de abas, com barrinha de tempo; o + flutuante sai de cena enquanto isso.
+- Backend: `DELETE /api/tasks/<id>` (visitante 403, modelo de rotina 404) e `app.apagar_tarefa_com_desfazer`
+  (usado também pela IA): guarda a linha + os passos (subtasks) e o Desfazer devolve tudo com o mesmo id. Dia de
+  rotina = **pula só hoje** (tabela nova `tarefas_puladas`; sem ela `materializar_tarefas_recorrentes` recriava a
+  tarefa no próximo tick) - o Desfazer tira o pulo. A IA (`apagar_tarefa`) agora apaga tarefa com passos e dia de
+  rotina também. SW v58.
+
 ## 2026-10-11 - Transcrição: corta o eco da lista de vocabulário
 
 - Print do Alex: a fala terminou com "Bursque, Bblumenau, aeroclube, CIV, ANAC, SSBL, PR-LOM, PT-XXW, Fiorino,

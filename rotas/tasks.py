@@ -95,6 +95,29 @@ def criar_tarefa_direta():
     conn.close()
     return jsonify({"id": task_id, "ok": True}), 201
 
+@bp.route("/api/tasks/<int:task_id>", methods=["DELETE"])
+def excluir_tarefa(task_id):
+    """Arrastar-pra-excluir da aba Tarefas (2026-10-11): apaga sem concluir e devolve o token
+    do Desfazer (o mesmo /api/desfazer/<token> dos cards). Dia de rotina = pula so hoje."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    conn = get_db()
+    try:
+        tarefa = conn.execute(
+            "SELECT * FROM tasks WHERE id = ? AND NOT (recorrencia IS NOT NULL AND due_date IS NULL)", (task_id,)
+        ).fetchone()
+        if not tarefa:
+            return jsonify({"error": "tarefa não encontrada"}), 404
+        efeito = app.apagar_tarefa_com_desfazer(conn, tarefa)
+        conn.commit()
+        token = db.criar_acao_desfazer(conn, [efeito])
+        return jsonify({"ok": True, "titulo": tarefa["title"], "token": token, "pulada": bool(efeito.get("pulo"))})
+    finally:
+        conn.close()
+
+
 @bp.route("/api/tasks/<int:task_id>/complete", methods=["POST"])
 def complete_task_rota(task_id):
     app = app_modulo()

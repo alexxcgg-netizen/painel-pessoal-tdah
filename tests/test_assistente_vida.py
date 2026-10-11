@@ -201,13 +201,11 @@ class ApagarECorrigirTestCase(_Base):
         self.assertEqual(tuple(self.sql("SELECT id, title, due_date, hora, local FROM tasks WHERE title = 'Lavar o carro'")[0]),
                          (1, "Lavar o carro", HOJE, "15:00", "Posto X"))
 
-    def test_nao_apaga_rotina_nem_tarefa_com_passos(self):
+    def test_nao_apaga_o_modelo_da_rotina(self):
         self.sql("INSERT INTO tasks (title, recorrencia) VALUES ('Academia', 'semanal:0,3')")
-        self.sql("INSERT INTO tasks (title, due_date) VALUES ('Projeto grande', ?)", (HOJE,))
-        self.sql("INSERT INTO subtasks (task_id, title, position) VALUES (2, 'passo 1', 0)")
-        _, res = self.chat([("apagar_tarefa", {"titulo": "Academia"}), ("apagar_tarefa", {"titulo": "Projeto grande"})])
-        self.assertTrue(all("erro" in r for r in res))
-        self.assertEqual(len(self.sql("SELECT id FROM tasks")), 2)
+        _, res = self.chat([("apagar_tarefa", {"titulo": "Academia"})])
+        self.assertIn("erro", res[0])
+        self.assertEqual(len(self.sql("SELECT id FROM tasks")), 1)
 
     def test_corrige_valor_de_renda(self):
         self.sql("INSERT INTO incomes (amount, category, description) VALUES (1500, 'salario', 'pagamento do mes')")
@@ -224,6 +222,57 @@ class ApagarECorrigirTestCase(_Base):
         mudancas = cards.mascarar_cards([card])[0]["data"]["itens"][0]["mudancas"]
         self.assertEqual(mudancas[0], {"campo": "valor", "de": "R$ •••", "para": "R$ •••"})
         self.assertEqual(mudancas[1]["de"], "a")
+
+
+class ExcluirPelaTelaTestCase(_Base):
+    """Arrastar-pra-excluir da aba Tarefas: DELETE /api/tasks/<id> + Desfazer."""
+
+    def test_exclui_sem_concluir_e_desfazer_volta_com_os_passos(self):
+        self.sql("INSERT INTO tasks (title, due_date, hora) VALUES ('Organizar a garagem', ?, '10:00')", (HOJE,))
+        self.sql("INSERT INTO subtasks (task_id, title, position) VALUES (1, 'tirar as caixas', 0)")
+        self.sql("INSERT INTO subtasks (task_id, title, position, completed_at) VALUES (1, 'varrer', 1, '2026-10-11 09:00:00')")
+        r = self.client.delete("/api/tasks/1").get_json()
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["titulo"], "Organizar a garagem")
+        self.assertFalse(r["pulada"])
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks")[0][0], 0)
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM subtasks")[0][0], 0)
+        self.assertEqual(self.client.post(f"/api/desfazer/{r['token']}").status_code, 200)
+        self.assertEqual(tuple(self.sql("SELECT id, title, hora, completed_at FROM tasks")[0]), (1, "Organizar a garagem", "10:00", None))
+        self.assertEqual([tuple(x) for x in self.sql("SELECT title, position, completed_at IS NOT NULL FROM subtasks ORDER BY position")],
+                         [("tirar as caixas", 0, 0), ("varrer", 1, 1)])
+
+    def test_dia_de_rotina_e_pulado_so_hoje_e_nao_volta_sozinho(self):
+        self.sql("INSERT INTO tasks (title, recorrencia) VALUES ('Academia', 'diaria')")
+        self.client.get("/api/tasks")  # materializa a de hoje
+        inst = self.sql("SELECT id FROM tasks WHERE recorrente_origem_id = 1")[0][0]
+        r = self.client.delete(f"/api/tasks/{inst}").get_json()
+        self.assertTrue(r["pulada"])
+        conn = db.get_db()
+        self.assertEqual(app.materializar_tarefas_recorrentes(conn), 0)  # nao recria no proximo tick
+        conn.close()
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks WHERE recorrente_origem_id = 1")[0][0], 0)
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks WHERE id = 1")[0][0], 1)  # a rotina continua
+        self.client.post(f"/api/desfazer/{r['token']}")
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks WHERE recorrente_origem_id = 1")[0][0], 1)
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tarefas_puladas")[0][0], 0)
+
+    def test_modelo_de_rotina_inexistente_e_visitante(self):
+        self.sql("INSERT INTO tasks (title, recorrencia) VALUES ('Academia', 'diaria')")
+        self.assertEqual(self.client.delete("/api/tasks/1").status_code, 404)  # o modelo nao se apaga por aqui
+        self.assertEqual(self.client.delete("/api/tasks/999").status_code, 404)
+        self.sql("INSERT INTO tasks (title, due_date) VALUES ('X', ?)", (HOJE,))
+        with patch("app._modo_visitante_ativo", return_value=True):
+            self.assertEqual(self.client.delete("/api/tasks/2").status_code, 403)
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks WHERE id = 2")[0][0], 1)
+
+    def test_ia_tambem_apaga_tarefa_com_passos_e_dia_de_rotina(self):
+        self.sql("INSERT INTO tasks (title, due_date) VALUES ('Projeto grande', ?)", (HOJE,))
+        self.sql("INSERT INTO subtasks (task_id, title, position) VALUES (1, 'passo 1', 0)")
+        corpo, res = self.chat([("apagar_tarefa", {"titulo": "Projeto grande"})])
+        self.assertTrue(res[0]["ok"])
+        self.desfazer(next(c for c in corpo["cards"] if c["type"] == "edicao"))
+        self.assertEqual(self.sql("SELECT title FROM subtasks")[0][0], "passo 1")
 
 
 class AvisoVooTestCase(_Base):

@@ -307,6 +307,8 @@ function criarItemTarefa(t) {
     li.appendChild(sub);
   }
 
+  // arrastar pra esquerda = excluir (sem concluir) - arrastar-excluir.js
+  if (typeof ligarArrastarExcluir === "function") ligarArrastarExcluir(li, t);
   return li;
 }
 
