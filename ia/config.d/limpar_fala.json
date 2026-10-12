@@ -1,0 +1,10 @@
+{
+  "funcao": "limpar_fala",
+  "ativo": false,
+  "modelo_atual": {"provedor": "anthropic", "modelo": "claude-haiku-4-5-20251001"},
+  "alvo": {"provedor": "anthropic", "modelo": "claude-haiku-5-5", "esforco": "baixo"},
+  "fallback": [{"provedor": "anthropic", "modelo": "claude-haiku-4-5-20251001"}],
+  "max_tokens_saida": 700,
+  "cache": {"ativo": true, "ttl": "5m"},
+  "modo": "padrao"
+}

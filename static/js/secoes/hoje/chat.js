@@ -205,7 +205,7 @@ async function enviarChat(texto, opcoes = {}) {
   const vazio = lista.querySelector(".chat-vazio");
   if (vazio) vazio.remove();
 
-  lista.appendChild(criarBolhaChat("user", texto));
+  if (!opcoes.linhaUsuario) lista.appendChild(criarBolhaChat("user", texto));
   lista.scrollTop = lista.scrollHeight;
 
   const btn = $("#chat-send");
@@ -320,6 +320,7 @@ function criarGravacao(opcoes = {}) {
   let falaDesdeMs = null;
   let falaAteMs = null;
   let vadAtivo = false;
+  let nivelAtual = 0; // RMS suavizado - a onda da barra de gravacao le daqui
   let inicio = 0;
   let resolver;
   const pronto = new Promise((r) => (resolver = r));
@@ -368,6 +369,7 @@ function criarGravacao(opcoes = {}) {
       for (let i = 0; i < amostras.length; i++) soma += amostras[i] * amostras[i];
       const rms = Math.sqrt(soma / amostras.length);
       nivel = nivel ? nivel * 0.7 + rms * 0.3 : rms;
+      nivelAtual = nivel;
       // piso comeca BAIXO (nao no 1o quadro): se o Alex ja comeca falando, a propria voz
       // virava o "ruido de fundo" e so era percebida depois da primeira pausa
       if (piso === null) piso = Math.min(nivel, 0.004);
@@ -442,11 +444,13 @@ function criarGravacao(opcoes = {}) {
     }
   }
 
-  return { iniciar, parar, pronto };
+  return { iniciar, parar, pronto, nivel: () => nivelAtual, desde: () => inicio };
 }
 
-async function transcreverGravacao({ blob, duracaoS, falaDesdeS, falaAteS }) {
+async function transcreverGravacao({ blob, duracaoS, falaDesdeS, falaAteS }, opcoes = {}) {
   const corpo = new FormData();
+  // limpar: o servidor reescreve como ele QUIS dizer (autocorrecao, "tipo/ne", nome mal ouvido)
+  if (opcoes.limpar) corpo.append("limpar", "1");
   // so o FIM da fala vai pro servidor: e no silencio do fim que o Whisper inventa palavra; cortar
   // o comeco por medicao arriscaria perder a primeira frase de verdade
   if (falaAteS !== null && falaAteS !== undefined) corpo.append("fala_ate", falaAteS.toFixed(2));
@@ -468,39 +472,79 @@ function initVozChat() {
   }
 }
 
-// Ditado: toque liga, toque para; o texto cai no campo pra conferir antes de enviar.
+// Audio do chat (2026-10-12, pedido do Alex: "igual mandar audio pro ChatGPT/Gemini - posso errar
+// que ele entende"). Toque no microfone -> a barra vira gravacao (ponto vermelho, onda com a voz
+// de verdade, tempo, X pra cancelar); o botao de enviar manda. Manda DIRETO: aparece a bolha dele
+// "Entendendo...", o servidor transcreve (Whisper) e limpa (autocorrecao, muleta, nome mal ouvido -
+// ia/funcoes/fala.py), a bolha ganha o texto limpo e o chat responde sabendo que veio de audio.
+const ICONE_MIC_BOLHA =
+  '<svg class="bolha-voz-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></svg>';
+const ONDA_BARRAS = 30;
+
+function _fmtTempoGravacao(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
 function initGravadorChat(micBtn) {
-  let atual = null; // gravação em andamento (ou abrindo o microfone)
-  let transcrevendo = false;
-
-  async function transcrever(gravado) {
-    const input = $("#chat-input");
-    const placeholderOriginal = input.placeholder;
-    transcrevendo = true;
-    micBtn.classList.add("transcrevendo");
-    input.placeholder = "Transcrevendo…";
-    try {
-      const texto = await transcreverGravacao(gravado);
-      if (texto) _colocarNoCampo(texto);
-    } finally {
-      transcrevendo = false;
-      micBtn.classList.remove("transcrevendo");
-      input.placeholder = placeholderOriginal;
-    }
-  }
-
+  const form = $("#chat-form");
+  const sendBtn = $("#chat-send");
+  let atual = null; // gravacao em andamento (ou abrindo o microfone)
   let ctxAudio = null;
+  let loopOnda = null;
+  let loopTempo = null;
+
+  // barra de gravacao (fica escondida dentro do form ate gravar)
+  const barra = document.createElement("div");
+  barra.className = "gravacao-barra";
+  barra.setAttribute("role", "status");
+  barra.setAttribute("aria-live", "polite");
+  barra.innerHTML =
+    '<button type="button" class="gravacao-cancelar" aria-label="Cancelar áudio">' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+    '<span class="gravacao-ponto" aria-hidden="true"></span>' +
+    `<span class="gravacao-onda" aria-hidden="true">${"<i></i>".repeat(ONDA_BARRAS)}</span>` +
+    '<span class="gravacao-tempo">0:00</span>' +
+    '<span class="sr-only">Gravando áudio</span>';
+  form.insertBefore(barra, sendBtn);
+  const barras = [...barra.querySelectorAll(".gravacao-onda i")];
+  const tempoEl = barra.querySelector(".gravacao-tempo");
+  const historico = new Array(ONDA_BARRAS).fill(0.06);
+
   function avisoBreve(texto) {
     const input = $("#chat-input");
     const original = input.placeholder;
     input.placeholder = texto;
     setTimeout(() => {
       if (input.placeholder === texto) input.placeholder = original;
-    }, 2200);
+    }, 2400);
+  }
+
+  function mostrarBarra(ligada) {
+    form.classList.toggle("gravando", ligada);
+    sendBtn.setAttribute("aria-label", ligada ? "Enviar áudio" : "Enviar");
+    clearInterval(loopOnda);
+    clearInterval(loopTempo);
+    if (!ligada) return;
+    historico.fill(0.06);
+    barras.forEach((b) => (b.style.transform = "scaleY(0.06)"));
+    tempoEl.textContent = "0:00";
+    // onda: a voz de verdade (RMS do microfone), da direita pra esquerda
+    loopOnda = setInterval(() => {
+      if (!atual) return;
+      const rms = atual.nivel();
+      const alvo = Math.min(1, Math.max(0.06, Math.sqrt(rms * 14)));
+      historico.shift();
+      historico.push(alvo);
+      for (let k = 0; k < ONDA_BARRAS; k++) barras[k].style.transform = `scaleY(${historico[k].toFixed(3)})`;
+    }, 70);
+    loopTempo = setInterval(() => {
+      if (atual && atual.desde()) tempoEl.textContent = _fmtTempoGravacao(Date.now() - atual.desde());
+    }, 250);
   }
 
   async function comecar() {
-    // o detector de voz (mesmo do modo conversa) so mede onde teve fala - quem para e o toque
+    // o detector de voz (mesmo do modo conversa) mede onde teve fala e da o nivel da onda
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (Ctx && !ctxAudio) {
       try {
@@ -512,12 +556,13 @@ function initGravadorChat(micBtn) {
     if (ctxAudio && ctxAudio.state === "suspended") ctxAudio.resume().catch(() => {});
     const gravacao = criarGravacao({ maxMs: MIC_MAX_MS, contextoAudio: ctxAudio });
     atual = gravacao;
-    micBtn.classList.add("ouvindo");
+    mostrarBarra(true);
+    vibrar(12);
     gravacao.pronto.then((gravado) => {
       if (atual === gravacao) atual = null;
-      micBtn.classList.remove("ouvindo");
+      mostrarBarra(false);
       if (gravado && gravado.semVoz) avisoBreve("Não ouvi nada - tenta de novo");
-      else if (gravado) transcrever(gravado);
+      else if (gravado) enviarAudio(gravado);
     });
     try {
       await gravacao.iniciar();
@@ -527,15 +572,59 @@ function initGravadorChat(micBtn) {
     }
   }
 
+  function terminar(motivo) {
+    if (!atual) return;
+    if (motivo === "fala") vibrar(18);
+    atual.parar(motivo);
+  }
+
   micBtn.hidden = false;
   micBtn.addEventListener("click", () => {
-    if (transcrevendo) return;
-    if (atual) {
-      atual.parar("fala");
-      return;
-    }
-    comecar();
+    if (atual) terminar("fala");
+    else comecar();
   });
+  barra.querySelector(".gravacao-cancelar").addEventListener("click", () => terminar("cancelada"));
+  // gravando, o botao de enviar manda o audio (o submit normal do texto fica de fora)
+  form.addEventListener(
+    "submit",
+    (ev) => {
+      if (!form.classList.contains("gravando")) return;
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      terminar("fala");
+    },
+    { capture: true }
+  );
+}
+
+// Bolha "Entendendo..." -> texto limpo -> chat. Falhou: a bolha oferece tentar de novo com o MESMO audio.
+async function enviarAudio(gravado, linhaExistente) {
+  const lista = $("#chat-mensagens");
+  const vazio = lista.querySelector(".chat-vazio");
+  if (vazio) vazio.remove();
+  const linha = linhaExistente || criarBolhaChat("user", "");
+  const bolha = linha.querySelector(".chat-bolha");
+  bolha.className = "chat-bolha user bolha-voz pendente";
+  bolha.innerHTML =
+    `${ICONE_MIC_BOLHA}<span class="bolha-voz-texto">Entendendo` +
+    '<span class="bolha-voz-pontos" aria-hidden="true"><i></i><i></i><i></i></span></span>';
+  if (!linhaExistente) lista.appendChild(linha);
+  lista.scrollTop = lista.scrollHeight;
+
+  const texto = await transcreverGravacao(gravado, { limpar: true });
+  if (!texto) {
+    bolha.className = "chat-bolha user bolha-voz falhou";
+    bolha.innerHTML =
+      `${ICONE_MIC_BOLHA}<span class="bolha-voz-texto">Não consegui entender o áudio.</span>` +
+      '<button type="button" class="bolha-voz-tentar">Tentar de novo</button>';
+    bolha.querySelector(".bolha-voz-tentar").addEventListener("click", () => enviarAudio(gravado, linha), { once: true });
+    return;
+  }
+  bolha.className = "chat-bolha user bolha-voz chegou";
+  bolha.innerHTML = `${ICONE_MIC_BOLHA}<span class="bolha-voz-texto"></span>`;
+  bolha.querySelector(".bolha-voz-texto").textContent = texto;
+  lista.scrollTop = lista.scrollHeight;
+  await enviarChat(texto, { linhaUsuario: linha, corpo: { mensagem: texto, audio: true } });
 }
 
 function initReconhecimentoNativoChat(micBtn) {

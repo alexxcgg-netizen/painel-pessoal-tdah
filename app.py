@@ -2218,6 +2218,41 @@ MODO_VOZ_INSTRUCAO = (
 )
 
 
+# 2026-10-12: mensagem que veio de AUDIO (microfone do chat ou modo conversa). Ja passou pela
+# limpeza (ia/funcoes/fala.py), mas o Whisper ainda pode ter trocado uma palavra por outra de
+# som parecido - o chat interpreta pela intencao, como o ChatGPT/Gemini fazem.
+AUDIO_INSTRUCAO = (
+    "ESTA MENSAGEM VEIO DE AUDIO (transcrito automaticamente e ja limpo): pode ter sobrado palavra "
+    "trocada por outra de som parecido ou frase meio torta. Entenda pela intencao e pelo contexto "
+    "(tarefas, lugares, nomes que voce conhece), sem comentar a transcricao. Se ele se corrigiu no "
+    "meio, vale o que ele disse por ultimo. So pergunte antes de agir quando algo CRITICO ficou "
+    "ambiguo de verdade (valor em dinheiro, data/hora, nome de pessoa) - o resto, resolva sozinho."
+)
+
+
+def _vocabulario_do_alex(conn) -> str:
+    """Grafia certa do que o Alex costuma falar (pro limpador da fala acertar nome): apelidos de
+    lugar, aeronaves do diario, pessoas, e o titulo das tarefas abertas. Curto de proposito."""
+    termos: list[str] = ["Brusque", "Blumenau", "Gaspar", "aeroclube", "CIV", "ANAC", "SSBL", "Fiorino",
+                         "contabilidade", "notas fiscais", "CND", "construtora", "obra"]
+    try:
+        termos += list(vida_assistente.apelidos(conn).keys())
+        termos += [r[0] for r in conn.execute(
+            "SELECT DISTINCT aeronave FROM voos WHERE aeronave IS NOT NULL AND aeronave != '' LIMIT 8")]
+        termos += [r[0] for r in conn.execute("SELECT nome FROM pessoas ORDER BY id DESC LIMIT 20")]
+        termos += [r[0] for r in conn.execute(
+            "SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL ORDER BY id DESC LIMIT 25")]
+    except Exception:  # noqa: BLE001 - vocabulario e ajuda, nunca bloqueia o audio
+        pass
+    vistos, saida = set(), []
+    for t in termos:
+        t = str(t or "").strip()
+        if t and t.lower() not in vistos:
+            vistos.add(t.lower())
+            saida.append(t[:60])
+    return "; ".join(saida)[:1800]
+
+
 def _local_do_celular(local) -> dict | None:
     """Valida a localizacao que o front manda junto da mensagem ({lat, lon,
     precisao, idade_s}) e completa com o endereco aproximado (OpenStreetMap).
@@ -2246,7 +2281,8 @@ def _local_do_celular(local) -> dict | None:
 
 
 def _processar_mensagem_chat(
-    conn, texto: str, detalhes: dict | None = None, modo_voz: bool = False, local_gps: dict | None = None
+    conn, texto: str, detalhes: dict | None = None, modo_voz: bool = False, local_gps: dict | None = None,
+    origem_audio: bool = False,
 ) -> tuple[str | None, list[str], str | None]:
     """Roda o pipeline inteiro de chat (contexto + tool-use + persistencia) -
     fonte unica de verdade da conversa, usada tanto pela rota HTTP /api/chat
@@ -2294,6 +2330,8 @@ def _processar_mensagem_chat(
     contexto = _contexto_chat(conn)
     if modo_voz:
         contexto += "\n" + MODO_VOZ_INSTRUCAO
+    if origem_audio or modo_voz:
+        contexto += "\n" + AUDIO_INSTRUCAO
     local_gps = _local_do_celular(local_gps)
     if local_gps:
         onde = local_gps["rotulo"] or f"{local_gps['lat']}, {local_gps['lon']}"

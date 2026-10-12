@@ -56,6 +56,26 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-12 - Áudio do chat igual ChatGPT/Gemini: "posso errar que ele entende"
+
+- Reclamação do Alex: o áudio "não tá legal" - entende palavra errada, não aceita ele se corrigir no meio, e não
+  dá pra ver o que está acontecendo. Escolhas dele: **manda direto** (não cai mais na caixa pra conferir).
+- **Barra de gravação** (chat.js `initGravadorChat`): toque no microfone -> o campo vira barra com X (cancelar),
+  ponto vermelho pulsando, onda da voz de verdade (RMS do microfone via `criarGravacao().nivel()`, 30 barras da
+  direita pra esquerda) e tempo; o enviar fica vermelho e manda o áudio.
+- **Manda direto** (`enviarAudio`): bolha dele "Entendendo..." -> Whisper -> **limpeza** -> a bolha ganha o texto
+  limpo com um microfone pequeno (assenta com blur-fade) -> `/api/chat` com `audio: true`. Falhou: a bolha
+  oferece "Tentar de novo" com o MESMO áudio.
+- **Limpeza da fala** (`ia/funcoes/fala.py`, config `limpar_fala` = Haiku 4.5, ~0,6-1,2 s medido): aplica
+  autocorreção ("às três, não, às quatro" -> "às quatro"), tira muleta/gagueira e conserta nome mal ouvido com o
+  vocabulário dele (`app._vocabulario_do_alex`: apelidos de lugar, aeronaves, pessoas, tarefas abertas). Nunca
+  acrescenta nada; saída suspeita (longa/curta demais) ou falha = vai o texto cru. Até 3 palavras nem chama a IA.
+  Testado com a IA real: "voo lá em blume nau no PR lon" -> "voo lá em Blumenau no PR-LOM".
+- `/api/chat` com `audio: true` (e o modo conversa) ganha `AUDIO_INSTRUCAO`: entender pela intenção, vale o que
+  ele disse por último, só perguntar antes de agir se valor/data/nome crítico ficou ambíguo.
+- `/api/voz/transcrever` devolve `error` além de `erro` (o painel lê `error`: antes aparecia "Erro inesperado
+  (HTTP 502)" em vez da mensagem). SW v59.
+
 ## 2026-10-11 - Excluir tarefa arrastando pro lado (sem concluir)
 
 - Pedido do Alex: excluir tarefa sem marcar como concluída. Escolha dele: **arrastar pro lado**, igual ao Mail do

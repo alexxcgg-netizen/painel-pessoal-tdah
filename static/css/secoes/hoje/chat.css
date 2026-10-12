@@ -433,3 +433,213 @@ main #tab-assistente h2.chat-ola-titulo,
     animation: none !important;
   }
 }
+
+
+/* =====================================================================
+   Audio do chat (2026-10-12) - static/js/secoes/hoje/chat.js (initGravadorChat/enviarAudio).
+   Gravando: campo + microfone + conversa dao lugar a barra (X, ponto vermelho, onda da voz
+   de verdade, tempo); o botao de enviar manda o audio. Depois, a bolha "Entendendo..." vira o
+   texto limpo com um microfone pequeno. */
+#chat-form .gravacao-barra {
+  display: none;
+}
+#tab-assistente #chat-form.gravando > :is(#chat-input, #chat-mic, #chat-conversa) {
+  display: none;
+}
+#tab-assistente #chat-form.gravando .gravacao-barra {
+  flex: 1;
+  min-width: 0;
+  height: var(--toque-campo-fixo);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 0 6px;
+  border-radius: var(--raio-controle);
+  border: var(--linha) solid color-mix(in srgb, var(--danger) 45%, var(--cor-borda));
+  background: color-mix(in srgb, var(--danger) 9%, var(--superficie-card));
+  animation: gravacaoEntra 0.38s var(--ease-bounce) both;
+}
+@keyframes gravacaoEntra {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+#chat-form .gravacao-cancelar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-muted);
+  transition: background 0.2s var(--ease-suave), transform 0.25s var(--ease-bounce);
+}
+#chat-form .gravacao-cancelar:active {
+  transform: scale(0.9);
+}
+#chat-form .gravacao-cancelar svg {
+  width: 18px;
+  height: 18px;
+}
+#chat-form .gravacao-ponto {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 60%, transparent);
+  animation: gravacaoPonto 1.4s var(--ease-suave) infinite;
+}
+@keyframes gravacaoPonto {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+#chat-form .gravacao-onda {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  overflow: hidden;
+}
+#chat-form .gravacao-onda i {
+  flex: 1;
+  min-width: 2px;
+  max-width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 78%, transparent);
+  transform: scaleY(0.06);
+  transform-origin: center;
+  transition: transform 0.09s linear;
+}
+#chat-form .gravacao-tempo {
+  flex: none;
+  font-family: var(--font-tech);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* gravando, o enviar fica vermelho: "manda o audio" */
+#tab-assistente #chat-form.gravando #chat-send {
+  background: var(--danger);
+  color: #fff;
+  animation: gravacaoEntra 0.38s var(--ease-bounce) both;
+}
+
+/* bolha de audio */
+.chat-bolha.bolha-voz {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.chat-bolha.bolha-voz .bolha-voz-icone {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 0.22em;
+  opacity: 0.7;
+}
+.chat-bolha.bolha-voz .bolha-voz-texto {
+  min-width: 0;
+}
+.chat-bolha.bolha-voz.pendente .bolha-voz-texto {
+  opacity: 0.8;
+}
+.bolha-voz-pontos {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.bolha-voz-pontos i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: bolhaVozPonto 1.1s var(--ease-suave) infinite;
+}
+.bolha-voz-pontos i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.bolha-voz-pontos i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes bolhaVozPonto {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+/* o texto limpo "assenta" na bolha (mesmo espirito do palavra-a-palavra da resposta) */
+.chat-bolha.bolha-voz.chegou .bolha-voz-texto {
+  animation: bolhaVozChega 0.42s var(--ease-suave) both;
+}
+@keyframes bolhaVozChega {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+/* falhou: microfone + aviso na mesma linha, "Tentar de novo" embaixo alinhado ao texto */
+.chat-bolha.bolha-voz.falhou {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  row-gap: 10px;
+  align-items: start;
+}
+.chat-bolha.bolha-voz.falhou .bolha-voz-tentar {
+  grid-column: 2;
+  justify-self: start;
+}
+.chat-bolha.bolha-voz .bolha-voz-tentar {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font-weight: 650;
+  font-size: 0.82rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  #tab-assistente #chat-form.gravando .gravacao-barra,
+  #tab-assistente #chat-form.gravando #chat-send,
+  #chat-form .gravacao-ponto,
+  .bolha-voz-pontos i,
+  .chat-bolha.bolha-voz.chegou .bolha-voz-texto {
+    animation: none;
+  }
+  #chat-form .gravacao-onda i {
+    transition: none;
+  }
+}

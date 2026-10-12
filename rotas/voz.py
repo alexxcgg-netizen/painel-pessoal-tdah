@@ -95,8 +95,20 @@ def voz_transcrever():
             audio, mime, duracao_segundos=duracao, fala_desde=_segundos("fala_desde"), fala_ate=_segundos("fala_ate")
         )
     except telegram_captura.ErroCaptura as e:
-        return jsonify({"erro": str(e)}), 502
-    return jsonify({"texto": texto})
+        return jsonify({"erro": str(e), "error": str(e)}), 502
+    if request.form.get("limpar") != "1" or not texto:
+        return jsonify({"texto": texto})
+    # 2026-10-12: microfone do chat manda direto - antes, uma IA rapida reescreve como ele QUIS
+    # dizer (autocorrecao, muleta, nome mal ouvido). Falhou = vai o texto cru.
+    from ia.funcoes import fala
+
+    conn = get_db()
+    try:
+        vocabulario = app_modulo()._vocabulario_do_alex(conn)
+    finally:
+        conn.close()
+    limpo, limpou = fala.limpar(texto, vocabulario)
+    return jsonify({"texto": limpo, "bruto": texto, "limpo": limpou})
 
 
 @bp.route("/api/voz/uso", methods=["GET"])
