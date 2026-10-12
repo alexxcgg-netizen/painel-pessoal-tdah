@@ -183,8 +183,50 @@ function initModoVisitante() {
   const pinInput = $("#modo-visitante-pin");
   const status = $("#modo-visitante-status");
 
-  function aplicarEstado(ativo) {
+  // 2026-10-12: ligado, o modo visitante aparece em TODA tela (selo no topo) e desliga sozinho em
+  // 1 h (servidor). Antes so dava pra ver em Mais > Configuracoes - o Alex ligou sem querer e passou
+  // 2 dias com o chat dizendo "modo visitante, nao posso mexer".
+  let timerFim = null;
+  function selo(ativo, minutos) {
+    let el = document.getElementById("selo-visitante");
+    clearTimeout(timerFim);
+    if (!ativo) {
+      if (el) {
+        el.classList.add("saindo");
+        setTimeout(() => el.remove(), 260);
+      }
+      return;
+    }
+    if (!el) {
+      el = document.createElement("button");
+      el.type = "button";
+      el.id = "selo-visitante";
+      el.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>' +
+        '<span>Modo visitante</span><span class="selo-visitante-sair">Sair</span>';
+      el.setAttribute("aria-label", "Modo visitante ligado. Toque pra sair com o PIN");
+      el.addEventListener("click", () => {
+        showTab("config");
+        painel.hidden = false;
+        setTimeout(() => {
+          painel.scrollIntoView({ behavior: "smooth", block: "center" });
+          pinInput.focus({ preventScroll: true });
+        }, 320);
+      });
+      document.body.appendChild(el);
+    }
+    if (minutos) {
+      timerFim = setTimeout(async () => {
+        const dados = await apiFetch("/api/modo-visitante");
+        if (dados && !dados.ativo) aplicarEstado(false);
+        else if (dados) selo(true, dados.minutos_restantes);
+      }, minutos * 60 * 1000 + 1500);
+    }
+  }
+
+  function aplicarEstado(ativo, minutos) {
     modoVisitanteAtivo = ativo;
+    selo(ativo, minutos);
     btn.classList.toggle("ativo", ativo);
     btn.setAttribute("aria-pressed", ativo ? "true" : "false");
     if (!ativo) {
@@ -203,7 +245,7 @@ function initModoVisitante() {
     const dados = await apiFetch("/api/modo-visitante");
     if (!dados) return;
     if (dados.ativo) {
-      aplicarEstado(true);
+      aplicarEstado(true, dados.minutos_restantes);
     } else {
       modoVisitanteAtivo = false;
       btn.classList.remove("ativo");
@@ -218,10 +260,17 @@ function initModoVisitante() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ativar: true }),
       });
-      if (dados) aplicarEstado(true);
+      if (dados) aplicarEstado(true, dados.minutos_restantes);
       return;
     }
     painel.hidden = !painel.hidden;
+  });
+
+  // voltou pro app depois de um tempo: o servidor pode ja ter desligado sozinho
+  document.addEventListener("visibilitychange", async () => {
+    if (document.hidden || !modoVisitanteAtivo) return;
+    const dados = await apiFetch("/api/modo-visitante");
+    if (dados && !dados.ativo) aplicarEstado(false);
   });
 
   $("#modo-visitante-desativar").addEventListener("click", async () => {

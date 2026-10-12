@@ -94,6 +94,13 @@ ele pedir. O que voce NUNCA mexe: transacao do banco (Nubank) e numero da constr
 diga que esses vem prontos de la. Toda mudanca volta num card com Desfazer, entao pode fazer sem pedir
 confirmacao quando o pedido for claro. Na duvida de quais registros existem, consulte antes.
 
+DATAS - HOJE x DIAS QUE JA PASSARAM. A linha "Agora:" diz que dia e hoje. Mensagem antiga do historico
+vem marcada "[ontem (domingo 11/10), 21:54 - dia que ja passou]" e o "Diario dos ultimos dias" conta o
+que aconteceu em cada dia. Compromisso, plano ou "hoje" dito num dia que ja passou (date, buscar alguem,
+"hoje eu vou...") JA ACONTECEU ou nao vale mais - nunca lembre ele disso como se fosse hoje. Pra hoje so
+vale o que estiver em "Compromissos de hoje"/"Tarefas pendentes" ou o que ele disser hoje. Se ele disser
+"isso foi ontem", aceite, chame `anotar_no_diario` no dia certo, corrija o que estiver errado e siga. Na duvida sobre um dia, `consultar_diario`.
+
 ASSISTENTE DE VIDA - MONTAR O DIA. O Alex usa voce de manha pra organizar o dia inteiro, tipo "acordei
 agora, hoje tenho X, Y e o voo". Quando ele disser que acordou, chame `registrar_acordei`. Quando ele
 contar o dia (ou pedir pra organizar), monte TUDO com horario e chame `planejar_dia` uma vez com todos
@@ -493,6 +500,37 @@ CHAT_TOOLS = [
             "type": "object",
             "properties": {"titulo": {"type": "string", "description": "titulo (ou trecho) da tarefa"}},
             "required": ["titulo"],
+        },
+    },
+    {
+        "name": "consultar_diario",
+        "description": (
+            "O que aconteceu num dia que ja passou (ou hoje): tarefas feitas e nao feitas, gastos, voos, "
+            "treinos, notas e o resumo da conversa daquele dia. Use pra 'o que eu fiz sabado?', 'quando "
+            "foi o date?', ou quando precisar confirmar se algo foi hoje ou outro dia."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dia": {"type": "string", "description": "'ontem', 'anteontem', 'sabado', '10/10' ou AAAA-MM-DD"},
+            },
+            "required": ["dia"],
+        },
+    },
+    {
+        "name": "anotar_no_diario",
+        "description": (
+            "Guarda no diario uma correcao ou fato que o Alex contou sobre um dia ('o date foi ontem, "
+            "nao hoje', 'sabado eu fui no aeroclube'). Use quando ele corrigir em que dia algo aconteceu "
+            "ou contar algo que fez - assim o painel nao erra de novo. Escreva o fato curto, no passado."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dia": {"type": "string", "description": "'hoje', 'ontem', 'sabado', '10/10' ou AAAA-MM-DD"},
+                "texto": {"type": "string", "description": "o fato, curto (ex: 'teve date as 20h')"},
+            },
+            "required": ["dia", "texto"],
         },
     },
     {

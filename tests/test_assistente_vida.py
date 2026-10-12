@@ -202,7 +202,9 @@ class ApagarECorrigirTestCase(_Base):
                          (1, "Lavar o carro", HOJE, "15:00", "Posto X"))
 
     def test_nao_apaga_o_modelo_da_rotina(self):
-        self.sql("INSERT INTO tasks (title, recorrencia) VALUES ('Academia', 'semanal:0,3')")
+        # rotina num dia que NAO e hoje (senao a instancia de hoje existe e e ela que sai)
+        outro_dia = (date.today().weekday() + 2) % 7
+        self.sql("INSERT INTO tasks (title, recorrencia) VALUES ('Academia', ?)", (f"semanal:{outro_dia}",))
         _, res = self.chat([("apagar_tarefa", {"titulo": "Academia"})])
         self.assertIn("erro", res[0])
         self.assertEqual(len(self.sql("SELECT id FROM tasks")), 1)

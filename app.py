@@ -51,6 +51,7 @@ import geocode_nominatim
 import leitura
 import maps_client
 import vida_assistente
+import diario
 import viagem_compras
 import metar
 import noticias
@@ -610,7 +611,20 @@ def _modo_visitante_ativo() -> bool:
     sessao do Flask (cookie assinado pelo servidor, nunca no banco) - nao
     precisa sobreviver a reinicio do processo nem ser visto por outra sessao/
     aparelho, e some sozinho no logout (session.clear() acima)."""
-    return bool(session.get("modo_visitante"))
+    if not session.get("modo_visitante"):
+        return False
+    # 2026-10-12: o Alex ligou sem querer (1 toque, escondido em Configuracoes) e ficou 2 dias com
+    # o chat recusando tudo. Agora desliga sozinho depois de MODO_VISITANTE_MINUTOS - visitante e
+    # "passar o celular pra alguem", nao estado permanente. Sessao antiga sem a hora = ja expirou.
+    desde = session.get("modo_visitante_desde")
+    if not isinstance(desde, (int, float)) or time.time() - desde > MODO_VISITANTE_MINUTOS * 60:
+        session["modo_visitante"] = False
+        session.pop("modo_visitante_desde", None)
+        return False
+    return True
+
+
+MODO_VISITANTE_MINUTOS = 60
 
 
 def _recusar_no_modo_visitante():
@@ -1791,6 +1805,7 @@ def _contexto_chat(conn) -> str:
         f"Compromissos de hoje (em ordem de horário): {eventos_txt or 'nenhum'}",
     ]
     linhas.extend(vida_assistente.linhas_contexto(conn, agora.replace(tzinfo=None)))
+    linhas.extend(diario.linhas_contexto(conn, agora.date()))
     if saude:
         linhas.append(f"Saúde hoje: {saude}")
     if construtora:
@@ -2323,7 +2338,9 @@ def _processar_mensagem_chat(
             return resposta, [local["acao"]], None
 
     historico = list(reversed(list_chat_mensagens(conn, limit=20)))
-    mensagens = [{"role": r["papel"], "content": r["texto"]} for r in historico]
+    mensagens = _historico_com_datas(
+        conn, [{"role": r["papel"], "content": r["texto"], "criado_em": r.get("criado_em")} for r in historico]
+    )
     mensagens.append({"role": "user", "content": texto})
 
     memorias_texto = [m["texto"] for m in list_memorias(conn)]
@@ -2414,7 +2431,11 @@ def _processar_mensagem_chat(
     # banco: 0 ou 2+ resultados = erro com as candidatas, nunca chute.
     def _recusa_visitante():
         if has_request_context() and _modo_visitante_ativo():
-            return {"erro": "no modo visitante nada pode ser alterado"}
+            return {"erro": (
+                "o painel esta no MODO VISITANTE (ele liga isso quando passa o celular pra alguem) e nada "
+                "pode ser alterado. Diga ao Alex: toque no selo 'Modo visitante' no topo da tela e digite o "
+                "PIN pra sair (ou espere: desliga sozinho em ate 1 hora)."
+            )}
         return None
 
     def _editar(tabela, id_, novos: dict, rotulo: str, titulo: str):
@@ -2702,6 +2723,26 @@ def _processar_mensagem_chat(
         if efeito.get("pulo"):
             resultado["obs"] = "era o dia de hoje de uma rotina: so hoje foi pulado, a rotina continua nos outros dias"
         return resultado
+
+    def exec_consultar_diario(entrada):
+        """O que aconteceu num dia (diario.py). 'ontem', 'sabado' etc. viram data em codigo."""
+        hoje_br = _agora_brasilia().date()
+        dia_d = diario.resolver_dia_passado(entrada.get("data") or entrada.get("dia"), hoje_br)
+        if not dia_d:
+            return {"erro": "nao entendi o dia - mande 'ontem', 'sabado' ou AAAA-MM-DD"}
+        return diario.consultar(conn, dia_d, hoje_br)
+
+    def exec_anotar_no_diario(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        hoje_br = _agora_brasilia().date()
+        dia_d = diario.resolver_dia_passado(entrada.get("dia"), hoje_br)
+        texto_anot = _texto_curto(entrada.get("texto"), 300)
+        if not dia_d or not texto_anot:
+            return {"erro": "faltou o dia ('ontem', 'sabado', AAAA-MM-DD) ou o texto"}
+        diario.anotar(conn, dia_d, texto_anot)
+        return {"ok": True, "dia": diario.rotulo_dia(dia_d, hoje_br), "anotado": texto_anot}
 
     def exec_registrar_acordei(entrada):
         recusa = _recusa_visitante()
@@ -3535,6 +3576,8 @@ def _processar_mensagem_chat(
         "ajustar_renda": exec_ajustar_renda,
         "apagar_tarefa": exec_apagar_tarefa,
         "registrar_acordei": exec_registrar_acordei,
+        "consultar_diario": exec_consultar_diario,
+        "anotar_no_diario": exec_anotar_no_diario,
         "atualizar_perfil": exec_atualizar_perfil,
         "salvar_lugar_apelido": exec_salvar_lugar_apelido,
         "planejar_dia": exec_planejar_dia,
@@ -3679,11 +3722,44 @@ def _historico_chat_para_ia(conn, texto: str, mensagens_antigas: list) -> tuple[
     20 mensagens, sem resumo) - o chat nunca quebra por causa disso."""
     try:
         ctx = ia.historico.montar_contexto(conn)
-        mensagens = list(ctx["mensagens"]) + [{"role": "user", "content": texto}]
+        meta = ctx.get("meta") or [{} for _ in ctx["mensagens"]]
+        itens = [{**m, "criado_em": mm.get("criado_em")} for m, mm in zip(ctx["mensagens"], meta)]
+        mensagens = _historico_com_datas(conn, itens) + [{"role": "user", "content": texto}]
         return mensagens, ctx["contexto_fixo"] or ""
     except Exception:  # noqa: BLE001
         app.logger.exception("chat: montar_contexto (A5) falhou - usando historico antigo")
         return mensagens_antigas, ""
+
+
+# Mensagem de um dia que ja passou e ainda e recente (virou a meia-noite conversando) vai na integra.
+_HISTORICO_HORAS_CONTINUIDADE = 4
+
+
+def _historico_com_datas(conn, itens: list[dict], agora: datetime | None = None) -> list[dict]:
+    """2026-10-12 (o "date de sabado" que a IA achou que era hoje): `itens` = [{role, content,
+    criado_em(UTC)}] em ordem. Mensagem de HOJE vai igual. Mensagem de dia que ja passou:
+    - se o dia ja tem diario (diario_dias com resumo) e ja faz mais de algumas horas, sai - o
+      "Diario dos ultimos dias" do contexto conta aquele dia, com o nome certo;
+    - senao vai marcada "[ontem (domingo 11/10), 21:54 - dia que ja passou]".
+    Nunca comeca por 'assistant' (a API exige 'user' primeiro)."""
+    agora = agora or _agora_brasilia().replace(tzinfo=None)
+    hoje = agora.date()
+    datas = [diario.utc_para_local(it.get("criado_em")) for it in itens]
+    passados = sorted({d.date() for d in datas if d and d.date() < hoje})
+    com_diario = diario.dias_com_resumo(conn, passados) if passados else set()
+    saida = []
+    for it, dt in zip(itens, datas):
+        if dt is None or dt.date() >= hoje:
+            saida.append({"role": it["role"], "content": it["content"]})
+            continue
+        recente = agora - dt < timedelta(hours=_HISTORICO_HORAS_CONTINUIDADE)
+        if not recente and dt.date().isoformat() in com_diario:
+            continue
+        marca = f"[{diario.rotulo_dia(dt.date(), hoje)}, {dt:%H:%M} - dia que já passou] "
+        saida.append({"role": it["role"], "content": marca + (it["content"] or "")})
+    while saida and saida[0]["role"] != "user":
+        saida.pop(0)
+    return saida
 
 
 def _criar_token_desfazer(conn):
@@ -4573,6 +4649,8 @@ def verificar_e_notificar():
     # estiverem configurados ainda, nao pode ficar refem de notificacao.
     conn_materializar = get_db()
     materializar_tarefas_recorrentes(conn_materializar)
+    # diario: fecha os dias que passaram (1 chamada de IA por tick no maximo, so quando falta)
+    diario.garantir_dias_fechados(conn_materializar)
     conn_materializar.close()
 
     push_ok = push_client.configurado()

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from flask import Blueprint, jsonify, request, session
 
 from rotas._base import app_modulo
@@ -13,8 +15,11 @@ bp = Blueprint("config", __name__)
 @bp.route("/api/modo-visitante", methods=["GET"])
 def modo_visitante_rota():
     app = app_modulo()
-    _modo_visitante_ativo = app._modo_visitante_ativo
-    return jsonify({"ativo": _modo_visitante_ativo()})
+    ativo = app._modo_visitante_ativo()
+    resto = 0
+    if ativo:
+        resto = max(1, round((app.MODO_VISITANTE_MINUTOS * 60 - (time.time() - session["modo_visitante_desde"])) / 60))
+    return jsonify({"ativo": ativo, "minutos_restantes": resto})
 
 @bp.route("/api/modo-visitante", methods=["POST"])
 def alternar_modo_visitante_rota():
@@ -28,7 +33,8 @@ def alternar_modo_visitante_rota():
     body = _corpo_json()
     if bool(body.get("ativar")):
         session["modo_visitante"] = True
-        return jsonify({"ativo": True})
+        session["modo_visitante_desde"] = time.time()
+        return jsonify({"ativo": True, "minutos_restantes": app.MODO_VISITANTE_MINUTOS})
 
     ip = request.remote_addr or "desconhecido"
     conn = get_db()

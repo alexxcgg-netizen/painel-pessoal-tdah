@@ -64,7 +64,7 @@ class TestSemHistorico(Base):
 
     def test_banco_vazio_devolve_contexto_vazio(self):
         ctx = historico.montar_contexto(self.conn)
-        self.assertEqual(ctx, {"contexto_fixo": "", "mensagens": []})
+        self.assertEqual(ctx, {"contexto_fixo": "", "mensagens": [], "meta": []})
 
     def test_tabela_ausente_nao_quebra(self):
         # Simula a infra de migracao ainda nao ter chegado: tabela nao existe.

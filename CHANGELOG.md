@@ -56,6 +56,40 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-12 - Diário de cada dia: o chat sabe o que foi hoje e o que já passou
+
+Pedido do Alex ("o date foi ontem e ele não sabe distinguir ontem de hoje... saber o que aconteceu cada dia").
+Três causas encontradas no banco real:
+- **Histórico sem data**: o chat mandava as últimas 20 mensagens pra IA sem data nenhuma. O "date às 20h" de
+  sábado 10/10 chegava igual a uma mensagem de segunda, e a IA lembrava dele como se fosse hoje. O resumo da A5
+  nunca tinha sido gerado (`dia` vazio nunca disparava a virada de dia).
+- **Modo visitante esquecido**: ligado com 1 toque em Mais › Configurações em 10/10 e nunca desligado. Desde então o
+  chat recusava toda alteração ("o painel está em modo visitante"), e não tinha nada na tela avisando.
+- Nenhum registro do que aconteceu em cada dia.
+
+O que mudou:
+- **`diario.py` + tabelas `diario_dias` e `diario_anotacoes`**: cada dia que passou vira fatos do banco (tarefas
+  feitas e não feitas, gastos, voos, treinos, notas, check-in) + 2 a 5 linhas de resumo escritas por IA
+  (`ia/config.d/diario_dia.json`, Haiku) **só com as falas do Alex**. Foi testado com a fala do assistente junto, e o
+  resumo copiava o erro dela ("teve date domingo"). O dia é sempre o de Brasília (o banco grava UTC), e tarefa do dia
+  marcada como feita até 6h da manhã seguinte conta no dia dela. O agendador fecha os dias (máximo 1 chamada de IA
+  por tick, até 3 tentativas, 7 dias pra trás); se a IA falhar, o dia fica só com os fatos.
+- **Contexto do chat**: bloco "Diário dos últimos dias" com o nome de cada dia ("ontem (domingo 11/10)"). Mensagem
+  antiga que ainda vai na íntegra chega marcada "[ontem (domingo 11/10), 21:54 - dia que já passou]". Mensagem de
+  dia que já tem diário sai do histórico, exceto as das últimas 4 h (virada da meia-noite conversando)
+  (`app._historico_com_datas`). O resumo da A5 agora recebe a data de cada mensagem. Há também uma regra
+  "DATAS - HOJE x DIAS QUE JÁ PASSARAM" no prompt.
+- **Tools novas**: `consultar_diario` ("o que eu fiz sábado?") e `anotar_no_diario`, pra quando ele corrige
+  ("o date foi ontem"). A anotação vale mais que o resumo e aparece em tudo que lê o dia. `diario.resolver_dia_passado`
+  sempre olha pra trás ("sábado" = o último que passou); o resolvedor de tarefa olha pra frente.
+- **Modo visitante**: desliga sozinho em 60 min (`MODO_VISITANTE_MINUTOS`; sessão antiga sem hora = já desligado).
+  Ligado, mostra um **selo em toda tela**, uma pílula âmbar acima da barra, na altura do +. O toque leva pro PIN
+  já focado. A recusa no chat explica como sair. `GET /api/modo-visitante` devolve `minutos_restantes`.
+  Service worker v60.
+- Validado com IA real numa cópia do banco: "o que eu fiz sábado?" responde o dia certo, e "o date foi ontem" não
+  vira mais lembrete de date hoje. Testes: `tests/test_diario.py` (19). `test_assistente_vida` dependia do dia da
+  semana (rotina de segunda falhava numa segunda) e foi corrigido.
+
 ## 2026-10-12 - Áudio do chat igual ChatGPT/Gemini: "posso errar que ele entende"
 
 - Reclamação do Alex: o áudio "não tá legal" - entende palavra errada, não aceita ele se corrigir no meio, e não

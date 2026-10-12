@@ -75,7 +75,9 @@ SISTEMA_RESUMO = (
     "combinados, preferencias reveladas pelo Alex) e o que ficou em aberto "
     "ou pendente de resposta dele. Descarte saudacao, small talk e qualquer "
     "coisa ja resolvida ou sem relevancia futura. Nunca invente informacao "
-    "que nao apareceu no historico."
+    "que nao apareceu no historico. Cada mensagem vem com [dia dd/mm hh:mm]: "
+    "SEMPRE escreva a data de cada compromisso/fato (ex: 'sab 10/10: teve date as 20h') "
+    "- compromisso de um dia que ja passou nao e pendencia."
 )
 
 
@@ -121,10 +123,21 @@ def _mensagens_desde(conn, desde_id: int) -> list[dict]:
     """Mensagens (id > desde_id) em ordem cronologica (mais antiga primeiro -
     o oposto de db.list_chat_mensagens, que e pra tela). desde_id=0 pega tudo."""
     linhas = conn.execute(
-        "SELECT id, papel, texto FROM chat_mensagens WHERE id > ? ORDER BY id ASC",
+        "SELECT id, papel, texto, criado_em FROM chat_mensagens WHERE id > ? ORDER BY id ASC",
         (desde_id or 0,),
     ).fetchall()
-    return [{"id": r[0], "papel": r[1], "texto": r[2] or ""} for r in linhas]
+    return [{"id": r[0], "papel": r[1], "texto": r[2] or "", "criado_em": r[3]} for r in linhas]
+
+
+def _quando(m: dict) -> str:
+    """'[sab 10/10 21:54] ' (horario de Brasilia) - o resumo precisa saber de QUE dia e cada fato
+    (2026-10-12: sem isso o "date as 20h" de sabado virava compromisso de segunda)."""
+    try:
+        import diario
+        dt = diario.utc_para_local(m.get("criado_em"))
+    except Exception:  # noqa: BLE001
+        dt = None
+    return f"[{diario.DIAS_SEMANA[dt.weekday()][:3]} {dt:%d/%m %H:%M}] " if dt else ""
 
 
 def _estimar_tokens(pool: list[dict]) -> int:
@@ -181,7 +194,7 @@ def _reconstruir(conn, agora: datetime) -> None:
         _salvar_estado(conn, estado["resumo"], estado["ultimo_mensagem_id"], dia_atual)
         return
 
-    transcript = "\n".join(f"{m['papel']}: {m['texto']}" for m in dobrar)
+    transcript = "\n".join(f"{_quando(m)}{m['papel']}: {m['texto']}" for m in dobrar)
     contexto_fixo = f"Resumo anterior da conversa:\n{estado['resumo']}" if estado["resumo"] else ""
 
     resp = core.chamar_ia(
@@ -224,4 +237,7 @@ def montar_contexto(conn, agora: Optional[datetime] = None) -> dict:
     verbatim = pool[corte:]
 
     mensagens = [{"role": m["papel"], "content": m["texto"]} for m in verbatim]
-    return {"contexto_fixo": estado["resumo"], "mensagens": mensagens}
+    # `meta` (2026-10-12): id/criado_em de cada mensagem, na mesma ordem - quem consome marca a
+    # data das que nao sao de hoje (app._historico_chat_para_ia).
+    meta = [{"id": m["id"], "criado_em": m.get("criado_em")} for m in verbatim]
+    return {"contexto_fixo": estado["resumo"], "mensagens": mensagens, "meta": meta}
