@@ -74,6 +74,11 @@ do dia, e tocar no widget abre o chat.
 - **Configurações › iPhone › Widget do iPhone**: passos e **Copiar script** / **Copiar ajuste** (`location.origin|token`).
   Vem de `GET /api/widget/instalacao`, que exige login com PIN, é recusada no modo visitante e não abre com o token do
   widget. Assim nada precisa passar do PC pro celular na mão. Service worker v62.
+- **Bug no 1º teste no iPhone (sem prévia nenhuma)**: o Scriptable também tem `module` (cada script é um módulo), então
+  o guard `typeof module !== "undefined"` fazia o script só exportar e nunca chamar `main()`. Agora roda `main()` a menos
+  que seja Node (`process.versions.node`). Teste novo roda o script num `vm` igual ao Scriptable.
+- **Copiar script** já sai com `PAINEL_URL`/`TOKEN` preenchidos (`location.origin` + token), então a prévia no app mostra dado
+  real e o Parameter virou opcional. Service worker v63.
 - Limite do iOS: link de widget abre no Safari, não no app da tela inicial (o login por PIN no Safari dura ~31 dias).
   O painel chega no iPhone pelo Tailscale (`tailscale serve`, porta 8443, só dentro da rede dele).
 

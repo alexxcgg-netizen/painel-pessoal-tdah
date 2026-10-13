@@ -577,7 +577,11 @@ async function main() {
 // Roda de verdade so dentro do Scriptable (globais reais). Em Node (testes),
 // `module` existe e o script so exporta as funcoes puras, sem chamar main() -
 // mesmo padrao usado em static/js/*.js (ver `typeof module !== "undefined"`).
-if (typeof module !== "undefined" && module.exports) {
+// ATENCAO (2026-10-13, 1o teste no iPhone real): o Scriptable TAMBEM tem `module` (cada script e um
+// modulo) - testar so `module` fazia o script nunca chamar main() no app (sem previa, widget
+// vazio). Node se reconhece por `process.versions.node`, que o Scriptable nao tem.
+const EM_NODE = typeof process !== "undefined" && !!(process.versions && process.versions.node);
+if (EM_NODE && typeof module !== "undefined" && module.exports) {
   module.exports = {
     resolverConfig,
     obterFamilia,

@@ -367,6 +367,13 @@ function initWidgetIphone() {
     }
     script = dados.script || "";
     ajuste = dados.token ? `${location.origin}|${dados.token}` : "";
+    // o script ja vai com endereco e chave preenchidos: a previa dentro do Scriptable mostra os
+    // dados de verdade e o campo Parameter do widget vira opcional
+    if (dados.token) {
+      script = script
+        .replace('const PAINEL_URL = "http://SEU-IP-OU-DOMINIO:5001";', `const PAINEL_URL = ${JSON.stringify(location.origin)};`)
+        .replace('const TOKEN = "";', `const TOKEN = ${JSON.stringify(dados.token)};`);
+    }
     btnScript.disabled = !script;
     btnAjuste.disabled = !ajuste;
     status.textContent = dados.configurado

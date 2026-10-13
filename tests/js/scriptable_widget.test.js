@@ -640,3 +640,27 @@ test("main(): rodando manualmente (fora do widget), chama o present certo pra fa
   // montarWidget() acima.
   assert.ok(true);
 });
+
+test("dentro do Scriptable de verdade (tem `module`, nao tem `process`): main() roda e entrega o widget", async () => {
+  // bug do 1o teste no iPhone: o script so exportava (achava que era Node) e nunca desenhava nada
+  const vm = require("node:vm");
+  const fs = require("node:fs");
+  const codigo = fs.readFileSync(CAMINHO_SCRIPT, "utf8");
+  let entregue = null;
+  const contexto = {
+    module: { exports: {} }, // o Scriptable tem isso
+    Color: MockColor, Font: MockFont, Size: MockSize, ListWidget: MockListWidget, Request: MockRequest,
+    FileManager: criarMockFileManager(),
+    config: { runsInWidget: true, widgetFamily: "small" },
+    args: { widgetParameter: "" },
+    Script: { setWidget: (w) => (entregue = w), complete() {} },
+    console,
+  };
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+  contexto.global = contexto;
+  contexto.__mockFetchHandler = global.__mockFetchHandler;
+  vm.runInNewContext(codigo, contexto);
+  for (let i = 0; i < 20 && !entregue; i++) await new Promise((r) => setTimeout(r, 5));
+  assert.ok(entregue, "main() nao rodou dentro do Scriptable");
+  assert.ok(coletarTextos(entregue).includes("PRÓXIMO"));
+});
