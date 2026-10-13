@@ -159,9 +159,40 @@ def apagar_evento(uid: str) -> bool:
         raise NaoConfiguradoError("Agenda do iCloud não configurada (ICLOUD_USERNAME/ICLOUD_APP_PASSWORD).")
     with _client() as client:
         calendario = _calendario_painel(client)
-        try:
-            evento = calendario.event_by_uid(uid)
-        except Exception:
+        evento = _achar_por_uid(calendario, uid)
+        if evento is None:
             return False
         evento.delete()
     return True
+
+
+def _achar_por_uid(calendario, uid: str):
+    """iCloud recusa a busca por UID do caldav (`event_by_uid` -> REPORT com filtro de UID ->
+    "412 Precondition Failed", visto em 2026-10-13 no primeiro teste real). Tenta ela primeiro
+    (servidor que aceita), depois o endereco direto - `add_event(uid=...)` grava em
+    `<calendario>/<uid>.ics` - e por ultimo varre o calendario 'Painel' (so tem o que o painel
+    criou). Sempre confere o UID antes de devolver: nunca apaga outro evento."""
+    def _uid_de(ev):
+        try:
+            return str(ev.icalendar_component.get("UID"))
+        except Exception:
+            return None
+
+    try:
+        return calendario.event_by_uid(uid)
+    except Exception:
+        pass
+    try:
+        ev = calendario.event_by_url(calendario.url.join(f"{uid}.ics"))
+        ev.load()
+        if _uid_de(ev) == uid:
+            return ev
+    except Exception:
+        pass
+    try:
+        for ev in calendario.events():
+            if _uid_de(ev) == uid:
+                return ev
+    except Exception:
+        pass
+    return None

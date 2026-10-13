@@ -525,6 +525,44 @@ class Fase6E2TestCase(unittest.TestCase):
             with self.assertRaises(caldav_client.NaoConfiguradoError):
                 caldav_client.apagar_evento("qualquer-uid")
 
+    def test_caldav_acha_evento_mesmo_com_icloud_recusando_busca_por_uid(self):
+        # 2026-10-13: iCloud devolve 412 no event_by_uid - cai pro endereco <uid>.ics e, se nao
+        # der, varre o calendario 'Painel'; nunca devolve evento com outro UID
+        class FakeEvento:
+            def __init__(self, uid):
+                self.icalendar_component = {"UID": uid}
+
+            def load(self):
+                return self
+
+        class FakeUrl:
+            def join(self, caminho):
+                return caminho
+
+        class FakeCalendar:
+            url = FakeUrl()
+
+            def __init__(self, por_url, todos):
+                self.por_url, self.todos = por_url, todos
+
+            def event_by_uid(self, uid):
+                raise RuntimeError("412 Precondition Failed")
+
+            def event_by_url(self, caminho):
+                if self.por_url is None:
+                    raise RuntimeError("404")
+                return self.por_url
+
+            def events(self):
+                return self.todos
+
+        achar = caldav_client._achar_por_uid
+        self.assertEqual(achar(FakeCalendar(FakeEvento("abc"), []), "abc").icalendar_component["UID"], "abc")
+        alvo = FakeEvento("abc")
+        self.assertIs(achar(FakeCalendar(None, [FakeEvento("outro"), alvo]), "abc"), alvo)
+        # endereco devolveu evento de OUTRO uid e a varredura nao acha: nada
+        self.assertIsNone(achar(FakeCalendar(FakeEvento("outro"), [FakeEvento("outro")]), "abc"))
+
     def test_caldav_criar_evento_usa_calendario_painel_mockado(self):
         eventos_salvos = []
 

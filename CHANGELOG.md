@@ -92,8 +92,11 @@ Pedido do Alex: "se tem voz de fundo ela pega e mistura", "depois que paro de fa
   - Foto que não é comida responde "Não vi comida…" e não grava nada. No modo visitante a resposta é 403.
     A foto em si não é guardada.
 - `contar()` dos cards vivos formata inteiro com milhar pt-BR (1.250). Service worker v61.
-- iPhone/iCloud: o `caldav_client` já existe, mas `ICLOUD_USERNAME`/`ICLOUD_APP_PASSWORD` estão vazios no `.env`.
-  O Alex precisa gerar a senha de app em appleid.apple.com e preencher ele mesmo.
+- **iCloud ligado** (o Alex preencheu `ICLOUD_USERNAME`/`ICLOUD_APP_PASSWORD` no `.env`). Teste real: lê os 3
+  calendários dele (Pessoal/Trabalho/Lembretes), cria no 'Painel' e apaga. **Bug achado no teste real**: o iCloud
+  recusa `event_by_uid` (REPORT por UID -> 412), então o Desfazer de evento nunca apagava nada.
+  `caldav_client._achar_por_uid` tenta essa busca, depois `<calendário>/<uid>.ics` e por último varre o 'Painel',
+  sempre conferindo o UID antes de apagar.
 - Testes: `tests/test_foto_prato_feriados_voz.py` (19) + card `refeicao` em `tests/js/cards_vivos.test.js`.
 
 ## 2026-10-12 - Diário de cada dia: o chat sabe o que foi hoje e o que já passou
