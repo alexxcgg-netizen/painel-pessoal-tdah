@@ -2233,9 +2233,11 @@ def _resposta_exemplo_teste_ia() -> tuple[str, list[str], dict]:
 
 MODO_VOZ_INSTRUCAO = (
     "MODO CONVERSA POR VOZ: o Alex esta FALANDO com voce e a sua resposta vai ser lida em voz "
-    "alta. Responda como um colega conversando: 2 a 4 frases naturais e completas (nunca so "
+    "alta. Fale como numa ligacao com um amigo: 2 a 4 frases naturais e completas (nunca so "
     "uma palavra seca), sem lista, sem markdown, sem emoji, sem setas '->', numeros e horarios "
-    "escritos do jeito que se fala. Pode fazer uma pergunta de volta quando fizer sentido."
+    "escritos do jeito que se fala. Pontue pra voz soar humana: virgula onde a gente respira, "
+    "frase curta depois de uma longa, uma reacao rapida no comeco quando cabe ('ah, boa', 'eita'). "
+    "Pode fazer uma pergunta de volta quando fizer sentido."
 )
 
 

@@ -31,9 +31,28 @@ log = logging.getLogger(__name__)
 
 
 CHAT_SYSTEM_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pessoal dele
-(um app que so ele usa). Hoje e {hoje}. Tom de amigo inteligente que conhece a vida dele - nao de
-atendente corporativo nem de robo. Sem emoji em excesso. Ele tem TDAH: sem enrolacao, sem
-introducao ("Claro!", "Otima pergunta"), sem repetir o que ele disse.
+(um app que so ele usa). Hoje e {hoje}. Ele tem TDAH: sem enrolacao, sem introducao, sem repetir o
+que ele disse.
+
+JEITO DE FALAR - o Alex reclamou que voce "parece muito uma IA". Voce e o assistente de vida dele,
+alguem que acompanha o dia a dia dele de perto (voo, academia, comida, grana, familia, empresa) -
+fale como um amigo esperto do lado dele, em portugues brasileiro do dia a dia:
+- Natural e informal: "ta", "pra", "beleza", "bora", "olha", "pô" quando cabe. Frases de tamanhos
+  variados, como gente fala - nao tudo no mesmo molde.
+- Confirmacao como pessoa, nunca como sistema: "Anotei o dentista amanha as 14h, ja te lembro antes."
+  e NUNCA "Tarefa registrada com sucesso", "Feito! ✅", "Pronto, adicionei a tarefa X ao seu painel".
+- Proibido (soa robo): comecar com "Claro!", "Certo!", "Perfeito!", "Entendi!", "Otima pergunta",
+  "Com certeza"; fechar com "Espero ter ajudado", "Se precisar de mais alguma coisa", "Estou aqui pra
+  ajudar", "Fico a disposicao"; "Como uma IA..."; titulo/negrito/markdown em conversa; lista onde uma
+  frase resolve; emoji (no maximo um, raramente).
+- Reaja ao que ele contou antes de seguir, quando tiver algo a reagir ("eita, dia corrido hein",
+  "boa, ta mandando bem na agua hoje") - curto e sincero, sem bajular nem fazer terapia.
+- Ligue os pontos da vida dele sozinho, como um assistente de verdade faria: o voo das 14h e o almoco,
+  a viagem e a meta de grana, o treino e a proteina do dia, o tempo e a tarefa que depende de sol.
+  Uma observacao util dessas vale mais que repetir o que o card ja mostra.
+- Seja proativo: se da pra resolver, resolva (use as ferramentas) em vez de perguntar "quer que eu...?".
+  Pergunte so o que for essencial.
+- Use o nome dele raramente (gente nao fica repetindo o nome do outro).
 
 TAMANHO CERTO PRA CADA COISA:
 - Registro/operacao (anotou, marcou, ajustou, consultou com card na tela): uma frase curta de
@@ -65,11 +84,12 @@ disponiveis, sem precisar confirmar antes se o pedido ja veio claro. So pergunte
 texto, sem usar ferramenta nenhuma) se faltar uma informacao essencial, tipo o valor de um gasto
 ou o destino de um voo.
 
-Quando a mensagem pedir SO uma coisa, responde numa frase curta normal. Quando registrar DUAS OU
-MAIS coisas diferentes na mesma resposta (ex: uma tarefa e um gasto, ou um lembrete e um voo),
-troca a frase corrida por uma linha curta pra cada coisa, cada linha comecando com "-> " seguido
-da categoria (Tarefa, Gasto, Lembrete, Voo, Meta) e o que foi feito - mais facil de escanear
-rapido do que um paragrafo. Nunca use "-> " quando so uma coisa foi registrada.
+Quando a mensagem pedir SO uma coisa, responde numa frase curta normal. Quando a mensagem misturar
+VARIOS assuntos (tipico de audio: voo + agua + viagem + o dia + um gasto, tudo junto), resolva CADA
+um com a ferramenta certa NA MESMA rodada - cada ferramenta vira o proprio card animado na tela, um
+embaixo do outro, entao NAO liste de novo o que os cards ja mostram. O texto fica sendo a "costura":
+1 a 3 frases naturais que ligam os assuntos ("anotei tudo; com o voo as 14h, almoca ate 12h30 e leva
+a garrafa, ta em 3 de 8 copos") - nada de lista com setas ou "Tarefa:/Gasto:".
 
 Quando o Alex mencionar um horario especifico pra alguma tarefa (ex: "as 14h tenho consulta"),
 sempre capture esse horario no campo "hora" de `registrar_tarefa` - mesmo que ele va mencionando
@@ -2132,6 +2152,33 @@ def _responder_simples(historico, contexto, memorias, contexto_fixo):
 _OPCOES_CHAT: contextvars.ContextVar = contextvars.ContextVar("opcoes_chat", default=None)
 
 
+# 2026-10-13 (resposta aparecendo enquanto a IA escreve): quem quer o texto ao vivo
+# (rota /api/chat/stream) liga um aviso(evento, dado) com `ao_texto(...)`; o loop passa a
+# usar messages.stream e avisa ("texto", pedaco) a cada trecho e ("recomeca", None) quando o
+# que ja apareceu nao vale mais (a rodada terminou chamando ferramenta, ou cortou no limite e
+# vai ser refeita). Sem aviso ligado (Telegram, testes, /api/chat) nada muda: messages.create.
+_AO_TEXTO: contextvars.ContextVar = contextvars.ContextVar("ao_texto_chat", default=None)
+
+
+@contextlib.contextmanager
+def ao_texto(aviso):
+    token = _AO_TEXTO.set(aviso)
+    try:
+        yield
+    finally:
+        _AO_TEXTO.reset(token)
+
+
+def _avisar(evento: str, dado=None) -> None:
+    aviso = _AO_TEXTO.get()
+    if aviso is None:
+        return
+    try:
+        aviso(evento, dado)
+    except Exception:  # noqa: BLE001 - tela fechada no meio nao derruba a resposta
+        log.debug("chat: aviso de texto ao vivo falhou", exc_info=True)
+
+
 @contextlib.contextmanager
 def opcoes_chat(*, contexto_fixo: str = "", conn=None, medir_uso: bool = False):
     """`with opcoes_chat(contexto_fixo=..., conn=conn, medir_uso=True):
@@ -2202,13 +2249,14 @@ def chat(
 
     def rodada(limite: int):
         inicio = time.monotonic()
-        response = client.messages.create(
-            model=modelo,
-            max_tokens=limite,
-            system=system,
-            tools=tools,
-            messages=mensagens,
-        )
+        pedido = dict(model=modelo, max_tokens=limite, system=system, tools=tools, messages=mensagens)
+        if _AO_TEXTO.get() is not None:
+            with client.messages.stream(**pedido) as fluxo:
+                for pedaco in fluxo.text_stream:
+                    _avisar("texto", pedaco)
+                response = fluxo.get_final_message()
+        else:
+            response = client.messages.create(**pedido)
         uso = _uso_da_resposta(response, modelo, ttl)
         for chave in ("input_tokens", "output_tokens", "cache_read_input_tokens",
                       "cache_creation_input_tokens", "cost_usd"):
@@ -2221,9 +2269,15 @@ def chat(
         response = rodada(max_tokens)
         if response.stop_reason == "max_tokens" and max_tokens < MAX_TOKENS_CHAT_ESCALADO:
             # cortou no limite novo: refaz a rodada com o teto antigo (1x)
+            _avisar("recomeca")
             response = rodada(MAX_TOKENS_CHAT_ESCALADO)
             if response.stop_reason == "max_tokens":
+                _avisar("recomeca")
                 response = rodada(MAX_TOKENS_CHAT_TETO)  # pedido grande (montar o dia inteiro)
+        if response.stop_reason == "tool_use" and any(
+            b.type == "text" and (b.text or "").strip() for b in response.content
+        ):
+            _avisar("recomeca")  # "deixa eu ver..." antes da ferramenta: a resposta de verdade vem depois
 
         if response.stop_reason != "tool_use":
             texto = "".join(b.text for b in response.content if b.type == "text").strip()

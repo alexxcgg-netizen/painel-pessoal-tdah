@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request
+import json
+import queue
+import threading
+
+from flask import Blueprint, Response, copy_current_request_context, jsonify, request
 
 from rotas._base import app_modulo
 from db import cards_de_mensagem_chat, get_db, list_chat_mensagens
 import cards
+import claude_client
 import db
 
 bp = Blueprint("chat", __name__)
@@ -42,6 +47,73 @@ def chat():
     corpo = {"resposta": resposta, "acoes": acoes}
     corpo.update(detalhes or cards.envelope([], resposta, []))
     return jsonify(_resposta_contrato(corpo))
+
+ESPERA_MAX_STREAM_S = 180  # sem nenhum sinal do trabalhador por 3 min = desiste
+
+
+def _evento_sse(evento: str, dado) -> str:
+    return f"event: {evento}\ndata: {json.dumps(dado, ensure_ascii=False)}\n\n"
+
+
+@bp.route("/api/chat/stream", methods=["POST"])
+def chat_stream():
+    """Mesmo /api/chat, mas a resposta chega AO VIVO (2026-10-13 - "parece IA esperando o bloco
+    inteiro"): text/event-stream com `texto` (pedaco novo), `recomeca` (o que apareceu nao vale
+    mais - a IA foi usar ferramenta) e no fim `fim` com o MESMO corpo do /api/chat (cards,
+    resumo_texto...) ou `erro` {error, status}. O pipeline roda numa thread (conexao propria do
+    SQLite), a resposta HTTP so le a fila - o waitress manda cada evento na hora (send_bytes=1)."""
+    app = app_modulo()
+    body = app._corpo_json()
+    texto = app._texto_seguro(body.get("mensagem"))
+    if not texto:
+        return jsonify({"error": "mensagem vazia"}), 400
+    if len(texto) > app.TAMANHO_MAX_TEXTO_CHAT:
+        return jsonify({"error": app.MSG_TEXTO_LONGO}), 400
+
+    fila: queue.Queue = queue.Queue()
+
+    @copy_current_request_context
+    def trabalhar():
+        conn = get_db()
+        try:
+            detalhes: dict = {}
+            with claude_client.ao_texto(lambda evento, dado: fila.put((evento, dado))):
+                resposta, acoes, erro = app._processar_mensagem_chat(
+                    conn, texto, detalhes, modo_voz=body.get("modo") == "voz",
+                    local_gps=body.get("local"), origem_audio=body.get("audio") is True,
+                )
+            if erro:
+                fila.put(("erro", {"error": erro, "status": 402 if erro == app.TETO_IA_MSG else 502}))
+                return
+            corpo = {"resposta": resposta, "acoes": acoes}
+            corpo.update(detalhes or cards.envelope([], resposta, []))
+            fila.put(("fim", app._resposta_contrato(corpo)))
+        except Exception:  # noqa: BLE001 - qualquer quebra vira evento de erro, nunca silencio
+            app.app.logger.exception("chat stream: pipeline quebrou")
+            fila.put(("erro", {"error": app.CLAUDE_ERROR_MSG, "status": 500}))
+        finally:
+            conn.close()
+
+    threading.Thread(target=trabalhar, name="chat-stream", daemon=True).start()
+
+    def gerar():
+        yield ": aberto\n\n"  # abre o stream na hora (a tela ja sabe que chegou no servidor)
+        while True:
+            try:
+                evento, dado = fila.get(timeout=ESPERA_MAX_STREAM_S)
+            except queue.Empty:
+                yield _evento_sse("erro", {"error": app.CLAUDE_ERROR_MSG, "status": 504})
+                return
+            yield _evento_sse(evento, dado)
+            if evento in ("fim", "erro"):
+                return
+
+    return Response(
+        gerar(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 
 MIMES_FOTO = {"image/jpeg", "image/png", "image/webp", "image/heic"}
 TAMANHO_MAX_FOTO = 8 * 1024 * 1024

@@ -80,6 +80,159 @@ function criarBolhaChat(papel, texto, animarEntrada = false) {
   return linha;
 }
 
+// ---- resposta AO VIVO (2026-10-13) ------------------------------------------------------
+// O texto chega aos pedacos do /api/chat/stream e entra palavra por palavra com o mesmo
+// blur+fade do escreverPalavraAPalavra - so que no ritmo de quem esta digitando AGORA: uma
+// fila que pinga cada palavra com variacao (+-30%), pausa em fim de frase/virgula, e acelera
+// sozinha quando acumula (a IA escreve mais rapido que a gente le), pra nunca ficar pra tras.
+function criarEscritaAoVivo(bolha) {
+  let pendente = ""; // trecho ainda sem espaco no fim (palavra pode estar pela metade)
+  const fila = [];
+  let timer = null;
+  let terminou = null;
+  const reduzido = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function pingar() {
+    timer = null;
+    if (!fila.length) {
+      if (terminou) terminou();
+      return;
+    }
+    const token = fila.shift();
+    if (token.trim() === "") {
+      bolha.appendChild(document.createTextNode(token));
+    } else {
+      const span = document.createElement("span");
+      span.className = "palavra-surgindo";
+      span.textContent = token;
+      bolha.appendChild(span);
+    }
+    const lista = bolha.closest(".chat-mensagens, #chat-mensagens");
+    if (lista && lista.scrollHeight - lista.scrollTop - lista.clientHeight < 140) lista.scrollTop = lista.scrollHeight;
+    let passo = 34 * (0.7 + Math.random() * 0.6);
+    if (token.length <= 2) passo *= 0.6;
+    if (/[.!?]$/.test(token)) passo += 150;
+    else if (/[,;:]$/.test(token)) passo += 60;
+    const atraso = fila.length > 24 ? 6 : fila.length > 10 ? passo * 0.45 : passo;
+    timer = setTimeout(pingar, reduzido ? 0 : atraso);
+  }
+
+  function enfileirar(tokens) {
+    tokens.forEach((t) => t && fila.push(t));
+    if (!timer) timer = setTimeout(pingar, 0);
+  }
+
+  return {
+    adicionar(pedaco) {
+      pendente += pedaco;
+      const partes = pendente.split(/(\s+)/);
+      // o ultimo pedaco so sai quando vier o espaco depois dele (palavra inteira)
+      pendente = partes.pop();
+      enfileirar(partes);
+    },
+    // fim da resposta: solta o resto e resolve quando a ultima palavra apareceu
+    terminar() {
+      if (pendente) enfileirar([pendente]);
+      pendente = "";
+      return new Promise((res) => {
+        terminou = res;
+        if (!timer && !fila.length) res();
+      });
+    },
+    limpar() {
+      fila.length = 0;
+      pendente = "";
+      clearTimeout(timer);
+      timer = null;
+      bolha.textContent = "";
+    },
+  };
+}
+
+// POST no /api/chat/stream lendo o text/event-stream. Devolve o MESMO corpo do /api/chat
+// (evento "fim"), null em erro ja mostrado, ou undefined quando nem deu pra abrir o stream
+// (rede/servidor antigo) - ai o chamador cai no caminho normal (apiFetch /api/chat).
+async function chatAoVivo(corpo, { aoTexto, aoRecomeca }) {
+  const controller = new AbortController();
+  const limite = setTimeout(() => controller.abort(), 200000);
+  let res;
+  try {
+    res = await fetch("/api/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+      signal: controller.signal,
+    });
+  } catch {
+    clearTimeout(limite);
+    return undefined;
+  }
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return null;
+  }
+  const tipo = res.headers.get("Content-Type") || "";
+  if (!res.ok || !tipo.includes("text/event-stream") || !res.body) {
+    clearTimeout(limite);
+    if (res.status >= 400 && res.status < 500) {
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {}
+      mostrarErro((data && data.error) || `Erro inesperado (HTTP ${res.status}).`);
+      return null;
+    }
+    return undefined;
+  }
+  const leitor = res.body.getReader();
+  const decod = new TextDecoder();
+  let buffer = "";
+  let final = null;
+  try {
+    for (;;) {
+      const { value, done } = await leitor.read();
+      if (done) break;
+      buffer += decod.decode(value, { stream: true });
+      let corte;
+      while ((corte = buffer.indexOf("\n\n")) >= 0) {
+        const bloco = buffer.slice(0, corte);
+        buffer = buffer.slice(corte + 2);
+        let evento = "message";
+        let dado = "";
+        bloco.split("\n").forEach((l) => {
+          if (l.startsWith("event: ")) evento = l.slice(7);
+          else if (l.startsWith("data: ")) dado += l.slice(6);
+        });
+        if (!dado) continue;
+        let obj;
+        try {
+          obj = JSON.parse(dado);
+        } catch {
+          continue;
+        }
+        if (evento === "texto") aoTexto(obj);
+        else if (evento === "recomeca") aoRecomeca();
+        else if (evento === "fim") final = obj;
+        else if (evento === "erro") {
+          mostrarErro(obj.error || "A IA não respondeu agora. Tenta de novo.");
+          final = null;
+          return null;
+        }
+      }
+    }
+  } catch {
+    if (!final) {
+      mostrarErro("A conexão caiu no meio da resposta. Tenta de novo.");
+      return null;
+    }
+  } finally {
+    clearTimeout(limite);
+    if (typeof invalidarDadosAbas === "function") invalidarDadosAbas();
+  }
+  if (!final) mostrarErro("A resposta veio incompleta. Tenta de novo.");
+  return final;
+}
+
 function criarIndicadorDigitando() {
   const bolha = document.createElement("div");
   bolha.className = "chat-bolha assistant chat-digitando";
@@ -223,19 +376,60 @@ async function enviarChat(texto, opcoes = {}) {
     if (local) corpo.local = local;
   }
 
-  const data = await apiFetch(opcoes.rota || "/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(corpo),
-  });
+  // Chat normal: resposta AO VIVO (a bolha dos pontinhos vira a resposta e o texto entra
+  // enquanto a IA escreve). Outra rota (brain dump) ou stream indisponivel: caminho antigo.
+  let data;
+  let escrita = null;
+  const bolhaViva = digitando.querySelector(".chat-bolha");
+  if (!opcoes.rota) {
+    data = await chatAoVivo(corpo, {
+      aoTexto: (pedaco) => {
+        if (!escrita) {
+          bolhaViva.classList.remove("chat-digitando");
+          bolhaViva.textContent = "";
+          escrita = criarEscritaAoVivo(bolhaViva);
+        }
+        escrita.adicionar(pedaco);
+      },
+      aoRecomeca: () => {
+        // o que apareceu era um "deixa eu ver..." antes de usar ferramenta: volta pros pontinhos
+        if (!escrita) return;
+        escrita.limpar();
+        escrita = null;
+        bolhaViva.classList.add("chat-digitando");
+        bolhaViva.innerHTML = '<div class="chat-dots"><span></span><span></span><span></span></div>';
+      },
+    });
+  }
+  if (data === undefined) {
+    data = await apiFetch(opcoes.rota || "/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+  }
 
-  digitando.remove();
   setBotaoCarregando(btn, false, "Enviar");
-  if (!data) return null;
+  if (!data) {
+    digitando.remove();
+    return null;
+  }
 
   // resumo_texto = contrato da Fase 6; `resposta` = mesmo texto no campo
   // legado (fallback se um backend mais velho responder).
-  lista.appendChild(criarBolhaChat("assistant", data.resumo_texto || data.resposta, true));
+  const textoFinal = data.resumo_texto || data.resposta || "";
+  if (escrita) {
+    await escrita.terminar();
+    const mesmo = (s) => String(s || "").replace(/\s+/g, " ").trim();
+    if (mesmo(bolhaViva.textContent) !== mesmo(textoFinal)) {
+      bolhaViva.textContent = "";
+      escreverPalavraAPalavra(bolhaViva, textoFinal);
+    }
+    digitando.appendChild(criarBotaoOuvirChat(textoFinal));
+  } else {
+    digitando.remove();
+    lista.appendChild(criarBolhaChat("assistant", textoFinal, true));
+  }
   const grupoCards = anexarCardsResposta(lista, data.cards, data.passos);
   // so a resposta NOVA ganha a entrada animada (o historico abre parado)
   if (grupoCards && typeof CardsVivos !== "undefined") CardsVivos.animar(grupoCards);

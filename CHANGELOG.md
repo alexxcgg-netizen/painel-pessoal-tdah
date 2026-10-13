@@ -5,6 +5,26 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Chat AO VIVO + jeito de falar de gente
+
+- **Resposta aparece enquanto a IA escreve**: rota nova `POST /api/chat/stream` (text/event-stream;
+  `rotas/chat.py`). O pipeline (`_processar_mensagem_chat`) roda numa thread com conexão própria;
+  `claude_client.ao_texto(aviso)` faz o loop de tool-use usar `messages.stream` e avisar `texto`
+  (pedaço) e `recomeca` (texto de antes de ferramenta / rodada refeita por limite); no fim vem
+  `fim` com o MESMO corpo do `/api/chat` (cards etc.) ou `erro`. Waitress entrega cada evento na
+  hora (`send_bytes=1`, medido: 0,4 s entre pedaços = 0,4 s na chegada). `/api/chat`, Telegram e
+  testes antigos seguem com `messages.create` (sem aviso ligado nada muda).
+- Front (`chat.js`): a bolha dos pontinhos vira a resposta; `criarEscritaAoVivo` pinga palavra por
+  palavra com o blur+fade de sempre, ritmo de digitação (±30%, pausa em pontuação) que acelera
+  sozinho quando acumula. Stream indisponível → cai no `/api/chat` antigo. Brain dump continua igual.
+- **Jeito de falar** (prompt do chat): bloco "JEITO DE FALAR" - português do dia a dia, confirmação
+  como pessoa ("Anotei o dentista amanhã às 14h") e nunca como sistema, lista de vícios de IA
+  proibidos ("Claro!", "Espero ter ajudado", markdown em conversa...), reagir ao que ele contou,
+  ligar os pontos da vida dele, resolver em vez de perguntar. Mensagem com vários assuntos: uma
+  ferramenta (= um card) por assunto na mesma rodada e o texto vira só a "costura" (acabou a lista
+  "-> Tarefa:"). Modo voz: pontuação pensada pra fala soar humana.
+- Testes: `tests/test_chat_ao_vivo.py` (loop em modo stream, recomeça, rota SSE, erro, validação).
+
 ## 2026-10-13 - Cards do chat: acabamento "premium"
 
 Camada nova por cima do registro, sem mexer em renderizador nenhum
