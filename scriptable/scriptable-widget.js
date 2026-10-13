@@ -73,7 +73,7 @@ function resolverConfig() {
 
 function obterFamilia() {
   const familia = (typeof config !== "undefined" && config && config.widgetFamily) || "small";
-  const validas = ["small", "medium", "accessoryCircular", "accessoryRectangular", "accessoryInline"];
+  const validas = ["small", "medium", "large", "accessoryCircular", "accessoryRectangular", "accessoryInline"];
   return validas.indexOf(familia) !== -1 ? familia : "small";
 }
 
@@ -203,6 +203,30 @@ function quandoTexto(minutos) {
   const h = Math.floor(m / 60);
   const resto = m % 60;
   return resto ? `em ${h}h${String(resto).padStart(2, "0")}` : `em ${h}h`;
+}
+
+// O "proximo" que o widget mostra: o 1o item pendente da agenda de hoje (inclui compromisso do
+// iCloud, que o `foco` da API deixa de fora por nao ter check de concluir); sem agenda (API antiga
+// ou cache velho), cai no `foco`. Sempre no formato {titulo, em_minutos, hora, tipo}.
+function proximoDe(dados) {
+  const agenda = dados && Array.isArray(dados.agenda) ? dados.agenda : [];
+  const item = agenda.find((i) => i && i.titulo && !i.concluido);
+  if (item) return { titulo: item.titulo, em_minutos: item.em_minutos, hora: item.hora, tipo: item.tipo };
+  const foco = dados && dados.foco;
+  return foco && foco.titulo ? { titulo: foco.titulo, em_minutos: foco.em_minutos, hora: foco.hora, tipo: "tarefa" } : null;
+}
+
+// itens da agenda ainda por vir (sem os concluidos), no maximo `n`
+function agendaPendente(dados, n) {
+  const agenda = dados && Array.isArray(dados.agenda) ? dados.agenda : [];
+  return agenda.filter((i) => i && i.titulo && !i.concluido).slice(0, n || 5);
+}
+
+// simbolo da Apple por tipo de item da agenda
+function simboloDoTipo(tipo) {
+  if (tipo === "compromisso") return "calendar";
+  if (tipo === "habito") return "repeat";
+  return "checkmark.circle";
 }
 
 // fracao 0..1 do dia contra a meta (null sem meta)
@@ -356,46 +380,91 @@ function caminhoArco(c, r, frac) {
   return p;
 }
 
-// anel de progresso com o numero no meio (desenhado grande; o iOS reduz e fica nitido)
-function imagemAnel(frac, centro, rotulo) {
-  const T = 120;
-  const espessura = 12;
-  const r = (T - espessura) / 2 - 1;
+// Aneis concentricos estilo Atividade (compartilhado: tela de bloqueio e tela de inicio).
+// aneis: [{frac 0..1, cor: Color, trilho: Color}], o 1o e o de fora. Desenhado grande (o iOS
+// reduz e fica nitido). opcoes: {tamanho, espessura, vao, centro, rotulo, corTexto, corRotulo,
+// fonteCentro, fonteRotulo}.
+function imagemAneis(aneis, opcoes) {
+  const o = opcoes || {};
+  const T = o.tamanho || 120;
+  const espessura = o.espessura || 12;
+  const vao = o.vao === undefined ? 3 : o.vao;
   const c = T / 2;
   const d = new DrawContext();
   d.size = new Size(T, T);
   d.opaque = false;
   d.respectScreenScale = true;
   d.setLineWidth(espessura);
-  const circulo = new Rect(c - r, c - r, 2 * r, 2 * r);
-  d.setStrokeColor(branco(0.22));
-  d.strokeEllipse(circulo); // trilho fechado, sem emenda no topo
-  const f = Math.max(0, Math.min(1, Number(frac) || 0));
-  if (f >= 1) {
-    d.setStrokeColor(branco(1));
-    d.strokeEllipse(circulo);
-  } else if (f > 0) {
-    d.setStrokeColor(branco(1));
-    d.addPath(caminhoArco(c, r, f));
-    d.strokePath();
-    // pontas arredondadas, como os aneis da Apple
-    d.setFillColor(branco(1));
-    [pontoNoCirculo(c, r, 0), pontoNoCirculo(c, r, f)].forEach((q) =>
-      d.fillEllipse(new Rect(q.x - espessura / 2, q.y - espessura / 2, espessura, espessura))
-    );
-  }
-  d.setTextAlignedCenter();
-  d.setTextColor(branco(1));
-  // o slot redondo tem ~72pt: 120 desenhado vira ~0,6x - fonte 36 aqui = ~22 na tela
-  const n = String(centro).length;
-  d.setFont(Font.boldRoundedSystemFont(n <= 3 ? 36 : n === 4 ? 30 : 24));
-  d.drawTextInRect(String(centro), new Rect(0, rotulo ? c - 27 : c - 21, T, 44));
-  if (rotulo) {
-    d.setTextColor(branco(0.7));
-    d.setFont(Font.semiboldRoundedSystemFont(14));
-    d.drawTextInRect(rotulo, new Rect(0, c + 13, T, 20));
+  (aneis || []).forEach((anel, i) => {
+    const r = (T - espessura) / 2 - 1 - i * (espessura + vao);
+    if (r <= espessura) return;
+    const circulo = new Rect(c - r, c - r, 2 * r, 2 * r);
+    d.setStrokeColor(anel.trilho || branco(0.22));
+    d.strokeEllipse(circulo); // trilho fechado, sem emenda no topo
+    const f = Math.max(0, Math.min(1, Number(anel.frac) || 0));
+    const cor = anel.cor || branco(1);
+    if (f >= 1) {
+      d.setStrokeColor(cor);
+      d.strokeEllipse(circulo);
+    } else if (f > 0) {
+      d.setStrokeColor(cor);
+      d.addPath(caminhoArco(c, r, f));
+      d.strokePath();
+      // pontas arredondadas, como os aneis da Apple
+      d.setFillColor(cor);
+      [pontoNoCirculo(c, r, 0), pontoNoCirculo(c, r, f)].forEach((q) =>
+        d.fillEllipse(new Rect(q.x - espessura / 2, q.y - espessura / 2, espessura, espessura))
+      );
+    }
+  });
+  if (o.centro !== undefined && o.centro !== null && o.centro !== "") {
+    const centro = String(o.centro);
+    const rotulo = o.rotulo;
+    d.setTextAlignedCenter();
+    d.setTextColor(o.corTexto || branco(1));
+    // o slot redondo tem ~72pt: 120 desenhado vira ~0,6x - fonte 36 aqui = ~22 na tela
+    const n = centro.length;
+    const base = o.fonteCentro || 36;
+    const tam = n <= 3 ? base : n === 4 ? Math.round(base * 0.83) : Math.round(base * 0.67);
+    d.setFont(Font.boldRoundedSystemFont(tam));
+    const altura = Math.round(tam * 1.22);
+    d.drawTextInRect(centro, new Rect(0, rotulo ? c - altura * 0.62 : c - altura / 2, T, altura));
+    if (rotulo) {
+      const tr = o.fonteRotulo || 14;
+      d.setTextColor(o.corRotulo || branco(0.7));
+      d.setFont(Font.semiboldRoundedSystemFont(tr));
+      d.drawTextInRect(rotulo, new Rect(0, c + altura * 0.3, T, Math.round(tr * 1.4)));
+    }
   }
   return d.getImage();
+}
+
+// anel unico monocromatico (tela de bloqueio) com o numero no meio
+function imagemAnel(frac, centro, rotulo) {
+  return imagemAneis([{ frac }], { centro, rotulo });
+}
+
+// Simbolo da Apple (SF Symbols) como imagem; null se o nome nao existir (nunca quebra o widget)
+function simbolo(nome, tamanho) {
+  try {
+    if (typeof SFSymbol === "undefined") return null;
+    const s = SFSymbol.named(nome);
+    if (!s) return null;
+    if (tamanho && s.applyFont) s.applyFont(Font.semiboldSystemFont(tamanho));
+    return s.image || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// adiciona o simbolo num stack (tamanho em pt); cor so na tela de inicio (bloqueio e monocromatico)
+function adicionarSimbolo(pai, nome, tamanho, cor) {
+  const img = simbolo(nome, tamanho);
+  if (!img) return null;
+  const w = pai.addImage(img);
+  w.imageSize = new Size(tamanho, tamanho);
+  if (cor) w.tintColor = cor;
+  return w;
 }
 
 // barra arredondada (trilho translucido + preenchido opaco)
@@ -579,7 +648,7 @@ function montarRectangular(widget, linha1Texto, linha2Texto) {
 // 2026-10-13: o Alex escolheu o que aparece - proximo compromisso/tarefa + comida do dia. Conta,
 // habitos e IA continuam no JSON (linhas), so nao ocupam mais o widget.
 function preencherNormal(widget, familia, dados, sufixo) {
-  const foco = dados && dados.foco;
+  const foco = proximoDe(dados);
   const comida = dados && dados.comida;
 
   if (ehTelaBloqueio(familia)) {
@@ -742,6 +811,7 @@ async function montarWidget() {
 
 async function apresentarPreview(widget, familia) {
   if (familia === "medium" && widget.presentMedium) return widget.presentMedium();
+  if (familia === "large" && widget.presentLarge) return widget.presentLarge();
   if (familia === "accessoryCircular" && widget.presentAccessoryCircular) {
     return widget.presentAccessoryCircular();
   }
@@ -830,6 +900,10 @@ if (EM_NODE && typeof module !== "undefined" && module.exports) {
     quandoTexto,
     comidaKcalTexto,
     modoDoWidget,
+    imagemAneis,
+    simbolo,
+    proximoDe,
+    agendaPendente,
     montarWidget,
     main,
   };

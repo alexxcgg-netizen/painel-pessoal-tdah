@@ -18,297 +18,29 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-// ---- Mocks da API do Scriptable ----
-
-class MockColor {
-  constructor(hex, alfa) {
-    this.hex = hex;
-    this.alpha = alfa === undefined ? 1 : alfa;
-  }
-}
-
-class MockFont {
-  static systemFont(size) {
-    return { kind: "system", size };
-  }
-  static boldSystemFont(size) {
-    return { kind: "bold", size };
-  }
-  static mediumSystemFont(size) {
-    return { kind: "medium", size };
-  }
-  static semiboldSystemFont(size) {
-    return { kind: "semibold", size };
-  }
-  static boldRoundedSystemFont(size) {
-    return { kind: "boldRounded", size };
-  }
-  static semiboldRoundedSystemFont(size) {
-    return { kind: "semiboldRounded", size };
-  }
-}
-
-class MockPoint {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-  }
-}
-
-class MockRect {
-  constructor(x, y, w, h) {
-    this.x = x;
-    this.y = y;
-    this.width = w;
-    this.height = h;
-  }
-}
-
-class MockPath {
-  constructor() {
-    this.ops = [];
-  }
-  move(p) {
-    this.ops.push(["move", p]);
-  }
-  addLine(p) {
-    this.ops.push(["line", p]);
-  }
-  addRoundedRect(rect) {
-    this.ops.push(["roundedRect", rect]);
-  }
-}
-
-// DrawContext: guarda o que foi desenhado (textos, tracos, preenchimentos) pra o teste conferir a
-// imagem gerada sem renderizar nada de verdade.
-class MockDrawContext {
-  constructor() {
-    this.size = null;
-    this.textos = [];
-    this.tracos = 0;
-    this.preenchimentos = [];
-    this._caminho = null;
-    this._corTexto = null;
-  }
-  setLineWidth() {}
-  setStrokeColor() {}
-  setFillColor(cor) {
-    this._corFill = cor;
-  }
-  setTextColor(cor) {
-    this._corTexto = cor;
-  }
-  setFont() {}
-  setTextAlignedCenter() {}
-  addPath(p) {
-    this._caminho = p;
-  }
-  strokePath() {
-    this.tracos++;
-  }
-  strokeEllipse() {
-    this.tracos++;
-  }
-  fillPath() {
-    const rr = this._caminho && this._caminho.ops.find((o) => o[0] === "roundedRect");
-    this.preenchimentos.push({ largura: rr ? rr[1].width : null, alfa: this._corFill ? this._corFill.alpha : null });
-  }
-  fillEllipse() {}
-  drawTextInRect(texto) {
-    this.textos.push(texto);
-  }
-  getImage() {
-    return { tamanho: this.size, textos: this.textos.slice(), tracos: this.tracos, preenchimentos: this.preenchimentos.slice() };
-  }
-}
-
-class MockWidgetImage {
-  constructor(imagem) {
-    this.image = imagem;
-    this.imageSize = null;
-    // textos desenhados dentro da imagem entram na coleta de textos dos testes
-    this.children = imagem.textos.map((t) => ({ text: t }));
-  }
-  centerAlignImage() {}
-}
-
-class MockSize {
-  constructor(w, h) {
-    this.width = w;
-    this.height = h;
-  }
-}
-
-class MockWidgetText {
-  constructor(text) {
-    this.text = text;
-    this.textColor = null;
-    this.font = null;
-    this.minimumScaleFactor = null;
-    this._align = null;
-  }
-  centerAlignText() {
-    this._align = "center";
-  }
-  leftAlignText() {
-    this._align = "left";
-  }
-  rightAlignText() {
-    this._align = "right";
-  }
-}
-
-class MockWidgetStack {
-  constructor() {
-    this.children = [];
-    this.backgroundColor = null;
-    this.cornerRadius = null;
-    this.spacing = 0;
-    this._padding = null;
-    this._layout = null;
-  }
-  addText(text) {
-    const node = new MockWidgetText(text);
-    this.children.push(node);
-    return node;
-  }
-  addStack() {
-    const stack = new MockWidgetStack();
-    this.children.push(stack);
-    return stack;
-  }
-  addImage(imagem) {
-    const node = new MockWidgetImage(imagem);
-    this.children.push(node);
-    return node;
-  }
-  topAlignContent() {}
-  centerAlignContent() {}
-  bottomAlignContent() {}
-  addSpacer(tamanho) {
-    this.children.push({ spacer: tamanho === undefined ? true : tamanho });
-  }
-  layoutHorizontally() {
-    this._layout = "horizontal";
-  }
-  layoutVertically() {
-    this._layout = "vertical";
-  }
-  setPadding(a, b, c, d) {
-    this._padding = [a, b, c, d];
-  }
-}
-
-class MockListWidget extends MockWidgetStack {
-  constructor() {
-    super();
-    this.url = null;
-    this._presentedAs = null;
-  }
-  async presentSmall() {
-    this._presentedAs = "small";
-  }
-  async presentMedium() {
-    this._presentedAs = "medium";
-  }
-  async presentLarge() {
-    this._presentedAs = "large";
-  }
-  async presentAccessoryCircular() {
-    this._presentedAs = "accessoryCircular";
-  }
-  async presentAccessoryRectangular() {
-    this._presentedAs = "accessoryRectangular";
-  }
-  async presentAccessoryInline() {
-    this._presentedAs = "accessoryInline";
-  }
-}
-
-// Coleta todos os textos (recursivamente, atravessando stacks aninhados) -
-// facilita asserts sem depender da arvore exata de widgets/stacks.
-function coletarTextos(node) {
-  const out = [];
-  const visitar = (n) => {
-    if (!n) return;
-    if (n.text !== undefined) out.push(n.text);
-    if (Array.isArray(n.children)) n.children.forEach(visitar);
-  };
-  visitar(node);
-  return out;
-}
-
-function coletarCores(node) {
-  const out = [];
-  const visitar = (n) => {
-    if (!n) return;
-    if (n.textColor) out.push(n.textColor.hex);
-    if (Array.isArray(n.children)) n.children.forEach(visitar);
-  };
-  visitar(node);
-  return out;
-}
-
-// Request: `handler(mockRequest)` decide a resposta - pode devolver um
-// objeto (sucesso, populando req.response.statusCode = 200) ou lancar/
-// rejeitar (falha de rede). Pra simular HTTP 4xx/5xx com corpo valido, o
-// handler pode setar req.response.statusCode manualmente antes de devolver.
-class MockRequest {
-  constructor(url) {
-    this.url = url;
-    this.headers = undefined;
-    this.timeoutInterval = undefined;
-    this.response = undefined;
-  }
-  async loadJSON() {
-    const handler = global.__mockFetchHandler;
-    if (!handler) throw new Error("mock de rede nao configurado no teste");
-    const resultado = await handler(this);
-    if (!this.response) this.response = { statusCode: 200 };
-    return resultado;
-  }
-}
-
-// FileManager local, em memoria, isolado por teste (`criarMockFileManager`
-// cria um Map novo a cada chamada) - simula persistencia real entre duas
-// chamadas de montarWidget() dentro do MESMO teste (necessario pro cenario
-// de fallback de cache: 1a chamada com rede OK grava, 2a com rede falhando
-// le o que a 1a gravou).
-function criarMockFileManager() {
-  const store = new Map();
-  return {
-    local() {
-      return {
-        documentsDirectory: () => "/mock/documentos",
-        joinPath: (a, b) => `${a}/${b}`,
-        fileExists: (caminho) => store.has(caminho),
-        readString: (caminho) => {
-          if (!store.has(caminho)) throw new Error("arquivo nao existe");
-          return store.get(caminho);
-        },
-        writeString: (caminho, conteudo) => {
-          store.set(caminho, conteudo);
-        },
-      };
-    },
-    __store: store,
-  };
-}
+const {
+  MockColor,
+  MockFont,
+  MockSize,
+  MockPoint,
+  MockRect,
+  MockPath,
+  MockDrawContext,
+  MockListWidget,
+  MockRequest,
+  criarMockFileManager,
+  coletarTextos,
+  coletarCores,
+  acharImagens,
+  instalarGlobais,
+} = require("./_scriptable_mocks");
 
 // ---- Setup dos globais + require do script real ----
 
 const CAMINHO_SCRIPT = path.join(__dirname, "..", "..", "scriptable", "scriptable-widget.js");
 
 function prepararGlobaisBase() {
-  global.Color = MockColor;
-  global.Font = MockFont;
-  global.Size = MockSize;
-  global.Point = MockPoint;
-  global.Rect = MockRect;
-  global.Path = MockPath;
-  global.DrawContext = MockDrawContext;
-  global.ListWidget = MockListWidget;
-  global.Request = MockRequest;
+  instalarGlobais(global);
   global.FileManager = criarMockFileManager();
   global.config = { runsInWidget: true, widgetFamily: "small" };
   global.args = { widgetParameter: "" };
@@ -464,16 +196,6 @@ test("normal sem foco: 'Nada marcado agora'; meta batida nao estoura a barra; se
 });
 
 // 2026-10-13: tela de bloqueio desenhada (anel + barras) - "fica muito pequeno"
-function acharImagens(node) {
-  const out = [];
-  const visitar = (n) => {
-    if (!n) return;
-    if (n.image) out.push(n);
-    if (Array.isArray(n.children)) n.children.forEach(visitar);
-  };
-  visitar(node);
-  return out;
-}
 
 // barra desenhada (imagemBarra): 1o preenchimento = trilho, 2o = parte cheia (desenhada em 3x)
 function fracaoDaBarra(imagemNode) {
@@ -862,14 +584,13 @@ test("dentro do Scriptable de verdade (tem `module`, nao tem `process`): main() 
   let entregue = null;
   const contexto = {
     module: { exports: {} }, // o Scriptable tem isso
-    Color: MockColor, Font: MockFont, Size: MockSize, ListWidget: MockListWidget, Request: MockRequest,
-    Point: MockPoint, Rect: MockRect, Path: MockPath, DrawContext: MockDrawContext,
     FileManager: criarMockFileManager(),
     config: { runsInWidget: true, widgetFamily: "small" },
     args: { widgetParameter: "" },
     Script: { setWidget: (w) => (entregue = w), complete() {} },
     console,
   };
+  instalarGlobais(contexto);
   global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
   contexto.global = contexto;
   contexto.__mockFetchHandler = global.__mockFetchHandler;
