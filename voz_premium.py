@@ -30,6 +30,14 @@ URL_TTS = "https://api.elevenlabs.io/v1/text-to-speech/{voz}"
 # na conversa por voz isso era a "demora" da Roberta. Mesmo custo (0,5 credito/caractere).
 # v4/v3 so funcionam pelo text-to-dialogue; o resto usa o text-to-speech normal.
 MODELO_PADRAO = "eleven_flash_v2_5"
+# 2026-10-13: escolhida pelo Alex entre amostras A/B (amostra "B" da rodada 1,
+# https://claude.ai/artifact/DWRJQMHLCnoXYKh12rvgJe): mesma voz e modelo, mais solta (estabilidade
+# 0.35 em vez do padrao da voz) e audio com o dobro de qualidade - "parecia robo". So vale pro
+# text-to-speech (v3/v4 pelo text-to-dialogue nao aceitam esses ajustes). Mudar aqui = mudar
+# AJUSTES_VERSAO, senao o cache devolve o audio velho.
+AJUSTES_VOZ = {"stability": 0.35, "similarity_boost": 0.8, "use_speaker_boost": True, "speed": 1.0}
+AJUSTES_VERSAO = "b1"
+FORMATO_AUDIO = "mp3_44100_128"
 LIMITE_MES_PADRAO = 9000
 MAX_CARACTERES = 700  # resposta falada inteira (modo conversa: 2-4 frases)
 TIMEOUT_S = 10
@@ -114,7 +122,8 @@ def frase_curta_manha(conn, hoje: date | None = None, nome: str = NOME_PADRAO, a
     saudacao segue a hora e, depois do meio-dia, fala do que AINDA falta e da proxima."""
     agora = agora or datetime.now()
     hoje = hoje or agora.date()
-    saudacao = f"{saudacao_da_hora(agora.hour)}, {nome}."
+    # exclamacao como na amostra escolhida pelo Alex: entonacao mais viva que o ponto
+    saudacao = f"{saudacao_da_hora(agora.hour)}, {nome}!"
     tarefas = conn.execute(
         "SELECT title, hora FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
         "AND due_date = ? ORDER BY hora IS NULL, hora, id",
@@ -173,7 +182,7 @@ def frase_curta_noite(conn, hoje: date | None = None) -> str:
 # ------------------------------------------------------------ sintetizar
 
 def _chave_cache(texto: str) -> str:
-    base = f"{_modelo()}\x00{_voz()}\x00{texto}"
+    base = f"{_modelo()}\x00{_voz()}\x00{AJUSTES_VERSAO}\x00{texto}"
     return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 
@@ -204,11 +213,13 @@ def sintetizar(conn, texto) -> bytes | None:
     if modelo.startswith(("eleven_v4", "eleven_v3")):
         url, corpo = URL_DIALOGO, {"inputs": [{"text": texto, "voice_id": _voz()}], "model_id": modelo}
     else:
-        url, corpo = URL_TTS.format(voz=_voz()), {"text": texto, "model_id": modelo, "language_code": "pt"}
+        url, corpo = URL_TTS.format(voz=_voz()), {
+            "text": texto, "model_id": modelo, "language_code": "pt", "voice_settings": AJUSTES_VOZ,
+        }
     try:
         resp = requests.post(
             url,
-            params={"output_format": "mp3_44100_64"},
+            params={"output_format": FORMATO_AUDIO},
             headers={"xi-api-key": _chave()},
             json=corpo,
             timeout=TIMEOUT_S,

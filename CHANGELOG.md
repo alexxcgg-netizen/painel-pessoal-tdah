@@ -30,8 +30,14 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   `PAINEL_ATALHOS_TOKEN` (devolve dado pessoal e age). Montagem em `docs/ATALHOS.md` §5.
 - **Memória da IA**: `list_memorias` cortava em 30 - passando disso os fatos MAIS ANTIGOS (perfil,
   rotina, planos) sumiam do prompt e da tela sem aviso. Agora 200 (hoje são 10).
-- Voz: amostras A/B pro Alex escolher (https://claude.ai/artifact/DWRJQMHLCnoXYKh12rvgJe) - nada
-  trocado ainda. Uso do mês: 6.929 de ~9.000 caracteres antes das amostras (~400). SW v70.
+- **Voz menos robô** (escolha do Alex entre 2 rodadas de amostras A/B,
+  https://claude.ai/artifact/DWRJQMHLCnoXYKh12rvgJe - ficou a "B da rodada 1"): mesmo modelo
+  (flash v2.5, rápido e mesmo custo) e mesma voz, mas `voice_settings` mais solto (estabilidade
+  0.35) e áudio 128 kbps (era 64). Saudação do "Ouvir" com exclamação, como na amostra. A versão
+  dos ajustes entra na chave do cache (`AJUSTES_VERSAO`) - senão voltava o áudio velho. Rejeitadas:
+  multilíngue (1,7 s pra começar) e v3 (2,3 s; com marcação de tom em português puxou sotaque
+  nordestino, que o Alex não curte). Achado: o v3 funciona pelo text-to-speech normal também.
+  As amostras gastaram ~800 caracteres (uso do mês antes delas: 6.929 de ~9.000). SW v70.
 
 ## 2026-10-13 - Aba Tarefas vira linha do tempo
 

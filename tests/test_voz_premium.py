@@ -66,7 +66,7 @@ class TestFrases(_Base):
     def test_manha_zero(self):
         self.assertEqual(
             voz_premium.frase_curta_manha(self.conn, HOJE, agora=MANHA),
-            "Bom dia, Alex. Nada marcado pra hoje. Dá uma olhada no painel.",
+            "Bom dia, Alex! Nada marcado pra hoje. Dá uma olhada no painel.",
         )
 
     def test_manha_uma_singular(self):
@@ -84,7 +84,7 @@ class TestFrases(_Base):
         f = voz_premium.frase_curta_manha(self.conn, HOJE, agora=MANHA)
         self.assertEqual(
             f,
-            "Bom dia, Alex. Hoje são 3 tarefas, a primeira é ligar pro fornecedor às 9h. O resto tá no painel.",
+            "Bom dia, Alex! Hoje são 3 tarefas, a primeira é ligar pro fornecedor às 9h. O resto tá no painel.",
         )
         self.assertLessEqual(len(f), 130)
 
@@ -115,18 +115,18 @@ class TestFrases(_Base):
     def test_ouvir_a_tarde_fala_o_que_falta_e_a_proxima(self):
         tarde = datetime(2026, 9, 28, 15, 30)
         self.assertEqual(voz_premium.frase_curta_manha(self.conn, HOJE, agora=tarde),
-                         "Boa tarde, Alex. Nada pendente pra hoje.")
+                         "Boa tarde, Alex! Nada pendente pra hoje.")
         self.tarefa("ligar pro fornecedor", HOJE, "09:00")
         self.tarefa("academia", HOJE, "18:00")
         self.tarefa("sem hora", HOJE)
         f = voz_premium.frase_curta_manha(self.conn, HOJE, agora=tarde)
-        self.assertEqual(f, "Boa tarde, Alex. Ainda faltam 3 tarefas hoje, a próxima é academia às 18h.")
+        self.assertEqual(f, "Boa tarde, Alex! Ainda faltam 3 tarefas hoje, a próxima é academia às 18h.")
         self.assertNotIn("Bom dia", f)
 
     def test_ouvir_a_noite_com_uma_tarefa(self):
         self.tarefa("ligar pro fornecedor", HOJE, "09:00")
         f = voz_premium.frase_curta_manha(self.conn, HOJE, agora=datetime(2026, 9, 28, 21, 0))
-        self.assertEqual(f, "Boa noite, Alex. Ainda falta 1 tarefa hoje: ligar pro fornecedor às 9h.")
+        self.assertEqual(f, "Boa noite, Alex! Ainda falta 1 tarefa hoje: ligar pro fornecedor às 9h.")
 
     def test_noite(self):
         for i in range(4):
@@ -175,10 +175,20 @@ class TestSintetizar(_Base):
             self.assertEqual(voz_premium.sintetizar(self.conn, "Bom dia, Alex."), b"MP3DATA")
         args, kw = p.call_args
         self.assertEqual(args[0], "https://api.elevenlabs.io/v1/text-to-speech/voz-fake")
-        self.assertEqual(kw["params"], {"output_format": "mp3_44100_64"})
+        self.assertEqual(kw["params"], {"output_format": "mp3_44100_128"})
         self.assertEqual(kw["headers"], {"xi-api-key": "chave-fake"})
-        self.assertEqual(kw["json"], {"text": "Bom dia, Alex.", "model_id": "eleven_flash_v2_5", "language_code": "pt"})
+        # 2026-10-13: ajustes da amostra "B" escolhida pelo Alex (mais solta, menos robo)
+        self.assertEqual(kw["json"], {
+            "text": "Bom dia, Alex.", "model_id": "eleven_flash_v2_5", "language_code": "pt",
+            "voice_settings": {"stability": 0.35, "similarity_boost": 0.8, "use_speaker_boost": True, "speed": 1.0},
+        })
         self.assertEqual(kw["timeout"], 10)
+
+    def test_ajuste_novo_da_voz_nao_reaproveita_audio_velho_do_cache(self):
+        # o cache e por (modelo, voz, versao dos ajustes, texto): trocar os ajustes gera audio novo
+        chave_nova = voz_premium._chave_cache("oi")
+        with mock.patch.object(voz_premium, "AJUSTES_VERSAO", "antiga"):
+            self.assertNotEqual(voz_premium._chave_cache("oi"), chave_nova)
 
     def test_payload_vai_normalizado_pra_fala(self):
         # o TTS recebe o texto ja falavel; a cota conta esse texto, nao o escrito
