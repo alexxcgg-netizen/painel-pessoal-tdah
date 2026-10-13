@@ -95,6 +95,33 @@ do dia, e tocar no widget abre o chat.
   - Tudo em branco com alfa (o iOS pinta a tela de bloqueio com vibrancy), sem `textColor` e sem fundo.
   - Mocks de `DrawContext`/`Path`/`Point`/`Rect` nos testes JS. A prévia visual foi conferida num shim em canvas
     (Playwright, 390 px).
+- **Widgets redesenhados a fundo** (Alex: "vai fundo, animações, cards, cada vez mais bonito"). Widget do iOS não anima
+  (o iOS mostra uma "foto" parada), então o "vivo" vem do fundo e da saudação acompanhando a hora, dos anéis e do
+  `refreshAfterDate` perto do próximo compromisso. Escolhas dele: fundo que muda com a hora, grande com tudo, criatividade
+  livre no resto.
+  - API (`/api/widget`): `agenda` (até 6 itens de hoje com horário, `{hora, titulo, em_minutos, tipo, concluido}`,
+    fuso do iCloud convertido, nunca derruba o resto) e `comida.carbo_g`/`gordura_g`. São 10 chaves no topo.
+    Feito por um subagente Haiku 5.5 e revisado.
+  - O "PRÓXIMO" agora sai do 1º pendente da agenda (`proximoDe`). Antes, compromisso do iCloud nunca aparecia, porque o
+    `foco` da API só pega tarefa/hábito.
+  - Tela de início:
+    - fundo desenhado por período (madrugada/manhã/tarde/pôr do sol/noite), com gradiente e dois brilhos suaves;
+    - cards de vidro e anéis de comida (kcal por fora, proteína por dentro, dourado quando bate a meta);
+    - símbolos da Apple;
+    - **grande** novo: saudação, próximo em destaque, "depois" com quanto falta, comida, hábitos em bolinhas, conta.
+    - Parameter `comida`/`agenda` muda o foco do pequeno e do médio.
+  - Tela de bloqueio (subagente Sonnet 5.5 numa worktree; integrei só o bloco dela):
+    - redondo: `aneis`, `proteina`, `contagem` (esvazia nas últimas 2 h) e `habitos`;
+    - retangular: `agenda`, `dia` (linha do tempo desenhada), `habitos` e `macros`;
+    - símbolos e linha do relógio por modo.
+  - Bug de integração: as duas metades criaram uma `imagemPontos` e a do bloqueio sobrescrevia a da tela de início.
+    A da tela de início virou `imagemPontosHabitos`.
+  - Testes: mocks compartilhados em `tests/js/_scriptable_mocks.js` (fixture `JSON_COMPLETO`),
+    `scriptable_widget_inicio.test.js` e `scriptable_widget_bloqueio.test.js`, que inclui uma matriz de modos × famílias ×
+    payloads sem undefined/NaN.
+  - Simulação no iPhone 17 Pro Max (artefato https://claude.ai/artifact/KvShwwd8LD5LQVdYieEDhy): o script real roda num shim
+    da API do Scriptable em canvas/DOM, com controle de horário, cenários e arranjos da tela de bloqueio. O shim imita o
+    espaçador "guloso" do SwiftUI. Os fontes ficam no scratchpad da sessão, não no repo.
 
 ## 2026-10-13 - Voz com barulho em volta, botão de mandar na hora, feriados e foto do prato
 

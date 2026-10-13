@@ -175,14 +175,28 @@ class FormatoApiTestCase(_BaseWidgetTestCase):
     def _get(self, query=""):
         return self.client.get(f"/api/widget?token={TOKEN_TESTE}{query}")
 
-    def test_json_tem_exatamente_as_9_chaves_de_topo(self):
+    def test_json_tem_exatamente_as_10_chaves_de_topo(self):
         res = self._get()
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertEqual(
             set(data.keys()),
-            {"versao", "atualizado_em", "estado", "foco", "proxima_conta", "habitos", "custo_ia", "comida", "linhas"},
+            {
+                "versao",
+                "atualizado_em",
+                "estado",
+                "foco",
+                "proxima_conta",
+                "habitos",
+                "custo_ia",
+                "comida",
+                "agenda",
+                "linhas",
+            },
         )
+
+    def test_agenda_vazia_sem_compromisso_e_lista_vazia_nao_null(self):
+        self.assertEqual(self._get().get_json()["agenda"], [])
 
     def test_versao_1(self):
         self.assertEqual(self._get().get_json()["versao"], 1)
@@ -249,14 +263,27 @@ class ColetaComidaTestCase(_BaseWidgetTestCase):
     def test_refeicoes_de_hoje_somam_e_vem_com_meta(self):
         import refeicoes
 
-        itens = refeicoes.itens_limpos([{"nome": "Frango", "gramas": 130, "kcal": 207.4, "proteina_g": 41.6}])
+        itens = refeicoes.itens_limpos(
+            [{"nome": "Frango", "gramas": 130, "kcal": 207.4, "proteina_g": 41.6, "carbo_g": 30.2, "gordura_g": 9.8}]
+        )
         agora = datetime.now()
         refeicoes.registrar(self.conn, itens, "almoco", agora)
         refeicoes.registrar(self.conn, itens, "janta", agora)
         refeicoes.registrar(self.conn, itens, "almoco", agora - timedelta(days=1))  # ontem nao conta
         with patch("refeicoes.meta_do_dia", return_value={"kcal": 2550, "proteina_g": 115}):
             comida = self._get()["comida"]
-        self.assertEqual(comida, {"kcal": 415, "proteina_g": 83, "refeicoes": 2, "meta_kcal": 2550, "meta_proteina_g": 115})
+        self.assertEqual(
+            comida,
+            {
+                "kcal": 415,
+                "proteina_g": 83,
+                "carbo_g": 60,
+                "gordura_g": 20,
+                "refeicoes": 2,
+                "meta_kcal": 2550,
+                "meta_proteina_g": 115,
+            },
+        )
 
     def test_sem_refeicao_mas_com_meta_mostra_zero_de_meta(self):
         with patch("refeicoes.meta_do_dia", return_value={"kcal": 2550, "proteina_g": 115}):
@@ -360,6 +387,175 @@ class ColetaCustoIaTestCase(_BaseWidgetTestCase):
 # --------------------------------------------------------------------------
 # Estado "erro" - qualquer excecao na coleta vira estado=erro, nunca 500.
 # --------------------------------------------------------------------------
+
+
+AGORA_AGENDA = datetime(2026, 10, 13, 10, 0, 0)  # hora local "de parede", naive, como o widget usa
+
+
+def _item_visao(titulo, inicio, fim, origem="calendario", concluido=False, dia_inteiro=False):
+    """Item no formato que `app._visao_do_dia_itens` devolve (inicio/fim ISO, ver app.py)."""
+    return {
+        "id": None,
+        "titulo": titulo,
+        "inicio": inicio.isoformat() if isinstance(inicio, datetime) else inicio,
+        "fim": fim.isoformat() if isinstance(fim, datetime) else fim,
+        "dia_inteiro": dia_inteiro,
+        "origem": origem,
+        "concluido": concluido,
+    }
+
+
+class ColetaAgendaTestCase(_BaseWidgetTestCase):
+    """`n3a_widget._coletar_agenda` com `app._visao_do_dia_itens` patchado (sem banco de verdade).
+    Cobre o filtro (dia inteiro, horario ilegivel, janela de 30 min), tipo, ordem, limite, fuso."""
+
+    def _agenda(self, itens, agora=AGORA_AGENDA):
+        with patch.object(app, "_visao_do_dia_itens", return_value=itens):
+            return n3a_widget._coletar_agenda(app, self.conn, agora)
+
+    def test_tipo_mapeia_pela_origem(self):
+        itens = [
+            _item_visao("Dentista", AGORA_AGENDA + timedelta(minutes=30), AGORA_AGENDA + timedelta(minutes=60), "calendario"),
+            _item_visao("Revisar", AGORA_AGENDA + timedelta(minutes=60), AGORA_AGENDA + timedelta(minutes=90), "tarefa"),
+            _item_visao("Ler", AGORA_AGENDA + timedelta(minutes=90), AGORA_AGENDA + timedelta(minutes=120), "habito"),
+            _item_visao("Algo", AGORA_AGENDA + timedelta(minutes=120), AGORA_AGENDA + timedelta(minutes=150), "outra_coisa"),
+        ]
+        tipos = [i["tipo"] for i in self._agenda(itens)]
+        self.assertEqual(tipos, ["compromisso", "tarefa", "habito", "compromisso"])
+
+    def test_formato_de_cada_item(self):
+        itens = [_item_visao("  Dentista  ", AGORA_AGENDA + timedelta(minutes=40), AGORA_AGENDA + timedelta(minutes=70))]
+        self.assertEqual(
+            self._agenda(itens),
+            [{"hora": "10:40", "titulo": "Dentista", "em_minutos": 40, "tipo": "compromisso", "concluido": False}],
+        )
+
+    def test_dia_inteiro_e_pulado(self):
+        itens = [
+            _item_visao(
+                "Feriado",
+                datetime(2026, 10, 13, 0, 0, 0),
+                datetime(2026, 10, 13, 23, 59, 0),
+                dia_inteiro=True,
+            )
+        ]
+        self.assertEqual(self._agenda(itens), [])
+
+    def test_inicio_ou_fim_ilegivel_e_pulado(self):
+        itens = [
+            _item_visao("Sem inicio valido", "isso nao e data", AGORA_AGENDA + timedelta(minutes=30)),
+            _item_visao("Sem fim", AGORA_AGENDA + timedelta(minutes=30), None),
+        ]
+        self.assertEqual(self._agenda(itens), [])
+
+    def test_tz_aware_vira_hora_local_naive(self):
+        """iCloud pode mandar ISO com fuso: converte pra hora local antes de comparar com `agora`
+        (naive local). Montado a partir da hora local pra funcionar em qualquer maquina."""
+        inicio_local = AGORA_AGENDA + timedelta(minutes=45)
+        fim_local = inicio_local + timedelta(minutes=60)
+        itens = [
+            _item_visao(
+                "Reuniao",
+                inicio_local.astimezone(timezone.utc).isoformat(),
+                fim_local.astimezone(timezone.utc).isoformat(),
+            )
+        ]
+        resultado = self._agenda(itens)
+        self.assertEqual(len(resultado), 1)
+        self.assertEqual(resultado[0]["hora"], inicio_local.strftime("%H:%M"))
+        self.assertEqual(resultado[0]["em_minutos"], 45)
+
+    def test_item_que_terminou_ha_mais_de_30_min_some(self):
+        itens = [
+            _item_visao("Ja foi", AGORA_AGENDA - timedelta(minutes=60), AGORA_AGENDA - timedelta(minutes=31)),
+        ]
+        self.assertEqual(self._agenda(itens), [])
+
+    def test_item_que_terminou_ha_exatos_30_min_fica(self):
+        itens = [
+            _item_visao("Acabou agora ha pouco", AGORA_AGENDA - timedelta(minutes=50), AGORA_AGENDA - timedelta(minutes=30)),
+        ]
+        self.assertEqual(len(self._agenda(itens)), 1)
+
+    def test_concluido_fica_com_flag_true(self):
+        itens = [
+            _item_visao(
+                "Feita",
+                AGORA_AGENDA + timedelta(minutes=10),
+                AGORA_AGENDA + timedelta(minutes=10),
+                origem="tarefa",
+                concluido=True,
+            ),
+        ]
+        resultado = self._agenda(itens)
+        self.assertEqual(len(resultado), 1)
+        self.assertIs(resultado[0]["concluido"], True)
+
+    def test_limite_de_6_itens_e_ordenado_por_inicio(self):
+        # 8 itens, entregues fora de ordem - tem que sair os 6 primeiros por inicio, em ordem crescente
+        minutos = [70, 10, 50, 20, 90, 30, 60, 40]
+        itens = [
+            _item_visao(f"Item {m}", AGORA_AGENDA + timedelta(minutes=m), AGORA_AGENDA + timedelta(minutes=m + 5))
+            for m in minutos
+        ]
+        resultado = self._agenda(itens)
+        self.assertEqual(len(resultado), 6)
+        self.assertEqual([i["em_minutos"] for i in resultado], [10, 20, 30, 40, 50, 60])
+        self.assertEqual([i["titulo"] for i in resultado], [f"Item {m}" for m in [10, 20, 30, 40, 50, 60]])
+
+    def test_em_minutos_nunca_negativo_pra_item_em_andamento(self):
+        itens = [
+            _item_visao("Em andamento", AGORA_AGENDA - timedelta(minutes=10), AGORA_AGENDA + timedelta(minutes=20)),
+        ]
+        resultado = self._agenda(itens)
+        self.assertEqual(resultado[0]["em_minutos"], 0)
+        self.assertGreaterEqual(resultado[0]["em_minutos"], 0)
+
+    def test_titulo_sem_espaco_e_limitado_a_60(self):
+        itens = [_item_visao("   " + "x" * 80, AGORA_AGENDA + timedelta(minutes=5), AGORA_AGENDA + timedelta(minutes=35))]
+        titulo = self._agenda(itens)[0]["titulo"]
+        self.assertEqual(titulo, "x" * 60)
+
+    def test_colecao_vazia_devolve_lista_vazia(self):
+        self.assertEqual(self._agenda([]), [])
+
+
+class ColetaAgendaRotaTestCase(_BaseWidgetTestCase):
+    def _get(self):
+        return self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+
+    def test_tarefa_pendente_com_horario_hoje_aparece_na_agenda(self):
+        hora = (datetime.now() + timedelta(minutes=19)).strftime("%H:%M")
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES ('Revisar contrato', ?, ?)",
+            (date.today().isoformat(), hora),
+        )
+        self.conn.commit()
+        agenda = self._get()["agenda"]
+        self.assertEqual(len(agenda), 1)
+        self.assertEqual(agenda[0]["titulo"], "Revisar contrato")
+        self.assertEqual(agenda[0]["hora"], hora)
+        self.assertEqual(agenda[0]["tipo"], "tarefa")
+        self.assertIs(agenda[0]["concluido"], False)
+
+    def test_falha_na_agenda_nao_derruba_o_resto_do_widget(self):
+        hora = (datetime.now() + timedelta(minutes=19)).strftime("%H:%M")
+        self.conn.execute(
+            "INSERT INTO tasks (title, due_date, hora) VALUES ('Revisar contrato', ?, ?)",
+            (date.today().isoformat(), hora),
+        )
+        self.conn.commit()
+        with patch("rotas.n3a_widget._coletar_agenda", side_effect=RuntimeError("calendario caiu")):
+            data = self._get()
+        self.assertNotEqual(data["estado"], "erro")
+        self.assertEqual(data["agenda"], [])
+        self.assertEqual(data["foco"]["titulo"], "Revisar contrato")
+
+    def test_estado_erro_devolve_agenda_none(self):
+        with patch.object(app, "_visao_do_dia_itens", side_effect=RuntimeError("banco caiu")):
+            data = self._get()
+        self.assertEqual(data["estado"], "erro")
+        self.assertIsNone(data["agenda"])
 
 
 class EstadoErroTestCase(_BaseWidgetTestCase):

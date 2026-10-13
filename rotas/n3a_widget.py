@@ -29,7 +29,7 @@ valor em R$ por padrao mesmo pra conta pessoal - so com `?mostrar_valores=1`.
 
 import hmac
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, render_template, request
 
@@ -38,6 +38,10 @@ import ia.teto as ia_teto
 import vida
 
 bp = Blueprint("n3a_widget", __name__)
+
+# Agenda do widget (2026-10-13): no maximo 6 itens de hoje; item que terminou ha mais de 30 min some.
+AGENDA_MAX_ITENS = 6
+AGENDA_TOLERANCIA_MIN = 30
 
 # Rota maquina-a-maquina (token proprio, sem sessao/PIN) - ver
 # rotas/__init__.py (infra da Etapa 0): `_verificar_autenticacao` libera
@@ -139,6 +143,7 @@ def montar_widget(
     custo_ia_percentual: float | None = None,
     mostrar_valores: bool = False,
     comida: dict | None = None,
+    agenda: list | None = None,
 ) -> dict:
     """Monta o JSON EXATO do widget (ver docs/widget-widgy.md) a partir de
     dados ja coletados. Campo ausente vira `null` e a linha correspondente
@@ -156,9 +161,14 @@ def montar_widget(
       `total > 0` (dia sem nenhum habito devido nao tem o que mostrar).
     - `custo_ia_percentual`: None ou numero (pode passar de 100 com o teto
       ja estourado) - normalmente vem de `ia.teto`/`ia.medicao`.
-    - `comida` (2026-10-13, widget do Scriptable): None ou {"kcal", "proteina_g", "refeicoes",
-      "meta_kcal", "meta_proteina_g"} - o que ele comeu hoje pelas fotos do prato
-      (refeicoes.py) contra a meta do perfil. Metas podem ser None (perfil sem peso).
+    - `comida` (2026-10-13, widget do Scriptable): None ou {"kcal", "proteina_g", "carbo_g",
+      "gordura_g", "refeicoes", "meta_kcal", "meta_proteina_g"} - o que ele comeu hoje pelas fotos
+      do prato (refeicoes.py) contra a meta do perfil. Metas podem ser None (perfil sem peso).
+      `carbo_g`/`gordura_g` saem inteiros (arredondados) e default 0.
+    - `agenda` (2026-10-13): lista (sempre lista, `[]` quando nao ha nada) de compromissos/tarefas/
+      habitos de hoje - ver `_coletar_agenda`. Cada item: {"hora", "titulo", "em_minutos", "tipo",
+      "concluido"}. NAO entra em `linhas` (o widget desenha a agenda a parte). Lista nao vazia conta
+      como dado pra `estado` "normal".
 
     `estado`: "normal" com pelo menos um campo preenchido, "vazio" sem
     nenhum dado pra mostrar (nunca "erro" aqui - erro e responsabilidade de
@@ -190,12 +200,16 @@ def montar_widget(
         comida_out = {
             "kcal": round(comida.get("kcal") or 0),
             "proteina_g": round(comida.get("proteina_g") or 0),
+            "carbo_g": round(comida.get("carbo_g") or 0),
+            "gordura_g": round(comida.get("gordura_g") or 0),
             "refeicoes": int(comida.get("refeicoes") or 0),
             "meta_kcal": comida.get("meta_kcal"),
             "meta_proteina_g": comida.get("meta_proteina_g"),
         }
 
-    tem_algo = any([foco_out, conta_out, habitos_out, custo_ia_out, comida_out])
+    agenda_out = list(agenda or [])
+
+    tem_algo = any([foco_out, conta_out, habitos_out, custo_ia_out, comida_out, agenda_out])
     estado = "normal" if tem_algo else "vazio"
 
     linhas = [
@@ -218,6 +232,7 @@ def montar_widget(
         "habitos": habitos_out,
         "custo_ia": custo_ia_out,
         "comida": comida_out,
+        "agenda": agenda_out,
         "linhas": linhas,
     }
 
@@ -236,6 +251,7 @@ def estado_erro(agora_utc: datetime) -> dict:
         "habitos": None,
         "custo_ia": None,
         "comida": None,
+        "agenda": None,
         "linhas": [],
     }
 
@@ -285,10 +301,63 @@ def _coletar_comida(conn, hoje: date) -> dict | None:
     return {
         "kcal": tot["kcal"],
         "proteina_g": tot["proteina_g"],
+        "carbo_g": tot["carbo_g"],
+        "gordura_g": tot["gordura_g"],
         "refeicoes": tot["refeicoes"],
         "meta_kcal": meta["kcal"] if meta else None,
         "meta_proteina_g": meta["proteina_g"] if meta else None,
     }
+
+
+def _ler_horario_local(valor) -> datetime | None:
+    """ISO string -> datetime NAIVE na hora local (pra comparar com `agora`, que tambem e naive
+    local). Item de calendario (iCloud) pode vir com fuso: convertido com `astimezone()` antes de
+    tirar o tzinfo. Devolve None se nao der pra ler."""
+    try:
+        dt = datetime.fromisoformat(valor)
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone().replace(tzinfo=None)
+    return dt
+
+
+_TIPO_AGENDA = {"tarefa": "tarefa", "habito": "habito"}
+
+
+def _coletar_agenda(app_mod, conn, agora: datetime) -> list[dict]:
+    """Agenda de hoje pro widget - reaproveita `app._visao_do_dia_itens` (mesma lista que
+    `/api/visao-dia/hoje` usa), so filtra e formata. Pula item de dia inteiro e item cujo
+    inicio/fim nao da pra ler. Mantem o que ainda nao terminou ou terminou ha no maximo
+    `AGENDA_TOLERANCIA_MIN` minutos (concluido tambem entra, so com `concluido` True). Ordena por
+    inicio e corta em `AGENDA_MAX_ITENS`. `em_minutos` nunca e negativo (item em andamento = 0)."""
+    itens = app_mod._visao_do_dia_itens(conn, agora.date())
+    limite_fim = agora - timedelta(minutes=AGENDA_TOLERANCIA_MIN)
+    candidatos = []
+    for item in itens:
+        if item.get("dia_inteiro"):
+            continue
+        inicio = _ler_horario_local(item.get("inicio"))
+        fim = _ler_horario_local(item.get("fim"))
+        if inicio is None or fim is None:
+            continue
+        if fim < limite_fim:
+            continue
+        origem = item.get("origem")
+        candidatos.append(
+            (
+                inicio,
+                {
+                    "hora": inicio.strftime("%H:%M"),
+                    "titulo": str(item.get("titulo") or "").strip()[:60],
+                    "em_minutos": max(0, round((inicio - agora).total_seconds() / 60)),
+                    "tipo": _TIPO_AGENDA.get(origem, "compromisso"),
+                    "concluido": bool(item.get("concluido")),
+                },
+            )
+        )
+    candidatos.sort(key=lambda par: par[0])
+    return [saida for _, saida in candidatos[:AGENDA_MAX_ITENS]]
 
 
 def _coletar_proxima_conta(app_mod, conn, hoje: date) -> dict | None:
@@ -378,6 +447,10 @@ def coletar_resumo(app_mod, mostrar_valores: bool = False) -> dict:
                 comida = _coletar_comida(conn, hoje)
             except Exception:
                 comida = None  # comida e extra - nunca derruba o resto do widget
+            try:
+                agenda = _coletar_agenda(app_mod, conn, agora_local)
+            except Exception:
+                agenda = []  # agenda e extra - nunca derruba o resto do widget
         finally:
             conn.close()
         custo_ia_percentual = _coletar_custo_ia_percentual()
@@ -389,6 +462,7 @@ def coletar_resumo(app_mod, mostrar_valores: bool = False) -> dict:
             custo_ia_percentual=custo_ia_percentual,
             mostrar_valores=mostrar_valores,
             comida=comida,
+            agenda=agenda,
         )
     except Exception:
         return estado_erro(agora_utc)

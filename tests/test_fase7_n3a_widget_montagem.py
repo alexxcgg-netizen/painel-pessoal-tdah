@@ -15,7 +15,7 @@ AGORA_UTC = datetime(2026, 9, 23, 20, 10, 0, tzinfo=timezone.utc)
 
 
 class FormatoBaseTestCase(unittest.TestCase):
-    """Toda resposta - normal, vazia ou erro - tem SEMPRE as mesmas 8
+    """Toda resposta - normal, vazia ou erro - tem SEMPRE as mesmas 10
     chaves de topo (campo ausente vira null, nunca some), pro Widgy nunca
     quebrar um caminho JSON fixo tipo `foco.titulo`."""
 
@@ -27,6 +27,8 @@ class FormatoBaseTestCase(unittest.TestCase):
         "proxima_conta",
         "habitos",
         "custo_ia",
+        "comida",
+        "agenda",
         "linhas",
     }
 
@@ -228,6 +230,70 @@ class PercentualTetoArredondamentoTestCase(unittest.TestCase):
         self.assertEqual(r["custo_ia"], {"percentual_teto": 0})
         self.assertEqual(r["estado"], "normal")
         self.assertIn("IA: 0% do teto", r["linhas"])
+
+
+ITEM_AGENDA = {"hora": "14:30", "titulo": "Dentista", "em_minutos": 40, "tipo": "compromisso", "concluido": False}
+
+
+class ComidaMacrosMontagemTestCase(unittest.TestCase):
+    def test_carbo_e_gordura_passam_arredondados(self):
+        r = montar_widget(
+            agora_utc=AGORA_UTC,
+            comida={
+                "kcal": 415.4,
+                "proteina_g": 83.2,
+                "carbo_g": 52.6,
+                "gordura_g": 12.4,
+                "refeicoes": 2,
+                "meta_kcal": 2550,
+                "meta_proteina_g": 115,
+            },
+        )
+        self.assertEqual(
+            r["comida"],
+            {
+                "kcal": 415,
+                "proteina_g": 83,
+                "carbo_g": 53,
+                "gordura_g": 12,
+                "refeicoes": 2,
+                "meta_kcal": 2550,
+                "meta_proteina_g": 115,
+            },
+        )
+
+    def test_carbo_e_gordura_default_zero_quando_ausentes(self):
+        r = montar_widget(agora_utc=AGORA_UTC, comida={"kcal": 100, "refeicoes": 1})
+        self.assertEqual(r["comida"]["carbo_g"], 0)
+        self.assertEqual(r["comida"]["gordura_g"], 0)
+
+
+class AgendaMontagemTestCase(unittest.TestCase):
+    def test_vazio_sem_agenda_devolve_lista_vazia(self):
+        r = montar_widget(agora_utc=AGORA_UTC)
+        self.assertEqual(r["agenda"], [])
+        self.assertEqual(r["estado"], "vazio")
+
+    def test_agenda_none_na_montagem_vira_lista_vazia(self):
+        r = montar_widget(agora_utc=AGORA_UTC, agenda=None)
+        self.assertEqual(r["agenda"], [])
+
+    def test_erro_tem_agenda_none(self):
+        r = estado_erro(AGORA_UTC)
+        self.assertIsNone(r["agenda"])
+
+    def test_agenda_nao_vazia_conta_como_dado_e_estado_normal(self):
+        r = montar_widget(agora_utc=AGORA_UTC, agenda=[ITEM_AGENDA])
+        self.assertEqual(r["estado"], "normal")
+        self.assertEqual(r["agenda"], [ITEM_AGENDA])
+
+    def test_agenda_nao_entra_em_linhas(self):
+        r = montar_widget(
+            agora_utc=AGORA_UTC,
+            foco={"titulo": "Revisar contrato", "em_minutos": 19},
+            agenda=[ITEM_AGENDA],
+        )
+        self.assertEqual(r["linhas"], ["Foco: Revisar contrato em 19 min"])
 
 
 if __name__ == "__main__":

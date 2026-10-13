@@ -84,6 +84,10 @@ http://SEU-IP-OU-DOMINIO:5001|SEU_TOKEN
   "proxima_conta": { "nome": "Cartão", "em_dias": 3 },
   "habitos": { "feitos": 3, "total": 5 },
   "custo_ia": { "percentual_teto": 42 },
+  "comida": { "kcal": 415, "proteina_g": 83, "carbo_g": 60, "gordura_g": 20, "refeicoes": 2, "meta_kcal": 2550, "meta_proteina_g": 115 },
+  "agenda": [
+    { "hora": "10:40", "titulo": "Dentista", "em_minutos": 40, "tipo": "compromisso", "concluido": false }
+  ],
   "linhas": [
     "Foco: Revisar contrato em 19 min",
     "Conta: Cartão em 3 dias",
@@ -92,6 +96,11 @@ http://SEU-IP-OU-DOMINIO:5001|SEU_TOKEN
   ]
 }
 ```
+
+`agenda` é a lista de hoje (até 6 itens, por horário): `tipo` é `compromisso`,
+`tarefa` ou `habito`, `em_minutos` nunca é negativo e `concluido` marca o que
+já foi feito. Vem sempre como lista (`[]` quando não há nada; `null` só no
+estado `erro`) e não entra em `linhas`.
 
 `estado` é um de `normal`, `vazio` ou `erro`. Sem nenhum valor em R$ (o
 widget nunca mostra dinheiro). O campo `linhas` já vem pronto em português,

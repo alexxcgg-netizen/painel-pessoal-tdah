@@ -24,6 +24,9 @@ class MockFont {
   static boldRoundedSystemFont(size) {
     return { kind: "boldRounded", size };
   }
+  static mediumRoundedSystemFont(size) {
+    return { kind: "mediumRounded", size };
+  }
   static semiboldRoundedSystemFont(size) {
     return { kind: "semiboldRounded", size };
   }
@@ -94,7 +97,12 @@ class MockDrawContext {
     const rr = this._caminho && this._caminho.ops.find((o) => o[0] === "roundedRect");
     this.preenchimentos.push({ largura: rr ? rr[1].width : null, alfa: this._corFill ? this._corFill.alpha : null });
   }
-  fillEllipse() {}
+  fillEllipse() {
+    this.elipses = (this.elipses || 0) + 1;
+  }
+  fillRect() {
+    this.retangulos = (this.retangulos || 0) + 1;
+  }
   drawTextInRect(texto) {
     this.textos.push(texto);
   }

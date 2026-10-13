@@ -122,78 +122,7 @@ function handlerFalha() {
 // Estado normal, nos 4 tamanhos
 // ============================================================
 
-// 2026-10-13: widget "proximo + comida" (escolha do Alex) - conta/habitos/IA saem do layout.
-function acharBarras(node) {
-  const out = [];
-  const visitar = (n) => {
-    if (!n || !Array.isArray(n.children)) return;
-    if (n.size && n.size.height === 5 && n.backgroundColor && n.backgroundColor.hex === "#1f272e") {
-      const cheio = n.children.find((c) => c.size);
-      out.push({ largura: n.size.width, cheio: cheio ? cheio.size.width : 0 });
-    }
-    n.children.forEach(visitar);
-  };
-  visitar(node);
-  return out;
-}
-
-test("normal / small: proximo (hora, 'em X min', titulo) + kcal do dia com barra", async () => {
-  global.config.widgetFamily = "small";
-  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
-
-  const widget = await widgetModulo.montarWidget();
-  const textos = coletarTextos(widget);
-
-  for (const t of ["PRÓXIMO", "14:30", "em 19 min", "Revisar contrato", "COMIDA HOJE", "1.066 / 2.550 kcal"]) {
-    assert.ok(textos.includes(t), `faltou "${t}" em ${JSON.stringify(textos)}`);
-  }
-  // small nao tem proteina nem conta/habitos/IA
-  assert.ok(!textos.some((t) => t.startsWith("Proteína")));
-  assert.ok(!textos.some((t) => /Cartão|Hábitos|IA/.test(t)));
-  const barras = acharBarras(widget);
-  assert.equal(barras.length, 1);
-  assert.equal(barras[0].cheio, Math.round(126 * (1066 / 2550)));
-  assert.equal(widget.backgroundColor.hex, "#000000");
-  assert.ok(coletarCores(widget).includes("#9fdcb0"), "rotulo da comida na cor do card refeicao");
-  // tocar abre o chat
-  assert.equal(widget.url, "http://SEU-IP-OU-DOMINIO:5001/?aba=assistente");
-});
-
-test("normal / medium: duas colunas - proximo e comida com kcal + proteina e as duas barras", async () => {
-  global.config.widgetFamily = "medium";
-  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
-
-  const widget = await widgetModulo.montarWidget();
-  const textos = coletarTextos(widget);
-
-  for (const t of ["PRÓXIMO", "14:30", "Revisar contrato", "COMIDA HOJE", "1.066 / 2.550 kcal", "Proteína 102 / 115 g", "2 refeições pela foto"]) {
-    assert.ok(textos.includes(t), `faltou "${t}"`);
-  }
-  const barras = acharBarras(widget);
-  assert.equal(barras.length, 2);
-  assert.equal(barras[1].cheio, Math.round(150 * (102 / 115)));
-});
-
-test("normal / medium sem comida: so o proximo, sem coluna vazia", async () => {
-  global.config.widgetFamily = "medium";
-  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, comida: null });
-  const textos = coletarTextos(await widgetModulo.montarWidget());
-  assert.ok(textos.includes("Revisar contrato"));
-  assert.ok(!textos.includes("COMIDA HOJE"));
-});
-
-test("normal sem foco: 'Nada marcado agora'; meta batida nao estoura a barra; sem meta, sem barra", async () => {
-  global.config.widgetFamily = "small";
-  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, foco: null, comida: { ...JSON_NORMAL.comida, kcal: 3100 } });
-  let widget = await widgetModulo.montarWidget();
-  assert.ok(coletarTextos(widget).includes("Nada marcado agora"));
-  assert.equal(acharBarras(widget)[0].cheio, 126);
-
-  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, comida: { kcal: 800, proteina_g: 40, refeicoes: 1, meta_kcal: null, meta_proteina_g: null } });
-  widget = await widgetModulo.montarWidget();
-  assert.ok(coletarTextos(widget).includes("800 kcal"));
-  assert.equal(acharBarras(widget).length, 0);
-});
+// Estado normal da tela de inicio (pequeno/medio/grande): tests/js/scriptable_widget_inicio.test.js
 
 // 2026-10-13: tela de bloqueio desenhada (anel + barras) - "fica muito pequeno"
 
@@ -233,7 +162,7 @@ test("normal / accessoryRectangular: hora grande, titulo e barra de kcal desenha
   for (const t of ["14:30", "em 19 min", "Revisar contrato", "1.066 kcal"]) {
     assert.ok(textos.includes(t), `faltou "${t}" em ${JSON.stringify(textos)}`);
   }
-  const barras = acharImagens(widget);
+  const barras = acharImagens(widget).filter((n) => !n.image.simbolo);
   assert.equal(barras.length, 1);
   assert.ok(Math.abs(fracaoDaBarra(barras[0]) - 1066 / 2550) < 0.001);
   assert.equal(barras[0].imageSize.width, 70);
@@ -252,7 +181,7 @@ test("accessoryRectangular com parametro 'comida': kcal grande + barras de kcal 
     assert.ok(textos.includes(t), `faltou "${t}" em ${JSON.stringify(textos)}`);
   }
   assert.ok(!textos.includes("Revisar contrato"));
-  const barras = acharImagens(widget);
+  const barras = acharImagens(widget).filter((n) => !n.image.simbolo);
   assert.equal(barras.length, 2);
   assert.ok(Math.abs(fracaoDaBarra(barras[1]) - 102 / 115) < 0.001);
   // parametro de modo nao vira URL do painel
@@ -270,7 +199,7 @@ test("accessoryRectangular com parametro 'proximo': so o compromisso, hora grand
 
   const widget = await widgetModulo.montarWidget();
   assert.deepEqual(coletarTextos(widget), ["PRÓXIMO · em 19 min", "14:30", "Revisar contrato"]);
-  assert.equal(acharImagens(widget).length, 0);
+  assert.equal(acharImagens(widget).filter((n) => !n.image.simbolo).length, 0);
   const hora = widget.children.find((n) => n.text === "14:30");
   assert.equal(hora.font.size, 26);
 

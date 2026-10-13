@@ -23,9 +23,15 @@ O endpoint retorna um JSON com esta estrutura:
   "proxima_conta": {"nome": "Cartão", "em_dias": 3},
   "habitos": {"feitos": 3, "total": 5},
   "custo_ia": {"percentual_teto": 42},
+  "comida": {"kcal": 415, "proteina_g": 83, "carbo_g": 60, "gordura_g": 20, "refeicoes": 2, "meta_kcal": 2550, "meta_proteina_g": 115},
+  "agenda": [{"hora": "10:40", "titulo": "Dentista", "em_minutos": 40, "tipo": "compromisso", "concluido": false}],
   "linhas": ["Foco: Revisar contrato em 19 min", "Conta: Cartão em 3 dias", "Hábitos: 3/5", "IA: 42% do teto"]
 }
 ```
+
+`agenda` é sempre uma lista (`[]` quando não tem nada hoje; `null` só no estado `erro`).
+Até 6 itens de hoje, em ordem de horário; `tipo` é `compromisso`, `tarefa` ou `habito`.
+A agenda NÃO entra em `linhas`. `comida` traz também `carbo_g` e `gordura_g` (inteiros, 0 por padrão).
 
 ## Como configurar
 
