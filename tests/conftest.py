@@ -14,9 +14,11 @@ escrever um teste `pytest` "puro" (funcao solta, sem `unittest.TestCase`)
 no futuro e quiser a mesma garantia sem repetir o boilerplate.
 """
 
+import gc
 import importlib
 import os
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -33,6 +35,38 @@ os.environ["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:9"
 os.environ["OPENAI_BASE_URL"] = "http://127.0.0.1:9"
 os.environ["GOOGLE_GEMINI_BASE_URL"] = "http://127.0.0.1:9"
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
+
+
+# Windows: apagar um arquivo que outro handle ainda mantem aberto da
+# `PermissionError [WinError 32]` (no Linux/macOS o unlink simplesmente
+# funciona). Na suite isso acontecia com o `painel.db`: varios modulos de teste
+# sobem um servidor Flask numa thread daemon (ex.: tests/test_anim2_animacoes.py)
+# e o `db.DB_PATH` e um global compartilhado - quando o teste do navegador
+# termina, a requisicao que ainda estava no ar (ex.: /api/summary/today
+# esperando a IA falhar e tentar de novo) segura a conexao por alguns segundos,
+# bem na hora em que o `setUp` do teste seguinte faz `db.DB_PATH.unlink()` ou o
+# `TemporaryDirectory` limpa a pasta. A janela e curta e a conexao se fecha
+# sozinha quando o handler termina, entao em vez de mexer em ~30 arquivos de
+# teste (e sem mudar o app) o `os.unlink`/`os.remove` tenta de novo por ate
+# 30 s SO nesse erro especifico (winerror 32), coletando o lixo entre as
+# tentativas (fecha conexao sqlite sem referencia). Qualquer outro erro, ou o
+# mesmo erro depois do prazo, sobe como antes - nada de assercao mascarada.
+if os.name == "nt":
+    _unlink_original = os.unlink
+
+    def _unlink_com_retentativa(path, *args, **kwargs):
+        limite = time.monotonic() + 30
+        while True:
+            try:
+                return _unlink_original(path, *args, **kwargs)
+            except PermissionError as erro:
+                if getattr(erro, "winerror", None) != 32 or time.monotonic() >= limite:
+                    raise
+                gc.collect()
+                time.sleep(0.05)
+
+    os.unlink = _unlink_com_retentativa
+    os.remove = _unlink_com_retentativa
 
 
 @pytest.fixture
