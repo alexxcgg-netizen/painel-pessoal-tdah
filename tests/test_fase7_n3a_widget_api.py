@@ -93,6 +93,11 @@ class _BaseWidgetTestCase(unittest.TestCase):
         self._caldav_patch.start()
         self.addCleanup(self._caldav_patch.stop)
 
+        # log de diagnostico do widget (data/widget.log) vai pra pasta temporaria nos testes
+        self._log_patch = patch.object(n3a_widget, "_LOG_WIDGET", str(Path(_tmp_dir.name) / "widget.log"))
+        self._log_patch.start()
+        self.addCleanup(self._log_patch.stop)
+
         self._stub_anterior = _instalar_stub_rotas_base()
         self.addCleanup(_restaurar_stub_rotas_base, self._stub_anterior)
 

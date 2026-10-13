@@ -563,13 +563,58 @@ async function apresentarPreview(widget, familia) {
   if (widget.presentSmall) return widget.presentSmall();
 }
 
+// Diagnostico (2026-10-13): qualquer erro aparece NA TELA (previa/widget) e vai pro painel
+// (POST /api/widget/erro -> data/widget.log no PC), em vez de o script morrer calado.
+function textoDoErro(e) {
+  const msg = (e && (e.message || String(e))) || "erro desconhecido";
+  const linha = e && (e.line || e.lineNumber);
+  return linha ? `${msg} (linha ${linha})` : msg;
+}
+
+async function reportarErro(etapa, e) {
+  try {
+    const { url, token } = resolverConfig();
+    if (!/^https?:\/\//.test(url)) return;
+    const req = new Request(`${url}/api/widget/erro`);
+    req.method = "POST";
+    req.headers = token
+      ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+      : { "Content-Type": "application/json" };
+    req.body = JSON.stringify({ etapa, erro: textoDoErro(e), familia: obterFamilia() });
+    req.timeoutInterval = 5;
+    await req.loadString();
+  } catch (_) {
+    // sem rede pra avisar: o erro ainda aparece na tela
+  }
+}
+
+function widgetDeErro(etapa, e) {
+  const w = new ListWidget();
+  const t = w.addText(`Widget do painel deu erro (${etapa}): ${textoDoErro(e)}`);
+  t.font = Font.systemFont(11);
+  t.minimumScaleFactor = 0.6;
+  return w;
+}
+
 async function main() {
   const familia = obterFamilia();
-  const widget = await montarWidget();
-  if (typeof config !== "undefined" && config && config.runsInWidget) {
-    Script.setWidget(widget);
-  } else {
-    await apresentarPreview(widget, familia);
+  let widget;
+  try {
+    widget = await montarWidget();
+  } catch (e) {
+    console.error(`montar: ${textoDoErro(e)}`);
+    await reportarErro("montar", e);
+    widget = widgetDeErro("montar", e);
+  }
+  try {
+    if (typeof config !== "undefined" && config && config.runsInWidget) {
+      Script.setWidget(widget);
+    } else {
+      await apresentarPreview(widget, familia);
+    }
+  } catch (e) {
+    console.error(`mostrar: ${textoDoErro(e)}`);
+    await reportarErro("mostrar", e);
   }
   if (typeof Script !== "undefined" && Script.complete) Script.complete();
 }
@@ -597,5 +642,5 @@ if (EM_NODE && typeof module !== "undefined" && module.exports) {
     main,
   };
 } else {
-  main();
+  main().catch((e) => console.error(`main: ${textoDoErro(e)}`));
 }

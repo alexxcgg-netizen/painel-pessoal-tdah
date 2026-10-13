@@ -272,6 +272,11 @@ class WidgetInstalacaoTestCase(unittest.TestCase):
     """Configurações > Widget do iPhone: script + token pra copiar no celular, só com PIN."""
 
     def setUp(self):
+        from rotas import n3a_widget
+
+        p = patch.object(n3a_widget, "_LOG_WIDGET", str(Path(_tmp.name) / "widget.log"))
+        p.start()
+        self.addCleanup(p.stop)
         if db.DB_PATH.exists():
             db.DB_PATH.unlink()
         db.init_db()

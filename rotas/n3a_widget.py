@@ -42,7 +42,7 @@ bp = Blueprint("n3a_widget", __name__)
 # Rota maquina-a-maquina (token proprio, sem sessao/PIN) - ver
 # rotas/__init__.py (infra da Etapa 0): `_verificar_autenticacao` libera
 # estes caminhos sem login, e a PROPRIA rota abaixo checa o token.
-ROTAS_COM_TOKEN = {"/api/widget"}
+ROTAS_COM_TOKEN = {"/api/widget", "/api/widget/erro"}
 PREFIXOS_COM_TOKEN = ("/widget",)
 
 VERSAO_WIDGET = 1
@@ -392,6 +392,45 @@ def coletar_resumo(app_mod, mostrar_valores: bool = False) -> dict:
         )
     except Exception:
         return estado_erro(agora_utc)
+
+
+# --------------------------------------------------------------------------
+# Diagnostico (2026-10-13, 1o teste no iPhone: "nao apareceu nada"): cada chamada das rotas do
+# widget vira uma linha em data/widget.log (data/ ja fica fora do git) - hora, rota, status e app
+# que chamou. NUNCA o token: so o caminho, sem query string. O script do Scriptable tambem manda
+# o proprio erro pra /api/widget/erro, que cai no mesmo arquivo.
+# --------------------------------------------------------------------------
+
+_LOG_WIDGET = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "widget.log")
+
+
+def _registrar_log_widget(linha: str) -> None:
+    try:
+        os.makedirs(os.path.dirname(_LOG_WIDGET), exist_ok=True)
+        if os.path.exists(_LOG_WIDGET) and os.path.getsize(_LOG_WIDGET) > 512 * 1024:
+            os.replace(_LOG_WIDGET, _LOG_WIDGET + ".1")
+        with open(_LOG_WIDGET, "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} {linha}\n")
+    except OSError:
+        pass  # log e so diagnostico - nunca derruba o widget
+
+
+@bp.after_request
+def _log_widget(resposta):
+    agente = (request.headers.get("User-Agent") or "-").replace("\n", " ")[:120]
+    _registrar_log_widget(f"{request.method} {request.path} -> {resposta.status_code} | {agente}")
+    return resposta
+
+
+@bp.route("/api/widget/erro", methods=["POST"])
+def widget_erro():
+    """O script do Scriptable manda aqui o erro que aconteceu no iPhone (mesmo token do widget)."""
+    if not _token_widget_valido():
+        return jsonify({"error": "token invalido"}), 401
+    dados = request.get_json(silent=True) or {}
+    msg = " ".join(str(dados.get(k) or "") for k in ("etapa", "erro", "familia")).replace("\n", " ")[:500]
+    _registrar_log_widget(f"ERRO DO SCRIPT: {msg}")
+    return jsonify({"ok": True})
 
 
 # --------------------------------------------------------------------------
