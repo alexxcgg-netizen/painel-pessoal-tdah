@@ -105,7 +105,7 @@ class Fase6E8TestCase(unittest.TestCase):
         avisos = notificacoes.tarefas_horario_passou(self.conn, agora)
         self.assertEqual(len(avisos), 1)
         self.assertEqual(
-            avisos[0][1], "\"Ligar pro dentista\" - a tarefa era 14:00, ainda da tempo de resolver hoje."
+            avisos[0][1], "\"Ligar pro dentista\" - a tarefa era 14:00, ainda dá tempo de resolver hoje."
         )
 
     def test_tarefa_nao_passa_da_hora_antes_de_30min(self):

@@ -353,6 +353,70 @@ main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.item.tl-item
   box-shadow: none;
   contain-intrinsic-size: auto 64px;
   transition: background-color 0.4s var(--ease-suave), opacity 0.26s var(--ease-suave);
+  /* coluna: passos (quebrar) e formulario de correcao descem embaixo do titulo - o
+     .lista-item antigo e flex em linha e jogava os passos do lado (bug do print do Alex) */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item > :is(.item-linha, .subtarefas, .correcao-form) {
+  width: auto;
+  min-width: 0;
+  flex: none;
+}
+
+/* passos da tarefa quebrada: lista enxuta embaixo do titulo, bolinha pequena no lugar do
+   checkbox nativo (o input continua la, so muda a cara) */
+main #tab-tarefas li.tl-item > .subtarefas {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  list-style: none;
+}
+main #tab-tarefas li.tl-item > .subtarefas > .subtarefa {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 11px 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--cor-texto-2);
+}
+main #tab-tarefas li.tl-item > .subtarefas > .subtarefa + .subtarefa {
+  border-top: 1px solid color-mix(in srgb, var(--cor-texto) 7%, transparent);
+}
+/* alvo de 44px (auditoria R3) com margem negativa: ocupa 18px na linha; o circulo e
+   desenhado no fundo (aro de 2px), cheio de verde quando feito */
+main #tab-tarefas li.tl-item > .subtarefas input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -12px -13px -12px -13px;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, transparent 7px, var(--text-faint) 7.5px 9px, transparent 9.5px);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.4s var(--ease-bounce);
+}
+main #tab-tarefas li.tl-item > .subtarefas input[type="checkbox"]:active {
+  transform: scale(0.85);
+}
+main #tab-tarefas li.tl-item > .subtarefas input[type="checkbox"]:checked {
+  background: radial-gradient(circle, var(--cor-entrada) 9px, transparent 9.5px);
+}
+main #tab-tarefas li.tl-item > .subtarefas .subtarefa.concluida span {
+  color: var(--text-faint);
+  text-decoration: line-through;
 }
 main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.item.tl-item:hover {
   transform: none;

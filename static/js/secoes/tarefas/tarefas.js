@@ -99,11 +99,35 @@ const ICONE_CHECK_PONTO =
 const ICONE_AMANHA =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h12M13 7l5 5-5 5"/></svg>';
 
+// "juntar de novo" (desfazer a quebra em passos): seta voltando
+const ICONE_JUNTAR =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
+
 // Linha do tempo (2026-10-13, linha-do-tempo-tarefas.js): toque no nome abre/fecha as acoes.
 function alternarAcoesTarefa(li) {
   const aberta = li.classList.toggle("tl-aberta");
   const alvo = li.querySelector(".item-textos");
   if (alvo) alvo.setAttribute("aria-expanded", aberta ? "true" : "false");
+}
+
+// Toque numa notificacao de tarefa (?aba=tarefas&tarefa=ID, nucleo/init.js): espera a lista
+// chegar, rola ate a tarefa, abre as acoes e acende a linha. Tarefa que ja saiu (concluida
+// em outro lugar) = so fica na aba.
+function focarTarefaDoAviso(id, tentativas = 30) {
+  const li = document.querySelector(`#lista-tarefas > li.tl-item[data-id="${CSS.escape(String(id))}"]`);
+  if (!li) {
+    if (tentativas > 0) setTimeout(() => focarTarefaDoAviso(id, tentativas - 1), 100);
+    return;
+  }
+  const menos = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  li.scrollIntoView({ block: "center", behavior: menos ? "auto" : "smooth" });
+  if (!li.classList.contains("tl-aberta")) alternarAcoesTarefa(li);
+  if (!menos) {
+    li.classList.remove("tl-chegando");
+    void li.offsetWidth;
+    li.classList.add("tl-chegando");
+    setTimeout(() => li.classList.remove("tl-chegando"), 1900);
+  }
 }
 
 function criarItemTarefa(t) {
@@ -202,6 +226,20 @@ function criarItemTarefa(t) {
       else setBotaoCarregando(btnQuebrar, false, "quebrar em passos");
     });
     acoes.appendChild(btnQuebrar);
+  }
+
+  // desfazer a quebra: a tarefa volta a ser uma so (apaga os passos)
+  if (t.subtasks.length > 0) {
+    const btnJuntar = document.createElement("button");
+    btnJuntar.className = "btn-com-icone tarefa-juntar";
+    btnJuntar.innerHTML = `${ICONE_JUNTAR}desfazer passos`;
+    btnJuntar.addEventListener("click", async () => {
+      setBotaoCarregando(btnJuntar, true, "desfazendo...");
+      const data = await apiFetch(`/api/tasks/${t.id}/subtasks`, { method: "DELETE" });
+      if (data) loadTasks();
+      else setBotaoCarregando(btnJuntar, false, "desfazer passos");
+    });
+    acoes.appendChild(btnJuntar);
   }
 
   if (t.fichas_treino && t.fichas_treino.length && typeof botaoFichaTreino === "function") {

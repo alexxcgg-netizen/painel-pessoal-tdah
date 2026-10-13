@@ -7156,6 +7156,46 @@ class IntentCorrigirTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
 
 
+class AtalhoPerguntarTestCase(unittest.TestCase):
+    """"Ei Siri, pergunta pro painel" (2026-10-13): POST /api/atalho/perguntar manda o texto
+    pro mesmo chat e devolve so a fala limpa. Devolve dado pessoal: sem token configurado so
+    aceita sessao logada (obrigatorio=True), como /api/atalho/local."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        self.client = app.app.test_client()
+
+    def test_sem_token_nem_sessao_recusa(self):
+        with patch.dict(os.environ, {"PAINEL_ATALHOS_TOKEN": ""}), patch("app._processar_mensagem_chat") as chat:
+            self.assertEqual(self.client.post("/api/atalho/perguntar", json={"texto": "o que falta?"}).status_code, 401)
+        chat.assert_not_called()
+
+    def test_com_token_responde_fala_sem_markdown(self):
+        resposta = "**Faltam 2** hoje:\n- academia às 18h\n- ligar pro instrutor"
+        with patch.dict(os.environ, {"PAINEL_ATALHOS_TOKEN": "segredo-siri"}), \
+                patch("app._processar_mensagem_chat", return_value=(resposta, [], None)) as chat:
+            errado = self.client.post("/api/atalho/perguntar", json={"texto": "x"}, headers={"X-Webhook-Token": "nao"})
+            self.assertEqual(errado.status_code, 401)
+            res = self.client.post("/api/atalho/perguntar", json={"texto": "o que falta hoje?"},
+                                   headers={"X-Webhook-Token": "segredo-siri"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["fala"], "Faltam 2 hoje: academia às 18h. Ligar pro instrutor.")
+        self.assertEqual(chat.call_args.args[1], "o que falta hoje?")
+        self.assertTrue(chat.call_args.kwargs["modo_voz"])
+
+    def test_texto_vazio_e_erro_da_ia_tem_fala(self):
+        with patch.dict(os.environ, {"PAINEL_ATALHOS_TOKEN": "t"}):
+            vazio = self.client.post("/api/atalho/perguntar", json={"texto": "  "}, headers={"X-Webhook-Token": "t"})
+            self.assertEqual(vazio.status_code, 400)
+            self.assertIn("fala", vazio.get_json())
+            with patch("app._processar_mensagem_chat", return_value=(None, [], "falhou")):
+                erro = self.client.post("/api/atalho/perguntar", json={"texto": "oi"}, headers={"X-Webhook-Token": "t"})
+            self.assertEqual(erro.status_code, 502)
+            self.assertIn("app", erro.get_json()["fala"])
+
+
 class AtalhoComandoVozTestCase(unittest.TestCase):
     """US-B4 (Fase 5, Grupo B): POST /api/atalho/comando-voz - mesma
     autenticacao por token dos outros /api/atalho/*, reusa a classificacao

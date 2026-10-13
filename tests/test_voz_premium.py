@@ -6,7 +6,7 @@ import os
 import random
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -25,6 +25,7 @@ import voz_premium  # noqa: E402
 PIN = "123456"
 HOJE = date(2026, 9, 28)
 AMANHA = HOJE + timedelta(days=1)
+MANHA = datetime(2026, 9, 28, 8, 0)  # frase do Ouvir muda com a hora - fixa de manha
 ENV_OK = {"ELEVENLABS_API_KEY": "chave-fake", "ELEVENLABS_VOICE_ID": "voz-fake"}
 
 
@@ -64,13 +65,13 @@ class _Base(unittest.TestCase):
 class TestFrases(_Base):
     def test_manha_zero(self):
         self.assertEqual(
-            voz_premium.frase_curta_manha(self.conn, HOJE),
+            voz_premium.frase_curta_manha(self.conn, HOJE, agora=MANHA),
             "Bom dia, Alex. Nada marcado pra hoje. Dá uma olhada no painel.",
         )
 
     def test_manha_uma_singular(self):
         self.tarefa("ligar pro fornecedor", HOJE, "09:00")
-        f = voz_premium.frase_curta_manha(self.conn, HOJE)
+        f = voz_premium.frase_curta_manha(self.conn, HOJE, agora=MANHA)
         self.assertIn("só 1 tarefa", f)
         self.assertIn("ligar pro fornecedor às 9h", f)
 
@@ -80,7 +81,7 @@ class TestFrases(_Base):
         self.tarefa("ligar pro fornecedor", HOJE, "09:00")
         self.tarefa("outro dia", AMANHA, "08:00")
         self.tarefa("ja feita", HOJE, "07:00", feita="2026-09-28 06:00:00")
-        f = voz_premium.frase_curta_manha(self.conn, HOJE)
+        f = voz_premium.frase_curta_manha(self.conn, HOJE, agora=MANHA)
         self.assertEqual(
             f,
             "Bom dia, Alex. Hoje são 3 tarefas, a primeira é ligar pro fornecedor às 9h. O resto tá no painel.",
@@ -89,23 +90,43 @@ class TestFrases(_Base):
 
     def test_manha_hora_com_minutos_e_sem_hora(self):
         self.tarefa("reuniao", HOJE, "14:05")
-        self.assertIn("às 14h05", voz_premium.frase_curta_manha(self.conn, HOJE))
+        self.assertIn("às 14h05", voz_premium.frase_curta_manha(self.conn, HOJE, agora=MANHA))
         self.tarefa("x", HOJE)
         self.conn.execute("DELETE FROM tasks WHERE title='reuniao'")
         self.conn.commit()
-        self.assertNotIn(" às ", voz_premium.frase_curta_manha(self.conn, HOJE))
+        self.assertNotIn(" às ", voz_premium.frase_curta_manha(self.conn, HOJE, agora=MANHA))
 
     def test_manha_titulo_longo_cortado(self):
         self.tarefa("a" * 200, HOJE)
-        f = voz_premium.frase_curta_manha(self.conn, HOJE)
+        f = voz_premium.frase_curta_manha(self.conn, HOJE, agora=MANHA)
         self.assertIn("a" * 60, f)
         self.assertNotIn("a" * 61, f)
 
     def test_manha_ignora_modelo_recorrente_e_hora_invalida(self):
         self.conn.execute("INSERT INTO tasks (title, recorrencia) VALUES ('modelo', 'seg')")
         self.tarefa("t", HOJE, "lixo")
-        f = voz_premium.frase_curta_manha(self.conn, HOJE)
+        f = voz_premium.frase_curta_manha(self.conn, HOJE, agora=MANHA)
         self.assertIn("só 1 tarefa: t.", f)
+
+    def test_saudacao_segue_a_hora(self):
+        self.assertEqual([voz_premium.saudacao_da_hora(h) for h in (3, 5, 11, 12, 17, 18, 23)],
+                         ["Boa noite", "Bom dia", "Bom dia", "Boa tarde", "Boa tarde", "Boa noite", "Boa noite"])
+
+    def test_ouvir_a_tarde_fala_o_que_falta_e_a_proxima(self):
+        tarde = datetime(2026, 9, 28, 15, 30)
+        self.assertEqual(voz_premium.frase_curta_manha(self.conn, HOJE, agora=tarde),
+                         "Boa tarde, Alex. Nada pendente pra hoje.")
+        self.tarefa("ligar pro fornecedor", HOJE, "09:00")
+        self.tarefa("academia", HOJE, "18:00")
+        self.tarefa("sem hora", HOJE)
+        f = voz_premium.frase_curta_manha(self.conn, HOJE, agora=tarde)
+        self.assertEqual(f, "Boa tarde, Alex. Ainda faltam 3 tarefas hoje, a próxima é academia às 18h.")
+        self.assertNotIn("Bom dia", f)
+
+    def test_ouvir_a_noite_com_uma_tarefa(self):
+        self.tarefa("ligar pro fornecedor", HOJE, "09:00")
+        f = voz_premium.frase_curta_manha(self.conn, HOJE, agora=datetime(2026, 9, 28, 21, 0))
+        self.assertEqual(f, "Boa noite, Alex. Ainda falta 1 tarefa hoje: ligar pro fornecedor às 9h.")
 
     def test_noite(self):
         for i in range(4):

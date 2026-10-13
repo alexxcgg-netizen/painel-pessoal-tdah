@@ -113,7 +113,24 @@ e sono. Se quiser puxar o registro do app Saúde:
 
 Por enquanto não vale a complexidade.
 
-## 5. Os que já existiam
+## 5. "Ei Siri, pergunta pro painel" (conversa com a IA por voz)
+
+A mesma IA do chat (sabe suas tarefas, memórias, agenda e faz as coisas de verdade), sem abrir
+o app. A conversa aparece no chat depois. Atalho comum (não automação), com nome
+**"Pergunta pro painel"** (é o nome que você fala pra Siri):
+
+1. **Ditar Texto** (idioma Português (Brasil); "Parar de ouvir: Após uma pausa").
+2. **Obter Conteúdo de URL** (molde lá de cima): `POST https://SEU-DOMINIO/api/atalho/perguntar`,
+   corpo JSON `{"texto": <Texto Ditado>}`.
+3. **Obter Valor do Dicionário**: chave `fala`, do Conteúdo da URL.
+4. **Falar Texto**: o Valor do Dicionário.
+
+Exemplos: "o que falta hoje?", "marca a academia como feita", "me lembra de ligar pro instrutor
+amanhã às 10", "quanto gastei essa semana?". Funciona também no Apple Watch e no CarPlay (é a
+Siri quem roda o Atalho). Precisa do `PAINEL_ATALHOS_TOKEN` configurado: essa rota devolve dado
+pessoal e age, então sem token ela recusa.
+
+## 6. Os que já existiam
 
 Estão descritos no `README.md`, seção **Atalhos do iPhone**, e usam o mesmo
 `PAINEL_ATALHOS_TOKEN`:

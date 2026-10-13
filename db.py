@@ -197,6 +197,25 @@ def init_db():
             UNIQUE(tipo, referencia_id, data)
         );
 
+        -- Aviso importante que insiste (2026-10-13, pedido do Alex: "avisa uma vez so e se eu
+        -- nao ver passa em branco"): o que saiu, quantas vezes e se ele abriu. aberto_em vem do
+        -- toque na notificacao (service worker -> POST /api/push/aberto); encerrado_em quando
+        -- deixou de valer (tarefa concluida) ou acabaram as repeticoes.
+        CREATE TABLE IF NOT EXISTS avisos_insistentes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            referencia_id INTEGER NOT NULL DEFAULT 0,
+            data TEXT NOT NULL,
+            titulo TEXT NOT NULL,
+            corpo TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            enviado_em TEXT NOT NULL,
+            tentativas INTEGER NOT NULL DEFAULT 1,
+            aberto_em TEXT,
+            encerrado_em TEXT,
+            UNIQUE(tipo, referencia_id, data)
+        );
+
         CREATE TABLE IF NOT EXISTS chat_mensagens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             papel TEXT NOT NULL CHECK (papel IN ('user', 'assistant')),
@@ -1398,7 +1417,10 @@ def create_memoria(conn, texto: str, source_text: str | None = None, categoria: 
     return cur.lastrowid
 
 
-def list_memorias(conn, limit: int = 30) -> list[dict]:
+def list_memorias(conn, limit: int = 200) -> list[dict]:
+    # 2026-10-13: era 30 - passando de 30 fatos, os MAIS ANTIGOS (perfil inicial, rotina,
+    # planos) sumiam do prompt do chat e da tela "O que eu lembro" sem aviso. Fato e curto
+    # (~50 caracteres): 200 cabem com folga no prompt.
     rows = conn.execute(
         "SELECT * FROM memorias ORDER BY criado_em DESC LIMIT ?", (limit,)
     ).fetchall()
@@ -1664,6 +1686,49 @@ def marcar_notificado(conn, tipo: str, referencia_id: int = 0):
     conn.execute(
         "INSERT OR IGNORE INTO notificacoes_enviadas (tipo, referencia_id, data) VALUES (?, ?, ?)",
         (tipo, referencia_id, date.today().isoformat()),
+    )
+    conn.commit()
+
+
+def registrar_aviso_insistente(conn, tipo: str, referencia_id: int, titulo: str, corpo: str, tag: str, agora: datetime):
+    """1o envio de um aviso que insiste (ver notificacoes.INSISTENCIA). Mesmo aviso no mesmo dia
+    nao reabre (UNIQUE)."""
+    conn.execute(
+        "INSERT OR IGNORE INTO avisos_insistentes (tipo, referencia_id, data, titulo, corpo, tag, enviado_em) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (tipo, referencia_id, agora.date().isoformat(), titulo, corpo, tag, agora.isoformat(timespec="seconds")),
+    )
+    conn.commit()
+
+
+def marcar_aviso_aberto(conn, tag: str, agora: datetime | None = None) -> int:
+    """Toque na notificacao: para de insistir naquele aviso (todas as linhas abertas da tag)."""
+    agora = agora or datetime.now()
+    n = conn.execute(
+        "UPDATE avisos_insistentes SET aberto_em = ? WHERE tag = ? AND aberto_em IS NULL",
+        (agora.isoformat(timespec="seconds"), tag),
+    ).rowcount
+    conn.commit()
+    return n
+
+
+def avisos_insistentes_pendentes(conn) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM avisos_insistentes WHERE aberto_em IS NULL AND encerrado_em IS NULL ORDER BY id"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def registrar_repeticao_aviso(conn, aviso_id: int):
+    conn.execute("UPDATE avisos_insistentes SET tentativas = tentativas + 1 WHERE id = ?", (aviso_id,))
+    conn.commit()
+
+
+def encerrar_aviso_insistente(conn, aviso_id: int, agora: datetime | None = None):
+    agora = agora or datetime.now()
+    conn.execute(
+        "UPDATE avisos_insistentes SET encerrado_em = ? WHERE id = ? AND encerrado_em IS NULL",
+        (agora.isoformat(timespec="seconds"), aviso_id),
     )
     conn.commit()
 

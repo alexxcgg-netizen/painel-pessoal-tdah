@@ -132,6 +132,49 @@ def atalho_comando_voz():
 
     return jsonify({**resultado, "fala": _texto_falado_intent(resultado)})
 
+@bp.route("/api/atalho/perguntar", methods=["POST"])
+def atalho_perguntar():
+    """"Ei Siri, pergunta pro painel" (2026-10-13): o texto ditado vai pro MESMO chat da tela
+    principal (_processar_mensagem_chat - memorias, tarefas, ferramentas; a conversa aparece
+    no app depois) em modo voz, e volta so a frase pronta pro Atalho falar ("fala"), sem
+    markdown nem card. Diferente do comando-voz (que so classifica): aqui a IA faz de verdade
+    o que faria no chat. Autenticado pelo mesmo token dos outros /api/atalho/*."""
+    import re
+
+    app = app_modulo()
+    if not app._token_atalho_valido(obrigatorio=True):
+        return jsonify({"error": "token inválido"}), 401
+    body = app._corpo_json()
+    texto = app._texto_seguro(body.get("texto") or body.get("text"))
+    if not texto:
+        return jsonify({"error": "texto vazio", "fala": "Não entendi, pode repetir?"}), 400
+    if len(texto) > app.TAMANHO_MAX_TEXTO_CHAT:
+        return jsonify({"error": app.MSG_TEXTO_LONGO, "fala": "Ficou longo demais, fala mais curto."}), 400
+
+    conn = get_db()
+    try:
+        resposta, _acoes, erro = app._processar_mensagem_chat(conn, texto, {}, modo_voz=True)
+    finally:
+        conn.close()
+    if erro:
+        status = 402 if erro == app.TETO_IA_MSG else 502
+        return jsonify({"error": erro, "fala": "Não consegui responder agora. Tenta pelo app."}), status
+    # lista do chat vira frase: "hoje:\n- academia\n- ligar" -> "hoje: academia. Ligar."
+    limpo = re.sub(r"[*_#`>|]+", "", resposta or "")
+    partes = [re.sub(r"^[-•\d.)\s]+", "", linha).strip() for linha in limpo.splitlines()]
+    fala = ""
+    for parte in filter(None, partes):
+        if fala:
+            if fala.endswith(":"):
+                fala += " "
+            else:
+                fala += " " if fala.endswith((",", ".", "!", "?")) else ". "
+                parte = parte[:1].upper() + parte[1:]
+        fala += parte
+    if fala and fala[-1] not in ".!?":
+        fala += "."
+    return jsonify({"fala": fala or "Pronto.", "resposta": resposta})
+
 @bp.route("/api/atalho/cotacao-pdf", methods=["POST"])
 def atalho_cotacao_pdf():
     """Pro Atalho "Compartilhar PDF" do iPhone - aparece no menu de

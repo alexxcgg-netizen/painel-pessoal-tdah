@@ -208,6 +208,24 @@ def breakdown_task(task_id):
     conn.close()
     return jsonify({"subtasks": [dict(s) for s in subtasks]})
 
+@bp.route("/api/tasks/<int:task_id>/subtasks", methods=["DELETE"])
+def desfazer_quebra(task_id):
+    """Desfazer o "quebrar em passos" (pedido do Alex, 2026-10-13): a tarefa volta a ser
+    uma so - apaga todos os passos dela (feitos ou nao). A tarefa em si nao muda."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    conn = get_db()
+    try:
+        if not conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone():
+            return jsonify({"error": "tarefa não encontrada"}), 404
+        apagados = conn.execute("DELETE FROM subtasks WHERE task_id = ?", (task_id,)).rowcount
+        conn.commit()
+        return jsonify({"ok": True, "removidos": apagados})
+    finally:
+        conn.close()
+
 @bp.route("/api/subtasks/<int:subtask_id>/complete", methods=["POST"])
 def complete_subtask(subtask_id):
     app = app_modulo()

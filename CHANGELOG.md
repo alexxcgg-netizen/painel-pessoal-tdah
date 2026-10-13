@@ -5,6 +5,34 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Avisos que insistem, "Ei Siri, pergunta pro painel" e bugs do print do Alex
+
+- **Quebrar em passos (bug do print)**: os passos iam pro LADO do título (o `.lista-item` antigo é
+  flex em linha); a linha da linha do tempo virou coluna e os passos ganharam bolinha própria
+  (alvo de 44 px com margem negativa). Novo **"desfazer passos"** nas ações:
+  `DELETE /api/tasks/<id>/subtasks` apaga todos os passos, a tarefa fica.
+- **"Ouvir" do Início dava "Bom dia" a qualquer hora**: `voz_premium.frase_curta_manha` tinha o
+  texto fixo. Agora `saudacao_da_hora` (mesma regra do título do Início) e, depois do meio-dia,
+  fala o que ainda falta e a próxima ("Boa tarde, Alex. Ainda faltam 3 tarefas hoje, a próxima é
+  academia às 18h."). O fallback `/api/resumo-manha` também.
+- **Avisos importantes insistem** (`notificacoes.INSISTENCIA`, tabela `avisos_insistentes`):
+  tarefa com hora repete aos +10 e +30 min ("De novo ·" / "Última chamada ·", mesma tag = substitui
+  a anterior), compromisso/hora de sair/se arrumar/voo/conta também (intervalos por tipo). Para
+  quando ele toca na notificação (o service worker chama `POST /api/push/aberto`) ou conclui a
+  tarefa. Silêncio, hiperfoco e o liga/desliga por tipo valem igual. O resto continua 1 vez só.
+- **Tocar no aviso abre a tarefa**: `_url_do_aviso` manda `?aba=tarefas&tarefa=ID` nos avisos de
+  uma tarefa; `focarTarefaDoAviso` rola até ela, abre concluir / pra amanhã e acende a linha.
+  (Imagem/botões dentro da notificação: o iPhone não mostra em app web - limite da Apple.)
+- **Textos dos avisos** mais de gente: título "Tá na hora" (era "Lembrete"), "Compromisso
+  chegando", acentos que faltavam ("às", "vai", "dá", "tá").
+- **`POST /api/atalho/perguntar`**: "Ei Siri, pergunta pro painel" - o texto ditado vai pro mesmo
+  chat (memórias, ferramentas, modo voz) e volta só a `fala` limpa (lista vira frase). Exige o
+  `PAINEL_ATALHOS_TOKEN` (devolve dado pessoal e age). Montagem em `docs/ATALHOS.md` §5.
+- **Memória da IA**: `list_memorias` cortava em 30 - passando disso os fatos MAIS ANTIGOS (perfil,
+  rotina, planos) sumiam do prompt e da tela sem aviso. Agora 200 (hoje são 10).
+- Voz: amostras A/B pro Alex escolher (https://claude.ai/artifact/DWRJQMHLCnoXYKh12rvgJe) - nada
+  trocado ainda. Uso do mês: 6.929 de ~9.000 caracteres antes das amostras (~400). SW v70.
+
 ## 2026-10-13 - Aba Tarefas vira linha do tempo
 
 Escolhida pelo Alex entre as prévias ("linha do tempo eu gostei mais"):

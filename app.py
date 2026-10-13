@@ -514,6 +514,7 @@ def _verificar_autenticacao():
         "/api/atalho/local",
         "/api/atalho/app",
         "/api/atalho/comando-voz",
+        "/api/atalho/perguntar",
     ):
         return None
     # Fase 7: rota maquina-a-maquina declarada por um blueprint de rotas/
@@ -1522,7 +1523,10 @@ def _resumo_falado_manha(conn) -> str:
         agenda_texto = f"1 compromisso hoje: \"{eventos[0]['titulo']}\" as {eventos[0]['inicio'][11:16]}."
     else:
         agenda_texto = f"{len(eventos)} compromissos hoje."
-    return f"Bom dia. {agenda_texto} {notificacoes.resumo_manha_gastos_pendentes(conn)}"
+    import voz_premium  # saudacao pela hora (antes era "Bom dia" a qualquer hora)
+
+    saudacao = voz_premium.saudacao_da_hora(datetime.now().hour)
+    return f"{saudacao}. {agenda_texto} {notificacoes.resumo_manha_gastos_pendentes(conn)}"
 
 
 # Faixa M4 (uso diario): o texto da IA do resumo do dia so precisa ser gerado
@@ -4666,7 +4670,45 @@ _ABA_DO_AVISO = {
 }
 
 
-def _url_do_aviso(tipo: str) -> str:
+def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool) -> int:
+    """Repeticoes de notificacoes.INSISTENCIA: mesma tag (substitui a anterior e toca de novo),
+    so se o aviso ainda vale. Silencio e hiperfoco valem igual ao 1o envio."""
+    agora = datetime.now()
+    repetir, encerrar = notificacoes.repeticoes_devidas(db.avisos_insistentes_pendentes(conn), agora)
+    for a in encerrar:
+        db.encerrar_aviso_insistente(conn, a["id"], agora)
+    enviados = 0
+    for a in repetir:
+        tipo = a["tipo"]
+        if tipo in notificacoes.INSISTENCIA_DE_TAREFA:
+            row = conn.execute("SELECT completed_at FROM tasks WHERE id = ?", (a["referencia_id"],)).fetchone()
+            if not row or row["completed_at"]:
+                db.encerrar_aviso_insistente(conn, a["id"], agora)
+                continue
+        if not avisos_assistente.esta_ligado(tipo, conn=conn):
+            continue
+        if silencioso and tipo not in NOTIFICACOES_URGENTES:
+            continue
+        if em_hiperfoco and tipo not in vida.CRITICOS_HIPERFOCO:
+            continue
+        titulo, corpo = notificacoes.texto_repeticao(tipo, a["titulo"], a["corpo"], int(a["tentativas"]))
+        for s in subs:
+            if not push_client.enviar(json.loads(s["subscription_json"]), titulo, corpo,
+                                      url=_url_do_aviso(tipo, a["tag"]), tag=a["tag"]):
+                delete_push_subscription(conn, s["endpoint"])
+        db.registrar_repeticao_aviso(conn, a["id"])
+        enviados += 1
+    return enviados
+
+
+# aviso de UMA tarefa: o toque abre a propria tarefa (rola ate ela e abre concluir / pra amanha)
+_AVISOS_DE_UMA_TAREFA = {"tarefa_horario", "tarefa_preparo", "tarefa_horario_passou", "tarefa_parada", "se_arrumar", "hora_de_sair"}
+
+
+def _url_do_aviso(tipo: str, tag: str = "") -> str:
+    ref = tag.rsplit("-", 1)[-1] if tag else ""
+    if tipo in _AVISOS_DE_UMA_TAREFA and ref.isdigit() and int(ref) > 0:
+        return f"/?aba=tarefas&tarefa={ref}"
     for prefixo, aba in _ABA_DO_AVISO.items():
         if tipo.startswith(prefixo):
             return f"/?aba={aba}"
@@ -4772,7 +4814,7 @@ def verificar_e_notificar():
                 continue
             if not ja_notificado_alguma_vez(conn, "tarefa_parada", tarefa_id):
                 msg = f"{msg} Se travou, abre o painel que eu te ajudo a quebrar de outro jeito."
-                avisos.append(("tarefa_parada", tarefa_id, "Isso ainda ta pendente?", msg))
+                avisos.append(("tarefa_parada", tarefa_id, "Isso ainda tá pendente?", msg))
 
     # Mesma ideia, mas pra resposta que voce esta esperando de TERCEIROS
     # (fornecedor, corretora) - o painel acompanha o thread em aberto por
@@ -4897,7 +4939,7 @@ def verificar_e_notificar():
                 corpo = re.sub(r"^\s*comer\s*:?\s*", "", refeicoes_hoje[tarefa_id], flags=re.I) or msg
                 avisos.append(("tarefa_horario", tarefa_id, "Hora de comer", corpo[:1].upper() + corpo[1:]))
             else:
-                avisos.append(("tarefa_horario", tarefa_id, "Lembrete", msg))
+                avisos.append(("tarefa_horario", tarefa_id, "Tá na hora", msg))
 
     # Compromisso do calendario do iCloud chegando (so origem="calendario" -
     # tarefa com horario ja tem o aviso acima, senao duplicaria). Pedido
@@ -4925,8 +4967,8 @@ def verificar_e_notificar():
             (
                 "compromisso_chegando",
                 ref_id,
-                "Daqui a pouco",
-                f"Daqui a pouco: \"{evento['titulo']}\" as {hora_txt} - já va se preparando.",
+                "Compromisso chegando",
+                f"{evento['titulo']} às {hora_txt} - em menos de 10 min. Já vai se preparando.",
             )
         )
 
@@ -5043,7 +5085,7 @@ def verificar_e_notificar():
         for s in subs:
             sub_dict = json.loads(s["subscription_json"])
             if tipo:
-                ok = push_client.enviar(sub_dict, titulo, corpo, url=_url_do_aviso(tipo), tag=f"{tipo}-{ref_id}")
+                ok = push_client.enviar(sub_dict, titulo, corpo, url=_url_do_aviso(tipo, f"{tipo}-{ref_id}"), tag=f"{tipo}-{ref_id}")
             else:
                 ok = push_client.enviar(sub_dict, titulo, corpo)
             if not ok:
@@ -5076,6 +5118,8 @@ def verificar_e_notificar():
         botoes = [("Marcar como feito", f"completar_tarefa:{ref_id}")] if tipo == "tarefa_parada" else None
         _despachar(titulo, corpo, botoes, tipo=tipo, ref_id=ref_id)
         marcar_notificado(conn, tipo, ref_id)
+        if subs and tipo in notificacoes.INSISTENCIA:
+            db.registrar_aviso_insistente(conn, tipo, ref_id, titulo, corpo, f"{tipo}-{ref_id}", datetime.now())
         if tipo == "garantia_vencendo":
             marcar_garantia_notificada(conn, ref_id)
         if tipo in ("tarefa_parada", "espera_parada"):
@@ -5094,6 +5138,10 @@ def verificar_e_notificar():
                 if tipo_original in ("tarefa_parada", "espera_parada"):
                     registrar_interacao_aprendizado(conn, tipo_original, ref_id_original)
                 enviados += 1
+
+    # Aviso importante que ninguem tocou: repete (so push, o Telegram fica com o 1o envio).
+    if subs:
+        enviados += _repetir_avisos_insistentes(conn, subs, silencioso, em_hiperfoco)
 
     # Uber agendado: passou o tempo de espera, busca o preco de verdade
     # (trava com fare_id) e avisa - a corrida so sai com confirmacao

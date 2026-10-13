@@ -33,7 +33,7 @@
 // buscar tudo de novo. Lista conferida contra scripts.html/head.html/fase7.css.
 // v16: Fase 8 F1 - gastos.js/gastos.html mudaram (lista unificada com selo de origem
 // Nubank/manual, botao "Sincronizar Nubank").
-const CACHE_NAME = "painel-pessoal-v69";
+const CACHE_NAME = "painel-pessoal-v70";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -280,7 +280,10 @@ self.addEventListener("push", (event) => {
     icon: "/static/icons/icon-192.png",
     badge: "/static/icons/icon-192.png",
     timestamp: Date.now(),
-    data: { url: typeof dados.url === "string" && dados.url.startsWith("/") ? dados.url : "/" },
+    data: {
+      url: typeof dados.url === "string" && dados.url.startsWith("/") ? dados.url : "/",
+      tag: dados.tag ? String(dados.tag) : "",
+    },
   };
   // mesmo aviso de novo (mesma tag) substitui o anterior em vez de empilhar - e ainda toca
   if (dados.tag) {
@@ -295,8 +298,18 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || "/";
+  const tag = (event.notification.data && event.notification.data.tag) || "";
+  // aviso importante insiste ate ser tocado (notificacoes.INSISTENCIA): avisa que viu
+  const viu = tag
+    ? fetch("/api/push/aberto", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag }),
+      }).catch(() => {})
+    : Promise.resolve();
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((janelas) => {
+    Promise.all([viu, clients.matchAll({ type: "window", includeUncontrolled: true })]).then(([, janelas]) => {
       const aberta = janelas.find((j) => new URL(j.url).origin === self.location.origin);
       if (aberta) {
         aberta.postMessage({ tipo: "abrir-aviso", url });

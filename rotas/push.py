@@ -32,6 +32,23 @@ def push_inscrever():
     conn.close()
     return jsonify({"ok": True})
 
+@bp.route("/api/push/aberto", methods=["POST"])
+def push_aberto():
+    """Toque numa notificacao (service worker): aviso importante para de insistir
+    (notificacoes.INSISTENCIA). Tag = "<tipo>-<ref_id>", a mesma do envio."""
+    corpo = app_modulo()._corpo_json()
+    tag = corpo.get("tag") if isinstance(corpo, dict) else None
+    if not isinstance(tag, str) or not tag.strip() or len(tag) > 120:
+        return jsonify({"error": "tag inválida"}), 400
+    import db
+
+    conn = get_db()
+    try:
+        n = db.marcar_aviso_aberto(conn, tag.strip())
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "parou": n})
+
 @bp.route("/api/push/testar", methods=["POST"])
 def push_testar():
     if not push_client.configurado():

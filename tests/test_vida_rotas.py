@@ -304,6 +304,25 @@ class TarefaEmpacadaTestCase(VidaBaseTestCase):
         with patch("claude_client.requebrar_tarefa", side_effect=ValueError):
             self.assertEqual(self.client.post(f"/api/tasks/{a}/requebrar").status_code, 502)
 
+    def test_desfazer_quebra_apaga_todos_os_passos_e_mantem_a_tarefa(self):
+        a = self._tarefa("Fazer Pix pro Alcir")
+        outra = self._tarefa("Outra")
+        conn = self._conn()
+        conn.execute("INSERT INTO subtasks (task_id, title, position, completed_at) VALUES (?, 'feito', 0, datetime('now'))", (a,))
+        conn.execute("INSERT INTO subtasks (task_id, title, position) VALUES (?, 'aberto', 1)", (a,))
+        conn.execute("INSERT INTO subtasks (task_id, title, position) VALUES (?, 'de outra', 0)", (outra,))
+        conn.commit()
+        r = self.client.delete(f"/api/tasks/{a}/subtasks")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()["removidos"], 2)
+        por_id = {t["id"]: t for t in self.client.get("/api/tasks").get_json()}
+        self.assertEqual(por_id[a]["subtasks"], [])
+        self.assertEqual(por_id[a]["title"], "Fazer Pix pro Alcir")
+        self.assertEqual([s["title"] for s in por_id[outra]["subtasks"]], ["de outra"])
+        # sem passos: segue 200 e nao quebra nada
+        self.assertEqual(self.client.delete(f"/api/tasks/{a}/subtasks").get_json()["removidos"], 0)
+        self.assertEqual(self.client.delete("/api/tasks/999/subtasks").status_code, 404)
+
     def test_push_de_tarefa_parada_oferece_quebrar(self):
         self._tarefa("Renovar seguro", due=(date.today() - timedelta(days=10)).isoformat())
         corpos = self._notificar()

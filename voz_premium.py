@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import requests
 
@@ -98,24 +98,51 @@ def _hora_falada(hora) -> str:
     return f" às {h}h" if m == 0 else f" às {h}h{m:02d}"
 
 
-def frase_curta_manha(conn, hoje: date | None = None, nome: str = NOME_PADRAO) -> str:
-    hoje = hoje or date.today()
+def saudacao_da_hora(hora: int) -> str:
+    """Mesma regra do titulo do Inicio (saudacaoDaHora, static/js/secoes/hoje/saudacao.js)."""
+    if hora < 5:
+        return "Boa noite"
+    if hora < 12:
+        return "Bom dia"
+    if hora < 18:
+        return "Boa tarde"
+    return "Boa noite"
+
+
+def frase_curta_manha(conn, hoje: date | None = None, nome: str = NOME_PADRAO, agora: datetime | None = None) -> str:
+    """Botao "Ouvir" do Inicio. Antes dava "Bom dia" sempre (bug do Alex, 2026-10-13): a
+    saudacao segue a hora e, depois do meio-dia, fala do que AINDA falta e da proxima."""
+    agora = agora or datetime.now()
+    hoje = hoje or agora.date()
+    saudacao = f"{saudacao_da_hora(agora.hour)}, {nome}."
     tarefas = conn.execute(
         "SELECT title, hora FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
         "AND due_date = ? ORDER BY hora IS NULL, hora, id",
         (hoje.isoformat(),),
     ).fetchall()
+    manha = 5 <= agora.hour < 12
     if not tarefas:
-        return f"Bom dia, {nome}. Nada marcado pra hoje. Dá uma olhada no painel."
-    primeira = tarefas[0]
-    titulo = _titulo_curto(primeira["title"])
-    hora = _hora_falada(primeira["hora"])
+        if manha:
+            return f"{saudacao} Nada marcado pra hoje. Dá uma olhada no painel."
+        return f"{saudacao} Nada pendente pra hoje."
+    if manha:
+        primeira = tarefas[0]
+        titulo = _titulo_curto(primeira["title"])
+        hora = _hora_falada(primeira["hora"])
+        if len(tarefas) == 1:
+            return f"{saudacao} Hoje é só 1 tarefa: {titulo}{hora}. Dá uma olhada no painel."
+        return (
+            f"{saudacao} Hoje são {len(tarefas)} tarefas, a primeira é {titulo}{hora}. "
+            "O resto tá no painel."
+        )
+    # tarde/noite: a proxima e a primeira com horario ainda pela frente (senao a primeira da lista)
+    agora_hm = agora.strftime("%H:%M")
+    proxima = next((t for t in tarefas if (t["hora"] or "") >= agora_hm and _hora_falada(t["hora"])), tarefas[0])
+    titulo = _titulo_curto(proxima["title"])
+    hora = _hora_falada(proxima["hora"])
     if len(tarefas) == 1:
-        return f"Bom dia, {nome}. Hoje é só 1 tarefa: {titulo}{hora}. Dá uma olhada no painel."
-    return (
-        f"Bom dia, {nome}. Hoje são {len(tarefas)} tarefas, a primeira é {titulo}{hora}. "
-        "O resto tá no painel."
-    )
+        return f"{saudacao} Ainda falta 1 tarefa hoje: {titulo}{hora}."
+    return f"{saudacao} Ainda faltam {len(tarefas)} tarefas hoje, a próxima é {titulo}{hora}."
 
 
 def frase_curta_noite(conn, hoje: date | None = None) -> str:

@@ -22,6 +22,16 @@ function abrirAbaDoAviso(url) {
     return;
   }
   if (aba && /^[a-z-]+$/.test(aba) && document.getElementById(`tab-${aba}`)) showTab(aba);
+  // aviso de uma tarefa (2026-10-13): abre a propria tarefa, com concluir / pra amanha a mao
+  let tarefa = null;
+  try {
+    tarefa = new URL(url, location.origin).searchParams.get("tarefa");
+  } catch {
+    tarefa = null;
+  }
+  if (aba === "tarefas" && tarefa && /^\d+$/.test(tarefa) && typeof focarTarefaDoAviso === "function") {
+    focarTarefaDoAviso(tarefa);
+  }
 }
 if (new URLSearchParams(location.search).has("aba")) {
   const urlAviso = location.href;

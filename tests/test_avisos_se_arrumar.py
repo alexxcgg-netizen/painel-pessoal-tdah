@@ -155,13 +155,13 @@ class VerificarENotificarTestCase(_Base):
         enviados = self._rodar(datetime(2026, 10, 11, 19, 5))
         avisos = [e for e in enviados if e["titulo"] == "Hora de se arrumar"]
         self.assertEqual(len(avisos), 1, enviados)
-        self.assertEqual(avisos[0]["url"], "/?aba=tarefas")
+        self.assertEqual(avisos[0]["url"], f"/?aba=tarefas&tarefa={tid}")
         self.assertEqual(avisos[0]["tag"], f"se_arrumar-{tid}")
         # 19:52 (dentro dos 10 min): sai "Hora de sair", nunca o "daqui a pouco" de tarefa comum
         enviados = self._rodar(datetime(2026, 10, 11, 19, 52))
         titulos = [e["titulo"] for e in enviados]
         self.assertIn("Hora de sair", titulos)
-        self.assertNotIn("Lembrete", titulos)
+        self.assertNotIn("Tá na hora", titulos)
 
     def test_tempo_de_se_arrumar_vem_da_configuracao(self):
         db.definir_configuracao(self.conn, "tempo_se_arrumar_min", "60")
@@ -201,6 +201,11 @@ class RotasEPayloadTestCase(_Base):
         self.assertEqual(app._url_do_aviso("conta_a_vencer"), "/?aba=construtora")
         self.assertEqual(app._url_do_aviso("voo_sair"), "/?aba=aviacao")
         self.assertEqual(app._url_do_aviso("qualquer_coisa"), "/")
+        # aviso de uma tarefa abre a propria tarefa; tag sem id (ou de outro tipo) cai na aba
+        self.assertEqual(app._url_do_aviso("tarefa_horario", "tarefa_horario-42"), "/?aba=tarefas&tarefa=42")
+        self.assertEqual(app._url_do_aviso("tarefas_atrasadas", "tarefas_atrasadas-0"), "/?aba=tarefas")
+        self.assertEqual(app._url_do_aviso("tarefa_horario", "lixo"), "/?aba=tarefas")
+        self.assertEqual(app._url_do_aviso("conta_a_vencer", "conta_a_vencer-7"), "/?aba=construtora")
 
     def test_contexto_do_chat_tem_o_tempo_de_se_arrumar(self):
         self.assertIn("se arrumar pra sair (date, festa, jantar) = 40 min", app._contexto_chat(self.conn))

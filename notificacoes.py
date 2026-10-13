@@ -100,6 +100,53 @@ def esperas_paradas(conn, dias_minimo: int = 5, hoje: date | None = None) -> lis
     return avisos
 
 
+# Avisos importantes que INSISTEM (2026-10-13, pedido do Alex: "avisa uma ou duas vezes so e
+# se eu nao ver passa em branco"). Minutos depois do 1o envio em que cada repeticao sai, se ele
+# nao tocou na notificacao (aberto_em) e o aviso ainda vale (tarefa nao concluida). O resto dos
+# avisos continua indo uma vez so - insistir em tudo vira barulho.
+INSISTENCIA = {
+    "tarefa_horario": (10, 30),
+    "compromisso_chegando": (5,),
+    "se_arrumar": (10,),
+    "hora_de_sair": (5,),
+    "voo_sair": (5, 15),
+    "conta_a_vencer": (180,),
+    "conta_pessoal": (180,),
+}
+# tipos cujo ref_id e o id da tarefa: concluiu = para de insistir
+INSISTENCIA_DE_TAREFA = {"tarefa_horario", "se_arrumar", "hora_de_sair"}
+
+
+def repeticoes_devidas(pendentes: list[dict], agora: datetime) -> tuple[list[dict], list[dict]]:
+    """(repetir_agora, encerrar) a partir das linhas abertas de avisos_insistentes. Puro.
+    Encerra o que e de outro dia, de tipo que nao insiste mais ou que ja usou todas as
+    repeticoes; repete o que chegou na hora da proxima."""
+    repetir, encerrar = [], []
+    hoje = agora.date().isoformat()
+    for a in pendentes:
+        passos = INSISTENCIA.get(a["tipo"])
+        feitas = int(a.get("tentativas") or 1) - 1  # tentativas conta o 1o envio
+        if not passos or a.get("data") != hoje or feitas >= len(passos):
+            encerrar.append(a)
+            continue
+        try:
+            enviado = datetime.fromisoformat(a["enviado_em"])
+        except (TypeError, ValueError):
+            encerrar.append(a)
+            continue
+        if agora >= enviado + timedelta(minutes=passos[feitas]):
+            repetir.append(a)
+    return repetir, encerrar
+
+
+def texto_repeticao(tipo: str, titulo: str, corpo: str, repeticao: int) -> tuple[str, str]:
+    """Repeticao `repeticao` (1, 2...) do aviso: mesmo assunto, tom um pouco mais direto na
+    ultima. Sem cobranca nem drama (mesmo espirito de tarefas_horario_passou)."""
+    ultima = repeticao >= len(INSISTENCIA.get(tipo, ()))
+    prefixo = "Última chamada" if ultima else "De novo"
+    return f"{prefixo} · {titulo}", corpo
+
+
 def tarefas_com_horario_chegando(
     conn, agora: datetime | None = None, antecedencia_minutos: int = 10
 ) -> list[tuple[int, str]]:
@@ -126,10 +173,10 @@ def tarefas_com_horario_chegando(
     for r in rows:
         if r["hora"] > hora_atual:
             avisos.append(
-                (r["id"], f"Daqui a pouco: \"{r['title']}\" as {r['hora']} - já va se preparando.")
+                (r["id"], f"Daqui a pouco, às {r['hora']}: {r['title']}. Vai fechando o que tá fazendo.")
             )
         else:
-            avisos.append((r["id"], f"\"{r['title']}\" - {r['hora']}."))
+            avisos.append((r["id"], f"{r['title']} - é agora ({r['hora']}). Toca aqui pra marcar quando fizer."))
     return avisos
 
 
@@ -243,7 +290,7 @@ def tarefas_preparo(
             continue
         falta = (quando - agora).total_seconds() / 60
         if de_min <= falta < ate_min:
-            avisos.append((r["id"], f"{r['title']} às {r['hora']} - faltam {round(falta)} min, vai fechando o que tá fazendo."))
+            avisos.append((r["id"], f"{r['title']} às {r['hora']} - faltam {round(falta)} min. Dá tempo de fechar o que tá fazendo com calma."))
     return avisos
 
 
@@ -901,7 +948,7 @@ def tarefas_horario_passou(conn, agora: datetime | None = None, minutos_depois: 
         (hoje, limite),
     ).fetchall()
     return [
-        (r["id"], f"\"{r['title']}\" - a tarefa era {r['hora']}, ainda da tempo de resolver hoje.")
+        (r["id"], f"\"{r['title']}\" - a tarefa era {r['hora']}, ainda dá tempo de resolver hoje.")
         for r in rows
     ]
 
