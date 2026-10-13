@@ -176,6 +176,45 @@ document.addEventListener("aba:aberta", (ev) => {
   }
 });
 
+// iPhone (app na tela inicial): sair com o teclado aberto e voltar deixava o iOS com a medida
+// da tela de quando o teclado estava aberto - o campo do chat, a nota e a barra de abas (tudo
+// position: fixed no fundo) ficavam pendurados no meio da tela ate a proxima rolagem. Fecha o
+// teclado antes de sair e, na volta (e quando o teclado recolhe), forca o iOS a medir de novo
+// com um vai-e-volta de 1px na rolagem - no mesmo frame, nao aparece na tela.
+const _CAMPO_DE_TECLADO = "input, textarea, select, [contenteditable]";
+
+function _realinharTela() {
+  const y = window.scrollY;
+  window.scrollTo(window.scrollX, y > 0 ? y - 1 : y + 1);
+  window.scrollTo(window.scrollX, y);
+}
+
+function _realinharDepoisDoTeclado() {
+  requestAnimationFrame(_realinharTela);
+  setTimeout(_realinharTela, 350); // o teclado do iOS leva ~300 ms pra recolher
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    const ativo = document.activeElement;
+    if (ativo && ativo.matches && ativo.matches(_CAMPO_DE_TECLADO)) ativo.blur();
+  } else {
+    _realinharDepoisDoTeclado();
+  }
+});
+window.addEventListener("pageshow", _realinharDepoisDoTeclado);
+if (window.visualViewport) {
+  let _alturaVisivel = window.visualViewport.height;
+  window.visualViewport.addEventListener("resize", () => {
+    const altura = window.visualViewport.height;
+    const ativo = document.activeElement;
+    const digitando = ativo && ativo.matches && ativo.matches(_CAMPO_DE_TECLADO);
+    // cresceu bastante = o teclado recolheu
+    if (altura > _alturaVisivel + 80 && !digitando) _realinharDepoisDoTeclado();
+    _alturaVisivel = altura;
+  });
+}
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     loadVidaHoje();
