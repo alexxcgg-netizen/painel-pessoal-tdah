@@ -138,6 +138,7 @@ def montar_widget(
     habitos: dict | None = None,
     custo_ia_percentual: float | None = None,
     mostrar_valores: bool = False,
+    comida: dict | None = None,
 ) -> dict:
     """Monta o JSON EXATO do widget (ver docs/widget-widgy.md) a partir de
     dados ja coletados. Campo ausente vira `null` e a linha correspondente
@@ -155,11 +156,16 @@ def montar_widget(
       `total > 0` (dia sem nenhum habito devido nao tem o que mostrar).
     - `custo_ia_percentual`: None ou numero (pode passar de 100 com o teto
       ja estourado) - normalmente vem de `ia.teto`/`ia.medicao`.
+    - `comida` (2026-10-13, widget do Scriptable): None ou {"kcal", "proteina_g", "refeicoes",
+      "meta_kcal", "meta_proteina_g"} - o que ele comeu hoje pelas fotos do prato
+      (refeicoes.py) contra a meta do perfil. Metas podem ser None (perfil sem peso).
 
     `estado`: "normal" com pelo menos um campo preenchido, "vazio" sem
     nenhum dado pra mostrar (nunca "erro" aqui - erro e responsabilidade de
     quem coleta os dados, ver `estado_erro`)."""
     foco_out = {"titulo": foco["titulo"], "em_minutos": foco["em_minutos"]} if foco else None
+    if foco_out and foco.get("hora"):
+        foco_out["hora"] = foco["hora"]
 
     conta_out = None
     if proxima_conta:
@@ -179,7 +185,17 @@ def montar_widget(
     if custo_ia_percentual is not None:
         custo_ia_out = {"percentual_teto": round(custo_ia_percentual)}
 
-    tem_algo = any([foco_out, conta_out, habitos_out, custo_ia_out])
+    comida_out = None
+    if comida and (comida.get("refeicoes") or comida.get("meta_kcal")):
+        comida_out = {
+            "kcal": round(comida.get("kcal") or 0),
+            "proteina_g": round(comida.get("proteina_g") or 0),
+            "refeicoes": int(comida.get("refeicoes") or 0),
+            "meta_kcal": comida.get("meta_kcal"),
+            "meta_proteina_g": comida.get("meta_proteina_g"),
+        }
+
+    tem_algo = any([foco_out, conta_out, habitos_out, custo_ia_out, comida_out])
     estado = "normal" if tem_algo else "vazio"
 
     linhas = [
@@ -201,6 +217,7 @@ def montar_widget(
         "proxima_conta": conta_out,
         "habitos": habitos_out,
         "custo_ia": custo_ia_out,
+        "comida": comida_out,
         "linhas": linhas,
     }
 
@@ -218,6 +235,7 @@ def estado_erro(agora_utc: datetime) -> dict:
         "proxima_conta": None,
         "habitos": None,
         "custo_ia": None,
+        "comida": None,
         "linhas": [],
     }
 
@@ -254,7 +272,23 @@ def _coletar_foco(app_mod, conn, agora: datetime) -> dict | None:
     except (KeyError, ValueError, TypeError):
         return None
     em_minutos = max(0, round((inicio - agora).total_seconds() / 60))
-    return {"titulo": escolhido["titulo"], "em_minutos": em_minutos}
+    return {"titulo": escolhido["titulo"], "em_minutos": em_minutos, "hora": inicio.strftime("%H:%M")}
+
+
+def _coletar_comida(conn, hoje: date) -> dict | None:
+    """O que ele comeu hoje pelas fotos do prato contra a meta do perfil (refeicoes.py faz a
+    soma e a meta - nada recalculado aqui)."""
+    import refeicoes
+
+    tot = refeicoes.do_dia(conn, hoje)
+    meta = refeicoes.meta_do_dia(conn, hoje)
+    return {
+        "kcal": tot["kcal"],
+        "proteina_g": tot["proteina_g"],
+        "refeicoes": tot["refeicoes"],
+        "meta_kcal": meta["kcal"] if meta else None,
+        "meta_proteina_g": meta["proteina_g"] if meta else None,
+    }
 
 
 def _coletar_proxima_conta(app_mod, conn, hoje: date) -> dict | None:
@@ -340,6 +374,10 @@ def coletar_resumo(app_mod, mostrar_valores: bool = False) -> dict:
             foco = _coletar_foco(app_mod, conn, agora_local)
             proxima_conta = _coletar_proxima_conta(app_mod, conn, hoje)
             habitos = _coletar_habitos(conn, hoje, app_mod._semana_de)
+            try:
+                comida = _coletar_comida(conn, hoje)
+            except Exception:
+                comida = None  # comida e extra - nunca derruba o resto do widget
         finally:
             conn.close()
         custo_ia_percentual = _coletar_custo_ia_percentual()
@@ -350,6 +388,7 @@ def coletar_resumo(app_mod, mostrar_valores: bool = False) -> dict:
             habitos=habitos,
             custo_ia_percentual=custo_ia_percentual,
             mostrar_valores=mostrar_valores,
+            comida=comida,
         )
     except Exception:
         return estado_erro(agora_utc)
@@ -372,6 +411,28 @@ def widget_api():
     mostrar_valores = request.args.get("mostrar_valores") == "1"
     resumo = coletar_resumo(app_modulo(), mostrar_valores=mostrar_valores)
     return jsonify(resumo)
+
+
+@bp.route("/api/widget/instalacao", methods=["GET"])
+def widget_instalacao():
+    """2026-10-13: Configurações > "Widget do iPhone" - entrega o script do Scriptable e o token
+    pro Alex COPIAR no proprio iPhone (sem passar arquivo/senha do PC pro celular na mao).
+    Rota NORMAL (sessao/PIN - nao esta em ROTAS_COM_TOKEN) e recusada no modo visitante, porque
+    devolve o token. O endereco (URL) quem monta e o navegador (location.origin), que e
+    exatamente o que o iPhone ja usa pra chegar no painel."""
+    from rotas._base import app_modulo
+
+    recusa = app_modulo()._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    caminho = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scriptable", "scriptable-widget.js")
+    try:
+        with open(caminho, encoding="utf-8") as f:
+            script = f.read()
+    except OSError:
+        return jsonify({"error": "script do widget não encontrado"}), 500
+    token = _token_widget_esperado()
+    return jsonify({"configurado": bool(token), "token": token, "script": script})
 
 
 @bp.route("/widget", methods=["GET"])

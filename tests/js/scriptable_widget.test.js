@@ -35,6 +35,13 @@ class MockFont {
   }
 }
 
+class MockSize {
+  constructor(w, h) {
+    this.width = w;
+    this.height = h;
+  }
+}
+
 class MockWidgetText {
   constructor(text) {
     this.text = text;
@@ -190,6 +197,7 @@ const CAMINHO_SCRIPT = path.join(__dirname, "..", "..", "scriptable", "scriptabl
 function prepararGlobaisBase() {
   global.Color = MockColor;
   global.Font = MockFont;
+  global.Size = MockSize;
   global.ListWidget = MockListWidget;
   global.Request = MockRequest;
   global.FileManager = criarMockFileManager();
@@ -224,10 +232,11 @@ const JSON_NORMAL = {
   versao: 1,
   atualizado_em: "2026-09-23T20:10:00Z",
   estado: "normal",
-  foco: { titulo: "Revisar contrato", em_minutos: 19 },
+  foco: { titulo: "Revisar contrato", em_minutos: 19, hora: "14:30" },
   proxima_conta: { nome: "Cartão", em_dias: 3 },
   habitos: { feitos: 3, total: 5 },
   custo_ia: { percentual_teto: 42 },
+  comida: { kcal: 1066, proteina_g: 102, refeicoes: 2, meta_kcal: 2550, meta_proteina_g: 115 },
   linhas: [
     "Foco: Revisar contrato em 19 min",
     "Conta: Cartão em 3 dias",
@@ -272,64 +281,105 @@ function handlerFalha() {
 // Estado normal, nos 4 tamanhos
 // ============================================================
 
-test("normal / small: mostra as 2 primeiras linhas e usa a cor de destaque no titulo", async () => {
+// 2026-10-13: widget "proximo + comida" (escolha do Alex) - conta/habitos/IA saem do layout.
+function acharBarras(node) {
+  const out = [];
+  const visitar = (n) => {
+    if (!n || !Array.isArray(n.children)) return;
+    if (n.size && n.size.height === 5 && n.backgroundColor && n.backgroundColor.hex === "#1f272e") {
+      const cheio = n.children.find((c) => c.size);
+      out.push({ largura: n.size.width, cheio: cheio ? cheio.size.width : 0 });
+    }
+    n.children.forEach(visitar);
+  };
+  visitar(node);
+  return out;
+}
+
+test("normal / small: proximo (hora, 'em X min', titulo) + kcal do dia com barra", async () => {
   global.config.widgetFamily = "small";
   global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
 
   const widget = await widgetModulo.montarWidget();
   const textos = coletarTextos(widget);
 
-  assert.ok(textos.includes("PAINEL"));
-  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"));
-  assert.ok(textos.includes("Conta: Cartão em 3 dias"));
-  // small mostra so as 2 primeiras linhas (espaco curto)
-  assert.ok(!textos.includes("Hábitos: 3/5"));
-
-  const cores = coletarCores(widget);
-  assert.ok(cores.includes("#41aa75")); // --cor-painel
-  assert.equal(widget.backgroundColor.hex, "#000000"); // --bg
+  for (const t of ["PRÓXIMO", "14:30", "em 19 min", "Revisar contrato", "COMIDA HOJE", "1.066 / 2.550 kcal"]) {
+    assert.ok(textos.includes(t), `faltou "${t}" em ${JSON.stringify(textos)}`);
+  }
+  // small nao tem proteina nem conta/habitos/IA
+  assert.ok(!textos.some((t) => t.startsWith("Proteína")));
+  assert.ok(!textos.some((t) => /Cartão|Hábitos|IA/.test(t)));
+  const barras = acharBarras(widget);
+  assert.equal(barras.length, 1);
+  assert.equal(barras[0].cheio, Math.round(126 * (1066 / 2550)));
+  assert.equal(widget.backgroundColor.hex, "#000000");
+  assert.ok(coletarCores(widget).includes("#9fdcb0"), "rotulo da comida na cor do card refeicao");
+  // tocar abre o chat
+  assert.equal(widget.url, "http://SEU-IP-OU-DOMINIO:5001/?aba=assistente");
 });
 
-test("normal / medium: mostra as 4 linhas mais os blocos de habitos e IA", async () => {
+test("normal / medium: duas colunas - proximo e comida com kcal + proteina e as duas barras", async () => {
   global.config.widgetFamily = "medium";
   global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
 
   const widget = await widgetModulo.montarWidget();
   const textos = coletarTextos(widget);
 
-  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"));
-  assert.ok(textos.includes("Conta: Cartão em 3 dias"));
-  assert.ok(textos.includes("Hábitos: 3/5"));
-  assert.ok(textos.includes("IA: 42% do teto"));
-  // tiles com valor cru (numero) + rotulo
-  assert.ok(textos.includes("3/5"));
-  assert.ok(textos.includes("42%"));
-  assert.ok(textos.includes("hábitos"));
-  assert.ok(textos.includes("IA do teto"));
+  for (const t of ["PRÓXIMO", "14:30", "Revisar contrato", "COMIDA HOJE", "1.066 / 2.550 kcal", "Proteína 102 / 115 g", "2 refeições pela foto"]) {
+    assert.ok(textos.includes(t), `faltou "${t}"`);
+  }
+  const barras = acharBarras(widget);
+  assert.equal(barras.length, 2);
+  assert.equal(barras[1].cheio, Math.round(150 * (102 / 115)));
 });
 
-test("normal / accessoryCircular: mostra a fracao de habitos, sem cor customizada", async () => {
+test("normal / medium sem comida: so o proximo, sem coluna vazia", async () => {
+  global.config.widgetFamily = "medium";
+  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, comida: null });
+  const textos = coletarTextos(await widgetModulo.montarWidget());
+  assert.ok(textos.includes("Revisar contrato"));
+  assert.ok(!textos.includes("COMIDA HOJE"));
+});
+
+test("normal sem foco: 'Nada marcado agora'; meta batida nao estoura a barra; sem meta, sem barra", async () => {
+  global.config.widgetFamily = "small";
+  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, foco: null, comida: { ...JSON_NORMAL.comida, kcal: 3100 } });
+  let widget = await widgetModulo.montarWidget();
+  assert.ok(coletarTextos(widget).includes("Nada marcado agora"));
+  assert.equal(acharBarras(widget)[0].cheio, 126);
+
+  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, comida: { kcal: 800, proteina_g: 40, refeicoes: 1, meta_kcal: null, meta_proteina_g: null } });
+  widget = await widgetModulo.montarWidget();
+  assert.ok(coletarTextos(widget).includes("800 kcal"));
+  assert.equal(acharBarras(widget).length, 0);
+});
+
+test("normal / accessoryCircular: % da meta de kcal, sem cor customizada", async () => {
   global.config.widgetFamily = "accessoryCircular";
   global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
 
   const widget = await widgetModulo.montarWidget();
   const textos = coletarTextos(widget);
 
-  assert.ok(textos.includes("3/5"));
+  assert.ok(textos.includes("42%"), JSON.stringify(textos)); // 1066 / 2550
+  assert.ok(textos.includes("kcal"));
   const cores = coletarCores(widget);
   assert.equal(cores.length, 0, "familia accessory* nao pode setar textColor (iOS ignora/distorce)");
   assert.equal(widget.backgroundColor, null, "familia accessory* nao pode setar backgroundColor");
+
+  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, comida: null });
+  assert.ok(coletarTextos(await widgetModulo.montarWidget()).includes("14:30"));
 });
 
-test("normal / accessoryRectangular: mostra 2 linhas prontas do contrato, sem cor customizada", async () => {
+test("normal / accessoryRectangular: 'hora · titulo' + comida do dia, sem cor customizada", async () => {
   global.config.widgetFamily = "accessoryRectangular";
   global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
 
   const widget = await widgetModulo.montarWidget();
   const textos = coletarTextos(widget);
 
-  assert.equal(textos[0], "Foco: Revisar contrato em 19 min");
-  assert.equal(textos[1], "Conta: Cartão em 3 dias");
+  assert.equal(textos[0], "14:30 · Revisar contrato");
+  assert.equal(textos[1], "1.066 / 2.550 kcal · P 102 g");
   const cores = coletarCores(widget);
   assert.equal(cores.length, 0);
   assert.equal(widget.backgroundColor, null);
@@ -341,8 +391,25 @@ test("familia desconhecida (ex: large) cai no layout de small sem quebrar", asyn
 
   const widget = await widgetModulo.montarWidget();
   const textos = coletarTextos(widget);
-  assert.ok(textos.includes("PAINEL"));
-  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"));
+  assert.ok(textos.includes("PRÓXIMO"));
+  assert.ok(textos.includes("Revisar contrato"));
+});
+
+test("quandoTexto: agora, minutos, horas", () => {
+  assert.equal(widgetModulo.quandoTexto(0), "agora");
+  assert.equal(widgetModulo.quandoTexto(25), "em 25 min");
+  assert.equal(widgetModulo.quandoTexto(80), "em 1h20");
+  assert.equal(widgetModulo.quandoTexto(120), "em 2h");
+  assert.equal(widgetModulo.quandoTexto(undefined), "agora");
+});
+
+test("tocar no widget: so vira link com URL http(s) de verdade", async () => {
+  global.config.widgetFamily = "small";
+  global.args = { widgetParameter: "https://meu-pc.exemplo.ts.net:8443|tok" };
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+  assert.equal((await widgetModulo.montarWidget()).url, "https://meu-pc.exemplo.ts.net:8443/?aba=assistente");
+  global.args = { widgetParameter: "javascript:alert(1)|tok" };
+  assert.equal((await widgetModulo.montarWidget()).url, null);
 });
 
 // ============================================================
@@ -439,7 +506,7 @@ test("cache: 1a busca com sucesso grava; 2a busca falha e usa o cache com 'atual
   // 1a chamada: rede OK -> grava cache
   global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
   const primeiro = await widgetModulo.montarWidget();
-  assert.ok(coletarTextos(primeiro).includes("Foco: Revisar contrato em 19 min"));
+  assert.ok(coletarTextos(primeiro).includes("Revisar contrato"));
   assert.equal(global.FileManager.__store.size, 1, "deveria ter gravado 1 arquivo de cache");
 
   // 2a chamada: rede falha -> deveria usar o cache gravado na 1a
@@ -447,7 +514,7 @@ test("cache: 1a busca com sucesso grava; 2a busca falha e usa o cache com 'atual
   const segundo = await widgetModulo.montarWidget();
   const textos = coletarTextos(segundo);
 
-  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"), "deveria mostrar os dados salvos, nao 'sem conexao'");
+  assert.ok(textos.includes("Revisar contrato"), "deveria mostrar os dados salvos, nao 'sem conexao'");
   assert.ok(
     textos.some((t) => t.startsWith("atualizado")),
     "deveria mostrar 'atualizado ha X' quando usa dados de cache"
@@ -476,7 +543,7 @@ test("cache: resposta HTTP com status de erro (>=400) tambem aciona o fallback",
   };
   const widget = await widgetModulo.montarWidget();
   const textos = coletarTextos(widget);
-  assert.ok(textos.includes("Foco: Revisar contrato em 19 min"));
+  assert.ok(textos.includes("Revisar contrato"));
   assert.ok(textos.some((t) => t.startsWith("atualizado")));
 });
 

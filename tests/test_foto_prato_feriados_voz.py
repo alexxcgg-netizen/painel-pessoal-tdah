@@ -266,3 +266,57 @@ class ConsultarFeriadosToolTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WidgetInstalacaoTestCase(unittest.TestCase):
+    """Configurações > Widget do iPhone: script + token pra copiar no celular, só com PIN."""
+
+    def setUp(self):
+        if db.DB_PATH.exists():
+            db.DB_PATH.unlink()
+        db.init_db()
+        conn = db.get_db()
+        auth.definir_pin(conn, PIN, PIN)
+        conn.commit()
+        conn.close()
+        self.client = app.app.test_client()
+
+    def _logar(self):
+        self.assertEqual(self.client.post("/login", json={"pin": PIN}).status_code, 200)
+
+    def test_sem_login_nao_entrega_nada(self):
+        with patch.dict(os.environ, {"PAINEL_WIDGET_TOKEN": "tok-secreto"}):
+            r = self.client.get("/api/widget/instalacao")
+        self.assertIn(r.status_code, (302, 401))
+        self.assertNotIn(b"tok-secreto", r.data)
+        # o token do widget tambem nao abre esta rota (so a de leitura /api/widget)
+        with patch.dict(os.environ, {"PAINEL_WIDGET_TOKEN": "tok-secreto"}):
+            r = self.client.get("/api/widget/instalacao?token=tok-secreto")
+        self.assertNotIn(b"tok-secreto", r.data)
+
+    def test_com_login_entrega_script_e_token(self):
+        self._logar()
+        with patch.dict(os.environ, {"PAINEL_WIDGET_TOKEN": "tok-secreto"}):
+            dados = self.client.get("/api/widget/instalacao").get_json()
+        self.assertTrue(dados["configurado"])
+        self.assertEqual(dados["token"], "tok-secreto")
+        self.assertIn("function preencherNormal", dados["script"])
+        self.assertIn("COMIDA HOJE", dados["script"])
+
+    def test_sem_token_configurado_avisa(self):
+        self._logar()
+        env = {k: v for k, v in os.environ.items() if k != "PAINEL_WIDGET_TOKEN"}
+        with patch.dict(os.environ, env, clear=True):
+            dados = self.client.get("/api/widget/instalacao").get_json()
+        self.assertFalse(dados["configurado"])
+        self.assertIsNone(dados["token"])
+
+    def test_modo_visitante_recusa(self):
+        self._logar()
+        with self.client.session_transaction() as s:
+            s["modo_visitante"] = True
+            s["modo_visitante_desde"] = time.time()
+        with patch.dict(os.environ, {"PAINEL_WIDGET_TOKEN": "tok-secreto"}):
+            r = self.client.get("/api/widget/instalacao")
+        self.assertEqual(r.status_code, 403)
+        self.assertNotIn(b"tok-secreto", r.data)

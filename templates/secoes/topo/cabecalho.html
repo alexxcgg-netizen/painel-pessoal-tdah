@@ -71,6 +71,37 @@
     </button>
     </div>
 
+    <h2 class="rotulo-tela">iPhone</h2>
+    <div class="mais-grupo config-grupo">
+    <button type="button" id="widget-btn" class="mais-linha config-linha" aria-label="Widget do iPhone" aria-expanded="false">
+      <span class="mais-tile tile-verde"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="17" height="7" rx="2"/></svg></span>
+      <span class="mais-textos"><span class="mais-titulo">Widget do iPhone</span><span class="mais-sub">Próximo compromisso e comida na tela inicial</span></span>
+      <span class="config-estado" aria-hidden="true">Ligado</span>
+      <svg class="mais-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>
+    </button>
+  <div id="widget-painel" class="config-painel" hidden>
+    <p class="silencio-titulo">Widget pelo app Scriptable (grátis)</p>
+    <ol class="widget-passos">
+      <li>Instala o <b>Scriptable</b> pela App Store.</li>
+      <li>Toca em <b>Copiar script</b>, abre o Scriptable, <b>+</b> e cola. Dá o nome "Painel".</li>
+      <li>Na tela inicial: segura o dedo › <b>+</b> › Scriptable › pequeno ou médio. Toca no widget pra editar: <b>Script</b> = Painel e em <b>Parameter</b> cola o que o botão <b>Copiar ajuste</b> copia.</li>
+      <li>Tela de bloqueio também funciona: Personalizar › widgets › Scriptable (redondo ou retangular), mesmo ajuste.</li>
+    </ol>
+    <div class="backup-opcoes">
+      <button type="button" id="widget-copiar-script" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/></svg>
+        Copiar script
+      </button>
+      <button type="button" id="widget-copiar-ajuste" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4.5h5.5V10"/><path d="M19.5 4.5 11 13"/><path d="M18 14v4a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 4 18V9a2.5 2.5 0 0 1 2.5-2.5h4"/></svg>
+        Copiar ajuste
+      </button>
+    </div>
+    <p id="widget-status" class="silencio-descricao" role="status"></p>
+    <p class="silencio-descricao">Tocar no widget abre o chat no Safari (o iPhone não deixa abrir direto o app da tela inicial) - entra com o PIN uma vez e fica logado por ~1 mês. Com o Tailscale ligado no iPhone, funciona fora de casa também.</p>
+  </div>
+    </div>
+
     <h2 class="rotulo-tela">Privacidade e dados</h2>
     <div class="mais-grupo config-grupo">
     <button type="button" id="modo-visitante-btn" class="mais-linha config-linha" aria-label="Ativar modo visitante (esconde financeiro, saúde e decisões)" aria-pressed="false">

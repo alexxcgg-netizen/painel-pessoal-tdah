@@ -179,3 +179,61 @@
 @media (prefers-reduced-motion: reduce) {
   #selo-visitante, #selo-visitante.saindo { animation-duration: 0.01s; }
 }
+
+/* Configuracoes > Widget do iPhone (2026-10-13, cabecalho.js initWidgetIphone): mesmo visual
+   dos botoes de backup (pilula), com estado "copiado" que assenta com quique. */
+#widget-painel[hidden] {
+  display: none;
+}
+.widget-passos {
+  margin: 0.4rem 0 0.8rem;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.widget-passos b {
+  color: var(--text);
+  font-weight: 600;
+}
+#widget-painel .backup-opcoes button {
+  /* igual aos links do Backup logo abaixo (.backup-opcoes a + #tab-config .backup-opcoes a) */
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  min-height: var(--toque-controle);
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--raio-controle);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.2s var(--ease-suave), border-color 0.2s var(--ease-suave), transform 0.35s var(--ease-bounce);
+}
+#widget-painel .backup-opcoes button svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+#widget-painel .backup-opcoes button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+#widget-painel .backup-opcoes button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+#widget-painel .backup-opcoes button.ativo {
+  color: var(--cor-cat-7);
+  border-color: color-mix(in srgb, var(--cor-cat-7) 55%, transparent);
+}
+#widget-status:empty {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  #widget-painel .backup-opcoes button { transition: none; }
+}

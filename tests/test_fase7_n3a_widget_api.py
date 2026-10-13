@@ -170,13 +170,13 @@ class FormatoApiTestCase(_BaseWidgetTestCase):
     def _get(self, query=""):
         return self.client.get(f"/api/widget?token={TOKEN_TESTE}{query}")
 
-    def test_json_tem_exatamente_as_8_chaves_de_topo(self):
+    def test_json_tem_exatamente_as_9_chaves_de_topo(self):
         res = self._get()
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertEqual(
             set(data.keys()),
-            {"versao", "atualizado_em", "estado", "foco", "proxima_conta", "habitos", "custo_ia", "linhas"},
+            {"versao", "atualizado_em", "estado", "foco", "proxima_conta", "habitos", "custo_ia", "comida", "linhas"},
         )
 
     def test_versao_1(self):
@@ -219,6 +219,7 @@ class ColetaFocoTestCase(_BaseWidgetTestCase):
         self.assertIsInstance(data["foco"]["em_minutos"], int)
         self.assertGreaterEqual(data["foco"]["em_minutos"], 0)
         self.assertTrue(any(l.startswith("Foco: Revisar contrato em") for l in data["linhas"]))
+        self.assertEqual(data["foco"]["hora"], daqui_a_pouco)  # widget do Scriptable mostra a hora
 
     def test_tarefa_concluida_nunca_vira_foco(self):
         hoje = date.today().isoformat()
@@ -229,6 +230,40 @@ class ColetaFocoTestCase(_BaseWidgetTestCase):
         self.conn.commit()
         data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
         self.assertIsNone(data["foco"])
+
+
+class ColetaComidaTestCase(_BaseWidgetTestCase):
+    """2026-10-13: o que ele comeu hoje (fotos do prato) contra a meta do perfil."""
+
+    def _get(self):
+        return self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
+
+    def test_sem_refeicao_e_sem_peso_no_perfil_comida_e_null(self):
+        self.assertIsNone(self._get()["comida"])
+
+    def test_refeicoes_de_hoje_somam_e_vem_com_meta(self):
+        import refeicoes
+
+        itens = refeicoes.itens_limpos([{"nome": "Frango", "gramas": 130, "kcal": 207.4, "proteina_g": 41.6}])
+        agora = datetime.now()
+        refeicoes.registrar(self.conn, itens, "almoco", agora)
+        refeicoes.registrar(self.conn, itens, "janta", agora)
+        refeicoes.registrar(self.conn, itens, "almoco", agora - timedelta(days=1))  # ontem nao conta
+        with patch("refeicoes.meta_do_dia", return_value={"kcal": 2550, "proteina_g": 115}):
+            comida = self._get()["comida"]
+        self.assertEqual(comida, {"kcal": 415, "proteina_g": 83, "refeicoes": 2, "meta_kcal": 2550, "meta_proteina_g": 115})
+
+    def test_sem_refeicao_mas_com_meta_mostra_zero_de_meta(self):
+        with patch("refeicoes.meta_do_dia", return_value={"kcal": 2550, "proteina_g": 115}):
+            comida = self._get()["comida"]
+        self.assertEqual(comida["kcal"], 0)
+        self.assertEqual(comida["meta_kcal"], 2550)
+
+    def test_falha_na_comida_nao_derruba_o_widget(self):
+        with patch("rotas.n3a_widget._coletar_comida", side_effect=RuntimeError("tabela")):
+            data = self._get()
+        self.assertNotEqual(data["estado"], "erro")
+        self.assertIsNone(data["comida"])
 
 
 class ColetaProximaContaTestCase(_BaseWidgetTestCase):

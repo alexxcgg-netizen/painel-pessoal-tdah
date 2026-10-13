@@ -1,5 +1,13 @@
 # Widget via Scriptable (tela inicial + tela de bloqueio)
 
+> **2026-10-13 - jeito fácil de instalar:** no painel, *Mais › Configurações › iPhone ›
+> Widget do iPhone* tem **Copiar script** e **Copiar ajuste** (`URL|TOKEN`, montado com o
+> endereço que o próprio iPhone já usa). Copia no celular e cola no Scriptable; não precisa
+> editar nada no script. O conteúdo agora é o que o Alex escolheu: **próximo compromisso/
+> tarefa** (hora, "em X min", título) + **comida de hoje** (kcal e proteína contra a meta, das
+> fotos de prato). Tocar no widget abre o chat (`/?aba=assistente`) no Safari. Conta,
+> hábitos e IA seguem no JSON (`linhas`), só saíram do layout.
+
 Fase 7 (faixa N3b). Um script só — `scriptable/scriptable-widget.js` — cobre
 os 4 tamanhos usando `config.widgetFamily` pra escolher o layout certo:
 

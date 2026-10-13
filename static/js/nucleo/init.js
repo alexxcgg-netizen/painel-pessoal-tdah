@@ -86,6 +86,7 @@ initSilencio();
 initModoViagem();
 initModoVisitante();
 initBackup();
+initWidgetIphone();
 
 document.addEventListener("modo-visitante-mudou", () => {
   loadExpenses();

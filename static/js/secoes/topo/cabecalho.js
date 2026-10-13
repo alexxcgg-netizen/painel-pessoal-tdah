@@ -344,6 +344,58 @@ function initModoViagem() {
   });
 }
 
+// Widget do iPhone (2026-10-13): ao abrir, busca o script do Scriptable + token
+// (/api/widget/instalacao, so com PIN) e deixa os dois botoes de copiar prontos. O texto ja fica
+// em memoria ANTES do toque - o iPhone so deixa escrever na area de transferencia dentro do
+// proprio toque, sem esperar rede no meio.
+function initWidgetIphone() {
+  const btn = $("#widget-btn");
+  const painel = $("#widget-painel");
+  if (!btn || !painel) return;
+  const btnScript = $("#widget-copiar-script");
+  const btnAjuste = $("#widget-copiar-ajuste");
+  const status = $("#widget-status");
+  let script = "";
+  let ajuste = "";
+
+  async function carregar() {
+    status.textContent = "Carregando…";
+    const dados = await apiFetch("/api/widget/instalacao");
+    if (!dados) {
+      status.textContent = "";
+      return;
+    }
+    script = dados.script || "";
+    ajuste = dados.token ? `${location.origin}|${dados.token}` : "";
+    btnScript.disabled = !script;
+    btnAjuste.disabled = !ajuste;
+    status.textContent = dados.configurado
+      ? ""
+      : "Falta criar a chave do widget (PAINEL_WIDGET_TOKEN no .env do PC) - sem ela o widget não consegue ler o painel.";
+  }
+
+  async function copiar(texto, botao, rotulo) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      status.textContent = `${rotulo} copiado.`;
+      botao.classList.add("ativo");
+      setTimeout(() => botao.classList.remove("ativo"), 1200);
+    } catch {
+      status.textContent = "Não consegui copiar - tenta de novo.";
+    }
+  }
+
+  btnScript.addEventListener("click", () => script && copiar(script, btnScript, "Script"));
+  btnAjuste.addEventListener("click", () => ajuste && copiar(ajuste, btnAjuste, "Ajuste"));
+  btn.addEventListener("click", () => {
+    const aberto = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", String(!aberto));
+    btn.classList.toggle("ativo", !aberto);
+    painel.hidden = aberto;
+    if (!aberto && !script) carregar();
+  });
+}
+
 function initBackup() {
   const btn = $("#backup-btn");
   const painel = $("#backup-painel");

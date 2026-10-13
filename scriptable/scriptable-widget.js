@@ -42,6 +42,10 @@ const COR_TEXT_MUTED = "#a7afbc";
 const COR_TEXT_FAINT = "#788292";
 const COR_ACCENT = "#41aa75"; // --cor-painel
 const COR_DANGER = "#ff5c72"; // --danger
+// 2026-10-13 (widget "proximo + comida"): mesmos tokens do app de hoje (static/css/ui/tokens.css)
+const COR_DESTAQUE = "#bfe6ff"; // --cor-destaque
+const COR_COMIDA = "#9fdcb0"; // --cor-cat-7 (card refeicao do chat)
+const COR_TRILHO = "#1f272e"; // --cor-borda
 
 const CACHE_FILENAME = "painel_widget_cache.json";
 
@@ -186,6 +190,136 @@ function linhasDeApoio(dados) {
   return partes.length ? partes : ["Sem dados no momento."];
 }
 
+// ---- Proximo compromisso + comida do dia (2026-10-13) ----
+
+const milhar = (n) => Math.round(Number(n) || 0).toLocaleString("pt-BR");
+
+// 0 -> "agora", 25 -> "em 25 min", 80 -> "em 1h20", 120 -> "em 2h"
+function quandoTexto(minutos) {
+  const m = Math.max(0, Math.round(Number(minutos) || 0));
+  if (m === 0) return "agora";
+  if (m < 60) return `em ${m} min`;
+  const h = Math.floor(m / 60);
+  const resto = m % 60;
+  return resto ? `em ${h}h${String(resto).padStart(2, "0")}` : `em ${h}h`;
+}
+
+// fracao 0..1 do dia contra a meta (null sem meta)
+function fracaoMeta(valor, meta) {
+  if (!meta || !(Number(meta) > 0)) return null;
+  return Math.max(0, Math.min(1, (Number(valor) || 0) / Number(meta)));
+}
+
+// "1.066 / 2.550 kcal" (ou "1.066 kcal" sem meta)
+function comidaKcalTexto(comida) {
+  if (!comida) return "";
+  return comida.meta_kcal ? `${milhar(comida.kcal)} / ${milhar(comida.meta_kcal)} kcal` : `${milhar(comida.kcal)} kcal`;
+}
+
+function comidaProteinaTexto(comida) {
+  if (!comida) return "";
+  return comida.meta_proteina_g
+    ? `Proteína ${milhar(comida.proteina_g)} / ${milhar(comida.meta_proteina_g)} g`
+    : `Proteína ${milhar(comida.proteina_g)} g`;
+}
+
+// barra fina de progresso feita de stacks (sem DrawContext): trilho com o preenchido dentro
+function adicionarBarra(pai, fracao, largura, cor) {
+  const altura = 5;
+  const trilho = pai.addStack();
+  trilho.layoutHorizontally();
+  trilho.size = new Size(largura, altura);
+  trilho.backgroundColor = corDe(COR_TRILHO);
+  trilho.cornerRadius = altura / 2;
+  const f = Math.max(0, Math.min(1, Number(fracao) || 0));
+  if (f > 0) {
+    const cheio = trilho.addStack();
+    cheio.size = new Size(Math.max(altura, Math.round(largura * f)), altura);
+    cheio.backgroundColor = corDe(cor);
+    cheio.cornerRadius = altura / 2;
+  }
+  trilho.addSpacer();
+}
+
+function adicionarRotulo(pai, texto, cor) {
+  const t = pai.addText(texto);
+  t.textColor = corDe(cor);
+  t.font = Font.boldSystemFont(10);
+  return t;
+}
+
+// bloco "PRÓXIMO": hora grande + "em 25 min", titulo embaixo
+function blocoProximo(pai, foco, compacto) {
+  adicionarRotulo(pai, "PRÓXIMO", COR_DESTAQUE);
+  pai.addSpacer(4);
+  if (!foco || !foco.titulo) {
+    const livre = pai.addText("Nada marcado agora");
+    livre.textColor = corDe(COR_TEXT_MUTED);
+    livre.font = Font.systemFont(13);
+    livre.minimumScaleFactor = 0.8;
+    return;
+  }
+  const linha = pai.addStack();
+  linha.layoutHorizontally();
+  if (linha.bottomAlignContent) linha.bottomAlignContent();
+  if (foco.hora) {
+    const hora = linha.addText(foco.hora);
+    hora.textColor = corDe(COR_TEXT);
+    hora.font = Font.boldSystemFont(compacto ? 20 : 24);
+    linha.addSpacer(6);
+  }
+  const quando = linha.addText(quandoTexto(foco.em_minutos));
+  quando.textColor = corDe(COR_TEXT_MUTED);
+  quando.font = Font.systemFont(11);
+  pai.addSpacer(2);
+  const titulo = pai.addText(foco.titulo);
+  titulo.textColor = corDe(COR_TEXT);
+  titulo.font = Font.systemFont(compacto ? 13 : 14);
+  titulo.lineLimit = 2;
+  titulo.minimumScaleFactor = 0.8;
+}
+
+// bloco "COMIDA HOJE": kcal contra a meta + barra; no medio tambem proteina + barra
+function blocoComida(pai, comida, largura, completo) {
+  adicionarRotulo(pai, "COMIDA HOJE", COR_COMIDA);
+  pai.addSpacer(4);
+  const kcal = pai.addText(comidaKcalTexto(comida));
+  kcal.textColor = corDe(COR_TEXT);
+  kcal.font = Font.boldSystemFont(completo ? 15 : 12);
+  kcal.minimumScaleFactor = 0.7;
+  kcal.lineLimit = 1;
+  const fk = fracaoMeta(comida.kcal, comida.meta_kcal);
+  if (fk !== null) {
+    pai.addSpacer(4);
+    adicionarBarra(pai, fk, largura, COR_COMIDA);
+  }
+  if (!completo) return;
+  pai.addSpacer(8);
+  const prot = pai.addText(comidaProteinaTexto(comida));
+  prot.textColor = corDe(COR_TEXT_MUTED);
+  prot.font = Font.systemFont(11);
+  prot.minimumScaleFactor = 0.7;
+  prot.lineLimit = 1;
+  const fp = fracaoMeta(comida.proteina_g, comida.meta_proteina_g);
+  if (fp !== null) {
+    pai.addSpacer(4);
+    adicionarBarra(pai, fp, largura, COR_COMIDA);
+  }
+  pai.addSpacer(6);
+  const n = Number(comida.refeicoes) || 0;
+  const ref = pai.addText(n ? `${n} ${n === 1 ? "refeição" : "refeições"} pela foto` : "manda a foto do prato no chat");
+  ref.textColor = corDe(COR_TEXT_FAINT);
+  ref.font = Font.systemFont(9);
+}
+
+function adicionarRodape(pai, sufixo) {
+  if (!sufixo) return;
+  pai.addSpacer(6);
+  const rodape = pai.addText(sufixo);
+  rodape.textColor = corDe(COR_TEXT_FAINT);
+  rodape.font = Font.systemFont(9);
+}
+
 // ---- Montagem visual ----
 
 function corDe(hex) {
@@ -242,49 +376,61 @@ function montarRectangular(widget, linha1Texto, linha2Texto) {
   }
 }
 
+// 2026-10-13: o Alex escolheu o que aparece - proximo compromisso/tarefa + comida do dia. Conta,
+// habitos e IA continuam no JSON (linhas), so nao ocupam mais o widget.
 function preencherNormal(widget, familia, dados, sufixo) {
-  const linhas = linhasDeApoio(dados);
+  const foco = dados && dados.foco;
+  const comida = dados && dados.comida;
 
   if (ehTelaBloqueio(familia)) {
     if (familia === "accessoryCircular") {
-      const numero = `${seguro(dados.habitos, "feitos", "-")}/${seguro(dados.habitos, "total", "-")}`;
-      montarCircular(widget, numero, sufixo || "hábitos");
+      const fk = comida ? fracaoMeta(comida.kcal, comida.meta_kcal) : null;
+      if (fk !== null) montarCircular(widget, `${Math.round(fk * 100)}%`, sufixo || "kcal");
+      else if (comida) montarCircular(widget, milhar(comida.kcal), sufixo || "kcal");
+      else if (foco && foco.hora) montarCircular(widget, foco.hora, sufixo || "próximo");
+      else montarCircular(widget, "—", sufixo || "livre");
     } else {
-      montarRectangular(widget, linhas[0], sufixo ? sufixo : linhas[1]);
+      let linha1 = "Nada marcado agora";
+      if (foco && foco.titulo) linha1 = `${foco.hora ? `${foco.hora} · ` : ""}${foco.titulo}`;
+      else if (comida) linha1 = comidaKcalTexto(comida);
+      let linha2 = null;
+      if (foco && foco.titulo && comida) linha2 = `${comidaKcalTexto(comida)} · P ${milhar(comida.proteina_g)} g`;
+      else if (foco && foco.titulo) linha2 = quandoTexto(foco.em_minutos);
+      else if (comida) linha2 = comidaProteinaTexto(comida);
+      montarRectangular(widget, linha1, sufixo || linha2);
     }
     return;
   }
 
   aplicarFundoHome(widget);
-  const titulo = widget.addText("PAINEL");
-  titulo.textColor = corDe(COR_ACCENT);
-  titulo.font = Font.boldSystemFont(10);
-  widget.addSpacer(8);
-
-  const quantasLinhas = familia === "medium" ? linhas.length : Math.min(2, linhas.length);
-  for (let i = 0; i < quantasLinhas; i++) {
-    const linha = widget.addText(linhas[i]);
-    linha.textColor = corDe(i === 0 ? COR_TEXT : COR_TEXT_MUTED);
-    linha.font = Font.systemFont(familia === "medium" ? 12 : 11);
-    linha.minimumScaleFactor = 0.7;
-    if (i < quantasLinhas - 1) widget.addSpacer(6);
-  }
-
   if (familia === "medium") {
-    widget.addSpacer(10);
-    const stats = widget.addStack();
-    stats.layoutHorizontally();
-    stats.spacing = 10;
-    adicionarTile(stats, `${seguro(dados.habitos, "feitos", "-")}/${seguro(dados.habitos, "total", "-")}`, "hábitos");
-    adicionarTile(stats, `${seguro(dados.custo_ia, "percentual_teto", "-")}%`, "IA do teto");
+    const colunas = widget.addStack();
+    colunas.layoutHorizontally();
+    if (colunas.topAlignContent) colunas.topAlignContent();
+    const esquerda = colunas.addStack();
+    esquerda.layoutVertically();
+    // 0 = altura livre (Scriptable); largura fixa so com as duas colunas, pra titulo longo nao
+    // espremer a comida
+    if (comida) esquerda.size = new Size(150, 0);
+    blocoProximo(esquerda, foco, false);
+    if (comida) {
+      colunas.addSpacer(16);
+      const direita = colunas.addStack();
+      direita.layoutVertically();
+      blocoComida(direita, comida, 150, true);
+    } else {
+      colunas.addSpacer();
+    }
+    widget.addSpacer();
+    adicionarRodape(widget, sufixo);
+    return;
   }
 
-  if (sufixo) {
-    widget.addSpacer(8);
-    const rodape = widget.addText(sufixo);
-    rodape.textColor = corDe(COR_TEXT_FAINT);
-    rodape.font = Font.systemFont(9);
-  }
+  // small (e qualquer familia desconhecida)
+  blocoProximo(widget, foco, true);
+  widget.addSpacer();
+  if (comida) blocoComida(widget, comida, 126, false);
+  adicionarRodape(widget, sufixo);
 }
 
 function preencherVazio(widget, familia, dados, sufixo) {
@@ -388,6 +534,10 @@ async function montarWidget() {
 
   const estado = dados && dados.estado ? dados.estado : "normal";
   const sufixo = deCache ? sufixoCache(dados, new Date()) : null;
+  // tocar no widget abre o painel ja na tela da IA (chat). No iPhone isso abre no Safari (iOS nao
+  // deixa link abrir o app da tela de inicio) - o login por PIN de la dura ~1 mes.
+  const { url } = resolverConfig();
+  if (url && /^https?:\/\//.test(url)) widget.url = `${url}/?aba=assistente`;
 
   if (estado === "erro") {
     preencherErroApi(widget, familia, dados, sufixo);
@@ -437,6 +587,8 @@ if (typeof module !== "undefined" && module.exports) {
     salvarCache,
     formatarAtualizadoHaX,
     linhasDeApoio,
+    quandoTexto,
+    comidaKcalTexto,
     montarWidget,
     main,
   };

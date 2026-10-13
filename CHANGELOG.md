@@ -56,6 +56,27 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-13 - Widget do iPhone: próximo compromisso + comida do dia
+
+Pedido do Alex: "conseguiríamos colocar widgets?". Ele escolheu o conteúdo: próximo compromisso/tarefa e comida
+do dia, e tocar no widget abre o chat.
+- Já existia a base (Fase 7: `GET /api/widget` com `PAINEL_WIDGET_TOKEN`, `scriptable/scriptable-widget.js`), mas
+  nunca tinha sido ligada.
+- `/api/widget`: novo `comida` (`{kcal, proteina_g, refeicoes, meta_kcal, meta_proteina_g}`, via `refeicoes.do_dia`/
+  `meta_do_dia`; se falhar vira null e não derruba o resto) e `foco.hora`. Agora são 9 chaves no topo.
+- Script do Scriptable (estado normal redesenhado, mesmos tokens do app):
+  - pequeno: PRÓXIMO (hora grande + "em 25 min" + título) e COMIDA HOJE (kcal/meta + barra);
+  - médio: duas colunas, com proteína e a segunda barra;
+  - bloqueio retangular: "14:30 · título" / "1.066 / 2.550 kcal · P 102 g";
+  - bloqueio redondo: % da meta de kcal.
+  - Barras feitas de stacks, sem DrawContext. `widget.url = <url>/?aba=assistente` (só http/https).
+  - Estados vazio/erro/sem conexão e o cache "atualizado há X" ficaram como estavam.
+- **Configurações › iPhone › Widget do iPhone**: passos e **Copiar script** / **Copiar ajuste** (`location.origin|token`).
+  Vem de `GET /api/widget/instalacao`, que exige login com PIN, é recusada no modo visitante e não abre com o token do
+  widget. Assim nada precisa passar do PC pro celular na mão. Service worker v62.
+- Limite do iOS: link de widget abre no Safari, não no app da tela inicial (o login por PIN no Safari dura ~31 dias).
+  O painel chega no iPhone pelo Tailscale (`tailscale serve`, porta 8443, só dentro da rede dele).
+
 ## 2026-10-13 - Voz com barulho em volta, botão de mandar na hora, feriados e foto do prato
 
 Pedido do Alex: "se tem voz de fundo ela pega e mistura", "depois que paro de falar demora muito pra mandar",
