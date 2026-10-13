@@ -28,6 +28,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   - registro ("gastei", "anota", "marca"...) continua no Haiku barato. `ia/core.py` valida o bloco.
   Regra do `sugerir_tema_estudo` ajustada: não inventa grade de estudo, mas explica conceito
   quando ele pergunta (com aviso pra conferir limite de regulamento na fonte oficial).
+  Haiku (registro/papo curto) subiu de 500 pra 1000 tokens de saída pra não cortar resposta.
   Custo: conversa no Sonnet 5 sai ~20x o Haiku por mensagem (centavos); pra desligar, apagar o
   bloco "conversa" do chat.json.
 

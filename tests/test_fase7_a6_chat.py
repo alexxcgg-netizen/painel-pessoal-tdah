@@ -196,21 +196,21 @@ class LayoutCacheTestCase(unittest.TestCase):
 
 
 class LimitesSaidaTestCase(unittest.TestCase):
-    def test_chat_manda_max_tokens_500(self):
+    def test_chat_manda_max_tokens_1000(self):
         (_, _, _), g = _chat(H1)
-        self.assertEqual(g.chamadas[0]["max_tokens"], 500)
+        self.assertEqual(g.chamadas[0]["max_tokens"], 1000)
         self.assertEqual(g.chamadas[0]["model"], "claude-haiku-5-5")
 
     def test_corte_no_limite_refaz_a_rodada_com_teto_antigo(self):
         respostas = [
-            _resp([_tool("registrar_tarefa", {"titulo": "cort"}, "x")], stop_reason="max_tokens", out_tok=500),
+            _resp([_tool("registrar_tarefa", {"titulo": "cort"}, "x")], stop_reason="max_tokens", out_tok=1000),
             _resp([_texto("Registrei tudo.")], out_tok=900),
         ]
         (texto, acoes, uso), g = _chat(H1, respostas=respostas)
-        self.assertEqual([c["max_tokens"] for c in g.chamadas], [500, chat_mod.MAX_TOKENS_CHAT_ESCALADO])
+        self.assertEqual([c["max_tokens"] for c in g.chamadas], [1000, chat_mod.MAX_TOKENS_CHAT_ESCALADO])
         self.assertEqual(texto, "Registrei tudo.")
         self.assertEqual(acoes, [])
-        self.assertEqual(uso["output_tokens"], 1400)
+        self.assertEqual(uso["output_tokens"], 1900)
         self.assertEqual(uso["input_tokens"], 200)
 
     def test_uso_soma_tokens_de_cache_e_custo(self):
@@ -278,7 +278,7 @@ class CaminhoDiretoMedidoTestCase(unittest.TestCase):
 class ConfigsTestCase(unittest.TestCase):
     def test_configs_da_faixa_validas_e_desligadas(self):
         todas = core.carregar_todas_configs()
-        esperados = {"chat": 500, "analisar_decisao": 700, "redigir_mensagem_dificil": 500}
+        esperados = {"chat": 1000, "analisar_decisao": 700, "redigir_mensagem_dificil": 500}
         for funcao, limite in esperados.items():
             cfg = todas[funcao]
             self.assertFalse(cfg["ativo"], funcao)
