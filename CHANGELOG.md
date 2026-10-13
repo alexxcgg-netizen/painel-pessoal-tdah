@@ -5,6 +5,23 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Cards do chat: acabamento "premium"
+
+Camada nova por cima do registro, sem mexer em renderizador nenhum
+(`static/js/cards-premium.js` + `static/css/secoes/hoje/cards-premium.css`; SW v64). Só em
+resposta NOVA (`CardsPremium.animar` no chat.js, ao lado do `CardsVivos.animar`); histórico e
+`prefers-reduced-motion` ficam no estado final.
+- Chegada com profundidade (sobe, desfoque → nítido, overshoot leve) em cascata de 90 ms e um
+  brilho na cor do card que atravessa o vidro uma vez.
+- Selo de registro (transação, tarefa, lembrete, meta criada, hábito, água...): ícone do topo dá
+  um pulinho com onda; consulta pura não ganha.
+- Odômetro: valor do gasto, hora do lembrete, valores e % da meta rolam dígito a dígito (com
+  motion blur) e voltam pro texto puro no fim; barra da meta enche do zero, meta batida brilha 2x.
+- Tarefa concluída pelo card solta confete curtinho na cor do card (`Cards` chama
+  `CardsPremium.festejar` depois do OK da API); Desfazer faz o card "expirar" antes de apagar.
+- Toque: o card cede um tico (`:active`), menos quando o dedo está num botão/caixinha.
+Prévia com o CSS/JS reais: https://claude.ai/artifact/H4fVSg6BKjycZPVDU5t1jT
+
 ## 2026-10-13 - Voz fala hora/número/sigla certo + chat responde com substância
 
 - **Voz errava "14:30", "R$ 1.250,90", "180g", "TDAH"** (o `eleven_flash_v2_5` lê o texto cru e a

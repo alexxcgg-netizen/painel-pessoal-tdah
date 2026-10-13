@@ -239,6 +239,7 @@ async function enviarChat(texto, opcoes = {}) {
   const grupoCards = anexarCardsResposta(lista, data.cards, data.passos);
   // so a resposta NOVA ganha a entrada animada (o historico abre parado)
   if (grupoCards && typeof CardsVivos !== "undefined") CardsVivos.animar(grupoCards);
+  if (grupoCards && typeof CardsPremium !== "undefined") CardsPremium.animar(grupoCards);
   lista.scrollTop = lista.scrollHeight;
   loadStreak();
 

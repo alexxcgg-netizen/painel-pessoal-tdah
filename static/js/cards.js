@@ -400,6 +400,7 @@
           return;
         }
         marcarDesfeito(cardEl);
+        if (raiz.CardsPremium) raiz.CardsPremium.desfeito(cardEl);
         if (typeof handlers.aoMudar === "function") handlers.aoMudar();
         return;
       }
@@ -434,6 +435,7 @@
       }
       const li = caixa.closest("li");
       if (li) li.classList.toggle("concluida", concluir);
+      if (concluir && raiz.CardsPremium) raiz.CardsPremium.festejar(caixa);
       if (typeof handlers.aoMudar === "function") handlers.aoMudar();
     });
   }
