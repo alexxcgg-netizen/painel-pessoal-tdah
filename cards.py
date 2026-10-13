@@ -113,6 +113,9 @@ DESCRICAO_TOOL = {
     "consultar_agenda": "Consultou a agenda",
     "consultar_voos": "Consultou os voos",
     "briefing_meteo_voo": "Leu o METAR e o TAF",
+    "fazer_pergunta_aviacao": "Montou uma pergunta da banca",
+    "revisar_pergunta_aviacao": "Puxou uma revisão",
+    "responder_pergunta_aviacao": "Corrigiu a resposta",
     "marcar_habito": "Marcou o hábito de hoje",
     "concluir_etapa": "Concluiu a etapa do projeto",
 }
@@ -193,6 +196,7 @@ TIPOS_CARD = (
     "tarefas_lista",
     # professor de aviacao (2026-10-13)
     "briefing_voo",
+    "quiz_aviacao",
 )
 
 
@@ -1014,6 +1018,22 @@ def card_briefing_voo(ef: dict) -> dict | None:
     return novo_card("briefing_voo", data, acoes)
 
 
+def card_quiz_aviacao(ef: dict) -> dict | None:
+    """Pergunta da banca (estudo_quiz.dados_card) - sem a certa enquanto nao respondeu."""
+    d = ef.get("dados")
+    if not isinstance(d, dict) or not isinstance(d.get("id"), int):
+        return None
+    alts = d.get("alternativas")
+    if not isinstance(alts, list) or len(alts) != 4:
+        return None
+    data = {k: d.get(k) for k in ("id", "tema", "enunciado", "alternativas", "caixa", "caixa_max", "revisao")}
+    r = d.get("resposta")
+    if isinstance(r, dict):
+        data["resposta"] = {k: r.get(k) for k in ("escolhida", "correta", "acertou", "explicacao", "caixa",
+                                                  "proxima_revisao")}
+    return novo_card("quiz_aviacao", data)
+
+
 def card_gastos_resumo(ef: dict) -> dict | None:
     d = ef.get("dados")
     if not isinstance(d, dict):
@@ -1172,6 +1192,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_tarefas_lista(conn, ef)
     if entidade == "briefing_voo":
         return card_briefing_voo(ef)
+    if entidade == "quiz_aviacao":
+        return card_quiz_aviacao(ef)
     return None
 
 

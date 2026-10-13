@@ -232,6 +232,7 @@ _RE_CONVERSA = re.compile(
     r"|\bcomo (?:eu )?(?:respondo|escrevo|digo|falo)\b"
     r"|\bdicas?\b|\bduvida\b|\bopiniao\b|\bsincer"
     r"|\bconversa(?:r)?\b|\bdesabaf"
+    r"|\bquiz\b|\bme (?:testa|teste|pergunta)\b|\bme faz (?:uma |mais uma )?pergunta|\bmais uma pergunta\b"
     r"|\bplano de estudo\b|\bestud(?:ar|ando|o)\b|\bprova\b|\bsimulado\b|\bcheck ?ride\b|\bbanca\b"
     r"|\baerodinamica\b|\bmeteorologia\b|\bnavegacao\b|\bregulamento\b|\bteoria de voo\b"
     r"|\bsustentacao\b|\bestol\b|\bperformance\b|\bpeso e balanceamento\b|\bmotor(?:es)?\b"

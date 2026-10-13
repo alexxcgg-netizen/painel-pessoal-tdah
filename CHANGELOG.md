@@ -5,6 +5,25 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Professor de aviação 2: quiz da banca com repetição espaçada
+
+- Ferramentas `fazer_pergunta_aviacao` (a IA escreve a pergunta na própria chamada: enunciado, 4
+  alternativas, certa, explicação - sem chamada extra), `revisar_pergunta_aviacao` e
+  `responder_pergunta_aviacao` (resposta por texto/voz: "é a B"). Sempre nos 3 temas fixos
+  (`estudo.TEMAS`, o enum da ferramenta é testado contra eles).
+- `estudo_quiz.py`: caixas de Leitner por pergunta - errou volta amanhã, acertou espaça 3/7/14/30/60
+  dias; revisão puxa a mais atrasada; responder de novo uma já respondida e não vencida devolve o
+  resultado guardado (não dá pra "farmar" acerto pelo histórico). Linha no contexto do chat:
+  revisões vencidas + acertos da semana.
+- Card `quiz_aviacao`: alternativas clicáveis (POST `/api/estudo/responder`, `rotas/estudo.py`), a
+  certa assenta com tique desenhado + confete, a errada balança 2px, a explicação abre por
+  grid-rows, bolinhas de nível da revisão enchem. O card nunca recebe a resposta antes dele responder.
+  `Cards.registrarAcao` (novo) deixa um tipo de card tratar o próprio clique.
+- Prompt: bloco PROFESSOR (texto curto porque o card já mostra; em modo voz lê enunciado e
+  alternativas; corrige como professor). Roteador: "quiz", "me testa", "me faz uma pergunta" vão pro
+  Sonnet (pergunta de prova precisa do modelo melhor).
+- Testes: `tests/test_estudo_quiz.py`, `tests/js/cards_aviacao.test.js`.
+
 ## 2026-10-13 - Aba Tarefas em ordem de horário
 
 - `GET /api/tasks` (lista padrão) agora sai em ordem de agenda: por dia (atrasada e hoje primeiro),

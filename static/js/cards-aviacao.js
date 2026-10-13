@@ -151,7 +151,137 @@
     );
   });
 
-  const CardsAviacao = { CATEGORIAS };
+  // ================================================================ quiz_aviacao
+  // Pergunta da banca: 4 alternativas clicaveis; a correcao vem do servidor
+  // (/api/estudo/responder) - o card nunca sabe a certa antes de responder.
+  const ICONE_QUIZ =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-5 9 5-9 5-9-5Z"/><path d="M7 11.2V16c0 1.2 2.2 2.5 5 2.5s5-1.3 5-2.5v-4.8"/><path d="M21 9v5"/></svg>';
+  const MARCA_CERTO = '<svg class="qz-marca" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10.5 8.5 14 15 6.5"/></svg>';
+  const MARCA_ERRADO = '<svg class="qz-marca" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8"/></svg>';
+  const LETRAS = "ABCD";
+  const TEMA_CURTO = (t) => String(t || "").replace(/\s*\(.*\)$/, "").replace(/ aeronautica$/i, "").replace(/^Regulamentacao$/i, "Regulamentação").replace(/^Navegacao$/i, "Navegação");
+
+  function quandoVolta(iso) {
+    const d = Cards.parseDia(iso);
+    const h = Cards.parseDia(isoHoje());
+    if (!d || !h) return "";
+    const dias = Math.round((d - h) / 86400000);
+    if (dias <= 0) return "volta hoje";
+    if (dias === 1) return "volta amanhã";
+    return `volta em ${dias} dias`;
+  }
+
+  function pontosCaixa(caixa, max) {
+    const n = Math.max(1, Number(max) || 5);
+    const c = Math.max(0, Math.min(n, Number(caixa) || 0));
+    return (
+      `<span class="qz-caixas" role="img" aria-label="nível ${c} de ${n} na revisão">` +
+      Array.from({ length: n }, (_, i) => `<i class="${i < c ? "cheia" : ""}" style="--k:${i}"></i>`).join("") +
+      `</span>`
+    );
+  }
+
+  function blocoResultado(r, alternativas) {
+    if (!r) return `<div class="qz-explica"><div></div></div>`;
+    const certa = Number(r.correta);
+    const veredito = r.acertou
+      ? "Na mosca."
+      : `Quase. A certa é a ${LETRAS[certa] || "?"}${alternativas && alternativas[certa] ? `: ${esc(alternativas[certa])}` : ""}`;
+    return (
+      `<div class="qz-explica"><div><p class="qz-veredito">${veredito}</p>` +
+      `<p class="qz-porque">${esc(r.explicacao || "")}</p>` +
+      `<p class="qz-prox">${esc(quandoVolta(r.proxima_revisao))}${r.acertou ? "" : " pra você fixar"}</p></div></div>`
+    );
+  }
+
+  function classeAlt(i, r) {
+    if (!r) return "";
+    const c = [];
+    if (i === Number(r.correta)) c.push("certa");
+    if (i === Number(r.escolhida)) c.push("escolhida");
+    if (i === Number(r.escolhida) && !r.acertou) c.push("errada");
+    return c.join(" ");
+  }
+
+  Cards.registrar("quiz_aviacao", (data) => {
+    const alts = lista(data.alternativas);
+    if (!numeroValido(data.id) || alts.length !== 4) return null;
+    const r = data.resposta && typeof data.resposta === "object" ? data.resposta : null;
+    const caixa = r && numeroValido(r.caixa) ? r.caixa : data.caixa;
+    const botoes = alts
+      .map((a, i) => {
+        const cls = classeAlt(i, r);
+        const marca = r && i === Number(r.correta) ? MARCA_CERTO : r && cls.includes("errada") ? MARCA_ERRADO : "";
+        return (
+          `<li><button type="button" class="qz-alt ${cls}" data-acao="quiz_responder" data-alt="${i}"${r ? " disabled" : ""} style="--i:${i}">` +
+          `<span class="qz-letra">${LETRAS[i]}</span><span class="qz-txt">${esc(a)}</span>${marca}</button></li>`
+        );
+      })
+      .join("");
+    return (
+      `<div class="qz" data-quiz-id="${esc(data.id)}" data-estado="${r ? "respondida" : "aberta"}"${r ? ` data-acertou="${r.acertou ? 1 : 0}"` : ""}>` +
+      olhoQuiz(data, caixa) +
+      `<p class="qz-enunciado">${esc(data.enunciado)}</p>` +
+      `<ol class="qz-alts">${botoes}</ol>` +
+      blocoResultado(r, alts) +
+      `</div>`
+    );
+  });
+
+  function olhoQuiz(data, caixa) {
+    return (
+      `<div class="card-resultado-eyebrow">${ICONE_QUIZ}<span>Banca · ${esc(TEMA_CURTO(data.tema))}</span>` +
+      (data.revisao ? `<span class="qz-revisao">revisão</span>` : "") +
+      pontosCaixa(caixa, data.caixa_max) +
+      `</div>`
+    );
+  }
+
+  // clique numa alternativa: trava as 4, manda pro servidor e revela no proprio card
+  if (typeof Cards.registrarAcao === "function") Cards.registrarAcao("quiz_responder", async (btn, cardEl, deps) => {
+    const quiz = btn.closest(".qz");
+    if (!quiz || quiz.dataset.estado !== "aberta" || typeof deps.apiFetch !== "function") return;
+    const escolha = Number(btn.dataset.alt);
+    const botoes = Array.from(quiz.querySelectorAll(".qz-alt"));
+    quiz.dataset.estado = "enviando";
+    botoes.forEach((b) => (b.disabled = true));
+    btn.classList.add("escolhendo");
+    const res = await deps.apiFetch("/api/estudo/responder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: Number(quiz.dataset.quizId), alternativa: LETRAS[escolha] }),
+    });
+    btn.classList.remove("escolhendo");
+    if (!res || !numeroValido(res.correta)) {
+      quiz.dataset.estado = "aberta";
+      botoes.forEach((b) => (b.disabled = false));
+      return;
+    }
+    const alts = botoes.map((b) => (b.querySelector(".qz-txt") || {}).textContent || "");
+    botoes.forEach((b, i) => {
+      const cls = classeAlt(i, res);
+      if (cls) b.className = `qz-alt ${cls}`;
+      if (i === Number(res.correta)) b.insertAdjacentHTML("beforeend", MARCA_CERTO);
+      else if (cls.includes("errada")) b.insertAdjacentHTML("beforeend", MARCA_ERRADO);
+    });
+    // a explicacao entra com texto ja escapado (o servidor manda texto puro)
+    const tmp = document.createElement("div");
+    tmp.innerHTML = blocoResultado(res, alts);
+    const velho = quiz.querySelector(".qz-explica");
+    if (velho && tmp.firstElementChild) velho.replaceWith(tmp.firstElementChild);
+    const caixas = quiz.querySelector(".qz-caixas");
+    if (caixas && numeroValido(res.caixa)) {
+      caixas.querySelectorAll("i").forEach((i, k) => i.classList.toggle("cheia", k < res.caixa));
+    }
+    quiz.dataset.acertou = res.acertou ? "1" : "0";
+    quiz.classList.add("qz-revelando");
+    // um frame depois pra transicao da explicacao abrir (0fr -> 1fr)
+    requestAnimationFrame(() => (quiz.dataset.estado = "respondida"));
+    if (res.acertou && raiz.CardsPremium) raiz.CardsPremium.festejar(quiz.querySelector(".qz-alt.certa .qz-letra"));
+    if (typeof raiz.vibrar === "function") raiz.vibrar(res.acertou ? 12 : [8, 60, 8]);
+  });
+
+  const CardsAviacao = { CATEGORIAS, quandoVolta };
   raiz.CardsAviacao = CardsAviacao;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsAviacao;
 })(typeof window !== "undefined" ? window : globalThis);

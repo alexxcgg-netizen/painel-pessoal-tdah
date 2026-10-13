@@ -38,6 +38,7 @@ import aprendizado
 import auth
 import backup_diario
 import briefing_voo
+import estudo_quiz
 import caldav_client
 import calculos
 import cards
@@ -1814,6 +1815,9 @@ def _contexto_chat(conn) -> str:
     if comida_hoje:
         linhas.append(comida_hoje)
     linhas.extend(diario.linhas_contexto(conn, agora.date()))
+    quiz = estudo_quiz.linha_contexto(conn, agora.date())
+    if quiz:
+        linhas.append(quiz)
     if saude:
         linhas.append(f"Saúde hoje: {saude}")
     if construtora:
@@ -3444,6 +3448,32 @@ def _processar_mensagem_chat(
         definir_configuracao(conn, "estudo_proximo_indice", str(proximo_indice))
         return {"tema": tema}
 
+    def exec_fazer_pergunta_aviacao(entrada):
+        p = estudo_quiz.criar(conn, entrada)
+        if p.get("erro"):
+            return p
+        return {"pergunta_id": p["id"], "tema": p["tema"], "mostrada_no_card": True,
+                "_efeito": {"entidade": "quiz_aviacao", "consulta": True, "dados": estudo_quiz.dados_card(p)}}
+
+    def exec_revisar_pergunta_aviacao(entrada):
+        p = estudo_quiz.revisar_pendente(conn, _agora_brasilia().date(), entrada.get("tema"))
+        if not p:
+            return {"nada_pra_revisar": True}
+        return {"pergunta_id": p["id"], "tema": p["tema"], "enunciado": p["enunciado"],
+                "alternativas": p["alternativas"], "vezes_que_errou": p["erros"], "mostrada_no_card": True,
+                "_efeito": {"entidade": "quiz_aviacao", "consulta": True,
+                            "dados": estudo_quiz.dados_card(p, revisao=True)}}
+
+    def exec_responder_pergunta_aviacao(entrada):
+        r = estudo_quiz.responder(conn, entrada.get("pergunta_id"), entrada.get("alternativa"),
+                                  _agora_brasilia().date())
+        if r.get("erro"):
+            return r
+        p = estudo_quiz._linha(conn, r["id"])
+        r["_efeito"] = {"entidade": "quiz_aviacao", "consulta": True,
+                        "dados": estudo_quiz.dados_card(p, resultado=r)}
+        return r
+
     def exec_registrar_item_cotacao(entrada):
         cotacao_id = _resolver_cotacao_por_titulo(conn, entrada["titulo_cotacao"])
         criar_item_cotacao(
@@ -3680,6 +3710,9 @@ def _processar_mensagem_chat(
         "consultar_agenda": exec_consultar_agenda,
         "consultar_voos": exec_consultar_voos,
         "briefing_meteo_voo": exec_briefing_meteo_voo,
+        "fazer_pergunta_aviacao": exec_fazer_pergunta_aviacao,
+        "revisar_pergunta_aviacao": exec_revisar_pergunta_aviacao,
+        "responder_pergunta_aviacao": exec_responder_pergunta_aviacao,
     }
 
     # Fase 6 (docs/CARDS.md): cronometra cada tool (passos) e recolhe o

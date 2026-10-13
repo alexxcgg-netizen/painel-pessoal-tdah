@@ -47,3 +47,38 @@ test("link externo: Windy e Maps passam, outro dominio nao", () => {
   const ruim2 = html(BASE, [{ tipo: "abrir_link", rotulo: "x", url: "javascript:alert(1)" }]);
   assert.doesNotMatch(ruim2, /javascript:/);
 });
+
+const QUIZ = {
+  id: 7, tema: "Meteorologia aeronautica", enunciado: "Qual nuvem traz trovoada?", caixa: 0, caixa_max: 5,
+  alternativas: ["Cirrus", "Cumulonimbus", "Estratos", "Altocumulus"],
+};
+const quiz = (data) => Cards.renderizarListaHTML([{ type: "quiz_aviacao", id: "q1", data, actions: [] }], { passos: [] });
+
+test("quiz aberto: 4 alternativas clicaveis, sem revelar a certa", () => {
+  const h = quiz(QUIZ);
+  assert.strictEqual((h.match(/data-acao="quiz_responder"/g) || []).length, 4);
+  assert.match(h, /data-estado="aberta"/);
+  assert.match(h, /Banca · Meteorologia</);
+  assert.doesNotMatch(h, /qz-alt certa/);
+  assert.doesNotMatch(h, / disabled/);
+});
+
+test("quiz respondido (voz/historico): estado final com certa, errada e explicacao", () => {
+  const h = quiz({ ...QUIZ, resposta: { escolhida: 0, correta: 1, acertou: false, explicacao: "CB <b>vertical</b>", caixa: 0, proxima_revisao: "2099-01-01" } });
+  assert.match(h, /data-estado="respondida"/);
+  assert.match(h, /qz-alt certa/);
+  assert.match(h, /qz-alt escolhida errada/);
+  assert.match(h, /A certa é a B: Cumulonimbus/);
+  assert.match(h, /CB &lt;b&gt;vertical/);
+  assert.strictEqual((h.match(/ disabled/g) || []).length, 4);
+});
+
+test("quiz com dado ruim nao renderiza nem quebra", () => {
+  assert.doesNotThrow(() => quiz({ id: 1, alternativas: ["a"] }));
+  assert.doesNotThrow(() => quiz({ alternativas: ["a", "b", "c", "d"] }));
+  assert.doesNotMatch(quiz({ ...QUIZ, enunciado: "<img src=x onerror=1>" }), /<img src=x/);
+});
+
+test("Cards.registrarAcao existe pro clique do quiz", () => {
+  assert.strictEqual(typeof Cards.registrarAcao, "function");
+});

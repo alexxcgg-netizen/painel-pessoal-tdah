@@ -364,6 +364,11 @@
   }
 
   const handlers = {};
+  const acoesExtra = {};
+  // registrarAcao("quiz_responder", (btn, cardEl, {apiFetch}) => ...) - clique em [data-acao=nome]
+  function registrarAcao(nome, fn) {
+    if (typeof nome === "string" && typeof fn === "function") acoesExtra[nome] = fn;
+  }
 
   // Liga a delegacao de eventos UMA vez no container (#chat-mensagens).
   // `deps`: { apiFetch, showTab, aoMudar } - injetados por app.js.
@@ -402,6 +407,12 @@
         marcarDesfeito(cardEl);
         if (raiz.CardsPremium) raiz.CardsPremium.desfeito(cardEl);
         if (typeof handlers.aoMudar === "function") handlers.aoMudar();
+        return;
+      }
+
+      // acoes de um tipo de card especifico (ex: quiz_responder em cards-aviacao.js)
+      if (Object.prototype.hasOwnProperty.call(acoesExtra, acao)) {
+        await acoesExtra[acao](btn, cardEl, handlers);
         return;
       }
 
@@ -509,6 +520,7 @@
     textoContagem,
     fmtDuracao,
     criarGrupo,
+    registrarAcao,
     urlDesfazer,
     ligar,
     atualizarContagens,

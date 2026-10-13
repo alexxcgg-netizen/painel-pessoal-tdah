@@ -3,7 +3,7 @@
    IFR vermelho, LIFR magenta - convencao das cartas de meteorologia). Entrada animada so
    no .card-novo; historico e prefers-reduced-motion ficam no estado final. */
 
-.card-contrato-briefing_voo { --card-cor: var(--cor-cat-3); --bv-vfr: #9fdcb0; --bv-mvfr: #7cc4e8; --bv-ifr: #f39a90; --bv-lifr: #e39fc9; }
+.card-contrato-briefing_voo { --card-cor: var(--cor-cat-3); --bv-vfr: var(--cor-cat-7); --bv-mvfr: var(--cor-cat-1); --bv-ifr: var(--cor-cat-5); --bv-lifr: var(--cor-cat-4); }
 .card-contrato-briefing_voo:has(.bv[data-categoria="VFR"]) { --card-cor: var(--bv-vfr); }
 .card-contrato-briefing_voo:has(.bv[data-categoria="MVFR"]) { --card-cor: var(--bv-mvfr); }
 .card-contrato-briefing_voo:has(.bv[data-categoria="IFR"]) { --card-cor: var(--bv-ifr); }
@@ -222,6 +222,125 @@
   .card-novo .bv-taf-item,
   .card-novo .bv-taf-ponto,
   .bv-bruto[open] pre {
+    animation: none !important;
+  }
+}
+
+/* ================================================================ quiz da banca
+   Cor do card: dourado de "professor"; certa = verde, errada = coral (paleta do app).
+   A explicacao abre com grid-template-rows 0fr -> 1fr (altura real, sem numero magico). */
+.card-contrato-quiz_aviacao { --card-cor: var(--cor-cat-6); --qz-certa: var(--cor-cat-7); --qz-errada: var(--cor-cat-5); }
+.qz { display: flex; flex-direction: column; gap: 0.65rem; min-width: 0; }
+.qz .card-resultado-eyebrow { flex-wrap: wrap; }
+.qz-revisao {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  color: var(--card-cor);
+  background: color-mix(in srgb, var(--card-cor) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-cor) 30%, transparent);
+}
+.qz-caixas { margin-left: auto; display: inline-flex; gap: 3px; align-items: center; }
+.qz-caixas i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-cor) 35%, transparent);
+  transition: background 0.4s var(--ease-suave) calc(var(--k, 0) * 70ms), box-shadow 0.4s var(--ease-suave), transform 0.5s var(--ease-bounce) calc(var(--k, 0) * 70ms);
+}
+.qz-caixas i.cheia { background: var(--card-cor); box-shadow: 0 0 6px color-mix(in srgb, var(--card-cor) 55%, transparent); }
+.qz-revelando .qz-caixas i.cheia { animation: qzCaixa 0.55s var(--ease-bounce) calc(0.35s + var(--k, 0) * 70ms) both; }
+@keyframes qzCaixa { 40% { transform: scale(1.5); } }
+
+.qz-enunciado { margin: 0; font-size: 0.95rem; line-height: 1.45; color: var(--text); font-weight: 500; text-wrap: pretty; }
+.qz-alts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.qz-alt {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 85%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.35s var(--ease-snap), border-color 0.35s var(--ease-suave), background 0.35s var(--ease-suave), opacity 0.4s var(--ease-suave);
+}
+.qz-alt:not(:disabled):hover { border-color: color-mix(in srgb, var(--card-cor) 45%, var(--border)); }
+.qz-alt:not(:disabled):active { transform: scale(0.985); transition-duration: 0.1s; }
+.qz-alt:focus-visible { outline: 2px solid var(--card-cor); outline-offset: 2px; }
+.qz-alt:disabled { cursor: default; }
+.qz-letra {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font: 700 0.74rem var(--font-tech);
+  color: var(--card-cor);
+  background: color-mix(in srgb, var(--card-cor) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-cor) 28%, transparent);
+  transition: background 0.35s var(--ease-suave), color 0.35s var(--ease-suave), border-color 0.35s var(--ease-suave);
+}
+.qz-txt { min-width: 0; overflow-wrap: anywhere; }
+.qz-marca { width: 18px; height: 18px; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* esperando o servidor: a escolhida respira */
+.qz-alt.escolhendo { border-color: var(--card-cor); animation: qzRespira 0.9s ease-in-out infinite; }
+@keyframes qzRespira { 50% { background: color-mix(in srgb, var(--card-cor) 12%, var(--surface-2)); } }
+
+/* resultado */
+.qz[data-estado="respondida"] .qz-alt:not(.certa):not(.errada) { opacity: 0.45; }
+.qz-alt.certa { border-color: color-mix(in srgb, var(--qz-certa) 60%, transparent); background: color-mix(in srgb, var(--qz-certa) 12%, var(--surface-2)); }
+.qz-alt.certa .qz-letra { color: var(--bg, #000); background: var(--qz-certa); border-color: var(--qz-certa); }
+.qz-alt.certa .qz-marca { stroke: var(--qz-certa); }
+.qz-alt.errada { border-color: color-mix(in srgb, var(--qz-errada) 55%, transparent); background: color-mix(in srgb, var(--qz-errada) 10%, var(--surface-2)); }
+.qz-alt.errada .qz-letra { color: var(--qz-errada); border-color: color-mix(in srgb, var(--qz-errada) 50%, transparent); background: color-mix(in srgb, var(--qz-errada) 12%, transparent); }
+.qz-alt.errada .qz-marca { stroke: var(--qz-errada); }
+
+.qz-explica { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.55s var(--ease-suave); }
+.qz-explica > div { overflow: hidden; min-height: 0; }
+.qz[data-estado="respondida"] .qz-explica { grid-template-rows: 1fr; }
+.qz-veredito { margin: 0.15rem 0 0.25rem; font-size: 0.9rem; font-weight: 600; color: var(--text); }
+.qz[data-acertou="1"] .qz-veredito { color: var(--qz-certa); }
+.qz-porque { margin: 0; font-size: 0.84rem; line-height: 1.5; color: var(--text-muted); }
+.qz-prox { margin: 0.45rem 0 0; font-size: 0.72rem; color: var(--text-faint); }
+
+/* revelacao (so no clique/resposta nova): a certa assenta com um pulinho e o tique se
+   desenha; a errada balanca de leve (2px, sem drama) */
+.qz-revelando .qz-alt.certa { animation: qzCerta 0.6s var(--ease-bounce) both; }
+@keyframes qzCerta { 40% { transform: scale(1.025); } }
+.qz-revelando .qz-alt.errada { animation: qzErrada 0.45s var(--ease-suave) both; }
+@keyframes qzErrada { 20% { transform: translateX(-2px); } 45% { transform: translateX(2px); } 70% { transform: translateX(-1px); } }
+.qz-revelando .qz-alt.certa { animation-delay: 0.18s; }
+.qz-revelando .qz-marca path { stroke-dasharray: 20; animation: qzTraco 0.45s var(--ease-suave) 0.3s both; }
+@keyframes qzTraco { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
+.qz-revelando .qz-explica > div > * { animation: qzTexto 0.5s var(--ease-suave) both; }
+.qz-revelando .qz-explica > div > :nth-child(2) { animation-delay: 0.08s; }
+.qz-revelando .qz-explica > div > :nth-child(3) { animation-delay: 0.16s; }
+@keyframes qzTexto { from { opacity: 0; transform: translateY(4px); filter: blur(3px); } }
+
+/* entrada da pergunta nova: alternativas sobem uma a uma */
+.card-novo .qz[data-estado="aberta"] .qz-alt { animation: qzEntra 0.5s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.35s + var(--i, 0) * 0.07s) both; }
+@keyframes qzEntra { from { opacity: 0; transform: translateY(6px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .qz-alt, .qz-caixas i, .qz-explica { transition: none; }
+  .qz-alt.escolhendo,
+  .qz-revelando .qz-alt.certa,
+  .qz-revelando .qz-alt.errada,
+  .qz-revelando .qz-marca path,
+  .qz-revelando .qz-explica > div > *,
+  .qz-revelando .qz-caixas i.cheia,
+  .card-novo .qz[data-estado="aberta"] .qz-alt {
     animation: none !important;
   }
 }

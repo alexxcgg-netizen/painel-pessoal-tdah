@@ -305,6 +305,17 @@ estol?", "por que o QNH muda?"): ai explique de verdade (regra de conversa la de
 precisao; numero de regulamento/limite que varia (RBAC, manual da aeronave, escola) diga que e
 pra conferir na fonte oficial em vez de cravar.
 
+PROFESSOR (quiz da banca): quando ele quiser treinar ("me testa", "quiz", "me faz uma pergunta de
+navegacao", "bora estudar"), seja o professor - revisao vencida primeiro (`revisar_pergunta_aviacao`),
+senao uma nova (`fazer_pergunta_aviacao`), sempre dentro dos 3 temas dele. O card ja mostra a
+pergunta e as alternativas: no texto, so uma chamada curta e humana ("Essa ele derruba muito aluno:"),
+sem repetir o enunciado - EXCETO em modo voz, onde voce le o enunciado e as quatro alternativas
+("A: ..., B: ...") porque ele esta so ouvindo. Nunca entregue a resposta antes dele responder. Quando
+ele responder por texto/voz, chame `responder_pergunta_aviacao`; ai comente como professor de
+verdade: acertou -> confirma curto e acrescenta um detalhe que aprofunda; errou -> sem drama,
+explica o raciocinio certo e o porque da pegadinha. Depois pergunte se quer mais uma. Se ele clicar
+no card, a correcao aparece sozinha no card.
+
 Cotacao de fornecedor: quando o Alex mencionar um preco de fornecedor (ex: "fornecedor tal, R$5000,
 pra cotacao de ferro" ou so "recebi R$5000 do fornecedor tal pro ferro"), chame
 `registrar_item_cotacao` - nao precisa ter aberto a cotacao antes, a ferramenta cria sozinha se for
@@ -1580,6 +1591,56 @@ CHAT_TOOLS = [
             "pra ele nao se dispersar estudando algo que nao pediu."
         ),
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "fazer_pergunta_aviacao",
+        "description": (
+            "Faz UMA pergunta de prova teorica no estilo da banca ANAC (piloto comercial) e mostra "
+            "num card com as 4 alternativas clicaveis - VOCE escreve a pergunta aqui. Use quando o "
+            "Alex pedir pra ser testado/treinar ('me faz uma pergunta', 'quiz', 'me testa em "
+            "meteorologia', 'bora estudar'). Se o contexto disser que ha revisao vencida, chame "
+            "`revisar_pergunta_aviacao` antes. Tema SEMPRE um dos fixos. So conceito estavel e "
+            "consagrado; nada de numero de regulamento que muda ou depende da escola/aeronave. "
+            "Distratores plausiveis (erros tipicos de aluno), uma unica certa."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tema": {"type": "string", "enum": ["Regulamentacao (RBAC/RBHA)", "Meteorologia aeronautica", "Navegacao"]},
+                "enunciado": {"type": "string", "description": "a pergunta, como na prova (1-3 frases)"},
+                "alternativas": {"type": "array", "items": {"type": "string"}, "minItems": 4, "maxItems": 4,
+                                 "description": "4 alternativas SEM a letra na frente"},
+                "correta": {"type": "integer", "minimum": 0, "maximum": 3, "description": "indice da certa (0=A ... 3=D) - varie a posicao"},
+                "explicacao": {"type": "string", "description": "por que a certa e certa e onde o distrator mais tentador erra (2-3 frases)"},
+            },
+            "required": ["tema", "enunciado", "alternativas", "correta", "explicacao"],
+        },
+    },
+    {
+        "name": "revisar_pergunta_aviacao",
+        "description": (
+            "Traz de volta a pergunta de revisao mais atrasada (repeticao espacada: as que ele errou "
+            "voltam no dia seguinte, as que acertou voltam em 3, 7, 14... dias). Use quando ele quiser "
+            "estudar/ser testado e o contexto mostrar revisao vencida. Se nao houver, faca uma nova "
+            "com `fazer_pergunta_aviacao`."
+        ),
+        "input_schema": {"type": "object", "properties": {"tema": {"type": "string", "description": "opcional, filtra por tema"}}},
+    },
+    {
+        "name": "responder_pergunta_aviacao",
+        "description": (
+            "Corrige a resposta que o Alex deu por texto/voz a pergunta do quiz ('e a B', 'letra c', "
+            "'acho que a primeira') e agenda a proxima revisao. Sem pergunta_id usa a ultima pergunta "
+            "feita. Quem corrige e a ferramenta - nunca diga se ele acertou antes do resultado."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pergunta_id": {"type": "integer"},
+                "alternativa": {"type": "string", "description": "A, B, C ou D"},
+            },
+            "required": ["alternativa"],
+        },
     },
     {
         "name": "registrar_item_cotacao",

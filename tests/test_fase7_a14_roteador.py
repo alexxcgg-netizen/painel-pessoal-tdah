@@ -367,7 +367,8 @@ class ConversaDeVerdadeTestCase(unittest.TestCase):
                   "me ajuda a pensar na semana", "o que você acha de eu voltar pra academia?",
                   "dicas pra estudar meteorologia",
                   "me ajuda a escrever uma mensagem pro fornecedor que atrasou",
-                  "como eu respondo meu instrutor sem parecer grosso?"):
+                  "como eu respondo meu instrutor sem parecer grosso?",
+                  "me faz uma pergunta de navegação", "bora um quiz", "me testa"):
             with self.subTest(m=m):
                 self.assertTrue(roteador.e_conversa(m))
 
