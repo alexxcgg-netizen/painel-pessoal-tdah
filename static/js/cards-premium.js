@@ -115,7 +115,114 @@
     cardEl.classList.add("card-desfazendo");
   }
 
-  const CardsPremium = { animar, odometro, festejar, desfeito, TIPOS_REGISTRO };
+  // ---- costura: quando uma resposta traz 2+ cards (voo + agua + viagem + dia...), um fio
+  // de luz corre na coluna do avatar ligando um card no outro, no da cor de cada um. Na
+  // resposta nova o fio se desenha card a card, conforme eles chegam, e no fim um ponto de
+  // luz percorre tudo uma vez ("ta tudo ligado"). Historico: fio parado, ja desenhado.
+  const COSTURA_PASSO = 90; // mesmo ritmo do --chegada de animar()
+
+  // Parte pura (testavel): nos [{y, cor}] em px relativos ao grupo -> fios entre vizinhos.
+  function geometriaCostura(nos) {
+    const validos = (nos || []).filter((n) => n && Number.isFinite(n.y));
+    const fios = [];
+    for (let i = 0; i < validos.length - 1; i++) {
+      const a = validos[i];
+      const b = validos[i + 1];
+      if (b.y <= a.y) continue;
+      fios.push({ top: a.y, altura: b.y - a.y, de: a.cor, para: b.cor, atraso: (i + 1) * COSTURA_PASSO + 260 });
+    }
+    return { nos: validos, fios, total: validos.length ? validos[validos.length - 1].y - validos[0].y : 0 };
+  }
+
+  function corDoCard(card) {
+    try {
+      const c = raiz.getComputedStyle(card).getPropertyValue("--card-cor").trim();
+      return c || "currentColor";
+    } catch (e) {
+      return "currentColor";
+    }
+  }
+
+  // offsetTop (layout) e nao getBoundingClientRect: na chegada o card ainda esta deslocado
+  // pela animacao (translateY/scale) e o no sairia torto. O grupo costurado e position:relative.
+  function posicionarCostura(grupo, camada) {
+    const cards = Array.from(grupo.querySelectorAll(".card-contrato")).filter((c) => c.parentElement === grupo);
+    const nos = cards.map((card) => {
+      const olho = card.querySelector(".card-resultado-eyebrow");
+      let y = card.offsetTop + 20;
+      if (olho && olho.offsetParent === card) y = card.offsetTop + olho.offsetTop + olho.offsetHeight / 2;
+      return { y: Math.round(y), cor: corDoCard(card) };
+    });
+    const g = geometriaCostura(nos);
+    const inicio = g.nos.length ? g.nos[0].y : 0;
+    // a luz anda em velocidade constante; cada no pisca na hora exata em que ela passa
+    const durLuz = Math.min(1600, Math.max(650, g.total * 2.2));
+    camada.style.setProperty("--costura-total", `${g.total}px`);
+    camada.style.setProperty("--costura-inicio", `${inicio}px`);
+    camada.style.setProperty("--costura-luz-dur", `${Math.round(durLuz)}ms`);
+    if (g.nos.length) camada.style.setProperty("--primeira-cor", g.nos[0].cor);
+    const pulso = (n) => Math.round(g.total ? ((n.y - inicio) / g.total) * durLuz : 0);
+    const fios = camada.querySelectorAll(".costura-fio");
+    const pontos = camada.querySelectorAll(".costura-no");
+    if (fios.length === g.fios.length && pontos.length === g.nos.length) {
+      // so reposiciona: recriar os elementos reiniciaria a animacao no meio
+      g.fios.forEach((f, i) => {
+        fios[i].style.top = `${f.top}px`;
+        fios[i].style.height = `${f.altura}px`;
+      });
+      g.nos.forEach((n, i) => {
+        pontos[i].style.top = `${n.y}px`;
+      });
+      return;
+    }
+    camada.innerHTML =
+      g.fios
+        .map((f) => `<i class="costura-fio" style="top:${f.top}px;height:${f.altura}px;--de:${f.de};--para:${f.para};--costura-atraso:${f.atraso}ms"></i>`)
+        .join("") +
+      g.nos
+        .map((n, i) => `<b class="costura-no" style="top:${n.y}px;--no-cor:${n.cor};--costura-atraso:${i * COSTURA_PASSO + 200}ms;--pulso:${pulso(n)}ms"></b>`)
+        .join("") +
+      `<span class="costura-luz"></span>`;
+  }
+
+  // chat.js chama pra TODO grupo (historico tambem); `nova` = resposta que acabou de chegar.
+  function costurar(grupo, opcoes) {
+    if (!grupo || !grupo.querySelectorAll || typeof document === "undefined") return;
+    const cards = Array.from(grupo.querySelectorAll(".card-contrato")).filter((c) => c.parentElement === grupo);
+    if (cards.length < 2 || grupo.querySelector(":scope > .costura")) return;
+    const camada = document.createElement("div");
+    camada.className = "costura";
+    camada.setAttribute("aria-hidden", "true");
+    if (opcoes && opcoes.nova && !reduzido()) {
+      camada.classList.add("costura-nova");
+      camada.style.setProperty("--costura-luz-atraso", `${cards.length * COSTURA_PASSO + 900}ms`);
+    }
+    grupo.classList.add("cards-costurados");
+    grupo.appendChild(camada);
+    const refazer = () => {
+      try {
+        posicionarCostura(grupo, camada);
+      } catch (e) {
+        /* sem layout (aba escondida): fica pro proximo resize */
+      }
+    };
+    refazer();
+    // cards vivos crescem/encolhem (lista expande, aba volta a aparecer): o fio acompanha
+    if (typeof raiz.ResizeObserver === "function") {
+      let quadro = 0;
+      const ro = new raiz.ResizeObserver(() => {
+        if (quadro) return;
+        quadro = raiz.requestAnimationFrame(() => {
+          quadro = 0;
+          refazer();
+        });
+      });
+      ro.observe(grupo);
+      cards.forEach((c) => ro.observe(c));
+    }
+  }
+
+  const CardsPremium = { animar, odometro, festejar, desfeito, costurar, geometriaCostura, TIPOS_REGISTRO };
   raiz.CardsPremium = CardsPremium;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsPremium;
 })(typeof window !== "undefined" ? window : globalThis);

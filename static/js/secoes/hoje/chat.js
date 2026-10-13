@@ -314,12 +314,14 @@ async function loadChatHistorico() {
 // Fase 6 (contrato de cards, docs/CARDS.md): os cards da resposta entram
 // logo abaixo da bolha - renderizados pelo registro de static/js/cards.js
 // (type desconhecido vira o card fallback, nunca quebra o chat).
-function anexarCardsResposta(lista, cards, passos) {
+function anexarCardsResposta(lista, cards, passos, nova) {
   if (!Array.isArray(cards) || cards.length === 0 || typeof Cards === "undefined") return null;
   const grupo = Cards.criarGrupo(cards, passos);
   lista.appendChild(grupo);
   // cartoes vivos: liga ceu/aviao/onda (historico tambem, parado no estado final)
   if (typeof CardsVivos !== "undefined") CardsVivos.preparar(grupo);
+  // 2+ cards: o fio que liga um no outro (so a resposta nova desenha animado)
+  if (typeof CardsPremium !== "undefined") CardsPremium.costurar(grupo, { nova: !!nova });
   return grupo;
 }
 
@@ -430,7 +432,7 @@ async function enviarChat(texto, opcoes = {}) {
     digitando.remove();
     lista.appendChild(criarBolhaChat("assistant", textoFinal, true));
   }
-  const grupoCards = anexarCardsResposta(lista, data.cards, data.passos);
+  const grupoCards = anexarCardsResposta(lista, data.cards, data.passos, true);
   // so a resposta NOVA ganha a entrada animada (o historico abre parado)
   if (grupoCards && typeof CardsVivos !== "undefined") CardsVivos.animar(grupoCards);
   if (grupoCards && typeof CardsPremium !== "undefined") CardsPremium.animar(grupoCards);

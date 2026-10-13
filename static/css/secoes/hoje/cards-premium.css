@@ -178,7 +178,118 @@
   100% { transform: none; }
 }
 
+/* ---- costura: fio de luz ligando os cards de uma mesma resposta ------------------
+   Corre na coluna do avatar (o grupo tem margin-left = avatar 22px + 0.5rem), com um no
+   na altura do titulo de cada card. Resposta nova: cada trecho se desenha quando o card
+   de baixo chega e no fim uma luz percorre o fio todo, piscando cada no ao passar. */
+.cards-grupo.cards-costurados {
+  position: relative;
+}
+.costura {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-22px - 0.5rem);
+  width: 22px;
+  pointer-events: none;
+}
+.costura-fio {
+  position: absolute;
+  left: 50%;
+  width: 1.5px;
+  margin-left: -0.75px;
+  border-radius: 1px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--de) 70%, transparent),
+    color-mix(in srgb, var(--para) 70%, transparent)
+  );
+  opacity: 0.7;
+  transform-origin: top center;
+}
+/* trecho de entrada: o fio "sai" do avatar da IA (logo acima do grupo) ate o 1o no */
+.costura::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  height: calc(var(--costura-inicio, 0px) + 8px);
+  width: 1.5px;
+  margin-left: -0.75px;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--primeira-cor, currentColor) 70%, transparent));
+  opacity: 0.7;
+  transform-origin: top center;
+}
+.costura-nova::before {
+  animation: costuraFio 0.45s var(--ease-suave) 0.1s both;
+}
+.costura-no {
+  position: absolute;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--no-cor);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--no-cor) 16%, transparent),
+    0 0 8px color-mix(in srgb, var(--no-cor) 50%, transparent);
+}
+.costura-luz {
+  display: none;
+}
+
+.costura-nova .costura-fio {
+  animation: costuraFio 0.6s var(--ease-suave) var(--costura-atraso, 0ms) both;
+}
+@keyframes costuraFio {
+  from { transform: scaleY(0); opacity: 0; }
+  to { transform: scaleY(1); opacity: 0.7; }
+}
+.costura-nova .costura-no {
+  animation: costuraNo 0.6s var(--ease-bounce) var(--costura-atraso, 0ms) both,
+    costuraPulso 0.7s var(--ease-suave) calc(var(--costura-luz-atraso, 0ms) + var(--pulso, 0ms)) both;
+}
+@keyframes costuraNo {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes costuraPulso {
+  0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--no-cor) 16%, transparent), 0 0 8px color-mix(in srgb, var(--no-cor) 50%, transparent); }
+  35% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--no-cor) 26%, transparent), 0 0 16px color-mix(in srgb, var(--no-cor) 75%, transparent); }
+  100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--no-cor) 16%, transparent), 0 0 8px color-mix(in srgb, var(--no-cor) 50%, transparent); }
+}
+/* a luz: um risco curto com rastro, descendo em velocidade constante */
+.costura-nova .costura-luz {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: var(--costura-inicio, 0px);
+  width: 2px;
+  height: 22px;
+  margin: -22px 0 0 -1px;
+  border-radius: 2px;
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.95));
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.7));
+  opacity: 0;
+  animation: costuraLuz var(--costura-luz-dur, 1s) linear var(--costura-luz-atraso, 0ms) both;
+}
+@keyframes costuraLuz {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateY(var(--costura-total, 0px)); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .costura-nova::before,
+  .costura-nova .costura-fio,
+  .costura-nova .costura-no {
+    animation: none !important;
+  }
+  .costura-nova .costura-luz {
+    display: none;
+  }
   .card-contrato.card-novo,
   .card-contrato.card-novo::after,
   .card-contrato.card-selo .card-resultado-eyebrow > svg:first-child,

@@ -43,3 +43,30 @@ test("odometro ignora texto sem digito", () => {
   const el = { textContent: "R$ •••", dataset: {}, setAttribute() { throw new Error("nao devia"); } };
   assert.doesNotThrow(() => CardsPremium.odometro(el));
 });
+
+test("costura: um fio entre cada par de cards vizinhos, na ordem", () => {
+  const g = CardsPremium.geometriaCostura([
+    { y: 20, cor: "red" },
+    { y: 180, cor: "blue" },
+    { y: 400, cor: "green" },
+  ]);
+  assert.strictEqual(g.fios.length, 2);
+  assert.deepStrictEqual(
+    g.fios.map((f) => [f.top, f.altura, f.de, f.para]),
+    [[20, 160, "red", "blue"], [180, 220, "blue", "green"]],
+  );
+  assert.ok(g.fios[1].atraso > g.fios[0].atraso, "trecho de baixo desenha depois");
+  assert.strictEqual(g.total, 380);
+});
+
+test("costura: sem layout (aba escondida, tudo em 0) nao gera fio torto", () => {
+  const g = CardsPremium.geometriaCostura([{ y: 0, cor: "a" }, { y: 0, cor: "b" }, { y: NaN }]);
+  assert.strictEqual(g.fios.length, 0);
+  assert.strictEqual(g.nos.length, 2);
+  assert.deepStrictEqual(CardsPremium.geometriaCostura(null).fios, []);
+});
+
+test("costurar nao quebra sem DOM", () => {
+  assert.doesNotThrow(() => CardsPremium.costurar(null));
+  assert.doesNotThrow(() => CardsPremium.costurar({ querySelectorAll: () => [] }, { nova: true }));
+});

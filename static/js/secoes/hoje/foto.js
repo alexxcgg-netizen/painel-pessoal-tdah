@@ -107,7 +107,7 @@ async function enviarFotoChat(arquivo) {
   if (!data) return null;
 
   lista.appendChild(criarBolhaChat("assistant", data.resumo_texto || data.resposta, true));
-  const grupoCards = anexarCardsResposta(lista, data.cards, data.passos);
+  const grupoCards = anexarCardsResposta(lista, data.cards, data.passos, true);
   if (grupoCards && typeof CardsVivos !== "undefined") CardsVivos.animar(grupoCards);
   lista.scrollTop = lista.scrollHeight;
   if (data.acoes && data.acoes.length > 0) {

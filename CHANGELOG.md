@@ -5,6 +5,18 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Cards interligados (vários assuntos, um fio só)
+
+- Resposta com 2+ cards (ex: um áudio com voo + água + viagem + dia) ganha a **costura**: um fio
+  de luz na coluna do avatar que sai da IA e liga um card no outro, com um nó na altura do título
+  de cada card, na cor dele (`CardsPremium.costurar`, `static/js/cards-premium.js` +
+  `cards-premium.css`). Resposta nova: cada trecho se desenha quando o card de baixo chega e no
+  fim uma luz percorre o fio todo, piscando cada nó ao passar. Histórico abre com o fio parado;
+  `prefers-reduced-motion` não anima. Posição por `offsetTop` (o card ainda está deslocado pela
+  animação de entrada) e `ResizeObserver` reposiciona sem reiniciar a animação quando um card
+  vivo cresce ou a aba volta a aparecer.
+- Prévia: https://claude.ai/artifact/UKM4k81ZWHY2mmcmyc5Ufk (CSS/JS reais, "com o fio / sem o fio").
+
 ## 2026-10-13 - Chat AO VIVO + jeito de falar de gente
 
 - **Resposta aparece enquanto a IA escreve**: rota nova `POST /api/chat/stream` (text/event-stream;
