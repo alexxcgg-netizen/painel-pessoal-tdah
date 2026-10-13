@@ -94,23 +94,67 @@ function criarTagEsforco(t) {
   return tag;
 }
 
+const ICONE_CHECK_PONTO =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17 19 7.5"/></svg>';
+const ICONE_AMANHA =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h12M13 7l5 5-5 5"/></svg>';
+
+// Linha do tempo (2026-10-13, linha-do-tempo-tarefas.js): toque no nome abre/fecha as acoes.
+function alternarAcoesTarefa(li) {
+  const aberta = li.classList.toggle("tl-aberta");
+  const alvo = li.querySelector(".item-textos");
+  if (alvo) alvo.setAttribute("aria-expanded", aberta ? "true" : "false");
+}
+
 function criarItemTarefa(t) {
   const li = document.createElement("li");
-  li.className = "item lista-item";
+  li.className = "item lista-item tl-item";
   // data-entidade/data-id: o link "Abrir Tarefas" de um card (Fase 6,
   // static/js/cards.js) rola ate o item e destaca.
   li.dataset.entidade = "tarefa";
   li.dataset.id = t.id;
+
+  // linha do tempo: hora na coluna da esquerda, trilho com a bolinha que conclui
+  // (hora/estado de verdade quem escreve e atualizarAgoraTarefas, linha-do-tempo-tarefas.js)
+  const horaCol = document.createElement("span");
+  horaCol.className = "tl-hora";
+  horaCol.setAttribute("aria-hidden", "true");
+  horaCol.textContent = t.hora || "—";
+  const trilho = document.createElement("span");
+  trilho.className = "tl-trilho";
+  const ponto = document.createElement("button");
+  ponto.type = "button";
+  ponto.className = "tl-ponto";
+  ponto.setAttribute("aria-label", `Concluir ${t.title}`);
+  ponto.innerHTML = `<b>${ICONE_CHECK_PONTO}</b>`;
+  trilho.appendChild(ponto);
+  li.appendChild(horaCol);
+  li.appendChild(trilho);
 
   const linha = document.createElement("div");
   linha.className = "item-linha";
 
   const tituloWrap = document.createElement("div");
   tituloWrap.className = "item-textos";
+  tituloWrap.setAttribute("role", "button");
+  tituloWrap.tabIndex = 0;
+  tituloWrap.setAttribute("aria-expanded", "false");
+  tituloWrap.addEventListener("click", (e) => {
+    if (e.target.closest("button, select, a, input")) return;
+    alternarAcoesTarefa(li);
+  });
+  tituloWrap.addEventListener("keydown", (e) => {
+    if (e.target !== tituloWrap || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    alternarAcoesTarefa(li);
+  });
   const titulo = document.createElement("span");
   titulo.className = "item-titulo";
   titulo.textContent = t.title;
   tituloWrap.appendChild(titulo);
+  const meta = document.createElement("span");
+  meta.className = "tl-meta";
+  tituloWrap.appendChild(meta);
   // R3 (acabamento): os chips (prazo, atrasada, travada, rotina, esforço) saem de dentro do
   // título e vão pra uma linha própria embaixo dele - título de 17px respira e os chips
   // quebram linha sem espremer nada.
@@ -122,30 +166,8 @@ function criarItemTarefa(t) {
     tagRotina.textContent = "rotina";
     chips.appendChild(tagRotina);
   }
-  if (t.due_at || t.hora || t.due_date) {
-    const quando = document.createElement("span");
-    quando.className = "item-quando chip chip--compacto";
-    // Fase 6 (US-F10): due_at (texto livre tipo "amanha") continua tendo
-    // prioridade quando existe (e o que o chat grava) - due_date sozinho
-    // (o formulario direto novo grava so isso, sem passar pela IA) cai no
-    // formatarPrazoTarefa pra pelo menos mostrar ALGUMA data, em vez de
-    // nada (gap real: antes uma tarefa so com due_date nao mostrava prazo
-    // nenhum na lista).
-    const base = t.due_at || (t.due_date ? formatarPrazoTarefa(t.due_date) : "hoje");
-    quando.textContent = t.hora ? `${base} às ${t.hora}` : base;
-    chips.appendChild(quando);
-  }
-  // Mesma tag de atencao que "travada ha X dias" ja usa (--danger) - so
-  // quando devido sem due_at/hora ja passou (devido com due_at continua sem
-  // deteccao de atraso, devido/registrar_tarefa nunca calculou isso - fora
-  // do escopo desta historia mexer nesse caminho tambem).
-  if (t.due_date && !t.due_at && !t.hora && t.due_date < hojeIsoLocal()) {
-    const tagAtrasada = document.createElement("span");
-    tagAtrasada.className = "item-tag-travada chip chip--compacto";
-    tagAtrasada.textContent = "atrasada";
-    chips.appendChild(tagAtrasada);
-  }
-
+  // Linha do tempo: dia vai no cabecalho e hora na coluna da esquerda - o chip "hoje às
+  // 10:30" e o "atrasada" sairam (viraram o grupo "Atrasadas" e a hora vermelha).
   const acoes = document.createElement("div");
   acoes.className = "item-acoes";
 
@@ -155,7 +177,6 @@ function criarItemTarefa(t) {
     tagTravada.textContent = `travada há ${t.empacada_dias} ${t.empacada_dias === 1 ? "dia" : "dias"}`;
     chips.appendChild(tagTravada);
   }
-  chips.appendChild(criarTagEsforco(t));
   tituloWrap.appendChild(chips);
 
 
@@ -205,77 +226,29 @@ function criarItemTarefa(t) {
   const btnConcluir = document.createElement("button");
   btnConcluir.className = "primario btn-com-icone";
   btnConcluir.innerHTML = `${ICONE_CHECK}concluir`;
-  btnConcluir.addEventListener("click", async () => {
-    if (btnConcluir.disabled) return; // evita duplo toque
-    btnConcluir.disabled = true;
-    // Vel A2b: otimista - marca, anima e remove da lista na hora do toque;
-    // a gravacao (POST) vai por tras. Guarda a posicao pra devolver a
-    // tarefa no mesmo lugar se a rede falhar (mostrarErro ja vem do apiFetch).
-    const pai = li.parentElement;
-    const proximoIrmao = li.nextElementSibling;
-    explodirConcluido(btnConcluir);
-    vibrar(30);
-    tocarSomConcluido();
-    // Vis (C2): "saindo" primeiro (e o que a Vel A2b mede - some quase na
-    // hora do toque, sem esperar nada abaixo). O resto do reforco visual
-    // (check desenhando, titulo riscando) vem depois, protegido por
-    // try/catch pra nunca atrasar nem quebrar a saida otimista se o SVG/
-    // getTotalLength falhar em algum navegador.
-    li.classList.add("saindo");
-    // rAF: o reforco visual (check desenhando/titulo riscando) roda so DEPOIS
-    // do frame que ja mostra "saindo" - nunca compete com o trabalho sincrono
-    // do proprio toque (o que a Vel A2b mede continua sendo so a linha acima).
-    requestAnimationFrame(() => {
-      try {
-        if (typeof animarConclusaoTarefa === "function" && li.isConnected) animarConclusaoTarefa(li);
-      } catch (erro) {
-        /* reforco visual e cosmetico - a tarefa ja saiu da lista, nao trava por isso */
-      }
-      try {
-        // Limpa (A-anim): fecha o espaco da lista suavemente (grid-rows,
-        // movimento.js) - roda no mesmo rAF que o reforco visual acima,
-        // sempre DEPOIS do "saindo" sincrono, nunca no meio do toque.
-        if (typeof colapsarSaidaLista === "function" && li.isConnected) colapsarSaidaLista(li);
-      } catch (erro) {
-        /* colapso e cosmetico - nao trava a saida otimista se falhar */
-      }
-    });
-    // 260ms: da tempo do colapso de altura (--dur-media, comeca ~1 frame
-    // depois do toque) terminar antes da remocao de verdade, sem a lista
-    // "pular" no instante em que o <li> sai do DOM.
-    const removerTimeout = setTimeout(() => li.remove(), 260);
+  btnConcluir.addEventListener("click", () => concluirTarefaDaLista(li, t, btnConcluir, [btnConcluir, ponto]));
+  ponto.addEventListener("click", () => concluirTarefaDaLista(li, t, ponto, [btnConcluir, ponto]));
+  acoes.prepend(btnConcluir);
 
-    const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
-    if (data) {
-      loadTasks();
-      loadSummary();
-      loadStreak();
-      if (!$("#tab-painel").hidden) loadFechamentoDoDia();
-      // M3: concluida some da lista principal mas, se "Ver concluidas" ja
-      // ta aberto, essa que acabou de ser marcada deveria aparecer nela.
-      const listaConcluidas = $("#lista-tarefas-concluidas");
-      if (listaConcluidas && !listaConcluidas.hidden) loadTarefasConcluidas();
-    } else {
-      clearTimeout(removerTimeout);
-      li.classList.remove("saindo");
-      // Limpa (A-anim): tira o colapso de altura tambem - o rAF que liga
-      // c2-saindo-colapsa confere .saindo antes de aplicar, mas se ele ja
-      // tinha corrido antes do erro chegar, desfaz aqui pra nao deixar a
-      // linha "achatada" com o item de volta na lista.
-      li.classList.remove("c2-colapsavel");
-      li.classList.remove("c2-saindo-colapsa");
-      const tituloRiscado = li.querySelector(".c2-titulo-riscando");
-      if (tituloRiscado) tituloRiscado.classList.remove("c2-titulo-riscando");
-      const checkDesenhado = li.querySelector(".c2-check-desenha");
-      if (checkDesenhado) checkDesenhado.classList.remove("c2-check-desenha");
-      btnConcluir.disabled = false;
-      if (pai && !pai.contains(li)) {
-        if (proximoIrmao && proximoIrmao.parentElement === pai) pai.insertBefore(li, proximoIrmao);
-        else pai.appendChild(li);
-      }
-    }
-  });
-  acoes.appendChild(btnConcluir);
+  // "Pra amanhã": mesma rota do card de fechar o dia (so vale pra hoje e atrasadas)
+  if (t.due_date && t.due_date <= hojeIsoLocal()) {
+    const btnAmanha = document.createElement("button");
+    btnAmanha.className = "btn-com-icone tarefa-amanha";
+    btnAmanha.innerHTML = `${ICONE_AMANHA}pra amanhã`;
+    btnAmanha.addEventListener("click", async () => {
+      setBotaoCarregando(btnAmanha, true, "passando...");
+      const data = await apiFetch("/api/tarefas/adiar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [t.id] }),
+      });
+      if (data) loadTasks();
+      else setBotaoCarregando(btnAmanha, false, "pra amanhã");
+    });
+    btnConcluir.after(btnAmanha);
+  }
+  // esforco saiu da linha de chips (poluia toda tarefa) e mora nas acoes
+  acoes.insertBefore(criarTagEsforco(t), btnCorrigir);
 
   linha.appendChild(tituloWrap);
   linha.appendChild(acoes);
@@ -310,6 +283,83 @@ function criarItemTarefa(t) {
   // arrastar pra esquerda = excluir (sem concluir) - arrastar-excluir.js
   if (typeof ligarArrastarExcluir === "function") ligarArrastarExcluir(li, t);
   return li;
+}
+
+// Concluir pela bolinha do trilho ou pelo botao das acoes (os dois sao o mesmo caminho).
+// Vel A2b: otimista - marca e remove da lista na hora do toque; a gravacao (POST) vai por
+// tras. Linha do tempo: a bolinha enche de verde, o visto se desenha e o titulo risca na
+// hora; ~240 ms depois a linha fecha o espaco. Guarda a posicao pra devolver a tarefa no
+// mesmo lugar se a rede falhar (mostrarErro ja vem do apiFetch).
+async function concluirTarefaDaLista(li, t, origem, botoes) {
+  if (li.classList.contains("saindo") || botoes.some((b) => b.disabled)) return; // duplo toque
+  botoes.forEach((b) => (b.disabled = true));
+  const pai = li.parentElement;
+  const proximoIrmao = li.nextElementSibling;
+  const menosMovimento = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  explodirConcluido(origem);
+  vibrar(30);
+  tocarSomConcluido();
+  // Vis (C2): "saindo" primeiro (e o que a Vel A2b mede - some quase na hora do toque)
+  li.classList.add("saindo", "tl-feita");
+  // rAF: o reforco visual roda so DEPOIS do frame que ja mostra "saindo"
+  requestAnimationFrame(() => {
+    try {
+      if (typeof animarConclusaoTarefa === "function" && li.isConnected) animarConclusaoTarefa(li);
+    } catch (erro) {
+      /* reforco visual e cosmetico - a tarefa ja saiu da lista, nao trava por isso */
+    }
+  });
+  // o check assenta um instante antes da linha fechar o espaco (Limpa A-anim, grid-rows)
+  const colapsarTimeout = setTimeout(
+    () => {
+      li.classList.add("tl-some");
+      try {
+        if (typeof colapsarSaidaLista === "function" && li.isConnected) colapsarSaidaLista(li);
+      } catch (erro) {
+        /* colapso e cosmetico - nao trava a saida otimista se falhar */
+      }
+    },
+    menosMovimento ? 0 : 240
+  );
+  let avisarRemovido;
+  const removido = new Promise((ok) => (avisarRemovido = ok));
+  const removerTimeout = setTimeout(
+    () => {
+      avisarRemovido();
+      li.remove();
+      const lista = $("#lista-tarefas");
+      if (lista && pai === lista && typeof atualizarAgoraTarefas === "function") atualizarAgoraTarefas(lista);
+    },
+    menosMovimento ? 260 : 500
+  );
+
+  const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
+  if (data) {
+    // a lista so recarrega depois que a linha saiu - senao o re-render corta o check no meio
+    removido.then(() => loadTasks());
+    loadSummary();
+    loadStreak();
+    if (!$("#tab-painel").hidden) loadFechamentoDoDia();
+    // M3: concluida some da lista principal mas, se "Ver concluidas" ja
+    // ta aberto, essa que acabou de ser marcada deveria aparecer nela.
+    const listaConcluidas = $("#lista-tarefas-concluidas");
+    if (listaConcluidas && !listaConcluidas.hidden) loadTarefasConcluidas();
+    return;
+  }
+  clearTimeout(colapsarTimeout);
+  clearTimeout(removerTimeout);
+  // Limpa (A-anim): tira o colapso de altura tambem, senao a linha volta "achatada"
+  li.classList.remove("saindo", "tl-feita", "tl-some", "c2-colapsavel", "c2-saindo-colapsa");
+  const tituloRiscado = li.querySelector(".c2-titulo-riscando");
+  if (tituloRiscado) tituloRiscado.classList.remove("c2-titulo-riscando");
+  const checkDesenhado = li.querySelector(".c2-check-desenha");
+  if (checkDesenhado) checkDesenhado.classList.remove("c2-check-desenha");
+  botoes.forEach((b) => (b.disabled = false));
+  if (pai && !pai.contains(li)) {
+    if (proximoIrmao && proximoIrmao.parentElement === pai) pai.insertBefore(li, proximoIrmao);
+    else pai.appendChild(li);
+    if (typeof atualizarAgoraTarefas === "function" && pai.id === "lista-tarefas") atualizarAgoraTarefas(pai);
+  }
 }
 
 // Correcao rapida "isso não e uma tarefa, e um gasto" - formulario minimo
@@ -407,14 +457,21 @@ function atualizarVerMaisTarefas() {
   btn.textContent = `Ver mais (${faltam})`;
 }
 
+// id -> {li, json}: tarefa que nao mudou reaproveita o <li> (fica aberta se estava, e a
+// linha do tempo consegue deslizar ela pro lugar novo em vez de piscar a lista inteira)
+const _itensTarefas = new Map();
+
 function montarListaTarefas() {
   const list = $("#lista-tarefas");
-  const frag = document.createDocumentFragment();
-  _tarefasPendentes
-    .slice(0, _tarefasMostradas)
-    .forEach((t) => frag.appendChild(criarItemTarefa(t)));
-  list.innerHTML = "";
-  list.appendChild(frag);
+  const visiveis = _tarefasPendentes.slice(0, _tarefasMostradas);
+  if (typeof montarLinhaDoTempo === "function") {
+    montarLinhaDoTempo(list, visiveis, _tarefasPendentes, _itensTarefas, criarItemTarefa);
+  } else {
+    const frag = document.createDocumentFragment();
+    visiveis.forEach((t) => frag.appendChild(criarItemTarefa(t)));
+    list.innerHTML = "";
+    list.appendChild(frag);
+  }
   atualizarVerMaisTarefas();
 }
 
@@ -430,15 +487,10 @@ async function loadTasks() {
 }
 
 $("#tarefas-ver-mais").addEventListener("click", () => {
-  const novoTotal = proximoLoteTarefas(_tarefasPendentes.length, _tarefasMostradas);
-  const list = $("#lista-tarefas");
-  const frag = document.createDocumentFragment();
-  _tarefasPendentes
-    .slice(_tarefasMostradas, novoTotal)
-    .forEach((t) => frag.appendChild(criarItemTarefa(t)));
-  list.appendChild(frag);
-  _tarefasMostradas = novoTotal;
-  atualizarVerMaisTarefas();
+  // remonta com o lote maior: os que ja estavam ficam (mesmo <li>), os novos entram
+  // com os cabecalhos de dia certos
+  _tarefasMostradas = proximoLoteTarefas(_tarefasPendentes.length, _tarefasMostradas);
+  montarListaTarefas();
 });
 
 // ---- "Ver concluidas" (M3, uso diario) ----------------------------------

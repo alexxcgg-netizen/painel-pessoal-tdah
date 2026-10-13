@@ -129,7 +129,7 @@ class LimpaAAnimacaoTestCase(unittest.TestCase):
                 nome_2o = next(n for n in nomes if n in titulo_2o)
                 y_antes = itens.nth(1).bounding_box()["y"]
 
-                itens.first.locator("button:has-text('concluir')").click(force=True)
+                itens.first.locator(".tl-ponto").click(force=True)
 
                 # 600ms depois: o item saiu do DOM de verdade (nao so visualmente) ...
                 page.wait_for_timeout(600)

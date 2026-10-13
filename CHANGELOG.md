@@ -5,6 +5,32 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Aba Tarefas vira linha do tempo
+
+Escolhida pelo Alex entre as prévias ("linha do tempo eu gostei mais"):
+https://claude.ai/artifact/V1bNK612xPzqBVXmuX1Guq, com os 4 movimentos ligados.
+`static/js/secoes/tarefas/linha-do-tempo-tarefas.js` (nome diferente de `nucleo/linha-do-tempo.js`,
+que já existe - scripts clássicos dividem o escopo global).
+- **Desenho**: cabeçalho por dia (Atrasadas / Hoje · terça 13 / Amanhã / "sexta 16" / Sem data, com
+  "N abertas"), hora grande à esquerda, trilho com uma bolinha por tarefa. Cabeçalho e marcador são
+  `<div>` dentro da `<ul>` de propósito: `#lista-tarefas li` continua contando só tarefa (testes).
+- **Concluir**: tocar a bolinha (ou "concluir" nas ações) enche de verde, desenha o visto e risca o
+  título; ~240 ms depois a linha fecha o espaço. Pegadinha: o `loadTasks()` do sucesso re-renderiza
+  a lista e cortava a animação no meio - agora só recarrega depois que a linha saiu.
+- **Agora vivo**: marcador com a hora atual entre as tarefas de hoje; a próxima respira com "em 40
+  min", a que passou fica avermelhada ("passou há 1h15"), atrasada mostra "ontem"/"seg 12" e "era às
+  HH:MM". Atualiza a cada 30 s só com a aba aberta.
+- **Cascata e reordenar**: abrir a aba faz a lista entrar em cascata (14 primeiros); quando a lista
+  muda, quem já estava desliza pro lugar novo (FLIP com `translate`) e tarefa nova/alterada acende.
+  O `<li>` de tarefa que não mudou é reaproveitado (cache por JSON).
+- **Ações**: tocar o título abre concluir / pra amanhã (novo, usa `/api/tarefas/adiar`) / quebrar /
+  esforço / corrigir. Pegadinha de especificidade: o `card.css` pinta `.btn-com-icone` com 2 ids + 6
+  classes (52 px) - as regras da linha usam `:not(#_)` pra somar um id.
+- Auditoria R3 (toque >= 44 px, texto >= 12 px): bolinha com alvo de 44 px e o título (que abre as
+  ações) com `padding-block`/`margin-block` de 11 px - área de toque maior sem mudar o espaçamento.
+- Testes de navegador clicam `.tl-ponto`; parte pura em `tests/js/tarefas_linha_do_tempo.test.js`.
+  `prefers-reduced-motion` desliga cascata, respiração, onda e deslize. SW v69.
+
 ## 2026-10-13 - Cards do chat "premium": profundidade, montagem e toque
 
 Prévia aprovada pelo Alex com tudo ligado ("não ficou nada exagerado"):

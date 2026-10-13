@@ -118,7 +118,7 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
                 # sem isso o cronometro capturava a espera do PROPRIO
                 # Playwright, nao o tempo da nossa atualizacao otimista.
                 t0 = time.time()
-                page.locator("#lista-tarefas button:has-text('concluir')").first.click(force=True)
+                page.locator("#lista-tarefas .tl-ponto").first.click(force=True)
                 page.wait_for_selector("#lista-tarefas li.saindo", timeout=150)
                 dt_ms = (time.time() - t0) * 1000
                 self.assertLess(dt_ms, 150, f"item demorou {dt_ms:.0f}ms pra sumir (deveria ser otimista)")
@@ -129,6 +129,9 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
                 rotas_paradas[0].continue_()
                 page.unroute("**/api/tasks/*/complete")
                 page.wait_for_timeout(400)
+                # linha do tempo: a linha concluida so sai depois do check (~500 ms do toque) -
+                # contar antes disso pegava ela ainda na tela
+                page.wait_for_selector("#lista-tarefas li.saindo", state="detached")
 
                 # ---- cenario 2: servidor devolve 500 -> item volta ----
                 page.wait_for_selector("#lista-tarefas li")
@@ -138,7 +141,7 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
                     route.fulfill(status=500, content_type="application/json", body='{"error": "falha simulada"}')
 
                 page.route("**/api/tasks/*/complete", erro_500)
-                page.locator("#lista-tarefas button:has-text('concluir')").first.click()
+                page.locator("#lista-tarefas .tl-ponto").first.click()
                 page.wait_for_timeout(600)
                 n_depois = page.locator("#lista-tarefas li").count()
                 self.assertEqual(n_depois, n_antes, "item deveria voltar pra lista depois do erro 500")

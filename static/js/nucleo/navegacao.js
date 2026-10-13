@@ -157,6 +157,9 @@ function showTab(name) {
       if (typeof loadTesteIA === "function") loadTesteIA();
     });
   }
+  // linha do tempo (secoes/tarefas/linha-do-tempo-tarefas.js): lista entra em cascata e o "agora"
+  // se atualiza - depois do frame que revela a aba, como a marcacao escalonada acima
+  if (name === "tarefas" && typeof entrarAbaTarefas === "function") requestAnimationFrame(entrarAbaTarefas);
   if (name === "tarefas" && abaPrecisaCarregar("tarefas")) loadTasks();
   if (name === "gastos" && abaPrecisaCarregar("gastos")) {
     // Vel (A2d): medido - a aba gastos era a unica com INP MEDIANO alto
