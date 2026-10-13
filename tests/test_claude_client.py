@@ -1,6 +1,8 @@
 import json
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -8,6 +10,18 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
 import claude_client
 import db
+
+# Banco proprio: o teto de IA (ia/teto.py) e o registro de uso leem/escrevem no db.DB_PATH da
+# hora. Sem isto o arquivo herdava o banco do ultimo modulo que rodou no mesmo processo - com
+# gasto alto ou ja apagado, o teto bloqueava (TetoEstourado) conforme a ORDEM dos arquivos
+# (apareceu rodando a suite em paralelo com pytest-xdist).
+_tmp_dir = tempfile.TemporaryDirectory()
+
+
+def setUpModule():
+    db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+    db.garantir_banco_nao_producao()
+    db.init_db()
 
 
 def _resp(content, stop_reason="end_turn", model=claude_client.SONNET, in_tok=100, out_tok=20):

@@ -28,13 +28,57 @@ import pytest
 # Fase 7 / C1 (aviso URGENTE do integrador): nenhum teste pode chegar na API
 # real de IA. Carregado antes de qualquer arquivo de teste, entao os clientes
 # criados na importacao (ia.legado.client, adapters) ja nascem apontando pra
-# uma porta local fechada - uma chamada que escape de um duble falha na hora,
-# sem sair da maquina. Chave da Anthropic sempre falsa (as outras ficam como
-# estao: ha testes que conferem o comportamento SEM chave).
-os.environ["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:9"
-os.environ["OPENAI_BASE_URL"] = "http://127.0.0.1:9"
-os.environ["GOOGLE_GEMINI_BASE_URL"] = "http://127.0.0.1:9"
+# um endereco local morto - uma chamada que escape de um duble falha, sem sair
+# da maquina. Chave da Anthropic sempre falsa (as outras ficam como estao: ha
+# testes que conferem o comportamento SEM chave).
+#
+# 2026-10-13: era a porta 9 fechada, mas no Windows conexao RECUSADA demora ~2 s
+# (o SO tenta o SYN de novo) e o SDK tenta 3x: 7,5 s por chamada, ~15 s por
+# pagina nos testes de navegador (o resumo do dia chama a IA ao abrir). Agora e
+# um socket local que aceita e derruba na hora (RST): mesmo erro pro app
+# (APIConnectionError), em ~1 s.
+import socket as _socket  # noqa: E402
+import struct as _struct  # noqa: E402
+import threading as _threading  # noqa: E402
+
+_ia_morta = _socket.socket()
+_ia_morta.bind(("127.0.0.1", 0))
+_ia_morta.listen(128)
+
+
+def _derrubar_conexoes():
+    while True:
+        try:
+            con, _ = _ia_morta.accept()
+            con.setsockopt(_socket.SOL_SOCKET, _socket.SO_LINGER, _struct.pack("ii", 1, 0))
+            con.close()
+        except OSError:
+            return
+
+
+_threading.Thread(target=_derrubar_conexoes, name="ia-morta", daemon=True).start()
+_URL_IA_MORTA = f"http://127.0.0.1:{_ia_morta.getsockname()[1]}"
+os.environ["ANTHROPIC_BASE_URL"] = _URL_IA_MORTA
+os.environ["OPENAI_BASE_URL"] = _URL_IA_MORTA
+os.environ["GOOGLE_GEMINI_BASE_URL"] = _URL_IA_MORTA
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
+
+# Velocidade (2026-10-13): o hash do PIN em producao e scrypt, lento DE PROPOSITO
+# (~80 ms pra gerar + ~75 ms pra conferir) contra forca bruta. Na suite isso se
+# paga em todo setUp que define PIN e faz login - milhares de vezes. Aqui troca
+# so o GERAR por pbkdf2 com 1 iteracao (o conferir le o metodo do proprio hash,
+# entao fica rapido sozinho). Tem que vir antes de qualquer `import auth`, que
+# faz `from werkzeug.security import generate_password_hash`. Producao intocada.
+import werkzeug.security as _ws  # noqa: E402
+
+_gerar_hash_original = _ws.generate_password_hash
+
+
+def _gerar_hash_rapido(senha, method="pbkdf2:sha256:1", salt_length=16):
+    return _gerar_hash_original(senha, method=method, salt_length=salt_length)
+
+
+_ws.generate_password_hash = _gerar_hash_rapido
 
 
 # Windows: apagar um arquivo que outro handle ainda mantem aberto da

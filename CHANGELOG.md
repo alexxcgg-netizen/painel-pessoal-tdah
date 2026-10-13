@@ -5,6 +5,23 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Suíte de testes de ~28 min pra ~6 min + bug do iPhone ao voltar pro app
+
+- iPhone: sair do app com o teclado aberto e voltar deixava campo do chat, nota e barra de abas
+  pendurados no meio da tela. `nucleo/init.js` fecha o teclado ao sair e re-mede a tela na volta,
+  no `pageshow` e quando o teclado recolhe. SW v67. Teste: `tests/test_volta_do_segundo_plano.py`.
+- `scripts/testes.py`: suíte inteira em 3 filas paralelas (pytest-xdist, dependência nova só de
+  teste, sem vulnerabilidade no OSV): rápida (por arquivo), `test_app.py` espalhado teste a teste,
+  navegador num processo só. 27min46s -> 6min18s, tudo verde.
+- `tests/conftest.py`: hash do PIN rápido só nos testes (scrypt custava ~160 ms por setUp com
+  login); a "IA morta" dos testes virou um socket que derruba a conexão na hora (no Windows a porta
+  fechada levava 2 s por tentativa, ~15 s por página nos testes de navegador).
+- Testes que dependiam da ordem ou do relógio: `test_claude_client.py` usava o banco que estivesse
+  apontado (sozinho, o de produção! conferido: nada foi gravado lá) e agora tem banco próprio;
+  `test_app.py` não conta mais a "pausa rápida" da água (falhava nos 5 primeiros minutos das
+  9h/11h/13h/15h/17h); `test_limpa_a_animacao.py` lê a ordem da lista em vez de supor; prompt do
+  chat com a regra de fonte única de volta no topo.
+
 ## 2026-10-13 - Painel puxando assunto: fechar o dia e padrões da semana
 
 - `conversa_proativa.py`: duas mensagens que a IA abre sozinha no chat, por template (zero chamada de

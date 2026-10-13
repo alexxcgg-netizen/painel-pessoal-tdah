@@ -49,7 +49,9 @@ como tela principal. Ver `README.md` pra lista completa de funcionalidades.
   (o venv do projeto já tem as dependências; `pip install -r requirements.txt` numa venv
   nova se não existir ainda). Os testes usam mock nas chamadas à Claude - não gastam nada
   nem precisam de `ANTHROPIC_API_KEY` real. Regra leve mas real: não empurrar mudança que
-  quebrou a suíte.
+  quebrou a suíte. **Suíte inteira rápida (~6 min em vez de ~28):**
+  `.venv/Scripts/python.exe scripts/testes.py` (3 filas em paralelo com pytest-xdist; ver o
+  docstring do script pro porquê da separação). Pra um arquivo só, pytest direto continua.
 - **Regras mais leves que o `financeiro-construtora`** de propósito (não é dinheiro de
   empresa, é uso pessoal) - mas isso não é desculpa pra pular teste ou deixar rota nova
   sem tratamento de erro. Fuzzing pesado (50-100 cenários por mudança) não é obrigatório

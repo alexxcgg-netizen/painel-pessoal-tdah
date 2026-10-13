@@ -83,6 +83,12 @@ class PainelTestCase(unittest.TestCase):
         # dias 1-3 do mes, apos as 9h, a "revisao do mes" entraria em todo
         # verificar-agora destes testes (relogio real) - ver _sem_revisao_mensal
         _sem_revisao_mensal(self)
+        # mesmo problema com a "pausa rapida" da agua (vida.slot_agua_pausa): dia util, nos 5
+        # primeiros minutos das 9h/11h/13h/15h/17h ela entrava a mais em todo verificar-agora
+        # e esses testes falhavam so nessa janela. Nenhum teste deste arquivo testa ela.
+        self._agua_pausa_patch = patch("vida.slot_agua_pausa", return_value=None)
+        self._agua_pausa_patch.start()
+        self.addCleanup(self._agua_pausa_patch.stop)
 
     def test_smoke_pagina_principal_carrega(self):
         res = self.client.get("/")
