@@ -365,7 +365,9 @@ class ConversaDeVerdadeTestCase(unittest.TestCase):
                   "qual a diferença entre IFR e VFR", "como eu melhoro meu foco de manhã?",
                   "devo trocar de carro agora?", "to muito ansioso com a prova",
                   "me ajuda a pensar na semana", "o que você acha de eu voltar pra academia?",
-                  "dicas pra estudar meteorologia"):
+                  "dicas pra estudar meteorologia",
+                  "me ajuda a escrever uma mensagem pro fornecedor que atrasou",
+                  "como eu respondo meu instrutor sem parecer grosso?"):
             with self.subTest(m=m):
                 self.assertTrue(roteador.e_conversa(m))
 
