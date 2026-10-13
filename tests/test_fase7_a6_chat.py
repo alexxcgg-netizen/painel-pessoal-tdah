@@ -540,5 +540,41 @@ class FuzzLayoutTestCase(unittest.TestCase):
                             self.assertTrue(b["text"])
 
 
+class ModeloDeConversaTestCase(unittest.TestCase):
+    """chat.json "conversa": pergunta/conselho/estudo vai pro modelo de conversa
+    com mais saida; registro segue no modelo barato."""
+
+    CONFIG = {
+        "funcao": "chat", "ativo": False,
+        "modelo_atual": {"provedor": "anthropic", "modelo": "barato", "esforco": ""},
+        "alvo": None, "fallback": [], "max_tokens_saida": 500,
+        "cache": {"ativo": False, "ttl": "5m"}, "modo": "padrao",
+        "conversa": {"provedor": "anthropic", "modelo": "forte", "esforco": "", "max_tokens_saida": 1500},
+    }
+
+    def _chamada(self, mensagem, config):
+        with patch.object(chat_mod, "_config_ia", return_value=config):
+            _, g = _chat([{"role": "user", "content": mensagem}])
+        return g.chamadas[0]
+
+    def test_conversa_vai_pro_modelo_forte(self):
+        c = self._chamada("me explica por que o avião estola", self.CONFIG)
+        self.assertEqual((c["model"], c["max_tokens"]), ("forte", 1500))
+
+    def test_registro_fica_no_barato(self):
+        c = self._chamada("gastei 50 no mercado", self.CONFIG)
+        self.assertEqual((c["model"], c["max_tokens"]), ("barato", 500))
+
+    def test_sem_conversa_na_config_nao_troca(self):
+        config = {**self.CONFIG, "conversa": None}
+        c = self._chamada("me explica por que o avião estola", config)
+        self.assertEqual(c["model"], "barato")
+
+    def test_config_real_tem_conversa_valida(self):
+        config = core._carregar_config("chat")
+        self.assertEqual(config["conversa"]["provedor"], "anthropic")
+        self.assertGreater(config["conversa"]["max_tokens_saida"], config["max_tokens_saida"])
+
+
 if __name__ == "__main__":
     unittest.main()

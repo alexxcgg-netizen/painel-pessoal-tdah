@@ -217,6 +217,48 @@ def decidir_com_motivo(mensagem: str, contexto: dict | None = None) -> tuple[str
         return "padrao", f"erro:{type(exc).__name__}"
 
 
+# ---------------------------------------------------------------- conversa de verdade
+# Independente da flag acima: decide so se a mensagem e CONVERSA (pergunta,
+# explicacao, conselho, estudo, desabafo) - ai o chat usa o modelo de conversa
+# (chat.json "conversa") com mais espaco de resposta, em vez do modelo barato
+# que respondia raso. Registro/operacao ("gastei 50", "anota", "marca") nunca e.
+_RE_CONVERSA = re.compile(
+    r"\bpor ?que\b|\bpq\b"
+    r"|\b(?:me )?expli(?:ca|que)\b|\bexplicar\b"
+    r"|\bo que (?:e|eh|significa|quer dizer|acontece)\b"
+    r"|\bqual (?:e )?a diferenca\b|\bdiferenca entre\b"
+    r"|\bcomo (?:eu )?(?:faco|fazer|consigo|melhoro|melhorar|estudo|estudar|funciona|lido|aprendo|organizo)\b"
+    r"|\bme (?:ensina|ajuda a (?:entender|pensar|estudar|organizar|resolver))\b"
+    r"|\bdicas?\b|\bduvida\b|\bopiniao\b|\bsincer"
+    r"|\bconversa(?:r)?\b|\bdesabaf"
+    r"|\bplano de estudo\b|\bestud(?:ar|ando|o)\b|\bprova\b|\bsimulado\b|\bcheck ?ride\b|\bbanca\b"
+    r"|\baerodinamica\b|\bmeteorologia\b|\bnavegacao\b|\bregulamento\b|\bteoria de voo\b"
+    r"|\bsustentacao\b|\bestol\b|\bperformance\b|\bpeso e balanceamento\b|\bmotor(?:es)?\b"
+    r"|\b(?:ifr|vfr|metar|taf|notam|qnh|carta|aerovia)\b"
+    r"|\bmotivacao\b|\bfoco\b|\bprocrastin|\btdah\b|\brotina\b"
+)
+_RE_OPERACAO = re.compile(
+    r"^(?:gastei|paguei|comprei|recebi|anota|anote|registra|registre|lembra|lembre|marca|marque|"
+    r"agenda|agende|apaga|apague|cancela|cancele|tira|adiciona|coloca|bota|muda|move|troca|"
+    r"tomei|comi|bebi|fiz|terminei|acabei|acordei|dormi)\b"
+)
+LIMITE_CONVERSA_LONGA = 220  # pergunta/relato longo sem verbo de registro tambem e conversa
+
+
+def e_conversa(mensagem) -> bool:
+    """True quando a mensagem pede uma resposta pensada (nao um registro).
+    Nunca levanta excecao."""
+    try:
+        texto = _normalizar(mensagem)
+        if not texto or _RE_OPERACAO.search(texto):
+            return False
+        if _RE_CONSELHO_DECISAO.search(texto) or _RE_EMOCAO.search(texto) or _RE_CONVERSA.search(texto):
+            return True
+        return len(texto) > LIMITE_CONVERSA_LONGA and "?" in texto
+    except Exception:
+        return False
+
+
 def decidir(mensagem: str, contexto: dict | None = None) -> str:
     """Devolve so o destino ('local', 'luna' ou 'padrao') - ver
     decidir_com_motivo para o motivo (A/B, logs)."""

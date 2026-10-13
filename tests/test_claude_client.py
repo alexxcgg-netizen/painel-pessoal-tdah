@@ -141,10 +141,13 @@ class SystemPromptConteudoTestCase(unittest.TestCase):
         for texto in memorias:
             self.assertIn(texto, prompt)
 
-    def test_estilo_direto_por_padrao_e_expande_so_se_pedido(self):
-        # US-E11: direto ao ponto por padrao, so expande com pedido explicito.
+    def test_estilo_curto_no_registro_e_com_substancia_na_conversa(self):
+        # US-E11 revisto (2026-10-13): registro segue curto, mas conversa de
+        # verdade (pergunta, conselho, estudo) ganha resposta com substancia.
         prompt = self._system_prompt_enviado()
-        self.assertIn("direto e curto", prompt)
+        self.assertIn("sem enrolacao", prompt)
+        self.assertIn("uma frase curta de\n  confirmacao", prompt)
+        self.assertIn("SUBSTANCIA", prompt)
         self.assertIn("explica melhor", prompt.lower())
 
     def test_vale_a_pena_pede_recomendacao_explicita(self):

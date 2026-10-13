@@ -20,6 +20,8 @@ from datetime import date, timedelta
 
 import requests
 
+import fala_ptbr
+
 log = logging.getLogger(__name__)
 
 URL_DIALOGO = "https://api.elevenlabs.io/v1/text-to-dialogue"
@@ -157,6 +159,10 @@ def sintetizar(conn, texto) -> bytes | None:
     texto = texto.strip()
     if not texto or len(texto) > MAX_CARACTERES:
         return None
+    # "14:30", "R$ 1.250,90", "180g", "TDAH"... viram fala de gente antes do
+    # TTS (o flash_v2_5 nao normaliza pt-BR sozinho). A cota conta o texto
+    # que realmente vai pra ElevenLabs.
+    texto = fala_ptbr.normalizar(texto) or texto
 
     chave = _chave_cache(texto)
     row = conn.execute("SELECT audio FROM voz_cache WHERE chave = ?", (chave,)).fetchone()

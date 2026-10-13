@@ -159,6 +159,14 @@ class TestSintetizar(_Base):
         self.assertEqual(kw["json"], {"text": "Bom dia, Alex.", "model_id": "eleven_flash_v2_5", "language_code": "pt"})
         self.assertEqual(kw["timeout"], 10)
 
+    def test_payload_vai_normalizado_pra_fala(self):
+        # o TTS recebe o texto ja falavel; a cota conta esse texto, nao o escrito
+        with self._post() as p:
+            voz_premium.sintetizar(self.conn, "Dentista às 14:30.")
+        enviado = p.call_args.kwargs["json"]["text"]
+        self.assertEqual(enviado, "Dentista às catorze e trinta.")
+        self.assertEqual(voz_premium.uso_do_mes(self.conn), len(enviado))
+
     def test_payload_v4_vai_pelo_dialogue(self):
         os.environ["ELEVENLABS_MODELO"] = "eleven_v4_turbo"
         with self._post() as p:
@@ -194,7 +202,7 @@ class TestSintetizar(_Base):
     def test_limite_bloqueia_antes_de_chamar(self):
         os.environ["ELEVENLABS_LIMITE_MES"] = "10"
         with self._post() as p:
-            self.assertIsNotNone(voz_premium.sintetizar(self.conn, "123456"))  # 6
+            self.assertIsNotNone(voz_premium.sintetizar(self.conn, "abcdef"))  # 6
             self.assertIsNone(voz_premium.sintetizar(self.conn, "abcde"))  # 6+5 > 10
             self.assertIsNotNone(voz_premium.sintetizar(self.conn, "abcd"))  # 6+4 = 10
         self.assertEqual(p.call_count, 2)
@@ -216,7 +224,7 @@ class TestSintetizar(_Base):
         os.environ["ELEVENLABS_LIMITE_MES"] = "5"
         with mock.patch.object(voz_premium, "mes_atual", return_value="2026-08"):
             with self._post():
-                self.assertIsNotNone(voz_premium.sintetizar(self.conn, "12345"))
+                self.assertIsNotNone(voz_premium.sintetizar(self.conn, "vwxyz"))
                 self.assertIsNone(voz_premium.sintetizar(self.conn, "abcde"))
         with mock.patch.object(voz_premium, "mes_atual", return_value="2026-09"):
             with self._post():
@@ -318,7 +326,7 @@ class TestRotas(_Base):
     def test_uso(self):
         os.environ.update(ENV_OK)
         with mock.patch.object(voz_premium.requests, "post", return_value=_Resp()):
-            self.client.post("/api/voz/falar", json={"texto": "12345"})
+            self.client.post("/api/voz/falar", json={"texto": "vwxyz"})
         j = self.client.get("/api/voz/uso").get_json()
         self.assertEqual(j["caracteres"], 5)
         self.assertEqual(j["limite"], 9000)

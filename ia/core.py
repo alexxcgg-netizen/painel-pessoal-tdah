@@ -203,6 +203,16 @@ def _normalizar_config(bruto, funcao: str, arquivo: Path) -> dict:
     if not isinstance(modo, str) or not modo:
         raise ConfigIAErro(f"{arquivo.name}: 'modo' precisa ser texto")
 
+    # opcional (so o chat usa): modelo pra conversa de verdade (pergunta,
+    # conselho, estudo) com limite de saida proprio
+    conversa = None
+    if bruto.get("conversa") is not None:
+        conversa = _validar_entrada_modelo(bruto["conversa"], "conversa", arquivo)
+        limite = bruto["conversa"].get("max_tokens_saida", max_tokens)
+        if isinstance(limite, bool) or not isinstance(limite, int) or limite <= 0:
+            raise ConfigIAErro(f"{arquivo.name}: 'conversa.max_tokens_saida' precisa ser inteiro > 0")
+        conversa["max_tokens_saida"] = limite
+
     return {
         "funcao": funcao,
         "ativo": ativo,
@@ -212,6 +222,7 @@ def _normalizar_config(bruto, funcao: str, arquivo: Path) -> dict:
         "max_tokens_saida": max_tokens,
         "cache": cache,
         "modo": modo,
+        "conversa": conversa,
     }
 
 

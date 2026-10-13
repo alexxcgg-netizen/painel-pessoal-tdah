@@ -356,5 +356,29 @@ class FlagViaDbTestCase(unittest.TestCase):
         self.assertEqual(roteador.decidir("bom dia", contexto), "padrao")
 
 
+class ConversaDeVerdadeTestCase(unittest.TestCase):
+    """e_conversa (2026-10-13): independe da flag - so diz se a mensagem pede
+    resposta pensada (vai pro modelo de conversa) ou e registro."""
+
+    def test_conversa(self):
+        for m in ("por que o QNH muda com o tempo?", "me explica o que e estol",
+                  "qual a diferença entre IFR e VFR", "como eu melhoro meu foco de manhã?",
+                  "devo trocar de carro agora?", "to muito ansioso com a prova",
+                  "me ajuda a pensar na semana", "o que você acha de eu voltar pra academia?",
+                  "dicas pra estudar meteorologia"):
+            with self.subTest(m=m):
+                self.assertTrue(roteador.e_conversa(m))
+
+    def test_registro_e_papo_curto_nao_sao(self):
+        for m in ("gastei 50 no mercado", "anota comprar pão", "marca dentista amanhã às 14h",
+                  "oi", "valeu", "comi 2 ovos", "acordei", "", None, 123, "x" * 5000):
+            with self.subTest(m=str(m)[:30]):
+                self.assertFalse(roteador.e_conversa(m))
+
+    def test_pergunta_longa_sem_gatilho_e_conversa(self):
+        longa = "Hoje fiquei pensando na faculdade e no trabalho com meu pai, " * 4 + "faz sentido?"
+        self.assertTrue(roteador.e_conversa(longa))
+
+
 if __name__ == "__main__":
     unittest.main()

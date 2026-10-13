@@ -5,6 +5,32 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Voz fala hora/número/sigla certo + chat responde com substância
+
+- **Voz errava "14:30", "R$ 1.250,90", "180g", "TDAH"** (o `eleven_flash_v2_5` lê o texto cru e a
+  normalização automática dele em pt-BR é só do plano Enterprise). Novo `fala_ptbr.py` (sem
+  dependência nova): `normalizar()` transforma antes do TTS - horário ("catorze e trinta", "nove
+  horas", "meio-dia", "meia-noite e trinta", "1h30min"), dinheiro (reais/centavos, "R$ 2 mil",
+  "três milhões de reais"), unidades (kcal→calorias, g, kg, km, kt→nós, ft→pés, NM, hPa, °),
+  %, datas (13/10, 13/10/2026, ISO, "primeiro de outubro"), ordinais (2º, 1ª), "3x", "3 x 4",
+  "10-12", "~30", número solto com gênero pela palavra seguinte ("duas refeições", "duas mil
+  calorias"), dígito a dígito pra telefone/0800, aviação (FL350, pista 09L, QNH 1013, ICAO SBSP
+  soletrado) e siglas (TDAH, IFR, VFR, METAR→"métar", TAF, ANAC, ok, app...). Tira markdown,
+  emoji, setas e URL. Erro interno → devolve o texto original (nunca derruba a fala).
+  `voz_premium.sintetizar` normaliza antes da chave do cache (áudio antigo mal pronunciado não é
+  reaproveitado) e a cota mensal conta o texto normalizado. Testes: `tests/test_fala_ptbr.py`.
+- **Chat respondia raso**: o prompt mandava "direto e curto SEMPRE" e tudo ia pro Haiku 5.5 com
+  500 tokens. Agora (1) prompt separa registro (1 frase, o card mostra o resto) de conversa de
+  verdade (pergunta, explicação, conselho, estudo, desabafo → 2-4 parágrafos pessoais, usando o
+  que sabe dele, fechando com 1 próximo passo; frases que soam bem em voz alta); (2)
+  `ia/roteador_chat.e_conversa()` (independe da flag do roteador antigo) detecta conversa e o
+  chat usa o novo bloco opcional `"conversa"` do `ia/config.d/chat.json` (Sonnet 5, 1500 tokens)
+  - registro ("gastei", "anota", "marca"...) continua no Haiku barato. `ia/core.py` valida o bloco.
+  Regra do `sugerir_tema_estudo` ajustada: não inventa grade de estudo, mas explica conceito
+  quando ele pergunta (com aviso pra conferir limite de regulamento na fonte oficial).
+  Custo: conversa no Sonnet 5 sai ~20x o Haiku por mensagem (centavos); pra desligar, apagar o
+  bloco "conversa" do chat.json.
+
 ## 2026-10-09 - Chat mais esperto + voz de verdade (Roberta) + modo conversa
 
 - **Tarefa duplicada ao "colocar hora"**: nova tool `ajustar_tarefa` (muda hora/data de tarefa pendente existente;

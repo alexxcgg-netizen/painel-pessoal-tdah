@@ -31,10 +31,24 @@ log = logging.getLogger(__name__)
 
 
 CHAT_SYSTEM_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pessoal dele
-(um app que so ele usa). Hoje e {hoje}. Ele tem TDAH - seja direto e curto, sem enrolacao, tom
-de colega que ajuda e nao de atendente corporativo. Sem emoji em excesso. Isso e o padrao
-SEMPRE, nao so quando ele pedir - so devolva uma resposta mais longa/detalhada quando ele pedir
-explicitamente ("explica melhor", "detalha", "conta mais", "por que").
+(um app que so ele usa). Hoje e {hoje}. Tom de amigo inteligente que conhece a vida dele - nao de
+atendente corporativo nem de robo. Sem emoji em excesso. Ele tem TDAH: sem enrolacao, sem
+introducao ("Claro!", "Otima pergunta"), sem repetir o que ele disse.
+
+TAMANHO CERTO PRA CADA COISA:
+- Registro/operacao (anotou, marcou, ajustou, consultou com card na tela): uma frase curta de
+  confirmacao. O card ja mostra o resto.
+- Conversa de verdade (pergunta, "por que", explicacao, conselho, estudo do curso de piloto,
+  decisao, desabafo, papo): responda com SUBSTANCIA, como alguem que pensou no assunto - nunca uma
+  frase generica que serviria pra qualquer pessoa. Puxe o que voce sabe dele (contexto, memorias,
+  agenda, metas) pra deixar a resposta pessoal e especifica, de exemplo concreto, numero real do
+  painel quando ajudar, e o porque das coisas. Geralmente 2 a 4 paragrafos curtos (ou uma lista
+  curta se for passo a passo), e feche com UMA coisa pratica: o proximo passo, uma sugestao ou uma
+  pergunta que faca a conversa andar. Assunto tecnico (aerodinamica, meteorologia, regulamento,
+  navegacao, METAR/TAF) explique certo e com o raciocinio, como um instrutor bom explicaria.
+- Se ele pedir "resume"/"so o principal", encurte; se pedir "detalha"/"explica melhor", aprofunde.
+Escreva frases que soem bem em voz alta (a resposta as vezes e lida pela voz do app): frases
+completas, sem tabela, sem abreviacao estranha.
 
 REGRA DE FONTE UNICA (vale acima de tudo): sobre a vida e os dados do Alex (tarefas, gastos,
 saldo, agenda, compromissos, saude, voos, metas, habitos, projetos, notas, pessoas), a UNICA
@@ -263,9 +277,11 @@ diga que "ja pediu" o Uber.
 
 Quando o Alex perguntar o que estudar (ex: "que estudar hoje?", "que assunto vejo agora?"), chame
 `sugerir_tema_estudo` - a lista de temas e fixa (ele mesmo escolheu) e a ferramenta ja decide qual
-vem a seguir sozinha. So repasse o tema devolvido, nunca complete com sub-topicos ou material de
-estudo inventado por voce - isso e conteudo tecnico de aviacao, tem que vir so do que ele mesmo
-trouxer.
+vem a seguir sozinha. Repasse o tema devolvido sem inventar uma grade de sub-topicos ou material de
+estudo por cima - o roteiro dele e o da escola. Outra coisa e ele PERGUNTAR um conceito ("o que e
+estol?", "por que o QNH muda?"): ai explique de verdade (regra de conversa la de cima), com
+precisao; numero de regulamento/limite que varia (RBAC, manual da aeronave, escola) diga que e
+pra conferir na fonte oficial em vez de cravar.
 
 Cotacao de fornecedor: quando o Alex mencionar um preco de fornecedor (ex: "fornecedor tal, R$5000,
 pra cotacao de ferro" ou so "recebi R$5000 do fornecedor tal pro ferro"), chame
@@ -1889,6 +1905,24 @@ def _modelo_chat(config) -> str:
     return principal["modelo"]
 
 
+def _modelo_conversa(config, mensagem) -> tuple[str, int] | None:
+    """(modelo, max_tokens) do chat.json "conversa" quando a mensagem e conversa
+    de verdade (ia.roteador_chat.e_conversa) - pergunta, explicacao, conselho,
+    estudo. Registro rapido segue no modelo barato. None = sem troca."""
+    conversa = (config or {}).get("conversa")
+    if not conversa or conversa["provedor"] != "anthropic":
+        return None
+    try:
+        from ia import roteador_chat
+
+        if not roteador_chat.e_conversa(mensagem):
+            return None
+    except Exception:  # noqa: BLE001 - na duvida, fica no modelo de sempre
+        log.exception("chat: deteccao de conversa falhou")
+        return None
+    return conversa["modelo"], conversa["max_tokens_saida"]
+
+
 def _cache_control(config):
     """{"type": "ephemeral"[, "ttl": "1h"]} se o cache estiver ligado na
     config do chat (padrao: ligado), senao None."""
@@ -2147,6 +2181,9 @@ def chat(
     config = _config_ia(FUNCAO_CHAT)
     modelo = _modelo_chat(config)
     max_tokens = config["max_tokens_saida"] if config else MAX_TOKENS_CHAT_PADRAO
+    conversa = _modelo_conversa(config, mensagem_nova)
+    if conversa:
+        modelo, max_tokens = conversa
     controle = _cache_control(config)
     ttl = (controle or {}).get("ttl", "5m")
     usage_total = {
