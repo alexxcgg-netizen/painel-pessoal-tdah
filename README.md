@@ -68,6 +68,20 @@ chat (`tests/test_claude_client.py`), as regras de notificacao proativa
 200 cenarios) e as contas de horas voadas e a previsao do tempo/METAR-TAF com a rede mockada
 (`tests/test_voos.py`, `tests/test_clima.py`, `tests/test_metar.py`).
 
+## Backup automatico do banco
+
+Todo dia as 3h30 (e ao subir o app, se o ultimo backup tiver mais de 24 h) o painel salva um
+snapshot consistente do banco em `data/backups/painel-AAAA-MM-DD.db` (ou em `BACKUP_DIR`, se
+definido), mantendo os 14 mais recentes. A pasta `data/` e gitignored. Detalhes e como
+restaurar em `docs/BACKUP.md`.
+
+## Prova de qualidade do chat (eval)
+
+`python scripts/eval_chat/rodar.py` valida os ~33 casos de `scripts/eval_chat/casos.json` e
+estima o custo (nada é chamado). `--rodar` roda de verdade (API real, centavos) contra uma cópia
+temporária do banco, com agenda/Uber/push/Telegram desligados; `--juiz` adiciona nota 1-5 do Haiku.
+Resultados em `scripts/eval_chat/resultados/` (gitignored).
+
 ## Funcionalidades (v1)
 
 - **Chat**: a aba Hoje e uma conversa com tool-use - fala o que quiser e a IA decide se registra tarefa/gasto/meta, gera o plano do dia, ou so responde (ver secao "Chat" abaixo)

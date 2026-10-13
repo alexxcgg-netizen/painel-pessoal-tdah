@@ -221,6 +221,20 @@ citada entre parênteses.
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
+### 2026-10-13, eval do chat (`scripts/eval_chat/`) e backup diário
+- **`app.py` só chama `load_dotenv()` se `unittest`/`pytest` ainda NÃO estiverem em `sys.modules`.**
+  Script que importa `unittest.mock` antes do `app` (ou o runner do eval) precisa carregar o `.env`
+  sozinho e ANTES de importar `ia.legado` (ele cria o cliente da Anthropic na importação; chave de
+  enchimento ali vira a chave do cliente pelo resto do processo).
+- **Rodar o pipeline do chat sem tocar o banco real:** snapshot com `sqlite3.backup()` a partir de
+  `file:...?mode=ro`, `db.DB_PATH` apontado pra cópia ANTES de `import app` e restaurado no `finally`;
+  `db.garantir_banco_nao_producao()` depois de cada troca. Ver `scripts/eval_chat/rodar.py`.
+- **`classificador_local` devolve `acao` que não é nome de tool** (ex.: `registrar_hidratacao_a10`):
+  caso de eval que resolve local não deve exigir `ferramentas_obrigatorias`.
+- **Backup diário (`backup_diario.py`) e semanal (`app.rodar_backup_automatico_semanal`) dividem a
+  pasta** `data/backups/` (ou `BACKUP_DIR`): nomes `painel-AAAA-MM-DD.db` x `painel-backup-*.db`, cada
+  um rotaciona só os seus.
+
 ### 2026-09-24, Modo teste de IA (toggle no card Custo de IA)
 - **Listener de `change` num toggle que também faz `await` de um GET de carga precisa ser
   anexado ANTES desse `await`, não depois** (`loadTesteIA`, `static/js/secoes/painel/custo-ia.js`).
