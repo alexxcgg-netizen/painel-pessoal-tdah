@@ -10,3 +10,6 @@ vapid_private.pem
 
 # Fase 7: exemplos reais do Alex pro teste A/B de IA (nunca versionar)
 fixtures_reais/
+
+# Prova de qualidade do chat (scripts/eval_chat): resultados de cada rodada
+scripts/eval_chat/resultados/

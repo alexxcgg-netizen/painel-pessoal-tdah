@@ -75,6 +75,13 @@ snapshot consistente do banco em `data/backups/painel-AAAA-MM-DD.db` (ou em `BAC
 definido), mantendo os 14 mais recentes. A pasta `data/` e gitignored. Detalhes e como
 restaurar em `docs/BACKUP.md`.
 
+## Prova de qualidade do chat (eval)
+
+`python scripts/eval_chat/rodar.py` valida os ~33 casos de `scripts/eval_chat/casos.json` e
+estima o custo (nada é chamado). `--rodar` roda de verdade (API real, centavos) contra uma cópia
+temporária do banco, com agenda/Uber/push/Telegram desligados; `--juiz` adiciona nota 1-5 do Haiku.
+Resultados em `scripts/eval_chat/resultados/` (gitignored).
+
 ## Funcionalidades (v1)
 
 - **Chat**: a aba Hoje e uma conversa com tool-use - fala o que quiser e a IA decide se registra tarefa/gasto/meta, gera o plano do dia, ou so responde (ver secao "Chat" abaixo)

@@ -5,6 +5,20 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Prova de qualidade do chat (`scripts/eval_chat/`)
+
+- `casos.json`: 33 mensagens realistas (registro rápido, dump de áudio misturando gasto + água + voo
+  + tarefa, conversa/estudo de aviação/desabafo) com checagens determinísticas: ferramentas que
+  DEVEM ser chamadas (validadas contra `CHAT_TOOLS`), faixa de tamanho, frases com cara de robô
+  ("Claro!", "Ótima pergunta"...), excesso de emoji, linhas criadas no banco e qual modelo atendeu.
+- `rodar.py`: sem `--rodar` só valida o JSON + estima o custo (e já avisa se o roteador
+  `e_conversa` discorda do modelo esperado de algum caso). Com `--rodar` roda cada caso por
+  `app._processar_mensagem_chat` contra uma COPIA temporária do banco (snapshot `backup()` a partir
+  de conexão somente-leitura; restaurada do zero a cada caso; chat/resumo zerados), com
+  CalDAV/Uber/push/Telegram/HTTP de escrita desligados por patch. `--juiz` = nota 1-5 do Haiku
+  ("parece gente" / "resolveu"). Trava `--teto-usd` (padrão 1,00). Saída em tabela +
+  `resultados/AAAA-MM-DD-HHMM.json` (gitignored). `tests/test_eval_chat.py` (IA mockada).
+
 ## 2026-10-13 - Backup automático diário do banco
 
 - Novo `backup_diario.py` (sem dependência nova): snapshot consistente via `sqlite3.backup()` em

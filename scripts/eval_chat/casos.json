@@ -1,0 +1,324 @@
+{
+  "versao": 1,
+  "descricao": "Mensagens realistas do Alex (portugues informal, inclusive audio transcrito misturando assuntos) com checagens deterministicas: ferramentas que DEVEM ser chamadas, faixa de tamanho da resposta, frases que soam robo. Campos de cada caso: ferramentas_obrigatorias = todas; ferramentas_alguma_de = lista de grupos, cada grupo precisa de pelo menos 1; ferramentas_proibidas; resposta.min_chars/max_chars; contem/nao_contem = regex aplicado na resposta ja sem acento e em minusculo; cria = {tabela: linhas novas no banco}; modelo_esperado = haiku|sonnet|local|qualquer).",
+  "global": {
+    "max_emojis": 1,
+    "frases_proibidas": [
+      "Claro!",
+      "Com certeza!",
+      "Certamente",
+      "Ótima pergunta",
+      "Boa pergunta!",
+      "Excelente pergunta",
+      "Como uma IA",
+      "Como IA",
+      "Como assistente virtual",
+      "modelo de linguagem",
+      "Espero ter ajudado",
+      "Espero que isso ajude",
+      "Fico feliz em ajudar",
+      "Fico à disposição",
+      "Estou aqui para ajudar",
+      "Se precisar de mais alguma coisa",
+      "Se precisar de algo mais",
+      "Posso ajudar em mais alguma coisa",
+      "Não hesite em",
+      "Entendo perfeitamente"
+    ]
+  },
+  "casos": [
+    {
+      "id": "gasto-simples",
+      "grupo": "registro",
+      "mensagem": "gastei 45 no mercado",
+      "ferramentas_obrigatorias": ["registrar_gasto"],
+      "resposta": {"min_chars": 3, "max_chars": 220},
+      "contem": ["45"],
+      "cria": {"expenses": 1},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "gasto-pix-cafe",
+      "grupo": "registro",
+      "mensagem": "paguei 18,50 de café da manhã na padaria, no pix",
+      "ferramentas_obrigatorias": ["registrar_gasto"],
+      "resposta": {"min_chars": 3, "max_chars": 220},
+      "cria": {"expenses": 1},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "renda-cliente",
+      "grupo": "registro",
+      "mensagem": "recebi 800 do cliente da obra do Gaspar, caiu na conta agora",
+      "ferramentas_obrigatorias": ["registrar_renda"],
+      "ferramentas_proibidas": ["registrar_gasto"],
+      "resposta": {"min_chars": 3, "max_chars": 220},
+      "cria": {"incomes": 1},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "tarefa-com-hora",
+      "grupo": "registro",
+      "mensagem": "marca pra amanhã às 14h consulta no dentista",
+      "ferramentas_alguma_de": [["registrar_tarefa", "agendar_evento"]],
+      "resposta": {"min_chars": 3, "max_chars": 240},
+      "contem": ["14"],
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "prazo-cnh",
+      "grupo": "registro",
+      "mensagem": "preciso renovar a CNH até dia 20 de novembro",
+      "ferramentas_obrigatorias": ["registrar_lembrete"],
+      "resposta": {"min_chars": 3, "max_chars": 260},
+      "cria": {"lembretes": 1},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "remedio-diario",
+      "grupo": "registro",
+      "mensagem": "tenho que tomar vitamina D 2000 UI todo dia às 8h",
+      "ferramentas_obrigatorias": ["registrar_medicamento"],
+      "ferramentas_proibidas": ["registrar_tarefa"],
+      "resposta": {"min_chars": 3, "max_chars": 260},
+      "cria": {"medicamentos": 1},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "voo-realizado",
+      "grupo": "registro",
+      "mensagem": "voei 1,5h hoje de manhã, treino de pouso em Blumenau",
+      "ferramentas_obrigatorias": ["registrar_voo"],
+      "resposta": {"min_chars": 3, "max_chars": 260},
+      "cria": {"voos": 1},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "voo-futuro-sem-hora",
+      "grupo": "registro",
+      "mensagem": "semana que vem vou voar pra Blumenau, ainda não sei o horário",
+      "ferramentas_obrigatorias": ["registrar_voo"],
+      "resposta": {"min_chars": 3, "max_chars": 280},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "acordei-simples",
+      "grupo": "registro",
+      "mensagem": "acordei agora",
+      "ferramentas_obrigatorias": ["registrar_acordei"],
+      "resposta": {"min_chars": 3, "max_chars": 260},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "agua-local",
+      "grupo": "registro",
+      "mensagem": "tomei um copo de água",
+      "resposta": {"min_chars": 2, "max_chars": 160},
+      "cria": {"hidratacao_registros": 1},
+      "modelo_esperado": "local"
+    },
+    {
+      "id": "treino-feito",
+      "grupo": "registro",
+      "mensagem": "fiz treino de peito e tríceps, mais ou menos uma hora",
+      "ferramentas_obrigatorias": ["registrar_treino"],
+      "resposta": {"min_chars": 3, "max_chars": 240},
+      "cria": {"treinos": 1},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "rotina-recorrente",
+      "grupo": "registro",
+      "mensagem": "toda segunda e quinta eu vou na academia às 19h",
+      "ferramentas_obrigatorias": ["registrar_tarefa"],
+      "resposta": {"min_chars": 3, "max_chars": 260},
+      "contem": ["segunda", "quinta"],
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "cotacao-fornecedor",
+      "grupo": "registro",
+      "mensagem": "o fornecedor Ferragens Souza passou R$ 5.200 no ferro da obra",
+      "ferramentas_obrigatorias": ["registrar_item_cotacao"],
+      "resposta": {"min_chars": 3, "max_chars": 260},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "consulta-gastos-mes",
+      "grupo": "registro",
+      "mensagem": "quanto eu gastei esse mês?",
+      "ferramentas_obrigatorias": ["consultar_gastos"],
+      "resposta": {"min_chars": 3, "max_chars": 320},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "consulta-clima",
+      "grupo": "registro",
+      "mensagem": "vai chover hoje em Brusque?",
+      "ferramentas_obrigatorias": ["consultar_clima"],
+      "resposta": {"min_chars": 3, "max_chars": 320},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "pendencias-hoje",
+      "grupo": "registro",
+      "mensagem": "o que eu tenho pra hoje?",
+      "resposta": {"min_chars": 3, "max_chars": 700},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "nota-contador",
+      "grupo": "registro",
+      "mensagem": "anota aí: ligar pro contador sobre a CND da obra do Gaspar",
+      "ferramentas_alguma_de": [["registrar_tarefa", "salvar_nota"]],
+      "resposta": {"min_chars": 3, "max_chars": 240},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "dump-gasto-agua-voo-tarefa",
+      "grupo": "dump de audio",
+      "mensagem": "então, é, eu acabei de voltar do mercado, gastei uns 120 reais lá, ah e eu tomei dois copos de água hoje já, e amanhã eu tenho voo às 14h no aeroclube, e preciso lembrar de ligar pro contador",
+      "origem_audio": true,
+      "ferramentas_obrigatorias": ["registrar_gasto", "registrar_voo", "registrar_tarefa"],
+      "ferramentas_alguma_de": [["registrar_hidratacao", "registrar_checkin"]],
+      "resposta": {"min_chars": 40, "max_chars": 700},
+      "contem": ["->"],
+      "cria": {"expenses": 1, "voos": 1},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "dump-renda-gasto-lembrete",
+      "grupo": "dump de audio",
+      "mensagem": "caiu 2500 do cliente hoje de manhã, paguei 340 de luz e me lembra que o IPVA vence dia 30",
+      "origem_audio": true,
+      "ferramentas_obrigatorias": ["registrar_renda", "registrar_gasto", "registrar_lembrete"],
+      "resposta": {"min_chars": 30, "max_chars": 600},
+      "contem": ["->"],
+      "cria": {"incomes": 1, "expenses": 1, "lembretes": 1},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "dump-semana-planejando",
+      "grupo": "dump de audio",
+      "mensagem": "domingo planejando a semana: preciso cotar ferro, ligar pro contador, levar o carro na revisão, pagar o IPVA, comprar presente da minha mãe e resolver a nota fiscal da obra",
+      "origem_audio": true,
+      "ferramentas_obrigatorias": ["distribuir_tarefas_na_semana"],
+      "ferramentas_proibidas": ["registrar_tarefa"],
+      "resposta": {"min_chars": 80, "max_chars": 1500},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "dump-acordei-dia-de-voo",
+      "grupo": "dump de audio",
+      "mensagem": "acordei agora, hoje tenho voo às 15h no aeroclube, preciso passar no cartório de manhã e almoçar antes",
+      "origem_audio": true,
+      "ferramentas_obrigatorias": ["registrar_acordei", "planejar_dia"],
+      "resposta": {"min_chars": 60, "max_chars": 1100},
+      "contem": ["\\d{1,2}[:h]\\d{0,2}"],
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "sintoma-dor-de-cabeca",
+      "grupo": "registro",
+      "mensagem": "tô com uma dor de cabeça forte desde ontem e tonto também",
+      "ferramentas_proibidas": ["registrar_medicamento"],
+      "resposta": {"min_chars": 40, "max_chars": 700},
+      "contem": ["medic|doutor|consulta|pronto.?socorro|upa"],
+      "modelo_esperado": "qualquer"
+    },
+    {
+      "id": "aviacao-estol-curva",
+      "grupo": "conversa",
+      "mensagem": "me explica por que o avião estola mais fácil em curva fechada, não entendi bem a parte do fator de carga",
+      "ferramentas_proibidas": ["registrar_tarefa", "registrar_gasto"],
+      "resposta": {"min_chars": 500, "max_chars": 2400},
+      "contem": ["fator de carga|g\\b|sustenta", "velocidade de estol|angulo de ataque|asa"],
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "aviacao-ler-metar",
+      "grupo": "conversa",
+      "mensagem": "como eu leio um METAR? o que significa aquele monte de código, tipo SBBI 121200Z 18008KT 9999 SCT030 BKN100 22/16 Q1016",
+      "ferramentas_proibidas": ["registrar_tarefa", "registrar_gasto"],
+      "resposta": {"min_chars": 500, "max_chars": 2600},
+      "contem": ["180", "1016|qnh", "vento"],
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "aviacao-por-que-qnh",
+      "grupo": "conversa",
+      "mensagem": "por que o QNH muda de um dia pro outro e por que eu preciso acertar o altímetro antes de decolar?",
+      "ferramentas_proibidas": ["registrar_tarefa", "registrar_gasto"],
+      "resposta": {"min_chars": 450, "max_chars": 2200},
+      "contem": ["pressao", "altimetro|altitude"],
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "aviacao-plano-de-estudo-banca",
+      "grupo": "conversa",
+      "mensagem": "tenho a prova da banca da ANAC daqui a três semanas, de meteorologia e navegação. como eu organizo o estudo?",
+      "resposta": {"min_chars": 500, "max_chars": 2200},
+      "contem": ["semana"],
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "aviacao-vfr-ifr-regulamento",
+      "grupo": "conversa",
+      "mensagem": "qual a diferença entre voo VFR e IFR na prática pra piloto comercial? e qual o mínimo de visibilidade que eu devo respeitar?",
+      "resposta": {"min_chars": 450, "max_chars": 2400},
+      "contem": ["vfr", "ifr", "confer|oficial|rbac|aip|ica|cartas|escola"],
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "decisao-cartao-curso",
+      "grupo": "conversa",
+      "mensagem": "to pensando em parcelar o curso de piloto num cartão novo, vale a pena? me ajuda a decidir",
+      "resposta": {"min_chars": 250, "max_chars": 1700},
+      "contem": ["pro", "contra", "vale a pena|nao vale|depende"],
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "desabafo-cansaco",
+      "grupo": "conversa",
+      "mensagem": "tô cansado, esse mês foi puxado, curso, obra, tudo ao mesmo tempo, e sinto que não tô rendendo em nada. queria só desabafar um pouco",
+      "ferramentas_proibidas": ["registrar_tarefa", "registrar_gasto", "registrar_medicamento"],
+      "resposta": {"min_chars": 200, "max_chars": 1300},
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "tdah-procrastinacao",
+      "grupo": "conversa",
+      "mensagem": "por que eu procrastino tanto com tarefa chata e como faço pra conseguir começar? tenho TDAH",
+      "ferramentas_proibidas": ["registrar_medicamento"],
+      "resposta": {"min_chars": 400, "max_chars": 1900},
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "mensagem-dificil-fornecedor",
+      "grupo": "conversa",
+      "mensagem": "me ajuda a escrever uma mensagem pra um fornecedor que atrasou a entrega do material pela terceira vez, sem brigar mas cobrando",
+      "ferramentas_proibidas": ["registrar_tarefa", "registrar_gasto"],
+      "resposta": {"min_chars": 250, "max_chars": 1600},
+      "contem": ["direta|gentil|versao"],
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "conselho-ritmo-e-gasto",
+      "grupo": "dump de audio",
+      "mensagem": "então, eu tava pensando, com o curso de piloto e a obra eu não sei como dividir o tempo, hoje de manhã gastei 80 de combustível, e ontem não consegui estudar nada. você acha que eu devo diminuir o ritmo na obra ou segurar o estudo? o que você faria?",
+      "origem_audio": true,
+      "ferramentas_obrigatorias": ["registrar_gasto"],
+      "resposta": {"min_chars": 300, "max_chars": 1800},
+      "cria": {"expenses": 1},
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "gastos-altos-por-que",
+      "grupo": "conversa",
+      "mensagem": "como tão meus gastos esse mês? por que será que tá tão alto?",
+      "ferramentas_obrigatorias": ["consultar_gastos"],
+      "resposta": {"min_chars": 200, "max_chars": 1600},
+      "modelo_esperado": "sonnet"
+    }
+  ]
+}
