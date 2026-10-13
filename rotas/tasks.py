@@ -31,9 +31,13 @@ def list_tasks():
             "ORDER BY completed_at DESC LIMIT 50"
         ).fetchall()
     else:
+        # Ordem de agenda (pedido do Alex, 2026-10-13): por dia (atrasada/hoje primeiro),
+        # dentro do dia por horario; sem horario fecha o dia dela; sem data vai pro fim
+        # (a mais nova primeiro, como era antes).
         rows = conn.execute(
             "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
-            "ORDER BY created_at DESC"
+            "ORDER BY (due_date IS NULL OR due_date = ''), due_date, "
+            "(hora IS NULL OR hora = ''), hora, created_at DESC, id DESC"
         ).fetchall()
     # Uma query so pras subtarefas de todas as tasks (em vez de uma query por task -
     # nao pesava nada com poucas tarefas, mas escala mal conforme o historico cresce).

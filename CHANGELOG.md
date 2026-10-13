@@ -5,6 +5,13 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Aba Tarefas em ordem de horário
+
+- `GET /api/tasks` (lista padrão) agora sai em ordem de agenda: por dia (atrasada e hoje primeiro),
+  dentro do dia por horário, tarefa sem horário fecha o dia dela, sem data vai pro fim (a mais nova
+  primeiro). Antes era por data de criação e o dia ficava embaralhado (10:00, 10:30, 08:00...).
+  Teste: `tests/test_tarefas_ordem.py`.
+
 ## 2026-10-13 - Professor de aviação 1: briefing meteorológico no chat
 
 - Ferramenta `briefing_meteo_voo` (chat): METAR + TAF oficiais (aviationweather.gov, `metar.py`)
