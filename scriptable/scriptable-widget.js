@@ -62,7 +62,8 @@ function resolverConfig() {
   let url = PAINEL_URL;
   let token = TOKEN;
   const parametro = (typeof args !== "undefined" && args && args.widgetParameter) || "";
-  if (parametro) {
+  const ehConfig = /\|/.test(String(parametro)) || /^\s*https?:/i.test(String(parametro));
+  if (parametro && ehConfig) {
     const partes = String(parametro).split("|");
     if (partes[0]) url = partes[0].trim();
     if (partes[1] !== undefined) token = partes[1].trim();
@@ -72,12 +73,12 @@ function resolverConfig() {
 
 function obterFamilia() {
   const familia = (typeof config !== "undefined" && config && config.widgetFamily) || "small";
-  const validas = ["small", "medium", "accessoryCircular", "accessoryRectangular"];
+  const validas = ["small", "medium", "accessoryCircular", "accessoryRectangular", "accessoryInline"];
   return validas.indexOf(familia) !== -1 ? familia : "small";
 }
 
 function ehTelaBloqueio(familia) {
-  return familia === "accessoryCircular" || familia === "accessoryRectangular";
+  return familia === "accessoryCircular" || familia === "accessoryRectangular" || familia === "accessoryInline";
 }
 
 // ---- Busca de dados + cache ----
@@ -320,6 +321,213 @@ function adicionarRodape(pai, sufixo) {
   rodape.font = Font.systemFont(9);
 }
 
+// ---- Tela de bloqueio desenhada (2026-10-13, Alex: "algo mais bonito ou maior, fica muito pequeno") ----
+// O iOS nao deixa widget de tela de bloqueio maior que redondo/retangular/linha - entao o espaco e
+// aproveitado: anel de progresso (estilo anel de Atividade) no redondo, numero grande + barra
+// desenhada no retangular, e o retangular pode mostrar SO uma coisa (parametro "comida" ou
+// "proximo") pra dois lado a lado ocuparem a linha inteira com letra grande.
+// Tudo monocromatico: o iOS pinta a tela de bloqueio com "vibrancy" - branco opaco = cheio,
+// branco transparente = trilho. Por isso desenho em DrawContext e so textOpacity nos textos
+// (cor de texto/fundo e ignorada ou distorce nesses slots).
+
+const branco = (alfa) => new Color("#ffffff", alfa);
+
+// O que o widget de bloqueio mostra: parametro "comida", "proximo" ou nada (os dois).
+// Parametro com "|" ou comecando com http e configuracao (URL|TOKEN), nao modo.
+function modoDoWidget() {
+  const bruto = (typeof args !== "undefined" && args && args.widgetParameter) || "";
+  const m = String(bruto).trim().toLowerCase();
+  if (!m || m.indexOf("|") !== -1 || /^https?:/.test(m)) return "ambos";
+  if (m.indexOf("comida") === 0 || m.indexOf("kcal") === 0) return "comida";
+  if (m.indexOf("prox") === 0 || m.indexOf("próx") === 0) return "proximo";
+  return "ambos";
+}
+
+function pontoNoCirculo(c, r, frac) {
+  const a = -Math.PI / 2 + 2 * Math.PI * frac;
+  return new Point(c + r * Math.cos(a), c + r * Math.sin(a));
+}
+
+function caminhoArco(c, r, frac) {
+  const p = new Path();
+  const passos = Math.max(2, Math.ceil(96 * frac));
+  p.move(pontoNoCirculo(c, r, 0));
+  for (let i = 1; i <= passos; i++) p.addLine(pontoNoCirculo(c, r, (frac * i) / passos));
+  return p;
+}
+
+// anel de progresso com o numero no meio (desenhado grande; o iOS reduz e fica nitido)
+function imagemAnel(frac, centro, rotulo) {
+  const T = 120;
+  const espessura = 12;
+  const r = (T - espessura) / 2 - 1;
+  const c = T / 2;
+  const d = new DrawContext();
+  d.size = new Size(T, T);
+  d.opaque = false;
+  d.respectScreenScale = true;
+  d.setLineWidth(espessura);
+  const circulo = new Rect(c - r, c - r, 2 * r, 2 * r);
+  d.setStrokeColor(branco(0.22));
+  d.strokeEllipse(circulo); // trilho fechado, sem emenda no topo
+  const f = Math.max(0, Math.min(1, Number(frac) || 0));
+  if (f >= 1) {
+    d.setStrokeColor(branco(1));
+    d.strokeEllipse(circulo);
+  } else if (f > 0) {
+    d.setStrokeColor(branco(1));
+    d.addPath(caminhoArco(c, r, f));
+    d.strokePath();
+    // pontas arredondadas, como os aneis da Apple
+    d.setFillColor(branco(1));
+    [pontoNoCirculo(c, r, 0), pontoNoCirculo(c, r, f)].forEach((q) =>
+      d.fillEllipse(new Rect(q.x - espessura / 2, q.y - espessura / 2, espessura, espessura))
+    );
+  }
+  d.setTextAlignedCenter();
+  d.setTextColor(branco(1));
+  // o slot redondo tem ~72pt: 120 desenhado vira ~0,6x - fonte 36 aqui = ~22 na tela
+  const n = String(centro).length;
+  d.setFont(Font.boldRoundedSystemFont(n <= 3 ? 36 : n === 4 ? 30 : 24));
+  d.drawTextInRect(String(centro), new Rect(0, rotulo ? c - 27 : c - 21, T, 44));
+  if (rotulo) {
+    d.setTextColor(branco(0.7));
+    d.setFont(Font.semiboldRoundedSystemFont(14));
+    d.drawTextInRect(rotulo, new Rect(0, c + 13, T, 20));
+  }
+  return d.getImage();
+}
+
+// barra arredondada (trilho translucido + preenchido opaco)
+function imagemBarra(frac, largura, altura) {
+  const esc = 3; // desenha em 3x pra borda ficar lisa
+  const W = largura * esc;
+  const H = altura * esc;
+  const d = new DrawContext();
+  d.size = new Size(W, H);
+  d.opaque = false;
+  d.respectScreenScale = false;
+  const trilho = new Path();
+  trilho.addRoundedRect(new Rect(0, 0, W, H), H / 2, H / 2);
+  d.addPath(trilho);
+  d.setFillColor(branco(0.25));
+  d.fillPath();
+  const f = Math.max(0, Math.min(1, Number(frac) || 0));
+  if (f > 0) {
+    const cheio = new Path();
+    cheio.addRoundedRect(new Rect(0, 0, Math.max(H, W * f), H), H / 2, H / 2);
+    d.addPath(cheio);
+    d.setFillColor(branco(1));
+    d.fillPath();
+  }
+  return d.getImage();
+}
+
+function adicionarBarraBloqueio(pai, frac, largura, altura) {
+  const img = pai.addImage(imagemBarra(frac, largura, altura));
+  img.imageSize = new Size(largura, altura);
+  return img;
+}
+
+function textoBloqueio(pai, texto, fonte, opacidade) {
+  const t = pai.addText(texto);
+  t.font = fonte;
+  if (opacidade !== undefined) t.textOpacity = opacidade;
+  t.lineLimit = 1;
+  t.minimumScaleFactor = 0.7;
+  return t;
+}
+
+function bloqueioCircular(widget, foco, comida, modo, sufixo) {
+  widget.setPadding(0, 0, 0, 0);
+  let img;
+  const fk = comida ? fracaoMeta(comida.kcal, comida.meta_kcal) : null;
+  if (modo !== "proximo" && fk !== null) img = imagemAnel(fk, `${Math.round(fk * 100)}%`, sufixo ? "salvo" : "kcal");
+  else if (modo !== "proximo" && comida) img = imagemAnel(0, milhar(comida.kcal), "kcal");
+  else if (foco && foco.hora) img = imagemAnel(0, foco.hora, quandoTexto(foco.em_minutos).replace("em ", ""));
+  else img = imagemAnel(0, "—", "livre");
+  const im = widget.addImage(img);
+  im.centerAlignImage();
+}
+
+function bloqueioRetangular(widget, foco, comida, modo, sufixo) {
+  widget.setPadding(0, 0, 0, 0);
+  const temFoco = !!(foco && foco.titulo);
+  const largura = 140; // o slot retangular tem ~155-170pt conforme o iPhone
+
+  if (modo === "comida" || (modo === "ambos" && !temFoco && comida)) {
+    if (!comida) {
+      textoBloqueio(widget, "Comida hoje", Font.semiboldSystemFont(12), 0.7);
+      textoBloqueio(widget, "manda a foto do prato", Font.mediumSystemFont(13));
+      return;
+    }
+    const topo = widget.addStack();
+    topo.layoutHorizontally();
+    topo.bottomAlignContent();
+    textoBloqueio(topo, milhar(comida.kcal), Font.boldRoundedSystemFont(26));
+    topo.addSpacer(4);
+    textoBloqueio(topo, comida.meta_kcal ? `/ ${milhar(comida.meta_kcal)} kcal` : "kcal", Font.semiboldRoundedSystemFont(12), 0.7);
+    const fk = fracaoMeta(comida.kcal, comida.meta_kcal);
+    if (fk !== null) {
+      widget.addSpacer(3);
+      adicionarBarraBloqueio(widget, fk, largura, 7);
+    }
+    widget.addSpacer(5);
+    textoBloqueio(widget, sufixo || comidaProteinaTexto(comida), Font.semiboldSystemFont(11), 0.8);
+    const fp = fracaoMeta(comida.proteina_g, comida.meta_proteina_g);
+    if (fp !== null && !sufixo) {
+      widget.addSpacer(3);
+      adicionarBarraBloqueio(widget, fp, largura, 5);
+    }
+    return;
+  }
+
+  if (!temFoco) {
+    textoBloqueio(widget, "PRÓXIMO", Font.semiboldSystemFont(11), 0.7);
+    textoBloqueio(widget, "Nada marcado agora", Font.semiboldSystemFont(15));
+    if (sufixo) textoBloqueio(widget, sufixo, Font.mediumSystemFont(10), 0.7);
+    return;
+  }
+
+  if (modo === "proximo" || !comida) {
+    textoBloqueio(widget, `PRÓXIMO · ${quandoTexto(foco.em_minutos)}`, Font.semiboldSystemFont(11), 0.7);
+    if (foco.hora) textoBloqueio(widget, foco.hora, Font.boldRoundedSystemFont(26));
+    const t = textoBloqueio(widget, foco.titulo, Font.semiboldSystemFont(14));
+    t.lineLimit = foco.hora ? 1 : 2;
+    if (sufixo) textoBloqueio(widget, sufixo, Font.mediumSystemFont(10), 0.7);
+    return;
+  }
+
+  // os dois: hora grande + quando, titulo, barra de kcal com o numero
+  const topo = widget.addStack();
+  topo.layoutHorizontally();
+  topo.bottomAlignContent();
+  if (foco.hora) {
+    textoBloqueio(topo, foco.hora, Font.boldRoundedSystemFont(19));
+    topo.addSpacer(5);
+  }
+  textoBloqueio(topo, quandoTexto(foco.em_minutos), Font.semiboldSystemFont(11), 0.7);
+  textoBloqueio(widget, foco.titulo, Font.semiboldSystemFont(14));
+  widget.addSpacer(4);
+  const linha = widget.addStack();
+  linha.layoutHorizontally();
+  linha.centerAlignContent();
+  const fk = fracaoMeta(comida.kcal, comida.meta_kcal);
+  if (fk !== null) {
+    adicionarBarraBloqueio(linha, fk, 70, 6);
+    linha.addSpacer(6);
+  }
+  textoBloqueio(linha, sufixo || `${milhar(comida.kcal)} kcal`, Font.semiboldRoundedSystemFont(11), 0.8);
+}
+
+// linha em cima do relogio: so um texto (o iOS usa o primeiro)
+function bloqueioLinha(widget, foco, comida, modo) {
+  const partes = [];
+  if (modo !== "comida" && foco && foco.titulo) partes.push(`${foco.hora ? `${foco.hora} ` : ""}${foco.titulo}`);
+  if (modo !== "proximo" && comida) partes.push(comidaKcalTexto(comida));
+  widget.addText(partes.join(" · ") || "Nada marcado agora");
+}
+
 // ---- Montagem visual ----
 
 function corDe(hex) {
@@ -349,18 +557,10 @@ function adicionarTile(stack, valor, rotulo) {
 // pelo proprio iOS (16+) - cor de texto/fundo customizada e ignorada ou fica
 // errada nesses slots, entao aqui NUNCA se define textColor/backgroundColor
 // (mesma regra ja seguida em widget_lockscreen.js).
+// vazio/erro/sem dados usam o mesmo anel (trilho vazio) - o redondo fica com a mesma cara sempre
 function montarCircular(widget, numeroTexto, rotulo) {
-  const pilha = widget.addStack();
-  pilha.layoutVertically();
-  pilha.addSpacer();
-  const numero = pilha.addText(numeroTexto);
-  numero.font = Font.boldSystemFont(18);
-  numero.minimumScaleFactor = 0.6;
-  numero.centerAlignText();
-  const texto = pilha.addText(rotulo);
-  texto.font = Font.systemFont(8);
-  texto.centerAlignText();
-  pilha.addSpacer();
+  widget.setPadding(0, 0, 0, 0);
+  widget.addImage(imagemAnel(0, numeroTexto, rotulo)).centerAlignImage();
 }
 
 function montarRectangular(widget, linha1Texto, linha2Texto) {
@@ -383,22 +583,10 @@ function preencherNormal(widget, familia, dados, sufixo) {
   const comida = dados && dados.comida;
 
   if (ehTelaBloqueio(familia)) {
-    if (familia === "accessoryCircular") {
-      const fk = comida ? fracaoMeta(comida.kcal, comida.meta_kcal) : null;
-      if (fk !== null) montarCircular(widget, `${Math.round(fk * 100)}%`, sufixo || "kcal");
-      else if (comida) montarCircular(widget, milhar(comida.kcal), sufixo || "kcal");
-      else if (foco && foco.hora) montarCircular(widget, foco.hora, sufixo || "próximo");
-      else montarCircular(widget, "—", sufixo || "livre");
-    } else {
-      let linha1 = "Nada marcado agora";
-      if (foco && foco.titulo) linha1 = `${foco.hora ? `${foco.hora} · ` : ""}${foco.titulo}`;
-      else if (comida) linha1 = comidaKcalTexto(comida);
-      let linha2 = null;
-      if (foco && foco.titulo && comida) linha2 = `${comidaKcalTexto(comida)} · P ${milhar(comida.proteina_g)} g`;
-      else if (foco && foco.titulo) linha2 = quandoTexto(foco.em_minutos);
-      else if (comida) linha2 = comidaProteinaTexto(comida);
-      montarRectangular(widget, linha1, sufixo || linha2);
-    }
+    const modo = modoDoWidget();
+    if (familia === "accessoryCircular") bloqueioCircular(widget, foco, comida, modo, sufixo);
+    else if (familia === "accessoryInline") bloqueioLinha(widget, foco, comida, modo);
+    else bloqueioRetangular(widget, foco, comida, modo, sufixo);
     return;
   }
 
@@ -560,6 +748,9 @@ async function apresentarPreview(widget, familia) {
   if (familia === "accessoryRectangular" && widget.presentAccessoryRectangular) {
     return widget.presentAccessoryRectangular();
   }
+  if (familia === "accessoryInline" && widget.presentAccessoryInline) {
+    return widget.presentAccessoryInline();
+  }
   if (widget.presentSmall) return widget.presentSmall();
 }
 
@@ -638,6 +829,7 @@ if (EM_NODE && typeof module !== "undefined" && module.exports) {
     linhasDeApoio,
     quandoTexto,
     comidaKcalTexto,
+    modoDoWidget,
     montarWidget,
     main,
   };

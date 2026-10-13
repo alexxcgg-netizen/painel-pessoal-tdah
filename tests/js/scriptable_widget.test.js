@@ -21,8 +21,9 @@ const path = require("node:path");
 // ---- Mocks da API do Scriptable ----
 
 class MockColor {
-  constructor(hex) {
+  constructor(hex, alfa) {
     this.hex = hex;
+    this.alpha = alfa === undefined ? 1 : alfa;
   }
 }
 
@@ -33,6 +34,102 @@ class MockFont {
   static boldSystemFont(size) {
     return { kind: "bold", size };
   }
+  static mediumSystemFont(size) {
+    return { kind: "medium", size };
+  }
+  static semiboldSystemFont(size) {
+    return { kind: "semibold", size };
+  }
+  static boldRoundedSystemFont(size) {
+    return { kind: "boldRounded", size };
+  }
+  static semiboldRoundedSystemFont(size) {
+    return { kind: "semiboldRounded", size };
+  }
+}
+
+class MockPoint {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
+class MockRect {
+  constructor(x, y, w, h) {
+    this.x = x;
+    this.y = y;
+    this.width = w;
+    this.height = h;
+  }
+}
+
+class MockPath {
+  constructor() {
+    this.ops = [];
+  }
+  move(p) {
+    this.ops.push(["move", p]);
+  }
+  addLine(p) {
+    this.ops.push(["line", p]);
+  }
+  addRoundedRect(rect) {
+    this.ops.push(["roundedRect", rect]);
+  }
+}
+
+// DrawContext: guarda o que foi desenhado (textos, tracos, preenchimentos) pra o teste conferir a
+// imagem gerada sem renderizar nada de verdade.
+class MockDrawContext {
+  constructor() {
+    this.size = null;
+    this.textos = [];
+    this.tracos = 0;
+    this.preenchimentos = [];
+    this._caminho = null;
+    this._corTexto = null;
+  }
+  setLineWidth() {}
+  setStrokeColor() {}
+  setFillColor(cor) {
+    this._corFill = cor;
+  }
+  setTextColor(cor) {
+    this._corTexto = cor;
+  }
+  setFont() {}
+  setTextAlignedCenter() {}
+  addPath(p) {
+    this._caminho = p;
+  }
+  strokePath() {
+    this.tracos++;
+  }
+  strokeEllipse() {
+    this.tracos++;
+  }
+  fillPath() {
+    const rr = this._caminho && this._caminho.ops.find((o) => o[0] === "roundedRect");
+    this.preenchimentos.push({ largura: rr ? rr[1].width : null, alfa: this._corFill ? this._corFill.alpha : null });
+  }
+  fillEllipse() {}
+  drawTextInRect(texto) {
+    this.textos.push(texto);
+  }
+  getImage() {
+    return { tamanho: this.size, textos: this.textos.slice(), tracos: this.tracos, preenchimentos: this.preenchimentos.slice() };
+  }
+}
+
+class MockWidgetImage {
+  constructor(imagem) {
+    this.image = imagem;
+    this.imageSize = null;
+    // textos desenhados dentro da imagem entram na coleta de textos dos testes
+    this.children = imagem.textos.map((t) => ({ text: t }));
+  }
+  centerAlignImage() {}
 }
 
 class MockSize {
@@ -80,6 +177,14 @@ class MockWidgetStack {
     this.children.push(stack);
     return stack;
   }
+  addImage(imagem) {
+    const node = new MockWidgetImage(imagem);
+    this.children.push(node);
+    return node;
+  }
+  topAlignContent() {}
+  centerAlignContent() {}
+  bottomAlignContent() {}
   addSpacer(tamanho) {
     this.children.push({ spacer: tamanho === undefined ? true : tamanho });
   }
@@ -198,6 +303,10 @@ function prepararGlobaisBase() {
   global.Color = MockColor;
   global.Font = MockFont;
   global.Size = MockSize;
+  global.Point = MockPoint;
+  global.Rect = MockRect;
+  global.Path = MockPath;
+  global.DrawContext = MockDrawContext;
   global.ListWidget = MockListWidget;
   global.Request = MockRequest;
   global.FileManager = criarMockFileManager();
@@ -354,35 +463,139 @@ test("normal sem foco: 'Nada marcado agora'; meta batida nao estoura a barra; se
   assert.equal(acharBarras(widget).length, 0);
 });
 
-test("normal / accessoryCircular: % da meta de kcal, sem cor customizada", async () => {
+// 2026-10-13: tela de bloqueio desenhada (anel + barras) - "fica muito pequeno"
+function acharImagens(node) {
+  const out = [];
+  const visitar = (n) => {
+    if (!n) return;
+    if (n.image) out.push(n);
+    if (Array.isArray(n.children)) n.children.forEach(visitar);
+  };
+  visitar(node);
+  return out;
+}
+
+// barra desenhada (imagemBarra): 1o preenchimento = trilho, 2o = parte cheia (desenhada em 3x)
+function fracaoDaBarra(imagemNode) {
+  const [trilho, cheio] = imagemNode.image.preenchimentos;
+  return cheio ? cheio.largura / trilho.largura : 0;
+}
+
+test("normal / accessoryCircular: anel desenhado com a % da meta de kcal no meio, sem cor customizada", async () => {
   global.config.widgetFamily = "accessoryCircular";
   global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
 
   const widget = await widgetModulo.montarWidget();
   const textos = coletarTextos(widget);
 
-  assert.ok(textos.includes("42%"), JSON.stringify(textos)); // 1066 / 2550
-  assert.ok(textos.includes("kcal"));
-  const cores = coletarCores(widget);
-  assert.equal(cores.length, 0, "familia accessory* nao pode setar textColor (iOS ignora/distorce)");
+  assert.deepEqual(textos, ["42%", "kcal"]); // 1066 / 2550
+  const [anel] = acharImagens(widget);
+  assert.equal(anel.image.tracos, 2, "trilho + parte preenchida");
+  assert.equal(coletarCores(widget).length, 0, "familia accessory* nao pode setar textColor (iOS ignora/distorce)");
   assert.equal(widget.backgroundColor, null, "familia accessory* nao pode setar backgroundColor");
 
+  // sem comida: o anel mostra a hora do proximo, so com o trilho
   global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, comida: null });
-  assert.ok(coletarTextos(await widgetModulo.montarWidget()).includes("14:30"));
+  const semComida = await widgetModulo.montarWidget();
+  assert.deepEqual(coletarTextos(semComida), ["14:30", "19 min"]);
+  assert.equal(acharImagens(semComida)[0].image.tracos, 1);
 });
 
-test("normal / accessoryRectangular: 'hora · titulo' + comida do dia, sem cor customizada", async () => {
+test("normal / accessoryRectangular: hora grande, titulo e barra de kcal desenhada", async () => {
   global.config.widgetFamily = "accessoryRectangular";
   global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
 
   const widget = await widgetModulo.montarWidget();
   const textos = coletarTextos(widget);
 
-  assert.equal(textos[0], "14:30 · Revisar contrato");
-  assert.equal(textos[1], "1.066 / 2.550 kcal · P 102 g");
-  const cores = coletarCores(widget);
-  assert.equal(cores.length, 0);
+  for (const t of ["14:30", "em 19 min", "Revisar contrato", "1.066 kcal"]) {
+    assert.ok(textos.includes(t), `faltou "${t}" em ${JSON.stringify(textos)}`);
+  }
+  const barras = acharImagens(widget);
+  assert.equal(barras.length, 1);
+  assert.ok(Math.abs(fracaoDaBarra(barras[0]) - 1066 / 2550) < 0.001);
+  assert.equal(barras[0].imageSize.width, 70);
+  assert.equal(coletarCores(widget).length, 0);
   assert.equal(widget.backgroundColor, null);
+});
+
+test("accessoryRectangular com parametro 'comida': kcal grande + barras de kcal e proteina, sem o proximo", async () => {
+  global.config.widgetFamily = "accessoryRectangular";
+  global.args = { widgetParameter: "comida" };
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+
+  const widget = await widgetModulo.montarWidget();
+  const textos = coletarTextos(widget);
+  for (const t of ["1.066", "/ 2.550 kcal", "Proteína 102 / 115 g"]) {
+    assert.ok(textos.includes(t), `faltou "${t}" em ${JSON.stringify(textos)}`);
+  }
+  assert.ok(!textos.includes("Revisar contrato"));
+  const barras = acharImagens(widget);
+  assert.equal(barras.length, 2);
+  assert.ok(Math.abs(fracaoDaBarra(barras[1]) - 102 / 115) < 0.001);
+  // parametro de modo nao vira URL do painel
+  assert.equal(widget.url, "http://SEU-IP-OU-DOMINIO:5001/?aba=assistente");
+
+  // sem nada comido ainda: convite em vez de zeros
+  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, comida: null });
+  assert.ok(coletarTextos(await widgetModulo.montarWidget()).includes("manda a foto do prato"));
+});
+
+test("accessoryRectangular com parametro 'proximo': so o compromisso, hora grande", async () => {
+  global.config.widgetFamily = "accessoryRectangular";
+  global.args = { widgetParameter: "Próximo" };
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+
+  const widget = await widgetModulo.montarWidget();
+  assert.deepEqual(coletarTextos(widget), ["PRÓXIMO · em 19 min", "14:30", "Revisar contrato"]);
+  assert.equal(acharImagens(widget).length, 0);
+  const hora = widget.children.find((n) => n.text === "14:30");
+  assert.equal(hora.font.size, 26);
+
+  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, foco: null });
+  assert.ok(coletarTextos(await widgetModulo.montarWidget()).includes("Nada marcado agora"));
+});
+
+test("accessoryCircular com parametro 'proximo': anel com a hora mesmo havendo comida", async () => {
+  global.config.widgetFamily = "accessoryCircular";
+  global.args = { widgetParameter: "proximo" };
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+  assert.deepEqual(coletarTextos(await widgetModulo.montarWidget()), ["14:30", "19 min"]);
+});
+
+test("accessoryInline: uma linha so, respeitando o parametro", async () => {
+  global.config.widgetFamily = "accessoryInline";
+  global.__mockFetchHandler = handlerSucesso(JSON_NORMAL);
+  assert.deepEqual(coletarTextos(await widgetModulo.montarWidget()), ["14:30 Revisar contrato · 1.066 / 2.550 kcal"]);
+
+  global.args = { widgetParameter: "comida" };
+  assert.deepEqual(coletarTextos(await widgetModulo.montarWidget()), ["1.066 / 2.550 kcal"]);
+
+  global.args = { widgetParameter: "" };
+  global.__mockFetchHandler = handlerSucesso({ ...JSON_NORMAL, foco: null, comida: null });
+  assert.deepEqual(coletarTextos(await widgetModulo.montarWidget()), ["Nada marcado agora"]);
+});
+
+test("modoDoWidget: 'comida'/'proximo' sao modo; 'URL|TOKEN' e URL continuam sendo configuracao", () => {
+  const casos = [
+    ["", "ambos"],
+    ["comida", "comida"],
+    ["  Comida ", "comida"],
+    ["kcal", "comida"],
+    ["proximo", "proximo"],
+    ["Próximo", "proximo"],
+    ["https://meu-pc.exemplo.ts.net:8443|tok", "ambos"],
+    ["https://meu-pc.exemplo.ts.net:8443", "ambos"],
+    ["qualquer coisa", "ambos"],
+  ];
+  for (const [parametro, esperado] of casos) {
+    global.args = { widgetParameter: parametro };
+    assert.equal(widgetModulo.modoDoWidget(), esperado, parametro);
+  }
+  global.args = { widgetParameter: "comida" };
+  const cfg = widgetModulo.resolverConfig();
+  assert.equal(cfg.url, "http://SEU-IP-OU-DOMINIO:5001");
+  assert.equal(cfg.token, "");
 });
 
 test("familia desconhecida (ex: large) cai no layout de small sem quebrar", async () => {
@@ -650,6 +863,7 @@ test("dentro do Scriptable de verdade (tem `module`, nao tem `process`): main() 
   const contexto = {
     module: { exports: {} }, // o Scriptable tem isso
     Color: MockColor, Font: MockFont, Size: MockSize, ListWidget: MockListWidget, Request: MockRequest,
+    Point: MockPoint, Rect: MockRect, Path: MockPath, DrawContext: MockDrawContext,
     FileManager: criarMockFileManager(),
     config: { runsInWidget: true, widgetFamily: "small" },
     args: { widgetParameter: "" },

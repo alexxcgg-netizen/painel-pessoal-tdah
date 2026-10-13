@@ -81,6 +81,20 @@ do dia, e tocar no widget abre o chat.
   real e o Parameter virou opcional. Service worker v63.
 - Limite do iOS: link de widget abre no Safari, não no app da tela inicial (o login por PIN no Safari dura ~31 dias).
   O painel chega no iPhone pelo Tailscale (`tailscale serve`, porta 8443, só dentro da rede dele).
+- **Diagnóstico**: o erro do script aparece no próprio widget e vai pro painel (`POST /api/widget/erro`). As chamadas do
+  widget ficam em `data/widget.log` (sem query string, então o token não entra).
+- **Tela de bloqueio redesenhada** (Alex: "algo mais bonito ou maior, fica muito pequeno"). O iOS só tem três tamanhos
+  fixos ali, então o ganho vem de usar melhor o espaço:
+  - redondo: anel de progresso estilo Atividade, desenhado em `DrawContext`, com a % da meta de kcal no meio. Sem comida,
+    mostra a hora do próximo. Vazio, erro e sem dados usam o mesmo anel com o trilho vazio.
+  - retangular: hora grande + "em X", título e barra de kcal desenhada.
+  - **Parameter `proximo` ou `comida`**: o retangular mostra só aquilo, com letra de 26 pt. Dois lado a lado ocupam a fileira
+    inteira. `resolverConfig` só trata o Parameter como configuração se tiver "|" ou começar com http, então o formato
+    antigo `URL|TOKEN` continua valendo.
+  - linha acima do relógio (`accessoryInline`): "14:30 Dentista · 1.066 / 2.550 kcal".
+  - Tudo em branco com alfa (o iOS pinta a tela de bloqueio com vibrancy), sem `textColor` e sem fundo.
+  - Mocks de `DrawContext`/`Path`/`Point`/`Rect` nos testes JS. A prévia visual foi conferida num shim em canvas
+    (Playwright, 390 px).
 
 ## 2026-10-13 - Voz com barulho em volta, botão de mandar na hora, feriados e foto do prato
 
