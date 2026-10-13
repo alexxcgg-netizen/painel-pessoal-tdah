@@ -5,6 +5,15 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Backup automático diário do banco
+
+- Novo `backup_diario.py` (sem dependência nova): snapshot consistente via `sqlite3.backup()` em
+  `data/backups/painel-AAAA-MM-DD.db` (ou `BACKUP_DIR`), mantém os 14 mais recentes. Roda todo dia
+  às 3h30 e **ao subir o app se o último backup tiver mais de 24 h** (o PC nem sempre está ligado
+  de madrugada). Escreve num `.parcial` e só então troca pelo definitivo; qualquer erro só vai pro
+  log, nunca derruba o app. Convive com o backup semanal (+ Telegram) que já existia: nomes e
+  rotação separados. Registrado em `app.iniciar_scheduler`; `tests/test_backup_diario.py`.
+
 ## 2026-10-13 - Cards do chat: acabamento "premium"
 
 Camada nova por cima do registro, sem mexer em renderizador nenhum

@@ -36,6 +36,7 @@ else:
 import agenda
 import aprendizado
 import auth
+import backup_diario
 import caldav_client
 import calculos
 import cards
@@ -6126,6 +6127,11 @@ def iniciar_scheduler():
         # backup semanal (domingo 3h da manha - baixo uso), ver
         # rodar_backup_automatico_semanal pro que ele faz
         scheduler.add_job(rodar_backup_automatico_semanal, "cron", day_of_week="sun", hour=3, minute=0)
+        # backup DIARIO (3h30, mantem 14) + um disparo imediato ao subir o
+        # app: se o ultimo backup tiver mais de 24 h (PC desligado de
+        # madrugada) ele recupera na hora - ver backup_diario.py
+        scheduler.add_job(backup_diario.rodar_backup_diario, "cron", hour=3, minute=30)
+        scheduler.add_job(backup_diario.backup_se_atrasado, "date")
         # sync automatico do Nubank as 4h de Brasilia (uso/m2-sync). O
         # BackgroundScheduler usa o fuso local do processo, e nao existe TZ
         # configurado nem no .env nem no render.yaml - o Render (producao de

@@ -94,3 +94,18 @@ do servidor, então se o disco morrer o Telegram ainda tem uma cópia recente.
 
 Não precisa fazer nada além de já ter o bot configurado - se não estiver, o backup local no
 `BACKUP_DIR` continua acontecendo normalmente, só o envio pro Telegram é pulado.
+
+## Backup automático diário
+
+Além do semanal, o painel tira um snapshot **todo dia às 3h30** (`backup_diario.py`, registrado
+em `iniciar_scheduler()`) e **também ao subir o app, se o último backup diário tiver mais de
+24 h** (o PC nem sempre está ligado de madrugada).
+
+- **Onde ficam**: `data/backups/painel-AAAA-MM-DD.db` (a pasta `backups/` irmã do banco; ou
+  `BACKUP_DIR`, se configurado). `data/` é gitignored.
+- **Retenção**: os **14** mais recentes; os mais antigos são apagados a cada rodada. Não mexe nos
+  arquivos `painel-backup-*.db` do semanal.
+- **Restaurar**: mesmo passo a passo de cima - pare o servidor, copie o `painel-AAAA-MM-DD.db`
+  escolhido por cima de `data/painel.db` e suba de novo.
+- **Resiliência**: erro de qualquer tipo só vai pro log, nunca derruba o app. O arquivo é
+  escrito como temporário e só então trocado pelo definitivo.
