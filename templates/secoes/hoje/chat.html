@@ -1,6 +1,12 @@
       <div id="chat-mensagens" class="chat-lista"></div>
       <form id="chat-form" class="chat-form">
-        <input type="text" id="chat-input" placeholder="Pergunta ou fala algo…" autocomplete="off" maxlength="4000" />
+        <div class="chat-campo">
+          <input type="text" id="chat-input" placeholder="Pergunta ou fala algo…" autocomplete="off" maxlength="4000" />
+          <button type="button" id="chat-foto" aria-label="Mandar foto do prato">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5Z"/><circle cx="12" cy="12.8" r="3.6"/></svg>
+          </button>
+          <input type="file" id="chat-foto-arquivo" accept="image/*" hidden />
+        </div>
         <button type="button" id="chat-mic" hidden aria-label="Falar em vez de digitar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21M9 21h6"/></svg>
         </button>

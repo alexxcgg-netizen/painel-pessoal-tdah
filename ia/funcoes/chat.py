@@ -518,6 +518,18 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "consultar_feriados",
+        "description": (
+            "Feriados nacionais, de Brusque/SC e pontos facultativos (Carnaval, Corpus Christi) de um ano "
+            "ou mes - calculado, sempre certo. Os proximos ~45 dias ja estao no contexto; use pra datas "
+            "mais longe ('quando e o carnaval de 2027?', 'feriados de dezembro')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"ano": {"type": "integer"}, "mes": {"type": "integer", "description": "1-12, opcional"}},
+        },
+    },
+    {
         "name": "anotar_no_diario",
         "description": (
             "Guarda no diario uma correcao ou fato que o Alex contou sobre um dia ('o date foi ontem, "

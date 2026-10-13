@@ -125,6 +125,85 @@
   font-size: var(--tipo-corpo);
 }
 
+/* Foto do prato (2026-10-13, secoes/hoje/foto.js): a camera mora DENTRO do campo, na ponta
+   direita (como no iMessage) - um 4o botao de 56px espremia o campo no iPhone. */
+#tab-assistente #chat-form .chat-campo {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+#tab-assistente #chat-form .chat-campo #chat-input {
+  width: 100%;
+  padding-right: 46px;
+}
+#tab-assistente #chat-form #chat-foto {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: calc(var(--raio-controle) - 4px);
+  background: transparent;
+  color: var(--cor-texto-2);
+  box-shadow: none;
+  transform: translateY(-50%);
+  transition: color 0.2s var(--ease-suave), background-color 0.2s var(--ease-suave), transform 0.35s var(--ease-bounce);
+}
+#tab-assistente #chat-form #chat-foto svg {
+  width: 22px;
+  height: 22px;
+}
+#tab-assistente #chat-form #chat-foto:active {
+  transform: translateY(-50%) scale(0.9);
+  background: color-mix(in srgb, var(--cor-texto) 8%, transparent);
+}
+#tab-assistente #chat-form #chat-foto.enviando {
+  color: var(--cor-destaque);
+  animation: fotoEnviando 1.4s var(--ease-suave) infinite;
+}
+@keyframes fotoEnviando {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* bolha com a miniatura da foto */
+.chat-bolha.chat-bolha-foto {
+  display: grid;
+  gap: 8px;
+  padding: 6px;
+}
+.chat-bolha-foto .chat-foto-mini {
+  display: block;
+  width: min(220px, 62vw);
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 13px;
+  animation: fotoEntra 0.5s var(--ease-bounce) both;
+}
+.chat-bolha-foto > span {
+  padding: 0 8px 6px;
+}
+@keyframes fotoEntra {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+.chat-digitando-rotulo {
+  margin-left: 2px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  #tab-assistente #chat-form #chat-foto.enviando,
+  .chat-bolha-foto .chat-foto-mini { animation: none; }
+  #tab-assistente #chat-form #chat-foto { transition: none; }
+}
+
 #tab-assistente #chat-form :is(#chat-mic, #chat-conversa),
 #tab-assistente #chat-form #chat-send {
   flex: 0 0 auto;
@@ -443,7 +522,7 @@ main #tab-assistente h2.chat-ola-titulo,
 #chat-form .gravacao-barra {
   display: none;
 }
-#tab-assistente #chat-form.gravando > :is(#chat-input, #chat-mic, #chat-conversa) {
+#tab-assistente #chat-form.gravando > :is(.chat-campo, #chat-mic, #chat-conversa) {
   display: none;
 }
 #tab-assistente #chat-form.gravando .gravacao-barra {
@@ -641,5 +720,22 @@ main #tab-assistente h2.chat-ola-titulo,
   }
   #chat-form .gravacao-onda i {
     transition: none;
+  }
+}
+
+/* 2026-10-13: modo conversa ouvindo - o enviar vira "manda agora" (nao precisa esperar o silencio):
+   um anel suave respirando em volta, no tempo de uma respiracao calma. */
+#tab-assistente #chat-form.conversa-ouvindo #chat-send {
+  animation: conversaMandar 2.2s var(--ease-suave) infinite;
+}
+@keyframes conversaMandar {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cor-destaque) 45%, transparent); }
+  70% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--cor-destaque) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cor-destaque) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #tab-assistente #chat-form.conversa-ouvindo #chat-send {
+    animation: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-destaque) 35%, transparent);
   }
 }

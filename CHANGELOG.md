@@ -56,6 +56,46 @@ features e da integração com o painel da construtora (`financeiro-construtora`
   e por aeronave, HH:MM e simulador à parte. Pegadinha: `chat_consultas._hhmm` já existia (hora de evento) - o
   de horas chama `_horas_hhmm`.
 
+## 2026-10-13 - Voz com barulho em volta, botão de mandar na hora, feriados e foto do prato
+
+Pedido do Alex: "se tem voz de fundo ela pega e mistura", "depois que paro de falar demora muito pra mandar",
+"saber quando é feriado", "mandar foto de um prato e ela dar gramas, carbo, proteína".
+- **Voz de fundo** (3 camadas, sem mexer no gravador que já foi sofrido de acertar no iPhone):
+  - `getUserMedia` pede `voiceIsolation` (Safari/iOS recente; ignorado onde não existe), além do
+    `noiseSuppression`/`echoCancellation` que já tinha.
+  - `criarGravacao` (`hoje/chat.js`) acompanha o volume típico da voz DELE (envelope `voz`) e anota os
+    `trechos` em que ela estava ativa. Vão como `trechos_voz` pro `/api/voz/transcrever`, e
+    `telegram_captura.texto_dos_trechos` descarta o trecho do Whisper que encosta menos de 20% nesses momentos
+    (TV, gente conversando longe do microfone). Validação no servidor: `rotas/voz._trechos_voz` (≤200 pares, 0-600 s;
+    se vier inválido, segue sem filtro).
+  - O prompt de `ia/funcoes/fala.py` (limpeza da fala) tira frase solta de outra pessoa/TV que sobrou.
+- **Demora pra mandar**: o silêncio agora é RELATIVO à voz dele (`VOZ_FRACAO_FUNDO = 0.22` do volume típico).
+  Antes, a voz de fundo mantinha o som acima do limiar fixo e a gravação só acabava no tempo máximo. O modo conversa
+  encerra com 1,5 s de silêncio (era 3 s). Ouvindo, o botão de enviar pulsa e manda na hora (placeholder
+  "Pode falar… (➤ manda na hora)").
+- **Calendário brasileiro** (`feriados.py`): tudo calculado em código, então não desatualiza.
+  - Nacionais fixos (com 20/11) e móveis pela Páscoa (Meeus): Sexta-feira Santa é feriado; Carnaval, Cinzas e
+    Corpus Christi são ponto facultativo e o chat nunca diz "é feriado" pra eles.
+  - Brusque 04/08. A Data Magna de SC vai pro domingo, então é só comemorativa.
+  - Contexto do chat: "HOJE é …" + próximos 45 dias com "muita gente emenda".
+  - Tool `consultar_feriados(ano, mes)`.
+- **Foto do prato** (`refeicoes.py`, `POST /api/chat/foto`, `ia/funcoes/visao.analisar_prato`, Sonnet 5 visão,
+  ~US$ 0,01 por foto):
+  - Câmera dentro do campo do chat (`#chat-foto`, `hoje/foto.js`). A foto é reduzida no celular pra ~1280 px JPEG.
+    O que estiver escrito no campo vai junto ("só comi metade").
+  - A IA estima cada item (gramas pela porção a olho + tabela TACO). A soma, o dia e a meta
+    (`vida_assistente.metas_comida`) são calculados em código.
+  - Tabela `refeicoes`; card vivo `refeicao` com Desfazer (`ENTIDADES_DESFAZIVEIS`). O card mostra ~kcal contando,
+    as macros como fatia das calorias (P/C ×4, G ×9), os itens e "Hoje até agora" contra a meta de kcal e proteína,
+    mais a dica e um aviso quando a confiança fica abaixo de 0,6.
+  - O que comeu entra no contexto do chat (`refeicoes.linha_contexto`) e nos fatos do diário (`comida`).
+  - Foto que não é comida responde "Não vi comida…" e não grava nada. No modo visitante a resposta é 403.
+    A foto em si não é guardada.
+- `contar()` dos cards vivos formata inteiro com milhar pt-BR (1.250). Service worker v61.
+- iPhone/iCloud: o `caldav_client` já existe, mas `ICLOUD_USERNAME`/`ICLOUD_APP_PASSWORD` estão vazios no `.env`.
+  O Alex precisa gerar a senha de app em appleid.apple.com e preencher ele mesmo.
+- Testes: `tests/test_foto_prato_feriados_voz.py` (19) + card `refeicao` em `tests/js/cards_vivos.test.js`.
+
 ## 2026-10-12 - Diário de cada dia: o chat sabe o que foi hoje e o que já passou
 
 Pedido do Alex ("o date foi ontem e ele não sabe distinguir ontem de hoje... saber o que aconteceu cada dia").

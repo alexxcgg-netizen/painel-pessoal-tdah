@@ -214,3 +214,32 @@ test("planejar_dia: 'Comer:' vira icone de prato, '(até HH:MM)' vai pra coluna 
   const misto = [{ id: 1, titulo: "Antiga", hora: "08:00" }, { id: 2, titulo: "Nova", hora: "09:00", nova: true }];
   assert.match(html("tarefas_criadas", { tarefas: [misto[1]], dia: "2026-10-11", agenda_do_dia: misto }), /vivo-selo-nova/);
 });
+
+test("refeicao (foto do prato): kcal com ~, macros como fatia das calorias, itens escapados, dia x meta", () => {
+  const data = {
+    refeicao: "almoço", hora: "12:40",
+    itens: [{ nome: "Arroz <i>branco</i>", gramas: 150, kcal: 192 }, { nome: "Frango", gramas: 130, kcal: 207 }],
+    total: { kcal: 1250, proteina_g: 50, carbo_g: 50, gordura_g: 0 },
+    dia: { refeicoes: 2, kcal: 1900, proteina_g: 90 }, meta: { kcal: 2550, proteina_g: 115 },
+    hoje: true, dica: "Boa <b>base</b>", confianca: 0.4,
+  };
+  const h = html("refeicao", data, [{ tipo: "desfazer", rotulo: "Desfazer", token: "t", alvo: [] }]);
+  semFallback(h);
+  assert.match(h, /Refeição · almoço · 12:40/);
+  assert.match(h, /data-contar-int="1250">1\.250</);
+  assert.match(h, /vivo-macro-p[\s\S]*?50 g <small>50%<\/small>/); // 200 kcal de 400 das macros
+  assert.match(h, /vivo-macro-g[\s\S]*?0 g <small>0%<\/small>/);
+  assert.match(h, /Arroz &lt;i&gt;branco/);
+  assert.match(h, /~150 g/);
+  assert.match(h, /Hoje até agora · 2 refeições/);
+  assert.match(h, /~1\.900 <small>de 2\.550 kcal/);
+  assert.match(h, /Boa &lt;b&gt;base/);
+  assert.match(h, /Foto difícil de ler/);
+  assert.match(h, /Desfazer/);
+  // sem meta (perfil sem peso) e sem dado nenhum: nao quebra
+  const sem = html("refeicao", { refeicao: "lanche", itens: [], total: {}, dia: { refeicoes: 1 }, meta: null });
+  semFallback(sem);
+  assert.ok(!sem.includes("Hoje até agora"));
+  assert.ok(!sem.includes("Foto difícil"));
+  assert.ok(!sem.includes("NaN"));
+});

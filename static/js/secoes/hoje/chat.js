@@ -319,6 +319,10 @@ function criarGravacao(opcoes = {}) {
   // Whisper "ouvir" fora disso (ele inventa palavra em silencio: "E ai", "Idiota."...)
   let falaDesdeMs = null;
   let falaAteMs = null;
+  // 2026-10-13 (voz de fundo misturando): trechos [ini, fim] em ms em que a voz DELE (perto do
+  // microfone, bem mais alta que a do fundo) estava ativa - o servidor joga fora o que o Whisper
+  // transcrever fora disso (gente conversando atras, TV)
+  const trechosVoz = [];
   let vadAtivo = false;
   let nivelAtual = 0; // RMS suavizado - a onda da barra de gravacao le daqui
   let inicio = 0;
@@ -361,6 +365,8 @@ function criarGravacao(opcoes = {}) {
     let acima = 0;
     let falou = false;
     let caladoDesde = 0;
+    let voz = 0; // volume tipico da voz dele (envelope dos picos de fala)
+    let trechoAberto = null;
     const TICK = 50;
 
     tick = setInterval(() => {
@@ -379,6 +385,17 @@ function criarGravacao(opcoes = {}) {
       const limiarFala = Math.max(0.008, piso * 2.5 + 0.004);
       const limiarSilencio = Math.max(0.005, piso * 1.6 + 0.002);
       const agora = Date.now();
+      // voz de fundo e bem mais baixa que a dele falando perto: abaixo de ~22% do volume tipico
+      // dele (~ -13 dB) conta como silencio - antes a conversa do fundo segurava a gravacao aberta
+      if (falou && nivel > limiarFala) voz = nivel > voz ? voz * 0.75 + nivel * 0.25 : voz * 0.985 + nivel * 0.015;
+      const limiarVoz = Math.max(limiarSilencio, voz * VOZ_FRACAO_FUNDO);
+      const ms = agora - inicio;
+      if (falou && nivel > limiarVoz) {
+        if (!trechoAberto) trechosVoz.push((trechoAberto = [Math.max(0, ms - 3 * TICK), ms]));
+        else trechoAberto[1] = ms;
+      } else if (trechoAberto && ms - trechoAberto[1] > 300) {
+        trechoAberto = null; // pausa > 300ms fecha o trecho
+      }
 
       if (nivel > limiarFala) {
         acima++;
@@ -389,8 +406,8 @@ function criarGravacao(opcoes = {}) {
       } else {
         acima = 0;
       }
-      if (falou && nivel > limiarSilencio) falaAteMs = agora - inicio;
-      if (nivel > limiarSilencio) {
+      if (falou && nivel > limiarVoz) falaAteMs = agora - inicio;
+      if (nivel > limiarVoz) {
         caladoDesde = 0;
       } else if (falou && !caladoDesde) {
         caladoDesde = agora;
@@ -404,7 +421,9 @@ function criarGravacao(opcoes = {}) {
 
   async function iniciar() {
     stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      // voiceIsolation: pedido ao navegador (ignorado onde nao existe) pra isolar a voz de quem
+      // esta perto do microfone
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, voiceIsolation: true },
     });
     if (resultado !== null) {
       // cancelada enquanto o iPhone ainda liberava o microfone
@@ -431,6 +450,7 @@ function criarGravacao(opcoes = {}) {
               duracaoS,
               falaDesdeS: falaDesdeMs !== null ? falaDesdeMs / 1000 : null,
               falaAteS: falaAteMs !== null ? falaAteMs / 1000 : null,
+              trechos: trechosVoz.slice(0, 200).map(([a, b]) => [+(a / 1000).toFixed(2), +(b / 1000).toFixed(2)]),
             }
           : null
       );
@@ -447,13 +467,17 @@ function criarGravacao(opcoes = {}) {
   return { iniciar, parar, pronto, nivel: () => nivelAtual, desde: () => inicio };
 }
 
-async function transcreverGravacao({ blob, duracaoS, falaDesdeS, falaAteS }, opcoes = {}) {
+// fracao do volume tipico da voz dele abaixo da qual o som conta como fundo (ver _vigiarSilencio)
+const VOZ_FRACAO_FUNDO = 0.22;
+
+async function transcreverGravacao({ blob, duracaoS, falaDesdeS, falaAteS, trechos }, opcoes = {}) {
   const corpo = new FormData();
   // limpar: o servidor reescreve como ele QUIS dizer (autocorrecao, "tipo/ne", nome mal ouvido)
   if (opcoes.limpar) corpo.append("limpar", "1");
   // so o FIM da fala vai pro servidor: e no silencio do fim que o Whisper inventa palavra; cortar
   // o comeco por medicao arriscaria perder a primeira frase de verdade
   if (falaAteS !== null && falaAteS !== undefined) corpo.append("fala_ate", falaAteS.toFixed(2));
+  if (trechos && trechos.length) corpo.append("trechos_voz", JSON.stringify(trechos));
   const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
   corpo.append("audio", blob, `fala.${ext}`);
   corpo.append("duracao", String(Math.round(duracaoS)));

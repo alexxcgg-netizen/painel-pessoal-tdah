@@ -26,6 +26,8 @@ PROMPT_LIMPAR_FALA = """Você recebe a transcrição automática de um ÁUDIO qu
 - NÃO acrescente nada que ele não disse, NÃO responda, NÃO resuma demais: todo pedido, data, hora, valor e nome
   continua lá. Mantenha a primeira pessoa e o tom dele (pode ficar informal).
 - Pode juntar em frases bem pontuadas; se ele listou várias coisas, mantenha todas, na ordem.
+- Ele pode estar num lugar com gente falando ou TV ao fundo: frase solta de OUTRA pessoa, que não tem nada
+  a ver com o que ele está falando/pedindo (outro assunto, outra pessoa, outra voz no meio), tire.
 
 Devolva SÓ o texto reescrito, sem aspas, sem comentário."""
 

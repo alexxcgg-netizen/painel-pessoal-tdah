@@ -7,6 +7,8 @@ cai na voz do iPhone.
 
 from __future__ import annotations
 
+import json
+
 from flask import Blueprint, Response, jsonify, request
 
 from rotas._base import app_modulo
@@ -59,6 +61,25 @@ TAMANHO_MAX_AUDIO = 15 * 1024 * 1024
 _MIMES_AUDIO = ("audio/mp4", "audio/webm", "audio/ogg", "audio/mpeg", "audio/wav", "audio/x-m4a", "audio/aac")
 
 
+def _trechos_voz(bruto) -> list | None:
+    """'[[0.4, 2.1], [2.6, 5]]' -> lista validada (no maximo 200 pares, 0-600 s). Invalido = None
+    (sem filtro, como antes)."""
+    if not bruto:
+        return None
+    try:
+        dados = json.loads(bruto)
+    except ValueError:
+        return None
+    if not isinstance(dados, list):
+        return None
+    trechos = []
+    for par in dados[:200]:
+        if (isinstance(par, list) and len(par) == 2 and all(isinstance(v, (int, float)) for v in par)
+                and 0 <= par[0] <= par[1] <= 600):
+            trechos.append((float(par[0]), float(par[1])))
+    return trechos or None
+
+
 @bp.route("/api/voz/transcrever", methods=["POST"])
 def voz_transcrever():
     """Microfone do chat: o front grava o audio inteiro (MediaRecorder) e manda
@@ -90,9 +111,11 @@ def voz_transcrever():
         return v if 0 <= v <= 600 else None
 
     try:
-        # onde a voz comecou/terminou (o app mede): o que o Whisper "ouvir" fora disso e inventado
+        # onde a voz comecou/terminou (o app mede): o que o Whisper "ouvir" fora disso e inventado;
+        # trechos_voz = quando a voz DELE (perto do microfone) estava ativa - o resto e fundo
         texto = telegram_captura.transcrever(
-            audio, mime, duracao_segundos=duracao, fala_desde=_segundos("fala_desde"), fala_ate=_segundos("fala_ate")
+            audio, mime, duracao_segundos=duracao, fala_desde=_segundos("fala_desde"), fala_ate=_segundos("fala_ate"),
+            trechos_voz=_trechos_voz(request.form.get("trechos_voz")),
         )
     except telegram_captura.ErroCaptura as e:
         return jsonify({"erro": str(e), "error": str(e)}), 502

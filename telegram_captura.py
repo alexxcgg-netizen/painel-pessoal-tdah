@@ -90,7 +90,21 @@ def tirar_eco_do_prompt(texto: str) -> str:
     return texto
 
 
-def texto_dos_trechos(resposta: dict, fala_desde: float | None = None, fala_ate: float | None = None) -> str:
+# trecho do Whisper que encosta menos que isso (fracao da duracao dele) nos trechos de voz DELE
+# medidos no celular = conversa do fundo, sai
+TRECHO_VOZ_MIN_SOBREPOSICAO = 0.2
+TRECHO_VOZ_MARGEM_S = 0.35
+
+
+def _sobreposicao(ini: float, fim: float, trechos_voz) -> float:
+    total = 0.0
+    for a, b in trechos_voz:
+        total += max(0.0, min(fim, b + TRECHO_VOZ_MARGEM_S) - max(ini, a - TRECHO_VOZ_MARGEM_S))
+    return total
+
+
+def texto_dos_trechos(resposta: dict, fala_desde: float | None = None, fala_ate: float | None = None,
+                      trechos_voz: list | None = None) -> str:
     """Monta o texto so com os trechos que sao fala de verdade: descarta trecho que o
     Whisper marcou como provavel silencio e, quando o app mediu onde a voz comecou/terminou
     (fala_desde/fala_ate, em segundos desde o inicio da gravacao), trecho que cai inteiro
@@ -109,6 +123,9 @@ def texto_dos_trechos(resposta: dict, fala_desde: float | None = None, fala_ate:
         if fala_ate is not None and ini > fala_ate + MARGEM_FALA_S:
             continue
         if fala_desde is not None and fim < fala_desde - MARGEM_FALA_S:
+            continue
+        # 2026-10-13: voz de fundo - trecho que quase nao encosta em nenhum momento em que ELE falava
+        if trechos_voz and fim - ini > 0.3 and _sobreposicao(ini, fim, trechos_voz) < TRECHO_VOZ_MIN_SOBREPOSICAO * (fim - ini):
             continue
         bons.append((t.get("text") or "").strip())
     return tirar_eco_do_prompt(" ".join(b for b in bons if b))
@@ -240,7 +257,8 @@ def baixar_arquivo(file_id: str) -> tuple[bytes, str] | None:
 
 
 def transcrever(audio_bytes: bytes, mime: str, *, duracao_segundos: int = 0,
-                fala_desde: float | None = None, fala_ate: float | None = None) -> str:
+                fala_desde: float | None = None, fala_ate: float | None = None,
+                trechos_voz: list | None = None) -> str:
     """Transcreve audio pt-BR via Groq (whisper-large-v3-turbo - escolha
     documentada em docs/telegram-captura.md). Levanta ErroCaptura em
     qualquer situacao que impeca a transcricao (teto de IA estourado,
@@ -272,7 +290,7 @@ def transcrever(audio_bytes: bytes, mime: str, *, duracao_segundos: int = 0,
         )
         resposta.raise_for_status()
         corpo = resposta.json()
-        texto = texto_dos_trechos(corpo if isinstance(corpo, dict) else {}, fala_desde, fala_ate)
+        texto = texto_dos_trechos(corpo if isinstance(corpo, dict) else {}, fala_desde, fala_ate, trechos_voz)
     except (requests.RequestException, ValueError) as exc:
         ia.medicao.registrar_uso(FUNCAO_TRANSCRICAO, PROVEDOR_TRANSCRICAO, MODELO_TRANSCRICAO, ok=False)
         raise ErroCaptura("não consegui transcrever o áudio agora - tenta de novo ou manda por texto") from exc

@@ -11,7 +11,10 @@
 // baixo pelo alto-falante de ligação (e o microfone ouviria a própria voz dela).
 // Durante a conversa o botão de ditado some - um botão morto ao lado confundia.
 
-const CONVERSA_SILENCIO_MS = 3000; // pedido do Alex: "uns 3 segundos"
+// 2026-10-13: 3s -> 1,5s ("demora muito ate mandar"). O que mais segurava era a voz de fundo
+// contando como fala - agora fundo conta como silencio (VOZ_FRACAO_FUNDO em chat.js) - e o botao
+// de enviar manda na hora.
+const CONVERSA_SILENCIO_MS = 1500;
 const CONVERSA_ESPERA_FALA_MS = 12000;
 const CONVERSA_MAX_FALA_MS = 90000;
 
@@ -28,8 +31,10 @@ function _conversaEstado(estado) {
   const input = $("#chat-input");
   if (!btn || !input) return;
   btn.dataset.estado = estado || "";
-  const textos = { ouvindo: "Pode falar…", pensando: "Pensando…", falando: "Falando…" };
+  const textos = { ouvindo: "Pode falar… (➤ manda na hora)", pensando: "Pensando…", falando: "Falando…" };
   input.placeholder = textos[estado] || Conversa.placeholderOriginal;
+  const form = $("#chat-form");
+  if (form) form.classList.toggle("conversa-ouvindo", estado === "ouvindo");
 }
 
 // Sinal "Suave" (escolhido pelo Alex entre 3 amostras): quando o microfone de fato abriu
@@ -130,7 +135,8 @@ async function _conversaLaco() {
     if (fala.semVoz) continue; // barulho sem voz: volta a ouvir sem mandar nada
 
     _conversaEstado("pensando");
-    const texto = await transcreverGravacao(fala);
+    // limpar: tira muleta/autocorrecao e frase solta de outra pessoa no fundo (ia/funcoes/fala.py)
+    const texto = await transcreverGravacao(fala, { limpar: true });
     if (!Conversa.ativa) break;
     if (!texto) continue; // não entendeu - volta a ouvir
 
@@ -190,6 +196,21 @@ function initConversaVoz() {
   Conversa.btn = btn;
   btn.hidden = false;
   btn.addEventListener("click", () => (Conversa.ativa ? encerrarConversa() : iniciarConversa()));
+  // ouvindo na conversa: o botao de enviar (campo vazio) manda a fala na hora, sem esperar o silencio
+  const form = $("#chat-form");
+  if (form) {
+    form.addEventListener(
+      "submit",
+      (ev) => {
+        if (!Conversa.ativa || !Conversa.gravacao || $("#chat-input").value.trim()) return;
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        vibrar(18);
+        Conversa.gravacao.parar("fala");
+      },
+      { capture: true }
+    );
+  }
   // saiu do app / trocou de aba no meio: não deixa microfone aberto em segundo plano
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && Conversa.ativa) encerrarConversa();

@@ -30,6 +30,8 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18v12H3z"/><path d="M8 7V5h8v2"/><path d="M3 12h18"/></svg>',
     agua:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/></svg>',
+    prato:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14.5" cy="12" r="6.5"/><circle cx="14.5" cy="12" r="3.3"/><path d="M3 4v5.5a1.5 1.5 0 0 0 3 0V4M4.5 11v9"/></svg>',
   };
   const AVIAO =
     '<path d="M-7 1.5 L-1.5 1.2 L2.8 6.5 L4.4 6.5 L2.4 1.1 L6.5 0.9 Q8.3 0 6.5 -0.9 L2.4 -1.1 L4.4 -6.5 L2.8 -6.5 L-1.5 -1.2 L-7 -1.5 L-8.4 -4 L-9.6 -4 L-8.8 0 L-9.6 4 L-8.4 4 Z" fill="currentColor"/>';
@@ -345,6 +347,72 @@
     );
   });
 
+  // ================================================================== refeicao
+  // Foto do prato (2026-10-13): numero grande de kcal, as tres macros como fatia das calorias
+  // (P e C = 4 kcal/g, G = 9), os itens com ~gramas e o dia ate agora contra a meta. Tudo
+  // estimativa por foto - sempre com "~".
+  const MACROS_PRATO = [
+    { chave: "proteina_g", nome: "Proteína", kcal: 4, classe: "p" },
+    { chave: "carbo_g", nome: "Carbo", kcal: 4, classe: "c" },
+    { chave: "gordura_g", nome: "Gordura", kcal: 9, classe: "g" },
+  ];
+  const milhar = (v) => Math.round(Number(v) || 0).toLocaleString("pt-BR");
+  function progressoDia(rotulo, atual, meta, unidade) {
+    const frac = Math.min(1, atual / Math.max(1, meta));
+    return (
+      `<div class="vivo-barra-linha vivo-prato-dia-linha"><span>${esc(rotulo)}</span>` +
+      `<span class="vivo-num">~${milhar(atual)} <small>de ${milhar(meta)} ${esc(unidade)}</small></span>` +
+      `<div class="vivo-trilho"><i style="width:${(frac * 100).toFixed(1)}%"></i></div></div>`
+    );
+  }
+  Cards.registrar("refeicao", (data) => {
+    const tot = data.total || {};
+    const kcal = Math.max(0, Number(tot.kcal) || 0);
+    const titulo = `Refeição${data.refeicao ? ` · ${data.refeicao}` : ""}${data.hora ? ` · ${data.hora}` : ""}`;
+    const kcalMacros = MACROS_PRATO.reduce((s, m) => s + (Number(tot[m.chave]) || 0) * m.kcal, 0);
+    const barras = MACROS_PRATO.map((m) => {
+      const g = Math.max(0, Number(tot[m.chave]) || 0);
+      const frac = kcalMacros > 0 ? (g * m.kcal) / kcalMacros : 0;
+      return (
+        `<div class="vivo-barra-linha vivo-macro vivo-macro-${m.classe}"><span>${m.nome}</span>` +
+        `<span class="vivo-num">${Math.round(g)} g <small>${Math.round(frac * 100)}%</small></span>` +
+        `<div class="vivo-trilho"><i style="width:${(frac * 100).toFixed(1)}%"></i></div></div>`
+      );
+    }).join("");
+    const itens = lista(data.itens)
+      .filter((it) => it && it.nome)
+      .map(
+        (it) =>
+          `<li class="vivo-prato-item"><span class="vivo-prato-nome">${esc(it.nome)}</span>` +
+          `<span class="vivo-num vivo-prato-g">${numeroValido(it.gramas) && it.gramas > 0 ? `~${Math.round(it.gramas)} g` : ""}</span>` +
+          `<span class="vivo-num vivo-prato-kcal">${milhar(it.kcal)} kcal</span></li>`
+      )
+      .join("");
+    const dia = data.dia || {};
+    const meta = data.meta;
+    let blocoDia = "";
+    if (meta && numeroValido(meta.kcal)) {
+      blocoDia =
+        `<div class="vivo-prato-dia"><p class="vivo-sub">${data.hoje === false ? "Nesse dia" : "Hoje até agora"}${dia.refeicoes > 1 ? ` · ${dia.refeicoes} refeições` : ""}</p>` +
+        progressoDia("Calorias", Number(dia.kcal) || 0, meta.kcal, "kcal") +
+        (numeroValido(meta.proteina_g) ? progressoDia("Proteína", Number(dia.proteina_g) || 0, meta.proteina_g, "g") : "") +
+        `</div>`;
+    } else if (dia.refeicoes > 1) {
+      blocoDia = `<p class="vivo-sub">${data.hoje === false ? "Nesse dia" : "Hoje"}: ~${milhar(dia.kcal)} kcal em ${dia.refeicoes} refeições</p>`;
+    }
+    const incerta = numeroValido(data.confianca) && data.confianca < 0.6;
+    return (
+      olho(ICONES.prato, titulo) +
+      `<div class="vivo-cabeca"><span class="vivo-num vivo-grande"><span class="vivo-til">~</span><span data-contar-int="${Math.round(kcal)}">${milhar(kcal)}</span></span>` +
+      `<span class="vivo-sub">kcal${tot.gramas ? ` · ~${milhar(tot.gramas)} g no prato` : ""}</span></div>` +
+      `<div class="vivo-barras vivo-macros" data-vivo="prato">${barras}</div>` +
+      (itens ? `<ul class="vivo-prato-itens">${itens}</ul>` : "") +
+      blocoDia +
+      (data.dica ? `<p class="vivo-prato-dica">${esc(data.dica)}</p>` : "") +
+      `<p class="vivo-nota">${incerta ? "Foto difícil de ler - confira as porções. " : ""}Estimativa pela foto (porção a olho + tabela TACO); pode variar uns 20%.</p>`
+    );
+  });
+
   // ============================================================= tarefas_lista
   const R_ANEL = 22;
   const C_ANEL = +(2 * Math.PI * R_ANEL).toFixed(2);
@@ -603,7 +671,7 @@
     const alvos = el.querySelectorAll("[data-contar-hhmm],[data-contar-int],[data-contar-moeda],[data-contar-graus]");
     alvos.forEach((n) => {
       const ds = n.dataset;
-      const fmt = ds.contarHhmm !== undefined ? hhmmMin : ds.contarMoeda !== undefined ? moedaCurta : ds.contarGraus !== undefined ? (v) => `${Math.round(v)}°` : (v) => String(Math.round(v));
+      const fmt = ds.contarHhmm !== undefined ? hhmmMin : ds.contarMoeda !== undefined ? moedaCurta : ds.contarGraus !== undefined ? (v) => `${Math.round(v)}°` : (v) => Math.round(v).toLocaleString("pt-BR");
       const alvo = Number(ds.contarHhmm ?? ds.contarInt ?? ds.contarMoeda ?? ds.contarGraus);
       if (!Number.isFinite(alvo)) return;
       tween(dur, (e) => semRolar(() => (n.textContent = fmt(alvo * e))));
@@ -1132,6 +1200,39 @@
           b.classList.add("fincou");
         }, 250 + i * 160 + (b.classList.contains("nova") ? 350 : 0))
       );
+    });
+    // prato: macros crescem uma depois da outra (com quique), depois os itens entram e por fim
+    // as barras do dia
+    raizEl.querySelectorAll('[data-vivo="prato"]').forEach(async (macros) => {
+      const card = macros.closest(".card-contrato") || macros.parentElement;
+      const barras = [...macros.querySelectorAll(".vivo-trilho i")];
+      const doDia = [...card.querySelectorAll(".vivo-prato-dia .vivo-trilho i")];
+      const itens = [...card.querySelectorAll(".vivo-prato-item")];
+      [...barras, ...doDia].forEach((b) => {
+        b.style.transition = "none";
+        b.style.transform = "scaleX(0)";
+      });
+      itens.forEach((li) => {
+        li.classList.remove("entrou");
+        li.style.opacity = "0";
+      });
+      await esperar(260);
+      for (const b of barras) {
+        b.style.transition = "transform .9s var(--ease-bounce)";
+        b.style.transform = "scaleX(1)";
+        await esperar(130);
+      }
+      itens.forEach((li, i) =>
+        setTimeout(() => {
+          li.style.opacity = "";
+          li.classList.add("entrou");
+        }, i * 80)
+      );
+      await esperar(200 + itens.length * 80);
+      doDia.forEach((b, i) => {
+        b.style.transition = `transform 1.1s var(--ease-suave) ${i * 140}ms`;
+        b.style.transform = "scaleX(1)";
+      });
     });
     raizEl.querySelectorAll('[data-vivo="clima"] .vivo-hora i').forEach((b, i) => {
       b.style.transform = "scaleY(0)";

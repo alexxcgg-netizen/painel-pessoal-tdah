@@ -52,6 +52,8 @@ import leitura
 import maps_client
 import vida_assistente
 import diario
+import feriados
+import refeicoes
 import viagem_compras
 import metar
 import noticias
@@ -1805,6 +1807,10 @@ def _contexto_chat(conn) -> str:
         f"Compromissos de hoje (em ordem de horário): {eventos_txt or 'nenhum'}",
     ]
     linhas.extend(vida_assistente.linhas_contexto(conn, agora.replace(tzinfo=None)))
+    linhas.extend(feriados.linhas_contexto(agora.date()))
+    comida_hoje = refeicoes.linha_contexto(conn, agora.date())
+    if comida_hoje:
+        linhas.append(comida_hoje)
     linhas.extend(diario.linhas_contexto(conn, agora.date()))
     if saude:
         linhas.append(f"Saúde hoje: {saude}")
@@ -2732,6 +2738,18 @@ def _processar_mensagem_chat(
             return {"erro": "nao entendi o dia - mande 'ontem', 'sabado' ou AAAA-MM-DD"}
         return diario.consultar(conn, dia_d, hoje_br)
 
+    def exec_consultar_feriados(entrada):
+        """Feriados/pontos facultativos de um ano inteiro ou de um mes (feriados.py, calculado)."""
+        hoje_br = _agora_brasilia().date()
+        ano = _inteiro_no_intervalo(entrada.get("ano"), 1900, 2200) or hoje_br.year
+        mes = _inteiro_no_intervalo(entrada.get("mes"), 1, 12)
+        lista = [f for f in feriados.do_ano(ano) if not mes or f["data"].month == mes]
+        return {"ano": ano, "feriados": [
+            {"data": f["data"].isoformat(), "dia_da_semana": diario.DIAS_SEMANA[f["data"].weekday()],
+             "nome": f["nome"], "tipo": f["tipo"], **({"emenda": feriados.emenda(f)} if feriados.emenda(f) else {})}
+            for f in lista
+        ]}
+
     def exec_anotar_no_diario(entrada):
         recusa = _recusa_visitante()
         if recusa:
@@ -3578,6 +3596,7 @@ def _processar_mensagem_chat(
         "registrar_acordei": exec_registrar_acordei,
         "consultar_diario": exec_consultar_diario,
         "anotar_no_diario": exec_anotar_no_diario,
+        "consultar_feriados": exec_consultar_feriados,
         "atualizar_perfil": exec_atualizar_perfil,
         "salvar_lugar_apelido": exec_salvar_lugar_apelido,
         "planejar_dia": exec_planejar_dia,
@@ -3908,6 +3927,9 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
             cur = conn.execute("DELETE FROM hidratacao_registros WHERE id = ?", (id_,))
         elif entidade == "treino":
             cur = conn.execute("DELETE FROM treinos WHERE id = ?", (id_,))
+        elif entidade == "refeicao":
+            refeicoes.criar_tabela(conn)
+            cur = conn.execute("DELETE FROM refeicoes WHERE id = ?", (id_,))
         # ---- Fase 7 (N1, ligado na C1): o Desfazer geral tambem entende os
         # tokens da N1 (financas_recorrentes.criar_token_desfazer grava
         # {"entidade", "acao", "id"} na mesma tabela) - antes a rota geral

@@ -1,0 +1,10 @@
+{
+  "funcao": "analisar_prato_foto",
+  "ativo": false,
+  "modelo_atual": {"provedor": "anthropic", "modelo": "claude-sonnet-5"},
+  "alvo": {"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "medio"},
+  "fallback": [{"provedor": "anthropic", "modelo": "claude-sonnet-5"}],
+  "max_tokens_saida": 1200,
+  "cache": {"ativo": false, "ttl": "5m"},
+  "modo": "padrao"
+}

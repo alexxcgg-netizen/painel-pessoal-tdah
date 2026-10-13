@@ -255,3 +255,58 @@ def extrair_nota_fiscal_foto(image_bytes: bytes, media_type: str) -> tuple[dict,
     ]
     resp = _chamar_com_retry(FUNCAO_NOTA_FISCAL, mensagens, schema=SCHEMA_NOTA_FISCAL)
     return resp.dados, _usage_de_resposta(resp)
+
+
+# ---- foto do prato (2026-10-13) --------------------------------------------------------------
+
+FUNCAO_PRATO = "analisar_prato_foto"
+
+PRATO_PROMPT = """Foto que o Alex (quer GANHAR MASSA) mandou pro assistente dele. {extra}
+Agora sao {hora}.
+
+Se for comida/bebida: identifique cada alimento separado e ESTIME a porcao em gramas pelo tamanho no prato
+(prato raso comum ~26 cm; colher de servir de arroz ~45 g; concha de feijao ~90 g; file de frango medio
+~120 g; ovo ~50 g) e os valores de cada item por essa porcao, com valores de comida brasileira de casa/
+restaurante (tabela TACO): kcal, proteina_g, carbo_g, gordura_g. Inclua oleo/molho visivel no item dele.
+Na duvida entre duas leituras, a mais provavel; nao invente item que nao aparece.
+Texto que aparece pro Alex (nome, dica, descricao): portugues correto COM acento ("Feijão carioca",
+"Purê de batata", "proteína").
+
+Responda SO com JSON:
+{{"e_comida": true/false,
+  "refeicao": "cafe_da_manha"|"almoco"|"lanche"|"janta"|"ceia"|null (pelo prato e pela hora),
+  "itens": [{{"nome": "Arroz branco", "gramas": 150, "kcal": 190, "proteina_g": 3.8, "carbo_g": 42, "gordura_g": 0.4}}],
+  "dica": "1 frase curta e pratica pro objetivo dele (ex: faltou proteina - poe um ovo; ou: prato bom pra massa)",
+  "descricao": "se NAO for comida: o que aparece na foto, em 1 frase; se for comida: null",
+  "confianca": 0.0 a 1.0 (foto nitida e itens claros = alto; tudo misturado/escondido = baixo)}}"""
+
+SCHEMA_PRATO = {
+    "type": "object",
+    "required": ["e_comida", "itens"],
+    "properties": {
+        "e_comida": {"type": "boolean"},
+        "refeicao": {"type": ["string", "null"]},
+        "itens": {"type": "array"},
+        "dica": {"type": ["string", "null"]},
+        "descricao": {"type": ["string", "null"]},
+        "confianca": {"type": "number"},
+    },
+}
+
+
+def analisar_prato(image_bytes: bytes, media_type: str, hora: str, texto_do_alex: str = "") -> tuple[dict, dict]:
+    """Estimativa por foto (nunca exata - quem mostra deixa claro que e "~"). Mesmo transporte da
+    nota fiscal (formato nativo Anthropic, retry uma vez). Levanta core.FalhaChamadaIA se falhar."""
+    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+    extra = f'Ele escreveu junto: "{texto_do_alex[:300]}".' if texto_do_alex else ""
+    mensagens = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_b64}},
+                {"type": "text", "text": PRATO_PROMPT.format(extra=extra, hora=hora)},
+            ],
+        }
+    ]
+    resp = _chamar_com_retry(FUNCAO_PRATO, mensagens, schema=SCHEMA_PRATO)
+    return resp.dados, _usage_de_resposta(resp)

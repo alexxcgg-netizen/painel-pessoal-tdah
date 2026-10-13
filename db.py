@@ -1756,6 +1756,8 @@ ENTIDADES_DESFAZIVEIS = (
     "tarefa", "gasto", "renda", "lembrete", "meta", "evento",
     # Fase 6 (US-E7): modulos ligados aos cards
     "habito", "habito_marcacao", "projeto", "projeto_etapa", "etapa_concluida", "viagem", "hidratacao", "treino",
+    # 2026-10-13: refeicao registrada pela foto do prato (refeicoes.py)
+    "refeicao",
 )
 
 

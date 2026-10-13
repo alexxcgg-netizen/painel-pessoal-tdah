@@ -188,6 +188,13 @@ def fatos_do_dia(conn, dia: date) -> dict:
         if c and any(c[k] is not None for k in ("energia", "sono", "humor")):
             fatos["checkin"] = ", ".join(f"{k} {c[k]}" for k in ("energia", "sono", "humor") if c[k] is not None)
 
+    if _tabela_existe(conn, "refeicoes"):
+        import refeicoes
+
+        comida = refeicoes.fatos_do_dia(conn, dia)
+        if comida:
+            fatos["comida"] = comida
+
     if _tabela_existe(conn, "diario_anotacoes"):
         anot = [r["texto"] for r in conn.execute("SELECT texto FROM diario_anotacoes WHERE dia = ? ORDER BY id", (d,))]
         if anot:

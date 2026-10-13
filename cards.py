@@ -180,6 +180,7 @@ TIPOS_CARD = (
     "compra_parcelada",
     "resumo_financeiro_recorrente",
     "rota",
+    "refeicao",
     # cartoes vivos (2026-10-09): animados no front (static/js/cards-vivos.js)
     "edicao",
     "voo_resumo",
@@ -879,6 +880,21 @@ def card_rota(ef: dict) -> dict | None:
     )
 
 
+def card_refeicao(conn, id_: int, ef: dict, actions_extra=None) -> dict | None:
+    """Foto do prato (refeicoes.py): itens com gramas/macros estimados, total da refeicao, o
+    dia ate agora e a meta. Valores sao estimativa por foto - o front mostra com "~"."""
+    import refeicoes
+
+    data = refeicoes.dados_card(conn, id_)
+    if not data:
+        return None
+    if ef.get("dica"):
+        data["dica"] = str(ef["dica"])[:200]
+    if isinstance(ef.get("confianca"), (int, float)):
+        data["confianca"] = round(float(ef["confianca"]), 2)
+    return novo_card("refeicao", data, list(actions_extra or []))
+
+
 # ---- cartoes vivos (2026-10-09) ----------------------------------------------
 
 _NOME_CAMPO = {
@@ -1123,6 +1139,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_resumo_financeiro_recorrente(conn)
     if entidade == "rota":
         return card_rota(ef)
+    if entidade == "refeicao" and isinstance(id_, int):
+        return card_refeicao(conn, id_, ef, desfazer)
     if entidade == "voo_resumo":
         return card_voo_resumo(conn)
     if entidade == "clima":
