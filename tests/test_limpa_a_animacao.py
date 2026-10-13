@@ -121,7 +121,12 @@ class LimpaAAnimacaoTestCase(unittest.TestCase):
 
                 itens = page.locator("#lista-tarefas li")
                 self.assertGreaterEqual(itens.count(), 2, "precisa de pelo menos 2 tarefas pendentes pro teste")
+                # qual fica em cima depende da ordem da lista (sem data: a mais nova
+                # primeiro) - o teste le em vez de supor
+                nomes = ["limpa-a tarefa 1", "limpa-a tarefa 2"]
+                titulo_1o = next(n for n in nomes if n in itens.first.inner_text())
                 titulo_2o = itens.nth(1).inner_text()
+                nome_2o = next(n for n in nomes if n in titulo_2o)
                 y_antes = itens.nth(1).bounding_box()["y"]
 
                 itens.first.locator("button:has-text('concluir')").click(force=True)
@@ -133,12 +138,12 @@ class LimpaAAnimacaoTestCase(unittest.TestCase):
                     all(titulo_2o.split("\n")[0] in t or t != "" for t in textos_depois),
                 )
                 # a 1a tarefa concluida nao aparece mais na lista principal
-                self.assertNotIn("limpa-a tarefa 1", "\n".join(textos_depois))
+                self.assertNotIn(titulo_1o, "\n".join(textos_depois))
 
                 # ... e o item que era o 2o (agora o 1o) subiu: y menor que antes,
                 # a lista fechou o espaco em vez de deixar um buraco.
                 novo_primeiro = page.locator("#lista-tarefas li").first
-                self.assertIn("limpa-a tarefa 2", novo_primeiro.inner_text())
+                self.assertIn(nome_2o, novo_primeiro.inner_text())
                 y_depois = novo_primeiro.bounding_box()["y"]
                 self.assertLess(y_depois, y_antes, f"item nao subiu: antes y={y_antes}, depois y={y_depois}")
 
