@@ -38,6 +38,7 @@ import aprendizado
 import auth
 import backup_diario
 import briefing_voo
+import conversa_proativa
 import estudo_quiz
 import caldav_client
 import calculos
@@ -4720,6 +4721,9 @@ def verificar_e_notificar():
     materializar_tarefas_recorrentes(conn_materializar)
     # diario: fecha os dias que passaram (1 chamada de IA por tick no maximo, so quando falta)
     diario.garantir_dias_fechados(conn_materializar)
+    # painel puxando assunto: fechar o dia (21h) e padroes da semana (domingo) entram no
+    # chat mesmo sem push configurado - o push so avisa (la embaixo, junto dos outros)
+    avisos_conversa = conversa_proativa.verificar(conn_materializar, datetime.now())
     conn_materializar.close()
 
     push_ok = push_client.configurado()
@@ -4966,10 +4970,16 @@ def verificar_e_notificar():
     # Fase 7 (C1): com o briefing da noite da P3 valendo (flag
     # assistente.p3.ativo + tick configurado), o fechamento antigo sai de cena
     # - o briefing da P3 ja traz o mesmo fechamento e sai por push pela Caixa.
+    # 2026-10-13: o fechamento agora e uma conversa no chat (conversa_proativa) - quando
+    # ela saiu, o push leva o resumo dela no lugar do texto antigo.
+    for tipo_conv, titulo_conv, corpo_conv in avisos_conversa:
+        if not ja_notificou_hoje(conn, tipo_conv):
+            avisos.append((tipo_conv, 0, titulo_conv, corpo_conv))
     if (
         notificacoes.fechamento_noturno_devido()
         and not _briefing_noite_p3_substitui_fechamento(conn)
         and not ja_notificou_hoje(conn, "fechamento_noturno")
+        and not ja_notificou_hoje(conn, "fechar_dia_chat")
     ):
         avisos.append(
             ("fechamento_noturno", 0, "Fechando o dia", notificacoes.mensagem_fechamento_noturno(conn))

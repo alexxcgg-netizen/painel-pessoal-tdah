@@ -295,3 +295,22 @@ def requebrar_task(task_id):
     ).fetchall()
     conn.close()
     return jsonify({"subtasks": [dict(s) for s in novas]})
+
+
+@bp.route("/api/tarefas/adiar", methods=["POST"])
+def tarefas_adiar():
+    """Botao "passar pra amanha" do card fechar_dia (conversa_proativa): move as abertas
+    de hoje/atrasadas pra amanha mantendo o horario. Ids fora disso sao ignorados."""
+    app = app_modulo()
+    import conversa_proativa
+
+    corpo = app._corpo_json()
+    ids = corpo.get("ids")
+    if not isinstance(ids, list) or not ids or len(ids) > 200:
+        return jsonify({"error": "ids inválidos"}), 400
+    conn = get_db()
+    try:
+        r = conversa_proativa.adiar_para_amanha(conn, ids, app._agora_brasilia().date())
+    finally:
+        conn.close()
+    return jsonify(r)

@@ -5,6 +5,25 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Painel puxando assunto: fechar o dia e padrões da semana
+
+- `conversa_proativa.py`: duas mensagens que a IA abre sozinha no chat, por template (zero chamada de
+  IA): **fechar o dia** (21:00-23:30) com o que foi feito, o que ficou pendurado (atrasadas
+  inclusive) e card com "passar pra amanhã"; **padrões da semana** (domingo 19:30-23:30) com os 7
+  dias e até 3 observações tiradas dos números (melhor dia, comparação com a semana anterior, água,
+  gasto, voo, atrasadas acumulando). Gravadas em `chat_mensagens` (o chat abre com elas) e avisadas
+  por push.
+- Ligado no `verificar_e_notificar` antes do retorno antecipado do push, então publica no chat mesmo
+  sem push configurado. Dedupe `fechar_dia_chat`/`padroes_semana_chat` no `notificacoes_enviadas`;
+  o push antigo de template das 21h não sai mais quando o novo já saiu.
+- `POST /api/tarefas/adiar` `{ids}`: move pra amanhã só tarefa aberta, não recorrente, com data até
+  hoje (mantém o horário). O que ele riscou no próprio card não é adiado.
+- Cards `fechar_dia` (anel feitas/total, chips água/voo/quiz/gasto, checkboxes que concluem com
+  confete, botão que vira "Passei N pra amanhã") e `semana` (barras com o melhor dia brilhando,
+  água cheia x parcial, dia com voo, deltas vs semana anterior). `static/js/cards-rotina.js` +
+  `static/css/secoes/hoje/cards-rotina.css`; gasto/água mascarados no modo visitante. SW v66.
+- Testes: `tests/test_conversa_proativa.py`, `tests/js/cards_rotina.test.js`.
+
 ## 2026-10-13 - Professor de aviação 2: quiz da banca com repetição espaçada
 
 - Ferramentas `fazer_pergunta_aviacao` (a IA escreve a pergunta na própria chamada: enunciado, 4

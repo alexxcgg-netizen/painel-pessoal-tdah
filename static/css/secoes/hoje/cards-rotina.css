@@ -1,0 +1,167 @@
+/* static/css/secoes/hoje/cards-rotina.css - cards das mensagens que a IA abre sozinha
+   (static/js/cards-rotina.js): fechar o dia e padroes da semana. Entrada animada so no
+   .card-novo; historico e prefers-reduced-motion ficam no estado final. */
+
+.card-contrato-fechar_dia { --card-cor: var(--cor-cat-2); }
+.card-contrato-semana { --card-cor: var(--cor-cat-8); }
+
+/* ================================================================= fechar o dia */
+.rt-fechar, .rt-semana { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+.rt-fechar-topo { display: flex; align-items: center; gap: 0.9rem; }
+.rt-fechar-info { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+.rt-fechar-frase { margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text); }
+.rt-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.rt-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.74rem;
+}
+.rt-chip small { color: var(--text-faint); font-size: 0.68rem; }
+.rt-chip b { color: var(--text); font-weight: 600; }
+.rt-chip.ok { border-color: color-mix(in srgb, var(--cor-cat-7) 45%, var(--border)); }
+.rt-chip.ok b { color: var(--cor-cat-7); }
+
+.rt-anel { position: relative; width: 66px; height: 66px; flex-shrink: 0; }
+.rt-anel svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.rt-anel-fundo { fill: none; stroke: var(--surface-3); stroke-width: 6; }
+.rt-anel-valor {
+  fill: none;
+  stroke: var(--card-cor);
+  stroke-width: 6;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--card-cor) 45%, transparent));
+}
+.rt-anel-meio { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; line-height: 1; }
+.rt-anel-meio b { font-size: 1.35rem; font-weight: 700; color: var(--text); }
+.rt-anel-meio small { font-size: 0.64rem; color: var(--text-faint); margin-top: 0.15rem; }
+.rt-fechar.limpo .rt-anel-valor { stroke: var(--cor-cat-7); filter: drop-shadow(0 0 7px color-mix(in srgb, var(--cor-cat-7) 55%, transparent)); }
+
+.rt-pends { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; border-top: 1px solid var(--border); padding-top: 0.4rem; }
+.rt-pend { transition: opacity 0.45s var(--ease-suave), transform 0.55s var(--ease-suave), filter 0.45s var(--ease-suave); transition-delay: calc(var(--i, 0) * 45ms); }
+.rt-pend-linha { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; padding: 0.35rem 0; cursor: pointer; }
+.rt-pend-linha input { width: 18px; height: 18px; accent-color: var(--card-cor); margin: 0; }
+.rt-pend-titulo { font-size: 0.86rem; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.rt-pend-quando { font-size: 0.72rem; color: var(--text-faint); white-space: nowrap; }
+.rt-pend.atrasada .rt-pend-quando { color: var(--cor-cat-5); }
+.rt-pend.concluida .rt-pend-titulo { color: var(--text-faint); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+/* passou pra amanha: desliza pra direita e assenta apagadinho, com a etiqueta nova */
+.rt-pend-titulo { transition: transform 0.55s var(--ease-bounce); }
+.rt-pend.adiada { opacity: 0.5; filter: saturate(0.5); }
+.rt-pend.adiada .rt-pend-titulo { transform: translateX(5px); }
+.rt-pend.adiada .rt-pend-quando { font-size: 0; }
+.rt-pend.adiada .rt-pend-quando::after { content: "amanhã"; font-size: 0.72rem; color: var(--card-cor); }
+
+.rt-adiar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--card-cor) 40%, transparent);
+  background: color-mix(in srgb, var(--card-cor) 16%, var(--surface-2));
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.35s var(--ease-snap), background 0.4s var(--ease-suave), border-color 0.4s var(--ease-suave);
+}
+.rt-adiar svg { width: 17px; height: 17px; color: var(--card-cor); transition: transform 0.45s var(--ease-bounce); }
+.rt-adiar:not(:disabled):hover svg { transform: translateX(3px); }
+.rt-adiar:not(:disabled):active { transform: scale(0.97); transition-duration: 0.1s; }
+.rt-adiar:focus-visible { outline: 2px solid var(--card-cor); outline-offset: 2px; }
+.rt-adiar.enviando svg { animation: rtVai 0.8s var(--ease-suave) infinite; }
+@keyframes rtVai { 50% { transform: translateX(5px); opacity: 0.5; } }
+.rt-adiar.feito { cursor: default; background: color-mix(in srgb, var(--card-cor) 10%, var(--surface-2)); }
+.rt-adiar.feito svg { animation: rtFeito 0.6s var(--ease-bounce) both; }
+.rt-adiar.feito svg path { stroke-dasharray: 24; animation: rtTraco 0.45s var(--ease-suave) 0.1s both; }
+@keyframes rtFeito { from { transform: scale(0.4); } }
+@keyframes rtTraco { from { stroke-dashoffset: 24; } }
+
+.card-novo .rt-anel-valor { animation: rtAnel 1.2s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.3s) both; }
+@keyframes rtAnel { from { stroke-dashoffset: 163.4; } }
+.card-novo .rt-pend { animation: rtEntra 0.5s var(--ease-suave) calc(var(--chegada, 0ms) + 0.45s + var(--i, 0) * 0.06s) both; }
+@keyframes rtEntra { from { opacity: 0; transform: translateY(5px); } }
+.card-novo .rt-chip { animation: rtEntra 0.5s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.35s) both; }
+
+/* ============================================================ padroes da semana */
+.rt-cols {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+  align-items: end;
+}
+.rt-col { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; min-width: 0; }
+.rt-col-n { font-size: 0.7rem; color: var(--text-muted); min-height: 1em; }
+.rt-col-trilho { width: 100%; max-width: 30px; height: 84px; display: flex; align-items: flex-end; border-radius: 8px; background: color-mix(in srgb, var(--surface-3) 70%, transparent); overflow: hidden; }
+.rt-col-trilho i {
+  display: block;
+  width: 100%;
+  height: calc(var(--h) * 100%);
+  min-height: 3px;
+  border-radius: 8px;
+  background: linear-gradient(to top, color-mix(in srgb, var(--card-cor) 45%, transparent), color-mix(in srgb, var(--card-cor) 80%, transparent));
+  transform-origin: bottom;
+}
+.rt-col.melhor .rt-col-trilho i { background: linear-gradient(to top, color-mix(in srgb, var(--card-cor) 70%, transparent), var(--card-cor)); box-shadow: 0 0 12px color-mix(in srgb, var(--card-cor) 55%, transparent); }
+.rt-col.melhor .rt-col-n { color: var(--card-cor); font-weight: 700; }
+.rt-col small { font-size: 0.66rem; color: var(--text-faint); }
+.rt-col.melhor small { color: var(--text); }
+.rt-col-marcas { height: 15px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rt-col-agua {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  /* parcial = anel vazado (mais forte quanto mais perto da meta); na meta = bolinha cheia */
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cor-cat-1) calc(25% + var(--a) * 50%), var(--surface-3));
+}
+.rt-col-agua.cheia { background: var(--cor-cat-1); box-shadow: 0 0 6px color-mix(in srgb, var(--cor-cat-1) 60%, transparent); }
+.rt-col-voo { width: 10px; height: 2.5px; border-radius: 2px; background: var(--cor-cat-3); }
+.rt-legenda { margin: -0.2rem 0 0; display: flex; gap: 0.9rem; flex-wrap: wrap; font-size: 0.68rem; color: var(--text-faint); }
+.rt-legenda span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.rt-leg-agua { width: 7px; height: 7px; border-radius: 50%; background: var(--cor-cat-1); }
+.rt-leg-voo { width: 10px; height: 2.5px; border-radius: 2px; background: var(--cor-cat-3); }
+
+.rt-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 0.45rem; }
+.rt-tile { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.5rem 0.6rem; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); min-width: 0; }
+.rt-tile small { font-size: 0.66rem; color: var(--text-faint); }
+.rt-tile b { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+.rt-delta { font-style: normal; font-size: 0.66rem; color: var(--text-faint); }
+.rt-delta.sobe { color: var(--cor-cat-7); }
+.rt-tile:nth-child(2) .rt-delta.sobe { color: var(--cor-cat-5); } /* gasto subir nao e bom */
+.rt-tile:nth-child(2) .rt-delta.desce { color: var(--cor-cat-7); }
+.rt-obs { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.rt-obs li { position: relative; padding-left: 0.95rem; font-size: 0.84rem; line-height: 1.45; color: var(--text-muted); }
+.rt-obs li::before { content: ""; position: absolute; left: 0; top: 0.55em; width: 5px; height: 5px; border-radius: 50%; background: var(--card-cor); }
+
+.card-novo .rt-col-trilho i { animation: rtBarra 0.9s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.3s + var(--i, 0) * 0.07s) both; }
+@keyframes rtBarra { from { transform: scaleY(0); } }
+.card-novo .rt-col-n { animation: rtEntra 0.45s var(--ease-suave) calc(var(--chegada, 0ms) + 0.75s + var(--i, 0) * 0.07s) both; }
+.card-novo .rt-col.melhor .rt-col-trilho i {
+  animation: rtBarra 0.9s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.3s + var(--i, 0) * 0.07s) both,
+    rtBrilho 1.4s var(--ease-suave) calc(var(--chegada, 0ms) + 1.3s) both;
+}
+@keyframes rtBrilho { 40% { filter: brightness(1.35); box-shadow: 0 0 20px color-mix(in srgb, var(--card-cor) 75%, transparent); } }
+.card-novo .rt-col-agua, .card-novo .rt-col-voo { animation: rtPinga 0.5s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.9s + var(--i, 0) * 0.06s) both; }
+@keyframes rtPinga { from { opacity: 0; transform: scale(0); } }
+.card-novo .rt-tile, .card-novo .rt-obs li { animation: rtEntra 0.5s var(--ease-suave) calc(var(--chegada, 0ms) + 1s + var(--i, 0) * 0.08s) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rt-pend, .rt-pend-titulo, .rt-adiar, .rt-adiar svg { transition: none; }
+  .rt-adiar.enviando svg, .rt-adiar.feito svg, .rt-adiar.feito svg path,
+  .card-novo .rt-anel-valor, .card-novo .rt-pend, .card-novo .rt-chip,
+  .card-novo .rt-col-trilho i, .card-novo .rt-col-n, .card-novo .rt-col-agua, .card-novo .rt-col-voo,
+  .card-novo .rt-tile, .card-novo .rt-obs li {
+    animation: none !important;
+  }
+}

@@ -141,6 +141,9 @@ ABA_POR_ENTIDADE = {
 # (docs/CARDS.md, "Modo visitante"). Card novo com dinheiro entra aqui.
 CAMPOS_SENSIVEIS = {
     "transacao": ("valor", "saldo"),
+    # 2026-10-13 (conversa_proativa): dinheiro e agua (saude) saem no modo visitante
+    "fechar_dia": ("gasto", "agua"),
+    "semana": ("gasto", "gasto_ant", "gastos_dia", "agua_dia"),
     "meta": ("valor_guardado", "valor_alvo", "falta"),
     # Revisao da Fase 6: dado de saude (Apple Saude/treinos/agua) e tao
     # sensivel quanto dinheiro - /api/saude/hoje ja devolvia `oculto` no
@@ -197,6 +200,9 @@ TIPOS_CARD = (
     # professor de aviacao (2026-10-13)
     "briefing_voo",
     "quiz_aviacao",
+    # painel puxando assunto (2026-10-13, conversa_proativa.py)
+    "fechar_dia",
+    "semana",
 )
 
 

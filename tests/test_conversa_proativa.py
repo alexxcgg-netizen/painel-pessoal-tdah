@@ -1,0 +1,234 @@
+"""Painel puxando assunto (2026-10-13): conversa_proativa.py (fechar o dia 21h e padroes
+da semana no domingo), POST /api/tarefas/adiar e mascara de visitante. Banco temporario,
+IA nunca chamada, push nunca enviado."""
+import os
+import tempfile
+import unittest
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
+os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
+
+import auth  # noqa: E402
+import cards  # noqa: E402
+import db  # noqa: E402
+
+_tmp_dir = tempfile.TemporaryDirectory()
+db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+db.garantir_banco_nao_producao()
+
+import app  # noqa: E402
+import conversa_proativa as cp  # noqa: E402
+
+PIN_TESTE = "123456"
+HOJE = date.today()  # ja_notificou_hoje usa date.today()
+AMANHA = (HOJE + timedelta(days=1)).isoformat()
+ONTEM = (HOJE - timedelta(days=1)).isoformat()
+
+
+def _banco():
+    db.DB_PATH = Path(_tmp_dir.name) / "painel.db"
+    if db.DB_PATH.exists():
+        db.DB_PATH.unlink()
+    db.init_db()
+    return db.get_db()
+
+
+def _tarefa(conn, titulo, due=None, hora=None, feita_em=None, recorrencia=None):
+    cur = conn.execute(
+        "INSERT INTO tasks (title, due_date, hora, completed_at, recorrencia) VALUES (?, ?, ?, ?, ?)",
+        (titulo, due, hora, feita_em, recorrencia),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def _feita_no_dia(dia: date) -> str:
+    # completed_at e UTC: meio-dia de Brasilia = 15:00Z
+    return f"{dia.isoformat()} 15:00:00"
+
+
+class FecharDiaTestCase(unittest.TestCase):
+    def setUp(self):
+        self.conn = _banco()
+
+    def tearDown(self):
+        self.conn.close()
+
+    def test_dia_vazio_nao_gera_nada(self):
+        self.assertIsNone(cp.fechar_dia(self.conn, HOJE))
+
+    def test_pendentes_em_ordem_de_agenda_com_atrasadas(self):
+        _tarefa(self.conn, "feita", due=HOJE.isoformat(), feita_em=_feita_no_dia(HOJE))
+        _tarefa(self.conn, "dez", due=HOJE.isoformat(), hora="10:00")
+        _tarefa(self.conn, "oito", due=HOJE.isoformat(), hora="08:00")
+        _tarefa(self.conn, "velha", due=ONTEM)
+        _tarefa(self.conn, "futura", due=AMANHA)
+        _tarefa(self.conn, "rotina", due=HOJE.isoformat(), recorrencia="diaria")
+        texto, lista = cp.fechar_dia(self.conn, HOJE)
+        d = lista[0]["data"]
+        self.assertEqual(lista[0]["type"], "fechar_dia")
+        self.assertEqual(d["feitas"], 1)
+        self.assertEqual([p["titulo"] for p in d["pendentes"]], ["velha", "oito", "dez"])
+        self.assertTrue(d["pendentes"][0]["atrasada"])
+        self.assertEqual(len(d["ids_adiar"]), 3)
+        self.assertIn("1 feita", texto)
+        self.assertIn("ficaram 3", texto)
+        self.assertIn("1 já vinham de antes", texto)
+        self.assertNotIn("futura", texto)
+        self.assertNotIn("rotina", texto)
+
+    def test_dia_limpo(self):
+        _tarefa(self.conn, "a", due=HOJE.isoformat(), feita_em=_feita_no_dia(HOJE))
+        texto, lista = cp.fechar_dia(self.conn, HOJE)
+        self.assertIn("Dia fechado limpo", texto)
+        self.assertEqual(lista[0]["data"]["pendentes"], [])
+        self.assertEqual(cp.resumo_push_fechar_dia(texto, lista[0]), "Dia fechado limpo. Dá uma olhada no resumo.")
+
+    def test_card_limita_lista_mas_adia_todas(self):
+        for i in range(cp.LIMITE_PENDENTES_CARD + 3):
+            _tarefa(self.conn, f"t{i}", due=HOJE.isoformat())
+        _, lista = cp.fechar_dia(self.conn, HOJE)
+        d = lista[0]["data"]
+        self.assertEqual(len(d["pendentes"]), cp.LIMITE_PENDENTES_CARD)
+        self.assertEqual(d["mais"], 3)
+        self.assertEqual(len(d["ids_adiar"]), cp.LIMITE_PENDENTES_CARD + 3)
+
+
+class AdiarTestCase(unittest.TestCase):
+    def setUp(self):
+        self.conn = _banco()
+
+    def tearDown(self):
+        self.conn.close()
+
+    def _due(self, i):
+        return self.conn.execute("SELECT due_date, hora FROM tasks WHERE id = ?", (i,)).fetchone()
+
+    def test_so_move_aberta_ate_hoje_e_mantem_hora(self):
+        hoje = _tarefa(self.conn, "hoje", due=HOJE.isoformat(), hora="09:30")
+        velha = _tarefa(self.conn, "velha", due=ONTEM)
+        feita = _tarefa(self.conn, "feita", due=HOJE.isoformat(), feita_em=_feita_no_dia(HOJE))
+        futura = _tarefa(self.conn, "futura", due=(HOJE + timedelta(days=5)).isoformat())
+        rotina = _tarefa(self.conn, "rotina", due=HOJE.isoformat(), recorrencia="diaria")
+        sem_data = _tarefa(self.conn, "sem data")
+        r = cp.adiar_para_amanha(self.conn, [hoje, velha, feita, futura, rotina, sem_data, 99999], HOJE)
+        self.assertEqual(r, {"movidas": 2, "para": AMANHA})
+        self.assertEqual(tuple(self._due(hoje)), (AMANHA, "09:30"))
+        self.assertEqual(self._due(velha)["due_date"], AMANHA)
+        self.assertEqual(self._due(feita)["due_date"], HOJE.isoformat())
+        self.assertEqual(self._due(rotina)["due_date"], HOJE.isoformat())
+        self.assertIsNone(self._due(sem_data)["due_date"])
+
+    def test_ids_lixo(self):
+        for ids in (None, [], ["1"], [True], [-1, 0], [1.5]):
+            with self.subTest(ids=ids):
+                self.assertEqual(cp.adiar_para_amanha(self.conn, ids, HOJE)["movidas"], 0)
+
+
+class SemanaTestCase(unittest.TestCase):
+    def setUp(self):
+        self.conn = _banco()
+
+    def tearDown(self):
+        self.conn.close()
+
+    def test_semana_vazia(self):
+        self.assertIsNone(cp.padroes_semana(self.conn, HOJE))
+
+    def test_observacoes_saem_dos_numeros(self):
+        melhor = HOJE - timedelta(days=2)
+        for _ in range(4):
+            _tarefa(self.conn, "x", feita_em=_feita_no_dia(melhor))
+        _tarefa(self.conn, "y", feita_em=_feita_no_dia(HOJE))
+        _tarefa(self.conn, "antiga", feita_em=_feita_no_dia(HOJE - timedelta(days=9)))
+        self.conn.execute("INSERT INTO voos (data, destino, horas) VALUES (?, 'SBFL', 1.5)", (HOJE.isoformat(),))
+        self.conn.commit()
+        texto, lista = cp.padroes_semana(self.conn, HOJE)
+        d = lista[0]["data"]
+        self.assertEqual(lista[0]["type"], "semana")
+        self.assertEqual(len(d["dias"]), 7)
+        self.assertEqual(d["ate"], HOJE.isoformat())
+        self.assertEqual((d["tarefas"], d["tarefas_ant"]), (5, 1))
+        self.assertEqual(d["melhor_dia"], melhor.isoformat())
+        self.assertEqual(d["voo_horas"], 1.5)
+        nome = cp.DIAS_LONGOS[melhor.weekday()].capitalize()
+        self.assertIn(f"{nome} foi teu dia mais produtivo, 4 tarefas", texto)
+        self.assertIn("4 a mais que na semana passada", texto)
+        self.assertLessEqual(len(d["observacoes"]), 3)
+
+    def test_card_semana_mascara_pro_visitante(self):
+        _tarefa(self.conn, "x", feita_em=_feita_no_dia(HOJE))
+        _, lista = cp.padroes_semana(self.conn, HOJE)
+        _, lista_dia = cp.fechar_dia(self.conn, HOJE)
+        for chave in ("gasto", "gasto_ant", "gastos_dia", "agua_dia"):
+            self.assertIn(chave, cards.CAMPOS_SENSIVEIS["semana"])
+        for chave in ("gasto", "agua"):
+            self.assertIn(chave, cards.CAMPOS_SENSIVEIS["fechar_dia"])
+        self.assertIn("semana", cards.TIPOS_CARD)
+        self.assertIn("fechar_dia", cards.TIPOS_CARD)
+        self.assertTrue(lista and lista_dia)
+
+
+class VerificarTestCase(unittest.TestCase):
+    def setUp(self):
+        self.conn = _banco()
+        _tarefa(self.conn, "pendente", due=HOJE.isoformat())
+
+    def tearDown(self):
+        self.conn.close()
+
+    def _mensagens(self):
+        return self.conn.execute("SELECT texto FROM chat_mensagens WHERE papel = 'assistant'").fetchall()
+
+    def test_fora_da_janela_nao_faz_nada(self):
+        self.assertEqual(cp.verificar(self.conn, datetime.combine(HOJE, datetime.min.time()).replace(hour=20)), [])
+        self.assertEqual(self._mensagens(), [])
+
+    def test_publica_uma_vez_so(self):
+        agora = datetime.combine(HOJE, datetime.min.time()).replace(hour=21, minute=3)
+        saida = cp.verificar(self.conn, agora)
+        self.assertEqual([s[0] for s in saida][:1], ["fechamento_noturno"])
+        self.assertIn("Passo pra amanhã?", saida[0][2])
+        self.assertEqual(len(self._mensagens()), 1 + (1 if HOJE.weekday() == 6 else 0))
+        self.assertTrue(db.ja_notificou_hoje(self.conn, "fechar_dia_chat"))
+        self.assertEqual(cp.verificar(self.conn, agora.replace(minute=8)), [])
+        self.assertEqual(len(self._mensagens()), 1 + (1 if HOJE.weekday() == 6 else 0))
+
+    def test_card_vai_pro_historico_do_chat(self):
+        cp.verificar(self.conn, datetime.combine(HOJE, datetime.min.time()).replace(hour=22))
+        hist = db.list_chat_mensagens(self.conn)
+        tipos = [c["type"] for m in hist for c in db.cards_de_mensagem_chat(m)]
+        self.assertIn("fechar_dia", tipos)
+
+    def test_semana_so_no_domingo(self):
+        sabado = HOJE + timedelta(days=(5 - HOJE.weekday()) % 7)
+        self.assertEqual(sabado.weekday(), 5)
+        saida = cp.verificar(self.conn, datetime.combine(sabado, datetime.min.time()).replace(hour=20))
+        self.assertNotIn("padroes_semana", [s[0] for s in saida])
+
+
+class RotaAdiarTestCase(unittest.TestCase):
+    def setUp(self):
+        conn = _banco()
+        auth.definir_pin(conn, PIN_TESTE, PIN_TESTE)
+        self.id = _tarefa(conn, "rota", due=app._agora_brasilia().date().isoformat(), hora="07:00")
+        conn.commit()
+        conn.close()
+        self.client = app.app.test_client()
+
+    def test_exige_login(self):
+        self.assertEqual(self.client.post("/api/tarefas/adiar", json={"ids": [self.id]}).status_code, 401)
+
+    def test_valida_e_move(self):
+        self.assertEqual(self.client.post("/login", json={"pin": PIN_TESTE}).status_code, 200)
+        for corpo in ({}, {"ids": "1"}, {"ids": []}, {"ids": list(range(1, 202))}):
+            with self.subTest(corpo=corpo):
+                self.assertEqual(self.client.post("/api/tarefas/adiar", json=corpo).status_code, 400)
+        r = self.client.post("/api/tarefas/adiar", json={"ids": [self.id]})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()["movidas"], 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
