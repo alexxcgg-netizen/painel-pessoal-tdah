@@ -1,0 +1,227 @@
+/* static/css/secoes/hoje/cards-aviacao.css - professor de aviacao no chat
+   (static/js/cards-aviacao.js). Cor do card = categoria do boletim (VFR verde, MVFR azul,
+   IFR vermelho, LIFR magenta - convencao das cartas de meteorologia). Entrada animada so
+   no .card-novo; historico e prefers-reduced-motion ficam no estado final. */
+
+.card-contrato-briefing_voo { --card-cor: var(--cor-cat-3); --bv-vfr: #9fdcb0; --bv-mvfr: #7cc4e8; --bv-ifr: #f39a90; --bv-lifr: #e39fc9; }
+.card-contrato-briefing_voo:has(.bv[data-categoria="VFR"]) { --card-cor: var(--bv-vfr); }
+.card-contrato-briefing_voo:has(.bv[data-categoria="MVFR"]) { --card-cor: var(--bv-mvfr); }
+.card-contrato-briefing_voo:has(.bv[data-categoria="IFR"]) { --card-cor: var(--bv-ifr); }
+.card-contrato-briefing_voo:has(.bv[data-categoria="LIFR"]) { --card-cor: var(--bv-lifr); }
+
+.bv { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+.bv .card-resultado-eyebrow { flex-wrap: wrap; }
+.bv-obs { margin-left: auto; font-size: 0.68rem; color: var(--text-faint); letter-spacing: 0; text-transform: none; }
+.bv-troca { margin: -0.15rem 0 0; }
+.bv-voo {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.bv-voo-hora {
+  font-size: 0.78rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 7px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--card-cor) 16%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--card-cor) 30%, transparent);
+}
+
+/* ---- topo: selo da categoria + rosa dos ventos ---------------------------------- */
+.bv-topo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.9rem; align-items: center; }
+.bv-cat { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.bv-cat-selo {
+  align-self: flex-start;
+  position: relative;
+  font-family: var(--font-tech);
+  font-weight: 700;
+  font-size: 2.1rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--card-cor);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--card-cor) 45%, transparent);
+}
+.bv-cat small { font-size: 0.72rem; line-height: 1.4; color: var(--text-muted); }
+
+.bv-rosa { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; }
+.bv-rosa svg { width: 92px; height: 92px; overflow: visible; }
+.bv-rosa figcaption { font-size: 0.74rem; color: var(--text-muted); white-space: nowrap; }
+.bv-rosa figcaption b { color: var(--text); font-weight: 600; }
+.bv-rajada { color: var(--card-cor); font-weight: 600; }
+.bv-aro { fill: color-mix(in srgb, var(--card-cor) 6%, transparent); stroke: var(--border-strong, var(--border)); stroke-width: 1; }
+.bv-rosa line { stroke: var(--text-faint); stroke-width: 1; stroke-linecap: round; }
+.bv-rosa line.bv-marca-forte { stroke: var(--text-muted); stroke-width: 1.4; }
+.bv-n { font: 600 7px var(--font-tech); fill: var(--text-muted); text-anchor: middle; }
+.bv-setor { fill: color-mix(in srgb, var(--card-cor) 14%, transparent); }
+.bv-seta { transform-origin: 50px 50px; transform: rotate(var(--dir, 0deg)); }
+.bv-haste, .bv-penas { stroke: var(--card-cor); stroke-width: 2.2; stroke-linecap: round; fill: none; }
+.bv-ponta { fill: var(--card-cor); }
+.bv-seta { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--card-cor) 55%, transparent)); }
+.bv-calmo { fill: none; stroke: var(--card-cor); stroke-width: 2; }
+.bv-variavel { fill: none; stroke: var(--card-cor); stroke-width: 1.6; stroke-dasharray: 3 4; }
+
+/* ---- fenomenos e camadas -------------------------------------------------------- */
+.bv-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.bv-fen, .bv-nuvem {
+  font-size: 0.72rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.bv-fen { color: var(--text); border-color: color-mix(in srgb, var(--card-cor) 35%, var(--border)); background: color-mix(in srgb, var(--card-cor) 10%, var(--surface-2)); }
+.bv-nuvem { font-family: var(--font-tech); letter-spacing: 0.02em; }
+
+/* ---- reguas: teto e visibilidade com os limiares das categorias ------------------- */
+.bv-medidas { display: grid; gap: 0.55rem; }
+.bv-medida { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.6rem; align-items: baseline; font-size: 0.8rem; color: var(--text-muted); }
+.bv-medida-val { color: var(--text); font-size: 0.92rem; }
+.bv-medida-val small { font-size: 0.7rem; color: var(--text-faint); }
+.bv-trilho { grid-column: 1 / -1; position: relative; height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.bv-trilho b {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--frac) * 100%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--card-cor) 55%, transparent), var(--card-cor));
+  transform-origin: left;
+}
+.bv-tique { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--text) 22%, transparent); z-index: 1; }
+.bv-mini { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+.bv-mini span { display: flex; flex-direction: column; gap: 0.1rem; }
+.bv-mini small { font-size: 0.68rem; color: var(--text-faint); }
+.bv-mini b { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+.bv-mini b i { font-style: normal; color: var(--text-faint); margin: 0 0.15rem; }
+
+/* ---- TAF: linha do tempo com a cor de cada categoria ------------------------------ */
+.bv-taf-tit { margin: 0.15rem 0 -0.2rem; }
+.bv-taf { list-style: none; margin: 0; padding: 0 0 0 0.9rem; display: grid; gap: 0.55rem; position: relative; }
+.bv-taf::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  width: 1.5px;
+  border-radius: 1px;
+  background: var(--border-strong, var(--border));
+  transform-origin: top;
+}
+.bv-taf-item { position: relative; --taf-cor: var(--text-faint); }
+.bv-taf-item.bv-cat-VFR { --taf-cor: var(--bv-vfr); }
+.bv-taf-item.bv-cat-MVFR { --taf-cor: var(--bv-mvfr); }
+.bv-taf-item.bv-cat-IFR { --taf-cor: var(--bv-ifr); }
+.bv-taf-item.bv-cat-LIFR { --taf-cor: var(--bv-lifr); }
+.bv-taf-ponto {
+  position: absolute;
+  left: calc(-0.9rem + 0.5px);
+  top: 0.38rem;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--taf-cor);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--taf-cor) 18%, transparent);
+}
+.bv-taf-cab { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.5rem; font-size: 0.8rem; }
+.bv-taf-cab b { font-weight: 600; color: var(--text); }
+.bv-taf-cab span { font-size: 0.74rem; color: var(--text-muted); }
+.bv-taf-cab em {
+  font-style: normal;
+  font-family: var(--font-tech);
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 0.05rem 0.4rem;
+  border-radius: 6px;
+  color: var(--taf-cor);
+  background: color-mix(in srgb, var(--taf-cor) 14%, transparent);
+}
+.bv-taf-item p { margin: 0.1rem 0 0; font-size: 0.76rem; color: var(--text-muted); line-height: 1.4; }
+
+/* ---- boletim bruto (abre/fecha) -------------------------------------------------- */
+.bv-bruto summary {
+  cursor: pointer;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.bv-bruto summary::-webkit-details-marker { display: none; }
+.bv-bruto summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.3s var(--ease-snap);
+}
+.bv-bruto[open] summary::before { transform: rotate(45deg); }
+.bv-bruto pre {
+  margin: 0.45rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font: 500 0.7rem/1.5 var(--font-tech);
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.bv-bruto[open] pre { animation: bvAbre 0.35s var(--ease-suave) both; }
+@keyframes bvAbre { from { opacity: 0; transform: translateY(-4px); } }
+
+/* ---- entrada (so resposta nova) --------------------------------------------------- */
+.card-novo .bv-cat-selo { animation: bvSelo 0.8s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.25s) both; }
+@keyframes bvSelo {
+  0% { opacity: 0; transform: scale(0.6); filter: blur(6px); }
+  60% { opacity: 1; transform: scale(1.06); filter: blur(0); }
+  100% { opacity: 1; transform: none; }
+}
+/* a seta "procura" o vento: entra girada e assenta na direcao com um balanço leve */
+.card-novo .bv-seta { animation: bvSeta 1.4s cubic-bezier(0.2, 0.9, 0.25, 1.12) calc(var(--chegada, 0ms) + 0.35s) both; }
+@keyframes bvSeta {
+  0% { opacity: 0; transform: rotate(calc(var(--dir, 0deg) - 150deg)); }
+  25% { opacity: 1; }
+  100% { opacity: 1; transform: rotate(var(--dir, 0deg)); }
+}
+/* com rajada a seta continua "respirando" de leve depois de assentar */
+.card-novo .bv-rosa:has(.bv-rajada) .bv-seta {
+  animation: bvSeta 1.4s cubic-bezier(0.2, 0.9, 0.25, 1.12) calc(var(--chegada, 0ms) + 0.35s) both,
+    bvRajada 2.6s ease-in-out calc(var(--chegada, 0ms) + 1.8s) 3;
+}
+@keyframes bvRajada {
+  0%, 100% { transform: rotate(var(--dir, 0deg)); }
+  40% { transform: rotate(calc(var(--dir, 0deg) + 7deg)); }
+  70% { transform: rotate(calc(var(--dir, 0deg) - 4deg)); }
+}
+.card-novo .bv-trilho b { animation: bvEnche 1.1s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.45s) both; }
+.card-novo .bv-medida + .bv-medida .bv-trilho b { animation-delay: calc(var(--chegada, 0ms) + 0.6s); }
+@keyframes bvEnche { from { transform: scaleX(0); } }
+.card-novo .bv-fen, .card-novo .bv-nuvem { animation: bvChip 0.5s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.5s) both; }
+@keyframes bvChip { from { opacity: 0; transform: translateY(5px) scale(0.92); } }
+.card-novo .bv-taf::before { animation: bvLinha 0.9s var(--ease-suave) calc(var(--chegada, 0ms) + 0.7s) both; }
+@keyframes bvLinha { from { transform: scaleY(0); } }
+.card-novo .bv-taf-item { animation: bvTaf 0.55s var(--ease-suave) calc(var(--chegada, 0ms) + 0.8s + var(--i, 0) * 0.14s) both; }
+@keyframes bvTaf { from { opacity: 0; transform: translateX(-6px); } }
+.card-novo .bv-taf-ponto { animation: bvPonto 0.6s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.85s + var(--i, 0) * 0.14s) both; }
+@keyframes bvPonto { from { transform: scale(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-novo .bv-cat-selo,
+  .card-novo .bv-seta,
+  .card-novo .bv-trilho b,
+  .card-novo .bv-fen,
+  .card-novo .bv-nuvem,
+  .card-novo .bv-taf::before,
+  .card-novo .bv-taf-item,
+  .card-novo .bv-taf-ponto,
+  .bv-bruto[open] pre {
+    animation: none !important;
+  }
+}

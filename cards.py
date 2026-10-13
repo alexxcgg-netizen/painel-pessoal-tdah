@@ -112,6 +112,7 @@ DESCRICAO_TOOL = {
     "consultar_gastos": "Consultou os gastos",
     "consultar_agenda": "Consultou a agenda",
     "consultar_voos": "Consultou os voos",
+    "briefing_meteo_voo": "Leu o METAR e o TAF",
     "marcar_habito": "Marcou o hábito de hoje",
     "concluir_etapa": "Concluiu a etapa do projeto",
 }
@@ -190,6 +191,8 @@ TIPOS_CARD = (
     "viagem_janelas",
     "agua",
     "tarefas_lista",
+    # professor de aviacao (2026-10-13)
+    "briefing_voo",
 )
 
 
@@ -997,6 +1000,20 @@ def card_clima(ef: dict) -> dict | None:
     }, "proximas_horas": horas})
 
 
+def card_briefing_voo(ef: dict) -> dict | None:
+    """METAR/TAF decodificados (briefing_voo.montar) - so os campos que o front desenha."""
+    d = ef.get("dados")
+    if not isinstance(d, dict) or not d.get("icao"):
+        return None
+    campos = ("icao", "nome", "substituto_de", "categoria", "observado", "idade_min", "vento", "visibilidade_m",
+              "teto_ft", "nuvens", "temp", "orvalho", "qnh", "fenomenos", "taf", "metar_bruto", "taf_bruto",
+              "windy_url", "voo", "aviso")
+    data = {k: d.get(k) for k in campos}
+    url = d.get("windy_url") if str(d.get("windy_url") or "").startswith("https://www.windy.com/") else None
+    acoes = [{"tipo": "abrir_link", "rotulo": "Abrir no Windy", "url": url}] if url else []
+    return novo_card("briefing_voo", data, acoes)
+
+
 def card_gastos_resumo(ef: dict) -> dict | None:
     d = ef.get("dados")
     if not isinstance(d, dict):
@@ -1153,6 +1170,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_viagem_janelas(ef)
     if entidade == "tarefas_lista":
         return card_tarefas_lista(conn, ef)
+    if entidade == "briefing_voo":
+        return card_briefing_voo(ef)
     return None
 
 

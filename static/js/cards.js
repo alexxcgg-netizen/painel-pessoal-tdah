@@ -214,9 +214,9 @@
       const ativo = Boolean(acao.ativo);
       return `<button type="button" class="card-btn card-btn-despertar${ativo ? " ativo" : ""}" data-acao="despertar" data-lembrete-id="${esc(acao.lembrete_id)}" aria-pressed="${ativo}">${ICONE_SINO}<span>${esc(acao.rotulo || "Desperta você")}</span></button>`;
     }
-    // link externo (card de rota -> Google Maps). So https do proprio Google Maps;
+    // link externo (rota -> Google Maps, briefing de voo -> Windy). So https desses dois;
     // qualquer outra URL e ignorada, mesmo que o servidor mande.
-    if (acao.tipo === "abrir_link" && typeof acao.url === "string" && /^https:\/\/www\.google\.com\/maps\//.test(acao.url)) {
+    if (acao.tipo === "abrir_link" && typeof acao.url === "string" && /^https:\/\/www\.(google\.com\/maps|windy\.com)\//.test(acao.url)) {
       return `<a class="card-btn card-btn-link" href="${esc(acao.url)}" target="_blank" rel="noopener noreferrer">${ICONE_MAPA}<span>${esc(acao.rotulo || "Abrir")}</span></a>`;
     }
     return ""; // tipo de action desconhecido: ignora (nunca quebra o card)

@@ -99,7 +99,9 @@ de cada coisa na agenda dele.
 
 A linha "Localização atual" do contexto (quando existe) vem do GPS do celular dele - e onde ele
 esta de verdade; sem ela, nao presuma onde ele esta. A linha "Agora:" do contexto e a hora exata de Brasilia - use ela pra "daqui a pouco", "hoje a
-noite", "quanto falta". Pergunta de tempo/chuva -> `consultar_clima`. Quando o Alex contar que vai
+noite", "quanto falta". Pergunta de tempo/chuva -> `consultar_clima`; tempo PRA VOAR (voo hoje/amanha,
+METAR, TAF, teto, "da pra voar?") -> `briefing_meteo_voo` (no dia de voo, chame junto com o resto
+do dia, sem ele pedir). Quando o Alex contar que vai
 pra algum lugar ("vou pra Blumenau e depois volto"), chame `estimar_trajeto` com todas as paradas e
 diga km e tempo total, sem ele precisar pedir. Passe o nome do lugar do jeito que ele falou
 ("Aeroclube de Blumenau") - a ferramenta acha o endereco exato; cite o endereco que ela devolveu.
@@ -708,6 +710,24 @@ CHAT_TOOLS = [
             "properties": {
                 "cidade": {"type": "string", "description": "omita pra usar onde o Alex esta agora (GPS do celular; sem GPS, Brusque)"},
                 "data": {"type": "string", "description": "AAAA-MM-DD pra previsao de outro dia - omita pra agora/hoje"},
+            },
+        },
+    },
+    {
+        "name": "briefing_meteo_voo",
+        "description": (
+            "Briefing meteorologico de AVIACAO: METAR e TAF oficiais de um aerodromo, decodificados "
+            "(vento, visibilidade, teto, fenomenos, QNH), categoria VFR/MVFR/IFR/LIFR e como o TAF "
+            "muda nas proximas horas, mais um link pro Windy. Use quando o Alex falar de voar hoje/"
+            "amanha, perguntar se o tempo ta bom pra voo, pedir METAR/TAF/teto/vento de pista, ou "
+            "contar o dia dele com voo no meio. SSBL nao tem METAR - a ferramenta usa o mais perto "
+            "(SBNF) sozinha. Nunca diga que ele 'pode' ou 'nao pode' voar: descreva o que o boletim "
+            "diz e deixe a decisao com ele e o instrutor."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "icao": {"type": "string", "description": "codigo ICAO de 4 letras (ex: SBNF, SBJV) - omita pra usar a origem do proximo voo marcado ou a base dele"},
             },
         },
     },

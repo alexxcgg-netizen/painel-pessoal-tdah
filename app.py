@@ -37,6 +37,7 @@ import agenda
 import aprendizado
 import auth
 import backup_diario
+import briefing_voo
 import caldav_client
 import calculos
 import cards
@@ -2992,6 +2993,15 @@ def _processar_mensagem_chat(
         }
         return resultado
 
+    def exec_briefing_meteo_voo(entrada):
+        r = briefing_voo.montar(conn, entrada.get("icao"))
+        if r.get("erro"):
+            return r
+        # pra IA vai o essencial (o bruto ja diz tudo); o card leva o resto
+        return {k: r[k] for k in ("icao", "substituto_de", "categoria", "observado", "resumo", "metar_bruto",
+                                  "taf_bruto", "voo", "aviso")} | {
+            "_efeito": {"entidade": "briefing_voo", "consulta": True, "dados": r}}
+
     def exec_estimar_trajeto(entrada):
         pontos = [p.strip() for p in (entrada.get("pontos") or []) if isinstance(p, str) and p.strip()]
         if len(pontos) < 2:
@@ -3669,6 +3679,7 @@ def _processar_mensagem_chat(
         "consultar_gastos": exec_consultar_gastos,
         "consultar_agenda": exec_consultar_agenda,
         "consultar_voos": exec_consultar_voos,
+        "briefing_meteo_voo": exec_briefing_meteo_voo,
     }
 
     # Fase 6 (docs/CARDS.md): cronometra cada tool (passos) e recolhe o

@@ -5,6 +5,23 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Professor de aviação 1: briefing meteorológico no chat
+
+- Ferramenta `briefing_meteo_voo` (chat): METAR + TAF oficiais (aviationweather.gov, `metar.py`)
+  decodificados por `briefing_voo.py` - categoria VFR/MVFR/IFR/LIFR, vento, teto, visibilidade,
+  QNH, fenômenos traduzidos (`-DZ` -> "chuvisco fraco", `TSRA` -> "trovoada com chuva"), TAF em
+  horário de Brasília ("09:00 → amanhã 09:00"). SSBL não publica METAR -> usa SBNF e avisa. Sem
+  ICAO usa a origem do próximo voo (hoje/amanhã) ou `ICAO_PADRAO`. Mesma regra do `metar.py`: só
+  conversão, nunca "pode voar"; o card sempre diz que a decisão é dele e do instrutor.
+- Windy: só link ("Abrir no Windy", coordenada da tabela de aeródromos da região). A API pontual
+  deles é paga e a chave de teste devolve dado embaralhado - não serve pra briefing.
+- Card `briefing_voo` (`static/js/cards-aviacao.js` + `cards-aviacao.css`): cor do card = categoria,
+  selo grande da categoria, rosa dos ventos com a seta que "procura" o vento e assenta (balança de
+  leve se tem rajada), réguas de teto/visibilidade com os limiares das categorias, linha do tempo do
+  TAF por cor, boletim bruto recolhível. `abrir_link` agora aceita Windy além do Google Maps.
+- Prévia com o boletim real: https://claude.ai/artifact/1hy2cidtupDuff2YTLdkqb
+- SW v65. Testes: `tests/test_briefing_voo.py`, `tests/js/cards_aviacao.test.js`.
+
 ## 2026-10-13 - Cards interligados (vários assuntos, um fio só)
 
 - Resposta com 2+ cards (ex: um áudio com voo + água + viagem + dia) ganha a **costura**: um fio
