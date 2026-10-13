@@ -243,3 +243,44 @@ test("refeicao (foto do prato): kcal com ~, macros como fatia das calorias, iten
   assert.ok(!sem.includes("Foto difícil"));
   assert.ok(!sem.includes("NaN"));
 });
+
+test("clima: curva da temperatura alinhada nas colunas da chuva (quando vem temp)", () => {
+  const horas = [21, 23, 26, 27, 25, 22].map((t, i) => ({ hora: 9 + i * 3, chuva_pct: 10 * i, temp: t }));
+  const h = html("clima", { agora: { condicao: "nublado", temperatura: 24 }, proximas_horas: horas });
+  semFallback(h);
+  assert.match(h, /data-vivo="temp"/);
+  assert.equal((h.match(/class="vivo-temp"/g) || []).length, 6);
+  assert.match(h, /27°/);
+  // mais quente = mais alto (y menor); centro da coluna i em (i + 0.5) * 10
+  const pts = CardsVivos.pontosTemp([21, 27]);
+  assert.ok(pts[1].y < pts[0].y, JSON.stringify(pts));
+  assert.deepStrictEqual(pts.map((p) => p.x), [5, 15]);
+  // diferenca de 1 grau nao vira montanha
+  const quase = CardsVivos.pontosTemp([20, 21]);
+  assert.ok(Math.abs(quase[0].y - quase[1].y) < 20, JSON.stringify(quase));
+  // sem temp (servidor antigo) continua so com as barras
+  const sem = html("clima", { agora: { condicao: "chuva", temperatura: 18 }, proximas_horas: [{ hora: 14, chuva_pct: 80 }, { hora: 15, chuva_pct: 40 }] });
+  assert.ok(!sem.includes('data-vivo="temp"'));
+  assert.match(sem, /Chance de chuva nas próximas horas/);
+});
+
+test("gastos_resumo: maiores lancamentos guardados pra abrir no toque", () => {
+  const h = html("gastos_resumo", {
+    periodo: { de: "2026-10-01", ate: "2026-10-09" }, total: 300, quantidade: 4,
+    por_categoria: [{ categoria: "mercado", valor: 200 }],
+    maiores: [
+      { data: "2026-10-03", descricao: "Atacadão <b>", categoria: "mercado", valor: 150.5 },
+      { data: "2026-10-05", descricao: "Posto", categoria: "combustivel", valor: 80 },
+    ],
+  });
+  semFallback(h);
+  assert.match(h, /class="card-expande"/);
+  assert.match(h, /data-acao="expandir"/);
+  assert.match(h, /Ver os 2 maiores/);
+  assert.match(h, /Atacadão &lt;b&gt;/);
+  assert.ok(!h.includes("<b>Atacad"), "descricao do banco escapada");
+  // a rosca continua com um arco por categoria (o detalhe nao desenha arco)
+  assert.equal((h.match(/stroke-dasharray/g) || []).length, 1);
+  const semMaiores = html("gastos_resumo", { total: 10, por_categoria: [{ categoria: "x", valor: 10 }] });
+  assert.ok(!semMaiores.includes("card-expande"));
+});

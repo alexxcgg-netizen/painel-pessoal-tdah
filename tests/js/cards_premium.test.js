@@ -70,3 +70,31 @@ test("costurar nao quebra sem DOM", () => {
   assert.doesNotThrow(() => CardsPremium.costurar(null));
   assert.doesNotThrow(() => CardsPremium.costurar({ querySelectorAll: () => [] }, { nova: true }));
 });
+
+test("inclinacao: centro fica reto, bordas inclinam pro lado do dedo, luz no ponto", () => {
+  const meio = CardsPremium.inclinacao(0.5, 0.5);
+  assert.strictEqual(Math.abs(meio.rx) + Math.abs(meio.ry), 0);
+  assert.deepStrictEqual([meio.lx, meio.ly], [50, 50]);
+  const direitaCima = CardsPremium.inclinacao(1, 0);
+  assert.ok(direitaCima.ry > 0 && direitaCima.rx > 0, JSON.stringify(direitaCima));
+  assert.ok(direitaCima.ry <= 4.5 && direitaCima.rx <= 4.5);
+  // dedo fora do card (arrastou pra fora) nao passa do limite
+  assert.deepStrictEqual(CardsPremium.inclinacao(3, -2), CardsPremium.inclinacao(1, 0));
+  assert.doesNotThrow(() => CardsPremium.inclinacao(undefined, NaN));
+});
+
+test("arrasto: segue o dedo, resiste depois de 90px e conclui a partir de 72px", () => {
+  assert.deepStrictEqual(CardsPremium.arrasto(-30), { dx: 0, p: 0, conclui: false });
+  const pouco = CardsPremium.arrasto(40);
+  assert.strictEqual(pouco.dx, 40);
+  assert.ok(!pouco.conclui && pouco.p < 1);
+  assert.ok(CardsPremium.arrasto(72).conclui);
+  const longe = CardsPremium.arrasto(200);
+  assert.ok(longe.dx < 200 && longe.dx > 90 && longe.dx <= 140, String(longe.dx));
+  assert.strictEqual(longe.p, 1);
+});
+
+test("toque: sem DOM nada quebra", () => {
+  assert.doesNotThrow(() => CardsPremium.ligarToque(null));
+  assert.doesNotThrow(() => CardsPremium.alternarDetalhe(null));
+});

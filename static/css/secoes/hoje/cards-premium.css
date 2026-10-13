@@ -2,14 +2,188 @@
    (static/js/cards-premium.js). So entra em resposta NOVA (.card-novo); historico e
    prefers-reduced-motion ficam no estado final, parado. Cor sempre do --card-cor do tipo. */
 
-/* ---- chegada: sobe, desfoca -> nitido e assenta com um overshoot leve ------------- */
+/* ---- chegada: o card "nasce" da bolha - abre a partir do canto de cima (lado da IA),
+   desfoca -> nitido e assenta. Prototipo aprovado: claude.ai/artifact/Fc5S8yNRv3NWJUTa5vfthr
+   O recorte final tem folga negativa pra nao cortar a sombra do card. --------------- */
 .card-contrato.card-novo {
-  animation: premiumChega 0.75s var(--ease-bounce) var(--chegada, 0ms) both;
+  animation: premiumChega 0.8s var(--ease-snap) var(--chegada, 0ms) both;
 }
 @keyframes premiumChega {
-  0% { opacity: 0; transform: translateY(16px) scale(0.955); filter: blur(7px) saturate(0.6); }
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.965);
+    filter: blur(4px) saturate(0.6);
+    clip-path: inset(0 72% 80% 0 round 18px);
+  }
   55% { opacity: 1; filter: blur(0) saturate(1.05); }
-  100% { opacity: 1; transform: none; filter: none; }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    clip-path: inset(-40px -40px -60px -40px round 18px);
+  }
+}
+
+/* fio de luz que corre a borda uma vez quando o card nasce (span que cards-premium.js poe e
+   tira). @property deixa o angulo do gradiente animavel; sem suporte, so acende e apaga. */
+@property --fio-ang {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.card-fio-borda {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  z-index: 2;
+  background: conic-gradient(
+    from var(--fio-ang),
+    transparent 0deg,
+    color-mix(in srgb, var(--card-cor) 85%, white) 38deg,
+    transparent 84deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  animation: premiumFio 1.5s var(--ease-suave) calc(var(--chegada, 0ms) + 0.18s) both;
+}
+@keyframes premiumFio {
+  0% { opacity: 0; --fio-ang: 0deg; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; --fio-ang: 360deg; }
+}
+
+/* ---- profundidade e luz: o card inclina pro lado do dedo e um brilho segue o toque ----
+   A inclinacao vai na propriedade `rotate` (cards-premium.js), separada do `transform`
+   que as animacoes de chegada usam. O grupo da a perspectiva; o JS centra o ponto de fuga
+   no card tocado. */
+.cards-grupo {
+  perspective: 1100px;
+}
+.card-contrato {
+  touch-action: pan-y; /* arrasto na horizontal fica pro card (inclinar / concluir tarefa) */
+}
+.card-contrato::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(
+    240px circle at var(--luz-x, 50%) var(--luz-y, 0%),
+    color-mix(in srgb, var(--card-cor) 18%, rgba(255, 255, 255, 0.14)),
+    transparent 62%
+  );
+  mix-blend-mode: screen;
+  opacity: var(--luz, 0);
+  transition: opacity 0.5s var(--ease-suave);
+}
+
+/* ---- detalhe que abre dentro do card (ex.: maiores gastos) ------------------------ */
+.card-contrato:has(.card-expande) {
+  cursor: pointer;
+}
+.card-expande {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.55s var(--ease-suave);
+}
+.card-expande > div {
+  overflow: hidden;
+  min-height: 0;
+}
+.card-aberto .card-expande {
+  grid-template-rows: 1fr;
+}
+.card-expande li {
+  opacity: 0;
+  translate: 0 -6px;
+  transition: opacity 0.35s var(--ease-suave), translate 0.5s var(--ease-suave);
+  transition-delay: calc(var(--i, 0) * 55ms);
+}
+.card-aberto .card-expande li {
+  opacity: 1;
+  translate: 0 0;
+}
+.card-dica-toque {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.1rem 0 0;
+  padding: 0.3rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.74rem;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.card-dica-toque svg {
+  width: 13px;
+  height: 13px;
+  transition: transform 0.45s var(--ease-bounce);
+}
+.card-aberto .card-dica-toque svg {
+  transform: rotate(180deg);
+}
+
+/* ---- arrastar a tarefa pra direita conclui ----------------------------------------
+   A linha (label + horario) anda com o dedo; atras dela acende uma bolinha verde com o
+   visto, que enche conforme chega no ponto de concluir e da um pulinho quando chega. */
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) li.card-tarefa {
+  position: relative;
+  /* arrastar nao pode virar selecao de texto nem o menu de copiar do iPhone */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) li.card-tarefa > * {
+  translate: var(--arrasto, 0px) 0;
+  transition: translate 0.55s var(--ease-bounce);
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) li.card-tarefa.arrastando > * {
+  transition: none;
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) li.card-tarefa::before,
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) li.card-tarefa::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  opacity: var(--arrasto-p, 0);
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) li.card-tarefa::before {
+  left: 0;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  margin-top: -12px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cor-entrada) calc(var(--arrasto-p, 0) * 85%), transparent);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--cor-entrada) 60%, transparent);
+  scale: calc(0.55 + var(--arrasto-p, 0) * 0.45);
+  transition: scale 0.35s var(--ease-bounce);
+}
+/* o visto: um "L" de borda girado */
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) li.card-tarefa::after {
+  left: 8px;
+  top: 50%;
+  width: 9px;
+  height: 4.5px;
+  margin-top: -4px;
+  border: 2.2px solid var(--cor-fundo);
+  border-top: 0;
+  border-right: 0;
+  rotate: -45deg;
+}
+:is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) li.card-tarefa.vai-concluir::before {
+  scale: 1.12;
 }
 
 /* brilho que atravessa o vidro uma vez (faixa diagonal na cor do card) */
@@ -126,13 +300,22 @@
   to { background-position: -50% 0; }
 }
 
-/* ---- toque: o card cede um tico (nao quando o dedo esta num botao/caixinha) ------- */
+/* ---- toque: o card cede um tico (nao quando o dedo esta num botao/caixinha); segurar
+   afunda mais. `scale`/`rotate` (e nao transform): a animacao de chegada prende o
+   transform com fill both e o toque nunca aparecia. ---------------------------------- */
 .card-contrato {
-  transition: transform 0.35s var(--ease-snap), opacity 0.3s var(--ease-suave), filter 0.3s var(--ease-suave);
+  transition: rotate 0.7s var(--ease-suave), scale 0.4s var(--ease-snap), opacity 0.3s var(--ease-suave),
+    filter 0.3s var(--ease-suave);
+}
+.card-contrato.card-tocando {
+  transition: rotate 0.14s linear, scale 0.4s var(--ease-snap), opacity 0.3s var(--ease-suave),
+    filter 0.3s var(--ease-suave);
 }
 .card-contrato:active:not(:has(button:active, a:active, input:active, label:active)) {
-  transform: scale(0.988);
-  transition-duration: 0.12s;
+  scale: 0.99;
+}
+.card-contrato.card-apertado {
+  scale: 0.975;
 }
 
 /* ---- confete da tarefa concluida ------------------------------------------------- */
@@ -304,5 +487,14 @@
   .card-contrato.card-selo .card-resultado-eyebrow::before {
     display: none;
   }
-  .card-contrato:active { transform: none; }
+  .card-contrato:active,
+  .card-contrato.card-apertado { scale: none; }
+  .card-fio-borda { display: none; }
+  .card-contrato::before { display: none; }
+  .card-expande,
+  .card-expande li,
+  .card-dica-toque svg,
+  :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) li.card-tarefa > * {
+    transition: none !important;
+  }
 }

@@ -169,6 +169,7 @@
           `<small>${String(h.hora).padStart(2, "0")}h</small></div>`
       )
       .join("");
+    const temps = previsaoTemp(horas);
     const sensacao = numeroValido(a.sensacao) ? ` · sensação ${Math.round(a.sensacao)}°` : "";
     return (
       `<div class="vivo-ceu" data-vivo="clima" data-cena="${cenaClima(a.condicao)}" data-temp="${numeroValido(a.temperatura) ? Math.round(a.temperatura) : ""}">` +
@@ -179,9 +180,53 @@
       `<p class="vivo-sub">${esc(a.condicao || "")}${sensacao}</p></div>` +
       `<p class="vivo-sub vivo-direita">umidade <b class="vivo-num">${numeroValido(a.umidade_pct) ? a.umidade_pct : "—"}%</b><br>` +
       `vento <b class="vivo-num">${numeroValido(a.vento_kmh) ? Math.round(a.vento_kmh) : "—"} km/h</b></p></div></div>` +
-      (barras ? `<p class="vivo-sub vivo-rotulo-horas">Chance de chuva nas próximas horas</p><div class="vivo-horas">${barras}</div>` : "")
+      (barras
+        ? `<p class="vivo-sub vivo-rotulo-horas">${temps ? "Próximas horas · temperatura e chance de chuva" : "Chance de chuva nas próximas horas"}</p>` +
+          temps +
+          `<div class="vivo-horas">${barras}</div>`
+        : "")
     );
   });
+
+  // Curva da temperatura hora a hora, alinhada nas mesmas 8 colunas das barras de chuva
+  // (as duas grades nao tem gap: o centro da coluna i fica sempre em (i + 0.5) / 8). O y de
+  // cada ponto ja sai daqui em % da altura - o SVG estica (preserveAspectRatio none) e os
+  // pontos/rotulos sao HTML, entao nada distorce.
+  const COLUNAS_HORAS = 8;
+  function pontosTemp(temps) {
+    const min = Math.min(...temps);
+    const max = Math.max(...temps);
+    const faixa = Math.max(3, max - min); // 1-2 graus de diferenca nao vira montanha
+    const meio = (min + max) / 2;
+    return temps.map((t, i) => ({ x: (i + 0.5) * 10, y: +(50 - ((t - meio) / faixa) * 52).toFixed(2) }));
+  }
+  function caminhoSuave(pts) {
+    let d = `M${pts[0].x} ${pts[0].y}`;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      const cx = ((a.x + b.x) / 2).toFixed(2);
+      d += ` C${cx} ${a.y} ${cx} ${b.y} ${b.x} ${b.y}`;
+    }
+    return d;
+  }
+  function previsaoTemp(horas) {
+    const lst = horas.slice(0, COLUNAS_HORAS);
+    if (lst.length < 2 || !lst.every((h) => numeroValido(h.temp))) return "";
+    const pts = pontosTemp(lst.map((h) => h.temp));
+    const d = caminhoSuave(pts);
+    const ult = pts[pts.length - 1];
+    const celulas = lst
+      .map((h, i) => `<span class="vivo-temp" style="--y:${pts[i].y}%;--i:${i}"><b class="vivo-num">${Math.round(h.temp)}°</b><i></i></span>`)
+      .join("");
+    return (
+      `<div class="vivo-temps" data-vivo="temp">` +
+      `<svg class="vivo-temp-area" viewBox="0 0 80 100" preserveAspectRatio="none" aria-hidden="true"><path d="${d} L${ult.x} 100 L${pts[0].x} 100 Z"/></svg>` +
+      `<svg class="vivo-temp-curva" viewBox="0 0 80 100" preserveAspectRatio="none" aria-hidden="true"><path d="${d}"/></svg>` +
+      celulas +
+      `</div>`
+    );
+  }
 
   // ============================================================ gastos_resumo
   const R_ROSCA = 15.9155;
@@ -216,9 +261,33 @@
       `<div class="vivo-rosca-linha"><div class="vivo-rosca"><svg viewBox="0 0 42 42" aria-hidden="true" data-vivo="gastos" data-cats='${esc(JSON.stringify(cats.map((c) => c.valor)))}' data-total="${total}">` +
       `<circle cx="21" cy="21" r="${R_ROSCA}" fill="none" class="vivo-rosca-fundo" stroke-width="5.5"/>${arcosRosca(cats, total, 1)}</svg>` +
       `<div class="vivo-rosca-meio"><small>total</small><span class="vivo-num" data-contar-moeda="${total}">${esc(moedaCurta(total))}</span></div></div>` +
-      `<div class="vivo-legenda">${legenda || '<p class="vivo-sub">Nenhum gasto no período.</p>'}</div></div>`
+      `<div class="vivo-legenda">${legenda || '<p class="vivo-sub">Nenhum gasto no período.</p>'}</div></div>` +
+      maioresGastos(data.maiores)
     );
   });
+
+  // Os maiores lancamentos do periodo ficam guardados no card: toca nele (ou no "Ver os 3
+  // maiores") e a lista abre ali mesmo - CardsPremium cuida do abre/fecha.
+  const SETA_BAIXO =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+  function maioresGastos(maiores) {
+    const itens = lista(maiores).filter((m) => m && numeroValido(m.valor)).slice(0, 3);
+    if (!itens.length) return "";
+    const linhas = itens
+      .map(
+        (m, i) =>
+          `<li style="--i:${i}"><span class="vivo-maior-nome">${esc(m.descricao || m.categoria || "Gasto")}</span>` +
+          `<span class="vivo-num vivo-maior-valor">${esc(moeda(m.valor))}</span>` +
+          `<small>${esc([diaMes(m.data), m.categoria].filter(Boolean).join(" · "))}</small></li>`
+      )
+      .join("");
+    const rotulo = itens.length === 1 ? "Ver o maior gasto" : `Ver os ${itens.length} maiores`;
+    return (
+      `<div class="card-expande"><div><ul class="vivo-maiores">${linhas}</ul></div></div>` +
+      `<button type="button" class="card-dica-toque" data-acao="expandir" aria-expanded="false" data-rotulo="${esc(rotulo)}">` +
+      `<span>${esc(rotulo)}</span>${SETA_BAIXO}</button>`
+    );
+  }
 
   // ======================================================================= dia
   Cards.registrar("dia", (data) => {
@@ -1241,9 +1310,32 @@
         b.style.transform = "scaleY(1)";
       });
     });
+    // curva da temperatura: a linha se desenha da esquerda pra direita, a area acende atras e
+    // cada ponto "pinga" na hora que a linha passa por ele
+    raizEl.querySelectorAll('[data-vivo="temp"]').forEach((caixa) => {
+      const curva = caixa.querySelector(".vivo-temp-curva");
+      const area = caixa.querySelector(".vivo-temp-area");
+      const celulas = [...caixa.querySelectorAll(".vivo-temp")];
+      if (!curva || typeof curva.animate !== "function") return;
+      const DUR = 1200;
+      const ATRASO = 380;
+      curva.animate([{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0 0 0)" }], {
+        duration: DUR, delay: ATRASO, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "backwards",
+      });
+      if (area) area.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 900, delay: ATRASO + 450, easing: "ease-out", fill: "backwards" });
+      celulas.forEach((c, i) => {
+        // mesma curva da linha: o ponto i aparece quando o "pincel" chega em (i + 0.5) / 8
+        const frac = (i + 0.5) / 8;
+        const t = ATRASO + DUR * (1 - Math.pow(1 - frac, 0.55)) * 0.6;
+        c.animate(
+          [{ opacity: 0, translate: "0 6px", scale: "0.6" }, { opacity: 1, translate: "0 0", scale: "1" }],
+          { duration: 520, delay: Math.round(t), easing: "cubic-bezier(0.34, 1.56, 0.64, 1)", fill: "backwards" }
+        );
+      });
+    });
   }
 
-  const CardsVivos = { preparar, animar, cenaClima, _esperar: esperar };
+  const CardsVivos = { preparar, animar, cenaClima, pontosTemp, _esperar: esperar };
   raiz.CardsVivos = CardsVivos;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsVivos;
 })(typeof window !== "undefined" ? window : globalThis);

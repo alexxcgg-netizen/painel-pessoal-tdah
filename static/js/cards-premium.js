@@ -63,12 +63,51 @@
     }, total);
   }
 
+  // Mudanca de DOM feita pelo acabamento (fio da borda entrando/saindo) nao e mensagem nova:
+  // o auto-rolar do chat ignora (mesmo combinado do semRolar de cards-vivos.js).
+  function semRolar(fn) {
+    const doc = raiz.document && raiz.document.documentElement;
+    if (doc) doc.dataset.vivoSemRolar = "1";
+    try {
+      fn();
+    } finally {
+      setTimeout(() => doc && delete doc.dataset.vivoSemRolar, 0);
+    }
+  }
+
+  const EASE_SUAVE = "cubic-bezier(0.22, 1, 0.36, 1)";
+  const PECA_INICIO = 230; // ms depois da chegada do card: o vidro ja abriu
+  const PECA_PASSO = 75;
+
+  // Card que se monta: um fio de luz corre a borda uma vez e as pecas de dentro (titulo,
+  // numero, grafico, lista, rodape) entram uma depois da outra, de cima pra baixo.
+  function montar(card, chegadaMs) {
+    if (typeof document === "undefined") return;
+    const pecas = Array.from(card.children).filter((el) => !el.classList.contains("card-confete"));
+    pecas.forEach((p, k) => {
+      if (typeof p.animate !== "function") return;
+      p.animate(
+        [
+          { opacity: 0, translate: "0 8px", filter: "blur(3px)" },
+          { opacity: 1, translate: "0 0", filter: "blur(0)" },
+        ],
+        { duration: 560, delay: chegadaMs + PECA_INICIO + k * PECA_PASSO, easing: EASE_SUAVE, fill: "backwards" }
+      );
+    });
+    const fio = document.createElement("span");
+    fio.className = "card-fio-borda";
+    fio.setAttribute("aria-hidden", "true");
+    semRolar(() => card.appendChild(fio));
+    setTimeout(() => semRolar(() => fio.remove()), chegadaMs + 2000);
+  }
+
   // Toca a chegada so nos cards de uma resposta NOVA (chat.js chama logo depois de anexar).
   function animar(grupo) {
     if (!grupo || !grupo.querySelectorAll || reduzido()) return;
     grupo.querySelectorAll(".card-contrato").forEach((card, i) => {
       card.classList.add("card-novo");
       card.style.setProperty("--chegada", `${i * 90}ms`);
+      if (!card.classList.contains("card-contrato-fallback")) montar(card, i * 90);
       const tipo = card.dataset.cardType;
       const olho = card.querySelector(".card-resultado-eyebrow");
       const consulta = tipo === "meta" && olho && !/criada/i.test(olho.textContent);
@@ -222,7 +261,226 @@
     }
   }
 
-  const CardsPremium = { animar, odometro, festejar, desfeito, costurar, geometriaCostura, TIPOS_REGISTRO };
+  // ---- toque que responde (todos os cards, historico tambem) -----------------------
+  //  - profundidade e luz: o card inclina na direcao do dedo (ou do mouse) e um brilho
+  //    segue o ponto de toque, como vidro de verdade;
+  //  - segurar afunda o card um tico;
+  //  - card com .card-expande: tocar em qualquer lugar dele abre/fecha o detalhe;
+  //  - tarefa pendente dentro do card: arrastar pra direita conclui (mesma caixinha de
+  //    sempre por baixo - o change dela e quem fala com o servidor, em cards.js).
+  const INCLINACAO_MAX = 4.5; // graus, borda a borda
+  const ARRASTO_LIMIAR = 72; // px pra direita que concluem a tarefa
+  const ARRASTO_ELASTICO = 90; // daqui pra frente a linha resiste
+  const SEGURAR_MS = 140;
+  const INTERATIVO = "a, button, input, label, select, textarea, summary, [data-acao]";
+
+  // Parte pura (testavel): posicao do dedo no card (0-1) -> inclinacao + ponto de luz.
+  function inclinacao(fx, fy) {
+    const x = Math.min(1, Math.max(0, Number(fx) || 0));
+    const y = Math.min(1, Math.max(0, Number(fy) || 0));
+    return {
+      rx: +((0.5 - y) * 2 * INCLINACAO_MAX * 0.8).toFixed(2),
+      ry: +((x - 0.5) * 2 * INCLINACAO_MAX).toFixed(2),
+      lx: +(x * 100).toFixed(1),
+      ly: +(y * 100).toFixed(1),
+    };
+  }
+
+  // Parte pura: dedo andou `mx` px pra direita -> quanto a linha anda e o progresso (0-1).
+  function arrasto(mx) {
+    const m = Math.max(0, Number(mx) || 0);
+    const dx = m <= ARRASTO_ELASTICO ? m : ARRASTO_ELASTICO + (m - ARRASTO_ELASTICO) * 0.35;
+    return { dx: +Math.min(140, dx).toFixed(1), p: +Math.min(1, dx / ARRASTO_LIMIAR).toFixed(3), conclui: dx >= ARRASTO_LIMIAR };
+  }
+
+  // `rotate` (e nao `transform`): a chegada do card anima transform com fill both e
+  // engoliria a inclinacao. Duas inclinacoes pequenas = um giro so em torno de (rx, ry, 0).
+  function inclinar(card, ev) {
+    const r = card.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const i = inclinacao((ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height);
+    const ang = Math.hypot(i.rx, i.ry);
+    card.classList.add("card-tocando");
+    card.style.rotate = ang ? `${i.rx} ${i.ry} 0 ${ang.toFixed(2)}deg` : "none";
+    card.style.setProperty("--luz-x", `${i.lx}%`);
+    card.style.setProperty("--luz-y", `${i.ly}%`);
+    card.style.setProperty("--luz", "1");
+  }
+
+  function endireitar(card) {
+    if (!card) return;
+    card.classList.remove("card-tocando", "card-apertado");
+    card.style.rotate = "";
+    card.style.setProperty("--luz", "0");
+  }
+
+  // ponto de fuga no meio do card tocado (senao o card de cima do grupo inclina torto)
+  function focarPerspectiva(card) {
+    const grupo = card.parentElement;
+    if (grupo && grupo.classList.contains("cards-grupo")) {
+      grupo.style.perspectiveOrigin = `50% ${Math.round(card.offsetTop + card.offsetHeight / 2)}px`;
+    }
+  }
+
+  function alternarDetalhe(card) {
+    if (!card || !card.querySelector(".card-expande")) return;
+    const aberto = card.classList.toggle("card-aberto");
+    card.querySelectorAll('[data-acao="expandir"]').forEach((b) => {
+      b.setAttribute("aria-expanded", String(aberto));
+      const rot = b.querySelector("span");
+      if (rot) rot.textContent = aberto ? "Fechar" : b.dataset.rotulo || "Ver mais";
+    });
+  }
+
+  function linhaArrastavel(alvo) {
+    const li = alvo && alvo.closest ? alvo.closest("li.card-tarefa") : null;
+    const caixa = li && li.querySelector("input[data-tarefa-id]");
+    return caixa && !caixa.checked && !caixa.disabled ? li : null;
+  }
+
+  function ligarToque(container) {
+    if (!container || container.dataset.toqueLigado || typeof document === "undefined") return;
+    container.dataset.toqueLigado = "1";
+    let st = null; // dedo/botao pressionado agora
+    let sobre = null; // card sob o mouse (hover no computador)
+    let engolirClique = false;
+
+    const cardDe = (alvo) => {
+      const c = alvo && alvo.closest ? alvo.closest(".card-contrato") : null;
+      return c && container.contains(c) && !c.classList.contains("card-contrato-fallback") ? c : null;
+    };
+
+    container.addEventListener("pointerdown", (e) => {
+      const card = cardDe(e.target);
+      if (!card || (e.pointerType === "mouse" && e.button !== 0)) return;
+      const dedo = e.pointerType !== "mouse";
+      st = { card, id: e.pointerId, x0: e.clientX, y0: e.clientY, eixo: null, linha: linhaArrastavel(e.target), mov: null, dedo };
+      const ev = { clientX: e.clientX, clientY: e.clientY };
+      // no dedo, luz/inclinacao so quando ele SEGURA ou anda pro lado: rolar o chat passando
+      // por cima dos cards nao pode ficar acendendo luz
+      if (!st.linha && !e.target.closest(INTERATIVO)) {
+        st.segura = setTimeout(() => {
+          card.classList.add("card-apertado");
+          if (dedo && !reduzido()) inclinar(card, ev);
+        }, SEGURAR_MS);
+      }
+      if (!reduzido()) {
+        focarPerspectiva(card);
+        if (!dedo) inclinar(card, e);
+      }
+    });
+
+    container.addEventListener("pointermove", (e) => {
+      if (st && e.pointerId === st.id) {
+        const mx = e.clientX - st.x0;
+        const my = e.clientY - st.y0;
+        if (!st.eixo && Math.hypot(mx, my) > 6) {
+          st.eixo = Math.abs(mx) > Math.abs(my) ? "x" : "y";
+          clearTimeout(st.segura);
+          st.card.classList.remove("card-apertado");
+          if (st.eixo === "x" && st.linha && mx > 0) {
+            st.linha.classList.add("arrastando");
+            try {
+              st.linha.setPointerCapture(e.pointerId);
+            } catch (err) {
+              /* ponteiro ja solto */
+            }
+          } else {
+            st.linha = null;
+          }
+        }
+        if (st.linha && st.eixo === "x") {
+          st.mov = arrasto(mx);
+          st.linha.style.setProperty("--arrasto", `${st.mov.dx}px`);
+          st.linha.style.setProperty("--arrasto-p", String(st.mov.p));
+          st.linha.classList.toggle("vai-concluir", st.mov.conclui);
+          return;
+        }
+        if (st.dedo && st.eixo === "y") return; // e rolagem: o navegador ja vai cancelar
+        if (!reduzido() && (!st.dedo || st.eixo || st.card.classList.contains("card-apertado"))) inclinar(st.card, e);
+        return;
+      }
+      // computador: o card acompanha o mouse sem precisar clicar
+      if (e.pointerType !== "mouse" || reduzido()) return;
+      const card = cardDe(e.target);
+      if (card !== sobre) {
+        endireitar(sobre);
+        sobre = card;
+        if (card) focarPerspectiva(card);
+      }
+      if (card) inclinar(card, e);
+    });
+
+    const soltar = (e, cancelou) => {
+      if (!st || e.pointerId !== st.id) return;
+      const { card, linha, mov } = st;
+      clearTimeout(st.segura);
+      st = null;
+      if (linha) {
+        linha.classList.remove("arrastando", "vai-concluir");
+        linha.style.setProperty("--arrasto", "0px");
+        linha.style.setProperty("--arrasto-p", "0");
+        if (mov) {
+          // o clique que o navegador solta depois do arrasto nao pode marcar/desmarcar a caixinha
+          engolirClique = true;
+          setTimeout(() => (engolirClique = false), 400);
+        }
+        if (mov && mov.conclui && !cancelou) {
+          const caixa = linha.querySelector("input[data-tarefa-id]");
+          if (caixa && !caixa.checked && !caixa.disabled) {
+            caixa.checked = true;
+            caixa.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        }
+      }
+      if (e.pointerType === "mouse" && card === sobre && !cancelou) {
+        card.classList.remove("card-apertado"); // mouse continua em cima: segue inclinando
+      } else {
+        endireitar(card);
+      }
+    };
+    container.addEventListener("pointerup", (e) => soltar(e, false));
+    container.addEventListener("pointercancel", (e) => soltar(e, true));
+    container.addEventListener("pointerleave", () => {
+      endireitar(sobre);
+      sobre = null;
+    });
+
+    container.addEventListener(
+      "click",
+      (e) => {
+        if (!engolirClique) return;
+        engolirClique = false;
+        e.preventDefault();
+        e.stopPropagation();
+      },
+      true
+    );
+    // tocar no corpo do card abre/fecha o detalhe (botoes, links e caixinhas fazem o deles)
+    container.addEventListener("click", (e) => {
+      if (e.target.closest(INTERATIVO)) return;
+      const card = cardDe(e.target);
+      if (card) alternarDetalhe(card);
+    });
+  }
+
+  if (raiz.Cards && typeof raiz.Cards.registrarAcao === "function") {
+    raiz.Cards.registrarAcao("expandir", (btn, cardEl) => alternarDetalhe(cardEl));
+  }
+
+  const CardsPremium = {
+    animar,
+    odometro,
+    festejar,
+    desfeito,
+    costurar,
+    geometriaCostura,
+    ligarToque,
+    inclinacao,
+    arrasto,
+    alternarDetalhe,
+    TIPOS_REGISTRO,
+  };
   raiz.CardsPremium = CardsPremium;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsPremium;
 })(typeof window !== "undefined" ? window : globalThis);

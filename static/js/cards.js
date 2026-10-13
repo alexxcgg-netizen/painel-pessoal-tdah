@@ -377,6 +377,8 @@
     container.dataset.cardsLigado = "1";
     Object.assign(handlers, deps || {});
     iniciarRelogio();
+    // inclinar/luz/segurar/arrastar pra concluir (cards-premium.js, carregado depois deste)
+    if (raiz.CardsPremium && typeof raiz.CardsPremium.ligarToque === "function") raiz.CardsPremium.ligarToque(container);
 
     container.addEventListener("click", async (e) => {
       const btn = e.target.closest("[data-acao]");

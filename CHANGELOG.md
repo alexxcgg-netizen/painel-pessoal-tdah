@@ -5,6 +5,26 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-13 - Cards do chat "premium": profundidade, montagem e toque
+
+Prévia aprovada pelo Alex com tudo ligado ("não ficou nada exagerado"):
+https://claude.ai/artifact/Fc5S8yNRv3NWJUTa5vfthr. Vale pra todo card (histórico também, só a
+chegada é exclusiva da resposta nova); `prefers-reduced-motion` desliga inclinação, luz, fio e
+montagem.
+- **Profundidade e luz** (`cards-premium.js` `ligarToque`, ligado por `Cards.ligar`): o card inclina
+  até 4,5° pro lado do dedo/mouse e um brilho segue o toque; segurar 140 ms afunda (`scale .975`).
+  Pegadinha: tem que ser `rotate`/`scale` (propriedades separadas) - a chegada anima `transform`
+  com fill both e engolia qualquer transform de toque (o `:active` antigo nunca aparecia).
+  `.cards-grupo` dá a perspectiva e o JS centra o ponto de fuga no card tocado.
+- **Card que se monta**: nasce abrindo do canto de cima (clip-path, lado da bolha da IA), um fio de
+  luz corre a borda uma vez (`.card-fio-borda` + `@property --fio-ang`) e as peças de dentro entram
+  uma a uma (WAAPI com `translate`, pra não brigar com o transform das animações de cada tipo).
+- **Toque que responde**: card com `.card-expande` abre/fecha no toque (gastos: os 3 maiores
+  lançamentos, que o servidor já mandava e a tela ignorava); tarefa pendente nos cards de tarefas
+  conclui arrastando pra direita (72 px; a caixinha de sempre por baixo faz a chamada).
+- **Clima**: curva da temperatura hora a hora em cima das barras de chuva (mesmas 8 colunas, sem
+  gap), se desenhando com os pontos pingando. SW v68.
+
 ## 2026-10-13 - Suíte de testes de ~28 min pra ~6 min + bug do iPhone ao voltar pro app
 
 - iPhone: sair do app com o teclado aberto e voltar deixava campo do chat, nota e barra de abas
