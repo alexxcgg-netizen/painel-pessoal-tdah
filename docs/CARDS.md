@@ -453,3 +453,47 @@ final; a animação só entra em resposta nova (`CardsVivos.animar`). Campos (`d
 | `saude_treino` (+) | `semana[{data, feito, hoje}] (seg..dom), meta_semana` |
 | `tarefas_lista` | `de, ate, hoje, so_concluidas, total, feitas, itens[{id, titulo, hora, data, concluida}], atrasadas[...], mais` |
 | `tarefas_criadas` (+) | `dia, agenda_do_dia[{id, titulo, hora, concluida, nova}]` - o dia em volta da tarefa nova |
+
+## Linguagem visual dos cards - o que o Alex aprovou (2026-10-14)
+
+Aprendizado vivo: ler antes de criar ou mexer em qualquer card, e acrescentar aqui o que ele
+aprovar/recusar nas próximas rodadas. Referência navegável (9 cenas aprovadas):
+https://claude.ai/artifact/JzmyFm39GypNtUKXLuS1ph - fonte em `docs/prototipos/cards-ia-v2.html`
+(abre direto no navegador; republicar no mesmo artefato a cada rodada).
+
+**Princípios (o que fez ele gostar)**
+1. **Cada assunto tem a sua cara, a família é a mesma.** Casca igual (selo colorido + "quando" em
+   mono no topo, rodapé com Desfazer + uma informação útil à direita), mas o miolo é desenhado pro
+   assunto: voo = cartão de embarque com picote; tabelionato = pasta + carimbo; mercado = cupom
+   saindo da impressora; balada = céu de noite; presente = caixa que abre; date = coração que se
+   desenha. Nunca um card genérico "título + lista" pra tudo.
+2. **Uma cor de destaque por assunto** (`--cor` no card): voo `#8fd0ff`, date `#f5a3b8`, balada
+   `#c4a1ff`/`#ff8fd1`, cartório `#7fd9d0`, presente `#ffd36e`, gasto `#b5e48c`, tarefa `#f0a58f`,
+   alteração `#aab4f6`, feito `#9fdcb0`. O resto fica nos neutros do app.
+3. **A IA pensa no antes, não só registra.** Todo card de compromisso responde "a que horas eu
+   saio / começo a me arrumar", contando de trás pra frente (linha *se arrumar → sair → chegar*).
+   Liga as pontas da semana (balada na sexta lembra do voo de sábado e calcula o sono).
+4. **Interação de verdade dentro do card**: caixinhas que marcam, chave liga/desliga que muda a
+   resposta, ideias escolhíveis, botão de conflito ("Passar Mikael pras 8h30" / "Deixa assim") em vez
+   de mexer sozinha. No voo: tocar num aeródromo faz o avião ir/voltar até ele e mostra a perna.
+5. **Movimento que assenta**: entrada do card por altura (grid-rows 0fr→1fr) + blur/scale com
+   `--ease-bounce`; filhos em cascata (~80 ms); números contam (count-up com ease-out cúbico);
+   só o pedaço que mudou se mexe (alteração: valor velho sobe riscado, novo cai; hora rola tipo
+   placar). Nada piscando sem parar além de detalhe de fundo (estrelas). Sempre com
+   `prefers-reduced-motion`.
+6. **Resposta antes do card**: linha "pensando" com os passos reais trocando (shimmer), que vira um
+   recibo recolhível ("Preparou o voo · 4 passos"); depois o texto palavra por palavra com os dados
+   importantes em negrito; o card abre por último. Lembrete simples não precisa de card - vira uma
+   pílula na frase.
+7. **Dados do mundo dele, não exemplo genérico**: códigos ICAO, NM, VFR, horas até a meta de 150 h.
+
+**Fatos do Alex que os cards usam**
+- Voo: origem padrão **SSBL** (Aeroclube de Blumenau) quando ele não disser outra; chegar **45 min
+  antes** da decolagem; somar o trajeto de casa até o aeroclube (~65 min) pra dizer a hora de sair.
+  Rota pode ter várias pernas; mostrar NM por perna e total (distância ortodrômica entre
+  aeródromos - NexAtlas não tem API pública, não depende dela).
+- **Se arrumar leva 45 min** (date, balada, qualquer saída "arrumado").
+
+**Checagem antes de dar como pronto**: 390 px sem rolagem lateral, nada encavalado (rótulos de
+linha do tempo e de rota são o que mais quebra), número longo sem quebrar entre "R$" e o valor
+(`&nbsp;`), sem `pageerror`.

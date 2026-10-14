@@ -1,0 +1,1193 @@
+<title>Cards da IA v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #000;
+  --fone: #04060a;
+  --sup: #0d1116;
+  --sup-2: #151b22;
+  --linha: rgba(214, 232, 245, 0.08);
+  --linha-2: rgba(214, 232, 245, 0.15);
+  --texto: #f2f7fa;
+  --fraco: #aebbc6;
+  --apagado: #6b7680;
+  --gelo: #bfe6ff;
+  --tarefa: #f0a58f;
+  --edicao: #aab4f6;
+  --ok: #9fdcb0;
+  --alerta: #e8cf8a;
+  --voo: #8fd0ff;
+  --date: #f5a3b8;
+  --noite: #c4a1ff;
+  --neon: #ff8fd1;
+  --carimbo: #7fd9d0;
+  --presente: #ffd36e;
+  --gasto: #b5e48c;
+  --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --suave: cubic-bezier(0.22, 1, 0.36, 1);
+  --sans: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--texto); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+
+.pagina {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding-block: 28px 48px;
+  padding-inline: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
+  grid-template-areas: "topo topo" "fone notas";
+  gap: 22px 40px;
+  align-items: start;
+}
+.topo { grid-area: topo; display: grid; gap: 10px; min-width: 0; }
+.sobre { margin: 0; font: 600 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--apagado); }
+h1 { margin: 0; font-size: clamp(24px, 4vw, 32px); font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; }
+.lead { margin: 0; color: var(--fraco); font-size: 15px; line-height: 1.55; max-width: 64ch; }
+.cenas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; min-width: 0; }
+.cena-btn {
+  flex: none; min-height: 44px; padding: 0 15px; border-radius: 999px; border: 1px solid var(--linha-2);
+  background: var(--sup); color: var(--fraco); font-size: 14px; font-weight: 500; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: background 0.3s var(--suave), color 0.3s var(--suave), border-color 0.3s var(--suave), transform 0.25s var(--bounce);
+}
+.cena-btn:active { transform: scale(0.95); }
+.cena-btn i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); opacity: 0.85; }
+.cena-btn[aria-selected="true"] { background: color-mix(in srgb, var(--c) 92%, white); color: #06080b; border-color: transparent; }
+.cena-btn[aria-selected="true"] i { background: #06080b; opacity: 0.5; }
+.repetir { background: none; border-style: dashed; }
+
+/* ---------- telefone ---------- */
+.fone {
+  grid-area: fone; position: relative; border-radius: 34px; background: var(--fone); border: 1px solid var(--linha);
+  box-shadow: 0 40px 80px -40px rgba(120, 170, 210, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.04); overflow: hidden;
+}
+.fone-topo { display: flex; align-items: center; gap: 10px; padding: 16px 18px 12px; border-bottom: 1px solid var(--linha); font-size: 14px; font-weight: 600; }
+.fone-topo small { margin-left: auto; font: 500 12px var(--mono); color: var(--apagado); }
+.chat { height: 660px; max-height: 74vh; overflow-y: auto; padding: 18px 14px 28px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; }
+.chat::-webkit-scrollbar { display: none; }
+.fone-campo { display: flex; align-items: center; gap: 10px; padding: 12px 14px 16px; border-top: 1px solid var(--linha); }
+.fone-campo span { flex: 1; min-width: 0; height: 46px; border-radius: 16px; border: 1px solid var(--linha-2); display: flex; align-items: center; padding: 0 16px; color: var(--apagado); font-size: 14px; }
+.fone-campo i { width: 46px; height: 46px; border-radius: 16px; background: var(--gelo); display: grid; place-items: center; color: #04121c; }
+.fone-campo svg { width: 20px; height: 20px; }
+
+/* ---------- mensagens ---------- */
+.msg-eu {
+  align-self: flex-end; max-width: 80%; padding: 11px 15px; border-radius: 20px 20px 6px 20px;
+  background: var(--sup-2); border: 1px solid var(--linha); font-size: 15px; line-height: 1.45;
+  animation: euEntra 0.45s var(--bounce) both;
+}
+@keyframes euEntra { from { opacity: 0; transform: translateY(10px) scale(0.96); } }
+.resposta { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: start; }
+.avatar { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--gelo) 12%, var(--sup)); color: var(--gelo); border: 1px solid var(--linha); }
+.avatar svg { width: 16px; height: 16px; }
+.corpo { min-width: 0; display: grid; gap: 10px; padding-top: 4px; }
+.corpo > .mola { margin-left: -40px; }
+
+.pensando { display: flex; align-items: center; gap: 10px; min-height: 22px; color: var(--fraco); font-size: 14px; }
+.orbita { position: relative; width: 16px; height: 16px; flex: none; }
+.orbita i { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid transparent; border-top-color: var(--gelo); animation: girar 1.1s linear infinite; }
+.orbita i:nth-child(2) { inset: 3px; border-top-color: color-mix(in srgb, var(--gelo) 55%, transparent); animation-duration: 1.6s; animation-direction: reverse; }
+.orbita i:nth-child(3) { inset: 6px; background: var(--gelo); border: 0; animation: respirar 1.2s var(--suave) infinite alternate; }
+@keyframes girar { to { transform: rotate(1turn); } }
+@keyframes respirar { from { transform: scale(0.5); opacity: 0.5; } }
+.pensando-texto { position: relative; overflow: hidden; height: 20px; flex: 1; min-width: 0; }
+.passo-atual {
+  position: absolute; inset: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: linear-gradient(90deg, var(--fraco) 0%, var(--texto) 45%, var(--fraco) 60%) 0 0 / 220% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: passoEntra 0.45s var(--suave) both, brilho 1.6s linear infinite;
+}
+@keyframes passoEntra { from { transform: translateY(100%); opacity: 0; } }
+@keyframes brilho { to { background-position: -220% 0; } }
+.recibo { font-size: 13px; color: var(--apagado); animation: reciboEntra 0.4s var(--suave) both; }
+.recibo summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 32px; }
+.recibo summary::-webkit-details-marker { display: none; }
+.recibo summary svg { width: 14px; height: 14px; }
+.recibo summary .seta { transition: transform 0.3s var(--suave); }
+.recibo[open] summary .seta { transform: rotate(90deg); }
+.recibo ol { margin: 4px 0 2px; padding-left: 20px; display: grid; gap: 4px; line-height: 1.45; }
+@keyframes reciboEntra { from { opacity: 0; transform: translateY(-4px); } }
+.texto { margin: 0; font-size: 15.5px; line-height: 1.55; }
+.palavra { display: inline-block; animation: palavra 0.5s var(--suave) both; }
+.palavra.forte { font-weight: 600; color: #fff; }
+@keyframes palavra { from { opacity: 0; filter: blur(5px); transform: translateY(3px); } }
+
+/* ---------- card: a mesma familia, cada assunto com a sua cara ---------- */
+.mola { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.75s var(--suave); }
+.mola.aberta { grid-template-rows: 1fr; }
+.mola > div { min-height: 0; }
+.card {
+  --cor: var(--gelo);
+  position: relative; margin-top: 2px; border-radius: 22px; padding: 16px 16px 12px; overflow: hidden;
+  background: radial-gradient(120% 70% at 100% 0%, color-mix(in srgb, var(--cor) 11%, transparent), transparent 60%), linear-gradient(180deg, #10151b, #0a0d11);
+  border: 1px solid color-mix(in srgb, var(--cor) 24%, var(--linha));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 22px 44px -26px color-mix(in srgb, var(--cor) 45%, transparent);
+  display: grid; gap: 12px;
+  opacity: 0; transform: translateY(8px) scale(0.98); filter: blur(4px);
+  transition: opacity 0.5s var(--suave), transform 0.7s var(--bounce), filter 0.5s var(--suave);
+}
+.mola.aberta .card { opacity: 1; transform: none; filter: none; }
+.card > * { position: relative; }
+.card-topo { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.selo { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 999px; background: color-mix(in srgb, var(--cor) 14%, transparent); color: var(--cor); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.selo svg { width: 14px; height: 14px; }
+.card-topo .quando { margin-left: auto; font-family: var(--mono); color: var(--fraco); white-space: nowrap; }
+.hero { margin: 0; font-size: 19px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.meta { margin: -6px 0 0; color: var(--fraco); font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.meta svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; color: var(--apagado); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.meta .mono { color: var(--texto); }
+.rotulo { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--apagado); }
+.card-pe { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--linha); padding-top: 10px; margin-top: 2px; font-size: 12.5px; color: var(--apagado); }
+.card-pe .dir { margin-left: auto; text-align: right; }
+.desfazer { min-height: 36px; padding: 0 14px 0 11px; border-radius: 999px; border: 1px solid var(--linha-2); background: transparent; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--texto); cursor: pointer; transition: transform 0.25s var(--bounce); flex: none; }
+.desfazer:active { transform: scale(0.95); }
+.desfazer svg { width: 15px; height: 15px; }
+.status { margin: -2px 0 0; display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.45; color: var(--fraco); }
+.status:empty { display: none; }
+.status svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.status.alerta svg { color: var(--alerta); }
+.status.ok svg { color: var(--ok); }
+.troca-texto { animation: passoEntra 0.45s var(--suave) both; }
+.acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.acao { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--linha-2); background: var(--sup-2); font-size: 13.5px; font-weight: 500; cursor: pointer; transition: transform 0.25s var(--bounce); }
+.acao:active { transform: scale(0.95); }
+.acao.primaria { background: var(--cor); color: #10090a; border-color: transparent; font-weight: 600; }
+.acoes.some { animation: sumir 0.35s var(--suave) forwards; }
+@keyframes sumir { to { opacity: 0; transform: translateY(-4px); height: 0; margin: -6px 0 0; } }
+.aparece { animation: reciboEntra 0.45s var(--suave) both; }
+.cascata > * { opacity: 0; transform: translateY(8px); transition: opacity 0.45s var(--suave), transform 0.6s var(--bounce); }
+.cascata.entrou > * { opacity: 1; transform: none; }
+.cascata.entrou > :nth-child(2) { transition-delay: 0.08s; }
+.cascata.entrou > :nth-child(3) { transition-delay: 0.16s; }
+.cascata.entrou > :nth-child(4) { transition-delay: 0.24s; }
+.cascata.entrou > :nth-child(5) { transition-delay: 0.32s; }
+
+/* checklist que se mexe (tabelionato, date) */
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.checklist li { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 4px; border-radius: 12px; cursor: pointer; transition: background 0.25s; }
+.checklist li:hover { background: rgba(255, 255, 255, 0.025); }
+.caixinha { width: 24px; height: 24px; flex: none; border-radius: 8px; border: 1.5px solid color-mix(in srgb, var(--cor) 55%, var(--linha-2)); display: grid; place-items: center; transition: background 0.3s var(--suave), border-color 0.3s, transform 0.35s var(--bounce); }
+.caixinha svg { width: 15px; height: 15px; color: #0b0d10; stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset 0.35s var(--suave) 0.08s; }
+.checklist li.marcado .caixinha { background: var(--cor); border-color: transparent; transform: scale(1.08); }
+.checklist li.marcado .caixinha svg { stroke-dashoffset: 0; }
+.checklist .item-txt { flex: 1; min-width: 0; font-size: 14.5px; line-height: 1.35; transition: color 0.3s; }
+.checklist li.marcado .item-txt { color: var(--apagado); }
+.checklist .item-txt small { display: block; color: var(--apagado); font-size: 12.5px; margin-top: 1px; }
+.checklist .quando-item { font: 500 12.5px var(--mono); color: var(--fraco); white-space: nowrap; }
+.etiqueta { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font: 600 11px var(--mono); letter-spacing: 0.04em; background: color-mix(in srgb, var(--cor) 18%, transparent); color: var(--cor); vertical-align: 1px; }
+
+/* ---------- voo: cartão de embarque ---------- */
+.rota { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.aero b { display: block; font: 600 26px/1 var(--mono); letter-spacing: 0.02em; }
+.aero span { display: block; margin-top: 5px; font-size: 12px; color: var(--fraco); }
+.aero.dir { text-align: right; }
+.rota-meio { position: relative; height: 54px; align-self: center; }
+.rota-arco { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.arco-base { fill: none; stroke: var(--linha-2); stroke-width: 1.5; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
+.arco-feito { fill: none; stroke: var(--voo); stroke-width: 1.8; stroke-dasharray: 1 1; stroke-dashoffset: 1; vector-effect: non-scaling-stroke; }
+.aviao { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; color: var(--voo); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--voo) 60%, transparent)); }
+.rota-multi { position: relative; height: 110px; margin: 0 2px; }
+.rota-multi .rota-meio { position: absolute; inset: 18px 0 auto; height: 40px; }
+.parada-voo { position: absolute; top: 60px; transform: translateX(-50%); display: grid; justify-items: center; gap: 2px; white-space: nowrap; padding: 6px 6px 8px; margin: 0 -6px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; transition: background 0.3s var(--suave); -webkit-tap-highlight-color: transparent; }
+.parada-voo:hover { background: color-mix(in srgb, var(--voo) 7%, transparent); }
+.parada-voo:focus-visible { outline: 2px solid var(--voo); outline-offset: 0; }
+.parada-voo b { transition: color 0.3s var(--suave), transform 0.45s var(--bounce); }
+.parada-voo.atual b { color: var(--voo); transform: translateY(-1px) scale(1.06); }
+.parada-voo.atual span { color: var(--texto); }
+.parada-voo.ini { transform: none; justify-items: start; margin-left: -6px; }
+.parada-voo.fim { transform: translateX(-100%); justify-items: end; }
+.parada-voo b { font: 600 15px/1 var(--mono); letter-spacing: 0.02em; }
+.parada-voo span { font-size: 11.5px; color: var(--fraco); }
+.perna { position: absolute; top: 0; transform: translateX(-50%); font: 600 11.5px var(--mono); color: var(--voo); padding: 2px 7px; border-radius: 999px; background: color-mix(in srgb, var(--voo) 10%, var(--fone)); white-space: nowrap; opacity: 0; translate: 0 4px; transition: opacity 0.4s var(--suave), translate 0.5s var(--bounce); }
+.perna.viu { opacity: 1; translate: 0 0; }
+.rota-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 13px; color: var(--fraco); margin-top: -4px; }
+.rota-total .mono { color: var(--texto); font-size: 14px; font-weight: 600; }
+.perna.foco { background: var(--voo); color: #04121c; }
+.voo-info { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; border-radius: 14px; background: color-mix(in srgb, var(--voo) 6%, transparent); border: 1px solid color-mix(in srgb, var(--voo) 16%, var(--linha)); font-size: 13.5px; line-height: 1.4; color: var(--fraco); }
+.voo-info svg { width: 16px; height: 16px; flex: none; color: var(--voo); }
+.voo-info b { color: var(--texto); font-weight: 600; }
+.voo-info .mono { color: var(--texto); }
+.etapas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.etapa { display: grid; gap: 4px; padding: 9px 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.025); border: 1px solid var(--linha); }
+.etapa .rotulo { font-size: 10.5px; letter-spacing: 0.06em; }
+.etapa b { font: 600 15px var(--mono); }
+.etapa.destaque { border-color: color-mix(in srgb, var(--voo) 40%, transparent); background: color-mix(in srgb, var(--voo) 9%, transparent); }
+.etapa.destaque b { color: var(--voo); }
+.tempo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; color: var(--fraco); }
+.tempo span { display: inline-flex; align-items: center; gap: 6px; }
+.tempo .mono { color: var(--texto); }
+.vento { width: 18px; height: 18px; color: var(--voo); transform: rotate(0deg); transition: transform 1.1s var(--bounce) 0.2s; }
+.vfr { margin-left: auto; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); font: 600 12px var(--mono); }
+.picote { height: 0; border-top: 1.5px dashed var(--linha-2); margin: 2px -16px; position: relative; }
+.picote::before, .picote::after { content: ""; position: absolute; top: -10px; width: 18px; height: 18px; border-radius: 50%; background: var(--fone); border: 1px solid color-mix(in srgb, var(--voo) 24%, var(--linha)); }
+.picote::before { left: -9px; } .picote::after { right: -9px; }
+.horas { display: grid; gap: 7px; }
+.horas-topo { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--fraco); }
+.horas-topo .mono { color: var(--texto); font-size: 15px; font-weight: 600; }
+.horas-topo .meta-h { margin-left: auto; }
+.horas-topo .meta-h .mono { font-size: 13px; font-weight: 500; color: var(--fraco); }
+.barra { position: relative; height: 6px; border-radius: 6px; background: var(--linha); overflow: hidden; }
+.barra i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 6px; }
+.barra .ja { width: var(--ja); background: color-mix(in srgb, var(--cor) 55%, #2a3440); }
+.barra .novo { left: var(--ja); width: 0; background: var(--cor); box-shadow: 0 0 10px var(--cor); transition: width 0.9s var(--bounce) 0.3s; }
+.barra.cheia .novo { width: var(--novo); }
+
+/* ---------- date ---------- */
+.date-topo { display: flex; align-items: center; gap: 14px; }
+.coracao { width: 46px; height: 46px; flex: none; color: var(--date); }
+.coracao path { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.2s var(--suave); }
+.coracao.desenhou path { stroke-dashoffset: 0; }
+.coracao.desenhou { animation: batida 1.6s var(--suave) 1.3s 2; }
+@keyframes batida { 0%, 100% { transform: scale(1); } 14% { transform: scale(1.12); } 28% { transform: scale(1); } 42% { transform: scale(1.08); } }
+.date-quem { min-width: 0; }
+.date-quem .hero { font-size: 20px; }
+.date-quem p { margin: 3px 0 0; color: var(--fraco); font-size: 13.5px; }
+.faixa-info { display: flex; flex-wrap: wrap; gap: 8px; }
+.ficha { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--linha); font-size: 13px; color: var(--fraco); }
+.ficha svg { width: 15px; height: 15px; color: var(--cor); }
+.ficha .mono { color: var(--texto); }
+
+/* ---------- balada ---------- */
+.ceu-noite { position: relative; height: 108px; margin: -16px -16px 0; overflow: hidden; background: radial-gradient(90% 120% at 80% 0%, color-mix(in srgb, var(--noite) 32%, transparent), transparent 60%), radial-gradient(70% 90% at 10% 100%, color-mix(in srgb, var(--neon) 22%, transparent), transparent 60%), linear-gradient(180deg, #120c22, #0b0a14); }
+.ceu-noite .estrela { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; opacity: 0.2; animation: piscar 2.6s ease-in-out infinite alternate; }
+@keyframes piscar { to { opacity: 0.9; transform: scale(1.4); } }
+.lua { position: absolute; top: 18px; right: 26px; width: 30px; height: 30px; border-radius: 50%; box-shadow: inset -8px 3px 0 0 #f3ecff; transform: rotate(-20deg) translateY(20px); opacity: 0; transition: transform 1.2s var(--bounce), opacity 0.8s var(--suave); filter: drop-shadow(0 0 10px rgba(243, 236, 255, 0.4)); }
+.ceu-noite.acendeu .lua { transform: rotate(-20deg); opacity: 1; }
+.ceu-titulo { position: absolute; left: 16px; bottom: 14px; }
+.ceu-titulo b { display: block; font-size: 21px; font-weight: 600; letter-spacing: -0.01em; }
+.ceu-titulo span { font: 500 12.5px var(--mono); color: color-mix(in srgb, var(--noite) 70%, white); }
+.cidade { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; opacity: 0.55; }
+.noite-linha { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); position: relative; }
+.noite-linha::before { content: ""; position: absolute; left: 16.66%; right: 16.66%; top: 11px; height: 2px; background: linear-gradient(90deg, var(--l1, var(--noite)), var(--l2, var(--neon))); transform: scaleX(0); transform-origin: left; transition: transform 1.2s var(--suave) 0.2s; border-radius: 2px; }
+.noite-linha.acesa::before { transform: scaleX(1); }
+.parada { display: grid; align-content: start; justify-items: center; text-align: center; gap: 5px; font-size: 12.5px; color: var(--fraco); }
+.parada i { width: 14px; height: 14px; border-radius: 50%; margin-top: 5px; background: var(--fone); border: 2px solid var(--linha-2); position: relative; z-index: 1; transition: border-color 0.4s, box-shadow 0.4s, background 0.4s; }
+.parada b { font: 600 15px var(--mono); color: var(--texto); }
+.noite-linha.acesa .parada i { border-color: var(--l2, var(--neon)); background: color-mix(in srgb, var(--l2, var(--neon)) 40%, #000); box-shadow: 0 0 12px var(--l2, var(--neon)); }
+.noite-linha.quatro { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.noite-linha.quatro::before { left: 12.5%; right: 12.5%; }
+.noite-linha.acesa .parada:nth-child(4) i { transition-delay: 1.5s; }
+.parada.destaque b { color: var(--l2, var(--neon)); }
+.noite-linha.acesa .parada:nth-child(2) i { transition-delay: 0.6s; }
+.noite-linha.acesa .parada:nth-child(3) i { transition-delay: 1s; }
+.sono { display: grid; gap: 7px; padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--linha); }
+.sono-topo { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--fraco); }
+.sono-topo svg { width: 16px; height: 16px; flex: none; color: var(--noite); align-self: center; }
+.sono-topo strong { color: var(--texto); font-size: 14.5px; white-space: nowrap; }
+.sono-topo .mono { margin-left: auto; }
+.sono-barra { position: relative; height: 8px; border-radius: 8px; background: var(--linha); }
+.sono-barra i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 8px; background: linear-gradient(90deg, var(--noite), #ffe3a3); transition: width 1.4s var(--suave) 0.4s; }
+.sono.encheu .sono-barra i { width: 80%; }
+.sono-marcas { display: flex; justify-content: space-between; font: 500 11.5px var(--mono); color: var(--apagado); }
+.chave { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 14px; cursor: pointer; }
+.chave .trilho-chave { margin-left: auto; width: 46px; height: 28px; border-radius: 999px; background: var(--linha-2); position: relative; transition: background 0.35s var(--suave); flex: none; }
+.chave .trilho-chave::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform 0.45s var(--bounce); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
+.chave.ligada .trilho-chave { background: var(--noite); }
+.chave.ligada .trilho-chave::after { transform: translateX(18px); }
+.chave small { display: block; color: var(--apagado); font-size: 12.5px; }
+
+/* ---------- tabelionato: pasta + carimbo ---------- */
+.pasta-topo { display: flex; align-items: center; gap: 14px; }
+.pasta { width: 50px; height: 42px; flex: none; color: var(--carimbo); transition: transform 0.35s var(--bounce); }
+.pasta.recebeu { animation: recebeu 0.45s var(--bounce); }
+@keyframes recebeu { 40% { transform: scale(1.12) rotate(-3deg); } }
+.contador-pasta { font: 600 12.5px var(--mono); color: var(--carimbo); }
+.checklist li.voou .item-txt { animation: pafora 0.5s var(--suave); }
+@keyframes pafora { 50% { transform: translateX(10px); opacity: 0.4; } }
+.carimbo-area { position: relative; min-height: 0; }
+.carimbo {
+  position: absolute; right: -6px; bottom: 2px; width: 94px; height: 94px; border-radius: 50%;
+  border: 3px double var(--carimbo); color: var(--carimbo); display: grid; place-items: center; text-align: center;
+  font: 700 13px/1.15 var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+  opacity: 0; transform: scale(1.9) rotate(-26deg); pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(circle, color-mix(in srgb, var(--carimbo) 10%, transparent), transparent 70%);
+}
+.carimbo small { display: block; font-size: 10px; letter-spacing: 0.04em; opacity: 0.8; margin-top: 3px; }
+.carimbo.bateu { animation: carimbar 0.5s cubic-bezier(0.2, 1.3, 0.4, 1) forwards; }
+@keyframes carimbar { 0% { opacity: 0; transform: scale(1.9) rotate(-26deg); } 60% { opacity: 0.95; transform: scale(0.94) rotate(-13deg); } 100% { opacity: 0.85; transform: scale(1) rotate(-14deg); } }
+.card.tremeu { animation: tremeu 0.32s var(--suave) 0.25s; }
+@keyframes tremeu { 30% { translate: 0 2px; } 60% { translate: 0 -1px; } }
+
+/* ---------- presente ---------- */
+.presente-topo { display: flex; align-items: center; gap: 14px; }
+.caixa-presente { width: 58px; height: 58px; flex: none; overflow: visible; }
+.caixa-presente .base, .caixa-presente .tampa rect:first-child { fill: color-mix(in srgb, var(--presente) 22%, #15120a); stroke: var(--presente); stroke-width: 1.5; }
+.caixa-presente .fita { fill: var(--presente); }
+.caixa-presente .laco { fill: none; stroke: var(--presente); stroke-width: 2; stroke-linecap: round; }
+.caixa-presente .tampa { transform-box: view-box; transform-origin: 8px 30px; transition: transform 0.8s var(--bounce); }
+.caixa-presente.abriu .tampa { transform: translate(-3px, -9px) rotate(-16deg); }
+.caixa-presente .brilho { fill: var(--presente); transform-box: fill-box; transform-origin: center; transform: scale(0); transition: transform 0.5s var(--bounce); }
+.caixa-presente.abriu .brilho { transform: scale(1); }
+.caixa-presente.abriu .brilho:nth-of-type(2) { transition-delay: 0.12s; }
+.caixa-presente.abriu .brilho:nth-of-type(3) { transition-delay: 0.22s; }
+.contagem { font: 600 30px/1 var(--mono); }
+.contagem small { font: 500 12.5px var(--sans); color: var(--fraco); margin-left: 6px; }
+.prazos { position: relative; height: 62px; margin: 0 6px; }
+.prazos .linha-p { position: absolute; left: 0; right: 0; top: 9px; height: 2px; background: var(--linha-2); border-radius: 2px; }
+.prazos .linha-p i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--presente); border-radius: 2px; transition: width 1.1s var(--suave) 0.2s; }
+.prazos.andou .linha-p i { width: 50%; }
+.marco { position: absolute; top: 0; transform: translateX(-50%); display: grid; justify-items: center; gap: 6px; font-size: 11.5px; color: var(--fraco); white-space: nowrap; }
+.marco.agora { transform: none; justify-items: start; }
+.marco.fim { transform: translateX(-100%); justify-items: end; }
+.marco i { width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; background: var(--fone); border: 2px solid var(--linha-2); }
+.marco.agora i { border-color: var(--presente); background: var(--presente); }
+.marco.limite i { border-color: var(--presente); }
+.marco.fim i { border-color: var(--date); }
+.marco b { font: 600 12.5px var(--mono); color: var(--texto); }
+.ideias { display: grid; gap: 8px; }
+.ideia { text-align: left; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; padding: 11px 13px; border-radius: 14px; border: 1px solid var(--linha); background: rgba(255, 255, 255, 0.02); cursor: pointer; transition: border-color 0.3s, background 0.3s, opacity 0.35s, transform 0.3s var(--bounce); }
+.ideia:active { transform: scale(0.98); }
+.ideia b { font-size: 14.5px; font-weight: 600; }
+.ideia small { grid-column: 1; color: var(--apagado); font-size: 12.5px; line-height: 1.4; }
+.ideia .preco { grid-row: 1 / span 2; grid-column: 2; font: 600 13px var(--mono); color: var(--fraco); }
+.ideias.escolheu .ideia { opacity: 0.4; }
+.ideias.escolheu .ideia.escolhida { opacity: 1; border-color: color-mix(in srgb, var(--presente) 55%, transparent); background: color-mix(in srgb, var(--presente) 8%, transparent); }
+
+/* ---------- mercado: cupom ---------- */
+.impressora { position: relative; padding-top: 6px; }
+.impressora::before { content: ""; position: absolute; top: 0; left: 6px; right: 6px; height: 6px; border-radius: 6px; background: #1d242c; box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6); z-index: 2; }
+.fresta { overflow: hidden; margin: 0 14px; }
+.cupom {
+  padding: 14px 14px 22px; background: linear-gradient(180deg, #e9ece4, #f6f7f2); color: #1b1f1a; font: 500 13px/1.6 var(--mono);
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+  transform: translateY(-101%); transition: transform 1.4s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.impressora.imprimiu .cupom { transform: none; }
+.cupom .l { display: flex; justify-content: space-between; gap: 10px; }
+.cupom .c { text-align: center; letter-spacing: 0.1em; font-weight: 600; }
+.cupom hr { border: 0; border-top: 1px dashed #9aa093; margin: 6px 0; }
+.cupom .total { font-size: 16px; font-weight: 600; }
+.mes-categoria { display: grid; gap: 7px; }
+.mes-topo { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--fraco); }
+.mes-topo .mono { color: var(--texto); font-size: 16px; font-weight: 600; }
+.mes-topo .de { margin-left: auto; white-space: nowrap; }
+.dias { display: flex; align-items: flex-end; gap: 3px; height: 34px; }
+.dias i { flex: 1; border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, var(--gasto) 30%, #1c232b); height: var(--h); transform: scaleY(0); transform-origin: bottom; transition: transform 0.6s var(--bounce); }
+.dias i.hoje { background: var(--gasto); }
+.dias.cresceu i { transform: scaleY(1); }
+
+/* ---------- consulta (lupa do dia) ---------- */
+.lupa { position: relative; height: 104px; margin: 2px 0 0; }
+.lupa .grade { position: absolute; inset: 0 0 20px; border-radius: 12px; background: rgba(255, 255, 255, 0.015); border: 1px solid var(--linha); }
+.tique { position: absolute; bottom: 0; transform: translateX(-50%); font: 500 12px var(--mono); color: var(--apagado); }
+.tique:first-of-type { transform: none; }
+.tique.ultimo { transform: translateX(-100%); }
+.agora-linha { position: absolute; top: -2px; bottom: 20px; width: 0; left: calc(var(--ini) / 180 * 100%); border-left: 1.5px solid var(--gelo); opacity: 0; transition: opacity 0.6s var(--suave); }
+.agora-linha::after { content: "agora"; position: absolute; top: -2px; left: 5px; font: 600 11px var(--mono); color: var(--gelo); }
+.lupa.viva .agora-linha { opacity: 0.9; }
+.bloco { --cb: var(--fraco); position: absolute; height: 30px; left: calc(var(--ini) / 180 * 100%); width: calc(var(--dur) / 180 * 100%); border-radius: 9px; padding: 0 8px; display: flex; align-items: center; gap: 5px; overflow: hidden; font-size: 12px; font-weight: 600; white-space: nowrap; background: color-mix(in srgb, var(--cb) 18%, #0e1217); border: 1px solid color-mix(in srgb, var(--cb) 42%, transparent); opacity: 0; transform: translateY(6px); transition: left 0.8s var(--bounce), opacity 0.45s var(--suave), transform 0.6s var(--bounce), background 0.5s var(--suave), border-color 0.5s var(--suave); }
+.bloco span { overflow: hidden; text-overflow: ellipsis; }
+.bloco.rotulo-fora { overflow: visible; }
+.bloco.rotulo-fora span { position: absolute; left: calc(100% + 7px); color: var(--fraco); font-weight: 500; transition: color 0.5s var(--suave); }
+.bloco.l1 { top: 14px; } .bloco.l2 { top: 52px; }
+.bloco.entrou { opacity: 1; transform: none; }
+.bloco.nova { --cb: var(--tarefa); background: color-mix(in srgb, var(--tarefa) 30%, #120d0b); transform: translateY(-26px) scale(0.9); }
+.bloco.nova.entrou { transform: none; animation: pouso 1.2s var(--suave) 0.35s; }
+@keyframes pouso { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tarefa) 55%, transparent); } 100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--tarefa) 0%, transparent); } }
+.bloco.trajeto { --cb: var(--tarefa); color: var(--fraco); transform-origin: right center; transform: scaleX(0); opacity: 1; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--tarefa) 24%, transparent) 0 4px, transparent 4px 9px), #0e1217; border-style: dashed; padding: 0 5px; transition: transform 0.7s var(--suave); }
+.bloco.trajeto.entrou { transform: none; }
+.bloco.trajeto svg { width: 14px; height: 14px; flex: none; }
+.faixa-aperto { position: absolute; top: 6px; bottom: 26px; left: calc(65 / 180 * 100%); width: calc(25 / 180 * 100%); background: color-mix(in srgb, var(--alerta) 12%, transparent); border-inline: 1px dashed color-mix(in srgb, var(--alerta) 60%, transparent); border-radius: 6px; opacity: 0; transition: opacity 0.5s var(--suave); }
+.lupa.aperto .faixa-aperto { opacity: 1; }
+.lupa.aperto .bloco.mikael { --cb: var(--alerta); animation: aperto 0.5s var(--suave) 2; }
+.lupa.aperto .bloco.rotulo-fora span { color: var(--alerta); }
+@keyframes aperto { 30% { translate: -2px 0; } 70% { translate: 2px 0; } }
+
+/* ---------- alteração ---------- */
+.frase { margin: 2px 0 0; font-size: 19px; line-height: 1.5; font-weight: 600; letter-spacing: -0.01em; }
+.troca { display: inline-grid; vertical-align: baseline; position: relative; }
+.troca > * { grid-area: 1 / 1; justify-self: center; }
+.troca .velho { color: var(--fraco); text-decoration: none; position: relative; transition: transform 0.6s var(--suave), opacity 0.6s var(--suave); }
+.troca .velho::after { content: ""; position: absolute; left: -2px; right: -2px; top: 55%; height: 2px; border-radius: 2px; background: var(--edicao); transform: scaleX(0); transform-origin: left; transition: transform 0.35s var(--suave); }
+.troca .novo { position: relative; z-index: 0; color: var(--edicao); opacity: 0; transform: translateY(0.45em); transition: transform 0.7s var(--bounce) 0.25s, opacity 0.35s var(--suave) 0.25s; }
+.troca .novo::after { content: ""; position: absolute; left: -3px; right: -3px; bottom: 0.1em; height: 0.26em; border-radius: 3px; background: color-mix(in srgb, var(--edicao) 20%, transparent); z-index: -1; }
+.trocado .troca .velho::after { transform: scaleX(1); }
+.trocado .troca .velho { transform: translateY(-0.92em) scale(0.55); opacity: 0.55; transition-delay: 0.3s; }
+.trocado .troca .novo { opacity: 1; transform: none; }
+.campo-linha { display: flex; align-items: center; gap: 12px; font-size: 13.5px; color: var(--fraco); min-height: 32px; }
+.campo-linha .rotulo { width: 52px; }
+.relogio { display: inline-flex; font: 600 22px/1 var(--mono); color: var(--texto); }
+.digito { display: inline-block; height: 1em; overflow: hidden; }
+.rolo { display: flex; flex-direction: column; transition: transform 0.9s var(--bounce); }
+.rolo b { height: 1em; font-weight: 600; }
+.campo-linha .antes { font-family: var(--mono); color: var(--apagado); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--edicao) 60%, transparent); opacity: 0; transition: opacity 0.4s var(--suave) 0.9s; }
+.trocado .campo-linha .antes { opacity: 1; }
+.nota-volta { margin: 0; font-size: 13px; color: var(--fraco); }
+
+/* ---------- concluir ---------- */
+.feito-linha { display: flex; align-items: center; gap: 12px; }
+.check { width: 34px; height: 34px; flex: none; color: var(--ok); }
+.check circle { stroke-dasharray: 101; stroke-dashoffset: 101; transition: stroke-dashoffset 0.6s var(--suave); }
+.check path { stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset 0.45s var(--suave) 0.45s; }
+.feito .check circle, .feito .check path { stroke-dashoffset: 0; }
+.feito-titulo { font-size: 16px; font-weight: 600; min-width: 0; flex: 1; line-height: 1.4; }
+.risco { background: linear-gradient(color-mix(in srgb, var(--ok) 75%, transparent), color-mix(in srgb, var(--ok) 75%, transparent)) no-repeat 0 58% / 0% 1.5px; -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background-size 0.7s var(--suave) 0.7s, color 0.5s 0.8s; }
+.feito .risco { background-size: 100% 1.5px; color: var(--fraco); }
+.dia-progresso { display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--linha); }
+.anel { width: 52px; height: 52px; flex: none; transform: rotate(-90deg); }
+.anel .cheio { transition: stroke-dashoffset 1.2s var(--suave) 0.6s; }
+.dia-progresso strong { display: block; font-size: 15px; }
+.dia-progresso span { font-size: 13px; color: var(--fraco); }
+.anel-num { position: relative; flex: none; }
+.anel-num b { position: absolute; inset: 0; display: grid; place-items: center; font: 600 13px var(--mono); }
+.proxima { display: grid; gap: 4px; padding: 12px 14px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--gelo) 22%, var(--linha)); background: color-mix(in srgb, var(--gelo) 5%, transparent); opacity: 0; transform: translateY(10px); transition: opacity 0.5s var(--suave), transform 0.7s var(--bounce); }
+.proxima.entrou { opacity: 1; transform: none; }
+.proxima .olho { font: 600 11.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--gelo); }
+.proxima .tit { font-size: 15px; font-weight: 600; }
+.proxima .falta { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fraco); }
+.trilho { flex: 1; height: 4px; border-radius: 4px; background: var(--linha); overflow: hidden; }
+.trilho i { display: block; height: 100%; background: var(--gelo); transform-origin: left; transform: scaleX(0); transition: transform 1.3s var(--suave) 0.3s; }
+.proxima.entrou .trilho i { transform: scaleX(0.38); }
+
+.sugestoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.sugestao { min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--linha-2); background: transparent; color: var(--fraco); font-size: 13.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; animation: reciboEntra 0.45s var(--suave) both; transition: background 0.25s, color 0.25s, transform 0.25s var(--bounce); }
+.sugestao:hover { background: var(--sup-2); color: var(--texto); }
+.sugestao:active { transform: scale(0.95); }
+.sugestao svg { width: 14px; height: 14px; }
+.pilula { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px; background: color-mix(in srgb, var(--gelo) 14%, transparent); color: var(--gelo); font: 600 13.5px var(--mono); vertical-align: 1px; animation: pilula 0.6s var(--bounce) both; }
+.pilula svg { width: 13px; height: 13px; }
+@keyframes pilula { from { transform: scale(0.6); opacity: 0; } }
+
+/* ---------- notas ---------- */
+.notas { grid-area: notas; display: grid; gap: 14px; padding-top: 6px; min-width: 0; }
+.notas h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.notas ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: n; }
+.notas li { counter-increment: n; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; font-size: 14.5px; line-height: 1.55; color: var(--fraco); max-width: 62ch; }
+.notas li::before { content: counter(n, decimal-leading-zero); font: 600 12px/1.9 var(--mono); color: var(--apagado); }
+.notas li b { color: var(--texto); font-weight: 600; }
+.notas .pergunta { margin: 6px 0 0; padding: 14px 16px; border-radius: 16px; border: 1px dashed var(--linha-2); color: var(--fraco); font-size: 14px; line-height: 1.55; }
+
+@media (max-width: 760px) {
+  .pagina { grid-template-columns: minmax(0, 1fr); grid-template-areas: "topo" "fone" "notas"; }
+  .cenas { flex-wrap: nowrap; overflow-x: auto; margin-inline: -16px; padding-inline: 16px; scrollbar-width: none; -webkit-mask: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 24px), transparent); mask: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 24px), transparent); }
+  .cenas::-webkit-scrollbar { display: none; }
+  .chat { height: 620px; max-height: 72vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0s !important; }
+}
+</style>
+
+<main class="pagina">
+  <header class="topo">
+    <p class="sobre">Protótipo · painel do Alex · não é o app ainda</p>
+    <h1>Cards da IA, próxima versão</h1>
+    <p class="lead">Nove situações da tua semana, cada uma com um card feito pro assunto. Toca numa cena, assiste e mexe no card — os botões, caixinhas e chaves funcionam.</p>
+    <nav class="cenas" id="cenas" role="tablist" aria-label="Cenas"></nav>
+  </header>
+
+  <section class="fone" aria-label="Chat de exemplo">
+    <div class="fone-topo"><span class="avatar" aria-hidden="true"></span>IA<small id="relogio-fone">08:20</small></div>
+    <div class="chat" id="chat" aria-live="polite"></div>
+    <div class="fone-campo" aria-hidden="true"><span>Pergunta ou fala algo…</span><i></i></div>
+  </section>
+
+  <aside class="notas">
+    <h2 id="notas-titulo">O que esse card faz</h2>
+    <ol id="notas-lista"></ol>
+    <p class="pergunta">Me diz por cena: <b>fica</b>, <b>muda</b> ou <b>tira</b> — e o que te incomodou, mesmo que seja só um detalhe. Se faltou alguma situação da tua vida, fala qual.</p>
+  </aside>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const reduz = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const svg = (d, extra = "") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
+  const I = {
+    brilho: svg('<path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'),
+    check: svg('<path d="m5 12.5 4.2 4L19 7"/>'),
+    checkGrosso: svg('<path d="m5 12.5 4.2 4L19 7"/>', 'stroke-width="3"'),
+    seta: svg('<path d="m9 6 6 6-6 6"/>', 'class="seta"'),
+    tarefa: svg('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/>'),
+    lapis: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>'),
+    relogio: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+    carro: svg('<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/><circle cx="7.5" cy="16" r="1.5"/><circle cx="16.5" cy="16" r="1.5"/>'),
+    alerta: svg('<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4M12 17h.01"/>', 'stroke-width="2"'),
+    ok: svg('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.7L16 9.5"/>', 'stroke-width="2"'),
+    desfazer: svg('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
+    sino: svg('<path d="M6 9a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>', 'stroke-width="2"'),
+    lista: svg('<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>', 'stroke-width="2"'),
+    enviar: svg('<path d="m3 11 18-8-8 18-2.5-8.5L3 11Z"/>'),
+    aviao: svg('<path d="M10.5 13.5 3 11l1.5-1.5 8 1L17 6a2 2 0 0 1 3 3l-4.5 4.5 1 8L15 23l-2.5-7.5"/>'),
+    aviaoCheio: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.6 11.2 14 8.4V3.6a1.6 1.6 0 0 0-3.2 0v4.8L3.4 11.2a.9.9 0 0 0-.6.9v1.1l8 -1.7v5l-2.3 1.7v1.4l3.5-.9 3.5.9v-1.4L13.2 16.5v-5l8 1.7v-1.1a.9.9 0 0 0-.6-.9z" transform="rotate(90 12 12)"/></svg>',
+    coracao: svg('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/>'),
+    lua: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>'),
+    pasta: svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
+    presente: svg('<rect x="3.5" y="9" width="17" height="11" rx="2"/><path d="M2.5 9h19M12 9v11M12 9c-2-4-7-4-5 0M12 9c2-4 7-4 5 0"/>'),
+    sacola: svg('<path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>'),
+    termometro: svg('<path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0Z"/>'),
+    pin: svg('<path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/>'),
+    camisa: svg('<path d="M8 4 4 6.5 5.5 10 7 9.5V20h10V9.5l1.5.5L20 6.5 16 4a4 4 0 0 1-8 0Z"/>'),
+    olho: svg('<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z"/><circle cx="12" cy="12" r="2.5"/>'),
+    seta_vento: '<svg class="vento" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V4M6 10l6-6 6 6"/></svg>',
+  };
+  document.querySelector(".fone-topo .avatar").innerHTML = I.brilho;
+  document.querySelector(".fone-campo i").innerHTML = I.enviar;
+
+  const chat = document.getElementById("chat");
+  let token = 0;
+  class Cancelada extends Error {}
+  const esperar = (ms, t) => new Promise((ok, falha) => setTimeout(() => (t === token ? ok() : falha(new Cancelada())), reduz ? Math.min(ms, 40) : ms));
+  const quadro = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const rolarFim = () => chat.scrollTo({ top: chat.scrollHeight, behavior: reduz ? "auto" : "smooth" });
+  const el = (tag, cls, html) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html != null) e.innerHTML = html;
+    return e;
+  };
+  function contar(alvo, de, ate, ms, fmt) {
+    const t0 = performance.now();
+    const d = reduz ? 0 : ms;
+    const passo = (agora) => {
+      const k = d ? Math.min(1, (agora - t0) / d) : 1;
+      alvo.textContent = fmt(de + (ate - de) * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(passo);
+    };
+    requestAnimationFrame(passo);
+  }
+
+  async function falaDele(texto, t) {
+    chat.append(el("div", "msg-eu", texto));
+    rolarFim();
+    await esperar(500, t);
+  }
+  function novaResposta() {
+    const r = el("div", "resposta", `<span class="avatar" aria-hidden="true">${I.brilho}</span><div class="corpo"></div>`);
+    chat.append(r);
+    return r.querySelector(".corpo");
+  }
+  async function pensar(corpo, passos, resumo, t) {
+    const p = el("div", "pensando", '<span class="orbita" aria-hidden="true"><i></i><i></i><i></i></span><span class="pensando-texto"></span>');
+    corpo.append(p);
+    rolarFim();
+    const caixa = p.querySelector(".pensando-texto");
+    for (const passo of passos) {
+      caixa.replaceChildren(el("span", "passo-atual", passo));
+      await esperar(900, t);
+    }
+    p.replaceWith(el("details", "recibo", `<summary>${I.check}<span>${resumo}</span>${I.seta}</summary><ol>${passos.map((x) => `<li>${x}</li>`).join("")}</ol>`));
+  }
+  // partes: "texto normal", ["texto forte"] ou "<html pronto>"
+  async function digitar(corpo, partes, t) {
+    const p = el("p", "texto");
+    corpo.append(p);
+    for (const parte of partes) {
+      const forte = Array.isArray(parte);
+      const texto = forte ? parte[0] : parte;
+      if (texto.startsWith("<")) {
+        p.insertAdjacentHTML("beforeend", texto + " ");
+        await esperar(160, t);
+        continue;
+      }
+      for (const w of texto.split(" ").filter(Boolean)) {
+        p.append(el("span", "palavra" + (forte ? " forte" : ""), w), " ");
+        await esperar(32 + w.length * 7, t);
+      }
+    }
+    rolarFim();
+  }
+  async function abrirCard(corpo, cor, html, t) {
+    const mola = el("div", "mola", `<div><article class="card" style="--cor:${cor}">${html}</article></div>`);
+    corpo.append(mola);
+    await quadro();
+    mola.classList.add("aberta");
+    setTimeout(rolarFim, 380);
+    await esperar(650, t);
+    return mola.querySelector(".card");
+  }
+  function sugestoes(corpo, lista) {
+    const caixa = el("div", "sugestoes");
+    lista.forEach(([icone, rotulo, acao], i) => {
+      const b = el("button", "sugestao", `${icone}${rotulo}`);
+      b.type = "button";
+      b.style.animationDelay = `${i * 90}ms`;
+      b.addEventListener("click", () => {
+        caixa.remove();
+        acao();
+      });
+      caixa.append(b);
+    });
+    corpo.append(caixa);
+    setTimeout(rolarFim, 120);
+  }
+  const pe = (direita) => `<footer class="card-pe"><button class="desfazer" type="button">${I.desfazer}<span>Desfazer</span></button><span class="dir">${direita}</span></footer>`;
+  function topo(icone, selo, quando) {
+    return `<header class="card-topo"><span class="selo">${icone}${selo}</span><span class="quando">${quando}</span></header>`;
+  }
+  function decidir(card, status, botoes) {
+    const acoes = card.querySelector(".acoes");
+    botoes.forEach(([sel, classe, html, depois]) =>
+      acoes.querySelector(sel).addEventListener("click", () => {
+        acoes.classList.add("some");
+        status.className = `status ${classe}`;
+        status.innerHTML = `${classe === "ok" ? I.ok : I.check}<span class="troca-texto">${html}</span>`;
+        if (depois) depois();
+      })
+    );
+  }
+  function ligarChecklist(card, aoMarcar) {
+    card.querySelectorAll(".checklist li").forEach((li) =>
+      li.addEventListener("click", () => {
+        li.classList.toggle("marcado");
+        if (aoMarcar) aoMarcar(li);
+      })
+    );
+  }
+  const quieto = (fn) => async (...a) => {
+    try {
+      await fn(...a);
+    } catch (e) {
+      if (!(e instanceof Cancelada)) throw e;
+    }
+  };
+
+  // ================================================================ 1. voo
+  // O avião anda pela rota até a fração "alvo" (0 = SSBL, 1 = volta). Tocar num aeródromo
+  // chama de novo: ele vira e vai (ou volta) até lá, com a mesma curva suave.
+  function criarVoo(card) {
+    const meio = card.querySelector(".rota-meio");
+    const caminho = meio.querySelector(".arco-base");
+    const feito = meio.querySelector(".arco-feito");
+    const aviao = meio.querySelector(".aviao");
+    const pernas = [...card.querySelectorAll(".perna")];
+    const vb = meio.querySelector("svg").viewBox.baseVal;
+    const L = caminho.getTotalLength();
+    // fração do caminho em cada parada (x do ponto: 10, 111, 204, 290 no viewBox)
+    const fracaoEm = (x) => {
+      let lo = 0, hi = L;
+      for (let i = 0; i < 30; i++) {
+        const m = (lo + hi) / 2;
+        if (caminho.getPointAtLength(m).x < x) lo = m; else hi = m;
+      }
+      return lo / L;
+    };
+    const paradas = [0, fracaoEm(111), fracaoEm(204), 1];
+    let atual = 0, sentido = 1, quadroId = 0;
+    const pintar = (e, girando, ang) => {
+      const r = meio.getBoundingClientRect();
+      const sx = r.width / vb.width, sy = r.height / vb.height;
+      const p = caminho.getPointAtLength(L * e);
+      aviao.style.transform = `translate(${p.x * sx}px, ${p.y * sy}px) rotate(${girando ? ang : sentido > 0 ? 0 : 180}deg)`;
+      feito.style.strokeDashoffset = String(1 - e);
+      pernas.forEach((pn, i) => { if (e >= (paradas[i] + paradas[i + 1]) / 2) pn.classList.add("viu"); });
+    };
+    function irPara(alvo, msPorRota = 3200) {
+      cancelAnimationFrame(quadroId);
+      const de = atual;
+      if (Math.abs(alvo - de) < 0.001) return;
+      sentido = alvo > de ? 1 : -1;
+      const dur = reduz ? 1 : Math.max(650, Math.abs(alvo - de) * msPorRota);
+      const t0 = performance.now();
+      const passo = (agora) => {
+        const k = Math.min(1, (agora - t0) / dur);
+        const c = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        atual = de + (alvo - de) * c;
+        const r = meio.getBoundingClientRect();
+        const sx = r.width / vb.width, sy = r.height / vb.height;
+        const p = caminho.getPointAtLength(L * atual);
+        const q = caminho.getPointAtLength(Math.min(L, Math.max(0, L * atual + 0.5 * sentido)));
+        const ang = (Math.atan2((q.y - p.y) * sy, (q.x - p.x) * sx) * 180) / Math.PI;
+        pintar(atual, k < 1, ang);
+        if (k < 1) quadroId = requestAnimationFrame(passo);
+      };
+      quadroId = requestAnimationFrame(passo);
+    }
+    pintar(0, false, 0);
+    return { irPara, paradas };
+  }
+  async function cenaVoo(t) {
+    relogio("10:05");
+    await falaDele("sábado voo às 14h, vou pra Navegantes, depois Floripa e volto", t);
+    const corpo = novaResposta();
+    await pensar(corpo, ["Saindo de Blumenau, como sempre…", "Medindo as pernas em milhas náuticas…", "Olhando o tempo na rota no sábado…", "Calculando a hora de sair de Brusque…"], "Preparou o voo · 4 passos", t);
+    await digitar(corpo, ["Marcado:", ["sábado às 14h,"], "saindo de Blumenau — Navegantes, Floripa e volta. São", ["~129 NM."], "Pra estar lá 45 min antes, sai de casa às", ["12h10"], "(uns 65 min até o aeroclube)."], t);
+    const card = await abrirCard(
+      corpo,
+      "var(--voo)",
+      `${topo(I.aviao, "Voo", "sábado · em 3 dias")}
+       <div class="rota-multi">
+         <div class="rota-meio"><svg class="rota-arco" viewBox="0 0 300 40" preserveAspectRatio="none"><path class="arco-base" d="${ROTA_D}"/><path class="arco-feito" pathLength="1" d="${ROTA_D}"/></svg><span class="aviao">${I.aviaoCheio}</span></div>
+         <span class="perna" style="left:20.2%">24 NM</span><span class="perna" style="left:52.5%">48 NM</span><span class="perna" style="left:82.3%">58 NM</span>
+         <button class="parada-voo ini" type="button" style="left:0" data-i="0"><b>SSBL</b><span>Blumenau</span></button>
+         <button class="parada-voo" type="button" style="left:37%" data-i="1"><b>SBNF</b><span>Navegantes</span></button>
+         <button class="parada-voo" type="button" style="left:68%" data-i="2"><b>SBFL</b><span>Floripa</span></button>
+         <button class="parada-voo fim" type="button" style="left:100%" data-i="3"><b>SSBL</b><span>volta</span></button>
+       </div>
+       <div class="rota-total"><span>total <span class="mono">~129 NM</span></span><span>em voo <span class="mono">~1h30</span></span><span>3 pernas</span></div>
+       <p class="voo-info" aria-live="polite">${I.aviao}<span class="troca-texto">Toca num aeródromo pra ver a perna.</span></p>
+       <div class="etapas cascata">
+         <div class="etapa"><span class="rotulo">Saída</span><b>12:10</b></div>
+         <div class="etapa"><span class="rotulo">Chega</span><b>13:15</b></div>
+         <div class="etapa destaque"><span class="rotulo">Decola</span><b>14:00</b></div>
+         <div class="etapa"><span class="rotulo">Pousa</span><b>~16:00</b></div>
+       </div>
+       <div class="tempo"><span>${I.seta_vento}<span class="mono">090° 8 kt</span></span><span>teto <span class="mono">4.500 ft</span></span><span>visib. <span class="mono">10 km+</span></span><span class="vfr">VFR ✓</span></div>
+       <div class="picote"></div>
+       <div class="horas"><div class="horas-topo"><span>Horas de voo</span><span class="mono" data-h>62,0 h</span><span class="meta-h">meta <span class="mono">150 h</span></span></div><div class="barra" style="--ja:41.3%;--novo:1%"><i class="ja"></i><i class="novo"></i></div></div>
+       ${pe("chegar 45 min antes")}`,
+      t
+    );
+    const voo = criarVoo(card);
+    const INFO = [
+      "<b>Blumenau</b> · decola <span class=\"mono\">14:00</span> · chega no aeroclube <span class=\"mono\">13:15</span>",
+      "<b>Navegantes</b> · perna 1, <span class=\"mono\">24 NM</span> · pousa <span class=\"mono\">~14:20</span>, decola <span class=\"mono\">14:35</span>",
+      "<b>Floripa</b> · perna 2, <span class=\"mono\">48 NM</span> · pousa <span class=\"mono\">~15:10</span>, decola <span class=\"mono\">15:25</span>",
+      "<b>Volta pra Blumenau</b> · perna 3, <span class=\"mono\">58 NM</span> · pousa <span class=\"mono\">~16:00</span>",
+    ];
+    const botoesParada = [...card.querySelectorAll(".parada-voo")];
+    const pernasEl = [...card.querySelectorAll(".perna")];
+    const info = card.querySelector(".voo-info");
+    const escolher = (i) => {
+      botoesParada.forEach((b, j) => b.classList.toggle("atual", j === i));
+      pernasEl.forEach((pn, j) => pn.classList.toggle("foco", j === i - 1));
+      voo.irPara(voo.paradas[i]);
+      info.innerHTML = `${I.aviao}<span class="troca-texto">${INFO[i]}</span>`;
+    };
+    botoesParada.forEach((b) => b.addEventListener("click", () => escolher(Number(b.dataset.i))));
+    voo.irPara(1);
+    await esperar(500, t);
+    card.querySelector(".etapas").classList.add("entrou");
+    await esperar(500, t);
+    card.querySelector(".vento").style.transform = "rotate(90deg)";
+    await esperar(700, t);
+    card.querySelector(".barra").classList.add("cheia");
+    contar(card.querySelector("[data-h]"), 62, 63.4, 1100, (v) => `${v.toFixed(1).replace(".", ",")} h`);
+  }
+
+  // ================================================================ 2. date
+  async function cenaDate(t) {
+    relogio("21:40");
+    await falaDele("sábado tenho date com a Júlia às 20h no Lume", t);
+    const corpo = novaResposta();
+    await pensar(corpo, ["Vendo teu sábado inteiro…", "Olhando o tempo à noite…", "Separando o que fazer antes…"], "Preparou o sábado · 3 passos", t);
+    await digitar(corpo, ["Anotado:", ["Júlia, sábado às 20h"], "no Lume. O voo acaba ~16h, dá tempo de descansar. Começa a se arrumar às", ["18h50"], "pra sair 19h35 — e leva jaqueta, vai fazer 14°."], t);
+    const card = await abrirCard(
+      corpo,
+      "var(--date)",
+      `${topo(I.coracao, "Date", "sábado · 20:00")}
+       <div class="date-topo"><svg class="coracao" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path pathLength="1" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/></svg>
+         <div class="date-quem"><h3 class="hero">Júlia · Lume</h3><p>em 3 dias · 15 min de carro</p></div></div>
+       <div class="noite-linha" style="--l1:color-mix(in srgb, var(--date) 45%, transparent);--l2:var(--date)">
+         <div class="parada destaque"><i></i><b>18:50</b>se arrumar</div>
+         <div class="parada"><i></i><b>19:35</b>sair</div>
+         <div class="parada"><i></i><b>20:00</b>Lume</div>
+       </div>
+       <div class="faixa-info cascata"><span class="ficha">${I.termometro}<span class="mono">14°</span> à noite</span><span class="ficha">${I.camisa}leva jaqueta</span><span class="ficha">${I.pin}Lume</span></div>
+       <span class="rotulo">Antes do date</span>
+       <ul class="checklist">
+         <li><span class="caixinha">${I.checkGrosso}</span><span class="item-txt">Reservar a mesa<small>sexta tá cheio — melhor amanhã</small></span><span class="quando-item">amanhã</span></li>
+         <li><span class="caixinha">${I.checkGrosso}</span><span class="item-txt">Cortar o cabelo<span class="etiqueta">encaixei</span></span><span class="quando-item">sex 17h</span></li>
+         <li><span class="caixinha">${I.checkGrosso}</span><span class="item-txt">Lavar o carro</span><span class="quando-item">sáb 10h</span></li>
+       </ul>
+       ${pe("aviso 18:40 pra começar")}`,
+      t
+    );
+    await esperar(150, t);
+    card.querySelector(".coracao").classList.add("desenhou");
+    await esperar(500, t);
+    card.querySelector(".faixa-info").classList.add("entrou");
+    card.querySelector(".noite-linha").classList.add("acesa");
+    ligarChecklist(card);
+  }
+
+  // ================================================================ 3. balada
+  async function cenaBalada(t) {
+    relogio("18:10");
+    await falaDele("sexta vou pra balada com a galera", t);
+    const corpo = novaResposta();
+    await pensar(corpo, ["Olhando tua sexta e teu sábado…", "Teu voo é sábado 14h…", "Calculando quanto dá pra dormir…"], "Planejou a noite · 3 passos", t);
+    await digitar(corpo, ["Boa! Só um detalhe: tu", ["voa sábado às 14h."], "Voltando até as", ["3h,"], "dá 8h de sono e tu voa descansado. Começa a se arrumar às", ["20h15."]], t);
+    const estrelas = Array.from({ length: 16 }, (_, i) => `<i class="estrela" style="left:${(i * 37) % 100}%;top:${(i * 53) % 70}%;animation-delay:${(i % 5) * 0.4}s"></i>`).join("");
+    const card = await abrirCard(
+      corpo,
+      "var(--noite)",
+      `<div class="ceu-noite">${estrelas}<span class="lua"></span>
+         <svg class="cidade" viewBox="0 0 300 30" preserveAspectRatio="none"><path fill="#07060c" d="M0 30V18h14V9h10v8h8V4h12v14h10v-6h16v18h6V12h12v18h10V7h14v23h8V15h12v15h10V10h8v6h12V2h10v28h10V16h14v14h8V8h12v22h6V13h10v17h12V6h10v24z"/></svg>
+         <div class="ceu-titulo"><b>Sexta à noite</b><span>em 2 dias · com a galera</span></div></div>
+       <div class="noite-linha quatro">
+         <div class="parada destaque"><i></i><b>20:15</b>se arrumar</div>
+         <div class="parada"><i></i><b>21:00</b>jantar</div>
+         <div class="parada"><i></i><b>23:00</b>sai de Uber</div>
+         <div class="parada"><i></i><b>03:00</b>volta de Uber</div>
+       </div>
+       <div class="sono"><div class="sono-topo">${I.lua}<strong>8 h de sono</strong><span class="mono">03h → 11h</span></div><div class="sono-barra"><i></i></div><div class="sono-marcas"><span>03:00</span><span>11:00</span><span>voo 14:00</span></div></div>
+       <div class="chave ligada" role="switch" aria-checked="true" tabindex="0"><span>Voltar de Uber<small>te lembro às 2h30 de chamar</small></span><span class="trilho-chave"></span></div>
+       ${pe("Uber ~R$ 63 · teto R$ 150")}`,
+      t
+    );
+    await esperar(150, t);
+    card.querySelector(".ceu-noite").classList.add("acendeu");
+    await esperar(400, t);
+    card.querySelector(".noite-linha").classList.add("acesa");
+    await esperar(900, t);
+    card.querySelector(".sono").classList.add("encheu");
+    const chave = card.querySelector(".chave");
+    chave.addEventListener("click", () => {
+      const ligada = chave.classList.toggle("ligada");
+      chave.setAttribute("aria-checked", String(ligada));
+      chave.querySelector("small").textContent = ligada ? "te lembro às 2h30 de chamar" : "ok — então nada de beber, combinado?";
+    });
+  }
+
+  // ================================================================ 4. tabelionato
+  async function cenaTabelionato(t) {
+    relogio("16:45");
+    await falaDele("amanhã tenho que ir no tabelionato reconhecer firma do contrato", t);
+    const corpo = novaResposta();
+    await pensar(corpo, ["Vendo o que precisa levar…", "Achando o melhor horário…"], "Separou a lista · 2 passos", t);
+    await digitar(corpo, ["Coloquei pra", ["amanhã às 9h"], "— cedo a fila é menor. Separei o que levar; vai marcando conforme for pondo na pasta:"], t);
+    const card = await abrirCard(
+      corpo,
+      "var(--carimbo)",
+      `${topo(I.pasta, "Tabelionato", "amanhã · 09:00")}
+       <div class="pasta-topo"><svg class="pasta" viewBox="0 0 50 42" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 9a3 3 0 0 1 3-3h11l4 4h23a3 3 0 0 1 3 3v23a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3Z" fill="color-mix(in srgb, currentColor 12%, transparent)"/><path d="M3 15h44"/></svg>
+         <div><h3 class="hero">Reconhecer firma do contrato</h3><span class="contador-pasta" data-conta>0 de 3 na pasta</span></div></div>
+       <div class="carimbo-area"><ul class="checklist">
+         <li><span class="caixinha">${I.checkGrosso}</span><span class="item-txt">RG ou CNH original<small>cópia não vale</small></span></li>
+         <li><span class="caixinha">${I.checkGrosso}</span><span class="item-txt">Contrato impresso<small>todas as vias</small></span></li>
+         <li><span class="caixinha">${I.checkGrosso}</span><span class="item-txt">Pix ou dinheiro pra taxa</span></li>
+       </ul><div class="carimbo">Pasta<br>pronta<small>15·out</small></div></div>
+       <div class="faixa-info"><span class="ficha">${I.relogio}abre <span class="mono">9h–17h</span> · almoço 12h–13h</span><span class="ficha">${I.relogio}espera <span class="mono">~20 min</span></span></div>
+       ${pe("aviso 8:30")}`,
+      t
+    );
+    const pasta = card.querySelector(".pasta");
+    const conta = card.querySelector("[data-conta]");
+    const carimbo = card.querySelector(".carimbo");
+    ligarChecklist(card, (li) => {
+      if (li.classList.contains("marcado")) {
+        li.classList.remove("voou");
+        void li.offsetWidth;
+        li.classList.add("voou");
+        pasta.classList.remove("recebeu");
+        void pasta.offsetWidth;
+        pasta.classList.add("recebeu");
+      }
+      const n = card.querySelectorAll(".checklist li.marcado").length;
+      conta.textContent = n === 3 ? "tudo na pasta ✓" : `${n} de 3 na pasta`;
+      if (n === 3 && !carimbo.classList.contains("bateu")) {
+        carimbo.classList.add("bateu");
+        card.classList.add("tremeu");
+      } else if (n < 3) {
+        carimbo.classList.remove("bateu");
+        card.classList.remove("tremeu");
+      }
+    });
+  }
+
+  // ================================================================ 5. presente
+  async function cenaPresente(t) {
+    relogio("12:30");
+    await falaDele("dia 22 é aniversário da minha mãe, preciso de presente", t);
+    const corpo = novaResposta();
+    await pensar(corpo, ["Lembrando o que tu já me contou dela…", "Vendo prazo de entrega…"], "Juntou 3 ideias · 2 passos", t);
+    await digitar(corpo, ["Faltam", ["8 dias."], "Se for comprar pela internet, compra até", ["dia 18"], "pra chegar a tempo. Separei umas ideias do que tu já me falou dela:"], t);
+    const card = await abrirCard(
+      corpo,
+      "var(--presente)",
+      `${topo(I.presente, "Presente", "quinta, 22 out")}
+       <div class="presente-topo">
+         <svg class="caixa-presente" viewBox="0 0 64 64"><g><path class="brilho" d="M50 8l1.5 4 4 1.5-4 1.5L50 19l-1.5-4-4-1.5 4-1.5z"/><path class="brilho" d="M14 6l1 2.6 2.6 1-2.6 1L14 13l-1-2.4-2.6-1 2.6-1z"/><path class="brilho" d="M58 26l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></g>
+           <rect class="base" x="11" y="31" width="42" height="27" rx="4"/><rect class="fita" x="29" y="31" width="6" height="27"/>
+           <g class="tampa"><rect x="8" y="22" width="48" height="10" rx="3"/><rect class="fita" x="29" y="22" width="6" height="10"/><path class="laco" d="M32 22c-5-9-14-7-10-1M32 22c5-9 14-7 10-1"/></g></svg>
+         <div><div class="contagem" data-dias>8<small>dias pro aniversário da mãe</small></div></div></div>
+       <div class="prazos">
+         <div class="linha-p"><i></i></div>
+         <div class="marco agora" style="left:0"><i></i><b>hoje</b></div>
+         <div class="marco limite" style="left:50%"><i></i><b>18</b>comprar até</div>
+         <div class="marco fim" style="left:100%"><i></i><b>22</b>aniversário</div>
+       </div>
+       <span class="rotulo">Do que tu já me contou</span>
+       <div class="ideias">
+         <button class="ideia" type="button"><b>Cafeteira nova</b><small>“a dela vive vazando” — tu disse em agosto</small><span class="preco">~R$ 250</span></button>
+         <button class="ideia" type="button"><b>Kit de jardinagem</b><small>ela começou a plantar temperos</small><span class="preco">~R$ 120</span></button>
+         <button class="ideia" type="button"><b>Jantar no Ponto Certo</b><small>o lugar favorito dela</small><span class="preco">~R$ 200</span></button>
+       </div>
+       <p class="status"></p>
+       ${pe("aviso dia 16 pra comprar")}`,
+      t
+    );
+    await esperar(200, t);
+    card.querySelector(".caixa-presente").classList.add("abriu");
+    await esperar(400, t);
+    card.querySelector(".prazos").classList.add("andou");
+    const ideias = card.querySelector(".ideias");
+    const status = card.querySelector(".status");
+    ideias.querySelectorAll(".ideia").forEach((b) =>
+      b.addEventListener("click", () => {
+        ideias.querySelectorAll(".ideia").forEach((x) => x.classList.toggle("escolhida", x === b));
+        ideias.classList.add("escolheu");
+        status.className = "status ok";
+        status.innerHTML = `${I.ok}<span class="troca-texto">Guardei: <b>${b.querySelector("b").textContent.toLowerCase()}</b>. Te lembro dia 16 de comprar.</span>`;
+      })
+    );
+  }
+
+  // ================================================================ 6. mercado
+  async function cenaMercado(t) {
+    relogio("18:42");
+    await falaDele("gastei 87 no mercado", t);
+    const corpo = novaResposta();
+    await pensar(corpo, ["Registrando o gasto…", "Somando o mercado do mês…"], "Registrou · 2 passos", t);
+    await digitar(corpo, ["Anotado:", ["R$ 87 no mercado."], "No mês tu tá em", ["R$ 642 de 800"], "— sobram R$ 158 pra 17 dias, uns R$ 9 por dia."], t);
+    const alturas = [20, 0, 55, 10, 0, 35, 0, 15, 70, 0, 25, 0, 40, 85];
+    const card = await abrirCard(
+      corpo,
+      "var(--gasto)",
+      `${topo(I.sacola, "Gasto", "hoje · 18:42")}
+       <div class="impressora"><div class="fresta"><div class="cupom">
+         <div class="c">MERCADO</div><hr>
+         <div class="l"><span>14/10 18:42</span><span>débito</span></div>
+         <div class="l"><span>categoria</span><span>mercado</span></div><hr>
+         <div class="l total"><span>TOTAL</span><span>R$ 87,00</span></div>
+       </div></div></div>
+       <div class="mes-categoria">
+         <div class="mes-topo"><span>Mercado · outubro</span><span class="de"><span class="mono" data-mes>R$ 555</span> de 800</span></div>
+         <div class="barra" style="--ja:69.4%;--novo:10.9%"><i class="ja"></i><i class="novo"></i></div>
+       </div>
+       <div class="dias">${alturas.map((h, i) => `<i class="${i === alturas.length - 1 ? "hoje" : ""}" style="--h:${Math.max(6, h)}%;transition-delay:${i * 35}ms"></i>`).join("")}</div>
+       ${pe("mudar categoria")}`,
+      t
+    );
+    await esperar(150, t);
+    card.querySelector(".impressora").classList.add("imprimiu");
+    await esperar(1200, t);
+    card.querySelector(".barra").classList.add("cheia");
+    contar(card.querySelector("[data-mes]"), 555, 642, 1100, (v) => `R$ ${Math.round(v)}`);
+    await esperar(300, t);
+    card.querySelector(".dias").classList.add("cresceu");
+  }
+
+  // ================================================================ 7. consulta com aperto
+  async function cenaConsulta(t) {
+    relogio("08:20");
+    await falaDele("9:30 tricologista", t);
+    const corpo = novaResposta();
+    await pensar(corpo, ["Olhando teu dia de hoje…", "Calculando o trajeto até a clínica…", "O Mikael às 9h ficou apertado…"], "Olhou teu dia · 3 passos", t);
+    await digitar(corpo, ["Marquei o", ["tricologista às 9h30."], "Só que pra chegar lá tu sai às 9h05 — o", ["Mikael às 9h"], "fica em cima. Quer que eu passe ele pras 8h30?"], t);
+    const card = await abrirCard(
+      corpo,
+      "var(--tarefa)",
+      `${topo(I.tarefa, "Tarefa nova", "hoje · em 1h10")}
+       <h3 class="hero">Consulta com tricologista</h3>
+       <p class="meta"><span>${I.relogio}<span class="mono">09:30 – 10:30</span></span><span>${I.carro}sair 9h05 · 25 min</span></p>
+       <div class="lupa" aria-label="Das 8h às 11h">
+         <div class="grade"></div>
+         <span class="tique" style="left:0">08h</span><span class="tique" style="left:33.33%">09h</span><span class="tique" style="left:66.66%">10h</span><span class="tique ultimo" style="left:100%">11h</span>
+         <div class="faixa-aperto"></div>
+         <span class="agora-linha" style="--ini:20"></span>
+         <div class="bloco l1 mikael rotulo-fora" style="--ini:60;--dur:30"><span>Mikael</span></div>
+         <div class="bloco l2 trajeto" style="--ini:65;--dur:25">${I.carro}</div>
+         <div class="bloco l2 nova" style="--ini:90;--dur:60"><span>Tricologista</span></div>
+       </div>
+       <p class="status"></p>
+       <div class="acoes" hidden><button class="acao primaria" type="button" data-sim>Passar Mikael pras 8h30</button><button class="acao" type="button" data-nao>Deixa assim</button></div>
+       ${pe("6 tarefas hoje")}`,
+      t
+    );
+    const lupa = card.querySelector(".lupa");
+    const status = card.querySelector(".status");
+    lupa.classList.add("viva");
+    await esperar(200, t);
+    card.querySelector(".mikael").classList.add("entrou");
+    await esperar(350, t);
+    card.querySelector(".bloco.nova").classList.add("entrou");
+    await esperar(650, t);
+    card.querySelector(".trajeto").classList.add("entrou");
+    await esperar(700, t);
+    lupa.classList.add("aperto");
+    status.className = "status alerta";
+    status.innerHTML = `${I.alerta}<span class="troca-texto">A saída das 9h05 pega o Mikael (9h–9h30).</span>`;
+    const acoes = card.querySelector(".acoes");
+    acoes.hidden = false;
+    acoes.classList.add("aparece");
+    rolarFim();
+    decidir(card, status, [
+      ["[data-sim]", "ok", "Mikael às 8h30. Sobram 35 min pra sair com calma.", () => { lupa.classList.remove("aperto"); card.querySelector(".mikael").style.setProperty("--ini", "30"); }],
+      ["[data-nao]", "", "Deixei como estava — te aviso às 8h55 pra não atrasar.", null],
+    ]);
+  }
+
+  // ================================================================ 8. alteração
+  function relogioHTML(hora) {
+    return [...hora].map((c) => (/\d/.test(c) ? `<span class="digito"><span class="rolo" style="transform:translateY(-${c}em)">${"0123456789".split("").map((d) => `<b>${d}</b>`).join("")}</span></span>` : `<span>${c}</span>`)).join("");
+  }
+  function rolarRelogio(caixa, hora) {
+    const rolos = caixa.querySelectorAll(".rolo");
+    [...hora.replace(":", "")].forEach((d, i) => {
+      rolos[i].style.transitionDelay = `${i * 70}ms`;
+      rolos[i].style.transform = `translateY(-${d}em)`;
+    });
+  }
+  async function cenaAlteracao(t) {
+    relogio("16:20");
+    await falaDele("muda o saque pra 5 mil e coloca às 10h amanhã", t);
+    const corpo = novaResposta();
+    await pensar(corpo, ["Achando o saque na Viacredi…", "Trocando valor e horário…"], "Achou a tarefa · 2 passos", t);
+    await digitar(corpo, ["Feito:", ["5 mil,"], "amanhã às", ["10h."]], t);
+    const card = await abrirCard(
+      corpo,
+      "var(--edicao)",
+      `${topo(I.lapis, "Alterado", "amanhã")}
+       <p class="frase">Sacar <span class="troca"><s class="velho">10</s><b class="novo">5</b></span> mil em dinheiro na Viacredi</p>
+       <div class="campo-linha"><span class="rotulo">Hora</span><span class="relogio">${relogioHTML("09:00")}</span><span class="antes">09:00</span></div>
+       <p class="nota-volta" hidden></p>
+       ${pe("volta tudo como era")}`,
+      t
+    );
+    await esperar(450, t);
+    card.classList.add("trocado");
+    rolarRelogio(card.querySelector(".relogio"), "10:00");
+    const botao = card.querySelector(".desfazer");
+    const nota = card.querySelector(".nota-volta");
+    let trocado = true;
+    botao.addEventListener("click", () => {
+      trocado = !trocado;
+      card.classList.toggle("trocado", trocado);
+      rolarRelogio(card.querySelector(".relogio"), trocado ? "10:00" : "09:00");
+      botao.querySelector("span").textContent = trocado ? "Desfazer" : "Refazer";
+      nota.hidden = false;
+      nota.className = "nota-volta aparece";
+      nota.textContent = trocado ? "De novo: 5 mil às 10h." : "Voltou: 10 mil às 9h.";
+    });
+  }
+
+  // ================================================================ 9. concluir
+  async function cenaConcluir(t) {
+    relogio("10:20");
+    await falaDele("já fui no tricologista", t);
+    const corpo = novaResposta();
+    await pensar(corpo, ["Marcando a consulta como feita…"], "Concluiu 1 tarefa", t);
+    await digitar(corpo, ["Boa! Metade do dia andou. A próxima é a", ["concreteira ao meio-dia"], "— dá tempo de sobra."], t);
+    const C = 2 * Math.PI * 22;
+    const card = await abrirCard(
+      corpo,
+      "var(--ok)",
+      `${topo(I.check, "Feito", "10:20")}
+       <div class="feito-linha"><svg class="check" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="16"/><path d="m11.5 18.5 4.5 4.3 8.5-9"/></svg><span class="feito-titulo"><span class="risco">Consulta com tricologista</span></span></div>
+       <div class="dia-progresso"><span class="anel-num"><svg class="anel" viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" fill="none" stroke="rgba(214,232,245,.1)" stroke-width="5"/><circle class="cheio" cx="26" cy="26" r="22" fill="none" stroke="var(--ok)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${(C * (1 - 2 / 6)).toFixed(2)}"/></svg><b class="num">2/6</b></span><div><strong>3 de 6 hoje</strong><span>Tá no ritmo — antes do almoço que tu costuma travar.</span></div></div>
+       <div class="proxima"><span class="olho">Próxima</span><span class="tit">Checar resposta da concreteira</span><span class="falta"><span class="mono">12:00</span><span class="trilho"><i></i></span><span>em 1h40</span></span></div>
+       ${pe("reabre a consulta")}`,
+      t
+    );
+    await esperar(150, t);
+    card.classList.add("feito");
+    card.querySelector(".anel .cheio").setAttribute("stroke-dashoffset", (C * (1 - 3 / 6)).toFixed(2));
+    setTimeout(() => (card.querySelector(".num").textContent = "3/6"), reduz ? 0 : 1100);
+    await esperar(1300, t);
+    card.querySelector(".proxima").classList.add("entrou");
+    await esperar(900, t);
+    sugestoes(corpo, [
+      [I.sino, "Lembrar 15 min antes", quieto(async () => {
+        await falaDele("me lembra 15 min antes", t);
+        const c = novaResposta();
+        await pensar(c, ["Agendando o aviso…"], "Aviso marcado", t);
+        await digitar(c, ["Fechado, te chamo às", `<span class="pilula">${I.sino}11:45</span>`, "pra dar tempo."], t);
+      })],
+      [I.lista, "O que falta hoje?", quieto(async () => {
+        await falaDele("o que falta hoje?", t);
+        const c = novaResposta();
+        await pensar(c, ["Contando o que sobrou…"], "Leu tuas tarefas", t);
+        await digitar(c, ["Faltam três: a", ["concreteira ao meio-dia,"], "a", ["Viacredi às 14h"], "e a", ["academia às 18h."], "O maior buraco livre é das 14h45 às 18h."], t);
+      })],
+    ]);
+  }
+
+  // ================================================================ navegação
+  const CENAS = [
+    { nome: "Voo", cor: "var(--voo)", fn: cenaVoo, notas: [
+      "<b>Sempre sai de Blumenau</b> (SSBL) se tu não disser outra coisa, e a rota pode ter várias pernas: o aviãozinho percorre SSBL → SBNF → SBFL → SSBL e cada perna mostra as milhas náuticas.",
+      "<b>Hora de sair de casa</b> = decolagem − 45 min de antecedência − 65 min de Brusque até o aeroclube.",
+      "<b>Tempo do jeito que piloto lê</b>: vento com a seta girando pra direção, teto, visibilidade e o selo VFR.",
+      "<b>Picote de bilhete</b> separa a parte das horas: a barra até a meta de 150 h ganha o pedacinho desse voo.",
+      "<b>Toca num aeródromo</b> (SBNF, SBFL, os dois SSBL): o avião vira e volta (ou vai) até lá, a perna acende e aparece o horário de pouso e decolagem dali.",
+      "NM calculadas pela distância em linha reta entre os aeródromos (não precisa de API).",
+    ] },
+    { nome: "Date", cor: "var(--date)", fn: cenaDate, notas: [
+      "<b>Mais quente e mais calmo</b>: o coração se desenha e bate duas vezes, nada exagerado.",
+      "<b>Se arrumar → sair → chegar</b>, contando de trás pra frente a partir das 20h. O tempo de se arrumar aqui é chute (45 min) — no app vai usar o teu.",
+      "<b>Ela pensa no antes</b>: reservar mesa, cortar o cabelo (já encaixado sexta 17h) e lavar o carro — com caixinhas que tu marca ali mesmo.",
+      "<b>Liga as pontas da semana</b>: sabe que o voo acaba 15h30 e que vai esfriar à noite.",
+    ] },
+    { nome: "Balada", cor: "var(--noite)", fn: cenaBalada, notas: [
+      "<b>Céu de noite</b> com estrelas piscando e a lua subindo; a linha se arrumar → jantar → sair → voltar acende em neon.",
+      "<b>O pulo do gato</b>: ela lembra que tu voa sábado 14h e calcula as 8 h de sono se voltar até 3h.",
+      "<b>Chave “voltar de Uber”</b> que funciona — desliga pra ver o que ela responde.",
+    ] },
+    { nome: "Tabelionato", cor: "var(--carimbo)", fn: cenaTabelionato, notas: [
+      "<b>Pasta de documentos</b>: cada item que tu marca “voa” pra pasta, que pula.",
+      "<b>Marca os três</b> e um carimbo de cartório bate no card (com um tremidinho).",
+      "Horário de funcionamento e tempo de espera numa linha só. (Os horários aqui são de exemplo; no app viriam da busca.)",
+    ] },
+    { nome: "Presente", cor: "var(--presente)", fn: cenaPresente, notas: [
+      "<b>A caixa abre</b> com brilhinhos e a contagem dos dias fica grande.",
+      "<b>Linha de prazo</b>: hoje → comprar até dia 18 → aniversário dia 22.",
+      "<b>Ideias com base no que tu já contou</b> pra ela (as memórias da IA). Toca numa pra escolher.",
+    ] },
+    { nome: "Mercado", cor: "var(--gasto)", fn: cenaMercado, notas: [
+      "<b>Um cupom sai da impressora</b> (papel com a borda serrilhada) com o gasto.",
+      "<b>A barra do mês</b> ganha o pedaço novo e o valor conta de R$ 555 até R$ 642.",
+      "<b>Os gastos dos últimos 14 dias</b> sobem como barrinhas, hoje destacado — e ela já te diz quanto sobra por dia.",
+    ] },
+    { nome: "Tarefa com aperto", cor: "var(--tarefa)", fn: cenaConsulta, notas: [
+      "<b>A lupa das 3 horas</b> em volta da tarefa nova, com o trajeto listrado antes.",
+      "<b>Conflito vira pergunta com botão</b> em vez de ela mexer sozinha em outra tarefa (foi assim que o Mikael duplicou).",
+    ] },
+    { nome: "Alteração", cor: "var(--edicao)", fn: cenaAlteracao, notas: [
+      "<b>Só o pedaço que mudou se mexe</b>: o “10” sobe riscado e o “5” cai no lugar.",
+      "<b>A hora rola</b> tipo placar de aeroporto. Desfazer anima de volta.",
+    ] },
+    { nome: "Concluir", cor: "var(--ok)", fn: cenaConcluir, notas: [
+      "<b>Check que se desenha</b>, risco que corre pela frase, anel do dia andando.",
+      "<b>Já aponta a próxima</b> com quanto falta.",
+      "<b>Sugestões em botão</b> embaixo — e um lembrete simples vira só uma pílula na frase, sem card.",
+    ] },
+  ];
+  function relogio(h) {
+    document.getElementById("relogio-fone").textContent = h;
+  }
+  const nav = document.getElementById("cenas");
+  CENAS.forEach((c, i) => {
+    const b = el("button", "cena-btn", `<i aria-hidden="true"></i>${c.nome}`);
+    b.type = "button";
+    b.setAttribute("role", "tab");
+    b.style.setProperty("--c", c.cor);
+    b.addEventListener("click", () => tocar(i));
+    nav.append(b);
+  });
+  const repetir = el("button", "cena-btn repetir", "↻ Repetir");
+  repetir.type = "button";
+  repetir.style.setProperty("--c", "var(--gelo)");
+  nav.append(repetir);
+  const botoes = [...nav.querySelectorAll(".cena-btn:not(.repetir)")];
+  let atual = 0;
+  async function tocar(i) {
+    atual = i;
+    const t = ++token;
+    botoes.forEach((b, j) => b.setAttribute("aria-selected", String(j === i)));
+    botoes[i].scrollIntoView({ block: "nearest", inline: "center", behavior: reduz ? "auto" : "smooth" });
+    document.getElementById("notas-lista").innerHTML = CENAS[i].notas.map((n) => `<li><span>${n}</span></li>`).join("");
+    chat.replaceChildren();
+    try {
+      await esperar(250, t);
+      await CENAS[i].fn(t);
+    } catch (e) {
+      if (!(e instanceof Cancelada)) throw e;
+    }
+  }
+  repetir.addEventListener("click", () => tocar(atual));
+  const ROTA_D = "M10 32 Q60.5 -4 111 32 Q157.5 -4 204 32 Q247 -4 290 32";
+  const pedido = Number((location.hash || "").replace("#cena", "")) - 1;
+  tocar(pedido >= 0 && pedido < CENAS.length ? pedido : 0);
+})();
+</script>

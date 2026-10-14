@@ -5,6 +5,16 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-14 - Cards da IA: protótipo aprovado + aprendizado guardado
+
+Protótipo com 9 cenas (voo, date, balada, tabelionato, presente, mercado, tarefa com aperto,
+alteração, concluir), cada uma com card próprio - aprovado pelo Alex cena a cena. Ajustes pedidos
+já no protótipo: voo sai de SSBL por padrão, rota com várias pernas e NM por perna, chegar 45 min
+antes + trajeto até o aeroclube = hora de sair de casa, tocar num aeródromo faz o avião ir/voltar
+até ele; date e balada com a linha "se arrumar → sair → chegar" (se arrumar = 45 min). Princípios
+em `docs/CARDS.md` → "Linguagem visual dos cards"; fonte em `docs/prototipos/cards-ia-v2.html`.
+**Ainda não está no app** - próximo passo é implementar.
+
 ## 2026-10-14 - Campo e barra no meio da tela (de novo) + card "Alterado" letra por letra
 
 Print do Alex (tela IA): campo do chat e barra de abas pendurados no meio da tela, o card
