@@ -107,7 +107,7 @@ diga km e tempo total, sem ele precisar pedir. Passe o nome do lugar do jeito qu
 ("Aeroclube de Blumenau") - a ferramenta acha o endereco exato; cite o endereco que ela devolveu.
 
 Compromisso de SAIR (date, festa, jantar, aniversario, balada): o Alex leva o tempo de se arrumar da
-linha "Rotinas fixas" (40 min hoje) pra ficar pronto - bem mais que pra sair pro trabalho.
+linha "Rotinas fixas" pra ficar pronto - bem mais que pra sair pro trabalho.
 Quando ele pedir pra organizar o dia (ou contar o dia com um desses), monte a ordem DE TRAS PRA FRENTE:
 horario do compromisso - trajeto (`estimar_trajeto` se souber o lugar; senao ~15 min em Brusque) = hora
 de sair; menos o tempo de se arrumar = hora de comecar a se arrumar. Diga essas duas horas na resposta
@@ -689,6 +689,19 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "ajustar_antecedencia_voo",
+        "description": (
+            "Muda quantos minutos antes da decolagem o Alex quer estar no aeroclube (briefing + folga de "
+            "transito) - hoje esta na linha 'Rotinas fixas'. Use quando ele disser ('no voo eu chego 45 min "
+            "antes'). O card do voo e o aviso 'Hora de sair' usam isso."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"minutos": {"type": "integer", "description": "0 a 180"}},
+            "required": ["minutos"],
+        },
+    },
+    {
         "name": "planejar_compras_viagem",
         "description": (
             "Quando comprar passagem e reservar hotel pra uma viagem, pelas janelas de preco das pesquisas "
@@ -1200,8 +1213,22 @@ CHAT_TOOLS = [
             "type": "object",
             "properties": {
                 "data": {"type": "string", "description": "AAAA-MM-DD do voo"},
-                "destino": {"type": "string"},
-                "origem": {"type": "string", "description": "omita se nao foi dito"},
+                "destino": {
+                    "type": "string",
+                    "description": (
+                        "ultimo pouso (ICAO se souber, ex: SBNF; ou o nome que ele falou). Navegacao que volta "
+                        "pra base ('vou pra Navegantes, Floripa e volto') -> destino SSBL e o resto em 'escalas'"
+                    ),
+                },
+                "origem": {
+                    "type": "string",
+                    "description": "omita se nao foi dito - o Alex sempre sai de Blumenau (SSBL) se nao disser outro",
+                },
+                "escalas": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "aerodromos no meio do caminho, em ordem (ex: ['SBNF', 'SBFL']); omita se for direto",
+                },
                 "horas": {
                     "type": "number",
                     "description": "horas voadas - so inclua se o voo ja aconteceu e o Alex disse quanto tempo",

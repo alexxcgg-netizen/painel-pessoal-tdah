@@ -281,7 +281,246 @@
     if (typeof raiz.vibrar === "function") raiz.vibrar(res.acertou ? 12 : [8, 60, 8]);
   });
 
-  const CardsAviacao = { CATEGORIAS, quandoVolta };
+  // ================================================================ voo_agendado
+  // Cartao de embarque do voo marcado (2026-10-14, docs/CARDS.md "Linguagem visual"): rota com
+  // as pernas em NM, horarios (sair de casa / chegar / decola / pousa) e as horas do curso. Tocar
+  // num aerodromo faz o aviao ir (ou voltar) ate la e mostra a perna. O SVG usa viewBox fixo com
+  // "meet" (escala igual nos dois eixos), entao os botoes posicionados em % batem com os pontos.
+  const ICONE_AVIAO =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 13.5 3 11l1.5-1.5 8 1L17 6a2 2 0 0 1 3 3l-4.5 4.5 1 8L15 23l-2.5-7.5"/></svg>';
+  const AVIAO_CHEIO =
+    '<path d="M21.6 11.2 14 8.4V3.6a1.6 1.6 0 0 0-3.2 0v4.8L3.4 11.2a.9.9 0 0 0-.6.9v1.1l8-1.7v5l-2.3 1.7v1.4l3.5-.9 3.5.9v-1.4L13.2 16.5v-5l8 1.7v-1.1a.9.9 0 0 0-.6-.9z" transform="scale(.82) translate(-12 -12) rotate(90 12 12)"/>';
+  const VA_LARG = 300;
+  const VA_Y = 34;
+  const VA_TOPO = -6;
+
+  function vaPontos(n) {
+    if (n <= 1) return [VA_LARG / 2];
+    return Array.from({ length: n }, (_, i) => 10 + (i * (VA_LARG - 20)) / (n - 1));
+  }
+  function vaCaminho(xs) {
+    if (xs.length < 2) return "";
+    let d = `M${xs[0].toFixed(1)} ${VA_Y}`;
+    for (let i = 1; i < xs.length; i++) {
+      const meio = (xs[i - 1] + xs[i]) / 2;
+      d += ` Q${meio.toFixed(1)} ${VA_TOPO} ${xs[i].toFixed(1)} ${VA_Y}`;
+    }
+    return d;
+  }
+  const hDecimal = (min) => (Math.round((min / 60) * 10) / 10).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const fmtMin = (min) => (min >= 60 ? `${Math.floor(min / 60)}h${String(Math.round(min % 60)).padStart(2, "0")}` : `${Math.round(min)} min`);
+
+  function vaInfo(p, i, paradas, pernas, data) {
+    const ultima = i === paradas.length - 1;
+    const voltou = ultima && i > 0 && p.icao === paradas[0].icao;
+    const nome = voltou ? `Volta pra ${paradas[0].nome || p.icao}` : p.nome || p.icao;
+    const partes = [];
+    if (i === 0) {
+      if (p.decola) partes.push(`decola ${p.decola}`);
+      if (data.chegar) partes.push(`chega no aeroclube ${data.chegar}`);
+    } else {
+      const perna = pernas[i - 1] || {};
+      partes.push(`perna ${i}${numeroValido(perna.nm) ? `, ${perna.nm} NM` : ""}`);
+      if (p.pousa) partes.push(`pousa ~${p.pousa}${p.decola ? `, decola ~${p.decola}` : ""}`);
+    }
+    return { nome, resto: partes.join(" · ") };
+  }
+
+  Cards.registrar("voo_agendado", (data) => {
+    const paradas = lista(data.paradas).filter((p) => p && p.icao);
+    if (!data || !data.data || paradas.length < 2) return null;
+    const pernas = lista(data.pernas);
+    const local = !!data.local;
+    const dia = Cards.parseDia(data.data);
+    const hojeD = Cards.parseDia(isoHoje());
+    const dias = dia && hojeD ? Cards.diasEntre(hojeD, dia) : null;
+    const quando = [Cards.rotuloDia(data.data), dias > 1 ? `em ${dias} dias` : ""].filter(Boolean).join(" · ");
+
+    let rota;
+    if (local) {
+      // voo local (sai e volta sem escala): circuito de trafego em volta do aerodromo
+      const p = paradas[0];
+      rota =
+        `<div class="va-local" data-vivo="voo-local"><svg class="va-svg" viewBox="0 0 ${VA_LARG} 70" aria-hidden="true">` +
+        `<path class="va-base" d="M70 14 H230 a20 20 0 0 1 20 20 v2 a20 20 0 0 1 -20 20 H70 a20 20 0 0 1 -20 -20 v-2 a20 20 0 0 1 20 -20 Z"/>` +
+        `<path class="va-feito" pathLength="1" d="M70 14 H230 a20 20 0 0 1 20 20 v2 a20 20 0 0 1 -20 20 H70 a20 20 0 0 1 -20 -20 v-2 a20 20 0 0 1 20 -20 Z"/>` +
+        `<g class="va-aviao" transform="translate(70 14)">${AVIAO_CHEIO}</g></svg>` +
+        `<div class="va-local-nome"><b class="vivo-num">${esc(p.icao)}</b><span>voo local · ${esc(p.nome || "")}</span></div></div>`;
+    } else {
+      const xs = vaPontos(paradas.length);
+      const d = vaCaminho(xs);
+      const ult = xs[xs.length - 1];
+      const legendas = pernas
+        .map((pn, i) => (numeroValido(pn && pn.nm) && xs[i + 1] !== undefined
+          ? `<span class="va-perna vivo-num" style="left:${(((xs[i] + xs[i + 1]) / 2 / VA_LARG) * 100).toFixed(2)}%">${esc(pn.nm)} NM</span>`
+          : ""))
+        .join("");
+      const botoes = paradas
+        .map((p, i) => {
+          const info = vaInfo(p, i, paradas, pernas, data);
+          const lado = i === 0 ? " va-ini" : i === paradas.length - 1 ? " va-fim" : "";
+          const rot = i === paradas.length - 1 && i > 0 && p.icao === paradas[0].icao ? "volta" : p.nome || "";
+          return (
+            `<button type="button" class="va-parada${lado}" data-acao="voo_parada" data-i="${i}" style="left:${((xs[i] / VA_LARG) * 100).toFixed(2)}%"` +
+            ` data-nome="${esc(info.nome)}" data-resto="${esc(info.resto)}" aria-label="${esc(`${p.icao}, ${info.nome}`)}">` +
+            `<b class="vivo-num">${esc(p.icao)}</b><span>${esc(rot)}</span></button>`
+          );
+        })
+        .join("");
+      rota =
+        `<div class="va-rota" data-vivo="voo-rota">` +
+        `<svg class="va-svg" viewBox="0 ${VA_TOPO - 2} ${VA_LARG} ${VA_Y - VA_TOPO + 8}" aria-hidden="true">` +
+        `<path class="va-base" d="${d}"/><path class="va-feito" pathLength="1" d="${d}"/>` +
+        `<g class="va-aviao" transform="translate(${ult.toFixed(1)} ${VA_Y})">${AVIAO_CHEIO}</g></svg>` +
+        `<div class="va-legendas">${legendas}</div><div class="va-paradas">${botoes}</div></div>`;
+    }
+
+    const resumo = [
+      numeroValido(data.total_nm) ? `total <b class="vivo-num">~${esc(data.total_nm)} NM</b>` : "",
+      numeroValido(data.duracao_min) ? `fora do chão <b class="vivo-num">~${esc(fmtMin(data.duracao_min))}</b>` : "",
+    ].filter(Boolean);
+    const etapas = [
+      data.sair_casa ? ["Saída", data.sair_casa, numeroValido(data.trajeto_min) ? `${data.trajeto_min} min de carro` : "de casa"] : null,
+      data.chegar ? ["Chega", data.chegar, numeroValido(data.antecedencia_min) ? `${data.antecedencia_min} min antes` : ""] : null,
+      data.hora ? ["Decola", data.hora, "", true] : null,
+      data.pouso ? ["Pousa", `~${data.pouso}`, ""] : null,
+    ].filter(Boolean);
+    const etapasHTML = etapas.length
+      ? `<div class="va-etapas" style="--n:${etapas.length}">` +
+        etapas.map(([r, v, s, destaque]) => `<div class="va-etapa${destaque ? " va-destaque" : ""}"><span>${r}</span><b class="vivo-num">${esc(v)}</b>${s ? `<small>${esc(s)}</small>` : ""}</div>`).join("") +
+        `</div>`
+      : "";
+
+    const meta = numeroValido(data.meta_horas) && data.meta_horas > 0 ? data.meta_horas : 150;
+    const feitas = numeroValido(data.horas_min) ? data.horas_min : 0;
+    const novo = numeroValido(data.duracao_min) ? data.duracao_min : 0;
+    const ja = Math.min(100, (feitas / (meta * 60)) * 100);
+    const mais = Math.max(0, Math.min(100 - ja, (novo / (meta * 60)) * 100));
+    const horas =
+      `<div class="va-horas"><div class="va-horas-topo"><span>Horas de voo</span>` +
+      `<b class="vivo-num">${hDecimal(feitas)} h</b>${novo ? `<span class="va-depois">→ <b class="vivo-num">~${hDecimal(feitas + novo)} h</b> depois desse</span>` : ""}` +
+      `<span class="va-meta">meta <b class="vivo-num">${esc(meta)} h</b></span></div>` +
+      `<div class="va-barra"><i class="va-ja" style="width:${ja.toFixed(2)}%"></i><i class="va-novo" style="left:${ja.toFixed(2)}%;width:${mais.toFixed(2)}%"></i></div></div>`;
+
+    return (
+      `<div class="va" data-local="${local ? 1 : 0}">` +
+      `<div class="card-resultado-eyebrow">${ICONE_AVIAO}<span>Voo agendado</span>${quando ? `<span class="va-quando">${esc(quando)}</span>` : ""}</div>` +
+      rota +
+      (resumo.length ? `<p class="va-resumo">${resumo.join(`<span aria-hidden="true">·</span>`)}</p>` : "") +
+      (local ? "" : `<p class="va-info" aria-live="polite">${ICONE_AVIAO}<span>Toca num aeródromo pra ver a perna.</span></p>`) +
+      etapasHTML +
+      `<div class="va-picote" aria-hidden="true"></div>` +
+      horas +
+      `</div>`
+    );
+  });
+
+  // ---- aviao no caminho (DOM): posicionar, voar entre paradas, entrada animada
+  const reduzido = () => !!(raiz.matchMedia && raiz.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const suave = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+
+  function vooControle(caixa) {
+    if (caixa._voo) return caixa._voo;
+    const base = caixa.querySelector(".va-base");
+    const feito = caixa.querySelector(".va-feito");
+    const aviao = caixa.querySelector(".va-aviao");
+    if (!base || !aviao || typeof base.getTotalLength !== "function") return null;
+    const L = base.getTotalLength();
+    if (!L) return null;
+    const pernas = [...caixa.querySelectorAll(".va-perna")];
+    const botoes = [...caixa.querySelectorAll(".va-parada")];
+    // fracao do caminho em cada parada (o x cresce sempre, entao busca binaria no x)
+    const fracaoNoX = (x) => {
+      let lo = 0, hi = L;
+      for (let i = 0; i < 28; i++) {
+        const m = (lo + hi) / 2;
+        if (base.getPointAtLength(m).x < x) lo = m;
+        else hi = m;
+      }
+      return lo / L;
+    };
+    const xs = vaPontos(botoes.length);
+    const paradas = botoes.length ? xs.map((x, i) => (i === 0 ? 0 : i === xs.length - 1 ? 1 : fracaoNoX(x))) : [0, 1];
+    let atual = 1, sentido = 1, quadro = 0;
+    const pintar = (f, ang) => {
+      const p = base.getPointAtLength(L * f);
+      aviao.setAttribute("transform", `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)}) rotate(${ang.toFixed(1)})`);
+      if (feito) feito.style.strokeDashoffset = String(1 - f);
+      pernas.forEach((pn, i) => pn.classList.toggle("va-viu", f >= (paradas[i] + paradas[i + 1]) / 2 - 0.001));
+    };
+    const angulo = (f) => {
+      const a = base.getPointAtLength(L * f);
+      const b = base.getPointAtLength(Math.min(L, Math.max(0, L * f + sentido)));
+      return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+    };
+    function irPara(alvo, msTotal = 2600) {
+      cancelAnimationFrame(quadro);
+      const de = atual;
+      if (Math.abs(alvo - de) < 0.0005) return Promise.resolve();
+      sentido = alvo > de ? 1 : -1;
+      const dur = reduzido() ? 0 : Math.max(650, Math.abs(alvo - de) * msTotal);
+      const t0 = performance.now();
+      return new Promise((fim) => {
+        const passo = (agora) => {
+          const k = dur ? Math.min(1, (agora - t0) / dur) : 1;
+          atual = de + (alvo - de) * suave(k);
+          // parado na ponta: nariz na horizontal, virado pro lado de onde veio o movimento
+          pintar(atual, k < 1 ? angulo(atual) : sentido > 0 ? 0 : 180);
+          if (k < 1) quadro = requestAnimationFrame(passo);
+          else fim();
+        };
+        quadro = requestAnimationFrame(passo);
+      });
+    }
+    function ir(de, alvo, ms) {
+      atual = de;
+      pintar(de, 0);
+      return irPara(alvo, ms);
+    }
+    caixa._voo = { irPara, ir, paradas, pintar: (f) => pintar(f, 0) };
+    return caixa._voo;
+  }
+
+  function preparar(el) {
+    if (!el || !el.querySelectorAll) return;
+    el.querySelectorAll('[data-vivo="voo-rota"],[data-vivo="voo-local"]').forEach((caixa) => {
+      const c = vooControle(caixa);
+      if (c) c.pintar(1);
+    });
+  }
+
+  function animar(el) {
+    if (!el || !el.querySelectorAll || reduzido()) return;
+    el.querySelectorAll('[data-vivo="voo-rota"],[data-vivo="voo-local"]').forEach((caixa) => {
+      const c = vooControle(caixa);
+      if (!c) return;
+      c.pintar(0);
+      setTimeout(() => c.ir(0, 1, caixa.dataset.vivo === "voo-local" ? 2400 : 2800), 380);
+    });
+  }
+
+  if (typeof Cards.registrarAcao === "function") Cards.registrarAcao("voo_parada", (btn) => {
+    const caixa = btn.closest('[data-vivo="voo-rota"]');
+    const card = btn.closest(".va");
+    const c = caixa && vooControle(caixa);
+    const i = Number(btn.dataset.i);
+    if (!c || !Number.isInteger(i) || c.paradas[i] === undefined) return;
+    caixa.querySelectorAll(".va-parada").forEach((b) => b.classList.toggle("va-atual", b === btn));
+    caixa.querySelectorAll(".va-perna").forEach((pn, k) => pn.classList.toggle("va-foco", k === i - 1));
+    c.irPara(c.paradas[i]);
+    const info = card && card.querySelector(".va-info span");
+    if (info) {
+      const novo = document.createElement("span");
+      novo.className = "va-troca";
+      const forte = document.createElement("b");
+      forte.textContent = btn.dataset.nome || "";
+      novo.append(forte, btn.dataset.resto ? ` · ${btn.dataset.resto}` : "");
+      info.replaceWith(novo);
+    }
+    if (typeof raiz.vibrar === "function") raiz.vibrar(6);
+  });
+
+  const CardsAviacao = { CATEGORIAS, quandoVolta, preparar, animar, vaPontos, vaCaminho };
   raiz.CardsAviacao = CardsAviacao;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsAviacao;
 })(typeof window !== "undefined" ? window : globalThis);

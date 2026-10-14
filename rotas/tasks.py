@@ -122,6 +122,30 @@ def excluir_tarefa(task_id):
         conn.close()
 
 
+@bp.route("/api/tasks/<int:task_id>/hora", methods=["POST"])
+def mudar_hora_tarefa(task_id):
+    """Botao "Passar X pras 8h30" do card de tarefa com aperto (2026-10-14, docs/CARDS.md):
+    so troca a hora de uma tarefa pendente de dia marcado."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    hora = app._normalizar_hora(app._corpo_json().get("hora"))
+    if not hora:
+        return jsonify({"error": "hora inválida"}), 400
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "UPDATE tasks SET hora = ? WHERE id = ? AND completed_at IS NULL AND due_date IS NOT NULL", (hora, task_id)
+        )
+        conn.commit()
+        if not cur.rowcount:
+            return jsonify({"error": "tarefa não encontrada"}), 404
+        return jsonify({"ok": True, "hora": hora})
+    finally:
+        conn.close()
+
+
 @bp.route("/api/tasks/estado", methods=["GET"])
 def estado_tarefas():
     """Concluida ou nao, por id - os cards do chat (foto do momento em que a IA respondeu)

@@ -497,3 +497,15 @@ https://claude.ai/artifact/JzmyFm39GypNtUKXLuS1ph - fonte em `docs/prototipos/ca
 **Checagem antes de dar como pronto**: 390 px sem rolagem lateral, nada encavalado (rótulos de
 linha do tempo e de rota são o que mais quebra), número longo sem quebrar entre "R$" e o valor
 (`&nbsp;`), sem `pageerror`.
+
+### O que já está no app (1ª leva, 2026-10-14)
+| Cena | Onde | Dado |
+| :--- | :--- | :--- |
+| Voo | type novo `voo_agendado` (`cards.card_voo_agendado`, `static/js/cards-aviacao.js`) | `rota_voo.montar` (pernas/NM/horários), `voo_briefing_min`, `_saida_pro_voo` (Maps, opcional), horas do curso. Toque num aeródromo = `data-acao="voo_parada"`. |
+| Mercado/gasto | `transacao` de gasto real ganha `mes` + `dias` (`cards._contexto_gasto`) → cupom + barra do teto + 14 barrinhas | orçamento da categoria, gasto do mês, 14 dias. Visitante: `mes`/`dias` saem junto com `valor`. |
+| Alteração | `edicao` (mesmo dado): hora → relógio rolando; valor curto → troca no lugar; frase longa → só o pedaço que mudou troca; texto todo novo → antes → depois | - |
+| Concluir | type novo `tarefa_feita` (`cards.card_tarefa_feita`) - `registrar_feito` e `ajustar_tarefa(status=concluir)` | feitas/total de hoje (conta a concluída mesmo atrasada), próxima pendente de hoje; "em 1h40" é conta do front (some no histórico de outro dia). Desfazer reabre (ou apaga a que nasceu concluída). |
+| Tarefa com aperto | `tarefas_criadas` ganha `aperto` {id, titulo, hora, sugestao} quando a nova cai a < 45 min de outra pendente do dia | Só horário de início é dado real. Sugestão = outra a 60 min da nova, se não apertar uma terceira. Botão → `POST /api/tasks/<id>/hora`. |
+
+Falta (2ª leva): date, balada, tabelionato, presente - e a linha "pensando" com os passos reais
+(hoje o SSE só manda texto; precisa o servidor emitir os passos das tools enquanto roda).

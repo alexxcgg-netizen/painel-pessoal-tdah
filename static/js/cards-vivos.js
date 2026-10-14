@@ -30,6 +30,8 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18v12H3z"/><path d="M8 7V5h8v2"/><path d="M3 12h18"/></svg>',
     agua:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/></svg>',
+    feito:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.3 4.6-4.9"/></svg>',
     prato:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14.5" cy="12" r="6.5"/><circle cx="14.5" cy="12" r="3.3"/><path d="M3 4v5.5a1.5 1.5 0 0 0 3 0V4M4.5 11v9"/></svg>',
   };
@@ -76,6 +78,76 @@
   };
 
   // ===================================================================== edicao
+  // 2026-10-14 (prototipo aprovado, docs/CARDS.md): hora troca rolando os digitos do relogio;
+  // valor curto troca no lugar (o velho sobe pequeno e riscado, o novo cai marcado). Texto
+  // longo continua antes -> depois. O HTML ja sai "trocado"; animar() so repete a troca.
+  const HHMM = /^\d{1,2}:\d{2}$/;
+  const TROCA_MAX = 24;
+  const hhmm = (h) => h.padStart(5, "0");
+  function relogioHTML(de, para) {
+    const digitos = [...hhmm(para)]
+      .map((c) =>
+        c === ":"
+          ? `<span class="ed-dois">:</span>`
+          : `<span class="ed-dig"><span class="ed-rolo" style="transform:translateY(-${c}em)">` +
+            `${"0123456789".split("").map((n) => `<b>${n}</b>`).join("")}</span></span>`
+      )
+      .join("");
+    return `<span class="ed-relogio" role="img" aria-label="${esc(`${para}, antes ${de}`)}" data-de="${esc(hhmm(de))}" data-para="${esc(hhmm(para))}">${digitos}</span>`;
+  }
+  function mudancaHTML(m) {
+    const campo = `<span class="vivo-mudanca-campo">${esc(m.campo)}</span>`;
+    const de = String(m.de ?? "—");
+    const para = String(m.para ?? "—");
+    if (HHMM.test(de) && HHMM.test(para)) {
+      return (
+        `<p class="vivo-mudanca ed-anima ed-hora ed-trocado">${campo}<span class="vivo-mudanca-valores">` +
+        `${relogioHTML(de, para)}<s class="vivo-de ed-antes">${esc(de)}</s></span></p>`
+      );
+    }
+    if (de.length <= TROCA_MAX && para.length <= TROCA_MAX) {
+      return (
+        `<p class="vivo-mudanca ed-anima ed-curta ed-trocado">${campo}<span class="vivo-mudanca-valores">` +
+        `<span class="ed-troca"><s class="vivo-de">${esc(de)}</s><strong class="vivo-para">${esc(para)}</strong></span></span></p>`
+      );
+    }
+    // frase longa que so trocou um pedaco ("Sacar 10 mil..." -> "Sacar 5 mil..."): a frase fica
+    // e so o pedaco troca no lugar, como no prototipo
+    const a = de.split(" ");
+    const b = para.split(" ");
+    let ini = 0;
+    while (ini < a.length && ini < b.length && a[ini] === b[ini]) ini++;
+    let fim = 0;
+    while (fim < a.length - ini && fim < b.length - ini && a[a.length - 1 - fim] === b[b.length - 1 - fim]) fim++;
+    const meioDe = a.slice(ini, a.length - fim).join(" ");
+    const meioPara = b.slice(ini, b.length - fim).join(" ");
+    if (ini + fim > 0 && meioDe && meioPara && meioDe.length <= TROCA_MAX && meioPara.length <= TROCA_MAX) {
+      const antesTxt = a.slice(0, ini).join(" ");
+      const depoisTxt = a.slice(a.length - fim).join(" ");
+      return (
+        `<p class="vivo-mudanca ed-anima ed-curta ed-frase ed-trocado">${campo}<span class="vivo-mudanca-valores"><span>` +
+        `${antesTxt ? `${esc(antesTxt)} ` : ""}<span class="ed-troca"><s class="vivo-de">${esc(meioDe)}</s>` +
+        `<strong class="vivo-para">${esc(meioPara)}</strong></span>${depoisTxt ? ` ${esc(depoisTxt)}` : ""}</span></span></p>`
+      );
+    }
+    // antes -> depois numa caixa que quebra linha junta (2026-10-14: titulo longo no
+    // "antes" espremia o "depois" numa coluna de 1 letra - print do Alex)
+    return (
+      `<p class="vivo-mudanca">${campo}<span class="vivo-mudanca-valores"><s class="vivo-de">${esc(de)}</s>` +
+      `<span class="vivo-para-linha"><span class="vivo-seta" aria-hidden="true">→</span>` +
+      `<strong class="vivo-para">${esc(para)}</strong></span></span></p>`
+    );
+  }
+  function rolarRelogio(rel, hora, suave) {
+    const rolos = rel.querySelectorAll(".ed-rolo");
+    [...hora.replace(":", "")].forEach((d, i) => {
+      if (!rolos[i]) return;
+      rolos[i].style.transition = suave ? "" : "none";
+      rolos[i].style.transitionDelay = suave ? `${i * 70}ms` : "";
+      rolos[i].style.transform = `translateY(-${d}em)`;
+    });
+  }
+
   Cards.registrar("edicao", (data) => {
     const itens = lista(data.itens).filter((i) => i && typeof i === "object");
     if (!itens.length) return null;
@@ -83,22 +155,59 @@
       .map(
         (it) =>
           `<li class="vivo-edicao-item"><p class="vivo-edicao-titulo"><span class="card-chip">${esc(it.rotulo)}</span>${esc(it.titulo)}</p>` +
-          lista(it.mudancas)
-            .map(
-              (m) =>
-                // antes -> depois numa caixa que quebra linha junta (2026-10-14: titulo longo no
-                // "antes" espremia o "depois" numa coluna de 1 letra - print do Alex)
-                `<p class="vivo-mudanca"><span class="vivo-mudanca-campo">${esc(m.campo)}</span>` +
-                `<span class="vivo-mudanca-valores"><s class="vivo-de">${esc(m.de)}</s>` +
-                `<span class="vivo-para-linha"><span class="vivo-seta" aria-hidden="true">→</span>` +
-                `<strong class="vivo-para">${esc(m.para)}</strong></span></span></p>`
-            )
-            .join("") +
+          lista(it.mudancas).map(mudancaHTML).join("") +
           `</li>`
       )
       .join("");
     const contador = itens.length > 1 ? `<span class="card-contador">${itens.length}</span>` : "";
     return olho(ICONES.edicao, itens.length > 1 ? "Alterados" : "Alterado", contador) + `<ul class="vivo-edicao" data-vivo="edicao">${linhas}</ul>`;
+  });
+
+  // ============================================================== tarefa_feita
+  // 2026-10-14 (prototipo aprovado, docs/CARDS.md): o check se desenha, a tarefa se risca, o
+  // anel do dia anda uma casa e a proxima de hoje aparece com quanto falta. Estado final no HTML.
+  const ANEL_R = 22;
+  const ANEL_C = 2 * Math.PI * ANEL_R;
+  Cards.registrar("tarefa_feita", (data, _card, ctx) => {
+    if (!data.titulo) return null;
+    const total = Math.max(1, Number(data.total) || 1);
+    const feitas = Math.min(total, Math.max(0, Number(data.feitas) || 0));
+    const off = (n) => (ANEL_C * (1 - n / total)).toFixed(2);
+    const faltam = Math.max(0, Number(data.faltam) || 0);
+    const sub = faltam === 0 ? "Nada pendente pra hoje." : faltam === 1 ? "Falta 1 pra hoje." : `Faltam ${faltam} pra hoje.`;
+    const p = data.proxima && data.proxima.titulo ? data.proxima : null;
+    let proxima = "";
+    if (p) {
+      // "em 1h40" so no mesmo dia e se ainda nao passou (no historico de ontem, some)
+      const agora = (ctx && ctx.agora) || new Date();
+      const dia = Cards.parseDia(data.data);
+      const hm = /^(\d{1,2}):(\d{2})/.exec(p.hora || "");
+      const diff = hm && dia && Cards.mesmoDia(dia, agora) ? +hm[1] * 60 + +hm[2] - (agora.getHours() * 60 + agora.getMinutes()) : -1;
+      const em = diff >= 0 ? diff : null;
+      // trilho: quanto das proximas 3h ja "passou" ate ela (perto = quase cheio)
+      const cheio = em === null ? 0 : Math.max(0.06, 1 - Math.min(em, 180) / 180);
+      proxima =
+        `<div class="tf-proxima"><span class="tf-olho">Próxima</span><span class="tf-prox-tit">${esc(p.titulo)}</span>` +
+        (p.hora
+          ? `<span class="tf-falta"><span class="vivo-num">${esc(p.hora)}</span>` +
+            (em !== null ? `<span class="tf-trilho"><i style="--cheio:${cheio.toFixed(3)}"></i></span><span>em ${esc(fmtHmin(em))}</span>` : "") +
+            `</span>`
+          : "") +
+        `</div>`;
+    }
+    return (
+      olho(ICONES.feito, "Feito", data.hora ? `<span class="tf-hora vivo-num">${esc(data.hora)}</span>` : "") +
+      `<div class="tf-linha" data-vivo="feito" data-feitas="${feitas}" data-total="${total}">` +
+      `<svg class="tf-check" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+      `<circle cx="18" cy="18" r="16" pathLength="1"/><path d="m11.5 18.5 4.5 4.3 8.5-9" pathLength="1"/></svg>` +
+      `<span class="tf-titulo"><span class="tf-risco">${esc(data.titulo)}</span></span></div>` +
+      `<div class="tf-dia"><span class="tf-anel-num"><svg class="tf-anel" viewBox="0 0 52 52" aria-hidden="true">` +
+      `<circle cx="26" cy="26" r="${ANEL_R}" class="tf-anel-fundo"/>` +
+      `<circle cx="26" cy="26" r="${ANEL_R}" class="tf-anel-cheio" stroke-dasharray="${ANEL_C.toFixed(2)}" stroke-dashoffset="${off(feitas)}" style="--de:${off(Math.max(0, feitas - 1))}"/></svg>` +
+      `<b class="tf-num vivo-num">${feitas}/${total}</b></span>` +
+      `<div><strong>${feitas} de ${total} hoje</strong><span>${esc(sub)}</span></div></div>` +
+      proxima
+    );
   });
 
   // ================================================================ voo_resumo
@@ -1009,6 +1118,8 @@
 
   function preparar(raizEl) {
     if (!raizEl || !raizEl.querySelectorAll) return;
+    // cards de aviacao (voo_agendado) tem o proprio motor em cards-aviacao.js
+    if (raiz.CardsAviacao && typeof raiz.CardsAviacao.preparar === "function") raiz.CardsAviacao.preparar(raizEl);
     raizEl.querySelectorAll('[data-vivo="voo"]').forEach((svg) => {
       vooMarcos(svg);
       vooPosicionar(svg, Math.min(1, +svg.dataset.total / (+svg.dataset.meta * 60)));
@@ -1143,6 +1254,7 @@
 
   async function animar(raizEl) {
     if (!raizEl || !raizEl.querySelectorAll || reduzido()) return;
+    if (raiz.CardsAviacao && typeof raiz.CardsAviacao.animar === "function") raiz.CardsAviacao.animar(raizEl);
     contar(raizEl);
     raizEl.querySelectorAll('[data-vivo="voo"]').forEach(async (svg) => {
       const fim = Math.min(1, +svg.dataset.total / (+svg.dataset.meta * 60));
@@ -1217,9 +1329,33 @@
       c.classList.remove("cheio");
       setTimeout(() => c.classList.add("cheio"), 200 + i * 120);
     });
-    raizEl.querySelectorAll('[data-vivo="edicao"] .vivo-mudanca').forEach((m, i) => {
+    raizEl.querySelectorAll('[data-vivo="edicao"] .vivo-mudanca:not(.ed-anima)').forEach((m, i) => {
       m.classList.remove("entrou");
       setTimeout(() => m.classList.add("entrou"), 150 + i * 160);
+    });
+    raizEl.querySelectorAll('[data-vivo="feito"]').forEach((linha) => {
+      // o contador do anel vira junto com o anel (o CSS anda o traco de feitas-1 pra feitas)
+      const num = linha.parentElement && linha.parentElement.querySelector(".tf-num");
+      const f = +linha.dataset.feitas;
+      const t = +linha.dataset.total;
+      if (!num || !f || reduzido()) return;
+      num.textContent = `${f - 1}/${t}`;
+      setTimeout(() => {
+        num.textContent = `${f}/${t}`;
+        num.classList.add("tf-virou");
+      }, 1700);
+    });
+    raizEl.querySelectorAll('[data-vivo="edicao"] .ed-anima').forEach((m, i) => {
+      const rel = m.querySelector(".ed-relogio");
+      m.classList.add("ed-sem-transicao");
+      m.classList.remove("ed-trocado");
+      if (rel) rolarRelogio(rel, rel.dataset.de, false);
+      void m.offsetWidth; // volta pro "antes" sem animar
+      m.classList.remove("ed-sem-transicao");
+      setTimeout(() => {
+        m.classList.add("ed-trocado");
+        if (rel) rolarRelogio(rel, rel.dataset.para, true);
+      }, 520 + i * 260);
     });
     raizEl.querySelectorAll(".vivo-semana-anel[data-feito='1']").forEach(async (anel, i) => {
       const C = +anel.dataset.c;

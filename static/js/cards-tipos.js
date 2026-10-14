@@ -70,8 +70,122 @@
     return partes.length ? partes.join(" · ") : "sem data";
   }
 
-  Cards.registrar("tarefas_criadas", (data) => {
+  // ---- tarefa com aperto (2026-10-14, prototipo aprovado, docs/CARDS.md) ----------------
+  // A nova caiu a menos de 45 min de outra pendente do dia: uma "lupa" de 3h com as duas,
+  // a faixa apertada entre os inicios e o botao de passar a outra pra sugestao do servidor.
+  // So horario de inicio e dado de verdade (tarefa nao tem duracao): os blocos tem largura
+  // fixa so pra caber o nome.
+  const JANELA = 180;
+  const minDia = (h) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(h || "");
+    return m ? +m[1] * 60 + +m[2] : null;
+  };
+  const horaBr = (min) => `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, "0") : ""}`;
+  const curto = (txt, n) => (txt.length > n ? `${txt.slice(0, n - 1).trimEnd()}…` : txt);
+
+  function apertoHTML(t, data, ctx) {
+    const a = data.aperto;
+    const n = minDia(t.hora);
+    const o = minDia(a.hora);
+    const ini = Math.max(0, Math.min(24 * 60 - JANELA, Math.floor(Math.min(n, o) / 60) * 60 - 60));
+    const pct = (m) => Math.max(0, Math.min(100, ((m - ini) / JANELA) * 100));
+    const largura = (m, dur) => Math.min(pct(m + dur), 100) - pct(m);
+    const tiques = [0, 1, 2, 3]
+      .map((k) => `<span class="ap-tique${k === 3 ? " ultimo" : ""}" style="left:${(k * 100) / 3}%">${String(ini / 60 + k).padStart(2, "0")}h</span>`)
+      .join("");
+    const agora = (ctx && ctx.agora) || new Date();
+    const dia = Cards.parseDia(data.dia);
+    const agoraMin = agora.getHours() * 60 + agora.getMinutes();
+    const linhaAgora =
+      dia && Cards.mesmoDia(dia, agora) && agoraMin > ini && agoraMin < ini + JANELA
+        ? `<span class="ap-agora" style="left:${pct(agoraMin).toFixed(2)}%"></span>`
+        : "";
+    const titOutra = Cards.partesTarefa(a.titulo).titulo || a.titulo;
+    const rotuloEsq = pct(o) > 55 ? " rotulo-esq" : "";
+    const diff = Math.abs(n - o);
+    const status =
+      diff === 0
+        ? `<b>${esc(titOutra)}</b> também é às ${esc(horaBr(o))}.`
+        : `<b>${esc(titOutra)}</b> é às ${esc(horaBr(o))} — ${diff} min ${o < n ? "antes" : "depois"} dessa.`;
+    const sug = minDia(a.sugestao);
+    const acoes =
+      sug !== null && numeroValido(Number(a.id))
+        ? `<div class="ap-acoes"><button type="button" class="ap-acao primaria" data-acao="aperto_mover" data-id="${esc(a.id)}" data-hora="${esc(a.sugestao)}" data-ini="${ini}">` +
+          `Passar ${esc(curto(titOutra, 26))} pras ${esc(horaBr(sug))}</button>` +
+          `<button type="button" class="ap-acao" data-acao="aperto_deixa">Deixa assim</button></div>`
+        : "";
+    return (
+      eyebrow(ICONES.tarefa, "Tarefa criada", "") +
+      `<h3 class="ap-hero">${Cards.tituloTarefaHTML(t.titulo)}</h3>` +
+      `<p class="ap-meta"><span class="vivo-num">${esc(t.hora)}</span> · ${esc(diaRelativoTarefa(t.data))}</p>` +
+      `<div class="ap-lupa" role="img" aria-label="${esc(`Das ${horaBr(ini)} às ${horaBr(ini + JANELA)}: ${titOutra} às ${a.hora}, a nova às ${t.hora}`)}">` +
+      `<div class="ap-grade"></div>${tiques}` +
+      `<div class="ap-faixa" style="left:${pct(Math.min(n, o)).toFixed(2)}%;width:${(pct(Math.max(n, o)) - pct(Math.min(n, o))).toFixed(2)}%"></div>` +
+      linhaAgora +
+      `<div class="ap-bloco l1 outra${rotuloEsq}" style="left:${pct(o).toFixed(2)}%;width:${largura(o, 30).toFixed(2)}%"><span>${esc(curto(titOutra, 22))} · ${esc(horaBr(o))}</span></div>` +
+      `<div class="ap-bloco l2 nova" style="left:${pct(n).toFixed(2)}%;width:${largura(n, 60).toFixed(2)}%"><span>nova · ${esc(horaBr(n))}</span></div>` +
+      `</div>` +
+      `<p class="ap-status" aria-live="polite">${ICONE_ALERTA}<span>${status}</span></p>` +
+      acoes
+    );
+  }
+
+  const ICONE_ALERTA =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4M12 17h.01"/></svg>';
+  const ICONE_OK_AP =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.3 4.6-4.9"/></svg>';
+
+  function apertoResolvido(cardEl, texto) {
+    const status = cardEl.querySelector(".ap-status");
+    const lupa = cardEl.querySelector(".ap-lupa");
+    if (lupa) lupa.classList.add("resolvido");
+    if (status) {
+      status.classList.add("ok");
+      status.innerHTML = `${ICONE_OK_AP}<span class="ap-troca">${esc(texto)}</span>`;
+    }
+    const acoes = cardEl.querySelector(".ap-acoes");
+    if (acoes) {
+      acoes.classList.add("some");
+      setTimeout(() => (acoes.hidden = true), 360);
+    }
+    if (typeof raiz.vibrar === "function") raiz.vibrar(12);
+  }
+
+  if (typeof Cards.registrarAcao === "function") {
+    Cards.registrarAcao("aperto_mover", async (btn, cardEl, deps) => {
+      if (btn.disabled || typeof deps.apiFetch !== "function") return;
+      btn.disabled = true;
+      const res = await deps.apiFetch(`/api/tasks/${encodeURIComponent(btn.dataset.id)}/hora`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hora: btn.dataset.hora }),
+      });
+      if (!res || !res.ok) {
+        btn.disabled = false;
+        return;
+      }
+      const m = minDia(res.hora);
+      const ini = Number(btn.dataset.ini) || 0;
+      const bloco = cardEl.querySelector(".ap-bloco.outra");
+      if (bloco && m !== null) {
+        const p = Math.max(0, Math.min(100 - parseFloat(bloco.style.width || "0"), ((m - ini) / JANELA) * 100));
+        bloco.style.left = `${p.toFixed(2)}%`;
+        bloco.classList.toggle("rotulo-esq", p > 55);
+        const rot = bloco.querySelector("span");
+        if (rot) rot.textContent = rot.textContent.replace(/ · [^·]+$/, ` · ${horaBr(m)}`);
+      }
+      const titulo = btn.textContent.replace(/^Passar /, "").replace(/ pras .*$/, "");
+      apertoResolvido(cardEl, `${titulo} agora às ${horaBr(m)}.`);
+      if (typeof deps.aoMudar === "function") deps.aoMudar();
+    });
+    Cards.registrarAcao("aperto_deixa", (btn, cardEl) => apertoResolvido(cardEl, "Deixei como estava."));
+  }
+
+  Cards.registrar("tarefas_criadas", (data, _card, ctx) => {
     const tarefas = lista(data.tarefas).filter((t) => t && typeof t === "object");
+    if (tarefas.length === 1 && data.aperto && minDia(data.aperto.hora) !== null && minDia(tarefas[0].hora) !== null && data.aperto.titulo) {
+      return apertoHTML(tarefas[0], data, ctx);
+    }
     const titulo = tarefas.length === 1 ? "Tarefa criada" : "Tarefas criadas";
     const itens = tarefas
       .map((t) => {
@@ -139,6 +253,11 @@
         `<p class="card-saldo"><span class="card-saldo-rotulo">Saldo${s.conta ? ` ${esc(s.conta)}` : ""}</span>` +
         `<span class="card-saldo-valores">${esc(moeda(s.antes))} <span class="card-seta" aria-hidden="true">→</span> <strong>${esc(moeda(s.depois))}</strong></span></p>`;
     }
+    // gasto real com o contexto do mes (2026-10-14, docs/CARDS.md "Linguagem visual"): cupom
+    // saindo da impressora + quanto a categoria ja tem no mes + os ultimos 14 dias
+    if (!entrada && !planejado && !oculto && data.mes && typeof data.mes === "object") {
+      return eyebrow(ICONES.gasto, rotulo, "") + cupomGasto(data, valorTxt, ctx) + saldo + mesGasto(data);
+    }
     return (
       eyebrow(ICONES.gasto, rotulo, planejado ? '<span class="card-chip card-chip-planejado">planejado</span>' : "") +
       `<div class="card-transacao-topo"><span class="card-bolinha" data-cat="${esc(cat)}" aria-hidden="true"></span>` +
@@ -148,6 +267,61 @@
       saldo
     );
   });
+
+  const MESES_NOME = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  const reais = (v) => `R$ ${Math.round(v).toLocaleString("pt-BR")}`;
+
+  function cupomGasto(data, valorTxt, ctx) {
+    const agora = (ctx && ctx.agora) || new Date();
+    const dia = Cards.parseDia(data.data) || agora;
+    // so a data: o card re-renderiza no historico, e a hora "de agora" ficaria errada la
+    const quando = `${String(dia.getDate()).padStart(2, "0")}/${String(dia.getMonth() + 1).padStart(2, "0")}/${dia.getFullYear()}`;
+    return (
+      `<div class="tx-impressora" aria-label="${esc(`${data.titulo || "Gasto"}: ${valorTxt}`)}"><div class="tx-fresta"><div class="tx-cupom">` +
+      `<p class="tx-c">${esc(data.titulo || data.categoria || "Gasto")}</p><hr>` +
+      `<p class="tx-l"><span>${esc(quando)}</span><span>${esc(data.meio || "")}</span></p>` +
+      `<p class="tx-l"><span>categoria</span><span>${esc(data.categoria || "outros")}</span></p><hr>` +
+      `<p class="tx-l tx-total"><span>TOTAL</span><span class="card-valor-grande">${esc(valorTxt)}</span></p>` +
+      `</div></div></div>`
+    );
+  }
+
+  function mesGasto(data) {
+    const m = data.mes;
+    if (!numeroValido(m.gasto)) return "";
+    const agora = Cards.parseDia(data.data) || new Date();
+    const cat = m.categoria || data.categoria || "";
+    const titulo = `${cat ? `${cat.charAt(0).toUpperCase()}${cat.slice(1)} · ` : ""}${MESES_NOME[agora.getMonth()]}`;
+    const limite = numeroValido(m.limite) && m.limite > 0 ? m.limite : null;
+    let barra = "";
+    let frase = "";
+    if (limite) {
+      const antes = numeroValido(m.antes) ? m.antes : 0;
+      const ja = Math.min(100, (antes / limite) * 100);
+      const novo = Math.max(0, Math.min(100 - ja, ((m.gasto - antes) / limite) * 100));
+      const estourou = m.gasto > limite;
+      barra =
+        `<div class="tx-barra${estourou ? " tx-estourou" : ""}"><i class="tx-ja" style="width:${ja.toFixed(2)}%"></i>` +
+        `<i class="tx-novo" style="left:${ja.toFixed(2)}%;width:${novo.toFixed(2)}%"></i></div>`;
+      frase = estourou
+        ? `passou ${esc(reais(m.gasto - limite))} do teto`
+        : numeroValido(m.sobra_dia) && numeroValido(m.dias_restantes)
+          ? `sobram ${esc(reais(m.sobra))} · uns ${esc(reais(m.sobra_dia))}/dia até o fim do mês`
+          : "";
+    }
+    const dias = Array.isArray(data.dias) ? data.dias.filter(numeroValido).slice(-14) : [];
+    const maior = Math.max(...dias, 0);
+    const barras = dias.length && maior > 0
+      ? `<div class="tx-dias" aria-hidden="true">${dias
+          .map((v, i) => `<i${i === dias.length - 1 ? ' class="tx-hoje"' : ""} style="--h:${Math.max(6, (v / maior) * 100).toFixed(1)}%;--k:${i}"></i>`)
+          .join("")}</div><p class="tx-dias-leg"><span>14 dias atrás</span><span>hoje</span></p>`
+      : "";
+    return (
+      `<div class="tx-mes"><div class="tx-mes-topo"><span>${esc(titulo)}</span>` +
+      `<span class="tx-mes-val"><b class="vivo-num" data-contar-moeda="${Number(m.gasto)}">${esc(reais(m.gasto))}</b>${limite ? ` de ${esc(reais(limite))}` : " no mês"}</span></div>` +
+      barra + (frase ? `<p class="tx-sobra">${frase}</p>` : "") + barras + `</div>`
+    );
+  }
 
   // ---- lembrete -------------------------------------------------------------
 

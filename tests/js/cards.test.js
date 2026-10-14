@@ -197,6 +197,37 @@ test("tarefas_criadas: checkbox funcional por id, titulo escapado, data curta", 
   assert.match(html, /Abrir Tarefas/);
 });
 
+test("tarefas_criadas com aperto: lupa de 3h, faixa entre os inicios, botao com a sugestao", () => {
+  const card = (aperto, agora = AGORA) =>
+    Cards.renderizarCardHTML({
+      type: "tarefas_criadas",
+      data: {
+        tarefas: [{ id: 3, titulo: "Consulta com tricologista", data: "2026-09-23", hora: "09:30" }],
+        dia: "2026-09-23",
+        aperto,
+        agenda_do_dia: [{ id: 1, titulo: "Mikael", hora: "09:00" }, { id: 3, titulo: "Consulta com tricologista", hora: "09:30", nova: true }],
+      },
+    }, { agora });
+  const h = card({ id: 1, titulo: "<Mikael>", hora: "09:00", sugestao: "08:30" }, new Date(2026, 8, 23, 8, 20));
+  assert.match(h, /ap-lupa/);
+  assert.match(h, />08h<.*>09h<.*>10h<.*>11h</); // janela comeca 1h antes da primeira
+  assert.match(h, /ap-faixa" style="left:33\.33%;width:16\.67%/);
+  assert.match(h, /ap-bloco l1 outra" style="left:33\.33%/);
+  assert.match(h, /ap-bloco l2 nova" style="left:50\.00%;width:33\.33%"><span>nova · 9h30/);
+  assert.match(h, /ap-agora" style="left:11\.11%/);
+  assert.match(h, /<b>&lt;Mikael&gt;<\/b> é às 9h — 30 min antes dessa/);
+  assert.match(h, /data-acao="aperto_mover" data-id="1" data-hora="08:30" data-ini="480">Passar &lt;Mikael&gt; pras 8h30/);
+  assert.match(h, /data-acao="aperto_deixa"/);
+  assert.doesNotMatch(h, /vivo-dia-lista/);
+
+  const semSugestao = card({ id: 1, titulo: "Mikael", hora: "09:00", sugestao: null });
+  assert.match(semSugestao, /ap-status/);
+  assert.doesNotMatch(semSugestao, /aperto_mover/);
+  assert.match(semSugestao, /ap-agora" style="left:66\.67%/);
+  // linha do "agora" so no proprio dia
+  assert.doesNotMatch(card({ id: 1, titulo: "Mikael", hora: "09:00", sugestao: null }, new Date(2026, 8, 22, 9, 0)), /ap-agora/);
+});
+
 test("tarefas_criadas: uma so fica no singular e lista vazia nao quebra", () => {
   assert.match(Cards.renderizarCardHTML({ type: "tarefas_criadas", data: { tarefas: [{ id: 1, titulo: "a" }] } }), /Tarefa criada/);
   assert.doesNotMatch(Cards.renderizarCardHTML({ type: "tarefas_criadas", data: {} }), /fallback/);
@@ -238,6 +269,43 @@ test("transacao oculta (modo visitante) nunca mostra valor nem saldo", () => {
   });
   assert.match(html, /R\$ •••/);
   assert.doesNotMatch(html, /card-saldo/);
+});
+
+test("transacao: gasto com contexto do mes vira cupom + barra do teto + 14 barrinhas", () => {
+  const base = {
+    entidade: "gasto", sentido: "saida", titulo: "Mercado Giassi", valor: 87.4, categoria: "mercado",
+    data: "2026-09-23", status: "real",
+    dias: [0, 84.3, 0, 0, 41.9, 0, 0, 120, 0, 33.5, 0, 67.8, 22, 87.4],
+  };
+  const html = Cards.renderizarCardHTML({
+    type: "transacao",
+    data: { ...base, mes: { categoria: "mercado", gasto: 456.9, antes: 369.5, limite: 900, dias_restantes: 8, sobra: 443.1, sobra_dia: 55.39 } },
+  }, { agora: AGORA });
+  assert.match(html, /tx-cupom/);
+  assert.match(html, /Mercado Giassi/);
+  assert.match(html, /23\/09\/2026/);
+  assert.match(html, /class="card-valor-grande">-R\$\s?87,40/); // odometro continua achando o valor
+  assert.match(html, /Mercado · setembro/);
+  assert.match(html, /data-contar-moeda="456.9"/);
+  assert.match(html, /de R\$\s?900/);
+  assert.match(html, /tx-barra/);
+  assert.doesNotMatch(html, /tx-estourou/);
+  assert.equal((html.match(/style="--h:/g) || []).length, 14);
+  assert.match(html, /<i class="tx-hoje" style="--h:72\.8%/); // 87,40 sobre o maior dia (120)
+
+
+  const estourou = Cards.renderizarCardHTML({
+    type: "transacao",
+    data: { ...base, mes: { categoria: "mercado", gasto: 456.9, antes: 369.5, limite: 400, dias_restantes: 8, sobra: -56.9, sobra_dia: 0 } },
+  }, { agora: AGORA });
+  assert.match(estourou, /tx-estourou/);
+  assert.match(estourou, /passou R\$\s?57 do teto/);
+
+  const semTeto = Cards.renderizarCardHTML({
+    type: "transacao", data: { ...base, mes: { categoria: "mercado", gasto: 456.9, antes: 369.5, limite: null, dias_restantes: 8 } },
+  }, { agora: AGORA });
+  assert.doesNotMatch(semTeto, /tx-barra/);
+  assert.match(semTeto, /no mês/);
 });
 
 test("transacao planejada ganha chip", () => {

@@ -344,3 +344,103 @@
     animation: none !important;
   }
 }
+
+/* ---- voo_agendado: cartao de embarque (2026-10-14, docs/CARDS.md "Linguagem visual") ---
+   Rota com as pernas (NM), aviao que vai/volta ao tocar no aerodromo, horarios e horas do
+   curso. Estado final no HTML; a entrada (aviao cruzando) vem do CardsAviacao.animar. */
+.card-contrato-voo_agendado { --card-cor: var(--cor-cat-1); }
+.va { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+.va .card-resultado-eyebrow { flex-wrap: wrap; }
+.va-quando { margin-left: auto; font-family: var(--font-tech); font-size: 0.72rem; letter-spacing: 0; text-transform: none; color: var(--text-muted); white-space: nowrap; }
+
+.va-rota { position: relative; padding-top: 1.35rem; padding-bottom: 2.6rem; }
+.va-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.va-base { fill: none; stroke: var(--border-strong, var(--border)); stroke-width: 1.4; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
+.va-feito { fill: none; stroke: var(--card-cor); stroke-width: 1.8; stroke-dasharray: 1 1; stroke-dashoffset: 0; vector-effect: non-scaling-stroke; }
+.va-aviao { fill: var(--card-cor); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--card-cor) 60%, transparent)); }
+
+.va-legendas { position: absolute; inset: 0 0 auto; height: 1.2rem; }
+.va-perna {
+  position: absolute; top: 0; transform: translateX(-50%);
+  padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.7rem; white-space: nowrap;
+  color: var(--card-cor); background: color-mix(in srgb, var(--card-cor) 11%, var(--surface-2));
+  opacity: 1; transition: opacity 0.4s var(--ease-suave), translate 0.5s var(--ease-bounce), background 0.3s var(--ease-suave), color 0.3s var(--ease-suave);
+}
+.va-perna.va-foco { background: var(--card-cor); color: var(--bg); }
+.card-novo .va-perna:not(.va-viu) { opacity: 0; translate: 0 4px; }
+
+.va-paradas { position: absolute; left: 0; right: 0; bottom: 0; height: 2.55rem; }
+.va-parada {
+  position: absolute; top: 0; transform: translateX(-50%);
+  display: grid; justify-items: center; gap: 0.1rem; min-width: 44px; min-height: 44px;
+  padding: 0.3rem 0.4rem; margin: 0; border: 0; border-radius: 12px; background: transparent;
+  color: var(--text); font: inherit; white-space: nowrap; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: background 0.3s var(--ease-suave);
+}
+.va-parada.va-ini { transform: translateX(-0.4rem); justify-items: start; }
+.va-parada.va-fim { transform: translateX(calc(-100% + 0.4rem)); justify-items: end; }
+.va-parada b { font-size: 0.9rem; line-height: 1; transition: color 0.3s var(--ease-suave), transform 0.45s var(--ease-bounce); }
+.va-parada span { font-size: 0.68rem; color: var(--text-muted); transition: color 0.3s var(--ease-suave); }
+.va-parada:hover { background: color-mix(in srgb, var(--card-cor) 7%, transparent); }
+.va-parada:focus-visible { outline: 2px solid var(--card-cor); outline-offset: 0; }
+.va-parada.va-atual b { color: var(--card-cor); transform: translateY(-1px) scale(1.06); }
+.va-parada.va-atual span { color: var(--text); }
+
+.va-local { display: grid; gap: 0.35rem; justify-items: center; }
+.va-local .va-svg { max-width: 260px; }
+.va-local-nome { display: flex; align-items: baseline; gap: 0.45rem; }
+.va-local-nome b { font-size: 1rem; }
+.va-local-nome span { font-size: 0.78rem; color: var(--text-muted); }
+
+.va-resumo { margin: -0.2rem 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; font-size: 0.8rem; color: var(--text-muted); }
+.va-resumo b { color: var(--text); font-size: 0.86rem; }
+.va-resumo [aria-hidden] { color: var(--text-faint); }
+
+.va-info {
+  margin: 0; display: flex; align-items: center; gap: 0.55rem; min-height: 44px; padding: 0.45rem 0.7rem;
+  border-radius: 14px; font-size: 0.8rem; line-height: 1.4; color: var(--text-muted);
+  background: color-mix(in srgb, var(--card-cor) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-cor) 16%, var(--border));
+}
+.va-info svg { width: 16px; height: 16px; flex: none; color: var(--card-cor); }
+.va-info b { color: var(--text); font-weight: 600; }
+.va-troca { animation: vaTroca 0.45s var(--ease-suave) both; }
+@keyframes vaTroca { from { opacity: 0; transform: translateY(6px); filter: blur(3px); } }
+
+.va-etapas { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 0.4rem; }
+.va-etapa { display: grid; gap: 0.15rem; align-content: start; padding: 0.5rem 0.45rem 0.55rem; border-radius: 12px; background: color-mix(in srgb, var(--text) 2.5%, transparent); border: 1px solid var(--border); min-width: 0; }
+.va-etapa span { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); }
+.va-etapa b { font-size: 0.9rem; white-space: nowrap; letter-spacing: -0.03em; }
+.va-etapa small { font-size: 0.64rem; line-height: 1.25; color: var(--text-faint); }
+.va-etapa.va-destaque { border-color: color-mix(in srgb, var(--card-cor) 40%, transparent); background: color-mix(in srgb, var(--card-cor) 9%, transparent); }
+.va-etapa.va-destaque b { color: var(--card-cor); }
+.card-novo .va-etapa { animation: vaEtapa 0.55s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.5s) both; }
+.card-novo .va-etapa:nth-child(2) { animation-delay: calc(var(--chegada, 0ms) + 0.58s); }
+.card-novo .va-etapa:nth-child(3) { animation-delay: calc(var(--chegada, 0ms) + 0.66s); }
+.card-novo .va-etapa:nth-child(4) { animation-delay: calc(var(--chegada, 0ms) + 0.74s); }
+@keyframes vaEtapa { from { opacity: 0; transform: translateY(8px); } }
+
+/* picote de bilhete: linha tracejada com os dois "furos" nas bordas */
+.va-picote { position: relative; height: 0; margin: 0.1rem -1rem; border-top: 1.5px dashed var(--border-strong, var(--border)); }
+.va-picote::before, .va-picote::after { content: ""; position: absolute; top: -9px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); }
+.va-picote::before { left: -8px; } .va-picote::after { right: -8px; }
+
+.va-horas { display: grid; gap: 0.4rem; }
+.va-horas-topo { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.5rem; font-size: 0.78rem; color: var(--text-muted); }
+.va-horas-topo > b { color: var(--text); font-size: 0.92rem; }
+.va-depois b { color: var(--card-cor); }
+.va-meta { margin-left: auto; }
+.va-meta b { color: var(--text-muted); font-weight: 500; }
+.va-barra { position: relative; height: 6px; border-radius: 6px; background: var(--border); overflow: hidden; }
+.va-barra i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 6px; }
+.va-ja { background: color-mix(in srgb, var(--card-cor) 50%, var(--surface-3, #2a3440)); }
+.va-novo { background: var(--card-cor); box-shadow: 0 0 10px var(--card-cor); }
+.card-novo .va-ja { animation: vaEnche 1s var(--ease-suave) calc(var(--chegada, 0ms) + 0.6s) both; transform-origin: left; }
+.card-novo .va-novo { animation: vaEnche 0.9s var(--ease-bounce) calc(var(--chegada, 0ms) + 1.4s) both; transform-origin: left; }
+@keyframes vaEnche { from { transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .va-perna, .va-parada, .va-parada b { transition: none; }
+  .va-troca, .card-novo .va-etapa, .card-novo .va-ja, .card-novo .va-novo { animation: none !important; }
+  .card-novo .va-perna:not(.va-viu) { opacity: 1; translate: none; }
+}

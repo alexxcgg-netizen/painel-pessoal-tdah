@@ -15,7 +15,7 @@
   // tipos que REGISTRAM/mudam algo (consulta pura nao ganha selo)
   const TIPOS_REGISTRO = new Set([
     "tarefas_criadas", "transacao", "lembrete", "meta", "habito", "assinatura",
-    "compra_parcelada", "refeicao", "agua", "edicao", "saude_treino",
+    "compra_parcelada", "refeicao", "agua", "edicao", "saude_treino", "voo_agendado", "tarefa_feita",
   ]);
 
   // numeros que viram odometro (os cartoes vivos ja contam os deles com data-contar-*)

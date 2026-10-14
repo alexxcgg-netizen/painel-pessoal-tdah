@@ -766,6 +766,9 @@ def init_db():
     _garantir_coluna(conn, "tasks", "recorrencia", "TEXT")
     _garantir_coluna(conn, "tasks", "recorrente_origem_id", "INTEGER")
     _garantir_coluna(conn, "voos", "hora", "TEXT")
+    # 2026-10-14: escalas da navegacao em ordem ("SBNF,SBFL") - origem e destino ficam nas
+    # colunas proprias (ver rota_voo.py)
+    _garantir_coluna(conn, "voos", "escalas", "TEXT")
     _garantir_coluna(conn, "expenses", "tipo", "TEXT NOT NULL DEFAULT 'real'")
     _garantir_coluna(conn, "bank_transactions", "categoria", "TEXT")
     _garantir_coluna(conn, "bank_accounts", "saldo", "REAL")
@@ -1823,6 +1826,8 @@ ENTIDADES_DESFAZIVEIS = (
     "habito", "habito_marcacao", "projeto", "projeto_etapa", "etapa_concluida", "viagem", "hidratacao", "treino",
     # 2026-10-13: refeicao registrada pela foto do prato (refeicoes.py)
     "refeicao",
+    # 2026-10-14: voo agendado pelo chat (card voo_agendado) - so apaga se ainda sem horas
+    "voo_agendado",
 )
 
 
@@ -2598,11 +2603,11 @@ def list_dias_ativos(conn) -> set[str]:
 
 def create_voo(
     conn, data_str: str, destino: str, origem: str | None = None, horas: float | None = None,
-    observacao: str | None = None, hora: str | None = None,
+    observacao: str | None = None, hora: str | None = None, escalas: str | None = None,
 ) -> int:
     cur = conn.execute(
-        "INSERT INTO voos (data, origem, destino, horas, observacao, hora) VALUES (?, ?, ?, ?, ?, ?)",
-        (data_str, origem, destino, horas, observacao, hora),
+        "INSERT INTO voos (data, origem, destino, horas, observacao, hora, escalas) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (data_str, origem, destino, horas, observacao, hora, escalas),
     )
     conn.commit()
     return cur.lastrowid

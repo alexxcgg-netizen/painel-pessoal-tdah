@@ -82,3 +82,56 @@ test("quiz com dado ruim nao renderiza nem quebra", () => {
 test("Cards.registrarAcao existe pro clique do quiz", () => {
   assert.strictEqual(typeof Cards.registrarAcao, "function");
 });
+
+// ---- voo_agendado (2026-10-14): cartao de embarque com as pernas
+const VOO = {
+  id: 7, data: "2099-10-17", hora: "14:00", local: false,
+  paradas: [
+    { icao: "SSBL", nome: "Blumenau", decola: "14:00" },
+    { icao: "SBNF", nome: "Navegantes", pousa: "14:22", decola: "14:37" },
+    { icao: "SBFL", nome: "Florianópolis", pousa: "15:15", decola: "15:30" },
+    { icao: "SSBL", nome: "Blumenau", pousa: "16:15" },
+  ],
+  pernas: [{ nm: 24 }, { nm: 48 }, { nm: 58 }], total_nm: 130, duracao_min: 135, pouso: "16:15",
+  antecedencia_min: 45, chegar: "13:15", sair_casa: "12:10", trajeto_min: 65, horas_min: 3726, meta_horas: 150,
+};
+const voo = (data) => Cards.renderizarListaHTML([{ type: "voo_agendado", id: "v1", data, actions: [] }], { passos: [] });
+
+test("voo_agendado: pernas em NM, paradas tocaveis e horarios", () => {
+  const h = voo(VOO);
+  assert.match(h, /data-vivo="voo-rota"/);
+  assert.strictEqual((h.match(/data-acao="voo_parada"/g) || []).length, 4);
+  assert.match(h, /24 NM/);
+  assert.match(h, /58 NM/);
+  assert.match(h, /~130 NM/);
+  assert.match(h, /Saída<\/span><b class="vivo-num">12:10/);
+  assert.match(h, /Chega<\/span><b class="vivo-num">13:15<\/b><small>45 min antes/);
+  assert.match(h, /~16:15/);
+  assert.match(h, /data-nome="Volta pra Blumenau"/);
+  assert.match(h, /data-resto="perna 1, 24 NM · pousa ~14:22, decola ~14:37"/);
+  assert.match(h, /62,1 h/);
+  assert.match(h, /~64,4 h/);
+});
+
+test("voo_agendado: voo local vira circuito, sem paradas tocaveis", () => {
+  const h = voo({ ...VOO, local: true, paradas: [VOO.paradas[0], { icao: "SSBL", nome: "Blumenau" }], pernas: [], total_nm: null, duracao_min: null, pouso: null, sair_casa: null });
+  assert.match(h, /data-vivo="voo-local"/);
+  assert.doesNotMatch(h, /voo_parada/);
+  assert.doesNotMatch(h, /Saída/);
+  assert.match(h, /voo local/);
+});
+
+test("voo_agendado: escapa nome de aerodromo e some sem paradas", () => {
+  const h = voo({ ...VOO, paradas: [{ icao: "<b>X", nome: "<img src=x>" }, VOO.paradas[1]], pernas: [{ nm: null }] });
+  assert.doesNotMatch(h, /<img src=x>/);
+  assert.doesNotMatch(h, /<b>X/);
+  const vazio = voo({ ...VOO, paradas: [] });
+  assert.doesNotMatch(vazio, /data-vivo="voo-rota"/);
+});
+
+test("voo_agendado: caminho tem um arco por perna", () => {
+  const Av = require("../../static/js/cards-aviacao.js");
+  const xs = Av.vaPontos(4);
+  assert.deepStrictEqual(xs.map(Math.round), [10, 103, 197, 290]);
+  assert.strictEqual((Av.vaCaminho(xs).match(/Q/g) || []).length, 3);
+});

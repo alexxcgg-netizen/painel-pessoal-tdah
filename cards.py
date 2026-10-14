@@ -19,7 +19,7 @@ from __future__ import annotations
 import copy
 import re
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import calculos
 import db
@@ -73,6 +73,7 @@ MODULO_POR_TOOL = {
     "registrar_lugar": "Viagens",
     "sugerir_horario_livre": "Agenda",
     "registrar_voo": "Aviação",
+    "ajustar_antecedencia_voo": "Aviação",
     "adicionar_compras": "Compras",
     "registrar_memoria": "Memória",
     "salvar_nota": "Notas",
@@ -140,7 +141,7 @@ ABA_POR_ENTIDADE = {
 # Campos com valor em dinheiro, por type - removidos no modo visitante
 # (docs/CARDS.md, "Modo visitante"). Card novo com dinheiro entra aqui.
 CAMPOS_SENSIVEIS = {
-    "transacao": ("valor", "saldo"),
+    "transacao": ("valor", "saldo", "mes", "dias"),
     # 2026-10-13 (conversa_proativa): dinheiro e agua (saude) saem no modo visitante
     "fechar_dia": ("gasto", "agua"),
     "semana": ("gasto", "gasto_ant", "gastos_dia", "agua_dia"),
@@ -203,6 +204,9 @@ TIPOS_CARD = (
     # painel puxando assunto (2026-10-13, conversa_proativa.py)
     "fechar_dia",
     "semana",
+    # linguagem visual aprovada (2026-10-14, docs/CARDS.md)
+    "voo_agendado",
+    "tarefa_feita",
 )
 
 
@@ -353,6 +357,105 @@ def _tarefa_dict(row) -> dict:
     }
 
 
+def _e_conclusao(ef: dict) -> bool:
+    """Tarefa concluida pelo chat: registrar_feito marca `feito`; ajustar_tarefa(status=concluir)
+    vira uma edicao so do completed_at. As duas viram o card tarefa_feita."""
+    if not isinstance(ef.get("id"), int):
+        return False
+    if ef.get("feito") is True and ef.get("entidade") in ("edicao", "tarefa"):
+        return True
+    depois = ef.get("depois")
+    return (
+        ef.get("entidade") == "edicao" and ef.get("tabela") == "tasks" and isinstance(depois, dict)
+        and set(depois) == {"completed_at"} and bool(depois["completed_at"])
+    )
+
+
+def card_tarefa_feita(conn, id_: int, actions_extra: list | None = None, agora: datetime | None = None) -> dict | None:
+    """Concluir (2026-10-14, docs/CARDS.md "Linguagem visual"): a tarefa riscada, o anel do dia
+    (feitas/total das tarefas de hoje, contando esta) e a proxima pendente de hoje."""
+    agora = agora or datetime.now()
+    hoje = agora.date().isoformat()
+    row = conn.execute("SELECT id, title, completed_at FROM tasks WHERE id = ?", (id_,)).fetchone()
+    if not row:
+        return None
+    dia = conn.execute(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(completed_at IS NOT NULL), 0) AS feitas FROM tasks "
+        "WHERE (due_date = ? OR id = ?) AND NOT (recorrencia IS NOT NULL AND due_date IS NULL)",
+        (hoje, id_),
+    ).fetchone()
+    pendentes = conn.execute(
+        "SELECT title, hora FROM tasks WHERE due_date = ? AND completed_at IS NULL AND id != ? "
+        "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL) ORDER BY hora IS NULL, hora, id",
+        (hoje, id_),
+    ).fetchall()
+    agora_hhmm = agora.strftime("%H:%M")
+    # a proxima com hora que ainda nao passou; senao a primeira sem hora
+    prox = next((p for p in pendentes if p["hora"] and p["hora"] >= agora_hhmm), None) or next(
+        (p for p in pendentes if not p["hora"]), None
+    )
+    proxima = None
+    if prox:
+        # quanto falta e conta do front (com a hora de quem esta vendo - no historico tambem)
+        proxima = {"titulo": _titulo_curto(prox["title"], 70), "hora": prox["hora"]}
+    aba, rotulo = ABA_POR_ENTIDADE["tarefa"]
+    data = {
+        "id": row["id"],
+        "titulo": _titulo_curto(row["title"], 120),
+        "data": hoje,
+        "hora": agora_hhmm,
+        "feitas": int(dia["feitas"]),
+        "total": int(dia["total"]),
+        "faltam": len(pendentes),
+        "proxima": proxima,
+    }
+    return novo_card("tarefa_feita", data, list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, "tarefa", row["id"])])
+
+
+# Tarefa com aperto (2026-10-14, docs/CARDS.md "Linguagem visual"): a nova cai a menos de
+# APERTO_MIN de outra pendente do mesmo dia. So horarios de inicio (tarefa nao tem duracao);
+# a sugestao poe a outra a SUGESTAO_MIN de distancia, se nao apertar uma terceira.
+APERTO_MIN = 45
+SUGESTAO_MIN = 60
+
+
+def _min_do_dia(hora) -> int | None:
+    try:
+        h, m = (int(x) for x in str(hora).split(":")[:2])
+    except (TypeError, ValueError):
+        return None
+    return h * 60 + m if 0 <= h <= 23 and 0 <= m <= 59 else None
+
+
+def _aperto(conn, tarefa: dict) -> dict | None:
+    nova = _min_do_dia(tarefa.get("hora"))
+    if nova is None or not tarefa.get("data") or tarefa.get("recorrencia") or tarefa.get("concluida"):
+        return None
+    outras = [
+        (r, _min_do_dia(r["hora"]))
+        for r in conn.execute(
+            "SELECT id, title, hora FROM tasks WHERE due_date = ? AND id != ? AND completed_at IS NULL "
+            "AND hora IS NOT NULL AND NOT (recorrencia IS NOT NULL AND due_date IS NULL)",
+            (tarefa["data"], tarefa["id"]),
+        ).fetchall()
+    ]
+    outras = [(r, m) for r, m in outras if m is not None]
+    perto = sorted(((abs(m - nova), r, m) for r, m in outras if abs(m - nova) < APERTO_MIN), key=lambda x: (x[0], x[1]["id"]))
+    if not perto:
+        return None
+    _, outra, m_outra = perto[0]
+    alvo = nova - SUGESTAO_MIN if m_outra <= nova else nova + SUGESTAO_MIN
+    livre = 5 * 60 <= alvo <= 23 * 60 + 30 and all(
+        abs(m - alvo) >= APERTO_MIN for r, m in outras if r["id"] != outra["id"]
+    )
+    return {
+        "id": outra["id"],
+        "titulo": _titulo_curto(outra["title"], 60),
+        "hora": f"{m_outra // 60:02d}:{m_outra % 60:02d}",
+        "sugestao": f"{alvo // 60:02d}:{alvo % 60:02d}" if livre else None,
+    }
+
+
 def card_tarefas_criadas(conn, ids: list[int], actions_extra: list | None = None) -> dict | None:
     if not ids:
         return None
@@ -379,6 +482,10 @@ def card_tarefas_criadas(conn, ids: list[int], actions_extra: list | None = None
             (dia,),
         ).fetchall()
         data["dia"] = dia
+        if len(tarefas) == 1:
+            aperto = _aperto(conn, tarefas[0])
+            if aperto:
+                data["aperto"] = aperto
         data["agenda_do_dia"] = [
             {"id": r["id"], "titulo": r["title"], "hora": r["hora"], "concluida": bool(r["completed_at"]),
              "nova": r["id"] in novos}
@@ -426,9 +533,47 @@ def card_transacao(conn, entidade: str, id_: int, meio=None, saldo=None, actions
         else None
     )
     data["oculto"] = False
+    if entidade == "gasto" and data["status"] == "real":
+        data.update(_contexto_gasto(conn, data["categoria"], data["valor"]))
     aba, rotulo = ABA_POR_ENTIDADE[entidade]
     actions = [acao_abrir_aba(aba, rotulo, entidade, data["id"])] + list(actions_extra or [])
     return novo_card("transacao", data, actions)
+
+
+def _contexto_gasto(conn, categoria: str, valor: float, hoje: date | None = None) -> dict:
+    """Card do gasto (2026-10-14, docs/CARDS.md "Linguagem visual"): quanto a categoria ja
+    tem no mes (com este gasto), o teto se houver orcamento, quanto sobra por dia ate o fim
+    do mes e os ultimos 14 dias da categoria (barrinhas, hoje no fim). Mesma regra de
+    db.gasto_mes_por_categoria (gasto real, mes do created_at)."""
+    hoje = hoje or date.today()
+    mes = db.gasto_mes_por_categoria(conn, categoria, hoje.strftime("%Y-%m"))
+    limite = db.obter_orcamento(conn, categoria)
+    proximo = (hoje.replace(day=28) + timedelta(days=4)).replace(day=1)
+    dias_restantes = (proximo - hoje).days  # conta hoje
+    inicio = hoje - timedelta(days=13)
+    por_dia = {
+        r["dia"]: float(r["total"])
+        for r in conn.execute(
+            # created_at e UTC (datetime('now')); o dia da barrinha e o dia daqui
+            "SELECT date(created_at, 'localtime') AS dia, SUM(amount) AS total FROM expenses "
+            "WHERE category = ? AND tipo = 'real' AND date(created_at, 'localtime') >= ? GROUP BY dia",
+            (categoria, inicio.isoformat()),
+        ).fetchall()
+    }
+    mes_ctx = {
+        "categoria": categoria,
+        "gasto": round(float(mes), 2),
+        "antes": round(max(0.0, float(mes) - valor), 2),
+        "limite": float(limite) if limite else None,
+        "dias_restantes": dias_restantes,
+    }
+    if limite:
+        mes_ctx["sobra"] = round(float(limite) - float(mes), 2)
+        mes_ctx["sobra_dia"] = round(max(0.0, float(limite) - float(mes)) / dias_restantes, 2)
+    return {
+        "mes": mes_ctx,
+        "dias": [round(por_dia.get((inicio + timedelta(days=i)).isoformat(), 0.0), 2) for i in range(14)],
+    }
 
 
 def card_meta(conn, id_: int, actions_extra=None) -> dict | None:
@@ -1000,6 +1145,54 @@ def card_voo_resumo(conn, hoje: date | None = None) -> dict | None:
     )
 
 
+def card_voo_agendado(conn, ef: dict, actions_extra: list | None = None, hoje: date | None = None) -> dict | None:
+    """Voo marcado pelo chat (2026-10-14, docs/CARDS.md "Linguagem visual"): cartao de embarque
+    com as pernas (NM de rota_voo), a hora de chegar (antecedencia das "Rotinas fixas"), a de
+    sair de casa (quando o Maps calculou no executor) e as horas do curso ate a meta."""
+    import rota_voo
+    import vida_assistente
+
+    id_ = ef.get("id")
+    if not isinstance(id_, int):
+        return None
+    v = conn.execute("SELECT id, data, origem, destino, hora, escalas FROM voos WHERE id = ?", (id_,)).fetchone()
+    if not v:
+        return None
+    rota = rota_voo.montar(v["origem"], v["escalas"], v["destino"], v["hora"])
+    antes = vida_assistente.voo_briefing_min(conn)
+    saida = ef.get("saida") if isinstance(ef.get("saida"), dict) else {}
+    hoje = hoje or date.today()
+    feitos = conn.execute(
+        "SELECT horas FROM voos WHERE horas IS NOT NULL AND data <= ? AND COALESCE(tipo, '') != 'simulador'",
+        (hoje.isoformat(),),
+    ).fetchall()
+    meta = db.obter_configuracao(conn, "aviacao_meta_horas")
+    duracao = None
+    if rota["em_voo_min"] is not None:
+        duracao = rota["em_voo_min"] + rota_voo.MIN_POR_ESCALA * max(0, len(rota["paradas"]) - 2)
+    return novo_card(
+        "voo_agendado",
+        {
+            "id": id_,
+            "data": v["data"],
+            "hora": v["hora"],
+            "paradas": rota["paradas"],
+            "local": rota["local"],
+            "pernas": rota["pernas"],
+            "total_nm": rota["total_nm"],
+            "duracao_min": duracao,
+            "pouso": rota["pouso"],
+            "antecedencia_min": antes,
+            "chegar": rota_voo.menos_minutos(v["hora"], antes),
+            "sair_casa": saida.get("sair"),
+            "trajeto_min": saida.get("trajeto_min"),
+            "horas_min": int(round(sum(float(r["horas"]) for r in feitos) * 60)),
+            "meta_horas": int(meta) if meta and meta.isdigit() else 150,
+        },
+        [*(actions_extra or []), acao_abrir_aba("aviacao", "Abrir Aviação")],
+    )
+
+
 def card_clima(ef: dict) -> dict | None:
     agora = ef.get("agora")
     if not isinstance(agora, dict):
@@ -1186,6 +1379,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_refeicao(conn, id_, ef, desfazer)
     if entidade == "voo_resumo":
         return card_voo_resumo(conn)
+    if entidade == "voo_agendado":
+        return card_voo_agendado(conn, ef, desfazer)
     if entidade == "clima":
         return card_clima(ef)
     if entidade == "gastos_resumo":
@@ -1221,6 +1416,11 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
     for ef in efeitos:
         entidade = ef.get("entidade")
         id_ = ef.get("id")
+        if _e_conclusao(ef):
+            card = card_tarefa_feita(conn, id_, _acoes_desfazer(criar_token, [ef]))
+            if card:
+                saida.append(card)
+            continue
         if entidade in ("edicao", "tarefa_apagada") and isinstance(id_, int):
             if pos_edicoes is None:
                 pos_edicoes = len(saida)

@@ -5,6 +5,30 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-14 - Cards da IA no app (1ª leva: voo, gasto, alteração, concluir, aperto)
+
+Implementação das 5 cenas do protótipo que usam dado que o painel já tem (tabela em
+`docs/CARDS.md` → "O que já está no app"):
+- **Voo agendado** (`voo_agendado`): `registrar_voo` sem origem sai de SSBL; `escalas` novas no
+  schema da tool e na tabela `voos`; `rota_voo.py` mede as pernas em NM pelas coordenadas do
+  `briefing_voo` (aeródromo sem coordenada fica sem NM, nunca inventado) e estima os horários
+  (90 kt + 6 min/perna + 15 min/escala). Card: cartão de embarque com o avião percorrendo a rota,
+  tocar num aeródromo leva o avião até ele; chega/decola/pousa, hora de sair de casa (Maps, se
+  `ENDERECO_CASA`), horas do curso até a meta. Tool nova `ajustar_antecedencia_voo`.
+  Desfazer apaga só se o voo ainda não tem horas.
+- **Gasto**: cupom saindo da impressora + mês da categoria (barra do teto do orçamento, quanto
+  sobra por dia) + 14 dias em barrinhas. Visitante não vê `mes`/`dias`.
+- **Alteração**: hora rola os dígitos tipo placar; valor curto troca no lugar (velho sobe riscado,
+  novo cai marcado); título longo troca só a palavra que mudou.
+- **Concluir** (`tarefa_feita`): check se desenha, título se risca, anel do dia anda uma casa,
+  próxima pendente com quanto falta. `registrar_feito` agora tem Desfazer (antes não tinha card).
+- **Tarefa com aperto**: tarefa nova a < 45 min de outra pendente → lupa de 3h, faixa apertada,
+  botão "Passar X pras HH:MM" (rota nova `POST /api/tasks/<id>/hora`) / "Deixa assim".
+
+**Pro Alex fazer pelo chat**: o banco dele tem `voo_briefing_min=30` e se arrumar = 40 - dizer
+"no voo chego 45 min antes" e "me arrumar leva 45 min". Testes novos: `test_voo_agendado.py`,
+`test_tarefa_feita.py`, contexto do gasto em `test_cards.py`, JS em `cards*.test.js`. SW v75.
+
 ## 2026-10-14 - Cards da IA: protótipo aprovado + aprendizado guardado
 
 Protótipo com 9 cenas (voo, date, balada, tabelionato, presente, mercado, tarefa com aperto,

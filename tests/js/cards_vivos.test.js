@@ -19,10 +19,56 @@ test("edicao: antes riscado, depois em destaque, tudo escapado", () => {
     itens: [{ rotulo: "Tarefa", titulo: "<b>Contabilidade</b>", mudancas: [{ campo: "hora", de: "09:00", para: "10:30" }] }],
   });
   semFallback(h);
-  assert.match(h, /<s class="vivo-de">09:00<\/s>/);
-  assert.match(h, /<strong class="vivo-para">10:30<\/strong>/);
+  // hora vira relogio rolando: ja sai parado no novo, com o antigo riscado do lado
+  assert.match(h, /ed-relogio" role="img" aria-label="10:30, antes 09:00" data-de="09:00" data-para="10:30"/);
+  assert.match(h, /<s class="vivo-de ed-antes">09:00<\/s>/);
+  assert.match(h, /translateY\(-3em\)/);
+  assert.match(h, /ed-trocado/);
   assert.match(h, /&lt;b&gt;Contabilidade/);
   assert.match(html("edicao", { itens: [] }), /card-contrato-fallback/);
+});
+
+test("edicao: valor curto troca no lugar; frase longa so troca o pedaco; texto todo novo fica antes -> depois", () => {
+  const h = html("edicao", {
+    itens: [{
+      rotulo: "Tarefa", titulo: "Sacar",
+      mudancas: [
+        { campo: "valor", de: "R$ 87,40", para: "R$ 78,40" },
+        { campo: "título", de: "Sacar 10 mil em dinheiro na Viacredi", para: "Sacar 5 mil em dinheiro na Viacredi" },
+        { campo: "título", de: "Ligar pro contador sobre o imposto", para: "Mandar os recibos todos por e-mail hoje" },
+      ],
+    }],
+  });
+  assert.match(h, /ed-curta ed-trocado">.*?<span class="ed-troca"><s class="vivo-de">R\$ 87,40<\/s><strong class="vivo-para">R\$ 78,40<\/strong>/);
+  assert.match(h, /ed-frase ed-trocado">.*?Sacar <span class="ed-troca"><s class="vivo-de">10<\/s><strong class="vivo-para">5<\/strong><\/span> mil em dinheiro na Viacredi/);
+  assert.match(h, /<s class="vivo-de">Ligar pro contador sobre o imposto<\/s><span class="vivo-para-linha">/);
+});
+
+test("tarefa_feita: tarefa riscada, anel feitas/total, proxima com quanto falta so no mesmo dia", () => {
+  const agora = new Date(2026, 9, 14, 10, 20);
+  const card = (data) => Cards.renderizarCardHTML({ type: "tarefa_feita", id: "c1", data, actions: [] }, { agora });
+  const base = {
+    titulo: "<i>Consulta</i>", data: "2026-10-14", hora: "10:20", feitas: 3, total: 6, faltam: 3,
+    proxima: { titulo: "Checar concreteira", hora: "12:00" },
+  };
+  const h = card(base);
+  semFallback(h);
+  assert.match(h, /tf-risco">&lt;i&gt;Consulta/);
+  assert.match(h, /tf-num vivo-num">3\/6</);
+  assert.match(h, /3 de 6 hoje/);
+  assert.match(h, /Faltam 3 pra hoje/);
+  assert.match(h, /data-feitas="3" data-total="6"/);
+  assert.match(h, /stroke-dashoffset="69\.12" style="--de:92\.15"/); // metade cheia; antes 2/6
+  assert.match(h, /em 1h40/);
+
+  const ontem = card({ ...base, data: "2026-10-13" });
+  assert.doesNotMatch(ontem, /em \d/);
+  assert.match(ontem, /12:00/);
+
+  const fechou = card({ ...base, feitas: 6, faltam: 0, proxima: null });
+  assert.match(fechou, /Nada pendente pra hoje/);
+  assert.doesNotMatch(fechou, /tf-proxima/);
+  assert.match(card({ titulo: "" }), /card-contrato-fallback/);
 });
 
 test("voo_resumo: total em HH:MM, meta, barras por funcao e aeronave com hifen", () => {

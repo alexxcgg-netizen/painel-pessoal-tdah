@@ -144,7 +144,8 @@ class ChatContratoTestCase(ContratoCardsBase):
         self.assertEqual(resumo["modulos"], ["Finanças", "Tarefas", "Metas", "Lembretes"])
         textos = {linha["modulo"]: linha["texto"] for linha in resumo["linhas"]}
         self.assertEqual(textos["Finanças"], "1 gasto registrado, 1 entrada registrada")
-        self.assertNotIn("45", json.dumps(resumo))  # resumo_final nunca carrega valor
+        sem_tempo = {k: v for k, v in resumo.items() if k != "duracao_ms"}  # duracao em ms pode ser 45
+        self.assertNotIn("45", json.dumps(sem_tempo))  # resumo_final nunca carrega valor
 
     def test_gasto_com_banco_mostra_meio_e_saldo(self):
         conta_id = db.get_or_create_bank_account(self.conn, "nubank", "conta")
@@ -288,6 +289,16 @@ class ModoVisitanteCardsTestCase(ContratoCardsBase):
         for segredo in (b"6666", b"6.666", b"99999", b"5432"):
             self.assertNotIn(segredo, hist.data)
 
+    def test_gasto_nao_vaza_o_mes_nem_as_barrinhas(self):
+        db.criar_gasto_de_brain_dump(self.conn, 4321.0, "lazer", "antes")
+        self._ativar()
+        res = self._capture({"tipo": "gasto", "titulo": "Presente", "valor": 7777.77, "categoria": "lazer"})
+        data = res.get_json()["cards"][0]["data"]
+        self.assertNotIn("mes", data)
+        self.assertNotIn("dias", data)
+        self.assertNotIn(b"4321", res.data)
+        self.assertNotIn(b"12098", res.data)
+
     def test_sem_modo_visitante_valor_aparece(self):
         res = self._capture({"tipo": "gasto", "titulo": "Presente", "valor": 7777.77, "categoria": "lazer"})
         self.assertIn(b"7777.77", res.data)
@@ -318,6 +329,59 @@ class CardsPurosTestCase(unittest.TestCase):
         self.assertIn("valor", original["cards"][0]["data"])
         self.assertNotIn("valor", mascarado["cards"][0]["data"])
         self.assertNotIn("saldo", mascarado["cards"][0]["data"])
+
+
+class ContextoGastoTestCase(ContratoCardsBase):
+    """Card do gasto (2026-10-14): mes da categoria, teto do orcamento e 14 dias."""
+
+    def _gasto(self, valor, categoria="mercado", dias_atras=0, tipo="real"):
+        self.conn.execute(
+            "INSERT INTO expenses (amount, category, description, tipo, created_at) "
+            "VALUES (?, ?, 'x', ?, datetime('now', ?))",
+            (valor, categoria, tipo, f"-{dias_atras} days"),
+        )
+        self.conn.commit()
+
+    def test_mes_com_teto_e_sobra_por_dia(self):
+        self._gasto(100.0)
+        self._gasto(50.0, categoria="lazer")
+        self._gasto(999.0, tipo="planejado")
+        self._gasto(80.0)
+        self._gasto(70.0, dias_atras=20)  # fora das 14 barrinhas
+        db.definir_orcamento(self.conn, "mercado", 600)
+        ctx = cards._contexto_gasto(self.conn, "mercado", 80.0)
+        m = ctx["mes"]
+        self.assertEqual((m["antes"] + 80.0, m["limite"]), (m["gasto"], 600.0))
+        self.assertEqual(m["sobra"], round(600.0 - m["gasto"], 2))
+        self.assertAlmostEqual(m["sobra_dia"], round(m["sobra"] / m["dias_restantes"], 2))
+        self.assertEqual(len(ctx["dias"]), 14)
+        self.assertEqual(ctx["dias"][-1], 180.0)
+        self.assertEqual(sum(ctx["dias"]), 180.0)
+
+    def test_sem_orcamento_nao_tem_teto(self):
+        self._gasto(30.0)
+        m = cards._contexto_gasto(self.conn, "mercado", 30.0)["mes"]
+        self.assertIsNone(m["limite"])
+        self.assertNotIn("sobra", m)
+
+    def test_estourou_o_teto_sobra_negativa_e_por_dia_zero(self):
+        self._gasto(500.0)
+        db.definir_orcamento(self.conn, "mercado", 400)
+        m = cards._contexto_gasto(self.conn, "mercado", 500.0)["mes"]
+        self.assertEqual((m["sobra"], m["sobra_dia"]), (-100.0, 0.0))
+
+    def test_ultimo_dia_do_mes_conta_hoje(self):
+        m = cards._contexto_gasto(self.conn, "mercado", 0.0, date(2026, 10, 31))["mes"]
+        self.assertEqual(m["dias_restantes"], 1)
+
+    def test_card_do_chat_leva_o_contexto(self):
+        def fake_chat(mensagens, contexto, memorias, executores):
+            executores["registrar_gasto"]({"titulo": "Giassi", "valor": 87.4, "categoria": "mercado"})
+            return "Feito.", [], fake_usage()
+
+        card = next(c for c in self._chat(fake_chat)["cards"] if c["type"] == "transacao")
+        self.assertEqual(card["data"]["mes"]["gasto"], 87.4)
+        self.assertEqual(card["data"]["dias"][-1], 87.4)
 
 
 class CardsSimplesBackendTestCase(ContratoCardsBase):

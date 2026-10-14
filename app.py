@@ -58,6 +58,7 @@ import vida_assistente
 import diario
 import feriados
 import refeicoes
+import rota_voo
 import viagem_compras
 import metar
 import noticias
@@ -409,6 +410,22 @@ def _normalizar_hora(hora) -> str | None:
     if not (0 <= h <= 23 and 0 <= m <= 59):
         return None
     return f"{h:02d}:{m:02d}"
+
+
+def _saida_pro_voo(conn, data_voo: str, hora: str | None, origem: str, antes_min: int) -> dict | None:
+    """Hora de sair de casa pra chegar `antes_min` antes da decolagem no aerodromo de origem
+    (trajeto com transito do Google, mesma conta do push "voo_sair"). None sem hora, sem
+    Maps/ENDERECO_CASA ou se a rede falhar - o card mostra so a hora de chegar."""
+    casa = os.environ.get("ENDERECO_CASA", "").strip()
+    if not hora or not casa or not maps_client.configurado():
+        return None
+    try:
+        chegar_ate = datetime.fromisoformat(f"{data_voo}T{hora}") - timedelta(minutes=antes_min)
+        r = maps_client.horario_de_saida(casa, vida_assistente.resolver_lugar(conn, origem), chegar_ate,
+                                         margem_minutos=10)
+        return {"sair": f"{datetime.fromisoformat(r['sair_ate']):%H:%M}", "trajeto_min": int(r["duracao_minutos"])}
+    except Exception:  # rede/formato: o card segue sem a hora de sair
+        return None
 
 
 def _tarefa_repetida(conn, titulo, dia):
@@ -3016,6 +3033,20 @@ def _processar_mensagem_chat(
         conn.commit()
         return {"ok": True, "minutos": minutos}
 
+    def exec_ajustar_antecedencia_voo(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        try:
+            minutos = int(float(entrada.get("minutos")))
+        except (TypeError, ValueError):
+            return {"erro": "minutos invalidos"}
+        if not 0 <= minutos <= 180:
+            return {"erro": "fora do razoavel (0 a 180 min)"}
+        definir_configuracao(conn, "voo_briefing_min", str(minutos))
+        conn.commit()
+        return {"ok": True, "minutos": minutos}
+
     def exec_planejar_compras_viagem(entrada):
         try:
             ida = date.fromisoformat(entrada["data_ida"]) if entrada.get("data_ida") else None
@@ -3341,7 +3372,20 @@ def _processar_mensagem_chat(
         return {"ok": True, "quem": espera["quem"], "sobre": espera["sobre"]}
 
     def exec_registrar_feito(entrada):
-        return marcar_ou_criar_feito(conn, entrada["titulo"], texto)
+        r = marcar_ou_criar_feito(conn, entrada["titulo"], texto)
+        if r.get("ok"):
+            # card tarefa_feita (2026-10-14); o Desfazer reabre a que ja existia ou apaga a
+            # que nasceu concluida agora
+            if r["acao"] == "marcada_concluida":
+                feito_em = conn.execute("SELECT completed_at FROM tasks WHERE id = ?", (r["task_id"],)).fetchone()
+                r["_efeito"] = {
+                    "entidade": "edicao", "tabela": "tasks", "id": r["task_id"], "rotulo": "Tarefa",
+                    "titulo": r["titulo"], "antes": {"completed_at": None},
+                    "depois": {"completed_at": feito_em["completed_at"] if feito_em else None}, "feito": True,
+                }
+            else:
+                r["_efeito"] = {"entidade": "tarefa", "id": r["task_id"], "feito": True}
+        return r
 
     def exec_registrar_voo(entrada):
         # Contar como foi um voo ja agendado (resposta ao "Como foi o voo?")
@@ -3362,18 +3406,37 @@ def _processar_mensagem_chat(
             )
             conn.commit()
             return {"ok": True, "atualizado": True, "_efeito": {"entidade": "voo_resumo", "consulta": True}}
-        create_voo(
+        hora = _normalizar_hora(entrada.get("hora"))
+        # 2026-10-14 (pedido do Alex): voo sem origem dita sai de Blumenau (SSBL); navegacao
+        # com escalas guarda a ordem ("SBNF,SBFL") - ver rota_voo.py
+        origem = rota_voo.aerodromo(entrada.get("origem")) or rota_voo.ORIGEM_PADRAO
+        escalas = rota_voo.escalas_texto(entrada.get("escalas"))
+        voo_id = create_voo(
             conn,
             entrada["data"],
-            entrada["destino"],
-            entrada.get("origem"),
+            rota_voo.aerodromo(entrada["destino"]) or entrada["destino"],
+            origem,
             entrada.get("horas"),
             entrada.get("observacao"),
-            _normalizar_hora(entrada.get("hora")),
+            hora,
+            escalas,
         )
         if entrada.get("horas"):
             return {"ok": True, "_efeito": {"entidade": "voo_resumo", "consulta": True}}
-        return {"ok": True}
+        rota = rota_voo.montar(origem, escalas, entrada["destino"], hora)
+        antes = vida_assistente.voo_briefing_min(conn)
+        saida = _saida_pro_voo(conn, entrada["data"], hora, origem, antes)
+        resposta = {
+            "ok": True,
+            "rota": " -> ".join(p["icao"] for p in rota["paradas"]),
+            "milhas_nauticas": rota["total_nm"],
+            "chegar_no_aeroclube": rota_voo.menos_minutos(hora, antes),
+            "_efeito": {"entidade": "voo_agendado", "id": voo_id, "saida": saida},
+        }
+        if saida:
+            resposta["sair_de_casa"] = saida["sair"]
+            resposta["trajeto_min"] = saida["trajeto_min"]
+        return resposta
 
     def exec_rotular_cobranca_generica(entrada):
         candidatos = notificacoes.cobrancas_genericas_sem_rotulo(conn)
@@ -3703,6 +3766,7 @@ def _processar_mensagem_chat(
         "ajustar_gasto": exec_ajustar_gasto,
         "definir_meta_horas_voo": exec_definir_meta_horas_voo,
         "ajustar_tempo_se_arrumar": exec_ajustar_tempo_se_arrumar,
+        "ajustar_antecedencia_voo": exec_ajustar_antecedencia_voo,
         "ajustar_renda": exec_ajustar_renda,
         "apagar_tarefa": exec_apagar_tarefa,
         "registrar_acordei": exec_registrar_acordei,
@@ -4008,6 +4072,9 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
                 db.reverter_ajuste_saldo(conn, item["conta_id"], item["delta"])
         elif entidade == "lembrete":
             cur = conn.execute("DELETE FROM lembretes WHERE id = ?", (id_,))
+        elif entidade == "voo_agendado":
+            # so o agendamento: se ja virou voo contado (com horas), nao apaga o diario
+            cur = conn.execute("DELETE FROM voos WHERE id = ? AND horas IS NULL", (id_,))
         elif entidade == "meta":
             conn.execute("DELETE FROM goal_deposits WHERE goal_id = ?", (id_,))
             cur = conn.execute("DELETE FROM goals WHERE id = ?", (id_,))

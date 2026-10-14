@@ -549,3 +549,219 @@
   :is(.card-contrato-tarefas_lista, .card-contrato-tarefas_criadas) .card-tarefa-titulo { transition: none !important; }
   .vivo-agora, .vivo-copinhos i, .vivo-rota-pino { transition: none !important; }
 }
+
+/* ---- transacao (gasto real): cupom + mes da categoria (2026-10-14, docs/CARDS.md) -------
+   O cupom ja esta impresso no HTML; so no .card-novo ele "sai da impressora". */
+.tx-impressora { position: relative; padding-top: 6px; }
+.tx-impressora::before {
+  content: ""; position: absolute; top: 0; left: 4px; right: 4px; height: 6px; border-radius: 6px; z-index: 1;
+  background: color-mix(in srgb, var(--text) 10%, var(--surface-3, #1d242c)); box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.55);
+}
+.tx-fresta { overflow: hidden; margin: 0 12px; }
+.tx-cupom {
+  --papel-tinta: #1b1f1a;
+  padding: 0.75rem 0.85rem 1.35rem;
+  background: linear-gradient(180deg, #e7eae2, #f6f7f2);
+  color: var(--papel-tinta);
+  font: 500 0.78rem/1.6 var(--font-tech);
+  font-variant-numeric: tabular-nums;
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+}
+.tx-cupom p { margin: 0; }
+.tx-cupom hr { border: 0; border-top: 1px dashed #9aa093; margin: 0.35rem 0; }
+.tx-c { text-align: center; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; overflow-wrap: anywhere; }
+.tx-l { display: flex; justify-content: space-between; gap: 0.6rem; }
+.tx-l > span:last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.tx-total { align-items: baseline; font-weight: 700; }
+.tx-cupom .card-valor-grande { font-family: var(--font-tech); font-size: 1.15rem; color: var(--papel-tinta); text-shadow: none; letter-spacing: -0.02em; }
+.card-novo .tx-cupom { animation: txImprime 1.4s cubic-bezier(0.3, 0.7, 0.2, 1) calc(var(--chegada, 0ms) + 0.25s) both; }
+@keyframes txImprime { from { transform: translateY(-101%); } }
+
+.tx-mes { display: grid; gap: 0.45rem; }
+.tx-mes-topo { display: flex; align-items: baseline; gap: 0.6rem; font-size: 0.8rem; color: var(--text-muted); }
+.tx-mes-val { margin-left: auto; white-space: nowrap; }
+.tx-mes-val b { color: var(--text); font-size: 0.98rem; }
+.tx-barra { position: relative; height: 6px; border-radius: 6px; background: var(--border); overflow: hidden; }
+.tx-barra i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 6px; }
+.tx-ja { background: color-mix(in srgb, var(--card-cor) 50%, var(--surface-3, #2a3440)); }
+.tx-novo { background: var(--card-cor); box-shadow: 0 0 10px var(--card-cor); }
+.tx-estourou .tx-novo { background: var(--cor-saida, #f47671); box-shadow: 0 0 10px var(--cor-saida, #f47671); }
+.card-novo .tx-ja { animation: txEnche 1s var(--ease-suave) calc(var(--chegada, 0ms) + 1.2s) both; transform-origin: left; }
+.card-novo .tx-novo { animation: txEnche 0.9s var(--ease-bounce) calc(var(--chegada, 0ms) + 1.9s) both; transform-origin: left; }
+@keyframes txEnche { from { transform: scaleX(0); } }
+.tx-sobra { margin: 0; font-size: 0.76rem; color: var(--text-muted); }
+.tx-dias { display: flex; align-items: flex-end; gap: 3px; height: 32px; margin-top: 0.15rem; }
+.tx-dias i { flex: 1; height: var(--h); border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, var(--card-cor) 28%, var(--surface-3, #1c232b)); transform-origin: bottom; }
+.tx-dias i.tx-hoje { background: var(--card-cor); }
+.card-novo .tx-dias i { animation: txSobe 0.6s var(--ease-bounce) calc(var(--chegada, 0ms) + 1.5s + var(--k, 0) * 35ms) both; }
+@keyframes txSobe { from { transform: scaleY(0); } }
+.tx-dias-leg { margin: -0.2rem 0 0; display: flex; justify-content: space-between; font-size: 0.64rem; color: var(--text-faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-novo .tx-cupom, .card-novo .tx-ja, .card-novo .tx-novo, .card-novo .tx-dias i { animation: none !important; }
+}
+
+/* ---- edicao: troca no lugar + relogio rolando (2026-10-14, docs/CARDS.md) -------------
+   Estado final no HTML (.ed-trocado); CardsVivos.animar tira a classe e devolve. */
+.vivo-mudanca.ed-anima { align-items: center; min-height: 2rem; }
+.vivo-mudanca.ed-curta { padding-top: 0.7rem; }
+.ed-troca { display: inline-grid; justify-items: start; font-size: 1rem; vertical-align: baseline; }
+.ed-frase .vivo-mudanca-valores > span { font-weight: 600; color: var(--text); }
+.ed-frase .ed-troca { font-size: inherit; position: relative; }
+/* no meio da frase o velho nao ocupa largura (senao sobra buraco depois do novo): fica centrado em cima */
+.ed-frase .ed-troca .vivo-de { position: absolute; left: 50%; bottom: 0; translate: -50% 0; white-space: nowrap; transform-origin: center bottom; }
+.ed-troca > * { grid-area: 1 / 1; }
+.ed-troca .vivo-de {
+  position: relative; text-decoration: none; transform-origin: left bottom;
+  transition: transform 0.6s var(--ease-suave) 0.3s, opacity 0.6s var(--ease-suave) 0.3s;
+}
+.ed-troca .vivo-de::after {
+  content: ""; position: absolute; left: -2px; right: -2px; top: 55%; height: 2px; border-radius: 2px;
+  background: var(--card-cor); transform: scaleX(0); transform-origin: left; transition: transform 0.35s var(--ease-suave);
+}
+.ed-troca .vivo-para {
+  position: relative; z-index: 0; color: var(--card-cor); opacity: 0; transform: translateY(0.45em);
+  transition: transform 0.7s var(--ease-bounce) 0.25s, opacity 0.35s var(--ease-suave) 0.25s;
+}
+.ed-troca .vivo-para::after {
+  content: ""; position: absolute; left: -3px; right: -3px; bottom: 0.1em; height: 0.28em; border-radius: 3px; z-index: -1;
+  background: color-mix(in srgb, var(--card-cor) 22%, transparent);
+}
+.ed-trocado .ed-troca .vivo-de { transform: translateY(-1.05em) scale(0.62); opacity: 0.6; }
+.ed-trocado .ed-troca .vivo-de::after { transform: scaleX(1); }
+.ed-trocado .ed-troca .vivo-para { opacity: 1; transform: none; }
+
+.ed-hora .vivo-mudanca-valores { align-items: center; gap: 0.7rem; }
+.ed-relogio { display: inline-flex; font: 600 1.3rem/1 var(--font-tech); color: var(--text); font-variant-numeric: tabular-nums; }
+.ed-dig { display: inline-block; height: 1em; overflow: hidden; }
+.ed-rolo { display: flex; flex-direction: column; transition: transform 0.9s var(--ease-bounce); }
+.ed-rolo b { height: 1em; font-weight: inherit; }
+.ed-dois { margin: 0 -0.14em; opacity: 0.7; }
+.ed-hora .ed-antes { font-family: var(--font-tech); font-size: 0.82rem; opacity: 0; transition: opacity 0.4s var(--ease-suave) 0.9s; }
+.ed-hora.ed-trocado .ed-antes { opacity: 1; }
+.ed-sem-transicao *, .ed-sem-transicao *::after { transition: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-troca .vivo-de, .ed-troca .vivo-de::after, .ed-troca .vivo-para, .ed-rolo, .ed-hora .ed-antes { transition: none !important; }
+}
+
+/* ---- tarefa_feita: check desenhado, risco, anel do dia, proxima (2026-10-14) --------
+   Estado final no HTML; so no .card-novo o check se desenha e o anel anda uma casa. */
+.card-contrato-tarefa_feita { --card-cor: var(--cor-sucesso); }
+.tf-hora { margin-left: auto; color: var(--text-faint); font-size: 0.78rem; letter-spacing: 0; text-transform: none; }
+.tf-linha { display: flex; align-items: center; gap: 0.75rem; margin: 0.15rem 0 0.7rem; }
+.tf-check { width: 34px; height: 34px; flex: none; color: var(--card-cor); }
+.tf-check circle, .tf-check path { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.tf-titulo { flex: 1; min-width: 0; font-size: 1rem; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.tf-risco {
+  color: var(--text-muted);
+  background: linear-gradient(color-mix(in srgb, var(--card-cor) 75%, transparent), color-mix(in srgb, var(--card-cor) 75%, transparent)) no-repeat 0 58% / 100% 1.5px;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.card-novo .tf-check circle { animation: tfTraco 0.6s var(--ease-suave) calc(var(--chegada, 0ms) + 0.15s) both; }
+.card-novo .tf-check path { animation: tfTraco 0.45s var(--ease-suave) calc(var(--chegada, 0ms) + 0.6s) both; }
+@keyframes tfTraco { from { stroke-dashoffset: 1; } }
+.card-novo .tf-risco { animation: tfRisca 0.7s var(--ease-suave) calc(var(--chegada, 0ms) + 0.85s) both; }
+@keyframes tfRisca { from { background-size: 0% 1.5px; color: var(--text); } }
+
+.tf-dia {
+  display: flex; align-items: center; gap: 0.85rem; padding: 0.7rem; border-radius: 16px;
+  background: color-mix(in srgb, var(--text) 3%, transparent); border: 1px solid var(--border);
+}
+.tf-dia strong { display: block; font-size: 0.92rem; }
+.tf-dia span { font-size: 0.8rem; color: var(--text-muted); }
+.tf-anel-num { position: relative; flex: none; }
+.tf-anel { width: 52px; height: 52px; display: block; transform: rotate(-90deg); }
+.tf-anel circle { fill: none; stroke-width: 5; }
+.tf-anel-fundo { stroke: color-mix(in srgb, var(--text) 10%, transparent); }
+.tf-anel-cheio { stroke: var(--card-cor); stroke-linecap: round; }
+.card-novo .tf-anel-cheio { animation: tfAnel 1.2s var(--ease-suave) calc(var(--chegada, 0ms) + 0.7s) both; }
+@keyframes tfAnel { from { stroke-dashoffset: var(--de); } }
+.tf-anel-num b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.8rem; }
+.tf-num.tf-virou { animation: tfVira 0.5s var(--ease-bounce); }
+@keyframes tfVira { 40% { transform: scale(1.18); color: var(--card-cor); } }
+
+.tf-proxima { display: grid; gap: 0.2rem; margin-top: 0.7rem; padding: 0 0.15rem; }
+.tf-olho { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+.tf-prox-tit { font-weight: 600; font-size: 0.92rem; overflow-wrap: anywhere; }
+.tf-falta { display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; color: var(--text-muted); }
+.tf-trilho { flex: 1; height: 4px; border-radius: 4px; background: var(--border); overflow: hidden; }
+.tf-trilho i { display: block; height: 100%; width: 100%; border-radius: inherit; background: var(--card-cor); transform: scaleX(var(--cheio, 0)); transform-origin: left; }
+.card-novo .tf-proxima { animation: tfEntra 0.6s var(--ease-bounce) calc(var(--chegada, 0ms) + 1.9s) both; }
+.card-novo .tf-trilho i { animation: tfTrilho 1s var(--ease-suave) calc(var(--chegada, 0ms) + 2.2s) both; }
+@keyframes tfEntra { from { opacity: 0; transform: translateY(6px); } }
+@keyframes tfTrilho { from { transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-novo .tf-check circle, .card-novo .tf-check path, .card-novo .tf-risco, .card-novo .tf-anel-cheio,
+  .tf-num.tf-virou, .card-novo .tf-proxima, .card-novo .tf-trilho i { animation: none !important; }
+}
+
+/* ---- tarefas_criadas com aperto: lupa de 3h (2026-10-14, docs/CARDS.md) ----------------
+   Estado final no HTML; .card-novo: a outra aparece, a nova pousa, a faixa acende e a outra
+   treme. Os botoes saem no fim. */
+.ap-hero { margin: 0.1rem 0 0; font-size: 1.12rem; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.ap-meta { margin: 0.15rem 0 0.55rem; font-size: 0.82rem; color: var(--text-muted); }
+.ap-meta .vivo-num { color: var(--text); }
+.ap-lupa { position: relative; height: 104px; }
+.ap-grade { position: absolute; inset: 0 0 20px; border-radius: 12px; border: 1px solid var(--border); background: color-mix(in srgb, var(--text) 2%, transparent); }
+.ap-tique { position: absolute; bottom: 0; white-space: nowrap; transform: translateX(-50%); font: 500 0.72rem var(--font-tech); color: var(--text-faint); }
+.ap-tique:first-of-type { transform: none; }
+.ap-tique.ultimo { transform: translateX(-100%); }
+.ap-agora { position: absolute; top: -2px; bottom: 20px; width: 0; border-left: 1.5px solid var(--text-muted); opacity: 0.8; }
+.ap-agora::after { content: "agora"; position: absolute; white-space: nowrap; top: -2px; left: 5px; font: 600 0.66rem var(--font-tech); color: var(--text-muted); }
+.ap-faixa {
+  position: absolute; top: 6px; bottom: 26px; min-width: 3px; border-radius: 6px;
+  background: color-mix(in srgb, var(--cor-alerta) 12%, transparent);
+  border-inline: 1px dashed color-mix(in srgb, var(--cor-alerta) 60%, transparent);
+  transition: opacity 0.5s var(--ease-suave);
+}
+.ap-bloco {
+  --cb: var(--text-muted);
+  position: absolute; height: 30px; border-radius: 9px; padding: 0 8px; display: flex; align-items: center; overflow: hidden;
+  font-size: 0.74rem; font-weight: 600; white-space: nowrap;
+  background: color-mix(in srgb, var(--cb) 18%, var(--surface-2, #0e1217));
+  border: 1px solid color-mix(in srgb, var(--cb) 42%, transparent);
+  transition: left 0.8s var(--ease-bounce), background 0.5s var(--ease-suave), border-color 0.5s var(--ease-suave);
+}
+.ap-bloco span { overflow: hidden; text-overflow: ellipsis; }
+.ap-bloco.l1 { top: 14px; }
+.ap-bloco.l2 { top: 52px; }
+.ap-bloco.outra { --cb: var(--cor-alerta); overflow: visible; }
+.ap-bloco.outra span { position: absolute; left: calc(100% + 7px); color: var(--cor-alerta); font-weight: 500; transition: color 0.5s var(--ease-suave); }
+.ap-bloco.outra.rotulo-esq span { left: auto; right: calc(100% + 7px); }
+.ap-bloco.nova { --cb: var(--card-cor); background: color-mix(in srgb, var(--card-cor) 30%, var(--surface-2, #120d0b)); color: var(--text); }
+.ap-lupa.resolvido .ap-faixa { opacity: 0; }
+.ap-lupa.resolvido .ap-bloco.outra { --cb: var(--text-muted); }
+.ap-lupa.resolvido .ap-bloco.outra span { color: var(--text-muted); }
+
+.ap-status { margin: 0.55rem 0 0; display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.84rem; line-height: 1.45; color: var(--text-muted); }
+.ap-status b { color: var(--text); font-weight: 600; }
+.ap-status svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--cor-alerta); }
+.ap-status.ok svg { color: var(--cor-sucesso); }
+.ap-troca { animation: tfEntra 0.45s var(--ease-suave) both; }
+.ap-acoes { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.ap-acao {
+  min-height: 40px; padding: 0 0.9rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  color: var(--text); font: inherit; font-size: 0.84rem; font-weight: 500; cursor: pointer; transition: transform 0.25s var(--ease-bounce), opacity 0.2s;
+}
+.ap-acao:active { transform: scale(0.95); }
+.ap-acao.primaria { background: var(--card-cor); color: #0b1016; border-color: transparent; font-weight: 600; }
+.ap-acao:disabled { opacity: 0.6; }
+.ap-acoes.some, .card-novo .ap-acoes.some { animation: apSome 0.35s var(--ease-suave) forwards; pointer-events: none; }
+@keyframes apSome { to { opacity: 0; transform: translateY(-4px); } }
+
+.card-novo .ap-bloco.outra { animation: tfEntra 0.5s var(--ease-suave) calc(var(--chegada, 0ms) + 0.3s) both, apTreme 0.5s var(--ease-suave) calc(var(--chegada, 0ms) + 1.7s) 2; }
+.card-novo .ap-bloco.nova { animation: apPousa 0.8s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.7s) both, apBrilho 1.2s var(--ease-suave) calc(var(--chegada, 0ms) + 1.2s); }
+.card-novo .ap-faixa { animation: apAcende 0.5s var(--ease-suave) calc(var(--chegada, 0ms) + 1.5s) both; }
+.card-novo .ap-status, .card-novo .ap-acoes { animation: tfEntra 0.5s var(--ease-bounce) calc(var(--chegada, 0ms) + 2s) both; }
+@keyframes apPousa { from { opacity: 0; transform: translateY(-26px) scale(0.9); } }
+@keyframes apBrilho { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--card-cor) 55%, transparent); } to { box-shadow: 0 0 0 12px transparent; } }
+@keyframes apAcende { from { opacity: 0; } }
+@keyframes apTreme { 30% { translate: -2px 0; } 70% { translate: 2px 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-novo .ap-bloco, .card-novo .ap-faixa, .card-novo .ap-status, .card-novo .ap-acoes, .ap-troca, .ap-acoes.some { animation: none !important; }
+  .ap-bloco { transition: none; }
+}
