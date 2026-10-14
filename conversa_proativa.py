@@ -170,6 +170,24 @@ def adiar_para_amanha(conn, ids, hoje: date) -> dict:
     return {"movidas": cur.rowcount, "para": amanha}
 
 
+def trazer_para_hoje(conn, ids, hoje: date, agora_hm: str) -> dict:
+    """Atrasada -> hoje (2026-10-14, Alex: "dormi, acordei e tava atrasada; botei pra amanha mas
+    era pra hoje"). So mexe em aberta com data ANTES de hoje. Horario que ainda vem hoje fica;
+    o que ja passou sai (senao o aviso "ta na hora" + insistencia disparava na hora de mover)."""
+    limpos = sorted({i for i in (ids or []) if isinstance(i, int) and not isinstance(i, bool) and i > 0})[:200]
+    if not limpos:
+        return {"movidas": 0, "para": hoje.isoformat()}
+    marcas = ",".join("?" for _ in limpos)
+    cur = conn.execute(
+        f"UPDATE tasks SET due_date = ?, hora = CASE WHEN hora IS NOT NULL AND hora > ? THEN hora ELSE NULL END "
+        f"WHERE id IN ({marcas}) AND completed_at IS NULL AND {_SO_TAREFA_REAL} "
+        "AND due_date IS NOT NULL AND due_date != '' AND due_date < ?",
+        [hoje.isoformat(), agora_hm, *limpos, hoje.isoformat()],
+    )
+    conn.commit()
+    return {"movidas": cur.rowcount, "para": hoje.isoformat()}
+
+
 # ----------------------------------------------------------- padroes da semana
 
 

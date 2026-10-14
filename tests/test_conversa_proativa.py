@@ -126,6 +126,43 @@ class AdiarTestCase(unittest.TestCase):
                 self.assertEqual(cp.adiar_para_amanha(self.conn, ids, HOJE)["movidas"], 0)
 
 
+class TrazerParaHojeTestCase(unittest.TestCase):
+    """2026-10-14: atrasada tem "pra hoje" - antes so existia "pra amanha" e a tarefa de ontem,
+    que o Alex ia fazer hoje, ia parar depois de amanha."""
+
+    def setUp(self):
+        self.conn = _banco()
+
+    def tearDown(self):
+        self.conn.close()
+
+    def _due(self, i):
+        return self.conn.execute("SELECT due_date, hora FROM tasks WHERE id = ?", (i,)).fetchone()
+
+    def test_so_traz_atrasada_aberta_e_hora_que_ja_passou_sai(self):
+        cedo = _tarefa(self.conn, "placas", due=ONTEM, hora="09:45")
+        tarde = _tarefa(self.conn, "academia", due=ONTEM, hora="18:00")
+        sem_hora = _tarefa(self.conn, "pix", due=(HOJE - timedelta(days=3)).isoformat())
+        hoje = _tarefa(self.conn, "de hoje", due=HOJE.isoformat(), hora="08:00")
+        feita = _tarefa(self.conn, "feita", due=ONTEM, feita_em=_feita_no_dia(HOJE))
+        rotina = _tarefa(self.conn, "rotina", due=ONTEM, recorrencia="diaria")
+        futura = _tarefa(self.conn, "futura", due=AMANHA)
+        r = cp.trazer_para_hoje(self.conn, [cedo, tarde, sem_hora, hoje, feita, rotina, futura, 99999], HOJE, "11:00")
+        self.assertEqual(r, {"movidas": 3, "para": HOJE.isoformat()})
+        self.assertEqual(tuple(self._due(cedo)), (HOJE.isoformat(), None))  # 09:45 ja passou
+        self.assertEqual(tuple(self._due(tarde)), (HOJE.isoformat(), "18:00"))  # ainda vem
+        self.assertEqual(tuple(self._due(sem_hora)), (HOJE.isoformat(), None))
+        self.assertEqual(tuple(self._due(hoje)), (HOJE.isoformat(), "08:00"))  # nao era atrasada
+        self.assertEqual(self._due(feita)["due_date"], ONTEM)
+        self.assertEqual(self._due(rotina)["due_date"], ONTEM)
+        self.assertEqual(self._due(futura)["due_date"], AMANHA)
+
+    def test_ids_lixo(self):
+        for ids in (None, [], ["1"], [True], [-1, 0], [1.5]):
+            with self.subTest(ids=ids):
+                self.assertEqual(cp.trazer_para_hoje(self.conn, ids, HOJE, "10:00")["movidas"], 0)
+
+
 class SemanaTestCase(unittest.TestCase):
     def setUp(self):
         self.conn = _banco()
@@ -228,6 +265,20 @@ class RotaAdiarTestCase(unittest.TestCase):
         r = self.client.post("/api/tarefas/adiar", json={"ids": [self.id]})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.get_json()["movidas"], 1)
+
+    def test_pra_hoje_exige_login_valida_e_traz(self):
+        self.assertEqual(self.client.post("/api/tarefas/pra-hoje", json={"ids": [self.id]}).status_code, 401)
+        self.assertEqual(self.client.post("/login", json={"pin": PIN_TESTE}).status_code, 200)
+        for corpo in ({}, {"ids": "1"}, {"ids": []}, {"ids": list(range(1, 202))}):
+            with self.subTest(corpo=corpo):
+                self.assertEqual(self.client.post("/api/tarefas/pra-hoje", json=corpo).status_code, 400)
+        conn = db.get_db()
+        ontem = (app._agora_brasilia().date() - timedelta(days=1)).isoformat()
+        atrasada = _tarefa(conn, "placas do residencial", due=ontem)
+        conn.close()
+        r = self.client.post("/api/tarefas/pra-hoje", json={"ids": [atrasada, self.id]})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json(), {"movidas": 1, "para": app._agora_brasilia().date().isoformat()})
 
 
 if __name__ == "__main__":

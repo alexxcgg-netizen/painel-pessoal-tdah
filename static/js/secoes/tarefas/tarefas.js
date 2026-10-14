@@ -99,6 +99,10 @@ const ICONE_CHECK_PONTO =
 const ICONE_AMANHA =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h12M13 7l5 5-5 5"/></svg>';
 
+// "pra hoje" (atrasada volta pra hoje): ponto no centro de um alvo
+const ICONE_HOJE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>';
+
 // "juntar de novo" (desfazer a quebra em passos): seta voltando
 const ICONE_JUNTAR =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
@@ -284,6 +288,24 @@ function criarItemTarefa(t) {
       else setBotaoCarregando(btnAmanha, false, "pra amanhã");
     });
     btnConcluir.after(btnAmanha);
+  }
+  // Atrasada: "pra hoje" vem antes do "pra amanha" (2026-10-14 - o Alex dormiu, a tarefa de
+  // ontem amanheceu atrasada e o unico botao a jogava pra amanha, nao pra hoje)
+  if (t.due_date && t.due_date < hojeIsoLocal()) {
+    const btnHoje = document.createElement("button");
+    btnHoje.className = "btn-com-icone tarefa-hoje";
+    btnHoje.innerHTML = `${ICONE_HOJE}pra hoje`;
+    btnHoje.addEventListener("click", async () => {
+      setBotaoCarregando(btnHoje, true, "trazendo...");
+      const data = await apiFetch("/api/tarefas/pra-hoje", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [t.id] }),
+      });
+      if (data) loadTasks();
+      else setBotaoCarregando(btnHoje, false, "pra hoje");
+    });
+    btnConcluir.after(btnHoje);
   }
   // esforco saiu da linha de chips (poluia toda tarefa) e mora nas acoes
   acoes.insertBefore(criarTagEsforco(t), btnCorrigir);

@@ -332,3 +332,23 @@ def tarefas_adiar():
     finally:
         conn.close()
     return jsonify(r)
+
+
+@bp.route("/api/tarefas/pra-hoje", methods=["POST"])
+def tarefas_pra_hoje():
+    """Botao "pra hoje" da tarefa atrasada (aba Tarefas): traz pra hoje em vez de empurrar
+    pra amanha. Ids que nao sao atrasados sao ignorados."""
+    app = app_modulo()
+    import conversa_proativa
+
+    corpo = app._corpo_json()
+    ids = corpo.get("ids")
+    if not isinstance(ids, list) or not ids or len(ids) > 200:
+        return jsonify({"error": "ids inválidos"}), 400
+    agora = app._agora_brasilia()
+    conn = get_db()
+    try:
+        r = conversa_proativa.trazer_para_hoje(conn, ids, agora.date(), agora.strftime("%H:%M"))
+    finally:
+        conn.close()
+    return jsonify(r)

@@ -5,6 +5,14 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-14 - Tarefa atrasada ganha "pra hoje"
+
+O Alex dormiu, a tarefa de ontem amanheceu atrasada e o único botão ("pra amanhã") a jogou pra
+quinta - era pra hoje. Atrasada agora tem **"pra hoje"** antes do "pra amanhã"
+(`POST /api/tarefas/pra-hoje` -> `conversa_proativa.trazer_para_hoje`): só mexe em aberta com data
+antes de hoje; horário que ainda vem hoje fica, o que já passou sai (senão o "Tá na hora" com
+insistência disparava no instante de mover). Tarefa de hoje continua só com "pra amanhã". SW v71.
+
 ## 2026-10-13 - Avisos que insistem, "Ei Siri, pergunta pro painel" e bugs do print do Alex
 
 - **Quebrar em passos (bug do print)**: os passos iam pro LADO do título (o `.lista-item` antigo é
