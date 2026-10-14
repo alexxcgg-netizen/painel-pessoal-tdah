@@ -225,6 +225,36 @@ if (window.visualViewport) {
   });
 }
 
+// 2a camada (2026-10-14 - o vai-e-volta acima nao bastou: print do Alex na tela IA com o campo
+// e a barra de abas no meio da tela, o card continuando por baixo). O iOS pode deixar o fundo
+// da tela VISIVEL (visualViewport) mais baixo que o fundo onde o position:fixed se ancora
+// (layout) depois que o teclado some. Mede essa diferenca e desce as pecas fixas do fundo
+// exatamente esse tanto (--vv-desvio, usado por #tabbar/#chat-form/.chat-nota). Sem campo em
+// foco e sem zoom; tudo certo = 0 e nada muda.
+function _medirDesvioTela() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const ativo = document.activeElement;
+  const digitando = ativo && ativo.matches && ativo.matches(_CAMPO_DE_TECLADO);
+  const fundoVisivel = vv.offsetTop + vv.height;
+  const fundoLayout = document.documentElement.clientHeight;
+  const desvio = !digitando && vv.scale <= 1.01 ? Math.max(0, Math.round(fundoVisivel - fundoLayout)) : 0;
+  // abaixo de 2px e arredondamento de barra do navegador, nao o bug
+  document.documentElement.style.setProperty("--vv-desvio", `${desvio > 2 ? desvio : 0}px`);
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", _medirDesvioTela);
+  window.visualViewport.addEventListener("scroll", _medirDesvioTela);
+  window.addEventListener("pageshow", _medirDesvioTela);
+  document.addEventListener("focusout", () => setTimeout(_medirDesvioTela, 350));
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    // o iOS termina de se arrumar em tempos diferentes na volta: mede algumas vezes
+    [0, 350, 900].forEach((ms) => setTimeout(_medirDesvioTela, ms));
+  });
+  _medirDesvioTela();
+}
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     loadVidaHoje();

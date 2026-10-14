@@ -121,6 +121,44 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
             finally:
                 browser.close()
 
+    def test_fundo_visivel_abaixo_do_layout_desce_as_pecas_fixas(self):
+        """2a camada (2026-10-14): o iOS deixou o fundo visivel 300px abaixo do fundo do layout
+        (campo e barra no meio da tela, print do Alex) -> --vv-desvio = 300px e as pecas fixas
+        descem esse tanto; com o campo em foco (teclado aberto de verdade) ou tudo certo, 0."""
+        with sync_playwright() as p:
+            kwargs = {"headless": True}
+            if _CHROME is not None and Path(_CHROME).exists():
+                kwargs["executable_path"] = _CHROME
+            browser = p.chromium.launch(**kwargs)
+            try:
+                ctx = browser.new_context(viewport={"width": 390, "height": 844})
+                ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
+                                 headers={"Content-Type": "application/json"})
+                page = ctx.new_page()
+                erros = []
+                page.on("pageerror", lambda exc: erros.append(str(exc)))
+                page.goto(BASE_URL + "/")
+                page.wait_for_load_state("networkidle")
+                abrir_tela(page, "assistente")
+                desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
+                self.assertEqual(page.evaluate(desvio), "0px")
+                page.evaluate("""() => {
+                  const vv = window.visualViewport;
+                  Object.defineProperty(vv, "offsetTop", { configurable: true, get: () => 300 });
+                }""")
+                page.evaluate(_SEGUNDO_PLANO, False)
+                page.wait_for_timeout(1100)  # mede em 0, 350 e 900 ms
+                self.assertEqual(page.evaluate(desvio), "300px")
+                for sel in ("#tabbar", "#chat-form"):
+                    self.assertEqual(page.evaluate(f"getComputedStyle(document.querySelector('{sel}')).translate"), "0px 300px", sel)
+                # digitando: o deslocamento e do teclado de verdade - nao mexe
+                page.focus("#chat-input")
+                page.evaluate("window.visualViewport.dispatchEvent(new Event('resize'))")
+                self.assertEqual(page.evaluate(desvio), "0px")
+                self.assertEqual(erros, [], f"pageerror: {erros}")
+            finally:
+                browser.close()
+
 
 if __name__ == "__main__":
     unittest.main()

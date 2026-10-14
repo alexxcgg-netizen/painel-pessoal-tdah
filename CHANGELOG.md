@@ -5,6 +5,21 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-14 - Campo e barra no meio da tela (de novo) + card "Alterado" letra por letra
+
+Print do Alex (tela IA): campo do chat e barra de abas pendurados no meio da tela, o card
+continuando por baixo - o vai-e-volta de 1px da v67 não bastou. 2ª camada em `nucleo/init.js`:
+`_medirDesvioTela` mede a diferença entre o fundo VISÍVEL (`visualViewport.offsetTop + height`) e o
+fundo do layout (`clientHeight`) e grava `--vv-desvio`; `#tabbar`, `#chat-form` e `.chat-nota`
+descem esse tanto (`translate`, soma com o `translateX(-50%)`). Só sem campo em foco e sem zoom;
+mede na volta (0/350/900 ms), no `pageshow`, no `focusout` e em resize/scroll do visualViewport.
+Normal = 0px. Teste simulando o desvio em `test_volta_do_segundo_plano.py`. **Sem iPhone aqui pra
+confirmar - se voltar a acontecer, o próximo passo é logar as medidas reais.**
+
+No mesmo print, o card "Alterado" escrevia o título novo uma letra por linha (grid `auto auto 1fr`:
+o "antes" comprido comia a linha). Agora antes / → depois quebram juntos (flex-wrap), a seta colada
+no valor novo. SW v74.
+
 ## 2026-10-14 - Cards da IA conversam com a aba Tarefas
 
 Print do Alex: concluiu o tricologista na aba Tarefas e o card "Tarefas criadas" no chat continuou

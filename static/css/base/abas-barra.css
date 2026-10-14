@@ -13,6 +13,14 @@
    neutra (nao tingida por --glass-tint da secao) de proposito: e a UNICA
    peca de chrome que aparece em toda tela ao mesmo tempo, tingir ela mudaria
    de cor a cada troca de aba e ia ficar estranho. */
+/* 2026-10-14: pecas fixas do fundo descem o desvio que o iOS deixa entre o fundo visivel e o
+   fundo do layout depois do teclado (--vv-desvio, medido em nucleo/init.js; normal = 0px).
+   `translate` (propriedade propria) soma com o transform translateX(-50%) de cada uma. */
+#tabbar,
+#tab-assistente #chat-form,
+.chat-nota {
+  translate: 0 var(--vv-desvio, 0px);
+}
 #tabbar {
   position: fixed;
   left: 50%;

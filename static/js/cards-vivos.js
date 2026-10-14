@@ -86,9 +86,12 @@
           lista(it.mudancas)
             .map(
               (m) =>
+                // antes -> depois numa caixa que quebra linha junta (2026-10-14: titulo longo no
+                // "antes" espremia o "depois" numa coluna de 1 letra - print do Alex)
                 `<p class="vivo-mudanca"><span class="vivo-mudanca-campo">${esc(m.campo)}</span>` +
-                `<s class="vivo-de">${esc(m.de)}</s><span class="vivo-seta" aria-hidden="true">→</span>` +
-                `<strong class="vivo-para">${esc(m.para)}</strong></p>`
+                `<span class="vivo-mudanca-valores"><s class="vivo-de">${esc(m.de)}</s>` +
+                `<span class="vivo-para-linha"><span class="vivo-seta" aria-hidden="true">→</span>` +
+                `<strong class="vivo-para">${esc(m.para)}</strong></span></span></p>`
             )
             .join("") +
           `</li>`
