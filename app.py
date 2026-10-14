@@ -411,6 +411,50 @@ def _normalizar_hora(hora) -> str | None:
     return f"{h:02d}:{m:02d}"
 
 
+def _tarefa_repetida(conn, titulo, dia):
+    """Tarefa com o mesmo titulo (sem acento/caixa) no mesmo dia que ainda ta
+    pendente, ou que foi concluida nas ultimas 12h - registrar de novo
+    duplica. Caso real (2026-10-14): "Enviar a compra e venda pro Mikael"
+    nasceu 2x, a segunda um minuto depois de ele concluir a primeira (a IA
+    quis "mudar o horario" de uma tarefa ja feita e acabou criando outra).
+    Assunto diferente com a mesma pessoa passa, porque o titulo e outro."""
+    alvo = aprendizado.normalizar_consulta(titulo or "")
+    if not alvo:
+        return None
+    linhas = conn.execute(
+        "SELECT id, title, hora, completed_at FROM tasks WHERE recorrencia IS NULL "
+        "AND COALESCE(due_date, '') = COALESCE(?, '') "
+        "AND (completed_at IS NULL OR completed_at >= datetime('now', '-12 hours')) ORDER BY id DESC",
+        (dia,),
+    ).fetchall()
+    return next((r for r in linhas if aprendizado.normalizar_consulta(r["title"]) == alvo), None)
+
+
+def _aviso_tarefa_repetida(r) -> dict:
+    """O que a IA recebe no lugar de criar a duplicata - sem _efeito (nao vira
+    card) e com o caminho certo pra cada caso."""
+    if r["completed_at"]:
+        return {
+            "nao_criei": True,
+            "ja_concluida": {"id": r["id"], "titulo": r["title"]},
+            "aviso": (
+                f'Nao criei: "{r["title"]}" ja foi concluida ha pouco. Se a ideia era mudar o horario, '
+                "conte ao Alex que ela ja ta feita. So registre de novo se ele disser que precisa fazer "
+                "outra vez - ai com um titulo que diferencie (ex: o assunto)."
+            ),
+        }
+    hora = f" as {r['hora']}" if r["hora"] else ""
+    return {
+        "nao_criei": True,
+        "ja_existe": {"id": r["id"], "titulo": r["title"], "hora": r["hora"]},
+        "aviso": (
+            f'Nao criei: ja tem "{r["title"]}" pendente pro mesmo dia{hora}. Pra mudar hora/dia use '
+            "ajustar_tarefa. Se for OUTRO assunto com a mesma pessoa, registre com o assunto no titulo "
+            "(ex: 'Falar com o Mikael sobre o contrato')."
+        ),
+    }
+
+
 def _corpo_json() -> dict:
     """request.json, mas sempre um dict - um JSON valido porem do tipo errado (lista,
     string, numero) faria qualquer `.get()` mais adiante derrubar a rota com um 500
@@ -2418,6 +2462,9 @@ def _processar_mensagem_chat(
         local_tarefa = _rotulo_local_atual(entrada)
         if isinstance(local_tarefa, dict):
             return local_tarefa  # erro: pediu "aqui" sem GPS
+        repetida = _tarefa_repetida(conn, entrada["titulo"], quando_data)
+        if repetida:
+            return _aviso_tarefa_repetida(repetida)
         cur = conn.execute(
             "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -2866,8 +2913,14 @@ def _processar_mensagem_chat(
             "SELECT id, title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
             "AND (due_date = ? OR due_date IS NULL)", (dia,),
         ).fetchall()
-        normal = {r["id"]: aprendizado.normalizar_consulta(r["title"]) for r in pendentes}
-        efeitos, ignorados, usados = [], [], set()
+        # feitas ha pouco (ultimas 12h): um bloco com o mesmo nome NAO vira tarefa nova - era
+        # o caso do Mikael em 2026-10-14 (ja concluida, a IA "remarcou" e nasceu outra)
+        feitas = conn.execute(
+            "SELECT id, title FROM tasks WHERE completed_at >= datetime('now', '-12 hours') "
+            "AND recorrencia IS NULL AND (due_date = ? OR due_date IS NULL)", (dia,),
+        ).fetchall()
+        normal = {r["id"]: aprendizado.normalizar_consulta(r["title"]) for r in [*pendentes, *feitas]}
+        efeitos, ignorados, usados, ja_feitas = [], [], set(), []
         for bloco in blocos:
             if not isinstance(bloco, dict):
                 continue
@@ -2910,12 +2963,20 @@ def _processar_mensagem_chat(
                 if ef:
                     efeitos.append(ef)
                 continue
+            # so nome igual (nao o casamento frouxo de _mesma): pular uma tarefa nova por
+            # engano seria pior que a duplicata
+            feita = next((r for r in feitas if normal[r["id"]] == alvo), None)
+            if feita:
+                ja_feitas.append(feita["title"])
+                continue
             cur = conn.execute(
                 "INSERT INTO tasks (title, due_date, hora, source_text, local) VALUES (?, ?, ?, ?, ?)",
                 (titulo, dia, hora, texto, local),
             )
             efeitos.append({"entidade": "tarefa", "id": cur.lastrowid})
         conn.commit()
+        if not efeitos and ja_feitas:
+            return {"ok": True, "dia": dia, "criadas": 0, "ja_feitas_nao_recriei": ja_feitas}
         if not efeitos:
             return {"erro": "nenhum bloco valido (cada um precisa de titulo e hora HH:MM)", "ignorados": ignorados}
         criadas = sum(1 for e in efeitos if e["entidade"] == "tarefa")
@@ -2923,6 +2984,9 @@ def _processar_mensagem_chat(
                      "_efeito": efeitos}
         if ignorados:
             resultado["ignorados_sem_hora"] = ignorados
+        if ja_feitas:
+            # a IA conta pro Alex que essas ja tavam feitas em vez de dizer "remarquei"
+            resultado["ja_feitas_nao_recriei"] = ja_feitas
         return resultado
 
     def exec_definir_meta_horas_voo(entrada):

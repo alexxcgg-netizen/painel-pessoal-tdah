@@ -739,3 +739,53 @@ main #tab-assistente h2.chat-ola-titulo,
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-destaque) 35%, transparent);
   }
 }
+
+/* 2026-10-14 ("quando eu quiser parar de falar, eu clico"): na vez dele, o enviar abre numa
+   pilula "Pronto" - a palavra entra com a mola (largura) e um fade curto atrasado, pra nao
+   aparecer cortada no meio da abertura; pensando/falando, a pilula assenta de volta no icone.
+   Fora da conversa o rotulo fica na mesma celula do icone, com largura 0 (nao empurra nada). */
+#chat-send .chat-send-pronto {
+  grid-area: 1 / 1;
+  display: inline-block;
+  max-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  transition:
+    max-width 0.5s var(--ease-bounce),
+    margin-left 0.5s var(--ease-bounce),
+    opacity 0.18s var(--ease-suave);
+}
+#tab-assistente #chat-form.conversa-ativa #chat-send {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0; /* o espaco do .btn-com-icone tirava o icone do centro com o rotulo fechado */
+  padding-inline: 17px;
+  transition: padding 0.5s var(--ease-bounce);
+}
+#tab-assistente #chat-form.conversa-ouvindo #chat-send {
+  padding-inline: 16px 20px;
+}
+#tab-assistente #chat-form.conversa-ouvindo #chat-send .chat-send-pronto {
+  max-width: 5.5em;
+  margin-left: 8px;
+  opacity: 1;
+  transition:
+    max-width 0.5s var(--ease-bounce),
+    margin-left 0.5s var(--ease-bounce),
+    opacity 0.28s var(--ease-suave) 0.12s;
+}
+@media (prefers-reduced-motion: reduce) {
+  #chat-send .chat-send-pronto,
+  #tab-assistente #chat-form.conversa-ouvindo #chat-send .chat-send-pronto,
+  #tab-assistente #chat-form.conversa-ativa #chat-send {
+    transition: none;
+  }
+}

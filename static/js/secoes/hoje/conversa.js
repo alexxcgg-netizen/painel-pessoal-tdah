@@ -2,10 +2,13 @@
 // Script clássico (escopo global compartilhado) - carrega depois de nucleo/voz.js e hoje/chat.js
 // (usa criarGravacao/transcreverGravacao de chat.js).
 //
-// Ida e volta, como uma ligação: ouve -> ~3s calado encerra a fala -> transcreve
-// (Whisper, /api/voz/transcrever) -> manda pro chat com modo "voz" (resposta falável,
+// Ida e volta, como uma ligação: ouve -> a fala termina no toque em "Pronto" OU ~1,5s calado ->
+// transcreve (Whisper, /api/voz/transcrever) -> manda pro chat com modo "voz" (resposta falável,
 // 2-4 frases) -> a Roberta fala a resposta inteira -> o microfone reabre sozinho.
-// Encerra com um toque no botão, se ninguém falar por ~12s ou ao sair do app.
+// 2026-10-14 (pedido do Alex: "tipo ChatGPT, infinito"): a conversa NÃO fecha mais sozinha se
+// ninguém falar (antes: 12s) - só acaba no toque no botão de conversa ou ao sair do app. E o
+// enviar vira um "Pronto" grande enquanto ouve: com voz/barulho de fundo segurando o silêncio,
+// o toque resolve na hora.
 //
 // O microfone é SOLTO antes de ela falar: no iPhone, com o microfone aberto o som sai
 // baixo pelo alto-falante de ligação (e o microfone ouviria a própria voz dela).
@@ -15,7 +18,8 @@
 // contando como fala - agora fundo conta como silencio (VOZ_FRACAO_FUNDO em chat.js) - e o botao
 // de enviar manda na hora.
 const CONVERSA_SILENCIO_MS = 1500;
-const CONVERSA_ESPERA_FALA_MS = 12000;
+// sem prazo pra ele comecar a falar: a conversa fica aberta ate ele encerrar
+const CONVERSA_ESPERA_FALA_MS = Infinity;
 const CONVERSA_MAX_FALA_MS = 90000;
 
 const Conversa = {
@@ -31,10 +35,15 @@ function _conversaEstado(estado) {
   const input = $("#chat-input");
   if (!btn || !input) return;
   btn.dataset.estado = estado || "";
-  const textos = { ouvindo: "Pode falar… (➤ manda na hora)", pensando: "Pensando…", falando: "Falando…" };
+  const textos = { ouvindo: "Pode falar…", pensando: "Pensando…", falando: "Falando…" };
   input.placeholder = textos[estado] || Conversa.placeholderOriginal;
   const form = $("#chat-form");
-  if (form) form.classList.toggle("conversa-ouvindo", estado === "ouvindo");
+  if (form) {
+    form.classList.toggle("conversa-ouvindo", estado === "ouvindo");
+    form.classList.toggle("conversa-ativa", !!estado);
+  }
+  const enviar = $("#chat-send");
+  if (enviar) enviar.setAttribute("aria-label", estado === "ouvindo" ? "Pronto, mandar a fala" : "Enviar");
 }
 
 // Sinal "Suave" (escolhido pelo Alex entre 3 amostras): quando o microfone de fato abriu
@@ -96,9 +105,10 @@ function _conversaSinal(subindo) {
   } catch {}
 }
 
-// Uma fala do Alex: {blob, duracaoS} quando ele fica ~3s calado depois de ter falado,
-// ou null se ninguém falou / a conversa foi encerrada no meio.
-async function _conversaOuvirUmaFala() {
+// Uma fala do Alex: {blob, duracaoS} quando ele toca em "Pronto" ou fica ~1,5s calado depois de
+// ter falado; {semVoz} se o limite de 90s passou sem voz; null se a conversa foi encerrada no meio.
+// `sinal`: o "pode falar" so toca quando e a vez dele de verdade - nao a cada 90s de silencio.
+async function _conversaOuvirUmaFala(sinal = true) {
   if (Conversa.ctx.state === "suspended") {
     try {
       await Conversa.ctx.resume();
@@ -121,7 +131,7 @@ async function _conversaOuvirUmaFala() {
   }
   if (Conversa.ativa) {
     _conversaEstado("ouvindo");
-    _conversaSinal(true);
+    if (sinal) _conversaSinal(true);
   }
   const gravado = await gravacao.pronto;
   if (Conversa.gravacao === gravacao) Conversa.gravacao = null;
@@ -129,10 +139,13 @@ async function _conversaOuvirUmaFala() {
 }
 
 async function _conversaLaco() {
+  let sinal = true;
   while (Conversa.ativa) {
-    const fala = await _conversaOuvirUmaFala();
+    const fala = await _conversaOuvirUmaFala(sinal);
     if (!Conversa.ativa || !fala) break;
-    if (fala.semVoz) continue; // barulho sem voz: volta a ouvir sem mandar nada
+    // barulho sem voz / 90s calado: volta a ouvir em silencio, sem mandar nada nem tocar o sinal
+    sinal = !fala.semVoz;
+    if (fala.semVoz) continue;
 
     _conversaEstado("pensando");
     // limpar: tira muleta/autocorrecao e frase solta de outra pessoa no fundo (ia/funcoes/fala.py)
@@ -196,7 +209,16 @@ function initConversaVoz() {
   Conversa.btn = btn;
   btn.hidden = false;
   btn.addEventListener("click", () => (Conversa.ativa ? encerrarConversa() : iniciarConversa()));
-  // ouvindo na conversa: o botao de enviar (campo vazio) manda a fala na hora, sem esperar o silencio
+  // ouvindo na conversa: o botao de enviar (campo vazio) vira "Pronto" e manda a fala na hora, sem
+  // esperar o silencio. O texto nasce escondido (largura 0) e abre com a mola so na vez dele.
+  const enviar = $("#chat-send");
+  if (enviar && !enviar.querySelector(".chat-send-pronto")) {
+    const rotulo = document.createElement("span");
+    rotulo.className = "chat-send-pronto";
+    rotulo.setAttribute("aria-hidden", "true");
+    rotulo.textContent = "Pronto";
+    enviar.appendChild(rotulo);
+  }
   const form = $("#chat-form");
   if (form) {
     form.addEventListener(

@@ -5,6 +5,23 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-14 - Tarefa não duplica mais; conversa por voz "tipo ChatGPT"
+
+**Duplicata.** "Enviar a compra e venda pro Mikael" nasceu 2x: ele já tinha concluído, disse
+"9:30 tricologista", e o `planejar_dia` (que só olhava pendentes) "remarcou" criando outra.
+`_tarefa_repetida` (app.py): mesmo título (sem acento/caixa) no mesmo dia, pendente OU concluída
+nas últimas 12h -> `registrar_tarefa` não cria e devolve `nao_criei` + o caminho certo
+(`ajustar_tarefa` pra mudar hora; assunto diferente com a mesma pessoa = título com o assunto,
+passa normal). `planejar_dia` pula bloco com o nome exato de uma concluída há pouco
+(`ja_feitas_nao_recriei`) - nome exato de propósito, o casamento frouxo poderia engolir tarefa nova.
+
+**Modo conversa (escolhas do Alex: "toque + silêncio" e "só acaba quando eu encerrar").** Não
+fecha mais sozinho depois de 12s sem fala (`CONVERSA_ESPERA_FALA_MS = Infinity`) - só no toque ou
+saindo do app; 90s calado recomeça a escuta em silêncio, sem tocar o sinal de novo. Na vez dele o
+enviar abre numa pílula **"Pronto"** (mola na largura, fade atrasado; volta ao ícone pensando/
+falando) - com voz de fundo segurando o silêncio, o toque manda na hora. O silêncio de 1,5s
+continua mandando sozinho. SW v72.
+
 ## 2026-10-14 - Tarefa atrasada ganha "pra hoje"
 
 O Alex dormiu, a tarefa de ontem amanheceu atrasada e o único botão ("pra amanhã") a jogou pra

@@ -182,6 +182,63 @@ class PlanejarDiaTestCase(_Base):
         _, res = self.chat([("planejar_dia", {"blocos": [{"titulo": "x"}]}), ("planejar_dia", {"blocos": []})])
         self.assertTrue(all("erro" in r for r in res))
 
+    def test_nao_recria_tarefa_concluida_ha_pouco(self):
+        """Caso real 2026-10-14: Mikael concluido, a IA "remarcou" pelo planejar_dia e nasceu outro."""
+        dia = app._agora_brasilia().date().isoformat()
+        self.sql("INSERT INTO tasks (title, due_date, hora, completed_at) "
+                 "VALUES ('Enviar a compra e venda pro Mikael', ?, '09:00', datetime('now', '-1 minute'))", (dia,))
+        _, res = self.chat([("planejar_dia", {"blocos": [
+            {"titulo": "Consulta com tricologista", "hora": "09:30"},
+            {"titulo": "enviar a compra e venda pro mikael", "hora": "08:30"},
+        ]})])
+        self.assertEqual(res[0]["criadas"], 1)
+        self.assertEqual(res[0]["ja_feitas_nao_recriei"], ["Enviar a compra e venda pro Mikael"])
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks WHERE title LIKE '%Mikael%'")[0][0], 1)
+        # so com o que ja ta feito: nada criado, mas nao e erro
+        _, res = self.chat([("planejar_dia", {"blocos": [{"titulo": "Enviar a compra e venda pro Mikael", "hora": "8:30"}]})])
+        self.assertEqual((res[0]["ok"], res[0]["criadas"]), (True, 0))
+
+
+class TarefaRepetidaTestCase(_Base):
+    def test_mesmo_titulo_mesmo_dia_nao_duplica(self):
+        _, res = self.chat([
+            ("registrar_tarefa", {"titulo": "Falar com o Mikael", "quando": "hoje", "quando_data": HOJE}),
+            ("registrar_tarefa", {"titulo": "falar com o  Mikael", "quando": "hoje", "quando_data": HOJE}),
+        ])
+        self.assertTrue(res[0]["ok"])
+        self.assertTrue(res[1]["nao_criei"])
+        self.assertEqual(res[1]["ja_existe"]["id"], self.sql("SELECT id FROM tasks")[0][0])
+        self.assertIn("ajustar_tarefa", res[1]["aviso"])
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks")[0][0], 1)
+
+    def test_assunto_diferente_ou_outro_dia_passa(self):
+        amanha = (date.today() + timedelta(days=1)).isoformat()
+        _, res = self.chat([
+            ("registrar_tarefa", {"titulo": "Falar com o Mikael", "quando_data": HOJE}),
+            ("registrar_tarefa", {"titulo": "Falar com o Mikael sobre o contrato", "quando_data": HOJE}),
+            ("registrar_tarefa", {"titulo": "Falar com o Mikael", "quando_data": amanha}),
+        ])
+        self.assertFalse(any(r.get("nao_criei") for r in res), res)
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks")[0][0], 3)
+
+    def test_concluida_ha_pouco_nao_renasce_mas_a_antiga_sim(self):
+        self.sql("INSERT INTO tasks (title, due_date, completed_at) VALUES ('Pagar o boleto', ?, datetime('now', '-5 minutes'))", (HOJE,))
+        self.sql("INSERT INTO tasks (title, due_date, completed_at) VALUES ('Lavar o carro', ?, datetime('now', '-2 days'))", (HOJE,))
+        _, res = self.chat([
+            ("registrar_tarefa", {"titulo": "Pagar o boleto", "quando_data": HOJE}),
+            ("registrar_tarefa", {"titulo": "Lavar o carro", "quando_data": HOJE}),
+        ])
+        self.assertEqual(res[0]["ja_concluida"]["titulo"], "Pagar o boleto")
+        self.assertNotIn("nao_criei", res[1])
+
+    def test_sem_data_tambem_nao_duplica(self):
+        _, res = self.chat([
+            ("registrar_tarefa", {"titulo": "Ligar pro banco"}),
+            ("registrar_tarefa", {"titulo": "Ligar pro banco"}),
+        ])
+        self.assertNotIn("_efeito", res[1])  # sem _efeito: nao vira card nem Desfazer
+        self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks")[0][0], 1)
+
     def test_refeicao_nao_e_date_e_avisa_hora_de_comer(self):
         self.assertTrue(notificacoes.e_refeicao("Comer: jantar - arroz e frango"))
         self.assertFalse(notificacoes.e_compromisso_de_sair("Comer: jantar - arroz e frango"))
