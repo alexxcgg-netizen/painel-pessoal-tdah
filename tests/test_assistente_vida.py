@@ -199,6 +199,25 @@ class PlanejarDiaTestCase(_Base):
         self.assertEqual((res[0]["ok"], res[0]["criadas"]), (True, 0))
 
 
+class EstadoTarefasTestCase(_Base):
+    """GET /api/tasks/estado - os cards do chat acertam as caixinhas com o estado de agora."""
+
+    def test_devolve_concluida_por_id_e_ignora_lixo(self):
+        self.sql("INSERT INTO tasks (id, title) VALUES (31, 'Consulta com tricologista')")
+        self.sql("INSERT INTO tasks (id, title, completed_at) VALUES (32, 'Mikael', datetime('now'))")
+        res = self.client.get("/api/tasks/estado?ids=31,32,999,abc,,1;DROP")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), {"estados": {"31": False, "32": True}})
+        self.client.post("/api/tasks/31/complete")
+        self.assertEqual(self.client.get("/api/tasks/estado?ids=31").get_json()["estados"], {"31": True})
+        self.assertEqual(self.client.get("/api/tasks/estado").get_json(), {"estados": {}})
+
+    def test_exige_login(self):
+        self.client.post("/logout")
+        anonimo = app.app.test_client()
+        self.assertIn(anonimo.get("/api/tasks/estado?ids=1").status_code, (302, 401))
+
+
 class TarefaRepetidaTestCase(_Base):
     def test_mesmo_titulo_mesmo_dia_nao_duplica(self):
         _, res = self.chat([

@@ -122,6 +122,27 @@ def excluir_tarefa(task_id):
         conn.close()
 
 
+@bp.route("/api/tasks/estado", methods=["GET"])
+def estado_tarefas():
+    """Concluida ou nao, por id - os cards do chat (foto do momento em que a IA respondeu)
+    acertam as caixinhas com o estado de agora (2026-10-14). ?ids=1,2,3 (ate 200, so
+    numeros); id que nao existe mais nao volta."""
+    ids = []
+    for parte in (request.args.get("ids") or "").split(",")[:200]:
+        parte = parte.strip()
+        if parte.isdigit():
+            ids.append(int(parte))
+    if not ids:
+        return jsonify({"estados": {}})
+    conn = get_db()
+    try:
+        marcas = ",".join("?" * len(ids))
+        rows = conn.execute(f"SELECT id, completed_at FROM tasks WHERE id IN ({marcas})", ids).fetchall()
+    finally:
+        conn.close()
+    return jsonify({"estados": {str(r["id"]): r["completed_at"] is not None for r in rows}})
+
+
 @bp.route("/api/tasks/<int:task_id>/complete", methods=["POST"])
 def complete_task_rota(task_id):
     app = app_modulo()

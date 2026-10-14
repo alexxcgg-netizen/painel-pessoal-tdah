@@ -309,7 +309,51 @@ async function loadChatHistorico() {
     if (m.papel === "assistant") anexarCardsResposta(lista, m.cards, null);
   });
   lista.scrollTop = lista.scrollHeight;
+  // o card guardado no historico e uma foto do momento - acerta com o estado de agora
+  sincronizarCardsTarefas();
 }
+
+// Cards de tarefa conversam com o resto do app (2026-10-14). Marca/desmarca a caixinha e a
+// classe "concluida" do li - o MutationObserver dos cards vivos (cards-vivos.js) cuida da
+// bandeira que hasteia, da contagem e da "proxima". Caixa no meio de um envio (disabled) fica.
+function _aplicarEstadoTarefaNosCards(id, concluida) {
+  const lista = $("#chat-mensagens");
+  if (!lista) return;
+  lista.querySelectorAll(`input[data-tarefa-id="${CSS.escape(String(id))}"]`).forEach((caixa) => {
+    if (caixa.disabled || caixa.checked === concluida) return;
+    caixa.checked = concluida;
+    const li = caixa.closest("li");
+    if (li) li.classList.toggle("concluida", concluida);
+  });
+}
+
+// Pergunta ao servidor o estado das tarefas que aparecem nos cards (concluida em outra tela,
+// pelo aviso, pela Siri...). Tarefa apagada nao volta na resposta e o card fica como estava.
+let _sincronizandoCards = null;
+async function sincronizarCardsTarefas() {
+  const lista = $("#chat-mensagens");
+  if (!lista || _sincronizandoCards) return _sincronizandoCards;
+  const ids = [...new Set([...lista.querySelectorAll("input[data-tarefa-id]")].map((c) => c.dataset.tarefaId))]
+    .filter((id) => /^\d+$/.test(id))
+    .slice(-200);
+  if (!ids.length) return null;
+  _sincronizandoCards = (async () => {
+    const data = await apiFetch(`/api/tasks/estado?ids=${ids.join(",")}`);
+    if (data && data.estados) Object.entries(data.estados).forEach(([id, feita]) => _aplicarEstadoTarefaNosCards(id, !!feita));
+  })().finally(() => (_sincronizandoCards = null));
+  return _sincronizandoCards;
+}
+
+document.addEventListener("tarefa:mudou", (ev) => {
+  if (ev.detail) _aplicarEstadoTarefaNosCards(ev.detail.id, !!ev.detail.concluida);
+});
+document.addEventListener("aba:aberta", (ev) => {
+  if (ev.detail && ev.detail.aba === "assistente") sincronizarCardsTarefas();
+});
+// voltou pro app (pode ter concluido pelo aviso, pela Siri, no computador...)
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && $("#tab-assistente") && !$("#tab-assistente").hidden) sincronizarCardsTarefas();
+});
 
 // Fase 6 (contrato de cards, docs/CARDS.md): os cards da resposta entram
 // logo abaixo da bolha - renderizados pelo registro de static/js/cards.js
@@ -442,6 +486,7 @@ async function enviarChat(texto, opcoes = {}) {
   if (data.acoes && data.acoes.length > 0) {
     vibrar(20);
     tocarSomSucesso();
+    sincronizarCardsTarefas(); // a IA pode ter concluido/reaberto tarefa de um card mais antigo
     loadSummary();
     loadUso();
     if (!$("#tab-painel").hidden) {

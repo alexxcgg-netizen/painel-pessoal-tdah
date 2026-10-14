@@ -1088,6 +1088,31 @@
       if (topo.dataset.hoje === "1" && !topo._relogio)
         topo._relogio = setInterval(() => (topo.isConnected ? semRolar(() => marcarProxima(topo)) : clearInterval(topo._relogio)), 60000);
     });
+    // "Tarefas criadas" com a trilha do dia (2026-10-14): concluiu aqui, na aba Tarefas ou por
+    // fora (sincronizarCardsTarefas em chat.js) -> a bandeira dela hasteia o check tambem, como no
+    // card de tarefas de hoje (antes so a caixinha mudava e a trilha ficava velha)
+    raizEl.querySelectorAll('.card-contrato-tarefas_criadas [data-vivo="trilha"]').forEach((svg) => {
+      const card = svg.closest(".card-contrato");
+      if (!card || card._trilhaLigada || card._tarefasLigado || typeof MutationObserver === "undefined") return;
+      card._trilhaLigada = true;
+      new MutationObserver((muts) => {
+        muts.forEach((m) => {
+          const li = m.target;
+          if (!li.classList || !li.classList.contains("card-tarefa")) return;
+          const feita = li.classList.contains("concluida");
+          if ((m.oldValue || "").split(/\s+/).includes("concluida") === feita) return;
+          const caixa = li.querySelector("input[data-tarefa-id]");
+          const bandeira = caixa && svg.querySelector(`.vivo-bandeira[data-id="${caixa.dataset.tarefaId}"]`);
+          if (!bandeira) return;
+          bandeira.classList.toggle("feita", feita);
+          if (feita) {
+            bandeira.classList.remove("hasteou", "proxima");
+            void bandeira.getBoundingClientRect();
+            bandeira.classList.add("hasteou");
+          }
+        });
+      }).observe(card, { subtree: true, attributes: true, attributeFilter: ["class"], attributeOldValue: true });
+    });
     // viagem: trocar cenario (no feriado / fora)
     raizEl.querySelectorAll(".vivo-alternar").forEach((b) => {
       if (b._ligado) return;

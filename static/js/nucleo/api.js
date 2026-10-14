@@ -185,5 +185,16 @@ async function apiFetch(url, options, fila) {
     return null;
   }
   limparErro();
+  _avisarTarefaMudou(url, _metodo);
   return data;
+}
+
+// 2026-10-14 (print do Alex: concluiu o tricologista na aba Tarefas e o card da IA continuou
+// desmarcado): qualquer tela que conclui/reabre uma tarefa (Tarefas, Inicio, saudacao, card)
+// avisa o resto - o chat escuta "tarefa:mudou" e acerta as caixinhas dos cards na hora.
+function _avisarTarefaMudou(url, metodo) {
+  if (metodo !== "POST" || typeof document === "undefined") return;
+  const m = /\/api\/tasks\/(\d+)\/(complete|reabrir)(?:$|\?)/.exec(String(url));
+  if (!m) return;
+  document.dispatchEvent(new CustomEvent("tarefa:mudou", { detail: { id: m[1], concluida: m[2] === "complete" } }));
 }

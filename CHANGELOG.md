@@ -5,6 +5,16 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-14 - Cards da IA conversam com a aba Tarefas
+
+Print do Alex: concluiu o tricologista na aba Tarefas e o card "Tarefas criadas" no chat continuou
+desmarcado. Agora: `apiFetch` (nucleo/api.js) avisa `tarefa:mudou` a cada `/api/tasks/:id/
+complete|reabrir` que deu certo (qualquer tela - Tarefas, Início, saudação, o próprio card) e o chat
+acerta as caixinhas na hora; o que mudou por fora (aviso, Siri, outro aparelho) vem do novo
+`GET /api/tasks/estado?ids=` - chamado ao montar o histórico, ao abrir a aba IA, ao voltar pro app
+e depois de resposta com ação. A trilha do "Tarefas criadas" não ouvia mudança nenhuma (só a do card
+de tarefas de hoje): ganhou o observer que hasteia o check na bandeira. SW v73.
+
 ## 2026-10-14 - Tarefa não duplica mais; conversa por voz "tipo ChatGPT"
 
 **Duplicata.** "Enviar a compra e venda pro Mikael" nasceu 2x: ele já tinha concluído, disse
