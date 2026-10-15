@@ -159,6 +159,42 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
             finally:
                 browser.close()
 
+    def test_folga_fixa_do_app_na_tela_de_inicio_nao_desce_a_barra(self):
+        """3a camada (2026-10-14, print do Alex: barra cortada pela metade). No app da tela de
+        inicio o fundo visivel fica sempre ~34px abaixo do layout - e o normal, entao 0px; so o
+        que passar disso (o bug de verdade, +300) desce as pecas."""
+        with sync_playwright() as p:
+            kwargs = {"headless": True}
+            if _CHROME is not None and Path(_CHROME).exists():
+                kwargs["executable_path"] = _CHROME
+            browser = p.chromium.launch(**kwargs)
+            try:
+                ctx = browser.new_context(viewport={"width": 390, "height": 844})
+                ctx.add_init_script("""
+                  if (window.visualViewport) {
+                    Object.defineProperty(window.visualViewport, "height", {
+                      configurable: true, get: () => document.documentElement.clientHeight + 34 });
+                  }""")
+                ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
+                                 headers={"Content-Type": "application/json"})
+                page = ctx.new_page()
+                erros = []
+                page.on("pageerror", lambda exc: erros.append(str(exc)))
+                page.goto(BASE_URL + "/")
+                page.wait_for_load_state("networkidle")
+                desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
+                page.evaluate(_SEGUNDO_PLANO, False)
+                page.wait_for_timeout(1100)
+                self.assertEqual(page.evaluate(desvio), "0px")
+                page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
+                                   { configurable: true, get: () => 300 })""")
+                page.evaluate(_SEGUNDO_PLANO, False)
+                page.wait_for_timeout(1100)
+                self.assertEqual(page.evaluate(desvio), "300px")
+                self.assertEqual(erros, [], f"pageerror: {erros}")
+            finally:
+                browser.close()
+
 
 if __name__ == "__main__":
     unittest.main()

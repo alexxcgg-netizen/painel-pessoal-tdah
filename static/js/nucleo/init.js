@@ -231,6 +231,11 @@ if (window.visualViewport) {
 // (layout) depois que o teclado some. Mede essa diferenca e desce as pecas fixas do fundo
 // exatamente esse tanto (--vv-desvio, usado por #tabbar/#chat-form/.chat-nota). Sem campo em
 // foco e sem zoom; tudo certo = 0 e nada muda.
+// 3a camada (2026-10-14, print do Alex com a barra cortada pela metade): no app da tela de
+// inicio o fundo visivel fica SEMPRE ~34pt (faixa da barrinha do iPhone) abaixo do fundo do
+// layout - isso e o normal dele, nao o bug. Conta so o que passar do MENOR desvio visto
+// (a linha de base); girar a tela zera a base.
+let _desvioBase = null;
 function _medirDesvioTela() {
   const vv = window.visualViewport;
   if (!vv) return;
@@ -238,10 +243,19 @@ function _medirDesvioTela() {
   const digitando = ativo && ativo.matches && ativo.matches(_CAMPO_DE_TECLADO);
   const fundoVisivel = vv.offsetTop + vv.height;
   const fundoLayout = document.documentElement.clientHeight;
-  const desvio = !digitando && vv.scale <= 1.01 ? Math.max(0, Math.round(fundoVisivel - fundoLayout)) : 0;
+  let desvio = 0;
+  if (!digitando && vv.scale <= 1.01) {
+    const bruto = Math.max(0, Math.round(fundoVisivel - fundoLayout));
+    _desvioBase = _desvioBase === null ? bruto : Math.min(_desvioBase, bruto);
+    desvio = bruto - _desvioBase;
+  }
   // abaixo de 2px e arredondamento de barra do navegador, nao o bug
   document.documentElement.style.setProperty("--vv-desvio", `${desvio > 2 ? desvio : 0}px`);
 }
+window.addEventListener("orientationchange", () => {
+  _desvioBase = null;
+  setTimeout(_medirDesvioTela, 400);
+});
 if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", _medirDesvioTela);
   window.visualViewport.addEventListener("scroll", _medirDesvioTela);
