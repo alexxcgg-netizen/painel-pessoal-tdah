@@ -2243,6 +2243,95 @@ def total_gastos_bancarios_mes(conn, ano_mes: str) -> float:
     return total
 
 
+def _saida_pelo_sinal(transacao: dict) -> float | None:
+    """Regra das somas (total_gastos_bancarios_mes, _gastos_reais_unificados):
+    saida = valor negativo."""
+    valor = transacao.get("valor")
+    return -valor if valor is not None and valor < 0 else None
+
+
+def data_local_do_gasto(created_at) -> str | None:
+    """`created_at` de expenses e UTC (DEFAULT datetime('now')) - o gasto das 22h
+    de Brasilia ja e "amanha" em UTC. Pra parear com a `data` do extrato (dia
+    local da compra) converte pro dia local; so data (legado/teste) fica como esta."""
+    texto = (created_at or "").strip()
+    if len(texto) < 10:
+        return None
+    if len(texto) == 10:
+        return texto
+    try:
+        utc = datetime.fromisoformat(texto).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return texto[:10]
+    return utc.astimezone().date().isoformat()
+
+
+def gastos_chat_repetidos_no_banco(conn, regra_saida=None, so_dias=None) -> set[int]:
+    """Ids de expenses (tipo 'real', digitados no chat/nota fiscal) que TAMBEM
+    vieram no extrato do banco: mesmo valor (ao centavo) no mesmo dia. Decisao do
+    Alex (2026-10-15): "se for igual junta" - conta uma vez so, fica a linha do
+    banco (descricao estavel, que e o que a deteccao de assinatura agrupa) e o do
+    chat sai das somas/listas. Nada e apagado. Pareamento 1 pra 1: dois cafes de
+    R$ 5 no chat e um no banco = um continua.
+
+    `regra_saida(transacao) -> valor positivo | None` decide o que e saida no
+    extrato (padrao: valor negativo, a regra das somas; a aba Financas passa a
+    regra do tipo_operacao). So decifra as transacoes dos dias que tem gasto no
+    chat - nunca o extrato inteiro (custo do Fernet, ver Fase vel/A2a); `so_dias`
+    (datas locais 'AAAA-MM-DD') limita ainda mais, pra paginacao. O pareamento e
+    por dia, entao limitar a dias inteiros da o mesmo resultado que olhar tudo."""
+    regra_saida = regra_saida or _saida_pelo_sinal
+    por_dia: dict[str, list[tuple[int, int]]] = {}
+    for r in conn.execute(
+        "SELECT id, amount, created_at FROM expenses WHERE tipo = 'real' ORDER BY id"
+    ).fetchall():
+        dia = data_local_do_gasto(r["created_at"])
+        if dia is None or r["amount"] is None or (so_dias is not None and dia not in so_dias):
+            continue
+        por_dia.setdefault(dia, []).append((r["id"], round(abs(r["amount"]) * 100)))
+    if not por_dia:
+        return set()
+
+    banco_por_dia: dict[str, list[int]] = {}
+    dias = list(por_dia)
+    for i in range(0, len(dias), 500):
+        lote = dias[i:i + 500]
+        marcadores = ",".join("?" * len(lote))
+        for r in conn.execute(
+            f"SELECT * FROM bank_transactions WHERE substr(data, 1, 10) IN ({marcadores})", lote
+        ).fetchall():
+            t = _descriptografar_transacao(dict(r))
+            saida = regra_saida(t)
+            if saida:
+                banco_por_dia.setdefault(t["data"][:10], []).append(round(abs(saida) * 100))
+
+    repetidos = set()
+    for dia, gastos_do_dia in por_dia.items():
+        sobrando = banco_por_dia.get(dia, [])
+        for expense_id, centavos in gastos_do_dia:
+            if centavos in sobrando:
+                sobrando.remove(centavos)
+                repetidos.add(expense_id)
+    return repetidos
+
+
+def total_gasto_real_mes(conn, ano_mes: str) -> float:
+    """Gasto real do mes = chat + extrato, sem contar duas vezes o que esta nos
+    dois (gastos_chat_repetidos_no_banco). O repetido sai do lado do chat, no mes
+    em que o chat o somou."""
+    repetidos = gastos_chat_repetidos_no_banco(conn)
+    descontar = 0.0
+    if repetidos:
+        # ids inteiros vindos do proprio banco - literal em vez de "?" pra nao bater no limite de parametros
+        lista = ",".join(str(int(i)) for i in repetidos)
+        descontar = conn.execute(
+            f"SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE strftime('%Y-%m', created_at) = ? "
+            f"AND id IN ({lista})",
+            (ano_mes,),
+        ).fetchone()["t"]
+    return total_gastos_mes(conn, ano_mes, "real") + total_gastos_bancarios_mes(conn, ano_mes) - descontar
+
+
 def definir_orcamento(conn, categoria: str, valor_limite: float) -> None:
     conn.execute(
         "INSERT INTO orcamentos (categoria, valor_limite) VALUES (?, ?) "

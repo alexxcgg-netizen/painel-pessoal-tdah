@@ -618,9 +618,12 @@ o painel aprende a renda pelo que você mesmo conta no chat.
 
 Gastos fixos, orçamento e sobra do mês enxergam tanto o que foi digitado no chat quanto o extrato
 bancário sincronizado (OFX/Pluggy) - sem isso, ficariam cegos pra maior parte do gasto de quem usa
-a sincronização automática. Ressalva: as duas fontes não são reconciliadas entre si, então uma
-compra digitada no chat E que também aparece depois no extrato conta duas vezes - mesmo cuidado que
-a aba Bancos já pedia sobre confiar cegamente no total importado.
+a sincronização automática. Compra digitada no chat que também aparece no extrato (**mesmo valor
+ao centavo, mesmo dia**) conta uma vez só: fica a linha do banco e a do chat sai das somas e listas
+(nada é apagado; pareamento 1 pra 1; ver `db.gastos_chat_repetidos_no_banco`). Valor ou dia
+diferente (ex.: gorjeta somada, compra que o banco lança no dia seguinte) ainda conta duas vezes.
+Na aba Finanças, transferência/pagamento de fatura no banco não pareia (o resumo de lá não conta
+essas linhas, então o gasto do chat é o que vale).
 
 ### Saldo do banco antes → depois
 

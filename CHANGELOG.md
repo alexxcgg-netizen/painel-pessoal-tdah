@@ -31,8 +31,14 @@ Leva feita de uma vez a partir de briefing próprio (`docs/briefings/2026-10-15-
 - **Projeção das horas**: `cards.projecao_horas` (ritmo dos últimos 60 dias, cenário +1 voo/semana)
   no `voo_resumo`, `voo_agendado` e `voo_horas`.
 - **Pluggy (item 8)**: nada de código - falta a conta/chave, que só o Alex pode criar (README,
-  "Sincronizacao automatica (Pluggy)"). Decisão pendente dele: gasto anotado no chat + o mesmo gasto
-  vindo do banco hoje entram os dois (`_gastos_reais_unificados*`).
+  "Sincronizacao automatica (Pluggy)").
+- **Chat + banco não contam duas vezes** (decisão do Alex: "se for igual junta"): gasto do chat com
+  o mesmo valor (ao centavo) no mesmo dia local de uma saída do extrato vira uma linha só - fica a do
+  banco. `db.gastos_chat_repetidos_no_banco` (1 pra 1, decifra só o extrato dos dias com gasto no
+  chat, `so_dias` pra paginação) + `db.total_gasto_real_mes`; ligado em `_gastos_reais_unificados`,
+  `_gastos_reais_unificados_para_deteccao`, sobra do mês, `renda_perto_de_acabar`,
+  `/api/gastos/unificados` (lista e páginas) e `/api/financas/extrato`/resumo (regra do
+  `tipo_operacao`; transferência/fatura não pareia). Nada é apagado. `tests/test_gastos_repetidos.py` (12).
 - Testes: `tests/test_quarta_leva.py` (25), `tests/js/cards_automacao.test.js` (9);
   `test_pre_voo_vespera_e_dia` e `test_burocracia_com_30_dias` atualizados pro comportamento novo.
   SW v79.

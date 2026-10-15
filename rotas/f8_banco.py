@@ -99,13 +99,17 @@ def cruzar_proximas_cobrancas_com_gastos(cobrancas: list[dict], gastos: list[dic
 def _montar_gastos_unificados(conn) -> list[dict]:
     """Monta a lista unica (manual + banco) - usada tanto pela rota
     /api/gastos/unificados quanto pelo cruzamento de proximas cobrancas."""
+    repetidos = db.gastos_chat_repetidos_no_banco(conn)
     expenses_reais = conn.execute(
-        "SELECT amount, category, description, source_text, created_at "
+        "SELECT id, amount, category, description, source_text, created_at "
         "FROM expenses WHERE tipo = 'real' ORDER BY created_at DESC"
     ).fetchall()
     unificado = []
     for r in expenses_reais:
+        if r["id"] in repetidos:
+            continue
         item = dict(r)
+        del item["id"]
         item["origem"] = "manual"
         unificado.append(item)
 
@@ -206,7 +210,9 @@ def _materializar_candidatos_gastos(conn, candidatos) -> list[tuple]:
     que deixa o cursor da pagina avancar pro ultimo candidato ESCANEADO,
     mesmo quando ele foi descartado - sem isso a paginacao pularia ou
     repetiria linha toda vez que uma transacao positiva aparecesse no
-    meio do caminho."""
+    meio do caminho. Gasto do chat que tambem veio no banco
+    (db.gastos_chat_repetidos_no_banco, so nos dias da janela) vira None do
+    mesmo jeito."""
     ids_expenses = [c["id"] for c in candidatos if c["origem_src"] == "e"]
     ids_bancos = [c["id"] for c in candidatos if c["origem_src"] == "b"]
 
@@ -219,6 +225,8 @@ def _materializar_candidatos_gastos(conn, candidatos) -> list[tuple]:
             ids_expenses,
         ).fetchall()
         expenses_por_id = {r["id"]: r for r in rows}
+    dias = {db.data_local_do_gasto(e["created_at"]) for e in expenses_por_id.values()} - {None}
+    repetidos = db.gastos_chat_repetidos_no_banco(conn, so_dias=dias) if dias else set()
 
     bancos_por_id = {}
     if ids_bancos:
@@ -235,7 +243,7 @@ def _materializar_candidatos_gastos(conn, candidatos) -> list[tuple]:
         if c["origem_src"] == "e":
             e = expenses_por_id.get(c["id"])
             item = None
-            if e is not None:
+            if e is not None and c["id"] not in repetidos:
                 item = {
                     "amount": e["amount"],
                     "category": e["category"],

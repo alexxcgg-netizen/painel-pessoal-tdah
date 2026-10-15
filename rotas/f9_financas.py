@@ -47,6 +47,18 @@ def _valor_com_sinal(tipo_operacao, valor) -> float:
     return float(valor)
 
 
+def _saida_extrato(transacao: dict) -> float | None:
+    """Regra de saida desta aba (tipo_operacao manda) pro pareamento chat x banco.
+    Transferencia/pagamento de fatura nao pareia: o resumo daqui nao conta essas
+    linhas do banco, entao o gasto digitado no chat e o unico que conta."""
+    if _eh_transferencia_ou_pagamento_fatura(
+        transacao.get("categoria_pluggy"), transacao.get("descricao_original"), transacao.get("descricao")
+    ):
+        return None
+    valor = _valor_com_sinal(transacao.get("tipo_operacao"), transacao.get("valor"))
+    return -valor if valor < 0 else None
+
+
 def _eh_transferencia_ou_pagamento_fatura(categoria_pluggy, descricao_original, descricao) -> bool:
     cat = (categoria_pluggy or "").lower()
     if "transfer" in cat or "credit card payment" in cat:
@@ -106,11 +118,13 @@ def _linhas_manuais(conn, de: date, ate: date) -> list[dict]:
         "SELECT id, amount, category, description, created_at FROM expenses WHERE tipo = 'real'"
     ).fetchall()
     de_s, ate_s = de.isoformat(), ate.isoformat()
+    # o que tambem veio no extrato (mesmo valor, mesmo dia) aparece so pela linha do banco
+    repetidos = db.gastos_chat_repetidos_no_banco(conn, regra_saida=_saida_extrato)
 
     linhas = []
     for r in rows:
         data_txt = (r["created_at"] or "")[:10]
-        if not data_txt or not (de_s <= data_txt <= ate_s):
+        if not data_txt or not (de_s <= data_txt <= ate_s) or r["id"] in repetidos:
             continue
         amount = r["amount"]
         valor = -abs(amount) if amount is not None else 0.0

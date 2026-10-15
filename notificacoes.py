@@ -441,10 +441,15 @@ def _gastos_reais_unificados_para_deteccao(conn) -> list[dict]:
     conceitos diferentes de "todo gasto real" no projeto. Fica em
     notificacoes.py (nao importa de app.py, que importa notificacoes - ver
     de fato o mesmo formato de dict que gastos.py espera)."""
+    repetidos = db.gastos_chat_repetidos_no_banco(conn)
     expenses_reais = conn.execute(
-        "SELECT amount, category, description, source_text, created_at FROM expenses WHERE tipo = 'real'"
+        "SELECT id, amount, category, description, source_text, created_at FROM expenses WHERE tipo = 'real'"
     ).fetchall()
-    unificado = [dict(r) for r in expenses_reais]
+    unificado = [
+        {k: r[k] for k in ("amount", "category", "description", "source_text", "created_at")}
+        for r in expenses_reais
+        if r["id"] not in repetidos
+    ]
     for r in db.list_all_bank_transactions(conn):
         if r["valor"] is None or r["valor"] >= 0:
             continue
@@ -995,7 +1000,7 @@ def renda_perto_de_acabar(conn, hoje: date | None = None, limiar: float = 0.7) -
     renda_mes = db.total_incomes_mes(conn, ano_mes)
     if renda_mes <= 0:
         return None
-    gasto_mes = db.total_gastos_mes(conn, ano_mes, "real") + db.total_gastos_bancarios_mes(conn, ano_mes)
+    gasto_mes = db.total_gasto_real_mes(conn, ano_mes)
     fracao = gasto_mes / renda_mes
     if fracao < limiar:
         return None

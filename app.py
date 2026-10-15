@@ -188,6 +188,7 @@ from db import (
     init_db,
     insert_bank_transactions,
     km_atual_veiculo,
+    gastos_chat_repetidos_no_banco,
     list_all_bank_transactions,
     list_bank_accounts,
     list_bank_transactions,
@@ -282,6 +283,7 @@ from db import (
     save_push_subscription,
     substituir_itens_viagem,
     total_cost_usd,
+    total_gasto_real_mes,
     total_gastos_bancarios_mes,
     total_gastos_mes,
     total_incomes_mes,
@@ -1356,14 +1358,17 @@ def _gastos_reais_unificados(conn) -> list[dict]:
     num formato so. Sem isso, deteccao de recorrencia e sobra do mes
     enxergariam so o que foi digitado na mao, perdendo a maior parte do
     gasto de quem usa a sincronizacao bancaria pra nao precisar digitar
-    nada. Risco conhecido: se o Alex as vezes digita no chat uma compra que
-    TAMBEM vai aparecer no banco depois, ela conta duas vezes - nao tem
-    reconciliacao entre as duas fontes ainda (mesma ressalva que a aba
-    Bancos ja tem sobre confiar cegamente no total importado)."""
+    nada. Compra digitada no chat que TAMBEM veio no banco (mesmo valor, mesmo
+    dia) conta uma vez so - fica a do banco (db.gastos_chat_repetidos_no_banco)."""
+    repetidos = gastos_chat_repetidos_no_banco(conn)
     expenses_reais = conn.execute(
-        "SELECT amount, category, description, source_text, created_at FROM expenses WHERE tipo = 'real'"
+        "SELECT id, amount, category, description, source_text, created_at FROM expenses WHERE tipo = 'real'"
     ).fetchall()
-    unificado = [dict(r) for r in expenses_reais]
+    unificado = [
+        {k: r[k] for k in ("amount", "category", "description", "source_text", "created_at")}
+        for r in expenses_reais
+        if r["id"] not in repetidos
+    ]
     # valor/descricao sao criptografados em repouso - list_all_bank_transactions
     # ja devolve descriptografado, entao o filtro "valor < 0" (que era WHERE no
     # SQL) precisa vir depois, em Python.
@@ -1394,7 +1399,7 @@ def _sobra_do_mes(conn) -> dict:
     hoje = date.today()
     ano_mes = hoje.strftime("%Y-%m")
     renda = total_incomes_mes(conn, ano_mes)
-    gasto_real = total_gastos_mes(conn, ano_mes, "real") + total_gastos_bancarios_mes(conn, ano_mes)
+    gasto_real = total_gasto_real_mes(conn, ano_mes)
     gasto_planejado = total_gastos_mes(conn, ano_mes, "planejado")
     contas_pendentes = sum(
         c["valor"]
