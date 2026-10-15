@@ -102,7 +102,7 @@
       `<div class="dv-anel" style="--frac:${frac.toFixed(3)}"><svg viewBox="0 0 60 60" aria-hidden="true">` +
       `<circle class="dv-anel-base" cx="30" cy="30" r="${R_ANEL}"/>` +
       `<circle class="dv-anel-fio" cx="30" cy="30" r="${R_ANEL}" stroke-dasharray="${VOLTA.toFixed(2)}" stroke-dashoffset="${(VOLTA * (1 - frac)).toFixed(2)}"/></svg>` +
-      `<b class="vivo-num">${dias < 0 ? "!" : esc(dias)}</b><small>${dias < 0 ? "venceu" : dias === 1 ? "dia" : "dias"}</small></div>` +
+      `<b class="vivo-num"${dias >= 0 && dias < MARCO_MAX ? ` data-contar-de="${MARCO_MAX}" data-contar-ate="${dias}"` : ""}>${dias < 0 ? "!" : esc(dias)}</b><small>${dias < 0 ? "venceu" : dias === 1 ? "dia" : "dias"}</small></div>` +
       `<div class="dv-dados"><p class="dv-titulo">${esc(data.titulo)}</p>` +
       `<p class="dv-vence">vence <b class="vivo-num">${esc(diaMesAno(data.vence, agora))}</b> · ${esc(contagem(dias))}</p>` +
       `<div class="dv-marcos" aria-label="avisos em 60, 30 e 7 dias">${marcos}</div></div>` +
@@ -115,12 +115,14 @@
   });
 
   // ===================================================== compras_previsao
+  // cupom de mercado (docs/CARDS.md: "mercado = cupom saindo da impressora" - mesmo papel do gasto,
+  // .tx-* em cards-vivos.css): cada linha e um item que deve estar acabando; "por na lista" carimba.
   function quandoAcaba(dias) {
     if (!numeroValido(dias)) return "";
-    if (dias < 0) return `devia ter acabado há ${-dias} ${dias === -1 ? "dia" : "dias"}`;
-    if (dias === 0) return "deve acabar hoje";
-    if (dias === 1) return "deve acabar amanhã";
-    return `deve acabar em ${dias} dias`;
+    if (dias < 0) return `acabou há ${-dias} ${dias === -1 ? "dia" : "dias"}`;
+    if (dias === 0) return "acaba hoje";
+    if (dias === 1) return "acaba amanhã";
+    return `acaba em ${dias} dias`;
   }
 
   Cards.registrar("compras_previsao", (data) => {
@@ -134,12 +136,13 @@
         const sub = [int ? `a cada ~${int} dias` : "", it.ultima ? `última ${diaMes(it.ultima)}` : ""].filter(Boolean).join(" · ");
         return (
           `<li class="cp-item" style="--k:${k}" data-item="${esc(it.item)}" data-feito-chave="${esc(`compra:${it.chave || it.item}:${it.ultima || ""}`)}">` +
-          `<div class="cp-topo"><b>${esc(it.item)}</b><span class="cp-quando${numeroValido(it.dias) && it.dias <= 0 ? " ja" : ""}">${esc(quandoAcaba(it.dias))}</span></div>` +
+          `<p class="tx-l cp-l"><span class="cp-nome">${esc(it.item)}</span><span class="cp-quando${numeroValido(it.dias) && it.dias <= 0 ? " ja" : ""}">${esc(quandoAcaba(it.dias))}</span></p>` +
           `<div class="cp-ciclo" aria-hidden="true"><i style="--passou:${passou.toFixed(3)}"></i></div>` +
-          (sub ? `<p class="cp-sub vivo-num">${esc(sub)}</p>` : "") +
-          `<div class="cp-acoes"><button type="button" class="ca-botao cp-lista" data-acao="compra_lista">${I.carrinho}<span>Pôr na lista</span></button>` +
-          `<button type="button" class="ca-botao ca-leve cp-adiar" data-acao="compra_adiar"><span>Ainda tem</span></button></div>` +
+          (sub ? `<p class="cp-sub">${esc(sub)}</p>` : "") +
+          `<div class="cp-acoes"><button type="button" class="cp-b cp-lista" data-acao="compra_lista"><span class="cp-caixa" aria-hidden="true"></span>pôr na lista</button>` +
+          `<button type="button" class="cp-b cp-adiar" data-acao="compra_adiar">ainda tem</button></div>` +
           `<p class="cp-feito" hidden></p>` +
+          `<span class="cp-carimbo" aria-hidden="true">na lista</span>` +
           `</li>`
         );
       })
@@ -147,25 +150,37 @@
     return (
       `<div class="sd cp">` +
       olho(I.carrinho, "Compras que acabam", itens.length === 1 ? "1 item" : `${itens.length} itens`) +
-      `<p class="cp-intro">Pelo ritmo que tu compra, ${itens.length === 1 ? "isso deve estar" : "isso aqui deve estar"} acabando:</p>` +
-      `<ul class="cp-lista">${linhas}</ul>` +
+      `<p class="cp-intro">Pelo teu ritmo de compra, ${itens.length === 1 ? "isso deve estar" : "isso aqui deve estar"} acabando:</p>` +
+      `<div class="tx-impressora"><div class="tx-fresta"><div class="tx-cupom cp-cupom">` +
+      `<p class="tx-c">Previsão · mercado</p>` +
+      `<p class="tx-l"><span>pelo histórico</span><span>${itens.length} ${itens.length === 1 ? "item" : "itens"}</span></p><hr>` +
+      `<ul class="cp-lista">${linhas}</ul><hr>` +
+      `<p class="tx-l tx-total"><span>NA LISTA</span><span class="cp-total" data-total="${itens.length}">0/${itens.length}</span></p>` +
+      `</div></div></div>` +
       `</div>`
     );
   });
 
   // ===================================================== assinatura_subiu
+  // Etiqueta de remarcacao: a etiqueta velha (riscada) fica embaixo e a nova e colada por cima,
+  // um pouco torta, como no mercado. Valores somem no modo visitante (cards.CAMPOS_SENSIVEIS).
+  const reaisNbsp = (v) => reais(v).replace(/\s/, " ");
   Cards.registrar("assinatura_subiu", (data) => {
     if (!data || !data.descricao) return null;
     const oculto = !!data.oculto || !numeroValido(data.de) || !numeroValido(data.para);
+    const dif = oculto ? 0 : Math.round((data.para - data.de) * 100) / 100;
     const precos = oculto
       ? `<p class="as-oculto">${esc(Cards.MOEDA_OCULTA)} · valores ocultos no modo visitante</p>`
-      : `<div class="as-precos"><s class="as-de vivo-num">${esc(reais(data.de))}</s>${I.seta}<b class="as-para vivo-num">${esc(reais(data.para))}</b>` +
+      : `<div class="as-etiquetas">` +
+        `<div class="as-tag as-velha"><span class="as-furo"></span><small>era</small><s class="vivo-num">${esc(reaisNbsp(data.de))}</s></div>` +
+        `<div class="as-tag as-nova"><span class="as-furo"></span><small>agora</small>` +
+        `<b class="vivo-num" data-contar-de="${esc(data.de)}" data-contar-ate="${esc(data.para)}" data-contar-fmt="moeda">${esc(reaisNbsp(data.para))}</b>` +
         (numeroValido(data.pct) ? `<span class="as-pct vivo-num">+${esc(Math.round(data.pct))}%</span>` : "") +
-        `</div>` +
-        `<p class="as-dif">São <b class="vivo-num">${esc(reais(data.para - data.de))}</b> a mais por cobrança.</p>`;
+        `</div></div>` +
+        `<p class="as-dif">São <b class="vivo-num">${esc(reaisNbsp(dif))}</b> a mais por mês — <b class="vivo-num">${esc(reaisNbsp(dif * 12))}</b> num ano.</p>`;
     return (
       `<div class="sd as" data-feito-chave="${esc(`assin:${String(data.descricao).toLowerCase()}:${oculto ? "" : data.para}`)}">` +
-      olho(I.assinatura, "Assinatura mais cara") +
+      olho(I.assinatura, "Assinatura mais cara", "remarcou") +
       `<p class="sd-hero">${esc(data.descricao)}</p>` +
       precos +
       (oculto
@@ -203,18 +218,23 @@
   };
 
   // aplica um "ja respondido" no card (agora ou ao reabrir o historico)
-  function aplicarFeito(alvo, feito) {
+  function aplicarFeito(alvo, feito, agora = false) {
     if (!alvo || !feito || typeof feito !== "object") return;
     if (alvo.classList.contains("cp-item")) {
       const msg = alvo.querySelector(".cp-feito");
       const acoes = alvo.querySelector(".cp-acoes");
       if (acoes) acoes.hidden = true;
-      alvo.classList.add(feito.tipo === "lista" ? "na-lista" : "adiado");
+      const naLista = feito.tipo === "lista";
+      alvo.classList.add(naLista ? "na-lista" : "adiado");
+      if (naLista && agora) alvo.classList.add("carimbou"); // so no toque: historico abre carimbado e parado
       if (msg) {
         msg.hidden = false;
-        const t = feito.tipo === "lista" ? "Foi pra lista de compras." : `Ainda tem — pergunto de novo ${feito.ate ? `lá por ${diaMes(feito.ate)}` : "mais pra frente"}.`;
-        msg.innerHTML = `${feito.tipo === "lista" ? I.ok : I.relogio}<span class="sd-troca">${esc(t)}</span>`;
+        msg.textContent = naLista ? "foi pra lista de compras" : `ainda tem · pergunto de novo ${feito.ate ? `lá por ${diaMes(feito.ate)}` : "mais pra frente"}`;
+        if (agora) msg.classList.add("sd-troca");
       }
+      const cupom = alvo.closest(".cp-cupom");
+      const total = cupom && cupom.querySelector(".cp-total");
+      if (total) total.textContent = `${cupom.querySelectorAll(".cp-item.na-lista").length}/${total.dataset.total}`;
       return;
     }
     const botao = alvo.querySelector(".ca-botao:not(.ca-leve)");
@@ -247,7 +267,7 @@
     }
     const feito = { tipo };
     lembrar(alvo.dataset.feitoChave, feito);
-    aplicarFeito(alvo, feito);
+    aplicarFeito(alvo, feito, true);
     vibrar(10);
     if (raiz.CardsPremium && typeof raiz.CardsPremium.festejar === "function") raiz.CardsPremium.festejar(alvo.querySelector(".sd-status svg"));
     if (typeof deps.aoMudar === "function") deps.aoMudar();
@@ -271,7 +291,7 @@
       if (!alvo) return;
       const feito = { tipo: "manter" };
       lembrar(alvo.dataset.feitoChave, feito);
-      aplicarFeito(alvo, feito);
+      aplicarFeito(alvo, feito, true);
       vibrar(6);
     });
 
@@ -280,29 +300,54 @@
       if (!li || li.dataset.enviando) return;
       const item = li.dataset.item;
       li.dataset.enviando = "1";
-      li.querySelectorAll(".ca-botao").forEach((b) => (b.disabled = true));
+      li.querySelectorAll(".cp-b").forEach((b) => (b.disabled = true));
       const res = await postar(deps, tipo === "lista" ? "/api/compras" : "/api/compras/adiar", { item });
       delete li.dataset.enviando;
-      li.querySelectorAll(".ca-botao").forEach((b) => (b.disabled = false));
+      li.querySelectorAll(".cp-b").forEach((b) => (b.disabled = false));
       if (!res || !res.ok) {
         const msg = li.querySelector(".cp-feito");
         if (msg) {
           msg.hidden = false;
-          msg.innerHTML = `${I.alerta}<span class="sd-troca">Não deu agora. Tenta de novo?</span>`;
+          msg.textContent = "não deu agora — tenta de novo?";
         }
         return;
       }
       const feito = tipo === "lista" ? { tipo } : { tipo, ate: res.ate || null };
       lembrar(li.dataset.feitoChave, feito);
-      aplicarFeito(li, feito);
-      vibrar(tipo === "lista" ? 10 : 6);
+      aplicarFeito(li, feito, true);
+      vibrar(tipo === "lista" ? [6, 50, 14] : 6); // carimbo: toque duplo curto
       if (typeof deps.aoMudar === "function") deps.aoMudar();
     };
     Cards.registrarAcao("compra_lista", compra("lista"));
     Cards.registrarAcao("compra_adiar", compra("adiar"));
   }
 
-  const CardsAutomacao = { preparar, fraseDocumento, quandoAcaba, aplicarFeito };
+  // numeros que contam de um valor ate outro (preco velho -> novo, 60 -> dias que faltam)
+  const suaveSaida = (k) => 1 - Math.pow(1 - k, 3);
+  function animar(el) {
+    if (!el || !el.querySelectorAll || typeof raiz.requestAnimationFrame !== "function") return;
+    if (raiz.matchMedia && raiz.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.querySelectorAll("[data-contar-de][data-contar-ate]").forEach((n) => {
+      const de = Number(n.dataset.contarDe);
+      const ate = Number(n.dataset.contarAte);
+      if (!Number.isFinite(de) || !Number.isFinite(ate)) return;
+      const fmt = n.dataset.contarFmt === "moeda" ? reaisNbsp : (v) => String(Math.round(v));
+      const final = n.textContent;
+      const atraso = n.closest(".as-nova") ? 650 : 300; // o preco novo conta depois que a etiqueta cola
+      n.textContent = fmt(de);
+      setTimeout(() => {
+        const t0 = performance.now();
+        const passo = (t) => {
+          const k = Math.min(1, (t - t0) / 1100);
+          n.textContent = k < 1 ? fmt(de + (ate - de) * suaveSaida(k)) : final;
+          if (k < 1) raiz.requestAnimationFrame(passo);
+        };
+        raiz.requestAnimationFrame(passo);
+      }, atraso);
+    });
+  }
+
+  const CardsAutomacao = { preparar, animar, fraseDocumento, quandoAcaba, aplicarFeito };
   raiz.CardsAutomacao = CardsAutomacao;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsAutomacao;
 })(typeof window !== "undefined" ? window : globalThis);

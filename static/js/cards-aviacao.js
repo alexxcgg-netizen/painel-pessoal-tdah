@@ -369,16 +369,29 @@
     const fim = t.quando ? `os ${t.meta} h chegam lá por ${t.quando}.` : `os ${t.meta} h ficam pra mais de 5 anos.`;
     return `${t.base}, ${fim}${t.mais ? ` Com 1 voo a mais por semana: ${t.mais}.` : ""}`;
   }
+  // Regua "hoje -> meta": os dois cenarios no mesmo trilho. Posicao pura (sem relogio): no ritmo
+  // atual a meta fica no fim (100%); com +1 voo/semana chega em ritmo/(ritmo + h por voo) do caminho.
   function projecaoHTML(p) {
     const t = partesProjecao(p);
     if (!t) return "";
-    const fim = t.quando
-      ? `os ${esc(t.meta)} h chegam lá por <b class="vivo-num">${esc(t.quando)}</b>.`
-      : `os ${esc(t.meta)} h ficam pra mais de 5 anos.`;
+    const pv = numeroValido(p.horas_por_voo) && p.horas_por_voo > 0 ? p.horas_por_voo : null;
+    const a = pv && p.ritmo_h_semana > 0 ? p.ritmo_h_semana / (p.ritmo_h_semana + pv) : null;
+    const falta = numeroValido(p.falta_h) ? Number(p.falta_h).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : null;
+    const ritmo = Number(p.ritmo_h_semana).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+    const meses = Math.max(1, Math.round((numeroValido(p.janela_dias) ? p.janela_dias : 60) / 30));
+    const marco = (classe, pos, data, rot) =>
+      `<span class="va-proj-m ${classe}" style="--pos:${pos.toFixed(3)}"><i></i><b class="vivo-num">${esc(data)}</b><small>${esc(rot)}</small></span>`;
     return (
-      `<p class="va-proj">${ICONE_PROJ}<span>${esc(t.base)}, ${fim}` +
-      (t.mais ? ` <span class="va-proj-mais">Com 1 voo a mais por semana: <b class="vivo-num">${esc(t.mais)}</b>.</span>` : "") +
-      `</span></p>`
+      `<div class="va-proj" role="img" aria-label="${esc(textoProjecao(p))}">` +
+      `<div class="va-proj-topo">${ICONE_PROJ}<span>Quando chega nos <b class="vivo-num">${esc(t.meta)} h</b></span>` +
+      (falta ? `<span class="va-proj-falta">faltam <b class="vivo-num">${esc(falta)} h</b></span>` : "") + `</div>` +
+      `<div class="va-proj-regua" aria-hidden="true"><i class="va-proj-trilho"></i><i class="va-proj-cheio"></i><span class="va-proj-hoje">hoje</span>` +
+      (t.mais && a !== null ? marco("va-proj-mais", a, t.mais, "+1 voo/semana") : "") +
+      marco("va-proj-ritmo", 1, t.quando || "5+ anos", "no ritmo atual") +
+      `</div>` +
+      `<p class="va-proj-nota">Ritmo dos últimos ${meses} ${meses === 1 ? "mês" : "meses"}: ${esc(ritmo)} h/semana` +
+      (numeroValido(p.voos_semana) ? ` (${esc(Number(p.voos_semana).toLocaleString("pt-BR", { maximumFractionDigits: 1 }))} voo/semana)` : "") + `.</p>` +
+      `</div>`
     );
   }
 
@@ -637,7 +650,18 @@
   const ICONE_RELOGIO =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
   const horaOk = (h) => typeof h === "string" && /^\d{2}:\d{2}$/.test(h);
-  const contaMochila = (feitos, total) => (feitos >= total ? "tudo na mochila" : `${feitos} de ${total}`);
+  const contaMochila = (feitos, total) => (feitos >= total ? "mochila fechada" : `${feitos} de ${total}`);
+  const ICONE_DESPERTADOR =
+    '<svg class="vv-despertador" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="16" cy="17.5" r="9.5"/><path d="M16 12v5.5l3.5 2.2"/><path class="vv-sino" d="M5 8.5 8.5 5M27 8.5 23.5 5"/><path d="M10 26.5 8 29M22 26.5 24 29"/></svg>';
+  const ICONE_MOCHILA =
+    '<svg class="vv-mochila-ico" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7V5.5a4 4 0 0 1 8 0V7"/><rect x="7" y="7" width="18" height="21" rx="6"/><path class="vv-ziper" d="M11 15h10"/><rect x="11" y="19" width="10" height="6" rx="2"/><path class="vv-ok" d="m12.5 15.2 2.6 2.5 5-5.2"/></svg>';
+  // "pra 8 h de sono, na cama ate" = acordar - 8h (volta pro dia anterior)
+  const SONO_H = 8;
+  const deitarAte = (acordar) => {
+    const [h, m] = acordar.split(":").map(Number);
+    const t = (h * 60 + m - SONO_H * 60 + 1440) % 1440;
+    return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+  };
 
   Cards.registrar("vespera_voo", (data, _card, ctx) => {
     if (!data || !numeroValido(data.id) || !horaOk(data.hora) || !horaOk(data.acordar)) return null;
@@ -664,7 +688,7 @@
     const feitos = itens.filter((it) => it.feito).length;
     const mochila = itens.length
       ? `<div class="vv-mochila" data-mochila-voo="${esc(data.id)}">` +
-        `<div class="vv-mochila-topo"><span class="sd-rotulo">Mochila</span><span class="vv-conta vivo-num" data-total="${itens.length}">${esc(contaMochila(feitos, itens.length))}</span></div>` +
+        `<div class="vv-mochila-topo">${ICONE_MOCHILA}<span class="sd-rotulo">Mochila</span><span class="vv-conta vivo-num${feitos >= itens.length ? " completa" : ""}" data-total="${itens.length}">${esc(contaMochila(feitos, itens.length))}</span></div>` +
         `<ul class="sd-check">` +
         itens
           .map(
@@ -679,7 +703,9 @@
     return (
       `<div class="sd vv" data-voo="${esc(data.id)}">` +
       `<div class="card-resultado-eyebrow">${ICONE_LUA}<span>Véspera do voo</span><span class="sd-quando">${esc(Cards.rotuloDia(data.data, agora) || "")}</span></div>` +
-      `<div class="vv-hero"><span class="vv-hero-rot">Acorda</span><b class="vivo-num">${esc(data.acordar)}</b><span class="vv-hero-sub vivo-num">${esc(sub)}</span></div>` +
+      `<div class="vv-hero">${ICONE_DESPERTADOR}<span class="vv-hero-rot">Acorda</span><b class="vivo-num">${esc(data.acordar)}</b>` +
+      `<span class="vv-hero-sub vivo-num">${esc(sub)}</span>` +
+      `<span class="vv-sono">${ICONE_LUA}<span>Pra ${SONO_H} h de sono, na cama até <b class="vivo-num">${esc(deitarAte(data.acordar))}</b>.</span></span></div>` +
       linha +
       (folgas.length ? `<p class="vv-folgas">${ICONE_RELOGIO}<span>${folgas.map((f) => `<span class="vv-f">${f}</span>`).join(`<i aria-hidden="true">·</i>`)}</span></p>` : "") +
       (tempoNaJanela(data, agora) ? `<div class="va-tempo" data-voo-tempo="${esc(data.id)}" aria-live="polite" hidden></div>` : "") +
@@ -706,7 +732,10 @@
     const total = Number(conta.dataset.total) || 0;
     const n = cardEl.querySelectorAll(".vv-mochila li.marcado").length;
     conta.textContent = contaMochila(n, total);
-    conta.classList.toggle("completa", total > 0 && n >= total);
+    const completa = total > 0 && n >= total;
+    conta.classList.toggle("completa", completa);
+    const caixa = cardEl.closest ? (cardEl.classList.contains("vv-mochila") ? cardEl : cardEl.querySelector(".vv-mochila")) : null;
+    if (caixa) caixa.classList.toggle("fechada", completa);
   }
   async function carregarMochila(caixa) {
     if (caixa.dataset.pedido) return;
@@ -890,6 +919,12 @@
         li.classList.add("voou");
       }
       contarMochila(caixa);
+      const ico = caixa.querySelector(".vv-mochila-ico");
+      if (ico && feito) {
+        ico.classList.remove("pulou");
+        void ico.getBoundingClientRect();
+        ico.classList.add("pulou");
+      }
       if (typeof raiz.vibrar === "function") raiz.vibrar(feito && caixa.querySelectorAll("li:not(.marcado)").length === 0 ? [10, 40, 16] : 8);
       btn.dataset.enviando = "1";
       let res = null;

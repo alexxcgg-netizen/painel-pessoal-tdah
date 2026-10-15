@@ -19,7 +19,12 @@ const VESPERA = {
 test("vespera_voo: acorda grande, linha de 4 paradas, TAF na janela e mochila marcavel", () => {
   const h = card("vespera_voo", VESPERA);
   assert.match(h, /Véspera do voo/);
-  assert.match(h, /class="vv-hero"><span class="vv-hero-rot">Acorda<\/span><b class="vivo-num">06:15<\/b>/);
+  assert.match(h, /class="vv-despertador"/);
+  assert.match(h, /<span class="vv-hero-rot">Acorda<\/span><b class="vivo-num">06:15<\/b>/);
+  // 8 h de sono antes de acordar (volta pro dia anterior)
+  assert.match(h, /na cama até <b class="vivo-num">22:15<\/b>/);
+  assert.match(card("vespera_voo", { ...VESPERA, acordar: "05:30" }), /na cama até <b class="vivo-num">21:30<\/b>/);
+  assert.match(card("vespera_voo", { ...VESPERA, mochila: VESPERA.mochila.map((m) => ({ ...m, feito: true })) }), /vv-conta vivo-num completa[^>]*>mochila fechada/);
   assert.match(h, /class="sd-linha" style="--n:4"/);
   assert.match(h, /chega SSBL/);
   assert.match(h, /data-voo-tempo="7"/);
@@ -56,6 +61,11 @@ test("projecao: texto com ritmo, mes da meta e cenario de 1 voo a mais", () => {
 test("projecao aparece no voo_agendado, voo_horas e voo_resumo", () => {
   const ag = card("voo_agendado", { id: 3, data: "2026-10-20", hora: "09:00", paradas: [{ icao: "SSBL" }, { icao: "SBJV" }], projecao: PROJ });
   assert.match(ag, /class="va-proj"/);
+  // regua: no ritmo atual a meta fica no fim; +1 voo/semana em ritmo/(ritmo + h por voo) do caminho
+  assert.match(ag, /va-proj-mais" style="--pos:0\.618"/);
+  assert.match(ag, /va-proj-ritmo" style="--pos:1\.000"/);
+  assert.match(ag, /faltam <b class="vivo-num">40,5 h/);
+  assert.match(Aviacao.projecaoHTML({ ...PROJ, data_meta: null, data_meta_mais_um: null }), /5\+ anos/);
   const vh = card("voo_horas", { id: 3, data: "2026-10-15", projecao: PROJ });
   assert.match(vh, /fev 2027/);
   const vr = card("voo_resumo", { total_min: 3000, voos: 30, meta_horas: 150, meta_definida: true, projecao: PROJ });
@@ -66,7 +76,7 @@ test("projecao aparece no voo_agendado, voo_horas e voo_resumo", () => {
 test("documento_validade: anel, marco atual e frase pelo prazo recalculado na hora", () => {
   const h = card("documento_validade", { id: 4, titulo: "Renovar CMA", vence: "2026-11-10", dias: 26, marco: 30, recorrente: true });
   assert.match(h, /data-nivel="atencao"/);
-  assert.match(h, /<b class="vivo-num">26<\/b><small>dias/);
+  assert.match(h, /<b class="vivo-num" data-contar-de="60" data-contar-ate="26">26<\/b><small>dias/);
   assert.match(h, /dv-marco chegou atual"><i><\/i>30 d/);
   assert.match(h, /dv-marco"><i><\/i>7 d/);
   assert.match(h, /renova todo ano/);
@@ -91,19 +101,21 @@ test("compras_previsao: ate 4 itens, ciclo e botoes por item", () => {
   assert.strictEqual((h.match(/class="cp-item"/g) || []).length, 4);
   assert.strictEqual((h.match(/data-acao="compra_lista"/g) || []).length, 4);
   assert.strictEqual((h.match(/data-acao="compra_adiar"/g) || []).length, 4);
-  assert.match(h, /devia ter acabado há 1 dia/);
-  assert.match(h, /deve acabar hoje/);
+  assert.match(h, /acabou há 1 dia/);
+  assert.match(h, /cp-quando ja">acaba hoje/);
   assert.match(h, /a cada ~10 dias · última 6 out/);
   assert.match(h, /--passou:1\.000/);
+  assert.match(h, /class="tx-cupom cp-cupom"/);
+  assert.match(h, /cp-total" data-total="4">0\/4/);
   assert.doesNotMatch(card("compras_previsao", { itens: [] }), /cp-lista/);
 });
 
 test("assinatura_subiu: riscado -> novo, pct, botoes; visitante esconde valor e botoes", () => {
   const h = card("assinatura_subiu", { descricao: "Netflix", categoria: "assinaturas", de: 39.9, para: 44.9, pct: 13 });
-  assert.match(h, /<s class="as-de vivo-num">R\$\s?39,90<\/s>/);
-  assert.match(h, /as-para vivo-num">R\$\s?44,90/);
+  assert.match(h, /as-velha.*<s class="vivo-num">R\$\s39,90<\/s>/);
+  assert.match(h, /as-nova.*data-contar-de="39.9" data-contar-ate="44.9" data-contar-fmt="moeda">R\$\s44,90/);
   assert.match(h, /\+13%/);
-  assert.match(h, /R\$\s?5,00<\/b> a mais por cobrança/);
+  assert.match(h, /R\$\s5,00<\/b> a mais por mês — <b class="vivo-num">R\$\s60,00<\/b> num ano/);
   assert.match(h, /data-acao="assin_cancelar" data-descricao="Netflix"/);
   assert.match(h, /data-acao="assin_manter"/);
   const o = card("assinatura_subiu", { descricao: "Netflix", oculto: true });

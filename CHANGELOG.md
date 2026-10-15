@@ -36,6 +36,12 @@ Leva feita de uma vez a partir de briefing próprio (`docs/briefings/2026-10-15-
 - Testes: `tests/test_quarta_leva.py` (25), `tests/js/cards_automacao.test.js` (9);
   `test_pre_voo_vespera_e_dia` e `test_burocracia_com_30_dias` atualizados pro comportamento novo.
   SW v79.
+- **Acabamento dos cards** (pedido "deixe cards bem legais"; SW v80): compras no cupom do mercado
+  (`.tx-impressora`) com carimbo "NA LISTA" e total n/N; assinatura como etiqueta de preço remarcada
+  (velha riscada, nova cai por cima e conta, selo +%, impacto no ano); projeção virou régua
+  hoje → +1 voo/semana → ritmo atual; véspera com despertador que toca, "na cama até" (8 h de sono)
+  e mochila que pula/fecha o zíper; documento conta de 60 até os dias. `CardsAutomacao.animar`
+  (contagem, só fora de reduced motion) chamado pelo `CardsVivos.animar`.
 
 ## 2026-10-14 - Cards da IA no app (3ª leva: volta, "pensando", tempo do voo, horas, presente anual)
 

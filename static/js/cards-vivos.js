@@ -1259,6 +1259,7 @@
   async function animar(raizEl) {
     if (!raizEl || !raizEl.querySelectorAll || reduzido()) return;
     if (raiz.CardsAviacao && typeof raiz.CardsAviacao.animar === "function") raiz.CardsAviacao.animar(raizEl);
+    if (raiz.CardsAutomacao && typeof raiz.CardsAutomacao.animar === "function") raiz.CardsAutomacao.animar(raizEl);
     contar(raizEl);
     raizEl.querySelectorAll('[data-vivo="voo"]').forEach(async (svg) => {
       const fim = Math.min(1, +svg.dataset.total / (+svg.dataset.meta * 60));
