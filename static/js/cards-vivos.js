@@ -1144,7 +1144,10 @@
       if (!ol._relogio)
         ol._relogio = setInterval(() => (ol.isConnected ? semRolar(() => posicionarAgora(ol)) : clearInterval(ol._relogio)), 60000);
     });
-    raizEl.querySelectorAll(".vivo-rota-mapa").forEach((svg) => rotaCarro(svg, 1));
+    raizEl.querySelectorAll(".vivo-rota-mapa").forEach((svg) => {
+      rotaCarro(svg, 1);
+      svg.classList.add("vivo-rota-pronta"); // trecho lento/parado aparece com o caminho pronto
+    });
     raizEl.querySelectorAll('[data-vivo="tarefas"]').forEach((topo) => {
       const card = topo.closest(".card-contrato");
       if (!card || card._tarefasLigado || typeof MutationObserver === "undefined") return;
@@ -1282,6 +1285,7 @@
       const L = caminho.getTotalLength();
       const pinos = svg.querySelectorAll(".vivo-rota-pino");
       pinos.forEach((p, i) => i && (p.style.opacity = 0));
+      svg.classList.remove("vivo-rota-pronta");
       caminho.style.strokeDasharray = L;
       await tween(2000, (e) => {
         caminho.style.strokeDashoffset = L * (1 - e);
@@ -1290,6 +1294,8 @@
           if (+p.dataset.frac <= e + 0.01) p.style.opacity = 1;
         });
       });
+      // so depois do carro passar: o trecho lento/parado acende (CSS .vivo-rota-pronta)
+      svg.classList.add("vivo-rota-pronta");
     });
     raizEl.querySelectorAll('[data-vivo="gastos"]').forEach((svg) => {
       let vals = [];

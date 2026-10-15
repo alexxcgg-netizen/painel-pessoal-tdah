@@ -9,8 +9,10 @@ from flask import Blueprint, jsonify, request
 from rotas._base import app_modulo
 from db import complete_task, criar_tarefa_de_brain_dump, definir_esforco_tarefa, get_db, list_fichas_treino, reclassificar_tarefa_para_gasto, registrar_correcao_classificacao
 import db
+import maps_client
 import math
 import vida
+import vida_assistente
 
 bp = Blueprint("tasks", __name__)
 
@@ -54,6 +56,14 @@ def list_tasks():
         for s in subtask_rows:
             subtasks_por_task.setdefault(s["task_id"], []).append(dict(s))
     fichas = list_fichas_treino(conn)
+    # 2026-10-15: tarefa com lugar ganha "Waze" nas acoes (o toque no aviso "hora de sair" abre a
+    # tarefa com as acoes abertas -> um toque e o Waze navega). Apelido ("obra") vira o endereco.
+    waze_por_local = {}
+    if estado != "concluidas":
+        for row in rows:
+            local = (row["local"] or "").strip() if "local" in row.keys() else ""
+            if local and local not in waze_por_local:
+                waze_por_local[local] = maps_client.link_waze(None, vida_assistente.resolver_lugar(conn, local))
     conn.close()
 
     hoje = date.today()
@@ -63,6 +73,7 @@ def list_tasks():
         task["subtasks"] = subtasks_por_task.get(task["id"], [])
         task["empacada_dias"] = vida.dias_empacada(task, task["subtasks"], hoje)
         task["fichas_treino"] = [f["id"] for f in vida.ficha_para_titulo(fichas, task["title"])]
+        task["waze"] = waze_por_local.get((task.get("local") or "").strip())
         tasks.append(task)
     return jsonify(tasks)
 

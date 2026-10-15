@@ -5,6 +5,28 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-15 - Trânsito de verdade + Waze nos cards (SW v83)
+
+Pedido do Alex: "o que falta hoje no painel é o trânsito", tudo grátis, avisar de coisa tipo
+blitz/acidente nos cards, recalcular "a cada hora". Briefing: `docs/briefings/2026-10-15-transito-waze.md`.
+- `maps_client.tempo_de_viagem(partida=, lentidao=)`: `departureTime` (trânsito previsto pra hora de
+  sair - antes era o do momento da pergunta), `staticDuration` → `transito_min`, trechos lentos/parados
+  (`TRAFFIC_ON_POLYLINE`; `trechos_lentos` junta vizinhos, lento < 1 km some, parado ≥ 300 m), nome dos 2
+  piores por Geocoding reverso (`nome_do_trecho`), `destino_ll`. `frase_trecho`/`resumo_transito`: "Parado
+  na BR-470, Gaspar (2 km) - pode ser acidente ou blitz" (nunca afirma a causa). `link_waze` (deep link
+  oficial). `horario_de_saida` devolve `transito_min`, `lentidao` e `waze`.
+- **Trava da cota grátis** (`usar_cota`, tabela `uso_maps`, `COTA_MES`): lentidão 800/mês, trânsito 4.000,
+  básico 8.000, nome 8.000. Bateu → faixa de baixo; nada → `CotaEsgotada` (é `RequestException`, então
+  todo lugar já trata como "Maps fora").
+- Card `rota`: "+N min de trânsito", linhas do trecho parado/lento, trecho pintado no mapinho depois que o
+  carrinho passa, botão "Ir com Waze"/"Waze até X". `date`/`balada`/`voo_agendado`/`vespera_voo`: Waze +
+  "(+N de trânsito)". IA do chat repete a frase do `transito` sem inventar causa.
+- Avisos "Hora de sair" (compromisso com lugar) e "Hora de ir pro voo": recalculam no máximo 1x por hora
+  por lugar (antes: 1x por dia / a cada tick de 5 min no voo) e levam o trânsito no texto.
+- Tarefa com lugar ganha "ir com Waze" nas ações (`/api/tasks` → `waze`, apelido vira endereço) - o toque
+  no aviso "Hora de sair" abre a tarefa com as ações abertas.
+- Testes: `tests/test_transito_waze.py` (12) + renderizador da rota em `tests/js/cards.test.js`.
+
 ## 2026-10-15 - Barra de abas: medida pelo ancoradouro de verdade (SW v82)
 
 O Alex mandou print às 16:05 com a barra ainda cortada - e o `/api/diagnostico` (da leva abaixo)

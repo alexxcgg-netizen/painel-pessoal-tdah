@@ -433,7 +433,16 @@ O card original fica guardado no elemento (`data-card-json`) pra depuração.
 Gerado pelo `estimar_trajeto` do chat (nao vem do banco). `data`: `paradas` (lista de `{nome, endereco}`, da
 partida ao fim), `distancia_km`, `duracao_min`, `partir_de_onde_estou` (bool - a primeira parada vira "Onde voce
 esta"). `actions`: uma `abrir_link` (`{tipo, rotulo, url}`) com o link universal do Google Maps; o front so
-renderiza `abrir_link` quando a `url` comeca com `https://www.google.com/maps/` (qualquer outra e ignorada).
+renderiza `abrir_link` quando a `url` comeca com `https://www.google.com/maps/` ou `https://www.windy.com/`,
+ou e o deep link do Waze `https://waze.com/ul?` (qualquer outra e ignorada).
+
+**Trânsito + Waze (aditivo, 2026-10-15)**: `data.transito_min` (minutos a mais pelo trânsito; o front só mostra
+"+N min de trânsito" com ≥ 3) e `data.lentidao` (até 3 `{nivel: "lento"|"parado", frase}` - a frase vem pronta
+do `maps_client.frase_trecho`, ex. "Parado na BR-470, Gaspar (2 km) - pode ser acidente ou blitz"; **nunca
+afirma a causa**). `traco.lentos` = `[{nivel, pontos[[x,y]]}]`, pintado por cima do caminho (âmbar/vermelho) e
+aceso só depois que o carrinho passa. Segunda action `abrir_link` pro Waze (`cards.acao_waze`): "Ir com Waze",
+ou "Waze até X" quando tem várias paradas (o Waze só vai até a primeira). Os cards `date`/`balada`,
+`voo_agendado` e `vespera_voo` ganham o mesmo botão e `transito_min` ("40 min de carro (+12 de trânsito)").
 
 ## Cartões vivos (aditivo, 2026-10-09)
 
@@ -449,7 +458,7 @@ final; a animação só entra em resposta nova (`CardsVivos.animar`). Campos (`d
 | `dia` | `dia, compromissos[{hora, ate, titulo, origem, concluida, dia_inteiro}], tarefas_sem_hora[]` |
 | `viagem_janelas` | `destino, mes, dia_definido, internacional, cenarios{no_feriado?, fora?: {ida, alta{nome,de,ate}?, janelas[{item, inicio, fim, status: agora/em_breve/passou, dias}]}}, fontes` |
 | `agua` | `data, copos, meta` + `desfazer` (visitante: `oculto`) |
-| `rota` (+) | `traco{w, h, pontos[[x,y]], paradas[[x,y]]}` - caminho real já projetado |
+| `rota` (+) | `traco{w, h, pontos[[x,y]], paradas[[x,y]], lentos[{nivel, pontos}]}` - caminho real já projetado (+ trechos lentos/parados, 2026-10-15) |
 | `saude_treino` (+) | `semana[{data, feito, hoje}] (seg..dom), meta_semana` |
 | `tarefas_lista` | `de, ate, hoje, so_concluidas, total, feitas, itens[{id, titulo, hora, data, concluida}], atrasadas[...], mais` |
 | `tarefas_criadas` (+) | `dia, agenda_do_dia[{id, titulo, hora, concluida, nova}]` - o dia em volta da tarefa nova |

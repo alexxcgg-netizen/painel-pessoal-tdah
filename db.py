@@ -810,6 +810,16 @@ def init_db():
             criado_em TEXT NOT NULL DEFAULT (datetime('now'))
         )"""
     )
+    # 2026-10-15: contador das chamadas ao Google Maps por mes e faixa de preco - trava antes
+    # da cota gratis acabar (maps_client.usar_cota / COTA_MES).
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS uso_maps (
+            mes TEXT NOT NULL,
+            nivel TEXT NOT NULL,
+            chamadas INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (mes, nivel)
+        )"""
+    )
     # Fase 6 (US-E1a): unificacao das duas secoes de manutencao - colunas
     # novas em bancos que ainda tem o `manutencoes` de 5 colunas (ver
     # _migrar_manutencoes_unificadas logo abaixo pra copia dos dados de

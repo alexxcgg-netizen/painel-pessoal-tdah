@@ -122,7 +122,7 @@
     if (!data.titulo || !data.data) return null;
     const agora = (ctx && ctx.agora) || new Date();
     const hero = data.com_quem && data.lugar ? `${data.com_quem} · ${data.lugar}` : data.com_quem || data.titulo;
-    const sub = [emDias(data.data, agora), numeroValido(data.trajeto_min) ? `${data.trajeto_min} min de carro` : ""].filter(Boolean).join(" · ");
+    const sub = [emDias(data.data, agora), numeroValido(data.trajeto_min) ? `${data.trajeto_min} min de carro${numeroValido(data.transito_min) && data.transito_min >= 3 ? ` (+${data.transito_min} de trânsito)` : ""}` : ""].filter(Boolean).join(" · ");
     const paradas = data.comecar
       ? [
           { hora: data.comecar, rotulo: "se arrumar" },

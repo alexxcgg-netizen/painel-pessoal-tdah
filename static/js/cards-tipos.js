@@ -780,6 +780,16 @@
     const numeros = [kmTexto(data.distancia_km), numeroValido(data.duracao_min) ? Cards.fmtDuracao(data.duracao_min) : ""]
       .filter(Boolean)
       .join(" · ");
+    // 2026-10-15: quanto do tempo e transito + trecho lento/parado ("pode ser acidente ou blitz")
+    const transito =
+      numeroValido(data.transito_min) && data.transito_min >= 3
+        ? `<p class="card-rota-transito">+${esc(data.transito_min)} min de trânsito</p>`
+        : "";
+    const lentos = lista(data.lentidao)
+      .filter((x) => x && (x.nivel === "parado" || x.nivel === "lento") && typeof x.frase === "string")
+      .slice(0, 3)
+      .map((x) => `<li class="card-rota-lento card-rota-lento--${x.nivel}"><i aria-hidden="true"></i>${esc(x.frase)}</li>`)
+      .join("");
     const itens = paradas
       .map((p, i) => {
         const aqui = i === 0 && data.partir_de_onde_estou;
@@ -794,6 +804,8 @@
       `<p class="card-titulo">${esc(alvo.nome || alvo.endereco)}</p>` +
       mapaRota(data.traco, paradas.map((p, i) => (i === 0 && data.partir_de_onde_estou ? "Você" : p.nome || p.endereco))) +
       (numeros ? `<p class="card-hora-grande card-rota-numeros">${esc(numeros)}</p>` : "") +
+      transito +
+      (lentos ? `<ul class="card-rota-lentos">${lentos}</ul>` : "") +
       `<ol class="card-rota-paradas">${itens}</ol>`
     );
   });
@@ -836,9 +848,22 @@
       `<div class="vivo-mapa"><svg class="vivo-rota-mapa" viewBox="0 0 ${w} ${h}" role="img" aria-label="Caminho da rota">` +
       `<defs><pattern id="vivo-grade-mapa" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" class="vivo-grade-linha"/></pattern></defs>` +
       `<rect width="${w}" height="${h}" fill="url(#vivo-grade-mapa)"/>` +
-      `<path class="vivo-rota-sombra" d="${d}"/><path class="vivo-rota-caminho" d="${d}"/>${pinos}` +
+      `<path class="vivo-rota-sombra" d="${d}"/><path class="vivo-rota-caminho" d="${d}"/>${trechosLentos(traco)}${pinos}` +
       `<g class="vivo-rota-carro"><circle r="9" class="vivo-carro-halo"/><circle r="4.5" class="vivo-carro"/></g></svg></div>`
     );
+  }
+
+  // Trecho lento/parado (2026-10-15): pintado por cima do caminho, ambar (lento) ou vermelho
+  // (parado). Aparece depois que o caminho termina de se desenhar (CSS).
+  function trechosLentos(traco) {
+    return lista(traco.lentos)
+      .filter((f) => f && (f.nivel === "parado" || f.nivel === "lento"))
+      .map((f) => {
+        const pts = lista(f.pontos).filter((p) => Array.isArray(p) && p.length === 2 && p.every(numeroValido));
+        if (pts.length < 2) return "";
+        return `<path class="vivo-rota-lento vivo-rota-lento--${f.nivel}" d="M${pts.map((p) => `${p[0]} ${p[1]}`).join(" L")}"/>`;
+      })
+      .join("");
   }
 
   // ---- habito -------------------------------------------------------------------

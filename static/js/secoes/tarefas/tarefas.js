@@ -103,6 +103,10 @@ const ICONE_AMANHA =
 const ICONE_HOJE =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>';
 
+// "Waze" (tarefa com lugar, 2026-10-15): seta de navegacao
+const ICONE_NAVEGAR =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 21 3l-8 18-2-8-8-2Z"/></svg>';
+
 // "juntar de novo" (desfazer a quebra em passos): seta voltando
 const ICONE_JUNTAR =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
@@ -306,6 +310,17 @@ function criarItemTarefa(t) {
       else setBotaoCarregando(btnHoje, false, "pra hoje");
     });
     btnConcluir.after(btnHoje);
+  }
+  // Tarefa com lugar (2026-10-15): "Waze" ja navegando ate la. E aqui que o toque no aviso
+  // "hora de sair" cai (tarefa aberta com as acoes) - um toque e o Waze abre. So o deep link
+  // oficial (waze.com/ul), montado no servidor (rotas/tasks.py).
+  if (typeof t.waze === "string" && t.waze.startsWith("https://waze.com/ul?")) {
+    const btnWaze = document.createElement("button");
+    btnWaze.type = "button";
+    btnWaze.className = "btn-com-icone tarefa-waze";
+    btnWaze.innerHTML = `${ICONE_NAVEGAR}ir com Waze`;
+    btnWaze.addEventListener("click", () => window.open(t.waze, "_blank", "noopener"));
+    btnConcluir.after(btnWaze);
   }
   // esforco saiu da linha de chips (poluia toda tarefa) e mora nas acoes
   acoes.insertBefore(criarTagEsforco(t), btnCorrigir);

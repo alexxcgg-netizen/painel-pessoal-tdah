@@ -743,3 +743,50 @@ test("local do GPS aparece na tarefa e no lembrete (e some quando nao tem)", () 
   });
   assert.match(lembrete, /&lt;b&gt;Rua&lt;\/b&gt;/); // escapado
 });
+
+test("rota com transito: +N min, trecho parado (sem afirmar a causa), trecho no mapa e botao do Waze", () => {
+  const card = {
+    type: "rota",
+    data: {
+      paradas: [
+        { nome: "Casa", endereco: "Rua Exemplo, 10, Brusque - SC" },
+        { nome: "Aeroclube de Blumenau", endereco: "Blumenau - SC" },
+      ],
+      distancia_km: 40,
+      duracao_min: 62,
+      transito_min: 14,
+      lentidao: [
+        { nivel: "parado", frase: "Parado na BR-470, Gaspar (2 km) - pode ser acidente ou blitz" },
+        { nivel: "qualquer", frase: "ignorado" },
+      ],
+      traco: {
+        w: 320, h: 200,
+        pontos: [[20, 20], [160, 100], [300, 180]],
+        paradas: [[20, 20], [300, 180]],
+        lentos: [{ nivel: "parado", pontos: [[100, 60], [160, 100]] }, { nivel: "x", pontos: [[1, 1], [2, 2]] }],
+      },
+    },
+    actions: [
+      { tipo: "abrir_link", rotulo: "Abrir no Google Maps", url: "https://www.google.com/maps/dir/?api=1&destination=x" },
+      { tipo: "abrir_link", rotulo: "Ir com Waze", url: "https://waze.com/ul?ll=-26.85000,-49.10000&navigate=yes" },
+    ],
+  };
+  const html = Cards.renderizarCardHTML(card);
+  assert.ok(!html.includes("card-contrato-fallback"), html);
+  assert.match(html, /\+14 min de trânsito/);
+  assert.match(html, /card-rota-lento--parado/);
+  assert.match(html, /pode ser acidente ou blitz/);
+  assert.ok(!html.includes("ignorado"), html);
+  assert.match(html, /vivo-rota-lento--parado" d="M100 60 L160 100"/);
+  assert.ok(!html.includes("vivo-rota-lento--x"), html);
+  assert.match(html, /href="https:\/\/waze\.com\/ul\?ll=-26\.85000,-49\.10000&amp;navigate=yes"/);
+  assert.match(html, /Ir com Waze/);
+
+  // transito pequeno (< 3 min) nao aparece; Waze falso (outro dominio / sem /ul?) nao vira botao
+  const pouco = Cards.renderizarCardHTML({ ...card, data: { ...card.data, transito_min: 2, lentidao: [] } });
+  assert.ok(!pouco.includes("de trânsito"), pouco);
+  for (const url of ["https://waze.com.evil.example/ul?x", "https://waze.com/live-map", "http://waze.com/ul?ll=1,2"]) {
+    const falso = Cards.renderizarCardHTML({ ...card, actions: [{ tipo: "abrir_link", rotulo: "Waze", url }] });
+    assert.ok(!falso.includes("card-btn-link"), url);
+  }
+});

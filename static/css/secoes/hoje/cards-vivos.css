@@ -312,6 +312,22 @@
 .vivo-pino-destino { fill: var(--card-cor); }
 .vivo-pino-nome { font-family: var(--font-body); font-size: 11px; font-weight: 600; fill: var(--text-muted); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; }
 .vivo-rota-pino { transition: opacity 0.4s var(--ease-suave); }
+/* trecho lento (ambar) / parado (vermelho) por cima do caminho - acende devagar depois que o
+   carrinho termina de passar (.vivo-rota-pronta, cards-vivos.js), sem piscar */
+.vivo-rota-lento {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transition: opacity 0.7s var(--ease-suave);
+}
+.vivo-rota-lento--lento { stroke: var(--cor-alerta); }
+.vivo-rota-lento--parado { stroke: var(--cor-saida); }
+.vivo-rota-pronta .vivo-rota-lento { opacity: 0.95; }
+@media (prefers-reduced-motion: reduce) {
+  .vivo-rota-lento { transition: none; }
+}
 .vivo-carro { fill: var(--text); }
 .vivo-carro-halo { fill: var(--card-cor); opacity: 0.25; }
 

@@ -359,7 +359,7 @@ class AvisoVooTestCase(_Base):
         voo = {"data": HOJE, "hora": "14:00", "origem": "SSBL", "destino": "SBFL"}
         chamado = {}
 
-        def fake_saida(origem, destino, chegar_ate, margem_minutos=15, modo="DRIVE"):
+        def fake_saida(origem, destino, chegar_ate, margem_minutos=15, modo="DRIVE", **_):
             chamado.update(destino=destino, chegar_ate=chegar_ate, margem=margem_minutos)
             return {"sair_ate": (datetime.now() + timedelta(minutes=5)).isoformat(), "duracao_minutos": 40, "distancia_km": 30, "margem_minutos": margem_minutos}
 

@@ -300,6 +300,29 @@ existe API publica do Waze pra rotas/transito, entao o calculo do horario de sai
 da Google Routes API — o link do Waze e so um atalho pra navegacao (usa o [deep link oficial do
 Waze](https://developers.google.com/waze/deeplinks), sem scraping nem API nao documentada).
 
+### Trânsito de verdade + Waze nos cards (2026-10-15)
+
+- **Trânsito da hora de sair, não da hora da pergunta**: `maps_client.horario_de_saida` manda o
+  `departureTime` (chegada − margem − ~30 min) pro Google prever o trânsito daquele horário, e
+  pede o `staticDuration` pra saber quanto do tempo é trânsito (`transito_min`).
+- **Trecho lento/parado no caminho**: o Google devolve a velocidade por trecho do traçado
+  (`TRAFFIC_ON_POLYLINE` → `speedReadingIntervals`); o painel junta os vizinhos, ignora lento curto
+  (< 1 km = semáforo) e dá nome aos 2 piores pelo Geocoding reverso ("BR-470, Gaspar"). O texto
+  diz "pode ser acidente ou blitz" e **nunca afirma a causa** - blitz com certeza nenhuma fonte dá
+  (nem o Waze, que é aviso de quem passou). Os alertas do Waze só saem pra órgão público (Waze for
+  Cities); raspar o mapa deles não.
+- **Onde aparece**: card de rota do chat (+N min, a linha do trecho e o trecho pintado no mapinho),
+  aviso "Hora de sair" e "Hora de ir pro voo" (recalculados no máximo 1x por hora por lugar, dentro
+  das 4 h antes), cards de date/balada/voo/véspera ("40 min de carro (+12 de trânsito)").
+- **Waze**: botão nos cards (coordenada exata do fim da rota) e "ir com Waze" nas ações de toda
+  tarefa com lugar - o toque no aviso "Hora de sair" já abre a tarefa com as ações abertas.
+- **Grátis, com trava**: o Google dá cota grátis por mês POR faixa de preço (Routes com trânsito
+  5.000; trecho lento é a faixa mais cara, 1.000; Geocoding 10.000). O painel conta as próprias
+  chamadas (tabela `uso_maps`) e para antes: `maps_client.COTA_MES` = lentidão 800, trânsito
+  4.000, básico 8.000, nome de trecho 8.000. Bateu a trava → cai pra faixa de baixo (sem trecho →
+  sem trânsito); sem nenhuma, o aviso/card segue com a folga de sempre, como se o Google estivesse
+  fora do ar (`CotaEsgotada` é um `RequestException`).
+
 ### E a Uber?
 
 Do lado do link, funciona igual ao Waze: aparece um botao "Pedir Uber" junto do Waze, que abre o

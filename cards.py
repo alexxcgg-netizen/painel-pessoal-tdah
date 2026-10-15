@@ -587,6 +587,7 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
             "sair": sair,
             "arrumar_min": arrumar,
             "trajeto_min": (saida or {}).get("trajeto_min"),
+            "transito_min": (saida or {}).get("transito_min"),
         })
         if isinstance(ef.get("clima"), dict):
             data["clima"] = {"temp": ef["clima"].get("temp"), "chuva_pct": ef["clima"].get("chuva_pct")}
@@ -622,7 +623,8 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
             "ano_passado": ((extras.get("historico") or [None])[-1] or {}).get("presente"),
         })
     aba, rotulo = ABA_POR_ENTIDADE["tarefa"]
-    actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, "tarefa", row["id"])]
+    waze = acao_waze((ef.get("saida") or {}).get("waze")) if isinstance(ef.get("saida"), dict) else None
+    actions = list(actions_extra or []) + ([waze] if waze else []) + [acao_abrir_aba(aba, rotulo, "tarefa", row["id"])]
     return novo_card(estilo, data, actions)
 
 
@@ -1195,6 +1197,16 @@ def card_rota(ef: dict) -> dict | None:
     paradas = [p for p in (ef.get("paradas") or []) if isinstance(p, dict)]
     if not isinstance(url, str) or not url.startswith("https://www.google.com/maps/") or len(paradas) < 2:
         return None
+    lentidao = [
+        {"nivel": x["nivel"], "frase": str(x["frase"])[:160]}
+        for x in (ef.get("lentidao") or [])
+        if isinstance(x, dict) and x.get("nivel") in ("lento", "parado") and x.get("frase")
+    ][:3]
+    transito = ef.get("transito_min")
+    acoes = [{"tipo": "abrir_link", "rotulo": "Abrir no Google Maps", "url": url}]
+    waze = acao_waze(ef.get("waze"), ef.get("waze_para") if len(paradas) > 2 else None)
+    if waze:
+        acoes.append(waze)
     return novo_card(
         "rota",
         {
@@ -1203,9 +1215,23 @@ def card_rota(ef: dict) -> dict | None:
             "distancia_km": ef.get("distancia_km"),
             "duracao_min": ef.get("duracao_min"),
             "traco": ef.get("traco") if isinstance(ef.get("traco"), dict) else None,
+            "transito_min": transito if isinstance(transito, int) and transito >= 0 else None,
+            "lentidao": lentidao,
         },
-        [{"tipo": "abrir_link", "rotulo": "Abrir no Google Maps", "url": url}],
+        acoes,
     )
+
+
+WAZE_PREFIXO = "https://waze.com/ul?"
+
+
+def acao_waze(url, para: str | None = None) -> dict | None:
+    """Botao "Waze" (deep link oficial, maps_client.link_waze). Com varias paradas o Waze so
+    vai ate a primeira - o rotulo diz pra onde. Qualquer outra URL: sem botao."""
+    if not isinstance(url, str) or not url.startswith(WAZE_PREFIXO):
+        return None
+    rotulo = f"Waze até {str(para).split(',')[0][:28]}" if para else "Ir com Waze"
+    return {"tipo": "abrir_link", "rotulo": rotulo, "url": url}
 
 
 def card_refeicao(conn, id_: int, ef: dict, actions_extra=None) -> dict | None:
@@ -1399,11 +1425,13 @@ def card_voo_agendado(conn, ef: dict, actions_extra: list | None = None, hoje: d
             "chegar": rota_voo.menos_minutos(v["hora"], antes),
             "sair_casa": saida.get("sair"),
             "trajeto_min": saida.get("trajeto_min"),
+            "transito_min": saida.get("transito_min"),
             "horas_min": int(round(sum(float(r["horas"]) for r in feitos) * 60)),
             "meta_horas": int(meta) if meta and meta.isdigit() else 150,
             "projecao": projecao_horas(conn, hoje),
         },
-        [*(actions_extra or []), acao_abrir_aba("aviacao", "Abrir Aviação")],
+        [*(actions_extra or []), *[a for a in [acao_waze(saida.get("waze"))] if a],
+         acao_abrir_aba("aviacao", "Abrir Aviação")],
     )
 
 
@@ -1499,11 +1527,12 @@ def card_vespera_voo(conn, voo_id: int, saida: dict | None = None) -> dict | Non
             "chegar": chegar,
             "pouso": rota["pouso"],
             "trajeto_min": (saida or {}).get("trajeto_min"),
+            "transito_min": (saida or {}).get("transito_min"),
             "arrumar_min": arrumar,
             "antecedencia_min": antes,
             "mochila": [{"texto": t, "feito": f} for t, f in zip(MOCHILA_VOO, feitos)],
         },
-        [acao_abrir_aba("aviacao", "Abrir Aviação")],
+        [*[a for a in [acao_waze((saida or {}).get("waze"))] if a], acao_abrir_aba("aviacao", "Abrir Aviação")],
     )
 
 

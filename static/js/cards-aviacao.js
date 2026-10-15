@@ -449,7 +449,7 @@
       numeroValido(data.duracao_min) ? `fora do chão <b class="vivo-num">~${esc(fmtMin(data.duracao_min))}</b>` : "",
     ].filter(Boolean);
     const etapas = [
-      data.sair_casa ? ["Saída", data.sair_casa, numeroValido(data.trajeto_min) ? `${data.trajeto_min} min de carro` : "de casa"] : null,
+      data.sair_casa ? ["Saída", data.sair_casa, numeroValido(data.trajeto_min) ? `${data.trajeto_min} min de carro${numeroValido(data.transito_min) && data.transito_min >= 3 ? ` (+${data.transito_min} de trânsito)` : ""}` : "de casa"] : null,
       data.chegar ? ["Chega", data.chegar, numeroValido(data.antecedencia_min) ? `${data.antecedencia_min} min antes` : ""] : null,
       data.hora ? ["Decola", data.hora, "", true] : null,
       data.pouso ? ["Pousa", `~${data.pouso}`, ""] : null,
@@ -680,7 +680,7 @@
       `</div>`;
     const folgas = [
       numeroValido(data.arrumar_min) ? `<b class="vivo-num">${esc(data.arrumar_min)} min</b> pra se arrumar` : "",
-      numeroValido(data.trajeto_min) ? `<b class="vivo-num">${esc(data.trajeto_min)} min</b> de carro` : "",
+      numeroValido(data.trajeto_min) ? `<b class="vivo-num">${esc(data.trajeto_min)} min</b> de carro${numeroValido(data.transito_min) && data.transito_min >= 3 ? ` (+${esc(data.transito_min)} de trânsito)` : ""}` : "",
       numeroValido(data.antecedencia_min) ? `chega <b class="vivo-num">${esc(data.antecedencia_min)} min</b> antes` : "",
       horaOk(data.pouso) ? `pousa <b class="vivo-num">~${esc(data.pouso)}</b>` : "",
     ].filter(Boolean);

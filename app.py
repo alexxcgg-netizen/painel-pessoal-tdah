@@ -414,6 +414,17 @@ def _normalizar_hora(hora) -> str | None:
     return f"{h:02d}:{m:02d}"
 
 
+def _saida_do_maps(r: dict) -> dict:
+    """horario_de_saida -> o que os cards usam: hora de sair, minutos de carro, quanto disso e
+    transito (2026-10-15) e o link do Waze ate o lugar."""
+    saida = {"sair": f"{datetime.fromisoformat(r['sair_ate']):%H:%M}", "trajeto_min": int(r["duracao_minutos"])}
+    if isinstance(r.get("transito_min"), int):
+        saida["transito_min"] = r["transito_min"]
+    if isinstance(r.get("waze"), str):
+        saida["waze"] = r["waze"]
+    return saida
+
+
 def _saida_pro_voo(conn, data_voo: str, hora: str | None, origem: str, antes_min: int) -> dict | None:
     """Hora de sair de casa pra chegar `antes_min` antes da decolagem no aerodromo de origem
     (trajeto com transito do Google, mesma conta do push "voo_sair"). None sem hora, sem
@@ -425,7 +436,7 @@ def _saida_pro_voo(conn, data_voo: str, hora: str | None, origem: str, antes_min
         chegar_ate = datetime.fromisoformat(f"{data_voo}T{hora}") - timedelta(minutes=antes_min)
         r = maps_client.horario_de_saida(casa, vida_assistente.resolver_lugar(conn, origem), chegar_ate,
                                          margem_minutos=10)
-        return {"sair": f"{datetime.fromisoformat(r['sair_ate']):%H:%M}", "trajeto_min": int(r["duracao_minutos"])}
+        return _saida_do_maps(r)
     except Exception:  # rede/formato: o card segue sem a hora de sair
         return None
 
@@ -444,7 +455,7 @@ def _saida_pro_compromisso(data_iso: str, hora: str | None, lugar: str | None) -
     try:
         chegar_ate = datetime.fromisoformat(f"{data_iso}T{hora}")
         r = maps_client.horario_de_saida(casa, lugar, chegar_ate, margem_minutos=5)
-        return {"sair": f"{datetime.fromisoformat(r['sair_ate']):%H:%M}", "trajeto_min": int(r["duracao_minutos"])}
+        return _saida_do_maps(r)
     except Exception:  # rede/formato: o card segue com a folga
         return None
 
@@ -3315,6 +3326,11 @@ def _processar_mensagem_chat(
             return {"erro": "nao consegui calcular a rota agora"}
         place_ids = resultado.pop("_place_ids", None)
         traco = resultado.pop("_traco", None)
+        waze = resultado.pop("_waze", None)
+        lentidao = resultado.get("lentidao") or []
+        # pra IA: a frase pronta (nunca afirma a causa - "pode ser acidente ou blitz")
+        resultado["transito"] = maps_client.resumo_transito(
+            {"transito_min": resultado.get("transito_total_min"), "lentidao": lentidao})
         lugares = resultado["lugares"]
         if de_onde_estou:
             if gps_usado:
@@ -3334,6 +3350,12 @@ def _processar_mensagem_chat(
             "duracao_min": resultado["duracao_total_minutos"],
             "url": maps_client.link_rota(lugares, place_ids, de_onde_estou),
             "traco": traco,
+            "transito_min": resultado.get("transito_total_min"),
+            "lentidao": [
+                {"nivel": x["nivel"], "frase": maps_client.frase_trecho(x)} for x in lentidao[:3]
+            ],
+            "waze": waze,
+            "waze_para": paradas[1]["nome"] if len(paradas) > 1 else None,
         }
         return resultado
 
@@ -4468,7 +4490,13 @@ def _aviso_voo_sair(voo: dict, janela_minutos: int = 25, conn=None) -> str | Non
     try:
         hora_voo = datetime.fromisoformat(f"{voo['data']}T{voo['hora']}")
         chegar_ate = hora_voo - timedelta(minutes=briefing)
-        resultado = maps_client.horario_de_saida(origem, lugar, chegar_ate, margem_minutos=10)
+        # 2026-10-15: 1 consulta por HORA por voo (antes: a cada tick de 5 min ate avisar)
+        agora = datetime.now()
+        chave = ("voo", agora.date().isoformat(), agora.hour, voo.get("id"), voo["hora"], lugar)
+        if chave not in _CACHE_TRAJETO_AVISO:
+            _CACHE_TRAJETO_AVISO[chave] = maps_client.horario_de_saida(
+                origem, lugar, chegar_ate, margem_minutos=10, lentidao=True)
+        resultado = _CACHE_TRAJETO_AVISO[chave]
     except (ValueError, requests.RequestException):
         return None
 
@@ -4477,9 +4505,11 @@ def _aviso_voo_sair(voo: dict, janela_minutos: int = 25, conn=None) -> str | Non
     if not (0 <= minutos_pra_sair <= janela_minutos):
         return None
 
+    resumo = maps_client.resumo_transito(resultado)
     return (
         f"Saia até as {sair_ate:%H:%M} pra chegar no briefing das {chegar_ate:%H:%M} "
         f"(voo das {voo['hora']} pra {voo['destino']}, {resultado['duracao_minutos']} min de trajeto)."
+        + (f" {resumo}." if resumo else "")
     )
 
 
@@ -5037,20 +5067,28 @@ def estado_agendador() -> dict:
 _CACHE_TRAJETO_AVISO: dict = {}
 
 
-def _trajeto_min_aviso(local: str):
-    """Minutos de carro de casa ate o local, 1 consulta por local por dia (o tick roda a cada
-    5 min - sem cache seriam ~50 chamadas ao Google por compromisso). Falha = None."""
-    chave = (date.today().isoformat(), local.strip().lower())
+def _info_trajeto_aviso(local: str) -> dict:
+    """{"min", "resumo"} de casa ate o local com o transito de AGORA e os trechos parados.
+    Recalcula no maximo 1x por HORA por local (2026-10-15, pedido do Alex: "a cada hora"; antes
+    era 1x por dia) - o tick roda a cada 5 min, sem cache seriam ~50 chamadas por compromisso.
+    So entra aqui nas 4 h antes do evento (notificacoes.plano_se_arrumar). Falha = min None."""
+    agora = datetime.now()
+    chave = (agora.date().isoformat(), agora.hour, local.strip().lower())
     if chave not in _CACHE_TRAJETO_AVISO:
         casa = os.environ.get("ENDERECO_CASA", "").strip()
-        minutos = None
+        info = {"min": None, "resumo": ""}
         if casa and maps_client.configurado():
             try:
-                minutos = int(maps_client.tempo_de_viagem(casa, local)["duracao_minutos"])
-            except Exception as e:  # rede/Google fora: aviso sai com a folga padrao
+                viagem = maps_client.tempo_de_viagem(casa, local, lentidao=True)
+                info = {"min": int(viagem["duracao_minutos"]), "resumo": maps_client.resumo_transito(viagem)}
+            except Exception as e:  # rede/Google fora/cota: aviso sai com a folga padrao
                 app.logger.warning("trajeto pro aviso de sair: %s", e)
-        _CACHE_TRAJETO_AVISO[chave] = minutos
+        _CACHE_TRAJETO_AVISO[chave] = info
     return _CACHE_TRAJETO_AVISO[chave]
+
+
+def _trajeto_min_aviso(local: str):
+    return _info_trajeto_aviso(local)["min"]
 
 
 def _minutos_se_arrumar(conn) -> int:
@@ -5223,8 +5261,14 @@ def verificar_e_notificar():
         trajeto_min=lambda local: _trajeto_min_aviso(vida_assistente.resolver_lugar(conn, local)),
     )
     ids_sair = {p["id"] for p in planos_sair}
+    local_do_plano = {p["id"]: p["local"] for p in planos_sair}
     for tipo_sair, ref_sair, titulo_sair, corpo_sair in notificacoes.avisos_se_arrumar(planos_sair):
         if not ja_notificou_hoje(conn, tipo_sair, ref_sair):
+            # "hora de sair" leva o transito da ultima hora: "+12 min de transito. Parado na ..."
+            if tipo_sair == "hora_de_sair" and local_do_plano.get(ref_sair):
+                resumo = _info_trajeto_aviso(vida_assistente.resolver_lugar(conn, local_do_plano[ref_sair]))["resumo"]
+                if resumo:
+                    corpo_sair = f"{corpo_sair} {resumo}."
             avisos.append((tipo_sair, ref_sair, titulo_sair, corpo_sair))
 
     for tarefa_id, msg in notificacoes.tarefas_preparo(conn, ignorar=ids_sair):

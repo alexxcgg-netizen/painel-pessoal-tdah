@@ -534,6 +534,47 @@
   margin: 0.15rem 0 0.35rem;
 }
 
+/* 2026-10-15: quanto do tempo e transito + trecho lento/parado ("pode ser acidente ou blitz") */
+.card-rota-transito {
+  margin: -0.2rem 0 0.4rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--cor-alerta);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-rota-lentos {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.card-rota-lento {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  color: var(--text);
+  text-wrap: pretty;
+}
+
+.card-rota-lento i {
+  flex-shrink: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  transform: translateY(0.05rem);
+  background: var(--cor-alerta);
+}
+
+.card-rota-lento--parado i {
+  background: var(--cor-saida);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-saida) 22%, transparent);
+}
+
 .card-rota-paradas {
   list-style: none;
   margin: 0.35rem 0 0;
