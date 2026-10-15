@@ -190,7 +190,9 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                                    { configurable: true, get: () => 300 })""")
                 page.evaluate(_SEGUNDO_PLANO, False)
                 page.wait_for_timeout(1100)
-                self.assertEqual(page.evaluate(desvio), "300px")
+                # 5a camada: a sonda mede o fundo visivel contra onde o fixed se prende de verdade -
+                # os 34 de folga fingidos + 300 do teclado preso = 334, tudo de verdade fora da tela
+                self.assertEqual(page.evaluate(desvio), "334px")
                 self.assertEqual(erros, [], f"pageerror: {erros}")
             finally:
                 browser.close()
@@ -221,6 +223,43 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 page.wait_for_timeout(1100)
                 self.assertEqual(page.evaluate(desvio), "0px", "folga de 34px nao pode descer a barra")
                 self.assertEqual(page.evaluate("getComputedStyle(document.querySelector('#tabbar')).translate"), "0px")
+                page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
+                                   { configurable: true, get: () => 300 })""")
+                page.evaluate(_SEGUNDO_PLANO, False)
+                page.wait_for_timeout(1100)
+                self.assertEqual(page.evaluate(desvio), "334px")  # 34 fingidos + 300
+                self.assertEqual(erros, [], f"pageerror: {erros}")
+            finally:
+                browser.close()
+
+    def test_medida_real_do_iphone_documento_menor_que_a_tela_nao_desce_a_barra(self):
+        """5a camada (2026-10-15, /api/diagnostico do iPhone dele, iOS 18.7 no app da tela de
+        inicio): clientHeight 62px menor que a tela (faixa do relogio) e o fundo visivel = fundo da
+        tela. A conta antiga (fundo visivel - clientHeight) descia a barra 62px pra fora da tela;
+        o ancoradouro do position:fixed nao mudou, entao 0. O teclado preso (+300) segue corrigido."""
+        with sync_playwright() as p:
+            kwargs = {"headless": True}
+            if _CHROME is not None and Path(_CHROME).exists():
+                kwargs["executable_path"] = _CHROME
+            browser = p.chromium.launch(**kwargs)
+            try:
+                ctx = browser.new_context(viewport={"width": 440, "height": 956})
+                ctx.add_init_script("""
+                  Object.defineProperty(HTMLHtmlElement.prototype, "clientHeight", {
+                    configurable: true, get: () => window.innerHeight - 62 });""")
+                ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
+                                 headers={"Content-Type": "application/json"})
+                page = ctx.new_page()
+                erros = []
+                page.on("pageerror", lambda exc: erros.append(str(exc)))
+                page.goto(BASE_URL + "/")
+                page.wait_for_load_state("networkidle")
+                desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
+                page.evaluate(_SEGUNDO_PLANO, False)
+                page.wait_for_timeout(1100)
+                self.assertEqual(page.evaluate(desvio), "0px", "62px da faixa do relogio nao e bug")
+                fundo = page.evaluate("document.querySelector('#tabbar').getBoundingClientRect().bottom")
+                self.assertLessEqual(fundo, 956, "a barra tem que caber inteira na tela")
                 page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
                                    { configurable: true, get: () => 300 })""")
                 page.evaluate(_SEGUNDO_PLANO, False)

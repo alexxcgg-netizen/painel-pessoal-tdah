@@ -5,6 +5,21 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-15 - Barra de abas: medida pelo ancoradouro de verdade (SW v82)
+
+O Alex mandou print às 16:05 com a barra ainda cortada - e o `/api/diagnostico` (da leva abaixo)
+tinha o número exato do mesmo minuto: iOS 18.7, app da tela de início, `innerHeight` 956,
+`clientHeight` 894 (62 a menos = faixa do relógio), fundo visível 956. A conta "fundo visível −
+`clientHeight`" dava 62 e descia a barra 62 px (fundo dela em 1018, fora da tela). Só que a barra
+`position: fixed` se prende em 956, não em 894 - `clientHeight` nunca foi o ancoradouro.
+- `_medirDesvioTela` (`static/js/nucleo/init.js`) agora usa uma sonda invisível `position: fixed;
+  bottom: 0`: o topo dela é onde o fundo das peças fixas fica de verdade. Sem base nem chute -
+  desce só quando o fundo visível passa desse ponto em ≥ 48 px (o teclado preso). O diagnóstico
+  manda `ancora` no lugar de `normal`.
+- Teste novo com os números reais do iPhone (documento 62 px menor que a tela → barra inteira na
+  tela; teclado preso +300 continua corrigido). Os testes da "folga de 34 px" eram o mesmo erro de
+  medida e agora esperam o deslocamento real.
+
 ## 2026-10-15 - Microfone, barra de abas e o que o chat mostrou (SW v81)
 
 Leva feita a partir de briefing próprio (`docs/briefings/2026-10-15-voz-barra-chat.md`), depois do

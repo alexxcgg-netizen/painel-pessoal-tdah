@@ -235,36 +235,45 @@ if (window.visualViewport) {
 // inicio o fundo visivel fica SEMPRE ~34pt (faixa da barrinha do iPhone) abaixo do fundo do
 // layout - isso e o normal dele, nao o bug.
 // 4a camada (2026-10-15, "ainda aparece pela metade"): a 3a usava o MENOR desvio ja visto como
-// normal - se a 1a medida saia 0 (iOS ainda se arrumando ao abrir) e depois vinha os 34 normais,
-// a barra descia 34px = metade dela. Agora o normal e o ultimo desvio PEQUENO medido, e so desvio
-// GRANDE (teclado preso, centenas de px) mexe nas pecas. Folga pequena nunca desce a barra.
-const _DESVIO_PEQUENO = 60; // ate isso e folga da barrinha/barra do navegador, nunca o bug
-const _DESVIO_MINIMO_BUG = 48; // o bug do teclado preso e sempre bem maior que isso
-let _desvioNormal = 0;
-let _ultimoDesvio = { bruto: 0, aplicado: 0 };
+// normal - se a 1a medida saia 0 e depois vinha a folga, a barra descia.
+// 5a camada (2026-10-15, medida real do iPhone dele em /api/diagnostico, iOS 18.7 no app da tela de
+// inicio): clientHeight = 894 mas a barra position:fixed fica presa em 956 (= innerHeight); os
+// 62px de diferenca sao a faixa do relogio la em cima, nao bug - e a conta "fundo visivel -
+// clientHeight" descia a barra 62px pra fora da tela. clientHeight nao e onde o fixed se ancora.
+// Agora mede o ancoradouro DE VERDADE: uma sonda invisivel position:fixed; bottom:0 - o topo dela
+// e exatamente onde o fundo das pecas fixas fica. Sem chute de base: so desce quando o fundo
+// visivel passa do ancoradouro em >= 48px (o teclado preso, que e centenas de px).
+const _DESVIO_MINIMO_BUG = 48; // folga pequena nunca mexe; o bug do teclado preso e bem maior
+let _ultimoDesvio = { bruto: 0, aplicado: 0, ancora: null };
+let _sondaFundo = null;
+function _ancoraDoFixo() {
+  if (!document.body) return null;
+  if (!_sondaFundo || !_sondaFundo.isConnected) {
+    _sondaFundo = document.createElement("div");
+    _sondaFundo.setAttribute("aria-hidden", "true");
+    _sondaFundo.style.cssText = "position:fixed;left:0;bottom:0;width:0;height:0;visibility:hidden;pointer-events:none";
+    document.body.appendChild(_sondaFundo);
+  }
+  return _sondaFundo.getBoundingClientRect().top;
+}
 function _medirDesvioTela() {
   const vv = window.visualViewport;
   if (!vv) return;
   const ativo = document.activeElement;
   const digitando = ativo && ativo.matches && ativo.matches(_CAMPO_DE_TECLADO);
   const fundoVisivel = vv.offsetTop + vv.height;
-  const fundoLayout = document.documentElement.clientHeight;
+  const ancora = _ancoraDoFixo();
   let desvio = 0;
   let bruto = 0;
-  if (!digitando && vv.scale <= 1.01) {
-    bruto = Math.max(0, Math.round(fundoVisivel - fundoLayout));
-    if (bruto <= _DESVIO_PEQUENO) _desvioNormal = bruto;
-    const resto = bruto - _desvioNormal;
-    desvio = resto >= _DESVIO_MINIMO_BUG ? resto : 0;
+  if (ancora !== null && !digitando && vv.scale <= 1.01) {
+    bruto = Math.max(0, Math.round(fundoVisivel - ancora));
+    desvio = bruto >= _DESVIO_MINIMO_BUG ? bruto : 0;
   }
-  _ultimoDesvio = { bruto, aplicado: desvio };
+  _ultimoDesvio = { bruto, aplicado: desvio, ancora: ancora === null ? null : Math.round(ancora) };
   document.documentElement.style.setProperty("--vv-desvio", `${desvio}px`);
   if (desvio) _retratoTela("desvio");
 }
-window.addEventListener("orientationchange", () => {
-  _desvioNormal = 0;
-  setTimeout(_medirDesvioTela, 400);
-});
+window.addEventListener("orientationchange", () => setTimeout(_medirDesvioTela, 400));
 
 // Retrato da tela pro diagnostico (rotas/diagnostico.py): so no iPhone/iPad, onde o bug mora.
 // Onde a barra de abas esta de verdade x o que o iOS diz da tela - se ela voltar a aparecer pela
@@ -299,7 +308,7 @@ function _retratoTela(motivo) {
       seguraTopo,
       bruto: _ultimoDesvio.bruto,
       aplicado: _ultimoDesvio.aplicado,
-      normal: _desvioNormal,
+      ancora: _ultimoDesvio.ancora,
       barraTopo: r ? Math.round(r.top) : null,
       barraFundo: r ? Math.round(r.bottom) : null,
       barraAltura: r ? Math.round(r.height) : null,

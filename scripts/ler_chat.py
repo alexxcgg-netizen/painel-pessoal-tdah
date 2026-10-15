@@ -189,8 +189,8 @@ def _diagnostico(conn, desde: date, ate: date, ini: str, fim: str) -> list[str]:
         return []
     return [
         "\n## Diagnóstico do aparelho\n",
-        "Medidas que o app mandou (tela/barra de abas e microfone). tela: `bruto` = fundo visível − "
-        "fundo do layout, `aplicado` = quanto a barra desceu, `barraFundo` vs `vvH`/`innerH` = se ela "
+        "Medidas que o app mandou (tela/barra de abas e microfone). tela: `bruto` = fundo visível − onde a barra se prende (`ancora`), "
+        "`aplicado` = quanto a barra desceu, `barraFundo` vs `vvH`/`innerH` = se ela "
         "cabe. mic: `evento` = o que falhou.\n",
         *linhas,
     ]
