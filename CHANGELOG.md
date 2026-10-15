@@ -5,6 +5,34 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-14 - Cards da IA no app (3ª leva: volta, "pensando", tempo do voo, horas, presente anual)
+
+Leva feita de uma vez a partir de briefing próprio (`docs/briefings/2026-10-14-3a-leva.md`) - pedido
+do Alex: "melhora tudo de uma vez em vez de ficar vindo me perguntar". Detalhes em `docs/CARDS.md`.
+- **Volta da balada**: a chave do Uber virou "Como tu volta" - dirigindo (padrão: "zero álcool,
+  combinado?") / carona (sem lembrete) / Uber (tarefa "Chamar Uber pra voltar" 30 min antes da
+  volta, 03:00 se ele não disse). Pílula deslizando em mola; a IA pode mandar `volta_modo`.
+  Rota `POST /api/tasks/<id>/volta {modo}` substitui `/uber`.
+- **Linha "pensando" com os passos reais**: cada tool avisa no stream (`passo`) o que está fazendo
+  ("Anotando "X"", "Calculando o trajeto até o Lume", "Vendo a previsão pras 20h"...). Os pontinhos
+  viram órbita + passo com brilho que sobe e empurra o anterior; quando o texto começa, vira o
+  recibo recolhível "✓ N passos · X s". Sem ferramenta, continua só os pontinhos.
+- **Tempo na hora do voo**: `briefing_voo.previsao_na_hora` lê o segmento do TAF que vale na hora
+  (FM troca, BECMG mescla, TEMPO/PROB vira "pode ter"); fora da validade não mostra nada.
+  `GET /api/voos/<id>/tempo` (cache 20 min, só ≤ 30 h); o card do voo agendado pede sozinho e
+  mostra categoria, vento com seta, teto/visibilidade.
+- **Horas do voo com 1 toque**: 20 min depois do pouso estimado (ou hora + 1h30) até 23h30 o chat
+  pergunta "quanto deu?" + push, uma vez por voo. Card `voo_horas`: chips perto da estimativa da
+  rota (+12 min de motor), "outro" com −/+ de 0,1, barra até a meta anda na hora
+  (`POST /api/voos/<id>/horas`). `registrar_voo` com horas preenche o único voo aberto do dia.
+- **Presente que volta todo ano**: `anual` (IA, ou título com aniversário/niver/Natal/casamento/
+  bodas). Passou a data → cria o do ano seguinte (29/02 → 28/02) com as ideias não usadas e guarda
+  o que ele deu; card mostra "↻ todo ano" e "Ano passado: X".
+- **Habilidade `cards-ia`** (`.claude/skills/cards-ia/SKILL.md`, pedido do Alex): resumo da
+  linguagem visual + contrato + checklist pra qualquer sessão futura criar/ajustar card.
+Testes: `tests/test_terceira_leva.py`, `test_cards_saidas.py` (volta), `tests/js/cards_saidas` e
+`cards_aviacao`. SW v78.
+
 ## 2026-10-14 - Cards da IA no app (2ª leva: date, balada, tabelionato, presente)
 
 Compromisso com cara própria: a IA marca `estilo` no `registrar_tarefa` (date/balada/documentos/

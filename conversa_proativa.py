@@ -15,6 +15,7 @@ notificacoes_enviadas dos outros avisos, entao sai uma vez por dia/semana mesmo 
 tick de 5 em 5 min e o PC ligado tarde.
 """
 
+import json
 from datetime import date, datetime, time, timedelta
 
 import cards
@@ -278,6 +279,94 @@ def publicar(conn, tipo: str, texto: str, lista_cards: list[dict]) -> dict:
     return env
 
 
+# ------------------------------------------------- pos-voo (3a leva, 2026-10-14)
+POS_VOO_FOLGA_MIN = 20  # depois do pouso estimado: tempo de cortar o motor e sair do avião
+POS_VOO_SEM_ESTIMATIVA_MIN = 90  # voo local / rota sem NM: hora + 1h30
+FIM_POS_VOO = time(23, 30)
+FRASES_POS_VOO = (
+    "Pousou? Quanto deu o voo de hoje? Um toque aqui e eu somo nas tuas horas.",
+    "E aí, como foi o voo? Me diz quanto deu que eu já somo no diário.",
+    "Voo feito! Quanto marcou o horímetro? Toca no valor aqui embaixo.",
+)
+
+
+def _min(hhmm: str | None) -> int | None:
+    try:
+        h, m = str(hhmm).split(":")
+        return int(h) * 60 + int(m)
+    except (ValueError, AttributeError):
+        return None
+
+
+def voos_pra_perguntar(conn, agora: datetime) -> list[int]:
+    """Voos de hoje com hora, ainda sem horas, que ja deviam ter pousado (estimativa da rota +
+    folga) - e ainda nao perguntados."""
+    import rota_voo
+
+    ids = []
+    agora_min = agora.hour * 60 + agora.minute
+    if agora.time() > FIM_POS_VOO:
+        return ids
+    for v in conn.execute(
+        "SELECT id, origem, destino, escalas, hora FROM voos WHERE data = ? AND hora IS NOT NULL "
+        "AND horas IS NULL AND COALESCE(tipo, '') != 'simulador' ORDER BY hora",
+        (agora.date().isoformat(),),
+    ).fetchall():
+        rota = rota_voo.montar(v["origem"], v["escalas"], v["destino"], v["hora"])
+        pouso = _min(rota["pouso"]) if rota["pouso"] else None
+        decola = _min(v["hora"])
+        if decola is None:
+            continue
+        fim = pouso if pouso is not None else decola + POS_VOO_SEM_ESTIMATIVA_MIN
+        if agora_min >= fim + POS_VOO_FOLGA_MIN and not db.ja_notificou_hoje(conn, "pos_voo_chat", v["id"]):
+            ids.append(v["id"])
+    return ids
+
+
+# ------------------------------------------- presente que volta todo ano (3a leva)
+def _mais_um_ano(d: date) -> date:
+    try:
+        return d.replace(year=d.year + 1)
+    except ValueError:  # 29/02
+        return d.replace(year=d.year + 1, day=28)
+
+
+def renovar_presentes_anuais(conn, hoje: date) -> list[int]:
+    """Passou a data de um presente anual: cria o do proximo ano com as ideias que nao foram
+    usadas e guarda o que ele deu em `historico`. Idempotente (renovado_id)."""
+    novos = []
+    for r in conn.execute(
+        "SELECT id, title, due_date, extras FROM tasks WHERE estilo = 'presente' AND due_date < ?",
+        (hoje.isoformat(),),
+    ).fetchall():
+        ex = db.extras_tarefa(conn, r["id"])
+        if not ex.get("anual") or ex.get("renovado_id"):
+            continue
+        dia = date.fromisoformat(r["due_date"])
+        prox = _mais_um_ano(dia)
+        while prox < hoje:
+            prox = _mais_um_ano(prox)
+        ideias = [i for i in ex.get("ideias") or [] if isinstance(i, dict)]
+        escolha = ex.get("escolha") if isinstance(ex.get("escolha"), int) else None
+        historico = [h for h in ex.get("historico") or [] if isinstance(h, dict)]
+        if escolha is not None and 0 <= escolha < len(ideias):
+            historico.append({"ano": dia.year, "presente": ideias[escolha].get("titulo")})
+        novo_ex = {"anual": True, "historico": historico[-5:],
+                   "ideias": [i for k, i in enumerate(ideias) if k != escolha]}
+        if ex.get("com_quem"):
+            novo_ex["com_quem"] = ex["com_quem"]
+        cur = conn.execute(
+            "INSERT INTO tasks (title, due_date, source_text, estilo, extras) VALUES (?, ?, ?, 'presente', ?)",
+            (r["title"], prox.isoformat(), f"presente anual #{r['id']}", json.dumps(novo_ex, ensure_ascii=False)),
+        )
+        ex["renovado_id"] = cur.lastrowid
+        db.salvar_extras_tarefa(conn, r["id"], ex)
+        novos.append(cur.lastrowid)
+    if novos:
+        conn.commit()
+    return novos
+
+
 def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
     """Chamado a cada tick do agendador. Publica no chat o que estiver na hora e
     devolve [(tipo_do_aviso, titulo, corpo)] pro push. Nunca levanta."""
@@ -299,6 +388,18 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
                 publicar(conn, "padroes_semana_chat", texto, lista)
                 corpo = (lista[0]["data"]["observacoes"] or ["Tua semana em números tá no chat."])[0]
                 saida.append(("padroes_semana", "Teus padrões da semana", corpo))
+            conn.commit()
+        for voo_id in voos_pra_perguntar(conn, agora):
+            card = cards.card_voo_horas(conn, voo_id, agora.date())
+            db.marcar_notificado(conn, "pos_voo_chat", voo_id)
+            if card:
+                texto = FRASES_POS_VOO[(agora.toordinal() + voo_id) % len(FRASES_POS_VOO)]
+                publicar(conn, "pos_voo_chat", texto, [card])
+                saida.append(("pos_voo", "Pousou?", "Quanto deu o voo de hoje? Um toque no chat e eu somo nas horas."))
+            conn.commit()
+        if not db.ja_notificou_hoje(conn, "presentes_anuais"):
+            renovar_presentes_anuais(conn, agora.date())
+            db.marcar_notificado(conn, "presentes_anuais")
             conn.commit()
     except Exception:
         import logging

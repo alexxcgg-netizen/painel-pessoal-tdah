@@ -326,7 +326,20 @@
     return { nome, resto: partes.join(" · ") };
   }
 
-  Cards.registrar("voo_agendado", (data) => {
+  // 3a leva (2026-10-14): o TAF so cobre ~30 h - o card so pede a previsao dentro dessa janela
+  // e antes do voo passar (a rota /api/voos/<id>/tempo confere de novo e nunca inventa)
+  const JANELA_TAF_H = 30;
+  function tempoNaJanela(data, agora) {
+    if (!numeroValido(data.id) || !data.hora || !/^\d{2}:\d{2}$/.test(data.hora)) return false;
+    const d = Cards.parseDia(data.data);
+    if (!d) return false;
+    const [h, m] = data.hora.split(":").map(Number);
+    const quando = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m).getTime();
+    const ms = quando - agora.getTime();
+    return ms > -3600000 && ms <= JANELA_TAF_H * 3600000;
+  }
+
+  Cards.registrar("voo_agendado", (data, _card, ctx) => {
     const paradas = lista(data.paradas).filter((p) => p && p.icao);
     if (!data || !data.data || paradas.length < 2) return null;
     const pernas = lista(data.pernas);
@@ -409,11 +422,163 @@
       (resumo.length ? `<p class="va-resumo">${resumo.join(`<span aria-hidden="true">·</span>`)}</p>` : "") +
       (local ? "" : `<p class="va-info" aria-live="polite">${ICONE_AVIAO}<span>Toca num aeródromo pra ver a perna.</span></p>`) +
       etapasHTML +
+      (tempoNaJanela(data, (ctx && ctx.agora) || new Date())
+        ? `<div class="va-tempo" data-voo-tempo="${esc(data.id)}" aria-live="polite" hidden></div>`
+        : "") +
       `<div class="va-picote" aria-hidden="true"></div>` +
       horas +
       `</div>`
     );
   });
+
+  const SETA_VENTO =
+    '<svg class="va-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V5M6.5 10.5 12 5l5.5 5.5"/></svg>';
+
+  // vento: a seta aponta PRA ONDE o vento vai (vem de 090 -> aponta pro oeste)
+  function ventoCurto(v) {
+    if (!v || typeof v !== "object" || v.velocidade_kt === 0) return { html: "<b>calmo</b>", dir: null };
+    const kt = `<b class="vivo-num">${esc(v.velocidade_kt)}</b> kt${v.rajada_kt ? ` <span class="va-rajada">G${esc(v.rajada_kt)}</span>` : ""}`;
+    if (v.variavel || !numeroValido(v.direcao)) return { html: `VRB ${kt}`, dir: null };
+    return { html: `${String(v.direcao).padStart(3, "0")}° ${kt}`, dir: (v.direcao + 180) % 360 };
+  }
+
+  function tempoHTML(p) {
+    const cat = catValida(p.categoria);
+    const vento = ventoCurto(p.vento);
+    const teto = numeroValido(p.teto_ft) ? `${milhar(p.teto_ft)} <small>ft</small>` : "sem teto";
+    const fen = lista(p.fenomenos).slice(0, 2).map((f) => `<span class="bv-fen">${esc(f)}</span>`).join("");
+    const pode = lista(p.pode_ter)
+      .filter((x) => x && x.resumo)
+      .map((x) => {
+        const c = catValida(x.categoria);
+        return `<li>${c ? `<em class="va-cat va-cat-${c}">${c}</em>` : ""}<span><b>${esc(x.rotulo || "pode ter")}:</b> ${esc(x.resumo)}${x.vento ? ` · ${esc(x.vento)}` : ""}</span></li>`;
+      })
+      .join("");
+    const fonte = p.substituto_de ? `TAF de ${esc(p.icao)} (perto de ${esc(p.substituto_de)})` : `TAF de ${esc(p.icao)}`;
+    const seta = vento.dir === null ? "" : SETA_VENTO.replace('class="va-seta"', `class="va-seta" style="--dir:${vento.dir}deg"`);
+    return (
+      `<div class="va-tempo-cab"><span class="va-tempo-tit">Tempo às <b class="vivo-num">${esc(p.hora || "")}</b></span>` +
+      (cat ? `<em class="va-cat va-cat-${cat}" title="${esc(CATEGORIAS[cat].dica)}">${cat}</em>` : "") + `</div>` +
+      `<div class="va-tempo-linha">` +
+      `<span class="va-tempo-item">${seta}<span>${vento.html}</span></span>` +
+      `<span class="va-tempo-item"><small>teto</small><span class="vivo-num">${teto}</span></span>` +
+      `<span class="va-tempo-item"><small>vis</small><span class="vivo-num">${visTexto(numeroValido(p.visibilidade_m) ? p.visibilidade_m : null)}</span></span>` +
+      `</div>` +
+      (fen ? `<div class="bv-chips">${fen}</div>` : "") +
+      (pode ? `<ul class="va-tempo-pode">${pode}</ul>` : "") +
+      `<p class="va-tempo-nota">${fonte} · ${esc(p.aviso || "Previsão convertida, não é liberação: a decisão é tua e do instrutor.")}</p>`
+    );
+  }
+
+  // guarda a resposta por 10 min: o chat re-renderiza o historico e nao precisa pedir de novo
+  const TEMPO_CACHE = new Map();
+  async function preencherTempo(slot) {
+    if (slot.dataset.pedido) return;
+    slot.dataset.pedido = "1";
+    const id = slot.dataset.vooTempo;
+    const api = typeof raiz.apiFetch === "function" ? raiz.apiFetch : null;
+    let prev = null;
+    const guardado = TEMPO_CACHE.get(id);
+    if (guardado && Date.now() - guardado.t < 600000) prev = guardado.prev;
+    else if (api) {
+      try {
+        const res = await api(`/api/voos/${encodeURIComponent(id)}/tempo`);
+        prev = res && res.previsao && typeof res.previsao === "object" ? res.previsao : null;
+        if (res && res.ok) TEMPO_CACHE.set(id, { t: Date.now(), prev });
+      } catch (_) {
+        prev = null;
+      }
+    }
+    if (!prev || !slot.isConnected) return;
+    slot.innerHTML = tempoHTML(prev);
+    slot.dataset.categoria = catValida(prev.categoria) || "";
+    slot.hidden = false;
+    if (!(guardado && guardado.prev)) slot.classList.add("va-tempo-chegou");
+  }
+
+  // ================================================================ voo_horas
+  // "Pousou? Quanto deu?" (3a leva): um toque num chip grava as horas e a barra anda na hora.
+  const fmtH = (h) => Number(h).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const HORAS_MIN = 0.1;
+  const HORAS_MAX = 12;
+
+  function vhStatus(horas, outrosMin, meta) {
+    if (!numeroValido(horas)) return "Um toque e eu somo nas horas do curso.";
+    const falta = Math.max(0, meta - (outrosMin / 60 + horas));
+    return falta <= 0 ? `Somei ${fmtH(horas)} h — meta de ${meta} h batida!` : `Somei ${fmtH(horas)} h — faltam ${fmtH(falta)} h pra meta.`;
+  }
+  function vhBarra(outrosMin, horas, meta) {
+    const ja = Math.min(100, (outrosMin / (meta * 60)) * 100);
+    const mais = numeroValido(horas) ? Math.max(0, Math.min(100 - ja, ((horas * 60) / (meta * 60)) * 100)) : 0;
+    return { ja: ja.toFixed(2), mais: mais.toFixed(2) };
+  }
+
+  Cards.registrar("voo_horas", (data) => {
+    if (!data || !numeroValido(data.id)) return null;
+    const meta = numeroValido(data.meta_horas) && data.meta_horas > 0 ? data.meta_horas : 150;
+    const outros = numeroValido(data.horas_min) ? data.horas_min : 0;
+    const escolhida = numeroValido(data.horas) ? Math.round(data.horas * 10) / 10 : null;
+    const est = numeroValido(data.estimativa) ? Math.round(data.estimativa * 10) / 10 : null;
+    let chips = lista(data.sugestoes).filter(numeroValido).map((h) => Math.round(h * 10) / 10);
+    if (!chips.length) chips = [1.0, 1.2, 1.5];
+    if (escolhida !== null && !chips.includes(escolhida)) chips = [...chips, escolhida].sort((a, b) => a - b);
+    const botoes = chips
+      .map(
+        (h, k) =>
+          `<button type="button" role="radio" aria-checked="${h === escolhida}" class="vh-chip${h === est ? " vh-est" : ""}${h === escolhida ? " atual" : ""}" data-acao="voo_horas" data-h="${h}" style="--k:${k}">` +
+          `<b class="vivo-num">${fmtH(h)}</b><small>${h === est ? "estimativa" : "h"}</small></button>`
+      )
+      .join("");
+    const inicio = escolhida !== null ? escolhida : est !== null ? est : 1.0;
+    const barra = vhBarra(outros, escolhida, meta);
+    const quando = [data.rota || (data.icao ? `voo local · ${data.icao}` : ""), data.hora ? `decolou ${data.hora}` : ""].filter(Boolean).join(" · ");
+    return (
+      `<div class="vh" data-voo="${esc(data.id)}" data-outros="${esc(outros)}" data-meta="${esc(meta)}">` +
+      `<div class="card-resultado-eyebrow">${ICONE_AVIAO}<span>Quanto deu o voo?</span>${data.data ? `<span class="va-quando">${esc(Cards.rotuloDia(data.data) || "")}</span>` : ""}</div>` +
+      (quando ? `<p class="vh-rota vivo-num">${esc(quando)}</p>` : "") +
+      `<div class="vh-chips" role="radiogroup" aria-label="Horas do voo">${botoes}` +
+      `<button type="button" class="vh-chip vh-outro" data-acao="voo_horas_outro" aria-expanded="false" style="--k:${chips.length}"><b>outro</b><small>±0,1</small></button></div>` +
+      `<div class="vh-ajuste" hidden><button type="button" class="vh-passo" data-acao="voo_horas_passo" data-d="-1" aria-label="menos 0,1 hora">−</button>` +
+      `<output class="vh-valor vivo-num" data-h="${inicio}">${fmtH(inicio)}<small> h</small></output>` +
+      `<button type="button" class="vh-passo" data-acao="voo_horas_passo" data-d="1" aria-label="mais 0,1 hora">+</button>` +
+      `<button type="button" class="vh-salvar" data-acao="voo_horas" data-h="${inicio}">Salvar</button></div>` +
+      `<div class="va-horas"><div class="va-horas-topo"><span>Horas de voo</span>` +
+      `<b class="vivo-num vh-total">${hDecimal(outros + (escolhida || 0) * 60)} h</b>` +
+      `<span class="va-meta">meta <b class="vivo-num">${esc(meta)} h</b></span></div>` +
+      `<div class="va-barra"><i class="va-ja" style="width:${barra.ja}%"></i><i class="va-novo" style="left:${barra.ja}%;width:${barra.mais}%"></i></div></div>` +
+      `<p class="vh-status${escolhida !== null ? " ok" : ""}" aria-live="polite">${esc(vhStatus(escolhida, outros, meta))}</p>` +
+      `</div>`
+    );
+  });
+
+  function vhAplicar(vh, horas, outros) {
+    const meta = Number(vh.dataset.meta) || 150;
+    if (numeroValido(outros)) vh.dataset.outros = String(outros);
+    const out = Number(vh.dataset.outros) || 0;
+    vh.querySelectorAll(".vh-chip[data-h]").forEach((b) => {
+      const sim = numeroValido(horas) && Math.abs(Number(b.dataset.h) - horas) < 0.001;
+      b.classList.toggle("atual", sim);
+      b.setAttribute("aria-checked", String(sim));
+    });
+    const barra = vhBarra(out, horas, meta);
+    const ja = vh.querySelector(".va-ja");
+    const novo = vh.querySelector(".va-novo");
+    if (ja) ja.style.width = `${barra.ja}%`;
+    if (novo) {
+      novo.style.left = `${barra.ja}%`;
+      novo.style.width = `${barra.mais}%`;
+    }
+    const total = vh.querySelector(".vh-total");
+    if (total) total.textContent = `${hDecimal(out + (numeroValido(horas) ? horas * 60 : 0))} h`;
+    const st = vh.querySelector(".vh-status");
+    if (st) {
+      st.textContent = vhStatus(horas, out, meta);
+      st.classList.toggle("ok", numeroValido(horas));
+      st.classList.remove("va-troca");
+      void st.offsetWidth;
+      st.classList.add("va-troca");
+    }
+  }
 
   // ---- aviao no caminho (DOM): posicionar, voar entre paradas, entrada animada
   const reduzido = () => !!(raiz.matchMedia && raiz.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -487,6 +652,7 @@
       const c = vooControle(caixa);
       if (c) c.pintar(1);
     });
+    el.querySelectorAll("[data-voo-tempo]").forEach((slot) => preencherTempo(slot));
   }
 
   function animar(el) {
@@ -520,7 +686,77 @@
     if (typeof raiz.vibrar === "function") raiz.vibrar(6);
   });
 
-  const CardsAviacao = { CATEGORIAS, quandoVolta, preparar, animar, vaPontos, vaCaminho };
+  if (typeof Cards.registrarAcao === "function") {
+    Cards.registrarAcao("voo_horas", async (btn, _cardEl, deps) => {
+      const vh = btn.closest(".vh");
+      const horas = Math.round(Number(btn.dataset.h) * 10) / 10;
+      if (!vh || vh.dataset.enviando || typeof deps.apiFetch !== "function" || !(horas >= HORAS_MIN && horas <= HORAS_MAX)) return;
+      const antes = vh.querySelector(".vh-chip.atual");
+      const antesH = antes ? Number(antes.dataset.h) : null;
+      if (btn.classList.contains("vh-salvar") && !vh.querySelector(`.vh-chip[data-h="${horas}"]`)) {
+        // valor do "outro" vira um chip (fica marcado e da pra trocar depois)
+        const outro = vh.querySelector(".vh-outro");
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "vh-chip";
+        chip.setAttribute("role", "radio");
+        chip.dataset.acao = "voo_horas";
+        chip.dataset.h = String(horas);
+        chip.innerHTML = `<b class="vivo-num">${fmtH(horas)}</b><small>h</small>`;
+        if (outro) outro.before(chip);
+      }
+      vhAplicar(vh, horas); // otimista: a barra ja anda
+      const ajuste = vh.querySelector(".vh-ajuste");
+      if (ajuste) ajuste.hidden = true;
+      const outroBtn = vh.querySelector(".vh-outro");
+      if (outroBtn) outroBtn.setAttribute("aria-expanded", "false");
+      if (typeof raiz.vibrar === "function") raiz.vibrar(8);
+      vh.dataset.enviando = "1";
+      let res = null;
+      try {
+        res = await deps.apiFetch(`/api/voos/${encodeURIComponent(vh.dataset.voo)}/horas`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ horas }),
+        });
+      } catch (_) {
+        res = null;
+      }
+      delete vh.dataset.enviando;
+      if (!res || !res.ok) {
+        vhAplicar(vh, antesH);
+        return;
+      }
+      vhAplicar(vh, res.horas, numeroValido(res.horas_min) ? res.horas_min - Math.round(res.horas * 60) : undefined);
+      const marcado = vh.querySelector(".vh-chip.atual b");
+      if (marcado && antesH === null && raiz.CardsPremium && typeof raiz.CardsPremium.festejar === "function") raiz.CardsPremium.festejar(marcado);
+      if (typeof deps.aoMudar === "function") deps.aoMudar();
+    });
+
+    Cards.registrarAcao("voo_horas_outro", (btn) => {
+      const vh = btn.closest(".vh");
+      const ajuste = vh && vh.querySelector(".vh-ajuste");
+      if (!ajuste) return;
+      ajuste.hidden = !ajuste.hidden;
+      btn.setAttribute("aria-expanded", String(!ajuste.hidden));
+      if (!ajuste.hidden) ajuste.classList.add("va-troca");
+    });
+
+    Cards.registrarAcao("voo_horas_passo", (btn) => {
+      const vh = btn.closest(".vh");
+      const valor = vh && vh.querySelector(".vh-valor");
+      const salvar = vh && vh.querySelector(".vh-salvar");
+      if (!valor || !salvar) return;
+      const atual = Number(valor.dataset.h) || 1;
+      const novo = Math.min(HORAS_MAX, Math.max(HORAS_MIN, Math.round((atual + Number(btn.dataset.d) * 0.1) * 10) / 10));
+      valor.dataset.h = String(novo);
+      salvar.dataset.h = String(novo);
+      valor.innerHTML = `<span class="va-troca">${fmtH(novo)}</span><small> h</small>`;
+      if (typeof raiz.vibrar === "function") raiz.vibrar(4);
+    });
+  }
+
+  const CardsAviacao = { CATEGORIAS, quandoVolta, preparar, animar, vaPontos, vaCaminho, tempoHTML, tempoNaJanela };
   raiz.CardsAviacao = CardsAviacao;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsAviacao;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -7,6 +7,7 @@ data/
 vapid_private.pem
 .claude/*
 !.claude/settings.json
+!.claude/skills/
 
 # Fase 7: exemplos reais do Alex pro teste A/B de IA (nunca versionar)
 fixtures_reais/

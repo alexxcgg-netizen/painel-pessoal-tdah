@@ -280,3 +280,104 @@ def montar(conn=None, icao=None, agora_utc: datetime | None = None, buscar=None)
         "resumo": resumo,
         "aviso": "Conversão do boletim oficial, não é liberação: a decisão de voar é sua e do instrutor.",
     }
+
+
+# ---- 3a leva (2026-10-14): o TAF na HORA do voo -----------------------------------------------
+_RE_VALIDADE = re.compile(r"\b(\d{2})(\d{2})/(\d{2})(\d{2})\b")
+_RE_NUVEM_TOK = re.compile(r"^(FEW|SCT|BKN|OVC|VV)\d{3}|^(NSC|SKC|CLR|CAVOK)$")
+_RE_VENTO_TOK = re.compile(r"^(\d{3}|VRB)\d{2,3}(G\d{2,3})?KT$")
+
+
+def _inicio_fim(seg: dict, agora_utc: datetime):
+    tipo = seg.get("tipo") or ""
+    m = _RE_FM_TXT.match(tipo)
+    if m:
+        return _hora_local(int(m.group(1)), int(m.group(2)), int(m.group(3)), agora_utc), None
+    m = _RE_PERIODO_TXT.search(seg.get("periodo") or "")
+    if m:
+        return (_hora_local(int(m.group(1)), int(m.group(2)), 0, agora_utc),
+                _hora_local(int(m.group(3)), int(m.group(4)), 0, agora_utc))
+    return None, None
+
+
+def _mesclar(base: dict, seg: dict) -> dict:
+    """BECMG muda so o que ele cita (vento, nuvens, visibilidade); o resto continua."""
+    tokens = seg.get("tokens") or []
+    dec = seg.get("decodificado") or {}
+    novo = dict(base)
+    if any(_RE_VENTO_TOK.match(t) for t in tokens):
+        novo["vento"] = dec.get("vento")
+    if any(_RE_NUVEM_TOK.match(t) for t in tokens):
+        novo["nuvens"] = dec.get("nuvens") or []
+        novo["teto_ft"] = dec.get("teto_ft")
+    if dec.get("visibilidade_m") is not None:
+        novo["visibilidade_m"] = dec["visibilidade_m"]
+    if fenomenos(tokens) or "NSW" in tokens:
+        novo["_fen"] = [f for f in fenomenos(tokens) if f != "fim do tempo significativo"]
+    return novo
+
+
+def previsao_na_hora(icao, quando_local: datetime, agora_utc: datetime | None = None, buscar=None) -> dict | None:
+    """O que o TAF diz pra `quando_local` (Brasilia, sem fuso): segmento de base (inicial / FM /
+    BECMG ja comecado) + TEMPO/PROB que cobrem a hora como "pode ter". None se o TAF nao cobre a
+    hora ou nao deu pra buscar. So conversao do boletim - a decisao continua dele e do instrutor."""
+    agora_utc = agora_utc or datetime.now(timezone.utc)
+    buscar = buscar or metar.buscar_metar_taf
+    pedido = _limpar_icao(icao) or "SSBL"
+    alvo = SEM_METAR.get(pedido, pedido)
+    try:
+        bruto = buscar(alvo)
+    except Exception:
+        return None
+    segs = bruto.get("taf_segmentos") or []
+    if not bruto.get("taf") or not segs:
+        return None
+    t = quando_local.replace(tzinfo=FUSO_BRASILIA) if quando_local.tzinfo is None else quando_local
+    tokens = (bruto.get("taf") or "").split()
+    validade = next((m for m in map(_RE_VALIDADE.match, tokens) if m), None)
+    if not validade:
+        return None
+    ini = _hora_local(int(validade.group(1)), int(validade.group(2)), 0, agora_utc)
+    fim = _hora_local(int(validade.group(3)), int(validade.group(4)), 0, agora_utc)
+    if not ini or not fim or not (ini <= t < fim):
+        return None
+
+    primeiro = segs[0].get("decodificado") or {}
+    estado = {"vento": primeiro.get("vento"), "nuvens": primeiro.get("nuvens") or [],
+              "teto_ft": primeiro.get("teto_ft"), "visibilidade_m": primeiro.get("visibilidade_m"),
+              "_fen": fenomenos(segs[0].get("tokens") or [])}
+    pode_ter = []
+    for seg in segs[1:]:
+        tipo = seg.get("tipo") or ""
+        de, ate = _inicio_fim(seg, agora_utc)
+        if tipo.startswith("A partir"):
+            if de and de <= t:
+                dec = seg.get("decodificado") or {}
+                estado = {"vento": dec.get("vento"), "nuvens": dec.get("nuvens") or [], "teto_ft": dec.get("teto_ft"),
+                          "visibilidade_m": dec.get("visibilidade_m"), "_fen": fenomenos(seg.get("tokens") or [])}
+        elif tipo == "Tornando-se":
+            if de and de <= t:
+                estado = _mesclar(estado, seg)
+        elif de and ate and de <= t < ate:  # TEMPO / PROB cobrindo a hora do voo
+            dec = seg.get("decodificado") or {}
+            pode_ter.append({
+                "rotulo": "pode ter" if tipo.startswith("Temporariamente") else tipo.lower().replace("probabilidade", "chance de"),
+                "categoria": seg.get("categoria_voo"),
+                "resumo": _resumo_tempo(dec, fenomenos(seg.get("tokens") or [])) or "mudança rápida",
+                "vento": _vento_txt(dec.get("vento")),
+            })
+    fen = estado.pop("_fen", [])
+    categoria = metar.categoria_voo(estado)
+    return {
+        "icao": alvo,
+        "nome": AERODROMOS.get(alvo, (alvo,))[0],
+        "substituto_de": pedido if alvo != pedido else None,
+        "hora": quando_local.strftime("%H:%M"),
+        "categoria": categoria,
+        "vento": estado.get("vento"),
+        "teto_ft": estado.get("teto_ft"),
+        "visibilidade_m": estado.get("visibilidade_m"),
+        "fenomenos": fen,
+        "pode_ter": pode_ter[:2],
+        "aviso": "Previsão (TAF) convertida, não é liberação: a decisão é tua e do instrutor.",
+    }

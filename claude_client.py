@@ -42,6 +42,7 @@ from ia.funcoes.chat import (
     MENSAGEM_DIFICIL_PROMPT,
     analisar_decisao,
     ao_texto,
+    avisar_passo,
     chat,
     opcoes_chat,
     redigir_mensagem_dificil,

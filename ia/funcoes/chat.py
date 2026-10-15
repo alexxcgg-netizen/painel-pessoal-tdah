@@ -484,6 +484,15 @@ CHAT_TOOLS = [
                     },
                 },
                 "volta": {"type": "string", "description": "balada: hora que ele disse que volta, HH:MM - omita se nao disse."},
+                "volta_modo": {
+                    "type": "string",
+                    "enum": ["dirigindo", "carona", "uber"],
+                    "description": "balada: como ele volta, SO se disse (padrao do card = dirigindo, que e o normal dele).",
+                },
+                "anual": {
+                    "type": "boolean",
+                    "description": "presente: data que se repete todo ano (aniversario, Natal, casamento). Omita se nao tiver certeza.",
+                },
             },
             "required": ["titulo"],
         },
@@ -2344,6 +2353,13 @@ def _avisar(evento: str, dado=None) -> None:
         aviso(evento, dado)
     except Exception:  # noqa: BLE001 - tela fechada no meio nao derruba a resposta
         log.debug("chat: aviso de texto ao vivo falhou", exc_info=True)
+
+
+def avisar_passo(texto: str) -> None:
+    """Linha "pensando" (2026-10-14, 3a leva): o que esta rodando AGORA, no presente
+    ("Calculando o trajeto ate o Lume"). So sai quando tem stream ligado - Telegram/testes nada."""
+    if texto:
+        _avisar("passo", {"texto": str(texto)[:120]})
 
 
 @contextlib.contextmanager

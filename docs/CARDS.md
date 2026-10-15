@@ -510,7 +510,7 @@ linha do tempo e de rota são o que mais quebra), número longo sem quebrar entr
 ### O que já está no app (2ª leva, 2026-10-14)
 A IA marca `estilo` no `registrar_tarefa` (só com dia marcado; sem dia vira tarefa comum).
 Coluna `tasks.estilo` + `tasks.extras` (JSON: `com_quem`, `lista`, `ideias`, `volta`, e o que o
-card guarda depois: `feito` de cada item, `escolha`, `lembrete_id`, `uber`, `uber_tarefa_id`).
+card guarda depois: `feito` de cada item, `escolha`, `lembrete_id`, `volta_modo`, `uber_tarefa_id`, `anual`, `historico`, `renovado_id`).
 O que precisa de rede vai no efeito (`_plano_do_estilo` em `app.py`) e um resumo volta pra IA
 (`plano`) - a frase dela bate com o card. Card: `cards.card_compromisso`, front em
 `static/js/cards-saidas.js` + `secoes/hoje/cards-saidas.css`.
@@ -518,12 +518,22 @@ O que precisa de rede vai no efeito (`_plano_do_estilo` em `app.py`) e um resumo
 | Cena | Type | Dado |
 | :--- | :--- | :--- |
 | Date | `date` | linha se arrumar → sair → chegar (`_saida_pro_compromisso`: Maps se `ENDERECO_CASA`, senão hora − 15), clima na hora (`clima.previsao_na_hora`, `CIDADE_PADRAO`), lista "antes do date" que marca (`POST /api/tasks/<id>/lista`). |
-| Balada | `balada` | céu da noite + linha com a volta. **Sono só se o dia seguinte tem compromisso com hora** (`_primeiro_compromisso_do_dia`: voo ou tarefa) - volta padrão 03:00 se ele não disse (pedido do Alex). Chave "Voltar de Uber" (desligada por padrão) cria/apaga a tarefa "Chamar Uber pra voltar" 30 min antes da volta (`POST /api/tasks/<id>/uber`). |
+| Balada | `balada` | céu da noite + linha com a volta. **Sono só se o dia seguinte tem compromisso com hora** (`_primeiro_compromisso_do_dia`: voo ou tarefa) - volta padrão 03:00 se ele não disse (pedido do Alex). Como volta: ver 3ª leva (a chave do Uber virou dirigindo/carona/Uber). |
 | Tabelionato/documentos | `documentos` | pasta + checklist + carimbo "Pasta pronta"; horário do Google (`maps_client.horario_funcionamento`, Places `regularOpeningHours`) e aviso se a hora marcada cai fora/no almoço. Sem "espera ~20 min" (não há dado real). |
 | Presente | `presente` | dias até a data, comprar até = data − 4 (`DIAS_ENTREGA_PRESENTE`); tocar numa ideia cria/troca o lembrete "Comprar presente: X" nesse dia (`POST /api/tasks/<id>/presente`). ≤ 4 dias: avisa que pela internet não chega. Visitante não vê `preco`. |
 
 Desfazer apaga junto o lembrete do presente e a tarefa do Uber. No histórico, o que foi marcado
 depois vem de `/api/tasks/estado` (`extras`) → `CardsSaidas.aplicarEstado`.
 
-Falta: a linha "pensando" com os passos reais (hoje o SSE só manda texto; precisa o servidor
-emitir os passos das tools enquanto roda).
+### O que já está no app (3ª leva, 2026-10-14 - `docs/briefings/2026-10-14-3a-leva.md`)
+| Cena | Onde | Dado |
+| :--- | :--- | :--- |
+| Volta da balada | `balada` ganha `volta_modo` (`dirigindo` padrão / `carona` / `uber`) no lugar de `uber` | Controle de 3 com pílula. Uber cria "Chamar Uber pra voltar" 30 min antes da volta (03:00 se não dita) - `POST /api/tasks/<id>/volta {modo}`; os outros modos apagam a tarefa. `/api/tasks/estado` devolve `volta_modo`. |
+| "Pensando" | evento SSE `passo` {texto} (`claude_client.avisar_passo`; `cards.passo_ao_vivo` por tool, emitido no `RegistroExecucao` antes de rodar) | Front (`chat.js`): `criarLinhaPensando` + `reciboPassosHTML` ("N passos · X s", `<details>`). Sub-passos de rede em `_plano_do_estilo`. |
+| Tempo na hora do voo | slot `.va-tempo[data-voo-tempo]` no `voo_agendado` (só ≤ 30 h e até 1 h depois da decolagem) preenchido no `CardsAviacao.preparar` | `GET /api/voos/<id>/tempo` → `{previsao: {icao, substituto_de, hora, categoria, vento, teto_ft, visibilidade_m, fenomenos, pode_ter[≤2], aviso} \| null, motivo}`. Nunca inventa: fora do TAF = nada. |
+| Horas com 1 toque | type novo `voo_horas` (`cards.card_voo_horas`, publicado por `conversa_proativa.verificar`) | `data`: `id, data, hora, rota\|null, icao, estimativa, sugestoes[3], horas, horas_min (sem este voo), meta_horas`. Chip/Salvar → `POST /api/voos/<id>/horas {horas}` (0 < h ≤ 12) → `{horas, horas_min}`. Sem selo "registrado" (é pergunta). |
+| Presente anual | `presente` ganha `anual`, `ano_passado` | `extras.anual` (IA ou regex do título); `conversa_proativa.renovar_presentes_anuais` 1×/dia: ideias não usadas + `historico[{ano, presente}]`, idempotente por `renovado_id`. |
+
+Aprovado/decidido nessa leva (vetável): volta padrão **dirigindo**; recibo dos passos fica dentro
+da bolha acima do texto; previsão só dentro de 30 h; estimativa de horas = rota + 12 min de
+motor; presente vira anual sozinho pelo título.

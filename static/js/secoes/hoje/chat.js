@@ -152,7 +152,7 @@ function criarEscritaAoVivo(bolha) {
 // POST no /api/chat/stream lendo o text/event-stream. Devolve o MESMO corpo do /api/chat
 // (evento "fim"), null em erro ja mostrado, ou undefined quando nem deu pra abrir o stream
 // (rede/servidor antigo) - ai o chamador cai no caminho normal (apiFetch /api/chat).
-async function chatAoVivo(corpo, { aoTexto, aoRecomeca }) {
+async function chatAoVivo(corpo, { aoTexto, aoRecomeca, aoPasso }) {
   const controller = new AbortController();
   const limite = setTimeout(() => controller.abort(), 200000);
   let res;
@@ -212,6 +212,7 @@ async function chatAoVivo(corpo, { aoTexto, aoRecomeca }) {
         }
         if (evento === "texto") aoTexto(obj);
         else if (evento === "recomeca") aoRecomeca();
+        else if (evento === "passo" && aoPasso) aoPasso(obj);
         else if (evento === "fim") final = obj;
         else if (evento === "erro") {
           mostrarErro(obj.error || "A IA não respondeu agora. Tenta de novo.");
@@ -231,6 +232,49 @@ async function chatAoVivo(corpo, { aoTexto, aoRecomeca }) {
   }
   if (!final) mostrarErro("A resposta veio incompleta. Tenta de novo.");
   return final;
+}
+
+// ---- linha "pensando" (2026-10-14, 3a leva - prototipo aprovado em docs/prototipos/cards-ia-v2.html)
+// Enquanto as ferramentas rodam, o servidor manda cada passo ("Calculando o trajeto ate o Lume").
+// Os pontinhos viram a orbita + o passo atual com brilho correndo; passo novo sobe e empurra o
+// anterior. Quando o texto comeca, a linha vira o recibo recolhivel "N passos · 2,1 s".
+const ICONE_RECIBO_OK =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.3 4.6-4.9"/></svg>';
+const ICONE_RECIBO_SETA =
+  '<svg class="chat-recibo-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+
+function criarLinhaPensando(bolha) {
+  bolha.classList.remove("chat-digitando");
+  bolha.classList.add("chat-bolha-pensando");
+  bolha.innerHTML =
+    '<div class="chat-pensando" role="status" aria-live="polite"><span class="chat-orbita" aria-hidden="true"><i></i><i></i><i></i></span>' +
+    '<span class="chat-pensando-texto"></span></div>';
+  const caixa = bolha.querySelector(".chat-pensando-texto");
+  return {
+    passo(texto) {
+      caixa.querySelectorAll(".chat-passo:not(.sai)").forEach((velho) => {
+        velho.classList.add("sai");
+        setTimeout(() => velho.remove(), 450);
+      });
+      const novo = document.createElement("span");
+      novo.className = "chat-passo";
+      novo.textContent = texto;
+      caixa.appendChild(novo);
+    },
+  };
+}
+
+function reciboPassosHTML(passos, ms) {
+  const seg = (Math.max(0.1, ms / 1000)).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  const itens = passos.map((p) => `<li>${escaparHTMLChat(p)}</li>`).join("");
+  return (
+    `<details class="chat-recibo"><summary>${ICONE_RECIBO_OK}<span>${passos.length} ${passos.length === 1 ? "passo" : "passos"} · ${seg} s</span>${ICONE_RECIBO_SETA}</summary>` +
+    `<ol>${itens}</ol></details>`
+  );
+}
+
+function escaparHTMLChat(t) {
+  return String(t == null ? "" : t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
 function criarIndicadorDigitando() {
@@ -435,24 +479,46 @@ async function enviarChat(texto, opcoes = {}) {
   // enquanto a IA escreve). Outra rota (brain dump) ou stream indisponivel: caminho antigo.
   let data;
   let escrita = null;
+  let alvoTexto = null; // onde as palavras entram (abaixo do recibo, quando teve passos)
   const bolhaViva = digitando.querySelector(".chat-bolha");
+  const passos = [];
+  const inicio = performance.now();
+  let pensando = null;
   if (!opcoes.rota) {
     data = await chatAoVivo(corpo, {
+      aoPasso: (p) => {
+        if (!p || !p.texto) return;
+        passos.push(String(p.texto));
+        if (escrita) return; // texto ja correndo: o passo so entra no recibo
+        if (!pensando) pensando = criarLinhaPensando(bolhaViva);
+        pensando.passo(String(p.texto));
+        lista.scrollTop = lista.scrollHeight;
+      },
       aoTexto: (pedaco) => {
         if (!escrita) {
-          bolhaViva.classList.remove("chat-digitando");
-          bolhaViva.textContent = "";
-          escrita = criarEscritaAoVivo(bolhaViva);
+          bolhaViva.classList.remove("chat-digitando", "chat-bolha-pensando");
+          bolhaViva.innerHTML = (passos.length ? reciboPassosHTML(passos, performance.now() - inicio) : "") +
+            '<span class="chat-texto-vivo"></span>';
+          pensando = null;
+          alvoTexto = bolhaViva.querySelector(".chat-texto-vivo");
+          escrita = criarEscritaAoVivo(alvoTexto);
         }
         escrita.adicionar(pedaco);
       },
       aoRecomeca: () => {
-        // o que apareceu era um "deixa eu ver..." antes de usar ferramenta: volta pros pontinhos
+        // o que apareceu era um "deixa eu ver..." antes de usar ferramenta: volta pro "pensando"
+        // (ou pros pontinhos, se ainda nao teve passo)
         if (!escrita) return;
         escrita.limpar();
         escrita = null;
-        bolhaViva.classList.add("chat-digitando");
-        bolhaViva.innerHTML = '<div class="chat-dots"><span></span><span></span><span></span></div>';
+        alvoTexto = null;
+        if (passos.length) {
+          pensando = criarLinhaPensando(bolhaViva);
+          pensando.passo(passos[passos.length - 1]);
+        } else {
+          bolhaViva.classList.add("chat-digitando");
+          bolhaViva.innerHTML = '<div class="chat-dots"><span></span><span></span><span></span></div>';
+        }
       },
     });
   }
@@ -476,9 +542,9 @@ async function enviarChat(texto, opcoes = {}) {
   if (escrita) {
     await escrita.terminar();
     const mesmo = (s) => String(s || "").replace(/\s+/g, " ").trim();
-    if (mesmo(bolhaViva.textContent) !== mesmo(textoFinal)) {
-      bolhaViva.textContent = "";
-      escreverPalavraAPalavra(bolhaViva, textoFinal);
+    if (mesmo(alvoTexto.textContent) !== mesmo(textoFinal)) {
+      alvoTexto.textContent = "";
+      escreverPalavraAPalavra(alvoTexto, textoFinal);
     }
     digitando.appendChild(criarBotaoOuvirChat(textoFinal));
   } else {

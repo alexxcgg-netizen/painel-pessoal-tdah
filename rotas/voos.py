@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import time
+from datetime import datetime, timedelta
+
 from flask import Blueprint, jsonify
 
 from rotas._base import app_modulo
@@ -78,3 +81,72 @@ def voos_historico():
     todos = list_voos(conn)
     conn.close()
     return jsonify(voos_module.historico_horas_acumuladas(todos, date.today()))
+
+
+# ---- 3a leva (2026-10-14): tempo na hora do voo + horas com 1 toque ------------------------
+JANELA_TAF_H = 30  # TAF cobre ~24-30 h; mais longe que isso nao tem previsao oficial
+_CACHE_TAF: dict = {}
+CACHE_TAF_S = 20 * 60
+
+
+def _buscar_com_cache(icao: str):
+    import metar
+
+    agora = time.monotonic()
+    guardado = _CACHE_TAF.get(icao)
+    if guardado and agora - guardado[0] < CACHE_TAF_S:
+        return guardado[1]
+    bruto = metar.buscar_metar_taf(icao)
+    _CACHE_TAF[icao] = (agora, bruto)
+    return bruto
+
+
+@bp.route("/api/voos/<int:voo_id>/tempo", methods=["GET"])
+def tempo_do_voo(voo_id):
+    """Vento/teto/categoria do TAF NA HORA do voo (card do voo agendado pede sozinho). Fora da
+    janela do TAF, voo ja voado ou sem hora: previsao None - nunca inventa."""
+    import briefing_voo
+
+    app = app_modulo()
+    conn = get_db()
+    try:
+        v = conn.execute("SELECT id, data, hora, origem, horas FROM voos WHERE id = ?", (voo_id,)).fetchone()
+    finally:
+        conn.close()
+    if not v:
+        return jsonify({"error": "voo não encontrado"}), 404
+    if v["horas"] is not None or not v["hora"]:
+        return jsonify({"ok": True, "previsao": None, "motivo": "sem_hora"})
+    quando = datetime.fromisoformat(f"{v['data']}T{v['hora']}")
+    agora = app._agora_brasilia().replace(tzinfo=None)
+    if quando < agora - timedelta(hours=1) or quando > agora + timedelta(hours=JANELA_TAF_H):
+        return jsonify({"ok": True, "previsao": None, "motivo": "fora_da_janela"})
+    prev = briefing_voo.previsao_na_hora(v["origem"] or "SSBL", quando, buscar=_buscar_com_cache)
+    return jsonify({"ok": True, "previsao": prev, "motivo": None if prev else "sem_taf"})
+
+
+@bp.route("/api/voos/<int:voo_id>/horas", methods=["POST"])
+def horas_do_voo(voo_id):
+    """Chip do card "quanto deu?" - grava as horas do voo (pode trocar depois) e devolve o total
+    do curso pra barra andar na hora."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    horas = app._corpo_json().get("horas")
+    if not isinstance(horas, (int, float)) or isinstance(horas, bool) or not 0 < horas <= 12:
+        return jsonify({"error": "horas precisa ser entre 0,1 e 12"}), 400
+    horas = round(float(horas), 1)
+    conn = get_db()
+    try:
+        if not conn.execute("SELECT 1 FROM voos WHERE id = ?", (voo_id,)).fetchone():
+            return jsonify({"error": "voo não encontrado"}), 404
+        conn.execute("UPDATE voos SET horas = ? WHERE id = ?", (horas, voo_id))
+        app._marcar_atividade(conn)
+        conn.commit()
+        total = conn.execute(
+            "SELECT COALESCE(SUM(horas), 0) t FROM voos WHERE horas IS NOT NULL AND COALESCE(tipo, '') != 'simulador'"
+        ).fetchone()["t"]
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "horas": horas, "horas_min": int(round(float(total) * 60))})

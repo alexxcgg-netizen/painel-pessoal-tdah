@@ -534,7 +534,19 @@ def _extras_do_estilo(entrada: dict) -> dict:
     volta = _normalizar_hora(entrada.get("volta"))
     if volta:
         extras["volta"] = volta
+    if entrada.get("volta_modo") in cards.VOLTA_MODOS:
+        extras["volta_modo"] = entrada["volta_modo"]
     return extras
+
+
+# presente que se repete todo ano (3a leva): a IA marca `anual`; sem marcacao, o titulo decide
+_RE_PRESENTE_ANUAL = re.compile(r"anivers|\bniver|natal|casamento|bodas", re.IGNORECASE)
+
+
+def _presente_anual(entrada: dict) -> bool:
+    if isinstance(entrada.get("anual"), bool):
+        return entrada["anual"]
+    return bool(_RE_PRESENTE_ANUAL.search(str(entrada.get("titulo") or "")))
 
 
 def _tarefa_repetida(conn, titulo, dia):
@@ -2561,22 +2573,27 @@ def _processar_mensagem_chat(
         efeito = {"entidade": "tarefa", "id": task_id, "estilo": estilo}
         pra_ia = {}
         if estilo in ("date", "balada") and hora:
+            if lugar:
+                claude_client.avisar_passo(f"Calculando o trajeto até {lugar[:40]}")
             saida = _saida_pro_compromisso(data_iso, hora, lugar)
             sair = saida["sair"] if saida else rota_voo.menos_minutos(hora, FOLGA_SEM_TRAJETO_MIN)
             efeito["saida"] = saida
             pra_ia["sair_de_casa"] = sair
             pra_ia["comecar_a_se_arrumar"] = rota_voo.menos_minutos(sair, vida_assistente.se_arrumar_min(conn))
+            claude_client.avisar_passo(f"Vendo a previsão pras {hora.replace(':00', 'h').replace(':', 'h')}")
             tempo = _clima_na_hora(data_iso, hora)
             if tempo:
                 efeito["clima"] = tempo
                 pra_ia["temperatura_na_hora"] = tempo["temp"]
             if estilo == "balada":
+                claude_client.avisar_passo("Conferindo o que tu tem no dia seguinte")
                 seguinte = (date.fromisoformat(data_iso) + timedelta(days=1)).isoformat()
                 amanha = _primeiro_compromisso_do_dia(conn, seguinte)
                 if amanha:
                     efeito["amanha"] = amanha
                     pra_ia["dia_seguinte"] = f"{amanha['titulo']} as {amanha['hora']} - acordar ate {amanha['acordar']}"
         elif estilo == "documentos" and maps_client.configurado():
+            claude_client.avisar_passo(f"Olhando o horário de {(lugar or titulo)[:40]} no Google")
             try:
                 horario = maps_client.horario_funcionamento(lugar or titulo, date.fromisoformat(data_iso))
             except Exception:
@@ -2630,6 +2647,8 @@ def _processar_mensagem_chat(
         estilo = entrada.get("estilo") if entrada.get("estilo") in db.ESTILOS_TAREFA and quando_data else None
         lugar = local_tarefa or _limpar_texto(entrada.get("lugar"), 120)
         extras = _extras_do_estilo(entrada) if estilo else {}
+        if estilo == "presente" and _presente_anual(entrada):
+            extras["anual"] = True
         hora_tarefa = _normalizar_hora(entrada.get("hora"))
         cur = conn.execute(
             "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local, estilo, extras) "
@@ -3543,13 +3562,17 @@ def _processar_mensagem_chat(
     def exec_registrar_voo(entrada):
         # Contar como foi um voo ja agendado (resposta ao "Como foi o voo?")
         # completa o registro existente em vez de criar um voo duplicado.
+        do_dia = [v for v in list_voos(conn) if v["data"] == entrada["data"]]
         existente = next(
-            (v for v in list_voos(conn)
-             if v["data"] == entrada["data"]
-             and vida.normalizar_nome(v["destino"]) == vida.normalizar_nome(entrada["destino"])
+            (v for v in do_dia
+             if vida.normalizar_nome(v["destino"]) == vida.normalizar_nome(entrada["destino"])
              and not (v.get("observacao") or "").strip()),
             None,
         )
+        if existente is None and entrada.get("horas"):
+            # 3a leva: "voei 1,2 hoje" com UM voo agendado sem horas no dia = esse voo
+            abertos = [v for v in do_dia if v.get("horas") is None and v.get("hora")]
+            existente = abertos[0] if len(abertos) == 1 else None
         if existente:
             conn.execute(
                 """UPDATE voos SET observacao = COALESCE(?, observacao), horas = COALESCE(?, horas),

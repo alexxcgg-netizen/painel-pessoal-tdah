@@ -175,10 +175,12 @@ def estado_tarefas():
 
 
 def _estado_extras(extras: dict) -> dict:
+    import cards
+
     return {
         "lista": [bool(i.get("feito")) for i in extras.get("lista") or [] if isinstance(i, dict)],
         "escolha": extras.get("escolha") if isinstance(extras.get("escolha"), int) else None,
-        "uber": bool(extras.get("uber")),
+        "volta_modo": cards.modo_volta(extras),
     }
 
 
@@ -253,17 +255,21 @@ def escolher_presente(task_id):
         conn.close()
 
 
-@bp.route("/api/tasks/<int:task_id>/uber", methods=["POST"])
-def chave_uber(task_id):
-    """Chave "Voltar de Uber" do card da balada (2026-10-14): ligada = tarefa "Chamar Uber pra
-    voltar" 30 min antes da volta (o aviso de tarefa com hora faz o resto); desligada = apaga."""
+@bp.route("/api/tasks/<int:task_id>/volta", methods=["POST"])
+def modo_volta(task_id):
+    """Como volta da balada (3a leva, 2026-10-14 - "dificilmente volto de Uber, geralmente
+    dirigindo ou de carona"): dirigindo (padrao) / carona / uber. Uber = tarefa "Chamar Uber pra
+    voltar" 30 min antes da volta (o aviso de tarefa com hora faz o resto); os outros apagam."""
     app = app_modulo()
     recusa = app._recusar_no_modo_visitante()
     if recusa:
         return recusa
     import cards
 
-    ligada = bool(app._corpo_json().get("ligada"))
+    modo = app._corpo_json().get("modo")
+    if modo not in cards.VOLTA_MODOS:
+        return jsonify({"error": "modo inválido"}), 400
+    ligada = modo == "uber"
     conn = get_db()
     try:
         row = _tarefa_com_estilo(conn, task_id, ("balada",))
@@ -284,9 +290,10 @@ def chave_uber(task_id):
                 ("Chamar Uber pra voltar", dia.isoformat(), hora, f"card da balada #{task_id}"),
             )
             extras["uber_tarefa_id"] = cur.lastrowid
-        extras["uber"] = ligada
+        extras.pop("uber", None)
+        extras["volta_modo"] = modo
         db.salvar_extras_tarefa(conn, task_id, extras)
-        return jsonify({"ok": True, "ligada": ligada, "hora": hora})
+        return jsonify({"ok": True, "modo": modo, "hora": hora if ligada else None})
     finally:
         conn.close()
 

@@ -444,3 +444,93 @@
   .va-troca, .card-novo .va-etapa, .card-novo .va-ja, .card-novo .va-novo { animation: none !important; }
   .card-novo .va-perna:not(.va-viu) { opacity: 1; translate: none; }
 }
+
+/* ---- 3a leva (2026-10-14): tempo na hora do voo (TAF) + "quanto deu o voo?" ------------- */
+.card-contrato-voo_agendado, .card-contrato-voo_horas { --bv-vfr: var(--cor-cat-7); --bv-mvfr: var(--cor-cat-1); --bv-ifr: var(--cor-cat-5); --bv-lifr: var(--cor-cat-4); }
+.card-contrato-voo_horas { --card-cor: var(--cor-cat-1); }
+.va-cat {
+  flex: none; padding: 0.08rem 0.45rem; border-radius: 999px; font-family: var(--font-tech); font-size: 0.66rem; font-style: normal;
+  font-weight: 700; letter-spacing: 0.04em; color: var(--cat-cor, var(--text-muted));
+  background: color-mix(in srgb, var(--cat-cor, var(--text)) 14%, transparent); border: 1px solid color-mix(in srgb, var(--cat-cor, var(--text)) 40%, transparent);
+}
+.va-cat-VFR { --cat-cor: var(--bv-vfr); }
+.va-cat-MVFR { --cat-cor: var(--bv-mvfr); }
+.va-cat-IFR { --cat-cor: var(--bv-ifr); }
+.va-cat-LIFR { --cat-cor: var(--bv-lifr); }
+
+.va-tempo { display: grid; gap: 0.5rem; padding: 0.7rem 0.8rem; border-radius: 14px; border: 1px solid var(--border); background: color-mix(in srgb, var(--text) 2.5%, transparent); }
+.va-tempo[data-categoria="VFR"] { --tempo-cor: var(--bv-vfr); }
+.va-tempo[data-categoria="MVFR"] { --tempo-cor: var(--bv-mvfr); }
+.va-tempo[data-categoria="IFR"] { --tempo-cor: var(--bv-ifr); }
+.va-tempo[data-categoria="LIFR"] { --tempo-cor: var(--bv-lifr); }
+.va-tempo[data-categoria]:not([data-categoria=""]) { border-color: color-mix(in srgb, var(--tempo-cor) 30%, var(--border)); }
+.va-tempo-cab { display: flex; align-items: center; gap: 0.5rem; }
+.va-tempo-tit { font-size: 0.64rem; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); }
+.va-tempo-tit b { color: var(--text-muted); letter-spacing: 0.02em; }
+.va-tempo-cab .va-cat { margin-left: auto; }
+.va-tempo-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.1rem; }
+.va-tempo-item { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+.va-tempo-item small { font-size: 0.66rem; color: var(--text-faint); }
+.va-tempo-item b, .va-tempo-item .vivo-num { color: var(--text); }
+.va-rajada { color: var(--cor-alerta); }
+.va-seta { flex: none; width: 17px; height: 17px; color: var(--tempo-cor, var(--card-cor)); transform: rotate(var(--dir, 0deg)); }
+.va-tempo-pode { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.78rem; line-height: 1.4; color: var(--text-muted); }
+.va-tempo-pode li { display: flex; align-items: flex-start; gap: 0.45rem; }
+.va-tempo-pode b { font-weight: 500; color: var(--text); }
+.va-tempo-pode .va-cat { margin-top: 1px; }
+.va-tempo-nota { margin: 0; font-size: 0.7rem; line-height: 1.4; color: var(--text-faint); }
+.va-tempo-chegou { animation: vaTempoChega 0.55s var(--ease-suave) both; }
+.va-tempo-chegou .va-seta { animation: vaGiraSeta 1.1s var(--ease-bounce) 0.15s both; }
+@keyframes vaTempoChega { from { opacity: 0; transform: translateY(6px); filter: blur(3px); } }
+@keyframes vaGiraSeta { from { transform: rotate(calc(var(--dir, 0deg) - 140deg)); } }
+
+.vh { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+.vh .card-resultado-eyebrow { flex-wrap: wrap; }
+.vh-rota { margin: -0.2rem 0 0; font-size: 0.8rem; color: var(--text-muted); }
+.vh-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(4.2rem, 1fr)); gap: 0.45rem; }
+.vh-chip {
+  min-height: 52px; display: grid; justify-items: center; align-content: center; gap: 0.05rem; padding: 0.35rem 0.3rem;
+  border-radius: 14px; border: 1px solid var(--border); background: color-mix(in srgb, var(--text) 2.5%, transparent);
+  color: var(--text); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.3s var(--ease-suave), background 0.3s var(--ease-suave), box-shadow 0.3s var(--ease-suave), transform 0.3s var(--ease-bounce);
+}
+.vh-chip b { font-size: 1.02rem; font-weight: 600; line-height: 1.1; }
+.vh-chip small { font-size: 0.64rem; color: var(--text-faint); }
+.vh-chip.vh-est { border-style: dashed; border-color: color-mix(in srgb, var(--card-cor) 45%, var(--border)); }
+.vh-chip.vh-est small { color: var(--card-cor); }
+.vh-chip:active { transform: scale(0.95); }
+.vh-chip:focus-visible { outline: 2px solid var(--card-cor); outline-offset: 1px; }
+.vh-chip.atual {
+  border-style: solid; border-color: var(--card-cor); background: color-mix(in srgb, var(--card-cor) 16%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--card-cor) 28%, transparent); animation: vhPop 0.45s var(--ease-bounce);
+}
+.vh-chip.atual small { color: var(--text-muted); }
+@keyframes vhPop { 45% { transform: scale(1.07); } }
+.vh-outro b { font-size: 0.86rem; font-weight: 500; color: var(--text-muted); }
+.vh-outro[aria-expanded="true"] { border-color: var(--border-strong); }
+.vh-ajuste { display: flex; align-items: center; gap: 0.5rem; }
+.vh-passo {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border-strong); background: transparent;
+  color: var(--text); font: inherit; font-size: 1.2rem; line-height: 1; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.25s var(--ease-bounce), background 0.25s var(--ease-suave);
+}
+.vh-passo:active { transform: scale(0.9); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.vh-valor { min-width: 4.2rem; text-align: center; font-size: 1.3rem; font-weight: 600; }
+.vh-valor > span { display: inline-block; }
+.vh-valor small { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
+.vh-salvar {
+  margin-left: auto; min-height: 44px; padding: 0 1.1rem; border-radius: 999px; border: 0;
+  background: var(--card-cor); color: var(--bg); font: inherit; font-size: 0.86rem; font-weight: 600; cursor: pointer;
+  transition: transform 0.25s var(--ease-bounce);
+}
+.vh-salvar:active { transform: scale(0.95); }
+.vh .va-barra i { transition: width 0.9s var(--ease-suave), left 0.9s var(--ease-suave); }
+.vh-status { margin: -0.2rem 0 0; font-size: 0.82rem; line-height: 1.45; color: var(--text-muted); }
+.vh-status.ok { color: var(--text); }
+.card-novo .vh-chip { animation: vhChipEntra 0.45s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.25s + var(--k, 0) * 0.06s) both; }
+@keyframes vhChipEntra { from { opacity: 0; transform: translateY(6px) scale(0.94); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .va-tempo-chegou, .va-tempo-chegou .va-seta, .vh-chip.atual, .card-novo .vh-chip { animation: none !important; }
+  .vh-chip, .vh-passo, .vh-salvar, .vh .va-barra i { transition: none; }
+}

@@ -41,26 +41,32 @@ test("date sem hora: sem linha da noite, mas ainda e card de date", () => {
   assert.match(h, /sex 30 out/);
 });
 
-test("balada: ceu da noite, sono so quando veio do servidor, chave do Uber com a hora de chamar", () => {
+test("balada: ceu da noite, sono so quando veio do servidor, como volta (dirigindo por padrao)", () => {
   const base = { id: 3, titulo: "Balada no Warung", data: "2026-10-16", hora: "23:00", lugar: "Warung", com_quem: "a galera", comecar: "21:40", sair: "22:20" };
   const livre = html("balada", { ...base, volta: null });
   semFallback(livre);
   assert.match(livre, /Sexta à noite/);
   assert.match(livre, /em 2 dias · com a galera/);
   assert.ok(!livre.includes("sd-sono"), "sem compromisso no dia seguinte: nada de horas de sono");
-  assert.ok(!livre.includes("sd-chave"), "sem volta: sem chave do Uber");
+  assert.match(livre, /class="sd-volta" data-modo="dirigindo" style="--i:0"/, "sem hora de volta o controle aparece igual");
+  assert.match(livre, /Volta dirigindo: zero álcool, combinado\?/);
 
   const h = html("balada", {
-    ...base, volta: "03:00", uber: false,
+    ...base, volta: "03:00", volta_modo: "uber",
     sono: { min: 200, volta: "04:30", acordar: "07:50", compromisso: "Prova <i>", hora: "09:00" },
   });
   assert.match(h, /--n:4/);
   assert.match(h, /3 h 20 min de sono/);
   assert.match(h, /sd-sono pouco/);
   assert.match(h, /Prova &lt;i&gt;/);
-  assert.match(h, /role="switch" aria-checked="false" data-acao="uber" data-tarefa="3" data-volta="03:00"/);
-  assert.match(h, /liga e eu te lembro às 2h30/);
-  assert.equal(CardsSaidas.textoUber(true, "00:10"), "te lembro às 23h40 de chamar");
+  assert.match(h, /class="sd-volta" data-modo="uber" style="--i:2"/);
+  assert.strictEqual((h.match(/data-acao="volta"/g) || []).length, 3);
+  assert.match(h, /role="radio" aria-checked="true" class="sd-volta-op atual" data-acao="volta" data-modo="uber" data-k="2" data-tarefa="3" data-volta="03:00"/);
+  assert.match(h, /Te lembro às 2h30 de chamar o Uber\./);
+  assert.equal(CardsSaidas.textoVolta("uber", "00:10").texto, "Te lembro às 23h40 de chamar o Uber.");
+  assert.equal(CardsSaidas.textoVolta("uber", null).texto, "Te lembro às 2h30 de chamar o Uber.");
+  assert.equal(CardsSaidas.textoVolta("carona").texto, "De carona: beleza, sem lembrete nenhum.");
+  assert.match(html("balada", { ...base, volta_modo: "<x>" }), /data-modo="dirigindo"/);
 });
 
 test("documentos: pasta conta o que ja foi, carimbo bate com tudo marcado, horario do Google avisa", () => {
@@ -107,6 +113,15 @@ test("presente: contagem, prazo de compra na linha, ideia escolhida e aviso em c
   const longe = html("presente", { id: 4, titulo: "Natal", data: "2026-12-25", compra_ate: "2026-10-16", ideias: [] });
   assert.ok(!longe.includes("sd-marco limite"));
   assert.match(longe, /Comprar até dia 16 pra entrega chegar a tempo/);
+});
+
+test("presente anual: selo todo ano e o que ele deu ano passado", () => {
+  const h = html("presente", { id: 4, titulo: "Aniversário da mãe", data: "2026-10-26", compra_ate: "2026-10-22", ideias: [], anual: true, ano_passado: "Kit <jardim>" });
+  semFallback(h);
+  assert.match(h, /class="sd-anual">.*todo ano<\/span>/);
+  assert.match(h, /Ano passado: <b>Kit &lt;jardim&gt;<\/b>/);
+  const comum = html("presente", { id: 4, titulo: "Despedida", data: "2026-10-26", compra_ate: "2026-10-22", ideias: [] });
+  assert.ok(!comum.includes("sd-anual") && !comum.includes("Ano passado"));
 });
 
 test("dado faltando nao quebra: vira fallback", () => {

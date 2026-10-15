@@ -28,6 +28,11 @@
     alerta: svg('<path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4M12 17h.01"/>'),
     ok: svg('<circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.3 4.6-4.9"/>'),
     check: svg('<path d="m5 12.5 4.2 4L19 7"/>', ' stroke-width="3"'),
+    carro: svg('<path d="M5 16.5V12l1.8-4.6A2 2 0 0 1 8.7 6h6.6a2 2 0 0 1 1.9 1.4L19 12v4.5"/><path d="M4 12h16v4.5H4z"/><circle cx="7.5" cy="16.5" r="1.6"/><circle cx="16.5" cy="16.5" r="1.6"/>'),
+    carona: svg('<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9.5" r="2.4"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M14.5 15.2a4.3 4.3 0 0 1 6 3.8"/>'),
+    celular: svg('<rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/>'),
+    sem_alcool: svg('<path d="M8 3h8l-1 8a3 3 0 0 1-6 0Z"/><path d="M12 14v6M9 20.5h6"/><path d="M4 4l16 16"/>'),
+    repete: svg('<path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5"/><path d="M20 4v4.5h-4.5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5"/><path d="M4 20v-4.5h4.5"/>'),
   };
   const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -147,10 +152,37 @@
   const CIDADE =
     '<svg class="sd-cidade" viewBox="0 0 300 30" preserveAspectRatio="none" aria-hidden="true"><path d="M0 30V18h14V9h10v8h8V4h12v14h10v-6h16v18h6V12h12v18h10V7h14v23h8V15h12v15h10V10h8v6h12V2h10v28h10V16h14v14h8V8h12v22h6V13h10v17h12V6h10v24z"/></svg>';
 
-  function textoUber(ligada, volta) {
-    const antes = minDia(volta);
-    const chamar = antes === null ? "" : horaBr(`${String(Math.floor(((antes - 30 + 1440) % 1440) / 60)).padStart(2, "0")}:${String((antes - 30 + 1440) % 60).padStart(2, "0")}`);
-    return ligada ? `te lembro às ${chamar} de chamar` : `liga e eu te lembro às ${chamar}`;
+  // 3a leva (2026-10-14): "dificilmente volto de Uber - geralmente dirigindo ou de carona"
+  const MODOS_VOLTA = [
+    ["dirigindo", "dirigindo", I.carro],
+    ["carona", "carona", I.carona],
+    ["uber", "Uber", I.celular],
+  ];
+  const VOLTA_PADRAO = "03:00";
+  function textoVolta(modo, volta) {
+    if (modo === "carona") return { icone: I.carona, texto: "De carona: beleza, sem lembrete nenhum." };
+    if (modo === "uber") {
+      const antes = minDia(volta || VOLTA_PADRAO);
+      const m = (antes - 30 + 1440) % 1440;
+      const chamar = horaBr(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+      return { icone: I.celular, texto: `Te lembro às ${chamar} de chamar o Uber.` };
+    }
+    return { icone: I.sem_alcool, texto: "Volta dirigindo: zero álcool, combinado?" };
+  }
+  function voltaHTML(data) {
+    const modo = MODOS_VOLTA.some(([m]) => m === data.volta_modo) ? data.volta_modo : "dirigindo";
+    const i = MODOS_VOLTA.findIndex(([m]) => m === modo);
+    const frase = textoVolta(modo, data.volta);
+    return (
+      `<div class="sd-volta" data-modo="${modo}" style="--i:${i}">` +
+      `<span class="sd-rotulo">Como tu volta</span>` +
+      `<div class="sd-volta-opcoes" role="radiogroup" aria-label="Como tu volta"><i class="sd-volta-pilula" aria-hidden="true"></i>` +
+      MODOS_VOLTA.map(
+        ([m, rot, ic], k) =>
+          `<button type="button" role="radio" aria-checked="${m === modo}" class="sd-volta-op${m === modo ? " atual" : ""}" data-acao="volta" data-modo="${m}" data-k="${k}" data-tarefa="${esc(data.id)}" data-volta="${esc(data.volta || "")}">${ic}<span>${esc(rot)}</span></button>`
+      ).join("") +
+      `</div><p class="sd-volta-frase" aria-live="polite">${frase.icone}<span>${esc(frase.texto)}</span></p></div>`
+    );
   }
 
   Cards.registrar("balada", (data, _card, ctx) => {
@@ -183,10 +215,7 @@
         (pouco ? `<p class="sd-sono-aviso">${I.alerta}<span>Menos de 6 h de sono — vale voltar mais cedo.</span></p>` : "") +
         `</div>`;
     }
-    const chave = data.volta
-      ? `<button type="button" class="sd-chave${data.uber ? " ligada" : ""}" role="switch" aria-checked="${!!data.uber}" data-acao="uber" data-tarefa="${esc(data.id)}" data-volta="${esc(data.volta)}">` +
-        `<span>Voltar de Uber<small>${esc(textoUber(!!data.uber, data.volta))}</small></span><span class="sd-trilho-chave"></span></button>`
-      : "";
+    const volta = data.id !== undefined ? voltaHTML(data) : "";
     return (
       `<div class="sd sd-balada">` +
       `<div class="sd-ceu" data-compromisso="${esc(data.id)}">${ESTRELAS}<span class="sd-lua"></span>${CIDADE}` +
@@ -194,7 +223,7 @@
       (data.titulo && !/balada|festa/i.test(sub) ? `<p class="sd-balada-tit">${esc(data.titulo)}</p>` : "") +
       (paradas.length ? linhaNoite(paradas) : "") +
       sono +
-      chave +
+      volta +
       `</div>`
     );
   });
@@ -327,8 +356,10 @@
             : `<p class="sd-status"></p>`;
     return (
       `<div class="sd sd-presente">` +
-      olho(I.presente, "Presente", `<span class="sd-quando">${esc(quandoDia(data.data, agora))}${fim && Cards.diasEntre(agora, fim) > 1 && Cards.diasEntre(agora, fim) < 7 ? `, ${esc(diaMes(data.data))}` : ""}</span>`) +
-      `<div class="sd-presente-topo" data-compromisso="${esc(data.id)}">${CAIXA}${contagem}</div>` +
+      olho(I.presente, "Presente", `${data.anual ? `<span class="sd-anual">${I.repete}todo ano</span>` : ""}<span class="sd-quando">${esc(quandoDia(data.data, agora))}${fim && Cards.diasEntre(agora, fim) > 1 && Cards.diasEntre(agora, fim) < 7 ? `, ${esc(diaMes(data.data))}` : ""}</span>`) +
+      `<div class="sd-presente-topo" data-compromisso="${esc(data.id)}">${CAIXA}<div class="sd-presente-cab">${contagem}` +
+      (data.ano_passado ? `<p class="sd-ano-passado">Ano passado: <b>${esc(data.ano_passado)}</b></p>` : "") +
+      `</div></div>` +
       prazos +
       (ideias.length
         ? `<span class="sd-rotulo">${temPorque ? "Do que tu já me contou" : "Ideias"}</span><div class="sd-ideias${escolha !== null ? " escolheu" : ""}">${botoes}</div>`
@@ -421,28 +452,42 @@
       if (typeof deps.aoMudar === "function") deps.aoMudar();
     });
 
-    Cards.registrarAcao("uber", async (btn, _cardEl, deps) => {
-      if (typeof deps.apiFetch !== "function" || btn.dataset.enviando) return;
-      const ligada = !btn.classList.contains("ligada");
-      const aplicar = (on, frase) => {
-        btn.classList.toggle("ligada", on);
-        btn.setAttribute("aria-checked", String(on));
-        const small = btn.querySelector("small");
-        if (small) small.textContent = frase;
-      };
-      aplicar(ligada, textoUber(ligada, btn.dataset.volta));
+    Cards.registrarAcao("volta", async (btn, _cardEl, deps) => {
+      const caixa = btn.closest(".sd-volta");
+      if (typeof deps.apiFetch !== "function" || !caixa || caixa.dataset.enviando) return;
+      const antes = caixa.dataset.modo;
+      const modo = btn.dataset.modo;
+      if (modo === antes) return;
+      aplicarVolta(caixa, modo, true); // otimista: a pilula ja desliza
       vibrar(8);
-      btn.dataset.enviando = "1";
-      const res = await deps.apiFetch(`/api/tasks/${encodeURIComponent(btn.dataset.tarefa)}/uber`, {
+      caixa.dataset.enviando = "1";
+      const res = await deps.apiFetch(`/api/tasks/${encodeURIComponent(btn.dataset.tarefa)}/volta`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ligada }),
+        body: JSON.stringify({ modo }),
       });
-      delete btn.dataset.enviando;
-      if (!res || !res.ok) aplicar(!ligada, textoUber(!ligada, btn.dataset.volta));
-      else if (!ligada) aplicar(false, "ok - então nada de beber, combinado?");
-      if (res && res.ok && typeof deps.aoMudar === "function") deps.aoMudar();
+      delete caixa.dataset.enviando;
+      if (!res || !res.ok) aplicarVolta(caixa, antes, true);
+      else if (typeof deps.aoMudar === "function") deps.aoMudar();
     });
+  }
+
+  function aplicarVolta(caixa, modo, trocarFrase) {
+    const k = MODOS_VOLTA.findIndex(([m]) => m === modo);
+    if (k < 0) return;
+    caixa.dataset.modo = modo;
+    caixa.style.setProperty("--i", k);
+    caixa.querySelectorAll(".sd-volta-op").forEach((b) => {
+      const sim = b.dataset.modo === modo;
+      b.classList.toggle("atual", sim);
+      b.setAttribute("aria-checked", String(sim));
+    });
+    const frase = caixa.querySelector(".sd-volta-frase");
+    const op = caixa.querySelector(".sd-volta-op");
+    if (frase && trocarFrase) {
+      const t = textoVolta(modo, op && op.dataset.volta);
+      frase.innerHTML = `${t.icone}<span class="sd-troca">${esc(t.texto)}</span>`;
+    }
   }
 
   // Historico: o card e a foto do momento da resposta - o que foi marcado/escolhido depois vem
@@ -463,17 +508,12 @@
           b.setAttribute("aria-pressed", String(i === estado.escolha));
         });
       }
-      const chave = cardEl.querySelector(".sd-chave");
-      if (chave && chave.classList.contains("ligada") !== !!estado.uber) {
-        chave.classList.toggle("ligada", !!estado.uber);
-        chave.setAttribute("aria-checked", String(!!estado.uber));
-        const small = chave.querySelector("small");
-        if (small) small.textContent = textoUber(!!estado.uber, chave.dataset.volta);
-      }
+      const volta = cardEl.querySelector(".sd-volta");
+      if (volta && estado.volta_modo && volta.dataset.modo !== estado.volta_modo) aplicarVolta(volta, estado.volta_modo, true);
     });
   }
 
-  const CardsSaidas = { aplicarEstado, horarioTexto, textoUber };
+  const CardsSaidas = { aplicarEstado, horarioTexto, textoVolta };
   raiz.CardsSaidas = CardsSaidas;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsSaidas;
 })(typeof window !== "undefined" ? window : globalThis);

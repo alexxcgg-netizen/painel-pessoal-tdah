@@ -121,6 +121,73 @@ DESCRICAO_TOOL = {
     "concluir_etapa": "Concluiu a etapa do projeto",
 }
 
+# Linha "pensando" ao vivo (2026-10-14, 3a leva): o que a ferramenta esta fazendo AGORA, no
+# presente. Mesma regra de `passos`: nunca valor em dinheiro.
+AO_VIVO_TOOL = {
+    "registrar_voo": "Montando a rota do voo",
+    "registrar_feito": "Marcando como feito",
+    "ajustar_tarefa": "Ajustando a tarefa",
+    "mover_tarefas": "Movendo as tarefas",
+    "consultar_tarefas": "Olhando tuas tarefas",
+    "consultar_agenda": "Olhando a agenda",
+    "consultar_gastos": "Somando os gastos",
+    "consultar_gastos_fixos": "Olhando os gastos fixos",
+    "consultar_sobra_do_mes": "Calculando a sobra do mês",
+    "consultar_voos": "Olhando os voos",
+    "consultar_clima": "Vendo o tempo",
+    "estimar_trajeto": "Calculando o trajeto",
+    "briefing_meteo_voo": "Lendo o METAR e o TAF",
+    "gerar_plano_do_dia": "Montando o plano do dia",
+    "sugerir_horario_livre": "Procurando horário livre",
+    "sugerir_tarefa_para_agora": "Escolhendo uma tarefa pra agora",
+    "registrar_memoria": "Guardando isso na memória",
+    "consultar_notas": "Procurando nas notas",
+    "salvar_nota": "Salvando a nota",
+    "registrar_hidratacao": "Contando o copo d'água",
+    "registrar_treino": "Registrando o treino",
+    "adicionar_compras": "Pondo na lista de compras",
+    "consultar_noticias": "Buscando notícias",
+    "fazer_pergunta_aviacao": "Escolhendo uma pergunta da banca",
+    "revisar_pergunta_aviacao": "Puxando uma revisão",
+    "responder_pergunta_aviacao": "Corrigindo a resposta",
+    "consultar_saude_dia": "Olhando a saúde de hoje",
+    "consultar_habitos": "Olhando os hábitos",
+    "marcar_habito": "Marcando o hábito",
+    "ajustar_lembrete": "Ajustando o lembrete",
+    "ajustar_gasto": "Ajustando o gasto",
+    "ajustar_voo": "Corrigindo o voo",
+}
+_AO_VIVO_COM_TITULO = {
+    "registrar_tarefa": ("titulo", "Anotando"),
+    "registrar_gasto": ("titulo", "Registrando o gasto"),
+    "registrar_lembrete": ("titulo", "Criando o lembrete"),
+    "registrar_meta": ("titulo", "Criando a meta"),
+    "registrar_habito": ("nome", "Criando o hábito"),
+    "criar_projeto": ("nome", "Criando o projeto"),
+}
+
+
+def passo_ao_vivo(tool: str, entrada) -> str:
+    entrada = entrada if isinstance(entrada, dict) else {}
+    if tool in _AO_VIVO_COM_TITULO:
+        campo, verbo = _AO_VIVO_COM_TITULO[tool]
+        titulo = _titulo_curto(entrada.get(campo), 40)
+        return f'{verbo} "{titulo}"' if titulo else verbo
+    if tool in AO_VIVO_TOOL:
+        return AO_VIVO_TOOL[tool]
+    modulo = MODULO_POR_TOOL.get(tool)
+    return f"Mexendo em {modulo.lower()}" if modulo else "Trabalhando nisso"
+
+
+def _avisar_passo(texto: str) -> None:
+    try:
+        import claude_client
+
+        claude_client.avisar_passo(texto)
+    except Exception:  # noqa: BLE001 - aviso de tela nunca derruba a ferramenta
+        pass
+
+
 ABA_POR_ENTIDADE = {
     "tarefa": ("tarefas", "Abrir Tarefas"),
     "gasto": ("gastos", "Abrir no extrato"),
@@ -212,6 +279,8 @@ TIPOS_CARD = (
     "balada",
     "documentos",
     "presente",
+    # 3a leva (2026-10-14): quanto deu o voo (conversa_proativa, depois do pouso)
+    "voo_horas",
 )
 
 
@@ -273,6 +342,7 @@ class RegistroExecucao:
 
     def _envolver_um(self, nome, fn):
         def executor(entrada):
+            _avisar_passo(passo_ao_vivo(nome, entrada))
             inicio = time.perf_counter()
             resultado = fn(entrada)
             ms = int(round((time.perf_counter() - inicio) * 1000))
@@ -461,6 +531,14 @@ def _aperto(conn, tarefa: dict) -> dict | None:
     }
 
 
+VOLTA_MODOS = ("dirigindo", "carona", "uber")
+
+
+def modo_volta(extras: dict) -> str:
+    """Como volta da balada; card da 2a leva com a chave do Uber ligada (`uber`) = Uber."""
+    if extras.get("volta_modo") in VOLTA_MODOS:
+        return extras["volta_modo"]
+    return "uber" if extras.get("uber") else "dirigindo"  # 3a leva: o normal dele e voltar dirigindo
 VOLTA_PADRAO_BALADA = "03:00"  # pedido do Alex: so conta sono se tiver compromisso com hora no dia seguinte
 
 
@@ -513,7 +591,7 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
         volta = extras.get("volta") or (VOLTA_PADRAO_BALADA if amanha else None)
         data["volta"] = volta
         data["volta_dita"] = bool(extras.get("volta"))
-        data["uber"] = bool(extras.get("uber"))
+        data["volta_modo"] = modo_volta(extras)
         if amanha and volta and _min_do_dia(amanha.get("acordar")) is not None:
             v, a = _min_do_dia(volta), _min_do_dia(amanha["acordar"])
             # volta antes do meio-dia = madrugada do dia seguinte; senao ainda e a mesma noite
@@ -534,6 +612,8 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
             "compra_ate": compra.isoformat(),
             "ideias": extras.get("ideias") or [],
             "escolha": extras.get("escolha") if isinstance(extras.get("escolha"), int) else None,
+            "anual": bool(extras.get("anual")),
+            "ano_passado": ((extras.get("historico") or [None])[-1] or {}).get("presente"),
         })
     aba, rotulo = ABA_POR_ENTIDADE["tarefa"]
     actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, "tarefa", row["id"])]
@@ -1274,6 +1354,52 @@ def card_voo_agendado(conn, ef: dict, actions_extra: list | None = None, hoje: d
             "meta_horas": int(meta) if meta and meta.isdigit() else 150,
         },
         [*(actions_extra or []), acao_abrir_aba("aviacao", "Abrir Aviação")],
+    )
+
+
+HOBBS_EXTRA_MIN = 12  # motor ligado antes/depois do voo (taxi, cheque) - horas do diario sao de motor
+
+
+def card_voo_horas(conn, voo_id: int, hoje: date | None = None) -> dict | None:
+    """"Pousou? Quanto deu?" (2026-10-14, 3a leva): chips perto da estimativa da rota e a barra
+    das horas do curso ate a meta (sem contar este voo - o front soma quando ele toca)."""
+    import rota_voo
+
+    v = conn.execute(
+        "SELECT id, data, hora, origem, destino, escalas, horas FROM voos WHERE id = ?", (voo_id,)
+    ).fetchone()
+    if not v:
+        return None
+    hoje = hoje or date.today()
+    rota = rota_voo.montar(v["origem"], v["escalas"], v["destino"], v["hora"])
+    estimativa = None
+    if rota["em_voo_min"] is not None:
+        minutos = rota["em_voo_min"] + rota_voo.MIN_POR_ESCALA * max(0, len(rota["paradas"]) - 2) + HOBBS_EXTRA_MIN
+        estimativa = max(0.3, round(minutos / 60, 1))
+    if estimativa:
+        sugestoes = sorted({round(max(0.3, estimativa - 0.2), 1), estimativa, round(estimativa + 0.2, 1)})
+    else:
+        sugestoes = [1.0, 1.2, 1.5]
+    outros = conn.execute(
+        "SELECT horas FROM voos WHERE horas IS NOT NULL AND id != ? AND data <= ? AND COALESCE(tipo, '') != 'simulador'",
+        (voo_id, hoje.isoformat()),
+    ).fetchall()
+    meta = db.obter_configuracao(conn, "aviacao_meta_horas")
+    return novo_card(
+        "voo_horas",
+        {
+            "id": v["id"],
+            "data": v["data"],
+            "hora": v["hora"],
+            "rota": " → ".join(p["icao"] for p in rota["paradas"]) if not rota["local"] else None,
+            "icao": rota["paradas"][0]["icao"],
+            "estimativa": estimativa,
+            "sugestoes": sugestoes,
+            "horas": float(v["horas"]) if v["horas"] is not None else None,
+            "horas_min": int(round(sum(float(r["horas"]) for r in outros) * 60)),
+            "meta_horas": int(meta) if meta and meta.isdigit() else 150,
+        },
+        [acao_abrir_aba("aviacao", "Abrir Aviação")],
     )
 
 

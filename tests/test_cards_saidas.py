@@ -164,23 +164,46 @@ class CardsSaidasTestCase(unittest.TestCase):
         # 09:00 - 15 = 08:45 sair -> 08:05 acordar -> 3h35 de sono
         self.assertEqual((d["sono"]["acordar"], d["sono"]["min"]), ("08:05", 215))
 
-    def test_chave_do_uber_cria_e_apaga_a_tarefa_de_chamar(self):
+    def test_volta_dirigindo_por_padrao_e_uber_cria_a_tarefa_de_chamar(self):
         amanha = (HOJE + timedelta(days=4)).isoformat()
         self.sql("INSERT INTO voos (data, origem, destino, hora) VALUES (?, 'SSBL', 'SSBL', '14:00')", (amanha,))
-        _, res = self.chat([("registrar_tarefa", {
+        corpo, _ = self.chat([("registrar_tarefa", {
             "titulo": "Balada", "quando_data": EM_3, "hora": "23:00", "estilo": "balada"})])
-        tid = res[0]["_efeito"]["id"] if "_efeito" in res[0] else self.sql("SELECT id FROM tasks WHERE estilo='balada'")[0][0]
-        r = self.client.post(f"/api/tasks/{tid}/uber", json={"ligada": True}).get_json()
-        self.assertEqual(r, {"ok": True, "ligada": True, "hora": "02:30"})
+        d = self.card(corpo, "balada")["data"]
+        self.assertEqual(d["volta_modo"], "dirigindo")
+        self.assertNotIn("uber", d)
+        tid = d["id"]
+        r = self.client.post(f"/api/tasks/{tid}/volta", json={"modo": "uber"}).get_json()
+        self.assertEqual(r, {"ok": True, "modo": "uber", "hora": "02:30"})
         uber = self.sql("SELECT title, due_date, hora FROM tasks WHERE title = 'Chamar Uber pra voltar'")
         self.assertEqual(tuple(uber[0]), ("Chamar Uber pra voltar", amanha, "02:30"))  # madrugada = dia seguinte
-        # ligar de novo nao duplica
-        self.client.post(f"/api/tasks/{tid}/uber", json={"ligada": True})
+        # escolher Uber de novo nao duplica
+        self.client.post(f"/api/tasks/{tid}/volta", json={"modo": "uber"})
         self.assertEqual(len(self.sql("SELECT id FROM tasks WHERE title = 'Chamar Uber pra voltar'")), 1)
-        self.assertTrue(self.client.get(f"/api/tasks/estado?ids={tid}").get_json()["extras"][str(tid)]["uber"])
-        self.client.post(f"/api/tasks/{tid}/uber", json={"ligada": False})
+        self.assertEqual(self.client.get(f"/api/tasks/estado?ids={tid}").get_json()["extras"][str(tid)]["volta_modo"], "uber")
+        r = self.client.post(f"/api/tasks/{tid}/volta", json={"modo": "carona"}).get_json()
+        self.assertEqual(r, {"ok": True, "modo": "carona", "hora": None})
         self.assertEqual(self.sql("SELECT COUNT(*) FROM tasks WHERE title = 'Chamar Uber pra voltar'")[0][0], 0)
-        self.assertFalse(self.extras(tid)["uber"])
+        self.assertEqual(self.extras(tid)["volta_modo"], "carona")
+        for ruim in ("taxi", None, 1, ["uber"]):
+            self.assertEqual(self.client.post(f"/api/tasks/{tid}/volta", json={"modo": ruim}).status_code, 400, ruim)
+
+    def test_volta_sem_hora_dita_usa_3h_e_a_ia_pode_mandar_o_modo(self):
+        corpo, _ = self.chat([("registrar_tarefa", {
+            "titulo": "Balada", "quando_data": EM_3, "hora": "23:00", "estilo": "balada", "volta_modo": "carona"})])
+        d = self.card(corpo, "balada")["data"]
+        self.assertEqual(d["volta_modo"], "carona")
+        r = self.client.post(f"/api/tasks/{d['id']}/volta", json={"modo": "uber"}).get_json()
+        self.assertEqual(r["hora"], "02:30")
+        corpo, _ = self.chat([("registrar_tarefa", {
+            "titulo": "Outra", "quando_data": EM_3, "hora": "23:00", "estilo": "balada", "volta_modo": "<x>"})])
+        self.assertEqual(self.card(corpo, "balada")["data"]["volta_modo"], "dirigindo")
+
+    def test_balada_da_2a_leva_com_chave_do_uber_ligada_aparece_como_uber(self):
+        self.assertEqual(cards.modo_volta({"uber": True, "uber_tarefa_id": 4}), "uber")
+        self.assertEqual(cards.modo_volta({"uber": False}), "dirigindo")
+        self.assertEqual(cards.modo_volta({"uber": True, "volta_modo": "carona"}), "carona")
+        self.assertEqual(cards.modo_volta({"volta_modo": "<x>"}), "dirigindo")
 
     # ------------------------------------------------------------ documentos
     def test_documentos_traz_horario_do_google_e_a_caixinha_marca(self):
@@ -206,7 +229,7 @@ class CardsSaidasTestCase(unittest.TestCase):
         tid = self.sql("SELECT id FROM tasks")[0][0]
         self.assertEqual(self.client.post(f"/api/tasks/{tid}/lista", json={"i": 0, "feito": True}).status_code, 404)
         self.assertEqual(self.client.post(f"/api/tasks/{tid}/presente", json={"i": 0}).status_code, 404)
-        self.assertEqual(self.client.post(f"/api/tasks/{tid}/uber", json={"ligada": True}).status_code, 404)
+        self.assertEqual(self.client.post(f"/api/tasks/{tid}/volta", json={"modo": "uber"}).status_code, 404)
 
     # -------------------------------------------------------------- presente
     def presente(self, dia=EM_12):
@@ -253,7 +276,7 @@ class CardsSaidasTestCase(unittest.TestCase):
             s["modo_visitante"] = True
             s["modo_visitante_desde"] = __import__("time").time()
         tid = card["data"]["id"]
-        for rota, corpo in (("presente", {"i": 0}), ("lista", {"i": 0, "feito": True}), ("uber", {"ligada": True})):
+        for rota, corpo in (("presente", {"i": 0}), ("lista", {"i": 0, "feito": True}), ("volta", {"modo": "uber"})):
             self.assertEqual(self.client.post(f"/api/tasks/{tid}/{rota}", json=corpo).status_code, 403, rota)
         self.assertEqual(self.sql("SELECT COUNT(*) FROM lembretes")[0][0], 0)
 
