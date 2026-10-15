@@ -195,6 +195,41 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
             finally:
                 browser.close()
 
+    def test_primeira_medida_zero_e_depois_a_folga_normal_nao_desce_a_barra(self):
+        """4a camada (2026-10-15, "ainda aparece pela metade"): a 1a medida saia 0 (iOS se
+        arrumando ao abrir) e depois vinham os 34px normais - a regra do MENOR desvio descia a
+        barra 34px. Folga pequena nunca mexe; o teclado preso (+300) continua corrigido."""
+        with sync_playwright() as p:
+            kwargs = {"headless": True}
+            if _CHROME is not None and Path(_CHROME).exists():
+                kwargs["executable_path"] = _CHROME
+            browser = p.chromium.launch(**kwargs)
+            try:
+                ctx = browser.new_context(viewport={"width": 390, "height": 844})
+                ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
+                                 headers={"Content-Type": "application/json"})
+                page = ctx.new_page()
+                erros = []
+                page.on("pageerror", lambda exc: erros.append(str(exc)))
+                page.goto(BASE_URL + "/")
+                page.wait_for_load_state("networkidle")
+                desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
+                self.assertEqual(page.evaluate(desvio), "0px")  # 1a medida: 0
+                page.evaluate("""() => Object.defineProperty(window.visualViewport, "height",
+                                   { configurable: true, get: () => document.documentElement.clientHeight + 34 })""")
+                page.evaluate(_SEGUNDO_PLANO, False)
+                page.wait_for_timeout(1100)
+                self.assertEqual(page.evaluate(desvio), "0px", "folga de 34px nao pode descer a barra")
+                self.assertEqual(page.evaluate("getComputedStyle(document.querySelector('#tabbar')).translate"), "0px")
+                page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
+                                   { configurable: true, get: () => 300 })""")
+                page.evaluate(_SEGUNDO_PLANO, False)
+                page.wait_for_timeout(1100)
+                self.assertEqual(page.evaluate(desvio), "300px")
+                self.assertEqual(erros, [], f"pageerror: {erros}")
+            finally:
+                browser.close()
+
 
 if __name__ == "__main__":
     unittest.main()

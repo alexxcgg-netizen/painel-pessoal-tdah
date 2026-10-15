@@ -161,7 +161,39 @@ def montar_copia(conn, desde: date, ate: date) -> tuple[str, dict]:
     ]
     if not corpo:
         corpo = ["\n_(nenhuma mensagem nesse período)_\n"]
-    return "".join(cabeca + corpo), conta
+    return "".join(cabeca + corpo + _diagnostico(conn, desde, ate, ini, fim)), conta
+
+
+def _diagnostico(conn, desde: date, ate: date, ini: str, fim: str) -> list[str]:
+    """Medidas reais do aparelho no período (rotas/diagnostico.py): tela/barra e microfone."""
+    existe = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'diagnostico_cliente'"
+    ).fetchone()
+    if not existe:
+        return []
+    linhas = []
+    for r in conn.execute(
+        "SELECT tipo, dados_json, criado_em FROM diagnostico_cliente WHERE criado_em >= ? AND criado_em < ? ORDER BY id",
+        (ini, fim),
+    ).fetchall():
+        quando = hora_local(r["criado_em"])
+        if quando is None or not (desde <= quando.date() <= ate):
+            continue
+        try:
+            dados = json.loads(r["dados_json"])
+        except ValueError:
+            continue
+        campos = " · ".join(f"{k}={v}" for k, v in dados.items())
+        linhas.append(f"- {quando:%d/%m %H:%M} **{r['tipo']}**: {campos}\n")
+    if not linhas:
+        return []
+    return [
+        "\n## Diagnóstico do aparelho\n",
+        "Medidas que o app mandou (tela/barra de abas e microfone). tela: `bruto` = fundo visível − "
+        "fundo do layout, `aplicado` = quanto a barra desceu, `barraFundo` vs `vvH`/`innerH` = se ela "
+        "cabe. mic: `evento` = o que falhou.\n",
+        *linhas,
+    ]
 
 
 def main(argv=None) -> int:

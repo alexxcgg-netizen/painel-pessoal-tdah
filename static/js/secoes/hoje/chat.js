@@ -624,8 +624,9 @@ function criarGravacao(opcoes = {}) {
     silencioMs = 3000,
     esperaFalaMs = 12000,
     maxMs = MIC_MAX_MS,
-    contextoAudio = null,
+    contextoAudio: contextoInicial = null,
   } = opcoes;
+  let contextoAudio = contextoInicial;
   let stream = null;
   let rec = null;
   let fonte = null;
@@ -641,6 +642,9 @@ function criarGravacao(opcoes = {}) {
   // transcrever fora disso (gente conversando atras, TV)
   const trechosVoz = [];
   let vadAtivo = false;
+  // o detector recebeu algum som (nem que seja ruido)? Zeros puros = contexto de audio parado,
+  // nao silencio - ai a gravacao vale e vai pro servidor (que ja corta alucinacao do Whisper)
+  let somChegou = false;
   let nivelAtual = 0; // RMS suavizado - a onda da barra de gravacao le daqui
   let inicio = 0;
   let resolver;
@@ -666,7 +670,8 @@ function criarGravacao(opcoes = {}) {
       rec.stop(); // o "stop" abaixo solta o microfone e resolve
     } else {
       soltar();
-      resolver(null);
+      // mandou antes de o microfone abrir: avisa em vez de sumir calado
+      resolver(motivo === "fala" ? { curto: true } : null);
     }
   }
 
@@ -691,6 +696,13 @@ function criarGravacao(opcoes = {}) {
       let soma = 0;
       for (let i = 0; i < amostras.length; i++) soma += amostras[i] * amostras[i];
       const rms = Math.sqrt(soma / amostras.length);
+      if (rms > 0) somChegou = true;
+      // 2026-10-15: contexto de audio parado (iPhone deixa "interrupted" na volta do fundo) = o
+      // detector so le zeros. Tenta acordar; enquanto nao acordar, ele nao decide nada.
+      if (!somChegou) {
+        if (Date.now() - inicio > 1200 && contextoAudio.state !== "running") contextoAudio.resume().catch(() => {});
+        return;
+      }
       nivel = nivel ? nivel * 0.7 + rms * 0.3 : rms;
       nivelAtual = nivel;
       // piso comeca BAIXO (nao no 1o quadro): se o Alex ja comeca falando, a propria voz
@@ -737,11 +749,7 @@ function criarGravacao(opcoes = {}) {
   }
 
   async function iniciar() {
-    stream = await navigator.mediaDevices.getUserMedia({
-      // voiceIsolation: pedido ao navegador (ignorado onde nao existe) pra isolar a voz de quem
-      // esta perto do microfone
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, voiceIsolation: true },
-    });
+    stream = await _abrirMicrofone();
     if (resultado !== null) {
       // cancelada enquanto o iPhone ainda liberava o microfone
       soltar();
@@ -758,16 +766,25 @@ function criarGravacao(opcoes = {}) {
       soltar();
       if (resultado === null) resultado = "fala"; // parou sozinho (ex: iPhone interrompeu)
       const blob = new Blob(pedacos, { type: tipo });
-      // o detector rodou e nunca ouviu voz: nao manda (so silencio = Whisper inventa frase)
-      if (vadAtivo && falaDesdeMs === null) return resolver(resultado === "fala" ? { semVoz: true } : null);
+      const detectorOuviu = vadAtivo && somChegou;
+      if (vadAtivo && !somChegou) _diagMic("detector_surdo", { ctx: contextoAudio && contextoAudio.state, duracaoS, bytes: blob.size });
+      // o detector rodou, recebeu som e nunca ouviu voz: nao manda (so silencio = Whisper inventa frase)
+      if (detectorOuviu && falaDesdeMs === null) return resolver(resultado === "fala" ? { semVoz: true } : null);
+      if (resultado === "fala" && (!blob.size || duracaoS < 0.6)) {
+        _diagMic("curto", { duracaoS, bytes: blob.size, tipo });
+        return resolver({ curto: true });
+      }
       resolver(
-        resultado === "fala" && blob.size && duracaoS >= 0.6
+        resultado === "fala"
           ? {
               blob,
               duracaoS,
-              falaDesdeS: falaDesdeMs !== null ? falaDesdeMs / 1000 : null,
-              falaAteS: falaAteMs !== null ? falaAteMs / 1000 : null,
-              trechos: trechosVoz.slice(0, 200).map(([a, b]) => [+(a / 1000).toFixed(2), +(b / 1000).toFixed(2)]),
+              // detector surdo: sem marcas de onde teve voz (o servidor nao corta nada por elas)
+              falaDesdeS: detectorOuviu && falaDesdeMs !== null ? falaDesdeMs / 1000 : null,
+              falaAteS: detectorOuviu && falaAteMs !== null ? falaAteMs / 1000 : null,
+              trechos: detectorOuviu
+                ? trechosVoz.slice(0, 200).map(([a, b]) => [+(a / 1000).toFixed(2), +(b / 1000).toFixed(2)])
+                : [],
             }
           : null
       );
@@ -777,15 +794,113 @@ function criarGravacao(opcoes = {}) {
     limite = setTimeout(() => parar("fala"), maxMs);
     if (contextoAudio) {
       vadAtivo = true;
-      _vigiarSilencio();
+      try {
+        _vigiarSilencio();
+      } catch (e) {
+        // detector nao montou: grava sem ele (o toque para; nada e jogado fora)
+        vadAtivo = false;
+        clearInterval(tick);
+        _diagMic("detector_falhou", { erro: (e && e.name) || "Erro", ctx: contextoAudio.state });
+      }
     }
   }
 
-  return { iniciar, parar, pronto, nivel: () => nivelAtual, desde: () => inicio };
+  // usarContexto: o microfone do chat mostra a barra na hora e acorda o AudioContext em paralelo
+  const usarContexto = (ctx) => {
+    if (!vadAtivo) contextoAudio = ctx;
+  };
+  return { iniciar, parar, pronto, usarContexto, nivel: () => nivelAtual, desde: () => inicio };
 }
 
 // fracao do volume tipico da voz dele abaixo da qual o som conta como fundo (ver _vigiarSilencio)
 const VOZ_FRACAO_FUNDO = 0.22;
+
+// 2026-10-15 ("clico pra falar e as vezes nao sai"): no app da tela de inicio o iPhone as vezes
+// nao responde o pedido do microfone (a barra ficava em 0:00 pra sempre) ou recusa porque o
+// microfone ainda esta preso na gravacao/voz anterior. Prazo de 5 s; microfone ocupado = mais uma
+// tentativa depois de 400 ms; restricao que o aparelho nao aceita = tenta o pedido simples.
+const MIC_PRAZO_MS = 5000;
+const _AUDIO_IDEAL = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, voiceIsolation: true };
+
+function _comPrazo(promessa, ms) {
+  let id;
+  const prazo = new Promise((_, rejeitar) => {
+    id = setTimeout(() => {
+      const erro = new Error("o microfone nao respondeu");
+      erro.name = "PrazoMicrofone";
+      rejeitar(erro);
+    }, ms);
+  });
+  return Promise.race([promessa, prazo]).finally(() => clearTimeout(id));
+}
+
+async function _abrirMicrofone() {
+  const pedir = (audio) => {
+    const p = navigator.mediaDevices.getUserMedia({ audio });
+    return _comPrazo(p, MIC_PRAZO_MS).catch((e) => {
+      // se o microfone abrir DEPOIS do prazo, solta na hora (senao fica a bolinha laranja do iOS)
+      if (e && e.name === "PrazoMicrofone") p.then((s) => s.getTracks().forEach((t) => t.stop()), () => {});
+      throw e;
+    });
+  };
+  try {
+    return await pedir(_AUDIO_IDEAL);
+  } catch (e) {
+    const nome = (e && e.name) || "Erro";
+    if (nome === "NotAllowedError" || nome === "SecurityError" || nome === "PrazoMicrofone") throw e;
+    _diagMic("tentou_de_novo", { erro: nome });
+    if (nome === "NotReadableError" || nome === "AbortError") await new Promise((r) => setTimeout(r, 400));
+    return pedir(nome === "OverconstrainedError" || nome === "TypeError" ? true : _AUDIO_IDEAL);
+  }
+}
+
+function _diagMic(evento, dados = {}) {
+  if (typeof enviarDiagnostico !== "function") return;
+  if (!/iPhone|iPad|iPod/.test(navigator.userAgent || "")) return;
+  const ios = /OS (\d+)_(\d+)/.exec(navigator.userAgent || "");
+  enviarDiagnostico("mic", {
+    evento,
+    ios: ios ? `${ios[1]}.${ios[2]}` : "?",
+    app: window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true,
+    ...dados,
+  }, true);
+}
+
+// Mensagem certa pra cada jeito de o microfone falhar (antes: tudo virava "sem acesso").
+function _avisoFalhaMicrofone(erro) {
+  const nome = (erro && erro.name) || "Erro";
+  _diagMic("falhou", { erro: nome, msg: String((erro && erro.message) || "").slice(0, 60) });
+  if (nome === "NotAllowedError" || nome === "SecurityError") {
+    mostrarErro("Sem acesso ao microfone. Libera nos Ajustes do iPhone pro painel.");
+  } else if (nome === "PrazoMicrofone") {
+    mostrarErro("O microfone não respondeu. Toca de novo pra falar.");
+  } else {
+    mostrarErro("O microfone travou. Toca de novo pra falar.");
+  }
+}
+
+// AudioContext pronto pra medir a voz: o iPhone deixa "interrupted"/"suspended" na volta do
+// fundo (e as vezes "closed"). Acorda; se nao acordar, cria outro.
+async function _contextoAudioVivo(ctx) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  try {
+    if (!ctx || ctx.state === "closed") ctx = new Ctx();
+    if (ctx.state !== "running") {
+      await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 300))]);
+    }
+    if (ctx.state !== "running") {
+      try {
+        ctx.close();
+      } catch {}
+      ctx = new Ctx();
+      ctx.resume().catch(() => {});
+    }
+    return ctx;
+  } catch {
+    return null;
+  }
+}
 
 async function transcreverGravacao({ blob, duracaoS, falaDesdeS, falaAteS, trechos }, opcoes = {}) {
   const corpo = new FormData();
@@ -885,17 +1000,9 @@ function initGravadorChat(micBtn) {
   }
 
   async function comecar() {
-    // o detector de voz (mesmo do modo conversa) mede onde teve fala e da o nivel da onda
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (Ctx && !ctxAudio) {
-      try {
-        ctxAudio = new Ctx();
-      } catch {
-        ctxAudio = null;
-      }
-    }
-    if (ctxAudio && ctxAudio.state === "suspended") ctxAudio.resume().catch(() => {});
-    const gravacao = criarGravacao({ maxMs: MIC_MAX_MS, contextoAudio: ctxAudio });
+    // a voz da IA falando segura o audio do iPhone em modo "tocar" - microfone abre mudo
+    if (typeof pararVoz === "function") pararVoz();
+    const gravacao = criarGravacao({ maxMs: MIC_MAX_MS, contextoAudio: null });
     atual = gravacao;
     mostrarBarra(true);
     vibrar(12);
@@ -903,13 +1010,17 @@ function initGravadorChat(micBtn) {
       if (atual === gravacao) atual = null;
       mostrarBarra(false);
       if (gravado && gravado.semVoz) avisoBreve("Não ouvi nada - tenta de novo");
+      else if (gravado && gravado.curto) avisoBreve("Gravou muito pouco - tenta de novo");
       else if (gravado) enviarAudio(gravado);
     });
+    // o detector de voz (mesmo do modo conversa) mede onde teve fala e da o nivel da onda
+    ctxAudio = await _contextoAudioVivo(ctxAudio);
+    gravacao.usarContexto(ctxAudio);
     try {
       await gravacao.iniciar();
-    } catch {
+    } catch (e) {
       gravacao.parar("cancelada");
-      mostrarErro("Sem acesso ao microfone. Libera nos Ajustes do iPhone pro painel.");
+      _avisoFalhaMicrofone(e);
     }
   }
 

@@ -109,9 +109,10 @@ function _conversaSinal(subindo) {
 // ter falado; {semVoz} se o limite de 90s passou sem voz; null se a conversa foi encerrada no meio.
 // `sinal`: o "pode falar" so toca quando e a vez dele de verdade - nao a cada 90s de silencio.
 async function _conversaOuvirUmaFala(sinal = true) {
-  if (Conversa.ctx.state === "suspended") {
+  // "interrupted" (iPhone na volta do fundo) tambem para o detector - nao so "suspended"
+  if (Conversa.ctx.state !== "running") {
     try {
-      await Conversa.ctx.resume();
+      await Promise.race([Conversa.ctx.resume(), new Promise((r) => setTimeout(r, 300))]);
     } catch {}
   }
   const gravacao = criarGravacao({
@@ -124,9 +125,9 @@ async function _conversaOuvirUmaFala(sinal = true) {
   Conversa.gravacao = gravacao;
   try {
     await gravacao.iniciar();
-  } catch {
+  } catch (e) {
     gravacao.parar("cancelada");
-    mostrarErro("Sem acesso ao microfone. Libera nos Ajustes do iPhone pro painel.");
+    _avisoFalhaMicrofone(e);
     return null;
   }
   if (Conversa.ativa) {
@@ -144,8 +145,8 @@ async function _conversaLaco() {
     const fala = await _conversaOuvirUmaFala(sinal);
     if (!Conversa.ativa || !fala) break;
     // barulho sem voz / 90s calado: volta a ouvir em silencio, sem mandar nada nem tocar o sinal
-    sinal = !fala.semVoz;
-    if (fala.semVoz) continue;
+    sinal = !fala.semVoz && !fala.curto;
+    if (fala.semVoz || fala.curto) continue;
 
     _conversaEstado("pensando");
     // limpar: tira muleta/autocorrecao e frase solta de outra pessoa no fundo (ia/funcoes/fala.py)

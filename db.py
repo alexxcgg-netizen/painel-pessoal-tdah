@@ -800,6 +800,16 @@ def init_db():
     # Fase 6 (US-E3): botao "Desperta voce" do card de lembrete (push no
     # horario do lembrete - ver notificacoes.lembretes_para_despertar).
     _garantir_coluna(conn, "lembretes", "despertar", "INTEGER NOT NULL DEFAULT 0")
+    # 2026-10-15: medidas reais do aparelho (tela/barra de abas, microfone) pra parar de chutar
+    # bug de iPhone sem iPhone - rotas/diagnostico.py grava, scripts/ler_chat.py mostra.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS diagnostico_cliente (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            dados_json TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+        )"""
+    )
     # Fase 6 (US-E1a): unificacao das duas secoes de manutencao - colunas
     # novas em bancos que ainda tem o `manutencoes` de 5 colunas (ver
     # _migrar_manutencoes_unificadas logo abaixo pra copia dos dados de

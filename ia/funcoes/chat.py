@@ -97,6 +97,25 @@ compromissos do dia em mensagens separadas e fora de ordem (ex: primeiro "hoje a
 depois "hoje as 13h consulta"). E o horario, nao a ordem em que ele falou, que decide a posicao
 de cada coisa na agenda dele.
 
+HORARIO QUE ELE NAO DISSE: se ele pedir pra voce escolher ("tu me diz", "encaixa", "voce escolhe",
+"bota num horario bom") ou mandar marcar algo sem hora, NAO pergunte "qual horario?" - escolha voce
+um horario que caiba (`sugerir_horario_livre` ajuda), grave com ele e diga numa frase que da pra
+mudar ("botei as 15h, se quiser outro horario e so falar"). Hora de voo e de compromisso com outra
+pessoa continuam sendo dele: essas voce pergunta. Tarefa solta, sem pedido de marcar ("preciso
+comprar leite"), segue sem hora mesmo.
+
+PERGUNTA UMA VEZ SO: se voce perguntou algo (o valor de um Pix, um horario) e ele respondeu falando
+de OUTRA coisa, resolva o que ele disse agora e deixe a pergunta de lado - nao repita a mesma
+pergunta na resposta seguinte. Ele volta no assunto quando quiser.
+
+VIRADA DO DIA: perto da meia-noite, tarefa que ele registrou "hoje" antes das 00h ficou no dia
+anterior - ela nao sumiu nem "deixou de ser salva"; se ele perguntar, `consultar_*` do dia certo
+antes de dizer qualquer coisa. Compromisso de ontem (date, buscar alguem) nao vira compromisso de hoje.
+
+NUMERO NO TEXTO E SEMPRE EM ALGARISMO ("sala 12", "R$ 120", "3 copos", "14h30"), inclusive em
+titulo de tarefa - mesmo que a fala transcrita do audio tenha vindo por extenso ("sala doze" vira
+"sala 12"). Quem transforma numero em fala e o proprio app, na hora de ler em voz alta.
+
 A linha "Localização atual" do contexto (quando existe) vem do GPS do celular dele - e onde ele
 esta de verdade; sem ela, nao presuma onde ele esta. A linha "Agora:" do contexto e a hora exata de Brasilia - use ela pra "daqui a pouco", "hoje a
 noite", "quanto falta". Pergunta de tempo/chuva -> `consultar_clima`; tempo PRA VOAR (voo hoje/amanha,
@@ -2057,6 +2076,8 @@ Voce NAO tem ferramentas aqui. Se a mensagem pedir para registrar, marcar, agend
 mudar qualquer coisa no painel (tarefa, gasto, renda, meta, voo, habito, remedio, nota, lembrete,
 projeto, agenda, saldo), ou se voce precisar de um dado que nao esta no contexto, responda
 exatamente {marcador} e nada mais.
+
+Numero no texto sempre em algarismo ("sala 12", "R$ 120"), nunca por extenso - o app converte na voz.
 
 Coisas duraveis que voce sabe sobre o Alex:
 {memorias}"""

@@ -233,9 +233,15 @@ if (window.visualViewport) {
 // foco e sem zoom; tudo certo = 0 e nada muda.
 // 3a camada (2026-10-14, print do Alex com a barra cortada pela metade): no app da tela de
 // inicio o fundo visivel fica SEMPRE ~34pt (faixa da barrinha do iPhone) abaixo do fundo do
-// layout - isso e o normal dele, nao o bug. Conta so o que passar do MENOR desvio visto
-// (a linha de base); girar a tela zera a base.
-let _desvioBase = null;
+// layout - isso e o normal dele, nao o bug.
+// 4a camada (2026-10-15, "ainda aparece pela metade"): a 3a usava o MENOR desvio ja visto como
+// normal - se a 1a medida saia 0 (iOS ainda se arrumando ao abrir) e depois vinha os 34 normais,
+// a barra descia 34px = metade dela. Agora o normal e o ultimo desvio PEQUENO medido, e so desvio
+// GRANDE (teclado preso, centenas de px) mexe nas pecas. Folga pequena nunca desce a barra.
+const _DESVIO_PEQUENO = 60; // ate isso e folga da barrinha/barra do navegador, nunca o bug
+const _DESVIO_MINIMO_BUG = 48; // o bug do teclado preso e sempre bem maior que isso
+let _desvioNormal = 0;
+let _ultimoDesvio = { bruto: 0, aplicado: 0 };
 function _medirDesvioTela() {
   const vv = window.visualViewport;
   if (!vv) return;
@@ -244,18 +250,63 @@ function _medirDesvioTela() {
   const fundoVisivel = vv.offsetTop + vv.height;
   const fundoLayout = document.documentElement.clientHeight;
   let desvio = 0;
+  let bruto = 0;
   if (!digitando && vv.scale <= 1.01) {
-    const bruto = Math.max(0, Math.round(fundoVisivel - fundoLayout));
-    _desvioBase = _desvioBase === null ? bruto : Math.min(_desvioBase, bruto);
-    desvio = bruto - _desvioBase;
+    bruto = Math.max(0, Math.round(fundoVisivel - fundoLayout));
+    if (bruto <= _DESVIO_PEQUENO) _desvioNormal = bruto;
+    const resto = bruto - _desvioNormal;
+    desvio = resto >= _DESVIO_MINIMO_BUG ? resto : 0;
   }
-  // abaixo de 2px e arredondamento de barra do navegador, nao o bug
-  document.documentElement.style.setProperty("--vv-desvio", `${desvio > 2 ? desvio : 0}px`);
+  _ultimoDesvio = { bruto, aplicado: desvio };
+  document.documentElement.style.setProperty("--vv-desvio", `${desvio}px`);
+  if (desvio) _retratoTela("desvio");
 }
 window.addEventListener("orientationchange", () => {
-  _desvioBase = null;
+  _desvioNormal = 0;
   setTimeout(_medirDesvioTela, 400);
 });
+
+// Retrato da tela pro diagnostico (rotas/diagnostico.py): so no iPhone/iPad, onde o bug mora.
+// Onde a barra de abas esta de verdade x o que o iOS diz da tela - se ela voltar a aparecer pela
+// metade, o numero ja esta la em vez de chute.
+const _EH_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent || "");
+function _retratoTela(motivo) {
+  if (!_EH_IOS || typeof enviarDiagnostico !== "function") return;
+  try {
+    const vv = window.visualViewport;
+    const barra = document.getElementById("tabbar");
+    const r = barra ? barra.getBoundingClientRect() : null;
+    const ios = /OS (\d+)_(\d+)/.exec(navigator.userAgent || "");
+    const sonda = document.createElement("div");
+    sonda.style.cssText = "position:fixed;left:0;top:0;width:0;padding-bottom:env(safe-area-inset-bottom);padding-top:env(safe-area-inset-top);visibility:hidden;pointer-events:none";
+    document.body.appendChild(sonda);
+    const cs = getComputedStyle(sonda);
+    const seguraBaixo = parseFloat(cs.paddingBottom) || 0;
+    const seguraTopo = parseFloat(cs.paddingTop) || 0;
+    sonda.remove();
+    enviarDiagnostico("tela", {
+      motivo,
+      ios: ios ? `${ios[1]}.${ios[2]}` : "?",
+      app: window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true,
+      innerH: window.innerHeight,
+      outerH: window.outerHeight,
+      telaH: window.screen ? window.screen.height : null,
+      clientH: document.documentElement.clientHeight,
+      vvH: vv ? Math.round(vv.height * 10) / 10 : null,
+      vvTopo: vv ? Math.round(vv.offsetTop * 10) / 10 : null,
+      vvEscala: vv ? Math.round(vv.scale * 100) / 100 : null,
+      seguraBaixo,
+      seguraTopo,
+      bruto: _ultimoDesvio.bruto,
+      aplicado: _ultimoDesvio.aplicado,
+      normal: _desvioNormal,
+      barraTopo: r ? Math.round(r.top) : null,
+      barraFundo: r ? Math.round(r.bottom) : null,
+      barraAltura: r ? Math.round(r.height) : null,
+      aba: (document.querySelector(".tab-btn.active") || {}).dataset?.tab || null,
+    }, motivo === "abriu");
+  } catch {}
+}
 if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", _medirDesvioTela);
   window.visualViewport.addEventListener("scroll", _medirDesvioTela);
@@ -265,8 +316,10 @@ if (window.visualViewport) {
     if (document.hidden) return;
     // o iOS termina de se arrumar em tempos diferentes na volta: mede algumas vezes
     [0, 350, 900].forEach((ms) => setTimeout(_medirDesvioTela, ms));
+    setTimeout(() => _retratoTela("voltou"), 1000);
   });
   _medirDesvioTela();
+  setTimeout(() => _retratoTela("abriu"), 1500);
 }
 
 document.addEventListener("visibilitychange", () => {

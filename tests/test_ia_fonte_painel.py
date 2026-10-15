@@ -57,6 +57,15 @@ class PromptsTestCase(unittest.TestCase):
         self.assertIn("`consultar_*`", chat_mod.CHAT_SYSTEM_PROMPT)
         self.assertIn("Isso nao ta no painel", chat_mod.CHAT_SYSTEM_PROMPT)
 
+    def test_regras_lidas_no_chat_do_alex(self):
+        # 2026-10-15 (docs/briefings/2026-10-15-voz-barra-chat.md): horario escolhido pela IA,
+        # pergunta uma vez so, virada do dia, numero em algarismo
+        p = chat_mod.CHAT_SYSTEM_PROMPT
+        for trecho in ("HORARIO QUE ELE NAO DISSE", "PERGUNTA UMA VEZ SO", "VIRADA DO DIA",
+                       "NUMERO NO TEXTO E SEMPRE EM ALGARISMO"):
+            self.assertIn(trecho, p)
+        self.assertIn("algarismo", chat_mod.CHAT_SIMPLES_PROMPT)
+
     def test_simples_reforca_marcador_para_periodo_nao_coberto(self):
         p = chat_mod.CHAT_SIMPLES_PROMPT
         self.assertIn("periodo passado ou futuro", p)

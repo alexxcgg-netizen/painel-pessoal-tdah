@@ -1779,9 +1779,26 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
     edicoes: list[dict] = []
     pos_edicoes = None
     vistos_consulta: set = set()
+    # 2026-10-15 (lido no chat): "tomei 4 copos" virava 4 cards iguais (cada um ja com o total) -
+    # vira UM card, com um Desfazer pros 4.
+    aguas: list[dict] = []
+    pos_agua = None
+    # sugestao de horario e rascunho: se a mesma resposta ja gravou o horario de verdade (tarefa
+    # criada/editada), o card da sugestao contradizia o que ficou ("15:00" x 9h45 marcado)
+    gravou_horario = any(
+        e.get("entidade") in ("edicao", "tarefa") and not e.get("consulta") for e in efeitos
+    )
     for ef in efeitos:
         entidade = ef.get("entidade")
         id_ = ef.get("id")
+        if entidade == "sugestao" and gravou_horario:
+            continue
+        if entidade == "hidratacao" and not ef.get("consulta"):
+            if pos_agua is None:
+                pos_agua = len(saida)
+                saida.append(None)
+            aguas.append(ef)
+            continue
         if _e_conclusao(ef):
             card = card_tarefa_feita(conn, id_, _acoes_desfazer(criar_token, [ef]))
             if card:
@@ -1837,6 +1854,8 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
         saida[pos_tarefas] = card
     if pos_edicoes is not None:
         saida[pos_edicoes] = card_edicao(edicoes, _acoes_desfazer(criar_token, edicoes))
+    if pos_agua is not None:
+        saida[pos_agua] = card_agua(conn, actions_extra=_acoes_desfazer(criar_token, aguas))
     saida = [c for c in saida if c]
     return saida
 

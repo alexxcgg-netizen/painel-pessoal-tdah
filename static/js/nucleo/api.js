@@ -198,3 +198,21 @@ function _avisarTarefaMudou(url, metodo) {
   if (!m) return;
   document.dispatchEvent(new CustomEvent("tarefa:mudou", { detail: { id: m[1], concluida: m[2] === "complete" } }));
 }
+
+// Diagnostico do aparelho (2026-10-15): bug de iPhone (barra pela metade, microfone que nao grava)
+// era corrigido no chute. Manda um retrato curto (so numeros/nome de erro) pra /api/diagnostico;
+// o Claude le pelo scripts/ler_chat.py. Silencioso: nunca mostra erro, no maximo 1 por tipo/20 s.
+const _diagnosticoUltimo = {};
+function enviarDiagnostico(tipo, dados, forcar = false) {
+  try {
+    const agora = Date.now();
+    if (!forcar && agora - (_diagnosticoUltimo[tipo] || 0) < 20000) return;
+    _diagnosticoUltimo[tipo] = agora;
+    fetch("/api/diagnostico", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo, dados }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
+}

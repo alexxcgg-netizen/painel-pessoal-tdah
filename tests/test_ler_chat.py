@@ -93,6 +93,20 @@ class LerChatTestCase(unittest.TestCase):
         self.assertIn("qui 01/10/2026", texto)
         self.assertIn("[número oculto]", texto)
 
+    def test_mostra_o_diagnostico_do_aparelho(self):
+        conn = db.get_db()
+        conn.execute(
+            "INSERT INTO diagnostico_cliente (tipo, dados_json, criado_em) VALUES ('mic', ?, ?)",
+            ('{"evento": "detector_surdo", "ctx": "interrupted"}', _utc(2026, 10, 14, 22, 0)),
+        )
+        conn.commit()
+        conn.close()
+        conn = ler_chat.abrir_so_leitura(db.DB_PATH)
+        texto, _ = ler_chat.montar_copia(conn, date(2026, 10, 14), date(2026, 10, 14))
+        conn.close()
+        self.assertIn("## Diagnóstico do aparelho", texto)
+        self.assertIn("- 14/10 22:00 **mic**: evento=detector_surdo · ctx=interrupted", texto)
+
     def test_periodo_vazio(self):
         conn = ler_chat.abrir_so_leitura(db.DB_PATH)
         texto, _ = ler_chat.montar_copia(conn, date(2025, 1, 1), date(2025, 1, 2))

@@ -90,6 +90,12 @@ nas mensagens que parecem correção. Abre o banco **só pra leitura**; número 
 `[oculto]`. É o que a habilidade `.claude/skills/ler-chat` usa pra entender o que o Alex pede e o que
 não gosta - pedido dele, a conversa fica entre ele e o Claude.
 
+No fim da cópia vem "Diagnóstico do aparelho": medidas que o próprio app manda pra
+`POST /api/diagnostico` (`rotas/diagnostico.py`, tabela `diagnostico_cliente`, últimas 500 linhas,
+só número/texto curto, nunca conteúdo). `tela` = posição da barra de abas no iPhone (ao abrir e ao
+voltar do segundo plano, e quando ela é empurrada); `mic` = falha do microfone (não abriu, travou,
+detector de voz surdo, gravação curta). Serve pra achar bug que só acontece no aparelho dele.
+
 ## Funcionalidades (v1)
 
 - **Chat**: a aba Hoje e uma conversa com tool-use - fala o que quiser e a IA decide se registra tarefa/gasto/meta, gera o plano do dia, ou so responde (ver secao "Chat" abaixo)

@@ -309,12 +309,11 @@ class DesfazerTestCase(_Base):
         self.assertEqual(self.client.post(f"/api/desfazer/{token}").status_code, 200)
         self.assertEqual(self.client.post(f"/api/desfazer/{token}").status_code, 409)
 
-    def test_dois_copos_geram_dois_cards_com_desfazer_independente(self):
-        """"tomei 2 copos" vira 2 efeitos `hidratacao` - cards.py monta 1
-        card por efeito (nao agrupa hidratacao como agrupa tarefa), entao
-        cada copo tem o proprio Desfazer, igual um brain dump normal
-        (docs/CARDS.md: "cards diferentes da mesma resposta tem tokens
-        independentes")."""
+    def test_varios_copos_viram_um_card_com_um_desfazer(self):
+        """"tomei 2 copos" vira 2 efeitos `hidratacao`. Antes saia 1 card por
+        efeito - "tomei 4 copos" mostrava 4 cards iguais (cada um ja com o
+        total), lido no chat do Alex em 2026-10-15. Agora 1 card so, como
+        tarefas criadas juntas, e o Desfazer tira os copos daquela fala."""
         conn = db.get_db()
         resultado = classificador_local.casar("tomei 2 copos")
         env = classificador_local.executar(conn, resultado, app._criar_token_desfazer(conn))
@@ -323,14 +322,13 @@ class DesfazerTestCase(_Base):
 
         self.assertEqual(self.contar_registros_hoje(), 2)
         cards_saude = [c for c in env["cards"] if c["type"] == "agua"]
-        self.assertEqual(len(cards_saude), 2)
+        self.assertEqual(len(cards_saude), 1)
+        self.assertEqual(cards_saude[0]["data"]["copos"], 2)
         tokens = [a["token"] for c in cards_saude for a in c["actions"] if a.get("tipo") == "desfazer"]
-        self.assertEqual(len(tokens), 2)
-        self.assertEqual(len(set(tokens)), 2)  # tokens distintos
+        self.assertEqual(len(tokens), 1)
 
-        # desfaz so o primeiro - o segundo continua registrado
         self.assertEqual(self.client.post(f"/api/desfazer/{tokens[0]}").status_code, 200)
-        self.assertEqual(self.contar_registros_hoje(), 1)
+        self.assertEqual(self.contar_registros_hoje(), 0)
 
 
 class IntegracaoChatTestCase(_Base):

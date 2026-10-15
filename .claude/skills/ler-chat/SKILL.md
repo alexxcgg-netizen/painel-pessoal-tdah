@@ -20,6 +20,11 @@ entender melhor o que ele gosta e o que não gosta. A conversa é só entre ele 
    repetir, padrões (ex.: prefere que a IA escolha o horário), bugs vistos (card duplicado, card
    que contradiz o texto, ferramenta que falta). Separar "já corrigido" de "ainda acontece"
    conferindo no código antes de afirmar.
+4. Se ele reclamar de barra de abas cortada ou microfone que falha: olhar a seção final
+   "Diagnóstico do aparelho" (medidas reais do iPhone, `rotas/diagnostico.py`). `tela`: `bruto`
+   vs `normal`/`aplicado` diz se a barra foi empurrada e quanto; `barraFundo` maior que `vvH`/
+   `innerH` = barra saindo da tela. `mic`: `evento` diz o que falhou (`falhou` com o nome do erro,
+   `tentou_de_novo`, `detector_surdo`, `detector_falhou`, `curto`).
 
 ## Regras
 - A cópia tem coisa pessoal (endereços, nomes, saúde, dinheiro): fica só em `data/` (gitignored).

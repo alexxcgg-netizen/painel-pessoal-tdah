@@ -5,6 +5,33 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-15 - Microfone, barra de abas e o que o chat mostrou (SW v81)
+
+Leva feita a partir de briefing próprio (`docs/briefings/2026-10-15-voz-barra-chat.md`), depois do
+Alex reclamar que o áudio às vezes não sai / não escuta nada e que a barra de abas ainda aparece pela
+metade. A "lista solta" que ele não tinha dito era o eco do Whisper, já corrigido em 2026-10-11
+(`tirar_eco_do_prompt`).
+- **Microfone**: `getUserMedia` com prazo de 5 s e uma nova tentativa (`_abrirMicrofone`; espera
+  400 ms se o aparelho disse que está ocupado, pede `{audio: true}` simples se a restrição falhou);
+  a voz da IA para antes de gravar; a barra de gravação aparece na hora e o `AudioContext` é
+  acordado/recriado depois (`_contextoAudioVivo`). Detector de voz "surdo" (contexto `interrupted`,
+  RMS sempre 0) não joga mais o áudio fora - manda inteiro, sem corte de silêncio. Gravação vazia ou
+  < 0,6 s avisa "Gravou muito pouco - tenta de novo" em vez de sumir. Falha mostra aviso claro
+  ("O microfone não respondeu/travou. Toca de novo pra falar."). Mesmo tratamento no modo conversa.
+- **Barra de abas**: a correção do teclado/volta do segundo plano usava o *menor* desvio visto como
+  base - uma primeira medida 0 seguida da folga normal (~34 px) empurrava a barra pra baixo. Agora a
+  base é o último desvio pequeno (≤ 60 px) e só desvio ≥ 48 px acima dela mexe na barra.
+- **Diagnóstico do aparelho**: `POST /api/diagnostico` (`rotas/diagnostico.py`, tabela
+  `diagnostico_cliente`, só número/texto curto, últimas 500) - o iPhone manda medidas da tela ao
+  abrir/voltar e as falhas do microfone; `scripts/ler_chat.py` mostra no fim da cópia. Pra próxima
+  vez que a barra ou o mic falharem, os números reais estão lá.
+- **Cards**: vários copos de água na mesma fala viram 1 card com 1 Desfazer pra todos; card de
+  sugestão de horário some quando a mesma resposta já gravou o horário (não contradiz mais).
+- **Prompt do chat**: sem horário dito (ou "tu me diz"/"encaixa") a IA escolhe e diz que dá pra
+  mudar (voo e compromisso com outra pessoa continuam perguntando); pergunta pendente não se repete
+  quando ele muda de assunto; virada do dia (tarefa de antes da meia-noite não "sumiu", compromisso de
+  ontem não vale hoje); número no texto sempre em algarismo, inclusive título vindo de áudio.
+
 ## 2026-10-15 - 4ª leva: mais automação (véspera do voo, despertador, aeroclube, compras, documentos, projeção)
 
 Leva feita de uma vez a partir de briefing próprio (`docs/briefings/2026-10-15-4a-leva.md`) - ideias
