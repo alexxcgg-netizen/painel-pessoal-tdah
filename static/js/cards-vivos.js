@@ -257,7 +257,9 @@
       `<text x="16" y="114">0 h</text><text x="344" y="12" text-anchor="end">${bateu ? `meta ${metaDef} h batida` : `meta ${metaH} h${data.meta_definida ? "" : "*"}`}</text></svg>` +
       (barras ? `<div class="vivo-barras">${barras}</div>` : "") +
       (anvs ? `<div class="vivo-anvs">${anvs}</div>` : "") +
-      `<p class="vivo-nota">${nota}${data.meta_definida ? "" : `${nota ? " · " : ""}*meta de exemplo: diga “minha meta é 150 horas”`}</p>`
+      `<p class="vivo-nota">${nota}${data.meta_definida ? "" : `${nota ? " · " : ""}*meta de exemplo: diga “minha meta é 150 horas”`}</p>` +
+      // 4a leva: "quando chego na meta" (cards-aviacao.js; carregado depois, mas render e na hora do uso)
+      (raiz.CardsAviacao && typeof raiz.CardsAviacao.projecaoHTML === "function" ? raiz.CardsAviacao.projecaoHTML(data.projecao) : "")
     );
   });
 
@@ -1120,6 +1122,8 @@
     if (!raizEl || !raizEl.querySelectorAll) return;
     // cards de aviacao (voo_agendado) tem o proprio motor em cards-aviacao.js
     if (raiz.CardsAviacao && typeof raiz.CardsAviacao.preparar === "function") raiz.CardsAviacao.preparar(raizEl);
+    // 4a leva: o que ja foi respondido nos cards de automacao (cards-automacao.js)
+    if (raiz.CardsAutomacao && typeof raiz.CardsAutomacao.preparar === "function") raiz.CardsAutomacao.preparar(raizEl);
     raizEl.querySelectorAll('[data-vivo="voo"]').forEach((svg) => {
       vooMarcos(svg);
       vooPosicionar(svg, Math.min(1, +svg.dataset.total / (+svg.dataset.meta * 60)));

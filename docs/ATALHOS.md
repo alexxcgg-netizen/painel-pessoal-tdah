@@ -72,6 +72,42 @@ mostra nada.
 
 Pra encher a lista, basta falar no chat: "acabou o café e o arroz".
 
+## 2b. Aeroclube: chegou / saiu (4ª leva, 2026-10-15)
+
+Só faz algo **em dia de voo** (voo de hoje ainda sem horas lançadas); nos outros dias a resposta
+vem vazia e o Atalho fica quieto.
+- **Chegou:** "Chegou no aeroclube. Decola 08:00. Confere: CIV e CMA, fone (headset), carta WAC...
+  Bom voo!" (também aparece no chat). Uma vez por voo.
+- **Saiu depois da hora de decolar:** "Quanto deu o voo?" — o card de horas com 1 toque chega no
+  chat na hora (sem esperar o horário estimado de pouso). Saiu antes de decolar = silêncio.
+
+1. Automação → **Chegar** → local: o aeroclube (SSBL). Mesmas ações do item 1, com `evento` =
+   `chegou`, `lugar` = `aeroclube` e sem bateria.
+2. Outra automação → **Sair** do mesmo local, com `evento` = `saiu`.
+
+## 2c. Despertador que se ajusta (4ª leva, 2026-10-15)
+
+Todo dia às 22h o Atalho pergunta ao painel a que horas você precisa acordar amanhã (primeiro
+compromisso **com hora** — voo ou tarefa — menos o trajeto e o tempo de se arrumar) e cria o alarme.
+Sem nada com hora amanhã, não mexe em nada.
+
+1. Automação → **Hora do Dia** → 22:00, diariamente. Marque **Executar Imediatamente**.
+2. Ações:
+   1. **Obter Conteúdo de URL** → `https://SEU-DOMINIO/api/atalho/despertador?ate=07:00`
+      - **Método: GET** (não precisa de corpo), cabeçalho `X-Webhook-Token` igual aos outros.
+      - `ate` = seu horário normal de acordar: se não precisar levantar antes disso, a resposta
+        vem `tem: false`. Pode tirar o `?ate=...` pra sempre receber a hora.
+   2. **Obter Valor do Dicionário** → chave `tem`.
+   3. **Se** *Valor do Dicionário* **é** `1` (verdadeiro):
+      1. **Obter Valor do Dicionário** → chave `acordar` (ex.: `06:15`) do resultado da ação 1.
+      2. **Criar Alarme** → hora = *Valor do Dicionário*, rótulo "Painel".
+      3. (opcional) **Mostrar Notificação** com a chave `mensagem` ("Despertador às 06:15: o voo às
+         08:00, sai 07:00.").
+   4. **Fim do Se**.
+
+Depois da meia-noite (até as 4h) o mesmo endereço olha o próprio dia, então rodar o Atalho de
+madrugada também funciona.
+
 ## 3. Uso do celular: quanto tempo em cada app
 
 A Apple **não deixa o Atalhos ler o Tempo de Uso** (Screen Time). O jeito é registrar quando o

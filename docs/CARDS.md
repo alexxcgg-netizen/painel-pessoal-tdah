@@ -537,3 +537,28 @@ depois vem de `/api/tasks/estado` (`extras`) → `CardsSaidas.aplicarEstado`.
 Aprovado/decidido nessa leva (vetável): volta padrão **dirigindo**; recibo dos passos fica dentro
 da bolha acima do texto; previsão só dentro de 30 h; estimativa de horas = rota + 12 min de
 motor; presente vira anual sozinho pelo título.
+
+### O que já está no app (4ª leva, 2026-10-15 - `docs/briefings/2026-10-15-4a-leva.md`)
+Automações: o assistente puxa o assunto sozinho no chat (`conversa_proativa.verificar`, tick de
+5 min) e o card traz o próximo passo num toque. Front em `static/js/cards-automacao.js` (+ véspera e
+projeção em `cards-aviacao.js`), CSS em `secoes/hoje/cards-automacao.css` (reusa `.sd-linha`,
+`.sd-check`, `.sd-status` dos compromissos).
+
+| Cena | Onde | Dado |
+| :--- | :--- | :--- |
+| Véspera do voo | type `vespera_voo` (`cards.card_vespera_voo`; `conversa_proativa.vespera_do_voo`, 20h-23h30 do dia anterior, só voo **com hora** e sem horas) | `data`: `id, data, hora, rota\|null, icao, acordar, sair, chegar, pouso, trajeto_min, arrumar_min, antecedencia_min, mochila[{texto, feito}]`. "Acorda HH:MM" grande, linha acorda → sai → chega → decola, folgas numa linha, slot do TAF (mesmo do `voo_agendado`) e mochila (`cards.MOCHILA_VOO` = CIV e CMA + `vida.CHECKLIST_PRE_VOO`) → `GET/POST /api/voos/<id>/mochila {i, feito}`. |
+| Manhã do voo | `briefing_voo` existente (`conversa_proativa.manha_do_voo`) | A partir de max(06:30, sair − 1h30) e antes de decolar: "Bom dia! Voo hoje às H. Sai às S..." + METAR. Push "Voo hoje". |
+| Documento vencendo | type `documento_validade` (`conversa_proativa.documentos_vencendo`, 9h-21h) | `data`: `id, titulo, vence, dias, marco (60/30/7), recorrente`. Carteirinha com anel da contagem (`dias/60`), marcos 60·30·7, cor muda (folga teal → atenção amarelo → urgente coral). "Me lembra de agendar amanhã" → `POST /api/tasks`. Front recalcula `dias` com o relógio (histórico). |
+| Compras que acabam | type `compras_previsao` (`conversa_proativa.avisar_compras`, 1×/dia 9h-21h) | `data.itens[≤4]`: `item, chave, intervalo_dias, ultima, prevista, dias`. Barra do ciclo, "Pôr na lista" (`POST /api/compras`) / "Ainda tem" (`POST /api/compras/adiar {item}` → `{ate}`). |
+| Assinatura mais cara | type `assinatura_subiu` (`conversa_proativa.assinaturas_que_subiram`; o push antigo continua) | `data`: `descricao, categoria, de, para, pct` (sensíveis: `de/para/pct` somem no visitante → `oculto`). Preço velho riscado → novo, `+N%`, "Mantém" / "Me lembra de cancelar" (`POST /api/tasks`). |
+| Projeção das horas | `projecao` em `voo_resumo`, `voo_agendado`, `voo_horas` (`cards.projecao_horas`) | `{ritmo_h_semana, voos_semana, horas_por_voo, falta_h, meta_horas, data_meta, data_meta_mais_um, janela_dias}` ou `null`. Linha `.va-proj` ("No ritmo dos últimos 2 meses (X h/semana), os 150 h chegam lá por mai 2027. Com 1 voo a mais por semana: fev 2027."). |
+
+O que ele já respondeu num card de automação (tarefa criada, item na lista, "ainda tem", "mantém")
+fica guardado no aparelho (`localStorage` `cards-automacao-feito`, só conveniência) pra o histórico
+não oferecer o mesmo botão de novo.
+
+Aprovado/decidido nessa leva (vetável): véspera só pra voo com hora, às 20h; manhã a partir de
+max(06:30, sair − 1h30); push antigo "Voo amanhã/Pre-voo" só pra voo sem hora; CIV e CMA na mochila;
+documentos em 60/30/7 (substitui o aviso único de 8-30 dias); compras com 3+ compras e intervalo
+regular de 3-120 dias, avisa ≤ 3 dias antes e larga se passou mais de meio ciclo; "ainda tem" adia
+meio ciclo; projeção pelos últimos 60 dias, data acima de 5 anos não aparece.

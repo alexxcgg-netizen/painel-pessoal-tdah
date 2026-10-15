@@ -339,6 +339,49 @@
     return ms > -3600000 && ms <= JANELA_TAF_H * 3600000;
   }
 
+  // ================================================================ projecao
+  // "Quando eu chego na meta?" (4a leva, cards.projecao_horas): ritmo dos ultimos 2 meses e o
+  // cenario de 1 voo a mais por semana. Conta pura do historico - o servidor manda null quando nao
+  // tem voo recente ou a meta ja foi batida, e aqui nao aparece nada.
+  const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  const ICONE_PROJ =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>';
+  function mesAno(iso) {
+    const d = Cards.parseDia(iso);
+    return d ? `${MESES_CURTOS[d.getMonth()]} ${d.getFullYear()}` : ""; // nbsp: "mai 2027" nao quebra
+  }
+  function partesProjecao(p) {
+    if (!p || typeof p !== "object" || !numeroValido(p.ritmo_h_semana) || !numeroValido(p.meta_horas)) return null;
+    const meses = Math.max(1, Math.round((numeroValido(p.janela_dias) ? p.janela_dias : 60) / 30));
+    const ritmo = Number(p.ritmo_h_semana).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+    const quando = p.data_meta ? mesAno(p.data_meta) : "";
+    const mais = p.data_meta_mais_um && p.data_meta_mais_um !== p.data_meta ? mesAno(p.data_meta_mais_um) : "";
+    return {
+      base: `No ritmo dos últimos ${meses} ${meses === 1 ? "mês" : "meses"} (${ritmo} h/semana)`,
+      meta: p.meta_horas,
+      quando,
+      mais,
+    };
+  }
+  function textoProjecao(p) {
+    const t = partesProjecao(p);
+    if (!t) return "";
+    const fim = t.quando ? `os ${t.meta} h chegam lá por ${t.quando}.` : `os ${t.meta} h ficam pra mais de 5 anos.`;
+    return `${t.base}, ${fim}${t.mais ? ` Com 1 voo a mais por semana: ${t.mais}.` : ""}`;
+  }
+  function projecaoHTML(p) {
+    const t = partesProjecao(p);
+    if (!t) return "";
+    const fim = t.quando
+      ? `os ${esc(t.meta)} h chegam lá por <b class="vivo-num">${esc(t.quando)}</b>.`
+      : `os ${esc(t.meta)} h ficam pra mais de 5 anos.`;
+    return (
+      `<p class="va-proj">${ICONE_PROJ}<span>${esc(t.base)}, ${fim}` +
+      (t.mais ? ` <span class="va-proj-mais">Com 1 voo a mais por semana: <b class="vivo-num">${esc(t.mais)}</b>.</span>` : "") +
+      `</span></p>`
+    );
+  }
+
   Cards.registrar("voo_agendado", (data, _card, ctx) => {
     const paradas = lista(data.paradas).filter((p) => p && p.icao);
     if (!data || !data.data || paradas.length < 2) return null;
@@ -427,6 +470,7 @@
         : "") +
       `<div class="va-picote" aria-hidden="true"></div>` +
       horas +
+      projecaoHTML(data.projecao) +
       `</div>`
     );
   });
@@ -547,6 +591,7 @@
       `<span class="va-meta">meta <b class="vivo-num">${esc(meta)} h</b></span></div>` +
       `<div class="va-barra"><i class="va-ja" style="width:${barra.ja}%"></i><i class="va-novo" style="left:${barra.ja}%;width:${barra.mais}%"></i></div></div>` +
       `<p class="vh-status${escolhida !== null ? " ok" : ""}" aria-live="polite">${esc(vhStatus(escolhida, outros, meta))}</p>` +
+      projecaoHTML(data.projecao) +
       `</div>`
     );
   });
@@ -578,6 +623,103 @@
       void st.offsetWidth;
       st.classList.add("va-troca");
     }
+  }
+
+  // ================================================================ vespera_voo
+  // Vespera do voo (4a leva, conversa_proativa.vespera_do_voo - so quando tem voo com hora):
+  // "Acorda HH:MM" grande, linha acorda -> sai -> chega -> decola (mesma linha dos compromissos,
+  // cards-saidas.css), a faixa do TAF na hora do voo e a mochila que marca (estado no servidor,
+  // /api/voos/<id>/mochila - o historico pede de novo no preparar).
+  const ICONE_LUA =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>';
+  const ICONE_CHECK =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.2 4L19 7"/></svg>';
+  const ICONE_RELOGIO =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
+  const horaOk = (h) => typeof h === "string" && /^\d{2}:\d{2}$/.test(h);
+  const contaMochila = (feitos, total) => (feitos >= total ? "tudo na mochila" : `${feitos} de ${total}`);
+
+  Cards.registrar("vespera_voo", (data, _card, ctx) => {
+    if (!data || !numeroValido(data.id) || !horaOk(data.hora) || !horaOk(data.acordar)) return null;
+    const agora = (ctx && ctx.agora) || new Date();
+    const paradas = [
+      ["acorda", data.acordar],
+      ["sai de casa", data.sair],
+      [`chega ${data.icao || ""}`.trim(), data.chegar],
+      ["decola", data.hora],
+    ].filter(([, h]) => horaOk(h));
+    const linha =
+      `<div class="sd-linha" style="--n:${paradas.length}">` +
+      paradas
+        .map(([rot, h], i) => `<div class="sd-parada${i === 0 ? " destaque" : ""}" style="--k:${i}"><i></i><b class="vivo-num">${esc(h)}</b><span>${esc(rot)}</span></div>`)
+        .join("") +
+      `</div>`;
+    const folgas = [
+      numeroValido(data.arrumar_min) ? `<b class="vivo-num">${esc(data.arrumar_min)} min</b> pra se arrumar` : "",
+      numeroValido(data.trajeto_min) ? `<b class="vivo-num">${esc(data.trajeto_min)} min</b> de carro` : "",
+      numeroValido(data.antecedencia_min) ? `chega <b class="vivo-num">${esc(data.antecedencia_min)} min</b> antes` : "",
+      horaOk(data.pouso) ? `pousa <b class="vivo-num">~${esc(data.pouso)}</b>` : "",
+    ].filter(Boolean);
+    const itens = lista(data.mochila).filter((it) => it && it.texto);
+    const feitos = itens.filter((it) => it.feito).length;
+    const mochila = itens.length
+      ? `<div class="vv-mochila" data-mochila-voo="${esc(data.id)}">` +
+        `<div class="vv-mochila-topo"><span class="sd-rotulo">Mochila</span><span class="vv-conta vivo-num" data-total="${itens.length}">${esc(contaMochila(feitos, itens.length))}</span></div>` +
+        `<ul class="sd-check">` +
+        itens
+          .map(
+            (it, i) =>
+              `<li class="${it.feito ? "marcado" : ""}" style="--k:${i}"><button type="button" class="sd-check-item" data-acao="mochila_item" data-voo="${esc(data.id)}" data-i="${i}" aria-pressed="${!!it.feito}">` +
+              `<span class="sd-caixinha">${ICONE_CHECK}</span><span class="sd-item-txt">${esc(it.texto)}</span></button></li>`
+          )
+          .join("") +
+        `</ul></div>`
+      : "";
+    const sub = [data.rota || (data.icao ? `voo local · ${data.icao}` : ""), `decola ${data.hora}`].filter(Boolean).join(" · ");
+    return (
+      `<div class="sd vv" data-voo="${esc(data.id)}">` +
+      `<div class="card-resultado-eyebrow">${ICONE_LUA}<span>Véspera do voo</span><span class="sd-quando">${esc(Cards.rotuloDia(data.data, agora) || "")}</span></div>` +
+      `<div class="vv-hero"><span class="vv-hero-rot">Acorda</span><b class="vivo-num">${esc(data.acordar)}</b><span class="vv-hero-sub vivo-num">${esc(sub)}</span></div>` +
+      linha +
+      (folgas.length ? `<p class="vv-folgas">${ICONE_RELOGIO}<span>${folgas.map((f) => `<span class="vv-f">${f}</span>`).join(`<i aria-hidden="true">·</i>`)}</span></p>` : "") +
+      (tempoNaJanela(data, agora) ? `<div class="va-tempo" data-voo-tempo="${esc(data.id)}" aria-live="polite" hidden></div>` : "") +
+      mochila +
+      `<p class="sd-status">${ICONE_AVIAO}<span>De manhã eu mando o METAR atualizado e a hora de sair.</span></p>` +
+      `</div>`
+    );
+  });
+
+  function marcarMochila(cardEl, feitos) {
+    const itens = cardEl.querySelectorAll(".vv-mochila li");
+    lista(feitos).forEach((f, i) => {
+      const li = itens[i];
+      if (!li) return;
+      li.classList.toggle("marcado", !!f);
+      const b = li.querySelector("[data-acao]");
+      if (b) b.setAttribute("aria-pressed", String(!!f));
+    });
+    contarMochila(cardEl);
+  }
+  function contarMochila(cardEl) {
+    const conta = cardEl.querySelector(".vv-conta");
+    if (!conta) return;
+    const total = Number(conta.dataset.total) || 0;
+    const n = cardEl.querySelectorAll(".vv-mochila li.marcado").length;
+    conta.textContent = contaMochila(n, total);
+    conta.classList.toggle("completa", total > 0 && n >= total);
+  }
+  async function carregarMochila(caixa) {
+    if (caixa.dataset.pedido) return;
+    caixa.dataset.pedido = "1";
+    const api = typeof raiz.apiFetch === "function" ? raiz.apiFetch : null;
+    if (!api) return;
+    let res = null;
+    try {
+      res = await api(`/api/voos/${encodeURIComponent(caixa.dataset.mochilaVoo)}/mochila`);
+    } catch (_) {
+      res = null;
+    }
+    if (res && res.ok && caixa.isConnected) marcarMochila(caixa, res.feitos);
   }
 
   // ---- aviao no caminho (DOM): posicionar, voar entre paradas, entrada animada
@@ -653,6 +795,7 @@
       if (c) c.pintar(1);
     });
     el.querySelectorAll("[data-voo-tempo]").forEach((slot) => preencherTempo(slot));
+    el.querySelectorAll("[data-mochila-voo]").forEach((caixa) => carregarMochila(caixa));
   }
 
   function animar(el) {
@@ -733,6 +876,40 @@
       if (typeof deps.aoMudar === "function") deps.aoMudar();
     });
 
+    Cards.registrarAcao("mochila_item", async (btn, cardEl, deps) => {
+      if (typeof deps.apiFetch !== "function" || btn.dataset.enviando) return;
+      const li = btn.closest("li");
+      const caixa = btn.closest(".vv-mochila");
+      if (!li || !caixa) return;
+      const feito = !li.classList.contains("marcado");
+      li.classList.toggle("marcado", feito); // otimista
+      btn.setAttribute("aria-pressed", String(feito));
+      if (feito) {
+        li.classList.remove("voou");
+        void li.offsetWidth;
+        li.classList.add("voou");
+      }
+      contarMochila(caixa);
+      if (typeof raiz.vibrar === "function") raiz.vibrar(feito && caixa.querySelectorAll("li:not(.marcado)").length === 0 ? [10, 40, 16] : 8);
+      btn.dataset.enviando = "1";
+      let res = null;
+      try {
+        res = await deps.apiFetch(`/api/voos/${encodeURIComponent(btn.dataset.voo)}/mochila`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ i: Number(btn.dataset.i), feito }),
+        });
+      } catch (_) {
+        res = null;
+      }
+      delete btn.dataset.enviando;
+      if (!res || !res.ok) {
+        li.classList.toggle("marcado", !feito);
+        btn.setAttribute("aria-pressed", String(!feito));
+        contarMochila(caixa);
+      }
+    });
+
     Cards.registrarAcao("voo_horas_outro", (btn) => {
       const vh = btn.closest(".vh");
       const ajuste = vh && vh.querySelector(".vh-ajuste");
@@ -756,7 +933,7 @@
     });
   }
 
-  const CardsAviacao = { CATEGORIAS, quandoVolta, preparar, animar, vaPontos, vaCaminho, tempoHTML, tempoNaJanela };
+  const CardsAviacao = { CATEGORIAS, quandoVolta, preparar, animar, vaPontos, vaCaminho, tempoHTML, tempoNaJanela, textoProjecao, projecaoHTML };
   raiz.CardsAviacao = CardsAviacao;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsAviacao;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -605,9 +605,14 @@ class AvisosFase2TestCase(VidaBaseTestCase):
     def test_pre_voo_vespera_e_dia(self):
         conn = self._conn()
         amanha = date.today() + timedelta(days=1)
+        # 4a leva: voo COM hora tem vespera/manha no chat (conversa_proativa) - o push antigo
+        # ficou so pro voo sem hora
         conn.execute("INSERT INTO voos (data, destino, hora) VALUES (?, 'SBFL', '10:00')", (amanha.isoformat(),))
         conn.commit()
         vespera = datetime.combine(date.today(), datetime.min.time()).replace(hour=20)
+        self.assertFalse([c for t, c in self._avisos(vespera) if t == "pre_voo"])
+        conn.execute("UPDATE voos SET hora = NULL")
+        conn.commit()
         avisos = self._avisos(vespera)
         self.assertTrue([c for t, c in avisos if t == "pre_voo" and "carta wac" in c])
         dia = datetime.combine(amanha, datetime.min.time()).replace(hour=7)
@@ -615,7 +620,8 @@ class AvisosFase2TestCase(VidaBaseTestCase):
             d.today.return_value = amanha
             d.fromisoformat = date.fromisoformat
             self.assertIn("pre_voo", {t for t, _, _, _ in app._avisos_fase2(conn, dia)})
-        self.assertNotIn("pre_voo", {t for t, _, _, _ in app._avisos_fase2(conn, dia.replace(hour=11))})
+        # (voo sem hora nao tem "depois de decolar" - o "passou do voo" e coberto pelo
+        # voo com hora, que agora vai pelo chat: tests/test_quarta_leva.py)
 
     def test_viagem_documento_3_dias_antes(self):
         ida = date.today() + timedelta(days=3)

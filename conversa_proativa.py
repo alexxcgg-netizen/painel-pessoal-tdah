@@ -20,6 +20,7 @@ from datetime import date, datetime, time, timedelta
 
 import cards
 import db
+import vida
 
 DIAS_CURTOS = ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
 DIAS_LONGOS = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
@@ -367,6 +368,262 @@ def renovar_presentes_anuais(conn, hoje: date) -> list[int]:
     return novos
 
 
+# ------------------------------------------------ 4a leva (2026-10-15): automacoes
+JANELA_VESPERA = (time(20, 0), time(23, 30))
+INICIO_MANHA_VOO = time(6, 30)
+ANTES_DE_SAIR_MANHA_MIN = 90
+JANELA_DIA = (time(9, 0), time(21, 0))  # documentos, compras, assinatura: nada de madrugada
+
+
+def _app():
+    """app.py ja carregado (Maps do voo) - None fora do servidor."""
+    try:
+        from rotas._base import app_modulo
+
+        return app_modulo()
+    except Exception:
+        return None
+
+
+def _saida_maps(conn, v) -> dict | None:
+    import rota_voo
+    import vida_assistente
+
+    app = _app()
+    if app is None:
+        return None
+    try:
+        return app._saida_pro_voo(conn, v["data"], v["hora"], v["origem"] or rota_voo.ORIGEM_PADRAO,
+                                  vida_assistente.voo_briefing_min(conn))
+    except Exception:
+        return None
+
+
+def _voos_com_hora(conn, dia: date):
+    return conn.execute(
+        "SELECT id, data, hora, origem, destino, escalas FROM voos WHERE data = ? AND hora IS NOT NULL "
+        "AND horas IS NULL AND COALESCE(tipo, '') != 'simulador' ORDER BY hora",
+        (dia.isoformat(),),
+    ).fetchall()
+
+
+def vespera_do_voo(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """So em vespera de voo (pedido do Alex: "apenas nos dias que tenho voo"): 20h-23h30."""
+    saida = []
+    if not _na_janela(agora, JANELA_VESPERA):
+        return saida
+    for v in _voos_com_hora(conn, agora.date() + timedelta(days=1)):
+        if db.ja_notificado_alguma_vez(conn, "vespera_voo_chat", v["id"]):
+            continue
+        card = cards.card_vespera_voo(conn, v["id"], _saida_maps(conn, v))
+        db.marcar_notificado(conn, "vespera_voo_chat", v["id"])
+        if not card:
+            continue
+        d = card["data"]
+        rota = f" ({d['rota']})" if d["rota"] else ""
+        texto = (f"Amanhã tem voo às {d['hora']}{rota}. Acorda {d['acordar']} e sai {d['sair']} — "
+                 f"separei a mochila e a previsão aqui embaixo.")
+        publicar(conn, "vespera_voo_chat", texto, [card])
+        saida.append(("vespera_voo", "Amanhã tem voo", f"Acorda {d['acordar']}, sai {d['sair']}. Previsão e mochila no chat."))
+    conn.commit()
+    return saida
+
+
+def manha_do_voo(conn, agora: datetime, montar_briefing=None) -> list[tuple[str, str, str]]:
+    """Dia do voo: METAR atualizado + hora de sair, a partir de max(06h30, sair - 1h30)."""
+    import briefing_voo
+    import rota_voo
+    import vida_assistente
+
+    saida = []
+    agora_hhmm = agora.strftime("%H:%M")
+    for v in _voos_com_hora(conn, agora.date()):
+        if db.ja_notificado_alguma_vez(conn, "manha_voo_chat", v["id"]) or agora_hhmm >= v["hora"]:
+            continue
+        chegar = rota_voo.menos_minutos(v["hora"], vida_assistente.voo_briefing_min(conn))
+        sair_estimado = rota_voo.menos_minutos(chegar, cards.FOLGA_SAIDA_MIN)
+        inicio = max(INICIO_MANHA_VOO.strftime("%H:%M"), rota_voo.menos_minutos(sair_estimado, ANTES_DE_SAIR_MANHA_MIN))
+        if sair_estimado < inicio:  # voo de madrugada: sem "bom dia"
+            inicio = INICIO_MANHA_VOO.strftime("%H:%M")
+        if agora_hhmm < inicio:
+            continue
+        db.marcar_notificado(conn, "manha_voo_chat", v["id"])
+        maps = _saida_maps(conn, v)
+        sair = (maps or {}).get("sair") or sair_estimado
+        lista = []
+        try:
+            b = (montar_briefing or briefing_voo.montar)(conn, v["origem"] or rota_voo.ORIGEM_PADRAO)
+            card = cards.card_briefing_voo({"dados": b}) if not b.get("erro") else None
+        except Exception:
+            card = None
+        if card:
+            lista.append(card)
+            cd = card["data"]
+            das = f" das {cd['observado']}" if cd.get("observado") else ""
+            tempo = f" METAR de {cd['icao']}{das}: {cd['categoria']}." if cd.get("categoria") else ""
+        else:
+            tempo = " Não consegui puxar o METAR agora — pede \"como tá o tempo\" daqui a pouco."
+        trajeto = f" ({maps['trajeto_min']} min de carro)" if maps and maps.get("trajeto_min") else ""
+        texto = f"Bom dia! Voo hoje às {v['hora']}. Sai às {sair}{trajeto} pra chegar {chegar}.{tempo}"
+        publicar(conn, "manha_voo_chat", texto, lista)
+        saida.append(("manha_voo", "Voo hoje", f"Sai às {sair}.{tempo}".strip()))
+    conn.commit()
+    return saida
+
+
+def documentos_vencendo(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """Documento (CMA, CNH, passaporte... - vida.eh_burocracia) em 60/30/7 dias: card no chat +
+    push, uma vez por marco por vencimento. Substitui o aviso unico de 8-30 dias."""
+    import notificacoes
+
+    saida = []
+    if not _na_janela(agora, JANELA_DIA):
+        return saida
+    hoje = agora.date()
+    for lem in db.list_lembretes(conn):
+        if not vida.eh_burocracia(lem["titulo"]):
+            continue
+        try:
+            base = date.fromisoformat(lem["data"])
+        except (TypeError, ValueError):
+            continue
+        vence = notificacoes.proxima_ocorrencia_lembrete(base, bool(lem["recorrente"]), hoje)
+        card = cards.card_documento_validade(lem, vence, hoje)
+        if not card:
+            continue
+        ref = vida.id_estavel("doc_validade", lem["id"], vence.isoformat(), card["data"]["marco"])
+        if db.ja_notificado_alguma_vez(conn, "documento_validade", ref):
+            continue
+        db.marcar_notificado(conn, "documento_validade", ref)
+        d = card["data"]
+        quando = "hoje" if d["dias"] == 0 else "amanhã" if d["dias"] == 1 else f"em {d['dias']} dias"
+        dica = {60: "dá tempo de sobra, mas já dá pra marcar.", 30: "bom marcar essa semana.",
+                7: "última semana — se ainda não marcou, é agora."}[d["marco"]]
+        texto = f"\"{d['titulo']}\" vence {quando} ({vence.strftime('%d/%m')}): {dica}"
+        publicar(conn, "documento_validade_chat", texto, [card])
+        saida.append(("documento_validade", "Documento vencendo", texto))
+    conn.commit()
+    return saida
+
+
+# compras que se repetem: so com historico de verdade (3+ compras, intervalo regular)
+COMPRAS_MIN_VEZES = 3
+COMPRAS_INTERVALO = (3, 120)
+COMPRAS_AVISAR_DIAS = 3
+
+
+def compras_previstas(conn, hoje: date) -> list[dict]:
+    """Itens que ele compra de tempos em tempos e que devem estar acabando (mediana dos
+    intervalos entre compras). Ja na lista ou adiado ("ainda tem") = fora."""
+    import statistics
+
+    datas: dict = {}
+    nomes: dict = {}
+    for r in conn.execute(
+        "SELECT item, item_normalizado, comprado_em FROM compras WHERE comprado_em IS NOT NULL ORDER BY comprado_em"
+    ).fetchall():
+        chave = r["item_normalizado"] or vida.normalizar_item_compra(r["item"])
+        try:
+            dia = date.fromisoformat(str(r["comprado_em"])[:10])
+        except ValueError:
+            continue
+        if not chave:
+            continue
+        if dia not in datas.setdefault(chave, []):
+            datas[chave].append(dia)
+        nomes[chave] = vida.limpar_item_compra(r["item"]) or r["item"]
+    pendentes = {c["item_normalizado"] or vida.normalizar_item_compra(c["item"]) for c in db.list_compras_pendentes(conn)}
+    saida = []
+    for chave, dias in datas.items():
+        if len(dias) < COMPRAS_MIN_VEZES or chave in pendentes:
+            continue
+        dias.sort()
+        intervalo = round(statistics.median([(b - a).days for a, b in zip(dias, dias[1:])]))
+        if not COMPRAS_INTERVALO[0] <= intervalo <= COMPRAS_INTERVALO[1]:
+            continue
+        prevista = dias[-1] + timedelta(days=intervalo)
+        adiado = db.obter_configuracao(conn, f"compra_adiada_{chave}")
+        if adiado and adiado > hoje.isoformat():
+            continue
+        falta = (prevista - hoje).days
+        # longe ainda, ou atrasado mais de meio ciclo (comprou fora e nao anotou): nao insiste
+        if falta > COMPRAS_AVISAR_DIAS or falta < -max(COMPRAS_AVISAR_DIAS, intervalo // 2):
+            continue
+        saida.append({"item": nomes[chave], "chave": chave, "intervalo_dias": intervalo,
+                      "ultima": dias[-1].isoformat(), "prevista": prevista.isoformat(), "dias": falta})
+    return sorted(saida, key=lambda i: i["dias"])
+
+
+def adiar_compra(conn, item: str, hoje: date) -> str | None:
+    """"Ainda tem": nao pergunta de novo ate a previsao + metade do intervalo."""
+    chave = vida.normalizar_item_compra(item)
+    prev = next((c for c in compras_previstas(conn, hoje) if c["chave"] == chave), None)
+    folga = max(2, (prev["intervalo_dias"] if prev else 14) // 2)
+    base = max(hoje, date.fromisoformat(prev["prevista"])) if prev else hoje
+    ate = (base + timedelta(days=folga)).isoformat()
+    if not chave:
+        return None
+    db.definir_configuracao(conn, f"compra_adiada_{chave}", ate)
+    conn.commit()
+    return ate
+
+
+def avisar_compras(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    if not _na_janela(agora, JANELA_DIA) or db.ja_notificou_hoje(conn, "compras_previsao_chat"):
+        return []
+    itens = [i for i in compras_previstas(conn, agora.date())
+             if not db.ja_notificado_alguma_vez(conn, "compra_prevista", vida.id_estavel("compra", i["chave"], i["ultima"]))]
+    db.marcar_notificado(conn, "compras_previsao_chat")
+    if not itens:
+        conn.commit()
+        return []
+    for i in itens[:4]:
+        db.marcar_notificado(conn, "compra_prevista", vida.id_estavel("compra", i["chave"], i["ultima"]))
+    nomes = [i["item"] for i in itens[:4]]
+    lista = nomes[0] if len(nomes) == 1 else ", ".join(nomes[:-1]) + " e " + nomes[-1]
+    verbo = "deve acabar" if len(nomes) == 1 else "devem acabar"
+    texto = f"Pelo teu ritmo de compra, {lista} {verbo} nos próximos dias. Ponho na lista?"
+    publicar(conn, "compras_previsao_chat", texto, [cards.card_compras_previsao(itens)])
+    return [("compras_previsao", "Lista de compras", texto)]
+
+
+def assinaturas_que_subiram(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """Mesmo detector do push "Assinatura ficou mais cara" - aqui vira card no chat com
+    "Mantém" / "Me lembra de cancelar". O push continua sendo o de sempre (sem duplicar)."""
+    import gastos
+    import notificacoes
+
+    if not _na_janela(agora, JANELA_DIA):
+        return []
+    try:
+        aumentos = gastos.detectar_aumento_assinatura(notificacoes._gastos_reais_unificados_para_deteccao(conn), agora.date())
+    except Exception:
+        return []
+    for a in aumentos:
+        ref = vida.id_estavel("assinatura_subiu", a["descricao"].strip().lower(), a["valor_novo"])
+        if db.ja_notificado_alguma_vez(conn, "assinatura_subiu_chat", ref):
+            continue
+        db.marcar_notificado(conn, "assinatura_subiu_chat", ref)
+        card = cards.card_assinatura_subiu(a)
+        if card:
+            texto = f"\"{card['data']['descricao']}\" ficou {card['data']['pct']}% mais cara. Mantém ou quer que eu te lembre de cancelar?"
+            publicar(conn, "assinatura_subiu_chat", texto, [card])
+    conn.commit()
+    return []
+
+
+def perguntar_horas_agora(conn, voo_id: int, agora: datetime) -> bool:
+    """Saiu do aeroclube depois do voo: pergunta ja (o tick nao pergunta de novo)."""
+    if db.ja_notificou_hoje(conn, "pos_voo_chat", voo_id):
+        return False
+    card = cards.card_voo_horas(conn, voo_id, agora.date())
+    db.marcar_notificado(conn, "pos_voo_chat", voo_id)
+    if card:
+        publicar(conn, "pos_voo_chat", FRASES_POS_VOO[(agora.toordinal() + voo_id) % len(FRASES_POS_VOO)], [card])
+    conn.commit()
+    return bool(card)
+
+
 def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
     """Chamado a cada tick do agendador. Publica no chat o que estiver na hora e
     devolve [(tipo_do_aviso, titulo, corpo)] pro push. Nunca levanta."""
@@ -404,4 +661,11 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
     except Exception:
         import logging
         logging.getLogger(__name__).exception("conversa proativa falhou")
+    # 4a leva: cada automacao isolada - uma que quebra nao derruba as outras
+    for passo in (vespera_do_voo, manha_do_voo, documentos_vencendo, avisar_compras, assinaturas_que_subiram):
+        try:
+            saida.extend(passo(conn, agora))
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("conversa proativa: %s falhou", passo.__name__)
     return saida

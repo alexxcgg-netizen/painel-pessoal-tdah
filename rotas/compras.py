@@ -42,3 +42,28 @@ def apagar_compra(compra_id):
     delete_compra(conn, compra_id)
     conn.close()
     return jsonify({"ok": True})
+
+
+@bp.route("/api/compras/adiar", methods=["POST"])
+def adiar_compra_rota():
+    """"Ainda tem" no card de compras previstas (4a leva): nao pergunta desse item ate a
+    previsao + metade do intervalo de compra."""
+    from datetime import date
+
+    import conversa_proativa
+
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    item = app._corpo_json().get("item")
+    if not isinstance(item, str) or not item.strip() or len(item) > 60:
+        return jsonify({"error": "mande o item"}), 400
+    conn = get_db()
+    try:
+        ate = conversa_proativa.adiar_compra(conn, item, date.today())
+    finally:
+        conn.close()
+    if not ate:
+        return jsonify({"error": "item inválido"}), 400
+    return jsonify({"ok": True, "ate": ate})

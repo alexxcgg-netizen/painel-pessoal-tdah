@@ -236,9 +236,16 @@ class AvisosFase3TestCase(VidaBaseTestCase):
         db.create_lembrete(conn, "Aniversario da Mae", (date.today() + timedelta(days=20)).isoformat())
         db.create_lembrete(conn, "Passaporte", (date.today() + timedelta(days=45)).isoformat())
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=10)
-        textos = [c for t, c in self._tipos(agora) if t == "burocracia"]
-        self.assertEqual(len(textos), 1)
-        self.assertIn("Renovar CNH", textos[0])
+        # 4a leva: o aviso unico de 8-30 dias virou marcos 60/30/7 no chat + push
+        # (conversa_proativa.documentos_vencendo) - CNH em 20 dias = marco 30, passaporte em 45 = 60
+        self.assertFalse([c for t, c in self._tipos(agora) if t == "burocracia"])
+        import conversa_proativa
+        textos = [c for t, _, c in conversa_proativa.documentos_vencendo(conn, agora)]
+        self.assertEqual(len(textos), 2)
+        self.assertTrue(any("Renovar CNH" in t and "em 20 dias" in t for t in textos))
+        self.assertTrue(any("Passaporte" in t and "em 45 dias" in t for t in textos))
+        self.assertFalse([t for t in textos if "Mae" in t])
+        self.assertEqual(conversa_proativa.documentos_vencendo(conn, agora), [])
 
     def test_aprender_no_domingo(self):
         conn = self._conn()

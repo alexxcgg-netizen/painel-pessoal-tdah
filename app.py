@@ -694,6 +694,7 @@ def _verificar_autenticacao():
         "/api/atalho/cotacao-pdf",
         "/api/atalho/resumo",
         "/api/atalho/local",
+        "/api/atalho/despertador",
         "/api/atalho/app",
         "/api/atalho/comando-voz",
         "/api/atalho/perguntar",
@@ -4763,6 +4764,8 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         except (TypeError, ValueError):
             continue
         destino = voo.get("destino") or "o voo"
+        if voo.get("hora") and voo.get("horas") is None:
+            continue  # 4a leva: voo com hora tem vespera/manha no chat (conversa_proativa)
         if data_voo == hoje + timedelta(days=1) and agora.hour >= 19:
             ref = vida.id_estavel("pre_voo", voo["id"], "vespera")
             if not ja_notificado_alguma_vez(conn, "pre_voo", ref):
@@ -4837,23 +4840,8 @@ def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         if not ja_notificado_alguma_vez(conn, "revisao_mensal", ref):
             avisos.append(("revisao_mensal", ref, "Como foi o mês", _revisao_do_mes(conn, primeiro, ultimo)["texto"]))
 
-    for lembrete in list_lembretes(conn):
-        if not vida.eh_burocracia(lembrete["titulo"]):
-            continue
-        try:
-            base = date.fromisoformat(lembrete["data"])
-        except (TypeError, ValueError):
-            continue
-        proxima = notificacoes.proxima_ocorrencia_lembrete(base, bool(lembrete["recorrente"]), hoje)
-        dias = (proxima - hoje).days
-        if not 8 <= dias <= 30:
-            continue
-        ref = vida.id_estavel("burocracia", lembrete["id"], proxima.isoformat())
-        if not ja_notificado_alguma_vez(conn, "burocracia", ref):
-            avisos.append(
-                ("burocracia", ref, "Prazo chegando",
-                 f"\"{lembrete['titulo']}\" vence em {dias} dias ({proxima.strftime('%d/%m')}) - já da pra agendar.")
-            )
+    # documento vencendo (burocracia): 4a leva - marcos 60/30/7 no chat + push
+    # (conversa_proativa.documentos_vencendo), no lugar do aviso unico de 8-30 dias
 
     if agora.weekday() == 6 and agora.hour >= 10:
         semana = hoje.isocalendar()
@@ -6232,6 +6220,41 @@ def _mensagem_local(conn, evento: str, lugar: str, bateria: int | None, agora: d
         pendentes = [c["item"] for c in list_compras_pendentes(conn)]
         if pendentes:
             return "Lista de compras: " + ", ".join(pendentes) + "."
+    if lugar in LUGARES_AEROCLUBE:
+        return _mensagem_aeroclube(conn, evento, agora)
+    return None
+
+
+LUGARES_AEROCLUBE = ("aeroclube", "ssbl", "aeroclube de blumenau")
+
+
+def _mensagem_aeroclube(conn, evento: str, agora: datetime) -> str | None:
+    """4a leva: automacao de localizacao do Atalhos no aeroclube. Chegou com voo hoje ->
+    checklist no chat; saiu depois de decolar -> "quanto deu?" na hora (o tick nao repete)."""
+    voos = conn.execute(
+        "SELECT id, hora FROM voos WHERE data = ? AND horas IS NULL AND COALESCE(tipo, '') != 'simulador' "
+        "ORDER BY hora",
+        (agora.date().isoformat(),),
+    ).fetchall()
+    if not voos:
+        return None
+    if evento == "chegou":
+        v = next((v for v in voos if not v["hora"] or v["hora"] >= agora.strftime("%H:%M")), voos[0])
+        chave = f"aeroclube_chegou_{v['id']}"
+        if obter_configuracao(conn, chave):
+            return None
+        definir_configuracao(conn, chave, agora.isoformat(timespec="minutes"))
+        # "Fone (headset)" -> "fone (headset)", mas sigla fica ("CIV e CMA")
+        itens = ", ".join(t if t[:2].isupper() else t[:1].lower() + t[1:] for t in cards.MOCHILA_VOO)
+        decola = f" Decola {v['hora']}." if v["hora"] else ""
+        texto = f"Chegou no aeroclube.{decola} Confere: {itens}. Bom voo!"
+        conversa_proativa.publicar(conn, "aeroclube_chegou", texto, [])
+        return texto
+    agora_hhmm = agora.strftime("%H:%M")
+    voados = [v for v in voos if (v["hora"] and v["hora"] <= agora_hhmm)
+              or (not v["hora"] and obter_configuracao(conn, f"aeroclube_chegou_{v['id']}"))]
+    if voados and conversa_proativa.perguntar_horas_agora(conn, voados[-1]["id"], agora):
+        return "Quanto deu o voo? Um toque no chat e eu somo nas tuas horas."
     return None
 
 

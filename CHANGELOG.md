@@ -5,6 +5,38 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-15 - 4ª leva: mais automação (véspera do voo, despertador, aeroclube, compras, documentos, projeção)
+
+Leva feita de uma vez a partir de briefing próprio (`docs/briefings/2026-10-15-4a-leva.md`) - ideias
+1 a 8 aprovadas pelo Alex (a 9, áudio de bom dia, ficou pra depois). Cards em `docs/CARDS.md`
+("4ª leva"); Atalhos em `docs/ATALHOS.md` (2b e 2c).
+- **Véspera do voo, só em dia de voo**: 20h-23h30 do dia anterior, voo com hora → chat + push
+  "Amanhã tem voo" com card `vespera_voo` (acorda/sai/chega/decola, TAF na hora do voo, mochila que
+  marca - `GET/POST /api/voos/<id>/mochila`). No dia: a partir de max(06:30, sair − 1h30) "Bom dia!
+  Voo hoje..." com o METAR (card `briefing_voo`). O push antigo "Voo amanhã"/"Pre-voo" ficou só pro
+  voo sem hora.
+- **Despertador que se ajusta**: `GET /api/atalho/despertador[?ate=HH:MM]` (token do Atalho, entrou
+  na lista de rotas sem login) → `{tem, acordar, acordar_iso, titulo, hora, sair, data, mensagem}`.
+- **Aeroclube pela localização**: `/api/atalho/local` com `lugar` = `aeroclube`/`ssbl` - chegou
+  (voo hoje sem horas) → checklist no chat, uma vez; saiu depois de decolar → pergunta as horas na
+  hora (`conversa_proativa.perguntar_horas_agora`).
+- **Compras que se repetem**: `conversa_proativa.compras_previstas` (3+ compras, mediana 3-120 dias,
+  avisa ≤ 3 dias antes, larga se atrasou mais de meio ciclo) → card `compras_previsao` 1×/dia com
+  "Pôr na lista" / "Ainda tem" (`POST /api/compras/adiar`, adia meio ciclo).
+- **Assinatura que subiu no chat**: mesmo detector do push; card `assinatura_subiu` (riscado → novo,
+  %, "Mantém" / "Me lembra de cancelar"). Valores somem no modo visitante.
+- **Documentos 60/30/7**: `conversa_proativa.documentos_vencendo` substitui o aviso único de 8-30
+  dias (`app._avisos_fase3`) - um aviso por marco por vencimento, card `documento_validade`
+  (carteirinha + anel da contagem) e botão de criar tarefa de agendar.
+- **Projeção das horas**: `cards.projecao_horas` (ritmo dos últimos 60 dias, cenário +1 voo/semana)
+  no `voo_resumo`, `voo_agendado` e `voo_horas`.
+- **Pluggy (item 8)**: nada de código - falta a conta/chave, que só o Alex pode criar (README,
+  "Sincronizacao automatica (Pluggy)"). Decisão pendente dele: gasto anotado no chat + o mesmo gasto
+  vindo do banco hoje entram os dois (`_gastos_reais_unificados*`).
+- Testes: `tests/test_quarta_leva.py` (25), `tests/js/cards_automacao.test.js` (9);
+  `test_pre_voo_vespera_e_dia` e `test_burocracia_com_30_dias` atualizados pro comportamento novo.
+  SW v79.
+
 ## 2026-10-14 - Cards da IA no app (3ª leva: volta, "pensando", tempo do voo, horas, presente anual)
 
 Leva feita de uma vez a partir de briefing próprio (`docs/briefings/2026-10-14-3a-leva.md`) - pedido

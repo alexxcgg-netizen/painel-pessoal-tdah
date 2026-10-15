@@ -59,6 +59,41 @@ def atalho_local():
     conn.close()
     return jsonify({"mensagem": mensagem})
 
+@bp.route("/api/atalho/despertador", methods=["GET"])
+def atalho_despertador():
+    """4a leva: a automacao "todo dia 22h" do Atalhos pergunta a hora de acordar amanha
+    (primeiro compromisso com hora - voo ou tarefa - menos trajeto e tempo de se arrumar).
+    `?ate=HH:MM` = o horario normal dele: se nao precisar acordar antes disso, tem=false e o
+    Atalho nao mexe no alarme. Depois da meia-noite (antes das 4h) olha o proprio dia."""
+    app = app_modulo()
+    if not app._token_atalho_valido(obrigatorio=True):
+        return jsonify({"error": "token inválido"}), 401
+    agora = app._agora_brasilia().replace(tzinfo=None)
+    dia = agora.date() if agora.hour < 4 else agora.date() + timedelta(days=1)
+    ate = app._normalizar_hora(request.args.get("ate")) if request.args.get("ate") else None
+    conn = get_db()
+    try:
+        p = app._primeiro_compromisso_do_dia(conn, dia.isoformat())
+    finally:
+        conn.close()
+    base = {"tem": False, "data": dia.isoformat(), "mensagem": ""}
+    if not p:
+        return jsonify(base)
+    if ate and p["acordar"] >= ate:
+        return jsonify(base | {"acordar": p["acordar"], "titulo": p["titulo"], "hora": p["hora"]})
+    titulo = "o voo" if p["titulo"] == "voo" else f"\"{p['titulo']}\""
+    return jsonify({
+        "tem": True,
+        "data": dia.isoformat(),
+        "acordar": p["acordar"],
+        "acordar_iso": f"{dia.isoformat()}T{p['acordar']}:00",
+        "titulo": p["titulo"],
+        "hora": p["hora"],
+        "sair": p["sair"],
+        "mensagem": f"Despertador às {p['acordar']}: {titulo} às {p['hora']}, sai {p['sair']}.",
+    })
+
+
 @bp.route("/api/atalho/app", methods=["POST"])
 def atalho_app():
     """Automacao 'App abriu/fechou' do Atalhos (uma por app) - o Screen Time

@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timedelta
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from rotas._base import app_modulo
 from db import create_voo, delete_voo, get_db, list_voos
@@ -150,3 +150,35 @@ def horas_do_voo(voo_id):
     finally:
         conn.close()
     return jsonify({"ok": True, "horas": horas, "horas_min": int(round(float(total) * 60))})
+
+
+@bp.route("/api/voos/<int:voo_id>/mochila", methods=["GET", "POST"])
+def mochila_do_voo(voo_id):
+    """Mochila do card da vespera (4a leva): GET devolve o que ja foi marcado (historico do
+    chat); POST {i, feito} marca um item."""
+    import json
+
+    import cards
+    import db
+
+    app = app_modulo()
+    conn = get_db()
+    try:
+        if not conn.execute("SELECT 1 FROM voos WHERE id = ?", (voo_id,)).fetchone():
+            return jsonify({"error": "voo não encontrado"}), 404
+        marcas = cards.mochila_feita(conn, voo_id)
+        if request.method == "GET":
+            return jsonify({"ok": True, "feitos": marcas})
+        recusa = app._recusar_no_modo_visitante()
+        if recusa:
+            return recusa
+        corpo = app._corpo_json()
+        i, feito = corpo.get("i"), corpo.get("feito")
+        if not isinstance(i, int) or isinstance(i, bool) or not 0 <= i < len(marcas) or not isinstance(feito, bool):
+            return jsonify({"error": "mande i (item) e feito (true/false)"}), 400
+        marcas[i] = feito
+        db.definir_configuracao(conn, f"mochila_voo_{voo_id}", json.dumps(marcas))
+        conn.commit()
+        return jsonify({"ok": True, "feitos": marcas, "total": len(marcas)})
+    finally:
+        conn.close()

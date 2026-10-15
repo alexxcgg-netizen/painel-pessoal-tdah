@@ -41,8 +41,10 @@ app"). Protótipo navegável das cenas aprovadas: `docs/prototipos/cards-ia-v2.h
   `deps.apiFetch` e `deps.aoMudar`. Coisa que precisa de rede depois de renderizar (ex.: tempo do
   voo) vai num slot `hidden` preenchido no `preparar(el)`.
 - Arquivos por família: `static/js/cards-saidas.js` + `static/css/secoes/hoje/cards-saidas.css`
-  (compromissos), `static/js/cards-aviacao.js` + `cards-aviacao.css` (voo/briefing/quiz),
-  `cards-vivos.js`, `cards-tipos.js`. Selo "registrado" = `CardsPremium.TIPOS_REGISTRO` (só pra
+  (compromissos), `static/js/cards-aviacao.js` + `cards-aviacao.css` (voo/briefing/quiz/véspera),
+  `static/js/cards-automacao.js` + `cards-automacao.css` (cards que o assistente puxa sozinho:
+  documento, compras, assinatura - botão `.ca-botao` com o próximo passo; o que ele já respondeu
+  fica no `localStorage` pro histórico não oferecer de novo), `cards-vivos.js`, `cards-tipos.js`. Selo "registrado" = `CardsPremium.TIPOS_REGISTRO` (só pra
   card que registrou algo; pergunta não ganha selo).
 - Arquivo CSS/JS novo: entra em `ASSETS` do `static/service-worker.js`, em `fase7.css` /
   `templates/scripts.html`; bump do `CACHE_NAME` (e da string em `tests/test_tarefas_ver_mais.py`).

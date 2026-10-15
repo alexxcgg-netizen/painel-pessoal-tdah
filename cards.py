@@ -209,6 +209,7 @@ ABA_POR_ENTIDADE = {
 # (docs/CARDS.md, "Modo visitante"). Card novo com dinheiro entra aqui.
 CAMPOS_SENSIVEIS = {
     "transacao": ("valor", "saldo", "mes", "dias"),
+    "assinatura_subiu": ("de", "para", "pct"),
     # 2026-10-13 (conversa_proativa): dinheiro e agua (saude) saem no modo visitante
     "fechar_dia": ("gasto", "agua"),
     "semana": ("gasto", "gasto_ant", "gastos_dia", "agua_dia"),
@@ -281,6 +282,11 @@ TIPOS_CARD = (
     "presente",
     # 3a leva (2026-10-14): quanto deu o voo (conversa_proativa, depois do pouso)
     "voo_horas",
+    # 4a leva (2026-10-15, docs/briefings/2026-10-15-4a-leva.md): automacoes
+    "vespera_voo",
+    "documento_validade",
+    "compras_previsao",
+    "assinatura_subiu",
 )
 
 
@@ -1265,6 +1271,48 @@ def card_edicao(efeitos: list[dict], actions_extra=None) -> dict | None:
     return novo_card("edicao", {"itens": itens}, list(actions_extra or []))
 
 
+JANELA_PROJECAO_DIAS = 60
+LIMITE_PROJECAO_DIAS = 5 * 365
+
+
+def projecao_horas(conn, hoje: date | None = None) -> dict | None:
+    """Quando ele chega na meta de horas (4a leva): ritmo dos ultimos 60 dias (h/semana) e o
+    cenario "1 voo a mais por semana" (h por voo da mesma janela). Conta pura do historico -
+    sem voo nos 60 dias ou meta ja batida = None. Data acima de 5 anos vira None (o front fala)."""
+    import math
+
+    hoje = hoje or date.today()
+    rows = conn.execute(
+        "SELECT data, horas FROM voos WHERE horas IS NOT NULL AND data <= ? AND COALESCE(tipo, '') != 'simulador'",
+        (hoje.isoformat(),),
+    ).fetchall()
+    meta_cfg = db.obter_configuracao(conn, "aviacao_meta_horas")
+    meta = int(meta_cfg) if meta_cfg and meta_cfg.isdigit() else 150
+    falta = meta - sum(float(r["horas"]) for r in rows)
+    inicio = (hoje - timedelta(days=JANELA_PROJECAO_DIAS)).isoformat()
+    recentes = [float(r["horas"]) for r in rows if r["data"] > inicio and float(r["horas"]) > 0]
+    if falta <= 0 or not recentes:
+        return None
+    semanas = JANELA_PROJECAO_DIAS / 7
+    ritmo = sum(recentes) / semanas
+    por_voo = sum(recentes) / len(recentes)
+
+    def quando(h_semana: float) -> str | None:
+        dias = math.ceil(falta / h_semana * 7)
+        return (hoje + timedelta(days=dias)).isoformat() if dias <= LIMITE_PROJECAO_DIAS else None
+
+    return {
+        "ritmo_h_semana": round(ritmo, 1),
+        "voos_semana": round(len(recentes) / semanas, 1),
+        "horas_por_voo": round(por_voo, 1),
+        "falta_h": round(falta, 1),
+        "meta_horas": meta,
+        "data_meta": quando(ritmo),
+        "data_meta_mais_um": quando(ritmo + por_voo),
+        "janela_dias": JANELA_PROJECAO_DIAS,
+    }
+
+
 def card_voo_resumo(conn, hoje: date | None = None) -> dict | None:
     hoje = hoje or date.today()
     rows = conn.execute(
@@ -1304,6 +1352,7 @@ def card_voo_resumo(conn, hoje: date | None = None) -> dict | None:
             "simulador_min": sum(int(round(float(r["horas"]) * 60)) for r in rows if (r["tipo"] or "") == "simulador"),
             "meta_horas": int(meta) if meta and meta.isdigit() else 150,
             "meta_definida": bool(meta and meta.isdigit()),
+            "projecao": projecao_horas(conn, hoje),
         },
         [acao_abrir_aba("aviacao", "Abrir Aviação")],
     )
@@ -1352,6 +1401,7 @@ def card_voo_agendado(conn, ef: dict, actions_extra: list | None = None, hoje: d
             "trajeto_min": saida.get("trajeto_min"),
             "horas_min": int(round(sum(float(r["horas"]) for r in feitos) * 60)),
             "meta_horas": int(meta) if meta and meta.isdigit() else 150,
+            "projecao": projecao_horas(conn, hoje),
         },
         [*(actions_extra or []), acao_abrir_aba("aviacao", "Abrir Aviação")],
     )
@@ -1398,8 +1448,114 @@ def card_voo_horas(conn, voo_id: int, hoje: date | None = None) -> dict | None:
             "horas": float(v["horas"]) if v["horas"] is not None else None,
             "horas_min": int(round(sum(float(r["horas"]) for r in outros) * 60)),
             "meta_horas": int(meta) if meta and meta.isdigit() else 150,
+            "projecao": projecao_horas(conn, hoje),
         },
         [acao_abrir_aba("aviacao", "Abrir Aviação")],
+    )
+
+
+FOLGA_SAIDA_MIN = 15  # sem Maps: mesma folga do aviso "hora de sair" (app.FOLGA_SEM_TRAJETO_MIN)
+MOCHILA_VOO = ("CIV e CMA", *vida.CHECKLIST_PRE_VOO)
+
+
+def mochila_feita(conn, voo_id: int) -> list[bool]:
+    import json
+
+    try:
+        marcas = json.loads(db.obter_configuracao(conn, f"mochila_voo_{voo_id}") or "[]")
+    except ValueError:
+        marcas = []
+    return [bool(marcas[i]) if i < len(marcas) else False for i in range(len(MOCHILA_VOO))]
+
+
+def card_vespera_voo(conn, voo_id: int, saida: dict | None = None) -> dict | None:
+    """Vespera do voo (4a leva): acorda -> sai -> chega -> decola, a faixa do TAF na hora do
+    voo (o front pede sozinho) e a mochila que marca. `saida` = Maps (app._saida_pro_voo) ou
+    None (folga de 15 min)."""
+    import rota_voo
+    import vida_assistente
+
+    v = conn.execute(
+        "SELECT id, data, hora, origem, destino, escalas FROM voos WHERE id = ? AND hora IS NOT NULL", (voo_id,)
+    ).fetchone()
+    if not v:
+        return None
+    rota = rota_voo.montar(v["origem"], v["escalas"], v["destino"], v["hora"])
+    antes = vida_assistente.voo_briefing_min(conn)
+    arrumar = vida_assistente.se_arrumar_min(conn)
+    chegar = rota_voo.menos_minutos(v["hora"], antes)
+    sair = (saida or {}).get("sair") or rota_voo.menos_minutos(chegar, FOLGA_SAIDA_MIN)
+    feitos = mochila_feita(conn, voo_id)
+    return novo_card(
+        "vespera_voo",
+        {
+            "id": v["id"],
+            "data": v["data"],
+            "hora": v["hora"],
+            "rota": None if rota["local"] else " → ".join(p["icao"] for p in rota["paradas"]),
+            "icao": rota["paradas"][0]["icao"],
+            "acordar": rota_voo.menos_minutos(sair, arrumar),
+            "sair": sair,
+            "chegar": chegar,
+            "pouso": rota["pouso"],
+            "trajeto_min": (saida or {}).get("trajeto_min"),
+            "arrumar_min": arrumar,
+            "antecedencia_min": antes,
+            "mochila": [{"texto": t, "feito": f} for t, f in zip(MOCHILA_VOO, feitos)],
+        },
+        [acao_abrir_aba("aviacao", "Abrir Aviação")],
+    )
+
+
+MARCOS_DOCUMENTO = (60, 30, 7)
+
+
+def marco_documento(dias: int) -> int | None:
+    """60/30/7: o menor marco que ja chegou (20 dias -> 30). Vencido ou longe = None."""
+    if dias < 0:
+        return None
+    chegados = [m for m in MARCOS_DOCUMENTO if dias <= m]
+    return min(chegados) if chegados else None
+
+
+def card_documento_validade(lembrete: dict, vence: date, hoje: date) -> dict | None:
+    dias = (vence - hoje).days
+    marco = marco_documento(dias)
+    if marco is None:
+        return None
+    return novo_card(
+        "documento_validade",
+        {
+            "id": lembrete["id"],
+            "titulo": _titulo_curto(lembrete["titulo"], 70),
+            "vence": vence.isoformat(),
+            "dias": dias,
+            "marco": marco,
+            "recorrente": bool(lembrete.get("recorrente")),
+        },
+        [acao_abrir_aba("tarefas", "Abrir Tarefas")],
+    )
+
+
+def card_compras_previsao(itens: list[dict]) -> dict | None:
+    itens = [i for i in itens if i.get("item")][:4]
+    if not itens:
+        return None
+    return novo_card("compras_previsao", {"itens": itens})
+
+
+def card_assinatura_subiu(a: dict) -> dict | None:
+    if not a.get("descricao") or not a.get("valor_novo"):
+        return None
+    return novo_card(
+        "assinatura_subiu",
+        {
+            "descricao": _titulo_curto(a["descricao"], 50),
+            "categoria": a.get("categoria"),
+            "de": round(float(a["valor_anterior_medio"]), 2),
+            "para": round(float(a["valor_novo"]), 2),
+            "pct": round(float(a["aumento_pct"])),
+        },
     )
 
 
