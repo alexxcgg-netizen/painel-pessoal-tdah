@@ -82,6 +82,14 @@ estima o custo (nada é chamado). `--rodar` roda de verdade (API real, centavos)
 temporária do banco, com agenda/Uber/push/Telegram desligados; `--juiz` adiciona nota 1-5 do Haiku.
 Resultados em `scripts/eval_chat/resultados/` (gitignored).
 
+## Cópia do chat pro Claude Code (`/ler-chat`)
+
+`python scripts/ler_chat.py [--dias N | --desde AAAA-MM-DD --ate AAAA-MM-DD]` gera
+`data/chat_para_claude.md` (gitignored): a conversa com a IA dia a dia, com os cards resumidos e `⚠`
+nas mensagens que parecem correção. Abre o banco **só pra leitura**; número longo e senha saem como
+`[oculto]`. É o que a habilidade `.claude/skills/ler-chat` usa pra entender o que o Alex pede e o que
+não gosta - pedido dele, a conversa fica entre ele e o Claude.
+
 ## Funcionalidades (v1)
 
 - **Chat**: a aba Hoje e uma conversa com tool-use - fala o que quiser e a IA decide se registra tarefa/gasto/meta, gera o plano do dia, ou so responde (ver secao "Chat" abaixo)

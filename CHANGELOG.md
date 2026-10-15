@@ -39,6 +39,10 @@ Leva feita de uma vez a partir de briefing próprio (`docs/briefings/2026-10-15-
   `_gastos_reais_unificados_para_deteccao`, sobra do mês, `renda_perto_de_acabar`,
   `/api/gastos/unificados` (lista e páginas) e `/api/financas/extrato`/resumo (regra do
   `tipo_operacao`; transferência/fatura não pareia). Nada é apagado. `tests/test_gastos_repetidos.py` (12).
+- **Cópia do chat pro Claude Code** (pedido: "toda vez que tu pedir, essa cópia do chat vai pra
+  você"): `scripts/ler_chat.py` (sqlite `mode=ro`, cards decifrados e resumidos, número longo/senha
+  ocultos, `⚠` em possível correção) → `data/chat_para_claude.md` (gitignored); habilidade
+  `.claude/skills/ler-chat`. Texto em vez de PDF/print. `tests/test_ler_chat.py` (6).
 - Testes: `tests/test_quarta_leva.py` (25), `tests/js/cards_automacao.test.js` (9);
   `test_pre_voo_vespera_e_dia` e `test_burocracia_com_30_dias` atualizados pro comportamento novo.
   SW v79.
