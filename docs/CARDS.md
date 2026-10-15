@@ -493,6 +493,11 @@ https://claude.ai/artifact/JzmyFm39GypNtUKXLuS1ph - fonte em `docs/prototipos/ca
   Rota pode ter várias pernas; mostrar NM por perna e total (distância ortodrômica entre
   aeródromos - NexAtlas não tem API pública, não depende dela).
 - **Se arrumar leva 45 min** (date, balada, qualquer saída "arrumado").
+- **Sono: 8 h** antes de acordar pra voo ("na cama até HH:MM" = acordar − 8 h). Aprovado 2026-10-15.
+- **Dinheiro que se repete mostra o impacto no ano** (assinatura: "R$ X a mais por mês — R$ 12X num
+  ano"; assume cobrança mensal). Aprovado 2026-10-15.
+- **Coisa de mercado é sempre no cupom** (`.tx-impressora`), inclusive previsão de compra; "feito"
+  vira carimbo no papel. Aprovado 2026-10-15.
 
 **Checagem antes de dar como pronto**: 390 px sem rolagem lateral, nada encavalado (rótulos de
 linha do tempo e de rota são o que mais quebra), número longo sem quebrar entre "R$" e o valor
@@ -565,5 +570,6 @@ meio ciclo; projeção pelos últimos 60 dias, data acima de 5 anos não aparece
 
 Acabamento da 4ª leva (pedido: "deixe cards bem legais"): compras foi pro cupom (mercado = cupom,
 regra 1) com carimbo; assinatura virou etiqueta de preço remarcada; projeção virou régua; véspera
-ganhou despertador, hora de deitar (8 h de sono) e mochila que fecha. Vetável: as 8 h de sono, o
-impacto anual da assinatura (assume cobrança mensal - o detector é mensal) e as posições da régua.
+ganhou despertador, hora de deitar (8 h de sono) e mochila que fecha. **Aprovado pelo Alex
+(2026-10-15)**: as 8 h de sono, o impacto anual da assinatura (×12, cobrança mensal) e compras no
+cupom.
