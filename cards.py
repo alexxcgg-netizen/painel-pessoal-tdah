@@ -207,6 +207,11 @@ TIPOS_CARD = (
     # linguagem visual aprovada (2026-10-14, docs/CARDS.md)
     "voo_agendado",
     "tarefa_feita",
+    # 2a leva (2026-10-14): compromisso com cara propria (tasks.estilo)
+    "date",
+    "balada",
+    "documentos",
+    "presente",
 )
 
 
@@ -454,6 +459,85 @@ def _aperto(conn, tarefa: dict) -> dict | None:
         "hora": f"{m_outra // 60:02d}:{m_outra % 60:02d}",
         "sugestao": f"{alvo // 60:02d}:{alvo % 60:02d}" if livre else None,
     }
+
+
+VOLTA_PADRAO_BALADA = "03:00"  # pedido do Alex: so conta sono se tiver compromisso com hora no dia seguinte
+
+
+def _hhmm_menos(hora: str | None, minutos: int) -> str | None:
+    m = _min_do_dia(hora)
+    if m is None:
+        return None
+    m = (m - minutos) % (24 * 60)
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: date | None = None) -> dict | None:
+    """Date, balada, documentos e presente (2026-10-14, docs/CARDS.md "Linguagem visual" - 2a
+    leva). Tudo que precisou de rede (trajeto, clima, horario do Google, compromisso do dia
+    seguinte) veio pronto no efeito; o resto e conta daqui, sem rede."""
+    import vida_assistente
+
+    hoje = hoje or date.today()
+    row = conn.execute(
+        "SELECT id, title, due_date, hora, local, estilo, extras FROM tasks WHERE id = ?", (ef.get("id"),)
+    ).fetchone()
+    if not row or row["estilo"] not in db.ESTILOS_TAREFA or not row["due_date"]:
+        return None
+    estilo = row["estilo"]
+    extras = db.extras_tarefa(conn, row["id"])
+    data = {
+        "id": row["id"],
+        "titulo": _titulo_curto(row["title"], 90),
+        "data": row["due_date"],
+        "hora": row["hora"],
+        "lugar": row["local"],
+        "com_quem": extras.get("com_quem"),
+    }
+    if estilo in ("date", "balada") and row["hora"]:
+        arrumar = vida_assistente.se_arrumar_min(conn)
+        saida = ef.get("saida") if isinstance(ef.get("saida"), dict) else None
+        sair = (saida or {}).get("sair") or _hhmm_menos(row["hora"], 15)
+        data.update({
+            "comecar": _hhmm_menos(sair, arrumar),
+            "sair": sair,
+            "arrumar_min": arrumar,
+            "trajeto_min": (saida or {}).get("trajeto_min"),
+        })
+        if isinstance(ef.get("clima"), dict):
+            data["clima"] = {"temp": ef["clima"].get("temp"), "chuva_pct": ef["clima"].get("chuva_pct")}
+    if estilo == "date":
+        data["lista"] = extras.get("lista") or []
+    elif estilo == "balada":
+        amanha = ef.get("amanha") if isinstance(ef.get("amanha"), dict) else None
+        volta = extras.get("volta") or (VOLTA_PADRAO_BALADA if amanha else None)
+        data["volta"] = volta
+        data["volta_dita"] = bool(extras.get("volta"))
+        data["uber"] = bool(extras.get("uber"))
+        if amanha and volta and _min_do_dia(amanha.get("acordar")) is not None:
+            v, a = _min_do_dia(volta), _min_do_dia(amanha["acordar"])
+            # volta antes do meio-dia = madrugada do dia seguinte; senao ainda e a mesma noite
+            sono = a - v if v < 12 * 60 else (24 * 60 - v) + a
+            data["sono"] = {
+                "min": max(0, sono), "volta": volta, "acordar": amanha["acordar"],
+                "compromisso": _titulo_curto(amanha.get("titulo") or "", 40), "hora": amanha.get("hora"),
+            }
+    elif estilo == "documentos":
+        data["lista"] = extras.get("lista") or []
+        if isinstance(ef.get("horario"), dict):
+            data["horario"] = ef["horario"]
+    elif estilo == "presente":
+        dia = date.fromisoformat(row["due_date"])
+        compra = max(hoje, dia - timedelta(days=4))
+        data.update({
+            "dias": (dia - hoje).days,
+            "compra_ate": compra.isoformat(),
+            "ideias": extras.get("ideias") or [],
+            "escolha": extras.get("escolha") if isinstance(extras.get("escolha"), int) else None,
+        })
+    aba, rotulo = ABA_POR_ENTIDADE["tarefa"]
+    actions = list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, "tarefa", row["id"])]
+    return novo_card(estilo, data, actions)
 
 
 def card_tarefas_criadas(conn, ids: list[int], actions_extra: list | None = None) -> dict | None:
@@ -1432,6 +1516,11 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
             if entidade in vistos_consulta:
                 continue
             vistos_consulta.add(entidade)
+        if entidade == "tarefa" and isinstance(id_, int) and ef.get("estilo"):
+            card = card_compromisso(conn, ef, _acoes_desfazer(criar_token, [ef]))
+            if card:
+                saida.append(card)
+                continue
         if entidade == "tarefa" and isinstance(id_, int):
             if pos_tarefas is None:
                 pos_tarefas = len(saida)
@@ -1506,6 +1595,10 @@ def mascarar_cards(cards_lista: list) -> list:
                 for m in item.get("mudancas") or []:
                     if m.get("campo") == "valor":
                         m["de"] = m["para"] = "R$ •••"
+        if c.get("type") == "presente" and isinstance(c.get("data"), dict):
+            for ideia in c["data"].get("ideias") or []:
+                if isinstance(ideia, dict):
+                    ideia.pop("preco", None)
         campos = CAMPOS_SENSIVEIS.get(c.get("type"))
         if campos and isinstance(c.get("data"), dict):
             for campo in campos:

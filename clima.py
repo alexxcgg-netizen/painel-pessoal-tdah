@@ -147,6 +147,36 @@ def melhor_dia_sem_chuva(previsoes: list[dict], limite_pct: int = LIMITE_ALERTA_
     return None
 
 
+def previsao_na_hora(lat: float, lon: float, data_iso: str, hora: str) -> dict | None:
+    """Temperatura e chance de chuva previstas pra UMA hora de um dia (ate 16 dias a frente) -
+    card do date/balada (2026-10-14): "14 graus a noite, leva jaqueta". None fora da janela ou
+    se a rede falhar."""
+    try:
+        h = int(str(hora)[:2])
+        resp = requests.get(
+            FORECAST_URL,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "hourly": "precipitation_probability,temperature_2m,weathercode",
+                "timezone": "America/Sao_Paulo",
+                "start_date": data_iso,
+                "end_date": data_iso,
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        dados = resp.json().get("hourly") or {}
+        i = next(i for i, t in enumerate(dados["time"]) if int(t[11:13]) == h)
+        return {
+            "temp": dados["temperature_2m"][i],
+            "chuva_pct": dados["precipitation_probability"][i],
+            "codigo": dados["weathercode"][i],
+        }
+    except (requests.RequestException, ValueError, KeyError, IndexError, StopIteration, TypeError):
+        return None
+
+
 def previsao_horaria_hoje(lat: float, lon: float) -> list[dict] | None:
     """Previsao hora a hora do dia de hoje (fuso America/Sao_Paulo) - lista
     de {'hora': 0-23, 'chuva_pct': int, 'temp': float, 'codigo': int}."""

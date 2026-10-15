@@ -784,6 +784,11 @@ def init_db():
     # pra sugerir tarefas compativeis com o nivel de energia atual (ver
     # vida.tarefas_compativeis_com_energia). Sem valor = tratado como 'media'.
     _garantir_coluna(conn, "tasks", "esforco", "TEXT")
+    # 2026-10-14 (cards da IA, 2a leva - docs/CARDS.md): compromisso com cara propria
+    # (date/balada/documentos/presente) e o que o card guarda dele em JSON (com quem, lista
+    # do que levar/preparar com o que ja foi marcado, ideias de presente e a escolhida...).
+    _garantir_coluna(conn, "tasks", "estilo", "TEXT")
+    _garantir_coluna(conn, "tasks", "extras", "TEXT")
     # Fase 6 (US-E15): limite manual do cartao (Open Finance nao manda isso) -
     # so faz sentido pra tipo='cartao', mas a coluna e generica em
     # bank_accounts (mesmo padrao de "saldo", que tambem so e preenchido
@@ -1978,6 +1983,28 @@ def list_lembretes(conn) -> list[dict]:
 def definir_despertar_lembrete(conn, lembrete_id: int, ativo: bool) -> bool:
     """Fase 6 (US-E3): liga/desliga o push no horario do lembrete."""
     cur = conn.execute("UPDATE lembretes SET despertar = ? WHERE id = ?", (int(bool(ativo)), lembrete_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+ESTILOS_TAREFA = ("date", "balada", "documentos", "presente")
+
+
+def extras_tarefa(conn, task_id: int) -> dict:
+    row = conn.execute("SELECT extras FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if not row or not row["extras"]:
+        return {}
+    try:
+        dados = json.loads(row["extras"])
+    except ValueError:
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+def salvar_extras_tarefa(conn, task_id: int, extras: dict) -> bool:
+    cur = conn.execute(
+        "UPDATE tasks SET extras = ? WHERE id = ?", (json.dumps(extras, ensure_ascii=False), task_id)
+    )
     conn.commit()
     return cur.rowcount > 0
 

@@ -16,6 +16,7 @@
   const TIPOS_REGISTRO = new Set([
     "tarefas_criadas", "transacao", "lembrete", "meta", "habito", "assinatura",
     "compra_parcelada", "refeicao", "agua", "edicao", "saude_treino", "voo_agendado", "tarefa_feita",
+    "date", "balada", "documentos", "presente",
   ]);
 
   // numeros que viram odometro (os cartoes vivos ja contam os deles com data-contar-*)

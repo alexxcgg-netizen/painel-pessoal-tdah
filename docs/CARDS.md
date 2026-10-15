@@ -507,5 +507,23 @@ linha do tempo e de rota são o que mais quebra), número longo sem quebrar entr
 | Concluir | type novo `tarefa_feita` (`cards.card_tarefa_feita`) - `registrar_feito` e `ajustar_tarefa(status=concluir)` | feitas/total de hoje (conta a concluída mesmo atrasada), próxima pendente de hoje; "em 1h40" é conta do front (some no histórico de outro dia). Desfazer reabre (ou apaga a que nasceu concluída). |
 | Tarefa com aperto | `tarefas_criadas` ganha `aperto` {id, titulo, hora, sugestao} quando a nova cai a < 45 min de outra pendente do dia | Só horário de início é dado real. Sugestão = outra a 60 min da nova, se não apertar uma terceira. Botão → `POST /api/tasks/<id>/hora`. |
 
-Falta (2ª leva): date, balada, tabelionato, presente - e a linha "pensando" com os passos reais
-(hoje o SSE só manda texto; precisa o servidor emitir os passos das tools enquanto roda).
+### O que já está no app (2ª leva, 2026-10-14)
+A IA marca `estilo` no `registrar_tarefa` (só com dia marcado; sem dia vira tarefa comum).
+Coluna `tasks.estilo` + `tasks.extras` (JSON: `com_quem`, `lista`, `ideias`, `volta`, e o que o
+card guarda depois: `feito` de cada item, `escolha`, `lembrete_id`, `uber`, `uber_tarefa_id`).
+O que precisa de rede vai no efeito (`_plano_do_estilo` em `app.py`) e um resumo volta pra IA
+(`plano`) - a frase dela bate com o card. Card: `cards.card_compromisso`, front em
+`static/js/cards-saidas.js` + `secoes/hoje/cards-saidas.css`.
+
+| Cena | Type | Dado |
+| :--- | :--- | :--- |
+| Date | `date` | linha se arrumar → sair → chegar (`_saida_pro_compromisso`: Maps se `ENDERECO_CASA`, senão hora − 15), clima na hora (`clima.previsao_na_hora`, `CIDADE_PADRAO`), lista "antes do date" que marca (`POST /api/tasks/<id>/lista`). |
+| Balada | `balada` | céu da noite + linha com a volta. **Sono só se o dia seguinte tem compromisso com hora** (`_primeiro_compromisso_do_dia`: voo ou tarefa) - volta padrão 03:00 se ele não disse (pedido do Alex). Chave "Voltar de Uber" (desligada por padrão) cria/apaga a tarefa "Chamar Uber pra voltar" 30 min antes da volta (`POST /api/tasks/<id>/uber`). |
+| Tabelionato/documentos | `documentos` | pasta + checklist + carimbo "Pasta pronta"; horário do Google (`maps_client.horario_funcionamento`, Places `regularOpeningHours`) e aviso se a hora marcada cai fora/no almoço. Sem "espera ~20 min" (não há dado real). |
+| Presente | `presente` | dias até a data, comprar até = data − 4 (`DIAS_ENTREGA_PRESENTE`); tocar numa ideia cria/troca o lembrete "Comprar presente: X" nesse dia (`POST /api/tasks/<id>/presente`). ≤ 4 dias: avisa que pela internet não chega. Visitante não vê `preco`. |
+
+Desfazer apaga junto o lembrete do presente e a tarefa do Uber. No histórico, o que foi marcado
+depois vem de `/api/tasks/estado` (`extras`) → `CardsSaidas.aplicarEstado`.
+
+Falta: a linha "pensando" com os passos reais (hoje o SSE só manda texto; precisa o servidor
+emitir os passos das tools enquanto roda).

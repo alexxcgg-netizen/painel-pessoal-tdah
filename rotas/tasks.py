@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from flask import Blueprint, jsonify, request
 
 from rotas._base import app_modulo
@@ -161,10 +163,132 @@ def estado_tarefas():
     conn = get_db()
     try:
         marcas = ",".join("?" * len(ids))
-        rows = conn.execute(f"SELECT id, completed_at FROM tasks WHERE id IN ({marcas})", ids).fetchall()
+        rows = conn.execute(f"SELECT id, completed_at, estilo FROM tasks WHERE id IN ({marcas})", ids).fetchall()
+        # cards de compromisso (2026-10-14): o que ja foi marcado/escolhido nele
+        extras = {str(r["id"]): _estado_extras(db.extras_tarefa(conn, r["id"])) for r in rows if r["estilo"]}
     finally:
         conn.close()
-    return jsonify({"estados": {str(r["id"]): r["completed_at"] is not None for r in rows}})
+    resposta = {"estados": {str(r["id"]): r["completed_at"] is not None for r in rows}}
+    if extras:  # so quando tem card de compromisso - o formato antigo continua igual
+        resposta["extras"] = extras
+    return jsonify(resposta)
+
+
+def _estado_extras(extras: dict) -> dict:
+    return {
+        "lista": [bool(i.get("feito")) for i in extras.get("lista") or [] if isinstance(i, dict)],
+        "escolha": extras.get("escolha") if isinstance(extras.get("escolha"), int) else None,
+        "uber": bool(extras.get("uber")),
+    }
+
+
+def _tarefa_com_estilo(conn, task_id, estilos):
+    row = conn.execute(
+        "SELECT id, title, due_date, estilo FROM tasks WHERE id = ? AND due_date IS NOT NULL", (task_id,)
+    ).fetchone()
+    return row if row and row["estilo"] in estilos else None
+
+
+@bp.route("/api/tasks/<int:task_id>/lista", methods=["POST"])
+def marcar_item_lista(task_id):
+    """Caixinha da lista do card (o que levar no cartorio, o que fazer antes do date) - 2026-10-14."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    corpo = app._corpo_json()
+    i = corpo.get("i")
+    if not isinstance(i, int) or isinstance(i, bool):
+        return jsonify({"error": "item inválido"}), 400
+    conn = get_db()
+    try:
+        if not _tarefa_com_estilo(conn, task_id, ("date", "documentos")):
+            return jsonify({"error": "tarefa não encontrada"}), 404
+        extras = db.extras_tarefa(conn, task_id)
+        lista = extras.get("lista") or []
+        if not 0 <= i < len(lista):
+            return jsonify({"error": "item inválido"}), 400
+        lista[i]["feito"] = bool(corpo.get("feito"))
+        db.salvar_extras_tarefa(conn, task_id, extras)
+        return jsonify({"ok": True, "feitos": sum(1 for x in lista if x.get("feito")), "total": len(lista)})
+    finally:
+        conn.close()
+
+
+@bp.route("/api/tasks/<int:task_id>/presente", methods=["POST"])
+def escolher_presente(task_id):
+    """Tocar numa ideia do card de presente (2026-10-14, pedido do Alex): guarda a escolha e
+    cria (ou troca) o lembrete de comprar 4 dias antes da data - margem de entrega."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    i = app._corpo_json().get("i")
+    if not isinstance(i, int) or isinstance(i, bool):
+        return jsonify({"error": "ideia inválida"}), 400
+    conn = get_db()
+    try:
+        row = _tarefa_com_estilo(conn, task_id, ("presente",))
+        if not row:
+            return jsonify({"error": "tarefa não encontrada"}), 404
+        extras = db.extras_tarefa(conn, task_id)
+        ideias = extras.get("ideias") or []
+        if not 0 <= i < len(ideias):
+            return jsonify({"error": "ideia inválida"}), 400
+        hoje = app._agora_brasilia().date()
+        compra = max(hoje, date.fromisoformat(row["due_date"]) - timedelta(days=app.DIAS_ENTREGA_PRESENTE))
+        titulo = f"Comprar presente: {ideias[i]['titulo']} ({row['title']})"[:200]
+        lembrete_id = extras.get("lembrete_id")
+        existe = isinstance(lembrete_id, int) and conn.execute(
+            "SELECT 1 FROM lembretes WHERE id = ?", (lembrete_id,)).fetchone()
+        if existe:
+            conn.execute("UPDATE lembretes SET titulo = ?, data = ? WHERE id = ?", (titulo, compra.isoformat(), lembrete_id))
+        else:
+            lembrete_id = db.create_lembrete(conn, titulo, compra.isoformat())
+        extras["escolha"] = i
+        extras["lembrete_id"] = lembrete_id
+        db.salvar_extras_tarefa(conn, task_id, extras)
+        return jsonify({"ok": True, "escolha": i, "compra_ate": compra.isoformat()})
+    finally:
+        conn.close()
+
+
+@bp.route("/api/tasks/<int:task_id>/uber", methods=["POST"])
+def chave_uber(task_id):
+    """Chave "Voltar de Uber" do card da balada (2026-10-14): ligada = tarefa "Chamar Uber pra
+    voltar" 30 min antes da volta (o aviso de tarefa com hora faz o resto); desligada = apaga."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    import cards
+
+    ligada = bool(app._corpo_json().get("ligada"))
+    conn = get_db()
+    try:
+        row = _tarefa_com_estilo(conn, task_id, ("balada",))
+        if not row:
+            return jsonify({"error": "tarefa não encontrada"}), 404
+        extras = db.extras_tarefa(conn, task_id)
+        volta = extras.get("volta") or cards.VOLTA_PADRAO_BALADA
+        hora = cards._hhmm_menos(volta, 30)
+        dia = date.fromisoformat(row["due_date"])
+        if cards._min_do_dia(volta) < 12 * 60:  # volta de madrugada = dia seguinte
+            dia += timedelta(days=1)
+        antiga = extras.pop("uber_tarefa_id", None)
+        if isinstance(antiga, int):
+            conn.execute("DELETE FROM tasks WHERE id = ? AND completed_at IS NULL", (antiga,))
+        if ligada:
+            cur = conn.execute(
+                "INSERT INTO tasks (title, due_date, hora, source_text) VALUES (?, ?, ?, ?)",
+                ("Chamar Uber pra voltar", dia.isoformat(), hora, f"card da balada #{task_id}"),
+            )
+            extras["uber_tarefa_id"] = cur.lastrowid
+        extras["uber"] = ligada
+        db.salvar_extras_tarefa(conn, task_id, extras)
+        return jsonify({"ok": True, "ligada": ligada, "hora": hora})
+    finally:
+        conn.close()
 
 
 @bp.route("/api/tasks/<int:task_id>/complete", methods=["POST"])

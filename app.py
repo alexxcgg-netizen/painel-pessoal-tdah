@@ -428,6 +428,115 @@ def _saida_pro_voo(conn, data_voo: str, hora: str | None, origem: str, antes_min
         return None
 
 
+DIAS_ENTREGA_PRESENTE = 4  # presente comprado pela internet: compra ate 4 dias antes
+FOLGA_SEM_TRAJETO_MIN = 15  # mesma folga do aviso "hora de sair" (notificacoes.plano_se_arrumar)
+
+
+def _saida_pro_compromisso(data_iso: str, hora: str | None, lugar: str | None) -> dict | None:
+    """Card do date/balada (2026-10-14): hora de sair de casa pra chegar no lugar na hora
+    (Maps com transito). None sem hora/lugar/Maps/ENDERECO_CASA ou se a rede falhar - o card
+    usa a folga de 15 min, igual ao aviso."""
+    casa = os.environ.get("ENDERECO_CASA", "").strip()
+    if not hora or not lugar or not casa or not maps_client.configurado():
+        return None
+    try:
+        chegar_ate = datetime.fromisoformat(f"{data_iso}T{hora}")
+        r = maps_client.horario_de_saida(casa, lugar, chegar_ate, margem_minutos=5)
+        return {"sair": f"{datetime.fromisoformat(r['sair_ate']):%H:%M}", "trajeto_min": int(r["duracao_minutos"])}
+    except Exception:  # rede/formato: o card segue com a folga
+        return None
+
+
+def _clima_na_hora(data_iso: str, hora: str | None) -> dict | None:
+    """Temperatura/chuva na hora do compromisso, na cidade padrao. None se nao der."""
+    cidade = os.environ.get("CIDADE_PADRAO", "").strip()
+    if not hora or not cidade:
+        return None
+    try:
+        local = clima.geocodificar_cidade(cidade)
+        if not local:
+            return None
+        prev = clima.previsao_na_hora(local["lat"], local["lon"], data_iso, hora)
+        return {"temp": round(prev["temp"]), "chuva_pct": prev["chuva_pct"]} if prev else None
+    except Exception:
+        return None
+
+
+def _primeiro_compromisso_do_dia(conn, dia_iso: str) -> dict | None:
+    """Balada (2026-10-14): o que tem com HORA no dia seguinte (voo ou tarefa) e a que horas
+    ele precisa acordar pra isso (sair - tempo de se arrumar; voo: chegar antes + trajeto).
+    None se o dia seguinte nao tiver nada com hora - ai o card nao calcula sono (pedido dele)."""
+    arrumar = vida_assistente.se_arrumar_min(conn)
+    opcoes = []
+    for v in conn.execute(
+        "SELECT origem, hora FROM voos WHERE data = ? AND hora IS NOT NULL AND horas IS NULL", (dia_iso,)
+    ).fetchall():
+        hora = _normalizar_hora(v["hora"])
+        if not hora:
+            continue
+        antes = vida_assistente.voo_briefing_min(conn)
+        saida = _saida_pro_voo(conn, dia_iso, hora, v["origem"] or rota_voo.ORIGEM_PADRAO, antes)
+        sair = saida["sair"] if saida else rota_voo.menos_minutos(hora, antes + FOLGA_SEM_TRAJETO_MIN)
+        opcoes.append({"titulo": "voo", "hora": hora, "sair": sair})
+    for t in conn.execute(
+        "SELECT title, hora FROM tasks WHERE due_date = ? AND hora IS NOT NULL AND completed_at IS NULL "
+        "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL)",
+        (dia_iso,),
+    ).fetchall():
+        hora = _normalizar_hora(t["hora"])
+        if hora:
+            opcoes.append({"titulo": t["title"], "hora": hora,
+                           "sair": rota_voo.menos_minutos(hora, FOLGA_SEM_TRAJETO_MIN)})
+    if not opcoes:
+        return None
+    primeiro = dict(min(opcoes, key=lambda o: o["sair"]))
+    primeiro["acordar"] = rota_voo.menos_minutos(primeiro["sair"], arrumar)
+    return primeiro
+
+
+def _limpar_texto(valor, maximo: int) -> str | None:
+    if not isinstance(valor, str):
+        return None
+    valor = " ".join(valor.split())[:maximo]
+    return valor or None
+
+
+def _extras_do_estilo(entrada: dict) -> dict:
+    """So o que a IA mandou e faz sentido pro estilo, limpo e com tamanho limitado."""
+    extras = {}
+    com_quem = _limpar_texto(entrada.get("com_quem"), 60)
+    if com_quem:
+        extras["com_quem"] = com_quem
+    lista = []
+    for item in (entrada.get("lista") or [])[:8]:
+        if isinstance(item, str):
+            item = {"texto": item}
+        if not isinstance(item, dict):
+            continue
+        texto_item = _limpar_texto(item.get("texto"), 80)
+        if texto_item:
+            lista.append({"texto": texto_item, "detalhe": _limpar_texto(item.get("detalhe"), 90),
+                          "quando": _limpar_texto(item.get("quando"), 20), "feito": False})
+    if lista:
+        extras["lista"] = lista
+    ideias = []
+    for item in (entrada.get("ideias") or [])[:4]:
+        if not isinstance(item, dict):
+            continue
+        titulo_ideia = _limpar_texto(item.get("titulo"), 50)
+        if titulo_ideia:
+            preco = item.get("preco")
+            ok_preco = isinstance(preco, (int, float)) and not isinstance(preco, bool) and 0 < preco < 100000
+            ideias.append({"titulo": titulo_ideia, "porque": _limpar_texto(item.get("porque"), 90),
+                           "preco": round(float(preco)) if ok_preco else None})
+    if ideias:
+        extras["ideias"] = ideias
+    volta = _normalizar_hora(entrada.get("volta"))
+    if volta:
+        extras["volta"] = volta
+    return extras
+
+
 def _tarefa_repetida(conn, titulo, dia):
     """Tarefa com o mesmo titulo (sem acento/caixa) no mesmo dia que ainda ta
     pendente, ou que foi concluida nas ultimas 12h - registrar de novo
@@ -2446,6 +2555,41 @@ def _processar_mensagem_chat(
             return {"erro": "nao recebi a localizacao do celular agora - pergunte o lugar ao Alex"}
         return local_gps["rotulo"] or f"{local_gps['lat']}, {local_gps['lon']}"
 
+    def _plano_do_estilo(estilo, task_id, data_iso, hora, lugar, titulo):
+        """O que precisa de rede vai no efeito (o card e montado sem rede) e o resumo volta pra
+        IA - a frase dela tem que bater com o card."""
+        efeito = {"entidade": "tarefa", "id": task_id, "estilo": estilo}
+        pra_ia = {}
+        if estilo in ("date", "balada") and hora:
+            saida = _saida_pro_compromisso(data_iso, hora, lugar)
+            sair = saida["sair"] if saida else rota_voo.menos_minutos(hora, FOLGA_SEM_TRAJETO_MIN)
+            efeito["saida"] = saida
+            pra_ia["sair_de_casa"] = sair
+            pra_ia["comecar_a_se_arrumar"] = rota_voo.menos_minutos(sair, vida_assistente.se_arrumar_min(conn))
+            tempo = _clima_na_hora(data_iso, hora)
+            if tempo:
+                efeito["clima"] = tempo
+                pra_ia["temperatura_na_hora"] = tempo["temp"]
+            if estilo == "balada":
+                seguinte = (date.fromisoformat(data_iso) + timedelta(days=1)).isoformat()
+                amanha = _primeiro_compromisso_do_dia(conn, seguinte)
+                if amanha:
+                    efeito["amanha"] = amanha
+                    pra_ia["dia_seguinte"] = f"{amanha['titulo']} as {amanha['hora']} - acordar ate {amanha['acordar']}"
+        elif estilo == "documentos" and maps_client.configurado():
+            try:
+                horario = maps_client.horario_funcionamento(lugar or titulo, date.fromisoformat(data_iso))
+            except Exception:
+                horario = None
+            if horario:
+                efeito["horario"] = horario
+                pra_ia["horario_do_lugar"] = "fechado nesse dia" if horario.get("fechado") else ", ".join(
+                    f"{a}-{b}" for a, b in horario["faixas"])
+        elif estilo == "presente":
+            dia = date.fromisoformat(data_iso)
+            pra_ia["comprar_ate"] = max(date.today(), dia - timedelta(days=DIAS_ENTREGA_PRESENTE)).isoformat()
+        return {"_efeito": efeito, **({"plano": pra_ia} if pra_ia else {})}
+
     def exec_registrar_tarefa(entrada):
         recorrencia = entrada.get("recorrencia")
         if recorrencia:
@@ -2482,21 +2626,30 @@ def _processar_mensagem_chat(
         repetida = _tarefa_repetida(conn, entrada["titulo"], quando_data)
         if repetida:
             return _aviso_tarefa_repetida(repetida)
+        # 2026-10-14 (cards da IA, 2a leva): compromisso com cara propria - so com dia marcado
+        estilo = entrada.get("estilo") if entrada.get("estilo") in db.ESTILOS_TAREFA and quando_data else None
+        lugar = local_tarefa or _limpar_texto(entrada.get("lugar"), 120)
+        extras = _extras_do_estilo(entrada) if estilo else {}
+        hora_tarefa = _normalizar_hora(entrada.get("hora"))
         cur = conn.execute(
-            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local, estilo, extras) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 entrada["titulo"],
                 entrada.get("quando"),
                 quando_data,
-                _normalizar_hora(entrada.get("hora")),
+                hora_tarefa,
                 texto,
                 int(bool(entrada.get("depende_do_tempo"))),
-                local_tarefa,
+                lugar,
+                estilo,
+                json.dumps(extras, ensure_ascii=False) if extras else None,
             ),
         )
         conn.commit()
         resultado = {"ok": True, "_efeito": {"entidade": "tarefa", "id": cur.lastrowid}}
+        if estilo:
+            resultado.update(_plano_do_estilo(estilo, cur.lastrowid, quando_data, hora_tarefa, lugar, entrada["titulo"]))
         # so oferece sugestao de dia quando a tarefa ficou com data vaga
         # ("essa semana") - com dia certo (quando_data) ou sem nenhuma pista
         # de tempo (entrada.get("quando") vazio) nao ha nada útil a sugerir
@@ -4058,6 +4211,13 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
                     conn.execute("DELETE FROM tarefas_puladas WHERE origem_id = ? AND data = ?",
                                  (pulo.get("origem_id"), pulo.get("data")))
         elif entidade == "tarefa":
+            # card de compromisso (2026-10-14): o lembrete de comprar o presente e a tarefa de
+            # chamar o Uber nasceram dele - vao junto
+            extras = db.extras_tarefa(conn, id_)
+            if isinstance(extras.get("lembrete_id"), int):
+                conn.execute("DELETE FROM lembretes WHERE id = ?", (extras["lembrete_id"],))
+            if isinstance(extras.get("uber_tarefa_id"), int):
+                conn.execute("DELETE FROM tasks WHERE id = ? AND completed_at IS NULL", (extras["uber_tarefa_id"],))
             # rotina recorrente: o modelo + as instancias materializadas dele
             ids = [id_] + [
                 r["id"] for r in conn.execute("SELECT id FROM tasks WHERE recorrente_origem_id = ?", (id_,)).fetchall()

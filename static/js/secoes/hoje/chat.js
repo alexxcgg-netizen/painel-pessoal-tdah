@@ -333,13 +333,22 @@ let _sincronizandoCards = null;
 async function sincronizarCardsTarefas() {
   const lista = $("#chat-mensagens");
   if (!lista || _sincronizandoCards) return _sincronizandoCards;
-  const ids = [...new Set([...lista.querySelectorAll("input[data-tarefa-id]")].map((c) => c.dataset.tarefaId))]
+  // + cards de compromisso (date/balada/documentos/presente): o que foi marcado depois
+  const ids = [
+    ...new Set([
+      ...[...lista.querySelectorAll("input[data-tarefa-id]")].map((c) => c.dataset.tarefaId),
+      ...[...lista.querySelectorAll("[data-compromisso]")].map((c) => c.dataset.compromisso),
+    ]),
+  ]
     .filter((id) => /^\d+$/.test(id))
     .slice(-200);
   if (!ids.length) return null;
   _sincronizandoCards = (async () => {
     const data = await apiFetch(`/api/tasks/estado?ids=${ids.join(",")}`);
     if (data && data.estados) Object.entries(data.estados).forEach(([id, feita]) => _aplicarEstadoTarefaNosCards(id, !!feita));
+    if (data && data.extras && typeof CardsSaidas !== "undefined") {
+      Object.entries(data.extras).forEach(([id, estado]) => CardsSaidas.aplicarEstado(lista, id, estado));
+    }
   })().finally(() => (_sincronizandoCards = null));
   return _sincronizandoCards;
 }

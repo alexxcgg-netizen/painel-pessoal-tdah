@@ -366,7 +366,11 @@ Coisas duraveis que voce sabe sobre o Alex:
 CHAT_TOOLS = [
     {
         "name": "registrar_tarefa",
-        "description": "Registra uma nova tarefa pendente pro Alex.",
+        "description": (
+            "Registra uma nova tarefa pendente pro Alex. Com 'estilo', o resultado traz 'plano' (hora de "
+            "comecar a se arrumar, de sair, temperatura, ate quando comprar...) - use ESSES horarios na "
+            "resposta, nunca calcule de cabeca; o card mostra os mesmos."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -425,6 +429,61 @@ CHAT_TOOLS = [
                         "pra rotina."
                     ),
                 },
+                "estilo": {
+                    "type": "string",
+                    "enum": ["date", "balada", "documentos", "presente"],
+                    "description": (
+                        "Compromisso que ganha card proprio (so com quando_data). 'date' = encontro "
+                        "romantico (date, jantar a dois, sair com alguem que ele ta ficando). 'balada' = "
+                        "festa/balada/noite com a galera. 'documentos' = cartorio, tabelionato, banco, "
+                        "Detran, orgao publico - ir resolver papelada. 'presente' = aniversario/data de "
+                        "alguem pra quem ele precisa de presente (quando_data = O DIA da data, titulo tipo "
+                        "'Aniversario da mae'). Omita pra qualquer outra tarefa."
+                    ),
+                },
+                "lugar": {
+                    "type": "string",
+                    "description": "nome do lugar do compromisso, do jeito que ele disse (ex: 'Lume', '1o Tabelionato de Brusque') - so se ele disse.",
+                },
+                "com_quem": {"type": "string", "description": "date/balada: com quem (ex: 'Julia', 'a galera')."},
+                "lista": {
+                    "type": "array",
+                    "maxItems": 6,
+                    "description": (
+                        "documentos: o que LEVAR (ex: RG ou CNH original - detalhe 'copia nao vale'); "
+                        "date: o que fazer ANTES (reservar mesa, lavar o carro) com 'quando' curto se fizer "
+                        "sentido ('amanha', 'sab 10h'). Itens curtos, so o que for util de verdade; omita se nada."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "texto": {"type": "string"},
+                            "detalhe": {"type": "string"},
+                            "quando": {"type": "string"},
+                        },
+                        "required": ["texto"],
+                    },
+                },
+                "ideias": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "description": (
+                        "presente: 2-3 ideias tiradas do que o Alex JA contou dessa pessoa (memorias/"
+                        "conversa) - 'porque' cita o que ele disse. Sem nada guardado sobre a pessoa, "
+                        "ideias genericas com 'porque' vazio - nunca invente fato sobre ela. 'preco' = "
+                        "estimativa em reais (numero)."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "titulo": {"type": "string"},
+                            "porque": {"type": "string"},
+                            "preco": {"type": "number"},
+                        },
+                        "required": ["titulo"],
+                    },
+                },
+                "volta": {"type": "string", "description": "balada: hora que ele disse que volta, HH:MM - omita se nao disse."},
             },
             "required": ["titulo"],
         },

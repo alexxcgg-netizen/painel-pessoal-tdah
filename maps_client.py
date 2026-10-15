@@ -36,6 +36,60 @@ _CENTRO_BUSCA = {"latitude": -27.098, "longitude": -48.913}
 _cache_lugares: dict[str, dict | None] = {}
 
 
+_cache_horarios: dict[str, dict | None] = {}
+
+
+def horario_funcionamento(texto: str, dia) -> dict | None:
+    """Horario de funcionamento do lugar NAQUELE dia da semana (card de documentos,
+    2026-10-14: "abre 9h-17h, almoco 12h-13h"). -> {"nome", "faixas": [["09:00","12:00"], ...]}
+    ou {"nome", "fechado": True}; None se nao achar, se o Google nao tiver o horario ou a
+    rede falhar. Uma busca por lugar (cache em memoria)."""
+    chave = texto.strip().lower()
+    if chave not in _cache_horarios:
+        dados = None
+        try:
+            resp = requests.post(
+                PLACES_TEXT_URL,
+                json={
+                    "textQuery": texto,
+                    "languageCode": "pt-BR",
+                    "regionCode": "BR",
+                    "locationBias": {"circle": {"center": _CENTRO_BUSCA, "radius": 50000.0}},
+                },
+                headers={
+                    "X-Goog-Api-Key": os.environ["GOOGLE_MAPS_API_KEY"],
+                    "X-Goog-FieldMask": "places.displayName,places.regularOpeningHours",
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            achados = resp.json().get("places") or []
+            if achados and (achados[0].get("regularOpeningHours") or {}).get("periods"):
+                dados = {
+                    "nome": achados[0].get("displayName", {}).get("text", texto),
+                    "periodos": achados[0]["regularOpeningHours"]["periods"],
+                }
+        except (requests.RequestException, ValueError, KeyError):
+            return None  # nao cacheia falha de rede
+        _cache_horarios[chave] = dados
+    dados = _cache_horarios[chave]
+    if not dados:
+        return None
+    dia_google = (dia.weekday() + 1) % 7  # Google: 0 = domingo
+    faixas = []
+    for p in dados["periodos"]:
+        ab, fe = p.get("open") or {}, p.get("close") or {}
+        if ab.get("day") != dia_google:
+            continue
+        if not fe:  # aberto 24h
+            return {"nome": dados["nome"], "faixas": [["00:00", "24:00"]]}
+        fim = "24:00" if fe.get("day") != dia_google else f"{fe.get('hour', 0):02d}:{fe.get('minute', 0):02d}"
+        faixas.append([f"{ab.get('hour', 0):02d}:{ab.get('minute', 0):02d}", fim])
+    if not faixas:
+        return {"nome": dados["nome"], "fechado": True}
+    return {"nome": dados["nome"], "faixas": sorted(faixas)}
+
+
 _RE_COORD = re.compile(r"^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$")
 
 

@@ -214,13 +214,14 @@ def plano_se_arrumar(
     agora = agora or datetime.now()
     hoje = agora.date().isoformat()
     rows = conn.execute(
-        "SELECT id, title, hora, local, completed_at FROM tasks WHERE due_date = ? AND hora IS NOT NULL",
+        "SELECT id, title, hora, local, completed_at, estilo FROM tasks WHERE due_date = ? AND hora IS NOT NULL",
         (hoje,),
     ).fetchall()
     ja_tem_arrumar = any(_ARRUMAR.search(_sem_acento(r["title"])) for r in rows)
     planos = []
     for r in rows:
-        if r["completed_at"] or not e_compromisso_de_sair(r["title"]):
+        # date/balada (card proprio, 2026-10-14) sao saida mesmo sem a palavra no titulo
+        if r["completed_at"] or not (e_compromisso_de_sair(r["title"]) or r["estilo"] in ("date", "balada")):
             continue
         try:
             evento = datetime.combine(agora.date(), datetime.strptime(r["hora"], "%H:%M").time())

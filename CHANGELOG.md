@@ -5,6 +5,27 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-14 - Cards da IA no app (2ª leva: date, balada, tabelionato, presente)
+
+Compromisso com cara própria: a IA marca `estilo` no `registrar_tarefa` (date/balada/documentos/
+presente) e manda os extras (com quem, lista, ideias, volta). Colunas novas `tasks.estilo` e
+`tasks.extras` (migração automática). Detalhes em `docs/CARDS.md` → "2ª leva".
+- **Date**: coração que se desenha, "Júlia · Lume", linha se arrumar → sair → chegar com trajeto do
+  Maps, fichas de clima na hora (jaqueta ≤ 17°, guarda-chuva ≥ 40%), lista "antes do date" que marca.
+- **Balada**: céu com lua/estrelas/cidade, linha com a volta. Sono **só** se o dia seguinte tem voo
+  ou tarefa com hora (volta padrão 03:00); < 6 h vira aviso. Chave "Voltar de Uber" (desligada por
+  padrão) cria a tarefa de chamar o Uber 30 min antes da volta.
+- **Tabelionato/documentos**: pasta que recebe os papéis, carimbo "Pasta pronta" quando tudo foi
+  marcado, horário do Google (Places) e aviso se a hora cai fora do expediente/no almoço.
+- **Presente**: caixa que abre, contagem, linha hoje → comprar até (data − 4) → o dia; tocar numa
+  ideia cria o lembrete de comprar. Em cima da hora: "pela internet não chega".
+Rotas novas `POST /api/tasks/<id>/lista|presente|uber` (recusam no modo visitante);
+`/api/tasks/estado` devolve `extras` pro histórico. Aviso "hora de se arrumar" conta date/balada
+como saída. Testes: `test_cards_saidas.py`, `tests/js/cards_saidas.test.js`. SW v77.
+
+Também hoje: barra de abas cortada no app da tela de início (SW v76) - a folga fixa de ~34pt do
+iPhone virou linha de base do desvio medido (`_medirDesvioTela`).
+
 ## 2026-10-14 - Cards da IA no app (1ª leva: voo, gasto, alteração, concluir, aperto)
 
 Implementação das 5 cenas do protótipo que usam dado que o painel já tem (tabela em
