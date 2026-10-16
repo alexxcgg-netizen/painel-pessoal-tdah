@@ -273,6 +273,29 @@
     if (typeof deps.aoMudar === "function") deps.aoMudar();
   }
 
+  // ===================================================== despertador
+  // "Amanhã quero acordar às 7" no chat: hora grande + botão que abre o Atalho "Despertador do Painel"
+  // (a Apple só deixa o app Atalhos criar alarme; o botão é o servidor que manda, no rodapé do card).
+  const ICONE_DESPERTA =
+    '<svg class="vv-despertador" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="16" cy="17.5" r="9.5"/><path d="M16 12v5.5l3.5 2.2"/><path d="M5 8.5 8.5 5M27 8.5 23.5 5"/><path d="M10 26.5 8 29M22 26.5 24 29"/></svg>';
+  const horaValida = (h) => typeof h === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(h);
+  Cards.registrar("despertador", (data, _card, ctx) => {
+    if (!data || !horaValida(data.hora) || !Cards.parseDia(data.data)) return null;
+    const agora = (ctx && ctx.agora) || new Date();
+    const dia = Cards.rotuloDia(data.data, agora);
+    const antes = horaValida(data.pedida) && data.pedida !== data.hora;
+    const sub = antes
+      ? `um compromisso pede antes das ${data.pedida} que você pediu`
+      : `${dia}${dia === "hoje" || dia === "amanhã" ? ", " + Cards.dataCurta(data.data) : ""}`;
+    return (
+      `<div class="sd dsp">` +
+      olho(I.relogio, "Despertador", antes ? dia : "") +
+      `<div class="vv-hero">${ICONE_DESPERTA}<span class="vv-hero-rot">Acorda</span><b class="vivo-num">${esc(data.hora)}</b>` +
+      `<span class="vv-hero-sub">${esc(sub)}</span></div>` +
+      `</div>`
+    );
+  });
+
   if (typeof Cards.registrarAcao === "function") {
     Cards.registrarAcao("doc_agendar", (btn, _cardEl, deps) => {
       const alvo = btn.closest(".dv");

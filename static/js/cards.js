@@ -215,12 +215,15 @@
       return `<button type="button" class="card-btn card-btn-despertar${ativo ? " ativo" : ""}" data-acao="despertar" data-lembrete-id="${esc(acao.lembrete_id)}" aria-pressed="${ativo}">${ICONE_SINO}<span>${esc(acao.rotulo || "Desperta você")}</span></button>`;
     }
     // link externo (rota -> Google Maps/Waze, briefing de voo -> Windy). So https desses tres
-    // (Waze: so o deep link oficial waze.com/ul); qualquer outra URL e ignorada, mesmo que o
+    // (Waze: so o deep link oficial waze.com/ul; Atalhos: so shortcuts://run-shortcut?name=, que o
+    // card do despertador usa pra abrir o Atalho que cria o alarme); qualquer outra URL e ignorada, mesmo que o
     // servidor mande.
     if (
       acao.tipo === "abrir_link" &&
       typeof acao.url === "string" &&
-      (/^https:\/\/www\.(google\.com\/maps|windy\.com)\//.test(acao.url) || /^https:\/\/waze\.com\/ul\?/.test(acao.url))
+      (/^https:\/\/www\.(google\.com\/maps|windy\.com)\//.test(acao.url) ||
+        /^https:\/\/waze\.com\/ul\?/.test(acao.url) ||
+        /^shortcuts:\/\/run-shortcut\?name=[\w%.-]+$/.test(acao.url))
     ) {
       return `<a class="card-btn card-btn-link" href="${esc(acao.url)}" target="_blank" rel="noopener noreferrer">${ICONE_MAPA}<span>${esc(acao.rotulo || "Abrir")}</span></a>`;
     }

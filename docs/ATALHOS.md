@@ -108,6 +108,24 @@ Sem nada com hora amanhã, não mexe em nada.
 Depois da meia-noite (até as 4h) o mesmo endereço olha o próprio dia, então rodar o Atalho de
 madrugada também funciona.
 
+### 2c-bis. "Amanhã quero acordar às 7" no chat (2026-10-16)
+
+Você diz no chat a hora ("amanhã quero acordar às 7") e o painel guarda o pedido (ferramenta
+`definir_despertador`). **O painel não consegue tocar o alarme do iPhone sozinho** — a Apple só deixa o
+app Atalhos criar alarme. Por isso o card mostra a hora e um botão **"Pôr no despertador do iPhone"**,
+que abre um Atalho seu **com este nome exato: `Despertador do Painel`**.
+
+Crie o Atalho (app Atalhos → + → nome `Despertador do Painel`) com as mesmas ações do passo acima,
+**sem** o `?ate=`: **Obter Conteúdo de URL** (GET, `X-Webhook-Token`) em
+`https://SEU-DOMINIO/api/atalho/despertador` → **Obter Valor do Dicionário** `tem` → **Se** for 1 →
+**Obter Valor do Dicionário** `acordar` → **Criar Alarme** (hora = `acordar`, rótulo "Painel").
+Dá pra usar o mesmo Atalho na automação das 22h (assim o alarme também sai sem tocar no botão).
+
+- Se um voo/compromisso do mesmo dia exigir acordar **antes** do que você pediu, vale o mais cedo e a
+  IA te avisa (acordar atrasado perde o voo).
+- O pedido vale só para a data dele. "Cancela o despertador" apaga.
+- O botão depende do nome do Atalho ser igual; se mudar o nome, o botão não acha.
+
 ## 3. Uso do celular: quanto tempo em cada app
 
 A Apple **não deixa o Atalhos ler o Tempo de Uso** (Screen Time). O jeito é registrar quando o

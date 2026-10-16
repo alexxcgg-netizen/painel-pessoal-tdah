@@ -300,7 +300,17 @@ existe API publica do Waze pra rotas/transito, entao o calculo do horario de sai
 da Google Routes API — o link do Waze e so um atalho pra navegacao (usa o [deep link oficial do
 Waze](https://developers.google.com/waze/deeplinks), sem scraping nem API nao documentada).
 
-### Trânsito de verdade + Waze nos cards (2026-10-15)
+### Despertador pelo chat e relatório do painel (2026-10-16)
+
+- **"Amanhã quero acordar às 7"** no chat guarda o pedido e mostra um card com a hora e o botão
+  "Pôr no despertador do iPhone". O painel **não toca o alarme sozinho** (a Apple só deixa o app
+  Atalhos criar alarme): crie o Atalho `Despertador do Painel` conforme `docs/ATALHOS.md` (2c-bis).
+  Compromisso que exige acordar antes do pedido ganha, e a IA te avisa.
+- **Relatório do painel**: `.venv/Scripts/python.exe scripts/relatorio_painel.py` (só leitura) gera
+  `data/relatorio_painel.md` com o que olhar primeiro: conversa, erros do celular e do servidor, dados.
+  Erros do servidor ficam em `data/erros_servidor.log`. Uso detalhado: habilidade `relatorio-painel`.
+
+## Trânsito de verdade + Waze nos cards (2026-10-15)
 
 - **Trânsito da hora de sair, não da hora da pergunta**: `maps_client.horario_de_saida` manda o
   `departureTime` (chegada − margem − ~30 min) pro Google prever o trânsito daquele horário, e

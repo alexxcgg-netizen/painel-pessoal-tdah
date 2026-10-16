@@ -56,6 +56,12 @@ class DiagnosticoTestCase(unittest.TestCase):
         self.assertEqual(len(dados["longo"]), 80)
         self.assertEqual(len(dados), 5)
 
+    def test_erro_de_js_do_aparelho_e_aceito(self):
+        r = self.client.post("/api/diagnostico", json={"tipo": "erro_js", "dados": {
+            "msg": "x is not a function", "arq": "tarefas.js", "linha": 12, "aba": "hoje"}})
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(self._linhas(), [("erro_js", {"msg": "x is not a function", "arq": "tarefas.js", "linha": 12, "aba": "hoje"})])
+
     def test_lixo_nao_quebra_nem_grava(self):
         for corpo in (None, [], {"tipo": "outro", "dados": {}}, {"tipo": "mic", "dados": "x"}):
             r = self.client.post("/api/diagnostico", data=json.dumps(corpo), content_type="application/json")

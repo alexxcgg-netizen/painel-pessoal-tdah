@@ -123,3 +123,28 @@ test("assinatura_subiu: riscado -> novo, pct, botoes; visitante esconde valor e 
   assert.doesNotMatch(o, /data-acao=/);
   assert.doesNotMatch(o, /39,90/);
 });
+
+// ---- despertador pedido no chat (2026-10-16)
+test("despertador: hora grande, botão que abre o Atalho e só esse link de atalho passa", () => {
+  const h = card("despertador", { hora: "07:00", data: "2026-10-16", pedida: null });
+  assert.match(h, /Despertador/);
+  assert.match(h, /<span class="vv-hero-rot">Acorda<\/span><b class="vivo-num">07:00<\/b>/);
+  assert.match(h, /amanhã, sexta 16/);
+
+  // um compromisso pediu antes: a hora do alarme muda e o card diz por quê
+  const antes = card("despertador", { hora: "06:15", data: "2026-10-16", pedida: "07:00" });
+  assert.match(antes, /06:15/);
+  assert.match(antes, /pede antes das 07:00/);
+
+  const link = (url) => Cards.renderizarCardHTML(
+    { type: "despertador", id: "x1", data: { hora: "07:00", data: "2026-10-16" }, actions: [{ tipo: "abrir_link", rotulo: "Pôr no despertador do iPhone", url }] },
+    { agora: AGORA });
+  assert.match(link("shortcuts://run-shortcut?name=Despertador%20do%20Painel"), /href="shortcuts:\/\/run-shortcut\?name=Despertador%20do%20Painel"/);
+  for (const url of ["shortcuts://x-callback-url/run-shortcut?name=a", "shortcuts://run-shortcut?name=a&input=text&x=<b>", "javascript:alert(1)", "shortcuts://run-shortcut?name="]) {
+    assert.ok(!link(url).includes("card-btn-link"), url);
+  }
+
+  // dado quebrado nunca derruba o histórico
+  assert.doesNotThrow(() => card("despertador", { hora: "7", data: "x" }));
+  assert.doesNotMatch(card("despertador", { hora: "7", data: "x" }), /Acorda/);
+});

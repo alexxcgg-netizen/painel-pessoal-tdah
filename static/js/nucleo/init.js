@@ -339,6 +339,32 @@ function _retratoTela(motivo) {
     }, motivo === "abriu");
   } catch {}
 }
+// Erros de JavaScript no aparelho (2026-10-16): antes so apareciam no console de quem esta com o
+// celular na mao (ninguem). Vai pro diagnostico (tipo "erro_js": mensagem curta + arquivo:linha,
+// sem conteudo da tela) e o `scripts/relatorio_painel.py` agrupa. Nunca lanca de dentro do handler.
+function _registrarErroJs(msg, arquivo, linha) {
+  try {
+    const texto = String(msg || "").trim();
+    if (!texto || /^Script error\.?$/i.test(texto) || /ResizeObserver loop/i.test(texto)) return;
+    if (typeof enviarDiagnostico !== "function") return;
+    const aba = (document.querySelector(".tab-btn.active") || {}).dataset?.tab || null;
+    enviarDiagnostico("erro_js", {
+      msg: texto.slice(0, 78),
+      arq: String(arquivo || "").split("/").pop().split("?")[0].slice(0, 40),
+      linha: Number(linha) || 0,
+      aba,
+    });
+  } catch {}
+}
+window.addEventListener("error", (e) => {
+  if (e.target && e.target !== window) return; // imagem/script que nao carregou: nao e erro de codigo
+  _registrarErroJs(e.message, e.filename, e.lineno);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const r = e.reason;
+  _registrarErroJs("promessa: " + (r && r.message ? r.message : r), "", 0);
+});
+
 if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", _medirDesvioTela);
   window.visualViewport.addEventListener("scroll", _medirDesvioTela);

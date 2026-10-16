@@ -71,12 +71,30 @@ def atalho_despertador():
     agora = app._agora_brasilia().replace(tzinfo=None)
     dia = agora.date() if agora.hour < 4 else agora.date() + timedelta(days=1)
     ate = app._normalizar_hora(request.args.get("ate")) if request.args.get("ate") else None
+    import despertador
+
     conn = get_db()
     try:
         p = app._primeiro_compromisso_do_dia(conn, dia.isoformat())
+        pedida = despertador.pedido(conn, dia.isoformat())
     finally:
         conn.close()
     base = {"tem": False, "data": dia.isoformat(), "mensagem": ""}
+    if pedida:
+        # pedido explicito do Alex no chat ("amanha quero acordar as 7"): ignora o `ate`, mas se um
+        # compromisso exigir acordar ANTES, o mais cedo ganha (acordar atrasado perde o voo)
+        hora = despertador.mais_cedo(pedida, p["acordar"] if p else None)
+        motivo = "você pediu" if hora == pedida else f"{p['titulo']} às {p['hora']} pede antes das {pedida}"
+        return jsonify({
+            "tem": True,
+            "data": dia.isoformat(),
+            "acordar": hora,
+            "acordar_iso": f"{dia.isoformat()}T{hora}:00",
+            "titulo": "pedido" if hora == pedida else p["titulo"],
+            "hora": hora if hora == pedida else p["hora"],
+            "sair": p["sair"] if p and hora != pedida else None,
+            "mensagem": f"Despertador às {hora}: {motivo}.",
+        })
     if not p:
         return jsonify(base)
     if ate and p["acordar"] >= ate:

@@ -287,6 +287,8 @@ TIPOS_CARD = (
     "documento_validade",
     "compras_previsao",
     "assinatura_subiu",
+    # despertador pedido no chat (2026-10-16): botao que abre o Atalho do iPhone
+    "despertador",
 )
 
 
@@ -1234,6 +1236,24 @@ def acao_waze(url, para: str | None = None) -> dict | None:
     return {"tipo": "abrir_link", "rotulo": rotulo, "url": url}
 
 
+def card_despertador(ef: dict) -> dict | None:
+    """"Amanha acorda as 7": a hora do alarme + botao que abre o Atalho "Despertador do Painel"
+    (a Apple so deixa o app Atalhos criar alarme - despertador.py). `hora` ja e a mais cedo entre
+    o pedido e o que um compromisso exige; `pedida` so aparece quando difere."""
+    import despertador
+
+    hora = ef.get("hora")
+    if not (isinstance(hora, str) and len(hora) == 5 and isinstance(ef.get("data"), str)):
+        return None
+    pedida = ef.get("pedida")
+    return novo_card(
+        "despertador",
+        {"hora": hora, "data": ef["data"], "pedida": pedida if pedida and pedida != hora else None},
+        [{"tipo": "abrir_link", "rotulo": "Pôr no despertador do iPhone",
+          "url": "shortcuts://run-shortcut?name=" + despertador.NOME_ATALHO.replace(" ", "%20")}],
+    )
+
+
 def card_refeicao(conn, id_: int, ef: dict, actions_extra=None) -> dict | None:
     """Foto do prato (refeicoes.py): itens com gramas/macros estimados, total da refeicao, o
     dia ate agora e a meta. Valores sao estimativa por foto - o front mostra com "~"."""
@@ -1788,6 +1808,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_tarefas_lista(conn, ef)
     if entidade == "briefing_voo":
         return card_briefing_voo(ef)
+    if entidade == "despertador":
+        return card_despertador(ef)
     if entidade == "quiz_aviacao":
         return card_quiz_aviacao(ef)
     return None

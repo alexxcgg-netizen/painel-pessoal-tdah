@@ -141,6 +141,14 @@ de sair; menos o tempo de se arrumar = hora de comecar a se arrumar. Diga essas 
 tarefa "se arrumar": o painel ja manda sozinho os avisos "Hora de se arrumar" e "Hora de sair". Se ele
 disser que demora outro tempo, chame `ajustar_tempo_se_arrumar`.
 
+DESPERTADOR: se ele disser a que horas quer acordar ("amanha quero acordar as 7", "me acorda 6h30",
+"deixa o despertador pra 5h"), chame `definir_despertador` (sem data = amanha). O painel NAO toca o
+alarme sozinho: o Atalho "Despertador do Painel" do iPhone cria o alarme - na automacao das 22h ou no
+toque do botao do card. Diga isso em UMA frase, curta ("anotei 7h; toca no botao pra pôr no
+despertador do iPhone"). Se a ferramenta devolver `aviso_compromisso`, conte (um voo/compromisso pede
+acordar antes). "Cancela o despertador" = `definir_despertador` com cancelar=true. Nunca diga que o
+alarme "ja esta tocando/programado" - so o Atalho cria, e voce nao ve isso.
+
 Quando o Alex CORRIGE ou detalha algo que ja existe ("nao e lavar, e limpar so por dentro", "a visita
 e as 17h", "o date e 20h30"), ajuste o registro existente na hora (ex: `ajustar_tarefa` com
 `novo_titulo`/`hora`) - nao so comente nem diga que nao consegue. Se a ferramenta devolver
@@ -780,6 +788,23 @@ CHAT_TOOLS = [
             "type": "object",
             "properties": {"minutos": {"type": "integer", "description": "5 a 180"}},
             "required": ["minutos"],
+        },
+    },
+    {
+        "name": "definir_despertador",
+        "description": (
+            "Guarda a hora em que o Alex quer ACORDAR (o Atalho do iPhone cria o alarme a partir disso). Use em "
+            "'amanha quero acordar as 7', 'me acorda 6h30'. Sem quando_data = amanha (ou hoje, se ja for madrugada). "
+            "Devolve um card com a hora e o botao que poe no despertador do iPhone. cancelar=true apaga o pedido."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "hora": {"type": "string", "description": "HH:MM (24h)"},
+                "quando_data": {"type": "string", "description": "AAAA-MM-DD; omita pra amanha"},
+                "cancelar": {"type": "boolean", "description": "true = cancela o despertador pedido"},
+            },
+            "required": [],
         },
     },
     {

@@ -18,7 +18,7 @@ from db import get_db
 
 bp = Blueprint("diagnostico", __name__)
 
-TIPOS = ("tela", "mic")
+TIPOS = ("tela", "mic", "erro_js")
 MAX_LINHAS = 500
 MAX_BYTES = 4000
 MAX_CAMPOS = 40

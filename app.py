@@ -295,6 +295,9 @@ from db import (
 )
 
 app = Flask(__name__)
+import log_erros  # noqa: E402
+
+log_erros.configurar(__import__("pathlib").Path(db.DB_PATH).parent)  # erros do servidor -> data/erros_servidor.log
 init_db()
 
 
@@ -3226,6 +3229,42 @@ def _processar_mensagem_chat(
         conn.commit()
         return {"ok": True, "minutos": minutos}
 
+    def exec_definir_despertador(entrada):
+        """"Amanha quero acordar as 7": guarda o pedido; o Atalho do iPhone cria o alarme (despertador.py)."""
+        import despertador
+
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        if entrada.get("cancelar"):
+            return {"ok": True, "cancelado": despertador.cancelar(conn)}
+        hora = despertador.normalizar_hora(entrada.get("hora"))
+        if not hora:
+            return {"erro": f"hora invalida: {entrada.get('hora')!r}"}
+        agora = _agora_brasilia().replace(tzinfo=None, second=0, microsecond=0)
+        try:
+            dia = _data_valida(entrada.get("quando_data")) or despertador.dia_alvo(agora, None)
+        except ValueError:
+            return {"erro": f"data invalida: {entrada.get('quando_data')!r}"}
+        if dia < agora.date().isoformat():
+            return {"erro": "essa data ja passou"}
+        if dia == agora.date().isoformat() and hora <= f"{agora:%H:%M}":
+            return {"erro": f"as {hora} de hoje ja passou - confirme com o Alex qual dia ele quis dizer"}
+        despertador.guardar(conn, hora, dia)
+        conn.commit()
+        resultado = {"ok": True, "hora": hora, "data": dia,
+                     "obs": "o painel nao toca o alarme sozinho: o Atalho do iPhone cria o alarme (automacao das 22h "
+                            "ou o botao do card). Diga isso em uma frase."}
+        p = _primeiro_compromisso_do_dia(conn, dia)
+        if p and p["acordar"] < hora:
+            resultado["aviso_compromisso"] = (
+                f"ATENCAO: {p['titulo']} as {p['hora']} pede acordar as {p['acordar']}, antes das {hora} que ele "
+                f"pediu. O alarme vai tocar as {p['acordar']}. Conte isso e pergunte se ele quer outra coisa."
+            )
+        resultado["_efeito"] = {"entidade": "despertador", "consulta": True, "data": dia, "pedida": hora,
+                                "hora": despertador.mais_cedo(hora, p["acordar"] if p else None)}
+        return resultado
+
     def exec_ajustar_antecedencia_voo(entrada):
         recusa = _recusa_visitante()
         if recusa:
@@ -3974,6 +4013,7 @@ def _processar_mensagem_chat(
         "ajustar_gasto": exec_ajustar_gasto,
         "definir_meta_horas_voo": exec_definir_meta_horas_voo,
         "ajustar_tempo_se_arrumar": exec_ajustar_tempo_se_arrumar,
+        "definir_despertador": exec_definir_despertador,
         "ajustar_antecedencia_voo": exec_ajustar_antecedencia_voo,
         "ajustar_renda": exec_ajustar_renda,
         "apagar_tarefa": exec_apagar_tarefa,

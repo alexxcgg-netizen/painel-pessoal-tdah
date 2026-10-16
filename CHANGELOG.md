@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-16 - Despertador pedido no chat + relatório do painel + registro de erros (SW v85)
 - 2026-10-16 - Raiz do projeto limpa + mapa no AGENTS.md
 - 2026-10-16 - CHANGELOG com índice no topo + setembro arquivado
 - 2026-10-16 - Barra que sumia com medida impossível + horário solto + título de depois (SW v84)
@@ -145,6 +146,22 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-16 - Despertador pedido no chat + relatório do painel + registro de erros (SW v85)
+
+Pedido do Alex: "amanhã quero acordar às 7" vira despertador no iPhone; e um relatório do painel
+inteiro pra achar bug. Briefing: `docs/briefings/2026-10-16-despertador-e-relatorio.md`.
+- **Despertador**: o iOS não deixa PWA criar alarme (só o app Atalhos), então: ferramenta do chat
+  `definir_despertador` guarda o pedido (`despertador.py`), `GET /api/atalho/despertador` o devolve
+  (ignora `?ate=`; compromisso que exige acordar antes ganha, e a IA é avisada), card `despertador` com
+  botão `shortcuts://run-shortcut?name=Despertador%20do%20Painel` (allowlist estrita). **Alex precisa
+  criar o Atalho com esse nome** (`docs/ATALHOS.md` 2c-bis). Aceita "7h"/"7h30"/"07:00".
+- **Relatório**: `scripts/relatorio_painel.py` + habilidade `relatorio-painel` (conversa, aparelho,
+  servidor, dados; "o que olhar primeiro" por gravidade; só leitura; saída em `data/`).
+- **Registro de erros que não existia**: `log_erros.py` grava WARNING+ em `data/erros_servidor.log`
+  (antes sumia no console) e o `init.js` manda erro de JavaScript do celular como diagnóstico `erro_js`.
+- Testes: `test_despertador_pedido` (8), `test_relatorio_painel` (8), `test_log_erros` (3),
+  `test_diagnostico` (+1), `cards_automacao.test.js` (+1).
 
 ## 2026-10-16 - Raiz do projeto limpa + mapa no AGENTS.md
 
