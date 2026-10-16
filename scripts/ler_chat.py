@@ -228,6 +228,8 @@ def main(argv=None) -> int:
         conn.close()
     args.saida.parent.mkdir(parents=True, exist_ok=True)
     args.saida.write_text(texto, encoding="utf-8")
+    if hasattr(sys.stdout, "reconfigure"):  # console do Windows (cp1252) nao imprime o "⚠"
+        sys.stdout.reconfigure(errors="replace")
     print(
         f"{conta['alex']} tuas + {conta['ia']} da IA ({conta['correcoes']} com ⚠) "
         f"de {desde:%d/%m} a {ate:%d/%m} -> {args.saida}"

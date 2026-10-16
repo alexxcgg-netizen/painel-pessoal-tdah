@@ -243,8 +243,21 @@ if (window.visualViewport) {
 // Agora mede o ancoradouro DE VERDADE: uma sonda invisivel position:fixed; bottom:0 - o topo dela
 // e exatamente onde o fundo das pecas fixas fica. Sem chute de base: so desce quando o fundo
 // visivel passa do ancoradouro em >= 48px (o teclado preso, que e centenas de px).
+// 6a camada (2026-10-16, diagnostico do iPhone dele na tela IA): no meio de uma transicao o iOS
+// devolve medida impossivel - vvTopo = 956 (= a tela inteira), sonda em 0 ou negativa (-16036) -
+// e a conta descia a barra 1912 a 33984px, sumida. Medida fora do que um teclado preso consegue
+// fazer e descartada (barra no lugar normal) e remedida logo depois, com a tela ja assentada.
 const _DESVIO_MINIMO_BUG = 48; // folga pequena nunca mexe; o bug do teclado preso e bem maior
 let _ultimoDesvio = { bruto: 0, aplicado: 0, ancora: null };
+let _remedirDepois = null;
+let _medidasEstranhas = 0; // remede no maximo 5x seguidas; depois espera o proximo evento
+function _medidaPlausivel(vv, ancora, bruto) {
+  const alto = window.innerHeight || 0;
+  if (!alto || !(vv.height > 0)) return false;
+  if (ancora < alto * 0.3 || ancora > alto + 2) return false; // sonda fora da tela
+  if (vv.offsetTop < 0 || vv.offsetTop >= alto * 0.6) return false; // tela "rolada" inteira
+  return bruto <= alto * 0.6; // teclado preso e no maximo ~meia tela
+}
 let _sondaFundo = null;
 function _ancoraDoFixo() {
   if (!document.body) return null;
@@ -258,7 +271,7 @@ function _ancoraDoFixo() {
 }
 function _medirDesvioTela() {
   const vv = window.visualViewport;
-  if (!vv) return;
+  if (!vv || document.hidden) return; // em segundo plano o iOS mede qualquer coisa
   const ativo = document.activeElement;
   const digitando = ativo && ativo.matches && ativo.matches(_CAMPO_DE_TECLADO);
   const fundoVisivel = vv.offsetTop + vv.height;
@@ -267,6 +280,16 @@ function _medirDesvioTela() {
   let bruto = 0;
   if (ancora !== null && !digitando && vv.scale <= 1.01) {
     bruto = Math.max(0, Math.round(fundoVisivel - ancora));
+    if (!_medidaPlausivel(vv, ancora, bruto)) {
+      _ultimoDesvio = { bruto, aplicado: 0, ancora: Math.round(ancora) };
+      document.documentElement.style.setProperty("--vv-desvio", "0px");
+      _retratoTela("ignorada");
+      if (!_remedirDepois && _medidasEstranhas++ < 5) {
+        _remedirDepois = setTimeout(() => { _remedirDepois = null; _medirDesvioTela(); }, 400);
+      }
+      return;
+    }
+    _medidasEstranhas = 0;
     desvio = bruto >= _DESVIO_MINIMO_BUG ? bruto : 0;
   }
   _ultimoDesvio = { bruto, aplicado: desvio, ancora: ancora === null ? null : Math.round(ancora) };

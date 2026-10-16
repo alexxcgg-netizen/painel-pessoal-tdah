@@ -2821,7 +2821,11 @@ def _processar_mensagem_chat(
         conn.commit()
         if not efeito:
             return {"ok": True, "titulo": tarefa["title"], "obs": "ja estava assim, nada mudou"}
-        return {"ok": True, "titulo": tarefa["title"], "_efeito": efeito}
+        # titulo de DEPOIS (2026-10-16: devolvia o antigo e a IA achou que a troca nao pegou)
+        resultado = {"ok": True, "titulo": novos.get("title", tarefa["title"]), "_efeito": efeito}
+        if "title" in novos and novos["title"] != tarefa["title"]:
+            resultado["titulo_antes"] = tarefa["title"]
+        return resultado
 
     def exec_mover_tarefas(entrada):
         recusa = _recusa_visitante()

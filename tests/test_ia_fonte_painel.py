@@ -62,7 +62,8 @@ class PromptsTestCase(unittest.TestCase):
         # pergunta uma vez so, virada do dia, numero em algarismo
         p = chat_mod.CHAT_SYSTEM_PROMPT
         for trecho in ("HORARIO QUE ELE NAO DISSE", "PERGUNTA UMA VEZ SO", "VIRADA DO DIA",
-                       "NUMERO NO TEXTO E SEMPRE EM ALGARISMO"):
+                       "NUMERO NO TEXTO E SEMPRE EM ALGARISMO",
+                       "HORARIO SOLTO LOGO DEPOIS"):  # 2026-10-16: "18:30" depois de criar a tarefa
             self.assertIn(trecho, p)
         self.assertIn("algarismo", chat_mod.CHAT_SIMPLES_PROMPT)
 

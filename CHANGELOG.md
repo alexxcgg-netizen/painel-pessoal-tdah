@@ -5,6 +5,20 @@ Serve como memória base para futuras sessões de IA - sem isso, cada sessão no
 reconstruir contexto lendo o `git log` inteiro. Ver também `README.md` pra visão geral das
 features e da integração com o painel da construtora (`financeiro-construtora`, outro repo).
 
+## 2026-10-16 - Barra que sumia com medida impossível + horário solto + título de depois (SW v84)
+
+Leitura do chat/diagnóstico de 15/10 (`scripts/ler_chat.py`). Briefing: `docs/briefings/2026-10-16-barra-horario-titulo.md`.
+- **Barra de abas (6a camada, `init.js`)**: na tela IA o iOS devolveu medida de transição impossível
+  (`vvTopo` = tela inteira, sonda em 0 ou negativa) e a barra desceu 1.912 a 33.984 px - sumiu.
+  `_medidaPlausivel`: sonda entre 30% da tela e o fundo, `vv.offsetTop` < 60% da tela, desvio ≤ 60% da
+  tela; fora disso a barra fica no lugar (0px), manda retrato `ignorada` e remede em 400 ms (até 5x).
+  Com `document.hidden` não mede. Teste: `test_medida_impossivel_no_meio_da_transicao_nao_some_com_a_barra`.
+- **Chat - HORARIO SOLTO LOGO DEPOIS**: ele mandou só "18:30" depois da IA criar uma tarefa sem hora e
+  a IA não gravou; agora o horário vai pra essa tarefa (`ajustar_tarefa`), só pergunta se houver 2+ sem hora.
+- **`ajustar_tarefa` devolvia o título ANTIGO ao renomear** - a IA achou que a troca não tinha pegado e
+  pediu pra ele conferir. Agora `titulo` = o novo e `titulo_antes` = o de antes.
+- `scripts/ler_chat.py`: não quebra mais no console do Windows (cp1252) ao imprimir o "⚠".
+
 ## 2026-10-15 - Trânsito de verdade + Waze nos cards (SW v83)
 
 Pedido do Alex: "o que falta hoje no painel é o trânsito", tudo grátis, avisar de coisa tipo

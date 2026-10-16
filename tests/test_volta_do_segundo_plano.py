@@ -269,6 +269,43 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
             finally:
                 browser.close()
 
+    def test_medida_impossivel_no_meio_da_transicao_nao_some_com_a_barra(self):
+        """6a camada (2026-10-16, diagnostico do iPhone dele na tela IA): o iOS devolveu
+        vvTopo = 956 (a tela inteira) no meio de uma transicao e a barra desceu 1912px, sumida.
+        Medida impossivel e descartada (0px, barra no lugar) e remedida; quando a tela assenta
+        no teclado preso de verdade (+300), a correcao volta."""
+        with sync_playwright() as p:
+            kwargs = {"headless": True}
+            if _CHROME is not None and Path(_CHROME).exists():
+                kwargs["executable_path"] = _CHROME
+            browser = p.chromium.launch(**kwargs)
+            try:
+                ctx = browser.new_context(viewport={"width": 440, "height": 956})
+                ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
+                                 headers={"Content-Type": "application/json"})
+                page = ctx.new_page()
+                erros = []
+                page.on("pageerror", lambda exc: erros.append(str(exc)))
+                page.goto(BASE_URL + "/")
+                page.wait_for_load_state("networkidle")
+                abrir_tela(page, "assistente")
+                desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
+                page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
+                                   { configurable: true, get: () => window.innerHeight })""")
+                page.evaluate(_SEGUNDO_PLANO, False)
+                page.wait_for_timeout(1100)
+                self.assertEqual(page.evaluate(desvio), "0px", "vvTopo = tela inteira e medida impossivel")
+                fundo = page.evaluate("document.querySelector('#tabbar').getBoundingClientRect().bottom")
+                self.assertLessEqual(fundo, 956, "a barra tem que continuar na tela")
+                # a tela assenta (teclado preso de verdade): a remedida automatica corrige
+                page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
+                                   { configurable: true, get: () => 300 })""")
+                page.wait_for_timeout(500)
+                self.assertEqual(page.evaluate(desvio), "300px")
+                self.assertEqual(erros, [], f"pageerror: {erros}")
+            finally:
+                browser.close()
+
 
 if __name__ == "__main__":
     unittest.main()

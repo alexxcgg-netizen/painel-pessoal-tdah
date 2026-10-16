@@ -103,6 +103,9 @@ class VivoTestCase(unittest.TestCase):
         for pedido in ("lavar o carro", "Lavar carros", "lavar os carros"):
             _, res = self.chat([("ajustar_tarefa", {"titulo": pedido, "novo_titulo": f"Limpar por dentro ({pedido})"})])
             self.assertTrue(res[0].get("ok"), (pedido, res[0]))
+            # 2026-10-16: devolve o titulo NOVO (com o antigo a IA achava que a troca nao pegou)
+            self.assertEqual(res[0]["titulo"], f"Limpar por dentro ({pedido})")
+            self.assertEqual(res[0]["titulo_antes"], "Lavar os carros por dentro")
             self.sql("UPDATE tasks SET title = 'Lavar os carros por dentro' WHERE id = 1")
         _, res = self.chat([("ajustar_tarefa", {"titulo": "comprar pao", "hora": "10:00"})])
         self.assertIn("erro", res[0])
