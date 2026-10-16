@@ -45,6 +45,11 @@ como tela principal. Ver `README.md` pra lista completa de funcionalidades.
   frontend. `db.py` é o schema; `app.py` concentra quase todas as rotas.
 - **`CHANGELOG.md` por dia de trabalho.** Memória entre sessões de IA - atualizar depois
   de qualquer leva de mudanças relevante, não precisa ser a cada commit isolado.
+  **Ler só o índice do topo** (uma linha por entrada) e abrir só a entrada que interessa - nunca
+  o arquivo inteiro. Entradas antigas ficam em `docs/historico/CHANGELOG-AAAA-MM.md`. Depois de
+  escrever uma entrada, rodar `.venv/Scripts/python.exe scripts/indice_changelog.py` (o teste
+  `tests/test_indice_changelog.py` falha se esquecer); quando o principal passar de ~1.500
+  linhas, `--arquivar-antes AAAA-MM-DD` move os dias velhos pro histórico.
 - **Testes antes de considerar pronto.** `.venv/bin/python -m unittest discover -s tests`
   (o venv do projeto já tem as dependências; `pip install -r requirements.txt` numa venv
   nova se não existir ainda). Os testes usam mock nas chamadas à Claude - não gastam nada
@@ -76,8 +81,9 @@ micro-interação, tudo.
   era bem aquilo.
 - **Feedback visual sempre pelo artefato-réplica**: o padrão estabelecido nessa sessão é
   regenerar o artefato (`https://claude.ai/artifact/Ecy9gXXfefAgWkeTA5DojR`) a cada rodada de
-  mudança visual/CSS/JS pra ele testar ao vivo antes de considerar fechado - ver `CHANGELOG.md`
-  (entradas "Liquid Glass round N") pro histórico completo de idas e vindas nesse processo.
+  mudança visual/CSS/JS pra ele testar ao vivo antes de considerar fechado - ver
+  `docs/historico/CHANGELOG-2026-09.md` (entradas "Liquid Glass round N") pro histórico completo
+  de idas e vindas nesse processo.
 
 ## Roteamento de modelo (pedido explícito do Alex: máxima economia de cota do plano Pro)
 Regra permanente pra qualquer sessão futura neste projeto - o Alex é o único usuário, o
