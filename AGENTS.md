@@ -1,6 +1,31 @@
 # AGENTS.md — regras operacionais + padrões descobertos (painel-pessoal-tdah)
 
-> **Antes de qualquer fase, leia `REGRAS-OPERACAO.md`** (economia de contexto, tetos de subagente, modelos, relatório padrão).
+> **Não leia este arquivo inteiro.** Use o mapa abaixo: vá direto na seção da área que vai mexer.
+> As regras de economia de contexto/subagentes das fases antigas (multiagente) estão em
+> `docs/historico/REGRAS-OPERACAO-fases-multiagente.md` - só importam se for rodar várias faixas em paralelo.
+
+## Mapa: mexeu em X -> leia a seção Y (buscar o título no arquivo)
+
+| Vai mexer em | Leia (título da seção) |
+| :--- | :--- |
+| Qualquer commit | "Regras obrigatórias" §2 (checagem de segredo), §6 (nunca o banco real) |
+| Dependência nova | §3 (auditoria de dependência) |
+| Terminou uma leva / integrou | §4 (smoke-test), §1 (anotar aqui o que descobriu) |
+| Tela, CSS, JS do front | §5 (verificação visual), "Fase 7, X2 (frontend dividido por secao)", "Fase 5, Grupo D (polimento visual)" |
+| Cards do chat | "Fase 6, Grupo E3 (contrato de cards)" + habilidade `cards-ia` + `docs/CARDS.md` |
+| Chat com IA / prompt / eval | "2026-10-13, eval do chat", "Fase 6, Grupo E4 (chat produzindo cards)" |
+| IA: adapter, custo, modo teste | "Fase 7, faixa A2 (adapter Anthropic)", "2026-09-24, Modo teste de IA" |
+| Estrutura do backend (blueprints, onde cada coisa mora) | "Fase 7, Etapa 0 / X1" |
+| Voz / navegação por voz | "Fase 5, Grupo B (navegação por voz)" |
+| Viagens, lugares, cotações, aviação | "Fase 6, Grupo F3-extra" |
+| Hábitos, projetos, agenda iCloud, cartão | "Fase 6, Grupo E2" |
+| Avisos proativos, visão do dia | "Fase 6, Grupo E5" |
+| Rotina/vida, Painel/Tarefas | "Fase 6, Grupo F, faixa 1 (F1-vida)", "faixa 2 (F2-painel)" |
+| Segurança / revisão de código | "Fase 6, revisao independente" |
+| Ambiente, processo, armadilhas gerais | "Aprendizados da Fase 7" |
+
+Atenção: caminhos `/home/user/...` e `.venv/bin/python` neste arquivo são do ambiente Linux antigo.
+Neste PC (Windows): `.venv/Scripts/python.exe`, projeto em `C:\projetos\painel pessoal`.
 
 Este arquivo é complementar ao `CLAUDE.md` (que tem as regras gerais do projeto, incluindo
 o isolamento em relação ao `financeiro-construtora`). `CLAUDE.md` é a regra principal;
@@ -9,7 +34,7 @@ este arquivo guarda duas coisas específicas:
 1. **Regras operacionais obrigatórias pra qualquer história/tarefa a partir da Fase 5**
    (seção abaixo).
 2. **Padrões, pegadinhas e convenções descobertos durante o trabalho** — uma seção viva
-   que cada história deve alimentar, não só `TODO.md`/`progress.txt`. Se você (agente)
+   que cada história deve alimentar, não só o `CHANGELOG.md`. Se você (agente)
    tropeçou em algo não-óbvio do código, descobriu uma convenção implícita, ou bateu numa
    pegadinha que outro agente provavelmente vai bater de novo — anote aqui, curto, com o
    arquivo/linha de referência quando fizer sentido.
@@ -20,7 +45,7 @@ Valem pra toda história daqui pra frente. Histórias que já passaram (`"passes
 `prd.json` antes desta regra existir) não precisam ser refeitas.
 
 ### 1. Atualizar este arquivo (AGENTS.md) a cada história
-Além de `TODO.md`/`CHANGELOG.md`/`progress.txt`, toda história que terminar deve deixar
+Além do `CHANGELOG.md`, toda história que terminar deve deixar
 uma linha na seção "Padrões descobertos" abaixo se encontrou algo que vale a pena um
 próximo agente saber antes de mexer na mesma área do código. Não precisa forçar uma
 entrada se não descobriu nada novo — é pra ser útil, não burocracia por burocracia.

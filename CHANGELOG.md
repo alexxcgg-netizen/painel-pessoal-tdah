@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-16 - Raiz do projeto limpa + mapa no AGENTS.md
 - 2026-10-16 - CHANGELOG com índice no topo + setembro arquivado
 - 2026-10-16 - Barra que sumia com medida impossível + horário solto + título de depois (SW v84)
 - 2026-10-15 - Trânsito de verdade + Waze nos cards (SW v83)
@@ -144,6 +145,17 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-16 - Raiz do projeto limpa + mapa no AGENTS.md
+
+Pedido do Alex: o painel bem configurado pra IA não se perder e não ler o que não precisa. Nada apagado.
+- `BRIEFING.md`, `STATUS.md`, `TODO.md`, `REGRAS-OPERACAO.md` (todos de setembro, o STATUS ainda dizia
+  "ler primeiro" e descrevia o redesenho de 4 abas que foi recusado) foram com `git mv` pra
+  `docs/historico/`, com `LEIA-ME.md` explicando. O que ainda pode valer virou `docs/PENDENCIAS.md`
+  (nenhum item reconferido - o da chave do Render precisa do Alex).
+- `AGENTS.md` (818 linhas): tabela "mexeu em X -> leia a seção Y" no topo; `CLAUDE.md` agora manda
+  ler só a seção da área, nunca inteiro. Referência a TODO.md trocada por CHANGELOG.
+- `CLAUDE.md`: comando de teste do Windows (`.venv/Scripts/python.exe`); o `.venv/bin` era do Linux antigo.
 
 ## 2026-10-16 - CHANGELOG com índice no topo + setembro arquivado
 
