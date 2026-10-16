@@ -306,6 +306,38 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
             finally:
                 browser.close()
 
+    def test_app_aberto_avisa_que_viu_os_avisos_insistentes(self):
+        """2026-10-16: so o toque na notificacao parava a insistencia. Agora abrir o app (e voltar pra
+        tela) manda POST /api/push/visto; em segundo plano nao manda."""
+        with sync_playwright() as p:
+            kwargs = {"headless": True}
+            if _CHROME is not None and Path(_CHROME).exists():
+                kwargs["executable_path"] = _CHROME
+            browser = p.chromium.launch(**kwargs)
+            try:
+                ctx = browser.new_context(viewport={"width": 390, "height": 844})
+                ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
+                                 headers={"Content-Type": "application/json"})
+                page = ctx.new_page()
+                visto = []
+                page.on("request", lambda r: visto.append(r.url) if r.url.endswith("/api/push/visto") and r.method == "POST" else None)
+                erros = []
+                page.on("pageerror", lambda exc: erros.append(str(exc)))
+                page.goto(BASE_URL + "/")
+                page.wait_for_load_state("networkidle")
+                page.wait_for_timeout(1800)
+                self.assertGreaterEqual(len(visto), 1, "ao abrir o app")
+                antes = len(visto)
+                page.evaluate(_SEGUNDO_PLANO, True)  # vai pra segundo plano
+                page.wait_for_timeout(300)
+                self.assertEqual(len(visto), antes, "escondido nao avisa")
+                page.evaluate("() => { window.dispatchEvent(new Event('focus')); }")
+                page.wait_for_timeout(300)
+                self.assertEqual(len(visto), antes, "20 s de pausa entre avisos (sem martelar o servidor)")
+                self.assertEqual(erros, [], f"pageerror: {erros}")
+            finally:
+                browser.close()
+
 
 if __name__ == "__main__":
     unittest.main()

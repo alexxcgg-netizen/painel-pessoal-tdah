@@ -339,6 +339,25 @@ function _retratoTela(motivo) {
     }, motivo === "abriu");
   } catch {}
 }
+// "Viu" = abriu o app (2026-10-16): so o toque na notificacao parava a insistencia (3 avisos em 40 min);
+// quem abre o app sozinho continuava recebendo. Agora o app aberto e visivel avisa o servidor
+// (POST /api/push/visto): ao abrir, ao voltar pra tela e a cada minuto enquanto fica na tela.
+let _vistoUltimo = 0;
+function _avisarQueViu(forcar = false) {
+  try {
+    if (document.hidden) return;
+    const agora = Date.now();
+    if (!forcar && agora - _vistoUltimo < 20000) return;
+    _vistoUltimo = agora;
+    fetch("/api/push/visto", { method: "POST", credentials: "same-origin", keepalive: true }).catch(() => {});
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => _avisarQueViu());
+window.addEventListener("pageshow", () => _avisarQueViu());
+window.addEventListener("focus", () => _avisarQueViu());
+setInterval(() => _avisarQueViu(true), 60000);
+setTimeout(() => _avisarQueViu(true), 1200);
+
 // Erros de JavaScript no aparelho (2026-10-16): antes so apareciam no console de quem esta com o
 // celular na mao (ninguem). Vai pro diagnostico (tipo "erro_js": mensagem curta + arquivo:linha,
 // sem conteudo da tela) e o `scripts/relatorio_painel.py` agrupa. Nunca lanca de dentro do handler.

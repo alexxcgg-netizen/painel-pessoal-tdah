@@ -49,6 +49,20 @@ def push_aberto():
         conn.close()
     return jsonify({"ok": True, "parou": n})
 
+@bp.route("/api/push/visto", methods=["POST"])
+def push_visto():
+    """O app esta aberto na tela (init.js): os avisos que insistem hoje deixam de insistir.
+    Mesma ideia do toque na notificacao (/api/push/aberto), sem exigir o toque."""
+    import db
+
+    conn = get_db()
+    try:
+        n = db.marcar_avisos_vistos(conn)
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "parou": n})
+
+
 @bp.route("/api/push/testar", methods=["POST"])
 def push_testar():
     if not push_client.configurado():

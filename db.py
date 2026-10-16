@@ -1740,6 +1740,19 @@ def marcar_aviso_aberto(conn, tag: str, agora: datetime | None = None) -> int:
     return n
 
 
+def marcar_avisos_vistos(conn, agora: datetime | None = None) -> int:
+    """O app esta aberto e a vista dele (2026-10-16): conta como "viu" os avisos que ainda insistem hoje.
+    Antes so o TOQUE na notificacao contava - quem abre o app sozinho continuava recebendo as 3
+    notificacoes (medido: 17 de 19 avisos de tarefa foram 3x sem toque, 2 tocados paravam certo)."""
+    agora = agora or datetime.now()
+    n = conn.execute(
+        "UPDATE avisos_insistentes SET aberto_em = ? WHERE aberto_em IS NULL AND encerrado_em IS NULL AND data = ?",
+        (agora.isoformat(timespec="seconds"), agora.date().isoformat()),
+    ).rowcount
+    conn.commit()
+    return n
+
+
 def avisos_insistentes_pendentes(conn) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM avisos_insistentes WHERE aberto_em IS NULL AND encerrado_em IS NULL ORDER BY id"

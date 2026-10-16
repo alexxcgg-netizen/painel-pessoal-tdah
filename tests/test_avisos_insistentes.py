@@ -141,6 +141,22 @@ class InsistenciaNoTickTestCase(unittest.TestCase):
         linha = self.conn.execute("SELECT encerrado_em FROM avisos_insistentes WHERE referencia_id = ?", (tid,)).fetchone()
         self.assertIsNotNone(linha["encerrado_em"])
 
+    def test_abrir_o_app_conta_como_visto_e_para_de_insistir(self):
+        # 2026-10-16: so o toque na notificacao parava o aviso; quem abre o app sozinho continuava recebendo
+        self.tarefa("Academia", "18:00")
+        self.tarefa("Dentista", "18:05")
+        self._rodar(datetime(2026, 10, 11, 18, 5))
+        self.assertEqual(self._rodar(datetime(2026, 10, 11, 18, 15)) != [], True)  # sem abrir: repete
+        with patch("db.datetime") as relogio:
+            relogio.now.return_value = datetime(2026, 10, 11, 18, 16)
+            r = self.client.post("/api/push/visto")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()["parou"], 2)
+        self.assertEqual(self._rodar(datetime(2026, 10, 11, 18, 30)), [])
+        self.assertEqual(self._rodar(datetime(2026, 10, 11, 18, 40)), [])
+        # nao mexe em aviso de outro dia nem em aviso que ja foi encerrado
+        self.assertEqual(self.client.post("/api/push/visto").get_json(), {"ok": True, "parou": 0})
+
     def test_rota_aberto_valida_a_tag(self):
         for corpo in ({}, {"tag": ""}, {"tag": 5}, {"tag": "x" * 200}):
             self.assertEqual(self.client.post("/api/push/aberto", json=corpo).status_code, 400, corpo)
