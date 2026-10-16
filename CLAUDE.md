@@ -107,14 +107,18 @@ Medição real (2026-10-16, transcritos de 09 a 16/10): a semana rodou quase tod
 sessão só - ~73% do gasto foi reenviar a conversa inteira a cada turno (média ~250 mil tokens por
 turno). Modelo certo + sessão curta é o que economiza; ler menos arquivo de regra quase não muda.
 
-**AVISO DE MODELO (obrigatório):** quem troca o modelo e o esforço é o Alex, no seletor do app - a
-IA não consegue. Então, na linha do papel, se o modelo que está respondendo NÃO for o da tabela
-pra esse pedido, avise na mesma linha, curto:
-- mais caro que o necessário: "Assumindo Assistente de Base (Opus 5.5). ⚠ Isto é tarefa de Haiku
-  baixo - pode trocar no seletor pra gastar menos."
-- mais fraco que o necessário: "⚠ Isto é caso de Opus médio (Sonnet já errou 2x) - vale trocar."
-Não repetir o aviso em toda resposta da mesma tarefa: uma vez quando o tipo de pedido muda. Não
-parar o trabalho por causa disso - avisa e segue.
+**RECOMENDAR O MODELO ANTES DE COMEÇAR (pedido do Alex, 2026-10-16, obrigatório):** a cada pedido
+novo, ANTES de fazer qualquer coisa (inclusive ler arquivo ou rodar comando), avaliar qual modelo e
+esforço da tabela cabem naquele pedido e comparar com o modelo que está respondendo.
+- **Já é o certo:** uma linha ("Assumindo <papel> (<modelo>). Modelo certo pra isto.") e seguir direto.
+- **Não é o certo (mais caro OU mais fraco):** parar. Responder só: o modelo + esforço recomendados,
+  em uma frase por quê, e "me avisa com 'pronto' depois de trocar". NÃO começar o trabalho. Esperar o
+  "pronto" (ou "pode seguir assim mesmo" - aí segue no modelo atual, sem insistir de novo).
+  Exemplo: "Recomendo Haiku, esforço baixo (é só resumir a conversa do chat). Troca no seletor e me
+  avisa com 'pronto'."
+- Quem troca é o Alex, no seletor do app; a IA não consegue. Não vale pro meio de uma tarefa já
+  aprovada: o aviso é uma vez por pedido novo, não a cada passo. Se o pedido tiver partes de pesos
+  diferentes, recomendar o modelo da parte mais pesada.
 
 **AVISO DE SESSÃO LONGA:** quando o assunto mudar de vez (ex.: terminou a barra e ele pede outra
 coisa sem relação) numa conversa que já está longa, avisar uma vez: "⚠ Assunto novo - abrir uma
