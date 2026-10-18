@@ -11,6 +11,8 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-18 - Memória sob demanda + correções que o chat mostrou
+- 2026-10-17 - Aviso que insistia mesmo com o app aberto (SW v86)
 - 2026-10-16 - Despertador pedido no chat + relatório do painel + registro de erros (SW v85)
 - 2026-10-16 - Raiz do projeto limpa + mapa no AGENTS.md
 - 2026-10-16 - CHANGELOG com índice no topo + setembro arquivado
@@ -146,6 +148,24 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-18 - Memória sob demanda + correções que o chat mostrou
+
+Pedido do Alex: a IA lembrar do passado só quando ele pergunta ("quando foi o dia que arrumei o quartinho?").
+Briefing: `docs/briefings/2026-10-18-memoria-sob-demanda.md`.
+- **`buscar_na_memoria`** (`memoria.py`): acha QUANDO algo aconteceu em tarefas, chat, diário, notas, esperas,
+  decisões e gastos; sem IA, sem tabela nova, nada no contexto até ele perguntar. Ignora a própria pergunta.
+- **Prompt**: `LISTA DE TAREFAS SEM DIA` (cria tudo e escolhe dia/hora em vez de "só confirma") e `RESPOSTA CURTA
+  DELE CONTINUA O ASSUNTO` (16/10: respondeu "março" e a IA mudou pra cobrar compromisso).
+- **Relatório**: falso positivo da barra de abas (agora `vvTopo+vvH`); "nunca abertos" → "nunca vistos".
+- **Log do servidor** não grava mais o aviso de HTTP/3 do urllib3-future (refaz sozinho).
+- Testes: `test_memoria` (14), `test_log_erros` (+1), `test_relatorio_painel` (+caso). Sem JS: SW segue v86.
+
+## 2026-10-17 - Aviso que insistia mesmo com o app aberto (SW v86)
+
+17 de 19 avisos insistentes foram enviados 3x sem toque registrado. O toque na notificação funcionava, mas
+abrir o app direto não contava. Agora o app avisa o servidor que está aberto (`POST /api/push/visto`, ao abrir,
+voltar pra frente, focar e a cada 60 s) e isso encerra a insistência de hoje. O relatório chama de "vistos".
 
 ## 2026-10-16 - Despertador pedido no chat + relatório do painel + registro de erros (SW v85)
 

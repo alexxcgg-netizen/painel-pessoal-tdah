@@ -89,6 +89,8 @@ class RelatorioTestCase(unittest.TestCase):
         self.diag("tela", {"motivo": "desvio", "innerH": 956, "barraFundo": 1912, "bruto": 1912, "aplicado": 1912})
         self.diag("tela", {"motivo": "abriu", "innerH": 956, "barraFundo": 956, "bruto": 0, "aplicado": 0})
         self.diag("tela", {"motivo": "ignorada", "innerH": 956, "barraFundo": 956})
+        # barra desceu junto com a janela visual (vvTopo+vvH = 1004): NAO e fora da tela
+        self.diag("tela", {"motivo": "desvio", "innerH": 956, "vvTopo": 48, "vvH": 956, "barraFundo": 1004})
         self.diag("mic", {"evento": "detector_surdo"})
         texto, achados = self.relatorio()
         self.assertIn("3x `x is not a function` em `tarefas.js:12`", texto)
@@ -130,11 +132,11 @@ class RelatorioTestCase(unittest.TestCase):
         self.assertIn("Tarefas atrasadas (1)", texto)
         self.assertIn("Tarefas duplicadas (1)", texto)
         self.assertIn("Ações que ele desfez: 1", texto)
-        self.assertIn("4 enviados, 4 nunca abertos", texto)
+        self.assertIn("4 enviados, 4 nunca vistos", texto)
         titulos = " | ".join(a.titulo for a in achados)
         self.assertIn("1 tarefa(s) atrasada(s), 1 há 14+ dias", titulos)
         self.assertIn("1 tarefa(s) duplicada(s)", titulos)
-        self.assertIn("4/4 avisos insistentes nunca abertos", titulos)
+        self.assertIn("4/4 avisos insistentes nunca vistos", titulos)
 
     def test_tabela_faltando_nao_derruba_o_resto(self):
         self.conn.execute("DROP TABLE diagnostico_cliente")

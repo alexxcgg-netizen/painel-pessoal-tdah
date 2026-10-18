@@ -171,7 +171,11 @@ def secao_aparelho(conn, desde: date, ate: date) -> tuple[list[str], list[Achado
                 if not isinstance(d.get(k), (int, float)):
                     break
             else:
-                if d["barraFundo"] > d["innerH"] + 2:
+                # o fundo visivel e vvTopo+vvH (teclado/barra de endereco empurram a janela visual)
+                limite = d["innerH"]
+                if isinstance(d.get("vvTopo"), (int, float)) and isinstance(d.get("vvH"), (int, float)):
+                    limite = max(limite, d["vvTopo"] + d["vvH"])
+                if d["barraFundo"] > limite + 2:
                     fora.append((quando, d))
         elif r["tipo"] == "mic":
             mic[d.get("evento") or "?"] += 1
@@ -296,12 +300,12 @@ def secao_dados(conn, desde: date, ate: date, hoje: date) -> tuple[list[str], li
         sem_abrir = [r for r in linhas if not r["aberto_em"]]
         insistiu = [r for r in linhas if (r["tentativas"] or 0) >= 3]
         por_tipo = Counter(r["tipo"] for r in sem_abrir)
-        saida.append(f"### Avisos insistentes: {len(linhas)} enviados, {len(sem_abrir)} nunca abertos, "
+        saida.append(f"### Avisos insistentes: {len(linhas)} enviados, {len(sem_abrir)} nunca vistos, "
                      f"{len(insistiu)} chegaram a 3+ tentativas\n\n")
         if por_tipo:
-            saida.append("Nunca abertos por tipo: " + ", ".join(f"{t}={n}" for t, n in por_tipo.most_common(6)) + "\n\n")
+            saida.append("Nunca vistos por tipo (visto = tocou OU abriu o app; antes de 16/10/2026 só o toque contava): " + ", ".join(f"{t}={n}" for t, n in por_tipo.most_common(6)) + "\n\n")
         if linhas and len(sem_abrir) / len(linhas) >= 0.5 and len(linhas) >= 4:
-            achados.append(Achado(2, f"Dados: {len(sem_abrir)}/{len(linhas)} avisos insistentes nunca abertos",
+            achados.append(Achado(2, f"Dados: {len(sem_abrir)}/{len(linhas)} avisos insistentes nunca vistos",
                                   "ele ignora esse tipo de aviso? ou não está chegando"))
 
     def gastos():

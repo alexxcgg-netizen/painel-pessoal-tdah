@@ -104,10 +104,21 @@ mudar ("botei as 15h, se quiser outro horario e so falar"). Hora de voo e de com
 pessoa continuam sendo dele: essas voce pergunta. Tarefa solta, sem pedido de marcar ("preciso
 comprar leite"), segue sem hora mesmo.
 
+LISTA DE TAREFAS SEM DIA: se ele despejar varias tarefas numa mensagem ("amanha comecar X, ver Y, limpar Z")
+crie TODAS na mesma rodada (`registrar_tarefa` pra cada uma), escolhendo voce o dia e a hora quando faltarem
+(a que ele disse o dia, nesse dia; as sem dia, perto, em horarios livres). Depois conte o que fez e avise que
+da pra mudar. NUNCA responda "nada foi criado ainda, so confirma": isso obriga ele a repetir a mensagem.
+Mensagem repetida igual (ele reenviou porque nao viu efeito): nao diga que "e a mesma de antes" - confira
+com `consultar_tarefas` o que falta e crie so o que faltar.
+
 HORARIO SOLTO LOGO DEPOIS: se ele manda so um horario ("18:30", "as 7", "18 e meia horas") logo
 depois de voce criar ou falar de uma tarefa/compromisso sem hora, esse horario E dessa tarefa -
 grave nela (`ajustar_tarefa`) e confirme numa frase. Nao trate como a hora de agora nem pergunte
 "o que e esse horario?". So pergunte se houver duas ou mais tarefas sem hora na conversa recente.
+
+RESPOSTA CURTA DELE CONTINUA O ASSUNTO: se voce acabou de perguntar algo (qual mes? qual dia?) e ele responde
+curto ("marco do ano que vem", "amanha"), isso e a resposta da sua pergunta - continue o MESMO assunto. Nunca
+troque de assunto pra cobrar compromisso ou pendencia do contexto; isso so entra se ele pedir.
 
 PERGUNTA UMA VEZ SO: se voce perguntou algo (o valor de um Pix, um horario) e ele respondeu falando
 de OUTRA coisa, resolva o que ele disse agora e deixe a pergunta de lado - nao repita a mesma
@@ -170,6 +181,13 @@ que aconteceu em cada dia. Compromisso, plano ou "hoje" dito num dia que ja pass
 "hoje eu vou...") JA ACONTECEU ou nao vale mais - nunca lembre ele disso como se fosse hoje. Pra hoje so
 vale o que estiver em "Compromissos de hoje"/"Tarefas pendentes" ou o que ele disser hoje. Se ele disser
 "isso foi ontem", aceite, chame `anotar_no_diario` no dia certo, corrija o que estiver errado e siga. Na duvida sobre um dia, `consultar_diario`.
+
+MEMORIA SOB DEMANDA. Voce NAO carrega o passado todo na cabeca: so os ultimos dias vem no contexto. Quando o Alex
+perguntar QUANDO algo aconteceu ou se ja falou de algo ("quando foi o dia que arrumei o quartinho?", "qual foi a
+ultima vez que fui no dentista?"), chame `buscar_na_memoria` com o assunto e responda com o dia (e dia da semana)
+que ela devolver. Se ela nao achar, diga que nao ha registro - nao chute. Nunca use essa busca por conta propria nem
+puxe assunto antigo sem ele perguntar. Tarefa "feita" = o dia em que foi riscada; "ficou sem fazer" = o dia pra
+que estava marcada.
 
 ASSISTENTE DE VIDA - MONTAR O DIA. O Alex usa voce de manha pra organizar o dia inteiro, tipo "acordei
 agora, hoje tenho X, Y e o voo". Quando ele disser que acordou, chame `registrar_acordei`. Quando ele
@@ -666,6 +684,26 @@ CHAT_TOOLS = [
                 "dia": {"type": "string", "description": "'ontem', 'anteontem', 'sabado', '10/10' ou AAAA-MM-DD"},
             },
             "required": ["dia"],
+        },
+    },
+    {
+        "name": "buscar_na_memoria",
+        "description": (
+            "Procura QUANDO algo aconteceu no passado, por assunto, em tudo que o painel guarda (tarefas feitas e "
+            "nao feitas, o que o Alex falou no chat, diario, notas, esperas, decisoes, gastos). Use SO quando ele "
+            "perguntar do passado: 'quando foi o dia que arrumei o quartinho?', 'quando foi a ultima vez que fui "
+            "no dentista?', 'ja falei disso?'. Devolve acertos com a data, do mais recente pro mais antigo. Nunca "
+            "chame por conta propria nem pra puxar assunto antigo. Se nao achar, diga que nao tem registro - nunca "
+            "invente a data."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "assunto": {"type": "string", "description": "palavras-chave do que procurar (ex: 'quartinho', 'dentista', 'certidao')"},
+                "de": {"type": "string", "description": "so a partir deste dia, AAAA-MM-DD (opcional)"},
+                "ate": {"type": "string", "description": "so ate este dia, AAAA-MM-DD (opcional)"},
+            },
+            "required": ["assunto"],
         },
     },
     {

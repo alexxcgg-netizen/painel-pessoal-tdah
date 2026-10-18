@@ -48,6 +48,17 @@ class LogErrosTestCase(unittest.TestCase):
         self.assertIn("WARNING teste.log_erros: aviso que entra", texto)
         self.assertIn("ZeroDivisionError", texto)
 
+    def test_ruido_do_http3_nao_entra_mas_outro_aviso_do_urllib3_sim(self):
+        caminho = log_erros.configurar(self.pasta, forcar=True)
+        log = logging.getLogger("urllib3.connectionpool")
+        log.warning("Retrying after connection broken by 'MustDowngradeError(The server yielded HttpVersion.h3)'")
+        log.warning("Connection pool is full, discarding connection")
+        for h in self.raiz.handlers:
+            h.flush()
+        texto = caminho.read_text(encoding="utf-8")
+        self.assertNotIn("MustDowngradeError", texto)
+        self.assertIn("Connection pool is full", texto)
+
     def test_pasta_impossivel_nao_derruba_o_servidor(self):
         arquivo = self.pasta / "arquivo"
         arquivo.write_text("x")

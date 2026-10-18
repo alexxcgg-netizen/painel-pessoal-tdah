@@ -142,6 +142,7 @@ AO_VIVO_TOOL = {
     "sugerir_tarefa_para_agora": "Escolhendo uma tarefa pra agora",
     "registrar_memoria": "Guardando isso na memória",
     "consultar_notas": "Procurando nas notas",
+    "buscar_na_memoria": "Procurando na memória",
     "salvar_nota": "Salvando a nota",
     "registrar_hidratacao": "Contando o copo d'água",
     "registrar_treino": "Registrando o treino",

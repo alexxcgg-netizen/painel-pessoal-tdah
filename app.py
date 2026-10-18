@@ -56,6 +56,7 @@ import leitura
 import maps_client
 import vida_assistente
 import diario
+import memoria
 import feriados
 import refeicoes
 import rota_voo
@@ -3011,6 +3012,20 @@ def _processar_mensagem_chat(
             return {"erro": "nao entendi o dia - mande 'ontem', 'sabado' ou AAAA-MM-DD"}
         return diario.consultar(conn, dia_d, hoje_br)
 
+    def exec_buscar_na_memoria(entrada):
+        """Memoria sob demanda (memoria.py): acha QUANDO algo aconteceu. So roda se a IA chamar."""
+        def _dia_iso_ou_none(v):
+            try:
+                return date.fromisoformat(str(v)[:10]) if v else None
+            except ValueError:
+                return None
+
+        return memoria.buscar(
+            conn, entrada.get("assunto") or entrada.get("termo") or "",
+            de=_dia_iso_ou_none(entrada.get("de")), ate=_dia_iso_ou_none(entrada.get("ate")),
+            limite=entrada.get("limite") or memoria.LIMITE_PADRAO, hoje=_agora_brasilia().date(),
+        )
+
     def exec_consultar_feriados(entrada):
         """Feriados/pontos facultativos de um ano inteiro ou de um mes (feriados.py, calculado)."""
         hoje_br = _agora_brasilia().date()
@@ -4019,6 +4034,7 @@ def _processar_mensagem_chat(
         "apagar_tarefa": exec_apagar_tarefa,
         "registrar_acordei": exec_registrar_acordei,
         "consultar_diario": exec_consultar_diario,
+        "buscar_na_memoria": exec_buscar_na_memoria,
         "anotar_no_diario": exec_anotar_no_diario,
         "consultar_feriados": exec_consultar_feriados,
         "atualizar_perfil": exec_atualizar_perfil,

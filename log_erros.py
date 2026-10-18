@@ -16,6 +16,17 @@ from pathlib import Path
 
 NOME = "erros_servidor.log"
 _MARCA = "_painel_log_erros"
+# Aviso de ruido: o urllib3-future tenta HTTP/3, o servidor recusa, ele refaz em HTTP/2 sozinho e a
+# chamada funciona (visto a cada ~5 min em 16/10/2026). Nao e erro, so enchia o arquivo.
+_RUIDO = ("MustDowngradeError", "HttpVersion.h3")
+
+
+class _SemRuido(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name.startswith("urllib3"):
+            texto = record.getMessage()
+            return not all(trecho in texto for trecho in _RUIDO)
+        return True
 
 
 def configurar(pasta: Path, forcar: bool = False) -> Path | None:
@@ -31,6 +42,7 @@ def configurar(pasta: Path, forcar: bool = False) -> Path | None:
     except OSError:  # disco cheio/sem permissao: o servidor sobe do mesmo jeito
         return None
     h.setLevel(logging.WARNING)
+    h.addFilter(_SemRuido())
     h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     setattr(h, _MARCA, True)
     raiz.addHandler(h)

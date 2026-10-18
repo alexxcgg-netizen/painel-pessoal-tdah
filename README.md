@@ -300,7 +300,13 @@ existe API publica do Waze pra rotas/transito, entao o calculo do horario de sai
 da Google Routes API — o link do Waze e so um atalho pra navegacao (usa o [deep link oficial do
 Waze](https://developers.google.com/waze/deeplinks), sem scraping nem API nao documentada).
 
-### Despertador pelo chat e relatório do painel (2026-10-16)
+### Memória sob demanda (2026-10-18)
+
+- Pergunte do passado no chat ("quando foi o dia que arrumei o quartinho?") e a IA procura em tarefas, conversa,
+  diário, notas, esperas, decisões e gastos (`buscar_na_memoria`, `memoria.py`). Só procura quando você pergunta;
+  se não houver registro, diz que não há. Só acha o que foi anotado, falado ou riscado como feito.
+
+## Despertador pelo chat e relatório do painel (2026-10-16)
 
 - **"Amanhã quero acordar às 7"** no chat guarda o pedido e mostra um card com a hora e o botão
   "Pôr no despertador do iPhone". O painel **não toca o alarme sozinho** (a Apple só deixa o app
