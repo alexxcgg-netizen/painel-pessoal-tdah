@@ -319,16 +319,14 @@ uma vira o proprio card. Compromisso com hora marcada que ele quer na agenda ("r
 14h") vai por `agendar_evento`; se ela devolver erro de agenda nao configurada, registre como
 tarefa com "hora".
 
-O Alex tem TDAH e pediu explicitamente um assistente que ajuda a pensar, nao so registra: quando
-ele despejar VARIAS tarefas soltas numa mensagem so (o caso classico e domingo planejando a
-semana, mas pode acontecer qualquer dia), NAO chame `registrar_tarefa` varias vezes - chame
-`distribuir_tarefas_na_semana` uma vez so com a lista inteira. Ela devolve onde cada uma cairia
-(dia+horario, ja evitando hora de comer e espalhando pelos dias mais livres); apresente esse plano
-dia a dia na resposta e pergunte se esta bom, deixando claro que ainda nao foi criado nada. So
-crie de verdade quando ele confirmar (`confirmar_plano_semana`); se ele rejeitar ou pedir pra
-esquecer, chame `cancelar_plano_semana`. Duas ou tres tarefas com data ja dita por ele continuam
-indo por `registrar_tarefa` normal - o fluxo de distribuicao e pra quando SOBRA pra voce decidir
-onde encaixar, nao pra substituir um pedido com data clara.
+O Alex tem TDAH e pediu um assistente que ajuda a pensar, nao so registra. Quando ele despejar VARIAS
+tarefas numa mensagem, CRIE todas na hora (`registrar_tarefa` pra cada uma, regra LISTA DE TAREFAS SEM DIA):
+escolha voce dia e hora, evitando hora de comer e espalhando pelos dias mais livres, e conte o que fez. Ele ja
+reclamou de "nada foi criado, so confirma": pedir confirmacao antes de criar e o erro. So use
+`distribuir_tarefas_na_semana` (que monta um plano SEM criar nada e espera ele confirmar com
+`confirmar_plano_semana`, ou descartar com `cancelar_plano_semana`) quando ele pedir explicitamente pra
+distribuir/organizar a SEMANA ("distribui isso na semana", "organiza minha semana"). Se ele disser "pode criar",
+"ja arruma" ou parecido, chame `confirmar_plano_semana` ou crie direto.
 
 Mesmo espirito de "ajudar a pensar": quando ele disser que esta sem nada pra fazer agora (ver
 exemplos em `sugerir_tarefa_para_agora`), chame essa ferramenta em vez de so responder "que bom" ou
@@ -1631,10 +1629,10 @@ CHAT_TOOLS = [
     {
         "name": "distribuir_tarefas_na_semana",
         "description": (
-            "Use quando o Alex despejar VARIAS tarefas soltas de uma vez, sem data especifica pra "
-            "cada uma (ex: domingo listando um monte de coisa pra fazer na semana) - em vez de "
-            "chamar registrar_tarefa uma vez pra cada, chame esta ferramenta UMA VEZ com a lista de "
-            "titulos. O painel calcula sozinho em que dia e horario cada uma cai (espalhando pelos "
+            "Use SO quando o Alex pedir explicitamente pra distribuir/organizar a SEMANA (ex: "
+            "'distribui isso na semana', 'organiza minha semana'). Lista comum de tarefas soltas NAO "
+            "vem pra ca: crie todas com registrar_tarefa, escolhendo dia e hora. Aqui, chame esta "
+            "ferramenta UMA VEZ com a lista de titulos. O painel calcula sozinho em que dia e horario cada uma cai (espalhando pelos "
             "dias menos ocupados, evitando hora de comer) e devolve a proposta em 'propostas' - "
             "APRESENTE o plano dia a dia na sua resposta (ex: 'segunda: X as 9h - terca: Y as "
             "10h30...') e pergunte se esta bom. NAO cria nada no banco ainda - so quando o Alex "

@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-20 - Vistoria: servidor saturando (fila do Waitress)
 - 2026-10-18 - Memória sob demanda + correções que o chat mostrou
 - 2026-10-17 - Aviso que insistia mesmo com o app aberto (SW v86)
 - 2026-10-16 - Despertador pedido no chat + relatório do painel + registro de erros (SW v85)
@@ -148,6 +149,17 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-20 - Vistoria: servidor saturando (fila do Waitress)
+
+Relatório do painel de 14 a 20/10 cruzado com o CHANGELOG. Briefing: `docs/briefings/2026-10-20-vistoria-servidor.md`.
+- **Fila do Waitress enchendo** (1448 avisos, 48 recusas de conexão; em 18/10 19h o Alex repetiu mensagem no chat):
+  cada resposta ao vivo do chat segura uma thread e o `iniciar_painel.bat` usava as 4 do padrão. Agora
+  `--threads=16` (arquivo local, fora do git) e `db.get_db()` com `timeout=30`. Banco segue sem WAL.
+- **Chat** (`ia/funcoes/chat.py`): regra da lista de tarefas sem dia reforçada e descrição de
+  `distribuir_tarefas_na_semana` reescrita (a IA respondia "nada foi criado ainda, só confirma").
+- Sem ação: barra de abas (15/10, já consertada), avisos "nunca vistos" (quase todos antes de 17/10), aviso h3.
+- Conferir em alguns dias com `scripts/relatorio_painel.py`: a fila deve sumir. Sem JS: SW segue v86.
 
 ## 2026-10-18 - Memória sob demanda + correções que o chat mostrou
 

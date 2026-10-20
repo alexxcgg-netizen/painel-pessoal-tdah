@@ -77,7 +77,8 @@ def _criado_local(linhas) -> list[dict]:
 
 def get_db():
     DB_PATH.parent.mkdir(exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    # timeout=30: com varias threads no servidor, espera o outro escritor soltar em vez de "database is locked"
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
 
