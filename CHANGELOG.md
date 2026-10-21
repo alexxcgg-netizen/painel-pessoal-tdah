@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-21 - Carga × sono no treino (SW v92)
 - 2026-10-21 - Animação 3D do exercício no treino ao vivo (SW v91)
 - 2026-10-21 - Chat dá baixa pelo que ele conta
 - 2026-10-21 - Gráfico de carga no card de troca (SW v90)
@@ -155,6 +156,24 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-21 - Carga × sono no treino (SW v92)
+
+O Alex cobrou: o card de subir carga tinha que ser o da ideia 4 que ele aprovou ("Treino que vira dado", artefato
+"Ideias do Painel"), com sono junto - não só a linha de carga do SW v90. Decisões dele (perguntadas antes): sono pela
+pergunta no começo do treino enquanto o Atalho do Saúde não manda; barras no card de troca de carga; barras desde o 2º
+treino e a frase das médias só com comparação de verdade.
+- `treino_carga`: `historico[{data, kg, sono}]` (`sono` = `saude_dados.sono_horas` do dia) e o gráfico de linha virou
+  `barrasCarga` (até 6 treinos, noite de 7 h+ brilha, sem sono tracejada, hoje com contorno; médias 7 h+ × menos com
+  2+ de cada lado). Entrada: barras crescem em cascata com quique, a noite boa acende depois (só card novo).
+- `treino_agora`: "Dormiu quanto essa noite?" (chips 5/6/7/8 h+, otimista, volta se falhar) →
+  `POST /api/treino/sessoes/<id>/sono` (2-14 h, arredonda pra 15 min, recusa visitante) grava no dia da sessão, o
+  mesmo campo que o Atalho preenche. Visitante: `sono_horas` (`CAMPOS_SENSIVEIS`) e `historico[].sono` saem.
+- Cor do treino corrigida (o Alex notou): `treino_agora`/`treino_carga` e o realce do músculo no 3D estavam no verde
+  `#b5e48c` copiado do artefato de demonstração - verde é gasto/compras na linguagem dele. Agora `--cor-painel` (#9aa8f0),
+  a mesma do `saude_treino`. Mesma troca no painel do João (mesma paleta).
+- Testes: `tests/test_treino_vivo.py` (rota, card, histórico, visitante) e `tests/js/cards.test.js` (barras, frase,
+  chips). Captura 390 px sem erro nem rolagem lateral; artefato do treino atualizado com dado inventado.
 
 ## 2026-10-21 - Animação 3D do exercício no treino ao vivo (SW v91)
 

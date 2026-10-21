@@ -202,6 +202,31 @@ class TreinoAoVivoTestCase(_Base):
         ficha = self.sql("SELECT exercicios FROM treino_fichas WHERE grupo = 'Perna'")[0]["exercicios"]
         self.assertEqual(ficha, "Agachamento|4|10|60 kg\nLeg press|3|12|")
 
+    def test_sono_do_treino_grava_e_cruza_com_a_carga(self):
+        corpo, _ = self.chat([("comecar_treino", {"grupo": "peito"})])
+        card = self._card(corpo, "treino_agora")
+        self.assertIsNone(card["data"]["sono_horas"])  # ainda nao respondeu: o card pergunta
+        sid = card["data"]["sessao_id"]
+        for ruim in ({}, {"horas": "7"}, {"horas": True}, {"horas": 1}, {"horas": 20}):
+            self.assertEqual(self.client.post(f"/api/treino/sessoes/{sid}/sono", json=ruim).status_code, 400)
+        self.assertEqual(self.client.post("/api/treino/sessoes/9999/sono", json={"horas": 7}).status_code, 404)
+        r = self.client.post(f"/api/treino/sessoes/{sid}/sono", json={"horas": 7.6}).get_json()
+        self.assertEqual(r["sono_horas"], 7.5)
+        hist = self.client.get("/api/chat/historico").get_json()
+        cards_hist = [c for m in hist for c in (m.get("cards") or []) if c["type"] == "treino_agora"]
+        self.assertEqual(cards_hist[-1]["data"]["sono_horas"], 7.5)
+        # a troca de carga leva o sono de cada dia junto do ponto
+        corpo, _ = self.chat([("atualizar_carga_treino", {"exercicio": "supino reto", "carga": "25"})])
+        pontos = self._card(corpo, "treino_carga")["data"]["mudancas"][0]["historico"]
+        self.assertEqual(pontos[-1]["sono"], 7.5)
+        # modo visitante: nao grava e o sono sai dos cards
+        with patch.object(app, "_modo_visitante_ativo", return_value=True):
+            self.assertEqual(self.client.post(f"/api/treino/sessoes/{sid}/sono", json={"horas": 5}).status_code, 403)
+        import cards
+        mascarados = cards.mascarar_cards([self._card(corpo, "treino_carga"), card | {"data": {**card["data"], "sono_horas": 7.5}}])
+        self.assertNotIn("sono", mascarados[0]["data"]["mudancas"][0]["historico"][-1])
+        self.assertNotIn("sono_horas", mascarados[1]["data"])
+
     def test_modo_visitante_nao_mexe(self):
         corpo, _ = self.chat([("comecar_treino", {"grupo": "peito"})])
         sid = self._card(corpo, "treino_agora")["data"]["sessao_id"]

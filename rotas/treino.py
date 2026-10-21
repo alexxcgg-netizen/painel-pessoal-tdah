@@ -19,6 +19,7 @@ from db import (
     salvar_ficha_treino,
     sessao_treino,
     treinos_do_dia_por_grupo,
+    upsert_saude_dia,
     utc_para_hora_local,
 )
 
@@ -161,6 +162,28 @@ def marcar_exercicio(sessao_id):
         conn.close()
     return jsonify({"ok": True, "feitos": sessao["feitos"], "total": total,
                     "concluido": bool(sessao["concluido_em"]), "duracao_min": duracao})
+
+
+@bp.route("/api/treino/sessoes/<int:sessao_id>/sono", methods=["POST"])
+def sono_do_treino(sessao_id):
+    """Treino ao vivo: "Dormiu quanto essa noite?" (1 toque no card `treino_agora`). Grava no
+    sono do dia da sessao (o mesmo campo que o Atalho do Saude preenche) pra cruzar com a carga."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    horas = app._corpo_json().get("horas")
+    if isinstance(horas, bool) or not isinstance(horas, (int, float)) or not 2 <= horas <= 14:
+        return jsonify({"error": "informe horas (de 2 a 14)"}), 400
+    conn = get_db()
+    try:
+        sessao = sessao_treino(conn, sessao_id)
+        if not sessao:
+            return jsonify({"error": "treino não encontrado"}), 404
+        upsert_saude_dia(conn, sessao["data"], {"sono_horas": round(float(horas) * 4) / 4})
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "sono_horas": round(float(horas) * 4) / 4})
 
 
 @bp.route("/api/treino/fichas/<int:ficha_id>/feito", methods=["DELETE"])

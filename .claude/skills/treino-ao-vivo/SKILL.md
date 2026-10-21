@@ -19,6 +19,11 @@ bonequinho qualquer coisa, tem que ser uma coisa de outro nível mesmo". Vale pr
   antes → depois, Desfazer pela entidade `treino_carga`). Rota da caixinha:
   `POST /api/treino/sessoes/<id>/exercicio`. Histórico atualiza pelo
   `cards.acertar_treino_agora`.
+- **Carga × sono (ideia 4 aprovada, SW v92):** o card de troca de carga mostra as BARRAS dos últimos treinos com
+  as horas dormidas embaixo (noite de 7 h+ brilha) e a frase das médias "com 7 h ou mais tu levanta X kg, com menos
+  Y kg". Sono vem do Saúde/Atalho ou do "Dormiu quanto essa noite?" no `treino_agora`
+  (`POST /api/treino/sessoes/<id>/sono`). Protótipo de origem: artefato "Ideias do Painel"
+  (https://claude.ai/artifact/PSBxhssPmYstutpN3yfA82, cena Treino). Nunca voltar pra só linha de carga.
 - Testes: `tests/test_treino_vivo.py` e `tests/js/cards.test.js` (treino ao vivo / troca de carga).
 - Animação: `static/js/exercicio-3d.js` (43 exercícios; novo = entrada em `EX` com `pose(t)`/`cena`/`m` +
   linha no `MAPA` do `tipo()`), painel `.tv-agora` ligado em `cards-vivos.js` (`palcoPreparar`/`trocarExercicio`).

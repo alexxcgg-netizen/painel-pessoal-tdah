@@ -857,8 +857,29 @@
   const Exercicio3D = raiz.Exercicio || (typeof require === "function" ? require("./exercicio-3d.js") : null);
   // treino_agora: a ficha do dia com uma caixinha por exercicio; o proximo a fazer brilha; o
   // ultimo marcado registra o treino (servidor) e abre a pergunta da carga.
-  // treino_carga: o que mudou na ficha depois ("20 kg -> 25 kg", seta pra cima/baixo).
+  // treino_carga: o que mudou na ficha depois ("20 kg -> 25 kg", seta pra cima/baixo) + as barras
+  // carga x sono dos ultimos treinos (ideia 4 aprovada pelo Alex: noite de 7 h+ brilha, medias contam).
   const CHECK_TV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg>';
+  const LUA_TV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/></svg>';
+  const SONO_BOM = 7; // horas: daqui pra cima a noite conta como boa
+
+  // 7.75 -> "7 h 45"; 6 -> "6 h"
+  function horasSono(h) {
+    const min = Math.round(h * 60);
+    return `${Math.floor(min / 60)} h${min % 60 ? ` ${String(min % 60).padStart(2, "0")}` : ""}`;
+  }
+
+  // "Dormiu quanto essa noite?" no comeco do treino (enquanto o Atalho do Saude nao manda sozinho)
+  function sonoTreino(data) {
+    if (numeroValido(data.sono_horas)) {
+      return `<p class="tv-sono-feito">${LUA_TV}<span>Dormiu ${esc(horasSono(data.sono_horas))} essa noite</span></p>`;
+    }
+    if (data.concluido || data.oculto || data.sessao_id == null) return "";
+    const chips = [5, 6, 7, 8]
+      .map((h) => `<button type="button" class="tv-sono-chip" data-acao="treino_sono" data-sessao="${esc(data.sessao_id)}" data-h="${h}">${h === 8 ? "8 h+" : `${h} h`}</button>`)
+      .join("");
+    return `<div class="tv-sono"><p class="tv-sono-rot">${LUA_TV}<span>Dormiu quanto essa noite?</span></p><div class="tv-sono-chips">${chips}</div></div>`;
+  }
 
   function textoSeriesReps(ex) {
     if (ex.series && ex.reps) return `${ex.series}×${ex.reps}`;
@@ -913,38 +934,55 @@
       `<p class="card-titulo">${esc(data.grupo || "Treino")}</p>` +
       (data.escolhida_por === "rotacao" ? `<p class="card-linha-meta">É a ficha que tu fez há mais tempo.</p>` : "") +
       `<div class="tv-barra" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></div>` +
+      sonoTreino(data) +
       (tipos.some(Boolean) ? palcoTreino(exs, tipos, proximo, !!data.concluido) : "") +
       (itens ? `<ul class="tv-lista">${itens}</ul>` : `<p class="card-linha-meta">Ficha sem exercícios.</p>`) +
       `<p class="tv-fim"${data.concluido ? "" : " hidden"}>${CHECK_TV}<span>${esc(fimTreinoTexto(data.duracao_min))}</span></p>`
     );
   });
 
-  // historico da carga (um ponto por dia em que mudou): linha com cada trecho na cor do sentido
-  // (subiu verde, baixou ambar, igual neutro), ultimo ponto maior, kg do primeiro e do ultimo.
-  function graficoCarga(historico) {
-    const pts = lista(historico).filter((p) => p && numeroValido(p.kg) && typeof p.data === "string").slice(-8);
+  // carga x sono dos ultimos treinos (um ponto por dia em que a carga mudou): uma barra por treino,
+  // altura = carga, embaixo as horas dormidas na noite antes; noite de 7 h+ brilha. A frase das
+  // medias so aparece com comparacao de verdade (2+ treinos com sono bom e 2+ com sono curto).
+  const kgTexto = (v) => `${String(Math.round(v * 10) / 10).replace(".", ",")} kg`;
+  const media = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+
+  function barrasCarga(historico) {
+    const pts = lista(historico).filter((p) => p && numeroValido(p.kg) && typeof p.data === "string").slice(-6);
     if (pts.length < 2) return "";
-    const W = 260, H = 70, X0 = 14, X1 = W - 14, Y0 = 22, Y1 = H - 18;
     const kgs = pts.map((p) => p.kg);
-    const min = Math.min(...kgs), max = Math.max(...kgs), faixa = max - min || 1;
-    const xy = pts.map((p, i) => [X0 + ((X1 - X0) * i) / (pts.length - 1), max === min ? (Y0 + Y1) / 2 : Y1 - ((p.kg - min) / faixa) * (Y1 - Y0)]);
-    const f = (v) => v.toFixed(1);
-    const area = `M${f(xy[0][0])} ${Y1 + 4}` + xy.map((p) => `L${f(p[0])} ${f(p[1])}`).join("") + `L${f(xy[xy.length - 1][0])} ${Y1 + 4}Z`;
-    const trechos = xy.slice(1).map((p, i) => {
-      const d = pts[i + 1].kg - pts[i].kg;
-      return `<line class="tv-g-trecho ${d > 0 ? "subiu" : d < 0 ? "desceu" : "igual"}" style="--k:${i}" x1="${f(xy[i][0])}" y1="${f(xy[i][1])}" x2="${f(p[0])}" y2="${f(p[1])}"/>`;
-    }).join("");
-    const pontos = xy.map((p, i) => `<circle class="tv-g-ponto${i === xy.length - 1 ? " ultimo" : ""}" style="--k:${i}" cx="${f(p[0])}" cy="${f(p[1])}" r="${i === xy.length - 1 ? 4 : 2.6}"/>`).join("");
-    const kg = (v) => `${String(v).replace(".", ",")} kg`;
-    const rotulo = `Carga de ${kg(pts[0].kg)} em ${Cards.dataCurta(pts[0].data)} até ${kg(pts[pts.length - 1].kg)} em ${Cards.dataCurta(pts[pts.length - 1].data)}`;
+    const min = Math.min(...kgs), max = Math.max(...kgs);
+    // de 38% a 100%: a diferenca de carga aparece sem a barra menor sumir
+    const altura = (kg) => (max === min ? 80 : 38 + (62 * (kg - min)) / (max - min));
+    const bom = [], curto = [];
+    const barras = pts
+      .map((p, i) => {
+        const temSono = numeroValido(p.sono);
+        if (temSono) (p.sono >= SONO_BOM ? bom : curto).push(p.kg);
+        const cls = (temSono ? (p.sono >= SONO_BOM ? " bom" : "") : " sem") + (i === pts.length - 1 ? " hoje" : "");
+        const rot = `${Cards.dataCurta(p.data)}: ${kgTexto(p.kg)}, ${temSono ? `dormiu ${horasSono(p.sono)}` : "sono não registrado"}`;
+        return (
+          `<div class="tv-bar${cls}" style="--k:${i};--h:${altura(p.kg).toFixed(1)}%" role="listitem" aria-label="${esc(rot)}">` +
+          `<b>${esc(kgTexto(p.kg).replace(" kg", ""))}</b><i></i><small>${temSono ? esc(`${String(Math.round(p.sono * 10) / 10).replace(".", ",")} h`) : "—"}</small></div>`
+        );
+      })
+      .join("");
+    const algumSono = bom.length + curto.length > 0;
+    let frase = "";
+    if (bom.length >= 2 && curto.length >= 2) {
+      const mb = media(bom), mc = media(curto);
+      frase =
+        `<p class="tv-barras-frase">Com ${SONO_BOM} h de sono ou mais tu levanta <b>${esc(kgTexto(mb))}</b> em média. ` +
+        `Com menos, <b>${esc(kgTexto(mc))}</b>.</p>`;
+    } else {
+      frase = `<p class="tv-barras-nota">${algumSono ? "Mais uns treinos com o sono marcado e eu te mostro o que ele muda na tua carga." : "Marca quanto dormiu no começo do treino e eu cruzo com a carga."}</p>`;
+    }
     return (
-      `<svg class="tv-grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(rotulo)}">` +
-      `<path class="tv-g-area" d="${area}"/>${trechos}${pontos}` +
-      `<text class="tv-g-kg" x="${f(xy[0][0])}" y="${f(Math.max(10, xy[0][1] - 7))}" text-anchor="start">${esc(kg(pts[0].kg))}</text>` +
-      `<text class="tv-g-kg ultimo" x="${f(xy[xy.length - 1][0] - 3)}" y="${f(xy[xy.length - 1][1] - 9)}" text-anchor="end">${esc(kg(pts[pts.length - 1].kg))}</text>` +
-      `<text class="tv-g-data" x="${X0}" y="${H - 3}">${esc(Cards.dataCurta(pts[0].data))}</text>` +
-      `<text class="tv-g-data" x="${X1}" y="${H - 3}" text-anchor="end">${esc(Cards.dataCurta(pts[pts.length - 1].data))}</text>` +
-      `</svg>`
+      `<div class="tv-sono-carga"><p class="tv-barras-rot">Carga × sono · últimos ${pts.length} treinos</p>` +
+      `<div class="tv-barras" role="list" style="--n:${pts.length}">${barras}</div>` +
+      (algumSono ? `<p class="tv-barras-leg"><span class="tv-lg bom"></span>${SONO_BOM} h ou mais<span class="tv-lg"></span>menos</p>` : "") +
+      frase +
+      `</div>`
     );
   }
 
@@ -959,7 +997,7 @@
             ? `<span class="tv-de">${esc(m.antes)}</span><span class="tv-flecha" aria-hidden="true">→</span>`
             : `<span></span><span></span>`) +
           `<b class="tv-para${m.sentido ? ` ${esc(m.sentido)}` : ""}">${esc(m.depois)}${SETA[m.sentido] ? `<i aria-label="${m.sentido === "subiu" ? "subiu" : "baixou"}">${SETA[m.sentido]}</i>` : ""}</b>` +
-          graficoCarga(m.historico) +
+          barrasCarga(m.historico) +
           `</li>`
       )
       .join("");
@@ -995,6 +1033,30 @@
   }
 
   if (typeof Cards.registrarAcao === "function") {
+    // sono: troca a pergunta pela linha "Dormiu X" na hora; se a rota falhar, a pergunta volta
+    Cards.registrarAcao("treino_sono", async (btn, cardEl, deps) => {
+      const caixa = btn.closest(".tv-sono");
+      if (typeof deps.apiFetch !== "function" || !caixa || caixa.dataset.enviando) return;
+      const h = Number(btn.dataset.h);
+      const antes = caixa.outerHTML;
+      caixa.dataset.enviando = "1";
+      caixa.insertAdjacentHTML("afterend", sonoTreino({ sono_horas: h }));
+      const feito = caixa.nextElementSibling;
+      if (feito) feito.classList.add("tv-sono-chegou");
+      caixa.remove();
+      if (typeof raiz.vibrar === "function") raiz.vibrar(8);
+      const res = await deps.apiFetch(`/api/treino/sessoes/${encodeURIComponent(btn.dataset.sessao)}/sono`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ horas: h }),
+      });
+      if (!res || !res.ok) {
+        if (feito && feito.isConnected) feito.outerHTML = antes.replace(' data-enviando="1"', "");
+        return;
+      }
+      if (typeof deps.aoMudar === "function") deps.aoMudar();
+    });
+
     Cards.registrarAcao("treino_ex", async (btn, cardEl, deps) => {
       if (typeof deps.apiFetch !== "function" || btn.dataset.enviando) return;
       const lis = Array.from(cardEl.querySelectorAll(".tv-ex"));

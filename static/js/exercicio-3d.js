@@ -711,9 +711,9 @@ var Exercicio = (function () {
       '<linearGradient id="gCorpo' + g + '" gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="0" y2="190"><stop offset="0" stop-color="#f1f6f9"/><stop offset="1" stop-color="#8d9fad"/></linearGradient>' +
       '<linearGradient id="gEst' + g + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a424c"/><stop offset="1" stop-color="#1c2128"/></linearGradient>' +
       '<linearGradient id="gMetal' + g + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2f5f7"/><stop offset=".5" stop-color="#8d969d"/><stop offset="1" stop-color="#4b5258"/></linearGradient>' +
-      '<radialGradient id="gPeito' + g + '"><stop offset="0" stop-color="#c8f29e" stop-opacity=".95"/><stop offset="1" stop-color="#b5e48c" stop-opacity="0"/></radialGradient>' +
-      '<radialGradient id="gTri' + g + '"><stop offset="0" stop-color="#c8f29e" stop-opacity=".95"/><stop offset="1" stop-color="#b5e48c" stop-opacity=".1"/></radialGradient>' +
-      '<radialGradient id="gChao' + g + '"><stop offset="0" stop-color="#b5e48c" stop-opacity=".10"/><stop offset="1" stop-color="#b5e48c" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="gPeito' + g + '"><stop offset="0" stop-color="#c9d1ff" stop-opacity=".95"/><stop offset="1" stop-color="#9aa8f0" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="gTri' + g + '"><stop offset="0" stop-color="#c9d1ff" stop-opacity=".95"/><stop offset="1" stop-color="#9aa8f0" stop-opacity=".1"/></radialGradient>' +
+      '<radialGradient id="gChao' + g + '"><stop offset="0" stop-color="#9aa8f0" stop-opacity=".10"/><stop offset="1" stop-color="#9aa8f0" stop-opacity="0"/></radialGradient>' +
       '<filter id="fSombra' + g + '" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter></defs>';
   }
   // enquadra: mede o exercicio inteiro (sem as colunas da polia) e centraliza no viewBox 240x200

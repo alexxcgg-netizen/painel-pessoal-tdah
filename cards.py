@@ -227,6 +227,7 @@ CAMPOS_SENSIVEIS = {
     # modo visitante, mas os cards do chat/historico vazavam sono/passos.
     "saude_dia": ("agua_copos", "passos", "sono_horas", "treino_min"),
     "saude_treino": ("sessoes", "semana"),
+    "treino_agora": ("sono_horas",),
     "agua": ("copos",),
     "gastos_resumo": ("total", "por_categoria", "maiores"),
     # Fase 7 (N1, ligado na C1 - checklist de docs/contrato-assinaturas.md).
@@ -1052,6 +1053,8 @@ def _dados_treino_agora(conn, sessao: dict) -> dict | None:
         "exercicios": exercicios,
         "feitos": [i for i in sessao["feitos"] if i < len(exercicios)],
         "concluido": bool(sessao.get("concluido_em")), "duracao_min": duracao,
+        # sono da noite antes do treino (Saude/Atalho ou a pergunta do proprio card): cruza com a carga
+        "sono_horas": (db.get_saude_dia(conn, sessao["data"]) or {}).get("sono_horas"),
     }
 
 
@@ -1086,6 +1089,10 @@ def card_treino_carga(conn, cargas: list[dict], actions_extra=None) -> dict | No
     mudancas = []
     for ef in cargas:
         historico = db.historico_carga(conn, ef["id"], ef.get("exercicio") or "") if ef.get("exercicio") else []
+        # carga x sono (ideia 4 aprovada): cada ponto leva as horas dormidas na noite antes, se houver
+        sono = {s["data"]: s["sono_horas"] for s in db.list_saude_dados(conn, desde=historico[0]["data"])} if historico else {}
+        for p in historico:
+            p["sono"] = sono.get(p["data"])
         antes, depois = ef.get("carga_antes") or "", ef.get("carga_depois") or ""
         n_antes, n_depois = treino_vivo.numero_da_carga(antes), treino_vivo.numero_da_carga(depois)
         mudancas.append({
@@ -2100,6 +2107,11 @@ def mascarar_cards(cards_lista: list) -> list:
                 for m in item.get("mudancas") or []:
                     if m.get("campo") == "valor":
                         m["de"] = m["para"] = "R$ •••"
+        if c.get("type") == "treino_carga" and isinstance(c.get("data"), dict):
+            for m in c["data"].get("mudancas") or []:
+                for p in (m.get("historico") if isinstance(m, dict) else None) or []:
+                    if isinstance(p, dict):
+                        p.pop("sono", None)
         if c.get("type") == "presente" and isinstance(c.get("data"), dict):
             for ideia in c["data"].get("ideias") or []:
                 if isinstance(ideia, dict):

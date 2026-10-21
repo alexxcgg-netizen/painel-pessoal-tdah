@@ -460,10 +460,15 @@ ficha_id, grupo, data, exercicios[{nome, series, reps, carga}], feitos[i], concl
 o último marcado registra o treino e abre "Subiu ou baixou alguma carga?". Histórico atualiza pelo
 `cards.acertar_treino_agora`. `treino_carga` = `{mudancas[{grupo, exercicio, antes, depois, sentido:
 subiu|desceu|null}]}` (do `atualizar_carga_treino`): antes riscado → depois com seta, um card por resposta, Desfazer
-volta a ficha (entidade `treino_carga`, da última troca pra primeira). Cor `#b5e48c`. Cada linha traz `historico[{data, kg}]`
+volta a ficha (entidade `treino_carga`, da última troca pra primeira). Cor `--cor-painel` (#9aa8f0, a mesma do `saude_treino` - NÃO o verde #b5e48c, que é de gasto/compras; corrigido no SW v92). Cada linha traz `historico[{data, kg}]`
 (tabela `treino_cargas`, um ponto por dia em que a carga em kg mudou - ficha salva grava o ponto de partida; Desfazer
-apaga os pontos que a troca criou): com 2+ pontos vira o gráfico `graficoCarga` (área + segmentos verdes/rosados por
-subida/descida, último ponto maior, kg do começo e do fim). Carga sem "kg" ("3 placas") não entra no gráfico. Animação do exercício
+apaga os pontos que a troca criou) e o `sono` da noite antes (`saude_dados.sono_horas` do dia): com 2+ pontos vira
+as barras carga × sono `barrasCarga` (desde SW v92 - ideia 4 aprovada, substituiu a linha): até 6 treinos, altura = kg,
+horas embaixo, noite de 7 h+ brilha na cor do card, sem sono = barra tracejada, o de hoje com contorno; a frase "Com 7 h
+de sono ou mais tu levanta X kg em média. Com menos, Y kg" só com 2+ noites boas e 2+ curtas (antes disso, nota curta).
+O sono vem do Saúde/Atalho ou da pergunta "Dormiu quanto essa noite?" no `treino_agora` (chips 5/6/7/8 h+, otimista,
+`POST /api/treino/sessoes/<id>/sono`, grava no dia da sessão); respondida vira a linha "Dormiu X essa noite". Visitante:
+`sono_horas`/`sono` saem dos cards. Carga sem "kg" ("3 placas") não entra no gráfico. Animação do exercício
 (aprovada no artefato, no app desde o SW v91): painel `.tv-agora` em cima da lista com o exercício da vez em 3D
 (`static/js/exercicio-3d.js`, 43 exercícios, um corpo só + equipamento, músculo acende no empurrão), "Agora · n/total",
 séries em tracinhos e "rep x/y". `Exercicio.tipo(nome)` lê o nome livre da ficha; desconhecido = painel escondido (nunca

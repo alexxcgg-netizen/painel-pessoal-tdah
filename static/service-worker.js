@@ -34,7 +34,8 @@
 // v16: Fase 8 F1 - gastos.js/gastos.html mudaram (lista unificada com selo de origem
 // Nubank/manual, botao "Sincronizar Nubank").
 // v91: animacao 3D do exercicio da vez no treino ao vivo (exercicio-3d.js, 43 exercicios).
-const CACHE_NAME = "painel-pessoal-v91";
+// v92: carga x sono no treino (barras no card de troca + "Dormiu quanto?" no treino ao vivo).
+const CACHE_NAME = "painel-pessoal-v92";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do

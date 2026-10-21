@@ -926,16 +926,45 @@ test("troca de carga: antes riscado, depois com seta, sem 'antes' nao mostra fle
   assert.match(html, /↑/);
 });
 
-test("troca de carga com historico: grafico com trecho por sentido, so com 2+ pontos", () => {
+test("troca de carga: barras carga x sono, noite de 7 h+ brilha, so com 2+ pontos", () => {
   const base = { grupo: "Peito", exercicio: "Supino reto", antes: "20 kg", depois: "25 kg", sentido: "subiu" };
   const html = Cards.renderizarCardHTML({ type: "treino_carga", actions: [], data: { mudancas: [
-    { ...base, historico: [{ data: "2026-10-01", kg: 20 }, { data: "2026-10-08", kg: 22.5 }, { data: "2026-10-14", kg: 20 }, { data: "2026-10-21", kg: 25 }] },
+    { ...base, historico: [{ data: "2026-10-01", kg: 20, sono: 6 }, { data: "2026-10-08", kg: 22.5, sono: 7.5 }, { data: "2026-10-14", kg: 20 }, { data: "2026-10-21", kg: 25, sono: 8 }] },
     { ...base, exercicio: "Crucifixo", historico: [{ data: "2026-10-21", kg: 12 }] },
     { ...base, exercicio: "Remada", historico: [{ data: "<x>", kg: "dez" }, null] },
   ] } });
-  assert.equal((html.match(/class="tv-grafico"/g) || []).length, 1);
-  assert.equal((html.match(/tv-g-trecho subiu/g) || []).length, 2);
-  assert.equal((html.match(/tv-g-trecho desceu/g) || []).length, 1);
-  assert.match(html, /22,5 kg|25 kg/);
+  assert.equal((html.match(/class="tv-barras"/g) || []).length, 1);
+  assert.equal((html.match(/class="tv-bar bom/g) || []).length, 2);
+  assert.equal((html.match(/class="tv-bar sem/g) || []).length, 1);
+  assert.match(html, /class="tv-bar bom hoje"/);
+  assert.match(html, /22,5<\/b>/);
+  assert.match(html, /7,5 h/);
+  // 2 noites boas e so 1 curta: ainda nao compara
+  assert.ok(!html.includes("tv-barras-frase"));
+  assert.match(html, /Mais uns treinos com o sono marcado/);
   assert.ok(!html.includes("<x>"));
+});
+
+test("troca de carga: com 2+ noites boas e 2+ curtas, a frase das medias aparece", () => {
+  const historico = [[55, 5.5], [62.5, 7.4], [57.5, 6], [65, 8]].map(([kg, sono], i) => ({ data: `2026-10-0${i + 1}`, kg, sono }));
+  const html = Cards.renderizarCardHTML({ type: "treino_carga", actions: [], data: { mudancas: [
+    { exercicio: "Supino reto", antes: "62,5 kg", depois: "65 kg", sentido: "subiu", historico },
+  ] } });
+  assert.match(html, /tu levanta <b>63,8 kg<\/b> em média\. Com menos, <b>56,3 kg<\/b>/);
+  assert.match(html, /tv-barras-leg/);
+});
+
+test("treino ao vivo: pergunta do sono com 4 chips; com sono marcado vira a linha; concluido nao pergunta", () => {
+  const exercicios = [{ nome: "Supino reto", series: "4", reps: "10", carga: "20 kg" }];
+  const sem = Cards.renderizarCardHTML({ type: "treino_agora", actions: [], data: { sessao_id: 3, grupo: "Peito", exercicios, feitos: [] } });
+  assert.equal((sem.match(/data-acao="treino_sono"/g) || []).length, 4);
+  assert.match(sem, /Dormiu quanto essa noite\?/);
+  assert.match(sem, /8 h\+/);
+  const com = Cards.renderizarCardHTML({ type: "treino_agora", actions: [], data: { sessao_id: 3, grupo: "Peito", exercicios, feitos: [], sono_horas: 7.75 } });
+  assert.ok(!com.includes("treino_sono"));
+  assert.match(com, /Dormiu 7 h 45 essa noite/);
+  const fim = Cards.renderizarCardHTML({ type: "treino_agora", actions: [], data: { sessao_id: 3, grupo: "Peito", exercicios, feitos: [0], concluido: true } });
+  assert.ok(!fim.includes("treino_sono"));
+  const visitante = Cards.renderizarCardHTML({ type: "treino_agora", actions: [], data: { sessao_id: 3, grupo: "Peito", exercicios, feitos: [], oculto: true } });
+  assert.ok(!visitante.includes("treino_sono"));
 });
