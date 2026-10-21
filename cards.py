@@ -669,6 +669,47 @@ def card_tarefas_criadas(conn, ids: list[int], actions_extra: list | None = None
     return novo_card("tarefas_criadas", data, actions)
 
 
+_RE_HORA = re.compile(r"^\d{2}:\d{2}$")
+
+
+def planos_validos(planos, ids: set) -> dict | None:
+    """Plano A/B do "Dia montado" (planejar_dia, 2026-10-21): so itens de tarefa que esta no card
+    e hora HH:MM. Sem os dois planos com nome e item = sem pilula."""
+    if not isinstance(planos, dict):
+        return None
+    saida = {}
+    for k in ("a", "b"):
+        p = planos.get(k)
+        if not isinstance(p, dict):
+            return None
+        itens = [
+            {"id": i["id"], "hora": i["hora"]}
+            for i in (p.get("itens") or [])
+            if isinstance(i, dict) and i.get("id") in ids and isinstance(i.get("hora"), str) and _RE_HORA.match(i["hora"])
+        ]
+        nome = str(p.get("nome") or "").strip()[:40]
+        if not itens or not nome:
+            return None
+        saida[k] = {"nome": nome, "nota": str(p.get("nota") or "").strip()[:140], "itens": itens}
+    return saida
+
+
+def acertar_plano_escolhido(conn, cards_msg: list) -> None:
+    """Historico: o card guardado nasce com o plano A escolhido; se as horas de agora sao as do
+    B (ele trocou na pilula), o card volta mostrando o B. Muda os dicts no lugar."""
+    for c in cards_msg:
+        p = (c.get("data") or {}).get("planos") if isinstance(c, dict) else None
+        if not isinstance(p, dict) or not isinstance(p.get("b"), dict):
+            continue
+        itens = [i for i in p["b"].get("itens") or [] if isinstance(i, dict) and isinstance(i.get("id"), int)]
+        if not itens:
+            continue
+        marcas = ",".join("?" for _ in itens)
+        agora = {r["id"]: r["hora"] for r in conn.execute(
+            f"SELECT id, hora FROM tasks WHERE id IN ({marcas})", [i["id"] for i in itens])}
+        p["escolhido"] = "b" if all(agora.get(i["id"]) == i.get("hora") for i in itens) else "a"
+
+
 def card_transacao(conn, entidade: str, id_: int, meio=None, saldo=None, actions_extra=None) -> dict | None:
     if entidade == "gasto":
         row = conn.execute(
@@ -1924,6 +1965,11 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
             saida.append(card)
     if pos_tarefas is not None:
         card = card_tarefas_criadas(conn, tarefas_ids, _acoes_desfazer(criar_token, tarefas_itens))
+        planos = next((e["planos"] for e in tarefas_itens if isinstance(e.get("planos"), dict)), None)
+        if card and planos:
+            planos = planos_validos(planos, {t["id"] for t in card["data"].get("agenda_do_dia") or []})
+            if planos:
+                card["data"]["planos"] = {**planos, "escolhido": "a"}
         saida[pos_tarefas] = card
     if pos_edicoes is not None:
         saida[pos_edicoes] = card_edicao(edicoes, _acoes_desfazer(criar_token, edicoes))

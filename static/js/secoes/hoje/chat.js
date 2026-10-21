@@ -111,8 +111,9 @@ function criarEscritaAoVivo(bolha) {
     if (lista && lista.scrollHeight - lista.scrollTop - lista.clientHeight < 140) lista.scrollTop = lista.scrollHeight;
     let passo = 34 * (0.7 + Math.random() * 0.6);
     if (token.length <= 2) passo *= 0.6;
-    if (/[.!?]$/.test(token)) passo += 150;
-    else if (/[,;:]$/.test(token)) passo += 60;
+    // pausas do prototipo aprovado em 2026-10-21 ("rapida e natural"): respira no ponto e na virgula
+    if (/[.!?]$/.test(token)) passo += 180;
+    else if (/[,;:]$/.test(token)) passo += 75;
     const atraso = fila.length > 24 ? 6 : fila.length > 10 ? passo * 0.45 : passo;
     timer = setTimeout(pingar, reduzido ? 0 : atraso);
   }
@@ -349,8 +350,9 @@ async function loadChatHistorico() {
     return;
   }
   historico.forEach((m) => {
-    lista.appendChild(criarBolhaChat(m.papel, m.texto));
-    if (m.papel === "assistant") anexarCardsResposta(lista, m.cards, null);
+    const linha = criarBolhaChat(m.papel, m.texto);
+    lista.appendChild(linha);
+    if (m.papel === "assistant") juntarBalaoECard(linha, anexarCardsResposta(lista, m.cards, null), false);
   });
   lista.scrollTop = lista.scrollHeight;
   // o card guardado no historico e uma foto do momento - acerta com o estado de agora
@@ -420,6 +422,41 @@ function anexarCardsResposta(lista, cards, passos, nova) {
   // 2+ cards: o fio que liga um no outro (so a resposta nova desenha animado)
   if (typeof CardsPremium !== "undefined") CardsPremium.costurar(grupo, { nova: !!nova });
   return grupo;
+}
+
+// Balao que vira card (2026-10-21, prototipo aprovado pelo Alex - modelo "B"): a resposta e o
+// card sao UMA coisa. O balao se abre pra largura toda, o canto de baixo endireita, a borda pega
+// a cor do card e o card desce de dentro dele (cortina de cima pra baixo). O card continua no
+// grupo de sempre (mesma largura, mesmo costurar/animar) - so cola no balao. Historico abre
+// colado e parado.
+function juntarBalaoECard(linha, grupo, animar) {
+  if (!linha || !grupo || !linha.classList.contains("assistant")) return;
+  const bolha = linha.querySelector(".chat-bolha");
+  const primeiro = grupo.querySelector(".card-contrato");
+  if (!bolha || !primeiro) return;
+  const lista = grupo.parentElement;
+  const folga = lista ? parseFloat(getComputedStyle(lista).rowGap) || 0 : 0;
+  const cor = getComputedStyle(primeiro).getPropertyValue("--card-cor").trim();
+  if (cor) linha.style.setProperty("--balao-cor", cor);
+  primeiro.classList.add("card-do-balao");
+  grupo.style.setProperty("--balao-folga", `${folga}px`);
+  const reduzido = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!animar || reduzido || typeof grupo.animate !== "function") {
+    linha.classList.add("chat-linha--virou");
+    grupo.classList.add("cards-grupo--do-balao");
+    return;
+  }
+  linha.classList.add("chat-linha--virando");
+  // um quadro pro navegador pintar o estado de antes - senao a transicao nao acontece
+  requestAnimationFrame(() => {
+    linha.classList.add("chat-linha--virou");
+    grupo.classList.add("cards-grupo--do-balao");
+    grupo.animate(
+      [{ clipPath: "inset(0 0 100% 0 round 18px)", opacity: 0.4 }, { clipPath: "inset(0 0 0 0 round 0px)", opacity: 1 }],
+      { duration: 760, delay: 140, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "backwards" },
+    );
+    setTimeout(() => linha.classList.remove("chat-linha--virando"), 900);
+  });
 }
 
 // Recarrega as telas que um card pode ter mudado (desfazer, concluir
@@ -539,6 +576,7 @@ async function enviarChat(texto, opcoes = {}) {
   // resumo_texto = contrato da Fase 6; `resposta` = mesmo texto no campo
   // legado (fallback se um backend mais velho responder).
   const textoFinal = data.resumo_texto || data.resposta || "";
+  let linhaResposta;
   if (escrita) {
     await escrita.terminar();
     const mesmo = (s) => String(s || "").replace(/\s+/g, " ").trim();
@@ -547,11 +585,14 @@ async function enviarChat(texto, opcoes = {}) {
       escreverPalavraAPalavra(alvoTexto, textoFinal);
     }
     digitando.appendChild(criarBotaoOuvirChat(textoFinal));
+    linhaResposta = digitando;
   } else {
     digitando.remove();
-    lista.appendChild(criarBolhaChat("assistant", textoFinal, true));
+    linhaResposta = criarBolhaChat("assistant", textoFinal, true);
+    lista.appendChild(linhaResposta);
   }
   const grupoCards = anexarCardsResposta(lista, data.cards, data.passos, true);
+  juntarBalaoECard(linhaResposta, grupoCards, true);
   // so a resposta NOVA ganha a entrada animada (o historico abre parado)
   if (grupoCards && typeof CardsVivos !== "undefined") CardsVivos.animar(grupoCards);
   if (grupoCards && typeof CardsPremium !== "undefined") CardsPremium.animar(grupoCards);

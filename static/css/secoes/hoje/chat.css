@@ -838,3 +838,48 @@ main #tab-assistente h2.chat-ola-titulo,
   .chat-recibo, .chat-recibo[open] ol { animation: none; }
   .chat-recibo-seta { transition: none; }
 }
+
+/* ---- balao que vira card (2026-10-21, prototipo aprovado "B") --------------------------------
+   chat.js/juntarBalaoECard: o balao da resposta abre pra largura toda, o canto de baixo endireita,
+   a borda pega a cor do primeiro card (--balao-cor) e o card cola embaixo dele, como se fosse o
+   mesmo objeto se abrindo. O "ouvir" vai pro canto de cima do balao (senao o card sobra a
+   direita). .chat-linha--virando so liga as transicoes na resposta nova - historico abre pronto. */
+#tab-assistente .chat-linha.assistant.chat-linha--virou {
+  position: relative;
+}
+#tab-assistente .chat-linha--virou .chat-bolha.assistant {
+  flex: 1 1 auto;
+  max-width: none;
+  padding-right: 44px;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  border-color: color-mix(in srgb, var(--balao-cor, var(--cor-borda)) 32%, var(--cor-borda));
+  background:
+    radial-gradient(130% 120% at 100% 100%, color-mix(in srgb, var(--balao-cor, transparent) 9%, transparent), transparent 70%),
+    var(--superficie-card);
+}
+#tab-assistente .chat-linha--virando .chat-bolha.assistant {
+  transition:
+    border-radius 0.55s var(--ease-suave),
+    border-color 0.6s var(--ease-suave),
+    padding 0.55s var(--ease-suave);
+}
+#tab-assistente .chat-linha--virou .btn-ouvir-chat {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+}
+#tab-assistente .cards-grupo--do-balao {
+  margin-left: calc(30px + 8px); /* avatar + gap da linha: o card fica embaixo do balao */
+  margin-top: calc(-1 * var(--balao-folga, 0px) - 1px); /* encosta (a borda do card cobre a do balao) */
+}
+#tab-assistente .cards-grupo--do-balao .card-do-balao {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  #tab-assistente .chat-linha--virando .chat-bolha.assistant {
+    transition: none;
+  }
+}

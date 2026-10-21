@@ -3150,6 +3150,7 @@ def _processar_mensagem_chat(
         ).fetchall()
         normal = {r["id"]: aprendizado.normalizar_consulta(r["title"]) for r in [*pendentes, *feitas]}
         efeitos, ignorados, usados, ja_feitas = [], [], set(), []
+        mapa = []  # (titulo normalizado, id da tarefa, hora) - pro plano B achar cada bloco
         for bloco in blocos:
             if not isinstance(bloco, dict):
                 continue
@@ -3191,6 +3192,7 @@ def _processar_mensagem_chat(
                 ef = _editar("tasks", existente["id"], novos, "Tarefa", existente["title"])
                 if ef:
                     efeitos.append(ef)
+                mapa.append((alvo, existente["id"], hora))
                 continue
             # so nome igual (nao o casamento frouxo de _mesma): pular uma tarefa nova por
             # engano seria pior que a duplicata
@@ -3203,7 +3205,15 @@ def _processar_mensagem_chat(
                 (titulo, dia, hora, texto, local),
             )
             efeitos.append({"entidade": "tarefa", "id": cur.lastrowid})
+            mapa.append((alvo, cur.lastrowid, hora))
         conn.commit()
+        planos = _planos_do_dia(mapa, entrada)
+        if planos:
+            alvo_ef = next((e for e in efeitos if e["entidade"] == "tarefa"), None)
+            if alvo_ef:
+                alvo_ef["planos"] = planos
+            else:
+                planos = None
         if not efeitos and ja_feitas:
             return {"ok": True, "dia": dia, "criadas": 0, "ja_feitas_nao_recriei": ja_feitas}
         if not efeitos:
@@ -3216,7 +3226,41 @@ def _processar_mensagem_chat(
         if ja_feitas:
             # a IA conta pro Alex que essas ja tavam feitas em vez de dizer "remarquei"
             resultado["ja_feitas_nao_recriei"] = ja_feitas
+        if planos:
+            resultado["plano_b_no_card"] = planos["b"]["nome"]
         return resultado
+
+    def _planos_do_dia(mapa, entrada):
+        """Plano B do planejar_dia (2026-10-21, prototipo aprovado): o A ja foi gravado; o B so
+        vale se acha os mesmos blocos (pelo nome) e muda a hora de pelo menos um. Bloco do B que
+        nao casa com nenhum do A e ignorado (o B so troca horas, nao cria tarefa)."""
+        b = entrada.get("plano_b")
+        if not mapa or not isinstance(b, dict) or not isinstance(b.get("blocos"), list):
+            return None
+        livres, itens_b = list(mapa), []
+        for bloco in b["blocos"][:30]:
+            if not isinstance(bloco, dict):
+                continue
+            hora_b = _normalizar_hora(bloco.get("hora"))
+            alvo_b = aprendizado.normalizar_consulta(str(bloco.get("titulo") or ""))
+            if not hora_b or not alvo_b:
+                continue
+            par = next((m for m in livres if m[0] == alvo_b), None) or next(
+                (m for m in livres if len(alvo_b) >= 4 and len(m[0]) >= 4 and (alvo_b in m[0] or m[0] in alvo_b)), None)
+            if par:
+                livres.remove(par)
+                itens_b.append({"id": par[1], "hora": hora_b})
+        hora_a = {m[1]: m[2] for m in mapa}
+        if not any(i["hora"] != hora_a[i["id"]] for i in itens_b):
+            return None
+        return {
+            "a": {"nome": str(entrada.get("plano_a_nome") or "Plano A").strip()[:40],
+                  "nota": str(entrada.get("plano_a_nota") or "").strip()[:140],
+                  "itens": [{"id": m[1], "hora": m[2]} for m in mapa]},
+            "b": {"nome": str(b.get("nome") or "Plano B").strip()[:40],
+                  "nota": str(b.get("nota") or "").strip()[:140],
+                  "itens": itens_b},
+        }
 
     def exec_definir_meta_horas_voo(entrada):
         recusa = _recusa_visitante()
@@ -4213,6 +4257,7 @@ def _processar_mensagem_chat(
                 return None, [], CLAUDE_FORMAT_ERROR_MSG
 
             _log_usage(conn, usage, "chat")
+            resposta = _desescapar_unicode(resposta)
         # cresce o banco "pergunta -> onde buscar": resposta da IA feita SO
         # com ferramentas de consulta vira padrao (vale local depois de
         # LIMIAR_CONFIRMACOES_PADRAO_INTENT repeticoes da mesma frase).
@@ -4228,6 +4273,17 @@ def _processar_mensagem_chat(
     if detalhes is not None:
         detalhes.update(envelope_cards)
     return resposta, acoes, None
+
+
+_RE_ESCAPE_UNICODE = re.compile(r"\\u([0-9a-fA-F]{4})")
+
+
+def _desescapar_unicode(texto):
+    """A IA as vezes devolve "\\u00e1" literal no texto (visto no chat em 10/2026: "j\\u00e1") -
+    vira o caractere de verdade. So o padrao \\uXXXX; o resto do texto fica como veio."""
+    if not isinstance(texto, str) or "\\u" not in texto:
+        return texto
+    return _RE_ESCAPE_UNICODE.sub(lambda m: chr(int(m.group(1), 16)), texto)
 
 
 def _historico_chat_para_ia(conn, texto: str, mensagens_antigas: list) -> tuple[list, str]:

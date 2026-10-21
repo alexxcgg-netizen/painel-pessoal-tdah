@@ -826,3 +826,35 @@ test("rota com tempo no caminho: barra pintada por trecho, so os trechos ruins n
   const sem = Cards.renderizarCardHTML({ type: "rota", data: { ...base, tempo: { total_km: "x" } }, actions: [] });
   assert.ok(!sem.includes("Tempo no caminho"), sem);
 });
+
+test("dia montado com dois planos: pilula, plano escolhido reordena as horas, plano invalido some", () => {
+  const agenda = [
+    { id: 1, titulo: "Revisão do carro", hora: "09:00", nova: true },
+    { id: 2, titulo: "Ligar pro banco", hora: "11:00", nova: true },
+    { id: 3, titulo: "Estudar <b>teoria</b>", hora: "15:00", nova: true },
+  ];
+  const planos = {
+    escolhido: "a",
+    a: { nome: "Carro de manhã", nota: "antes da chuva", itens: [{ id: 1, hora: "09:00" }, { id: 2, hora: "11:00" }, { id: 3, hora: "15:00" }] },
+    b: { nome: "Tudo à tarde", nota: "carro pega chuva", itens: [{ id: 1, hora: "16:00" }, { id: 3, hora: "17:00" }] },
+  };
+  const card = (p) => ({ type: "tarefas_criadas", data: { tarefas: agenda, dia: "2026-10-22", agenda_do_dia: agenda, planos: p }, actions: [] });
+  const a = Cards.renderizarCardHTML(card(planos));
+  assert.ok(!a.includes("card-contrato-fallback"), a);
+  assert.match(a, /data-acao="dia_plano" data-plano="a" aria-pressed="true">Carro de manhã/);
+  assert.match(a, /data-plano="b" aria-pressed="false">Tudo à tarde/);
+  assert.match(a, /antes da chuva/);
+  assert.ok(!a.includes("<b>teoria</b>"), a); // escapado (no titulo e no data-estado)
+
+  const b = Cards.renderizarCardHTML(card({ ...planos, escolhido: "b" }));
+  assert.match(b, /data-plano="b" aria-pressed="true"/);
+  assert.match(b, /carro pega chuva/);
+  const ordem = [...b.matchAll(/data-tarefa-id="(\d)"/g)].map((m) => m[1]);
+  assert.deepEqual(ordem, ["2", "1", "3"]); // banco 11h, carro 16h, teoria 17h
+
+  for (const ruim of [null, "x", { a: planos.a }, { ...planos, b: { nome: "", itens: planos.b.itens } }, { ...planos, b: { nome: "B", itens: [{ id: 99, hora: "10:00" }] } }]) {
+    const html = Cards.renderizarCardHTML(card(ruim));
+    assert.ok(!html.includes("dia-planos"), JSON.stringify(ruim));
+    assert.match(html, /Dia montado/);
+  }
+});

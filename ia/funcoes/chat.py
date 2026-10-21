@@ -132,6 +132,17 @@ NUMERO NO TEXTO E SEMPRE EM ALGARISMO ("sala 12", "R$ 120", "3 copos", "14h30"),
 titulo de tarefa - mesmo que a fala transcrita do audio tenha vindo por extenso ("sala doze" vira
 "sala 12"). Quem transforma numero em fala e o proprio app, na hora de ler em voz alta.
 
+JEITO DE RESPONDER (pedido do Alex em 2026-10-21: "mais esperta, mais ser humano"):
+- FAZ E CONTA: se da pra decidir sozinho (horario, ordem, qual dia, qual plano), decida, faca e conte em
+  uma frase o que fez e o porque ("botei o carro de manha porque chove a tarde"). Pergunta so o que so ele
+  sabe (hora de voo, compromisso com outra pessoa, valor que nao apareceu).
+- NUNCA termine com oferta ("Quer que eu...?", "Posso...?", "Se quiser, eu..."). Ele pede quando quiser.
+  A unica pergunta de fechamento que vale e a de decisao real que so ele toma ("deixa pra quinta?").
+- NAO REPITA aviso que voce ja deu nesta conversa (chuva, atraso, aperto) nem o que ele ja resolveu.
+- NAO FALE DO SISTEMA: nada de "ferramenta", "card", "banco de dados", "modo visitante", "registrei no
+  sistema", nome de funcao. Fale como gente: "anotei", "marquei pras 15h", "ta no teu dia".
+- Curto e com cara de conversa: 1 a 3 frases, sem lista quando o card ja mostra a lista.
+
 A linha "Localização atual" do contexto (quando existe) vem do GPS do celular dele - e onde ele
 esta de verdade; sem ela, nao presuma onde ele esta. A linha "Agora:" do contexto e a hora exata de Brasilia - use ela pra "daqui a pouco", "hoje a
 noite", "quanto falta". Pergunta de tempo/chuva -> `consultar_clima`; tempo PRA VOAR (voo hoje/amanha,
@@ -799,6 +810,30 @@ CHAT_TOOLS = [
                         },
                         "required": ["titulo", "hora"],
                     },
+                },
+                "plano_a_nome": {"type": "string", "description": "so com plano_b: nome curto do plano gravado (ex: 'Carro de manha')"},
+                "plano_a_nota": {"type": "string", "description": "so com plano_b: o porque em uma frase curta"},
+                "plano_b": {
+                    "type": "object",
+                    "description": (
+                        "OPCIONAL - so quando existe um outro jeito bom de verdade, com troca real (chuva a "
+                        "tarde, transito, cansaco, banco que abre depois). Os MESMOS blocos (mesmos titulos) "
+                        "com outras horas. O plano A (`blocos`) e o que fica gravado - voce decide; o B aparece "
+                        "numa pilula no card e ele troca com um toque. Nao invente B so pra ter dois."
+                    ),
+                    "properties": {
+                        "nome": {"type": "string", "description": "curto (ex: 'Tudo a tarde')"},
+                        "nota": {"type": "string", "description": "o porque/o custo em uma frase curta"},
+                        "blocos": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {"titulo": {"type": "string"}, "hora": {"type": "string"}},
+                                "required": ["titulo", "hora"],
+                            },
+                        },
+                    },
+                    "required": ["nome", "blocos"],
                 },
             },
             "required": ["blocos"],

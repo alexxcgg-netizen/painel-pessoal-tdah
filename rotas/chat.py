@@ -216,6 +216,8 @@ def chat_historico():
     ]
     conn = get_db()
     desfeitos = db.tokens_desfeitos(conn, tokens)
+    for m in mensagens:
+        cards.acertar_plano_escolhido(conn, m["cards"])  # trocou pro plano B na pilula
     conn.close()
     for m in mensagens:
         for c in m["cards"]:

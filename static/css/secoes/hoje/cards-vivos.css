@@ -794,3 +794,83 @@
   .card-novo .ap-bloco, .card-novo .ap-faixa, .card-novo .ap-status, .card-novo .ap-acoes, .ap-troca, .ap-acoes.some { animation: none !important; }
   .ap-bloco { transition: none; }
 }
+
+/* ---- dois planos no card "Dia montado" (2026-10-21, prototipo aprovado "B + pilula") ----------
+   Pilula com fundo que desliza (--ease-bounce), nota curta embaixo; trocar refaz a trilha e a
+   lista com um assentamento leve (.dia-miolo-troca). Alvo de toque 44 px. */
+.dia-planos {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0.35rem;
+}
+.dia-planos-pilula {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.dia-planos-fundo {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 4.5px);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-cor) 82%, #fff);
+  transform: translateX(calc(var(--p, 0) * (100% + 3px)));
+  transition: transform 0.55s var(--ease-bounce);
+}
+.dia-planos-pilula button {
+  position: relative;
+  z-index: 1;
+  min-height: 44px;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: color 0.35s var(--ease-suave);
+}
+.dia-planos-pilula button[aria-pressed="true"] {
+  color: #14100c;
+  font-weight: 600;
+}
+.dia-planos-pilula button:focus-visible {
+  outline: 2px solid var(--card-cor);
+  outline-offset: 2px;
+}
+.dia-planos-nota {
+  margin: 0;
+  min-height: 1.3em;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+.dia-miolo-troca .vivo-dia-item {
+  animation: dia-plano-assenta 0.5s var(--ease-bounce) both;
+}
+.dia-miolo-troca .vivo-dia-item:nth-child(2) { animation-delay: 0.05s; }
+.dia-miolo-troca .vivo-dia-item:nth-child(3) { animation-delay: 0.1s; }
+.dia-miolo-troca .vivo-dia-item:nth-child(4) { animation-delay: 0.15s; }
+.dia-miolo-troca .vivo-dia-item:nth-child(n + 5) { animation-delay: 0.2s; }
+.dia-miolo-troca svg {
+  animation: dia-plano-surge 0.45s var(--ease-suave) both;
+}
+@keyframes dia-plano-assenta {
+  from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+}
+@keyframes dia-plano-surge {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dia-planos-fundo { transition: none; }
+  .dia-miolo-troca .vivo-dia-item, .dia-miolo-troca svg { animation: none; }
+}

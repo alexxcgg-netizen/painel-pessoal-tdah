@@ -209,31 +209,144 @@
       // dia inteiro montado de uma vez (planejar_dia): todas sao novas, entao o selo "nova"
       // e o pouso com brilho nao distinguem nada - so marca quando ha nova no meio de antigas
       const todasNovas = agenda.every((t) => t.nova);
-      const destaca = (t) => t.nova && !todasNovas;
-      const linhas = agenda
-        .map(
-          (t) =>
-            `<li class="card-tarefa vivo-dia-item${destaca(t) ? " vivo-nova" : ""}${t.concluida ? " concluida" : ""}">` +
-            `<label><input type="checkbox" data-tarefa-id="${esc(t.id)}"${t.concluida ? " checked" : ""} aria-label="Concluir ${esc(Cards.partesTarefa(t.titulo).titulo)}">` +
-            `<span class="card-tarefa-titulo">${Cards.tituloTarefaHTML(t.titulo)}</span></label>` +
-            `<span class="card-tarefa-quando">${destaca(t) ? '<span class="vivo-selo-nova">nova</span>' : ""}${t.hora ? Cards.horaTarefaHTML(t.titulo, t.hora) : "sem hora"}</span>` +
-            `</li>`
-        )
-        .join("");
       const novas = agenda.filter((t) => t.nova).length;
       const rotuloDia = diaRelativoTarefa(data.dia);
       const resumo = todasNovas
         ? `Seu dia ${esc(rotuloDia)}, montado: <strong>${agenda.length}</strong> blocos`
         : `Seu dia ${esc(rotuloDia)}: <strong>${agenda.length}</strong> tarefas${novas > 1 ? `, ${novas} novas` : ""}`;
+      const planos = planosValidos(data.planos, agenda);
+      const escolhido = planos && planos.escolhido === "b" ? "b" : "a";
       return (
         eyebrow(ICONES.tarefa, todasNovas ? "Dia montado" : titulo, contador) +
         `<p class="card-linha-meta vivo-dia-resumo">${resumo}</p>` +
-        (typeof Cards.trilhaDia === "function" ? Cards.trilhaDia(agenda, { hoje: rotuloDia === "hoje" }) : "") +
-        `<ul class="card-tarefas vivo-dia-lista" data-vivo="criadas">${linhas}</ul>`
+        (planos ? pilulaPlanosHTML(planos, escolhido, agenda, data.dia) : "") +
+        `<div class="dia-miolo">${mioloDiaHTML(planos ? comHorasDoPlano(agenda, planos[escolhido]) : agenda, rotuloDia)}</div>`
       );
     }
     return eyebrow(ICONES.tarefa, titulo, contador) + `<ul class="card-tarefas">${itens}</ul>`;
   });
+
+  function mioloDiaHTML(agenda, rotuloDia) {
+    const todasNovas = agenda.every((t) => t.nova);
+    const destaca = (t) => t.nova && !todasNovas;
+    const linhas = agenda
+      .map(
+        (t) =>
+          `<li class="card-tarefa vivo-dia-item${destaca(t) ? " vivo-nova" : ""}${t.concluida ? " concluida" : ""}">` +
+          `<label><input type="checkbox" data-tarefa-id="${esc(t.id)}"${t.concluida ? " checked" : ""} aria-label="Concluir ${esc(Cards.partesTarefa(t.titulo).titulo)}">` +
+          `<span class="card-tarefa-titulo">${Cards.tituloTarefaHTML(t.titulo)}</span></label>` +
+          `<span class="card-tarefa-quando">${destaca(t) ? '<span class="vivo-selo-nova">nova</span>' : ""}${t.hora ? Cards.horaTarefaHTML(t.titulo, t.hora) : "sem hora"}</span>` +
+          `</li>`
+      )
+      .join("");
+    return (
+      (typeof Cards.trilhaDia === "function" ? Cards.trilhaDia(agenda, { hoje: rotuloDia === "hoje" }) : "") +
+      `<ul class="card-tarefas vivo-dia-lista" data-vivo="criadas">${linhas}</ul>`
+    );
+  }
+
+  // ---- dois planos dentro do card (2026-10-21, prototipo aprovado "B + pilula") -------------
+  // A IA ja escolheu e gravou o plano A; o B fica do lado numa pilula. Tocar troca as horas das
+  // tarefas (POST /api/tasks/<id>/hora, uma por uma, otimista) e a lista/trilha se reordena.
+  // `escolhido` vem do servidor (o historico confere com as horas de agora).
+  function planosValidos(p, agenda) {
+    if (!p || typeof p !== "object") return null;
+    const ids = new Set(agenda.map((t) => String(t.id)));
+    const plano = (x) =>
+      x && typeof x === "object"
+        ? {
+            nome: typeof x.nome === "string" && x.nome ? x.nome : "",
+            nota: typeof x.nota === "string" ? x.nota : "",
+            itens: lista(x.itens).filter((i) => i && ids.has(String(i.id)) && minDia(i.hora) !== null),
+          }
+        : null;
+    const a = plano(p.a);
+    const b = plano(p.b);
+    if (!a || !b || !a.nome || !b.nome || !a.itens.length || !b.itens.length) return null;
+    return { a, b, escolhido: p.escolhido === "b" ? "b" : "a" };
+  }
+
+  function comHorasDoPlano(agenda, plano) {
+    const horas = new Map(plano.itens.map((i) => [String(i.id), i.hora]));
+    return agenda
+      .map((t) => (horas.has(String(t.id)) ? Object.assign({}, t, { hora: horas.get(String(t.id)) }) : t))
+      .slice()
+      .sort((x, y) => (minDia(x.hora) ?? 9999) - (minDia(y.hora) ?? 9999));
+  }
+
+  function pilulaPlanosHTML(planos, escolhido, agenda, dia) {
+    const botao = (k) =>
+      `<button type="button" data-acao="dia_plano" data-plano="${k}" aria-pressed="${k === escolhido}">${esc(planos[k].nome)}</button>`;
+    const estado = esc(JSON.stringify({ planos: { a: planos.a, b: planos.b }, agenda, dia }));
+    return (
+      `<div class="dia-planos" data-estado="${estado}">` +
+      `<div class="dia-planos-pilula" role="group" aria-label="Jeito do dia" style="--p:${escolhido === "b" ? 1 : 0}">` +
+      `<span class="dia-planos-fundo" aria-hidden="true"></span>${botao("a")}${botao("b")}</div>` +
+      `<p class="dia-planos-nota" aria-live="polite">${esc(planos[escolhido].nota)}</p>` +
+      `</div>`
+    );
+  }
+
+  if (typeof Cards.registrarAcao === "function") {
+    Cards.registrarAcao("dia_plano", async (btn, cardEl, deps) => {
+      const caixa = btn.closest(".dia-planos");
+      const miolo = cardEl.querySelector(".dia-miolo");
+      if (!caixa || !miolo || btn.getAttribute("aria-pressed") === "true" || caixa.dataset.trocando) return;
+      let estado;
+      try {
+        estado = JSON.parse(caixa.dataset.estado);
+      } catch {
+        return;
+      }
+      const k = btn.dataset.plano === "b" ? "b" : "a";
+      const anterior = k === "b" ? "a" : "b";
+      const plano = estado.planos[k];
+      // caixinhas como estao agora (ele pode ter marcado alguma depois da resposta)
+      const feitas = new Set([...miolo.querySelectorAll("input[data-tarefa-id]:checked")].map((c) => c.dataset.tarefaId));
+      const agenda = estado.agenda.map((t) => Object.assign({}, t, { concluida: feitas.has(String(t.id)) }));
+      const pintar = (qual) => {
+        const pil = caixa.querySelector(".dia-planos-pilula");
+        pil.style.setProperty("--p", qual === "b" ? 1 : 0);
+        pil.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.plano === qual)));
+        caixa.querySelector(".dia-planos-nota").textContent = estado.planos[qual].nota || "";
+        miolo.classList.remove("dia-miolo-troca");
+        miolo.innerHTML = mioloDiaHTML(comHorasDoPlano(agenda, estado.planos[qual]), diaRelativoTarefa(estado.dia));
+        void miolo.offsetWidth; // reinicia a animacao de troca
+        miolo.classList.add("dia-miolo-troca");
+      };
+      caixa.dataset.trocando = "1";
+      pintar(k);
+      if (typeof raiz.vibrar === "function") raiz.vibrar(10);
+      let ok = typeof deps.apiFetch === "function";
+      for (const item of ok ? plano.itens : []) {
+        if (feitas.has(String(item.id))) continue; // feita nao muda de hora (a rota recusa)
+        const res = await deps.apiFetch(`/api/tasks/${encodeURIComponent(item.id)}/hora`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hora: item.hora }),
+        });
+        if (!res || !res.ok) {
+          ok = false;
+          break;
+        }
+      }
+      if (!ok) {
+        // volta o que ja tinha trocado e o desenho (otimista que deu errado)
+        for (const item of estado.planos[anterior].itens) {
+          if (feitas.has(String(item.id))) continue;
+          await deps.apiFetch(`/api/tasks/${encodeURIComponent(item.id)}/hora`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hora: item.hora }),
+          });
+        }
+        pintar(anterior);
+      } else if (typeof deps.aoMudar === "function") {
+        deps.aoMudar();
+      }
+      delete caixa.dataset.trocando;
+    });
+  }
 
   // ---- transacao ------------------------------------------------------------
 

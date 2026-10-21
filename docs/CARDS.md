@@ -444,6 +444,15 @@ aceso só depois que o carrinho passa. Segunda action `abrir_link` pro Waze (`ca
 ou "Waze até X" quando tem várias paradas (o Waze só vai até a primeira). Os cards `date`/`balada`,
 `voo_agendado` e `vespera_voo` ganham o mesmo botão e `transito_min` ("40 min de carro (+12 de trânsito)").
 
+**Dois planos no "Dia montado" (aditivo, 2026-10-21, protótipo aprovado "balão que vira card + pílula")**:
+`tarefas_criadas.data.planos = {escolhido: "a"|"b", a: {nome, nota, itens[{id, hora}]}, b: {...}}` quando o
+`planejar_dia` mandou `plano_b` (mesmos blocos, outras horas; o A é o gravado). Pílula com fundo que desliza
+(`data-acao="dia_plano"`), nota curta, e trocar chama `POST /api/tasks/<id>/hora` por item (otimista, volta se
+falhar) e refaz trilha + lista na ordem nova. O histórico (`cards.acertar_plano_escolhido`) marca `escolhido` pelo
+que as horas de agora dizem. **Balão que vira card** (`chat.js/juntarBalaoECard`): o primeiro card da resposta
+cola embaixo do balão (canto reto, borda na cor do card, card descendo de dentro numa cortina); histórico abre
+colado e parado.
+
 **Tempo no caminho (aditivo, 2026-10-21)**: rota ≥ 25 km ganha `data.tempo = {total_km, saida, trechos[{tipo, de_km,
 ate_km, hora, frase}]}` (`clima_rota.py`: Open-Meteo numa chamada, um ponto a cada ~20 km, na HORA em que ele passa
 ali). `tipo` ∈ granizo/trovoada/neblina/chuva_forte/chuva/vento/ok. O front desenha uma barra do km 0 ao fim com

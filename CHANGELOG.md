@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-21 - Chat mais humano: balão que vira card + dois planos (SW v88)
 - 2026-10-21 - Tempo trecho a trecho na rota + "vai chover depois de lavar o carro" (SW v87)
 - 2026-10-20 - Vistoria: servidor saturando (fila do Waitress)
 - 2026-10-18 - Memória sob demanda + correções que o chat mostrou
@@ -150,6 +151,21 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-21 - Chat mais humano: balão que vira card + dois planos (SW v88)
+
+Veredito do Alex nos artefatos de conversa: "balão que vira card" (B) + "dois planos" numa pílula (pedaço do D).
+- **Balão que vira card** (`static/js/secoes/hoje/chat.js` `juntarBalaoECard`, CSS no fim de `chat.css`): o
+  primeiro card da resposta cola no balão - o balão abre pra largura toda, canto de baixo reto, borda/fundo
+  tingidos com a `--card-cor` do card, "ouvir" vai pro canto de cima, e o card desce de dentro numa cortina
+  (`clip-path`, 760 ms, `--ease-suave`). Histórico abre colado e parado; reduced-motion sem transição.
+- **Dois planos**: `planejar_dia` aceita `plano_b` (+ `plano_a_nome/nota`); só vale se casa os mesmos blocos e
+  muda alguma hora (`_planos_do_dia`). Card "Dia montado" ganha a pílula; trocar regrava as horas pela rota de
+  hora, refaz a trilha/lista e volta se falhar. Histórico mostra o plano que está valendo.
+- **Jeito de responder** no prompt: faz e conta, nunca termina com "Quer que eu…?", não repete aviso, não fala de
+  ferramenta/card/sistema, 1 a 3 frases. Digitação ao vivo com respiro maior no ponto (+180 ms) e vírgula (+75).
+- `á` literal que a IA devolvia vira o caractere (`_desescapar_unicode`). Água ×4 já era 1 card desde 15/10.
+- Testes: `tests/test_dia_dois_planos.py` + JS da pílula; captura 390 px conferida.
 
 ## 2026-10-21 - Tempo trecho a trecho na rota + "vai chover depois de lavar o carro" (SW v87)
 
