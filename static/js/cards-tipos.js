@@ -895,6 +895,35 @@
     );
   });
 
+  // historico da carga (um ponto por dia em que mudou): linha com cada trecho na cor do sentido
+  // (subiu verde, baixou ambar, igual neutro), ultimo ponto maior, kg do primeiro e do ultimo.
+  function graficoCarga(historico) {
+    const pts = lista(historico).filter((p) => p && numeroValido(p.kg) && typeof p.data === "string").slice(-8);
+    if (pts.length < 2) return "";
+    const W = 260, H = 70, X0 = 14, X1 = W - 14, Y0 = 22, Y1 = H - 18;
+    const kgs = pts.map((p) => p.kg);
+    const min = Math.min(...kgs), max = Math.max(...kgs), faixa = max - min || 1;
+    const xy = pts.map((p, i) => [X0 + ((X1 - X0) * i) / (pts.length - 1), max === min ? (Y0 + Y1) / 2 : Y1 - ((p.kg - min) / faixa) * (Y1 - Y0)]);
+    const f = (v) => v.toFixed(1);
+    const area = `M${f(xy[0][0])} ${Y1 + 4}` + xy.map((p) => `L${f(p[0])} ${f(p[1])}`).join("") + `L${f(xy[xy.length - 1][0])} ${Y1 + 4}Z`;
+    const trechos = xy.slice(1).map((p, i) => {
+      const d = pts[i + 1].kg - pts[i].kg;
+      return `<line class="tv-g-trecho ${d > 0 ? "subiu" : d < 0 ? "desceu" : "igual"}" style="--k:${i}" x1="${f(xy[i][0])}" y1="${f(xy[i][1])}" x2="${f(p[0])}" y2="${f(p[1])}"/>`;
+    }).join("");
+    const pontos = xy.map((p, i) => `<circle class="tv-g-ponto${i === xy.length - 1 ? " ultimo" : ""}" style="--k:${i}" cx="${f(p[0])}" cy="${f(p[1])}" r="${i === xy.length - 1 ? 4 : 2.6}"/>`).join("");
+    const kg = (v) => `${String(v).replace(".", ",")} kg`;
+    const rotulo = `Carga de ${kg(pts[0].kg)} em ${Cards.dataCurta(pts[0].data)} até ${kg(pts[pts.length - 1].kg)} em ${Cards.dataCurta(pts[pts.length - 1].data)}`;
+    return (
+      `<svg class="tv-grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(rotulo)}">` +
+      `<path class="tv-g-area" d="${area}"/>${trechos}${pontos}` +
+      `<text class="tv-g-kg" x="${f(xy[0][0])}" y="${f(Math.max(10, xy[0][1] - 7))}" text-anchor="start">${esc(kg(pts[0].kg))}</text>` +
+      `<text class="tv-g-kg ultimo" x="${f(xy[xy.length - 1][0] - 3)}" y="${f(xy[xy.length - 1][1] - 9)}" text-anchor="end">${esc(kg(pts[pts.length - 1].kg))}</text>` +
+      `<text class="tv-g-data" x="${X0}" y="${H - 3}">${esc(Cards.dataCurta(pts[0].data))}</text>` +
+      `<text class="tv-g-data" x="${X1}" y="${H - 3}" text-anchor="end">${esc(Cards.dataCurta(pts[pts.length - 1].data))}</text>` +
+      `</svg>`
+    );
+  }
+
   Cards.registrar("treino_carga", (data) => {
     const mudancas = lista(data.mudancas).filter((m) => m && typeof m === "object" && m.exercicio);
     const SETA = { subiu: "↑", desceu: "↓" };
@@ -905,7 +934,9 @@
           (m.antes
             ? `<span class="tv-de">${esc(m.antes)}</span><span class="tv-flecha" aria-hidden="true">→</span>`
             : `<span></span><span></span>`) +
-          `<b class="tv-para${m.sentido ? ` ${esc(m.sentido)}` : ""}">${esc(m.depois)}${SETA[m.sentido] ? `<i aria-label="${m.sentido === "subiu" ? "subiu" : "baixou"}">${SETA[m.sentido]}</i>` : ""}</b></li>`
+          `<b class="tv-para${m.sentido ? ` ${esc(m.sentido)}` : ""}">${esc(m.depois)}${SETA[m.sentido] ? `<i aria-label="${m.sentido === "subiu" ? "subiu" : "baixou"}">${SETA[m.sentido]}</i>` : ""}</b>` +
+          graficoCarga(m.historico) +
+          `</li>`
       )
       .join("");
     return eyebrow(ICONES.treino, "Ficha atualizada") + `<ul class="tv-cargas">${itens}</ul>`;

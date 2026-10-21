@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-21 - Gráfico de carga no card de troca (SW v90)
 - 2026-10-21 - Treino ao vivo: ficha com caixinhas + troca de carga pelo chat (SW v89)
 - 2026-10-21 - Chat mais humano: balão que vira card + dois planos (SW v88)
 - 2026-10-21 - Tempo trecho a trecho na rota + "vai chover depois de lavar o carro" (SW v87)
@@ -152,6 +153,18 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-21 - Gráfico de carga no card de troca (SW v90)
+
+Pedido do Alex: quando conta que mudou a carga, mostrar o gráfico de quando subiu ou baixou (como os
+gráficos pequenos que o app já tem).
+- Tabela nova `treino_cargas` (migração `202610212100_tv_treino_cargas.sql`): um ponto por exercício por dia
+  quando a carga em kg muda. `salvar_ficha_treino` grava o ponto de partida; `atualizar_carga_treino` grava a
+  linha de base (data da ficha) e o ponto novo. Desfazer apaga os pontos criados (`historico_ids` no token -
+  o `_criar_token_desfazer` filtrava chaves e engolia isso; corrigido).
+- `card_treino_carga` manda `historico[{data, kg}]` por linha; `graficoCarga` no front desenha área + segmentos
+  de subida/descida, entra se desenhando no card novo, parado no histórico, sem animação com movimento reduzido.
+- Testes: histórico vira gráfico e Desfazer tira o ponto; ficha salva só grava carga em kg; JS do gráfico.
 
 ## 2026-10-21 - Treino ao vivo: ficha com caixinhas + troca de carga pelo chat (SW v89)
 

@@ -3769,15 +3769,21 @@ def _processar_mensagem_chat(
         texto = "\n".join(treino_vivo.escrever_exercicio(e) for e in exs)
         if texto == ficha["exercicios"]:
             return {"ok": True, "sem_mudanca": True, "exercicio": exs[i]["nome"], "carga": nova}
+        hoje = date.today().isoformat()
+        # historico do grafico: a ficha de antes vale desde a ultima vez que foi salva (ficha
+        # antiga, de antes do historico, ganha o ponto de partida aqui)
+        base = str(ficha.get("atualizado_em") or "")[:10]
+        db.registrar_cargas_da_ficha(conn, ficha["id"], ficha["exercicios"], base if base and base < hoje else hoje)
         conn.execute(
             "UPDATE treino_fichas SET exercicios = ?, atualizado_em = datetime('now') WHERE id = ?", (texto, ficha["id"])
         )
+        novos = db.registrar_cargas_da_ficha(conn, ficha["id"], texto, hoje)
         conn.commit()
         return {
             "ok": True, "ficha": ficha["grupo"], "exercicio": exs[i]["nome"], "antes": antes or None, "depois": nova,
             "_efeito": {"entidade": "treino_carga", "id": ficha["id"], "antes": ficha["exercicios"],
                         "grupo": ficha["grupo"], "exercicio": exs[i]["nome"],
-                        "carga_antes": antes, "carga_depois": nova},
+                        "carga_antes": antes, "carga_depois": nova, "historico_ids": novos},
         }
 
     def exec_registrar_viagem(entrada):
@@ -4462,7 +4468,8 @@ def _criar_token_desfazer(conn):
             item = {"entidade": ef.get("entidade"), "id": ef.get("id"), "uid": ef.get("uid"),
                     "data": ef.get("data"), "feito": ef.get("feito"),
                     "tabela": ef.get("tabela"), "antes": ef.get("antes"), "linha": ef.get("linha"),
-                    "subtarefas": ef.get("subtarefas"), "pulo": ef.get("pulo")}
+                    "subtarefas": ef.get("subtarefas"), "pulo": ef.get("pulo"),
+                    "historico_ids": ef.get("historico_ids")}
             saldo = ef.get("saldo")
             if ef.get("entidade") in ("gasto", "renda") and isinstance(saldo, dict):
                 antes, depois = saldo.get("antes"), saldo.get("depois")
@@ -4606,6 +4613,8 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
         elif entidade == "treino":
             cur = conn.execute("DELETE FROM treinos WHERE id = ?", (id_,))
         elif entidade == "treino_carga" and isinstance(item.get("antes"), str):
+            for h in item.get("historico_ids") or []:
+                conn.execute("DELETE FROM treino_cargas WHERE id = ? AND ficha_id = ?", (h, id_))
             cur = conn.execute("UPDATE treino_fichas SET exercicios = ? WHERE id = ?", (item["antes"], id_))
         elif entidade == "refeicao":
             refeicoes.criar_tabela(conn)

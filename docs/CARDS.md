@@ -460,7 +460,10 @@ ficha_id, grupo, data, exercicios[{nome, series, reps, carga}], feitos[i], concl
 o último marcado registra o treino e abre "Subiu ou baixou alguma carga?". Histórico atualiza pelo
 `cards.acertar_treino_agora`. `treino_carga` = `{mudancas[{grupo, exercicio, antes, depois, sentido:
 subiu|desceu|null}]}` (do `atualizar_carga_treino`): antes riscado → depois com seta, um card por resposta, Desfazer
-volta a ficha (entidade `treino_carga`, da última troca pra primeira). Cor `#b5e48c`. Animação do exercício:
+volta a ficha (entidade `treino_carga`, da última troca pra primeira). Cor `#b5e48c`. Cada linha traz `historico[{data, kg}]`
+(tabela `treino_cargas`, um ponto por dia em que a carga em kg mudou - ficha salva grava o ponto de partida; Desfazer
+apaga os pontos que a troca criou): com 2+ pontos vira o gráfico `graficoCarga` (área + segmentos verdes/rosados por
+subida/descida, último ponto maior, kg do começo e do fim). Carga sem "kg" ("3 placas") não entra no gráfico. Animação do exercício:
 protótipo do supino no artefato de treino, esperando veredito - não está no app.
 
 **Tempo no caminho (aditivo, 2026-10-21)**: rota ≥ 25 km ganha `data.tempo = {total_km, saida, trechos[{tipo, de_km,

@@ -900,3 +900,17 @@ test("troca de carga: antes riscado, depois com seta, sem 'antes' nao mostra fle
   assert.match(html, /tv-para desceu/);
   assert.match(html, /↑/);
 });
+
+test("troca de carga com historico: grafico com trecho por sentido, so com 2+ pontos", () => {
+  const base = { grupo: "Peito", exercicio: "Supino reto", antes: "20 kg", depois: "25 kg", sentido: "subiu" };
+  const html = Cards.renderizarCardHTML({ type: "treino_carga", actions: [], data: { mudancas: [
+    { ...base, historico: [{ data: "2026-10-01", kg: 20 }, { data: "2026-10-08", kg: 22.5 }, { data: "2026-10-14", kg: 20 }, { data: "2026-10-21", kg: 25 }] },
+    { ...base, exercicio: "Crucifixo", historico: [{ data: "2026-10-21", kg: 12 }] },
+    { ...base, exercicio: "Remada", historico: [{ data: "<x>", kg: "dez" }, null] },
+  ] } });
+  assert.equal((html.match(/class="tv-grafico"/g) || []).length, 1);
+  assert.equal((html.match(/tv-g-trecho subiu/g) || []).length, 2);
+  assert.equal((html.match(/tv-g-trecho desceu/g) || []).length, 1);
+  assert.match(html, /22,5 kg|25 kg/);
+  assert.ok(!html.includes("<x>"));
+});

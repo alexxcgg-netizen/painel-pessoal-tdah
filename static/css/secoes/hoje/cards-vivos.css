@@ -983,3 +983,23 @@
   .tv-concluiu .tv-fim, .tv-concluiu .tv-barra i, .card-novo .tv-ex,
   .card-novo .tv-carga-linha .tv-para, .card-novo .tv-carga-linha .tv-de { animation: none; }
 }
+/* historico da carga (grafico das semanas) dentro da linha da troca */
+.tv-grafico { grid-column: 1 / -1; width: 100%; height: auto; margin: 2px 0 2px; overflow: visible; }
+.tv-g-area { fill: color-mix(in srgb, var(--card-cor) 10%, transparent); }
+.tv-g-trecho { stroke-width: 2.4; stroke-linecap: round; stroke: var(--text-faint); }
+.tv-g-trecho.subiu { stroke: var(--card-cor); }
+.tv-g-trecho.desceu { stroke: var(--cor-alerta, #f0c27a); }
+.tv-g-ponto { fill: var(--surface, #0d1116); stroke: var(--card-cor); stroke-width: 1.8; }
+.tv-g-ponto.ultimo { fill: var(--card-cor); }
+.tv-g-kg { font-size: 10px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tv-g-kg.ultimo { fill: var(--text); font-weight: 600; }
+.tv-g-data { font-size: 9.5px; fill: var(--text-faint); }
+.card-novo .tv-g-trecho { stroke-dasharray: 120; animation: tv-g-desenha 0.5s var(--ease-suave) calc(var(--chegada, 0ms) + 0.35s + var(--k, 0) * 110ms) both; }
+.card-novo .tv-g-ponto { animation: tv-g-ponto 0.45s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.4s + var(--k, 0) * 110ms) both; transform-box: fill-box; transform-origin: center; }
+.card-novo .tv-g-area { animation: tv-g-area 0.8s var(--ease-suave) calc(var(--chegada, 0ms) + 0.3s) both; }
+@keyframes tv-g-desenha { from { stroke-dashoffset: 120; } to { stroke-dashoffset: 0; } }
+@keyframes tv-g-ponto { from { transform: scale(0); } }
+@keyframes tv-g-area { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .card-novo .tv-g-trecho, .card-novo .tv-g-ponto, .card-novo .tv-g-area { animation: none; stroke-dasharray: none; }
+}

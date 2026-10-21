@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import criptografia
+import treino_vivo
 import vida
 
 DB_PATH = Path(__file__).parent / "data" / "painel.db"
@@ -1901,6 +1902,9 @@ def criar_acao_desfazer(conn, itens: list[dict]) -> str | None:
             if not isinstance(item.get("antes"), str) or not item["antes"] or len(item["antes"]) > 3000:
                 continue
             limpo["antes"] = item["antes"]
+            limpo["historico_ids"] = [
+                h for h in item.get("historico_ids") or [] if isinstance(h, int) and not isinstance(h, bool)
+            ][:20]
         if item["entidade"] == "edicao":
             tabela, antes = item.get("tabela"), item.get("antes")
             colunas = EDICAO_COLUNAS.get(tabela)
@@ -3130,15 +3134,18 @@ def salvar_ficha_treino(conn, grupo: str, exercicios: str) -> int:
     """Uma ficha por grupo (comparado sem acento/caixa) - salvar de novo o
     mesmo grupo substitui os exercicios em vez de duplicar."""
     alvo = vida.normalizar_nome(grupo)
+    hoje = date.today().isoformat()
     for f in list_fichas_treino(conn):
         if vida.normalizar_nome(f["grupo"]) == alvo:
             conn.execute(
                 "UPDATE treino_fichas SET grupo = ?, exercicios = ?, atualizado_em = datetime('now') WHERE id = ?",
                 (grupo, exercicios, f["id"]),
             )
+            registrar_cargas_da_ficha(conn, f["id"], exercicios, hoje)
             conn.commit()
             return f["id"]
     cur = conn.execute("INSERT INTO treino_fichas (grupo, exercicios) VALUES (?, ?)", (grupo, exercicios))
+    registrar_cargas_da_ficha(conn, cur.lastrowid, exercicios, hoje)
     conn.commit()
     return cur.lastrowid
 
@@ -3230,6 +3237,44 @@ def sessao_treino(conn, sessao_id: int) -> dict | None:
         feitos = []
     s["feitos"] = sorted({i for i in feitos if isinstance(i, int) and not isinstance(i, bool) and i >= 0})
     return s
+
+
+def _carga_em_kg(carga: str) -> float | None:
+    return treino_vivo.numero_da_carga(carga) if "kg" in (carga or "").lower() else None
+
+
+def registrar_cargas_da_ficha(conn, ficha_id: int, texto: str, data: str) -> list[int]:
+    """Historico de carga: grava a carga (em kg) de cada exercicio que mudou desde o ultimo
+    registro. Devolve os ids criados (o Desfazer da troca apaga so esses). Sem commit."""
+    ids = []
+    for ex in treino_vivo.exercicios_da_ficha(texto):
+        kg = _carga_em_kg(ex["carga"])
+        if kg is None:
+            continue
+        chave = vida.normalizar_nome(ex["nome"])
+        ultimo = conn.execute(
+            "SELECT carga_num FROM treino_cargas WHERE ficha_id = ? AND exercicio = ? ORDER BY data DESC, id DESC LIMIT 1",
+            (ficha_id, chave),
+        ).fetchone()
+        if ultimo and ultimo["carga_num"] == kg:
+            continue
+        cur = conn.execute(
+            "INSERT INTO treino_cargas (ficha_id, exercicio, nome, carga, carga_num, data) VALUES (?, ?, ?, ?, ?, ?)",
+            (ficha_id, chave, ex["nome"], ex["carga"], kg, data),
+        )
+        ids.append(cur.lastrowid)
+    return ids
+
+
+def historico_carga(conn, ficha_id: int, nome: str, limite: int = 8) -> list[dict]:
+    """[{data, kg}] do mais antigo pro mais novo, um ponto por dia (o ultimo do dia vale)."""
+    por_dia: dict[str, float] = {}
+    for r in conn.execute(
+        "SELECT data, carga_num FROM treino_cargas WHERE ficha_id = ? AND exercicio = ? ORDER BY data, id",
+        (ficha_id, vida.normalizar_nome(nome)),
+    ):
+        por_dia[r["data"]] = r["carga_num"]
+    return [{"data": d, "kg": kg} for d, kg in sorted(por_dia.items())][-limite:]
 
 
 def abrir_sessao_treino(conn, ficha_id: int, data: str) -> int:

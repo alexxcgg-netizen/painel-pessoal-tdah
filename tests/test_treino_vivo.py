@@ -158,6 +158,31 @@ class TreinoAoVivoTestCase(_Base):
         self.client.post(f"/api/desfazer/{token}")
         self.assertEqual(self.sql("SELECT exercicios FROM treino_fichas WHERE grupo = 'Peito'")[0]["exercicios"], PEITO)
 
+    def test_historico_da_carga_vira_grafico_e_desfazer_tira_o_ponto(self):
+        # ficha salva ha uma semana com 20 kg (ponto de partida)
+        self.sql("UPDATE treino_fichas SET atualizado_em = date('now', '-7 day')")
+        self.sql("DELETE FROM treino_cargas")
+        corpo, _ = self.chat([("atualizar_carga_treino", {"exercicio": "supino reto", "carga": "25"})])
+        hist = self._card(corpo, "treino_carga")["data"]["mudancas"][0]["historico"]
+        self.assertEqual([h["kg"] for h in hist], [20.0, 25.0])
+        self.assertLess(hist[0]["data"], hist[1]["data"])
+        corpo, _ = self.chat([("atualizar_carga_treino", {"exercicio": "supino reto", "carga": "22,5"})])
+        card = self._card(corpo, "treino_carga")
+        self.assertEqual([h["kg"] for h in card["data"]["mudancas"][0]["historico"]], [20.0, 22.5])  # 1 ponto por dia
+        self.assertEqual(card["data"]["mudancas"][0]["sentido"], "desceu")
+        token = next(a["token"] for a in card["actions"] if a["tipo"] == "desfazer")
+        self.client.post(f"/api/desfazer/{token}")
+        kgs = [r["carga_num"] for r in self.sql("SELECT carga_num FROM treino_cargas WHERE nome = 'Supino reto' ORDER BY id")]
+        self.assertEqual(kgs, [20.0, 25.0])
+
+    def test_ficha_salva_grava_o_ponto_de_partida_so_em_kg(self):
+        self.client.post("/api/treino/fichas", json={"grupo": "Ombro", "exercicios": "Elevacao lateral|3|12|8 kg\nPrancha|3|1 min|"})
+        linhas = self.sql("SELECT nome, carga_num FROM treino_cargas WHERE nome IN ('Elevacao lateral', 'Prancha')")
+        self.assertEqual([(l["nome"], l["carga_num"]) for l in linhas], [("Elevacao lateral", 8.0)])
+        # salvar de novo igual nao repete o ponto
+        self.client.post("/api/treino/fichas", json={"grupo": "Ombro", "exercicios": "Elevacao lateral|3|12|8 kg"})
+        self.assertEqual(len(self.sql("SELECT id FROM treino_cargas WHERE nome = 'Elevacao lateral'")), 1)
+
     def test_carga_exercicio_inexistente_ou_ambiguo(self):
         self.client.post("/api/treino/fichas", json={"grupo": "Ombro", "exercicios": "Remada alta|3|12|10 kg"})
         _, res = self.chat([("atualizar_carga_treino", {"exercicio": "leg press", "carga": "100"})])

@@ -1080,11 +1080,12 @@ def acertar_treino_agora(conn, cards_msg: list) -> None:
             c["data"] = {**c["data"], **novo}
 
 
-def card_treino_carga(cargas: list[dict], actions_extra=None) -> dict | None:
+def card_treino_carga(conn, cargas: list[dict], actions_extra=None) -> dict | None:
     """'O supino foi pra 25': o que mudou na ficha (antes -> depois), um card pra todas as trocas
-    da mesma resposta."""
+    da mesma resposta, cada uma com o historico da carga (grafico das semanas)."""
     mudancas = []
     for ef in cargas:
+        historico = db.historico_carga(conn, ef["id"], ef.get("exercicio") or "") if ef.get("exercicio") else []
         antes, depois = ef.get("carga_antes") or "", ef.get("carga_depois") or ""
         n_antes, n_depois = treino_vivo.numero_da_carga(antes), treino_vivo.numero_da_carga(depois)
         mudancas.append({
@@ -1092,6 +1093,7 @@ def card_treino_carga(cargas: list[dict], actions_extra=None) -> dict | None:
             "antes": antes, "depois": depois,
             "sentido": None if n_antes is None or n_depois is None or n_antes == n_depois
             else ("subiu" if n_depois > n_antes else "desceu"),
+            "historico": historico,
         })
     if not mudancas:
         return None
@@ -2057,7 +2059,7 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
         saida[pos_agua] = card_agua(conn, actions_extra=_acoes_desfazer(criar_token, aguas))
     if pos_cargas is not None:
         # cada item volta a ficha inteira de antes da SUA troca: desfazer da ultima pra primeira
-        saida[pos_cargas] = card_treino_carga(cargas, _acoes_desfazer(criar_token, cargas[::-1]))
+        saida[pos_cargas] = card_treino_carga(conn, cargas, _acoes_desfazer(criar_token, cargas[::-1]))
     saida = [c for c in saida if c]
     return saida
 
