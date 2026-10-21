@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-21 - Tempo trecho a trecho na rota + "vai chover depois de lavar o carro" (SW v87)
 - 2026-10-20 - Vistoria: servidor saturando (fila do Waitress)
 - 2026-10-18 - Memória sob demanda + correções que o chat mostrou
 - 2026-10-17 - Aviso que insistia mesmo com o app aberto (SW v86)
@@ -149,6 +150,26 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-21 - Tempo trecho a trecho na rota + "vai chover depois de lavar o carro" (SW v87)
+
+Pedidos do Alex: numa viagem de 200 km chove num pedaço e no outro não, e a serra pra Curitiba pega neblina;
+e "vou lavar o carro às 14" tem que olhar se chove nas horas seguintes e sugerir outro dia.
+- **`clima_rota.py`** (novo): pontos do caminho real (polyline) a cada ~20 km (máx. 12), hora em que ele passa
+  em cada um, uma chamada multi-ponto ao Open-Meteo (chance, mm, código, visibilidade, rajada, altitude).
+  Classifica do pior pro leve (granizo > trovoada > neblina > chuva forte > chuva > vento > firme), junta em
+  trechos "do km X ao Y", "na serra" acima de 600 m, nome da estrada pelos 3 piores (`nome_do_trecho`, cota
+  própria). Rota < 25 km, fora dos 16 dias ou sem rede = sem a parte do tempo.
+- `estimar_trajeto`: parâmetro novo `saida` (HH:MM ou data+hora) e `tempo_no_caminho` (frase pronta) pra IA;
+  `maps_client.traco_desenhavel(tempo=)` pinta os trechos no mapa; card `rota` ganha a barra do caminho
+  (`docs/CARDS.md`).
+- **`consultar_clima(hora, janela_horas)`**: atividade que a chuva estraga (lavar carro ~24 h, varal ~6 h,
+  churrasco/trilha = duração) → primeira hora com chuva na janela, em quantas horas, `certeza`
+  (quase_certa ≥ 80% com mm previsto, senão provável) e `proximo_dia_seco` (dias seguidos secos pra janela
+  longa). Prompt: a IA chama sozinha, só fala se chover e pergunta curto "deixa pra quinta?"; nunca "com certeza"
+  fora de quase_certa. Funções puras `clima.analisar_janela` / `dia_seco_pra`.
+- Testes: `tests/test_clima_rota.py` + JS do card. Chat: veredito da resposta "balão que vira card + pílula com
+  2 planos" guardado (protótipo no artefato), implementação fica pra leva própria.
 
 ## 2026-10-20 - Vistoria: servidor saturando (fila do Waitress)
 

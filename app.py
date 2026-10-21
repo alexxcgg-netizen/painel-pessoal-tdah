@@ -47,6 +47,7 @@ import chat_consultas
 import claude_client
 import classificador_local
 import clima
+import clima_rota
 import construtora_cliente
 import criptografia
 import estudo
@@ -3308,6 +3309,37 @@ def _processar_mensagem_chat(
         return {**plano, "destino": destino,
                 "_efeito": {"entidade": "viagem_janelas", "consulta": True, "plano": plano, "destino": destino}}
 
+    def _clima_pra_atividade(local_c, data, entrada):
+        """"Vou lavar o carro as 14": chove na atividade ou nas horas seguintes que ela precisa
+        ficar seca? Se chover, o primeiro dia seco dos proximos 7 (2026-10-21)."""
+        agora = _agora_brasilia().replace(tzinfo=None)
+        try:
+            h, m = (int(x) for x in str(entrada["hora"]).strip()[:5].split(":"))
+            dia = datetime.strptime(data, "%Y-%m-%d").date() if data else agora.date()
+            inicio = datetime.combine(dia, datetime.min.time()).replace(hour=h, minute=m)
+        except (ValueError, TypeError):
+            return {"erro": "hora invalida (use HH:MM)"}
+        try:
+            janela = min(max(int(entrada.get("janela_horas") or 3), 1), 48)
+        except (ValueError, TypeError):
+            janela = 3
+        dias = (inicio.date() - agora.date()).days + (janela // 24) + 2
+        if dias > 16:
+            return {"erro": "sem previsao pra essa data (o limite e 16 dias)"}
+        horas = clima.previsao_horaria(local_c["lat"], local_c["lon"], dias)
+        if not horas:
+            return {"erro": "servico de clima fora do ar agora"}
+        r = clima.analisar_janela(horas, inicio, janela)
+        resultado = {"cidade": local_c["nome"], "inicio": inicio.strftime("%Y-%m-%d %H:%M"),
+                     "janela_horas": janela, **r}
+        if r.get("chove"):
+            prev = clima.previsao_proximos_dias(local_c["lat"], local_c["lon"], 8)
+            if prev:
+                bom = clima.dia_seco_pra(prev, (inicio.date() + timedelta(days=1)).isoformat(),
+                                         dias_secos=1 + janela // 24)
+                resultado["proximo_dia_seco"] = {"data": bom["data"], "chuva_pct": bom["chuva_pct"]} if bom else None
+        return resultado
+
     def exec_consultar_clima(entrada):
         pedida = (entrada.get("cidade") or "").strip()
         if not pedida and local_gps:
@@ -3321,6 +3353,8 @@ def _processar_mensagem_chat(
             if not local_c:
                 return {"erro": f"nao achei a cidade {cidade!r}"}
         data = entrada.get("data")
+        if entrada.get("hora"):
+            return _clima_pra_atividade(local_c, data, entrada)
         if data and data != _agora_brasilia().date().isoformat():
             prev = clima.previsao_para_data(local_c["lat"], local_c["lon"], data)
             return {"cidade": local_c["nome"], "data": data, **prev} if prev else {
@@ -3384,8 +3418,23 @@ def _processar_mensagem_chat(
             return {"erro": "nao consegui calcular a rota agora"}
         place_ids = resultado.pop("_place_ids", None)
         traco = resultado.pop("_traco", None)
+        desenho = resultado.pop("_desenho", None)
         waze = resultado.pop("_waze", None)
         lentidao = resultado.get("lentidao") or []
+        # 2026-10-21: tempo ao longo do caminho (chove num trecho e no outro nao, neblina na serra)
+        tempo_rota = None
+        if desenho:
+            try:
+                tempo_rota = clima_rota.tempo_na_rota(
+                    desenho[0], resultado["duracao_total_minutos"], clima_rota.interpretar_saida(entrada.get("saida")),
+                    nomear=maps_client.nome_do_trecho)
+            except Exception:
+                tempo_rota = None
+        if tempo_rota:
+            resultado["tempo_no_caminho"] = tempo_rota["resumo"]
+            ruins = [(t["i0"], t["i1"], t["tipo"]) for t in tempo_rota["trechos"] if t["tipo"] != "ok"]
+            if ruins:
+                traco = maps_client.traco_desenhavel(desenho[0], desenho[1], faixas=desenho[2], tempo=ruins) or traco
         # pra IA: a frase pronta (nunca afirma a causa - "pode ser acidente ou blitz")
         resultado["transito"] = maps_client.resumo_transito(
             {"transito_min": resultado.get("transito_total_min"), "lentidao": lentidao})
@@ -3414,6 +3463,13 @@ def _processar_mensagem_chat(
             ],
             "waze": waze,
             "waze_para": paradas[1]["nome"] if len(paradas) > 1 else None,
+            "tempo": {
+                "total_km": tempo_rota["total_km"],
+                "saida": tempo_rota["saida"],
+                "trechos": [{k: t.get(k) for k in ("tipo", "de_km", "ate_km", "hora_ini", "hora_fim", "serra",
+                                                    "nome", "chuva_pct", "visibilidade_m", "rajada_kmh")}
+                            | {"frase": clima_rota.frase(t)} for t in tempo_rota["trechos"]],
+            } if tempo_rota else None,
         }
         return resultado
 

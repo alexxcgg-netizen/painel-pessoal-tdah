@@ -147,6 +147,72 @@ def melhor_dia_sem_chuva(previsoes: list[dict], limite_pct: int = LIMITE_ALERTA_
     return None
 
 
+CHUVA_QUASE_CERTA_PCT = 80
+CHUVA_MM_CONTA = 0.3  # menos que isso na hora e respingo
+
+
+def previsao_horaria(lat: float, lon: float, dias: int = 3) -> list[dict] | None:
+    """Hora a hora dos proximos `dias` dias: [{'quando': 'AAAA-MM-DDTHH:MM', 'chuva_pct', 'mm',
+    'codigo'}]. None em erro de rede/resposta."""
+    try:
+        resp = requests.get(
+            FORECAST_URL,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "hourly": "precipitation_probability,precipitation,weathercode",
+                "timezone": "America/Sao_Paulo",
+                "forecast_days": min(max(dias, 1), 16),
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        h = resp.json()["hourly"]
+        return [
+            {"quando": t, "chuva_pct": h["precipitation_probability"][i] or 0,
+             "mm": h["precipitation"][i] or 0, "codigo": h["weathercode"][i]}
+            for i, t in enumerate(h["time"])
+        ]
+    except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+def analisar_janela(horas: list[dict], inicio: datetime, janela_h: int,
+                    limite_pct: int = LIMITE_ALERTA_CHUVA) -> dict:
+    """Pedido do Alex (2026-10-21): "vou lavar o carro as 14" - chove nas `janela_h` horas a
+    partir do inicio (a atividade + o tempo que ela precisa ficar seca)? Devolve a PRIMEIRA hora
+    com chuva (chance >= limite ou mm que conta), em quantas horas depois do inicio, e quao certo
+    e ('quase_certa' >= 80% e com mm previsto; senao 'provavel'). Funcao pura."""
+    ini = inicio.replace(minute=0, second=0, microsecond=0)
+    alvo = [h for h in horas if 0 <= (datetime.fromisoformat(h["quando"]) - ini).total_seconds() / 3600 < janela_h]
+    if not alvo:
+        return {"coberto": False}
+    pior = max(alvo, key=lambda h: (h["chuva_pct"], h["mm"]))
+    for h in alvo:
+        if h["chuva_pct"] >= limite_pct or h["mm"] >= CHUVA_MM_CONTA:
+            em = round((datetime.fromisoformat(h["quando"]) - ini).total_seconds() / 3600)
+            mm_total = round(sum(x["mm"] for x in alvo if x["quando"] >= h["quando"]), 1)
+            certeza = "quase_certa" if h["chuva_pct"] >= CHUVA_QUASE_CERTA_PCT and h["mm"] > 0 else "provavel"
+            return {
+                "coberto": True, "chove": True, "quando": h["quando"], "em_horas": em,
+                "chuva_pct": h["chuva_pct"], "mm_na_janela": mm_total, "certeza": certeza,
+                "condicao": descricao_codigo(h["codigo"]),
+            }
+    return {"coberto": True, "chove": False, "pior_pct": pior["chuva_pct"]}
+
+
+def dia_seco_pra(previsoes: list[dict], a_partir: str, dias_secos: int = 1,
+                 limite_pct: int = LIMITE_ALERTA_CHUVA) -> dict | None:
+    """Primeiro dia (>= a_partir, AAAA-MM-DD) que fica abaixo do limite e cujos `dias_secos - 1`
+    dias seguintes tambem - lavar o carro e ele amanhecer limpo. None se nenhum serve."""
+    lista = [p for p in previsoes if p["data"] >= a_partir]
+    for i, p in enumerate(lista):
+        seguidos = lista[i:i + dias_secos]
+        if len(seguidos) == dias_secos and all(x["chuva_pct"] < limite_pct for x in seguidos):
+            return p
+    return None
+
+
 def previsao_na_hora(lat: float, lon: float, data_iso: str, hora: str) -> dict | None:
     """Temperatura e chance de chuva previstas pra UMA hora de um dia (ate 16 dias a frente) -
     card do date/balada (2026-10-14): "14 graus a noite, leva jaqueta". None fora da janela ou

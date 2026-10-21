@@ -325,8 +325,21 @@
 .vivo-rota-lento--lento { stroke: var(--cor-alerta); }
 .vivo-rota-lento--parado { stroke: var(--cor-saida); }
 .vivo-rota-pronta .vivo-rota-lento { opacity: 0.95; }
+/* tempo no caminho (2026-10-21): faixa larga e translucida por baixo do lento, mesma entrada */
+.vivo-rota-tempo {
+  fill: none;
+  stroke: var(--tempo-cor);
+  stroke-width: 11;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transition: opacity 0.9s var(--ease-suave) 0.15s;
+}
+.vivo-rota-tempo.card-rota-tempo--chuva,
+.vivo-rota-tempo.card-rota-tempo--chuva_forte { stroke-dasharray: 2 5; }
+.vivo-rota-pronta .vivo-rota-tempo { opacity: 0.45; }
 @media (prefers-reduced-motion: reduce) {
-  .vivo-rota-lento { transition: none; }
+  .vivo-rota-lento, .vivo-rota-tempo { transition: none; }
 }
 .vivo-carro { fill: var(--text); }
 .vivo-carro-halo { fill: var(--card-cor); opacity: 0.25; }

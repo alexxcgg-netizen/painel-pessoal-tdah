@@ -882,13 +882,22 @@ CHAT_TOOLS = [
             "Tempo de verdade (Open-Meteo): se esta chovendo AGORA, temperatura, sensacao, umidade, "
             "vento e o risco de chuva no resto do dia - ou a previsao de um dia futuro (ate 16 "
             "dias). Use SEMPRE que o Alex perguntar do tempo/chuva/frio/calor, de qualquer cidade - "
-            "nunca responda de cabeca nem so pela linha de previsao do contexto."
+            "nunca responda de cabeca nem so pela linha de previsao do contexto. "
+            "ATIVIDADE QUE A CHUVA ESTRAGA (lavar o carro, roupa no varal, pintar, impermeabilizar, "
+            "churrasco, trilha, praia, cortar grama...): chame SEM ele pedir, com `hora` e "
+            "`janela_horas` = quanto tempo depois precisa ficar seco (lavar carro ~24, varal ~6, "
+            "churrasco/trilha = a duracao). Se `chove`: diga quando ('daqui umas 5 h, la pelas 19h') e "
+            "o quanto e certo pelo numero - `certeza` quase_certa = 'vai chover quase certo', "
+            "provavel = 'tem boa chance' (nunca 'com certeza' fora de quase_certa) - e ofereca o "
+            "`proximo_dia_seco` numa pergunta curta ('deixa pra quinta?'). Se nao chove, nao comente."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "cidade": {"type": "string", "description": "omita pra usar onde o Alex esta agora (GPS do celular; sem GPS, Brusque)"},
                 "data": {"type": "string", "description": "AAAA-MM-DD pra previsao de outro dia - omita pra agora/hoje"},
+                "hora": {"type": "string", "description": "HH:MM em que a atividade comeca - so pra atividade que a chuva estraga"},
+                "janela_horas": {"type": "integer", "description": "horas a partir de `hora` que precisam ficar secas (1-48, padrao 3)"},
             },
         },
     },
@@ -917,7 +926,11 @@ CHAT_TOOLS = [
             "precisar - ex: 'vou pra Blumenau e depois volto pra Brusque' vira pontos "
             "['Brusque', 'Blumenau', 'Brusque']. Use sempre que o Alex contar que vai pra algum "
             "lugar ou perguntar distancia/tempo de viagem, sem ele precisar pedir - nunca estime km "
-            "ou tempo de cabeca. Nao calcula combustivel."
+            "ou tempo de cabeca. Nao calcula combustivel. Em viagem de 25 km ou mais devolve tambem "
+            "`tempo_no_caminho`: o tempo previsto TRECHO A TRECHO na hora em que ele passa em cada "
+            "ponto (chuva, chuva forte, neblina, trovoada, granizo, vento) - se tiver algo alem de "
+            "tempo firme, conte em uma frase curta onde e quando (ex: 'neblina na serra la pelas 9h'); "
+            "e a previsao certa pra viagem, nao use consultar_clima da cidade de destino no lugar."
         ),
         "input_schema": {
             "type": "object",
@@ -931,6 +944,14 @@ CHAT_TOOLS = [
                         "'volto pra casa'/'volto pra Brusque' sem outro lugar tambem termina em 'casa'. "
                         "'daqui'/'de onde estou' = comece por 'aqui'. O painel mostra sozinho um card "
                         "com botao pra abrir a rota no Google Maps - nao cole link na resposta."
+                    ),
+                },
+                "saida": {
+                    "type": "string",
+                    "description": (
+                        "hora que ele sai, se ele disse ou se voce ja sabe pelo compromisso: 'HH:MM' (hoje) "
+                        "ou 'AAAA-MM-DD HH:MM'. Omita = saindo agora. Serve pro tempo no caminho bater "
+                        "com a hora em que ele vai passar em cada trecho."
                     ),
                 },
             },

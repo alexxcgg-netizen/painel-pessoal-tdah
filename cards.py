@@ -1206,6 +1206,7 @@ def card_rota(ef: dict) -> dict | None:
         if isinstance(x, dict) and x.get("nivel") in ("lento", "parado") and x.get("frase")
     ][:3]
     transito = ef.get("transito_min")
+    tempo = _tempo_da_rota(ef.get("tempo"))
     acoes = [{"tipo": "abrir_link", "rotulo": "Abrir no Google Maps", "url": url}]
     waze = acao_waze(ef.get("waze"), ef.get("waze_para") if len(paradas) > 2 else None)
     if waze:
@@ -1220,9 +1221,29 @@ def card_rota(ef: dict) -> dict | None:
             "traco": ef.get("traco") if isinstance(ef.get("traco"), dict) else None,
             "transito_min": transito if isinstance(transito, int) and transito >= 0 else None,
             "lentidao": lentidao,
+            "tempo": tempo,
         },
         acoes,
     )
+
+
+_TIPOS_TEMPO_ROTA = {"granizo", "trovoada", "neblina", "chuva_forte", "chuva", "vento", "ok"}
+
+
+def _tempo_da_rota(t) -> dict | None:
+    """Tempo ao longo do caminho (clima_rota): so trechos com tipo conhecido e km numerico."""
+    if not isinstance(t, dict) or not isinstance(t.get("total_km"), (int, float)) or t["total_km"] <= 0:
+        return None
+    trechos = []
+    for x in t.get("trechos") or []:
+        if not (isinstance(x, dict) and x.get("tipo") in _TIPOS_TEMPO_ROTA
+                and isinstance(x.get("de_km"), (int, float)) and isinstance(x.get("ate_km"), (int, float))):
+            continue
+        trechos.append({"tipo": x["tipo"], "de_km": x["de_km"], "ate_km": x["ate_km"],
+                        "hora": str(x.get("hora_ini") or "")[:5], "frase": str(x.get("frase") or "")[:200]})
+    if not trechos:
+        return None
+    return {"total_km": t["total_km"], "saida": str(t.get("saida") or "")[:5], "trechos": trechos[:12]}
 
 
 WAZE_PREFIXO = "https://waze.com/ul?"

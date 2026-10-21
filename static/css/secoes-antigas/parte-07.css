@@ -581,6 +581,81 @@
   padding: 0;
 }
 
+/* 2026-10-21: tempo no caminho - barra do km 0 ao fim, cada trecho na cor do que vai pegar */
+.card-rota-tempo--chuva { --tempo-cor: var(--cor-cat-1); }
+.card-rota-tempo--chuva_forte { --tempo-cor: var(--cor-cat-2); }
+.card-rota-tempo--neblina { --tempo-cor: var(--text-muted); }
+.card-rota-tempo--trovoada,
+.card-rota-tempo--granizo { --tempo-cor: var(--cor-cat-3); }
+.card-rota-tempo--vento { --tempo-cor: var(--cor-cat-6); }
+.card-rota-tempo--ok { --tempo-cor: var(--cor-cat-7); }
+
+.card-rota-tempo {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.2rem 0 0.5rem;
+}
+
+.card-rota-tempo-rotulo {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.card-rota-tempo-barra {
+  position: relative;
+  height: 0.9rem;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.card-rota-tempo-faixa {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--tempo-cor) 55%, transparent);
+  transform-origin: left;
+}
+
+.card-rota-tempo-faixa.card-rota-tempo--chuva,
+.card-rota-tempo-faixa.card-rota-tempo--chuva_forte {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--tempo-cor) 70%, transparent) 0 3px, transparent 3px 7px);
+}
+
+.card-rota-tempo-faixa.card-rota-tempo--neblina {
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tempo-cor) 45%, transparent) 25%, color-mix(in srgb, var(--tempo-cor) 45%, transparent) 75%, transparent);
+}
+
+.card-novo .card-rota-tempo-faixa {
+  animation: card-rota-tempo-estica 0.7s var(--ease-suave) both;
+  animation-delay: calc(var(--chegada, 0ms) + 250ms + var(--i, 0) * 90ms);
+}
+
+@keyframes card-rota-tempo-estica {
+  from { transform: scaleX(0); opacity: 0; }
+}
+
+.card-rota-tempo-km {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-rota-tempo-item i {
+  background: var(--tempo-cor);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-novo .card-rota-tempo-faixa { animation: none; }
+}
+
 .card-rota-parada {
   position: relative;
   display: flex;

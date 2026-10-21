@@ -806,9 +806,56 @@
       (numeros ? `<p class="card-hora-grande card-rota-numeros">${esc(numeros)}</p>` : "") +
       transito +
       (lentos ? `<ul class="card-rota-lentos">${lentos}</ul>` : "") +
+      tempoRota(data.tempo) +
       `<ol class="card-rota-paradas">${itens}</ol>`
     );
   });
+
+  // 2026-10-21: tempo ao longo do caminho (clima_rota.py) - barra do km 0 ao fim com cada trecho
+  // pintado (chuva listrada, neblina enevoada...) e embaixo so os trechos que nao sao tempo firme.
+  const TIPOS_TEMPO = ["granizo", "trovoada", "neblina", "chuva_forte", "chuva", "vento", "ok"];
+  function tempoRota(t) {
+    if (!t || typeof t !== "object" || !numeroValido(t.total_km) || t.total_km <= 0) return "";
+    const trechos = lista(t.trechos).filter(
+      (x) => x && TIPOS_TEMPO.includes(x.tipo) && numeroValido(x.de_km) && numeroValido(x.ate_km),
+    );
+    if (!trechos.length) return "";
+    const pct = (km) => Math.max(0, Math.min(100, (km / t.total_km) * 100)).toFixed(2);
+    const faixas = trechos
+      .filter((x) => x.tipo !== "ok")
+      .map(
+        (x, i) =>
+          `<i class="card-rota-tempo-faixa card-rota-tempo--${x.tipo}" style="left:${pct(x.de_km)}%;width:${(pct(x.ate_km) - pct(x.de_km)).toFixed(2)}%;--i:${i}"></i>`,
+      )
+      .join("");
+    const ruins = trechos.filter((x) => x.tipo !== "ok" && typeof x.frase === "string" && x.frase);
+    const linhas = ruins.length
+      ? ruins
+          .slice(0, 4)
+          .map((x) => `<li class="card-rota-lento card-rota-tempo-item card-rota-tempo--${x.tipo}"><i aria-hidden="true"></i>${esc(x.frase)}</li>`)
+          .join("")
+      : `<li class="card-rota-lento card-rota-tempo-item card-rota-tempo--ok"><i aria-hidden="true"></i>Tempo firme no caminho todo.</li>`;
+    const saida = typeof t.saida === "string" && t.saida ? ` · saindo ${esc(t.saida)}` : "";
+    return (
+      `<div class="card-rota-tempo">` +
+      `<p class="card-rota-tempo-rotulo">Tempo no caminho${saida}</p>` +
+      `<div class="card-rota-tempo-barra" role="img" aria-label="Tempo ao longo da rota">${faixas}</div>` +
+      `<div class="card-rota-tempo-km"><span>km 0</span><span>km ${esc(Math.round(t.total_km))}</span></div>` +
+      `<ul class="card-rota-lentos">${linhas}</ul>` +
+      `</div>`
+    );
+  }
+
+  function trechosTempo(traco) {
+    return lista(traco.tempo)
+      .filter((f) => f && TIPOS_TEMPO.includes(f.nivel) && f.nivel !== "ok")
+      .map((f) => {
+        const pts = lista(f.pontos).filter((p) => Array.isArray(p) && p.length === 2 && p.every(numeroValido));
+        if (pts.length < 2) return "";
+        return `<path class="vivo-rota-tempo card-rota-tempo--${f.nivel}" d="M${pts.map((p) => `${p[0]} ${p[1]}`).join(" L")}"/>`;
+      })
+      .join("");
+  }
 
   // Cartao vivo (2026-10-09): o caminho REAL que o Google calculou (servidor ja projeta
   // num quadro 320x200, norte pra cima), desenhado se formando com o carrinho andando
@@ -848,7 +895,7 @@
       `<div class="vivo-mapa"><svg class="vivo-rota-mapa" viewBox="0 0 ${w} ${h}" role="img" aria-label="Caminho da rota">` +
       `<defs><pattern id="vivo-grade-mapa" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" class="vivo-grade-linha"/></pattern></defs>` +
       `<rect width="${w}" height="${h}" fill="url(#vivo-grade-mapa)"/>` +
-      `<path class="vivo-rota-sombra" d="${d}"/><path class="vivo-rota-caminho" d="${d}"/>${trechosLentos(traco)}${pinos}` +
+      `<path class="vivo-rota-sombra" d="${d}"/><path class="vivo-rota-caminho" d="${d}"/>${trechosTempo(traco)}${trechosLentos(traco)}${pinos}` +
       `<g class="vivo-rota-carro"><circle r="9" class="vivo-carro-halo"/><circle r="4.5" class="vivo-carro"/></g></svg></div>`
     );
   }

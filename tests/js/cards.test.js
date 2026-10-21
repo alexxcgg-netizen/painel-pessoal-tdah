@@ -790,3 +790,39 @@ test("rota com transito: +N min, trecho parado (sem afirmar a causa), trecho no 
     assert.ok(!falso.includes("card-btn-link"), url);
   }
 });
+
+test("rota com tempo no caminho: barra pintada por trecho, so os trechos ruins na lista, tipo estranho fora", () => {
+  const base = {
+    paradas: [{ nome: "Casa", endereco: "Rua Exemplo, 10" }, { nome: "Curitiba", endereco: "Curitiba - PR" }],
+    distancia_km: 200,
+    duracao_min: 180,
+    traco: {
+      w: 320, h: 200, pontos: [[20, 20], [160, 100], [300, 180]], paradas: [[20, 20], [300, 180]],
+      tempo: [{ nivel: "neblina", pontos: [[160, 100], [300, 180]] }, { nivel: "x", pontos: [[1, 1], [2, 2]] }],
+    },
+    tempo: {
+      total_km: 200, saida: "08:00",
+      trechos: [
+        { tipo: "ok", de_km: 0, ate_km: 40, frase: "x" },
+        { tipo: "chuva", de_km: 40, ate_km: 100, frase: "Chuva do km 40 ao 100, por volta das 9h - 85% de chance" },
+        { tipo: "neblina", de_km: 160, ate_km: 200, frase: "Neblina na serra <b>BR</b>, do km 160 ao 200" },
+        { tipo: "tornado", de_km: 1, ate_km: 2, frase: "nao aparece" },
+      ],
+    },
+  };
+  const html = Cards.renderizarCardHTML({ type: "rota", data: base, actions: [] });
+  assert.ok(!html.includes("card-contrato-fallback"), html);
+  assert.match(html, /Tempo no caminho · saindo 08:00/);
+  assert.match(html, /card-rota-tempo-faixa card-rota-tempo--chuva" style="left:20\.00%;width:30\.00%/);
+  assert.match(html, /85% de chance/);
+  assert.match(html, /Neblina na serra &lt;b&gt;BR&lt;\/b&gt;/);
+  assert.ok(!html.includes("nao aparece"), html);
+  assert.ok(!html.includes("card-rota-tempo--tornado"), html);
+  assert.match(html, /vivo-rota-tempo card-rota-tempo--neblina" d="M160 100 L300 180"/);
+  assert.ok(!html.includes("card-rota-tempo--x"), html);
+
+  const firme = Cards.renderizarCardHTML({ type: "rota", data: { ...base, tempo: { total_km: 200, trechos: [{ tipo: "ok", de_km: 0, ate_km: 200 }] } }, actions: [] });
+  assert.match(firme, /Tempo firme no caminho todo/);
+  const sem = Cards.renderizarCardHTML({ type: "rota", data: { ...base, tempo: { total_km: "x" } }, actions: [] });
+  assert.ok(!sem.includes("Tempo no caminho"), sem);
+});

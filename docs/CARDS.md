@@ -444,6 +444,14 @@ aceso só depois que o carrinho passa. Segunda action `abrir_link` pro Waze (`ca
 ou "Waze até X" quando tem várias paradas (o Waze só vai até a primeira). Os cards `date`/`balada`,
 `voo_agendado` e `vespera_voo` ganham o mesmo botão e `transito_min` ("40 min de carro (+12 de trânsito)").
 
+**Tempo no caminho (aditivo, 2026-10-21)**: rota ≥ 25 km ganha `data.tempo = {total_km, saida, trechos[{tipo, de_km,
+ate_km, hora, frase}]}` (`clima_rota.py`: Open-Meteo numa chamada, um ponto a cada ~20 km, na HORA em que ele passa
+ali). `tipo` ∈ granizo/trovoada/neblina/chuva_forte/chuva/vento/ok. O front desenha uma barra do km 0 ao fim com
+cada trecho pintado (chuva listrada, neblina esfumada; estica em cascata só no `.card-novo`) e lista só os trechos
+que não são tempo firme (ou "Tempo firme no caminho todo."). `traco.tempo` = `[{nivel, pontos}]`, faixa larga
+translúcida por baixo do lento. Cores: chuva `--cor-cat-1`, forte `--cor-cat-2`, neblina `--text-muted`,
+trovoada/granizo `--cor-cat-3`, vento `--cor-cat-6`.
+
 ## Cartões vivos (aditivo, 2026-10-09)
 
 Renderizados em `static/js/cards-vivos.js` (rota e saude_treino em `cards-tipos.js`). O HTML já sai no estado

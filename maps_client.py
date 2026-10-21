@@ -437,11 +437,12 @@ def decodificar_polyline(codigo: str) -> list[tuple[float, float]]:
 
 
 def traco_desenhavel(pontos: list[tuple[float, float]], marcos: list[int], largura=320, altura=200,
-                     margem=22, maximo=90, faixas=None) -> dict | None:
+                     margem=22, maximo=90, faixas=None, tempo=None) -> dict | None:
     """Projeta o caminho num quadro largura x altura (norte pra cima, proporcao
     real corrigida pela latitude) e reduz pra no maximo `maximo` pontos.
     `marcos` = indice de cada parada dentro de `pontos`; `faixas` = [(i0, i1, nivel)] dos
-    trechos lentos/parados (viram "lentos", pintados por cima do caminho)."""
+    trechos lentos/parados (viram "lentos", pintados por cima do caminho); `tempo` = idem pros
+    trechos com chuva/neblina/etc. (clima_rota, viram "tempo")."""
     import math
 
     if len(pontos) < 2:
@@ -460,19 +461,25 @@ def traco_desenhavel(pontos: list[tuple[float, float]], marcos: list[int], largu
 
     passo = max(1, len(pontos) // maximo)
     indices = sorted(set(range(0, len(pontos), passo)) | {len(pontos) - 1} | set(marcos))
-    lentos = []
-    for i0, i1, nivel in faixas or []:
-        if not (0 <= i0 < i1 < len(pontos)):
-            continue
-        passo_f = max(1, (i1 - i0) // 24)
-        idx = sorted(set(range(i0, i1 + 1, passo_f)) | {i1})
-        lentos.append({"nivel": nivel, "pontos": [proj(i) for i in idx]})
-    return {
+    def pintar(lista):
+        saida = []
+        for i0, i1, nivel in lista or []:
+            if not (0 <= i0 < i1 < len(pontos)):
+                continue
+            passo_f = max(1, (i1 - i0) // 24)
+            idx = sorted(set(range(i0, i1 + 1, passo_f)) | {i1})
+            saida.append({"nivel": nivel, "pontos": [proj(i) for i in idx]})
+        return saida
+
+    desenho = {
         "w": largura, "h": altura,
         "pontos": [proj(i) for i in indices],
         "paradas": [proj(i) for i in marcos],
-        "lentos": lentos,
+        "lentos": pintar(faixas),
     }
+    if tempo:
+        desenho["tempo"] = pintar(tempo)
+    return desenho
 
 
 def trajeto(pontos: list[str]) -> dict:
@@ -509,6 +516,8 @@ def trajeto(pontos: list[str]) -> dict:
         # chave "_" = so pro servidor (o card), a IA nao ve
         "_place_ids": [l["place_id"] if l else None for l in lugares],
         "_traco": traco_desenhavel(caminho, marcos, faixas=faixas) if len(marcos) == len(pontos) else None,
+        # pro tempo ao longo da rota (clima_rota) redesenhar o traco com os trechos de chuva
+        "_desenho": (caminho, marcos, faixas) if len(marcos) == len(pontos) else None,
         "_waze": waze,
         "trechos": trechos,
         "distancia_total_km": round(sum(t["distancia_km"] for t in trechos), 1),
