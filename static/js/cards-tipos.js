@@ -852,6 +852,118 @@
     );
   });
 
+  // ---- treino ao vivo (2026-10-21) --------------------------------------------------------
+  // treino_agora: a ficha do dia com uma caixinha por exercicio; o proximo a fazer brilha; o
+  // ultimo marcado registra o treino (servidor) e abre a pergunta da carga.
+  // treino_carga: o que mudou na ficha depois ("20 kg -> 25 kg", seta pra cima/baixo).
+  const CHECK_TV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg>';
+
+  function textoSeriesReps(ex) {
+    if (ex.series && ex.reps) return `${ex.series}×${ex.reps}`;
+    return ex.series || ex.reps || "";
+  }
+
+  function fimTreinoTexto(duracao) {
+    const tempo = numeroValido(duracao) && duracao > 0 ? ` · ${Cards.fmtDuracao(duracao)}` : "";
+    return `Treino registrado${tempo}. Subiu ou baixou alguma carga? Me conta aqui.`;
+  }
+
+  Cards.registrar("treino_agora", (data) => {
+    const exs = lista(data.exercicios).filter((e) => e && typeof e === "object" && e.nome);
+    const feitos = new Set(lista(data.feitos).filter((i) => Number.isInteger(i) && i < exs.length));
+    const proximo = exs.findIndex((_e, i) => !feitos.has(i));
+    const pct = exs.length ? (feitos.size / exs.length) * 100 : 0;
+    const itens = exs
+      .map((e, i) => {
+        const sr = textoSeriesReps(e);
+        return (
+          `<li class="tv-ex${feitos.has(i) ? " feito" : ""}${i === proximo ? " proximo" : ""}" style="--k:${i}">` +
+          `<button type="button" class="tv-caixa" data-acao="treino_ex" data-sessao="${esc(data.sessao_id)}" data-i="${i}" aria-pressed="${feitos.has(i)}" aria-label="${esc(e.nome)}">${CHECK_TV}</button>` +
+          `<span class="tv-nome">${esc(e.nome)}${sr ? `<small>${esc(sr)}</small>` : ""}</span>` +
+          (e.carga ? `<b class="tv-carga">${esc(e.carga)}</b>` : "") +
+          `</li>`
+        );
+      })
+      .join("");
+    return (
+      eyebrow(ICONES.treino, "Treino de hoje", `<span class="card-chip tv-conta">${feitos.size}/${exs.length}</span>`) +
+      `<p class="card-titulo">${esc(data.grupo || "Treino")}</p>` +
+      (data.escolhida_por === "rotacao" ? `<p class="card-linha-meta">É a ficha que tu fez há mais tempo.</p>` : "") +
+      `<div class="tv-barra" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></div>` +
+      (itens ? `<ul class="tv-lista">${itens}</ul>` : `<p class="card-linha-meta">Ficha sem exercícios.</p>`) +
+      `<p class="tv-fim"${data.concluido ? "" : " hidden"}>${CHECK_TV}<span>${esc(fimTreinoTexto(data.duracao_min))}</span></p>`
+    );
+  });
+
+  Cards.registrar("treino_carga", (data) => {
+    const mudancas = lista(data.mudancas).filter((m) => m && typeof m === "object" && m.exercicio);
+    const SETA = { subiu: "↑", desceu: "↓" };
+    const itens = mudancas
+      .map(
+        (m, i) =>
+          `<li class="tv-carga-linha" style="--k:${i}"><span class="tv-nome">${esc(m.exercicio)}${m.grupo ? `<small>${esc(m.grupo)}</small>` : ""}</span>` +
+          (m.antes
+            ? `<span class="tv-de">${esc(m.antes)}</span><span class="tv-flecha" aria-hidden="true">→</span>`
+            : `<span></span><span></span>`) +
+          `<b class="tv-para${m.sentido ? ` ${esc(m.sentido)}` : ""}">${esc(m.depois)}${SETA[m.sentido] ? `<i aria-label="${m.sentido === "subiu" ? "subiu" : "baixou"}">${SETA[m.sentido]}</i>` : ""}</b></li>`
+      )
+      .join("");
+    return eyebrow(ICONES.treino, "Ficha atualizada") + `<ul class="tv-cargas">${itens}</ul>`;
+  });
+
+  function aplicarTreino(cardEl, feitos, concluido, duracao) {
+    const lis = Array.from(cardEl.querySelectorAll(".tv-ex"));
+    let proximo = -1;
+    lis.forEach((li, i) => {
+      const f = feitos.has(i);
+      li.classList.toggle("feito", f);
+      const b = li.querySelector(".tv-caixa");
+      if (b) b.setAttribute("aria-pressed", String(f));
+      if (!f && proximo < 0) proximo = i;
+    });
+    lis.forEach((li, i) => li.classList.toggle("proximo", i === proximo));
+    const conta = cardEl.querySelector(".tv-conta");
+    if (conta) conta.textContent = `${feitos.size}/${lis.length}`;
+    const barra = cardEl.querySelector(".tv-barra i");
+    if (barra) barra.style.width = `${lis.length ? ((feitos.size / lis.length) * 100).toFixed(1) : 0}%`;
+    const fim = cardEl.querySelector(".tv-fim");
+    if (fim) {
+      if (concluido && fim.hidden) cardEl.classList.add("tv-concluiu");
+      fim.hidden = !concluido;
+      const span = fim.querySelector("span");
+      if (span && concluido) span.textContent = fimTreinoTexto(duracao);
+    }
+  }
+
+  if (typeof Cards.registrarAcao === "function") {
+    Cards.registrarAcao("treino_ex", async (btn, cardEl, deps) => {
+      if (typeof deps.apiFetch !== "function" || btn.dataset.enviando) return;
+      const lis = Array.from(cardEl.querySelectorAll(".tv-ex"));
+      const antes = new Set(lis.map((li, i) => (li.classList.contains("feito") ? i : -1)).filter((i) => i >= 0));
+      const i = +btn.dataset.i;
+      const feito = !antes.has(i);
+      const depois = new Set(antes);
+      if (feito) depois.add(i);
+      else depois.delete(i);
+      const completo = depois.size === lis.length;
+      aplicarTreino(cardEl, depois, completo, null); // otimista
+      if (typeof raiz.vibrar === "function") raiz.vibrar(completo && feito ? [10, 40, 18] : 8);
+      btn.dataset.enviando = "1";
+      const res = await deps.apiFetch(`/api/treino/sessoes/${encodeURIComponent(btn.dataset.sessao)}/exercicio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ i, feito }),
+      });
+      delete btn.dataset.enviando;
+      if (!res || !res.ok) {
+        aplicarTreino(cardEl, antes, antes.size === lis.length, null);
+        return;
+      }
+      aplicarTreino(cardEl, new Set(lista(res.feitos)), !!res.concluido, res.duracao_min);
+      if (res.concluido !== (antes.size === lis.length) && typeof deps.aoMudar === "function") deps.aoMudar();
+    });
+  }
+
   // ---- sugestao -----------------------------------------------------------------
 
   Cards.registrar("sugestao", (data) => {

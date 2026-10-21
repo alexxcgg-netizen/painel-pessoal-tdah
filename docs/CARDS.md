@@ -453,6 +453,16 @@ que as horas de agora dizem. **Balão que vira card** (`chat.js/juntarBalaoECard
 cola embaixo do balão (canto reto, borda na cor do card, card descendo de dentro numa cortina); histórico abre
 colado e parado.
 
+**Treino ao vivo (2026-10-21, `treino_vivo.py`, skill `treino-ao-vivo`)**: `treino_agora` = `{sessao_id,
+ficha_id, grupo, data, exercicios[{nome, series, reps, carga}], feitos[i], concluido, duracao_min, escolhida_por?}`
+(vem do `comecar_treino`). Caixinha por exercício (`data-acao="treino_ex"`, otimista, volta se falhar,
+`POST /api/treino/sessoes/<id>/exercicio`), o próximo a fazer em destaque, barra de progresso, contador `n/total`;
+o último marcado registra o treino e abre "Subiu ou baixou alguma carga?". Histórico atualiza pelo
+`cards.acertar_treino_agora`. `treino_carga` = `{mudancas[{grupo, exercicio, antes, depois, sentido:
+subiu|desceu|null}]}` (do `atualizar_carga_treino`): antes riscado → depois com seta, um card por resposta, Desfazer
+volta a ficha (entidade `treino_carga`, da última troca pra primeira). Cor `#b5e48c`. Animação do exercício:
+protótipo do supino no artefato de treino, esperando veredito - não está no app.
+
 **Tempo no caminho (aditivo, 2026-10-21)**: rota ≥ 25 km ganha `data.tempo = {total_km, saida, trechos[{tipo, de_km,
 ate_km, hora, frase}]}` (`clima_rota.py`: Open-Meteo numa chamada, um ponto a cada ~20 km, na HORA em que ele passa
 ali). `tipo` ∈ granizo/trovoada/neblina/chuva_forte/chuva/vento/ok. O front desenha uma barra do km 0 ao fim com

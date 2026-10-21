@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-21 - Treino ao vivo: ficha com caixinhas + troca de carga pelo chat (SW v89)
 - 2026-10-21 - Chat mais humano: balão que vira card + dois planos (SW v88)
 - 2026-10-21 - Tempo trecho a trecho na rota + "vai chover depois de lavar o carro" (SW v87)
 - 2026-10-20 - Vistoria: servidor saturando (fila do Waitress)
@@ -151,6 +152,24 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-21 - Treino ao vivo: ficha com caixinhas + troca de carga pelo chat (SW v89)
+
+Pedido do Alex: "vou treinar peito" mostra o treino, ele vai marcando, e depois conta se subiu ou baixou carga.
+- **`treino_vivo.py`** (puro): lê a linha da ficha (`nome|series|reps|carga` do menu, ou texto livre "supino reto
+  4x10 com 20kg"), acha a ficha pelo que ele falou ("peito", "treino A", "peito e tríceps"), rotação ("hoje é qual
+  treino?" = a feita há mais tempo), acha o exercício sem chutar quando dois batem.
+- **Sessão do dia**: tabela `treino_sessoes` (`migracoes/202610211800_tv_treino_sessoes.sql`), uma por ficha por dia.
+  O último exercício marcado registra o treino (`treinos.origem = 'sessao'`, duração desde que a ficha abriu, só se
+  ≥ 10 min); desmarcar desfaz. "Treinei peito 1h" depois disso completa o mesmo registro, não conta dois.
+- **Chat**: `comecar_treino` (card `treino_agora`) e `atualizar_carga_treino` (card `treino_carga`, antes → depois,
+  Desfazer volta a ficha). Ficha colada no chat agora é gravada no formato do menu. Regra no prompt: abre, responde
+  curto com o primeiro exercício, e no fim pergunta uma vez da carga se ele não falou.
+- Modo visitante recusa marcar e trocar carga. Rota nova `POST /api/treino/sessoes/<id>/exercicio`.
+- **Animação do exercício**: o Alex recusou boneco de palito ("tem que ser de outro nível") → skill nova
+  `treino-ao-vivo` com a régua; protótipo do supino (manequim 3D projetado em 3/4, banco, barra com anilhas, peito
+  acende no empurrão, desce 2 s / sobe 1 s) só no artefato, esperando veredito antes dos outros exercícios.
+- Testes: `tests/test_treino_vivo.py` (15) + 2 JS; captura 390 px conferida.
 
 ## 2026-10-21 - Chat mais humano: balão que vira card + dois planos (SW v88)
 

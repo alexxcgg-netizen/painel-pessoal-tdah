@@ -858,3 +858,45 @@ test("dia montado com dois planos: pilula, plano escolhido reordena as horas, pl
     assert.match(html, /Dia montado/);
   }
 });
+
+test("treino ao vivo: caixinha por exercicio, proximo destacado, fim so quando concluido, texto escapado", () => {
+  const card = {
+    type: "treino_agora", id: "t1", actions: [],
+    data: {
+      sessao_id: 7, grupo: "Peito <b>", feitos: [0, 9, "1"], concluido: false,
+      exercicios: [
+        { nome: "Supino reto", series: "4", reps: "10", carga: "20 kg" },
+        { nome: '<img src=x onerror="1">', series: "", reps: "", carga: "" },
+        null,
+      ],
+    },
+  };
+  const html = Cards.renderizarCardHTML(card);
+  assert.ok(!html.includes("<img") && !html.includes("<b>"));
+  assert.equal((html.match(/data-acao="treino_ex"/g) || []).length, 2);
+  assert.match(html, /1\/2/);
+  assert.match(html, /tv-ex feito/);
+  assert.match(html, /tv-ex proximo/);
+  assert.match(html, /4×10/);
+  assert.match(html, /class="tv-fim" hidden/);
+  const pronto = Cards.renderizarCardHTML({ ...card, data: { ...card.data, feitos: [0, 1], concluido: true, duracao_min: 52 } });
+  assert.ok(!pronto.includes('class="tv-fim" hidden'));
+  assert.match(pronto, /Subiu ou baixou alguma carga/);
+  assert.ok(!Cards.renderizarCardHTML({ type: "treino_agora", data: {}, actions: [] }).includes("card-contrato-fallback"));
+});
+
+test("troca de carga: antes riscado, depois com seta, sem 'antes' nao mostra flecha", () => {
+  const html = Cards.renderizarCardHTML({
+    type: "treino_carga", id: "c", actions: [],
+    data: { mudancas: [
+      { grupo: "Peito", exercicio: "Supino reto", antes: "20 kg", depois: "25 kg", sentido: "subiu" },
+      { grupo: "Peito", exercicio: "Crucifixo", antes: "", depois: "12 kg", sentido: null },
+      { exercicio: "Remada", antes: "30 kg", depois: "25 kg", sentido: "desceu" },
+    ] },
+  });
+  assert.equal((html.match(/tv-carga-linha/g) || []).length, 3);
+  assert.equal((html.match(/tv-flecha/g) || []).length, 2);
+  assert.match(html, /tv-para subiu/);
+  assert.match(html, /tv-para desceu/);
+  assert.match(html, /↑/);
+});

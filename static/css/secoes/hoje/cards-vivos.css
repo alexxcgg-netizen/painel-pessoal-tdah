@@ -874,3 +874,112 @@
   .dia-planos-fundo { transition: none; }
   .dia-miolo-troca .vivo-dia-item, .dia-miolo-troca svg { animation: none; }
 }
+
+/* ---- Treino ao vivo (2026-10-21): treino_agora (caixinha por exercicio) e treino_carga ---- */
+.card-contrato-treino_agora,
+.card-contrato-treino_carga { --card-cor: #b5e48c; }
+.tv-barra {
+  height: 4px;
+  margin: 2px 0 6px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--card-cor) 12%, var(--border));
+  overflow: hidden;
+}
+.tv-barra i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--card-cor);
+  transition: width 0.55s var(--ease-bounce);
+}
+.tv-lista, .tv-cargas { list-style: none; margin: 0; padding: 0; display: grid; }
+.tv-ex, .tv-carga-linha {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.tv-ex:first-child, .tv-carga-linha:first-child { border-top: 0; }
+.tv-caixa {
+  width: 44px;
+  height: 44px;
+  margin: -4px 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tv-caixa svg {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 1.5px solid color-mix(in srgb, var(--card-cor) 55%, var(--border));
+  fill: none;
+  stroke: transparent;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: background 0.3s var(--ease-suave), border-color 0.3s var(--ease-suave), transform 0.35s var(--ease-bounce);
+}
+.tv-caixa:active svg { transform: scale(0.88); }
+.tv-caixa:focus-visible { outline: 2px solid var(--card-cor); outline-offset: -2px; border-radius: 12px; }
+.tv-ex.feito .tv-caixa svg {
+  background: var(--card-cor);
+  border-color: var(--card-cor);
+  stroke: #0d1a07;
+  stroke-dashoffset: 0;
+  transition: background 0.3s var(--ease-suave), border-color 0.3s var(--ease-suave),
+    stroke-dashoffset 0.4s var(--ease-suave) 0.08s, transform 0.35s var(--ease-bounce);
+}
+.tv-nome { min-width: 0; font-size: 0.92rem; line-height: 1.3; transition: color 0.3s var(--ease-suave); }
+.tv-nome small { display: block; font-size: 0.76rem; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.tv-ex.feito .tv-nome { color: var(--text-muted); }
+.tv-ex.proximo .tv-nome { color: var(--text); font-weight: 600; }
+.tv-ex.proximo .tv-caixa svg { box-shadow: 0 0 0 4px color-mix(in srgb, var(--card-cor) 16%, transparent); }
+.tv-carga, .tv-para, .tv-de {
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tv-carga { color: var(--card-cor); font-weight: 600; }
+.tv-fim {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card-cor) 10%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+.tv-fim svg { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--card-cor); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.tv-concluiu .tv-fim { animation: tv-fim-entra 0.55s var(--ease-bounce) both; }
+.tv-concluiu .tv-barra i { animation: tv-brilho 0.9s var(--ease-suave) 0.2s both; }
+/* treino_carga: de -> para */
+.tv-carga-linha { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+.tv-de { color: var(--text-faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text-faint) 60%, transparent); }
+.tv-flecha { color: var(--text-faint); font-size: 0.8rem; }
+.tv-para { color: var(--text); font-weight: 600; display: inline-flex; gap: 4px; align-items: center; }
+.tv-para.subiu { color: var(--card-cor); }
+.tv-para.desceu { color: var(--cor-alerta, #f0c27a); }
+.tv-para i { font-style: normal; font-size: 0.8rem; }
+.card-novo .tv-ex { animation: tv-linha 0.5s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.15s + var(--k, 0) * 70ms) both; }
+.card-novo .tv-carga-linha .tv-para { animation: tv-para 0.6s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.35s + var(--k, 0) * 120ms) both; }
+.card-novo .tv-carga-linha .tv-de { animation: tv-de 0.5s var(--ease-suave) calc(var(--chegada, 0ms) + 0.2s + var(--k, 0) * 120ms) both; }
+@keyframes tv-linha { from { opacity: 0; transform: translateX(-8px); } }
+@keyframes tv-fim-entra { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+@keyframes tv-brilho { 50% { filter: brightness(1.5); } }
+@keyframes tv-para { from { opacity: 0; transform: translateY(8px) scale(0.9); } }
+@keyframes tv-de { from { text-decoration-color: transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .tv-barra i, .tv-caixa svg, .tv-ex.feito .tv-caixa svg, .tv-nome { transition: none; }
+  .tv-concluiu .tv-fim, .tv-concluiu .tv-barra i, .card-novo .tv-ex,
+  .card-novo .tv-carga-linha .tv-para, .card-novo .tv-carga-linha .tv-de { animation: none; }
+}

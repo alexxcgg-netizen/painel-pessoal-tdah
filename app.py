@@ -48,6 +48,7 @@ import claude_client
 import classificador_local
 import clima
 import clima_rota
+import treino_vivo
 import construtora_cliente
 import criptografia
 import estudo
@@ -3656,7 +3657,9 @@ def _processar_mensagem_chat(
         exercicios = entrada.get("exercicios")
         if isinstance(exercicios, list):
             exercicios = "\n".join(str(e).strip() for e in exercicios if str(e).strip())
-        exercicios = _texto_curto(exercicios, 3000)
+        # "supino reto 4x10 com 20kg" -> "Supino reto|4|10|20 kg" (o formato do menu: la aparece
+        # series/reps/carga e a troca de carga acha o exercicio)
+        exercicios = _texto_curto(treino_vivo.normalizar_ficha(exercicios or ""), 3000)
         if not grupo or not exercicios:
             return {"erro": "preciso do grupo e dos exercicios"}
         return {"ok": True, "ficha_id": salvar_ficha_treino(conn, grupo, exercicios)}
@@ -3664,11 +3667,118 @@ def _processar_mensagem_chat(
     def exec_registrar_treino(entrada):
         duracao = entrada.get("duracao_min")
         duracao = _inteiro_no_intervalo(duracao, 1, 600) if duracao not in (None, "") else None
-        treino_id = registrar_treino(
-            conn, date.today().isoformat(), _texto_curto(entrada.get("grupo"), 40), duracao,
-            _texto_curto(entrada.get("nota"), 300),
-        )
+        grupo = _texto_curto(entrada.get("grupo"), 40)
+        nota = _texto_curto(entrada.get("nota"), 300)
+        hoje = date.today().isoformat()
+        # treino ao vivo: a ficha marcada ate o fim ja registrou o treino de hoje - "treinei peito
+        # 1h" depois disso completa aquele registro em vez de contar dois treinos
+        if grupo:
+            alvo = vida.normalizar_nome(grupo)
+            for r in conn.execute(
+                "SELECT id, grupo, duracao_min, nota FROM treinos WHERE data = ? AND origem = 'sessao'", (hoje,)
+            ).fetchall():
+                if vida.normalizar_nome(r["grupo"]) == alvo:
+                    conn.execute(
+                        "UPDATE treinos SET duracao_min = ?, nota = ? WHERE id = ?",
+                        (duracao or r["duracao_min"], nota or r["nota"], r["id"]),
+                    )
+                    conn.commit()
+                    return {"ok": True, "treino_id": r["id"], "ja_registrado_pela_ficha": True,
+                            "_efeito": {"entidade": "treinos", "dias": 7, "consulta": True}}
+        treino_id = registrar_treino(conn, hoje, grupo, duracao, nota)
         return {"ok": True, "treino_id": treino_id, "_efeito": {"entidade": "treino", "id": treino_id}}
+
+    def _exercicio_texto(ex):
+        partes = [ex["nome"]]
+        if ex["series"] or ex["reps"]:
+            partes.append("x".join(p for p in (ex["series"], ex["reps"]) if p))
+        if ex["carga"]:
+            partes.append(ex["carga"])
+        return " ".join(partes)
+
+    def exec_comecar_treino(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        fichas = list_fichas_treino(conn)
+        if not fichas:
+            return {"erro": (
+                "ele ainda nao tem ficha de treino. Peca pra colar o treino aqui (salvar_ficha_treino) "
+                "ou montar em Mais > Vida completa > Treino > Nova ficha."
+            )}
+        pedido = _texto_curto(entrada.get("grupo"), 60)
+        if pedido:
+            ficha, escolha = treino_vivo.achar_ficha(fichas, pedido), "pedida"
+            if not ficha:
+                return {"erro": f"nenhuma ficha bate com '{pedido}'", "fichas": [f["grupo"] for f in fichas]}
+        else:
+            ficha = treino_vivo.proxima_da_rotacao(fichas, db.ultimo_treino_por_grupo(conn))
+            escolha = "rotacao"
+        exercicios = treino_vivo.exercicios_da_ficha(ficha["exercicios"])
+        sessao_id = db.abrir_sessao_treino(conn, ficha["id"], date.today().isoformat())
+        sessao = db.sessao_treino(conn, sessao_id)
+        return {
+            "ok": True, "ficha": ficha["grupo"], "escolhida_por": escolha,
+            "exercicios": [_exercicio_texto(e) for e in exercicios],
+            "ja_marcados": len(sessao["feitos"]), "concluido": bool(sessao["concluido_em"]),
+            "outras_fichas": [f["grupo"] for f in fichas if f["id"] != ficha["id"]],
+            "_efeito": {"entidade": "treino_sessao", "id": sessao_id, "escolhida_por": escolha, "consulta": True},
+        }
+
+    def exec_atualizar_carga_treino(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        nome = _texto_curto(entrada.get("exercicio"), 80)
+        nova = treino_vivo.carga_texto(entrada.get("carga"))
+        if not nome or not nova:
+            return {"erro": "preciso do exercicio e da carga nova"}
+        fichas = list_fichas_treino(conn)
+        grupo = _texto_curto(entrada.get("grupo"), 60)
+        if grupo:
+            ficha = treino_vivo.achar_ficha(fichas, grupo)
+            if not ficha:
+                return {"erro": f"nenhuma ficha bate com '{grupo}'", "fichas": [f["grupo"] for f in fichas]}
+            fichas = [ficha]
+        achados = []
+        for f in fichas:
+            exs = treino_vivo.exercicios_da_ficha(f["exercicios"])
+            i = treino_vivo.achar_exercicio(exs, nome)
+            if i is not None:
+                achados.append((f, exs, i))
+        if len(achados) > 1:
+            # a ficha que ele abriu hoje desempata ("o supino foi pra 25" logo depois do treino de peito)
+            hoje_ids = {r["ficha_id"] for r in conn.execute(
+                "SELECT ficha_id FROM treino_sessoes WHERE data = ?", (date.today().isoformat(),))}
+            de_hoje = [a for a in achados if a[0]["id"] in hoje_ids]
+            if len(de_hoje) == 1:
+                achados = de_hoje
+            else:
+                return {"erro": f"'{nome}' aparece em mais de uma ficha - pergunte qual",
+                        "fichas": [a[0]["grupo"] for a in achados]}
+        if not achados:
+            return {"erro": f"nao achei '{nome}' na ficha", "exercicios_das_fichas": {
+                f["grupo"]: [e["nome"] for e in treino_vivo.exercicios_da_ficha(f["exercicios"])] for f in fichas}}
+        ficha, exs, i = achados[0]
+        antes = exs[i]["carga"]
+        exs[i]["carga"] = nova
+        for campo in ("series", "reps"):
+            valor = _texto_curto(str(entrada[campo]), 10) if entrada.get(campo) not in (None, "") else None
+            if valor:
+                exs[i][campo] = valor
+        texto = "\n".join(treino_vivo.escrever_exercicio(e) for e in exs)
+        if texto == ficha["exercicios"]:
+            return {"ok": True, "sem_mudanca": True, "exercicio": exs[i]["nome"], "carga": nova}
+        conn.execute(
+            "UPDATE treino_fichas SET exercicios = ?, atualizado_em = datetime('now') WHERE id = ?", (texto, ficha["id"])
+        )
+        conn.commit()
+        return {
+            "ok": True, "ficha": ficha["grupo"], "exercicio": exs[i]["nome"], "antes": antes or None, "depois": nova,
+            "_efeito": {"entidade": "treino_carga", "id": ficha["id"], "antes": ficha["exercicios"],
+                        "grupo": ficha["grupo"], "exercicio": exs[i]["nome"],
+                        "carga_antes": antes, "carga_depois": nova},
+        }
 
     def exec_registrar_viagem(entrada):
         resultado = _criar_viagem(
@@ -4160,6 +4270,8 @@ def _processar_mensagem_chat(
         "adicionar_compras": exec_adicionar_compras,
         "salvar_ficha_treino": exec_salvar_ficha_treino,
         "registrar_treino": exec_registrar_treino,
+        "comecar_treino": exec_comecar_treino,
+        "atualizar_carga_treino": exec_atualizar_carga_treino,
         "registrar_viagem": exec_registrar_viagem,
         "registrar_lugar": exec_registrar_lugar,
         "registrar_manutencao": exec_registrar_manutencao,
@@ -4493,6 +4605,8 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
             cur = conn.execute("DELETE FROM hidratacao_registros WHERE id = ?", (id_,))
         elif entidade == "treino":
             cur = conn.execute("DELETE FROM treinos WHERE id = ?", (id_,))
+        elif entidade == "treino_carga" and isinstance(item.get("antes"), str):
+            cur = conn.execute("UPDATE treino_fichas SET exercicios = ? WHERE id = ?", (item["antes"], id_))
         elif entidade == "refeicao":
             refeicoes.criar_tabela(conn)
             cur = conn.execute("DELETE FROM refeicoes WHERE id = ?", (id_,))

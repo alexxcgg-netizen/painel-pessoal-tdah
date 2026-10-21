@@ -24,6 +24,7 @@ from datetime import date, datetime, timedelta
 import calculos
 import db
 import financas_recorrentes as fr
+import treino_vivo
 import vida
 
 # ---- rotulos humanos -------------------------------------------------------
@@ -69,6 +70,8 @@ MODULO_POR_TOOL = {
     "registrar_checkin": "Saúde",
     "salvar_ficha_treino": "Saúde",
     "registrar_treino": "Saúde",
+    "comecar_treino": "Saúde",
+    "atualizar_carga_treino": "Saúde",
     "registrar_viagem": "Viagens",
     "registrar_lugar": "Viagens",
     "sugerir_horario_livre": "Agenda",
@@ -88,6 +91,8 @@ DESCRICAO_TOOL = {
     "registrar_hidratacao": "Registrou um copo de água",
     "registrar_checkin": "Registrou o check-in",
     "registrar_treino": "Registrou o treino",
+    "comecar_treino": "Abriu a ficha do treino",
+    "atualizar_carga_treino": "Atualizou a carga na ficha",
     "registrar_memoria": "Guardou uma memória",
     "consultar_noticias": "Buscou notícias",
     "consultar_notas": "Consultou as notas",
@@ -146,6 +151,8 @@ AO_VIVO_TOOL = {
     "salvar_nota": "Salvando a nota",
     "registrar_hidratacao": "Contando o copo d'água",
     "registrar_treino": "Registrando o treino",
+    "comecar_treino": "Abrindo a ficha do treino",
+    "atualizar_carga_treino": "Trocando a carga na ficha",
     "adicionar_compras": "Pondo na lista de compras",
     "consultar_noticias": "Buscando notícias",
     "fazer_pergunta_aviacao": "Escolhendo uma pergunta da banca",
@@ -249,6 +256,8 @@ TIPOS_CARD = (
     "agenda",
     "projeto_viagem",
     "saude_treino",
+    "treino_agora",
+    "treino_carga",
     "sugestao",
     "habito",
     "saude_dia",
@@ -1027,6 +1036,66 @@ def card_saude_treino(conn, dias=7, registrado: bool = False, hoje: date | None 
          "meta_semana": int(meta) if meta and meta.isdigit() else None},
         actions,
     )
+
+
+def _dados_treino_agora(conn, sessao: dict) -> dict | None:
+    ficha = db.get_ficha_treino(conn, sessao["ficha_id"])
+    if not ficha:
+        return None
+    exercicios = treino_vivo.exercicios_da_ficha(ficha["exercicios"])
+    duracao = None
+    if isinstance(sessao.get("treino_id"), int):
+        t = conn.execute("SELECT duracao_min FROM treinos WHERE id = ?", (sessao["treino_id"],)).fetchone()
+        duracao = t["duracao_min"] if t else None
+    return {
+        "sessao_id": sessao["id"], "ficha_id": ficha["id"], "grupo": ficha["grupo"], "data": sessao["data"],
+        "exercicios": exercicios,
+        "feitos": [i for i in sessao["feitos"] if i < len(exercicios)],
+        "concluido": bool(sessao.get("concluido_em")), "duracao_min": duracao,
+    }
+
+
+def card_treino_agora(conn, sessao_id: int, escolhida_por: str | None = None) -> dict | None:
+    """Treino ao vivo (2026-10-21): a ficha do dia com uma caixinha por exercicio."""
+    sessao = db.sessao_treino(conn, sessao_id)
+    data = _dados_treino_agora(conn, sessao) if sessao else None
+    if not data:
+        return None
+    if escolhida_por in ("pedida", "rotacao"):
+        data["escolhida_por"] = escolhida_por
+    aba, rotulo = ABA_POR_ENTIDADE["treino"]
+    return novo_card("treino_agora", data, [acao_abrir_aba(aba, rotulo)])
+
+
+def acertar_treino_agora(conn, cards_msg: list) -> None:
+    """Historico: o card guardado nasce com o que estava marcado na hora; volta com o estado de
+    agora (caixinhas marcadas depois, carga trocada na ficha). Muda os dicts no lugar."""
+    for c in cards_msg:
+        if not isinstance(c, dict) or c.get("type") != "treino_agora":
+            continue
+        sid = (c.get("data") or {}).get("sessao_id")
+        sessao = db.sessao_treino(conn, sid) if isinstance(sid, int) and not isinstance(sid, bool) else None
+        novo = _dados_treino_agora(conn, sessao) if sessao else None
+        if novo:
+            c["data"] = {**c["data"], **novo}
+
+
+def card_treino_carga(cargas: list[dict], actions_extra=None) -> dict | None:
+    """'O supino foi pra 25': o que mudou na ficha (antes -> depois), um card pra todas as trocas
+    da mesma resposta."""
+    mudancas = []
+    for ef in cargas:
+        antes, depois = ef.get("carga_antes") or "", ef.get("carga_depois") or ""
+        n_antes, n_depois = treino_vivo.numero_da_carga(antes), treino_vivo.numero_da_carga(depois)
+        mudancas.append({
+            "grupo": ef.get("grupo") or "", "exercicio": ef.get("exercicio") or "",
+            "antes": antes, "depois": depois,
+            "sentido": None if n_antes is None or n_depois is None or n_antes == n_depois
+            else ("subiu" if n_depois > n_antes else "desceu"),
+        })
+    if not mudancas:
+        return None
+    return novo_card("treino_carga", {"mudancas": mudancas}, list(actions_extra or []))
 
 
 def card_saude_dia(conn, dia: date | None = None, registrado: str | None = None, actions_extra=None) -> dict:
@@ -1839,6 +1908,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_saude_treino(conn, ef.get("dias") or 7, registrado=not ef.get("consulta"), actions_extra=desfazer)
     if entidade == "treinos":
         return card_saude_treino(conn, ef.get("dias") or 7)
+    if entidade == "treino_sessao" and isinstance(id_, int):
+        return card_treino_agora(conn, id_, ef.get("escolhida_por"))
     if entidade == "hidratacao":
         return card_agua(conn, actions_extra=desfazer)
     if entidade == "saude_dia":
@@ -1897,6 +1968,9 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
     # vira UM card, com um Desfazer pros 4.
     aguas: list[dict] = []
     pos_agua = None
+    # treino ao vivo: "supino foi pra 25 e o crucifixo pra 12" -> um card com as duas trocas
+    cargas: list[dict] = []
+    pos_cargas = None
     # sugestao de horario e rascunho: se a mesma resposta ja gravou o horario de verdade (tarefa
     # criada/editada), o card da sugestao contradizia o que ficou ("15:00" x 9h45 marcado)
     gravou_horario = any(
@@ -1912,6 +1986,12 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
                 pos_agua = len(saida)
                 saida.append(None)
             aguas.append(ef)
+            continue
+        if entidade == "treino_carga" and isinstance(id_, int):
+            if pos_cargas is None:
+                pos_cargas = len(saida)
+                saida.append(None)
+            cargas.append(ef)
             continue
         if _e_conclusao(ef):
             card = card_tarefa_feita(conn, id_, _acoes_desfazer(criar_token, [ef]))
@@ -1975,6 +2055,9 @@ def cards_dos_efeitos(conn, efeitos: list[dict], criar_token=None) -> list[dict]
         saida[pos_edicoes] = card_edicao(edicoes, _acoes_desfazer(criar_token, edicoes))
     if pos_agua is not None:
         saida[pos_agua] = card_agua(conn, actions_extra=_acoes_desfazer(criar_token, aguas))
+    if pos_cargas is not None:
+        # cada item volta a ficha inteira de antes da SUA troca: desfazer da ultima pra primeira
+        saida[pos_cargas] = card_treino_carga(cargas, _acoes_desfazer(criar_token, cargas[::-1]))
     saida = [c for c in saida if c]
     return saida
 

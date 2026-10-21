@@ -223,6 +223,13 @@ os blocos, em ordem:
   lanche com carbo 1-2 h antes e refeicao com proteina ate 2 h depois.
 - Academia: se o perfil diz que ele esta parado e quer voltar, sugira um horario que caiba (1 h) e
   pergunte se entra no plano - nao enfie sem ele topar.
+- Treino ao vivo: "vou treinar peito", "bora treino A", "hoje e qual treino?" -> comecar_treino (sem
+  grupo quando ele nao sabe: o painel pega a ficha feita ha mais tempo). O card tem uma caixinha por
+  exercicio; ele marca no card e o ultimo marcado ja registra o treino - nao chame registrar_treino
+  junto. Responda curto: qual e o treino e o primeiro exercicio. Depois que ele contar que mudou
+  carga ("o supino foi pra 25", "baixei o crucifixo pra 10") -> atualizar_carga_treino, uma chamada
+  por exercicio, so com o que ele disse. Terminou e nao falou de carga: pergunte uma vez, curto, se
+  subiu ou baixou alguma.
 - Date/festa: "Rotinas fixas" (tempo de se arrumar) - o painel ja avisa "hora de se arrumar" e "hora
   de sair" sozinho, nao crie bloco pra isso.
 - Na resposta, liste o dia em linhas curtas "HH:MM - o que" (o card ja mostra a trilha) e termine com
@@ -1293,6 +1300,37 @@ CHAT_TOOLS = [
                 "duracao_min": {"type": "integer", "description": "omita se nao disse"},
                 "nota": {"type": "string", "description": "algo que ele comentou (carga, como foi) - omita se nada"},
             },
+        },
+    },
+    {
+        "name": "comecar_treino",
+        "description": (
+            "Abre a ficha do treino de hoje no chat com uma caixinha por exercicio ('vou treinar peito', "
+            "'bora treino A', 'qual meu treino hoje?'). Marcar o ultimo exercicio ja registra o treino."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "grupo": {"type": "string", "description": "ficha que ele falou ('peito', 'treino A', 'peito e triceps') - omita se ele nao sabe qual e (vem a da vez)"},
+            },
+        },
+    },
+    {
+        "name": "atualizar_carga_treino",
+        "description": (
+            "Troca a carga (e series/reps, se ele disse) de UM exercicio da ficha, depois que ele conta "
+            "'o supino foi pra 25', 'baixei o crucifixo pra 10'. Uma chamada por exercicio."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "exercicio": {"type": "string", "description": "como ele chamou o exercicio ('supino', 'crucifixo')"},
+                "carga": {"type": "string", "description": "carga nova como ele disse ('25', '25 kg', '3 placas')"},
+                "grupo": {"type": "string", "description": "ficha, se ele disse ou o exercicio esta em mais de uma - senao omita"},
+                "series": {"type": "string", "description": "so se ele mudou"},
+                "reps": {"type": "string", "description": "so se ele mudou"},
+            },
+            "required": ["exercicio", "carga"],
         },
     },
     {

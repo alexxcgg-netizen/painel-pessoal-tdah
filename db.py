@@ -1867,6 +1867,8 @@ ENTIDADES_DESFAZIVEIS = (
     "refeicao",
     # 2026-10-14: voo agendado pelo chat (card voo_agendado) - so apaga se ainda sem horas
     "voo_agendado",
+    # 2026-10-21: carga de um exercicio trocada pelo chat (treino_vivo.py) - volta a ficha de antes
+    "treino_carga",
 )
 
 
@@ -1894,6 +1896,11 @@ def criar_acao_desfazer(conn, itens: list[dict]) -> str | None:
                 continue
             limpo["data"] = dia
             limpo["feito"] = item["feito"]
+        if item["entidade"] == "treino_carga":
+            # a ficha inteira de antes (ate 3000, o limite de salvar_ficha_treino) - cortar estragaria
+            if not isinstance(item.get("antes"), str) or not item["antes"] or len(item["antes"]) > 3000:
+                continue
+            limpo["antes"] = item["antes"]
         if item["entidade"] == "edicao":
             tabela, antes = item.get("tabela"), item.get("antes")
             colunas = EDICAO_COLUNAS.get(tabela)
@@ -3195,6 +3202,83 @@ def desfazer_treinos_do_dia_por_grupo(conn, data: str, grupo: str) -> int:
 def list_treinos(conn, limite: int = 20) -> list[dict]:
     rows = conn.execute("SELECT * FROM treinos ORDER BY data DESC, id DESC LIMIT ?", (limite,)).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---- Treino ao vivo (2026-10-21, treino_vivo.py): sessao do dia com caixinha por exercicio ----
+
+def ultimo_treino_por_grupo(conn) -> dict[str, str]:
+    """{grupo normalizado: data ISO do treino mais recente} - base da rotacao das fichas."""
+    ultimo: dict[str, str] = {}
+    for r in conn.execute("SELECT grupo, MAX(data) AS d FROM treinos WHERE grupo IS NOT NULL GROUP BY grupo"):
+        chave = vida.normalizar_nome(r["grupo"])
+        if r["d"] and r["d"] > ultimo.get(chave, ""):
+            ultimo[chave] = r["d"]
+    return ultimo
+
+
+def sessao_treino(conn, sessao_id: int) -> dict | None:
+    try:
+        row = conn.execute("SELECT * FROM treino_sessoes WHERE id = ?", (sessao_id,)).fetchone()
+    except OverflowError:
+        return None
+    if not row:
+        return None
+    s = dict(row)
+    try:
+        feitos = json.loads(s["feitos"] or "[]")
+    except ValueError:
+        feitos = []
+    s["feitos"] = sorted({i for i in feitos if isinstance(i, int) and not isinstance(i, bool) and i >= 0})
+    return s
+
+
+def abrir_sessao_treino(conn, ficha_id: int, data: str) -> int:
+    """Uma sessao por ficha por dia: abrir de novo devolve a mesma (com o que ja foi marcado)."""
+    conn.execute("INSERT OR IGNORE INTO treino_sessoes (ficha_id, data) VALUES (?, ?)", (ficha_id, data))
+    conn.commit()
+    return conn.execute(
+        "SELECT id FROM treino_sessoes WHERE ficha_id = ? AND data = ?", (ficha_id, data)
+    ).fetchone()["id"]
+
+
+# Menos que isso entre abrir a ficha e marcar o ultimo = ele marcou tudo no fim; o tempo nao diz
+# quanto durou o treino.
+TREINO_SESSAO_MIN_DURACAO = 10
+
+
+def marcar_exercicio_sessao(conn, sessao_id: int, idx: int, feito: bool, total: int) -> dict | None:
+    """Marca/desmarca um exercicio. O ultimo marcado registra o treino do dia (origem 'sessao',
+    duracao = desde que a ficha abriu); desmarcar depois de concluido desfaz esse registro."""
+    s = sessao_treino(conn, sessao_id)
+    if not s:
+        return None
+    feitos = set(s["feitos"])
+    (feitos.add if feito else feitos.discard)(idx)
+    lista = sorted(i for i in feitos if 0 <= i < total)
+    completo = total > 0 and len(lista) == total
+    if completo and not s["concluido_em"]:
+        ficha = get_ficha_treino(conn, s["ficha_id"])
+        minutos = conn.execute(
+            "SELECT CAST(ROUND((julianday('now') - julianday(criado_em)) * 1440) AS INTEGER) AS m "
+            "FROM treino_sessoes WHERE id = ?", (sessao_id,)
+        ).fetchone()["m"]
+        duracao = min(int(minutos), 600) if minutos and minutos >= TREINO_SESSAO_MIN_DURACAO else None
+        treino_id = registrar_treino(conn, s["data"], ficha["grupo"] if ficha else None, duracao, None, origem="sessao")
+        conn.execute(
+            "UPDATE treino_sessoes SET feitos = ?, concluido_em = datetime('now'), treino_id = ? WHERE id = ?",
+            (json.dumps(lista), treino_id, sessao_id),
+        )
+    elif not completo and s["concluido_em"]:
+        if isinstance(s["treino_id"], int):
+            conn.execute("DELETE FROM treinos WHERE id = ? AND origem = 'sessao'", (s["treino_id"],))
+        conn.execute(
+            "UPDATE treino_sessoes SET feitos = ?, concluido_em = NULL, treino_id = NULL WHERE id = ?",
+            (json.dumps(lista), sessao_id),
+        )
+    else:
+        conn.execute("UPDATE treino_sessoes SET feitos = ? WHERE id = ?", (json.dumps(lista), sessao_id))
+    conn.commit()
+    return sessao_treino(conn, sessao_id)
 
 
 def create_viagem(

@@ -5,6 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify
 
 from rotas._base import app_modulo
+import treino_vivo
 import vida
 from db import (
     delete_ficha_treino,
@@ -13,8 +14,10 @@ from db import (
     get_ficha_treino,
     list_fichas_treino,
     list_treinos,
+    marcar_exercicio_sessao,
     registrar_treino,
     salvar_ficha_treino,
+    sessao_treino,
     treinos_do_dia_por_grupo,
     utc_para_hora_local,
 )
@@ -123,6 +126,41 @@ def marcar_ficha_feita(ficha_id):
     finally:
         conn.close()
     return jsonify({"ok": True, "feito": True, "hora": utc_para_hora_local(ja)}), (201 if criou else 200)
+
+
+@bp.route("/api/treino/sessoes/<int:sessao_id>/exercicio", methods=["POST"])
+def marcar_exercicio(sessao_id):
+    """Treino ao vivo (card `treino_agora`): caixinha de um exercicio. O ultimo marcado registra
+    o treino do dia; desmarcar depois disso tira o registro."""
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    body = app._corpo_json()
+    i, feito = body.get("i"), body.get("feito")
+    if not isinstance(i, int) or isinstance(i, bool) or i < 0 or not isinstance(feito, bool):
+        return jsonify({"error": "informe i (indice do exercicio) e feito (true/false)"}), 400
+    conn = get_db()
+    try:
+        sessao = sessao_treino(conn, sessao_id)
+        ficha = get_ficha_treino(conn, sessao["ficha_id"]) if sessao else None
+        if not ficha:
+            return jsonify({"error": "treino não encontrado"}), 404
+        total = len(treino_vivo.exercicios_da_ficha(ficha["exercicios"]))
+        if i >= total:
+            return jsonify({"error": "exercício fora da ficha"}), 400
+        sessao = marcar_exercicio_sessao(conn, sessao_id, i, feito, total)
+        if sessao["concluido_em"]:
+            app._marcar_atividade(conn)
+            conn.commit()
+        duracao = None
+        if isinstance(sessao["treino_id"], int):
+            t = conn.execute("SELECT duracao_min FROM treinos WHERE id = ?", (sessao["treino_id"],)).fetchone()
+            duracao = t["duracao_min"] if t else None
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "feitos": sessao["feitos"], "total": total,
+                    "concluido": bool(sessao["concluido_em"]), "duracao_min": duracao})
 
 
 @bp.route("/api/treino/fichas/<int:ficha_id>/feito", methods=["DELETE"])
