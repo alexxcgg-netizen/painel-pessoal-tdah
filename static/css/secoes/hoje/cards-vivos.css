@@ -892,6 +892,47 @@
   background: var(--card-cor);
   transition: width 0.55s var(--ease-bounce);
 }
+/* painel do exercicio da vez (exercicio-3d.js via CardsVivos): figura 3D + contador de serie/rep */
+.tv-agora {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 4px 12px 4px 4px;
+  margin: 0 0 4px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: radial-gradient(120% 120% at 20% 100%, color-mix(in srgb, var(--card-cor) 10%, #0b0f13), #06080b 75%);
+  border: 1px solid color-mix(in srgb, var(--card-cor) 20%, var(--border));
+}
+.tv-fig { width: 116px; aspect-ratio: 240 / 200; }
+.tv-fig svg { display: block; width: 100%; height: 100%; }
+.tv-info { display: grid; gap: 2px; min-width: 0; }
+.tv-info small {
+  font: 600 10px "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+.tv-agora-nome { font-size: 0.9rem; line-height: 1.25; }
+.tv-agora-d { font: 500 12px "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace; color: var(--card-cor); font-variant-numeric: tabular-nums; }
+.tv-series { display: flex; gap: 4px; margin-top: 4px; align-items: center; min-height: 14px; }
+.tv-series i { width: 14px; height: 4px; border-radius: 99px; background: var(--border); transition: background 0.4s var(--ease-suave); }
+.tv-series i.on { background: var(--card-cor); }
+.tv-series span { margin-left: 6px; font: 500 11px "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace; color: var(--text-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tv-series span b { font: inherit; color: var(--text-muted); display: inline-block; }
+.tv-series span b.pula { animation: tv-pula 0.4s var(--ease-bounce); }
+.tv-sai { animation: tv-sai 0.28s var(--ease-suave) both; }
+.tv-chega { animation: tv-chega 0.55s var(--ease-suave) both; }
+.card-novo .tv-agora { animation: tv-chega 0.6s var(--ease-suave) calc(var(--chegada, 0ms) + 0.1s) both; }
+@keyframes tv-pula { 40% { transform: translateY(-3px) scale(1.18); } }
+@keyframes tv-sai { to { opacity: 0; transform: translateX(-14px); filter: blur(4px); } }
+@keyframes tv-chega { from { opacity: 0; transform: translateX(18px); filter: blur(4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .tv-sai, .tv-chega, .card-novo .tv-agora, .tv-series span b.pula { animation: none; }
+  .tv-series i { transition: none; }
+}
 .tv-lista, .tv-cargas { list-style: none; margin: 0; padding: 0; display: grid; }
 .tv-ex, .tv-carga-linha {
   display: grid;

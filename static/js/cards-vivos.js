@@ -1118,8 +1118,94 @@
         )
       : null;
 
+  // ---- treino ao vivo: o exercicio da vez animado (exercicio-3d.js) ----------------------
+  // Treino em andamento anima enquanto o painel esta na tela (historico tambem: ele abre o chat
+  // no meio do treino); treino concluido ou prefers-reduced-motion = pose parada.
+  // Marcou a caixinha: o exercicio sai pro lado e o proximo entra (trocarExercicio).
+  function palcoSeries(palco, pula) {
+    const caixa = palco.querySelector(".tv-series");
+    if (!caixa) return;
+    const n = Math.min(8, +palco.dataset.series || 3), alvo = +palco.dataset.reps || 10;
+    let h = "";
+    for (let k = 0; k < n; k++) h += `<i class="${k < (palco._serie || 0) ? "on" : ""}"></i>`;
+    caixa.innerHTML = h + (palco._parar
+      ? `<span>rep <b${pula ? ' class="pula"' : ""}>${Math.max(1, palco._rep || 0)}</b>/${alvo}</span>`
+      : `<span>${alvo} reps</span>`);
+  }
+
+  function palcoMontar(palco, vivo) {
+    const velho = palco.querySelector(".tv-fig svg"), tp = palco.dataset.tipo;
+    if (palco._parar) palco._parar();
+    palco._parar = null;
+    palco._rep = 0;
+    palco._serie = 0;
+    if (!velho || !tp || typeof raiz.Exercicio === "undefined") return;
+    const svg = velho.cloneNode(false); // sem os ouvintes do exercicio anterior
+    velho.replaceWith(svg);
+    if (vivo) {
+      svg.addEventListener("rep", (e) => {
+        const alvo = +palco.dataset.reps || 10;
+        palco._rep = (e.detail % alvo) + 1;
+        if (palco._rep === 1 && e.detail > 0) palco._serie = Math.min(+palco.dataset.series || 3, palco._serie + 1);
+        palcoSeries(palco, true);
+      });
+      palco._parar = raiz.Exercicio.montar(svg, tp);
+    } else {
+      raiz.Exercicio.montar(svg, tp, 0.3);
+    }
+    palcoSeries(palco);
+  }
+
+  function palcoPreparar(palco) {
+    const anima = palco.dataset.ativo === "1" && !reduzido();
+    palcoMontar(palco, false);
+    if (!anima) return;
+    palco._vivo = {
+      ligar(on) {
+        if (on && !palco._parar && !palco.hidden) palcoMontar(palco, true);
+        else if (!on && palco._parar) { palco._parar(); palco._parar = null; palcoSeries(palco); }
+      },
+    };
+    if (vigia) vigia.observe(palco);
+    else palco._vivo.ligar(true);
+  }
+
+  function trocarExercicio(palco, li, i, total) {
+    if (!palco) return;
+    if (li && String(i) === palco.dataset.i && !palco.hidden) return; // desmarcou um anterior: o da vez e o mesmo
+    const ir = () => {
+      palco.dataset.i = String(i);
+      if (!li || !li.dataset.tipo) {
+        if (palco._parar) palco._parar();
+        palco._parar = null;
+        palco.dataset.tipo = "";
+        if (!palco.hidden && !reduzido() && typeof palco.animate === "function") {
+          palco.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0.96)" }],
+            { duration: 350, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }).onfinish = () => { palco.hidden = true; };
+        } else palco.hidden = true;
+        return;
+      }
+      Object.assign(palco.dataset, { tipo: li.dataset.tipo, series: li.dataset.series, reps: li.dataset.reps });
+      const pos = palco.querySelector(".tv-pos"), nome = palco.querySelector(".tv-agora-nome"), d = palco.querySelector(".tv-agora-d");
+      if (pos) pos.textContent = String(i + 1);
+      if (nome) nome.textContent = li.dataset.nome || "";
+      if (d) d.textContent = li.dataset.d || "";
+      palco.hidden = false;
+      if (palco._vivo) palcoMontar(palco, palco.dataset.ativo === "1" && !reduzido());
+      else palcoPreparar(palco); // estava escondido desde o comeco: liga o vigia agora
+    };
+    const partes = [palco.querySelector(".tv-fig"), palco.querySelector(".tv-info")].filter(Boolean);
+    if (reduzido() || palco.hidden || !li || !li.dataset.tipo) { ir(); return; }
+    partes.forEach((el) => { el.classList.remove("tv-chega"); el.classList.add("tv-sai"); });
+    setTimeout(() => {
+      ir();
+      partes.forEach((el) => { el.classList.remove("tv-sai"); void el.offsetWidth; el.classList.add("tv-chega"); });
+    }, 280);
+  }
+
   function preparar(raizEl) {
     if (!raizEl || !raizEl.querySelectorAll) return;
+    raizEl.querySelectorAll('[data-vivo="exercicio"]').forEach((palco) => { if (!palco.hidden) palcoPreparar(palco); });
     // cards de aviacao (voo_agendado) tem o proprio motor em cards-aviacao.js
     if (raiz.CardsAviacao && typeof raiz.CardsAviacao.preparar === "function") raiz.CardsAviacao.preparar(raizEl);
     // 4a leva: o que ja foi respondido nos cards de automacao (cards-automacao.js)
@@ -1510,7 +1596,7 @@
     });
   }
 
-  const CardsVivos = { preparar, animar, cenaClima, pontosTemp, _esperar: esperar };
+  const CardsVivos = { preparar, animar, cenaClima, pontosTemp, trocarExercicio, _esperar: esperar };
   raiz.CardsVivos = CardsVivos;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsVivos;
 })(typeof window !== "undefined" ? window : globalThis);

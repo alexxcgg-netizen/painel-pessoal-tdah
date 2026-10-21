@@ -20,6 +20,10 @@ bonequinho qualquer coisa, tem que ser uma coisa de outro nível mesmo". Vale pr
   `POST /api/treino/sessoes/<id>/exercicio`. Histórico atualiza pelo
   `cards.acertar_treino_agora`.
 - Testes: `tests/test_treino_vivo.py` e `tests/js/cards.test.js` (treino ao vivo / troca de carga).
+- Animação: `static/js/exercicio-3d.js` (43 exercícios; novo = entrada em `EX` com `pose(t)`/`cena`/`m` +
+  linha no `MAPA` do `tipo()`), painel `.tv-agora` ligado em `cards-vivos.js` (`palcoPreparar`/`trocarExercicio`).
+  Conferir exercício novo renderizando t=0 e t=1 lado a lado antes de dar como pronto;
+  `tests/js/exercicio.test.js` pega NaN e nome mapeado errado.
 
 ## Régua de qualidade (não negociar)
 1. **Nada de boneco de palito / ícone genérico.** Animação de exercício só entra se parecer

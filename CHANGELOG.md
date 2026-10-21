@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-21 - Animação 3D do exercício no treino ao vivo (SW v91)
 - 2026-10-21 - Chat dá baixa pelo que ele conta
 - 2026-10-21 - Gráfico de carga no card de troca (SW v90)
 - 2026-10-21 - Treino ao vivo: ficha com caixinhas + troca de carga pelo chat (SW v89)
@@ -154,6 +155,23 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-21 - Animação 3D do exercício no treino ao vivo (SW v91)
+
+Pedido depois de aprovar o artefato do treino: animação "de vários e vários exercícios" no painel real.
+Briefing: `docs/briefings/2026-10-21-animacoes-exercicios.md`.
+- `static/js/exercicio-3d.js` (novo): o motor do artefato virou arquivo do app com 43 exercícios (peito, tríceps,
+  costas, ombro, bíceps, perna, abdômen), helpers de corpo (`corpo`/`emPe`/`prono`/`supino`, `pernas`, `bracos`),
+  `caixa` pra máquina/assento/step, músculos por região (tronco frente/costas só quando visíveis; braço/coxa/canela
+  por cápsula). `tipo(nome)` sem acento, o mais específico primeiro ("voador inverso", "agachamento búlgaro",
+  "mesa flexora"); remada alta/adutora/esteira = null. `desenhar(tp, t)` puro (testes e pose parada).
+- Card `treino_agora`: painel `.tv-agora` em cima da lista (renderer continua puro; cada `li` leva tipo/séries/reps);
+  `CardsVivos.preparar` desenha e liga o laço (só na tela, só treino em andamento), `trocarExercicio` faz o
+  sai/entra ao marcar, some no fim. Reduced-motion: pose parada, sem troca animada.
+- Troca de carga/gráfico NÃO mudou (já existia completa).
+- Testes: `tests/js/exercicio.test.js` (todos os tipos sem NaN em 5 pontos, ids únicos, ~40 nomes) + renderer em
+  `tests/js/cards.test.js`. Captura 390 px sem erro nem rolagem lateral. SW v91 (`exercicio-3d.js` no precache e no
+  `templates/scripts.html` antes do `cards-tipos.js`).
 
 ## 2026-10-21 - Chat dá baixa pelo que ele conta
 

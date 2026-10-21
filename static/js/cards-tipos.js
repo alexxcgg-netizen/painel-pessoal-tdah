@@ -853,6 +853,8 @@
   });
 
   // ---- treino ao vivo (2026-10-21) --------------------------------------------------------
+  // motor 3D dos exercicios (exercicio-3d.js): so o tipo() e usado aqui, o desenho e do cards-vivos
+  const Exercicio3D = raiz.Exercicio || (typeof require === "function" ? require("./exercicio-3d.js") : null);
   // treino_agora: a ficha do dia com uma caixinha por exercicio; o proximo a fazer brilha; o
   // ultimo marcado registra o treino (servidor) e abre a pergunta da carga.
   // treino_carga: o que mudou na ficha depois ("20 kg -> 25 kg", seta pra cima/baixo).
@@ -868,16 +870,37 @@
     return `Treino registrado${tempo}. Subiu ou baixou alguma carga? Me conta aqui.`;
   }
 
+  // quantas series/reps o painel da animacao conta ("8-12" -> 12); sem numero, 3x10
+  function numeroDe(v, padrao) {
+    const n = String(v == null ? "" : v).match(/\d+/g);
+    return n ? Math.max(1, Math.min(30, +n[n.length - 1])) : padrao;
+  }
+
+  // painel em cima da lista: o exercicio da vez animado (preenchido pelo CardsVivos.preparar);
+  // exercicio que o motor nao conhece = painel escondido, nunca uma animacao errada
+  function palcoTreino(exs, tipos, i, concluido) {
+    const e = exs[i] || {}, mostra = i >= 0 && !!tipos[i] && !concluido;
+    const d = [textoSeriesReps(e), e.carga].filter(Boolean).join(" · ");
+    return (
+      `<div class="tv-agora" data-vivo="exercicio" data-i="${i}" data-tipo="${esc(mostra ? tipos[i] : "")}" data-series="${numeroDe(e.series, 3)}" data-reps="${numeroDe(e.reps, 10)}" data-ativo="${concluido ? 0 : 1}"${mostra ? "" : " hidden"}>` +
+      `<div class="tv-fig"><svg viewBox="0 0 240 200" aria-hidden="true"></svg></div>` +
+      `<div class="tv-info"><small>Agora · <span class="tv-pos">${i + 1}</span>/${exs.length}</small>` +
+      `<b class="tv-agora-nome">${esc(e.nome || "")}</b><span class="tv-agora-d">${esc(d)}</span><div class="tv-series"></div></div></div>`
+    );
+  }
+
   Cards.registrar("treino_agora", (data) => {
     const exs = lista(data.exercicios).filter((e) => e && typeof e === "object" && e.nome);
     const feitos = new Set(lista(data.feitos).filter((i) => Number.isInteger(i) && i < exs.length));
     const proximo = exs.findIndex((_e, i) => !feitos.has(i));
     const pct = exs.length ? (feitos.size / exs.length) * 100 : 0;
+    const tipos = exs.map((e) => (Exercicio3D ? Exercicio3D.tipo(e.nome) : null));
     const itens = exs
       .map((e, i) => {
         const sr = textoSeriesReps(e);
+        const d = [sr, e.carga].filter(Boolean).join(" · ");
         return (
-          `<li class="tv-ex${feitos.has(i) ? " feito" : ""}${i === proximo ? " proximo" : ""}" style="--k:${i}">` +
+          `<li class="tv-ex${feitos.has(i) ? " feito" : ""}${i === proximo ? " proximo" : ""}" style="--k:${i}" data-tipo="${esc(tipos[i] || "")}" data-series="${numeroDe(e.series, 3)}" data-reps="${numeroDe(e.reps, 10)}" data-nome="${esc(e.nome)}" data-d="${esc(d)}">` +
           `<button type="button" class="tv-caixa" data-acao="treino_ex" data-sessao="${esc(data.sessao_id)}" data-i="${i}" aria-pressed="${feitos.has(i)}" aria-label="${esc(e.nome)}">${CHECK_TV}</button>` +
           `<span class="tv-nome">${esc(e.nome)}${sr ? `<small>${esc(sr)}</small>` : ""}</span>` +
           (e.carga ? `<b class="tv-carga">${esc(e.carga)}</b>` : "") +
@@ -890,6 +913,7 @@
       `<p class="card-titulo">${esc(data.grupo || "Treino")}</p>` +
       (data.escolhida_por === "rotacao" ? `<p class="card-linha-meta">É a ficha que tu fez há mais tempo.</p>` : "") +
       `<div class="tv-barra" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></div>` +
+      (tipos.some(Boolean) ? palcoTreino(exs, tipos, proximo, !!data.concluido) : "") +
       (itens ? `<ul class="tv-lista">${itens}</ul>` : `<p class="card-linha-meta">Ficha sem exercícios.</p>`) +
       `<p class="tv-fim"${data.concluido ? "" : " hidden"}>${CHECK_TV}<span>${esc(fimTreinoTexto(data.duracao_min))}</span></p>`
     );
@@ -953,6 +977,10 @@
       if (!f && proximo < 0) proximo = i;
     });
     lis.forEach((li, i) => li.classList.toggle("proximo", i === proximo));
+    const palco = cardEl.querySelector(".tv-agora");
+    if (palco && raiz.CardsVivos && typeof raiz.CardsVivos.trocarExercicio === "function") {
+      raiz.CardsVivos.trocarExercicio(palco, concluido || proximo < 0 ? null : lis[proximo], proximo, lis.length);
+    }
     const conta = cardEl.querySelector(".tv-conta");
     if (conta) conta.textContent = `${feitos.size}/${lis.length}`;
     const barra = cardEl.querySelector(".tv-barra i");

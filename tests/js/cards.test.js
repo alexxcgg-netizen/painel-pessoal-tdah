@@ -885,6 +885,31 @@ test("treino ao vivo: caixinha por exercicio, proximo destacado, fim so quando c
   assert.ok(!Cards.renderizarCardHTML({ type: "treino_agora", data: {}, actions: [] }).includes("card-contrato-fallback"));
 });
 
+test("treino ao vivo: painel da animacao com o exercicio da vez; desconhecido ou concluido = escondido", () => {
+  const data = {
+    sessao_id: 3, grupo: "Peito", feitos: [0], concluido: false,
+    exercicios: [
+      { nome: "Esteira", series: "", reps: "", carga: "" },
+      { nome: "Supino inclinado com halteres", series: "4", reps: "8-12", carga: "18 kg" },
+      { nome: "Coisa <script>", series: "3", reps: "10", carga: "" },
+    ],
+  };
+  const html = Cards.renderizarCardHTML({ type: "treino_agora", id: "t2", actions: [], data });
+  assert.match(html, /class="tv-agora" data-vivo="exercicio" data-i="1" data-tipo="supino_inclinado" data-series="4" data-reps="12" data-ativo="1">/);
+  assert.match(html, /Agora · <span class="tv-pos">2<\/span>\/3/);
+  assert.match(html, /4×8-12 · 18 kg/);
+  assert.match(html, /data-tipo="" data-series="3" data-reps="10" data-nome="Coisa &lt;script&gt;"/);
+  assert.ok(!html.includes("<script>"));
+  // o da vez e a esteira (o motor nao conhece): painel existe mas escondido
+  const esteira = Cards.renderizarCardHTML({ type: "treino_agora", actions: [], data: { ...data, feitos: [] } });
+  assert.match(esteira, /class="tv-agora"[^>]*data-tipo=""[^>]* hidden>/);
+  const fim = Cards.renderizarCardHTML({ type: "treino_agora", actions: [], data: { ...data, feitos: [0, 1, 2], concluido: true } });
+  assert.match(fim, /class="tv-agora"[^>]*data-ativo="0" hidden>/);
+  // ficha sem nenhum exercicio conhecido: nem monta o painel
+  const nada = Cards.renderizarCardHTML({ type: "treino_agora", actions: [], data: { ...data, exercicios: [{ nome: "Esteira" }] } });
+  assert.ok(!nada.includes("tv-agora"));
+});
+
 test("troca de carga: antes riscado, depois com seta, sem 'antes' nao mostra flecha", () => {
   const html = Cards.renderizarCardHTML({
     type: "treino_carga", id: "c", actions: [],

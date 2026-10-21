@@ -463,8 +463,13 @@ subiu|desceu|null}]}` (do `atualizar_carga_treino`): antes riscado → depois co
 volta a ficha (entidade `treino_carga`, da última troca pra primeira). Cor `#b5e48c`. Cada linha traz `historico[{data, kg}]`
 (tabela `treino_cargas`, um ponto por dia em que a carga em kg mudou - ficha salva grava o ponto de partida; Desfazer
 apaga os pontos que a troca criou): com 2+ pontos vira o gráfico `graficoCarga` (área + segmentos verdes/rosados por
-subida/descida, último ponto maior, kg do começo e do fim). Carga sem "kg" ("3 placas") não entra no gráfico. Animação do exercício:
-protótipo do supino no artefato de treino, esperando veredito - não está no app.
+subida/descida, último ponto maior, kg do começo e do fim). Carga sem "kg" ("3 placas") não entra no gráfico. Animação do exercício
+(aprovada no artefato, no app desde o SW v91): painel `.tv-agora` em cima da lista com o exercício da vez em 3D
+(`static/js/exercicio-3d.js`, 43 exercícios, um corpo só + equipamento, músculo acende no empurrão), "Agora · n/total",
+séries em tracinhos e "rep x/y". `Exercicio.tipo(nome)` lê o nome livre da ficha; desconhecido = painel escondido (nunca
+animação errada). `CardsVivos.preparar` desenha; treino em andamento anima enquanto está na tela (histórico também - ele
+abre o chat no meio do treino), concluído ou reduced-motion = pose parada. Marcou: `trocarExercicio` sai/entra pro próximo;
+terminou: o painel some.
 
 **Tempo no caminho (aditivo, 2026-10-21)**: rota ≥ 25 km ganha `data.tempo = {total_km, saida, trechos[{tipo, de_km,
 ate_km, hora, frase}]}` (`clima_rota.py`: Open-Meteo numa chamada, um ponto a cada ~20 km, na HORA em que ele passa

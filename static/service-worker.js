@@ -33,7 +33,8 @@
 // buscar tudo de novo. Lista conferida contra scripts.html/head.html/fase7.css.
 // v16: Fase 8 F1 - gastos.js/gastos.html mudaram (lista unificada com selo de origem
 // Nubank/manual, botao "Sincronizar Nubank").
-const CACHE_NAME = "painel-pessoal-v90";
+// v91: animacao 3D do exercicio da vez no treino ao vivo (exercicio-3d.js, 43 exercicios).
+const CACHE_NAME = "painel-pessoal-v91";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -144,6 +145,7 @@ const ASSETS = [
   "/static/js/charts.js",
   "/static/js/fila-offline.js",
   "/static/js/cards.js",
+  "/static/js/exercicio-3d.js",
   "/static/js/cards-tipos.js",
   "/static/js/cards-vivos.js",
   "/static/js/cards-premium.js",
