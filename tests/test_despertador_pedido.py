@@ -145,6 +145,15 @@ class DespertadorPedidoTestCase(unittest.TestCase):
         self.assertIn("DESPERTADOR:", chat_mod.CHAT_SYSTEM_PROMPT)
         self.assertIn("definir_despertador", {t["name"] for t in chat_mod.CHAT_TOOLS})
 
+    def test_regra_baixa_pelo_que_ele_conta(self):
+        # "estou no banco agora" tem que dar baixa sozinho; atrasada que a fala nao cobre vira pergunta
+        from ia.funcoes import chat as chat_mod
+
+        p = chat_mod.CHAT_SYSTEM_PROMPT
+        self.assertIn("BAIXA PELO QUE ELE CONTA", p)
+        self.assertIn('status "concluir" NA MESMA', p)
+        self.assertIn("ajustar_tarefa", {t["name"] for t in chat_mod.CHAT_TOOLS})
+
 
 if __name__ == "__main__":
     unittest.main()

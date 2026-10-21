@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-21 - Chat dá baixa pelo que ele conta
 - 2026-10-21 - Gráfico de carga no card de troca (SW v90)
 - 2026-10-21 - Treino ao vivo: ficha com caixinhas + troca de carga pelo chat (SW v89)
 - 2026-10-21 - Chat mais humano: balão que vira card + dois planos (SW v88)
@@ -153,6 +154,17 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-21 - Chat dá baixa pelo que ele conta
+
+O Alex reclamou que pede baixa e a tarefa fica aberta. No chat do dia, as baixas ditas com todas as
+letras ("já fiz X", "já fui lá") funcionaram; o que escapava era a baixa implícita - ele conta
+onde está ("estou no banco agora") e a tarefa daquele lugar seguia aberta, além de tarefas que já
+tinham passado da hora ficarem paradas enquanto a IA refazia o resto do dia.
+- `CHAT_SYSTEM_PROMPT` ganhou "BAIXA PELO QUE ELE CONTA": tarefa de hoje que a fala mostra que
+  aconteceu/está acontecendo vira `ajustar_tarefa` status concluir na mesma rodada; antes de refazer
+  os horários, as atrasadas que a fala não cobre viram UMA pergunta curta no fim (nunca concluídas
+  por chute). Teste em `tests/test_despertador_pedido.py`.
 
 ## 2026-10-21 - Gráfico de carga no card de troca (SW v90)
 
