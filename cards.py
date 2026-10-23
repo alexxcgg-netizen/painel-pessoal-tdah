@@ -231,6 +231,7 @@ CAMPOS_SENSIVEIS = {
     "agua": ("copos",),
     "checkin": ("energia", "sono", "humor"),
     "alerta_dia": ("sinais",),
+    "combinados": ("pessoas", "empresa"),
     "gastos_resumo": ("total", "por_categoria", "maiores"),
     # Fase 7 (N1, ligado na C1 - checklist de docs/contrato-assinaturas.md).
     # `proximas_cobrancas`/`proxima_cobranca` saem inteiros no modo
@@ -308,6 +309,7 @@ TIPOS_CARD = (
     "alerta_dia",
     "de_onde_parei",
     "foco",
+    "combinados",
 )
 
 
@@ -1942,6 +1944,11 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_saude_dia(conn)
     if entidade == "checkin":
         return card_checkin(conn)
+    if entidade == "combinados":
+        import app as _app
+        import combinados
+
+        return combinados.card(conn, date.today(), _app._buscar_contas_a_vencer_construtora())
     if entidade == "foco":
         import foco
         from datetime import datetime as _dt

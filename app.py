@@ -41,6 +41,7 @@ import briefing_voo
 import conversa_proativa
 import dia_ruim
 import foco
+import combinados
 import estudo_quiz
 import caldav_client
 import calculos
@@ -3660,6 +3661,13 @@ def _processar_mensagem_chat(
         return {"ok": True, "titulo": tarefa["title"], "inegociavel": valor,
                 "_efeito": {"entidade": "tarefa", "id": tarefa["id"], "consulta": True}}
 
+    def exec_quadro_combinados(entrada):
+        hoje = _agora_brasilia().date()
+        pessoas = combinados.pessoas(conn, hoje)
+        emp = combinados.empresa(_buscar_contas_a_vencer_construtora())
+        return {"ok": True, "pessoas": len(pessoas), "contas_atrasadas_empresa": len(emp["atrasadas"]),
+                "empresa_disponivel": emp["disponivel"], "_efeito": {"entidade": "combinados", "consulta": True}}
+
     def exec_parceiro_foco(entrada):
         recusa = _recusa_visitante()
         if recusa:
@@ -4336,6 +4344,7 @@ def _processar_mensagem_chat(
         "dia_ruim": exec_dia_ruim,
         "travar_tarefa": exec_travar_tarefa,
         "parceiro_foco": exec_parceiro_foco,
+        "quadro_combinados": exec_quadro_combinados,
         "registrar_conversa": exec_registrar_conversa,
         "cadastrar_pessoa": exec_cadastrar_pessoa,
         "registrar_conta_pessoal": exec_registrar_conta_pessoal,

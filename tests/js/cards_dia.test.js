@@ -109,3 +109,30 @@ test("foco: pronto, meio com 3 respostas, feito com o tempo, escapa texto", () =
   assert.doesNotMatch(feito, /fo_comecar/);
   semFallback(html("foco", {}));
 });
+
+test("combinados: pessoas com Cobrar/Responder, empresa so leitura sem total, escapa texto", () => {
+  const d = {
+    pessoas: [
+      { tipo: "espera", id: 1, quem: "Instrutor <x>", sobre: "o documento", dias: 4, rascunho: "Oi" },
+      { tipo: "responder", id: 2, quem: "Ana", sobre: "", dias: 1, rascunho: "Oi" },
+    ],
+    empresa: { disponivel: true, atrasadas: [{ nome: "Concreto", descricao: "", valor: 7850, dias: 2 }], mais: 0 },
+  };
+  const h = html("combinados", d);
+  semFallback(h);
+  assert.match(h, /2 combinados em aberto com pessoas/);
+  assert.match(h, /Instrutor &lt;x&gt;/);
+  assert.match(h, /data-acao="cb_cobrar" data-i="0">Cobrar/);
+  assert.match(h, /data-acao="cb_cobrar" data-i="1">Responder/);
+  assert.match(h, /esperando há 4 dias/);
+  assert.match(h, /tu deve resposta há 1 dia/);
+  const emp = require(path.join(__dirname, "..", "..", "static", "js", "cards-dia.js")).raizCombinados(Object.assign({}, d, { aba: 1, passo: 2 }));
+  assert.match(emp, /1 conta atrasada na empresa/);
+  assert.match(emp, /2 dias de atraso/);
+  assert.match(emp, /R\$&nbsp;7\.850,00/);
+  assert.doesNotMatch(emp, /total/i);
+  const fora = require(path.join(__dirname, "..", "..", "static", "js", "cards-dia.js")).raizCombinados({ pessoas: [], empresa: { disponivel: false }, aba: 1 });
+  assert.match(fora, /fora do ar/);
+  assert.match(html("combinados", { oculto: true }), /Oculto no modo visitante/);
+  semFallback(html("combinados", {}));
+});

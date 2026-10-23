@@ -24,6 +24,7 @@
     carteira: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4"/><rect x="3.5" y="7.5" width="17" height="12" rx="3"/><circle cx="16" cy="13.5" r="1.2"/>',
     raio: '<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>',
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    gente: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"/>',
     alvo: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/>',
     volta: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/>',
   };
@@ -580,7 +581,167 @@
     }).observe(document.documentElement, { childList: true, subtree: true });
   }
 
-  const api = { guia, heroDiaRuim, raizDiaRuim, raizAlerta, raizParei, raizFoco };
+  // ================================================================ combinados (Quadro dos combinados)
+  // Igual ao cQuadro do prototipo: pilula Pessoas / Empresa; Resolvido risca com traco que se desenha; Cobrar digita
+  // o rascunho (ele copia e manda - o painel nunca manda sozinho); Empresa so leitura, como veio da construtora.
+  const GUIA_CB = ["Marca o que já resolveu, ou toca em Cobrar", "Agora abre a aba Empresa"];
+  const FIM_CB = "Só leitura: os números vêm prontos da construtora.";
+  const moedaNb = (v) => esc(Cards.moeda(v)).replace(/\s/, "&nbsp;");
+  const quandoCB = (p) =>
+    p.tipo === "espera" ? `esperando há ${plural(p.dias, "dia", "dias")}` : `tu deve resposta há ${plural(p.dias, "dia", "dias")}`;
+  function heroCB(est) {
+    if (est.aba === 1) {
+      const e = est.empresa || {};
+      if (!e.disponivel) return "Painel da construtora fora do ar agora.";
+      const n = lista(e.atrasadas).length + (Number(e.mais) || 0);
+      return n ? `${plural(n, "conta atrasada", "contas atrasadas")} na empresa` : "Nenhuma conta atrasada na empresa.";
+    }
+    const abertas = lista(est.pessoas).filter((p) => !(est.feitos || []).includes(`${p.tipo}${p.id}`)).length;
+    return abertas ? `${plural(abertas, "combinado em aberto", "combinados em aberto")} com pessoas` : "Nada em aberto com ninguém.";
+  }
+  function listaPessoas(est) {
+    const feitos = est.feitos || [];
+    const prontos = est.rascunhos || [];
+    const itens = lista(est.pessoas);
+    if (!itens.length) return `<p class="cd-nota">Sem espera nem resposta pendente. Quando tu disser "fiquei de responder X" ou "tô esperando Y", aparece aqui.</p>`;
+    return (
+      `<ul class="pa-lista cb-lista">` +
+      itens
+        .map((p, i) => {
+          const k = `${p.tipo}${p.id}`;
+          const feito = feitos.includes(k);
+          const pronto = prontos.includes(k);
+          return (
+            `<li class="cb-item${feito ? " marcado" : ""}" data-k="${esc(k)}">` +
+            `<button type="button" class="pa-cx" data-acao="cb_resolver" data-i="${i}" aria-pressed="${feito ? "true" : "false"}" aria-label="Resolvido: ${esc(p.quem)}">${svg("check", 3)}</button>` +
+            `<span class="pa-txt"><b>${esc(p.quem)}</b>${p.sobre ? ` · ${esc(p.sobre)}` : ""}</span>` +
+            (feito ? "" : `<button type="button" class="cd-mini${pronto ? " cb-pronto" : ""}" data-acao="cb_cobrar" data-i="${i}">${pronto ? "Copiar" : p.tipo === "espera" ? "Cobrar" : "Responder"}</button>`) +
+            `<small class="cb-quando">${esc(quandoCB(p))}</small>` +
+            (pronto && !feito ? `<div class="pa-bolha cb-rascunho"><small>rascunho · tu revisa e manda</small><span>${esc(p.rascunho)}</span></div>` : "") +
+            `</li>`
+          );
+        })
+        .join("") +
+      `</ul>`
+    );
+  }
+  function listaEmpresa(est) {
+    const e = est.empresa || {};
+    if (!e.disponivel) return `<p class="cd-nota">Não consegui ler o painel da construtora agora. Tento de novo na próxima.</p>`;
+    const itens = lista(e.atrasadas);
+    if (!itens.length) return `<p class="cd-nota">Tudo em dia do lado de lá.</p>`;
+    return (
+      `<div class="cd-grupo cb-empresa">` +
+      itens
+        .map(
+          (c) =>
+            `<div class="cd-item"><span class="cd-t">${esc(c.nome)}<small>${plural(c.dias, "dia", "dias")} de atraso${c.descricao && c.descricao !== c.nome ? ` · ${esc(c.descricao)}` : ""}</small></span>` +
+            `<span class="cd-qd">${c.valor == null ? "" : moedaNb(c.valor)}</span></div>`
+        )
+        .join("") +
+      (Number(e.mais) ? `<p class="cd-nota">+ ${esc(e.mais)} no painel da construtora</p>` : "") +
+      `</div>`
+    );
+  }
+  function raizCombinados(est) {
+    const aba = est.aba === 1 ? 1 : 0;
+    const passo = est.passo || 0;
+    return (
+      `<div class="cd-raiz cb-raiz" data-estado="${esc(JSON.stringify(est))}">` +
+      (passo >= 2 ? guia(GUIA_CB, 2, FIM_CB) : guia(GUIA_CB, passo)) +
+      `<p class="cd-hero">${esc(heroCB(est))}</p>` +
+      `<div class="cd-seg" data-p="${aba}"><span class="cd-pil" aria-hidden="true"></span>` +
+      `<button type="button" data-acao="cb_aba" data-aba="0" aria-pressed="${aba === 0}">Pessoas</button>` +
+      `<button type="button" class="${passo === 1 ? "cd-aqui" : ""}" data-acao="cb_aba" data-aba="1" aria-pressed="${aba === 1}">Empresa</button></div>` +
+      (aba === 0 ? listaPessoas(est) : listaEmpresa(est)) +
+      `<p class="cd-pe">${aba === 0 ? "O painel só prepara a mensagem. Quem manda é tu." : "Dados do painel da construtora, só leitura. Aqui nada é mexido nem recalculado."}</p>` +
+      `</div>`
+    );
+  }
+  Cards.registrar("combinados", (data) => {
+    const d = data || {};
+    if (d.oculto) return topo("gente", "Combinados", "") + `<p class="card-linha-meta">Oculto no modo visitante.</p>`;
+    return topo("gente", "Combinados", "pendentes") + raizCombinados({ pessoas: lista(d.pessoas), empresa: d.empresa || {}, aba: 0, passo: 0 });
+  });
+  function avancaCB(est) {
+    if ((est.passo || 0) === 0) est.passo = 1;
+  }
+  Cards.registrarAcao("cb_aba", (btn, cardEl) => {
+    const est = estadoAlerta(cardEl);
+    est.aba = Number(btn.dataset.aba) === 1 ? 1 : 0;
+    if (est.aba === 1) est.passo = 2;
+    const seg = cardEl.querySelector(".cb-raiz .cd-seg");
+    if (seg) seg.dataset.p = String(est.aba); // a pilula desliza antes da lista trocar
+    setTimeout(() => trocarRaiz(cardEl, raizCombinados(est)), reduz() ? 0 : 180);
+  });
+  Cards.registrarAcao("cb_resolver", async (btn, cardEl, deps) => {
+    const est = estadoAlerta(cardEl);
+    const p = lista(est.pessoas)[Number(btn.dataset.i)];
+    if (!p) return;
+    const k = `${p.tipo}${p.id}`;
+    est.feitos = est.feitos || [];
+    if (est.feitos.includes(k)) return; // resolvido nao volta (a rota nao desfaz)
+    est.feitos.push(k);
+    avancaCB(est);
+    const li = btn.closest("li");
+    if (li) li.classList.add("marcado"); // otimista: o risco corre na hora
+    const url = p.tipo === "espera" ? `/api/esperas/${encodeURIComponent(p.id)}/resolver` : `/api/responder/${encodeURIComponent(p.id)}/feito`;
+    const r = await postar(deps, url, {});
+    if (!r || !r.ok) {
+      est.feitos = est.feitos.filter((x) => x !== k);
+      if (li) li.classList.remove("marcado");
+    }
+    setTimeout(() => trocarRaiz(cardEl, raizCombinados(est)), reduz() ? 0 : 450);
+    if (typeof deps.aoMudar === "function") deps.aoMudar();
+  });
+  Cards.registrarAcao("cb_cobrar", async (btn, cardEl) => {
+    const est = estadoAlerta(cardEl);
+    const p = lista(est.pessoas)[Number(btn.dataset.i)];
+    if (!p) return;
+    const k = `${p.tipo}${p.id}`;
+    est.rascunhos = est.rascunhos || [];
+    if (est.rascunhos.includes(k)) {
+      // ja preparado: copia (o Alex cola no WhatsApp e manda)
+      try {
+        await navigator.clipboard.writeText(p.rascunho);
+        btn.textContent = "Copiado";
+      } catch (e) {
+        const alvo = btn.closest("li") && btn.closest("li").querySelector(".cb-rascunho span");
+        if (alvo && raiz.getSelection) raiz.getSelection().selectAllChildren(alvo);
+      }
+      return;
+    }
+    est.rascunhos.push(k);
+    avancaCB(est);
+    const r = cardEl.querySelector(".cb-raiz");
+    if (r) r.dataset.estado = JSON.stringify(est);
+    btn.textContent = "Copiar";
+    btn.classList.add("cb-pronto");
+    const li = btn.closest("li");
+    if (!li) return;
+    const bolha = document.createElement("div");
+    bolha.className = "pa-bolha cb-rascunho";
+    bolha.innerHTML = `<small>rascunho · tu revisa e manda</small><span></span>`;
+    li.appendChild(bolha);
+    const alvo = bolha.querySelector("span");
+    const g = cardEl.querySelector(".cb-raiz .cd-guia");
+    if (g && est.passo === 1) g.outerHTML = guia(GUIA_CB, 1);
+    cardEl.querySelectorAll(".cb-raiz .cd-aqui").forEach((n) => n.classList.remove("cd-aqui"));
+    const empresa = cardEl.querySelector('[data-acao="cb_aba"][data-aba="1"]');
+    if (empresa) empresa.classList.add("cd-aqui");
+    if (reduz()) {
+      alvo.textContent = p.rascunho;
+      return;
+    }
+    let n = 0;
+    (function digita() {
+      if (!bolha.isConnected) return;
+      alvo.textContent = p.rascunho.slice(0, ++n);
+      if (n < p.rascunho.length) setTimeout(digita, 22);
+    })();
+  });
+
+  const api = { guia, heroDiaRuim, raizDiaRuim, raizAlerta, raizParei, raizFoco, raizCombinados };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   raiz.CardsDia = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -199,6 +199,13 @@ Pedido do Alex: "o que falta pra deixar o painel mais esperto?" → "faz todos".
   crítico). A sessão fica no servidor (`configuracoes.foco_sessao`, rotas em `rotas/foco.py`), e o card do
   histórico sincroniza por `GET /api/foco`. Tarefa empurrada 3+ vezes entra no contexto do chat pra IA oferecer o
   passo de 2 min. Testes em `tests/test_foco.py` e `tests/js/cards_dia.test.js`.
+- **Quadro dos combinados (SW v95)**: `combinados.py` + ferramenta `quadro_combinados` ("o que eu devo pros outros?").
+  Card `combinados` com pílula Pessoas / Empresa. Pessoas junta `esperas` (prometeram pra ele) e `responder` (ele
+  deve resposta), mais velho primeiro, com "há N dias" (UTC → hora local antes de contar). Resolvido risca e chama a
+  rota que já existia; Cobrar/Responder digita um rascunho e vira Copiar, porque o painel nunca manda nada. Empresa:
+  contas atrasadas da API da construtora (`_buscar_contas_a_vencer_construtora`, só leitura), como chegaram e SEM
+  total (somar seria refazer conta da empresa); fora do ar → aviso, nunca número inventado. Visitante não vê nada
+  disso. Testes em `tests/test_combinados.py` e `tests/js/cards_dia.test.js`.
 
 ## 2026-10-21 - Carga × sono no treino (SW v92)
 

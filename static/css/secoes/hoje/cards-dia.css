@@ -205,3 +205,27 @@
   .fo-cheio, .fo-ponta { transition: none; }
   .fo-anel.corre .fo-ponta, .fo-estouro.vai i, .fo-pergunta { animation: none; }
 }
+
+/* combinados - Quadro dos combinados (prototipo cQuadro): pessoas com risco e rascunho digitado, empresa so leitura */
+.card-contrato-combinados { --card-cor: #7fb2ff; --cd-ok: #9fdcb0; }
+.cb-lista li.cb-item { flex-wrap: wrap; align-items: center; row-gap: 0.15rem; min-height: auto; padding: 0.35rem 0; }
+.cb-lista .pa-txt { flex: 1 1 0; }
+.cb-lista .pa-txt b { font-weight: 600; }
+.cb-lista li.marcado .pa-txt { flex: 1 1 0; }
+.cb-lista .pa-cx::before { border-color: color-mix(in srgb, var(--cd-ok) 55%, var(--border)); }
+.cb-lista li.marcado .pa-cx::before { background: var(--cd-ok); }
+.cb-quando { flex-basis: 100%; padding-left: calc(44px - 9px + 0.75rem); font-family: var(--font-tech); font-size: 0.7rem; color: var(--text-faint); }
+.cb-lista .cd-mini { min-height: 44px; }
+.cd-mini.cb-pronto { border-color: color-mix(in srgb, var(--card-cor) 50%, var(--border)); color: var(--card-cor); }
+.cb-rascunho { flex-basis: 100%; margin: 0.35rem 0 0.25rem calc(44px - 9px + 0.75rem); user-select: text; -webkit-user-select: text; }
+.cb-raiz > .cd-hero { margin: 0; }
+.cb-empresa .cd-t svg { width: 15px; height: 15px; }
+.cb-empresa .cd-qd { color: var(--text); font-variant-numeric: tabular-nums; }
+.card-novo .cb-empresa .cd-item, .cb-raiz .cb-empresa .cd-item { animation: cb-entra 0.45s var(--ease-bounce) both; }
+.cb-empresa .cd-item:nth-child(2) { animation-delay: 0.09s; }
+.cb-empresa .cd-item:nth-child(3) { animation-delay: 0.18s; }
+.cb-empresa .cd-item:nth-child(4) { animation-delay: 0.27s; }
+@keyframes cb-entra { from { opacity: 0; transform: translateX(-10px); } }
+@media (prefers-reduced-motion: reduce) {
+  .card-novo .cb-empresa .cd-item, .cb-raiz .cb-empresa .cd-item { animation: none; }
+}

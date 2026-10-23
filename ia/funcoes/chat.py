@@ -1241,6 +1241,16 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "quadro_combinados",
+        "description": (
+            "Quadro dos combinados: 'o que eu devo pros outros?', 'quem ta me devendo resposta?', 'o que ta "
+            "pendente com as pessoas?'. Mostra num card as esperas (prometeram pra ele) e o que ele tem que "
+            "responder, com ha quantos dias e rascunho pra cobrar (o painel NUNCA manda; ele copia), e na aba "
+            "Empresa as contas atrasadas da construtora como vieram da API (so leitura, sem refazer conta)."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "parceiro_foco",
         "description": (
             "Parceiro de foco: quando ele diz que VAI COMECAR uma tarefa agora ('vou organizar as fotos', 'bora "
