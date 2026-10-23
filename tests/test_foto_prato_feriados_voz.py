@@ -191,9 +191,20 @@ class RotaFotoTestCase(unittest.TestCase):
         corpo = r.get_json()
         self.assertEqual(m.call_args.args[1], "image/jpeg")
         self.assertEqual(m.call_args.args[3], "só comi metade do arroz")
-        self.assertIn("~475 kcal no almoço", corpo["resposta"])
+        # leva 22/10 (Refeicao pela proteina): texto e card so de proteina
+        self.assertIn("Esse almoço tem uns 50 g de proteína.", corpo["resposta"])
+        self.assertNotIn("kcal", corpo["resposta"])
         self.assertIn("Boa base de proteína.", corpo["resposta"])
-        card = [c for c in corpo["cards"] if c["type"] == "refeicao"][0]
+        card = [c for c in corpo["cards"] if c["type"] == "proteina"][0]
+        self.assertEqual(card["data"]["prato_g"], 50)
+        self.assertEqual(len(card["data"]["sugestoes"]), 3)
+        # corrige de um toque
+        rid = card["data"]["id"]
+        r2 = self.client.post(f"/api/refeicoes/{rid}/proteina", json={"proteina_g": 40}).get_json()
+        self.assertEqual((r2["prato_g"], r2["dia_g"]), (40, 40))
+        self.assertEqual(self.client.post(f"/api/refeicoes/{rid}/proteina", json={"proteina_g": 900}).status_code, 400)
+        self.assertEqual(self.client.post("/api/refeicoes/9999/proteina", json={"proteina_g": 10}).status_code, 404)
+        self.client.post(f"/api/refeicoes/{rid}/proteina", json={"proteina_g": 50.2})
         self.assertEqual(card["data"]["refeicao"], "almoço")
         self.assertEqual(len(card["data"]["itens"]), 3)
         self.assertAlmostEqual(card["data"]["total"]["proteina_g"], 50.2)

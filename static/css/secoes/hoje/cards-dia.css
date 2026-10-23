@@ -229,3 +229,58 @@
 @media (prefers-reduced-motion: reduce) {
   .card-novo .cb-empresa .cd-item, .cb-raiz .cb-empresa .cd-item { animation: none; }
 }
+
+/* proteina - Refeicao pela proteina (prototipo cRefeicao): prato escaneado, copo com onda que enche, chips que somam */
+.card-contrato-proteina { --card-cor: #b5e48c; --cd-ok: #9fdcb0; }
+.pr-linha { display: flex; align-items: center; gap: 1rem; }
+.pr-texto { min-width: 0; display: grid; gap: 0.25rem; }
+.pr-hero { font-size: 1rem; }
+.pr-prato-g, .pr-tot, .pr-falta-g, .pr-ajuste { font-variant-numeric: tabular-nums; }
+.pr-prato {
+  position: relative; width: 64px; height: 64px; flex: none; border-radius: 50%; overflow: hidden;
+  background: radial-gradient(circle at 50% 50%, #3a2f22 0 32%, #2a2118 33% 100%); border: 3px solid #1d2229;
+}
+.pr-prato::before, .pr-prato::after { content: ""; position: absolute; border-radius: 50%; }
+.pr-prato::before { width: 22px; height: 22px; left: 10px; top: 14px; background: #d8b46a; }
+.pr-prato::after { width: 18px; height: 18px; right: 10px; bottom: 11px; background: #8fb36a; }
+.pr-scan { display: none; position: absolute; left: 0; right: 0; height: 30%; z-index: 1; background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--card-cor) 60%, transparent), transparent); }
+.pr-prato.lendo .pr-scan { display: block; animation: pr-escaneia 0.7s var(--ease-suave) 2 both; }
+@keyframes pr-escaneia { from { top: -30%; } to { top: 100%; } }
+.pr-link {
+  padding: 0; border: 0; background: none; font: inherit; color: var(--card-cor); text-decoration: underline;
+  text-underline-offset: 2px; cursor: pointer; min-height: 32px;
+}
+.pr-corrige { display: flex; align-items: center; gap: 0.5rem; }
+.pr-corrige .cd-cad { font-size: 1.2rem; color: var(--text); }
+.pr-ajuste { min-width: 3.4rem; text-align: center; font-family: var(--font-tech); font-size: 1rem; color: var(--text); }
+.pr-copo { position: relative; width: 132px; height: 132px; flex: none; }
+.pr-copo svg { width: 100%; height: 100%; }
+.pr-borda { fill: none; stroke: color-mix(in srgb, var(--card-cor) 40%, var(--border)); stroke-width: 2; }
+.pr-nivel { transition: transform 1.3s var(--ease-suave); }
+.pr-onda { fill: var(--card-cor); animation: pr-ondula 3.2s linear infinite; }
+.pr-onda.o2 { fill: color-mix(in srgb, var(--card-cor) 55%, #000); animation-duration: 4.6s; animation-direction: reverse; opacity: 0.8; }
+@keyframes pr-ondula { to { transform: translateX(-50px); } }
+.pr-meio { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
+.pr-meio b { font-family: var(--font-tech); font-size: 1.7rem; font-weight: 600; line-height: 1; color: var(--text); }
+.pr-meio small { margin-top: 0.2rem; font-family: var(--font-tech); font-size: 0.68rem; font-weight: 600; color: var(--text); opacity: 0.8; }
+.pr-falta { margin: 0; font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+.pr-chips { gap: 0.5rem; }
+.pr-chip {
+  min-height: 44px; padding: 0 0.9rem; border-radius: 99px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-muted); font: inherit; font-size: 0.82rem; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.3s var(--ease-bounce), background 0.3s var(--ease-suave), color 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+.pr-chip:active { transform: scale(0.93); }
+.pr-chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--card-cor) 20%, var(--surface)); border-color: var(--card-cor); color: var(--text); font-weight: 600;
+  box-shadow: 0 6px 16px -8px var(--card-cor); animation: pr-pop 0.4s var(--ease-bounce);
+}
+@keyframes pr-pop { 40% { transform: scale(1.07); } }
+.pr-macros { display: block; margin-top: 0.2rem; font-family: var(--font-tech); font-size: 0.68rem; }
+@media (max-width: 360px) {
+  .pr-copo { width: 112px; height: 112px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-onda, .pr-prato.lendo .pr-scan, .pr-chip[aria-pressed="true"] { animation: none; }
+  .pr-nivel, .pr-chip { transition: none; }
+}

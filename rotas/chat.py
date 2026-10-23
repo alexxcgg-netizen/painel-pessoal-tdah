@@ -175,12 +175,12 @@ def chat_foto():
         confianca = dados.get("confianca") if isinstance(dados.get("confianca"), (int, float)) else None
         card = refeicoes.dados_card(conn, id_)
         tot, dia, meta = card["total"], card["dia"], card["meta"]
-        resposta = (
-            f"~{_fmt_kcal(tot['kcal'])} kcal no {card['refeicao']}: {round(tot['proteina_g'])} g de proteína, "
-            f"{round(tot['carbo_g'])} g de carbo e {round(tot['gordura_g'])} g de gordura."
-        )
+        # leva 22/10 (Refeicao pela proteina): so proteina, sem caloria nem culpa - os outros macros seguem
+        # gravados e aparecem pequenos no card
+        resposta = f"Esse {card['refeicao']} tem uns {round(tot['proteina_g'])} g de proteína."
         if meta:
-            resposta += f" Hoje vai em ~{_fmt_kcal(dia['kcal'])} de {_fmt_kcal(meta['kcal'])} kcal."
+            falta = max(0, meta["proteina_g"] - round(dia["proteina_g"]))
+            resposta += f" Falta {falta} g pra tua meta de hoje." if falta else " Meta de proteína de hoje batida."
         if dica:
             resposta += f" {dica}"
         efeito = {"entidade": "refeicao", "id": id_, "dica": dica, "confianca": confianca}

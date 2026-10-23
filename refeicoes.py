@@ -174,6 +174,73 @@ def dados_card(conn, id_: int) -> dict | None:
     }
 
 
+# ---- Refeicao pela proteina (leva 22/10, ideia 7 do prototipo aprovado) ---------------------------
+# O card da foto vira `proteina`: so proteina (sem caloria nem culpa), copo do dia contra a meta, "corrige" de um
+# toque e 3 sugestoes pra proxima refeicao com o que ele costuma comer (historico de fotos).
+SUGESTOES_PADRAO = (  # so quando ainda nao tem historico (TACO, porcao de gente)
+    ("Ovos (3 unidades)", 18),
+    ("Peito de frango 150 g", 48),
+    ("Iogurte natural + whey", 30),
+)
+PROTEINA_MIN_SUGESTAO = 10  # item com menos que isso nao "fecha" a meta
+
+
+def sugestoes(conn, hoje: date, n: int = 3, dias: int = 30) -> list[dict]:
+    """Os itens com proteina que mais aparecem nas fotos dos ultimos `dias`, com a mediana do que ele come."""
+    criar_tabela(conn)
+    ini = (hoje - timedelta(days=dias)).isoformat()
+    vistos: dict[str, list[float]] = {}
+    nomes: dict[str, str] = {}
+    for r in conn.execute("SELECT itens_json FROM refeicoes WHERE dia >= ? ORDER BY id DESC", (ini,)):
+        try:
+            itens = json.loads(r["itens_json"] or "[]")
+        except ValueError:
+            continue
+        for it in itens if isinstance(itens, list) else []:
+            if not isinstance(it, dict) or _num(it.get("proteina_g"), 300) < PROTEINA_MIN_SUGESTAO:
+                continue
+            chave = str(it.get("nome") or "").strip().lower()
+            if chave:
+                vistos.setdefault(chave, []).append(_num(it.get("proteina_g"), 300))
+                nomes.setdefault(chave, str(it["nome"]).strip()[:40])
+    ordem = sorted(vistos, key=lambda k: (-len(vistos[k]), -max(vistos[k])))
+    saida = []
+    for k in ordem[:n]:
+        v = sorted(vistos[k])
+        saida.append({"nome": nomes[k], "g": int(round(v[len(v) // 2]))})
+    for nome, g in SUGESTOES_PADRAO:
+        if len(saida) >= n:
+            break
+        if all(s["nome"].lower() != nome.lower() for s in saida):
+            saida.append({"nome": nome, "g": g})
+    return saida
+
+
+def corrigir_proteina(conn, id_: int, proteina_g) -> dict | None:
+    """"Corrige" do card: a foto errou, ele acerta o total de proteina da refeicao."""
+    r = ler(conn, id_)
+    if not r:
+        return None
+    conn.execute("UPDATE refeicoes SET proteina_g = ? WHERE id = ?", (_num(proteina_g, 300), id_))
+    conn.commit()
+    return dados_proteina(conn, id_)
+
+
+def dados_proteina(conn, id_: int) -> dict | None:
+    d = dados_card(conn, id_)
+    if not d:
+        return None
+    dia = date.fromisoformat(ler(conn, id_)["dia"])
+    d.update({
+        "id": id_,
+        "prato_g": round(d["total"]["proteina_g"]),
+        "dia_g": round(d["dia"]["proteina_g"]),
+        "meta_g": d["meta"]["proteina_g"] if d["meta"] else None,
+        "sugestoes": sugestoes(conn, dia),
+    })
+    return d
+
+
 def ultimos_dias(conn, hoje: date, dias: int = 7) -> list[dict]:
     criar_tabela(conn)
     ini = (hoje - timedelta(days=dias - 1)).isoformat()

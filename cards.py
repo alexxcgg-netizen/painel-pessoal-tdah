@@ -310,6 +310,7 @@ TIPOS_CARD = (
     "de_onde_parei",
     "foco",
     "combinados",
+    "proteina",
 )
 
 
@@ -1410,14 +1411,16 @@ def card_refeicao(conn, id_: int, ef: dict, actions_extra=None) -> dict | None:
     dia ate agora e a meta. Valores sao estimativa por foto - o front mostra com "~"."""
     import refeicoes
 
-    data = refeicoes.dados_card(conn, id_)
+    # leva 22/10 (Refeicao pela proteina): o card novo e `proteina` (copo do dia, corrige, sugestoes); o type
+    # `refeicao` continua no front so pra quem ja esta no historico.
+    data = refeicoes.dados_proteina(conn, id_)
     if not data:
         return None
     if ef.get("dica"):
         data["dica"] = str(ef["dica"])[:200]
     if isinstance(ef.get("confianca"), (int, float)):
         data["confianca"] = round(float(ef["confianca"]), 2)
-    return novo_card("refeicao", data, list(actions_extra or []))
+    return novo_card("proteina", data, list(actions_extra or []))
 
 
 # ---- cartoes vivos (2026-10-09) ----------------------------------------------

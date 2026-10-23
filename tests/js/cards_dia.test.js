@@ -136,3 +136,20 @@ test("combinados: pessoas com Cobrar/Responder, empresa so leitura sem total, es
   assert.match(html("combinados", { oculto: true }), /Oculto no modo visitante/);
   semFallback(html("combinados", {}));
 });
+
+test("proteina: so proteina, copo contra a meta, sugestoes e corrige", () => {
+  const d = { id: 5, refeicao: "almoço", hora: "12:30", prato_g: 38, dia_g: 92, meta_g: 140,
+    total: { kcal: 600, proteina_g: 38, carbo_g: 60, gordura_g: 12 },
+    sugestoes: [{ nome: "Frango <grelhado>", g: 45 }, { nome: "Ovos (3 unidades)", g: 18 }] };
+  const h = html("proteina", d);
+  semFallback(h);
+  assert.match(h, /Esse prato: ~<span class="pr-prato-g">38<\/span>&nbsp;g de proteína/);
+  assert.match(h, /<b class="pr-tot">92<\/b><small>de 140 g/);
+  assert.match(h, /<span class="pr-falta-g">48<\/span> g/);
+  assert.match(h, /Frango &lt;grelhado&gt; · 45 g/);
+  assert.match(h, /data-acao="pr_corrige"/);
+  assert.doesNotMatch(h.replace(/data-estado="[^"]*"/g, ""), /kcal/);
+  const sem = html("proteina", Object.assign({}, d, { meta_g: null }));
+  assert.match(sem, /me diz teu peso/);
+  semFallback(html("proteina", {}));
+});

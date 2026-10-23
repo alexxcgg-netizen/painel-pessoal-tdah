@@ -24,6 +24,7 @@
     carteira: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4"/><rect x="3.5" y="7.5" width="17" height="12" rx="3"/><circle cx="16" cy="13.5" r="1.2"/>',
     raio: '<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>',
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    garfo: '<path d="M7 3v8M4.5 3v5a2.5 2.5 0 0 0 5 0V3M7 11v10"/><path d="M17 21V3c-2.2 1.2-3.5 3.6-3.5 7v3H17"/>',
     gente: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"/>',
     alvo: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/>',
     volta: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/>',
@@ -741,7 +742,175 @@
     })();
   });
 
-  const api = { guia, heroDiaRuim, raizDiaRuim, raizAlerta, raizParei, raizFoco, raizCombinados };
+  // ================================================================ proteina (Refeicao pela proteina)
+  // Igual ao cRefeicao do prototipo: uma faixa de luz escaneia o prato, o copo enche com onda de verdade; cada opcao
+  // que ele escolhe sobe o nivel e os numeros contam. So proteina, sem caloria nem culpa. "Corrige" de um toque.
+  const GUIA_PR = ["Lendo o prato…", "Escolhe o que vai comer depois"];
+  const ONDA = "M-50 8 Q-37.5 2 -25 8 T0 8 T25 8 T50 8 T75 8 T100 8 T125 8 T150 8 V130 H-50Z";
+  function contar(el, de, ate, ms) {
+    if (!el) return;
+    if (reduz() || typeof raiz.requestAnimationFrame !== "function" || de === ate) {
+      el.textContent = String(Math.round(ate));
+      return;
+    }
+    const t0 = Date.now();
+    (function passo() {
+      const k = Math.min(1, (Date.now() - t0) / ms);
+      const e = 1 - Math.pow(1 - k, 3);
+      el.textContent = String(Math.round(de + (ate - de) * e));
+      if (k < 1) raiz.requestAnimationFrame(passo);
+    })();
+  }
+  const nivelCopo = (tot, meta) => (meta ? 96 - 92 * Math.min(1, tot / meta) : 96);
+  function raizProteina(e) {
+    const meta = Number(e.meta_g) || 0;
+    const extra = lista(e.sugestoes).reduce((s, x, i) => s + ((e.escolhas || []).includes(i) ? Number(x.g) || 0 : 0), 0);
+    const tot = (Number(e.dia_g) || 0) + extra;
+    const falta = Math.max(0, meta - tot);
+    const passo = e.passo || 0;
+    const fim = meta && tot >= meta ? "Meta batida. Pode esquecer isso hoje." : "";
+    const g1 = passo === 1 && extra && !fim ? `Falta ${falta} g. Escolhe mais uma ou deixa assim` : "";
+    let guiaHtml = guia(GUIA_PR, passo, fim);
+    if (g1) guiaHtml = guiaHtml.replace(esc(GUIA_PR[1]), esc(g1));
+    const corrigindo = !!e.corrigindo;
+    const estado = Object.assign({}, e);
+    return (
+      `<div class="cd-raiz pr-raiz" data-estado="${esc(JSON.stringify(estado))}">` + guiaHtml +
+      `<div class="pr-linha"><div class="pr-prato${e.lido ? "" : " lendo"}" aria-hidden="true"><span class="pr-scan"></span></div>` +
+      `<div class="pr-texto"><p class="cd-hero pr-hero">Esse prato: ~<span class="pr-prato-g">${e.lido ? esc(e.prato_g) : 0}</span>&nbsp;g de proteína</p>` +
+      (corrigindo
+        ? `<div class="pr-corrige"><button type="button" class="cd-cad" data-acao="pr_ajusta" data-d="-5" aria-label="Menos 5 g">−</button>` +
+          `<b class="pr-ajuste">${esc(e.prato_g)} g</b><button type="button" class="cd-cad" data-acao="pr_ajusta" data-d="5" aria-label="Mais 5 g">+</button>` +
+          `<button type="button" class="cd-mini" data-acao="pr_salva">Pronto</button></div>`
+        : `<p class="cd-nota">Estimativa pela foto. <button type="button" class="pr-link" data-acao="pr_corrige">Corrige se errei</button></p>`) +
+      `</div></div>` +
+      (meta
+        ? `<div class="pr-linha"><div class="pr-copo"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="pr-cp-${esc(e.id)}"><circle cx="50" cy="50" r="45"/></clipPath></defs>` +
+          `<circle class="pr-borda" cx="50" cy="50" r="47"/><g clip-path="url(#pr-cp-${esc(e.id)})"><g class="pr-nivel" style="transform:translateY(${e.lido ? nivelCopo(tot, meta) : 100}px)">` +
+          `<path class="pr-onda o2" d="${ONDA}"/><path class="pr-onda" d="${ONDA}" transform="translate(0 3)"/></g></g></svg>` +
+          `<div class="pr-meio"><b class="pr-tot">${e.lido ? tot : 0}</b><small>de ${esc(meta)} g</small></div></div>` +
+          `<div><p class="cd-rot">Falta pra meta</p><p class="pr-falta"><span class="pr-falta-g">${e.lido ? falta : meta}</span> g</p></div></div>`
+        : `<p class="cd-nota">Sem meta ainda: me diz teu peso no chat que eu calculo a meta de proteína.</p>`) +
+      `<div><p class="cd-rot">Pra próxima refeição</p><div class="cd-acoes pr-chips">` +
+      lista(e.sugestoes)
+        .map((s, i) => {
+          const on = (e.escolhas || []).includes(i);
+          return `<button type="button" class="pr-chip${passo === 1 && !on && !fim ? " cd-aqui" : ""}" data-acao="pr_escolhe" data-i="${i}" aria-pressed="${on}">${esc(s.nome)} · ${esc(s.g)} g</button>`;
+        })
+        .join("") +
+      `</div></div>` +
+      `<p class="cd-pe">Sem contar caloria: só proteína, que é o que a academia pede.` +
+      (e.total ? ` <span class="pr-macros">carbo ~${esc(Math.round(e.total.carbo_g || 0))} g · gordura ~${esc(Math.round(e.total.gordura_g || 0))} g</span>` : "") +
+      `</p></div>`
+    );
+  }
+  Cards.registrar("proteina", (data, card) => {
+    const d = data || {};
+    const quando = `${d.refeicao || "refeição"}${d.hora ? ` · ${d.hora}` : ""}`;
+    // card novo comeca "lendo" (o scan roda e os numeros contam no preparar); historico ja abre lido
+    return topo("garfo", "Proteína do dia", quando) + raizProteina(Object.assign({}, d, { lido: true, passo: 1 }));
+  });
+  function pintarProteina(cardEl, est, de) {
+    const r = cardEl.querySelector(".pr-raiz");
+    if (!r) return;
+    r.dataset.estado = JSON.stringify(est);
+    const meta = Number(est.meta_g) || 0;
+    const extra = lista(est.sugestoes).reduce((s, x, i) => s + ((est.escolhas || []).includes(i) ? Number(x.g) || 0 : 0), 0);
+    const tot = (Number(est.dia_g) || 0) + extra;
+    contar(r.querySelector(".pr-tot"), de.tot, tot, 1100);
+    contar(r.querySelector(".pr-falta-g"), Math.max(0, meta - de.tot), Math.max(0, meta - tot), 1100);
+    const nv = r.querySelector(".pr-nivel");
+    if (nv) nv.style.transform = `translateY(${nivelCopo(tot, meta)}px)`;
+    const fim = meta && tot >= meta;
+    const g = r.querySelector(".cd-guia");
+    if (g) {
+      const novo = document.createElement("div");
+      novo.innerHTML = fim ? guia(GUIA_PR, 1, "Meta batida. Pode esquecer isso hoje.") : guia(GUIA_PR, 1).replace(esc(GUIA_PR[1]), esc(extra ? `Falta ${Math.max(0, meta - tot)} g. Escolhe mais uma ou deixa assim` : GUIA_PR[1]));
+      g.replaceWith(novo.firstElementChild);
+    }
+    r.querySelectorAll(".pr-chip").forEach((b) => {
+      const on = (est.escolhas || []).includes(Number(b.dataset.i));
+      b.setAttribute("aria-pressed", String(on));
+      b.classList.toggle("cd-aqui", !on && !fim && !extra);
+    });
+  }
+  const totDe = (est) =>
+    (Number(est.dia_g) || 0) + lista(est.sugestoes).reduce((s, x, i) => s + ((est.escolhas || []).includes(i) ? Number(x.g) || 0 : 0), 0);
+  Cards.registrarAcao("pr_escolhe", (btn, cardEl) => {
+    const est = estadoAlerta(cardEl);
+    const de = { tot: totDe(est) };
+    const i = Number(btn.dataset.i);
+    est.escolhas = est.escolhas || [];
+    est.escolhas = est.escolhas.includes(i) ? est.escolhas.filter((x) => x !== i) : est.escolhas.concat(i);
+    pintarProteina(cardEl, est, de);
+  });
+  Cards.registrarAcao("pr_corrige", (btn, cardEl) => {
+    const est = estadoAlerta(cardEl);
+    est.corrigindo = true;
+    est.prato_original = est.prato_g;
+    trocarRaiz(cardEl, raizProteina(est));
+  });
+  Cards.registrarAcao("pr_ajusta", (btn, cardEl) => {
+    const est = estadoAlerta(cardEl);
+    est.prato_g = Math.max(0, Math.min(300, (Number(est.prato_g) || 0) + Number(btn.dataset.d)));
+    const r = cardEl.querySelector(".pr-raiz");
+    if (r) r.dataset.estado = JSON.stringify(est);
+    const b = cardEl.querySelector(".pr-ajuste");
+    if (b) b.textContent = `${est.prato_g} g`;
+  });
+  Cards.registrarAcao("pr_salva", async (btn, cardEl, deps) => {
+    const est = estadoAlerta(cardEl);
+    btn.disabled = true;
+    const r = await postar(deps, `/api/refeicoes/${encodeURIComponent(est.id)}/proteina`, { proteina_g: Number(est.prato_g) || 0 });
+    btn.disabled = false;
+    const antes = totDe(est);
+    if (r && r.ok) {
+      est.prato_g = r.prato_g;
+      est.dia_g = r.dia_g;
+    } else {
+      est.prato_g = est.prato_original; // falhou: volta pro que estava
+    }
+    est.corrigindo = false;
+    trocarRaiz(cardEl, raizProteina(est));
+    const meta = Number(est.meta_g) || 0;
+    contar(cardEl.querySelector(".pr-tot"), antes, totDe(est), 900);
+    contar(cardEl.querySelector(".pr-falta-g"), Math.max(0, meta - antes), Math.max(0, meta - totDe(est)), 900);
+    if (typeof deps.aoMudar === "function") deps.aoMudar();
+  });
+  // card novo: o prato e escaneado (1,4 s), depois o numero do prato conta e o copo enche
+  if (typeof document !== "undefined" && typeof MutationObserver === "function") {
+    new MutationObserver(() => {
+      document.querySelectorAll(".card-novo .pr-raiz:not([data-lendo])").forEach((r) => {
+        r.dataset.lendo = "1";
+        const cardEl = r.closest(".card-contrato");
+        const est = (() => {
+          try {
+            return JSON.parse(r.dataset.estado || "{}");
+          } catch (x) {
+            return {};
+          }
+        })();
+        if (!cardEl || reduz()) return;
+        const leitura = Object.assign({}, est, { lido: false, passo: 0 });
+        r.outerHTML = raizProteina(leitura).replace('class="cd-raiz pr-raiz"', 'class="cd-raiz pr-raiz" data-lendo="1"');
+        setTimeout(() => {
+          const r2 = cardEl.querySelector(".pr-raiz");
+          if (!r2 || !r2.isConnected) return;
+          const pronto = Object.assign({}, est, { lido: true, passo: 1 });
+          const t = document.createElement("div");
+          t.innerHTML = raizProteina(Object.assign({}, pronto, { dia_g: 0, escolhas: [] })).replace('class="cd-raiz pr-raiz"', 'class="cd-raiz pr-raiz" data-lendo="1"');
+          r2.replaceWith(t.firstElementChild);
+          const r3 = cardEl.querySelector(".pr-raiz");
+          contar(r3.querySelector(".pr-prato-g"), 0, Number(est.prato_g) || 0, 800);
+          // copo sai do zero e sobe ate o dia (transicao do .pr-nivel)
+          setTimeout(() => pintarProteina(cardEl, pronto, { tot: 0 }), 40);
+        }, 1400);
+      });
+      // card-novo entra como classe depois do card estar no DOM (CardsPremium.animar): escuta classe tambem
+    }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+  }
+
+  const api = { guia, heroDiaRuim, raizDiaRuim, raizAlerta, raizParei, raizFoco, raizCombinados, raizProteina };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   raiz.CardsDia = api;
 })(typeof window !== "undefined" ? window : globalThis);

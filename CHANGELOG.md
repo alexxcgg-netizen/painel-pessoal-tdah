@@ -206,6 +206,14 @@ Pedido do Alex: "o que falta pra deixar o painel mais esperto?" → "faz todos".
   contas atrasadas da API da construtora (`_buscar_contas_a_vencer_construtora`, só leitura), como chegaram e SEM
   total (somar seria refazer conta da empresa); fora do ar → aviso, nunca número inventado. Visitante não vê nada
   disso. Testes em `tests/test_combinados.py` e `tests/js/cards_dia.test.js`.
+- **Refeição pela proteína (SW v95)**: a foto do prato agora responde com o card `proteina`, igual ao protótipo. O
+  prato é escaneado, o número conta, e o copo com onda enche até o total de proteína do dia contra a meta do perfil.
+  Tem "Corrige se errei" (−/+ 5 g → `POST /api/refeicoes/<id>/proteina`) e 3 sugestões pra próxima refeição, que
+  saem do que ele mais come nas fotos dos últimos 30 dias (mediana; completa com ovos/frango/iogurte quando não há
+  histórico); escolher uma sobe o copo. O texto da resposta é só proteína ("Esse almoço tem uns 39 g... Falta 73
+  g"); carbo e gordura ficam numa linha pequena e kcal some da tela (continua gravado). Sem peso no perfil → pede o
+  peso em vez de inventar meta. O type antigo `refeicao` continua no front pros cards do histórico. Testes em
+  `tests/test_proteina.py`, `tests/test_foto_prato_feriados_voz.py` e `tests/js/cards_dia.test.js`.
 
 ## 2026-10-21 - Carga × sono no treino (SW v92)
 
