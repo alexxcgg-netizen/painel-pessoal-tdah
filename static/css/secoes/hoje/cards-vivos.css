@@ -1088,3 +1088,53 @@
   .card-novo .tv-barras-frase, .card-novo .tv-barras-nota, .card-novo .tv-barras-leg, .tv-sono-chegou { animation: none; }
   .tv-sono-chip { transition: none; }
 }
+
+/* ---- checkin: "como tu ta hoje?" (leva 22/10) - controle de 3 com pilula em mola, carinha do humor ---- */
+.card-contrato-checkin { --card-cor: #9fdcb0; }
+.ck-topo { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.85rem; }
+.ck-topo > div { min-width: 0; }
+.ck-titulo { margin: 0; font-size: 1.02rem; font-weight: 600; color: var(--text); }
+.ck-frase { margin: 0.15rem 0 0; font-size: 0.8rem; line-height: 1.4; color: var(--text-muted); }
+.ck-cara { flex: none; width: 46px; height: 46px; overflow: visible; }
+.ck-cara-fundo { fill: color-mix(in srgb, var(--card-cor) 12%, transparent); stroke: color-mix(in srgb, var(--card-cor) 55%, transparent); stroke-width: 1.5; }
+.ck-olho { fill: var(--card-cor); transform-box: fill-box; transform-origin: center; animation: ck-pisca 5.5s var(--ease-suave) 2s infinite; }
+.ck-boca {
+  fill: none; stroke: var(--card-cor); stroke-width: 2.6; stroke-linecap: round;
+  transform-box: fill-box; transform-origin: center; transition: transform 0.6s var(--ease-bounce), stroke 0.4s var(--ease-suave);
+}
+.ck-topo[data-humor="0"] .ck-boca, .ck-topo[data-humor="2"] .ck-boca { transform: scaleY(0.12); }
+.ck-topo[data-humor="1"] .ck-boca { transform: translateY(3px) scaleY(-0.8); stroke: var(--text-muted); }
+.ck-topo[data-humor="0"] .ck-olho { fill: var(--text-muted); }
+.ck-linhas { display: grid; gap: 0.5rem; }
+.ck-linha { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); align-items: center; gap: 0.6rem; }
+.ck-nome { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
+.ck-opcoes {
+  position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 3px;
+  border-radius: 14px; background: color-mix(in srgb, var(--text) 3%, transparent); border: 1px solid var(--border);
+}
+.ck-pilula {
+  position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 3); border-radius: 11px;
+  background: color-mix(in srgb, var(--card-cor) 16%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--card-cor) 45%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--card-cor) 22%, transparent), 0 2px 8px rgba(0, 0, 0, 0.35);
+  transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 0.5s var(--ease-bounce), opacity 0.3s var(--ease-suave), scale 0.45s var(--ease-bounce);
+}
+.ck-opcoes.vazio .ck-pilula { opacity: 0; scale: 0.85; }
+.ck-op {
+  position: relative; z-index: 1; min-width: 0; min-height: 44px; border: 0; border-radius: 11px; background: transparent;
+  color: var(--text-muted); font: inherit; font-size: 0.82rem; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: color 0.3s var(--ease-suave), transform 0.25s var(--ease-bounce);
+}
+.ck-op:active { transform: scale(0.96); }
+.ck-op:focus-visible { outline: 2px solid var(--card-cor); outline-offset: -2px; }
+.ck-op.atual { color: var(--text); }
+.card-novo .ck-cara { animation: ck-cara-entra 0.6s var(--ease-bounce) var(--chegada, 0ms) both; }
+.card-novo .ck-linha { animation: tv-fim-entra 0.5s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.2s + var(--k, 0) * 80ms) both; }
+.card-novo .ck-linha:nth-child(2) { --k: 1; }
+.card-novo .ck-linha:nth-child(3) { --k: 2; }
+@keyframes ck-cara-entra { from { opacity: 0; transform: scale(0.6) rotate(-12deg); } }
+@keyframes ck-pisca { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+@media (prefers-reduced-motion: reduce) {
+  .ck-olho, .card-novo .ck-cara, .card-novo .ck-linha { animation: none; }
+  .ck-boca, .ck-pilula, .ck-op { transition: none; }
+}

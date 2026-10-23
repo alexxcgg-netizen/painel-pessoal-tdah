@@ -35,7 +35,9 @@
 // Nubank/manual, botao "Sincronizar Nubank").
 // v91: animacao 3D do exercicio da vez no treino ao vivo (exercicio-3d.js, 43 exercicios).
 // v92: carga x sono no treino (barras no card de troca + "Dormiu quanto?" no treino ao vivo).
-const CACHE_NAME = "painel-pessoal-v92";
+// v93: card "como tu ta hoje?" (check-in no chat, leva de 22/10).
+// v94: botoes "Feito" / "Adiar 1 h" no aviso de uma tarefa (+ aviso de teste que diz se o iPhone mostrou).
+const CACHE_NAME = "painel-pessoal-v95";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -85,6 +87,7 @@ const ASSETS = [
   "/static/css/secoes/hoje/hiperfoco.css",
   "/static/css/secoes/hoje/chat.css",
   "/static/css/secoes/hoje/cards-vivos.css",
+  "/static/css/secoes/hoje/cards-dia.css",
   "/static/css/secoes/hoje/cards-premium.css",
   "/static/css/secoes/hoje/cards-aviacao.css",
   "/static/css/secoes/hoje/cards-saidas.css",
@@ -149,6 +152,7 @@ const ASSETS = [
   "/static/js/exercicio-3d.js",
   "/static/js/cards-tipos.js",
   "/static/js/cards-vivos.js",
+  "/static/js/cards-dia.js",
   "/static/js/cards-premium.js",
   "/static/js/cards-aviacao.js",
   "/static/js/cards-saidas.js",
@@ -297,15 +301,54 @@ self.addEventListener("push", (event) => {
     opcoes.tag = String(dados.tag);
     opcoes.renotify = true;
   }
+  // leva 22/10: "Feito" / "Adiar 1 h" no proprio aviso (o iPhone pode nao mostrar - ver /api/push/acao)
+  if (Array.isArray(dados.acoes) && dados.acoes.length) {
+    opcoes.actions = dados.acoes
+      .slice(0, 2)
+      .filter((a) => a && typeof a.action === "string" && typeof a.title === "string")
+      .map((a) => ({ action: a.action, title: a.title }));
+  }
   event.waitUntil(self.registration.showNotification(titulo, opcoes));
 });
 
 // Toque no aviso: abre na aba certa. App ja aberto -> traz pra frente e troca de aba
 // (postMessage, sem recarregar); fechado -> abre direto no ?aba=.
+function _postarJson(url, corpo) {
+  return fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(corpo),
+  });
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || "/";
   const tag = (event.notification.data && event.notification.data.tag) || "";
+  // botao do proprio aviso (leva 22/10): resolve sem abrir o app; deu errado -> abre a tarefa
+  if (tag && (event.action === "feito" || event.action === "adiar")) {
+    event.waitUntil(
+      _postarJson("/api/push/acao", { tag, acao: event.action })
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+        .then((r) => {
+          if (r.teste) return null;
+          const titulo = r.titulo ? String(r.titulo).slice(0, 80) : "Tarefa";
+          const corpo = event.action === "feito" ? "Marquei como feita." : r.hora ? `Passei pras ${r.hora}.` : "Passei pra amanhã.";
+          return self.registration.showNotification(titulo, {
+            body: corpo,
+            icon: "/static/icons/icon-192.png",
+            badge: "/static/icons/icon-192.png",
+            tag: `${tag}-ok`,
+            silent: true,
+            data: { url: "/?aba=tarefas", tag: "" },
+          });
+        })
+        .catch(() => clients.openWindow(url))
+    );
+    return;
+  }
+  if (tag === "teste-0") _postarJson("/api/push/acao", { tag, acao: "toque" }).catch(() => {});
   // aviso importante insiste ate ser tocado (notificacoes.INSISTENCIA): avisa que viu
   const viu = tag
     ? fetch("/api/push/aberto", {

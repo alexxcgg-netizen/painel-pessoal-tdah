@@ -266,7 +266,7 @@ class AvisoHoraDeSairTestCase(_BancoLimpo):
                 return agora
 
         with patch.object(push_client, "configurado", return_value=True), \
-                patch.object(push_client, "enviar", side_effect=lambda s, t, c, url="", tag="": enviados.append((t, c)) or True), \
+                patch.object(push_client, "enviar", side_effect=lambda s, t, c, url="", tag="", **_: enviados.append((t, c)) or True), \
                 patch("telegram_bot.configurado", return_value=False), \
                 patch("app._buscar_contas_a_vencer_construtora", return_value=None), \
                 patch("app._eventos_de_hoje_com_seguranca", return_value=[]), \

@@ -349,7 +349,13 @@ function _avisarQueViu(forcar = false) {
     const agora = Date.now();
     if (!forcar && agora - _vistoUltimo < 20000) return;
     _vistoUltimo = agora;
-    fetch("/api/push/visto", { method: "POST", credentials: "same-origin", keepalive: true }).catch(() => {});
+    // De onde parei (leva 22/10): voltou depois de 2 h com tarefa pela metade -> o servidor deixa o card no chat
+    fetch("/api/push/visto", { method: "POST", credentials: "same-origin", keepalive: true })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (j && j.de_onde_parei && typeof loadChatHistorico === "function") loadChatHistorico();
+      })
+      .catch(() => {});
   } catch {}
 }
 document.addEventListener("visibilitychange", () => _avisarQueViu());

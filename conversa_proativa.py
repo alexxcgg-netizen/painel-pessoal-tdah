@@ -20,6 +20,8 @@ from datetime import date, datetime, time, timedelta
 
 import cards
 import db
+import dia_ruim
+import foco
 import vida
 
 DIAS_CURTOS = ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
@@ -163,11 +165,16 @@ def adiar_para_amanha(conn, ids, hoje: date) -> dict:
         return {"movidas": 0, "para": (hoje + timedelta(days=1)).isoformat()}
     amanha = (hoje + timedelta(days=1)).isoformat()
     marcas = ",".join("?" for _ in limpos)
+    # leva 22/10: inegociavel (cadeado) nunca e empurrada; todo adiamento fica registrado (dia_ruim)
+    alvo = [r["id"] for r in conn.execute(
+        f"SELECT id FROM tasks WHERE id IN ({marcas}) AND completed_at IS NULL AND {_SO_TAREFA_REAL} "
+        "AND due_date IS NOT NULL AND due_date != '' AND due_date <= ? AND inegociavel = 0",
+        [*limpos, hoje.isoformat()],
+    ).fetchall()]
     cur = conn.execute(
-        f"UPDATE tasks SET due_date = ? WHERE id IN ({marcas}) AND completed_at IS NULL AND {_SO_TAREFA_REAL} "
-        "AND due_date IS NOT NULL AND due_date != '' AND due_date <= ?",
-        [amanha, *limpos, hoje.isoformat()],
+        f"UPDATE tasks SET due_date = ? WHERE id IN ({','.join('?' for _ in alvo) or 'NULL'})", [amanha, *alvo]
     )
+    dia_ruim.registrar_adiamento(conn, alvo, hoje.isoformat(), amanha)
     conn.commit()
     return {"movidas": cur.rowcount, "para": amanha}
 
@@ -624,6 +631,51 @@ def perguntar_horas_agora(conn, voo_id: int, agora: datetime) -> bool:
     return bool(card)
 
 
+# ------------------------------------------- como tu ta hoje (leva 22/10)
+JANELA_COMO_ESTA = (time(7, 0), time(11, 0))
+FRASES_COMO_ESTA = (
+    "Bom dia! Como tu tá hoje? Um toque em cada e eu ajusto o dia.",
+    "E aí, como acordou? Me diz aqui embaixo, é um toque só.",
+    "Bom dia. Antes de tudo: como tá a energia, o sono e o humor hoje?",
+)
+
+
+def perguntar_como_esta(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """De manha, uma vez por dia: o card do check-in no chat (o Alex nao achava onde dizer como
+    esta). So pergunta se ele ainda nao respondeu nada hoje (pelo card, pela tela ou pelo chat)."""
+    if not _na_janela(agora, JANELA_COMO_ESTA) or db.ja_notificou_hoje(conn, "como_esta_chat"):
+        return []
+    atual = db.get_checkin(conn, agora.date().isoformat()) or {}
+    if any(atual.get(c) for c in vida.CAMPOS_CHECKIN):
+        db.marcar_notificado(conn, "como_esta_chat")
+        conn.commit()
+        return []
+    texto = FRASES_COMO_ESTA[agora.toordinal() % len(FRASES_COMO_ESTA)]
+    publicar(conn, "como_esta_chat", texto, [cards.card_checkin(conn, agora.date())])
+    return [("como_esta", "Como tu tá hoje?", "Um toque no chat: energia, sono e humor.")]
+
+
+# ------------------------------------- dia que vai dar errado (leva 22/10)
+JANELA_ALERTA_DIA = (time(7, 0), time(10, 30))
+MINIMO_SINAIS = 2
+
+
+def alerta_do_dia(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """Manha, 1x por dia, nunca a noite: 2 sinais (sono curto, tarefas empurradas, gasto de ontem fora
+    do padrao) = card pra travar o que nao pode falhar e aliviar o resto (dia_ruim)."""
+    if not _na_janela(agora, JANELA_ALERTA_DIA) or db.ja_notificou_hoje(conn, "alerta_dia_chat"):
+        return []
+    hoje = agora.date()
+    if dia_ruim.ativo(conn, hoje):  # ja aliviou o dia: nao precisa avisar
+        return []
+    sinais = dia_ruim.sinais_do_dia(conn, hoje)
+    if len(sinais) < MINIMO_SINAIS or not dia_ruim.tarefas_do_dia(conn, hoje):
+        return []
+    texto = "Hoje tem sinal de dia difícil. Trava o que não pode falhar e eu alivio o resto."
+    publicar(conn, "alerta_dia_chat", texto, [dia_ruim.card_alerta(conn, hoje, sinais)])
+    return [("alerta_dia", "Hoje pede mais cuidado", f"{sinais[0]['texto']} e mais {len(sinais) - 1}. Abre pra ver.")]
+
+
 def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
     """Chamado a cada tick do agendador. Publica no chat o que estiver na hora e
     devolve [(tipo_do_aviso, titulo, corpo)] pro push. Nunca levanta."""
@@ -662,7 +714,8 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
         import logging
         logging.getLogger(__name__).exception("conversa proativa falhou")
     # 4a leva: cada automacao isolada - uma que quebra nao derruba as outras
-    for passo in (vespera_do_voo, manha_do_voo, documentos_vencendo, avisar_compras, assinaturas_que_subiram):
+    for passo in (vespera_do_voo, manha_do_voo, documentos_vencendo, avisar_compras, assinaturas_que_subiram,
+                  perguntar_como_esta, alerta_do_dia, foco.aviso_do_meio):
         try:
             saida.extend(passo(conn, agora))
         except Exception:

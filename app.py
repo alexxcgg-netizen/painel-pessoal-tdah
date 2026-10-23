@@ -39,6 +39,8 @@ import auth
 import backup_diario
 import briefing_voo
 import conversa_proativa
+import dia_ruim
+import foco
 import estudo_quiz
 import caldav_client
 import calculos
@@ -2025,6 +2027,13 @@ def _contexto_chat(conn) -> str:
     if comida_hoje:
         linhas.append(comida_hoje)
     linhas.extend(diario.linhas_contexto(conn, agora.date()))
+    if dia_ruim.ativo(conn, agora.date()):
+        linhas.append("Hoje é DIA RUIM (ele apertou o botão): responda mais curto e calmo, sem cobrar, sem lista longa. "
+                      "O que foi pra amanhã ele traz de volta pelo card.")
+    empacadas = dia_ruim.empurradas_demais(conn)
+    if empacadas:
+        linhas.append("Empurradas 3+ vezes: " + "; ".join(empacadas) + ". Se ele falar de uma delas, oferece o "
+                      "parceiro_foco com um primeiro passo de 2 min (sem cobrar).")
     quiz = estudo_quiz.linha_contexto(conn, agora.date())
     if quiz:
         linhas.append(quiz)
@@ -2847,22 +2856,31 @@ def _processar_mensagem_chat(
         periodo = entrada.get("periodo") or "dia_todo"
         faixas = {"manha": ("00:00", "11:59"), "tarde": ("12:00", "17:59"), "noite": ("18:00", "23:59")}
         rows = conn.execute(
-            "SELECT id, title, hora, due_date FROM tasks WHERE completed_at IS NULL AND due_date = ? "
+            "SELECT id, title, hora, due_date, inegociavel FROM tasks WHERE completed_at IS NULL AND due_date = ? "
             "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL) AND recorrente_origem_id IS NULL ORDER BY hora, id",
             (de,),
         ).fetchall()
         if periodo in faixas:
             a, b = faixas[periodo]
             rows = [r for r in rows if r["hora"] and a <= r["hora"] <= b]
+        # leva 22/10: inegociavel (cadeado) nunca e empurrada junto - pra mexer nela, ajustar_tarefa
+        travadas = [r["title"] for r in rows if r["inegociavel"]]
+        rows = [r for r in rows if not r["inegociavel"]]
         if not rows:
-            return {"erro": "nenhuma tarefa pendente nesse dia/periodo", "dia": de, "periodo": periodo}
+            return {"erro": "nenhuma tarefa pendente nesse dia/periodo", "dia": de, "periodo": periodo,
+                    "ficaram_travadas": travadas}
         efeitos = []
         for r in rows[:30]:
             ef = _editar("tasks", r["id"], {"due_date": para}, "Tarefa", r["title"])
             if ef:
                 efeitos.append(ef)
+        if para > de:
+            dia_ruim.registrar_adiamento(conn, [r["id"] for r in rows[:30]], de, para)
         conn.commit()
-        return {"ok": True, "movidas": [r["title"] for r in rows[:30]], "para": para, "_efeito": efeitos}
+        resp = {"ok": True, "movidas": [r["title"] for r in rows[:30]], "para": para, "_efeito": efeitos}
+        if travadas:
+            resp["ficaram_travadas"] = travadas
+        return resp
 
     def exec_ajustar_lembrete(entrada):
         recusa = _recusa_visitante()
@@ -3615,7 +3633,52 @@ def _processar_mensagem_chat(
         if not campos:
             return {"erro": "nada pra registrar - use 'ruim', 'ok' ou 'bom'"}
         salvar_checkin(conn, date.today().isoformat(), campos)
-        return {"ok": True}
+        return {"ok": True, "_efeito": {"entidade": "checkin", "consulta": True}}
+
+    def exec_dia_ruim(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        hoje = _agora_brasilia().date()
+        if entrada.get("desfazer"):
+            r = dia_ruim.desfazer(conn, hoje)
+        else:
+            r = dia_ruim.aliviar(conn, hoje)
+        return {"ok": True, "inegociavel": [t["titulo"] for t in r["inegociavel"]], "fica": [t["titulo"] for t in r["fica"]],
+                "versao_curta": [t["titulo"] for t in r["reduzido"]],
+                "amanha": [t["titulo"] for t in r["amanha"]], "_efeito": {"entidade": "dia_ruim", "consulta": True}}
+
+    def exec_travar_tarefa(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        tarefa, erro = _achar("tasks", "completed_at IS NULL", (), entrada.get("titulo"), "title")
+        if erro:
+            return erro
+        valor = entrada.get("travar") is not False
+        dia_ruim.travar(conn, tarefa["id"], valor)
+        return {"ok": True, "titulo": tarefa["title"], "inegociavel": valor,
+                "_efeito": {"entidade": "tarefa", "id": tarefa["id"], "consulta": True}}
+
+    def exec_parceiro_foco(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        titulo = str(entrada.get("titulo") or "").strip()
+        passo = str(entrada.get("primeiro_passo") or "").strip()
+        if not titulo or not passo:
+            return {"erro": "faltou a tarefa ou o primeiro passo"}
+        tarefa, _ = _achar("tasks", "completed_at IS NULL", (), titulo, "title")
+        if tarefa:
+            task_id, titulo = tarefa["id"], tarefa["title"]
+        else:
+            task_id = conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)",
+                                   (titulo[:140], _agora_brasilia().date().isoformat())).lastrowid
+            conn.commit()
+        minutos = entrada.get("minutos") if entrada.get("minutos") in foco.MINUTOS_OK else foco.PADRAO_MIN
+        foco.abrir(conn, datetime.now(), titulo, passo, entrada.get("passo_menor"), minutos, task_id)
+        return {"ok": True, "titulo": titulo, "minutos": minutos, "tarefa_nova": not tarefa,
+                "_efeito": {"entidade": "foco", "consulta": True}}
 
     def exec_iniciar_hiperfoco(entrada):
         minutos = entrada.get("minutos") or 50
@@ -4270,6 +4333,9 @@ def _processar_mensagem_chat(
         "registrar_medida": exec_registrar_medida,
         "registrar_checkin": exec_registrar_checkin,
         "iniciar_hiperfoco": exec_iniciar_hiperfoco,
+        "dia_ruim": exec_dia_ruim,
+        "travar_tarefa": exec_travar_tarefa,
+        "parceiro_foco": exec_parceiro_foco,
         "registrar_conversa": exec_registrar_conversa,
         "cadastrar_pessoa": exec_cadastrar_pessoa,
         "registrar_conta_pessoal": exec_registrar_conta_pessoal,
@@ -4991,7 +5057,7 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
             "UPDATE configuracoes SET valor = '' WHERE chave = 'hiperfoco_ate' AND valor = ?", (ate,)
         )
         conn.commit()
-    if not vida.hiperfoco_ativo(obter_configuracao(conn, "hiperfoco_ate"), agora):
+    if not vida.hiperfoco_ativo(obter_configuracao(conn, "hiperfoco_ate"), agora) and not foco.segurando_avisos(conn, agora):
         avisos.extend(_liberar_avisos_adiados(conn, hoje))
 
     for conta in _contas_pessoais_com_status(conn, hoje):
@@ -5299,6 +5365,7 @@ _ABA_DO_AVISO = {
     "lembrete": "tarefas", "espera": "tarefas", "conta_a_vencer": "construtora", "orcamento": "gastos",
     "gasto": "gastos", "cobranca": "gastos", "assinatura": "gastos", "cartao": "gastos", "renda": "gastos",
     "voo": "aviacao", "pre_voo": "aviacao", "currency": "aviacao", "meta": "painel", "habito": "vida",
+    "foco": "assistente",
 }
 
 
@@ -5326,7 +5393,8 @@ def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool
         titulo, corpo = notificacoes.texto_repeticao(tipo, a["titulo"], a["corpo"], int(a["tentativas"]))
         for s in subs:
             if not push_client.enviar(json.loads(s["subscription_json"]), titulo, corpo,
-                                      url=_url_do_aviso(tipo, a["tag"]), tag=a["tag"]):
+                                      url=_url_do_aviso(tipo, a["tag"]), tag=a["tag"],
+                                      **_kw_acoes(tipo, a["tag"])):
                 delete_push_subscription(conn, s["endpoint"])
         db.registrar_repeticao_aviso(conn, a["id"])
         enviados += 1
@@ -5334,7 +5402,22 @@ def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool
 
 
 # aviso de UMA tarefa: o toque abre a propria tarefa (rola ate ela e abre concluir / pra amanha)
-_AVISOS_DE_UMA_TAREFA = {"tarefa_horario", "tarefa_preparo", "tarefa_horario_passou", "tarefa_parada", "se_arrumar", "hora_de_sair"}
+_AVISOS_DE_UMA_TAREFA = {"tarefa_horario", "tarefa_preparo", "tarefa_horario_passou", "tarefa_parada", "se_arrumar", "hora_de_sair",
+                         "tarefa_inegociavel"}
+# Leva 22/10: "Feito" / "Adiar 1 h" no proprio aviso (marcar sem abrir o app). O iPhone pode nao
+# mostrar - o teste em Configuracoes diz se mostrou; sem botao, o toque abre a tarefa (focarTarefaDoAviso).
+ACOES_AVISO_TAREFA = [{"action": "feito", "title": "Feito"}, {"action": "adiar", "title": "Adiar 1 h"}]
+
+
+def _acoes_do_aviso(tipo: str, tag: str = "") -> list[dict] | None:
+    ref = tag.rsplit("-", 1)[-1] if tag else ""
+    return ACOES_AVISO_TAREFA if tipo in _AVISOS_DE_UMA_TAREFA and ref.isdigit() and int(ref) > 0 else None
+
+
+def _kw_acoes(tipo: str, tag: str = "") -> dict:
+    """`acoes=` so quando o aviso tem botao (aviso sem botao chama enviar() igual antes)."""
+    acoes = _acoes_do_aviso(tipo, tag)
+    return {"acoes": acoes} if acoes else {}
 
 
 def _url_do_aviso(tipo: str, tag: str = "") -> str:
@@ -5587,6 +5670,11 @@ def verificar_e_notificar():
             else:
                 avisos.append(("tarefa_horario", tarefa_id, "Tá na hora", msg))
 
+    # leva 22/10: inegociavel (cadeado) ganha mais um aviso, 5 min antes - passa ate no hiperfoco
+    for tarefa_id, msg in dia_ruim.inegociaveis_chegando(conn, datetime.now()):
+        if not ja_notificou_hoje(conn, "tarefa_inegociavel", tarefa_id):
+            avisos.append(("tarefa_inegociavel", tarefa_id, "Não pode falhar", msg))
+
     # Compromisso do calendario do iCloud chegando (so origem="calendario" -
     # tarefa com horario ja tem o aviso acima, senao duplicaria). Pedido
     # explicito do Alex: "se eu marquei alguma coisa na agenda, daqui 10
@@ -5718,7 +5806,9 @@ def verificar_e_notificar():
         obter_configuracao(conn, "silencio_fim") or "07:00",
     )
 
-    em_hiperfoco = vida.hiperfoco_ativo(obter_configuracao(conn, "hiperfoco_ate"), datetime.now())
+    # parceiro de foco (leva 22/10): relogio correndo segura os avisos igual ao hiperfoco
+    em_hiperfoco = (vida.hiperfoco_ativo(obter_configuracao(conn, "hiperfoco_ate"), datetime.now())
+                    or foco.segurando_avisos(conn, datetime.now()))
     em_viagem = viagem.modo_viagem_ativo(_modo_viagem_estado(conn), date.today())
 
     # Fase 5 (US-C4): notificacao agrupada - desligada por padrao (ver
@@ -5731,7 +5821,9 @@ def verificar_e_notificar():
         for s in subs:
             sub_dict = json.loads(s["subscription_json"])
             if tipo:
-                ok = push_client.enviar(sub_dict, titulo, corpo, url=_url_do_aviso(tipo, f"{tipo}-{ref_id}"), tag=f"{tipo}-{ref_id}")
+                tag = f"{tipo}-{ref_id}"
+                ok = push_client.enviar(sub_dict, titulo, corpo, url=_url_do_aviso(tipo, tag), tag=tag,
+                                        **_kw_acoes(tipo, tag))
             else:
                 ok = push_client.enviar(sub_dict, titulo, corpo)
             if not ok:

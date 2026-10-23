@@ -622,3 +622,12 @@ regra 1) com carimbo; assinatura virou etiqueta de preço remarcada; projeção 
 ganhou despertador, hora de deitar (8 h de sono) e mochila que fecha. **Aprovado pelo Alex
 (2026-10-15)**: as 8 h de sono, o impacto anual da assinatura (×12, cobrança mensal) e compras no
 cupom.
+
+### O que já está no app (leva de 22/10 - `docs/briefings/2026-10-22-leva-ideias-v3.md`)
+| Cena | Onde | Dado |
+| :--- | :--- | :--- |
+| Como tu tá hoje | type novo `checkin` (`cards.card_checkin`, `static/js/cards-vivos.js`, cor `#9fdcb0`) | `checkins` (energia/sono/humor 1-3). Controle de 3 com pílula em mola por linha; carinha segue o humor. `data-acao="checkin_marcar"` → `POST /api/checkin`. Sai de manhã sozinho (`conversa_proativa.perguntar_como_esta`) e pela ferramenta `registrar_checkin`. Visitante: valores saem. |
+| Dia ruim | type novo `dia_ruim` (`dia_ruim.card_dia_ruim`, `static/js/cards-dia.js`, cor `#aab4f6`) | Estado de `dia_ruim.estado`: inegociável (fica igual), reduzido (versão curta), fica hoje, empurrado. Controle Como estava / Aliviado com pílula; `dr_modo` / `dr_empurrar` / `dr_trazer` → `/api/dia-ruim*`; troca de grupo com FLIP. |
+| Hoje pede mais cuidado | type novo `alerta_dia` (`dia_ruim.card_alerta`, cor `#e8cf8a`, perigo `#ff9f8f`) | Sinais (sono, empurradas, gasto atípico, energia) em chips um a um; cadeado com estalo por tarefa (`cd_travar` → `/api/tasks/<id>/inegociavel`); Aliviar o resto / Tô bem, segue. Linha-guia com pontos de passo. Visitante: sinais saem. |
+| De onde parei | type novo `de_onde_parei` (`de_onde_parei.card`, `static/js/cards-dia.js`, cor `#9fdcb0`) | Tarefa com passos pela metade ao voltar pro app depois de 2 h. Barra que enche (`.pa-trilho`), caixinha que respira no próximo passo, risco que corre; `pa_marcar` (otimista) / `pa_continuar` / `pa_deixar` / `pa_concluir`. |
+| Foco (Parceiro de foco) | type novo `foco` (`foco.card`, `static/js/cards-dia.js`, cor `#f0a58f`) | Sessão de `foco.estado`. Anel 132 px com marcas, ponta que brilha e relógio de 1 s (um por página); no meio, 3 chips; fim com estouro de 2 anéis + check que se desenha. `fo_comecar` / `fo_pausar` / `fo_resp` → `/api/foco/*`. Card antigo sincroniza com `GET /api/foco` (sessão fechada = "Sessão fechada."). |

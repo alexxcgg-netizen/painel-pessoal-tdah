@@ -229,6 +229,8 @@ CAMPOS_SENSIVEIS = {
     "saude_treino": ("sessoes", "semana"),
     "treino_agora": ("sono_horas",),
     "agua": ("copos",),
+    "checkin": ("energia", "sono", "humor"),
+    "alerta_dia": ("sinais",),
     "gastos_resumo": ("total", "por_categoria", "maiores"),
     # Fase 7 (N1, ligado na C1 - checklist de docs/contrato-assinaturas.md).
     # `proximas_cobrancas`/`proxima_cobranca` saem inteiros no modo
@@ -300,6 +302,12 @@ TIPOS_CARD = (
     "assinatura_subiu",
     # despertador pedido no chat (2026-10-16): botao que abre o Atalho do iPhone
     "despertador",
+    # leva de 22/10: "como tu ta hoje?" (check-in no chat, 1 toque por campo)
+    "checkin",
+    "dia_ruim",
+    "alerta_dia",
+    "de_onde_parei",
+    "foco",
 )
 
 
@@ -1888,6 +1896,15 @@ def card_agua(conn, actions_extra=None, dia: date | None = None) -> dict:
     }, list(actions_extra or []))
 
 
+def card_checkin(conn, dia: date | None = None, actions_extra=None) -> dict:
+    """Como tu ta hoje (leva 22/10): energia, sono e humor do check-in (1 ruim, 2 ok, 3 bom; None =
+    ainda nao disse) - o card mostra chips de 1 toque pra cada um (POST /api/checkin)."""
+    iso = (dia or date.today()).isoformat()
+    atual = db.get_checkin(conn, iso) or {}
+    return novo_card("checkin", {"data": iso, **{c: atual.get(c) for c in vida.CAMPOS_CHECKIN}},
+                     list(actions_extra or []))
+
+
 def _com_abrir(actions_extra, entidade: str, id_: int) -> list:
     aba, rotulo = ABA_POR_ENTIDADE[entidade]
     return list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, entidade, id_)]
@@ -1923,6 +1940,17 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_agua(conn, actions_extra=desfazer)
     if entidade == "saude_dia":
         return card_saude_dia(conn)
+    if entidade == "checkin":
+        return card_checkin(conn)
+    if entidade == "foco":
+        import foco
+        from datetime import datetime as _dt
+
+        return foco.card(conn, _dt.now())
+    if entidade == "dia_ruim":
+        import dia_ruim
+
+        return dia_ruim.card_dia_ruim(conn, date.today())
     if entidade == "sugestao":
         return card_sugestao(ef.get("titulo"), ef.get("inicio"), ef.get("duracao_min"), ef.get("porque"))
     if entidade == "assinatura" and isinstance(id_, int):

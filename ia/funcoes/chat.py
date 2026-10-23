@@ -1212,6 +1212,56 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "dia_ruim",
+        "description": (
+            "Botao 'dia ruim': o Alex acordou sem pique ('hoje ta ruim', 'nao vou dar conta de tudo', 'alivia meu "
+            "dia'). Deixa so o essencial: tarefa inegociavel fica, treino/estudo viram versao curta, o resto vai "
+            "pra amanha (cada uma com 'trazer de volta' no card). desfazer=true volta o dia como estava. Nesse dia "
+            "responda mais curto e calmo."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"desfazer": {"type": "boolean"}},
+        },
+    },
+    {
+        "name": "travar_tarefa",
+        "description": (
+            "Cadeado: marca uma tarefa como INEGOCIAVEL ('isso tem que fazer de qualquer jeito', 'nao pode "
+            "falhar'). Travada nunca e empurrada pra outro dia, nao some no dia ruim e avisa 5 min antes. "
+            "travar=false destrava."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string", "description": "titulo (ou trecho) da tarefa existente"},
+                "travar": {"type": "boolean"},
+            },
+            "required": ["titulo"],
+        },
+    },
+    {
+        "name": "parceiro_foco",
+        "description": (
+            "Parceiro de foco: quando ele diz que VAI COMECAR uma tarefa agora ('vou organizar as fotos', 'bora "
+            "estudar meteorologia', 'vou comecar X'), abre um card com relogio (10 min padrao; 15 ou 25 se ele "
+            "pedir) e um PRIMEIRO PASSO concreto de 2 min (a acao fisica minima, ex.: 'Abre a galeria e apaga so os "
+            "prints. Mais nada.'). Escreve tambem o passo_menor: o que fazer se ele travar (ainda menor, ex.: 'So "
+            "abre a galeria e apaga 5 fotos.'). No meio o painel pergunta 'ainda nisso?' e no 'terminei' marca a "
+            "tarefa feita. Se a tarefa ja existe, passa o titulo dela. Nao usar pra hiperfoco longo (50/90 min)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string", "description": "a tarefa (curta, como ele falou ou o titulo existente)"},
+                "primeiro_passo": {"type": "string", "description": "acao de 2 min, imperativo, 'tu'"},
+                "passo_menor": {"type": "string", "description": "se travar: um passo ainda menor"},
+                "minutos": {"type": "integer", "enum": [10, 15, 25]},
+            },
+            "required": ["titulo", "primeiro_passo"],
+        },
+    },
+    {
         "name": "iniciar_hiperfoco",
         "description": (
             "Liga o modo hiperfoco: silencia notificacao nao critica por 25, 50 ou 90 minutos "

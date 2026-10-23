@@ -128,7 +128,7 @@ class VerificarENotificarTestCase(_Base):
     def _rodar(self, agora):
         enviados = []
 
-        def falso(sub, titulo, corpo, url="", tag=""):
+        def falso(sub, titulo, corpo, url="", tag="", **_):
             enviados.append({"titulo": titulo, "corpo": corpo, "url": url, "tag": tag})
             return True
 

@@ -791,6 +791,17 @@ def init_db():
     # do que levar/preparar com o que ja foi marcado, ideias de presente e a escolhida...).
     _garantir_coluna(conn, "tasks", "estilo", "TEXT")
     _garantir_coluna(conn, "tasks", "extras", "TEXT")
+    # leva 22/10 (dia_ruim.py): o cadeado - tarefa inegociavel nunca e empurrada
+    _garantir_coluna(conn, "tasks", "inegociavel", "INTEGER NOT NULL DEFAULT 0")
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS tarefas_adiadas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            de TEXT,
+            para TEXT,
+            em TEXT NOT NULL DEFAULT (datetime('now'))
+        )"""
+    )
     # Fase 6 (US-E15): limite manual do cartao (Open Finance nao manda isso) -
     # so faz sentido pra tipo='cartao', mas a coluna e generica em
     # bank_accounts (mesmo padrao de "saldo", que tambem so e preenchido

@@ -375,3 +375,23 @@ async function loadInicio() {
     }
   });
 })();
+
+// Leva 22/10: "Dia ruim" no Inicio - alivia o dia (POST /api/dia-ruim grava o card no chat) e abre o chat nele.
+(() => {
+  const btn = document.getElementById("inicio-dia-ruim");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (btn.getAttribute("aria-busy") === "true") return;
+    btn.setAttribute("aria-busy", "true");
+    const r = await apiFetch("/api/dia-ruim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    btn.removeAttribute("aria-busy");
+    if (!r || !r.ok) return;
+    if (typeof vibrar === "function") vibrar(10);
+    showTab("assistente");
+    if (typeof loadChatHistorico === "function") await loadChatHistorico();
+  });
+})();

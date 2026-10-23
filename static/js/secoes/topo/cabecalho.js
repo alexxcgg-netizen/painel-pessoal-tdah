@@ -81,10 +81,14 @@ async function initPush() {
       acao = () => mostrarErro("O iPhone está pronto, mas o agendador do servidor está parado. Reinicie o painel no computador.");
       return;
     }
-    _pushEstado(btn, "Ligado", "Avisos chegando sozinhos · toque pra um teste", true);
+    // teste com botoes (leva 22/10): o que ele tocou no ultimo aviso de teste diz se o iPhone mostra
+    // "Feito / Adiar" no proprio aviso (sem botao, o toque abre a tarefa com concluir / pra amanha)
+    const t = status.teste_botoes;
+    const resultado = !t ? "" : t.acao === "toque" ? " · último teste: sem botão no aviso" : " · último teste: botões funcionam";
+    _pushEstado(btn, "Ligado", `Avisos chegando sozinhos${resultado} · toque pra um teste`, true);
     acao = async () => {
       const r = await apiFetch("/api/push/testar", { method: "POST" });
-      if (r) _pushEstado(btn, "Ligado", r.enviados ? "Teste enviado - deve chegar já" : "Toque pra receber um teste", true);
+      if (r) _pushEstado(btn, "Ligado", r.enviados ? "Teste enviado: segura o aviso e toca em Feito" : "Toque pra receber um teste", true);
     };
   };
 

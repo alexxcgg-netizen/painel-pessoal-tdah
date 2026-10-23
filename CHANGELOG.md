@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-22 - Leva "painel mais esperto" (SW v93+)
 - 2026-10-21 - Carga × sono no treino (SW v92)
 - 2026-10-21 - Animação 3D do exercício no treino ao vivo (SW v91)
 - 2026-10-21 - Chat dá baixa pelo que ele conta
@@ -156,6 +157,48 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-22 - Leva "painel mais esperto" (SW v93+)
+
+Pedido do Alex: "o que falta pra deixar o painel mais esperto?" → "faz todos". Briefing com a ordem e as decisões:
+`docs/briefings/2026-10-22-leva-ideias-v3.md`. Um commit por item.
+- **Como tu tá hoje (SW v93)**: ele não achava onde dizer como está. Card novo `checkin` no chat (energia, sono e
+  humor em controle de 3 com a pílula em mola, carinha que sorri/fecha a boca com o humor, frase que muda), cada toque
+  salva em `POST /api/checkin` (o check-in de 1-3 que já existia), otimista. A IA pergunta sozinha de manhã
+  (`conversa_proativa.perguntar_como_esta`, 7h-11h, 1x/dia, só se ainda não respondeu; push `como_esta`) e o card
+  também sai quando ele conta pelo chat (`registrar_checkin` agora devolve o efeito `checkin`, sem Desfazer). Dado de
+  saúde: visitante não vê os valores. Testes em `test_conversa_proativa.py` e `tests/js/cards_vivos.test.js`.
+- **Botões Feito / Adiar no aviso (SW v94)**: aviso de uma tarefa (`_AVISOS_DE_UMA_TAREFA`) sai com 2 ações
+  (`push_client.enviar(acoes=...)` → `actions` no Service Worker). O toque chama `POST /api/push/acao` (feito conclui;
+  adiar passa 1 h, ou pra amanhã depois da meia-noite) e o SW mostra uma confirmação silenciosa; se a rede falhar, abre
+  o app na tarefa (o plano B que já existia). Como o iOS pode não mostrar botão em PWA, o "Testar aviso" agora manda um
+  aviso com botões e grava o que ele tocou (`push_teste_botoes`); a linha de notificações em Configurações diz
+  "botões funcionam" ou "sem botão no aviso". Testes em `tests/test_push_acoes.py`.
+- **Inegociável + Dia ruim + "hoje pede mais cuidado" (SW v95)**: módulo `dia_ruim.py`. Coluna `tasks.inegociavel`
+  (cadeado na lista de tarefas e no chat: ferramenta `travar_tarefa`); tarefa travada nunca vai pra amanhã (fechar o
+  dia, `mover_tarefas`) e ganha aviso extra 5 min antes (`tarefa_inegociavel`, passa no hiperfoco). Botão "Dia ruim" no
+  Início (e ferramenta `dia_ruim` no chat): mantém o inegociável, encurta treino/estudo ("versão leve · 25 min" /
+  "versão curta · 20 min") e empurra o resto; card `dia_ruim` com Como estava / Aliviado, Empurrar e Trazer de volta.
+  Tabela `tarefas_adiadas` conta o que foi empurrado. De manhã (7h-10h30), com 2 sinais (dormiu < 6 h, 3+ empurradas
+  na semana, gasto atípico ontem, energia baixa) a IA manda o card `alerta_dia`: sinais, cadeado por tarefa, Aliviar o
+  resto / Tô bem, segue. Rotas em `rotas/dia_ruim.py`; front `static/js/cards-dia.js` + `cards-dia.css` seguindo o
+  protótipo aprovado. Testes em `tests/test_dia_ruim.py` e `tests/js/cards_dia.test.js`.
+- **De onde parei (SW v95)**: `de_onde_parei.py`. O batimento que já existia (`POST /api/push/visto`) agora guarda
+  a última vez que viu o app na tela; voltou depois de 2 h com tarefa pela metade (passos com pelo menos um feito nos
+  últimos 3 dias e um faltando) → a IA deixa no chat o card `de_onde_parei` e o app recarrega a conversa. Barra até
+  onde parou, caixinha do próximo passo respirando, marcar risca e anda a barra (`POST /api/subtasks/<id>/marcar`,
+  marca e desmarca), Continuar mostra o passo da vez, Deixar pra lá segura o dia (`/api/de-onde-parei/deixar`), tudo
+  feito oferece Concluir a tarefa. Uma vez por tarefa por dia; nada no modo visitante. Testes em
+  `tests/test_de_onde_parei.py` e `tests/js/cards_dia.test.js`.
+- **Parceiro de foco (SW v95)**: `foco.py`. Ferramenta `parceiro_foco` no chat ("vou organizar as fotos"): acha ou
+  cria a tarefa e abre o card `foco` com relógio (10 min padrão; 15 ou 25 se ele pedir), um passo de 2 min e o
+  passo menor que a IA já deixa escrito. Anel com marcas e ponta que brilha; no meio o relógio espera e pergunta
+  (Ainda nisso / Travei / Terminei) e sai 1 push `foco_meio`, que nunca insiste. Travei troca pelo passo menor, sem
+  cobrar. Terminei conclui a tarefa e guarda quanto levou (`extras.foco_s`), com o estouro de dois anéis. Deu o
+  tempo: NÃO marca sozinho (pergunta Terminei / Mais 5 min). Relógio correndo = filtro do hiperfoco (só passa o
+  crítico). A sessão fica no servidor (`configuracoes.foco_sessao`, rotas em `rotas/foco.py`), e o card do
+  histórico sincroniza por `GET /api/foco`. Tarefa empurrada 3+ vezes entra no contexto do chat pra IA oferecer o
+  passo de 2 min. Testes em `tests/test_foco.py` e `tests/js/cards_dia.test.js`.
 
 ## 2026-10-21 - Carga × sono no treino (SW v92)
 

@@ -118,6 +118,7 @@ TIPOS: dict[str, dict] = {
     # -- Ja existentes em app.py/verificar_e_notificar (mesmo texto de tipo
     # que os `avisos.append((tipo, ...))` de la usam - ver progress.txt) --
     "rotina_manha": _tipo("Bom dia (rotina da manhã)"),
+    "como_esta": _tipo("Como tu tá hoje (manhã, no chat)"),
     "conta_pessoal": _tipo("Conta pessoal chegando"),
     "pessoa_sem_contato": _tipo("Faz tempo sem contato com alguém"),
     "pre_voo": _tipo("Pré-voo (véspera/dia do voo)"),
@@ -140,6 +141,9 @@ TIPOS: dict[str, dict] = {
     "lembrete_despertar": _tipo("Lembrete: hora marcada"),
     "tarefa_horario": _tipo("Tarefa: horário chegando"),
     "tarefa_preparo": _tipo("Tarefa: aviso ~30 min antes"),
+    "tarefa_inegociavel": _tipo("Tarefa inegociável: 5 min antes"),
+    "alerta_dia": _tipo("Dia que pede mais cuidado (manhã)"),
+    "foco_meio": _tipo("Parceiro de foco: \"ainda nisso?\" no meio"),
     "se_arrumar": _tipo("Hora de se arrumar (date, festa)"),
     "hora_de_sair": _tipo("Hora de sair (date, festa)"),
     "compromisso_chegando": _tipo("Compromisso da agenda chegando"),

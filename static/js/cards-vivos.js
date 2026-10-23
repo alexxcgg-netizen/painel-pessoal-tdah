@@ -530,6 +530,97 @@
     );
   });
 
+  // ================================================================== checkin
+  // "Como tu ta hoje?" (leva 22/10): energia, sono e humor em controle de 3 com a pilula deslizando
+  // (mesma linguagem do "como volta"). Cada toque salva na hora (POST /api/checkin), otimista: reverte
+  // se a rota falhar. A carinha do topo acompanha o humor (boca vira de sorriso pra reta pra triste).
+  const CHECKIN_CAMPOS = [
+    { chave: "energia", nome: "Energia" },
+    { chave: "sono", nome: "Sono" },
+    { chave: "humor", nome: "Humor" },
+  ];
+  const CHECKIN_ROTULOS = { 1: "ruim", 2: "ok", 3: "bom" };
+  const CARINHA =
+    '<svg class="ck-cara" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20.5" class="ck-cara-fundo"/>' +
+    '<circle cx="17.5" cy="20" r="2.3" class="ck-olho"/><circle cx="30.5" cy="20" r="2.3" class="ck-olho"/>' +
+    '<path class="ck-boca" d="M15.5 30 Q24 37.5 32.5 30"/></svg>';
+  function frasecheckin(d) {
+    const faltam = CHECKIN_CAMPOS.filter((c) => !CHECKIN_ROTULOS[d[c.chave]]).length;
+    if (faltam === 3) return "Um toque em cada. Muda quando quiser.";
+    if (faltam) return `Falta${faltam > 1 ? "m" : ""} ${faltam}. Pode deixar em branco também.`;
+    const ruins = CHECKIN_CAMPOS.filter((c) => d[c.chave] === 1).length;
+    if (ruins >= 2) return "Anotado. Vou pegar leve contigo hoje.";
+    if (ruins === 1) return "Anotado. Dá pra ajustar o dia em volta disso.";
+    return "Anotado. Bora aproveitar o dia.";
+  }
+  function linhaCheckin(campo, valor) {
+    const i = CHECKIN_ROTULOS[valor] ? valor - 1 : -1;
+    const ops = [1, 2, 3]
+      .map(
+        (v) =>
+          `<button type="button" role="radio" aria-checked="${v === valor}" class="ck-op${v === valor ? " atual" : ""}" data-acao="checkin_marcar" data-campo="${campo.chave}" data-v="${v}">${CHECKIN_ROTULOS[v]}</button>`
+      )
+      .join("");
+    return (
+      `<div class="ck-linha" data-campo="${campo.chave}" style="--i:${Math.max(0, i)}"><span class="ck-nome">${campo.nome}</span>` +
+      `<div class="ck-opcoes${i < 0 ? " vazio" : ""}" role="radiogroup" aria-label="${campo.nome}"><i class="ck-pilula" aria-hidden="true"></i>${ops}</div></div>`
+    );
+  }
+  Cards.registrar("checkin", (data) => {
+    if (data.oculto) return olho(ICONES.feito, "Como tu tá hoje") + `<p class="card-linha-meta">Oculto no modo visitante.</p>`;
+    const humor = CHECKIN_ROTULOS[data.humor] ? data.humor : 0;
+    return (
+      `<div class="ck-topo" data-humor="${humor}">${CARINHA}<div><p class="ck-titulo">Como tu tá hoje?</p>` +
+      `<p class="ck-frase" aria-live="polite">${esc(frasecheckin(data))}</p></div></div>` +
+      `<div class="ck-linhas">${CHECKIN_CAMPOS.map((c) => linhaCheckin(c, data[c.chave])).join("")}</div>`
+    );
+  });
+  function aplicarCheckin(cardEl, campo, v) {
+    const linha = cardEl.querySelector(`.ck-linha[data-campo="${campo}"]`);
+    if (!linha) return;
+    linha.style.setProperty("--i", String(Math.max(0, v - 1)));
+    linha.querySelector(".ck-opcoes").classList.toggle("vazio", !v);
+    linha.querySelectorAll(".ck-op").forEach((b) => {
+      const sim = Number(b.dataset.v) === v;
+      b.classList.toggle("atual", sim);
+      b.setAttribute("aria-checked", String(sim));
+    });
+    const d = {};
+    cardEl.querySelectorAll(".ck-linha").forEach((l) => {
+      const at = l.querySelector(".ck-op.atual");
+      d[l.dataset.campo] = at ? Number(at.dataset.v) : null;
+    });
+    const topo = cardEl.querySelector(".ck-topo");
+    if (topo) topo.dataset.humor = String(d.humor || 0);
+    const frase = cardEl.querySelector(".ck-frase");
+    if (frase) frase.textContent = frasecheckin(d);
+  }
+  Cards.registrarAcao("checkin_marcar", async (btn, cardEl, deps) => {
+    if (typeof deps.apiFetch !== "function") return;
+    const campo = btn.dataset.campo;
+    const v = Number(btn.dataset.v);
+    const atual = cardEl.querySelector(`.ck-linha[data-campo="${campo}"] .ck-op.atual`);
+    const antes = atual ? Number(atual.dataset.v) : 0;
+    if (antes === v) return;
+    aplicarCheckin(cardEl, campo, v);
+    if (typeof raiz.vibrar === "function") raiz.vibrar(8);
+    let res = null;
+    try {
+      res = await deps.apiFetch("/api/checkin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [campo]: v }),
+      });
+    } catch (e) {
+      res = null;
+    }
+    if (!res || !res.checkin) {
+      aplicarCheckin(cardEl, campo, antes);
+      return;
+    }
+    if (typeof deps.aoMudar === "function") deps.aoMudar();
+  });
+
   // ================================================================== refeicao
   // Foto do prato (2026-10-13): numero grande de kcal, as tres macros como fatia das calorias
   // (P e C = 4 kcal/g, G = 9), os itens com ~gramas e o dia ate agora contra a meta. Tudo

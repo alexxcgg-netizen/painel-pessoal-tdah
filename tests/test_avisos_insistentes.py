@@ -85,7 +85,7 @@ class InsistenciaNoTickTestCase(unittest.TestCase):
     def _rodar(self, agora):
         enviados = []
 
-        def falso(sub, titulo, corpo, url="", tag=""):
+        def falso(sub, titulo, corpo, url="", tag="", **_):
             enviados.append({"titulo": titulo, "corpo": corpo, "url": url, "tag": tag})
             return True
 
@@ -155,7 +155,7 @@ class InsistenciaNoTickTestCase(unittest.TestCase):
         self.assertEqual(self._rodar(datetime(2026, 10, 11, 18, 30)), [])
         self.assertEqual(self._rodar(datetime(2026, 10, 11, 18, 40)), [])
         # nao mexe em aviso de outro dia nem em aviso que ja foi encerrado
-        self.assertEqual(self.client.post("/api/push/visto").get_json(), {"ok": True, "parou": 0})
+        self.assertEqual(self.client.post("/api/push/visto").get_json(), {"ok": True, "parou": 0, "de_onde_parei": False})
 
     def test_rota_aberto_valida_a_tag(self):
         for corpo in ({}, {"tag": ""}, {"tag": 5}, {"tag": "x" * 200}):

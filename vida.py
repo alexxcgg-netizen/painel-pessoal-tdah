@@ -17,7 +17,7 @@ CAMPOS_CHECKIN = ("energia", "sono", "humor")
 # hora marcada (inclui remedio, que vira tarefa recorrente com hora),
 # compromisso chegando e hora de sair pro voo.
 CRITICOS_HIPERFOCO = {"tarefa_horario", "compromisso_chegando", "voo_sair", "hiperfoco_fim", "adiado_hiperfoco",
-                      "adiado_hiperfoco_leve"}
+                      "adiado_hiperfoco_leve", "tarefa_inegociavel", "foco_meio"}
 
 # Avisos que so disparam numa janela curta de horario (22h, 21h, 7h...) - se o
 # hiperfoco segurar, a janela passa e eles sumiriam do dia. Esses ficam

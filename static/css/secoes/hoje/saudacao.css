@@ -426,3 +426,8 @@ main #tab-hoje h2.inicio-saudacao,
     transform: none;
   }
 }
+
+/* leva 22/10: botao "Dia ruim" ao lado do Ouvir (dia_ruim.py) */
+.inicio-dia-ruim + .inicio-ouvir { margin-left: 0; }
+.inicio-dia-ruim svg { color: #aab4f6; }
+.inicio-dia-ruim[aria-busy="true"] { opacity: 0.55; pointer-events: none; }

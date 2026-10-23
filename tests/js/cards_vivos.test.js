@@ -330,3 +330,18 @@ test("gastos_resumo: maiores lancamentos guardados pra abrir no toque", () => {
   const semMaiores = html("gastos_resumo", { total: 10, por_categoria: [{ categoria: "x", valor: 10 }] });
   assert.ok(!semMaiores.includes("card-expande"));
 });
+
+test("checkin: 3 linhas com a pilula no valor salvo, vazio sem pilula, carinha segue o humor", () => {
+  const h = html("checkin", { data: "2026-10-22", energia: 3, sono: 1, humor: null });
+  semFallback(h);
+  assert.match(h, /Como tu tá hoje\?/);
+  assert.match(h, /ck-linha" data-campo="energia" style="--i:2"/);
+  assert.match(h, /ck-linha" data-campo="sono" style="--i:0"/);
+  assert.match(h, /data-campo="humor" style="--i:0"><span class="ck-nome">Humor<\/span><div class="ck-opcoes vazio"/);
+  assert.match(h, /ck-topo" data-humor="0"/);
+  assert.match(h, /Falta 1\./);
+  assert.equal((h.match(/data-acao="checkin_marcar"/g) || []).length, 9);
+  assert.match(html("checkin", { energia: 1, sono: 1, humor: 3 }), /pegar leve/);
+  assert.match(html("checkin", { oculto: true }), /Oculto no modo visitante/);
+  semFallback(html("checkin", {}));
+});

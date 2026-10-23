@@ -283,3 +283,47 @@ class RotaAdiarTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ComoEstaTestCase(unittest.TestCase):
+    """Leva 22/10: de manha a IA pergunta "como tu ta hoje?" com o card do check-in."""
+
+    def setUp(self):
+        self.conn = _banco()
+        self.manha = datetime.combine(HOJE, datetime.min.time()).replace(hour=8, minute=5)
+
+    def tearDown(self):
+        self.conn.close()
+
+    def _cards(self):
+        return [c for m in db.list_chat_mensagens(self.conn) for c in db.cards_de_mensagem_chat(m)]
+
+    def test_pergunta_uma_vez_de_manha_com_o_card(self):
+        saida = cp.perguntar_como_esta(self.conn, self.manha)
+        self.assertEqual([s[0] for s in saida], ["como_esta"])
+        card = [c for c in self._cards() if c["type"] == "checkin"][0]
+        self.assertEqual((card["data"]["energia"], card["data"]["humor"]), (None, None))
+        self.assertEqual(cp.perguntar_como_esta(self.conn, self.manha.replace(hour=9)), [])
+        self.assertEqual(len(self._cards()), 1)
+
+    def test_fora_da_janela_ou_ja_respondido_nao_pergunta(self):
+        self.assertEqual(cp.perguntar_como_esta(self.conn, self.manha.replace(hour=12)), [])
+        db.salvar_checkin(self.conn, HOJE.isoformat(), {"sono": 1})
+        self.assertEqual(cp.perguntar_como_esta(self.conn, self.manha), [])
+        self.assertEqual(self._cards(), [])
+
+    def test_card_mostra_o_que_ja_foi_dito_e_visitante_nao_ve(self):
+        db.salvar_checkin(self.conn, HOJE.isoformat(), {"energia": 3, "humor": 2})
+        card = cards.card_checkin(self.conn)
+        self.assertEqual((card["data"]["energia"], card["data"]["sono"], card["data"]["humor"]), (3, None, 2))
+        mascarado = cards.mascarar_cards([card])[0]["data"]
+        self.assertTrue(mascarado["oculto"])
+        self.assertNotIn("energia", mascarado)
+
+
+    def test_ferramenta_do_chat_devolve_o_card_sem_desfazer(self):
+        db.salvar_checkin(self.conn, HOJE.isoformat(), {"sono": 1})
+        lista = cards.cards_dos_efeitos(self.conn, [{"entidade": "checkin", "consulta": True}], criar_token=lambda i: "tok")
+        self.assertEqual([c["type"] for c in lista], ["checkin"])
+        self.assertEqual(lista[0]["data"]["sono"], 1)
+        self.assertFalse([a for a in lista[0]["actions"] if a.get("tipo") == "desfazer"])

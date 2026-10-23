@@ -209,8 +209,31 @@ function criarItemTarefa(t) {
     tagTravada.textContent = `travada há ${t.empacada_dias} ${t.empacada_dias === 1 ? "dia" : "dias"}`;
     chips.appendChild(tagTravada);
   }
+  // leva 22/10 (dia_ruim.py): o cadeado - inegociavel nunca e empurrada e avisa 5 min antes
+  const CADEADO_TAREFA =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>';
+  if (t.inegociavel) {
+    const tagIneg = document.createElement("span");
+    tagIneg.className = "item-tag-inegociavel chip chip--compacto";
+    tagIneg.innerHTML = `${CADEADO_TAREFA}inegociável`;
+    chips.appendChild(tagIneg);
+  }
   tituloWrap.appendChild(chips);
 
+  const btnTravar = document.createElement("button");
+  btnTravar.className = "btn-com-icone";
+  btnTravar.innerHTML = `${CADEADO_TAREFA}${t.inegociavel ? "soltar o cadeado" : "não pode falhar"}`;
+  btnTravar.addEventListener("click", async () => {
+    setBotaoCarregando(btnTravar, true, "...");
+    const data = await apiFetch(`/api/tasks/${t.id}/inegociavel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ valor: !t.inegociavel }),
+    });
+    if (data) loadTasks();
+    else setBotaoCarregando(btnTravar, false, t.inegociavel ? "soltar o cadeado" : "não pode falhar");
+  });
+  acoes.appendChild(btnTravar);
 
   if (t.empacada_dias) {
     const btnRequebrar = document.createElement("button");

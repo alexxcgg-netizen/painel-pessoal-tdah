@@ -30,16 +30,20 @@ def public_key() -> str:
     return os.environ.get("VAPID_PUBLIC_KEY", "")
 
 
-def enviar(subscription_info: dict, titulo: str, corpo: str, url: str = "", tag: str = "") -> bool:
+def enviar(subscription_info: dict, titulo: str, corpo: str, url: str = "", tag: str = "",
+           acoes: list[dict] | None = None) -> bool:
     """Manda uma notificacao. Retorna False se a inscricao morreu
     (usuario desinstalou/bloqueou) - nesse caso o chamador deve apagar
     essa inscricao do banco. `url` = onde o toque abre (ex: "/?aba=tarefas");
-    `tag` = o mesmo aviso repetido SUBSTITUI o anterior em vez de empilhar."""
+    `tag` = o mesmo aviso repetido SUBSTITUI o anterior em vez de empilhar. `acoes` = botoes no
+    proprio aviso ([{"action", "title"}], leva 22/10) - o service worker chama /api/push/acao."""
     dados = {"titulo": titulo, "corpo": corpo}
     if url:
         dados["url"] = url
     if tag:
         dados["tag"] = tag
+    if acoes:
+        dados["acoes"] = acoes[:2]
     try:
         webpush(
             subscription_info=subscription_info,
