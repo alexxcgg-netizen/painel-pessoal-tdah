@@ -222,6 +222,13 @@ Pedido do Alex: "o que falta pra deixar o painel mais esperto?" → "faz todos".
   `POST /api/voos/<id>/diario`, ferramenta `diario_de_bordo` ("acabei de voar"). A pergunta automática pós-voo e
   a saída do aeroclube agora mandam o diário no lugar do `voo_horas` (que fica pro histórico). Testes em
   `tests/test_diario_bordo.py` e `tests/js/cards_dia.test.js`.
+- **A IA propõe o horário + sugestão da semana (SW v95)**: `horario.py` escolhe UM horário olhando agenda (iCloud,
+  tarefa com hora = 30 min, voo do briefing ao debriefing), 15 min de folga depois do compromisso anterior, a hora
+  em que ele costuma fazer aquilo e o sono (dormiu pouco = noite livre, fim às 21h). `sugerir_horario_livre` usa
+  isso, aceita `dia` (amanhã etc.) e o "porque" do card `sugestao` conta o motivo. O resumo de domingo
+  (`padroes_semana`) ganhou `sugestao`: um passo concreto pra semana que vem (atrasadas > categoria do diário de
+  bordo > dia que mais rendeu > água), no texto e numa caixa no card `semana`. Testes em `tests/test_horario.py`,
+  `tests/test_conversa_proativa.py`, `tests/js/cards_rotina.test.js` (e os de sugestão antigos agora com a folga).
 
 ## 2026-10-21 - Carga × sono no treino (SW v92)
 

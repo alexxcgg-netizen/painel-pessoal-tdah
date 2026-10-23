@@ -167,6 +167,7 @@
       `<p class="rt-legenda"><span><i class="rt-leg-agua"></i>água na meta</span><span><i class="rt-leg-voo"></i>dia com voo</span></p>` +
       `<div class="rt-tiles">${tiles.join("")}</div>` +
       (obs ? `<ul class="rt-obs">${obs}</ul>` : "") +
+      (data.sugestao ? `<p class="rt-sugestao"><small>Pra semana que vem</small>${esc(data.sugestao)}</p>` : "") +
       `</div>`
     );
   });

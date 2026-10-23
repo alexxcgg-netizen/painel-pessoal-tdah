@@ -57,6 +57,7 @@ import criptografia
 import estudo
 import gastos
 import geocode_nominatim
+import horario
 import leitura
 import maps_client
 import vida_assistente
@@ -2117,11 +2118,21 @@ def _hhmm_proximo_quarto(momento: datetime) -> str:
 _SINONIMOS_ROTINA = {"academia": "treino", "treino": "academia", "malhar": "treino", "correr": "treino"}
 
 
-def _porque_sugestao(conn, titulo: str, janela: dict) -> str:
+def _porque_sugestao(conn, titulo: str, janela: dict, escolha: dict | None = None, quando: str = "Hoje",
+                     sono_h: float | None = None, costume: str | None = None) -> str:
     """Texto da caixa "Com a sua rotina em mente" (card sugestao): o fato
-    real da agenda de hoje + a memoria de rotina (US-E10, categoria
-    sua_rotina) que fala do mesmo assunto, quando existir. Nunca inventa."""
-    partes = [f"Hoje o maior espaço livre na sua agenda vai das {janela['inicio']} às {janela['fim']}."]
+    real da agenda do dia + por que esse horario (folga, costume, sono, leva 22/10)
+    + a memoria de rotina (US-E10, categoria sua_rotina) que fala do mesmo
+    assunto, quando existir. Nunca inventa."""
+    escolha = escolha or {}
+    partes = [f"{quando} o espaço livre na tua agenda vai das {janela['inicio']} às {janela['fim']}."]
+    if escolha.get("depois_de"):
+        partes.append(f"Deixei {horario.FOLGA_MIN} min de folga depois de {_texto_curto(escolha['depois_de'], 60)}.")
+    if costume and escolha.get("no_costume"):
+        partes.append(f"Tu costuma fazer isso por volta das {costume}.")
+    if sono_h is not None:
+        dormiu = f"Dormiu {f'{sono_h:.1f}'.replace('.', ',')} h" if sono_h else "Dormiu mal"
+        partes.append(f"{dormiu}: deixei a noite livre pra tu deitar mais cedo.")
     palavras = [p for p in aprendizado.normalizar_consulta(titulo).split() if len(p) >= 4]
     palavras += [_SINONIMOS_ROTINA[p] for p in palavras if p in _SINONIMOS_ROTINA]
     if palavras:
@@ -2134,27 +2145,48 @@ def _porque_sugestao(conn, titulo: str, janela: dict) -> str:
 
 
 def _sugerir_horario_livre(conn, entrada: dict) -> dict:
-    """Maior espaco livre de HOJE a partir de agora (tool sugerir_horario_livre
-    e pergunta "como encaixo X hoje?"). Com resultado, vira card `sugestao`."""
-    eventos = _eventos_de_hoje_com_seguranca(conn)
-    compromissos = [(e["inicio"][11:16], e["fim"][11:16]) for e in eventos if not e.get("dia_inteiro")]
+    """A IA propoe o horario (tool sugerir_horario_livre e pergunta "como
+    encaixo X hoje?"): olha a agenda do dia, a folga depois do compromisso
+    anterior, a hora de costume e o sono (horario.py, leva 22/10). Hoje so a
+    partir de agora; `dia` (AAAA-MM-DD) escolhe outro dia. Vira card `sugestao`."""
+    agora = _agora()
+    hoje = agora.date()
+    dia = _data_iso_valida(entrada.get("dia")) if isinstance(entrada.get("dia"), str) else None
+    dia = date.fromisoformat(dia) if dia and dia >= hoje.isoformat() else hoje
+    if dia == hoje:
+        eventos = _eventos_de_hoje_com_seguranca(conn)
+    else:
+        eventos = []
+        if caldav_client.configurado():
+            try:
+                eventos = caldav_client.eventos_do_dia(dia)
+            except Exception:
+                eventos = []
     duracao = _inteiro_no_intervalo(entrada.get("duracao_minutos"), 5, 720) or 60
-    inicio_dia = max(_normalizar_hora(entrada.get("depois_das")) or "06:00", _hhmm_proximo_quarto(_agora()))
-    fim_dia = _normalizar_hora(entrada.get("antes_das")) or "22:00"
-    janela = agenda.maior_janela_livre(compromissos, inicio_dia, fim_dia, duracao) if inicio_dia < fim_dia else None
-    if not janela:
-        return {"encontrado": False}
     titulo = _texto_curto(entrada.get("titulo"), 80) or "Horário livre"
+    sono_h = horario.sono_curto(conn, hoje) if dia == hoje else None
+    inicio_dia = _normalizar_hora(entrada.get("depois_das")) or horario.INICIO_DIA
+    if dia == hoje:
+        inicio_dia = max(inicio_dia, _hhmm_proximo_quarto(agora))
+    fim_dia = _normalizar_hora(entrada.get("antes_das")) or (horario.FIM_SONO_CURTO if sono_h is not None else horario.FIM_DIA)
+    costume = horario.hora_de_costume(conn, entrada.get("titulo"), hoje) if not entrada.get("depois_das") and not entrada.get("antes_das") else None
+    escolha = horario.escolher(horario.ocupados_do_dia(conn, dia, eventos), inicio_dia, fim_dia, duracao, costume) if inicio_dia < fim_dia else None
+    if not escolha:
+        return {"encontrado": False}
+    quando = "Hoje" if dia == hoje else ("Amanhã" if dia == hoje + timedelta(days=1) else f"No dia {dia.strftime('%d/%m')}")
     return {
         "encontrado": True,
-        **janela,
+        "dia": dia.isoformat(),
+        "inicio": escolha["inicio"],
+        "fim": escolha["fim"],
+        "janela": escolha["janela"],
         "_efeito": {
             "entidade": "sugestao",
             "consulta": True,
             "titulo": titulo[:1].upper() + titulo[1:],
-            "inicio": f"{date.today().isoformat()}T{janela['inicio']}",
+            "inicio": f"{dia.isoformat()}T{escolha['inicio']}",
             "duracao_min": duracao,
-            "porque": _porque_sugestao(conn, titulo, janela),
+            "porque": _porque_sugestao(conn, titulo, escolha["janela"], escolha, quando, sono_h, costume),
         },
     }
 

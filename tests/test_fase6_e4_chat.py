@@ -312,12 +312,13 @@ class SugestaoTestCase(Base):
             corpo = self.chat_local("como encaixo meu treino hoje?")
         self.assertEqual(self.tipos(corpo), ["sugestao"])
         d = corpo["cards"][0]["data"]
-        self.assertEqual(d["inicio"], f"{hoje}T17:30")  # 17:30-22:00 e o maior espaco
+        self.assertEqual(d["inicio"], f"{hoje}T17:45")  # maior espaco, 15 min de folga depois da obra (leva 22/10)
         self.assertEqual(d["duracao_min"], 45)  # media dos treinos registrados
         self.assertEqual(d["titulo"], "Treino")
-        self.assertIn("17:30 às 22:00", d["porque"])
+        self.assertIn("17:45 às 22:00", d["porque"])
+        self.assertIn("folga depois de Obra", d["porque"])
         self.assertIn("Treino sem horario fixo", d["porque"])  # memoria sua_rotina (US-E10)
-        self.assertIn("17:30", corpo["resumo_texto"])
+        self.assertIn("17:45", corpo["resumo_texto"])
 
     def test_sugestao_nunca_no_passado(self):
         with self._agora(20, 5):

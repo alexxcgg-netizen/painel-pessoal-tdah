@@ -217,6 +217,28 @@ def _semana(conn, ate: date) -> dict:
     return {"dias": linhas, "meta_agua": meta}
 
 
+PEDIDO_VOO = {"navegacao": "uma navegação", "noturno": "um voo noturno", "instrumentos": "instrução por instrumentos"}
+
+
+def sugestao_semana(conn, hoje: date, melhor: dict | None, agua_dias: list[int], meta_agua: int, atrasadas: int) -> str | None:
+    """Leva 22/10: um passo concreto pra semana que vem, tirado do padrao (nunca generico). A primeira regra que
+    vale: atrasadas acumulando > categoria do diario de bordo mais atrasada > dia que mais rendeu > agua."""
+    if atrasadas >= 3:
+        return f"Separa 30 min na segunda pra zerar as {atrasadas} atrasadas. Se quiser, eu escolho o horário."
+    prog = diario_bordo.progresso(conn, hoje)
+    pior = next((c for c in prog["cats"] if c["chave"] == prog["pior"]), None)
+    if pior and prog["cats"][0]["h"] > 0:
+        falta = f"{pior['meta'] - pior['h']:.1f}".replace(".", ",")
+        return (f"{pior['nome']} é a categoria mais atrasada pro comercial (faltam {falta} h): "
+                f"vale pedir {PEDIDO_VOO[pior['chave']]} no próximo voo.")
+    if melhor and melhor["tarefas"] >= 2:
+        nome = DIAS_LONGOS[date.fromisoformat(melhor["dia"]).weekday()]
+        return f"Põe o que for mais pesado da semana que vem na {nome}, que foi quando tu mais rendeu."
+    if any(agua_dias) and sum(1 for c in agua_dias if c >= meta_agua) <= 2:
+        return "Água ficou abaixo da meta quase a semana toda: deixa a garrafa cheia à vista logo de manhã."
+    return None
+
+
 def padroes_semana(conn, hoje: date) -> tuple[str, list[dict]] | None:
     atual = _semana(conn, hoje)
     anterior = _semana(conn, hoje - timedelta(days=7))
@@ -255,6 +277,9 @@ def padroes_semana(conn, hoje: date) -> tuple[str, list[dict]] | None:
         obs.append(f"Tem {atrasadas} tarefas atrasadas acumulando; se quiser, eu reorganizo a semana que vem com você.")
 
     texto = "Teus padrões da semana: " + " ".join(obs[:3]) if obs else "Fechei tua semana em números, tá no card."
+    sugestao = sugestao_semana(conn, hoje, melhor, agua_dias, atual["meta_agua"], atrasadas)
+    if sugestao:
+        texto += f" Pra semana que vem: {sugestao}"
     melhor_dia = melhor["dia"] if melhor and melhor["tarefas"] else None
     card = cards.novo_card("semana", {
         "de": dias[0]["dia"], "ate": dias[-1]["dia"],
@@ -269,6 +294,7 @@ def padroes_semana(conn, hoje: date) -> tuple[str, list[dict]] | None:
         "voo_horas": voo,
         "melhor_dia": melhor_dia,
         "observacoes": obs[:3],
+        "sugestao": sugestao,
     })
     return texto, [card]
 

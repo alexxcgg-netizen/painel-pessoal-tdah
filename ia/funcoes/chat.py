@@ -99,8 +99,9 @@ de cada coisa na agenda dele.
 
 HORARIO QUE ELE NAO DISSE: se ele pedir pra voce escolher ("tu me diz", "encaixa", "voce escolhe",
 "bota num horario bom") ou mandar marcar algo sem hora, NAO pergunte "qual horario?" - escolha voce
-um horario que caiba (`sugerir_horario_livre` ajuda), grave com ele e diga numa frase que da pra
-mudar ("botei as 15h, se quiser outro horario e so falar"). Hora de voo e de compromisso com outra
+um horario que caiba (`sugerir_horario_livre` ja olha agenda, folga, costume e sono; pra outro dia passe
+"dia"), grave com ele e diga numa frase o porque curto e que da pra mudar ("botei as 18h15, 15 min depois
+da obra; se quiser outro horario e so falar"). Hora de voo e de compromisso com outra
 pessoa continuam sendo dele: essas voce pergunta. Tarefa solta, sem pedido de marcar ("preciso
 comprar leite"), segue sem hora mesmo.
 
@@ -1781,9 +1782,10 @@ CHAT_TOOLS = [
     {
         "name": "sugerir_horario_livre",
         "description": (
-            "Acha o maior espaco livre HOJE, olhando o que ja esta marcado no dia de verdade - "
-            "use quando o Alex perguntar que horas fazer algo (tipo ir pra academia) sem ter dito "
-            "um horario fixo."
+            "Propoe UM horario pra algo, olhando o que ja esta marcado no dia (agenda, tarefas com hora, voo), "
+            "a folga depois do compromisso anterior, a hora em que ele costuma fazer isso e o sono (dormiu pouco = "
+            "noite livre). Use quando ele perguntar que horas fazer algo, pedir pra voce escolher ('tu escolhe', "
+            "'encaixa pra mim') ou mandar marcar algo sem hora - e grave com o horario que voltar."
         ),
         "input_schema": {
             "type": "object",
@@ -1799,6 +1801,10 @@ CHAT_TOOLS = [
                 "antes_das": {
                     "type": "string",
                     "description": "HH:MM - so procura antes desse horario. Omita se nao houver preferencia",
+                },
+                "dia": {
+                    "type": "string",
+                    "description": "AAAA-MM-DD - outro dia que nao hoje (ex: amanha). Omita pra hoje",
                 },
                 "titulo": {
                     "type": "string",

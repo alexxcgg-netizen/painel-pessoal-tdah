@@ -32,3 +32,9 @@ Sono automático (ShutEye → Saúde → Atalho): depois, a pedido dele.
   painel: o rodapé manda conferir na CIV. Voo antigo sem resposta conta como navegação quando origem ≠ destino.
   Simulador continua fora do total (igual à CIV) e entra em instrumentos até 5 h. TGL não é categoria do RBAC: só
   conta toques. O "Pousou? quanto deu?" (`voo_horas`) virou o diário (o tempo já vem preenchido pela rota).
+- IA propõe o horário (`horario.py`): 15 min de folga depois do compromisso anterior (ele pediu "mais tempo entre
+  as tarefas"); tarefa com hora ocupa 30 min e voo ocupa do briefing ao debriefing; hora de costume = mediana das
+  tarefas parecidas feitas com hora (2+ vezes em 90 dias); dormiu pouco (relógio < 6 h ou check-in de sono 1) =
+  nada depois das 21h. A regra do prompt (escolher em vez de perguntar) já existia; agora a ferramenta aceita `dia`.
+- Resumo da semana: uma sugestão só, na ordem atrasadas ≥ 3 > categoria do diário mais atrasada > dia que mais
+  rendeu > água. Sem botão por enquanto (só texto); se ele quiser, vira ação.

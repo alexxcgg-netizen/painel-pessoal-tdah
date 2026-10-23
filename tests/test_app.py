@@ -6023,8 +6023,9 @@ class PainelTestCase(unittest.TestCase):
         ), patch("app._agora", return_value=datetime.combine(date.today(), datetime.min.time())):
             resultado = self._registrar_via_chat("sugerir_horario_livre", {"duracao_minutos": 60})
         self.assertTrue(resultado["encontrado"])
-        self.assertEqual(resultado["inicio"], "09:00")
-        self.assertEqual(resultado["fim"], "19:00")
+        # leva 22/10 (horario.py): 15 min de folga depois da reuniao, no maior espaco do dia
+        self.assertEqual((resultado["inicio"], resultado["fim"]), ("09:15", "10:15"))
+        self.assertEqual(resultado["janela"], {"inicio": "09:15", "fim": "19:00"})
 
     def test_sugerir_horario_livre_respeita_depois_das(self):
         hoje = date.today().isoformat()

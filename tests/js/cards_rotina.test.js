@@ -70,3 +70,9 @@ test("semana: visitante sem gasto, dias incompletos nao renderizam", () => {
   assert.doesNotMatch(html("semana", { ...SEMANA, oculto: true, gasto: null }), /gastos/);
   assert.doesNotMatch(html("semana", { ...SEMANA, dias: SEMANA.dias.slice(0, 3) }), /rt-cols/);
 });
+
+test("semana: sugestao pra semana que vem (leva 22/10) aparece escapada e some sem dado", () => {
+  const h = html("semana", { ...SEMANA, sugestao: "Põe o pesado na <b>quinta</b>." });
+  assert.match(h, /<p class="rt-sugestao"><small>Pra semana que vem<\/small>Põe o pesado na &lt;b&gt;quinta/);
+  assert.doesNotMatch(html("semana", SEMANA), /rt-sugestao/);
+});

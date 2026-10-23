@@ -193,6 +193,23 @@ class SemanaTestCase(unittest.TestCase):
         self.assertIn(f"{nome} foi teu dia mais produtivo, 4 tarefas", texto)
         self.assertIn("4 a mais que na semana passada", texto)
         self.assertLessEqual(len(d["observacoes"]), 3)
+        # leva 22/10: voou na semana -> a sugestao puxa a categoria do diario de bordo mais atrasada
+        self.assertEqual(d["sugestao"], "Navegação é a categoria mais atrasada pro comercial (faltam 20,0 h): "
+                                        "vale pedir uma navegação no próximo voo.")
+        self.assertIn("Pra semana que vem: Navegação", texto)
+
+    def test_sugestao_da_semana_segue_a_prioridade(self):
+        melhor = HOJE - timedelta(days=2)
+        for _ in range(3):
+            _tarefa(self.conn, "x", feita_em=_feita_no_dia(melhor))
+        _, lista = cp.padroes_semana(self.conn, HOJE)
+        nome = cp.DIAS_LONGOS[melhor.weekday()]
+        self.assertEqual(lista[0]["data"]["sugestao"], f"Põe o que for mais pesado da semana que vem na {nome}, que foi quando tu mais rendeu.")
+        for i in range(3):
+            self.conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", (f"atrasada {i}", (HOJE - timedelta(days=3)).isoformat()))
+        self.conn.commit()
+        _, lista = cp.padroes_semana(self.conn, HOJE)
+        self.assertTrue(lista[0]["data"]["sugestao"].startswith("Separa 30 min na segunda pra zerar as 3 atrasadas"))
 
     def test_card_semana_mascara_pro_visitante(self):
         _tarefa(self.conn, "x", feita_em=_feita_no_dia(HOJE))
