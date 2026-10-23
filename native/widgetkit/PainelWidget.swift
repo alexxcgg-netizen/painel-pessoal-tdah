@@ -615,10 +615,9 @@ struct PainelWidget: Widget {
     }
 }
 
-#Preview(as: .systemSmall) {
-    PainelWidget()
-} timeline: {
-    PainelEntry(date: .now, estado: .normal(PainelTimelineProvider.amostra))
-    PainelEntry(date: .now, estado: .vazio)
-    PainelEntry(date: .now, estado: .erro("Sem conexão com o painel"))
+struct PainelWidget_Previews: PreviewProvider {
+    static var previews: some View {
+        PainelWidgetEntryView(entry: PainelEntry(date: .now, estado: .normal(PainelTimelineProvider.amostra)))
+            .previewContext(WidgetPreviewContext(family: .systemSmall))
+    }
 }
