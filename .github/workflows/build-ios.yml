@@ -1,0 +1,85 @@
+# App iOS nativo do Painel (WKWebView + widget WidgetKit) -> .ipa SEM assinatura, pra instalar pelo
+# Sideloadly no Windows (ele assina com a conta Apple do Alex). Passo a passo: docs/IOS_APP.md.
+#
+# Roda sozinho quando muda algo do app nativo; ou na mao em Actions -> "Build iOS (.ipa)" -> Run workflow.
+# Nenhum segredo e usado aqui: endereco e token do painel sao digitados no proprio app.
+name: Build iOS (.ipa)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - ".github/workflows/build-ios.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode estavel mais novo
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Gerar o projeto Xcode (native/ios/project.yml)
+        working-directory: native/ios
+        run: xcodegen generate
+
+      - name: Compilar app + extensao do widget (sem assinatura)
+        working-directory: native/ios
+        run: |
+          set +e
+          xcodebuild \
+            -project Painel.xcodeproj \
+            -scheme Painel \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build > xcodebuild.log 2>&1
+          rc=$?
+          grep -E "error:|warning: .*\.swift|BUILD (SUCCEEDED|FAILED)" xcodebuild.log
+          exit $rc
+
+      - name: Empacotar o .ipa
+        working-directory: native/ios
+        run: |
+          APP=build/Build/Products/Release-iphoneos/Painel.app
+          test -d "$APP/PlugIns/PainelWidgetExtension.appex" || { echo "widget nao foi embutido no app"; exit 1; }
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          ditto -c -k --sequesterRsrc --keepParent Payload Painel.ipa
+          ls -lh Painel.ipa
+
+      - name: Publicar o .ipa como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: Painel-ipa-${{ github.run_number }}
+          path: native/ios/Painel.ipa
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Log do xcodebuild (se falhar)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log-${{ github.run_number }}
+          path: native/ios/xcodebuild.log
+          if-no-files-found: ignore

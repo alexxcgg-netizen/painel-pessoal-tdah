@@ -14,3 +14,10 @@ fixtures_reais/
 
 # Prova de qualidade do chat (scripts/eval_chat): resultados de cada rodada
 scripts/eval_chat/resultados/
+
+# app iOS nativo: gerados no CI (ver .github/workflows/build-ios.yml)
+native/ios/Painel.xcodeproj/
+native/ios/build/
+native/ios/Payload/
+*.ipa
+native/ios/xcodebuild.log

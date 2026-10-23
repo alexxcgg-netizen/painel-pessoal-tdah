@@ -10,6 +10,11 @@
 > das 5 famílias e teste num dispositivo real (a tela de bloqueio não funciona no simulador
 > antigo de forma confiável).
 
+> **Atualização 2026-10-22:** o endpoint `/api/widget` já existe (`rotas/n3a_widget.py`, token
+> Bearer ou sessão) e o projeto Xcode agora sai pronto do CI: `native/ios/project.yml` (XcodeGen) +
+> `.github/workflows/build-ios.yml` geram o `.ipa` com app + este widget. Instalar pelo Windows:
+> `docs/IOS_APP.md`. O passo a passo do PWABuilder abaixo fica como alternativa.
+
 ## O que tem aqui
 
 | Arquivo | Papel |

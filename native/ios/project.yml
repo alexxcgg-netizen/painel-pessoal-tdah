@@ -1,0 +1,84 @@
+# Projeto Xcode do app iOS nativo do Painel Pessoal (2026-10-22).
+#
+# O .xcodeproj NAO fica no repositorio: o GitHub Actions (.github/workflows/build-ios.yml) gera
+# ele a partir deste arquivo com XcodeGen (https://github.com/yonaskolb/XcodeGen) num Mac da nuvem.
+# Num Mac seu: `brew install xcodegen && cd native/ios && xcodegen generate && open Painel.xcodeproj`.
+#
+# Dois alvos:
+#  - Painel: app contêiner. Uma WKWebView abrindo o painel (a mesma tela do PWA) + uma tela de
+#    configuração que grava a URL e o token do widget no App Group.
+#  - PainelWidgetExtension: o widget (WidgetKit) com os arquivos de native/widgetkit/.
+# Os dois dividem o App Group abaixo (tem que ser igual a PainelConfig.appGroupID em Config.swift).
+name: Painel
+options:
+  bundleIdPrefix: com.alexxcgg
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Painel:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Painel
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # O painel roda em rede de casa/Tailscale; o endereco e digitado no app, entao nao da pra
+        # listar dominio fixo. Mesma liberdade de um navegador comum.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoadsInWebContent: true
+          NSAllowsLocalNetworking: true
+        NSMicrophoneUsageDescription: O chat do painel usa o microfone pra tu falar em vez de digitar.
+        NSCameraUsageDescription: O chat do painel usa a câmera pra foto do prato e de nota.
+        NSPhotoLibraryUsageDescription: O chat do painel usa fotos da galeria quando tu escolhe uma.
+        NSLocationWhenInUseUsageDescription: O painel usa a localização pra hora de sair e chegada no aeroclube.
+    entitlements:
+      path: App/Painel.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.alexxcgg.painel]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.alexxcgg.painel
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - target: PainelWidgetExtension
+        embed: true
+    scheme: {}  # gera o scheme "Painel" (xcodebuild -scheme Painel no CI)
+  PainelWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../widgetkit
+        excludes: ["README.md"]
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: Painel
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Widget/PainelWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.alexxcgg.painel]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.alexxcgg.painel.widget
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: true

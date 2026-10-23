@@ -514,12 +514,20 @@ def widget_erro():
 # --------------------------------------------------------------------------
 
 
+def _sessao_do_painel_valida(app) -> bool:
+    """2026-10-22 (app iOS nativo): o app WKWebView ja esta logado no painel pelo PIN - a sessao
+    assinada vale tambem aqui. Modo visitante nunca (o widget e dado pessoal)."""
+    from flask import session
+
+    return bool(session.get("autenticado")) and not app._modo_visitante_ativo()
+
+
 @bp.route("/api/widget", methods=["GET"])
 def widget_api():
-    if not _token_widget_valido():
-        return jsonify({"error": "token invalido"}), 401
-
     from rotas._base import app_modulo
+
+    if not _token_widget_valido() and not _sessao_do_painel_valida(app_modulo()):
+        return jsonify({"error": "token invalido"}), 401
 
     mostrar_valores = request.args.get("mostrar_valores") == "1"
     resumo = coletar_resumo(app_modulo(), mostrar_valores=mostrar_valores)

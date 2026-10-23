@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-22 - App iOS nativo (.ipa) com widget, build no GitHub Actions
 - 2026-10-22 - Leva "painel mais esperto" (SW v93+)
 - 2026-10-21 - Carga × sono no treino (SW v92)
 - 2026-10-21 - Animação 3D do exercício no treino ao vivo (SW v91)
@@ -157,6 +158,22 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-22 - App iOS nativo (.ipa) com widget, build no GitHub Actions
+- `GET /api/widget` (já existia, `rotas/n3a_widget.py`) agora aceita também a **sessão logada** do painel
+  (o app nativo é uma WebView logada pelo PIN); modo visitante continua barrado. Teste em
+  `tests/test_fase7_n3a_widget_api.py`.
+- `native/ios/`: app contêiner SwiftUI (`App/PainelApp.swift`): WKWebView no painel + tela Configurar
+  (endereço e token gravados no App Group `group.com.alexxcgg.painel`, que o widget lê), aberta na
+  primeira vez ou pelo atalho do ícone. Microfone/câmera liberados só pro host do painel. Ícone 1024 px
+  tirado do `static/icons/icon-512.png`. `project.yml` (XcodeGen) junta o app e o widget de
+  `native/widgetkit/` (iOS 16+).
+- `.github/workflows/build-ios.yml`: macos-latest, XcodeGen, `xcodebuild` sem assinatura, confere que o
+  widget foi embutido, empacota `Painel.ipa` e publica como artefato (30 dias). Roda quando muda
+  `native/` ou na mão.
+- `docs/IOS_APP.md`: baixar o `.ipa` e instalar pelo Sideloadly no Windows com Apple ID grátis, com os
+  limites (7 dias, 3 apps, App Group pode não valer na assinatura grátis). **O Swift nunca foi compilado
+  aqui (sem Mac): a primeira execução do workflow é o primeiro build de verdade.**
 
 ## 2026-10-22 - Leva "painel mais esperto" (SW v93+)
 

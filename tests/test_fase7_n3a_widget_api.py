@@ -157,6 +157,19 @@ class TokenTestCase(_BaseWidgetTestCase):
         finally:
             os.environ["PAINEL_WIDGET_TOKEN"] = TOKEN_TESTE  # restaura pro patch.dict no tearDown
 
+    def test_sessao_logada_do_painel_vale_sem_token_e_visitante_nao(self):
+        """2026-10-22 (app iOS nativo): o WKWebView logado pelo PIN le o widget pela sessao."""
+        self.flask_app.secret_key = "teste-sessao"
+        with self.client.session_transaction() as s:
+            s["autenticado"] = True
+        res = self.client.get("/api/widget")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["versao"], 1)
+        with self.client.session_transaction() as s:
+            s["modo_visitante"] = True
+        with patch.object(app, "_modo_visitante_ativo", return_value=True):
+            self.assertEqual(self.client.get("/api/widget").status_code, 401)
+
     def test_pagina_widget_tambem_exige_token(self):
         res = self.client.get("/widget")
         self.assertEqual(res.status_code, 401)
