@@ -20,6 +20,7 @@ from datetime import date, datetime, time, timedelta
 
 import cards
 import db
+import diario_bordo
 import dia_ruim
 import foco
 import vida
@@ -292,9 +293,9 @@ POS_VOO_FOLGA_MIN = 20  # depois do pouso estimado: tempo de cortar o motor e sa
 POS_VOO_SEM_ESTIMATIVA_MIN = 90  # voo local / rota sem NM: hora + 1h30
 FIM_POS_VOO = time(23, 30)
 FRASES_POS_VOO = (
-    "Pousou? Quanto deu o voo de hoje? Um toque aqui e eu somo nas tuas horas.",
-    "E aí, como foi o voo? Me diz quanto deu que eu já somo no diário.",
-    "Voo feito! Quanto marcou o horímetro? Toca no valor aqui embaixo.",
+    "Pousou? Só 3 perguntas rápidas e eu somo no diário de bordo.",
+    "E aí, como foi o voo? Me diz o tipo, dia ou noite e o tempo que eu já somo.",
+    "Voo feito! Confere o tempo aqui embaixo e diz que tipo de voo foi.",
 )
 
 
@@ -623,7 +624,7 @@ def perguntar_horas_agora(conn, voo_id: int, agora: datetime) -> bool:
     """Saiu do aeroclube depois do voo: pergunta ja (o tick nao pergunta de novo)."""
     if db.ja_notificou_hoje(conn, "pos_voo_chat", voo_id):
         return False
-    card = cards.card_voo_horas(conn, voo_id, agora.date())
+    card = diario_bordo.card(conn, voo_id, agora.date())
     db.marcar_notificado(conn, "pos_voo_chat", voo_id)
     if card:
         publicar(conn, "pos_voo_chat", FRASES_POS_VOO[(agora.toordinal() + voo_id) % len(FRASES_POS_VOO)], [card])
@@ -699,12 +700,12 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
                 saida.append(("padroes_semana", "Teus padrões da semana", corpo))
             conn.commit()
         for voo_id in voos_pra_perguntar(conn, agora):
-            card = cards.card_voo_horas(conn, voo_id, agora.date())
+            card = diario_bordo.card(conn, voo_id, agora.date())
             db.marcar_notificado(conn, "pos_voo_chat", voo_id)
             if card:
                 texto = FRASES_POS_VOO[(agora.toordinal() + voo_id) % len(FRASES_POS_VOO)]
                 publicar(conn, "pos_voo_chat", texto, [card])
-                saida.append(("pos_voo", "Pousou?", "Quanto deu o voo de hoje? Um toque no chat e eu somo nas horas."))
+                saida.append(("pos_voo", "Pousou?", "3 perguntas rápidas no chat e eu somo no diário de bordo."))
             conn.commit()
         if not db.ja_notificou_hoje(conn, "presentes_anuais"):
             renovar_presentes_anuais(conn, agora.date())

@@ -205,10 +205,10 @@ class AeroclubeTestCase(_ComBanco):
         # saiu antes de decolar (foi buscar algo): nao pergunta
         self.assertIsNone(self.com_conn(app._mensagem_aeroclube, "saiu", datetime.combine(BASE, time(7, 40))))
         saiu = self.com_conn(app._mensagem_aeroclube, "saiu", datetime.combine(BASE, time(9, 30)))
-        self.assertEqual(saiu, "Quanto deu o voo? Um toque no chat e eu somo nas tuas horas.")
+        self.assertEqual(saiu, "Pousou? 3 perguntas rápidas no chat e eu somo no diário de bordo.")
         self.assertIsNone(self.com_conn(app._mensagem_aeroclube, "saiu", datetime.combine(BASE, time(9, 40))))
         tipos = [c[0]["type"] if c else None for _, c in self.mensagens()]
-        self.assertEqual(tipos, [None, "voo_horas"])
+        self.assertEqual(tipos, [None, "diario_bordo"])  # leva 22/10: o diario cresceu do "quanto deu?"
         self.assertEqual(self.mensagens()[1][1][0]["data"]["id"], vid)
 
     def test_sem_voo_no_dia_nao_fala(self):

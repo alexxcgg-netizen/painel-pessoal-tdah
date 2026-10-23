@@ -1251,6 +1251,24 @@ CHAT_TOOLS = [
         "input_schema": {"type": "object", "properties": {}},
     },
     {
+        "name": "diario_de_bordo",
+        "description": (
+            "Diario de bordo: quando ele diz que ACABOU DE VOAR ('acabei de voar', 'pousei', 'voei hoje'), abre o "
+            "card do voo de hoje com as 3 perguntas (tipo: navegacao, TGL ou instrumentos; dia ou noite; tempo) e o "
+            "quanto falta em cada categoria pra comercial. So passa natureza/horas se ele DISSE (ex.: 'voei 1,3 de "
+            "navegacao') - ai ja registra; senao deixa o card perguntar. Nunca 'pista': o nome e TGL."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "natureza": {"type": "string", "enum": ["navegacao", "tgl", "instrumentos"]},
+                "horas": {"type": "number", "description": "tempo de motor que ele falou, ex 1.3"},
+                "noturno": {"type": "boolean"},
+                "toques": {"type": "integer", "description": "so no TGL: toques e arremetidas"},
+            },
+        },
+    },
+    {
         "name": "parceiro_foco",
         "description": (
             "Parceiro de foco: quando ele diz que VAI COMECAR uma tarefa agora ('vou organizar as fotos', 'bora "

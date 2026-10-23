@@ -311,6 +311,7 @@ TIPOS_CARD = (
     "foco",
     "combinados",
     "proteina",
+    "diario_bordo",
 )
 
 
@@ -1973,6 +1974,10 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_rota(ef)
     if entidade == "refeicao" and isinstance(id_, int):
         return card_refeicao(conn, id_, ef, desfazer)
+    if entidade == "diario_bordo" and isinstance(id_, int):
+        import diario_bordo
+
+        return diario_bordo.card(conn, id_)
     if entidade == "voo_resumo":
         return card_voo_resumo(conn)
     if entidade == "voo_agendado":

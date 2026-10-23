@@ -27,6 +27,7 @@
     garfo: '<path d="M7 3v8M4.5 3v5a2.5 2.5 0 0 0 5 0V3M7 11v10"/><path d="M17 21V3c-2.2 1.2-3.5 3.6-3.5 7v3H17"/>',
     gente: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"/>',
     alvo: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/>',
+    aviao: '<path d="M21 15.5v-1.8l-7.5-4.6V4a1.5 1.5 0 0 0-3 0v5.1L3 13.7v1.8l7.5-2.3v4.9L8.6 19.5V21l3.4-1 3.4 1v-1.5l-1.9-1.4v-4.9z"/>',
     volta: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/>',
   };
   const svg = (nome, larg) =>
@@ -910,7 +911,173 @@
     }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
   }
 
-  const api = { guia, heroDiaRuim, raizDiaRuim, raizAlerta, raizParei, raizFoco, raizCombinados, raizProteina };
+  // ================================================================ diario_bordo (Diario de bordo)
+  // Igual ao cDiario do prototipo: 3 perguntas (tipo, dia/noite, tempo; no TGL os toques) e as barras do RBAC 61.101.
+  // Ao registrar o aviaozinho anda na barra do total ate a hora nova, os numeros contam e a categoria mais atrasada
+  // pulsa. Desfazer devolve o voo como estava.
+  const GUIA_DB = ["Escolhe o tipo do voo", "Confere dia/noite e o tempo, e registra"];
+  const TIPOS_DB = [["navegacao", "Navegação"], ["tgl", "TGL"], ["instrumentos", "Instrumentos"]];
+  const n1 = (h) => (Math.round((Number(h) || 0) * 10) / 10).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const pctDB = (c) => Math.min(100, ((Number(c.h) || 0) / (Number(c.meta) || 1)) * 100).toFixed(1);
+  function textoRegistro(e) {
+    const tipo = (TIPOS_DB.find((t) => t[0] === e.natureza) || [, "voo"])[1];
+    const qual = e.natureza === "tgl" ? `TGL (${plural(Number(e.toques) || 0, "toque", "toques")})` : tipo.toLowerCase();
+    return `Registrado: ${n1(e.horas)} h de ${qual}, ${e.noturno ? "noite" : "dia"}.`;
+  }
+  function raizDiario(e) {
+    const tipo = e.registrado ? e.natureza : e.tipo;
+    const passo = tipo ? 1 : 0;
+    const fim = e.registrado ? (e.feitoAgora ? "Pronto. Olha o aviãozinho andar na barra." : "Voo no diário.") : "";
+    let guiaHtml = guia(GUIA_DB, passo, fim);
+    if (!fim && e.desfeito) guiaHtml = guiaHtml.replace(esc(GUIA_DB[passo]), "Desfeito. Ajusta e registra de novo");
+    else if (!fim && tipo === "tgl") guiaHtml = guiaHtml.replace(esc(GUIA_DB[1]), "Conta os toques, confere o tempo e registra");
+    const passos = (acao, valor, menos, mais) =>
+      `<div class="db-passos"><button type="button" class="cd-cad" data-acao="${acao}" data-d="-1" aria-label="${menos}">−</button>` +
+      `<output class="db-v">${valor}</output><button type="button" class="cd-cad" data-acao="${acao}" data-d="1" aria-label="${mais}">+</button></div>`;
+    const form = e.registrado
+      ? `<div class="cd-ok db-ok">${svg("check", 2.4)}<span>${esc(textoRegistro(e))}</span><button type="button" class="cd-mini" data-acao="db_desfazer">Desfazer</button></div>`
+      : `<div class="db-form"><div><p class="cd-rot">Tipo do voo</p><div class="cd-acoes db-chips">` +
+        TIPOS_DB.map(([k, nome]) => `<button type="button" class="pr-chip${!tipo ? " cd-aqui" : ""}" data-acao="db_tipo" data-n="${k}" aria-pressed="${tipo === k}">${nome}</button>`).join("") +
+        `</div></div>` +
+        `<div><p class="cd-rot">Período</p><div class="cd-seg" data-p="${e.noturno ? 1 : 0}" role="group" aria-label="Período"><span class="cd-pil" aria-hidden="true"></span>` +
+        `<button type="button" data-acao="db_per" data-v="0" aria-pressed="${!e.noturno}">Dia</button><button type="button" data-acao="db_per" data-v="1" aria-pressed="${!!e.noturno}">Noite</button></div></div>` +
+        `<div><p class="cd-rot">Tempo</p>${passos("db_tempo", `${n1(e.horas)}&nbsp;h`, "Menos 0,1 h", "Mais 0,1 h")}</div>` +
+        (tipo === "tgl" ? `<div><p class="cd-rot">Toques e arremetidas</p>${passos("db_toques", esc(plural(Number(e.toques) || 1, "toque", "toques")), "Menos um toque", "Mais um toque")}</div>` : "") +
+        `<div class="cd-acoes"><button type="button" class="cd-acao primaria${tipo ? " cd-aqui" : ""}" data-acao="db_registrar"${tipo ? "" : " disabled"}>Registrar no diário</button></div></div>`;
+    const cats = lista(e.cats);
+    const pior = cats.find((c) => c.chave === e.pior);
+    const prog = cats.length
+      ? `<div class="db-prog"><p class="cd-rot">Faltam pra comercial</p>` +
+        cats
+          .map(
+            (c) =>
+              `<div class="db-linha${c.chave === e.pior ? " atraso" : ""}" data-c="${esc(c.chave)}"><span class="db-nome">${esc(c.nome)}</span>` +
+              `<div class="db-trilho"><i style="width:${pctDB(c)}%"></i>${c.chave === "total" ? `<span class="db-aviao" style="left:${pctDB(c)}%">${ICONE_AVIAO_DB}</span>` : ""}</div>` +
+              `<span class="db-num"><b>${n1(c.h)}</b>/${esc(c.meta)}&nbsp;h</span></div>`
+          )
+          .join("") +
+        (pior
+          ? `<p class="cd-nota">Mais atrasada: <b class="db-atraso">${esc(pior.nome)}</b>. Faltam ${n1(pior.meta - pior.h)}&nbsp;h pra fechar essa categoria.</p>`
+          : `<p class="cd-nota">Todas as categorias do RBAC fechadas.</p>`) +
+        `<p class="cd-nota">TGL no curso: <b class="db-toques">${esc(Number(e.toques_total) || 0)}</b> toques e arremetidas.</p></div>`
+      : "";
+    const estado = Object.assign({}, e);
+    delete estado.feitoAgora;
+    return (
+      `<div class="cd-raiz db-raiz" data-estado="${esc(JSON.stringify(estado))}">` + guiaHtml +
+      `<p class="cd-hero db-hero"><b class="db-h">${n1(e.horas)}</b>&nbsp;h</p>` +
+      `<p class="cd-nota">${e.rota ? `${esc(e.rota)} · ` : ""}tempo pelo horário de motor${e.estimado && !e.registrado ? " (estimado pela rota)" : ""}</p>` +
+      form + prog +
+      `<p class="cd-pe">Mínimos do ${esc(e.fonte || "RBAC 61.101")} (PC avião, curso homologado). Navegação e noturno contam em comando: confere na CIV.</p></div>`
+    );
+  }
+  const ICONE_AVIAO_DB =
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 15.5v-1.8l-7.5-4.6V4a1.5 1.5 0 0 0-3 0v5.1L3 13.7v1.8l7.5-2.3v4.9L8.6 19.5V21l3.4-1 3.4 1v-1.5l-1.9-1.4v-4.9z"/></svg>';
+  // o que vem do servidor (toques = do voo; toques_curso = do curso) vira o estado do card
+  const estadoDB = (d) =>
+    Object.assign({}, d, { toques: Number(d.toques) || 4, toques_total: Number(d.toques_curso) || 0, tipo: d.registrado ? d.natureza : null });
+  Cards.registrar("diario_bordo", (data) => {
+    const d = data || {};
+    return topo("aviao", "Diário de bordo", (d.data && Cards.rotuloDia && Cards.rotuloDia(d.data)) || "") + raizDiario(estadoDB(d));
+  });
+  // barras e numeros saem do antes e andam ate o depois (o aviaozinho voa junto)
+  function animarDiario(cardEl, antes, depois) {
+    const r = cardEl.querySelector(".db-raiz");
+    if (!r || reduz()) return;
+    const porChave = {};
+    lista(antes.cats).forEach((c) => (porChave[c.chave] = c));
+    r.querySelectorAll(".db-linha").forEach((l) => {
+      const a = porChave[l.dataset.c];
+      const c = lista(depois.cats).find((x) => x.chave === l.dataset.c);
+      if (!a || !c || a.h === c.h) return;
+      const barra = l.querySelector(".db-trilho i");
+      const av = l.querySelector(".db-aviao");
+      const fim = pctDB(c);
+      barra.style.width = `${pctDB(a)}%`;
+      if (av) av.style.left = `${pctDB(a)}%`;
+      void barra.offsetWidth;
+      if (av) av.classList.add("voando");
+      raiz.requestAnimationFrame(() => {
+        barra.style.width = `${fim}%`;
+        if (av) av.style.left = `${fim}%`;
+      });
+      const b = l.querySelector(".db-num b");
+      const t0 = Date.now();
+      (function passo() {
+        const k = Math.min(1, (Date.now() - t0) / 1000);
+        b.textContent = n1(a.h + (c.h - a.h) * (1 - Math.pow(1 - k, 3)));
+        if (k < 1) raiz.requestAnimationFrame(passo);
+      })();
+    });
+    if (antes.toques_total !== depois.toques_total) contar(r.querySelector(".db-toques"), antes.toques_total, depois.toques_total, 900);
+  }
+  function guardarDB(cardEl, est) {
+    const r = cardEl.querySelector(".db-raiz");
+    if (r) r.dataset.estado = JSON.stringify(est);
+  }
+  Cards.registrarAcao("db_tipo", (btn, cardEl) => {
+    const est = estadoAlerta(cardEl);
+    est.tipo = btn.dataset.n;
+    est.desfeito = false;
+    trocarRaiz(cardEl, raizDiario(est));
+  });
+  Cards.registrarAcao("db_per", (btn, cardEl) => {
+    const est = estadoAlerta(cardEl);
+    est.noturno = btn.dataset.v === "1";
+    guardarDB(cardEl, est);
+    const seg = btn.closest(".cd-seg");
+    seg.dataset.p = est.noturno ? "1" : "0";
+    seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+  });
+  Cards.registrarAcao("db_tempo", (btn, cardEl) => {
+    const est = estadoAlerta(cardEl);
+    const novo = Math.max(0.1, Math.min(12, Math.round(((Number(est.horas) || 1) + Number(btn.dataset.d) * 0.1) * 10) / 10));
+    if (novo === est.horas) return;
+    est.horas = novo;
+    guardarDB(cardEl, est);
+    const v = btn.parentNode.querySelector(".db-v");
+    v.innerHTML = `<span class="va-troca">${n1(novo)}&nbsp;h</span>`;
+    const h = cardEl.querySelector(".db-h");
+    if (h) h.textContent = n1(novo);
+  });
+  Cards.registrarAcao("db_toques", (btn, cardEl) => {
+    const est = estadoAlerta(cardEl);
+    const novo = Math.max(1, Math.min(30, (Number(est.toques) || 1) + Number(btn.dataset.d)));
+    if (novo === est.toques) return;
+    est.toques = novo;
+    guardarDB(cardEl, est);
+    btn.parentNode.querySelector(".db-v").innerHTML = `<span class="va-troca">${esc(plural(novo, "toque", "toques"))}</span>`;
+  });
+  async function enviarDB(cardEl, deps, corpo, ajustar) {
+    const antes = estadoAlerta(cardEl);
+    const r = await postar(deps, `/api/voos/${encodeURIComponent(antes.id)}/diario`, corpo);
+    if (!r || !r.ok || !r.card) return false;
+    const depois = Object.assign(estadoDB(r.card), ajustar(r.card));
+    trocarRaiz(cardEl, raizDiario(depois));
+    animarDiario(cardEl, antes, depois);
+    if (typeof deps.aoMudar === "function") deps.aoMudar();
+    return true;
+  }
+  Cards.registrarAcao("db_registrar", async (btn, cardEl, deps) => {
+    const est = estadoAlerta(cardEl);
+    if (!est.tipo || btn.disabled) return;
+    btn.disabled = true;
+    const volta = est.salvo || null; // como o voo estava antes, pro Desfazer devolver igual
+    const ok = await enviarDB(cardEl, deps, { horas: est.horas, natureza: est.tipo, noturno: !!est.noturno, toques: est.tipo === "tgl" ? est.toques : null },
+      () => ({ feitoAgora: true, volta }));
+    if (!ok) btn.disabled = false;
+    else if (typeof raiz.vibrar === "function") raiz.vibrar([10, 40, 16]);
+  });
+  Cards.registrarAcao("db_desfazer", async (btn, cardEl, deps) => {
+    const est = estadoAlerta(cardEl);
+    // aberto do historico ja registrado: desfazer mantem as horas e so tira a classificacao
+    const v = est.volta || { horas: est.salvo ? est.salvo.horas : est.horas, natureza: null, noturno: false, toques: null };
+    btn.disabled = true;
+    const ok = await enviarDB(cardEl, deps, v, (c) => ({ tipo: est.natureza, desfeito: true, horas: est.horas, noturno: est.noturno, toques: est.toques, estimado: c.estimado }));
+    if (!ok) btn.disabled = false;
+  });
+
+  const api = { guia, heroDiaRuim, raizDiaRuim, raizAlerta, raizParei, raizFoco, raizCombinados, raizProteina, raizDiario };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   raiz.CardsDia = api;
 })(typeof window !== "undefined" ? window : globalThis);

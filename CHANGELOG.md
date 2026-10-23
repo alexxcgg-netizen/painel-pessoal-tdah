@@ -214,6 +214,14 @@ Pedido do Alex: "o que falta pra deixar o painel mais esperto?" → "faz todos".
   g"); carbo e gordura ficam numa linha pequena e kcal some da tela (continua gravado). Sem peso no perfil → pede o
   peso em vez de inventar meta. O type antigo `refeicao` continua no front pros cards do histórico. Testes em
   `tests/test_proteina.py`, `tests/test_foto_prato_feriados_voz.py` e `tests/js/cards_dia.test.js`.
+- **Diário de bordo (SW v95)**: card `diario_bordo` (protótipo cDiario) com as 3 perguntas depois do voo (tipo
+  navegação/TGL/instrumentos, dia/noite, tempo; no TGL os toques) e as barras de quanto falta pra comercial pelos
+  mínimos do RBAC 61.101 (150 total, 20 navegação, 10 instrumentos com até 5 h de simulador, 5 noturno), com o
+  aviãozinho andando na barra do total e a categoria mais atrasada pulsando. Desfazer volta o voo como estava.
+  Migração `202610221500_db_voos_diario_bordo.sql` (voos.natureza/noturno/toques), `diario_bordo.py`,
+  `POST /api/voos/<id>/diario`, ferramenta `diario_de_bordo` ("acabei de voar"). A pergunta automática pós-voo e
+  a saída do aeroclube agora mandam o diário no lugar do `voo_horas` (que fica pro histórico). Testes em
+  `tests/test_diario_bordo.py` e `tests/js/cards_dia.test.js`.
 
 ## 2026-10-21 - Carga × sono no treino (SW v92)
 

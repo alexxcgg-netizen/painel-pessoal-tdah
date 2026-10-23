@@ -26,3 +26,9 @@ Sono automático (ShutEye → Saúde → Atalho): depois, a pedido dele.
 - Check-in: pergunta da manhã entre 7h e 11h, uma vez por dia, só se ainda não respondeu; vem com push
   (avisos ajudam - memória `avisos-nao-reduzir`). Os 3 campos ficam no mesmo card; cada toque salva na hora.
 - Check-in é dado de saúde: no modo visitante o card some os valores (como `saude_dia`).
+- Diário de bordo: metas por categoria do RBAC 61.101(a)(1), conferidas no texto da Emenda 00 (PC avião, curso
+  homologado): 150 h total, 20 h navegação, 10 h instrumentos (até 5 h de simulador), 5 h noturno. O protótipo dizia
+  20 h de instrumentos; o certo é 10. Emendas posteriores à 00 não conferidas. "Em comando" não dá pra saber pelo
+  painel: o rodapé manda conferir na CIV. Voo antigo sem resposta conta como navegação quando origem ≠ destino.
+  Simulador continua fora do total (igual à CIV) e entra em instrumentos até 5 h. TGL não é categoria do RBAC: só
+  conta toques. O "Pousou? quanto deu?" (`voo_horas`) virou o diário (o tempo já vem preenchido pela rota).

@@ -284,3 +284,39 @@
   .pr-onda, .pr-prato.lendo .pr-scan, .pr-chip[aria-pressed="true"] { animation: none; }
   .pr-nivel, .pr-chip { transition: none; }
 }
+
+/* diario_bordo - Diario de bordo (prototipo cDiario): 3 perguntas, barras do RBAC 61.101, aviaozinho que anda na barra do total */
+.card-contrato-diario_bordo { --card-cor: #8fd0ff; --cd-ok: #9fdcb0; }
+.db-hero b { font-family: var(--font-tech); font-size: 2.4rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.db-form { display: grid; gap: 0.8rem; }
+.db-chips { gap: 0.5rem; }
+.db-passos { display: flex; align-items: center; gap: 0.6rem; }
+.db-passos .cd-cad { font-size: 1.2rem; color: var(--text); }
+.db-v { min-width: 6.2rem; text-align: center; font-family: var(--font-tech); font-size: 1rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.db-ok { flex-wrap: wrap; }
+.db-ok span { flex: 1 1 12rem; min-width: 0; }
+.db-prog { display: grid; gap: 0.55rem; }
+.db-linha { display: grid; grid-template-columns: 6.4rem 1fr 5.2rem; align-items: center; gap: 0.6rem; font-size: 0.82rem; color: var(--text-muted); }
+.db-nome { min-width: 0; }
+.db-trilho { position: relative; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.db-trilho i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--card-cor); transition: width 1.2s var(--ease-suave); }
+.db-linha.atraso .db-trilho i { background: var(--danger); animation: db-pulsa 1.6s var(--ease-suave) infinite; }
+@keyframes db-pulsa { 50% { opacity: 0.55; } }
+.db-aviao {
+  position: absolute; top: 50%; width: 18px; height: 18px; color: var(--card-cor); transform: translate(-50%, -50%) rotate(90deg);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--card-cor) 60%, transparent)); transition: left 1.2s var(--ease-suave);
+}
+.db-aviao svg { width: 100%; height: 100%; display: block; }
+.db-aviao.voando { animation: db-voa 1.2s var(--ease-suave); }
+@keyframes db-voa { 40% { transform: translate(-50%, -80%) rotate(90deg); } }
+.db-num { font-family: var(--font-tech); font-size: 0.74rem; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+.db-num b { color: var(--text); font-weight: 600; }
+.db-atraso { color: var(--danger); }
+.db-toques { font-family: var(--font-tech); color: var(--text); font-variant-numeric: tabular-nums; }
+@media (max-width: 360px) {
+  .db-linha { grid-template-columns: 5.4rem 1fr 5.2rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-linha.atraso .db-trilho i, .db-aviao.voando { animation: none; }
+  .db-trilho i, .db-aviao { transition: none; }
+}

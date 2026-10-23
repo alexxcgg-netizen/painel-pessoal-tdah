@@ -3688,6 +3688,30 @@ def _processar_mensagem_chat(
         return {"ok": True, "titulo": titulo, "minutos": minutos, "tarefa_nova": not tarefa,
                 "_efeito": {"entidade": "foco", "consulta": True}}
 
+    def exec_diario_de_bordo(entrada):
+        import diario_bordo
+
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        hoje = _agora_brasilia().date()
+        voo_id = diario_bordo.voo_de_hoje(conn, hoje)
+        novo = voo_id is None
+        if novo:  # voou sem ter marcado: entra como voo local de hoje no aerodromo de sempre
+            voo_id = conn.execute("INSERT INTO voos (data, origem, destino) VALUES (?, 'SSBL', 'SSBL')",
+                                  (hoje.isoformat(),)).lastrowid
+        natureza = entrada.get("natureza")
+        horas = entrada.get("horas")
+        if natureza in diario_bordo.NATUREZAS and isinstance(horas, (int, float)):
+            try:
+                diario_bordo.registrar(conn, voo_id, horas, natureza, bool(entrada.get("noturno")),
+                                       entrada.get("toques") if natureza == "tgl" else None)
+            except ValueError as e:
+                return {"erro": str(e)}
+        conn.commit()
+        return {"ok": True, "voo_id": voo_id, "voo_novo": novo,
+                "_efeito": {"entidade": "diario_bordo", "id": voo_id, "consulta": True}}
+
     def exec_iniciar_hiperfoco(entrada):
         minutos = entrada.get("minutos") or 50
         if minutos not in vida.DURACOES_HIPERFOCO:
@@ -4344,6 +4368,7 @@ def _processar_mensagem_chat(
         "dia_ruim": exec_dia_ruim,
         "travar_tarefa": exec_travar_tarefa,
         "parceiro_foco": exec_parceiro_foco,
+        "diario_de_bordo": exec_diario_de_bordo,
         "quadro_combinados": exec_quadro_combinados,
         "registrar_conversa": exec_registrar_conversa,
         "cadastrar_pessoa": exec_cadastrar_pessoa,
@@ -6699,7 +6724,7 @@ def _mensagem_aeroclube(conn, evento: str, agora: datetime) -> str | None:
     voados = [v for v in voos if (v["hora"] and v["hora"] <= agora_hhmm)
               or (not v["hora"] and obter_configuracao(conn, f"aeroclube_chegou_{v['id']}"))]
     if voados and conversa_proativa.perguntar_horas_agora(conn, voados[-1]["id"], agora):
-        return "Quanto deu o voo? Um toque no chat e eu somo nas tuas horas."
+        return "Pousou? 3 perguntas rápidas no chat e eu somo no diário de bordo."
     return None
 
 

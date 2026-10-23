@@ -253,7 +253,7 @@ class PosVooTestCase(_ComBanco):
             agora = fim + timedelta(minutes=20)
             self.assertEqual(conversa_proativa.voos_pra_perguntar(conn, agora), [vid])
             saida = conversa_proativa.verificar(conn, agora)
-            self.assertIn(("pos_voo", "Pousou?", "Quanto deu o voo de hoje? Um toque no chat e eu somo nas horas."), saida)
+            self.assertIn(("pos_voo", "Pousou?", "3 perguntas rápidas no chat e eu somo no diário de bordo."), saida)
             self.assertEqual([s for s in conversa_proativa.verificar(conn, agora) if s[0] == "pos_voo"], [])
             msg = conn.execute("SELECT texto, cards_json FROM chat_mensagens WHERE papel = 'assistant'").fetchall()
         finally:
@@ -261,7 +261,7 @@ class PosVooTestCase(_ComBanco):
         self.assertEqual(len(msg), 1)
         self.assertIn(msg[0]["texto"], conversa_proativa.FRASES_POS_VOO)
         card = json.loads(__import__("criptografia").descriptografar(msg[0]["cards_json"]))[0]
-        self.assertEqual((card["type"], card["data"]["id"]), ("voo_horas", vid))
+        self.assertEqual((card["type"], card["data"]["id"]), ("diario_bordo", vid))  # leva 22/10
 
     def test_nao_pergunta_de_voo_com_horas_simulador_ou_tarde_da_noite(self):
         self.voo(HOJE.isoformat(), "08:00", horas=1.0)

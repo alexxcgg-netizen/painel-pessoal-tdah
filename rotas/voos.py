@@ -152,6 +152,34 @@ def horas_do_voo(voo_id):
     return jsonify({"ok": True, "horas": horas, "horas_min": int(round(float(total) * 60))})
 
 
+@bp.route("/api/voos/<int:voo_id>/diario", methods=["POST"])
+def diario_do_voo(voo_id):
+    """Card do diario de bordo: {horas, natureza, noturno, toques} grava as 3 respostas e devolve o card
+    inteiro de novo (as barras das categorias andam no front). natureza=null + horas=null desfaz."""
+    import diario_bordo
+
+    app = app_modulo()
+    recusa = app._recusar_no_modo_visitante()
+    if recusa:
+        return recusa
+    corpo = app._corpo_json()
+    conn = get_db()
+    try:
+        if not conn.execute("SELECT 1 FROM voos WHERE id = ?", (voo_id,)).fetchone():
+            return jsonify({"error": "voo não encontrado"}), 404
+        try:
+            diario_bordo.registrar(conn, voo_id, corpo.get("horas"), corpo.get("natureza"),
+                                   bool(corpo.get("noturno")), corpo.get("toques"))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        app._marcar_atividade(conn)
+        conn.commit()
+        card = diario_bordo.card(conn, voo_id)
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "card": card["data"] if card else None})
+
+
 @bp.route("/api/voos/<int:voo_id>/mochila", methods=["GET", "POST"])
 def mochila_do_voo(voo_id):
     """Mochila do card da vespera (4a leva): GET devolve o que ja foi marcado (historico do

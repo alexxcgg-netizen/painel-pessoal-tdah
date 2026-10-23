@@ -153,3 +153,36 @@ test("proteina: so proteina, copo contra a meta, sugestoes e corrige", () => {
   assert.match(sem, /me diz teu peso/);
   semFallback(html("proteina", {}));
 });
+
+test("diario_bordo: 3 perguntas, barras do RBAC, mais atrasada e TGL so com toques", () => {
+  const cats = [
+    { chave: "total", nome: "Total", h: 112.4, meta: 150 },
+    { chave: "navegacao", nome: "Navegação", h: 14.2, meta: 20 },
+    { chave: "noturno", nome: "Noturno", h: 3.5, meta: 5 },
+    { chave: "instrumentos", nome: "Instrumentos", h: 9, meta: 10 },
+  ];
+  const d = { id: 4, data: "2026-10-22", rota: "SSBL → SSBL", horas: 1.3, estimado: true, natureza: null, noturno: false,
+    toques: 4, registrado: false, cats, pior: "navegacao", toques_curso: 38, fonte: "RBAC 61.101" };
+  const h = html("diario_bordo", d);
+  semFallback(h);
+  assert.match(h, /<b class="db-h">1,3<\/b>/);
+  assert.match(h, /data-acao="db_tipo" data-n="tgl" aria-pressed="false">TGL/);
+  assert.doesNotMatch(h, /Pista/i);
+  assert.match(h, /data-acao="db_registrar" disabled/);
+  assert.match(h, /class="db-linha atraso" data-c="navegacao"/);
+  assert.match(h, /Faltam 5,8&nbsp;h pra fechar essa categoria/);
+  assert.match(h, /<b class="db-toques">38<\/b> toques/);
+  assert.match(h, /RBAC 61\.101/);
+  assert.match(h, /class="db-aviao" style="left:74\.9%"/);
+  assert.doesNotMatch(h, /db_toques/); // stepper de toques so aparece no TGL
+  const tgl = require(path.join(__dirname, "..", "..", "static", "js", "cards-dia.js")).raizDiario(Object.assign({}, d, { tipo: "tgl", toques_total: 38 }));
+  assert.match(tgl, /data-acao="db_toques"/);
+  assert.match(tgl, /4 toques/);
+  assert.match(tgl, /Conta os toques, confere o tempo e registra/);
+  const reg = html("diario_bordo", Object.assign({}, d, { registrado: true, natureza: "navegacao", noturno: true }));
+  assert.match(reg, /Registrado: 1,3 h de navegação, noite\./);
+  assert.match(reg, /data-acao="db_desfazer"/);
+  assert.doesNotMatch(reg, /db_registrar/);
+  assert.match(html("diario_bordo", Object.assign({}, d, { rota: "<x>" })), /&lt;x&gt;/);
+  semFallback(html("diario_bordo", {}));
+});
