@@ -469,11 +469,12 @@ de sono ou mais tu levanta X kg em média. Com menos, Y kg" só com 2+ noites bo
 O sono vem do Saúde/Atalho ou da pergunta "Dormiu quanto essa noite?" no `treino_agora` (chips 5/6/7/8 h+, otimista,
 `POST /api/treino/sessoes/<id>/sono`, grava no dia da sessão); respondida vira a linha "Dormiu X essa noite". Visitante:
 `sono_horas`/`sono` saem dos cards. Carga sem "kg" ("3 placas") não entra no gráfico. Animação do exercício
-(aprovada no artefato, no app desde o SW v91): painel `.tv-agora` em cima da lista com o exercício da vez em 3D
-(`static/js/exercicio-3d.js`, 43 exercícios, um corpo só + equipamento, músculo acende no empurrão), "Agora · n/total",
-séries em tracinhos e "rep x/y". `Exercicio.tipo(nome)` lê o nome livre da ficha; desconhecido = painel escondido (nunca
-animação errada). `CardsVivos.preparar` desenha; treino em andamento anima enquanto está na tela (histórico também - ele
-abre o chat no meio do treino), concluído ou reduced-motion = pose parada. Marcou: `trocarExercicio` sai/entra pro próximo;
+(aprovada no artefato Academia 3D, no app desde o SW v96): painel `.tv-agora` em cima da lista com o exercício da vez
+em 3D de verdade (`static/treino3d/treino3d.js`: corpo MakeHuman esculpido + atlas, 215 exercícios, músculo principal
+em vermelho com a etiqueta "pega mais em"), palco largo em cima (1 : 0,95) e embaixo "Agora · n/total", séries em
+tracinhos e "rep x/y". `Treino3DCatalogo.tipo(nome)` (`static/js/treino3d-catalogo.js`) lê o nome livre da ficha;
+desconhecido = painel escondido (nunca animação errada). O motor só é baixado quando o painel aparece e é um só: o palco
+muda pro card que está na tela. Sem WebGL 2 = painel some. Reduced-motion = pose parada no meio do movimento. Marcou: `trocarExercicio` sai/entra pro próximo;
 terminou: o painel some.
 
 **Tempo no caminho (aditivo, 2026-10-21)**: rota ≥ 25 km ganha `data.tempo = {total_km, saida, trechos[{tipo, de_km,

@@ -25,10 +25,13 @@ bonequinho qualquer coisa, tem que ser uma coisa de outro nível mesmo". Vale pr
   (`POST /api/treino/sessoes/<id>/sono`). Protótipo de origem: artefato "Ideias do Painel"
   (https://claude.ai/artifact/PSBxhssPmYstutpN3yfA82, cena Treino). Nunca voltar pra só linha de carga.
 - Testes: `tests/test_treino_vivo.py` e `tests/js/cards.test.js` (treino ao vivo / troca de carga).
-- Animação: `static/js/exercicio-3d.js` (43 exercícios; novo = entrada em `EX` com `pose(t)`/`cena`/`m` +
-  linha no `MAPA` do `tipo()`), painel `.tv-agora` ligado em `cards-vivos.js` (`palcoPreparar`/`trocarExercicio`).
-  Conferir exercício novo renderizando t=0 e t=1 lado a lado antes de dar como pronto;
-  `tests/js/exercicio.test.js` pega NaN e nome mapeado errado.
+- Animação (SW v96): 3D de verdade, 215 exercícios. Fonte = protótipo `docs/prototipos/academia-3d/academia/`
+  (fora do git: `motor.js`, `moldes/<grupo>.js` + `.cat.json`, guia em `moldes/LEIA.md`, `ver.py` pra folha de
+  contato). `build.py` monta o artefato; `build_app.py` gera `static/treino3d/treino3d.js` + `corpo.json` e o
+  catálogo de `static/js/treino3d-catalogo.js` (o mapeador nome → exercício é código do app, nesse arquivo).
+  Painel `.tv-agora` ligado em `cards-vivos.js` (`carregar3D`/`palcoMontar`/`trocarExercicio`): motor importado só
+  quando aparece, um renderizador que muda de card. Exercício novo: molde no protótipo → folha t=0/t=1 no `ver.py` →
+  artefato pro veredito → `build_app.py` → `tests/js/treino3d.test.js`.
 
 ## Régua de qualidade (não negociar)
 1. **Nada de boneco de palito / ícone genérico.** Animação de exercício só entra se parecer

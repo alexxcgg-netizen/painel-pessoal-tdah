@@ -892,22 +892,69 @@
   background: var(--card-cor);
   transition: width 0.55s var(--ease-bounce);
 }
-/* painel do exercicio da vez (exercicio-3d.js via CardsVivos): figura 3D + contador de serie/rep */
+/* painel do exercicio da vez (treino 3D via CardsVivos, leva 29/10): o palco 3D largo em cima (o
+   mesmo do prototipo aprovado, academia-3d "No chat") e o nome + serie/rep embaixo */
 .tv-agora {
   display: grid;
-  grid-template-columns: 116px minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  padding: 4px 12px 4px 4px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 0 6px;
   margin: 0 0 4px;
+}
+.tv-fig {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 1 / 0.95;
   border-radius: 16px;
   overflow: hidden;
-  background: radial-gradient(120% 120% at 20% 100%, color-mix(in srgb, var(--card-cor) 10%, #0b0f13), #06080b 75%);
-  border: 1px solid color-mix(in srgb, var(--card-cor) 20%, var(--border));
+  background: radial-gradient(120% 90% at 50% 100%, #1b1e25, #14161b 70%);
+  border: 1px solid color-mix(in srgb, var(--card-cor) 16%, var(--border));
 }
-.tv-fig { width: 116px; aspect-ratio: 240 / 200; }
-.tv-fig svg { display: block; width: 100%; height: 100%; }
-.tv-info { display: grid; gap: 2px; min-width: 0; }
+/* enquanto o motor chega (so na 1a vez; depois fica no cache): um brilho que passa devagar */
+.tv-fig:not(.tv-pronto)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.05) 50%, transparent 70%) 0 0 / 250% 100%;
+  animation: tv-carrega 1.6s linear infinite;
+}
+@keyframes tv-carrega { from { background-position: 125% 0; } to { background-position: -125% 0; } }
+.tv-info { display: grid; gap: 2px; min-width: 0; padding: 0 4px; }
+/* palco do motor 3D (static/treino3d/treino3d.js monta; o canvas viaja entre os cards) */
+.t3-palco { position: absolute; inset: 0; animation: tv-surge 0.6s var(--ease-suave) both; }
+.t3-palco canvas { display: block; width: 100% !important; height: 100% !important; touch-action: pan-y; }
+@keyframes tv-surge { from { opacity: 0; } }
+.t3-guia { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 0.6s var(--ease-suave); }
+.t3-guia.on { opacity: 1; }
+.t3-guia path { fill: none; stroke: color-mix(in srgb, var(--card-cor) 70%, transparent); stroke-width: 1.2; stroke-dasharray: 2 3; }
+.t3-guia circle { fill: var(--card-cor); }
+.t3-guia .halo { fill: color-mix(in srgb, var(--card-cor) 35%, transparent); transition: r 0.25s var(--ease-suave); }
+.t3-etq {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  max-width: 48%;
+  display: grid;
+  gap: 1px;
+  padding: 7px 10px 8px;
+  border-radius: 13px;
+  background: color-mix(in srgb, #14161b 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-cor) 30%, var(--border));
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.5s var(--ease-suave), transform 0.6s var(--ease-bounce);
+  pointer-events: none;
+}
+.t3-etq.on { opacity: 1; transform: none; }
+.t3-etq.dir { left: auto; right: 10px; }
+.t3-etq small { font: 600 9.5px "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+.t3-etq b { font-size: 13px; font-weight: 650; color: var(--card-cor); line-height: 1.2; }
+.t3-etq span { font-size: 11.5px; color: var(--text-muted); line-height: 1.3; }
+.t3-fase { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 7px; align-items: center; font-size: 11.5px; color: var(--text-muted); pointer-events: none; }
+.t3-fase i { width: 6px; height: 6px; border-radius: 50%; background: var(--card-cor); box-shadow: 0 0 8px var(--card-cor); }
 .tv-info small {
   font: 600 10px "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
   letter-spacing: 0.08em;
@@ -930,8 +977,8 @@
 @keyframes tv-sai { to { opacity: 0; transform: translateX(-14px); filter: blur(4px); } }
 @keyframes tv-chega { from { opacity: 0; transform: translateX(18px); filter: blur(4px); } }
 @media (prefers-reduced-motion: reduce) {
-  .tv-sai, .tv-chega, .card-novo .tv-agora, .tv-series span b.pula { animation: none; }
-  .tv-series i { transition: none; }
+  .tv-sai, .tv-chega, .card-novo .tv-agora, .tv-series span b.pula, .tv-fig::after, .t3-palco { animation: none; }
+  .tv-series i, .t3-guia, .t3-guia .halo, .t3-etq { transition: none; }
 }
 .tv-lista, .tv-cargas { list-style: none; margin: 0; padding: 0; display: grid; }
 .tv-ex, .tv-carga-linha {

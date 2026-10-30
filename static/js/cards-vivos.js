@@ -1209,54 +1209,90 @@
         )
       : null;
 
-  // ---- treino ao vivo: o exercicio da vez animado (exercicio-3d.js) ----------------------
-  // Treino em andamento anima enquanto o painel esta na tela (historico tambem: ele abre o chat
-  // no meio do treino); treino concluido ou prefers-reduced-motion = pose parada.
-  // Marcou a caixinha: o exercicio sai pro lado e o proximo entra (trocarExercicio).
+  // ---- treino ao vivo: o exercicio da vez em 3D (static/treino3d/treino3d.js) ---------------
+  // O motor (three.js + corpo, ~1,8 MB) so e baixado quando um painel aparece, e e um so: o palco 3D
+  // (canvas + etiqueta "pega mais em") muda pro card que esta na tela. Sem WebGL 2 ou se o motor
+  // falhar, o painel some (card limpo, nunca figura quebrada). prefers-reduced-motion = pose parada
+  // no meio do movimento (o proprio motor). Marcou a caixinha: sai pro lado e o proximo entra.
+  let motor3D = null, dono3D = null;
+  function temWebGL() {
+    try {
+      return !!raiz.document.createElement("canvas").getContext("webgl2");
+    } catch (_e) {
+      return false;
+    }
+  }
+  function carregar3D() {
+    if (!motor3D) {
+      motor3D = !raiz.document || !temWebGL()
+        ? Promise.reject(new Error("sem WebGL 2"))
+        : import("/static/treino3d/treino3d.js").then(() => {
+            const T = raiz.TREINO3D;
+            if (!T || !T.palco) throw new Error("treino3d sem palco");
+            T.palco.addEventListener("rep", (e) => {
+              const palco = dono3D;
+              if (!palco || reduzido()) return;
+              const alvo = +palco.dataset.reps || 10;
+              palco._rep = (e.detail % alvo) + 1;
+              if (palco._rep === 1 && e.detail > 0) palco._serie = Math.min(+palco.dataset.series || 3, palco._serie + 1);
+              palcoSeries(palco, true);
+            });
+            return T;
+          });
+      motor3D.catch(() => {});
+    }
+    return motor3D;
+  }
+
   function palcoSeries(palco, pula) {
     const caixa = palco.querySelector(".tv-series");
     if (!caixa) return;
     const n = Math.min(8, +palco.dataset.series || 3), alvo = +palco.dataset.reps || 10;
     let h = "";
     for (let k = 0; k < n; k++) h += `<i class="${k < (palco._serie || 0) ? "on" : ""}"></i>`;
-    caixa.innerHTML = h + (palco._parar
+    caixa.innerHTML = h + (dono3D === palco && !reduzido()
       ? `<span>rep <b${pula ? ' class="pula"' : ""}>${Math.max(1, palco._rep || 0)}</b>/${alvo}</span>`
       : `<span>${alvo} reps</span>`);
   }
 
-  function palcoMontar(palco, vivo) {
-    const velho = palco.querySelector(".tv-fig svg"), tp = palco.dataset.tipo;
-    if (palco._parar) palco._parar();
-    palco._parar = null;
+  function palcoSumir(palco) {
+    if (palco.hidden) return;
+    if (!reduzido() && typeof palco.animate === "function") {
+      palco.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0.96)" }],
+        { duration: 350, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }).onfinish = () => { palco.hidden = true; };
+    } else palco.hidden = true;
+  }
+
+  function palcoMontar(palco) {
+    const tp = palco.dataset.tipo, fig = palco.querySelector(".tv-fig");
+    const cat = raiz.Treino3DCatalogo, ex = cat && typeof cat.acha === "function" ? cat.acha(tp) : null;
     palco._rep = 0;
     palco._serie = 0;
-    if (!velho || !tp || typeof raiz.Exercicio === "undefined") return;
-    const svg = velho.cloneNode(false); // sem os ouvintes do exercicio anterior
-    velho.replaceWith(svg);
-    if (vivo) {
-      svg.addEventListener("rep", (e) => {
-        const alvo = +palco.dataset.reps || 10;
-        palco._rep = (e.detail % alvo) + 1;
-        if (palco._rep === 1 && e.detail > 0) palco._serie = Math.min(+palco.dataset.series || 3, palco._serie + 1);
-        palcoSeries(palco, true);
-      });
-      palco._parar = raiz.Exercicio.montar(svg, tp);
-    } else {
-      raiz.Exercicio.montar(svg, tp, 0.3);
-    }
     palcoSeries(palco);
+    if (!fig || !ex) return;
+    carregar3D().then(
+      (T) => {
+        if (palco.dataset.tipo !== tp || !palco.isConnected || palco.hidden) return; // trocou no meio
+        if (dono3D && dono3D !== palco) palcoSeries(dono3D); // o outro card volta a mostrar "N reps"
+        dono3D = palco;
+        if (T.palco.parentNode !== fig) fig.append(T.palco);
+        T.usa(ex[2], ex[1], ex[3] || {});
+        T.toca(palco.dataset.ativo === "1");
+        T.tamanho();
+        fig.classList.add("tv-pronto");
+        palcoSeries(palco);
+      },
+      () => palcoSumir(palco)
+    );
   }
 
   function palcoPreparar(palco) {
-    const anima = palco.dataset.ativo === "1" && !reduzido();
-    palcoMontar(palco, false);
-    if (!anima) return;
     palco._vivo = {
       ligar(on) {
-        if (on && !palco._parar && !palco.hidden) palcoMontar(palco, true);
-        else if (!on && palco._parar) { palco._parar(); palco._parar = null; palcoSeries(palco); }
+        if (on && dono3D !== palco && !palco.hidden && palco.dataset.tipo) palcoMontar(palco);
       },
     };
+    palcoSeries(palco);
     if (vigia) vigia.observe(palco);
     else palco._vivo.ligar(true);
   }
@@ -1267,13 +1303,9 @@
     const ir = () => {
       palco.dataset.i = String(i);
       if (!li || !li.dataset.tipo) {
-        if (palco._parar) palco._parar();
-        palco._parar = null;
         palco.dataset.tipo = "";
-        if (!palco.hidden && !reduzido() && typeof palco.animate === "function") {
-          palco.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0.96)" }],
-            { duration: 350, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }).onfinish = () => { palco.hidden = true; };
-        } else palco.hidden = true;
+        if (raiz.TREINO3D && dono3D === palco) raiz.TREINO3D.toca(false);
+        palcoSumir(palco);
         return;
       }
       Object.assign(palco.dataset, { tipo: li.dataset.tipo, series: li.dataset.series, reps: li.dataset.reps });
@@ -1282,7 +1314,7 @@
       if (nome) nome.textContent = li.dataset.nome || "";
       if (d) d.textContent = li.dataset.d || "";
       palco.hidden = false;
-      if (palco._vivo) palcoMontar(palco, palco.dataset.ativo === "1" && !reduzido());
+      if (palco._vivo) palcoMontar(palco);
       else palcoPreparar(palco); // estava escondido desde o comeco: liga o vigia agora
     };
     const partes = [palco.querySelector(".tv-fig"), palco.querySelector(".tv-info")].filter(Boolean);

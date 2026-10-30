@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-30 - Treino ao vivo em 3D de verdade: 215 exercícios (SW v96)
 - 2026-10-22 - App iOS nativo (.ipa) com widget, build no GitHub Actions
 - 2026-10-22 - Leva "painel mais esperto" (SW v93+)
 - 2026-10-21 - Carga × sono no treino (SW v92)
@@ -158,6 +159,25 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-30 - Treino ao vivo em 3D de verdade: 215 exercícios (SW v96)
+
+Pedido depois de aprovar o artefato Academia 3D ("todos estão legais") e o teste no iPhone. Briefing:
+`docs/briefings/2026-10-29-treino3d-no-app.md`.
+- `static/treino3d/treino3d.js` (gerado por `docs/prototipos/academia-3d/academia/build_app.py`, fora do git) +
+  `static/treino3d/corpo.json` (MakeHuman CC0) + `static/vendor/three/` (three.js r170, MIT, imports dos addons
+  trocados pra caminho local). Corpo esculpido + atlas, músculo principal domina, etiqueta "pega mais em".
+- `static/js/treino3d-catalogo.js` (novo): os 215 exercícios + `tipo(nome)` (nome livre da ficha → nome do
+  catálogo, null se não casar com segurança) + `acha(nome)`. Substitui o `exercicio-3d.js` (SVG, 43), removido.
+- `cards-vivos.js`: o motor é importado só quando um painel aparece (`import()`), um renderizador só; o palco 3D
+  muda pro card visível; evento `rep` do motor conta série/rep. Sem WebGL 2 / falha = painel some.
+- `cards-tipos.js`: `.tv-fig` virou palco vazio (o 3D entra nele); `data-tipo` = nome do catálogo.
+- CSS: `.tv-agora` empilhado (palco largo 1 : 0,95 em cima, igual ao protótipo), brilho de carregando, etiqueta e
+  fase do 3D (`.t3-*`), tudo zerado em reduced-motion.
+- SW v96: `treino3d-catalogo.js` no precache; motor/corpo/three no cache em tempo de uso.
+- Testes: `tests/js/treino3d.test.js` (215 sem repetição, cada nome casa com ele mesmo, ~50 nomes soltos, nomes
+  desconhecidos = null, módulo só importa o three local e todo molde do catálogo existe) + `cards.test.js` ajustado.
+  Headless 390 px: supino → crucifixo, reduced-motion e sem WebGL.
 
 ## 2026-10-22 - App iOS nativo (.ipa) com widget, build no GitHub Actions
 - `GET /api/widget` (já existia, `rotas/n3a_widget.py`) agora aceita também a **sessão logada** do painel

@@ -853,8 +853,9 @@
   });
 
   // ---- treino ao vivo (2026-10-21) --------------------------------------------------------
-  // motor 3D dos exercicios (exercicio-3d.js): so o tipo() e usado aqui, o desenho e do cards-vivos
-  const Exercicio3D = raiz.Exercicio || (typeof require === "function" ? require("./exercicio-3d.js") : null);
+  // catalogo do treino 3D (treino3d-catalogo.js): so o tipo() e usado aqui (nome da ficha -> exercicio
+  // animado); o motor 3D em si e carregado pelo cards-vivos so quando o painel aparece
+  const Exercicio3D = raiz.Treino3DCatalogo || (typeof require === "function" ? require("./treino3d-catalogo.js") : null);
   // treino_agora: a ficha do dia com uma caixinha por exercicio; o proximo a fazer brilha; o
   // ultimo marcado registra o treino (servidor) e abre a pergunta da carga.
   // treino_carga: o que mudou na ficha depois ("20 kg -> 25 kg", seta pra cima/baixo) + as barras
@@ -904,7 +905,7 @@
     const d = [textoSeriesReps(e), e.carga].filter(Boolean).join(" · ");
     return (
       `<div class="tv-agora" data-vivo="exercicio" data-i="${i}" data-tipo="${esc(mostra ? tipos[i] : "")}" data-series="${numeroDe(e.series, 3)}" data-reps="${numeroDe(e.reps, 10)}" data-ativo="${concluido ? 0 : 1}"${mostra ? "" : " hidden"}>` +
-      `<div class="tv-fig"><svg viewBox="0 0 240 200" aria-hidden="true"></svg></div>` +
+      `<div class="tv-fig" aria-hidden="true"></div>` +
       `<div class="tv-info"><small>Agora · <span class="tv-pos">${i + 1}</span>/${exs.length}</small>` +
       `<b class="tv-agora-nome">${esc(e.nome || "")}</b><span class="tv-agora-d">${esc(d)}</span><div class="tv-series"></div></div></div>`
     );

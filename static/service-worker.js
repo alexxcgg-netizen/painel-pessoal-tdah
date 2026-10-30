@@ -37,7 +37,10 @@
 // v92: carga x sono no treino (barras no card de troca + "Dormiu quanto?" no treino ao vivo).
 // v93: card "como tu ta hoje?" (check-in no chat, leva de 22/10).
 // v94: botoes "Feito" / "Adiar 1 h" no aviso de uma tarefa (+ aviso de teste que diz se o iPhone mostrou).
-const CACHE_NAME = "painel-pessoal-v95";
+// v96: treino ao vivo em 3D de verdade (215 exercicios, corpo MakeHuman + three.js). So o catalogo
+// (treino3d-catalogo.js) entra no precache; o motor/corpo/three (~1,8 MB) vao pro cache na 1a vez que
+// um card de treino aparece (o fetch abaixo guarda tudo de /static/).
+const CACHE_NAME = "painel-pessoal-v96";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -149,7 +152,7 @@ const ASSETS = [
   "/static/js/charts.js",
   "/static/js/fila-offline.js",
   "/static/js/cards.js",
-  "/static/js/exercicio-3d.js",
+  "/static/js/treino3d-catalogo.js",
   "/static/js/cards-tipos.js",
   "/static/js/cards-vivos.js",
   "/static/js/cards-dia.js",

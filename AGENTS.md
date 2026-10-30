@@ -13,6 +13,7 @@
 | Terminou uma leva / integrou | §4 (smoke-test), §1 (anotar aqui o que descobriu) |
 | Tela, CSS, JS do front | §5 (verificação visual), "Fase 7, X2 (frontend dividido por secao)", "Fase 5, Grupo D (polimento visual)" |
 | Cards do chat | "Fase 6, Grupo E3 (contrato de cards)" + habilidade `cards-ia` + `docs/CARDS.md` |
+| Treino ao vivo / animação 3D | "2026-10-30, Treino 3D no app" + habilidade `treino-ao-vivo` |
 | Chat com IA / prompt / eval | "2026-10-13, eval do chat", "Fase 6, Grupo E4 (chat produzindo cards)" |
 | IA: adapter, custo, modo teste | "Fase 7, faixa A2 (adapter Anthropic)", "2026-09-24, Modo teste de IA" |
 | Estrutura do backend (blueprints, onde cada coisa mora) | "Fase 7, Etapa 0 / X1" |
@@ -259,6 +260,18 @@ citada entre parênteses.
 - **Backup diário (`backup_diario.py`) e semanal (`app.rodar_backup_automatico_semanal`) dividem a
   pasta** `data/backups/` (ou `BACKUP_DIR`): nomes `painel-AAAA-MM-DD.db` x `painel-backup-*.db`, cada
   um rotaciona só os seus.
+
+### 2026-10-30, Treino 3D no app (three.js + motor gerado)
+- **`static/treino3d/treino3d.js` é GERADO** por `docs/prototipos/academia-3d/academia/build_app.py` (protótipo fora
+  do git). Mudança de molde/motor vai no protótipo e roda o build; editar o gerado à mão se perde no próximo build.
+- **Módulo pesado em script clássico:** `cards-vivos.js` faz `import("/static/treino3d/treino3d.js")` só quando um
+  painel aparece (Node aceita a sintaxe nos testes; nunca é chamado lá). three.js fica em `static/vendor/three/`
+  com os `from 'three'` dos addons trocados por caminho relativo (o app não tem importmap).
+- **Um renderizador WebGL só:** o palco 3D é um elemento que muda de card (`fig.append(T.palco)`); por isso o motor
+  procura os elementos dele no próprio palco, nunca com `document.querySelector`. Não criar um canvas por card
+  (iPhone limita contextos).
+- **Headless com WebGL:** Chromium do Playwright precisa de `--use-angle=swiftshader --enable-unsafe-swiftshader`;
+  `--disable-3d-apis` simula aparelho sem WebGL. Servir os arquivos com `page.route` dispensa servidor e banco.
 
 ### 2026-09-24, Modo teste de IA (toggle no card Custo de IA)
 - **Listener de `change` num toggle que também faz `await` de um GET de carga precisa ser
