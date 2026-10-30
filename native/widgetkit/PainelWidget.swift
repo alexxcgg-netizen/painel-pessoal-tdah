@@ -171,9 +171,11 @@ struct PainelTimelineProvider: TimelineProvider {
     /// também não há nenhum cache anterior pra mostrar.
     static func buscarEstadoAtual() async -> EstadoExibicao {
         guard let url = PainelConfig.widgetURL else {
+            PainelConfig.registrarBusca("sem_url")
             return estadoComFallback(mensagem: "Configure a URL do painel no app")
         }
         guard let token = PainelConfig.token, !token.isEmpty else {
+            PainelConfig.registrarBusca("sem_token")
             return estadoComFallback(mensagem: "Configure o token do painel no app")
         }
 
@@ -185,10 +187,12 @@ struct PainelTimelineProvider: TimelineProvider {
         do {
             let (dados, resposta) = try await URLSession.shared.data(for: requisicao)
             guard let http = resposta as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                PainelConfig.registrarBusca("http_\((resposta as? HTTPURLResponse)?.statusCode ?? 0)")
                 return estadoComFallback(mensagem: "Painel respondeu com erro")
             }
             let payload = try PainelWidgetPayload.decodificar(dados)
             PainelConfig.salvarUltimoPayload(dados)
+            PainelConfig.registrarBusca("ok")
 
             switch payload.estado {
             case .vazio:
@@ -199,6 +203,7 @@ struct PainelTimelineProvider: TimelineProvider {
                 return .normal(payload)
             }
         } catch {
+            PainelConfig.registrarBusca("rede_\((error as NSError).code)")
             return estadoComFallback(mensagem: "Sem conexão com o painel")
         }
     }

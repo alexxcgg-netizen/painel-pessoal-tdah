@@ -13,7 +13,7 @@ name: Painel
 options:
   bundleIdPrefix: com.alexxcgg
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "16.2"  # 16.2: Live Activities (ActivityKit) sem if #available por todo lado
   createIntermediateGroups: true
 settings:
   base:
@@ -32,6 +32,8 @@ targets:
       - path: App
       # o intent do botão da Central de Controle roda dentro do app (openAppWhenRun), então o app precisa dele também
       - path: ../widgetkit/PainelControleIntent.swift
+      # atributos da atividade de teste da ilha: o app liga, o widget desenha
+      - path: ../widgetkit/IlhaTesteAtributos.swift
     info:
       path: App/Info.plist
       properties:
@@ -39,6 +41,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
+        NSSupportsLiveActivities: true
         LSRequiresIPhoneOS: true
         # app SwiftUI com cena (o AppDelegate entrega o CenaDelegate pro atalho "Configurar" do icone)
         UIApplicationSceneManifest:

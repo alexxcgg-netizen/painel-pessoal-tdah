@@ -24,9 +24,9 @@ def erro(msg):
 proj = yaml.safe_load((AQUI / "project.yml").read_text(encoding="utf-8"))
 base = proj.get("settings", {}).get("base", {})
 
-# 1. Xcode recusa qualquer coisa fora desta lista ("SWIFT_VERSION '5.9' is unsupported")
+# 1. Valores oficiais do Xcode (5.9 tambem compilou no build de 23/10; a lista e so pra nao inventar versao)
 if str(base.get("SWIFT_VERSION")) not in {"4.0", "4.2", "5.0", "6.0"}:
-    erro(f"SWIFT_VERSION {base.get('SWIFT_VERSION')!r} nao e aceito pelo Xcode (use 5.0 ou 6.0)")
+    erro(f"SWIFT_VERSION {base.get('SWIFT_VERSION')!r} fora dos valores oficiais (use 5.0 ou 6.0)")
 
 
 def arquivos_do_alvo(alvo):

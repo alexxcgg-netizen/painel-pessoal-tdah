@@ -55,6 +55,14 @@ dizem o que quebrou.
 7. **Widget:** segura a tela inicial → **+** → "Painel". Na tela de bloqueio: segura →
    Personalizar → toca embaixo do relógio → "Painel".
 
+## Gerar relatório (o que o app consegue fazer neste iPhone)
+
+Segura o ícone do app → **Configurar** → **Gerar relatório**. Mostra aparelho, validade da assinatura, App Group,
+widgets, Dynamic Island, permissões, conexão com o painel e o que a página consegue fazer dentro do app. Vai sozinho
+pro painel (`POST /api/widget/relatorio`, token do widget; fica em `diagnostico_cliente`, tipo `app_ios`) e aparece
+na skill `relatorio-painel`. Sem painel no ar: **Copiar tudo** e colar no chat. Endereço e token não entram.
+**Testar a Dynamic Island** liga uma contagem de 2 minutos; ela só aparece fora do app.
+
 ## Limites da conta Apple grátis
 
 Não achei fonte oficial da Apple nem do Sideloadly pra estes números; são relatos da comunidade.

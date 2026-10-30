@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-30 - App iOS: tela "Gerar relatório" e teste da Dynamic Island
 - 2026-10-30 - Laboratório v4: os "quero" no app (SW v97)
 - 2026-10-30 - Treino ao vivo em 3D de verdade: 215 exercícios (SW v96)
 - 2026-10-22 - App iOS nativo (.ipa) com widget, build no GitHub Actions
@@ -160,6 +161,18 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-30 - App iOS: tela "Gerar relatório" e teste da Dynamic Island
+
+Ideia dele antes de instalar: sem Mac nem simulador aqui, o app conta sozinho o que consegue fazer no iPhone.
+- `native/ios/App/Relatorio.swift` (Configurar → Gerar relatório): aparelho, validade da assinatura, App Group,
+  widgets, ilha, permissões, conexão com o painel e o que a página consegue fazer dentro do app. Só olha, não pede
+  permissão. Endereço e token nunca entram; sem painel no ar, "Copiar tudo".
+- Teste real da ilha: `IlhaTeste.swift` + `IlhaTesteAtributos.swift` (contagem de 2 min) e ele responde onde apareceu.
+- O widget grava um sinal de vida no App Group (`PainelConfig.registrarBusca`): prova que app e widget se enxergam.
+- iOS mínimo sobe pra 16.2 (Live Activities), `NSSupportsLiveActivities` no app.
+- Painel: `POST /api/widget/relatorio` (token do widget, descarta chave com cara de segredo/endereço), guarda em
+  `diagnostico_cliente` tipo `app_ios`; `scripts/relatorio_painel.py` mostra o último. Testes: `test_relatorio_app_ios.py`.
 
 ## 2026-10-30 - Laboratório v4: os "quero" no app (SW v97)
 

@@ -18,6 +18,7 @@ import SwiftUI
 struct PainelWidgetBundle: WidgetBundle {
     var body: some Widget {
         PainelWidget()
+        IlhaTeste()  // atividade de teste da tela "Gerar relatório" do app (IlhaTeste.swift)
         #if compiler(>=6.0)
         if #available(iOS 18.0, *) {
             PainelControle()  // Central de Controle: botão "Anotar no painel" (PainelControle.swift)

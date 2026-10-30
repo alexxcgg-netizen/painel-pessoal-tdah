@@ -151,6 +151,7 @@ def secao_aparelho(conn, desde: date, ate: date) -> tuple[list[str], list[Achado
     erros_js: Counter = Counter()
     ultimo_js: dict = {}
     fora, ignoradas, mic = [], 0, Counter()
+    ultimo_ios = None
     for r in conn.execute("SELECT tipo, dados_json, criado_em FROM diagnostico_cliente WHERE criado_em >= ? AND criado_em < ? ORDER BY id", (ini, fim)):
         quando = _local(r["criado_em"])
         if not quando or not (desde <= quando.date() <= ate):
@@ -179,7 +180,14 @@ def secao_aparelho(conn, desde: date, ate: date) -> tuple[list[str], list[Achado
                     fora.append((quando, d))
         elif r["tipo"] == "mic":
             mic[d.get("evento") or "?"] += 1
+        elif r["tipo"] == "app_ios":
+            ultimo_ios = (quando, d)
     saida = [f"Registros: {', '.join(f'{t}={n}' for t, n in por_tipo.items()) or 'nenhum'}.\n\n"]
+    if ultimo_ios:  # tela "Gerar relatorio" do app iOS: o ultimo retrato inteiro
+        quando, d = ultimo_ios
+        saida.append(f"### App iOS: último relatório ({quando:%d/%m %H:%M})\n\n")
+        saida.extend(f"- `{k}`: {v}\n" for k, v in d.items())
+        saida.append("\n")
     if erros_js:
         saida.append(f"### Erros de JavaScript no aparelho ({sum(erros_js.values())} em {len(erros_js)} tipos)\n\n")
         for (msg, arq, linha), n in erros_js.most_common(10):

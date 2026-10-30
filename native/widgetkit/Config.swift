@@ -39,6 +39,9 @@ enum PainelConfig {
         /// vez; mostra o último dado válido (mais antigo) em vez de nada.
         static let ultimoPayload = "painel_widget_ultimo_payload"
         static let ultimoPayloadEm = "painel_widget_ultimo_payload_em"
+        /// Sinal de vida do widget, lido pela tela "Gerar relatório" do app (Relatorio.swift).
+        static let diagEm = "painel_widget_diag_em"
+        static let diagResultado = "painel_widget_diag_resultado"
     }
 
     private static var defaults: UserDefaults? {
@@ -66,6 +69,14 @@ enum PainelConfig {
         guard let base = urlBase, !base.isEmpty else { return nil }
         let semBarraFinal = base.hasSuffix("/") ? String(base.dropLast()) : base
         return URL(string: semBarraFinal + "/api/widget")
+    }
+
+    // MARK: - Sinal de vida (lido pelo relatório do app)
+
+    /// `resultado` é só um código curto ("ok", "sem_url", "http_401", "rede_-1022"): nada de URL nem token.
+    static func registrarBusca(_ resultado: String) {
+        defaults?.set(Date(), forKey: Chave.diagEm)
+        defaults?.set(resultado, forKey: Chave.diagResultado)
     }
 
     // MARK: - Cache do último payload bom (App Group)

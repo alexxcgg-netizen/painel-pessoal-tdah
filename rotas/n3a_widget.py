@@ -28,7 +28,9 @@ valor em R$ por padrao mesmo pra conta pessoal - so com `?mostrar_valores=1`.
 """
 
 import hmac
+import json
 import os
+import re
 from datetime import date, datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, render_template, request
@@ -46,7 +48,7 @@ AGENDA_TOLERANCIA_MIN = 30
 # Rota maquina-a-maquina (token proprio, sem sessao/PIN) - ver
 # rotas/__init__.py (infra da Etapa 0): `_verificar_autenticacao` libera
 # estes caminhos sem login, e a PROPRIA rota abaixo checa o token.
-ROTAS_COM_TOKEN = {"/api/widget", "/api/widget/erro"}
+ROTAS_COM_TOKEN = {"/api/widget", "/api/widget/erro", "/api/widget/relatorio"}
 PREFIXOS_COM_TOKEN = ("/widget",)
 
 VERSAO_WIDGET = 1
@@ -505,6 +507,49 @@ def widget_erro():
     msg = " ".join(str(dados.get(k) or "") for k in ("etapa", "erro", "familia")).replace("\n", " ")[:500]
     _registrar_log_widget(f"ERRO DO SCRIPT: {msg}")
     return jsonify({"ok": True})
+
+
+# Relatorio do app iOS (tela "Gerar relatorio" do app nativo, 2026-10-30): retrato do que o app consegue
+# fazer no iPhone. So numero/nome curto; chave com cara de segredo ou endereco e descartada aqui tambem,
+# mesmo o app nao mandando. Fica em diagnostico_cliente (tipo app_ios), lido por scripts/relatorio_painel.py.
+_RELATORIO_MAX_CAMPOS = 80
+_RELATORIO_MAX_TEXTO = 200
+_RELATORIO_CHAVE_PROIBIDA = re.compile(r"token|senha|password|pin|url|host|endereco", re.IGNORECASE)
+
+
+def relatorio_limpo(dados) -> dict | None:
+    if not isinstance(dados, dict) or not dados:
+        return None
+    saida = {}
+    for chave, valor in list(dados.items())[:_RELATORIO_MAX_CAMPOS]:
+        if not isinstance(chave, str) or len(chave) > 32 or _RELATORIO_CHAVE_PROIBIDA.search(chave):
+            continue
+        if isinstance(valor, bool) or valor is None or isinstance(valor, (int, float)):
+            saida[chave] = valor
+        elif isinstance(valor, str):
+            saida[chave] = valor[:_RELATORIO_MAX_TEXTO]
+    return saida or None
+
+
+@bp.route("/api/widget/relatorio", methods=["POST"])
+def widget_relatorio():
+    """O app iOS manda o relatorio do aparelho (mesmo token do widget, o app nao tem a sessao do PIN)."""
+    if not _token_widget_valido():
+        return jsonify({"error": "token invalido"}), 401
+    corpo = request.get_json(silent=True)
+    dados = relatorio_limpo(corpo.get("dados")) if isinstance(corpo, dict) else None
+    if dados is None:
+        return jsonify({"error": "relatorio vazio"}), 400
+    from db import get_db
+
+    conn = get_db()
+    try:
+        conn.execute("INSERT INTO diagnostico_cliente (tipo, dados_json) VALUES ('app_ios', ?)",
+                     (json.dumps(dados, ensure_ascii=False),))
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "campos": len(dados)})
 
 
 # --------------------------------------------------------------------------

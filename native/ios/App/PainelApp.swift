@@ -160,6 +160,15 @@ struct Configurar: View {
                 } footer: {
                     Text("Copia no painel em Configurações → Widget do iPhone. Fica só neste iPhone.")
                 }
+                Section {
+                    NavigationLink {
+                        TelaRelatorio()
+                    } label: {
+                        Label("Gerar relatório", systemImage: "waveform.path.ecg")
+                    }
+                } footer: {
+                    Text("Salva antes, se mudou o endereço ou o token.")
+                }
             }
             .navigationTitle("Configurar")
             .toolbar {
@@ -179,6 +188,8 @@ struct Configurar: View {
 
 struct PainelWeb: UIViewRepresentable {
     let url: URL
+    /// A WebView aberta agora, pro relatório perguntar o que a página consegue fazer.
+    static weak var atual: WKWebView?
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -192,6 +203,7 @@ struct PainelWeb: UIViewRepresentable {
         web.allowsBackForwardNavigationGestures = true
         web.uiDelegate = context.coordinator
         web.load(URLRequest(url: url))
+        PainelWeb.atual = web
         return web
     }
 
