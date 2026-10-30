@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-30 - App iOS: abre configurado (endereço local + token depois do PIN)
 - 2026-10-30 - App iOS: tela "Gerar relatório" e teste da Dynamic Island
 - 2026-10-30 - Laboratório v4: os "quero" no app (SW v97)
 - 2026-10-30 - Treino ao vivo em 3D de verdade: 215 exercícios (SW v96)
@@ -161,6 +162,13 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-30 - App iOS: abre configurado (endereço local + token depois do PIN)
+
+Pedido dele: instalar e já estar tudo lá. `scripts/ipa_com_endereco.py` grava o endereço (`.env` ou `tailscale serve`) só na cópia local
+do .ipa (o GitHub não recebe o endereço); o app lê em `Ajustes.aplicarEnderecoDeFabrica`. Depois do PIN, a própria
+página busca o token em `/api/widget/instalacao` e guarda no App Group; o widget acorda sozinho. PIN continua sendo
+digitado: a sessão não dá pra levar no arquivo. Testes: `tests/test_ipa_com_endereco.py`.
 
 ## 2026-10-30 - App iOS: tela "Gerar relatório" e teste da Dynamic Island
 

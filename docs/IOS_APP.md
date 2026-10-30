@@ -55,6 +55,12 @@ dizem o que quebrou.
 7. **Widget:** segura a tela inicial → **+** → "Painel". Na tela de bloqueio: segura →
    Personalizar → toca embaixo do relógio → "Painel".
 
+## Instalar já configurado
+
+`.venv/Scripts/python.exe scripts/ipa_com_endereco.py` pega `data/app-ios/Painel.ipa`, grava o endereço do painel
+(`APP_URL_PUBLICA` do `.env` ou o `tailscale serve` da porta 5001) dentro dele e deixa em Downloads. O app abre direto no painel; depois do PIN ele busca o token sozinho
+(`/api/widget/instalacao`). Essa cópia é só deste PC: o endereço nunca vai pro GitHub e o token não entra no arquivo.
+
 ## Gerar relatório (o que o app consegue fazer neste iPhone)
 
 Segura o ícone do app → **Configurar** → **Gerar relatório**. Mostra aparelho, validade da assinatura, App Group,
