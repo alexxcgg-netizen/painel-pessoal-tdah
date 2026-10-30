@@ -63,6 +63,14 @@ jobs:
         run: |
           APP=build/Build/Products/Release-iphoneos/Painel.app
           test -d "$APP/PlugIns/PainelWidgetExtension.appex" || { echo "widget nao foi embutido no app"; exit 1; }
+          # Assinatura "ad-hoc" (sem certificado, sem segredo) so pra gravar os entitlements (App Group)
+          # dentro do binario: sem assinatura nenhuma eles somem, e o Sideloadly pode nao ter de onde ler o
+          # App Group que o widget usa pra achar endereco e token (nao conferido). Ele re-assina por cima depois.
+          # Primeiro a extensao, depois o app. Se falhar, o .ipa sai assim mesmo (so avisa).
+          codesign --force --sign - --entitlements Widget/PainelWidget.entitlements "$APP/PlugIns/PainelWidgetExtension.appex" \
+            && codesign --force --sign - --entitlements App/Painel.entitlements "$APP" \
+            && codesign -d --entitlements - "$APP" \
+            || echo "::warning::assinatura ad-hoc falhou; o .ipa sai sem entitlements (App Group)"
           rm -rf Payload && mkdir Payload
           cp -R "$APP" Payload/
           ditto -c -k --sequesterRsrc --keepParent Payload Painel.ipa

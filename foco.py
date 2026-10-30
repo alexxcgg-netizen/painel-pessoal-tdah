@@ -93,6 +93,13 @@ def abrir(conn, agora: datetime, titulo: str, passo: str, passo_menor: str | Non
         "total_s": minutos * 60, "acumulado_s": 0, "desde": None, "meio_respondido": False, "meio_avisado": False,
         "travei": False, "fim": None, "levou_s": None,
     }
+    if task_id:  # calibrador (Grupo B, Tempo): o palpite dele sobre quanto a tarefa leva, se ele deu
+        try:
+            import tempo
+
+            s["estimativa_min"] = tempo.palpite_da_tarefa(conn, task_id)
+        except Exception:
+            s["estimativa_min"] = None
     _gravar(conn, s)
     return estado(conn, agora, s)
 
@@ -146,6 +153,13 @@ def responder(conn, agora: datetime, resposta: str, sessao_id=None, minutos_mais
         s["desde"] = agora.isoformat(timespec="seconds")
     elif resposta == "fim":
         s["fim"], s["levou_s"] = "feito", d
+        if s.get("estimativa_min"):
+            try:
+                import tempo
+
+                tempo.registrar_calibragem(conn, s.get("titulo"), s["estimativa_min"], d, agora)
+            except Exception:
+                pass
         if s.get("task_id"):
             _concluir_tarefa(conn, s["task_id"], d)
     elif resposta == "largar":

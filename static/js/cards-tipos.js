@@ -856,6 +856,8 @@
   // catalogo do treino 3D (treino3d-catalogo.js): so o tipo() e usado aqui (nome da ficha -> exercicio
   // animado); o motor 3D em si e carregado pelo cards-vivos so quando o painel aparece
   const Exercicio3D = raiz.Treino3DCatalogo || (typeof require === "function" ? require("./treino3d-catalogo.js") : null);
+  // medalha na hora (cards-medalha.js, lab v4): moedinha na linha do exercicio que bateu recorde de carga
+  const Medalha = raiz.CardsMedalha || (typeof require === "function" ? require("./cards-medalha.js") : null);
   // treino_agora: a ficha do dia com uma caixinha por exercicio; o proximo a fazer brilha; o
   // ultimo marcado registra o treino (servidor) e abre a pergunta da carga.
   // treino_carga: o que mudou na ficha depois ("20 kg -> 25 kg", seta pra cima/baixo) + as barras
@@ -917,6 +919,7 @@
     const proximo = exs.findIndex((_e, i) => !feitos.has(i));
     const pct = exs.length ? (feitos.size / exs.length) * 100 : 0;
     const tipos = exs.map((e) => (Exercicio3D ? Exercicio3D.tipo(e.nome) : null));
+    const medalhas = new Map(lista(data.medalhas).filter((m) => m && Number.isInteger(m.i)).map((m) => [m.i, m]));
     const itens = exs
       .map((e, i) => {
         const sr = textoSeriesReps(e);
@@ -924,7 +927,7 @@
         return (
           `<li class="tv-ex${feitos.has(i) ? " feito" : ""}${i === proximo ? " proximo" : ""}" style="--k:${i}" data-tipo="${esc(tipos[i] || "")}" data-series="${numeroDe(e.series, 3)}" data-reps="${numeroDe(e.reps, 10)}" data-nome="${esc(e.nome)}" data-d="${esc(d)}">` +
           `<button type="button" class="tv-caixa" data-acao="treino_ex" data-sessao="${esc(data.sessao_id)}" data-i="${i}" aria-pressed="${feitos.has(i)}" aria-label="${esc(e.nome)}">${CHECK_TV}</button>` +
-          `<span class="tv-nome">${esc(e.nome)}${sr ? `<small>${esc(sr)}</small>` : ""}</span>` +
+          `<span class="tv-nome">${Medalha && medalhas.has(i) ? Medalha.mini(medalhas.get(i)) : ""}${esc(e.nome)}${sr ? `<small>${esc(sr)}</small>` : ""}</span>` +
           (e.carga ? `<b class="tv-carga">${esc(e.carga)}</b>` : "") +
           `</li>`
         );
@@ -1082,6 +1085,13 @@
         return;
       }
       aplicarTreino(cardEl, new Set(lista(res.feitos)), !!res.concluido, res.duracao_min);
+      // medalha na hora: recorde de carga (1RM estimado) cai no card; desmarcar recolhe
+      if (raiz.CardsMedalha) {
+        if (res.medalha) {
+          raiz.CardsMedalha.cair(cardEl, res.medalha);
+          if (typeof raiz.vibrar === "function") raiz.vibrar([12, 50, 22]);
+        } else if (!feito) raiz.CardsMedalha.tirar(cardEl, i);
+      }
       if (res.concluido !== (antes.size === lis.length) && typeof deps.aoMudar === "function") deps.aoMudar();
     });
   }

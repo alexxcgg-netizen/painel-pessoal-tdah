@@ -56,6 +56,11 @@ def atalho_local():
                 pass
         if mensagem:
             definir_configuracao(conn, chave, json.dumps({"texto": mensagem, "em": agora.isoformat()}))
+    # se-entao (Lab v4): "quando eu chegar em casa, eu ..." dispara no gatilho, nao num horario aleatorio
+    if evento == "chegou" and lugar == "casa":
+        import se_entao
+
+        se_entao.disparar(conn, "chegar_casa", agora)
     conn.close()
     return jsonify({"mensagem": mensagem})
 

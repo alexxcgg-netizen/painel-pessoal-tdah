@@ -243,7 +243,7 @@ class VerificarTestCase(unittest.TestCase):
         agora = datetime.combine(HOJE, datetime.min.time()).replace(hour=21, minute=3)
         saida = cp.verificar(self.conn, agora)
         self.assertEqual([s[0] for s in saida][:1], ["fechamento_noturno"])
-        self.assertIn("Passo pra amanhã?", saida[0][2])
+        self.assertIn("pousar o dia: 1 em aberto", saida[0][2])  # lab v4: o fechamento das 21h virou o Pouso do dia
         self.assertEqual(len(self._mensagens()), 1 + (1 if HOJE.weekday() == 6 else 0))
         self.assertTrue(db.ja_notificou_hoje(self.conn, "fechar_dia_chat"))
         self.assertEqual(cp.verificar(self.conn, agora.replace(minute=8)), [])
@@ -253,7 +253,8 @@ class VerificarTestCase(unittest.TestCase):
         cp.verificar(self.conn, datetime.combine(HOJE, datetime.min.time()).replace(hour=22))
         hist = db.list_chat_mensagens(self.conn)
         tipos = [c["type"] for m in hist for c in db.cards_de_mensagem_chat(m)]
-        self.assertIn("fechar_dia", tipos)
+        # lab v4 (Grupo G): placar primeiro, depois o pouso (domingo a noite tambem sai o card da semana)
+        self.assertEqual([t for t in tipos if t != "semana"], ["placar_feito", "pouso_dia"])
 
     def test_semana_so_no_domingo(self):
         sabado = HOJE + timedelta(days=(5 - HOJE.weekday()) % 7)

@@ -164,6 +164,10 @@ de sair; menos o tempo de se arrumar = hora de comecar a se arrumar. Diga essas 
 tarefa "se arrumar": o painel ja manda sozinho os avisos "Hora de se arrumar" e "Hora de sair". Se ele
 disser que demora outro tempo, chame `ajustar_tempo_se_arrumar`.
 
+SE-ENTAO: meta vaga de rotina ("quero beber mais agua", "quero estudar todo dia") = chame `propor_se_entao`; o card deixa
+ele escolher o gatilho e a acao em 1 toque. Diga UMA frase ("Escolhe quando e o que, eu aviso no gatilho"), sem listar as
+opcoes no texto, e nunca diga que ja ficou combinado: so vale depois que ele toca em Ativar.
+
 DESPERTADOR: se ele disser a que horas quer acordar ("amanha quero acordar as 7", "me acorda 6h30",
 "deixa o despertador pra 5h"), chame `definir_despertador` (sem data = amanha). O painel NAO toca o
 alarme sozinho: o Atalho "Despertador do Painel" do iPhone cria o alarme - na automacao das 22h ou no
@@ -200,6 +204,12 @@ ultima vez que fui no dentista?"), chame `buscar_na_memoria` com o assunto e res
 que ela devolver. Se ela nao achar, diga que nao ha registro - nao chute. Nunca use essa busca por conta propria nem
 puxe assunto antigo sem ele perguntar. Tarefa "feita" = o dia em que foi riscada; "ficou sem fazer" = o dia pra
 que estava marcada.
+
+ONDE GUARDEI / O QUE FALEI. Quando o Alex disser ONDE guardou algo ("guardei o passaporte na gaveta azul"), chame
+`guardar_objeto` (nao `registrar_memoria`). "Cadê o X?" / "onde deixei X?" = `onde_esta`; responda com o lugar e quando ele
+anotou. "O que eu falei sobre X?" = `buscar_o_que_falei`: resuma so o que a ferramenta devolver, com as datas. "Neste dia" /
+"o que eu fazia um ano atras" = `consultar_neste_dia`. Padrao entre sono/treino/tarefas/delivery = `consultar_coincidencias`
+(sempre "coincidencia nos dados, nao prova de causa").
 
 ASSISTENTE DE VIDA - MONTAR O DIA. O Alex usa voce de manha pra organizar o dia inteiro, tipo "acordei
 agora, hoje tenho X, Y e o voo". Quando ele disser que acordou, chame `registrar_acordei`. Quando ele
@@ -734,6 +744,69 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "guardar_objeto",
+        "description": (
+            "Anota ONDE o Alex guardou um objeto fisico ou documento: 'guardei o passaporte na gaveta azul do "
+            "quarto', 'CIV na mochila do voo, bolso da frente', 'o carregador do headset ta na escrivaninha'. "
+            "Use SEMPRE que ele disser onde pos/guardou/deixou algo (no lugar de registrar_memoria). Guardar de "
+            "novo o mesmo objeto atualiza o lugar. Nao use pra tarefa nem lembrete."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "objeto": {"type": "string", "description": "o que foi guardado, curto (ex: 'passaporte', 'CIV')"},
+                "lugar": {"type": "string", "description": "onde ficou, nas palavras dele (ex: 'gaveta azul do quarto')"},
+            },
+            "required": ["objeto", "lugar"],
+        },
+    },
+    {
+        "name": "onde_esta",
+        "description": (
+            "Responde ONDE o Alex guardou um objeto ('cadê o passaporte?', 'onde deixei o carregador?') e "
+            "quando ele anotou. Devolve o lugar exato que ele disse. Se nao houver registro, diga isso e "
+            "ofereca anotar - nunca chute um lugar."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"objeto": {"type": "string", "description": "o objeto procurado (ex: 'passaporte')"}},
+            "required": ["objeto"],
+        },
+    },
+    {
+        "name": "buscar_o_que_falei",
+        "description": (
+            "Busca no que o PROPRIO Alex disse/escreveu (chat, diario, notas, decisoes) sobre um assunto e "
+            "devolve as frases originais datadas: 'o que eu falei sobre o pouso?', 'o que combinei da "
+            "creatina?', 'o que o instrutor te disse...' (o que ele contou pra voce do instrutor). Depois "
+            "RESUMA em 1-3 frases usando so as frases devolvidas, citando as datas; nao invente nada alem delas. "
+            "Pra 'quando foi que...' use buscar_na_memoria."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"assunto": {"type": "string", "description": "palavras-chave do assunto (ex: 'pouso', 'creatina')"}},
+            "required": ["assunto"],
+        },
+    },
+    {
+        "name": "consultar_neste_dia",
+        "description": (
+            "O que aconteceu nesta mesma data em meses e anos anteriores (voos, carga de treino que subiu). "
+            "Use quando ele pedir 'neste dia', 'o que eu fazia um ano atras', 'quanto eu evolui'. Se nao "
+            "houver nada marcante, diga isso."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "consultar_coincidencias",
+        "description": (
+            "Cruza os dados dos ultimos 30 dias (sono, treino, tarefas fechadas, gasto com delivery) e devolve "
+            "padroes dele mesmo: 'dormi mal, rende menos?'. Use so quando ele perguntar por padrao/correlacao. "
+            "SEMPRE diga que e coincidencia nos dados, nao prova de causa, e nunca de conselho medico."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "consultar_feriados",
         "description": (
             "Feriados nacionais, de Brusque/SC e pontos facultativos (Carnaval, Corpus Christi) de um ano "
@@ -877,6 +950,29 @@ CHAT_TOOLS = [
             "type": "object",
             "properties": {"minutos": {"type": "integer", "description": "5 a 180"}},
             "required": ["minutos"],
+        },
+    },
+    {
+        "name": "propor_se_entao",
+        "description": (
+            "Quando o Alex diz uma META VAGA de rotina ('quero beber mais agua', 'quero estudar todo dia', 'preciso "
+            "alongar'), devolve o card 'Quando ___, eu ___' pra ele escolher o gatilho com 1 toque (acordar, sentar pra "
+            "estudar, chegar em casa, voltar do treino ou uma hora). NADA e gravado ate ele tocar em Ativar. Mande 2 a 3 "
+            "'acoes' CONCRETAS e curtas, na 1a pessoa, que levam menos de 1 minuto ('encho a garrafa de 1 L', 'bebo um "
+            "copo'), e em 'gatilhos' so os que combinam com a meta (omitido = os 4). Nao use pra tarefa com data/hora "
+            "(isso e registrar_tarefa) nem pra lembrete pontual."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "meta": {"type": "string", "description": "a meta nas palavras dele ('beber mais agua')"},
+                "acoes": {"type": "array", "items": {"type": "string"}, "description": "2 a 3 acoes curtas, 1a pessoa"},
+                "gatilhos": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["acordar", "sentar_estudar", "chegar_casa", "voltar_treino"]},
+                },
+            },
+            "required": ["meta", "acoes"],
         },
     },
     {
@@ -1291,6 +1387,40 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "abrir_card_foco",
+        "description": (
+            "Abre no chat um card do grupo Foco. e_agora: ele esta paralisado/perguntou 'o que eu faco agora?' - o "
+            "painel escolhe UMA tarefa com o porque. recomeco: lista de atrasadas pesando/vergonha - 1 toque arquiva "
+            "o que venceu ha mais de 7 dias (nada se perde). pacote: ele quer juntar uma tarefa chata com algo que "
+            "curte. segundo_antes: a tela que respira antes de abrir um app distrator (e quantas vezes voltou). "
+            "travou: ele fala que NAO CONSEGUE comecar uma tarefa especifica - pergunta o que pega (passa 'tarefa'). "
+            "Sem cobrar, sem bronca."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "card": {"type": "string", "enum": ["e_agora", "recomeco", "pacote", "segundo_antes", "travou"]},
+                "tarefa": {"type": "string", "description": "so no card 'travou': titulo (ou trecho) da tarefa existente"},
+            },
+            "required": ["card"],
+        },
+    },
+    {
+        "name": "juntar_pacote",
+        "description": (
+            "Pacote de tentacao: junta uma tarefa chata com UM premio que so vale junto com ela ('podcast so na "
+            "faxina', 'serie so na esteira'). Quando ele marcar a tarefa como feita, o premio aparece liberado."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tarefa": {"type": "string", "description": "titulo (ou trecho) da tarefa existente"},
+                "premio": {"type": "string", "description": "a coisa boa, curta (ex.: 'Podcast de aviação')"},
+            },
+            "required": ["tarefa", "premio"],
+        },
+    },
+    {
         "name": "iniciar_hiperfoco",
         "description": (
             "Liga o modo hiperfoco: silencia notificacao nao critica por 25, 50 ou 90 minutos "
@@ -1402,6 +1532,44 @@ CHAT_TOOLS = [
             "properties": {
                 "grupo": {"type": "string", "description": "ficha que ele falou ('peito', 'treino A', 'peito e triceps') - omita se ele nao sabe qual e (vem a da vez)"},
             },
+        },
+    },
+    {
+        "name": "feito_hoje",
+        "description": (
+            "Placar do feito: mostra num card o que ELE FEZ hoje (tarefas, treino, voo e o que fez fora do plano), "
+            "nunca o que falta. Use em 'o que eu fiz hoje?', 'sinto que nao fiz nada', 'fiz bastante coisa hoje?'. "
+            "Quando ele CONTA algo que fez e nao era tarefa ('lavei a louca', 'liguei pro banco', 'ajudei meu pai'), "
+            "passe em `anotar` com as palavras dele (curto, no passado) - o painel soma no placar. Nao use "
+            "registrar_feito junto: isso e so pra tarefa que ja existe."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "anotar": {"type": "array", "items": {"type": "string"},
+                           "description": "coisas feitas fora do plano, como ele disse ('Lavei a louça') - omita se so quer ver"},
+            },
+        },
+    },
+    {
+        "name": "pouso_do_dia",
+        "description": (
+            "Pouso do dia: o ritual curto de fechar o dia (o que ficou aberto com 1 toque pra empurrar pra amanha, a "
+            "primeira coisa de amanha, a mochila se tem voo). Use em 'bora fechar o dia', 'vou dormir', 'encerrar o "
+            "dia'. Chame feito_hoje ANTES (primeiro o que ele fez, depois o que falta)."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "retrospectiva_mes",
+        "description": (
+            "Retrospectiva do mes: historia em tela cheia com tarefas fechadas, quilos levantados, horas voadas, recorde "
+            "e o gasto que mais cresceu, e pede uma meta pro mes novo. Use em 'como foi meu mes?', 'retrospectiva', 'o "
+            "que eu fiz esse mes?'. Sem `mes`, vem o que fechou (a partir do dia 25, o mes que esta acabando)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"mes": {"type": "string", "description": "AAAA-MM, so se ele pediu um mes especifico"}},
         },
     },
     {

@@ -39,7 +39,7 @@ def list_tasks():
         # dentro do dia por horario; sem horario fecha o dia dela; sem data vai pro fim
         # (a mais nova primeiro, como era antes).
         rows = conn.execute(
-            "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
+            "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL AND arquivada_em IS NULL "
             "ORDER BY (due_date IS NULL OR due_date = ''), due_date, "
             "(hora IS NULL OR hora = ''), hora, created_at DESC, id DESC"
         ).fetchall()
@@ -317,8 +317,12 @@ def complete_task_rota(task_id):
     complete_task(conn, task_id)
     _marcar_atividade(conn)
     conn.commit()
+    # Pacote de tentacao (Lab v4): tarefa com premio -> o premio sai liberado
+    import foco_ideias
+
+    premio = foco_ideias.premio_da_tarefa(conn, task_id)
     conn.close()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, **({"premio": premio} if premio else {})})
 
 @bp.route("/api/tasks/<int:task_id>/reabrir", methods=["POST"])
 def reabrir_task_rota(task_id):

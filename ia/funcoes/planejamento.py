@@ -130,6 +130,42 @@ def requebrar_tarefa(titulo: str, dias: int, passos_antigos: list[str]) -> tuple
 
 
 # --------------------------------------------------------------------------
+# remedio_travou (Grupo A do Laboratorio v4, 30/10/2026: "Por que travou?")
+# --------------------------------------------------------------------------
+
+FUNCAO_REMEDIO_TRAVOU = "remedio_travou"
+
+REMEDIO_TRAVOU_PROMPT = """A pessoa tem TDAH e empurrou esta tarefa varias vezes. Ela disse por que travou. Fale com ela
+por "tu", direto, sem bronca e sem enrolacao. Responda conforme o motivo:
+- dificil: "texto" = UM passo de 2 minutos, concreto e fisico (abrir, achar, salvar), que NAO resolve a tarefa, so comeca. "lista" = [].
+- medo: "texto" = "" e "lista" = o roteiro de 3 falas curtas, prontas pra ela dizer ou escrever (primeira pessoa, educada, sem enfeite).
+- sem_rumo: "texto" = o PRIMEIRO passo, de ate 5 minutos (ex.: descobrir como se faz). "lista" = 3 ou 4 passos curtos na ordem, o primeiro ridiculamente facil.
+Nao invente fatos (preco, prazo, telefone, site). Responda so com o JSON pedido, sem markdown."""
+
+SCHEMA_REMEDIO_TRAVOU = {
+    "type": "object",
+    "properties": {
+        "texto": {"type": "string"},
+        "lista": {"type": "array", "items": {"type": "string"}, "maxItems": 4},
+    },
+    "required": ["texto", "lista"],
+    "additionalProperties": False,
+}
+
+
+def remedio_travou(titulo: str, motivo: str) -> tuple[dict, dict]:
+    resp = core.chamar_ia(
+        FUNCAO_REMEDIO_TRAVOU,
+        [{"role": "user", "content": f"Tarefa: {titulo}\nMotivo: {motivo}"}],
+        contexto_fixo=REMEDIO_TRAVOU_PROMPT,
+        schema=SCHEMA_REMEDIO_TRAVOU,
+    )
+    if not resp.ok:
+        _falhar(FUNCAO_REMEDIO_TRAVOU, resp)
+    return resp.dados, _usage_de(resp)
+
+
+# --------------------------------------------------------------------------
 # gerar_mala
 # --------------------------------------------------------------------------
 

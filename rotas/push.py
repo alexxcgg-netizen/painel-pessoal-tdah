@@ -8,6 +8,7 @@ from rotas._base import app_modulo
 from db import delete_push_subscription, get_db, list_push_subscriptions, save_push_subscription
 import json
 from datetime import datetime, timezone
+import badge
 import push_client
 
 bp = Blueprint("push", __name__)
@@ -90,21 +91,32 @@ def push_acao():
         if recusa:
             return recusa
         tipo, _, ref = tag.rpartition("-")
+        if tipo == "se_entao" and ref.isdigit() and acao in ("feito", "toque"):
+            # combinado "quando X, eu Y" (se_entao.py): Feito conta "+1 no teu dia"
+            import se_entao
+
+            feito = se_entao.marcar_feito(conn, int(ref)) if acao == "feito" else None
+            if acao == "feito" and not feito:
+                return jsonify({"error": "combinado não encontrado"}), 404
+            return jsonify({"ok": True, "titulo": (feito or {}).get("titulo", "Combinado"),
+                            "mensagem": "Boa. +1 no teu dia." if feito else "", "badge": badge.contagem(conn, app._agora_brasilia().date())})
         if acao == "toque" or tipo not in app._AVISOS_DE_UMA_TAREFA or not ref.isdigit():
             return jsonify({"error": "esse aviso não tem botão"}), 400
         tarefa = conn.execute("SELECT id, title, due_date, hora, completed_at FROM tasks WHERE id = ?", (int(ref),)).fetchone()
         if not tarefa:
             return jsonify({"error": "tarefa não encontrada"}), 404
         db.marcar_aviso_aberto(conn, tag)
+        hoje = app._agora_brasilia().date()
         if tarefa["completed_at"]:
-            return jsonify({"ok": True, "titulo": tarefa["title"], "ja_feita": True})
+            return jsonify({"ok": True, "titulo": tarefa["title"], "ja_feita": True, "badge": badge.contagem(conn, hoje)})
         if acao == "feito":
             db.complete_task(conn, tarefa["id"])
             app._marcar_atividade(conn)
             conn.commit()
-            return jsonify({"ok": True, "titulo": tarefa["title"]})
+            # o botao Feito do aviso conta pra cara que foi enviada (aviso_cara.py) e o numero do icone desce
+            return jsonify({"ok": True, "titulo": tarefa["title"], "badge": badge.contagem(conn, hoje)})
         dados = _adiar_uma_hora(conn, dict(tarefa), app._agora_brasilia())
-        return jsonify({"ok": True, "titulo": tarefa["title"], **dados})
+        return jsonify({"ok": True, "titulo": tarefa["title"], **dados, "badge": badge.contagem(conn, hoje)})
     finally:
         conn.close()
 
@@ -134,6 +146,12 @@ def push_aberto():
     conn = get_db()
     try:
         n = db.marcar_aviso_aberto(conn, tag.strip())
+        try:  # aviso-cara: tocar no aviso e meio ponto pra cara que saiu
+            import aviso_cara
+
+            aviso_cara.resolver(conn, tag.strip(), "toque")
+        except Exception:  # noqa: BLE001
+            pass
     finally:
         conn.close()
     return jsonify({"ok": True, "parou": n})
@@ -158,9 +176,10 @@ def push_visto():
                 parei = de_onde_parei.ao_ver(conn, datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0), agora.date().isoformat())
             except Exception:
                 app.app.logger.exception("de onde parei falhou")
+        numero = badge.contagem(conn, app._agora_brasilia().date())
     finally:
         conn.close()
-    return jsonify({"ok": True, "parou": n, "de_onde_parei": parei})
+    return jsonify({"ok": True, "parou": n, "de_onde_parei": parei, "badge": numero})
 
 
 @bp.route("/api/push/testar", methods=["POST"])

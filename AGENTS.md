@@ -854,3 +854,14 @@ Objetivo: nenhuma faixa da Fase 7 edita o mesmo arquivo que outra. Antes de mexe
   prefira nunca precisar reverter: aplique e commite cada história ANTES de
   escrever a próxima, em vez de implementar tudo junto e tentar separar
   depois.
+
+### Lab v4, Grupo B (Tempo) - 2026-10-30
+- `tempo.py` concentra fita/espera/calibrador/disjuntor/porta; os gatilhos entram na lista de passos de
+  `conversa_proativa.verificar` (não há agendador novo). `tempo.compromissos()` é a fonte única de "o que trava o dia"
+  (voo, iCloud, tarefa de sair/com local, título de academia/aula/consulta...) - fita, espera e porta leem dela.
+- O front recebe **segundos** até o compromisso, nunca hora absoluta (servidor e celular podem estar em fusos diferentes).
+- `.cd-raiz` é `display:grid` sem coluna definida: input/segmento largo alarga a coluna além do card. Em card novo com
+  campo de texto, use `grid-template-columns: minmax(0, 1fr)` (achado na captura de 390 px da porta).
+- Seletor `.x > span` (0,1,1) ganha de `.tp-es-arr` (0,1,0): `min-width` de segmento da faixa precisa de `.faixa > .seg`.
+- Push de tipo novo: entra em `assistente/avisos.TIPOS` e, se tem que furar o hiperfoco, em `vida.CRITICOS_HIPERFOCO`.
+  O tick deduplica por tipo/dia (`ja_notificou_hoje(tipo)`): 1 push por tipo por dia.

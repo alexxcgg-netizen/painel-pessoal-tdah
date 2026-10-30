@@ -148,3 +148,31 @@ def carga_texto(carga) -> str:
 def numero_da_carga(carga: str) -> float | None:
     m = re.match(r"\s*(\d{1,3}(?:[.,]\d{1,2})?)", carga or "")
     return float(m.group(1).replace(",", ".")) if m else None
+
+
+# ---- Medalha na hora (lab v4, 2026-10-30): recorde de carga = 1RM estimado (Epley) ----------
+
+# Epley perde precisao acima de ~10-12 reps; com 16+ o numero ja nao diz "carga maxima" - sem medalha.
+REPS_MAX_PRA_1RM = 15
+
+
+def reps_da_serie(reps: str) -> int | None:
+    """'8' -> 8; '8-12' -> 8 (o piso da faixa: o que ele garantiu); sem numero -> None."""
+    m = re.search(r"\d+", reps or "")
+    if not m:
+        return None
+    n = int(m.group(0))
+    return n if 1 <= n <= 100 else None
+
+
+def series_da_ficha(series: str) -> int | None:
+    m = re.search(r"\d+", series or "")
+    if not m:
+        return None
+    n = int(m.group(0))
+    return n if 1 <= n <= 30 else None
+
+
+def rm_epley(kg: float, reps: int) -> float:
+    """1RM estimado: kg x (1 + reps/30). Uma casa decimal."""
+    return round(kg * (1 + reps / 30), 1)

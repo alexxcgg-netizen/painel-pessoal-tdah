@@ -19,10 +19,14 @@ import json
 from datetime import date, datetime, time, timedelta
 
 import cards
+import coincidencias
 import db
 import diario_bordo
+import neste_dia
 import dia_ruim
 import foco
+import foco_ideias
+import recomeco
 import vida
 
 DIAS_CURTOS = ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
@@ -498,7 +502,19 @@ def manha_do_voo(conn, agora: datetime, montar_briefing=None) -> list[tuple[str,
         else:
             tempo = " Não consegui puxar o METAR agora — pede \"como tá o tempo\" daqui a pouco."
         trajeto = f" ({maps['trajeto_min']} min de carro)" if maps and maps.get("trajeto_min") else ""
+        # Lab v4 (vento na pista): a conta do traves sai do vento que o briefing ja trouxe (sem rede nova)
+        vento_linha = ""
+        try:
+            import aviacao_lab
+
+            dados_b = (b or {}) if isinstance(b, dict) else {}
+            if card and not dados_b.get("erro"):
+                vento_linha = aviacao_lab.linha_vento(conn, dados_b.get("icao"), dados_b.get("vento")) or ""
+        except Exception:
+            vento_linha = ""
         texto = f"Bom dia! Voo hoje às {v['hora']}. Sai às {sair}{trajeto} pra chegar {chegar}.{tempo}"
+        if vento_linha:
+            texto += f" {vento_linha}"
         publicar(conn, "manha_voo_chat", texto, lista)
         saida.append(("manha_voo", "Voo hoje", f"Sai às {sair}.{tempo}".strip()))
     conn.commit()
@@ -621,6 +637,27 @@ def avisar_compras(conn, agora: datetime) -> list[tuple[str, str, str]]:
     return [("compras_previsao", "Lista de compras", texto)]
 
 
+def contas_do_email(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """Cacador de contas (Grupo E, 30/10/2026): a cada 30 min le o e-mail (IMAP so leitura, so se o .env
+    tiver EMAIL_IMAP_*) e, se achou conta nova, poe o card `contas_email` no chat. Desligado = nao faz nada."""
+    import email_contas
+
+    if not email_contas.configurado() or not _na_janela(agora, JANELA_DIA):
+        return []
+    r = email_contas.varrer(conn, agora)
+    novas = r["novas"]
+    if not novas:
+        return []
+    card = cards.card_contas_email(novas, agora.date(), r["lidos"], agora.strftime("%H:%M"))
+    if not card:
+        return []
+    n = len(card["data"]["contas"])
+    texto = (f"Achei {n} coisa{'s' if n != 1 else ''} no teu e-mail. O código já tá pronto pra copiar "
+             "e as contas com vencimento viraram tarefa no dia.")
+    publicar(conn, "contas_email_chat", texto, [card])
+    return [("contas_email", "Achei conta no e-mail", texto)]
+
+
 def assinaturas_que_subiram(conn, agora: datetime) -> list[tuple[str, str, str]]:
     """Mesmo detector do push "Assinatura ficou mais cara" - aqui vira card no chat com
     "Mantém" / "Me lembra de cancelar". O push continua sendo o de sempre (sem duplicar)."""
@@ -703,18 +740,65 @@ def alerta_do_dia(conn, agora: datetime) -> list[tuple[str, str, str]]:
     return [("alerta_dia", "Hoje pede mais cuidado", f"{sinais[0]['texto']} e mais {len(sinais) - 1}. Abre pra ver.")]
 
 
+JANELA_TRAVOU = (time(9, 0), time(18, 0))
+JANELA_RECOMECO = (time(7, 30), time(11, 0))
+DIAS_ENTRE_RECOMECOS = 6
+
+
+def perguntar_por_que_travou(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """Lab v4 (Por que travou?): tarefa empurrada 3+ vezes -> 1 card no chat, 1 vez por dia e UMA vez por tarefa,
+    sem bronca. Nao pergunta se ja tem sessao de foco correndo nem em dia ruim."""
+    if not _na_janela(agora, JANELA_TRAVOU) or db.ja_notificou_hoje(conn, "travou_chat"):
+        return []
+    if foco.segurando_avisos(conn, agora) or dia_ruim.ativo(conn, agora.date()):
+        return []
+    pend = foco_ideias.pendentes_travou(conn)
+    if not pend:
+        return []
+    t = pend[0]
+    foco_ideias.marcar_perguntada(conn, t["id"])
+    card = cards.novo_card("travou", foco_ideias.dados_travou(conn, t["id"]))
+    publicar(conn, "travou_chat", "Essa tarefa já foi empurrada 3 vezes. Sem bronca: o que pega?", [card])
+    return [("travou", "Essa travou?", f"\"{t['titulo']}\" foi empurrada {t['adiadas']} vezes. Um toque e eu ajudo.")]
+
+
+def recomeco_do_dia(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """Lab v4 (Recomeco): segunda, dia 1 ou mais de 10 atrasadas -> card no chat (no maximo 1 a cada 6 dias)."""
+    if not _na_janela(agora, JANELA_RECOMECO) or db.ja_notificou_hoje(conn, "recomeco_chat"):
+        return []
+    hoje = agora.date()
+    ultimo = db.obter_configuracao(conn, recomeco.CONFIG_AVISO)
+    try:
+        if ultimo and (hoje - date.fromisoformat(ultimo)).days < DIAS_ENTRE_RECOMECOS:
+            return []
+    except ValueError:
+        pass
+    if not recomeco.deve_aparecer(conn, hoje):
+        return []
+    est = recomeco.estado(conn, hoje)
+    if not est["velhas"]:  # nada pra arquivar: o card nao ajudaria
+        return []
+    db.definir_configuracao(conn, recomeco.CONFIG_AVISO, hoje.isoformat())
+    publicar(conn, "recomeco_chat", "Hora de recomeçar. Sem culpa: um toque e a lista respira.", [recomeco.card(conn, hoje)])
+    return [("recomeco", "Recomeço", f"{est['total']} atrasadas. Um toque arquiva as velhas, sem culpa.")]
+
+
 def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
     """Chamado a cada tick do agendador. Publica no chat o que estiver na hora e
     devolve [(tipo_do_aviso, titulo, corpo)] pro push. Nunca levanta."""
     saida = []
     try:
         if _na_janela(agora, JANELA_FECHAR_DIA) and not db.ja_notificou_hoje(conn, "fechar_dia_chat"):
-            r = fechar_dia(conn, agora.date())
+            # lab v4 (Grupo G): o fechamento das 21h agora e o Placar do feito + o Pouso do dia
+            # (fechamento_dia.py). `fechar_dia` segue aqui, intacto, pra historico e pra quem o chama.
+            import fechamento_dia
+
+            r = fechamento_dia.pouso_do_dia(conn, agora.date(), agora.strftime("%H:%M"))
             db.marcar_notificado(conn, "fechar_dia_chat")
             if r:
                 texto, lista = r
                 publicar(conn, "fechar_dia_chat", texto, lista)
-                saida.append(("fechamento_noturno", "Fechando o dia", resumo_push_fechar_dia(texto, lista[0])))
+                saida.append(("fechamento_noturno", "Pousa o dia", fechamento_dia.resumo_push_pouso(lista[0], lista[1])))
             conn.commit()
         if agora.weekday() == 6 and _na_janela(agora, JANELA_SEMANA) and not db.ja_notificou_hoje(conn, "padroes_semana_chat"):
             r = padroes_semana(conn, agora.date())
@@ -741,8 +825,21 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
         import logging
         logging.getLogger(__name__).exception("conversa proativa falhou")
     # 4a leva: cada automacao isolada - uma que quebra nao derruba as outras
-    for passo in (vespera_do_voo, manha_do_voo, documentos_vencendo, avisar_compras, assinaturas_que_subiram,
-                  perguntar_como_esta, alerta_do_dia, foco.aviso_do_meio):
+    import aviacao_lab
+    import manha
+    import retrospectiva
+    import se_entao
+    import tempo  # Grupo B (Tempo): espera, "eu te chamo", calibrador, disjuntor, porta
+
+    # Laboratorio v4 (30/10): cada grupo acrescenta os seus passos numa linha propria
+    for passo in (vespera_do_voo, manha_do_voo, documentos_vencendo, avisar_compras, assinaturas_que_subiram, contas_do_email,
+                  perguntar_como_esta, alerta_do_dia, foco.aviso_do_meio,
+                  perguntar_por_que_travou, recomeco_do_dia,
+                  manha.verificar, se_entao.verificar,
+                  neste_dia.na_manha, coincidencias.na_semana,
+                  aviacao_lab.chair_da_vespera, aviacao_lab.avisos_prazos,
+                  tempo.modo_espera, tempo.chamar_na_hora, tempo.calibrador_novo, tempo.disjuntor, tempo.porta,
+                  retrospectiva.avisar_mes):
         try:
             saida.extend(passo(conn, agora))
         except Exception:

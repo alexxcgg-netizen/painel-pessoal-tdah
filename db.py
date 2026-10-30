@@ -793,6 +793,9 @@ def init_db():
     _garantir_coluna(conn, "tasks", "extras", "TEXT")
     # leva 22/10 (dia_ruim.py): o cadeado - tarefa inegociavel nunca e empurrada
     _garantir_coluna(conn, "tasks", "inegociavel", "INTEGER NOT NULL DEFAULT 0")
+    # leva 30/10 (recomeco.py): tarefa arquivada no "Recomeco" - sai das listas, nada se perde (desfazer volta)
+    _garantir_coluna(conn, "tasks", "arquivada_em", "TEXT")
+    _garantir_coluna(conn, "tasks", "arquivada_de", "TEXT")
     conn.execute(
         """CREATE TABLE IF NOT EXISTS tarefas_adiadas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2552,6 +2555,12 @@ def complete_task(conn, task_id: int) -> None:
     conn.execute("UPDATE tasks SET completed_at = datetime('now') WHERE id = ?", (task_id,))
     fechar_interacao_aprendizado(conn, "tarefa_parada", task_id)
     conn.commit()
+    try:  # aviso-cara: a ultima cara enviada dos avisos dessa tarefa leva o credito do Feito
+        import aviso_cara
+
+        aviso_cara.tarefa_concluida(conn, task_id)
+    except Exception:  # noqa: BLE001 - aprender nunca atrapalha concluir
+        pass
 
 
 def definir_esforco_tarefa(conn, task_id: int, esforco: str) -> bool:
@@ -3179,6 +3188,13 @@ def registrar_treino(
         (data, grupo, duracao_min, nota, origem),
     )
     conn.commit()
+    try:  # se-entao (Lab v4): "quando eu voltar do treino, eu ..." dispara aqui (so se o treino e de hoje)
+        if data == datetime.now().date().isoformat():
+            import se_entao
+
+            se_entao.disparar(conn, "voltar_treino")
+    except Exception:  # noqa: BLE001 - o gatilho e extra, nunca atrapalha registrar o treino
+        pass
     return cur.lastrowid
 
 

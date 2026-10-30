@@ -218,6 +218,18 @@ function criarItemTarefa(t) {
     tagIneg.innerHTML = `${CADEADO_TAREFA}inegociável`;
     chips.appendChild(tagIneg);
   }
+  // Pacote de tentacao (Lab v4): o premio que so vale junto com a tarefa
+  try {
+    const pacote = t.extras ? JSON.parse(t.extras).pacote : null;
+    if (pacote && pacote.premio) {
+      const tagPremio = document.createElement("span");
+      tagPremio.className = "item-tag-premio chip chip--compacto";
+      tagPremio.textContent = `prêmio: ${pacote.premio}`;
+      chips.appendChild(tagPremio);
+    }
+  } catch (erro) {
+    /* extras malformado: sem chip, a tarefa segue normal */
+  }
   tituloWrap.appendChild(chips);
 
   const btnTravar = document.createElement("button");
@@ -433,6 +445,7 @@ async function concluirTarefaDaLista(li, t, origem, botoes) {
 
   const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
   if (data) {
+    if (data.premio && typeof mostrarPremioLiberado === "function") mostrarPremioLiberado(data.premio);
     // a lista so recarrega depois que a linha saiu - senao o re-render corta o check no meio
     removido.then(() => loadTasks());
     loadSummary();

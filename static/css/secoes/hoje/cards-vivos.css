@@ -604,7 +604,9 @@
 .tx-l > span:last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .tx-total { align-items: baseline; font-weight: 700; }
 .tx-cupom .card-valor-grande { font-family: var(--font-tech); font-size: 1.15rem; color: var(--papel-tinta); text-shadow: none; letter-spacing: -0.02em; }
-.card-novo .tx-cupom { animation: txImprime 1.4s cubic-bezier(0.3, 0.7, 0.2, 1) calc(var(--chegada, 0ms) + 0.25s) both; }
+/* cupom-impresso (Lab v4, 30/10/2026): desce em 16 degraus, como a cabeca de uma impressora termica
+   (o deslize liso virou escada); o total rola logo depois (cards-premium.js: odometro com atraso) */
+.card-novo .tx-cupom { animation: txImprime 1.5s steps(16, jump-end) calc(var(--chegada, 0ms) + 0.25s) both; }
 @keyframes txImprime { from { transform: translateY(-101%); } }
 
 .tx-mes { display: grid; gap: 0.45rem; }

@@ -31,7 +31,7 @@ def public_key() -> str:
 
 
 def enviar(subscription_info: dict, titulo: str, corpo: str, url: str = "", tag: str = "",
-           acoes: list[dict] | None = None) -> bool:
+           acoes: list[dict] | None = None, badge: int | None = None) -> bool:
     """Manda uma notificacao. Retorna False se a inscricao morreu
     (usuario desinstalou/bloqueou) - nesse caso o chamador deve apagar
     essa inscricao do banco. `url` = onde o toque abre (ex: "/?aba=tarefas");
@@ -44,6 +44,8 @@ def enviar(subscription_info: dict, titulo: str, corpo: str, url: str = "", tag:
         dados["tag"] = tag
     if acoes:
         dados["acoes"] = acoes[:2]
+    if isinstance(badge, int) and not isinstance(badge, bool) and badge >= 0:
+        dados["badge"] = badge  # numero do icone do app (badge.py); o service worker poe com setAppBadge
     try:
         webpush(
             subscription_info=subscription_info,

@@ -40,7 +40,9 @@
 // v96: treino ao vivo em 3D de verdade (215 exercicios, corpo MakeHuman + three.js). So o catalogo
 // (treino3d-catalogo.js) entra no precache; o motor/corpo/three (~1,8 MB) vao pro cache na 1a vez que
 // um card de treino aparece (o fetch abaixo guarda tudo de /static/).
-const CACHE_NAME = "painel-pessoal-v96";
+// v97: Laboratorio v4, os 33 "quero" (foco, tempo, avisos e manha, memoria da IA, dinheiro, aviacao,
+// fechamento) - um arquivo de cards por grupo; ver docs/briefings/2026-10-30-lab-v4-*.md.
+const CACHE_NAME = "painel-pessoal-v97";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -91,11 +93,18 @@ const ASSETS = [
   "/static/css/secoes/hoje/chat.css",
   "/static/css/secoes/hoje/cards-vivos.css",
   "/static/css/secoes/hoje/cards-dia.css",
+  "/static/css/secoes/hoje/cards-tempo.css",
+  "/static/css/secoes/hoje/cards-foco-ideias.css",
+  "/static/css/secoes/hoje/cards-manha.css",
   "/static/css/secoes/hoje/cards-premium.css",
   "/static/css/secoes/hoje/cards-aviacao.css",
+  "/static/css/secoes/hoje/cards-aviacao-lab.css",
   "/static/css/secoes/hoje/cards-saidas.css",
   "/static/css/secoes/hoje/cards-automacao.css",
+  "/static/css/secoes/hoje/cards-dinheiro.css",
+  "/static/css/secoes/hoje/cards-memoria.css",
   "/static/css/secoes/hoje/cards-rotina.css",
+  "/static/css/secoes/hoje/cards-fechamento.css",
   "/static/css/secoes/hoje/visao-do-dia.css",
   "/static/css/secoes/painel/resumo.css",
   "/static/css/secoes/painel/agenda-de-hoje.css",
@@ -145,6 +154,7 @@ const ASSETS = [
   "/static/css/secoes/aviacao/registrar-voo.css",
   "/static/css/secoes/aviacao/proximos-voos.css",
   "/static/css/secoes/aviacao/metar.css",
+  "/static/css/secoes/aviacao/painel-de-voo.css",
   "/static/css/secoes/assistente/caixa.css",
   "/static/css/secoes/assistente/regras.css",
   "/static/css/secoes/assistente/avisos.css",
@@ -156,15 +166,25 @@ const ASSETS = [
   "/static/js/cards-tipos.js",
   "/static/js/cards-vivos.js",
   "/static/js/cards-dia.js",
+  "/static/js/cards-tempo.js",
+  "/static/js/secoes/topo/fita.js",
+  "/static/js/cards-foco-ideias.js",
+  "/static/js/cards-manha.js",
   "/static/js/cards-premium.js",
   "/static/js/cards-aviacao.js",
+  "/static/js/cards-aviacao-lab.js",
   "/static/js/cards-saidas.js",
   "/static/js/cards-automacao.js",
+  "/static/js/cards-dinheiro.js",
+  "/static/js/cards-memoria.js",
   "/static/js/cards-rotina.js",
+  "/static/js/cards-fechamento.js",
+  "/static/js/cards-medalha.js",
   "/static/js/nucleo/base.js",
   "/static/js/nucleo/icones.js",
   "/static/js/nucleo/formatos.js",
   "/static/js/nucleo/api.js",
+  "/static/js/nucleo/badge.js",
   "/static/js/nucleo/cores.js",
   "/static/js/nucleo/movimento.js",
   "/static/js/nucleo/navegacao.js",
@@ -237,6 +257,7 @@ const ASSETS = [
   "/static/js/secoes/aviacao/registrar-voo.js",
   "/static/js/secoes/aviacao/proximos-voos.js",
   "/static/js/secoes/aviacao/metar.js",
+  "/static/js/secoes/aviacao/painel-de-voo.js",
   "/static/js/secoes/assistente/caixa.js",
   "/static/js/secoes/assistente/regras.js",
   "/static/js/secoes/assistente/avisos.js",
@@ -299,6 +320,10 @@ self.addEventListener("push", (event) => {
       tag: dados.tag ? String(dados.tag) : "",
     },
   };
+  // numero no icone do app (badge.py): vem junto de cada aviso; sem push silencioso no iOS, e assim que o icone
+  // acompanha o dia com o app fechado
+  const numero = typeof dados.badge === "number" && dados.badge >= 0 ? Math.floor(dados.badge) : null;
+  const pintarBadge = numero === null ? Promise.resolve() : _pintarBadge(numero);
   // mesmo aviso de novo (mesma tag) substitui o anterior em vez de empilhar - e ainda toca
   if (dados.tag) {
     opcoes.tag = String(dados.tag);
@@ -311,8 +336,18 @@ self.addEventListener("push", (event) => {
       .filter((a) => a && typeof a.action === "string" && typeof a.title === "string")
       .map((a) => ({ action: a.action, title: a.title }));
   }
-  event.waitUntil(self.registration.showNotification(titulo, opcoes));
+  event.waitUntil(Promise.all([self.registration.showNotification(titulo, opcoes), pintarBadge]));
 });
+
+function _pintarBadge(n) {
+  try {
+    if (n > 0 && self.navigator && typeof self.navigator.setAppBadge === "function") return self.navigator.setAppBadge(n).catch(() => {});
+    if (n === 0 && self.navigator && typeof self.navigator.clearAppBadge === "function") return self.navigator.clearAppBadge().catch(() => {});
+  } catch (e) {
+    // sem a API: segue sem numero
+  }
+  return Promise.resolve();
+}
 
 // Toque no aviso: abre na aba certa. App ja aberto -> traz pra frente e troca de aba
 // (postMessage, sem recarregar); fechado -> abre direto no ?aba=.
@@ -336,8 +371,11 @@ self.addEventListener("notificationclick", (event) => {
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((r) => {
           if (r.teste) return null;
+          if (typeof r.badge === "number") _pintarBadge(Math.floor(r.badge)); // concluiu: o numero do icone desce
           const titulo = r.titulo ? String(r.titulo).slice(0, 80) : "Tarefa";
-          const corpo = event.action === "feito" ? "Marquei como feita." : r.hora ? `Passei pras ${r.hora}.` : "Passei pra amanhã.";
+          const corpo = r.mensagem
+            ? String(r.mensagem).slice(0, 120)
+            : event.action === "feito" ? "Marquei como feita." : r.hora ? `Passei pras ${r.hora}.` : "Passei pra amanhã.";
           return self.registration.showNotification(titulo, {
             body: corpo,
             icon: "/static/icons/icon-192.png",

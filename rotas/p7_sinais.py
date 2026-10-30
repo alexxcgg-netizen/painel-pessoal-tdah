@@ -65,6 +65,15 @@ def registrar_sinal():
             reagir(conn, tipo, lugar, quando)
         except Exception:
             pass  # reacao e extra - nunca derruba a gravacao do sinal, que ja foi commitada
+        try:  # se-entao (Lab v4): acordei / cheguei em casa disparam os combinados "quando X, eu Y"
+            import se_entao
+
+            if tipo == "acordei":
+                se_entao.disparar(conn, "acordar")
+            elif tipo == "cheguei" and (lugar or "").strip().lower() == "casa":
+                se_entao.disparar(conn, "chegar_casa")
+        except Exception:
+            pass
     finally:
         conn.close()
     return jsonify({"ok": True, "id": sinal_id}), 201

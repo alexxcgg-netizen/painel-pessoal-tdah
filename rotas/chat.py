@@ -13,6 +13,7 @@ from db import cards_de_mensagem_chat, get_db, list_chat_mensagens
 import cards
 import claude_client
 import db
+import fechamento_dia
 
 bp = Blueprint("chat", __name__)
 
@@ -219,6 +220,8 @@ def chat_historico():
     for m in mensagens:
         cards.acertar_plano_escolhido(conn, m["cards"])  # trocou pro plano B na pilula
         cards.acertar_treino_agora(conn, m["cards"])  # caixinhas marcadas / carga trocada depois
+        fechamento_dia.acertar_placar_feito(conn, m["cards"])  # o que ele anotou depois entra no placar
+        fechamento_dia.acertar_pouso_dia(conn, m["cards"])  # o que ainda esta aberto / se o dia ja pousou
     conn.close()
     for m in mensagens:
         for c in m["cards"]:

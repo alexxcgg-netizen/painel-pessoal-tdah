@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-10-30 - Laboratório v4: os "quero" no app (SW v97)
 - 2026-10-30 - Treino ao vivo em 3D de verdade: 215 exercícios (SW v96)
 - 2026-10-22 - App iOS nativo (.ipa) com widget, build no GitHub Actions
 - 2026-10-22 - Leva "painel mais esperto" (SW v93+)
@@ -159,6 +160,38 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-10-30 - Laboratório v4: os "quero" no app (SW v97)
+
+Ele votou no artefato Laboratório do Painel e pediu "faça todos". Briefing geral:
+`docs/briefings/2026-10-30-lab-v4-levas.md` (votos, regras); um briefing por grupo com decisões e passos dele
+(`docs/briefings/2026-10-30-lab-v4-{foco,tempo,avisos,memoria,dinheiro,aviacao,fechamento}.md`). 7 agentes em
+paralelo (worktrees), integrados à mão; conflitos só em listas (tipos de card, ASSETS, scripts, passos do tick).
+- **Foco** (`foco_ideias.py`, `recomeco.py`, `cards-foco-ideias.js`): E agora?, Por que travou? (3 adiamentos,
+  remédio por motivo, IA barata `remedio_travou`), Pacote de tentação (prêmio em `tasks.extras.pacote`), Um segundo
+  antes (pausa antes de app que puxa, via Atalho `/api/atalho/segundo-antes`), Recomeço (`tasks.arquivada_em`).
+- **Tempo** (`tempo.py`, `cards-tempo.js`, `secoes/topo/fita.js`): fita no topo, modo espera, calibrador (fator
+  achou × levou pelo Parceiro de foco), disjuntor do hiperfoco, checklist da porta.
+- **Avisos e manhã** (`manha.py`, `bom_dia.py`, `aviso_cara.py`, `se_entao.py`, `badge.py`, `carro.py`,
+  `cards-manha.js`, `nucleo/badge.js`, ControlWidget em `native/`): cartões da manhã, bom dia pelo alarme, aviso
+  que muda de cara (sem reduzir aviso), se-então, número no ícone, Central de Controle (não compilado), carro.
+- **Memória da IA** (`guardados.py`, `neste_dia.py`, `coincidencias.py`, `cards-memoria.js`): onde guardei,
+  o que eu falei sobre…, neste dia (só progresso), coincidências ("não prova de causa").
+- **Dinheiro** (`nfce.py`, `email_contas.py`, `cards-dinheiro.js`): cupom que sai da impressora, cupom vira
+  itens (link do QR da NFC-e, só gov.br), contas no e-mail (IMAP só leitura, desligado sem `.env`).
+- **Aviação** (`aviacao_lab.py`, seção "painel de voo" na aba Aviação, `cards-aviacao-lab.js`): radar de
+  validades, previsão do cheque, banca por caderno, voo de cadeira, vento na pista, passaporte. O que não foi
+  conferido (CMA, pista/declinação de SSBL) fica configurável e marcado "não conferido".
+- **Fechamento** (`medalha.py`, `fechamento_dia.py`, `retrospectiva.py`, `cards-medalha.js`,
+  `cards-fechamento.js`): medalha de recorde (Epley) no treino ao vivo, placar do feito, pouso do dia (21h, no
+  lugar do fechamento antigo), retrospectiva do mês em stories.
+- Migrações novas em `migracoes/202610301000_*`/`202610301200_*` + coluna `tasks.arquivada_em` (`db.py`).
+- Acertos da integração: o "eu te chamo" (`tempo.chamar_na_hora`) cala a partir de 25 min antes da saída, porque
+  nessa janela quem fala é o aviso de sair que já existia (antes saíam dois pushes juntos). Na aba Aviação,
+  alvos ≥ 44 px (link "Abrir Aviação" escondido dentro da própria aba, slider e "Guardar") e texto ≥ 12 px nos
+  rótulos dos cards. Os testes do app não chamam mais a IA dos cartões da manhã (`manha._pedir_ia` com mock).
+- Pendente conhecido: tarefa arquivada pelo Recomeço ainda aparece como "sem data" em consultas fora da aba
+  Tarefas e do E agora.
 
 ## 2026-10-30 - Treino ao vivo em 3D de verdade: 215 exercícios (SW v96)
 

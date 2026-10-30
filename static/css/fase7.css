@@ -36,11 +36,18 @@
 @import url("secoes/hoje/chat.css");
 @import url("secoes/hoje/cards-vivos.css");
 @import url("secoes/hoje/cards-dia.css");
+@import url("secoes/hoje/cards-foco-ideias.css");
+@import url("secoes/hoje/cards-manha.css");
 @import url("secoes/hoje/cards-premium.css");
 @import url("secoes/hoje/cards-aviacao.css");
+@import url("secoes/hoje/cards-aviacao-lab.css");
 @import url("secoes/hoje/cards-saidas.css");
 @import url("secoes/hoje/cards-automacao.css");
+@import url("secoes/hoje/cards-dinheiro.css");
+@import url("secoes/hoje/cards-memoria.css");
 @import url("secoes/hoje/cards-rotina.css");
+@import url("secoes/hoje/cards-tempo.css");
+@import url("secoes/hoje/cards-fechamento.css");
 @import url("secoes/hoje/visao-do-dia.css");
 @import url("secoes/painel/resumo.css");
 @import url("secoes/painel/agenda-de-hoje.css");
@@ -90,6 +97,7 @@
 @import url("secoes/aviacao/registrar-voo.css");
 @import url("secoes/aviacao/proximos-voos.css");
 @import url("secoes/aviacao/metar.css");
+@import url("secoes/aviacao/painel-de-voo.css");
 @import url("secoes/assistente/caixa.css");
 @import url("secoes/assistente/regras.css");
 @import url("secoes/assistente/avisos.css");

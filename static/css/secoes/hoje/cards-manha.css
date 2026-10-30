@@ -1,0 +1,91 @@
+/* static/css/secoes/hoje/cards-manha.css - cards da leva Lab v4 "Avisos e manha" (static/js/cards-manha.js), iguais as
+   demos aprovadas do Laboratorio v4: cartoes_manha (pilha "Pra hoje"), bom_dia (onda + linhas), se_entao (Quando ___ eu ___)
+   e carro (No caminho). Cores do prototipo: ia #9fe3e0, bom dia #ffd36e, carro #f0a58f. */
+.card-contrato-cartoes_manha, .card-contrato-se_entao { --card-cor: #9fe3e0; }
+.card-contrato-bom_dia { --card-cor: #ffd36e; }
+.card-contrato-carro { --card-cor: #f0a58f; }
+.card-contrato-cartoes_manha, .card-contrato-bom_dia, .card-contrato-se_entao, .card-contrato-carro { --cd-ok: #9fdcb0; }
+.mn-raiz { display: grid; gap: 0.7rem; position: relative; }
+
+/* ---- cartoes da manha ---- */
+.mn-pilha { position: relative; display: grid; min-height: 11.5rem; }
+.mn-c {
+  grid-area: 1 / 1; align-self: start; display: grid; gap: 0.5rem; padding: 0.85rem; border-radius: 18px; border: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 5%, var(--surface)), var(--surface));
+  transform-origin: 50% 100%;
+  transform: translateY(calc(var(--i, 0) * 7px)) scale(calc(1 - var(--i, 0) * 0.04));
+  opacity: calc(1 - var(--i, 0) * 0.28); z-index: calc(10 - var(--i, 0));
+  transition: transform 0.5s var(--ease-bounce), opacity 0.4s var(--ease-suave);
+}
+.mn-c:not(:first-child) { pointer-events: none; }
+.mn-c .cd-rot { margin: 0; }
+.mn-t { margin: 0; font-size: 0.92rem; line-height: 1.45; overflow-wrap: anywhere; }
+.mn-ac { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.mn-ac .cd-mini { min-height: 44px; padding: 0 1rem; }
+.mn-ac .cd-mini.on { background: color-mix(in srgb, var(--card-cor) 18%, transparent); border-color: color-mix(in srgb, var(--card-cor) 50%, transparent); font-weight: 600; }
+.mn-ac .cd-mini[disabled] { opacity: 0.5; }
+.mn-c.sai-d { transform: translateX(120%) rotate(8deg); opacity: 0; transition: transform 0.45s var(--ease-snap), opacity 0.4s var(--ease-suave); }
+.mn-c.sai-e { transform: translateX(-120%) rotate(-8deg); opacity: 0; transition: transform 0.45s var(--ease-snap), opacity 0.4s var(--ease-suave); }
+.mn-fim { display: grid; justify-items: center; gap: 0.25rem; padding: 1.2rem 0; text-align: center; animation: mn-pedaco 0.6s var(--ease-bounce) both; }
+.mn-fim .cd-hero, .mn-fim .cd-nota { margin: 0; }
+.mn-ok { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--card-cor); color: #0b0d10; animation: mn-elo 0.7s var(--ease-bounce) both; }
+.mn-ok svg { width: 28px; height: 28px; }
+@keyframes mn-pedaco { from { opacity: 0; transform: translateY(10px) scale(0.96); } }
+@keyframes mn-elo { from { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.12); } }
+.mn-toast { margin: 0; font-size: 0.78rem; color: var(--text-muted); text-align: center; min-height: 1.1rem; opacity: 0; }
+.mn-toast.on { animation: mn-toast 2.2s var(--ease-suave) both; }
+@keyframes mn-toast { 0% { opacity: 0; transform: translateY(4px); } 12%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+/* ---- bom dia / carro: onda + linhas ---- */
+.mn-onda { display: flex; align-items: center; gap: 4px; height: 26px; }
+.mn-onda i {
+  width: 4px; height: 100%; border-radius: 4px; background: var(--card-cor); transform-origin: 50% 50%;
+  animation: mn-onda 1s var(--ease-suave) calc(var(--b, 0) * 0.12s) infinite alternate;
+}
+.mn-onda.quieta i { animation: none; transform: scaleY(0.25); transition: transform 0.6s var(--ease-suave); }
+@keyframes mn-onda { from { transform: scaleY(0.2); } to { transform: scaleY(1); } }
+.mn-ls { display: grid; gap: 0.15rem; }
+.mn-l { display: grid; grid-template-columns: 5.4rem minmax(0, 1fr); gap: 0.6rem; align-items: start; padding: 0.4rem 0; border-top: 1px solid var(--border); animation: mn-pedaco 0.5s var(--ease-bounce) calc(0.15s + var(--k, 0) * 0.12s) both; }
+.mn-l:first-child { border-top: 0; }
+.mn-lr { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); padding-top: 0.15rem; }
+.mn-lv { font-size: 0.9rem; line-height: 1.4; overflow-wrap: anywhere; display: grid; gap: 0.35rem; }
+.mn-trilho { display: block; height: 6px; border-radius: 6px; background: color-mix(in srgb, var(--text) 8%, transparent); overflow: hidden; }
+.mn-trilho i { display: block; height: 100%; border-radius: 6px; background: var(--card-cor); animation: mn-enche 1s var(--ease-suave) 0.4s both; }
+@keyframes mn-enche { from { width: 0; } }
+.mn-fala { font-size: 1.02rem; }
+.mn-extra { color: var(--card-cor); }
+
+/* ---- se-entao ---- */
+.mn-meta { margin: 0; }
+.mn-frase { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 1.05rem; font-weight: 600; padding: 0.7rem 0.85rem; border-radius: 16px; background: color-mix(in srgb, var(--text) 4%, transparent); }
+.mn-k { color: var(--text-faint); }
+.mn-slot { padding: 0.2rem 0.65rem; border-radius: 10px; border: 1.5px dashed var(--border); color: var(--text-faint); min-width: 44px; text-align: center; overflow-wrap: anywhere; max-width: 100%; }
+.mn-slot.cheio { border-style: solid; border-color: var(--card-cor); color: var(--text); background: color-mix(in srgb, var(--card-cor) 14%, transparent); }
+.mn-slot.pop { animation: mn-pop 0.45s var(--ease-bounce); }
+@keyframes mn-pop { 40% { transform: scale(1.1); } }
+.mn-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.mn-chip {
+  min-height: 44px; padding: 0.4rem 0.9rem; border-radius: 99px; border: 1px solid var(--border); background: transparent; color: var(--text);
+  font: inherit; font-size: 0.84rem; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.25s var(--ease-bounce), background 0.3s var(--ease-suave), border-color 0.3s var(--ease-suave);
+}
+.mn-chip:active { transform: scale(0.94); }
+.mn-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--card-cor) 20%, transparent); border-color: var(--card-cor); font-weight: 600; }
+.mn-chip[disabled] { opacity: 0.55; cursor: default; }
+.mn-hora { display: grid; gap: 0.25rem; animation: mn-pedaco 0.4s var(--ease-bounce) both; }
+.mn-hora[hidden] { display: none; }
+.mn-inp { min-height: 44px; padding: 0 0.8rem; border-radius: 12px; border: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; max-width: 10rem; }
+.mn-pe { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+.mn-pe .cd-acao { flex: 1 1 auto; }
+.mn-pe-bt { display: flex; gap: 0.4rem; }
+.mn-pe-bt .cd-mini { min-height: 44px; padding: 0 1rem; }
+.mn-feito { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.88rem; font-weight: 600; color: var(--cd-ok); animation: mn-pedaco 0.5s var(--ease-bounce) both; }
+.mn-feito svg { width: 20px; height: 20px; }
+.mn-feito.off { color: var(--text-faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mn-c, .mn-c.sai-d, .mn-c.sai-e, .mn-chip, .mn-onda.quieta i { transition: none; }
+  .mn-fim, .mn-ok, .mn-l, .mn-trilho i, .mn-toast.on, .mn-slot.pop, .mn-hora, .mn-feito, .mn-onda i { animation: none; }
+  .mn-toast.on { opacity: 1; }
+  .mn-onda i { transform: scaleY(0.6); }
+}

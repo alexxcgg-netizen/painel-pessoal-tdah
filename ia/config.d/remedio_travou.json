@@ -1,0 +1,10 @@
+{
+  "funcao": "remedio_travou",
+  "ativo": false,
+  "modelo_atual": {"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "baixo"},
+  "alvo": {"provedor": "openai", "modelo": "gpt-6-luna", "esforco": "medio"},
+  "fallback": [{"provedor": "openai", "modelo": "gpt-6-sol", "esforco": "medio"}],
+  "max_tokens_saida": 400,
+  "cache": {"ativo": false, "ttl": "5m"},
+  "modo": "padrao"
+}

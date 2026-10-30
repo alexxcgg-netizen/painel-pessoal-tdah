@@ -84,18 +84,40 @@ struct Raiz: View {
     @ObservedObject private var abertura = Abertura.shared
     @State private var url = Ajustes.url
     @State private var recarregar = 0
+    @State private var capturar = false
+
+    /// Botão "Anotar no painel" da Central de Controle (PainelControleIntent.swift) deixa um carimbo no App Group;
+    /// vale por 60 s e é consumido uma vez. Lab v4 / ideia "central".
+    private func conferirPedidoDeCaptura() {
+        let d = Ajustes.defaults
+        let t = d.double(forKey: "painel_capturar_pedido")
+        guard t > 0 else { return }
+        d.removeObject(forKey: "painel_capturar_pedido")
+        if Date().timeIntervalSince1970 - t < 60 {
+            capturar = true
+            recarregar += 1
+        }
+    }
 
     var body: some View {
         ZStack {
             Color(red: 0.07, green: 0.07, blue: 0.07).ignoresSafeArea()
             if let endereco = URL(string: url), endereco.scheme != nil {
-                PainelWeb(url: endereco).id(recarregar).ignoresSafeArea(edges: .bottom)
+                PainelWeb(url: capturar ? (URL(string: url + (url.hasSuffix("/") ? "" : "/") + "?capturar=1") ?? endereco) : endereco)
+                    .id(recarregar).ignoresSafeArea(edges: .bottom)
             }
         }
-        .onAppear { if url.isEmpty { abertura.configurar = true } }
+        .onAppear {
+            if url.isEmpty { abertura.configurar = true }
+            conferirPedidoDeCaptura()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            conferirPedidoDeCaptura()
+        }
         .sheet(isPresented: $abertura.configurar) {
             Configurar { novaURL in
                 url = novaURL
+                capturar = false
                 recarregar += 1
                 WidgetCenter.shared.reloadAllTimelines()
             }

@@ -18,5 +18,10 @@ import SwiftUI
 struct PainelWidgetBundle: WidgetBundle {
     var body: some Widget {
         PainelWidget()
+        #if compiler(>=6.0)
+        if #available(iOS 18.0, *) {
+            PainelControle()  // Central de Controle: botão "Anotar no painel" (PainelControle.swift)
+        }
+        #endif
     }
 }

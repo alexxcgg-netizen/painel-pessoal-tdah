@@ -114,6 +114,8 @@ async function apiFetch(url, options, fila) {
   const _metodo = ((options && options.method) || "GET").toUpperCase();
   const _invalidarSeEscreveu = () => {
     if (_metodo !== "GET" && typeof invalidarDadosAbas === "function") invalidarDadosAbas();
+    // numero no icone do app (nucleo/badge.js): qualquer escrita pode ter mudado o que vence hoje
+    if (_metodo !== "GET" && typeof Badge !== "undefined") Badge.atualizarDepois();
   };
   let res;
   const controller = new AbortController();

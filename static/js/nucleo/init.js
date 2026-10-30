@@ -38,6 +38,20 @@ if (new URLSearchParams(location.search).has("aba")) {
   history.replaceState(null, "", location.pathname); // recarregar nao volta pra aba do aviso
   requestAnimationFrame(() => abrirAbaDoAviso(urlAviso));
 }
+// Botao "Anotar no painel" da Central de Controle (app nativo, native/widgetkit/PainelControle.swift) ou o Atalho
+// "Anota no painel" abrem "/?capturar=1": cai no chat com o microfone pronto (ou o campo de texto, sem microfone).
+if (new URLSearchParams(location.search).has("capturar")) {
+  history.replaceState(null, "", location.pathname);
+  requestAnimationFrame(() => {
+    if (document.getElementById("tab-hoje")) showTab("hoje");
+    setTimeout(() => {
+      const mic = document.getElementById("chat-mic");
+      const campo = document.getElementById("chat-input");
+      if (mic && !mic.hidden) mic.click();
+      else if (campo) campo.focus();
+    }, 400);
+  });
+}
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("message", (ev) => {
     if (ev.data && ev.data.tipo === "abrir-aviso") abrirAbaDoAviso(ev.data.url);
@@ -354,6 +368,8 @@ function _avisarQueViu(forcar = false) {
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (j && j.de_onde_parei && typeof loadChatHistorico === "function") loadChatHistorico();
+        // numero no icone (nucleo/badge.js): o batimento ja volta com a contagem do dia
+        if (j && typeof j.badge === "number" && typeof Badge !== "undefined") Badge.aplicar(j.badge);
       })
       .catch(() => {});
   } catch {}

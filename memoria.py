@@ -150,3 +150,60 @@ def buscar(conn, termo: str, de: date | None = None, ate: date | None = None,
             "diga isso ao Alex sem inventar data"
         )
     return resultado
+
+
+# ---- "O que eu falei sobre..." (Laboratorio v4, Grupo D, 2026-10-30) -------------------------
+# So o que ELE disse ou escreveu (chat, anotacao do diario, nota, decisao, espera): a frase original
+# datada. Nao entra tarefa, gasto nem resumo gerado. Vira card `o_que_falei`; o resumo em prosa e
+# a resposta do proprio chat (que so ve estes trechos - nunca a conversa inteira).
+TIPOS_FALAS = ("voce falou no chat", "anotacao tua no diario", "nota", "decisao", "espera")
+LIMITE_FALAS = 8
+
+
+def buscar_falas(conn, termo: str, hoje: date | None = None, limite: int = LIMITE_FALAS) -> dict:
+    hoje = hoje or diario.hoje_local()
+    rs = raizes(termo)
+    if not rs:
+        return {"erro": "faltou o assunto (ex: 'pouso', 'creatina')"}
+    try:
+        limite = max(1, min(int(limite), LIMITE_MAXIMO))
+    except (TypeError, ValueError):
+        limite = LIMITE_FALAS
+    achados = [a for a in _coletar(conn, rs) if a[1] in TIPOS_FALAS]
+    achados.sort(key=lambda a: (a[0], a[1]), reverse=True)
+    vistos, unicos = set(), []
+    for a in achados:
+        chave = (a[0], _sem_acento(a[2]))
+        if chave not in vistos:
+            vistos.add(chave)
+            unicos.append(a)
+    res = {
+        "assunto": termo,
+        "total_achados": len(unicos),
+        "falas": [
+            {"dia": d.isoformat(), "quando": diario.rotulo_dia(d, hoje), "onde": tipo, "texto": texto}
+            for d, tipo, texto in unicos[:limite]
+        ],
+    }
+    if len(unicos) > limite:
+        res["obs"] = f"mostrando as {limite} mais recentes de {len(unicos)}"
+    if not unicos:
+        res["obs"] = "nada que ele tenha dito ou escrito sobre isso; diga isso sem inventar"
+    return res
+
+
+def card_falas(res: dict):
+    """Card `o_que_falei` a partir do resultado de buscar_falas (so a frase original e a data)."""
+    import cards
+
+    if not isinstance(res, dict) or res.get("erro"):
+        return None
+    itens = [
+        {"dia": f["dia"], "texto": f["texto"], "onde": f["onde"]}
+        for f in res.get("falas") or [] if isinstance(f, dict)
+    ]
+    return cards.novo_card("o_que_falei", {
+        "assunto": cards._titulo_curto(res.get("assunto"), 50),
+        "total": int(res.get("total_achados") or 0),
+        "itens": itens,
+    })

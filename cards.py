@@ -24,6 +24,7 @@ from datetime import date, datetime, timedelta
 import calculos
 import db
 import financas_recorrentes as fr
+import medalha
 import treino_vivo
 import vida
 
@@ -71,6 +72,9 @@ MODULO_POR_TOOL = {
     "salvar_ficha_treino": "Saúde",
     "registrar_treino": "Saúde",
     "comecar_treino": "Saúde",
+    "feito_hoje": "Vida",
+    "pouso_do_dia": "Vida",
+    "retrospectiva_mes": "Vida",
     "atualizar_carga_treino": "Saúde",
     "registrar_viagem": "Viagens",
     "registrar_lugar": "Viagens",
@@ -79,6 +83,7 @@ MODULO_POR_TOOL = {
     "ajustar_antecedencia_voo": "Aviação",
     "adicionar_compras": "Compras",
     "registrar_memoria": "Memória",
+    "propor_se_entao": "Rotina",
     "salvar_nota": "Notas",
     "consultar_notas": "Notas",
 }
@@ -92,8 +97,17 @@ DESCRICAO_TOOL = {
     "registrar_checkin": "Registrou o check-in",
     "registrar_treino": "Registrou o treino",
     "comecar_treino": "Abriu a ficha do treino",
+    "feito_hoje": "Mostrou o que tu fez hoje",
+    "pouso_do_dia": "Abriu o pouso do dia",
+    "retrospectiva_mes": "Montou a retrospectiva do mês",
     "atualizar_carga_treino": "Atualizou a carga na ficha",
     "registrar_memoria": "Guardou uma memória",
+    "guardar_objeto": "Anotou onde guardou",
+    "onde_esta": "Procurou onde tu guardou",
+    "buscar_o_que_falei": "Procurou no que tu disse",
+    "consultar_neste_dia": "Olhou esta data nos anos anteriores",
+    "consultar_coincidencias": "Cruzou os teus números",
+    "propor_se_entao": "Montou o combinado quando-então",
     "consultar_noticias": "Buscou notícias",
     "consultar_notas": "Consultou as notas",
     "consultar_gastos_fixos": "Consultou os gastos fixos",
@@ -148,10 +162,18 @@ AO_VIVO_TOOL = {
     "registrar_memoria": "Guardando isso na memória",
     "consultar_notas": "Procurando nas notas",
     "buscar_na_memoria": "Procurando na memória",
+    "guardar_objeto": "Anotando onde ficou",
+    "onde_esta": "Procurando onde tu guardou",
+    "buscar_o_que_falei": "Procurando no que tu disse",
+    "consultar_neste_dia": "Olhando esta data nos anos anteriores",
+    "consultar_coincidencias": "Cruzando os teus números",
     "salvar_nota": "Salvando a nota",
     "registrar_hidratacao": "Contando o copo d'água",
     "registrar_treino": "Registrando o treino",
     "comecar_treino": "Abrindo a ficha do treino",
+    "feito_hoje": "Somando o que tu fez hoje",
+    "pouso_do_dia": "Preparando o pouso do dia",
+    "retrospectiva_mes": "Juntando o teu mês",
     "atualizar_carga_treino": "Trocando a carga na ficha",
     "adicionar_compras": "Pondo na lista de compras",
     "consultar_noticias": "Buscando notícias",
@@ -164,6 +186,7 @@ AO_VIVO_TOOL = {
     "ajustar_lembrete": "Ajustando o lembrete",
     "ajustar_gasto": "Ajustando o gasto",
     "ajustar_voo": "Corrigindo o voo",
+    "propor_se_entao": "Montando o combinado",
 }
 _AO_VIVO_COM_TITULO = {
     "registrar_tarefa": ("titulo", "Anotando"),
@@ -228,15 +251,39 @@ CAMPOS_SENSIVEIS = {
     "saude_dia": ("agua_copos", "passos", "sono_horas", "treino_min"),
     "saude_treino": ("sessoes", "semana"),
     "treino_agora": ("sono_horas",),
+    # Grupo G (lab v4): o gasto que mais cresceu na retrospectiva e dinheiro
+    "retrospectiva": ("gasto_cresceu",),
     "agua": ("copos",),
     "checkin": ("energia", "sono", "humor"),
     "alerta_dia": ("sinais",),
+    # Grupo A do Lab v4 (30/10/2026): trazem titulo de tarefa
+    "e_agora": ("sugestoes",),
+    "travou": ("titulo",),
+    "pacote": ("chatas", "ativos"),
+    "segundo_antes": ("tarefa",),
+    "recomeco": ("itens", "arquivo"),
+    # Lab v4 (30/10): o bom dia leva sono (saude) e agenda; o carro, lugar e horario dos compromissos
+    "bom_dia": ("linhas", "fala"),
+    "carro": ("fala", "titulo", "parada", "chega_as", "hora_compromisso"),
+    "cartoes_manha": ("cartoes",),
     "combinados": ("pessoas", "empresa"),
     "gastos_resumo": ("total", "por_categoria", "maiores"),
+    # Grupo E (Dinheiro, 30/10/2026): cupom lido pelo QR (itens/total) e contas achadas no e-mail
+    # (valor + codigo de pagamento) - dinheiro pessoal do Alex, nunca aparece pra visitante
+    "cupom_itens": ("total", "categorias", "exemplos"),
+    "contas_email": ("contas",),
+    # Laboratorio v4 (aviacao_lab.py): o custo ate o cheque e dinheiro
+    "previsao_cheque": ("custo", "valor_hora"),
     # Fase 7 (N1, ligado na C1 - checklist de docs/contrato-assinaturas.md).
     # `proximas_cobrancas`/`proxima_cobranca` saem inteiros no modo
     # visitante (trazem `valor` dentro).
     "assinatura": ("valor",),
+    # Grupo D (2026-10-30): lugar de documento, frase dita no chat e cruzamento sono x gasto sao
+    # tao pessoais quanto dinheiro
+    "guardados": ("destaque", "itens"),
+    "o_que_falei": ("itens",),
+    "neste_dia": ("itens",),
+    "coincidencia": ("titulo", "linhas", "detalhe", "aviso"),
     "compra_parcelada": ("valor_total", "valor_parcela"),
     "resumo_financeiro_recorrente": (
         "total_mensal", "assinaturas_total", "parcelas_total", "total_mes",
@@ -301,6 +348,9 @@ TIPOS_CARD = (
     "documento_validade",
     "compras_previsao",
     "assinatura_subiu",
+    # Grupo E (Dinheiro, 30/10/2026): cupom que vira itens (QR da NFC-e) e cacador de contas no e-mail
+    "cupom_itens",
+    "contas_email",
     # despertador pedido no chat (2026-10-16): botao que abre o Atalho do iPhone
     "despertador",
     # leva de 22/10: "como tu ta hoje?" (check-in no chat, 1 toque por campo)
@@ -309,9 +359,40 @@ TIPOS_CARD = (
     "alerta_dia",
     "de_onde_parei",
     "foco",
+    # Grupo B, Tempo (leva do Laboratorio v4, 30/10/2026): static/js/cards-tempo.js
+    "espera",
+    "calibrador",
+    "disjuntor",
+    "porta",
+    "e_agora",
+    "travou",
+    "pacote",
+    "segundo_antes",
+    "recomeco",
     "combinados",
     "proteina",
     "diario_bordo",
+    # Laboratorio v4, Grupo D (2026-10-30): memoria da IA
+    "guardados",
+    "o_que_falei",
+    "neste_dia",
+    "coincidencia",
+    # Laboratorio v4, Grupo F (30/10/2026, aviacao_lab.py)
+    "radar_validades",
+    "previsao_cheque",
+    "banca",
+    "chair_flying",
+    "vento_pista",
+    "passaporte",
+    # leva Lab v4 (30/10/2026): avisos e manha
+    "cartoes_manha",
+    "bom_dia",
+    "se_entao",
+    "carro",
+    # Grupo G do lab v4 (2026-10-30): fechamento e recompensa
+    "placar_feito",
+    "pouso_dia",
+    "retrospectiva",
 )
 
 
@@ -1065,6 +1146,8 @@ def _dados_treino_agora(conn, sessao: dict) -> dict | None:
         "exercicios": exercicios,
         "feitos": [i for i in sessao["feitos"] if i < len(exercicios)],
         "concluido": bool(sessao.get("concluido_em")), "duracao_min": duracao,
+        # Medalha na hora (lab v4): recordes de carga (1RM estimado) batidos nesta sessao
+        "medalhas": medalha.medalhas_da_sessao(conn, sessao["id"]),
         # sono da noite antes do treino (Saude/Atalho ou a pergunta do proprio card): cruza com a carga
         "sono_horas": (db.get_saude_dia(conn, sessao["data"]) or {}).get("sono_horas"),
     }
@@ -1405,6 +1488,20 @@ def card_despertador(ef: dict) -> dict | None:
         [{"tipo": "abrir_link", "rotulo": "Pôr no despertador do iPhone",
           "url": "shortcuts://run-shortcut?name=" + despertador.NOME_ATALHO.replace(" ", "%20")}],
     )
+
+
+def card_se_entao(ef: dict) -> dict | None:
+    """"Quero beber mais agua" -> Quando ___, eu ___ (Lab v4, se_entao.py). O card so propoe: nada e gravado ate
+    ele tocar em Ativar (POST /api/se-entao)."""
+    import se_entao
+
+    p = se_entao.proposta(ef.get("meta"), ef.get("gatilhos"), ef.get("acoes"))
+    return novo_card("se_entao", p) if p else None
+
+
+def card_bom_dia(dados: dict) -> dict:
+    """Bom dia ao parar o alarme (bom_dia.py): sono, agenda, tempo e primeiro passo."""
+    return novo_card("bom_dia", {"hora": dados.get("hora"), "linhas": dados.get("linhas") or []})
 
 
 def card_refeicao(conn, id_: int, ef: dict, actions_extra=None) -> dict | None:
@@ -1748,6 +1845,56 @@ def card_compras_previsao(itens: list[dict]) -> dict | None:
     return novo_card("compras_previsao", {"itens": itens})
 
 
+def card_cupom_itens(cupom: dict) -> dict | None:
+    """Cupom fiscal lido (nfce.ler_do_texto): barra por categoria + 1 exemplo de cada. `registrado` = ja
+    virou/vinculou gasto (o botao "Registrar como gasto" some)."""
+    import nfce
+
+    itens = [i for i in (cupom.get("itens") or []) if isinstance(i, dict) and i.get("nome")]
+    if not cupom.get("id") or not itens:
+        return None
+    cats = nfce.por_categoria(itens)
+    exemplos = []
+    for c in cats:
+        if c["nome"] == "Outros" or len(exemplos) >= 3:
+            continue
+        maior = max((i for i in itens if i.get("categoria") == c["nome"]), key=lambda i: i.get("valor") or 0)
+        exemplos.append(f"{_titulo_curto(maior['nome'].lower(), 28)} ({c['nome'].lower()})")
+    return novo_card("cupom_itens", {
+        "cupom_id": cupom["id"],
+        "estabelecimento": _titulo_curto(cupom.get("estabelecimento") or "Cupom fiscal", 40),
+        "emitido_em": cupom.get("emitido_em"),
+        "total": round(float(cupom.get("total") or 0), 2),
+        "qtd_itens": len(itens),
+        "categorias": cats,
+        "exemplos": exemplos,
+        "registrado": bool(cupom.get("gasto_id")),
+    })
+
+
+def card_contas_email(contas: list[dict], hoje, lidos: int | None = None, varredura: str | None = None) -> dict | None:
+    """Contas achadas no e-mail (email_contas): nome, vencimento (e em quantos dias), valor, codigo pra copiar."""
+    from datetime import date as _date
+
+    saida = []
+    for c in contas[:8]:
+        if not c.get("id") or c.get("tipo") not in ("boleto", "pix", "fatura", "rastreio"):
+            continue
+        dias = None
+        try:
+            dias = (_date.fromisoformat(c["vencimento"]) - hoje).days if c.get("vencimento") else None
+        except ValueError:
+            dias = None
+        saida.append({
+            "id": c["id"], "nome": _titulo_curto(c.get("remetente") or "Conta", 40), "assunto": _titulo_curto(c.get("assunto") or "", 70),
+            "tipo": c["tipo"], "valor": c.get("valor"), "vence": c.get("vencimento"), "dias": dias,
+            "codigo": c.get("codigo"), "status": c.get("status") or "nova",
+        })
+    if not saida:
+        return None
+    return novo_card("contas_email", {"contas": saida, "lidos": lidos, "varredura": varredura})
+
+
 def card_assinatura_subiu(a: dict) -> dict | None:
     if not a.get("descricao") or not a.get("valor_novo"):
         return None
@@ -1942,6 +2089,18 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_saude_treino(conn, ef.get("dias") or 7)
     if entidade == "treino_sessao" and isinstance(id_, int):
         return card_treino_agora(conn, id_, ef.get("escolhida_por"))
+    if entidade == "placar_feito":
+        import fechamento_dia
+
+        return fechamento_dia.card_placar(conn, date.today())
+    if entidade == "pouso_dia":
+        import fechamento_dia
+
+        return fechamento_dia.card_pouso(conn, date.today())
+    if entidade == "retrospectiva" and isinstance(ef.get("ano"), int) and isinstance(ef.get("mes"), int):
+        import retrospectiva
+
+        return retrospectiva.card(conn, ef["ano"], ef["mes"], date.today())
     if entidade == "hidratacao":
         return card_agua(conn, actions_extra=desfazer)
     if entidade == "saude_dia":
@@ -1958,6 +2117,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         from datetime import datetime as _dt
 
         return foco.card(conn, _dt.now())
+    if entidade in ("e_agora", "pacote", "travou", "segundo_antes", "recomeco"):
+        return _card_foco_ideias(conn, entidade, id_)
     if entidade == "dia_ruim":
         import dia_ruim
 
@@ -1974,6 +2135,22 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_rota(ef)
     if entidade == "refeicao" and isinstance(id_, int):
         return card_refeicao(conn, id_, ef, desfazer)
+    if entidade == "guardados":
+        import guardados
+
+        return guardados.card(conn, ef)
+    if entidade == "o_que_falei":
+        import memoria
+
+        return memoria.card_falas(ef.get("dados"))
+    if entidade == "neste_dia":
+        import neste_dia
+
+        return neste_dia.card(conn)
+    if entidade == "coincidencia":
+        import coincidencias
+
+        return coincidencias.card(conn)
     if entidade == "diario_bordo" and isinstance(id_, int):
         import diario_bordo
 
@@ -1996,6 +2173,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_briefing_voo(ef)
     if entidade == "despertador":
         return card_despertador(ef)
+    if entidade == "se_entao":
+        return card_se_entao(ef)
     if entidade == "quiz_aviacao":
         return card_quiz_aviacao(ef)
     return None
@@ -2185,3 +2364,25 @@ def mascarar_visitante(resposta: dict) -> dict:
             r[campo] = ocultar_valores_texto(r[campo])
     r.pop("valor", None)
     return r
+
+
+def _card_foco_ideias(conn, entidade: str, task_id=None) -> dict | None:
+    """Cards do Grupo A do Lab v4 (30/10/2026) - dados em foco_ideias.py / recomeco.py."""
+    import foco_ideias
+    import recomeco
+    from datetime import datetime as _dt
+
+    agora = _dt.now()
+    if entidade == "recomeco":
+        return recomeco.card(conn, agora.date())
+    if entidade == "pacote":
+        return novo_card("pacote", foco_ideias.pacote(conn))
+    if entidade == "travou":
+        dados = foco_ideias.dados_travou(conn, task_id) if isinstance(task_id, int) else None
+        return novo_card("travou", dados) if dados else None
+    import app as _app
+
+    eventos = _app._eventos_de_hoje_com_seguranca(conn)
+    if entidade == "segundo_antes":
+        return novo_card("segundo_antes", foco_ideias.tela_segundo_antes(conn, agora, "", eventos))
+    return novo_card("e_agora", foco_ideias.e_agora(conn, agora, eventos))

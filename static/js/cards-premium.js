@@ -28,6 +28,7 @@
   ].join(",");
 
   const ODO_DURACAO = 1050; // ms do digito mais lento
+  const ODO_ESPERA_CUPOM = 1150; // ms: a impressora termina o papel em ~1,5 s
   const ODO_PASSO = 45; // atraso entre um digito e o proximo (esquerda -> direita)
 
   function escapar(c) {
@@ -36,7 +37,8 @@
 
   // Troca o texto por colunas de digitos que rolam ate o valor; no fim volta pro texto
   // puro (o card desfeito risca o valor, leitor de tela le normal).
-  function odometro(el) {
+  // `espera` (ms): atraso extra antes de rolar (o total do cupom so rola quando o papel ja saiu da impressora)
+  function odometro(el, espera = 0) {
     if (!el || el.dataset.odometro) return;
     const final = el.textContent;
     const digitos = final.replace(/\D/g, "").length;
@@ -50,13 +52,13 @@
         const ordem = i++;
         // o da direita gira mais (como odometro de verdade) e termina por ultimo
         const voltas = 10 + Number(c);
-        const atraso = ordem * ODO_PASSO;
+        const atraso = ordem * ODO_PASSO + espera;
         const dur = ODO_DURACAO - (digitos - 1 - ordem) * 60;
         const fita = "0123456789".repeat(2).split("").map((d) => `<i>${d}</i>`).join("");
         return `<span class="odo-dig" aria-hidden="true" style="--odo-alvo:${voltas};--odo-atraso:${atraso}ms;--odo-dur:${Math.max(500, dur)}ms"><span class="odo-fita">${fita}</span></span>`;
       })
       .join("");
-    const total = (digitos - 1) * ODO_PASSO + ODO_DURACAO + 120;
+    const total = (digitos - 1) * ODO_PASSO + ODO_DURACAO + 120 + espera;
     setTimeout(() => {
       el.textContent = final;
       el.removeAttribute("aria-label");
@@ -116,7 +118,14 @@
         card.classList.add("card-selo");
       }
       // o numero so comeca a rolar quando o card ja esta assentando
-      setTimeout(() => card.querySelectorAll(SELETOR_ODOMETRO).forEach(odometro), 180 + i * 90);
+      setTimeout(
+        () =>
+          card.querySelectorAll(SELETOR_ODOMETRO).forEach((n) =>
+            // total do cupom que sai da impressora: so rola quando o papel ja desceu (Lab v4, cupom-impresso)
+            odometro(n, n.closest(".tx-cupom") ? ODO_ESPERA_CUPOM : 0),
+          ),
+        180 + i * 90,
+      );
     });
   }
 

@@ -1,0 +1,157 @@
+/* static/css/secoes/hoje/cards-foco-ideias.css - cards do Grupo A (Foco) do Laboratorio v4 (static/js/cards-foco-ideias.js):
+   e_agora, travou, pacote, segundo_antes, recomeco. Iguais as demos (20-foco, 70-vida-fone, 90-bonus). Reaproveita
+   o que ja existe em cards-dia.css (cd-topo, cd-hero, cd-acao, cd-mini, pa-cx...). */
+.card-contrato-e_agora { --card-cor: #f0a58f; --cd-ok: #9fdcb0; }
+.card-contrato-travou { --card-cor: #e8cf8a; --cd-ok: #9fdcb0; }
+.card-contrato-pacote { --card-cor: #ffd36e; --cd-ok: #9fdcb0; }
+.card-contrato-segundo_antes { --card-cor: #c4a1ff; }
+.card-contrato-recomeco { --card-cor: #9fdcb0; --cd-perigo: #ff9f8f; --cd-ok: #9fdcb0; }
+
+/* chips de 1 toque (alvo >= 44 px) e campo de texto */
+.fi-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.fi-chip {
+  min-height: 44px; padding: 0 0.95rem; border-radius: 99px; border: 1px solid var(--border); background: transparent; color: var(--text);
+  font: inherit; font-size: 0.84rem; cursor: pointer; text-align: left; max-width: 100%; overflow-wrap: anywhere; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.3s var(--ease-bounce), background 0.3s var(--ease-suave), border-color 0.3s var(--ease-suave), color 0.3s var(--ease-suave);
+}
+.fi-chip:active { transform: scale(0.94); }
+.fi-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--card-cor) 20%, transparent); border-color: var(--card-cor); font-weight: 600; }
+.fi-chip:focus-visible, .fi-campo:focus-visible { outline: 2px solid var(--card-cor); outline-offset: 2px; }
+.fi-campo {
+  width: 100%; min-height: 44px; padding: 0 0.9rem; border-radius: 14px; border: 1px solid var(--border); background: color-mix(in srgb, var(--text) 3%, transparent);
+  color: var(--text); font: inherit; font-size: 16px; /* 16 px: o iOS nao da zoom ao focar */
+}
+.fi-campo::placeholder { color: var(--text-faint); }
+.cd-acao[disabled] { cursor: default; }
+.fi-vai { animation: fi-vai 0.3s var(--ease-snap, cubic-bezier(0.4, 0, 0.2, 1)) both; }
+@keyframes fi-vai { to { opacity: 0; transform: translateX(-30px) rotate(-2deg); } }
+.fi-entra { animation: cd-guia-entra 0.5s var(--ease-bounce) both; }
+
+/* aviso no pe da tela */
+.fi-toast {
+  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); z-index: 60; width: max-content; width: max-content; max-width: min(88vw, 360px); padding: 0.65rem 1rem;
+  border-radius: 99px; background: var(--surface-2, #1b1f27); color: var(--text); border: 1px solid var(--border); font-size: 0.84rem; text-align: center;
+  box-shadow: 0 14px 36px -12px rgba(0, 0, 0, 0.6); opacity: 0; transform: translate(-50%, 14px); pointer-events: none;
+  transition: opacity 0.35s var(--ease-suave), transform 0.45s var(--ease-bounce);
+}
+.fi-toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* e_agora: botao redondo que respira; a sugestao entra de lado e a velha sai pro outro */
+.ea-raiz { gap: 0.8rem; }
+.ea-vazio { display: grid; justify-items: center; gap: 0.6rem; padding: 1.2rem 0; transition: opacity 0.3s, transform 0.3s var(--ease-suave); }
+.ea-vazio.some { opacity: 0; transform: scale(0.9); }
+.ea-botao {
+  width: 168px; height: 168px; max-width: 60vw; max-height: 60vw; border-radius: 50%; border: 0; cursor: pointer; font: 600 1.35rem/1 inherit; font-family: inherit;
+  letter-spacing: -0.02em; color: #0b0d10; -webkit-tap-highlight-color: transparent;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--card-cor) 60%, #fff), var(--card-cor) 60%);
+  box-shadow: 0 20px 50px -15px var(--card-cor), inset 0 -6px 18px rgba(0, 0, 0, 0.2);
+  animation: ea-respira 2.6s ease-in-out infinite; transition: transform 0.3s var(--ease-bounce);
+}
+.ea-botao:active { transform: scale(0.92); }
+@keyframes ea-respira { 50% { transform: scale(1.04); box-shadow: 0 26px 60px -12px var(--card-cor), inset 0 -6px 18px rgba(0, 0, 0, 0.2); } }
+.ea-palco { position: relative; display: grid; min-height: 104px; }
+.ea-palco > * { grid-area: 1 / 1; }
+.ea-sug { display: grid; gap: 0.3rem; align-content: start; animation: cd-guia-entra 0.55s var(--ease-bounce) both; }
+.ea-sug.vem { animation: ea-vem 0.6s var(--ease-bounce) both; }
+@keyframes ea-vem { from { opacity: 0; transform: translateX(30px) rotate(2deg); } }
+.ea-sug .cd-hero { margin: 0; }
+.ea-meta { font-size: 0.8rem; margin: 0; }
+.ea-dur { font-family: var(--font-tech); color: var(--text-muted); }
+.ea-premio { display: block; margin-top: 0.2rem; color: var(--card-cor); font-weight: 600; }
+.ea-pe { justify-content: flex-end; }
+.ea-fazendo { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--card-cor); font-weight: 600; font-size: 0.88rem; animation: cd-guia-entra 0.5s var(--ease-bounce) both; }
+.ea-fazendo svg { width: 18px; height: 18px; }
+
+/* travou: 4 respostas, o remedio de cada uma entra de lado */
+.tv-raiz .cd-hero { margin: 0; }
+.tv-pergunta { margin: 0; font-size: 0.84rem; color: var(--text-muted); }
+.pq-res { display: grid; }
+.pq-res > * { grid-area: 1 / 1; }
+.pq-caixa {
+  display: grid; gap: 0.6rem; padding: 0.75rem 0.85rem; border-radius: 16px; background: color-mix(in srgb, var(--text) 3%, transparent);
+  border: 1px solid var(--border); font-size: 0.86rem; color: var(--text-muted); animation: ea-vem 0.55s var(--ease-bounce) both;
+}
+.pq-caixa p { margin: 0; }
+.pq-caixa .cd-acao { justify-self: start; flex: none; }
+.pq-rot, .pq-passos { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.35rem; color: var(--text); }
+
+/* pacote: os dois lados se juntam, o elo estala no meio */
+.pc-raiz .fi-chips { margin-bottom: 0.1rem; }
+.pt-res { display: grid; }
+.pt-res:empty { display: none; }
+.pt-par { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; padding-top: 0.2rem; }
+.pt-par > span:not(.pt-elo) {
+  padding: 0.55rem 0.9rem; border-radius: 99px; background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid var(--border);
+  font-size: 0.84rem; font-weight: 600; max-width: 100%; overflow-wrap: anywhere;
+}
+.pt-a { animation: pt-de-esq 0.7s var(--ease-bounce) both; }
+.pt-b { animation: pt-de-dir 0.7s var(--ease-bounce) both; }
+.pt-elo { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--card-cor); color: #0b0d10; margin: 0 -6px; z-index: 1; animation: pt-elo 0.6s var(--ease-bounce) 0.45s both; }
+.pt-elo svg { width: 18px; height: 18px; }
+@keyframes pt-de-esq { from { transform: translateX(-60px); opacity: 0; } }
+@keyframes pt-de-dir { from { transform: translateX(60px); opacity: 0; } }
+@keyframes pt-elo { from { transform: scale(0) rotate(-90deg); } }
+.pt-lista { padding: 0.15rem 0.7rem; border-radius: 16px; border: 1px dashed var(--border); }
+.pt-lista[hidden] { display: none; }
+.pt-item .pa-txt { flex: 1 1 0; }
+.pt-item .pa-txt small { display: block; margin-top: 1px; font-family: var(--font-tech); font-size: 0.72rem; color: var(--text-faint); }
+.pt-item.liberou .pa-txt small { color: var(--card-cor); font-weight: 600; }
+
+/* segundo_antes: a tela que respira (a bola cresce e encolhe a cada 5 s) */
+.sa-ov {
+  position: fixed; inset: 0; z-index: 80; display: grid; align-content: center; justify-items: center; gap: 1rem; padding: 2rem 1.5rem; text-align: center;
+  background: radial-gradient(circle at 50% 40%, #1d1530, #06050a 70%); opacity: 0; transition: opacity 0.5s var(--ease-suave);
+}
+.sa-ov.on { opacity: 1; }
+.sa-bola {
+  width: 120px; height: 120px; border-radius: 50%; filter: blur(1px); animation: sa-resp 5s ease-in-out infinite;
+  background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--card-cor, #c4a1ff) 80%, #fff), var(--card-cor, #c4a1ff) 55%, transparent 72%);
+}
+@keyframes sa-resp { 0%, 100% { transform: scale(0.75); opacity: 0.65; } 50% { transform: scale(1.12); opacity: 1; } }
+.sa-p { margin: 0; font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+.sa-t { margin: 0; font-size: 0.9rem; color: var(--text-muted); }
+.sa-t b { color: var(--text); }
+.sa-bts { display: grid; gap: 0.6rem; width: min(100%, 360px); margin-top: 0.6rem; }
+.sa-ov { --card-cor: #c4a1ff; }
+.sa-bts .cd-acao.primaria { background: color-mix(in srgb, #c4a1ff 22%, transparent); border-color: color-mix(in srgb, #c4a1ff 55%, transparent); }
+.sa-raiz .cd-hero { margin: 0; }
+
+/* recomeco: numero que conta pra baixo, velhas que descem e somem, 3 que ficam */
+.rc-cab { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.rc-n { font-family: var(--font-tech); font-size: 2.1rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; color: var(--cd-perigo); }
+.rc-lista { display: grid; gap: 4px; }
+.rc-it {
+  display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; min-height: 36px; padding: 0.3rem 0.7rem; border-radius: 10px; border: 0;
+  font: inherit; font-size: 0.84rem; text-align: left; color: var(--text); width: 100%;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  transition: transform 0.45s var(--ease-snap, cubic-bezier(0.4, 0, 0.2, 1)), opacity 0.4s, background 0.3s;
+}
+.rc-it span { min-width: 0; overflow-wrap: anywhere; }
+.rc-it small { font-family: var(--font-tech); font-size: 0.7rem; color: var(--text-faint); white-space: nowrap; }
+.rc-it.velho { background: color-mix(in srgb, var(--cd-perigo) 8%, transparent); }
+.rc-it.velho small { color: var(--cd-perigo); }
+.rc-it.prot small { color: #e8cf8a; }
+.rc-it.vai { transform: translateY(26px) scale(0.8); opacity: 0; }
+.rc-it.pode { cursor: pointer; min-height: 44px; -webkit-tap-highlight-color: transparent; }
+.rc-it.pode:active { transform: scale(0.97); }
+.rc-it.fica { background: color-mix(in srgb, var(--card-cor) 18%, transparent); box-shadow: inset 0 0 0 1px var(--card-cor); }
+.rc-it:focus-visible { outline: 2px solid var(--card-cor); outline-offset: 1px; }
+.rc-arq { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 16px; border: 1px dashed var(--border); animation: cd-guia-entra 0.5s var(--ease-bounce) both; }
+.rc-arq > span:nth-child(2) { flex: 1; min-width: 0; }
+.rc-arq b { display: block; font-size: 0.86rem; font-weight: 600; }
+.rc-arq small { display: block; font-size: 0.74rem; color: var(--text-faint); }
+.rc-caixa { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--card-cor); }
+.rc-caixa svg { width: 18px; height: 18px; }
+.rc-arq .cd-mini { min-height: 44px; }
+.rc-arquivo { display: grid; gap: 2px; }
+.rc-arquivo[hidden] { display: none; }
+.rc-ar { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-height: 44px; font-size: 0.84rem; color: var(--text-muted); }
+.rc-ar span { min-width: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 360px) {
+  .ea-botao { width: 140px; height: 140px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ea-botao, .ea-sug, .ea-sug.vem, .pq-caixa, .pt-a, .pt-b, .pt-elo, .sa-bola, .rc-arq, .fi-entra, .fi-vai, .ea-fazendo { animation: none; }
+  .fi-chip, .rc-it, .ea-vazio, .sa-ov, .fi-toast, .ea-botao { transition: none; }
+}

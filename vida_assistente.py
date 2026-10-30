@@ -197,6 +197,14 @@ def linhas_contexto(conn, agora: datetime) -> list[str]:
         f"ficar {voo_debriefing_min(conn)} min depois de pousar pro debriefing; se arrumar pra sair (date, festa, "
         f"jantar) = {se_arrumar_min(conn)} min"
     )
+    try:
+        import tempo
+
+        fator_tempo = tempo.linha_contexto(conn)
+    except Exception:
+        fator_tempo = None
+    if fator_tempo:
+        linhas.append(fator_tempo)
     mapa = apelidos(conn)
     if mapa:
         linhas.append("Lugares do Alex (apelido = endereco; pode usar o apelido no estimar_trajeto): "

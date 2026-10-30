@@ -89,6 +89,11 @@ class PainelTestCase(unittest.TestCase):
         self._agua_pausa_patch = patch("vida.slot_agua_pausa", return_value=None)
         self._agua_pausa_patch.start()
         self.addCleanup(self._agua_pausa_patch.stop)
+        # cartoes da manha (lab v4) chamariam a Claude de verdade no verificar-agora entre 4h e o meio-dia;
+        # sem rede cada tentativa demora. Testado em tests/test_manha.py.
+        self._manha_ia_patch = patch("manha._pedir_ia", return_value=None)
+        self._manha_ia_patch.start()
+        self.addCleanup(self._manha_ia_patch.stop)
 
     def test_smoke_pagina_principal_carrega(self):
         res = self.client.get("/")

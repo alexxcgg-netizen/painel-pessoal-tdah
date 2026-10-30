@@ -39,8 +39,11 @@ import auth
 import backup_diario
 import briefing_voo
 import conversa_proativa
+import aviso_cara
+import badge
 import dia_ruim
 import foco
+import foco_ideias
 import combinados
 import estudo_quiz
 import caldav_client
@@ -61,8 +64,11 @@ import horario
 import leitura
 import maps_client
 import vida_assistente
+import coincidencias
 import diario
+import guardados
 import memoria
+import neste_dia
 import feriados
 import refeicoes
 import rota_voo
@@ -3079,6 +3085,65 @@ def _processar_mensagem_chat(
             limite=entrada.get("limite") or memoria.LIMITE_PADRAO, hoje=_agora_brasilia().date(),
         )
 
+    def _recusa_visitante_leitura():
+        if has_request_context() and _modo_visitante_ativo():
+            return {"erro": "modo visitante: isso e pessoal do Alex e fica escondido. Diga que ele pergunta de novo depois de sair do modo visitante."}
+        return None
+
+    def exec_guardar_objeto(entrada):
+        """Onde guardei (guardados.py): 'passaporte na gaveta azul do quarto' vira memoria."""
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        r = guardados.guardar(conn, entrada.get("objeto"), entrada.get("lugar"), hoje=_agora_brasilia().date())
+        if r.get("erro"):
+            return r
+        res = {"ok": True, "objeto": r["objeto"], "lugar": r["lugar"], "_efeito": {"entidade": "guardados", "modo": "guardado", "item": r}}
+        if r.get("anterior"):
+            res["obs"] = f"antes estava em: {r['anterior']} (atualizado)"
+        return res
+
+    def exec_onde_esta(entrada):
+        """Onde guardei: responde o lugar (e quando foi guardado) de um objeto."""
+        recusa = _recusa_visitante_leitura()
+        if recusa:
+            return recusa
+        termo = _texto_curto(entrada.get("objeto"), 80) or ""
+        achados = guardados.achar(conn, termo, hoje=_agora_brasilia().date())
+        if not achados:
+            return {
+                "encontrado": False, "objeto": termo,
+                "obs": "nada guardado com esse nome; diga isso sem chutar lugar e pergunte se ele quer que voce anote onde esta",
+                "_efeito": {"entidade": "guardados", "modo": "nao_achei", "busca": termo, "consulta": True},
+            }
+        return {
+            "encontrado": True,
+            "guardados": [{"objeto": a["objeto"], "lugar": a["lugar"], "guardado": a["quando"]} for a in achados[:3]],
+            "_efeito": {"entidade": "guardados", "modo": "achei", "item": achados[0], "consulta": True},
+        }
+
+    def exec_buscar_o_que_falei(entrada):
+        """'O que eu falei sobre X': so as frases dele, datadas (memoria.buscar_falas)."""
+        recusa = _recusa_visitante_leitura()
+        if recusa:
+            return recusa
+        r = memoria.buscar_falas(conn, entrada.get("assunto") or "", hoje=_agora_brasilia().date())
+        if not r.get("erro") and r.get("falas"):
+            r["_efeito"] = {"entidade": "o_que_falei", "consulta": True, "dados": dict(r)}
+        return r
+
+    def exec_consultar_neste_dia(entrada):
+        recusa = _recusa_visitante_leitura()
+        if recusa:
+            return recusa
+        return neste_dia.executar_consulta(conn, _agora_brasilia().date())
+
+    def exec_consultar_coincidencias(entrada):
+        recusa = _recusa_visitante_leitura()
+        if recusa:
+            return recusa
+        return coincidencias.executar_consulta(conn, _agora_brasilia().date())
+
     def exec_consultar_feriados(entrada):
         """Feriados/pontos facultativos de um ano inteiro ou de um mes (feriados.py, calculado)."""
         hoje_br = _agora_brasilia().date()
@@ -3668,6 +3733,16 @@ def _processar_mensagem_chat(
         salvar_checkin(conn, date.today().isoformat(), campos)
         return {"ok": True, "_efeito": {"entidade": "checkin", "consulta": True}}
 
+    def exec_propor_se_entao(entrada):
+        import se_entao
+
+        p = se_entao.proposta(entrada.get("meta"), entrada.get("gatilhos"), entrada.get("acoes"))
+        if not p:
+            return {"erro": "faltou a meta ou as ações (2 a 3, curtas, na 1ª pessoa)"}
+        return {"ok": True, "proposto": True, "obs": "o card deixa ele escolher; nada foi gravado ainda",
+                "_efeito": {"entidade": "se_entao", "consulta": True, "meta": entrada.get("meta"),
+                            "gatilhos": entrada.get("gatilhos"), "acoes": entrada.get("acoes")}}
+
     def exec_dia_ruim(entrada):
         recusa = _recusa_visitante()
         if recusa:
@@ -3719,6 +3794,37 @@ def _processar_mensagem_chat(
         foco.abrir(conn, datetime.now(), titulo, passo, entrada.get("passo_menor"), minutos, task_id)
         return {"ok": True, "titulo": titulo, "minutos": minutos, "tarefa_nova": not tarefa,
                 "_efeito": {"entidade": "foco", "consulta": True}}
+
+    def exec_abrir_card_foco(entrada):
+        """Grupo A do Lab v4 (30/10/2026): E agora?, Recomeco, Pacote, Um segundo antes, Por que travou?"""
+        qual = entrada.get("card")
+        if qual not in ("e_agora", "recomeco", "pacote", "segundo_antes", "travou"):
+            return {"erro": "card inválido"}
+        ef = {"entidade": qual, "consulta": True}
+        if qual == "travou":
+            recusa = _recusa_visitante()
+            if recusa:
+                return recusa
+            tarefa, erro = _achar("tasks", "completed_at IS NULL", (), entrada.get("tarefa"), "title")
+            if erro:
+                return erro
+            foco_ideias.marcar_perguntada(conn, tarefa["id"])
+            ef["id"] = tarefa["id"]
+        return {"ok": True, "card": qual, "_efeito": ef}
+
+    def exec_juntar_pacote(entrada):
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        premio = str(entrada.get("premio") or "").strip()
+        if not premio:
+            return {"erro": "faltou o prêmio"}
+        tarefa, erro = _achar("tasks", "completed_at IS NULL", (), entrada.get("tarefa"), "title")
+        if erro:
+            return erro
+        r = foco_ideias.juntar(conn, tarefa["id"], premio)
+        return {"ok": True, "titulo": r["titulo"], "premio": r["premio"],
+                "_efeito": {"entidade": "pacote", "consulta": True}}
 
     def exec_diario_de_bordo(entrada):
         import diario_bordo
@@ -3851,6 +3957,47 @@ def _processar_mensagem_chat(
             "outras_fichas": [f["grupo"] for f in fichas if f["id"] != ficha["id"]],
             "_efeito": {"entidade": "treino_sessao", "id": sessao_id, "escolhida_por": escolha, "consulta": True},
         }
+
+    def exec_feito_hoje(entrada):
+        """Placar do feito (lab v4): mostra o que ele fez hoje; se ele contou algo fora do plano
+        ("lavei a louca"), anota antes de mostrar."""
+        import fechamento_dia
+
+        hoje = _agora_brasilia().date()
+        anotados = []
+        extras = entrada.get("anotar")
+        if extras:
+            recusa = _recusa_visitante()
+            if recusa:
+                return recusa
+            for t in (extras if isinstance(extras, list) else [extras])[:10]:
+                item = fechamento_dia.adicionar_extra(conn, t, hoje)
+                if item:
+                    anotados.append(item["texto"])
+        total = len(fechamento_dia.feitos_do_dia(conn, hoje))
+        return {"ok": True, "anotados": anotados, "total_hoje": total,
+                "_efeito": {"entidade": "placar_feito", "consulta": True}}
+
+    def exec_pouso_do_dia(entrada):
+        """Pouso do dia (lab v4): o ritual de fechar o dia, a pedido (o das 21h sai sozinho)."""
+        import fechamento_dia
+
+        hoje = _agora_brasilia().date()
+        return {"ok": True, "em_aberto": len(fechamento_dia.dados_pouso(conn, hoje)["ids_adiar"]),
+                "_efeito": {"entidade": "pouso_dia", "consulta": True}}
+
+    def exec_retrospectiva_mes(entrada):
+        """Retrospectiva do mes (lab v4): historia em tela cheia com os numeros do mes."""
+        import retrospectiva
+
+        hoje = _agora_brasilia().date()
+        alvo = retrospectiva.parse_mes(entrada.get("mes")) if entrada.get("mes") else retrospectiva.mes_padrao(hoje)
+        if not alvo:
+            return {"erro": "mes invalido (use AAAA-MM)"}
+        if not retrospectiva.dados(conn, alvo[0], alvo[1], hoje):
+            return {"erro": f"{retrospectiva.MESES[alvo[1] - 1]} nao tem nada pra contar ainda"}
+        return {"ok": True, "mes": retrospectiva.chave_mes(*alvo),
+                "_efeito": {"entidade": "retrospectiva", "ano": alvo[0], "mes": alvo[1], "consulta": True}}
 
     def exec_atualizar_carga_treino(entrada):
         recusa = _recusa_visitante()
@@ -4378,6 +4525,11 @@ def _processar_mensagem_chat(
         "registrar_acordei": exec_registrar_acordei,
         "consultar_diario": exec_consultar_diario,
         "buscar_na_memoria": exec_buscar_na_memoria,
+        "guardar_objeto": exec_guardar_objeto,
+        "onde_esta": exec_onde_esta,
+        "buscar_o_que_falei": exec_buscar_o_que_falei,
+        "consultar_neste_dia": exec_consultar_neste_dia,
+        "consultar_coincidencias": exec_consultar_coincidencias,
         "anotar_no_diario": exec_anotar_no_diario,
         "consultar_feriados": exec_consultar_feriados,
         "atualizar_perfil": exec_atualizar_perfil,
@@ -4397,9 +4549,12 @@ def _processar_mensagem_chat(
         "registrar_medida": exec_registrar_medida,
         "registrar_checkin": exec_registrar_checkin,
         "iniciar_hiperfoco": exec_iniciar_hiperfoco,
+        "propor_se_entao": exec_propor_se_entao,
         "dia_ruim": exec_dia_ruim,
         "travar_tarefa": exec_travar_tarefa,
         "parceiro_foco": exec_parceiro_foco,
+        "abrir_card_foco": exec_abrir_card_foco,
+        "juntar_pacote": exec_juntar_pacote,
         "diario_de_bordo": exec_diario_de_bordo,
         "quadro_combinados": exec_quadro_combinados,
         "registrar_conversa": exec_registrar_conversa,
@@ -4409,6 +4564,9 @@ def _processar_mensagem_chat(
         "salvar_ficha_treino": exec_salvar_ficha_treino,
         "registrar_treino": exec_registrar_treino,
         "comecar_treino": exec_comecar_treino,
+        "feito_hoje": exec_feito_hoje,
+        "pouso_do_dia": exec_pouso_do_dia,
+        "retrospectiva_mes": exec_retrospectiva_mes,
         "atualizar_carga_treino": exec_atualizar_carga_treino,
         "registrar_viagem": exec_registrar_viagem,
         "registrar_lugar": exec_registrar_lugar,
@@ -5431,7 +5589,7 @@ _ABA_DO_AVISO = {
     "lembrete": "tarefas", "espera": "tarefas", "conta_a_vencer": "construtora", "orcamento": "gastos",
     "gasto": "gastos", "cobranca": "gastos", "assinatura": "gastos", "cartao": "gastos", "renda": "gastos",
     "voo": "aviacao", "pre_voo": "aviacao", "currency": "aviacao", "meta": "painel", "habito": "vida",
-    "foco": "assistente",
+    "foco": "assistente", "travou": "assistente", "recomeco": "assistente",
 }
 
 
@@ -5457,10 +5615,12 @@ def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool
         if em_hiperfoco and tipo not in vida.CRITICOS_HIPERFOCO:
             continue
         titulo, corpo = notificacoes.texto_repeticao(tipo, a["titulo"], a["corpo"], int(a["tentativas"]))
+        # aviso-cara (Lab v4): insiste igual, mas com outra cara no texto (aviso_cara.py)
+        titulo, corpo = aviso_cara.variar(conn, tipo, a["referencia_id"], a["tag"], titulo, corpo, int(a["tentativas"]), agora)
         for s in subs:
             if not push_client.enviar(json.loads(s["subscription_json"]), titulo, corpo,
                                       url=_url_do_aviso(tipo, a["tag"]), tag=a["tag"],
-                                      **_kw_acoes(tipo, a["tag"])):
+                                      **_kw_acoes(tipo, a["tag"]), **_kw_badge(conn)):
                 delete_push_subscription(conn, s["endpoint"])
         db.registrar_repeticao_aviso(conn, a["id"])
         enviados += 1
@@ -5484,6 +5644,14 @@ def _kw_acoes(tipo: str, tag: str = "") -> dict:
     """`acoes=` so quando o aviso tem botao (aviso sem botao chama enviar() igual antes)."""
     acoes = _acoes_do_aviso(tipo, tag)
     return {"acoes": acoes} if acoes else {}
+
+
+def _kw_badge(conn) -> dict:
+    """Numero do icone do app que vai junto do aviso (badge.py): o iPhone atualiza mesmo com o app fechado."""
+    try:
+        return {"badge": badge.contagem(conn, _agora_brasilia().date())}
+    except Exception:  # noqa: BLE001 - o numero e extra, nunca derruba o aviso
+        return {}
 
 
 def _url_do_aviso(tipo: str, tag: str = "") -> str:
@@ -5889,9 +6057,9 @@ def verificar_e_notificar():
             if tipo:
                 tag = f"{tipo}-{ref_id}"
                 ok = push_client.enviar(sub_dict, titulo, corpo, url=_url_do_aviso(tipo, tag), tag=tag,
-                                        **_kw_acoes(tipo, tag))
+                                        **_kw_acoes(tipo, tag), **_kw_badge(conn))
             else:
-                ok = push_client.enviar(sub_dict, titulo, corpo)
+                ok = push_client.enviar(sub_dict, titulo, corpo, **_kw_badge(conn))
             if not ok:
                 delete_push_subscription(conn, s["endpoint"])
         if telegram_ok:
@@ -5920,7 +6088,12 @@ def verificar_e_notificar():
         # como feita com um toque, sem precisar abrir o app nem digitar nada
         # (o pedido especifico do Alex pra esse canal).
         botoes = [("Marcar como feito", f"completar_tarefa:{ref_id}")] if tipo == "tarefa_parada" else None
-        _despachar(titulo, corpo, botoes, tipo=tipo, ref_id=ref_id)
+        titulo_envio, corpo_envio = titulo, corpo
+        if subs and tipo in notificacoes.INSISTENCIA_DE_TAREFA:
+            # aviso-cara: tarefa que se repete todo dia (creatina) nao chega sempre com o mesmo texto
+            titulo_envio, corpo_envio = aviso_cara.variar(
+                conn, tipo, ref_id, f"{tipo}-{ref_id}", titulo, corpo, 0, datetime.now(), so_se_repetiu_em_outro_dia=True)
+        _despachar(titulo_envio, corpo_envio, botoes, tipo=tipo, ref_id=ref_id)
         marcar_notificado(conn, tipo, ref_id)
         if subs and tipo in notificacoes.INSISTENCIA:
             db.registrar_aviso_insistente(conn, tipo, ref_id, titulo, corpo, f"{tipo}-{ref_id}", datetime.now())

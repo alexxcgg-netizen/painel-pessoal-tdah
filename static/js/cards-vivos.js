@@ -1333,6 +1333,8 @@
     if (raiz.CardsAviacao && typeof raiz.CardsAviacao.preparar === "function") raiz.CardsAviacao.preparar(raizEl);
     // 4a leva: o que ja foi respondido nos cards de automacao (cards-automacao.js)
     if (raiz.CardsAutomacao && typeof raiz.CardsAutomacao.preparar === "function") raiz.CardsAutomacao.preparar(raizEl);
+    // Grupo E (dinheiro): cupom registrado / conta paga neste aparelho (cards-dinheiro.js)
+    if (raiz.CardsDinheiro && typeof raiz.CardsDinheiro.preparar === "function") raiz.CardsDinheiro.preparar(raizEl);
     raizEl.querySelectorAll('[data-vivo="voo"]').forEach((svg) => {
       vooMarcos(svg);
       vooPosicionar(svg, Math.min(1, +svg.dataset.total / (+svg.dataset.meta * 60)));

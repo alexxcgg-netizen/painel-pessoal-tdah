@@ -144,6 +144,10 @@ TIPOS: dict[str, dict] = {
     "tarefa_inegociavel": _tipo("Tarefa inegociável: 5 min antes"),
     "alerta_dia": _tipo("Dia que pede mais cuidado (manhã)"),
     "foco_meio": _tipo("Parceiro de foco: \"ainda nisso?\" no meio"),
+    "disjuntor": _tipo("Disjuntor do hiperfoco: água, comida ou alongar"),
+    "espera_chama": _tipo("Modo espera: \"eu te chamo\" na hora de se preparar"),
+    "travou": _tipo("Tarefa empurrada 3 vezes: o que pega? (manhã, uma vez)"),
+    "recomeco": _tipo("Recomeço: arquivar atrasadas sem culpa (segunda, dia 1)"),
     "se_arrumar": _tipo("Hora de se arrumar (date, festa)"),
     "hora_de_sair": _tipo("Hora de sair (date, festa)"),
     "compromisso_chegando": _tipo("Compromisso da agenda chegando"),
@@ -183,6 +187,10 @@ TIPOS: dict[str, dict] = {
     # assinatura (com o interruptor "avisar antes de cobrar" ligado) ou
     # parcela de compra parcelada (avisa por padrao) --
     "aviso_cobranca": _tipo("Assinatura ou parcela vai cobrar em breve"),
+    # -- Lab v4 (30/10/2026): cartoes da manha, se-entao, bom dia --
+    "cartoes_manha": _tipo("Cartões da manhã (coisas que ficaram soltas)"),
+    "se_entao": _tipo("Combinado \"quando X, eu Y\" (no gatilho)"),
+    "bom_dia": _tipo("Bom dia ao parar o alarme"),
 }
 
 

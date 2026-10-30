@@ -294,12 +294,18 @@ struct PainelWidgetEntryView: View {
             PainelViewPequena(estado: entry.estado)
         case .systemMedium:
             PainelViewMedia(estado: entry.estado)
+        // Tela de bloqueio também precisa de `.containerBackground` no iOS 17+, senão o iOS troca o
+        // widget inteiro pelo aviso "Please adopt containerBackground API". Fundo transparente: o
+        // próprio sistema desenha o vidro da tela de bloqueio.
         case .accessoryCircular:
             PainelViewCircular(estado: entry.estado)
+                .fundoDoWidget(.clear)
         case .accessoryRectangular:
             PainelViewRetangular(estado: entry.estado)
+                .fundoDoWidget(.clear)
         case .accessoryInline:
             PainelViewLinha(estado: entry.estado)
+                .fundoDoWidget(.clear)
         default:
             // Família não coberta por esta faixa (ex: systemLarge) — cai
             // pro layout médio em vez de ficar em branco.

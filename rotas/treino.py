@@ -5,6 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify
 
 from rotas._base import app_modulo
+import medalha
 import treino_vivo
 import vida
 from db import (
@@ -151,6 +152,14 @@ def marcar_exercicio(sessao_id):
         if i >= total:
             return jsonify({"error": "exercício fora da ficha"}), 400
         sessao = marcar_exercicio_sessao(conn, sessao_id, i, feito, total)
+        nova_medalha = None
+        try:  # a medalha e extra: se falhar, a caixinha ja marcada nao pode quebrar
+            nova_medalha = medalha.marcar(conn, sessao, ficha, i, feito)
+            if nova_medalha:
+                nova_medalha["legenda"] = medalha.legenda(nova_medalha)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("medalha do treino falhou")
         if sessao["concluido_em"]:
             app._marcar_atividade(conn)
             conn.commit()
@@ -161,7 +170,8 @@ def marcar_exercicio(sessao_id):
     finally:
         conn.close()
     return jsonify({"ok": True, "feitos": sessao["feitos"], "total": total,
-                    "concluido": bool(sessao["concluido_em"]), "duracao_min": duracao})
+                    "concluido": bool(sessao["concluido_em"]), "duracao_min": duracao,
+                    "medalha": nova_medalha})
 
 
 @bp.route("/api/treino/sessoes/<int:sessao_id>/sono", methods=["POST"])

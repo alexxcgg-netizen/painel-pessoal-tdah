@@ -1,0 +1,11 @@
+/* static/css/secoes/aviacao/painel-de-voo.css - Secao aviacao > painel de voo (HTML: templates/secoes/aviacao/painel-de-voo.html).
+   Laboratorio v4, Grupo F: so a pilha de cards. O visual de cada card mora em secoes/hoje/cards-aviacao-lab.css. */
+.aviacao-lab-cards { display: grid; gap: var(--espaco-3, 1rem); }
+.aviacao-lab-lugar { min-width: 0; }
+
+/* dentro da propria aba Aviacao o link "Abrir Aviacao" dos cards nao leva a lugar nenhum */
+[data-secao-id="aviacao-painel-de-voo"] .card-link[data-aba="aviacao"] { display: none; }
+/* na aba (nao no chat) a regua e texto >= 12px: os rotulos miudos dos cards sobem pro minimo */
+[data-secao-id="aviacao-painel-de-voo"] :is(.cd-selo, .cd-nota, .cd-pe, .cd-rot, .cd-quando, .vp-metar, .av-nc, .bc-s, .pc-q, .pc-v, small) {
+  font-size: 0.75rem;
+}

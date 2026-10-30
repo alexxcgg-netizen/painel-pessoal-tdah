@@ -1,0 +1,88 @@
+/* static/css/secoes/hoje/cards-dinheiro.css - Grupo E (Dinheiro), Laboratorio v4, 30/10/2026
+   (static/js/cards-dinheiro.js; docs/briefings/2026-10-30-lab-v4-dinheiro.md). Reaproveita .sd-*
+   (cards-saidas.css) e .ca-botao (cards-automacao.css). Estado final no HTML; a entrada animada so
+   existe em .card-novo; prefers-reduced-motion desliga tudo. */
+
+.card-contrato-cupom_itens { --card-cor: #b5e48c; }
+.card-contrato-contas_email { --card-cor: #b5e48c; }
+
+.cd-quando { min-width: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
+.cu-nota { margin: 0; font-size: 0.78rem; line-height: 1.5; color: var(--text-muted); text-wrap: pretty; }
+.cu-dia { margin: -0.4rem 0 0; text-align: center; overflow-wrap: anywhere; font: 500 0.7rem/1.2 var(--font-tech); color: var(--text-faint); }
+
+/* ---- cupom_itens ---------------------------------------------------------------- */
+.cu-qr {
+  position: relative; width: 104px; margin: 2px auto; padding: 9px; border-radius: 14px; background: #f2f2ee; overflow: hidden;
+}
+.cu-cod { display: grid; grid-template-columns: repeat(9, 1fr); gap: 2px; }
+.cu-cod i { aspect-ratio: 1; border-radius: 2px; background: transparent; }
+.cu-cod i.p { background: #111; }
+.cu-luz { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--card-cor); box-shadow: 0 0 14px 4px var(--card-cor); opacity: 0; }
+.cu-res { display: grid; gap: 0.4rem; }
+.cu-barra { display: flex; height: 14px; border-radius: 9px; overflow: hidden; gap: 2px; }
+.cu-barra i { min-width: 0; flex-basis: 0; }
+.cu-l { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 0.9rem; }
+.cu-dot { width: 10px; height: 10px; border-radius: 3px; }
+.cu-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cu-v { font: 600 0.9rem var(--font-tech); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cu .ca-botao { align-self: flex-start; }
+.cu .ca-botao[hidden] { display: none; }
+
+/* ---- contas_email --------------------------------------------------------------- */
+.ce-faixa {
+  position: relative; overflow: hidden; padding: 0.55rem 0.75rem; border-radius: 12px; font-size: 0.8rem; color: var(--text-muted);
+  background: color-mix(in srgb, var(--text) 4%, transparent); border: 1px solid var(--border);
+}
+.ce-faixa::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%); opacity: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card-cor) 28%, transparent), transparent);
+}
+.ce-res { display: grid; gap: 0.5rem; }
+.ce-conta {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.3rem 0.7rem; align-items: center; padding: 0.75rem;
+  border-radius: 16px; border: 1px solid color-mix(in srgb, var(--card-cor) 28%, var(--border)); transition: opacity 0.4s var(--ease-suave);
+}
+.ce-quem { min-width: 0; }
+.ce-quem b { display: block; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ce-quem small { display: block; font: 500 0.72rem/1.4 var(--font-tech); color: var(--text-faint); }
+.ce-v { font: 600 1rem var(--font-tech); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.ce-acoes { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.ce-acoes:empty { display: none; }
+.ce-acoes .mini {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 0.85rem; max-width: 100%;
+  border-radius: 12px; font: 600 0.78rem/1 inherit; font-family: inherit; text-decoration: none; cursor: pointer; color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--card-cor) 45%, transparent); background: color-mix(in srgb, var(--card-cor) 14%, transparent);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.3s var(--ease-bounce), background 0.25s var(--ease-suave), color 0.25s var(--ease-suave);
+}
+.ce-acoes .mini span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ce-acoes .mini:active { transform: scale(0.96); }
+.ce-acoes .mini.on { background: var(--card-cor); color: #10150b; }
+.ce-acoes .mini.ce-pago, .ce-acoes .mini.ce-link { background: transparent; border-color: var(--border); color: var(--text-muted); }
+.ce-acoes .mini[hidden] { display: none; }
+.ce-msg { grid-column: 1 / -1; margin: 0; font-size: 0.74rem; color: var(--text-muted); }
+.ce-msg.alerta { color: var(--cor-alerta); }
+.ce-msg[hidden] { display: none; }
+.ce-conta.paga { opacity: 0.55; }
+.ce-conta.paga .ce-quem b { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--card-cor) 75%, transparent); }
+
+/* ---- entrada (so nova) ---------------------------------------------------------- */
+/* o QR chega grande, a luz varre, ele "assenta" pequeno e as barras enchem em seguida */
+.card-novo .cu-qr { animation: cuQrLe 1.7s var(--ease-suave) calc(var(--chegada, 0ms) + 0.1s) both; }
+@keyframes cuQrLe { 0%, 62% { transform: scale(1.35); } 100% { transform: none; } }
+.card-novo .cu-luz { animation: cuScan 0.7s ease-in-out calc(var(--chegada, 0ms) + 0.2s) 2 alternate both; }
+@keyframes cuScan { 0% { opacity: 1; top: 0; } 100% { opacity: 1; top: calc(100% - 3px); } }
+.card-novo .cu-barra i { animation: cuFlex 1s var(--ease-suave) calc(var(--chegada, 0ms) + 1.5s + var(--k, 0) * 0.12s) both; }
+@keyframes cuFlex { from { flex-grow: 0; } }
+.card-novo .cu-l { animation: cuPedaco 0.5s var(--ease-suave) calc(var(--chegada, 0ms) + 1.6s + var(--k, 0) * 0.1s) both; }
+@keyframes cuPedaco { from { opacity: 0; transform: translateY(6px); } }
+.card-novo .ce-faixa::after { animation: ceVarre 0.9s var(--ease-suave) calc(var(--chegada, 0ms) + 0.25s) both; }
+@keyframes ceVarre { 0% { opacity: 1; transform: translateX(-100%); } 100% { opacity: 1; transform: translateX(100%); } }
+.card-novo .ce-conta { animation: ceConta 0.55s var(--ease-bounce) calc(var(--chegada, 0ms) + 1.1s + var(--k, 0) * 0.15s) both; }
+@keyframes ceConta { from { opacity: 0; transform: translateY(10px) scale(0.97); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ce-conta, .ce-acoes .mini { transition: none; }
+  .card-novo .cu-qr, .card-novo .cu-luz, .card-novo .cu-barra i, .card-novo .cu-l,
+  .card-novo .ce-faixa::after, .card-novo .ce-conta { animation: none !important; }
+}
