@@ -7,9 +7,9 @@
 # via o card financeiro do painel) continua valendo, so que agora comparado
 # em BRL (cambio fixo de `ia/precos.json`) contra o gasto medido em
 # `uso_ia` (`ia/medicao.py`), que e a nova fonte hibrida (Anthropic +
-# OpenAI). Sem nada configurado ainda (comportamento padrao de
-# `db.obter_teto_mensal_ia` == None), cai no teto padrao de R$40/mes
-# decidido pelo Alex pra Fase 7.
+# OpenAI). Sem nada configurado (comportamento padrao de
+# `db.obter_teto_mensal_ia` == None), nao ha teto: o gasto so e medido. O
+# padrao de R$40/mes da Fase 7 saiu a pedido do Alex (2026-11-01).
 #
 # Mensagem de erro: reaproveita o MESMO texto de `app.TETO_IA_MSG` (copiado
 # aqui, nao importado - `ia/` nao pode importar `app.py`, que ainda nao
@@ -42,9 +42,10 @@ TETO_IA_MSG = (
 # `app._TETO_IA_LOCK` pro novo caminho baseado no contrato (`ia/contrato.py`).
 _TETO_IA_LOCK = threading.Lock()
 
-# Teto padrao (R$) quando o Alex nunca configurou nada pelo card financeiro
-# (db.obter_teto_mensal_ia(conn) is None) - decisao do Alex pra Fase 7.
-TETO_PADRAO_BRL = 40.0
+# Teto (R$) quando o Alex nunca configurou nada pelo card financeiro
+# (db.obter_teto_mensal_ia(conn) is None). Zero = sem teto: `_fracao_teto` fica
+# em 0 e nada bloqueia. Quem configurar um valor no card volta a ter limite.
+TETO_PADRAO_BRL = 0.0
 
 # Fracao do teto a partir da qual entra o "modo economia" (aviso, mas ainda
 # permite) - 80%, conforme pedido da tarefa.
@@ -76,7 +77,7 @@ FUNCAO_DESFAZER = "desfazer"
 def _teto_mensal_brl() -> float:
     """Teto mensal em BRL: le o valor configurado pelo mecanismo existente
     (`db.CHAVE_TETO_MENSAL_IA`, em USD) e converte pelo cambio fixo de
-    `ia/precos.json`; sem nada configurado, usa o padrao de R$40 da Fase 7."""
+    `ia/precos.json`; sem nada configurado, 0 (sem teto)."""
     conn = db.get_db()
     try:
         teto_usd = db.obter_teto_mensal_ia(conn)
@@ -88,10 +89,8 @@ def _teto_mensal_brl() -> float:
 
 
 def _fracao_teto() -> float:
-    """gasto do mes / teto mensal, ambos em BRL. Teto <= 0 (nunca deveria
-    acontecer - db.definir_teto_mensal_ia ja trata teto<=0 como "sem teto",
-    e o padrao acima e sempre positivo) e tratado como "sem teto nenhum"
-    (fracao 0), nunca divisao por zero."""
+    """gasto do mes / teto mensal, ambos em BRL. Teto <= 0 e "sem teto
+    nenhum" (fracao 0), nunca divisao por zero."""
     teto = _teto_mensal_brl()
     if teto <= 0:
         return 0.0

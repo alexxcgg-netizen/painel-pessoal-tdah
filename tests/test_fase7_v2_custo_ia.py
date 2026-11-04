@@ -87,7 +87,7 @@ class ResumoVazioTestCase(_BaseRotaTestCase):
         self.assertEqual(corpo["por_funcao"], [])
         self.assertEqual(corpo["por_dia"], [])
         self.assertEqual(corpo["nivel_alerta"], "normal")
-        self.assertGreater(corpo["teto_brl"], 0)
+        self.assertEqual(corpo["teto_brl"], 0)
         self.assertEqual(corpo["projecao_fim_mes_brl"], 0.0)
 
     def test_csv_vazio_so_tem_cabecalho(self):
@@ -179,6 +179,11 @@ class ResumoComUsoTestCase(_BaseRotaTestCase):
         self.assertGreaterEqual(corpo["projecao_fim_mes_brl"], corpo["gasto_brl"] - 1e-6)
 
     def test_fracao_teto_e_gasto_dividido_pelo_teto(self):
+        conn = db.get_db()
+        try:
+            db.definir_teto_mensal_ia(conn, 10.0)  # USD
+        finally:
+            conn.close()
         registrar_uso("chat", "anthropic", "claude-sonnet-5", custo_usd=1.0)
         corpo = self._resumo()
         self.assertAlmostEqual(corpo["fracao_teto"], corpo["gasto_brl"] / corpo["teto_brl"], places=4)
@@ -193,7 +198,7 @@ class ResumoComUsoTestCase(_BaseRotaTestCase):
         cambio = cambio_usd_brl()
         self.assertAlmostEqual(corpo["teto_brl"], 10.0 * cambio, places=4)
 
-    def test_teto_removido_volta_pro_padrao(self):
+    def test_teto_removido_fica_sem_teto(self):
         conn = db.get_db()
         try:
             db.definir_teto_mensal_ia(conn, 10.0)
@@ -201,7 +206,7 @@ class ResumoComUsoTestCase(_BaseRotaTestCase):
         finally:
             conn.close()
         corpo = self._resumo()
-        self.assertGreater(corpo["teto_brl"], 0)
+        self.assertEqual(corpo["teto_brl"], 0)
 
     def test_muitas_funcoes_distintas_nao_quebra(self):
         for i in range(40):
@@ -254,11 +259,24 @@ class NumerosExtremosTestCase(_BaseRotaTestCase):
         self.assertEqual(corpo["gasto_brl"], 0.0)
 
     def test_custo_muito_grande(self):
+        conn = db.get_db()
+        try:
+            db.definir_teto_mensal_ia(conn, 10.0)  # USD
+        finally:
+            conn.close()
         registrar_uso("chat", "anthropic", "claude-opus-5-5", custo_usd=99999.99)
         corpo = self._resumo()
         self.assertGreater(corpo["gasto_brl"], 0)
         self.assertGreaterEqual(corpo["fracao_teto"], 1.0)
         self.assertEqual(corpo["nivel_alerta"], "estourado_100")
+
+    def test_custo_muito_grande_sem_teto_fica_normal(self):
+        registrar_uso("chat", "anthropic", "claude-opus-5-5", custo_usd=99999.99)
+        corpo = self._resumo()
+        self.assertGreater(corpo["gasto_brl"], 0)
+        self.assertEqual(corpo["teto_brl"], 0)
+        self.assertEqual(corpo["fracao_teto"], 0)
+        self.assertEqual(corpo["nivel_alerta"], "normal")
 
     def test_tokens_muito_grandes(self):
         registrar_uso(

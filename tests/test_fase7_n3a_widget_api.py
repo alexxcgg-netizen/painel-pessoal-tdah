@@ -378,9 +378,15 @@ class ColetaHabitosTestCase(_BaseWidgetTestCase):
 
 
 class ColetaCustoIaTestCase(_BaseWidgetTestCase):
-    def test_sem_nenhum_gasto_registrado_percentual_e_0(self):
+    def test_sem_teto_configurado_nao_mostra_percentual(self):
         data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
-        self.assertIsNotNone(data["custo_ia"])
+        self.assertIsNone(data["custo_ia"])
+        self.assertFalse(any("do teto" in linha for linha in data["linhas"]))
+
+    def test_com_teto_e_sem_gasto_percentual_e_0(self):
+        db.definir_teto_mensal_ia(self.conn, 10.0)  # USD
+        self.conn.commit()
+        data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
         self.assertEqual(data["custo_ia"]["percentual_teto"], 0)
 
     def test_gasto_registrado_reflete_no_percentual(self):

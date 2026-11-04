@@ -236,3 +236,13 @@ test("passaporte vazio e com texto perigoso", () => {
   const x = html("passaporte", { carimbos: [{ icao: "<b>X", primeiro: "2026-01-02", voos: 1, nome: "<script>" }], horas: 1 });
   assert.doesNotMatch(x, /<script>/);
 });
+
+test("vento: cabeceira sempre com 2 digitos (SSBL e 01/19, o Alex confirmou em 04/11/2026)", () => {
+  const p0119 = { cabeceiras: [1, 19], decl_w: 20.6, conferido: false, padrao_de_terceiros: true };
+  const c = Lab.calcVento(290, 12, p0119, true, null);
+  assert.deepEqual([c.cab, c.proa, c.trav], [1, 6, 10]);
+  const h = html("vento_pista", Object.assign({}, VENTO, { pista: p0119 }));
+  assert.match(h, /vp-cab">01</);
+  assert.match(h, /<text x="100" y="40">19<\/text><text x="100" y="170">01<\/text>/);
+  assert.match(h, /vp-aviso">Pista 01\/19 e declinação/);
+});

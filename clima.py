@@ -153,14 +153,15 @@ CHUVA_MM_CONTA = 0.3  # menos que isso na hora e respingo
 
 def previsao_horaria(lat: float, lon: float, dias: int = 3) -> list[dict] | None:
     """Hora a hora dos proximos `dias` dias: [{'quando': 'AAAA-MM-DDTHH:MM', 'chuva_pct', 'mm',
-    'codigo'}]. None em erro de rede/resposta."""
+    'codigo', 'temp'}]. None em erro de rede/resposta. `temp` (04/11/2026, card de saida hora a
+    hora em cards.py) e None se a resposta nao trouxer temperatura."""
     try:
         resp = requests.get(
             FORECAST_URL,
             params={
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": "precipitation_probability,precipitation,weathercode",
+                "hourly": "precipitation_probability,precipitation,weathercode,temperature_2m",
                 "timezone": "America/Sao_Paulo",
                 "forecast_days": min(max(dias, 1), 16),
             },
@@ -168,9 +169,11 @@ def previsao_horaria(lat: float, lon: float, dias: int = 3) -> list[dict] | None
         )
         resp.raise_for_status()
         h = resp.json()["hourly"]
+        temps = h.get("temperature_2m") or []
         return [
             {"quando": t, "chuva_pct": h["precipitation_probability"][i] or 0,
-             "mm": h["precipitation"][i] or 0, "codigo": h["weathercode"][i]}
+             "mm": h["precipitation"][i] or 0, "codigo": h["weathercode"][i],
+             "temp": temps[i] if i < len(temps) else None}
             for i, t in enumerate(h["time"])
         ]
     except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):

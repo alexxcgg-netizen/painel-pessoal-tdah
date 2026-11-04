@@ -272,10 +272,12 @@
       // `desfeito` (aditivo, vem do historico): o Desfazer ja foi usado.
       const desfeito = card.desfeito === true ? " card-desfeito" : "";
       const desfeitoAttr = card.desfeito === true ? ' data-desfeito="1"' : "";
+      // casca D "ao vivo" (cards-d.js, 04/11/2026): a pilula ja traz os botoes dentro - sem rodape
+      const ehD = corpo.startsWith('<div class="vivo-d"');
       return (
-        `<article class="card-resultado card-contrato card-contrato-${esc(card.type)}${desfeito}" data-card-type="${esc(card.type)}"${idAttr}${desfeitoAttr}>` +
+        `<article class="card-resultado card-contrato card-contrato-${esc(card.type)}${ehD ? " card-d" : ""}${desfeito}" data-card-type="${esc(card.type)}"${idAttr}${desfeitoAttr}>` +
         corpo +
-        rodapeHTML(card, entrada.consome) +
+        (ehD ? "" : rodapeHTML(card, entrada.consome)) +
         `</article>`
       );
     } catch (e) {
@@ -316,6 +318,8 @@
     cardEl.querySelectorAll('[data-acao="desfazer"]').forEach((btn) => {
       btn.innerHTML = `${ICONE_DESFAZER}<span>Desfeito</span>`;
     });
+    // pilula D: o relogio para (o que ela contava nao vale mais)
+    cardEl.querySelectorAll(".vivo-d [data-cd-s]").forEach((el) => el.setAttribute("data-parado", ""));
   }
 
   function atualizarContagens(raizEl) {
@@ -416,6 +420,7 @@
         }
         marcarDesfeito(cardEl);
         if (raiz.CardsPremium) raiz.CardsPremium.desfeito(cardEl);
+        if (raiz.CardsD) raiz.CardsD.desfeito(cardEl);
         if (typeof handlers.aoMudar === "function") handlers.aoMudar();
         return;
       }
@@ -502,6 +507,8 @@
   }
 
   const Cards = {
+    // { apiFetch, showTab, aoMudar } de ligar() - pra interação fora do clique (deslize do card D)
+    deps: handlers,
     partesTarefa,
     tituloTarefaHTML,
     horaTarefaHTML,

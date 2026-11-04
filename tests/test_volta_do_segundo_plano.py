@@ -10,7 +10,6 @@
 import json
 import os
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -38,11 +37,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -69,6 +66,26 @@ _SEGUNDO_PLANO = """(escondido) => {
   Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (escondido ? "hidden" : "visible") });
   document.dispatchEvent(new Event("visibilitychange"));
 }"""
+
+# volta contando as medidas que a volta agenda (init.js: 0, 350 e 900 ms). A troca dura so o evento:
+# quem agenda pega o contador, a remedida automatica da 6a camada continua fora da conta
+_VOLTAR_CONTANDO_MEDIDAS = """() => {
+  const medir = window._medirDesvioTela;
+  window.__medidasDaVolta = 0;
+  window._medirDesvioTela = () => { medir(); window.__medidasDaVolta++; };
+  (""" + _SEGUNDO_PLANO + """)(false);
+  window._medirDesvioTela = medir;
+}"""
+
+
+def _voltar_e_esperar_as_medidas(page):
+    # "0px" ja e o valor de antes da volta: esperar o valor nao provaria nada, tem que esperar a medida
+    page.evaluate(_VOLTAR_CONTANDO_MEDIDAS)
+    page.wait_for_function("window.__medidasDaVolta >= 3")
+
+
+def _eh_visto(request):
+    return request.url.endswith("/api/push/visto") and request.method == "POST"
 
 
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
@@ -109,13 +126,13 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                   window.scrollTo = (...a) => { window.__medidas++; return original(...a); };
                 }""")
                 page.evaluate(_SEGUNDO_PLANO, False)
-                page.wait_for_timeout(500)  # rAF + o segundo passe de 350 ms
+                page.wait_for_function("window.__medidas >= 4")  # rAF + o segundo passe de 350 ms
                 self.assertGreaterEqual(page.evaluate("window.__medidas"), 4, "a volta tem que re-medir a tela (2 passes)")
                 self.assertEqual(page.evaluate("window.scrollY"), y_antes, "re-medir nao pode mexer na rolagem")
 
                 # pageshow (voltar do cache do navegador) tambem re-mede
                 page.evaluate("window.__medidas = 0; window.dispatchEvent(new Event('pageshow'))")
-                page.wait_for_timeout(500)
+                page.wait_for_function("window.__medidas >= 4")
                 self.assertGreaterEqual(page.evaluate("window.__medidas"), 4)
                 self.assertEqual(erros, [], f"pageerror: {erros}")
             finally:
@@ -146,8 +163,7 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                   const vv = window.visualViewport;
                   Object.defineProperty(vv, "offsetTop", { configurable: true, get: () => 300 });
                 }""")
-                page.evaluate(_SEGUNDO_PLANO, False)
-                page.wait_for_timeout(1100)  # mede em 0, 350 e 900 ms
+                _voltar_e_esperar_as_medidas(page)
                 self.assertEqual(page.evaluate(desvio), "300px")
                 for sel in ("#tabbar", "#chat-form"):
                     self.assertEqual(page.evaluate(f"getComputedStyle(document.querySelector('{sel}')).translate"), "0px 300px", sel)
@@ -183,13 +199,11 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 page.goto(BASE_URL + "/")
                 page.wait_for_load_state("networkidle")
                 desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
-                page.evaluate(_SEGUNDO_PLANO, False)
-                page.wait_for_timeout(1100)
+                _voltar_e_esperar_as_medidas(page)
                 self.assertEqual(page.evaluate(desvio), "0px")
                 page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
                                    { configurable: true, get: () => 300 })""")
-                page.evaluate(_SEGUNDO_PLANO, False)
-                page.wait_for_timeout(1100)
+                _voltar_e_esperar_as_medidas(page)
                 # 5a camada: a sonda mede o fundo visivel contra onde o fixed se prende de verdade -
                 # os 34 de folga fingidos + 300 do teclado preso = 334, tudo de verdade fora da tela
                 self.assertEqual(page.evaluate(desvio), "334px")
@@ -219,14 +233,12 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 self.assertEqual(page.evaluate(desvio), "0px")  # 1a medida: 0
                 page.evaluate("""() => Object.defineProperty(window.visualViewport, "height",
                                    { configurable: true, get: () => document.documentElement.clientHeight + 34 })""")
-                page.evaluate(_SEGUNDO_PLANO, False)
-                page.wait_for_timeout(1100)
+                _voltar_e_esperar_as_medidas(page)
                 self.assertEqual(page.evaluate(desvio), "0px", "folga de 34px nao pode descer a barra")
                 self.assertEqual(page.evaluate("getComputedStyle(document.querySelector('#tabbar')).translate"), "0px")
                 page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
                                    { configurable: true, get: () => 300 })""")
-                page.evaluate(_SEGUNDO_PLANO, False)
-                page.wait_for_timeout(1100)
+                _voltar_e_esperar_as_medidas(page)
                 self.assertEqual(page.evaluate(desvio), "334px")  # 34 fingidos + 300
                 self.assertEqual(erros, [], f"pageerror: {erros}")
             finally:
@@ -255,15 +267,13 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 page.goto(BASE_URL + "/")
                 page.wait_for_load_state("networkidle")
                 desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
-                page.evaluate(_SEGUNDO_PLANO, False)
-                page.wait_for_timeout(1100)
+                _voltar_e_esperar_as_medidas(page)
                 self.assertEqual(page.evaluate(desvio), "0px", "62px da faixa do relogio nao e bug")
                 fundo = page.evaluate("document.querySelector('#tabbar').getBoundingClientRect().bottom")
                 self.assertLessEqual(fundo, 956, "a barra tem que caber inteira na tela")
                 page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
                                    { configurable: true, get: () => 300 })""")
-                page.evaluate(_SEGUNDO_PLANO, False)
-                page.wait_for_timeout(1100)
+                _voltar_e_esperar_as_medidas(page)
                 self.assertEqual(page.evaluate(desvio), "300px")
                 self.assertEqual(erros, [], f"pageerror: {erros}")
             finally:
@@ -292,15 +302,14 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
                 page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
                                    { configurable: true, get: () => window.innerHeight })""")
-                page.evaluate(_SEGUNDO_PLANO, False)
-                page.wait_for_timeout(1100)
+                _voltar_e_esperar_as_medidas(page)
                 self.assertEqual(page.evaluate(desvio), "0px", "vvTopo = tela inteira e medida impossivel")
                 fundo = page.evaluate("document.querySelector('#tabbar').getBoundingClientRect().bottom")
                 self.assertLessEqual(fundo, 956, "a barra tem que continuar na tela")
                 # a tela assenta (teclado preso de verdade): a remedida automatica corrige
                 page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
                                    { configurable: true, get: () => 300 })""")
-                page.wait_for_timeout(500)
+                page.wait_for_function(f"({desvio})() === '300px'")
                 self.assertEqual(page.evaluate(desvio), "300px")
                 self.assertEqual(erros, [], f"pageerror: {erros}")
             finally:
@@ -320,17 +329,21 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                                  headers={"Content-Type": "application/json"})
                 page = ctx.new_page()
                 visto = []
-                page.on("request", lambda r: visto.append(r.url) if r.url.endswith("/api/push/visto") and r.method == "POST" else None)
+                page.on("request", lambda r: visto.append(r.url) if _eh_visto(r) else None)
                 erros = []
                 page.on("pageerror", lambda exc: erros.append(str(exc)))
                 page.goto(BASE_URL + "/")
                 page.wait_for_load_state("networkidle")
-                page.wait_for_timeout(1800)
+                # ao abrir saem 2 avisos (pageshow e o forcado de 1200 ms); com os 2 fora, `antes` nao muda sozinho
+                while len(visto) < 2:
+                    page.wait_for_event("request", _eh_visto, timeout=10000)
                 self.assertGreaterEqual(len(visto), 1, "ao abrir o app")
                 antes = len(visto)
                 page.evaluate(_SEGUNDO_PLANO, True)  # vai pra segundo plano
+                page.evaluate("_avisarQueViu(true)")  # forcado fura a pausa de 20 s: so o escondido segura
                 page.wait_for_timeout(300)
                 self.assertEqual(len(visto), antes, "escondido nao avisa")
+                page.evaluate(_SEGUNDO_PLANO, False)  # de volta na tela: agora so a pausa segura
                 page.evaluate("() => { window.dispatchEvent(new Event('focus')); }")
                 page.wait_for_timeout(300)
                 self.assertEqual(len(visto), antes, "20 s de pausa entre avisos (sem martelar o servidor)")

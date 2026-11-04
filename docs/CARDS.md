@@ -89,6 +89,7 @@ e marca `data.oculto = true`; `resumo_texto`/`resposta` passam por
 | `meta` | `valor_guardado`, `valor_alvo`, `falta` (o `percentual` fica) |
 | `saude_dia` | `agua_copos`, `passos`, `sono_horas`, `treino_min` (revisão da Fase 6) |
 | `saude_treino` | `sessoes` (revisão da Fase 6) |
+| `lugar_salvo` | `nome`, `endereco`, `maps_url`, `de_casa_min` (o `apelido` fica; 04/11/2026) |
 
 O front mostra `R$ •••` quando `data.oculto` é `true` (nos cards de saúde:
 "Dados de saúde ocultos no modo visitante.").
@@ -492,7 +493,7 @@ final; a animação só entra em resposta nova (`CardsVivos.animar`). Campos (`d
 
 | type | data |
 | :--- | :--- |
-| `edicao` | `itens: [{rotulo, titulo, mudancas: [{campo, de, para}]}]` + action `desfazer` (volta os valores antigos) |
+| `edicao` | `itens: [{rotulo, titulo, mudancas: [{campo, de, para}]}]` + action `desfazer` (volta os valores antigos). Opcional `chegou {lugar, atraso_min, hora}` (04/11: chegou atrasado e o que vinha depois foi empurrado). Edição só de hora vira pílula D (`edicao_hora`). |
 | `voo_resumo` | `total_min, voos, por_funcao[{nome,min}], por_aeronave[{nome,min}], primeiro_solo{minutos,data}, ultimo{data,aeronave,origem,destino}, dias_sem_voar, simulador_min, meta_horas, meta_definida` |
 | `clima` | `lugar, agora{condicao, chovendo_agora, temperatura, sensacao, umidade_pct, vento_kmh}, proximas_horas[{hora, chuva_pct, temp}]` |
 | `gastos_resumo` | `periodo{de,ate}, total, quantidade, por_categoria[{categoria,valor}], maiores, categoria_filtrada` (visitante: `oculto`) |
@@ -510,6 +511,30 @@ Aprendizado vivo: ler antes de criar ou mexer em qualquer card, e acrescentar aq
 aprovar/recusar nas próximas rodadas. Referência navegável (9 cenas aprovadas):
 https://claude.ai/artifact/JzmyFm39GypNtUKXLuS1ph - fonte em `docs/prototipos/cards-ia-v2.html`
 (abre direto no navegador; republicar no mesmo artefato a cada rodada).
+
+### Linguagem D "ao vivo" - aprovada pelo Alex em 04/11/2026 (vale por cima do que vem abaixo)
+Briefing: `docs/briefings/2026-11-04-cards-ao-vivo.md`. Ele escolheu a aba **D** do protótipo "cards
+sem cara de IA". O que mudou na régua:
+- **Casca única (`CardsD.pilula`, `static/js/cards-d.js` + `secoes/hoje/cards-d.css`)**: pílula
+  fechada com ícone na cor do assunto (`--cc`), título, uma linha de contexto e, à direita, o próximo
+  passo com a contagem. Toque abre por `grid-template-rows 0fr→1fr` com mola (`--ease-bounce`);
+  o card D não tem rodapé (Desfazer e botões vão dentro).
+- **Contagem ao vivo por segundo, sempre dos segundos do servidor**: o builder manda `*_s` (segundos
+  até o passo) + `gerado_ts` (epoch); o front faz `restante = s − (agora − gerado_ts)`, nunca lê hora
+  de parede. Um relógio só por página (`CardsD.tique`). Dígitos rolam tipo placar (`.rl`), o leitor de
+  tela lê o texto inteiro (`.rl-sr`). Passo que já passou não conta.
+- **Entrada só em `.card-novo`**; histórico abre parado. `prefers-reduced-motion` zera rolagem,
+  mola e entrada. Alvo de toque ≥ 44 px em tudo (botões, seletor de aeródromo, deslize).
+- **Dado faltando = campo some.** Nada de "~", nada de valor de exemplo. Texto com "tu", sem emoji.
+- **Saiu (a "cara de IA")**: fio de luz correndo na borda, luz que segue o dedo, inclinação 3D,
+  selo brilhante "registrado", chips com emoji, título em degradê, rótulo pequeno em MAIÚSCULAS
+  espaçadas (eyebrow), herói gigante/fichas com ícone dos compromissos, céu desenhado da balada,
+  cartão de embarque com arco do voo, cupom + 14 barrinhas do gasto. Os testes JS checam que essas
+  classes não voltam (`tests/js/cards_premium.test.js`, `cards_saidas.test.js`).
+- **Ficou de propósito** (vetável): a costura do card (sem luz viajando nem pulso), a medalha do
+  treino, o cupom das compras e os carimbos (o maiúsculo deles é do objeto, não eyebrow).
+
+As cenas D estão na tabela "O que já está no app (leva D, 04/11/2026)", no fim deste documento.
 
 **Princípios (o que fez ele gostar)**
 1. **Cada assunto tem a sua cara, a família é a mesma.** Casca igual (selo colorido + "quando" em
@@ -556,8 +581,8 @@ linha do tempo e de rota são o que mais quebra), número longo sem quebrar entr
 ### O que já está no app (1ª leva, 2026-10-14)
 | Cena | Onde | Dado |
 | :--- | :--- | :--- |
-| Voo | type novo `voo_agendado` (`cards.card_voo_agendado`, `static/js/cards-aviacao.js`) | `rota_voo.montar` (pernas/NM/horários), `voo_briefing_min`, `_saida_pro_voo` (Maps, opcional), horas do curso. Toque num aeródromo = `data-acao="voo_parada"`. |
-| Mercado/gasto | `transacao` de gasto real ganha `mes` + `dias` (`cards._contexto_gasto`) → cupom + barra do teto + 14 barrinhas | orçamento da categoria, gasto do mês, 14 dias. Visitante: `mes`/`dias` saem junto com `valor`. |
+| Voo | type novo `voo_agendado` (`cards.card_voo_agendado`, `static/js/cards-aviacao.js`) | `rota_voo.montar` (pernas/NM/horários), `voo_briefing_min`, `_saida_pro_voo` (Maps, opcional), horas do curso. Desde 04/11 é pílula D (ver leva D); o arco e o `voo_parada` saíram. |
+| Mercado/gasto | `transacao` de gasto real ganha `mes` + `dias` (`cards._contexto_gasto`) → desde 04/11 anel D (ver leva D; o cupom e as 14 barrinhas saíram do gasto) | orçamento da categoria, gasto do mês, 14 dias. Visitante: `mes`/`dias` saem junto com `valor`. |
 | Alteração | `edicao` (mesmo dado): hora → relógio rolando; valor curto → troca no lugar; frase longa → só o pedaço que mudou troca; texto todo novo → antes → depois | - |
 | Concluir | type novo `tarefa_feita` (`cards.card_tarefa_feita`) - `registrar_feito` e `ajustar_tarefa(status=concluir)` | feitas/total de hoje (conta a concluída mesmo atrasada), próxima pendente de hoje; "em 1h40" é conta do front (some no histórico de outro dia). Desfazer reabre (ou apaga a que nasceu concluída). |
 | Tarefa com aperto | `tarefas_criadas` ganha `aperto` {id, titulo, hora, sugestao} quando a nova cai a < 45 min de outra pendente do dia | Só horário de início é dado real. Sugestão = outra a 60 min da nova, se não apertar uma terceira. Botão → `POST /api/tasks/<id>/hora`. |
@@ -662,3 +687,19 @@ Todos em `static/js/cards-foco-ideias.js` + `static/css/secoes/hoje/cards-foco-i
 | Pouso do dia | type novo `pouso_dia` (`fechamento_dia.card_pouso`, cor `--cor-cat-2`) | Às 21h (no lugar do antigo `fechar_dia`, que segue existindo) sai `[placar_feito, pouso_dia]`. `data = {dia, amanha, pendentes[], mais, ids_adiar[], primeira?, mochila?, pousado}`. Até 3 passos, só os que existem: ficou aberto (empurra com `POST /api/tarefas/adiar`), primeira coisa de amanhã (voo ou tarefa mais cedo; refeita no servidor depois de empurrar, `GET /api/pouso-dia/amanha`), mochila (só se amanhã tem voo; o MESMO estado do card da véspera, `/api/voos/<id>/mochila`). No fim: avião pousa na pista e "Dia pousado." (`POST /api/pouso-dia/pousar`, o histórico volta no final). Chat: tool `pouso_do_dia`. |
 | Retrospectiva do mês | type novo `retrospectiva` (`retrospectiva.card`, cor `--cor-cat-3`) | Dia 1 (até o 3), mês que fechou. A capa no chat abre uma história em tela cheia (7 toques no máximo, 3,2 s por tela, segurar pausa, toque à esquerda volta); só tem tela quem tem dado: tarefas (vs. mês anterior), quilos levantados (`treino_marcas`), horas voadas (+ aeródromos novos), recorde do mês, o gasto que mais cresceu (R$ 30+ de aumento; **dinheiro, sai no visitante**: `CAMPOS_SENSIVEIS["retrospectiva"]`), e a última pede UMA meta pro mês novo (chips saídos dos dados; `POST /api/retrospectiva/<AAAA-MM>/meta`). Chat: tool `retrospectiva_mes`. |
 | Medalha na hora | campo aditivo `medalhas[{i, nome, rm, anterior, ganho, carga, reps}]` no `treino_agora` + `medalha` na resposta de `POST /api/treino/sessoes/<id>/exercicio` (`medalha.py`, `static/js/cards-medalha.js`) | Recorde de carga = 1RM estimado (Epley, `kg × (1 + reps/30)`) maior que todas as marcas anteriores do exercício (`treino_marcas`). A medalha holográfica cai no card (o brilho segue o dedo) com a conta na legenda; fica gravada como moedinha na linha do exercício. Primeira marca só grava a base. Faixa de reps vale o piso; carga sem kg e mais de 15 reps não entram. |
+
+### O que já está no app (leva D, 04/11/2026 - `docs/briefings/2026-11-04-cards-ao-vivo.md`)
+Tudo na casca `CardsD.pilula`. Ganchos do `cards-d.js`: `registrarAbrir/Chegar/Preparar/Desfazer/Desliza`,
+chamados pelo `CardsVivos.preparar/animar`; `Cards.deps` (apiFetch, showTab, aoMudar) é exportado pro
+deslize. Todo campo novo é aditivo: card antigo sem ele continua abrindo (cai no desenho sem contagem).
+
+| Cena | Onde | Dado |
+| :--- | :--- | :--- |
+| 1. Tarefa com hora | `tarefas_criadas` com 1 tarefa de hora válida, não feita (`cards-tipos.js`, `tarefaD`, cor `#f0a58f`) | `em_s`, `gerado_ts` (só com dia + hora). Pílula "em 14 min"; aberta: mm:ss grande "até HH:MM"; rota casa → lugar e "Já saí" **só com `local`** (o carrinho anda pela fração do tempo; fica no `localStorage` `cards-d-saiu`); "+10 min" → `POST /api/tasks/<id>/hora` (some se passar da meia-noite). Hora passada: "era às", sem contagem. |
+| 2. Saída (date/balada) | `date`/`balada` (`cards-saidas.js`, `pilulaSaida`) | `cadeia[{rotulo, hora, em_s, parada?}]`, `gerado_ts` (`cards.cadeia_saida`), `clima_horas[7]{hora, temp, chuva_pct, codigo, marca: chegada/volta}` + `clima_lugar` (`cards.clima_horas_saida`, só com `CIDADE_PADRAO` e previsão da hora), `levar[{item, titulo, motivo}]` (`cards.levar_saida`: guarda-chuva ≥ 40 %, casaco ≤ 17° (`FRIO_CASACO`); sem volta usa a hora mais fria), `parada {nome, min_ate}` da Frente 2 (`cards._parada_valida`) entra na cadeia entre Sair e Chegar. Direita: o próximo passo que não passou (arrumar/sair/parada/chega em). Lista do date, sono e volta da balada continuam. |
+| 3. Voo por aeródromo | `voo_agendado` (`cards-aviacao.js`, cor `#8fd0ff`) | `aerodromos[{icao, nome, pista{cabeceiras, decl_w, conferido}\|null}]` (sem repetir; pista só a conferida - hoje só SSBL), `limite_kt`, `sair_s`, `chegar_s`, `decola_s`, `gerado_ts` (`cards._voo_ao_vivo`). Seletor de aeródromo + METAR de agora (`GET /api/clima/metar?icao=`, cache 10 min, só dentro de 30 h): vento real, través/proa pela pista (`CardsAviacaoLab.calcVento/veredito`); sem pista conferida: "A pista daqui eu não conferi, então não calculo través." Linhas sair/briefing/decolagem/pouso/rota/horas, slot do TAF e projeção continuam. |
+| 4. Gasto | `transacao` de gasto com `mes` (`cards-tipos.js`, `gastoD`, cor `#b5e48c`) | Anel do teto + "X no mês", "Sobra"/"Passou do teto", "Por dia até o dia N". Sem teto: sem anel. Visitante: igual antes (`oculto`). |
+| 5. Tarefa feita | `tarefa_feita` (`cards-vivos.js`, `tarefaFeitaD`, cor `#9fdcb0`) | `dia_itens[{titulo, hora, feita, esta}]` (`cards.card_tarefa_feita`). Anel em pedaços (até 12) + check, "hoje N de M", lista do dia com a próxima em destaque. Sem `dia_itens`: "Próxima: …". |
+| 6. Lugar salvo | type novo `lugar_salvo` (`cards.card_lugar_salvo`, `_card_de_efeito_modulo` com `entidade: lugar_salvo`; front no `cards-d.js`, cor `#7fd9d0`) | `apelido, nome, endereco, raio_m (150), de_casa_min (null até o executor medir), achado, maps_url` (só link do Google vira botão). "Não é essa" (`lugar_nao_e`) manda a correção pelo campo do chat. Sem Desfazer. Visitante: ver tabela do modo visitante. |
+| 7. Chegou / atrasou | `edicao` com `chegou {lugar, atraso_min, hora}` (`cards-vivos.js`, `edicaoD`, cor `#aab4f6`) | Título = lugar, "chegou N min depois do combinado", a hora da próxima rola velha → nova; Desfazer rola de volta ("X voltou pras HH:MM"). Contrato com a Frente 2 (`onde_estou`). |
+| 8. Conta com deslize | `contas_email` com 1 conta (não rastreio) (`cards-dinheiro.js`, `contaD`, cor `#ffd36e`) | "deslize se já pagou" (`CardsD.deslizaHTML`, teclado e ponteiro, confirma passando de 82 %) → `POST /api/contas-email/<id>/status {status: "paga"}`; falha: "Não deu agora. Tenta de novo?". Várias contas: continua a lista. |

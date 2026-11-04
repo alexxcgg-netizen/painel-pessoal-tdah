@@ -10,7 +10,6 @@
 import json
 import os
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -38,11 +37,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -163,7 +160,8 @@ class LimpaDFinancasTestCase(unittest.TestCase):
                 select = item.first.locator("select.correcao-select-categoria")
                 select.wait_for(state="visible")
                 select.select_option("lazer")
-                page.wait_for_timeout(500)
+                # a lista so redesenha com a categoria nova depois que o POST gravou
+                item.first.locator(".item-quando", has_text="Lazer").wait_for()
 
                 r = ctx.request.get(BASE_URL + "/api/financas/extrato?dias=15")
                 dados = r.json()
@@ -192,7 +190,8 @@ class LimpaDFinancasTestCase(unittest.TestCase):
                 acoes = item.first.locator(".fc-extrato-acoes")
                 acoes.wait_for(state="visible")
                 acoes.locator("button.btn-corrigir-gasto").click()
-                page.wait_for_timeout(600)
+                # o item so sai depois que o POST gravou e o extrato recarregou
+                item.first.wait_for(state="detached")
 
                 r_extrato = ctx.request.get(BASE_URL + "/api/financas/extrato?dias=15")
                 self.assertNotIn(

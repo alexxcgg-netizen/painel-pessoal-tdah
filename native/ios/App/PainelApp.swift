@@ -57,6 +57,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                                       localizedSubtitle: "Endereço e token do widget",
                                       icon: UIApplicationShortcutIcon(systemImageName: "gearshape"))
         ]
+        // onde eu estou (04/11): o gerente de localizacao nasce ja no launch, pra visita que acordou
+        // o app em segundo plano chegar no delegate
+        Localizacao.shared.iniciar()
         return true
     }
 
@@ -124,6 +127,8 @@ struct Raiz: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             conferirPedidoDeCaptura()
+            Localizacao.shared.enviarFila()
+            AoVivo.shared.sincronizar()  // atividade ao vivo do próximo compromisso (AoVivo.swift)
         }
         .sheet(isPresented: $abertura.configurar) {
             Configurar { novaURL in
@@ -171,6 +176,7 @@ struct Configurar: View {
                 } footer: {
                     Text("Vem sozinho depois que tu entra com o PIN. Fica só neste iPhone.")
                 }
+                SecaoOndeEstou()
                 Section {
                     NavigationLink {
                         TelaRelatorio()
@@ -248,6 +254,7 @@ struct PainelWeb: UIViewRepresentable {
                 if case .success(let valor) = resultado, let token = valor as? String, token.count >= 8 {
                     Ajustes.token = token
                     WidgetCenter.shared.reloadAllTimelines()
+                    AoVivo.shared.sincronizar()  // primeira vez com token: já liga a atividade se tiver compromisso
                 } else if let web {
                     // ainda na tela do PIN: tenta de novo daqui a pouco (login nem sempre recarrega a página)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5) {

@@ -99,6 +99,48 @@ class ApelidosTestCase(_Base):
         self.assertIsNone(va.salvar_apelido(conn, "casa", "outro lugar"))  # casa e o ENDERECO_CASA
         conn.close()
 
+    def test_so_o_nome_procura_no_google_e_guarda_o_que_achou(self):
+        # 04/11: "a oficina que eu levo o carro e a Fulano" - basta o nome, o painel acha o endereco
+        achado = {"place_id": "x", "nome": "Oficina Exemplo", "endereco": "R. Teste, 10 - Centro, Brusque - SC"}
+        with patch("maps_client.configurado", return_value=True), \
+                patch("maps_client.resolver_lugar", return_value=achado) as procurar, \
+                patch("onde_estou.garantir_coordenada", return_value=True):
+            _, res = self.chat([("salvar_lugar_apelido", {"apelido": "a oficina", "endereco": "Oficina Exemplo"})])
+        procurar.assert_called_once_with("Oficina Exemplo")
+        self.assertEqual(res[0]["endereco"], "Oficina Exemplo, R. Teste, 10 - Centro, Brusque - SC")
+        self.assertNotIn("obs", res[0])
+        conn = db.get_db()
+        self.assertEqual(va.resolver_lugar(conn, "oficina"), "Oficina Exemplo, R. Teste, 10 - Centro, Brusque - SC")
+        conn.close()
+
+    def test_nao_achou_guarda_como_ele_falou_e_avisa(self):
+        with patch("maps_client.configurado", return_value=True), \
+                patch("maps_client.resolver_lugar", return_value=None), \
+                patch("onde_estou.garantir_coordenada", return_value=False):
+            _, res = self.chat([("salvar_lugar_apelido", {"apelido": "academia", "endereco": "Academia Inventada"})])
+        self.assertEqual(res[0]["endereco"], "Academia Inventada")
+        self.assertIn("nao achei", res[0]["obs"])
+
+    def test_esquecer_tira_da_lista(self):
+        conn = db.get_db()
+        va.salvar_apelido(conn, "oficina 2", "Volvo, Florianopolis - SC")
+        conn.commit()
+        conn.close()
+        _, res = self.chat([("salvar_lugar_apelido", {"apelido": "a oficina 2", "esquecer": True}),
+                            ("salvar_lugar_apelido", {"apelido": "nao existe", "esquecer": True})])
+        self.assertEqual(res[0], {"ok": True, "esquecido": "oficina 2"})
+        self.assertIn("erro", res[1])
+        conn = db.get_db()
+        self.assertNotIn("oficina 2", va.apelidos(conn))
+        conn.close()
+
+    def test_regra_de_lugar_que_ele_ensina_no_prompt(self):
+        from ia.funcoes import chat as chat_mod
+
+        p = chat_mod.CHAT_SYSTEM_PROMPT
+        self.assertIn("LUGARES QUE ELE ENSINA", p)
+        self.assertIn("nunca \"balada\"", p)
+
 
 class ContextoTestCase(_Base):
     def test_contexto_tem_perfil_comida_rotinas_lugares_e_acordou(self):

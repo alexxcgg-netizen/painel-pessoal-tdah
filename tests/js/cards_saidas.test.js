@@ -14,50 +14,100 @@ const AGORA = new Date(2026, 9, 14, 10, 0); // quarta 14/out
 const html = (type, data) => Cards.renderizarCardHTML({ type, id: "c1", data, actions: [] }, { agora: AGORA });
 const semFallback = (h) => assert.ok(!h.includes("card-contrato-fallback"), h);
 
-test("date: hero com quem + lugar, linha se arrumar -> sair -> chegar, clima vira ficha, lista marca", () => {
+test("date (D, 04/11): pilula conta ate se arrumar; aberto tem cadeia, tempo hora a hora, o que levar e a lista", () => {
+  const g = AGORA.getTime() / 1000;
   const h = html("date", {
     id: 7, titulo: "Jantar", data: "2026-10-17", hora: "20:00", lugar: "Lume <b>", com_quem: "Júlia",
     comecar: "19:00", sair: "19:40", trajeto_min: 15, clima: { temp: 15.6, chuva_pct: 55 },
+    cadeia: [
+      { rotulo: "Se arrumar", hora: "19:00", em_s: 291600 },
+      { rotulo: "Sair", hora: "19:40", em_s: 294000 },
+      { rotulo: "Chegar", hora: "20:00", em_s: 295200 },
+    ],
+    gerado_ts: g,
+    clima_horas: [
+      { hora: 19, temp: 17, chuva_pct: 30, codigo: 3, marca: null },
+      { hora: 20, temp: 16, chuva_pct: 55, codigo: 61, marca: "chegada" },
+      { hora: 23, temp: 14, chuva_pct: 10, codigo: 1, marca: "volta" },
+    ],
+    clima_lugar: "Brusque",
+    levar: [{ item: "guarda_chuva", titulo: "Guarda-chuva", motivo: "55% às 20h" }, { item: "casaco", titulo: "Casaco", motivo: "14° na volta, 23h" }],
     lista: [{ texto: "Reservar mesa", quando: "hoje", feito: true }, { texto: "Flores", detalhe: "fecha 19h" }],
   });
   semFallback(h);
-  assert.match(h, /sábado · 20:00/);
-  assert.match(h, /Júlia · Lume &lt;b&gt;/);
-  assert.match(h, /em 3 dias · 15 min de carro/);
-  assert.match(h, /sd-parada destaque[^>]*><i><\/i><b class="vivo-num">19:00<\/b><span>se arrumar/);
-  assert.match(h, /16°<\/b> à noite/);
-  assert.match(h, /leva jaqueta/);
-  assert.match(h, /chuva <b class="vivo-num">55%/);
-  // lugar ja esta no hero e na linha: so clima/jaqueta/chuva nas fichas
-  assert.equal((h.match(/class="sd-ficha"/g) || []).length, 3);
+  assert.match(h, /class="vivo-d" data-v="date" style="--cc:#f5a3b8" aria-expanded="false" data-compromisso="7"/);
+  assert.match(h, /<span class="v-t">Date com Júlia<\/span>/);
+  assert.match(h, /sábado · chegar 20:00 · 16° · 55%/); // tempo na chegada vem da coluna marcada
+  assert.match(h, /<small>arrumar em<\/small><b><span class="rl" data-cd-s="291600"/);
+  assert.match(h, /data-txt="3 dias"/); // 81 h: conta em dias
+  assert.match(h, /class="v-cadeia" style="--n:3"><div><small>Se arrumar<\/small>/);
+  assert.match(h, /class="v-tempo" style="--n:3"/);
+  assert.match(h, /class="v-hora marca" role="listitem" data-rot="chegada" data-h="20"/);
+  assert.match(h, /data-rot="volta"/);
+  assert.match(h, /Guarda-chuva<small>55% às 20h<\/small>/);
+  assert.match(h, /Casaco<small>14° na volta, 23h<\/small>/);
+  assert.match(h, /15 min de carro até lá\. Previsão pra Brusque\. Se mudar até a hora, eu ajusto a saída e te aviso\./);
   assert.match(h, /<li class="marcado"[^>]*><button[^>]*data-acao="lista_item" data-tarefa="7" data-i="0" aria-pressed="true"/);
-  assert.match(h, /data-compromisso="7"/);
+  // sem cara de IA: nada de hero gigante, fichas com icone ou rotulo em maiusculas
+  assert.doesNotMatch(h, /sd-hero|sd-ficha|sd-coracao|Lume <b>/);
 });
 
-test("date sem hora: sem linha da noite, mas ainda e card de date", () => {
+test("date (D): passos que ja passaram nao contam; card antigo sem cadeia monta as caixas", () => {
+  const g = AGORA.getTime() / 1000;
+  const base = { id: 7, titulo: "Jantar", data: "2026-10-14", hora: "11:00", comecar: "09:30", sair: "10:20" };
+  const h = html("date", { ...base, gerado_ts: g, cadeia: [
+    { rotulo: "Se arrumar", hora: "09:30", em_s: -1800 },
+    { rotulo: "Sair", hora: "10:20", em_s: 1200 },
+    { rotulo: "Chegar", hora: "11:00", em_s: 3600 },
+  ] });
+  assert.match(h, /<small>sair em<\/small>/);
+  assert.match(h, /data-txt="20 min"/);
+  const antigo = html("date", base);
+  assert.match(antigo, /class="v-cadeia" style="--n:3"/);
+  assert.doesNotMatch(antigo, /data-cd-s/); // sem segundos do servidor, nada de contagem inventada
+});
+
+test("date sem hora: so a pilula com o dia, sem cadeia", () => {
   const h = html("date", { id: 1, titulo: "Cinema", data: "2026-10-30" });
   semFallback(h);
-  assert.ok(!h.includes("sd-linha"));
+  assert.ok(!h.includes("v-cadeia"));
   assert.match(h, /sex 30 out/);
 });
 
-test("balada: ceu da noite, sono so quando veio do servidor, como volta (dirigindo por padrao)", () => {
+test("saida com parada no caminho (Frente 2): a parada entra na cadeia", () => {
+  const h = html("balada", {
+    id: 3, titulo: "Balada", data: "2026-10-16", hora: "23:00", lugar: "Warung", comecar: "21:40", sair: "22:20",
+    gerado_ts: AGORA.getTime() / 1000,
+    cadeia: [
+      { rotulo: "Se arrumar", hora: "21:40", em_s: 200400 },
+      { rotulo: "Sair", hora: "22:20", em_s: 202800 },
+      { rotulo: "Casa do guri", hora: "22:30", em_s: 203400, parada: true },
+      { rotulo: "Chegar", hora: "23:00", em_s: 205200 },
+    ],
+  });
+  assert.match(h, /class="v-cadeia" style="--n:4"/);
+  assert.match(h, /<div class="parada"><small>Casa do guri<\/small>/);
+});
+
+test("balada (D): pilula com a lua, sono so quando veio do servidor, como volta (dirigindo por padrao)", () => {
   const base = { id: 3, titulo: "Balada no Warung", data: "2026-10-16", hora: "23:00", lugar: "Warung", com_quem: "a galera", comecar: "21:40", sair: "22:20" };
   const livre = html("balada", { ...base, volta: null });
   semFallback(livre);
-  assert.match(livre, /Sexta à noite/);
-  assert.match(livre, /em 2 dias · com a galera/);
+  assert.match(livre, /class="vivo-d" data-v="balada" style="--cc:#c4a1ff"/);
+  assert.match(livre, /<span class="v-t">Warung<\/span>/);
+  assert.match(livre, /sexta · chegar 23:00/);
   assert.ok(!livre.includes("sd-sono"), "sem compromisso no dia seguinte: nada de horas de sono");
   assert.match(livre, /class="sd-volta" data-modo="dirigindo" style="--i:0"/, "sem hora de volta o controle aparece igual");
   assert.match(livre, /Volta dirigindo: zero álcool, combinado\?/);
+  assert.doesNotMatch(livre, /sd-ceu|sd-estrela|sd-cidade/); // o ceu desenhado saiu
 
   const h = html("balada", {
     ...base, volta: "03:00", volta_modo: "uber",
     sono: { min: 200, volta: "04:30", acordar: "07:50", compromisso: "Prova <i>", hora: "09:00" },
   });
-  assert.match(h, /--n:4/);
   assert.match(h, /3 h 20 min de sono/);
   assert.match(h, /sd-sono pouco/);
+  assert.match(h, /Menos de 6 h de sono\. Vale voltar mais cedo\./);
   assert.match(h, /Prova &lt;i&gt;/);
   assert.match(h, /class="sd-volta" data-modo="uber" style="--i:2"/);
   assert.strictEqual((h.match(/data-acao="volta"/g) || []).length, 3);
@@ -78,7 +128,8 @@ test("documentos: pasta conta o que ja foi, carimbo bate com tudo marcado, horar
   semFallback(h);
   assert.match(h, /Tabelionato/);
   assert.match(h, /amanhã · 12:30/);
-  assert.match(h, /tudo na pasta ✓/);
+  assert.match(h, /tudo na pasta</);
+  assert.doesNotMatch(h, /✓/);
   assert.match(h, /sd-carimbo bateu/);
   assert.match(h, /15·out/);
   assert.match(h, /abre <b class="vivo-num">9h–17h<\/b> · almoço 12h–13h/);

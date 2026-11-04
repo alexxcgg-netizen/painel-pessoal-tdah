@@ -1,4 +1,4 @@
-// cards-premium.js: acabamento dos cards novos (odometro, selo, confete). Em Node nao
+// cards-premium.js: acabamento dos cards novos (odometro, confete, costura; selo e inclinacao sairam em 04/11). Em Node nao
 // ha DOM - garante que nada quebra sem navegador e que o odometro devolve o texto final.
 const test = require("node:test");
 const assert = require("node:assert");
@@ -14,11 +14,16 @@ test("exporta a API e nao quebra sem DOM", () => {
   assert.doesNotThrow(() => CardsPremium.odometro(null));
 });
 
-test("so tipos que registram ganham selo (consulta nao)", () => {
-  assert.ok(CardsPremium.TIPOS_REGISTRO.has("transacao"));
-  assert.ok(CardsPremium.TIPOS_REGISTRO.has("tarefas_criadas"));
-  assert.ok(!CardsPremium.TIPOS_REGISTRO.has("gastos_resumo"));
-  assert.ok(!CardsPremium.TIPOS_REGISTRO.has("clima"));
+test("sem cara de IA (04/11): sem selo brilhante, sem inclinacao 3D e sem luz que segue o dedo", () => {
+  // o selo "registrado" e a inclinacao/luz sairam da API (docs/CARDS.md "Linguagem visual")
+  assert.strictEqual(CardsPremium.TIPOS_REGISTRO, undefined);
+  assert.strictEqual(CardsPremium.inclinacao, undefined);
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const js = fs.readFileSync(path.join(__dirname, "..", "..", "static", "js", "cards-premium.js"), "utf8");
+  assert.doesNotMatch(js, /card-fio-borda|card-selo|rotateX|--luz-x|function inclinacao/);
+  const css = fs.readFileSync(path.join(__dirname, "..", "..", "static", "css", "secoes", "hoje", "cards-premium.css"), "utf8");
+  assert.doesNotMatch(css, /card-fio-borda|--fio-ang|card-selo|perspective\s*:|rotateX|--luz-x/);
 });
 
 test("odometro monta as fitas e volta pro texto exato no fim", async () => {
@@ -69,18 +74,6 @@ test("costura: sem layout (aba escondida, tudo em 0) nao gera fio torto", () => 
 test("costurar nao quebra sem DOM", () => {
   assert.doesNotThrow(() => CardsPremium.costurar(null));
   assert.doesNotThrow(() => CardsPremium.costurar({ querySelectorAll: () => [] }, { nova: true }));
-});
-
-test("inclinacao: centro fica reto, bordas inclinam pro lado do dedo, luz no ponto", () => {
-  const meio = CardsPremium.inclinacao(0.5, 0.5);
-  assert.strictEqual(Math.abs(meio.rx) + Math.abs(meio.ry), 0);
-  assert.deepStrictEqual([meio.lx, meio.ly], [50, 50]);
-  const direitaCima = CardsPremium.inclinacao(1, 0);
-  assert.ok(direitaCima.ry > 0 && direitaCima.rx > 0, JSON.stringify(direitaCima));
-  assert.ok(direitaCima.ry <= 4.5 && direitaCima.rx <= 4.5);
-  // dedo fora do card (arrastou pra fora) nao passa do limite
-  assert.deepStrictEqual(CardsPremium.inclinacao(3, -2), CardsPremium.inclinacao(1, 0));
-  assert.doesNotThrow(() => CardsPremium.inclinacao(undefined, NaN));
 });
 
 test("arrasto: segue o dedo, resiste depois de 90px e conclui a partir de 72px", () => {

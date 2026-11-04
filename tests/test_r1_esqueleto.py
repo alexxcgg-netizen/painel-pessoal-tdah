@@ -9,7 +9,6 @@
 import json
 import os
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -38,11 +37,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -59,7 +56,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path  # noqa: E402
+from tests.playwright_helper import CONTAR_FETCH, esperar_assentar, esperar_carga, get_chrome_path  # noqa: E402
 
 _CHROME = get_chrome_path()
 
@@ -67,6 +64,27 @@ BARRA = ["hoje", "tarefas", "assistente", "gastos", "mais"]
 ROTULOS = ["Início", "Tarefas", "IA", "Finanças", "Mais"]
 TELAS_DO_MAIS = ["painel", "vida", "aviacao", "construtora", "ajustes-ia", "config"]
 TELAS_COM_FAB = ["hoje", "tarefas", "gastos"]
+
+# abrirPeloMais rola num rAF e arma ali mesmo a correcao de 900 ms: dois rAF depois do toque so a
+# rolagem imediata pode ter acontecido, por mais lento que o PC esteja.
+_ESPIAR_ROLAGEM = """(() => {
+  const real = window.scrollTo;
+  let chamadas = [];
+  window.scrollTo = function (...args) {
+    chamadas.push(args[0] && args[0].top !== undefined ? args[0].top : args[1]);
+    return real.apply(this, args);
+  };
+  window.addEventListener("click", () => {
+    chamadas = [];
+    requestAnimationFrame(() => requestAnimationFrame(() => { window.__rolagemDoToque = chamadas.slice(); }));
+  }, true);
+})()"""
+
+_ALVO_NA_TELA = """(seletor) => {
+  const el = document.querySelector(seletor);
+  const b = (el.closest('.card, .secao-recolhivel') || el).getBoundingClientRect();
+  return b.top < innerHeight && b.bottom > 0;
+}"""
 
 
 def fake_usage():
@@ -100,7 +118,8 @@ class R1EsqueletoTestCase(unittest.TestCase):
             viewport={"width": largura, "height": 844},
             reduced_motion="reduce" if reduzir else "no-preference",
         )
-        ctx.route("**/*", lambda r: r.continue_() if r.request.url.startswith(BASE_URL) else r.abort())
+        ctx.add_init_script(CONTAR_FETCH)
+        ctx.add_init_script(_ESPIAR_ROLAGEM)
         r = ctx.request.post(
             BASE_URL + "/login", data=json.dumps({"pin": PIN}), headers={"Content-Type": "application/json"}
         )
@@ -117,6 +136,23 @@ class R1EsqueletoTestCase(unittest.TestCase):
 
     def _ativo(self, page):
         return page.evaluate("[...document.querySelectorAll('.tab-btn.active')].map(b => b.dataset.tab)")
+
+    def _esperar_tela_do_mais(self, page, destino, alvo):
+        esperar_carga(page)
+        if not alvo:
+            return
+        seletor = f"#tab-{destino} {alvo}"
+        # carga que chega depois da rolagem empurra o alvo; a correcao de 900 ms do app traz de volta
+        page.wait_for_function(_ALVO_NA_TELA, arg=seletor, timeout=10000)
+        esperar_assentar(page, seletor)
+        # tecla = "a pessoa mexeu": cancela essa correcao, que nao marca nada no DOM e dispararia na
+        # linha seguinte quando ela abre a mesma tela, rolando pro alvo antigo no meio da medida
+        page.keyboard.press("Shift")
+
+    def _esperar_folha_parada(self, page):
+        # foco entra num rAF depois de abrir (bottom-sheet.js)
+        page.wait_for_function("document.getElementById('folha-captura').contains(document.activeElement)")
+        esperar_assentar(page, "#folha-captura .bottom-sheet-painel")
 
     # ---- 1. barra ----
     def test_barra_tem_5_itens_com_labels_inteiros(self):
@@ -158,7 +194,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
             browser, page, erros = self._abrir(p)
             try:
                 page.click('.tab-btn[data-tab="mais"]')
-                page.wait_for_timeout(700)  # fim da animacao de entrada (mede layout assentado)
+                esperar_assentar(page, "#tab-mais")
                 linhas = page.evaluate(
                     "[...document.querySelectorAll('#tab-mais [data-abre-tela]')].map(b => [b.dataset.abreTela, b.dataset.alvo || null, b.querySelector('.mais-titulo').textContent.trim()])"
                 )
@@ -174,11 +210,13 @@ class R1EsqueletoTestCase(unittest.TestCase):
                     page.click('.tab-btn[data-tab="mais"]')
                     page.evaluate("window.scrollTo(0, 0)")
                     page.locator("#tab-mais [data-abre-tela]").nth(i).click()
-                    page.wait_for_timeout(900)  # rolagem suave ate o alvo + animacao de entrada
+                    self._esperar_tela_do_mais(page, destino, alvo)
                     self.assertTrue(self._visivel(page, destino), f"{titulo} nao abriu #tab-{destino}")
                     self.assertFalse(self._visivel(page, "mais"))
                     self.assertEqual(self._ativo(page), ["mais"], f"{titulo}: item Mais deveria ficar ativo")
                     if alvo:
+                        rolagens = page.evaluate("window.__rolagemDoToque")
+                        self.assertTrue(any(r > 0 for r in rolagens), f"{titulo}: nao rolou no toque ({rolagens})")
                         topo = page.evaluate(
                             f"""(() => {{ const el = document.querySelector('#tab-{destino}').querySelector({json.dumps(alvo)});
                                 const b = (el.closest('.card, .secao-recolhivel') || el).getBoundingClientRect();
@@ -208,7 +246,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
                 page.click('.tab-btn[data-tab="mais"]')
                 page.click('#tab-mais [data-abre-tela="vida"]:not([data-alvo])')
                 self.assertTrue(page.evaluate("document.getElementById('tab-vida').classList.contains('entra-direita')"))
-                page.wait_for_timeout(600)
+                esperar_carga(page)
                 primeira = len(pedidos)
                 self.assertGreaterEqual(primeira, 1, "Vida deveria carregar ao abrir pelo Mais")
                 page.click("#tab-vida .cab-tela-voltar")
@@ -220,7 +258,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
                 caixa = []
                 page.on("request", lambda r: caixa.append(r.url) if "/api/p4_caixa" in r.url or "caixa" in r.url else None)
                 page.evaluate("showTab('ajustes-ia')")
-                page.wait_for_timeout(500)
+                esperar_carga(page)
                 self.assertTrue(self._visivel(page, "ajustes-ia"))
                 self.assertGreaterEqual(len(caixa), 1, "Avisos e regras deveria carregar a caixa ao abrir")
                 self.assertEqual(erros, [])
@@ -247,7 +285,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
                 # abre / ESC fecha
                 page.click("#fab-captura")
                 page.wait_for_selector("#folha-captura.bottom-sheet--aberto")
-                page.wait_for_timeout(350)
+                self._esperar_folha_parada(page)
                 self.assertTrue(page.evaluate("document.getElementById('folha-captura').contains(document.activeElement)"),
                                 "foco deveria ficar dentro da folha")
                 self.assertTrue(page.locator("#captura-input").is_visible())
@@ -263,14 +301,14 @@ class R1EsqueletoTestCase(unittest.TestCase):
                 # abre / toque no veu fecha
                 page.click("#fab-captura")
                 page.wait_for_selector("#folha-captura.bottom-sheet--aberto")
-                page.wait_for_timeout(350)
+                self._esperar_folha_parada(page)
                 page.mouse.click(195, 40)
                 page.wait_for_function("document.getElementById('folha-captura').hidden")
 
                 # atalho poe prefixo no mesmo campo; captura envia
                 page.click("#fab-captura")
                 page.wait_for_selector("#folha-captura.bottom-sheet--aberto")
-                page.wait_for_timeout(350)
+                self._esperar_folha_parada(page)
                 page.click('.folha-atalho[data-prefixo="gastei "]')
                 self.assertEqual(page.input_value("#captura-input"), "gastei ")
                 page.click('.folha-atalho[data-prefixo="tarefa: "]')
@@ -302,13 +340,13 @@ class R1EsqueletoTestCase(unittest.TestCase):
                 self.assertEqual(page.locator("#tab-assistente #chat-form").count(), 1)
                 self.assertEqual(page.locator("#tab-ajustes-ia #secao-caixa-assistente").count(), 1)
                 page.click('.tab-btn[data-tab="assistente"]')
-                page.wait_for_timeout(800)  # fim da animacao de entrada (mede layout assentado)
+                esperar_assentar(page, "#tab-assistente")
                 form = page.locator("#chat-form").bounding_box()
                 barra = page.locator("#tabbar").bounding_box()
                 self.assertGreaterEqual(form["height"], 55.5)
                 self.assertLessEqual(form["y"] + form["height"], barra["y"] + 0.5, "campo deveria ficar acima da barra")
                 page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
-                page.wait_for_timeout(200)
+                esperar_assentar(page, "#chat-mensagens")
                 lista = page.locator("#chat-mensagens").bounding_box()
                 self.assertLessEqual(lista["y"] + lista["height"], form["y"] + 0.5, "lista nao pode ficar atras do campo")
                 self.assertEqual(page.evaluate("getComputedStyle(document.getElementById('chat-form')).position"), "fixed")
@@ -319,7 +357,9 @@ class R1EsqueletoTestCase(unittest.TestCase):
                         "document.getElementById('chat-mensagens').textContent.includes('Resposta de teste do R1')",
                         timeout=10000,
                     )
-                page.wait_for_timeout(300)
+                # a ultima palavra ainda tem a pausa do ponto final; o botao de ouvir marca o fim da escrita
+                page.wait_for_selector("#chat-mensagens > :last-child .btn-ouvir-chat", state="attached", timeout=10000)
+                esperar_assentar(page, "#chat-mensagens")
                 # a ultima mensagem fica visivel logo acima do campo fixo (pagina rola pro fim)
                 ultima = page.evaluate("(() => { const r = document.getElementById('chat-mensagens').lastElementChild.getBoundingClientRect(); return [r.top, r.bottom]; })()")
                 topo_form = page.evaluate("document.getElementById('chat-form').getBoundingClientRect().top")
@@ -336,9 +376,10 @@ class R1EsqueletoTestCase(unittest.TestCase):
             try:
                 for aba in BARRA + TELAS_DO_MAIS:
                     page.evaluate(f"showTab('{aba}')")
-                    page.wait_for_timeout(500)
+                    esperar_carga(page)
+                    esperar_assentar(page)
                     page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
-                    page.wait_for_timeout(250)
+                    esperar_assentar(page)
                     medida = page.evaluate(
                         f"""(() => {{
                             const tela = document.getElementById('tab-{aba}');

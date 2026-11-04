@@ -5114,9 +5114,10 @@ class PainelTestCase(unittest.TestCase):
         sub = {"endpoint": "https://exemplo.com/push/currency1", "keys": {"p256dh": "x", "auth": "y"}}
         self.client.post("/api/push/inscrever", json=sub)
 
+        # o voo cai no mes anterior: do dia 1 ao 3 a retrospectiva do mes tambem sairia e daria 2 avisos
         with patch("push_client.configurado", return_value=True), patch(
             "push_client.enviar", return_value=True
-        ) as mock_enviar:
+        ) as mock_enviar, patch("retrospectiva.avisar_mes", return_value=[]):
             res = self.client.post("/api/notificacoes/verificar-agora")
 
         self.assertEqual(res.get_json()["avisos_enviados"], 1)

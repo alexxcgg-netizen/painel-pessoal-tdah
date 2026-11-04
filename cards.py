@@ -17,9 +17,11 @@ Divisao de responsabilidade:
 from __future__ import annotations
 
 import copy
+import os
 import re
 import time
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import calculos
 import db
@@ -281,6 +283,7 @@ CAMPOS_SENSIVEIS = {
     # Grupo D (2026-10-30): lugar de documento, frase dita no chat e cruzamento sono x gasto sao
     # tao pessoais quanto dinheiro
     "guardados": ("destaque", "itens"),
+    "lugar_salvo": ("nome", "endereco", "maps_url", "de_casa_min"),
     "o_que_falei": ("itens",),
     "neste_dia": ("itens",),
     "coincidencia": ("titulo", "linhas", "detalhe", "aviso"),
@@ -393,6 +396,8 @@ TIPOS_CARD = (
     "placar_feito",
     "pouso_dia",
     "retrospectiva",
+    # linguagem D "ao vivo" (04/11/2026): lugar salvo pelo apelido (static/js/cards-d.js)
+    "lugar_salvo",
 )
 
 
@@ -586,6 +591,13 @@ def card_tarefa_feita(conn, id_: int, actions_extra: list | None = None, agora: 
         # quanto falta e conta do front (com a hora de quem esta vendo - no historico tambem)
         proxima = {"titulo": _titulo_curto(prox["title"], 70), "hora": prox["hora"]}
     aba, rotulo = ABA_POR_ENTIDADE["tarefa"]
+    # linguagem D (04/11): a lista de hoje (feitas riscadas, a proxima em destaque) - ate 8 linhas
+    itens_dia = conn.execute(
+        "SELECT id, title, hora, completed_at FROM tasks WHERE (due_date = ? OR id = ?) "
+        "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL) "
+        "ORDER BY hora IS NULL, COALESCE(hora, ''), id LIMIT 8",
+        (hoje, id_),
+    ).fetchall()
     data = {
         "id": row["id"],
         "titulo": _titulo_curto(row["title"], 120),
@@ -595,6 +607,11 @@ def card_tarefa_feita(conn, id_: int, actions_extra: list | None = None, agora: 
         "total": int(dia["total"]),
         "faltam": len(pendentes),
         "proxima": proxima,
+        "dia_itens": [
+            {"titulo": _titulo_curto(r["title"], 70), "hora": r["hora"], "feita": bool(r["completed_at"]) or r["id"] == id_,
+             "esta": r["id"] == id_}
+            for r in itens_dia
+        ],
     }
     return novo_card("tarefa_feita", data, list(actions_extra or []) + [acao_abrir_aba(aba, rotulo, "tarefa", row["id"])])
 
@@ -662,6 +679,175 @@ def _hhmm_menos(hora: str | None, minutos: int) -> str | None:
     return f"{m // 60:02d}:{m % 60:02d}"
 
 
+# ---- linguagem D "ao vivo" (04/11/2026, docs/briefings/2026-11-04-cards-ao-vivo.md) ----------------
+# O front conta segundo a segundo a partir de SEGUNDOS ate o evento (`*_s`) + `gerado_ts` (epoca Unix
+# de quando o card foi montado, sem fuso): nunca hora de parede absoluta (regra de tempo.py - o
+# servidor pode estar noutro fuso que o celular). A hora "HH:MM" continua indo junto, so pra mostrar.
+FUSO_BR = ZoneInfo("America/Sao_Paulo")
+CHUVA_GUARDA_CHUVA = 40  # % na hora da chegada
+FRIO_CASACO = 17  # graus na volta
+HORAS_TEMPO_SAIDA = 7  # colunas: da hora antes da chegada ate a volta
+
+
+def _agora_br() -> datetime:
+    """Hora de Brasilia sem tzinfo (mesma base de data/hora das tarefas)."""
+    return datetime.now(FUSO_BR).replace(tzinfo=None)
+
+
+def _momento(data_iso: str | None, hora: str | None) -> datetime | None:
+    m = _min_do_dia(hora)
+    if m is None or not data_iso:
+        return None
+    try:
+        d = date.fromisoformat(str(data_iso)[:10])
+    except ValueError:
+        return None
+    return datetime(d.year, d.month, d.day, m // 60, m % 60)
+
+
+def _antes_de(evento: datetime, hora: str | None) -> datetime | None:
+    """`hora` (HH:MM) na mesma noite, antes ou igual ao evento (sair 23:40 pra chegar 00:10 = dia anterior)."""
+    m = _min_do_dia(hora)
+    if m is None:
+        return None
+    dt = evento.replace(hour=m // 60, minute=m % 60)
+    return dt - timedelta(days=1) if dt > evento else dt
+
+
+def _segundos(alvo: datetime | None, agora: datetime) -> int | None:
+    return int((alvo - agora).total_seconds()) if alvo else None
+
+
+def _parada_valida(p) -> dict | None:
+    """Contrato com a Frente 2 (assistente): {"nome": str, "min_ate": int} - minutos de casa ate a parada."""
+    if not isinstance(p, dict):
+        return None
+    nome = _titulo_curto(p.get("nome"), 40)
+    min_ate = p.get("min_ate")
+    if not nome or isinstance(min_ate, bool) or not isinstance(min_ate, int) or not 0 < min_ate <= 240:
+        return None
+    return {"nome": nome, "min_ate": min_ate}
+
+
+def cadeia_saida(data_iso: str, hora: str, comecar: str | None, sair: str | None, parada: dict | None,
+                 agora: datetime | None = None) -> list[dict] | None:
+    """Se arrumar -> Sair -> (Parada) -> Chegar, cada um com a hora e os segundos ate ele."""
+    agora = agora or _agora_br()
+    chegada = _momento(data_iso, hora)
+    if not chegada:
+        return None
+    t_sair = _antes_de(chegada, sair)
+    passos = []
+    if comecar:
+        t_arr = _antes_de(t_sair or chegada, comecar)
+        if t_arr:
+            passos.append({"rotulo": "Se arrumar", "hora": t_arr.strftime("%H:%M"), "em_s": _segundos(t_arr, agora)})
+    if t_sair:
+        passos.append({"rotulo": "Sair", "hora": t_sair.strftime("%H:%M"), "em_s": _segundos(t_sair, agora)})
+        if parada:
+            t_par = t_sair + timedelta(minutes=parada["min_ate"])
+            if t_par < chegada:
+                passos.append({"rotulo": parada["nome"], "hora": t_par.strftime("%H:%M"),
+                               "em_s": _segundos(t_par, agora), "parada": True})
+    passos.append({"rotulo": "Chegar", "hora": chegada.strftime("%H:%M"), "em_s": _segundos(chegada, agora)})
+    return passos if len(passos) > 1 else None
+
+
+def _local_previsao() -> dict | None:
+    import clima
+
+    cidade = os.environ.get("CIDADE_PADRAO", "").strip()
+    return clima.geocodificar_cidade(cidade) if cidade else None
+
+
+def clima_horas_saida(data_iso: str, hora: str, volta: str | None = None, buscar=None,
+                      hoje: date | None = None) -> dict | None:
+    """Tempo hora a hora de uma saida: 7 colunas da hora antes da chegada ate a volta, com temperatura,
+    chance de chuva, codigo do tempo e as marcas "chegada"/"volta". `buscar()` devolve a lista de
+    clima.previsao_horaria ({quando, chuva_pct, codigo, temp}) - injetavel nos testes. None se nao
+    tiver previsao pra essa hora (fora dos 16 dias, rede, sem cidade): o card nao mostra nada."""
+    chegada = _momento(data_iso, hora)
+    if not chegada:
+        return None
+    lugar = None
+    if buscar is None:
+        import clima
+
+        try:
+            lugar = _local_previsao()
+            if not lugar:
+                return None
+            dias = (chegada.date() - (hoje or _agora_br().date())).days + 2
+            if dias < 1 or dias > 16:
+                return None
+            horas = clima.previsao_horaria(lugar["lat"], lugar["lon"], dias)
+        except Exception:
+            return None
+    else:
+        horas = buscar()
+    if not horas:
+        return None
+    por_quando = {h.get("quando"): h for h in horas if isinstance(h, dict)}
+    t_volta = None
+    m_volta = _min_do_dia(volta)
+    if m_volta is not None:
+        t_volta = chegada.replace(hour=m_volta // 60, minute=m_volta % 60)
+        if t_volta <= chegada:
+            t_volta += timedelta(days=1)
+    hora_chegada = chegada.replace(minute=0)
+    colunas = []
+    inicio = hora_chegada - timedelta(hours=1)
+    for k in range(HORAS_TEMPO_SAIDA):
+        t = inicio + timedelta(hours=k)
+        h = por_quando.get(t.strftime("%Y-%m-%dT%H:%M"))
+        if not h:
+            continue
+        marca = None
+        if t == hora_chegada:
+            marca = "chegada"
+        elif t_volta and t == t_volta.replace(minute=0):
+            marca = "volta"
+        temp = h.get("temp")
+        colunas.append({
+            "hora": t.hour,
+            "temp": round(temp) if isinstance(temp, (int, float)) and not isinstance(temp, bool) else None,
+            "chuva_pct": int(h.get("chuva_pct") or 0),
+            "codigo": h.get("codigo"),
+            "marca": marca,
+        })
+    if not any(c["marca"] == "chegada" for c in colunas):
+        return None
+    return {"horas": colunas, "lugar": (lugar or {}).get("nome")}
+
+
+def levar_saida(horas: list[dict] | None, clima_chegada: dict | None = None) -> list[dict]:
+    """O que levar, com o motivo: guarda-chuva se a chuva na chegada for >= 40%; casaco se fizer
+    <= 17 graus na volta (sem volta marcada: a hora mais fria da chegada pra frente). So com previsao."""
+    itens = []
+    horas = [h for h in (horas or []) if isinstance(h, dict)]
+    k_chegada = next((i for i, h in enumerate(horas) if h.get("marca") == "chegada"), None)
+    chegada = horas[k_chegada] if k_chegada is not None else None
+    if chegada is None and isinstance(clima_chegada, dict):
+        chegada = {"hora": None, "chuva_pct": clima_chegada.get("chuva_pct"), "temp": clima_chegada.get("temp")}
+    num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)  # noqa: E731
+    if chegada and num(chegada.get("chuva_pct")) and chegada["chuva_pct"] >= CHUVA_GUARDA_CHUVA:
+        quando = f" às {chegada['hora']}h" if chegada.get("hora") is not None else " na chegada"
+        itens.append({"item": "guarda_chuva", "titulo": "Guarda-chuva", "motivo": f"{int(chegada['chuva_pct'])}%{quando}"})
+    volta = next((h for h in horas if h.get("marca") == "volta"), None)
+    if volta and num(volta.get("temp")):
+        if volta["temp"] <= FRIO_CASACO:
+            itens.append({"item": "casaco", "titulo": "Casaco", "motivo": f"{round(volta['temp'])}° na volta, {volta['hora']}h"})
+        return itens
+    depois = [h for h in horas[k_chegada:] if num(h.get("temp"))] if k_chegada is not None else []
+    if not depois and chegada and num(chegada.get("temp")):
+        depois = [chegada]
+    frio = min(depois, key=lambda h: h["temp"]) if depois else None
+    if frio and frio["temp"] <= FRIO_CASACO:
+        quando = f" às {frio['hora']}h" if frio.get("hora") is not None else " na chegada"
+        itens.append({"item": "casaco", "titulo": "Casaco", "motivo": f"{round(frio['temp'])}°{quando}"})
+    return itens
+
+
 def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: date | None = None) -> dict | None:
     """Date, balada, documentos e presente (2026-10-14, docs/CARDS.md "Linguagem visual" - 2a
     leva). Tudo que precisou de rede (trajeto, clima, horario do Google, compromisso do dia
@@ -670,7 +856,7 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
 
     hoje = hoje or date.today()
     row = conn.execute(
-        "SELECT id, title, due_date, hora, local, estilo, extras FROM tasks WHERE id = ?", (ef.get("id"),)
+        "SELECT id, title, due_date, hora, local, estilo, extras, parada FROM tasks WHERE id = ?", (ef.get("id"),)
     ).fetchone()
     if not row or row["estilo"] not in db.ESTILOS_TAREFA or not row["due_date"]:
         return None
@@ -713,7 +899,31 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
                 "min": max(0, sono), "volta": volta, "acordar": amanha["acordar"],
                 "compromisso": _titulo_curto(amanha.get("titulo") or "", 40), "hora": amanha.get("hora"),
             }
-    elif estilo == "documentos":
+    if estilo in ("date", "balada") and row["hora"]:
+        # linguagem D (04/11): cadeia em segundos, parada no caminho (Frente 2), tempo hora a hora e o
+        # que levar. A previsao hora a hora so e buscada quando o executor ja conseguiu o clima da hora
+        # (CIDADE_PADRAO configurada e rede ok) - ou quando ja veio pronta no efeito.
+        # a coluna tasks.parada manda: se ela foi limpa (ou desfeita), a copia em extras nao vale mais
+        tem_col = "parada" in row.keys()
+        parada = _parada_valida(ef.get("parada")) or (
+            _parada_valida(extras.get("parada")) if (not tem_col or row["parada"]) else None)
+        if parada:
+            data["parada"] = parada
+        cadeia = cadeia_saida(row["due_date"], row["hora"], data.get("comecar"), data.get("sair"), parada)
+        if cadeia:
+            data["cadeia"] = cadeia
+            data["gerado_ts"] = int(time.time())
+        horas = ef.get("clima_horas") if isinstance(ef.get("clima_horas"), dict) else None
+        if horas is None and isinstance(ef.get("clima"), dict):
+            horas = clima_horas_saida(row["due_date"], row["hora"], data.get("volta") or extras.get("volta"))
+        if horas and horas.get("horas"):
+            data["clima_horas"] = horas["horas"]
+            if horas.get("lugar"):
+                data["clima_lugar"] = horas["lugar"]
+        levar = levar_saida(data.get("clima_horas"), data.get("clima"))
+        if levar:
+            data["levar"] = levar
+    if estilo == "documentos":
         data["lista"] = extras.get("lista") or []
         if isinstance(ef.get("horario"), dict):
             data["horario"] = ef["horario"]
@@ -769,6 +979,13 @@ def card_tarefas_criadas(conn, ids: list[int], actions_extra: list | None = None
              "nova": r["id"] in novos}
             for r in outras
         ]
+    # linguagem D (04/11): tarefa com hora vira pilula que conta ate ela (segundos, nunca hora absoluta)
+    t0 = tarefas[0]
+    if len(tarefas) == 1 and t0.get("data") and t0.get("hora") and not t0.get("recorrencia") and not t0.get("concluida"):
+        em = _segundos(_momento(t0["data"], t0["hora"]), _agora_br())
+        if em is not None:
+            data["em_s"] = em
+            data["gerado_ts"] = int(time.time())
     return novo_card("tarefas_criadas", data, actions)
 
 
@@ -1553,7 +1770,9 @@ def _valor_legivel(campo: str, valor):
     return str(valor)
 
 
-def card_edicao(efeitos: list[dict], actions_extra=None) -> dict | None:
+def card_edicao(efeitos: list[dict], actions_extra=None, chegou: dict | None = None) -> dict | None:
+    """`chegou` (opcional, 04/11 - linguagem D): {"lugar", "atraso_min", "hora"} quando a edicao veio do
+    iPhone chegando atrasado (onde_estou.checar_atraso). O card vira "Na oficina · 17 min depois"."""
     itens = []
     for ef in efeitos:
         antes, depois = ef.get("antes") or {}, ef.get("depois") or {}
@@ -1566,7 +1785,15 @@ def card_edicao(efeitos: list[dict], actions_extra=None) -> dict | None:
                           "mudancas": mudancas})
     if not itens:
         return None
-    return novo_card("edicao", {"itens": itens}, list(actions_extra or []))
+    data = {"itens": itens}
+    if isinstance(chegou, dict) and chegou.get("lugar"):
+        atraso = chegou.get("atraso_min")
+        data["chegou"] = {
+            "lugar": _titulo_curto(chegou.get("lugar"), 40),
+            "atraso_min": int(atraso) if isinstance(atraso, (int, float)) and not isinstance(atraso, bool) else None,
+            "hora": chegou.get("hora") if _min_do_dia(chegou.get("hora")) is not None else None,
+        }
+    return novo_card("edicao", data, list(actions_extra or []))
 
 
 JANELA_PROJECAO_DIAS = 60
@@ -1656,6 +1883,39 @@ def card_voo_resumo(conn, hoje: date | None = None) -> dict | None:
     )
 
 
+def _voo_ao_vivo(conn, data_iso, hora, rota: dict, antes_min, sair_casa) -> dict:
+    """Linguagem D (04/11): um aerodromo por parada (sem repetir) com a pista SO quando conferida/
+    confirmada por ele (hoje: SSBL 01/19, aviacao_lab.pista_config) e os segundos ate sair de casa,
+    chegar no aeroclube e decolar. Aerodromo sem pista: o card mostra o vento sem inventar cabeceira."""
+    import aviacao_lab
+    import rota_voo
+
+    pista = aviacao_lab.pista_config(conn)
+    vistos, aerodromos = set(), []
+    for p in rota.get("paradas") or []:
+        icao = (p.get("icao") or "").upper()
+        if not icao or icao in vistos:
+            continue
+        vistos.add(icao)
+        item = {"icao": icao, "nome": p.get("nome") or icao, "pista": None}
+        if icao == aviacao_lab.AERODROMO_VENTO:
+            item["pista"] = {k: pista[k] for k in ("cabeceiras", "decl_w", "conferido")}
+        aerodromos.append(item)
+    out = {"aerodromos": aerodromos[:4], "limite_kt": pista["limite_kt"]}
+    decola = _momento(data_iso, hora)
+    if decola:
+        agora = _agora_br()
+        out["decola_s"] = _segundos(decola, agora)
+        chegar = _antes_de(decola, rota_voo.menos_minutos(hora, antes_min)) if antes_min else None
+        if chegar:
+            out["chegar_s"] = _segundos(chegar, agora)
+        t_sair = _antes_de(chegar or decola, sair_casa) if sair_casa else None
+        if t_sair:
+            out["sair_s"] = _segundos(t_sair, agora)
+        out["gerado_ts"] = int(time.time())
+    return out
+
+
 def card_voo_agendado(conn, ef: dict, actions_extra: list | None = None, hoje: date | None = None) -> dict | None:
     """Voo marcado pelo chat (2026-10-14, docs/CARDS.md "Linguagem visual"): cartao de embarque
     com as pernas (NM de rota_voo), a hora de chegar (antecedencia das "Rotinas fixas"), a de
@@ -1681,9 +1941,11 @@ def card_voo_agendado(conn, ef: dict, actions_extra: list | None = None, hoje: d
     duracao = None
     if rota["em_voo_min"] is not None:
         duracao = rota["em_voo_min"] + rota_voo.MIN_POR_ESCALA * max(0, len(rota["paradas"]) - 2)
+    extra_d = _voo_ao_vivo(conn, v["data"], v["hora"], rota, antes, saida.get("sair"))
     return novo_card(
         "voo_agendado",
         {
+            **extra_d,
             "id": id_,
             "data": v["data"],
             "hora": v["hora"],
@@ -1908,6 +2170,36 @@ def card_assinatura_subiu(a: dict) -> dict | None:
             "pct": round(float(a["aumento_pct"])),
         },
     )
+
+
+def card_lugar_salvo(ef: dict) -> dict | None:
+    """Lugar salvo pelo apelido (salvar_lugar_apelido, 04/11): apelido + o que o Google achou + o
+    circulo do iPhone (onde_estou.RAIO_M). `de_casa_min` so quando o executor mediu o trajeto."""
+    apelido = _titulo_curto(ef.get("apelido"), 40)
+    if not apelido:
+        return None
+    endereco = _titulo_curto(ef.get("endereco"), 160)
+    nome = _titulo_curto(ef.get("nome"), 70) or (endereco.split(",")[0].strip() if endereco else "")
+    try:
+        import onde_estou
+
+        raio = int(onde_estou.RAIO_M)
+    except Exception:
+        raio = 150
+    de_casa = ef.get("de_casa_min")
+    data = {
+        "apelido": apelido,
+        "nome": nome or None,
+        "endereco": endereco or None,
+        "raio_m": raio,
+        "de_casa_min": int(de_casa) if isinstance(de_casa, (int, float)) and not isinstance(de_casa, bool) and de_casa > 0 else None,
+        "achado": bool(ef.get("achado")),
+    }
+    if endereco:
+        from urllib.parse import quote
+
+        data["maps_url"] = "https://www.google.com/maps/search/?api=1&query=" + quote(endereco)
+    return novo_card("lugar_salvo", data, [])
 
 
 def card_clima(ef: dict) -> dict | None:
@@ -2175,6 +2467,8 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_despertador(ef)
     if entidade == "se_entao":
         return card_se_entao(ef)
+    if entidade == "lugar_salvo":
+        return card_lugar_salvo(ef)
     if entidade == "quiz_aviacao":
         return card_quiz_aviacao(ef)
     return None

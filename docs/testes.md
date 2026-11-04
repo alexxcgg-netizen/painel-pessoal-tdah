@@ -5,6 +5,54 @@ Fase 7, faixa A12 (infra de testes). Este documento cobre: como rodar rápido
 de horário reais que existiam e como foram corrigidas, e como o isolamento
 de banco entre testes funciona (importante pra quem for rodar em paralelo).
 
+## No Windows (2026-10-30)
+
+- **Suíte inteira:** `.venv/Scripts/python.exe scripts/testes.py`, cerca de 1 min 30 s. Roda numa cópia temporária do
+  código (sem `.env` e sem `data/`); `--aqui` roda na pasta do projeto. Precisa de uns 5 GB de RAM livres.
+- **Com render de outra sessão no PC:** quem derruba programa é a reserva do sistema (`FreeVirtualMemory`), não a RAM
+  livre. O Blender faz ela oscilar de 2,4 a 26 GB entre uma foto e outra, em segundos, e a suíte reserva uns 5 GB: uma
+  leitura só não diz nada. Medir um ciclo inteiro antes de rodar, ou esperar a fase em que ele monta a cena.
+- **Quatro filas juntas:** rápida (xdist por arquivo), grandes (xdist por teste, só `test_app.py`), JS (`node --test`) e
+  navegador. O navegador é um `pytest` por arquivo, 5 de cada vez: cada arquivo sobe o próprio servidor na importação e
+  o xdist importaria todos em todo processo. Cada arquivo recebe porta própria nas `PORTA_TESTE_*`, abaixo de 49152 (a
+  faixa das conexões de saída do Windows). Não rodar duas suítes juntas: os relatórios de `data/testes/` têm nome fixo e
+  uma atropela a outra (o código de saída de cada uma segue certo).
+- **Servidor do teste de navegador:** `subir_servidor(app, PORTA)` do `tests/playwright_helper.py`, nunca `app.run`. O
+  servidor do Flask fecha a conexão a cada pedido e o service worker abre uma por arquivo no `cache.addAll`: a fila somava
+  17 mil conexões em TIME_WAIT, acima das 16.384 portas de saída do Windows, e cada uma fica presa 30 s neste PC
+  (`TcpTimedWaitDelay`). O sintoma
+  era `ERR_ADDRESS_IN_USE`, `EADDRINUSE` ou `xxx is not defined` (script que não carregou), sempre em teste diferente.
+  Com o waitress e o service worker desligado por padrão, o pico caiu pra ~900 conexões.
+- **Service worker:** todo `new_context` nasce com `service_workers="block"`. Teste que precisa dele pede
+  `service_workers="allow"`, como `tests/test_service_worker_real.py`, o único que confere a instalação de verdade.
+- **Refazer sozinho:** o que falha no navegador roda de novo no fim, um arquivo por vez, com as outras filas paradas. Se
+  passar, a suíte aceita, mas mostra `so passou sozinho: ...`. Teste que aparece aí de novo é instável: conferir. O
+  refazer não perdoa arquivo que morreu, estourou 300 s ou pulou porque o servidor não subiu, e não roda com `-x`.
+- **Vários testes diferentes "só passaram sozinhos" na mesma rodada?** Não é folga de PC cheio: é causa em comum. Conte
+  as conexões DURANTE a rodada antes de culpar o teste (`netstat -ano -p tcp`, linhas `TIME_WAIT`): 30 s depois de
+  acabar a contagem já zerou.
+- **Teste que mede tempo:** cronometra dentro da página, do `pointerdown` até o quadro que mostra a mudança
+  (`_CRONOMETRAR` em `test_vel_a2b_otimista.py`), nunca com o relógio do Python, que inclui a viagem do Playwright até o
+  navegador.
+- **Só o afetado:** `.venv/Scripts/python.exe scripts/testes_afetados.py` (`--ver` só lista). Filtro por texto, não
+  substitui a suíte antes de commit.
+- **Nada sai da máquina:** o `conftest.py` barra TCP pra fora pelo módulo `socket` e o `tests/playwright_helper.py` barra
+  o Chromium (`--host-resolver-rules`). Por isso não precisa de `ctx.route("**/*", ...)` em teste novo: além de sobrar,
+  ele passa cada pedido pelo Python e quebra se o navegador fechar com um em voo.
+- **Teste de navegador novo não usa espera fixa.** `esperar_assentar(page, seletor)` espera a tela parar;
+  `ctx.add_init_script(CONTAR_FETCH)` + `esperar_carga(page)` espera os fetch acabarem (o `networkidle` só vale uma vez
+  por navegação). `wait_for_selector` olha de 500 em 500 ms: pra estado que dura pouco, use `wait_for_function`, que olha
+  a cada quadro. `wait_for_timeout` só em prova negativa ("nada acontece nessa janela"), e a janela tem de cobrir o
+  prazo do que seria o erro: contar a tempo de menos passa com o app quebrado (`test_vel_a2b_otimista`, 500 ms da
+  remoção agendada).
+- **Trocou uma espera?** Quebre o app numa cópia e veja o teste falhar. Foi assim que os revisores acharam testes que
+  tinham passado a passar à toa, com todo `assert` igual.
+- **Banco modelo:** `tests/banco_modelo.py` troca `db.init_db` nos testes. Banco vazio vira cópia de um modelo feito pelo
+  `init_db` de verdade (330 ms -> 0,4 ms). Banco existente, `MIGRACOES_DIR` trocado e banco real usam o original
+  (`db.init_db.original`). Se o `init_db` passar a depender de algo além do arquivo e da `ENCRYPTION_KEY`, acertar lá.
+- **IA morta sem repetição:** o `conftest.py` zera as repetições do SDK da Anthropic e `ESPERA_RETRY_S`. Teste que
+  confere repetição define a própria espera.
+
 ## Rodar a suite completa (rápido, paralelo)
 
 ```bash

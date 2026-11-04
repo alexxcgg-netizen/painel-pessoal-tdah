@@ -7,7 +7,6 @@ import json
 import os
 import random
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -35,11 +34,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -56,9 +53,20 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path, abrir_tela  # noqa: E402
+from tests.playwright_helper import get_chrome_path, abrir_tela, esperar_assentar  # noqa: E402
 
 _CHROME = get_chrome_path()
+
+# Conta as chamadas de apiFetch em voo. Quem chamou continua no mesmo ciclo de microtarefas
+# em que o contador zera: contador em zero = resposta ja aplicada na tela.
+_CONTAR_API = """() => {
+  const original = window.apiFetch;
+  window.__apiEmVoo = 0;
+  window.apiFetch = (...args) => {
+    window.__apiEmVoo++;
+    return original(...args).finally(() => { window.__apiEmVoo--; });
+  };
+}"""
 
 
 def _nota(titulo):
@@ -110,15 +118,25 @@ class Anim2TestCase(unittest.TestCase):
         page.on("pageerror", lambda exc: erros.append(str(exc)))
         page.goto(BASE_URL + "/")
         page.wait_for_load_state("networkidle")
+        page.evaluate(_CONTAR_API)
         abrir_tela(page, "painel")  # R1: Painel abre pelo Mais (saiu da barra)
         page.wait_for_selector("#lista-notas", state="attached")
         page.evaluate("loadNotas()")  # espera a carga inicial terminar (evita corrida com o teste)
-        page.wait_for_timeout(300)
+        # parte das cargas da aba sai num requestAnimationFrame: passa um quadro antes de contar
+        page.evaluate("new Promise((pronto) => requestAnimationFrame(pronto))")
+        self._esperar_api(page)
         return browser, page, erros
 
+    def _esperar_api(self, page):
+        # polling por tempo, nao por quadro: alguns testes desligam o requestAnimationFrame
+        page.wait_for_function("window.__apiEmVoo === 0", polling=20, timeout=10000)
+
+    def _esperar_sumir(self, page, seletor):
+        page.wait_for_function("(s) => !document.querySelector(s)", arg=seletor, polling=20)
+
     def _recarregar_notas(self, page):
+        # a promise so resolve depois do MutationObserver da lista marcar quem entra
         page.evaluate("loadNotas()")
-        page.wait_for_timeout(60)
 
     def _entrando(self, page):
         return page.evaluate("document.querySelectorAll('#lista-notas > li.c2-entra').length")
@@ -131,7 +149,7 @@ class Anim2TestCase(unittest.TestCase):
                     _nota(f"anim2 nota {i}")
                 self._recarregar_notas(page)
                 self.assertEqual(self._entrando(page), 4, "itens novos entram (escalonados)")
-                page.wait_for_timeout(1000)
+                self._esperar_sumir(page, "#lista-notas > li.c2-entra")
                 self.assertEqual(self._entrando(page), 0, "classe removida no fim (sem transform residual)")
                 self._recarregar_notas(page)  # mesmos dados: nada anima
                 self.assertEqual(self._entrando(page), 0)
@@ -151,16 +169,19 @@ class Anim2TestCase(unittest.TestCase):
             browser, page, erros = self._pagina(p)
             try:
                 self._recarregar_notas(page)
-                page.wait_for_timeout(900)
+                self._esperar_sumir(page, "#lista-notas > li.c2-entra")
+                esperar_assentar(page, "#tab-painel")
                 y2_antes = page.locator("#lista-notas > li").nth(1).bounding_box()["y"]
                 total = page.locator("#lista-notas > li").count()
                 page.locator("#lista-notas > li").first.locator("button").evaluate("b => b.click()")
-                page.wait_for_timeout(60)
+                # por quadro: wait_for_selector espaca as olhadas e pode perder esse estado passageiro
+                page.wait_for_function("document.querySelector('#lista-notas > li.saindo') !== null")
                 # ainda no DOM, ja marcado saindo
                 self.assertEqual(page.locator("#lista-notas > li").count(), total)
                 self.assertEqual(page.locator("#lista-notas > li.saindo").count(), 1)
-                page.wait_for_timeout(800)
+                self._esperar_sumir(page, "#lista-notas > li.saindo")
                 self.assertEqual(page.locator("#lista-notas > li").count(), total - 1)
+                esperar_assentar(page, "#tab-painel")
                 y_depois = page.locator("#lista-notas > li").first.bounding_box()["y"]
                 self.assertLess(y_depois, y2_antes, "o de baixo subiu (espaco fechou)")
                 self.assertEqual(erros, [])
@@ -176,7 +197,7 @@ class Anim2TestCase(unittest.TestCase):
                 self._recarregar_notas(page)
                 page.evaluate("window.requestAnimationFrame = () => 0")  # rAF pausado (2o plano no iOS)
                 page.locator("#lista-notas > li").first.locator("button").evaluate("b => b.click()")
-                page.wait_for_timeout(900)
+                page.wait_for_function("document.querySelectorAll('#lista-notas > li').length === 1", polling=20)
                 self.assertEqual(page.locator("#lista-notas > li").count(), 1)
                 self.assertEqual(erros, [])
             finally:
@@ -191,7 +212,8 @@ class Anim2TestCase(unittest.TestCase):
                 self._recarregar_notas(page)
                 self.assertEqual(self._entrando(page), 0)
                 page.locator("#lista-notas > li").first.locator("button").evaluate("b => b.click()")
-                page.wait_for_timeout(250)
+                # com movimento reduzido o li sai junto com a volta do DELETE, sem o timeout de 500 ms
+                self._esperar_api(page)
                 self.assertEqual(page.locator("#lista-notas > li").count(), 2)
                 # contagem: valor final direto
                 page.evaluate("window.__el = document.createElement('span'); document.body.appendChild(window.__el); animarNumero(window.__el, 42)")
@@ -213,11 +235,11 @@ class Anim2TestCase(unittest.TestCase):
                     "window.requestAnimationFrame = () => 0; window.__el = document.createElement('span');"
                     "document.body.appendChild(window.__el); animarNumero(window.__el, 137)"
                 )
-                page.wait_for_timeout(1100)
+                page.wait_for_function("!window.__el._c2Contagem", polling=20)
                 self.assertEqual(page.evaluate("window.__el.textContent"), "137")
                 # 2a contagem sobre a mesma: vence a ultima
                 page.evaluate("animarNumero(window.__el, 5); animarNumero(window.__el, 9)")
-                page.wait_for_timeout(1100)
+                page.wait_for_function("!window.__el._c2Contagem", polling=20)
                 self.assertEqual(page.evaluate("window.__el.textContent"), "9")
                 self.assertEqual(erros, [])
             finally:
@@ -227,16 +249,23 @@ class Anim2TestCase(unittest.TestCase):
         with sync_playwright() as p:
             browser, page, erros = self._pagina(p)
             try:
-                r = page.evaluate(
+                page.evaluate(
                     """() => {
                       const trilho = document.createElement('div'); trilho.className = 'garantia-barra-trilho';
                       trilho.style.width = '200px';
                       const b = document.createElement('div'); b.className = 'garantia-barra-preenchido';
                       trilho.appendChild(b); document.querySelector('#tab-painel').appendChild(trilho);
                       definirProgressoBarra(b, 40);
-                      return new Promise(res => setTimeout(() => res({
-                        widthInline: b.style.width, p: b.style.getPropertyValue('--p'),
-                        transform: getComputedStyle(b).transform, cls: b.className }), 700));
+                      window.__barra = b;
+                    }"""
+                )
+                page.wait_for_function("!window.__barra.classList.contains('c2-barra-p')")
+                esperar_assentar(page, "#tab-painel .garantia-barra-trilho")
+                r = page.evaluate(
+                    """() => {
+                      const b = window.__barra;
+                      return {widthInline: b.style.width, p: b.style.getPropertyValue('--p'),
+                        transform: getComputedStyle(b).transform, cls: b.className};
                     }"""
                 )
                 self.assertEqual(r["widthInline"], "")
@@ -254,9 +283,12 @@ class Anim2TestCase(unittest.TestCase):
                       animarCheck(alvo);
                       const desenha = path.classList.contains('c2-check-desenha');
                       const pulso = alvo.classList.contains('c2-pulso');
-                      return new Promise(res => setTimeout(() => res({desenha, pulso, restou: alvo.classList.contains('c2-pulso')}), 900));
+                      window.__alvo = alvo;
+                      return {desenha, pulso};
                     }"""
                 )
+                page.wait_for_function("!window.__alvo.classList.contains('c2-pulso')")
+                c["restou"] = page.evaluate("window.__alvo.classList.contains('c2-pulso')")
                 self.assertTrue(c["desenha"])
                 self.assertTrue(c["pulso"])
                 self.assertFalse(c["restou"])
@@ -277,7 +309,7 @@ class Anim2TestCase(unittest.TestCase):
                 self.assertFalse(btn.is_disabled())
                 self.assertEqual(page.evaluate("document.getElementById('hidratacao-total').textContent"), "2")
                 self.assertEqual(page.evaluate("document.querySelector('.hidratacao-flutuante')"), None)
-                page.wait_for_timeout(1500)
+                self._esperar_api(page)  # os 2 POSTs voltaram e o total sincronizou
                 self.assertFalse(btn.is_disabled())
                 depois = page.evaluate("fetch('/api/saude/hoje').then(r => r.json()).then(d => d.hidratacao_hoje)")
                 self.assertEqual(depois - antes, 2)
@@ -292,7 +324,7 @@ class Anim2TestCase(unittest.TestCase):
         with sync_playwright() as p:
             browser, page, erros = self._pagina(p)
             try:
-                page.wait_for_timeout(500)
+                esperar_assentar(page)
                 r = page.evaluate(
                     """() => {
                       const a = document.querySelector('.aurora');
@@ -344,9 +376,10 @@ class Anim2TestCase(unittest.TestCase):
                     elif op == "raf":
                         page.evaluate("window.requestAnimationFrame = () => 0")
                     cenarios += 1
-                page.wait_for_timeout(1200)
+                self._esperar_api(page)
+                self._esperar_sumir(page, "#lista-notas > li.saindo")
                 self._recarregar_notas(page)
-                page.wait_for_timeout(1000)
+                self._esperar_sumir(page, "#lista-notas > li.c2-entra")
                 self.assertGreaterEqual(cenarios, 30)
                 dom_ids = page.evaluate("Array.from(document.querySelectorAll('#lista-notas > li')).map(li => li.textContent)")
                 self.assertEqual(len(dom_ids), _contar_notas(), "DOM final = dados")

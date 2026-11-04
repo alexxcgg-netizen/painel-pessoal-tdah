@@ -4,8 +4,8 @@
   "modelo_atual": {"provedor": "anthropic", "modelo": "claude-haiku-5-5", "esforco": "baixo"},
   "alvo": {"provedor": "openai", "modelo": "gpt-6-sol", "esforco": "medio"},
   "fallback": [{"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "baixo"}],
-  "max_tokens_saida": 1000,
-  "conversa": {"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "medio", "max_tokens_saida": 1500},
+  "max_tokens_saida": 12000,
+  "conversa": {"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "medio", "max_tokens_saida": 12000},
   "cache": {"ativo": true, "ttl": "5m"},
   "modo": "padrao"
 }

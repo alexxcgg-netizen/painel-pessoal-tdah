@@ -102,6 +102,18 @@ class TarefaFeitaTestCase(_Base):
         corpo = self.chat([("ajustar_tarefa", {"titulo": "visitar obra", "hora": "15:00"})])
         self.assertEqual([c["type"] for c in corpo["cards"]], ["edicao"])
 
+    def test_hora_em_tarefa_sem_dia_poe_ela_em_hoje(self):
+        # 03/11: "imprimir as contas" ganhou 11h e ficou sem data - nao aparecia no dia nem chamava na hora
+        import app as app_mod
+
+        self.sql("INSERT INTO tasks (title) VALUES ('Imprimir as contas')")
+        self.sql("INSERT INTO tasks (title, due_date) VALUES ('Ligar pro banco', '2026-12-01')")
+        self.chat([("ajustar_tarefa", {"titulo": "imprimir as contas", "hora": "11:00"})])
+        self.chat([("ajustar_tarefa", {"titulo": "ligar pro banco", "hora": "09:00"})])
+        linhas = {r[0]: (r[1], r[2]) for r in self.sql("SELECT title, due_date, hora FROM tasks")}
+        self.assertEqual(linhas["Imprimir as contas"], (app_mod._agora_brasilia().date().isoformat(), "11:00"))
+        self.assertEqual(linhas["Ligar pro banco"], ("2026-12-01", "09:00"))  # dia que ja tinha fica
+
     def test_tarefa_atrasada_conta_no_anel_de_hoje(self):
         conn = db.get_db()
         try:

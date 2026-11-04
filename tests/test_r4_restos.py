@@ -36,11 +36,9 @@ auth.definir_pin(_c, PIN, PIN)
 _c.commit()
 _c.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 for _ in range(50):
     try:
         urllib.request.urlopen(BASE_URL + "/", timeout=1)
@@ -55,7 +53,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import abrir_tela, get_chrome_path  # noqa: E402
+from tests.playwright_helper import abrir_tela, esperar_assentar, get_chrome_path  # noqa: E402
 
 _CHROME = get_chrome_path()
 
@@ -519,12 +517,12 @@ class EstaticosTestCase(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Front (Playwright)
 # ---------------------------------------------------------------------------
-@unittest.skipUnless(_PLAYWRIGHT_OK and _CHROME, "Playwright/Chromium indisponivel")
+@unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
 class FrontR4TestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pw = sync_playwright().start()
-        cls.browser = cls.pw.chromium.launch(executable_path=_CHROME)
+        cls.browser = cls.pw.chromium.launch(executable_path=_CHROME) if _CHROME else cls.pw.chromium.launch()
 
     @classmethod
     def tearDownClass(cls):
@@ -572,9 +570,24 @@ class FrontR4TestCase(unittest.TestCase):
         conn.close()
         return r["n"], int(r["feitas"] or 0)
 
+    def _abrir_painel(self, page):
+        # A lista carrega no boot e de novo ao abrir o Painel. Tocar com a 2a carga em voo
+        # faz ela redesenhar por baixo do toque, entao espera as duas antes de seguir.
+        page.wait_for_selector("#lista-medicamentos .check-dia", state="attached", timeout=10000)
+        with page.expect_response("**/api/medicamentos", timeout=10000):
+            abrir_tela(page, "painel")
+        esperar_assentar(page, "#lista-medicamentos")
+
+    def _esperar_remedios_no_banco(self, page, esperado):
+        # A gravacao nao deixa marca na tela: pergunta ao banco ate bater ou estourar o
+        # limite (quem confere e o assert que vem depois).
+        limite = time.monotonic() + 10
+        while self._estado_db_remedios() != esperado and time.monotonic() < limite:
+            page.wait_for_timeout(20)
+
     def test_tomei_estado_contador_desfazer_e_persistencia(self):
         page = self._abrir()
-        abrir_tela(page, "painel")
+        self._abrir_painel(page)
         page.wait_for_selector("#lista-medicamentos .check-dia")
         self.assertEqual(page.locator("#medicamentos-contador").text_content(), "0 de 2 hoje")
         botao = page.locator("#lista-medicamentos .check-dia-marcar").first
@@ -584,14 +597,14 @@ class FrontR4TestCase(unittest.TestCase):
         linha = page.locator("#lista-medicamentos li.item").first
         self.assertRegex(linha.locator(".check-dia-texto").text_content(), r"^Tomado às \d{2}:\d{2}$")
         self.assertEqual(page.locator("#medicamentos-contador").text_content(), "1 de 2 hoje")
-        page.wait_for_timeout(800)
+        self._esperar_remedios_no_banco(page, (2, 1))
         self.assertEqual(self._estado_db_remedios(), (2, 1))
         desfazer = linha.locator(".check-dia-desfazer")
         self.assertGreaterEqual(desfazer.bounding_box()["height"], 44)
         # recarrega: o estado vem do servidor
         page.reload()
         page.wait_for_selector("#tab-hoje:not([hidden])")
-        abrir_tela(page, "painel")
+        self._abrir_painel(page)
         page.wait_for_selector("#lista-medicamentos .check-dia")
         self.assertEqual(page.locator("#medicamentos-contador").text_content(), "1 de 2 hoje")
         linha = page.locator("#lista-medicamentos li.item").first
@@ -599,13 +612,13 @@ class FrontR4TestCase(unittest.TestCase):
         linha.locator(".check-dia-desfazer").click()
         self.assertEqual(page.locator("#medicamentos-contador").text_content(), "0 de 2 hoje")
         self.assertTrue(linha.locator(".check-dia-marcar").is_visible())
-        page.wait_for_timeout(600)
+        self._esperar_remedios_no_banco(page, (2, 0))
         self.assertEqual(self._estado_db_remedios(), (2, 0))
         self.assertEqual(self.erros, [])
 
     def test_dois_toques_rapidos_nao_duplicam(self):
         page = self._abrir()
-        abrir_tela(page, "painel")
+        self._abrir_painel(page)
         page.wait_for_selector("#lista-medicamentos .check-dia")
         # dois cliques no mesmo instante, direto no DOM (sem esperar nada entre eles)
         page.evaluate(
@@ -614,25 +627,59 @@ class FrontR4TestCase(unittest.TestCase):
                        const d = document.querySelector('#lista-medicamentos .check-dia-desfazer');
                        d.click(); }"""
         )
+        # a janela abaixo prova que nada vem depois: ela so conta com o POST ja gravado
+        self._esperar_remedios_no_banco(page, (2, 1))
         page.wait_for_timeout(900)
         # o "Desfazer" colado no toque de marcar e ignorado: segue marcado, uma vez so
         self.assertEqual(self._estado_db_remedios(), (2, 1))
         self.assertEqual(page.locator("#medicamentos-contador").text_content(), "1 de 2 hoje")
 
+    @unittest.expectedFailure
+    def test_tomei_com_carga_em_voo_nao_redesenha_o_estado_velho(self):
+        # Bug do app achado em 2026-10-31 (medicamentos.js, "versao !== _medicamentosVersao"): tocar
+        # em Tomei com uma carga em voo faz a lista pedir de novo, e essa resposta pode chegar antes
+        # do POST gravar. A tela volta pra "0 de 2" com a dose ja marcada no banco. _abrir_painel tira
+        # os outros testes dessa corrida; quando corrigir o app, apagar o expectedFailure.
+        page = self._abrir()
+        self._abrir_painel(page)
+        cargas, gravacoes, vistas = [], [], []
+        page.route("**/api/medicamentos", lambda r: cargas.append(r))
+        page.route("**/api/medicamentos/*/tomar", lambda r: gravacoes.append(r))
+        with page.expect_request("**/api/medicamentos"):
+            page.evaluate("void loadMedicamentos()")
+        with page.expect_request("**/api/medicamentos/*/tomar"):
+            page.locator("#lista-medicamentos .check-dia-marcar").first.click()
+
+        def segunda_carga(resposta):
+            if resposta.url.endswith("/api/medicamentos"):
+                vistas.append(resposta)
+            return len(vistas) == 2
+
+        page.unroute("**/api/medicamentos")
+        with page.expect_response(segunda_carga):
+            cargas[0].continue_()
+        esperar_assentar(page, "#lista-medicamentos")
+        gravacoes[0].continue_()
+        self._esperar_remedios_no_banco(page, (2, 1))
+        page.wait_for_function(
+            "document.getElementById('medicamentos-contador').textContent === '1 de 2 hoje'", timeout=1500
+        )
+
     def test_falha_na_gravacao_volta_o_estado(self):
         page = self._abrir()
-        abrir_tela(page, "painel")
+        self._abrir_painel(page)
         page.wait_for_selector("#lista-medicamentos .check-dia")
         page.route("**/api/medicamentos/*/tomar", lambda r: r.fulfill(status=500, body='{"error":"x"}', content_type="application/json"))
         page.locator("#lista-medicamentos .check-dia-marcar").first.click()
-        page.wait_for_timeout(700)
+        # mostrarErro roda no fim do apiFetch e o estado volta logo depois, no mesmo passo
+        page.wait_for_function("document.getElementById('erro-banner').textContent === 'x'")
         self.assertEqual(page.locator("#medicamentos-contador").text_content(), "0 de 2 hoje")
         self.assertTrue(page.locator("#lista-medicamentos li.item").first.locator(".check-dia-marcar").is_visible())
         self.assertEqual(self._estado_db_remedios(), (2, 0))
 
     def test_reduced_motion_marca_sem_pulso(self):
         page = self._abrir(reduzir=True)
-        abrir_tela(page, "painel")
+        self._abrir_painel(page)
         page.wait_for_selector("#lista-medicamentos .check-dia")
         page.locator("#lista-medicamentos .check-dia-marcar").first.click()
         page.wait_for_timeout(120)
@@ -653,14 +700,19 @@ class FrontR4TestCase(unittest.TestCase):
         botao.click()
         linha = page.locator("#lista-fichas li.item").first
         self.assertRegex(linha.locator(".check-dia-texto").text_content(), r"^Feito às \d{2}:\d{2}$")
-        page.wait_for_timeout(800)
+        marcou_em = page.evaluate("Date.now()")
+        # "Ultimos treinos" so atualiza depois que o POST gravou
+        page.wait_for_function("document.getElementById('treinos-recentes').textContent.includes('Peito')")
         conn = db.get_db()
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM treinos").fetchone()[0], 1)
         conn.close()
         # "Últimos treinos" acompanha
         self.assertIn("Peito", page.locator("#treinos-recentes").inner_text())
+        # "Desfazer" ignora toque ate 600 ms depois de marcar (criarCheckDia) e a tela nao marca o fim
+        page.wait_for_function("(t) => Date.now() - t >= 600", arg=marcou_em)
         linha.locator(".check-dia-desfazer").click()
-        page.wait_for_timeout(700)
+        # "Ultimos treinos" se esconde quando o DELETE apagou o unico treino
+        page.wait_for_selector("#treinos-recentes", state="hidden")
         self.assertTrue(linha.locator(".check-dia-marcar").is_visible())
         conn = db.get_db()
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM treinos").fetchone()[0], 0)
@@ -673,9 +725,10 @@ class FrontR4TestCase(unittest.TestCase):
         page = self.ctx.new_page()
         presas = []
         page.route("**/api/inicio", lambda r: presas.append(r))
-        page.goto(BASE_URL + "/")
+        # com o pedido preso o app esta carregando de verdade: o esqueleto so sai quando ele voltar
+        with page.expect_request("**/api/inicio", timeout=30000):
+            page.goto(BASE_URL + "/")
         page.wait_for_selector("#inicio-resumo")
-        page.wait_for_timeout(500)
         el = page.locator("#inicio-resumo")
         self.assertEqual(el.get_attribute("aria-busy"), "true")
         self.assertIn("esqueleto", el.get_attribute("class"))
@@ -715,9 +768,9 @@ class FrontR4TestCase(unittest.TestCase):
         page = self.ctx.new_page()
         presas = []
         page.route("**/api/inicio", lambda r: presas.append(r))
-        page.goto(BASE_URL + "/")
+        with page.expect_request("**/api/inicio", timeout=30000):
+            page.goto(BASE_URL + "/")
         page.wait_for_selector("#inicio-resumo")
-        page.wait_for_timeout(400)
         self.assertEqual(page.locator("#inicio-resumo").get_attribute("aria-busy"), "true")
         anim = page.evaluate("getComputedStyle(document.getElementById('inicio-resumo'), '::after').animationName")
         self.assertEqual(anim, "none")  # animation:none, nao so duracao zero

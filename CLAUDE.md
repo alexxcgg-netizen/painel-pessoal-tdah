@@ -52,13 +52,17 @@ como tela principal. Ver `README.md` pra lista completa de funcionalidades.
   escrever uma entrada, rodar `.venv/Scripts/python.exe scripts/indice_changelog.py` (o teste
   `tests/test_indice_changelog.py` falha se esquecer); quando o principal passar de ~1.500
   linhas, `--arquivar-antes AAAA-MM-DD` move os dias velhos pro histórico.
-- **Testes antes de considerar pronto.** `.venv/Scripts/python.exe -m unittest discover -s tests` (Windows; `.venv/bin/python` é do Linux antigo)
+- **Testes antes de considerar pronto.** `.venv/Scripts/python.exe scripts/testes.py` (Windows; `.venv/bin/python` é do Linux antigo)
   (o venv do projeto já tem as dependências; `pip install -r requirements.txt` numa venv
   nova se não existir ainda). Os testes usam mock nas chamadas à Claude - não gastam nada
   nem precisam de `ANTHROPIC_API_KEY` real. Regra leve mas real: não empurrar mudança que
-  quebrou a suíte. **Suíte inteira rápida (~6 min em vez de ~28):**
-  `.venv/Scripts/python.exe scripts/testes.py` (3 filas em paralelo com pytest-xdist; ver o
-  docstring do script pro porquê da separação). Pra um arquivo só, pytest direto continua.
+  quebrou a suíte. **Suíte inteira rápida (~1 min 30 s em vez de ~28):**
+  `.venv/Scripts/python.exe scripts/testes.py` (4 filas em paralelo, inclusive JS; ver o
+  docstring do script pro porquê da separação). Roda numa cópia do código, então dá pra seguir
+  mexendo enquanto ela anda; precisa de uns 5 GB de RAM livres. Teste de navegador novo não usa
+  espera fixa: ver `docs/testes.md`, "No Windows". **No meio do trabalho:**
+  `.venv/Scripts/python.exe scripts/testes_afetados.py` roda só o ligado ao que mudou (`--ver` lista).
+  É filtro por texto: antes de commit vale a suíte inteira. Pra um arquivo só, pytest direto continua.
 - **Regras mais leves que o `financeiro-construtora`** de propósito (não é dinheiro de
   empresa, é uso pessoal) - mas isso não é desculpa pra pular teste ou deixar rota nova
   sem tratamento de erro. Fuzzing pesado (50-100 cenários por mudança) não é obrigatório

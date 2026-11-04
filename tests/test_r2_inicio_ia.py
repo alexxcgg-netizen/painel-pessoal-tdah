@@ -7,7 +7,6 @@
 import json
 import os
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -38,11 +37,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -59,7 +56,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path  # noqa: E402
+from tests.playwright_helper import CONTAR_FETCH, esperar_assentar, esperar_carga, get_chrome_path  # noqa: E402
 
 _CHROME = get_chrome_path()
 
@@ -207,7 +204,7 @@ class R2InicioIATestCase(unittest.TestCase):
             viewport={"width": largura, "height": 844},
             reduced_motion="reduce" if reduzir else "no-preference",
         )
-        ctx.route("**/*", lambda r: r.continue_() if r.request.url.startswith(BASE_URL) else r.abort())
+        ctx.add_init_script(CONTAR_FETCH)
         r = ctx.request.post(
             BASE_URL + "/login", data=json.dumps({"pin": PIN}), headers={"Content-Type": "application/json"}
         )
@@ -218,7 +215,8 @@ class R2InicioIATestCase(unittest.TestCase):
         page.goto(BASE_URL + "/")
         page.wait_for_load_state("networkidle")
         page.wait_for_function("document.getElementById('inicio-chip') && !document.getElementById('inicio-chip').hidden")
-        page.wait_for_timeout(900)  # contagem dos números (--dur-contagem 700ms) termina
+        self._esperar_contagem(page)
+        esperar_assentar(page)
         return browser, page, erros
 
     def _texto(self, page, seletor):
@@ -229,6 +227,26 @@ class R2InicioIATestCase(unittest.TestCase):
 
     def _ativo(self, page):
         return page.evaluate("[...document.querySelectorAll('.tab-btn.active')].map(b => b.dataset.tab)")
+
+    def _esperar_aba(self, page, aba):
+        # showTab tira o hidden dentro do clique; o que pode quebrar vem depois, ao desenhar a carga
+        page.wait_for_function(f"!document.getElementById('tab-{aba}').hidden")
+        esperar_carga(page)
+
+    def _esperar_contagem(self, page):
+        # animarNumero (nucleo/ui.js) guarda el._c2Contagem enquanto conta e limpa ao escrever o valor final
+        page.wait_for_function(
+            "['tarefas', 'gasto', 'agua'].every(n => !document.getElementById('inicio-num-' + n)._c2Contagem)",
+            timeout=10000,
+        )
+
+    def _esperar_rolagem_ate_alvo(self, page, aba):
+        # abrirPeloMais (nucleo/navegacao.js) corrige a rolagem num setTimeout(900) armado dentro de um
+        # rAF e nao marca nada na tela: um timer igual, armado depois do dele, so dispara depois dele
+        page.evaluate(
+            "new Promise(pronto => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(pronto, 900))))"
+        )
+        esperar_assentar(page, f"#tab-{aba}")
 
     # ---- hero ----
     def test_hero_sem_tarefas_tudo_em_dia(self):
@@ -283,7 +301,7 @@ class R2InicioIATestCase(unittest.TestCase):
                 altura = linha.bounding_box()["height"]
                 self.assertLess(altura, 70, "aviso de 1 linha")
                 linha.click()
-                page.wait_for_timeout(300)
+                self._esperar_aba(page, "ajustes-ia")
                 self.assertTrue(self._visivel(page, "ajustes-ia"))
                 self.assertEqual(erros, [])
             finally:
@@ -312,7 +330,7 @@ class R2InicioIATestCase(unittest.TestCase):
                 ).fetchone()["completed_at"]
                 conn.close()
                 self.assertIsNotNone(feita)
-                page.wait_for_timeout(900)
+                self._esperar_contagem(page)
                 self.assertEqual(self._texto(page, "#inicio-num-tarefas"), "1/2")
                 # conclui a última -> estado vazio
                 page.click("#inicio-agora-ok")
@@ -362,9 +380,9 @@ class R2InicioIATestCase(unittest.TestCase):
                 self.assertEqual(self._texto(page, "#inicio-num-agua"), "3/8")
                 for num, aba in (("tarefas", "tarefas"), ("gasto", "gastos"), ("agua", "painel")):
                     page.evaluate("showTab('hoje')")
-                    page.wait_for_timeout(200)
+                    esperar_assentar(page, "#tab-hoje")
                     page.click(f"#inicio-num-{num}")
-                    page.wait_for_timeout(400)
+                    self._esperar_aba(page, aba)
                     self.assertTrue(self._visivel(page, aba), f"{num} deveria abrir {aba}")
                 self.assertEqual(erros, [])
             finally:
@@ -389,13 +407,15 @@ class R2InicioIATestCase(unittest.TestCase):
                 self.assertEqual(atalhos, list(destinos), "8 cards, em ordem, número par")
                 for atalho, (aba, alvo) in destinos.items():
                     page.evaluate("showTab('hoje'); window.scrollTo(0, 0)")
-                    page.wait_for_timeout(200)
+                    esperar_assentar(page, "#tab-hoje")
                     card = page.locator(f'.inicio-atalho[data-atalho="{atalho}"]')
                     card.scroll_into_view_if_needed()
                     caixa = card.bounding_box()
                     self.assertGreaterEqual(caixa["height"], 127.5)
                     card.click()
-                    page.wait_for_timeout(1800 if alvo else 500)  # alvo: rolagem + correção (900ms) assentam
+                    self._esperar_aba(page, aba)
+                    if alvo:
+                        self._esperar_rolagem_ate_alvo(page, aba)
                     self.assertTrue(self._visivel(page, aba), f"{atalho} deveria abrir {aba}")
                     item = aba if aba in ("hoje", "tarefas", "assistente", "gastos") else "mais"
                     self.assertEqual(self._ativo(page), [item])
@@ -439,7 +459,8 @@ class R2InicioIATestCase(unittest.TestCase):
             browser, page, erros = self._abrir(p)
             try:
                 page.click('.tab-btn[data-tab="assistente"]')
-                page.wait_for_timeout(600)
+                page.wait_for_selector(".chat-sugestao", state="visible")
+                esperar_assentar(page, "#tab-assistente")
                 self.assertEqual(self._texto(page, ".chat-ola-titulo"), "Oi, Alex")
                 sugestoes = page.evaluate("[...document.querySelectorAll('.chat-sugestao')].map(b => b.textContent.trim())")
                 self.assertEqual(
@@ -475,7 +496,8 @@ class R2InicioIATestCase(unittest.TestCase):
                 self.assertEqual(bolha, ["16px", "14px", "18px", "85%"])
                 self.assertEqual(page.locator(".chat-linha.assistant .btn-ouvir-chat").count(), 1)
                 # a última mensagem fica acima do rodapé e do campo
-                page.wait_for_timeout(800)
+                # (a lista rola em scroll-behavior: smooth: quem mostra que parou e a propria ultima linha)
+                esperar_assentar(page, "#chat-mensagens > :last-child")
                 ultima = page.evaluate("document.getElementById('chat-mensagens').lastElementChild.getBoundingClientRect().bottom")
                 nota = page.evaluate("document.getElementById('chat-nota').getBoundingClientRect()")
                 form = page.evaluate("document.getElementById('chat-form').getBoundingClientRect().top")
@@ -492,20 +514,27 @@ class R2InicioIATestCase(unittest.TestCase):
             try:
                 antes = page.evaluate("document.getElementById('inicio-hero').getBoundingClientRect().top")
                 page.evaluate("mostrarErro('Falhou de teste')")
-                page.wait_for_timeout(300)
+                esperar_assentar(page, "#erro-banner")
+                esperar_assentar(page, "#inicio-hero")
                 depois = page.evaluate("document.getElementById('inicio-hero').getBoundingClientRect().top")
                 self.assertAlmostEqual(antes, depois, delta=0.5)
                 self.assertEqual(page.evaluate("getComputedStyle(document.getElementById('erro-banner')).position"), "fixed")
                 self.assertTrue(page.locator("#erro-banner").is_visible())
                 page.click("#erro-banner")
-                page.wait_for_timeout(400)
+                page.wait_for_selector("#erro-banner", state="hidden")
                 self.assertTrue(page.locator("#erro-banner").is_hidden(), "tocar fecha o toast")
-                # rolar até um alvo do Mais com o toast aberto continua certo
+                # rolar até um alvo do Mais com o toast aberto continua certo. A carga do Painel empurra
+                # o alvo e a correcao de 900 ms roda uma vez so: carregado antes (cache de 30 s), nada
+                # cresce depois do toque e a medida nao corre contra a rede.
+                page.evaluate("showTab('painel')")
+                self._esperar_aba(page, "painel")
                 page.evaluate("mostrarErro('Falhou de novo')")
                 page.click('.tab-btn[data-tab="mais"]')
-                page.wait_for_timeout(300)
+                self._esperar_aba(page, "mais")
+                esperar_assentar(page, "#tab-mais")
                 page.evaluate("document.querySelector('#tab-mais [data-alvo=\"#lista-notas\"]').click()")
-                page.wait_for_timeout(1800)
+                self._esperar_aba(page, "painel")
+                self._esperar_rolagem_ate_alvo(page, "painel")
                 topo = page.evaluate(
                     "document.querySelector('#tab-painel #lista-notas').closest('.card').getBoundingClientRect().top"
                 )
@@ -522,7 +551,7 @@ class R2InicioIATestCase(unittest.TestCase):
                 browser, page, erros = self._abrir(p, largura=largura)
                 try:
                     page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
-                    page.wait_for_timeout(300)
+                    esperar_assentar(page)
                     medida = page.evaluate(
                         """(() => {
                             const tela = document.getElementById('tab-hoje');
@@ -551,7 +580,8 @@ class R2InicioIATestCase(unittest.TestCase):
                 trans = page.evaluate("getComputedStyle(document.querySelector('.inicio-atalho')).transitionDuration")
                 self.assertTrue(all(float(t.rstrip("s")) <= 0.001 for t in trans.split(",")), trans)
                 page.click('.tab-btn[data-tab="assistente"]')
-                page.wait_for_timeout(300)
+                page.wait_for_selector(".chat-sugestao", state="visible")
+                esperar_carga(page)
                 self.assertEqual(page.locator(".chat-sugestao").count(), 6)
                 self.assertEqual(erros, [])
             finally:

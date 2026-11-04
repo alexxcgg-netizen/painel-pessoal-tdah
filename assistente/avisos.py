@@ -150,6 +150,12 @@ TIPOS: dict[str, dict] = {
     "recomeco": _tipo("Recomeço: arquivar atrasadas sem culpa (segunda, dia 1)"),
     "se_arrumar": _tipo("Hora de se arrumar (date, festa)"),
     "hora_de_sair": _tipo("Hora de sair (date, festa)"),
+    # assistente passo a passo (04/11, docs/briefings/2026-11-04-cards-ao-vivo.md)
+    "saida_preparo": _tipo("Daqui 15 min começa a se arrumar (date, festa)"),
+    "saida_porta": _tipo("5 min pra sair: o que levar"),
+    "saida_previsao": _tipo("A previsão piorou: saída adiantada"),
+    "saida_parada": _tipo("Chegou na parada do caminho"),
+    "saida_chegou": _tipo("Chegou no compromisso"),
     "compromisso_chegando": _tipo("Compromisso da agenda chegando"),
     "voo_sair": _tipo("Hora de ir pro voo"),
     "planejamento_semanal": _tipo("Planejamento da semana (domingo)"),

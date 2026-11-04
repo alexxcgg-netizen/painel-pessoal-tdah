@@ -4,7 +4,6 @@
 import json
 import os
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -32,11 +31,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -98,7 +95,8 @@ class MicrofoneFalhasTestCase(unittest.TestCase):
             try:
                 page.click("#chat-mic")
                 self.assertIn("gravando", page.get_attribute("#chat-form", "class") or "")
-                page.wait_for_timeout(5600)
+                # prazo do app (5 s) + ate 300 ms acordando o AudioContext antes de pedir o microfone
+                page.wait_for_selector("#chat-form:not(.gravando)", state="attached", timeout=10000)
                 self.assertNotIn("gravando", page.get_attribute("#chat-form", "class") or "")
                 self.assertIn("não respondeu", page.inner_text("#erro-banner"))
                 self.assertEqual(self.erros, [])
@@ -113,9 +111,11 @@ class MicrofoneFalhasTestCase(unittest.TestCase):
             browser, page = self._abrir(p, surdo)
             try:
                 page.click("#chat-mic")
-                page.wait_for_timeout(1500)
+                # 1 s gravado no relogio da barra: menos de 0,6 s vira "curto" e nao vai pra transcricao
+                page.wait_for_function("document.querySelector('#chat-form .gravacao-tempo').textContent !== '0:00'",
+                                       timeout=10000)
                 page.click("#chat-send")
-                page.wait_for_timeout(1200)
+                page.wait_for_selector(".chat-bolha.bolha-voz.chegou", state="attached", timeout=10000)
                 self.assertEqual(len(self.transcricoes), 1, "o audio tem que ir pra transcricao")
                 corpo = self.transcricoes[0]
                 self.assertIn(b'name="audio"', corpo)
@@ -130,17 +130,20 @@ class MicrofoneFalhasTestCase(unittest.TestCase):
         """Tocar de novo antes de o microfone abrir sumia calado - agora avisa."""
         lento = """
           const _orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-          navigator.mediaDevices.getUserMedia = (c) => new Promise((r) => setTimeout(() => r(_orig(c)), 800));
+          navigator.mediaDevices.getUserMedia = (c) => new Promise((r) => setTimeout(() => r(_orig(c)), 800))
+            .then((s) => (window.__microfoneAtrasado = s));
         """
         with sync_playwright() as p:
             browser, page = self._abrir(p, lento)
             try:
                 page.click("#chat-mic")
-                page.wait_for_timeout(150)
+                page.wait_for_selector("#chat-form.gravando", state="attached")
                 page.click("#chat-send")  # gravando, o enviar manda
-                page.wait_for_timeout(300)
+                page.wait_for_function("document.querySelector('#chat-input').placeholder.includes('Gravou muito pouco')")
                 self.assertIn("Gravou muito pouco", page.get_attribute("#chat-input", "placeholder") or "")
-                page.wait_for_timeout(900)  # o microfone que abriu atrasado e solto, sem gravar
+                # o microfone que abriu atrasado e solto, sem gravar
+                page.wait_for_function("""() => window.__microfoneAtrasado
+                    && window.__microfoneAtrasado.getTracks().every((t) => t.readyState === "ended")""")
                 self.assertNotIn("gravando", page.get_attribute("#chat-form", "class") or "")
                 self.assertEqual(self.transcricoes, [])
                 self.assertEqual(self.erros, [])

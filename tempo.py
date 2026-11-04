@@ -136,7 +136,7 @@ def _e_compromisso_de_tarefa(r) -> bool:
         return False
     return bool(
         notificacoes.e_compromisso_de_sair(r["title"]) or r["estilo"] in ("date", "balada")
-        or (r["local"] or "").strip() or _E_COMPROMISSO.search(t)
+        or (r["local"] or "").strip() or (notificacoes._coluna(r, "parada") or "").strip() or _E_COMPROMISSO.search(t)
     )
 
 
@@ -161,6 +161,15 @@ def _trajeto_local(conn, local: str):
 
     return _cache(("local", local), 1200,
                   lambda: app._trajeto_min_aviso(vida_assistente.resolver_lugar(conn, local)))
+
+
+def _trajetos_parada(conn, parada: str, local: str | None) -> tuple:
+    """(casa -> parada, parada -> destino) pelo Maps do app (cache de ~20 min); (None, None) sem rede."""
+    app = _app()
+    if app is None:
+        return None, None
+    r = _cache(("parada", parada, local or ""), 1200, lambda: app._trajetos_parada_aviso(conn, parada, local))
+    return tuple(r) if isinstance(r, (tuple, list)) and len(r) == 2 else (None, None)
 
 
 def _item(kind, ref, titulo, evento, sair, comecar, **extra) -> dict:
@@ -193,25 +202,34 @@ def compromissos(conn, agora: datetime, rede: bool = True) -> list[dict]:
                            lugar="Voo", chegar_min=antes, trajeto_min=(maps or {}).get("trajeto_min")))
     # tarefas
     for r in conn.execute(
-        "SELECT id, title, hora, local, estilo FROM tasks WHERE due_date = ? AND hora IS NOT NULL "
+        "SELECT * FROM tasks WHERE due_date = ? AND hora IS NOT NULL "
         "AND completed_at IS NULL AND recorrencia IS NULL ORDER BY hora", (dia.isoformat(),),
     ).fetchall():
         ev = _evento_hora(dia, r["hora"])
         if not ev or not _e_compromisso_de_tarefa(r):
             continue
+        parada = (notificacoes._coluna(r, "parada") or "").strip()
         sair_tipo = notificacoes.e_compromisso_de_sair(r["title"]) or r["estilo"] in ("date", "balada")
-        tem_saida = bool(sair_tipo or (r["local"] or "").strip())
+        tem_saida = bool(sair_tipo or (r["local"] or "").strip() or parada)
         caminho = 0
         trajeto = None
+        info_parada = None
+        adiantado = 0
         if tem_saida:
-            trajeto = _trajeto_local(conn, r["local"]) if (rede and (r["local"] or "").strip()
-                                                           and (ev - agora) <= timedelta(hours=4)) else None
-            caminho = trajeto if isinstance(trajeto, int) and trajeto >= 0 else FOLGA_MIN
-        sair = ev - timedelta(minutes=caminho)
+            perto = rede and (ev - agora) <= timedelta(hours=4)
+            if parada:
+                # assistente passo a passo (04/11): casa -> parada -> destino, 5 min parado
+                ate, resto = _trajetos_parada(conn, parada, r["local"]) if perto else (None, None)
+                caminho, info_parada = notificacoes.caminho_com_parada(None, FOLGA_MIN, parada, ate, resto)
+            else:
+                trajeto = _trajeto_local(conn, r["local"]) if (perto and (r["local"] or "").strip()) else None
+                caminho, _ = notificacoes.caminho_com_parada(trajeto, FOLGA_MIN)
+            adiantado = notificacoes.adiantar_min(notificacoes._coluna(r, "extras"))
+        sair = ev - timedelta(minutes=caminho + adiantado)
         arr = arrumar if sair_tipo else 0
         itens.append(_item("tarefa", r["id"], r["title"].strip()[:60], ev, sair, sair - timedelta(minutes=arr),
                            tem_saida=tem_saida, lugar=lugar_do_titulo(r["title"]), trajeto_min=trajeto,
-                           sair_tipo=bool(sair_tipo)))
+                           sair_tipo=bool(sair_tipo), parada=info_parada, adiantado_min=adiantado))
     # habitos com hora (ex.: Academia as 18:30), ainda nao marcados
     app = _app()
     if app is not None:
@@ -707,4 +725,175 @@ def porta(conn, agora: datetime) -> list[tuple[str, str, str]]:
             publicar(conn, "porta_vespera_chat", f"Amanhã tem {r['title'].strip().lower()} às {r['hora']}. "
                      "Deixa a mochila pronta agora?", [card])
             return []
+    return []
+
+
+# ------------------------------------------------- assistente passo a passo (04/11)
+# docs/briefings/2026-11-04-cards-ao-vivo.md, "Assistente passo a passo". A sequencia de um compromisso de sair:
+#   1. 15 min antes de se arrumar  -> `passos_da_saida` (saida_preparo, novo)
+#   2. hora de se arrumar          -> notificacoes.avisos_se_arrumar (se_arrumar, ja existia)
+#   3. 5 min antes de sair         -> `passos_da_saida` (saida_porta, novo)
+#   4. hora de sair                -> notificacoes.avisos_se_arrumar (hora_de_sair, ja existia; com parada diz
+#                                     "10 min ate a casa do guri")
+#   5. chegada                     -> onde_estou.mensagem_chegada_saida (saida_parada / saida_chegou)
+# Mais a previsao que piora (`previsao_que_piora`): adianta a saida 10 min uma vez so.
+PREPARO_JANELA_MIN = (10, 16)  # "daqui 15 min": tick de 5 min, entao a janela tem 6 min
+PORTA_JANELA_MIN = (4, 9)  # "5 min pra sair": antes da janela do "hora de sair" (4 min antes)
+CHUVA_LEVAR_PCT = 40  # guarda-chuva (mesma regra do card de saida, briefing 04/11)
+FRIO_LEVAR_C = 17  # casaco na volta
+VOLTA_SEM_HORA_H = 3  # sem volta dita: o tempo da volta e o de 3 h depois da chegada
+CHUVA_PIOROU_PCT = 70
+ADIANTA_CHUVA_MIN = 10
+BASICO_PORTA = ["chave", "carteira", "celular"]
+
+
+def _hora_fala(dt: datetime) -> str:
+    return f"{dt.hour}h" if dt.minute == 0 else f"{dt.hour}h{dt.minute:02d}"
+
+
+def _nome_frase(titulo: str) -> str:
+    t = (titulo or "").strip()
+    return t[:1].lower() + t[1:] if t[:2].upper() != t[:2] else t
+
+
+def _pro(titulo: str) -> str:
+    """'Date com a Júlia' -> 'pro date com a Júlia'; 'Balada' -> 'pra balada'."""
+    nome = _nome_frase(titulo)
+    primeira = _sem_acento(nome.split()[0]) if nome.split() else ""
+    artigo = "pra" if primeira.endswith("a") else "pro"
+    return f"{artigo} {nome}"
+
+
+def _junta(itens: list[str]) -> str:
+    return itens[0] if len(itens) == 1 else ", ".join(itens[:-1]) + " e " + itens[-1]
+
+
+def _clima_da_saida(conn, p: dict, clima) -> tuple[dict | None, dict | None]:
+    """(chegada, volta) do clima (`clima(data_iso, 'HH:MM') -> {temp, chuva_pct}`), cada um None sem previsao."""
+    if not clima:
+        return None, None
+    ev = p["evento"]
+    try:
+        chegada = clima(ev.date().isoformat(), f"{ev:%H:%M}")
+    except Exception:
+        chegada = None
+    volta_hm = (db.extras_tarefa(conn, p["id"]) or {}).get("volta")
+    volta_dt = _evento_hora(ev.date(), volta_hm) if isinstance(volta_hm, str) else None
+    if volta_dt is not None and volta_dt < ev:
+        volta_dt += timedelta(days=1)  # volta 03:00 = madrugada do dia seguinte
+    volta_dt = volta_dt or ev + timedelta(hours=VOLTA_SEM_HORA_H)
+    try:
+        volta = clima(volta_dt.date().isoformat(), f"{volta_dt:%H}:00")
+    except Exception:
+        volta = None
+    return (chegada if isinstance(chegada, dict) else None), (volta if isinstance(volta, dict) else None)
+
+
+def _num(v) -> float | None:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def levar_pelo_tempo(chegada: dict | None, volta: dict | None) -> list[str]:
+    """Guarda-chuva com chuva >= 40% na chegada; casaco com <= 17° na volta (sem volta, na chegada)."""
+    itens = []
+    chuva = _num((chegada or {}).get("chuva_pct"))
+    if chuva is not None and chuva >= CHUVA_LEVAR_PCT:
+        itens.append("guarda-chuva")
+    temp = _num((volta or {}).get("temp"))
+    temp = temp if temp is not None else _num((chegada or {}).get("temp"))
+    if temp is not None and temp <= FRIO_LEVAR_C:
+        itens.append("casaco")
+    return itens
+
+
+def _frase_tempo(chegada: dict | None, ev: datetime) -> str | None:
+    temp, chuva = _num((chegada or {}).get("temp")), _num((chegada or {}).get("chuva_pct"))
+    if temp is None and chuva is None:
+        return None
+    partes = ([f"{round(temp)}°"] if temp is not None else []) + ([f"{round(chuva)}% de chuva"] if chuva is not None else [])
+    return f"{' e '.join(partes)} às {_hora_fala(ev)}"
+
+
+def _porta_pendente(conn, titulo: str, dia: str) -> list[str]:
+    """Itens da porta (lista do lugar: academia, faculdade...) que ainda nao foram marcados hoje."""
+    lugar = lugar_do_titulo(titulo)
+    if not lugar or lugar == "Voo":
+        return []
+    L = listas(conn)[lugar]
+    itens = L["base"] + L["extras"]
+    marcas = _marcas(conn, lugar, dia, None, len(itens))
+    return [t[:1].lower() + t[1:] for t, feito in zip(itens, marcas) if not feito]
+
+
+def passos_da_saida(conn, planos: list[dict], agora: datetime, clima=None) -> list[tuple[str, int, str, str]]:
+    """Passos 1 e 3 da sequencia (os 2 e 4 ja sao se_arrumar / hora_de_sair). `planos` =
+    notificacoes.plano_se_arrumar (mesma conta, com parada e adiantamento). (tipo, id, titulo, corpo);
+    o dedup (1 por compromisso por passo por dia) e o ja_notificou_hoje de quem chama."""
+    avisos = []
+    for p in planos:
+        falta_comecar = (p["comecar"] - agora).total_seconds() / 60
+        falta_sair = (p["saida"] - agora).total_seconds() / 60
+        preparo = (not p.get("ja_tem_tarefa_arrumar")
+                   and PREPARO_JANELA_MIN[0] < falta_comecar <= PREPARO_JANELA_MIN[1])
+        porta_agora = PORTA_JANELA_MIN[0] < falta_sair <= PORTA_JANELA_MIN[1]
+        if not (preparo or porta_agora):
+            continue
+        chegada, volta = _clima_da_saida(conn, p, clima)
+        levar = levar_pelo_tempo(chegada, volta)
+        if preparo:
+            partes = [f"Começa a se arrumar {_pro(p['titulo'])}."]
+            frase = _frase_tempo(chegada, p["evento"])
+            if frase:
+                partes.append(frase[:1].upper() + frase[1:] + ".")
+            if levar:
+                partes.append(f"Leva {_junta(levar)}.")
+            avisos.append(("saida_preparo", p["id"], f"Daqui {round(falta_comecar)} min", " ".join(partes)))
+        if porta_agora:
+            itens = _porta_pendente(conn, p["titulo"], agora.date().isoformat())
+            itens += [x for x in levar if x not in itens]
+            avisos.append(("saida_porta", p["id"], f"{round(falta_sair)} min pra sair",
+                           f"Leva {_junta(itens or BASICO_PORTA)}."))
+    return avisos
+
+
+def previsao_que_piora(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """Chuva prevista na hora da chegada passou de < 70% pra >= 70% (comparando com a guardada quando o plano
+    nasceu, `extras.plano_chuva`): adianta a saida 10 min (`extras.adiantar_min`, que plano_se_arrumar e
+    compromissos ja somam) UMA vez so e avisa no chat + push (manda sozinho: o push de avisos_conversa e 1 por
+    tipo por dia). Sem previsao guardada, guarda a de agora."""
+    import onde_estou
+    from conversa_proativa import publicar
+
+    app = _app()
+    if app is None:
+        return []
+    for i in compromissos(conn, agora):
+        if i["kind"] != "tarefa" or not i.get("tem_saida") or agora >= i["sair"]:
+            continue
+        e = db.extras_tarefa(conn, i["ref"])
+        if e.get("previsao_piorou"):
+            continue
+        prev = app._clima_aviso(i["evento"].date().isoformat(), i["hora"])
+        pct = _num((prev or {}).get("chuva_pct"))
+        if pct is None:
+            continue
+        pct = int(round(pct))
+        base = e.get("plano_chuva")
+        if not isinstance(base, dict) or _num(base.get("pct")) is None or base.get("hora") != i["hora"]:
+            e["plano_chuva"] = {"pct": pct, "hora": i["hora"]}
+            db.salvar_extras_tarefa(conn, i["ref"], e)
+            continue
+        if base["pct"] >= CHUVA_PIOROU_PCT or pct < CHUVA_PIOROU_PCT:
+            continue
+        if db.ja_notificado_alguma_vez(conn, "saida_previsao", int(i["ref"])):
+            continue
+        novo = i["sair"] - timedelta(minutes=ADIANTA_CHUVA_MIN)
+        e["adiantar_min"] = min(notificacoes.ADIANTAR_MAX_MIN, int(i.get("adiantado_min") or 0) + ADIANTA_CHUVA_MIN)
+        e["previsao_piorou"] = {"de": base["pct"], "para": pct, "em": agora.isoformat(timespec="minutes")}
+        db.salvar_extras_tarefa(conn, i["ref"], e)
+        db.marcar_notificado(conn, "saida_previsao", int(i["ref"]))
+        quando = f"Adiantei a saída pra {_hhmm(novo)}." if novo > agora else "Bora sair já."
+        corpo = f"{pct}% de chuva às {_hora_fala(i['evento'])}. {quando}"
+        publicar(conn, "saida_previsao_chat", f"A previsão piorou: {corpo}", [])
+        onde_estou._avisar(conn, "saida_previsao", int(i["ref"]), "A previsão piorou", corpo, agora)
     return []

@@ -96,8 +96,27 @@ test("contas_email: visitante, lista vazia, texto escapado e sem codigo sem bota
   assert.doesNotMatch(card("contas_email", { contas: [] }), /ce-conta/);
   const h = card("contas_email", { contas: [{ id: 9, nome: "<script>x</script>", tipo: "fatura", valor: 10, vence: "2026-11-01", dias: 2, codigo: null }] });
   assert.doesNotMatch(h, /<script>/);
-  assert.doesNotMatch(h, /ce-copia/);
-  assert.match(h, /data-acao="conta_paga"/);
+  assert.doesNotMatch(h, /ce-copia|conta_copiar/);
+  // uma conta so vira a pilula D: "deslize se ja pagou" (rota /api/contas-email/<id>/status)
+  assert.match(h, /class="vivo-d" data-v="conta"/);
+  assert.match(h, /class="v-desliza" data-desliza="conta_paga" data-conta="9"/);
+  assert.match(h, /role="slider" tabindex="0" aria-label="deslize se já pagou"/);
+  assert.match(h, /data-feito-chave="conta:9"/);
+});
+
+test("contas_email (D, 04/11): uma conta so - valor, vencimento, copiar e ja paga sem o deslize", () => {
+  const h = card("contas_email", { contas: [CONTAS.contas[0]] });
+  assert.match(h, /<span class="v-t">Enel<\/span>/);
+  assert.match(h, /vence 05\/11 \(em 6 dias\)/);
+  assert.match(h, /<small>valor<\/small><b>R\$.187,40<\/b>/);
+  assert.match(h, /<span>Vencimento<\/span><span>05\/11<\/span>/);
+  assert.match(h, /data-acao="conta_copiar"[^>]*>Copiar boleto</);
+  const paga = card("contas_email", { contas: [CONTAS.contas[3]] });
+  assert.match(paga, /data-pago="1"/);
+  assert.doesNotMatch(paga, /v-desliza/);
+  assert.match(paga, /Já tá pago./);
+  // rastreio sozinho continua na lista (nao tem o que pagar)
+  assert.match(card("contas_email", { contas: [CONTAS.contas[2]] }), /class="ce-conta/);
 });
 
 test("cards-dinheiro: sem DOM nada quebra", () => {

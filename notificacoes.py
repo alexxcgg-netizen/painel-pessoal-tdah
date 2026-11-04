@@ -3,6 +3,7 @@ IA), se ha algo notavel o bastante pra mandar uma notificacao push. A
 orquestracao (deduplicar por dia, mandar o push, marcar como enviado) fica
 em app.py."""
 
+import json
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -203,18 +204,59 @@ def e_compromisso_de_sair(titulo: str) -> bool:
     return not e_refeicao(titulo) and bool(_PALAVRAS_SAIR.search(_sem_acento(titulo)))
 
 
+PARADA_MIN = 5  # parado na parada do caminho ("passo na casa do guri antes"), briefing 04/11
+ADIANTAR_MAX_MIN = 60
+
+
+def _min_valido(v) -> int | None:
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+
+
+def caminho_com_parada(trajeto, folga: int, parada: str | None = None, ate_parada=None, parada_destino=None):
+    """Minutos de casa ate o destino e o dado da parada (contrato do card de saida, briefing 04/11):
+    (caminho_min, {"nome", "min_ate"} | None). Sem parada: o trajeto (ou a folga). Com parada:
+    casa -> parada + 5 min parado + parada -> destino; cada perna sem resposta do Maps usa a folga."""
+    parada = (parada or "").strip()
+    if not parada:
+        t = _min_valido(trajeto)
+        return (t if t is not None else folga), None
+    ate = _min_valido(ate_parada)
+    ate = ate if ate is not None else folga
+    resto = _min_valido(parada_destino)
+    resto = resto if resto is not None else folga
+    return ate + PARADA_MIN + resto, {"nome": parada[:60], "min_ate": ate}
+
+
+def adiantar_min(extras_json) -> int:
+    """Quanto a saida ja foi adiantada (previsao que piorou, tempo.previsao_que_piora). 0 sem nada."""
+    try:
+        e = json.loads(extras_json) if extras_json else {}
+    except (TypeError, ValueError):
+        return 0
+    v = e.get("adiantar_min") if isinstance(e, dict) else None
+    return v if isinstance(v, int) and not isinstance(v, bool) and 0 < v <= ADIANTAR_MAX_MIN else 0
+
+
+def _coluna(r, nome: str):
+    return r[nome] if nome in r.keys() else None
+
+
 def plano_se_arrumar(
     conn, agora: datetime | None = None, minutos_arrumar: int = 40, trajeto_min=None, folga_sem_trajeto: int = 15,
+    trajeto_parada=None,
 ) -> list[dict]:
     """Compromissos de sair de HOJE (pendentes, com hora, ainda nao comecados) com a conta
     de tras pra frente: evento - trajeto = saida; saida - tempo de se arrumar = comecar.
     `trajeto_min(local) -> int | None` vem de fora (rede) pra esta funcao continuar pura;
     sem local/sem resposta usa `folga_sem_trajeto` (Brusque e pequena). Se o Alex ja tem
-    uma tarefa "se arrumar" marcada hoje, o aviso de se arrumar fica com ela (nao duplica)."""
+    uma tarefa "se arrumar" marcada hoje, o aviso de se arrumar fica com ela (nao duplica).
+    Parada no caminho (04/11): `trajeto_parada(parada, local) -> (casa->parada, parada->destino)`
+    e a conta vira casa -> parada -> destino (caminho_com_parada). Saida adiantada pela previsao
+    (extras.adiantar_min) entra aqui tambem, pra todos os avisos baterem."""
     agora = agora or datetime.now()
     hoje = agora.date().isoformat()
     rows = conn.execute(
-        "SELECT id, title, hora, local, completed_at, estilo FROM tasks WHERE due_date = ? AND hora IS NOT NULL",
+        "SELECT * FROM tasks WHERE due_date = ? AND hora IS NOT NULL",
         (hoje,),
     ).fetchall()
     ja_tem_arrumar = any(_ARRUMAR.search(_sem_acento(r["title"])) for r in rows)
@@ -230,15 +272,23 @@ def plano_se_arrumar(
         if evento <= agora:
             continue
         trajeto = None
-        if r["local"] and trajeto_min and (evento - agora) <= timedelta(hours=4):
+        perto = (evento - agora) <= timedelta(hours=4)
+        parada = (_coluna(r, "parada") or "").strip()
+        ate = resto = None
+        if parada:
+            if trajeto_parada and perto:
+                ate, resto = trajeto_parada(parada, r["local"])
+        elif r["local"] and trajeto_min and perto:
             trajeto = trajeto_min(r["local"])
-        caminho = trajeto if isinstance(trajeto, int) and trajeto >= 0 else folga_sem_trajeto
-        saida = evento - timedelta(minutes=caminho)
+        caminho, info_parada = caminho_com_parada(trajeto, folga_sem_trajeto, parada, ate, resto)
+        adiantado = adiantar_min(_coluna(r, "extras"))
+        saida = evento - timedelta(minutes=caminho + adiantado)
         planos.append({
             "id": r["id"], "titulo": r["title"], "hora": r["hora"], "local": r["local"],
-            "trajeto_min": trajeto if isinstance(trajeto, int) else None, "caminho_min": caminho,
+            "trajeto_min": trajeto if _min_valido(trajeto) is not None else None, "caminho_min": caminho,
             "evento": evento, "saida": saida, "comecar": saida - timedelta(minutes=minutos_arrumar),
             "minutos_arrumar": minutos_arrumar, "ja_tem_tarefa_arrumar": ja_tem_arrumar,
+            "parada": info_parada, "adiantado_min": adiantado, "estilo": r["estilo"],
         })
     return planos
 
@@ -261,7 +311,10 @@ def avisos_se_arrumar(planos: list[dict], agora: datetime | None = None) -> list
             )
             avisos.append(("se_arrumar", p["id"], "Hora de se arrumar", corpo))
         if p["saida"] - margem <= agora < p["evento"]:
-            if p["trajeto_min"] is not None:
+            if p.get("parada"):
+                # briefing 04/11: "Hora de sair. 10 min até a casa do guri."
+                corpo = f"{p['parada']['min_ate']} min até {p['parada']['nome']}. Depois {nome} às {hora}."
+            elif p["trajeto_min"] is not None:
                 corpo = f"{nome} às {hora} - {p['trajeto_min']} min até lá. Saindo agora você chega na hora."
             else:
                 corpo = f"{nome} às {hora} - hora de ir saindo pra chegar com folga."

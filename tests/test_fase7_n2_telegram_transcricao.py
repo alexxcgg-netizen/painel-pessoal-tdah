@@ -59,7 +59,10 @@ def test_transcrever_com_sucesso_registra_uso_e_devolve_texto(banco_temporario):
 
 
 def test_transcrever_teto_estourado_levanta_erro_sem_chamar_rede(banco_temporario):
-    # Estoura o teto padrao (R$40) de proposito.
+    # Estoura um teto configurado de proposito.
+    conn = db.get_db()
+    db.definir_teto_mensal_ia(conn, 1.0)  # USD
+    conn.close()
     medicao.registrar_uso("chat", "anthropic", "claude-sonnet-5", custo_usd=1000.0)
     assert teto.nivel_alerta() == "estourado_100"
 

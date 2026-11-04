@@ -64,6 +64,7 @@ import horario
 import leitura
 import maps_client
 import vida_assistente
+import onde_estou
 import coincidencias
 import diario
 import guardados
@@ -476,6 +477,28 @@ def _saida_pro_compromisso(data_iso: str, hora: str | None, lugar: str | None) -
         return None
 
 
+def _saida_com_parada(conn, data_iso: str, hora: str, parada: str, lugar: str | None) -> tuple[dict, dict]:
+    """Card do date/balada com parada no caminho (04/11): casa -> parada -> destino com 5 min parado
+    (notificacoes.caminho_com_parada). Cada perna sem Maps/rede usa a folga de 15 min.
+    Devolve (saida pro card {"sair", "trajeto_min"}, parada {"nome", "min_ate"})."""
+    casa = os.environ.get("ENDERECO_CASA", "").strip()
+    end_parada = vida_assistente.resolver_parada(conn, parada)
+    ate = resto = None
+    if casa and maps_client.configurado():
+        try:
+            partida = datetime.fromisoformat(f"{data_iso}T{hora}") - timedelta(minutes=45)
+            partida = partida if partida > datetime.now() else None
+            ate = int(maps_client.tempo_de_viagem(casa, end_parada, partida=partida)["duracao_minutos"])
+            if lugar:
+                destino = vida_assistente.resolver_lugar(conn, lugar)
+                resto = int(maps_client.tempo_de_viagem(end_parada, destino, partida=partida)["duracao_minutos"])
+        except Exception:  # rede/formato/cota: a perna que faltou usa a folga
+            pass
+    caminho, info = notificacoes.caminho_com_parada(None, FOLGA_SEM_TRAJETO_MIN, parada, ate, resto)
+    sair = rota_voo.menos_minutos(hora, caminho)
+    return {"sair": sair, "trajeto_min": (ate + resto) if ate is not None and resto is not None else None}, info
+
+
 def _clima_na_hora(data_iso: str, hora: str | None) -> dict | None:
     """Temperatura/chuva na hora do compromisso, na cidade padrao. None se nao der."""
     cidade = os.environ.get("CIDADE_PADRAO", "").strip()
@@ -649,7 +672,7 @@ _TETO_IA_LOCK = threading.Lock()
 
 def _teto_ia_estourado(funcao: str = "chat") -> bool:
     """Fase 7 (C1): teto UNICO de IA pra todo o app - ia.teto.teto_permite
-    (R$40/mes por padrao, ou o teto configurado no card financeiro), sobre o
+    (sem teto por padrao, so o que for configurado no card financeiro), sobre o
     gasto do mes de ia.medicao.gasto_mes_atual (fonte unica: cada chamada
     conta uma vez). Substitui o teto antigo (resumo_custo_api, so api_usage e
     so quando configurado). Erro no calculo bloqueia (mesma regra do ia.core)."""
@@ -2029,6 +2052,9 @@ def _contexto_chat(conn) -> str:
         f"Gasto planejado/cogitado hoje (ainda não decidido): R$ {gasto_planejado:.2f}",
         f"Compromissos de hoje (em ordem de horário): {eventos_txt or 'nenhum'}",
     ]
+    onde = onde_estou.linha_contexto(conn, agora.replace(tzinfo=None))  # visitas do iPhone (04/11)
+    if onde:
+        linhas.insert(1, onde)
     linhas.extend(vida_assistente.linhas_contexto(conn, agora.replace(tzinfo=None)))
     linhas.extend(feriados.linhas_contexto(agora.date()))
     comida_hoje = refeicoes.linha_contexto(conn, agora.date())
@@ -2638,15 +2664,26 @@ def _processar_mensagem_chat(
             return {"erro": "nao recebi a localizacao do celular agora - pergunte o lugar ao Alex"}
         return local_gps["rotulo"] or f"{local_gps['lat']}, {local_gps['lon']}"
 
-    def _plano_do_estilo(estilo, task_id, data_iso, hora, lugar, titulo):
+    def _plano_do_estilo(estilo, task_id, data_iso, hora, lugar, titulo, parada=None):
         """O que precisa de rede vai no efeito (o card e montado sem rede) e o resumo volta pra
         IA - a frase dela tem que bater com o card."""
         efeito = {"entidade": "tarefa", "id": task_id, "estilo": estilo}
         pra_ia = {}
         if estilo in ("date", "balada") and hora:
-            if lugar:
-                claude_client.avisar_passo(f"Calculando o trajeto até {lugar[:40]}")
-            saida = _saida_pro_compromisso(data_iso, hora, lugar)
+            if parada:
+                # assistente passo a passo (04/11): casa -> parada -> destino, 5 min parado
+                claude_client.avisar_passo(f"Calculando o caminho passando em {parada[:40]}")
+                saida, info_parada = _saida_com_parada(conn, data_iso, hora, parada, lugar)
+                efeito["parada"] = info_parada
+                # o card re-montado sem o efeito (cards.card_compromisso) le daqui
+                extras_plano = db.extras_tarefa(conn, task_id)
+                extras_plano["parada"] = info_parada
+                db.salvar_extras_tarefa(conn, task_id, extras_plano)
+                pra_ia["parada"] = f"{info_parada['nome']}: {info_parada['min_ate']} min de casa, 5 min la"
+            else:
+                if lugar:
+                    claude_client.avisar_passo(f"Calculando o trajeto até {lugar[:40]}")
+                saida = _saida_pro_compromisso(data_iso, hora, lugar)
             sair = saida["sair"] if saida else rota_voo.menos_minutos(hora, FOLGA_SEM_TRAJETO_MIN)
             efeito["saida"] = saida
             pra_ia["sair_de_casa"] = sair
@@ -2656,6 +2693,11 @@ def _processar_mensagem_chat(
             if tempo:
                 efeito["clima"] = tempo
                 pra_ia["temperatura_na_hora"] = tempo["temp"]
+                # previsao guardada quando o plano nasce: tempo.previsao_que_piora compara com ela
+                if isinstance(tempo.get("chuva_pct"), (int, float)):
+                    extras_plano = db.extras_tarefa(conn, task_id)
+                    extras_plano["plano_chuva"] = {"pct": int(round(tempo["chuva_pct"])), "hora": hora}
+                    db.salvar_extras_tarefa(conn, task_id, extras_plano)
             if estilo == "balada":
                 claude_client.avisar_passo("Conferindo o que tu tem no dia seguinte")
                 seguinte = (date.fromisoformat(data_iso) + timedelta(days=1)).isoformat()
@@ -2721,9 +2763,11 @@ def _processar_mensagem_chat(
         if estilo == "presente" and _presente_anual(entrada):
             extras["anual"] = True
         hora_tarefa = _normalizar_hora(entrada.get("hora"))
+        # parada no caminho (04/11, "passo na casa do guri antes"): so faz sentido com dia e hora
+        parada = _limpar_texto(entrada.get("parada"), 80) if (quando_data and hora_tarefa) else None
         cur = conn.execute(
-            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local, estilo, extras) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local, estilo, extras, parada) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 entrada["titulo"],
                 entrada.get("quando"),
@@ -2734,12 +2778,16 @@ def _processar_mensagem_chat(
                 lugar,
                 estilo,
                 json.dumps(extras, ensure_ascii=False) if extras else None,
+                parada,
             ),
         )
         conn.commit()
         resultado = {"ok": True, "_efeito": {"entidade": "tarefa", "id": cur.lastrowid}}
         if estilo:
-            resultado.update(_plano_do_estilo(estilo, cur.lastrowid, quando_data, hora_tarefa, lugar, entrada["titulo"]))
+            resultado.update(_plano_do_estilo(estilo, cur.lastrowid, quando_data, hora_tarefa, lugar, entrada["titulo"],
+                                              parada))
+        elif parada:
+            resultado["parada"] = parada
         # so oferece sugestao de dia quando a tarefa ficou com data vaga
         # ("essa semana") - com dia certo (quando_data) ou sem nenhuma pista
         # de tempo (entrada.get("quando") vazio) nao ha nada útil a sugerir
@@ -2862,15 +2910,25 @@ def _processar_mensagem_chat(
             novos["hora"] = hora
         if data:
             novos["due_date"] = data
+        elif novos.get("hora"):
+            # hora sem dia nao aparece no dia nem chama na hora (03/11: "imprimir as contas" ficou 11h sem data)
+            sem_dia = conn.execute("SELECT due_date FROM tasks WHERE id = ?", (tarefa["id"],)).fetchone()
+            if sem_dia and not sem_dia["due_date"]:
+                novos["due_date"] = _agora_brasilia().date().isoformat()
         novo_titulo = (entrada.get("novo_titulo") or "").strip()
         if novo_titulo:
             novos["title"] = novo_titulo[:200]
+        # parada no caminho (04/11): "passo na casa do guri antes" depois do compromisso ja marcado
+        if entrada.get("sem_parada"):
+            novos["parada"] = None
+        elif _limpar_texto(entrada.get("parada"), 80):
+            novos["parada"] = _limpar_texto(entrada.get("parada"), 80)
         if status == "concluir":
             novos["completed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         elif status == "reabrir":
             novos["completed_at"] = None
         if not novos:
-            return {"erro": "nada pra mudar - informe hora, quando_data, novo_titulo ou status"}
+            return {"erro": "nada pra mudar - informe hora, quando_data, novo_titulo, parada ou status"}
         efeito = _editar("tasks", tarefa["id"], novos, "Tarefa", tarefa["title"])
         conn.commit()
         if not efeito:
@@ -2879,6 +2937,23 @@ def _processar_mensagem_chat(
         resultado = {"ok": True, "titulo": novos.get("title", tarefa["title"]), "_efeito": efeito}
         if "title" in novos and novos["title"] != tarefa["title"]:
             resultado["titulo_antes"] = tarefa["title"]
+        if "parada" in efeito.get("depois", {}):
+            extras_parada = db.extras_tarefa(conn, tarefa["id"])
+            if extras_parada.pop("parada", None) is not None:  # o card le daqui; o valor novo entra abaixo
+                db.salvar_extras_tarefa(conn, tarefa["id"], extras_parada)
+            t = conn.execute("SELECT due_date, hora, local FROM tasks WHERE id = ?", (tarefa["id"],)).fetchone()
+            if t and t["due_date"] and t["hora"]:
+                if novos["parada"]:
+                    saida, info_parada = _saida_com_parada(conn, t["due_date"], t["hora"], novos["parada"], t["local"])
+                    sair = saida["sair"]
+                    resultado["parada"] = info_parada
+                    extras_parada["parada"] = info_parada
+                    db.salvar_extras_tarefa(conn, tarefa["id"], extras_parada)
+                else:
+                    saida = _saida_pro_compromisso(t["due_date"], t["hora"], t["local"])
+                    sair = saida["sair"] if saida else rota_voo.menos_minutos(t["hora"], FOLGA_SEM_TRAJETO_MIN)
+                resultado["plano"] = {"sair_de_casa": sair, "comecar_a_se_arrumar": rota_voo.menos_minutos(
+                    sair, vida_assistente.se_arrumar_min(conn))}
         return resultado
 
     def exec_mover_tarefas(entrada):
@@ -3234,11 +3309,36 @@ def _processar_mensagem_chat(
         recusa = _recusa_visitante()
         if recusa:
             return recusa
-        chave = vida_assistente.salvar_apelido(conn, entrada.get("apelido") or "", entrada.get("endereco") or "")
+        if entrada.get("esquecer"):
+            chave = vida_assistente.esquecer_apelido(conn, entrada.get("apelido") or "")
+            if not chave:
+                return {"erro": "esse lugar nao estava salvo", "lugares": sorted(vida_assistente.apelidos(conn))}
+            conn.commit()
+            return {"ok": True, "esquecido": chave}
+        endereco = (entrada.get("endereco") or "").strip()
+        # 04/11: "a oficina e a Fulano" -> procura no Google (perto de Brusque se ele nao disse a cidade) e
+        # guarda nome + endereco de verdade; a IA conta o que achou pra ele conferir
+        achado = None
+        if endereco and maps_client.configurado() and not maps_client.coordenada(endereco):
+            achado = maps_client.resolver_lugar(endereco)
+        if achado and achado.get("endereco"):
+            nome = (achado.get("nome") or "").strip()
+            endereco = f"{nome}, {achado['endereco']}" if nome and nome not in achado["endereco"] else achado["endereco"]
+        chave = vida_assistente.salvar_apelido(conn, entrada.get("apelido") or "", endereco)
         if not chave:
             return {"erro": "apelido ou endereco vazio (casa ja usa o endereco de casa)"}
         conn.commit()
-        return {"ok": True, "apelido": chave, "endereco": entrada["endereco"].strip()[:200]}
+        try:  # 04/11: ja guarda a coordenada, pro iPhone reconhecer quando ele chegar la
+            onde_estou.garantir_coordenada(conn, chave)
+        except Exception:
+            app.logger.exception("geocodificar apelido falhou")
+        resultado = {"ok": True, "apelido": chave, "endereco": endereco[:200]}
+        if not achado:
+            resultado["obs"] = "nao achei no Google; guardei do jeito que ele falou"
+        # card "lugar salvo" da linguagem D (cards.card_lugar_salvo, 04/11)
+        resultado["_efeito"] = {"entidade": "lugar_salvo", "apelido": chave, "endereco": endereco[:200],
+                                "nome": (achado or {}).get("nome"), "achado": bool(achado)}
+        return resultado
 
     def exec_planejar_dia(entrada):
         """Monta o dia inteiro de uma vez: cada bloco vira tarefa com hora (ou ajusta a hora de
@@ -5168,6 +5268,8 @@ def _disparar_estimativa_uber(conn, pedido: dict, access_token: str) -> None:
 NOTIFICACOES_URGENTES = {
     "tarefa_horario", "compromisso_chegando", "voo_sair", "hora_de_dormir", "rotina_manha", "hiperfoco_fim",
     "adiado_hiperfoco", "tarefa_preparo", "se_arrumar", "hora_de_sair",
+    # assistente passo a passo (04/11): balada as 23h cai no silencio e os passos tem hora certa
+    "saida_preparo", "saida_porta",
 }
 
 # Fase 5 (US-C16): avisos de rotina DOMESTICA (casa) que nao fazem sentido
@@ -5586,6 +5688,7 @@ def _briefing_noite_p3_substitui_fechamento(conn) -> bool:
 # Onde o toque na notificacao abre (?aba= -> init.js/service worker abrem a aba certa).
 _ABA_DO_AVISO = {
     "tarefa": "tarefas", "se_arrumar": "tarefas", "hora_de_sair": "tarefas", "compromisso": "tarefas",
+    "saida_": "assistente",
     "lembrete": "tarefas", "espera": "tarefas", "conta_a_vencer": "construtora", "orcamento": "gastos",
     "gasto": "gastos", "cobranca": "gastos", "assinatura": "gastos", "cartao": "gastos", "renda": "gastos",
     "voo": "aviacao", "pre_voo": "aviacao", "currency": "aviacao", "meta": "painel", "habito": "vida",
@@ -5701,6 +5804,45 @@ def _info_trajeto_aviso(local: str) -> dict:
 
 def _trajeto_min_aviso(local: str):
     return _info_trajeto_aviso(local)["min"]
+
+
+def _trajeto_entre_aviso(origem: str, destino: str):
+    """Minutos de carro entre dois lugares (parada -> destino, 04/11), mesma regra de cache
+    de _info_trajeto_aviso (1x por hora por par). Falha = None (o aviso usa a folga)."""
+    agora = datetime.now()
+    chave = (agora.date().isoformat(), agora.hour, origem.strip().lower(), "->", destino.strip().lower())
+    if chave not in _CACHE_TRAJETO_AVISO:
+        minutos = None
+        if origem.strip() and destino.strip() and maps_client.configurado():
+            try:
+                minutos = int(maps_client.tempo_de_viagem(origem, destino)["duracao_minutos"])
+            except Exception as e:  # rede/Google fora/cota
+                app.logger.warning("trajeto parada -> destino: %s", e)
+        _CACHE_TRAJETO_AVISO[chave] = minutos
+    return _CACHE_TRAJETO_AVISO[chave]
+
+
+def _trajetos_parada_aviso(conn, parada: str, local: str | None):
+    """(casa -> parada, parada -> destino) em minutos, cada um None se o Maps nao respondeu.
+    A parada e falada solta ('casa do guri'): vida_assistente.resolver_parada acha o apelido."""
+    end_parada = vida_assistente.resolver_parada(conn, parada)
+    ate = _trajeto_min_aviso(end_parada)
+    resto = _trajeto_entre_aviso(end_parada, vida_assistente.resolver_lugar(conn, local)) if (local or "").strip() else None
+    return ate, resto
+
+
+_CACHE_CLIMA_AVISO: dict = {}
+
+
+def _clima_aviso(data_iso: str, hora: str) -> dict | None:
+    """_clima_na_hora com cache de 1 h (avisos passo a passo e a previsao que piora rodam a cada 5 min)."""
+    agora = datetime.now()
+    chave = (agora.date().isoformat(), agora.hour, data_iso, hora)
+    if chave not in _CACHE_CLIMA_AVISO:
+        if len(_CACHE_CLIMA_AVISO) > 200:
+            _CACHE_CLIMA_AVISO.clear()
+        _CACHE_CLIMA_AVISO[chave] = _clima_na_hora(data_iso, hora)
+    return _CACHE_CLIMA_AVISO[chave]
 
 
 def _minutos_se_arrumar(conn) -> int:
@@ -5871,10 +6013,16 @@ def verificar_e_notificar():
     planos_sair = notificacoes.plano_se_arrumar(
         conn, datetime.now(), _minutos_se_arrumar(conn),
         trajeto_min=lambda local: _trajeto_min_aviso(vida_assistente.resolver_lugar(conn, local)),
+        trajeto_parada=lambda parada, local: _trajetos_parada_aviso(conn, parada, local),
     )
     ids_sair = {p["id"] for p in planos_sair}
-    local_do_plano = {p["id"]: p["local"] for p in planos_sair}
-    for tipo_sair, ref_sair, titulo_sair, corpo_sair in notificacoes.avisos_se_arrumar(planos_sair):
+    local_do_plano = {p["id"]: p["local"] for p in planos_sair if not p.get("parada")}
+    # assistente passo a passo (04/11): "daqui 15 min comeca a se arrumar" e "5 min pra sair" entre
+    # os dois de cima (se arrumar / hora de sair), um de cada por compromisso por dia
+    import tempo as tempo_mod
+
+    passos_sair = tempo_mod.passos_da_saida(conn, planos_sair, datetime.now(), clima=_clima_aviso)
+    for tipo_sair, ref_sair, titulo_sair, corpo_sair in notificacoes.avisos_se_arrumar(planos_sair) + passos_sair:
         if not ja_notificou_hoje(conn, tipo_sair, ref_sair):
             # "hora de sair" leva o transito da ultima hora: "+12 min de transito. Parado na ..."
             if tipo_sair == "hora_de_sair" and local_do_plano.get(ref_sair):

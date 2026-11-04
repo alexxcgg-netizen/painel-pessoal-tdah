@@ -89,13 +89,18 @@ async function loadCustoIAV2() {
 
   $("#custo-ia-v2-conteudo").hidden = false;
   $("#custo-ia-v2-gasto").textContent = fmtMoeda(dados.gasto_brl);
-  $("#custo-ia-v2-mes").textContent = `em ${dados.mes} (teto: ${fmtMoeda(dados.teto_brl)})`;
+  // Sem teto configurado (o padrao) a barra e o "% do teto" nao teriam o que medir.
+  const temTeto = dados.teto_brl > 0;
+  $("#custo-ia-v2-mes").textContent = temTeto ? `em ${dados.mes} (teto: ${fmtMoeda(dados.teto_brl)})` : `em ${dados.mes}`;
 
   const pct = Math.min(100, Math.max(0, dados.fracao_teto * 100));
   const barra = $("#custo-ia-v2-barra");
   definirProgressoBarra(barra, pct);
   barra.classList.toggle("completa", dados.nivel_alerta === "estourado_100");
-  $("#custo-ia-v2-fracao").textContent = `${custoIaV2FormatarPercentual(dados.fracao_teto)} do teto usado`;
+  $("#custo-ia-v2-barra-wrap").hidden = !temTeto;
+  const fracaoEl = $("#custo-ia-v2-fracao");
+  fracaoEl.textContent = `${custoIaV2FormatarPercentual(dados.fracao_teto)} do teto usado`;
+  fracaoEl.hidden = !temTeto;
   $("#custo-ia-v2-projecao").textContent = `Projeção até o fim do mês: ${fmtMoeda(dados.projecao_fim_mes_brl)}.`;
 
   const nivelEl = $("#custo-ia-v2-nivel");

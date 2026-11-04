@@ -154,6 +154,24 @@ class DespertadorPedidoTestCase(unittest.TestCase):
         self.assertIn('status "concluir" NA MESMA', p)
         self.assertIn("ajustar_tarefa", {t["name"] for t in chat_mod.CHAT_TOOLS})
 
+    def test_a_caminho_nao_da_baixa_e_desmentido_reabre(self):
+        # "vim trazer o carro" deu baixa em "levar o carro" antes da hora; "ainda nao deixei" nao reabriu
+        from ia.funcoes import chat as chat_mod
+
+        p = chat_mod.CHAT_SYSTEM_PROMPT
+        self.assertIn("A CAMINHO NAO E FEITO", p)
+        self.assertIn('status "reabrir"', p)
+
+    def test_tarefa_de_quando_chegar_nao_marca_antes_da_chegada(self):
+        # "imprimir as contas quando chegar em casa" ganhou 07:45 com ele ainda na rua
+        from ia.funcoes import chat as chat_mod
+
+        p = chat_mod.CHAT_SYSTEM_PROMPT
+        self.assertIn("o horario nunca vem antes da chegada", p)
+        # a ferramenta citada na regra tem que existir de verdade
+        self.assertIn("estimar_trajeto", p)
+        self.assertIn("estimar_trajeto", {t["name"] for t in chat_mod.CHAT_TOOLS})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,9 +2,9 @@
 # animacoes-interface): confere os 2 detalhes que ficaram faltando nas
 # animacoes de uso diario.
 #
-#   1) Concluir tarefa: 600ms depois do toque, o item some do DOM de
-#      verdade E o proximo item da lista sobe (y menor que antes) - a
-#      lista fecha o espaco, nao "pula" com um buraco.
+#   1) Concluir tarefa: depois do toque, o item some do DOM de verdade
+#      E o proximo item da lista sobe (y menor que antes) - a lista
+#      fecha o espaco, nao "pula" com um buraco.
 #   2) Secao recolhivel (static/js/ui/secao-recolhivel.js, tecnica grid
 #      0fr->1fr): abre/fecha de verdade, com e sem "reduzir movimento"
 #      (reduced_motion="reduce" so troca a transicao por corte seco, o
@@ -18,7 +18,6 @@
 import json
 import os
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -46,11 +45,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -67,7 +64,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path, abrir_tela; _CHROME = get_chrome_path()
+from tests.playwright_helper import get_chrome_path, abrir_tela, esperar_assentar; _CHROME = get_chrome_path()
 
 
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
@@ -131,8 +128,9 @@ class LimpaAAnimacaoTestCase(unittest.TestCase):
 
                 itens.first.locator(".tl-ponto").click(force=True)
 
-                # 600ms depois: o item saiu do DOM de verdade (nao so visualmente) ...
-                page.wait_for_timeout(600)
+                # o item saiu do DOM de verdade (nao so visualmente) ...
+                page.wait_for_selector("#lista-tarefas li.saindo", state="detached")
+                esperar_assentar(page, "#lista-tarefas li")
                 textos_depois = page.locator("#lista-tarefas li").all_inner_texts()
                 self.assertTrue(
                     all(titulo_2o.split("\n")[0] in t or t != "" for t in textos_depois),
@@ -166,7 +164,8 @@ class LimpaAAnimacaoTestCase(unittest.TestCase):
                 page.goto(BASE_URL + "/")
                 page.wait_for_load_state("networkidle")
                 abrir_tela(page, "vida")  # R1: Vida abre pelo Mais (saiu da barra)
-                page.wait_for_selector('.secao-recolhivel[data-secao-id="vida-revisao-trimestral"]')
+                seletor_secao = '.secao-recolhivel[data-secao-id="vida-revisao-trimestral"]'
+                page.wait_for_selector(seletor_secao)
 
                 # is_visible() do Playwright nao considera overflow:hidden de um
                 # ancestral (so visibility/display/opacity do proprio elemento) -
@@ -181,17 +180,17 @@ class LimpaAAnimacaoTestCase(unittest.TestCase):
                         "#conteudo-vida-revisao-trimestral", "el => el.getBoundingClientRect().height"
                     )
 
-                secao = page.locator('.secao-recolhivel[data-secao-id="vida-revisao-trimestral"]')
+                secao = page.locator(seletor_secao)
                 self.assertEqual(secao.get_attribute("data-aberto"), "false", "secao deveria comecar fechada")
                 self.assertLess(altura_conteudo(), 1, "conteudo fechado deveria ter altura ~0")
 
                 secao.locator(".secao-cabecalho").click()
-                page.wait_for_timeout(500)
+                esperar_assentar(page, seletor_secao)
                 self.assertEqual(secao.get_attribute("data-aberto"), "true")
                 self.assertGreater(altura_conteudo(), 40, "conteudo deveria ganhar altura depois de abrir")
 
                 secao.locator(".secao-cabecalho").click()
-                page.wait_for_timeout(500)
+                esperar_assentar(page, seletor_secao)
                 self.assertEqual(secao.get_attribute("data-aberto"), "false")
                 self.assertLess(altura_conteudo(), 1, "conteudo deveria voltar a altura ~0 depois de fechar de novo")
 

@@ -216,6 +216,10 @@ final class Relatorio: ObservableObject {
         let info = ActivityAuthorizationInfo()
         add(g, "Atividades ao vivo", info.areActivitiesEnabled ? "ligadas" : "desligadas",
             info.areActivitiesEnabled ? .ok : .falha, chave: "ilha_ativas", dado: info.areActivitiesEnabled)
+        // atividade de verdade do próximo compromisso (AoVivo.swift, 04/11)
+        let compromissos = Activity<CompromissoAtributos>.activities.filter { $0.activityState == .active }.count
+        add(g, "Compromisso ao vivo", compromissos > 0 ? "ligada" : "nenhuma agora", chave: "ilha_compromisso",
+            dado: compromissos)
         if !ilhaResposta.isEmpty {
             add(g, "Teste da ilha", ilhaResposta, ilhaResposta.hasPrefix("apareceu") ? .ok : .falha, chave: "ilha_teste")
         }

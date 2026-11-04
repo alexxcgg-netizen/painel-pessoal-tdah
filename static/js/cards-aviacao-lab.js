@@ -4,7 +4,7 @@
 // passaporte (passaporte de piloto). Dado vem de aviacao_lab.py; o servidor faz a conta, aqui so desenha.
 //
 // REGRA FORTE do Alex: termo/regra de aviacao so com fonte conferida. O que nao foi conferido aparece com a marca
-// "nao conferido" (pista 18/36 e declinacao de SSBL, validade do CMA, tempo de prova dos cadernos).
+// "nao conferido" (declinacao de SSBL - as cabeceiras 01/19 ele confirmou em 04/11/2026 -, validade do CMA, tempo de prova dos cadernos).
 // Renderizadores PUROS (estado final); os cliques re-renderizam o miolo (.av-raiz) com o dado que a rota devolve.
 // Script classico - ordem de carga em templates/scripts.html (depois de cards-aviacao.js).
 
@@ -574,6 +574,7 @@
     return [tom, txt];
   }
   const tresDig = (n) => String(Math.round(n)).padStart(3, "0");
+  const cabTxt = (n) => String(n).padStart(2, "0"); // cabeceira sempre com 2 digitos: 01, 19
   // tudo que a tela mostra do vento a partir do estado + dos dois controles (o render e o arrastar usam a mesma conta)
   function valoresVento(est, dv, v) {
     const mexeu = dv !== est.dir0 || v !== est.vel0;
@@ -583,7 +584,7 @@
     return { c, tom, txt: (mexeu || !est.medido ? "Simulando. " : "") + txt };
   }
   function raizVento(d) {
-    const p = d.pista || { cabeceiras: [18, 36], decl_w: 20.6, conferido: false };
+    const p = d.pista || { cabeceiras: [1, 19], decl_w: 20.6, conferido: false };
     const alto = Math.max(p.cabeceiras[0], p.cabeceiras[1]);
     const baixo = Math.min(p.cabeceiras[0], p.cabeceiras[1]);
     const dir = d.direcao != null ? (Math.round(d.direcao / 5) * 5) % 360 : 0;
@@ -592,7 +593,7 @@
     const ini = valoresVento(est, dir, vel);
     const aviso = p.conferido
       ? `<p class="cd-nota vp-ok">Pista e declinação conferidas por ti no AISWEB/ROTAER.</p>`
-      : `<p class="vp-aviso">Pista ${p.cabeceiras[0]}/${p.cabeceiras[1]} e declinação de ${virgula(p.decl_w, 1)}° W: ${NAO_CONFERIDO}. Vêm de fonte de terceiros; confere no AISWEB/ROTAER.</p>`;
+      : `<p class="vp-aviso">Pista ${cabTxt(p.cabeceiras[0])}/${cabTxt(p.cabeceiras[1])} e declinação de ${virgula(p.decl_w, 1)}° W: ${NAO_CONFERIDO}. Vêm de fonte de terceiros; confere no AISWEB/ROTAER.</p>`;
     const msg = !d.medido
       ? `<p class="cd-nota">Sem METAR de ${esc(d.icao || "SSBL")} agora. Mexe nos controles pra simular.</p>`
       : d.variavel
@@ -601,9 +602,9 @@
     return (
       `<div ${raizAttr("vento", est)}>` +
       `<div class="vp-vis"><svg viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="92" class="vp-rosa"/>` +
-      `<g class="vp-pista"><rect x="88" y="22" width="24" height="156" rx="3"/><text x="100" y="40">${alto}</text><text x="100" y="170">${baixo}</text><path d="M100 50v100" class="vp-eixo"/></g>` +
+      `<g class="vp-pista"><rect x="88" y="22" width="24" height="156" rx="3"/><text x="100" y="40">${cabTxt(alto)}</text><text x="100" y="170">${cabTxt(baixo)}</text><path d="M100 50v100" class="vp-eixo"/></g>` +
       `<g class="vp-seta" style="transform:rotate(${ini.c.dm}deg)"><path d="M100 6v38"/><path d="M92 34l8 12 8-12"/></g></svg>` +
-      `<div class="vp-num"><div><small>proa</small><b class="vp-proa">${ini.c.proa} kt</b></div><div><small>través</small><b class="vp-trav">${ini.c.trav} kt</b></div><div><small>cabeceira</small><b class="vp-cab">${ini.c.cab}</b></div></div></div>` +
+      `<div class="vp-num"><div><small>proa</small><b class="vp-proa">${ini.c.proa} kt</b></div><div><small>través</small><b class="vp-trav">${ini.c.trav} kt</b></div><div><small>cabeceira</small><b class="vp-cab">${cabTxt(ini.c.cab)}</b></div></div></div>` +
       `<div class="vp-metar">${esc(d.metar || "sem METAR agora")}</div>${msg}` +
       `<div class="vp-ctl"><label>direção <span class="vp-d">${tresDig(dir)}° V</span></label><input type="range" class="av-range" data-sim="vento" data-k="dir" min="0" max="355" step="5" value="${dir}" aria-label="Direção do vento (verdadeira)"></div>` +
       `<div class="vp-ctl"><label>velocidade <span class="vp-v">${vel} kt</span></label><input type="range" class="av-range" data-sim="vento" data-k="vel" min="0" max="35" value="${vel}" aria-label="Velocidade do vento"></div>` +
@@ -637,7 +638,7 @@
     if (seta) seta.style.transform = `rotate(${c.dm}deg)`;
     rootEl.querySelector(".vp-proa").textContent = `${c.proa} kt`;
     rootEl.querySelector(".vp-trav").textContent = `${c.trav} kt`;
-    rootEl.querySelector(".vp-cab").textContent = String(c.cab);
+    rootEl.querySelector(".vp-cab").textContent = cabTxt(c.cab);
     rootEl.querySelector(".vp-d").textContent = `${tresDig(dv)}° V`;
     rootEl.querySelector(".vp-v").textContent = `${v} kt`;
     const ver = rootEl.querySelector(".vp-ver");
@@ -767,7 +768,7 @@
     el.querySelectorAll(".av-vento").forEach((r) => pintarVento(r));
   }
 
-  const api = { raizRadar, raizCheque, raizBanca, raizChair, raizVento, raizPassaporte, calcVento, veredito, preparar, textoGrande, posRegua };
+  const api = { raizRadar, raizCheque, raizBanca, raizChair, raizVento, raizPassaporte, calcVento, veredito, cabTxt, preparar, textoGrande, posRegua };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   raiz.CardsAviacaoLab = api;
 })(typeof window !== "undefined" ? window : globalThis);

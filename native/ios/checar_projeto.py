@@ -59,6 +59,22 @@ for nome, alvo in alvos.items():
         if "containerBackground(" in txt and "17.0" not in txt:
             erro(f"{f.name}: containerBackground (iOS 17) sem #available")
 
+# 2b. Atividade ao vivo (04/11): os atributos (ActivityAttributes) que o app liga tem que estar nos DOIS alvos,
+#     e intervalo de timer a partir de "agora" nao pode ser cru (alvo ja passado = fim antes do comeco, derruba):
+#     usar ContentState.intervalo(de:ate:)
+arquivos_app = {f.name for f in arquivos_do_alvo(alvos["Painel"])}
+arquivos_widget = {f.name for f in arquivos_do_alvo(alvos["PainelWidgetExtension"])}
+for f in (AQUI.parent / "widgetkit").glob("*.swift"):
+    txt = f.read_text(encoding="utf-8")
+    if re.search(r":\s*ActivityAttributes\b", txt) and not (f.name in arquivos_app and f.name in arquivos_widget):
+        erro(f"{f.name}: ActivityAttributes precisa entrar nos dois alvos (sources do Painel no project.yml)")
+for f in list((AQUI / "App").rglob("*.swift")) + list((AQUI.parent / "widgetkit").rglob("*.swift")):
+    txt = f.read_text(encoding="utf-8")
+    for m in re.finditer(r"timerInterval:\s*([^,)]*)", txt):
+        trecho = m.group(1)
+        if "..." in trecho and re.search(r"Date\(\)|\bagora\b|\.now\b", trecho):
+            erro(f"{f.name}: timerInterval com intervalo cru ({trecho.strip()!r}); use ContentState.intervalo(de:ate:)")
+
 # 3. App Group igual em todo lugar
 grupos = set()
 for alvo in alvos.values():

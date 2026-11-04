@@ -2,7 +2,7 @@
 
 - fonte unica do gasto do mes (ia.medicao.gasto_mes_atual): cada chamada
   conta uma vez, mesmo gravada em uso_ia (nova) e api_usage (antiga);
-- teto unico (ia.teto, R$40 padrao) vale pro chat, intent e nota fiscal;
+- teto unico (ia.teto, sem teto por padrao) vale pro chat, intent e nota fiscal;
 - historico: resumo da A5 no contexto_fixo e so o que nao foi resumido na
   integra (nunca os dois).
 
@@ -136,20 +136,29 @@ class FonteUnicaDoGastoTestCase(_Base):
 
 
 class TetoUnicoTestCase(_Base):
-    def _estourar_teto_padrao(self):
-        # sem teto configurado vale o padrao de R$40 -> 40/5.5 USD
-        self._gravar_uso_ia(teto.TETO_PADRAO_BRL / medicao.cambio_usd_brl() + 0.01)
+    def _estourar_teto(self):
+        conn = db.get_db()
+        db.definir_teto_mensal_ia(conn, 1.0)  # USD
+        conn.commit()
+        conn.close()
+        self._gravar_uso_ia(1.01)
 
-    def test_teto_padrao_de_40_reais_bloqueia_o_chat_sem_configurar_nada(self):
-        self._estourar_teto_padrao()
+    def test_sem_teto_configurado_gasto_alto_nao_bloqueia_nada(self):
+        self._gravar_uso_ia(10000.0)
+        self.assertFalse(app._teto_ia_estourado("chat"))
+        self.assertFalse(app._teto_ia_estourado("intent"))
+        self.assertFalse(app._teto_ia_estourado("nota_fiscal"))
+
+    def test_teto_configurado_bloqueia_o_chat(self):
+        self._estourar_teto()
         with patch.object(claude_client.client.messages, "create") as create:
             res = self.client.post("/api/chat", json={"mensagem": "me conta uma piada"})
         self.assertEqual(res.status_code, 402)
         self.assertEqual(res.get_json()["error"], app.TETO_IA_MSG)
         create.assert_not_called()
 
-    def test_teto_padrao_bloqueia_intent(self):
-        self._estourar_teto_padrao()
+    def test_teto_configurado_bloqueia_intent(self):
+        self._estourar_teto()
         with patch("claude_client.classify_intent") as mock_classify:
             res = self.client.post("/api/intent/classificar", json={"texto": "texto nunca visto antes"})
         mock_classify.assert_not_called()
@@ -172,7 +181,7 @@ class TetoUnicoTestCase(_Base):
             self.assertTrue(app._teto_ia_estourado("chat"))
 
     def test_nota_fiscal_respeita_o_teto_unico(self):
-        self._estourar_teto_padrao()
+        self._estourar_teto()
         import base64
         with patch("claude_client.extrair_nota_fiscal_foto") as extrair:
             res = self.client.post("/api/notas-fiscais/extrair", json={

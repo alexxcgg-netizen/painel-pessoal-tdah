@@ -90,13 +90,92 @@
     return `vence ${d} (em ${c.dias} dias)`;
   }
 
-  Cards.registrar("contas_email", (data) => {
+  // ---- linguagem D (04/11, docs/CARDS.md cena 8): uma conta só vira pílula com "deslize se já
+  // pagou" (POST /api/contas-email/<id>/status, a rota que já existia). Várias contas e rastreio
+  // continuam na lista com botões.
+  const D = () => raiz.CardsD || (typeof require === "function" ? require("./cards-d.js") : null);
+  const COR_CONTA = "#ffd36e";
+  const ICONE_CONTA =
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 2.5h9l4 4V20a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 015 20V4A1.5 1.5 0 016.5 2.5zM8.5 11h7v1.6h-7zm0 3.5h7v1.6h-7zm0-7h4v1.6h-4z"/></svg>';
+  function contaD(c, card) {
+    const cd = D();
+    const paga = c.status === "paga";
+    const luz = /\b(luz|energia|celesc|copel|cemig|enel)\b/i.test(c.nome);
+    const copia =
+      c.codigo && ROTULO_COPIA[c.tipo]
+        ? `<button type="button" data-acao="conta_copiar" data-codigo="${esc(c.codigo)}" data-tipo="${esc(c.tipo)}">${esc(ROTULO_COPIA[c.tipo])}</button>`
+        : "";
+    const linhas = [c.vence ? ["Vencimento", diaMes(c.vence)] : null].filter(Boolean);
+    return cd.pilula({
+      v: "conta",
+      cor: COR_CONTA,
+      icone: luz ? cd.IC.raio : ICONE_CONTA,
+      titulo: c.nome,
+      sub: `<span>${esc(paga ? "pago" : quandoVence(c))}</span>`,
+      rotulo: numeroValido(c.valor) ? "valor" : "",
+      valor: numeroValido(c.valor) ? esc(reais(c.valor)) : "",
+      attrs: ` data-conta="${esc(c.id)}" data-feito-chave="${esc(`conta:${c.id}`)}"${paga ? ' data-pago="1"' : ""}`,
+      corpo:
+        (linhas.length ? `<div class="v-linhas">${linhas.map(([r, v]) => `<div class="v-linha"><span>${esc(r)}</span><span>${esc(v)}</span></div>`).join("")}</div>` : "") +
+        (paga ? `<p class="v-nota">Já tá pago.</p>` : cd.deslizaHTML("conta_paga", "deslize se já pagou", ` data-conta="${esc(c.id)}"`)) +
+        `<p class="ce-msg v-nota" aria-live="polite" hidden></p>` +
+        cd.botoes(card, copia),
+    });
+  }
+  function contaPagaD(vivo) {
+    vivo.classList.add("pago");
+    const dz = vivo.querySelector(".v-desliza");
+    if (dz) {
+      dz.dataset.feito = "1";
+      dz.classList.add("solto");
+      dz.style.setProperty("--x", `${Math.max(0, dz.clientWidth - 56)}px`);
+      dz.style.setProperty("--f", "1");
+      const t = dz.querySelector(".txt");
+      if (t) t.textContent = "pago";
+      const b = dz.querySelector(".bolinha");
+      if (b) {
+        b.setAttribute("aria-valuenow", "100");
+        b.setAttribute("aria-disabled", "true");
+        b.tabIndex = -1;
+      }
+    }
+    const rot = vivo.querySelector(".v-dir small");
+    if (rot) rot.textContent = "pago";
+    const sub = vivo.querySelector(".v-s span");
+    if (sub) sub.textContent = "pago";
+  }
+  if (D()) {
+    D().registrarDesliza("conta_paga", async (dz, vivo, deps) => {
+      const res = await postar(deps, `/api/contas-email/${encodeURIComponent(dz.dataset.conta)}/status`, { status: "paga" });
+      const msg = vivo && vivo.querySelector(".ce-msg");
+      if (!res || !res.ok) {
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = "Não deu agora. Tenta de novo?";
+        }
+        return false;
+      }
+      lembrar(vivo.dataset.feitoChave, { tipo: "paga" });
+      D().semRolar(() => {
+        contaPagaD(vivo);
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = "Pago. A tarefa do lembrete também fechou.";
+        }
+      });
+      if (typeof deps.aoMudar === "function") deps.aoMudar();
+      return true;
+    });
+  }
+
+  Cards.registrar("contas_email", (data, card) => {
     if (!data) return null;
     if (data.oculto) {
       return `<div class="sd ce">${olho(I.email, "Achei no e-mail", "")}<p class="cu-nota">${esc(Cards.MOEDA_OCULTA)} · contas ocultas no modo visitante</p></div>`;
     }
     const contas = lista(data.contas).filter((c) => c && c.id && c.nome);
     if (!contas.length) return null;
+    if (contas.length === 1 && contas[0].tipo !== "rastreio") return contaD(contas[0], card);
     const linhas = contas
       .map((c, k) => {
         const paga = c.status === "paga";
@@ -203,6 +282,10 @@
       status(alvo.querySelector(".sd-status"), I.ok, "Já tá no teu extrato.");
       return;
     }
+    if (alvo.classList.contains("vivo-d") && feito.tipo === "paga") {
+      contaPagaD(alvo);
+      return;
+    }
     if (alvo.classList.contains("ce-conta") && feito.tipo === "paga") {
       alvo.classList.add("paga");
       const p = alvo.querySelector(".ce-pago");
@@ -247,7 +330,7 @@
     });
 
     Cards.registrarAcao("conta_copiar", async (btn) => {
-      const linha = btn.closest(".ce-conta");
+      const linha = btn.closest(".ce-conta, .vivo-d");
       const ok = await copiarTexto(btn.dataset.codigo || "");
       const msg = linha && linha.querySelector(".ce-msg");
       const rastreio = btn.dataset.tipo === "rastreio";
@@ -260,6 +343,7 @@
       btn.classList.add("on");
       const s = btn.querySelector("span");
       if (s) s.textContent = "Copiado";
+      else if (btn.closest(".v-bts")) btn.textContent = "Copiado";
       vibrar(8);
     });
 

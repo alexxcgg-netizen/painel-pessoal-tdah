@@ -34,6 +34,8 @@ targets:
       - path: ../widgetkit/PainelControleIntent.swift
       # atributos da atividade de teste da ilha: o app liga, o widget desenha
       - path: ../widgetkit/IlhaTesteAtributos.swift
+      # atividade ao vivo do próximo compromisso (04/11): o app liga/atualiza/encerra (AoVivo.swift), o widget desenha
+      - path: ../widgetkit/CompromissoAtributos.swift
     info:
       path: App/Info.plist
       properties:
@@ -57,6 +59,8 @@ targets:
         NSCameraUsageDescription: O chat do painel usa a câmera pra foto do prato e de nota.
         NSPhotoLibraryUsageDescription: O chat do painel usa fotos da galeria quando tu escolhe uma.
         NSLocationWhenInUseUsageDescription: O painel usa a localização pra hora de sair e chegada no aeroclube.
+        # onde eu estou (04/11): visitas (chegou/saiu de um lugar) com o app fechado - so o lugar, nunca o caminho
+        NSLocationAlwaysAndWhenInUseUsageDescription: Com “Sempre”, o painel sabe quando tu chega e sai de um lugar (mecânico, casa) e ajusta os horários das tarefas.
     entitlements:
       path: App/Painel.entitlements
       properties:

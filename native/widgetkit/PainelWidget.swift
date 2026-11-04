@@ -119,6 +119,8 @@ enum EstadoExibicao {
 struct PainelEntry: TimelineEntry {
     let date: Date
     let estado: EstadoExibicao
+    /// Próximo compromisso de saída/voo (GET /api/ao-vivo, 2026-11-04) - nil quando não tem ou sem rede/cache.
+    var compromisso: CompromissoAtributos.ContentState? = nil
 }
 
 // MARK: - TimelineProvider
@@ -138,15 +140,17 @@ struct PainelTimelineProvider: TimelineProvider {
         }
         Task {
             let estado = await Self.buscarEstadoAtual()
-            completion(PainelEntry(date: Date(), estado: estado))
+            let compromisso = await ProximoProvider.buscar()
+            completion(PainelEntry(date: Date(), estado: estado,
+                                   compromisso: TimelineAoVivo.estado(compromisso, em: Date())))
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PainelEntry>) -> Void) {
         Task {
             let estado = await Self.buscarEstadoAtual()
+            let compromisso = await ProximoProvider.buscar()
             let agora = Date()
-            let entry = PainelEntry(date: agora, estado: estado)
 
             // Atualização a cada ~15-30 min (pedido da faixa) — o sistema
             // ainda pode adiar/agrupar por conta própria (orçamento de
@@ -159,7 +163,12 @@ struct PainelTimelineProvider: TimelineProvider {
                 to: agora
             ) ?? agora.addingTimeInterval(TimeInterval(minutosAteProximaAtualizacao * 60))
 
-            let timeline = Timeline(entries: [entry], policy: .after(proxima))
+            // 2026-11-04: uma entrada a mais em cada virada de passo do compromisso ("sai em" -> "chega em")
+            let limite = min(proxima, TimelineAoVivo.proximaBusca(compromisso, agora: agora))
+            let entradas = TimelineAoVivo.datas(compromisso, agora: agora, ate: limite.addingTimeInterval(1)).map {
+                PainelEntry(date: $0, estado: estado, compromisso: TimelineAoVivo.estado(compromisso, em: $0))
+            }
+            let timeline = Timeline(entries: entradas, policy: .after(limite))
             completion(timeline)
         }
     }
@@ -296,9 +305,9 @@ struct PainelWidgetEntryView: View {
     var body: some View {
         switch familia {
         case .systemSmall:
-            PainelViewPequena(estado: entry.estado)
+            PainelViewPequena(estado: entry.estado, compromisso: entry.compromisso, agora: entry.date)
         case .systemMedium:
-            PainelViewMedia(estado: entry.estado)
+            PainelViewMedia(estado: entry.estado, compromisso: entry.compromisso, agora: entry.date)
         // Tela de bloqueio também precisa de `.containerBackground` no iOS 17+, senão o iOS troca o
         // widget inteiro pelo aviso "Please adopt containerBackground API". Fundo transparente: o
         // próprio sistema desenha o vidro da tela de bloqueio.
@@ -314,7 +323,7 @@ struct PainelWidgetEntryView: View {
         default:
             // Família não coberta por esta faixa (ex: systemLarge) — cai
             // pro layout médio em vez de ficar em branco.
-            PainelViewMedia(estado: entry.estado)
+            PainelViewMedia(estado: entry.estado, compromisso: entry.compromisso, agora: entry.date)
         }
     }
 }
@@ -323,45 +332,63 @@ struct PainelWidgetEntryView: View {
 
 struct PainelViewPequena: View {
     let estado: EstadoExibicao
+    var compromisso: CompromissoAtributos.ContentState? = nil
+    var agora = Date()
 
     var body: some View {
         Group {
-            switch estado {
-            case .normal(let payload):
+            if let c = compromisso {
+                // 2026-11-04: compromisso de saída/voo chegando ganha o widget pequeno (jeito D)
                 VStack(alignment: .leading, spacing: 6) {
-                    rotulo("PAINEL")
-                    if let foco = payload.foco {
-                        Text(foco.titulo)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(PainelCores.texto)
-                            .lineLimit(2)
-                        Text("em \(foco.emMinutos) min")
-                            .font(.system(size: 12))
-                            .foregroundStyle(PainelCores.textoMuted)
-                    } else {
-                        Text("Sem foco agora")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(PainelCores.textoMuted)
-                    }
-                    Spacer(minLength: 4)
-                    if let habitos = payload.habitos {
-                        rodapeIndicador(
-                            texto: "Hábitos \(habitos.feitos)/\(habitos.total)"
-                        )
-                    }
-                    if let custoIA = payload.custoIA {
-                        rodapeIndicador(texto: "IA \(custoIA.percentualTeto)%")
+                    BlocoCompromisso(estado: c, agora: agora, compacto: true)
+                    Spacer(minLength: 2)
+                    if let habitos = habitosDoPayload {
+                        rodapeIndicador(texto: "Hábitos \(habitos.feitos)/\(habitos.total)")
                     }
                 }
-            case .vazio:
-                estadoVazio
-            case .erro(let mensagem):
-                estadoErro(mensagem)
+            } else {
+                switch estado {
+                case .normal(let payload):
+                    VStack(alignment: .leading, spacing: 6) {
+                        rotulo("PAINEL")
+                        if let foco = payload.foco {
+                            Text(foco.titulo)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(PainelCores.texto)
+                                .lineLimit(2)
+                            Text("em \(foco.emMinutos) min")
+                                .font(.system(size: 12))
+                                .foregroundStyle(PainelCores.textoMuted)
+                        } else {
+                            Text("Sem foco agora")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(PainelCores.textoMuted)
+                        }
+                        Spacer(minLength: 4)
+                        if let habitos = payload.habitos {
+                            rodapeIndicador(
+                                texto: "Hábitos \(habitos.feitos)/\(habitos.total)"
+                            )
+                        }
+                        if let custoIA = payload.custoIA {
+                            rodapeIndicador(texto: "IA \(custoIA.percentualTeto)%")
+                        }
+                    }
+                case .vazio:
+                    estadoVazio
+                case .erro(let mensagem):
+                    estadoErro(mensagem)
+                }
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .fundoDoWidget(PainelCores.fundo)
+    }
+
+    private var habitosDoPayload: HabitosDoDia? {
+        if case .normal(let payload) = estado { return payload.habitos }
+        return nil
     }
 
     private func rotulo(_ texto: String) -> some View {
@@ -408,66 +435,76 @@ struct PainelViewPequena: View {
 
 struct PainelViewMedia: View {
     let estado: EstadoExibicao
+    var compromisso: CompromissoAtributos.ContentState? = nil
+    var agora = Date()
 
     var body: some View {
-        Group {
-            switch estado {
-            case .normal(let payload):
-                HStack(alignment: .top, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
+            // 2026-11-04: compromisso de saída/voo chegando entra no topo (jeito D); o resto fica embaixo, mais justo
+            if let c = compromisso {
+                BlocoCompromisso(estado: c, agora: agora, compacto: false)
+            }
+            Group {
+                switch estado {
+                case .normal(let payload):
+                    HStack(alignment: .top, spacing: 16) {
+                        VStack(alignment: .leading, spacing: compromisso == nil ? 8 : 4) {
+                            if compromisso == nil {
+                                rotulo("PAINEL")
+                            }
+                            if let foco = payload.foco {
+                                linha(titulo: "Foco", texto: "\(foco.titulo) · \(foco.emMinutos) min")
+                            }
+                            if let conta = payload.proximaConta {
+                                linha(titulo: "Conta", texto: "\(conta.nome) em \(conta.emDias)d")
+                            }
+                            if payload.foco == nil && payload.proximaConta == nil {
+                                Text("Nada urgente agora")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(PainelCores.textoMuted)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        VStack(alignment: .trailing, spacing: 10) {
+                            if let habitos = payload.habitos {
+                                barraProgresso(
+                                    titulo: "Hábitos",
+                                    valor: "\(habitos.feitos)/\(habitos.total)",
+                                    fracao: habitos.total > 0
+                                        ? Double(habitos.feitos) / Double(habitos.total)
+                                        : 0
+                                )
+                            }
+                            if let custoIA = payload.custoIA {
+                                barraProgresso(
+                                    titulo: "IA",
+                                    valor: "\(custoIA.percentualTeto)%",
+                                    fracao: Double(custoIA.percentualTeto) / 100.0,
+                                    estourado: custoIA.percentualTeto >= 100
+                                )
+                            }
+                        }
+                        .frame(width: 108)
+                    }
+                case .vazio:
                     VStack(alignment: .leading, spacing: 8) {
                         rotulo("PAINEL")
-                        if let foco = payload.foco {
-                            linha(titulo: "Foco", texto: "\(foco.titulo) · \(foco.emMinutos) min")
-                        }
-                        if let conta = payload.proximaConta {
-                            linha(titulo: "Conta", texto: "\(conta.nome) em \(conta.emDias)d")
-                        }
-                        if payload.foco == nil && payload.proximaConta == nil {
-                            Text("Nada urgente agora")
-                                .font(.system(size: 13))
-                                .foregroundStyle(PainelCores.textoMuted)
-                        }
+                        Text("Tudo em dia — nada pra mostrar agora")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(PainelCores.textoMuted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                    VStack(alignment: .trailing, spacing: 10) {
-                        if let habitos = payload.habitos {
-                            barraProgresso(
-                                titulo: "Hábitos",
-                                valor: "\(habitos.feitos)/\(habitos.total)",
-                                fracao: habitos.total > 0
-                                    ? Double(habitos.feitos) / Double(habitos.total)
-                                    : 0
-                            )
-                        }
-                        if let custoIA = payload.custoIA {
-                            barraProgresso(
-                                titulo: "IA",
-                                valor: "\(custoIA.percentualTeto)%",
-                                fracao: Double(custoIA.percentualTeto) / 100.0,
-                                estourado: custoIA.percentualTeto >= 100
-                            )
-                        }
+                case .erro(let mensagem):
+                    VStack(alignment: .leading, spacing: 8) {
+                        rotulo("PAINEL")
+                        Text(mensagem)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(PainelCores.erro)
+                            .lineLimit(2)
                     }
-                    .frame(width: 108)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            case .vazio:
-                VStack(alignment: .leading, spacing: 8) {
-                    rotulo("PAINEL")
-                    Text("Tudo em dia — nada pra mostrar agora")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(PainelCores.textoMuted)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            case .erro(let mensagem):
-                VStack(alignment: .leading, spacing: 8) {
-                    rotulo("PAINEL")
-                    Text(mensagem)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(PainelCores.erro)
-                        .lineLimit(2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(14)
@@ -495,7 +532,7 @@ struct PainelViewMedia: View {
             Text(texto)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(PainelCores.texto)
-                .lineLimit(2)
+                .lineLimit(compromisso == nil ? 2 : 1)
         }
     }
 
@@ -514,6 +551,85 @@ struct PainelViewMedia: View {
                 }
             }
             .frame(height: 5)
+        }
+    }
+}
+
+// MARK: - Próximo compromisso na tela inicial (jeito D, 2026-11-04)
+
+/// Pílula escura do compromisso: ícone na cor do assunto, título, a linha do tempo e o rótulo pequeno
+/// ("sai em") com a contagem andando sozinha na cor do assunto. Ícone: IconeAssunto (AtividadeCompromisso.swift).
+struct BlocoCompromisso: View {
+    let estado: CompromissoAtributos.ContentState
+    let agora: Date
+    let compacto: Bool
+
+    private var cor: Color { Color(hex: estado.cor) }
+
+    @ViewBuilder
+    private var contagem: some View {
+        if let p = estado.proximo(em: agora) {
+            VStack(alignment: compacto ? .leading : .trailing, spacing: 0) {
+                Text(CompromissoAtributos.ContentState.rotuloContagem(p))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(PainelCores.textoMuted)
+                Text(timerInterval: CompromissoAtributos.ContentState.intervalo(de: agora, ate: p.em), countsDown: true)
+                    .font(.system(size: compacto ? 22 : 17, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(cor)
+                    .multilineTextAlignment(compacto ? .leading : .trailing)
+                    .lineLimit(1)
+            }
+        } else {
+            Text("chegou")
+                .font(.system(size: compacto ? 17 : 15, weight: .semibold))
+                .foregroundStyle(cor)
+        }
+    }
+
+    private var tituloComLugar: String {
+        guard let lugar = estado.lugar, !lugar.isEmpty, lugar != estado.titulo else { return estado.titulo }
+        return "\(estado.titulo) · \(lugar)"
+    }
+
+    var body: some View {
+        if compacto {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    IconeAssunto(icone: estado.icone, cor: cor, tamanho: 22)
+                    Text(estado.titulo)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(PainelCores.texto)
+                        .lineLimit(1)
+                }
+                contagem
+                if !estado.linhaTempo.isEmpty {
+                    Text(estado.linhaTempo)
+                        .font(.system(size: 11))
+                        .foregroundStyle(PainelCores.textoMuted)
+                        .lineLimit(2)
+                }
+            }
+        } else {
+            HStack(spacing: 10) {
+                IconeAssunto(icone: estado.icone, cor: cor, tamanho: 30)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(tituloComLugar)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(PainelCores.texto)
+                        .lineLimit(1)
+                    if !estado.linhaTempo.isEmpty {
+                        Text(estado.linhaTempo)
+                            .font(.system(size: 11))
+                            .foregroundStyle(PainelCores.textoMuted)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 4)
+                contagem
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(PainelCores.fundoAlt))
         }
     }
 }

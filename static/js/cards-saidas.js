@@ -46,8 +46,6 @@
     const m = minDia(h);
     return m === null ? "" : `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, "0") : ""}`;
   };
-  const maiuscula = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
-
   function olho(icone, texto, extra) {
     return `<div class="card-resultado-eyebrow">${icone}<span>${esc(texto)}</span>${extra || ""}</div>`;
   }
@@ -61,40 +59,8 @@
     if (delta > 1 && delta < 7) return DIAS[d.getDay()];
     return `${DIAS[d.getDay()].slice(0, 3)} ${d.getDate()} ${MESES[d.getMonth()]}`;
   }
-  function emDias(iso, agora) {
-    const d = Cards.parseDia(iso);
-    if (!d) return "";
-    const delta = Cards.diasEntre(agora, d);
-    if (delta <= 0) return delta === 0 ? "hoje" : "já passou";
-    return delta === 1 ? "amanhã" : `em ${delta} dias`;
-  }
-  // linha "se arrumar -> sair -> chegar (-> volta)": a 1a parada e o destaque
-  function linhaNoite(paradas) {
-    const n = paradas.length;
-    return (
-      `<div class="sd-linha" style="--n:${n}">` +
-      paradas
-        .map(
-          (p, i) =>
-            `<div class="sd-parada${i === 0 ? " destaque" : ""}" style="--k:${i}"><i></i><b class="vivo-num">${esc(p.hora)}</b><span>${esc(p.rotulo)}</span></div>`
-        )
-        .join("") +
-      `</div>`
-    );
-  }
   function ficha(icone, html, extra = "") {
     return `<span class="sd-ficha${extra}">${icone}<span>${html}</span></span>`;
-  }
-  function fichasClima(clima, hora) {
-    if (!clima || !numeroValido(clima.temp)) return [];
-    const h = minDia(hora);
-    const periodo = h === null ? "" : h >= 18 * 60 || h < 5 * 60 ? " à noite" : h >= 12 * 60 ? " à tarde" : " de manhã";
-    const fichas = [ficha(I.termometro, `<b class="vivo-num">${esc(Math.round(clima.temp))}°</b>${periodo}`)];
-    if (clima.temp <= 17) fichas.push(ficha(I.camisa, "leva jaqueta"));
-    if (numeroValido(clima.chuva_pct) && clima.chuva_pct >= 40) {
-      fichas.push(ficha(I.chuva, `chuva <b class="vivo-num">${esc(clima.chuva_pct)}%</b> · guarda-chuva`));
-    }
-    return fichas;
   }
   // caixinhas que marcam (persistem no servidor - /api/tasks/<id>/lista)
   function checklist(itens, taskId) {
@@ -117,41 +83,99 @@
     );
   }
 
-  // ======================================================================= date
-  Cards.registrar("date", (data, _card, ctx) => {
-    if (!data.titulo || !data.data) return null;
+  // ============================================================ linguagem D (04/11)
+  // Date e balada viram a pílula "ao vivo" (docs/CARDS.md, cena 2): fechada conta até o próximo passo
+  // (se arrumar / sair / chegar, em SEGUNDOS do servidor + gerado_ts); aberta mostra a cadeia, o tempo
+  // hora a hora, o que levar e a nota. Checklist do date, sono e volta da balada continuam embaixo.
+  const D = () => raiz.CardsD || (typeof require === "function" ? require("./cards-d.js") : null);
+  const COR_DATE = "#f5a3b8";
+  const COR_BALADA = "#c4a1ff";
+  const ROTULO_CONTA = { "Se arrumar": "arrumar em", Sair: "sair em", Chegar: "chega em" };
+
+  // o próximo passo que ainda não passou (pelo relógio do ctx), pra contagem da direita
+  function proximoPasso(cadeia, geradoTs, agora) {
+    const cd = D();
+    const ag = agora instanceof Date ? agora.getTime() : Date.now();
+    return lista(cadeia).find((p) => p && numeroValido(p.em_s) && cd.restante(p.em_s, geradoTs, ag) > 0) || null;
+  }
+  // tempo na chegada: a coluna marcada do hora a hora; senão o clima da hora que já vinha
+  function tempoChegada(data) {
+    const h = lista(data.clima_horas).find((x) => x && x.marca === "chegada");
+    if (h) return { temp: h.temp, chuva_pct: h.chuva_pct };
+    return data.clima && numeroValido(data.clima.temp) ? data.clima : null;
+  }
+  function subSaida(data, agora) {
+    const dia = quandoDia(data.data, agora);
+    const partes = [];
+    if (dia && dia !== "hoje") partes.push(dia);
+    if (data.hora) partes.push(`chegar ${data.hora}`);
+    const t = tempoChegada(data);
+    if (t && numeroValido(t.temp)) {
+      partes.push(`${Math.round(t.temp)}°${numeroValido(t.chuva_pct) && t.chuva_pct >= 20 ? ` · ${Math.round(t.chuva_pct)}%` : ""}`);
+    }
+    return partes.length ? `<span>${esc(partes.join(" · "))}</span>` : "";
+  }
+  function notaSaida(data) {
+    const partes = [];
+    if (numeroValido(data.trajeto_min)) {
+      const transito = numeroValido(data.transito_min) && data.transito_min >= 3 ? ` (${data.transito_min} de trânsito)` : "";
+      partes.push(`${data.trajeto_min} min de carro até lá${transito}.`);
+    }
+    if (lista(data.clima_horas).length) {
+      partes.push(`${data.clima_lugar ? `Previsão pra ${data.clima_lugar}. ` : ""}Se mudar até a hora, eu ajusto a saída e te aviso.`);
+    }
+    return partes.length ? `<p class="v-nota">${esc(partes.join(" "))}</p>` : "";
+  }
+  // cadeia do servidor; card antigo (sem cadeia) monta as caixas com as horas que já tinha
+  function cadeiaSaida(data) {
+    const cd = D();
+    if (lista(data.cadeia).length) return cd.cadeia(data.cadeia);
+    if (!data.comecar || !data.hora) return "";
+    return cd.cadeia([
+      { rotulo: "Se arrumar", hora: data.comecar },
+      { rotulo: "Sair", hora: data.sair },
+      { rotulo: "Chegar", hora: data.hora },
+    ]);
+  }
+  function pilulaSaida(data, card, ctx, o) {
+    const cd = D();
     const agora = (ctx && ctx.agora) || new Date();
-    const hero = data.com_quem && data.lugar ? `${data.com_quem} · ${data.lugar}` : data.com_quem || data.titulo;
-    const sub = [emDias(data.data, agora), numeroValido(data.trajeto_min) ? `${data.trajeto_min} min de carro${numeroValido(data.transito_min) && data.transito_min >= 3 ? ` (+${data.transito_min} de trânsito)` : ""}` : ""].filter(Boolean).join(" · ");
-    const paradas = data.comecar
-      ? [
-          { hora: data.comecar, rotulo: "se arrumar" },
-          { hora: data.sair, rotulo: "sair" },
-          { hora: data.hora, rotulo: data.lugar || "chegar" },
-        ]
-      : [];
-    const fichas = fichasClima(data.clima, data.hora);
-    if (data.lugar && !data.com_quem) fichas.push(ficha(I.pin, esc(data.lugar)));
+    const prox = proximoPasso(data.cadeia, data.gerado_ts, agora);
+    const rotulo = prox ? (prox.parada ? "parada em" : ROTULO_CONTA[prox.rotulo] || "em") : "";
+    return cd.pilula({
+      v: o.v,
+      cor: o.cor,
+      icone: o.icone,
+      titulo: o.titulo,
+      sub: subSaida(data, agora),
+      rotulo,
+      valor: prox ? cd.contagem(prox.em_s, data.gerado_ts, "min", agora) : "",
+      attrs: data.id !== undefined ? ` data-compromisso="${esc(data.id)}"` : "",
+      corpo:
+        cadeiaSaida(data) +
+        cd.tempoHoras(data.clima_horas) +
+        cd.levar(data.levar) +
+        notaSaida(data) +
+        (o.extra || "") +
+        cd.botoes(card),
+    });
+  }
+
+  // ======================================================================= date
+  Cards.registrar("date", (data, card, ctx) => {
+    if (!data.titulo || !data.data) return null;
     const itens = lista(data.lista).filter((i) => i && i.texto);
-    return (
-      `<div class="sd sd-date">` +
-      olho(I.coracao, "Date", `<span class="sd-quando vivo-num">${esc(quandoDia(data.data, agora))}${data.hora ? ` · ${esc(data.hora)}` : ""}</span>`) +
-      `<div class="sd-date-topo" data-compromisso="${esc(data.id)}">` +
-      `<svg class="sd-coracao" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/></svg>` +
-      `<div class="sd-quem"><h3 class="sd-hero">${esc(hero)}</h3>${sub ? `<p>${esc(sub)}</p>` : ""}</div></div>` +
-      (paradas.length ? linhaNoite(paradas) : "") +
-      (fichas.length ? `<div class="sd-fichas">${fichas.join("")}</div>` : "") +
-      (itens.length ? `<span class="sd-rotulo">Antes do date</span>${checklist(itens, data.id)}` : "") +
-      `</div>`
-    );
+    const titulo = data.com_quem ? `Date com ${data.com_quem}` : data.lugar ? `Date · ${data.lugar}` : "Date";
+    return pilulaSaida(data, card, ctx, {
+      v: "date",
+      cor: COR_DATE,
+      icone: D().IC.coracao,
+      titulo,
+      extra: itens.length ? `<span class="sd-rotulo">Antes do date</span>${checklist(itens, data.id)}` : "",
+    });
   });
 
   // ===================================================================== balada
-  // estrelas em posicao fixa (mesma em todo render - o historico nao "pula")
-  const ESTRELAS = Array.from({ length: 18 }, (_, i) => `<i class="sd-estrela" style="left:${(i * 37 + 7) % 100}%;top:${(i * 53 + 11) % 62}%;--k:${i % 6}"></i>`).join("");
-  const CIDADE =
-    '<svg class="sd-cidade" viewBox="0 0 300 30" preserveAspectRatio="none" aria-hidden="true"><path d="M0 30V18h14V9h10v8h8V4h12v14h10v-6h16v18h6V12h12v18h10V7h14v23h8V15h12v15h10V10h8v6h12V2h10v28h10V16h14v14h8V8h12v22h6V13h10v17h12V6h10v24z"/></svg>';
-
   // 3a leva (2026-10-14): "dificilmente volto de Uber - geralmente dirigindo ou de carona"
   const MODOS_VOLTA = [
     ["dirigindo", "dirigindo", I.carro],
@@ -185,47 +209,32 @@
     );
   }
 
-  Cards.registrar("balada", (data, _card, ctx) => {
-    if (!data.titulo || !data.data) return null;
-    const agora = (ctx && ctx.agora) || new Date();
-    const d = Cards.parseDia(data.data);
-    const delta = d ? Cards.diasEntre(agora, d) : null;
-    const noite = delta === 0 ? "Hoje à noite" : delta === 1 ? "Amanhã à noite" : d ? `${maiuscula(DIAS[d.getDay()])} à noite` : "À noite";
-    const sub = [emDias(data.data, agora), data.com_quem ? `com ${data.com_quem}` : ""].filter(Boolean).join(" · ");
-    const paradas = data.comecar
-      ? [
-          { hora: data.comecar, rotulo: "se arrumar" },
-          { hora: data.sair, rotulo: "sair" },
-          { hora: data.hora, rotulo: data.lugar || "chegar" },
-        ]
-      : [];
-    if (paradas.length && data.volta) paradas.push({ hora: data.volta, rotulo: "volta" });
-    let sono = "";
-    const s = data.sono;
-    if (s && numeroValido(s.min)) {
-      const h = Math.floor(s.min / 60);
-      const m = s.min % 60;
-      const pouco = s.min < 6 * 60;
-      sono =
-        `<div class="sd-sono${pouco ? " pouco" : ""}"><div class="sd-sono-topo">${I.lua}<strong>${h} h${m ? ` ${m} min` : ""} de sono</strong>` +
-        `<span class="vivo-num">${esc(horaBr(s.volta))} → ${esc(horaBr(s.acordar))}</span></div>` +
-        `<div class="sd-sono-barra"><i style="--sono:${Math.min(1, s.min / 480).toFixed(3)}"></i></div>` +
-        `<div class="sd-sono-marcas"><span><b class="vivo-num">${esc(s.volta)}</b>volta</span><span><b class="vivo-num">${esc(s.acordar)}</b>acordar</span>` +
-        `<span><b class="vivo-num">${esc(s.hora || "")}</b><em>${esc(s.compromisso || "compromisso")}</em></span></div>` +
-        (pouco ? `<p class="sd-sono-aviso">${I.alerta}<span>Menos de 6 h de sono — vale voltar mais cedo.</span></p>` : "") +
-        `</div>`;
-    }
-    const volta = data.id !== undefined ? voltaHTML(data) : "";
+  function sonoHTML(s) {
+    if (!s || !numeroValido(s.min)) return "";
+    const h = Math.floor(s.min / 60);
+    const m = s.min % 60;
+    const pouco = s.min < 6 * 60;
     return (
-      `<div class="sd sd-balada">` +
-      `<div class="sd-ceu" data-compromisso="${esc(data.id)}">${ESTRELAS}<span class="sd-lua"></span>${CIDADE}` +
-      `<div class="sd-ceu-titulo"><b>${esc(noite)}</b><span>${esc(sub || data.titulo)}</span></div></div>` +
-      (data.titulo && !/balada|festa/i.test(sub) ? `<p class="sd-balada-tit">${esc(data.titulo)}</p>` : "") +
-      (paradas.length ? linhaNoite(paradas) : "") +
-      sono +
-      volta +
+      `<div class="sd-sono${pouco ? " pouco" : ""}"><div class="sd-sono-topo">${I.lua}<strong>${h} h${m ? ` ${m} min` : ""} de sono</strong>` +
+      `<span class="vivo-num">${esc(horaBr(s.volta))} → ${esc(horaBr(s.acordar))}</span></div>` +
+      `<div class="sd-sono-barra"><i style="--sono:${Math.min(1, s.min / 480).toFixed(3)}"></i></div>` +
+      `<div class="sd-sono-marcas"><span><b class="vivo-num">${esc(s.volta)}</b>volta</span><span><b class="vivo-num">${esc(s.acordar)}</b>acordar</span>` +
+      `<span><b class="vivo-num">${esc(s.hora || "")}</b><em>${esc(s.compromisso || "compromisso")}</em></span></div>` +
+      (pouco ? `<p class="sd-sono-aviso">${I.alerta}<span>Menos de 6 h de sono. Vale voltar mais cedo.</span></p>` : "") +
       `</div>`
     );
+  }
+
+  Cards.registrar("balada", (data, card, ctx) => {
+    if (!data.titulo || !data.data) return null;
+    const titulo = data.lugar || (/balada|festa/i.test(data.titulo) ? "Balada" : data.titulo);
+    return pilulaSaida(data, card, ctx, {
+      v: "balada",
+      cor: COR_BALADA,
+      icone: D().IC.lua,
+      titulo,
+      extra: sonoHTML(data.sono) + (data.id !== undefined ? voltaHTML(data) : ""),
+    });
   });
 
   // ================================================================= documentos
@@ -260,7 +269,7 @@
   const PASTA =
     '<svg class="sd-pasta" viewBox="0 0 50 42" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path class="sd-pasta-fundo" d="M3 9a3 3 0 0 1 3-3h11l4 4h23a3 3 0 0 1 3 3v23a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3Z"/><path d="M3 15h44"/></svg>';
   function contaPasta(feitos, total) {
-    return feitos >= total ? "tudo na pasta ✓" : `${feitos} de ${total} na pasta`;
+    return feitos >= total ? "tudo na pasta" : `${feitos} de ${total} na pasta`;
   }
 
   Cards.registrar("documentos", (data, _card, ctx) => {

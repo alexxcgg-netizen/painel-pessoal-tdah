@@ -827,6 +827,7 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
     # 4a leva: cada automacao isolada - uma que quebra nao derruba as outras
     import aviacao_lab
     import manha
+    import onde_estou  # leva "onde eu estou" (04/11): parado num lugar e ficando atrasado
     import retrospectiva
     import se_entao
     import tempo  # Grupo B (Tempo): espera, "eu te chamo", calibrador, disjuntor, porta
@@ -839,7 +840,9 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
                   neste_dia.na_manha, coincidencias.na_semana,
                   aviacao_lab.chair_da_vespera, aviacao_lab.avisos_prazos,
                   tempo.modo_espera, tempo.chamar_na_hora, tempo.calibrador_novo, tempo.disjuntor, tempo.porta,
-                  retrospectiva.avisar_mes):
+                  tempo.previsao_que_piora,  # assistente passo a passo (04/11): chuva >= 70% adianta a saida 1x
+                  retrospectiva.avisar_mes,
+                  onde_estou.verificar):
         try:
             saida.extend(passo(conn, agora))
         except Exception:

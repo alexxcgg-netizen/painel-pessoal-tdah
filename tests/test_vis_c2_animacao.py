@@ -14,7 +14,6 @@
 import json
 import os
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -45,11 +44,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -66,7 +63,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path, abrir_tela; _CHROME = get_chrome_path()
+from tests.playwright_helper import CONTAR_FETCH, abrir_tela, esperar_assentar, esperar_carga, get_chrome_path; _CHROME = get_chrome_path()
 
 
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
@@ -107,19 +104,22 @@ class VisC2AnimacaoTestCase(unittest.TestCase):
                 erros = []
                 page = ctx.new_page()
                 page.on("pageerror", lambda exc: erros.append(str(exc)))
+                page.add_init_script(CONTAR_FETCH)
                 page.goto(BASE_URL + "/")
                 page.wait_for_load_state("networkidle")
-                page.wait_for_timeout(300)
+                esperar_assentar(page, "#tab-hoje")
 
                 for aba in ABAS:
                     abrir_tela(page, aba)  # R1: barra de 5 - fora dela, abre pelo Mais
                     page.wait_for_function(
                         f"document.querySelector('#tab-{aba}') && !document.querySelector('#tab-{aba}').hidden"
                     )
-                    page.wait_for_timeout(350)
+                    esperar_carga(page)  # um erro ao desenhar a resposta so vira pageerror depois que ela volta
                     secao = page.locator(f"#tab-{aba}")
                     self.assertTrue(secao.is_visible(), f"aba {aba} nao ficou visivel")
 
+                # o desenho da ultima resposta vem depois do fetch resolver
+                esperar_assentar(page, "#tab-assistente")
                 self.assertEqual(erros, [], f"pageerror ao passar pelas 8 abas: {erros}")
             finally:
                 browser.close()
@@ -143,7 +143,7 @@ class VisC2AnimacaoTestCase(unittest.TestCase):
                 page.emulate_media(reduced_motion="reduce")
                 page.goto(BASE_URL + "/")
                 page.wait_for_load_state("networkidle")
-                page.wait_for_timeout(300)
+                esperar_assentar(page, "#tab-hoje")
 
                 # ---- concluir tarefa continua funcionando ----
                 page.click('.tab-btn[data-tab="tarefas"]')

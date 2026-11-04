@@ -37,6 +37,8 @@ import pytest
 # pagina nos testes de navegador (o resumo do dia chama a IA ao abrir). Agora e
 # um socket local que aceita e derruba na hora (RST): mesmo erro pro app
 # (APIConnectionError), em ~1 s.
+import errno as _errno  # noqa: E402
+import ipaddress as _ipaddress  # noqa: E402
 import socket as _socket  # noqa: E402
 import struct as _struct  # noqa: E402
 import threading as _threading  # noqa: E402
@@ -63,6 +65,58 @@ os.environ["OPENAI_BASE_URL"] = _URL_IA_MORTA
 os.environ["GOOGLE_GEMINI_BASE_URL"] = _URL_IA_MORTA
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
+# 2026-10-31: teste nenhum sai da maquina. Sem isso, teste que esquecia um duble ia pra internet
+# de verdade (o webhook do Telegram esperava 15 s pelo api.telegram.org a cada resposta). Conexao
+# pra fora falha na hora, com o mesmo erro de estar sem internet; localhost continua livre.
+# Endereco numerico continua resolvendo (nao usa rede): as defesas de SSRF precisam ver o
+# 169.254.169.254 de verdade, nao um "nome nao existe" que passaria pelo motivo errado.
+# Vale pra TCP pelo modulo socket, que e o que o projeto usa; UDP e asyncio nao passam por aqui,
+# e o Chromium e fechado em tests/playwright_helper.py.
+_getaddrinfo_real = _socket.getaddrinfo
+_gethostbyname_real = _socket.gethostbyname
+_connect_real = _socket.socket.connect
+_connect_ex_real = _socket.socket.connect_ex
+
+
+def _eh_local(host):
+    host = host.decode() if isinstance(host, bytes) else host
+    if not host or host == "localhost":
+        return True
+    try:
+        return _ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _getaddrinfo_so_local(host, port=None, family=0, type=0, proto=0, flags=0):
+    if not _eh_local(host):
+        flags |= _socket.AI_NUMERICHOST
+    return _getaddrinfo_real(host, port, family, type, proto, flags)
+
+
+def _gethostbyname_so_local(host):
+    return _getaddrinfo_so_local(host, None, _socket.AF_INET)[0][4][0] if not _eh_local(host) else _gethostbyname_real(host)
+
+
+def _vai_pra_fora(sock, endereco):
+    return sock.family in (_socket.AF_INET, _socket.AF_INET6) and not _eh_local(endereco[0])
+
+
+def _connect_so_local(self, endereco):
+    if _vai_pra_fora(self, endereco):
+        raise ConnectionRefusedError(f"teste nao sai da maquina: {endereco[0]}")
+    return _connect_real(self, endereco)
+
+
+def _connect_ex_so_local(self, endereco):
+    return _errno.ECONNREFUSED if _vai_pra_fora(self, endereco) else _connect_ex_real(self, endereco)
+
+
+_socket.getaddrinfo = _getaddrinfo_so_local
+_socket.gethostbyname = _gethostbyname_so_local
+_socket.socket.connect = _connect_so_local
+_socket.socket.connect_ex = _connect_ex_so_local
+
 # Velocidade (2026-10-13): o hash do PIN em producao e scrypt, lento DE PROPOSITO
 # (~80 ms pra gerar + ~75 ms pra conferir) contra forca bruta. Na suite isso se
 # paga em todo setUp que define PIN e faz login - milhares de vezes. Aqui troca
@@ -79,6 +133,33 @@ def _gerar_hash_rapido(senha, method="pbkdf2:sha256:1", salt_length=16):
 
 
 _ws.generate_password_hash = _gerar_hash_rapido
+
+# Velocidade (2026-10-30): banco vazio vem de uma copia em vez de rodar o init_db inteiro
+# (330 ms -> 0,4 ms por teste). Tem que vir antes de qualquer `import app`.
+import banco_modelo as _banco_modelo  # noqa: E402
+import criptografia as _criptografia  # noqa: E402
+import db as _db  # noqa: E402
+
+_banco_modelo.instalar(_db, _criptografia)
+
+# Velocidade (2026-10-30): toda pagina dos testes de navegador pede o resumo do dia, e a IA aqui
+# e morta de proposito: o SDK tentava 3x com espera e o ia.core repetia tudo, 3,3 s por pagina.
+# Quem testa a repeticao define a propria espera (patch de ESPERA_RETRY_S) ou usa duble.
+import anthropic as _anthropic  # noqa: E402
+
+_anthropic_init = _anthropic.Anthropic.__init__
+
+
+def _anthropic_sem_repeticao(self, *args, **kwargs):
+    kwargs.setdefault("max_retries", 0)
+    _anthropic_init(self, *args, **kwargs)
+
+
+_anthropic.Anthropic.__init__ = _anthropic_sem_repeticao
+
+import ia.core as _ia_core  # noqa: E402
+
+_ia_core.ESPERA_RETRY_S = 0
 
 
 # Windows: apagar um arquivo que outro handle ainda mantem aberto da

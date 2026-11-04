@@ -68,7 +68,6 @@ def pagina(app_no_ar):
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=mv.CHROME)
         ctx = browser.new_context(viewport={"width": 390, "height": 844})
-        ctx.route("**/*", lambda r: r.continue_() if "127.0.0.1" in r.request.url else r.abort())
         ctx.request.post(base_url + "/login", data={"pin": pin})
         page = ctx.new_page()
         page.on("pageerror", lambda exc: erros.append(str(exc)))

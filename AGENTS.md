@@ -215,7 +215,7 @@ citada entre parênteses.
     deixe texto longo/com várias frases para a IA e teste negativos de outras faixas (a10, m1).
 18. **Teto e custo têm fonte única.** Preço só por `ia.precos.custo_usd` (`ia/precos.json`,
     formato único); gasto do mês só por `ia.medicao.gasto_mes_atual`, que não soma `uso_ia`
-    com `api_usage` (a mesma chamada grava nas duas); teto só por `ia.teto` (padrão R$ 40).
+    com `api_usage` (a mesma chamada grava nas duas); teto só por `ia.teto` (padrão sem teto; só limita se configurado no card).
     Caminho de IA fora do `chamar_ia` precisa gravar `uso_ia` sozinho (a4, a15, c1).
 19. **`chamar_ia` exige JSON com raiz objeto quando há schema** e não tem override de modelo
     (o modelo vem só da config). Quem sempre tolerou campo ausente é o código Python, então
@@ -246,6 +246,21 @@ citada entre parênteses.
   travada (item 13); porta 5100 + índice da faixa.
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
+
+### 2026-11-04, Assistente passo a passo (saida de date/balada, `tempo.py` fim do arquivo)
+- A hora de sair de um compromisso tem DUAS contas que precisam bater: `notificacoes.plano_se_arrumar` (avisos
+  se_arrumar/hora_de_sair e os passos novos `tempo.passos_da_saida`) e `tempo.compromissos` (fita, espera, porta, ao
+  vivo). Parada (`tasks.parada`) e saida adiantada pela chuva (`extras.adiantar_min`) entram nas duas via
+  `notificacoes.caminho_com_parada` / `notificacoes.adiantar_min` - mexeu numa, mexa na outra.
+- Parada e falada solta ("casa do guri"): `vida_assistente.resolver_parada` acha o apelido dentro da frase;
+  `resolver_lugar` so casa o apelido exato. `onde_estou._lugares` inclui parada/destino dos compromissos de sair de hoje.
+
+### 2026-11-04, Onde eu estou (`onde_estou.py`, visitas do iPhone)
+- **Aviso de `conversa_proativa.verificar` só vira push 1x por TIPO por dia** (`verificar_e_notificar` deduplica
+  `avisos_conversa` por `ja_notificou_hoje(tipo)`, ref 0). Passo que precisa de vários pushes no dia (uma chegada
+  por visita, um atraso por tarefa) publica e manda sozinho (`onde_estou._avisar`) e devolve `[]`.
+- Rota maquina-a-maquina que recebe localizacao: token SO no header (`rotas/onde_estou.py`), nao o
+  `_token_widget_valido` (que aceita `?token=` na URL).
 
 ### 2026-10-13, eval do chat (`scripts/eval_chat/`) e backup diário
 - **`app.py` só chama `load_dotenv()` se `unittest`/`pytest` ainda NÃO estiverem em `sys.modules`.**

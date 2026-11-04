@@ -427,7 +427,9 @@ def _coletar_custo_ia_percentual() -> float | None:
     gasto-do-mes/teto-do-mes, ja calculada por `ia.teto._fracao_teto` -
     reaproveitada, nao recalculada aqui). Pode passar de 100 com o teto ja
     estourado (o Widgy/HTML decide como mostrar isso, o numero cru vai
-    inteiro)."""
+    inteiro). Sem teto configurado (o padrao) nao ha % pra mostrar: None."""
+    if ia_teto._teto_mensal_brl() <= 0:
+        return None
     return ia_teto._fracao_teto() * 100
 
 

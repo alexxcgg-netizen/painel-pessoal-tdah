@@ -9,11 +9,26 @@ Fonte completa e viva: `docs/CARDS.md` (seções "Linguagem visual dos cards" e 
 app"). Protótipo navegável das cenas aprovadas: `docs/prototipos/cards-ia-v2.html`
 (artefato https://claude.ai/artifact/JzmyFm39GypNtUKXLuS1ph). Ler os dois antes de mexer.
 
+## Régua atual: linguagem D "ao vivo" (aprovada 04/11/2026 - vale por cima do resto)
+`docs/CARDS.md` "Linguagem D" + `docs/briefings/2026-11-04-cards-ao-vivo.md`.
+- Card novo de compromisso/registro usa a casca `CardsD.pilula({v, cor, icone, titulo, sub, rotulo,
+  valor, corpo})` (`static/js/cards-d.js` + `secoes/hoje/cards-d.css`): pílula fechada com ícone na
+  cor, título, uma linha e o próximo passo à direita; toque abre (grid-rows + mola). Sem rodapé.
+- **Contagem só dos segundos do servidor**: builder manda `*_s` + `gerado_ts`; front usa
+  `CardsD.contagem(s, gerado_ts, fmt)` (dígitos rolam, `CardsD.tique` 1 relógio por página).
+  Nunca calcular "falta X" com hora de parede no front.
+- Pedaços prontos: `cadeia`, `tempoHoras`, `levar`, `anelIcone`, `anelPedacos`, `deslizaHTML`,
+  `botoes`; ganchos `registrarAbrir/Chegar/Preparar/Desfazer/Desliza`.
+- **Proibido (cara de IA)**: fio de luz na borda, luz que segue o dedo, inclinação 3D, selo
+  brilhante, chip com emoji, título em degradê, eyebrow em MAIÚSCULAS espaçadas, herói gigante.
+- Entrada só em `.card-novo`; `prefers-reduced-motion` zera tudo; alvo ≥ 44 px; dado faltando = o
+  campo some (nunca "~" ou exemplo); texto com "tu", sem emoji.
+
 ## Princípios (o que fez ele gostar - não negociar)
-1. **Cada assunto tem a sua cara, a família é a mesma.** Casca igual (eyebrow com ícone + "quando"
-   em mono, rodapé com ação), miolo desenhado pro assunto: voo = cartão de embarque com picote,
-   tabelionato = pasta + carimbo, mercado = cupom, balada = céu de noite, presente = caixa que abre,
-   date = coração que se desenha. Nunca "título + lista" genérico.
+1. **Cada assunto tem a sua cara, a família é a mesma.** Casca igual (desde 04/11 a pílula D), miolo
+   desenhado pro assunto com dado real (voo = METAR e vento por aeródromo, saída = cadeia + tempo
+   hora a hora + o que levar, gasto = anel do teto, conta = deslize). Ainda valem: tabelionato =
+   pasta + carimbo, compras = cupom, presente = caixa. Nunca "título + lista" genérico.
 2. **Uma cor por assunto** em `--card-cor` (voo `--cor-cat-1`/#8fd0ff, date #f5a3b8, balada
    #c4a1ff + neon #ff8fd1, documentos `--cor-cat-8`, presente #ffd36e, gasto #b5e48c, tarefa
    #f0a58f, alteração #aab4f6, feito #9fdcb0). O resto nos neutros do app (`--text`,
@@ -47,11 +62,13 @@ app"). Protótipo navegável das cenas aprovadas: `docs/prototipos/cards-ia-v2.h
   fica no `localStorage` pro histórico não oferecer de novo), `cards-vivos.js`, `cards-tipos.js`. Selo "registrado" = `CardsPremium.TIPOS_REGISTRO` (só pra
   card que registrou algo; pergunta não ganha selo).
 - Arquivo CSS/JS novo: entra em `ASSETS` do `static/service-worker.js`, em `fase7.css` /
-  `templates/scripts.html`; bump do `CACHE_NAME` (e da string em `tests/test_tarefas_ver_mais.py`).
+  `templates/scripts.html`; bump do `CACHE_NAME` (e da string em `tests/test_tarefas_ver_mais.py`) -
+  numa leva com várias frentes, só quem fecha a leva mexe no `CACHE_NAME`.
 
 ## Antes de dar como pronto
 1. Testes: Python do builder/rota (`tests/test_cards*.py`) + JS do renderizador
-   (`node --test tests/js/*.test.js`: renderiza, escapa HTML, dado faltando não quebra).
+   (`node --test tests/js/*.test.js`: renderiza, escapa HTML, dado faltando não quebra, e nenhuma
+   classe de "cara de IA" volta). Casca D: `tests/js/cards_d.test.js` e `tests/test_cards_d.py`.
 2. Captura em **390 px** (`scratchpad/ver_cards.py` ou headless equivalente com banco temporário):
    sem rolagem lateral, nada encavalado (rótulos de linha do tempo/rota quebram primeiro), "R$" e
    valor sem quebrar (`&nbsp;`), sem `pageerror`.

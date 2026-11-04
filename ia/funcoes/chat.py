@@ -104,6 +104,10 @@ um horario que caiba (`sugerir_horario_livre` ja olha agenda, folga, costume e s
 da obra; se quiser outro horario e so falar"). Hora de voo e de compromisso com outra
 pessoa continuam sendo dele: essas voce pergunta. Tarefa solta, sem pedido de marcar ("preciso
 comprar leite"), segue sem hora mesmo.
+Tarefa presa a ele chegar num lugar ("imprimir as contas quando chegar em casa") e ele ainda fora:
+o horario nunca vem antes da chegada. Conte o que ele disse que ainda falta (paradas, espera) e o
+deslocamento (`estimar_trajeto` saindo de onde ele esta) e marque um pouco depois de chegar, dizendo a
+conta numa frase ("chega umas 8h10, botei as 8h20").
 
 LISTA DE TAREFAS SEM DIA: se ele despejar varias tarefas numa mensagem ("amanha comecar X, ver Y, limpar Z")
 crie TODAS na mesma rodada (`registrar_tarefa` pra cada uma), escolhendo voce o dia e a hora quando faltarem
@@ -163,6 +167,13 @@ de sair; menos o tempo de se arrumar = hora de comecar a se arrumar. Diga essas 
 ("comeca a se arrumar 19h05, sai 19h45") e encaixe as outras tarefas ANTES disso, com folga. Nao crie
 tarefa "se arrumar": o painel ja manda sozinho os avisos "Hora de se arrumar" e "Hora de sair". Se ele
 disser que demora outro tempo, chame `ajustar_tempo_se_arrumar`.
+VARIOS COMPROMISSOS DE SAIR NUMA FRASE ("sexta date 19h, sabado balada 23h no Viva Beach"): um
+`registrar_tarefa` por compromisso NA MESMA rodada, cada um com quando_data, hora, estilo (date/balada) e
+lugar quando ele disse. Parada no caminho ("passo na casa do guri antes") vai em `parada` do compromisso
+(ja marcado: `ajustar_tarefa` com `parada`). Responda com o plano em 1 ou 2 frases, usando os horarios do
+'plano' de cada resultado, sem emoji e sem lista: "Fechado. Sexta tu comeca a se arrumar 17h45 e sai 18h35;
+sabado sai 22h20." O painel avisa sozinho cada passo (15 min antes de se arrumar, se arrumar, 5 min pra
+sair, sair, chegou) e adianta a saida se a previsao piorar - nao crie tarefa nem lembrete pra isso.
 
 SE-ENTAO: meta vaga de rotina ("quero beber mais agua", "quero estudar todo dia") = chame `propor_se_entao`; o card deixa
 ele escolher o gatilho e a acao em 1 toque. Diga UMA frase ("Escolhe quando e o que, eu aviso no gatilho"), sem listar as
@@ -268,6 +279,22 @@ tarefas de hoje que ja passaram da hora e seguem abertas: as que a fala cobre, c
 ficaram de fora (ex: almoco das 13h quando ele ja esta voltando pra casa as 14h), pergunte numa
 linha so no fim ("e o almoco e aquela visita, rolaram?") - nunca deixe paradas no passado
 sem falar nada, e nunca conclua o que a fala nao cobre.
+LUGARES QUE ELE ENSINA: quando ele contar onde algo fica ou qual lugar e ("a oficina que eu levo o carro
+e a Fulano", "minha academia e na rua tal", "a Celesc e no centro", "a balada de hoje e a Viva Beach"),
+chame `salvar_lugar_apelido` na hora, sem perguntar - uma chamada por lugar, mesmo se vierem varios
+numa fala so. Apelido = como ele chama ("oficina", "academia", "celesc"); se ele tiver mais de um do
+mesmo tipo, use o que diferencia ("oficina volvo"). Lugar de uma vez so (balada, restaurante, festa):
+apelido = o nome do proprio lugar ("viva beach"), nunca "balada", pra nao apagar o da semana passada.
+Sem cidade na fala = Brusque. Responda numa linha com o que o Google achou ("Salvei a oficina: Auto
+Center Fulano, R. Tal 123, Brusque - se nao for essa, me fala"); se voltar `obs` de nao achado, diga
+que guardou como ele falou. Depois, quando ele so falar o apelido ou o nome, use o da linha "Lugares do
+Alex" - nao pergunte endereco de novo. Se ele corrigir, salve de novo com o mesmo apelido.
+A CAMINHO NAO E FEITO: tarefa que so termina quando algo e entregue, deixado ou resolvido (levar o
+carro no mecanico, deixar um documento, pagar uma conta) so conclui quando a fala diz que isso ja
+aconteceu ("deixei o carro", "ja entreguei"). "Vim trazer o carro", "to indo no mecanico", "vou passar
+la" e a caminho: nao conclui, no maximo lembra o proximo passo. E se ele desmentir uma baixa que voce
+deu ("ainda nao deixei o carro"), reabra a tarefa (`ajustar_tarefa` com status "reabrir") na mesma
+rodada e diga numa linha que voltou pra aberta.
 
 O Alex anota bastante coisa direto no WhatsApp (mensagem pra ele mesmo) antes de passar pro painel,
 entao e comum ele colar um trecho exportado de la, no formato "[DD/MM/AAAA, HH:MM:SS] alex: texto"
@@ -534,6 +561,14 @@ CHAT_TOOLS = [
                     "type": "string",
                     "description": "nome do lugar do compromisso, do jeito que ele disse (ex: 'Lume', '1o Tabelionato de Brusque') - so se ele disse.",
                 },
+                "parada": {
+                    "type": "string",
+                    "description": (
+                        "onde ele passa ANTES de ir pro compromisso, do jeito que disse ('passo na casa do guri antes' "
+                        "-> 'casa do guri'). So com dia e hora. O painel conta casa -> parada -> lugar com 5 min parado "
+                        "e o 'plano' ja volta com a saida certa."
+                    ),
+                },
                 "com_quem": {"type": "string", "description": "date/balada: com quem (ex: 'Julia', 'a galera')."},
                 "lista": {
                     "type": "array",
@@ -603,6 +638,8 @@ CHAT_TOOLS = [
                 "quando_data": {"type": "string", "description": "novo dia AAAA-MM-DD"},
                 "novo_titulo": {"type": "string"},
                 "status": {"type": "string", "enum": ["concluir", "reabrir"]},
+                "parada": {"type": "string", "description": "parada no caminho, do jeito que ele disse ('casa do guri')"},
+                "sem_parada": {"type": "boolean", "description": "true pra tirar a parada ('nao vou mais passar la')"},
             },
             "required": ["titulo"],
         },
@@ -865,17 +902,21 @@ CHAT_TOOLS = [
     {
         "name": "salvar_lugar_apelido",
         "description": (
-            "Guarda um lugar fixo do Alex com apelido ('a obra fica no loteamento tal, bairro tal, "
-            "Brusque'; 'o aeroclube'). Depois 'obra' vira esse endereco no estimar_trajeto, no planejar_dia e "
-            "nos avisos. Diferente de registrar_lugar (lugar que ele gostou numa viagem)."
+            "Guarda (ou troca) um lugar do Alex com apelido ('a obra fica no loteamento tal, bairro tal, "
+            "Brusque'; 'minha academia e a Fulano'; 'a Celesc e no centro'). So o nome basta: o painel procura no "
+            "Google perto de Brusque e devolve o nome e endereco que achou. Depois o apelido vira esse endereco no "
+            "estimar_trajeto, no planejar_dia, nos avisos e no 'chegou no lugar' do iPhone. esquecer=true tira da "
+            "lista. Diferente de registrar_lugar (lugar que ele gostou numa viagem)."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "apelido": {"type": "string", "description": "como ele chama: 'obra', 'aeroclube', 'escritorio'"},
-                "endereco": {"type": "string", "description": "endereco ou nome que o Google acha, com cidade"},
+                "apelido": {"type": "string", "description": "como ele chama: 'oficina', 'academia', 'celesc', 'oficina volvo'"},
+                "endereco": {"type": "string", "description": "endereco, ou o nome do lugar + cidade se ele disse outra "
+                             "('Volvo Florianopolis'); sem cidade = perto de Brusque"},
+                "esquecer": {"type": "boolean", "description": "true = tirar esse apelido da lista (endereco nao precisa)"},
             },
-            "required": ["apelido", "endereco"],
+            "required": ["apelido"],
         },
     },
     {
@@ -2462,7 +2503,9 @@ FUNCAO_MENSAGEM_DIFICIL = "redigir_mensagem_dificil"
 # Rodadas do loop de tool-use. 6 (era 4) desde o planejar_dia (2026-10-11): "acordei + monta
 # meu dia" e acordei -> trajeto(s) -> planejar_dia -> texto, e com 4 cortava no meio.
 RODADAS_MAX = 6
-# max_tokens padrao se ia/config.d/chat.json estiver ausente/invalido.
+# max_tokens padrao se ia/config.d/chat.json estiver ausente/invalido. A config real comeca em
+# 12000 (2026-11-01): a rodada cortada era jogada fora e refeita, 1 em cada 5 chamadas. Os degraus
+# abaixo so valem nesse caminho de reserva.
 MAX_TOKENS_CHAT_PADRAO = 500
 # Teto antigo do chat (brain dump US-E6: 8+ tool_use numa rodada). Se uma
 # rodada bater no limite de 500 (stop_reason "max_tokens"), ela e refeita UMA

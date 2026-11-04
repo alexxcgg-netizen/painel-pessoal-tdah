@@ -170,6 +170,7 @@ class CambioUsdBrlTestCase(unittest.TestCase):
 
     def tearDown(self):
         medicao.CAMINHO_PRECOS = self._caminho_original
+        self._tmp_precos.close()
         try:
             os.unlink(self._tmp_precos.name)
         except OSError:

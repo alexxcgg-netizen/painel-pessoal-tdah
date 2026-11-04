@@ -9,7 +9,6 @@
 # banco temporario, rede externa bloqueada no navegador; IA nunca e chamada de verdade.
 import os
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -39,11 +38,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -60,7 +57,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path  # noqa: E402
+from tests.playwright_helper import CONTAR_FETCH, esperar_assentar, esperar_carga, get_chrome_path  # noqa: E402
 
 _CHROME = get_chrome_path()
 
@@ -224,7 +221,7 @@ class R3AcabamentoTestCase(unittest.TestCase):
     def _pagina(self, largura):
         ctx = self._browser.new_context(viewport={"width": largura, "height": 844}, has_touch=True)
         self.addCleanup(ctx.close)
-        ctx.route("**/*", lambda r: r.continue_() if r.request.url.startswith(BASE_URL) else r.abort())
+        ctx.add_init_script(CONTAR_FETCH)
         r = ctx.request.post(BASE_URL + "/login", data={"pin": PIN})
         self.assertEqual(r.status, 200)
         page = ctx.new_page()
@@ -234,9 +231,13 @@ class R3AcabamentoTestCase(unittest.TestCase):
         page.wait_for_load_state("networkidle")
         return page, erros
 
+    def _esperar_rede(self, page):
+        esperar_carga(page)
+
     def _auditar(self, page, sel):
         page.evaluate(ABRIR_TUDO_JS, sel)
-        page.wait_for_timeout(450)
+        self._esperar_rede(page)
+        esperar_assentar(page, sel)
         return page.evaluate(AUDIT_JS, sel)
 
     def _checar(self, res, onde):
@@ -251,14 +252,13 @@ class R3AcabamentoTestCase(unittest.TestCase):
         page, erros = self._pagina(largura)
         for aba in TELAS:
             page.evaluate("(a) => showTab(a)", aba)
-            page.wait_for_timeout(700)
+            self._esperar_rede(page)
             with self.subTest(tela=aba, largura=largura):
                 self._checar(self._auditar(page, f"#tab-{aba}"), f"{aba}@{largura}")
         page.evaluate("() => showTab('hoje')")
-        page.wait_for_timeout(400)
+        self._esperar_rede(page)
         page.click("#fab-captura")
         page.wait_for_selector("#folha-captura:not([hidden])")
-        page.wait_for_timeout(500)
         with self.subTest(tela="folha+", largura=largura):
             self._checar(self._auditar(page, "#folha-captura"), f"folha+@{largura}")
         self.assertEqual(erros, [], f"pageerror @{largura}")
@@ -280,7 +280,7 @@ class R3AcabamentoTestCase(unittest.TestCase):
         self.assertIn("uppercase", ref)
         for aba in TELAS:
             page.evaluate("(a) => showTab(a)", aba)
-            page.wait_for_timeout(500)
+            self._esperar_rede(page)
             res = self._auditar(page, f"#tab-{aba}")
             for estilo in res["titulos"]:
                 self.assertEqual(estilo, ref, f"{aba}: {res['titulos'][estilo]}")
@@ -288,7 +288,10 @@ class R3AcabamentoTestCase(unittest.TestCase):
 
     def test_inicio_sem_pendencia_nao_mostra_faixa_do_assistente(self):
         page, erros = self._pagina(390)
-        page.wait_for_timeout(600)
+        # A faixa so nasce da resposta da caixa: lida ela, ja apareceu ou nao aparece mais
+        page.wait_for_function(
+            "() => window.__jsonLidos.some((url) => url.includes('/api/assistente/caixa'))", timeout=10000
+        )
         faixas = page.evaluate(
             "() => [...document.querySelectorAll('#caixa-assistente .caixa-aviso-linha')]"
             ".filter((el) => !el.hidden && el.getBoundingClientRect().height > 0).map((el) => el.textContent.trim())"
@@ -319,7 +322,9 @@ class R3AcabamentoTestCase(unittest.TestCase):
         page.fill("#chat-input", "oi")
         page.click("#chat-send")
         page.wait_for_function("document.getElementById('chat-mensagens').textContent.includes('Resposta de teste')", timeout=10000)
-        page.wait_for_timeout(300)
+        # No caminho ao vivo o botao ouvir so entra depois da ultima palavra pingar
+        page.wait_for_selector("#chat-mensagens .btn-ouvir-chat", state="attached", timeout=10000)
+        esperar_assentar(page, "#chat-mensagens")
         alturas = page.evaluate(
             "() => [...document.querySelectorAll('#chat-mensagens button')]"
             ".filter((b) => b.getBoundingClientRect().height > 0).map((b) => b.getBoundingClientRect().height)"

@@ -9,6 +9,8 @@ import db
 import ia.medicao as medicao
 import ia.teto as teto
 
+TETO_TESTE_BRL = 40.0
+
 
 class _BaseTetoTestCase(unittest.TestCase):
     def setUp(self):
@@ -18,6 +20,14 @@ class _BaseTetoTestCase(unittest.TestCase):
         db.garantir_banco_nao_producao()
         db.init_db()
         self._cambio = medicao.cambio_usd_brl()
+        self._configurar_teto(TETO_TESTE_BRL / self._cambio)
+
+    def _configurar_teto(self, teto_usd):
+        conn = db.get_db()
+        try:
+            db.definir_teto_mensal_ia(conn, teto_usd)
+        finally:
+            conn.close()
 
     def tearDown(self):
         db.DB_PATH = self._caminho_original
@@ -31,39 +41,54 @@ class _BaseTetoTestCase(unittest.TestCase):
         medicao.registrar_uso(funcao, "anthropic", "claude-sonnet-5", custo_usd=custo_usd)
 
 
+class SemTetoConfiguradoTestCase(_BaseTetoTestCase):
+    """Sem nenhum teto configurado (db.obter_teto_mensal_ia is None): o padrao
+    desde 2026-11-01. Gasto nenhum bloqueia ou avisa, so e medido."""
+
+    def setUp(self):
+        super().setUp()
+        self._configurar_teto(None)
+
+    def test_gasto_alto_fica_normal_e_nao_bloqueia_nada(self):
+        self._gastar_brl(100000.0)
+        self.assertEqual(teto._teto_mensal_brl(), 0)
+        self.assertEqual(teto.nivel_alerta(), "normal")
+        self.assertTrue(teto.teto_permite("chat"))
+        self.assertTrue(teto.teto_permite("transcricao"))
+        self.assertGreater(medicao.gasto_mes_atual_brl(), 0)
+
+
 class NivelAlertaPadraoTestCase(_BaseTetoTestCase):
-    """Sem nenhum teto configurado pelo card financeiro (db.obter_teto_mensal_ia
-    is None) - teto.py cai no padrao de R$40/mes da Fase 7."""
+    """Com teto configurado: os niveis de 80% e 100%."""
 
     def test_sem_gasto_nenhum_e_normal(self):
         self.assertEqual(teto.nivel_alerta(), "normal")
 
-    def test_teto_padrao_e_40_reais(self):
-        self.assertEqual(teto._teto_mensal_brl(), teto.TETO_PADRAO_BRL)
-        self.assertEqual(teto.TETO_PADRAO_BRL, 40.0)
+    def test_teto_configurado_vale_em_reais(self):
+        self.assertAlmostEqual(teto._teto_mensal_brl(), TETO_TESTE_BRL)
 
     def test_gasto_abaixo_de_80_por_cento_e_normal(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 0.5)
+        self._gastar_brl(TETO_TESTE_BRL * 0.5)
         self.assertEqual(teto.nivel_alerta(), "normal")
 
     def test_gasto_logo_abaixo_de_80_por_cento_ainda_e_normal(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 0.79)
+        self._gastar_brl(TETO_TESTE_BRL * 0.79)
         self.assertEqual(teto.nivel_alerta(), "normal")
 
     def test_gasto_exatamente_80_por_cento_e_aviso(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 0.8)
+        self._gastar_brl(TETO_TESTE_BRL * 0.8)
         self.assertEqual(teto.nivel_alerta(), "aviso_80")
 
     def test_gasto_entre_80_e_100_por_cento_e_aviso(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 0.95)
+        self._gastar_brl(TETO_TESTE_BRL * 0.95)
         self.assertEqual(teto.nivel_alerta(), "aviso_80")
 
     def test_gasto_exatamente_100_por_cento_e_estourado(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 1.0)
+        self._gastar_brl(TETO_TESTE_BRL * 1.0)
         self.assertEqual(teto.nivel_alerta(), "estourado_100")
 
     def test_gasto_acima_de_100_por_cento_e_estourado(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 3)
+        self._gastar_brl(TETO_TESTE_BRL * 3)
         self.assertEqual(teto.nivel_alerta(), "estourado_100")
 
 
@@ -74,21 +99,21 @@ class TetoPermiteTestCase(_BaseTetoTestCase):
                 self.assertTrue(teto.teto_permite(funcao))
 
     def test_aviso_80_ainda_permite_qualquer_funcao(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 0.85)
+        self._gastar_brl(TETO_TESTE_BRL * 0.85)
         self.assertEqual(teto.nivel_alerta(), "aviso_80")
         for funcao in ("chat", "quebra_tarefa", "mala_viagem", "intent", "captura"):
             with self.subTest(funcao=funcao):
                 self.assertTrue(teto.teto_permite(funcao))
 
     def test_estourado_bloqueia_funcao_cara_nao_essencial(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 1.5)
+        self._gastar_brl(TETO_TESTE_BRL * 1.5)
         self.assertEqual(teto.nivel_alerta(), "estourado_100")
         for funcao in ("chat", "quebra_tarefa", "mala_viagem", "plano_dia", "nota_fiscal", "cotacao_pdf"):
             with self.subTest(funcao=funcao):
                 self.assertFalse(teto.teto_permite(funcao))
 
     def test_estourado_libera_funcoes_essenciais_do_modo_economia(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 1.5)
+        self._gastar_brl(TETO_TESTE_BRL * 1.5)
         self.assertEqual(teto.nivel_alerta(), "estourado_100")
         for funcao in teto.FUNCOES_ESSENCIAIS_MODO_ECONOMIA:
             with self.subTest(funcao=funcao):
@@ -107,17 +132,17 @@ class DesfazerNuncaBloqueiaTestCase(_BaseTetoTestCase):
         self.assertTrue(teto.teto_permite("desfazer"))
 
     def test_desfazer_permitido_no_nivel_aviso(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 0.9)
+        self._gastar_brl(TETO_TESTE_BRL * 0.9)
         self.assertEqual(teto.nivel_alerta(), "aviso_80")
         self.assertTrue(teto.teto_permite("desfazer"))
 
     def test_desfazer_permitido_no_nivel_estourado(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 2)
+        self._gastar_brl(TETO_TESTE_BRL * 2)
         self.assertEqual(teto.nivel_alerta(), "estourado_100")
         self.assertTrue(teto.teto_permite("desfazer"))
 
     def test_desfazer_permitido_mesmo_com_gasto_absurdamente_alto(self):
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 1000)
+        self._gastar_brl(TETO_TESTE_BRL * 1000)
         self.assertTrue(teto.teto_permite("desfazer"))
 
     def test_desfazer_nao_precisa_estar_na_lista_essencial_pra_ser_liberado(self):
@@ -129,7 +154,7 @@ class DesfazerNuncaBloqueiaTestCase(_BaseTetoTestCase):
             f for f in lista_original if f != "desfazer"
         )
         try:
-            self._gastar_brl(teto.TETO_PADRAO_BRL * 2)
+            self._gastar_brl(TETO_TESTE_BRL * 2)
             self.assertTrue(teto.teto_permite("desfazer"))
         finally:
             teto.FUNCOES_ESSENCIAIS_MODO_ECONOMIA = lista_original
@@ -161,22 +186,23 @@ class TetoConfiguradoPeloCardFinanceiroTestCase(_BaseTetoTestCase):
     def test_teto_customizado_alto_fica_normal_com_gasto_do_padrao_antigo(self):
         conn = db.get_db()
         try:
-            db.definir_teto_mensal_ia(conn, 1000.0)  # bem acima do padrao de R$40
+            db.definir_teto_mensal_ia(conn, 1000.0)  # bem acima do teto de teste
         finally:
             conn.close()
-        self._gastar_brl(teto.TETO_PADRAO_BRL * 2)  # estouraria o padrao, nao o customizado
+        self._gastar_brl(TETO_TESTE_BRL * 2)  # estouraria o de teste, nao o customizado
         self.assertEqual(teto.nivel_alerta(), "normal")
 
-    def test_teto_zerado_pelo_definir_teto_mensal_ia_volta_pro_padrao(self):
+    def test_teto_zerado_pelo_definir_teto_mensal_ia_fica_sem_teto(self):
         """db.definir_teto_mensal_ia(conn, 0) remove o limite (mesmo
-        comportamento de nunca ter configurado) - teto.py deve cair de volta
-        pro padrao de R$40, nunca dividir por zero."""
+        comportamento de nunca ter configurado) - teto.py fica sem teto,
+        nunca divide por zero."""
         conn = db.get_db()
         try:
             db.definir_teto_mensal_ia(conn, 0)
         finally:
             conn.close()
-        self.assertEqual(teto._teto_mensal_brl(), teto.TETO_PADRAO_BRL)
+        self.assertEqual(teto._teto_mensal_brl(), 0)
+        self.assertEqual(teto.nivel_alerta(), "normal")
 
 
 class NivelAlertaValoresTestCase(unittest.TestCase):

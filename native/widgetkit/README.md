@@ -15,13 +15,59 @@
 > `.github/workflows/build-ios.yml` geram o `.ipa` com app + este widget. Instalar pelo Windows:
 > `docs/IOS_APP.md`. O passo a passo do PWABuilder abaixo fica como alternativa.
 
+## Atividade ao vivo + widgets do próximo compromisso (2026-11-04)
+
+Leva "Cards ao vivo" (`docs/briefings/2026-11-04-cards-ao-vivo.md`). O próximo compromisso de **saída ou
+voo** das próximas 6 h vira uma atividade ao vivo (tela bloqueada + Dynamic Island) e aparece nos widgets.
+Tudo local, sem push de APNs (conta Apple grátis).
+
+- **Dado:** `GET /api/ao-vivo` (`rotas/ao_vivo.py`), com o mesmo token Bearer do widget. Devolve
+  `{"ativo": false}` ou o compromisso com `passos` (Arrumar → Sair → Parada → Chegar, ISO com fuso),
+  `cor`, `icone` (SF Symbol), `lugar` (só o apelido, nunca o endereço), `clima` na chegada, `levar` e `fim_em`.
+- **`CompromissoAtributos.swift`** (entra nos DOIS alvos, ver `project.yml`): `ActivityAttributes` +
+  `ContentState`, o `Codable` da resposta e a busca/cache no App Group.
+- **`AtividadeCompromisso.swift`**: o desenho. Tela bloqueada = a barra do protótipo D (pílula escura,
+  ícone na cor do assunto, contagem à direita, fileira de passos com o de agora em destaque). Ilha:
+  compacta (ícone | contagem), mínima (ícone), expandida (título, próximo passo, passos, tempo).
+- **`ProximoCompromisso.swift`**: widgets da tela bloqueada (retangular, circular com anel até o próximo
+  passo, em linha). A timeline ganha uma entrada em cada virada de passo.
+- **`PainelWidget.swift`**: o widget da tela inicial mostra o compromisso no topo (pequeno: no lugar do foco;
+  médio: faixa em cima, o resto embaixo).
+- **App (`native/ios/App/AoVivo.swift`)**: busca a rota quando o app abre/volta, quando pega o token depois
+  do PIN e quando o iOS acorda o app por uma visita (`Localizacao.swift`). Liga (só com o app aberto: regra do
+  iOS), atualiza (mesmo `id`) ou encerra (chegou: fica até `fim_em`; sem compromisso: some na hora).
+
+### Como testar no iPhone
+1. Instala o `.ipa` novo (o build do GitHub Actions) e abre o app uma vez com o PIN (o token vem sozinho).
+2. Ajustes do iPhone → Painel → **Atividades ao Vivo** ligado (ou a tela "Gerar relatório" do app mostra
+   "Atividades ao vivo: ligadas").
+3. Cria um compromisso de **saída** pra daqui a menos de 6 h (ex.: no chat "date às 21h no centro", ou uma
+   tarefa com hora e local) ou um voo de hoje com hora.
+4. Abre o app (ou tira e volta pro app). Vai pra tela inicial: a ilha mostra o ícone e a contagem.
+   Segura a ilha pra abrir a expandida. Bloqueia o iPhone: a barra com os passos aparece embaixo.
+   Dentro do app ela não aparece (regra do iOS).
+5. Tela bloqueada → segura → **Personalizar** → toca na área de widgets abaixo do relógio → **+** →
+   "Painel" → "Próximo compromisso" (retangular, circular ou em linha).
+6. Pra conferir a rota sem o iPhone: `curl -H "Authorization: Bearer <token>" <endereço>/api/ao-vivo`
+   (o token e o endereço ficam só no teu PC/iPhone, nunca em arquivo do repositório).
+
+Limites conhecidos (sem push): a contagem anda sozinha, e a fileira de passos avança quando o iOS redesenha
+a atividade (o `staleDate` é o próximo passo). Se o app ficar fechado e sem visita até depois da chegada, a
+atividade só some quando o app abrir de novo, ou depois de 8 h (limite do iOS).
+O teste da ilha da tela "Gerar relatório" (`IlhaTeste*.swift`) continua lá, separado.
+
 ## O que tem aqui
 
 | Arquivo | Papel |
 |---|---|
-| `PainelWidget.swift` | Modelo `Codable` do JSON de `/api/widget`, `TimelineProvider` (busca a cada ~20 min), views SwiftUI das 5 famílias, estados normal/vazio/erro, definição do `Widget`. |
+| `PainelWidget.swift` | Modelo `Codable` do JSON de `/api/widget`, `TimelineProvider` (busca a cada ~20 min), views SwiftUI das 5 famílias, estados normal/vazio/erro, definição do `Widget`. Desde 04/11 também o próximo compromisso (`/api/ao-vivo`). |
 | `PainelWidgetBundle.swift` | Ponto de entrada `@main` da extensão (`WidgetBundle`). |
 | `Config.swift` | Lê URL base e token do painel do `UserDefaults` do App Group; guarda o último payload bom em cache. |
+| `CompromissoAtributos.swift` | Atributos da atividade ao vivo + resposta de `/api/ao-vivo` (app e widget). |
+| `AtividadeCompromisso.swift` | Desenho da atividade ao vivo (tela bloqueada e Dynamic Island). |
+| `ProximoCompromisso.swift` | Widgets da tela bloqueada do próximo compromisso. |
+| `IlhaTeste*.swift` | Atividade de teste da tela "Gerar relatório". |
+| `PainelControle*.swift` | Botão da Central de Controle (iOS 18). |
 
 Nenhum desses três arquivos faz parte do alvo principal do app — todos são pensados pra
 viver dentro de um **Widget Extension target** separado, dentro do projeto Xcode gerado a

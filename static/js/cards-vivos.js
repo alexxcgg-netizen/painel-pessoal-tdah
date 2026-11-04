@@ -148,9 +148,108 @@
     });
   }
 
-  Cards.registrar("edicao", (data) => {
+  // ---- linguagem D (04/11, docs/CARDS.md cenas 5 e 7) --------------------------------------------
+  const D = () => raiz.CardsD || (typeof require === "function" ? require("./cards-d.js") : null);
+  const COR_CHEGOU = "#aab4f6";
+
+  // Edição só de horário (ou a chegada atrasada que empurrou o resto): pílula com a hora nova à
+  // direita. A resposta nova rola da hora velha pra nova; "Desfazer" rola de volta.
+  function soHoras(itens) {
+    const ms = itens.flatMap((it) => lista(it.mudancas));
+    return ms.length > 0 && ms.every((m) => m && HHMM.test(String(m.de ?? "")) && HHMM.test(String(m.para ?? "")));
+  }
+  function edicaoD(itens, data, card) {
+    const cd = D();
+    const ch = data.chegou && typeof data.chegou === "object" && data.chegou.lugar ? data.chegou : null;
+    const linhas = itens.flatMap((it) => lista(it.mudancas).map((m) => ({ titulo: it.titulo || it.rotulo || "", de: hhmm(String(m.de)), para: hhmm(String(m.para)) })));
+    const um = linhas[0];
+    const valor = (l) => cd.rl(l.para, ` data-de="${esc(l.de)}" data-para="${esc(l.para)}"`);
+    const lugar = ch ? `${ch.lugar.charAt(0).toUpperCase()}${ch.lugar.slice(1)}` : "";
+    const atraso = ch && numeroValido(ch.atraso_min) && ch.atraso_min > 0 ? ch.atraso_min : null;
+    const sub = ch
+      ? atraso
+        ? `chegou ${atraso} min depois do combinado`
+        : "chegou"
+      : linhas.length === 1
+        ? `${um.de} → ${um.para}`
+        : `${linhas.length} horários mudaram`;
+    const lista_ =
+      `<div class="v-linhas">` +
+      (ch && ch.hora ? `<div class="v-linha"><span>Chegou</span><span>${esc(ch.hora)}</span></div>` : "") +
+      linhas.map((l, i) => `<div class="v-linha${i === 0 ? " agora" : ""}"><span>${esc(l.titulo)}</span><span>${valor(l)}</span></div>`).join("") +
+      `</div>`;
+    const nota = atraso ? `<p class="v-nota">Atrasou ${esc(atraso)} min, então empurrei o que vinha depois.</p>` : "";
+    return cd.pilula({
+      v: "edicao_hora",
+      cor: COR_CHEGOU,
+      icone: ch ? cd.IC.pin : cd.IC.relogio,
+      titulo: ch ? lugar : linhas.length === 1 ? um.titulo : "Horários",
+      sub: `<span>${esc(sub)}</span>`,
+      rotulo: ch || linhas.length > 1 ? um.titulo : "agora",
+      valor: valor(um),
+      corpo: lista_ + nota + cd.botoes(card),
+    });
+  }
+  if (D()) {
+    const rolarTodos = (vivo, campo) =>
+      D().semRolar(() => vivo.querySelectorAll("[data-de][data-para]").forEach((el) => D().rolar(el, el.dataset[campo])));
+    D().registrarChegar("edicao_hora", (vivo) => {
+      D().semRolar(() => vivo.querySelectorAll("[data-de][data-para]").forEach((el) => D().rolar(el, el.dataset.de, true)));
+      setTimeout(() => rolarTodos(vivo, "para"), 650);
+    });
+    D().registrarDesfazer("edicao_hora", (vivo) => {
+      rolarTodos(vivo, "de");
+      const els = vivo.querySelectorAll(".v-linha [data-de]");
+      const sub = vivo.querySelector(".v-s span");
+      if (sub && els.length === 1) {
+        const t = els[0].closest(".v-linha").firstElementChild.textContent;
+        sub.textContent = `${t ? `${t} voltou` : "Voltou"} pras ${els[0].dataset.de}`;
+      } else if (sub) sub.textContent = "voltou como estava";
+    });
+  }
+
+  // Concluída: anel com um pedaço por tarefa de hoje e a lista do dia (feitas riscadas, a próxima
+  // em destaque). Card antigo sem a lista mostra só a próxima.
+  function tarefaFeitaD(data, card) {
+    const cd = D();
+    const total = Math.max(1, Number(data.total) || 1);
+    const feitas = Math.min(total, Math.max(0, Number(data.feitas) || 0));
+    const itens = lista(data.dia_itens).filter((i) => i && i.titulo);
+    const prox = itens.find((i) => !i.feita);
+    let corpo = "";
+    if (itens.length) {
+      corpo =
+        `<div class="v-dia">` +
+        itens
+          .map(
+            (i) =>
+              `<div><i${i.feita ? ' class="ok"' : ""}></i><span${i === prox ? ' class="prox"' : ""}>${esc(i.titulo)}</span>${i.hora ? `<em>${esc(i.hora)}</em>` : ""}</div>`,
+          )
+          .join("") +
+        `</div>`;
+    } else if (data.proxima && data.proxima.titulo) {
+      corpo =
+        `<div class="v-linhas"><div class="v-linha agora"><span>Próxima: ${esc(data.proxima.titulo)}</span>` +
+        `<span>${esc(data.proxima.hora || "")}</span></div></div>`;
+    } else if (Number(data.faltam) === 0) {
+      corpo = `<p class="v-nota">Nada pendente pra hoje.</p>`;
+    }
+    return cd.pilula({
+      v: "feito",
+      icone: cd.IC.check.replace("<svg ", '<svg class="chk" '),
+      anel: cd.anelPedacos(feitas, total),
+      titulo: data.titulo,
+      sub: `<span>${esc(data.hora ? `feito às ${data.hora}` : "feito")}</span>`,
+      rotulo: "hoje",
+      valor: esc(`${feitas} de ${total}`),
+      corpo: corpo + cd.botoes(card),
+    });
+  }
+
+  Cards.registrar("edicao", (data, card) => {
     const itens = lista(data.itens).filter((i) => i && typeof i === "object");
     if (!itens.length) return null;
+    if (soHoras(itens)) return edicaoD(itens, data, card);
     const linhas = itens
       .map(
         (it) =>
@@ -164,50 +263,10 @@
   });
 
   // ============================================================== tarefa_feita
-  // 2026-10-14 (prototipo aprovado, docs/CARDS.md): o check se desenha, a tarefa se risca, o
-  // anel do dia anda uma casa e a proxima de hoje aparece com quanto falta. Estado final no HTML.
-  const ANEL_R = 22;
-  const ANEL_C = 2 * Math.PI * ANEL_R;
-  Cards.registrar("tarefa_feita", (data, _card, ctx) => {
+  // Linguagem D desde 04/11 (tarefaFeitaD, acima): anel em pedaços + lista do dia.
+  Cards.registrar("tarefa_feita", (data, card) => {
     if (!data.titulo) return null;
-    const total = Math.max(1, Number(data.total) || 1);
-    const feitas = Math.min(total, Math.max(0, Number(data.feitas) || 0));
-    const off = (n) => (ANEL_C * (1 - n / total)).toFixed(2);
-    const faltam = Math.max(0, Number(data.faltam) || 0);
-    const sub = faltam === 0 ? "Nada pendente pra hoje." : faltam === 1 ? "Falta 1 pra hoje." : `Faltam ${faltam} pra hoje.`;
-    const p = data.proxima && data.proxima.titulo ? data.proxima : null;
-    let proxima = "";
-    if (p) {
-      // "em 1h40" so no mesmo dia e se ainda nao passou (no historico de ontem, some)
-      const agora = (ctx && ctx.agora) || new Date();
-      const dia = Cards.parseDia(data.data);
-      const hm = /^(\d{1,2}):(\d{2})/.exec(p.hora || "");
-      const diff = hm && dia && Cards.mesmoDia(dia, agora) ? +hm[1] * 60 + +hm[2] - (agora.getHours() * 60 + agora.getMinutes()) : -1;
-      const em = diff >= 0 ? diff : null;
-      // trilho: quanto das proximas 3h ja "passou" ate ela (perto = quase cheio)
-      const cheio = em === null ? 0 : Math.max(0.06, 1 - Math.min(em, 180) / 180);
-      proxima =
-        `<div class="tf-proxima"><span class="tf-olho">Próxima</span><span class="tf-prox-tit">${esc(p.titulo)}</span>` +
-        (p.hora
-          ? `<span class="tf-falta"><span class="vivo-num">${esc(p.hora)}</span>` +
-            (em !== null ? `<span class="tf-trilho"><i style="--cheio:${cheio.toFixed(3)}"></i></span><span>em ${esc(fmtHmin(em))}</span>` : "") +
-            `</span>`
-          : "") +
-        `</div>`;
-    }
-    return (
-      olho(ICONES.feito, "Feito", data.hora ? `<span class="tf-hora vivo-num">${esc(data.hora)}</span>` : "") +
-      `<div class="tf-linha" data-vivo="feito" data-feitas="${feitas}" data-total="${total}">` +
-      `<svg class="tf-check" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
-      `<circle cx="18" cy="18" r="16" pathLength="1"/><path d="m11.5 18.5 4.5 4.3 8.5-9" pathLength="1"/></svg>` +
-      `<span class="tf-titulo"><span class="tf-risco">${esc(data.titulo)}</span></span></div>` +
-      `<div class="tf-dia"><span class="tf-anel-num"><svg class="tf-anel" viewBox="0 0 52 52" aria-hidden="true">` +
-      `<circle cx="26" cy="26" r="${ANEL_R}" class="tf-anel-fundo"/>` +
-      `<circle cx="26" cy="26" r="${ANEL_R}" class="tf-anel-cheio" stroke-dasharray="${ANEL_C.toFixed(2)}" stroke-dashoffset="${off(feitas)}" style="--de:${off(Math.max(0, feitas - 1))}"/></svg>` +
-      `<b class="tf-num vivo-num">${feitas}/${total}</b></span>` +
-      `<div><strong>${feitas} de ${total} hoje</strong><span>${esc(sub)}</span></div></div>` +
-      proxima
-    );
+    return tarefaFeitaD(data, card);
   });
 
   // ================================================================ voo_resumo
@@ -1335,6 +1394,8 @@
     if (raiz.CardsAutomacao && typeof raiz.CardsAutomacao.preparar === "function") raiz.CardsAutomacao.preparar(raizEl);
     // Grupo E (dinheiro): cupom registrado / conta paga neste aparelho (cards-dinheiro.js)
     if (raiz.CardsDinheiro && typeof raiz.CardsDinheiro.preparar === "function") raiz.CardsDinheiro.preparar(raizEl);
+    // pilula D "ao vivo" (cards-d.js, 04/11): relogio de 1 s e abre/fecha
+    if (raiz.CardsD && typeof raiz.CardsD.preparar === "function") raiz.CardsD.preparar(raizEl);
     raizEl.querySelectorAll('[data-vivo="voo"]').forEach((svg) => {
       vooMarcos(svg);
       vooPosicionar(svg, Math.min(1, +svg.dataset.total / (+svg.dataset.meta * 60)));
@@ -1474,6 +1535,7 @@
     if (!raizEl || !raizEl.querySelectorAll || reduzido()) return;
     if (raiz.CardsAviacao && typeof raiz.CardsAviacao.animar === "function") raiz.CardsAviacao.animar(raizEl);
     if (raiz.CardsAutomacao && typeof raiz.CardsAutomacao.animar === "function") raiz.CardsAutomacao.animar(raizEl);
+    if (raiz.CardsD && typeof raiz.CardsD.animar === "function") raiz.CardsD.animar(raizEl);
     contar(raizEl);
     raizEl.querySelectorAll('[data-vivo="voo"]').forEach(async (svg) => {
       const fim = Math.min(1, +svg.dataset.total / (+svg.dataset.meta * 60));
@@ -1554,18 +1616,6 @@
     raizEl.querySelectorAll('[data-vivo="edicao"] .vivo-mudanca:not(.ed-anima)').forEach((m, i) => {
       m.classList.remove("entrou");
       setTimeout(() => m.classList.add("entrou"), 150 + i * 160);
-    });
-    raizEl.querySelectorAll('[data-vivo="feito"]').forEach((linha) => {
-      // o contador do anel vira junto com o anel (o CSS anda o traco de feitas-1 pra feitas)
-      const num = linha.parentElement && linha.parentElement.querySelector(".tf-num");
-      const f = +linha.dataset.feitas;
-      const t = +linha.dataset.total;
-      if (!num || !f || reduzido()) return;
-      num.textContent = `${f - 1}/${t}`;
-      setTimeout(() => {
-        num.textContent = `${f}/${t}`;
-        num.classList.add("tf-virou");
-      }, 1700);
     });
     raizEl.querySelectorAll('[data-vivo="edicao"] .ed-anima').forEach((m, i) => {
       const rel = m.querySelector(".ed-relogio");

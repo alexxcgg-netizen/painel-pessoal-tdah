@@ -133,6 +133,17 @@ def salvar_apelido(conn, apelido: str, endereco: str) -> str | None:
     return chave
 
 
+def esquecer_apelido(conn, apelido: str) -> str | None:
+    """Tira o lugar da lista ("esquece a oficina 2"). Devolve a chave tirada ou None se nao tinha."""
+    chave = _chave_apelido(apelido)
+    dado = apelidos(conn)
+    if chave not in dado:
+        return None
+    del dado[chave]
+    db.definir_configuracao(conn, "lugares_apelidos", json.dumps(dado, ensure_ascii=False))
+    return chave
+
+
 # Codigo ICAO do voo (CIV/diario) -> lugar que o Google acha. SSBL = Blumenau (Quero-Quero),
 # onde fica o aeroclube dele; o apelido "aeroclube", se existir, ganha.
 _ICAO_LUGAR = {"SSBL": "aeroclube", "SBNF": "Aeroporto Internacional de Navegantes"}
@@ -147,6 +158,28 @@ def resolver_lugar(conn, texto: str) -> str:
     if icao:
         return mapa.get(icao, "Aeroclube de Blumenau, Blumenau - SC" if icao == "aeroclube" else icao)
     return mapa.get(_chave_apelido(bruto), bruto)
+
+
+def apelido_dentro(conn, texto: str) -> str | None:
+    """Apelido salvo que aparece inteiro no texto ('casa do guri' -> 'guri'), o mais comprido
+    ganha. Parada do caminho (04/11) e falada solta, nunca igual ao apelido."""
+    t = f" {re.sub(r'[^a-z0-9 ]', ' ', _sem_acento(texto))} "
+    for chave in sorted(apelidos(conn), key=len, reverse=True):
+        if chave and f" {chave} " in t:
+            return chave
+    return None
+
+
+def resolver_parada(conn, texto: str) -> str:
+    """Parada do caminho -> endereco: o apelido exato, senao um apelido dentro da frase
+    ('casa do guri' com o apelido 'guri'), senao o proprio texto (o Google tenta)."""
+    bruto = (texto or "").strip()
+    mapa = apelidos(conn)
+    exato = mapa.get(_chave_apelido(bruto))
+    if exato:
+        return exato
+    dentro = apelido_dentro(conn, bruto)
+    return mapa[dentro] if dentro else bruto
 
 
 # ---- acordou -----------------------------------------------------------------------

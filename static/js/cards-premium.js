@@ -1,7 +1,8 @@
-// Acabamento "premium" dos cards do chat (2026-10-13) - camada por cima do registro
-// (cards.js / cards-tipos.js / cards-vivos.js), sem mexer em renderizador nenhum:
-//  - card novo chega com profundidade (desfoque -> nitido) e um brilho passa pelo vidro 1x;
-//  - card que REGISTROU algo ganha o selo: o icone do topo da um pulinho com uma onda;
+// Acabamento dos cards do chat (2026-10-13; "sem cara de IA" em 04/11/2026, linguagem D) - camada
+// por cima do registro (cards.js / cards-tipos.js / cards-vivos.js), sem mexer em renderizador:
+//  - card novo chega com profundidade (desfoque -> nitido) e as pecas entram em cascata;
+//  - SAIU em 04/11 (cara de IA, pedido do Alex): fio de luz na borda, brilho que passa no vidro,
+//    selo aceso no icone, luz que segue o dedo e inclinacao 3D. O toque so cede um tico;
 //  - numero grande (valor do gasto, hora do lembrete, % da meta) rola feito odometro e
 //    "assenta" no valor certo; a barra da meta enche do zero;
 //  - tarefa concluida pelo card solta um confete curtinho na cor do card;
@@ -11,13 +12,6 @@
   "use strict";
 
   const reduzido = () => !!(raiz.matchMedia && raiz.matchMedia("(prefers-reduced-motion: reduce)").matches);
-
-  // tipos que REGISTRAM/mudam algo (consulta pura nao ganha selo)
-  const TIPOS_REGISTRO = new Set([
-    "tarefas_criadas", "transacao", "lembrete", "meta", "habito", "assinatura",
-    "compra_parcelada", "refeicao", "agua", "edicao", "saude_treino", "voo_agendado", "tarefa_feita",
-    "date", "balada", "documentos", "presente",
-  ]);
 
   // numeros que viram odometro (os cartoes vivos ja contam os deles com data-contar-*)
   const SELETOR_ODOMETRO = [
@@ -66,24 +60,12 @@
     }, total);
   }
 
-  // Mudanca de DOM feita pelo acabamento (fio da borda entrando/saindo) nao e mensagem nova:
-  // o auto-rolar do chat ignora (mesmo combinado do semRolar de cards-vivos.js).
-  function semRolar(fn) {
-    const doc = raiz.document && raiz.document.documentElement;
-    if (doc) doc.dataset.vivoSemRolar = "1";
-    try {
-      fn();
-    } finally {
-      setTimeout(() => doc && delete doc.dataset.vivoSemRolar, 0);
-    }
-  }
-
   const EASE_SUAVE = "cubic-bezier(0.22, 1, 0.36, 1)";
   const PECA_INICIO = 230; // ms depois da chegada do card: o vidro ja abriu
   const PECA_PASSO = 75;
 
-  // Card que se monta: um fio de luz corre a borda uma vez e as pecas de dentro (titulo,
-  // numero, grafico, lista, rodape) entram uma depois da outra, de cima pra baixo.
+  // Card que se monta: as pecas de dentro (titulo, numero, grafico, lista, rodape) entram uma
+  // depois da outra, de cima pra baixo. (O fio de luz na borda saiu em 04/11: cara de IA.)
   function montar(card, chegadaMs) {
     if (typeof document === "undefined") return;
     const pecas = Array.from(card.children).filter((el) => !el.classList.contains("card-confete"));
@@ -97,11 +79,6 @@
         { duration: 560, delay: chegadaMs + PECA_INICIO + k * PECA_PASSO, easing: EASE_SUAVE, fill: "backwards" }
       );
     });
-    const fio = document.createElement("span");
-    fio.className = "card-fio-borda";
-    fio.setAttribute("aria-hidden", "true");
-    semRolar(() => card.appendChild(fio));
-    setTimeout(() => semRolar(() => fio.remove()), chegadaMs + 2000);
   }
 
   // Toca a chegada so nos cards de uma resposta NOVA (chat.js chama logo depois de anexar).
@@ -110,13 +87,8 @@
     grupo.querySelectorAll(".card-contrato").forEach((card, i) => {
       card.classList.add("card-novo");
       card.style.setProperty("--chegada", `${i * 90}ms`);
-      if (!card.classList.contains("card-contrato-fallback")) montar(card, i * 90);
-      const tipo = card.dataset.cardType;
-      const olho = card.querySelector(".card-resultado-eyebrow");
-      const consulta = tipo === "meta" && olho && !/criada/i.test(olho.textContent);
-      if (TIPOS_REGISTRO.has(tipo) && !consulta && !card.classList.contains("card-desfeito")) {
-        card.classList.add("card-selo");
-      }
+      // pilula D (cards-d.js) entra inteira com a mola dela; o resto monta peca por peca
+      if (!card.classList.contains("card-contrato-fallback") && !card.classList.contains("card-d")) montar(card, i * 90);
       // o numero so comeca a rolar quando o card ja esta assentando
       setTimeout(
         () =>
@@ -272,29 +244,15 @@
   }
 
   // ---- toque que responde (todos os cards, historico tambem) -----------------------
-  //  - profundidade e luz: o card inclina na direcao do dedo (ou do mouse) e um brilho
-  //    segue o ponto de toque, como vidro de verdade;
-  //  - segurar afunda o card um tico;
+  //  - segurar afunda o card um tico (a inclinacao 3D e a luz que seguia o dedo sairam em
+  //    04/11/2026: cara de IA);
   //  - card com .card-expande: tocar em qualquer lugar dele abre/fecha o detalhe;
   //  - tarefa pendente dentro do card: arrastar pra direita conclui (mesma caixinha de
   //    sempre por baixo - o change dela e quem fala com o servidor, em cards.js).
-  const INCLINACAO_MAX = 4.5; // graus, borda a borda
   const ARRASTO_LIMIAR = 72; // px pra direita que concluem a tarefa
   const ARRASTO_ELASTICO = 90; // daqui pra frente a linha resiste
   const SEGURAR_MS = 140;
   const INTERATIVO = "a, button, input, label, select, textarea, summary, [data-acao]";
-
-  // Parte pura (testavel): posicao do dedo no card (0-1) -> inclinacao + ponto de luz.
-  function inclinacao(fx, fy) {
-    const x = Math.min(1, Math.max(0, Number(fx) || 0));
-    const y = Math.min(1, Math.max(0, Number(fy) || 0));
-    return {
-      rx: +((0.5 - y) * 2 * INCLINACAO_MAX * 0.8).toFixed(2),
-      ry: +((x - 0.5) * 2 * INCLINACAO_MAX).toFixed(2),
-      lx: +(x * 100).toFixed(1),
-      ly: +(y * 100).toFixed(1),
-    };
-  }
 
   // Parte pura: dedo andou `mx` px pra direita -> quanto a linha anda e o progresso (0-1).
   function arrasto(mx) {
@@ -303,33 +261,9 @@
     return { dx: +Math.min(140, dx).toFixed(1), p: +Math.min(1, dx / ARRASTO_LIMIAR).toFixed(3), conclui: dx >= ARRASTO_LIMIAR };
   }
 
-  // `rotate` (e nao `transform`): a chegada do card anima transform com fill both e
-  // engoliria a inclinacao. Duas inclinacoes pequenas = um giro so em torno de (rx, ry, 0).
-  function inclinar(card, ev) {
-    const r = card.getBoundingClientRect();
-    if (!r.width || !r.height) return;
-    const i = inclinacao((ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height);
-    const ang = Math.hypot(i.rx, i.ry);
-    card.classList.add("card-tocando");
-    card.style.rotate = ang ? `${i.rx} ${i.ry} 0 ${ang.toFixed(2)}deg` : "none";
-    card.style.setProperty("--luz-x", `${i.lx}%`);
-    card.style.setProperty("--luz-y", `${i.ly}%`);
-    card.style.setProperty("--luz", "1");
-  }
-
   function endireitar(card) {
     if (!card) return;
-    card.classList.remove("card-tocando", "card-apertado");
-    card.style.rotate = "";
-    card.style.setProperty("--luz", "0");
-  }
-
-  // ponto de fuga no meio do card tocado (senao o card de cima do grupo inclina torto)
-  function focarPerspectiva(card) {
-    const grupo = card.parentElement;
-    if (grupo && grupo.classList.contains("cards-grupo")) {
-      grupo.style.perspectiveOrigin = `50% ${Math.round(card.offsetTop + card.offsetHeight / 2)}px`;
-    }
+    card.classList.remove("card-apertado");
   }
 
   function alternarDetalhe(card) {
@@ -352,7 +286,6 @@
     if (!container || container.dataset.toqueLigado || typeof document === "undefined") return;
     container.dataset.toqueLigado = "1";
     let st = null; // dedo/botao pressionado agora
-    let sobre = null; // card sob o mouse (hover no computador)
     let engolirClique = false;
 
     const cardDe = (alvo) => {
@@ -365,18 +298,9 @@
       if (!card || (e.pointerType === "mouse" && e.button !== 0)) return;
       const dedo = e.pointerType !== "mouse";
       st = { card, id: e.pointerId, x0: e.clientX, y0: e.clientY, eixo: null, linha: linhaArrastavel(e.target), mov: null, dedo };
-      const ev = { clientX: e.clientX, clientY: e.clientY };
-      // no dedo, luz/inclinacao so quando ele SEGURA ou anda pro lado: rolar o chat passando
-      // por cima dos cards nao pode ficar acendendo luz
-      if (!st.linha && !e.target.closest(INTERATIVO)) {
-        st.segura = setTimeout(() => {
-          card.classList.add("card-apertado");
-          if (dedo && !reduzido()) inclinar(card, ev);
-        }, SEGURAR_MS);
-      }
-      if (!reduzido()) {
-        focarPerspectiva(card);
-        if (!dedo) inclinar(card, e);
+      // segurar (sem rolar) afunda o card um tico
+      if (!st.linha && !e.target.closest(INTERATIVO) && !e.target.closest(".vivo-d")) {
+        st.segura = setTimeout(() => card.classList.add("card-apertado"), SEGURAR_MS);
       }
     });
 
@@ -406,19 +330,7 @@
           st.linha.classList.toggle("vai-concluir", st.mov.conclui);
           return;
         }
-        if (st.dedo && st.eixo === "y") return; // e rolagem: o navegador ja vai cancelar
-        if (!reduzido() && (!st.dedo || st.eixo || st.card.classList.contains("card-apertado"))) inclinar(st.card, e);
-        return;
       }
-      // computador: o card acompanha o mouse sem precisar clicar
-      if (e.pointerType !== "mouse" || reduzido()) return;
-      const card = cardDe(e.target);
-      if (card !== sobre) {
-        endireitar(sobre);
-        sobre = card;
-        if (card) focarPerspectiva(card);
-      }
-      if (card) inclinar(card, e);
     });
 
     const soltar = (e, cancelou) => {
@@ -443,18 +355,10 @@
           }
         }
       }
-      if (e.pointerType === "mouse" && card === sobre && !cancelou) {
-        card.classList.remove("card-apertado"); // mouse continua em cima: segue inclinando
-      } else {
-        endireitar(card);
-      }
+      endireitar(card);
     };
     container.addEventListener("pointerup", (e) => soltar(e, false));
     container.addEventListener("pointercancel", (e) => soltar(e, true));
-    container.addEventListener("pointerleave", () => {
-      endireitar(sobre);
-      sobre = null;
-    });
 
     container.addEventListener(
       "click",
@@ -486,10 +390,8 @@
     costurar,
     geometriaCostura,
     ligarToque,
-    inclinacao,
     arrasto,
     alternarDetalhe,
-    TIPOS_REGISTRO,
   };
   raiz.CardsPremium = CardsPremium;
   if (typeof module !== "undefined" && module.exports) module.exports = CardsPremium;

@@ -18,6 +18,8 @@ import SwiftUI
 struct PainelWidgetBundle: WidgetBundle {
     var body: some Widget {
         PainelWidget()
+        ProximoCompromisso()  // tela bloqueada: próximo compromisso de saída/voo (ProximoCompromisso.swift)
+        AtividadeCompromisso()  // atividade ao vivo + Dynamic Island do compromisso (AtividadeCompromisso.swift)
         IlhaTeste()  // atividade de teste da tela "Gerar relatório" do app (IlhaTeste.swift)
         #if compiler(>=6.0)
         if #available(iOS 18.0, *) {

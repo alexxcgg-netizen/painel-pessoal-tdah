@@ -95,49 +95,107 @@ const VOO = {
   pernas: [{ nm: 24 }, { nm: 48 }, { nm: 58 }], total_nm: 130, duracao_min: 135, pouso: "16:15",
   antecedencia_min: 45, chegar: "13:15", sair_casa: "12:10", trajeto_min: 65, horas_min: 3726, meta_horas: 150,
 };
+const Av = require("../../static/js/cards-aviacao.js");
 const voo = (data) => Cards.renderizarListaHTML([{ type: "voo_agendado", id: "v1", data, actions: [] }], { passos: [] });
 
-test("voo_agendado: pernas em NM, paradas tocaveis e horarios", () => {
+test("voo_agendado (D, 04/11): pilula com a rota, linhas e as horas do curso", () => {
   const h = voo(VOO);
-  assert.match(h, /data-vivo="voo-rota"/);
-  assert.strictEqual((h.match(/data-acao="voo_parada"/g) || []).length, 4);
-  assert.match(h, /24 NM/);
-  assert.match(h, /58 NM/);
-  assert.match(h, /~130 NM/);
-  assert.match(h, /Saída<\/span><b class="vivo-num">12:10/);
-  assert.match(h, /Chega<\/span><b class="vivo-num">13:15<\/b><small>45 min antes/);
-  assert.match(h, /~16:15/);
-  assert.match(h, /data-nome="Volta pra Blumenau"/);
-  assert.match(h, /data-resto="perna 1, 24 NM · pousa ~14:22, decola ~14:37"/);
-  assert.match(h, /62,1 h/);
-  assert.match(h, /~64,4 h/);
+  assert.match(h, /class="vivo-d" data-v="voo"/);
+  assert.match(h, /<span class="v-t">SSBL → SBNF → SBFL<\/span>/); // a volta pra casa nao repete no titulo
+  assert.match(h, /Voo 14:00 · ida e volta/);
+  assert.match(h, /<span>Sair de casa<\/span><span>12:10<\/span>/);
+  assert.match(h, /<span>Briefing \(45 min antes\)<\/span><span>13:15<\/span>/);
+  assert.match(h, /<span>Decolagem<\/span><span>14:00<\/span>/);
+  assert.match(h, /<span>Pouso<\/span><span>~16:15<\/span>/);
+  assert.match(h, /<span>Rota<\/span><span>130 NM · ~2h15 fora do chão<\/span>/);
+  assert.match(h, /<span>Horas no curso<\/span><span>62,1 de 150<\/span>/);
+  // o arco antigo (cartao de embarque) saiu
+  assert.doesNotMatch(h, /voo-rota|voo_parada|va-picote/);
 });
 
-test("voo_agendado: voo local vira circuito, sem paradas tocaveis", () => {
+test("voo_agendado (D): voo local no titulo, sem sair de casa", () => {
   const h = voo({ ...VOO, local: true, paradas: [VOO.paradas[0], { icao: "SSBL", nome: "Blumenau" }], pernas: [], total_nm: null, duracao_min: null, pouso: null, sair_casa: null });
-  assert.match(h, /data-vivo="voo-local"/);
-  assert.doesNotMatch(h, /voo_parada/);
-  assert.doesNotMatch(h, /Saída/);
-  assert.match(h, /voo local/);
+  assert.match(h, /SSBL · voo local/);
+  assert.doesNotMatch(h, /Sair de casa/);
+  assert.doesNotMatch(h, /ida e volta/);
+  assert.doesNotMatch(h, /<span>Rota<\/span>/);
 });
 
 test("voo_agendado: escapa nome de aerodromo e some sem paradas", () => {
-  const h = voo({ ...VOO, paradas: [{ icao: "<b>X", nome: "<img src=x>" }, VOO.paradas[1]], pernas: [{ nm: null }] });
+  const h = voo({ ...VOO, paradas: [{ icao: "<b>X", nome: "<img src=x>" }, VOO.paradas[1]], pernas: [{ nm: null }],
+    aerodromos: [{ icao: "<b>X", nome: "<img src=x>", pista: null }] });
   assert.doesNotMatch(h, /<img src=x>/);
   assert.doesNotMatch(h, /<b>X/);
   const vazio = voo({ ...VOO, paradas: [] });
-  assert.doesNotMatch(vazio, /data-vivo="voo-rota"/);
+  assert.doesNotMatch(vazio, /vivo-d/);
 });
 
-test("voo_agendado: caminho tem um arco por perna", () => {
-  const Av = require("../../static/js/cards-aviacao.js");
-  const xs = Av.vaPontos(4);
-  assert.deepStrictEqual(xs.map(Math.round), [10, 103, 197, 290]);
-  assert.strictEqual((Av.vaCaminho(xs).match(/Q/g) || []).length, 3);
+test("voo_agendado (D): conta ate sair de casa em segundos do servidor, depois ate chegar e decolar", () => {
+  const AG = new Date(2026, 10, 7, 7, 0);
+  const g = AG.getTime() / 1000;
+  const card = (extra) => Cards.renderizarCardHTML({ type: "voo_agendado", id: "v1", data: { ...VOO, data: "2026-11-07", hora: "09:00", ...extra }, actions: [] }, { agora: AG });
+  const h = card({ sair_s: 600, chegar_s: 4500, decola_s: 7200, gerado_ts: g });
+  assert.match(h, /<small>sai em<\/small><b><span class="rl" data-cd-s="600"/);
+  assert.match(h, /data-txt="10 min"/);
+  assert.match(h, /<div class="v-linha agora"><span>Sair de casa/);
+  // ja saiu de casa: a contagem passa pro briefing
+  const depois = card({ sair_s: -60, chegar_s: 4500, decola_s: 7200, gerado_ts: g });
+  assert.match(depois, /<small>chega em<\/small>/);
+  assert.match(depois, /<div class="v-linha agora"><span>Briefing/);
+  // voo passou: sem contagem
+  assert.doesNotMatch(card({ sair_s: -9000, chegar_s: -8000, decola_s: -60, gerado_ts: g }), /data-cd-s/);
+});
+
+test("voo_agendado (D): aerodromos com seletor e pista so quando conferida, dentro das 30 h", () => {
+  const AG = new Date(2026, 9, 14, 10, 0);
+  const ads = [
+    { icao: "SSBL", nome: "Blumenau", pista: { cabeceiras: [1, 19], decl_w: 20.6, conferido: true } },
+    { icao: "SBNF", nome: "Navegantes", pista: null },
+  ];
+  const card = (data, hora) => Cards.renderizarCardHTML({ type: "voo_agendado", id: "v1", data: { ...VOO, data, hora, aerodromos: ads, limite_kt: 15 }, actions: [] }, { agora: AG });
+  const h = card("2026-10-15", "09:00");
+  assert.match(h, /class="seg-ad" role="tablist"[^>]*style="--n:2;--i:0"/);
+  assert.match(h, /role="tab" aria-selected="true" data-acao="voo_ad" data-i="0">SSBL · Blumenau/);
+  assert.match(h, /data-i="1">SBNF · Navegantes/);
+  assert.match(h, /class="ad-rw" style="transform:rotate\(10deg\)"/); // 01/19: pista desenhada a 010
+  assert.match(h, /Buscando o METAR de SSBL/);
+  assert.match(h, /data-limite="15"/);
+  // fora da janela do TAF: so avisa quando aparece, sem buscar nada
+  const longe = card("2026-10-20", "09:00");
+  assert.match(longe, /Vento, teto e pista de SSBL e SBNF aparecem aqui a partir de 30 h antes do voo/);
+  assert.doesNotMatch(longe, /ad-vivo|seg-ad/);
+});
+
+test("voo_agendado (D): METAR vira cabeceira, proa, traves e veredito (SSBL com declinacao)", () => {
+  require("../../static/js/cards-aviacao-lab.js");
+  const ssbl = { icao: "SSBL", pista: { cabeceiras: [1, 19], decl_w: 20.6, conferido: true } };
+  const metar = (vento, extra) => ({ metar: "METAR SSBL ...", metar_categoria: "VFR", metar_decodificado: { vento, teto_ft: 2500, visibilidade_m: 9999, ...extra } });
+  const v = Av.valoresAd(ssbl, metar({ direcao: 290, velocidade_kt: 12, rajada_kt: null }), 15);
+  assert.strictEqual(v.cab, "01"); // 290 V + 20,6 W = 311 magnetico: a 01 tem mais proa
+  assert.strictEqual(v.rwGraus, 10);
+  assert.strictEqual(v.proa, "6");
+  assert.strictEqual(v.trav, "10");
+  assert.strictEqual(Math.round(v.seta), 311);
+  assert.strictEqual(v.teto, "2.500 ft");
+  assert.strictEqual(v.vis, "10+ km");
+  assert.match(v.ver, /^Tranquilo\. Través 10 kt, teu limite é 15 kt\.$/); // a categoria vai no selo, nao repete
+  assert.strictEqual(v.cat, "VFR");
+  assert.strictEqual(v.vento, "290° 12 kt"); // a caixa mostra o vento como no METAR
+  const sul = Av.valoresAd(ssbl, metar({ direcao: 160, velocidade_kt: 8 }), 15);
+  assert.strictEqual(sul.cab, "19");
+  assert.strictEqual(sul.rwGraus, 190);
+  // aerodromo sem pista conferida: vento como veio, sem inventar cabeceira
+  const nf = Av.valoresAd({ icao: "SBNF", pista: null }, metar({ direcao: 90, velocidade_kt: 8 }, { teto_ft: null }), 15);
+  assert.strictEqual(nf.cab, null);
+  assert.strictEqual(nf.trav, null);
+  assert.strictEqual(nf.teto, "sem teto");
+  assert.match(nf.ver, /não conferi, então não calculo través/);
+  // calmo e variavel
+  assert.strictEqual(Av.valoresAd(ssbl, metar({ direcao: 0, velocidade_kt: 0 }), 15).vento, "calmo");
+  assert.strictEqual(Av.valoresAd(ssbl, metar({ direcao: null, variavel: true, velocidade_kt: 4 }), 15).cab, null);
 });
 
 // ---- 3a leva (2026-10-14): tempo na hora do voo + "quanto deu o voo?"
-const Av = require("../../static/js/cards-aviacao.js");
 const AGORA = new Date(2026, 9, 14, 10, 0);
 const vooEm = (data, hora) => Cards.renderizarCardHTML({ type: "voo_agendado", id: "v1", data: { ...VOO, data, hora }, actions: [] }, { agora: AGORA });
 

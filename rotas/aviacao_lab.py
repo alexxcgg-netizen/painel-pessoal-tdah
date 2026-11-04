@@ -20,7 +20,8 @@ QUAIS = {
     "cheque": aviacao_lab.card_previsao_cheque,
     "banca": aviacao_lab.card_banca,
     "chair": aviacao_lab.card_chair,
-    "vento": aviacao_lab.card_vento,
+    # card_vento recebe o ICAO (nao a data): a rota chama montar(conn, hoje) igual pra todos
+    "vento": lambda conn, _hoje=None: aviacao_lab.card_vento(conn),
     "passaporte": aviacao_lab.card_passaporte,
 }
 

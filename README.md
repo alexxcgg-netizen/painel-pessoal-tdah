@@ -57,7 +57,7 @@ proxima visita.
 ## Testes
 
 ```bash
-python -m unittest discover tests -v
+python scripts/testes.py
 ```
 
 Os testes usam mock nas chamadas a Claude (nao gastam nada nem precisam de `ANTHROPIC_API_KEY`

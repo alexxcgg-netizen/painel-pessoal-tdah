@@ -351,7 +351,7 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
     import conversa_proativa
 
     n = len(linhas)
-    texto = "Preparei " + ("1 coisa" if n == 1 else f"{n} coisas") + " que ficaram soltas. Resolve, adia ou me manda esquecer."
+    texto = "Preparei " + ("1 coisa que ficou solta" if n == 1 else f"{n} coisas que ficaram soltas") + ". Resolve, adia ou me manda esquecer."
     conversa_proativa.publicar(conn, "cartoes_manha_chat", texto, [card(linhas, agora)])
     corpo = linhas[0]["titulo"] + (f" e mais {n - 1}" if n > 1 else "") + ". Abre pra resolver."
     return [("cartoes_manha", "Pra hoje", corpo)]

@@ -18,13 +18,19 @@ quem decide isso e app.py, ANTES de chamar apagar_evento aqui.
 """
 
 import os
+import threading
 import uuid
 from datetime import date, datetime, time, timedelta
+from time import monotonic
 
 import caldav
 
 ICLOUD_URL = "https://caldav.icloud.com/"
 CALENDARIO_PAINEL_NOME = "Painel"
+
+_CACHE_SEGUNDOS = 60
+_cache_dias: dict[date, tuple[float, list[dict]]] = {}
+_cache_trava = threading.Lock()
 
 
 def configurado() -> bool:
@@ -60,20 +66,35 @@ def _extrair_evento(obj) -> dict | None:
     }
 
 
+def limpar_cache() -> None:
+    with _cache_trava:
+        _cache_dias.clear()
+
+
 def eventos_do_dia(dia: date) -> list[dict]:
     """Busca eventos de todos os calendarios do dia informado. Se algum
     calendario individual falhar (iCloud e instavel via CalDAV as vezes),
-    pula ele e continua com os outros em vez de quebrar tudo."""
+    pula ele e continua com os outros em vez de quebrar tudo.
+
+    Cache de 60 s por dia (2026-10-30): cada ida ao iCloud leva ~4 s e o /api/widget ia duas vezes
+    por chamada (8 s medidos). Busca parcial nao entra no cache, e criar/apagar evento limpa ele."""
+    with _cache_trava:
+        guardado = _cache_dias.get(dia)
+    if guardado and monotonic() - guardado[0] < _CACHE_SEGUNDOS:
+        return [dict(e) for e in guardado[1]]
+
     inicio = datetime.combine(dia, time.min)
     fim = datetime.combine(dia, time.max)
 
     eventos = []
+    falhou = False
     with _client() as client:
         principal = client.principal()
         for calendario in principal.calendars():
             try:
                 resultados = calendario.search(start=inicio, end=fim, event=True, expand=True)
             except Exception:
+                falhou = True
                 continue
             for r in resultados:
                 try:
@@ -84,6 +105,9 @@ def eventos_do_dia(dia: date) -> list[dict]:
                     eventos.append(evento)
 
     eventos.sort(key=lambda e: e["inicio"])
+    if not falhou:
+        with _cache_trava:
+            _cache_dias[dia] = (monotonic(), [dict(e) for e in eventos])
     return eventos
 
 
@@ -144,6 +168,7 @@ def criar_evento(titulo: str, inicio: datetime, fim: datetime, lembrar_min_antes
     with _client() as client:
         calendario = _calendario_painel(client)
         calendario.add_event(uid=uid, dtstart=inicio, dtend=fim, summary=titulo, **alarm_kwargs)
+    limpar_cache()
     return {"uid": uid, "titulo": titulo, "inicio": inicio.isoformat(), "fim": fim.isoformat()}
 
 
@@ -163,6 +188,7 @@ def apagar_evento(uid: str) -> bool:
         if evento is None:
             return False
         evento.delete()
+    limpar_cache()
     return True
 
 

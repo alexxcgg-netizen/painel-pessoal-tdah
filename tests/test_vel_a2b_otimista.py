@@ -8,7 +8,6 @@
 import json
 import os
 import tempfile
-import threading
 import time
 import unittest
 import urllib.request
@@ -36,11 +35,9 @@ auth.definir_pin(_conn, PIN, PIN)
 _conn.commit()
 _conn.close()
 
-_thread = threading.Thread(
-    target=lambda: app_module.app.run(host="127.0.0.1", port=PORTA, use_reloader=False, threaded=True),
-    daemon=True,
-)
-_thread.start()
+from tests.playwright_helper import subir_servidor  # noqa: E402
+
+subir_servidor(app_module.app, PORTA)
 _pronto = False
 for _ in range(50):
     try:
@@ -59,6 +56,33 @@ except Exception:
 
 from tests.playwright_helper import get_chrome_path; _CHROME = get_chrome_path()
 
+# Marco dos cenarios de erro: mostrarErro roda no fim do apiFetch e o que desfaz o toque vem
+# logo depois, no mesmo passo. Nao espera a contagem da lista pra nao esvaziar o assert dela.
+ERRO_APARECEU = "document.getElementById('erro-banner').textContent.includes('falha simulada')"
+
+# Cronometro DENTRO da pagina, do toque (pointerdown) ate o quadro que mostra a mudanca: a mesma regua
+# de scripts/medir_velocidade.py. O relogio do Python inclui a viagem do Playwright ate o navegador e
+# estoura os 150 ms com a CPU cheia. Marcar o toque so no click, ou parar na mudanca do DOM, deixa de
+# fora uma trava de 1 s no pointerdown ou no quadro seguinte, com a tela parada.
+_CRONOMETRAR = """([seletor, texto]) => {
+  const pronto = () => [...document.querySelectorAll(seletor)].some((el) => el.textContent.includes(texto));
+  window.__toqueEm = null;
+  window.__quadroEm = null;
+  window.addEventListener('pointerdown', () => { window.__toqueEm = performance.now(); }, {capture: true, once: true});
+  const olhar = new MutationObserver(() => {
+    if (!pronto()) return;
+    olhar.disconnect();
+    requestAnimationFrame(() => { window.__quadroEm = performance.now(); });
+  });
+  olhar.observe(document.getElementById('lista-tarefas'),
+    {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class']});
+}"""
+
+
+def _tempo_ate_o_quadro(page):
+    page.wait_for_function("window.__quadroEm !== null")
+    return page.evaluate("window.__quadroEm - window.__toqueEm")
+
 
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
 @unittest.skipUnless(_pronto, "servidor de teste nao respondeu")
@@ -74,6 +98,11 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
         auth.definir_pin(conn, PIN, PIN)
         conn.commit()
         conn.close()
+
+    def _conferir_linha_inteira(self, page):
+        self.assertEqual(page.locator("#lista-tarefas li.saindo").count(), 0, "item voltou pela metade")
+        self.assertEqual(page.locator("#lista-tarefas li.tl-feita").count(), 0, "item voltou riscado")
+        self.assertEqual(page.locator("#lista-tarefas .tl-ponto[disabled]").count(), 0, "item voltou sem poder tocar")
 
     def test_concluir_tarefa_otimista_some_rapido_e_volta_em_erro(self):
         with sync_playwright() as p:
@@ -115,20 +144,21 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
 
                 # force=True: pula a espera de "estabilidade" do Playwright
                 # antes do clique (o app anima a entrada dos itens da lista) -
-                # sem isso o cronometro capturava a espera do PROPRIO
-                # Playwright, nao o tempo da nossa atualizacao otimista.
-                t0 = time.time()
+                # sem isso o Playwright segurava o clique sem ser culpa do app.
+                page.evaluate(_CRONOMETRAR, ["#lista-tarefas li.saindo", ""])
                 page.locator("#lista-tarefas .tl-ponto").first.click(force=True)
-                page.wait_for_selector("#lista-tarefas li.saindo", timeout=150)
-                dt_ms = (time.time() - t0) * 1000
+                dt_ms = _tempo_ate_o_quadro(page)
                 self.assertLess(dt_ms, 150, f"item demorou {dt_ms:.0f}ms pra sumir (deveria ser otimista)")
                 self.assertEqual(len(rotas_paradas), 1, "o POST deveria estar pendente nesse ponto")
 
                 # so agora libera a rede de verdade (a chamada real termina por tras) -
                 # continue_ primeiro, unroute depois (unroute já resolve rotas pendentes).
+                pendentes = page.evaluate("_tarefasPendentes.length")
                 rotas_paradas[0].continue_()
                 page.unroute("**/api/tasks/*/complete")
-                page.wait_for_timeout(400)
+                # a lista recarrega quando o POST volta e a linha ja saiu; tocar na proxima
+                # antes disso deixa o re-render passar por cima da linha que esta saindo
+                page.wait_for_function("(n) => _tarefasPendentes.length < n", arg=pendentes, timeout=10000)
                 # linha do tempo: a linha concluida so sai depois do check (~500 ms do toque) -
                 # contar antes disso pegava ela ainda na tela
                 page.wait_for_selector("#lista-tarefas li.saindo", state="detached")
@@ -142,9 +172,25 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
 
                 page.route("**/api/tasks/*/complete", erro_500)
                 page.locator("#lista-tarefas .tl-ponto").first.click()
-                page.wait_for_timeout(600)
+                page.wait_for_function(ERRO_APARECEU)
+                # prova negativa: a linha sairia do DOM 500 ms depois do toque (removerTimeout em
+                # tarefas.js) e o erro e quem cancela isso. Contar antes desse prazo passa com o
+                # rollback quebrado; este timer, armado depois do dele, so dispara depois.
+                page.evaluate("new Promise((pronto) => setTimeout(pronto, 500))")
                 n_depois = page.locator("#lista-tarefas li").count()
                 self.assertEqual(n_depois, n_antes, "item deveria voltar pra lista depois do erro 500")
+                self._conferir_linha_inteira(page)
+
+                # ---- cenario 3: o erro chega com a linha ja fora do DOM -> ela e recolocada no
+                # lugar. O erro instantaneo acima nunca passa por esse caminho.
+                page.unroute("**/api/tasks/*/complete")
+                rotas_paradas.clear()
+                page.route("**/api/tasks/*/complete", lambda route: rotas_paradas.append(route))
+                page.locator("#lista-tarefas .tl-ponto").first.click()
+                page.wait_for_function("(n) => document.querySelectorAll('#lista-tarefas li').length < n", arg=n_antes)
+                erro_500(rotas_paradas[0])
+                page.wait_for_function("(n) => document.querySelectorAll('#lista-tarefas li').length === n", arg=n_antes)
+                self._conferir_linha_inteira(page)
             finally:
                 browser.close()
 
@@ -182,39 +228,9 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
                 page.wait_for_selector("#nova-tarefa-titulo", state="visible")
                 page.fill("#nova-tarefa-titulo", titulo)
 
-                # Vel (limpa/v-abas): media com o relogio do Python (time.time()
-                # em volta de page.click()+wait_for_function) inclui a viagem
-                # IPC do Playwright ate o browser - fica instavel sob carga
-                # (CPU concorrente), estourando os 150ms mesmo quando a
-                # atualizacao otimista em si e instantanea. Mede-se agora
-                # DENTRO da pagina (performance.now no pointerdown ate o
-                # frame em que o item otimista aparece), a mesma regua de
-                # scripts/medir_velocidade.py (JS_LER_EVENTO/clicar_e_medir).
-                page.evaluate(
-                    """(titulo) => {
-                        window.__t0_a2d = null;
-                        window.__t_visivel_a2d = null;
-                        document.addEventListener('pointerdown', () => {
-                            if (window.__t0_a2d === null) window.__t0_a2d = performance.now();
-                        }, {capture: true, once: true});
-                    }""",
-                    titulo,
-                )
+                page.evaluate(_CRONOMETRAR, ["#lista-tarefas", titulo])
                 page.click("#nova-tarefa-btn", force=True)
-                dt_ms = page.evaluate(
-                    """(titulo) => new Promise((resolve) => {
-                        const t0 = window.__t0_a2d ?? performance.now();
-                        const limite = performance.now() + 150;
-                        (function tick() {
-                            const achou = document.querySelector('#lista-tarefas')?.textContent.includes(titulo);
-                            if (achou) { resolve(performance.now() - t0); return; }
-                            if (performance.now() > limite) { resolve(null); return; }
-                            requestAnimationFrame(tick);
-                        })();
-                    })""",
-                    titulo,
-                )
-                self.assertIsNotNone(dt_ms, "tarefa nao apareceu em 150ms (deveria ser otimista)")
+                dt_ms = _tempo_ate_o_quadro(page)
                 self.assertLess(dt_ms, 150, f"tarefa demorou {dt_ms:.0f}ms pra aparecer (deveria ser otimista)")
                 self.assertEqual(len(rotas_paradas), 1, "o POST deveria estar pendente nesse ponto")
                 self.assertTrue(
@@ -224,7 +240,17 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
 
                 rotas_paradas[0].continue_()
                 page.unroute("**/api/tasks")
-                page.wait_for_timeout(400)
+                # o item otimista sai quando o POST volta; o real entra no recarregar da lista
+                page.wait_for_function(
+                    """(titulo) => {
+                        const lista = document.querySelector('#lista-tarefas');
+                        return !lista.querySelector('li.item-otimista') && lista.textContent.includes(titulo);
+                    }""",
+                    arg=titulo,
+                    timeout=10000,
+                )
+                # o sheet fecha em 240 ms: reabrir antes disso cancela o fechamento
+                page.wait_for_selector("#tarefa-sheet", state="hidden")
                 self.assertIn(titulo, page.locator("#lista-tarefas").inner_text())
                 self.assertEqual(
                     page.locator("#lista-tarefas li.item-otimista").count(),
@@ -248,7 +274,8 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
                 page.wait_for_selector("#nova-tarefa-titulo", state="visible")
                 page.fill("#nova-tarefa-titulo", titulo2)
                 page.click("#nova-tarefa-btn")
-                page.wait_for_timeout(600)
+                # o app tira o item e devolve o texto logo depois de mostrar o erro
+                page.wait_for_function(ERRO_APARECEU)
                 n_depois = page.locator("#lista-tarefas li").count()
                 self.assertEqual(n_depois, n_antes, "a lista nao deveria ganhar item permanente depois do erro 500")
                 self.assertNotIn(titulo2, page.locator("#lista-tarefas").inner_text())

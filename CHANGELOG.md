@@ -11,6 +11,15 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-04 - Cards ao vivo (D), assistente passo a passo, Dynamic Island e widgets (SW v100)
+- 2026-11-04 - Pista de SSBL é 01/19 e protótipo dos cards sem cara de IA (SW v99)
+- 2026-11-04 - Chat: lugares pelo nome e 3 burrices da conversa de 03/11
+- 2026-11-04 - Onde eu estou: o painel sabe quando ele chega e sai de um lugar
+- 2026-11-01 - Chat começa com limite de 12 mil tokens: fim da resposta refeita
+- 2026-11-01 - Fim do teto padrão de R$ 40 da IA (SW v98)
+- 2026-10-31 - Suíte em ~1 min 30 s: faltava porta, não era PC lento
+- 2026-10-30 - Testes mais rápidos: banco modelo, só o afetado, cópia separada
+- 2026-10-30 - Agenda do iCloud com cache de 60 s (primeiro relatório real do app iOS)
 - 2026-10-30 - App iOS: abre configurado (endereço local + token depois do PIN)
 - 2026-10-30 - App iOS: tela "Gerar relatório" e teste da Dynamic Island
 - 2026-10-30 - Laboratório v4: os "quero" no app (SW v97)
@@ -162,6 +171,146 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-04 - Cards ao vivo (D), assistente passo a passo, Dynamic Island e widgets (SW v100)
+O Alex aprovou as 3 rodadas do D: "gostei de tudo". Também pediu: "se for atualizar o app já coloca pra ele usar o dynamic
+island e widgets". Briefing: `docs/briefings/2026-11-04-cards-ao-vivo.md`. Saiu em 3 frentes paralelas, cada uma com seus
+próprios arquivos.
+- **Cards D (PWA)** — `cards-d.js` e `cards-d.css`, ambos novos.
+  - Pílula escura que abre no toque, com mola `cubic-bezier(.32,1.2,.42,1)`. A contagem vem em segundos do servidor e
+    os dígitos rolam tipo placar.
+  - **Sai a cara de IA:** fio de luz na borda, luz que segue o dedo, inclinação 3D, selo brilhante, chips com emoji,
+    título em degradê e MAIÚSCULAS espaçadas.
+  - **Cenas:**
+    - tarefa com hora: contagem, "Já saí" e "+10 min";
+    - date/balada: cadeia arrumar → sair → (parada) → chegar, tempo em 7 colunas com chegada/volta e o que levar com o
+      motivo;
+    - voo: seletor por aeródromo, cabeceira/proa/través só na pista conferida (SSBL), teto/vis/vento e METAR;
+    - gasto (anel do teto) e tarefa feita (anel em pedaços + lista do dia);
+    - lugar salvo, um type novo;
+    - chegou: a hora rola da velha pra nova;
+    - conta única: "deslize se já pagou".
+  - `cards.py` monta `cadeia`, `clima_horas` e `levar`. `clima.py` passou a dar a temperatura na previsão hora a hora.
+    Testes: `tests/test_cards_d.py` e `tests/js/cards_d.test.js`.
+- **Assistente passo a passo** — migração `202611041100_as_parada_tarefa.sql` com `tasks.parada`.
+  - Várias saídas numa frase só: prompt novo, um `registrar_tarefa` por compromisso.
+  - **Parada no caminho:** casa → parada (5 min lá) → destino. `tempo.compromissos` expõe
+    `parada = {"nome", "min_ate"}`.
+  - **Sequência de avisos:**
+    1. `saida_preparo`: daqui ~15 min começa a se arrumar, com o tempo e o que levar;
+    2. `se_arrumar`;
+    3. `saida_porta`: 5 min pra sair, com o que levar;
+    4. `hora_de_sair`: "10 min até casa do guri";
+    5. a chegada na parada ou no destino, pelo `onde_estou`.
+  - **Previsão que piora:** se a chuva na chegada sai de < 70% e vai pra ≥ 70%, adianta a saída 10 min uma vez e
+    avisa.
+  - Teste: `tests/test_assistente_saida.py`.
+- **iPhone** — rota nova `GET /api/ao-vivo`.
+  - **Acesso:** só com o token Bearer do widget no header, nunca na URL. Devolve o próximo compromisso de saída ou voo
+    das próximas 6 h, com os passos em ISO, a cor/ícone do assunto e o clima na chegada. O lugar aparece só pelo apelido.
+  - **Live Activity / Dynamic Island de verdade:** `CompromissoAtributos`, `AtividadeCompromisso`, e `AoVivo.swift` no
+    app. É local, sem APNs (a conta é grátis): o app liga, atualiza e encerra a atividade quando abre, quando chega o
+    token e a cada visita do CLVisit. A contagem `Text(timerInterval:)` anda sozinha.
+  - **Widgets:** o da tela inicial mostra o próximo compromisso. O "Próximo compromisso" novo vai pra tela bloqueada nos
+    formatos rectangular, circular e inline.
+  - `checar_projeto.py` ganhou 2 checagens. **Nada disso foi compilado ainda:** só o build do GitHub confirma.
+- **Consertos de quem fechou a leva:**
+  - `rotas/aviacao_lab.py`: o card "vento" recebia a data no lugar do ICAO.
+  - O card de saída ignora a cópia da parada em `extras` quando a coluna `tasks.parada` foi limpa (pelo Desfazer).
+  - Os dois com teste.
+
+## 2026-11-04 - Pista de SSBL é 01/19 e protótipo dos cards sem cara de IA (SW v99)
+- **Pista:** o Alex confirmou que as cabeceiras de SSBL são **01/19**. O padrão antigo, 18/36, vinha de fonte de terceiros e
+  estava errado. Mudou `aviacao_lab.PISTA_PADRAO`, o texto da fonte e o reserva do front
+  (`cards-aviacao-lab.js`). A cabeceira agora aparece sempre com 2 dígitos ("01"), no card, no desenho da pista e na linha
+  do bom-dia (`linha_vento`). A declinação (~20,6° W) continua "não conferida". Os testes foram ajustados para a conta nova:
+  290 V a 12 kt dá través de 10 kt na 01. Também entraram teste do padrão e teste JS dos 2 dígitos.
+- **Cards sem cara de IA (só protótipo, nada no app):** o artefato https://claude.ai/artifact/HG3Kq8ZjWrgCUfHCHLiFvh
+  tem 5 caminhos. O Alex votou no **D (Ao vivo)**: card como atividade ao vivo do iPhone, pequeno no chat, que abre com
+  um toque e conta o tempo. Do card atual ele quer manter o tempo (temperatura, casaco, chuva) em date e balada.
+  - **Rodada 2:** date e balada com o tempo hora a hora, o que levar e a saída ajustada se a previsão piorar.
+  - **Rodada 3:** a sequência de avisos na tela bloqueada (se arrumar → sair → casa do guri → chegar) e o voo com teto,
+    vento e cabeceira por aeródromo.
+  - Espera o veredito dele antes de ir pro app. O que dá cara de IA, segundo o diagnóstico: brilho correndo na borda, luz
+    seguindo o dedo, selo aceso, chips com emoji, título em degradê, MAIÚSCULAS espaçadas e o "pensando" com órbita.
+
+## 2026-11-04 - Chat: lugares pelo nome e 3 burrices da conversa de 03/11
+- **Lugares que ele ensina** (regra nova no prompt): "a oficina é a Fulano", "a Celesc é no centro" → `salvar_lugar_apelido`
+  na hora, um por lugar. Só o nome basta: `exec_salvar_lugar_apelido` procura no Google (`maps_client.resolver_lugar`,
+  viés em Brusque) e guarda "Nome, endereço"; não achou = guarda como ele falou e devolve `obs`. `esquecer=true` tira
+  (`vida_assistente.esquecer_apelido`). Lugar de uma vez (balada) usa o nome do lugar como apelido, nunca "balada".
+- **A caminho não é feito**: "vim trazer o carro" não dá baixa; "ainda não deixei" reabre na mesma rodada.
+- **Horário de "quando chegar em casa"** nunca antes da chegada (conta paradas + `estimar_trajeto`).
+- **Hora sem dia**: `ajustar_tarefa` que dá hora a tarefa sem `due_date` põe ela em hoje (antes ficava fora do dia e
+  não chamava na hora).
+- Texto da manhã: "1 coisa que ficou solta" (era "1 coisa que ficaram soltas"). Teste de recomeço com relógio fixo.
+
+## 2026-11-04 - Onde eu estou: o painel sabe quando ele chega e sai de um lugar
+Briefing: `docs/briefings/2026-11-04-onde-eu-estou.md`. O app iOS manda as visitas do iPhone
+(`startMonitoringVisits`, permissão "Sempre") pra `POST /api/localizacao/visita` (token do widget só no header;
+sem token/errado = 401, visitante = 403). Lógica em `onde_estou.py`, rota em `rotas/onde_estou.py`, tabela `visitas`
+(migração `202611041000_loc_visitas.sql`, 30 dias, coordenada com 4 casas).
+- **Lugar:** apelidos (`lugares_apelidos`) + casa (`ENDERECO_CASA`), geocodificados uma vez (config `lugares_coordenadas`;
+  falha só tenta de novo no dia seguinte). Raio 150 m (visita imprecisa estica até 250 m). Salvar apelido pelo chat já geocodifica.
+- **Chegou:** uma mensagem por visita no chat + push/Telegram: "Chegou no mecânico. Agora é: ... Depois: ... às 11h."
+  Só fala se tiver tarefa do lugar ou próxima com hora; chegada com mais de 45 min (fila offline) não avisa.
+- **Atrasou:** visita aberta (passo de 5 min em `conversa_proativa.verificar`) ou saída há até 30 min: se agora + trajeto
+  (Maps, cache de 20 min, só pra tarefa em até 2 h) passa da hora por mais de 10 min, empurra ela e as seguintes de hoje
+  (arredondado pra 5 min, o "(até HH:MM)" do título junto). Inegociável e voo são parede. Card `edicao` com Desfazer.
+  Uma vez por tarefa por dia. Destino: `local` da tarefa, apelido no título, senão casa.
+- **Chat:** contexto ganha "Agora (pelo iPhone): no mecânico desde 07:20" / "saiu de casa às 07:05" (até 2 h).
+- **iPhone:** `native/ios/App/Localizacao.swift` (fila de até 50 no UserDefaults, envio em background task, seção
+  "Onde eu estou" no Configurar). Não compilado aqui: build pelo `build-ios.yml`.
+
+## 2026-11-01 - Chat começa com limite de 12 mil tokens: fim da resposta refeita
+44 de 214 chamadas do chat com Haiku bateram no limite (500 ou 1.000), foram descartadas e refeitas, perdendo de 3 a 6 s cada.
+`ia/config.d/chat.json` agora começa em 12.000, no Haiku e na rota `conversa`. A escada 500 -> 4.000 -> 12.000 ficou só pro caso de
+config quebrada. O Alex decidiu que custo não importa aqui. Ganho estimado de 15% a 25% do tempo de IA, ainda não medido depois.
+
+## 2026-11-01 - Fim do teto padrão de R$ 40 da IA (SW v98)
+Pedido do Alex: tirar o teto de gastos. Sem nada configurado, o gasto agora só é medido: nada bloqueia nem avisa
+(`ia.teto.TETO_PADRAO_BRL = 0`, caminho de "sem teto" que já existia em `_fracao_teto`). O teto opcional do card financeiro
+continua funcionando igual, e hoje não há nenhum configurado.
+- **Card Custo de IA:** sem teto, some a barra e o "% do teto usado". Ficam o gasto, a projeção, o gráfico e a tabela.
+- **Widget:** sem teto, `custo_ia` volta `null` em vez de "IA: 0% do teto".
+- **Testes:** os da lógica de 80%/100% agora configuram um teto próprio; entrou teste de gasto alto sem teto liberando tudo.
+
+## 2026-10-31 - Suíte em ~1 min 30 s: faltava porta, não era PC lento
+
+Medido: a fila do navegador somava 17.436 conexões em TIME_WAIT, acima das 16.384 portas de saída do Windows, e cada uma
+fica presa 30 s neste PC (`TcpTimedWaitDelay`). Duas fontes: o servidor do Flask fecha a conexão a cada pedido (~250 por
+página) e o `cache.addAll` do service worker abre uma por arquivo (222). O sintoma era script que não carregava e falha em
+teste diferente a cada rodada (`ERR_ADDRESS_IN_USE`, `xxx is not defined`).
+- `subir_servidor` em `tests/playwright_helper.py`: waitress nos testes, igual ao painel. `test_servidor_de_teste.py`
+  impede a volta do `app.run`.
+- Service worker bloqueado por padrão nos testes; `test_service_worker_real.py` instala ele de verdade, confere `ASSETS` e
+  recarrega a página com ele no comando.
+- `scripts/testes.py`: um pytest por arquivo no navegador, 5 de cada vez, o mais pesado primeiro; portas abaixo de 49152;
+  quem só passa sozinho aparece em `so passou sozinho`; limite de 300 s por arquivo e 600 s por fila; testes JS juntos.
+- `scripts/testes_afetados.py`: rota pela URL, arquivo citado com a pasta, aviso quando nada liga com o que mudou.
+- `test_vel_a2b`: cronômetro dentro da página, do `pointerdown` até o quadro; erro lento e linha que volta inteira.
+- Não rodar duas suítes juntas: os relatórios de `data/testes/` têm nome fixo. `unittest discover` saiu do `CLAUDE.md` e do
+  `README.md`: não carrega o `conftest.py`, então fica sem rede fechada e sem banco modelo.
+Resultado: 11 min -> 63 a 96 s, e 0 ou 1 teste passando só no refazer por rodada (antes 3 a 8). Pico de ~900 conexões.
+Rodadas finais, já com tudo acima: 73, 68 e 73 s, nenhum refeito. 19 de 19 quebras de propósito pegas pelos testes.
+Detalhes: `docs/testes.md` e `docs/briefings/2026-10-30-testes-rapidos.md`.
+
+## 2026-10-30 - Testes mais rápidos: banco modelo, só o afetado, cópia separada
+
+Medido: `init_db` 330 ms, cópia 0,4 ms; toda página dos testes de navegador perdia 3,3 s repetindo a IA morta.
+`tests/banco_modelo.py` troca `init_db` nos testes por cópia de um modelo feito pelo `init_db` real (com testes de
+igualdade em `tests/test_banco_modelo.py`); o `conftest.py` tira as repetições da IA; `scripts/testes_afetados.py` escolhe
+os testes pela mudança; `scripts/testes.py` roda numa cópia temporária do código pra dar pra seguir mexendo.
+Pegadinha: outro trabalho pesado no PC multiplica o tempo (mesmo teste de 3 s pra 38 s) e gera falha falsa de animação.
+Medido com o PC ainda ocupado (11 min -> 8 min 44 s): rápida 9 min -> 1 min 52 s, grandes 5 min 48 s -> 26 s,
+navegador 11 min -> 8 min 36 s. O gargalo agora é só o navegador. Detalhes em `docs/testes.md`.
+
+## 2026-10-30 - Agenda do iCloud com cache de 60 s (primeiro relatório real do app iOS)
+
+O relatório do app mostrou `/api/widget` levando ~8,4 s. Medido no próprio PC: não era rede, eram duas idas ao iCloud
+por chamada (foco e agenda), ~4 s cada, sem cache. `caldav_client.eventos_do_dia` agora guarda 60 s por dia; busca
+parcial (calendário que falhou) não entra e criar/apagar evento limpa. Evento criado fora do painel pode demorar até
+60 s pra aparecer. Testes: `tests/test_caldav_cache.py`.
 
 ## 2026-10-30 - App iOS: abre configurado (endereço local + token depois do PIN)
 

@@ -42,7 +42,7 @@
 // um card de treino aparece (o fetch abaixo guarda tudo de /static/).
 // v97: Laboratorio v4, os 33 "quero" (foco, tempo, avisos e manha, memoria da IA, dinheiro, aviacao,
 // fechamento) - um arquivo de cards por grupo; ver docs/briefings/2026-10-30-lab-v4-*.md.
-const CACHE_NAME = "painel-pessoal-v97";
+const CACHE_NAME = "painel-pessoal-v100";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -105,6 +105,7 @@ const ASSETS = [
   "/static/css/secoes/hoje/cards-memoria.css",
   "/static/css/secoes/hoje/cards-rotina.css",
   "/static/css/secoes/hoje/cards-fechamento.css",
+  "/static/css/secoes/hoje/cards-d.css",
   "/static/css/secoes/hoje/visao-do-dia.css",
   "/static/css/secoes/painel/resumo.css",
   "/static/css/secoes/painel/agenda-de-hoje.css",
@@ -162,6 +163,7 @@ const ASSETS = [
   "/static/js/charts.js",
   "/static/js/fila-offline.js",
   "/static/js/cards.js",
+  "/static/js/cards-d.js",
   "/static/js/treino3d-catalogo.js",
   "/static/js/cards-tipos.js",
   "/static/js/cards-vivos.js",

@@ -288,7 +288,8 @@ class RecomecoTest(_Dados):
         self.assertIsNone(recomeco.manter(self.conn, HOJE, [self.velha, self.velha2, self.conta, self.recente]))  # > 3
         self.assertEqual(self.client.post("/api/recomeco/manter", json={"ids": []}).status_code, 400)
 
-    def test_rotas(self):
+    @patch("rotas.foco_ideias._agora", return_value=AGORA)  # as datas das tarefas sao fixas; o relogio real faz "recente" virar velha
+    def test_rotas(self, _agora):
         self.assertEqual(self.client.get("/api/recomeco").get_json()["velhas"], 2)
         self.assertEqual(self.client.post("/api/recomeco/arquivar").get_json()["arquivadas"], 2)
         self.assertEqual(self.client.post("/api/recomeco/desfazer").get_json()["voltaram"], 2)

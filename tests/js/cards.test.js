@@ -271,7 +271,7 @@ test("transacao oculta (modo visitante) nunca mostra valor nem saldo", () => {
   assert.doesNotMatch(html, /card-saldo/);
 });
 
-test("transacao: gasto com contexto do mes vira cupom + barra do teto + 14 barrinhas", () => {
+test("transacao: gasto com contexto do mes vira a pilula D com o anel do mes (04/11)", () => {
   const base = {
     entidade: "gasto", sentido: "saida", titulo: "Mercado Giassi", valor: 87.4, categoria: "mercado",
     data: "2026-09-23", status: "real",
@@ -281,30 +281,31 @@ test("transacao: gasto com contexto do mes vira cupom + barra do teto + 14 barri
     type: "transacao",
     data: { ...base, mes: { categoria: "mercado", gasto: 456.9, antes: 369.5, limite: 900, dias_restantes: 8, sobra: 443.1, sobra_dia: 55.39 } },
   }, { agora: AGORA });
-  assert.match(html, /tx-cupom/);
-  assert.match(html, /Mercado Giassi/);
-  assert.match(html, /23\/09\/2026/);
-  assert.match(html, /class="card-valor-grande">-R\$\s?87,40/); // odometro continua achando o valor
-  assert.match(html, /Mercado · setembro/);
-  assert.match(html, /data-contar-moeda="456.9"/);
-  assert.match(html, /de R\$\s?900/);
-  assert.match(html, /tx-barra/);
-  assert.doesNotMatch(html, /tx-estourou/);
-  assert.equal((html.match(/style="--h:/g) || []).length, 14);
-  assert.match(html, /<i class="tx-hoje" style="--h:72\.8%/); // 87,40 sobre o maior dia (120)
-
+  assert.match(html, /card-d/);
+  assert.match(html, /class="vivo-d" data-v="gasto"/);
+  assert.match(html, /<span class="v-t">Mercado Giassi<\/span>/);
+  assert.match(html, /Mercado · 51% do mês/);
+  assert.match(html, /<small>gasto<\/small><b>R\$\s?87,40<\/b>/);
+  assert.match(html, /class="anel"/); // o anel do icone ate o % do teto
+  assert.match(html, /<span class="num">51%<\/span>/);
+  assert.match(html, /<dt>Mercado no mês<\/dt><dd>R\$\s?457 de R\$\s?900<\/dd>/);
+  assert.match(html, /<dt>Sobra<\/dt><dd>R\$\s?443<\/dd>/);
+  assert.match(html, /<dt>Por dia até o dia 30<\/dt><dd>R\$\s?55<\/dd>/);
+  // sem cara de IA: nada do cupom/impressora antigo
+  assert.doesNotMatch(html, /tx-cupom|tx-impressora|TOTAL/);
 
   const estourou = Cards.renderizarCardHTML({
     type: "transacao",
     data: { ...base, mes: { categoria: "mercado", gasto: 456.9, antes: 369.5, limite: 400, dias_restantes: 8, sobra: -56.9, sobra_dia: 0 } },
   }, { agora: AGORA });
-  assert.match(estourou, /tx-estourou/);
-  assert.match(estourou, /passou R\$\s?57 do teto/);
+  assert.match(estourou, /<dt>Passou do teto<\/dt><dd class="passou">R\$\s?57<\/dd>/);
+  assert.doesNotMatch(estourou, /Por dia até/);
 
   const semTeto = Cards.renderizarCardHTML({
     type: "transacao", data: { ...base, mes: { categoria: "mercado", gasto: 456.9, antes: 369.5, limite: null, dias_restantes: 8 } },
   }, { agora: AGORA });
-  assert.doesNotMatch(semTeto, /tx-barra/);
+  assert.doesNotMatch(semTeto, /class="anel"/); // sem teto nao tem % pra encher
+  assert.match(semTeto, /v-gasto sem-anel/);
   assert.match(semTeto, /no mês/);
 });
 

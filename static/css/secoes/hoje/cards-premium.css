@@ -24,65 +24,10 @@
   }
 }
 
-/* fio de luz que corre a borda uma vez quando o card nasce (span que cards-premium.js poe e
-   tira). @property deixa o angulo do gradiente animavel; sem suporte, so acende e apaga. */
-@property --fio-ang {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-.card-fio-borda {
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1.5px;
-  pointer-events: none;
-  z-index: 2;
-  background: conic-gradient(
-    from var(--fio-ang),
-    transparent 0deg,
-    color-mix(in srgb, var(--card-cor) 85%, white) 38deg,
-    transparent 84deg,
-    transparent 360deg
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  animation: premiumFio 1.5s var(--ease-suave) calc(var(--chegada, 0ms) + 0.18s) both;
-}
-@keyframes premiumFio {
-  0% { opacity: 0; --fio-ang: 0deg; }
-  15% { opacity: 1; }
-  85% { opacity: 1; }
-  100% { opacity: 0; --fio-ang: 360deg; }
-}
-
-/* ---- profundidade e luz: o card inclina pro lado do dedo e um brilho segue o toque ----
-   A inclinacao vai na propriedade `rotate` (cards-premium.js), separada do `transform`
-   que as animacoes de chegada usam. O grupo da a perspectiva; o JS centra o ponto de fuga
-   no card tocado. */
-.cards-grupo {
-  perspective: 1100px;
-}
+/* ---- toque: arrasto na horizontal fica pro card (concluir tarefa). A inclinacao 3D e a luz que
+   seguia o dedo sairam em 04/11/2026 (cara de IA, linguagem D). */
 .card-contrato {
-  touch-action: pan-y; /* arrasto na horizontal fica pro card (inclinar / concluir tarefa) */
-}
-.card-contrato::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 1;
-  background: radial-gradient(
-    240px circle at var(--luz-x, 50%) var(--luz-y, 0%),
-    color-mix(in srgb, var(--card-cor) 18%, rgba(255, 255, 255, 0.14)),
-    transparent 62%
-  );
-  mix-blend-mode: screen;
-  opacity: var(--luz, 0);
-  transition: opacity 0.5s var(--ease-suave);
+  touch-action: pan-y;
 }
 
 /* ---- detalhe que abre dentro do card (ex.: maiores gastos) ------------------------ */
@@ -186,68 +131,6 @@
   scale: 1.12;
 }
 
-/* brilho que atravessa o vidro uma vez (faixa diagonal na cor do card) */
-.card-contrato.card-novo::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-      105deg,
-      transparent 38%,
-      color-mix(in srgb, var(--card-cor) 22%, rgba(255, 255, 255, 0.16)) 48%,
-      rgba(255, 255, 255, 0.26) 50%,
-      color-mix(in srgb, var(--card-cor) 22%, rgba(255, 255, 255, 0.16)) 52%,
-      transparent 62%
-    )
-    no-repeat;
-  background-size: 260% 100%;
-  background-position: 130% 0;
-  mix-blend-mode: plus-lighter;
-  opacity: 0;
-  animation: premiumBrilho 1.25s var(--ease-suave) calc(var(--chegada, 0ms) + 0.32s) both;
-}
-@keyframes premiumBrilho {
-  0% { opacity: 0; background-position: 130% 0; }
-  15% { opacity: 1; }
-  85% { opacity: 1; }
-  100% { opacity: 0; background-position: -30% 0; }
-}
-
-/* ---- selo de registro: o icone do topo da um pulinho e solta uma onda ------------ */
-.card-contrato.card-selo .card-resultado-eyebrow > svg:first-child {
-  position: relative;
-  animation: premiumSeloPula 0.7s var(--ease-bounce) calc(var(--chegada, 0ms) + 0.28s) both;
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--card-cor) 60%, transparent));
-}
-@keyframes premiumSeloPula {
-  0% { transform: scale(0.35) rotate(-14deg); opacity: 0; }
-  60% { transform: scale(1.22) rotate(4deg); opacity: 1; }
-  100% { transform: none; opacity: 1; }
-}
-.card-contrato.card-selo .card-resultado-eyebrow {
-  position: relative;
-}
-.card-contrato.card-selo .card-resultado-eyebrow::before {
-  content: "";
-  position: absolute;
-  left: 7.5px; /* centro do icone de 15px */
-  top: 50%;
-  width: 30px;
-  height: 30px;
-  margin: -15px 0 0 -15px;
-  border-radius: 50%;
-  border: 1.5px solid var(--card-cor);
-  pointer-events: none;
-  opacity: 0;
-  animation: premiumOnda 0.9s var(--ease-suave) calc(var(--chegada, 0ms) + 0.42s) both;
-}
-@keyframes premiumOnda {
-  0% { transform: scale(0.3); opacity: 0.85; }
-  100% { transform: scale(1.35); opacity: 0; }
-}
-
 /* ---- odometro: cada digito e uma fita 0-9 0-9 que rola ate o alvo ----------------- */
 .odo-dig,
 .odo-fixo {
@@ -301,15 +184,10 @@
 }
 
 /* ---- toque: o card cede um tico (nao quando o dedo esta num botao/caixinha); segurar
-   afunda mais. `scale`/`rotate` (e nao transform): a animacao de chegada prende o
+   afunda mais. `scale` (e nao transform): a animacao de chegada prende o
    transform com fill both e o toque nunca aparecia. ---------------------------------- */
 .card-contrato {
-  transition: rotate 0.7s var(--ease-suave), scale 0.4s var(--ease-snap), opacity 0.3s var(--ease-suave),
-    filter 0.3s var(--ease-suave);
-}
-.card-contrato.card-tocando {
-  transition: rotate 0.14s linear, scale 0.4s var(--ease-snap), opacity 0.3s var(--ease-suave),
-    filter 0.3s var(--ease-suave);
+  transition: scale 0.4s var(--ease-snap), opacity 0.3s var(--ease-suave), filter 0.3s var(--ease-suave);
 }
 .card-contrato:active:not(:has(button:active, a:active, input:active, label:active)) {
   scale: 0.99;
@@ -361,10 +239,10 @@
   100% { transform: none; }
 }
 
-/* ---- costura: fio de luz ligando os cards de uma mesma resposta ------------------
+/* ---- costura: fio fino ligando os cards de uma mesma resposta -------------------
    Corre na coluna do avatar (o grupo tem margin-left = avatar 22px + 0.5rem), com um no
    na altura do titulo de cada card. Resposta nova: cada trecho se desenha quando o card
-   de baixo chega e no fim uma luz percorre o fio todo, piscando cada no ao passar. */
+   de baixo chega (a luz que percorria o fio saiu em 04/11/2026). */
 .cards-grupo.cards-costurados {
   position: relative;
 }
@@ -414,8 +292,6 @@
   margin: -3.5px 0 0 -3.5px;
   border-radius: 50%;
   background: var(--no-cor);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--no-cor) 16%, transparent),
-    0 0 8px color-mix(in srgb, var(--no-cor) 50%, transparent);
 }
 .costura-luz {
   display: none;
@@ -429,40 +305,14 @@
   to { transform: scaleY(1); opacity: 0.7; }
 }
 .costura-nova .costura-no {
-  animation: costuraNo 0.6s var(--ease-bounce) var(--costura-atraso, 0ms) both,
-    costuraPulso 0.7s var(--ease-suave) calc(var(--costura-luz-atraso, 0ms) + var(--pulso, 0ms)) both;
+  animation: costuraNo 0.6s var(--ease-bounce) var(--costura-atraso, 0ms) both;
 }
 @keyframes costuraNo {
   0% { transform: scale(0); opacity: 0; }
-  60% { transform: scale(1.3); opacity: 1; }
+  60% { transform: scale(1.2); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
-@keyframes costuraPulso {
-  0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--no-cor) 16%, transparent), 0 0 8px color-mix(in srgb, var(--no-cor) 50%, transparent); }
-  35% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--no-cor) 26%, transparent), 0 0 16px color-mix(in srgb, var(--no-cor) 75%, transparent); }
-  100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--no-cor) 16%, transparent), 0 0 8px color-mix(in srgb, var(--no-cor) 50%, transparent); }
-}
-/* a luz: um risco curto com rastro, descendo em velocidade constante */
-.costura-nova .costura-luz {
-  display: block;
-  position: absolute;
-  left: 50%;
-  top: var(--costura-inicio, 0px);
-  width: 2px;
-  height: 22px;
-  margin: -22px 0 0 -1px;
-  border-radius: 2px;
-  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.95));
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.7));
-  opacity: 0;
-  animation: costuraLuz var(--costura-luz-dur, 1s) linear var(--costura-luz-atraso, 0ms) both;
-}
-@keyframes costuraLuz {
-  0% { transform: translateY(0); opacity: 0; }
-  10% { opacity: 1; }
-  88% { opacity: 1; }
-  100% { transform: translateY(var(--costura-total, 0px)); opacity: 0; }
-}
+/* a luz que corria o fio saiu em 04/11/2026 (cara de IA): o fio so se desenha */
 
 @media (prefers-reduced-motion: reduce) {
   .costura-nova::before,
@@ -470,27 +320,15 @@
   .costura-nova .costura-no {
     animation: none !important;
   }
-  .costura-nova .costura-luz {
-    display: none;
-  }
   .card-contrato.card-novo,
-  .card-contrato.card-novo::after,
-  .card-contrato.card-selo .card-resultado-eyebrow > svg:first-child,
-  .card-contrato.card-selo .card-resultado-eyebrow::before,
   .odo-fita,
   .card-contrato.card-novo .meta-progresso-barra,
   .card-confete i,
   .card-contrato.card-desfazendo {
     animation: none !important;
   }
-  .card-contrato.card-novo::after,
-  .card-contrato.card-selo .card-resultado-eyebrow::before {
-    display: none;
-  }
   .card-contrato:active,
   .card-contrato.card-apertado { scale: none; }
-  .card-fio-borda { display: none; }
-  .card-contrato::before { display: none; }
   .card-expande,
   .card-expande li,
   .card-dica-toque svg,

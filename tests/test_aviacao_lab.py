@@ -308,6 +308,11 @@ class VentoPistaTest(AviacaoLabBase):
         self.assertTrue(aviacao_lab.calcular_vento(None, 5, self.PISTA)["variavel"])
         self.assertEqual(aviacao_lab.calcular_vento(0, 0, self.PISTA)["traves"], 0)
 
+    def test_pista_padrao_de_ssbl_e_01_19(self):
+        # o Alex confirmou as cabeceiras em 04/11/2026; o padrao antigo 18/36 estava errado
+        self.assertEqual(aviacao_lab.PISTA_PADRAO["cabeceiras"], [1, 19])
+        self.assertEqual(self.com_conn(aviacao_lab.pista_config)["cabeceiras"], [1, 19])
+
     def test_pista_comeca_nao_conferida_e_mexer_nos_numeros_tira_a_conferencia(self):
         pc = self.com_conn(aviacao_lab.pista_config)
         self.assertFalse(pc["conferido"])
@@ -327,7 +332,7 @@ class VentoPistaTest(AviacaoLabBase):
         v = self.com_conn(aviacao_lab.vento_pista, "SSBL", lambda icao: _metar(290, 12))
         self.assertEqual(v["hora_z"], "1200Z")
         self.assertTrue(v["medido"])
-        self.assertEqual(v["conta"]["traves"], 9)
+        self.assertEqual((v["conta"]["cabeceira"], v["conta"]["traves"]), (1, 10))  # pista 01/19
         self.assertFalse(v["pista"]["conferido"])
         sem = self.com_conn(aviacao_lab.vento_pista, "SSBL", lambda icao: {})
         self.assertFalse(sem["medido"])
@@ -343,7 +348,8 @@ class VentoPistaTest(AviacaoLabBase):
 
     def test_linha_do_bom_dia_so_para_ssbl_com_vento_medido(self):
         linha = self.com_conn(aviacao_lab.linha_vento, "SSBL", {"direcao": 290, "velocidade_kt": 12, "rajada_kt": None, "variavel": False})
-        self.assertEqual(linha, "Vento: través 9 kt na 36, teu limite é 10 (pista e declinação ainda não conferidas).")
+        # padrao 01/19 (o Alex confirmou 04/11/2026): 290 V a 12 kt = 310,6 M, melhor na 01
+        self.assertEqual(linha, "Vento: través 10 kt na 01, teu limite é 10 (pista e declinação ainda não conferidas).")
         self.assertIsNone(self.com_conn(aviacao_lab.linha_vento, "SBNF", {"direcao": 290, "velocidade_kt": 12}))
         self.assertIsNone(self.com_conn(aviacao_lab.linha_vento, "SSBL", {"variavel": True, "velocidade_kt": 3}))
         self.assertIsNone(self.com_conn(aviacao_lab.linha_vento, "SSBL", None))
@@ -393,6 +399,13 @@ class RotasTest(AviacaoLabBase):
                 self.assertEqual(card["type"], tipo)
                 self.assertIn(tipo, cards.TIPOS_CARD)
         self.assertEqual(self.client.get("/api/aviacao/card/outro").status_code, 404)
+
+    def test_card_vento_pela_rota_busca_o_icao_e_nao_a_data(self):
+        pedidos = []
+        with patch.object(aviacao_lab, "_metar_cache", lambda icao: pedidos.append(icao) or _metar(290, 12)):
+            self.assertEqual(self.client.get("/api/aviacao/card/vento").status_code, 200)
+        self.assertTrue(pedidos)
+        self.assertTrue(all(isinstance(i, str) and len(i) == 4 for i in pedidos), pedidos)
 
     def test_prazos_civ_valor_da_hora_banca_chair_e_pista(self):
         r = self.client.post("/api/aviacao/prazos", json={"chave": "cma", "data": "2027-03-17"})
@@ -455,7 +468,7 @@ class IntegracaoProativaTest(AviacaoLabBase):
             texto = conn.execute("SELECT texto FROM chat_mensagens ORDER BY id DESC LIMIT 1").fetchone()["texto"]
         finally:
             conn.close()
-        self.assertIn("Vento: través 9 kt na 36, teu limite é 10", texto)
+        self.assertIn("Vento: través 10 kt na 01, teu limite é 10", texto)
 
     def test_verificar_roda_as_automacoes_novas_sem_derrubar_nada(self):
         conn = db.get_db()

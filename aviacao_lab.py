@@ -7,7 +7,8 @@ Conta pura em Python, nunca pela IA.
 REGRA FORTE do Alex: termo/regra de aviacao so com fonte conferida. O que NAO foi conferido fica
 configuravel e marcado "nao conferido", nunca inventado:
   - validade do CMA (RBAC 67): ele digita a data impressa no CMA, o painel nao calcula;
-  - pista 18/36 de SSBL e declinacao magnetica (~20,6 W): vem de fonte de terceiros, comeca marcada como
+  - pista de SSBL: cabeceiras 01/19 (o Alex confirmou em 04/11/2026); a declinacao magnetica (~20,6 W) vem de
+    fonte de terceiros e, enquanto ele nao confirmar, a pista segue marcada como
     "nao conferido" ate ele confirmar no AISWEB/ROTAER (ou corrigir os numeros);
   - tempo de prova dos cadernos da banca: so Navegacao (100 min) esta conferido;
   - "horas em comando" do RBAC 61.101: o painel nao sabe a funcao a bordo de cada hora, entao nao projeta.
@@ -551,9 +552,10 @@ def chair_da_vespera(conn, agora) -> list[tuple[str, str, str]]:
 
 
 # ============================================================================ vento na pista
-# Pista 18/36 e declinacao ~20,6 W de SSBL: fonte de TERCEIROS (flightplandatabase), NAO conferida no AISWEB/ROTAER.
+# Cabeceiras 01/19 de SSBL: o Alex confirmou em 04/11/2026 (o padrao antigo 18/36 era de fonte de terceiros e estava
+# errado). Declinacao ~20,6 W: fonte de TERCEIROS (flightplandatabase), NAO conferida no AISWEB/ROTAER.
 # Comecam marcadas como "nao conferido"; ele confere, corrige se precisar e confirma no card.
-PISTA_PADRAO = {"cabeceiras": [18, 36], "decl_w": 20.6, "conferido": False}
+PISTA_PADRAO = {"cabeceiras": [1, 19], "decl_w": 20.6, "conferido": False}
 LIMITE_TRAVES_PADRAO = 10  # kt - limite PESSOAL dele (a demo usava 10); ele ajusta, nao e regra de manual
 AERODROMO_VENTO = "SSBL"
 
@@ -670,7 +672,7 @@ def vento_pista(conn, icao: str = AERODROMO_VENTO, buscar=None) -> dict:
         "pista": {k: pista[k] for k in ("cabeceiras", "decl_w", "conferido", "padrao_de_terceiros")},
         "limite_kt": pista["limite_kt"],
         "conta": calcular_vento(direcao, v.get("velocidade_kt"), pista, v.get("rajada_kt")) if medido else None,
-        "fonte": "Pista 18/36 e declinação ~20,6° W de SSBL vêm de fonte de terceiros: confere no AISWEB/ROTAER.",
+        "fonte": "Cabeceiras 01/19 de SSBL confirmadas por ti; a declinação ~20,6° W vem de fonte de terceiros: confere no AISWEB/ROTAER.",
     }
 
 
@@ -691,7 +693,7 @@ def linha_vento(conn, icao: str | None, vento: dict | None) -> str | None:
         return None
     t = c["traves_rajada"] if (c["traves_rajada"] or 0) > c["traves"] else c["traves"]
     nota = "" if pista["conferido"] else " (pista e declinação ainda não conferidas)"
-    return f"Vento: través {t} kt na {c['cabeceira']}, teu limite é {pista['limite_kt']}{nota}."
+    return f"Vento: través {t} kt na {c['cabeceira']:02d}, teu limite é {pista['limite_kt']}{nota}."
 
 
 # ============================================================================ passaporte

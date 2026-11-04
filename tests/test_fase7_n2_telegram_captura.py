@@ -488,5 +488,7 @@ def test_eh_link_casos_que_nao_sao_link(texto, esperado):
     assert tc._eh_link(texto) == esperado
 
 
-def test_eh_link_aceita_url_http_https_pura():
+def test_eh_link_aceita_url_http_https_pura(monkeypatch):
+    # a validacao de SSRF resolve o nome: aqui ele vira um IP publico, sem rede de verdade
+    monkeypatch.setattr(tc.leitura.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 0))])
     assert tc._eh_link("https://exemplo.com/pagina") == "https://exemplo.com/pagina"
