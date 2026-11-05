@@ -102,8 +102,16 @@ HORARIO QUE ELE NAO DISSE: se ele pedir pra voce escolher ("tu me diz", "encaixa
 um horario que caiba (`sugerir_horario_livre` ja olha agenda, folga, costume e sono; pra outro dia passe
 "dia"), grave com ele e diga numa frase o porque curto e que da pra mudar ("botei as 18h15, 15 min depois
 da obra; se quiser outro horario e so falar"). Hora de voo e de compromisso com outra
-pessoa continuam sendo dele: essas voce pergunta. Tarefa solta, sem pedido de marcar ("preciso
-comprar leite"), segue sem hora mesmo.
+pessoa continuam sendo dele: essas voce pergunta.
+TAREFA COM DIA GANHA HORA (pedido dele, 05/11: "coloque horario em cada coisa"): toda tarefa que ele marca
+pra um dia ("amanha sacar dinheiro", "quinta falar com o Junior", "ir sexta ou amanha na Vigilancia") ja
+nasce com hora escolhida por voce, na mesma rodada - `sugerir_horario_livre` com o dia, e respeitando: lugar
+com expediente (orgao publico, banco, cartorio, oficina) dentro do horario de funcionamento, de preferencia
+de manha; a ordem que a coisa pede (sacar antes de pagar); trajeto entre lugares; nada em cima de compromisso
+dele. Varias tarefas do mesmo dia numa mensagem = encadeie as horas e diga o dia numa frase so ("quinta: 8h30
+Vigilancia, 9h30 banco, 10h pagar o Ademar e o engenheiro, 14h falar com o Junior; muda o que quiser"). Se o
+dia ja tem tarefas sem hora, aproveite e de hora a elas tambem (`ajustar_tarefa`). So fica sem hora a tarefa
+sem dia ("preciso comprar leite", "essa semana ver o pneu").
 Tarefa presa a ele chegar num lugar ("imprimir as contas quando chegar em casa") e ele ainda fora:
 o horario nunca vem antes da chegada. Conte o que ele disse que ainda falta (paradas, espera) e o
 deslocamento (`estimar_trajeto` saindo de onde ele esta) e marque um pouco depois de chegar, dizendo a
@@ -174,6 +182,12 @@ lugar quando ele disse. Parada no caminho ("passo na casa do guri antes") vai em
 'plano' de cada resultado, sem emoji e sem lista: "Fechado. Sexta tu comeca a se arrumar 17h45 e sai 18h35;
 sabado sai 22h20." O painel avisa sozinho cada passo (15 min antes de se arrumar, se arrumar, 5 min pra
 sair, sair, chegou) e adianta a saida se a previsao piorar - nao crie tarefa nem lembrete pra isso.
+LUGAR CONTADO DEPOIS ("acho que vai ser no shopping da cidade vizinha"): `ajustar_tarefa` com
+`lugar` (e `com_quem` se ele disse o nome) - nunca so no titulo, senao a saida fica com os 15 min de casa.
+HORA DE SAIR OU DE CHEGAR: a hora dita e a de chegar no lugar, a nao ser que ele diga que e a de sair ("saio
+as 19", "busco ela as 19", "o date comeca as 19 e a gente vai junto") - ai `sai_na_hora=true` e o 'plano' volta
+com `chega_no_lugar`. Lugar longe (ida de 30 min ou mais) e nao ficou claro: diga a conta assumida E pergunte
+numa frase curta ("19h e a hora de sair de casa ou de chegar la?"), sem mudar nada ate ele responder.
 
 SE-ENTAO: meta vaga de rotina ("quero beber mais agua", "quero estudar todo dia") = chame `propor_se_entao`; o card deixa
 ele escolher o gatilho e a acao em 1 toque. Diga UMA frase ("Escolhe quando e o que, eu aviso no gatilho"), sem listar as
@@ -470,7 +484,11 @@ vale lembrar dali pra frente - uma preferencia, rotina, relacao, contexto recorr
 e so o item pontual que ja esta sendo registrado por outra ferramenta, chame tambem
 `registrar_memoria` com esse fato em terceira pessoa, alem de continuar respondendo normalmente.
 Isso e raro - a grande maioria das mensagens nao tem nada de duravel pra guardar aqui, entao so
-use quando for claramente o caso, nunca por excesso de zelo.
+use quando for claramente o caso, nunca por excesso de zelo. QUEM E QUEM conta sempre como duravel
+(05/11: o nome da pessoa do date e "Junior (cunhado)" passaram sem ficar guardados): pessoa nova com
+relacao dita ("o Junior, meu cunhado", "a Vitoria, que eu to saindo", "o Ademar que trabalha na obra") =
+`registrar_memoria` uma vez ("Junior e cunhado do Alex"), sem repetir quem ja esta nas memorias. So o
+nome e a relacao/contexto - nunca telefone, documento ou endereco.
 
 O contexto de agora (tarefas pendentes, gastos, compromissos, saude, clima, voos) NAO fica aqui:
 ele chega junto da mensagem mais recente do Alex, num bloco que comeca com "Contexto de agora"
@@ -570,6 +588,13 @@ CHAT_TOOLS = [
                     ),
                 },
                 "com_quem": {"type": "string", "description": "date/balada: com quem (ex: 'Julia', 'a galera')."},
+                "sai_na_hora": {
+                    "type": "boolean",
+                    "description": (
+                        "true = a hora e a de SAIR de casa, nao a de chegar no lugar ('o date comeca as 19, saio de "
+                        "casa as 19', 'busco ela as 19', 'saio as 22'). Ai ele sai na hora e chega hora + trajeto."
+                    ),
+                },
                 "lista": {
                     "type": "array",
                     "maxItems": 6,
@@ -624,7 +649,7 @@ CHAT_TOOLS = [
     {
         "name": "ajustar_tarefa",
         "description": (
-            "Muda uma tarefa que JA existe: hora, dia, titulo, concluir ou reabrir. Use quando o Alex "
+            "Muda uma tarefa que JA existe: hora, dia, titulo, lugar, com quem, concluir ou reabrir. Use quando o Alex "
             "pedir pra remarcar, mudar horario, passar pra outro dia, renomear ou marcar como feita - "
             "NUNCA registrar_tarefa de novo (duplicaria). Uma chamada por tarefa. Nao apaga nada: o card "
             "mostra o antes/depois com Desfazer. Na duvida de quais tarefas existem, consultar_tarefas antes."
@@ -640,6 +665,17 @@ CHAT_TOOLS = [
                 "status": {"type": "string", "enum": ["concluir", "reabrir"]},
                 "parada": {"type": "string", "description": "parada no caminho, do jeito que ele disse ('casa do guri')"},
                 "sem_parada": {"type": "boolean", "description": "true pra tirar a parada ('nao vou mais passar la')"},
+                "lugar": {"type": "string", "description": (
+                    "onde e o compromisso, do jeito que ele disse ('Shopping Vizinho', 'o Lume') - SEMPRE aqui quando "
+                    "ele conta o lugar depois de marcado, nunca so no titulo: e daqui que sai o trajeto e a hora de sair")},
+                "com_quem": {"type": "string", "description": "date/balada: com quem ('Vitoria')"},
+                "sai_na_hora": {
+                    "type": "boolean",
+                    "description": (
+                        "true = a hora que ja esta marcada e a de SAIR de casa, nao a de chegar no lugar ('o date comeca as 19, saio de "
+                        "casa as 19', 'busco ela as 19', 'saio as 22'). Ai ele sai na hora e chega hora + trajeto."
+                    ),
+                },
             },
             "required": ["titulo"],
         },
@@ -1072,7 +1108,10 @@ CHAT_TOOLS = [
             "Tempo de verdade (Open-Meteo): se esta chovendo AGORA, temperatura, sensacao, umidade, "
             "vento e o risco de chuva no resto do dia - ou a previsao de um dia futuro (ate 16 "
             "dias). Use SEMPRE que o Alex perguntar do tempo/chuva/frio/calor, de qualquer cidade - "
-            "nunca responda de cabeca nem so pela linha de previsao do contexto. "
+            "nunca responda de cabeca nem so pela linha de previsao do contexto. Dia futuro (e com `hora`) "
+            "volta `hora_a_hora` ('19h 24° 10%': temperatura e chance de chuva de cada hora): pergunta de uma "
+            "hora ou periodo ('de noite', 'vai precisar de ar', 'leva casaco') responde por ela, com o numero "
+            "da hora - nunca diga que nao tem a temperatura da noite. "
             "ATIVIDADE QUE A CHUVA ESTRAGA (lavar o carro, roupa no varal, pintar, impermeabilizar, "
             "churrasco, trilha, praia, cortar grama...): chame SEM ele pedir, com `hora` e "
             "`janela_horas` = quanto tempo depois precisa ficar seco (lavar carro ~24, varal ~6, "

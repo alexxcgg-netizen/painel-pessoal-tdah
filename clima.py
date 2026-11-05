@@ -180,6 +180,68 @@ def previsao_horaria(lat: float, lon: float, dias: int = 3) -> list[dict] | None
         return None
 
 
+_CACHE_VENTO: dict[tuple, tuple[float, list[dict]]] = {}
+_CACHE_VENTO_S = 30 * 60
+
+
+def vento_horario(lat: float, lon: float, dias: int = 2, buscar=None) -> list[dict] | None:
+    """Hora a hora com vento em nos (widget do voo, 05/11/2026): [{'quando': 'AAAA-MM-DDTHH:MM',
+    'codigo', 'vento_kt', 'vento_dir'}]. Guardado 30 min (o widget pergunta a cada ~20 min, e
+    cada tamanho de widget pergunta separado). None em erro de rede/resposta."""
+    import time
+
+    chave = (round(lat, 3), round(lon, 3), dias)
+    guardado = _CACHE_VENTO.get(chave)
+    if guardado and time.monotonic() - guardado[0] < _CACHE_VENTO_S:
+        return guardado[1]
+    buscar = buscar or requests.get
+    try:
+        resp = buscar(
+            FORECAST_URL,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "hourly": "weathercode,wind_speed_10m,wind_direction_10m",
+                "wind_speed_unit": "kn",
+                "timezone": "America/Sao_Paulo",
+                "forecast_days": min(max(dias, 1), 3),
+            },
+            timeout=6,
+        )
+        resp.raise_for_status()
+        h = resp.json()["hourly"]
+        horas = [
+            {"quando": t, "codigo": h["weathercode"][i],
+             "vento_kt": round(h["wind_speed_10m"][i] or 0), "vento_dir": round(h["wind_direction_10m"][i] or 0)}
+            for i, t in enumerate(h["time"])
+        ]
+    except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
+        return None
+    _CACHE_VENTO[chave] = (time.monotonic(), horas)
+    return horas
+
+
+def hora_a_hora_texto(horas: list[dict] | None, de: datetime, ate: datetime) -> str | None:
+    """'19h 24° 10%, 20h 23° 15%, ...' das horas entre `de` e `ate` (inclusive) - o que a IA do chat
+    recebe pra responder "vai precisar de ar a noite?" (05/11: so tinha a temperatura do dia todo e ela
+    disse que nao tinha a da noite). Hora sem temperatura sai so com a chuva. None se nao tiver nada."""
+    partes = []
+    for h in horas or []:
+        try:
+            quando = datetime.fromisoformat(h["quando"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not (de <= quando <= ate):
+            continue
+        temp = h.get("temp")
+        txt = f"{quando.hour}h"
+        if isinstance(temp, (int, float)):
+            txt += f" {round(temp)}°"
+        txt += f" {int(h.get('chuva_pct') or 0)}%"
+        partes.append(txt)
+    return ", ".join(partes) or None
+
+
 def analisar_janela(horas: list[dict], inicio: datetime, janela_h: int,
                     limite_pct: int = LIMITE_ALERTA_CHUVA) -> dict:
     """Pedido do Alex (2026-10-21): "vou lavar o carro as 14" - chove nas `janela_h` horas a

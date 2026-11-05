@@ -499,6 +499,27 @@ def _saida_com_parada(conn, data_iso: str, hora: str, parada: str, lugar: str | 
     return {"sair": sair, "trajeto_min": (ate + resto) if ate is not None and resto is not None else None}, info
 
 
+def _saida_na_hora(conn, data_iso: str, hora: str, lugar: str | None, saida: dict | None,
+                   com_parada: bool = False) -> tuple[dict, str]:
+    """A hora dita e a de SAIR de casa (05/11, tasks.sai_na_hora). Sai na hora e chega hora + ida.
+    A ida vem do calculo que ja foi feito (`saida["trajeto_min"]`, Maps); sem ele, Maps saindo na hora;
+    sem Maps/rede, a folga de 15 min. Devolve (saida pro card, hora de sair)."""
+    ida = (saida or {}).get("trajeto_min")
+    if not (isinstance(ida, int) and ida > 0) and lugar and not com_parada:
+        casa = os.environ.get("ENDERECO_CASA", "").strip()
+        if casa and maps_client.configurado():
+            try:
+                partida = datetime.fromisoformat(f"{data_iso}T{hora}")
+                partida = partida if partida > datetime.now() else None
+                ida = int(maps_client.tempo_de_viagem(casa, vida_assistente.resolver_lugar(conn, lugar),
+                                                      partida=partida)["duracao_minutos"])
+            except Exception:  # rede/formato/cota: fica a folga
+                ida = None
+    ida = ida if isinstance(ida, int) and ida > 0 else None
+    chegada = rota_voo.menos_minutos(hora, -(ida or FOLGA_SEM_TRAJETO_MIN))
+    return {**(saida or {}), "sair": hora, "trajeto_min": ida, "chegada": chegada}, hora
+
+
 def _clima_na_hora(data_iso: str, hora: str | None) -> dict | None:
     """Temperatura/chuva na hora do compromisso, na cidade padrao. None se nao der."""
     cidade = os.environ.get("CIDADE_PADRAO", "").strip()
@@ -2664,7 +2685,7 @@ def _processar_mensagem_chat(
             return {"erro": "nao recebi a localizacao do celular agora - pergunte o lugar ao Alex"}
         return local_gps["rotulo"] or f"{local_gps['lat']}, {local_gps['lon']}"
 
-    def _plano_do_estilo(estilo, task_id, data_iso, hora, lugar, titulo, parada=None):
+    def _plano_do_estilo(estilo, task_id, data_iso, hora, lugar, titulo, parada=None, sai_na_hora=False):
         """O que precisa de rede vai no efeito (o card e montado sem rede) e o resumo volta pra
         IA - a frase dela tem que bater com o card."""
         efeito = {"entidade": "tarefa", "id": task_id, "estilo": estilo}
@@ -2685,6 +2706,9 @@ def _processar_mensagem_chat(
                     claude_client.avisar_passo(f"Calculando o trajeto até {lugar[:40]}")
                 saida = _saida_pro_compromisso(data_iso, hora, lugar)
             sair = saida["sair"] if saida else rota_voo.menos_minutos(hora, FOLGA_SEM_TRAJETO_MIN)
+            if sai_na_hora:
+                saida, sair = _saida_na_hora(conn, data_iso, hora, lugar, saida, bool(parada))
+                pra_ia["chega_no_lugar"] = saida["chegada"]
             efeito["saida"] = saida
             pra_ia["sair_de_casa"] = sair
             pra_ia["comecar_a_se_arrumar"] = rota_voo.menos_minutos(sair, vida_assistente.se_arrumar_min(conn))
@@ -2765,9 +2789,11 @@ def _processar_mensagem_chat(
         hora_tarefa = _normalizar_hora(entrada.get("hora"))
         # parada no caminho (04/11, "passo na casa do guri antes"): so faz sentido com dia e hora
         parada = _limpar_texto(entrada.get("parada"), 80) if (quando_data and hora_tarefa) else None
+        # 05/11: a hora dita e a de SAIR de casa ("o date comeca as 19, saio as 19")
+        sai_na_hora = 1 if (entrada.get("sai_na_hora") is True and quando_data and hora_tarefa) else None
         cur = conn.execute(
-            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local, estilo, extras, parada) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local, estilo, extras, parada, "
+            "sai_na_hora) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 entrada["titulo"],
                 entrada.get("quando"),
@@ -2779,13 +2805,14 @@ def _processar_mensagem_chat(
                 estilo,
                 json.dumps(extras, ensure_ascii=False) if extras else None,
                 parada,
+                sai_na_hora,
             ),
         )
         conn.commit()
         resultado = {"ok": True, "_efeito": {"entidade": "tarefa", "id": cur.lastrowid}}
         if estilo:
             resultado.update(_plano_do_estilo(estilo, cur.lastrowid, quando_data, hora_tarefa, lugar, entrada["titulo"],
-                                              parada))
+                                              parada, bool(sai_na_hora)))
         elif parada:
             resultado["parada"] = parada
         # so oferece sugestao de dia quando a tarefa ficou com data vaga
@@ -2923,12 +2950,27 @@ def _processar_mensagem_chat(
             novos["parada"] = None
         elif _limpar_texto(entrada.get("parada"), 80):
             novos["parada"] = _limpar_texto(entrada.get("parada"), 80)
+        # 05/11: o lugar do date ("vai ser no shopping da cidade vizinha") so entrava no titulo e a saida ficava
+        # com a folga de casa (15 min) - agora vai pra coluna `local`, que os avisos e a ilha usam
+        if _limpar_texto(entrada.get("lugar"), 120):
+            novos["local"] = _limpar_texto(entrada.get("lugar"), 120)
+        if isinstance(entrada.get("sai_na_hora"), bool):
+            novos["sai_na_hora"] = 1 if entrada["sai_na_hora"] else None
+        com_quem = _limpar_texto(entrada.get("com_quem"), 60)
         if status == "concluir":
             novos["completed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         elif status == "reabrir":
             novos["completed_at"] = None
+        if com_quem:
+            extras_cq = db.extras_tarefa(conn, tarefa["id"])
+            if extras_cq.get("com_quem") != com_quem:
+                extras_cq["com_quem"] = com_quem
+                db.salvar_extras_tarefa(conn, tarefa["id"], extras_cq)
+                conn.commit()
         if not novos:
-            return {"erro": "nada pra mudar - informe hora, quando_data, novo_titulo, parada ou status"}
+            if com_quem:
+                return {"ok": True, "titulo": tarefa["title"], "com_quem": com_quem}
+            return {"erro": "nada pra mudar - informe hora, quando_data, novo_titulo, lugar, parada ou status"}
         efeito = _editar("tasks", tarefa["id"], novos, "Tarefa", tarefa["title"])
         conn.commit()
         if not efeito:
@@ -2937,23 +2979,35 @@ def _processar_mensagem_chat(
         resultado = {"ok": True, "titulo": novos.get("title", tarefa["title"]), "_efeito": efeito}
         if "title" in novos and novos["title"] != tarefa["title"]:
             resultado["titulo_antes"] = tarefa["title"]
-        if "parada" in efeito.get("depois", {}):
+        depois = efeito.get("depois", {})
+        t = conn.execute("SELECT * FROM tasks WHERE id = ?", (tarefa["id"],)).fetchone()
+        mexeu_saida = any(c in depois for c in ("parada", "local", "sai_na_hora")) or (
+            "hora" in depois and t and t["estilo"] in ("date", "balada"))
+        if mexeu_saida and t and t["due_date"] and t["hora"] and not t["completed_at"]:
             extras_parada = db.extras_tarefa(conn, tarefa["id"])
-            if extras_parada.pop("parada", None) is not None:  # o card le daqui; o valor novo entra abaixo
+            if "parada" in depois and extras_parada.pop("parada", None) is not None:
+                db.salvar_extras_tarefa(conn, tarefa["id"], extras_parada)  # o card le daqui; o novo entra abaixo
+            if t["parada"]:
+                saida, info_parada = _saida_com_parada(conn, t["due_date"], t["hora"], t["parada"], t["local"])
+                sair = saida["sair"]
+                resultado["parada"] = info_parada
+                extras_parada["parada"] = info_parada
                 db.salvar_extras_tarefa(conn, tarefa["id"], extras_parada)
-            t = conn.execute("SELECT due_date, hora, local FROM tasks WHERE id = ?", (tarefa["id"],)).fetchone()
-            if t and t["due_date"] and t["hora"]:
-                if novos["parada"]:
-                    saida, info_parada = _saida_com_parada(conn, t["due_date"], t["hora"], novos["parada"], t["local"])
-                    sair = saida["sair"]
-                    resultado["parada"] = info_parada
-                    extras_parada["parada"] = info_parada
-                    db.salvar_extras_tarefa(conn, tarefa["id"], extras_parada)
-                else:
-                    saida = _saida_pro_compromisso(t["due_date"], t["hora"], t["local"])
-                    sair = saida["sair"] if saida else rota_voo.menos_minutos(t["hora"], FOLGA_SEM_TRAJETO_MIN)
-                resultado["plano"] = {"sair_de_casa": sair, "comecar_a_se_arrumar": rota_voo.menos_minutos(
-                    sair, vida_assistente.se_arrumar_min(conn))}
+            else:
+                if t["local"]:
+                    claude_client.avisar_passo(f"Calculando o trajeto até {t['local'][:40]}")
+                saida = _saida_pro_compromisso(t["due_date"], t["hora"], t["local"])
+                sair = saida["sair"] if saida else rota_voo.menos_minutos(t["hora"], FOLGA_SEM_TRAJETO_MIN)
+            plano = {}
+            if t["sai_na_hora"]:
+                saida, sair = _saida_na_hora(conn, t["due_date"], t["hora"], t["local"], saida, bool(t["parada"]))
+                plano["chega_no_lugar"] = saida["chegada"]
+            elif saida and saida.get("trajeto_min"):
+                plano["ida_min"] = saida["trajeto_min"]
+            resultado["plano"] = {"sair_de_casa": sair, "comecar_a_se_arrumar": rota_voo.menos_minutos(
+                sair, vida_assistente.se_arrumar_min(conn)), **plano}
+        if com_quem:
+            resultado["com_quem"] = com_quem
         return resultado
 
     def exec_mover_tarefas(entrada):
@@ -3593,6 +3647,9 @@ def _processar_mensagem_chat(
         r = clima.analisar_janela(horas, inicio, janela)
         resultado = {"cidade": local_c["nome"], "inicio": inicio.strftime("%Y-%m-%d %H:%M"),
                      "janela_horas": janela, **r}
+        texto = clima.hora_a_hora_texto(horas, inicio.replace(minute=0), inicio + timedelta(hours=min(janela, 12)))
+        if texto:
+            resultado["hora_a_hora"] = texto
         if r.get("chove"):
             prev = clima.previsao_proximos_dias(local_c["lat"], local_c["lon"], 8)
             if prev:
@@ -3618,8 +3675,21 @@ def _processar_mensagem_chat(
             return _clima_pra_atividade(local_c, data, entrada)
         if data and data != _agora_brasilia().date().isoformat():
             prev = clima.previsao_para_data(local_c["lat"], local_c["lon"], data)
-            return {"cidade": local_c["nome"], "data": data, **prev} if prev else {
-                "erro": "sem previsao pra essa data (o limite e 16 dias)"}
+            if not prev:
+                return {"erro": "sem previsao pra essa data (o limite e 16 dias)"}
+            resultado = {"cidade": local_c["nome"], "data": data, **prev}
+            # 05/11: "e de noite, vai precisar de ar?" - a IA so tinha min/max do dia e disse que nao tinha
+            try:
+                dia = datetime.strptime(data, "%Y-%m-%d")
+                dias = (dia.date() - _agora_brasilia().date()).days + 2
+                if 1 <= dias <= 16:
+                    horas = clima.previsao_horaria(local_c["lat"], local_c["lon"], dias)
+                    texto = clima.hora_a_hora_texto(horas, dia, dia.replace(hour=23))
+                    if texto:
+                        resultado["hora_a_hora"] = texto
+            except (ValueError, TypeError):
+                pass
+            return resultado
         agora = clima.tempo_agora(local_c["lat"], local_c["lon"])
         if not agora:
             return {"erro": "servico de clima fora do ar agora"}

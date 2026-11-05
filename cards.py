@@ -856,7 +856,7 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
 
     hoje = hoje or date.today()
     row = conn.execute(
-        "SELECT id, title, due_date, hora, local, estilo, extras, parada FROM tasks WHERE id = ?", (ef.get("id"),)
+        "SELECT * FROM tasks WHERE id = ?", (ef.get("id"),)
     ).fetchone()
     if not row or row["estilo"] not in db.ESTILOS_TAREFA or not row["due_date"]:
         return None
@@ -874,6 +874,14 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
         arrumar = vida_assistente.se_arrumar_min(conn)
         saida = ef.get("saida") if isinstance(ef.get("saida"), dict) else None
         sair = (saida or {}).get("sair") or _hhmm_menos(row["hora"], 15)
+        if "sai_na_hora" in row.keys() and row["sai_na_hora"]:
+            # 05/11: a hora dita e a de sair de casa; chega hora + trajeto (sem Maps, a folga de 15 min)
+            sair = row["hora"]
+            ida = (saida or {}).get("trajeto_min")
+            data["sai_na_hora"] = True
+            chega = _hhmm_menos(row["hora"], -(ida if isinstance(ida, int) and ida > 0 else 15))
+            if (_min_do_dia(chega) or 0) > (_min_do_dia(row["hora"]) or 0):  # virando a meia-noite: fica so a saida
+                data["chegada"] = chega
         data.update({
             "comecar": _hhmm_menos(sair, arrumar),
             "sair": sair,
@@ -909,13 +917,14 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
             _parada_valida(extras.get("parada")) if (not tem_col or row["parada"]) else None)
         if parada:
             data["parada"] = parada
-        cadeia = cadeia_saida(row["due_date"], row["hora"], data.get("comecar"), data.get("sair"), parada)
+        chegada = data.get("chegada") or row["hora"]
+        cadeia = cadeia_saida(row["due_date"], chegada, data.get("comecar"), data.get("sair"), parada)
         if cadeia:
             data["cadeia"] = cadeia
             data["gerado_ts"] = int(time.time())
         horas = ef.get("clima_horas") if isinstance(ef.get("clima_horas"), dict) else None
         if horas is None and isinstance(ef.get("clima"), dict):
-            horas = clima_horas_saida(row["due_date"], row["hora"], data.get("volta") or extras.get("volta"))
+            horas = clima_horas_saida(row["due_date"], chegada, data.get("volta") or extras.get("volta"))
         if horas and horas.get("horas"):
             data["clima_horas"] = horas["horas"]
             if horas.get("lugar"):

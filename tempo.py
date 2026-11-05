@@ -225,7 +225,12 @@ def compromissos(conn, agora: datetime, rede: bool = True) -> list[dict]:
                 trajeto = _trajeto_local(conn, r["local"]) if (perto and (r["local"] or "").strip()) else None
                 caminho, _ = notificacoes.caminho_com_parada(trajeto, FOLGA_MIN)
             adiantado = notificacoes.adiantar_min(notificacoes._coluna(r, "extras"))
-        sair = ev - timedelta(minutes=caminho + adiantado)
+        if tem_saida and notificacoes.sai_na_hora(r):
+            # a hora que ele disse e a de sair (05/11): chega no lugar hora + caminho
+            sair = ev - timedelta(minutes=adiantado)
+            ev = ev + timedelta(minutes=caminho)
+        else:
+            sair = ev - timedelta(minutes=caminho + adiantado)
         arr = arrumar if sair_tipo else 0
         itens.append(_item("tarefa", r["id"], r["title"].strip()[:60], ev, sair, sair - timedelta(minutes=arr),
                            tem_saida=tem_saida, lugar=lugar_do_titulo(r["title"]), trajeto_min=trajeto,

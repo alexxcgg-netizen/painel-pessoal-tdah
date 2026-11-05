@@ -1856,7 +1856,7 @@ def salvar_mensagem_chat(conn, papel: str, texto: str, cards: list | None = None
 # antigos dessas colunas. Lista fechada - nada de tabela/coluna vinda da IA, e
 # nenhuma coluna de dinheiro (expenses.amount fica de fora de proposito).
 EDICAO_COLUNAS = {
-    "tasks": ("title", "hora", "due_date", "due_at", "completed_at", "local", "parada"),
+    "tasks": ("title", "hora", "due_date", "due_at", "completed_at", "local", "parada", "sai_na_hora"),
     "lembretes": ("titulo", "data", "recorrente", "despertar"),
     "voos": ("data", "origem", "destino", "horas", "aeronave", "funcao", "observacao"),
     # 2026-10-11 (pedido do Alex): valor de gasto/renda que ELE digitou pode ser corrigido pela

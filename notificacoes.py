@@ -241,6 +241,12 @@ def _coluna(r, nome: str):
     return r[nome] if nome in r.keys() else None
 
 
+def sai_na_hora(r) -> bool:
+    """A hora da tarefa e a de SAIR de casa (05/11, coluna tasks.sai_na_hora): "o date comeca as 19, so
+    saio de casa as 19". Ai a saida e a propria hora e a chegada vira hora + trajeto."""
+    return bool(_coluna(r, "sai_na_hora"))
+
+
 def plano_se_arrumar(
     conn, agora: datetime | None = None, minutos_arrumar: int = 40, trajeto_min=None, folga_sem_trajeto: int = 15,
     trajeto_parada=None,
@@ -282,7 +288,10 @@ def plano_se_arrumar(
             trajeto = trajeto_min(r["local"])
         caminho, info_parada = caminho_com_parada(trajeto, folga_sem_trajeto, parada, ate, resto)
         adiantado = adiantar_min(_coluna(r, "extras"))
-        saida = evento - timedelta(minutes=caminho + adiantado)
+        if sai_na_hora(r):
+            saida = evento - timedelta(minutes=adiantado)
+        else:
+            saida = evento - timedelta(minutes=caminho + adiantado)
         planos.append({
             "id": r["id"], "titulo": r["title"], "hora": r["hora"], "local": r["local"],
             "trajeto_min": trajeto if _min_valido(trajeto) is not None else None, "caminho_min": caminho,
