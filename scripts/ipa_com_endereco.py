@@ -4,6 +4,9 @@ O build do GitHub nao tem endereco nenhum (o repositorio nao guarda isso). Aqui,
 (APP_URL_PUBLICA do .env ou, sem ele, o `tailscale serve` que aponta pra porta do painel) vai pra um
 arquivinho dentro do .app e o app abre direto no painel
 (`Ajustes.aplicarEnderecoDeFabrica`). So o endereco: o token o app busca sozinho depois do PIN.
+2026-11-05: o mesmo arquivinho vai tambem dentro da extensao dos widgets (`PainelConfig.enderecoDeFabrica`),
+porque a assinatura gratis corta o App Group e o widget nao enxerga o que o app guardou. O token do widget
+chega pelo pareamento por codigo (rotas/widget_ios.py) - nunca vai dentro do .ipa.
 O Sideloadly re-assina tudo na instalacao, entao mexer no pacote aqui nao quebra a assinatura.
 
 Uso: .venv/Scripts/python.exe scripts/ipa_com_endereco.py [entrada.ipa] [saida.ipa]
@@ -19,6 +22,8 @@ from urllib.parse import urlparse
 
 RAIZ = Path(__file__).resolve().parent.parent
 ARQUIVO = "Payload/Painel.app/Painel-endereco.txt"
+EXTENSAO = "Payload/Painel.app/PlugIns/PainelWidgetExtension.appex/"
+ARQUIVO_WIDGET = EXTENSAO + "Painel-endereco.txt"
 PORTA_DO_PAINEL = 5001
 
 
@@ -59,10 +64,14 @@ def gravar_endereco(entrada: Path, saida: Path, endereco: str) -> None:
     if entrada.resolve() == saida.resolve():
         raise ValueError("entrada e saida iguais")
     with zipfile.ZipFile(entrada) as ori, zipfile.ZipFile(saida, "w", zipfile.ZIP_DEFLATED) as novo:
+        tem_widget = False
         for item in ori.infolist():
-            if item.filename != ARQUIVO:
+            tem_widget = tem_widget or item.filename.startswith(EXTENSAO)
+            if item.filename not in (ARQUIVO, ARQUIVO_WIDGET):
                 novo.writestr(item, ori.read(item.filename))  # item leva junto as permissoes (executavel)
         novo.writestr(ARQUIVO, endereco + "\n")
+        if tem_widget:
+            novo.writestr(ARQUIVO_WIDGET, endereco + "\n")
 
 
 if __name__ == "__main__":

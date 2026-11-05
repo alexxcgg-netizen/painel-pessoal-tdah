@@ -11,6 +11,8 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-05 - Widgets nativos do iPhone, pareamento por código e ícone mostrador (SW v101)
+- 2026-11-05 - Conversa de 04/11: lugar do date, hora de sair, tarefa com hora, temperatura da noite
 - 2026-11-04 - Cards ao vivo (D), assistente passo a passo, Dynamic Island e widgets (SW v100)
 - 2026-11-04 - Pista de SSBL é 01/19 e protótipo dos cards sem cara de IA (SW v99)
 - 2026-11-04 - Chat: lugares pelo nome e 3 burrices da conversa de 03/11
@@ -171,6 +173,33 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-05 - Widgets nativos do iPhone, pareamento por código e ícone mostrador (SW v101)
+Votos do Alex no artefato "Widgets e ícone" (rodada 2): todos os widgets, todos os da tela bloqueada, StandBy, ícone
+"mostrador". Briefing com as decisões: `docs/briefings/2026-11-05-widgets-ios.md`.
+- **"Configure a URL do painel no app" resolvido:** a assinatura grátis corta o App Group. Endereço agora vai também
+  dentro da extensão (`scripts/ipa_com_endereco.py`); token chega por **pareamento por código** (`rotas/widget_ios.py`:
+  `/api/widget/parear*`, 3 abertos, 12/h, 10 min, token entregue uma vez) + alerta "Liberar este widget?" no app
+  (`native/ios/App/ParearWidget.swift`).
+- **`/api/widget`** ganhou `agua`, `horas_voo`, `hoje`, `voo` (vento do Open-Meteo, `clima.vento_horario`, cache 30 min)
+  e `fim` na agenda. Toques: `POST /api/widget/tarefa/<id>` e `POST /api/widget/agua`.
+- **Widgets (Swift reescrito):** Próximo, Proteína, Dia, Voo, Hoje (caixinha), Água (+), Horas, Conta; medidores de
+  proteína e horas na tela bloqueada; retângulo "Sair às 18:45 / lugar · N min de carro"; linha com o próximo voo.
+  Arquivos: `PainelDados.swift`, `PainelEstilo.swift`, `Widgets{Corpo,Dia,Voo}.swift`, `IntentsDoWidget.swift`.
+- **Ícone mostrador:** `scripts/icone_mostrador.py` (PWA escuro; iOS claro/escuro/tingido no `AppIcon.appiconset`).
+- Testes: `tests/test_widget_ios.py`, `tests/test_ipa_com_endereco.py`. Swift só compila no GitHub Actions
+  (`native/ios/checar_projeto.py` passa).
+
+## 2026-11-05 - Conversa de 04/11: lugar do date, hora de sair, tarefa com hora, temperatura da noite
+Briefing: `docs/briefings/2026-11-05-conversa-04-11.md`. Testes: `tests/test_conversa_0411.py`.
+- **Lugar contado depois** vai pra `tasks.local`: `ajustar_tarefa` ganhou `lugar` e `com_quem` e recalcula o plano
+  (antes o lugar ia só pro título e a saída ficava com os 15 min de casa).
+- **Hora de sair** (coluna nova `tasks.sai_na_hora`, migração `202611050100`): "saio de casa às 19" = sai na hora e
+  chega hora + ida. Vale nos avisos (`notificacoes.plano_se_arrumar`), na ilha/widgets (`tempo.compromissos`), no
+  card D (`chegada`) e no que a IA diz (`chega_no_lugar`). Campo `sai_na_hora` em registrar/ajustar.
+- **Tarefa com dia ganha hora** (regra do prompt trocada; a velha deixava sem hora a tarefa "solta").
+- **`consultar_clima` de outro dia** traz `hora_a_hora` (temperatura + chuva de cada hora; `clima.hora_a_hora_texto`).
+- **Quem é quem** vira memória (regra nova; a de memória dizia "raro" e nada entrava desde 08/10).
 
 ## 2026-11-04 - Cards ao vivo (D), assistente passo a passo, Dynamic Island e widgets (SW v100)
 O Alex aprovou as 3 rodadas do D: "gostei de tudo". Também pediu: "se for atualizar o app já coloca pra ele usar o dynamic

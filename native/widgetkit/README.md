@@ -15,6 +15,34 @@
 > `.github/workflows/build-ios.yml` geram o `.ipa` com app + este widget. Instalar pelo Windows:
 > `docs/IOS_APP.md`. O passo a passo do PWABuilder abaixo fica como alternativa.
 
+## Widgets nativos da tela de início + pareamento (2026-11-05)
+
+Leva `docs/briefings/2026-11-05-widgets-ios.md`, a partir dos votos no protótipo "Widgets e ícone".
+
+- **O conserto do "Configure a URL do painel no app":** a assinatura grátis do Sideloadly corta o App Group,
+  então o widget não enxerga o que o app guardou. Agora o **endereço** vem do arquivo `Painel-endereco.txt`
+  que `scripts/ipa_com_endereco.py` grava também dentro da extensão (`PainelConfig.enderecoDeFabrica`), e o
+  **token** vem do **pareamento por código**: o widget mostra 4 números, o app (que tem o token) pergunta
+  "Liberar este widget?" (`native/ios/App/ParearWidget.swift`), o painel entrega o token uma vez pro widget
+  (`rotas/widget_ios.py`). O token nunca vai dentro do `.ipa`.
+- **Widgets (todos leem `GET /api/widget`, um provedor só, `PainelDados.swift`):** Próximo (pequeno, kind
+  `PainelWidget`), Proteína (pequeno + medidor da tela bloqueada), Dia (médio), Voo (médio), Hoje (grande, com
+  caixinha que marca feito), Água (pequeno, com +), Horas de voo (pequeno + medidor), Conta (pequeno).
+- **Toque sem abrir o app (iOS 17+):** `IntentsDoWidget.swift` (`POST /api/widget/tarefa/<id>`,
+  `POST /api/widget/agua`). Muda o cache primeiro (redesenha na hora), desfaz se o painel não responder.
+- **Visual:** jeito dos widgets da Apple (`PainelEstilo.swift`): branco/#1C1C1E, cores do sistema, SF Rounded
+  nos números, `containerBackground` (o sistema tira no vidro, no tingido e no StandBy) e `.widgetAccentable()`.
+- **Tela bloqueada:** `ProximoCompromisso.swift` virou "Sair às 18:45 / lugar · 25 min de carro"; sem
+  compromisso, mostra o próximo voo (a linha em cima da hora: "✈ sáb. 07:30").
+
+### Como instalar e ligar
+1. Depois do build: `.venv/Scripts/python.exe scripts/ipa_com_endereco.py` e instala pelo Sideloadly.
+2. Abre o app com o PIN uma vez (o token do app vem sozinho).
+3. Adiciona os widgets (tela de início → segura → Editar → Adicionar widget → Painel). Na primeira vez eles
+   mostram um código (o mesmo em todos, é um pedido só); abre o app e toca **Liberar** (o código do alerta é o
+   do widget). Liberou uma vez, todos os widgets da extensão usam o mesmo token.
+4. Pilha inteligente (horas + conta): arrasta um widget pequeno em cima do outro.
+
 ## Atividade ao vivo + widgets do próximo compromisso (2026-11-04)
 
 Leva "Cards ao vivo" (`docs/briefings/2026-11-04-cards-ao-vivo.md`). O próximo compromisso de **saída ou
@@ -60,9 +88,13 @@ O teste da ilha da tela "Gerar relatório" (`IlhaTeste*.swift`) continua lá, se
 
 | Arquivo | Papel |
 |---|---|
-| `PainelWidget.swift` | Modelo `Codable` do JSON de `/api/widget`, `TimelineProvider` (busca a cada ~20 min), views SwiftUI das 5 famílias, estados normal/vazio/erro, definição do `Widget`. Desde 04/11 também o próximo compromisso (`/api/ao-vivo`). |
-| `PainelWidgetBundle.swift` | Ponto de entrada `@main` da extensão (`WidgetBundle`). |
-| `Config.swift` | Lê URL base e token do painel do `UserDefaults` do App Group; guarda o último payload bom em cache. |
+| `PainelWidget.swift` | Provedor comum (`PainelProvedor`, a cada ~20 min + viradas da agenda e meia-noite) e o widget Próximo (kind `PainelWidget`). |
+| `PainelDados.swift` | Modelo `Codable` do JSON de `/api/widget`, carga com cache de 90 s, pareamento por código (`actor Pareamento`). |
+| `PainelEstilo.swift` | Cores, fundo, margem e peças repetidas no jeito Apple; tela do código de pareamento. |
+| `WidgetsCorpo.swift` / `WidgetsDia.swift` / `WidgetsVoo.swift` | Proteína e Água / Dia, Hoje e Conta / Voo e Horas de voo. |
+| `IntentsDoWidget.swift` | Toques do widget interativo (marcar tarefa, +1 copo). |
+| `PainelWidgetBundle.swift` | Ponto de entrada `@main` da extensão (`WidgetBundle`; os da tela de início num pacote aninhado). |
+| `Config.swift` | Endereço (cofre ou arquivo de fábrica) e token (cofre, vindo do pareamento) do painel; último payload bom. |
 | `CompromissoAtributos.swift` | Atributos da atividade ao vivo + resposta de `/api/ao-vivo` (app e widget). |
 | `AtividadeCompromisso.swift` | Desenho da atividade ao vivo (tela bloqueada e Dynamic Island). |
 | `ProximoCompromisso.swift` | Widgets da tela bloqueada do próximo compromisso. |

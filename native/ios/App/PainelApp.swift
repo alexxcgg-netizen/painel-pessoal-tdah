@@ -96,6 +96,7 @@ struct PainelApp: App {
 
 struct Raiz: View {
     @ObservedObject private var abertura = Abertura.shared
+    @ObservedObject private var parear = ParearWidget.shared  // "Liberar este widget?" (ParearWidget.swift)
     @State private var url = Ajustes.url
     @State private var recarregar = 0
     @State private var capturar = false
@@ -124,11 +125,19 @@ struct Raiz: View {
         .onAppear {
             if url.isEmpty { abertura.configurar = true }
             conferirPedidoDeCaptura()
+            parear.conferir()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             conferirPedidoDeCaptura()
             Localizacao.shared.enviarFila()
             AoVivo.shared.sincronizar()  // atividade ao vivo do próximo compromisso (AoVivo.swift)
+            parear.conferir()  // widget pedindo pra ser liberado? (e acorda os widgets)
+        }
+        .alert("Liberar este widget?", isPresented: $parear.mostrar) {
+            Button("Liberar") { parear.liberar() }
+            Button("Agora não", role: .cancel) { parear.agoraNao() }
+        } message: {
+            Text("O widget está mostrando \(parear.codigoEspacado). Se for o mesmo, libera e ele já começa a mostrar o painel.")
         }
         .sheet(isPresented: $abertura.configurar) {
             Configurar { novaURL in
@@ -255,6 +264,7 @@ struct PainelWeb: UIViewRepresentable {
                     Ajustes.token = token
                     WidgetCenter.shared.reloadAllTimelines()
                     AoVivo.shared.sincronizar()  // primeira vez com token: já liga a atividade se tiver compromisso
+                    Task { @MainActor in ParearWidget.shared.conferir() }  // widget esperando o "Liberar"
                 } else if let web {
                     // ainda na tela do PIN: tenta de novo daqui a pouco (login nem sempre recarrega a página)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5) {

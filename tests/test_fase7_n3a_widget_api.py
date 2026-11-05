@@ -204,6 +204,10 @@ class FormatoApiTestCase(_BaseWidgetTestCase):
                 "custo_ia",
                 "comida",
                 "agenda",
+                "agua",
+                "horas_voo",
+                "hoje",
+                "voo",
                 "linhas",
             },
         )
@@ -446,7 +450,7 @@ class ColetaAgendaTestCase(_BaseWidgetTestCase):
         itens = [_item_visao("  Dentista  ", AGORA_AGENDA + timedelta(minutes=40), AGORA_AGENDA + timedelta(minutes=70))]
         self.assertEqual(
             self._agenda(itens),
-            [{"hora": "10:40", "titulo": "Dentista", "em_minutos": 40, "tipo": "compromisso", "concluido": False}],
+            [{"hora": "10:40", "fim": "11:10", "titulo": "Dentista", "em_minutos": 40, "tipo": "compromisso", "concluido": False}],
         )
 
     def test_dia_inteiro_e_pulado(self):

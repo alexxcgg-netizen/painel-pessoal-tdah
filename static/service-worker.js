@@ -42,7 +42,7 @@
 // um card de treino aparece (o fetch abaixo guarda tudo de /static/).
 // v97: Laboratorio v4, os 33 "quero" (foco, tempo, avisos e manha, memoria da IA, dinheiro, aviacao,
 // fechamento) - um arquivo de cards por grupo; ver docs/briefings/2026-10-30-lab-v4-*.md.
-const CACHE_NAME = "painel-pessoal-v100";
+const CACHE_NAME = "painel-pessoal-v101";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do

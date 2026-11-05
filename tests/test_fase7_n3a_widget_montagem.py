@@ -29,6 +29,10 @@ class FormatoBaseTestCase(unittest.TestCase):
         "custo_ia",
         "comida",
         "agenda",
+        "agua",
+        "horas_voo",
+        "hoje",
+        "voo",
         "linhas",
     }
 

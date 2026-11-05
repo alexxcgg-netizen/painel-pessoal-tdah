@@ -7,6 +7,8 @@
 //  GET /api/ao-vivo (CompromissoAtributos.swift), com o token do widget; sem rede, o último bom.
 //  A timeline ganha uma entrada em cada virada de passo, então "sai em" vira "chega em" na hora certa.
 //  Na tela bloqueada o iOS pinta tudo de uma cor só: aqui nada depende da cor do assunto.
+//  2026-11-05 (leva dos widgets nativos): retângulo do jeito votado no protótipo ("Sair às 18:45" / "lugar · 25 min
+//  de carro"); sem compromisso, a linha e o retângulo mostram o próximo voo; sem token, o código do pareamento.
 //
 
 import SwiftUI
@@ -15,6 +17,10 @@ import WidgetKit
 struct ProximoEntry: TimelineEntry {
     let date: Date
     let estado: CompromissoAtributos.ContentState?  // nil = nada nas próximas 6 h
+    /// Sem compromisso: o próximo voo (GET /api/widget), pra linha e o retângulo não ficarem vazios.
+    var voo: VooWidget? = nil
+    /// Widget ainda sem token: o código que o app confirma (PainelDados.swift).
+    var codigo: String? = nil
 }
 
 /// Entradas da timeline: agora + cada virada de passo + o fim (já sem compromisso). Usado também pelo
@@ -66,21 +72,29 @@ struct ProximoProvider: TimelineProvider {
             return
         }
         Task {
-            let estado = await Self.buscar()
-            completion(ProximoEntry(date: Date(), estado: TimelineAoVivo.estado(estado, em: Date())))
+            let (estado, voo, codigo) = await Self.buscarTudo()
+            completion(ProximoEntry(date: Date(), estado: TimelineAoVivo.estado(estado, em: Date()), voo: voo, codigo: codigo))
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ProximoEntry>) -> Void) {
         Task {
-            let estado = await Self.buscar()
+            let (estado, voo, codigo) = await Self.buscarTudo()
             let agora = Date()
-            let proxima = TimelineAoVivo.proximaBusca(estado, agora: agora)
+            var proxima = TimelineAoVivo.proximaBusca(estado, agora: agora)
+            if codigo != nil { proxima = min(proxima, agora.addingTimeInterval(60)) }
             let entradas = TimelineAoVivo.datas(estado, agora: agora, ate: proxima.addingTimeInterval(1)).map {
-                ProximoEntry(date: $0, estado: TimelineAoVivo.estado(estado, em: $0))
+                ProximoEntry(date: $0, estado: TimelineAoVivo.estado(estado, em: $0), voo: voo, codigo: codigo)
             }
             completion(Timeline(entries: entradas, policy: .after(proxima)))
         }
+    }
+
+    /// O painel primeiro (é ele que pareia e traz o token), depois o compromisso.
+    static func buscarTudo() async -> (CompromissoAtributos.ContentState?, VooWidget?, String?) {
+        let carga = await PainelDados.carregar()
+        if case .parear(let codigo) = carga { return (AoVivoAPI.ultimo()?.estado, nil, codigo) }
+        return (await buscar(), carga.payload?.voo, nil)
     }
 
     /// Rede primeiro; sem rede, a última resposta boa (o fim dela ainda tira o que já passou).
@@ -109,6 +123,29 @@ private extension View {
 struct ProximoRetangular: View {
     let entry: ProximoEntry
 
+    /// "Sair às 18:45" (ou o passo que vem: "Chegar às 19:10").
+    private func linhaPasso(_ e: CompromissoAtributos.ContentState) -> String {
+        guard let p = e.proximo(em: entry.date) else { return "Chegou" }
+        let verbo: String
+        switch p.chave {
+        case "arrumar": verbo = "Arrumar"
+        case "sair": verbo = "Sair"
+        case "parada": verbo = p.rotulo
+        default: verbo = "Chegar"
+        }
+        return "\(verbo) às \(CompromissoAtributos.ContentState.hora(p.em))"
+    }
+
+    /// "Cinema · 25 min de carro" (da saída até a chegada); sem saída, a linha do tempo.
+    private func linhaLugar(_ e: CompromissoAtributos.ContentState) -> String {
+        if let sair = e.passos.first(where: { $0.chave == "sair" }), let chegar = e.chegada, chegar > sair.em {
+            let minutos = Int(chegar.timeIntervalSince(sair.em) / 60)
+            if let lugar = e.lugar, !lugar.isEmpty { return "\(lugar) · \(minutos) min de carro" }
+            return "\(minutos) min de carro"
+        }
+        return e.linhaTempo
+    }
+
     var body: some View {
         if let e = entry.estado {
             VStack(alignment: .leading, spacing: 1) {
@@ -116,24 +153,43 @@ struct ProximoRetangular: View {
                     Image(systemName: e.icone).font(.system(size: 12, weight: .semibold))
                     Text(e.titulo).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                 }
-                if let p = e.proximo(em: entry.date) {
-                    HStack(spacing: 3) {
-                        Text(CompromissoAtributos.ContentState.rotuloContagem(p))
-                        Text(timerInterval: CompromissoAtributos.ContentState.intervalo(de: entry.date, ate: p.em),
-                             countsDown: true)
-                            .monospacedDigit()
-                    }
-                    .font(.system(size: 13, weight: .medium))
+                Text(linhaPasso(e))
+                    .font(.system(size: 13, weight: .medium).monospacedDigit())
                     .lineLimit(1)
-                } else {
-                    Text("chegou").font(.system(size: 13, weight: .medium))
-                }
-                if !e.linhaTempo.isEmpty {
-                    Text(e.linhaTempo)
-                        .font(.system(size: 11))
+                let lugar = linhaLugar(e)
+                if !lugar.isEmpty {
+                    Text(lugar)
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let voo = entry.voo {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    Image(systemName: "airplane").font(.system(size: 12, weight: .semibold))
+                    Text(voo.destino.map { "\(voo.origem) → \($0)" } ?? voo.origem)
+                        .font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                }
+                Text([voo.dia, voo.hora].compactMap { $0 }.joined(separator: " "))
+                    .font(.system(size: 13, weight: .medium).monospacedDigit())
+                    .lineLimit(1)
+                if let condicao = voo.condicao {
+                    Text([condicao, voo.vento].compactMap { $0 }.joined(separator: " · "))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let codigo = entry.codigo {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Painel").font(.system(size: 14, weight: .semibold))
+                Text("Abre o app e confirma")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Text(codigo).font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
@@ -185,9 +241,27 @@ struct ProximoLinha: View {
             Text("\(e.titulo) · \(p.chave == "sair" ? "sai" : p.rotulo.lowercased()) \(CompromissoAtributos.ContentState.hora(p.em))")
         } else if let e = entry.estado {
             Text("\(e.titulo) · chegou")
+        } else if let voo = entry.voo {
+            // "✈ sáb. 07:30" ao lado da data
+            Label(Self.diaDoVoo(voo) + (voo.hora.map { " \($0)" } ?? ""), systemImage: "airplane")
+        } else if let codigo = entry.codigo {
+            Text("Painel: confirma \(codigo) no app")
         } else {
             Text("Painel: nada pra sair")
         }
+    }
+
+    /// "hoje", "amanhã" ou o dia da semana curto ("sáb.").
+    static func diaDoVoo(_ voo: VooWidget) -> String {
+        if voo.dia == "hoje" || voo.dia == "amanhã" { return voo.dia }
+        let ler = DateFormatter()
+        ler.locale = Locale(identifier: "pt_BR")
+        ler.dateFormat = "yyyy-MM-dd"
+        guard let d = ler.date(from: voo.data) else { return voo.dia }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "pt_BR")
+        f.dateFormat = "EEE"
+        return f.string(from: d)
     }
 }
 
@@ -215,7 +289,7 @@ struct ProximoCompromisso: Widget {
             ProximoEntryView(entry: entry)
         }
         .configurationDisplayName("Próximo compromisso")
-        .description("Quando sair pro próximo date, balada, voo ou compromisso, com o tempo na chegada.")
+        .description("Quando sair pro próximo compromisso; sem nenhum, o próximo voo.")
         .supportedFamilies([.accessoryRectangular, .accessoryCircular, .accessoryInline])
     }
 }

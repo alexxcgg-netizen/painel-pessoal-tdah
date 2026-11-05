@@ -146,6 +146,10 @@ def montar_widget(
     mostrar_valores: bool = False,
     comida: dict | None = None,
     agenda: list | None = None,
+    agua: dict | None = None,
+    horas_voo: dict | None = None,
+    hoje: list | None = None,
+    voo: dict | None = None,
 ) -> dict:
     """Monta o JSON EXATO do widget (ver docs/widget-widgy.md) a partir de
     dados ja coletados. Campo ausente vira `null` e a linha correspondente
@@ -171,6 +175,9 @@ def montar_widget(
       habitos de hoje - ver `_coletar_agenda`. Cada item: {"hora", "titulo", "em_minutos", "tipo",
       "concluido"}. NAO entra em `linhas` (o widget desenha a agenda a parte). Lista nao vazia conta
       como dado pra `estado` "normal".
+    - `agua`, `horas_voo`, `hoje`, `voo` (2026-11-05, widgets nativos do iPhone): ver
+      `rotas/widget_ios.py` (coletar_*). `hoje` e sempre lista. Agua sozinha nao conta como dado
+      (todo dia tem a meta), o resto conta.
 
     `estado`: "normal" com pelo menos um campo preenchido, "vazio" sem
     nenhum dado pra mostrar (nunca "erro" aqui - erro e responsabilidade de
@@ -210,8 +217,9 @@ def montar_widget(
         }
 
     agenda_out = list(agenda or [])
+    hoje_out = list(hoje or [])
 
-    tem_algo = any([foco_out, conta_out, habitos_out, custo_ia_out, comida_out, agenda_out])
+    tem_algo = any([foco_out, conta_out, habitos_out, custo_ia_out, comida_out, agenda_out, horas_voo, hoje_out, voo])
     estado = "normal" if tem_algo else "vazio"
 
     linhas = [
@@ -235,6 +243,10 @@ def montar_widget(
         "custo_ia": custo_ia_out,
         "comida": comida_out,
         "agenda": agenda_out,
+        "agua": agua or None,
+        "horas_voo": horas_voo or None,
+        "hoje": hoje_out,
+        "voo": voo or None,
         "linhas": linhas,
     }
 
@@ -254,6 +266,10 @@ def estado_erro(agora_utc: datetime) -> dict:
         "custo_ia": None,
         "comida": None,
         "agenda": None,
+        "agua": None,
+        "horas_voo": None,
+        "hoje": None,
+        "voo": None,
         "linhas": [],
     }
 
@@ -351,6 +367,7 @@ def _coletar_agenda(app_mod, conn, agora: datetime) -> list[dict]:
                 inicio,
                 {
                     "hora": inicio.strftime("%H:%M"),
+                    "fim": fim.strftime("%H:%M"),
                     "titulo": str(item.get("titulo") or "").strip()[:60],
                     "em_minutos": max(0, round((inicio - agora).total_seconds() / 60)),
                     "tipo": _TIPO_AGENDA.get(origem, "compromisso"),
@@ -455,6 +472,7 @@ def coletar_resumo(app_mod, mostrar_valores: bool = False) -> dict:
                 agenda = _coletar_agenda(app_mod, conn, agora_local)
             except Exception:
                 agenda = []  # agenda e extra - nunca derruba o resto do widget
+            extras = _coletar_extras_ios(conn, agora_local)
         finally:
             conn.close()
         custo_ia_percentual = _coletar_custo_ia_percentual()
@@ -467,9 +485,28 @@ def coletar_resumo(app_mod, mostrar_valores: bool = False) -> dict:
             mostrar_valores=mostrar_valores,
             comida=comida,
             agenda=agenda,
+            **extras,
         )
     except Exception:
         return estado_erro(agora_utc)
+
+
+def _coletar_extras_ios(conn, agora: datetime) -> dict:
+    """Dados dos widgets nativos (rotas/widget_ios.py). Cada um e extra: se quebrar, so ele fica vazio."""
+    from rotas import widget_ios
+
+    saida = {}
+    for nome, coletar in (
+        ("agua", lambda: widget_ios.coletar_agua(conn, agora.date())),
+        ("horas_voo", lambda: widget_ios.coletar_horas_voo(conn, agora.date())),
+        ("hoje", lambda: widget_ios.coletar_hoje(conn, agora.date())),
+        ("voo", lambda: widget_ios.coletar_voo(conn, agora)),
+    ):
+        try:
+            saida[nome] = coletar()
+        except Exception:
+            saida[nome] = None
+    return saida
 
 
 # --------------------------------------------------------------------------

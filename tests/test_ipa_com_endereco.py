@@ -34,6 +34,23 @@ class IpaComEnderecoTestCase(unittest.TestCase):
             modo = z.getinfo("Payload/Painel.app/Painel").external_attr >> 16
             self.assertTrue(modo & 0o100, "o executavel perdeu a permissao")
 
+    def test_grava_tambem_dentro_da_extensao_do_widget(self):
+        com_widget = self.dir / "w.ipa"
+        with zipfile.ZipFile(self.entrada) as ori, zipfile.ZipFile(com_widget, "w") as z:
+            for item in ori.infolist():
+                z.writestr(item, ori.read(item.filename))
+            z.writestr(ipa.EXTENSAO + "PainelWidgetExtension", b"binario do widget")
+        b, c = self.dir / "b.ipa", self.dir / "c.ipa"
+        ipa.gravar_endereco(com_widget, b, "https://um.exemplo.net")
+        ipa.gravar_endereco(b, c, "https://dois.exemplo.net")
+        with zipfile.ZipFile(c) as z:
+            self.assertEqual(z.namelist().count(ipa.ARQUIVO_WIDGET), 1)
+            self.assertEqual(z.read(ipa.ARQUIVO_WIDGET).decode().strip(), "https://dois.exemplo.net")
+        # sem a extensao no pacote, nao inventa a pasta dela
+        ipa.gravar_endereco(self.entrada, self.dir / "d.ipa", "https://um.exemplo.net")
+        with zipfile.ZipFile(self.dir / "d.ipa") as z:
+            self.assertNotIn(ipa.ARQUIVO_WIDGET, z.namelist())
+
     def test_trocar_o_endereco_nao_duplica(self):
         b, c = self.dir / "b.ipa", self.dir / "c.ipa"
         ipa.gravar_endereco(self.entrada, b, "https://um.exemplo.net")
