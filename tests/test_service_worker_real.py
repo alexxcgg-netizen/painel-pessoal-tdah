@@ -79,10 +79,25 @@ class ServiceWorkerRealTestCase(unittest.TestCase):
                 # com ele no comando todo /static/ passa pelo fetch dele: um erro ali e app que nao abre.
                 # So o que e do painel: a rede dos testes e fechada e a fonte do Google falha sempre.
                 falhas = []
-                page.on("requestfailed", lambda pedido: falhas.append(pedido.url) if pedido.url.startswith(BASE_URL) else None)
+                # ERR_ABORTED = pedido da pagina anterior cortado pelo reload, nao falha do SW (que seria ERR_FAILED)
+                page.on(
+                    "requestfailed",
+                    lambda pedido: falhas.append(f"{pedido.url} {pedido.failure}")
+                    if pedido.url.startswith(BASE_URL) and pedido.failure != "net::ERR_ABORTED"
+                    else None,
+                )
+                # v102 (estaticos.py): CSS/JS com ?v=<impressao> saem da copia guardada, sem ir a rede
+                versionados = []
+                page.on(
+                    "response",
+                    lambda r: versionados.append(r) if r.url.startswith(BASE_URL + "/static/") and "?v=" in r.url else None,
+                )
                 page.reload()
                 page.wait_for_function("typeof showTab === 'function'")
                 self.assertEqual(falhas, [])
+                self.assertGreater(len(versionados), 150)
+                da_rede = [r.url for r in versionados if not r.from_service_worker]
+                self.assertEqual(da_rede, [], "arquivo versionado foi a rede com a copia certa guardada")
             finally:
                 browser.close()
 

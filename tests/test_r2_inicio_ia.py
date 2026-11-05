@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 import urllib.request
+from contextlib import nullcontext
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -59,6 +60,19 @@ except Exception:
 from tests.playwright_helper import CONTAR_FETCH, esperar_assentar, esperar_carga, get_chrome_path  # noqa: E402
 
 _CHROME = get_chrome_path()
+
+# Conta os setTimeout(…, 900) do app (a correcao de rolagem de abrirPeloMais): armado = quantos, feito = quantos ja rodaram.
+CONTAR_CORRECAO_900 = """
+(() => {
+  const t = window.__t900 = { armado: 0, feito: 0, visto: 0 };
+  const real = window.setTimeout;
+  window.setTimeout = function (fn, ms, ...args) {
+    if (ms !== 900 || typeof fn !== 'function') return real.call(this, fn, ms, ...args);
+    t.armado++;
+    return real.call(this, function () { try { return fn.apply(this, arguments); } finally { t.feito++; } }, ms, ...args);
+  };
+})();
+"""
 
 
 def fake_usage():
@@ -189,6 +203,23 @@ class R2RotaInicioTestCase(unittest.TestCase):
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
 @unittest.skipUnless(_pronto, "servidor de teste nao respondeu")
 class R2InicioIATestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Um Playwright e um Chromium pra classe toda; cada teste ganha contexto novo (isolado).
+        cls._pw_cm = sync_playwright()
+        cls._pw = cls._pw_cm.__enter__()
+        kwargs = {"headless": True}
+        if _CHROME is not None and Path(_CHROME).exists():
+            kwargs["executable_path"] = _CHROME
+        cls._browser = cls._pw.chromium.launch(**kwargs)
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls._browser.close()
+        finally:
+            cls._pw_cm.__exit__(None, None, None)
+
     def setUp(self):
         _limpar_e_semear()
         resumo = patch("claude_client.summarize_day", return_value=("Resumo de teste.", fake_usage()))
@@ -196,15 +227,14 @@ class R2InicioIATestCase(unittest.TestCase):
         self.addCleanup(resumo.stop)
 
     def _abrir(self, p, reduzir=False, largura=390):
-        kwargs = {"headless": True}
-        if _CHROME is not None and Path(_CHROME).exists():
-            kwargs["executable_path"] = _CHROME
-        browser = p.chromium.launch(**kwargs)
-        ctx = browser.new_context(
+        # devolve o contexto no lugar do "browser": os testes chamam .close() nele no finally
+        browser = self._browser.new_context(
             viewport={"width": largura, "height": 844},
             reduced_motion="reduce" if reduzir else "no-preference",
         )
+        ctx = browser
         ctx.add_init_script(CONTAR_FETCH)
+        ctx.add_init_script(CONTAR_CORRECAO_900)
         r = ctx.request.post(
             BASE_URL + "/login", data=json.dumps({"pin": PIN}), headers={"Content-Type": "application/json"}
         )
@@ -213,7 +243,7 @@ class R2InicioIATestCase(unittest.TestCase):
         erros = []
         page.on("pageerror", lambda exc: erros.append(str(exc)))
         page.goto(BASE_URL + "/")
-        page.wait_for_load_state("networkidle")
+        esperar_carga(page)
         page.wait_for_function("document.getElementById('inicio-chip') && !document.getElementById('inicio-chip').hidden")
         self._esperar_contagem(page)
         esperar_assentar(page)
@@ -242,15 +272,15 @@ class R2InicioIATestCase(unittest.TestCase):
 
     def _esperar_rolagem_ate_alvo(self, page, aba):
         # abrirPeloMais (nucleo/navegacao.js) corrige a rolagem num setTimeout(900) armado dentro de um
-        # rAF e nao marca nada na tela: um timer igual, armado depois do dele, so dispara depois dele
-        page.evaluate(
-            "new Promise(pronto => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(pronto, 900))))"
-        )
+        # rAF e nao marca nada na tela: CONTAR_CORRECAO_900 conta os timers de 900 ms armados e os que
+        # ja rodaram. Espera o timer novo (armado depois da ultima espera) rodar, sem prazo fixo.
+        page.wait_for_function("window.__t900.armado > window.__t900.visto && window.__t900.feito === window.__t900.armado")
+        page.evaluate("window.__t900.visto = window.__t900.armado")
         esperar_assentar(page, f"#tab-{aba}")
 
     # ---- hero ----
     def test_hero_sem_tarefas_tudo_em_dia(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 saud = self._texto(page, "#inicio-saudacao")
@@ -274,7 +304,7 @@ class R2InicioIATestCase(unittest.TestCase):
 
     def test_hero_varias_tarefas_e_atrasadas(self):
         _limpar_e_semear(tarefas=[("A", None), ("B", None), ("C", None)], atrasadas=2)
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 self.assertEqual(self._texto(page, "#inicio-resumo"), "3 tarefas hoje.")
@@ -286,7 +316,7 @@ class R2InicioIATestCase(unittest.TestCase):
                 browser.close()
 
     def test_pendencias_do_assistente_viram_aviso_de_1_linha(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 # o card grande saiu do topo do Início
@@ -310,7 +340,7 @@ class R2InicioIATestCase(unittest.TestCase):
     # ---- "Agora" ----
     def test_agora_concluir_otimista_some_e_atualiza(self):
         _limpar_e_semear(tarefas=[("Ligar pro fornecedor", "00:00"), ("Pagar boleto", None)])
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 self.assertEqual(self._texto(page, "#inicio-agora-titulo"), "Ligar pro fornecedor")
@@ -342,7 +372,7 @@ class R2InicioIATestCase(unittest.TestCase):
 
     def test_agora_falha_na_rede_devolve_o_card(self):
         _limpar_e_semear(tarefas=[("Ligar pro fornecedor", "00:00")])
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 page.route("**/api/tasks/*/complete", lambda r: r.fulfill(status=500, body="{}"))
@@ -357,7 +387,7 @@ class R2InicioIATestCase(unittest.TestCase):
                 browser.close()
 
     def test_planejar_o_dia_abre_a_ia_com_a_sugestao(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 with patch("claude_client.chat", side_effect=AssertionError("não pode enviar sozinho")):
@@ -372,7 +402,7 @@ class R2InicioIATestCase(unittest.TestCase):
     # ---- 3 números ----
     def test_numeros_batem_com_os_dados_e_abrem_a_tela_certa(self):
         _limpar_e_semear(tarefas=[("A", None), ("B", None)], feitas=1, copos=3, gasto=42)
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 self.assertEqual(self._texto(page, "#inicio-num-tarefas"), "1/3")
@@ -400,7 +430,7 @@ class R2InicioIATestCase(unittest.TestCase):
             "notas": ("painel", "#lista-notas"),
             "construtora": ("construtora", None),
         }
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 atalhos = page.evaluate("[...document.querySelectorAll('.inicio-atalho')].map(a => a.dataset.atalho)")
@@ -434,7 +464,7 @@ class R2InicioIATestCase(unittest.TestCase):
 
     def test_subtitulos_com_dado_real_no_inicio_e_no_mais(self):
         _limpar_e_semear(notas=12, voo=((date.today() + timedelta(days=1)).isoformat(), "SBJD"))
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 self.assertEqual(self._texto(page, "#inicio-sub-notas"), "12 notas")
@@ -455,7 +485,7 @@ class R2InicioIATestCase(unittest.TestCase):
             recebidas.append(mensagens[-1]["content"] if mensagens else None)
             return "Hoje você tem 2 tarefas.", [], fake_usage()
 
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 page.click('.tab-btn[data-tab="assistente"]')
@@ -509,7 +539,7 @@ class R2InicioIATestCase(unittest.TestCase):
 
     # ---- toast de erro ----
     def test_erro_vira_toast_fixo_que_nao_empurra_layout(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 antes = page.evaluate("document.getElementById('inicio-hero').getBoundingClientRect().top")
@@ -546,7 +576,7 @@ class R2InicioIATestCase(unittest.TestCase):
     # ---- nada coberto ----
     def test_nada_do_inicio_fica_coberto_pela_barra_ou_fab(self):
         _limpar_e_semear(tarefas=[("A", "00:00"), ("B", None)], atrasadas=1)
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             for largura in (390, 320):
                 browser, page, erros = self._abrir(p, largura=largura)
                 try:
@@ -572,7 +602,7 @@ class R2InicioIATestCase(unittest.TestCase):
     # ---- reduced-motion ----
     def test_reduced_motion_numeros_finais_na_hora_e_sem_erro(self):
         _limpar_e_semear(tarefas=[("A", None)], copos=2)
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p, reduzir=True)
             try:
                 self.assertEqual(self._texto(page, "#inicio-num-tarefas"), "0/1")

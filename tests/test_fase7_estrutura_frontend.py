@@ -47,8 +47,13 @@ class EstruturaFrontendFase7TestCase(unittest.TestCase):
 
     def test_scripts_e_css_da_pagina_existem_e_estao_no_precache(self):
         corpo = self.client.get("/").get_data(as_text=True)
-        recursos = re.findall(r'<script src="(/static/[^"]+)"', corpo)
-        recursos += re.findall(r'<link rel="stylesheet" href="(/static/[^"]+)"', corpo)
+        versionados = re.findall(r'<script src="(/static/[^"]+)"', corpo)
+        versionados += re.findall(r'<link rel="stylesheet" href="(/static/[^"]+)"', corpo)
+        # todo arquivo sai com ?v=<impressao> (estaticos.py, 2026-11-05); o precache guarda o caminho puro
+        self.assertTrue(versionados)
+        for url in versionados:
+            self.assertRegex(url, r"\?v=[0-9a-f]{12}$", f"{url} sem versao na URL")
+        recursos = [url.split("?", 1)[0] for url in versionados]
         self.assertIn("/static/js/nucleo/init.js", recursos)
         self.assertIn("/static/css/fase7.css", recursos)
         assets = _assets_service_worker()

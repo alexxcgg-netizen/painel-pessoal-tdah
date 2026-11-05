@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 import urllib.request
+from contextlib import nullcontext
 from pathlib import Path
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
@@ -53,7 +54,7 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import get_chrome_path, abrir_tela, esperar_assentar  # noqa: E402
+from tests.playwright_helper import CONTAR_FETCH, abrir_tela, esperar_assentar, esperar_carga, get_chrome_path  # noqa: E402
 
 _CHROME = get_chrome_path()
 
@@ -94,6 +95,23 @@ def _contar_notas():
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
 @unittest.skipUnless(_pronto, "servidor de teste nao respondeu")
 class Anim2TestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Um Playwright e um Chromium pra classe toda; cada teste ganha contexto novo (isolado).
+        cls._pw_cm = sync_playwright()
+        cls._pw = cls._pw_cm.__enter__()
+        kwargs = {"headless": True}
+        if _CHROME is not None and Path(_CHROME).exists():
+            kwargs["executable_path"] = _CHROME
+        cls._browser = cls._pw.chromium.launch(**kwargs)
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls._browser.close()
+        finally:
+            cls._pw_cm.__exit__(None, None, None)
+
     def setUp(self):
         db.DB_PATH = _DB_PROPRIO
         db.init_db()
@@ -104,20 +122,18 @@ class Anim2TestCase(unittest.TestCase):
         _limpar_notas()
 
     def _pagina(self, p, reduzido=False):
-        kwargs = {"headless": True}
-        if _CHROME is not None and Path(_CHROME).exists():
-            kwargs["executable_path"] = _CHROME
-        browser = p.chromium.launch(**kwargs)
-        ctx = browser.new_context(
+        # devolve o contexto no lugar do "browser": os testes chamam .close() nele no finally
+        ctx = browser = self._browser.new_context(
             viewport={"width": 390, "height": 844}, reduced_motion="reduce" if reduzido else "no-preference"
         )
+        ctx.add_init_script(CONTAR_FETCH)
         r = ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}), headers={"Content-Type": "application/json"})
         self.assertEqual(r.status, 200, r.text())
         page = ctx.new_page()
         erros = []
         page.on("pageerror", lambda exc: erros.append(str(exc)))
         page.goto(BASE_URL + "/")
-        page.wait_for_load_state("networkidle")
+        esperar_carga(page)
         page.evaluate(_CONTAR_API)
         abrir_tela(page, "painel")  # R1: Painel abre pelo Mais (saiu da barra)
         page.wait_for_selector("#lista-notas", state="attached")
@@ -142,7 +158,7 @@ class Anim2TestCase(unittest.TestCase):
         return page.evaluate("document.querySelectorAll('#lista-notas > li.c2-entra').length")
 
     def test_lista_nao_reanima_so_o_item_novo_entra(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._pagina(p)
             try:
                 for i in range(4):
@@ -165,7 +181,7 @@ class Anim2TestCase(unittest.TestCase):
     def test_apagar_fecha_espaco_e_remove_so_no_fim(self):
         for i in range(3):
             _nota(f"anim2 apagar {i}")
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._pagina(p)
             try:
                 self._recarregar_notas(page)
@@ -191,7 +207,7 @@ class Anim2TestCase(unittest.TestCase):
     def test_saida_tem_timeout_de_seguranca_sem_raf(self):
         _nota("anim2 sem raf a")
         _nota("anim2 sem raf b")
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._pagina(p)
             try:
                 self._recarregar_notas(page)
@@ -206,7 +222,7 @@ class Anim2TestCase(unittest.TestCase):
     def test_reduced_motion_sem_animacao_e_estado_final_certo(self):
         for i in range(3):
             _nota(f"anim2 reduzido {i}")
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._pagina(p, reduzido=True)
             try:
                 self._recarregar_notas(page)
@@ -228,7 +244,7 @@ class Anim2TestCase(unittest.TestCase):
                 browser.close()
 
     def test_contagem_termina_no_valor_final_mesmo_sem_raf(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._pagina(p)
             try:
                 page.evaluate(
@@ -246,7 +262,7 @@ class Anim2TestCase(unittest.TestCase):
                 browser.close()
 
     def test_barra_por_transform_e_check_desenha(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._pagina(p)
             try:
                 page.evaluate(
@@ -297,7 +313,7 @@ class Anim2TestCase(unittest.TestCase):
                 browser.close()
 
     def test_copo_dois_toques_rapidos_botao_nunca_disabled(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._pagina(p)
             try:
                 page.route("**/api/hidratacao", lambda route: (time.sleep(0.25), route.continue_())[1] if route.request.method == "POST" else route.continue_())
@@ -321,7 +337,7 @@ class Anim2TestCase(unittest.TestCase):
                 browser.close()
 
     def test_fundo_estatico_sem_animacao(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._pagina(p)
             try:
                 esperar_assentar(page)
@@ -347,7 +363,7 @@ class Anim2TestCase(unittest.TestCase):
 
     def test_fuzz_leve_lista_consistente_com_os_dados(self):
         rnd = random.Random(20260930)
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._pagina(p)
             try:
                 for i in range(3):

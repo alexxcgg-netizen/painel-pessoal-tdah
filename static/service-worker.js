@@ -42,7 +42,12 @@
 // um card de treino aparece (o fetch abaixo guarda tudo de /static/).
 // v97: Laboratorio v4, os 33 "quero" (foco, tempo, avisos e manha, memoria da IA, dinheiro, aviacao,
 // fechamento) - um arquivo de cards por grupo; ver docs/briefings/2026-10-30-lab-v4-*.md.
-const CACHE_NAME = "painel-pessoal-v101";
+// v102: abrir o app sem ir a rede pra cada arquivo (leva "perfeicao", 2026-11-05). A pagina agora pede
+// /static/x.js?v=<impressao do conteudo> (estaticos.py) e toda resposta de /static/ traz a mesma impressao
+// no cabecalho X-Versao. Copia guardada com a versao pedida sai daqui na hora; versao diferente (ou pedido
+// sem ?v, como os modulos do treino 3D) vai a rede como antes e cai na copia velha se a rede falhar. Uma copia
+// por arquivo (a chave e o caminho, sem o ?v), entao o cache nao cresce a cada mudanca.
+const CACHE_NAME = "painel-pessoal-v102";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -275,8 +280,25 @@ const ASSETS = [
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(guardarTudo());
 });
+
+// Guarda os ASSETS 8 por vez (v102). O addAll pedia os ~220 de uma vez: pelo Tailscale (HTTP/2) chegavam todos
+// juntos e o waitress recusava conexao ("connection limit", 75 vezes entre 02 e 04/11), com o app abrindo ao mesmo
+// tempo. Arquivo que falha derruba a instalacao inteira, igual ao addAll (o teste do SW real confere).
+async function guardarTudo() {
+  const cache = await caches.open(CACHE_NAME);
+  const fila = ASSETS.slice();
+  const trabalhador = async () => {
+    while (fila.length) {
+      const url = fila.shift();
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`precache: ${url} -> ${res.status}`);
+      await cache.put(url, res);
+    }
+  };
+  await Promise.all(Array.from({ length: 8 }, trabalhador));
+}
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -293,16 +315,26 @@ self.addEventListener("fetch", (event) => {
   // dados (/api), login e a pagina continuam indo direto pro servidor, como sempre foi.
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin || !url.pathname.startsWith("/static/")) return;
-  event.respondWith(
-    fetch(event.request)
-      .then((res) => {
-        const copia = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copia));
-        return res;
-      })
-      .catch(() => caches.match(event.request))
-  );
+  // pedido de pedaco (audio/video) o navegador resolve sozinho: resposta inteira no lugar dele quebra o Safari
+  if (event.request.headers.has("range")) return;
+  event.respondWith(doCacheOuDaRede(event, url));
 });
+
+async function doCacheOuDaRede(event, url) {
+  const cache = await caches.open(CACHE_NAME);
+  const chave = url.pathname;
+  const guardado = await cache.match(chave, { ignoreVary: true });
+  const versao = url.searchParams.get("v");
+  if (guardado && versao && guardado.headers.get("X-Versao") === versao) return guardado;
+  try {
+    const res = await fetch(event.request);
+    if (res.ok) event.waitUntil(cache.put(chave, res.clone()).catch(() => {}));
+    return res;
+  } catch (erro) {
+    if (guardado) return guardado;
+    throw erro;
+  }
+}
 
 self.addEventListener("push", (event) => {
   let dados = {};

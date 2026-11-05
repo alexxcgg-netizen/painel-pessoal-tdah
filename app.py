@@ -12,6 +12,7 @@ import sqlite3
 import sys
 import tempfile
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 import zipfile
 from datetime import date, datetime, timedelta
@@ -57,6 +58,7 @@ import clima_rota
 import treino_vivo
 import construtora_cliente
 import criptografia
+import estaticos
 import estudo
 import gastos
 import geocode_nominatim
@@ -1705,17 +1707,57 @@ def _compromissos_de_hoje(conn, eventos_icloud: list[dict]) -> list[dict]:
     return compromissos
 
 
+def _icloud_de_hoje_seguro() -> list[dict]:
+    """Eventos de hoje do iCloud, [] se nao configurado ou se falhar (CalDAV e instavel)."""
+    if not caldav_client.configurado():
+        return []
+    try:
+        return caldav_client.eventos_do_dia(date.today())
+    except Exception:
+        return []
+
+
 def _eventos_de_hoje_com_seguranca(conn) -> list[dict]:
     """A agenda do iCloud via CalDAV e instavel (ver caldav_client.py) - se
     falhar, o resumo do dia nao pode quebrar por causa disso. Combina o que
     conseguir buscar do iCloud com as tarefas com horario marcado pra hoje."""
-    icloud = []
-    if caldav_client.configurado():
+    return _compromissos_de_hoje(conn, _icloud_de_hoje_seguro())
+
+
+# Busca de fora que o chat usa antes de chamar a IA (leva "perfeicao", 2026-11-05). Em fila somavam ~4-5 s
+# antes de a IA comecar: o iCloud sozinho leva ~4 s quando o cache de 60 s (caldav_client) venceu, e a
+# construtora sao dois pedidos. Agora saem juntos, e o front aquece quando ele toca no campo ou no microfone
+# (/api/chat/aquecer) - quando ele manda, ja esta no cache.
+_AQUECIDO_EM = {"t": 0.0}
+_AQUECER_INTERVALO_S = 30.0
+
+
+def _aquecer_buscas_de_fora(executor) -> list:
+    """Dispara (sem esperar) o que tem cache proprio de 60 s: agenda do iCloud e as duas da construtora."""
+    return [
+        executor.submit(_icloud_de_hoje_seguro),
+        executor.submit(_buscar_resumo_construtora),
+        executor.submit(_buscar_contas_a_vencer_construtora, 30),
+    ]
+
+
+def aquecer_contexto_chat_em_segundo_plano() -> bool:
+    """Aquece os caches de fora numa thread solta; False se ja aqueceu ha menos de 30 s."""
+    agora = time.monotonic()
+    if agora - _AQUECIDO_EM["t"] < _AQUECER_INTERVALO_S:
+        return False
+    _AQUECIDO_EM["t"] = agora
+
+    def _rodar():
+        executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="aquecer-chat")
         try:
-            icloud = caldav_client.eventos_do_dia(date.today())
-        except Exception:
-            icloud = []
-    return _compromissos_de_hoje(conn, icloud)
+            for futuro in _aquecer_buscas_de_fora(executor):
+                futuro.exception()  # espera; erro ja e tratado (ou fica pro chat de verdade)
+        finally:
+            executor.shutdown(wait=False)
+
+    threading.Thread(target=_rodar, name="aquecer-chat", daemon=True).start()
+    return True
 
 
 # ---- Fase 6 (US-E14): criar/apagar evento no calendario "Painel" (CalDAV) -
@@ -2046,20 +2088,30 @@ def _contexto_chat(conn) -> str:
     """Resumo factual do agora pro chat usar como contexto - mesma logica
     do resumo do dia, so que em formato de linhas pro system prompt."""
     hoje = date.today().isoformat()
-    pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
-    gasto_hoje = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
-        (hoje,),
-    ).fetchone()["total"]
-    gasto_planejado = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'planejado'",
-        (hoje,),
-    ).fetchone()["total"]
-    eventos = _eventos_de_hoje_com_seguranca(conn)
-    saude = _saude_contexto_resumo(conn)
-    construtora = _construtora_contexto_resumo()
-    clima_hoje = _clima_contexto_resumo()
-    proximos_voos = voos_module.proximos_voos(list_voos(conn), date.today())
+    # o que vem de fora sai tudo junto enquanto o banco trabalha (antes: ~4-5 s em fila, ver
+    # _aquecer_buscas_de_fora). A conexao do banco fica so nesta thread; as de fora nao usam banco.
+    fora = ThreadPoolExecutor(max_workers=5, thread_name_prefix="contexto-chat")
+    try:
+        aquecendo = _aquecer_buscas_de_fora(fora)
+        f_construtora = fora.submit(_construtora_contexto_resumo)
+        f_clima = fora.submit(_clima_contexto_resumo)
+        pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
+        gasto_hoje = conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
+            (hoje,),
+        ).fetchone()["total"]
+        gasto_planejado = conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'planejado'",
+            (hoje,),
+        ).fetchone()["total"]
+        saude = _saude_contexto_resumo(conn)
+        proximos_voos = voos_module.proximos_voos(list_voos(conn), date.today())
+        aquecendo[0].exception()  # a agenda do iCloud ja chegou no cache: a linha abaixo nao vai a rede de novo
+        eventos = _eventos_de_hoje_com_seguranca(conn)
+        construtora = f_construtora.result()
+        clima_hoje = f_clima.result()
+    finally:
+        fora.shutdown(wait=False)
 
     eventos_txt = ", ".join(
         f"{e['titulo']} as {e['inicio'][11:16]}" if not e.get("dia_inteiro") else f"{e['titulo']} (dia todo)"
@@ -7481,6 +7533,9 @@ def iniciar_scheduler():
 # Fase 7: rotas por Blueprint (rotas/*.py, carga automatica) - SEMPRE no fim,
 # depois de todo helper que os blueprints usam via rotas._base.app_modulo().
 rotas.registrar_todas(app)
+
+# /static/ com versao na URL (cache de 1 ano) + gzip de texto - ver estaticos.py (2026-11-05).
+estaticos.instalar(app)
 
 
 if __name__ == "__main__":

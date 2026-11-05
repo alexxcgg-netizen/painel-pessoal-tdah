@@ -109,6 +109,7 @@ function _conversaSinal(subindo) {
 // ter falado; {semVoz} se o limite de 90s passou sem voz; null se a conversa foi encerrada no meio.
 // `sinal`: o "pode falar" so toca quando e a vez dele de verdade - nao a cada 90s de silencio.
 async function _conversaOuvirUmaFala(sinal = true) {
+  if (typeof aquecerChat === "function") aquecerChat(); // agenda/construtora no cache antes da fala sair
   // "interrupted" (iPhone na volta do fundo) tambem para o detector - nao so "suspended"
   if (Conversa.ctx.state !== "running") {
     try {

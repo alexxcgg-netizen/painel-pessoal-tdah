@@ -272,11 +272,13 @@ class GeocodeStatusHTTPTestCase(unittest.TestCase):
 
     def test_403_e_400_sao_recusa_definitiva(self):
         for status in (400, 403, 404):
+            geocode_nominatim._ultima_chamada = 0.0  # sem o sleep real do throttle entre uma chamada e outra
             with patch("geocode_nominatim.requests.get", return_value=FakeResp({}, status)):
                 self.assertEqual(geocode_nominatim.geocodificar("X", "Y")["status"], "recusado", status)
 
     def test_429_e_5xx_sao_erro_temporario(self):
         for status in (429, 500, 503):
+            geocode_nominatim._ultima_chamada = 0.0  # sem o sleep real do throttle entre uma chamada e outra
             with patch("geocode_nominatim.requests.get", return_value=FakeResp({}, status)):
                 self.assertEqual(geocode_nominatim.geocodificar("X", "Y")["status"], "erro", status)
 

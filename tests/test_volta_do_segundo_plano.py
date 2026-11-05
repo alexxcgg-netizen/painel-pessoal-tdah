@@ -13,6 +13,7 @@ import tempfile
 import time
 import unittest
 import urllib.request
+from contextlib import nullcontext
 from pathlib import Path
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
@@ -56,9 +57,28 @@ try:
 except Exception:
     _PLAYWRIGHT_OK = False
 
-from tests.playwright_helper import abrir_tela, get_chrome_path  # noqa: E402
+from tests.playwright_helper import CONTAR_FETCH, abrir_tela, esperar_carga, get_chrome_path  # noqa: E402
 
 _CHROME = get_chrome_path()
+
+
+class _Contextos:
+    """Cada teste usa o Chromium da classe: new_context ja traz o contador de fetch (esperar_carga)
+    e close() fecha so os contextos do teste, nunca o navegador compartilhado."""
+
+    def __init__(self, browser):
+        self._browser = browser
+        self._contextos = []
+
+    def new_context(self, **kwargs):
+        ctx = self._browser.new_context(**kwargs)
+        ctx.add_init_script(CONTAR_FETCH)
+        self._contextos.append(ctx)
+        return ctx
+
+    def close(self):
+        for ctx in self._contextos:
+            ctx.close()
 
 # troca document.hidden/visibilityState e dispara o evento, como o iOS faz ao sair/voltar
 _SEGUNDO_PLANO = """(escondido) => {
@@ -91,15 +111,29 @@ def _eh_visto(request):
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
 @unittest.skipUnless(_pronto, "servidor de teste nao respondeu")
 class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Um Playwright e um Chromium pra classe toda; cada teste ganha contexto novo (isolado).
+        cls._pw_cm = sync_playwright()
+        cls._pw = cls._pw_cm.__enter__()
+        kwargs = {"headless": True}
+        if _CHROME is not None and Path(_CHROME).exists():
+            kwargs["executable_path"] = _CHROME
+        cls._browser = cls._pw.chromium.launch(**kwargs)
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls._browser.close()
+        finally:
+            cls._pw_cm.__exit__(None, None, None)
+
     def setUp(self):
         db.DB_PATH = _DB_PROPRIO
 
     def test_sair_fecha_o_teclado_e_voltar_remede_sem_pular(self):
-        with sync_playwright() as p:
-            kwargs = {"headless": True}
-            if _CHROME is not None and Path(_CHROME).exists():
-                kwargs["executable_path"] = _CHROME
-            browser = p.chromium.launch(**kwargs)
+        with nullcontext(self._pw) as p:
+            browser = _Contextos(self._browser)
             try:
                 ctx = browser.new_context(viewport={"width": 390, "height": 844})
                 r = ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
@@ -109,7 +143,7 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 erros = []
                 page.on("pageerror", lambda exc: erros.append(str(exc)))
                 page.goto(BASE_URL + "/")
-                page.wait_for_load_state("networkidle")
+                esperar_carga(page)
                 abrir_tela(page, "assistente")
                 page.wait_for_selector("#chat-input", state="visible")
 
@@ -142,11 +176,8 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
         """2a camada (2026-10-14): o iOS deixou o fundo visivel 300px abaixo do fundo do layout
         (campo e barra no meio da tela, print do Alex) -> --vv-desvio = 300px e as pecas fixas
         descem esse tanto; com o campo em foco (teclado aberto de verdade) ou tudo certo, 0."""
-        with sync_playwright() as p:
-            kwargs = {"headless": True}
-            if _CHROME is not None and Path(_CHROME).exists():
-                kwargs["executable_path"] = _CHROME
-            browser = p.chromium.launch(**kwargs)
+        with nullcontext(self._pw) as p:
+            browser = _Contextos(self._browser)
             try:
                 ctx = browser.new_context(viewport={"width": 390, "height": 844})
                 ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
@@ -155,7 +186,7 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 erros = []
                 page.on("pageerror", lambda exc: erros.append(str(exc)))
                 page.goto(BASE_URL + "/")
-                page.wait_for_load_state("networkidle")
+                esperar_carga(page)
                 abrir_tela(page, "assistente")
                 desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
                 self.assertEqual(page.evaluate(desvio), "0px")
@@ -179,11 +210,8 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
         """3a camada (2026-10-14, print do Alex: barra cortada pela metade). No app da tela de
         inicio o fundo visivel fica sempre ~34px abaixo do layout - e o normal, entao 0px; so o
         que passar disso (o bug de verdade, +300) desce as pecas."""
-        with sync_playwright() as p:
-            kwargs = {"headless": True}
-            if _CHROME is not None and Path(_CHROME).exists():
-                kwargs["executable_path"] = _CHROME
-            browser = p.chromium.launch(**kwargs)
+        with nullcontext(self._pw) as p:
+            browser = _Contextos(self._browser)
             try:
                 ctx = browser.new_context(viewport={"width": 390, "height": 844})
                 ctx.add_init_script("""
@@ -197,7 +225,7 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 erros = []
                 page.on("pageerror", lambda exc: erros.append(str(exc)))
                 page.goto(BASE_URL + "/")
-                page.wait_for_load_state("networkidle")
+                esperar_carga(page)
                 desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
                 _voltar_e_esperar_as_medidas(page)
                 self.assertEqual(page.evaluate(desvio), "0px")
@@ -215,11 +243,8 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
         """4a camada (2026-10-15, "ainda aparece pela metade"): a 1a medida saia 0 (iOS se
         arrumando ao abrir) e depois vinham os 34px normais - a regra do MENOR desvio descia a
         barra 34px. Folga pequena nunca mexe; o teclado preso (+300) continua corrigido."""
-        with sync_playwright() as p:
-            kwargs = {"headless": True}
-            if _CHROME is not None and Path(_CHROME).exists():
-                kwargs["executable_path"] = _CHROME
-            browser = p.chromium.launch(**kwargs)
+        with nullcontext(self._pw) as p:
+            browser = _Contextos(self._browser)
             try:
                 ctx = browser.new_context(viewport={"width": 390, "height": 844})
                 ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
@@ -228,7 +253,7 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 erros = []
                 page.on("pageerror", lambda exc: erros.append(str(exc)))
                 page.goto(BASE_URL + "/")
-                page.wait_for_load_state("networkidle")
+                esperar_carga(page)
                 desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
                 self.assertEqual(page.evaluate(desvio), "0px")  # 1a medida: 0
                 page.evaluate("""() => Object.defineProperty(window.visualViewport, "height",
@@ -249,11 +274,8 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
         inicio): clientHeight 62px menor que a tela (faixa do relogio) e o fundo visivel = fundo da
         tela. A conta antiga (fundo visivel - clientHeight) descia a barra 62px pra fora da tela;
         o ancoradouro do position:fixed nao mudou, entao 0. O teclado preso (+300) segue corrigido."""
-        with sync_playwright() as p:
-            kwargs = {"headless": True}
-            if _CHROME is not None and Path(_CHROME).exists():
-                kwargs["executable_path"] = _CHROME
-            browser = p.chromium.launch(**kwargs)
+        with nullcontext(self._pw) as p:
+            browser = _Contextos(self._browser)
             try:
                 ctx = browser.new_context(viewport={"width": 440, "height": 956})
                 ctx.add_init_script("""
@@ -265,7 +287,7 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 erros = []
                 page.on("pageerror", lambda exc: erros.append(str(exc)))
                 page.goto(BASE_URL + "/")
-                page.wait_for_load_state("networkidle")
+                esperar_carga(page)
                 desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
                 _voltar_e_esperar_as_medidas(page)
                 self.assertEqual(page.evaluate(desvio), "0px", "62px da faixa do relogio nao e bug")
@@ -284,11 +306,8 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
         vvTopo = 956 (a tela inteira) no meio de uma transicao e a barra desceu 1912px, sumida.
         Medida impossivel e descartada (0px, barra no lugar) e remedida; quando a tela assenta
         no teclado preso de verdade (+300), a correcao volta."""
-        with sync_playwright() as p:
-            kwargs = {"headless": True}
-            if _CHROME is not None and Path(_CHROME).exists():
-                kwargs["executable_path"] = _CHROME
-            browser = p.chromium.launch(**kwargs)
+        with nullcontext(self._pw) as p:
+            browser = _Contextos(self._browser)
             try:
                 ctx = browser.new_context(viewport={"width": 440, "height": 956})
                 ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
@@ -297,7 +316,7 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 erros = []
                 page.on("pageerror", lambda exc: erros.append(str(exc)))
                 page.goto(BASE_URL + "/")
-                page.wait_for_load_state("networkidle")
+                esperar_carga(page)
                 abrir_tela(page, "assistente")
                 desvio = "() => getComputedStyle(document.documentElement).getPropertyValue('--vv-desvio').trim()"
                 page.evaluate("""() => Object.defineProperty(window.visualViewport, "offsetTop",
@@ -318,11 +337,8 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
     def test_app_aberto_avisa_que_viu_os_avisos_insistentes(self):
         """2026-10-16: so o toque na notificacao parava a insistencia. Agora abrir o app (e voltar pra
         tela) manda POST /api/push/visto; em segundo plano nao manda."""
-        with sync_playwright() as p:
-            kwargs = {"headless": True}
-            if _CHROME is not None and Path(_CHROME).exists():
-                kwargs["executable_path"] = _CHROME
-            browser = p.chromium.launch(**kwargs)
+        with nullcontext(self._pw) as p:
+            browser = _Contextos(self._browser)
             try:
                 ctx = browser.new_context(viewport={"width": 390, "height": 844})
                 ctx.request.post(BASE_URL + "/login", data=json.dumps({"pin": PIN}),
@@ -333,7 +349,7 @@ class VoltaDoSegundoPlanoTestCase(unittest.TestCase):
                 erros = []
                 page.on("pageerror", lambda exc: erros.append(str(exc)))
                 page.goto(BASE_URL + "/")
-                page.wait_for_load_state("networkidle")
+                esperar_carga(page)
                 # ao abrir saem 2 avisos (pageshow e o forcado de 1200 ms); com os 2 fora, `antes` nao muda sozinho
                 while len(visto) < 2:
                     page.wait_for_event("request", _eh_visto, timeout=10000)

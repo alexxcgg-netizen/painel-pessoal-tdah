@@ -629,6 +629,18 @@ $("#chat-form").addEventListener("submit", (e) => {
   enviarChat(texto);
 });
 
+// Aquecer o chat (leva "perfeicao", 2026-11-05): ao tocar no campo ou no microfone, o servidor ja busca a
+// agenda do iCloud (~4 s) e a construtora, o que mais atrasava o comeco da resposta. Quando a mensagem sai,
+// esta tudo no cache. O servidor tambem segura repeticao (30 s); falha aqui nao muda nada pra ele.
+let _chatAquecidoEm = 0;
+function aquecerChat() {
+  const agora = Date.now();
+  if (agora - _chatAquecidoEm < 30000) return;
+  _chatAquecidoEm = agora;
+  fetch("/api/chat/aquecer", { method: "POST" }).catch(() => {});
+}
+$("#chat-input").addEventListener("focus", aquecerChat);
+
 // Microfone do chat: grava o áudio inteiro (toque liga, toque para) e manda pro
 // Whisper no servidor (/api/voz/transcrever). O reconhecimento nativo do Safari
 // cortava na primeira pausa e errava muito - fica só de reserva pra navegador
@@ -1041,6 +1053,7 @@ function initGravadorChat(micBtn) {
   }
 
   async function comecar() {
+    aquecerChat();
     // a voz da IA falando segura o audio do iPhone em modo "tocar" - microfone abre mudo
     if (typeof pararVoz === "function") pararVoz();
     const gravacao = criarGravacao({ maxMs: MIC_MAX_MS, contextoAudio: null });

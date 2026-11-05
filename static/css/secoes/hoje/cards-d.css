@@ -183,21 +183,23 @@
 .vivo-d .v-bts > button:disabled { opacity: 0.55; cursor: default; }
 
 /* rota casa -> destino com o carrinho (tarefa com hora) */
-.vivo-d .v-rota { position: relative; height: 48px; margin: 0 6px; }
+/* container: o carrinho anda em 100cqw (largura da rota) por transform, sem recalcular layout (2026-11-05) */
+.vivo-d .v-rota { position: relative; height: 48px; margin: 0 6px; container-type: inline-size; }
 .vivo-d .v-rota .trilho, .vivo-d .v-rota .feito { position: absolute; left: 0; top: 18px; height: 3px; border-radius: 2px; }
 .vivo-d .v-rota .trilho { right: 0; background: repeating-linear-gradient(90deg, #3a3a3c 0 7px, transparent 7px 11px); }
-.vivo-d .v-rota .feito { width: calc(100% * var(--p, 0)); background: var(--cc); }
+.vivo-d .v-rota .feito { width: 100%; transform: scaleX(var(--p, 0)); transform-origin: left center; background: var(--cc); }
 .vivo-d .v-rota .pt { position: absolute; top: 14px; width: 11px; height: 11px; border-radius: 50%; background: var(--d-fundo); border: 2.5px solid #636366; transform: translateX(-50%); }
 .vivo-d .v-rota .pt.ini { left: 0; }
 .vivo-d .v-rota .pt.fim { left: 100%; border-color: var(--cc); }
-.vivo-d .v-rota .carro { position: absolute; top: 4px; left: calc(100% * var(--p, 0)); transform: translateX(-50%); width: 30px; height: 30px; border-radius: 50%; background: var(--cc); color: #0c0f12; display: grid; place-items: center; box-shadow: 0 0 0 4px var(--d-fundo); }
+.vivo-d .v-rota .carro { position: absolute; top: 4px; left: 0; transform: translateX(calc(100cqw * var(--p, 0) - 50%)); width: 30px; height: 30px; border-radius: 50%; background: var(--cc); color: #0c0f12; display: grid; place-items: center; box-shadow: 0 0 0 4px var(--d-fundo); }
 .vivo-d .v-rota .carro svg { width: 17px; height: 17px; }
 .vivo-d .v-rota .rt { position: absolute; top: 32px; max-width: 48%; font-size: 12px; color: var(--d-cinza); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vivo-d .v-rota .rt.l { left: -6px; }
 .vivo-d .v-rota .rt.r { right: -6px; text-align: right; }
-/* "Já saí": o relógio de 1 s move o carrinho; a transição linear de 1 s emenda os passos */
-.vivo-d .v-rota[data-ini] .carro { transition: left 1s linear; }
-.vivo-d .v-rota[data-ini] .feito { transition: width 1s linear; }
+/* "Já saí": o relógio de 1 s move o carrinho; a transição linear de 1 s emenda os passos. Por transform
+   (leva "perfeicao", 2026-11-05): antes era left/width, layout recalculado em todo quadro do trajeto. */
+.vivo-d .v-rota[data-ini] .carro { transition: transform 1s linear; }
+.vivo-d .v-rota[data-ini] .feito { transition: transform 1s linear; }
 
 /* cadeia Se arrumar / Sair / (Parada) / Chegar */
 .vivo-d .v-cadeia { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 6px; text-align: center; }

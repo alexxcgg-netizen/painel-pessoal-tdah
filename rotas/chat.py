@@ -56,6 +56,15 @@ def _evento_sse(evento: str, dado) -> str:
     return f"event: {evento}\ndata: {json.dumps(dado, ensure_ascii=False)}\n\n"
 
 
+@bp.route("/api/chat/aquecer", methods=["POST"])
+def chat_aquecer():
+    """O front chama quando ele toca no campo do chat ou no microfone (leva "perfeicao", 2026-11-05): a agenda
+    do iCloud (~4 s) e a construtora chegam no cache antes de a mensagem sair. Nao grava nada e no maximo
+    uma vez a cada 30 s (app.aquecer_contexto_chat_em_segundo_plano)."""
+    app_modulo().aquecer_contexto_chat_em_segundo_plano()
+    return ("", 204)
+
+
 @bp.route("/api/chat/stream", methods=["POST"])
 def chat_stream():
     """Mesmo /api/chat, mas a resposta chega AO VIVO (2026-10-13 - "parece IA esperando o bloco

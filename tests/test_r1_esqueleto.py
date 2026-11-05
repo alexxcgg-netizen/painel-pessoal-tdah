@@ -12,6 +12,7 @@ import tempfile
 import time
 import unittest
 import urllib.request
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
@@ -94,6 +95,23 @@ def fake_usage():
 @unittest.skipUnless(_PLAYWRIGHT_OK, "playwright nao instalado")
 @unittest.skipUnless(_pronto, "servidor de teste nao respondeu")
 class R1EsqueletoTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Um Playwright e um Chromium pra classe toda; cada teste ganha contexto novo (isolado).
+        cls._pw_cm = sync_playwright()
+        cls._pw = cls._pw_cm.__enter__()
+        kwargs = {"headless": True}
+        if _CHROME is not None and Path(_CHROME).exists():
+            kwargs["executable_path"] = _CHROME
+        cls._browser = cls._pw.chromium.launch(**kwargs)
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls._browser.close()
+        finally:
+            cls._pw_cm.__exit__(None, None, None)
+
     def setUp(self):
         db.DB_PATH = _DB_PROPRIO
         db.init_db()
@@ -110,11 +128,8 @@ class R1EsqueletoTestCase(unittest.TestCase):
 
     # ---- infraestrutura ----
     def _abrir(self, p, largura=390, reduzir=False):
-        kwargs = {"headless": True}
-        if _CHROME is not None and Path(_CHROME).exists():
-            kwargs["executable_path"] = _CHROME
-        browser = p.chromium.launch(**kwargs)
-        ctx = browser.new_context(
+        # devolve o contexto no lugar do "browser": os testes chamam .close() nele no finally
+        ctx = browser = self._browser.new_context(
             viewport={"width": largura, "height": 844},
             reduced_motion="reduce" if reduzir else "no-preference",
         )
@@ -128,7 +143,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
         erros = []
         page.on("pageerror", lambda exc: erros.append(str(exc)))
         page.goto(BASE_URL + "/")
-        page.wait_for_load_state("networkidle")
+        esperar_carga(page)
         return browser, page, erros
 
     def _visivel(self, page, aba):
@@ -156,7 +171,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
 
     # ---- 1. barra ----
     def test_barra_tem_5_itens_com_labels_inteiros(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             for largura in (390, 320):
                 browser, page, erros = self._abrir(p, largura=largura)
                 try:
@@ -190,7 +205,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
 
     # ---- 2. Mais ----
     def test_cada_linha_do_mais_abre_a_tela_certa_e_voltar_funciona(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 page.click('.tab-btn[data-tab="mais"]')
@@ -238,7 +253,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
                 browser.close()
 
     def test_direcao_da_troca_e_cache_de_30s_continuam(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 pedidos = []
@@ -268,7 +283,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
     # ---- 3. FAB + folha ----
     def test_fab_abre_e_fecha_a_folha_e_a_captura_envia(self):
         parsed = {"tipo": "gasto", "titulo": "mercado r1", "valor": 42.0, "categoria": "mercado", "quando": None, "duvida": None}
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 for aba in BARRA:
@@ -333,7 +348,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
         def fake_chat(mensagens, contexto, memorias, executores):
             return "Resposta de teste do R1.", [], fake_usage()
 
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 self.assertEqual(page.locator("#tab-hoje #chat-form").count(), 0, "chat saiu do Inicio")
@@ -371,7 +386,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
 
     # ---- 5. nada fixo cobre o fim do conteudo ----
     def test_nenhum_elemento_fixo_cobre_o_ultimo_conteudo(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p)
             try:
                 for aba in BARRA + TELAS_DO_MAIS:
@@ -408,7 +423,7 @@ class R1EsqueletoTestCase(unittest.TestCase):
 
     # ---- 6. reduced-motion ----
     def test_reduced_motion_troca_e_folha_sem_animacao_e_sem_erro(self):
-        with sync_playwright() as p:
+        with nullcontext(self._pw) as p:
             browser, page, erros = self._abrir(p, reduzir=True)
             try:
                 for aba in BARRA + TELAS_DO_MAIS:

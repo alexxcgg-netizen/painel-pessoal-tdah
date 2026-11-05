@@ -228,7 +228,7 @@ class R3AcabamentoTestCase(unittest.TestCase):
         erros = []
         page.on("pageerror", lambda e: erros.append(str(e)))
         page.goto(BASE_URL + "/")
-        page.wait_for_load_state("networkidle")
+        esperar_carga(page)
         return page, erros
 
     def _esperar_rede(self, page):
@@ -310,7 +310,7 @@ class R3AcabamentoTestCase(unittest.TestCase):
             ),
         )
         page.reload()
-        page.wait_for_load_state("networkidle")
+        esperar_carga(page)
         page.wait_for_selector("#caixa-compacta-linha:not([hidden])", timeout=5000)
         self.assertIn("(2)", page.text_content("#caixa-compacta-linha"))
         self.assertEqual(erros, [])

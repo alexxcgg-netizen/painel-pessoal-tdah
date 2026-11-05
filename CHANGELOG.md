@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-05 - Leva "perfeição": app abre do cache, chat começa antes, verificador mais leve (SW v102)
 - 2026-11-05 - Widgets nativos do iPhone, pareamento por código e ícone mostrador (SW v101)
 - 2026-11-05 - Conversa de 04/11: lugar do date, hora de sair, tarefa com hora, temperatura da noite
 - 2026-11-04 - Cards ao vivo (D), assistente passo a passo, Dynamic Island e widgets (SW v100)
@@ -173,6 +174,26 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-05 - Leva "perfeição": app abre do cache, chat começa antes, verificador mais leve (SW v102)
+Pedido do Alex antes de dormir (tempo de resposta, IA, verificador, animação; "não me pergunte nada"). Briefing com
+as medições e as decisões: `docs/briefings/2026-11-05-perfeicao.md`.
+- **Medido antes:** as 131 rotas GET somam ~650 ms (`tests/medir_tempos.py`, cópia do banco de verdade): o servidor
+  não era o gargalo. Abrir o app puxava ~220 arquivos revalidados um a um (no-cache + SW rede-primeiro); o waitress
+  engasgava no minuto da abertura (764 "queue depth" + 75 "connection limit" de 02 a 04/11).
+- **`estaticos.py` (novo):** `/static/...` da página com `?v=<impressão>` + immutable de 1 ano, `fase7.css` com o `?v`
+  de cada camada, `X-Versao` em toda resposta de /static/, gzip de texto (página 185 KB → 31 KB). Nunca derruba a
+  resposta. **SW v102:** versionado com `X-Versao` igual sai do cache; uma cópia por arquivo; precache 8 por vez;
+  `Range` fica com o navegador. `tests/medir_abertura.py` (80 ms de latência, sem SW como o app nativo):
+  **2ª abertura 2,5 s → 0,31 s**, 1ª 3,3 s → 2,6 s.
+- **Chat:** iCloud, construtora e tempo saem juntos em `_contexto_chat` (antes ~4-5 s em fila antes da IA);
+  `POST /api/chat/aquecer` (foco no campo ou microfone, 1 vez a cada 30 s) deixa agenda e construtora no cache.
+- **Animação:** carrinho do "Já saí" (card D) por `transform` com `100cqw` em vez de `left`/`width` (mesmo pixel).
+- **Verificador:** r1/r2/anim2/volta_segundo_plano com um Chromium por classe (contexto novo por teste),
+  `networkidle` trocado por `esperar_carga`, r2 sem a espera fixa de 900 ms (conta o timer de verdade), Geocode sem o
+  sleep do throttle. Arquivo sozinho: r2 51→42 s, r1 44→34, anim2 41→25, volta 32→20, r3 38→34.
+- Testes: `tests/test_estaticos.py`, `tests/test_contexto_chat_paralelo.py`; `test_service_worker_real.py` confere
+  que nada versionado vai à rede depois de recarregar. Proposta não feita: fila rápida sem xdist (briefing).
 
 ## 2026-11-05 - Widgets nativos do iPhone, pareamento por código e ícone mostrador (SW v101)
 Votos do Alex no artefato "Widgets e ícone" (rodada 2): todos os widgets, todos os da tela bloqueada, StandBy, ícone
