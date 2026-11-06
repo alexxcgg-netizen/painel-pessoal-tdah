@@ -372,7 +372,7 @@ class NotificacoesTestCase(unittest.TestCase):
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=14, minute=5)
         avisos = notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora)
         self.assertEqual(len(avisos), 1)
-        self.assertIn("colocar o lixo pra fora", avisos[0][1])
+        self.assertIn("Combinamos 14:00", avisos[0][1])  # 06/11: o nome da tarefa vai no titulo do aviso
 
     def test_tarefa_com_horario_chegando_avisa_com_antecedencia(self):
         # Pedido explicito do Alex (TDAH): avisar ANTES da hora, nao so na
@@ -386,7 +386,7 @@ class NotificacoesTestCase(unittest.TestCase):
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=13, minute=52)
         avisos = notificacoes.tarefas_com_horario_chegando(self.conn, agora=agora)
         self.assertEqual(len(avisos), 1)
-        self.assertIn("colocar o lixo pra fora", avisos[0][1])
+        self.assertIn("às 14:00", avisos[0][1])
         self.assertIn("Daqui a pouco", avisos[0][1])
 
     def test_tarefa_com_horario_ainda_longe_nao_avisa(self):

@@ -86,6 +86,7 @@ final class Relatorio: ObservableObject {
         await widgets()
         ilha()
         await permissoes()
+        await avisosDoApp()
         await rede()
         await paginaWeb()
         rodando = false
@@ -271,6 +272,31 @@ final class Relatorio: ObservableObject {
         add(g, "Localização", "\(CLLocationManager().authorizationStatus.rawValue)", chave: "perm_local")
         let aviso = await UNUserNotificationCenter.current().notificationSettings()
         add(g, "Notificações", "\(aviso.authorizationStatus.rawValue)", chave: "perm_aviso")
+    }
+
+    // MARK: Avisos do app (06/11, AvisosLocais.swift)
+
+    private func avisosDoApp() async {
+        let g = "Avisos do app"
+        let avisos = AvisosLocais.shared
+        let pendentes = await UNUserNotificationCenter.current().pendingNotificationRequests()
+        let meus = pendentes.filter { $0.identifier.hasPrefix(AvisosLocais.prefixo) }
+        add(g, "Agendados", "\(meus.count)", meus.isEmpty ? .atencao : .ok, chave: "avisos_agendados", dado: meus.count)
+        if let proximo = meus.compactMap({ ($0.trigger as? UNTimeIntervalNotificationTrigger)?.nextTriggerDate() }).min() {
+            let min = Int(proximo.timeIntervalSinceNow / 60)
+            add(g, "Próximo", "daqui \(min) min", chave: "avisos_proximo_min", dado: min)
+        }
+        if let ultima = avisos.ultima {
+            let min = Int(-ultima.timeIntervalSinceNow / 60)
+            add(g, "Última conferida", "há \(min) min: \(avisos.resultado)", avisos.resultado.hasPrefix("ok") ? .ok : .atencao,
+                chave: "avisos_ultima_min", dado: min)
+            dados["avisos_resultado"] = avisos.resultado
+        } else {
+            add(g, "Última conferida", "nunca", .atencao, chave: "avisos_ultima_min", dado: -1)
+        }
+        add(g, "Acordou em segundo plano", "\(avisos.acordadasNoFundo) vezes", chave: "avisos_fundo", dado: avisos.acordadasNoFundo)
+        let gps = Localizacao.shared.gpsSempre
+        add(g, "GPS sempre ligado", gps ? "ligado" : "desligado", chave: "gps_sempre", dado: gps)
     }
 
     // MARK: Rede

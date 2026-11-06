@@ -7,6 +7,11 @@
 //  fechado pra entregar a visita; por isso o gerente nasce no didFinishLaunching (AppDelegate).
 //  Nada de startUpdatingLocation contínuo (bateria): só as visitas.
 //
+//  Avisos no app (06/11): com "Sempre", também a mudança grande de lugar (~500 m, quase sem bateria)
+//  acorda o app pra conferir os avisos agendados (AvisosLocais.swift). E o botão "GPS sempre ligado"
+//  (Configurar, desligado por padrão) liga o GPS de baixa precisão em segundo plano: o app fica
+//  acordado e confere o painel a cada 5 min (avisos e ilha). Gasta mais bateria, por isso é opção.
+//
 //  Cada visita vai pra POST /api/localizacao/visita com o token do widget no header (nunca na
 //  URL). Sem rede ou PC desligado: fica numa fila no UserDefaults (até 50, a mais velha sai) e vai
 //  quando der (próxima visita ou quando o app abre).
@@ -20,27 +25,87 @@ final class Localizacao: NSObject, ObservableObject, CLLocationManagerDelegate {
     static let shared = Localizacao()
     static let chaveFila = "painel_visitas_fila"
     static let maxFila = 50
+    static let chaveGps = "painel_gps_sempre"
+    static let conferirACada: TimeInterval = 5 * 60
 
     @Published private(set) var status: CLAuthorizationStatus = .notDetermined
     @Published private(set) var pendentes = 0
+    @Published private(set) var gpsSempre = false
 
     private let gerente = CLLocationManager()
     private var enviando = false
     private let iso = ISO8601DateFormatter()
+    private var relogioGps: Timer?
+    private var ultimaConferida = Date.distantPast
 
     private override init() {
         super.init()
         gerente.delegate = self
         status = gerente.authorizationStatus
         pendentes = lerFila().count
+        gpsSempre = Ajustes.defaults.bool(forKey: Localizacao.chaveGps)
     }
 
-    /// AppDelegate chama no launch (inclusive quando o iOS relança o app em segundo plano por uma visita).
+    /// AppDelegate chama no launch (inclusive quando o iOS relança o app em segundo plano por uma visita
+    /// ou por uma mudança grande de lugar).
     func iniciar() {
+        ligarConformePermissao()
+        enviarFila()
+    }
+
+    private func ligarConformePermissao() {
         if gerente.authorizationStatus == .authorizedAlways {
             gerente.startMonitoringVisits()
+            gerente.startMonitoringSignificantLocationChanges()
+            if gpsSempre { ligarGps() }
+        } else {
+            gerente.stopMonitoringVisits()
+            gerente.stopMonitoringSignificantLocationChanges()
+            desligarGps()
         }
-        enviarFila()
+    }
+
+    // MARK: GPS sempre ligado (botão do Configurar)
+
+    func definirGpsSempre(_ ligado: Bool) {
+        gpsSempre = ligado
+        Ajustes.defaults.set(ligado, forKey: Localizacao.chaveGps)
+        if ligado && gerente.authorizationStatus != .authorizedAlways {
+            pedirPermissao()  // sem "Sempre" o GPS não roda com o app fechado
+        }
+        ligarConformePermissao()
+    }
+
+    private func ligarGps() {
+        // precisa do UIBackgroundModes "location" no Info.plist (project.yml), senão o iOS derruba o app
+        gerente.desiredAccuracy = kCLLocationAccuracyThreeKilometers  // antena/wi-fi: quase sem bateria
+        gerente.distanceFilter = 500
+        gerente.pausesLocationUpdatesAutomatically = false
+        gerente.allowsBackgroundLocationUpdates = true
+        gerente.showsBackgroundLocationIndicator = false
+        gerente.startUpdatingLocation()
+        relogioGps?.invalidate()
+        relogioGps = Timer.scheduledTimer(withTimeInterval: Localizacao.conferirACada, repeats: true) { [weak self] _ in
+            self?.conferirPainel(forcar: true)
+        }
+    }
+
+    private func desligarGps() {
+        relogioGps?.invalidate()
+        relogioGps = nil
+        gerente.stopUpdatingLocation()
+        gerente.allowsBackgroundLocationUpdates = false
+    }
+
+    /// Avisos e ilha, no máximo 1x a cada ~5 min (o GPS e a mudança de lugar podem chamar seguido).
+    private func conferirPainel(forcar: Bool = false) {
+        DispatchQueue.main.async {
+            let agora = Date()
+            guard forcar || agora.timeIntervalSince(self.ultimaConferida) > Localizacao.conferirACada - 30 else { return }
+            self.ultimaConferida = agora
+            AvisosLocais.shared.sincronizar(motivo: self.gpsSempre ? "gps" : "lugar")
+            AoVivo.shared.sincronizar()
+        }
     }
 
     /// Botão da tela Configurar. Negada/bloqueada: só os Ajustes do iPhone mudam.
@@ -71,11 +136,13 @@ final class Localizacao: NSObject, ObservableObject, CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let novo = manager.authorizationStatus
         DispatchQueue.main.async { self.status = novo }
-        if novo == .authorizedAlways {
-            manager.startMonitoringVisits()
-        } else {
-            manager.stopMonitoringVisits()
-        }
+        ligarConformePermissao()
+    }
+
+    /// Mudança grande de lugar (~500 m) ou o GPS sempre ligado: confere os avisos (com intervalo mínimo).
+    /// A posição em si não vai pra lugar nenhum - só as visitas vão pro painel.
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        conferirPainel()
     }
 
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
@@ -96,6 +163,7 @@ final class Localizacao: NSObject, ObservableObject, CLLocationManagerDelegate {
             self.enfileirar(item)
             self.enviarFila()
             AoVivo.shared.sincronizar()  // chegou/saiu de um lugar: passo da atividade ao vivo (AoVivo.swift)
+            AvisosLocais.shared.sincronizar(motivo: "visita")  // e confere os avisos agendados
         }
     }
 

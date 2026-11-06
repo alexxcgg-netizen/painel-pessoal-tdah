@@ -226,7 +226,7 @@ class ParadaNoCalculoTestCase(_Base):
         self.assertEqual((p["saida"], p["comecar"]), (_as("18:33"), _as("17:53")))
         avisos = notificacoes.avisos_se_arrumar([p], _as("18:31"))
         sair = next(a for a in avisos if a[0] == "hora_de_sair")
-        self.assertEqual(sair[2:], ("Hora de sair", "10 min até casa do guri. Depois Date às 19:00."))
+        self.assertEqual(sair[2:], ("Bora, hora de sair", "10 min até casa do guri. Depois Date às 19:00."))
 
     def test_resolver_parada_acha_o_apelido_dentro_da_frase(self):
         vida_assistente.salvar_apelido(self.conn, "guri", "Rua do Guri, 10")
@@ -263,7 +263,7 @@ class SequenciaDeAvisosTestCase(_Base):
                 patch("app.date", type("D", (), {"today": staticmethod(lambda: agora.date()),
                                                    "fromisoformat": staticmethod(datetime.fromisoformat)})):
             app.verificar_e_notificar()
-        return [e for e in enviados if not e["titulo"].startswith(("De novo", "Última chamada"))]
+        return [e for e in enviados if "De novo ·" not in e["titulo"] and "Última chamada ·" not in e["titulo"]]
 
     def test_os_cinco_passos_um_de_cada_sem_duplicar(self):
         tid = self.tarefa("Date com a Júlia", "20:00", estilo="date")  # sem Maps: sai 19:45, arruma 19:05
@@ -278,12 +278,12 @@ class SequenciaDeAvisosTestCase(_Base):
             self.assertEqual(len(lista), 1, (tipo, lista))
         hm, e = por_tag["saida_preparo"][0]
         self.assertEqual(hm, "18:52")
-        self.assertEqual(e["titulo"], "Daqui 13 min")
+        self.assertEqual(e["titulo"], "🪞 Daqui 13 min")
         self.assertEqual(e["corpo"], "Começa a se arrumar pro date com a Júlia. 16° e 55% de chuva às 20h. "
                                      "Leva guarda-chuva e casaco.")
         self.assertEqual(por_tag["se_arrumar"][0][0], "19:05")
         hm, e = por_tag["saida_porta"][0]
-        self.assertEqual((hm, e["titulo"], e["corpo"]), ("19:38", "7 min pra sair", "Leva guarda-chuva e casaco."))
+        self.assertEqual((hm, e["titulo"], e["corpo"]), ("19:38", "🚗 7 min pra sair", "Leva guarda-chuva e casaco."))
         self.assertEqual(por_tag["hora_de_sair"][0][0], "19:43")
 
     def test_sem_clima_o_porta_lembra_o_basico_e_a_lista_do_lugar(self):

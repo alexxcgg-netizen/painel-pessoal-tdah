@@ -23,7 +23,7 @@ from assistente import briefing, caixa  # noqa: E402
 from assistente.gatilhos import p3_briefing  # noqa: E402
 
 PIN_TESTE = "123456"
-TITULO_ANTIGO = "Fechando o dia"
+TITULO_ANTIGO = "🌙 Fecha o dia comigo?"  # 06/11: estilo C + emoji
 
 
 class FechamentoXBriefingTestCase(unittest.TestCase):

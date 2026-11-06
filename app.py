@@ -5277,12 +5277,28 @@ def _aviso_bom_tempo_pra_tarefa(tarefa: dict) -> str | None:
     return f"{quando} parece um dia bom (pouca chance de chuva) pra: {tarefa['title']}."
 
 
+TITULO_VOO_SAIR = notificacoes.TITULO_VOO_SAIR
+
+
 def _aviso_voo_sair(voo: dict, janela_minutos: int = 25, conn=None) -> str | None:
     """Se o voo tem horario hoje e a hora de sair de casa (calculada com
     transito real) ja esta dentro da janela de aviso, devolve a mensagem
     de push. None se nao configurado, a rota nao puder ser calculada, ou
     ainda nao for hora de avisar. Sem rede/erro nunca derruba o scheduler -
     so pula esse voo nessa rodada (tenta de novo daqui a 5min)."""
+    saida = _saida_do_voo(voo, conn=conn)
+    if not saida:
+        return None
+    minutos_pra_sair = (saida["sair_ate"] - datetime.now()).total_seconds() / 60
+    if not (0 <= minutos_pra_sair <= janela_minutos):
+        return None
+    return saida["texto"]
+
+
+def _saida_do_voo(voo: dict, conn=None) -> dict | None:
+    """{"sair_ate", "chegar_ate", "texto"} do voo de hoje (transito real, 1 consulta por hora por voo).
+    Usado pelo aviso do servidor (_aviso_voo_sair) e pelos avisos que o app do iPhone agenda
+    (avisos_app.py, 06/11). None sem Maps, sem casa ou sem rota."""
     if not maps_client.configurado():
         return None
     origem = os.environ.get("ENDERECO_CASA", "").strip()
@@ -5307,17 +5323,17 @@ def _aviso_voo_sair(voo: dict, janela_minutos: int = 25, conn=None) -> str | Non
     except (ValueError, requests.RequestException):
         return None
 
-    sair_ate = datetime.fromisoformat(resultado["sair_ate"])
-    minutos_pra_sair = (sair_ate - datetime.now()).total_seconds() / 60
-    if not (0 <= minutos_pra_sair <= janela_minutos):
+    try:
+        sair_ate = datetime.fromisoformat(resultado["sair_ate"])
+    except (KeyError, TypeError, ValueError):
         return None
-
     resumo = maps_client.resumo_transito(resultado)
-    return (
-        f"Saia até as {sair_ate:%H:%M} pra chegar no briefing das {chegar_ate:%H:%M} "
-        f"(voo das {voo['hora']} pra {voo['destino']}, {resultado['duracao_minutos']} min de trajeto)."
+    texto = (
+        f"Sai até {sair_ate:%H:%M} pra pegar o briefing das {chegar_ate:%H:%M} com folga. "
+        f"Voo das {voo['hora']} pra {voo['destino']}, {resultado['duracao_minutos']} min de caminho."
         + (f" {resumo}." if resumo else "")
     )
+    return {"sair_ate": sair_ate, "chegar_ate": chegar_ate, "texto": texto}
 
 
 def _uber_token_valido(conn) -> str | None:
@@ -5485,7 +5501,7 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
     hora_manha = obter_configuracao(conn, "rotina_manha_hora") or "07:00"
     if vida.rotina_manha_devida(agora, hora_manha) and not ja_notificou_hoje(conn, "rotina_manha"):
         itens = ", ".join(i["texto"].lower() for i in list_rotina_itens(conn, "manha"))
-        corpo = f"Bom dia. Rotina da manha: {itens}." if itens else "Bom dia. Da uma olhada no essencial de hoje."
+        corpo = f"Rotina da manhã: {itens}. Começa leve." if itens else "Dá uma olhada no essencial de hoje. Começa leve."
         avisos.append(("rotina_manha", 0, "Bom dia", corpo))
 
     ate = obter_configuracao(conn, "hiperfoco_ate")
@@ -5559,9 +5575,10 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         ).fetchone()
         if not bebeu_agora:
             copos = contar_hidratacao_dia(conn, hoje_iso)
+            hoje_txt = "nenhum copo ainda hoje" if not copos else ("1 copo hoje" if copos == 1 else f"{copos} copos hoje")
             avisos.append(
-                ("agua_pausa", slot, "Pausa rápida",
-                 f"Bebe um copo de água e levanta 2 minutos ({copos} copo(s) hoje).")
+                ("agua_pausa", slot, "Bora uma água?",
+                 f"Um copo e uma esticada de 2 minutos. Até agora, {hoje_txt}.")
             )
 
     if agora.hour >= 8:
@@ -5842,6 +5859,7 @@ def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool
         titulo, corpo = notificacoes.texto_repeticao(tipo, a["titulo"], a["corpo"], int(a["tentativas"]))
         # aviso-cara (Lab v4): insiste igual, mas com outra cara no texto (aviso_cara.py)
         titulo, corpo = aviso_cara.variar(conn, tipo, a["referencia_id"], a["tag"], titulo, corpo, int(a["tentativas"]), agora)
+        titulo = notificacoes.com_emoji(tipo, titulo)  # "<emoji> De novo · Pagar a fatura" (06/11)
         for s in subs:
             if not push_client.enviar(json.loads(s["subscription_json"]), titulo, corpo,
                                       url=_url_do_aviso(tipo, a["tag"]), tag=a["tag"],
@@ -6034,8 +6052,11 @@ def verificar_e_notificar():
             if dias_atraso_atual < limiar:
                 continue
             if not ja_notificado_alguma_vez(conn, "tarefa_parada", tarefa_id):
-                msg = f"{msg} Se travou, abre o painel que eu te ajudo a quebrar de outro jeito."
-                avisos.append(("tarefa_parada", tarefa_id, "Isso ainda tá pendente?", msg))
+                # estilo C (06/11): "E o filtro do ar?" / "Tá parada faz 9 dias..."
+                nome_parada = notificacoes.titulo_tarefa(row["title"])
+                msg = (f"Tá parada faz {dias_atraso_atual} dias. Se travou, eu te ajudo a quebrar em passos; "
+                       "se não faz mais sentido, eu tiro da lista.")
+                avisos.append(("tarefa_parada", tarefa_id, f"E \u201c{nome_parada}\u201d?", msg))
 
     # Mesma ideia, mas pra resposta que voce esta esperando de TERCEIROS
     # (fornecedor, corretora) - o painel acompanha o thread em aberto por
@@ -6153,26 +6174,27 @@ def verificar_e_notificar():
                     corpo_sair = f"{corpo_sair} {resumo}."
             avisos.append((tipo_sair, ref_sair, titulo_sair, corpo_sair))
 
-    for tarefa_id, msg in notificacoes.tarefas_preparo(conn, ignorar=ids_sair):
-        if not ja_notificou_hoje(conn, "tarefa_preparo", tarefa_id):
-            avisos.append(("tarefa_preparo", tarefa_id, "Daqui a pouco", msg))
-
-    refeicoes_hoje = {
+    # 06/11 (estilo C): o titulo do aviso e o nome da tarefa (a tela bloqueada mostra ele primeiro)
+    titulos_hoje = {
         r["id"]: r["title"] for r in conn.execute(
             "SELECT id, title FROM tasks WHERE due_date = ? AND hora IS NOT NULL AND completed_at IS NULL",
             (date.today().isoformat(),),
-        ).fetchall() if notificacoes.e_refeicao(r["title"])
+        ).fetchall()
     }
+    for tarefa_id, msg in notificacoes.tarefas_preparo(conn, ignorar=ids_sair):
+        if not ja_notificou_hoje(conn, "tarefa_preparo", tarefa_id):
+            avisos.append(("tarefa_preparo", tarefa_id, notificacoes.titulo_tarefa(titulos_hoje.get(tarefa_id, "")), msg))
+
     for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(conn):
         if tarefa_id in ids_sair:
             continue
         if not ja_notificou_hoje(conn, "tarefa_horario", tarefa_id):
-            if tarefa_id in refeicoes_hoje:
+            nome_tarefa = titulos_hoje.get(tarefa_id, "")
+            if notificacoes.e_refeicao(nome_tarefa):
                 # "Comer: almoco - arroz, feijao, frango" -> "Hora de comer" / "Almoco - arroz..."
-                corpo = re.sub(r"^\s*comer\s*:?\s*", "", refeicoes_hoje[tarefa_id], flags=re.I) or msg
-                avisos.append(("tarefa_horario", tarefa_id, "Hora de comer", corpo[:1].upper() + corpo[1:]))
+                avisos.append(("tarefa_horario", tarefa_id, notificacoes.TITULO_REFEICAO, notificacoes.texto_refeicao(nome_tarefa)))
             else:
-                avisos.append(("tarefa_horario", tarefa_id, "Tá na hora", msg))
+                avisos.append(("tarefa_horario", tarefa_id, notificacoes.titulo_tarefa(nome_tarefa), msg))
 
     # leva 22/10: inegociavel (cadeado) ganha mais um aviso, 5 min antes - passa ate no hiperfoco
     for tarefa_id, msg in dia_ruim.inegociaveis_chegando(conn, datetime.now()):
@@ -6215,7 +6237,7 @@ def verificar_e_notificar():
             continue
         msg = _aviso_voo_sair(voo, conn=conn)
         if msg:
-            avisos.append(("voo_sair", voo["id"], "Hora de ir pro voo", msg))
+            avisos.append(("voo_sair", voo["id"], TITULO_VOO_SAIR, msg))
 
     if notificacoes.planejamento_semanal_devido() and not ja_notificou_hoje(conn, "planejamento_semanal"):
         avisos.append(
@@ -6262,7 +6284,7 @@ def verificar_e_notificar():
         and not ja_notificou_hoje(conn, "fechar_dia_chat")
     ):
         avisos.append(
-            ("fechamento_noturno", 0, "Fechando o dia", notificacoes.mensagem_fechamento_noturno(conn))
+            ("fechamento_noturno", 0, "Fecha o dia comigo?", notificacoes.mensagem_fechamento_noturno(conn))
         )
 
     msg = notificacoes.currency_voo_baixa(conn, limiar_dias=21)
@@ -6321,8 +6343,16 @@ def verificar_e_notificar():
     agrupar_ligado = (obter_configuracao(conn, "notificacoes_agrupar") or "0") == "1"
     agrupar_janela_min = int(obter_configuracao(conn, "notificacoes_agrupar_janela_min") or "2")
 
-    def _despachar(titulo: str, corpo: str, botoes=None, tipo: str = "", ref_id=0):
-        for s in subs:
+    # leva "avisos no app" (06/11): o que o app do iPhone ja agendou pra este minuto toca por la
+    # (aviso local); o push do navegador desse aviso fica de fora pra nao chegar dois
+    import avisos_app
+
+    agendados_app = avisos_app.carregar_agendados(conn, datetime.now())
+
+    def _despachar(titulo: str, corpo: str, botoes=None, tipo: str = "", ref_id=0, pular_push=False):
+        if tipo:
+            titulo = notificacoes.com_emoji(tipo, titulo)
+        for s in ([] if pular_push else subs):
             sub_dict = json.loads(s["subscription_json"])
             if tipo:
                 tag = f"{tipo}-{ref_id}"
@@ -6363,7 +6393,8 @@ def verificar_e_notificar():
             # aviso-cara: tarefa que se repete todo dia (creatina) nao chega sempre com o mesmo texto
             titulo_envio, corpo_envio = aviso_cara.variar(
                 conn, tipo, ref_id, f"{tipo}-{ref_id}", titulo, corpo, 0, datetime.now(), so_se_repetiu_em_outro_dia=True)
-        _despachar(titulo_envio, corpo_envio, botoes, tipo=tipo, ref_id=ref_id)
+        no_app = avisos_app.coberto(agendados_app, f"{tipo}-{ref_id}", datetime.now())
+        _despachar(titulo_envio, corpo_envio, botoes, tipo=tipo, ref_id=ref_id, pular_push=no_app)
         marcar_notificado(conn, tipo, ref_id)
         if subs and tipo in notificacoes.INSISTENCIA:
             db.registrar_aviso_insistente(conn, tipo, ref_id, titulo, corpo, f"{tipo}-{ref_id}", datetime.now())

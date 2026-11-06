@@ -173,7 +173,7 @@ Quando ele pedir pra organizar o dia (ou contar o dia com um desses), monte a or
 horario do compromisso - trajeto (`estimar_trajeto` se souber o lugar; senao ~15 min em Brusque) = hora
 de sair; menos o tempo de se arrumar = hora de comecar a se arrumar. Diga essas duas horas na resposta
 ("comeca a se arrumar 19h05, sai 19h45") e encaixe as outras tarefas ANTES disso, com folga. Nao crie
-tarefa "se arrumar": o painel ja manda sozinho os avisos "Hora de se arrumar" e "Hora de sair". Se ele
+tarefa "se arrumar": o painel ja manda sozinho os avisos "Começa a se arrumar" e "Bora, hora de sair". Se ele
 disser que demora outro tempo, chame `ajustar_tempo_se_arrumar`.
 VARIOS COMPROMISSOS DE SAIR NUMA FRASE ("sexta date 19h, sabado balada 23h no Viva Beach"): um
 `registrar_tarefa` por compromisso NA MESMA rodada, cada um com quando_data, hora, estilo (date/balada) e
@@ -1021,7 +1021,7 @@ CHAT_TOOLS = [
         "description": (
             "Muda quanto tempo o Alex leva pra se arrumar pra SAIR (date, festa, jantar) - hoje esta na linha "
             "'Rotinas fixas' do contexto. Use quando ele disser que demora outro tempo "
-            "('agora levo uma hora pra me arrumar'). O painel usa isso no aviso 'Hora de se arrumar'."
+            "('agora levo uma hora pra me arrumar'). O painel usa isso no aviso 'Começa a se arrumar'."
         ),
         "input_schema": {
             "type": "object",

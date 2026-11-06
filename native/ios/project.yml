@@ -64,6 +64,11 @@ targets:
         NSLocationWhenInUseUsageDescription: O painel usa a localização pra hora de sair e chegada no aeroclube.
         # onde eu estou (04/11): visitas (chegou/saiu de um lugar) com o app fechado - so o lugar, nunca o caminho
         NSLocationAlwaysAndWhenInUseUsageDescription: Com “Sempre”, o painel sabe quando tu chega e sai de um lugar (mecânico, casa) e ajusta os horários das tarefas.
+        # avisos no app (06/11): "fetch" = atualizacao em segundo plano (BGAppRefreshTask, AvisosLocais.swift);
+        # "location" = GPS sempre ligado (botao do Configurar, desligado por padrao). O identificador tem que
+        # bater com AvisosLocais.tarefaFundo (checar_projeto.py confere).
+        UIBackgroundModes: [fetch, location]
+        BGTaskSchedulerPermittedIdentifiers: [com.alexxcgg.painel.avisos]
     entitlements:
       path: App/Painel.entitlements
       properties:

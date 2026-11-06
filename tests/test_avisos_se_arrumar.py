@@ -98,7 +98,7 @@ class PlanoSeArrumarTestCase(_Base):
         self.assertEqual(notificacoes.avisos_se_arrumar(planos(datetime(2026, 10, 11, 18, 59)), datetime(2026, 10, 11, 18, 59)), [])
         agora = datetime(2026, 10, 11, 19, 2)
         [(tipo, _, titulo, corpo)] = notificacoes.avisos_se_arrumar(planos(agora), agora)
-        self.assertEqual((tipo, titulo), ("se_arrumar", "Hora de se arrumar"))
+        self.assertEqual((tipo, titulo), ("se_arrumar", "Começa a se arrumar"))
         self.assertIn("40 min", corpo)
         self.assertIn("19:45", corpo)
         agora = datetime(2026, 10, 11, 19, 43)
@@ -153,14 +153,14 @@ class VerificarENotificarTestCase(_Base):
     def test_date_manda_se_arrumar_com_link_e_tag_e_nao_o_daqui_a_pouco(self):
         tid = self.tarefa("Date", "20:00")
         enviados = self._rodar(datetime(2026, 10, 11, 19, 5))
-        avisos = [e for e in enviados if e["titulo"] == "Hora de se arrumar"]
+        avisos = [e for e in enviados if e["titulo"] == "🪞 Começa a se arrumar"]
         self.assertEqual(len(avisos), 1, enviados)
         self.assertEqual(avisos[0]["url"], f"/?aba=tarefas&tarefa={tid}")
         self.assertEqual(avisos[0]["tag"], f"se_arrumar-{tid}")
         # 19:52 (dentro dos 10 min): sai "Hora de sair", nunca o "daqui a pouco" de tarefa comum
         enviados = self._rodar(datetime(2026, 10, 11, 19, 52))
         titulos = [e["titulo"] for e in enviados]
-        self.assertIn("Hora de sair", titulos)
+        self.assertIn("🚗 Bora, hora de sair", titulos)
         self.assertNotIn("Tá na hora", titulos)
 
     def test_tempo_de_se_arrumar_vem_da_configuracao(self):
@@ -168,7 +168,7 @@ class VerificarENotificarTestCase(_Base):
         self.conn.commit()
         self.tarefa("Festa", "22:00")
         enviados = self._rodar(datetime(2026, 10, 11, 20, 45))  # 22:00 - 15 - 60 = 20:45
-        self.assertTrue(any("60 min" in e["corpo"] for e in enviados if e["titulo"] == "Hora de se arrumar"), enviados)
+        self.assertTrue(any("60 min" in e["corpo"] for e in enviados if e["titulo"] == "🪞 Começa a se arrumar"), enviados)
 
     def test_marca_o_tick_do_agendador(self):
         app._AGENDADOR.update(iniciado=True, ultimo_tick=None)

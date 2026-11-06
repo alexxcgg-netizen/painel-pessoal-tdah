@@ -69,6 +69,14 @@ pro painel (`POST /api/widget/relatorio`, token do widget; fica em `diagnostico_
 na skill `relatorio-painel`. Sem painel no ar: **Copiar tudo** e colar no chat. Endereço e token não entram.
 **Testar a Dynamic Island** liga uma contagem de 2 minutos; ela só aparece fora do app.
 
+## Avisos do app (sem push da Apple)
+
+A conta grátis não tem push remoto (APNs). O app agenda **aviso local** dos avisos de hora conhecida (se arrumar,
+hora de sair, tarefa com hora, voo), pegando a lista em `GET /api/app/avisos`. O iPhone toca na hora mesmo com o app
+fechado e o PC desligado. O que não tem hora marcada continua no push do navegador (PWA). Detalhes e decisões:
+`docs/briefings/2026-11-06-avisos-app.md`. Em Configurar → **Avisos do app**: permissão, quantos estão agendados,
+última conferida e o botão **GPS sempre ligado** (desligado por padrão; gasta bateria).
+
 ## Limites da conta Apple grátis
 
 Não achei fonte oficial da Apple nem do Sideloadly pra estes números; são relatos da comunidade.

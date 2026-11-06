@@ -413,7 +413,7 @@ class AvisoVooTestCase(_Base):
         self.assertEqual(chamado["destino"], "Aeroclube de Blumenau, Blumenau - SC")
         self.assertEqual(chamado["chegar_ate"].strftime("%H:%M"), "13:30")  # 30 min de briefing
         self.assertIn("briefing das 13:30", msg)
-        self.assertIn("voo das 14:00 pra SBFL", msg)
+        self.assertIn("Voo das 14:00 pra SBFL", msg)
 
 
 if __name__ == "__main__":

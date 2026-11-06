@@ -143,11 +143,11 @@ class RotinaTestCase(VidaBaseTestCase):
     def test_push_da_manha_lista_os_itens(self):
         with patch("vida.rotina_manha_devida", return_value=True):
             corpos = self._notificar()
-        manha = [c for c in corpos if c.startswith("Bom dia")]
+        manha = [c for c in corpos if c.startswith("Rotina da manhã")]
         self.assertEqual(len(manha), 1)
         self.assertIn("beber um copo de água", manha[0])
         with patch("vida.rotina_manha_devida", return_value=True):
-            self.assertFalse([c for c in self._notificar() if c.startswith("Bom dia")])
+            self.assertFalse([c for c in self._notificar() if c.startswith("Rotina da manhã")])
 
     def test_push_das_22h_inclui_rotina_da_noite(self):
         with patch("notificacoes.hora_de_dormir_devida", return_value=True):
@@ -326,7 +326,7 @@ class TarefaEmpacadaTestCase(VidaBaseTestCase):
     def test_push_de_tarefa_parada_oferece_quebrar(self):
         self._tarefa("Renovar seguro", due=(date.today() - timedelta(days=10)).isoformat())
         corpos = self._notificar()
-        self.assertTrue([c for c in corpos if "quebrar de outro jeito" in c])
+        self.assertTrue([c for c in corpos if "quebrar em passos" in c])
 
 
 class ContasPessoaisTestCase(VidaBaseTestCase):

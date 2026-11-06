@@ -288,7 +288,7 @@ class AvisoHoraDeSairTestCase(_BancoLimpo):
         self.assertTrue(tv1.call_args.kwargs.get("lentidao"))
         enviados, tv3 = self._rodar(datetime(2026, 10, 11, 19, 38), viagem)  # hora nova: recalcula
         self.assertEqual(tv3.call_count, 1)
-        sair = [c for t, c in enviados if t == "Hora de sair"]
+        sair = [c for t, c in enviados if t == "🚗 Bora, hora de sair"]
         self.assertEqual(len(sair), 1, enviados)
         self.assertIn("20 min até lá", sair[0])
         self.assertIn("+8 min de trânsito. Parado na BR-470, Gaspar (2 km) - pode ser acidente ou blitz.", sair[0])

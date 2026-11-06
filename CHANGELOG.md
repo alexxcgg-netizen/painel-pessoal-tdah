@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-06 - Avisos no app do iPhone (sem push da Apple) e texto novo dos avisos
 - 2026-11-06 - App do iPhone mostra qual versão está instalada
 - 2026-11-05 - Leva "agentes": revisor das respostas, preparo do dia de madrugada, contexto que não engole a me…
 - 2026-11-05 - Resposta do chat não some mais quando sai do app (SW v103)
@@ -177,6 +178,38 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-06 - Avisos no app do iPhone (sem push da Apple) e texto novo dos avisos
+Pedido do Alex ("2 sim boa pode ligar gostei de todos"): o app nativo avisa sozinho, mesmo sem o push remoto da
+Apple (APNs), que a conta grátis não tem. Junto, o texto que ele votou no artefato "Avisos do Painel": estilo C
+"Amigo" + 1 emoji por assunto. Briefing com as decisões: `docs/briefings/2026-11-06-avisos-app.md`. Sem JS/CSS,
+então sem bump do SW. O app novo só vale depois de um `.ipa` novo.
+- **O app agenda os avisos de hora conhecida** (`avisos_app.py`, `rotas/avisos_app.py`, `AvisosLocais.swift`):
+  - O app agenda aviso local pro dia de hoje e de amanhã: se arrumar, hora de sair, "daqui 15 min", "5 min pra sair",
+    o "faltam 30 min" e o "daqui a pouco" das tarefas com hora, e o "bora pro voo".
+  - A conta e o texto são os mesmos do servidor. O iPhone toca mesmo com o app fechado e o PC desligado.
+  - Rotas: `GET /api/app/avisos`, `POST /api/app/avisos/agendados` e `POST /api/app/aviso/acao` (Feito, Adiar 1 h,
+    toque). Todas usam o token do widget, só no header.
+- **Sem aviso duplicado:** o servidor não manda pelo navegador o que o app agendou pro mesmo minuto (folga de 6 min,
+  app sincronizado nas últimas 36 h).
+  - O aviso continua contado como enviado, e a insistência segue pelo navegador.
+  - Se a hora mudou e o app não sincronizou, as horas não batem e o navegador avisa como sempre.
+- **Quando o app acorda:**
+  - abre, volta, sai, ou toca Feito/Adiar;
+  - atualização em segundo plano (`BGAppRefreshTask`, ~30 min, quem decide é o iOS);
+  - visita ou mudança grande de lugar;
+  - "GPS sempre ligado" (Configurar, desligado por padrão): o app fica acordado e confere a cada 5 min.
+  - `project.yml`: `UIBackgroundModes` [fetch, location] e `BGTaskSchedulerPermittedIdentifiers`.
+  - `checar_projeto.py` confere os dois.
+- **Texto novo** (vale pro navegador também):
+  - 🪞 Começa a se arrumar, 🚗 Bora, hora de sair, ⏰ tarefa com hora (com o nome da tarefa no título), 🍽️ Hora de
+    comer, ✈️ Bora pro voo, 💧 Bora uma água?, 🧹 E "tarefa"?, ☀️ Bom dia, 🌙 Fecha o dia comigo?
+  - Tudo com "tu".
+  - O emoji entra só na hora de mandar (`notificacoes.com_emoji`), e a repetição fica "⏰ De novo · …".
+  - `_saida_do_voo` separado de `_aviso_voo_sair` (o app usa a mesma conta).
+  - `rotas/push.py` ganhou `executar_acao` e `registrar_toque`, que a rota do app reaproveita.
+- Relatório do app: agendados, próximo, última conferida, quantas vezes acordou em segundo plano, GPS.
+- Testes: `tests/test_avisos_app.py` (23), e os testes de texto antigo atualizados.
 
 ## 2026-11-06 - App do iPhone mostra qual versão está instalada
 O Alex instalou o `.ipa` de 05/11 e a galeria seguiu mostrando o widget de 04/11; não dava pra saber daqui qual versão

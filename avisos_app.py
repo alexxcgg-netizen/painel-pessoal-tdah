@@ -1,0 +1,207 @@
+"""avisos_app.py - avisos que o app nativo do iPhone agenda sozinho (leva 06/11/2026,
+docs/briefings/2026-11-06-avisos-app.md).
+
+A conta gratis da Apple nao tem push remoto (APNs), mas o app pode agendar aviso LOCAL: o iPhone toca
+na hora certa mesmo com o app fechado e o PC desligado. Entao o app pergunta ao painel
+(`GET /api/app/avisos`) quais avisos de hora conhecida vem por ai, agenda tudo e conta de volta o que
+ficou agendado (`POST /api/app/avisos/agendados`). Na hora, o servidor pula o push do navegador desse
+aviso (`coberto`) pra nao chegar dois. A insistencia continua igual, pelo navegador.
+
+Hora conhecida = compromisso de saida (se arrumar, hora de sair, "daqui 15 min", "5 min pra sair"),
+tarefa com hora ("faltam 30 min", "daqui a pouco") e a saida pro voo. Mesma conta e mesmo texto do
+servidor (notificacoes.plano_se_arrumar / avisos_se_arrumar, tempo.passos_da_saida). Na duvida, nao
+agenda: o push do navegador continua cobrindo.
+
+Este arquivo nao fala com rede nem com Flask: quem chama passa as funcoes de trajeto/clima/voo.
+"""
+from __future__ import annotations
+
+import json
+from datetime import datetime, time, timedelta
+
+import notificacoes
+
+CHAVE = "avisos_app_agendados"
+TOLERANCIA_MIN = 6  # o tick do servidor e de 5 min; o app agenda no minuto da conta
+VALIDADE_H = 36  # agendado ha mais tempo que isso: o app pode ter sumido, o navegador volta a avisar
+MAX_ITENS = 40  # o iPhone guarda ate 64 avisos pendentes por app
+HORAS_A_FRENTE = 36
+
+# quanto antes da hora o servidor manda cada um (pra o aviso local cair no mesmo minuto)
+PREPARO_TAREFA_MIN = 30  # notificacoes.tarefas_preparo: janela 15-34 min, o tick pega ~30-34
+CHEGANDO_TAREFA_MIN = 10  # notificacoes.tarefas_com_horario_chegando: a partir de 10 min antes
+PREPARO_SAIDA_MIN = 15  # tempo.PREPARO_JANELA_MIN (10, 16]: "daqui 15 min comeca a se arrumar"
+PORTA_SAIDA_MIN = 5  # tempo.PORTA_JANELA_MIN (4, 9]: "5 min pra sair"
+VOO_ANTES_MIN = 22  # _aviso_voo_sair avisa dentro dos 25 min antes da hora de sair
+
+# tipos que passam pelo hiperfoco no servidor (vida.CRITICOS_HIPERFOCO); o resto fica de fora do
+# agendamento se o foco cobre a hora
+_CRITICOS_PADRAO = frozenset({"tarefa_horario", "voo_sair"})
+
+
+def _item(tipo: str, ref: int, quando: datetime, titulo: str, corpo: str, url_do_aviso, de_uma_tarefa) -> dict:
+    tag = f"{tipo}-{ref}"
+    return {
+        "id": f"painel-{tag}-{quando:%Y%m%d}",
+        "tag": tag,
+        "tipo": tipo,
+        "quando": quando.isoformat(timespec="minutes"),
+        "quando_ts": int(quando.timestamp()),
+        "titulo": notificacoes.com_emoji(tipo, titulo),
+        "corpo": corpo,
+        "acoes": tipo in de_uma_tarefa,
+        "url": url_do_aviso(tipo, tag) if url_do_aviso else "/",
+    }
+
+
+def _do_tipo(avisos, tipo):
+    return [a for a in avisos if a[0] == tipo]
+
+
+def _hora_do_dia(dia, hora: str) -> datetime | None:
+    try:
+        return datetime.combine(dia, datetime.strptime(hora, "%H:%M").time())
+    except (TypeError, ValueError):
+        return None
+
+
+def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None, trajeto_parada=None,
+           clima=None, saida_voo=None, ligado=None, ja_notificou=None, segurar_ate: datetime | None = None,
+           criticos=_CRITICOS_PADRAO, url_do_aviso=None, de_uma_tarefa=frozenset()) -> list[dict]:
+    """Avisos de hora conhecida de hoje e de amanha, em ordem de hora, no maximo MAX_ITENS.
+
+    - `trajeto_min(local)` / `trajeto_parada(parada, local)` / `clima(data_iso, hora)`: so pra hoje
+      (amanha usa a folga, e o app sincroniza de novo antes);
+    - `saida_voo(voo) -> {"sair_ate", "texto"} | None`: so pros voos de hoje;
+    - `ligado(tipo)`: Assistente > Avisos; `ja_notificou(tipo, ref)`: ja saiu hoje;
+    - `segurar_ate`: hiperfoco/modo foco ate essa hora - tipo nao critico antes disso nao entra.
+    """
+    import tempo
+
+    ligado = ligado or (lambda tipo: True)
+    ja_notificou = ja_notificou or (lambda tipo, ref: False)
+    limite = agora + timedelta(hours=HORAS_A_FRENTE)
+    candidatos: list[tuple[str, int, datetime, str, str]] = []
+
+    amanha = datetime.combine(agora.date() + timedelta(days=1), time(0, 0))
+    for inicio in (agora, amanha):
+        hoje = inicio is agora
+        dia = inicio.date()
+        planos = notificacoes.plano_se_arrumar(
+            conn, inicio, minutos_arrumar,
+            trajeto_min=trajeto_min if hoje else None,
+            trajeto_parada=trajeto_parada if hoje else None,
+        )
+        ids_sair = {p["id"] for p in planos}
+        for p in planos:
+            for tipo, ref, titulo, corpo in _do_tipo(notificacoes.avisos_se_arrumar([p], p["comecar"]), "se_arrumar"):
+                candidatos.append((tipo, ref, p["comecar"], titulo, corpo))
+            for tipo, ref, titulo, corpo in _do_tipo(notificacoes.avisos_se_arrumar([p], p["saida"]), "hora_de_sair"):
+                candidatos.append((tipo, ref, p["saida"], titulo, corpo))
+            quando_preparo = p["comecar"] - timedelta(minutes=PREPARO_SAIDA_MIN)
+            quando_porta = p["saida"] - timedelta(minutes=PORTA_SAIDA_MIN)
+            clima_dia = clima if hoje else None
+            try:
+                for tipo, ref, titulo, corpo in _do_tipo(tempo.passos_da_saida(conn, [p], quando_preparo, clima=clima_dia), "saida_preparo"):
+                    candidatos.append((tipo, ref, quando_preparo, titulo, corpo))
+                for tipo, ref, titulo, corpo in _do_tipo(tempo.passos_da_saida(conn, [p], quando_porta, clima=clima_dia), "saida_porta"):
+                    candidatos.append((tipo, ref, quando_porta, titulo, corpo))
+            except Exception:  # noqa: BLE001 - passo a passo e extra; sem ele o servidor avisa pelo navegador
+                pass
+
+        rows = conn.execute(
+            "SELECT id, title, hora FROM tasks WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL",
+            (dia.isoformat(),),
+        ).fetchall()
+        for r in rows:
+            if r["id"] in ids_sair:
+                continue
+            evento = _hora_do_dia(dia, r["hora"])
+            if evento is None:
+                continue
+            if notificacoes.e_refeicao(r["title"]):
+                titulo, corpo = notificacoes.TITULO_REFEICAO, notificacoes.texto_refeicao(r["title"])
+            else:
+                titulo = notificacoes.titulo_tarefa(r["title"])
+                corpo = notificacoes.texto_tarefa_chegando(r["hora"], antes=True)
+                candidatos.append(("tarefa_preparo", r["id"], evento - timedelta(minutes=PREPARO_TAREFA_MIN), titulo,
+                                   notificacoes.texto_tarefa_preparo(r["hora"], PREPARO_TAREFA_MIN)))
+            candidatos.append(("tarefa_horario", r["id"], evento - timedelta(minutes=CHEGANDO_TAREFA_MIN), titulo, corpo))
+
+    if saida_voo:
+        for voo in notificacoes.voos_de_hoje_com_horario(conn, agora.date()):
+            try:
+                s = saida_voo(voo)
+            except Exception:  # noqa: BLE001 - Maps fora: o servidor tenta de novo no tick
+                s = None
+            if s and s.get("sair_ate"):
+                candidatos.append(("voo_sair", voo["id"], s["sair_ate"] - timedelta(minutes=VOO_ANTES_MIN),
+                                   notificacoes.TITULO_VOO_SAIR, s["texto"]))
+
+    itens, vistos = [], set()
+    for tipo, ref, quando, titulo, corpo in sorted(candidatos, key=lambda c: c[2]):
+        quando = quando.replace(second=0, microsecond=0)
+        if quando <= agora + timedelta(seconds=20) or quando > limite:
+            continue
+        chave = (tipo, ref, quando.date())
+        if chave in vistos:
+            continue
+        if not ligado(tipo):
+            continue
+        if quando.date() == agora.date() and ja_notificou(tipo, ref):
+            continue
+        if segurar_ate and quando < segurar_ate and tipo not in criticos:
+            continue
+        vistos.add(chave)
+        itens.append(_item(tipo, ref, quando, titulo, corpo, url_do_aviso, de_uma_tarefa))
+        if len(itens) >= MAX_ITENS:
+            break
+    return itens
+
+
+# ---------------------------------------------------------------- o que o app conta que agendou
+
+def gravar_agendados(conn, itens, agora: datetime) -> int:
+    """Guarda a lista inteira (o app apaga e agenda tudo de novo a cada sincronizada). Ignora item torto."""
+    limpos = []
+    for it in itens if isinstance(itens, list) else []:
+        if not isinstance(it, dict):
+            continue
+        tag, ts = it.get("tag"), it.get("quando_ts")
+        if not isinstance(tag, str) or not tag.strip() or len(tag) > 120:
+            continue
+        if isinstance(ts, bool) or not isinstance(ts, (int, float)):
+            continue
+        limpos.append([tag.strip(), int(ts)])
+        if len(limpos) >= 64:
+            break
+    from db import definir_configuracao
+
+    definir_configuracao(conn, CHAVE, json.dumps({"em": int(agora.timestamp()), "itens": limpos}))
+    conn.commit()
+    return len(limpos)
+
+
+def carregar_agendados(conn, agora: datetime) -> dict[str, list[int]]:
+    """tag -> [quando_ts...] do que o app agendou. Vazio se o app nao sincroniza faz VALIDADE_H."""
+    try:
+        from db import obter_configuracao
+
+        bruto = obter_configuracao(conn, CHAVE)
+        dados = json.loads(bruto) if bruto else None
+        if not isinstance(dados, dict):
+            return {}
+        if agora.timestamp() - float(dados.get("em") or 0) > VALIDADE_H * 3600:
+            return {}
+        saida: dict[str, list[int]] = {}
+        for tag, ts in dados.get("itens") or []:
+            saida.setdefault(str(tag), []).append(int(ts))
+        return saida
+    except (TypeError, ValueError):
+        return {}
+
+
+def coberto(agendados: dict[str, list[int]], tag: str, agora: datetime, tolerancia_min: int = TOLERANCIA_MIN) -> bool:
+    """O app agendou este aviso pra (perto de) agora? Entao ele toca por la e o navegador fica quieto."""
+    agora_ts = agora.timestamp()
+    return any(abs(agora_ts - ts) <= tolerancia_min * 60 for ts in agendados.get(tag, ()))

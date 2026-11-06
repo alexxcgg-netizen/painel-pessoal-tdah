@@ -47,6 +47,8 @@ enum Ajustes {
 final class Abertura: ObservableObject {
     static let shared = Abertura()
     @Published var configurar = false
+    /// Toque num aviso do app (AvisosLocais.swift): o caminho que ele abre ("/?aba=tarefas&tarefa=12").
+    @Published var caminho: String?
 }
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
@@ -57,6 +59,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                                       localizedSubtitle: "Endereço e token do widget",
                                       icon: UIApplicationShortcutIcon(systemImageName: "gearshape"))
         ]
+        // avisos no app (06/11): delegate dos avisos e a tarefa de segundo plano tem que nascer no launch
+        AvisosLocais.shared.iniciar()
         // onde eu estou (04/11): o gerente de localizacao nasce ja no launch, pra visita que acordou
         // o app em segundo plano chegar no delegate
         Localizacao.shared.iniciar()
@@ -100,6 +104,7 @@ struct Raiz: View {
     @State private var url = Ajustes.url
     @State private var recarregar = 0
     @State private var capturar = false
+    @State private var destino: String?  // caminho aberto pelo toque num aviso
 
     /// Botão "Anotar no painel" da Central de Controle (PainelControleIntent.swift) deixa um carimbo no App Group;
     /// vale por 60 s e é consumido uma vez. Lab v4 / ideia "central".
@@ -109,16 +114,25 @@ struct Raiz: View {
         guard t > 0 else { return }
         d.removeObject(forKey: "painel_capturar_pedido")
         if Date().timeIntervalSince1970 - t < 60 {
+            destino = nil
             capturar = true
             recarregar += 1
         }
     }
 
+    private func endereco(_ base: URL) -> URL {
+        var raiz = url
+        while raiz.hasSuffix("/") { raiz.removeLast() }
+        if let destino, destino.hasPrefix("/"), let aberto = URL(string: raiz + destino) { return aberto }
+        if capturar { return URL(string: raiz + "/?capturar=1") ?? base }
+        return base
+    }
+
     var body: some View {
         ZStack {
             Color(red: 0.07, green: 0.07, blue: 0.07).ignoresSafeArea()
-            if let endereco = URL(string: url), endereco.scheme != nil {
-                PainelWeb(url: capturar ? (URL(string: url + (url.hasSuffix("/") ? "" : "/") + "?capturar=1") ?? endereco) : endereco)
+            if let base = URL(string: url), base.scheme != nil {
+                PainelWeb(url: endereco(base))
                     .id(recarregar).ignoresSafeArea(edges: .bottom)
             }
         }
@@ -126,12 +140,26 @@ struct Raiz: View {
             if url.isEmpty { abertura.configurar = true }
             conferirPedidoDeCaptura()
             parear.conferir()
+            AvisosLocais.shared.pedirPermissao()  // só pergunta na primeira vez
+            AvisosLocais.shared.sincronizar(motivo: "abriu")
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             conferirPedidoDeCaptura()
             Localizacao.shared.enviarFila()
             AoVivo.shared.sincronizar()  // atividade ao vivo do próximo compromisso (AoVivo.swift)
             parear.conferir()  // widget pedindo pra ser liberado? (e acorda os widgets)
+            AvisosLocais.shared.sincronizar(motivo: "voltou")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            // acabou de mexer no painel (marcou feito, mudou hora): os avisos agendados acompanham
+            AvisosLocais.shared.sincronizar(motivo: "saiu")
+        }
+        .onReceive(abertura.$caminho) { caminho in
+            guard let caminho, !url.isEmpty else { return }
+            destino = caminho
+            capturar = false
+            recarregar += 1
+            DispatchQueue.main.async { abertura.caminho = nil }
         }
         .alert("Liberar este widget?", isPresented: $parear.mostrar) {
             Button("Liberar") { parear.liberar() }
@@ -143,6 +171,7 @@ struct Raiz: View {
             Configurar { novaURL in
                 url = novaURL
                 capturar = false
+                destino = nil
                 recarregar += 1
                 WidgetCenter.shared.reloadAllTimelines()
             }
@@ -186,6 +215,7 @@ struct Configurar: View {
                     Text("Vem sozinho depois que tu entra com o PIN. Fica só neste iPhone.")
                 }
                 SecaoOndeEstou()
+                SecaoAvisos()  // avisos do app + GPS sempre ligado (AvisosLocais.swift)
                 Section {
                     NavigationLink {
                         TelaRelatorio()
@@ -265,6 +295,7 @@ struct PainelWeb: UIViewRepresentable {
                     Ajustes.token = token
                     WidgetCenter.shared.reloadAllTimelines()
                     AoVivo.shared.sincronizar()  // primeira vez com token: já liga a atividade se tiver compromisso
+                    AvisosLocais.shared.sincronizar(motivo: "token")  // e já agenda os avisos
                     Task { @MainActor in ParearWidget.shared.conferir() }  // widget esperando o "Liberar"
                 } else if let web {
                     // ainda na tela do PIN: tenta de novo daqui a pouco (login nem sempre recarrega a página)

@@ -110,16 +110,16 @@ class InsistenciaNoTickTestCase(unittest.TestCase):
         tid = self.tarefa("Ligar pro instrutor", "14:00")
         primeiro = self._rodar(datetime(2026, 10, 11, 14, 0))
         self.assertEqual(len(primeiro), 1)
-        self.assertEqual(primeiro[0]["titulo"], "Tá na hora")
-        self.assertIn("Ligar pro instrutor", primeiro[0]["corpo"])
+        self.assertEqual(primeiro[0]["titulo"], "⏰ Ligar pro instrutor")  # 06/11: o nome vai no titulo
+        self.assertIn("14:00", primeiro[0]["corpo"])
         self.assertEqual(primeiro[0]["url"], f"/?aba=tarefas&tarefa={tid}")
         self.assertEqual(self._rodar(datetime(2026, 10, 11, 14, 5)), [])
         segundo = self._rodar(datetime(2026, 10, 11, 14, 10))
-        self.assertEqual([e["titulo"] for e in segundo], ["De novo · Tá na hora"])
+        self.assertEqual([e["titulo"] for e in segundo], ["⏰ De novo · Ligar pro instrutor"])
         self.assertEqual(segundo[0]["tag"], f"tarefa_horario-{tid}")  # substitui a anterior no iPhone
         self.assertEqual(self._rodar(datetime(2026, 10, 11, 14, 20)), [])
         terceiro = self._rodar(datetime(2026, 10, 11, 14, 30))
-        self.assertEqual([e["titulo"] for e in terceiro], ["Última chamada · Tá na hora"])
+        self.assertEqual([e["titulo"] for e in terceiro], ["⏰ Última chamada · Ligar pro instrutor"])
         self.assertEqual(self._rodar(datetime(2026, 10, 11, 15, 0)), [])
         self.assertEqual(self._rodar(datetime(2026, 10, 11, 16, 0)), [])
 

@@ -2468,7 +2468,7 @@ class PainelTestCase(unittest.TestCase):
             # dispara os dois: o aviso generico (tarefas_atrasadas) e o check-in
             # nominal (tarefa_parada) - sao conteudos diferentes, ambos validos.
             self.assertEqual(res.get_json()["avisos_enviados"], 2)
-            corpos = [c.args[2] for c in mock_enviar.call_args_list]
+            corpos = [f"{c.args[1]} {c.args[2]}" for c in mock_enviar.call_args_list]
             self.assertTrue(
                 any("responder a corretora" in c and "3 dias" in c for c in corpos),
                 msg=f"nenhum push cobrou a tarefa pelo nome: {corpos}",
@@ -2791,7 +2791,7 @@ class PainelTestCase(unittest.TestCase):
                 json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
             )
             self.client.post("/api/notificacoes/verificar-agora")
-            corpos = [c.args[2] for c in mock_enviar.call_args_list]
+            corpos = [f"{c.args[1]} {c.args[2]}" for c in mock_enviar.call_args_list]
             self.assertTrue(
                 any("responder a corretora" in c for c in corpos),
                 msg=f"deveria ter cobrado com o limiar aprendido: {corpos}",
@@ -2916,7 +2916,7 @@ class PainelTestCase(unittest.TestCase):
             )
             res = self.client.post("/api/notificacoes/verificar-agora")
         self.assertEqual(res.get_json()["avisos_enviados"], 1)
-        corpo = mock_enviar.call_args[0][2]
+        corpo = " ".join(mock_enviar.call_args[0][1:3])  # 06/11: nome no titulo
         self.assertIn("colocar o lixo pra fora", corpo)
 
     def test_notificacoes_verificar_agora_inclui_tarefa_com_horario_chegado(self):
@@ -8005,7 +8005,7 @@ class NotificacaoAgrupadaTestCase(_Fase5GrupoCTestCase):
 
         self.assertEqual(res.get_json()["avisos_enviados"], 1)
         mock_enviar.assert_called_once()
-        self.assertIn("reuniao", mock_enviar.call_args[0][2])
+        self.assertIn("reuniao", mock_enviar.call_args[0][1])  # 06/11: nome no titulo
 
 
 class SugestaoEnergiaTestCase(_Fase5GrupoCTestCase):

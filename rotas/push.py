@@ -72,11 +72,15 @@ def push_acao():
     """Botao tocado no proprio aviso (service worker): "feito" conclui a tarefa, "adiar" empurra 1 h.
     `tag` = "<tipo>-<id da tarefa>", a mesma do envio; o aviso para de insistir. Teste (tag "teste-0")
     so guarda o que foi tocado - "toque" = tocou no aviso, nao num botao."""
+    corpo = app_modulo()._corpo_json()
+    return executar_acao(corpo.get("tag"), corpo.get("acao"))
+
+
+def executar_acao(tag, acao):
+    """Corpo do /api/push/acao, usado tambem pelo app do iPhone (/api/app/aviso/acao, 06/11)."""
     import db
 
     app = app_modulo()
-    corpo = app._corpo_json()
-    tag, acao = corpo.get("tag"), corpo.get("acao")
     if not isinstance(tag, str) or not tag.strip() or len(tag) > 120 or acao not in ("feito", "adiar", "toque"):
         return jsonify({"error": "pedido inválido"}), 400
     tag = tag.strip()
@@ -138,7 +142,11 @@ def push_aberto():
     """Toque numa notificacao (service worker): aviso importante para de insistir
     (notificacoes.INSISTENCIA). Tag = "<tipo>-<ref_id>", a mesma do envio."""
     corpo = app_modulo()._corpo_json()
-    tag = corpo.get("tag") if isinstance(corpo, dict) else None
+    return registrar_toque(corpo.get("tag") if isinstance(corpo, dict) else None)
+
+
+def registrar_toque(tag):
+    """Corpo do /api/push/aberto, usado tambem pelo app do iPhone (toque no aviso local, 06/11)."""
     if not isinstance(tag, str) or not tag.strip() or len(tag) > 120:
         return jsonify({"error": "tag inválida"}), 400
     import db

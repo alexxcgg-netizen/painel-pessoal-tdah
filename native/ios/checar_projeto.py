@@ -103,6 +103,23 @@ if not ext_id.startswith(app_id + "."):
 if not any(d.get("target") == "PainelWidgetExtension" and d.get("embed") for d in alvos["Painel"].get("dependencies", [])):
     erro("app nao embute PainelWidgetExtension")
 
+# 5b. Avisos no app (06/11): tarefa de segundo plano registrada no codigo tem que estar liberada no Info.plist
+#     (senao o BGTaskScheduler.register derruba o app no launch), e o GPS em segundo plano precisa do modo
+#     "location" (senao allowsBackgroundLocationUpdates = true derruba o app)
+plist_app = alvos["Painel"].get("info", {}).get("properties", {})
+modos = set(plist_app.get("UIBackgroundModes", []))
+permitidas = set(plist_app.get("BGTaskSchedulerPermittedIdentifiers", []))
+for f in (AQUI / "App").rglob("*.swift"):
+    txt = f.read_text(encoding="utf-8")
+    if "BGTaskScheduler.shared.register" in txt:
+        for ident in re.findall(r'static let tarefaFundo = "([^"]+)"', txt):
+            if ident not in permitidas:
+                erro(f"{f.name}: tarefa de fundo {ident!r} fora do BGTaskSchedulerPermittedIdentifiers")
+        if "fetch" not in modos:
+            erro(f"{f.name}: BGAppRefreshTask sem 'fetch' no UIBackgroundModes")
+    if "allowsBackgroundLocationUpdates = true" in txt and "location" not in modos:
+        erro(f"{f.name}: GPS em segundo plano sem 'location' no UIBackgroundModes")
+
 # 6. Workflow: sem segredo, scheme e nomes de produto certos
 wf = (RAIZ / ".github" / "workflows" / "build-ios.yml").read_text(encoding="utf-8")
 if "secrets." in wf:

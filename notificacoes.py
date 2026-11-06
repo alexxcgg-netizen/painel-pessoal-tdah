@@ -172,13 +172,61 @@ def tarefas_com_horario_chegando(
     ).fetchall()
     avisos = []
     for r in rows:
-        if r["hora"] > hora_atual:
-            avisos.append(
-                (r["id"], f"Daqui a pouco, às {r['hora']}: {r['title']}. Vai fechando o que tá fazendo.")
-            )
-        else:
-            avisos.append((r["id"], f"{r['title']} - é agora ({r['hora']}). Toca aqui pra marcar quando fizer."))
+        avisos.append((r["id"], texto_tarefa_chegando(r["hora"], antes=r["hora"] > hora_atual)))
     return avisos
+
+
+# ---- Texto dos avisos (06/11/2026, voto do Alex no artefato "Avisos do Painel": estilo C "Amigo",
+# com "tu", leve, sem cobranca, e 1 emoji por assunto no titulo). O titulo da tarefa vai no TITULO
+# da notificacao (a tela bloqueada mostra ele primeiro); o corpo nao repete o nome.
+EMOJI_DO_AVISO = {
+    "se_arrumar": "🪞", "saida_preparo": "🪞",
+    "hora_de_sair": "🚗", "saida_porta": "🚗",
+    "tarefa_horario": "⏰", "tarefa_preparo": "⏰", "tarefa_horario_passou": "⏰",
+    "tarefa_inegociavel": "🔒",
+    "compromisso_chegando": "📅",
+    "voo_sair": "✈️",
+    "agua_pausa": "💧",
+    "tarefa_parada": "🧹",
+    "rotina_manha": "☀️",
+    "fechamento_noturno": "🌙", "fechar_dia_chat": "🌙",
+}
+EMOJI_REFEICAO = "🍽️"
+TITULO_REFEICAO = "Hora de comer"
+TITULO_VOO_SAIR = "Bora pro voo"
+TITULO_MAX = 60
+
+
+def com_emoji(tipo: str, titulo: str) -> str:
+    """Titulo com o emoji do assunto na frente, so na hora de mandar (o banco guarda sem). Nunca dobra."""
+    if not titulo:
+        return titulo
+    emoji = EMOJI_REFEICAO if TITULO_REFEICAO in titulo else EMOJI_DO_AVISO.get(tipo)
+    if not emoji or titulo.startswith(emoji):
+        return titulo
+    return f"{emoji} {titulo}"
+
+
+def titulo_tarefa(titulo: str) -> str:
+    """Nome da tarefa como titulo do aviso (curto pra caber na tela bloqueada)."""
+    t = " ".join((titulo or "").split()) or "Tarefa"
+    return t if len(t) <= TITULO_MAX else t[: TITULO_MAX - 1].rstrip() + "…"
+
+
+def texto_tarefa_chegando(hora: str, antes: bool) -> str:
+    if antes:
+        return f"Daqui a pouco, às {hora}. Vai fechando o que tá fazendo, sem correr."
+    return f"Combinamos {hora}. Quando fizer, toca em Feito."
+
+
+def texto_tarefa_preparo(hora: str, falta_min: int) -> str:
+    return f"Às {hora}, faltam {falta_min} min. Dá pra fechar o que tá fazendo com calma."
+
+
+def texto_refeicao(titulo: str) -> str:
+    """"Comer: almoco - arroz, feijao" -> "Almoco - arroz, feijao" (o titulo do aviso e "Hora de comer")."""
+    corpo = re.sub(r"^\s*comer\s*:?\s*", "", titulo or "", flags=re.I) or "Bora comer."
+    return corpo[:1].upper() + corpo[1:]
 
 
 # Compromisso de SAIR (date, festa...) - o Alex leva bem mais tempo pra se arrumar pra
@@ -313,21 +361,20 @@ def avisos_se_arrumar(planos: list[dict], agora: datetime | None = None) -> list
         sai = p["saida"].strftime("%H:%M")
         if not p["ja_tem_tarefa_arrumar"] and p["comecar"] - margem <= agora < p["saida"]:
             atrasado = agora > p["comecar"] + timedelta(minutes=10)
-            corpo = (
-                f"{nome} às {hora}. "
-                + ("Já passou da hora de começar - " if atrasado else "Começa agora: ")
-                + f"{p['minutos_arrumar']} min pra ficar pronto e sair às {sai}."
-            )
-            avisos.append(("se_arrumar", p["id"], "Hora de se arrumar", corpo))
+            if atrasado:
+                corpo = f"{nome} às {hora}. Já passou um pouco da hora, mas dá: tu sai às {sai}."
+            else:
+                corpo = f"{nome} às {hora}. Começando agora, {p['minutos_arrumar']} min e tu sai às {sai} sem correr."
+            avisos.append(("se_arrumar", p["id"], "Começa a se arrumar", corpo))
         if p["saida"] - margem <= agora < p["evento"]:
             if p.get("parada"):
                 # briefing 04/11: "Hora de sair. 10 min até a casa do guri."
                 corpo = f"{p['parada']['min_ate']} min até {p['parada']['nome']}. Depois {nome} às {hora}."
             elif p["trajeto_min"] is not None:
-                corpo = f"{nome} às {hora} - {p['trajeto_min']} min até lá. Saindo agora você chega na hora."
+                corpo = f"Saindo agora tu chega certinho: {nome} às {hora}, {p['trajeto_min']} min até lá."
             else:
-                corpo = f"{nome} às {hora} - hora de ir saindo pra chegar com folga."
-            avisos.append(("hora_de_sair", p["id"], "Hora de sair", corpo))
+                corpo = f"{nome} às {hora}. Saindo agora tu chega com folga."
+            avisos.append(("hora_de_sair", p["id"], "Bora, hora de sair", corpo))
     return avisos
 
 
@@ -353,7 +400,7 @@ def tarefas_preparo(
             continue
         falta = (quando - agora).total_seconds() / 60
         if de_min <= falta < ate_min:
-            avisos.append((r["id"], f"{r['title']} às {r['hora']} - faltam {round(falta)} min. Dá tempo de fechar o que tá fazendo com calma."))
+            avisos.append((r["id"], texto_tarefa_preparo(r["hora"], round(falta))))
     return avisos
 
 
