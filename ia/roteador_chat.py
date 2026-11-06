@@ -57,7 +57,7 @@ _RE_CONSELHO_DECISAO = re.compile(
     r"|vale a pena"
     r"|me ajuda(?:r)? a decidir"
     r"|como (?:eu )?falo com"
-    r"|o que (?:voce |vc )?ach(?:a|o)\b"
+    r"|o que (?:voce |vc |tu )?ach(?:a|o)\b|\b(?:tu|voce|vc) acha\b"
     r"|o que (?:eu )?fac[oa]\b"
     r"|\bconselho\b"
     r"|\bme aconselh"
@@ -238,6 +238,9 @@ _RE_CONVERSA = re.compile(
     r"|\bsustentacao\b|\bestol\b|\bperformance\b|\bpeso e balanceamento\b|\bmotor(?:es)?\b"
     r"|\b(?:ifr|vfr|metar|taf|notam|qnh|carta|aerovia)\b"
     r"|\bmotivacao\b|\bfoco\b|\bprocrastin|\btdah\b|\brotina\b"
+    # 2026-11-05 (leitura de 30 dias): montar/rearrumar o dia ia pro modelo barato e saia raso
+    r"|\b(?:planejar|planeja|reorganizar|reorganiza|organizar|organiza|montar|monta|replanejar|replaneja)"
+    r" (?:o |meu |minha |a )?(?:dia|tarde|noite|manha|semana|agenda)\b"
 )
 _RE_OPERACAO = re.compile(
     r"^(?:gastei|paguei|comprei|recebi|anota|anote|registra|registre|lembra|lembre|marca|marque|"
@@ -257,6 +260,22 @@ def e_conversa(mensagem) -> bool:
         if _RE_CONSELHO_DECISAO.search(texto) or _RE_EMOCAO.search(texto) or _RE_CONVERSA.search(texto):
             return True
         return len(texto) > LIMITE_CONVERSA_LONGA and "?" in texto
+    except Exception:
+        return False
+
+
+LIMITE_CONTINUACAO = 140
+
+
+def e_continuacao(mensagem, anterior) -> bool:
+    """Pergunta curta logo depois de uma conversa ("e se eu sair as 19?", "chego que horas?") fica no
+    modelo de conversa: antes o chat trocava de modelo no meio do planejamento e perdia o fio
+    (leitura de 30 dias, 2026-11-05). So pergunta, so curta, nunca registro. Nunca levanta excecao."""
+    try:
+        texto = _normalizar(mensagem)
+        if not texto or "?" not in texto or len(texto) > LIMITE_CONTINUACAO or _RE_OPERACAO.search(texto):
+            return False
+        return e_conversa(anterior)
     except Exception:
         return False
 

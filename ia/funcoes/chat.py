@@ -24,7 +24,7 @@ from datetime import date, datetime, timedelta
 
 import anthropic
 
-from ia import core, legado, precos
+from ia import core, legado, precos, revisor_chat
 from ia.legado import PRICING, SONNET, _extract_json, _usage, client  # noqa: F401
 
 log = logging.getLogger(__name__)
@@ -2565,6 +2565,13 @@ MARCADOR_PRECISA_FERRAMENTA = "__PRECISA_FERRAMENTA__"
 TEXTO_SEM_RESUMO = "Resumo da conversa anterior: nenhum (valem so as mensagens abaixo)."
 PREFIXO_RESUMO = "Resumo da conversa anterior (gerado pelo painel):\n"
 PREFIXO_CONTEXTO_AGORA = "Contexto de agora (gerado pelo painel, nao foi o Alex que escreveu):\n"
+# 2026-11-05 (eval): a noite o contexto vem cheio (tarefas nao feitas, empurradas, previsao) e o modelo
+# respondia AO CONTEXTO, ignorando a mensagem ("voei 1,5h hoje de manha" virou um resumo do dia - Haiku e
+# Sonnet). A linha final separa as duas coisas: o contexto e apoio, a mensagem que vem depois e o pedido.
+SUFIXO_CONTEXTO_AGORA = (
+    "\n\n[fim do contexto] A mensagem a seguir e o que o Alex acabou de mandar: trate ELA primeiro. "
+    "O contexto acima e so apoio - nao responda a ele se a mensagem nao pediu."
+)
 
 CHAT_SIMPLES_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pessoal dele. Hoje e
 {hoje}. Ele tem TDAH - responda direto e curto, tom de colega, sem enrolacao e sem emoji em
@@ -2628,7 +2635,7 @@ def _modelo_chat(config) -> str:
     return principal["modelo"]
 
 
-def _modelo_conversa(config, mensagem) -> tuple[str, int] | None:
+def _modelo_conversa(config, mensagem, anterior=None) -> tuple[str, int] | None:
     """(modelo, max_tokens) do chat.json "conversa" quando a mensagem e conversa
     de verdade (ia.roteador_chat.e_conversa) - pergunta, explicacao, conselho,
     estudo. Registro rapido segue no modelo barato. None = sem troca."""
@@ -2638,7 +2645,7 @@ def _modelo_conversa(config, mensagem) -> tuple[str, int] | None:
     try:
         from ia import roteador_chat
 
-        if not roteador_chat.e_conversa(mensagem):
+        if not (roteador_chat.e_conversa(mensagem) or roteador_chat.e_continuacao(mensagem, anterior)):
             return None
     except Exception:  # noqa: BLE001 - na duvida, fica no modelo de sempre
         log.exception("chat: deteccao de conversa falhou")
@@ -2696,7 +2703,7 @@ def montar_mensagens_chat(historico, contexto: str, contexto_fixo: str = "", cac
             msgs.append({"role": m["role"], "content": blocos})
     ultimo_estavel = len(msgs) - 1
 
-    bloco_agora = {"type": "text", "text": PREFIXO_CONTEXTO_AGORA + (contexto or "nenhum")}
+    bloco_agora = {"type": "text", "text": PREFIXO_CONTEXTO_AGORA + (contexto or "nenhum") + SUFIXO_CONTEXTO_AGORA}
     final = [bloco_agora] + (_como_blocos(nova.get("content")) if nova else [])
     msgs.append({"role": "user", "content": final})
 
@@ -2820,7 +2827,7 @@ def _responder_simples(historico, contexto, memorias, contexto_fixo):
     mensagens = [m for m in mensagens if m["content"]]
     texto_novo = _texto_de(nova.get("content")) if nova else ""
     mensagens.append({"role": "user", "content": PREFIXO_CONTEXTO_AGORA + (contexto or "nenhum")
-                      + ("\n\n" + texto_novo if texto_novo else "")})
+                      + (SUFIXO_CONTEXTO_AGORA + "\n\n" + texto_novo if texto_novo else "")})
     if mensagens[0]["role"] != "user":
         mensagens.insert(0, {"role": "user", "content": TEXTO_SEM_RESUMO})
     sistema = CHAT_SIMPLES_PROMPT.format(
@@ -2932,13 +2939,18 @@ def chat(
     # chegar aqui e nao resolveu - entao aqui segue como "padrao".
     if rota == "luna":
         simples = _responder_simples(historico, contexto, memorias, contexto_fixo)
+        if simples is not None and any(a["codigo"] == "afirmou_sem_fazer" for a in revisor_chat.revisar(simples[0], [])):
+            # o caminho sem ferramenta disse "anotei": nao gravou nada - refaz no caminho com ferramentas
+            log.warning("revisor do chat: caminho simples disse que gravou sem ferramenta, refazendo com tools")
+            simples = None
         if simples is not None:
-            return simples
+            return simples[0] and revisor_chat.limpar_fecho(simples[0]), simples[1], simples[2]
 
     config = _config_ia(FUNCAO_CHAT)
     modelo = _modelo_chat(config)
     max_tokens = config["max_tokens_saida"] if config else MAX_TOKENS_CHAT_PADRAO
-    conversa = _modelo_conversa(config, mensagem_nova)
+    anterior = next((_texto_de(m.get("content")) for m in reversed(estaveis) if m["role"] == "user"), None)
+    conversa = _modelo_conversa(config, mensagem_nova, anterior)
     if conversa:
         modelo, max_tokens = conversa
     controle = _cache_control(config)
@@ -2956,6 +2968,8 @@ def chat(
     mensagens = montar_mensagens_chat(historico, contexto, contexto_fixo, controle)
     rolante = mensagens[-1]["content"][-1] if controle else None
     acoes: list[str] = []
+    feitas: list = []  # (ferramenta, entrada, resultado que a IA viu) - o revisor confere o texto contra isto
+    revisou = False
 
     def rodada(limite: int):
         inicio = time.monotonic()
@@ -2975,7 +2989,9 @@ def chat(
             _registrar_uso(FUNCAO_CHAT, uso["model"], uso, int((time.monotonic() - inicio) * 1000))
         return response
 
-    for _ in range(RODADAS_MAX):
+    rodadas = 0
+    while rodadas < RODADAS_MAX + (1 if revisou else 0):
+        rodadas += 1
         response = rodada(max_tokens)
         if response.stop_reason == "max_tokens" and max_tokens < MAX_TOKENS_CHAT_ESCALADO:
             # cortou no limite novo: refaz a rodada com o teto antigo (1x)
@@ -2994,7 +3010,22 @@ def chat(
             if not texto and response.stop_reason == "max_tokens":
                 # cortou sem dizer nada: melhor admitir do que um "Beleza." que finge que fez
                 texto = "Não consegui terminar de montar isso agora - manda de novo que eu refaço."
-            return texto or "Beleza.", acoes, usage_total
+            # revisor (leva "agentes", 2026-11-05): conta errada / "anotei" sem gravar -> refaz 1x
+            achados = [] if revisou else revisor_chat.revisar(texto, feitas)
+            if achados and response.stop_reason == "end_turn":
+                revisou = True
+                log.warning("revisor do chat: %s", ", ".join(a["codigo"] for a in achados))
+                _avisar("recomeca")
+                mensagens.append({"role": "assistant", "content": response.content})
+                mensagens.append({"role": "user", "content": [
+                    {"type": "text", "text": revisor_chat.nota_de_correcao(achados)}]})
+                continue
+            if revisou and texto:
+                sobra = revisor_chat.revisar(texto, feitas)
+                if sobra:
+                    log.warning("revisor do chat: continuou depois da correcao: %s",
+                                ", ".join(a["codigo"] for a in sobra))
+            return revisor_chat.limpar_fecho(texto) or "Beleza.", acoes, usage_total
 
         mensagens.append({"role": "assistant", "content": response.content})
         resultados = []
@@ -3005,6 +3036,7 @@ def chat(
             resultado = executor(bloco.input) if executor else {"erro": "ferramenta desconhecida"}
             if executor:
                 acoes.append(bloco.name)
+            feitas.append((bloco.name, bloco.input, resultado))
             resultados.append(
                 {
                     "type": "tool_result",

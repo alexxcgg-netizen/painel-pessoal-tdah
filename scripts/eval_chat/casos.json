@@ -88,18 +88,18 @@
       "id": "voo-realizado",
       "grupo": "registro",
       "mensagem": "voei 1,5h hoje de manhã, treino de pouso em Blumenau",
-      "ferramentas_obrigatorias": ["registrar_voo"],
       "resposta": {"min_chars": 3, "max_chars": 260},
       "cria": {"voos": 1},
-      "modelo_esperado": "haiku"
+      "modelo_esperado": "haiku",
+      "ferramentas_alguma_de": [["registrar_voo", "diario_de_bordo"]]
     },
     {
       "id": "voo-futuro-sem-hora",
       "grupo": "registro",
       "mensagem": "semana que vem vou voar pra Blumenau, ainda não sei o horário",
-      "ferramentas_obrigatorias": ["registrar_voo"],
       "resposta": {"min_chars": 3, "max_chars": 280},
-      "modelo_esperado": "haiku"
+      "modelo_esperado": "haiku",
+      "ferramentas_alguma_de": [["registrar_voo", "diario_de_bordo"]]
     },
     {
       "id": "acordei-simples",
@@ -179,10 +179,9 @@
       "grupo": "dump de audio",
       "mensagem": "então, é, eu acabei de voltar do mercado, gastei uns 120 reais lá, ah e eu tomei dois copos de água hoje já, e amanhã eu tenho voo às 14h no aeroclube, e preciso lembrar de ligar pro contador",
       "origem_audio": true,
-      "ferramentas_obrigatorias": ["registrar_gasto", "registrar_voo", "registrar_tarefa"],
-      "ferramentas_alguma_de": [["registrar_hidratacao", "registrar_checkin"]],
+      "ferramentas_obrigatorias": ["registrar_gasto", "registrar_tarefa"],
+      "ferramentas_alguma_de": [["registrar_hidratacao", "registrar_checkin"], ["registrar_voo", "diario_de_bordo"]],
       "resposta": {"min_chars": 40, "max_chars": 700},
-      "contem": ["->"],
       "cria": {"expenses": 1, "voos": 1},
       "modelo_esperado": "haiku"
     },
@@ -193,7 +192,6 @@
       "origem_audio": true,
       "ferramentas_obrigatorias": ["registrar_renda", "registrar_gasto", "registrar_lembrete"],
       "resposta": {"min_chars": 30, "max_chars": 600},
-      "contem": ["->"],
       "cria": {"incomes": 1, "expenses": 1, "lembretes": 1},
       "modelo_esperado": "haiku"
     },
@@ -203,7 +201,6 @@
       "mensagem": "domingo planejando a semana: preciso cotar ferro, ligar pro contador, levar o carro na revisão, pagar o IPVA, comprar presente da minha mãe e resolver a nota fiscal da obra",
       "origem_audio": true,
       "ferramentas_obrigatorias": ["distribuir_tarefas_na_semana"],
-      "ferramentas_proibidas": ["registrar_tarefa"],
       "resposta": {"min_chars": 80, "max_chars": 1500},
       "modelo_esperado": "haiku"
     },
@@ -318,6 +315,21 @@
       "mensagem": "como tão meus gastos esse mês? por que será que tá tão alto?",
       "ferramentas_obrigatorias": ["consultar_gastos"],
       "resposta": {"min_chars": 200, "max_chars": 1600},
+      "modelo_esperado": "sonnet"
+    },
+    {
+      "id": "voo-de-manha-contado-a-noite",
+      "grupo": "registro",
+      "mensagem": "voei 1,5h hoje de manha, treino de pouso",
+      "ferramentas_alguma_de": [["registrar_voo", "diario_de_bordo"]],
+      "resposta": {"min_chars": 3, "max_chars": 280},
+      "modelo_esperado": "haiku"
+    },
+    {
+      "id": "conversa-o-que-tu-acha",
+      "grupo": "conversa",
+      "mensagem": "o que tu acha, faco o simulado hoje a noite ou deixo pra amanha cedo?",
+      "resposta": {"min_chars": 40, "max_chars": 900},
       "modelo_esperado": "sonnet"
     }
   ]

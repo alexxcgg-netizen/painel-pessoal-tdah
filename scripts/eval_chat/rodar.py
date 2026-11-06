@@ -444,19 +444,24 @@ def julgar(client, mensagem: str, resposta: str, acoes: list[str]) -> dict | Non
     try:
         r = client.messages.create(
             model=JUIZ_MODELO,
-            max_tokens=200,
+            max_tokens=1024,  # 200 cortava: o modelo gastava antes de escrever o JSON
             system=_PROMPT_JUIZ,
             messages=[{"role": "user", "content": (
                 f"Mensagem do Alex: {mensagem}\n\nFerramentas que o assistente usou: {', '.join(acoes) or 'nenhuma'}\n\n"
                 f"Resposta do assistente: {resposta}")}],
         )
         texto = "".join(b.text for b in r.content if getattr(b, "type", "") == "text")
-        achado = re.search(r"\{.*\}", texto, re.S)
-        nota = json.loads(achado.group(0)) if achado else {}
         custo = precos_mod.custo_usd(JUIZ_MODELO, tokens_in=r.usage.input_tokens, tokens_out=r.usage.output_tokens)
+        # 2026-11-05: dentro da rodada o JSON as vezes vinha embrulhado/com chave a mais e dava KeyError
+        # 'humano' - le cada campo pelo nome, onde estiver no texto
+        notas = {k: re.search(rf'"{k}"\s*:\s*"?([1-5])', texto) for k in ("humano", "resolveu")}
+        if not all(notas.values()):
+            print(f"  (juiz sem nota legivel: {texto[:160]!r})", file=sys.stderr)
+            return None
+        motivo = re.search(r'"motivo"\s*:\s*"([^"]*)"', texto)
         return {
-            "humano": int(nota["humano"]), "resolveu": int(nota["resolveu"]),
-            "motivo": str(nota.get("motivo", ""))[:200], "custo_usd": custo,
+            "humano": int(notas["humano"].group(1)), "resolveu": int(notas["resolveu"].group(1)),
+            "motivo": (motivo.group(1) if motivo else "")[:200], "custo_usd": custo,
         }
     except Exception as exc:  # noqa: BLE001 - o juiz e opcional, nunca derruba a rodada
         print(f"  (juiz falhou: {type(exc).__name__}: {exc})", file=sys.stderr)
@@ -476,7 +481,8 @@ def _contar(conn, tabelas) -> dict[str, int]:
     return saida
 
 
-def _rodar_um_caso(app, db, caso: dict, glob: dict, trabalho: Path, pristino: Path, juiz_client, bloqueios: list[dict]) -> dict:
+def _rodar_um_caso(app, db, caso: dict, glob: dict, trabalho: Path, pristino: Path, juiz_client, bloqueios: list[dict],
+                   checar_modelo: bool = True) -> dict:
     restaurar_copia(pristino, trabalho)
     conn = db.get_db()
     inicio_bloqueios = len(bloqueios)
@@ -506,7 +512,8 @@ def _rodar_um_caso(app, db, caso: dict, glob: dict, trabalho: Path, pristino: Pa
 
     modelos = [u["model"] for u in usos]
     custo = sum(u["cost_usd"] or 0.0 for u in usos)
-    falhas = avaliar_resposta(caso, glob, resposta, acoes, erro, deltas, modelos)
+    # com modelo trocado (A/B) o "modelo esperado" do caso nao vale: confere so o resto
+    falhas = avaliar_resposta(caso, glob, resposta, acoes, erro, deltas, modelos if checar_modelo else None)
     nota = julgar(juiz_client, caso["mensagem"], resposta, acoes) if (juiz_client and resposta and not erro) else None
     via = "local" if not modelos else ("sonnet" if any("sonnet" in m for m in modelos) else "haiku" if any("haiku" in m for m in modelos) else modelos[0])
     return {
@@ -519,9 +526,49 @@ def _rodar_um_caso(app, db, caso: dict, glob: dict, trabalho: Path, pristino: Pa
     }
 
 
+def _ler_troca(texto: str | None) -> dict | None:
+    """'claude-sonnet-5:baixo' -> {"provedor": "anthropic", "modelo": ..., "esforco": "baixo"}."""
+    if not texto:
+        return None
+    modelo, _, esforco = texto.partition(":")
+    if not modelo.strip():
+        raise ValueError(f"modelo vazio em {texto!r}")
+    return {"provedor": "anthropic", "modelo": modelo.strip(), "esforco": esforco.strip()}
+
+
+@contextlib.contextmanager
+def modelos_trocados(registro: dict | None, conversa: dict | None):
+    """Comparacao A/B (2026-11-05): troca so na memoria o modelo do chat (registro = modelo_atual,
+    conversa = bloco "conversa"). O ia/config.d/chat.json do disco nao e tocado."""
+    if not registro and not conversa:
+        yield
+        return
+    from ia import core
+
+    original = core._carregar_config
+
+    def trocado(funcao):
+        cfg = original(funcao)
+        if funcao != "chat":
+            return cfg
+        cfg = dict(cfg)
+        if registro:
+            cfg["modelo_atual"] = dict(registro)
+            cfg["fallback"] = []
+        if conversa:
+            cfg["conversa"] = {**(cfg.get("conversa") or {}), **conversa}
+        return cfg
+
+    core._carregar_config = trocado
+    try:
+        yield
+    finally:
+        core._carregar_config = original
+
+
 def executar(dados: dict, banco_origem: Path | str, *, juiz: bool = False, ids: list[str] | None = None,
              teto_usd: float = TETO_PADRAO_USD, pasta_resultados: Path | None = PASTA_RESULTADOS,
-             imprimir=print) -> dict:
+             imprimir=print, troca_registro: dict | None = None, troca_conversa: dict | None = None) -> dict:
     """Roda os casos pelo pipeline real contra uma copia temporaria de `banco_origem`.
     Devolve o dicionario de resultados (e grava o JSON em `pasta_resultados`, se dada)."""
     import db
@@ -535,7 +582,9 @@ def executar(dados: dict, banco_origem: Path | str, *, juiz: bool = False, ids: 
     resultados: list[dict] = []
     db_path_antes = db.DB_PATH
     inicio = time.monotonic()
-    with tempfile.TemporaryDirectory(prefix="eval_chat_") as tmp:
+    # ignore_cleanup_errors: no Windows o log do servidor fica preso ate o processo sair e a limpeza
+    # derrubava a rodada DEPOIS de gastar a API, sem gravar o resultado (2026-11-05)
+    with tempfile.TemporaryDirectory(prefix="eval_chat_", ignore_cleanup_errors=True) as tmp:
         pristino, trabalho = Path(tmp) / "pristino.db", Path(tmp) / "painel.db"
         preparar_copia(Path(banco_origem), pristino)
         try:
@@ -554,13 +603,14 @@ def executar(dados: dict, banco_origem: Path | str, *, juiz: bool = False, ids: 
 
                 juiz_client = chat_mod.client
             gasto = 0.0
-            with efeitos_externos_desligados(bloqueios):
+            trocou = bool(troca_registro or troca_conversa)
+            with efeitos_externos_desligados(bloqueios), modelos_trocados(troca_registro, troca_conversa):
                 for i, caso in enumerate(casos, 1):
                     if gasto >= teto_usd:
                         resultados.append({"id": caso["id"], "ok": False, "falhas": [f"nao rodou: teto da rodada (US$ {teto_usd:.2f}) atingido"],
                                            "via": "-", "acoes": [], "custo_usd": 0.0, "resposta": None, "juiz": None, "bloqueios": []})
                         continue
-                    r = _rodar_um_caso(app, db, caso, glob, trabalho, pristino, juiz_client, bloqueios)
+                    r = _rodar_um_caso(app, db, caso, glob, trabalho, pristino, juiz_client, bloqueios, checar_modelo=not trocou)
                     gasto += r["custo_usd"] + ((r["juiz"] or {}).get("custo_usd", 0.0))
                     resultados.append(r)
                     imprimir(f"[{i}/{len(casos)}] {'OK  ' if r['ok'] else 'FALHA'} {r['id']} ({r['via']}, US$ {r['custo_usd']:.4f})")
@@ -636,7 +686,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--banco", default=None, help="banco de origem do snapshot (padrao: o banco do painel)")
     ap.add_argument("--ids", default=None, help="ids separados por virgula (so esses casos)")
     ap.add_argument("--teto-usd", type=float, default=TETO_PADRAO_USD, help="para a rodada se o gasto passar disso")
+    ap.add_argument("--modelo-registro", default=None,
+                    help="A/B: troca so nesta rodada o modelo de registro, ex. claude-sonnet-5:baixo (o chat.json nao muda)")
+    ap.add_argument("--modelo-conversa", default=None,
+                    help="A/B: troca so nesta rodada o modelo de conversa, ex. claude-sonnet-5:alto")
     args = ap.parse_args(argv)
+    try:
+        troca_registro, troca_conversa = _ler_troca(args.modelo_registro), _ler_troca(args.modelo_conversa)
+    except ValueError as exc:
+        print(f"ERRO  {exc}")
+        return 1
 
     if args.rodar:
         # ANTES de qualquer import do chat (ia.legado cria o cliente da Anthropic na importacao):
@@ -679,7 +738,8 @@ def main(argv: list[str] | None = None) -> int:
     origem = Path(args.banco) if args.banco else db.DB_PATH
     print(f"\nSnapshot de {origem} -> copia temporaria (o banco real nao e escrito).")
     try:
-        relatorio = executar(dados, origem, juiz=args.juiz, ids=ids, teto_usd=args.teto_usd)
+        relatorio = executar(dados, origem, juiz=args.juiz, ids=ids, teto_usd=args.teto_usd,
+                             troca_registro=troca_registro, troca_conversa=troca_conversa)
     except FileNotFoundError as exc:
         print(f"ERRO  {exc}")
         return 1

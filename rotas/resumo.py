@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, request
 from rotas._base import app_modulo
 from db import get_db, list_memorias, obter_resumo_dia_cache, salvar_resumo_dia_cache
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 bp = Blueprint("resumo", __name__)
 
@@ -22,6 +23,18 @@ def resumo_manha_rota():
 @bp.route("/api/summary/today", methods=["GET"])
 def summary_today():
     app = app_modulo()
+    conn = get_db()
+    try:
+        corpo, erro = resumo_do_dia(app, conn, forcar=request.args.get("forcar") == "1")
+    finally:
+        conn.close()
+    return erro if erro is not None else jsonify(corpo)
+
+
+def resumo_do_dia(app, conn, *, forcar: bool = False):
+    """Monta o resumo de hoje: (corpo, None) ou (None, resposta de erro do _call_claude).
+    Usado pela rota e pelo preparo da madrugada (app.preparar_dia), que deixa o texto no cache
+    antes de ele abrir o app - na primeira abertura do dia o resumo ja sai do cache."""
     _call_claude = app._call_claude
     _clima_contexto_resumo = app._clima_contexto_resumo
     _construtora_contexto_resumo = app._construtora_contexto_resumo
@@ -31,11 +44,8 @@ def summary_today():
     _modo_visitante_ativo = app._modo_visitante_ativo
     _saude_contexto_resumo = app._saude_contexto_resumo
     claude_client = app.claude_client
-    date = app.date
-    materializar_tarefas_recorrentes = app.materializar_tarefas_recorrentes
-    today = date.today().isoformat()
-    conn = get_db()
-    materializar_tarefas_recorrentes(conn)
+    today = app.date.today().isoformat()
+    app.materializar_tarefas_recorrentes(conn)
     done = conn.execute("SELECT title FROM tasks WHERE date(completed_at) = ?", (today,)).fetchall()
     pending = conn.execute(
         "SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
@@ -46,16 +56,13 @@ def summary_today():
         # "sem esses dados" nunca vaze nada por inferencia. Mais seguro nao
         # gerar o texto nenhum enquanto o modo visitante estiver ativo.
         eventos = _eventos_de_hoje_com_seguranca(conn)
-        conn.close()
-        return jsonify(
-            {
-                "summary": "Resumo oculto no modo visitante.",
-                "gasto_hoje": None,
-                "gasto_planejado": None,
-                "tarefas_concluidas": len(done),
-                "eventos_hoje": len(eventos),
-            }
-        )
+        return {
+            "summary": "Resumo oculto no modo visitante.",
+            "gasto_hoje": None,
+            "gasto_planejado": None,
+            "tarefas_concluidas": len(done),
+            "eventos_hoje": len(eventos),
+        }, None
     expenses = conn.execute(
         "SELECT amount, category FROM expenses WHERE date(created_at) = ? AND tipo = 'real'", (today,)
     ).fetchall()
@@ -65,28 +72,31 @@ def summary_today():
         (today,),
     ).fetchone()["total"]
     eventos = _eventos_de_hoje_com_seguranca(conn)
+    numeros = {
+        "gasto_hoje": gasto_hoje,
+        "gasto_planejado": gasto_planejado,
+        "tarefas_concluidas": len(done),
+        "eventos_hoje": len(eventos),
+    }
 
     # Faixa M4: so o texto (summary) vem do cache - gasto_hoje/gasto_planejado/
     # tarefas_concluidas/eventos_hoje acima sao recalculados sempre, frescos.
-    forcar = request.args.get("forcar") == "1"
     impressao = _impressao_resumo_dia(conn, today, len(eventos))
     cache = None if forcar else obter_resumo_dia_cache(conn, today)
     if cache and cache["impressao"] == impressao:
-        conn.close()
-        return jsonify(
-            {
-                "summary": json.loads(cache["resposta_json"])["summary"],
-                "gasto_hoje": gasto_hoje,
-                "gasto_planejado": gasto_planejado,
-                "tarefas_concluidas": len(done),
-                "eventos_hoje": len(eventos),
-            }
-        )
+        return {"summary": json.loads(cache["resposta_json"])["summary"], **numeros}, None
 
-    memorias = list_memorias(conn)
-    saude = _saude_contexto_resumo(conn)
-    construtora = _construtora_contexto_resumo()
-    clima_hoje = _clima_contexto_resumo()
+    # construtora e tempo saem juntos (2026-11-05): antes iam em fila, um esperando o outro
+    fora = ThreadPoolExecutor(max_workers=2, thread_name_prefix="resumo-dia")
+    try:
+        f_construtora = fora.submit(_construtora_contexto_resumo)
+        f_clima = fora.submit(_clima_contexto_resumo)
+        memorias = list_memorias(conn)
+        saude = _saude_contexto_resumo(conn)
+        construtora = f_construtora.result()
+        clima_hoje = f_clima.result()
+    finally:
+        fora.shutdown(wait=False)
 
     result, error = _call_claude(
         claude_client.summarize_day,
@@ -100,19 +110,9 @@ def summary_today():
         clima_hoje,
     )
     if error:
-        conn.close()
-        return error
+        return None, error
     text, usage = result
 
     _log_usage(conn, usage, "resumo_dia")
     salvar_resumo_dia_cache(conn, today, impressao, json.dumps({"summary": text}))
-    conn.close()
-    return jsonify(
-        {
-            "summary": text,
-            "gasto_hoje": gasto_hoje,
-            "gasto_planejado": gasto_planejado,
-            "tarefas_concluidas": len(done),
-            "eventos_hoje": len(eventos),
-        }
-    )
+    return {"summary": text, **numeros}, None

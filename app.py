@@ -7494,6 +7494,37 @@ def rodar_sincronizacao_nubank_automatica():
         app.logger.error("sincronizacao automatica do Nubank falhou: %s", resultado.get("error"))
 
 
+def preparar_dia():
+    """Preparo do dia (2026-11-05, leva "agentes"): de madrugada o painel faz sozinho o que hoje
+    so acontecia no primeiro toque do dia - as 3 tarefas essenciais (IA escolhe) e o resumo do
+    dia (agenda + tempo + construtora + IA). Quando ele abre o app, os dois ja saem prontos do
+    cache. Usa as MESMAS funcoes das rotas (`_gerar_essencial` e `rotas.resumo.resumo_do_dia`),
+    entao o resultado e identico ao do toque; se algo mudar depois (tarefa nova, gasto grande),
+    a impressao do resumo muda e ele e refeito na abertura, como sempre.
+
+    Nunca deixa excecao subir (derrubaria o scheduler); erro fica so no log."""
+    import rotas.resumo
+
+    # pedido vazio = sessao vazia = sem modo visitante (ele vive so na sessao do navegador; a rota
+    # confere o visitante ANTES de olhar o cache, entao o texto preparado aqui nunca vaza pra visitante)
+    with app.test_request_context("/"):
+        conn = get_db()
+        try:
+            hoje = date.today()
+            if obter_configuracao(conn, "essencial_gerado_em") != hoje.isoformat():
+                _gerar_essencial(conn, hoje)
+                definir_configuracao(conn, "essencial_gerado_em", hoje.isoformat())
+            _corpo, erro = rotas.resumo.resumo_do_dia(sys.modules[__name__], conn)
+            if erro is not None:
+                app.logger.warning("preparo do dia: o resumo nao saiu (fica pro primeiro toque)")
+            else:
+                app.logger.info("preparo do dia: essenciais e resumo prontos")
+        except Exception as e:
+            app.logger.error("preparo do dia: excecao inesperada: %s", e)
+        finally:
+            conn.close()
+
+
 def iniciar_scheduler():
     """So roda quando o app sobe de verdade (nao na chamada de recarga do
     Flask em modo debug, que sobe o processo duas vezes)."""
@@ -7526,6 +7557,10 @@ def iniciar_scheduler():
         # Sao_Paulo, fixo em UTC-3 desde que o Brasil aboliu o horario de
         # verao em 2019, sem trocas de horario pra acompanhar) = 7h UTC.
         scheduler.add_job(rodar_sincronizacao_nubank_automatica, "cron", hour=7, minute=0)
+        # preparo do dia: resumo e essenciais prontos antes da primeira abertura (normalmente ~7h).
+        # 7h05 de novo: o sync das 7h pode trazer gasto grande (muda o resumo); se nada mudou, sai do cache
+        scheduler.add_job(preparar_dia, "cron", hour=5, minute=30)
+        scheduler.add_job(preparar_dia, "cron", hour=7, minute=5)
         scheduler.start()
         _AGENDADOR["iniciado"] = True
 

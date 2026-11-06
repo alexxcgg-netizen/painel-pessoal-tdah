@@ -11,6 +11,8 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-06 - App do iPhone mostra qual versão está instalada
+- 2026-11-05 - Leva "agentes": revisor das respostas, preparo do dia de madrugada, contexto que não engole a me…
 - 2026-11-05 - Resposta do chat não some mais quando sai do app (SW v103)
 - 2026-11-05 - Leva "perfeição": app abre do cache, chat começa antes, verificador mais leve (SW v102)
 - 2026-11-05 - Widgets nativos do iPhone, pareamento por código e ícone mostrador (SW v101)
@@ -175,6 +177,32 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-06 - App do iPhone mostra qual versão está instalada
+O Alex instalou o `.ipa` de 05/11 e a galeria seguiu mostrando o widget de 04/11; não dava pra saber daqui qual versão
+estava no iPhone (o relatório saía igual nas duas).
+- `build-ios.yml`: cada build sai com número novo (`CURRENT_PROJECT_VERSION` = número da rodada) e com
+  `PAINEL_BUILD` = "dd/mm hh:mm · commit". Com tudo "1", instalar por cima deixava a galeria de widgets velha.
+- App: "Versão: …" no rodapé de Configurar (`PainelApp.swift`) e `app_build` no "Gerar relatório" (`Relatorio.swift`).
+- `project.yml`: `PainelBuild` no Info.plist do app e do widget (build local mostra "local").
+
+## 2026-11-05 - Leva "agentes": revisor das respostas, preparo do dia de madrugada, contexto que não engole a mensagem
+Pedido do Alex depois da pesquisa sobre agentes ("pode seguir com tudo"). Briefing com a pesquisa, as medições e as
+decisões: `docs/briefings/2026-11-05-agentes.md`. Sem JS/CSS: sem bump do SW.
+- **Contexto que engolia a mensagem** (`ia/funcoes/chat.py`, `SUFIXO_CONTEXTO_AGORA`): à noite o bloco "Contexto de
+  agora" vem cheio e o modelo respondia a ele, ignorando o pedido (um voo contado à noite não era gravado). O bloco
+  agora fecha dizendo que a mensagem seguinte é a que vale. 4 de 4 variantes da frase passaram a gravar (antes 2).
+- **Revisor** (`ia/revisor_chat.py`, só código): confere hora de sair/de se arrumar contra o cálculo da ferramenta,
+  saída que já passou, conta de intervalo, tempo de trajeto contra a rota e "anotei" sem ferramenta que grava. Achou:
+  o modelo refaz a resposta 1 vez com o certo (nas contas, sem chamar ferramenta de novo). Fecho de robô no fim
+  ("Se quiser, ...") sai no código. Log `revisor do chat: ...` no servidor. `tests/test_revisor_chat.py` (29).
+- **Preparo do dia** (`app.preparar_dia`, 5h30 e 7h05): essenciais e resumo do dia prontos antes de acordar; resumo
+  busca construtora e tempo em paralelo (`rotas/resumo.py`, `resumo_do_dia`). `tests/test_preparar_dia.py` (6).
+- **Roteador** (`ia/roteador_chat.py`): "o que tu acha", planejar/reorganizar o dia vão pro modelo de conversa;
+  `e_continuacao` mantém o modelo numa pergunta curta logo depois de uma conversa.
+- **Eval** (`scripts/eval_chat/`): troca de modelo por rodada (`--modelo-registro`/`--modelo-conversa`), expectativas
+  velhas corrigidas, 2 casos novos, juiz lê a nota pelo nome do campo, pasta temporária não derruba mais a rodada.
+- Teste ajustado: `test_fase7_a6_chat` usava "Registrei tudo." sem ferramenta, que o revisor agora (com razão) refaz.
 
 ## 2026-11-05 - Resposta do chat não some mais quando sai do app (SW v103)
 Relato do Alex (print): mandou uma mensagem longa (voz) e saiu do app; ao voltar não havia resposta, nem

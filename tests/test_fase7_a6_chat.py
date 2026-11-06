@@ -210,12 +210,12 @@ class LimitesSaidaTestCase(unittest.TestCase):
     def test_corte_no_limite_padrao_refaz_a_rodada_com_teto_antigo(self):
         respostas = [
             _resp([_tool("registrar_tarefa", {"titulo": "cort"}, "x")], stop_reason="max_tokens", out_tok=500),
-            _resp([_texto("Registrei tudo.")], out_tok=900),
+            _resp([_texto("Tudo certo.")], out_tok=900),
         ]
         with patch.object(core, "_carregar_config", side_effect=core.ConfigIAErro("quebrou")):
             (texto, acoes, uso), g = _chat(H1, respostas=respostas)
         self.assertEqual([c["max_tokens"] for c in g.chamadas], [500, chat_mod.MAX_TOKENS_CHAT_ESCALADO])
-        self.assertEqual(texto, "Registrei tudo.")
+        self.assertEqual(texto, "Tudo certo.")
         self.assertEqual(acoes, [])
         self.assertEqual(uso["output_tokens"], 1400)
         self.assertEqual(uso["input_tokens"], 200)
