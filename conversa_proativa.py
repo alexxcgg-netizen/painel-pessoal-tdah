@@ -831,11 +831,13 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
     import retrospectiva
     import se_entao
     import tempo  # Grupo B (Tempo): espera, "eu te chamo", calibrador, disjuntor, porta
+    import rotinas_esperto  # painel esperto, frente 7 (06/11): descobre rotinas / adiada 3x
+    import voo_vespera  # painel esperto, frente 7 (06/11): voo decidido na vespera
 
     # Laboratorio v4 (30/10): cada grupo acrescenta os seus passos numa linha propria
-    for passo in (vespera_do_voo, manha_do_voo, documentos_vencendo, avisar_compras, assinaturas_que_subiram, contas_do_email,
+    for passo in (vespera_do_voo, voo_vespera.verificar, manha_do_voo, documentos_vencendo, avisar_compras, assinaturas_que_subiram, contas_do_email,
                   perguntar_como_esta, alerta_do_dia, foco.aviso_do_meio,
-                  perguntar_por_que_travou, recomeco_do_dia,
+                  rotinas_esperto.verificar, perguntar_por_que_travou, recomeco_do_dia,
                   manha.verificar, se_entao.verificar,
                   neste_dia.na_manha, coincidencias.na_semana,
                   aviacao_lab.chair_da_vespera, aviacao_lab.avisos_prazos,

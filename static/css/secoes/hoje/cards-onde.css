@@ -1,0 +1,114 @@
+/* static/css/secoes/hoje/cards-onde.css - painel mais esperto (06/11/2026), static/js/cards-onde.js:
+   "Indo pro date?" (linha do trajeto), "Teu dia, por onde passou" (barra + lista), "Sai às 19:05" (barrinhas
+   + segmentado) e o recado de atraso (chips, balão, WhatsApp). Tudo dentro da pílula D (cards-d.css):
+   neutros do app, uma cor por assunto em --cc, sem brilho/neon/eyebrow. Entrada só em .card-novo. */
+
+/* ------------------------------------------------------------- linha do trajeto (indo_pra) */
+.vivo-d .on-linha { list-style: none; margin: 0; padding: 0; position: relative; }
+.vivo-d .on-linha::before { content: ""; position: absolute; left: 55px; top: 12px; bottom: 12px; width: 2px; border-radius: 1px; background: var(--d-trilho); }
+.vivo-d .on-ev { display: grid; grid-template-columns: 42px 14px minmax(0, 1fr); gap: 10px; align-items: start; padding: 6px 0; position: relative; }
+.vivo-d .on-ev .h { text-align: right; padding-top: 1px; font: 500 12.5px var(--d-fonte); font-variant-numeric: tabular-nums; color: var(--d-cinza); }
+.vivo-d .on-ev .p { width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: var(--d-fundo); border: 2px solid #636366; position: relative; z-index: 1; }
+.vivo-d .on-ev .c { min-width: 0; }
+.vivo-d .on-ev .c b { display: block; font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
+.vivo-d .on-ev .c span { display: block; font-size: 13px; line-height: 1.35; color: var(--d-cinza); overflow-wrap: anywhere; }
+.vivo-d .on-ev.lento .p { border-color: #fac02e; }
+.vivo-d .on-ev.lento b { color: #fac02e; }
+.vivo-d .on-ev.chuva .p { border-color: #64d2ff; }
+.vivo-d .on-ev.chuva b { color: #64d2ff; }
+.vivo-d .on-ev.fim .p { border-color: var(--cc); background: var(--cc); }
+.vivo-d .on-ev.alerta .p { border-color: #f47671; background: #f47671; }
+.vivo-d .on-ev.alerta b { color: #ff9f8f; }
+.vivo-d[data-atrasa] .v-dir b { color: #ff9f8f; }
+
+/* resposta dele ("É isso" / "Vou pra outro lugar" / "sem recado") */
+.vivo-d .on-resp { animation: onAssenta 0.45s var(--d-mola) both; }
+@keyframes onAssenta { from { opacity: 0; transform: translateY(4px); } }
+
+/* ------------------------------------------------------------- diário do dia */
+.vivo-d .on-barra { display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: hidden; }
+.vivo-d .on-barra i { display: block; min-width: 3px; height: 100%; background: var(--lc, var(--cc)); transform-origin: left center; }
+.vivo-d .on-barra i.casa { background: #3a3a42; }
+.vivo-d .on-barra i.vazio { background: #1f1f22; }
+.vivo-d .on-diario { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.vivo-d .on-lugar { display: grid; grid-template-columns: 44px 12px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 5px 0; }
+.vivo-d .on-lugar .h, .vivo-d .on-lugar .dur { padding-top: 2px; font: 500 12.5px var(--d-fonte); font-variant-numeric: tabular-nums; color: var(--d-cinza); white-space: nowrap; }
+.vivo-d .on-lugar .h { text-align: right; }
+.vivo-d .on-lugar .p { width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; background: var(--lc, var(--cc)); position: relative; }
+.vivo-d .on-lugar:not(:last-child) .p::after { content: ""; position: absolute; left: 5px; top: 15px; width: 2px; height: 30px; background: repeating-linear-gradient(var(--d-trilho) 0 3px, transparent 3px 6px); }
+.vivo-d .on-lugar .c { min-width: 0; }
+.vivo-d .on-lugar .c b { display: block; font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vivo-d .on-lugar .c span { display: block; font-size: 13px; color: var(--d-cinza); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vivo-d .on-nota { margin: 0; font-size: 12.5px; line-height: 1.45; color: #6e6e73; }
+
+/* ------------------------------------------------------------- meu tempo */
+.vivo-d .v-t.on-troca { animation: onTroca 0.5s var(--d-mola) both; }
+@keyframes onTroca { from { opacity: 0; transform: translateY(-40%); filter: blur(2px); } }
+.vivo-d .on-atrasos { display: flex; align-items: flex-end; gap: 6px; height: 64px; padding: 0 2px; }
+.vivo-d .on-atrasos > div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+.vivo-d .on-atrasos i { display: block; width: 100%; max-width: 26px; border-radius: 5px 5px 2px 2px; background: color-mix(in srgb, var(--cc) 55%, transparent); transform-origin: bottom; }
+.vivo-d .on-atrasos i.antes { background: #3a3a3e; }
+.vivo-d .on-atrasos small { font: 500 11px var(--d-fonte); font-variant-numeric: tabular-nums; color: #6e6e73; }
+.vivo-d .on-seg { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 12px; background: #232326; }
+.vivo-d .on-seg .pil { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 2); border-radius: 9px; background: #3a3a3e; transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 0.5s var(--d-mola); }
+.vivo-d .on-seg button { position: relative; z-index: 1; appearance: none; border: 0; background: none; min-height: 44px; padding: 0 6px; font: 600 14px var(--d-fonte); color: var(--d-cinza); cursor: pointer; transition: color 0.3s var(--ease-suave); }
+.vivo-d .on-seg button[aria-pressed="true"] { color: #fff; }
+.vivo-d .on-seg button:focus-visible { outline: 2px solid var(--cc); border-radius: 9px; }
+
+/* ------------------------------------------------------------- recado de atraso */
+.vivo-d .on-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.vivo-d .on-chip {
+  appearance: none;
+  flex: 1 1 0;
+  min-width: max-content;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 22px;
+  border: 1px solid #3a3a3c;
+  background: #1f1f22;
+  color: var(--text);
+  font: 600 14.5px var(--d-fonte);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.25s var(--ease-suave), border-color 0.25s var(--ease-suave), transform 0.2s var(--ease-suave);
+}
+.vivo-d .on-chip:active { transform: scale(0.96); }
+.vivo-d .on-chip[aria-pressed="true"] { border-color: var(--cc); background: color-mix(in srgb, var(--cc) 20%, #1f1f22); }
+.vivo-d .on-chip:focus-visible { outline: 2px solid var(--cc); outline-offset: 2px; }
+.vivo-d .on-balao {
+  justify-self: end;
+  max-width: 88%;
+  padding: 9px 12px;
+  border-radius: 16px 16px 4px 16px;
+  background: #1f6f4a;
+  color: #fff;
+  font-size: 14.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.vivo-d .on-balao.on-troca { animation: onBalao 0.4s var(--d-mola) both; }
+@keyframes onBalao { from { opacity: 0.35; transform: scale(0.97); } }
+.vivo-d .v-bts > .on-zap { background: #25d366; color: #06210f; }
+
+/* ------------------------------------------------------------- entrada (só resposta nova) */
+.card-novo .vivo-d .on-ev,
+.card-novo .vivo-d .on-lugar { animation: onCai 0.5s var(--ease-suave) calc(var(--chegada, 0ms) + 0.18s + var(--k, 0) * 80ms) both; }
+.card-novo .vivo-d .on-barra i { animation: onEstica 0.6s var(--d-mola) calc(var(--chegada, 0ms) + 0.12s + var(--k, 0) * 50ms) both; }
+.card-novo .vivo-d .on-atrasos > div i { animation: onSobe 0.6s var(--d-mola) calc(var(--chegada, 0ms) + 0.2s + var(--k, 0) * 60ms) both; }
+@keyframes onCai { from { opacity: 0; transform: translateY(6px); } }
+@keyframes onEstica { from { transform: scaleX(0); } }
+@keyframes onSobe { from { transform: scaleY(0); } }
+
+/* ------------------------------------------------------------- nada se mexe */
+@media (prefers-reduced-motion: reduce) {
+  .vivo-d .on-seg .pil,
+  .vivo-d .on-chip,
+  .vivo-d .on-seg button { transition: none !important; }
+  .card-novo .vivo-d .on-ev,
+  .card-novo .vivo-d .on-lugar,
+  .card-novo .vivo-d .on-barra i,
+  .card-novo .vivo-d .on-atrasos > div i,
+  .vivo-d .on-resp,
+  .vivo-d .v-t.on-troca,
+  .vivo-d .on-balao.on-troca { animation: none !important; }
+}

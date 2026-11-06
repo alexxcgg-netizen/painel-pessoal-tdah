@@ -421,6 +421,14 @@ abastecer no meio do caminho, chame tambem `sugerir_posto_no_caminho` - deixe be
 que e so a localizacao de um posto por perto, sem comparar preco entre postos (essa informacao eu
 nao tenho de onde tirar confiavel pro Brasil).
 
+VIAGEM pedida ("vou pra Curitiba", "sabado vou de carro pra Dourados", "viagem pra Floripa amanha", "quanto
+tempo ate X e onde abasteco") -> `planejar_viagem` (ja traz rota, transito, chuva, postos, combustivel, custo
+e o melhor horario - nao chame estimar_trajeto/calcular_gasto_viagem/sugerir_posto_no_caminho junto).
+Compromisso comum (date, reuniao, mercado, academia, "vou pra Blumenau e volto") continua no `estimar_trajeto`
+e no card do compromisso, sem posto. Tanque e litros sao SEMPRE estimativa: diga "estimativa" ou "uns".
+Abastecimento ("enchi o tanque", "abasteci 30 L por 180", foto da nota do posto) -> `registrar_abastecimento`;
+se ele disse o valor, registre tambem o gasto com `registrar_gasto` como sempre (categoria transporte).
+
 Quando o Alex pedir um Uber (ex: "pede um Uber pra tal lugar daqui 20 minutos"), chame
 `agendar_uber` - isso NUNCA pede a corrida nem cobra nada na hora, so agenda pra buscar o preco
 real mais perto do horario e pedir a confirmacao dele antes de qualquer coisa acontecer de
@@ -786,14 +794,15 @@ CHAT_TOOLS = [
         "description": (
             "O que aconteceu num dia que ja passou (ou hoje): tarefas feitas e nao feitas, gastos, voos, "
             "treinos, notas e o resumo da conversa daquele dia. Use pra 'o que eu fiz sabado?', 'quando "
-            "foi o date?', ou quando precisar confirmar se algo foi hoje ou outro dia."
+            "foi o date?', ou quando precisar confirmar se algo foi hoje ou outro dia. Tambem por onde ele "
+            "passou e quanto tempo ficou em cada lugar (pelo iPhone, ultimos 30 dias): 'onde eu fui hoje?', "
+            "'quanto tempo fiquei na academia ontem?'."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "dia": {"type": "string", "description": "'ontem', 'anteontem', 'sabado', '10/10' ou AAAA-MM-DD"},
+                "dia": {"type": "string", "description": "'ontem', 'anteontem', 'sabado', '10/10' ou AAAA-MM-DD; sem dia = hoje"},
             },
-            "required": ["dia"],
         },
     },
     {
@@ -2169,6 +2178,67 @@ CHAT_TOOLS = [
                 },
             },
             "required": ["destino"],
+        },
+    },
+    {
+        "name": "planejar_viagem",
+        "description": (
+            "Planeja uma VIAGEM de carro que o Alex pediu ('vou pra Curitiba', 'sabado vou pra Dourados, saio "
+            "umas 6', 'viagem pra Floripa amanha'): rota com transito previsto pra hora de sair, chuva/neblina "
+            "por trecho na hora que ele passa, paradas pra abastecer pela autonomia do carro (posto aberto na "
+            "hora, na beira da rota), chegada contando as paradas, litros e custo, 3 horarios de saida "
+            "comparados (qual e melhor) e aviso de trecho de noite. O painel mostra um card com mapa, saidas "
+            "e postos - na resposta diga so o essencial (chegada, parada, chuva/noite, melhor horario). "
+            "Compromisso comum (date, reuniao, mercado) NAO e viagem: use estimar_trajeto."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "destino": {"type": "string", "description": "pra onde vai, do jeito que ele falou"},
+                "origem": {
+                    "type": "string",
+                    "description": "omita = casa; 'aqui'/'daqui' = onde ele esta (GPS do celular)",
+                },
+                "saida": {
+                    "type": "string",
+                    "description": "hora que ele sai: 'HH:MM' (hoje) ou 'AAAA-MM-DD HH:MM'. Omita = agora.",
+                },
+                "tanque": {
+                    "type": "string",
+                    "description": (
+                        "so se ele disse quanto tem no tanque agora: 'cheio', '3/4', 'meio', '1/4', 'reserva' "
+                        "ou fracao '0.6'. Omita = o painel estima pelos abastecimentos registrados."
+                    ),
+                },
+                "preco_litro": {
+                    "type": "number",
+                    "description": "so se ele disse o preco do litro; omita = preco do ultimo abastecimento",
+                },
+            },
+            "required": ["destino"],
+        },
+    },
+    {
+        "name": "registrar_abastecimento",
+        "description": (
+            "Registra um abastecimento do carro: 'enchi o tanque', 'abasteci 30 L por 180', 'completei, deu "
+            "R$ 250, hodometro 45.300', ou a FOTO da nota/cupom do posto (leia litros, valor e posto da foto). "
+            "Com isso o painel estima quanto sobra no tanque e aprende o consumo real (de tanque cheio a tanque "
+            "cheio). Card com Desfazer. NAO registra o gasto em dinheiro - isso continua no registrar_gasto."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "litros": {"type": "number", "description": "litros colocados, se ele disse ou se esta na nota"},
+                "valor": {"type": "number", "description": "valor pago em reais, se ele disse ou se esta na nota"},
+                "cheio": {"type": "boolean", "description": "true se encheu/completou o tanque"},
+                "hodometro_km": {"type": "number", "description": "km do hodometro, so se ele disse"},
+                "lugar": {"type": "string", "description": "nome do posto, se ele disse ou se esta na nota"},
+                "data": {
+                    "type": "string",
+                    "description": "so se nao foi agora: 'AAAA-MM-DD' ou 'AAAA-MM-DD HH:MM' (data da nota)",
+                },
+            },
         },
     },
     {

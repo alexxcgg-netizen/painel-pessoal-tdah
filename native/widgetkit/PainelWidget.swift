@@ -68,7 +68,7 @@ struct PainelProvedor: TimelineProvider {
     private func buscar() async -> (Carga, CompromissoAtributos.ContentState?) {
         let carga = await PainelDados.carregar()
         guard comCompromisso, PainelConfig.token != nil else { return (carga, nil) }
-        let compromisso = await ProximoProvider.buscar()
+        let compromisso = await ProximoProvider.buscar()?.estado
         return (carga, compromisso)
     }
 }
@@ -101,6 +101,7 @@ struct BlocoProximo: View {
         case "arrumar": return "Arrumar em"
         case "sair": return "Sair em"
         case "parada": return "Parada em"
+        case "hora": return "Falta"
         default: return "Chega em"
         }
     }
@@ -124,7 +125,7 @@ struct BlocoProximo: View {
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
             } else {
-                Text("Chegou")
+                Text(estado.ehTarefa ? "Agora" : "Chegou")
                     .font(PainelEstilo.numero(30))
             }
             Spacer(minLength: 6)

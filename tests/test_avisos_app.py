@@ -117,19 +117,56 @@ class MontarTestCase(_Base):
         self.tarefa("Feita", "16:00", feita=True)
         self.tarefa("Dentista", "09:00", dia=AMANHA)
         quandos = [(i["tipo"], i["quando"]) for i in self.montar()]
-        self.assertEqual(quandos, [("tarefa_preparo", "2026-11-08T08:30"), ("tarefa_horario", "2026-11-08T08:50")])
+        self.assertEqual(quandos, [("tarefa_preparo", "2026-11-08T08:30"), ("tarefa_horario", "2026-11-08T08:50"),
+                                   ("tarefa_agora", "2026-11-08T09:00")])
 
     def test_respeita_desligado_ja_mandado_e_foco(self):
         self.tarefa("Pagar a fatura", "15:00")
-        self.assertEqual({i["tipo"] for i in self.montar(ligado=lambda t: t != "tarefa_preparo")}, {"tarefa_horario"})
-        self.assertEqual({i["tipo"] for i in self.montar(ja_notificou=lambda t, r: t == "tarefa_horario")}, {"tarefa_preparo"})
-        # hiperfoco ate 16h: so o critico (tarefa_horario) passa
+        self.assertEqual({i["tipo"] for i in self.montar(ligado=lambda t: t != "tarefa_preparo")},
+                         {"tarefa_horario", "tarefa_agora"})
+        self.assertEqual({i["tipo"] for i in self.montar(ja_notificou=lambda t, r: t == "tarefa_horario")},
+                         {"tarefa_preparo", "tarefa_agora"})
+        # hiperfoco ate 16h: so o critico (tarefa_horario) passa, e o "e agora" que estende ele
         segurado = self.montar(segurar_ate=datetime(2026, 11, 7, 16, 0))
-        self.assertEqual({i["tipo"] for i in segurado}, {"tarefa_horario"})
+        self.assertEqual({i["tipo"] for i in segurado}, {"tarefa_horario", "tarefa_agora"})
+        # tarefa_horario fora dos criticos: o "e agora" tambem fica segurado
+        segurado = self.montar(segurar_ate=datetime(2026, 11, 7, 16, 0), criticos=frozenset({"voo_sair"}))
+        self.assertEqual(segurado, [])
+
+    def test_contado_como_mandado_porque_o_app_vai_tocar_continua_na_lista(self):
+        # 04:14 o servidor viu que o app avisa 04:18 e marcou como mandado; a sincronizada das 04:15 nao
+        # pode tirar o aviso do app (senao ninguem avisa). Bug real de 06/11.
+        tid = self.tarefa("Teste", "12:48")
+        agora = datetime(2026, 11, 7, 12, 15)
+        ag = {f"tarefa_preparo-{tid}": [int(datetime(2026, 11, 7, 12, 18).timestamp())]}
+        itens = self.montar(agora, ja_notificou=lambda t, r: t == "tarefa_preparo", agendados=ag)
+        self.assertEqual([i["tipo"] for i in itens], ["tarefa_preparo", "tarefa_horario", "tarefa_agora"])
+        # mandado de verdade pelo navegador (o app nao tinha agendado): sai da lista, nao chega dois
+        itens = self.montar(agora, ja_notificou=lambda t, r: t == "tarefa_preparo", agendados={})
+        self.assertEqual([i["tipo"] for i in itens], ["tarefa_horario", "tarefa_agora"])
 
     def test_ja_mandado_hoje_nao_tira_o_de_amanha(self):
         self.tarefa("Dentista", "09:00", dia=AMANHA)
-        self.assertEqual(len(self.montar(ja_notificou=lambda t, r: True)), 2)
+        self.assertEqual(len(self.montar(ja_notificou=lambda t, r: True)), 3)
+
+    def test_e_agora_na_hora_exata_com_botoes(self):
+        tid = self.tarefa("Pagar a fatura", "15:00")
+        agora = _por_tipo(self.montar())[("tarefa_agora", "15:00")]
+        self.assertEqual(agora["titulo"], "⏰ Pagar a fatura")
+        self.assertEqual(agora["corpo"], "Deu 15:00, é agora. Quando terminar, toca em Feito.")
+        self.assertEqual(agora["tag"], f"tarefa_agora-{tid}")
+        self.assertEqual(agora["id"], f"painel-tarefa_agora-{tid}-20261107")
+        self.assertTrue(agora["acoes"])
+        self.assertEqual(agora["url"], f"/?aba=tarefas&tarefa={tid}")
+        self.assertNotIn("você", agora["corpo"].lower())
+
+    def test_refeicao_nao_ganha_e_agora(self):
+        self.tarefa("Comer: janta", "19:00")
+        self.assertNotIn("tarefa_agora", {i["tipo"] for i in self.montar()})
+
+    def test_e_agora_pode_ser_desligado(self):
+        self.tarefa("Pagar a fatura", "15:00")
+        self.assertNotIn("tarefa_agora", {i["tipo"] for i in self.montar(ligado=lambda t: t != "tarefa_agora")})
 
     def test_voo_usa_a_conta_do_servidor(self):
         c = self.conn.execute("INSERT INTO voos (data, origem, destino, hora) VALUES (?, 'SSBL', 'SSBL', '15:00')", (DIA,))
@@ -203,7 +240,7 @@ class RotasTestCase(_Base):
         r = self.client.get("/api/app/avisos", headers=TOKEN)
         self.assertEqual(r.status_code, 200)
         tags = [i["tag"] for i in r.get_json()["avisos"]]
-        self.assertEqual(tags, [f"tarefa_preparo-{tid}", f"tarefa_horario-{tid}"])
+        self.assertEqual(tags, [f"tarefa_preparo-{tid}", f"tarefa_horario-{tid}", f"tarefa_agora-{tid}"])
 
     def test_guarda_o_que_o_app_agendou(self):
         r = self.client.post("/api/app/avisos/agendados", headers=TOKEN,
@@ -292,3 +329,68 @@ class SemAvisoDuplicadoTestCase(_Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EAgoraSemDuplicarTestCase(_Base):
+    """Leva 06/11 (docs/briefings/2026-11-06-ao-vivo-tarefa.md): o "e agora" so o app manda. A repeticao do
+    aviso de tarefa que cairia na mesma hora fica quieta; mexer no "e agora" para a insistencia."""
+
+    AGORA = datetime(2026, 11, 7, 15, 0, 30)
+
+    def setUp(self):
+        super().setUp()
+        self.client = app.app.test_client()
+
+    def _repetir(self, agendados):
+        enviados = []
+        agora = self.AGORA
+
+        class _Agora(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return agora
+
+        sub = {"subscription_json": "{}", "endpoint": "https://push.invalid/x"}
+        with patch.object(push_client, "enviar", side_effect=lambda *a, **k: enviados.append(k.get("tag")) or True), \
+                patch("app.datetime", _Agora):
+            app._repetir_avisos_insistentes(self.conn, [sub], False, False, agendados)
+        return enviados
+
+    def _insistente(self, tid):
+        db.registrar_aviso_insistente(self.conn, "tarefa_horario", tid, "Pagar a fatura", "c",
+                                      f"tarefa_horario-{tid}", datetime(2026, 11, 7, 14, 50))
+        self.conn.commit()
+
+    def test_repeticao_na_hora_fica_quieta_quando_o_app_toca_o_e_agora(self):
+        tid = self.tarefa("Pagar a fatura", "15:00")
+        self._insistente(tid)
+        ag = {f"tarefa_agora-{tid}": [int(datetime(2026, 11, 7, 15, 0).timestamp())]}
+        self.assertEqual(self._repetir(ag), [])
+        tentativas = self.conn.execute("SELECT tentativas FROM avisos_insistentes").fetchone()[0]
+        self.assertEqual(tentativas, 2)  # contou como repetida: a proxima (30 min) segue normal
+
+    def test_sem_o_app_a_repeticao_sai_normal(self):
+        tid = self.tarefa("Pagar a fatura", "15:00")
+        self._insistente(tid)
+        self.assertEqual(self._repetir({}), [f"tarefa_horario-{tid}"])
+
+    def test_mexer_no_e_agora_para_a_insistencia(self):
+        tid = self.tarefa("Pagar a fatura", "15:00")
+        self._insistente(tid)
+        r = self.client.post("/api/app/aviso/acao", headers=TOKEN, json={"tag": f"tarefa_agora-{tid}", "acao": "toque"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(db.avisos_insistentes_pendentes(self.conn), [])
+
+    def test_feito_e_adiar_pelo_e_agora(self):
+        tid = self.tarefa("Pagar a fatura", "15:00")
+        r = self.client.post("/api/app/aviso/acao", headers=TOKEN, json={"tag": f"tarefa_agora-{tid}", "acao": "feito"})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertIsNotNone(self.conn.execute("SELECT completed_at FROM tasks WHERE id = ?", (tid,)).fetchone()[0])
+        tid2 = self.tarefa("Ligar pro banco", "15:00")
+        r = self.client.post("/api/app/aviso/acao", headers=TOKEN, json={"tag": f"tarefa_agora-{tid2}", "acao": "adiar"})
+        self.assertEqual(r.get_json()["hora"], "16:00")
+
+    def test_tag_torta_nao_quebra(self):
+        for tag in ("tarefa_agora-", "tarefa_agora-abc", "tarefa_agora-1-2"):
+            r = self.client.post("/api/app/aviso/acao", headers=TOKEN, json={"tag": tag, "acao": "feito"})
+            self.assertIn(r.status_code, (400, 404), tag)

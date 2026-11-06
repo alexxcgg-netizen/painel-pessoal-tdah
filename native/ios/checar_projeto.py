@@ -120,6 +120,64 @@ for f in (AQUI / "App").rglob("*.swift"):
     if "allowsBackgroundLocationUpdates = true" in txt and "location" not in modos:
         erro(f"{f.name}: GPS em segundo plano sem 'location' no UIBackgroundModes")
 
+# 5c. Ao vivo de tarefa (06/11): o LiveActivityIntent roda no processo do app, entao o arquivo do intent entra
+#     nos dois alvos; arquivo compartilhado que usa `#if PAINEL_APP` precisa da flag no alvo do app (senao o app
+#     compila o ramo do widget e quebra em PainelDados, que nao existe la)
+app_swift = {f.name for f in arquivos_do_alvo(alvos["Painel"])}
+ext_swift = {f.name for f in arquivos_do_alvo(alvos["PainelWidgetExtension"])}
+for f in (AQUI.parent / "widgetkit").glob("*.swift"):
+    txt = f.read_text(encoding="utf-8")
+    if "LiveActivityIntent" in txt and not ({f.name} <= app_swift and {f.name} <= ext_swift):
+        erro(f"{f.name}: LiveActivityIntent precisa estar nos dois alvos (app e widget)")
+    if "#if PAINEL_APP" in txt and f.name in app_swift:
+        flag = str(alvos["Painel"].get("settings", {}).get("base", {}).get("SWIFT_ACTIVE_COMPILATION_CONDITIONS", ""))
+        if "PAINEL_APP" not in flag.split() or "$(inherited)" not in flag:
+            erro(f"{f.name} usa #if PAINEL_APP: falta SWIFT_ACTIVE_COMPILATION_CONDITIONS \"$(inherited) PAINEL_APP\" no app")
+    if "#if PAINEL_APP" in txt and "PAINEL_APP" in str(alvos["PainelWidgetExtension"].get("settings", {})):
+        erro(f"{f.name}: a extensao do widget nao pode ter PAINEL_APP")
+
+# 5d. Recado da pagina (06/11: Feito/Desfazer dentro do app e a ilha nao saia): o nome do canal tem que ser o
+#     mesmo nos dois lados (PainelApp.swift registra, static/js/nucleo/api.js manda)
+painel_app = (AQUI / "App" / "PainelApp.swift").read_text(encoding="utf-8")
+api_js = (RAIZ / "static" / "js" / "nucleo" / "api.js").read_text(encoding="utf-8")
+if 'add(AvisoDaPagina(), name: "painel")' not in painel_app:
+    erro("PainelApp.swift: canal 'painel' da pagina nao registrado (AvisoDaPagina)")
+if "messageHandlers.painel" not in api_js:
+    erro("static/js/nucleo/api.js nao avisa o app (messageHandlers.painel)")
+
+# 5e. GPS mais esperto (06/11, painel esperto frente 3): sensor de movimento sem NSMotionUsageDescription derruba o
+#     app na primeira leitura; cerca/visita pedem o texto do "Sempre"; o desenho da viagem tem que estar no widget e
+#     ligado no AtividadeCompromisso; caminhos e chaves do JSON iguais dos dois lados (app x painel)
+app_txt_todo = "\n".join(f.read_text(encoding="utf-8") for f in (AQUI / "App").rglob("*.swift"))
+if "CMMotionActivityManager" in app_txt_todo and not str(plist_app.get("NSMotionUsageDescription") or "").strip():
+    erro("app usa CMMotionActivityManager sem NSMotionUsageDescription no Info.plist (project.yml)")
+if ("CLCircularRegion" in app_txt_todo or "startMonitoringVisits" in app_txt_todo) \
+        and not str(plist_app.get("NSLocationAlwaysAndWhenInUseUsageDescription") or "").strip():
+    erro("cerca/visita sem NSLocationAlwaysAndWhenInUseUsageDescription no Info.plist")
+if "AtividadeViagem.swift" not in ext_swift:
+    erro("AtividadeViagem.swift fora do alvo do widget")
+ativ_txt = (AQUI.parent / "widgetkit" / "AtividadeCompromisso.swift").read_text(encoding="utf-8")
+for trecho in ("e.ehViagem", "TelaViagem(", "AnelViagem("):
+    if trecho not in ativ_txt:
+        erro(f"AtividadeCompromisso.swift nao liga a viagem ({trecho!r})")
+attr_txt = (AQUI.parent / "widgetkit" / "CompromissoAtributos.swift").read_text(encoding="utf-8")
+if "struct Viagem" not in attr_txt:
+    erro("CompromissoAtributos.swift sem a struct Viagem (ContentState.viagem tem que estar nos dois alvos)")
+rota_gps = RAIZ / "rotas" / "localizacao_viagem.py"
+loc_txt = (AQUI / "App" / "Localizacao.swift").read_text(encoding="utf-8")
+if rota_gps.exists():
+    rota_txt = rota_gps.read_text(encoding="utf-8")
+    for caminho in ("api/localizacao/cercas", "api/localizacao/posicao"):
+        if f'"{caminho}"' not in loc_txt or f"/{caminho}" not in rota_txt:
+            erro(f"caminho {caminho} nao bate entre Localizacao.swift e rotas/localizacao_viagem.py")
+    viagem_py = (RAIZ / "viagem_acompanhada.py").read_text(encoding="utf-8")
+    bloco = re.search(r"struct Viagem: Codable.*?enum CodingKeys.*?\n\s*\}", attr_txt, re.S)
+    for chave in re.findall(r'= "(\w+)"', bloco.group(0) if bloco else ""):
+        if f'"{chave}"' not in viagem_py:
+            erro(f"chave {chave!r} da Viagem (CompromissoAtributos.swift) nao sai de viagem_acompanhada.py")
+else:
+    erro("rotas/localizacao_viagem.py nao existe (cercas/posicao)")
+
 # 6. Workflow: sem segredo, scheme e nomes de produto certos
 wf = (RAIZ / ".github" / "workflows" / "build-ios.yml").read_text(encoding="utf-8")
 if "secrets." in wf:

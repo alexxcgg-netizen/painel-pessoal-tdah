@@ -126,7 +126,7 @@ class LimpaAAnimacaoTestCase(unittest.TestCase):
                 nome_2o = next(n for n in nomes if n in titulo_2o)
                 y_antes = itens.nth(1).bounding_box()["y"]
 
-                itens.first.locator(".tl-ponto").click(force=True)
+                itens.first.locator(".tt-caixa").click(force=True)
 
                 # o item saiu do DOM de verdade (nao so visualmente) ...
                 page.wait_for_selector("#lista-tarefas li.saindo", state="detached")

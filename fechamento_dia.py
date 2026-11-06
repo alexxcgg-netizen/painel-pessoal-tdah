@@ -224,7 +224,16 @@ def pouso_do_dia(conn, hoje: date, hora: str | None = None) -> tuple[str, list[d
         frases.append(f"{'Ficou' if abertas == 1 else 'Ficaram'} {abertas} em aberto: um toque empurra pra amanhã.")
     else:
         frases.append("Nada pendurado. Pode desligar a cabeça.")
-    return " ".join(frases), [placar, pouso]
+    lista = [placar, pouso]
+    try:  # 06/11: por onde passou (visitas do iPhone) - so lugar e tempo; sem visita, nada muda
+        import diario_lugares
+
+        lugares = diario_lugares.card(conn, hoje)
+        if lugares:
+            lista.append(lugares)
+    except Exception:
+        pass
+    return " ".join(frases), lista
 
 
 def resumo_push_pouso(placar: dict, pouso: dict) -> str:

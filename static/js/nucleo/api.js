@@ -108,6 +108,25 @@ function ehUrlOpcionalSemInvalidar(url) {
   return URLS_OPCIONAIS_SEM_INVALIDAR.includes(caminho);
 }
 
+// App do iPhone (native/ios/App/PainelApp.swift, 2026-11-06): marcou Feito/Desfazer/mudou hora aqui dentro
+// e a ilha/tela bloqueada nao sabia ate sair e voltar pro app. Depois de uma escrita, avisa o app (que
+// confere a atividade ao vivo e os avisos). Fora do app (Safari/PWA) o canal nao existe e nada acontece.
+let _avisarAppTimer = null;
+function avisarAppNativo() {
+  const canal =
+    typeof window !== "undefined" && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.painel;
+  if (!canal) return;
+  clearTimeout(_avisarAppTimer);
+  // junta varias escritas seguidas (ex.: Feito + Desfazer) num aviso so
+  _avisarAppTimer = setTimeout(() => {
+    try {
+      canal.postMessage("mudou");
+    } catch (_) {
+      // app antigo sem o canal: ignora
+    }
+  }, 800);
+}
+
 async function apiFetch(url, options, fila) {
   // Vel (vel3): escrita ou falha = o que as abas mostram pode estar velho;
   // a proxima troca de aba recarrega (cache curto em nucleo/navegacao.js).
@@ -116,6 +135,7 @@ async function apiFetch(url, options, fila) {
     if (_metodo !== "GET" && typeof invalidarDadosAbas === "function") invalidarDadosAbas();
     // numero no icone do app (nucleo/badge.js): qualquer escrita pode ter mudado o que vence hoje
     if (_metodo !== "GET" && typeof Badge !== "undefined") Badge.atualizarDepois();
+    if (_metodo !== "GET") avisarAppNativo();
   };
   let res;
   const controller = new AbortController();

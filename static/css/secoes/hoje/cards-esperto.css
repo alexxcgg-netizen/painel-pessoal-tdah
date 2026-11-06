@@ -1,0 +1,75 @@
+/* static/css/secoes/hoje/cards-esperto.css - painel mais esperto, frente 7 (06/11/2026),
+   static/js/cards-esperto.js: voo decidido na véspera (veredito + 4 quadradinhos), rotina descoberta
+   (Virar rotina / Não) e tarefa adiada 3 vezes (chips). Dentro da pílula D (cards-d.css): neutros do app,
+   uma cor por assunto em --cc, sem brilho/neon/eyebrow. Entrada animada só em .card-novo. */
+
+/* ------------------------------------------------------------- voo decidido */
+.vivo-d .es-veredito {
+  margin: 0;
+  font: 700 20px/1.2 var(--d-fonte);
+  letter-spacing: -0.01em;
+  color: var(--text);
+  transition: color 0.3s var(--ease-suave);
+}
+.vivo-d .es-veredito[data-vd="voa"] { color: #9fdcb0; }
+.vivo-d .es-veredito[data-vd="nao"] { color: #f47671; }
+.vivo-d .es-veredito[data-vd="limite"] { color: #ffcf7a; }
+.vivo-d .es-veredito[data-vd="incerto"] { color: var(--d-cinza-claro); }
+
+.vivo-d .es-cond { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.vivo-d .es-cond > div { min-width: 0; padding: 9px 11px; border-radius: 12px; background: var(--d-caixa); }
+.vivo-d .es-cond small { display: block; font-size: 11.5px; color: var(--d-cinza); }
+.vivo-d .es-cond b {
+  display: block;
+  font: 600 14.5px var(--d-fonte);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.vivo-d .es-cond .limite b { color: #ffcf7a; }
+.vivo-d .es-cond .ruim b { color: #f47671; }
+
+/* ------------------------------------------------------------- chips da tarefa adiada */
+.vivo-d .es-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.vivo-d .es-chip {
+  appearance: none;
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 22px;
+  border: 1px solid #3a3a3c;
+  background: var(--d-caixa);
+  color: var(--text);
+  font: 600 14.5px var(--d-fonte);
+  cursor: pointer;
+  transition: background 0.25s var(--ease-suave), border-color 0.25s var(--ease-suave), transform 0.2s var(--ease-suave);
+}
+.vivo-d .es-chip:active { transform: scale(0.96); }
+.vivo-d .es-chip[aria-pressed="true"] { border-color: var(--cc); background: color-mix(in srgb, var(--cc) 20%, var(--d-caixa)); }
+.vivo-d .es-chip:disabled { cursor: default; }
+.vivo-d .es-chip:disabled:not([aria-pressed="true"]) { opacity: 0.55; }
+.vivo-d .es-chip:focus-visible { outline: 2px solid var(--cc); outline-offset: 2px; }
+
+/* título longo ("“Separar os papéis” já foi adiada 3 vezes", "Academia toda segunda, quarta e sexta"):
+   quebra em até 2 linhas em vez de cortar no meio da frase */
+.vivo-d:is([data-v="adiada"], [data-v="rotina"]) .v-t {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* resposta no lugar dos botões ("Virou rotina: terça e quinta, 18:00.") + Desfazer pequeno, à esquerda */
+.vivo-d .es-resp { display: grid; gap: 10px; animation: esAssenta 0.45s var(--d-mola) both; }
+.vivo-d .es-resp .v-bts > button { flex: 0 0 auto; min-height: 44px; padding: 0 20px; }
+@keyframes esAssenta { from { opacity: 0; transform: translateY(4px); } }
+
+/* entrada: os quadradinhos assentam um atrás do outro (só resposta nova) */
+.card-novo .vivo-d .es-cond > div { animation: esAssenta 0.5s var(--d-mola) calc(0.25s + var(--k, 0) * 60ms) both; }
+
+/* ------------------------------------------------------------- nada se mexe */
+@media (prefers-reduced-motion: reduce) {
+  .vivo-d .es-chip,
+  .vivo-d .es-veredito { transition: none !important; }
+  .vivo-d .es-resp,
+  .card-novo .vivo-d .es-cond > div { animation: none !important; }
+}

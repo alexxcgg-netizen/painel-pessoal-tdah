@@ -51,6 +51,8 @@ def horario_funcionamento(texto: str, dia) -> dict | None:
     chave = texto.strip().lower()
     if chave not in _cache_horarios:
         dados = None
+        if not usar_cota("horario_lugar"):
+            return None  # cota do mes acabou: card segue sem o horario (nao cacheia)
         try:
             resp = requests.post(
                 PLACES_TEXT_URL,
@@ -115,6 +117,8 @@ def resolver_lugar(texto: str) -> dict | None:
     chave = texto.strip().lower()
     if chave in _cache_lugares:
         return _cache_lugares[chave]
+    if not usar_cota("lugar_busca"):
+        return None  # cota do mes acabou: quem chama usa o endereco em texto (nao cacheia)
     lugar = None
     try:
         resp = requests.post(
@@ -157,7 +161,13 @@ def _ponto(texto: str, lugar: dict | None) -> dict:
 
 # Trava da cota gratis (por mes, por faixa de preco do Google). Margem abaixo da cota de
 # verdade - o contador do painel nao enxerga chamada feita por fora (teste manual no console).
-COTA_MES = {"lentidao": 800, "transito": 4000, "basico": 8000, "lugar_nome": 8000}
+COTA_MES = {"lentidao": 800, "transito": 4000, "basico": 8000, "lugar_nome": 8000,
+            # 2026-11-06 (leva painel esperto): as buscas de lugar que escapavam do contador. Cada SKU do
+            # Google tem a propria cota gratis: Text Search Pro (resolver_lugar) 5.000; Nearby Search Pro
+            # (posto_no_meio_do_caminho) 5.000; Text Search Enterprise (pediu horario de funcionamento) 1.000,
+            # dividido entre o posto ao longo da rota e o horario do lugar (600 + 300 = 900 < 1.000). O
+            # geocodificar direto e o mesmo SKU do Geocoding reverso -> conta em "lugar_nome".
+            "lugar_busca": 4000, "posto_perto": 4000, "posto_rota": 600, "horario_lugar": 300}
 _NIVEL_ABAIXO = {"lentidao": "transito", "transito": "basico"}
 
 
@@ -436,8 +446,118 @@ def decodificar_polyline(codigo: str) -> list[tuple[float, float]]:
     return pontos
 
 
+def codificar_polyline(pontos) -> str:
+    """[(lat, lon), ...] -> 'encoded polyline' do Google (o inverso de decodificar_polyline)."""
+    saida, ant = [], (0, 0)
+    for lat, lon in pontos:
+        atual = (round(lat * 1e5), round(lon * 1e5))
+        for d in (atual[0] - ant[0], atual[1] - ant[1]):
+            v = ~(d << 1) if d < 0 else d << 1
+            while v >= 0x20:
+                saida.append(chr((0x20 | (v & 0x1F)) + 63))
+                v >>= 5
+            saida.append(chr(v + 63))
+        ant = atual
+    return "".join(saida)
+
+
+def postos_ao_longo(pontos, maximo: int = 20) -> list[dict]:
+    """Postos de combustivel AO LONGO de um pedaco do caminho (Places Text Search com
+    searchAlongRouteParameters - o Google so devolve o que fica perto da linha da rota). Pede o
+    horario de funcionamento (faixa Enterprise do Google: cota "posto_rota") e o resumo de desvio
+    (routingSummaries: ir do inicio do pedaco ate o posto + do posto ate o fim). Uma chamada por
+    parada. -> [{place_id, nome, endereco, lat, lng, periodos (ou None), via_s (ou None)}].
+    Levanta CotaEsgotada / RequestException (rede) / ValueError (caminho curto)."""
+    if len(pontos) < 2:
+        raise ValueError("caminho curto demais pra procurar posto")
+    if not usar_cota("posto_rota"):
+        raise CotaEsgotada("cota gratis da busca de posto na rota acabou")
+    inicio = pontos[0]
+    resp = requests.post(
+        PLACES_TEXT_URL,
+        json={
+            "textQuery": "posto de combustível",
+            "includedType": "gas_station",
+            "languageCode": "pt-BR",
+            "regionCode": "BR",
+            "maxResultCount": maximo,
+            "searchAlongRouteParameters": {"polyline": {"encodedPolyline": codificar_polyline(pontos)}},
+            "routingParameters": {"origin": {"latitude": inicio[0], "longitude": inicio[1]}, "travelMode": "DRIVE"},
+        },
+        headers={
+            "X-Goog-Api-Key": os.environ["GOOGLE_MAPS_API_KEY"],
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,"
+                                "places.regularOpeningHours,routingSummaries",
+        },
+        timeout=12,
+    )
+    resp.raise_for_status()
+    corpo = resp.json() or {}
+    lugares = corpo.get("places") or []
+    resumos = corpo.get("routingSummaries") or []
+    saida = []
+    for n, p in enumerate(lugares):
+        try:
+            loc = p["location"]
+            lat, lng = float(loc["latitude"]), float(loc["longitude"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        via = None
+        pernas = (resumos[n] or {}).get("legs") if n < len(resumos) and isinstance(resumos[n], dict) else None
+        if isinstance(pernas, list) and len(pernas) >= 2:
+            try:
+                via = sum(_segundos(x["duration"]) for x in pernas[:2])
+            except (KeyError, TypeError, ValueError):
+                via = None
+        periodos = (p.get("regularOpeningHours") or {}).get("periods")
+        saida.append({
+            "place_id": p.get("id"),
+            "nome": (p.get("displayName") or {}).get("text") or "Posto",
+            "endereco": p.get("formattedAddress") or "",
+            "lat": round(lat, 5), "lng": round(lng, 5),
+            "periodos": periodos if isinstance(periodos, list) and periodos else None,
+            "via_s": via,
+        })
+    return saida
+
+
+def aberto_em(periodos, quando: datetime) -> dict | None:
+    """Os `periods` do Google (dia 0 = domingo) -> o posto esta aberto em `quando`?
+    {"aberto": bool, "24h": bool, "ate": "HH:MM" | None}. None = sem horario (nao sei)."""
+    if not isinstance(periodos, list) or not periodos:
+        return None
+    semana = 7 * 1440
+    dia_google = (quando.weekday() + 1) % 7
+    agora_min = dia_google * 1440 + quando.hour * 60 + quando.minute
+    faixas = []
+    for p in periodos:
+        if not isinstance(p, dict):
+            continue
+        ab, fe = p.get("open"), p.get("close")
+        if not isinstance(ab, dict) or (fe is not None and not isinstance(fe, dict)):
+            continue
+        if not fe:  # sem fechamento = aberto 24 h (formato do Google)
+            return {"aberto": True, "24h": True, "ate": None}
+        try:
+            ini = int(ab.get("day", 0)) * 1440 + int(ab.get("hour", 0)) * 60 + int(ab.get("minute", 0))
+            fim = int(fe.get("day", 0)) * 1440 + int(fe.get("hour", 0)) * 60 + int(fe.get("minute", 0))
+        except (TypeError, ValueError):
+            continue
+        if fim <= ini:
+            fim += semana  # passa da meia-noite de sabado pra domingo
+        faixas.append((ini, fim, f"{int(fe.get('hour', 0)):02d}:{int(fe.get('minute', 0)):02d}"))
+    if not faixas:
+        return None
+    if sum(f - i for i, f, _ in faixas) >= semana - 7 * 2:  # 7 dias de 00:00 a 23:59 = 24 h tambem
+        return {"aberto": True, "24h": True, "ate": None}
+    for ini, fim, ate in faixas:
+        if any(ini <= alvo < fim for alvo in (agora_min, agora_min + semana)):
+            return {"aberto": True, "24h": False, "ate": ate}
+    return {"aberto": False, "24h": False, "ate": None}
+
+
 def traco_desenhavel(pontos: list[tuple[float, float]], marcos: list[int], largura=320, altura=200,
-                     margem=22, maximo=90, faixas=None, tempo=None) -> dict | None:
+                     margem=22, maximo=90, faixas=None, tempo=None, km=None) -> dict | None:
     """Projeta o caminho num quadro largura x altura (norte pra cima, proporcao
     real corrigida pela latitude) e reduz pra no maximo `maximo` pontos.
     `marcos` = indice de cada parada dentro de `pontos`; `faixas` = [(i0, i1, nivel)] dos
@@ -479,18 +599,27 @@ def traco_desenhavel(pontos: list[tuple[float, float]], marcos: list[int], largu
     }
     if tempo:
         desenho["tempo"] = pintar(tempo)
+    if km is not None and len(km) == len(pontos):
+        # viagem planejada (2026-11-06): km de cada ponto desenhado, pro front pintar chuva/lento/posto
+        # por cima do caminho pelo km (trocar a saida no card nao chama o servidor)
+        desenho["km"] = [round(km[i], 1) for i in indices]
     return desenho
 
 
-def trajeto(pontos: list[str]) -> dict:
+def trajeto(pontos: list[str], partida: datetime | None = None) -> dict:
     """Soma os trechos de um trajeto com varias paradas (A -> B -> C), cada trecho
-    calculado pela Routes API com transito e trechos lentos/parados. Levanta
+    calculado pela Routes API com transito e trechos lentos/parados. `partida` (futuro) = o
+    transito PREVISTO pra hora real de sair (2026-11-06, pedido do Alex: "tem que ser muito bom e
+    preciso sobre o transito"), nao o de agora; cada perna sai quando a anterior chega. Levanta
     ValueError/RequestException/CotaEsgotada como tempo_de_viagem."""
     lugares = [resolver_lugar(p) for p in pontos]
     trechos, caminho, marcos, faixas, lentidao = [], [], [0], [], []
     waze = None
+    decorrido = 0
     for i, (origem, destino) in enumerate(zip(pontos, pontos[1:])):
-        t = tempo_de_viagem(origem, destino, _lugares=(lugares[i], lugares[i + 1]), lentidao=True)
+        quando = partida + timedelta(minutes=decorrido) if isinstance(partida, datetime) else None
+        t = tempo_de_viagem(origem, destino, _lugares=(lugares[i], lugares[i + 1]), lentidao=True, partida=quando)
+        decorrido += int(t.get("duracao_minutos") or 0)
         codigo = t.pop("_polyline", None)
         destino_ll = t.pop("destino_ll", None)
         lentos = t.pop("lentidao", None) or []
@@ -570,6 +699,7 @@ def link_rota(lugares: list[dict], place_ids: list | None = None, partir_de_onde
 # Quanto antes da chegada ele mais ou menos sai - so pra pedir ao Google o transito previsto
 # pra perto daquela hora (o tempo de verdade vem da propria resposta).
 _ANTES_ESTIMADO_MIN = 30
+_REFAZER_SE_LONGE_MIN = 20
 
 
 def horario_de_saida(
@@ -581,6 +711,17 @@ def horario_de_saida(
     partida = chegar_ate - timedelta(minutes=margem_minutos + _ANTES_ESTIMADO_MIN)
     viagem = tempo_de_viagem(origem, destino, modo, partida=partida, lentidao=lentidao)
     sair_ate = chegar_ate - timedelta(minutes=viagem["duracao_minutos"] + margem_minutos)
+    # 2026-11-06 (transito preciso): o primeiro chute de saida (chegada - 45 min) erra feio em
+    # trajeto longo (1 h de carro = saida 30 min antes do chute, outro transito). Se a saida de
+    # verdade caiu longe do chute, pergunta de novo pra hora certa - uma chamada a mais, so nesse caso.
+    if modo == "DRIVE" and abs((sair_ate - partida).total_seconds()) > _REFAZER_SE_LONGE_MIN * 60 \
+            and _partida_rfc3339(sair_ate):
+        try:
+            de_novo = tempo_de_viagem(origem, destino, modo, partida=sair_ate, lentidao=lentidao)
+            viagem = de_novo
+            sair_ate = chegar_ate - timedelta(minutes=viagem["duracao_minutos"] + margem_minutos)
+        except Exception:  # noqa: BLE001 - cota/rede/formato: fica a primeira conta (ja com transito previsto)
+            pass
     return {
         "sair_ate": sair_ate.isoformat(),
         "duracao_minutos": viagem["duracao_minutos"],
@@ -593,6 +734,10 @@ def horario_de_saida(
 
 
 def geocodificar(endereco: str) -> tuple[float, float]:
+    """Endereco -> (lat, lng). Conta na cota do Geocoding ("lugar_nome", mesmo SKU do reverso);
+    cota acabada = CotaEsgotada (um RequestException, quem chama ja trata)."""
+    if not usar_cota("lugar_nome"):
+        raise CotaEsgotada("cota gratis do Geocoding do mes acabou")
     resp = requests.get(
         GEOCODE_URL,
         params={"address": endereco, "key": os.environ["GOOGLE_MAPS_API_KEY"]},
@@ -616,6 +761,8 @@ def posto_no_meio_do_caminho(origem: str, destino: str) -> dict | None:
     lat1, lng1 = geocodificar(origem)
     lat2, lng2 = geocodificar(destino)
     lat_meio, lng_meio = (lat1 + lat2) / 2, (lng1 + lng2) / 2
+    if not usar_cota("posto_perto"):
+        raise CotaEsgotada("cota gratis da busca de posto do mes acabou")
 
     body = {
         "includedTypes": ["gas_station"],

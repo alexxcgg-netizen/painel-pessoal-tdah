@@ -77,6 +77,37 @@ fechado e o PC desligado. O que não tem hora marcada continua no push do navega
 `docs/briefings/2026-11-06-avisos-app.md`. Em Configurar → **Avisos do app**: permissão, quantos estão agendados,
 última conferida e o botão **GPS sempre ligado** (desligado por padrão; gasta bateria).
 
+Tarefa com hora ganha 3 avisos locais: 30 min antes, 10 min antes e **na hora** (`tarefa_agora`, só pelo app).
+
+## Tarefa ao vivo (tela bloqueada e ilha)
+
+A próxima tarefa de hoje com hora vira atividade ao vivo quando faltam até 2 h 30 e some 20 min depois da hora,
+ou no **Feito** (botão dentro da atividade, iOS 17+). Só liga com o app aberto (sem push da Apple); a partir daí a
+contagem e a barra andam sozinhas. Compromisso de saída (date, balada, voo) continua com o desenho de passos.
+Detalhes: `docs/briefings/2026-11-06-ao-vivo-tarefa.md`. No relatório: `aovivo_feito` (último Feito, ok ou falhou).
+
+## GPS mais esperto e viagem acompanhada
+
+Leva de 06/11 (`docs/briefings/2026-11-06-painel-esperto.md`, frente 3). Código: `native/ios/App/Localizacao.swift`,
+`viagem_acompanhada.py`, `rotas/localizacao_viagem.py`, desenho em `native/widgetkit/AtividadeViagem.swift`.
+
+- **Cerca nos lugares** (precisa de "Sempre"): o app pega até 20 lugares em `GET /api/localizacao/cercas` (casa, lugar
+  das saídas de hoje e de amanhã antes das 10h, apelidos mais visitados) a cada 30 min no máximo, e vigia cada um
+  (raio 150 m). Entrou/saiu vai pro mesmo `POST /api/localizacao/visita`, com `fonte: "cerca"` e o id da cerca.
+  Configurar → Onde eu estou mostra quantas cercas estão ativas.
+- **Dirigindo** (precisa do **GPS sempre ligado**, que virou o interruptor geral, e da permissão **Movimento**, pedida
+  na primeira vez que o app abre com o GPS ligado): de carro o GPS vira de estrada sozinho (~10 m, a cada ~1 km);
+  parado ou andando por ~5 min volta pro econômico. Sem a permissão Movimento fica como antes.
+- **Viagem acompanhada**: só dirigindo **e** com o painel dizendo `acompanhar` (viagem planejada em andamento, ou
+  compromisso de saída do ao vivo da hora de sair até chegar), a posição vai pra `POST /api/localizacao/posicao` a
+  cada ~5 min ou ~10 km. O painel guarda em `viagem_posicoes` só enquanto isso vale e apaga quando a viagem acaba
+  (encerrada, chegou a 1,5 km do destino, outro plano, ou 24 h no máximo). De compromisso fica só a última posição.
+- **Ao vivo da viagem** (kind `viagem` no `/api/ao-vivo`): destino, "faltam X km", chegada refeita pela posição,
+  próximo posto ("em 278 km · 11:15") e chuva à frente ("daqui 25 min" / "chovendo, mais 12 km"; some sem chuva).
+  Ganha de tarefa e compromisso enquanto a viagem está em andamento. Ilha compacta: carro + hora da chegada; mínima:
+  anel até a chegada. Como as outras, só **liga** com o app aberto (perto da hora de sair); depois atualiza sozinha
+  a cada posição nova.
+
 ## Limites da conta Apple grátis
 
 Não achei fonte oficial da Apple nem do Sideloadly pra estes números; são relatos da comunidade.

@@ -47,7 +47,7 @@
 // no cabecalho X-Versao. Copia guardada com a versao pedida sai daqui na hora; versao diferente (ou pedido
 // sem ?v, como os modulos do treino 3D) vai a rede como antes e cai na copia velha se a rede falhar. Uma copia
 // por arquivo (a chave e o caminho, sem o ?v), entao o cache nao cresce a cada mudanca.
-const CACHE_NAME = "painel-pessoal-v103";
+const CACHE_NAME = "painel-pessoal-v104";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do
@@ -105,12 +105,15 @@ const ASSETS = [
   "/static/css/secoes/hoje/cards-aviacao.css",
   "/static/css/secoes/hoje/cards-aviacao-lab.css",
   "/static/css/secoes/hoje/cards-saidas.css",
+  "/static/css/secoes/hoje/cards-viagem.css",
   "/static/css/secoes/hoje/cards-automacao.css",
   "/static/css/secoes/hoje/cards-dinheiro.css",
   "/static/css/secoes/hoje/cards-memoria.css",
   "/static/css/secoes/hoje/cards-rotina.css",
   "/static/css/secoes/hoje/cards-fechamento.css",
   "/static/css/secoes/hoje/cards-d.css",
+  "/static/css/secoes/hoje/cards-onde.css",
+  "/static/css/secoes/hoje/cards-esperto.css",
   "/static/css/secoes/hoje/visao-do-dia.css",
   "/static/css/secoes/painel/resumo.css",
   "/static/css/secoes/painel/agenda-de-hoje.css",
@@ -181,11 +184,14 @@ const ASSETS = [
   "/static/js/cards-aviacao.js",
   "/static/js/cards-aviacao-lab.js",
   "/static/js/cards-saidas.js",
+  "/static/js/cards-viagem.js",
   "/static/js/cards-automacao.js",
   "/static/js/cards-dinheiro.js",
   "/static/js/cards-memoria.js",
   "/static/js/cards-rotina.js",
   "/static/js/cards-fechamento.js",
+  "/static/js/cards-onde.js",
+  "/static/js/cards-esperto.js",
   "/static/js/cards-medalha.js",
   "/static/js/nucleo/base.js",
   "/static/js/nucleo/icones.js",
@@ -253,6 +259,7 @@ const ASSETS = [
   "/static/js/secoes/tarefas/linha-do-tempo-tarefas.js",
   "/static/js/secoes/tarefas/tarefas.js",
   "/static/js/secoes/tarefas/arrastar-excluir.js",
+  "/static/js/secoes/tarefas/folha-tarefa.js",
   "/static/js/secoes/gastos/gastos.js",
   "/static/js/secoes/gastos/metas.js",
   "/static/js/secoes/gastos/assinaturas.js",

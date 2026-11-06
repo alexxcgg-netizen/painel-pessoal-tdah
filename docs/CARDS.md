@@ -90,6 +90,9 @@ e marca `data.oculto = true`; `resumo_texto`/`resposta` passam por
 | `saude_dia` | `agua_copos`, `passos`, `sono_horas`, `treino_min` (revisão da Fase 6) |
 | `saude_treino` | `sessoes` (revisão da Fase 6) |
 | `lugar_salvo` | `nome`, `endereco`, `maps_url`, `de_casa_min` (o `apelido` fica; 04/11/2026) |
+| `indo_pra` | `destino`, `eventos`, `chega`, `chega_s` (06/11/2026) |
+| `diario_lugares` | `lugares`, `barra`, `fora_min`, `n_lugares` (o título fica; 06/11/2026) |
+| `recado_atraso` | `texto`, `whatsapp`, `via`, `chega` (06/11/2026) |
 
 O front mostra `R$ •••` quando `data.oculto` é `true` (nos cards de saúde:
 "Dados de saúde ocultos no modo visitante.").
@@ -703,3 +706,49 @@ deslize. Todo campo novo é aditivo: card antigo sem ele continua abrindo (cai n
 | 6. Lugar salvo | type novo `lugar_salvo` (`cards.card_lugar_salvo`, `_card_de_efeito_modulo` com `entidade: lugar_salvo`; front no `cards-d.js`, cor `#7fd9d0`) | `apelido, nome, endereco, raio_m (150), de_casa_min (null até o executor medir), achado, maps_url` (só link do Google vira botão). "Não é essa" (`lugar_nao_e`) manda a correção pelo campo do chat. Sem Desfazer. Visitante: ver tabela do modo visitante. |
 | 7. Chegou / atrasou | `edicao` com `chegou {lugar, atraso_min, hora}` (`cards-vivos.js`, `edicaoD`, cor `#aab4f6`) | Título = lugar, "chegou N min depois do combinado", a hora da próxima rola velha → nova; Desfazer rola de volta ("X voltou pras HH:MM"). Contrato com a Frente 2 (`onde_estou`). |
 | 8. Conta com deslize | `contas_email` com 1 conta (não rastreio) (`cards-dinheiro.js`, `contaD`, cor `#ffd36e`) | "deslize se já pagou" (`CardsD.deslizaHTML`, teclado e ponteiro, confirma passando de 82 %) → `POST /api/contas-email/<id>/status {status: "paga"}`; falha: "Não deu agora. Tenta de novo?". Várias contas: continua a lista. |
+
+### O que já está no app (leva 06/11/2026 "painel mais esperto" - pra onde vou, diário, tempos reais, recado - `docs/briefings/2026-11-06-painel-esperto.md`)
+Tudo na casca `CardsD.pilula`, aberto por padrão (igual ao protótipo). Front em `static/js/cards-onde.js` +
+`static/css/secoes/hoje/cards-onde.css`; lógica em `onde_vou.py` e `diario_lugares.py`. Sem emoji no texto do card.
+
+| Cena | Onde | Dado |
+| :--- | :--- | :--- |
+| Indo pro X? | type novo `indo_pra` (`onde_vou.card_indo`, cor `#f5a3b8`). Sai quando ele sai de um lugar (visita/cerca) até 40 min da hora de sair de uma tarefa de hoje com lugar. | `id` (linha de `indo_pra`), `tarefa_id, titulo, destino, hora, estilo, chega, chega_s, gerado_ts, atrasa, resposta`, `eventos[{hora, titulo, sub, tipo: saiu/lento/chuva/fim}]` (trânsito do Maps com lentidão, chuva da chegada). "É isso" / "Vou pra outro lugar" → `POST /api/onde-vou/<id>/resposta {resposta: sim\|outro}`; "outro" não insiste e não aprende. |
+| Diário do dia | type novo `diario_lugares` (`diario_lugares.card`, cor `#9fdcb0`). No pouso do fechamento e no `consultar_diario` do chat (`_efeito` `entidade: diario_lugares`). | `dia, titulo, n_lugares, fora_min, lugares[{lugar, hora, ate, min, casa, sub, cor}]`, `barra[{min, casa\|vazio\|cor}]`, `nota`. Só lugar e tempo, nunca o caminho. Lugar sem apelido: "Perto do X" (até 1 km de um lugar salvo) ou "Lugar sem nome" - sem API paga. Calculado na hora das `visitas` (some junto, 30 dias). |
+| Sai às X (meu tempo) | type novo `meu_tempo` (`onde_vou.dados_meu_tempo`, cor `#f5a3b8`), uma vez por compromisso na hora de se arrumar, só quando o jeito dele mudou a saída. | `tarefa_id, titulo, hora, estilo, sair_meu, sair_padrao, ajuste_min, saida_min, trajeto_min, amostras[≤6], frase, usar`. Segmentado "Meu tempo / Padrão" → `POST /api/tempos-reais/usar {usar: meu\|padrao}` (config `tempos_reais_usar`). |
+| Recado de atraso | type novo `recado_atraso` (`onde_vou.dados_recado`, cor `#f47671`). Chegada prevista passou da hora: uma vez por compromisso, de novo só se o atraso crescer mais de 10 min. | `tarefa_id, indo_id, titulo, hora, chega, atraso_min, escolhido, opcoes[3], modelo: transito/saindo/caminho, via, texto`. Chips trocam o número do texto; "Abrir no WhatsApp" é link `https://wa.me/?text=` (nunca manda sozinho); "Não precisa" só esconde (local). |
+
+### O que já está no app (leva 06/11/2026 "painel mais esperto", frente 7 - voo na véspera, rotinas, hora certa)
+Tudo na casca `CardsD.pilula`, aberto por padrão (igual ao protótipo, cena "Mais esperto"). Front em
+`static/js/cards-esperto.js` + `static/css/secoes/hoje/cards-esperto.css`; lógica em `voo_vespera.py`,
+`rotinas_esperto.py` e `hora_certa.py`; botões em `rotas/esperto.py`. Sem emoji no texto do card.
+
+| Cena | Onde | Dado |
+| :--- | :--- | :--- |
+| Voo decidido na véspera | type novo `voo_decisao` (`voo_vespera.decidir`/`card`, cor `#8fd0ff`), passo de `conversa_proativa.verificar` logo depois de `vespera_do_voo`: véspera 20:00–23:30 e reconfere às 06:30 (ou 2 h antes do voo, nunca antes das 05:00). Só publica de novo se o veredito MUDOU ("Mudou: hoje não dá."). TAF que não cobre a hora: "Ainda não dá pra saber." + reconfere de hora em hora até 23h. | `voo_id, data, hora, quando (amanha\|hoje), icao, pedido, nome, substituto_de, sub, veredito (voa\|nao\|limite\|incerto), frase, porque, nota, reconfere, emissao, remarcar{data, hora}\|null, perguntar_remarcar, sono{deitar, min}, gerado_ts`, `conds[{rotulo: Teto/Visibilidade/Vento/Sono\|Véspera, valor, tom: ok\|limite\|ruim}]`. Teto/visibilidade pelos cortes de `metar.categoria_voo` (IFR = ruim, MVFR = limite), trovoada = ruim, vento pelo limite de través dele (`aviacao_lab.pista_config`, só SSBL), TEMPO/PROB IFR = limite. Sono (deitar = acordar − 8 h, acordar do card `vespera_voo`) e balada/date na véspera só pesam como "no limite", nunca "não dá" sozinhos. "Não dá": `Remarcar pras HH:MM` (mesmo dia, de 30 em 30 min até 16:00, TAF bom e sem tarefa/voo perto) → `POST /api/esperto/voo/<id>/remarcar {hora}` com Desfazer (`edicao` em `voos.hora`); sem horário bom, "Remarcar" escreve no chat. "Mantém" só fecha (local). |
+| Rotina descoberta | type novo `rotina_proposta` (`rotinas_esperto.card_rotina`, cor `#c4a1ff`), 1 por dia das 9h às 21h. Lugar (visitas, apelido salvo, menos casa) ou tarefa (mesmo título sem acento) no mesmo dia da semana e hora parecida (±45 min) em 3 das últimas 4 semanas (tarefa: 5), a última nos últimos 8 dias; dias do mesmo lugar com hora parecida juntam ("toda terça e quinta"). | `chave, titulo, sub ("18:00 · já faz 3 semanas"), texto, dias[0-6], hora, semanas, fonte (lugar\|tarefa), tarefa_titulo`. "Virar rotina" / "Não" → `POST /api/esperto/rotina {chave, resposta: sim\|nao}`; o servidor usa o que GUARDOU na proposta (config `rotinas_propostas`), nunca o dado do cliente. "Sim" cria a tarefa recorrente `semanal:<dias>` com a hora + Desfazer (`entidade: tarefa`); "Não" = nunca mais desse padrão. |
+| Tarefa adiada 3 vezes | type novo `tarefa_adiada` (`rotinas_esperto.card_adiada`, cor `#f0a58f`), 1 por dia das 9h às 21h, uma vez por tarefa (`extras.adiada3`; marca também `extras.travou`, então o "Por que travou?" não pergunta da mesma tarefa). Contador: `tarefas_adiadas`. | `task_id, titulo, adiadas`. Chips: Quebrar em passos (`POST /api/tasks/<id>/breakdown`, Desfazer = `DELETE /api/tasks/<id>/subtasks`), Mudar o dia (`POST /api/esperto/tarefa/<id>/mudar-dia`: dia menos corrido dos próximos 7, sem voo e sem chuva ≥ 50 % quando tem previsão; mesma hora se livre, senão a próxima hora cheia livre 8h–20h; Desfazer = `edicao` em tasks; não conta como adiamento) e Apagar (`DELETE /api/tasks/<id>`, Desfazer). |
+
+**Pergunta na hora certa** (`hora_certa.py`, sem card novo): fila única de avisos de EVENTO (config
+`hora_certa_fila`) que sai pelos dois caminhos - push do servidor (`hora_certa.para_push` na lista de
+`app.verificar_e_notificar`) e aviso local do app do iPhone (`hora_certa.para_app` em `avisos_app.montar`, hora =
+agora + ~1 min; o que o app agendou o push não repete). Tipos novos de aviso (liga/desliga em
+`assistente/avisos.py`): `voo_decisao` (passa o silêncio), `casa_tarefa` ("Chegou em casa / Ainda falta “X”
+hoje. Dá N min.", chegada em casa depois das 18h com tarefa de hoje aberta: inegociável, senão a mais curta; uma
+por chegada, nunca a mesma tarefa 2x no dia; se o `onde_estou` já falou na chegada, não fala de novo; push com
+Feito / Amanhã → `rotas/push.executar_acao` → `hora_certa.acao_casa`), `treino_pergunta` (saiu da academia sem
+treino registrado: mensagem no chat com o card `treino_agora` da sessão/rotação + push "Como foi o treino?", uma vez
+por dia), `rotina_descoberta`, `tarefa_adiada`.
+
+### O que já está no app (leva 06/11/2026 "painel mais esperto" - viagem planejada + combustível + trânsito preciso)
+Lógica em `viagem_planejada.py` e `combustivel.py`; front em `static/js/cards-viagem.js` +
+`static/css/secoes/hoje/cards-viagem.css`; tabelas `veiculo`, `abastecimentos`, `viagens_planejadas`
+(`migracoes/202611061200_vg_viagem_combustivel.sql`).
+
+| Cena | Onde | Dado |
+| :--- | :--- | :--- |
+| Viagem planejada | type novo `viagem` (`viagem_planejada.card`, tool `planejar_viagem`, `_efeito` `entidade: viagem_planejada`). É o card `rota` (mesmo mapa/carrinho, `Cards.mapaRota`) com extras por saída. | `id, destino, origem, quando, total_km, traco (+ km[] por ponto), saidas[3]{hora, saida_em, chegada_em, chega, duracao_total_min, transito_min, litros, lentos[], chuva[], noite[], postos[{km, nome, lat, lng, h24, ate, litros, desvio_min}], eventos[{hora, tipo, titulo, sub}], dica, maps_url, waze_url, waze_para}, escolhida, pedida, melhor, frase_melhor, aviso_noite, tanque{litros, fracao, tanque_l, conferido, km_l, reserva_km, texto}, custos[3]` (só com preço conhecido; some no visitante, igual `preco_litro`). Chip de saída troca a camada no front sem API e grava a escolha em `POST /api/viagens-planejadas/<id>/saida {indice}`; `/encerrar` fecha o plano. Tanque sempre "estimativa" com margem. |
+| Abastecimento | type novo `abastecimento` (`combustivel.card`, tool `registrar_abastecimento`, cor `#9fdcb0`, casca `CardsD.pilula`) com Desfazer (`entidade: abastecimento`). | `litros, valor, preco_litro, cheio, lugar, carro, consumo (real, cheio→cheio com hodômetro)\|null, consumo_padrao{estrada, cidade}, tanque{litros, fracao, tanque_l, tanque_conferido, autonomia_km, margem_l}, dica`. `valor`/`preco_litro` somem no visitante. |
+| Rota com trânsito na hora certa | `rota` ganha `transito_saida` ("HH:MM") quando a saída é no futuro: o Google calcula o trânsito pra essa hora e o card diz "previsto pra saída das HH:MM". Rota comum nunca sugere posto. | `transito_saida` |
+
+Contrato pro GPS ao vivo (`viagem_acompanhada.py`): `viagem_planejada.plano_ativo(conn, agora)` → `{id, destino, saida_em, chegada_em, total_km, traco, pontos_km[[lat,lng,km]], postos[{km,nome,lat,lng,passa_em}], chuva[{de_km,ate_km,tipo,inicio_em}]}` ou `None` (janela saída-2h até chegada+2h); `encerrar(conn, id)` também apaga as posições.

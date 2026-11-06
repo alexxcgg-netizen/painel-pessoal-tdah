@@ -27,6 +27,7 @@ import Foundation
 import SwiftUI
 import UIKit
 import UserNotifications
+import WidgetKit
 
 struct AvisoDoPainel: Decodable {
     let id: String
@@ -36,6 +37,9 @@ struct AvisoDoPainel: Decodable {
     let titulo: String
     let corpo: String
     let acoes: Bool
+    /// "tarefa" (Feito / Adiar 1 h), "casa" (Feito / Amanhã - "Chegou em casa", hora_certa.py) ou "" (sem botão).
+    /// Opcional: servidor antigo não manda e o app segue só com `acoes`.
+    let categoria: String?
     let url: String
 }
 
@@ -49,11 +53,13 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
     /// Igual a BGTaskSchedulerPermittedIdentifiers no project.yml (checar_projeto.py confere).
     static let tarefaFundo = "com.alexxcgg.painel.avisos"
     static let categoriaTarefa = "painel-tarefa"
+    static let categoriaCasa = "painel-casa"
     static let fundoACada: TimeInterval = 30 * 60
 
     private static let chaveUltima = "painel_avisos_ultima"
     private static let chaveResultado = "painel_avisos_resultado"
     private static let chaveFundo = "painel_avisos_fundo"
+    private static let chaveAssinatura = "painel_avisos_assinatura"
 
     @Published private(set) var permissao: UNAuthorizationStatus = .notDetermined
     @Published private(set) var agendados = 0
@@ -77,8 +83,11 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
         centro.delegate = self
         let feito = UNNotificationAction(identifier: "feito", title: "Feito", options: [])
         let adiar = UNNotificationAction(identifier: "adiar", title: "Adiar 1 h", options: [])
+        let amanha = UNNotificationAction(identifier: "amanha", title: "Amanhã", options: [])
         centro.setNotificationCategories([
             UNNotificationCategory(identifier: AvisosLocais.categoriaTarefa, actions: [feito, adiar],
+                                   intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: AvisosLocais.categoriaCasa, actions: [feito, amanha],
                                    intentIdentifiers: [], options: [])
         ])
         _ = BGTaskScheduler.shared.register(forTaskWithIdentifier: AvisosLocais.tarefaFundo, using: nil) { tarefa in
@@ -174,11 +183,24 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
                 }
                 self.agendar(avisos) { feitos in
                     self.contarAgendados(feitos, base: base)
-                    DispatchQueue.main.async { self.agendados = feitos.count }
+                    DispatchQueue.main.async {
+                        self.agendados = feitos.count
+                        self.recarregarWidgetsSeMudou(avisos)
+                    }
                     fechar(true, "ok: \(feitos.count) agendados")
                 }
             }
         }
+    }
+
+    /// Lista de avisos diferente da ultima = tarefa criada, feita ou mudada no painel: os widgets acompanham
+    /// (em segundo plano o WidgetKit conta isso no orcamento dele, por isso so quando mudou de verdade).
+    private func recarregarWidgetsSeMudou(_ avisos: [AvisoDoPainel]) {
+        let assinatura = avisos.map { "\($0.id)|\(Int($0.quando_ts))|\($0.titulo)" }.joined(separator: ";")
+        let d = Ajustes.defaults
+        guard d.string(forKey: AvisosLocais.chaveAssinatura) != assinatura else { return }
+        d.set(assinatura, forKey: AvisosLocais.chaveAssinatura)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     private func terminar(_ ok: Bool, texto: String?) {
@@ -242,7 +264,11 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
                 c.sound = .default
                 c.threadIdentifier = aviso.tipo
                 c.userInfo = ["tag": aviso.tag, "url": aviso.url]
-                if aviso.acoes { c.categoryIdentifier = AvisosLocais.categoriaTarefa }
+                switch aviso.categoria ?? "" {
+                case "casa": c.categoryIdentifier = AvisosLocais.categoriaCasa
+                case "tarefa": c.categoryIdentifier = AvisosLocais.categoriaTarefa
+                default: if aviso.acoes { c.categoryIdentifier = AvisosLocais.categoriaTarefa }
+                }
                 let gatilho = UNTimeIntervalNotificationTrigger(timeInterval: max(1, aviso.quando_ts - agora), repeats: false)
                 grupo.enter()
                 self.centro.add(UNNotificationRequest(identifier: aviso.id, content: c, trigger: gatilho)) { erro in
@@ -308,6 +334,7 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
         switch response.actionIdentifier {
         case "feito": acao = "feito"
         case "adiar": acao = "adiar"
+        case "amanha": acao = "amanha"
         case UNNotificationDefaultActionIdentifier: acao = "toque"
         default:
             completionHandler()
@@ -338,8 +365,14 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
                         tarefa = .invalid
                     }
                 }
-                // Feito/Adiar mudam a tarefa: tira o "daqui a pouco" que ficou agendado pra ela
-                if acao == "toque" { fechar() } else { self.sincronizar(motivo: acao) { _ in fechar() } }
+                // Feito/Adiar/Amanhã mudam a tarefa: tira o "daqui a pouco" que ficou agendado pra ela, e a tarefa
+                // ao vivo (se for ela) sai ou anda pra hora nova
+                if acao == "toque" {
+                    fechar()
+                } else {
+                    AoVivo.shared.sincronizar()
+                    self.sincronizar(motivo: acao) { _ in fechar() }
+                }
             }
         }.resume()
     }

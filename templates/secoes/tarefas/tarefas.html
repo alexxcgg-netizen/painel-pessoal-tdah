@@ -29,13 +29,31 @@
         <button type="button" class="chip" data-nivel="alta" aria-pressed="false">Alta</button>
       </div>
       <p id="sugestao-energia-vazio" class="vazio" hidden>Nenhuma tarefa compatível com esse nível agora.</p>
-      <ul id="lista-sugestao-energia"></ul>
+      <ul id="lista-sugestao-energia" class="tt-lista"></ul>
+
+      <!-- Leva 06/11 (frente 6): o dia de hoje em uma linha + a regua do dia (linha-do-tempo-tarefas.js) -->
+      <div class="tt-cab-dia">
+        <h3>Hoje</h3>
+        <span id="tt-cab-dia-data"></span>
+      </div>
+      <p class="tt-resumo" id="tt-resumo-dia"></p>
+      <div class="tt-regua" id="tt-regua" role="group" aria-label="Régua do dia" hidden>
+        <div class="tt-regua-trilho" id="tt-regua-trilho">
+          <div class="tt-regua-linha"></div>
+          <div class="tt-regua-chuva" id="tt-regua-chuva" hidden><i></i></div>
+          <div class="tt-regua-agora" id="tt-regua-agora" hidden></div>
+        </div>
+        <div class="tt-regua-horas" id="tt-regua-horas" aria-hidden="true"></div>
+        <p class="tt-regua-dica" id="tt-regua-dica"></p>
+      </div>
 
       <p id="tarefas-vazio" class="vazio" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9"/></svg>
         Nenhuma tarefa pendente. Tá tudo feito.
       </p>
-      <ul id="lista-tarefas"></ul>
+      <!-- Leva 06/11 (frente 6): grupos Atrasadas / Manha / Tarde / Noite / Sem hora / Amanha / proximos
+           dias / Sem data, cada um com a sua lista (tarefas.js monta). -->
+      <div id="lista-tarefas" class="tt-grupos"></div>
       <button type="button" id="tarefas-ver-mais" class="btn btn-secundario" hidden>Ver mais</button>
 
       <!-- M3 (uso diario): concluida some da lista acima mas NUNCA e apagada - aqui
@@ -45,3 +63,37 @@
       </button>
       <p id="tarefas-concluidas-vazio" class="vazio" hidden>Nenhuma tarefa concluída ainda.</p>
       <ul id="lista-tarefas-concluidas" hidden></ul>
+
+      <!-- Leva 06/11 (frente 6): folha de acoes da tarefa (folha-tarefa.js; componente ui/bottom-sheet.js) -->
+      <div class="bottom-sheet tt-folha" id="tarefa-folha" hidden aria-labelledby="tt-folha-titulo">
+        <h3 class="tt-folha-titulo" id="tt-folha-titulo"></h3>
+        <p class="tt-folha-sub" id="tt-folha-sub"></p>
+        <div class="tt-bloco">
+          <p class="tt-rotulo" id="tt-folha-rot-dia">Quando</p>
+          <div class="tt-chips" id="tt-folha-dias" role="group" aria-labelledby="tt-folha-rot-dia"></div>
+        </div>
+        <div class="tt-bloco">
+          <p class="tt-rotulo" id="tt-folha-rot-hora">Hora</p>
+          <div class="tt-chips" id="tt-folha-horas" role="group" aria-labelledby="tt-folha-rot-hora"></div>
+        </div>
+        <div class="tt-bloco">
+          <label class="tt-rotulo" for="tt-folha-nome">Nome</label>
+          <input class="tt-editar" id="tt-folha-nome" type="text" maxlength="200" autocomplete="off" enterkeyhint="done" />
+        </div>
+        <div class="tt-bloco" id="tt-folha-passos" hidden>
+          <p class="tt-rotulo">Passos</p>
+          <ul class="tt-passos"></ul>
+        </div>
+        <button type="button" class="tt-acao" id="tt-folha-feito">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+          Feito
+        </button>
+        <div class="tt-bloco tt-mais" id="tt-folha-mais">
+          <div class="tt-chips"></div>
+          <div id="tt-folha-extra"></div>
+        </div>
+        <button type="button" class="tt-acao perigo" id="tt-folha-apagar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/></svg>
+          Apagar
+        </button>
+      </div>

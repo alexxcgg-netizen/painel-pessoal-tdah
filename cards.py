@@ -50,6 +50,8 @@ MODULO_POR_TOOL = {
     "consultar_gastos_fixos": "Finanças",
     "consultar_sobra_do_mes": "Finanças",
     "calcular_gasto_viagem": "Finanças",
+    "planejar_viagem": "Viagens",
+    "registrar_abastecimento": "Carro",
     "registrar_meta": "Metas",
     "consultar_meta": "Metas",
     "registrar_habito": "Hábitos",
@@ -131,6 +133,8 @@ DESCRICAO_TOOL = {
     "planejar_compras_viagem": "Planejou as compras da viagem",
     "consultar_clima": "Consultou o tempo",
     "estimar_trajeto": "Calculou o trajeto",
+    "planejar_viagem": "Planejou a viagem",
+    "registrar_abastecimento": "Registrou o abastecimento",
     "consultar_gastos": "Consultou os gastos",
     "consultar_agenda": "Consultou a agenda",
     "consultar_voos": "Consultou os voos",
@@ -157,6 +161,8 @@ AO_VIVO_TOOL = {
     "consultar_voos": "Olhando os voos",
     "consultar_clima": "Vendo o tempo",
     "estimar_trajeto": "Calculando o trajeto",
+    "planejar_viagem": "Planejando a viagem",
+    "registrar_abastecimento": "Anotando o abastecimento",
     "briefing_meteo_voo": "Lendo o METAR e o TAF",
     "gerar_plano_do_dia": "Montando o plano do dia",
     "sugerir_horario_livre": "Procurando horário livre",
@@ -284,10 +290,17 @@ CAMPOS_SENSIVEIS = {
     # tao pessoais quanto dinheiro
     "guardados": ("destaque", "itens"),
     "lugar_salvo": ("nome", "endereco", "maps_url", "de_casa_min"),
+    # 06/11 (onde_vou/diario_lugares): onde ele esteve, pra onde vai e o recado sao tao pessoais quanto dinheiro
+    "indo_pra": ("destino", "eventos", "chega", "chega_s"),
+    "diario_lugares": ("lugares", "barra", "fora_min", "n_lugares"),
+    "recado_atraso": ("texto", "whatsapp", "via", "chega"),
     "o_que_falei": ("itens",),
     "neste_dia": ("itens",),
     "coincidencia": ("titulo", "linhas", "detalhe", "aviso"),
     "compra_parcelada": ("valor_total", "valor_parcela"),
+    # leva painel esperto (06/11/2026): dinheiro do combustivel
+    "abastecimento": ("valor", "preco_litro"),
+    "viagem": ("preco_litro", "custos"),
     "resumo_financeiro_recorrente": (
         "total_mensal", "assinaturas_total", "parcelas_total", "total_mes",
         "proximas_cobrancas", "proxima_cobranca",
@@ -398,6 +411,18 @@ TIPOS_CARD = (
     "retrospectiva",
     # linguagem D "ao vivo" (04/11/2026): lugar salvo pelo apelido (static/js/cards-d.js)
     "lugar_salvo",
+    # leva painel esperto (06/11/2026): viagem planejada e abastecimento (static/js/cards-viagem.js)
+    "viagem",
+    "abastecimento",
+    # painel mais esperto (06/11/2026, onde_vou.py / diario_lugares.py; static/js/cards-onde.js)
+    "indo_pra",
+    "diario_lugares",
+    "meu_tempo",
+    "recado_atraso",
+    # painel mais esperto, frente 7 (06/11/2026: voo_vespera.py / rotinas_esperto.py; static/js/cards-esperto.js)
+    "voo_decisao",
+    "rotina_proposta",
+    "tarefa_adiada",
 )
 
 
@@ -1660,6 +1685,9 @@ def card_rota(ef: dict) -> dict | None:
             "duracao_min": ef.get("duracao_min"),
             "traco": ef.get("traco") if isinstance(ef.get("traco"), dict) else None,
             "transito_min": transito if isinstance(transito, int) and transito >= 0 else None,
+            # 2026-11-06: hora pra qual o Google previu o transito ("previsto pra saida das 19:00")
+            "transito_saida": ef["transito_saida"] if isinstance(ef.get("transito_saida"), str)
+            and len(ef["transito_saida"]) == 5 else None,
             "lentidao": lentidao,
             "tempo": tempo,
         },
@@ -2398,6 +2426,13 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         import fechamento_dia
 
         return fechamento_dia.card_pouso(conn, date.today())
+    if entidade == "diario_lugares" and isinstance(ef.get("dia"), str):
+        import diario_lugares  # 06/11: por onde passou (consultar_diario)
+
+        try:
+            return diario_lugares.card(conn, date.fromisoformat(ef["dia"]))
+        except ValueError:
+            return None
     if entidade == "retrospectiva" and isinstance(ef.get("ano"), int) and isinstance(ef.get("mes"), int):
         import retrospectiva
 
@@ -2434,6 +2469,14 @@ def _card_de_efeito_modulo(conn, ef: dict, criar_token) -> dict | None:
         return card_resumo_financeiro_recorrente(conn)
     if entidade == "rota":
         return card_rota(ef)
+    if entidade == "viagem_planejada" and isinstance(id_, int):
+        import viagem_planejada
+
+        return viagem_planejada.card(conn, id_)
+    if entidade == "abastecimento" and isinstance(id_, int):
+        import combustivel
+
+        return combustivel.card(conn, id_, desfazer)
     if entidade == "refeicao" and isinstance(id_, int):
         return card_refeicao(conn, id_, ef, desfazer)
     if entidade == "guardados":

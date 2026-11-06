@@ -1,0 +1,120 @@
+/* static/css/secoes/hoje/cards-viagem.css - viagem planejada + abastecimento (static/js/cards-viagem.js,
+   leva "painel mais esperto" 06/11/2026, prototipo aprovado: cenas Viagem longa / Viagem curta).
+   O card `viagem` e o MESMO card de rota (mapa .vivo-mapa, barra .card-rota-tempo de parte-07.css e
+   cards-vivos.css); aqui so o que e novo. Estado final no HTML; entrada animada so em .card-novo; tudo
+   some com prefers-reduced-motion. Sem brilho, sem emoji, sem maiusculas espacadas novas. */
+
+.card-contrato-viagem { --card-cor: var(--cor-aviacao); --cv-posto: #9fdcb0; }
+.card-contrato-abastecimento { --card-cor: #9fdcb0; --cv-posto: #9fdcb0; }
+
+.cv-viagem { display: flex; flex-direction: column; min-width: 0; }
+
+/* pedaco de uma saida: so a escolhida aparece (trocar o chip so troca o data-on) */
+.cv-viagem [data-cv-s]:not([data-on]) { display: none; }
+
+/* ---- por cima do mapa ----------------------------------------------------- */
+.cv-camada { opacity: 1; }
+.cv-rota-noite {
+  fill: none; stroke: #0b0b0e; stroke-width: 3.2; stroke-linecap: round; stroke-dasharray: 1 4;
+  opacity: 0; transition: opacity 0.7s var(--ease-suave);
+}
+.vivo-rota-pronta .cv-rota-noite { opacity: 0.55; }
+.cv-posto-pino { opacity: 0; transition: opacity 0.6s var(--ease-suave) 0.2s; }
+.vivo-rota-pronta .cv-posto-pino { opacity: 1; }
+.cv-posto-halo { fill: var(--cv-posto); opacity: 0.22; }
+.cv-posto-miolo { fill: var(--cv-posto); }
+.cv-posto-bomba { fill: none; stroke: #0b0b0e; stroke-width: 1.6; stroke-linecap: round; }
+.cv-posto-sem .cv-posto-miolo { fill: var(--cor-alerta); }
+.cv-posto-sem .cv-posto-halo { fill: var(--cor-alerta); }
+.cv-posto-pino text { fill: var(--cv-posto); }
+
+/* ---- barra "Tempo no caminho" com noite, lento e posto -------------------- */
+.cv-barra .cv-faixa-noite { background: color-mix(in srgb, #000 55%, transparent); border-left: 1px dashed var(--text-faint); }
+.cv-barra .cv-faixa-lento { background: color-mix(in srgb, var(--cor-alerta) 75%, transparent); top: 35%; bottom: 35%; }
+.cv-barra .cv-faixa-lento--parado { background: color-mix(in srgb, var(--cor-saida) 80%, transparent); }
+.cv-faixa-posto { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: var(--cv-posto); }
+.cv-item-posto i { background: var(--cv-posto); }
+.cv-item-noite i { background: var(--text-faint); }
+
+/* ---- 3 horarios de saida --------------------------------------------------- */
+.cv-saidas { display: grid; gap: 0.4rem; margin: 0.2rem 0 0.6rem; }
+.cv-rotulo { margin: 0; font-size: 0.78rem; color: var(--text-muted); }
+.cv-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.cv-chip {
+  min-height: 44px; min-width: 64px; padding: 0 0.85rem; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  font: 600 0.88rem var(--font-tech, inherit); font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: background 0.25s var(--ease-suave), border-color 0.25s var(--ease-suave), transform 0.2s var(--ease-bounce);
+}
+.cv-chip:active { transform: scale(0.97); }
+.cv-chip[aria-pressed="true"] {
+  border-color: var(--card-cor);
+  background: color-mix(in srgb, var(--card-cor) 18%, var(--surface-2));
+}
+.cv-chip--melhor { position: relative; }
+.cv-chip--melhor::after {
+  content: ""; position: absolute; top: 7px; right: 8px; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--cv-posto);
+}
+.cv-melhor { margin: 0.1rem 0 0; font-size: 0.86rem; line-height: 1.35; color: var(--text); text-wrap: pretty; }
+.cv-dica { margin: 0; font-size: 0.8rem; line-height: 1.35; color: var(--text-muted); text-wrap: pretty; }
+.cv-aviso { margin: 0 0 0.5rem; font-size: 0.84rem; font-weight: 600; color: var(--cor-alerta); }
+.cv-sep { height: 1px; background: var(--border); margin: 0.2rem 0 0.6rem; }
+
+/* ---- linha do tempo com hora ----------------------------------------------- */
+.cv-linha { list-style: none; margin: 0 0 0.6rem; padding: 0; position: relative; }
+.cv-linha::before { content: ""; position: absolute; left: 51px; top: 10px; bottom: 10px; width: 2px; background: var(--border); }
+.cv-ev { display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.35rem 0; position: relative; min-width: 0; }
+.cv-ev-h {
+  width: 40px; flex: none; text-align: right; padding-top: 1px;
+  font: 500 0.78rem var(--font-tech, inherit); font-variant-numeric: tabular-nums; color: var(--text-muted);
+}
+.cv-ev-p {
+  width: 14px; height: 14px; flex: none; margin-top: 3px; border-radius: 50%; position: relative; z-index: 1;
+  background: var(--surface); border: 2px solid var(--text-faint);
+}
+.cv-ev-c { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cv-ev-c b { display: block; font-size: 0.88rem; font-weight: 600; line-height: 1.3; }
+.cv-ev-c span { display: block; font-size: 0.78rem; line-height: 1.3; color: var(--text-muted); }
+.cv-ev--chuva .cv-ev-p { border-color: var(--cor-cat-1); }
+.cv-ev--chuva b { color: var(--cor-cat-1); }
+.cv-ev--lento .cv-ev-p { border-color: var(--cor-alerta); }
+.cv-ev--lento b { color: var(--cor-alerta); }
+.cv-ev--posto .cv-ev-p { border-color: var(--cv-posto); background: var(--cv-posto); }
+.cv-ev--posto b { color: var(--cv-posto); }
+.cv-ev--alerta .cv-ev-p { border-color: var(--cor-saida); }
+.cv-ev--alerta b { color: var(--cor-saida); }
+.cv-ev--fim .cv-ev-p { border-color: var(--card-cor); background: var(--card-cor); }
+
+/* ---- tanque (estimativa) + numeros ---------------------------------------- */
+.cv-tanque { display: grid; gap: 0.35rem; margin: 0 0 0.6rem; }
+.cv-tanque-linha { display: flex; align-items: center; gap: 0.75rem; }
+.cv-tanque-barra { flex: 1; height: 10px; border-radius: 6px; background: var(--surface-2); position: relative; overflow: hidden; }
+.cv-tanque-barra i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--cv-posto); }
+.cv-reserva { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--cor-saida); opacity: 0.7; }
+.cv-tanque small { font-size: 0.75rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cv-estimativa { margin: 0; font-size: 0.75rem; line-height: 1.35; color: var(--text-faint); text-wrap: pretty; }
+.cv-numeros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; margin: 0 0 0.4rem; }
+.cv-numeros div { background: var(--surface-2); border-radius: 12px; padding: 0.55rem 0.6rem; min-width: 0; }
+.cv-numeros small { display: block; font-size: 0.7rem; color: var(--text-muted); }
+.cv-numeros strong { font: 600 0.92rem var(--font-tech, inherit); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---- abastecimento (dentro da pilula D) ----------------------------------- */
+.cv-linhas { display: grid; gap: 0.3rem; margin: 0.5rem 0 0; }
+.cv-linhas div { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.84rem; }
+.cv-linhas dt { color: var(--text-muted); }
+.cv-linhas dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* ---- entrada (so resposta nova) -------------------------------------------- */
+.card-novo .cv-ev { animation: cv-cai 0.5s var(--ease-suave) both; animation-delay: calc(var(--chegada, 0ms) + 400ms + var(--i, 0) * 70ms); }
+.card-novo .cv-tanque-barra i { animation: cv-enche 0.9s var(--ease-suave) both; animation-delay: calc(var(--chegada, 0ms) + 500ms); }
+@keyframes cv-cai { from { opacity: 0; transform: translateY(6px); } }
+@keyframes cv-enche { from { width: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-novo .cv-ev, .card-novo .cv-tanque-barra i { animation: none; }
+  .cv-chip, .cv-rota-noite, .cv-posto-pino { transition: none; }
+}
+
+/* rota comum (06/11): "previsto pra saida das HH:MM" ao lado do +N min de transito */
+.card-rota-transito-quando { font-weight: 500; color: var(--text-muted); }

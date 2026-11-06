@@ -11,7 +11,13 @@ Regras:
   - Nunca o endereco: `lugar` e so o apelido (o que ele escreveu, ou o ICAO do voo). Texto com cara de
     endereco (numero, "Rua ...") vira None.
   - Erro por dentro vira 500 com JSON curto, sem traceback; o app nao mexe na atividade quando nao e 200.
-  - Habito e tarefa solta nao viram atividade (decisao do briefing): so `tem_saida` ou voo.
+  - Habito nao vira atividade. Tarefa solta com hora (sem saida) vira atividade de UM passo ("hora")
+    quando faltam ate TAREFA_JANELA_MIN (leva 06/11, docs/briefings/2026-11-06-ao-vivo-tarefa.md), com
+    `tag` pro botao Feito; some TAREFA_DEPOIS_MIN depois da hora.
+  - `proxima_tarefa` (sempre que houver): a proxima tarefa de hoje com hora, pro widget da tela bloqueada.
+  - kind `viagem` (leva 06/11 "painel esperto", frente 3, viagem_acompanhada.py): viagem planejada em andamento
+    ganha de tarefa e compromisso (destino, km que faltam, chegada refeita pela posicao, posto, chuva).
+    `acompanhar: true` (so quando vale): o app pode mandar a posicao do carro agora.
 """
 
 from __future__ import annotations
@@ -33,6 +39,8 @@ ROTAS_COM_TOKEN = {"/api/ao-vivo"}
 
 JANELA_H = 6  # so compromisso que comeca nas proximas 6 h
 DEPOIS_DE_CHEGAR_MIN = 10  # a atividade fica 10 min mostrando "chegou" e some
+TAREFA_JANELA_MIN = 150  # tarefa com hora: liga quando faltam ate 2 h 30 (pedido do Alex, 06/11)
+TAREFA_DEPOIS_MIN = 20  # e fica 20 min depois da hora, se ele nao marcar Feito
 LEVAR_MAX = 4
 CHUVA_GUARDA_CHUVA = 40  # mesma regra do card de saida (briefing): >= 40% leva guarda-chuva
 FRIO_CASACO = 17  # <= 17 graus leva casaco
@@ -44,6 +52,8 @@ ASSUNTOS = {
     "voo": {"cor": "#8fd0ff", "icone": "airplane"},
     "tarefa": {"cor": "#f0a58f", "icone": "mappin.and.ellipse"},
     "agenda": {"cor": "#f0a58f", "icone": "calendar"},
+    "hora": {"cor": "#f0a58f", "icone": "clock.fill"},
+    "viagem": {"cor": "#8fd0ff", "icone": "car.fill"},  # kind viagem (viagem_acompanhada.ao_vivo)
 }
 
 ROTULOS = {"arrumar": "Arrumar", "sair": "Sair", "chegar": "Chegar"}
@@ -192,12 +202,101 @@ def _candidato(item: dict) -> bool:
     return item.get("kind") == "voo" or (item.get("kind") != "habito" and bool(item.get("tem_saida")))
 
 
+def _tarefas_com_hora(conn, agora: datetime) -> list[tuple[datetime, object]]:
+    """(hora, linha) das tarefas abertas de hoje com hora, em ordem. Sem modelo de repetida, sem arquivada,
+    sem refeicao (tem aviso proprio)."""
+    import notificacoes
+
+    dia = agora.date()
+    saida = []
+    for r in conn.execute(
+        "SELECT id, title, hora FROM tasks WHERE due_date = ? AND hora IS NOT NULL AND completed_at IS NULL "
+        "AND recorrencia IS NULL AND arquivada_em IS NULL ORDER BY hora, id", (dia.isoformat(),),
+    ).fetchall():
+        try:
+            ev = datetime.combine(dia, datetime.strptime(r["hora"], "%H:%M").time())
+        except (TypeError, ValueError):
+            continue
+        if notificacoes.e_refeicao(r["title"]):
+            continue
+        saida.append((ev, r))
+    return saida
+
+
+def _proxima_tarefa(tarefas, agora: datetime) -> dict | None:
+    for ev, r in tarefas:
+        if ev > agora:
+            return {"id": r["id"], "titulo": str(r["title"] or "Tarefa").strip()[:40], "em": _iso(ev)}
+    return None
+
+
+def _tarefa_ao_vivo(tarefas, agora: datetime, com_saida: set) -> tuple | None:
+    """A tarefa solta (sem saida) da janela: faltam ate TAREFA_JANELA_MIN ou passou ha menos de
+    TAREFA_DEPOIS_MIN. A mais cedo ganha (uma que acabou de passar ganha de uma que vem daqui 2 h)."""
+    for ev, r in tarefas:
+        if r["id"] in com_saida:
+            continue
+        if ev - agora <= timedelta(minutes=TAREFA_JANELA_MIN) and ev + timedelta(minutes=TAREFA_DEPOIS_MIN) > agora:
+            return ev, r
+    return None
+
+
+def _resposta_tarefa(ev: datetime, r, agora: datetime) -> dict:
+    return {
+        "ativo": True,
+        "id": f"tarefa-{r['id']}-{ev:%Y-%m-%d}",
+        "titulo": str(r["title"] or "Tarefa").strip()[:40],
+        "kind": "tarefa",
+        "assunto": "hora",
+        "icone": ASSUNTOS["hora"]["icone"],
+        "cor": ASSUNTOS["hora"]["cor"],
+        "lugar": None,
+        "passos": [{"chave": "hora", "rotulo": "Hora", "em": _iso(ev)}],
+        "atual": 0 if ev <= agora else -1,
+        "clima": None,
+        "levar": [],
+        "tag": f"tarefa_horario-{r['id']}",
+        "evento_em": _iso(ev),
+        "fim_em": _iso(ev + timedelta(minutes=TAREFA_DEPOIS_MIN)),
+        "gerado_em": _iso(agora),
+    }
+
+
 def montar(conn, agora: datetime, rede: bool = True, clima_fn=None) -> dict:
     """O JSON de `/api/ao-vivo`. Funcao sem Flask (testavel com relogio injetado). `rede=False` pula
     Maps/iCloud/clima."""
+    tarefas = _tarefas_com_hora(conn, agora)
+    proxima = _proxima_tarefa(tarefas, agora)
+    resposta = _montar(conn, agora, rede, clima_fn, tarefas)
+    # viagem acompanhada (leva 06/11 painel esperto, frente 3): viagem em andamento ganha de tarefa e de
+    # compromisso; `acompanhar` diz ao app se a posicao do carro pode ir pro painel agora (POST
+    # /api/localizacao/posicao). Posicao de viagem que acabou e apagada aqui tambem.
+    try:
+        import viagem_acompanhada
+
+        alvo = viagem_acompanhada.acompanhamento(conn, agora, resposta)
+        viagem_acompanhada.limpar(conn, agora, alvo["chave"] if alvo else None)
+        viagem = viagem_acompanhada.ao_vivo(conn, agora, alvo) if alvo and alvo.get("plano") else None
+    except Exception:
+        alvo, viagem = None, None
+    if viagem:
+        resposta = viagem
+    if alvo:
+        resposta["acompanhar"] = True  # so quando vale (sem a chave = nao manda posicao)
+    if proxima:
+        resposta["proxima_tarefa"] = proxima
+    return resposta
+
+
+def _montar(conn, agora: datetime, rede: bool, clima_fn, tarefas) -> dict:
     clima_fn = clima_fn or _clima_na_chegada
     escolhido = None
+    com_saida = set()
     for item in tempo.compromissos(conn, agora, rede):
+        if item.get("kind") == "tarefa" and item.get("tem_saida"):
+            com_saida.add(item["ref"])
+        if escolhido is not None and escolhido[1][-1]["em"] > agora:
+            continue  # ja achou o proximo; so termina de juntar as tarefas com saida
         if not _candidato(item) or item["evento"] - agora > timedelta(hours=JANELA_H):
             continue
         passos = _passos(conn, item)
@@ -206,8 +305,12 @@ def montar(conn, agora: datetime, rede: bool = True, clima_fn=None) -> dict:
         if fim <= agora:
             continue
         escolhido = (item, passos, fim)
-        if chegar > agora:  # o proximo que ainda nao chegou ganha de um que acabou de chegar
-            break
+    solta = _tarefa_ao_vivo(tarefas, agora, com_saida)
+    if solta is not None:
+        ev, r = solta
+        # a saida ganha se ja comecou (passou do 1o passo) ou se o 1o passo dela vem antes da hora da tarefa
+        if escolhido is None or not (escolhido[1][0]["em"] <= agora or escolhido[1][0]["em"] <= ev):
+            return _resposta_tarefa(ev, r, agora)
     if escolhido is None:
         return {"ativo": False}
 

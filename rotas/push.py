@@ -104,6 +104,14 @@ def executar_acao(tag, acao):
                 return jsonify({"error": "combinado não encontrado"}), 404
             return jsonify({"ok": True, "titulo": (feito or {}).get("titulo", "Combinado"),
                             "mensagem": "Boa. +1 no teu dia." if feito else "", "badge": badge.contagem(conn, app._agora_brasilia().date())})
+        if tipo == "casa_tarefa" and ref.isdigit() and acao in ("feito", "adiar"):
+            # "Chegou em casa" (painel esperto, 06/11, hora_certa.py): Feito / Amanha
+            import hora_certa
+
+            feito = hora_certa.acao_casa(conn, int(ref), acao, app._agora_brasilia())
+            if not feito:
+                return jsonify({"error": "tarefa não encontrada"}), 404
+            return jsonify({**feito, "badge": badge.contagem(conn, app._agora_brasilia().date())})
         if acao == "toque" or tipo not in app._AVISOS_DE_UMA_TAREFA or not ref.isdigit():
             return jsonify({"error": "esse aviso não tem botão"}), 400
         tarefa = conn.execute("SELECT id, title, due_date, hora, completed_at FROM tasks WHERE id = ?", (int(ref),)).fetchone()

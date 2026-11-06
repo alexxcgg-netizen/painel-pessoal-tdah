@@ -1288,7 +1288,12 @@
     // 2026-10-15: quanto do tempo e transito + trecho lento/parado ("pode ser acidente ou blitz")
     const transito =
       numeroValido(data.transito_min) && data.transito_min >= 3
-        ? `<p class="card-rota-transito">+${esc(data.transito_min)} min de trânsito</p>`
+        ? `<p class="card-rota-transito">+${esc(data.transito_min)} min de trânsito` +
+          // 06/11: o Google previu pra hora real de sair (nao e o transito de agora)
+          (typeof data.transito_saida === "string" && /^\d{2}:\d{2}$/.test(data.transito_saida)
+            ? ` <span class="card-rota-transito-quando">previsto pra saída das ${esc(data.transito_saida)}</span>`
+            : "") +
+          `</p>`
         : "";
     const lentos = lista(data.lentidao)
       .filter((x) => x && (x.nivel === "parado" || x.nivel === "lento") && typeof x.frase === "string")
@@ -1688,4 +1693,6 @@
   });
 
   Object.assign(Cards, { blocoDoDia, progressoProjeto, minutosPorAtividade, semanaHabito, horaCurta, fmtPassos, fmtSono, emDiasTexto, mesCurto, diasAte });
+  // card `viagem` (static/js/cards-viagem.js, 06/11/2026) e o mesmo card de rota com mais coisas
+  Object.assign(Cards, { mapaRota, tempoRota, kmTexto, eyebrowCard: eyebrow, ICONE_ROTA: ICONES.rota });
 })(typeof window !== "undefined" ? window : globalThis);

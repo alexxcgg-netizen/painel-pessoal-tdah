@@ -11,6 +11,8 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-06 - Painel mais esperto: aba Tarefas nova, viagem com posto, GPS, onde estou, voo na véspera
+- 2026-11-06 - Tarefa ao vivo na tela bloqueada, Feito no ao vivo e aviso na hora exata
 - 2026-11-06 - Avisos no app do iPhone (sem push da Apple) e texto novo dos avisos
 - 2026-11-06 - App do iPhone mostra qual versão está instalada
 - 2026-11-05 - Leva "agentes": revisor das respostas, preparo do dia de madrugada, contexto que não engole a me…
@@ -179,6 +181,88 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
 
+## 2026-11-06 - Painel mais esperto: aba Tarefas nova, viagem com posto, GPS, onde estou, voo na véspera
+Pedido do Alex antes do `.ipa`: "quero algo mais, espero mais, realmente um assistente". Briefing com respostas,
+decisões e vetos: `docs/briefings/2026-11-06-painel-esperto.md`. Protótipo aprovado (dados inventados):
+https://claude.ai/artifact/WXSEtwp14Y1UwGEc86TYTX (v1 -> v2 com o card de rota com mapa, pedido dele -> v3 com
+"Mais esperto"). Feito em 5 frentes em paralelo; SW v104 (mesmo bump da leva do ao vivo). Cenas em `docs/CARDS.md`.
+
+- **Aba Tarefas nova** (`static/js/secoes/tarefas/tarefas.js`, `linha-do-tempo-tarefas.js`, `folha-tarefa.js`,
+  `tarefas.css`, `templates/secoes/tarefas/tarefas.html`): lista estilo Ajustes por grupo (Atrasadas / Manhã /
+  Tarde / Noite / Sem hora / Amanhã / dias seguintes), caixinha 44 px que marca feito, toque abre a folha (dia,
+  hora, nome, Feito, Apagar e os extras que a tarefa já tinha), régua do dia com chuva (`/api/clima/hoje`) e
+  arrastar de 15 em 15 min; tudo com Desfazer. Rotas `POST /api/tasks/<id>/mover` e `/titulo`
+  (`rotas/tarefas_acoes.py`). Mudar hora/dia de saída (date, balada, tarefa com lugar) refaz o "sai às" pela mesma
+  função do chat (`app.replanejar_saida`, usada também pelo `ajustar_tarefa` e pela `/hora` antiga).
+- **Viagem planejada** (`viagem_planejada.py`, tool `planejar_viagem`, card `viagem` em `cards-viagem.js`): card de
+  rota com mapa + chuva/lento/posto por cima, 3 saídas comparadas (trocar não chama API), postos ao longo da rota
+  abertos na hora que passa (Places searchAlongRoute), paradas pela autonomia, noite, Maps/Waze. Tabelas `veiculo`,
+  `abastecimentos`, `viagens_planejadas`; `combustivel.py` + tool `registrar_abastecimento` (consumo real de
+  tanque cheio a tanque cheio; tanque sempre "estimativa"). XC40 com 49 L (dito por ele; "acho que é 49"). Rota comum nunca ganha
+  posto (veto dele); trânsito do card de rota calculado pra hora real de saída. Cota: `posto_rota` 600,
+  `horario_lugar` 300, e as buscas que escapavam passam a contar.
+- **GPS do iPhone** (`Localizacao.swift` reescrito, `viagem_acompanhada.py`, `rotas/localizacao_viagem.py`):
+  cercas (até 20, `GET /api/localizacao/cercas`) que mandam chegada/saída pela rota da visita (`fonte: "cerca"`),
+  Movimento (dirigindo liga o GPS de estrada sozinho), viagem acompanhada (`POST /api/localizacao/posicao` só
+  dirigindo e com viagem/compromisso ativo; posições apagadas no fim), ao vivo da viagem (`AtividadeViagem.swift`,
+  kind `viagem` no `/api/ao-vivo`, ganha de tarefa/compromisso). Conserto: desligar o botão não parava o GPS.
+- **Onde estou** (`onde_vou.py`, `diario_lugares.py`, `rotas/onde_vou.py`, `cards-onde.js`): "Indo pro X?" ao sair
+  perto da hora de uma saída, diário do dia (só lugar e tempo, no fechamento e em `consultar_diario`), tempos reais
+  (mediana das últimas 6 saídas, a partir de 3, só adianta, até 30 min; "Meu tempo / Padrão"), recado de atraso com
+  texto pronto e link do WhatsApp (nunca manda sozinho). Cerca + visita do mesmo lugar viram uma estadia só.
+- **Mais esperto** (`voo_vespera.py`, `rotinas_esperto.py`, `hora_certa.py`, `rotas/esperto.py`,
+  `cards-esperto.js`): voo decidido na véspera (20h e 06:30; voa / no limite / não dá; TAF de SBNF pro SSBL; nunca
+  inventa quando o TAF não cobre), rotina descoberta (3 semanas), tarefa adiada 3 vezes (passos / mudar o dia /
+  apagar), pergunta na hora certa (chegou em casa depois das 18h; saiu da academia sem treino). Avisos novos só se
+  somam aos de hora fixa. Fila única de avisos de evento: aviso local do app com botão Amanhã (`painel-casa`) e push
+  como reserva sem duplicar; `indo_pra`/`atraso_recado` também pelo app.
+- Testes novos: `test_tarefas_acoes`, `test_tarefas_aba_nova`, `test_viagem_planejada`, `test_viagem_acompanhada`,
+  `test_onde_vou`, `test_esperto`, JS `cards_viagem`, `cards_onde`, `cards_esperto`, `tarefas_linha_do_tempo`.
+  Checagens novas no `native/ios/checar_projeto.py`. Swift não compila aqui: o build do `.ipa` é a prova.
+
+## 2026-11-06 - Tarefa ao vivo na tela bloqueada, Feito no ao vivo e aviso na hora exata
+Pedido do Alex depois do aviso local funcionar: juntar tudo num `.ipa` só em vez de instalar a cada mudança, e
+"aquela notificação ao vivo na tela de bloqueio" pra tarefa, "só as próximas 2 horas e 30 min" e com animação.
+Escolheu junto: Feito no ao vivo, widget com tarefa e aviso na hora exata. Briefing com as decisões:
+`docs/briefings/2026-11-06-ao-vivo-tarefa.md`. Protótipo (dados inventados):
+https://claude.ai/artifact/Ffcd6UiKMiNR4ZLFZqMYyv. Do PWA, só o aviso pro app em `nucleo/api.js` (SW v104).
+
+- **Ao vivo de tarefa** (`rotas/ao_vivo.py`): a próxima tarefa de hoje com hora entra quando faltam até 150 min
+  (`TAREFA_JANELA_MIN`) e fica até 20 min depois da hora (`TAREFA_DEPOIS_MIN`). Um passo só (`"hora"`), cor coral,
+  ícone de relógio, `tag` = `tarefa_horario-<id>` pro botão. Compromisso de saída ganha se já começou ou se o 1º
+  passo dele vem antes da hora da tarefa. Fora: feita, refeição (`Comer: ...`), modelo de repetida, arquivada,
+  tarefa que já é de saída (segue o desenho de saída). `proxima_tarefa` vai junto sempre que houver (pro widget).
+- **Desenho** (`native/widgetkit/AtividadeTarefa.swift`, ligado em `AtividadeCompromisso.swift` por `ehTarefa`):
+  contagem "falta" até a hora e "agora" contando desde a hora, barra que enche nas 2 h 30
+  (`ProgressView(timerInterval:)`), botão Feito; ilha compacta (ícone + contagem), mínima (anel que esvazia) e
+  aberta. Feito: check que cresce e assenta, título riscado, some em 4 s. Só animação que o iOS deixa (nada em loop).
+  Passou da hora sem Feito: tudo que é da cor da tarefa fica vermelho (`--perigo` do app, #f47671; pedido dele);
+  vale também quando o iOS marca a atividade como velha na hora (`isStale`). O check do Feito volta pro coral.
+- **Feito no ao vivo** (`native/widgetkit/FeitoAoVivoIntent.swift`, iOS 17, `LiveActivityIntent` nos dois alvos):
+  mostra o check na hora, `POST /api/app/aviso/acao` (`feito`), encerra; sem rede volta ao normal. O app usa o
+  próprio token (`#if PAINEL_APP`, flag nova no `project.yml`); resultado no relatório (`aovivo_feito`).
+  `AoVivo.swift` não derruba atividade em estado "feito" e não encerra tarefa na hora (fica até o fim).
+  Feito/Adiar pelo aviso também atualiza o ao vivo.
+- **Widget da tela bloqueada** (`ProximoCompromisso.swift`): sem saída/voo ao vivo, mostra a próxima tarefa com
+  hora (título, "Às 14:30", quanto falta; anel nas 3 h antes) antes do voo. Texto vazio virou "Nada com hora por hoje".
+- **Aviso na hora exata** (`avisos_app.py`): `tarefa_agora` ("⏰ <tarefa> / Deu 14:30, é agora. Quando terminar,
+  toca em Feito."), com Feito/Adiar, só pelo app. Segue o hiperfoco do `tarefa_horario`. A repetição do
+  `tarefa_horario` que cairia na mesma hora fica quieta quando o app agendou o `tarefa_agora` (conta como repetida).
+  Mexer no "é agora" para a insistência do aviso de tarefa. Liga/desliga em Assistente > Avisos.
+- `native/ios/checar_projeto.py` 5c: `LiveActivityIntent` nos dois alvos e `PAINEL_APP` só no app.
+- Testes: `tests/test_ao_vivo.py` (`TarefaAoVivoTest`), `tests/test_avisos_app.py` (`EAgoraSemDuplicarTestCase` e
+  os de `tarefa_agora`).
+- **Bug (print dele, 05:06): marcou Feito/Desfazer no painel dentro do app e a ilha continuou.** O app só conferia
+  o ao vivo ao abrir/voltar pro app; escrita feita na própria página não chegava. Agora `nucleo/api.js`
+  (`avisarAppNativo`) manda "mudou" pelo canal `window.webkit.messageHandlers.painel` depois de qualquer escrita
+  (junta as seguidas em 0,8 s); o app (`PainelApp.swift`, `AvisoDaPagina`, só do host do painel) confere o ao vivo e
+  os avisos na hora. Também confere o ao vivo ao ir pro segundo plano, e `AoVivo.sincronizar` pedido no meio de
+  outro roda de novo no fim (a resposta em voo podia ser de antes do Feito). No Safari/PWA o canal não existe e
+  nada muda. SW v104. Checagem 5d no `checar_projeto.py`; teste `tests/js/avisar_app_nativo.test.js`.
+- Contagem da ilha compacta cortava com mais de 1 h ("2:23:..."): espaço 52 -> 64 pt, fonte 13.
+- No caso do print: a tarefa das 7:30 estava aberta no painel e houve um Desfazer às 05:06; se o Desfazer foi o
+  do Feito dela, a ilha mostrava o estado certo (o Desfazer reabre). Não deu pra confirmar qual tarefa foi desfeita.
+
 ## 2026-11-06 - Avisos no app do iPhone (sem push da Apple) e texto novo dos avisos
 Pedido do Alex ("2 sim boa pode ligar gostei de todos"): o app nativo avisa sozinho, mesmo sem o push remoto da
 Apple (APNs), que a conta grátis não tem. Junto, o texto que ele votou no artefato "Avisos do Painel": estilo C
@@ -209,6 +293,8 @@ então sem bump do SW. O app novo só vale depois de um `.ipa` novo.
   - `_saida_do_voo` separado de `_aviso_voo_sair` (o app usa a mesma conta).
   - `rotas/push.py` ganhou `executar_acao` e `registrar_toque`, que a rota do app reaproveita.
 - Relatório do app: agendados, próximo, última conferida, quantas vezes acordou em segundo plano, GPS.
+- Widgets recarregam quando o app sai da tela, e também quando a lista de avisos mudou em segundo plano. Antes, a
+  tarefa criada no chat só aparecia no widget na próxima busca dele, que o iPhone controla.
 - Testes: `tests/test_avisos_app.py` (23), e os testes de texto antigo atualizados.
 
 ## 2026-11-06 - App do iPhone mostra qual versão está instalada

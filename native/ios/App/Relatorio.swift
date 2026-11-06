@@ -297,6 +297,9 @@ final class Relatorio: ObservableObject {
         add(g, "Acordou em segundo plano", "\(avisos.acordadasNoFundo) vezes", chave: "avisos_fundo", dado: avisos.acordadasNoFundo)
         let gps = Localizacao.shared.gpsSempre
         add(g, "GPS sempre ligado", gps ? "ligado" : "desligado", chave: "gps_sempre", dado: gps)
+        // botão Feito do ao vivo de tarefa (06/11, FeitoAoVivoIntent.swift): "ok 06/11 14:02" / "falhou ..."
+        let feito = UserDefaults.standard.string(forKey: FeitoAoVivo.chaveResultado) ?? "nunca usado"
+        add(g, "Feito no ao vivo", feito, feito.hasPrefix("falhou") ? .atencao : .ok, chave: "aovivo_feito", dado: feito)
     }
 
     // MARK: Rede

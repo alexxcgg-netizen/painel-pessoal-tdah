@@ -95,10 +95,13 @@ class MontagemTest(AoVivoBase):
     def test_sem_compromisso_fica_inativo(self):
         self.assertEqual(self.get().get_json(), {"ativo": False})
 
-    def test_tarefa_solta_e_habito_nao_viram_atividade(self):
-        self.tarefa("Academia", "16:00")  # trava o dia, mas sem saida
-        self.tarefa("Tomar remédio", "15:30")
-        self.assertEqual(self.get().get_json(), {"ativo": False})
+    def test_tarefa_solta_longe_nao_vira_atividade_mas_vira_proxima(self):
+        ref = self.tarefa("Separar os papéis", "18:00")  # 3 h: fora das 2 h 30
+        d = self.get().get_json()
+        self.assertFalse(d["ativo"])
+        self.assertEqual(d["proxima_tarefa"]["id"], ref)
+        self.assertEqual(d["proxima_tarefa"]["titulo"], "Separar os papéis")
+        self.assertEqual(_local(d["proxima_tarefa"]["em"]), datetime(2026, 11, 7, 18, 0))
 
     def test_date_com_passos_cor_e_icone(self):
         ref = self.tarefa("Date", "19:00", estilo="date", local="Viva Beach")
@@ -129,7 +132,7 @@ class MontagemTest(AoVivoBase):
 
     def test_longe_demais_nao_entra(self):
         self.tarefa("Date", "22:00", estilo="date", local="Viva Beach")
-        self.assertEqual(self.get(datetime(2026, 11, 7, 15, 30)).get_json(), {"ativo": False})
+        self.assertFalse(self.get(datetime(2026, 11, 7, 15, 30)).get_json()["ativo"])
         self.assertTrue(self.get(datetime(2026, 11, 7, 16, 0)).get_json()["ativo"])
 
     def test_voo_chega_pro_briefing_e_some_na_decolagem(self):
@@ -229,3 +232,89 @@ class ParadaEClimaTest(AoVivoBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TarefaAoVivoTest(AoVivoBase):
+    """Leva 06/11 (docs/briefings/2026-11-06-ao-vivo-tarefa.md): tarefa com hora nas proximas 2 h 30."""
+
+    def test_tarefa_nas_proximas_2h30_vira_atividade_de_um_passo(self):
+        ref = self.tarefa("Separar os papéis", "16:30")
+        d = self.get().get_json()
+        self.assertTrue(d["ativo"])
+        self.assertEqual(d["id"], f"tarefa-{ref}-{DIA}")
+        self.assertEqual((d["titulo"], d["kind"], d["assunto"], d["icone"], d["cor"]),
+                         ("Separar os papéis", "tarefa", "hora", "clock.fill", "#f0a58f"))
+        self.assertEqual([(p["chave"], p["rotulo"]) for p in d["passos"]], [("hora", "Hora")])
+        self.assertEqual(_local(d["passos"][0]["em"]), datetime(2026, 11, 7, 16, 30))
+        self.assertEqual(d["atual"], -1)
+        self.assertEqual(d["tag"], f"tarefa_horario-{ref}")
+        self.assertEqual(_local(d["fim_em"]), datetime(2026, 11, 7, 16, 50))
+        self.assertIsNone(d["lugar"])
+        self.assertEqual(d["levar"], [])
+
+    def test_janela_de_150_min_ate_20_depois(self):
+        self.tarefa("Ligar pro banco", "17:30")
+        self.assertFalse(self.get(datetime(2026, 11, 7, 14, 59)).get_json()["ativo"])
+        self.assertTrue(self.get(datetime(2026, 11, 7, 15, 0)).get_json()["ativo"])
+        d = self.get(datetime(2026, 11, 7, 17, 35)).get_json()
+        self.assertTrue(d["ativo"])
+        self.assertEqual(d["atual"], 0)  # ja deu a hora
+        self.assertNotIn("proxima_tarefa", d)  # nenhuma depois de agora
+        self.assertFalse(self.get(datetime(2026, 11, 7, 17, 50)).get_json()["ativo"])
+
+    def test_feita_refeicao_repetida_e_arquivada_nao_entram(self):
+        feita = self.tarefa("Feita", "15:30")
+        self.conn.execute("UPDATE tasks SET completed_at = '2026-11-07 17:00:00' WHERE id = ?", (feita,))
+        self.tarefa("Comer: almoço - arroz, feijão", "15:40")  # bloco de comida do planejar_dia
+        modelo = self.tarefa("Remédio", "15:45")
+        self.conn.execute("UPDATE tasks SET recorrencia = 'diaria' WHERE id = ?", (modelo,))
+        arq = self.tarefa("Arquivada", "15:50")
+        self.conn.execute("UPDATE tasks SET arquivada_em = '2026-11-07' WHERE id = ?", (arq,))
+        outro_dia = self.tarefa("Amanhã", "15:55", data="2026-11-08")
+        self.conn.commit()
+        d = self.get().get_json()
+        self.assertEqual(d, {"ativo": False})
+        self.assertTrue(outro_dia)
+
+    def test_mais_cedo_ganha(self):
+        self.tarefa("Depois", "16:40")
+        cedo = self.tarefa("Antes", "15:50")
+        d = self.get().get_json()
+        self.assertEqual(d["tag"], f"tarefa_horario-{cedo}")
+        self.assertEqual(d["proxima_tarefa"]["titulo"], "Antes")
+
+    def test_tarefa_com_saida_continua_no_desenho_de_saida(self):
+        ref = self.tarefa("Date", "16:30", estilo="date", local="Viva Beach")
+        d = self.get().get_json()
+        self.assertEqual([p["chave"] for p in d["passos"]], ["arrumar", "sair", "chegar"])
+        self.assertNotIn("tag", d)
+        self.assertEqual(d["id"], f"tarefa-{ref}-{DIA}")
+
+    def test_saida_que_comeca_antes_ganha_da_tarefa(self):
+        # date 19:00: arrumar 18:05; tarefa 18:30 -> o 1o passo da saida vem antes
+        self.tarefa("Date", "19:00", estilo="date", local="Viva Beach")
+        self.tarefa("Pagar a fatura", "18:30")
+        d = self.get(datetime(2026, 11, 7, 16, 30)).get_json()
+        self.assertEqual(d["passos"][0]["chave"], "arrumar")
+
+    def test_tarefa_antes_da_saida_ganha(self):
+        # date 19:00 (arrumar 18:05); tarefa 16:30 vem antes
+        self.tarefa("Date", "19:00", estilo="date", local="Viva Beach")
+        ref = self.tarefa("Pagar a fatura", "16:30")
+        d = self.get(datetime(2026, 11, 7, 15, 30)).get_json()
+        self.assertEqual(d["tag"], f"tarefa_horario-{ref}")
+        # 18:10 a saida ja comecou (arrumar): ela ganha mesmo com outra tarefa perto
+        self.tarefa("Outra", "18:20")
+        d = self.get(datetime(2026, 11, 7, 18, 10)).get_json()
+        self.assertEqual(d["passos"][0]["chave"], "arrumar")
+
+    def test_titulo_longo_corta_e_nao_quebra(self):
+        self.tarefa("x" * 200, "15:30")
+        d = self.get().get_json()
+        self.assertEqual(len(d["titulo"]), 40)
+        self.assertEqual(len(d["proxima_tarefa"]["titulo"]), 40)
+
+    def test_hora_torta_e_ignorada(self):
+        self.tarefa("Torta", "25:99")
+        self.tarefa("Sem formato", "amanha")
+        self.assertEqual(self.get().get_json(), {"ativo": False})

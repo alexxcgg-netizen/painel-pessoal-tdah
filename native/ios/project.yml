@@ -38,6 +38,8 @@ targets:
       - path: ../widgetkit/IlhaTesteAtributos.swift
       # atividade ao vivo do próximo compromisso (04/11): o app liga/atualiza/encerra (AoVivo.swift), o widget desenha
       - path: ../widgetkit/CompromissoAtributos.swift
+      # botão Feito dentro da atividade ao vivo da tarefa (06/11): o iOS roda o perform() no processo do app
+      - path: ../widgetkit/FeitoAoVivoIntent.swift
     info:
       path: App/Info.plist
       properties:
@@ -64,6 +66,8 @@ targets:
         NSLocationWhenInUseUsageDescription: O painel usa a localização pra hora de sair e chegada no aeroclube.
         # onde eu estou (04/11): visitas (chegou/saiu de um lugar) com o app fechado - so o lugar, nunca o caminho
         NSLocationAlwaysAndWhenInUseUsageDescription: Com “Sempre”, o painel sabe quando tu chega e sai de um lugar (mecânico, casa) e ajusta os horários das tarefas.
+        # GPS mais esperto (06/11): o sensor de movimento diz quando tu esta dirigindo (Localizacao.swift)
+        NSMotionUsageDescription: O painel usa o movimento do iPhone pra saber quando tu está dirigindo e ligar o GPS de estrada sozinho.
         # avisos no app (06/11): "fetch" = atualizacao em segundo plano (BGAppRefreshTask, AvisosLocais.swift);
         # "location" = GPS sempre ligado (botao do Configurar, desligado por padrao). O identificador tem que
         # bater com AvisosLocais.tarefaFundo (checar_projeto.py confere).
@@ -77,6 +81,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.alexxcgg.painel
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # arquivo compartilhado com o widget que precisa saber em qual alvo esta (FeitoAoVivoIntent.swift)
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) PAINEL_APP"
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - target: PainelWidgetExtension

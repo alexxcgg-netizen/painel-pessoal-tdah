@@ -44,6 +44,7 @@ RAIO_M = 150  # "esta no lugar"
 RAIO_MAX_M = 250  # visita imprecisa estica o raio ate aqui, nunca mais
 MESMA_VISITA_M = 300  # "chegou" e "saiu" da mesma visita (o iOS pode mexer um pouco no ponto)
 MESMA_VISITA_S = 120
+MESMA_ENTRADA_S = 30 * 60  # entrada pela cerca e pela visita do iOS no mesmo lugar ainda aberto
 ATRASO_MIN = 10  # tolerancia antes de empurrar
 ARREDONDA_MIN = 5
 JANELA_TRAJETO_MIN = 120  # so consulta trajeto (cota do Maps) pra tarefa que comeca em ate 2 h
@@ -122,10 +123,17 @@ def validar(corpo, agora: datetime) -> dict | str:
         return "horario no futuro"
     if chegada and saida and saida < chegada:
         return "saida antes da chegada"
+    # cerca do iPhone (06/11, GPS mais esperto): mesma rota, `fonte: "cerca"` e o apelido do lugar da cerca
+    lugar = corpo.get("lugar")
+    lugar = vida_assistente._chave_apelido(lugar) if isinstance(lugar, str) and len(lugar) <= 120 else None
+    cerca = corpo.get("cerca")  # id da cerca (viagem_acompanhada._id_cerca): "casa" ou "c" + 10 hex
+    cerca = cerca if isinstance(cerca, str) and re.fullmatch(r"[a-z0-9]{1,20}", cerca) else None
     return {
         "lat": round(lat, CASAS_COORD), "lon": round(lon, CASAS_COORD),
         "precisao": round(min(precisao, 100000), 1) if precisao is not None else None,
         "chegada": chegada, "saida": saida,
+        "fonte": "cerca" if corpo.get("fonte") == "cerca" else "visita", "lugar": lugar or None,
+        "cerca": cerca,
     }
 
 
@@ -242,16 +250,48 @@ def registrar(conn, dados: dict, agora: datetime) -> tuple[int, bool]:
         if chegada and rc and abs((rc - chegada).total_seconds()) <= MESMA_VISITA_S:
             existente = r
             break
+        # cerca + visita do mesmo lugar (06/11): a cerca chega antes, a visita do iOS minutos depois - uma so
+        if chegada and rc and not r["saida"] and abs((rc - chegada).total_seconds()) <= MESMA_ENTRADA_S:
+            if chegada < rc:
+                conn.execute("UPDATE visitas SET chegada = ? WHERE id = ?", (_iso(chegada), r["id"]))
+                conn.commit()
+            existente = r
+            break
+        # cerca e visita do iOS ja fecharam a mesma estadia (a visita chega atrasada): nao vira outra
+        rs = _dt(r["saida"])
+        if chegada and rc and rs and abs((rc - chegada).total_seconds()) <= MESMA_ENTRADA_S                 and chegada <= rs + timedelta(minutes=2):
+            if chegada < rc:
+                conn.execute("UPDATE visitas SET chegada = ? WHERE id = ?", (_iso(chegada), r["id"]))
+                conn.commit()
+            existente = r
+            break
         if not chegada and not r["saida"]:  # "saiu" sem a chegada (o iOS nao sabia): fecha a aberta ali
+            existente = r
+            break
+        # a outra saida (cerca ou visita) do mesmo lugar ja fechou ela: a saida conta uma vez so
+        if not chegada and rs and saida and abs((rs - saida).total_seconds()) <= MESMA_ENTRADA_S:
             existente = r
             break
     if existente:
         if saida and not existente["saida"]:
             conn.execute("UPDATE visitas SET saida = ? WHERE id = ?", (_iso(saida), existente["id"]))
             conn.commit()
+        elif saida and _dt(existente["saida"]) and saida < _dt(existente["saida"]):  # fica a saida mais cedo
+            conn.execute("UPDATE visitas SET saida = ? WHERE id = ?", (_iso(saida), existente["id"]))
+            conn.commit()
         return existente["id"], False
 
-    lugar = lugar_da_visita(lugares_com_coordenada(conn, agora.date().isoformat()), *ponto, dados["precisao"])
+    lugares = lugares_com_coordenada(conn, agora.date().isoformat())
+    lugar = lugar_da_visita(lugares, *ponto, dados["precisao"])
+    if not lugar and dados.get("lugar"):  # a cerca ja diz qual e (so vale apelido conhecido)
+        lugar = next((x for x in lugares if x["apelido"] == dados["lugar"]), None)
+    if not lugar and dados.get("cerca"):  # ...ou pelo id da cerca que o app vigia
+        try:
+            from viagem_acompanhada import _id_cerca
+
+            lugar = next((x for x in lugares if _id_cerca(x["apelido"]) == dados["cerca"]), None)
+        except Exception:
+            lugar = None
     cur = conn.execute(
         "INSERT INTO visitas (lat, lon, precisao, chegada, saida, lugar) VALUES (?, ?, ?, ?, ?, ?)",
         (dados["lat"], dados["lon"], dados["precisao"], _iso(chegada), _iso(saida),
@@ -608,7 +648,9 @@ def checar_atraso(conn, agora: datetime, visita) -> dict | None:
         corpo += f" (e mais {len(efeitos) - 1} depois)" if len(efeitos) > 2 else " (e a seguinte também)"
     corpo += "."
     texto = f"{titulo}: {corpo[0].lower()}{corpo[1:]}"
-    return {"texto": texto, "titulo": titulo, "corpo": corpo, "card": card}
+    # tarefa_id/atraso_min/hora_original: pro recado pronto (onde_vou.recado_parado, 06/11)
+    return {"texto": texto, "titulo": titulo, "corpo": corpo, "card": card,
+            "tarefa_id": alvo["id"], "atraso_min": int(round(atraso)), "hora_original": alvo["hora"]}
 
 
 # ------------------------------------------------------------------ chat + push
@@ -678,15 +720,32 @@ def reagir(conn, visita_id: int, agora: datetime) -> list[str]:
                 _publicar(conn, msg[0], [])
                 _avisar(conn, TIPO_CHEGADA, visita_id, msg[1], msg[2], agora)
                 feito.append("chegada")
+    if recente and saida is None:
+        feito += _onde_vou("na_chegada", conn, v, agora)  # fecha o trajeto "indo pra" e aprende o tempo (06/11)
     aberta = saida is None and chegada and agora - chegada <= timedelta(hours=VISITA_ABERTA_MAX_H)
     saiu_agora = saida is not None and timedelta(0) <= agora - saida <= timedelta(minutes=SAIDA_RECENTE_MIN)
+    if saiu_agora:
+        feito += _onde_vou("na_saida", conn, v, agora)  # "Indo pro X?" (06/11) - antes do atraso de parado
     if aberta or saiu_agora:
         r = checar_atraso(conn, agora, v)
         if r:
             _publicar(conn, r["texto"], [r["card"]])
             _avisar(conn, TIPO_ATRASO, visita_id, r["titulo"], r["corpo"], agora)
             feito.append("atraso")
+            if aberta and _onde_vou("recado_parado", conn, r, agora):
+                feito.append("recado")
     return feito
+
+
+def _onde_vou(nome: str, *args):
+    """onde_vou.py (06/11) isolado: uma falha la nunca derruba a chegada/atraso daqui."""
+    try:
+        import onde_vou
+
+        return getattr(onde_vou, nome)(*args)
+    except Exception:
+        log.exception("onde_estou: onde_vou.%s falhou", nome)
+        return [] if nome != "recado_parado" else False
 
 
 def reagir_depois(visita_id: int) -> None:
@@ -713,6 +772,7 @@ def verificar(conn, agora: datetime) -> list:
     v = visita_atual(conn, agora)
     if v:
         reagir(conn, v["id"], agora)
+    _onde_vou("verificar", conn, agora)  # card "Sai as X" na hora de se arrumar, quando o jeito dele mudou (06/11)
     return []
 
 

@@ -522,6 +522,47 @@ def _saida_na_hora(conn, data_iso: str, hora: str, lugar: str | None, saida: dic
     return {**(saida or {}), "sair": hora, "trajeto_min": ida, "chegada": chegada}, hora
 
 
+def replanejar_saida(conn, task_id: int, depois: dict) -> dict:
+    """Refaz o plano de saida de uma tarefa depois de uma mudanca (`depois` = colunas que mudaram,
+    o "depois" do efeito de edicao). Um lugar so pra isso (06/11): o chat (ajustar_tarefa) e a aba
+    Tarefas (rotas/tarefas_acoes.py: mover pela regua/folha, e o /hora antigo) chamam aqui.
+    Refaz quando mudou parada/lugar/sai_na_hora, ou hora/dia de date, balada ou tarefa com lugar.
+    Grava a parada nova nos extras (o card le de la) e devolve {"plano": {...}, "parada"?: {...}}
+    - ou {} quando nao precisa (sem dia/hora, feita, sem saida)."""
+    t = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if not t or not t["due_date"] or not t["hora"] or t["completed_at"]:
+        return {}
+    eh_saida = t["estilo"] in ("date", "balada") or bool((t["local"] or "").strip())
+    mexeu = any(c in depois for c in ("parada", "local", "sai_na_hora")) or (
+        eh_saida and any(c in depois for c in ("hora", "due_date")))
+    if not mexeu:
+        return {}
+    resultado = {}
+    extras_parada = db.extras_tarefa(conn, task_id)
+    if "parada" in depois and extras_parada.pop("parada", None) is not None:
+        db.salvar_extras_tarefa(conn, task_id, extras_parada)  # o card le daqui; o novo entra abaixo
+    if t["parada"]:
+        saida, info_parada = _saida_com_parada(conn, t["due_date"], t["hora"], t["parada"], t["local"])
+        sair = saida["sair"]
+        resultado["parada"] = info_parada
+        extras_parada["parada"] = info_parada
+        db.salvar_extras_tarefa(conn, task_id, extras_parada)
+    else:
+        if t["local"]:
+            claude_client.avisar_passo(f"Calculando o trajeto até {t['local'][:40]}")
+        saida = _saida_pro_compromisso(t["due_date"], t["hora"], t["local"])
+        sair = saida["sair"] if saida else rota_voo.menos_minutos(t["hora"], FOLGA_SEM_TRAJETO_MIN)
+    plano = {}
+    if t["sai_na_hora"]:
+        saida, sair = _saida_na_hora(conn, t["due_date"], t["hora"], t["local"], saida, bool(t["parada"]))
+        plano["chega_no_lugar"] = saida["chegada"]
+    elif saida and saida.get("trajeto_min"):
+        plano["ida_min"] = saida["trajeto_min"]
+    resultado["plano"] = {"sair_de_casa": sair, "comecar_a_se_arrumar": rota_voo.menos_minutos(
+        sair, vida_assistente.se_arrumar_min(conn)), **plano}
+    return resultado
+
+
 def _clima_na_hora(data_iso: str, hora: str | None) -> dict | None:
     """Temperatura/chuva na hora do compromisso, na cidade padrao. None se nao der."""
     cidade = os.environ.get("CIDADE_PADRAO", "").strip()
@@ -3031,33 +3072,8 @@ def _processar_mensagem_chat(
         resultado = {"ok": True, "titulo": novos.get("title", tarefa["title"]), "_efeito": efeito}
         if "title" in novos and novos["title"] != tarefa["title"]:
             resultado["titulo_antes"] = tarefa["title"]
-        depois = efeito.get("depois", {})
-        t = conn.execute("SELECT * FROM tasks WHERE id = ?", (tarefa["id"],)).fetchone()
-        mexeu_saida = any(c in depois for c in ("parada", "local", "sai_na_hora")) or (
-            "hora" in depois and t and t["estilo"] in ("date", "balada"))
-        if mexeu_saida and t and t["due_date"] and t["hora"] and not t["completed_at"]:
-            extras_parada = db.extras_tarefa(conn, tarefa["id"])
-            if "parada" in depois and extras_parada.pop("parada", None) is not None:
-                db.salvar_extras_tarefa(conn, tarefa["id"], extras_parada)  # o card le daqui; o novo entra abaixo
-            if t["parada"]:
-                saida, info_parada = _saida_com_parada(conn, t["due_date"], t["hora"], t["parada"], t["local"])
-                sair = saida["sair"]
-                resultado["parada"] = info_parada
-                extras_parada["parada"] = info_parada
-                db.salvar_extras_tarefa(conn, tarefa["id"], extras_parada)
-            else:
-                if t["local"]:
-                    claude_client.avisar_passo(f"Calculando o trajeto até {t['local'][:40]}")
-                saida = _saida_pro_compromisso(t["due_date"], t["hora"], t["local"])
-                sair = saida["sair"] if saida else rota_voo.menos_minutos(t["hora"], FOLGA_SEM_TRAJETO_MIN)
-            plano = {}
-            if t["sai_na_hora"]:
-                saida, sair = _saida_na_hora(conn, t["due_date"], t["hora"], t["local"], saida, bool(t["parada"]))
-                plano["chega_no_lugar"] = saida["chegada"]
-            elif saida and saida.get("trajeto_min"):
-                plano["ida_min"] = saida["trajeto_min"]
-            resultado["plano"] = {"sair_de_casa": sair, "comecar_a_se_arrumar": rota_voo.menos_minutos(
-                sair, vida_assistente.se_arrumar_min(conn)), **plano}
+        # plano de saida (parada/lugar/hora de date, balada ou tarefa com lugar): mesma funcao da aba Tarefas
+        resultado.update(replanejar_saida(conn, tarefa["id"], efeito.get("depois", {})))
         if com_quem:
             resultado["com_quem"] = com_quem
         return resultado
@@ -3247,10 +3263,12 @@ def _processar_mensagem_chat(
     def exec_consultar_diario(entrada):
         """O que aconteceu num dia (diario.py). 'ontem', 'sabado' etc. viram data em codigo."""
         hoje_br = _agora_brasilia().date()
-        dia_d = diario.resolver_dia_passado(entrada.get("data") or entrada.get("dia"), hoje_br)
+        dia_d = diario.resolver_dia_passado(entrada.get("data") or entrada.get("dia") or "hoje", hoje_br)
         if not dia_d:
             return {"erro": "nao entendi o dia - mande 'ontem', 'sabado' ou AAAA-MM-DD"}
-        return diario.consultar(conn, dia_d, hoje_br)
+        import diario_lugares  # 06/11: por onde passou e quanto tempo ficou (visitas do iPhone), com o card
+
+        return diario_lugares.no_consultar(conn, dia_d, diario.consultar(conn, dia_d, hoje_br))
 
     def exec_buscar_na_memoria(entrada):
         """Memoria sob demanda (memoria.py): acha QUANDO algo aconteceu. So roda se a IA chamar."""
@@ -3795,8 +3813,10 @@ def _processar_mensagem_chat(
         pontos = [vida_assistente.resolver_lugar(conn, p) for p in pontos]  # "obra", "aeroclube"...
         if not maps_client.configurado():
             return {"erro": "Google Maps nao configurado (falta GOOGLE_MAPS_API_KEY no .env) - diga isso ao Alex, nao estime"}
+        # 2026-11-06: transito PREVISTO pra hora real de sair (nao o de agora) quando ele disse a hora
+        saida_dt = clima_rota.interpretar_saida(entrada.get("saida")) if entrada.get("saida") else None
         try:
-            resultado = maps_client.trajeto(pontos)
+            resultado = maps_client.trajeto(pontos, partida=saida_dt)
         except (ValueError, requests.RequestException):
             return {"erro": "nao consegui calcular a rota agora"}
         place_ids = resultado.pop("_place_ids", None)
@@ -3809,8 +3829,7 @@ def _processar_mensagem_chat(
         if desenho:
             try:
                 tempo_rota = clima_rota.tempo_na_rota(
-                    desenho[0], resultado["duracao_total_minutos"], clima_rota.interpretar_saida(entrada.get("saida")),
-                    nomear=maps_client.nome_do_trecho)
+                    desenho[0], resultado["duracao_total_minutos"], saida_dt, nomear=maps_client.nome_do_trecho)
             except Exception:
                 tempo_rota = None
         if tempo_rota:
@@ -3841,6 +3860,8 @@ def _processar_mensagem_chat(
             "url": maps_client.link_rota(lugares, place_ids, de_onde_estou),
             "traco": traco,
             "transito_min": resultado.get("transito_total_min"),
+            # hora pra qual o Google previu o transito (so quando e uma saida futura de verdade)
+            "transito_saida": saida_dt.strftime("%H:%M") if saida_dt and saida_dt > datetime.now() + timedelta(minutes=2) else None,
             "lentidao": [
                 {"nivel": x["nivel"], "frase": maps_client.frase_trecho(x)} for x in lentidao[:3]
             ],
@@ -4526,6 +4547,18 @@ def _processar_mensagem_chat(
             "custo_combustivel": custo["custo"],
         }
 
+    def exec_planejar_viagem(entrada):
+        # 2026-11-06 (leva painel esperto): logica toda em viagem_planejada.py
+        import viagem_planejada
+
+        return viagem_planejada.executar(conn, entrada, local_gps=local_gps,
+                                         agora=_agora_brasilia().replace(tzinfo=None))
+
+    def exec_registrar_abastecimento(entrada):
+        import combustivel
+
+        return combustivel.executar(conn, entrada, _agora_brasilia().replace(tzinfo=None))
+
     def exec_sugerir_posto_no_caminho(entrada):
         if not maps_client.configurado():
             return {"erro": "Google Maps não configurado"}
@@ -4817,6 +4850,8 @@ def _processar_mensagem_chat(
         "consultar_sobra_do_mes": exec_consultar_sobra_do_mes,
         "calcular_gasto_viagem": exec_calcular_gasto_viagem,
         "sugerir_posto_no_caminho": exec_sugerir_posto_no_caminho,
+        "planejar_viagem": exec_planejar_viagem,
+        "registrar_abastecimento": exec_registrar_abastecimento,
         "agendar_uber": exec_agendar_uber,
         "sugerir_tema_estudo": exec_sugerir_tema_estudo,
         "registrar_item_cotacao": exec_registrar_item_cotacao,
@@ -5131,6 +5166,8 @@ def _desfazer_itens(conn, itens: list[dict]) -> int:
         elif entidade == "refeicao":
             refeicoes.criar_tabela(conn)
             cur = conn.execute("DELETE FROM refeicoes WHERE id = ?", (id_,))
+        elif entidade == "abastecimento":  # 2026-11-06: "enchi o tanque" (combustivel.py)
+            cur = conn.execute("DELETE FROM abastecimentos WHERE id = ?", (id_,))
         # ---- Fase 7 (N1, ligado na C1): o Desfazer geral tambem entende os
         # tokens da N1 (financas_recorrentes.criar_token_desfazer grava
         # {"entidade", "acao", "id"} na mesma tabela) - antes a rota geral
@@ -5408,6 +5445,8 @@ NOTIFICACOES_URGENTES = {
     "adiado_hiperfoco", "tarefa_preparo", "se_arrumar", "hora_de_sair",
     # assistente passo a passo (04/11): balada as 23h cai no silencio e os passos tem hora certa
     "saida_preparo", "saida_porta",
+    # painel esperto, frente 7 (06/11): voo decidido na vespera muda de madrugada (reconfere 06:30)
+    "voo_decisao",
 }
 
 # Fase 5 (US-C16): avisos de rotina DOMESTICA (casa) que nao fazem sentido
@@ -5826,6 +5865,10 @@ def _briefing_noite_p3_substitui_fechamento(conn) -> bool:
 
 # Onde o toque na notificacao abre (?aba= -> init.js/service worker abrem a aba certa).
 _ABA_DO_AVISO = {
+    # painel esperto, frente 7 (06/11): o card desses esta no chat (antes de "tarefa"/"voo", 1o prefixo vence)
+    "voo_decisao": "assistente", "tarefa_adiada": "assistente", "treino_pergunta": "assistente",
+    "rotina_descoberta": "assistente",
+    "indo_pra": "assistente", "atraso_recado": "assistente",  # pra onde vou (onde_vou.py): o card esta no chat
     "tarefa": "tarefas", "se_arrumar": "tarefas", "hora_de_sair": "tarefas", "compromisso": "tarefas",
     "saida_": "assistente",
     "lembrete": "tarefas", "espera": "tarefas", "conta_a_vencer": "construtora", "orcamento": "gastos",
@@ -5835,9 +5878,17 @@ _ABA_DO_AVISO = {
 }
 
 
-def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool) -> int:
+def _app_toca_o_e_agora(agendados_app, ref, agora) -> bool:
+    import avisos_app
+
+    return avisos_app.coberto(agendados_app, f"tarefa_agora-{ref}", agora)
+
+
+def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool, agendados_app=None) -> int:
     """Repeticoes de notificacoes.INSISTENCIA: mesma tag (substitui a anterior e toca de novo),
-    so se o aviso ainda vale. Silencio e hiperfoco valem igual ao 1o envio."""
+    so se o aviso ainda vale. Silencio e hiperfoco valem igual ao 1o envio.
+    `agendados_app` (avisos_app.carregar_agendados): a repeticao do aviso de tarefa que cairia na hora em
+    que o app do iPhone toca o "e agora" (tarefa_agora) fica quieta - conta como repetida, nao chega dois."""
     agora = datetime.now()
     repetir, encerrar = notificacoes.repeticoes_devidas(db.avisos_insistentes_pendentes(conn), agora)
     for a in encerrar:
@@ -5856,6 +5907,9 @@ def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool
             continue
         if em_hiperfoco and tipo not in vida.CRITICOS_HIPERFOCO:
             continue
+        if tipo == "tarefa_horario" and agendados_app and _app_toca_o_e_agora(agendados_app, a["referencia_id"], agora):
+            db.registrar_repeticao_aviso(conn, a["id"])
+            continue
         titulo, corpo = notificacoes.texto_repeticao(tipo, a["titulo"], a["corpo"], int(a["tentativas"]))
         # aviso-cara (Lab v4): insiste igual, mas com outra cara no texto (aviso_cara.py)
         titulo, corpo = aviso_cara.variar(conn, tipo, a["referencia_id"], a["tag"], titulo, corpo, int(a["tentativas"]), agora)
@@ -5872,7 +5926,7 @@ def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool
 
 # aviso de UMA tarefa: o toque abre a propria tarefa (rola ate ela e abre concluir / pra amanha)
 _AVISOS_DE_UMA_TAREFA = {"tarefa_horario", "tarefa_preparo", "tarefa_horario_passou", "tarefa_parada", "se_arrumar", "hora_de_sair",
-                         "tarefa_inegociavel"}
+                         "tarefa_inegociavel", "tarefa_agora"}
 # Leva 22/10: "Feito" / "Adiar 1 h" no proprio aviso (marcar sem abrir o app). O iPhone pode nao
 # mostrar - o teste em Configuracoes diz se mostrou; sem botao, o toque abre a tarefa (focarTarefaDoAviso).
 ACOES_AVISO_TAREFA = [{"action": "feito", "title": "Feito"}, {"action": "adiar", "title": "Adiar 1 h"}]
@@ -5880,6 +5934,10 @@ ACOES_AVISO_TAREFA = [{"action": "feito", "title": "Feito"}, {"action": "adiar",
 
 def _acoes_do_aviso(tipo: str, tag: str = "") -> list[dict] | None:
     ref = tag.rsplit("-", 1)[-1] if tag else ""
+    if tipo == "casa_tarefa" and ref.isdigit() and int(ref) > 0:  # "Chegou em casa": Feito / Amanha (hora_certa.py)
+        import hora_certa
+
+        return hora_certa.ACOES_CASA
     return ACOES_AVISO_TAREFA if tipo in _AVISOS_DE_UMA_TAREFA and ref.isdigit() and int(ref) > 0 else None
 
 
@@ -5899,7 +5957,7 @@ def _kw_badge(conn) -> dict:
 
 def _url_do_aviso(tipo: str, tag: str = "") -> str:
     ref = tag.rsplit("-", 1)[-1] if tag else ""
-    if tipo in _AVISOS_DE_UMA_TAREFA and ref.isdigit() and int(ref) > 0:
+    if (tipo in _AVISOS_DE_UMA_TAREFA or tipo == "casa_tarefa") and ref.isdigit() and int(ref) > 0:
         return f"/?aba=tarefas&tarefa={ref}"
     for prefixo, aba in _ABA_DO_AVISO.items():
         if tipo.startswith(prefixo):
@@ -6266,6 +6324,12 @@ def verificar_e_notificar():
     avisos.extend(_avisos_fase2(conn, datetime.now()))
     avisos.extend(_avisos_fase3(conn, datetime.now()))
     avisos.extend(_avisos_proatividade_e8(conn, datetime.now()))
+    try:  # painel esperto, frente 7 (06/11): avisos de evento (chegou em casa, saiu da academia, voo, rotina)
+        import hora_certa
+
+        avisos.extend(hora_certa.para_push(conn, datetime.now()))
+    except Exception:
+        app.logger.exception("hora_certa: fila de avisos falhou")
 
     # Fechamento ativo do dia (21h, uma hora antes da hora_de_dormir) - manda
     # o fechamento sozinho em vez de esperar o Alex abrir a aba Painel.
@@ -6419,7 +6483,7 @@ def verificar_e_notificar():
 
     # Aviso importante que ninguem tocou: repete (so push, o Telegram fica com o 1o envio).
     if subs:
-        enviados += _repetir_avisos_insistentes(conn, subs, silencioso, em_hiperfoco)
+        enviados += _repetir_avisos_insistentes(conn, subs, silencioso, em_hiperfoco, agendados_app)
 
     # Uber agendado: passou o tempo de espera, busca o preco de verdade
     # (trava com fare_id) e avisa - a corrida so sai com confirmacao

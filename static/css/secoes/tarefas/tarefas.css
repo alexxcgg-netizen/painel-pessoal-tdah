@@ -59,7 +59,6 @@
 /* Linha da tarefa: título + chips em cima, ações numa linha própria embaixo -
    "quebrar" (secundário) e "concluir" (primário) grandes dividindo a largura, a
    correção "isso não é uma tarefa?" como quadrado de 52px entre eles. */
-#tab-tarefas #lista-tarefas > li.item,
 #tab-tarefas #lista-tarefas-concluidas > li.item {
   padding: 16px;
   border-radius: var(--raio-card);
@@ -153,7 +152,7 @@
 /* ---- Arrastar pra excluir (2026-10-11) - static/js/secoes/tarefas/arrastar-excluir.js ----
    Os filhos do item deslizam juntos (--arrasto) e o vermelho cresce da direita atras deles.
    touch-action: pan-y = a rolagem vertical continua do navegador; so o arrasto lateral e nosso. */
-#tab-tarefas #lista-tarefas > li.item.arrastavel {
+#tab-tarefas li.item.arrastavel {
   position: relative;
   overflow: hidden;
   touch-action: pan-y;
@@ -325,505 +324,755 @@ body.desfazer-visivel .fab-captura {
   pointer-events: none;
 }
 
-/* ==== Linha do tempo (2026-10-13) - static/js/secoes/tarefas/linha-do-tempo-tarefas.js ====
-   Prototipo escolhido pelo Alex: claude.ai/artifact/V1bNK612xPzqBVXmuX1Guq
-   Cada tarefa vira uma linha: hora grande a esquerda, trilho com a bolinha (tocar conclui) e
-   o titulo; as acoes (concluir, pra amanha, quebrar, esforco, corrigir) abrem no toque do
-   titulo. Um cabecalho por dia e o marcador "agora" sao <div> dentro da <ul> (de proposito:
-   "#lista-tarefas li" continua contando so tarefa).
-   Seletor longo (main #tab-tarefas :is(...)) porque o card.css pinta li.item com
-   ":not(#tab-assistente):not(#tab-mais)" (2 ids) - aqui precisa ganhar dele. */
-#tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) {
-  --tl-col-hora: 46px;
-  --tl-x-trilho: 54px; /* inicio da coluna do trilho (22px de largura) */
-  --tl-x-texto: 84px;
-  --tl-y: 11px; /* centro da 1a linha do titulo (line-height 22px): altura da bolinha e da hora */
-  --tl-linha-cor: color-mix(in srgb, var(--cor-texto) 15%, transparent);
-  --c2-gap-lista: 0px;
-  gap: 0;
+/* ==== Aba Tarefas nova (leva 06/11, frente 6 - docs/briefings/2026-11-06-painel-esperto.md) ====
+   Prototipo aprovado: cena "Tarefas" de claude.ai/artifact/WXSEtwp14Y1UwGEc86TYTX. Regua dos cards
+   (docs/CARDS.md "Linguagem visual"): nativo, lista estilo Ajustes do iPhone, sem brilho/neon/emoji/
+   maiusculas espacadas, toque >= 44 px, --ease-bounce/--ease-suave, prefers-reduced-motion sempre.
+   JS: tarefas.js (lista), linha-do-tempo-tarefas.js (regua), folha-tarefa.js (folha de acoes). */
+#tab-tarefas,
+#tarefa-folha {
+  --tt-tarefa: var(--cor-cat-5, #f0a58f); /* coral da tarefa */
+  --tt-saida: #f5a3b8; /* rosa: saida/compromisso */
+  --tt-feito: var(--cor-cat-7, #9fdcb0);
+  --tt-chuva: #6fb3ff;
+  --tt-perigo: var(--cor-saida, #f47671);
+  --tt-texto-2: var(--cor-texto-2, #aebbc6);
+  --tt-texto-3: var(--cor-texto-fraco, #86939e);
+  --tt-superficie: var(--surface, #080b0e);
+  --tt-superficie-2: var(--surface-2, #0e1216);
+  --tt-borda: var(--border, #1f272e);
+  --tt-mono: var(--fonte-mono, var(--font-tech, ui-monospace, monospace));
 }
 
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.item.tl-item {
-  position: relative;
-  min-height: 0;
-  padding: 10px 0 10px var(--tl-x-texto);
-  border: 0;
-  border-radius: 14px;
-  background: transparent;
-  box-shadow: none;
-  contain-intrinsic-size: auto 64px;
-  transition: background-color 0.4s var(--ease-suave), opacity 0.26s var(--ease-suave);
-  /* coluna: passos (quebrar) e formulario de correcao descem embaixo do titulo - o
-     .lista-item antigo e flex em linha e jogava os passos do lado (bug do print do Alex) */
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item > :is(.item-linha, .subtarefas, .correcao-form) {
-  width: auto;
-  min-width: 0;
-  flex: none;
-}
-
-/* passos da tarefa quebrada: lista enxuta embaixo do titulo, bolinha pequena no lugar do
-   checkbox nativo (o input continua la, so muda a cara) */
-main #tab-tarefas li.tl-item > .subtarefas {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin: 8px 0 0;
-  padding: 0;
-  border: 0;
-  list-style: none;
-}
-main #tab-tarefas li.tl-item > .subtarefas > .subtarefa {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  min-height: 44px;
-  padding: 11px 0;
-  margin: 0;
-  border: 0;
-  background: none;
-  font-size: 15px;
-  line-height: 1.35;
-  color: var(--cor-texto-2);
-}
-main #tab-tarefas li.tl-item > .subtarefas > .subtarefa + .subtarefa {
-  border-top: 1px solid color-mix(in srgb, var(--cor-texto) 7%, transparent);
-}
-/* alvo de 44px (auditoria R3) com margem negativa: ocupa 18px na linha; o circulo e
-   desenhado no fundo (aro de 2px), cheio de verde quando feito */
-main #tab-tarefas li.tl-item > .subtarefas input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  flex: none;
-  width: 44px;
-  height: 44px;
-  margin: -12px -13px -12px -13px;
-  border: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, transparent 7px, var(--text-faint) 7.5px 9px, transparent 9.5px);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.4s var(--ease-bounce);
-}
-main #tab-tarefas li.tl-item > .subtarefas input[type="checkbox"]:active {
-  transform: scale(0.85);
-}
-main #tab-tarefas li.tl-item > .subtarefas input[type="checkbox"]:checked {
-  background: radial-gradient(circle, var(--cor-entrada) 9px, transparent 9.5px);
-}
-main #tab-tarefas li.tl-item > .subtarefas .subtarefa.concluida span {
-  color: var(--text-faint);
-  text-decoration: line-through;
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.item.tl-item:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-/* hora (coluna da esquerda) */
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item > .tl-hora {
-  position: absolute;
-  left: 0;
-  top: calc(10px + var(--tl-y) - 11px);
-  width: var(--tl-col-hora);
-  line-height: 22px;
-  text-align: right;
-  font-family: var(--font-tech);
-  font-size: 14.5px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--cor-texto-2);
-  white-space: nowrap;
-  transition: color 0.6s var(--ease-suave);
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item > .tl-hora.vazia {
-  color: var(--text-faint);
-  opacity: 0.55;
-}
-
-/* trilho: a linha sobe ate a bolinha e desce dela; a 1a do dia nao sobe, a ultima nao desce */
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item > .tl-trilho {
-  position: absolute;
-  left: var(--tl-x-trilho);
-  top: 0;
-  bottom: 0;
-  width: 22px;
-}
-#tab-tarefas li.tl-item > .tl-trilho::before,
-#tab-tarefas li.tl-item > .tl-trilho::after {
-  content: "";
-  position: absolute;
-  left: calc(50% - 1px);
-  width: 2px;
-  background: var(--tl-linha-cor);
-  transform-origin: top;
-}
-#tab-tarefas li.tl-item > .tl-trilho::before {
-  top: 0;
-  height: calc(10px + var(--tl-y));
-}
-#tab-tarefas li.tl-item > .tl-trilho::after {
-  top: calc(10px + var(--tl-y));
-  bottom: 0;
-}
-#tab-tarefas li.tl-item.tl-primeiro > .tl-trilho::before,
-#tab-tarefas li.tl-item.tl-ultimo > .tl-trilho::after {
-  opacity: 0;
-}
-
-/* bolinha: alvo de 44px (auditoria R3 de toque), desenho de 18px */
-main #tab-tarefas li.tl-item .tl-ponto {
-  position: absolute;
-  z-index: 1;
-  left: 50%;
-  top: calc(10px + var(--tl-y));
-  width: 44px;
-  height: 44px;
-  min-width: 0;
-  min-height: 0;
-  margin: -22px 0 0 -22px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: 0;
-  background: none;
-  box-shadow: none;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-#tab-tarefas li.tl-item .tl-ponto b {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid var(--text-faint);
-  background: var(--cor-fundo);
-  transition: border-color 0.5s var(--ease-suave), background-color 0.35s var(--ease-suave),
-    transform 0.45s var(--ease-bounce), box-shadow 0.5s var(--ease-suave);
-}
-#tab-tarefas li.tl-item .tl-ponto:active b {
-  transform: scale(0.8);
-}
-#tab-tarefas li.tl-item .tl-ponto svg {
-  width: 11px;
-  height: 11px;
-  color: var(--cor-fundo);
-}
-#tab-tarefas li.tl-item .tl-ponto svg path {
-  stroke-dasharray: 20;
-  stroke-dashoffset: 20;
-}
-
-/* texto + acoes que abrem no toque do titulo (grid-rows 0fr -> 1fr) */
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item > .item-linha {
-  display: grid;
-  grid-template-rows: auto 0fr;
-  gap: 0;
-  margin: -6px -10px -8px;
-  padding: 6px 10px 8px;
-  border-radius: 14px;
-  transition: grid-template-rows 0.45s var(--ease-suave), background-color 0.4s var(--ease-suave);
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item.tl-aberta > .item-linha {
-  grid-template-rows: auto 1fr;
-  background-color: color-mix(in srgb, var(--cor-texto) 5%, transparent);
-}
-/* padding+margem negativos: area de toque >= 44px sem mudar o espacamento da linha */
-#tab-tarefas li.tl-item .item-textos {
-  gap: 2px;
-  padding-block: 11px;
-  margin-block: -11px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-#tab-tarefas li.tl-item .item-textos:focus-visible {
-  outline: 2px solid var(--cor-destaque);
-  outline-offset: 4px;
-  border-radius: 6px;
-}
-#tab-tarefas li.tl-item .item-titulo {
-  overflow-wrap: anywhere;
-}
-#tab-tarefas li.tl-item .tl-meta {
-  font-family: var(--font-tech);
-  font-size: 12.5px;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-  transition: color 0.6s var(--ease-suave);
-}
-#tab-tarefas li.tl-item .tl-meta:empty {
-  display: none;
-}
-#tab-tarefas li.tl-item .item-chips {
-  margin-top: 4px;
-}
-
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item .item-acoes {
-  overflow: hidden;
-  min-height: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  justify-content: flex-start;
-  margin-left: 0;
-  gap: 0 8px;
-}
-/* margem (nao padding) no botao: padding nao some quando a linha esta em 0fr.
-   ":not(#_)" so soma um id: o card.css pinta .btn-com-icone com 2 ids + 6 classes (52px). */
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item .item-acoes:not(#_) > :is(button, select) {
-  flex: none;
-  order: 0;
-  min-height: 40px;
-  height: 40px;
-  margin: 10px 0 2px;
-  padding: 0 14px;
-  gap: 6px;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 600;
-  opacity: 0;
-  translate: 0 -4px;
-  transition: opacity 0.3s var(--ease-suave), translate 0.4s var(--ease-suave), background-color 0.2s;
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item.tl-aberta .item-acoes:not(#_) > :is(button, select) {
-  opacity: 1;
-  translate: 0 0;
-}
-#tab-tarefas li.tl-item.tl-aberta .item-acoes > :nth-child(2) { transition-delay: 0.03s; }
-#tab-tarefas li.tl-item.tl-aberta .item-acoes > :nth-child(3) { transition-delay: 0.06s; }
-#tab-tarefas li.tl-item.tl-aberta .item-acoes > :nth-child(4) { transition-delay: 0.09s; }
-#tab-tarefas li.tl-item.tl-aberta .item-acoes > :nth-child(n + 5) { transition-delay: 0.12s; }
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item .item-acoes:not(#_) > button.tarefa-corrigir {
-  width: 40px;
-  padding: 0;
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item .item-acoes:not(#_) > button svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* ---- estados (atualizarAgoraTarefas, a cada 30 s) ---- */
-#tab-tarefas li.tl-item.tl-proxima .tl-ponto b {
-  border-color: var(--cor-tarefas);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--cor-tarefas) 16%, transparent);
-  animation: tlRespira 2.4s var(--ease-suave) infinite;
-}
-@keyframes tlRespira {
-  50% {
-    box-shadow: 0 0 0 7px color-mix(in srgb, var(--cor-tarefas) 6%, transparent),
-      0 0 14px color-mix(in srgb, var(--cor-tarefas) 40%, transparent);
-  }
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item.tl-proxima > .tl-hora {
-  color: var(--cor-texto);
-}
-#tab-tarefas li.tl-item.tl-proxima .tl-meta {
-  color: var(--cor-tarefas);
-}
-#tab-tarefas li.tl-item.tl-passou .tl-ponto b {
-  border-color: color-mix(in srgb, var(--cor-saida) 60%, var(--text-faint));
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item.tl-passou > .tl-hora,
-#tab-tarefas li.tl-item.tl-passou .tl-meta {
-  color: color-mix(in srgb, var(--cor-saida) 72%, var(--text-faint));
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item.tl-atrasada > .tl-hora {
-  font-size: 12px;
-  color: var(--cor-saida);
-}
-#tab-tarefas li.tl-item.tl-atrasada .tl-ponto b {
-  border-color: var(--cor-saida);
-}
-
-/* concluir: a bolinha enche de verde, o visto se desenha e o titulo risca - a linha so fecha
-   o espaco depois (tl-some + c2-saindo-colapsa). Sem o fade/escala antigo do li.item.saindo. */
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item.saindo {
-  opacity: 1;
-  transform: none;
-}
-#tab-tarefas li.tl-item.tl-feita .tl-ponto b {
-  border-color: var(--cor-entrada);
-  background: var(--cor-entrada);
-  transform: scale(1.15);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--cor-entrada) 55%, transparent);
-  animation: none;
-}
-#tab-tarefas li.tl-item.tl-feita .tl-ponto svg path {
-  stroke-dashoffset: 0;
-  transition: stroke-dashoffset 0.32s var(--ease-suave) 0.08s;
-}
-#tab-tarefas li.tl-item.tl-feita .item-titulo {
-  color: var(--text-faint);
-}
-main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item.saindo.tl-some {
-  opacity: 0;
-}
-
-/* ---- cabecalho do dia ---- */
-#lista-tarefas > .tl-dia {
+/* ---- Hoje + resumo ---- */
+#tab-tarefas .tt-cab-dia {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 22px 2px 6px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--cor-texto-2);
+  margin: var(--espaco-4, 24px) 0 6px;
 }
-#lista-tarefas > .tl-dia:first-child {
-  padding-top: 6px;
+#tab-tarefas .tt-cab-dia h3 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
-#lista-tarefas > .tl-dia em {
-  font-style: normal;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
+#tab-tarefas .tt-cab-dia span {
+  color: var(--tt-texto-2);
+  font-size: 0.82rem;
+  text-align: right;
 }
-#lista-tarefas > .tl-dia small {
-  flex: none;
-  font-family: var(--font-tech);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text-faint);
-}
-#lista-tarefas > .tl-dia.tl-dia-alerta {
-  color: color-mix(in srgb, var(--cor-saida) 85%, var(--cor-texto));
+#tab-tarefas .tt-resumo {
+  margin: 0 0 12px;
+  color: var(--tt-texto-2);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-wrap: pretty;
 }
 
-/* ---- marcador de agora: continua o trilho, ponto com onda e um fio que some pra direita ---- */
-#lista-tarefas > .tl-agora {
+/* ---- Regua do dia ---- */
+#tab-tarefas .tt-regua {
   position: relative;
-  height: 26px;
+  margin: 0 0 18px;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--tt-borda);
+  border-radius: 16px;
+  background: var(--tt-superficie);
+  touch-action: pan-y; /* rolar a tela continua; so a bolinha e do dedo */
 }
-#lista-tarefas > .tl-agora::before {
-  content: "";
-  position: absolute;
-  left: calc(var(--tl-x-trilho) + 10px);
-  width: 2px;
-  top: 0;
-  bottom: 0;
-  background: var(--tl-linha-cor);
+#tab-tarefas .tt-regua[hidden] {
+  display: none;
 }
-.tl-agora-hora {
+#tab-tarefas .tt-regua-trilho {
+  position: relative;
+  height: 64px;
+}
+#tab-tarefas .tt-regua-linha {
   position: absolute;
   left: 0;
-  top: 50%;
-  width: var(--tl-col-hora);
-  translate: 0 -50%;
-  text-align: right;
-  font-family: var(--font-tech);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--cor-tarefas);
+  right: 0;
+  top: 34px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--tt-borda);
 }
-.tl-agora-ponto {
+#tab-tarefas .tt-regua-chuva {
   position: absolute;
-  left: calc(var(--tl-x-trilho) + 11px - 4.5px);
-  top: calc(50% - 4.5px);
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--cor-tarefas);
-  box-shadow: 0 0 10px var(--cor-tarefas);
+  top: 6px;
+  height: 16px;
+  border-radius: 6px;
+  background: repeating-linear-gradient(115deg, color-mix(in srgb, var(--tt-chuva) 45%, transparent) 0 3px, transparent 3px 7px);
 }
-.tl-agora-ponto::after {
+#tab-tarefas .tt-regua-chuva[hidden],
+#tab-tarefas .tt-regua-agora[hidden] {
+  display: none;
+}
+#tab-tarefas .tt-regua-chuva i {
+  position: absolute;
+  top: -1px;
+  left: 6px;
+  color: var(--tt-chuva);
+  font: 600 12px/16px var(--font-body, sans-serif); /* 12 px: menor texto do app (test_r3_acabamento) */
+  font-style: normal;
+  white-space: nowrap;
+}
+#tab-tarefas .tt-regua-agora {
+  position: absolute;
+  top: 2px;
+  bottom: 6px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--tt-perigo);
+  pointer-events: none;
+  transition: left 0.6s var(--ease-suave);
+}
+#tab-tarefas .tt-regua-agora::after {
   content: "";
   position: absolute;
-  inset: -5px;
+  top: 29px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  border: 1.5px solid var(--cor-tarefas);
-  animation: tlOnda 2s var(--ease-suave) infinite;
+  background: var(--tt-perigo);
 }
-@keyframes tlOnda {
-  from { transform: scale(0.5); opacity: 0.9; }
-  to { transform: scale(2.1); opacity: 0; }
-}
-.tl-agora-linha {
+#tab-tarefas .tt-marco {
   position: absolute;
-  left: var(--tl-x-texto);
-  right: 0;
-  top: calc(50% - 0.75px);
-  height: 1.5px;
-  border-radius: 2px;
-  background: linear-gradient(to right, var(--cor-tarefas), transparent 85%);
+  top: 26px;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  border-radius: 50%;
+  border: 2px solid var(--tt-tarefa);
+  background: var(--tt-superficie);
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.25s var(--ease-bounce), left 0.45s var(--ease-suave);
+}
+/* area de toque de 44 px em volta da bolinha de 18 */
+#tab-tarefas .tt-marco::before {
+  content: "";
+  position: absolute;
+  inset: -13px;
+  border-radius: 50%;
+}
+#tab-tarefas .tt-marco.saida {
+  border-color: var(--tt-saida);
+}
+#tab-tarefas .tt-marco.arrastando {
+  z-index: 3;
+  cursor: grabbing;
+  transform: scale(1.35);
+  transition: transform 0.25s var(--ease-bounce); /* sem transicao no left: segue o dedo */
+}
+#tab-tarefas .tt-marco:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tt-tarefa) 45%, transparent);
+}
+#tab-tarefas .tt-marco span {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  translate: -50% 0;
+  color: var(--tt-texto-2);
+  font: 600 12px/1 var(--tt-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+#tab-tarefas .tt-marco.sem-rotulo:not(.arrastando):not(:focus-visible) span {
+  opacity: 0;
+}
+#tab-tarefas .tt-regua-horas {
+  position: relative;
+  height: 14px;
+  margin-top: 4px;
+  color: var(--tt-texto-3);
+  font: 12px/14px var(--tt-mono);
+}
+#tab-tarefas .tt-regua-horas span {
+  position: absolute;
+  top: 0;
+  translate: -50% 0;
+}
+#tab-tarefas .tt-regua-horas span.ponta-ini {
+  translate: 0 0;
+}
+#tab-tarefas .tt-regua-horas span.ponta-fim {
+  translate: -100% 0;
+}
+#tab-tarefas .tt-regua-dica {
+  margin: 6px 0 0;
+  color: var(--tt-texto-3);
+  font-size: 0.75rem;
 }
 
-/* ---- entrada em cascata (abrir a aba) e tarefa que chegou/mudou de lugar ---- */
-#lista-tarefas > .tl-entra {
-  animation: tlEntra 0.6s var(--ease-suave) calc(var(--tl-i, 0) * 45ms) both;
+/* ---- Grupos + lista estilo Ajustes ---- */
+#tab-tarefas .tt-grupos {
+  display: block;
 }
-@keyframes tlEntra {
-  from { opacity: 0; translate: 0 12px; filter: blur(3px); }
+#tab-tarefas .tt-grupo {
+  margin: 0 0 16px;
 }
-#lista-tarefas > li.tl-entra > .tl-trilho::before,
-#lista-tarefas > li.tl-entra > .tl-trilho::after {
-  animation: tlDesenha 0.5s var(--ease-suave) calc(var(--tl-i, 0) * 45ms + 0.15s) both;
+#tab-tarefas .tt-grupo[hidden] {
+  display: none;
 }
-@keyframes tlDesenha {
-  from { transform: scaleY(0); }
+#tab-tarefas .tt-grupo > h3 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 4px 6px;
+  color: var(--tt-texto-2);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
-#lista-tarefas > li.tl-entra .tl-ponto b {
-  animation: tlPinga 0.5s var(--ease-bounce) calc(var(--tl-i, 0) * 45ms + 0.25s) both;
+#tab-tarefas .tt-grupo.alerta > h3 .tt-grupo-nome {
+  color: color-mix(in srgb, var(--tt-perigo) 80%, var(--text));
 }
-@keyframes tlPinga {
-  from { transform: scale(0); }
+#tab-tarefas .tt-grupo-conta {
+  color: var(--tt-texto-3);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
-main #tab-tarefas #lista-tarefas > li.tl-item.tl-chegando {
-  animation: tlChega 1.8s var(--ease-suave) both;
+#tab-tarefas ul.tt-lista {
+  display: block;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--tt-borda);
+  border-radius: 16px;
+  background: var(--tt-superficie);
 }
-@keyframes tlChega {
-  0%, 30% {
-    background-color: color-mix(in srgb, var(--cor-tarefas) 12%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cor-tarefas) 50%, transparent);
+#tab-tarefas ul.tt-lista:empty {
+  display: none;
+}
+#tab-tarefas #lista-sugestao-energia.tt-lista {
+  margin-bottom: var(--espaco-3, 16px);
+}
+#tab-tarefas li.tt-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 56px;
+  max-height: 160px;
+  padding: 0 0 0 4px; /* caixinha de 44 px: o circulo de 24 fica a 14 px da borda, como no prototipo */
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s ease, opacity 0.32s var(--ease-suave), max-height 0.34s var(--ease-suave),
+    min-height 0.34s var(--ease-suave);
+}
+/* separador fino que comeca depois da caixinha (como no Ajustes) */
+#tab-tarefas li.tt-item + li.tt-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50px;
+  right: 0;
+  z-index: 2;
+  height: 1px;
+  background: var(--tt-borda);
+  pointer-events: none;
+}
+#tab-tarefas li.tt-item:has(> .tt-abrir:active) {
+  background: var(--tt-superficie-2);
+}
+#tab-tarefas li.tt-item.tt-some {
+  opacity: 0;
+  max-height: 0;
+  min-height: 0;
+}
+
+/* caixinha redonda: marca feito sem abrir a folha. O botao tem 44x44 (alvo de toque de verdade,
+   tests/test_r3_acabamento.py); o circulo de 24 px e o ::before, o check (svg) fica por cima. */
+#tab-tarefas li.tt-item .tt-caixa {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s var(--ease-suave);
+}
+#tab-tarefas li.tt-item .tt-caixa::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 2px solid var(--tt-texto-3);
+  border-radius: 50%;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+#tab-tarefas li.tt-item button.tt-caixa.tt-caixa::after {
+  display: none; /* o ::after de 44 px da aba (secoes/tarefas.css) nao precisa mais */
+}
+#tab-tarefas li.tt-item .tt-caixa:hover {
+  transform: none;
+}
+#tab-tarefas li.tt-item .tt-caixa:hover::before {
+  border-color: var(--tt-texto-2);
+}
+#tab-tarefas li.tt-item .tt-caixa:active:not(:disabled) {
+  opacity: 1;
+  transform: scale(0.9);
+}
+#tab-tarefas li.tt-item .tt-caixa:disabled {
+  opacity: 1;
+  cursor: default;
+}
+#tab-tarefas li.tt-item .tt-caixa svg {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  stroke: #0b0b0e;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transform: none;
+  transition: stroke-dashoffset 0.35s var(--ease-suave) 0.05s;
+}
+#tab-tarefas li.tt-item.feito .tt-caixa {
+  animation: ttPula 0.45s var(--ease-bounce);
+}
+#tab-tarefas li.tt-item.feito .tt-caixa::before {
+  border-color: var(--tt-feito);
+  background: var(--tt-feito);
+}
+#tab-tarefas li.tt-item.feito .tt-caixa svg {
+  stroke-dashoffset: 0;
+}
+#tab-tarefas li.tt-item.feito .tt-titulo {
+  color: var(--tt-texto-3);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--tt-texto-3) 70%, transparent);
+}
+@keyframes ttPula {
+  40% {
+    transform: scale(1.2);
   }
+}
+
+/* o resto da linha e um botao so (abre a folha) */
+#tab-tarefas li.tt-item .tt-abrir {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  align-self: stretch;
+  min-height: 56px;
+  margin: 0;
+  padding: 0 14px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#tab-tarefas li.tt-item .tt-abrir:hover,
+#tab-tarefas li.tt-item .tt-abrir:active:not(:disabled) {
+  transform: none;
+  opacity: 1;
+}
+#tab-tarefas li.tt-item .tt-abrir::after {
+  display: none;
+}
+#tab-tarefas li.tt-item .tt-abrir:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tt-tarefa) 55%, transparent);
+  border-radius: 12px;
+}
+#tab-tarefas .tt-textos {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  padding: 9px 0;
+}
+#tab-tarefas .tt-titulo {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: color 0.3s ease;
+}
+#tab-tarefas .tt-meta {
+  display: block;
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--tt-texto-2);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#tab-tarefas .tt-meta[hidden],
+#tab-tarefas .tt-hora[hidden] {
+  display: none;
+}
+#tab-tarefas .tt-meta .tt-chuva {
+  color: var(--tt-chuva);
+}
+#tab-tarefas li.tt-atrasada .tt-meta {
+  color: color-mix(in srgb, var(--tt-perigo) 75%, var(--tt-texto-2));
+}
+#tab-tarefas .tt-hora {
+  flex: none;
+  color: var(--tt-texto-2);
+  font: 500 0.82rem/1 var(--tt-mono);
+  font-variant-numeric: tabular-nums;
+}
+#tab-tarefas .tt-hora.cor {
+  color: var(--tt-tarefa);
+}
+#tab-tarefas li.tt-item.item-otimista {
+  opacity: 0.6;
+}
+#tab-tarefas li.tt-item.item-otimista .tt-meta .spinner {
+  width: 10px;
+  height: 10px;
+  vertical-align: -1px;
+}
+
+/* deslizar pra apagar (arrastar-excluir.js) na linha nova */
+#tab-tarefas li.tt-item.arrastavel {
+  overflow: hidden;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+#tab-tarefas li.tt-item.arrastavel > .tt-caixa {
+  z-index: 1;
+}
+
+/* chegou no lugar novo (mudou de hora/dia, aviso tocado, link de card) */
+#tab-tarefas li.tt-item.tt-chegando,
+#tab-tarefas li.tt-item.item-destacado {
+  animation: ttChega 1.3s var(--ease-suave);
+}
+@keyframes ttChega {
+  0%,
+  35% {
+    background: color-mix(in srgb, var(--tt-tarefa) 12%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+/* entrada da aba: os grupos assentam em cascata, curta */
+#lista-tarefas > .tt-entra {
+  animation: ttEntra 0.5s var(--ease-suave) both;
+  animation-delay: calc(var(--tt-i, 0) * 50ms);
+}
+@keyframes ttEntra {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---- Folha de acoes (componente ui/bottom-sheet.js; conteudo em folha-tarefa.js) ---- */
+#tarefa-folha .bottom-sheet-painel {
+  max-width: 480px;
+  background: var(--tt-superficie);
+  border-top: 1px solid var(--tt-borda);
+  border-radius: 20px 20px 0 0;
+  /* a 1a sombra (solida, 60 px pra baixo) cobre o vao que o overshoot da mola abriria embaixo */
+  box-shadow: 0 60px 0 0 var(--tt-superficie), 0 -8px 30px -12px rgba(0, 0, 0, 0.6);
+  padding: 0 max(16px, env(safe-area-inset-left, 0px)) calc(18px + env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-right, 0px));
+}
+/* abre com a mola do prototipo; fecha rapido e liso (o componente esconde em 240 ms) */
+#tarefa-folha.bottom-sheet--aberto .bottom-sheet-painel {
+  transition: transform 0.5s var(--ease-bounce);
+}
+#tarefa-folha.bottom-sheet--fechando .bottom-sheet-painel {
+  transition: transform 0.24s var(--ease-suave);
+}
+#tarefa-folha .bottom-sheet-alca {
+  width: 36px;
+  height: 5px;
+  margin: 8px auto 12px;
+  background: var(--tt-borda);
+}
+#tarefa-folha .tt-folha-titulo {
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 1.06rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+#tarefa-folha .tt-folha-sub {
+  margin: 0 0 14px;
+  color: var(--tt-texto-2);
+  font-size: 0.82rem;
+}
+#tarefa-folha .tt-bloco {
+  margin: 0 0 14px;
+}
+#tarefa-folha .tt-bloco[hidden] {
+  display: none;
+}
+#tarefa-folha .tt-rotulo {
+  display: block;
+  margin: 0 0 6px;
+  color: var(--tt-texto-2);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+#tarefa-folha .tt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#tarefa-folha .tt-chip {
+  position: relative;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--tt-borda);
+  border-radius: 999px;
+  background: var(--tt-superficie-2);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: background 0.25s ease, border-color 0.25s ease, transform 0.2s var(--ease-suave);
+}
+#tarefa-folha .tt-chip:hover {
+  transform: none;
+}
+#tarefa-folha .tt-chip:active:not(:disabled) {
+  opacity: 1;
+  transform: scale(0.97);
+}
+#tarefa-folha .tt-chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+#tarefa-folha .tt-chip[aria-pressed="true"] {
+  border-color: var(--tt-tarefa);
+  background: color-mix(in srgb, var(--tt-tarefa) 18%, var(--tt-superficie-2));
+}
+#tarefa-folha .tt-chip svg {
+  width: 15px;
+  height: 15px;
+}
+/* chip com o seletor nativo (date/time) transparente por cima: o toque abre o do iPhone */
+#tarefa-folha .tt-chip-seletor {
+  overflow: hidden;
+}
+#tarefa-folha .tt-chip-seletor input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px; /* iPhone nao da zoom */
+}
+#tarefa-folha .tt-chip-seletor:focus-within {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tt-tarefa) 55%, transparent);
+}
+#tarefa-folha .tt-chip-esforco select {
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  margin-left: 4px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+  font: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+#tarefa-folha .tt-editar {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--tt-borda);
+  border-radius: 12px;
+  background: var(--bg, #000);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* iPhone nao da zoom no foco */
+}
+#tarefa-folha .tt-editar:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--tt-tarefa) 60%, var(--tt-borda));
+}
+#tarefa-folha .tt-acao {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  margin: 0 0 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--tt-superficie-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+#tarefa-folha .tt-acao:hover {
+  transform: none;
+}
+#tarefa-folha .tt-acao:active:not(:disabled) {
+  opacity: 1;
+  transform: scale(0.985);
+}
+#tarefa-folha .tt-acao svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+#tarefa-folha #tt-folha-feito svg {
+  color: var(--tt-feito);
+}
+#tarefa-folha .tt-acao.perigo {
+  color: var(--tt-perigo);
+}
+#tarefa-folha .tt-mais {
+  margin: 4px 0 12px;
+}
+#tarefa-folha .tt-mais .tt-chip {
+  color: var(--tt-texto-2);
+}
+#tarefa-folha #tt-folha-extra:not(:empty) {
+  margin-top: 10px;
+}
+#tarefa-folha .correcao-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#tarefa-folha .correcao-form > * {
+  flex: 1 1 120px;
+  min-height: 44px;
+}
+#tarefa-folha ul.tt-passos {
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--tt-superficie-2);
+}
+#tarefa-folha .tt-passo + .tt-passo {
+  border-top: 1px solid var(--tt-borda);
+}
+#tarefa-folha .tt-passo label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  cursor: pointer;
+}
+#tarefa-folha .tt-passo input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--tt-feito);
+}
+#tarefa-folha .tt-passo.feito span {
+  color: var(--tt-texto-3);
+  text-decoration: line-through;
+}
+
+/* ---- Toast do Desfazer (o mesmo do deslizar), no jeito do prototipo ---- */
+#desfazer-toast {
+  border: 0;
+  border-radius: 14px;
+  background: #26262c;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  padding: 10px 10px 10px 14px;
+}
+#desfazer-toast .desfazer-btn {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: #8fd0ff;
+  font-weight: 600;
+}
+#desfazer-toast .desfazer-tempo {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #lista-tarefas > .tl-entra,
-  #lista-tarefas > li.tl-entra > .tl-trilho::before,
-  #lista-tarefas > li.tl-entra > .tl-trilho::after,
-  #lista-tarefas > li.tl-entra .tl-ponto b,
-  main #tab-tarefas #lista-tarefas > li.tl-item.tl-chegando,
-  #tab-tarefas li.tl-item.tl-proxima .tl-ponto b,
-  .tl-agora-ponto::after {
-    animation: none;
-  }
-  main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item,
-  main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item > .item-linha,
-  main #tab-tarefas :is(#lista-tarefas, #lista-sugestao-energia) > li.tl-item .item-acoes > :is(button, select),
-  #tab-tarefas li.tl-item .tl-ponto b,
-  #tab-tarefas li.tl-item.tl-feita .tl-ponto svg path {
+  #tab-tarefas li.tt-item,
+  #tab-tarefas li.tt-item .tt-caixa,
+  #tab-tarefas li.tt-item .tt-caixa::before,
+  #tab-tarefas li.tt-item .tt-caixa svg,
+  #tab-tarefas .tt-titulo,
+  #tab-tarefas .tt-marco,
+  #tab-tarefas .tt-regua-agora,
+  #tarefa-folha .tt-chip,
+  #tarefa-folha.bottom-sheet--aberto .bottom-sheet-painel,
+  #tarefa-folha.bottom-sheet--fechando .bottom-sheet-painel {
     transition: none;
   }
+  #tab-tarefas li.tt-item.feito .tt-caixa,
+  #tab-tarefas li.tt-item.tt-chegando,
+  #tab-tarefas li.tt-item.item-destacado,
+  #lista-tarefas > .tt-entra {
+    animation: none;
+  }
 }
 
-/* leva 22/10 (dia_ruim.py): tarefa inegociavel - o cadeado, mesma cor de "perigo" do card do dia */
-#tab-tarefas .item-tag-inegociavel.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #ff9f8f;
-  background: color-mix(in srgb, #ff9f8f 12%, transparent);
-  border-color: color-mix(in srgb, #ff9f8f 32%, transparent);
-}
-
-#tab-tarefas .item-tag-inegociavel svg {
-  width: 12px;
-  height: 12px;
-}
-
-/* Lab v4 (Pacote de tentacao): o premio que so vale junto com a tarefa */
-#tab-tarefas .item-tag-premio.chip {
-  color: #ffd36e;
-  background: color-mix(in srgb, #ffd36e 12%, transparent);
-  border-color: color-mix(in srgb, #ffd36e 32%, transparent);
+/* tela grande: o componente deixa o painel flutuando (cantos todos redondos), sem o "pe" da mola */
+@media (min-width: 640px) {
+  #tarefa-folha .bottom-sheet-painel {
+    border: 1px solid var(--tt-borda);
+    border-radius: 20px;
+    box-shadow: 0 24px 48px -20px rgba(0, 0, 0, 0.65);
+  }
 }

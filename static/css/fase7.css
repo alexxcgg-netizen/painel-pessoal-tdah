@@ -42,6 +42,7 @@
 @import url("secoes/hoje/cards-aviacao.css");
 @import url("secoes/hoje/cards-aviacao-lab.css");
 @import url("secoes/hoje/cards-saidas.css");
+@import url("secoes/hoje/cards-viagem.css");
 @import url("secoes/hoje/cards-automacao.css");
 @import url("secoes/hoje/cards-dinheiro.css");
 @import url("secoes/hoje/cards-memoria.css");
@@ -49,6 +50,8 @@
 @import url("secoes/hoje/cards-tempo.css");
 @import url("secoes/hoje/cards-fechamento.css");
 @import url("secoes/hoje/cards-d.css");
+@import url("secoes/hoje/cards-onde.css");
+@import url("secoes/hoje/cards-esperto.css");
 @import url("secoes/hoje/visao-do-dia.css");
 @import url("secoes/painel/resumo.css");
 @import url("secoes/painel/agenda-de-hoje.css");

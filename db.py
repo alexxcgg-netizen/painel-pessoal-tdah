@@ -1858,7 +1858,7 @@ def salvar_mensagem_chat(conn, papel: str, texto: str, cards: list | None = None
 EDICAO_COLUNAS = {
     "tasks": ("title", "hora", "due_date", "due_at", "completed_at", "local", "parada", "sai_na_hora"),
     "lembretes": ("titulo", "data", "recorrente", "despertar"),
-    "voos": ("data", "origem", "destino", "horas", "aeronave", "funcao", "observacao"),
+    "voos": ("data", "hora", "origem", "destino", "horas", "aeronave", "funcao", "observacao"),
     # 2026-10-11 (pedido do Alex): valor de gasto/renda que ELE digitou pode ser corrigido pela
     # IA ("errei o valor"). Banco (bank_transactions) e construtora continuam fora - nem
     # estao nesta lista, e a construtora nem e guardada aqui.
@@ -1884,6 +1884,8 @@ ENTIDADES_DESFAZIVEIS = (
     "voo_agendado",
     # 2026-10-21: carga de um exercicio trocada pelo chat (treino_vivo.py) - volta a ficha de antes
     "treino_carga",
+    # 2026-11-06: abastecimento registrado pelo chat (combustivel.py)
+    "abastecimento",
 )
 
 

@@ -149,7 +149,7 @@ class VisC2AnimacaoTestCase(unittest.TestCase):
                 page.click('.tab-btn[data-tab="tarefas"]')
                 page.wait_for_selector("#lista-tarefas li")
                 n_antes = page.locator("#lista-tarefas li").count()
-                page.locator("#lista-tarefas .tl-ponto").first.click(force=True)
+                page.locator("#lista-tarefas .tt-caixa").first.click(force=True)
                 page.wait_for_function(
                     "(n) => document.querySelectorAll('#lista-tarefas li').length < n",
                     arg=n_antes,

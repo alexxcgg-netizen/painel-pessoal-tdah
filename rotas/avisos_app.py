@@ -75,6 +75,7 @@ def app_avisos():
             criticos=frozenset(vida.CRITICOS_HIPERFOCO),
             url_do_aviso=app._url_do_aviso,
             de_uma_tarefa=frozenset(app._AVISOS_DE_UMA_TAREFA),
+            agendados=avisos_app.carregar_agendados(conn, agora),
         )
         return jsonify({"avisos": itens, "gerado_em": int(agora.timestamp())})
     except Exception:
@@ -107,6 +108,18 @@ def app_aviso_acao():
     from rotas.push import executar_acao, registrar_toque
 
     corpo = _corpo()
+    tag = corpo.get("tag")
+    if isinstance(tag, str) and tag.startswith("tarefa_agora-") and tag[len("tarefa_agora-"):].isdigit():
+        # o "e agora" e do app; mexer nele (toque, Feito, Adiar) para a insistencia do aviso de tarefa
+        # que o servidor ainda repete pelo navegador
+        conn = db.get_db()
+        try:
+            db.marcar_aviso_aberto(conn, "tarefa_horario-" + tag[len("tarefa_agora-"):])
+        finally:
+            conn.close()
     if corpo.get("acao") == "toque":
-        return registrar_toque(corpo.get("tag"))
-    return executar_acao(corpo.get("tag"), corpo.get("acao"))
+        return registrar_toque(tag)
+    acao = corpo.get("acao")
+    if acao == "amanha" and isinstance(tag, str) and tag.startswith("casa_tarefa-"):
+        acao = "adiar"  # botao "Amanha" do aviso "Chegou em casa" (categoria "casa"): hora_certa.acao_casa
+    return executar_acao(tag, acao)

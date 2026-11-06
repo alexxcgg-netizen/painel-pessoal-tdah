@@ -10,6 +10,10 @@
 //  O passo "agora" é calculado com o relógio na hora de desenhar (o iOS redesenha quando a atividade
 //  fica velha - staleDate = o próximo passo), então a fileira anda mesmo sem o app acordar.
 //
+//  2026-11-06: tarefa com hora (um passo só, "hora") usa o desenho de AtividadeTarefa.swift (barra até a hora +
+//  botão Feito). Cada região abaixo escolhe entre os dois com `e.ehTarefa`.
+//  2026-11-06 (painel esperto, frente 3): viagem acompanhada usa AtividadeViagem.swift (`e.ehViagem`).
+//
 
 import ActivityKit
 import SwiftUI
@@ -122,7 +126,10 @@ struct FileiraPassos: View {
 // MARK: - Atividade
 
 struct AtividadeCompromisso: Widget {
-    private func cor(_ e: CompromissoAtributos.ContentState) -> Color { Color(hex: e.cor) }
+    /// Cor do assunto; tarefa que passou da hora fica vermelha (CompromissoAtributos.corAgora).
+    private func cor(_ e: CompromissoAtributos.ContentState, agora: Date, velha: Bool) -> Color {
+        Color(hex: e.corAgora(em: agora, velha: velha))
+    }
 
     private func tituloComLugar(_ e: CompromissoAtributos.ContentState) -> String {
         guard let lugar = e.lugar, !lugar.isEmpty, lugar != e.titulo else { return e.titulo }
@@ -134,27 +141,35 @@ struct AtividadeCompromisso: Widget {
             // Tela bloqueada (e banner nos iPhones sem ilha): a barra do protótipo
             let e = contexto.state
             let agora = Date()
-            let c = cor(e)
-            VStack(alignment: .leading, spacing: 11) {
-                HStack(spacing: 10) {
-                    IconeAssunto(icone: e.icone, cor: c)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(tituloComLugar(e))
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                        if !e.linhaTempo.isEmpty {
-                            Text(e.linhaTempo)
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.55))
-                                .lineLimit(1)
+            let c = cor(e, agora: agora, velha: contexto.isStale)
+            Group {
+                if e.ehTarefa {
+                    TelaTarefa(estado: e, atividadeID: contexto.attributes.id, agora: agora, cor: c)
+                } else if e.ehViagem {
+                    TelaViagem(estado: e, cor: c)
+                } else {
+                    VStack(alignment: .leading, spacing: 11) {
+                        HStack(spacing: 10) {
+                            IconeAssunto(icone: e.icone, cor: c)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(tituloComLugar(e))
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                if !e.linhaTempo.isEmpty {
+                                    Text(e.linhaTempo)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white.opacity(0.55))
+                                        .lineLimit(1)
+                                }
+                            }
+                            Spacer(minLength: 6)
+                            ContagemPasso(estado: e, agora: agora, cor: c)
+                                .frame(minWidth: 64, alignment: .trailing)
                         }
+                        FileiraPassos(passos: e.passos, atual: e.atual(em: agora), cor: c)
                     }
-                    Spacer(minLength: 6)
-                    ContagemPasso(estado: e, agora: agora, cor: c)
-                        .frame(minWidth: 64, alignment: .trailing)
                 }
-                FileiraPassos(passos: e.passos, atual: e.atual(em: agora), cor: c)
             }
             .padding(.horizontal, 14)
             .padding(.top, 13)
@@ -164,23 +179,49 @@ struct AtividadeCompromisso: Widget {
         } dynamicIsland: { contexto in
             let e = contexto.state
             let agora = Date()
-            let c = cor(e)
+            let c = cor(e, agora: agora, velha: contexto.isStale)
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    IconeAssunto(icone: e.icone, cor: c, tamanho: 36)
-                        .padding(.leading, 4)
+                    Group {
+                        if e.estaFeito {
+                            CheckFeito(cor: c, tamanho: 36)
+                        } else {
+                            IconeAssunto(icone: e.icone, cor: c, tamanho: 36)
+                        }
+                    }
+                    .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    ContagemPasso(estado: e, agora: agora, cor: c, tamanho: 20)
-                        .frame(minWidth: 72, alignment: .trailing)
-                        .padding(.trailing, 4)
+                    Group {
+                        if e.ehTarefa {
+                            ContagemTarefa(estado: e, agora: agora, cor: c, tamanho: 20)
+                        } else if e.ehViagem {
+                            ChegadaViagem(estado: e, cor: c, tamanho: 20)
+                        } else {
+                            ContagemPasso(estado: e, agora: agora, cor: c, tamanho: 20)
+                        }
+                    }
+                    .frame(minWidth: 72, alignment: .trailing)
+                    .padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(tituloComLugar(e))
                             .font(.system(size: 15, weight: .semibold))
+                            .strikethrough(e.estaFeito)
                             .lineLimit(1)
-                        if let p = e.proximo(em: agora) {
+                        if e.ehViagem {
+                            Text(e.faltaTexto)
+                                .font(.system(size: 12).monospacedDigit())
+                                .foregroundColor(.white.opacity(0.55))
+                                .lineLimit(1)
+                                .contentTransition(.numericText(countsDown: true))
+                        } else if e.ehTarefa, let hora = e.horaTarefa {
+                            Text(e.estaFeito ? "Feito. Boa." : "às \(CompromissoAtributos.ContentState.hora(hora))")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.55))
+                                .lineLimit(1)
+                        } else if let p = e.proximo(em: agora) {
                             Text("\(p.rotulo) às \(CompromissoAtributos.ContentState.hora(p.em))")
                                 .font(.system(size: 12))
                                 .foregroundColor(.white.opacity(0.55))
@@ -191,8 +232,18 @@ struct AtividadeCompromisso: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 8) {
-                        FileiraPassos(passos: e.passos, atual: e.atual(em: agora), cor: c)
-                        if !e.linhaTempo.isEmpty {
+                        if e.ehTarefa {
+                            if !e.estaFeito {
+                                BarraTarefa(estado: e, cor: c)
+                                BotaoFeitoAoVivo(estado: e, atividadeID: contexto.attributes.id, cor: c, compacto: true)
+                            }
+                        } else if e.ehViagem {
+                            BarraViagem(estado: e, cor: c)
+                            QuadrosViagem(estado: e)
+                        } else {
+                            FileiraPassos(passos: e.passos, atual: e.atual(em: agora), cor: c)
+                        }
+                        if !e.ehTarefa && !e.linhaTempo.isEmpty {
                             Text(e.linhaTempo)
                                 .font(.system(size: 12))
                                 .foregroundColor(.white.opacity(0.55))
@@ -203,22 +254,39 @@ struct AtividadeCompromisso: Widget {
                     .padding(.top, 4)
                 }
             } compactLeading: {
-                Image(systemName: e.icone)
+                Image(systemName: e.estaFeito ? "checkmark.circle.fill" : e.icone)
                     .foregroundColor(c)
             } compactTrailing: {
-                if let p = e.proximo(em: agora) {
+                if e.estaFeito {
+                    Image(systemName: "checkmark")
+                        .foregroundColor(c)
+                } else if e.ehTarefa {
+                    // 64: cabe "2:23:41" (com mais de 1 h faltando, 52 cortava pra "2:23:...")
+                    ContagemTarefa(estado: e, agora: agora, cor: c, tamanho: 13, comRotulo: false)
+                        .frame(maxWidth: 64)
+                } else if e.ehViagem {
+                    // a chegada (estável entre uma posição e outra; os km mudam a cada atualização)
+                    ChegadaViagem(estado: e, cor: c, tamanho: 13, comRotulo: false)
+                        .frame(maxWidth: 64)
+                } else if let p = e.proximo(em: agora) {
                     Text(timerInterval: CompromissoAtributos.ContentState.intervalo(de: agora, ate: p.em), countsDown: true)
-                        .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
                         .foregroundColor(c)
                         .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 52)
+                        .frame(maxWidth: 64)
                 } else {
                     Image(systemName: "checkmark")
                         .foregroundColor(c)
                 }
             } minimal: {
-                Image(systemName: e.icone)
-                    .foregroundColor(c)
+                if e.ehTarefa {
+                    AnelTarefa(estado: e, cor: c)
+                } else if e.ehViagem {
+                    AnelViagem(estado: e, cor: c)
+                } else {
+                    Image(systemName: e.icone)
+                        .foregroundColor(c)
+                }
             }
             .keylineTint(c)
         }

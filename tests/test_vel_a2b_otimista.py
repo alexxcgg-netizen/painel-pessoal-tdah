@@ -101,8 +101,8 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
 
     def _conferir_linha_inteira(self, page):
         self.assertEqual(page.locator("#lista-tarefas li.saindo").count(), 0, "item voltou pela metade")
-        self.assertEqual(page.locator("#lista-tarefas li.tl-feita").count(), 0, "item voltou riscado")
-        self.assertEqual(page.locator("#lista-tarefas .tl-ponto[disabled]").count(), 0, "item voltou sem poder tocar")
+        self.assertEqual(page.locator("#lista-tarefas li.feito").count(), 0, "item voltou riscado")
+        self.assertEqual(page.locator("#lista-tarefas .tt-caixa[disabled]").count(), 0, "item voltou sem poder tocar")
 
     def test_concluir_tarefa_otimista_some_rapido_e_volta_em_erro(self):
         with sync_playwright() as p:
@@ -146,7 +146,7 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
                 # antes do clique (o app anima a entrada dos itens da lista) -
                 # sem isso o Playwright segurava o clique sem ser culpa do app.
                 page.evaluate(_CRONOMETRAR, ["#lista-tarefas li.saindo", ""])
-                page.locator("#lista-tarefas .tl-ponto").first.click(force=True)
+                page.locator("#lista-tarefas .tt-caixa").first.click(force=True)
                 dt_ms = _tempo_ate_o_quadro(page)
                 self.assertLess(dt_ms, 150, f"item demorou {dt_ms:.0f}ms pra sumir (deveria ser otimista)")
                 self.assertEqual(len(rotas_paradas), 1, "o POST deveria estar pendente nesse ponto")
@@ -171,7 +171,7 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
                     route.fulfill(status=500, content_type="application/json", body='{"error": "falha simulada"}')
 
                 page.route("**/api/tasks/*/complete", erro_500)
-                page.locator("#lista-tarefas .tl-ponto").first.click()
+                page.locator("#lista-tarefas .tt-caixa").first.click()
                 page.wait_for_function(ERRO_APARECEU)
                 # prova negativa: a linha sairia do DOM 500 ms depois do toque (removerTimeout em
                 # tarefas.js) e o erro e quem cancela isso. Contar antes desse prazo passa com o
@@ -186,7 +186,7 @@ class VelA2bOtimistaTestCase(unittest.TestCase):
                 page.unroute("**/api/tasks/*/complete")
                 rotas_paradas.clear()
                 page.route("**/api/tasks/*/complete", lambda route: rotas_paradas.append(route))
-                page.locator("#lista-tarefas .tl-ponto").first.click()
+                page.locator("#lista-tarefas .tt-caixa").first.click()
                 page.wait_for_function("(n) => document.querySelectorAll('#lista-tarefas li').length < n", arg=n_antes)
                 erro_500(rotas_paradas[0])
                 page.wait_for_function("(n) => document.querySelectorAll('#lista-tarefas li').length === n", arg=n_antes)

@@ -153,6 +153,10 @@ struct Raiz: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
             // acabou de mexer no painel (marcou feito, mudou hora): os avisos agendados acompanham
             AvisosLocais.shared.sincronizar(motivo: "saiu")
+            AoVivo.shared.sincronizar()  // e a ilha (atualizar/encerrar funciona em segundo plano; só ligar não)
+            // e os widgets tambem (06/11: tarefa criada no chat nao aparecia no widget ate a proxima busca dele).
+            // Pedido do proprio app saindo da tela nao gasta o orcamento de atualizacao do WidgetKit.
+            WidgetCenter.shared.reloadAllTimelines()
         }
         .onReceive(abertura.$caminho) { caminho in
             guard let caminho, !url.isEmpty else { return }
@@ -243,6 +247,19 @@ struct Configurar: View {
     }
 }
 
+/// Recado da página do painel (2026-11-06): marcou Feito, desfez, mudou hora... a atividade ao vivo e os avisos
+/// conferem na hora, sem esperar ele sair e voltar pro app. Só a mensagem "mudou" vale; o resto é ignorado.
+final class AvisoDaPagina: NSObject, WKScriptMessageHandler {
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "painel", message.body as? String == "mudou",
+              let painel = URL(string: Ajustes.url)?.host, message.frameInfo.securityOrigin.host == painel else { return }
+        DispatchQueue.main.async {
+            AoVivo.shared.sincronizar()
+            AvisosLocais.shared.sincronizar(motivo: "mudou")
+        }
+    }
+}
+
 struct PainelWeb: UIViewRepresentable {
     let url: URL
     /// A WebView aberta agora, pro relatório perguntar o que a página consegue fazer.
@@ -253,6 +270,8 @@ struct PainelWeb: UIViewRepresentable {
         config.websiteDataStore = .default()  // cookie do login (PIN) fica entre aberturas
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
+        // a página avisa "mudou" depois de uma escrita (static/js/nucleo/api.js, avisarAppNativo)
+        config.userContentController.add(AvisoDaPagina(), name: "painel")
         let web = WKWebView(frame: .zero, configuration: config)
         web.isOpaque = false
         web.backgroundColor = .clear

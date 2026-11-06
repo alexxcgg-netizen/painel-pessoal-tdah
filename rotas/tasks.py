@@ -154,7 +154,14 @@ def mudar_hora_tarefa(task_id):
         conn.commit()
         if not cur.rowcount:
             return jsonify({"error": "tarefa não encontrada"}), 404
-        return jsonify({"ok": True, "hora": hora})
+        corpo = {"ok": True, "hora": hora}
+        # date, balada ou tarefa com lugar: refaz o plano de saida (mesma funcao do chat, ajustar_tarefa)
+        try:
+            corpo.update(app.replanejar_saida(conn, task_id, {"hora": hora}))
+            conn.commit()
+        except Exception:  # plano e extra: a hora ja foi gravada
+            conn.rollback()
+        return jsonify(corpo)
     finally:
         conn.close()
 

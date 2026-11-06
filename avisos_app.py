@@ -8,7 +8,8 @@ ficou agendado (`POST /api/app/avisos/agendados`). Na hora, o servidor pula o pu
 aviso (`coberto`) pra nao chegar dois. A insistencia continua igual, pelo navegador.
 
 Hora conhecida = compromisso de saida (se arrumar, hora de sair, "daqui 15 min", "5 min pra sair"),
-tarefa com hora ("faltam 30 min", "daqui a pouco") e a saida pro voo. Mesma conta e mesmo texto do
+tarefa com hora ("faltam 30 min", "daqui a pouco", e "e agora" na hora exata - `tarefa_agora`, que so o app
+manda, leva 06/11 docs/briefings/2026-11-06-ao-vivo-tarefa.md) e a saida pro voo. Mesma conta e mesmo texto do
 servidor (notificacoes.plano_se_arrumar / avisos_se_arrumar, tempo.passos_da_saida). Na duvida, nao
 agenda: o push do navegador continua cobrindo.
 
@@ -37,6 +38,11 @@ VOO_ANTES_MIN = 22  # _aviso_voo_sair avisa dentro dos 25 min antes da hora de s
 # tipos que passam pelo hiperfoco no servidor (vida.CRITICOS_HIPERFOCO); o resto fica de fora do
 # agendamento se o foco cobre a hora
 _CRITICOS_PADRAO = frozenset({"tarefa_horario", "voo_sair"})
+# so o app manda (o servidor nao tem esse aviso): segue a regra do aviso de tarefa que ele estende
+_SEGUE_O_CRITICO = {"tarefa_agora": "tarefa_horario"}
+
+
+CATEGORIA_DO_TIPO = {"casa_tarefa": "casa"}
 
 
 def _item(tipo: str, ref: int, quando: datetime, titulo: str, corpo: str, url_do_aviso, de_uma_tarefa) -> dict:
@@ -50,6 +56,9 @@ def _item(tipo: str, ref: int, quando: datetime, titulo: str, corpo: str, url_do
         "titulo": notificacoes.com_emoji(tipo, titulo),
         "corpo": corpo,
         "acoes": tipo in de_uma_tarefa,
+        # categoria do aviso no app (06/11, frente 7): "tarefa" = Feito / Adiar 1 h; "casa" = Feito / Amanha
+        # (hora_certa.py); "" = sem botao (o toque abre o card). App antigo ignora e segue so com `acoes`.
+        "categoria": "tarefa" if tipo in de_uma_tarefa else CATEGORIA_DO_TIPO.get(tipo, ""),
         "url": url_do_aviso(tipo, tag) if url_do_aviso else "/",
     }
 
@@ -67,13 +76,17 @@ def _hora_do_dia(dia, hora: str) -> datetime | None:
 
 def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None, trajeto_parada=None,
            clima=None, saida_voo=None, ligado=None, ja_notificou=None, segurar_ate: datetime | None = None,
-           criticos=_CRITICOS_PADRAO, url_do_aviso=None, de_uma_tarefa=frozenset()) -> list[dict]:
+           criticos=_CRITICOS_PADRAO, url_do_aviso=None, de_uma_tarefa=frozenset(),
+           agendados: dict | None = None) -> list[dict]:
     """Avisos de hora conhecida de hoje e de amanha, em ordem de hora, no maximo MAX_ITENS.
 
     - `trajeto_min(local)` / `trajeto_parada(parada, local)` / `clima(data_iso, hora)`: so pra hoje
       (amanha usa a folga, e o app sincroniza de novo antes);
     - `saida_voo(voo) -> {"sair_ate", "texto"} | None`: so pros voos de hoje;
     - `ligado(tipo)`: Assistente > Avisos; `ja_notificou(tipo, ref)`: ja saiu hoje;
+    - `agendados` (carregar_agendados): o que o app ja tem agendado. "Ja saiu hoje" que na verdade e o
+      servidor contando como mandado o aviso que o APP vai tocar (coberto, ate 6 min antes) continua na
+      lista - senao a proxima sincronizada do app apagava o aviso antes da hora e nao tocava nada (06/11);
     - `segurar_ate`: hiperfoco/modo foco ate essa hora - tipo nao critico antes disso nao entra.
     """
     import tempo
@@ -127,6 +140,8 @@ def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None
                 candidatos.append(("tarefa_preparo", r["id"], evento - timedelta(minutes=PREPARO_TAREFA_MIN), titulo,
                                    notificacoes.texto_tarefa_preparo(r["hora"], PREPARO_TAREFA_MIN)))
             candidatos.append(("tarefa_horario", r["id"], evento - timedelta(minutes=CHEGANDO_TAREFA_MIN), titulo, corpo))
+            if not notificacoes.e_refeicao(r["title"]):
+                candidatos.append(("tarefa_agora", r["id"], evento, titulo, notificacoes.texto_tarefa_agora(r["hora"])))
 
     if saida_voo:
         for voo in notificacoes.voos_de_hoje_com_horario(conn, agora.date()):
@@ -138,6 +153,15 @@ def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None
                 candidatos.append(("voo_sair", voo["id"], s["sair_ate"] - timedelta(minutes=VOO_ANTES_MIN),
                                    notificacoes.TITULO_VOO_SAIR, s["texto"]))
 
+    try:  # painel esperto, frente 7 (06/11): avisos de evento (chegou em casa, academia, voo, rotina)
+        import hora_certa
+
+        candidatos.extend(hora_certa.para_app(conn, agora, agendados or {}))
+    except Exception:  # noqa: BLE001 - extra, nunca derruba a lista do app
+        import logging
+
+        logging.getLogger(__name__).exception("hora_certa: para_app falhou")
+
     itens, vistos = [], set()
     for tipo, ref, quando, titulo, corpo in sorted(candidatos, key=lambda c: c[2]):
         quando = quando.replace(second=0, microsecond=0)
@@ -148,9 +172,11 @@ def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None
             continue
         if not ligado(tipo):
             continue
-        if quando.date() == agora.date() and ja_notificou(tipo, ref):
+        if quando.date() == agora.date() and ja_notificou(tipo, ref) \
+                and not coberto(agendados or {}, f"{tipo}-{ref}", quando):
             continue
-        if segurar_ate and quando < segurar_ate and tipo not in criticos:
+        if segurar_ate and quando < segurar_ate and tipo not in criticos \
+                and _SEGUE_O_CRITICO.get(tipo) not in criticos:
             continue
         vistos.add(chave)
         itens.append(_item(tipo, ref, quando, titulo, corpo, url_do_aviso, de_uma_tarefa))

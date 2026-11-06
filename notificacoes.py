@@ -182,12 +182,15 @@ def tarefas_com_horario_chegando(
 EMOJI_DO_AVISO = {
     "se_arrumar": "🪞", "saida_preparo": "🪞",
     "hora_de_sair": "🚗", "saida_porta": "🚗",
-    "tarefa_horario": "⏰", "tarefa_preparo": "⏰", "tarefa_horario_passou": "⏰",
+    "tarefa_horario": "⏰", "tarefa_preparo": "⏰", "tarefa_horario_passou": "⏰", "tarefa_agora": "⏰",
     "tarefa_inegociavel": "🔒",
     "compromisso_chegando": "📅",
     "voo_sair": "✈️",
+    "indo_pra": "🚗", "atraso_recado": "⏰",  # pra onde vou + recado pronto (06/11, onde_vou.py)
     "agua_pausa": "💧",
     "tarefa_parada": "🧹",
+    "voo_decisao": "✈️", "casa_tarefa": "🏠", "treino_pergunta": "💪", "rotina_descoberta": "🔁",  # frente 7 (06/11)
+    "tarefa_adiada": "🧹",
     "rotina_manha": "☀️",
     "fechamento_noturno": "🌙", "fechar_dia_chat": "🌙",
 }
@@ -217,6 +220,11 @@ def texto_tarefa_chegando(hora: str, antes: bool) -> str:
     if antes:
         return f"Daqui a pouco, às {hora}. Vai fechando o que tá fazendo, sem correr."
     return f"Combinamos {hora}. Quando fizer, toca em Feito."
+
+
+def texto_tarefa_agora(hora: str) -> str:
+    """Aviso na hora exata (so pelo app do iPhone, leva 06/11)."""
+    return f"Deu {hora}, é agora. Quando terminar, toca em Feito."
 
 
 def texto_tarefa_preparo(hora: str, falta_min: int) -> str:
@@ -289,6 +297,17 @@ def _coluna(r, nome: str):
     return r[nome] if nome in r.keys() else None
 
 
+def meu_tempo_min(conn, evento, so_saida: bool = False) -> int:
+    """Aprende teus tempos reais (06/11, onde_vou.ajuste): quantos min a mais adiantar a saida pelo jeito
+    dele (3+ amostras, "Meu tempo" ligado). 0 sem amostra, com "Padrao" ou se der qualquer erro."""
+    try:
+        import onde_vou
+
+        return int(onde_vou.ajuste(conn, evento, so_saida)["min"])
+    except Exception:
+        return 0
+
+
 def sai_na_hora(r) -> bool:
     """A hora da tarefa e a de SAIR de casa (05/11, coluna tasks.sai_na_hora): "o date comeca as 19, so
     saio de casa as 19". Ai a saida e a propria hora e a chegada vira hora + trajeto."""
@@ -336,16 +355,18 @@ def plano_se_arrumar(
             trajeto = trajeto_min(r["local"])
         caminho, info_parada = caminho_com_parada(trajeto, folga_sem_trajeto, parada, ate, resto)
         adiantado = adiantar_min(_coluna(r, "extras"))
+        meu = meu_tempo_min(conn, evento, sai_na_hora(r))  # 06/11: o jeito dele (onde_vou), 0 sem amostra
         if sai_na_hora(r):
-            saida = evento - timedelta(minutes=adiantado)
+            saida = evento - timedelta(minutes=adiantado + meu)
         else:
-            saida = evento - timedelta(minutes=caminho + adiantado)
+            saida = evento - timedelta(minutes=caminho + adiantado + meu)
         planos.append({
             "id": r["id"], "titulo": r["title"], "hora": r["hora"], "local": r["local"],
             "trajeto_min": trajeto if _min_valido(trajeto) is not None else None, "caminho_min": caminho,
             "evento": evento, "saida": saida, "comecar": saida - timedelta(minutes=minutos_arrumar),
             "minutos_arrumar": minutos_arrumar, "ja_tem_tarefa_arrumar": ja_tem_arrumar,
             "parada": info_parada, "adiantado_min": adiantado, "estilo": r["estilo"],
+            "meu_tempo_min": meu, "sai_na_hora": sai_na_hora(r),
         })
     return planos
 
@@ -374,6 +395,8 @@ def avisos_se_arrumar(planos: list[dict], agora: datetime | None = None) -> list
                 corpo = f"Saindo agora tu chega certinho: {nome} às {hora}, {p['trajeto_min']} min até lá."
             else:
                 corpo = f"{nome} às {hora}. Saindo agora tu chega com folga."
+            if p.get("meu_tempo_min"):
+                corpo += f" Avisei {p['meu_tempo_min']} min antes: é o teu jeito."
             avisos.append(("hora_de_sair", p["id"], "Bora, hora de sair", corpo))
     return avisos
 

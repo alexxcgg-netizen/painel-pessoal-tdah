@@ -1,8 +1,10 @@
 // static/js/secoes/tarefas/tarefas.js - Secao tarefas > tarefas (HTML: templates/secoes/tarefas/tarefas.html).
-// Fase 7 (X2): extraido sem mudanca de logica do antigo app.js 2304-2324, app.js 2413-2702.
-// Fase 7 (V3-organizacao): botao "Nova tarefa" abre o formulario num bottom-sheet
-// (contrato: docs/agentes/fase7-visual.md). Usa window.abrirBottomSheet/fecharBottomSheet
-// (faixa V0d) quando existir; fallback so alterna o atributo hidden do painel.
+// Fase 7 (X2): extraido do antigo app.js. Fase 7 (V3): "Nova tarefa" abre o formulario num bottom-sheet.
+// Leva 06/11 (frente 6, docs/briefings/2026-11-06-painel-esperto.md): a lista vira grupos (Atrasadas /
+// Manha / Tarde / Noite / Sem hora / Amanha / proximos dias / Sem data) em linhas estilo Ajustes do
+// iPhone - caixinha redonda que marca feito sem abrir nada, titulo, linha cinza de baixo e a hora em
+// mono a direita. Tocar na linha abre a folha de acoes (folha-tarefa.js); a regua do dia e o texto
+// vivo ("em 40 min") moram em linha-do-tempo-tarefas.js; deslizar pra apagar em arrastar-excluir.js.
 // Script classico (escopo global compartilhado) - a ordem de carga esta em templates/scripts.html.
 
 function abrirPainelTarefa() {
@@ -32,6 +34,7 @@ async function carregarSugestaoEnergia(nivel) {
   list.innerHTML = "";
   $("#sugestao-energia-vazio").hidden = tasks.length > 0;
   tasks.forEach((t) => list.appendChild(criarItemTarefa(t)));
+  atualizarLinhasTarefas(list);
 }
 
 $("#energia-botoes")
@@ -54,400 +57,134 @@ $("#energia-botoes")
 
 const NIVEIS_ENERGIA = ["baixa", "media", "alta"];
 
-// Fase 5 (US-C7): esforco estimado da tarefa - mesmo espirito de
-// criarSeletorCategoriaGasto (tag que vira <select> num toque), pra
-// vida.tarefas_compativeis_com_energia ter o que filtrar.
-function criarTagEsforco(t) {
-  // C2: <button> (era <span> clicavel: sem teclado nem foco) e chip compacto (rotulo, nao CTA).
-  const tag = document.createElement("button");
-  tag.type = "button";
-  tag.className = "item-quando item-tag-esforco chip chip--compacto";
-  tag.textContent = t.esforco ? `esforço: ${t.esforco}` : "definir esforço";
-  tag.title = "toque pra marcar o esforco dessa tarefa";
-  tag.addEventListener("click", () => {
-    const select = document.createElement("select");
-    select.className = "correcao-select";
-    NIVEIS_ENERGIA.forEach((n) => {
-      const opt = document.createElement("option");
-      opt.value = n;
-      opt.textContent = n;
-      if (n === t.esforco) opt.selected = true;
-      select.appendChild(opt);
-    });
-    select.addEventListener("click", (ev) => ev.stopPropagation());
-    select.addEventListener("blur", () => {
-      if (select.parentElement) select.replaceWith(tag);
-    });
-    select.addEventListener("change", async () => {
-      select.disabled = true;
-      const data = await apiFetch(`/api/tasks/${t.id}/esforco`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ esforco: select.value }),
-      });
-      if (data) loadTasks();
-      else select.disabled = false;
-    });
-    tag.replaceWith(select);
-    select.focus();
-  });
-  return tag;
+// check da caixinha: o traco se desenha (stroke-dashoffset) quando a linha ganha .feito
+const ICONE_CHECK_CAIXA =
+  '<svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+
+function _menosMovimentoTarefas() {
+  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-const ICONE_CHECK_PONTO =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17 19 7.5"/></svg>';
-const ICONE_AMANHA =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h12M13 7l5 5-5 5"/></svg>';
-
-// "pra hoje" (atrasada volta pra hoje): ponto no centro de um alvo
-const ICONE_HOJE =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>';
-
-// "Waze" (tarefa com lugar, 2026-10-15): seta de navegacao
-const ICONE_NAVEGAR =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 21 3l-8 18-2-8-8-2Z"/></svg>';
-
-// "juntar de novo" (desfazer a quebra em passos): seta voltando
-const ICONE_JUNTAR =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
-
-// Linha do tempo (2026-10-13, linha-do-tempo-tarefas.js): toque no nome abre/fecha as acoes.
-function alternarAcoesTarefa(li) {
-  const aberta = li.classList.toggle("tl-aberta");
-  const alvo = li.querySelector(".item-textos");
-  if (alvo) alvo.setAttribute("aria-expanded", aberta ? "true" : "false");
-}
-
-// Toque numa notificacao de tarefa (?aba=tarefas&tarefa=ID, nucleo/init.js): espera a lista
-// chegar, rola ate a tarefa, abre as acoes e acende a linha. Tarefa que ja saiu (concluida
-// em outro lugar) = so fica na aba.
-function focarTarefaDoAviso(id, tentativas = 30) {
-  const li = document.querySelector(`#lista-tarefas > li.tl-item[data-id="${CSS.escape(String(id))}"]`);
-  if (!li) {
-    if (tentativas > 0) setTimeout(() => focarTarefaDoAviso(id, tentativas - 1), 100);
-    return;
-  }
-  const menos = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  li.scrollIntoView({ block: "center", behavior: menos ? "auto" : "smooth" });
-  if (!li.classList.contains("tl-aberta")) alternarAcoesTarefa(li);
-  if (!menos) {
-    li.classList.remove("tl-chegando");
-    void li.offsetWidth;
-    li.classList.add("tl-chegando");
-    setTimeout(() => li.classList.remove("tl-chegando"), 1900);
-  }
-}
-
+// Uma linha da lista. Os handlers leem li._tarefa (nao o `t` do fechamento): a linha e reaproveitada
+// entre montagens e a tarefa pode ter mudado (hora, titulo) sem recriar o <li>.
 function criarItemTarefa(t) {
   const li = document.createElement("li");
-  li.className = "item lista-item tl-item";
-  // data-entidade/data-id: o link "Abrir Tarefas" de um card (Fase 6,
-  // static/js/cards.js) rola ate o item e destaca.
+  li.className = "tt-item";
+  // data-entidade/data-id: o link "Abrir Tarefas" de um card (static/js/cards.js) rola ate o item
   li.dataset.entidade = "tarefa";
   li.dataset.id = t.id;
+  li._tarefa = t;
 
-  // linha do tempo: hora na coluna da esquerda, trilho com a bolinha que conclui
-  // (hora/estado de verdade quem escreve e atualizarAgoraTarefas, linha-do-tempo-tarefas.js)
-  const horaCol = document.createElement("span");
-  horaCol.className = "tl-hora";
-  horaCol.setAttribute("aria-hidden", "true");
-  horaCol.textContent = t.hora || "—";
-  const trilho = document.createElement("span");
-  trilho.className = "tl-trilho";
-  const ponto = document.createElement("button");
-  ponto.type = "button";
-  ponto.className = "tl-ponto";
-  ponto.setAttribute("aria-label", `Concluir ${t.title}`);
-  ponto.innerHTML = `<b>${ICONE_CHECK_PONTO}</b>`;
-  trilho.appendChild(ponto);
-  li.appendChild(horaCol);
-  li.appendChild(trilho);
+  const caixa = document.createElement("button");
+  caixa.type = "button";
+  caixa.className = "tt-caixa";
+  caixa.innerHTML = ICONE_CHECK_CAIXA;
 
-  const linha = document.createElement("div");
-  linha.className = "item-linha";
+  const abrir = document.createElement("button");
+  abrir.type = "button";
+  abrir.className = "tt-abrir";
+  abrir.setAttribute("aria-haspopup", "dialog");
+  abrir.innerHTML = '<span class="tt-textos"><b class="tt-titulo"></b><span class="tt-meta"></span></span><span class="tt-hora"></span>';
 
-  const tituloWrap = document.createElement("div");
-  tituloWrap.className = "item-textos";
-  tituloWrap.setAttribute("role", "button");
-  tituloWrap.tabIndex = 0;
-  tituloWrap.setAttribute("aria-expanded", "false");
-  tituloWrap.addEventListener("click", (e) => {
-    if (e.target.closest("button, select, a, input")) return;
-    alternarAcoesTarefa(li);
+  li.appendChild(caixa);
+  li.appendChild(abrir);
+
+  caixa.addEventListener("click", (e) => {
+    e.stopPropagation();
+    concluirTarefaDaLista(li, li._tarefa, caixa, [caixa]);
   });
-  tituloWrap.addEventListener("keydown", (e) => {
-    if (e.target !== tituloWrap || (e.key !== "Enter" && e.key !== " ")) return;
-    e.preventDefault();
-    alternarAcoesTarefa(li);
+  abrir.addEventListener("click", () => {
+    if (li.classList.contains("saindo")) return;
+    if (typeof abrirFolhaTarefa === "function") abrirFolhaTarefa(li._tarefa, li);
   });
-  const titulo = document.createElement("span");
-  titulo.className = "item-titulo";
-  titulo.textContent = t.title;
-  tituloWrap.appendChild(titulo);
-  const meta = document.createElement("span");
-  meta.className = "tl-meta";
-  tituloWrap.appendChild(meta);
-  // R3 (acabamento): os chips (prazo, atrasada, travada, rotina, esforço) saem de dentro do
-  // título e vão pra uma linha própria embaixo dele - título de 17px respira e os chips
-  // quebram linha sem espremer nada.
-  const chips = document.createElement("div");
-  chips.className = "item-chips";
-  if (t.recorrente_origem_id) {
-    const tagRotina = document.createElement("span");
-    tagRotina.className = "item-tag-tarefa chip chip--compacto";
-    tagRotina.textContent = "rotina";
-    chips.appendChild(tagRotina);
-  }
-  // Linha do tempo: dia vai no cabecalho e hora na coluna da esquerda - o chip "hoje às
-  // 10:30" e o "atrasada" sairam (viraram o grupo "Atrasadas" e a hora vermelha).
-  const acoes = document.createElement("div");
-  acoes.className = "item-acoes";
 
-  if (t.empacada_dias) {
-    const tagTravada = document.createElement("span");
-    tagTravada.className = "item-tag-travada chip chip--compacto";
-    tagTravada.textContent = `travada há ${t.empacada_dias} ${t.empacada_dias === 1 ? "dia" : "dias"}`;
-    chips.appendChild(tagTravada);
-  }
-  // leva 22/10 (dia_ruim.py): o cadeado - inegociavel nunca e empurrada e avisa 5 min antes
-  const CADEADO_TAREFA =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>';
-  if (t.inegociavel) {
-    const tagIneg = document.createElement("span");
-    tagIneg.className = "item-tag-inegociavel chip chip--compacto";
-    tagIneg.innerHTML = `${CADEADO_TAREFA}inegociável`;
-    chips.appendChild(tagIneg);
-  }
-  // Pacote de tentacao (Lab v4): o premio que so vale junto com a tarefa
-  try {
-    const pacote = t.extras ? JSON.parse(t.extras).pacote : null;
-    if (pacote && pacote.premio) {
-      const tagPremio = document.createElement("span");
-      tagPremio.className = "item-tag-premio chip chip--compacto";
-      tagPremio.textContent = `prêmio: ${pacote.premio}`;
-      chips.appendChild(tagPremio);
-    }
-  } catch (erro) {
-    /* extras malformado: sem chip, a tarefa segue normal */
-  }
-  tituloWrap.appendChild(chips);
-
-  const btnTravar = document.createElement("button");
-  btnTravar.className = "btn-com-icone";
-  btnTravar.innerHTML = `${CADEADO_TAREFA}${t.inegociavel ? "soltar o cadeado" : "não pode falhar"}`;
-  btnTravar.addEventListener("click", async () => {
-    setBotaoCarregando(btnTravar, true, "...");
-    const data = await apiFetch(`/api/tasks/${t.id}/inegociavel`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ valor: !t.inegociavel }),
-    });
-    if (data) loadTasks();
-    else setBotaoCarregando(btnTravar, false, t.inegociavel ? "soltar o cadeado" : "não pode falhar");
-  });
-  acoes.appendChild(btnTravar);
-
-  if (t.empacada_dias) {
-    const btnRequebrar = document.createElement("button");
-    btnRequebrar.className = "btn-com-icone";
-    btnRequebrar.innerHTML = `${ICONE_PASSOS}quebrar diferente`;
-    btnRequebrar.addEventListener("click", async () => {
-      setBotaoCarregando(btnRequebrar, true, "pensando...");
-      const data = await apiFetch(`/api/tasks/${t.id}/requebrar`, { method: "POST" });
-      if (data) loadTasks();
-      else setBotaoCarregando(btnRequebrar, false, "quebrar diferente");
-    });
-    acoes.appendChild(btnRequebrar);
-  } else if (t.subtasks.length === 0) {
-    const btnQuebrar = document.createElement("button");
-    btnQuebrar.className = "btn-com-icone";
-    btnQuebrar.innerHTML = `${ICONE_PASSOS}quebrar em passos`;
-    btnQuebrar.addEventListener("click", async () => {
-      setBotaoCarregando(btnQuebrar, true, "quebrando...");
-      const data = await apiFetch(`/api/tasks/${t.id}/breakdown`, { method: "POST" });
-      if (data) loadTasks();
-      else setBotaoCarregando(btnQuebrar, false, "quebrar em passos");
-    });
-    acoes.appendChild(btnQuebrar);
-  }
-
-  // desfazer a quebra: a tarefa volta a ser uma so (apaga os passos)
-  if (t.subtasks.length > 0) {
-    const btnJuntar = document.createElement("button");
-    btnJuntar.className = "btn-com-icone tarefa-juntar";
-    btnJuntar.innerHTML = `${ICONE_JUNTAR}desfazer passos`;
-    btnJuntar.addEventListener("click", async () => {
-      setBotaoCarregando(btnJuntar, true, "desfazendo...");
-      const data = await apiFetch(`/api/tasks/${t.id}/subtasks`, { method: "DELETE" });
-      if (data) loadTasks();
-      else setBotaoCarregando(btnJuntar, false, "desfazer passos");
-    });
-    acoes.appendChild(btnJuntar);
-  }
-
-  if (t.fichas_treino && t.fichas_treino.length && typeof botaoFichaTreino === "function") {
-    acoes.appendChild(botaoFichaTreino(t, li));
-  }
-
-  const btnCorrigir = document.createElement("button");
-  btnCorrigir.className = "btn-com-icone tarefa-corrigir";
-  btnCorrigir.title = "isso não é uma tarefa?";
-  btnCorrigir.setAttribute("aria-label", "Isso não é uma tarefa? Corrigir");
-  btnCorrigir.innerHTML = ICONE_CORRIGIR;
-  btnCorrigir.addEventListener("click", () => {
-    const jaAberto = li.querySelector(".correcao-form");
-    if (jaAberto) {
-      jaAberto.remove();
-      return;
-    }
-    li.appendChild(criarFormularioTarefaParaGasto(t, li));
-  });
-  acoes.appendChild(btnCorrigir);
-
-  const btnConcluir = document.createElement("button");
-  btnConcluir.className = "primario btn-com-icone";
-  btnConcluir.innerHTML = `${ICONE_CHECK}concluir`;
-  btnConcluir.addEventListener("click", () => concluirTarefaDaLista(li, t, btnConcluir, [btnConcluir, ponto]));
-  ponto.addEventListener("click", () => concluirTarefaDaLista(li, t, ponto, [btnConcluir, ponto]));
-  acoes.prepend(btnConcluir);
-
-  // "Pra amanhã": mesma rota do card de fechar o dia (so vale pra hoje e atrasadas)
-  if (t.due_date && t.due_date <= hojeIsoLocal()) {
-    const btnAmanha = document.createElement("button");
-    btnAmanha.className = "btn-com-icone tarefa-amanha";
-    btnAmanha.innerHTML = `${ICONE_AMANHA}pra amanhã`;
-    btnAmanha.addEventListener("click", async () => {
-      setBotaoCarregando(btnAmanha, true, "passando...");
-      const data = await apiFetch("/api/tarefas/adiar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [t.id] }),
-      });
-      if (data) loadTasks();
-      else setBotaoCarregando(btnAmanha, false, "pra amanhã");
-    });
-    btnConcluir.after(btnAmanha);
-  }
-  // Atrasada: "pra hoje" vem antes do "pra amanha" (2026-10-14 - o Alex dormiu, a tarefa de
-  // ontem amanheceu atrasada e o unico botao a jogava pra amanha, nao pra hoje)
-  if (t.due_date && t.due_date < hojeIsoLocal()) {
-    const btnHoje = document.createElement("button");
-    btnHoje.className = "btn-com-icone tarefa-hoje";
-    btnHoje.innerHTML = `${ICONE_HOJE}pra hoje`;
-    btnHoje.addEventListener("click", async () => {
-      setBotaoCarregando(btnHoje, true, "trazendo...");
-      const data = await apiFetch("/api/tarefas/pra-hoje", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [t.id] }),
-      });
-      if (data) loadTasks();
-      else setBotaoCarregando(btnHoje, false, "pra hoje");
-    });
-    btnConcluir.after(btnHoje);
-  }
-  // Tarefa com lugar (2026-10-15): "Waze" ja navegando ate la. E aqui que o toque no aviso
-  // "hora de sair" cai (tarefa aberta com as acoes) - um toque e o Waze abre. So o deep link
-  // oficial (waze.com/ul), montado no servidor (rotas/tasks.py).
-  if (typeof t.waze === "string" && t.waze.startsWith("https://waze.com/ul?")) {
-    const btnWaze = document.createElement("button");
-    btnWaze.type = "button";
-    btnWaze.className = "btn-com-icone tarefa-waze";
-    btnWaze.innerHTML = `${ICONE_NAVEGAR}ir com Waze`;
-    btnWaze.addEventListener("click", () => window.open(t.waze, "_blank", "noopener"));
-    btnConcluir.after(btnWaze);
-  }
-  // esforco saiu da linha de chips (poluia toda tarefa) e mora nas acoes
-  acoes.insertBefore(criarTagEsforco(t), btnCorrigir);
-
-  linha.appendChild(tituloWrap);
-  linha.appendChild(acoes);
-  li.appendChild(linha);
-
-  if (t.subtasks.length > 0) {
-    const sub = document.createElement("ul");
-    sub.className = "subtarefas";
-    t.subtasks.forEach((s) => {
-      const subLi = document.createElement("li");
-      subLi.className = "subtarefa" + (s.completed_at ? " concluida" : "");
-
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = Boolean(s.completed_at);
-      checkbox.disabled = Boolean(s.completed_at);
-      checkbox.addEventListener("change", async () => {
-        const data = await apiFetch(`/api/subtasks/${s.id}/complete`, { method: "POST" });
-        if (data) loadTasks();
-      });
-
-      const label = document.createElement("span");
-      label.textContent = s.title;
-
-      subLi.appendChild(checkbox);
-      subLi.appendChild(label);
-      sub.appendChild(subLi);
-    });
-    li.appendChild(sub);
-  }
-
+  preencherItemTarefa(li, t, new Date(), typeof chuvaDeHoje === "function" ? chuvaDeHoje() : null);
   // arrastar pra esquerda = excluir (sem concluir) - arrastar-excluir.js
   if (typeof ligarArrastarExcluir === "function") ligarArrastarExcluir(li, t);
   return li;
 }
 
-// Concluir pela bolinha do trilho ou pelo botao das acoes (os dois sao o mesmo caminho).
-// Vel A2b: otimista - marca e remove da lista na hora do toque; a gravacao (POST) vai por
-// tras. Linha do tempo: a bolinha enche de verde, o visto se desenha e o titulo risca na
-// hora; ~240 ms depois a linha fecha o espaco. Guarda a posicao pra devolver a tarefa no
-// mesmo lugar se a rede falhar (mostrarErro ja vem do apiFetch).
+function preencherItemTarefa(li, t, agora, chuva) {
+  li._tarefa = t;
+  const linha = linhaDaTarefa(t, agora, chuva);
+  li.querySelector(".tt-caixa").setAttribute("aria-label", `Marcar ${t.title} como feita`);
+  const titulo = li.querySelector(".tt-titulo");
+  if (titulo.textContent !== t.title) titulo.textContent = t.title;
+  const meta = li.querySelector(".tt-meta");
+  meta.replaceChildren();
+  linha.partes.forEach((p, i) => {
+    if (i) meta.append(" · ");
+    meta.append(p);
+  });
+  if (linha.chuva) {
+    if (linha.partes.length) meta.append(" · ");
+    const c = document.createElement("span");
+    c.className = "tt-chuva";
+    c.textContent = linha.chuva;
+    meta.appendChild(c);
+  }
+  meta.hidden = !meta.childNodes.length;
+  const hora = li.querySelector(".tt-hora");
+  hora.textContent = linha.hora;
+  hora.className = `tt-hora${linha.horaClasse ? ` ${linha.horaClasse}` : ""}`;
+  hora.hidden = !linha.hora;
+  li.classList.toggle("tt-atrasada", Boolean(t.due_date && t.due_date < tlIsoDe(agora)));
+  li.querySelector(".tt-abrir").setAttribute(
+    "aria-label",
+    [t.title, linha.hora && `às ${linha.hora}`, ...linha.partes, linha.chuva].filter(Boolean).join(", ")
+  );
+}
+
+// texto vivo ("em 40 min", "passou ha 20 min", chuva) - relogio de 30 s (linha-do-tempo-tarefas.js)
+function atualizarLinhasTarefas(raiz) {
+  const alvo = raiz || $("#tab-tarefas");
+  if (!alvo) return;
+  const agora = new Date();
+  const chuva = typeof chuvaDeHoje === "function" ? chuvaDeHoje() : null;
+  alvo.querySelectorAll("li.tt-item").forEach((li) => {
+    if (li._tarefa && !li.classList.contains("saindo")) preencherItemTarefa(li, li._tarefa, agora, chuva);
+  });
+}
+
+// Concluir pela caixinha (ou pelo Feito da folha). Vel A2b: otimista - a caixinha enche de verde, o
+// check se desenha com um pulinho e o titulo risca na hora; ~420 ms depois a linha fecha o espaco e
+// sai. A gravacao (POST) vai por tras; o toast traz o Desfazer (reabre). Erro: a linha volta no lugar.
 async function concluirTarefaDaLista(li, t, origem, botoes) {
   if (li.classList.contains("saindo") || botoes.some((b) => b.disabled)) return; // duplo toque
   botoes.forEach((b) => (b.disabled = true));
   const pai = li.parentElement;
   const proximoIrmao = li.nextElementSibling;
-  const menosMovimento = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  explodirConcluido(origem);
+  const menosMovimento = _menosMovimentoTarefas();
   vibrar(30);
-  tocarSomConcluido();
-  // Vis (C2): "saindo" primeiro (e o que a Vel A2b mede - some quase na hora do toque)
-  li.classList.add("saindo", "tl-feita");
-  // rAF: o reforco visual roda so DEPOIS do frame que ja mostra "saindo"
-  requestAnimationFrame(() => {
-    try {
-      if (typeof animarConclusaoTarefa === "function" && li.isConnected) animarConclusaoTarefa(li);
-    } catch (erro) {
-      /* reforco visual e cosmetico - a tarefa ja saiu da lista, nao trava por isso */
-    }
-  });
-  // o check assenta um instante antes da linha fechar o espaco (Limpa A-anim, grid-rows)
-  const colapsarTimeout = setTimeout(
-    () => {
-      li.classList.add("tl-some");
-      try {
-        if (typeof colapsarSaidaLista === "function" && li.isConnected) colapsarSaidaLista(li);
-      } catch (erro) {
-        /* colapso e cosmetico - nao trava a saida otimista se falhar */
-      }
-    },
-    menosMovimento ? 0 : 240
-  );
+  if (typeof tocarSomConcluido === "function") tocarSomConcluido();
+  li.classList.add("saindo", "feito");
+  t._saindo = true;
+  if (typeof renderReguaTarefas === "function") renderReguaTarefas();
+  const colapsarTimeout = setTimeout(() => li.classList.add("tt-some"), menosMovimento ? 0 : 420);
   let avisarRemovido;
   const removido = new Promise((ok) => (avisarRemovido = ok));
   const removerTimeout = setTimeout(
     () => {
       avisarRemovido();
+      const grupo = li.closest(".tt-grupo");
       li.remove();
-      const lista = $("#lista-tarefas");
-      if (lista && pai === lista && typeof atualizarAgoraTarefas === "function") atualizarAgoraTarefas(lista);
+      if (grupo && !grupo.querySelector("li.tt-item")) grupo.hidden = true;
     },
-    menosMovimento ? 260 : 500
+    menosMovimento ? 260 : 760
   );
 
   const data = await apiFetch(`/api/tasks/${t.id}/complete`, { method: "POST" });
   if (data) {
     if (data.premio && typeof mostrarPremioLiberado === "function") mostrarPremioLiberado(data.premio);
+    if (typeof mostrarDesfazer === "function") {
+      mostrarDesfazer(`“${_tituloCurto(t.title)}” feita`, async () => {
+        const r = await apiFetch(`/api/tasks/${t.id}/reabrir`, { method: "POST" });
+        if (r) _recarregarTarefas();
+        return Boolean(r);
+      });
+    }
     // a lista so recarrega depois que a linha saiu - senao o re-render corta o check no meio
-    removido.then(() => loadTasks());
+    removido.then(() => _recarregarTarefas());
     loadSummary();
     loadStreak();
     if (!$("#tab-painel").hidden) loadFechamentoDoDia();
@@ -459,25 +196,35 @@ async function concluirTarefaDaLista(li, t, origem, botoes) {
   }
   clearTimeout(colapsarTimeout);
   clearTimeout(removerTimeout);
-  // Limpa (A-anim): tira o colapso de altura tambem, senao a linha volta "achatada"
-  li.classList.remove("saindo", "tl-feita", "tl-some", "c2-colapsavel", "c2-saindo-colapsa");
-  const tituloRiscado = li.querySelector(".c2-titulo-riscando");
-  if (tituloRiscado) tituloRiscado.classList.remove("c2-titulo-riscando");
-  const checkDesenhado = li.querySelector(".c2-check-desenha");
-  if (checkDesenhado) checkDesenhado.classList.remove("c2-check-desenha");
+  delete t._saindo;
+  li.classList.remove("saindo", "feito", "tt-some");
   botoes.forEach((b) => (b.disabled = false));
   if (pai && !pai.contains(li)) {
     if (proximoIrmao && proximoIrmao.parentElement === pai) pai.insertBefore(li, proximoIrmao);
     else pai.appendChild(li);
-    if (typeof atualizarAgoraTarefas === "function" && pai.id === "lista-tarefas") atualizarAgoraTarefas(pai);
+    const grupo = pai.closest(".tt-grupo");
+    if (grupo) grupo.hidden = false;
   }
+  if (typeof renderReguaTarefas === "function") renderReguaTarefas();
+}
+
+function _tituloCurto(titulo) {
+  const s = String(titulo || "Tarefa");
+  return s.length > 34 ? `${s.slice(0, 33).trimEnd()}…` : s;
+}
+
+// recarrega do servidor mesmo que o hash seja igual (depois de desfazer/mudar)
+function _recarregarTarefas() {
+  _ultimoHashTarefas = null;
+  loadTasks();
+  if (typeof loadSummary === "function") loadSummary();
+  if (typeof loadAgenda === "function") loadAgenda();
 }
 
 // Correcao rapida "isso não e uma tarefa, e um gasto" - formulario minimo
 // (o texto original pode nao ter um valor claro, entao pede o valor certo
-// na hora, do jeito que o Alex quiser) que aparece inline no card e some se
-// for cancelado ou depois de corrigir com sucesso.
-function criarFormularioTarefaParaGasto(t, li) {
+// na hora). Mora na folha de acoes desde 06/11; `aoCorrigir` fecha a folha.
+function criarFormularioTarefaParaGasto(t, aoCorrigir) {
   const form = document.createElement("div");
   form.className = "correcao-form";
 
@@ -487,9 +234,11 @@ function criarFormularioTarefaParaGasto(t, li) {
   valorInput.min = "0.01";
   valorInput.placeholder = "valor (R$)";
   valorInput.className = "correcao-input";
+  valorInput.setAttribute("aria-label", "Valor do gasto em reais");
 
   const categoriaSelect = document.createElement("select");
   categoriaSelect.className = "correcao-select";
+  categoriaSelect.setAttribute("aria-label", "Categoria do gasto");
   CATEGORIAS_GASTO.forEach((cat) => {
     const opt = document.createElement("option");
     opt.value = cat;
@@ -498,6 +247,7 @@ function criarFormularioTarefaParaGasto(t, li) {
   });
 
   const btnConfirmar = document.createElement("button");
+  btnConfirmar.type = "button";
   btnConfirmar.className = "primario btn-com-icone";
   btnConfirmar.innerHTML = `${ICONE_CHECK}virar gasto`;
   btnConfirmar.addEventListener("click", async () => {
@@ -513,46 +263,28 @@ function criarFormularioTarefaParaGasto(t, li) {
       body: JSON.stringify({ valor, categoria: categoriaSelect.value }),
     });
     if (data) {
-      li.classList.add("saindo");
-      setTimeout(() => {
-        loadTasks();
-        loadExpenses();
-      }, 220);
+      if (typeof aoCorrigir === "function") aoCorrigir();
+      _recarregarTarefas();
+      loadExpenses();
     } else {
       setBotaoCarregando(btnConfirmar, false, "virar gasto");
     }
   });
 
-  const btnCancelar = document.createElement("button");
-  btnCancelar.className = "btn-com-icone";
-  btnCancelar.textContent = "cancelar";
-  btnCancelar.addEventListener("click", () => form.remove());
-
   form.appendChild(valorInput);
   form.appendChild(categoriaSelect);
   form.appendChild(btnConfirmar);
-  form.appendChild(btnCancelar);
   return form;
 }
 
 // Vel A2b: hash barato do ultimo /api/tasks renderizado - troca de aba pra
 // tarefas repete essa chamada toda vez, mas se os dados nao mudaram desde a
-// ultima renderizacao nao vale a pena reconstruir ~100 <li> de novo.
+// ultima renderizacao nao vale a pena reconstruir a lista de novo.
 let _ultimoHashTarefas = null;
-
-// Vel (A2d): medido - abrir a aba tarefas com ~100 itens tinha
-// "resultado visivel" (a aba aparecer de fato) mais lento que o proprio
-// toque (INP), porque a montagem dos ~100 <li> (apos o fetch acima
-// resolver, quase sempre rapido) rodava tudo numa tarefa so, sem deixar o
-// navegador pintar o `hidden = false` da aba no meio do caminho - o loop de
-// medicao (rAF) so via a condicao satisfeita depois que essa tarefa toda
-// terminava. Aqui o primeiro lote (o que cabe na tela sem rolar) monta na
-// hora; o resto entra num frame seguinte (rAF + setTimeout 0, mesmo padrao
-// da aba gastos acima) pra nao competir com esse primeiro paint.
-const LOTE_INICIAL_TAREFAS = 10;
 
 // Lista longa (100 tarefas) so monta 10 por vez: "Ver mais" acrescenta o proximo
 // lote. O que ja foi mostrado continua mostrado quando a lista recarrega.
+const LOTE_INICIAL_TAREFAS = 10;
 let _tarefasPendentes = [];
 let _tarefasMostradas = LOTE_INICIAL_TAREFAS;
 
@@ -568,22 +300,143 @@ function atualizarVerMaisTarefas() {
   btn.textContent = `Ver mais (${faltam})`;
 }
 
-// id -> {li, json}: tarefa que nao mudou reaproveita o <li> (fica aberta se estava, e a
-// linha do tempo consegue deslizar ela pro lugar novo em vez de piscar a lista inteira)
+// id -> {li, json}: tarefa que nao mudou reaproveita o <li>; grupo -> <section>
 const _itensTarefas = new Map();
+const _gruposTarefas = new Map();
+let _tarefasEntradaPendente = true; // 1a montagem (e ao reabrir a aba) entra em cascata
 
-function montarListaTarefas() {
-  const list = $("#lista-tarefas");
-  const visiveis = _tarefasPendentes.slice(0, _tarefasMostradas);
-  if (typeof montarLinhaDoTempo === "function") {
-    montarLinhaDoTempo(list, visiveis, _tarefasPendentes, _itensTarefas, criarItemTarefa);
-  } else {
-    const frag = document.createDocumentFragment();
-    visiveis.forEach((t) => frag.appendChild(criarItemTarefa(t)));
-    list.innerHTML = "";
-    list.appendChild(frag);
+function _grupoEl(g) {
+  let el = _gruposTarefas.get(g.chave);
+  if (!el) {
+    el = document.createElement("section");
+    el.className = "tt-grupo";
+    el.dataset.ttChave = `g:${g.chave}`;
+    const h = document.createElement("h3");
+    h.innerHTML = '<span class="tt-grupo-nome"></span><span class="tt-grupo-conta"></span>';
+    const ul = document.createElement("ul");
+    ul.className = "tt-lista";
+    el.appendChild(h);
+    el.appendChild(ul);
+    _gruposTarefas.set(g.chave, el);
   }
+  el.classList.toggle("alerta", Boolean(g.alerta));
+  el.querySelector(".tt-grupo-nome").textContent = g.rotulo;
+  return el;
+}
+
+// FLIP: mede linhas e grupos, roda `mudar()` e desliza cada um do lugar velho pro novo (quem trocou de
+// grupo desliza ate o grupo novo em vez de sumir e aparecer).
+function comDeslizeTarefas(raiz, mudar) {
+  const animar = !_menosMovimentoTarefas() && raiz.offsetParent !== null;
+  const chave = (el) => el.dataset.ttChave || (el.dataset.id ? `t:${el.dataset.id}` : null);
+  const alvos = () => raiz.querySelectorAll(".tt-grupo, li.tt-item");
+  const antes = new Map();
+  if (animar) alvos().forEach((el) => chave(el) && antes.set(chave(el), el.getBoundingClientRect().top));
+  const resultado = mudar();
+  if (!animar) return resultado;
+  alvos().forEach((el) => {
+    const topo = antes.get(chave(el));
+    if (topo === undefined || typeof el.animate !== "function") return;
+    const dy = topo - el.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1) return;
+    el.animate([{ translate: `0 ${dy}px` }, { translate: "0 0" }], { duration: 520, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+  });
+  return resultado;
+}
+
+function montarListaTarefas(opcoes = {}) {
+  const raiz = $("#lista-tarefas");
+  const visiveis = _tarefasPendentes.slice(0, _tarefasMostradas);
+  const hoje = new Date();
+  const chuva = typeof chuvaDeHoje === "function" ? chuvaDeHoje() : null;
+  const contagem = new Map();
+  _tarefasPendentes.forEach((t) => {
+    const k = grupoDaTarefa(t, hoje).chave;
+    contagem.set(k, (contagem.get(k) || 0) + 1);
+  });
+  const novos = [];
+  const cascata = _tarefasEntradaPendente || !raiz.querySelector("li.tt-item");
+  _tarefasEntradaPendente = false;
+  comDeslizeTarefas(raiz, () => {
+    const grupos = [];
+    const vivos = new Set();
+    let atual = null;
+    visiveis.forEach((t) => {
+      const g = grupoDaTarefa(t, hoje);
+      if (!atual || atual.chave !== g.chave) {
+        atual = { chave: g.chave, el: _grupoEl(g), itens: [] };
+        grupos.push(atual);
+      }
+      const json = JSON.stringify(t);
+      const reg = _itensTarefas.get(t.id);
+      let li;
+      if (reg && reg.json === json && !reg.li.classList.contains("saindo")) {
+        li = reg.li;
+        preencherItemTarefa(li, t, hoje, chuva);
+      } else {
+        li = criarItemTarefa(t);
+        _itensTarefas.set(t.id, { li, json });
+        if (reg && opcoes.destacar && String(opcoes.destacar) === String(t.id)) novos.push(li);
+      }
+      vivos.add(t.id);
+      atual.itens.push(li);
+    });
+    Array.from(_itensTarefas.keys()).forEach((id) => vivos.has(id) || _itensTarefas.delete(id));
+    grupos.forEach((g) => {
+      g.el.hidden = false;
+      g.el.querySelector(".tt-grupo-conta").textContent = String(contagem.get(g.chave) || g.itens.length);
+      g.el.querySelector(".tt-lista").replaceChildren(...g.itens);
+    });
+    raiz.replaceChildren(...grupos.map((g) => g.el));
+  });
   atualizarVerMaisTarefas();
+  if (typeof atualizarAgoraTarefas === "function") atualizarAgoraTarefas();
+  if (_menosMovimentoTarefas()) return;
+  if (cascata) {
+    Array.from(raiz.children)
+      .slice(0, 8)
+      .forEach((el, i) => {
+        el.classList.remove("tt-entra");
+        el.style.setProperty("--tt-i", i);
+        void el.offsetWidth;
+        el.classList.add("tt-entra");
+        setTimeout(() => el.classList.remove("tt-entra"), 700 + i * 50);
+      });
+  }
+  novos.forEach((li) => {
+    li.classList.remove("tt-chegando");
+    void li.offsetWidth;
+    li.classList.add("tt-chegando");
+    setTimeout(() => li.classList.remove("tt-chegando"), 1300);
+  });
+}
+
+// Mudanca local (otimista) de uma tarefa: troca os campos, reordena como o servidor ordena (dia, sem
+// dia no fim; dentro do dia por hora, sem hora fecha o dia) e remonta com deslize.
+function _ordemTarefa(a, b) {
+  const da = a.due_date || "￿";
+  const dbb = b.due_date || "￿";
+  if (da !== dbb) return da < dbb ? -1 : 1;
+  const ha = a.hora || "￿";
+  const hb = b.hora || "￿";
+  if (ha !== hb) return ha < hb ? -1 : 1;
+  return 0;
+}
+
+function aplicarMudancaTarefa(id, campos) {
+  const i = _tarefasPendentes.findIndex((t) => String(t.id) === String(id));
+  if (i === -1) return null;
+  const antes = _tarefasPendentes[i];
+  const depois = { ...antes, ...campos };
+  const lista = _tarefasPendentes.slice();
+  lista[i] = depois;
+  // sort estavel: quem empata fica na ordem de antes (a do servidor)
+  _tarefasPendentes = lista.map((t, k) => [t, k]).sort((x, y) => _ordemTarefa(x[0], y[0]) || x[1] - y[1]).map((x) => x[0]);
+  const pos = _tarefasPendentes.indexOf(depois);
+  if (pos >= _tarefasMostradas) _tarefasMostradas = proximoLoteTarefas(_tarefasPendentes.length, pos);
+  _ultimoHashTarefas = null;
+  montarListaTarefas({ destacar: id });
+  return antes;
 }
 
 async function loadTasks() {
@@ -598,18 +451,34 @@ async function loadTasks() {
 }
 
 $("#tarefas-ver-mais").addEventListener("click", () => {
-  // remonta com o lote maior: os que ja estavam ficam (mesmo <li>), os novos entram
-  // com os cabecalhos de dia certos
   _tarefasMostradas = proximoLoteTarefas(_tarefasPendentes.length, _tarefasMostradas);
   montarListaTarefas();
 });
 
+// Toque numa notificacao de tarefa (?aba=tarefas&tarefa=ID, nucleo/init.js): espera a lista
+// chegar, rola ate a tarefa, acende a linha e abre a folha (o Waze esta la, um toque).
+// Tarefa que ja saiu (concluida em outro lugar) = so fica na aba.
+function focarTarefaDoAviso(id, tentativas = 30) {
+  const li = document.querySelector(`#lista-tarefas li.tt-item[data-id="${CSS.escape(String(id))}"]`);
+  if (!li) {
+    if (tentativas > 0) setTimeout(() => focarTarefaDoAviso(id, tentativas - 1), 100);
+    return;
+  }
+  const menos = _menosMovimentoTarefas();
+  li.scrollIntoView({ block: "center", behavior: menos ? "auto" : "smooth" });
+  if (!menos) {
+    li.classList.remove("tt-chegando");
+    void li.offsetWidth;
+    li.classList.add("tt-chegando");
+    setTimeout(() => li.classList.remove("tt-chegando"), 1300);
+  }
+  if (typeof abrirFolhaTarefa === "function") setTimeout(() => abrirFolhaTarefa(li._tarefa, li), menos ? 0 : 350);
+}
+
 // ---- "Ver concluidas" (M3, uso diario) ----------------------------------
 // Concluida some da lista principal (filtro no /api/tasks padrao), mas NUNCA
-// e apagada - aqui da pra ver de novo e desmarcar (POST /api/tasks/:id/reabrir,
-// mesma rota que ja existe pro checkbox do card em tarefas_criadas). Busca
-// preguicosa: so bate a API quando o dono toca no botao, nunca junto do
-// loadTasks() normal.
+// e apagada - aqui da pra ver de novo e desmarcar (POST /api/tasks/:id/reabrir).
+// Busca preguicosa: so bate a API quando o dono toca no botao.
 function rotuloToggleConcluidas(mostrando) {
   return mostrando ? "Esconder concluídas" : "Ver concluídas";
 }
@@ -684,43 +553,39 @@ $("#tarefas-concluidas-toggle").addEventListener("click", async () => {
   btn.setAttribute("aria-expanded", vaiMostrar ? "true" : "false");
 });
 
-// Vel (A2d): item provisorio pro formulario direto - mesmo espirito visual
-// de criarCardCapturaSalvando (captura.js): titulo real + chip "salvando"
-// (spinner), borda tracejada/opacidade (.item-otimista, static/css/style.css)
-// pra ficar claro que ainda nao confirmou com o servidor.
+// Vel (A2d): item provisorio pro formulario direto - titulo real + "salvando" (spinner), com a
+// marca .item-otimista (borda tracejada/opacidade) ate o servidor confirmar. Entra num grupo
+// proprio no topo da lista.
 function criarItemTarefaOtimista(titulo, prazoDate) {
+  const grupo = document.createElement("section");
+  grupo.className = "tt-grupo tt-grupo-otimista";
+  const ul = document.createElement("ul");
+  ul.className = "tt-lista";
   const li = document.createElement("li");
-  li.className = "item lista-item item-otimista";
-
-  const linha = document.createElement("div");
-  linha.className = "item-linha";
-
-  const tituloWrap = document.createElement("div");
-  const tituloEl = document.createElement("span");
-  tituloEl.className = "item-titulo";
+  li.className = "tt-item item-otimista";
+  const caixa = document.createElement("span");
+  caixa.className = "tt-caixa";
+  caixa.setAttribute("aria-hidden", "true");
+  const textos = document.createElement("span");
+  textos.className = "tt-textos";
+  const tituloEl = document.createElement("b");
+  tituloEl.className = "tt-titulo";
   tituloEl.textContent = titulo;
-  tituloWrap.appendChild(tituloEl);
-
-  if (prazoDate) {
-    const prazoEl = document.createElement("span");
-    prazoEl.className = "item-quando chip chip--compacto";
-    prazoEl.textContent = formatarPrazoTarefa(prazoDate);
-    tituloWrap.appendChild(prazoEl);
-  }
-
-  const salvando = document.createElement("span");
-  salvando.className = "item-quando chip chip--compacto";
-  salvando.innerHTML = `<span class="spinner"></span><span>salvando...</span>`;
-  tituloWrap.appendChild(salvando);
-
-  linha.appendChild(tituloWrap);
-  li.appendChild(linha);
-  return li;
+  const meta = document.createElement("span");
+  meta.className = "tt-meta";
+  meta.innerHTML = '<span class="spinner"></span> ';
+  meta.append(prazoDate ? `salvando · ${formatarPrazoTarefa(prazoDate)}` : "salvando");
+  textos.appendChild(tituloEl);
+  textos.appendChild(meta);
+  li.appendChild(caixa);
+  li.appendChild(textos);
+  ul.appendChild(li);
+  grupo.appendChild(ul);
+  return grupo;
 }
 
 // Fase 6 (US-F10): formulario direto na aba Tarefas - titulo obrigatorio,
-// prazo OPCIONAL (POST /api/tasks novo, sem passar pela IA - o chat/captura
-// ja tinham esse caminho via registrar_tarefa/quando_data havia tempos).
+// prazo OPCIONAL (POST /api/tasks, sem passar pela IA).
 $("#nova-tarefa-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#nova-tarefa-btn");
@@ -733,15 +598,13 @@ $("#nova-tarefa-form").addEventListener("submit", async (e) => {
   }
   const prazo = prazoInput.value || null;
 
-  // Vel (A2d): otimista - mesmo padrao do botao "concluir" (Vel A2b, acima
-  // nesse arquivo): a tarefa aparece na lista na hora do toque (estado
+  // Vel (A2d): otimista - a tarefa aparece na lista na hora do toque (estado
   // "salvando"), confirma com os dados reais quando o POST volta; em erro
-  // sai da lista e devolve o texto pro campo (mostrarErro ja vem do
-  // apiFetch).
+  // sai da lista e devolve o texto pro campo (mostrarErro ja vem do apiFetch).
   const list = $("#lista-tarefas");
-  const liOtimista = criarItemTarefaOtimista(titulo, prazo);
+  const grupoOtimista = criarItemTarefaOtimista(titulo, prazo);
   if (list) {
-    list.insertBefore(liOtimista, list.firstChild);
+    list.insertBefore(grupoOtimista, list.firstChild);
     $("#tarefas-vazio").hidden = true;
   }
   tituloInput.value = "";
@@ -754,10 +617,11 @@ $("#nova-tarefa-form").addEventListener("submit", async (e) => {
     body: JSON.stringify({ titulo, due_date: prazo }),
   });
   setBotaoCarregando(btn, false, "Salvar tarefa");
-  liOtimista.remove();
+  grupoOtimista.remove();
   if (!data) {
     tituloInput.value = titulo;
     if (prazo) prazoInput.value = prazo;
+    if (list && !list.querySelector("li.tt-item")) $("#tarefas-vazio").hidden = false;
     return;
   }
 
@@ -773,5 +637,5 @@ function calcularHashTarefas(tasks) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { calcularHashTarefas, proximoLoteTarefas };
+  module.exports = { calcularHashTarefas, proximoLoteTarefas, NIVEIS_ENERGIA };
 }

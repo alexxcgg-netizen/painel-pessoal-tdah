@@ -196,7 +196,7 @@ async function excluirTarefaArrastada(li, t, fundo) {
   _atualizarDepoisDeExcluir();
   const curto = String(r.titulo || t.title || "Tarefa");
   const nome = curto.length > 34 ? `${curto.slice(0, 33).trimEnd()}…` : curto;
-  mostrarDesfazer(r.pulada ? `"${nome}" pulada só hoje` : `"${nome}" excluída`, r.token);
+  mostrarDesfazer(r.pulada ? `“${nome}” pulada só hoje` : `“${nome}” apagada`, r.token);
 }
 
 function _atualizarDepoisDeExcluir() {
@@ -239,20 +239,27 @@ function esconderDesfazer() {
   }, _menosMovimento() ? 0 : 260);
 }
 
-function mostrarDesfazer(texto, token) {
+// `desfazer`: o token do /api/desfazer/<token> OU uma funcao async que desfaz sozinha e devolve
+// true/false (aba Tarefas 06/11: Feito -> reabrir, mudar dia/hora/nome -> volta na tela na hora).
+// `opcoes.desfeito`: o texto depois de desfazer.
+function mostrarDesfazer(texto, desfazer, opcoes = {}) {
   const el = _toastDesfazer();
   el.querySelector(".desfazer-texto").textContent = texto;
   const btn = el.querySelector(".desfazer-btn");
-  btn.hidden = !token;
+  const token = typeof desfazer === "function" ? null : desfazer;
+  btn.hidden = !desfazer;
   btn.disabled = false;
   btn.onclick = async () => {
-    if (!token || btn.disabled) return;
+    if (!desfazer || btn.disabled) return;
     btn.disabled = true;
-    const r = await apiFetch(`/api/desfazer/${encodeURIComponent(token)}`, { method: "POST" });
+    const r =
+      typeof desfazer === "function"
+        ? await desfazer()
+        : await apiFetch(`/api/desfazer/${encodeURIComponent(token)}`, { method: "POST" });
     if (r) {
-      el.querySelector(".desfazer-texto").textContent = "Voltou pra lista";
+      el.querySelector(".desfazer-texto").textContent = opcoes.desfeito || "Voltou pra lista";
       btn.hidden = true;
-      _atualizarDepoisDeExcluir();
+      if (token) _atualizarDepoisDeExcluir();
       if (_desfazerTimer) clearTimeout(_desfazerTimer);
       _desfazerTimer = setTimeout(esconderDesfazer, 1400);
     } else {

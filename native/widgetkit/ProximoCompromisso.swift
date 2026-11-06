@@ -9,6 +9,8 @@
 //  Na tela bloqueada o iOS pinta tudo de uma cor só: aqui nada depende da cor do assunto.
 //  2026-11-05 (leva dos widgets nativos): retângulo do jeito votado no protótipo ("Sair às 18:45" / "lugar · 25 min
 //  de carro"); sem compromisso, a linha e o retângulo mostram o próximo voo; sem token, o código do pareamento.
+//  2026-11-06 (docs/briefings/2026-11-06-ao-vivo-tarefa.md): sem compromisso de saída, a próxima tarefa de hoje com
+//  hora (`proxima_tarefa` do /api/ao-vivo) vem antes do voo - era "Nada pra sair nas próximas 6 h".
 //
 
 import SwiftUI
@@ -21,6 +23,14 @@ struct ProximoEntry: TimelineEntry {
     var voo: VooWidget? = nil
     /// Widget ainda sem token: o código que o app confirma (PainelDados.swift).
     var codigo: String? = nil
+    /// Sem compromisso: a próxima tarefa de hoje com hora (some quando a hora passa).
+    var tarefa: AoVivoResposta.ProximaTarefa? = nil
+
+    /// A tarefa que ainda vale nesta entrada da timeline.
+    var tarefaQueVem: AoVivoResposta.ProximaTarefa? {
+        guard let tarefa, tarefa.em > date else { return nil }
+        return tarefa
+    }
 }
 
 /// Entradas da timeline: agora + cada virada de passo + o fim (já sem compromisso). Usado também pelo
@@ -72,37 +82,47 @@ struct ProximoProvider: TimelineProvider {
             return
         }
         Task {
-            let (estado, voo, codigo) = await Self.buscarTudo()
-            completion(ProximoEntry(date: Date(), estado: TimelineAoVivo.estado(estado, em: Date()), voo: voo, codigo: codigo))
+            let (estado, voo, codigo, tarefa) = await Self.buscarTudo()
+            completion(ProximoEntry(date: Date(), estado: TimelineAoVivo.estado(estado, em: Date()), voo: voo,
+                                    codigo: codigo, tarefa: tarefa))
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ProximoEntry>) -> Void) {
         Task {
-            let (estado, voo, codigo) = await Self.buscarTudo()
+            let (estado, voo, codigo, tarefa) = await Self.buscarTudo()
             let agora = Date()
             var proxima = TimelineAoVivo.proximaBusca(estado, agora: agora)
             if codigo != nil { proxima = min(proxima, agora.addingTimeInterval(60)) }
-            let entradas = TimelineAoVivo.datas(estado, agora: agora, ate: proxima.addingTimeInterval(1)).map {
-                ProximoEntry(date: $0, estado: TimelineAoVivo.estado(estado, em: $0), voo: voo, codigo: codigo)
+            // passou a hora da tarefa: busca de novo logo depois pra mostrar a seguinte
+            if let t = tarefa, t.em > agora { proxima = min(proxima, t.em.addingTimeInterval(60)) }
+            var datas = TimelineAoVivo.datas(estado, agora: agora, ate: proxima.addingTimeInterval(1))
+            if let t = tarefa, t.em > agora, t.em < proxima, !datas.contains(t.em) { datas.append(t.em) }
+            let entradas = datas.sorted().map {
+                ProximoEntry(date: $0, estado: TimelineAoVivo.estado(estado, em: $0), voo: voo, codigo: codigo,
+                             tarefa: tarefa)
             }
             completion(Timeline(entries: entradas, policy: .after(proxima)))
         }
     }
 
     /// O painel primeiro (é ele que pareia e traz o token), depois o compromisso.
-    static func buscarTudo() async -> (CompromissoAtributos.ContentState?, VooWidget?, String?) {
+    static func buscarTudo() async -> (CompromissoAtributos.ContentState?, VooWidget?, String?, AoVivoResposta.ProximaTarefa?) {
         let carga = await PainelDados.carregar()
-        if case .parear(let codigo) = carga { return (AoVivoAPI.ultimo()?.estado, nil, codigo) }
-        return (await buscar(), carga.payload?.voo, nil)
+        if case .parear(let codigo) = carga {
+            let ultimo = AoVivoAPI.ultimo()
+            return (ultimo?.estado, nil, codigo, ultimo?.proximaTarefa)
+        }
+        let r = await buscar()
+        return (r?.estado, carga.payload?.voo, nil, r?.proximaTarefa)
     }
 
     /// Rede primeiro; sem rede, a última resposta boa (o fim dela ainda tira o que já passou).
-    static func buscar() async -> CompromissoAtributos.ContentState? {
+    static func buscar() async -> AoVivoResposta? {
         if let r = await AoVivoAPI.buscar(base: PainelConfig.urlBase, token: PainelConfig.token) {
-            return r.estado
+            return r
         }
-        return AoVivoAPI.ultimo()?.estado
+        return AoVivoAPI.ultimo()
     }
 }
 
@@ -125,7 +145,8 @@ struct ProximoRetangular: View {
 
     /// "Sair às 18:45" (ou o passo que vem: "Chegar às 19:10").
     private func linhaPasso(_ e: CompromissoAtributos.ContentState) -> String {
-        guard let p = e.proximo(em: entry.date) else { return "Chegou" }
+        guard let p = e.proximo(em: entry.date) else { return e.ehTarefa ? "Agora" : "Chegou" }
+        if p.chave == "hora" { return "Às " + CompromissoAtributos.ContentState.hora(p.em) }
         let verbo: String
         switch p.chave {
         case "arrumar": verbo = "Arrumar"
@@ -157,12 +178,32 @@ struct ProximoRetangular: View {
                     .font(.system(size: 13, weight: .medium).monospacedDigit())
                     .lineLimit(1)
                 let lugar = linhaLugar(e)
-                if !lugar.isEmpty {
+                if let hora = e.horaTarefa, hora > entry.date {
+                    Text(hora, style: .relative)  // "18 min" até a hora da tarefa
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else if !lugar.isEmpty {
                     Text(lugar)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let t = entry.tarefaQueVem {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.fill").font(.system(size: 12, weight: .semibold))
+                    Text(t.titulo).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                }
+                Text("Às \(CompromissoAtributos.ContentState.hora(t.em))")
+                    .font(.system(size: 13, weight: .medium).monospacedDigit())
+                    .lineLimit(1)
+                Text(t.em, style: .relative)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else if let voo = entry.voo {
@@ -195,7 +236,7 @@ struct ProximoRetangular: View {
         } else {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Painel").font(.system(size: 14, weight: .semibold))
-                Text("Nada pra sair nas próximas 6 h")
+                Text("Nada com hora por hoje")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -227,6 +268,20 @@ struct ProximoCircular: View {
             .progressViewStyle(.circular)
         } else if let e = entry.estado {
             Image(systemName: e.icone).font(.system(size: 20, weight: .semibold))
+        } else if let t = entry.tarefaQueVem {
+            // o anel enche nas 3 h antes da hora da tarefa
+            ProgressView(timerInterval: CompromissoAtributos.ContentState.intervalo(
+                de: t.em.addingTimeInterval(-3 * 3600), ate: t.em), countsDown: true) {
+                Text(t.titulo)
+            } currentValueLabel: {
+                VStack(spacing: 0) {
+                    Image(systemName: "clock.fill").font(.system(size: 11, weight: .semibold))
+                    Text(CompromissoAtributos.ContentState.hora(t.em))
+                        .font(.system(size: 11, weight: .semibold))
+                        .minimumScaleFactor(0.7)
+                }
+            }
+            .progressViewStyle(.circular)
         } else {
             Image(systemName: "checkmark.circle").font(.system(size: 20))
         }
@@ -238,16 +293,19 @@ struct ProximoLinha: View {
 
     var body: some View {
         if let e = entry.estado, let p = e.proximo(em: entry.date) {
-            Text("\(e.titulo) · \(p.chave == "sair" ? "sai" : p.rotulo.lowercased()) \(CompromissoAtributos.ContentState.hora(p.em))")
+            Text(p.chave == "hora" ? "\(e.titulo) · \(CompromissoAtributos.ContentState.hora(p.em))"
+                 : "\(e.titulo) · \(p.chave == "sair" ? "sai" : p.rotulo.lowercased()) \(CompromissoAtributos.ContentState.hora(p.em))")
         } else if let e = entry.estado {
-            Text("\(e.titulo) · chegou")
+            Text(e.ehTarefa ? "\(e.titulo) · agora" : "\(e.titulo) · chegou")
+        } else if let t = entry.tarefaQueVem {
+            Label("\(t.titulo) · \(CompromissoAtributos.ContentState.hora(t.em))", systemImage: "clock")
         } else if let voo = entry.voo {
             // "✈ sáb. 07:30" ao lado da data
             Label(Self.diaDoVoo(voo) + (voo.hora.map { " \($0)" } ?? ""), systemImage: "airplane")
         } else if let codigo = entry.codigo {
             Text("Painel: confirma \(codigo) no app")
         } else {
-            Text("Painel: nada pra sair")
+            Text("Painel: nada com hora hoje")
         }
     }
 
@@ -289,7 +347,7 @@ struct ProximoCompromisso: Widget {
             ProximoEntryView(entry: entry)
         }
         .configurationDisplayName("Próximo compromisso")
-        .description("Quando sair pro próximo compromisso; sem nenhum, o próximo voo.")
+        .description("Quando sair pro próximo compromisso; sem nenhum, a próxima tarefa com hora ou o próximo voo.")
         .supportedFamilies([.accessoryRectangular, .accessoryCircular, .accessoryInline])
     }
 }

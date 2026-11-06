@@ -9,13 +9,22 @@
 //
 //  Este arquivo entra nos DOIS alvos (project.yml): só Foundation + ActivityKit, nada de SwiftUI/UIKit.
 //
+//  2026-11-06 (leva do ao vivo de tarefa, docs/briefings/2026-11-06-ao-vivo-tarefa.md): tarefa com hora nas
+//  próximas 2 h 30 vira atividade de UM passo ("hora"), com `tag` pro botão Feito (FeitoAoVivoIntent.swift)
+//  e `feito` pro desenho do check antes de sumir. `proxima_tarefa` alimenta o widget da tela bloqueada.
+//
+//  2026-11-06 (leva "painel esperto", frente 3, docs/briefings/2026-11-06-painel-esperto.md): kind `viagem` - a
+//  viagem planejada em andamento (destino, km que faltam, chegada refeita pela posição, próximo posto, chuva à
+//  frente). Passos Saída → Chegada + `viagem` com o resto. Desenho: AtividadeViagem.swift. `acompanhar` diz ao
+//  app se a posição do carro pode ir pro painel agora (Localizacao.swift).
+//
 
 import ActivityKit
 import Foundation
 
 struct CompromissoAtributos: ActivityAttributes {
     struct Passo: Codable, Hashable {
-        var chave: String   // "arrumar" | "sair" | "parada" | "chegar"
+        var chave: String   // "arrumar" | "sair" | "parada" | "chegar" | "hora" (tarefa sem saída)
         var rotulo: String  // "Arrumar", "Sair", "Casa do guri", "Chegar"
         var em: Date
     }
@@ -30,6 +39,34 @@ struct CompromissoAtributos: ActivityAttributes {
         var temp: Int?
         var chuva: Int?
         var fim: Date       // depois disso a atividade some
+        var tag: String? = nil    // "tarefa_horario-12": o botão Feito (só tarefa com hora)
+        var feito: Bool? = nil    // true depois do Feito: o check aparece e a atividade some
+        var viagem: Viagem? = nil // só na viagem acompanhada (kind "viagem")
+    }
+
+    /// O miolo da viagem acompanhada (GET /api/ao-vivo, kind "viagem"). Os textos já vêm prontos do painel.
+    struct Viagem: Codable, Hashable {
+        var faltaKm: Int
+        var totalKm: Int
+        var barraDesde: Date      // começo da barra: anda sozinha até a chegada e se acerta a cada posição
+        var postoKm: Int?
+        var postoEm: Date?
+        var postoNome: String?
+        var chuva: String?        // "daqui 25 min" | "chovendo, mais 12 km" | nil (some)
+        var chuvaRotulo: String?  // "Chuva", "Neblina"...
+        var posicaoEm: Date?
+
+        enum CodingKeys: String, CodingKey {
+            case faltaKm = "falta_km"
+            case totalKm = "total_km"
+            case barraDesde = "barra_desde"
+            case postoKm = "posto_km"
+            case postoEm = "posto_em"
+            case postoNome = "posto_nome"
+            case chuva
+            case chuvaRotulo = "chuva_rotulo"
+            case posicaoEm = "posicao_em"
+        }
     }
 
     /// kind-ref-data (ex. "tarefa-12-2026-11-07"): mesmo compromisso = mesma atividade, só atualiza.
@@ -56,18 +93,50 @@ extension CompromissoAtributos.ContentState {
 
     var chegada: Date? { passos.last?.em }
 
+    /// Tarefa com hora (sem saída): um passo só, "hora". Desenho próprio (AtividadeCompromisso.swift).
+    var ehTarefa: Bool { passos.count == 1 && passos.first?.chave == "hora" }
+
+    /// A hora da tarefa (ehTarefa).
+    var horaTarefa: Date? { ehTarefa ? passos.first?.em : nil }
+
+    /// Começo da barra/anel da tarefa: a janela de 2 h 30 antes da hora (TAREFA_JANELA_MIN no servidor).
+    static let janelaTarefa: TimeInterval = 150 * 60
+
+    /// Passou da hora (pedido do Alex, 06/11): a tarefa fica vermelha - o --perigo do app (#f47671).
+    static let corPassou = "f47671"
+
+    /// A tarefa já passou da hora e não foi feita? `velha` = o iOS marcou a atividade como velha (staleDate = a hora),
+    /// que é quando ele redesenha sozinho, mesmo se o relógio do desenho anterior ainda estava antes da hora.
+    func passouDaHora(em agora: Date, velha: Bool = false) -> Bool {
+        guard ehTarefa, !estaFeito, let hora = horaTarefa else { return false }
+        return hora <= agora || velha
+    }
+
+    /// Cor que vale agora: a do assunto, ou vermelho depois da hora da tarefa.
+    func corAgora(em agora: Date, velha: Bool = false) -> String {
+        passouDaHora(em: agora, velha: velha) ? Self.corPassou : cor
+    }
+
+    var estaFeito: Bool { feito == true }
+
+    /// Viagem acompanhada (kind "viagem"): desenho próprio (AtividadeViagem.swift). Ela não "chega" pelo relógio:
+    /// quem diz que chegou é o painel (posição perto do destino).
+    var ehViagem: Bool { viagem != nil }
+
     /// Rótulo pequeno antes da contagem, no jeito D ("sai em", "arrumar em").
     static func rotuloContagem(_ p: CompromissoAtributos.Passo) -> String {
         switch p.chave {
         case "arrumar": return "arrumar em"
         case "sair": return "sai em"
         case "parada": return "parada em"
+        case "hora": return "falta"
         default: return "chega em"
         }
     }
 
     /// "chegar 19:00 · 18° · 60%" (o tempo só quando houver).
     var linhaTempo: String {
+        if ehTarefa || ehViagem { return "" }  // tarefa não "chega"; viagem tem linha própria
         var partes: [String] = []
         if let c = chegada { partes.append("chegar \(Self.hora(c))") }
         if let temp { partes.append("\(temp)°") }
@@ -111,10 +180,22 @@ struct AoVivoResposta: Codable {
     let clima: Clima?
     let levar: [String]?
     let fimEm: Date?
+    var tag: String? = nil
+    var proximaTarefa: ProximaTarefa? = nil
+    var acompanhar: Bool? = nil  // true: a posição do carro pode ir pro painel agora (viagem ou saída)
+    var viagem: CompromissoAtributos.Viagem? = nil
+
+    /// A próxima tarefa de hoje com hora (mesmo sem nada ao vivo): o widget da tela bloqueada mostra ela.
+    struct ProximaTarefa: Codable, Hashable {
+        let id: Int
+        let titulo: String
+        let em: Date
+    }
 
     enum CodingKeys: String, CodingKey {
-        case ativo, id, titulo, kind, icone, cor, lugar, passos, atual, clima, levar
+        case ativo, id, titulo, kind, icone, cor, lugar, passos, atual, clima, levar, tag, acompanhar, viagem
         case fimEm = "fim_em"
+        case proximaTarefa = "proxima_tarefa"
     }
 
     static func decodificar(_ dados: Data) throws -> AoVivoResposta {
@@ -137,14 +218,19 @@ struct AoVivoResposta: Codable {
             atual: atual ?? -1,
             temp: clima?.temp,
             chuva: clima?.chuva,
-            fim: fimEm
+            fim: fimEm,
+            tag: tag,
+            viagem: viagem
         )
     }
 
     /// Muda quando o compromisso muda de verdade (não a cada pergunta): o app só recarrega os widgets aí.
     var assinatura: String {
-        let p = (passos ?? []).map { "\($0.chave)@\(Int($0.em.timeIntervalSince1970))" }.joined(separator: ",")
-        return "\(ativo)|\(id ?? "")|\(titulo ?? "")|\(p)|\(clima?.temp ?? -99)|\(clima?.chuva ?? -1)"
+        // viagem: a chegada muda a cada posição - não recarrega os widgets por isso (orçamento do WidgetKit)
+        let p = (viagem == nil ? (passos ?? []) : []).map { "\($0.chave)@\(Int($0.em.timeIntervalSince1970))" }
+            .joined(separator: ",")
+        let t = proximaTarefa.map { "\($0.id)@\(Int($0.em.timeIntervalSince1970))@\($0.titulo)" } ?? ""
+        return "\(ativo)|\(id ?? "")|\(titulo ?? "")|\(p)|\(clima?.temp ?? -99)|\(clima?.chuva ?? -1)|\(t)"
     }
 }
 
@@ -154,6 +240,9 @@ enum AoVivoAPI {
     static let appGroupID = "group.com.alexxcgg.painel"  // igual a PainelConfig.appGroupID / Ajustes.appGroupID
     private static let chaveUltimo = "painel_aovivo_ultimo"
     private static let chaveAssinatura = "painel_aovivo_assinatura"
+    private static let chaveAcompanharAte = "painel_aovivo_acompanhar_ate"
+    /// Quanto tempo um "acompanhar" do painel vale sem confirmar de novo (o app pergunta a cada ~5 min dirigindo).
+    static let acompanharValidade: TimeInterval = 20 * 60
 
     /// nil sem endereço ou sem token (nada vai pra rede).
     static func pedido(base: String?, token: String?) -> URLRequest? {
@@ -176,6 +265,7 @@ enum AoVivoAPI {
             guard (resposta as? HTTPURLResponse)?.statusCode == 200 else { return nil }
             let r = try AoVivoResposta.decodificar(dados)
             guardar(dados)
+            definirAcompanhar(r.acompanhar == true)
             return r
         } catch {
             return nil
@@ -192,6 +282,19 @@ enum AoVivoAPI {
     static func ultimo() -> AoVivoResposta? {
         guard let dados = defaults?.data(forKey: chaveUltimo) else { return nil }
         return try? AoVivoResposta.decodificar(dados)
+    }
+
+    /// Viagem acompanhada: até quando o app pode mandar a posição do carro (nil/passado = não manda).
+    static func acompanharAte() -> Date? {
+        defaults?.object(forKey: chaveAcompanharAte) as? Date
+    }
+
+    static func definirAcompanhar(_ sim: Bool) {
+        if sim {
+            defaults?.set(Date().addingTimeInterval(acompanharValidade), forKey: chaveAcompanharAte)
+        } else {
+            defaults?.removeObject(forKey: chaveAcompanharAte)
+        }
     }
 
     /// true quando a assinatura mudou desde a última vez (e grava a nova).
