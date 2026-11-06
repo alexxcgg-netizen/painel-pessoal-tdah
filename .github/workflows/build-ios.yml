@@ -53,7 +53,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            PAINEL_BUILD="$(TZ=America/Sao_Paulo date +'%d/%m %H:%M') · ${GITHUB_SHA::7}" \
             build > xcodebuild.log 2>&1
+          # 2026-11-06: numero de build novo a cada .ipa. Com todos "1", o iPhone instalava por cima e
+          # seguia mostrando os widgets da versao anterior na galeria.
           rc=$?
           grep -E "error:|warning: .*\.swift|BUILD (SUCCEEDED|FAILED)" xcodebuild.log
           exit $rc

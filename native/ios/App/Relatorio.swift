@@ -108,6 +108,7 @@ final class Relatorio: ObservableObject {
         add(g, "Modelo", maquina(), chave: "modelo")
         add(g, "iOS", UIDevice.current.systemVersion, chave: "ios")
         add(g, "App", "\(info["CFBundleShortVersionString"] ?? "?") (\(info["CFBundleVersion"] ?? "?"))", chave: "app_versao")
+        add(g, "Versão", info["PainelBuild"] as? String ?? "?", chave: "app_build")
         add(g, "Identificador", Bundle.main.bundleIdentifier ?? "?", chave: "bundle_id")
         let janela = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.windows.first
         let topo = Double(janela?.safeAreaInsets.top ?? 0)

@@ -193,7 +193,8 @@ struct Configurar: View {
                         Label("Gerar relatório", systemImage: "waveform.path.ecg")
                     }
                 } footer: {
-                    Text("Salva antes, se mudou o endereço ou o token.")
+                    // 2026-11-06: qual .ipa está instalado (data do build + commit), pra nunca mais ficar na dúvida
+                    Text("Salva antes, se mudou o endereço ou o token.\n\nVersão: \(Bundle.main.object(forInfoDictionaryKey: "PainelBuild") as? String ?? "?")")
                 }
             }
             .navigationTitle("Configurar")
