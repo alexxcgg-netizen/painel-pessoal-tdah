@@ -153,9 +153,37 @@ function criarEscritaAoVivo(bolha) {
 // POST no /api/chat/stream lendo o text/event-stream. Devolve o MESMO corpo do /api/chat
 // (evento "fim"), null em erro ja mostrado, ou undefined quando nem deu pra abrir o stream
 // (rede/servidor antigo) - ai o chamador cai no caminho normal (apiFetch /api/chat).
+// Saiu do app no meio da resposta (2026-11-05): o iOS congela/derruba a conexao, mas o servidor
+// termina e GRAVA a resposta. Em vez de "a conexao caiu" (ou pontinhos pra sempre), o app volta a
+// buscar o que ficou gravado (recuperarRespostaGravada). CHAT_CAIU = "a conexao se perdeu, mas a
+// mensagem pode ter chegado" - nunca reenvia (reenviar duplicaria a mensagem).
+const CHAT_CAIU = { caiu: true };
+let _streamAtual = null; // { controller, ultimoDado, saiuDoApp }
+
+document.addEventListener("visibilitychange", () => {
+  const atual = _streamAtual;
+  if (!atual) return;
+  if (document.hidden) {
+    atual.saiuDoApp = true;
+    return;
+  }
+  if (!atual.saiuDoApp) return;
+  // voltou: se o stream ainda anda (saida curta) deixa; se calou, aborta e vai buscar o gravado
+  const volta = performance.now();
+  setTimeout(() => {
+    if (_streamAtual === atual && atual.ultimoDado < volta) atual.controller.abort();
+  }, 2500);
+});
+
 async function chatAoVivo(corpo, { aoTexto, aoRecomeca, aoPasso }) {
   const controller = new AbortController();
   const limite = setTimeout(() => controller.abort(), 200000);
+  const estado = { controller, ultimoDado: performance.now(), saiuDoApp: document.hidden };
+  _streamAtual = estado;
+  const soltar = () => {
+    clearTimeout(limite);
+    if (_streamAtual === estado) _streamAtual = null;
+  };
   let res;
   try {
     res = await fetch("/api/chat/stream", {
@@ -165,16 +193,18 @@ async function chatAoVivo(corpo, { aoTexto, aoRecomeca, aoPasso }) {
       signal: controller.signal,
     });
   } catch {
-    clearTimeout(limite);
-    return undefined;
+    soltar();
+    // saiu do app antes da resposta abrir: a mensagem pode ter chegado ao servidor mesmo assim
+    return estado.saiuDoApp ? CHAT_CAIU : undefined;
   }
   if (res.status === 401) {
+    soltar();
     window.location.href = "/login";
     return null;
   }
   const tipo = res.headers.get("Content-Type") || "";
   if (!res.ok || !tipo.includes("text/event-stream") || !res.body) {
-    clearTimeout(limite);
+    soltar();
     if (res.status >= 400 && res.status < 500) {
       let data = null;
       try {
@@ -193,6 +223,7 @@ async function chatAoVivo(corpo, { aoTexto, aoRecomeca, aoPasso }) {
     for (;;) {
       const { value, done } = await leitor.read();
       if (done) break;
+      estado.ultimoDado = performance.now();
       buffer += decod.decode(value, { stream: true });
       let corte;
       while ((corte = buffer.indexOf("\n\n")) >= 0) {
@@ -224,14 +255,14 @@ async function chatAoVivo(corpo, { aoTexto, aoRecomeca, aoPasso }) {
     }
   } catch {
     if (!final) {
-      mostrarErro("A conexão caiu no meio da resposta. Tenta de novo.");
-      return null;
+      // caiu no meio (saiu do app, sinal fraco): o servidor termina sozinho - busca o gravado
+      return CHAT_CAIU;
     }
   } finally {
-    clearTimeout(limite);
+    soltar();
     if (typeof invalidarDadosAbas === "function") invalidarDadosAbas();
   }
-  if (!final) mostrarErro("A resposta veio incompleta. Tenta de novo.");
+  if (!final) return CHAT_CAIU; // o fluxo acabou sem o "fim": idem
   return final;
 }
 
@@ -489,6 +520,45 @@ if (typeof Cards !== "undefined") {
 // `opcoes` (US-E6): { rota, corpo } manda pra outra rota que devolve o MESMO
 // contrato de /api/chat (ex: "processar" um item do brain dump) - a bolha
 // do usuario, o "digitando", a resposta e os cards seguem o mesmo caminho.
+// Busca em /api/chat/historico a resposta que o servidor gravou enquanto o app estava fora.
+// Acha a mensagem enviada e olha se logo depois vem uma resposta da IA; ate ~90 s (a IA ainda
+// pode estar pensando). Achou: redesenha a conversa como historico (parada, sem animar).
+// Devolve true se mostrou a resposta.
+async function recuperarRespostaGravada(texto, esperaMs = 90000) {
+  const norma = (s) => String(s || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const alvo = norma(texto);
+  const fim = performance.now() + esperaMs;
+  for (;;) {
+    try {
+      const res = await fetch("/api/chat/historico", { cache: "no-store" });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return false;
+      }
+      if (res.ok) {
+        const historico = await res.json();
+        if (Array.isArray(historico)) {
+          let i = -1;
+          for (let k = historico.length - 1; k >= 0 && k >= historico.length - 8; k--) {
+            if (historico[k].papel === "user" && norma(historico[k].texto) === alvo) {
+              i = k;
+              break;
+            }
+          }
+          if (i >= 0 && historico.slice(i + 1).some((m) => m.papel === "assistant")) {
+            await loadChatHistorico();
+            return true;
+          }
+        }
+      }
+    } catch {
+      // sem rede ainda (acabou de voltar): tenta de novo logo abaixo
+    }
+    if (performance.now() >= fim) return false;
+    await new Promise((r) => setTimeout(r, 1800));
+  }
+}
+
 async function enviarChat(texto, opcoes = {}) {
   const lista = $("#chat-mensagens");
   const vazio = lista.querySelector(".chat-vazio");
@@ -558,6 +628,19 @@ async function enviarChat(texto, opcoes = {}) {
         }
       },
     });
+  }
+  if (data === CHAT_CAIU) {
+    // a conexao se perdeu (saiu do app...): a resposta fica gravada no servidor - busca ela
+    const achou = await recuperarRespostaGravada(corpo.mensagem || texto);
+    setBotaoCarregando(btn, false, "Enviar");
+    if (achou) {
+      loadSummary();
+      if (typeof invalidarDadosAbas === "function") invalidarDadosAbas();
+    } else {
+      digitando.remove();
+      mostrarErro("Não consegui buscar a resposta. Abre o chat de novo daqui a pouco.");
+    }
+    return null;
   }
   if (data === undefined) {
     data = await apiFetch(opcoes.rota || "/api/chat", {

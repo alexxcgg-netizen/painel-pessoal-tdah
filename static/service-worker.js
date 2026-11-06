@@ -47,7 +47,7 @@
 // no cabecalho X-Versao. Copia guardada com a versao pedida sai daqui na hora; versao diferente (ou pedido
 // sem ?v, como os modulos do treino 3D) vai a rede como antes e cai na copia velha se a rede falhar. Uma copia
 // por arquivo (a chave e o caminho, sem o ?v), entao o cache nao cresce a cada mudanca.
-const CACHE_NAME = "painel-pessoal-v102";
+const CACHE_NAME = "painel-pessoal-v103";
 const ASSETS = [
   "/",
   // R2-css: style.css dividido em arquivos por assunto (mesma ordem de carga do

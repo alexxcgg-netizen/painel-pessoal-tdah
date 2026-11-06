@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-05 - Resposta do chat não some mais quando sai do app (SW v103)
 - 2026-11-05 - Leva "perfeição": app abre do cache, chat começa antes, verificador mais leve (SW v102)
 - 2026-11-05 - Widgets nativos do iPhone, pareamento por código e ícone mostrador (SW v101)
 - 2026-11-05 - Conversa de 04/11: lugar do date, hora de sair, tarefa com hora, temperatura da noite
@@ -174,6 +175,20 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-05 - Resposta do chat não some mais quando sai do app (SW v103)
+Relato do Alex (print): mandou uma mensagem longa (voz) e saiu do app; ao voltar não havia resposta, nem
+a de uma segunda pergunta. O banco mostrou que a IA respondeu e gravou as duas. Causa: o iOS congela ou derruba
+a conexão do `/api/chat/stream` quando o app vai pro segundo plano; o servidor termina e grava, mas o app só
+sincronizava os cards na volta e deixava os pontinhos (ou "a conexão caiu") sem ir buscar a resposta.
+- `chat.js`: `chatAoVivo` devolve `CHAT_CAIU` (conexão perdida, mensagem pode ter chegado) em vez de erro e
+  **nunca reenvia** (reenviar duplicaria a mensagem). Na volta ao app, se o stream ficou mudo por 2,5 s ele é
+  abortado. `recuperarRespostaGravada` consulta `/api/chat/historico` (até ~90 s, a IA ainda pode estar
+  pensando), acha a mensagem enviada e, havendo resposta depois dela, redesenha a conversa parada. Sem nada
+  gravado, avisa em vez de ficar parado. Se o app sai antes de o stream abrir, também não reenvia.
+- Teste novo `tests/test_chat_resposta_gravada.py` (4 casos: stream sem "fim", stream congelado + sair/voltar,
+  nada gravado, resposta antiga não vale); sem a correção os 4 falham.
+- SW v103.
 
 ## 2026-11-05 - Leva "perfeição": app abre do cache, chat começa antes, verificador mais leve (SW v102)
 Pedido do Alex antes de dormir (tempo de resposta, IA, verificador, animação; "não me pergunte nada"). Briefing com
