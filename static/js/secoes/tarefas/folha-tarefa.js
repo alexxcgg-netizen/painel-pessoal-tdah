@@ -334,7 +334,8 @@ async function moverTarefaDaAba(t, mudanca, texto) {
   _sincronizarDepois();
   if (r.mudou && r.token) {
     // date/balada/tarefa com lugar: a rota refez o plano de saida (mesma conta do chat)
-    const sai = r.plano && r.plano.sair_de_casa;
+    // 07/11: ja na rua, o servidor manda "sair_daqui" (do ponto atual) no lugar do "sair_de_casa"
+    const sai = r.plano && (r.plano.sair_de_casa || r.plano.sair_daqui);
     if (sai) texto = `${texto} · sai ${sai}`;
     mostrarDesfazer(texto, () => _desfazerNaTela(t.id, volta, r.token), { desfeito: "Voltou como estava" });
   }

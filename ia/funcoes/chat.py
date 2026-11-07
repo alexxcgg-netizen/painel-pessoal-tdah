@@ -166,6 +166,7 @@ diga km e tempo total, sem ele precisar pedir. Se o resultado trouxer `transito`
 pelo transito, trecho parado/lento), diga essa frase do jeito que veio - "pode ser acidente ou
 blitz" e o maximo: nunca afirme o motivo, e o card tem o botao do Waze pra ver na hora. Passe o nome do lugar do jeito que ele falou
 ("Aeroclube de Blumenau") - a ferramenta acha o endereco exato; cite o endereco que ela devolveu.
+TA ABERTO? Quando ele diz que vai a um lugar comercial (shopping, loja, banco, cartorio, mercado, farmacia, orgao publico) - agora ou numa hora marcada - confira com `ver_horario_lugar` na hora que ele CHEGA antes de responder (saindo agora: hora atual + trajeto). Fechado, fechando em menos de 30 min ou fechado temporariamente: avise numa frase ("ele fecha as 22h e tu chega 22h10"; "a loja ta fechada temporariamente"). Aberto com folga: nao precisa comentar. `sem_dado`: nao afirme nada. Resultado de tarefa com `lugar_na_chegada`: e o mesmo aviso, ja conferido - so conte.
 
 Compromisso de SAIR (date, festa, jantar, aniversario, balada): o Alex leva o tempo de se arrumar da
 linha "Rotinas fixas" pra ficar pronto - bem mais que pra sair pro trabalho.
@@ -185,8 +186,9 @@ sair, sair, chegou) e adianta a saida se a previsao piorar - nao crie tarefa nem
 LUGAR CONTADO DEPOIS ("acho que vai ser no shopping da cidade vizinha"): `ajustar_tarefa` com
 `lugar` (e `com_quem` se ele disse o nome) - nunca so no titulo, senao a saida fica com os 15 min de casa.
 HORA DE SAIR OU DE CHEGAR: a hora dita e a de chegar no lugar, a nao ser que ele diga que e a de sair ("saio
-as 19", "busco ela as 19", "o date comeca as 19 e a gente vai junto") - ai `sai_na_hora=true` e o 'plano' volta
-com `chega_no_lugar`. Lugar longe (ida de 30 min ou mais) e nao ficou claro: diga a conta assumida E pergunte
+as 19", "sair as 22", "saio de casa as 19, o date comeca as 19 e a gente vai junto") - ai `sai_na_hora=true` e o
+'plano' volta com `chega_no_lugar`. Buscar/pegar alguem ou algo ("as 21 tenho que buscar a Ana no shopping", "busco
+ela as 19") = hora de ESTAR la: `sai_na_hora` falso, a saida e calculada pra tras. So "saio/sair as..." liga. Lugar longe (ida de 30 min ou mais) e nao ficou claro: diga a conta assumida E pergunte
 numa frase curta ("19h e a hora de sair de casa ou de chegar la?"), sem mudar nada ate ele responder.
 
 SE-ENTAO: meta vaga de rotina ("quero beber mais agua", "quero estudar todo dia") = chame `propor_se_entao`; o card deixa
@@ -200,6 +202,12 @@ toque do botao do card. Diga isso em UMA frase, curta ("anotei 7h; toca no botao
 despertador do iPhone"). Se a ferramenta devolver `aviso_compromisso`, conte (um voo/compromisso pede
 acordar antes). "Cancela o despertador" = `definir_despertador` com cancelar=true. Nunca diga que o
 alarme "ja esta tocando/programado" - so o Atalho cria, e voce nao ve isso.
+
+AVISO AVULSO (07/11): "me avisa daqui 20 min", "me cutuca as 15h pra ligar pro banco", ou quando VOCE ve que um
+aviso na hora certa ajuda (ex.: ele disse que vai sair as 18h e esquece a carteira) = `agendar_aviso`. Coisa pra
+fazer e marcar feito continua `registrar_tarefa` com hora (ja tem aviso proprio) - nao agende os dois. Titulo de
+1 linha (ate 40 letras), corpo opcional de ate 2 linhas, sempre com "tu", leve, sem cobranca, sem emoji (o
+painel poe 1 pelo `assunto`). Nunca no horario silencioso, salvo pedido explicito dele (mesmo_no_silencio=true).
 
 Quando o Alex CORRIGE ou detalha algo que ja existe ("nao e lavar, e limpar so por dentro", "a visita
 e as 17h", "o date e 20h30"), ajuste o registro existente na hora (ex: `ajustar_tarefa` com
@@ -600,7 +608,8 @@ CHAT_TOOLS = [
                     "type": "boolean",
                     "description": (
                         "true = a hora e a de SAIR de casa, nao a de chegar no lugar ('o date comeca as 19, saio de "
-                        "casa as 19', 'busco ela as 19', 'saio as 22'). Ai ele sai na hora e chega hora + trajeto."
+                        "casa as 19', 'saio as 22'). Ai ele sai na hora e chega hora + trajeto. So com 'saio/sair "
+                        "as...'; 'as 21 tenho que buscar X em Y' = hora de ESTAR la (false)."
                     ),
                 },
                 "lista": {
@@ -681,7 +690,8 @@ CHAT_TOOLS = [
                     "type": "boolean",
                     "description": (
                         "true = a hora que ja esta marcada e a de SAIR de casa, nao a de chegar no lugar ('o date comeca as 19, saio de "
-                        "casa as 19', 'busco ela as 19', 'saio as 22'). Ai ele sai na hora e chega hora + trajeto."
+                        "casa as 19', 'saio as 22'). Ai ele sai na hora e chega hora + trajeto. So com 'saio/sair as...'; "
+                        "'as 21 tenho que buscar X em Y' = hora de ESTAR la (false)."
                     ),
                 },
             },
@@ -1079,6 +1089,33 @@ CHAT_TOOLS = [
         },
     },
     {
+        "name": "agendar_aviso",
+        "description": (
+            "Agenda UM aviso (notificacao no iPhone) numa hora certa: 'me avisa daqui 20 min', 'me lembra as 15h de "
+            "ligar pro banco', ou um aviso que voce acha que ajuda na hora. Chega pelo app do iPhone (ou pelo "
+            "navegador, se o app nao pegar). Tarefa de verdade (fazer e marcar feito) e registrar_tarefa com hora, "
+            "nao isto. Limite de 20 por dia. Nunca no horario silencioso, salvo pedido explicito dele."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titulo": {"type": "string", "description": "1 linha, ate 40 letras, com 'tu' (nunca 'voce'), sem emoji"},
+                "corpo": {"type": "string", "description": "opcional, ate 90 letras (2 linhas da tela bloqueada)"},
+                "hora": {"type": "string", "description": "HH:MM (24h)"},
+                "quando_data": {"type": "string", "description": "AAAA-MM-DD; omita pra hoje"},
+                "em_minutos": {"type": "integer", "description": "daqui a N minutos (no lugar de hora)"},
+                "assunto": {
+                    "type": "string",
+                    "enum": ["lembrete", "tarefa", "sair", "agua", "comida", "remedio", "voo", "treino", "casa",
+                             "dinheiro", "conversa", "dormir", "estudo", "festa"],
+                    "description": "escolhe o emoji do titulo",
+                },
+                "mesmo_no_silencio": {"type": "boolean", "description": "true SO se ele pediu aviso nessa hora da noite"},
+            },
+            "required": ["titulo"],
+        },
+    },
+    {
         "name": "ajustar_antecedencia_voo",
         "description": (
             "Muda quantos minutos antes da decolagem o Alex quer estar no aeroclube (briefing + folga de "
@@ -1194,6 +1231,30 @@ CHAT_TOOLS = [
                 },
             },
             "required": ["pontos"],
+        },
+    },
+    {
+        "name": "ver_horario_lugar",
+        "description": (
+            "Confere no Google se um lugar comercial (shopping, loja, banco, cartorio, mercado, farmacia, "
+            "restaurante, orgao publico) esta aberto numa hora - ja conta feriado, horario especial e "
+            "'fechado temporariamente'. Devolve `situacao` pronta ('aberto ate 22h', 'fechado nessa hora, "
+            "abre amanha as 10h'), fecha_as/abre_as e o horario do dia. `sem_dado` = nao deu pra conferir: "
+            "nunca diga que esta aberto nem fechado nesse caso."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "lugar": {"type": "string", "description": "nome do jeito que ele falou ('Havan Brusque', 'shopping', 'cartorio')"},
+                "quando": {
+                    "type": "string",
+                    "description": (
+                        "hora que ele CHEGA la: 'HH:MM' (hoje) ou 'AAAA-MM-DD HH:MM'. Omita = agora. Se ele sai "
+                        "agora, some o trajeto (estimar_trajeto) pra hora de chegada."
+                    ),
+                },
+            },
+            "required": ["lugar"],
         },
     },
     {

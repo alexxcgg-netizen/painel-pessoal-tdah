@@ -247,6 +247,38 @@ citada entre parênteses.
 
 ## Padrões descobertos (viva - cada história acrescenta aqui quando relevante)
 
+### 2026-11-07, Lugar certo + atraso sem susto (frente A, `onde_estou.py`/`maps_client.localizar`)
+- **Geocoding API do Google está bloqueada (REQUEST_DENIED, billing)**; Routes e Places (New) funcionam. Coordenada de
+  endereço/nome = `maps_client.localizar` (Places Text Search com `places.location`, cota `lugar_busca`; Geocoding só no
+  fim). Nunca chamar `geocodificar` direto. Casa sem coordenada cai em `onde_estou.casa_pelo_gps` (3+ noites 03-05h).
+- **`tasks.sai_na_hora` = a hora é a de SAIR**: todo cálculo de atraso/saída tem que respeitar (`checar_atraso` só acusa
+  se ainda não saiu e agora + 5 min > hora). **Tarefa sem `local`/apelido no título não tem destino** - nunca "em casa".
+
+### 2026-11-07, Cards e cobrança (frente B, `nome_curto.py`, `cobranca.py`, `na_rua.py`)
+- **Título de card nunca é o título cru da tarefa fatiado** (`[:48]` corta no meio da palavra): `nome_curto.titulo_indo`/
+  `nome_e_genero` (apelido > local curto > "no mecânico" do título > frase) e `nome_curto.cortar` (palavra inteira + "…").
+- **Cobrança de tarefa parada passa por `cobranca.pode/registrar`** (`tarefa_parada`, `travou`, `tarefa_adiada`): 1 por
+  tarefa a cada 48 h; adiada 3+ ganha. Tipo novo de cutucão de tarefa entra aí, senão volta a cobrar em dobro.
+- **Plano com "sair de casa" passa por `na_rua.ajustar_plano`** (iPhone diz que ele está fora -> some o sair de casa, vem
+  o "daqui até lá"); `card_compromisso` só lê `ef["na_rua"]` (card sem rede). Sem visita/casa sem coordenada = não chuta.
+
+### 2026-11-07, "Tá aberto?" (frente D, `horario_lugar.py` + `maps_client.dados_horario`)
+- Horário de lugar: **`currentOpeningHours` (períodos com `date`) manda nos próximos 7 dias** (feriado, horário
+  especial); fora disso, `regularOpeningHours`. `businessStatus` CLOSED_* ganha de qualquer período. Sem dado = None e
+  ninguém afirma aberto/fechado. Cache 6 h (`HORARIO_VALIDADE`), cota `horario_lugar` (os 5 campos são do mesmo SKU).
+- Hora de CHEGADA, não de saída: com `sai_na_hora` a conferência usa `chega_no_lugar`/`extras.saida.chegada`.
+  Resultado guardado em `tasks.extras["horario_lugar"]` por (dia, chegada, local) - recalcular só se um dos três mudar.
+
+### 2026-11-07, Avisos variados + fila do app (frente C, `avisos_texto.py`, `avisos_pendentes.py`)
+- **Texto de aviso sai do catálogo `avisos_texto.py`** (título ≤ 40, corpo ≤ 90, "tu", com acento; teste
+  `tests/test_avisos_texto.py` confere tudo). A escolha é **estável por `chave`** (`tipo-ref-dia`): o app sincroniza a
+  cada poucos minutos e o tick manda o mesmo aviso - sem a chave o texto mudaria a cada sincronizada. Sem `conn` = a
+  variação 0 (texto de antes): teste antigo que chama o gerador puro não muda; a 1ª vez de um assunto também é a 0.
+- **Push do navegador é reserva**: aviso sem hora conhecida com app vivo (contato ≤ 36 h, `avisos_pendentes.app_vivo`)
+  vai pra tabela `avisos_pendentes` e só sai pelo navegador no `mandar_vencidos` (3 min crítico / 15 min resto). Aviso
+  novo que nasce fora do tick: `avisos_pendentes.entregar(..., enviar_push=...)`, nunca `push_client.enviar` direto.
+  Identificador do aviso local da fila é `fila-<id>` - NUNCA `painel-*` (o `agendar()` do app apaga os `painel-*`).
+
 ### 2026-11-04, Assistente passo a passo (saida de date/balada, `tempo.py` fim do arquivo)
 - A hora de sair de um compromisso tem DUAS contas que precisam bater: `notificacoes.plano_se_arrumar` (avisos
   se_arrumar/hora_de_sair e os passos novos `tempo.passos_da_saida`) e `tempo.compromissos` (fita, espera, porta, ao

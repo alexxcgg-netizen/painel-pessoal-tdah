@@ -439,11 +439,25 @@ def _cabe(conn, hoje: date, livre_min: int, f: float) -> list[dict]:
     return saida
 
 
+def nome_espera(conn, i: dict) -> tuple[str, str]:
+    """(nome curto, genero) do compromisso do card espera (07/11, nome_curto.py): 'o dentista', 'o voo'."""
+    import nome_curto
+
+    if i["kind"] == "voo":
+        return "voo", "m"
+    t = None
+    if i["kind"] == "tarefa":
+        t = conn.execute("SELECT * FROM tasks WHERE id = ?", (i["ref"],)).fetchone()
+    return nome_curto.nome_e_genero(conn, t if t is not None else {"title": i["titulo"]}, maximo=28)
+
+
 def card_espera(conn, i: dict, agora: datetime) -> dict:
     fa = fator(conn)
     livre = max(0, round((i["comecar"] - agora).total_seconds() / 60))
+    nome, genero = nome_espera(conn, i)
     return cards.novo_card("espera", {
-        "kind": i["kind"], "ref": i["ref"], "titulo": i["titulo"], "hora": i["hora"], "livre_ate": _hhmm(i["comecar"]),
+        "kind": i["kind"], "ref": i["ref"], "titulo": i["titulo"], "nome": nome, "genero": genero,
+        "hora": i["hora"], "livre_ate": _hhmm(i["comecar"]),
         "sair": _hhmm(i["sair"]), "livre_min": livre, "arrumar_min": i["arrumar_min"], "ir_min": i["ir_min"],
         "chamar": chamada(conn, i), "cabe": _cabe(conn, agora.date(), livre, fa["fator"] if fa else 1.0),
         "dia": agora.date().isoformat(),
@@ -466,11 +480,17 @@ def modo_espera(conn, agora: datetime) -> list[tuple[str, str, str]]:
         tipo, ref = _chave_espera(i)
         if db.ja_notificado_alguma_vez(conn, tipo, ref):
             continue
+        import na_rua  # 07/11: ja na rua, "livre ate / se arrumar / sair HH:MM" de casa nao vale (volta depois)
+
+        if na_rua.estado(conn, agora):
+            return []
         db.marcar_notificado(conn, tipo, ref)
         card = card_espera(conn, i, agora)
         d = card["data"]
-        nome = i["titulo"][:1].lower() + i["titulo"][1:] if i["titulo"][:2].upper() != i["titulo"][:2] else i["titulo"]
-        publicar(conn, "espera_chat", f"Tu tá livre até {d['livre_ate']} (depois vem {nome} às {d['hora']}). "
+        import nome_curto  # 07/11: "depois vem o dentista às 10:00", nunca o titulo inteiro cortado no meio
+
+        depois = nome_curto.depois_vem(d["nome"], d["genero"]) if d["nome"] else "depois tem compromisso"
+        publicar(conn, "espera_chat", f"Tu tá livre até {d['livre_ate']} ({depois} às {d['hora']}). "
                  + ("Eu te chamo na hora, pode esquecer do relógio." if d["chamar"] != "desligado"
                     else "Deixei o chamado desligado."), [card])
         return []  # um card por tick

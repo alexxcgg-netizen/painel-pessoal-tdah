@@ -4848,7 +4848,7 @@ class PainelTestCase(unittest.TestCase):
 
         with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 100"}), patch(
             "uber_client.configurado", return_value=True
-        ), patch("maps_client.geocodificar", side_effect=[(-27.0, -49.0), (-27.1, -49.1)]), patch(
+        ), patch("maps_client.localizar", side_effect=[(-27.0, -49.0), (-27.1, -49.1)]), patch(
             "uber_client.produto_padrao", return_value="uberx-id"
         ), patch(
             "uber_client.estimar_corrida",
@@ -4909,7 +4909,7 @@ class PainelTestCase(unittest.TestCase):
 
         with patch.dict(os.environ, {"ENDERECO_CASA": "Rua Teste, 100"}), patch(
             "uber_client.configurado", return_value=True
-        ), patch("maps_client.geocodificar", side_effect=ValueError("nao encontrei o endereco")), patch(
+        ), patch("maps_client.localizar", side_effect=ValueError("nao encontrei o endereco")), patch(
             "push_client.configurado", return_value=True
         ), patch("push_client.enviar", return_value=True) as mock_enviar:
             self.client.post("/api/notificacoes/verificar-agora")

@@ -326,7 +326,7 @@ class ChegadaNaParadaTestCase(_Base):
         self.addCleanup(env.stop)
         for p in (patch("maps_client.configurado", return_value=True),
                   patch("maps_client.usar_cota", return_value=True),
-                  patch("maps_client.geocodificar", return_value=VIVA),
+                  patch("maps_client.localizar", return_value=VIVA),
                   patch("maps_client.tempo_de_viagem", return_value={"duracao_minutos": 12})):
             p.start()
             self.addCleanup(p.stop)

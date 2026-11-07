@@ -145,6 +145,11 @@ def _lugares(conn, dia: str | None = None) -> list[dict]:
     casa = os.environ.get("ENDERECO_CASA", "").strip()
     if casa:
         lista.append({"apelido": "casa", "endereco": casa})
+    else:  # 07/11: sem ENDERECO_CASA, a casa aprendida pelo GPS (onde ele dorme) vale como endereco
+        item = _carregar_coords(conn).get("casa")
+        if isinstance(item, dict) and item.get("origem") == "gps" and not item.get("endereco") \
+                and isinstance(item.get("lat"), (int, float)) and isinstance(item.get("lon"), (int, float)):
+            lista.append({"apelido": "casa", "endereco": f"{item['lat']},{item['lon']}"})
     # assistente passo a passo (04/11): a parada e o destino dos compromissos de sair de hoje viram lugar
     # reconhecivel mesmo sem apelido salvo (geocodifica uma vez, igual aos apelidos)
     ja = {x["apelido"] for x in lista}
@@ -168,28 +173,105 @@ def _carregar_coords(conn) -> dict:
 
 
 def _coordenada(conn, lugar: dict, cache: dict, hoje: str) -> tuple[float, float] | None:
-    """Endereco -> (lat, lon). 'lat,lon' direto; senao Geocoding do Google uma vez so por
-    endereco (guardado em `cache`, que quem chama grava). Falha fica marcada no dia: tenta de
-    novo amanha, nao a cada visita."""
+    """Endereco -> (lat, lon). 'lat,lon' direto; senao maps_client.localizar (Places Text Search;
+    a Geocoding esta bloqueada desde sempre - 07/11) uma vez so por endereco (guardado em `cache`,
+    que quem chama grava). Falha fica marcada no dia: tenta de novo amanha, nao a cada visita.
+    A casa sem coordenada cai na casa aprendida pelo GPS (casa_pelo_gps)."""
     endereco = lugar["endereco"]
     direto = maps_client.coordenada(endereco)
     if direto:
         return direto
-    item = cache.get(lugar["apelido"])
+    apelido = lugar["apelido"]
+    item = cache.get(apelido)
     if isinstance(item, dict) and item.get("endereco") == endereco:
         if isinstance(item.get("lat"), (int, float)) and isinstance(item.get("lon"), (int, float)):
             return (item["lat"], item["lon"])
         if item.get("falhou") == hoje:
-            return None
-    if not maps_client.configurado() or not maps_client.usar_cota("basico"):
-        return None
+            return _casa_gps(conn, cache, endereco) if apelido == "casa" else None
+    if maps_client.configurado():
+        try:
+            lat, lon = maps_client.localizar(endereco)  # conta a propria cota (lugar_busca / Geocoding)
+            cache[apelido] = {"endereco": endereco, "lat": round(float(lat), 5), "lon": round(float(lon), 5)}
+            return (cache[apelido]["lat"], cache[apelido]["lon"])
+        except Exception:  # rede, endereco nao achado, cota, resposta estranha: so nao reconhece
+            cache[apelido] = {"endereco": endereco, "falhou": hoje}
+    return _casa_gps(conn, cache, endereco) if apelido == "casa" else None
+
+
+CASA_NOITES_MIN = 3  # casa pelo GPS: 3+ noites dormindo no mesmo ponto
+CASA_MADRUGADA = (time(3, 0), time(5, 0))  # a visita tem que cobrir esse trecho inteiro
+
+
+def casa_pelo_gps(conn, agora: datetime | None = None) -> tuple[float, float] | None:
+    """Casa aprendida pelo GPS (07/11, reserva quando o endereco nao da coordenada): visita que cobre
+    03:00-05:00 inteira, em CASA_NOITES_MIN+ noites diferentes, no mesmo ponto (RAIO_M). Devolve a
+    media dos pontos do grupo com mais noites, ou None. So le `visitas` (ultimos RETENCAO_DIAS)."""
+    agora = agora or datetime.now()
     try:
-        lat, lon = maps_client.geocodificar(endereco)
-        cache[lugar["apelido"]] = {"endereco": endereco, "lat": round(float(lat), 5), "lon": round(float(lon), 5)}
-        return (cache[lugar["apelido"]]["lat"], cache[lugar["apelido"]]["lon"])
-    except Exception:  # rede, endereco nao achado, resposta estranha: so nao reconhece
-        cache[lugar["apelido"]] = {"endereco": endereco, "falhou": hoje}
+        linhas = conn.execute(
+            "SELECT lat, lon, chegada, saida, lugar FROM visitas WHERE chegada IS NOT NULL AND chegada >= ?",
+            (_iso(agora - timedelta(days=RETENCAO_DIAS)),),
+        ).fetchall()
+    except Exception:  # tabela ainda nao existe (banco velho de teste)
         return None
+    pontos = []  # (noite, (lat, lon))
+    for r in linhas:
+        if r["lugar"] and r["lugar"] != "casa":
+            continue  # hotel/obra reconhecidos nao sao casa
+        ini = _dt(r["chegada"])
+        if not ini:
+            continue
+        fim = _dt(r["saida"]) or min(agora, ini + timedelta(hours=VISITA_ABERTA_MAX_H))
+        noite = ini.date() if ini.time() <= CASA_MADRUGADA[0] else ini.date() + timedelta(days=1)
+        while datetime.combine(noite, CASA_MADRUGADA[1]) <= fim:
+            if datetime.combine(noite, CASA_MADRUGADA[0]) >= ini:
+                pontos.append((noite, (r["lat"], r["lon"])))
+            noite += timedelta(days=1)
+    melhor: list = []
+    melhor_noites = 0
+    for _, p in pontos:
+        grupo = [(n, q) for n, q in pontos if _metros(p, q) <= RAIO_M]
+        noites = len({n for n, _ in grupo})
+        if noites >= CASA_NOITES_MIN and noites > melhor_noites:
+            melhor, melhor_noites = grupo, noites
+    if not melhor:
+        return None
+    lat = sum(q[0] for _, q in melhor) / len(melhor)
+    lon = sum(q[1] for _, q in melhor) / len(melhor)
+    return (round(lat, 5), round(lon, 5))
+
+
+def _casa_gps(conn, cache: dict, endereco: str) -> tuple[float, float] | None:
+    c = casa_pelo_gps(conn)
+    if c:
+        cache["casa"] = {"endereco": endereco, "lat": c[0], "lon": c[1], "origem": "gps"}
+    return c
+
+
+def reconhecer_visitas(conn, lugares: list[dict], agora: datetime | None = None) -> int:
+    """Visita gravada com `lugar` NULL (coordenada ainda nao existia) e que agora bate com um lugar:
+    preenche (07/11 - pra o dia de hoje ja funcionar quando a coordenada aparece). So as abertas ou
+    das ultimas 48 h. Devolve quantas reconheceu. Commita se mudou algo."""
+    if not any(x.get("coord") for x in lugares):
+        return 0
+    agora = agora or datetime.now()
+    try:
+        linhas = conn.execute(
+            "SELECT id, lat, lon, precisao FROM visitas WHERE lugar IS NULL AND "
+            "(saida IS NULL OR COALESCE(saida, chegada) >= ?)",
+            (_iso(agora - timedelta(hours=48)),),
+        ).fetchall()
+    except Exception:
+        return 0
+    n = 0
+    for r in linhas:
+        lugar = lugar_da_visita(lugares, r["lat"], r["lon"], r["precisao"])
+        if lugar:
+            conn.execute("UPDATE visitas SET lugar = ? WHERE id = ? AND lugar IS NULL", (lugar["apelido"], r["id"]))
+            n += 1
+    if n:
+        conn.commit()
+    return n
 
 
 def lugares_com_coordenada(conn, hoje: str | None = None) -> list[dict]:
@@ -200,8 +282,13 @@ def lugares_com_coordenada(conn, hoje: str | None = None) -> list[dict]:
     for lugar in _lugares(conn, hoje):
         c = _coordenada(conn, lugar, cache, hoje)
         saida.append({**lugar, "coord": c})
+    if not any(x["apelido"] == "casa" for x in saida) and not os.environ.get("ENDERECO_CASA", "").strip():
+        c = _casa_gps(conn, cache, "")  # sem endereco nenhum: a casa so pelo GPS
+        if c:
+            saida.append({"apelido": "casa", "endereco": f"{c[0]},{c[1]}", "coord": c})
     if json.dumps(cache, sort_keys=True) != antes:
         db.definir_configuracao(conn, CONFIG_COORDS, json.dumps(cache, ensure_ascii=False))
+        reconhecer_visitas(conn, saida)  # coordenada nova: as visitas sem lugar de hoje ganham o lugar
     return saida
 
 
@@ -375,7 +462,8 @@ def _de(nome: str, genero: str) -> str:
 
 def _tarefas_de_hoje(conn, dia: str):
     return conn.execute(
-        "SELECT id, title, hora, local, COALESCE(inegociavel, 0) AS inegociavel FROM tasks "
+        "SELECT id, title, hora, local, COALESCE(inegociavel, 0) AS inegociavel, "
+        "COALESCE(sai_na_hora, 0) AS sai_na_hora, recorrente_origem_id FROM tasks "
         "WHERE completed_at IS NULL AND recorrencia IS NULL AND due_date = ? "
         "ORDER BY (hora IS NULL OR hora = ''), hora, id",
         (dia,),
@@ -526,16 +614,36 @@ def mensagem_chegada_saida(conn, visita, agora: datetime) -> tuple[str, str, str
 
 
 def _destino(tarefa, lugares: list[dict]) -> tuple[str | None, tuple | None]:
-    """Onde a tarefa acontece: o `local` dela; senao um apelido no titulo; senao casa."""
+    """Onde a tarefa acontece: o `local` dela; senao um apelido no titulo; senao (None, None).
+    07/11: tarefa sem lugar NAO e "em casa" - nao tem destino (o atraso das 7h43 empurrou remedio e
+    4 tarefas soltas porque contava casa como destino)."""
     local = (tarefa["local"] or "").strip()
     if local:
-        lugar = next((x for x in lugares if _sem_acento(x["endereco"]) == _sem_acento(local)), None)
+        lugar = next((x for x in lugares if _sem_acento(x["endereco"]) == _sem_acento(local)
+                      or x["apelido"] == vida_assistente._chave_apelido(local)), None)
         return local, (lugar["coord"] if lugar else maps_client.coordenada(local))
     for x in lugares:
         if x["apelido"] != "casa" and _bate(x["apelido"], tarefa["title"]):
             return x["endereco"], x["coord"]
-    casa = next((x for x in lugares if x["apelido"] == "casa"), None)
-    return (casa["endereco"], casa["coord"]) if casa else (None, None)
+    return None, None
+
+
+_RE_REMEDIO = re.compile(r"\b(remedio|remedios|medicamento|medicamentos|vitamina|comprimido|dose)\b")
+
+
+def _e_remedio(conn, t) -> bool:
+    """Remedio nunca e empurrado pelo atraso (07/11): a dose do medicamento cadastrado (instancia da
+    tarefa recorrente "Tomar X", a mesma fonte do botao Tomei - db.instancia_do_dia_do_medicamento)
+    ou titulo que fala de remedio."""
+    if _RE_REMEDIO.search(_sem_acento(t["title"])):
+        return True
+    origem = t["recorrente_origem_id"] if "recorrente_origem_id" in t.keys() else None
+    if not origem:
+        return False
+    try:
+        return conn.execute("SELECT 1 FROM medicamentos WHERE tarefa_modelo_id = ?", (origem,)).fetchone() is not None
+    except Exception:
+        return False
 
 
 def _trajeto_min(origem: tuple[float, float], destino: str | None) -> int:
@@ -581,16 +689,36 @@ def checar_atraso(conn, agora: datetime, visita) -> dict | None:
     hoje = agora.date().isoformat()
     tarefas = _tarefas_de_hoje(conn, hoje)
     lugares = lugares_com_coordenada(conn, hoje)
-    lugar_atual = next((x for x in lugares if x["apelido"] == visita["lugar"]), None)
+    apelido_visita = visita["lugar"]
+    if not apelido_visita:  # gravada antes da coordenada existir: reconhece agora (07/11)
+        achado = lugar_da_visita(lugares, visita["lat"], visita["lon"], visita["precisao"])
+        if achado:
+            apelido_visita = achado["apelido"]
+            conn.execute("UPDATE visitas SET lugar = ? WHERE id = ? AND lugar IS NULL", (apelido_visita, visita["id"]))
+            conn.commit()
+    lugar_atual = next((x for x in lugares if x["apelido"] == apelido_visita), None)
+    casa = next((x for x in lugares if x["apelido"] == "casa"), None)
+    if not lugar_atual and not (casa and casa.get("coord")):
+        return None  # 07/11 (d): nao sabe onde ele esta nem onde e casa - sem base, nao chuta
     ids_do_lugar = {t["id"] for t in tarefas_do_lugar(tarefas, lugar_atual)} if lugar_atual else set()
     minimo = (agora - timedelta(minutes=TAREFA_VELHA_MIN)).strftime("%H:%M")
     com_hora = [t for t in tarefas if _com_hora(t)]
+    destinos = {}
+
+    def empurravel(t) -> bool:
+        """07/11 (a)(b): so tarefa com destino real (local ou apelido no titulo) e nunca remedio."""
+        if t["id"] not in destinos:
+            destinos[t["id"]] = None if _e_remedio(conn, t) else _destino(t, lugares)
+        return bool(destinos[t["id"]] and destinos[t["id"]][0])
+
     alvo = None
     for t in com_hora:
         if t["hora"] < minimo or t["id"] in ids_do_lugar or db.ja_notificou_hoje(conn, TIPO_ATRASO, t["id"]):
             continue
         if _fixa(t):
             return None  # a proxima e inegociavel/voo: nao mexe nela nem no que vem depois
+        if not empurravel(t):
+            continue
         alvo = t
         break
     if not alvo:
@@ -599,13 +727,22 @@ def checar_atraso(conn, agora: datetime, visita) -> dict | None:
     if (hora_alvo - agora).total_seconds() / 60 > JANELA_TRAJETO_MIN:
         return None
     origem = (visita["lat"], visita["lon"])
-    destino, coord_destino = _destino(alvo, lugares)
+    destino, coord_destino = destinos[alvo["id"]]
     if coord_destino and _metros(origem, coord_destino) <= RAIO_M:
         return None  # ja esta onde a tarefa acontece
-    trajeto = _trajeto_min(origem, destino)
-    atraso = (agora + timedelta(minutes=trajeto) - hora_alvo).total_seconds() / 60
-    if atraso <= ATRASO_MIN:
-        return None
+    if alvo["sai_na_hora"]:
+        # 07/11 (c): a hora e a de SAIR (app._saida_na_hora). Atrasado so se ainda nao saiu e agora + 5 min
+        # ja passa da hora de sair - sem trajeto (nao gasta cota). Saiu (visita fechada) = esta indo.
+        if visita["saida"]:
+            return None
+        atraso = (agora + timedelta(minutes=ARREDONDA_MIN) - hora_alvo).total_seconds() / 60
+        if atraso <= 0:
+            return None
+    else:
+        trajeto = _trajeto_min(origem, destino)
+        atraso = (agora + timedelta(minutes=trajeto) - hora_alvo).total_seconds() / 60
+        if atraso <= ATRASO_MIN:
+            return None
     delta = int(math.ceil(atraso / ARREDONDA_MIN) * ARREDONDA_MIN)
 
     efeitos = []
@@ -614,7 +751,7 @@ def checar_atraso(conn, agora: datetime, visita) -> dict | None:
             continue
         if _fixa(t):
             break
-        if db.ja_notificou_hoje(conn, TIPO_ATRASO, t["id"]):
+        if db.ja_notificou_hoje(conn, TIPO_ATRASO, t["id"]) or not empurravel(t):
             continue
         nova = _somar(t["hora"], delta)
         if not nova:
@@ -677,7 +814,9 @@ def _avisar(conn, tipo: str, ref: int, titulo: str, corpo: str, agora: datetime)
         ):
             return False
         enviou = False
-        if push_client.configurado():
+
+        def _push():
+            nonlocal enviou
             for s in db.list_push_subscriptions(conn):
                 ok = push_client.enviar(json.loads(s["subscription_json"]), titulo, corpo, url=URL_CHAT,
                                         tag=f"{tipo}-{ref}")
@@ -685,6 +824,14 @@ def _avisar(conn, tipo: str, ref: int, titulo: str, corpo: str, agora: datetime)
                     enviou = True
                 else:
                     db.delete_push_subscription(conn, s["endpoint"])
+
+        if push_client.configurado():
+            # frente C (07/11): app do iPhone vivo -> fila dele (aviso local); o navegador so se ele nao pegar
+            import avisos_pendentes
+
+            if avisos_pendentes.entregar(conn, tipo=tipo, ref=ref, titulo=titulo, corpo=corpo, agora=agora,
+                                         enviar_push=_push, url=URL_CHAT) == "fila":
+                enviou = True
         if telegram_bot.configurado():
             telegram_bot.enviar_mensagem(f"{titulo}\n{corpo}")
             enviou = True
@@ -703,6 +850,9 @@ def reagir(conn, visita_id: int, agora: datetime) -> list[str]:
         return feito
     chegada, saida = _dt(v["chegada"]), _dt(v["saida"])
     recente = chegada and timedelta(0) <= agora - chegada <= timedelta(minutes=CHEGADA_RECENTE_MIN)
+    if not v["lugar"] and saida is None:  # 07/11: a coordenada pode ter aparecido depois de gravar
+        reconhecer_visitas(conn, lugares_com_coordenada(conn, agora.date().isoformat()), agora)
+        v = conn.execute("SELECT * FROM visitas WHERE id = ?", (visita_id,)).fetchone()
     if not v["avisou_chegada"] and saida is None and recente and v["lugar"]:
         # trava antes de mandar: dois POSTs iguais ao mesmo tempo nao avisam duas vezes
         if conn.execute("UPDATE visitas SET avisou_chegada = 1 WHERE id = ? AND avisou_chegada = 0",
@@ -729,10 +879,14 @@ def reagir(conn, visita_id: int, agora: datetime) -> list[str]:
     if aberta or saiu_agora:
         r = checar_atraso(conn, agora, v)
         if r:
-            _publicar(conn, r["texto"], [r["card"]])
+            # 07/11: atraso + recado pronto numa mensagem so (o card do recado vai junto do card do empurrao)
+            extras = []
+            recado = bool(aberta and _onde_vou("recado_parado", conn, r, agora, extras))
+            texto = r["texto"] + (" Deixei o recado pronto, quem manda é tu." if extras else "")
+            _publicar(conn, texto, [r["card"], *extras])
             _avisar(conn, TIPO_ATRASO, visita_id, r["titulo"], r["corpo"], agora)
             feito.append("atraso")
-            if aberta and _onde_vou("recado_parado", conn, r, agora):
+            if recado:
                 feito.append("recado")
     return feito
 

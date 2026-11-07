@@ -873,6 +873,21 @@ def levar_saida(horas: list[dict] | None, clima_chegada: dict | None = None) -> 
     return itens
 
 
+def _na_rua_do_efeito(ef: dict, data_iso: str) -> dict | None:
+    """{"onde", "daqui_min"?, "sair"?} que o executor mandou (app._plano_do_estilo + na_rua.ajustar_plano)."""
+    r = ef.get("na_rua") if isinstance(ef.get("na_rua"), dict) else None
+    if not r or not isinstance(r.get("onde"), str) or not r["onde"].strip():
+        return None
+    out = {"onde": r["onde"].strip()[:40]}
+    m = r.get("daqui_min")
+    if isinstance(m, int) and not isinstance(m, bool) and 0 < m <= 600:
+        out["daqui_min"] = m
+    sair = r.get("sair")
+    if isinstance(sair, str) and re.fullmatch(r"\d{2}:\d{2}", sair) and _momento(data_iso, sair):
+        out["sair"] = sair
+    return out
+
+
 def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: date | None = None) -> dict | None:
     """Date, balada, documentos e presente (2026-10-14, docs/CARDS.md "Linguagem visual" - 2a
     leva). Tudo que precisou de rede (trajeto, clima, horario do Google, compromisso do dia
@@ -944,6 +959,14 @@ def card_compromisso(conn, ef: dict, actions_extra: list | None = None, hoje: da
             data["parada"] = parada
         chegada = data.get("chegada") or row["hora"]
         cadeia = cadeia_saida(row["due_date"], chegada, data.get("comecar"), data.get("sair"), parada)
+        rua = _na_rua_do_efeito(ef, row["due_date"])
+        if rua:
+            # 07/11 (na_rua.py): ja esta na rua -> some "se arrumar"/"sair (de casa)"; fica o "sair daqui", se tiver
+            data["na_rua"] = rua
+            cadeia = [p for p in (cadeia or []) if p["rotulo"] == "Chegar"]
+            t_sair = _momento(row["due_date"], rua["sair"]) if rua.get("sair") else None
+            if t_sair and cadeia:
+                cadeia.insert(0, {"rotulo": "Sair daqui", "hora": rua["sair"], "em_s": _segundos(t_sair, _agora_br())})
         if cadeia:
             data["cadeia"] = cadeia
             data["gerado_ts"] = int(time.time())
@@ -1020,6 +1043,13 @@ def card_tarefas_criadas(conn, ids: list[int], actions_extra: list | None = None
         if em is not None:
             data["em_s"] = em
             data["gerado_ts"] = int(time.time())
+    # "ta aberto?" (frente D, 07/11): o lugar fecha antes/logo depois de ele chegar - linha no card
+    if len(tarefas) == 1 and t0.get("local") and not t0.get("concluida"):
+        import horario_lugar
+
+        alerta = horario_lugar.alerta_do_card(db.extras_tarefa(conn, t0["id"]), t0.get("data"))
+        if alerta:
+            data["lugar_fechado"] = alerta
     return novo_card("tarefas_criadas", data, actions)
 
 

@@ -90,7 +90,7 @@
   const D = () => raiz.CardsD || (typeof require === "function" ? require("./cards-d.js") : null);
   const COR_DATE = "#f5a3b8";
   const COR_BALADA = "#c4a1ff";
-  const ROTULO_CONTA = { "Se arrumar": "arrumar em", Sair: "sair em", Chegar: "chega em" };
+  const ROTULO_CONTA = { "Se arrumar": "arrumar em", Sair: "sair em", "Sair daqui": "sair em", Chegar: "chega em" };
 
   // o próximo passo que ainda não passou (pelo relógio do ctx), pra contagem da direita
   function proximoPasso(cadeia, geradoTs, agora) {
@@ -115,9 +115,17 @@
     }
     return partes.length ? `<span>${esc(partes.join(" · "))}</span>` : "";
   }
+  // 07/11: o iPhone diz que ele já tá na rua - a saída de casa some (servidor) e a nota explica
+  function notaRua(r) {
+    if (!r || typeof r.onde !== "string" || !r.onde) return "";
+    const daqui = numeroValido(r.daqui_min) && r.daqui_min > 0 ? `daqui até lá: ${r.daqui_min} min` : "a saída de casa não vale mais";
+    return `Tu já tá ${r.onde} — ${daqui}.`;
+  }
   function notaSaida(data) {
     const partes = [];
-    if (numeroValido(data.trajeto_min)) {
+    const rua = notaRua(data.na_rua);
+    if (rua) partes.push(rua);
+    if (numeroValido(data.trajeto_min) && !rua) {
       const transito = numeroValido(data.transito_min) && data.transito_min >= 3 ? ` (${data.transito_min} de trânsito)` : "";
       partes.push(`${data.trajeto_min} min de carro até lá${transito}.`);
     }

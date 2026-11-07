@@ -432,9 +432,12 @@ def verificar(conn, agora: datetime) -> list:
             hora_certa.enfileirar(conn, TIPO_ROTINA, hora_certa.proximo_ref(conn), f"{p['titulo']}?",
                                   "Viro rotina? Um toque no chat.", agora, ate, chave=f"rotina:{p['chave']}")
     if not db.ja_notificou_hoje(conn, "tarefa_adiada_chat"):
-        lista = adiadas(conn)
+        import cobranca  # 07/11: uma cutucada por tarefa a cada 48 h, somando travou e tarefa_parada
+
+        lista = [t for t in adiadas(conn) if cobranca.pode(conn, t["id"], TIPO_ADIADA, agora)]
         if lista:
             t = lista[0]
+            cobranca.registrar(conn, t["id"], TIPO_ADIADA, agora)
             _marcar_perguntada(conn, t["id"], agora)
             texto = f"“{t['titulo']}” já foi adiada {t['adiadas']} vezes. O que eu faço com ela?"
             env = cards.envelope([card_adiada(t)], texto, [])

@@ -40,60 +40,93 @@ _CENTRO_BUSCA = {"latitude": -27.098, "longitude": -48.913}
 _cache_lugares: dict[str, dict | None] = {}
 
 
-_cache_horarios: dict[str, dict | None] = {}
+# texto -> (quando buscou, dados). Validade curta (frente D, 07/11/2026): o currentOpeningHours muda
+# (feriado, horario especial, fechado temporariamente) - antes era pra sempre.
+_cache_horarios: dict[str, tuple] = {}
+HORARIO_VALIDADE = timedelta(hours=6)
+_CAMPOS_HORARIO = ("places.displayName,places.regularOpeningHours,places.currentOpeningHours,"
+                   "places.businessStatus,places.utcOffsetMinutes")
+
+
+def dados_horario(texto: str) -> dict | None:
+    """Horario do lugar pelo Places Text Search (New), cota `horario_lugar` (SKU Enterprise - os 5
+    campos sao da mesma faixa). -> {"nome", "regular": periods|None, "atual": periods|None,
+    "status": businessStatus|None, "utc_offset": int|None, "buscado_em": datetime}; None se nao
+    achou o lugar, sem cota ou rede falhou. Cache em memoria por HORARIO_VALIDADE (falha nao cacheia).
+    Leitura dos periodos em horario_lugar.py."""
+    chave = texto.strip().lower()
+    guardado = _cache_horarios.get(chave)
+    if guardado and datetime.now() - guardado[0] < HORARIO_VALIDADE:
+        return guardado[1]
+    if not usar_cota("horario_lugar"):
+        return None  # cota do mes acabou (nao cacheia)
+    try:
+        resp = requests.post(
+            PLACES_TEXT_URL,
+            json={
+                "textQuery": texto,
+                "languageCode": "pt-BR",
+                "regionCode": "BR",
+                "locationBias": {"circle": {"center": _CENTRO_BUSCA, "radius": 50000.0}},
+            },
+            headers={
+                "X-Goog-Api-Key": os.environ["GOOGLE_MAPS_API_KEY"],
+                "X-Goog-FieldMask": _CAMPOS_HORARIO,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        achados = resp.json().get("places") or []
+    except (requests.RequestException, ValueError, KeyError):
+        return None  # nao cacheia falha de rede
+    dados = None
+    if achados and isinstance(achados[0], dict):
+        p = achados[0]
+        regular = (p.get("regularOpeningHours") or {}).get("periods")
+        atual = (p.get("currentOpeningHours") or {}).get("periods")
+        status = p.get("businessStatus")
+        if isinstance(regular, list) or isinstance(atual, list) or status in ("CLOSED_TEMPORARILY", "CLOSED_PERMANENTLY"):
+            dados = {
+                "nome": (p.get("displayName") or {}).get("text") or texto,
+                "regular": regular if isinstance(regular, list) else None,
+                "atual": atual if isinstance(atual, list) else None,
+                "status": status,
+                "utc_offset": p.get("utcOffsetMinutes"),
+                "buscado_em": datetime.now(),
+            }
+    _cache_horarios[chave] = (datetime.now(), dados)
+    return dados
 
 
 def horario_funcionamento(texto: str, dia) -> dict | None:
-    """Horario de funcionamento do lugar NAQUELE dia da semana (card de documentos,
-    2026-10-14: "abre 9h-17h, almoco 12h-13h"). -> {"nome", "faixas": [["09:00","12:00"], ...]}
-    ou {"nome", "fechado": True}; None se nao achar, se o Google nao tiver o horario ou a
-    rede falhar. Uma busca por lugar (cache em memoria)."""
-    chave = texto.strip().lower()
-    if chave not in _cache_horarios:
-        dados = None
-        if not usar_cota("horario_lugar"):
-            return None  # cota do mes acabou: card segue sem o horario (nao cacheia)
-        try:
-            resp = requests.post(
-                PLACES_TEXT_URL,
-                json={
-                    "textQuery": texto,
-                    "languageCode": "pt-BR",
-                    "regionCode": "BR",
-                    "locationBias": {"circle": {"center": _CENTRO_BUSCA, "radius": 50000.0}},
-                },
-                headers={
-                    "X-Goog-Api-Key": os.environ["GOOGLE_MAPS_API_KEY"],
-                    "X-Goog-FieldMask": "places.displayName,places.regularOpeningHours",
-                },
-                timeout=10,
-            )
-            resp.raise_for_status()
-            achados = resp.json().get("places") or []
-            if achados and (achados[0].get("regularOpeningHours") or {}).get("periods"):
-                dados = {
-                    "nome": achados[0].get("displayName", {}).get("text", texto),
-                    "periodos": achados[0]["regularOpeningHours"]["periods"],
-                }
-        except (requests.RequestException, ValueError, KeyError):
-            return None  # nao cacheia falha de rede
-        _cache_horarios[chave] = dados
-    dados = _cache_horarios[chave]
+    """Horario de funcionamento do lugar NAQUELE dia (card de documentos, 2026-10-14: "abre 9h-17h,
+    almoco 12h-13h"). -> {"nome", "faixas": [["09:00","12:00"], ...]} ou {"nome", "fechado": True};
+    None se nao achar, se o Google nao tiver o horario ou a rede falhar. Desde 07/11 usa o horario
+    especial (feriado) quando o dia cai nos proximos 7 dias e diz fechado se o lugar fechou
+    (temporariamente/de vez)."""
+    import horario_lugar
+
+    dados = dados_horario(texto)
     if not dados:
         return None
-    dia_google = (dia.weekday() + 1) % 7  # Google: 0 = domingo
-    faixas = []
-    for p in dados["periodos"]:
-        ab, fe = p.get("open") or {}, p.get("close") or {}
-        if ab.get("day") != dia_google:
-            continue
-        if not fe:  # aberto 24h
-            return {"nome": dados["nome"], "faixas": [["00:00", "24:00"]]}
-        fim = "24:00" if fe.get("day") != dia_google else f"{fe.get('hour', 0):02d}:{fe.get('minute', 0):02d}"
-        faixas.append([f"{ab.get('hour', 0):02d}:{ab.get('minute', 0):02d}", fim])
-    if not faixas:
+    if dados.get("status") in ("CLOSED_TEMPORARILY", "CLOSED_PERMANENTLY"):
         return {"nome": dados["nome"], "fechado": True}
-    return {"nome": dados["nome"], "faixas": sorted(faixas)}
+    inicio = datetime.combine(dia, datetime.min.time())
+    faixas = horario_lugar.faixas_em(dados, inicio + timedelta(hours=12))
+    if faixas is None:
+        return None
+    if faixas == "24h":
+        return {"nome": dados["nome"], "faixas": [["00:00", "24:00"]]}
+    fim_dia = inicio + timedelta(days=1)
+    do_dia = []
+    for a, b in faixas:
+        if a <= inicio and b >= fim_dia:
+            return {"nome": dados["nome"], "faixas": [["00:00", "24:00"]]}
+        if inicio <= a < fim_dia:  # so o que ABRE nesse dia (como antes); passa da meia-noite = 24:00
+            do_dia.append([a.strftime("%H:%M"), "24:00" if b >= fim_dia else b.strftime("%H:%M")])
+    if not do_dia:
+        return {"nome": dados["nome"], "fechado": True}
+    return {"nome": dados["nome"], "faixas": sorted(do_dia)}
 
 
 _RE_COORD = re.compile(r"^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$")
@@ -148,6 +181,51 @@ def resolver_lugar(texto: str) -> dict | None:
         return None  # nao cacheia falha de rede
     _cache_lugares[chave] = lugar
     return lugar
+
+
+_cache_coords: dict[str, tuple[float, float]] = {}
+
+
+def localizar(texto: str) -> tuple[float, float]:
+    """Nome/endereco livre -> (lat, lng). Frente A de 07/11: a Geocoding API responde REQUEST_DENIED
+    (billing do projeto) e nenhum lugar tinha coordenada; o Places Text Search (New) funciona. Ordem:
+    'lat,lon' direto; Places com `places.location` (cota "lugar_busca", a mesma do resolver_lugar);
+    Geocoding so como ultima tentativa. Mesmo contrato do geocodificar: falha = ValueError (nao achou)
+    ou RequestException (rede/cota), quem chama ja trata. Acerto fica em cache na memoria."""
+    direto = coordenada(texto)
+    if direto:
+        return direto
+    chave = (texto or "").strip().lower()
+    if not chave:
+        raise ValueError("endereço vazio")
+    if chave in _cache_coords:
+        return _cache_coords[chave]
+    if usar_cota("lugar_busca"):
+        try:
+            resp = requests.post(
+                PLACES_TEXT_URL,
+                json={
+                    "textQuery": texto,
+                    "languageCode": "pt-BR",
+                    "regionCode": "BR",
+                    "locationBias": {"circle": {"center": _CENTRO_BUSCA, "radius": 50000.0}},
+                },
+                headers={
+                    "X-Goog-Api-Key": os.environ["GOOGLE_MAPS_API_KEY"],
+                    "X-Goog-FieldMask": "places.location",
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            loc = ((resp.json().get("places") or [{}])[0] or {}).get("location") or {}
+            if isinstance(loc.get("latitude"), (int, float)) and isinstance(loc.get("longitude"), (int, float)):
+                _cache_coords[chave] = (float(loc["latitude"]), float(loc["longitude"]))
+                return _cache_coords[chave]
+        except (requests.RequestException, ValueError, KeyError, IndexError, AttributeError):
+            pass  # cai na Geocoding
+    lat, lng = geocodificar(texto)
+    _cache_coords[chave] = (float(lat), float(lng))
+    return _cache_coords[chave]
 
 
 def _ponto(texto: str, lugar: dict | None) -> dict:
@@ -758,8 +836,8 @@ def posto_no_meio_do_caminho(origem: str, destino: str) -> dict | None:
     desse ponto. So localizacao: a Google Places API nao tem preco de
     combustivel confiavel pro Brasil, entao isso nunca compara preco entre
     postos, so aponta onde parar. None se nao achar nenhum por perto."""
-    lat1, lng1 = geocodificar(origem)
-    lat2, lng2 = geocodificar(destino)
+    lat1, lng1 = localizar(origem)  # 07/11: Places primeiro (a Geocoding esta bloqueada)
+    lat2, lng2 = localizar(destino)
     lat_meio, lng_meio = (lat1 + lat2) / 2, (lng1 + lng2) / 2
     if not usar_cota("posto_perto"):
         raise CotaEsgotada("cota gratis da busca de posto do mes acabou")

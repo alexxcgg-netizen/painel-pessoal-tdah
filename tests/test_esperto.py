@@ -610,18 +610,30 @@ class AppIphoneTestCase(_Base):
         self.assertEqual(r.status_code, 200, r.get_json())
         self.assertEqual(r.get_json()["mensagem"], "Passei pra amanhã.")
         self.assertEqual(self.conn.execute("SELECT due_date FROM tasks WHERE id = ?", (t,)).fetchone()[0], AMANHA.isoformat())
-        # "amanha" so vale pro aviso de casa
+        # 07/11 (frente C): "Amanha" tambem no aviso de tarefa com hora (categoria "hora"); mesma hora, dia seguinte
         outra = self.tarefa("Outra", hora="10:00")
         r = c.post("/api/app/aviso/acao", json={"tag": f"tarefa_horario-{outra}", "acao": "amanha"},
+                   headers={"Authorization": "Bearer token-de-teste"})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertEqual(self.conn.execute("SELECT due_date, hora FROM tasks WHERE id = ?", (outra,)).fetchone()[:],
+                         (AMANHA.isoformat(), "10:00"))
+        # aviso que nao e de tarefa continua sem "Amanha"
+        r = c.post("/api/app/aviso/acao", json={"tag": "indo_pra-3", "acao": "amanha"},
                    headers={"Authorization": "Bearer token-de-teste"})
         self.assertEqual(r.status_code, 400)
 
     def test_categoria_dos_outros(self):
+        # 07/11 (frente C): tarefa com hora = "hora" (Feito / +15 min / Amanha); indo pra sem rota = "soneca"
         it = avisos_app._item("tarefa_horario", 3, _em("10:00"), "a", "b", app._url_do_aviso,
+                              frozenset(app._AVISOS_DE_UMA_TAREFA))
+        self.assertEqual(it["categoria"], "hora")
+        it = avisos_app._item("tarefa_parada", 3, _em("10:00"), "a", "b", app._url_do_aviso,
                               frozenset(app._AVISOS_DE_UMA_TAREFA))
         self.assertEqual(it["categoria"], "tarefa")
         it = avisos_app._item("indo_pra", 3, _em("10:00"), "a", "b", app._url_do_aviso, frozenset())
-        self.assertEqual((it["categoria"], it["url"]), ("", "/?aba=assistente"))
+        self.assertEqual((it["categoria"], it["url"]), ("soneca", "/?aba=assistente"))
+        it = avisos_app._item("indo_pra", 3, _em("10:00"), "a", "b", app._url_do_aviso, frozenset(), rota="https://waze.com/ul?q=x")
+        self.assertEqual(it["categoria"], "saida")
 
     def test_evento_sem_app_vai_na_hora_pelo_push(self):
         agora = _em("19:30")

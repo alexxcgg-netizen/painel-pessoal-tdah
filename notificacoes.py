@@ -172,7 +172,9 @@ def tarefas_com_horario_chegando(
     ).fetchall()
     avisos = []
     for r in rows:
-        avisos.append((r["id"], texto_tarefa_chegando(r["hora"], antes=r["hora"] > hora_atual)))
+        # 07/11 (frente C): com conn, o texto varia pelo catalogo (avisos_texto.py), estavel por tarefa/dia
+        avisos.append((r["id"], texto_tarefa_chegando(r["hora"], antes=r["hora"] > hora_atual, conn=conn,
+                                                      chave=f"tarefa_horario-{r['id']}-{hoje}", agora=agora)))
     return avisos
 
 
@@ -193,6 +195,9 @@ EMOJI_DO_AVISO = {
     "tarefa_adiada": "🧹",
     "rotina_manha": "☀️",
     "fechamento_noturno": "🌙", "fechar_dia_chat": "🌙",
+    # catalogo novo (07/11, frente C, avisos_texto.py): assuntos novos + a IA mandando aviso
+    "lugar_fechado": "🚪", "transito_piorou": "🚦", "chegou_casa": "🏠", "meta_batida": "🎯",
+    "sequencia": "🔥", "saida_previsao": "☔", "aviso_ia": "💬",
 }
 EMOJI_REFEICAO = "🍽️"
 TITULO_REFEICAO = "Hora de comer"
@@ -216,19 +221,27 @@ def titulo_tarefa(titulo: str) -> str:
     return t if len(t) <= TITULO_MAX else t[: TITULO_MAX - 1].rstrip() + "…"
 
 
-def texto_tarefa_chegando(hora: str, antes: bool) -> str:
-    if antes:
-        return f"Daqui a pouco, às {hora}. Vai fechando o que tá fazendo, sem correr."
-    return f"Combinamos {hora}. Quando fizer, toca em Feito."
+# 07/11 (frente C): os textos abaixo saem do catalogo avisos_texto.py. Sem conn = a variacao classica
+# (o texto de antes); com conn = variacao por contexto, sem repetir a ultima, estavel pela `chave`.
+def texto_tarefa_chegando(hora: str, antes: bool, conn=None, chave: str | None = None, agora=None) -> str:
+    import avisos_texto
+
+    return avisos_texto.par("tarefa_horario" if antes else "tarefa_na_hora", {"hora": hora},
+                            conn=conn, chave=chave, agora=agora)[1]
 
 
-def texto_tarefa_agora(hora: str) -> str:
+def texto_tarefa_agora(hora: str, conn=None, chave: str | None = None, agora=None) -> str:
     """Aviso na hora exata (so pelo app do iPhone, leva 06/11)."""
-    return f"Deu {hora}, é agora. Quando terminar, toca em Feito."
+    import avisos_texto
+
+    return avisos_texto.par("tarefa_agora", {"hora": hora}, conn=conn, chave=chave, agora=agora)[1]
 
 
-def texto_tarefa_preparo(hora: str, falta_min: int) -> str:
-    return f"Às {hora}, faltam {falta_min} min. Dá pra fechar o que tá fazendo com calma."
+def texto_tarefa_preparo(hora: str, falta_min: int, conn=None, chave: str | None = None, agora=None) -> str:
+    import avisos_texto
+
+    return avisos_texto.par("tarefa_preparo", {"hora": hora, "falta": falta_min},
+                            conn=conn, chave=chave, agora=agora)[1]
 
 
 def texto_refeicao(titulo: str) -> str:
@@ -371,33 +384,41 @@ def plano_se_arrumar(
     return planos
 
 
-def avisos_se_arrumar(planos: list[dict], agora: datetime | None = None) -> list[tuple[str, int, str, str]]:
+def avisos_se_arrumar(planos: list[dict], agora: datetime | None = None, conn=None,
+                      chuva: bool | None = None) -> list[tuple[str, int, str, str]]:
     """(tipo, id, titulo, corpo) - 'se_arrumar' ~na hora de comecar e 'hora_de_sair' ~na hora
-    de sair. Tick de 5 min: dispara a partir de 4 min antes (nunca atrasa mais que o tick)."""
+    de sair. Tick de 5 min: dispara a partir de 4 min antes (nunca atrasa mais que o tick).
+    07/11 (frente C): titulo e corpo do catalogo avisos_texto.py; com `conn` variam por contexto (chuva,
+    noite...) sem repetir a ultima, estaveis por compromisso/dia. Sem conn = o texto classico de antes."""
+    import avisos_texto
+
     agora = agora or datetime.now()
     margem = timedelta(minutes=4)
     avisos = []
     for p in planos:
         nome, hora = p["titulo"], p["hora"]
         sai = p["saida"].strftime("%H:%M")
+        dia = p["evento"].date().isoformat() if isinstance(p.get("evento"), datetime) else agora.date().isoformat()
         if not p["ja_tem_tarefa_arrumar"] and p["comecar"] - margem <= agora < p["saida"]:
             atrasado = agora > p["comecar"] + timedelta(minutes=10)
-            if atrasado:
-                corpo = f"{nome} às {hora}. Já passou um pouco da hora, mas dá: tu sai às {sai}."
-            else:
-                corpo = f"{nome} às {hora}. Começando agora, {p['minutos_arrumar']} min e tu sai às {sai} sem correr."
-            avisos.append(("se_arrumar", p["id"], "Começa a se arrumar", corpo))
+            assunto = "se_arrumar_tarde" if atrasado else "se_arrumar"
+            titulo, corpo = avisos_texto.par(
+                assunto, {"nome": nome, "hora": hora, "sai": sai, "min": p["minutos_arrumar"]},
+                conn=conn, chave=f"se_arrumar-{p['id']}-{dia}", agora=agora, chuva=chuva)
+            avisos.append(("se_arrumar", p["id"], titulo, corpo))
         if p["saida"] - margem <= agora < p["evento"]:
             if p.get("parada"):
                 # briefing 04/11: "Hora de sair. 10 min até a casa do guri."
-                corpo = f"{p['parada']['min_ate']} min até {p['parada']['nome']}. Depois {nome} às {hora}."
+                assunto, dados = "hora_de_sair_parada", {"parada_min": p["parada"]["min_ate"], "parada": p["parada"]["nome"]}
             elif p["trajeto_min"] is not None:
-                corpo = f"Saindo agora tu chega certinho: {nome} às {hora}, {p['trajeto_min']} min até lá."
+                assunto, dados = "hora_de_sair", {"trajeto": p["trajeto_min"]}
             else:
-                corpo = f"{nome} às {hora}. Saindo agora tu chega com folga."
+                assunto, dados = "hora_de_sair_folga", {}
+            titulo, corpo = avisos_texto.par(assunto, {"nome": nome, "hora": hora, **dados}, conn=conn,
+                                             chave=f"hora_de_sair-{p['id']}-{dia}", agora=agora, chuva=chuva)
             if p.get("meu_tempo_min"):
                 corpo += f" Avisei {p['meu_tempo_min']} min antes: é o teu jeito."
-            avisos.append(("hora_de_sair", p["id"], "Bora, hora de sair", corpo))
+            avisos.append(("hora_de_sair", p["id"], titulo, corpo))
     return avisos
 
 
@@ -423,7 +444,8 @@ def tarefas_preparo(
             continue
         falta = (quando - agora).total_seconds() / 60
         if de_min <= falta < ate_min:
-            avisos.append((r["id"], texto_tarefa_preparo(r["hora"], round(falta))))
+            avisos.append((r["id"], texto_tarefa_preparo(r["hora"], round(falta), conn=conn, agora=agora,
+                                                         chave=f"tarefa_preparo-{r['id']}-{agora.date().isoformat()}")))
     return avisos
 
 

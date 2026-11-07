@@ -202,7 +202,9 @@
     const vivo = r !== null && r > 0;
     const tit = Cards.partesTarefa(t.titulo).titulo || t.titulo;
     const titulo = t.local || tit;
-    const sub = [t.local ? tit : "", quandoTarefa(t)].filter(Boolean).join(" · ");
+    // "tá aberto?" (07/11): o lugar fecha antes/logo depois de tu chegar — a linha curta toma o lugar do "quando"
+    const fechado = lugarFechado(data, t);
+    const sub = fechado ? "" : [t.local ? tit : "", quandoTarefa(t)].filter(Boolean).join(" · ");
     const id = t.id !== undefined && t.id !== null ? esc(t.id) : "";
     const alvo = numeroValido(data.gerado_ts) ? Math.round((data.gerado_ts + data.em_s) * 1000) : "";
     const rota = t.local
@@ -223,12 +225,19 @@
       v: "tarefa",
       icone: t.local ? cd.IC.carro : cd.IC.tarefa,
       titulo,
-      sub: sub ? `<span>${esc(sub)}</span>` : "",
+      sub: fechado ? `<span class="v-s-alerta">${esc(fechado.curta)}</span>` : sub ? `<span>${esc(sub)}</span>` : "",
       rotulo: vivo ? "em" : "era às",
       valor: vivo ? cd.contagem(data.em_s, data.gerado_ts, "min", agora) : cd.rl(t.hora),
       attrs: id ? ` data-tarefa="${id}" data-hora="${esc(t.hora)}" data-alvo="${alvo}"` : "",
-      corpo: grande + rota + cd.botoes(card, extra),
+      corpo: (fechado ? `<p class="v-nota alerta v-lugar-fechado">${esc(fechado.frase)}</p>` : "") + grande + rota + cd.botoes(card, extra),
     });
+  }
+
+  // só com lugar e com as duas frases (o servidor só manda fechado/fechando do dia da tarefa)
+  function lugarFechado(data, t) {
+    const a = data && data.lugar_fechado;
+    if (!t.local || !a || typeof a !== "object") return null;
+    return typeof a.curta === "string" && a.curta && typeof a.frase === "string" && a.frase ? a : null;
   }
 
   // "Já saí": os números param na hora de chegar e o carrinho anda até ela (CardsD.tique)

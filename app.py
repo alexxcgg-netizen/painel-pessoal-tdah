@@ -51,6 +51,8 @@ import caldav_client
 import calculos
 import cards
 import chat_consultas
+import cobranca
+import na_rua
 import claude_client
 import classificador_local
 import clima
@@ -560,7 +562,29 @@ def replanejar_saida(conn, task_id: int, depois: dict) -> dict:
         plano["ida_min"] = saida["trajeto_min"]
     resultado["plano"] = {"sair_de_casa": sair, "comecar_a_se_arrumar": rota_voo.menos_minutos(
         sair, vida_assistente.se_arrumar_min(conn)), **plano}
+    # 07/11: ja esta na rua (iPhone) -> sem "sair de casa", vale o daqui ate la
+    resultado["plano"] = na_rua.ajustar_plano(conn, resultado["plano"], t["due_date"], t["hora"], t["local"])
+    aberto = _lugar_na_chegada(conn, task_id, plano.get("chega_no_lugar"))
+    if aberto:
+        resultado["plano"]["lugar_na_chegada"] = aberto
     return resultado
+
+
+def _lugar_na_chegada(conn, task_id: int, chegada_hhmm: str | None = None) -> str | None:
+    """'Ta aberto?' (frente D, 07/11): tarefa de HOJE com lugar e hora -> o lugar abre na hora que ele
+    chega? So devolve frase quando fechado/fechando (a IA avisa; o card mostra a mesma linha).
+    Uma consulta ao Google por chegada (horario_lugar.conferir_tarefa guarda nos extras)."""
+    if not maps_client.configurado():
+        return None
+    try:
+        import horario_lugar
+
+        reg = horario_lugar.conferir_tarefa(conn, task_id, _agora_brasilia().replace(tzinfo=None), chegada_hhmm)
+    except Exception:
+        return None
+    if not reg or reg.get("estado") not in horario_lugar.ESTADOS_ALERTA:
+        return None
+    return f"{reg['nome']}: {reg['frase']} Avise o Alex numa frase (ir antes ou trocar o dia)."
 
 
 def _clima_na_hora(data_iso: str, hora: str | None) -> dict | None:
@@ -2169,6 +2193,9 @@ def _contexto_chat(conn) -> str:
     onde = onde_estou.linha_contexto(conn, agora.replace(tzinfo=None))  # visitas do iPhone (04/11)
     if onde:
         linhas.insert(1, onde)
+        rua = na_rua.linha_contexto(conn, agora.replace(tzinfo=None))  # 07/11: nao repete "sair de casa"
+        if rua:
+            linhas.insert(2, rua)
     linhas.extend(vida_assistente.linhas_contexto(conn, agora.replace(tzinfo=None)))
     linhas.extend(feriados.linhas_contexto(agora.date()))
     comida_hoje = refeicoes.linha_contexto(conn, agora.date())
@@ -2835,7 +2862,55 @@ def _processar_mensagem_chat(
         elif estilo == "presente":
             dia = date.fromisoformat(data_iso)
             pra_ia["comprar_ate"] = max(date.today(), dia - timedelta(days=DIAS_ENTREGA_PRESENTE)).isoformat()
+        if "sair_de_casa" in pra_ia:  # 07/11: ja esta na rua -> a IA nao repete o "sair de casa"
+            pra_ia = na_rua.ajustar_plano(conn, pra_ia, data_iso, hora, lugar)
+            if pra_ia.get("ja_esta_na_rua"):  # o card (montado sem rede) le daqui
+                efeito["na_rua"] = {"onde": pra_ia["ja_esta_na_rua"], "daqui_min": pra_ia.get("daqui_ate_la_min"),
+                                    "sair": pra_ia.get("sair_daqui")}
         return {"_efeito": efeito, **({"plano": pra_ia} if pra_ia else {})}
+
+    def exec_ver_horario_lugar(entrada):
+        """'Ta aberto?' (frente D, 07/11): o lugar esta aberto na hora pedida (ou agora)? Google Places
+        (horario especial/feriado e fechado temporariamente inclusos), cota horario_lugar, cache 6 h."""
+        import horario_lugar
+
+        lugar = _limpar_texto(entrada.get("lugar"), 120)
+        if not lugar:
+            return {"erro": "faltou o lugar"}
+        agora_br = _agora_brasilia().replace(tzinfo=None, second=0, microsecond=0)
+        quando = agora_br
+        txt = str(entrada.get("quando") or "").strip()
+        if txt:
+            try:
+                if re.fullmatch(r"\d{1,2}:\d{2}", txt):
+                    h, m = (int(x) for x in txt.split(":"))
+                    quando = agora_br.replace(hour=h, minute=m)
+                else:
+                    quando = datetime.strptime(txt, "%Y-%m-%d %H:%M")
+            except ValueError:
+                return {"erro": "quando deve ser 'HH:MM' (hoje) ou 'AAAA-MM-DD HH:MM'"}
+        sem_dado = {"sem_dado": True, "aviso": (
+            "nao consegui o horario desse lugar agora - NAO diga que esta aberto nem fechado; "
+            "se fizer diferenca, diga que nao deu pra conferir")}
+        if not maps_client.configurado():
+            return sem_dado
+        claude_client.avisar_passo(f"Conferindo o horário de {lugar[:40]}")
+        sit = horario_lugar.consultar(lugar, quando)
+        if not sit:
+            return sem_dado
+        res = {"lugar": sit["nome"], "quando": quando.strftime("%Y-%m-%d %H:%M"), "estado": sit["estado"],
+               "situacao": sit["frase"]}
+        for k in ("fecha_as", "abre_as", "abre_dia", "fechou_as", "fecha_em_min"):
+            if sit.get(k) is not None:
+                res[k] = sit[k]
+        try:
+            dia = maps_client.horario_funcionamento(lugar, quando.date())  # mesmo cache: sem consulta nova
+        except Exception:
+            dia = None
+        if dia:
+            res["horario_do_dia"] = "fechado o dia todo" if dia.get("fechado") else ", ".join(
+                f"{a}-{b}" for a, b in dia["faixas"])
+        return res
 
     def exec_registrar_tarefa(entrada):
         recorrencia = entrada.get("recorrencia")
@@ -2908,6 +2983,10 @@ def _processar_mensagem_chat(
                                               parada, bool(sai_na_hora)))
         elif parada:
             resultado["parada"] = parada
+        if lugar and hora_tarefa:  # frente D (07/11): o lugar abre na chegada? (so tarefa de hoje)
+            aberto = _lugar_na_chegada(conn, cur.lastrowid, (resultado.get("plano") or {}).get("chega_no_lugar"))
+            if aberto:
+                resultado["lugar_na_chegada"] = aberto
         # so oferece sugestao de dia quando a tarefa ficou com data vaga
         # ("essa semana") - com dia certo (quando_data) ou sem nenhuma pista
         # de tempo (entrada.get("quando") vazio) nao ha nada útil a sugerir
@@ -3665,6 +3744,17 @@ def _processar_mensagem_chat(
         resultado["_efeito"] = {"entidade": "despertador", "consulta": True, "data": dia, "pedida": hora,
                                 "hora": despertador.mais_cedo(hora, p["acordar"] if p else None)}
         return resultado
+
+    def exec_agendar_aviso(entrada):
+        """Frente C (07/11): a IA agenda um aviso - fila do app do iPhone (aviso local); sem app, push na hora.
+        Validacao, limite de 20/dia e silencio em avisos_pendentes.agendar_pelo_chat."""
+        import avisos_pendentes
+
+        recusa = _recusa_visitante()
+        if recusa:
+            return recusa
+        return avisos_pendentes.agendar_pelo_chat(
+            conn, entrada, _agora_brasilia().replace(tzinfo=None, second=0, microsecond=0))
 
     def exec_ajustar_antecedencia_voo(entrada):
         recusa = _recusa_visitante()
@@ -4774,6 +4864,7 @@ def _processar_mensagem_chat(
         "definir_meta_horas_voo": exec_definir_meta_horas_voo,
         "ajustar_tempo_se_arrumar": exec_ajustar_tempo_se_arrumar,
         "definir_despertador": exec_definir_despertador,
+        "agendar_aviso": exec_agendar_aviso,
         "ajustar_antecedencia_voo": exec_ajustar_antecedencia_voo,
         "ajustar_renda": exec_ajustar_renda,
         "apagar_tarefa": exec_apagar_tarefa,
@@ -4793,6 +4884,7 @@ def _processar_mensagem_chat(
         "planejar_compras_viagem": exec_planejar_compras_viagem,
         "consultar_clima": exec_consultar_clima,
         "estimar_trajeto": exec_estimar_trajeto,
+        "ver_horario_lugar": exec_ver_horario_lugar,
         "registrar_gasto": exec_registrar_gasto,
         "registrar_renda": exec_registrar_renda,
         "definir_orcamento": exec_definir_orcamento,
@@ -5409,8 +5501,8 @@ def _disparar_estimativa_uber(conn, pedido: dict, access_token: str) -> None:
         atualizar_uber_pedido(conn, pedido["id"], status="erro", erro="sem endereço de origem")
         return
     try:
-        origem_lat, origem_lng = maps_client.geocodificar(origem)
-        destino_lat, destino_lng = maps_client.geocodificar(pedido["destino"])
+        origem_lat, origem_lng = maps_client.localizar(origem)
+        destino_lat, destino_lng = maps_client.localizar(pedido["destino"])
         product_id = uber_client.produto_padrao(origem_lat, origem_lng, access_token)
         estimativa = uber_client.estimar_corrida(
             origem_lat, origem_lng, destino_lat, destino_lng, product_id, access_token
@@ -5884,6 +5976,67 @@ def _app_toca_o_e_agora(agendados_app, ref, agora) -> bool:
     return avisos_app.coberto(agendados_app, f"tarefa_agora-{ref}", agora)
 
 
+# ---- frente C (07/11, docs/briefings/2026-11-07-lugar-certo-e-avisos.md): texto variado + fila do app
+def _texto_variado(conn, tipo: str, ref_id, titulo: str, corpo: str) -> tuple[str, str]:
+    """Titulo generico (agua, bom dia, voo...) ganha variacao do catalogo (avisos_texto.py), estavel por aviso/dia."""
+    try:
+        import avisos_texto
+
+        return avisos_texto.variar_titulo(conn, tipo, titulo, corpo, chave=f"{tipo}-{ref_id}-{date.today().isoformat()}")
+    except Exception:  # noqa: BLE001 - texto e extra, o aviso sai igual
+        app.logger.exception("avisos_texto: variacao falhou")
+        return titulo, corpo
+
+
+def _pra_fila_do_app(conn, tipo: str, tag: str, titulo: str, corpo: str, origem: str = "tick") -> bool:
+    """App do iPhone vivo (falou com o painel nas ultimas 36 h): aviso sem hora conhecida vai pra fila que ele
+    busca (avisos_pendentes.py) e o navegador so manda se ele nao pegar em 3/15 min. True = ficou na fila."""
+    try:
+        import avisos_app
+        import avisos_pendentes
+
+        agora = datetime.now()
+        if not avisos_pendentes.vai_pra_fila(conn, tipo, agora, insistencia=origem == "insistencia"):
+            return False
+        ref = tag.rsplit("-", 1)[-1]
+        avisos_pendentes.enfileirar(conn, tipo=tipo, ref=int(ref) if ref.isdigit() else 0, titulo=titulo, corpo=corpo,
+                                    agora=agora, url=_url_do_aviso(tipo, tag), origem=origem, tag=tag,
+                                    categoria=avisos_app.categoria(tipo, frozenset(_AVISOS_DE_UMA_TAREFA)))
+        return True
+    except Exception:  # noqa: BLE001 - fila quebrada: o push sai como antes
+        app.logger.exception("avisos_pendentes: nao enfileirou")
+        return False
+
+
+def _app_do_iphone_vivo(conn) -> bool:
+    try:
+        import avisos_pendentes
+
+        return avisos_pendentes.app_vivo(conn, datetime.now())
+    except Exception:  # noqa: BLE001
+        app.logger.exception("avisos_pendentes: app_vivo falhou")
+        return False
+
+
+def _mandar_fila_vencida(conn, subs) -> int:
+    """O que o app nao pegou no prazo (ou o aviso da IA com app sumido) sai pelo navegador."""
+    import avisos_pendentes
+
+    def enviar(r):
+        for s in subs:
+            if not push_client.enviar(json.loads(s["subscription_json"]), r["titulo"], r["corpo"], url=r["url"] or "/",
+                                      tag=r["tag"], **_kw_acoes(r["tipo"], r["tag"]), **_kw_badge(conn)):
+                delete_push_subscription(conn, s["endpoint"])
+        if r["origem"] == "ia" and telegram_bot.configurado():
+            telegram_bot.enviar_mensagem(r["titulo"] + "\n" + r["corpo"])
+
+    try:
+        return avisos_pendentes.mandar_vencidos(conn, datetime.now(), enviar)
+    except Exception:  # noqa: BLE001
+        app.logger.exception("avisos_pendentes: fila vencida falhou")
+        return 0
+
+
 def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool, agendados_app=None) -> int:
     """Repeticoes de notificacoes.INSISTENCIA: mesma tag (substitui a anterior e toca de novo),
     so se o aviso ainda vale. Silencio e hiperfoco valem igual ao 1o envio.
@@ -5914,7 +6067,8 @@ def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool
         # aviso-cara (Lab v4): insiste igual, mas com outra cara no texto (aviso_cara.py)
         titulo, corpo = aviso_cara.variar(conn, tipo, a["referencia_id"], a["tag"], titulo, corpo, int(a["tentativas"]), agora)
         titulo = notificacoes.com_emoji(tipo, titulo)  # "<emoji> De novo · Pagar a fatura" (06/11)
-        for s in subs:
+        # frente C (07/11): app vivo -> a repeticao vai pra fila do app; o navegador e reserva
+        for s in ([] if _pra_fila_do_app(conn, tipo, a["tag"], titulo, corpo, origem="insistencia") else subs):
             if not push_client.enviar(json.loads(s["subscription_json"]), titulo, corpo,
                                       url=_url_do_aviso(tipo, a["tag"]), tag=a["tag"],
                                       **_kw_acoes(tipo, a["tag"]), **_kw_badge(conn)):
@@ -5926,7 +6080,7 @@ def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool
 
 # aviso de UMA tarefa: o toque abre a propria tarefa (rola ate ela e abre concluir / pra amanha)
 _AVISOS_DE_UMA_TAREFA = {"tarefa_horario", "tarefa_preparo", "tarefa_horario_passou", "tarefa_parada", "se_arrumar", "hora_de_sair",
-                         "tarefa_inegociavel", "tarefa_agora"}
+                         "tarefa_inegociavel", "tarefa_agora", "lugar_fechado"}
 # Leva 22/10: "Feito" / "Adiar 1 h" no proprio aviso (marcar sem abrir o app). O iPhone pode nao
 # mostrar - o teste em Configuracoes diz se mostrou; sem botao, o toque abre a tarefa (focarTarefaDoAviso).
 ACOES_AVISO_TAREFA = [{"action": "feito", "title": "Feito"}, {"action": "adiar", "title": "Adiar 1 h"}]
@@ -6063,6 +6217,15 @@ def verificar_e_notificar():
     # painel puxando assunto: fechar o dia (21h) e padroes da semana (domingo) entram no
     # chat mesmo sem push configurado - o push so avisa (la embaixo, junto dos outros)
     avisos_conversa = conversa_proativa.verificar(conn_materializar, datetime.now())
+    # 'ta aberto?' (frente D, 07/11): tarefa de hoje com lugar -> confere o horario na chegada (linha no
+    # card mesmo sem push; uma consulta por chegada, o resto sai dos extras)
+    if maps_client.configurado():
+        try:
+            import horario_lugar
+
+            horario_lugar.conferir_tarefas_de_hoje(conn_materializar, datetime.now())
+        except Exception as e:
+            app.logger.warning("horario do lugar: %s", e)
     conn_materializar.close()
 
     push_ok = push_client.configurado()
@@ -6072,7 +6235,9 @@ def verificar_e_notificar():
 
     conn = get_db()
     subs = list_push_subscriptions(conn) if push_ok else []
-    if not subs and not telegram_ok:
+    # frente C (07/11): o app do iPhone vivo tambem e canal (fila de avisos_pendentes), mesmo sem push web
+    app_canal = _app_do_iphone_vivo(conn)
+    if not subs and not telegram_ok and not app_canal:
         conn.close()
         return 0
 
@@ -6109,7 +6274,10 @@ def verificar_e_notificar():
             limiar, _ = aprendizado.limiar_tarefa(conn, row["title"], task_id=tarefa_id)
             if dias_atraso_atual < limiar:
                 continue
-            if not ja_notificado_alguma_vez(conn, "tarefa_parada", tarefa_id):
+            # 07/11 (cobranca.py): uma cutucada por tarefa a cada 48 h, somando travou/tarefa_adiada
+            if not ja_notificado_alguma_vez(conn, "tarefa_parada", tarefa_id) \
+                    and cobranca.pode(conn, tarefa_id, "tarefa_parada"):
+                cobranca.registrar(conn, tarefa_id, "tarefa_parada")
                 # estilo C (06/11): "E o filtro do ar?" / "Tá parada faz 9 dias..."
                 nome_parada = notificacoes.titulo_tarefa(row["title"])
                 msg = (f"Tá parada faz {dias_atraso_atual} dias. Se travou, eu te ajudo a quebrar em passos; "
@@ -6384,6 +6552,13 @@ def verificar_e_notificar():
         if msg:
             avisos.append(("clima_tarefa", tarefa["id"], "Dia bom pra tarefa pendente", msg))
 
+    # frente D (07/11): o lugar da tarefa de hoje vai estar fechado/fechando quando ele chegar - 1x por tarefa por dia
+    import horario_lugar
+
+    for ref_lf, titulo_lf, corpo_lf in horario_lugar.avisos_lugar_fechado(conn, datetime.now()):
+        if not ja_notificou_hoje(conn, "lugar_fechado", ref_lf):
+            avisos.append(("lugar_fechado", ref_lf, titulo_lf, corpo_lf))
+
     # Modo silencioso: avisos "soft" (nao presos a um instante especifico) ficam
     # represados fora do horario configurado (padrao 22:00-07:00, mesma janela
     # da hora_de_dormir) em vez de tocar o celular. Nao marca como notificado -
@@ -6415,7 +6590,10 @@ def verificar_e_notificar():
 
     def _despachar(titulo: str, corpo: str, botoes=None, tipo: str = "", ref_id=0, pular_push=False):
         if tipo:
+            titulo, corpo = _texto_variado(conn, tipo, ref_id, titulo, corpo)  # catalogo (frente C, 07/11)
             titulo = notificacoes.com_emoji(tipo, titulo)
+        if tipo and not pular_push and _pra_fila_do_app(conn, tipo, f"{tipo}-{ref_id}", titulo, corpo):
+            pular_push = True  # app vivo: vai pra fila dele, o navegador so se ele nao pegar (frente C)
         for s in ([] if pular_push else subs):
             sub_dict = json.loads(s["subscription_json"])
             if tipo:
@@ -6460,7 +6638,7 @@ def verificar_e_notificar():
         no_app = avisos_app.coberto(agendados_app, f"{tipo}-{ref_id}", datetime.now())
         _despachar(titulo_envio, corpo_envio, botoes, tipo=tipo, ref_id=ref_id, pular_push=no_app)
         marcar_notificado(conn, tipo, ref_id)
-        if subs and tipo in notificacoes.INSISTENCIA:
+        if (subs or app_canal) and tipo in notificacoes.INSISTENCIA:
             db.registrar_aviso_insistente(conn, tipo, ref_id, titulo, corpo, f"{tipo}-{ref_id}", datetime.now())
         if tipo == "garantia_vencendo":
             marcar_garantia_notificada(conn, ref_id)
@@ -6482,8 +6660,9 @@ def verificar_e_notificar():
                 enviados += 1
 
     # Aviso importante que ninguem tocou: repete (so push, o Telegram fica com o 1o envio).
-    if subs:
+    if subs or app_canal:
         enviados += _repetir_avisos_insistentes(conn, subs, silencioso, em_hiperfoco, agendados_app)
+    enviados += _mandar_fila_vencida(conn, subs)  # frente C (07/11): o app nao pegou a tempo -> navegador
 
     # Uber agendado: passou o tempo de espera, busca o preco de verdade
     # (trava com fare_id) e avisa - a corrida so sai com confirmacao

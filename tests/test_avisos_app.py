@@ -7,6 +7,7 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
@@ -22,6 +23,8 @@ import notificacoes  # noqa: E402
 import push_client  # noqa: E402
 
 TOKEN = {"Authorization": "Bearer token-de-teste"}
+# "adiar 1 h" conta a partir de agora se a hora ja passou: relogio fixo ao meio-dia de DIA
+MEIO_DIA_BR = lambda: datetime(2026, 11, 7, 12, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))  # noqa: E731
 MEIO_DIA = datetime(2026, 11, 7, 12, 0)
 DIA = "2026-11-07"
 AMANHA = "2026-11-08"
@@ -248,6 +251,7 @@ class RotasTestCase(_Base):
         self.assertEqual(r.get_json(), {"ok": True, "guardados": 1})
         self.assertEqual(self.client.post("/api/app/avisos/agendados", headers=TOKEN, json={"itens": "x"}).status_code, 400)
 
+    @patch.object(app, "_agora_brasilia", MEIO_DIA_BR)
     def test_feito_e_adiar_pelo_aviso_do_app(self):
         tid = self.tarefa("Pagar a fatura", "15:00")
         r = self.client.post("/api/app/aviso/acao", headers=TOKEN, json={"tag": f"tarefa_horario-{tid}", "acao": "feito"})
@@ -381,6 +385,7 @@ class EAgoraSemDuplicarTestCase(_Base):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(db.avisos_insistentes_pendentes(self.conn), [])
 
+    @patch.object(app, "_agora_brasilia", MEIO_DIA_BR)
     def test_feito_e_adiar_pelo_e_agora(self):
         tid = self.tarefa("Pagar a fatura", "15:00")
         r = self.client.post("/api/app/aviso/acao", headers=TOKEN, json={"tag": f"tarefa_agora-{tid}", "acao": "feito"})

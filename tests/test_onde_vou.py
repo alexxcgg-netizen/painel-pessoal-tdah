@@ -66,7 +66,7 @@ class _Base(unittest.TestCase):
         p = patch.dict(os.environ, env)
         p.start()
         self.addCleanup(p.stop)
-        self.geocodificar = self._patch("maps_client.geocodificar",
+        self.geocodificar = self._patch("maps_client.localizar",
                                         side_effect=lambda e: PRAIA if "Viva" in e else MECANICO)
         self.tempo_de_viagem = self._patch("maps_client.tempo_de_viagem", return_value=dict(VIAGEM))
         self._patch("maps_client.usar_cota", return_value=True)

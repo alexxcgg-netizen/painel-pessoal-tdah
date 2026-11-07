@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-07 - Lugar certo, atraso sem susto, avisos variados e "tá aberto?" (SW v105)
 - 2026-11-06 - Painel mais esperto: aba Tarefas nova, viagem com posto, GPS, onde estou, voo na véspera
 - 2026-11-06 - Tarefa ao vivo na tela bloqueada, Feito no ao vivo e aviso na hora exata
 - 2026-11-06 - Avisos no app do iPhone (sem push da Apple) e texto novo dos avisos
@@ -180,6 +181,38 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-07 - Lugar certo, atraso sem susto, avisos variados e "tá aberto?" (SW v105)
+Leitura do chat de 06-07/11 achou: remédio + 4 tarefas empurrados às 7h43 com ele dormindo em casa, "às 21 buscar"
+virando hora de sair e depois empurrado, títulos crus/cortados, cobrança dupla da mesma tarefa, "sair de casa" com
+ele já na rua, aviso do navegador ainda chegando. Briefing: `docs/briefings/2026-11-07-lugar-certo-e-avisos.md`
+(4 frentes em paralelo, decisões lá).
+- **Causa raiz do 7h43:** a Geocoding API responde `REQUEST_DENIED` (billing) — nenhum lugar tinha coordenada e
+  nenhuma visita foi reconhecida desde que o GPS existe. `maps_client.localizar` (Places Text Search com
+  `places.location`; Geocoding só como última tentativa) passa a ser a coordenada de tudo (`onde_estou`, posto no
+  meio, Uber). Casa aprendida pelo GPS como reserva (`onde_estou.casa_pelo_gps`: visita que cobre 03-05h, 3+
+  noites, 150 m); visitas abertas/48 h são reconhecidas de novo quando a coordenada aparece. Relatório do painel
+  ganhou "Lugares" (coordenadas × visitas reconhecidas) — nunca mais invisível.
+- **Atraso** (`checar_atraso`): só tarefa com destino real; remédio nunca; `sai_na_hora` = hora de SAIR (atrasado só
+  se ainda não saiu e agora + 5 min passou); sem base (visita sem lugar e casa sem coordenada) não empurra.
+  Chat: "às 21 tenho que buscar X" = hora de estar lá; `sai_na_hora` só com "saio/sair às".
+- **Cards:** `nome_curto.py` (nome do lugar, pra/pro pelo gênero, corte em palavra inteira) no `indo_pra`, `espera`
+  e recado; `cobranca.py` (1 cutucada por tarefa a cada 48 h, um tipo só — adiada 3+ ganha de travou);
+  `na_rua.py` (já fora de casa → "Sair daqui", sem "sair de casa", contexto da IA avisado, espera não sai);
+  empurrão + recado numa mensagem só.
+- **Avisos:** `avisos_texto.py` — 25 assuntos, 118 variações no estilo C (escolha por contexto, estável por aviso,
+  nunca repete a última); botões Feito / +15 min / Amanhã / Abrir rota; ferramenta `agendar_aviso` (IA manda aviso,
+  20/dia, silencioso só se pedido); `avisos_pendentes.py`: fila que o app busca (abrir, voltar, visita, background
+  refresh) e mostra como aviso local — o navegador só manda se o app não pegou em 3 min (crítico) / 15 min, ou
+  sumiu há 36 h. Assuntos novos `transito_piorou`, `chegou_casa`, `meta_batida`, `sequencia` com texto pronto, ainda
+  sem disparar (esperando veto). Artefato de veto: https://claude.ai/artifact/NVHTr1RujtmEA9PyDmTAnM (db `veto/alex`).
+- **"Tá aberto?":** `horario_lugar.py` + `maps_client.dados_horario` (currentOpeningHours/feriado, businessStatus,
+  cache 6 h, cota `horario_lugar`); ferramenta `ver_horario_lugar`; tarefa com lugar hoje é conferida na hora de
+  chegada → linha no card + aviso `lugar_fechado` 1x/dia (texto próprio: diz a hora que fecha e a de chegada).
+- Testes: `test_lugar_certo.py`, `test_cards_cobranca_rua.py`, `test_avisos_texto.py`, `test_avisos_pendentes.py`,
+  `test_horario_lugar.py`, `tests/js/lugar_fechado.test.js`; 2 testes de `test_avisos_app` com relógio fixo (quebravam
+  depois das 15h). Suíte: 4563 + 536 + 538 JS + 185 navegador verdes; `checar_projeto` ok. Precisa de `.ipa` novo
+  (AvisosLocais.swift: fila, categorias, soneca, Waze).
 
 ## 2026-11-06 - Painel mais esperto: aba Tarefas nova, viagem com posto, GPS, onde estou, voo na véspera
 Pedido do Alex antes do `.ipa`: "quero algo mais, espero mais, realmente um assistente". Briefing com respostas,

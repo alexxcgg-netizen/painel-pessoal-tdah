@@ -21,6 +21,13 @@
 //  Botões "Feito" / "Adiar 1 h" nos avisos de tarefa -> POST /api/app/aviso/acao. O toque no aviso
 //  para a insistência e abre a aba certa dentro do app.
 //
+//  07/11 (frente C, docs/briefings/2026-11-07-lugar-certo-e-avisos.md):
+//    - fila do painel: depois de agendar, GET /api/app/avisos/pendentes (atraso, insistência, aviso da IA...)
+//      vira aviso LOCAL ("fila-<id>", na hora ou na hora marcada) e POST .../pendentes/entregues conta o que
+//      ficou. O navegador só manda o que o app não pegou em 3/15 min. Toda chance de acordar passa por aqui;
+//    - botões por assunto: "hora" (Feito / +15 min / Amanhã), "saida" (Abrir rota / +15 min), "soneca"
+//      (+15 min). "+15 min" = o app avisa de novo daqui 15 min com o mesmo texto (sem mexer na tarefa).
+//
 
 import BackgroundTasks
 import Foundation
@@ -39,12 +46,33 @@ struct AvisoDoPainel: Decodable {
     let acoes: Bool
     /// "tarefa" (Feito / Adiar 1 h), "casa" (Feito / Amanhã - "Chegou em casa", hora_certa.py) ou "" (sem botão).
     /// Opcional: servidor antigo não manda e o app segue só com `acoes`.
+    /// 07/11: também "hora", "saida", "soneca" (AvisosLocais.categoriaDe).
     let categoria: String?
+    /// Link do Waze pro botão "Abrir rota" (categoria "saida"). Opcional.
+    let rota: String?
     let url: String
 }
 
 private struct RespostaAvisos: Decodable {
     let avisos: [AvisoDoPainel]
+}
+
+/// Item da fila do painel (07/11): aviso sem hora conhecida que o app mostra como aviso local.
+struct AvisoPendente: Decodable {
+    let id: Int
+    let ident: String
+    let tag: String
+    let tipo: String
+    let titulo: String
+    let corpo: String
+    let quando_ts: Double
+    let categoria: String?
+    let rota: String?
+    let url: String
+}
+
+private struct RespostaPendentes: Decodable {
+    let avisos: [AvisoPendente]
 }
 
 final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
@@ -54,6 +82,12 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
     static let tarefaFundo = "com.alexxcgg.painel.avisos"
     static let categoriaTarefa = "painel-tarefa"
     static let categoriaCasa = "painel-casa"
+    // 07/11: botões por assunto (o servidor manda "hora" / "saida" / "soneca" em `categoria`)
+    static let categoriaHora = "painel-hora"
+    static let categoriaSaida = "painel-saida"
+    static let categoriaSoneca = "painel-soneca"
+    static let prefixoFila = "fila-"
+    static let sonecaMin: TimeInterval = 15
     static let fundoACada: TimeInterval = 30 * 60
 
     private static let chaveUltima = "painel_avisos_ultima"
@@ -84,10 +118,19 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
         let feito = UNNotificationAction(identifier: "feito", title: "Feito", options: [])
         let adiar = UNNotificationAction(identifier: "adiar", title: "Adiar 1 h", options: [])
         let amanha = UNNotificationAction(identifier: "amanha", title: "Amanhã", options: [])
+        let mais15 = UNNotificationAction(identifier: "mais15", title: "+15 min", options: [])
+        // abrir o Waze precisa do app na frente
+        let rota = UNNotificationAction(identifier: "rota", title: "Abrir rota", options: [.foreground])
         centro.setNotificationCategories([
             UNNotificationCategory(identifier: AvisosLocais.categoriaTarefa, actions: [feito, adiar],
                                    intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: AvisosLocais.categoriaCasa, actions: [feito, amanha],
+                                   intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: AvisosLocais.categoriaHora, actions: [feito, mais15, amanha],
+                                   intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: AvisosLocais.categoriaSaida, actions: [rota, mais15],
+                                   intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: AvisosLocais.categoriaSoneca, actions: [mais15],
                                    intentIdentifiers: [], options: [])
         ])
         _ = BGTaskScheduler.shared.register(forTaskWithIdentifier: AvisosLocais.tarefaFundo, using: nil) { tarefa in
@@ -187,7 +230,10 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
                         self.agendados = feitos.count
                         self.recarregarWidgetsSeMudou(avisos)
                     }
-                    fechar(true, "ok: \(feitos.count) agendados")
+                    // 07/11: a fila do painel (o que não tem hora conhecida) vira aviso local agora
+                    self.pegarFila(base: base) { pegos in
+                        fechar(true, "ok: \(feitos.count) agendados, \(pegos) da fila")
+                    }
                 }
             }
         }
@@ -263,11 +309,9 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
                 c.body = aviso.corpo
                 c.sound = .default
                 c.threadIdentifier = aviso.tipo
-                c.userInfo = ["tag": aviso.tag, "url": aviso.url]
-                switch aviso.categoria ?? "" {
-                case "casa": c.categoryIdentifier = AvisosLocais.categoriaCasa
-                case "tarefa": c.categoryIdentifier = AvisosLocais.categoriaTarefa
-                default: if aviso.acoes { c.categoryIdentifier = AvisosLocais.categoriaTarefa }
+                c.userInfo = ["tag": aviso.tag, "url": aviso.url, "rota": aviso.rota ?? ""]
+                if let cat = AvisosLocais.categoriaDe(aviso.categoria, acoes: aviso.acoes) {
+                    c.categoryIdentifier = cat
                 }
                 let gatilho = UNTimeIntervalNotificationTrigger(timeInterval: max(1, aviso.quando_ts - agora), repeats: false)
                 grupo.enter()
@@ -282,6 +326,73 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
             }
             grupo.notify(queue: .global()) { fim(aceitos) }
         }
+    }
+
+    /// "hora" / "saida" / "soneca" / "tarefa" / "casa" -> categoria registrada em iniciar(). Desconhecida: Feito/Adiar
+    /// se o aviso é de tarefa (`acoes`), senão sem botão.
+    static func categoriaDe(_ categoria: String?, acoes: Bool) -> String? {
+        switch categoria ?? "" {
+        case "casa": return categoriaCasa
+        case "tarefa": return categoriaTarefa
+        case "hora": return categoriaHora
+        case "saida": return categoriaSaida
+        case "soneca": return categoriaSoneca
+        default: return acoes ? categoriaTarefa : nil
+        }
+    }
+
+    // MARK: Fila do painel (07/11)
+
+    /// Busca a fila, agenda cada item ("fila-<id>": na hora marcada ou em 1 s) e conta de volta o que ficou.
+    /// `fim(n)` com quantos pegou (0 sem rede: o navegador manda no prazo).
+    private func pegarFila(base: String, fim: @escaping (Int) -> Void) {
+        guard let p = AvisosLocais.pedido("/api/app/avisos/pendentes", base: base) else { return fim(0) }
+        URLSession.shared.dataTask(with: p) { dados, resposta, _ in
+            guard (resposta as? HTTPURLResponse)?.statusCode == 200, let dados,
+                  let r = try? JSONDecoder().decode(RespostaPendentes.self, from: dados), !r.avisos.isEmpty else {
+                return fim(0)
+            }
+            let agora = Date().timeIntervalSince1970
+            let grupo = DispatchGroup()
+            let trava = NSLock()
+            var pegos: [Int] = []
+            for aviso in r.avisos {
+                let c = UNMutableNotificationContent()
+                c.title = aviso.titulo
+                c.body = aviso.corpo
+                c.sound = .default
+                c.threadIdentifier = aviso.tipo
+                c.userInfo = ["tag": aviso.tag, "url": aviso.url, "rota": aviso.rota ?? ""]
+                if let cat = AvisosLocais.categoriaDe(aviso.categoria, acoes: false) {
+                    c.categoryIdentifier = cat
+                }
+                let gatilho = UNTimeIntervalNotificationTrigger(timeInterval: max(1, aviso.quando_ts - agora), repeats: false)
+                grupo.enter()
+                self.centro.add(UNNotificationRequest(identifier: aviso.ident, content: c, trigger: gatilho)) { erro in
+                    if erro == nil {
+                        trava.lock()
+                        pegos.append(aviso.id)
+                        trava.unlock()
+                    }
+                    grupo.leave()
+                }
+            }
+            grupo.notify(queue: .global()) {
+                guard !pegos.isEmpty,
+                      let q = AvisosLocais.pedido("/api/app/avisos/pendentes/entregues", base: base, corpo: ["ids": pegos]) else {
+                    return fim(pegos.count)
+                }
+                URLSession.shared.dataTask(with: q) { _, _, _ in fim(pegos.count) }.resume()
+            }
+        }.resume()
+    }
+
+    /// "+15 min": o mesmo aviso de novo daqui 15 min (local, não mexe na tarefa).
+    private func soneca(_ pedido: UNNotificationRequest) {
+        guard let c = pedido.content.mutableCopy() as? UNMutableNotificationContent else { return }
+        let gatilho = UNTimeIntervalNotificationTrigger(timeInterval: AvisosLocais.sonecaMin * 60, repeats: false)
+        let ident = "soneca-\(pedido.identifier)-\(Int(Date().timeIntervalSince1970))"
+        centro.add(UNNotificationRequest(identifier: ident, content: c, trigger: gatilho), withCompletionHandler: nil)
     }
 
     private func contarAgendados(_ avisos: [AvisoDoPainel], base: String) {
@@ -330,11 +441,14 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
         let info = response.notification.request.content.userInfo
         let tag = info["tag"] as? String ?? ""
         let caminho = info["url"] as? String ?? "/"
+        let rota = info["rota"] as? String ?? ""
         let acao: String
         switch response.actionIdentifier {
         case "feito": acao = "feito"
         case "adiar": acao = "adiar"
         case "amanha": acao = "amanha"
+        case "mais15": acao = "mais15"
+        case "rota": acao = "rota"
         case UNNotificationDefaultActionIdentifier: acao = "toque"
         default:
             completionHandler()
@@ -342,6 +456,12 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
         }
         if acao == "toque" {
             DispatchQueue.main.async { Abertura.shared.caminho = caminho }
+        }
+        if acao == "mais15" {
+            soneca(response.notification.request)
+        }
+        if acao == "rota", let url = URL(string: rota), url.scheme?.hasPrefix("http") == true {
+            DispatchQueue.main.async { UIApplication.shared.open(url) }
         }
         guard !tag.isEmpty, let base = AvisosLocais.base(),
               let p = AvisosLocais.pedido("/api/app/aviso/acao", base: base, corpo: ["tag": tag, "acao": acao]) else {
@@ -367,7 +487,7 @@ final class AvisosLocais: NSObject, ObservableObject, UNUserNotificationCenterDe
                 }
                 // Feito/Adiar/Amanhã mudam a tarefa: tira o "daqui a pouco" que ficou agendado pra ela, e a tarefa
                 // ao vivo (se for ela) sai ou anda pra hora nova
-                if acao == "toque" {
+                if acao == "toque" || acao == "rota" || acao == "mais15" {
                     fechar()
                 } else {
                     AoVivo.shared.sincronizar()

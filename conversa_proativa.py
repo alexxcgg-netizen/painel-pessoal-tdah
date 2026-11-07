@@ -752,10 +752,13 @@ def perguntar_por_que_travou(conn, agora: datetime) -> list[tuple[str, str, str]
         return []
     if foco.segurando_avisos(conn, agora) or dia_ruim.ativo(conn, agora.date()):
         return []
-    pend = foco_ideias.pendentes_travou(conn)
+    import cobranca  # 07/11: tarefa_adiada ganha (adiada 3+) e nada repete a mesma tarefa em 48 h
+
+    pend = [t for t in foco_ideias.pendentes_travou(conn) if cobranca.pode(conn, t["id"], "travou", agora)]
     if not pend:
         return []
     t = pend[0]
+    cobranca.registrar(conn, t["id"], "travou", agora)
     foco_ideias.marcar_perguntada(conn, t["id"])
     card = cards.novo_card("travou", foco_ideias.dados_travou(conn, t["id"]))
     publicar(conn, "travou_chat", "Essa tarefa já foi empurrada 3 vezes. Sem bronca: o que pega?", [card])

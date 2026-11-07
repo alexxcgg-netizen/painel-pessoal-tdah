@@ -178,6 +178,30 @@ if rota_gps.exists():
 else:
     erro("rotas/localizacao_viagem.py nao existe (cercas/posicao)")
 
+# 5f. Avisos 07/11 (frente C): a fila do painel e os botoes por assunto tem que bater dos dois lados - caminho
+#     da fila (rotas/avisos_app.py x AvisosLocais.swift), cada categoria que o servidor manda (avisos_app.CATEGORIAS_APP)
+#     com um `case` no app, e cada acao de botao que o app manda aceita pela rota (rotas/avisos_app.ACOES_APP)
+avisos_swift = (AQUI / "App" / "AvisosLocais.swift").read_text(encoding="utf-8")
+rota_avisos = (RAIZ / "rotas" / "avisos_app.py").read_text(encoding="utf-8")
+avisos_py = (RAIZ / "avisos_app.py").read_text(encoding="utf-8")
+for caminho in ("/api/app/avisos/pendentes", "/api/app/avisos/pendentes/entregues", "/api/app/aviso/acao"):
+    if f'"{caminho}"' not in avisos_swift or f'"{caminho}"' not in rota_avisos:
+        erro(f"caminho {caminho} nao bate entre AvisosLocais.swift e rotas/avisos_app.py")
+m_cat = re.search(r"CATEGORIAS_APP = \(([^)]*)\)", avisos_py)
+for cat in re.findall(r'"(\w+)"', m_cat.group(1) if m_cat else ""):
+    if f'case "{cat}":' not in avisos_swift:
+        erro(f"categoria {cat!r} (avisos_app.CATEGORIAS_APP) sem case em AvisosLocais.categoriaDe")
+if not m_cat:
+    erro("avisos_app.py sem CATEGORIAS_APP")
+m_acao = re.search(r"ACOES_APP = \(([^)]*)\)", rota_avisos)
+acoes_ok = set(re.findall(r'"(\w+)"', m_acao.group(1) if m_acao else ""))
+for acao in re.findall(r'case "(\w+)": acao = "\w+"', avisos_swift):
+    if acao not in acoes_ok:
+        erro(f"botao {acao!r} do app nao e aceito por /api/app/aviso/acao (ACOES_APP)")
+for ident in re.findall(r'UNNotificationAction\(identifier: "(\w+)"', avisos_swift):
+    if f'case "{ident}": acao' not in avisos_swift:
+        erro(f"botao {ident!r} registrado mas sem tratamento no didReceive (AvisosLocais.swift)")
+
 # 6. Workflow: sem segredo, scheme e nomes de produto certos
 wf = (RAIZ / ".github" / "workflows" / "build-ios.yml").read_text(encoding="utf-8")
 if "secrets." in wf:

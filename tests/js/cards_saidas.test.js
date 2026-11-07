@@ -180,3 +180,23 @@ test("dado faltando nao quebra: vira fallback", () => {
     assert.match(html(tipo, { titulo: "x" }), /card-contrato-fallback/, tipo);
   }
 });
+
+test("date ja na rua (07/11): sem se arrumar/sair de casa, nota de daqui ate la e conta do sair daqui", () => {
+  const g = AGORA.getTime() / 1000;
+  const h = html("date", {
+    id: 7, titulo: "Date", data: "2026-10-14", hora: "20:00", lugar: "Viva Beach", trajeto_min: 25,
+    na_rua: { onde: "no mecânico", daqui_min: 18, sair: "19:42" },
+    cadeia: [
+      { rotulo: "Sair daqui", hora: "19:42", em_s: 600 },
+      { rotulo: "Chegar", hora: "20:00", em_s: 1680 },
+    ],
+    gerado_ts: g,
+  });
+  semFallback(h);
+  assert.match(h, /Tu já tá no mecânico — daqui até lá: 18 min\./);
+  assert.doesNotMatch(h, /Se arrumar|25 min de carro/);
+  assert.match(h, /<small>sair em<\/small>/);
+  const sem = html("date", { id: 7, titulo: "Date", data: "2026-10-14", hora: "20:00", na_rua: { onde: "na rua" },
+    cadeia: [{ rotulo: "Chegar", hora: "20:00", em_s: 1680 }], gerado_ts: g });
+  assert.match(sem, /Tu já tá na rua — a saída de casa não vale mais\./);
+});

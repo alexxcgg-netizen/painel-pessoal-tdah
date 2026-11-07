@@ -28,6 +28,7 @@ TOKEN = "token-de-teste-visitas"
 CABECALHO = {"Authorization": f"Bearer {TOKEN}"}
 CASA = (-26.9000, -49.0000)
 MECANICO = (-26.9100, -49.0600)
+GRAFICA = "Gráfica Central, Brusque"
 HOJE = date.today()
 
 
@@ -52,7 +53,7 @@ class _Base(unittest.TestCase):
         self._env = patch.dict(os.environ, env)
         self._env.start()
         self.addCleanup(self._env.stop)
-        self.geo = patch("maps_client.geocodificar", return_value=MECANICO)
+        self.geo = patch("maps_client.localizar", return_value=MECANICO)
         self.geocodificar = self.geo.start()
         self.addCleanup(self.geo.stop)
         self.viagem = patch("maps_client.tempo_de_viagem", return_value={"duracao_minutos": 25})
@@ -262,8 +263,8 @@ class ChegadaTestCase(_Base):
 
 class AtrasoTestCase(_Base):
     def preparar(self):
-        self.contas = self.tarefa("Imprimir as contas", "11:00")
-        self.boleto = self.tarefa("Pagar boleto (até 12:30)", "12:00")
+        self.contas = self.tarefa("Imprimir as contas", "11:00", local=GRAFICA)
+        self.boleto = self.tarefa("Pagar boleto (até 12:30)", "12:00", local="Lotérica do Centro")
         self.cadeado = self.tarefa("Reunião do banco", "13:00", inegociavel=1)
         self.depois = self.tarefa("Ligar pro João", "14:00")
         self.carro = self.tarefa("Levar o carro no mecânico", "10:30")
@@ -271,7 +272,8 @@ class AtrasoTestCase(_Base):
 
     def test_empurra_com_desfazer_e_para_no_inegociavel(self):
         vid = self.preparar()
-        with patch.object(onde_estou, "CHEGADA_RECENTE_MIN", 0):
+        # recado pronto (onde_vou) tem teste proprio: aqui so o empurrao
+        with patch.object(onde_estou, "CHEGADA_RECENTE_MIN", 0), patch("onde_vou.recado_parado", return_value=False):
             self.assertEqual(onde_estou.reagir(self.conn, vid, _em("10:50")), ["atraso"])
         # 10:50 + 25 min de trajeto = 11:15 -> 15 min de atraso
         self.assertEqual(self.hora(self.contas)["hora"], "11:15")
@@ -284,8 +286,8 @@ class AtrasoTestCase(_Base):
                          "Atrasou no mecânico: empurrei imprimir as contas pras 11h15 (e a seguinte também).")
         self.avisar.assert_called_with(self.conn, onde_estou.TIPO_ATRASO, vid, "Atrasou no mecânico",
                                        "Empurrei imprimir as contas pras 11h15 (e a seguinte também).", _em("10:50"))
-        # destino sem local = casa; origem = a visita
-        self.assertEqual(self.tempo_de_viagem.call_args[0], (f"{MECANICO[0]},{MECANICO[1]}", f"{CASA[0]},{CASA[1]}"))
+        # destino = o local da tarefa; origem = a visita
+        self.assertEqual(self.tempo_de_viagem.call_args_list[0][0], (f"{MECANICO[0]},{MECANICO[1]}", GRAFICA))
 
         # Desfazer pelo botao do card (mesma rota dos outros cards)
         card = json.loads(app.criptografia.descriptografar(msg["cards_json"]))[0]
@@ -322,7 +324,7 @@ class AtrasoTestCase(_Base):
         self.assertEqual([self.hora(t)["hora"] for t in (cadeado, voo, outra)], ["11:00", "11:30", "12:00"])
 
     def test_voo_e_parede(self):
-        contas = self.tarefa("Imprimir as contas", "11:00")
+        contas = self.tarefa("Imprimir as contas", "11:00", local=GRAFICA)
         voo = self.tarefa("Voo local", "12:00")
         self.visita(MECANICO, _em("10:00"))
         onde_estou.verificar(self.conn, _em("10:50"))
@@ -330,27 +332,27 @@ class AtrasoTestCase(_Base):
         self.assertEqual(self.hora(voo)["hora"], "12:00")
 
     def test_ao_sair_tambem_confere(self):
-        contas = self.tarefa("Imprimir as contas", "11:00")
+        contas = self.tarefa("Imprimir as contas", "11:00", local=GRAFICA)
         vid = self.visita(MECANICO, _em("10:00"), _em("10:50"))
         onde_estou.reagir(self.conn, vid, _em("10:51"))
         self.assertEqual(self.hora(contas)["hora"], "11:20")  # 10:51 + 25 = 11:16 -> 16 min -> 20
 
     def test_ja_esta_no_lugar_da_tarefa_nao_empurra(self):
-        contas = self.tarefa("Imprimir as contas", "11:00")
+        contas = self.tarefa("Imprimir as contas", "11:00", local=f"{CASA[0]},{CASA[1]}")
         self.visita(CASA, _em("10:00"))
         onde_estou.verificar(self.conn, _em("11:15"))
         self.assertEqual(self.hora(contas)["hora"], "11:00")
         self.tempo_de_viagem.assert_not_called()
 
     def test_tarefa_longe_no_tempo_nao_gasta_cota(self):
-        self.tarefa("Imprimir as contas", "16:00")
+        self.tarefa("Imprimir as contas", "16:00", local=GRAFICA)
         self.visita(MECANICO, _em("10:00"))
         onde_estou.verificar(self.conn, _em("10:30"))
         self.tempo_de_viagem.assert_not_called()
 
     def test_trajeto_com_cache(self):
-        self.tarefa("Imprimir as contas", "11:00")
-        self.tarefa("Outra", "11:30")
+        self.tarefa("Imprimir as contas", "11:00", local=GRAFICA)
+        self.tarefa("Outra", "11:30", local=GRAFICA)
         self.visita(MECANICO, _em("10:00"))
         onde_estou.verificar(self.conn, _em("10:20"))  # 10:20 + 25 = 10:45: no horario
         onde_estou.verificar(self.conn, _em("10:25"))

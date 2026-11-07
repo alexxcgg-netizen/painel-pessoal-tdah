@@ -44,9 +44,48 @@ _SEGUE_O_CRITICO = {"tarefa_agora": "tarefa_horario"}
 
 CATEGORIA_DO_TIPO = {"casa_tarefa": "casa"}
 
+# 07/11 (frente C): botoes por assunto no aviso local (UNNotificationCategory no app, AvisosLocais.swift).
+#   "hora"   = Feito / +15 min / Amanha  (tarefa com hora: o aviso de agora, os de antes)
+#   "saida"  = Abrir rota / +15 min      (hora de sair, voo, indo pra: so com `rota`; sem rota vira "soneca")
+#   "soneca" = +15 min                   (se arrumar, passo a passo, aviso da IA...)
+# "+15 min" = soneca: o app avisa de novo daqui 15 min com o mesmo texto; o servidor so para a insistencia.
+# App antigo nao conhece a categoria: cai no `acoes` (Feito / Adiar 1 h) como antes.
+CATEGORIAS_APP = ("tarefa", "casa", "hora", "saida", "soneca")
+_CATEGORIA_NOVA = {
+    "tarefa_preparo": "hora", "tarefa_horario": "hora", "tarefa_agora": "hora", "tarefa_horario_passou": "hora",
+    "tarefa_inegociavel": "hora",
+    "hora_de_sair": "saida", "saida_porta": "saida", "voo_sair": "saida", "indo_pra": "saida",
+    "atraso_recado": "soneca", "transito_piorou": "saida", "lugar_fechado": "soneca",
+    "se_arrumar": "soneca", "saida_preparo": "soneca", "agua_pausa": "soneca", "aviso_ia": "soneca",
+    "saida_previsao": "soneca", "compromisso_chegando": "saida",
+}
 
-def _item(tipo: str, ref: int, quando: datetime, titulo: str, corpo: str, url_do_aviso, de_uma_tarefa) -> dict:
+
+def categoria(tipo: str, de_uma_tarefa=frozenset(), rota: str | None = None) -> str:
+    cat = _CATEGORIA_NOVA.get(tipo)
+    if cat == "saida" and not rota:
+        cat = "soneca"
+    if cat:
+        return cat
+    return "tarefa" if tipo in de_uma_tarefa else CATEGORIA_DO_TIPO.get(tipo, "")
+
+
+def link_rota(local) -> str | None:
+    """Waze ja navegando pro endereco em texto (sem rede aqui; o Waze resolve o endereco)."""
+    from urllib.parse import quote
+
+    if not isinstance(local, str) or not local.strip():
+        return None
+    return f"https://waze.com/ul?q={quote(local.strip()[:200])}&navigate=yes"
+
+
+def _item(tipo: str, ref: int, quando: datetime, titulo: str, corpo: str, url_do_aviso, de_uma_tarefa,
+          rota: str | None = None, conn=None) -> dict:
     tag = f"{tipo}-{ref}"
+    if conn is not None:  # titulo generico (voo, agua...) ganha variacao do catalogo, estavel por aviso/dia
+        import avisos_texto
+
+        titulo, corpo = avisos_texto.variar_titulo(conn, tipo, titulo, corpo, chave=f"{tag}-{quando:%Y-%m-%d}")
     return {
         "id": f"painel-{tag}-{quando:%Y%m%d}",
         "tag": tag,
@@ -58,7 +97,9 @@ def _item(tipo: str, ref: int, quando: datetime, titulo: str, corpo: str, url_do
         "acoes": tipo in de_uma_tarefa,
         # categoria do aviso no app (06/11, frente 7): "tarefa" = Feito / Adiar 1 h; "casa" = Feito / Amanha
         # (hora_certa.py); "" = sem botao (o toque abre o card). App antigo ignora e segue so com `acoes`.
-        "categoria": "tarefa" if tipo in de_uma_tarefa else CATEGORIA_DO_TIPO.get(tipo, ""),
+        # 07/11: "hora" / "saida" / "soneca" (botoes novos, ver CATEGORIAS_APP)
+        "categoria": categoria(tipo, de_uma_tarefa, rota),
+        "rota": rota or "",
         "url": url_do_aviso(tipo, tag) if url_do_aviso else "/",
     }
 
@@ -95,6 +136,7 @@ def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None
     ja_notificou = ja_notificou or (lambda tipo, ref: False)
     limite = agora + timedelta(hours=HORAS_A_FRENTE)
     candidatos: list[tuple[str, int, datetime, str, str]] = []
+    rotas: dict[tuple[str, int], str | None] = {}  # (tipo, ref) -> link do Waze (botao "Abrir rota", 07/11)
 
     amanha = datetime.combine(agora.date() + timedelta(days=1), time(0, 0))
     for inicio in (agora, amanha):
@@ -107,10 +149,12 @@ def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None
         )
         ids_sair = {p["id"] for p in planos}
         for p in planos:
-            for tipo, ref, titulo, corpo in _do_tipo(notificacoes.avisos_se_arrumar([p], p["comecar"]), "se_arrumar"):
+            for tipo, ref, titulo, corpo in _do_tipo(notificacoes.avisos_se_arrumar([p], p["comecar"], conn=conn), "se_arrumar"):
                 candidatos.append((tipo, ref, p["comecar"], titulo, corpo))
-            for tipo, ref, titulo, corpo in _do_tipo(notificacoes.avisos_se_arrumar([p], p["saida"]), "hora_de_sair"):
+            for tipo, ref, titulo, corpo in _do_tipo(notificacoes.avisos_se_arrumar([p], p["saida"], conn=conn), "hora_de_sair"):
                 candidatos.append((tipo, ref, p["saida"], titulo, corpo))
+            if p.get("local") and not p.get("parada"):
+                rotas[("hora_de_sair", p["id"])] = rotas[("saida_porta", p["id"])] = link_rota(p["local"])
             quando_preparo = p["comecar"] - timedelta(minutes=PREPARO_SAIDA_MIN)
             quando_porta = p["saida"] - timedelta(minutes=PORTA_SAIDA_MIN)
             clima_dia = clima if hoje else None
@@ -136,12 +180,16 @@ def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None
                 titulo, corpo = notificacoes.TITULO_REFEICAO, notificacoes.texto_refeicao(r["title"])
             else:
                 titulo = notificacoes.titulo_tarefa(r["title"])
-                corpo = notificacoes.texto_tarefa_chegando(r["hora"], antes=True)
+                # 07/11 (frente C): mesma chave do tick do servidor -> mesmo texto nos dois caminhos
+                corpo = notificacoes.texto_tarefa_chegando(r["hora"], antes=True, conn=conn, agora=agora,
+                                                           chave=f"tarefa_horario-{r['id']}-{dia.isoformat()}")
                 candidatos.append(("tarefa_preparo", r["id"], evento - timedelta(minutes=PREPARO_TAREFA_MIN), titulo,
-                                   notificacoes.texto_tarefa_preparo(r["hora"], PREPARO_TAREFA_MIN)))
+                                   notificacoes.texto_tarefa_preparo(r["hora"], PREPARO_TAREFA_MIN, conn=conn, agora=agora,
+                                                                     chave=f"tarefa_preparo-{r['id']}-{dia.isoformat()}")))
             candidatos.append(("tarefa_horario", r["id"], evento - timedelta(minutes=CHEGANDO_TAREFA_MIN), titulo, corpo))
             if not notificacoes.e_refeicao(r["title"]):
-                candidatos.append(("tarefa_agora", r["id"], evento, titulo, notificacoes.texto_tarefa_agora(r["hora"])))
+                candidatos.append(("tarefa_agora", r["id"], evento, titulo, notificacoes.texto_tarefa_agora(
+                    r["hora"], conn=conn, agora=agora, chave=f"tarefa_agora-{r['id']}-{dia.isoformat()}")))
 
     if saida_voo:
         for voo in notificacoes.voos_de_hoje_com_horario(conn, agora.date()):
@@ -179,7 +227,8 @@ def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None
                 and _SEGUE_O_CRITICO.get(tipo) not in criticos:
             continue
         vistos.add(chave)
-        itens.append(_item(tipo, ref, quando, titulo, corpo, url_do_aviso, de_uma_tarefa))
+        itens.append(_item(tipo, ref, quando, titulo, corpo, url_do_aviso, de_uma_tarefa,
+                           rota=rotas.get((tipo, ref)), conn=conn))
         if len(itens) >= MAX_ITENS:
             break
     return itens

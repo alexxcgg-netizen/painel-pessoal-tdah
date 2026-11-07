@@ -206,6 +206,10 @@ class TravouTest(_Dados):
         b = self.tarefa("Organizar fotos")
         self.empurrar(a, 4)
         self.empurrar(b, 3)
+        # 07/11 (cobranca.py): tarefa comum adiada 3+ fica com o card tarefa_adiada; o "travou" pega a recorrente
+        self.assertEqual(conversa_proativa.perguntar_por_que_travou(self.conn, datetime(2026, 10, 30, 10, 0)), [])
+        self.conn.execute("UPDATE tasks SET recorrencia = 'diaria'")
+        self.conn.commit()
         self.assertEqual(conversa_proativa.perguntar_por_que_travou(self.conn, datetime(2026, 10, 30, 7, 0)), [])  # cedo
         r = conversa_proativa.perguntar_por_que_travou(self.conn, datetime(2026, 10, 30, 10, 0))
         self.assertEqual(r[0][0], "travou")

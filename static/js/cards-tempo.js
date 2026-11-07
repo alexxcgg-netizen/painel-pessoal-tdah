@@ -91,7 +91,8 @@
     const livre = num(d.livre_min);
     const depois = num(d.arrumar_min) ? `se arrumar ${d.arrumar_min} min, sair ${esc(d.sair)}` : `sair ${esc(d.sair)}`;
     return (
-      topo("relogio", "Livre até", `hoje · ${d.titulo || ""} ${d.hora || ""}`.trim()) +
+      // 07/11: nome curto do servidor ("dentista", "date"); card antigo cai no titulo
+      topo("relogio", "Livre até", `hoje · ${d.nome || d.titulo || ""} ${d.hora || ""}`.trim()) +
       `<div class="cd-raiz tp-raiz tp-espera">` +
       `<div class="tp-es-big"><span class="tp-grande">${esc(d.livre_ate || "--:--")}</span><span class="cd-nota">${esc(dur(livre))} livres · depois: ${depois}</span></div>` +
       linhaEspera(d) + cabeEspera(d) + chamaEspera(d) + `</div>`

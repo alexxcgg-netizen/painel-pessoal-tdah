@@ -161,6 +161,9 @@ TIPOS: dict[str, dict] = {
     "indo_pra": _tipo("Saiu perto da hora: \"Indo pro X?\" com o trajeto"),
     "atraso_recado": _tipo("Vai chegar atrasado: recado pronto pro WhatsApp"),
     "compromisso_chegando": _tipo("Compromisso da agenda chegando"),
+    # avisos 07/11 (frente C, avisos_texto.py / avisos_pendentes.py)
+    "aviso_ia": _tipo("Aviso que a IA agendou pelo chat (\"me avisa daqui 20 min\")"),
+    "lugar_fechado": _tipo("O lugar vai estar fechado (ou fecha logo) quando tu chegar"),
     "voo_sair": _tipo("Hora de ir pro voo"),
     # painel mais esperto, frente 7 (06/11: voo_vespera.py, hora_certa.py, rotinas_esperto.py)
     "voo_decisao": _tipo("Voo de amanhã: voa ou não dá (véspera ~20h, reconfere de manhã)"),

@@ -166,3 +166,13 @@ test("fita sem saida conta ate o compromisso; 1a letra baixa so quando a 2a nao 
   assert.equal(Fita.dur(0.2), "1 min"); // nunca "0 min" antes da hora
   assert.equal(Fita.textoDaFita({ titulo: "Voo", hora: "15:00", tem_saida: true, sair_em_s: 30, evento_em_s: 2000 }, 0).texto, "Sair pra voo em 1 min");
 });
+
+test("espera (07/11): o topo usa o nome curto do servidor; card antigo cai no titulo", () => {
+  const base = { kind: "tarefa", ref: 1, hora: "15:00", livre_ate: "13:50", sair: "14:35", livre_min: 130, arrumar_min: 0, ir_min: 25, cabe: [] };
+  const novo = html("espera", Object.assign({}, base, { titulo: "Levar a Sta no dentista às 15 e depois passar no mercado", nome: "dentista" }));
+  semFallback(novo);
+  assert.match(novo, /<span class="cd-quando">hoje · dentista 15:00<\/span>/);
+  assert.doesNotMatch(novo, /mercado/);
+  const velho = html("espera", Object.assign({}, base, { titulo: "Jantar" }));
+  assert.match(velho, /hoje · Jantar 15:00/);
+});

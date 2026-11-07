@@ -20,6 +20,7 @@ Uso:
 """
 
 import argparse
+import json
 import re
 import sqlite3
 import sys
@@ -316,6 +317,24 @@ def secao_dados(conn, desde: date, ate: date, hoje: date) -> tuple[list[str], li
             achados.append(Achado(2, f"Dados: {len(sem_abrir)}/{len(linhas)} avisos insistentes nunca vistos",
                                   "ele ignora esse tipo de aviso? ou não está chegando"))
 
+    def fila_avisos():
+        # frente C (07/11): quem entregou o aviso sem hora conhecida - app do iPhone (aviso local) ou navegador
+        if not _tabela_existe(conn, "avisos_pendentes"):
+            return
+        r = conn.execute(
+            "SELECT SUM(entregue_app_em IS NOT NULL) app, SUM(push_em IS NOT NULL) nav, SUM(origem = 'ia') ia, "
+            "SUM(entregue_app_em IS NULL AND push_em IS NULL AND cancelado_em IS NULL) esperando "
+            "FROM avisos_pendentes WHERE substr(criado_em, 1, 10) >= ? AND substr(criado_em, 1, 10) <= ?",
+            (desde.isoformat(), ate.isoformat())).fetchone()
+        app_n, nav_n = int(r["app"] or 0), int(r["nav"] or 0)
+        if not (app_n or nav_n or r["esperando"]):
+            return
+        saida.append(f"### Fila de avisos: {app_n} pelo app, {nav_n} pelo navegador, {int(r['esperando'] or 0)} esperando, "
+                     f"{int(r['ia'] or 0)} da IA\n\n")
+        if nav_n > app_n and nav_n >= 4:
+            achados.append(Achado(2, f"Dados: {nav_n} aviso(s) da fila saíram pelo navegador (app pegou {app_n})",
+                                  "o app não está acordando a tempo? (fundo, GPS, permissão de aviso)"))
+
     def gastos():
         if not _tabela_existe(conn, "expenses"):
             return
@@ -349,8 +368,32 @@ def secao_dados(conn, desde: date, ate: date, hoje: date) -> tuple[list[str], li
         if partes:
             saida.append("Cotas do mês: " + ", ".join(partes) + ".\n\n")
 
-    for nome, fn in (("atrasadas", atrasadas), ("desfeitas", desfeitas), ("avisos", avisos), ("gastos", gastos),
-                     ("custo", custo), ("cotas", cotas)):
+    def lugares():
+        # 07/11 (frente A): nenhum lugar tinha coordenada (Geocoding bloqueada) e ninguem via - agora aparece
+        if not _tabela_existe(conn, "visitas"):
+            return
+        coords = {}
+        if _tabela_existe(conn, "configuracoes"):
+            r = conn.execute("SELECT valor FROM configuracoes WHERE chave = 'lugares_coordenadas'").fetchone()
+            try:
+                coords = json.loads(r["valor"]) if r and r["valor"] else {}
+            except ValueError:
+                coords = {}
+        coords = coords if isinstance(coords, dict) else {}
+        com = sum(1 for v in coords.values() if isinstance(v, dict) and isinstance(v.get("lat"), (int, float)))
+        gps = sum(1 for v in coords.values() if isinstance(v, dict) and v.get("origem") == "gps")
+        corte = (hoje - timedelta(days=7)).isoformat()
+        tot, rec = conn.execute("SELECT COUNT(*), COUNT(lugar) FROM visitas WHERE COALESCE(chegada, saida) >= ?",
+                                (corte,)).fetchone()
+        saida.append(f"### Lugares: {com} de {len(coords)} com coordenada" + (f" ({gps} pelo GPS)" if gps else "")
+                     + f"; visitas dos últimos 7 dias: {rec} de {tot} reconhecidas\n\n")
+        if tot >= 5 and rec == 0:
+            achados.append(Achado(3, f"Dados: nenhuma das {tot} visitas dos últimos 7 dias reconheceu o lugar",
+                                  "coordenada dos lugares falhando (Places/Geocoding) - atraso e chegada ficam cegos"))
+
+    for nome, fn in (("atrasadas", atrasadas), ("desfeitas", desfeitas), ("avisos", avisos),
+                     ("fila de avisos", fila_avisos), ("gastos", gastos),
+                     ("custo", custo), ("cotas", cotas), ("lugares", lugares)):
         tenta(nome, fn)
     if not saida:
         saida.append("Nada de anormal nos dados.\n")

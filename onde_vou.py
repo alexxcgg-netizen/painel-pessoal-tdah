@@ -343,8 +343,8 @@ def _frase_chegada(chegada: datetime, ev: datetime) -> tuple[str, bool]:
 
 def dados_indo(conn, row, t, viagem: dict, agora: datetime) -> dict:
     """data do card `indo_pra` (estado final; nada de rede aqui)."""
+    import nome_curto
     import onde_estou
-    import tempo
 
     saiu = _dt(row["saiu_em"])
     ev = _evento(saiu.date(), row["hora_evento"])
@@ -380,7 +380,8 @@ def dados_indo(conn, row, t, viagem: dict, agora: datetime) -> dict:
                         "sub": frase, "tipo": "alerta" if atrasa else "fim"})
     return {
         "id": row["id"], "tarefa_id": row["tarefa_id"],
-        "titulo": f"Indo {tempo._pro(onde_estou._titulo_frase(t['title']))[:48]}?",
+        # 07/11: nome curto do lugar ("Indo pro mecânico?"), corte em palavra inteira (nome_curto.py)
+        "titulo": nome_curto.titulo_indo(conn, {**dict(t), "local": t["local"] or row["destino"]}),
         "destino": row["destino"], "hora": row["hora_evento"], "estilo": _coluna(t, "estilo"),
         "chega": _hm(chegada) if chegada else None,
         "chega_s": int((chegada - agora).total_seconds()) if chegada else None,
@@ -550,11 +551,12 @@ def link_whatsapp(texto: str) -> str:
 
 
 def dados_recado(t, atraso: int, chegada: datetime | None, modelo: str, via: str | None, indo_id: int | None) -> dict:
+    import nome_curto
     import onde_estou
 
     n = arredonda_atraso(atraso)
     texto = texto_recado(modelo, n, via)
-    nome = onde_estou._titulo_frase(t["title"])[:40]
+    nome = nome_curto.cortar(onde_estou._titulo_frase(t["title"]), 40)
     return {
         "tarefa_id": t["id"], "indo_id": indo_id, "titulo": nome, "hora": t["hora"],
         "chega": _hm(chegada) if chegada else None, "atraso_min": int(atraso), "escolhido": n,
@@ -564,8 +566,10 @@ def dados_recado(t, atraso: int, chegada: datetime | None, modelo: str, via: str
 
 
 def recado(conn, row, t, atraso: int, agora: datetime, via: str | None = None, transito: bool = False,
-           chegada: datetime | None = None, parado: bool = False) -> bool:
-    """Publica o card do recado + aviso cedo. Uma vez por compromisso; de novo so se crescer > 10 min."""
+           chegada: datetime | None = None, parado: bool = False, cartoes: list | None = None) -> bool:
+    """Publica o card do recado + aviso cedo. Uma vez por compromisso; de novo so se crescer > 10 min.
+    `cartoes` (07/11): em vez de uma mensagem nova no chat, o card entra nessa lista (quem chamou publica
+    junto com a sua - atraso + recado numa mensagem so)."""
     import onde_estou
 
     if row is not None and row["resposta"] == "outro":
@@ -593,15 +597,18 @@ def recado(conn, row, t, atraso: int, agora: datetime, via: str | None = None, t
         titulo_aviso = f"Vai chegar {d['chega']}" if d["chega"] else titulo_aviso[: notificacoes.TITULO_MAX]
     motivo = f"Lento na {via}. " if via else ("Trânsito no caminho. " if transito else "")
     corpo = f"{motivo}Quer mandar um recado? O texto tá pronto."
-    onde_estou._publicar(conn, f"{titulo_aviso}. Deixei o recado pronto, quem manda é tu.",
-                         [cards.novo_card("recado_atraso", d)])
+    card = cards.novo_card("recado_atraso", d)
+    if cartoes is not None:
+        cartoes.append(card)
+    else:
+        onde_estou._publicar(conn, f"{titulo_aviso}. Deixei o recado pronto, quem manda é tu.", [card])
     import hora_certa  # push + aviso local do app (o link do WhatsApp fica no card; o toque abre o chat)
 
     hora_certa.avisar_evento(conn, TIPO_RECADO, titulo_aviso, corpo, agora, ref_legado=row["id"])
     return True
 
 
-def recado_parado(conn, r: dict, agora: datetime) -> bool:
+def recado_parado(conn, r: dict, agora: datetime, cartoes: list | None = None) -> bool:
     """Do onde_estou.checar_atraso (parado num lugar e nao chega a tempo): so compromisso de sair/com lugar,
     que e onde tem alguem esperando."""
     tid = r.get("tarefa_id")
@@ -618,7 +625,7 @@ def recado_parado(conn, r: dict, agora: datetime) -> bool:
     t = {**dict(t), "hora": hora_original}
     row = conn.execute("SELECT * FROM indo_pra WHERE dia = ? AND tarefa_id = ?",
                        (agora.date().isoformat(), tid)).fetchone()
-    return recado(conn, row, t, int(r["atraso_min"]), agora, parado=True)
+    return recado(conn, row, t, int(r["atraso_min"]), agora, parado=True, cartoes=cartoes)
 
 
 def atualizar_posicao(conn, lat: float, lon: float, agora: datetime) -> list[str]:
