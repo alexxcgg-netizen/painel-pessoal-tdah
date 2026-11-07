@@ -235,7 +235,7 @@ def app_aviso_acao():
         return registrar_toque(tag)
     if acao == "mais15":
         return _soneca(tag)
-    if acao == "amanha" and tag.startswith("casa_tarefa-"):
+    if acao == "amanha" and tag.startswith(("casa_tarefa-", "chegou_casa-")):
         acao = "adiar"  # botao "Amanha" do aviso "Chegou em casa" (categoria "casa"): hora_certa.acao_casa
     elif acao == "amanha":
         return _pra_amanha(tag)  # 07/11: categoria "hora" (Feito / +15 min / Amanha)

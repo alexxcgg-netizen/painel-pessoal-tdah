@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-07 - Avisos novos ligados: trânsito piorou, chegou em casa, meta batida, sequência
 - 2026-11-07 - Lugar certo, atraso sem susto, avisos variados e "tá aberto?" (SW v105)
 - 2026-11-06 - Painel mais esperto: aba Tarefas nova, viagem com posto, GPS, onde estou, voo na véspera
 - 2026-11-06 - Tarefa ao vivo na tela bloqueada, Feito no ao vivo e aviso na hora exata
@@ -181,6 +182,18 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-07 - Avisos novos ligados: trânsito piorou, chegou em casa, meta batida, sequência
+O Alex aprovou o catálogo inteiro ("gostei de todas"): os 4 assuntos que só tinham texto passam a disparar
+(`avisos_novos.py`; regras em `docs/briefings/2026-11-07-lugar-certo-e-avisos.md`, "Leva 07/11 (2)").
+- `transito_piorou`: tarefa de hoje com lugar, janela de 60 min antes da hora de sair, caminho >= 10 min pior que a
+  base do plano -> nova hora de sair. 1 consulta ao Maps por tarefa a cada 15 min, só na janela, só em casa e fora
+  do silêncio; 1x por tarefa por dia.
+- `chegou_casa`: visita reconhecida como casa depois de >= 30 min fora, com tarefa de fora aberta -> "marca o que
+  fez" (uma tarefa: Feito/Amanhã). Uma fala de casa por chegada (mesma chave do `casa_tarefa`), máx 1 a cada 3 h.
+- `meta_batida`: água do dia, horas de voo (total + RBAC), metas de dinheiro; o que já estava batido não avisa.
+- `sequencia`: treino, remédio diário, hábito diário, tarefas em dia nos marcos 3/5/7/10/14/21/30, 1x por marco.
+- Desligáveis em Assistente > Avisos; testes `tests/test_avisos_novos.py` (31).
 
 ## 2026-11-07 - Lugar certo, atraso sem susto, avisos variados e "tá aberto?" (SW v105)
 Leitura do chat de 06-07/11 achou: remédio + 4 tarefas empurrados às 7h43 com ele dormindo em casa, "às 21 buscar"

@@ -165,6 +165,11 @@ TIPOS: dict[str, dict] = {
     "aviso_ia": _tipo("Aviso que a IA agendou pelo chat (\"me avisa daqui 20 min\")"),
     "lugar_fechado": _tipo("O lugar vai estar fechado (ou fecha logo) quando tu chegar"),
     "voo_sair": _tipo("Hora de ir pro voo"),
+    # leva 07/11 (2): os assuntos novos do catalogo ligados (avisos_novos.py)
+    "transito_piorou": _tipo("Trânsito piorou antes de sair: nova hora de sair"),
+    "chegou_casa": _tipo("Chegou em casa depois de sair: marca o que fez na rua"),
+    "meta_batida": _tipo("Bateu uma meta (água do dia, horas de voo, meta de dinheiro)"),
+    "sequencia": _tipo("Sequência de dias seguidos (treino, remédio, hábito, tarefas em dia)"),
     # painel mais esperto, frente 7 (06/11: voo_vespera.py, hora_certa.py, rotinas_esperto.py)
     "voo_decisao": _tipo("Voo de amanhã: voa ou não dá (véspera ~20h, reconfere de manhã)"),
     "casa_tarefa": _tipo("Chegou em casa com tarefa de hoje aberta (Feito / Amanhã)"),

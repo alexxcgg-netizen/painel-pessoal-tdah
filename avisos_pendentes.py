@@ -176,7 +176,8 @@ def entregar(conn, *, tipo: str, ref: int, titulo: str, corpo: str, agora: datet
 
 # ref = id da tarefa: tarefa concluida enquanto o aviso esperava sai da fila (nem app nem navegador)
 TIPOS_DE_TAREFA = frozenset({"tarefa_horario", "tarefa_preparo", "tarefa_horario_passou", "tarefa_parada", "se_arrumar",
-                             "hora_de_sair", "tarefa_inegociavel", "tarefa_agora", "lugar_fechado"})
+                             "hora_de_sair", "tarefa_inegociavel", "tarefa_agora", "lugar_fechado", "transito_piorou",
+                             "chegou_casa"})
 
 
 def _abertos(conn, agora: datetime | None = None):

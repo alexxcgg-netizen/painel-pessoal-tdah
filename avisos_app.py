@@ -42,7 +42,7 @@ _CRITICOS_PADRAO = frozenset({"tarefa_horario", "voo_sair"})
 _SEGUE_O_CRITICO = {"tarefa_agora": "tarefa_horario"}
 
 
-CATEGORIA_DO_TIPO = {"casa_tarefa": "casa"}
+CATEGORIA_DO_TIPO = {"casa_tarefa": "casa", "chegou_casa": "casa"}
 
 # 07/11 (frente C): botoes por assunto no aviso local (UNNotificationCategory no app, AvisosLocais.swift).
 #   "hora"   = Feito / +15 min / Amanha  (tarefa com hora: o aviso de agora, os de antes)

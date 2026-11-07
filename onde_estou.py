@@ -870,6 +870,15 @@ def reagir(conn, visita_id: int, agora: datetime) -> list[str]:
                 _publicar(conn, msg[0], [])
                 _avisar(conn, TIPO_CHEGADA, visita_id, msg[1], msg[2], agora)
                 feito.append("chegada")
+    if recente and saida is None and v["lugar"] == "casa":
+        # leva 07/11 (2): voltou pra casa depois de >= 30 min fora com tarefa de fora aberta -> "marca o que fez"
+        try:
+            import avisos_novos
+
+            if avisos_novos.chegou_casa(conn, visita_id, agora):
+                feito.append("chegou_casa")
+        except Exception:
+            log.exception("onde_estou: chegou_casa falhou")
     if recente and saida is None:
         feito += _onde_vou("na_chegada", conn, v, agora)  # fecha o trajeto "indo pra" e aprende o tempo (06/11)
     aberta = saida is None and chegada and agora - chegada <= timedelta(hours=VISITA_ABERTA_MAX_H)

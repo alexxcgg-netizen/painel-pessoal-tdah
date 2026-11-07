@@ -104,7 +104,7 @@ def executar_acao(tag, acao):
                 return jsonify({"error": "combinado não encontrado"}), 404
             return jsonify({"ok": True, "titulo": (feito or {}).get("titulo", "Combinado"),
                             "mensagem": "Boa. +1 no teu dia." if feito else "", "badge": badge.contagem(conn, app._agora_brasilia().date())})
-        if tipo == "casa_tarefa" and ref.isdigit() and acao in ("feito", "adiar"):
+        if tipo in ("casa_tarefa", "chegou_casa") and ref.isdigit() and acao in ("feito", "adiar"):
             # "Chegou em casa" (painel esperto, 06/11, hora_certa.py): Feito / Amanha
             import hora_certa
 

@@ -103,6 +103,42 @@ só leitura; teste com banco temporário; texto de UI com "tu"; avisos no estilo
   (dedup `ja_notificou_hoje` por tarefa). Fora: card_compromisso (date/balada/documentos) e a aba Tarefas não mostram a
   linha ainda; o texto do aviso é fixo (catálogo de variações da frente C pode assumir `lugar_fechado`).
 
+## Leva 07/11 (2): avisos novos ligados
+O Alex aprovou o catálogo inteiro ("gostei de todas"). Os 4 assuntos que só tinham texto passam a disparar, só no
+servidor (`avisos_novos.py`; o app iOS já mostra qualquer aviso da fila). Texto do catálogo (`avisos_texto.par`),
+emoji no despacho, desligáveis em Assistente > Avisos (`assistente/avisos.py` TIPOS). Nenhum aviso antigo reduzido.
+- **`transito_piorou`** (tick, `avisos_transito`): tarefa de hoje com `local` e hora, sem `sai_na_hora` (a hora já é
+  a de sair) e sem parada. Base = `extras.saida.trajeto_min` do plano; sem ela, a 1ª medida da janela vira a base.
+  Janela = 60 min antes da hora de sair do plano (hora - base - 5 min de margem; sem base, 15 min). Consulta
+  `maps_client.tempo_de_viagem` (casa -> lugar, cota "transito" já respeitada lá) no máximo 1x a cada 15 min por
+  tarefa, só dentro da janela (no tick, reaproveita a medida que o aviso de sair já fez naquela hora, `app._tempo_transito_aviso`), só fora do silêncio e só se `na_rua.estado` não diz que ele já saiu (aí o plano de
+  casa não vale). Piorou >= 10 min -> "Sai às HH:MM" (hora - trajeto novo - 5; nunca antes de agora); variação de
+  chuva quando o plano guardou chuva >= 60%. Estado em `extras.transito_aviso`; achado guardado (o tick que foi
+  segurado por silêncio/foco manda o mesmo texto depois, sem consultar de novo). 1x por tarefa por dia
+  (`ja_notificou_hoje`). Respeita o silêncio como os outros não urgentes (não entrou em NOTIFICACOES_URGENTES).
+- **`chegou_casa`** (gancho em `onde_estou.reagir`, visita aberta, recente e com lugar `casa`): esteve fora >= 30 min
+  (saída da visita de casa anterior até esta chegada; sem visita de casa, a chegada da visita anterior) e há tarefa
+  de hoje aberta que era FORA (`local` que não é casa, ou apelido de lugar no título; hora já passada ou sem hora;
+  remédio nunca). **Não é o mesmo que `casa_tarefa`** (aquele lembra o que falta fazer, depois das 18h; este pede
+  pra marcar o que ele fez na rua, a qualquer hora), mas os dois falam da mesma chegada: usam a mesma chave
+  `casa:<visita>` do hora_certa, então quem chegar primeiro fala e o outro fica quieto naquela chegada. Máx 1 a
+  cada 3 h (`configuracoes.chegou_casa_ultimo`). Uma tarefa só: ref = tarefa, categoria "casa" (Feito / Amanhã, as
+  mesmas rotas do `casa_tarefa`) e o nome curto no título se couber; várias: sem botão, o toque abre Tarefas.
+  Entrega: `avisos_pendentes.entregar` (fila do app; sem app, push do navegador na hora) + Telegram. Silêncio:
+  não manda nem marca (tenta de novo nos 5 min seguintes enquanto a chegada é recente).
+- **`meta_batida`** (tick, `avisos_meta`): água do dia (`agua_meta_copos`, padrão 8; 1x por dia), horas de voo
+  (`diario_bordo.progresso`: total pela `aviacao_meta_horas` e os requisitos navegação/noturno/instrumentos; 1x
+  por meta, meta de horas nova = aviso novo) e metas de dinheiro (`goals`, guardado >= alvo; 1x por meta). Passos e
+  treino não têm meta no código (não inventei). Na 1ª passada, o que já estava batido fica marcado sem avisar.
+- **`sequencia`** (tick, `avisos_sequencia`): dias seguidos terminando hoje de treino (`treinos`), cada remédio
+  diário (instância concluída), cada hábito diário (`habito_marcacoes`) e "Tarefas em dia" (todas as tarefas do dia
+  feitas). Avisa quando a sequência é exatamente 3/5/7/10/14/21/30; ref = (coisa, 1º dia, marco), então uma
+  sequência que quebrou e recomeçou vale de novo. 1x por marco (`ja_notificado_alguma_vez`).
+- Tocados: `avisos_novos.py` (novo), `app.py` (tick + Feito/Amanhã/url do `chegou_casa` no navegador),
+  `onde_estou.py` (gancho), `assistente/avisos.py`, `avisos_app.py` (categoria casa), `avisos_pendentes.py` (cancela
+  se a tarefa foi concluída), `rotas/push.py` e `rotas/avisos_app.py` (botões do `chegou_casa`). Testes:
+  `tests/test_avisos_novos.py`.
+
 ## Aprendizados (pedido dele: "pega esses aprendizados pra não errar mais")
 - Memória: `hipotese-do-alex-primeiro` (conferir a base no banco antes de culpar a regra).
 - `AGENTS.md`, seção de pegadinhas (cada frente escreve a sua, 1-3 linhas): Geocoding bloqueada → usar Places;

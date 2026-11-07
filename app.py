@@ -6088,7 +6088,7 @@ ACOES_AVISO_TAREFA = [{"action": "feito", "title": "Feito"}, {"action": "adiar",
 
 def _acoes_do_aviso(tipo: str, tag: str = "") -> list[dict] | None:
     ref = tag.rsplit("-", 1)[-1] if tag else ""
-    if tipo == "casa_tarefa" and ref.isdigit() and int(ref) > 0:  # "Chegou em casa": Feito / Amanha (hora_certa.py)
+    if tipo in ("casa_tarefa", "chegou_casa") and ref.isdigit() and int(ref) > 0:  # "Chegou em casa": Feito / Amanha (hora_certa.py)
         import hora_certa
 
         return hora_certa.ACOES_CASA
@@ -6111,7 +6111,7 @@ def _kw_badge(conn) -> dict:
 
 def _url_do_aviso(tipo: str, tag: str = "") -> str:
     ref = tag.rsplit("-", 1)[-1] if tag else ""
-    if (tipo in _AVISOS_DE_UMA_TAREFA or tipo == "casa_tarefa") and ref.isdigit() and int(ref) > 0:
+    if (tipo in _AVISOS_DE_UMA_TAREFA or tipo in ("casa_tarefa", "chegou_casa")) and ref.isdigit() and int(ref) > 0:
         return f"/?aba=tarefas&tarefa={ref}"
     for prefixo, aba in _ABA_DO_AVISO.items():
         if tipo.startswith(prefixo):
@@ -6156,6 +6156,19 @@ def _info_trajeto_aviso(local: str) -> dict:
 
 def _trajeto_min_aviso(local: str):
     return _info_trajeto_aviso(local)["min"]
+
+
+def _tempo_transito_aviso(conn, local: str):
+    """transito_piorou (avisos_novos, leva 07/11 (2)): se o aviso de sair ja mediu esse lugar nesta hora
+    (_CACHE_TRAJETO_AVISO), reaproveita sem gastar cota; senao 1 consulta simples (o avisos_novos ja limita a
+    1 por tarefa a cada 15 min, so na janela antes de sair)."""
+    agora = datetime.now()
+    guardado = _CACHE_TRAJETO_AVISO.get((agora.date().isoformat(), agora.hour, (local or "").strip().lower()))
+    if isinstance(guardado, dict) and isinstance(guardado.get("min"), int):
+        return guardado["min"]
+    import avisos_novos
+
+    return avisos_novos._tempo_padrao(conn, local)
 
 
 def _trajeto_entre_aviso(origem: str, destino: str):
@@ -6558,6 +6571,20 @@ def verificar_e_notificar():
     for ref_lf, titulo_lf, corpo_lf in horario_lugar.avisos_lugar_fechado(conn, datetime.now()):
         if not ja_notificou_hoje(conn, "lugar_fechado", ref_lf):
             avisos.append(("lugar_fechado", ref_lf, titulo_lf, corpo_lf))
+
+    # leva 07/11 (2): os assuntos novos do catalogo ligados (avisos_novos.py). Transito: no maximo 1 consulta
+    # ao Maps por tarefa a cada 15 min, so na janela antes de sair; meta e sequencia: so banco.
+    import avisos_novos
+
+    for ref_tp, titulo_tp, corpo_tp in avisos_novos.avisos_transito(conn, datetime.now(), _tempo_transito_aviso):
+        if not ja_notificou_hoje(conn, "transito_piorou", ref_tp):
+            avisos.append(("transito_piorou", ref_tp, titulo_tp, corpo_tp))
+    for ref_mb, titulo_mb, corpo_mb in avisos_novos.avisos_meta(conn, datetime.now()):
+        if not avisos_novos.ja_avisou_meta(conn, ref_mb):
+            avisos.append(("meta_batida", ref_mb, titulo_mb, corpo_mb))
+    for ref_sq, titulo_sq, corpo_sq in avisos_novos.avisos_sequencia(conn, datetime.now()):
+        if not ja_notificado_alguma_vez(conn, "sequencia", ref_sq):
+            avisos.append(("sequencia", ref_sq, titulo_sq, corpo_sq))
 
     # Modo silencioso: avisos "soft" (nao presos a um instante especifico) ficam
     # represados fora do horario configurado (padrao 22:00-07:00, mesma janela
