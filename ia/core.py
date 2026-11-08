@@ -213,6 +213,16 @@ def _normalizar_config(bruto, funcao: str, arquivo: Path) -> dict:
             raise ConfigIAErro(f"{arquivo.name}: 'conversa.max_tokens_saida' precisa ser inteiro > 0")
         conversa["max_tokens_saida"] = limite
 
+    # opcional (so o chat usa): degrau "pensar" (07/11/2026) - modelo maior + pensamento pro que e dificil
+    # (decisao com varias condicoes, conta de horario, ele corrigindo a IA). Ver roteador_chat.precisa_pensar.
+    pensar = None
+    if bruto.get("pensar") is not None:
+        pensar = _validar_entrada_modelo(bruto["pensar"], "pensar", arquivo)
+        limite = bruto["pensar"].get("max_tokens_saida", max_tokens)
+        if isinstance(limite, bool) or not isinstance(limite, int) or limite <= 0:
+            raise ConfigIAErro(f"{arquivo.name}: 'pensar.max_tokens_saida' precisa ser inteiro > 0")
+        pensar["max_tokens_saida"] = limite
+
     return {
         "funcao": funcao,
         "ativo": ativo,
@@ -223,6 +233,7 @@ def _normalizar_config(bruto, funcao: str, arquivo: Path) -> dict:
         "cache": cache,
         "modo": modo,
         "conversa": conversa,
+        "pensar": pensar,
     }
 
 

@@ -11,6 +11,7 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-07 (2) - Painel pensa de verdade e a "agua do carro" não vira card de saúde
 - 2026-11-07 - Avisos novos ligados: trânsito piorou, chegou em casa, meta batida, sequência
 - 2026-11-07 - Lugar certo, atraso sem susto, avisos variados e "tá aberto?" (SW v105)
 - 2026-11-06 - Painel mais esperto: aba Tarefas nova, viagem com posto, GPS, onde estou, voo na véspera
@@ -182,6 +183,24 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-07 (2) - Painel pensa de verdade e a "agua do carro" não vira card de saúde
+Dois pedidos do Alex no mesmo dia, depois de ler o chat.
+- **"Jogar uma água no carro" respondia "Sua saúde hoje."** (2x, sem responder a dúvida): o atalho local do chat
+  (`aprendizado.py`) tratava toda frase com "?" como consulta e qualquer "água" como saúde. Agora `_RE_SAUDE` só pega
+  água que ele BEBE (copos, bebi, hidratação, saúde) e `_FORA_DO_BANCO` ganhou carro/moto/lavar/jogar/molhar/chuva/date:
+  essas perguntas vão pra IA. `tests/test_agua_nao_e_saude.py`.
+- **"O painel tem que pensar às vezes"** (ele aceita gastar mais e demorar mais): o chat respondia no Haiku, sem
+  pensamento nenhum (a conversa de verdade já ia pro Sonnet, também sem pensar). Agora, em `ia/config.d/chat.json`,
+  o degrau `pensar` (Opus 5.5, esforço alto, pensamento adaptativo, 16000 tokens) entra só quando
+  `roteador_chat.precisa_pensar`: decisão com algo concreto em jogo ("vale a pena", "compensa", "dá tempo" + chuva,
+  carro, date, trânsito...), conta de horário com pergunta longa, ele corrigindo a IA ("tá errado", "refaz", "não é
+  isso"), "pensa direito" ou remontar o dia. Conversa comum (`conversa`) passou a pensar no Sonnet (esforço médio).
+  Registro e pergunta simples seguem baratos e sem pensamento. O laço de ferramentas já devolvia o `response.content`
+  inteiro, então o pensamento atravessa as rodadas sem mudar o laço. Custo medido na tabela de preços: ~US$ 0,10 por
+  turno pesado (2 mil entrada + 3 mil saída + cache). `ia/core.py` lê `pensar` como lê `conversa`.
+  `tests/test_chat_pensar.py`. Ajustar: frases em `roteador_chat.py` (`_RE_DECISAO`, `_RE_CORRIGIU`...), modelo/esforço
+  no `chat.json`.
 
 ## 2026-11-07 - Avisos novos ligados: trânsito piorou, chegou em casa, meta batida, sequência
 O Alex aprovou o catálogo inteiro ("gostei de todas"): os 4 assuntos que só tinham texto passam a disparar

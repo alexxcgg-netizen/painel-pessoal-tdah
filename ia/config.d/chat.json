@@ -6,6 +6,7 @@
   "fallback": [{"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "baixo"}],
   "max_tokens_saida": 12000,
   "conversa": {"provedor": "anthropic", "modelo": "claude-sonnet-5", "esforco": "medio", "max_tokens_saida": 12000},
+  "pensar": {"provedor": "anthropic", "modelo": "claude-opus-5-5", "esforco": "alto", "max_tokens_saida": 16000},
   "cache": {"ativo": true, "ttl": "5m"},
   "modo": "padrao"
 }

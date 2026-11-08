@@ -280,6 +280,62 @@ def e_continuacao(mensagem, anterior) -> bool:
         return False
 
 
+# ---------------------------------------------------------------- pensar de verdade (07/11/2026)
+# Pedido do Alex: "o painel tem que pensar as vezes, mesmo que gaste mais ou demore mais". So o que e DIFICIL
+# sobe pro degrau "pensar" do chat.json (modelo maior + pensamento): decisao com varias condicoes ao mesmo
+# tempo (date + chuva + carro sujo), conta de horario/trajeto, ele corrigindo a IA, ele pedindo "pensa", ou
+# remontar o dia. O resto segue rapido e barato (a conversa comum pensa so no degrau "conversa").
+_RE_PEDIU_PENSAR = re.compile(
+    r"\bpensa(?: bem| direito| melhor| mais| com calma)?\b(?! em (?:mim|nada))|\bpensa a?[ií]\b"
+    r"|\bpense\b|\breflete\b|\banalisa(?: direito| bem)?\b|\bpensa ai\b|\bcom calma\b|\bracioc"
+)
+_RE_CORRIGIU = re.compile(
+    r"\b(?:ta|esta|ficou|isso ta|ta tudo) errad[oa]\b|\bnao (?:e|eh) isso\b|\bnao foi isso que\b|\btu errou\b"
+    r"|\bvoce errou\b|\bconta errada\b|\bnao faz sentido\b|\bque burro\b|\bburrice\b|\brefaz\b|\brefaca\b"
+    r"|\bnao era isso\b|\bnao entendeu\b|\bentendeu errado\b|\bnao respondeu\b|\bsem sentido\b"
+)
+_RE_DECISAO = re.compile(
+    r"\bvale (?:a pena|mesmo)\b|\bcompensa\b|\bsera que\b|\bdevo\b|\bo que (?:tu|voce|vc) acha\b"
+    r"|\bda tempo\b|\bconsigo\b|\bmelhor (?:eu |nao|ir|sair|esperar|deixar|fazer)\b|\bou (?:e )?melhor\b"
+    r"|\bpreciso\b.*\bou\b|\bfaz sentido\b|\bpiora\b|\bpior (?:do que|que)\b|\bajuda\b.*\bou\b"
+)
+_RE_CONTA_TEMPO = re.compile(
+    r"\bque horas?\b|\ba que horas\b|\bquanto tempo\b|\bchego\b|\bchegar\b|\bchegada\b|\batras\w*\b|\bsair\b|\bsaio\b"
+    r"|\bhorario\b|\bdemora\b|\bminutos?\b|\bate la\b|\bdaqui ate\b"
+)
+_RE_RESTRICAO = re.compile(
+    r"\bchuva\b|\bchover\b|\bclima\b|\btransito\b|\bdate\b|\bvoo\b|\bcarro\b|\bdinheiro\b|\bsaldo\b|\bprazo\b"
+    r"|\bamanha\b|\bhoje\b|\bagora\b|\bbanho\b|\bbuscar\b|\bparada\b"
+)
+_RE_REMONTAR = re.compile(
+    r"\b(?:refaz|refaca|remonta|remonte|replaneja|replaneje|reorganiza|reorganize|recalcula|recalcule)\b"
+    r".{0,25}\b(?:dia|tarde|noite|manha|horarios?|agenda|tudo)\b"
+)
+
+
+def precisa_pensar(mensagem, anterior=None) -> bool:
+    """True quando a mensagem merece o degrau "pensar" (modelo maior + pensamento). Mais estreito de proposito
+    que e_conversa: gasta e demora mais. `anterior` (mensagem anterior dele) so conta pra "de novo"/"refaz".
+    Nunca levanta excecao."""
+    try:
+        texto = _normalizar(mensagem)
+        if not texto:
+            return False
+        if _RE_PEDIU_PENSAR.search(texto) or _RE_CORRIGIU.search(texto) or _RE_REMONTAR.search(texto):
+            return True
+        decisao = bool(_RE_DECISAO.search(texto))
+        tempo = bool(_RE_CONTA_TEMPO.search(texto))
+        restricao = bool(_RE_RESTRICAO.search(texto))
+        # decisao com algo concreto em jogo; conta de horario com pergunta; ou pergunta comprida com varios fatores
+        if decisao and (tempo or restricao):
+            return True
+        if tempo and restricao and "?" in texto and len(texto) > 70:  # "que horas e o date?" e consulta, nao conta
+            return True
+        return (decisao + tempo + restricao) >= 2 and len(texto) > 140 and "?" in texto
+    except Exception:
+        return False
+
+
 def decidir(mensagem: str, contexto: dict | None = None) -> str:
     """Devolve so o destino ('local', 'luna' ou 'padrao') - ver
     decidir_com_motivo para o motivo (A/B, logs)."""

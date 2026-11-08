@@ -608,7 +608,7 @@ _VERBO_ACAO = re.compile(
 _FORA_DO_BANCO = re.compile(
     r"\b(gast\w*|pag\w*|saldo|dinheiro|conta|contas|fatura|cartao|sobr\w*|orcamento|reais|r\$|"
     r"tarefas?|lembretes?|voos?|remedios?|compras?|notas?|noticias?|clima|tempo|construtora|banco|"
-    r"email|e-mail|uber|cotac\w*|plano)\b"
+    r"email|e-mail|uber|cotac\w*|plano|carro|moto|lav\w+|jogar|joga|molh\w*|chuv\w*|chov\w*|date)\b"
 )
 _RE_PROJETO = re.compile(r"\bprojetos?\b")
 _RE_PROJETO_TERMO = re.compile(r"\bprojetos? (?:(?:d[aeo]s?|de|pra|para) )?([a-z0-9][a-z0-9 ]*?)(?: e | com |,|\?|$)")
@@ -616,7 +616,13 @@ _RE_VIAGEM = re.compile(r"\bviage(?:m|ns)\b")
 _RE_META = re.compile(r"\bmetas?\b")
 _RE_TREINO = re.compile(r"\b(treinos?|treinei|treinando|academia|exercicios?)\b")
 _RE_HABITO = re.compile(r"\bhabitos?\b")
-_RE_SAUDE = re.compile(r"\b(agua|hidratacao|saude)\b")
+# "agua" so e saude quando e a que ele BEBE (copos, bebi, hidratacao...). "jogar uma agua no carro" nao e
+# (07/11: o chat respondia o card "Sua saude hoje" a uma duvida sobre lavar o carro).
+_RE_SAUDE = re.compile(
+    r"\b(hidratacao|saude)\b"
+    r"|\bagua\b.*\b(copos?|bebi|bebido|beber|bebendo|tomei|tomar)\b"
+    r"|\b(copos?|bebi|bebido|beber|bebendo|tomei|tomar|quanta|quantos|quanto)\b.*\bagua\b"
+)
 _RE_DIAS = re.compile(r"\bultim[oa]s? (\d{1,3}) dias?\b")
 _RE_SUGESTAO = re.compile(
     r"^(?:como|quando|que horas) (?:eu )?(?:encaixo|encaixar|faco|fazer|vou|posso|consigo|da pra)"

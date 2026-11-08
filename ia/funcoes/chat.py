@@ -2784,6 +2784,40 @@ def _modelo_conversa(config, mensagem, anterior=None) -> tuple[str, int] | None:
     return conversa["modelo"], conversa["max_tokens_saida"]
 
 
+_ESFORCO_API = {"baixo": "low", "medio": "medium", "alto": "high"}
+
+
+def _pensamento(entrada) -> dict:
+    """kwargs de pensamento (thinking adaptativo + output_config.effort) pra um degrau do chat.json. Vazio pro
+    Haiku (nao tem), sem esforco ou esforco baixo (so o effort, sem pensar a fundo). Mesma regra do adapter."""
+    modelo = (entrada or {}).get("modelo") or ""
+    esforco = (entrada or {}).get("esforco") or ""
+    if not esforco or modelo.startswith("claude-haiku"):
+        return {}
+    kw = {"output_config": {"effort": _ESFORCO_API.get(esforco, esforco)}}
+    if esforco != "baixo":
+        kw["thinking"] = {"type": "adaptive"}
+    return kw
+
+
+def _modelo_pensar(config, mensagem, anterior=None):
+    """(modelo, max_tokens, kwargs de pensamento) do degrau "pensar" do chat.json quando a mensagem e dificil
+    (ia.roteador_chat.precisa_pensar). None = sem troca. O Alex pediu (07/11/2026): pensar de verdade as vezes,
+    mesmo gastando mais ou demorando mais."""
+    pensar = (config or {}).get("pensar")
+    if not pensar or pensar["provedor"] != "anthropic":
+        return None
+    try:
+        from ia import roteador_chat
+
+        if not roteador_chat.precisa_pensar(mensagem, anterior):
+            return None
+    except Exception:  # noqa: BLE001 - na duvida, fica no degrau de sempre
+        log.exception("chat: deteccao de pensar falhou")
+        return None
+    return pensar["modelo"], pensar["max_tokens_saida"], _pensamento(pensar)
+
+
 def _cache_control(config):
     """{"type": "ephemeral"[, "ttl": "1h"]} se o cache estiver ligado na
     config do chat (padrao: ligado), senao None."""
@@ -3082,8 +3116,13 @@ def chat(
     max_tokens = config["max_tokens_saida"] if config else MAX_TOKENS_CHAT_PADRAO
     anterior = next((_texto_de(m.get("content")) for m in reversed(estaveis) if m["role"] == "user"), None)
     conversa = _modelo_conversa(config, mensagem_nova, anterior)
-    if conversa:
+    pensamento: dict = {}
+    pensar = _modelo_pensar(config, mensagem_nova, anterior)
+    if pensar:  # dificil: modelo maior + pensamento (ganha da conversa)
+        modelo, max_tokens, pensamento = pensar
+    elif conversa:
         modelo, max_tokens = conversa
+        pensamento = _pensamento(config["conversa"])  # conversa de verdade tambem pensa antes de responder
     controle = _cache_control(config)
     ttl = (controle or {}).get("ttl", "5m")
     usage_total = {
@@ -3104,7 +3143,7 @@ def chat(
 
     def rodada(limite: int):
         inicio = time.monotonic()
-        pedido = dict(model=modelo, max_tokens=limite, system=system, tools=tools, messages=mensagens)
+        pedido = dict(model=modelo, max_tokens=limite, system=system, tools=tools, messages=mensagens, **pensamento)
         if _AO_TEXTO.get() is not None:
             with client.messages.stream(**pedido) as fluxo:
                 for pedaco in fluxo.text_stream:
