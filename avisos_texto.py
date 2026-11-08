@@ -93,6 +93,80 @@ CATALOGO: dict[str, dict] = {
             _v("Deu {hora}. Faz essa e depois é só descanso.", se="noite"),
         ],
     },
+    # 08/11 (frente A, A6): o aviso da hora saiu mais de 1 h atrasado (servidor voltou de parada)
+    "tarefa_atrasada": {
+        "tipo": "tarefa_horario", "nome": "Tarefa: o aviso saiu bem atrasado",
+        "exemplo": {"titulo_padrao": "Pagar a fatura", "hora": "15:00", "atraso": "1 h 20 min"},
+        "variacoes": [
+            _v("Era às {hora}, já faz {atraso}. Ainda vale fazer hoje?"),
+            _v("Ficou pra trás: era {hora}, faz {atraso}. Faz agora ou empurra?"),
+            _v("{hora} passou faz {atraso}. Se ainda vale, bora agora."),
+            _v("Atrasou {atraso} (era {hora}). Faz agora ou muda a hora?"),
+        ],
+    },
+    # 08/11 (frente A, A1): compromisso de SAIR depois da hora - nada de "toca em Feito" nem "primeiro passo"
+    "saida_depois": {
+        "tipo": "tarefa_horario", "nome": "Compromisso de sair: passou da hora",
+        "exemplo": {"titulo_padrao": "Date", "hora": "20:00", "chega": "20:15"},
+        "variacoes": [
+            _v("Ainda em casa? Saindo agora tu chega às {chega}."),
+            _v("Era {hora}. Se ainda não saiu, saindo agora chega às {chega}."),
+            _v("Já saiu? Se não, pega a chave: tu chega às {chega}."),
+            _v("{hora} já foi, sem drama. Saindo agora, chega às {chega}."),
+            _v("Chave, carteira, celular: saindo agora chega às {chega}."),
+            _v("A noite te espera: saindo agora tu chega às {chega}.", se="noite"),
+        ],
+    },
+    "saida_agora": {
+        "tipo": "tarefa_agora", "nome": "Compromisso de sair: na hora exata (app)",
+        "exemplo": {"titulo_padrao": "Buscar a Bia", "hora": "18:00"},
+        "variacoes": [
+            _v("Deu {hora}. Hora de ir: chave, carteira, celular."),
+            _v("{hora} em ponto. Pega as coisas e vai, sem correr."),
+            _v("É agora ({hora}). Se ainda não saiu, bora."),
+            _v("Deu {hora}. Tem alguém te esperando, bora?", se="pessoa"),  # 08/11: so com gente esperando
+        ],
+    },
+    "saida_atrasada": {
+        "tipo": "tarefa_horario", "nome": "Compromisso de sair: passou bem da hora",
+        "exemplo": {"titulo_padrao": "Date", "hora": "20:00", "atraso": "1 h 20 min", "chega": "21:35"},
+        "variacoes": [
+            _v("Era às {hora}, já faz {atraso}. Se ainda vai, chega às {chega}."),
+            _v("Passou {atraso} das {hora}. Saindo agora, tu chega às {chega}."),
+            _v("{hora} foi faz {atraso}. Ainda vai? Saindo já, chega às {chega}."),
+            _v("Faz {atraso} que era {hora}. Se ainda rola, chega às {chega}."),
+        ],
+    },
+    "saida_indo": {
+        "tipo": "tarefa_horario", "nome": "Compromisso de sair: já tá a caminho (GPS)",
+        "exemplo": {"titulo_padrao": "Date", "hora": "20:00", "chega": "20:10"},
+        "variacoes": [
+            _v("Tá a caminho, né? Vai tranquilo, sem correr."),
+            _v("Vi que tu saiu. Vai com calma, chega às {chega}."),
+            _v("Já tá indo. Respira e aproveita o caminho."),
+            _v("Pé na estrada. Sem pressa, o importante é chegar bem."),
+        ],
+    },
+    "saida_chegou": {
+        "tipo": "tarefa_horario", "nome": "Compromisso de sair: já chegou (GPS)",
+        "exemplo": {"titulo_padrao": "Date", "hora": "20:00"},
+        "variacoes": [
+            _v("Chegou bem. Aproveita!"),
+            _v("Tu já tá lá. Curte o momento."),
+            _v("Chegou. Agora é só aproveitar."),
+            _v("Já tá no lugar. O resto espera, aproveita."),
+        ],
+    },
+    "saida_passou": {
+        "tipo": "tarefa_horario_passou", "nome": "Compromisso de sair: 2o aviso depois da hora",
+        "exemplo": {"titulo_padrao": "Passou da hora", "nome": "Date", "hora": "20:00", "chega": "20:45"},
+        "variacoes": [
+            _v("{nome} era {hora}. Ainda em casa? Saindo agora chega às {chega}."),
+            _v("{nome}: era {hora}. Se ainda vai, saindo agora chega às {chega}."),
+            _v("Era {hora} ({nome}). Se ainda vai, tu chega às {chega}."),
+            _v("{nome} era {hora}. Saindo já, tu chega às {chega}."),
+        ],
+    },
     # ------------------------------------------------------------ compromisso de sair (date, festa)
     "se_arrumar": {
         "tipo": "se_arrumar", "nome": "Começa a se arrumar",
@@ -366,6 +440,8 @@ def _cond_ok(se: str | None, ctx: dict) -> bool:
     if se == "pouco_tempo":
         f = ctx.get("falta_min")
         return f is not None and f <= 10
+    if se == "pessoa":  # 08/11: "tem alguem te esperando" so quando tem (notificacoes.com_pessoa)
+        return bool(ctx.get("pessoa"))
     return False
 
 
@@ -375,8 +451,11 @@ def contexto(conn=None, agora: datetime | None = None, **extra) -> dict:
     ctx = {"hora": agora.hour, "fim_de_semana": agora.weekday() >= 5}
     if conn is not None:
         try:
+            # leva 08/11: completed_at e UTC - a tarefa feita as 22h ja e "amanha" em UTC e o aviso das 07:00
+            # de amanha contava ela como feita no dia dele ("boa sequencia hoje"). Dia de Brasilia do db.py.
+            import db  # aqui dentro: o modulo fica sem dependencia no import (testes puros do catalogo)
             ctx["feitos_hoje"] = conn.execute(
-                "SELECT COUNT(*) FROM tasks WHERE completed_at IS NOT NULL AND substr(completed_at, 1, 10) = ?",
+                f"SELECT COUNT(*) FROM tasks WHERE completed_at IS NOT NULL AND {db.dia_local_sql('completed_at')} = ?",
                 (agora.date().isoformat(),)).fetchone()[0]
         except Exception:  # noqa: BLE001 - contexto e extra
             pass

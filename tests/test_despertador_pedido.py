@@ -88,7 +88,7 @@ class DespertadorPedidoTestCase(unittest.TestCase):
         r = self.endpoint("?ate=06:00")  # o `ate` nao barra um pedido explicito
         self.assertEqual((r["tem"], r["acordar"], r["titulo"]), (True, "07:00", "pedido"))
         self.assertEqual(r["acordar_iso"], f"{AMANHA}T07:00:00")
-        self.assertIn("você pediu", r["mensagem"])
+        self.assertIn("tu pediu", r["mensagem"])
 
     def test_compromisso_que_exige_antes_ganha_e_a_ia_e_avisada(self):
         self.sql("INSERT INTO voos (data, origem, destino, hora) VALUES (?, 'SSBL', 'SSBL', '08:00')", (AMANHA,))

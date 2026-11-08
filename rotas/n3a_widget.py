@@ -118,16 +118,18 @@ def _linha_conta(conta: dict | None) -> str | None:
     if dias is None:
         return f"Conta: {conta['nome']}"
     if dias < 0:
-        return f"Conta: {conta['nome']} vencida ha {abs(dias)} dia(s)"
+        return f"Conta: {conta['nome']} vencida há {abs(dias)} {'dia' if dias == -1 else 'dias'}"
     if dias == 0:
         return f"Conta: {conta['nome']} vence hoje"
+    if dias == 1:
+        return f"Conta: {conta['nome']} vence amanhã"
     return f"Conta: {conta['nome']} em {dias} dias"
 
 
 def _linha_habitos(habitos: dict | None) -> str | None:
     if not habitos:
         return None
-    return f"Habitos: {habitos['feitos']}/{habitos['total']}"
+    return f"Hábitos: {habitos['feitos']}/{habitos['total']}"
 
 
 def _linha_custo_ia(custo_ia: dict | None) -> str | None:

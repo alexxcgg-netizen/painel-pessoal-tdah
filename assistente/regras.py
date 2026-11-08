@@ -405,8 +405,9 @@ def interpretar_regra(texto: str) -> dict:
 
 _NOME_PERIODO = {"semana": "por semana", "mes": "por mês", "dia": "por dia"}
 _NOME_SINAL = {
-    "cheguei": "você chegar", "sai": "você sair", "acordei": "você acordar",
-    "dormir": "você dormir", "carregando": "seu iPhone comecar a carregar",
+    # 08/11 (rodada com a IA de verdade): "quando você chegar em mercado" - o painel fala "tu" com ele
+    "cheguei": "tu chegar", "sai": "tu sair", "acordei": "tu acordar",
+    "dormir": "tu for dormir", "carregando": "o iPhone começar a carregar",
 }
 
 
@@ -454,7 +455,13 @@ def montar_resumo_regra(regra: dict) -> str:
         lugar = condicao.get("lugar")
         base = _NOME_SINAL.get(tipo, tipo)
         if lugar:
-            return f"Vou te avisar quando {base} em {lugar}."
+            import onde_estou  # "no mercado" / "na obra" / "em casa" (o mesmo das frases de lugar)
+
+            em = "em casa" if str(lugar).strip().lower() == "casa" else onde_estou._em_texto(str(lugar))
+            if tipo == "sai":  # sair DE: "de casa", "do mercado", "da obra"
+                em = re.sub(r"^(?:em|no|na|nos|nas)\b",
+                            lambda m: {"em": "de", "no": "do", "na": "da", "nos": "dos", "nas": "das"}[m.group(0)], em)
+            return f"Vou te avisar quando {base} {em}."
         return f"Vou te avisar quando {base}."
 
     return "Regra criada."
@@ -485,11 +492,13 @@ def total_gasto_periodo(conn, categoria: str, inicio: date, fim: date) -> float:
     """Soma dos gastos REAIS (tipo='real') de uma categoria entre inicio e
     fim (inclusive). Consulta direta em `expenses` (mesma tabela de
     db.gasto_mes_por_categoria, que so cobre mes calendario - aqui precisa
-    tambem de semana/dia, por isso nao reusa aquela funcao)."""
+    tambem de semana/dia, por isso nao reusa aquela funcao). Dia de Brasilia (08/11: created_at e UTC)."""
+    import db  # import tardio (ver _buscar_habito)
+
     row = conn.execute(
         "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses "
         "WHERE tipo = 'real' AND lower(category) = lower(?) "
-        "AND date(created_at) BETWEEN date(?) AND date(?)",
+        f"AND {db.dia_local_sql()} BETWEEN date(?) AND date(?)",
         (categoria, inicio.isoformat(), fim.isoformat()),
     ).fetchone()
     return float(row["total"] or 0.0)

@@ -145,7 +145,7 @@ class TarefaComApertoTestCase(_Base):
 
     def criar(self, hora, titulo="Tricologista"):
         def fake(mensagens, contexto, memorias, executores):
-            executores["registrar_tarefa"]({"titulo": titulo, "quando_data": HOJE, "hora": hora})
+            executores["registrar_tarefa"]({"titulo": titulo, "quando": "hoje", "quando_data": HOJE, "hora": hora})
             return "Feito.", ["registrar_tarefa"], _uso()
 
         with patch("claude_client.chat", side_effect=fake):

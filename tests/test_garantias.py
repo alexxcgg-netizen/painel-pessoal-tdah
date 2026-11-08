@@ -228,7 +228,7 @@ class GarantiasVencendoTestCase(unittest.TestCase):
         db.create_garantia(self.conn, "Ventilador", compra.isoformat(), 12, None)
         avisos = notificacoes.garantias_vencendo(self.conn, hoje=hoje, dias_aviso=15)
         self.assertEqual(len(avisos), 1)
-        self.assertIn("venceu ha", avisos[0][1])
+        self.assertIn("venceu há", avisos[0][1])
 
 
 class VerificarNotificarGarantiaTestCase(unittest.TestCase):

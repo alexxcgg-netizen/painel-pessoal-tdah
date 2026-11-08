@@ -536,8 +536,10 @@ def sincronizar_nubank(conn) -> dict:
             resumo.append({"conta_id": conta_id, "tipo": tipo, **contagem})
 
         mensagem = (
-            f"{total_novas} nova(s), {total_atualizadas} atualizada(s), "
-            f"{total_sem_mudanca} sem mudanca, {total_removidas} removida(s)"
+            f"{total_novas} {'nova' if total_novas == 1 else 'novas'}, "
+            f"{total_atualizadas} {'atualizada' if total_atualizadas == 1 else 'atualizadas'}, "
+            f"{total_sem_mudanca} sem mudança, "
+            f"{total_removidas} {'removida' if total_removidas == 1 else 'removidas'}"
         )
         # marca o sync bom ANTES do commit final: definir_configuracao ja
         # commita (db.py), entao esse commit cobre a leva toda (transacoes +

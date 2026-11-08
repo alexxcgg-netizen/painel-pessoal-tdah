@@ -25,6 +25,18 @@ DIFICEIS = [
     "refaz meu dia com o atraso",
     "tu errou a conta de novo",
     "não é isso que eu perguntei",
+    # leva 08/11 (B13): horarios no plural com verbo de remontar - inclusive como a fala transcreve "ajusta" -
+    # e atraso dito (a conta do resto do dia muda)
+    "ajusta os horários",
+    "Justo os horários aí",
+    "juste os horários de hoje",
+    "estima os horários de novo com o banho",
+    "atualiza os horários que mudou tudo",
+    "muda os horários da tarde",
+    "atrasei",
+    "vou atrasar uns 20 min",
+    "atrasou tudo aqui",
+    "tô atrasado",
 ]
 SIMPLES = [
     "gastei 50 no mercado",
@@ -34,6 +46,11 @@ SIMPLES = [
     "oi",
     "marca o dentista amanhã às 10h",
     "bom dia",
+    # leva 08/11: um horario so (singular) ou consulta dos horarios segue no degrau barato
+    "muda o horário do dentista pra 15h",
+    "quais os horários de hoje?",
+    "oq?",
+    "não entendi",
 ]
 
 

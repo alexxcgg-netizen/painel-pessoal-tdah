@@ -2270,7 +2270,8 @@ def list_incomes(conn, limit: int = 200) -> list[dict]:
 def total_incomes_mes(conn, ano_mes: str) -> float:
     """Soma das entradas do mes (ano_mes no formato 'AAAA-MM')."""
     row = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM incomes WHERE strftime('%Y-%m', created_at) = ?",
+        # 08/11: mes de Brasilia (created_at e UTC) - igual ao push e ao Inicio
+        f"SELECT COALESCE(SUM(amount), 0) AS total FROM incomes WHERE substr({dia_local_sql()}, 1, 7) = ?",
         (ano_mes,),
     ).fetchone()
     return row["total"]
@@ -2281,7 +2282,7 @@ def total_gastos_mes(conn, ano_mes: str, tipo: str = "real") -> float:
     formato 'AAAA-MM') - todas as categorias juntas."""
     row = conn.execute(
         "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses "
-        "WHERE tipo = ? AND strftime('%Y-%m', created_at) = ?",
+        f"WHERE tipo = ? AND substr({dia_local_sql()}, 1, 7) = ?",  # 08/11: mes de Brasilia
         (tipo, ano_mes),
     ).fetchone()
     return row["total"]
@@ -2311,20 +2312,135 @@ def _saida_pelo_sinal(transacao: dict) -> float | None:
     return -valor if valor is not None and valor < 0 else None
 
 
-def data_local_do_gasto(created_at) -> str | None:
-    """`created_at` de expenses e UTC (DEFAULT datetime('now')) - o gasto das 22h
-    de Brasilia ja e "amanha" em UTC. Pra parear com a `data` do extrato (dia
-    local da compra) converte pro dia local; so data (legado/teste) fica como esta."""
-    texto = (created_at or "").strip()
+_FUSO_BRASILIA = timezone(timedelta(hours=-3))  # Brasil sem horario de verao desde 2019 (igual ao '-3 hours' do SQL)
+
+
+def dia_local_sql(coluna: str = "created_at") -> str:
+    """Leva 08/11: dia de Brasilia (em SQL) de uma coluna gravada em UTC pelo datetime('now') do sqlite
+    (expenses.created_at, tasks.completed_at, responder.criado_em...). O gasto das 21h30 ja e "amanha" em
+    UTC; `date(created_at)` cru jogava ele pro dia seguinte. So data, sem hora (legado/teste), fica como esta.
+    Par em Python: `dia_local`."""
+    return f"(CASE WHEN length({coluna}) <= 10 THEN {coluna} ELSE date({coluna}, '-3 hours') END)"
+
+
+def datahora_local(texto) -> datetime | None:
+    """'2026-11-09 00:30:00' (UTC do datetime('now')) -> datetime(2026, 11, 8, 21, 30) de Brasilia, sem tzinfo.
+    So data, vazio ou invalido -> None (quem precisa so do dia usa `dia_local`)."""
+    texto = str(texto or "").strip()
+    if len(texto) <= 10:
+        return None
+    try:
+        dt = datetime.fromisoformat(texto)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_FUSO_BRASILIA).replace(tzinfo=None)
+
+
+def dia_local(texto) -> str | None:
+    """Mesmo criterio do `dia_local_sql`, em Python: '2026-11-09 00:30:00' (UTC) -> '2026-11-08'.
+    So data fica como esta; texto curto/vazio -> None; hora que nao parseia -> os 10 primeiros caracteres."""
+    texto = str(texto or "").strip()
     if len(texto) < 10:
         return None
     if len(texto) == 10:
         return texto
+    local = datahora_local(texto)
+    return local.date().isoformat() if local else texto[:10]
+
+
+def data_iso(valor) -> str | None:
+    """Leva 08/11: data que veio da IA, de fora ou de linha antiga, sempre como 'AAAA-MM-DD'. Vazio -> None;
+    '2026-11-15T09:00' -> '2026-11-15'; '20261115' / '2026-W46-1' (o fromisoformat do 3.14 aceita) ->
+    isoformat. Invalida -> ValueError. Quem grava devolve erro; quem le (lembrete antigo com hora) pula so
+    a linha torta, nunca o ciclo inteiro."""
+    if valor is None:
+        return None
+    if isinstance(valor, datetime):
+        return valor.date().isoformat()
+    if isinstance(valor, date):
+        return valor.isoformat()
+    if not isinstance(valor, str):
+        raise ValueError("data invalida")
+    texto = valor.strip()
+    if not texto:
+        return None
     try:
-        utc = datetime.fromisoformat(texto).replace(tzinfo=timezone.utc)
+        return date.fromisoformat(texto).isoformat()
     except ValueError:
-        return texto[:10]
-    return utc.astimezone().date().isoformat()
+        pass
+    return datetime.fromisoformat(texto).date().isoformat()
+
+
+# "casa d@ <quem>": so e casa de PESSOA com parente ou nome proprio depois (08/11, revisao: "Casa do
+# Construtor", "Casa da Picanha", "Casa das Baterias" sao lojas). Parente pode vir minusculo; nome proprio
+# precisa da inicial maiuscula no texto original e nao pode ser substantivo comum de nome de loja.
+_PARENTES = {
+    "mae", "pai", "vo", "vovo", "avo", "ava", "irma", "irmao", "tio", "tia", "sogra", "sogro", "prima", "primo",
+    "cunhada", "cunhado", "namorada", "namorado", "noiva", "noivo", "esposa", "marido", "mulher", "filha", "filho",
+    "madrinha", "padrinho", "afilhada", "afilhado", "enteada", "enteado", "madrasta", "padrasto", "neta", "neto",
+    "amiga", "amigo", "vizinha", "vizinho", "guri", "guria", "chefe", "patrao", "patroa", "ex", "sobrinha",
+    "sobrinho", "nora", "genro", "bisa", "dinda", "dindo", "mano", "mana",
+}
+_PARENTES_PLURAL = {"pais", "avos", "vos", "tios", "tias", "primos", "primas", "sogros", "irmas", "irmaos",
+                    "amigas", "amigos", "guris", "gurias", "meninas", "meninos", "manos"}
+_NAO_E_PESSOA = {
+    "construtor", "construcao", "picanha", "carne", "carnes", "bateria", "baterias", "pao", "paes", "bolo", "bolos",
+    "massa", "massas", "pizza", "pizzas", "tinta", "tintas", "ferragem", "ferragens", "pesca", "cafe", "cha",
+    "cultura", "moeda", "papel", "festa", "festas", "crianca", "criancas", "sorvete", "chocolate", "cerveja",
+    "vinho", "vinhos", "lavoura", "colonia", "praia", "campo", "musica", "costura", "limpeza", "racao", "piscina",
+    "piscinas", "agua", "gas", "eletrica", "hidraulica", "moveis", "colchao", "colchoes", "pneu", "pneus", "peca",
+    "pecas", "chave", "chaves", "lona", "lonas", "esfiha", "empada", "empadas", "sopa", "sopas", "pastel", "acai",
+    "cuca", "cucas", "torta", "tortas", "doce", "doces", "queijo", "queijos", "frango", "peixe", "camarao", "ovo",
+    "ovos", "fruta", "frutas", "verdura", "verduras", "flor", "flores", "planta", "plantas", "povo", "estudante",
+    "saude", "bebe", "noivas", "aposentado", "artesao", "artesa",
+    "show", "shows", "evento", "eventos", "cambio", "repouso", "oracao", "banho", "jogo", "jogos", "lado",
+    "esquina", "frente", "fundos", "campo", "praia", "serra", "sitio", "chacara", "fazenda", "paroquia",
+    "cultura", "carnes", "embalagem", "embalagens", "parafuso", "parafusos", "presente", "presentes",
+}
+_RE_CASA_DE_QUEM = re.compile(
+    r"^(?:a |na |pra |pro |ate |para |em )?casa (d[aoe]s?) ([^\W\d_]+)((?: [^\W\d_]+){0,2})$", re.IGNORECASE)
+
+
+def _sem_acento(texto: str) -> str:
+    import unicodedata
+
+    base = unicodedata.normalize("NFKD", texto or "")
+    return " ".join("".join(c for c in base if not unicodedata.combining(c)).split())
+
+
+def casa_de_pessoa(texto) -> bool:
+    """'casa da Fulana', 'casa da mae', 'na casa do guri', 'casa dos meus pais' -> True. 'Casa do Construtor',
+    'Casa da Picanha', 'Casa das Baterias', 'casa do construtor' -> False. So o "casa d@ X" sozinho (ate 3
+    palavras, sem endereco/numero junto). Usado pelo chat (lugar sem endereco) e pelo vida_assistente
+    (parada que nao vai pro Google)."""
+    t = _sem_acento(str(texto or "")).strip(" .,;")
+    m = _RE_CASA_DE_QUEM.match(t)
+    if not m:
+        return False
+    artigo, palavra, resto = m.group(1).lower(), m.group(2), m.group(3).split()
+    chave = palavra.lower()
+    if chave in ("minha", "meu", "minhas", "meus") and resto:  # "casa da minha mae", "casa dos meus pais"
+        palavra, chave = resto[0], resto[0].lower()
+    if chave in _PARENTES or chave in _PARENTES_PLURAL:
+        return True
+    if chave in _NAO_E_PESSOA:
+        return False
+    if artigo.endswith("s"):  # "das Baterias" nao; "dos Silva" (familia, com maiuscula) sim
+        return palavra[:1].isupper()
+    # 08/11: singular fora da lista de loja = pessoa, mesmo minusculo ("casa da fulana" vindo da voz).
+    # Errar pra "pessoa" so custa perguntar o endereco; errar pra "loja" manda pro Google e ja deu
+    # cidade homonima a 2158 min.
+    return True
+
+
+def data_local_do_gasto(created_at) -> str | None:
+    """`created_at` de expenses e UTC (DEFAULT datetime('now')) - o gasto das 22h
+    de Brasilia ja e "amanha" em UTC. Pra parear com a `data` do extrato (dia
+    local da compra) converte pro dia local; so data (legado/teste) fica como esta.
+    (08/11: virou apelido do `dia_local`, fuso fixo de Brasilia em vez do fuso da maquina.)"""
+    return dia_local(created_at)
 
 
 def gastos_chat_repetidos_no_banco(conn, regra_saida=None, so_dias=None) -> set[int]:
@@ -2386,7 +2502,7 @@ def total_gasto_real_mes(conn, ano_mes: str) -> float:
         # ids inteiros vindos do proprio banco - literal em vez de "?" pra nao bater no limite de parametros
         lista = ",".join(str(int(i)) for i in repetidos)
         descontar = conn.execute(
-            f"SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE strftime('%Y-%m', created_at) = ? "
+            f"SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE substr({dia_local_sql()}, 1, 7) = ? "
             f"AND id IN ({lista})",
             (ano_mes,),
         ).fetchone()["t"]
@@ -2422,7 +2538,7 @@ def gasto_mes_por_categoria(conn, categoria: str, ano_mes: str) -> float:
     """Soma dos gastos REAIS do mes numa categoria (ano_mes no formato 'AAAA-MM')."""
     row = conn.execute(
         "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses "
-        "WHERE category = ? AND tipo = 'real' AND strftime('%Y-%m', created_at) = ?",
+        f"WHERE category = ? AND tipo = 'real' AND substr({dia_local_sql()}, 1, 7) = ?",  # 08/11: mes de Brasilia
         (categoria, ano_mes),
     ).fetchone()
     return row["total"]
@@ -2555,6 +2671,13 @@ def latencias_resolvidas(conn, tipo: str) -> list[float]:
 
 def complete_task(conn, task_id: int) -> None:
     conn.execute("UPDATE tasks SET completed_at = datetime('now') WHERE id = ?", (task_id,))
+    efeitos_de_concluir(conn, task_id)
+
+
+def efeitos_de_concluir(conn, task_id: int) -> None:
+    """O que acontece depois de uma tarefa virar feita (completed_at ja gravado, em UTC). Separado do
+    complete_task (08/11) pro "concluir" do ajustar_tarefa do chat, que grava pelo _editar (Desfazer), ter
+    os mesmos efeitos: fecha o loop de aprendizado e da o credito do Feito pra cara do aviso. Commita."""
     fechar_interacao_aprendizado(conn, "tarefa_parada", task_id)
     conn.commit()
     try:  # aviso-cara: a ultima cara enviada dos avisos dessa tarefa leva o credito do Feito
@@ -2755,10 +2878,16 @@ def marcar_ou_criar_feito(
     titulo_norm = (titulo or "").strip().lower()
     if not titulo_norm:
         return {"ok": False, "erro": "titulo vazio"}
+    # 08/11: o modelo da recorrente (recorrencia + due_date NULL) nunca e candidato - ele casava antes da
+    # instancia do dia ("tomar remedio" concluia o modelo e o aviso de "passou da hora" seguia). Ordem:
+    # a de hoje, depois a atrasada mais recente, depois as sem dia.
     candidatas = conn.execute(
         "SELECT id, title FROM tasks WHERE completed_at IS NULL "
-        "AND (due_date IS NULL OR due_date <= ?)",
-        (hoje.isoformat(),),
+        "AND (due_date IS NULL OR due_date <= ?) "
+        "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL) "
+        "ORDER BY CASE WHEN due_date = ? THEN 0 WHEN due_date IS NOT NULL THEN 1 ELSE 2 END, "
+        "due_date DESC, id DESC",
+        (hoje.isoformat(), hoje.isoformat()),
     ).fetchall()
     for c in candidatas:
         existente = c["title"].strip().lower()
@@ -2804,6 +2933,43 @@ def list_voos(conn) -> list[dict]:
 def delete_voo(conn, voo_id: int):
     conn.execute("DELETE FROM voos WHERE id = ?", (voo_id,))
     conn.commit()
+
+
+# 08/11 (leva conversa inteira, C6): o card da semana sugeria "pedir um voo noturno no proximo voo" com o
+# ultimo voo de mais de um ano atras. Voo/treino parado ha mais disso nao vira sugestao.
+DIAS_ATIVIDADE_PARADA = 60
+
+
+def dias_desde_ultimo_voo(conn, hoje: date) -> int | None:
+    """Dias desde o ultimo voo REALIZADO (com horas, sem simulador) ate `hoje`. Nunca voou -> None."""
+    try:
+        row = conn.execute(
+            "SELECT MAX(data) FROM voos WHERE horas IS NOT NULL AND data <= ? AND COALESCE(tipo, '') != 'simulador'",
+            (hoje.isoformat(),),
+        ).fetchone()
+    except sqlite3.OperationalError:  # banco antigo sem a coluna tipo
+        row = conn.execute("SELECT MAX(data) FROM voos WHERE horas IS NOT NULL AND data <= ?",
+                           (hoje.isoformat(),)).fetchone()
+    try:
+        return (hoje - date.fromisoformat(str(row[0])[:10])).days if row and row[0] else None
+    except ValueError:
+        return None
+
+
+def dias_desde_ultimo_treino(conn, hoje: date) -> int | None:
+    """Dias desde o ultimo treino registrado (tabela treinos) ate `hoje`. Nunca treinou -> None."""
+    row = conn.execute("SELECT MAX(data) FROM treinos WHERE data <= ?", (hoje.isoformat(),)).fetchone()
+    try:
+        return (hoje - date.fromisoformat(str(row[0])[:10])).days if row and row[0] else None
+    except ValueError:
+        return None
+
+
+def atividade_parada(conn, tipo: str, hoje: date, limite: int = DIAS_ATIVIDADE_PARADA) -> bool:
+    """True quando o ultimo voo/treino (`tipo` = "voo" | "treino") foi ha mais de `limite` dias ou nunca
+    houve - ai nao cabe sugestao do tipo "no proximo voo"/"no proximo treino"."""
+    dias = dias_desde_ultimo_voo(conn, hoje) if tipo == "voo" else dias_desde_ultimo_treino(conn, hoje)
+    return dias is None or dias > limite
 
 
 def criar_uber_pedido(conn, origem: str | None, destino: str, disparar_em: str) -> int:

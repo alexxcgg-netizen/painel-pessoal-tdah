@@ -4,6 +4,7 @@ orquestracao (deduplicar por dia, mandar o push, marcar como enviado) fica
 em app.py."""
 
 import json
+import logging
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -12,6 +13,19 @@ import aprendizado
 import db
 import gastos
 import vida
+
+log = logging.getLogger(__name__)
+
+# Leva 08/11: expenses.created_at e tasks.completed_at sao datetime('now') do sqlite (UTC). O gasto
+# das 21h30 e a tarefa feita as 22h ja caem no dia seguinte em UTC; `date(coluna)` cru jogava eles
+# pra "amanha". Estas expressoes devolvem o dia de Brasilia (so data, legado/teste, fica como esta).
+_DIA_GASTO = db.dia_local_sql("created_at")
+_DIA_CONCLUSAO = db.dia_local_sql("completed_at")
+
+
+def _dias_txt(n: int) -> str:
+    """'1 dia' / '3 dias' - leva 08/11: push com plural errado ("1 dias") nao passa."""
+    return f"{n} dia" if n == 1 else f"{n} dias"
 
 
 def dentro_do_horario_silencioso(agora: datetime, inicio: str, fim: str) -> bool:
@@ -50,8 +64,8 @@ def tarefas_atrasadas(conn) -> str | None:
     if n == 0:
         return None
     if n == 1:
-        return "Você tem 1 tarefa atrasada."
-    return f"Você tem {n} tarefas atrasadas."
+        return "Tu tem 1 tarefa atrasada."
+    return f"Tu tem {n} tarefas atrasadas."
 
 
 def tarefas_paradas(conn, dias_minimo: int = 3, hoje: date | None = None) -> list[tuple[int, str]]:
@@ -71,7 +85,7 @@ def tarefas_paradas(conn, dias_minimo: int = 3, hoje: date | None = None) -> lis
     for r in rows:
         dias = (hoje - date.fromisoformat(r["due_date"])).days
         avisos.append(
-            (r["id"], f"\"{r['title']}\" esta parada ha {dias} dias. Ainda precisa fazer isso?")
+            (r["id"], f"\"{r['title']}\" está parada há {_dias_txt(dias)}. Ainda precisa fazer isso?")
         )
     return avisos
 
@@ -88,14 +102,21 @@ def esperas_paradas(conn, dias_minimo: int = 5, hoje: date | None = None) -> lis
         "SELECT id, quem, sobre, criado_em FROM esperas WHERE resolvido_em IS NULL"
     ).fetchall()
     for r in rows:
-        criado = datetime.fromisoformat(r["criado_em"]).date()
+        # leva 08/11: criado_em e UTC - a espera criada as 22h de Brasilia ja e "amanha" em UTC e
+        # contava 1 dia a menos. Dia local primeiro, depois a conta.
+        dia = db.dia_local(r["criado_em"])
+        try:
+            criado = date.fromisoformat(dia or "")
+        except ValueError:
+            log.warning("esperas_paradas: criado_em invalido na espera %s: %r", r["id"], r["criado_em"])
+            continue
         dias = (hoje - criado).days
         if dias < dias_minimo:
             continue
         avisos.append(
             (
                 r["id"],
-                f"Ainda esperando resposta de {r['quem']} sobre \"{r['sobre']}\" - já fazem {dias} dias.",
+                f"Ainda esperando resposta de {r['quem']} sobre \"{r['sobre']}\" - já faz {_dias_txt(dias)}.",
             )
         )
     return avisos
@@ -149,7 +170,7 @@ def texto_repeticao(tipo: str, titulo: str, corpo: str, repeticao: int) -> tuple
 
 
 def tarefas_com_horario_chegando(
-    conn, agora: datetime | None = None, antecedencia_minutos: int = 10
+    conn, agora: datetime | None = None, antecedencia_minutos: int = 10, caminho_min=None,
 ) -> list[tuple[int, str]]:
     """Tarefas pendentes com horario marcado pra hoje que estao chegando -
     pedido explicito do Alex (TDAH): avisar ANTES ("daqui 10 minutos voce tem
@@ -160,22 +181,204 @@ def tarefas_com_horario_chegando(
     aqui com a mensagem "na hora", nunca fica sem aviso nenhum so porque o
     tick certo de heads-up foi perdido. A deduplicacao (uma vez por tarefa
     por dia, em app.py) garante que so um dos dois formatos de mensagem sai,
-    mesmo com varios ticks do scheduler caindo dentro da janela."""
+    mesmo com varios ticks do scheduler caindo dentro da janela.
+    08/11 (frente A): depois da hora, compromisso de SAIR (e_saida) ganha texto de saida ("Ainda em casa?
+    Saindo agora tu chega as 20:15"), nunca "toca em Feito"; `caminho_min(task_row) -> int | None` vem de
+    fora (rede) pra dizer a chegada certa (sem ele: o ultimo trajeto guardado ou a folga). Tarefa comum que
+    chega mais de ATRASO_LONGO_MIN atrasada (servidor voltou de parada) diz o atraso real, uma mensagem so."""
     agora = agora or datetime.now()
     hoje = agora.date().isoformat()
     hora_atual = agora.strftime("%H:%M")
     limite_futuro = (agora + timedelta(minutes=antecedencia_minutos)).strftime("%H:%M")
     rows = conn.execute(
-        """SELECT id, title, hora FROM tasks
+        """SELECT * FROM tasks
            WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL AND hora <= ?""",
         (hoje, limite_futuro),
     ).fetchall()
     avisos = []
     for r in rows:
-        # 07/11 (frente C): com conn, o texto varia pelo catalogo (avisos_texto.py), estavel por tarefa/dia
-        avisos.append((r["id"], texto_tarefa_chegando(r["hora"], antes=r["hora"] > hora_atual, conn=conn,
-                                                      chave=f"tarefa_horario-{r['id']}-{hoje}", agora=agora)))
+        chave = f"tarefa_horario-{r['id']}-{hoje}"
+        antes = r["hora"] > hora_atual
+        atraso = None if antes else _min_desde(r["hora"], agora)
+        if not antes and e_saida(r):
+            # ja avisado hoje: o texto nem sai (dedup em app.py), entao nao gasta Maps com ele
+            ja = _notificado_em(conn, "tarefa_horario", r["id"], agora.date()) is not None
+            msg = texto_saida_depois(conn, r, agora, None if ja else caminho_min, chave=chave)
+        elif atraso is not None and atraso > ATRASO_LONGO_MIN:
+            msg = texto_tarefa_atrasada(r["hora"], atraso, conn=conn, chave=chave, agora=agora)
+        else:
+            # 07/11 (frente C): com conn, o texto varia pelo catalogo (avisos_texto.py), estavel por tarefa/dia
+            msg = texto_tarefa_chegando(r["hora"], antes=antes, conn=conn, chave=chave, agora=agora)
+        avisos.append((r["id"], msg))
     return avisos
+
+
+# ---- 08/11 (frente A): texto de saida depois da hora e atraso longo
+ATRASO_LONGO_MIN = 60  # aviso "e agora" que sai mais atrasado que isso (servidor parado) diz o atraso real
+FOLGA_SAIDA_MIN = 15  # mesma folga do plano_se_arrumar quando nao ha trajeto (Brusque e pequena)
+CAMINHO_GUARDADO = "saida_caminho_min"  # configuracoes: ultimo trajeto real de cada saida do dia
+
+
+def _min_desde(hora: str | None, agora: datetime) -> int | None:
+    """Minutos de `hora` (HH:MM de hoje) ate agora; negativo se ainda nao chegou. None se hora invalida."""
+    try:
+        quando = datetime.combine(agora.date(), datetime.strptime(hora or "", "%H:%M").time())
+    except ValueError:
+        return None
+    return int((agora - quando).total_seconds() // 60)
+
+
+def texto_atraso(minutos: int) -> str:
+    """75 -> "1 h 15 min"; 120 -> "2 h"; 40 -> "40 min"."""
+    h, m = divmod(max(0, int(minutos)), 60)
+    if not h:
+        return f"{m} min"
+    return f"{h} h {m} min" if m else f"{h} h"
+
+
+def _utc_para_local(texto: str | None) -> datetime | None:
+    """criado_em do SQLite (datetime('now'), UTC) -> hora local sem fuso (a do tick)."""
+    from datetime import timezone
+
+    try:
+        return datetime.fromisoformat(str(texto)).replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return None
+
+
+def _notificado_em(conn, tipo: str, referencia_id: int, dia: date) -> datetime | None:
+    """Quando (hora local) o aviso `tipo` daquela tarefa saiu no dia; None se nao saiu."""
+    try:
+        r = conn.execute(
+            "SELECT criado_em FROM notificacoes_enviadas WHERE tipo = ? AND referencia_id = ? AND data = ?",
+            (tipo, referencia_id, dia.isoformat()),
+        ).fetchone()
+    except Exception:  # noqa: BLE001 - banco antigo/teste sem a tabela
+        return None
+    if not r:
+        return None
+    return _utc_para_local(r["criado_em"]) or datetime.combine(dia, datetime.min.time())
+
+
+def _estado_saida(conn, task_id: int, dia: date) -> tuple[str, str | None]:
+    """('chegou' | 'indo' | '', chegada prevista HH:MM) de uma saida hoje, pelo GPS (onde_estou/onde_vou)."""
+    try:
+        if conn.execute(
+            "SELECT 1 FROM notificacoes_enviadas WHERE tipo = 'saida_chegou' AND referencia_id = ? AND data = ?",
+            (task_id, dia.isoformat()),
+        ).fetchone():
+            return "chegou", None
+        r = conn.execute(
+            "SELECT saiu_em, chegou_em, chegada_prevista FROM indo_pra WHERE dia = ? AND tarefa_id = ? "
+            "AND COALESCE(resposta, '') != 'outro' ORDER BY id DESC LIMIT 1",
+            (dia.isoformat(), task_id),
+        ).fetchone()
+    except Exception:  # noqa: BLE001 - sem indo_pra (banco antigo): sem estado
+        return "", None
+    if not r:
+        return "", None
+    if r["chegou_em"]:
+        return "chegou", None
+    if r["saiu_em"]:
+        prev = str(r["chegada_prevista"] or "")
+        return "indo", (prev[11:16] if len(prev) >= 16 else None)
+    return "", None
+
+
+def _caminho_guardado(conn, task_id: int, dia: date) -> int | None:
+    try:
+        d = json.loads(db.obter_configuracao(conn, CAMINHO_GUARDADO) or "{}")
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(d, dict) or d.get("dia") != dia.isoformat():
+        return None
+    return _min_valido((d.get("min") or {}).get(str(task_id)))
+
+
+def _guardar_caminho(conn, task_id: int, dia: date, minutos: int) -> None:
+    """Guarda o trajeto real usado no aviso: a repeticao (aviso_cara, sem rede) diz a mesma chegada."""
+    try:
+        d = json.loads(db.obter_configuracao(conn, CAMINHO_GUARDADO) or "{}")
+        if not isinstance(d, dict) or d.get("dia") != dia.isoformat():
+            d = {"dia": dia.isoformat(), "min": {}}
+        d.setdefault("min", {})[str(task_id)] = int(minutos)
+        db.definir_configuracao(conn, CAMINHO_GUARDADO, json.dumps(d))
+        conn.commit()
+    except Exception:  # noqa: BLE001 - guardar e extra, o aviso sai igual
+        pass
+
+
+def texto_saida_depois(conn, r, agora: datetime, caminho_min=None, passou: bool = False,
+                       chave: str | None = None) -> str:
+    """Corpo do aviso de um compromisso de SAIR depois da hora (08/11, frente A). Sem "toca em Feito", sem
+    "primeiro passo", sem "ainda da tempo de resolver hoje":
+      - GPS viu que ele chegou: "Chegou bem. Aproveita!"; saiu e esta a caminho: "Ta a caminho, ne?...";
+      - senao: "Ainda em casa? Saindo agora tu chega as HH:MM" (agora + trajeto; atraso longo diz o atraso).
+    `passou=True` e o 2o aviso (tarefa_horario_passou, titulo generico): o corpo leva o nome."""
+    import avisos_texto
+
+    dia = agora.date()
+    nome = " ".join(str(_coluna(r, "title") or "").split()) or "O compromisso"
+    estado, chega_prevista = _estado_saida(conn, r["id"], dia) if conn is not None else ("", None)
+    if estado:
+        assunto = "saida_chegou" if estado == "chegou" else "saida_indo"
+        corpo = avisos_texto.par(assunto, {"hora": r["hora"], "chega": chega_prevista}, conn=conn, chave=chave,
+                                 agora=agora)[1]
+        return f"{avisos_texto._curto(nome)}: {corpo}" if passou else corpo
+    caminho = None
+    if callable(caminho_min):
+        try:
+            caminho = _min_valido(caminho_min(r))
+        except Exception:  # noqa: BLE001 - rede/Maps: segue com o guardado ou a folga
+            caminho = None
+    if caminho is not None and conn is not None:
+        _guardar_caminho(conn, r["id"], dia, caminho)
+    elif conn is not None:
+        caminho = _caminho_guardado(conn, r["id"], dia)
+    if caminho is None:
+        caminho = FOLGA_SAIDA_MIN
+    chega = (agora + timedelta(minutes=caminho)).strftime("%H:%M")
+    atraso = _min_desde(r["hora"], agora) or 0
+    dados = {"nome": nome, "hora": r["hora"], "chega": chega, "atraso": texto_atraso(atraso)}
+    if passou:
+        assunto = "saida_passou"
+    elif atraso > ATRASO_LONGO_MIN:
+        assunto = "saida_atrasada"
+    else:
+        assunto = "saida_depois"
+    return avisos_texto.par(assunto, dados, conn=conn, chave=chave, agora=agora)[1]
+
+
+TITULO_SAIDA_PASSOU = "Hora de sair já passou"  # o mesmo de app.TITULO_SAIDA_PASSOU
+
+
+def titulo_saida_passou(conn, r, agora: datetime) -> str:
+    """Titulo do 2o aviso de um compromisso de SAIR (tarefa_horario_passou). 08/11 (rodada 3): com o GPS
+    dizendo que ele ja saiu ou ja chegou, "Hora de sair ja passou" em cima de "Chegou bem" nao combina -
+    o titulo vira o nome do compromisso."""
+    estado = _estado_saida(conn, r["id"], agora.date())[0] if conn is not None else ""
+    return titulo_tarefa(_coluna(r, "title") or "") if estado else TITULO_SAIDA_PASSOU
+
+
+def texto_agora_da_tarefa(r, conn=None, chave: str | None = None, agora=None) -> str:
+    """Corpo do "e agora" na hora exata (aviso local do app, avisos_app.montar) olhando a linha da tarefa:
+    compromisso de sair ganha texto de sair (nunca "toca em Feito"); o resto, o texto_tarefa_agora de sempre."""
+    import avisos_texto
+
+    if e_saida(r):
+        # 08/11 (rodada 3): "tem alguem te esperando" so com gente esperando (banco, consulta: nao)
+        return avisos_texto.par("saida_agora", {"hora": r["hora"]}, conn=conn, chave=chave, agora=agora,
+                                pessoa=com_pessoa(r))[1]
+    return texto_tarefa_agora(r["hora"], conn=conn, chave=chave, agora=agora)
+
+
+def texto_tarefa_atrasada(hora: str, atraso_min: int, conn=None, chave: str | None = None, agora=None) -> str:
+    """Aviso "e agora" que saiu bem atrasado (servidor voltou de parada, A6): diz o atraso real, sem
+    "passou um pouquinho"."""
+    import avisos_texto
+
+    return avisos_texto.par("tarefa_atrasada", {"hora": hora, "atraso": texto_atraso(atraso_min)},
+                            conn=conn, chave=chave, agora=agora)[1]
 
 
 # ---- Texto dos avisos (06/11/2026, voto do Alex no artefato "Avisos do Painel": estilo C "Amigo",
@@ -198,6 +401,8 @@ EMOJI_DO_AVISO = {
     # catalogo novo (07/11, frente C, avisos_texto.py): assuntos novos + a IA mandando aviso
     "lugar_fechado": "🚪", "transito_piorou": "🚦", "chegou_casa": "🏠", "meta_batida": "🎯",
     "sequencia": "🔥", "saida_previsao": "☔", "aviso_ia": "💬",
+    # leva 08/11 (frente A): o aviso da manha que repete quando ele acorda; a saida que o GPS fechou sozinha
+    "tarefa_manha": "\u23f0", "saida_feita": "\u2705",
 }
 EMOJI_REFEICAO = "🍽️"
 TITULO_REFEICAO = "Hora de comer"
@@ -273,7 +478,86 @@ def e_compromisso_de_sair(titulo: str) -> bool:
     return not e_refeicao(titulo) and bool(_PALAVRAS_SAIR.search(_sem_acento(titulo)))
 
 
+# ---- compromisso de sair x tarefa comum (leva 08/11, frente A, docs/briefings/2026-11-08-leva-conversa-inteira.md)
+# Date, balada, buscar alguem: nao e tarefa de "marcar Feito". Nunca "primeiro passo", nunca "ta na tua lista ha N
+# dias", nunca empurrado pela cascata do atraso, e o recado de atraso so existe quando tem alguem esperando.
+_PESSOA_PALAVRA = re.compile(
+    r"\b(?:com|buscar|pegar|encontrar|levar|ver)\s+(?:a |o |as |os |minha |meu |minhas |meus )?"
+    r"(mae|pai|vo|avo|avos|irma|irmao|irmaos|namorada|namorado|guri|guria|filho|filha|tio|tia|primo|prima|"
+    r"amigo|amiga|amigos|amigas|galera|pessoal|sogra|sogro|crush|ficante)\b"
+)
+_PESSOA_NOME = re.compile(r"\b(?i:com|buscar|pegar|encontrar|levar)\s+(?i:a |o |as |os )?(\w{3,})")
+# nome com maiuscula depois de "com/buscar" que NAO e gente esperando (orgao, banco, consultorio, coisa)
+_NAO_PESSOA = frozenset({
+    "banco", "caixa", "cartorio", "prefeitura", "detran", "receita", "inss", "correios", "clinica", "hospital",
+    "posto", "mercado", "shopping", "aeroclube", "oficina", "mecanico", "dentista", "medico", "medica", "doutor",
+    "doutora", "dra", "farmacia", "uber", "carro", "moto", "chave", "nubank", "itau", "bradesco", "santander",
+    "sicredi", "unimed", "forum", "anac", "policia", "escola", "faculdade", "empresa", "construtora",
+    "pix", "cartao", "dinheiro", "boleto", "google", "zoom", "meet", "teams",
+    # leva 08/11 (rodada 3): documento, sigla e coisa com inicial maiuscula ("Buscar Remedio", "Pegar Passaporte")
+    "cnh", "crlv", "cma", "rg", "cpf", "pf", "revisao", "documento", "documentos", "passaporte", "remedio",
+    "remedios", "exame", "exames", "encomenda", "encomendas", "pacote", "pedido", "ifood", "notebook", "celular",
+    "computador", "roupa", "roupas", "presente", "oculos", "laudo", "resultado", "certidao", "carteira", "chaves",
+    # profissional de servico nao e "alguem te esperando" pra recado de atraso
+    "instrutor", "instrutora", "professor", "professora", "personal", "corretor", "corretora", "vendedor",
+    "vendedora", "contador", "contadora", "advogado", "advogada", "tecnico", "tecnica",
+})
+# palavra no titulo que diz que o "nome" e de coisa (carro na revisao): "Levar o Onix na revisao"
+_COISA_NO_TITULO = frozenset({"revisao", "conserto", "manutencao", "lavacao", "lavagem", "vistoria", "emplacamento",
+                              "assistencia", "funilaria", "borracharia"})
+_VERBO_DE_IR = re.compile(r"\b(buscar|pegar|levar|encontrar|visitar|ir)\b")
+
+
+def _extras_de(r) -> dict:
+    v = _coluna(r, "extras")
+    if isinstance(v, dict):
+        return v
+    try:
+        e = json.loads(v) if v else {}
+    except (TypeError, ValueError):
+        return {}
+    return e if isinstance(e, dict) else {}
+
+
+def com_pessoa(r) -> bool:
+    """Tem alguem esperando (leva 08/11): date/balada, `extras.com_quem`, palavra de sair (festa, jantar, niver...)
+    ou "com/buscar <pessoa>" no titulo ("buscar a Ana", "almoco com a mae"). Banco, cartorio, consulta: nao."""
+    titulo = _coluna(r, "title") or ""
+    if e_refeicao(titulo):
+        return False
+    if _coluna(r, "estilo") in ("date", "balada") or _extras_de(r).get("com_quem"):
+        return True
+    if e_compromisso_de_sair(titulo) or _PESSOA_PALAVRA.search(_sem_acento(titulo)):
+        return True
+    # leva 08/11 (rodada 3): o nome com maiuscula so vale se parece nome de gente - sigla toda maiuscula (CNH,
+    # CRLV, PF) nao e; carro na revisao nao e; e titulo Todo Com Maiuscula nao diz nada pela maiuscula, entao
+    # la so vale o que nao for palavra comum (_NAO_PESSOA cobre as dos dois casos)
+    palavras = set(re.findall(r"\w+", _sem_acento(titulo)))
+    if palavras & _COISA_NO_TITULO:
+        return False
+
+    def _parece_nome(palavra: str) -> bool:
+        return (palavra[:1].isupper() and not palavra.isupper()
+                and _sem_acento(palavra) not in _NAO_PESSOA)
+
+    return any(_parece_nome(m.group(1)) for m in _PESSOA_NOME.finditer(titulo))
+
+
+def e_saida(r) -> bool:
+    """Compromisso de SAIR (leva 08/11): date/balada/festa, hora de sair (`sai_na_hora`), parada no caminho ou
+    alguem esperando num lugar ("buscar a Ana", "almoco com a mae" com local). "Estudar com o Pedro" sem
+    lugar nem verbo de ir nao e saida (pode ser em casa). `r` = linha de tasks (sqlite3.Row ou dict)."""
+    titulo = _coluna(r, "title") or ""
+    if sai_na_hora(r) or (_coluna(r, "parada") or "").strip() or _coluna(r, "estilo") in ("date", "balada"):
+        return True
+    if e_compromisso_de_sair(titulo):
+        return True
+    return com_pessoa(r) and bool((_coluna(r, "local") or "").strip() or _VERBO_DE_IR.search(_sem_acento(titulo)))
+
+
 PARADA_MIN = 5  # parado na parada do caminho ("passo na casa do guri antes"), briefing 04/11
+# 08/11 (A4): perna da parada acima disso e engano do Google ("casa da Fulana" virou uma cidade com o nome: 2158 min)
+PARADA_TETO_MIN = 180
 ADIANTAR_MAX_MIN = 60
 
 
@@ -281,19 +565,36 @@ def _min_valido(v) -> int | None:
     return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
 
 
-def caminho_com_parada(trajeto, folga: int, parada: str | None = None, ate_parada=None, parada_destino=None):
+def _perna(v, folga: int) -> int:
+    """Perna da parada: o Maps, se veio e nao e absurda (> PARADA_TETO_MIN); senao a folga."""
+    m = _min_valido(v)
+    return m if m is not None and m <= PARADA_TETO_MIN else folga
+
+
+def caminho_com_parada(trajeto, folga: int, parada: str | None = None, ate_parada=None, parada_destino=None,
+                       ate_parada_dito=None):
     """Minutos de casa ate o destino e o dado da parada (contrato do card de saida, briefing 04/11):
     (caminho_min, {"nome", "min_ate"} | None). Sem parada: o trajeto (ou a folga). Com parada:
-    casa -> parada + 5 min parado + parada -> destino; cada perna sem resposta do Maps usa a folga."""
+    casa -> parada + 5 min parado + parada -> destino; cada perna sem resposta do Maps, ou absurda
+    (acima de PARADA_TETO_MIN, 08/11), usa a folga - ou, na perna ate a parada, os minutos que ele
+    disse (`ate_parada_dito`, extras.parada_min), se disse."""
     parada = (parada or "").strip()
     if not parada:
         t = _min_valido(trajeto)
         return (t if t is not None else folga), None
-    ate = _min_valido(ate_parada)
-    ate = ate if ate is not None else folga
-    resto = _min_valido(parada_destino)
-    resto = resto if resto is not None else folga
+    dito = _min_valido(ate_parada_dito)
+    ate = _perna(ate_parada, dito if dito is not None and dito <= PARADA_TETO_MIN else folga)
+    resto = _perna(parada_destino, folga)
     return ate + PARADA_MIN + resto, {"nome": parada[:60], "min_ate": ate}
+
+
+def _casa_de_sem_apelido(conn, texto: str | None) -> bool:
+    try:
+        import vida_assistente
+
+        return bool((texto or "").strip()) and vida_assistente.casa_de_alguem_sem_apelido(conn, texto)
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def adiantar_min(extras_json) -> int:
@@ -364,9 +665,11 @@ def plano_se_arrumar(
         if parada:
             if trajeto_parada and perto:
                 ate, resto = trajeto_parada(parada, r["local"])
-        elif r["local"] and trajeto_min and perto:
+        elif r["local"] and trajeto_min and perto and not _casa_de_sem_apelido(conn, r["local"]):
+            # 08/11 (A4): "casa da Fulana" sem apelido nao vai pro Google (achava uma cidade): fica a folga
             trajeto = trajeto_min(r["local"])
-        caminho, info_parada = caminho_com_parada(trajeto, folga_sem_trajeto, parada, ate, resto)
+        caminho, info_parada = caminho_com_parada(trajeto, folga_sem_trajeto, parada, ate, resto,
+                                                  _extras_de(r).get("parada_min"))
         adiantado = adiantar_min(_coluna(r, "extras"))
         meu = meu_tempo_min(conn, evento, sai_na_hora(r))  # 06/11: o jeito dele (onde_vou), 0 sem amostra
         if sai_na_hora(r):
@@ -457,8 +760,14 @@ def metas_fora_do_ritmo(conn, tolerancia: float = 0.7) -> list[tuple[int, str]]:
     avisos = []
     metas = conn.execute("SELECT * FROM goals WHERE prazo IS NOT NULL").fetchall()
     for m in metas:
-        prazo = date.fromisoformat(m["prazo"])
-        criado = datetime.fromisoformat(m["criado_em"]).date()
+        # leva 08/11: um prazo cru ("dezembro", "31/12") derrubava a lista inteira a cada tick de 5 min
+        try:
+            prazo = date.fromisoformat(m["prazo"])
+            criado = datetime.fromisoformat(m["criado_em"]).date()
+        except (TypeError, ValueError):
+            log.warning("metas_fora_do_ritmo: data invalida na meta %s: prazo=%r criado_em=%r",
+                        m["id"], m["prazo"], m["criado_em"])
+            continue
         total_dias = (prazo - criado).days
         dias_passados = (hoje - criado).days
         if total_dias <= 0 or dias_passados <= 0 or hoje >= prazo:
@@ -467,7 +776,7 @@ def metas_fora_do_ritmo(conn, tolerancia: float = 0.7) -> list[tuple[int, str]]:
         esperado = m["valor_alvo"] * fracao
         if esperado > 0 and m["valor_guardado"] < esperado * tolerancia:
             avisos.append(
-                (m["id"], f"Meta \"{m['titulo']}\" esta atras do ritmo pra bater o prazo.")
+                (m["id"], f"Meta \"{m['titulo']}\" está atrás do ritmo pra bater o prazo.")
             )
     return avisos
 
@@ -490,7 +799,7 @@ def orcamentos_perto_ou_estourados(conn, hoje: date | None = None) -> list[tuple
             continue
         row = conn.execute(
             "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses "
-            "WHERE category = ? AND tipo = 'real' AND strftime('%Y-%m', created_at) = ?",
+            f"WHERE category = ? AND tipo = 'real' AND substr({_DIA_GASTO}, 1, 7) = ?",
             (categoria, ano_mes),
         ).fetchone()
         gasto = row["total"]
@@ -501,14 +810,14 @@ def orcamentos_perto_ou_estourados(conn, hoje: date | None = None) -> list[tuple
             avisos.append((
                 categoria,
                 "estourado",
-                f"Você já passou do orçamento de {categoria} esse mês: "
+                f"Tu já passou do orçamento de {categoria} esse mês: "
                 f"R$ {gasto:.2f} de um limite de R$ {limite:.2f}.",
             ))
         elif fracao >= 0.9:
             avisos.append((
                 categoria,
                 "quase",
-                f"Você já gastou R$ {gasto:.2f} em {categoria} esse mês - "
+                f"Tu já gastou R$ {gasto:.2f} em {categoria} esse mês - "
                 f"perto do limite de R$ {limite:.2f}.",
             ))
     return avisos
@@ -529,14 +838,14 @@ def teto_ia_perto_ou_estourado(conn) -> tuple[str, str] | None:
     if resumo["teto_estourado"]:
         return (
             "estourado",
-            f"Você já passou do teto mensal de IA: ${gasto:.2f} de um limite de ${teto:.2f}. "
+            f"Tu já passou do teto mensal de IA: ${gasto:.2f} de um limite de ${teto:.2f}. "
             "O classificador de intent vai preferir resolver por padrao aprendido (sem "
             "chamar a API) até o mês virar.",
         )
     if resumo["teto_perto"]:
         return (
             "quase",
-            f"Você já gastou ${gasto:.2f} com a API da IA esse mês - perto do teto de ${teto:.2f}.",
+            f"Tu já gastou ${gasto:.2f} com a API da IA esse mês - perto do teto de ${teto:.2f}.",
         )
     return None
 
@@ -648,7 +957,7 @@ def _total_gasto_entre(conn, inicio: date, fim: date) -> float:
     nem chegar a acontecer."""
     row = conn.execute(
         "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses "
-        "WHERE date(created_at) BETWEEN ? AND ? AND tipo = 'real'",
+        f"WHERE {_DIA_GASTO} BETWEEN ? AND ? AND tipo = 'real'",
         (inicio.isoformat(), fim.isoformat()),
     ).fetchone()
     return row["total"]
@@ -736,15 +1045,15 @@ def gastos_fora_do_padrao_categoria(
     hoje = hoje or date.today()
     inicio_historico = (hoje - timedelta(days=30 * meses_historico)).isoformat()
     gastos_hoje = conn.execute(
-        "SELECT id, category, amount FROM expenses WHERE tipo = 'real' AND date(created_at) = ?",
+        f"SELECT id, category, amount FROM expenses WHERE tipo = 'real' AND {_DIA_GASTO} = ?",
         (hoje.isoformat(),),
     ).fetchall()
     avisos = []
     for g in gastos_hoje:
         historico = conn.execute(
-            """SELECT amount FROM expenses
+            f"""SELECT amount FROM expenses
                WHERE tipo = 'real' AND category = ? AND id != ?
-                 AND date(created_at) >= ? AND date(created_at) < ?""",
+                 AND {_DIA_GASTO} >= ? AND {_DIA_GASTO} < ?""",
             (g["category"], g["id"], inicio_historico, hoje.isoformat()),
         ).fetchall()
         valores = [h["amount"] for h in historico]
@@ -761,8 +1070,8 @@ def gastos_fora_do_padrao_categoria(
         avisos.append(
             (
                 g["id"],
-                f"Gasto de R$ {g['amount']:.2f} em \"{g['category']}\" esta bem acima do "
-                f"normal pra essa categoria (media de R$ {media:.2f}).",
+                f"Gasto de R$ {g['amount']:.2f} em \"{g['category']}\" está bem acima do "
+                f"normal pra essa categoria (média de R$ {media:.2f}).",
             )
         )
     return avisos
@@ -784,7 +1093,15 @@ def garantias_vencendo(conn, hoje: date | None = None, dias_aviso: int = 15) -> 
         dias_ate = (vencimento - hoje).days
         if dias_ate > dias_aviso:
             continue
-        quando = f"venceu ha {-dias_ate} dia(s)" if dias_ate < 0 else "vence hoje" if dias_ate == 0 else f"vence em {dias_ate} dia(s)"
+        # 08/11 (rodada 3): plural de verdade, "ha" com acento, "amanha" (nada de "dia(s)")
+        if dias_ate < 0:
+            quando = f"venceu há {_dias_txt(-dias_ate)}"
+        elif dias_ate == 0:
+            quando = "vence hoje"
+        elif dias_ate == 1:
+            quando = "vence amanhã"
+        else:
+            quando = f"vence em {_dias_txt(dias_ate)}"
         avisos.append((g["id"], f"Garantia de \"{g['produto']}\" {quando} ({vencimento.strftime('%d/%m/%Y')})."))
     return avisos
 
@@ -837,7 +1154,13 @@ def lembretes_proximos(conn, dias: int = 7) -> list[tuple[int, str]]:
     hoje = date.today()
     avisos = []
     for row in conn.execute("SELECT * FROM lembretes").fetchall():
-        data_base = date.fromisoformat(row["data"])
+        # leva 08/11: uma data crua ("15/03", vazia) derrubava a lista inteira a cada tick de 5 min
+        try:
+            # rodada 3: lembrete antigo gravado com hora ("2026-11-15T09:00") vale pelo dia (db.data_iso)
+            data_base = date.fromisoformat(db.data_iso(row["data"]))
+        except (TypeError, ValueError):
+            log.warning("lembretes_proximos: data invalida no lembrete %s: %r", row["id"], row["data"])
+            continue
         proxima = proxima_ocorrencia_lembrete(data_base, bool(row["recorrente"]), hoje)
         dias_restantes = (proxima - hoje).days
         if not (0 <= dias_restantes <= dias):
@@ -869,8 +1192,10 @@ def lembretes_para_despertar(conn, agora: datetime | None = None) -> list[tuple[
     avisos = []
     for row in conn.execute("SELECT * FROM lembretes WHERE despertar = 1").fetchall():
         try:
-            base = date.fromisoformat(row["data"])
+            # leva 08/11 (rodada 3): lembrete antigo com hora ("2026-11-15T09:00") vale pelo dia (db.data_iso)
+            base = date.fromisoformat(db.data_iso(row["data"]))
         except (TypeError, ValueError):
+            log.warning("lembretes_para_despertar: data invalida no lembrete %s: %r", row["id"], row["data"])
             continue
         if proxima_ocorrencia_lembrete(base, bool(row["recorrente"]), hoje) != hoje:
             continue
@@ -914,8 +1239,9 @@ def semana_pesada_aviso(conn, hoje: date | None = None) -> str | None:
     if not resultado["sobrecarregada"]:
         return None
     return (
-        f"A semana que vem já esta com {contagem_proxima} compromisso(s)/tarefa(s) marcado(s), "
-        f"bem acima do seu normal (mediana de {resultado['mediana_historica']:.0f} nas últimas "
+        # 08/11 (rodada 3): sem "(s)" - so chega aqui com 3+ itens (aprendizado.semana_pesada: mediana >= 1, +2)
+        f"A semana que vem já está com {contagem_proxima} compromissos e tarefas marcados, "
+        f"bem acima do teu normal (mediana de {resultado['mediana_historica']:.0f} nas últimas "
         f"{resultado['amostras']} semanas). Vale se planejar com folga."
     )
 
@@ -940,7 +1266,7 @@ def fechamento_noturno_devido(agora: datetime | None = None) -> bool:
 
 def _total_gasto_dia(conn, dia: date) -> float:
     row = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
+        f"SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE {_DIA_GASTO} = ? AND tipo = 'real'",
         (dia.isoformat(),),
     ).fetchone()
     return row["total"]
@@ -953,7 +1279,8 @@ def mensagem_fechamento_noturno(conn, hoje: date | None = None) -> str:
     resumido numa mensagem so."""
     hoje = hoje or date.today()
     concluidas = conn.execute(
-        "SELECT COUNT(*) AS n FROM tasks WHERE date(completed_at) = ?", (hoje.isoformat(),)
+        f"SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NOT NULL AND {_DIA_CONCLUSAO} = ?",
+        (hoje.isoformat(),),
     ).fetchone()["n"]
     pendentes = conn.execute(
         "SELECT title FROM tasks WHERE completed_at IS NULL AND due_date = ? "
@@ -964,11 +1291,11 @@ def mensagem_fechamento_noturno(conn, hoje: date | None = None) -> str:
 
     partes = []
     if concluidas == 0:
-        partes.append("Nenhuma tarefa concluida hoje.")
+        partes.append("Nenhuma tarefa concluída hoje.")
     elif concluidas == 1:
-        partes.append("1 tarefa concluida hoje.")
+        partes.append("1 tarefa concluída hoje.")
     else:
-        partes.append(f"{concluidas} tarefas concluidas hoje.")
+        partes.append(f"{concluidas} tarefas concluídas hoje.")
 
     if pendentes:
         titulos = ", ".join(r["title"] for r in pendentes)
@@ -996,9 +1323,9 @@ def resumo_manha_gastos_pendentes(conn, hoje: date | None = None) -> str:
 
     partes = []
     if gasto_ontem > 0:
-        partes.append(f"Ontem você gastou R$ {gasto_ontem:.2f}.")
+        partes.append(f"Ontem tu gastou R$ {gasto_ontem:.2f}.")
     else:
-        partes.append("Ontem você não registrou gasto nenhum.")
+        partes.append("Ontem tu não registrou gasto nenhum.")
     if pendentes == 0:
         partes.append("Nenhuma tarefa pendente.")
     elif pendentes == 1:
@@ -1021,10 +1348,17 @@ def currency_voo_baixa(conn, limiar_dias: int = 21) -> str | None:
     ).fetchone()["ultima"]
     if not ultima:
         return None
-    dias = (hoje - date.fromisoformat(ultima)).days
+    try:
+        dia_voo = date.fromisoformat(str(ultima)[:10])
+    except ValueError:
+        log.warning("currency_voo_baixa: data invalida no ultimo voo: %r", ultima)
+        return None
+    dias = (hoje - dia_voo).days
     if dias < limiar_dias:
         return None
-    return f"Faz {dias} dias que você não voa - pode ser hora de marcar um voo pra não perder o ritmo."
+    # leva 08/11: "Faz 383 dias que voce nao voa" assusta e soa robo - a data do ultimo voo diz o mesmo
+    quando = dia_voo.strftime("%d/%m") if dia_voo.year == hoje.year else dia_voo.strftime("%d/%m/%Y")
+    return f"Teu último voo foi em {quando}. Bora marcar o próximo pra não perder o ritmo?"
 
 
 def montar_mensagem_agrupada(itens: list[tuple[str, str]]) -> tuple[str, str]:
@@ -1090,7 +1424,17 @@ def habitos_passaram_batido(conn, agora: datetime | None = None) -> list[tuple[i
     return avisos
 
 
-def tarefas_horario_passou(conn, agora: datetime | None = None, minutos_depois: int = 30) -> list[tuple[int, str]]:
+def _tarefa_horario_ligado(conn) -> bool:
+    try:
+        from assistente import avisos as avisos_assistente
+
+        return avisos_assistente.esta_ligado("tarefa_horario", conn=conn)
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def tarefas_horario_passou(conn, agora: datetime | None = None, minutos_depois: int = 30,
+                           caminho_min=None) -> list[tuple[int, str]]:
     """Complementa tarefas_com_horario_chegando (aviso ANTES/na hora): um
     segundo aviso, `minutos_depois` apos o horario marcado, se a tarefa
     continuar pendente - so constata o fato (ainda da tempo hoje), sem
@@ -1098,19 +1442,39 @@ def tarefas_horario_passou(conn, agora: datetime | None = None, minutos_depois: 
     (mesmo padrao de tarefas_paradas acima) - o exemplo do PRD ("a tarefa
     era 14:00...") fica intacto depois das aspas, so identifica QUAL tarefa
     quando ha mais de uma pendente. Dedup (uma vez por dia) fica com quem
-    chama."""
+    chama.
+    08/11 (frente A): sai `minutos_depois` depois do aviso da hora (tarefa_horario), nunca no mesmo tick
+    dele (servidor voltando de parada mandava os dois juntos) - mesma quantidade, so espaca. Compromisso
+    de SAIR ganha texto de saida (sem "ainda da tempo de resolver hoje")."""
     agora = agora or datetime.now()
     hoje = agora.date().isoformat()
     limite = (agora - timedelta(minutes=minutos_depois)).strftime("%H:%M")
     rows = conn.execute(
-        """SELECT id, title, hora FROM tasks
+        """SELECT * FROM tasks
            WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL AND hora <= ?""",
         (hoje, limite),
     ).fetchall()
-    return [
-        (r["id"], f"\"{r['title']}\" - a tarefa era {r['hora']}, ainda dá tempo de resolver hoje.")
-        for r in rows
-    ]
+    # aviso da hora desligado na tela Avisos: ele nunca sai, entao nao segura este
+    esperar_o_da_hora = bool(rows) and _tarefa_horario_ligado(conn)
+    # 08/11 (rodada 3): a insistencia do aviso da hora manda "Ultima chamada" no ultimo passo (30 min): este
+    # sai 5 min depois dela, nunca no mesmo tick. So espaca: a tarefa continua tendo os mesmos avisos.
+    espera = max(minutos_depois, max(INSISTENCIA.get("tarefa_horario") or (0,)) + 5)
+    avisos = []
+    for r in rows:
+        if esperar_o_da_hora:
+            enviado = _notificado_em(conn, "tarefa_horario", r["id"], agora.date())
+            if enviado is None or agora < enviado + timedelta(minutes=espera):
+                continue
+        if e_saida(r):
+            # 08/11 (rodada 3): ja avisado hoje = o texto nem sai (dedup em app.py): sem Maps nem commit a cada
+            # tick ate a meia-noite (mesmo jeito do tarefas_com_horario_chegando)
+            ja = _notificado_em(conn, "tarefa_horario_passou", r["id"], agora.date()) is not None
+            msg = texto_saida_depois(conn, r, agora, None if ja else caminho_min, passou=True,
+                                     chave=f"tarefa_horario_passou-{r['id']}-{hoje}")
+        else:
+            msg = f"\"{r['title']}\" - a tarefa era {r['hora']}, ainda dá tempo de resolver hoje."
+        avisos.append((r["id"], msg))
+    return avisos
 
 
 def cartoes_perto_ou_estourados(conn, hoje: date | None = None) -> list[tuple[int, str, str, str]]:

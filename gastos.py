@@ -2,7 +2,15 @@ import re
 from collections import Counter
 from datetime import date, timedelta
 
+from db import dia_local as _dia_local
+
 _PALAVRAS_IGNORADAS = {"de", "da", "do", "em", "no", "na", "para", "com", "e", "a", "o", "ltda", "sa"}
+
+
+def _dia_do_gasto(e: dict) -> str:
+    """Dia de Brasilia do gasto (08/11: created_at e UTC - o gasto das 21h30 caia no dia seguinte)."""
+    bruto = e["created_at"] or ""
+    return _dia_local(bruto) or bruto[:10]
 
 
 def _tokenizar(texto: str) -> set[str]:
@@ -94,7 +102,7 @@ def _agrupar_por_descricao(expenses: list[dict], hoje: date, meses_analise: int)
     limite = (hoje - timedelta(days=31 * meses_analise)).isoformat()
     grupos: dict[tuple[str, str], list[dict]] = {}
     for e in expenses:
-        dia = e["created_at"][:10]
+        dia = _dia_do_gasto(e)
         if dia < limite:
             continue
         descricao = e.get("description") or e.get("source_text") or ""
@@ -240,7 +248,7 @@ def historico_diario(expenses: list[dict], dias: int, hoje: date) -> list[dict]:
     inicio = hoje - timedelta(days=dias - 1)
     totais_por_dia = {}
     for e in expenses:
-        dia = e["created_at"][:10]
+        dia = _dia_do_gasto(e)
         if dia < inicio.isoformat() or dia > hoje.isoformat():
             continue
         totais_por_dia[dia] = totais_por_dia.get(dia, 0.0) + e["amount"]
@@ -265,7 +273,7 @@ def resumo_semanal(expenses: list[dict], hoje: date) -> dict:
     total_anterior = 0.0
     por_categoria: dict[str, float] = {}
     for e in expenses:
-        dia = e["created_at"][:10]
+        dia = _dia_do_gasto(e)
         if inicio_atual.isoformat() <= dia <= hoje.isoformat():
             total_atual += e["amount"]
             cat = e.get("category") or "outros"

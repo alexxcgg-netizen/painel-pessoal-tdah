@@ -12,9 +12,10 @@ explicando a si mesmo. GET /api/aprendizado existe so como auditoria tecnica
 
 import re
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 import db
+from diario import utc_para_local
 
 # Quantas amostras mais recentes entram na conta do limiar GLOBAL (nao no
 # especifico por titulo/quem, que ja costuma ter poucas amostras de qualquer
@@ -170,7 +171,10 @@ def _tarefas_atrasadas_detalhe(conn) -> list[dict]:
     detalhe = []
     for r in rows:
         due = date.fromisoformat(r["due_date"])
-        concluida_dt = datetime.fromisoformat(r["completed_at"])
+        # 08/11: completed_at e UTC - feita depois das 21h contava 1 dia de atraso
+        concluida_dt = utc_para_local(r["completed_at"])
+        if concluida_dt is None:
+            continue
         dias = (concluida_dt.date() - due).days
         if dias > 0:
             detalhe.append({"id": r["id"], "titulo": r["title"], "dias": dias, "quando": concluida_dt})
@@ -186,9 +190,11 @@ def _esperas_resolvidas_detalhe(conn) -> list[dict]:
     ).fetchall()
     detalhe = []
     for r in rows:
-        criada = datetime.fromisoformat(r["criado_em"]).date()
-        resolvida_dt = datetime.fromisoformat(r["resolvido_em"])
-        dias = (resolvida_dt.date() - criada).days
+        criada_dt = utc_para_local(r["criado_em"])  # as duas colunas sao datetime('now') = UTC
+        resolvida_dt = utc_para_local(r["resolvido_em"])
+        if criada_dt is None or resolvida_dt is None:
+            continue
+        dias = (resolvida_dt.date() - criada_dt.date()).days
         if dias >= 0:
             detalhe.append({"id": r["id"], "quem": r["quem"], "dias": dias, "quando": resolvida_dt})
     detalhe.sort(key=lambda d: d["quando"], reverse=True)
@@ -380,7 +386,8 @@ def produtividade_por_dia_semana(conn, minimo_amostras: int = 3) -> dict[int, fl
             continue
         dia_semana = devido.weekday()
         total_por_dia[dia_semana] += 1
-        if r["completed_at"] and datetime.fromisoformat(r["completed_at"]).date() <= devido:
+        concluida = utc_para_local(r["completed_at"])
+        if concluida and concluida.date() <= devido:
             no_prazo_por_dia[dia_semana] += 1
     return {
         dia: no_prazo_por_dia[dia] / total_por_dia[dia]
@@ -425,7 +432,8 @@ def correlacao_sono_produtividade(conn, minimo_amostras: int = 3) -> dict[str, f
         dia = date.fromisoformat(d["data"])
         for t in tarefas_do_dia:
             total_por_bucket[bucket] += 1
-            if t["completed_at"] and datetime.fromisoformat(t["completed_at"]).date() == dia:
+            concluida = utc_para_local(t["completed_at"])
+            if concluida and concluida.date() == dia:
                 no_prazo_por_bucket[bucket] += 1
     return {
         b: no_prazo_por_bucket[b] / total_por_bucket[b]
@@ -546,6 +554,8 @@ def dica_sono_humor(conn, minimo_amostras: int = 3, diferenca_minima: float = 0.
     """Frase so quando a diferenca entre a melhor e a pior faixa de sono for
     real (meio ponto na escala de 1 a 3) - senao e ruido."""
     rotulo = {1: "ruim", 2: "ok", 3: "bom"}
+    # com o Alex e sempre "tu" (leva 08/11): teu humor, tua energia
+    possessivo = {"humor": "teu", "energia": "tua"}
     partes = []
     for campo in ("humor", "energia"):
         medias = media_checkin_por_faixa_sono(conn, campo, minimo_amostras)
@@ -556,15 +566,16 @@ def dica_sono_humor(conn, minimo_amostras: int = 3, diferenca_minima: float = 0.
         if medias[melhor] - medias[pior] < diferenca_minima:
             continue
         alto, baixo = rotulo[round(medias[melhor])], rotulo[round(medias[pior])]
+        dono = possessivo[campo]
         if alto == baixo:
-            partes.append(f"seu {campo} fica melhor depois de {melhor} de sono do que depois de {pior}")
+            partes.append(f"{dono} {campo} fica melhor depois de {melhor} de sono do que depois de {pior}")
         else:
             partes.append(
-                f"seu {campo} fica mais pra '{alto}' depois de {melhor} de sono e mais pra '{baixo}' depois de {pior}"
+                f"{dono} {campo} fica mais pra '{alto}' depois de {melhor} de sono e mais pra '{baixo}' depois de {pior}"
             )
     if not partes:
         return None
-    return "Pelo seu check-in, " + "; ".join(partes) + "."
+    return "Pelo teu check-in, " + "; ".join(partes) + "."
 
 
 # ---- Banco "pergunta -> onde buscar" (Fase 6, US-E7) -----------------------
@@ -591,7 +602,7 @@ FONTES_CONSULTA = ("projeto", "meta", "treinos", "habitos", "saude_dia", "sugest
 # So e consulta se COMECA com um jeito de perguntar/pedir pra ver, ou termina
 # com "?" - "quero uma meta de 5 mil" nunca vira consulta de meta.
 _GATILHO_CONSULTA = re.compile(
-    r"^(?:(?:me |pode me |quero |queria )?(?:mostra|mostre|mostrar|ver|ve|veja|abre|abrir|lista|listar)\b"
+    r"^(?:(?:me |pode me |quero |queria |preciso )?(?:mostra|mostre|mostrar|ver|ve|veja|abre|abrir|lista|listar)\b"
     r"|como\b|qual\b|quais\b|quanto|quanta|cade\b|onde (?:ta|esta)\b|resumo\b|status\b)"
     r"|\?$"
 )
@@ -608,8 +619,27 @@ _VERBO_ACAO = re.compile(
 _FORA_DO_BANCO = re.compile(
     r"\b(gast\w*|pag\w*|saldo|dinheiro|conta|contas|fatura|cartao|sobr\w*|orcamento|reais|r\$|"
     r"tarefas?|lembretes?|voos?|remedios?|compras?|notas?|noticias?|clima|tempo|construtora|banco|"
-    r"email|e-mail|uber|cotac\w*|plano|carro|moto|lav\w+|jogar|joga|molh\w*|chuv\w*|chov\w*|date)\b"
+    r"email|e-mail|uber|cotac\w*|plano|carro|moto|lav\w+|jogar|joga|molh\w*|chuv\w*|chov\w*|date|"
+    # 08/11 (leva "conversa inteira"): trajeto, lugar, horario de funcionamento, clima e preco. "que horas vou
+    # chegar em casa?" virava o card de horario livre; "onde fica a academia?"/"quanto custa a academia?" o
+    # card de treinos. Nada disso o banco local responde.
+    r"cheg\w*|sai|sair|saio|saida|saindo|volt\w*|busc\w*|pegar|pego|levar|levo|deixar|deixo|trajeto|rota|"
+    r"caminho|km|distancia|longe|perto|transito|estrada|demor\w*|abert[oa]|abre|"
+    r"funciona\w*|onde fica|onde e|endereco|mapa|localiza\w*|aeroporto|aeroclube|voar|viajar|frio|calor|"
+    r"graus|temperatura|previsao|vento|umidade|cust\w*|preco|precos|mensalidade)\b"
 )
+# 08/11 (3a rodada): atraso/fechar sao de trajeto/lugar ("vou chegar atrasado?", "a academia fecha que horas?"),
+# mas "to atrasado nos habitos?" e "quanto falta pra fechar a meta?" sao do banco local: com habito/treino/meta
+# na frase essas palavras nao derrubam o atalho (academia e lugar, nao conta como contexto).
+_FORA_SEM_CONTEXTO = re.compile(r"\b(atras\w*|fecha\w*)\b")
+_RE_CONTEXTO_LOCAL = re.compile(r"\b(habitos?|treinos?|treinei|metas?)\b")
+_ATRASO_FECHO_DE_ESTADO = re.compile(r"^(?:atrasad[oa]s?|atrasos?|fechar|fechei|fechou|fechad[oa]s?)$")
+# melhor/pior/preciso com contexto local so sao consulta quando falam DO DELE ("qual foi meu melhor treino?",
+# "qual habito ta pior?", "preciso ver meus habitos"); "qual o melhor treino pra perder peso?" e conselho (IA)
+_RE_DO_DELE = re.compile(r"\b(meu|minha|meus|minhas|foi|foram|ta|tao|esta|estao|to|tou|estou)\b")
+_RE_MELHOR_PIOR = re.compile(r"\b(?:melhor|pior)\b")
+_RE_PRECISO = re.compile(r"\bprecis\w*")
+_RE_PRECISO_VER = re.compile(r"\bprecis\w* (?:ver|olhar|conferir|saber)\b")
 _RE_PROJETO = re.compile(r"\bprojetos?\b")
 _RE_PROJETO_TERMO = re.compile(r"\bprojetos? (?:(?:d[aeo]s?|de|pra|para) )?([a-z0-9][a-z0-9 ]*?)(?: e | com |,|\?|$)")
 _RE_VIAGEM = re.compile(r"\bviage(?:m|ns)\b")
@@ -624,12 +654,75 @@ _RE_SAUDE = re.compile(
     r"|\b(copos?|bebi|bebido|beber|bebendo|tomei|tomar|quanta|quantos|quanto)\b.*\bagua\b"
 )
 _RE_DIAS = re.compile(r"\bultim[oa]s? (\d{1,3}) dias?\b")
-_RE_SUGESTAO = re.compile(
-    r"^(?:como|quando|que horas) (?:eu )?(?:encaixo|encaixar|faco|fazer|vou|posso|consigo|da pra)"
-    r"(?: encaixar| fazer| ir)?(?: (?:o|a|meu|minha|um|uma|pra|para|na|no))* ([a-z][a-z ]{1,38}?)"
-    r"(?: hoje| agora| ainda hoje)?\??$"
-    r"|^(?:qual|que) (?:e )?(?:o )?(?:melhor )?horario (?:pra|para) (?:eu )?(?:(?:fazer|encaixar|ir) )?"
-    r"(?:(?:o|a|meu|minha|na|no) )*([a-z][a-z ]{1,38}?)(?: hoje| agora)?\??$"
+# Card de horario livre (sugerir_horario_livre) so pra pergunta de ENCAIXAR uma atividade dele sem hora.
+# 08/11: o padrao antigo pegava "como|quando|que horas" + "vou|faco|posso" + qualquer coisa - "que horas vou
+# chegar em casa?", "quando vou buscar a menina?", "como faco pra estudar meteorologia?" viravam um horario
+# livre que ninguem pediu. Agora sao quatro formas, e o que sobra de titulo passa pelo _RE_SUG_NAO.
+_ARTIGOS_SUG = r"(?: (?:o|a|os|as|meu|minha|meus|minhas|um|uma))*"
+_FIM_SUG = r"(?: hoje| agora| ainda hoje)?\??$"
+_RE_SUG_ENCAIXE = re.compile(  # "como encaixo meu treino hoje?", "quando da pra encaixar a corrida?"
+    r"^(?:como|quando|que horas|a que horas) (?:eu )?(?:(?:posso|consigo|da pra) )?(?:encaixo|encaixar|encaixa)"
+    + _ARTIGOS_SUG + r" ([a-z][a-z ]{1,38}?)" + _FIM_SUG
+)
+_RE_SUG_QUANDO = re.compile(  # "quando consigo estudar hoje?", "que horas faco o treino?"
+    r"^(?:quando|que horas|a que horas) (?:eu )?(?:faco|fazer|(?:posso|consigo|da pra)(?: fazer)?)"
+    + _ARTIGOS_SUG + r" ([a-z][a-z ]{1,38}?)" + _FIM_SUG
+)
+# "que horas eu vou pra academia hoje?": com "vou", so atividade sem hora fixa (o resto e plano/trajeto: IA)
+_ATIVIDADES_SEM_HORA = (
+    r"(?:academia|treino|treinar|malhar|musculacao|estudar|estudo|correr|corrida|caminhar|caminhada|pedalar|"
+    r"bike|nadar|natacao|ler|leitura|meditar|alongar|alongamento|yoga|pilates|crossfit|funcional|esteira|"
+    r"cardio|simulador)"
+)
+_RE_SUG_VOU = re.compile(
+    r"^(?:quando|que horas|a que horas) (?:eu )?vou(?: (?:pra|para|na|no|a|o|fazer|meu|minha))* ("
+    + _ATIVIDADES_SEM_HORA + r"(?: (?:de )?[a-z]+){0,3}?)" + _FIM_SUG
+)
+_RE_SUG_HORARIO = re.compile(  # "qual o melhor horario pra estudar?"
+    r"^(?:qual|que) (?:e )?(?:o )?(?:melhor )?horario (?:pra|para) (?:eu )?(?:(?:fazer|encaixar) )?"
+    r"(?:(?:o|a|meu|minha|na|no) )*([a-z][a-z ]{1,38}?)" + _FIM_SUG
+)
+_RES_SUGESTAO = (_RE_SUG_ENCAIXE, _RE_SUG_QUANDO, _RE_SUG_VOU, _RE_SUG_HORARIO)
+# 08/11 (3a rodada): "que horas vou treinar amanha?" virava horario livre de HOJE (o titulo engolia o dia). O
+# plano local (app._plano_local_chat) so manda titulo+duracao pro sugerir_horario_livre, sem dia: com dia que
+# nao e hoje, a IA responde.
+_RE_SUG_OUTRO_DIA = re.compile(
+    r"\b(?:amanha|depois de amanha|ontem|segunda|terca|quarta|quinta|sexta|sabado|domingo|dia \d{1,2}|"
+    r"semana que vem|proxima semana|fim de semana|final de semana|mes que vem)\b"
+)
+# titulo que nao e atividade dele sem hora: ir a um lugar, gente, comida, dormir/acordar, se arrumar
+_RE_SUG_NAO = re.compile(
+    r"\b(?:ir|vou|casa|com|ver|visitar|encontrar|ligar|falar|cobrar|mandar|responder|almocar|almoco|jantar|"
+    r"janta|comer|lanchar|lanche|cafe|dormir|deitar|acordar|levantar|banho|se arrumar|me arrumar|trabalho|trabalhar|obra|"
+    r"escritorio|shopping|mercado|farmacia|centro)\b"
+)
+_RE_IR_PRA_ATIVIDADE = re.compile(r"^ir (?:pra|para|pro|na|no|a|ao) (" + _ATIVIDADES_SEM_HORA + r"\b.*)$")
+# Pergunta que o banco local NAO responde mesmo citando treino/meta/projeto/habito/saude (08/11):
+# - futuro/horario de compromisso ("que horas e o treino?", "quando e a viagem?", "vai ser");
+# - conselho/decisao/porque ("devo beber mais agua?", "vale a pena ir na academia?", "por que meus treinos...").
+# _RE_QUAL_TREINO: qual treino fazer agora ("hoje e qual treino?" = comecar_treino, nao o historico).
+_RE_PERGUNTA_FORA = re.compile(
+    r"\bvai (?:ser|ficar|estar|dar|ter|rolar)\b|\bamanha\b|\bsemana que vem\b|\bproxim[oa]s?\b|\bque dia\b"
+    r"|\bque horas?\b|\bhorarios?\b|\bquando (?:e|eh|vai|vou|tenho|sera|comeca)\b"
+    r"|\b(?:devo|deveria|vale|compensa|sera que|faz (?:mal|bem)|e (?:bom|ruim)|tenho que"
+    r"|por ?que|pq|pra que|para que|acha|dicas?|conselho)\b|^e se\b|\bse eu\b"
+)
+_RE_QUAL_TREINO = re.compile(r"\b(?:qual|que)(?: (?:e|vai ser|sera))?(?: (?:o|a|meu|minha))? (?:treino|exercicio|ficha)\b")
+_RE_PASSADO_TREINO = re.compile(r"\b(?:foi|foram|fiz|fizeram|ultim\w*|passad\w*|treinei)\b")
+# "como" so e consulta de estado ("como estao meus habitos?", "como foi o treino?"); "como manter um habito?",
+# "como melhorar meu treino?" e "como faco o treino de peito?" sao pergunta de como fazer (IA).
+_COMO_ESTADO_PROXIMA = frozenset(
+    ("esta", "estao", "ta", "tao", "anda", "andam", "andou", "vai", "vao", "foi", "foram", "ficou", "ficaram",
+     "to", "tou", "estou", "tem", "o", "a", "os", "as", "meu", "minha", "meus", "minhas")
+)
+_RE_COMO_ESTADO = re.compile(
+    r"\b(?:esta|estao|ta|tao|anda|andam|andou|vai|vao|foi|foram|ficou|ficaram|to|tou|estou|tem ido)\b"
+)
+_RE_COMO_INICIO = re.compile(r"^(?:e |e ai,? |entao )?como (\w+)")
+# meta de agua/proteina/passos/sono nao e a meta financeira que consultar_meta mostra
+_RE_META_NAO_FINANCEIRA = re.compile(
+    r"\bmetas? (?:de |da |do )?(?:agua|copos?|hidratacao|proteina|comida|calorias?|kcal|passos|sono|dormir|peso|"
+    r"massa|leitura|ler|livros?|estudo|estudar|treinos?|academia|horas|corrida|km)\b"
 )
 _RE_AGUA = re.compile(
     r"^(?:tomei|bebi)(?: mais)?(?: (?:um|1|uma|meio))?(?: (?:copo|copinho|garrafa|garrafinha|caneca))?"
@@ -667,7 +760,39 @@ def exige_ia(texto: str) -> bool:
     consulta local, nem por padrao aprendido (revisao da Fase 6, ver
     app._plano_local_chat). Texto invalido/vazio -> False."""
     t = normalizar_consulta(texto)
-    return bool(t) and bool(_VERBO_ACAO.search(t) or _FORA_DO_BANCO.search(t))
+    return bool(t) and bool(_VERBO_ACAO.search(t) or _fora_do_banco(t))
+
+
+def _fora_do_banco(t: str) -> bool:
+    """Assunto que o banco local nao cobre (_FORA_DO_BANCO). Atraso/fechar so ficam com o banco local quando ha
+    habito/treino/meta na frase E a palavra e de estado ("atrasado", "fechar a meta") - "vou me atrasar pro
+    treino?" continua trajeto (IA)."""
+    if _FORA_DO_BANCO.search(t):
+        return True
+    palavras = [m.group(1) for m in _FORA_SEM_CONTEXTO.finditer(t)]
+    if not palavras:
+        return False
+    return not (_RE_CONTEXTO_LOCAL.search(t) and all(_ATRASO_FECHO_DE_ESTADO.match(p) for p in palavras))
+
+
+def _conselho_ou_comparacao(t: str) -> bool:
+    """melhor/pior/preciso: conselho (IA), salvo quando e o estado DELE num habito/treino/meta."""
+    do_dele = bool(_RE_CONTEXTO_LOCAL.search(t) and _RE_DO_DELE.search(t))
+    if _RE_MELHOR_PIOR.search(t) and not do_dele:
+        return True
+    return bool(_RE_PRECISO.search(t) and not (do_dele and _RE_PRECISO_VER.search(t)))
+
+
+def _consulta_de_estado(t: str) -> bool:
+    """True quando a pergunta (ja normalizada) quer VER o estado de algo que o banco local mostra - nao como
+    fazer, nao conselho, nao futuro/horario de compromisso, nao meta de saude (_RE_PERGUNTA_FORA e cia)."""
+    como = _RE_COMO_INICIO.match(t)
+    if como and (como.group(1) not in _COMO_ESTADO_PROXIMA or not _RE_COMO_ESTADO.search(t)):
+        return False
+    if _RE_PERGUNTA_FORA.search(t) or _RE_META_NAO_FINANCEIRA.search(t) or _conselho_ou_comparacao(t):
+        return False
+    # "hoje e qual treino?" e o treino de agora (comecar_treino); "qual foi meu ultimo treino?" e historico
+    return not (_RE_QUAL_TREINO.search(t) and not _RE_PASSADO_TREINO.search(t))
 
 
 def consulta_conhecida(texto: str) -> dict | None:
@@ -680,16 +805,25 @@ def consulta_conhecida(texto: str) -> dict | None:
     if _RE_AGUA.match(t):
         return {"acao": "registrar_checkin", "parametros": {"campo": "hidratacao"}}
 
-    if _VERBO_ACAO.search(t) or _FORA_DO_BANCO.search(t):
+    if _VERBO_ACAO.search(t) or _fora_do_banco(t):
         return None
 
-    sugestao = _RE_SUGESTAO.match(t)
-    if sugestao:
-        titulo = (sugestao.group(1) or sugestao.group(2) or "").strip()
-        if titulo and not _RE_PROJETO.search(titulo) and not _RE_META.search(titulo):
+    for regra in _RES_SUGESTAO:
+        sugestao = regra.match(t)
+        if not sugestao:
+            continue
+        if _RE_SUG_OUTRO_DIA.search(t):
+            return None  # horario livre de outro dia: o plano local so faz o de hoje
+        titulo = (sugestao.group(1) or "").strip()
+        ir_pra = _RE_IR_PRA_ATIVIDADE.match(titulo)  # "quando posso ir pra academia?" = encaixar a academia
+        if ir_pra:
+            titulo = ir_pra.group(1)
+        if (titulo and not _RE_PROJETO.search(titulo) and not _RE_META.search(titulo)
+                and not _RE_SUG_NAO.search(titulo)):
             return {"acao": "consultar", "parametros": {"fontes": [{"fonte": "sugestao", "titulo": titulo}]}}
+        return None  # pergunta de horario que nao e encaixe de atividade: a IA responde
 
-    if not _GATILHO_CONSULTA.search(t):
+    if not _GATILHO_CONSULTA.search(t) or not _consulta_de_estado(t):
         return None
 
     fontes: list[dict] = []

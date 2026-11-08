@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from datetime import date, datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "teste-fake")
 
@@ -87,8 +88,15 @@ class LerChatTestCase(unittest.TestCase):
 
     def test_main_grava_arquivo(self):
         saida = Path(self._tmp.name) / "copia.md"
-        codigo = ler_chat.main(["--banco", str(db.DB_PATH), "--saida", str(saida), "--desde", "2026-10-01", "--ate", "2026-10-15"])
+        antes = dict(os.environ)
+        # 08/11: o main() carrega o .env de verdade (uso normal do script); sob teste isso vazava a
+        # ENCRYPTION_KEY real pros testes seguintes do mesmo processo - aqui o load_dotenv e dublado
+        with patch("dotenv.load_dotenv") as carregar_env:
+            codigo = ler_chat.main(["--banco", str(db.DB_PATH), "--saida", str(saida), "--desde", "2026-10-01",
+                                    "--ate", "2026-10-15"])
         self.assertEqual(codigo, 0)
+        carregar_env.assert_called_once()  # o script continua carregando o .env fora do teste
+        self.assertEqual(dict(os.environ), antes)
         texto = saida.read_text(encoding="utf-8")
         self.assertIn("qui 01/10/2026", texto)
         self.assertIn("[número oculto]", texto)

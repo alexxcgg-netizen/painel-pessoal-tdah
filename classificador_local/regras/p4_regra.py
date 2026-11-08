@@ -29,7 +29,17 @@ from assistente import regras as motor
 # verdade (gatilho/condicao/acao) e feita por assistente.regras.interpretar_regra.
 _PADROES_INTENCAO = (
     re.compile(r"\bme\s+avisa(?:r)?\s+se\b", re.IGNORECASE),
-    re.compile(r"\bme\s+lembr\w*\s+de\b", re.IGNORECASE),
+)
+# "me lembra de X" sozinho e lembrete de UMA vez ("me lembra de tomar o remedio
+# as 7" = amanha 7h se ja passou): fica com a IA do chat, que cria a tarefa.
+# So vira regra com repeticao ("todo dia", "sempre") ou condicao ("quando eu
+# chegar", "se chover") - antes virava "todo dia as 07:00" sem ele ter dito.
+_LEMBRA_DE = re.compile(r"\bme\s+lembr\w*\b", re.IGNORECASE)
+_REPETE_OU_CONDICAO = re.compile(
+    r"\b(?:tod[ao]s?\s+(?:os\s+|as\s+)?(?:dias?|semanas?|m[eê]s|meses|manh[aã]s?|noites?|tardes?)|"
+    r"sempre|diariamente|toda\s+vez|cada\s+vez|quando|assim\s+que|"
+    r"se\s+(?:eu|chover|n[aã]o|o\s+tempo|estiver|tiver|for))\b",
+    re.IGNORECASE,
 )
 # Recorrencia ("todo dia as 8h", "toda segunda") so vira regra quando vem
 # junto de um pedido ao assistente ("me avisa/manda/lembra/pergunta/cobra").
@@ -60,8 +70,10 @@ def casar(texto: str) -> dict | None:
     limpo = texto.strip()
     if len(limpo) > _TAMANHO_MAXIMO or "\n" in limpo or _VARIAS_FRASES.search(limpo):
         return None
-    pedido = any(p.search(limpo) for p in _PADROES_INTENCAO) or (
-        _PEDIDO_AO_ASSISTENTE.search(limpo) and any(p.search(limpo) for p in _PADROES_RECORRENCIA)
+    pedido = (
+        any(p.search(limpo) for p in _PADROES_INTENCAO)
+        or (_LEMBRA_DE.search(limpo) and _REPETE_OU_CONDICAO.search(limpo))
+        or (_PEDIDO_AO_ASSISTENTE.search(limpo) and any(p.search(limpo) for p in _PADROES_RECORRENCIA))
     )
     if pedido:
         return {"acao": "criar_regra", "confianca": 1.0, "parametros": {"texto": limpo}}

@@ -248,11 +248,6 @@ class CasarTestCase(unittest.TestCase):
             "da pra replanejar a tarde?",
             "reorganiza o dia pra mim",
             "reordena o que resta do dia",
-            "atrasei",
-            "acho que atrasei hoje",
-            "me atrasei de novo",
-            "fiquei atrasada com tudo",
-            "to atrasado pra tudo",
             "perdi a manhã",
             "perdi a manha inteira",
             "perdi o dia hoje",
@@ -267,6 +262,11 @@ class CasarTestCase(unittest.TestCase):
         for frase in [
             "",
             "oi, tudo bem?",
+            # 08/11: atraso fica com o chat (ATRASO DITO refaz a conta do compromisso)
+            "atrasei",
+            "atrasei uns 20 minutos",
+            "me atrasei de novo",
+            "to atrasado pra tudo",
             "gasto de 50 reais no mercado",
             "que horas sao agora",
             "cria uma tarefa pra amanha",

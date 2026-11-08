@@ -97,10 +97,12 @@ def humor_da_resposta(resposta) -> int | None:
 
 def _frase_vencimento(dias_ate: int) -> str:
     if dias_ate < 0:
-        return f"venceu ha {abs(dias_ate)} dia(s)"
+        return f"venceu há {abs(dias_ate)} {'dia' if dias_ate == -1 else 'dias'}"
     if dias_ate == 0:
         return "vence hoje"
-    return f"vence em {dias_ate} dia(s)"
+    if dias_ate == 1:
+        return "vence amanhã"
+    return f"vence em {dias_ate} dias"
 
 
 def _hora_de(inicio) -> str:
@@ -286,7 +288,7 @@ def montar_noite(conn, hoje: date | None = None) -> dict:
     hoje_iso = hoje.isoformat()
 
     concluidas = conn.execute(
-        "SELECT COUNT(*) AS n FROM tasks WHERE date(completed_at) = ?", (hoje_iso,)
+        "SELECT COUNT(*) AS n FROM tasks WHERE date(completed_at, '-3 hours') = ?", (hoje_iso,)  # UTC -> dia de Brasilia
     ).fetchone()["n"]
     pendentes = [
         r["title"]

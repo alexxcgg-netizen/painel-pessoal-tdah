@@ -136,8 +136,9 @@ class ResumoSemanalTestCase(unittest.TestCase):
 
     def test_borda_exata_dos_7_dias(self):
         expenses = [
-            {"amount": 10.0, "category": "mercado", "created_at": "2026-09-12 00:00:01"},
-            {"amount": 20.0, "category": "mercado", "created_at": "2026-09-11 23:59:59"},
+            # created_at e UTC (08/11: conta o dia de Brasilia) - 03:00:01 UTC = 00:00:01 do dia 12 aqui
+            {"amount": 10.0, "category": "mercado", "created_at": "2026-09-12 03:00:01"},
+            {"amount": 20.0, "category": "mercado", "created_at": "2026-09-12 02:59:59"},
         ]
         r = resumo_semanal(expenses, date(2026, 9, 18))
         self.assertEqual(r["total_semana"], 10.0)

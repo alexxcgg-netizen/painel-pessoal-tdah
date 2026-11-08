@@ -159,6 +159,8 @@ def _lugares(conn, dia: str | None = None) -> list[dict]:
             chave = vida_assistente._chave_apelido(texto)
             if not chave or chave in ja or (e_parada and vida_assistente.apelido_dentro(conn, texto)):
                 continue
+            if vida_assistente.casa_de_alguem_sem_apelido(conn, texto):
+                continue  # 08/11 (A4): "casa da Fulana" sem apelido nao vai pro Google (virava uma cidade)
             lista.append({"apelido": chave, "endereco": texto})
             ja.add(chave)
     return lista
@@ -463,7 +465,7 @@ def _de(nome: str, genero: str) -> str:
 def _tarefas_de_hoje(conn, dia: str):
     return conn.execute(
         "SELECT id, title, hora, local, COALESCE(inegociavel, 0) AS inegociavel, "
-        "COALESCE(sai_na_hora, 0) AS sai_na_hora, recorrente_origem_id FROM tasks "
+        "COALESCE(sai_na_hora, 0) AS sai_na_hora, recorrente_origem_id, estilo, extras, parada FROM tasks "
         "WHERE completed_at IS NULL AND recorrencia IS NULL AND due_date = ? "
         "ORDER BY (hora IS NULL OR hora = ''), hora, id",
         (dia,),
@@ -613,11 +615,15 @@ def mensagem_chegada_saida(conn, visita, agora: datetime) -> tuple[str, str, str
 # ------------------------------------------------------------------ atraso
 
 
-def _destino(tarefa, lugares: list[dict]) -> tuple[str | None, tuple | None]:
+def _destino(tarefa, lugares: list[dict], conn=None) -> tuple[str | None, tuple | None]:
     """Onde a tarefa acontece: o `local` dela; senao um apelido no titulo; senao (None, None).
     07/11: tarefa sem lugar NAO e "em casa" - nao tem destino (o atraso das 7h43 empurrou remedio e
-    4 tarefas soltas porque contava casa como destino)."""
+    4 tarefas soltas porque contava casa como destino).
+    08/11 (rodada 3): "casa da Fulana" sem apelido tambem nao tem destino (o Google achava uma cidade com
+    o nome dela e saia "saindo agora tu chega as 7h48")."""
     local = (tarefa["local"] or "").strip()
+    if local and conn is not None and vida_assistente.casa_de_alguem_sem_apelido(conn, local):
+        return None, None
     if local:
         lugar = next((x for x in lugares if _sem_acento(x["endereco"]) == _sem_acento(local)
                       or x["apelido"] == vida_assistente._chave_apelido(local)), None)
@@ -667,6 +673,13 @@ def _fixa(t) -> bool:
     return bool(t["inegociavel"]) or _RE_VOO.search(_sem_acento(t["title"])) is not None
 
 
+def _saida(t) -> bool:
+    """08/11 (A2): compromisso de sair (date, balada, `sai_na_hora`, com alguem esperando) tambem e parede:
+    a cascata do atraso nunca empurra ele nem o que vem depois. Diferente do voo, avisa o atraso (sem mexer
+    no horario) pra o recado pronto ir junto."""
+    return notificacoes.e_saida(t)
+
+
 def _somar(hhmm: str, minutos: int) -> str | None:
     h, m = map(int, hhmm.split(":"))
     total = h * 60 + m + minutos
@@ -679,6 +692,32 @@ def _titulo_empurrado(titulo: str, minutos: int) -> str:
         novo = _somar(f"{int(m.group(2)):02d}:{m.group(3)}", minutos)
         return f"({m.group(1)} {novo})" if novo else m.group(0)
     return _RE_ATE.sub(troca, titulo)
+
+
+def _atraso_sem_empurrar(conn, agora: datetime, alvo, atraso: float, lugar_atual, tarefas,
+                         trajeto: int | None) -> dict:
+    """08/11 (A2): a proxima e compromisso de sair (date, balada, buscar alguem) e ele nao chega a tempo:
+    avisa o atraso SEM mexer no horario (nada de empurrar quem esta esperando) - o recado pronto
+    (onde_vou.recado_parado) vai junto. Uma vez por compromisso por dia (TIPO_ATRASO)."""
+    db.marcar_notificado(conn, TIPO_ATRASO, alvo["id"])
+    nome = _titulo_frase(alvo["title"])
+    nome = nome[:1].upper() + nome[1:]
+    if alvo["sai_na_hora"]:
+        corpo = f"{nome}: a saída é às {_hora_fala(alvo['hora'])}. Bora, sai agora. Não mexi no horário."
+    elif trajeto is not None and trajeto > notificacoes.PARADA_TETO_MIN:
+        # rodada 3: trajeto acima do teto (3 h) e endereco errado no Maps - nada de "tu chega as 7h48"
+        corpo = f"{nome}: era às {_hora_fala(alvo['hora'])}. Bora, sai agora. Não mexi no horário."
+    else:
+        chega = (agora + timedelta(minutes=trajeto or 0)).strftime("%H:%M")
+        corpo = (f"{nome}: saindo agora tu chega às {_hora_fala(chega)} (era {_hora_fala(alvo['hora'])}). "
+                 "Não mexi no horário.")
+    if lugar_atual:
+        apelido, genero = nome_e_genero(lugar_atual["apelido"], [t["title"] for t in tarefas])
+        titulo = f"Atrasou {_em(apelido, genero)}"
+    else:
+        titulo = "Tá atrasado"
+    return {"texto": f"{titulo}. {corpo}", "titulo": titulo, "corpo": corpo, "card": None,
+            "tarefa_id": alvo["id"], "atraso_min": int(round(atraso)), "hora_original": alvo["hora"]}
 
 
 def checar_atraso(conn, agora: datetime, visita) -> dict | None:
@@ -701,6 +740,13 @@ def checar_atraso(conn, agora: datetime, visita) -> dict | None:
     if not lugar_atual and not (casa and casa.get("coord")):
         return None  # 07/11 (d): nao sabe onde ele esta nem onde e casa - sem base, nao chuta
     ids_do_lugar = {t["id"] for t in tarefas_do_lugar(tarefas, lugar_atual)} if lugar_atual else set()
+    if lugar_atual:
+        # rodada 3: compromisso de sair "ja esta la" so pelo `local` ("Buscar a X na cidade vizinha e levar pra casa"
+        # tem "casa" no titulo e, com ele em casa, contava como ja no lugar e o aviso nao saia)
+        endereco_atual = _sem_acento(lugar_atual["endereco"])
+        ids_do_lugar = {t["id"] for t in tarefas if t["id"] in ids_do_lugar and (
+            not _saida(t) or (t["local"] and (_bate(lugar_atual["apelido"], t["local"])
+                                              or _sem_acento(t["local"]) == endereco_atual)))}
     minimo = (agora - timedelta(minutes=TAREFA_VELHA_MIN)).strftime("%H:%M")
     com_hora = [t for t in tarefas if _com_hora(t)]
     destinos = {}
@@ -708,21 +754,29 @@ def checar_atraso(conn, agora: datetime, visita) -> dict | None:
     def empurravel(t) -> bool:
         """07/11 (a)(b): so tarefa com destino real (local ou apelido no titulo) e nunca remedio."""
         if t["id"] not in destinos:
-            destinos[t["id"]] = None if _e_remedio(conn, t) else _destino(t, lugares)
+            destinos[t["id"]] = None if _e_remedio(conn, t) else _destino(t, lugares, conn)
         return bool(destinos[t["id"]] and destinos[t["id"]][0])
 
     alvo = None
     for t in com_hora:
-        if t["hora"] < minimo or t["id"] in ids_do_lugar or db.ja_notificou_hoje(conn, TIPO_ATRASO, t["id"]):
+        if t["hora"] < minimo:
+            continue
+        saida = _saida(t)
+        if t["id"] in ids_do_lugar or db.ja_notificou_hoje(conn, TIPO_ATRASO, t["id"]):
+            if saida:
+                return None  # 08/11 (A2): compromisso de sair ja tratado (ou ele ja esta la) e parede
             continue
         if _fixa(t):
             return None  # a proxima e inegociavel/voo: nao mexe nela nem no que vem depois
         if not empurravel(t):
+            if saida:
+                return None
             continue
         alvo = t
         break
     if not alvo:
         return None
+    parede = _saida(alvo)
     hora_alvo = datetime.combine(agora.date(), time(*map(int, alvo["hora"].split(":"))))
     if (hora_alvo - agora).total_seconds() / 60 > JANELA_TRAJETO_MIN:
         return None
@@ -743,11 +797,18 @@ def checar_atraso(conn, agora: datetime, visita) -> dict | None:
         atraso = (agora + timedelta(minutes=trajeto) - hora_alvo).total_seconds() / 60
         if atraso <= ATRASO_MIN:
             return None
+    if parede:
+        return _atraso_sem_empurrar(conn, agora, alvo, atraso, lugar_atual, tarefas,
+                                    None if alvo["sai_na_hora"] else trajeto)
     delta = int(math.ceil(atraso / ARREDONDA_MIN) * ARREDONDA_MIN)
 
     efeitos = []
     for t in com_hora:
-        if t["hora"] < alvo["hora"] or t["id"] in ids_do_lugar:
+        if t["hora"] < alvo["hora"]:
+            continue
+        if _saida(t):
+            break  # 08/11 (A2): compromisso de sair e parede como voo/inegociavel
+        if t["id"] in ids_do_lugar:
             continue
         if _fixa(t):
             break
@@ -929,6 +990,129 @@ def reagir_depois(visita_id: int) -> None:
         rodar()
 
 
+# ------------------------------------------------------------------ 08/11 (A3): saida que rolou fecha sozinha
+
+TIPO_SAIDA_FEITA = "saida_feita"
+
+
+CHEGOU_ANTES_MIN = 30  # "Chegou na X" / chegada do "indo pra" valem a partir de 30 min antes da hora
+VISITA_SAIU_ANTES_MIN = 15  # visita no lugar que acabou mais de 15 min antes da hora nao e "foi"
+VISITA_JANELA_ANTES_H = 12
+TIPO_SAIDA_ROLOU = "saida_rolou"  # a pergunta "rolou?" (sinal que nao cobre a hora: pergunta, nao fecha)
+ROLOU_DEPOIS_MIN = 60
+
+
+def _foi_na_saida(conn, t, dia, ev: datetime, agora: datetime, lugares: list[dict]) -> str:
+    """O GPS confirma que ele esteve no lugar do compromisso NA HORA: 'sim'. Sinal que nao cobre a hora (passou
+    na escola as 15h40 e a busca e as 17h30): 'talvez' - nao fecha. Nada: ''.
+    Vale (rodada 3, na duvida NAO fecha): o "Chegou na X" (saida_chegou) registrado a partir de 30 min antes;
+    a chegada do "indo pra" so com destino confirmado ("E isso") e a partir de 30 min antes; ou uma visita no
+    lugar que COBRE a hora (chegou ate 2 h depois e saiu no maximo 15 min antes, ou ainda esta la)."""
+    antes = ev - timedelta(minutes=CHEGOU_ANTES_MIN)
+    talvez = False
+    r = conn.execute(
+        "SELECT criado_em FROM notificacoes_enviadas WHERE tipo = ? AND referencia_id = ? AND data = ?",
+        (TIPO_CHEGOU_DESTINO, t["id"], dia.isoformat()),
+    ).fetchone()
+    if r:
+        quando = db.datahora_local(r["criado_em"])  # criado_em e UTC
+        if quando is not None and quando >= antes:
+            return "sim"
+        talvez = True
+    try:
+        idas = conn.execute(
+            "SELECT chegou_em, resposta FROM indo_pra WHERE dia = ? AND tarefa_id = ? AND chegou_em IS NOT NULL "
+            "AND COALESCE(resposta, '') != 'outro'", (dia.isoformat(), t["id"]),
+        ).fetchall()
+    except Exception:  # sem a tabela (banco velho de teste)
+        idas = []
+    for ida in idas:
+        chegou = _dt(ida["chegou_em"])
+        if ida["resposta"] == "sim" and chegou is not None and chegou >= antes:
+            return "sim"
+        talvez = True
+    local = (t["local"] or "").strip()
+    if local:
+        visitas = conn.execute(
+            "SELECT lugar, saida FROM visitas WHERE lugar IS NOT NULL AND lugar != 'casa' "
+            "AND chegada >= ? AND chegada <= ?",
+            (_iso(ev - timedelta(hours=VISITA_JANELA_ANTES_H)), _iso(min(agora, ev + timedelta(hours=DESTINO_JANELA_H)))),
+        ).fetchall()
+        for v in visitas:
+            lugar = next((x for x in lugares if x["apelido"] == v["lugar"]), None)
+            if not _e_o_lugar(conn, v["lugar"], lugar, local, False):
+                continue
+            saiu = _dt(v["saida"])
+            if saiu is None or saiu >= ev - timedelta(minutes=VISITA_SAIU_ANTES_MIN):
+                return "sim"
+            talvez = True
+    return "talvez" if talvez else ""
+
+
+def _perguntar_se_rolou(conn, t, ev: datetime, agora: datetime) -> bool:
+    """Sinal do GPS que nao cobre a hora: uma pergunta so (chat + aviso), sem fechar nada."""
+    if agora < ev + timedelta(minutes=ROLOU_DEPOIS_MIN) or conn.execute(
+        "SELECT 1 FROM notificacoes_enviadas WHERE tipo = ? AND referencia_id = ?", (TIPO_SAIDA_ROLOU, t["id"]),
+    ).fetchone():
+        return False
+    db.marcar_notificado(conn, TIPO_SAIDA_ROLOU, t["id"])
+    conn.commit()
+    nome = _titulo_frase(t["title"])
+    nome = nome[:1].upper() + nome[1:]
+    hora = _hora_fala(t["hora"])
+    _publicar(conn, f"{nome} era às {hora}. Rolou? Se foi, é só marcar feito; se não, me diz que eu remarco.", [])
+    _avisar(conn, TIPO_SAIDA_ROLOU, t["id"], notificacoes.titulo_tarefa(t["title"]),
+            f"Era às {hora}. Rolou? Se foi, é só marcar feito.", agora)
+    return True
+
+
+def fechar_saidas_que_rolaram(conn, agora: datetime) -> list[int]:
+    """Compromisso de sair (date, balada, buscar alguem) de hoje ou ontem que ja passou da hora e o GPS viu
+    que ele foi: marca feito (com Desfazer) em vez de virar "prazo vencido" amanha, essencial do dia seguinte
+    ou "em aberto" no fechamento. Uma vez por tarefa (desfez = ele decide; nao fecha de novo). O aviso da
+    hora dessa saida vira este (mesmo momento, outro texto: nao corta aviso). Devolve os ids fechados."""
+    fechadas = []
+    for dia in (agora.date() - timedelta(days=1), agora.date()):
+        try:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL AND due_date = ? "
+                "AND hora IS NOT NULL ORDER BY hora, id", (dia.isoformat(),),
+            ).fetchall()
+        except Exception:  # banco velho de teste
+            return fechadas
+        lugares = None
+        for t in rows:
+            if not _com_hora(t) or not notificacoes.e_saida(t):
+                continue
+            ev = datetime.combine(dia, time(*map(int, t["hora"].split(":"))))
+            if agora < ev or conn.execute(
+                "SELECT 1 FROM notificacoes_enviadas WHERE tipo = ? AND referencia_id = ?", (TIPO_SAIDA_FEITA, t["id"]),
+            ).fetchone():
+                continue
+            if lugares is None:
+                lugares = _lugares(conn, dia.isoformat())
+            foi = _foi_na_saida(conn, t, dia, ev, agora, lugares)
+            if foi != "sim":
+                if foi == "talvez" and dia == agora.date():
+                    _perguntar_se_rolou(conn, t, ev, agora)
+                continue
+            db.complete_task(conn, t["id"])
+            db.marcar_notificado(conn, TIPO_SAIDA_FEITA, t["id"])
+            feito = conn.execute("SELECT completed_at FROM tasks WHERE id = ?", (t["id"],)).fetchone()["completed_at"]
+            efeitos = [{"entidade": "edicao", "tabela": "tasks", "id": t["id"], "rotulo": "Tarefa",
+                        "titulo": t["title"], "antes": {"completed_at": None}, "depois": {"completed_at": feito}}]
+            token = db.criar_acao_desfazer(conn, efeitos)
+            card = cards.card_edicao(efeitos, [cards.acao_desfazer(token, efeitos)] if token else [])
+            nome = _titulo_frase(t["title"])
+            nome = nome[:1].upper() + nome[1:]
+            _publicar(conn, f"{nome}: o iPhone viu que tu foi, marquei como feito.", [card])
+            perto = dia == agora.date() and agora - ev <= timedelta(hours=DESTINO_JANELA_H)
+            corpo = "O iPhone viu que tu foi: marquei como feito." + (" Aproveita!" if perto else "")
+            _avisar(conn, TIPO_SAIDA_FEITA, t["id"], notificacoes.titulo_tarefa(t["title"]), corpo, agora)
+            fechadas.append(t["id"])
+    return fechadas
+
+
 def verificar(conn, agora: datetime) -> list:
     """Passo de 5 em 5 min (conversa_proativa.verificar): parado num lugar e ficando atrasado.
     Publica e avisa por conta propria (o push dos avisos_conversa so sai 1x por tipo por dia)."""
@@ -936,6 +1120,10 @@ def verificar(conn, agora: datetime) -> list:
     if v:
         reagir(conn, v["id"], agora)
     _onde_vou("verificar", conn, agora)  # card "Sai as X" na hora de se arrumar, quando o jeito dele mudou (06/11)
+    try:
+        fechar_saidas_que_rolaram(conn, agora)  # 08/11 (A3): roda antes dos avisos da hora no tick
+    except Exception:
+        log.exception("onde_estou: fechar saidas que rolaram falhou")
     return []
 
 

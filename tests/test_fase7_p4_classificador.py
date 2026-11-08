@@ -41,7 +41,9 @@ class TestCasarDireto(unittest.TestCase):
     def test_variedade_de_frases_reconhecidas(self):
         frases = [
             "me avisa se eu gastar mais de 100 com farmacia",
-            "me lembra de ligar pro contador",
+            "me lembra de comprar pao quando eu passar no mercado",
+            "me lembra sempre de tomar agua depois do treino",
+            "todo dia me lembra de beber agua",
             "todo dia às 7h me lembra de tomar agua",
             "toda segunda às 9h me lembra de pagar o boleto",
             "todo sábado às 10h me lembra de lavar o carro",
@@ -57,6 +59,10 @@ class TestCasarDireto(unittest.TestCase):
             "tenho que tomar Losartana 50mg todo dia as 8h",
             "tenho que tomar remedio todo dia as 8h",
             "academia toda segunda e quarta",
+            # lembrete de uma vez so (sem repeticao nem condicao): a IA cria a tarefa
+            "me lembra de tomar o remedio as 7",
+            "me lembra de ligar pro contador",
+            "me lembra de pagar o ipva dia 15",
             # brain dump: varias frases ou texto longo nunca vira uma regra so
             "Gastei 45 no mercado. Me lembra de renovar o CMA dia 1 de outubro.",
             "me lembra de " + "x" * 200,

@@ -158,7 +158,7 @@ class ContextoEPushTestCase(_Base):
         self.assertEqual(texto, "dinheiro em caixa hoje R$ 48915.81, a receber das vendas ja feitas R$ 1258000.00, "
                                 "lucro das obras prontas R$ 371009.45, a venda R$ 1160000.00 (4 unidades) "
                                 "(numeros prontos da construtora, nao recalcule); "
-                                "próxima conta a pagar da construtora: Areia & Cia, vence em 3 dia(s)")
+                                "próxima conta a pagar da construtora: Areia & Cia, vence em 3 dias")
         self.assertNotIn("1234", texto)  # valor da conta nunca de bandeja
         self.assertSemProibidos(texto)
 
@@ -174,8 +174,8 @@ class ContextoEPushTestCase(_Base):
             texto = app._construtora_contexto_resumo()
             res = self.client.get("/api/construtora/resumo")
         # sem os numeros novos: nada de entradas x gastos, so a proxima conta QUE SAI DO CAIXA
-        self.assertEqual(texto, "próxima conta a pagar da construtora: Brita Norte, vence em 5 dia(s), "
-                                "mais 1 outra(s) conta(s) em aberto")
+        self.assertEqual(texto, "próxima conta a pagar da construtora: Brita Norte, vence em 5 dias, "
+                                "mais 1 outra conta em aberto")
         self.assertEqual(res.get_json()["contas"][0]["pagador"], "socio")
 
     def test_push_de_conta_a_vencer_sem_valor(self):

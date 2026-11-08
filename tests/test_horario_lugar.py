@@ -270,7 +270,7 @@ class ChatTest(_Banco):
                 patch("maps_client.horario_de_saida", return_value=None), \
                 patch("app._saida_pro_compromisso", return_value=None):
             corpo, res = self.chat([("registrar_tarefa", {
-                "titulo": "Comprar tênis", "quando_data": date.today().isoformat(), "hora": "22:10",
+                "titulo": "Comprar tênis", "quando": "hoje", "quando_data": date.today().isoformat(), "hora": "22:10",
                 "lugar": "Shopping"})])
         self.assertIn("Fecha às 22h e tu chega 22h10.", res[0]["lugar_na_chegada"])
         card = next(c for c in corpo["cards"] if c["type"] == "tarefas_criadas")

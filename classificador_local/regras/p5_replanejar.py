@@ -44,11 +44,10 @@ _PADROES = (
     re.compile(r"\breordena\w*\s+(o\s+que\s+resta\s+d[oe]\s+|o\s+|meu\s+)?dia\b"),
     re.compile(r"\bmexer\s+na\s+ordem\s+do\s+dia\b"),
     re.compile(r"\bmuda\w*\s+a\s+ordem\s+do\s+dia\b"),
-    re.compile(r"\bme\s+atrasei\b"),
-    re.compile(r"\batrasei\b"),
-    re.compile(r"\bfiquei\s+atrasad[oa]\b"),
-    re.compile(r"\bestou\s+atrasad[oa]\b"),
-    re.compile(r"\bto\s+atrasad[oa]\b"),
+    # 08/11 (rodada com a IA de verdade): "atrasei"/"to atrasado" sairam daqui - com a regra
+    # disparando de novo pelo chat, "atrasei uns 20 minutos" virava "Reorganizei o resto do teu dia"
+    # e passava por cima do ATRASO DITO do chat (refaz a conta do compromisso: se arrumar, saida,
+    # chegada, e move as tarefas). Atraso fica com o chat, no degrau "pensar".
     re.compile(r"\bperdi\s+a\s+manha\b"),
     re.compile(r"\bperdi\s+o\s+dia\b"),
     re.compile(r"\bperdi\s+a\s+hora\b"),
@@ -68,17 +67,19 @@ def casar(texto: str) -> dict | None:
         return None
     for padrao in _PADROES:
         if padrao.search(normalizado):
-            return {}
+            # 08/11: o dispatcher (classificador_local.casar) exige "acao"; o {} cru era descartado
+            # como "formato invalido" e a regra nunca disparava pelo chat
+            return {"acao": "replanejar_dia", "parametros": {}}
     return None
 
 
 def _resumo(proposta: dict) -> str:
     n_tarefas = len(proposta["tarefas"])
     if n_tarefas == 0:
-        return "Reorganizei o resto do seu dia."
+        return "Reorganizei o resto do teu dia."
     if n_tarefas == 1:
-        return "Reorganizei o resto do seu dia - sobrou 1 tarefa pra encaixar."
-    return f"Reorganizei o resto do seu dia - sobraram {n_tarefas} tarefas pra encaixar."
+        return "Reorganizei o resto do teu dia - sobrou 1 tarefa pra encaixar."
+    return f"Reorganizei o resto do teu dia - sobraram {n_tarefas} tarefas pra encaixar."
 
 
 def executar(conn, parametros: dict | None = None) -> dict:

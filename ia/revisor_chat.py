@@ -46,12 +46,101 @@ _RE_TRAJETO = re.compile(
     r"\s+(?:de\s+)?(?:carro|viagem|estrada|trajeto|caminho|dirigindo)\b", re.IGNORECASE)
 _RE_AFIRMOU = re.compile(
     r"\b(anotei|registrei|marquei|agendei|salvei|coloquei|lancei|criei|adicionei|botei|guardei|"
-    r"atualizei|mudei|troquei|movi|remarquei|conclu[ií]|desmarquei)\b", re.IGNORECASE)
-_RE_NEGACAO_ANTES = re.compile(r"\b(n[aã]o|nunca|ainda\s+n[aã]o|nem)\s+(?:\w+\s+){0,1}$", re.IGNORECASE)
+    r"atualizei|mudei|troquei|movi|remarquei|conclu[ií]|desmarquei|"
+    # leva 08/11 (item B6): os outros jeitos de dizer que fez
+    r"ajustei|empurrei|risquei|apaguei|cancelei|anotad[oa]s?|riscad[oa]s?|"
+    # 3a rodada: passei/deixei só com destino ("passei pra sexta", "deixei o dentista pras 10h"); "passei o olho
+    # na tua agenda" e "deixei como tava" não gravam nada
+    r"(?:passei|deixei)(?!\s+(?:o|um)\s+olho\b)"
+    r"(?=(?:\s+[^\s.!?,;:]+){0,3}?\s+(?:pra|para|pro|pros|pras|[aà]s|no\s+dia)\b))\b", re.IGNORECASE)
+# particípio ("tá anotado", "tá riscado") descreve o estado: vale sem gravar se ele perguntou ou se a resposta
+# conferiu (consultar_*) - é o "já tá: ..." da mensagem reenviada
+_RE_PARTICIPIO = re.compile(r"(?:anotad|riscad)[oa]s?$", re.IGNORECASE)
+# "Tá anotado, sexta 10h" = o "já tá" do reenvio (estado, não ação de agora)
+_RE_TA_ANTES = re.compile(r"\b(?:t[aá]|est[aá]|segue|continua)\s+$", re.IGNORECASE)
+# atravessa vírgula/ponto e vírgula/dois pontos: "Não mexi, deixei como tava"
+_RE_NEGACAO_ANTES = re.compile(r"\b(n[aã]o|nunca|ainda\s+n[aã]o|nem)\s+(?:\w+[,;:]?\s+){0,1}$", re.IGNORECASE)
+# "já tá anotado", "já anotei", "tava anotado": coisa feita antes (reenvio), não agora
+_RE_JA_ANTES = re.compile(r"(?:\bj[aá]\s+(?:\w+\s+){0,2}|\b(?:tava|estava|tinha)\s+(?:\w+\s+){0,1})$", re.IGNORECASE)
+
+# Falar do sistema (item B3): "o card mostra", "a ferramenta de rota", "o painel calculou", nome de função.
+_RE_SISTEMA = re.compile(
+    r"\bcards?\b"
+    r"|\b(?:usei|chamei|uso|usar|chamar|rodei|rodar)\s+(?:a\s+|uma\s+)?ferramenta\b"
+    r"|\bferramenta\s+d[eoa]s?\s+(?:rota|trajeto|clima|agenda|tarefas?|busca|hor[aá]rios?|mapa|c[aá]lculo|consulta|registro)\b"
+    r"|\b(?:a|essa|esta)\s+ferramenta\s+(?:calcul|mostr|devolv|deu|retorn|ach|diz|diss|n[aã]o)\w*"
+    # 3a rodada: "painel" também é o do avião ("no 152 o painel mostra a velocidade em nós"): só verbo que só o
+    # app faz
+    r"|\bo\s+painel\s+(?:sugeriu|calculou|registrou|gravou|estimou)\b"
+    r"|\bbanco\s+de\s+dados\b|\bmodo\s+visitante\b"
+    r"|\b(?:registrei|anotei|salvei|gravei|lancei|coloquei|consta)\s+(?:no|do)\s+sistema\b"
+    r"|\b(?:registrar|consultar|ajustar|estimar|sugerir|agendar|planejar|calcular|definir|mover|apagar|buscar|"
+    r"salvar|comecar|atualizar|propor|ver)_[a-z_]+\b",
+    re.IGNORECASE)
+_RE_FALA_DO_SISTEMA = re.compile(r"\b(?:cards?|ferramentas?|painel|sistema|app|aplicativo)\b", re.IGNORECASE)
+
+# "você" com o Alex (item B1): com ele é sempre "tu". Texto entre aspas (recado pra outra pessoa) não conta.
+# 3a rodada: "vocês" é o plural de "tu" ("vocês saem 19h40", ele e a Ana) - só o singular conta
+_RE_VOCE = re.compile(r"\b(?:voc[eê]|vc)\b", re.IGNORECASE)
+# aspas retas, curvas, angulares e simples (reta e curva): recado pra outra pessoa
+_RE_ENTRE_ASPAS = re.compile(
+    r'"[^"\n]*"|\u201c[^\u201d\n]*\u201d|«[^»\n]*»|\u2018[^\u2019\n]*\u2019|(?<!\w)\'[^\'\n]+\'(?!\w)')
+# "Manda pra ela: Oi Ana, você me espera?" / "Escreve assim: ..." - do dois-pontos pra frente é o recado
+_RE_RECADO_DEPOIS = re.compile(
+    r"\b(?:manda|mande|envia|escreve|fala|diz|responde)\b[^:\n.!?]{0,25}:|\bassim\s*:", re.IGNORECASE)
+_RE_PEDIU_RECADO = re.compile(
+    r"\b(?:mensagem|msg|recado|texto|escreve|escrever|redige|redigir|responde|responder|resposta|whats|zap|"
+    r"e-?mail|manda(?:r)? pr[ao]|cobra(?:r)?|avisa(?:r)?|fala(?:r)? pr[ao]|diz(?:er)? pr[ao]|"
+    r"pergunta(?:r)? pr[ao]|desculpas?|dizer\s+n[aã]o)\b", re.IGNORECASE)
+
+# Abertura igual à da resposta anterior (item B2). Solta ("Beleza, ...", "Fechado. ...") sai no código; verbo de
+# confirmação colado no resto ("Anotei o dentista...") pede refazer.
+_RE_ABERTURA_SOLTA = re.compile(r"^\s*([^\W\d_]+(?:\s+[^\W\d_]+){0,2})\s*(?:[,.!…:;]+|\s[-–—]\s)\s*")
+_CONFIRMACOES = frozenset((
+    "anotei", "anotado", "marquei", "registrei", "salvei", "botei", "coloquei", "agendei", "ajustei", "deixei",
+    "passei", "mudei", "troquei", "fechado", "beleza", "pronto", "feito", "show", "certo", "combinado", "boa",
+    "perfeito", "ok", "blz", "tranquilo", "massa", "top", "demorou", "fechou",
+))
+
+# Oferta no fim (item B2): "é só falar", "me fala que eu ajusto", "se não for essa, me fala" em QUALQUER ponto da
+# última frase - sai a oração da oferta, fica o resto.
+# 3a rodada: "é só falar/avisar" só é oferta se a frase acaba ali ou segue com "se/que" ("é só falar se quiser");
+# "é só avisar a Ana que ela espera" e "é só falar do orçamento" são instrução, ficam
+_RE_OFERTA = re.compile(
+    r"\b(?:[eé]\s+)?s[oó]\s+(?:me\s+)?(?:falar|avisar|pedir|dizer)\b(?=\s*(?:[.!?…]|$|,?\s*(?:se|que)\b))"
+    r"|\bme\s+(?:fala|avisa|diz|chama)\s+(?:que|q)\s+(?:eu\s+)?(?:ajusto|mudo|troco|arrumo|corrijo|acerto|remarco|"
+    r"mexo|altero|refa[cç]o|ajeito|recalculo|atualizo)\b"
+    r"|\bse\s+n[aã]o\s+for\s+(?:ess[ae]|isso|o\s+lugar|o\s+certo|a\s+certa)\b[^.!?…]*\bme\s+(?:fala|avisa|diz)\b"
+    r"|\bmuda\s+o\s+que\s+quiser\b"
+    r"|\bse\s+quiser,?\s+(?:eu\s+)?(?:outr[oa]|mudar|trocar|ajustar|mexer|mudo|troco|ajusto|mexo)\b",
+    re.IGNORECASE)
+_RE_INICIO_OFERTA = re.compile(
+    r"(?:e\s+|mas\s+|a[ií]\s+)?(?:se\b|caso\b|qualquer\s+coisa|quiser\b|[eé]\s+s[oó]\b|s[oó]\s+(?:me\s+)?"
+    r"(?:falar|avisar|pedir|dizer)\b|me\s+(?:fala|avisa|diz|chama)\b|muda\s+o\s+que)",
+    re.IGNORECASE)
+def _inicio_ultima_frase(s: str) -> int:
+    """Onde começa a última frase. Ponto entre dígitos ("R$ 1.250") não separa; 08/11: reticências dentro de
+    parênteses ("(carro, viagem...)") também não - o corte deixava "Se for pra alguma coisa (... )." solto."""
+    inicio, nivel = 0, 0
+    for i, c in enumerate(s):
+        if c == "(":
+            nivel += 1
+        elif c == ")":
+            nivel = max(0, nivel - 1)
+        elif nivel == 0 and (c in "!?…\n" or (
+                c == "." and not (0 < i < len(s) - 1 and s[i - 1].isdigit() and s[i + 1].isdigit()))):
+            inicio = i + 1
+    return inicio
+_RE_CORTE_OFERTA = re.compile(r"\s*(?:[,;:]|\s[-–—])\s*|\s(?=(?:e\s+)?(?:se|caso|qualquer\s+coisa)\b)", re.IGNORECASE)
 
 # fecho de robô (o prompt já proíbe; quando escapa, sai aqui). Só a ÚLTIMA frase, e só se sobrar texto.
 _RE_FECHO_ROBO = re.compile(
-    r"(?:^|(?<=[.!?…\n]))\s*(?:se\s+quiser\b|se\s+precisar\b|qualquer\s+coisa,?\s+(?:[eé]\s+s[oó]|me)\b|"
+    r"(?:^|(?<=[.!?…\n]))\s*(?:"
+    # 08/11 (rodada com a IA de verdade): oferta genérica no fim ("Quer que eu mexa em mais alguma coisa?", "Quer
+    # que eu encaixe alguma delas?"). Pergunta de ação concreta ("Quer que eu crie o hábito?") continua.
+    r"(?:quer\s+que\s+eu|posso)\b[^.!?…]*\b(?:mais\s+alguma\s+coisa|algo\s+mais|alguma\s+outra\s+coisa|"
+    r"alguma\s+coisa|alguma\s+delas|algum\s+deles)\b[^.!?…]*\?|"
+    r"se\s+quiser\b|se\s+precisar\b|qualquer\s+coisa,?\s+(?:[eé]\s+s[oó]|me)\b|"
     r"estou\s+aqui\b|t[oô]\s+aqui\s+(?:pra|para)\b|fico\s+[aà]\s+disposi[cç][aã]o|espero\s+ter\s+ajudado|"
     r"espero\s+que\s+(?:isso\s+)?ajude)[^.!?…]*[.!?…]*\s*$",
     re.IGNORECASE)
@@ -107,21 +196,62 @@ def _sem_acento(texto: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn").lower()
 
 
-def revisar(texto: str, chamadas: list, agora: datetime | None = None) -> list[dict]:
+def _primeira_palavra(texto: str) -> str:
+    achou = re.match(r"\s*([^\W\d_]+)", texto or "")
+    return _sem_acento(achou.group(1)) if achou else ""
+
+
+def _abertura_solta(texto: str):
+    """Match da abertura curta e separada do resto ("Beleza,", "Fechado.", "Show -") ou None."""
+    m = _RE_ABERTURA_SOLTA.match(texto or "")
+    return m if m and m.end() < len(texto.rstrip()) else None
+
+
+def _mesma_abertura(texto: str, anterior: str | None) -> str | None:
+    """A abertura solta de `texto` quando ela repete a da resposta anterior (ou a 1a palavra dela)."""
+    if not anterior:
+        return None
+    m = _abertura_solta(texto)
+    if not m:
+        return None
+    nova = _sem_acento(m.group(1))
+    if nova not in _CONFIRMACOES:  # 3a rodada: "Amanhã:", "Dentista:", "Sexta," são conteúdo, não abertura
+        return None
+    m_ant = _abertura_solta(anterior)
+    if nova in {_sem_acento(m_ant.group(1)) if m_ant else "", _primeira_palavra(anterior)}:
+        return m.group(0)
+    return None
+
+
+def _consultou(chamadas) -> bool:
+    return any(nome.startswith("consultar_") for nome, _e, _r in chamadas)
+
+
+def revisar(texto: str, chamadas: list, agora: datetime | None = None, *,
+            anterior: str | None = None, mensagem: str | None = None) -> list[dict]:
     """Confere `texto` contra `chamadas` [(ferramenta, entrada, resultado_que_a_IA_viu)] e o relógio.
+    `anterior` = resposta anterior do assistente (abertura repetida); `mensagem` = o que o Alex mandou agora.
     Devolve os achados [{"codigo", "detalhe"}] - cada `detalhe` já diz o certo, pronto pra nota."""
     agora = agora or datetime.now()
     texto = texto or ""
+    mensagem = mensagem if isinstance(mensagem, str) else ""
     achados: list[dict] = []
 
     # 1) disse que gravou sem ter gravado nada nesta resposta
     if not _gravou(chamadas):
+        perguntou = mensagem.rstrip().endswith("?")
         for m in _RE_AFIRMOU.finditer(texto):
-            if _RE_NEGACAO_ANTES.search(texto[max(0, m.start() - 20): m.start()]):
+            antes = texto[max(0, m.start() - 25): m.start()]
+            if _RE_NEGACAO_ANTES.search(antes[-20:]) or _RE_JA_ANTES.search(antes):
                 continue
+            if _RE_PARTICIPIO.search(m.group(1)) and (perguntou or _consultou(chamadas) or _RE_TA_ANTES.search(antes)):
+                continue
+            # 3a rodada: num reenvio "chama a ferramenta agora" duplicava a tarefa - confere antes
             achados.append({"codigo": "afirmou_sem_fazer", "detalhe": (
-                f'tu escreveu "{m.group(1)}", mas nesta resposta nenhuma ferramenta gravou nada. Se o Alex pediu '
-                "pra gravar, chama a ferramenta certa agora; se não dá, diz que ainda não ficou anotado.")})
+                f'tu escreveu "{m.group(1)}", mas nesta resposta nenhuma ferramenta gravou nada. Se a mensagem '
+                "dele parece repetida, confere primeiro (consultar_agenda/consultar_tarefas): se já existe, diz "
+                '"já tá: ..." e não grava de novo. Se não existe e ele pediu pra gravar, chama a ferramenta certa; '
+                "se não dá, diz que ainda não ficou anotado.")})
             break
 
     # horas que as ferramentas calcularam nesta resposta
@@ -189,6 +319,34 @@ def revisar(texto: str, chamadas: list, agora: datetime | None = None) -> list[d
                 achados.append({"codigo": "trajeto_diferente", "detalhe": (
                     f"tu escreveu {m.group(0).strip()!r}, mas a rota calculada deu {round(perto)} min.")})
                 break
+
+    # 6) falou do sistema (o Alex não perguntou do app): fala como gente
+    sistema = _RE_SISTEMA.search(texto)
+    if sistema and not _RE_FALA_DO_SISTEMA.search(mensagem):
+        achados.append({"codigo": "falou_do_sistema", "detalhe": (
+            f'tu escreveu "{sistema.group(0)}": não fala do sistema (card, ferramenta, "o painel calculou", nome de '
+            'função). Diz o resultado como gente ("sai 19h40", "dá 25 min até lá").')})
+
+    # 7) "você" com o Alex: sempre "tu"
+    if not _RE_PEDIU_RECADO.search(mensagem):
+        alvo = _RE_ENTRE_ASPAS.sub(" ", texto)
+        recado = _RE_RECADO_DEPOIS.search(alvo)
+        if recado:  # "Manda pra ela: ..." - o resto é o recado (na dúvida, não acusa)
+            alvo = alvo[:recado.end()]
+        voce = _RE_VOCE.search(alvo)
+        if voce:
+            achados.append({"codigo": "falou_voce", "detalhe": (
+                f'tu escreveu "{voce.group(0)}": com o Alex é sempre "tu" (tu, te, teu, tua, contigo), nunca '
+                "você/seu/sua.")})
+
+    # 8) começou igual à resposta anterior com verbo de confirmação colado ("Anotei o X" duas vezes seguidas).
+    # Abertura solta repetida ("Beleza, ...") não volta pro modelo: sai em limpar().
+    primeira = _primeira_palavra(texto)
+    if (anterior and primeira in _CONFIRMACOES and primeira == _primeira_palavra(anterior)
+            and len(texto.split()) >= 4 and not _abertura_solta(texto)):
+        achados.append({"codigo": "abertura_repetida", "detalhe": (
+            f'tu começou com "{primeira}" de novo, igual à resposta anterior. Começa de outro jeito, direto pelo '
+            'que ficou (ex.: "Dentista sexta 10h.").')})
     return achados
 
 
@@ -198,18 +356,118 @@ def nota_de_correcao(achados: list[dict]) -> str:
     so_texto = all(a["codigo"] != "afirmou_sem_fazer" for a in achados)
     return (
         "[revisão automática do painel - o Alex NÃO vê esta mensagem]\n"
-        "A resposta acima tem erro de conta/fato:\n" + linhas + "\n"
+        "A resposta acima tem erro de conta, de fato ou de jeito de falar:\n" + linhas + "\n"
         + ("Não chama ferramenta de novo (o que tinha que ser feito já foi). " if so_texto else "")
         + "Escreve a resposta inteira de novo, corrigida, no mesmo tom e tamanho, sem mencionar esta revisão."
     )
 
 
 def limpar_fecho(texto: str) -> str:
-    """Tira a última frase se ela for fecho de robô ("Se quiser, ...", "Espero ter ajudado") e sobrar texto."""
+    """Tira a última frase se ela for fecho de robô ("Se quiser, ...", "Espero ter ajudado") e sobrar texto;
+    e a oferta ("é só falar", "me fala que eu ajusto") em qualquer ponto da última frase."""
     if not texto:
         return texto
     m = _RE_FECHO_ROBO.search(texto)
-    if not m:
+    if m:
+        resto = texto[:m.start()].rstrip()
+        if len(resto) >= 15:
+            texto = resto
+    return _cortar_oferta(texto)
+
+
+_RE_SUBORDINADA = re.compile(
+    r"^(?:e\s+|mas\s+)?(?:se|caso|como|quando|j[aá]\s+que|porque|pois|assim\s+que|enquanto|pra|para|embora)\b",
+    re.IGNORECASE)
+
+
+_RE_CONTINUA_SUBORDINADA = re.compile(r"(?:que|onde|quando|cujo|cuja|o\s+que|a\s+qual|o\s+qual)\b", re.IGNORECASE)
+
+
+def _so_subordinada(trecho: str) -> bool:
+    """O que sobrou do corte é só a oração que dependia da oferta: começa com se/como/quando/já que... e o que vem
+    depois de cada vírgula (fora de parênteses) também é subordinado ("Se era do Venvanse, que era às 7h30").
+    Oração principal depois da vírgula fica: "Como tu pediu, marquei às 9h"; "Se chover, leva guarda-chuva"."""
+    if not _RE_SUBORDINADA.match(trecho):
+        return False
+    partes = [p.strip() for p in re.sub(r"\([^)]*\)", "", trecho).split(",")]
+    return all(_RE_CONTINUA_SUBORDINADA.match(p) for p in partes[1:] if p)
+
+
+# "então" só depois de vírgula ("fica pra amanhã então." é o jeito dele de fechar, não sobra); "aí"/"daí" ficam
+# ("o carro tá aí")
+_RE_CONECTOR_FINAL = re.compile(
+    r"(?:(?:^|,\s*)ent[aã]o|(?:^|(?<=[\s,;]))(?:e|mas|pois|porque|que|ou|s[oó]\s+que))\s*$", re.IGNORECASE)
+
+
+def _cortar_oferta(texto: str) -> str:
+    corpo = texto.rstrip()
+    sem_ponto = corpo.rstrip(".!?… ")
+    # 3a rodada: ponto entre dígitos ("R$ 1.250") não separa frase
+    inicio = _inicio_ultima_frase(sem_ponto)
+    frase = corpo[inicio:]
+    oferta = _RE_OFERTA.search(frase)
+    if not oferta:
         return texto
-    resto = texto[:m.start()].rstrip()
-    return resto if len(resto) >= 15 else texto
+    # pontos de corte antes da oferta (vírgula, ponto e vírgula, travessão, " e se", " se", " qualquer coisa"),
+    # do mais perto pro mais longe: vale o mais longe enquanto o pedaço que sobra ainda é oferta/condição
+    cortes = [(c.start(), c.end()) for c in _RE_CORTE_OFERTA.finditer(frase) if c.start() < oferta.start()]
+    cortes.append((0, 0))
+    escolhido = None
+    for ini_sep, fim_sep in sorted(cortes, reverse=True):
+        if not _RE_INICIO_OFERTA.match(frase[fim_sep:].lstrip()):
+            break
+        escolhido = ini_sep
+    if escolhido is None:
+        return texto
+    antes = texto[:inicio].rstrip()
+    resto_frase = frase[:escolhido].strip().rstrip(",;:-–— ")
+    # 4a rodada: "continua onde estava, então, se quiser eu..." sobrava "continua onde estava, então." -
+    # conector solto no fim (então/e/mas/aí/porque/que...) sai junto com a oferta
+    while True:
+        sem_conector = _RE_CONECTOR_FINAL.sub("", resto_frase).rstrip(",;:-–— ")
+        if sem_conector == resto_frase:
+            break
+        resto_frase = sem_conector
+    # 08/11 (rodada com a IA de verdade): sobrar só a oração de condição/causa ("Como cai num domingo.",
+    # "Se for pra alguma coisa específica (...).") é pior que tirar a frase inteira
+    if not resto_frase or _so_subordinada(resto_frase):  # a frase inteira era oferta
+        return antes if len(antes) >= 6 else texto
+    final = "." if not resto_frase.endswith((".", "!", "?", "…")) else ""
+    novo = ((antes + " ") if antes else "") + resto_frase + final
+    return novo if len(novo.strip()) >= 6 else texto
+
+
+def limpar_abertura(texto: str, anterior: str | None) -> str:
+    """Tira a abertura solta ("Beleza,", "Fechado.") quando ela repete a da resposta anterior."""
+    if not texto:
+        return texto
+    repetida = _mesma_abertura(texto, anterior)
+    if not repetida:
+        return texto
+    resto = texto[len(repetida):].lstrip()
+    if len(resto) < 15:
+        return texto
+    return resto[0].upper() + resto[1:]
+
+
+# 08/11 (rodada com a IA de verdade): "agendado pras 07h31" - o jeito dele (e o da voz) é "7h31"
+_RE_HORA_ZERO = re.compile(r"(?<![\d:/.,])0(\d)h(\d{2})?\b")
+# "ta"/"Ta" solto sem acento (o prompt é escrito sem acento e o modelo copia): "ta quase limpo" -> "tá"
+_RE_TA = re.compile(r"(?<![\w'-])([Tt])a(?![\w'-])")
+# reenvio: "Não precisei criar de novo, então não duplicou nada." é falar do sistema - sai a frase inteira
+_RE_FRASE_DUPLICOU = re.compile(
+    r"(?:^|(?<=[.!?…]))\s*[^.!?…]*\b(?:n[aã]o\s+precisei\s+(?:criar|anotar|marcar)\s+de\s+novo|"
+    r"n[aã]o\s+duplic(?:ou|uei|ar)|sem\s+duplicar)\b[^.!?…]*[.!?…]?", re.IGNORECASE)
+
+
+def limpar(texto: str, anterior: str | None = None) -> str:
+    """O que sai no código, sem nova chamada: abertura repetida, fecho/oferta de robô, "07h31" -> "7h31",
+    "ta" -> "tá" e a frase de "não duplicou"."""
+    texto = limpar_fecho(limpar_abertura(texto, anterior))
+    if not texto:
+        return texto
+    sem_dup = _RE_FRASE_DUPLICOU.sub("", texto).strip()
+    if len(sem_dup) >= 15:
+        texto = sem_dup
+    texto = _RE_HORA_ZERO.sub(lambda m: f"{m.group(1)}h{m.group(2) or ''}", texto)
+    return _RE_TA.sub(lambda m: m.group(1) + "á", texto)

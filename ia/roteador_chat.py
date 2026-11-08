@@ -301,7 +301,7 @@ _RE_DECISAO = re.compile(
 )
 _RE_CONTA_TEMPO = re.compile(
     r"\bque horas?\b|\ba que horas\b|\bquanto tempo\b|\bchego\b|\bchegar\b|\bchegada\b|\batras\w*\b|\bsair\b|\bsaio\b"
-    r"|\bhorario\b|\bdemora\b|\bminutos?\b|\bate la\b|\bdaqui ate\b"
+    r"|\bhorarios?\b|\bdemora\b|\bminutos?\b|\bate la\b|\bdaqui ate\b"
 )
 _RE_RESTRICAO = re.compile(
     r"\bchuva\b|\bchover\b|\bclima\b|\btransito\b|\bdate\b|\bvoo\b|\bcarro\b|\bdinheiro\b|\bsaldo\b|\bprazo\b"
@@ -310,6 +310,15 @@ _RE_RESTRICAO = re.compile(
 _RE_REMONTAR = re.compile(
     r"\b(?:refaz|refaca|remonta|remonte|replaneja|replaneje|reorganiza|reorganize|recalcula|recalcule)\b"
     r".{0,25}\b(?:dia|tarde|noite|manha|horarios?|agenda|tudo)\b"
+    # 08/11: "ajusta os horarios" (a fala transcreve "justo/juste os horarios"), "estima os horarios", "muda os
+    # horarios" - plural = remontar a agenda; "muda o horario do dentista" (singular) segue rapido
+    r"|\b(?:ajusta|ajuste|ajustar|justo|juste|justa|estima|estime|estimar|muda|mude|mudar|atualiza|atualize|"
+    r"atualizar|arruma|arrume|acerta|acerte|refaz|refaca)\b.{0,25}\bhorarios\b"
+)
+# atraso dito: a conta do resto do dia muda (duracoes dele + se arrumar + trajeto) - leva 08/11, item B9
+_RE_ATRASO = re.compile(
+    r"\b(?:atrasei|me atrasei|atrasou tudo|atrasou o dia|vou atrasar|vou me atrasar|vou chegar atrasad[oa]"
+    r"|(?:to|tou|estou|ja to|ja estou) atrasad[oa])\b"
 )
 
 
@@ -321,7 +330,8 @@ def precisa_pensar(mensagem, anterior=None) -> bool:
         texto = _normalizar(mensagem)
         if not texto:
             return False
-        if _RE_PEDIU_PENSAR.search(texto) or _RE_CORRIGIU.search(texto) or _RE_REMONTAR.search(texto):
+        if (_RE_PEDIU_PENSAR.search(texto) or _RE_CORRIGIU.search(texto) or _RE_REMONTAR.search(texto)
+                or _RE_ATRASO.search(texto)):
             return True
         decisao = bool(_RE_DECISAO.search(texto))
         tempo = bool(_RE_CONTA_TEMPO.search(texto))

@@ -2085,7 +2085,7 @@ class PainelTestCase(unittest.TestCase):
 
         def fake_chat(mensagens, contexto, memorias, executores):
             resultado = executores["registrar_tarefa"](
-                {"titulo": "consulta medica", "quando_data": hoje, "hora": "14:00"}
+                {"titulo": "consulta medica", "quando": "hoje", "quando_data": hoje, "hora": "14:00"}
             )
             self.assertEqual(resultado, {"ok": True})
             return "Registrei.", ["registrar_tarefa"], fake_usage()
@@ -2937,13 +2937,12 @@ class PainelTestCase(unittest.TestCase):
                 json={"endpoint": "https://exemplo.com/sub1", "keys": {}},
             )
             res = self.client.post("/api/notificacoes/verificar-agora")
-        # Fase 6 (US-E8): tarefa com hora 00:00 ja passa tambem dos 30min de
-        # tarefas_horario_passou no mesmo tick (hora bem no inicio do dia) -
-        # os dois avisos (tarefa_horario "chegou" + tarefa_horario_passou
-        # "passou da hora") saem juntos aqui, cada um seu proprio tipo/corpo.
-        self.assertEqual(res.get_json()["avisos_enviados"], 2)
-        corpos = [c.args[2] for c in mock_enviar.call_args_list]
-        self.assertTrue(any("colocar o lixo pra fora" in c for c in corpos))
+        # Leva 08/11 (A6): tarefa com hora 00:00 ja passou dos 30 min, mas o "passou da hora" nao sai mais
+        # junto com o aviso da hora no mesmo tick (servidor voltando de parada mandava os dois) - sai 30 min
+        # depois. Aqui: uma mensagem so, com o nome da tarefa no titulo.
+        self.assertEqual(res.get_json()["avisos_enviados"], 1)
+        textos = [" ".join(c.args[1:3]) for c in mock_enviar.call_args_list]
+        self.assertTrue(any("colocar o lixo pra fora" in t for t in textos))
 
     def test_lembretes_lista_vazia(self):
         self.assertEqual(self.client.get("/api/lembretes").get_json(), [])
@@ -5093,7 +5092,7 @@ class PainelTestCase(unittest.TestCase):
 
         self.assertEqual(res.get_json()["avisos_enviados"], 1)
         mock_enviar.assert_called_once()
-        self.assertIn("concluida hoje", mock_enviar.call_args[0][2])
+        self.assertIn("concluída hoje", mock_enviar.call_args[0][2])
 
     def test_verificar_fechamento_noturno_ja_notificado_nao_repete(self):
         sub = {"endpoint": "https://exemplo.com/push/fechamento2", "keys": {"p256dh": "x", "auth": "y"}}
@@ -5122,7 +5121,8 @@ class PainelTestCase(unittest.TestCase):
 
         self.assertEqual(res.get_json()["avisos_enviados"], 1)
         mock_enviar.assert_called_once()
-        self.assertIn("25 dias", mock_enviar.call_args[0][2])
+        # leva 08/11: a data do ultimo voo em vez de "faz N dias"
+        self.assertIn(date.fromisoformat(antigo).strftime("%d/%m"), mock_enviar.call_args[0][2])
 
     def _fake_get_contas_a_vencer(self, contas):
         def fake_get(url, headers=None, params=None, timeout=None):
@@ -5181,7 +5181,7 @@ class PainelTestCase(unittest.TestCase):
             res = self.client.post("/api/notificacoes/verificar-agora")
 
         self.assertEqual(res.get_json()["avisos_enviados"], 1)
-        self.assertIn("venceu ha 2 dia(s)", mock_enviar.call_args[0][2])
+        self.assertIn("venceu há 2 dias", mock_enviar.call_args[0][2])
 
     def test_verificar_nao_notifica_conta_distante(self):
         sub = {"endpoint": "https://exemplo.com/push/contas3", "keys": {"p256dh": "x", "auth": "y"}}
@@ -5637,6 +5637,7 @@ class PainelTestCase(unittest.TestCase):
                     "registrar_tarefa",
                     {
                         "titulo": "comprar material (cimento, argamassa, porta) e pegar granito",
+                        "quando": "hoje",
                         "quando_data": hoje,
                         "hora": "08:00",
                     },
@@ -5903,7 +5904,8 @@ class PainelTestCase(unittest.TestCase):
             ],
             stop_reason="tool_use",
         )
-        resposta_final = _resp([_text_block("Registrei os 7 itens soltos que voce colou.")])
+        # "tu colou": desde a leva 08/11 o revisor manda refazer resposta com "voce" (gastaria outra chamada)
+        resposta_final = _resp([_text_block("Registrei os 7 itens soltos que tu colou.")])
 
         mensagem = (
             "[18/09/2026, 07:57:50] alex: 4 pacotinho de fuga cinza claro 1kg\n"

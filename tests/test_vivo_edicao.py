@@ -113,7 +113,7 @@ class VivoTestCase(unittest.TestCase):
 
     def test_tarefa_criada_vem_com_o_dia_em_volta(self):
         self.sql("INSERT INTO tasks (title, due_date, hora) VALUES ('Date', ?, '20:30')", (HOJE,))
-        corpo, _ = self.chat([("registrar_tarefa", {"titulo": "Visitar a irma", "quando_data": HOJE, "hora": "17:00"})])
+        corpo, _ = self.chat([("registrar_tarefa", {"titulo": "Visitar a irma", "quando": "hoje", "quando_data": HOJE, "hora": "17:00"})])
         card = next(c for c in corpo["cards"] if c["type"] == "tarefas_criadas")
         agenda = card["data"]["agenda_do_dia"]
         self.assertEqual([(t["titulo"], t["nova"]) for t in agenda], [("Visitar a irma", True), ("Date", False)])

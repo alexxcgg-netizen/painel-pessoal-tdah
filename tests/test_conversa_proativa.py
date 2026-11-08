@@ -240,6 +240,9 @@ class VerificarTestCase(unittest.TestCase):
         self.assertEqual(self._mensagens(), [])
 
     def test_publica_uma_vez_so(self):
+        # leva 08/11: sem nada feito na semana o padroes_semana nao sai e o teste quebrava todo domingo (esperava
+        # o card da semana). Uma tarefa feita ontem garante o card no domingo; nos outros dias ele nao entra.
+        _tarefa(self.conn, "feita ontem", feita_em=_feita_no_dia(HOJE - timedelta(days=1)))
         agora = datetime.combine(HOJE, datetime.min.time()).replace(hour=21, minute=3)
         saida = cp.verificar(self.conn, agora)
         self.assertEqual([s[0] for s in saida][:1], ["fechamento_noturno"])
@@ -317,6 +320,10 @@ class ComoEstaTestCase(unittest.TestCase):
         return [c for m in db.list_chat_mensagens(self.conn) for c in db.cards_de_mensagem_chat(m)]
 
     def test_pergunta_uma_vez_de_manha_com_o_card(self):
+        # leva 08/11 (A7): sai no primeiro sinal de acordado (aqui: o "bom dia" das 08:00)
+        import vida_assistente
+
+        vida_assistente.registrar_acordou(self.conn, self.manha.replace(minute=0))
         saida = cp.perguntar_como_esta(self.conn, self.manha)
         self.assertEqual([s[0] for s in saida], ["como_esta"])
         card = [c for c in self._cards() if c["type"] == "checkin"][0]
@@ -325,7 +332,7 @@ class ComoEstaTestCase(unittest.TestCase):
         self.assertEqual(len(self._cards()), 1)
 
     def test_fora_da_janela_ou_ja_respondido_nao_pergunta(self):
-        self.assertEqual(cp.perguntar_como_esta(self.conn, self.manha.replace(hour=12)), [])
+        self.assertEqual(cp.perguntar_como_esta(self.conn, self.manha.replace(hour=13)), [])  # 08/11: janela ate 12:30
         db.salvar_checkin(self.conn, HOJE.isoformat(), {"sono": 1})
         self.assertEqual(cp.perguntar_como_esta(self.conn, self.manha), [])
         self.assertEqual(self._cards(), [])

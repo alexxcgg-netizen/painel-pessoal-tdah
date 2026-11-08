@@ -183,7 +183,7 @@ def _perguntar_tarefas_vencidas(conn, hoje: date) -> None:
         _enfileirar(
             tipo="pergunta",
             titulo=perguntas.texto_pergunta_tarefa(titulo),
-            corpo=f"Prazo era {row['due_date']} ({dias_atraso} dia(s) atras).",
+            corpo=f"Prazo era {row['due_date']} ({dias_atraso} {'dia' if dias_atraso == 1 else 'dias'} atrás).",
             opcoes=OPCOES_TAREFA,
             origem=chave,
             chave_unica=chave,
@@ -208,14 +208,15 @@ def _resolver_tarefa(conn, task_id: int, resposta: str, texto: str, hoje: date) 
 
 def _perguntar_lembretes(conn, hoje: date) -> None:
     import notificacoes
-    from db import list_lembretes
+    from db import data_iso, list_lembretes
 
     for lembrete in list_lembretes(conn):
         titulo = lembrete["titulo"]
         if perguntas.eh_relacionamento(titulo):
             continue
         try:
-            base = date.fromisoformat(lembrete["data"])
+            # 08/11: lembrete antigo gravado com hora ("2026-11-15T09:00") aparece na tela - aqui tambem
+            base = date.fromisoformat(data_iso(lembrete["data"]) or "")
         except (TypeError, ValueError):
             continue
         proxima = notificacoes.proxima_ocorrencia_lembrete(base, bool(lembrete["recorrente"]), hoje)
@@ -271,7 +272,7 @@ def _perguntar_esperas(conn, hoje: date) -> None:
         _enfileirar(
             tipo="pergunta",
             titulo=perguntas.texto_pergunta_espera(quem, sobre),
-            corpo=f"Esperando desde {criado.isoformat()} ({dias_passados} dia(s)).",
+            corpo=f"Esperando desde {criado.isoformat()} ({dias_passados} {'dia' if dias_passados == 1 else 'dias'}).",
             opcoes=OPCOES_ESPERA,
             origem=chave,
             chave_unica=chave,

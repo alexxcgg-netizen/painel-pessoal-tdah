@@ -912,3 +912,34 @@ Objetivo: nenhuma faixa da Fase 7 edita o mesmo arquivo que outra. Antes de mexe
 - Seletor `.x > span` (0,1,1) ganha de `.tp-es-arr` (0,1,0): `min-width` de segmento da faixa precisa de `.faixa > .seg`.
 - Push de tipo novo: entra em `assistente/avisos.TIPOS` e, se tem que furar o hiperfoco, em `vida.CRITICOS_HIPERFOCO`.
   O tick deduplica por tipo/dia (`ja_notificou_hoje(tipo)`): 1 push por tipo por dia.
+
+### Leva 08/11 (conversa inteira) - 2026-11-08
+- **Fuso:** `completed_at`, `created_at`, `criado_em` são UTC (`datetime('now')`). Dia local = `db.dia_local_sql(col)` no
+  SQL, `db.dia_local(txt)` / `db.datahora_local(txt)` no Python (`app.DIA_CONCLUSAO_SQL` / `DIA_GASTO_SQL` são o mesmo).
+  Nunca `date(col)` / `substr(col,1,10)` / `.date()` direto sobre essas colunas: das 21h às 24h o dia UTC já é o seguinte.
+  Gravar sempre UTC (nada de `datetime.now()` em coluna que outro lugar lê como UTC).
+- **Data vinda da IA:** normalizar com `db.data_iso` (vazio -> None, "AAAA-MM-DDTHH:MM" -> só a data, inválida -> erro
+  pra IA). Leitor de tick nunca faz `date.fromisoformat` sem try por linha: uma linha torta derrubava o ciclo de push.
+- **Compromisso de sair** (`notificacoes.e_saida` / `com_pessoa`): texto de saída, parede na cascata, recado só com
+  pessoa. "casa d@ X" sem apelido (`db.casa_de_pessoa`) nunca vai pro Google (deu cidade homônima a 2158 min); perna
+  de parada tem teto `PARADA_TETO_MIN`. Fechar sozinho pelo GPS só com sinal que COBRE a hora; na dúvida pergunta.
+- **Apelido de lugar automático** nunca sobrescreve chave existente (devolve `lugar_conflito`) e nunca salva palavra
+  genérica sozinha (`app._LUGAR_CATEGORIA`).
+- **Mensagem proativa** = assistant sem user logo antes: não ocupa a janela de 20 do histórico.
+- **401 da API** pausa o provedor 30 min (em memória) e avisa uma vez por dia; não repete 3x.
+- **Atalho local** (`aprendizado.consulta_conhecida`): toda regra nova precisa de frases NEGATIVAS no teste (trajeto,
+  conselho, futuro, outro dia). A varredura de 08/11 achou 45 de 79 perguntas realistas caindo em card errado.
+- **Revisor do chat:** corte local só com padrão bem estreito (`_CONFIRMACOES`, oferta com fim de frase) - corte largo
+  apagou conteúdo ("Amanhã: ...") e quebrou "R$ 1.250".
+- **Regra do classificador_local** devolve `{"acao": ..., "parametros": {...}}`; `{}` cru é descartado como formato
+  inválido (a p5_replanejar ficou morta assim). Regra local que volta a disparar pode ROUBAR frase que o chat já
+  tratava melhor (o "atrasei" da p5 passou por cima do ATRASO DITO): conferir os padrões contra as regras do prompt.
+- **Testar com a IA de verdade** (rodada 08/11 (2)): unidade com mock não pega o que o modelo FAZ com o resultado da
+  ferramenta. Cenários no jeito dele numa cópia do banco (aberto `mode=ro` + backup), `db.DB_PATH` na cópia +
+  `garantir_banco_nao_producao`, push/Telegram/iCloud e POST fora do Google bloqueados; espiar `revisor_chat.revisar`
+  dá as ferramentas chamadas (entrada/saída) e o texto antes do `limpar`. ~US$ 0,002 por turno no Haiku, ~US$ 0,30 no
+  degrau pensar. A cópia do banco é dado pessoal: apagar no fim.
+- **Erro de ferramenta que lista candidatas** vira contexto pra IA: ela cita a candidata errada na resposta (o date de
+  ontem). Desempatar no código quando der (`_achar`: aberta de hoje em diante) em vez de devolver a lista.
+- **Plano "já está na rua"** (`na_rua`) só vale pro que é daqui a pouco (`HORIZONTE_H`): estado de agora não vale pra
+  compromisso de daqui a 12 h.

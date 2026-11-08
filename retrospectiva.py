@@ -120,7 +120,7 @@ def _gasto_que_cresceu(conn, ano: int, mes: int) -> dict | None:
         return {
             r["c"]: float(r["t"] or 0)
             for r in conn.execute(
-                "SELECT category c, SUM(amount) t FROM expenses WHERE date(created_at) BETWEEN ? AND ? "
+                f"SELECT category c, SUM(amount) t FROM expenses WHERE {db.dia_local_sql()} BETWEEN ? AND ? "
                 "AND tipo = 'real' GROUP BY category", (ini, fim)
             )
         }

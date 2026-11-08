@@ -45,6 +45,14 @@ PORQUE_GERAL = (
     "Fazer agora tira isso da cabeça.",
     "Quanto antes, menos pesa.",
 )
+# 08/11 (frente A, A1): compromisso de SAIR (date, balada, buscar alguem) nao e tarefa de "marcar Feito":
+# nada de "primeiro passo", "ta na tua lista ha N dias" nem "tocar em Feito" - a cara fala de sair
+HUMOR_SAIR = (
+    "{nome} te espera. Bora?",  # 08/11 (rodada 3): so com gente esperando (notificacoes.com_pessoa)
+    "O espelho já aprovou, agora é a porta.",
+    "Melhor chegar e esperar do que correr.",
+)
+TIPOS_SAIDA = ("se_arrumar", "hora_de_sair")  # esses so existem pra compromisso de sair
 
 
 def criar_tabela(conn) -> None:
@@ -169,9 +177,9 @@ def _min_ate(hora: str | None, agora: datetime) -> int | None:
 
 
 def _fatos_tarefa(conn, task_id: int, agora: datetime) -> dict | None:
-    t = conn.execute(
-        "SELECT id, title, hora, due_date, created_at, completed_at FROM tasks WHERE id = ?", (task_id,)
-    ).fetchone()
+    import notificacoes
+
+    t = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if not t or t["completed_at"]:
         return None
     sub = conn.execute(
@@ -179,12 +187,57 @@ def _fatos_tarefa(conn, task_id: int, agora: datetime) -> dict | None:
     ).fetchone()
     dias = None
     try:
-        dias = (agora.date() - date.fromisoformat((t["created_at"] or "")[:10])).days
+        # leva 08/11: created_at e UTC - a tarefa criada as 22h ja e "amanha" em UTC e contava 1 dia a menos
+        dias = (agora.date() - date.fromisoformat(db.dia_local(t["created_at"]) or "")).days
     except ValueError:
         pass
     atraso = _min_ate(t["hora"], agora) if t["due_date"] == agora.date().isoformat() else None
     return {"nome": t["title"], "hora": t["hora"], "atraso_min": atraso, "dias_na_lista": dias,
-            "passo": sub["title"] if sub else None}
+            "passo": sub["title"] if sub else None, "sair": notificacoes.e_saida(t), "linha": t}
+
+
+def _corpo_da_saida(rosto: str, corpo: str, fatos: dict, semente: int, tipo: str, estado: str = "") -> str:
+    """Cara de um aviso de compromisso de SAIR: o corpo (texto de saida) + uma frase de sair.
+    08/11 (rodada 3): GPS viu que ele saiu ou chegou (`estado` 'indo'/'chegou'): so o texto base - nada de
+    "Antes de sair: chave..." pra quem ja esta no caminho nem "{nome} te espera" pra quem ja chegou."""
+    import notificacoes
+
+    nome = _curto(fatos["nome"])
+    depois = fatos["atraso_min"] is not None and fatos["atraso_min"] >= 0
+    if rosto == "direto" or estado in ("indo", "chegou"):
+        return corpo
+    if rosto == "humor":
+        frases = HUMOR_SAIR if notificacoes.com_pessoa(fatos["linha"]) else HUMOR_SAIR[1:]
+        return f"{corpo} {frases[semente % len(frases)].format(nome=nome)}"
+    if rosto == "porque":
+        if depois:
+            frase = "Vai com calma no caminho."
+        elif tipo == "hora_de_sair":  # a repeticao do "hora de sair" ja e depois da hora de sair
+            frase = "Saindo já, ainda chega bem."
+        else:
+            frase = "Saindo no horário, tu chega sem correr."
+        return f"{corpo} {frase}"
+    if fatos["passo"]:
+        return f"{corpo} Antes de sair: {_curto(fatos['passo'])}."
+    if tipo == "se_arrumar":
+        return f"{corpo} Banho, roupa, chave: um de cada vez."
+    return f"{corpo} Chave, carteira, celular e porta."
+
+
+def _corpo_saida_agora(conn, tipo: str, fatos: dict, corpo: str, agora: datetime, estado: str = "") -> str:
+    """Repeticao de um aviso de saida DEPOIS da hora: refaz o texto pra hora de agora ("saindo agora chega
+    as ..." do 1o envio ja esta velho 10/30 min depois; e o GPS pode ter visto que ele saiu/chegou).
+    08/11 (rodada 3): com o GPS dizendo indo/chegou, qualquer tipo (se arrumar, hora de sair) fala disso."""
+    depois = fatos["atraso_min"] is not None and fatos["atraso_min"] >= 0
+    if not estado and (tipo not in ("tarefa_horario", "tarefa_horario_passou") or not depois):
+        return corpo
+    import notificacoes
+
+    try:
+        return notificacoes.texto_saida_depois(conn, fatos["linha"], agora, passou=tipo == "tarefa_horario_passou",
+                                               chave=f"{tipo}-rep-{fatos['linha']['id']}-{agora.date().isoformat()}")
+    except Exception:  # noqa: BLE001 - fica o corpo de antes
+        return corpo
 
 
 def _curto(texto: str, maximo: int = 60) -> str:
@@ -238,7 +291,18 @@ def variar(conn, tipo: str, referencia_id: int, tag: str, titulo: str, corpo: st
         rosto = escolher_rosto(conn, tipo, tag, repeticao, agora.date())
         fatos = _fatos_tarefa(conn, referencia_id, agora) if tipo in TIPOS_DE_TAREFA and referencia_id else None
         semente = hash_estavel(f"{tag}|{agora.date().isoformat()}|{repeticao}")
-        novo = corpo_da_cara(rosto, corpo, fatos, semente)
+        if fatos and (fatos["sair"] or tipo in TIPOS_SAIDA):
+            # 08/11 (frente A): compromisso de sair tem cara de sair (nunca "primeiro passo"/"ha N dias")
+            import notificacoes
+
+            estado = notificacoes._estado_saida(conn, referencia_id, agora.date())[0]
+            base = _corpo_saida_agora(conn, tipo, fatos, corpo, agora, estado) if repeticao >= 1 else corpo
+            novo = _corpo_da_saida(rosto, base, fatos, semente, tipo, estado)
+            if estado and repeticao >= 1:
+                # "Hora de sair ja passou"/"De novo" em cima de "Chegou bem": o titulo vira o nome do compromisso
+                titulo = notificacoes.titulo_tarefa(fatos["nome"])
+        else:
+            novo = corpo_da_cara(rosto, corpo, fatos, semente)
         registrar_envio(conn, tag, tipo, referencia_id, rosto, repeticao, agora)
         return titulo, novo
     except Exception:  # noqa: BLE001 - texto do aviso nunca pode derrubar o aviso

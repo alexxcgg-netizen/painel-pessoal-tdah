@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
@@ -149,16 +150,18 @@ class RelatorioTestCase(unittest.TestCase):
     def test_main_grava_arquivo_e_o_banco_e_aberto_so_leitura(self):
         self.conn.close()
         saida = self.pasta / "r.md"
-        rc = rp.main(["--banco", str(db.DB_PATH), "--log", str(self.pasta / "x.log"), "--saida", str(saida),
-                      "--desde", "2030-03-10", "--ate", "2030-03-12"])
-        self.assertEqual(rc, 0)
-        self.assertTrue(saida.read_text(encoding="utf-8").startswith("# Relatório do painel"))
-        ro = rp.abrir_so_leitura(db.DB_PATH)
-        with self.assertRaises(sqlite3.OperationalError):
-            ro.execute("INSERT INTO tasks (title) VALUES ('nao pode')")
-        ro.close()
-        self.assertEqual(rp.main(["--banco", str(self.pasta / "nao_tem.db")]), 1)
-        self.assertEqual(rp.main(["--desde", "2030-03-12", "--ate", "2030-03-10", "--banco", str(db.DB_PATH)]), 2)
+        # 08/11: o main() carrega o .env real; dublado pra ENCRYPTION_KEY nao vazar pros testes seguintes
+        with patch("dotenv.load_dotenv"):
+            rc = rp.main(["--banco", str(db.DB_PATH), "--log", str(self.pasta / "x.log"), "--saida", str(saida),
+                          "--desde", "2030-03-10", "--ate", "2030-03-12"])
+            self.assertEqual(rc, 0)
+            self.assertTrue(saida.read_text(encoding="utf-8").startswith("# Relatório do painel"))
+            ro = rp.abrir_so_leitura(db.DB_PATH)
+            with self.assertRaises(sqlite3.OperationalError):
+                ro.execute("INSERT INTO tasks (title) VALUES ('nao pode')")
+            ro.close()
+            self.assertEqual(rp.main(["--banco", str(self.pasta / "nao_tem.db")]), 1)
+            self.assertEqual(rp.main(["--desde", "2030-03-12", "--ate", "2030-03-10", "--banco", str(db.DB_PATH)]), 2)
 
 
 if __name__ == "__main__":

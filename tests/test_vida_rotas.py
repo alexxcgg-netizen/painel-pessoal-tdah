@@ -367,7 +367,7 @@ class ContasPessoaisTestCase(VidaBaseTestCase):
         em_3 = date.today() + timedelta(days=3)
         conta_id = db.create_conta_pessoal(conn, "Luz", em_3.day, None)
         corpos = self._notificar()
-        self.assertTrue([c for c in corpos if c.startswith("Luz vence em 3 dia(s)")])
+        self.assertTrue([c for c in corpos if c.startswith("Luz vence em 3 dias")])
         self.assertFalse([c for c in self._notificar() if c.startswith("Luz")])
         db.marcar_conta_paga(conn, conta_id, vida.proximo_vencimento(em_3.day, date.today()).isoformat())
         conn.execute("DELETE FROM notificacoes_enviadas")
@@ -429,7 +429,7 @@ class AssinaturasTestCase(VidaBaseTestCase):
             dt.now.return_value = datetime.combine(date.today(), datetime.min.time()).replace(hour=11)
             dt.fromisoformat = datetime.fromisoformat
             corpos = self._notificar()
-        self.assertTrue([c for c in corpos if c.startswith("1 assinatura(s) pra confirmar")])
+        self.assertTrue([c for c in corpos if c.startswith("1 assinatura pra confirmar")])
 
 
 class PessoasTestCase(VidaBaseTestCase):
@@ -461,7 +461,7 @@ class PessoasTestCase(VidaBaseTestCase):
         conn = self._conn()
         pid = db.create_pessoa(conn, "Mae", 7)
         db.registrar_conversa(conn, pid, "Mae", None, (date.today() - timedelta(days=9)).isoformat())
-        self.assertTrue([c for c in self._notificar() if c == "Faz 9 dias que você não fala com Mae."])
+        self.assertTrue([c for c in self._notificar() if c == "Faz 9 dias que tu não fala com Mae."])
         self.assertFalse([c for c in self._notificar() if "Mae" in c])
         self.client.post(f"/api/pessoas/{pid}/falei", json={})
         self.assertFalse([c for c in self._notificar() if "Mae" in c])

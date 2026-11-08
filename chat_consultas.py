@@ -17,6 +17,7 @@ import re
 from datetime import date, timedelta
 
 import aprendizado
+import db
 
 log = logging.getLogger(__name__)
 
@@ -83,12 +84,20 @@ def _entrada_dict(entrada) -> dict:
 _SEM_MODELO = "NOT (recorrencia IS NOT NULL AND due_date IS NULL)"
 
 
+def _concluida_em_local(completed_at) -> str | None:
+    """08/11: completed_at e UTC (datetime('now')) - a IA lia "23:40" numa tarefa feita as 20:40."""
+    local = db.datahora_local(completed_at)
+    if local:
+        return local.strftime("%Y-%m-%d %H:%M")
+    return (completed_at or "")[:16] or None
+
+
 def _item_tarefa(r) -> dict:
     return {
         "titulo": r["title"],
         "data": r["due_date"],
         "hora": r["hora"],
-        "concluida_em": (r["completed_at"] or "")[:16] or None,
+        "concluida_em": _concluida_em_local(r["completed_at"]),
     }
 
 
@@ -124,7 +133,8 @@ def consultar_tarefas(conn, entrada, materializar=None, hoje: date | None = None
 
         de_s, ate_s = de.isoformat(), ate.isoformat()
         cond_pend = "(completed_at IS NULL AND due_date BETWEEN ? AND ?)"
-        cond_conc = "(completed_at IS NOT NULL AND (due_date BETWEEN ? AND ? OR substr(completed_at, 1, 10) BETWEEN ? AND ?))"
+        dia_feita = db.dia_local_sql("completed_at")  # 08/11: dia de Brasilia, nao o UTC
+        cond_conc = f"(completed_at IS NOT NULL AND (due_date BETWEEN ? AND ? OR {dia_feita} BETWEEN ? AND ?))"
         if status == "pendentes":
             where, params = cond_pend, [de_s, ate_s]
         elif status == "concluidas":
@@ -138,7 +148,7 @@ def consultar_tarefas(conn, entrada, materializar=None, hoje: date | None = None
         rows = conn.execute(
             "SELECT title, due_date, hora, completed_at FROM tasks "
             f"WHERE {_SEM_MODELO} AND {where} "
-            "ORDER BY COALESCE(due_date, substr(completed_at, 1, 10)), hora IS NULL, hora, id LIMIT ?",
+            f"ORDER BY COALESCE(due_date, {dia_feita}), hora IS NULL, hora, id LIMIT ?",
             params + [LIMITE_TAREFAS],
         ).fetchall()
 

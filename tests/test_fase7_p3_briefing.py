@@ -143,8 +143,8 @@ class MontarManhaTestCase(unittest.TestCase):
         self.assertIn("1 compromisso na agenda: 09:00 Reuniao.", dados["corpo"])
         self.assertIn("2 tarefas pendentes: Comprar leite, Estudar.", dados["corpo"])
         self.assertIn("Hábitos de hoje: Beber agua.", dados["corpo"])
-        self.assertIn("Internet vence em 3 dia(s)", dados["corpo"])  # dia_vencimento 18, hoje dia 15
-        self.assertIn("Fornecedor XPTO (construtora) vence em 3 dia(s)", dados["corpo"])
+        self.assertIn("Internet vence em 3 dias", dados["corpo"])  # dia_vencimento 18, hoje dia 15
+        self.assertIn("Fornecedor XPTO (construtora) vence em 3 dias", dados["corpo"])
 
         # Regra de ouro do financeiro-construtora: nunca valor da conta da
         # construtora no briefing - so nome e quando.
@@ -211,7 +211,7 @@ class MontarNoiteTestCase(unittest.TestCase):
         self.assertEqual(dados["concluidas"], 0)
         self.assertEqual(dados["pendentes"], [])
         self.assertEqual(dados["opcoes"], briefing.OPCOES_FECHAMENTO)
-        self.assertIn("Nenhuma tarefa concluida hoje.", dados["corpo"])
+        self.assertIn("Nenhuma tarefa concluída hoje.", dados["corpo"])
         self.assertIn("Como foi o dia?", dados["corpo"])
         self.assertNotIn("passa pra amanha", dados["corpo"])
 
@@ -229,7 +229,7 @@ class MontarNoiteTestCase(unittest.TestCase):
         dados = briefing.montar_noite(self.conn, self.hoje)
         self.assertEqual(dados["concluidas"], 1)
         self.assertEqual(dados["pendentes"], ["Tarefa que ficou"])
-        self.assertIn("1 tarefa concluida hoje.", dados["corpo"])
+        self.assertIn("1 tarefa concluída hoje.", dados["corpo"])
         self.assertIn("Ficou pendente: Tarefa que ficou.", dados["corpo"])
         self.assertIn("O que ficou passa pra amanhã.", dados["corpo"])
         self.assertIn("Como foi o dia?", dados["corpo"])

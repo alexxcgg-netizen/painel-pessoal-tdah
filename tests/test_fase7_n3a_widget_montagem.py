@@ -98,7 +98,7 @@ class ExemploDoContratoTestCase(unittest.TestCase):
             [
                 "Foco: Revisar contrato em 19 min",
                 "Conta: Cartão em 3 dias",
-                "Habitos: 3/5",
+                "Hábitos: 3/5",
                 "IA: 42% do teto",
             ],
         )
@@ -209,7 +209,7 @@ class LinhaContaTestCase(unittest.TestCase):
             agora_utc=AGORA_UTC,
             proxima_conta={"nome": "Cartao", "em_dias": -2, "valor": None, "origem": "pessoal"},
         )
-        self.assertIn("Conta: Cartao vencida ha 2 dia(s)", r["linhas"])
+        self.assertIn("Conta: Cartao vencida há 2 dias", r["linhas"])
 
     def test_conta_em_dias_none(self):
         r = montar_widget(

@@ -84,6 +84,57 @@ class ConfigIAErro(ValueError):
 
 ERRO_TETO = "teto_ia_estourado"
 
+# 08/11 (leva conversa inteira, C7): chave da API recusada (401). Nao adianta tentar de novo nem cair no
+# fallback do MESMO provedor (mesma chave): a 1a recusa pausa o provedor por PAUSA_CHAVE_RECUSADA_S - as
+# chamadas seguintes (diario, cartoes da manha, chat) voltam na hora com ERRO_CHAVE_RECUSADA, sem bater na
+# API. A chave e lida ao subir o app, entao trocar a chave = reiniciar (zera a pausa). O aviso pro Alex (um
+# por dia) e a mensagem do chat ficam no app.py (`_avisar_chave_recusada`). Nunca le nem loga a chave.
+ERRO_CHAVE_RECUSADA = "chave_recusada"
+PAUSA_CHAVE_RECUSADA_S = 30 * 60
+_CHAVE_RECUSADA: dict = {}  # provedor -> time.time() da ultima recusa
+_RE_ERRO_AUTENTICACAO = re.compile(
+    r"error code: 401\b|authentication_error|invalid x-api-key|incorrect api key|invalid api key", re.IGNORECASE)
+
+
+def erro_de_autenticacao(erro: Optional[str] = None, exc: Optional[BaseException] = None) -> bool:
+    """True quando a falha e a chave recusada (HTTP 401 do provedor) - nao e rede nem formato."""
+    if exc is not None:
+        if getattr(exc, "status_code", None) == 401 or type(exc).__name__ == "AuthenticationError":
+            return True
+    return bool(_RE_ERRO_AUTENTICACAO.search(str(erro or "")))
+
+
+def marcar_chave_recusada(provedor: str = "anthropic") -> None:
+    provedor = (provedor or "").strip().lower()
+    if provedor not in _CHAVE_RECUSADA or not chave_recusada(provedor):
+        log.error("ia.core: a chave da API de %s foi recusada (401) - pausando chamadas por %d min",
+                  provedor, PAUSA_CHAVE_RECUSADA_S // 60)
+    _CHAVE_RECUSADA[provedor] = time.time()
+
+
+def chave_recusada(provedor: Optional[str] = "anthropic") -> bool:
+    """O provedor teve a chave recusada ha menos de PAUSA_CHAVE_RECUSADA_S? provedor=None: qualquer um."""
+    agora = time.time()
+    if provedor is None:
+        return any(agora - t < PAUSA_CHAVE_RECUSADA_S for t in list(_CHAVE_RECUSADA.values()))
+    t = _CHAVE_RECUSADA.get(provedor.strip().lower())
+    return t is not None and agora - t < PAUSA_CHAVE_RECUSADA_S
+
+
+def ultima_recusa(provedor: Optional[str] = None) -> Optional[float]:
+    """time.time() da recusa mais recente (do provedor, ou de qualquer um) que ainda nao foi desmentida por
+    uma chamada que deu certo depois. Serve pro aviso do dia (app.py), que vale alem da pausa."""
+    if provedor is None:
+        return max(_CHAVE_RECUSADA.values(), default=None)
+    return _CHAVE_RECUSADA.get(provedor.strip().lower())
+
+
+def limpar_chave_recusada(provedor: Optional[str] = None) -> None:
+    if provedor is None:
+        _CHAVE_RECUSADA.clear()
+    else:
+        _CHAVE_RECUSADA.pop(provedor.strip().lower(), None)
+
 # Prefixos que _chamar_uma_vez usa pra erro de FORMATO (a IA respondeu, mas
 # fora do JSON/schema). Qualquer outro erro de tentativa e do provedor.
 PREFIXOS_ERRO_FORMATO = (
@@ -116,16 +167,23 @@ class RespostaInvalida(FalhaChamadaIA):
     tentativas."""
 
 
+class ChaveRecusada(ErroProvedor):
+    """A chave da API foi recusada (401) em todas as tentativas. Subclasse de
+    ErroProvedor de proposito: quem so conhece ErroProvedor continua igual."""
+
+
 def classificar_falha(erro: Optional[str]) -> str:
-    """"teto" | "formato" | "provedor" a partir de Resposta.erro de
+    """"teto" | "formato" | "chave" | "provedor" a partir de Resposta.erro de
     chamar_ia. O erro agregado tem o formato "prov/modelo: erro | ..."; e
-    "formato" so quando TODAS as tentativas falharam por formato."""
+    "formato" (ou "chave") so quando TODAS as tentativas falharam por isso."""
     texto = (erro or "").strip()
     if not texto:
         return "provedor"
     if texto == ERRO_TETO or texto.endswith(": " + ERRO_TETO):
         return "teto"
     partes = [p.strip() for p in texto.split(" | ") if p.strip()]
+    if partes and all(ERRO_CHAVE_RECUSADA in p or erro_de_autenticacao(p) for p in partes):
+        return "chave"
 
     def _e_formato(parte: str) -> bool:
         detalhe = parte.split(": ", 1)[1] if ": " in parte else parte
@@ -141,7 +199,7 @@ def excecao_de_resposta(funcao: str, resp: Optional[Resposta]) -> FalhaChamadaIA
     carrega "<funcao>: <erro>" (os testes antigos procuram o erro no str)."""
     erro = (resp.erro if resp is not None else None) or "falha na chamada de IA"
     tipo = classificar_falha(erro)
-    classe = {"teto": TetoEstourado, "formato": RespostaInvalida}.get(tipo, ErroProvedor)
+    classe = {"teto": TetoEstourado, "formato": RespostaInvalida, "chave": ChaveRecusada}.get(tipo, ErroProvedor)
     return classe(f"{funcao}: {erro}", erro=erro)
 
 
@@ -278,10 +336,11 @@ def carregar_todas_configs() -> dict:
 
 
 def limpar_cache() -> None:
-    """Esquece configs e adapters em cache (usado pelos testes)."""
+    """Esquece configs e adapters em cache (usado pelos testes) - e a pausa de chave recusada."""
     with _TRAVA:
         _CACHE_CONFIG.clear()
         _CACHE_ADAPTERS.clear()
+    limpar_chave_recusada()
 
 
 # --------------------------------------------------------------------------
@@ -293,6 +352,7 @@ def registrar_adapter(provedor: str, fabrica: Optional[Callable[[], Adapter]]) -
     provedor, com prioridade sobre o import de ia.adapters.<provedor>. Serve
     pros testes (dubles) e pra provedores novos sem mexer neste arquivo."""
     provedor = provedor.strip().lower()
+    # (a pausa de chave recusada NAO zera aqui: ia/funcoes/visao re-registra antes de cada chamada)
     with _TRAVA:
         _CACHE_ADAPTERS.pop(provedor, None)
         if fabrica is None:
@@ -581,6 +641,10 @@ def chamar_ia(funcao: str, mensagens: list, *, sistema: str = "",
     for indice, entrada in enumerate(_montar_tentativas(config)):
         rotulo = f"{entrada['provedor']}/{entrada['modelo']}"
         ultima = entrada
+        if chave_recusada(entrada["provedor"]):
+            # C7 (08/11): chave recusada ha pouco - nem chama (nem o fallback do mesmo provedor)
+            erros.append(f"{rotulo}: {ERRO_CHAVE_RECUSADA}")
+            continue
         try:
             adapter = _obter_adapter(entrada["provedor"])
         except Exception as exc:  # noqa: BLE001
@@ -597,7 +661,12 @@ def chamar_ia(funcao: str, mensagens: list, *, sistema: str = "",
         if erro is None:
             resp.fallback_usado = indice > 0
             resp.erro = None
+            _CHAVE_RECUSADA.pop(entrada["provedor"], None)  # a chave voltou a valer
             return resp
+        if erro_de_autenticacao(erro, exc):
+            marcar_chave_recusada(entrada["provedor"])  # o log (1 por pausa) sai la dentro
+            erros.append(f"{rotulo}: {ERRO_CHAVE_RECUSADA}")
+            continue
         erros.append(f"{rotulo}: {erro}")
         log.warning("ia.core: %s falhou em %s: %s", funcao, rotulo, erro)
 

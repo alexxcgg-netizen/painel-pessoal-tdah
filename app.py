@@ -406,6 +406,14 @@ def _corpo_grande_demais(_erro):
 
 CLAUDE_ERROR_MSG = "Erro ao falar com a IA. Tenta de novo em instantes."
 CLAUDE_FORMAT_ERROR_MSG = "A IA respondeu em um formato inesperado. Tenta de novo."
+# 08/11 (C7): chave da API recusada (401) - tentar de novo nao resolve, entao a mensagem diz o que fazer
+IA_CHAVE_RECUSADA_MSG = (
+    "A IA tá fora: a chave da API foi recusada. Precisa trocar a chave no .env e reiniciar o painel. "
+    "O resto (tarefas, avisos, cards) segue funcionando."
+)
+TIPO_AVISO_CHAVE_RECUSADA = "ia_chave_recusada"
+AVISO_CHAVE_RECUSADA = ("IA fora: chave recusada",
+                        "A chave da API foi recusada. Troca no .env e reinicia o painel; o resto segue sem a IA.")
 
 
 def _log_usage(conn, usage: dict, feature: str = "outro"):
@@ -488,7 +496,7 @@ def _saida_com_parada(conn, data_iso: str, hora: str, parada: str, lugar: str | 
     casa = os.environ.get("ENDERECO_CASA", "").strip()
     end_parada = vida_assistente.resolver_parada(conn, parada)
     ate = resto = None
-    if casa and maps_client.configurado():
+    if casa and end_parada and maps_client.configurado():  # 08/11 (A4): parada sem endereco nao vai pro Google
         try:
             partida = datetime.fromisoformat(f"{data_iso}T{hora}") - timedelta(minutes=45)
             partida = partida if partida > datetime.now() else None
@@ -689,6 +697,147 @@ def _presente_anual(entrada: dict) -> bool:
     return bool(_RE_PRESENTE_ANUAL.search(str(entrada.get("titulo") or "")))
 
 
+# ---- 08/11 (leva conversa inteira, C4): endereco dado pro lugar de uma tarefa vira apelido salvo no
+# codigo (nao depende do modelo chamar salvar_lugar_apelido). "Casa da fulana" sem endereco nao vai pro
+# Google (achava uma cidade de mesmo nome) - a IA pergunta o endereco.
+_LOGRADOURO = r"(?:rua|r\.|avenida|av\.?|alameda|al\.|travessa|tv\.|rodovia|rod\.|estrada|servidao|praca|largo|beco)"
+# complemento que pode vir depois do numero ("Rua X, 155, apto 3")
+_COMPLEMENTO = r"(?:\s*[,;-]\s*(?:apto?\.?|apartamento|bloco|bl\.?|casa|sala|loja|lj\.?|fundos|andar|cj\.?|conjunto|lote)\b.*)?"
+_RE_ENDERECO = re.compile(
+    # logradouro + nome (pode ter numero e hifen: "1 de Maio", "SC-401") + numero NO FIM (ou km)
+    rf"(?:^|[\s,;-]){_LOGRADOURO}\s+[^,;]{{1,60}}?[,\s]+(?:n[o\u00ba\u00b0]?\.?\s*|km\s*)?\d{{1,5}}{_COMPLEMENTO}$"
+    # "Nome Qualquer, 155" sem rua: numero de 2+ digitos no fim e o nome nao e lugar comum ("Academia, 2")
+    r"|^(?!(?:casa|academia|salao|condominio|shopping|hospital|mercado|aeroclube|centro|escola|clinica|"
+    r"restaurante|sala|lote|obra|predio|edificio|bloco|apto|apartamento|portao|loja|consultorio|igreja|"
+    r"posto|pix|mesa)\b)[^\d,;]{3,60},\s*(?:n[o\u00ba\u00b0]?\.?\s*)?\d{2,5}$",
+    re.IGNORECASE,
+)
+_RE_INICIO_LOGRADOURO = re.compile(rf"(?:^|[\s,;-]){_LOGRADOURO}\s", re.IGNORECASE)
+# preposicao + o lugar no titulo: "jantar na casa da fulana", "levar o carro na oficina do ze"
+_RE_PREPOSICAO_LUGAR = re.compile(r"\b(?:na|no|nas|nos|em|pra|pro|ate|ao)\s+")
+_RE_CORTE_LUGAR = re.compile(
+    r"\s(?:as|a partir|amanha|hoje|depois|antes|de manha|a tarde|a noite|pra|pro|para|com|e|ou|que|na|no|nas|nos|em)"
+    r"\b.*$|\s\d.*$")
+_LUGAR_GENERICO = {"casa", "casa dela", "casa dele", "casa delas", "casa deles", "rua", "centro", "cidade",
+                   "aqui", "la", "ali", "lugar", "endereco"}
+# 08/11 (revisao): uma palavra so de categoria nao vira apelido - "banco" salvo sequestrava toda parada que
+# tivesse "banco" no meio (apelido_dentro). "farmacia do centro" (mais de uma palavra) pode.
+_LUGAR_CATEGORIA = {
+    "banco", "bar", "farmacia", "shopping", "mercado", "supermercado", "padaria", "restaurante", "lanchonete",
+    "posto", "loja", "cafe", "cafeteria", "pizzaria", "hotel", "praia", "parque", "cinema", "loterica",
+    "correio", "correios", "cartorio", "feira", "acougue", "hospital", "clinica", "igreja", "escola",
+    "aeroporto", "rodoviaria", "salao", "barbearia", "lavacar", "borracharia", "mecanico", "pet", "petshop",
+    "veterinario", "laboratorio", "prefeitura", "forum", "detran", "academia", "festa", "show", "balada",
+    "boate", "pub", "churrascaria", "sorveteria", "doceria", "floricultura", "papelaria", "otica", "joalheria",
+    "trabalho", "evento", "reuniao", "consulta", "medico", "dentista", "aula", "curso", "faculdade",
+    "universidade", "colegio",
+}
+
+
+def _sem_acento_minusculo(texto: str) -> str:
+    import unicodedata
+
+    base = unicodedata.normalize("NFKD", (texto or "").lower())
+    return " ".join("".join(c for c in base if not unicodedata.combining(c)).split())
+
+
+def _parece_endereco(texto) -> bool:
+    """Rua/avenida + numero no fim ("Rua dos Testes, 155", "av. Exemplo 900", "Rua 1 de Maio, 100",
+    "Rodovia SC-401, 3000") ou "Nome Qualquer, 155". "Academia, 2", "Mercado, 10 min", "Av. Exemplo" nao."""
+    return bool(isinstance(texto, str) and _RE_ENDERECO.search(_sem_acento_minusculo(texto).strip(" .")))
+
+
+def _nome_limpo(bruto) -> str | None:
+    """Candidato a apelido limpo, ou None se nao serve (curto, generico, categoria de uma palavra, endereco)."""
+    c = re.sub(r"[^a-z0-9 ]", " ", _sem_acento_minusculo(bruto or ""))
+    c = " ".join(re.sub(r"^(?:a|o|as|os|um|uma|na|no|pra|pro|ate|em)\s+", "", c.strip()).split()[:4])
+    if len(c) < 3 or c in _LUGAR_GENERICO or c in _LUGAR_CATEGORIA or _parece_endereco(c):
+        return None
+    return c
+
+
+def _nome_do_lugar(titulo: str, lugar: str) -> str | None:
+    """Nome curto do lugar pra virar apelido: o que vem ANTES do endereco no proprio `lugar` ("casa da
+    fulana, rua x 10"), senao o UNICO lugar que o titulo cita ("Jantar na casa da fulana as 20h"). Titulo
+    com dois lugares ("deixar o carro na oficina e ir pra obra") e duvida: None, nao salva nada (08/11:
+    salvava a oficina com o nome "obra")."""
+    lugar_n = _sem_acento_minusculo(lugar)
+    m = _RE_INICIO_LOGRADOURO.search(lugar_n)
+    if m and m.start() > 0:
+        return _nome_limpo(lugar_n[:m.start()].strip(" ,;-"))
+    t = _sem_acento_minusculo(titulo)
+    candidatos = []
+    for mp in _RE_PREPOSICAO_LUGAR.finditer(t):
+        bruto = _RE_CORTE_LUGAR.sub("", t[mp.end():])
+        c = _nome_limpo(bruto)
+        if c and c not in candidatos:
+            candidatos.append(c)
+        elif not c and bruto.strip() and len(_sem_acento_minusculo(bruto).split()) == 1 \
+                and _sem_acento_minusculo(bruto).strip() in _LUGAR_CATEGORIA:
+            candidatos.append(None)  # "na farmacia e no banco": tem outro lugar no titulo, so que generico
+    validos = [c for c in candidatos if c]
+    return validos[0] if len(candidatos) == 1 and validos else None
+
+
+def _mesmo_endereco(a: str | None, b: str | None) -> bool:
+    def norm(x):
+        return " ".join(re.sub(r"[^a-z0-9 ]", " ", _sem_acento_minusculo(x or "")).split())
+    return norm(a) == norm(b)
+
+
+def _lugar_da_tarefa_vira_apelido(conn, titulo: str, lugar: str | None, nome_antigo: str | None = None) -> dict | None:
+    """Chamado pelos executores do chat (registrar_tarefa/ajustar_tarefa) com o `lugar` que a IA mandou.
+    - lugar com cara de endereco + UM nome claro (no proprio lugar, no titulo ou, no ajustar, o lugar de
+      antes: "casa da Fulana" -> rua) -> salva o apelido NOVO (e geocodifica) e devolve {"lugar_salvo"};
+    - apelido que ja existe com OUTRO endereco -> {"lugar_conflito"}: nunca troca sozinho, a IA pergunta;
+    - "casa d@ <pessoa>" sem endereco e sem apelido -> {"lugar_sem_endereco"}: a IA pergunta a rua;
+    - resto (duvida, generico, loja) -> None, nada salvo."""
+    lugar = _limpar_texto(lugar, 200)
+    if not lugar or (has_request_context() and _modo_visitante_ativo()):
+        return None
+    if _parece_endereco(lugar):
+        nome = _nome_do_lugar(titulo or "", lugar)
+        if not nome and nome_antigo and not _parece_endereco(nome_antigo):
+            nome = _nome_limpo(nome_antigo)  # "ai eu guardo": o date era na "casa da Fulana", ele deu a rua
+        if not nome:
+            return None
+        m = _RE_INICIO_LOGRADOURO.search(lugar)
+        endereco = lugar[m.start():].strip(" ,;-") if m and m.start() > 0 else lugar
+        chave = vida_assistente._chave_apelido(nome)
+        atual = vida_assistente.apelidos(conn).get(chave)
+        if atual:
+            if _mesmo_endereco(atual, endereco):
+                return {"lugar_salvo": {"apelido": chave, "endereco": atual, "ja_estava_salvo": True}}
+            # 08/11 (revisao): o caminho automatico NUNCA troca um apelido que ja existe
+            return {"lugar_conflito": {
+                "apelido": chave, "salvo": atual, "novo": endereco,
+                "aviso": (f'Ja tenho "{chave}" guardado em {atual}. Nao troquei nada. Pergunte ao Alex numa frase '
+                          f"curta se {endereco} e o endereco novo de \"{chave}\" (ai use salvar_lugar_apelido) ou "
+                          "de outro lugar."),
+            }}
+        chave = vida_assistente.salvar_apelido(conn, nome, endereco)
+        if not chave:
+            return None
+        conn.commit()
+        try:  # pro iPhone reconhecer quando ele chegar la (mesmo caminho do salvar_lugar_apelido)
+            onde_estou.garantir_coordenada(conn, chave)
+        except Exception:  # noqa: BLE001
+            app.logger.exception("geocodificar apelido (lugar da tarefa) falhou")
+        return {"lugar_salvo": {"apelido": chave, "endereco": endereco,
+                                "obs": f'guardei "{chave}" com esse endereco - da proxima vez e so falar o nome'}}
+    norm = _sem_acento_minusculo(lugar)
+    if _RE_INICIO_LOGRADOURO.search(norm) or re.search(r"\d", norm):
+        return None  # tem rua/numero junto (mesmo que torto): nao e "sem endereco"
+    if db.casa_de_pessoa(lugar) and vida_assistente.resolver_lugar(conn, lugar) == lugar \
+            and not vida_assistente.apelido_dentro(conn, lugar):
+        return {"lugar_sem_endereco": {
+            "lugar": lugar,
+            "aviso": (f'Nao sei onde fica "{lugar}" (sem endereco salvo). Pergunte a rua e o numero ao Alex '
+                      "numa frase curta - ai eu guardo. Nao chute cidade nem bairro."),
+        }}
+    return None
+
+
 def _tarefa_repetida(conn, titulo, dia):
     """Tarefa com o mesmo titulo (sem acento/caixa) no mesmo dia que ainda ta
     pendente, ou que foi concluida nas ultimas 12h - registrar de novo
@@ -700,12 +849,21 @@ def _tarefa_repetida(conn, titulo, dia):
     if not alvo:
         return None
     linhas = conn.execute(
-        "SELECT id, title, hora, completed_at FROM tasks WHERE recorrencia IS NULL "
+        "SELECT id, title, hora, due_date, completed_at FROM tasks WHERE recorrencia IS NULL "
         "AND COALESCE(due_date, '') = COALESCE(?, '') "
         "AND (completed_at IS NULL OR completed_at >= datetime('now', '-12 hours')) ORDER BY id DESC",
         (dia,),
     ).fetchall()
-    return next((r for r in linhas if aprendizado.normalizar_consulta(r["title"]) == alvo), None)
+    achou = next((r for r in linhas if aprendizado.normalizar_consulta(r["title"]) == alvo), None)
+    if achou or not dia:
+        return achou
+    # 08/11: ele volta na mesma tarefa dizendo "e hoje" e ela tinha nascido SEM dia - e a mesma, so
+    # ganha o dia (quem chama grava); criar outra deixava a sem dia la, com hora e sem nunca avisar
+    sem_dia = conn.execute(
+        "SELECT id, title, hora, due_date, completed_at FROM tasks WHERE recorrencia IS NULL "
+        "AND due_date IS NULL AND completed_at IS NULL ORDER BY id DESC"
+    ).fetchall()
+    return next((r for r in sem_dia if aprendizado.normalizar_consulta(r["title"]) == alvo), None)
 
 
 def _aviso_tarefa_repetida(r) -> dict:
@@ -782,8 +940,13 @@ def _call_claude(fn, *args):
         return fn(*args), None
     except ia.core.TetoEstourado:
         return None, (jsonify({"error": TETO_IA_MSG}), 402)
+    except ia.core.ChaveRecusada:  # 08/11 (C7) - antes do ErroProvedor (e subclasse dele)
+        return None, (jsonify({"error": IA_CHAVE_RECUSADA_MSG}), 502)
     except ia.core.ErroProvedor:
         return None, (jsonify({"error": CLAUDE_ERROR_MSG}), 502)
+    except anthropic.AuthenticationError:
+        ia.core.marcar_chave_recusada("anthropic")
+        return None, (jsonify({"error": IA_CHAVE_RECUSADA_MSG}), 502)
     except anthropic.APIError:
         return None, (jsonify({"error": CLAUDE_ERROR_MSG}), 502)
     except (ValueError, KeyError):
@@ -1443,12 +1606,28 @@ def _buscar_contas_a_vencer_construtora(dias: int = 30) -> dict | None:
     return _filtrar_contas_construtora(_cliente_construtora().contas_a_vencer(dias=dias))
 
 
-def _quando_conta_construtora(dias_ate: int, passado: str = "vencida ha") -> str:
+def _qtd(n, singular: str, plural: str) -> str:
+    """08/11: "1 dia" / "3 dias" - nada de "dia(s)" em texto que o Alex le."""
+    return f"{n} {singular if n == 1 else plural}"
+
+
+def _prazo_em_dias(dias: int) -> str:
+    """Prazo de manutencao/vencimento: "j\u00e1 passou do prazo", "vence hoje", "vence amanh\u00e3", "vence em 3 dias"."""
+    if dias < 0:
+        return "j\u00e1 passou do prazo"
+    return _quando_conta_construtora(dias)
+
+
+def _quando_conta_construtora(dias_ate: int, passado: str = "vencida há") -> str:
+    # 08/11: singular/plural de verdade e acento (era "venceu ha 1 dia(s)" no push)
+    dias = abs(int(dias_ate))
     if dias_ate < 0:
-        return f"{passado} {abs(int(dias_ate))} dia(s)"
+        return f"{passado} {dias} dia" if dias == 1 else f"{passado} {dias} dias"
     if dias_ate == 0:
         return "vence hoje"
-    return f"vence em {int(dias_ate)} dia(s)"
+    if dias == 1:
+        return "vence amanhã"
+    return f"vence em {dias} dias"
 
 
 def _ajustar_saldo_se_banco_citado(conn, banco: str | None, delta: float) -> dict | None:
@@ -1594,7 +1773,9 @@ def _construtora_contexto_contas() -> str | None:
     quando = _quando_conta_construtora(proxima["dias_ate_vencer"])
     quem = proxima.get("fornecedor") or proxima.get("descricao") or "fornecedor não informado"
     socio = " (o Ademir paga em espécie, não sai do caixa da empresa)" if proxima.get("pagador") == "socio" else ""
-    extra = f", mais {len(contas) - 1} outra(s) conta(s) em aberto" if len(contas) > 1 else ""
+    outras = len(contas) - 1
+    extra = (f", mais {outras} outra conta em aberto" if outras == 1
+             else f", mais {outras} outras contas em aberto" if outras > 1 else "")
     return f"próxima conta a pagar da construtora: {quem}, {quando}{socio}{extra}"
 
 
@@ -1915,11 +2096,11 @@ def _impressao_resumo_dia(conn, today: str, n_eventos: int) -> str:
         (today,),
     ).fetchall()
     tarefas_concluidas_hoje = conn.execute(
-        "SELECT id FROM tasks WHERE due_date IS NOT NULL AND due_date <= ? AND date(completed_at) = ? ORDER BY id",
+        f"SELECT id FROM tasks WHERE due_date IS NOT NULL AND due_date <= ? AND {DIA_CONCLUSAO_SQL} = ? ORDER BY id",
         (today, today),
     ).fetchall()
     gastos_grandes = conn.execute(
-        "SELECT id FROM expenses WHERE tipo = 'real' AND date(created_at) = ? AND amount >= ? ORDER BY id",
+        f"SELECT id FROM expenses WHERE tipo = 'real' AND {DIA_GASTO_SQL} = ? AND amount >= ? ORDER BY id",
         (today, GASTO_GRANDE_LIMIAR_RESUMO),
     ).fetchall()
     return "|".join(
@@ -2149,6 +2330,20 @@ def _agora_brasilia() -> datetime:
     return datetime.now(ZoneInfo("America/Sao_Paulo"))
 
 
+def _agora_utc_texto() -> str:
+    """"AAAA-MM-DD HH:MM:SS" em UTC - o mesmo formato do datetime('now') do SQLite (completed_at e afins)."""
+    return datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S")
+
+
+# 08/11: completed_at e UTC (datetime('now')); o dia de conclusao dele e o de Brasilia (UTC-3 fixo desde 2019)
+DIA_CONCLUSAO_SQL = db.dia_local_sql("completed_at")
+# idem pro gasto/renda (created_at UTC): o gasto das 21h30 contava como amanha
+DIA_GASTO_SQL = db.dia_local_sql("created_at")
+
+
+_data_iso = db.data_iso  # 08/11: mora no db (os leitores de lembrete/meta usam o mesmo)
+
+
 def _contexto_chat(conn) -> str:
     """Resumo factual do agora pro chat usar como contexto - mesma logica
     do resumo do dia, so que em formato de linhas pro system prompt."""
@@ -2162,11 +2357,11 @@ def _contexto_chat(conn) -> str:
         f_clima = fora.submit(_clima_contexto_resumo)
         pendentes = _tarefas_pendentes_sem_horario_hoje(conn)
         gasto_hoje = conn.execute(
-            "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
+            f"SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE {DIA_GASTO_SQL} = ? AND tipo = 'real'",
             (hoje,),
         ).fetchone()["total"]
         gasto_planejado = conn.execute(
-            "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'planejado'",
+            f"SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE {DIA_GASTO_SQL} = ? AND tipo = 'planejado'",
             (hoje,),
         ).fetchone()["total"]
         saude = _saude_contexto_resumo(conn)
@@ -2517,7 +2712,7 @@ def _frase_local(chamada: dict) -> str:
     if tool == "consultar_projeto":
         n = res.get("encontrados", 0)
         if not n:
-            return "Não achei projeto nem viagem com esse nome." if entrada.get("termo") else "Você ainda não tem projeto nem viagem cadastrados."
+            return "Não achei projeto nem viagem com esse nome." if entrada.get("termo") else "Tu ainda não tem projeto nem viagem cadastrados."
         return "Aqui está o projeto." if n == 1 else f"Aqui estão {n} projetos."
     if tool == "consultar_meta":
         n = res.get("encontradas", 0)
@@ -2525,11 +2720,17 @@ def _frase_local(chamada: dict) -> str:
     if tool == "consultar_treinos":
         dias = res.get("dias", 7)
         periodo = "hoje" if dias == 1 else f"nos últimos {dias} dias"
-        return f"Seus treinos {periodo}." if res.get("sessoes") else f"Nenhum treino registrado {periodo}."
+        return f"Teus treinos {periodo}." if res.get("sessoes") else f"Nenhum treino registrado {periodo}."
     if tool == "consultar_habitos":
-        return "Seus hábitos." if res.get("encontrados") else "Você ainda não tem hábito cadastrado."
+        return "Teus hábitos." if res.get("encontrados") else "Tu ainda não tem hábito cadastrado."
     if tool == "consultar_saude_dia":
-        return "Sua saúde hoje."
+        # 08/11 (rodada com a IA de verdade): "quantos copos eu tomei hoje?" pela voz ouvia so "Tua saude hoje."
+        n = res.get("agua_copos_hoje")
+        if not isinstance(n, int):
+            return "Tua saúde hoje."
+        if n == 0:
+            return "Hoje ainda não tem copo de água anotado."
+        return f"Hoje tu tomou {n} {'copo' if n == 1 else 'copos'} de água."
     if tool == "sugerir_horario_livre":
         if res.get("encontrado"):
             return f"Dá pra encaixar às {res['inicio']}."
@@ -2662,11 +2863,13 @@ def _resposta_exemplo_teste_ia() -> tuple[str, list[str], dict]:
     return resposta, [], cards.envelope(cards_lista, resposta, passos)
 
 
+# 08/11: sem "numeros escritos do jeito que se fala" - conflitava com o prompt (que pede numero em
+# algarismo) e a fala premium ja converte na hora de falar (fala_ptbr: "14:30" -> "catorze e trinta").
 MODO_VOZ_INSTRUCAO = (
     "MODO CONVERSA POR VOZ: o Alex esta FALANDO com voce e a sua resposta vai ser lida em voz "
     "alta. Fale como numa ligacao com um amigo: 2 a 4 frases naturais e completas (nunca so "
-    "uma palavra seca), sem lista, sem markdown, sem emoji, sem setas '->', numeros e horarios "
-    "escritos do jeito que se fala. Pontue pra voz soar humana: virgula onde a gente respira, "
+    "uma palavra seca), sem lista, sem markdown, sem emoji, sem setas '->'. Pontue pra voz soar "
+    "humana: virgula onde a gente respira, "
     "frase curta depois de uma longa, uma reacao rapida no comeco quando cabe ('ah, boa', 'eita'). "
     "Pode fazer uma pergunta de volta quando fizer sentido."
 )
@@ -2694,8 +2897,14 @@ def _vocabulario_do_alex(conn) -> str:
         termos += [r[0] for r in conn.execute(
             "SELECT DISTINCT aeronave FROM voos WHERE aeronave IS NOT NULL AND aeronave != '' LIMIT 8")]
         termos += [r[0] for r in conn.execute("SELECT nome FROM pessoas ORDER BY id DESC LIMIT 20")]
+        # 08/11 (C4): os lugares das tarefas (tasks.local) e os titulos dos ultimos 30 dias (abertas OU feitas -
+        # o nome do lugar/pessoa que ele falou semana passada volta na fala de hoje)
         termos += [r[0] for r in conn.execute(
-            "SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL ORDER BY id DESC LIMIT 25")]
+            "SELECT local FROM tasks WHERE local IS NOT NULL AND local != '' "
+            "GROUP BY local ORDER BY MAX(id) DESC LIMIT 20")]
+        termos += [r[0] for r in conn.execute(
+            "SELECT title FROM tasks WHERE recorrencia IS NULL AND (completed_at IS NULL "
+            "OR created_at >= datetime('now', '-30 days')) ORDER BY completed_at IS NOT NULL, id DESC LIMIT 40")]
     except Exception:  # noqa: BLE001 - vocabulario e ajuda, nunca bloqueia o audio
         pass
     vistos, saida = set(), []
@@ -2704,7 +2913,17 @@ def _vocabulario_do_alex(conn) -> str:
         if t and t.lower() not in vistos:
             vistos.add(t.lower())
             saida.append(t[:60])
-    return "; ".join(saida)[:1800]
+    return "; ".join(saida)[:2400]
+
+
+def _janela_chat_sem_proativas(conn, maximo: int = 20) -> list[dict]:
+    """08/11 (A8): as ultimas `maximo` mensagens de CONVERSA (ordem cronologica) - aviso automatico do painel
+    (assistant sem fala dele antes) nao ocupa vaga; fica so o que vem logo antes de uma fala dele. Mesma
+    regra do ia.historico.montar_contexto (este e o caminho reserva, quando a A5 falha)."""
+    linhas = list(reversed(list_chat_mensagens(conn, limit=maximo * 4)))
+    proativas = ia.historico.marcar_proativas(linhas)
+    corte = ia.historico._inicio_da_janela(linhas, proativas, maximo)
+    return ia.historico._sem_proativas_soltas(linhas[corte:], proativas[corte:])
 
 
 def _local_do_celular(local) -> dict | None:
@@ -2776,7 +2995,7 @@ def _processar_mensagem_chat(
                 detalhes.update(envelope_local)
             return resposta, [local["acao"]], None
 
-    historico = list(reversed(list_chat_mensagens(conn, limit=20)))
+    historico = _janela_chat_sem_proativas(conn, 20)
     mensagens = _historico_com_datas(
         conn, [{"role": r["papel"], "content": r["texto"], "criado_em": r.get("criado_em")} for r in historico]
     )
@@ -2946,7 +3165,9 @@ def _processar_mensagem_chat(
         if isinstance(local_tarefa, dict):
             return local_tarefa  # erro: pediu "aqui" sem GPS
         repetida = _tarefa_repetida(conn, entrada["titulo"], quando_data)
-        if repetida:
+        # 08/11: a mesma tarefa sem dia + agora com dia ("aquela de imprimir e hoje"): grava na que ja existe
+        reaproveitar = bool(repetida and quando_data and not repetida["due_date"] and not repetida["completed_at"])
+        if repetida and not reaproveitar:
             return _aviso_tarefa_repetida(repetida)
         # 2026-10-14 (cards da IA, 2a leva): compromisso com cara propria - so com dia marcado
         estilo = entrada.get("estilo") if entrada.get("estilo") in db.ESTILOS_TAREFA and quando_data else None
@@ -2959,43 +3180,90 @@ def _processar_mensagem_chat(
         parada = _limpar_texto(entrada.get("parada"), 80) if (quando_data and hora_tarefa) else None
         # 05/11: a hora dita e a de SAIR de casa ("o date comeca as 19, saio as 19")
         sai_na_hora = 1 if (entrada.get("sai_na_hora") is True and quando_data and hora_tarefa) else None
-        cur = conn.execute(
-            "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local, estilo, extras, parada, "
-            "sai_na_hora) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                entrada["titulo"],
-                entrada.get("quando"),
-                quando_data,
-                hora_tarefa,
-                texto,
-                int(bool(entrada.get("depende_do_tempo"))),
-                lugar,
-                estilo,
-                json.dumps(extras, ensure_ascii=False) if extras else None,
-                parada,
-                sai_na_hora,
-            ),
-        )
-        conn.commit()
-        resultado = {"ok": True, "_efeito": {"entidade": "tarefa", "id": cur.lastrowid}}
-        if estilo:
-            resultado.update(_plano_do_estilo(estilo, cur.lastrowid, quando_data, hora_tarefa, lugar, entrada["titulo"],
-                                              parada, bool(sai_na_hora)))
-        elif parada:
-            resultado["parada"] = parada
+        if reaproveitar:
+            # 08/11 (revisao): leva TUDO que o INSERT levaria (lugar, estilo, parada...) - so o dia virava um
+            # date em tarefa comum. O que o _editar cobre tem Desfazer; estilo/extras vao direto.
+            task_id, titulo_tarefa = repetida["id"], repetida["title"]
+            novos_rep = {"due_date": quando_data}
+            for coluna, valor in (("hora", hora_tarefa), ("due_at", entrada.get("quando")), ("local", lugar),
+                                  ("parada", parada), ("sai_na_hora", sai_na_hora)):
+                if valor:
+                    novos_rep[coluna] = valor
+            efeito_rep = _editar("tasks", task_id, novos_rep, "Tarefa", titulo_tarefa)
+            if estilo:
+                conn.execute("UPDATE tasks SET estilo = ?, extras = COALESCE(?, extras) WHERE id = ?",
+                             (estilo, json.dumps(extras, ensure_ascii=False) if extras else None, task_id))
+            conn.commit()
+            resultado = {"ok": True, "titulo": titulo_tarefa, "ja_existia_sem_dia": True, "dia_gravado": quando_data,
+                         **({"hora": hora_tarefa} if hora_tarefa else {}),
+                         "obs": "era a mesma tarefa, que estava sem dia - gravei o dia nela (nao criei outra)",
+                         "_efeito": efeito_rep or {"entidade": "tarefa", "id": task_id}}
+        else:
+            cur = conn.execute(
+                "INSERT INTO tasks (title, due_at, due_date, hora, source_text, depende_do_tempo, local, estilo, extras, parada, "
+                "sai_na_hora) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    entrada["titulo"],
+                    entrada.get("quando"),
+                    quando_data,
+                    hora_tarefa,
+                    texto,
+                    int(bool(entrada.get("depende_do_tempo"))),
+                    lugar,
+                    estilo,
+                    json.dumps(extras, ensure_ascii=False) if extras else None,
+                    parada,
+                    sai_na_hora,
+                ),
+            )
+            conn.commit()
+            task_id, titulo_tarefa = cur.lastrowid, entrada["titulo"]
+            resultado = {"ok": True, "_efeito": {"entidade": "tarefa", "id": task_id}}
+        # 08/11 (revisao): daqui pra baixo a tarefa JA esta gravada. Maps, previsao ou apelido que estoure nao
+        # pode virar erro no chat (ele repetia o pedido e duplicava a tarefa): loga e avisa a IA.
+        falhas = []
+        if lugar and not local_tarefa:  # 08/11 (C4): endereco dito vira apelido; "casa da fulana" pergunta
+            try:
+                resultado.update(_lugar_da_tarefa_vira_apelido(conn, titulo_tarefa, lugar) or {})
+            except Exception:  # noqa: BLE001
+                app.logger.exception("registrar_tarefa: apelido do lugar falhou")
+                falhas.append("o endereco nao foi guardado como apelido")
+        try:
+            if estilo:
+                plano = _plano_do_estilo(estilo, task_id, quando_data, hora_tarefa, lugar, titulo_tarefa, parada,
+                                         bool(sai_na_hora))
+                if reaproveitar and resultado["_efeito"].get("entidade") == "edicao":
+                    plano["_efeito"] = [resultado["_efeito"], plano["_efeito"]]  # Desfazer do dia + card do date
+                resultado.update(plano)
+            elif reaproveitar and resultado["_efeito"].get("entidade") == "edicao":
+                resultado.update(replanejar_saida(conn, task_id, resultado["_efeito"].get("depois", {})))
+            elif parada:
+                resultado["parada"] = parada
+        except Exception:  # noqa: BLE001
+            app.logger.exception("registrar_tarefa: plano de saida falhou")
+            falhas.append("plano de saida nao saiu (trajeto/previsao)")
         if lugar and hora_tarefa:  # frente D (07/11): o lugar abre na chegada? (so tarefa de hoje)
-            aberto = _lugar_na_chegada(conn, cur.lastrowid, (resultado.get("plano") or {}).get("chega_no_lugar"))
-            if aberto:
-                resultado["lugar_na_chegada"] = aberto
+            try:
+                aberto = _lugar_na_chegada(conn, task_id, (resultado.get("plano") or {}).get("chega_no_lugar"))
+                if aberto:
+                    resultado["lugar_na_chegada"] = aberto
+            except Exception:  # noqa: BLE001
+                app.logger.exception("registrar_tarefa: horario do lugar falhou")
         # so oferece sugestao de dia quando a tarefa ficou com data vaga
         # ("essa semana") - com dia certo (quando_data) ou sem nenhuma pista
         # de tempo (entrada.get("quando") vazio) nao ha nada útil a sugerir
         if entrada.get("quando") and not quando_data:
-            dias = agenda.dias_ate_o_fim_da_semana(date.today())
-            if len(dias) > 1:
-                carga = _carga_por_dia(conn, dias)
-                produtividade = aprendizado.produtividade_por_dia_semana(conn)
-                resultado["sugestao_dia"] = agenda.sugerir_dia_menos_corrido(carga, dias, produtividade)
+            try:
+                dias = agenda.dias_ate_o_fim_da_semana(date.today())
+                if len(dias) > 1:
+                    carga = _carga_por_dia(conn, dias)
+                    produtividade = aprendizado.produtividade_por_dia_semana(conn)
+                    resultado["sugestao_dia"] = agenda.sugerir_dia_menos_corrido(carga, dias, produtividade)
+            except Exception:  # noqa: BLE001
+                app.logger.exception("registrar_tarefa: sugestao de dia falhou")
+        if falhas:
+            resultado["observacao"] = ("tarefa salva, mas " + "; ".join(falhas)
+                                       + ". Nao registre de novo - so conte isso pro Alex.")
         return resultado
 
     # ---- Edicao pela IA (2026-10-09): muda, nunca apaga, nunca mexe em valor de
@@ -3047,6 +3315,14 @@ def _processar_mensagem_chat(
         contem = [r for r in rows if alvo in norm[r["id"]] or (len(norm[r["id"]]) >= 4 and norm[r["id"]] in alvo)]
         if len(contem) == 1:
             return contem[0], None
+        if tabela == "tasks" and len(contem) > 1:
+            # 08/11 (rodada com a IA de verdade): "Date com a Fulana" casava o de hoje e o de ONTEM (aberto); o erro
+            # mostrava os dois e a IA misturava ("a parada fica antes do shopping" - que era o de ontem). Aberta de
+            # hoje em diante ganha quando e so uma.
+            hoje_iso = _agora_brasilia().date().isoformat()
+            vigentes = [r for r in contem if not r["completed_at"] and (r["due_date"] or "")[:10] >= hoje_iso]
+            if len(vigentes) == 1:
+                return vigentes[0], None
         base = contem or rows
         notas = sorted(((_parecido(alvo, norm[r["id"]]), r) for r in base), key=lambda x: -x[0])
         if notas and notas[0][0] >= 0.6 and (len(notas) == 1 or notas[0][0] - notas[1][0] >= 0.2):
@@ -3078,12 +3354,15 @@ def _processar_mensagem_chat(
         return len(a & t) / len(a)
 
     def _data_valida(valor):
-        if valor in (None, ""):
-            return None
-        if not isinstance(valor, str):
-            raise ValueError("data invalida")
-        date.fromisoformat(valor)
-        return valor
+        # 08/11: grava sempre o isoformat - o fromisoformat do 3.14 aceita "20261115" e "2026-W46-1", que iam
+        # crus pro banco e quebravam toda comparacao de texto com due_date
+        return _data_iso(valor)
+
+    def _obs_data_passada(dia_iso):
+        """Data anterior a hoje continua aceita (registro do que ficou pra tras), mas a IA avisa."""
+        if dia_iso and dia_iso < _agora_brasilia().date().isoformat():
+            return {"observacao": f"{dia_iso} fica no passado: a tarefa ja nasce atrasada. Avisa ele e confirma se era isso."}
+        return {}
 
     def exec_ajustar_tarefa(entrada):
         recusa = _recusa_visitante()
@@ -3099,6 +3378,18 @@ def _processar_mensagem_chat(
             data = _data_valida(entrada.get("quando_data"))
         except ValueError:
             return {"erro": f"data invalida: {entrada.get('quando_data')!r}"}
+        # 08/11 (rodada com a IA de verdade): "date hoje 20h" achou o date de ONTEM ainda aberto e MUDOU ele pra
+        # hoje - o de ontem sumiu do historico. Compromisso de sair que ja passou e outro compromisso: a IA cria um
+        # novo, a menos que ele diga que e o mesmo remarcado (mesmo_compromisso)
+        hoje_iso = _agora_brasilia().date().isoformat()
+        venc = (tarefa["due_date"] or "")[:10]
+        if (data and venc and venc < hoje_iso and data != venc and status != "concluir"
+                and not tarefa["completed_at"] and not entrada.get("mesmo_compromisso")
+                and notificacoes.e_saida(tarefa)):
+            return {"erro": (f"'{tarefa['title']}' era um compromisso de {venc} (ja passou) - nao mudei. Se e um "
+                             "compromisso NOVO, use registrar_tarefa; se ele disse que e o mesmo remarcado, chame de "
+                             "novo com mesmo_compromisso=true"),
+                    "compromisso_antigo": {"titulo": tarefa["title"], "dia": venc}}
         novos = {}
         if entrada.get("sem_hora"):
             novos["hora"] = None
@@ -3130,7 +3421,9 @@ def _processar_mensagem_chat(
             novos["sai_na_hora"] = 1 if entrada["sai_na_hora"] else None
         com_quem = _limpar_texto(entrada.get("com_quem"), 60)
         if status == "concluir":
-            novos["completed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 08/11: UTC, igual ao datetime('now') do db.complete_task - local aqui fazia a tarefa feita as
+            # 22h cair no dia seguinte pra quem desconta 3 h (fechamento_dia, retrospectiva)
+            novos["completed_at"] = _agora_utc_texto()
         elif status == "reabrir":
             novos["completed_at"] = None
         if com_quem:
@@ -3144,17 +3437,34 @@ def _processar_mensagem_chat(
                 return {"ok": True, "titulo": tarefa["title"], "com_quem": com_quem}
             return {"erro": "nada pra mudar - informe hora, quando_data, novo_titulo, lugar, parada ou status"}
         efeito = _editar("tasks", tarefa["id"], novos, "Tarefa", tarefa["title"])
+        # 08/11: empurrou pra um dia depois pelo chat = adiamento (sinal "empurradas na semana" do dia_ruim,
+        # igual ao mover_tarefas e a aba Tarefas)
+        if efeito and "due_date" in efeito.get("depois", {}):
+            de, para = tarefa["due_date"], efeito["depois"]["due_date"]
+            if de and para and para > de:
+                dia_ruim.registrar_adiamento(conn, [tarefa["id"]], de, para)
         conn.commit()
         if not efeito:
             return {"ok": True, "titulo": tarefa["title"], "obs": "ja estava assim, nada mudou"}
+        if status == "concluir" and efeito.get("depois", {}).get("completed_at"):
+            # 08/11: mesmos efeitos do db.complete_task (aprendizado + credito do aviso), que o _editar pulava
+            db.efeitos_de_concluir(conn, tarefa["id"])
         # titulo de DEPOIS (2026-10-16: devolvia o antigo e a IA achou que a troca nao pegou)
         resultado = {"ok": True, "titulo": novos.get("title", tarefa["title"]), "_efeito": efeito}
         if "title" in novos and novos["title"] != tarefa["title"]:
             resultado["titulo_antes"] = tarefa["title"]
         # plano de saida (parada/lugar/hora de date, balada ou tarefa com lugar): mesma funcao da aba Tarefas
         resultado.update(replanejar_saida(conn, tarefa["id"], efeito.get("depois", {})))
+        if "local" in efeito.get("depois", {}):  # 08/11 (C4): endereco dito vira apelido
+            try:  # "ai eu guardo": sem nome no titulo, o lugar de antes ("casa da Fulana") nomeia a rua
+                resultado.update(_lugar_da_tarefa_vira_apelido(conn, resultado["titulo"], novos["local"],
+                                                               efeito.get("antes", {}).get("local")) or {})
+            except Exception:  # noqa: BLE001 - a edicao ja foi gravada
+                app.logger.exception("ajustar_tarefa: apelido do lugar falhou")
         if com_quem:
             resultado["com_quem"] = com_quem
+        if data and "due_date" in efeito.get("depois", {}):
+            resultado.update(_obs_data_passada(data))
         return resultado
 
     def exec_mover_tarefas(entrada):
@@ -3170,11 +3480,17 @@ def _processar_mensagem_chat(
             return {"erro": "faltou para_data"}
         periodo = entrada.get("periodo") or "dia_todo"
         faixas = {"manha": ("00:00", "11:59"), "tarde": ("12:00", "17:59"), "noite": ("18:00", "23:59")}
+        # 08/11 (rodada com a IA de verdade): "adia tudo de hoje pra amanha" respondia "nada pendente" com tarefa
+        # atrasada aberta - as atrasadas aparecem em Hoje, entao "tudo de hoje" leva elas junto. Compromisso de sair
+        # que ja passou fica (e outro dia, nao pendencia)
+        hoje_iso = _agora_brasilia().date().isoformat()
         rows = conn.execute(
-            "SELECT id, title, hora, due_date, inegociavel FROM tasks WHERE completed_at IS NULL AND due_date = ? "
-            "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL) AND recorrente_origem_id IS NULL ORDER BY hora, id",
-            (de,),
+            "SELECT * FROM tasks WHERE completed_at IS NULL AND (due_date = ? OR (? AND due_date < ?)) "
+            "AND NOT (recorrencia IS NOT NULL AND due_date IS NULL) AND recorrente_origem_id IS NULL "
+            "ORDER BY due_date < ?, hora, id",
+            (de, 1 if de == hoje_iso else 0, de, de),
         ).fetchall()
+        rows = [r for r in rows if r["due_date"] == de or (not r["recorrencia"] and not notificacoes.e_saida(r))]
         if periodo in faixas:
             a, b = faixas[periodo]
             rows = [r for r in rows if r["hora"] and a <= r["hora"] <= b]
@@ -3189,10 +3505,15 @@ def _processar_mensagem_chat(
             ef = _editar("tasks", r["id"], {"due_date": para}, "Tarefa", r["title"])
             if ef:
                 efeitos.append(ef)
-        if para > de:
-            dia_ruim.registrar_adiamento(conn, [r["id"] for r in rows[:30]], de, para)
+        for r in rows[:30]:  # cada uma com o dia de onde saiu (a atrasada saiu do dia dela, nao de hoje)
+            if para > r["due_date"]:
+                dia_ruim.registrar_adiamento(conn, [r["id"]], r["due_date"], para)
         conn.commit()
-        resp = {"ok": True, "movidas": [r["title"] for r in rows[:30]], "para": para, "_efeito": efeitos}
+        resp = {"ok": True, "movidas": [r["title"] for r in rows[:30]], "para": para, "_efeito": efeitos,
+                **_obs_data_passada(para)}
+        atrasadas = [r["title"] for r in rows[:30] if r["due_date"] < de]
+        if atrasadas:
+            resp["atrasadas_junto"] = atrasadas
         if travadas:
             resp["ficaram_travadas"] = travadas
         return resp
@@ -3329,7 +3650,15 @@ def _processar_mensagem_chat(
         recusa = _recusa_visitante()
         if recusa:
             return recusa
-        tarefa, erro = _achar("tasks", "recorrencia IS NULL", (), entrada.get("titulo"), "title", "ORDER BY id DESC")
+        # 08/11 (rodada com a IA de verdade): procura primeiro nas ABERTAS - "tira a do quartinho" apagava
+        # junto uma tarefa ja feita em outubro (historico). Feita so entra se nenhuma aberta tiver o nome.
+        tarefa, erro = _achar("tasks", "recorrencia IS NULL AND completed_at IS NULL", (), entrada.get("titulo"),
+                              "title", "ORDER BY id DESC")
+        if erro and "candidatas" not in erro:
+            tarefa_feita, erro_feita = _achar("tasks", "recorrencia IS NULL", (), entrada.get("titulo"), "title",
+                                              "ORDER BY id DESC")
+            if not erro_feita:
+                tarefa, erro = tarefa_feita, None
         if erro:
             return erro
         efeito = apagar_tarefa_com_desfazer(conn, tarefa)
@@ -3508,6 +3837,17 @@ def _processar_mensagem_chat(
         conn.commit()
         return {"ok": True, **feito}
 
+    def _achado_bate(pedido: str, achado: str) -> bool:
+        """Toda palavra do NOME pedido (antes da 1a virgula, sem artigo/preposicao, 3+ letras) aparece no que o
+        Google achou ("Angeloni" -> "Angeloni Centro" bate; "Luar Beach" -> "Luar Sport Academia" nao)."""
+        nome_pedido = aprendizado.normalizar_consulta(str(pedido or "").split(",")[0])
+        palavras = [p for p in re.findall(r"[a-z0-9]+", nome_pedido)
+                    if len(p) >= 3 and p not in _PALAVRAS_VAZIAS and p not in ("rua", "avenida", "av")]
+        if not palavras:
+            return True
+        alvo = set(re.findall(r"[a-z0-9]+", aprendizado.normalizar_consulta(achado or "")))
+        return all(p in alvo or p.rstrip("s") in alvo or f"{p}s" in alvo for p in palavras)
+
     def exec_salvar_lugar_apelido(entrada):
         recusa = _recusa_visitante()
         if recusa:
@@ -3526,6 +3866,12 @@ def _processar_mensagem_chat(
             achado = maps_client.resolver_lugar(endereco)
         if achado and achado.get("endereco"):
             nome = (achado.get("nome") or "").strip()
+            # 08/11 (rodada com a IA de verdade): "Luar Beach, Cidade" achou "Luar Sport Academia" e GUARDOU - toda
+            # rota pra balada ia pra academia. Nome pedido que nao aparece no achado: nao guarda, pergunta.
+            if not _achado_bate(endereco, f"{nome} {achado['endereco']}"):
+                return {"erro": "o Google achou OUTRO lugar com nome parecido - nao guardei. Diga ao Alex o que "
+                                "achou e peca o endereco (rua e numero) ou o nome certo",
+                        "achado": f"{nome}, {achado['endereco']}"[:200]}
             endereco = f"{nome}, {achado['endereco']}" if nome and nome not in achado["endereco"] else achado["endereco"]
         chave = vida_assistente.salvar_apelido(conn, entrada.get("apelido") or "", endereco)
         if not chave:
@@ -3558,9 +3904,12 @@ def _processar_mensagem_chat(
             return {"erro": "mande os blocos do dia (titulo + hora)"}
         if len(blocos) > 30:
             return {"erro": "blocos demais (maximo 30)"}
+        # 08/11 (rodada com a IA de verdade): as ATRASADAS (due_date antes do dia) tambem contam -
+        # "monta meu dia" criava "Limpar meu quarto" de novo em vez de trazer a de ontem pra hoje
         pendentes = conn.execute(
             "SELECT id, title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL "
-            "AND (due_date = ? OR due_date IS NULL)", (dia,),
+            "AND arquivada_em IS NULL AND (due_date <= ? OR due_date IS NULL) "
+            "ORDER BY (due_date = ?) DESC, due_date DESC", (dia, dia),
         ).fetchall()
         # feitas ha pouco (ultimas 12h): um bloco com o mesmo nome NAO vira tarefa nova - era
         # o caso do Mikael em 2026-10-14 (ja concluida, a IA "remarcou" e nasceu outra)
@@ -3984,7 +4333,12 @@ def _processar_mensagem_chat(
         return resultado
 
     def exec_registrar_meta(entrada):
-        goal_id = create_goal(conn, entrada["titulo"], entrada["valor"], entrada.get("prazo"))
+        # 08/11: prazo cru ("2026-11-15T09:00", "") derrubava os leitores de prazo nos avisos
+        try:
+            prazo = _data_iso(entrada.get("prazo"))
+        except ValueError:
+            return {"erro": f"prazo invalido: {entrada.get('prazo')!r} (use AAAA-MM-DD ou deixe sem prazo)"}
+        goal_id = create_goal(conn, entrada["titulo"], entrada["valor"], prazo)
         return {"ok": True, "_efeito": {"entidade": "meta", "id": goal_id}}
 
     def exec_definir_orcamento(entrada):
@@ -4021,7 +4375,15 @@ def _processar_mensagem_chat(
         local_lembrete = _rotulo_local_atual(entrada)
         if isinstance(local_lembrete, dict):
             return local_lembrete
-        lembrete_id = create_lembrete(conn, entrada["titulo"], entrada["data"], entrada.get("recorrente", False))
+        # 08/11: data crua ("2026-11-15T09:00", "") ia pro banco e o date.fromisoformat dos avisos quebrava o
+        # ciclo inteiro de push a cada 5 min (e o GET /api/lembretes dava 500) - mesma regra da rota HTTP
+        try:
+            data_lembrete = _data_iso(entrada.get("data"))
+        except ValueError:
+            return {"erro": f"data invalida: {entrada.get('data')!r} (use AAAA-MM-DD)"}
+        if not data_lembrete:
+            return {"erro": "faltou a data do lembrete (AAAA-MM-DD)"}
+        lembrete_id = create_lembrete(conn, entrada["titulo"], data_lembrete, entrada.get("recorrente", False))
         if local_lembrete:
             conn.execute("UPDATE lembretes SET local = ? WHERE id = ?", (local_lembrete, lembrete_id))
             conn.commit()
@@ -4097,9 +4459,25 @@ def _processar_mensagem_chat(
         if erro:
             return erro
         valor = entrada.get("travar") is not False
+        # 08/11 ("e hoje e ficou travada"): travar tarefa com hora e sem dia nao valia nada - o cadeado e os
+        # avisos sao do dia. Sem dia + com hora = e de hoje.
+        dia_gravado = efeito_dia = None
+        extra = {}
+        if valor and tarefa["hora"] and not tarefa["due_date"]:
+            # 08/11 (revisao): pelo _editar (card com Desfazer); hora que ja passou hoje -> amanha, e a IA diz
+            agora_br = _agora_brasilia()
+            dia = agora_br.date()
+            if tarefa["hora"] <= agora_br.strftime("%H:%M"):
+                dia += timedelta(days=1)
+                extra["observacao"] = (f"{tarefa['hora']} de hoje ja passou: travei pra amanha ({dia.isoformat()}). "
+                                       "Avisa ele e pergunta se era isso.")
+            dia_gravado = dia.isoformat()
+            efeito_dia = _editar("tasks", tarefa["id"], {"due_date": dia_gravado}, "Tarefa", tarefa["title"])
         dia_ruim.travar(conn, tarefa["id"], valor)
+        consulta = {"entidade": "tarefa", "id": tarefa["id"], "consulta": True}
         return {"ok": True, "titulo": tarefa["title"], "inegociavel": valor,
-                "_efeito": {"entidade": "tarefa", "id": tarefa["id"], "consulta": True}}
+                **({"dia_gravado": dia_gravado} if dia_gravado else {}), **extra,
+                "_efeito": [efeito_dia, consulta] if efeito_dia else consulta}
 
     def exec_quadro_combinados(entrada):
         hoje = _agora_brasilia().date()
@@ -4753,6 +5131,13 @@ def _processar_mensagem_chat(
         if not habito:
             return {"erro": f"não achei nenhum hábito chamado \"{entrada.get('nome')}\""}
         hoje_iso = date.today().isoformat()
+        # 08/11: marcar e idempotente (mensagem reenviada desmarcava, era liga/desliga); desmarcar so com
+        # pedido explicito (desmarcar: true). Sem mudanca nao devolve _efeito (o Desfazer desfaria o que ja
+        # estava assim).
+        querer_feito = entrada.get("desmarcar") is not True
+        if db.habito_marcado(conn, hoje_iso, habito["id"]) == querer_feito:
+            return {"ok": True, "nome": habito["nome"], "feito": querer_feito,
+                    "obs": "ja estava marcado hoje" if querer_feito else "ja estava desmarcado hoje"}
         feito = alternar_habito_dia(conn, hoje_iso, habito["id"])
         return {
             "ok": True, "nome": habito["nome"], "feito": feito,
@@ -4972,6 +5357,24 @@ def _processar_mensagem_chat(
     # Fase 6 (docs/CARDS.md): cronometra cada tool (passos) e recolhe o
     # "_efeito" de cada executor pra montar os cards - sem mudar o que a IA
     # ve (chaves com "_" saem do resultado antes de voltar pro tool-use).
+    def _com_rollback(fn):
+        """08/11: ferramenta que estoura no meio de uma escrita nao deixa o pedaco pra proxima commitar (o loop
+        do chat segue pra proxima tool na MESMA conexao). O que veio antes ja vale: commit antes de rodar,
+        rollback so do que esta tool deixou pendente, e a excecao segue pro tratamento do loop."""
+        def executor(entrada):
+            conn.commit()
+            try:
+                return fn(entrada)
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:  # noqa: BLE001 - conexao ja fechada/quebrada: o erro original e o que importa
+                    app.logger.exception("chat: rollback da ferramenta falhou")
+                raise
+
+        return executor
+
+    executores = {nome: _com_rollback(fn) for nome, fn in executores.items()}
     registro = cards.RegistroExecucao()
     executores = registro.envolver(executores)
 
@@ -4993,6 +5396,10 @@ def _processar_mensagem_chat(
         with _TETO_IA_LOCK:
             if _teto_ia_estourado("chat"):
                 return None, [], TETO_IA_MSG
+            if ia.core.chave_recusada("anthropic"):
+                # 08/11 (C7): chave recusada ha pouco - responde na hora o que houve, sem bater na API de novo
+                _avisar_chave_recusada(conn, ja_viu_no_chat=True)
+                return None, [], IA_CHAVE_RECUSADA_MSG
             # Fase 7 (C1): historico da A5 (resumo fixo + so o que ainda nao
             # foi resumido, na integra - nunca os dois) e medicao nova
             # (medir_uso=True grava cada rodada em uso_ia; o _log_usage
@@ -5006,8 +5413,16 @@ def _processar_mensagem_chat(
                     resposta, acoes, usage = claude_client.chat(mensagens_ia, contexto, memorias_texto, executores)
             except ia.core.TetoEstourado:
                 return None, [], TETO_IA_MSG
+            except anthropic.AuthenticationError:
+                # 08/11 (C7): 401 - pausa as chamadas (ia.core) e diz claramente o que houve
+                ia.core.marcar_chave_recusada("anthropic")
+                _avisar_chave_recusada(conn, ja_viu_no_chat=True)
+                return None, [], IA_CHAVE_RECUSADA_MSG
             except anthropic.APIError:
                 return None, [], CLAUDE_ERROR_MSG
+            except ia.core.ChaveRecusada:
+                _avisar_chave_recusada(conn, ja_viu_no_chat=True)
+                return None, [], IA_CHAVE_RECUSADA_MSG
             except ia.core.ErroProvedor:
                 return None, [], CLAUDE_ERROR_MSG
             except (ValueError, KeyError):
@@ -5664,7 +6079,7 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
         if ja_notificado_alguma_vez(conn, "conta_pessoal", ref):
             continue
         valor = f" (R$ {conta['valor']:.2f})" if conta["valor"] is not None else ""
-        quando = "vence hoje" if dias == 0 else f"vence em {dias} dia(s)"
+        quando = _quando_conta_construtora(dias)  # 08/11: "vence amanhã" / "vence em 3 dias", sem "dia(s)"
         avisos.append(("conta_pessoal", ref, "Conta chegando", f"{conta['nome']}{valor} {quando}."))
 
     for pessoa, dias in vida.pessoas_sem_contato(list_pessoas(conn), hoje):
@@ -5673,7 +6088,7 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
         if ja_notificado_alguma_vez(conn, "pessoa_sem_contato", ref):
             continue
         texto = (
-            f"Faz {dias} dias que você não fala com {pessoa['nome']}."
+            f"Faz {_qtd(dias, 'dia', 'dias')} que tu não fala com {pessoa['nome']}."
             if pessoa["ultimo_contato"]
             else f"Ainda não tem conversa registrada com {pessoa['nome']}."
         )
@@ -5685,8 +6100,9 @@ def _avisos_assistente_vida(conn, agora: datetime) -> list[tuple[str, int, str, 
             pendentes = _assinaturas_pendentes_revisao(conn, hoje)
             if pendentes:
                 avisos.append(
-                    ("revisao_assinaturas", ref, "Revisao do mês",
-                     f"{len(pendentes)} assinatura(s) pra confirmar se você ainda usa - 1 toque cada no painel.")
+                    ("revisao_assinaturas", ref, "Revisão do mês",
+                     f"{_qtd(len(pendentes), 'assinatura', 'assinaturas')} pra confirmar se tu ainda usa - "
+                     "1 toque cada no painel.")
                 )
     return avisos
 
@@ -5777,11 +6193,12 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         if ja_notificado_alguma_vez(conn, "viagem_documento", ref):
             continue
         faltando = sum(1 for i in list_itens_viagem(conn, v["id"]) if not i["feito"])
-        mala = f" Faltam {faltando} item(ns) da mala." if faltando else ""
-        quando = "hoje" if fase == "dia" else f"em {dias} dia(s)"
+        mala = ((" Falta 1 item da mala." if faltando == 1 else f" Faltam {faltando} itens da mala.")
+                if faltando else "")
+        quando = "hoje" if fase == "dia" else "amanhã" if dias == 1 else f"em {dias} dias"
         avisos.append(
             ("viagem_documento", ref, "Viagem chegando",
-             f"Viagem pra {v['destino']} {quando}. Confere documento com foto, cartoes e reservas.{mala}")
+             f"Viagem pra {v['destino']} {quando}. Confere documento com foto, cartões e reservas.{mala}")
         )
 
     for m in _manutencoes_com_status(conn, hoje):
@@ -5790,8 +6207,7 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         ref = vida.id_estavel("manutencao", m["id"], m["proxima"])
         if ja_notificado_alguma_vez(conn, "manutencao", ref):
             continue
-        quando = "já passou do prazo" if m["dias_ate"] < 0 else "vence hoje" if m["dias_ate"] == 0 else f"vence em {m['dias_ate']} dia(s)"
-        avisos.append(("manutencao", ref, "Manutencao", f"{m['item']}: {quando}."))
+        avisos.append(("manutencao", ref, "Manutenção", f"{m['item']}: {_prazo_em_dias(m['dias_ate'])}."))
 
     # Manutencao de carro por km ou data (US-C14/Fase 6 US-E1a) - mesma
     # secao/tabela unificada acima, so que tipo='carro' e HISTORICO (uma
@@ -5811,7 +6227,8 @@ def _avisos_fase2(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
 
     if agora.hour >= 10 and not ja_notificou_hoje(conn, "responder"):
         antigas = [
-            r for r in list_responder_pendentes(conn) if datetime.fromisoformat(r["criado_em"]).date() < hoje
+            # 08/11: criado_em e UTC - o "responder" anotado as 22h ja contava como de ontem
+            r for r in list_responder_pendentes(conn) if date.fromisoformat(db.dia_local(r["criado_em"])) < hoje
         ]
         if antigas:
             nomes = ", ".join(r["quem"] + (f" ({r['sobre']})" if r["sobre"] else "") for r in antigas[:3])
@@ -5840,11 +6257,11 @@ def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
         ref = vida.id_estavel("aprender", semana[0], semana[1])
         if not ja_notificado_alguma_vez(conn, "aprender", ref):
             for a in list_aprender(conn):
-                parado = (hoje - date.fromisoformat(a["ultima_vez"] or a["criado_em"][:10])).days
+                parado = (hoje - date.fromisoformat(a["ultima_vez"] or db.dia_local(a["criado_em"]))).days
                 if parado >= 7:
                     avisos.append(
                         ("aprender", ref, "Quer retomar?",
-                         f"Faz {parado} dias que você não mexe em \"{a['tema']}\". 20 minutos hoje?")
+                         f"Faz {_qtd(parado, 'dia', 'dias')} que tu não mexe em \"{a['tema']}\". 20 minutos hoje?")
                     )
                     break
 
@@ -5883,6 +6300,9 @@ def _avisos_fase3(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
     return avisos
 
 
+TITULO_SAIDA_PASSOU = "Hora de sair já passou"
+
+
 def _avisos_proatividade_e8(conn, agora: datetime) -> list[tuple[str, int, str, str]]:
     """Fase 6 (US-E8): proatividade unificada - so MONTA (tipo, ref, titulo,
     corpo) a partir do que notificacoes.py ja calculou (cada checagem la
@@ -5897,9 +6317,19 @@ def _avisos_proatividade_e8(conn, agora: datetime) -> list[tuple[str, int, str, 
         if not ja_notificou_hoje(conn, "habito_passou_batido", habito_id):
             avisos.append(("habito_passou_batido", habito_id, "Passou batido", msg))
 
-    for tarefa_id, msg in notificacoes.tarefas_horario_passou(conn, agora):
+    import onde_vou
+
+    for tarefa_id, msg in notificacoes.tarefas_horario_passou(
+            conn, agora, caminho_min=lambda r: onde_vou.caminho_min_tarefa(conn, r)):
         if not ja_notificou_hoje(conn, "tarefa_horario_passou", tarefa_id):
-            avisos.append(("tarefa_horario_passou", tarefa_id, "Passou da hora", msg))
+            # 08/11: "Passou da hora" e titulo generico (o _texto_variado troca por "Ainda da tempo"/"Bora
+            # retomar?" do catalogo). Compromisso de SAIR leva titulo fixo, fora do catalogo, pra nao sair
+            # "Ainda da tempo" em cima de "era 20:00, saindo agora chega as 20:45"
+            linha = conn.execute("SELECT * FROM tasks WHERE id = ?", (tarefa_id,)).fetchone()
+            # com GPS "indo"/"chegou" o titulo vira o nome do compromisso (nao "Hora de sair ja passou")
+            titulo_passou = (notificacoes.titulo_saida_passou(conn, linha, agora)
+                             if linha and notificacoes.e_saida(linha) else "Passou da hora")
+            avisos.append(("tarefa_horario_passou", tarefa_id, titulo_passou, msg))
 
     for conta_id, nivel, titulo, corpo in notificacoes.cartoes_perto_ou_estourados(conn, hoje):
         ref = vida.id_estavel("cartao_limite", conta_id, nivel, hoje.strftime("%Y-%m"))
@@ -6035,6 +6465,36 @@ def _mandar_fila_vencida(conn, subs) -> int:
     except Exception:  # noqa: BLE001
         app.logger.exception("avisos_pendentes: fila vencida falhou")
         return 0
+
+
+def _avisar_chave_recusada(conn, ja_viu_no_chat: bool = False, agora: datetime | None = None) -> bool:
+    """08/11 (C7): chave da API recusada -> UM aviso por dia "IA fora: chave recusada" (fila do app do iPhone
+    se ele estiver vivo, senao push do navegador; Telegram se configurado). Fora do horario de silencio so -
+    a recusa de madrugada (diario das 00h) avisa quando ele acordar. `ja_viu_no_chat`: o chat acabou de
+    mostrar a mensagem clara - conta como o aviso do dia, sem push repetindo. Devolve True se avisou agora."""
+    try:
+        if ja_notificou_hoje(conn, TIPO_AVISO_CHAVE_RECUSADA):
+            return False
+        if ja_viu_no_chat:
+            marcar_notificado(conn, TIPO_AVISO_CHAVE_RECUSADA)
+            return False
+        agora = agora or datetime.now()
+        if notificacoes.dentro_do_horario_silencioso(
+                agora, obter_configuracao(conn, "silencio_inicio") or "22:00",
+                obter_configuracao(conn, "silencio_fim") or "07:00"):
+            return False  # nao marca: o proximo tick depois do silencio manda
+        titulo, corpo = AVISO_CHAVE_RECUSADA
+        if not _pra_fila_do_app(conn, TIPO_AVISO_CHAVE_RECUSADA, f"{TIPO_AVISO_CHAVE_RECUSADA}-0", titulo, corpo):
+            from assistente import caixa
+
+            caixa.enviar_push(conn, titulo, corpo)
+        if telegram_bot.configurado():
+            telegram_bot.enviar_mensagem(f"{titulo}\n{corpo}")
+        marcar_notificado(conn, TIPO_AVISO_CHAVE_RECUSADA)
+        return True
+    except Exception:  # noqa: BLE001 - aviso e extra, nunca derruba o chat nem o tick
+        app.logger.exception("aviso de chave recusada falhou")
+        return False
 
 
 def _repetir_avisos_insistentes(conn, subs, silencioso: bool, em_hiperfoco: bool, agendados_app=None) -> int:
@@ -6191,6 +6651,8 @@ def _trajetos_parada_aviso(conn, parada: str, local: str | None):
     """(casa -> parada, parada -> destino) em minutos, cada um None se o Maps nao respondeu.
     A parada e falada solta ('casa do guri'): vida_assistente.resolver_parada acha o apelido."""
     end_parada = vida_assistente.resolver_parada(conn, parada)
+    if not end_parada:  # 08/11 (A4): "casa da Fulana" sem apelido: sem Google, folga
+        return None, None
     ate = _trajeto_min_aviso(end_parada)
     resto = _trajeto_entre_aviso(end_parada, vida_assistente.resolver_lugar(conn, local)) if (local or "").strip() else None
     return ate, resto
@@ -6227,6 +6689,10 @@ def verificar_e_notificar():
     materializar_tarefas_recorrentes(conn_materializar)
     # diario: fecha os dias que passaram (1 chamada de IA por tick no maximo, so quando falta)
     diario.garantir_dias_fechados(conn_materializar)
+    # 08/11 (C7): alguma chamada de IA levou 401 hoje (chave recusada) -> um aviso por dia, fora do silencio
+    recusa = ia.core.ultima_recusa("anthropic")  # 08/11: 401 do fallback (openai) nao e "a IA ta fora"
+    if recusa and datetime.fromtimestamp(recusa).date() == date.today():
+        _avisar_chave_recusada(conn_materializar)
     # painel puxando assunto: fechar o dia (21h) e padroes da semana (domingo) entram no
     # chat mesmo sem push configurado - o push so avisa (la embaixo, junto dos outros)
     avisos_conversa = conversa_proativa.verificar(conn_materializar, datetime.now())
@@ -6315,7 +6781,7 @@ def verificar_e_notificar():
             row = detalhe_por_id.get(espera_id)
             if not row:
                 continue
-            dias_atual = (hoje - datetime.fromisoformat(row["criado_em"]).date()).days
+            dias_atual = (hoje - date.fromisoformat(db.dia_local(row["criado_em"]))).days  # criado_em e UTC
             limiar, _ = aprendizado.limiar_espera(conn, row["quem"], espera_id=espera_id)
             if dias_atual < limiar:
                 continue
@@ -6424,7 +6890,10 @@ def verificar_e_notificar():
         if not ja_notificou_hoje(conn, "tarefa_preparo", tarefa_id):
             avisos.append(("tarefa_preparo", tarefa_id, notificacoes.titulo_tarefa(titulos_hoje.get(tarefa_id, "")), msg))
 
-    for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(conn):
+    import onde_vou  # 08/11 (A1): "saindo agora tu chega as HH:MM" com o trajeto de agora
+
+    for tarefa_id, msg in notificacoes.tarefas_com_horario_chegando(
+            conn, caminho_min=lambda r: onde_vou.caminho_min_tarefa(conn, r)):
         if tarefa_id in ids_sair:
             continue
         if not ja_notificou_hoje(conn, "tarefa_horario", tarefa_id):
@@ -6534,7 +7003,7 @@ def verificar_e_notificar():
 
     msg = notificacoes.currency_voo_baixa(conn, limiar_dias=21)
     if msg and not ja_notificou_hoje(conn, "currency_voo"):
-        avisos.append(("currency_voo", 0, "Faz tempo que você não voa", msg))
+        avisos.append(("currency_voo", 0, "Faz tempo que tu não voa", msg))
 
     # Contas a pagar da construtora vencendo/vencidas (v3.99.16 do outro lado):
     # so avisa o que realmente precisa de atencao agora - vencida ou vencendo nos
@@ -6549,7 +7018,7 @@ def verificar_e_notificar():
             if ja_notificou_hoje(conn, "conta_a_vencer", ref_id):
                 continue
             quem = conta.get("fornecedor") or conta.get("descricao") or "fornecedor não informado"
-            quando = _quando_conta_construtora(dias_ate, passado="venceu ha")
+            quando = _quando_conta_construtora(dias_ate, passado="venceu há")
             # C1: so nome e tempo ate vencer (valor nunca de bandeja no push).
             avisos.append((
                 "conta_a_vencer",
@@ -7371,11 +7840,7 @@ def _manutencoes_carro_proximas(conn, hoje: date, dias_aviso: int = 15, km_aviso
             proxima = date.fromisoformat(m["proxima_em_data"])
             dias_ate = (proxima - hoje).days
             if dias_ate <= dias_aviso:
-                motivo = (
-                    "já passou do prazo" if dias_ate < 0
-                    else "vence hoje" if dias_ate == 0
-                    else f"vence em {dias_ate} dia(s)"
-                )
+                motivo = _prazo_em_dias(dias_ate)
         if not motivo and m["proxima_em_km"] is not None and km_atual is not None:
             km_faltando = m["proxima_em_km"] - km_atual
             if km_faltando <= km_aviso:
@@ -7560,7 +8025,7 @@ def _fatos_periodo(conn, inicio: date, fim: date) -> dict:
     ini, fim_iso = inicio.isoformat(), fim.isoformat()
     dias = (fim - inicio).days + 1
     tarefas = conn.execute(
-        "SELECT COUNT(*) AS n FROM tasks WHERE date(completed_at) BETWEEN ? AND ?", (ini, fim_iso)
+        f"SELECT COUNT(*) AS n FROM tasks WHERE {DIA_CONCLUSAO_SQL} BETWEEN ? AND ?", (ini, fim_iso)
     ).fetchone()["n"]
     treinos = conn.execute("SELECT COUNT(*) AS n FROM treinos WHERE data BETWEEN ? AND ?", (ini, fim_iso)).fetchone()["n"]
     copos = conn.execute(
@@ -7580,7 +8045,7 @@ def _fatos_periodo(conn, inicio: date, fim: date) -> dict:
         (ini, fim_iso),
     ).fetchone()
     gasto = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE tipo = 'real' AND date(created_at) BETWEEN ? AND ?",
+        f"SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE tipo = 'real' AND {DIA_GASTO_SQL} BETWEEN ? AND ?",
         (ini, fim_iso),
     ).fetchone()["t"]
 
@@ -7604,13 +8069,13 @@ def _fatos_periodo(conn, inicio: date, fim: date) -> dict:
 
 
 def _texto_revisao(mes_nome: str, fatos: dict) -> str:
-    partes = [f"{fatos['tarefas_feitas']} tarefa(s) feita(s)"]
+    partes = [_qtd(fatos["tarefas_feitas"], "tarefa feita", "tarefas feitas")]
     if fatos["treinos"]:
-        partes.append(f"{fatos['treinos']} treino(s)")
+        partes.append(_qtd(fatos["treinos"], "treino", "treinos"))
     if fatos["rotina_manha_dias"]:
-        partes.append(f"rotina da manha em {fatos['rotina_manha_dias']} dia(s)")
+        partes.append(f"rotina da manhã em {_qtd(fatos['rotina_manha_dias'], 'dia', 'dias')}")
     if fatos["sono_medio"] is not None:
-        partes.append(f"sono medio de {fatos['sono_medio']}h")
+        partes.append(f"sono médio de {fatos['sono_medio']}h")
     if fatos["humor_medio"]:
         partes.append(f"humor mais pra '{fatos['humor_medio']}'")
     if fatos["gasto_total"]:

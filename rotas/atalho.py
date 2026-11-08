@@ -89,7 +89,7 @@ def atalho_despertador():
         # pedido explicito do Alex no chat ("amanha quero acordar as 7"): ignora o `ate`, mas se um
         # compromisso exigir acordar ANTES, o mais cedo ganha (acordar atrasado perde o voo)
         hora = despertador.mais_cedo(pedida, p["acordar"] if p else None)
-        motivo = "você pediu" if hora == pedida else f"{p['titulo']} às {p['hora']} pede antes das {pedida}"
+        motivo = "tu pediu" if hora == pedida else f"{p['titulo']} às {p['hora']} pede antes das {pedida}"
         return jsonify({
             "tem": True,
             "data": dia.isoformat(),
@@ -304,7 +304,7 @@ def atalho_resumo():
         "SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
     ).fetchone()["n"]
     gasto_hoje = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
+        f"SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE {app.DIA_GASTO_SQL} = ? AND tipo = 'real'",
         (hoje,),
     ).fetchone()["total"]
 

@@ -16,7 +16,9 @@ async function loadLembretes() {
   // crua, que pra um lembrete recorrente e o ano de CRIACAO, nao o proximo
   // aniversario). Ordenar aqui evita duplicar aquele calculo so pra
   // reordenar no servidor.
-  const ordenados = [...lembretes].sort((a, b) => a.dias_restantes - b.dias_restantes);
+  // 08/11: linha velha com data torta vem com dias_restantes null - vai pro fim, nao junto das de hoje
+  const diasOuFim = (l) => (typeof l.dias_restantes === "number" ? l.dias_restantes : Infinity);
+  const ordenados = [...lembretes].sort((a, b) => diasOuFim(a) - diasOuFim(b));
 
   ordenados.forEach((l) => {
     const li = document.createElement("li");
@@ -38,7 +40,8 @@ async function loadLembretes() {
     // um lembrete recorrente mostrar o PROXIMO aniversario da data, nao o
     // ano em que ele foi cadastrado originalmente.
     const dataMostrada = l.proxima_ocorrencia || l.data;
-    quando.textContent = l.recorrente ? `${fmtDataBr(dataMostrada)} - todo ano` : fmtDataBr(dataMostrada);
+    const dataTexto = /^\d{4}-\d{2}-\d{2}/.test(dataMostrada || "") ? fmtDataBr(dataMostrada) : "sem data";
+    quando.textContent = l.recorrente ? `${dataTexto} - todo ano` : dataTexto;
     tituloWrap.appendChild(quando);
 
     if (typeof l.dias_restantes === "number") {
@@ -55,11 +58,11 @@ async function loadLembretes() {
         : "item-quando";
       contagem.textContent =
         l.dias_restantes < 0
-          ? `venceu há ${Math.abs(l.dias_restantes)} dia(s)`
+          ? `venceu há ${Math.abs(l.dias_restantes)} ${Math.abs(l.dias_restantes) === 1 ? "dia" : "dias"}`
           : l.dias_restantes === 0
-          ? "e hoje"
+          ? "é hoje"
           : l.dias_restantes === 1
-          ? "e amanhã"
+          ? "é amanhã"
           : `faltam ${l.dias_restantes} dias`;
       tituloWrap.appendChild(contagem);
     }

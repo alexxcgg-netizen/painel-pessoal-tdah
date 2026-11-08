@@ -82,7 +82,7 @@ class NotificacoesTestCase(unittest.TestCase):
         ontem = (date.today() - timedelta(days=1)).isoformat()
         self.conn.execute("INSERT INTO tasks (title, due_date) VALUES (?, ?)", ("pagar conta", ontem))
         self.conn.commit()
-        self.assertEqual(notificacoes.tarefas_atrasadas(self.conn), "Você tem 1 tarefa atrasada.")
+        self.assertEqual(notificacoes.tarefas_atrasadas(self.conn), "Tu tem 1 tarefa atrasada.")
 
     def test_tarefa_concluida_nao_conta_como_atrasada(self):
         ontem = (date.today() - timedelta(days=1)).isoformat()
@@ -151,19 +151,17 @@ class NotificacoesTestCase(unittest.TestCase):
         self.assertEqual(notificacoes.esperas_paradas(self.conn), [])
 
     def test_esperas_paradas_ignora_recente(self):
-        dois_dias = (datetime.now() - timedelta(days=2)).isoformat()
         self.conn.execute(
-            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
-            ("fornecedor de ferro", "preco do vergalhao", dois_dias),
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, datetime('now', '-2 days'))",
+            ("fornecedor de ferro", "preco do vergalhao"),
         )
         self.conn.commit()
         self.assertEqual(notificacoes.esperas_paradas(self.conn, dias_minimo=5), [])
 
     def test_esperas_paradas_detecta_no_limite(self):
-        cinco_dias = (datetime.now() - timedelta(days=5)).isoformat()
         self.conn.execute(
-            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, ?)",
-            ("fornecedor de ferro", "preco do vergalhao", cinco_dias),
+            "INSERT INTO esperas (quem, sobre, criado_em) VALUES (?, ?, datetime('now', '-5 days'))",
+            ("fornecedor de ferro", "preco do vergalhao"),
         )
         self.conn.commit()
         avisos = notificacoes.esperas_paradas(self.conn, dias_minimo=5)
@@ -502,7 +500,7 @@ class NotificacoesTestCase(unittest.TestCase):
 
     def test_mensagem_fechamento_sem_nada_no_dia(self):
         msg = notificacoes.mensagem_fechamento_noturno(self.conn)
-        self.assertIn("Nenhuma tarefa concluida hoje", msg)
+        self.assertIn("Nenhuma tarefa concluída hoje", msg)
 
     def test_mensagem_fechamento_com_concluidas_pendentes_e_gasto(self):
         hoje = date.today().isoformat()
@@ -518,7 +516,7 @@ class NotificacoesTestCase(unittest.TestCase):
         )
         self.conn.commit()
         msg = notificacoes.mensagem_fechamento_noturno(self.conn)
-        self.assertIn("1 tarefa concluida hoje", msg)
+        self.assertIn("1 tarefa concluída hoje", msg)
         self.assertIn("Responder a corretora", msg)
         self.assertIn("45.50", msg)
 
@@ -592,7 +590,10 @@ class NotificacoesTestCase(unittest.TestCase):
         self.conn.commit()
         msg = notificacoes.currency_voo_baixa(self.conn, limiar_dias=21)
         self.assertIsNotNone(msg)
-        self.assertIn("25 dias", msg)
+        # leva 08/11: a data do ultimo voo em vez de "faz N dias"
+        dia = date.fromisoformat(antigo)
+        self.assertIn(dia.strftime("%d/%m"), msg)
+        self.assertNotIn("dias", msg)
 
     def test_currency_voo_ignora_voo_so_agendado(self):
         antigo = (date.today() - timedelta(days=25)).isoformat()

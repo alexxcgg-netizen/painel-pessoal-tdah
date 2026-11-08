@@ -33,6 +33,17 @@ import app  # noqa: E402
 PIN_TESTE = "123456"
 
 
+def _avisou_na_hora(conn, task_id: int, quando: datetime):
+    """Leva 08/11 (A6): o "passou da hora" so sai 30 min depois do aviso da hora (tarefa_horario) ter saido."""
+    from datetime import timezone
+
+    conn.execute(
+        "INSERT INTO notificacoes_enviadas (tipo, referencia_id, data, criado_em) VALUES ('tarefa_horario', ?, ?, ?)",
+        (task_id, quando.date().isoformat(), quando.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+    )
+    conn.commit()
+
+
 def _inserir_gasto(conn, category, amount, descricao, quando: date):
     conn.execute(
         "INSERT INTO expenses (amount, category, description, tipo, created_at) VALUES (?, ?, ?, 'real', ?)",
@@ -96,11 +107,12 @@ class Fase6E8TestCase(unittest.TestCase):
 
     def test_tarefa_passa_da_hora_30min_depois(self):
         hoje = date(2026, 9, 23)
-        self.conn.execute(
+        tid = self.conn.execute(
             "INSERT INTO tasks (title, due_date, hora) VALUES ('Ligar pro dentista', ?, '14:00')",
             (hoje.isoformat(),),
-        )
+        ).lastrowid
         self.conn.commit()
+        _avisou_na_hora(self.conn, tid, datetime(2026, 9, 23, 13, 50))  # leva 08/11 (A6): vem depois do da hora
         agora = datetime(2026, 9, 23, 14, 31)
         avisos = notificacoes.tarefas_horario_passou(self.conn, agora)
         self.assertEqual(len(avisos), 1)
@@ -346,10 +358,11 @@ class Fase6E8PipelineTestCase(unittest.TestCase):
     def test_monta_avisos_habito_e_tarefa(self):
         habito_id = db.create_habito(self.conn, "Meditar", None, "diario", None, None, "08:00")
         hoje = date(2026, 9, 23).isoformat()
-        self.conn.execute(
+        tid = self.conn.execute(
             "INSERT INTO tasks (title, due_date, hora) VALUES ('Ligar', ?, '14:00')", (hoje,)
-        )
+        ).lastrowid
         self.conn.commit()
+        _avisou_na_hora(self.conn, tid, datetime(2026, 9, 23, 13, 50))  # leva 08/11 (A6)
         agora = datetime(2026, 9, 23, 14, 31)
         avisos = app._avisos_proatividade_e8(self.conn, agora)
         tipos = {a[0] for a in avisos}

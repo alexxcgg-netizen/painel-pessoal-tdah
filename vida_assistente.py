@@ -170,16 +170,45 @@ def apelido_dentro(conn, texto: str) -> str | None:
     return None
 
 
+_RE_CASA_DE = re.compile(r"^(?:a |na |pra |pro |ate |para )?casa d[aoe]s? [a-z]+(?: [a-z]+){0,2}$")
+
+
+def _casa_de_pessoa(texto: str) -> bool:
+    """'casa da Fulana' / 'casa da mae' (pessoa) x 'Casa do Construtor' / 'Casa da Picanha' (loja), pelo
+    db.casa_de_pessoa. Tudo minusculo ('casa da bia') a maiuscula nao diz nada: confere com o nome capitalizado
+    ('casa do construtor' continua loja)."""
+    if db.casa_de_pessoa(texto):
+        return True
+    bruto = " ".join(str(texto or "").split())
+    if bruto != bruto.lower():
+        return False
+    capitalizado = re.sub(r"(casa d[aoe]s? )(\w)", lambda m: m.group(1) + m.group(2).upper(), bruto, count=1)
+    return capitalizado != bruto and db.casa_de_pessoa(capitalizado)
+
+
+def casa_de_alguem_sem_apelido(conn, texto: str) -> bool:
+    """'casa da Fulana' sem apelido salvo (nem o inteiro, nem o nome dentro) e sem endereco junto: o Google
+    acha uma CIDADE com aquele nome (08/11: virou 2158 min de trajeto). Isso nunca vai pro Google.
+    Rodada 3: loja com "Casa" no nome ('Casa do Construtor', 'Casa da Picanha') nao e casa de ninguem - vai."""
+    t = re.sub(r"\s+", " ", _sem_acento(texto))
+    if not _RE_CASA_DE.match(t) or not _casa_de_pessoa(texto):
+        return False
+    return _chave_apelido(texto) not in apelidos(conn) and not apelido_dentro(conn, texto)
+
+
 def resolver_parada(conn, texto: str) -> str:
     """Parada do caminho -> endereco: o apelido exato, senao um apelido dentro da frase
-    ('casa do guri' com o apelido 'guri'), senao o proprio texto (o Google tenta)."""
+    ('casa do guri' com o apelido 'guri'), senao o proprio texto (o Google tenta).
+    08/11 (A4): "casa d@ <nome>" sem apelido salvo devolve "" - quem chama usa a folga, sem Google."""
     bruto = (texto or "").strip()
     mapa = apelidos(conn)
     exato = mapa.get(_chave_apelido(bruto))
     if exato:
         return exato
     dentro = apelido_dentro(conn, bruto)
-    return mapa[dentro] if dentro else bruto
+    if dentro:
+        return mapa[dentro]
+    return "" if casa_de_alguem_sem_apelido(conn, bruto) else bruto
 
 
 # ---- acordou -----------------------------------------------------------------------
@@ -194,6 +223,103 @@ def acordou_hoje(conn, agora: datetime) -> datetime | None:
     except ValueError:
         return None
     return quando if quando.date() == agora.date() and quando <= agora else None
+
+
+# 08/11 (frente A, A7): ele acorda ~9h40-11h e a maioria dos avisos antes das 9h nunca e vista. O primeiro
+# sinal de acordado (abriu o app, check-in, bom dia, mensagem no chat, saiu de casa pelo GPS) e a hora em que
+# o aviso da manha que ficou pendente repete e o check-in do dia aparece.
+CONFIG_ACORDADO = "acordado_sinal"  # {"dia", "em" (local), "fonte"} - o primeiro sinal visto no dia
+INICIO_DIA_ACORDADO = (5, 0)  # sinal antes disso e da madrugada (insonia, celular na mao), nao conta
+
+
+def _utc_para_local(texto) -> datetime | None:
+    from datetime import timezone
+
+    try:
+        dt = datetime.fromisoformat(str(texto))
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone().replace(tzinfo=None)
+
+
+def _local_para_utc_txt(dt: datetime) -> str:
+    from datetime import timezone
+
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _sinais_acordado(conn, inicio: datetime, agora: datetime) -> list[tuple[datetime, str]]:
+    sinais = []
+
+    def dentro(dt):
+        return dt is not None and inicio <= dt <= agora
+
+    a = acordou_hoje(conn, agora)
+    if dentro(a):
+        sinais.append((a, "bom_dia"))
+    try:
+        c = db.get_checkin(conn, agora.date().isoformat()) or {}
+        t = _utc_para_local(c.get("atualizado_em")) if any(c.get(k) for k in ("energia", "sono", "humor")) else None
+        if dentro(t):
+            sinais.append((t, "checkin"))
+    except Exception:  # noqa: BLE001 - banco velho de teste
+        pass
+    visto = _utc_para_local(db.obter_configuracao(conn, "ultimo_visto_em"))  # app aberto (de_onde_parei)
+    if dentro(visto):
+        sinais.append((visto, "app"))
+    consultas = (
+        ("chat", "SELECT MIN(criado_em) FROM chat_mensagens WHERE papel = 'user' AND criado_em >= ? AND criado_em <= ?",
+         (_local_para_utc_txt(inicio), _local_para_utc_txt(agora)), True),
+        ("gps", "SELECT MIN(saida) FROM visitas WHERE lugar = 'casa' AND saida >= ? AND saida <= ?",
+         (inicio.isoformat(timespec="seconds"), agora.isoformat(timespec="seconds")), False),
+        ("gps", "SELECT MIN(chegada) FROM visitas WHERE lugar IS NOT NULL AND lugar != 'casa' "
+                "AND chegada >= ? AND chegada <= ?",
+         (inicio.isoformat(timespec="seconds"), agora.isoformat(timespec="seconds")), False),
+    )
+    for fonte, sql, args, utc in consultas:
+        try:
+            v = conn.execute(sql, args).fetchone()[0]
+        except Exception:  # noqa: BLE001 - tabela que ainda nao existe
+            continue
+        if not v:
+            continue
+        try:
+            dt = _utc_para_local(v) if utc else datetime.fromisoformat(v)
+        except ValueError:
+            continue
+        if dentro(dt):
+            sinais.append((dt, fonte))
+    return sinais
+
+
+def primeiro_sinal_acordado(conn, agora: datetime) -> datetime | None:
+    """Hora (local) do primeiro sinal de acordado de hoje, a partir das 05:00; None se ainda nao teve.
+    Guarda o primeiro que viu (o "app aberto" so guarda o ultimo batimento): fica o mesmo o dia todo."""
+    hoje = agora.date().isoformat()
+    try:
+        salvo = json.loads(db.obter_configuracao(conn, CONFIG_ACORDADO) or "{}")
+    except ValueError:
+        salvo = {}
+    if isinstance(salvo, dict) and salvo.get("dia") == hoje:
+        try:
+            em = datetime.fromisoformat(salvo.get("em") or "")
+            if em <= agora:
+                return em
+        except ValueError:
+            pass
+    inicio = agora.replace(hour=INICIO_DIA_ACORDADO[0], minute=INICIO_DIA_ACORDADO[1], second=0, microsecond=0)
+    if agora < inicio:
+        return None
+    sinais = _sinais_acordado(conn, inicio, agora)
+    if not sinais:
+        return None
+    em, fonte = min(sinais)
+    em = em.replace(microsecond=0)
+    db.definir_configuracao(conn, CONFIG_ACORDADO, json.dumps({"dia": hoje, "em": em.isoformat(), "fonte": fonte}))
+    conn.commit()
+    return em
 
 
 # ---- linhas do contexto do chat ----------------------------------------------------

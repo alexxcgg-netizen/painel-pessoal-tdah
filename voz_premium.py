@@ -20,6 +20,7 @@ from datetime import date, datetime, timedelta
 
 import requests
 
+import db
 import fala_ptbr
 
 log = logging.getLogger(__name__)
@@ -157,7 +158,7 @@ def frase_curta_manha(conn, hoje: date | None = None, nome: str = NOME_PADRAO, a
 def frase_curta_noite(conn, hoje: date | None = None) -> str:
     hoje = hoje or date.today()
     concluidas = conn.execute(
-        "SELECT COUNT(*) AS n FROM tasks WHERE date(completed_at) = ?", (hoje.isoformat(),)
+        f"SELECT COUNT(*) AS n FROM tasks WHERE {db.dia_local_sql('completed_at')} = ?", (hoje.isoformat(),)
     ).fetchone()["n"]
     pendentes = conn.execute(
         "SELECT COUNT(*) AS n FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL AND due_date = ?",

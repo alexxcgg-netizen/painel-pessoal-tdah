@@ -180,7 +180,7 @@ class ProgressoRevisaoTestCase(VidaBaseTestCase):
     def test_revisao_mensal(self):
         r = self.client.get("/api/revisao-mensal?mes=2026-02").get_json()
         self.assertEqual(r["dias"], 28)
-        self.assertTrue(r["texto"].startswith("Fevereiro fechou: 0 tarefa(s) feita(s)"))
+        self.assertTrue(r["texto"].startswith("Fevereiro fechou: 0 tarefas feitas"))
         self.assertEqual(self.client.get("/api/revisao-mensal?mes=2026-12").get_json()["dias"], 31)
         for ruim in ["2026-13", "ontem", "2026"]:
             self.assertEqual(self.client.get(f"/api/revisao-mensal?mes={ruim}").status_code, 400)

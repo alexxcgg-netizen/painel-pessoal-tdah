@@ -25,8 +25,19 @@ def lembretes():
     # sempre, nunca o proximo aniversario de verdade.
     hoje = date.today()
     for item in resultado:
+        # 08/11: linha antiga gravada torta pelo chat ("2026-11-15T09:00", "") derrubava a lista inteira
+        # com 500 - le pelo mesmo normalizador do executor; o que nao for data vira sem proxima ocorrencia
+        try:
+            data_item = app._data_iso(item["data"])
+        except ValueError:
+            data_item = None
+        if not data_item:
+            item["proxima_ocorrencia"] = None
+            item["dias_restantes"] = None
+            item["sugestao"] = vida.sugestao_acao_data(item["titulo"])
+            continue
         proxima = notificacoes.proxima_ocorrencia_lembrete(
-            date.fromisoformat(item["data"]), bool(item["recorrente"]), hoje
+            date.fromisoformat(data_item), bool(item["recorrente"]), hoje
         )
         item["proxima_ocorrencia"] = proxima.isoformat()
         item["dias_restantes"] = (proxima - hoje).days
@@ -45,9 +56,11 @@ def criar_lembrete():
     recorrente = bool(body.get("recorrente", False))
     if not titulo:
         return jsonify({"error": "informe um titulo"}), 400
-    try:
-        date.fromisoformat(data_str)
+    try:  # 08/11: mesmo normalizador do chat - grava sempre AAAA-MM-DD ("20261115" passava cru)
+        data_str = app._data_iso(data_str)
     except (ValueError, TypeError):
+        data_str = None
+    if not data_str:
         return jsonify({"error": "data precisa estar em formato AAAA-MM-DD"}), 400
 
     conn = get_db()

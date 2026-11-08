@@ -9,7 +9,7 @@ Base: as visitas do iPhone (`onde_estou`). Fora de casa quando
 Sem base (sem visita recente, casa sem coordenada) -> None: nao chuta, o plano de sempre fica.
 
 `ajustar_plano` troca "sair_de_casa"/"comecar_a_se_arrumar" por "daqui ate la" (Maps do ponto atual,
-se der) - so pra compromisso de HOJE que ainda nao passou.
+se der) - so pra compromisso de HOJE que ainda nao passou e e daqui a no maximo HORIZONTE_H horas.
 """
 
 import logging
@@ -82,12 +82,17 @@ def daqui_ate_la_min(conn, rua: dict, local: str | None) -> int | None:
     return minutos if isinstance(minutos, int) and minutos > 0 else None
 
 
+# 08/11 (rodada com a IA de verdade): na rua as 7h30 com date as 20h virava "sai daqui 19h03" (57 min do ponto
+# da manha) e o card perdia o "se arrumar". Longe assim ele passa em casa antes: so vale pro que e daqui a pouco.
+HORIZONTE_H = 3
+
+
 def _hoje_e_futuro(data_iso: str | None, hora: str | None, agora: datetime) -> bool:
     try:
         ev = datetime.fromisoformat(f"{data_iso}T{hora}")
     except (TypeError, ValueError):
         return False
-    return ev.date() == agora.date() and ev > agora
+    return ev.date() == agora.date() and agora < ev <= agora + timedelta(hours=HORIZONTE_H)
 
 
 def ajustar_plano(conn, plano: dict, data_iso: str | None, hora: str | None, local: str | None,
@@ -119,4 +124,5 @@ def linha_contexto(conn, agora: datetime | None = None) -> str | None:
     rua = estado(conn, agora)
     if not rua:
         return None
-    return f"Ele já está na rua agora ({rua['onde']}, pelo iPhone): {NOTA_IA}."
+    return (f"Ele já está na rua agora ({rua['onde']}, pelo iPhone): {NOTA_IA}. Isso vale pro que é nas próximas "
+            f"{HORIZONTE_H} h; compromisso mais tarde segue o plano de sempre (se arrumar e sair de casa).")

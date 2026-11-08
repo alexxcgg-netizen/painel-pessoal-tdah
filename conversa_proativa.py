@@ -35,8 +35,8 @@ JANELA_FECHAR_DIA = (time(21, 0), time(23, 30))
 JANELA_SEMANA = (time(19, 30), time(23, 30))  # domingo
 LIMITE_PENDENTES_CARD = 8
 
-# completed_at e datetime('now') do SQLite (UTC); o dia dele e o de Brasilia
-_DIA_CONCLUSAO = "date(completed_at, '-3 hours')"
+# completed_at e datetime('now') do SQLite (UTC); o dia dele e o de Brasilia (helper de db.py, leva 08/11)
+_DIA_CONCLUSAO = db.dia_local_sql("completed_at")
 _SO_TAREFA_REAL = "recorrencia IS NULL"
 
 
@@ -65,8 +65,9 @@ def pendentes_ate(conn, dia: date) -> list[dict]:
 
 
 def _gasto_no_dia(conn, dia: date) -> float:
+    # leva 08/11: created_at e UTC - o gasto das 21h30 e de hoje, nao de amanha
     return float(conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) t FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
+        f"SELECT COALESCE(SUM(amount), 0) t FROM expenses WHERE {db.dia_local_sql('created_at')} = ? AND tipo = 'real'",
         (dia.isoformat(),),
     ).fetchone()["t"] or 0)
 
@@ -231,7 +232,8 @@ def sugestao_semana(conn, hoje: date, melhor: dict | None, agua_dias: list[int],
         return f"Separa 30 min na segunda pra zerar as {atrasadas} atrasadas. Se quiser, eu escolho o horário."
     prog = diario_bordo.progresso(conn, hoje)
     pior = next((c for c in prog["cats"] if c["chave"] == prog["pior"]), None)
-    if pior and prog["cats"][0]["h"] > 0:
+    # leva 08/11 (C6): sem voo ha mais de 60 dias, "no proximo voo" nao cabe (o card nao sugere)
+    if pior and prog["cats"][0]["h"] > 0 and not db.atividade_parada(conn, "voo", hoje):
         falta = f"{pior['meta'] - pior['h']:.1f}".replace(".", ",")
         return (f"{pior['nome']} é a categoria mais atrasada pro comercial (faltam {falta} h): "
                 f"vale pedir {PEDIDO_VOO[pior['chave']]} no próximo voo.")
@@ -534,7 +536,8 @@ def documentos_vencendo(conn, agora: datetime) -> list[tuple[str, str, str]]:
         if not vida.eh_burocracia(lem["titulo"]):
             continue
         try:
-            base = date.fromisoformat(lem["data"])
+            # leva 08/11 (rodada 3): lembrete antigo com hora ("2026-11-15T09:00") vale pelo dia (db.data_iso)
+            base = date.fromisoformat(db.data_iso(lem["data"]))
         except (TypeError, ValueError):
             continue
         vence = notificacoes.proxima_ocorrencia_lembrete(base, bool(lem["recorrente"]), hoje)
@@ -696,7 +699,10 @@ def perguntar_horas_agora(conn, voo_id: int, agora: datetime) -> bool:
 
 
 # ------------------------------------------- como tu ta hoje (leva 22/10)
-JANELA_COMO_ESTA = (time(7, 0), time(11, 0))
+# 08/11 (A7): nada de 07:00 fixo (ele acorda ~9h40-11h e o aviso ficava sem ver) - sai no primeiro sinal de
+# acordado (vida_assistente.primeiro_sinal_acordado); sem sinal nenhum, sai no teto, como antes (1 por dia).
+JANELA_COMO_ESTA = (time(5, 0), time(12, 30))
+TETO_COMO_ESTA = time(11, 30)
 FRASES_COMO_ESTA = (
     "Bom dia! Como tu tá hoje? Um toque em cada e eu ajusto o dia.",
     "E aí, como acordou? Me diz aqui embaixo, é um toque só.",
@@ -704,11 +710,32 @@ FRASES_COMO_ESTA = (
 )
 
 
+def _no_silencio(conn, agora: datetime) -> bool:
+    """Horario silencioso dele (Assistente > Avisos; o mesmo do onde_estou._avisar e do tick). 08/11 (rodada 3):
+    aviso da manha que cai aqui dentro NAO e publicado nem marcado - o push sumiria no silencio e o dia ja
+    ficava como "ja perguntou". Sai no primeiro tick depois do silencio (o sinal de acordado fica guardado)."""
+    import notificacoes
+
+    try:
+        return notificacoes.dentro_do_horario_silencioso(
+            agora, db.obter_configuracao(conn, "silencio_inicio") or "22:00",
+            db.obter_configuracao(conn, "silencio_fim") or "07:00")
+    except Exception:  # noqa: BLE001 - na duvida, segue como antes
+        return False
+
+
 def perguntar_como_esta(conn, agora: datetime) -> list[tuple[str, str, str]]:
     """De manha, uma vez por dia: o card do check-in no chat (o Alex nao achava onde dizer como
-    esta). So pergunta se ele ainda nao respondeu nada hoje (pelo card, pela tela ou pelo chat)."""
+    esta). So pergunta se ele ainda nao respondeu nada hoje (pelo card, pela tela ou pelo chat).
+    08/11 (A7): espera o primeiro sinal de acordado (ou o teto TETO_COMO_ESTA)."""
+    import vida_assistente
+
     if not _na_janela(agora, JANELA_COMO_ESTA) or db.ja_notificou_hoje(conn, "como_esta_chat"):
         return []
+    if agora.time() < TETO_COMO_ESTA and not vida_assistente.primeiro_sinal_acordado(conn, agora):
+        return []
+    if _no_silencio(conn, agora):
+        return []  # rodada 3: acordou as 06:10 (silencio ate 7h) - pergunta as 7h, nao some no silencio
     atual = db.get_checkin(conn, agora.date().isoformat()) or {}
     if any(atual.get(c) for c in vida.CAMPOS_CHECKIN):
         db.marcar_notificado(conn, "como_esta_chat")
@@ -717,6 +744,84 @@ def perguntar_como_esta(conn, agora: datetime) -> list[tuple[str, str, str]]:
     texto = FRASES_COMO_ESTA[agora.toordinal() % len(FRASES_COMO_ESTA)]
     publicar(conn, "como_esta_chat", texto, [cards.card_checkin(conn, agora.date())])
     return [("como_esta", "Como tu tá hoje?", "Um toque no chat: energia, sono e humor.")]
+
+
+# ------------------------------------- 08/11 (A7): o aviso da manha repete quando ele acorda
+TIPO_MANHA_AO_ACORDAR = "manha_ao_acordar"  # marca do dia (ja tratou)
+TIPO_TAREFA_MANHA = "tarefa_manha"  # o aviso repetido de cada tarefa (fila do hora_certa)
+REPETIR_MANHA_ATE = time(14, 0)  # acordou depois disso: nao e mais "aviso da manha"
+_AVISOS_DE_TAREFA_MANHA = ("tarefa_horario", "tarefa_preparo", "tarefa_horario_passou", "tarefa_inegociavel")
+
+
+def _manha_pendente(conn, hoje: str, acordou: datetime) -> list:
+    """Tarefas de hoje ainda abertas com hora ate o despertar cujo aviso saiu ANTES dele acordar.
+    Comer e compromisso de sair ficam de fora (a hora deles passou, repetir nao ajuda); remedio vem primeiro."""
+    import notificacoes
+    import onde_estou
+    import vida_assistente
+
+    corte = vida_assistente._local_para_utc_txt(acordou)
+    marcas = ",".join("?" * len(_AVISOS_DE_TAREFA_MANHA))
+    pendentes = []
+    for t in conn.execute(
+        "SELECT * FROM tasks WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL AND hora <= ? "
+        "ORDER BY hora, id", (hoje, acordou.strftime("%H:%M")),
+    ).fetchall():
+        if notificacoes.e_refeicao(t["title"]) or notificacoes.e_saida(t):
+            continue
+        enviado = conn.execute(
+            f"SELECT MIN(criado_em) FROM notificacoes_enviadas WHERE referencia_id = ? AND data = ? AND tipo IN ({marcas})",
+            (t["id"], hoje, *_AVISOS_DE_TAREFA_MANHA),
+        ).fetchone()[0]
+        if enviado and str(enviado) < corte:
+            pendentes.append(t)
+    return sorted(pendentes, key=lambda t: (not onde_estou._e_remedio(conn, t), t["hora"], t["id"]))
+
+
+def repetir_manha_ao_acordar(conn, agora: datetime) -> list[tuple[str, str, str]]:
+    """No primeiro sinal de acordado (abriu o app, check-in, bom dia, chat, saiu de casa), uma vez por dia:
+    o remedio/aviso da manha que saiu com ele dormindo e segue pendente REPETE (remedio primeiro, um aviso por
+    dose; as outras juntas num aviso so quando sao 2+, pra nao chegar uma rajada), e a rotina da manha tambem,
+    se ficou item sem marcar. Nao corta nada: so repete na hora certa.
+    Publica sozinho (hora_certa.avisar_evento: aviso local do app + push) e devolve []."""
+    import hora_certa
+    import notificacoes
+    import onde_estou
+    import vida_assistente
+
+    if agora.time() > REPETIR_MANHA_ATE or db.ja_notificou_hoje(conn, TIPO_MANHA_AO_ACORDAR):
+        return []
+    acordou = vida_assistente.primeiro_sinal_acordado(conn, agora)
+    if not acordou:
+        return []
+    if _no_silencio(conn, agora):
+        return []  # rodada 3: o push seria bloqueado e o dia ficava marcado - repete no fim do silencio
+    db.marcar_notificado(conn, TIPO_MANHA_AO_ACORDAR)  # antes de mandar: tick que cai junto nao repete duas vezes
+    conn.commit()
+    hoje = agora.date().isoformat()
+    pendentes = _manha_pendente(conn, hoje, acordou)
+    ids_remedio = {t["id"] for t in pendentes if onde_estou._e_remedio(conn, t)}
+    remedios = [t for t in pendentes if t["id"] in ids_remedio]
+    outras = [t for t in pendentes if t["id"] not in ids_remedio]
+    # remedio sempre sozinho (um por dose); o resto: 1 tarefa = o aviso dela, 2+ = um aviso so (nada de rajada)
+    for t in remedios + (outras if len(outras) == 1 else []):
+        corpo = f"Bom dia! Era às {t['hora']} e ainda tá aberto. " + (
+            "Toma agora?" if t["id"] in ids_remedio else "Faz agora ou muda a hora?")
+        hora_certa.avisar_evento(conn, TIPO_TAREFA_MANHA, notificacoes.titulo_tarefa(t["title"]), corpo, agora,
+                                 ref_legado=t["id"])
+    if len(outras) > 1:
+        hora_certa.avisar_evento(conn, TIPO_TAREFA_MANHA, "Bom dia",
+                                 f"Ficou da manhã: {_lista_curta([t['title'] for t in outras])}. Bora ver?", agora)
+    rotina = conn.execute(
+        "SELECT criado_em FROM notificacoes_enviadas WHERE tipo = 'rotina_manha' AND data = ?", (hoje,)
+    ).fetchone()
+    if rotina and str(rotina["criado_em"]) < vida_assistente._local_para_utc_txt(acordou):
+        feitos = db.rotina_marcadas(conn, hoje)
+        faltam = [i["texto"].lower() for i in db.list_rotina_itens(conn, "manha") if i["id"] not in feitos]
+        if faltam:
+            hora_certa.avisar_evento(conn, "rotina_manha", "Bom dia",
+                                     f"Rotina da manhã, sem pressa: {', '.join(faltam)}.", agora)
+    return []
 
 
 # ------------------------------------- dia que vai dar errado (leva 22/10)
@@ -839,7 +944,7 @@ def verificar(conn, agora: datetime) -> list[tuple[str, str, str]]:
 
     # Laboratorio v4 (30/10): cada grupo acrescenta os seus passos numa linha propria
     for passo in (vespera_do_voo, voo_vespera.verificar, manha_do_voo, documentos_vencendo, avisar_compras, assinaturas_que_subiram, contas_do_email,
-                  perguntar_como_esta, alerta_do_dia, foco.aviso_do_meio,
+                  perguntar_como_esta, repetir_manha_ao_acordar, alerta_do_dia, foco.aviso_do_meio,
                   rotinas_esperto.verificar, perguntar_por_que_travou, recomeco_do_dia,
                   manha.verificar, se_entao.verificar,
                   neste_dia.na_manha, coincidencias.na_semana,

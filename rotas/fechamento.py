@@ -21,7 +21,7 @@ def fechamento_do_dia():
     hoje = date.today().isoformat()
     conn = get_db()
     concluidas = conn.execute(
-        "SELECT title FROM tasks WHERE date(completed_at) = ? ORDER BY completed_at", (hoje,)
+        f"SELECT title FROM tasks WHERE {app.DIA_CONCLUSAO_SQL} = ? ORDER BY completed_at", (hoje,)
     ).fetchall()
     pendentes_hoje = conn.execute(
         "SELECT title FROM tasks WHERE completed_at IS NULL AND due_date = ? "

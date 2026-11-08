@@ -192,6 +192,14 @@ def push_visto():
                 parei = de_onde_parei.ao_ver(conn, datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0), agora.date().isoformat())
             except Exception:
                 app.app.logger.exception("de onde parei falhou")
+            # 08/11 (A): abriu o app = acordou - o remedio/aviso da manha que saiu com ele dormindo repete
+            # (depois do ao_ver; nunca derruba a rota)
+            try:
+                import conversa_proativa
+
+                conversa_proativa.repetir_manha_ao_acordar(conn, app._agora_brasilia().replace(tzinfo=None))
+            except Exception:
+                app.app.logger.exception("repetir a manha ao acordar falhou")
         numero = badge.contagem(conn, app._agora_brasilia().date())
     finally:
         conn.close()

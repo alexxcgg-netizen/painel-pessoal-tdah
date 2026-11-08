@@ -64,6 +64,15 @@ MENSAGENS_LITERAIS_MAX = 20
 
 _ESTADO_VAZIO = {"resumo": "", "ultimo_mensagem_id": 0, "dia": ""}
 
+# 08/11 (leva conversa inteira, A8): mensagem automatica do painel (aviso proativo, "como foi o treino?",
+# fechamento do dia...) e uma 'assistant' que nao responde a nenhuma 'user' - vem logo depois de outra
+# 'assistant'. Ela NAO conta na janela de mensagens literais (num dia cheio de avisos, as 20 vagas iam quase
+# todas pra eles e a conversa de verdade sumia). Fica so a(s) ultima(s) antes de uma fala dele (ele pode
+# estar respondendo a ela) e as do fim (a mensagem nova pode ser a resposta).
+PROATIVAS_ANTES_DE_FALA = 2
+
+# 08/11 (C5): o resumo nao carrega pendencia - a lista viva (tarefas/esperas abertas) vem do banco a cada
+# mensagem; pendencia que ficava no resumo virava "em aberto" dias depois de resolvida.
 SISTEMA_RESUMO = (
     "Voce resume o historico de uma conversa entre o Alex e o assistente "
     "pessoal dele (TDAH: tarefas, gastos, agenda, saude, estudo, viagens, "
@@ -72,8 +81,13 @@ SISTEMA_RESUMO = (
     "Devolva UM UNICO resumo atualizado, em portugues, em texto corrido "
     "(sem JSON, sem marcacao, sem cabecalho), curto (poucos paragrafos). "
     "Mantenha: fatos e decisoes que ainda importam (nomes, valores, datas, "
-    "combinados, preferencias reveladas pelo Alex) e o que ficou em aberto "
-    "ou pendente de resposta dele. Descarte saudacao, small talk e qualquer "
+    "combinados, preferencias e correcoes reveladas pelo Alex). NAO guarde "
+    "tarefa, compromisso, lembrete ou espera como pendente/em aberto/falta fazer: "
+    "o que esta aberto de verdade vem do banco a cada mensagem, e pendencia "
+    "copiada aqui fica velha. Se vier a lista 'Abertos agora no banco', ela e a "
+    "verdade: algo que nao esta nela ja foi feito ou cancelado. Tire do resumo "
+    "anterior qualquer pendencia que nao esteja nessa lista. Descarte saudacao, "
+    "small talk, aviso automatico do painel que ele nao respondeu e qualquer "
     "coisa ja resolvida ou sem relevancia futura. Nunca invente informacao "
     "que nao apareceu no historico. Cada mensagem vem com [dia dd/mm hh:mm]: "
     "SEMPRE escreva a data de cada compromisso/fato (ex: 'sab 10/10: teve date as 20h') "
@@ -157,6 +171,101 @@ def _cortar_para_verbatim(pool: list[dict], alvo: int) -> int:
     return corte
 
 
+def _papel_antes(conn, primeiro_id: int) -> Optional[str]:
+    """Papel da mensagem logo antes do pool (a que ja entrou no resumo) - decide se a 1a do pool responde
+    a uma fala dele. Sem nada antes -> None."""
+    try:
+        linha = conn.execute(
+            "SELECT papel FROM chat_mensagens WHERE id < ? ORDER BY id DESC LIMIT 1", (primeiro_id,)
+        ).fetchone()
+    except sqlite3.Error:
+        return None
+    return linha[0] if linha else None
+
+
+def marcar_proativas(mensagens: list[dict], papel_anterior: Optional[str] = None, chave: str = "papel") -> list[bool]:
+    """Pra cada mensagem (ordem cronologica): True se e automatica do painel - 'assistant' que nao vem logo
+    depois de uma 'user'. A resposta do chat e sempre gravada colada na pergunta (user + assistant juntos),
+    entao o que sobra de 'assistant' seguida e aviso/pergunta que o painel mandou sozinho."""
+    marcas, anterior = [], papel_anterior
+    for m in mensagens:
+        papel = m.get(chave)
+        marcas.append(papel == "assistant" and anterior is not None and anterior != "user")
+        anterior = papel
+    return marcas
+
+
+def _inicio_da_janela(pool: list[dict], proativas: list[bool], alvo: int) -> int:
+    """Indice de onde comeca o trecho literal com `alvo` mensagens de CONVERSA (as automaticas nao contam),
+    recuado ate uma 'user' (a API exige comecar por 'user', e nao corta um par ao meio)."""
+    conversa = [i for i, p in enumerate(proativas) if not p]
+    if len(conversa) <= alvo:
+        return 0
+    corte = conversa[-alvo]
+    while corte > 0 and pool[corte]["papel"] != "user":
+        corte -= 1
+    return corte
+
+
+def _sem_proativas_soltas(pool: list[dict], proativas: list[bool]) -> list[dict]:
+    """Tira as automaticas que ele nao respondeu: de cada sequencia delas fica so as ultimas
+    PROATIVAS_ANTES_DE_FALA, e so se vem uma fala dele depois (ou se e o fim - a mensagem nova pode ser a
+    resposta)."""
+    saida = []
+    for i, m in enumerate(pool):
+        if not proativas[i]:
+            saida.append(m)
+            continue
+        j = i + 1
+        while j < len(pool) and proativas[j]:
+            j += 1
+        respondida = j >= len(pool) or pool[j]["papel"] == "user"
+        if respondida and j - i <= PROATIVAS_ANTES_DE_FALA:
+            saida.append(m)
+    return saida
+
+
+LIMITE_ABERTAS = 40
+LIMITE_ESPERAS = 15
+
+
+def _abertos_no_banco(conn) -> str:
+    """'Abertos agora no banco' pro resumo conferir (C5): tarefas sem concluir e esperas sem resolver.
+    Tabela ausente (banco de teste so com o chat) -> texto vazio."""
+    consulta = ("SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL {arquivada}"
+                f"ORDER BY due_date IS NULL, due_date, id DESC LIMIT {LIMITE_ABERTAS + 1}")
+    try:  # 08/11 (revisao): tarefa arquivada no Recomeco nao esta "aberta"
+        tarefas = [r[0] for r in conn.execute(consulta.format(arquivada="AND arquivada_em IS NULL ")).fetchall()]
+    except sqlite3.OperationalError:
+        try:  # banco antigo/teste sem a coluna
+            tarefas = [r[0] for r in conn.execute(consulta.format(arquivada="")).fetchall()]
+        except sqlite3.Error:
+            return ""
+    except sqlite3.Error:
+        return ""
+    cortada = len(tarefas) > LIMITE_ABERTAS
+    tarefas = tarefas[:LIMITE_ABERTAS]
+    try:
+        esperas = [f"{r[0]}: {r[1]}" for r in conn.execute(
+            f"SELECT quem, sobre FROM esperas WHERE resolvido_em IS NULL ORDER BY id DESC LIMIT {LIMITE_ESPERAS + 1}"
+        ).fetchall()]
+    except sqlite3.Error:
+        esperas = []
+    cortada = cortada or len(esperas) > LIMITE_ESPERAS
+    esperas = esperas[:LIMITE_ESPERAS]
+    if cortada:
+        # com a lista cortada nao da pra afirmar que o que ficou de fora foi resolvido
+        cabeca = ("Abertos agora no banco (lista CORTADA nos primeiros - o que estiver aqui esta aberto; pendencia "
+                  "que nao aparece pode estar aberta tambem, entao so tire do resumo o que a conversa mostrar "
+                  "que foi feito):")
+    else:
+        cabeca = "Abertos agora no banco (fonte da verdade - pendencia fora daqui ja foi resolvida):"
+    partes = [cabeca, "tarefas: " + ("; ".join(tarefas) if tarefas else "nenhuma")]
+    if esperas:
+        partes.append("esperando de alguem: " + "; ".join(esperas))
+    return "\n".join(partes)
+
+
 def precisa_reconstruir(conn, agora: Optional[datetime] = None) -> bool:
     """True quando o historico ALEM do resumo atual (tudo que ainda nao foi
     dobrado pra dentro do contexto_fixo - inclui o que vai ficar na integra e
@@ -185,7 +294,9 @@ def _reconstruir(conn, agora: datetime) -> None:
     if not pool:
         return
 
-    corte = _cortar_para_verbatim(pool, MENSAGENS_VERBATIM)
+    proativas = marcar_proativas(pool, _papel_antes(conn, pool[0]["id"]))
+    # A8: as automaticas nao contam no trecho que fica na integra (alvo = so mensagem de conversa)
+    corte = _inicio_da_janela(pool, proativas, MENSAGENS_VERBATIM)
     dobrar = pool[:corte]
     if not dobrar:
         # So o dia mudou, mas nao ha nada alem do trecho que ja fica na
@@ -193,8 +304,16 @@ def _reconstruir(conn, agora: datetime) -> None:
         # nao ficar tentando reconstruir de novo a cada chamada hoje.
         _salvar_estado(conn, estado["resumo"], estado["ultimo_mensagem_id"], dia_atual)
         return
+    # aviso automatico que ele nao respondeu nao vira "pendencia" no resumo (C5)
+    dobrar_texto = _sem_proativas_soltas(dobrar, proativas[:corte])
+    if not dobrar_texto:
+        _salvar_estado(conn, estado["resumo"], dobrar[-1]["id"], dia_atual)
+        return
 
-    transcript = "\n".join(f"{_quando(m)}{m['papel']}: {m['texto']}" for m in dobrar)
+    transcript = "\n".join(f"{_quando(m)}{m['papel']}: {m['texto']}" for m in dobrar_texto)
+    abertos = _abertos_no_banco(conn)
+    if abertos:
+        transcript += "\n\n" + abertos
     contexto_fixo = f"Resumo anterior da conversa:\n{estado['resumo']}" if estado["resumo"] else ""
 
     resp = core.chamar_ia(
@@ -233,8 +352,10 @@ def montar_contexto(conn, agora: Optional[datetime] = None) -> dict:
     # alvo de MENSAGENS_VERBATIM (12): entre uma reconstrucao e outra, as
     # mensagens 13+ nao estavam nem no resumo nem no trecho literal (sumiam
     # do contexto). Nunca duplica: o resumo cobre so ate ultimo_mensagem_id.
-    corte = _cortar_para_verbatim(pool, MENSAGENS_LITERAIS_MAX)
-    verbatim = pool[corte:]
+    # A8 (08/11): o limite conta so mensagem de conversa; aviso automatico solto (sem resposta dele) sai
+    proativas = marcar_proativas(pool, _papel_antes(conn, pool[0]["id"])) if pool else []
+    corte = _inicio_da_janela(pool, proativas, MENSAGENS_LITERAIS_MAX)
+    verbatim = _sem_proativas_soltas(pool[corte:], proativas[corte:])
 
     mensagens = [{"role": m["papel"], "content": m["texto"]} for m in verbatim]
     # `meta` (2026-10-12): id/criado_em de cada mensagem, na mesma ordem - quem consome marca a

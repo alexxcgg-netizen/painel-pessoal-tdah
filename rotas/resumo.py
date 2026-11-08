@@ -46,7 +46,7 @@ def resumo_do_dia(app, conn, *, forcar: bool = False):
     claude_client = app.claude_client
     today = app.date.today().isoformat()
     app.materializar_tarefas_recorrentes(conn)
-    done = conn.execute("SELECT title FROM tasks WHERE date(completed_at) = ?", (today,)).fetchall()
+    done = conn.execute(f"SELECT title FROM tasks WHERE {app.DIA_CONCLUSAO_SQL} = ?", (today,)).fetchall()
     pending = conn.execute(
         "SELECT title FROM tasks WHERE completed_at IS NULL AND recorrencia IS NULL"
     ).fetchall()
@@ -64,11 +64,11 @@ def resumo_do_dia(app, conn, *, forcar: bool = False):
             "eventos_hoje": len(eventos),
         }, None
     expenses = conn.execute(
-        "SELECT amount, category FROM expenses WHERE date(created_at) = ? AND tipo = 'real'", (today,)
+        f"SELECT amount, category FROM expenses WHERE {app.DIA_GASTO_SQL} = ? AND tipo = 'real'", (today,)
     ).fetchall()
     gasto_hoje = sum(r["amount"] for r in expenses)
     gasto_planejado = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE date(created_at) = ? AND tipo = 'planejado'",
+        f"SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE {app.DIA_GASTO_SQL} = ? AND tipo = 'planejado'",
         (today,),
     ).fetchone()["total"]
     eventos = _eventos_de_hoje_com_seguranca(conn)

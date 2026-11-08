@@ -165,14 +165,16 @@ class SystemPromptConteudoTestCase(unittest.TestCase):
         self.assertIn("explica melhor", prompt.lower())
 
     def test_vale_a_pena_pede_recomendacao_explicita(self):
-        # US-E11: fatos organizados (pros/contras) + recomendacao direta -
-        # generalizado pra qualquer pros/contras, nao so a frase literal
-        # "vale a pena".
+        # US-E11: recomendacao direta, pra qualquer decisao. Leva 08/11 (B5): o veredito vem na PRIMEIRA
+        # frase e pros/contras so se ele pedir ou sem pressa, sem lista (a regra antiga de "Pros:"/"Contras:"
+        # em lista brigava com o "sem lista" do resto do prompt).
         prompt = self._system_prompt_enviado()
-        self.assertIn("Pros:", prompt)
-        self.assertIn("Contras:", prompt)
-        self.assertIn("RECOMENDACAO DIRETA E EXPLICITA", prompt)
-        self.assertIn("mesmo sem usar exatamente essas palavras", prompt)
+        regra = prompt[prompt.index("VALE A PENA / COMPENSA"):][:600]
+        self.assertIn("qualquer decisao", regra)
+        self.assertIn("VEREDITO vem na\nPRIMEIRA frase", regra)
+        self.assertIn("nunca deixe em aberto", regra)
+        self.assertIn("so se ele pedir", regra)
+        self.assertIn("sem lista", regra)
 
     def test_contexto_socio_e_pai_na_construtora_no_prompt(self):
         # US-E11: contexto de negocio (socio + pai), usado so quando pesar.

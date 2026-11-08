@@ -372,7 +372,7 @@ class ColetaHabitosTestCase(_BaseWidgetTestCase):
 
         data = self.client.get(f"/api/widget?token={TOKEN_TESTE}").get_json()
         self.assertEqual(data["habitos"], {"feitos": 1, "total": 2})
-        self.assertIn("Habitos: 1/2", data["linhas"])
+        self.assertIn("Hábitos: 1/2", data["linhas"])
 
     def test_habito_nao_devido_hoje_nao_conta(self):
         outro_dia = (date.today().weekday() + 3) % 7  # garante um dia diferente de hoje

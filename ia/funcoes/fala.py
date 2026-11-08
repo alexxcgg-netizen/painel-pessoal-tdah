@@ -22,7 +22,8 @@ PROMPT_LIMPAR_FALA = """Você recebe a transcrição automática de um ÁUDIO qu
 - Aplique as autocorreções: "às três, não, às quatro" -> "às quatro"; "compra pão, ah não, já tem" -> tira o pão.
 - Tire gagueira, repetição, "é...", "tipo", "né", "sabe", "assim" quando forem só muleta, e começos de frase abandonados.
 - Conserte palavra claramente mal transcrita usando o VOCABULÁRIO abaixo e o sentido da frase (nome de lugar,
-  pessoa, aeronave, empresa). Na dúvida entre duas leituras, mantenha a do texto.
+  pessoa, aeronave, empresa). Na dúvida entre duas leituras, mantenha a do texto. Erro comum da transcrição:
+  "Justo os horários" / "Juste os horários" = "Ajusta os horários".
 - NÃO acrescente nada que ele não disse, NÃO responda, NÃO resuma demais: todo pedido, data, hora, valor e nome
   continua lá. Mantenha a primeira pessoa e o tom dele (pode ficar informal).
 - Pode juntar em frases bem pontuadas; se ele listou várias coisas, mantenha todas, na ordem.

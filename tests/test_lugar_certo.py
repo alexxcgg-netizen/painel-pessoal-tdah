@@ -246,7 +246,10 @@ class AtrasoSemSustoTestCase(_Base):
         onde_estou.verificar(self.conn, _em("20:23"))  # 20h23 em casa, sai 21h: nada (o bug empurrava pra 21h15)
         self.assertEqual(self.hora(buscar), "21:00")
         onde_estou.verificar(self.conn, _em("20:58"))  # 20:58 + 5 > 21:00 e ainda em casa: atrasado
-        self.assertEqual(self.hora(buscar), "21:05")
+        # leva 08/11 (A2): compromisso de sair (sai_na_hora, alguem esperando) e parede - avisa, nao empurra
+        self.assertEqual(self.hora(buscar), "21:00")
+        ultima = self.conn.execute("SELECT texto FROM chat_mensagens ORDER BY id DESC LIMIT 1").fetchone()["texto"]
+        self.assertIn("Não mexi no horário", ultima)
         self.viagem.assert_not_called()  # hora de sair nao precisa de trajeto
 
     def test_c_sai_na_hora_ja_saiu_nao_empurra(self):

@@ -11,6 +11,8 @@ features e da integração com o painel da construtora (`financeiro-construtora`
 Uma linha por entrada, mais nova em cima. Achou o assunto: busque o título (aqui embaixo ou no
 arquivo do histórico indicado) e leia só aquela entrada.
 
+- 2026-11-08 (2) - Conversa de verdade com a IA: 62 cenários no jeito do Alex, 5 rodadas
+- 2026-11-08 - O que a conversa inteira mostrou: compromisso de sair, lugares, fuso e jeito de falar (SW v106)
 - 2026-11-07 (2) - Painel pensa de verdade e a "agua do carro" não vira card de saúde
 - 2026-11-07 - Avisos novos ligados: trânsito piorou, chegou em casa, meta batida, sequência
 - 2026-11-07 - Lugar certo, atraso sem susto, avisos variados e "tá aberto?" (SW v105)
@@ -183,6 +185,80 @@ arquivo do histórico indicado) e leia só aquela entrada.
 - 2026-09-18 - Chat vira o centro do app, integrações externas
 - 2026-09-17 - Estrutura inicial (v1)
 <!-- indice:fim -->
+
+## 2026-11-08 (2) - Conversa de verdade com a IA: 62 cenários no jeito do Alex, 5 rodadas
+Com a chave nova, um roteiro (fora do repo) mandou 62 cenários de conversa pro chat de verdade (Haiku/Sonnet/Opus
+como no app), cada um numa CÓPIA do banco, com push/Telegram/iCloud e qualquer POST fora do Google bloqueados. Gasto
+total das 5 rodadas: ~US$ 3. Cada erro visto virou conserto + teste (`tests/test_leva_0811_d_rodada_ia.py`).
+- **"atrasei uns 20 minutos" virava "Reorganizei o resto do teu dia"**: a regra local de replanejar (que voltou a
+  disparar na leva de manhã) roubava o atraso do chat. "atrasei"/"to atrasado" saíram dela: agora o chat (degrau
+  pensar) move o compromisso pra hora nova e refaz se arrumar/saída.
+- **Na rua de manhã + date às 20h = "sai daqui 19h03"** (57 min do ponto da manhã, card sem "se arrumar"):
+  `na_rua.ajustar_plano` só vale pro compromisso das próximas 3 h (`HORIZONTE_H`); mais tarde é o plano de casa.
+- **"monta meu dia" duplicava as atrasadas** (criava "limpar o quarto" de novo com a de ontem aberta): `planejar_dia`
+  reaproveita pendente de dias anteriores (não feita, não arquivada) e traz pra hoje.
+- **"esquece o quarto, não vou arrumar essa semana" APAGAVA** (e a tarefa errada): prompt "ADIAR NÃO É APAGAR" (move
+  pro primeiro dia depois do prazo dito; apagar só com apaga/tira/cancela) e nome mais próximo ganha. `apagar_tarefa`
+  procura primeiro nas abertas (levava junto uma tarefa feita, do histórico).
+- **"me lembra de tomar o remédio às 7" virava regra de "todo dia às 07:00"**: "me lembra de X" sozinho é lembrete de
+  uma vez (a IA cria a tarefa; hora passada vai pra amanhã sem perguntar); regra só com repetição ou condição.
+- **Lugar salvo errado**: o nome de uma balada + cidade achou uma academia de nome parecido e GUARDOU (toda rota iria
+  pra academia). Agora, se as palavras do nome pedido não aparecem no que o Google achou, não guarda e a IA pergunta.
+- **Compromisso de ontem aberto confundia o de hoje** ("a parada fica antes do shopping", que era o de ontem): no
+  "mais de um combina" de tarefa, a aberta de hoje em diante ganha quando é só uma.
+- **Texto:** corte de oferta deixava frase pela metade ("Como cai num domingo.", reticências dentro de parênteses
+  contavam como fim de frase); "Quer que eu mexa em mais alguma coisa?" genérico sai (pergunta concreta fica);
+  "não precisei criar de novo" sai; "07h31" vira "7h31"; "ta" vira "tá"; regra de lugar fala "quando tu chegar no
+  mercado" (era "você chegar em mercado"); "quantos copos eu tomei" pela voz diz o número (era só "Tua saúde hoje.").
+  Prompt: chegada com parada que ele não disse onde fica não chuta minutos; plano anunciado com risco = uma frase;
+  "em meia hora vou no mercado" vira tarefa com hora.
+- **Rodadas 4 e 5:**
+  - **"date hoje às 20h" MUDAVA o date de ontem pra hoje** (o de ontem, ainda aberto, sumia do histórico):
+    `ajustar_tarefa` recusa trocar o dia de compromisso de sair que já passou e manda a IA criar outro, a menos que
+    ele diga que é o mesmo remarcado (`mesmo_compromisso`). Tarefa comum atrasada continua sendo adiada normal.
+  - **"adia tudo de hoje pra amanhã" dizia "nada pendente"** com atrasada aberta: `mover_tarefas` de hoje leva as
+    atrasadas junto (elas aparecem em Hoje), menos compromisso de sair que já passou; o adiamento fica registrado
+    com o dia de onde cada uma saiu.
+  - Corte de oferta deixava conector solto ("continua onde estava, então."); "se quiser eu mudo" e "me fala que eu
+    recalculo" agora contam como oferta. "fica pra amanhã então." (o jeito dele de fechar) fica.
+  - Prompt: date novo com a mesma pessoa não herda lugar/programa do de ontem (a IA repetiu o lugar do date de ontem).
+- Visto e deixado: distância casa↔aeroclube vem do Google (não conferi a rota); pergunta de ação concreta no fim
+  ("quer que eu crie o hábito?") continua; Haiku às vezes não pergunta o endereço da pessoa no date (o card pede).
+
+## 2026-11-08 - O que a conversa inteira mostrou: compromisso de sair, lugares, fuso e jeito de falar (SW v106)
+4 agentes leram a conversa inteira do chat (05/10 a 07/11) e cruzaram com o banco (só leitura); um caçador procurou
+mais bugs das mesmas famílias; 3 revisores independentes testaram a leva e os achados voltaram pros agentes. Briefing:
+`docs/briefings/2026-11-08-leva-conversa-inteira.md`. Testes novos: `tests/test_leva_0811_*.py`.
+- **Chave da API recusada** (401 desde 08/11 00:04): o painel tentava 3x e não avisava. Agora pausa o provedor 30 min,
+  manda um aviso por dia ("IA fora: chave recusada") e o chat responde isso em vez de erro genérico (`ia/core.py`).
+- **Compromisso de sair (date, balada, buscar alguém) não é tarefa comum** (`notificacoes.e_saida`/`com_pessoa`):
+  texto de saída ("Ainda em casa? Saindo agora tu chega às…"), nunca "primeiro passo"/"há N dias"/"toca em Feito";
+  vira parede na cascata da manhã; atraso não empurra, avisa a chegada nova; recado de atraso só com pessoa; aviso
+  "Vai chegar HH:MM" continua pra banco/médico. Saída que o GPS confirma (sinal que cobre a hora) fecha sozinha com
+  Desfazer; sinal duvidoso vira um "Rolou?". "casa d@ X" sem apelido não vai pro Google (deu cidade homônima a
+  2158 min) e perna de parada tem teto.
+- **Avisos no momento certo, sem cortar nenhum:** o que saiu com ele dormindo repete no primeiro sinal de acordado
+  (app aberto, GPS, check-in); check-in sai no primeiro sinal em vez das 07:00 fixas; "é agora" atrasado (servidor
+  voltando) vira uma mensagem com o atraso real; "passou da hora" não cola na "última chamada"; avisos de amanhã no
+  iPhone não usam o contexto de hoje; textos com "tu", plural e acento ("dia(s)" e "você" saíram dos pushes).
+- **Fuso:** `completed_at`/`created_at` são UTC; quem lia como local errava das 21h às 24h (diário com 3 h a menos,
+  feito à noite contando no dia seguinte, gasto às 21h30 sendo de amanhã, estatística de atraso). Helpers
+  `db.dia_local_sql`/`dia_local`/`datahora_local`; tudo grava UTC.
+- **Lugares que ele ensina ficam guardados:** endereço dado pra um lugar de tarefa vira apelido no código (nunca
+  sobrescreve um existente, nunca palavra genérica); "aí eu guardo" depois do `lugar_sem_endereco`; rua com número no
+  nome; loja "Casa do X" não é casa de pessoa. Vocabulário da transcrição inclui locais e títulos recentes.
+- **Chat:** sempre "tu"; menos "Anotei…"/"é só falar" (prompt + revisor); revisor pega fala do sistema ("o card
+  mostra"); "oq?" repete em 1 frase; "vale a pena" dá veredito primeiro; atraso dito refaz a conta e move o
+  compromisso; reenvio não vira falsa confissão; "saí de X" conclui. "Ajusta os horários"/"atrasei" sobem pro degrau
+  pensar. Atalho local: 45 de 79 perguntas realistas caíam em card errado (trajeto virava horário livre etc.).
+  Hora passada sem dia vai pra amanhã; ferramenta que estoura não derruba o turno (rollback por ferramenta).
+- **Dados:** contador de adiamento vê o que o chat empurra; tarefa repetida "é hoje" ganha o dia (e mantém estilo e
+  lugar); "tomei o remédio" conclui a tarefa de hoje, não o modelo recorrente; data crua da IA normalizada
+  (`db.data_iso`) e leitor de tick com try por linha; marcar hábito não desmarca no reenvio; resumo do histórico não
+  guarda pendência velha; mensagens automáticas não ocupam a janela de memória do chat; card da semana não sugere voo
+  parado há mais de 60 dias; regra local "bagunçou meu dia" voltou a disparar (devolvia `{}` e era descartada).
+- Fora: microfone surdo (leva 2), tempo de permanência por lugar, busca na internet pra "o que levar", memórias velhas
+  no banco (corrigir pelo chat), linhas antigas gravadas em fuso errado.
 
 ## 2026-11-07 (2) - Painel pensa de verdade e a "agua do carro" não vira card de saúde
 Dois pedidos do Alex no mesmo dia, depois de ler o chat.

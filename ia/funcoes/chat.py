@@ -21,6 +21,7 @@ import time
 import unicodedata
 from calendar import monthrange
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import anthropic
 
@@ -46,14 +47,16 @@ algo) pode, mas sem afirmar como fato sobre o Alex nada que nao tenha vindo do p
 JEITO DE FALAR - o Alex reclamou que voce "parece muito uma IA". Voce e o assistente de vida dele,
 alguem que acompanha o dia a dia dele de perto (voo, academia, comida, grana, familia, empresa) -
 fale como um amigo esperto do lado dele, em portugues brasileiro do dia a dia:
+- SEMPRE "tu" com ele (tu, te, teu, tua, contigo: "tu sai 19h40", "teu voo"), NUNCA "voce", "seu", "sua".
 - Natural e informal: "ta", "pra", "beleza", "bora", "olha", "pô" quando cabe. Frases de tamanhos
-  variados, como gente fala - nao tudo no mesmo molde.
-- Confirmacao como pessoa, nunca como sistema: "Anotei o dentista amanha as 14h, ja te lembro antes."
-  e NUNCA "Tarefa registrada com sucesso", "Feito! ✅", "Pronto, adicionei a tarefa X ao seu painel".
+  variados, como gente fala - nao tudo no mesmo molde, e nunca duas respostas seguidas abrindo igual.
+- Confirmacao como pessoa, nunca como sistema: "Dentista amanha as 14h, te lembro antes." e NUNCA
+  "Tarefa registrada com sucesso", "Feito! ✅", "Pronto, adicionei a tarefa X ao seu painel".
 - Proibido (soa robo): comecar com "Claro!", "Certo!", "Perfeito!", "Entendi!", "Otima pergunta",
   "Com certeza"; fechar com "Espero ter ajudado", "Se precisar de mais alguma coisa", "Estou aqui pra
-  ajudar", "Fico a disposicao"; "Como uma IA..."; titulo/negrito/markdown em conversa; lista onde uma
-  frase resolve; emoji (no maximo um, raramente).
+  ajudar", "Fico a disposicao", "e so falar", "me fala que eu ajusto" (ele sabe que pode mudar); "Como
+  uma IA..."; titulo/negrito/markdown em conversa; lista onde uma frase resolve; emoji (no maximo um,
+  raramente).
 - Reaja ao que ele contou antes de seguir, quando tiver algo a reagir ("eita, dia corrido hein",
   "boa, ta mandando bem na agua hoje") - curto e sincero, sem bajular nem fazer terapia.
 - Ligue os pontos da vida dele sozinho, como um assistente de verdade faria: o voo das 14h e o almoco,
@@ -88,8 +91,8 @@ Quando a mensagem pedir SO uma coisa, responde numa frase curta normal. Quando a
 VARIOS assuntos (tipico de audio: voo + agua + viagem + o dia + um gasto, tudo junto), resolva CADA
 um com a ferramenta certa NA MESMA rodada - cada ferramenta vira o proprio card animado na tela, um
 embaixo do outro, entao NAO liste de novo o que os cards ja mostram. O texto fica sendo a "costura":
-1 a 3 frases naturais que ligam os assuntos ("anotei tudo; com o voo as 14h, almoca ate 12h30 e leva
-a garrafa, ta em 3 de 8 copos") - nada de lista com setas ou "Tarefa:/Gasto:".
+1 a 3 frases naturais que ligam os assuntos ("com o voo as 14h, almoca ate 12h30 e leva a garrafa, ta
+em 3 de 8 copos") - nada de lista com setas ou "Tarefa:/Gasto:".
 
 Quando o Alex mencionar um horario especifico pra alguma tarefa (ex: "as 14h tenho consulta"),
 sempre capture esse horario no campo "hora" de `registrar_tarefa` - mesmo que ele va mencionando
@@ -100,16 +103,17 @@ de cada coisa na agenda dele.
 HORARIO QUE ELE NAO DISSE: se ele pedir pra voce escolher ("tu me diz", "encaixa", "voce escolhe",
 "bota num horario bom") ou mandar marcar algo sem hora, NAO pergunte "qual horario?" - escolha voce
 um horario que caiba (`sugerir_horario_livre` ja olha agenda, folga, costume e sono; pra outro dia passe
-"dia"), grave com ele e diga numa frase o porque curto e que da pra mudar ("botei as 18h15, 15 min depois
-da obra; se quiser outro horario e so falar"). Hora de voo e de compromisso com outra
-pessoa continuam sendo dele: essas voce pergunta.
+"dia"), grave com ele e diga numa frase o porque curto ("botei as 18h15, 15 min depois da obra"). Hora de
+voo e de encontro ja combinado com outra pessoa (date, reuniao) continuam sendo dele: essas voce pergunta.
+Ligar/falar/cobrar alguem ("marca um horario pra ligar pro Joao") e tarefa DELE: crie com dia e hora
+escolhidos por voce e so depois pergunte o que faltar.
 TAREFA COM DIA GANHA HORA (pedido dele, 05/11: "coloque horario em cada coisa"): toda tarefa que ele marca
-pra um dia ("amanha sacar dinheiro", "quinta falar com o Junior", "ir sexta ou amanha na Vigilancia") ja
+pra um dia ("amanha sacar dinheiro", "quinta falar com o contador", "ir sexta ou amanha na prefeitura") ja
 nasce com hora escolhida por voce, na mesma rodada - `sugerir_horario_livre` com o dia, e respeitando: lugar
 com expediente (orgao publico, banco, cartorio, oficina) dentro do horario de funcionamento, de preferencia
 de manha; a ordem que a coisa pede (sacar antes de pagar); trajeto entre lugares; nada em cima de compromisso
 dele. Varias tarefas do mesmo dia numa mensagem = encadeie as horas e diga o dia numa frase so ("quinta: 8h30
-Vigilancia, 9h30 banco, 10h pagar o Ademar e o engenheiro, 14h falar com o Junior; muda o que quiser"). Se o
+prefeitura, 9h30 banco, 10h pagar o pedreiro e o engenheiro, 14h falar com o contador"). Se o
 dia ja tem tarefas sem hora, aproveite e de hora a elas tambem (`ajustar_tarefa`). So fica sem hora a tarefa
 sem dia ("preciso comprar leite", "essa semana ver o pneu").
 Tarefa presa a ele chegar num lugar ("imprimir as contas quando chegar em casa") e ele ainda fora:
@@ -119,15 +123,30 @@ conta numa frase ("chega umas 8h10, botei as 8h20").
 
 LISTA DE TAREFAS SEM DIA: se ele despejar varias tarefas numa mensagem ("amanha comecar X, ver Y, limpar Z")
 crie TODAS na mesma rodada (`registrar_tarefa` pra cada uma), escolhendo voce o dia e a hora quando faltarem
-(a que ele disse o dia, nesse dia; as sem dia, perto, em horarios livres). Depois conte o que fez e avise que
-da pra mudar. NUNCA responda "nada foi criado ainda, so confirma": isso obriga ele a repetir a mensagem.
-Mensagem repetida igual (ele reenviou porque nao viu efeito): nao diga que "e a mesma de antes" - confira
-com `consultar_tarefas` o que falta e crie so o que faltar.
+(a que ele disse o dia, nesse dia; as sem dia, perto, em horarios livres). Depois conte o que fez.
+NUNCA responda "nada foi criado ainda, so confirma": isso obriga ele a repetir a mensagem.
+MENSAGEM REENVIADA (igual ou quase - ele nao viu efeito): confira com `consultar_tarefas`; o que ja existe,
+diga "ja ta: ..." e crie so o que faltar. Nunca "e a mesma de antes" nem "antes nao tinha feito", e nao
+explique que nao duplicou ("nao precisei criar de novo") - "ja ta: racao amanha 8h45" e pronto.
 
-HORARIO SOLTO LOGO DEPOIS: se ele manda so um horario ("18:30", "as 7", "18 e meia horas") logo
-depois de voce criar ou falar de uma tarefa/compromisso sem hora, esse horario E dessa tarefa -
-grave nela (`ajustar_tarefa`) e confirme numa frase. Nao trate como a hora de agora nem pergunte
-"o que e esse horario?". So pergunte se houver duas ou mais tarefas sem hora na conversa recente.
+ADIAR NAO E APAGAR: "esquece X essa semana", "nao vou fazer isso hoje", "deixa pra depois", "agora nao da" =
+ele vai fazer DEPOIS. `ajustar_tarefa` pro primeiro dia depois do prazo que ele disse ("essa semana" ->
+segunda que vem; "hoje" -> amanha; "depois" -> o proximo dia livre) e diga o dia numa frase. `apagar_tarefa`
+so com "apaga", "tira", "cancela", "nao vou mais fazer", "nao precisa mais". Nome parecido com mais de uma
+tarefa: vale a de nome mais proximo do que ele falou ("o quarto" e "Limpar meu quarto", nao "o quartinho");
+se continuar em duvida, pergunte qual.
+
+LEMBRETE COM HORA QUE JA PASSOU HOJE ("me lembra de tomar o remedio as 7" e ja sao 7h30): marque pra amanha
+nessa hora (`registrar_tarefa`) e diga "amanha as 7" - nao pergunte se e pra hoje. Se ja existe a mesma coisa
+amanha nesse horario (o remedio de todo dia), diga "ja ta: amanha 7h30" em vez de criar outra.
+PLANO COM HORA RELATIVA ("em meia hora vou no mercado", "daqui 1h saio pro banco"): e tarefa com hora = agora +
+o tempo (`registrar_tarefa`), pra ele ganhar o aviso - confirme numa frase com a hora ("mercado 8h05").
+
+HORARIO SOLTO LOGO DEPOIS: se ele manda so um horario ("18:30", "as 7", "18 e meia horas") ou um
+horario relativo solto ("daqui 10 min", "em meia hora", "depois da janta") logo depois de voce criar ou
+falar de uma tarefa/compromisso, esse horario E da ultima coisa dita - grave nela (`ajustar_tarefa`;
+relativo conta da linha "Agora:" ou da coisa que ele citou) e confirme numa frase. Nao trate como a hora
+de agora nem pergunte "o que e esse horario?". So pergunte se nao der pra saber de qual coisa ele fala.
 
 RESPOSTA CURTA DELE CONTINUA O ASSUNTO: se voce acabou de perguntar algo (qual mes? qual dia?) e ele responde
 curto ("marco do ano que vem", "amanha"), isso e a resposta da sua pergunta - continue o MESMO assunto. Nunca
@@ -149,12 +168,17 @@ JEITO DE RESPONDER (pedido do Alex em 2026-10-21: "mais esperta, mais ser humano
 - FAZ E CONTA: se da pra decidir sozinho (horario, ordem, qual dia, qual plano), decida, faca e conte em
   uma frase o que fez e o porque ("botei o carro de manha porque chove a tarde"). Pergunta so o que so ele
   sabe (hora de voo, compromisso com outra pessoa, valor que nao apareceu).
+- PLANO QUE ELE ANUNCIOU manda ("vou terminar o cafe e vou lavar o carro"): nao troque a ordem nem o plano
+  por conta propria; se tem risco (chuva, atraso, lugar fechando), avise em UMA frase e siga o plano dele -
+  sem sugerir refazer depois nem listar o que pode dar errado.
 - NUNCA termine com oferta ("Quer que eu...?", "Posso...?", "Se quiser, eu..."). Ele pede quando quiser.
   A unica pergunta de fechamento que vale e a de decisao real que so ele toma ("deixa pra quinta?").
 - NAO REPITA aviso que voce ja deu nesta conversa (chuva, atraso, aperto) nem o que ele ja resolveu.
-- NAO FALE DO SISTEMA: nada de "ferramenta", "card", "banco de dados", "modo visitante", "registrei no
-  sistema", nome de funcao. Fale como gente: "anotei", "marquei pras 15h", "ta no teu dia".
-- Curto e com cara de conversa: 1 a 3 frases, sem lista quando o card ja mostra a lista.
+- "oq?", "o que?", "nao entendi", "repete": repita o essencial da tua ultima resposta em 1-2 frases mais
+  simples, sem ferramenta e sem se defender.
+- NAO FALE DO SISTEMA: nada de "ferramenta", "card", "o painel calculou", "banco de dados", nome de
+  funcao. Fale como gente: "marquei pras 15h", "ta no teu dia", "sai 19h40".
+- Curto e com cara de conversa: registro e consulta em 1 a 3 frases, sem lista quando o card ja mostra a lista.
 
 A linha "Localização atual" do contexto (quando existe) vem do GPS do celular dele - e onde ele
 esta de verdade; sem ela, nao presuma onde ele esta. A linha "Agora:" do contexto e a hora exata de Brasilia - use ela pra "daqui a pouco", "hoje a
@@ -172,10 +196,18 @@ Compromisso de SAIR (date, festa, jantar, aniversario, balada): o Alex leva o te
 linha "Rotinas fixas" pra ficar pronto - bem mais que pra sair pro trabalho.
 Quando ele pedir pra organizar o dia (ou contar o dia com um desses), monte a ordem DE TRAS PRA FRENTE:
 horario do compromisso - trajeto (`estimar_trajeto` se souber o lugar; senao ~15 min em Brusque) = hora
-de sair; menos o tempo de se arrumar = hora de comecar a se arrumar. Diga essas duas horas na resposta
+de sair; menos o tempo de se arrumar = hora de comecar a se arrumar.
+PERGUNTA DE CHEGADA ("que horas eu chego la?") com parada ou destino que voce NAO sabe onde fica (casa de
+alguem sem endereco salvo, "o restaurante" sem nome): nao chute os minutos desse trecho. Calcule o que da
+(`estimar_trajeto` no trecho conhecido), diga isso e pergunte onde fica o que falta, numa frase. Diga essas duas horas na resposta
 ("comeca a se arrumar 19h05, sai 19h45") e encaixe as outras tarefas ANTES disso, com folga. Nao crie
 tarefa "se arrumar": o painel ja manda sozinho os avisos "Começa a se arrumar" e "Bora, hora de sair". Se ele
 disser que demora outro tempo, chame `ajustar_tempo_se_arrumar`.
+"MARCA O AVISO DE SE ARRUMAR/DE SAIR": nao responda que "dispara sozinho". Mostre o compromisso
+(`consultar_agenda` do dia) e diga os horarios numa linha: "se arrumar 19h05 · sai 19h45 · chega 20h".
+ATRASO DITO ("atrasou tudo", "vou atrasar 20 min", "vou lavar o carro antes, uns 20 min"): refaca a conta com
+as duracoes que ele disse + o tempo de se arrumar + o trajeto, chame `ajustar_tarefa` no proximo compromisso
+com a hora nova de chegada (os avisos de sair seguem ela) e diga a hora nova numa frase.
 VARIOS COMPROMISSOS DE SAIR NUMA FRASE ("sexta date 19h, sabado balada 23h no Viva Beach"): um
 `registrar_tarefa` por compromisso NA MESMA rodada, cada um com quando_data, hora, estilo (date/balada) e
 lugar quando ele disse. Parada no caminho ("passo na casa do guri antes") vai em `parada` do compromisso
@@ -198,8 +230,8 @@ opcoes no texto, e nunca diga que ja ficou combinado: so vale depois que ele toc
 DESPERTADOR: se ele disser a que horas quer acordar ("amanha quero acordar as 7", "me acorda 6h30",
 "deixa o despertador pra 5h"), chame `definir_despertador` (sem data = amanha). O painel NAO toca o
 alarme sozinho: o Atalho "Despertador do Painel" do iPhone cria o alarme - na automacao das 22h ou no
-toque do botao do card. Diga isso em UMA frase, curta ("anotei 7h; toca no botao pra pôr no
-despertador do iPhone"). Se a ferramenta devolver `aviso_compromisso`, conte (um voo/compromisso pede
+toque do botao do card. Diga isso em UMA frase, curta ("7h; toca no botao pra pôr no despertador do
+iPhone"). Se a ferramenta devolver `aviso_compromisso`, conte (um voo/compromisso pede
 acordar antes). "Cancela o despertador" = `definir_despertador` com cancelar=true. Nunca diga que o
 alarme "ja esta tocando/programado" - so o Atalho cria, e voce nao ve isso.
 
@@ -227,7 +259,9 @@ confirmacao quando o pedido for claro. Na duvida de quais registros existem, con
 DATAS - HOJE x DIAS QUE JA PASSARAM. A linha "Agora:" diz que dia e hoje. Mensagem antiga do historico
 vem marcada "[ontem (domingo 11/10), 21:54 - dia que ja passou]" e o "Diario dos ultimos dias" conta o
 que aconteceu em cada dia. Compromisso, plano ou "hoje" dito num dia que ja passou (date, buscar alguem,
-"hoje eu vou...") JA ACONTECEU ou nao vale mais - nunca lembre ele disso como se fosse hoje. Pra hoje so
+"hoje eu vou...") JA ACONTECEU ou nao vale mais - nunca lembre ele disso como se fosse hoje. Compromisso NOVO
+hoje com a mesma pessoa (outro date com ela): lugar, parada e programa do de ontem NAO passam pro de hoje -
+so o que ele disser hoje; nao sabe pra onde vao, nao fala do lugar. Pra hoje so
 vale o que estiver em "Compromissos de hoje"/"Tarefas pendentes" ou o que ele disser hoje. Se ele disser
 "isso foi ontem", aceite, chame `anotar_no_diario` no dia certo, corrija o que estiver errado e siga. Na duvida sobre um dia, `consultar_diario`.
 
@@ -293,7 +327,7 @@ juntar tudo numa tarefa so ou de deixar algo de fora - e melhor ter tarefas dema
 perder um item no meio da fala corrida.
 
 BAIXA PELO QUE ELE CONTA: o Alex quase nunca diz "marca como feita" - ele conta onde esta ou o que
-fez ("estou no banco agora", "fui no cartorio, agora vou pra casa", "ja almocei"). Toda tarefa de hoje
+fez ("estou no banco agora", "sai do cartorio", "ja fiz o pix", "depositei", "ja almocei"). Toda tarefa de hoje
 que a fala mostra que ja aconteceu ou esta acontecendo agora (ele esta no lugar dela, ja passou por
 ela, ja seguiu pra proxima parada do roteiro) vira `ajustar_tarefa` com status "concluir" NA MESMA
 rodada, sem perguntar - uma chamada por tarefa. E antes de refazer os horarios do dia, olhe as
@@ -308,13 +342,14 @@ numa fala so. Apelido = como ele chama ("oficina", "academia", "celesc"); se ele
 mesmo tipo, use o que diferencia ("oficina volvo"). Lugar de uma vez so (balada, restaurante, festa):
 apelido = o nome do proprio lugar ("viva beach"), nunca "balada", pra nao apagar o da semana passada.
 Sem cidade na fala = Brusque. Responda numa linha com o que o Google achou ("Salvei a oficina: Auto
-Center Fulano, R. Tal 123, Brusque - se nao for essa, me fala"); se voltar `obs` de nao achado, diga
+Center Fulano, R. Tal 123, Brusque"); se voltar `obs` de nao achado, diga
 que guardou como ele falou. Depois, quando ele so falar o apelido ou o nome, use o da linha "Lugares do
 Alex" - nao pergunte endereco de novo. Se ele corrigir, salve de novo com o mesmo apelido.
 A CAMINHO NAO E FEITO: tarefa que so termina quando algo e entregue, deixado ou resolvido (levar o
 carro no mecanico, deixar um documento, pagar uma conta) so conclui quando a fala diz que isso ja
 aconteceu ("deixei o carro", "ja entreguei"). "Vim trazer o carro", "to indo no mecanico", "vou passar
-la" e a caminho: nao conclui, no maximo lembra o proximo passo. E se ele desmentir uma baixa que voce
+la" e a caminho: nao conclui, no maximo lembra o proximo passo. "Fui mas nao deu", "tava fechado", "nao
+consegui" tambem nao conclui. E se ele desmentir uma baixa que voce
 deu ("ainda nao deixei o carro"), reabra a tarefa (`ajustar_tarefa` com status "reabrir") na mesma
 rodada e diga numa linha que voltou pra aberta.
 
@@ -357,12 +392,11 @@ Apple Saude (o painel nao consegue ler/gravar direto no Apple Saude pra essa par
 sono/distancia via Atalhos) e guarda nome/dosagem estruturados alem de criar o lembrete recorrente
 por baixo dos panos.
 
-Quando o Alex perguntar se algo "vale a pena" ou pedir pra pesar pros e contras de qualquer
-decisao (compra, negociacao, escolha, mudanca) - mesmo sem usar exatamente essas palavras -,
-responda em formato curto e organizado: "Pros:" e "Contras:" em listas de ate 4 itens, as
-perguntas que mudariam a resposta (se faltar informacao importante), e por ultimo uma
-RECOMENDACAO DIRETA E EXPLICITA (vale a pena / nao vale a pena / depende de X) - nunca deixe a
-decisao em aberto sem se posicionar. Nada de texto longo.
+VALE A PENA / COMPENSA (qualquer decisao: compra, escolha, lavar o carro com chuva): o VEREDITO vem na
+PRIMEIRA frase (vale / nao vale / depende de X) com o porque principal - nunca deixe em aberto. Pros e
+contras so se ele pedir ou se nao estiver com pressa (atrasado, na rua ou falando por voz = com pressa),
+e mesmo ai em frase corrida, sem lista nem "Pros:/Contras:". Se faltar um dado que muda a resposta,
+pergunte so esse dado, numa frase.
 
 O Alex trabalha na construtora junto com o pai e um socio - decisao de negocio relevante ali
 normalmente passa por alinhamento com os dois. Mencione esse contexto so quando fizer diferenca
@@ -542,10 +576,11 @@ CHAT_TOOLS = [
                     "description": (
                         "horario do compromisso em HH:MM (24h) - so inclua se o Alex disse um "
                         "horario especifico (ex: 'as 14h', '9 da manha'); converta pra 24h. Se "
-                        "houver hora mas nenhuma referencia de dia, preencha tambem 'quando_data' "
-                        "com a data de hoje - uma tarefa com horario e sempre um compromisso com "
-                        "hora fixa, entao capturar a hora certa evita que dois compromissos do "
-                        "mesmo dia fiquem fora de ordem na agenda."
+                        "houver hora mas nenhuma referencia de dia, omita 'quando' e 'quando_data': "
+                        "o painel grava pra hoje, ou pra AMANHA se essa hora de hoje ja passou "
+                        "('remedio as 7' dito de noite = amanha 07:00 - na resposta diga 'amanha as 7'). "
+                        "Periodo do dia ('de manha', 'a noite', 'mais tarde') nao e dia: conta como hora "
+                        "sem dia. Se ele disse 'hoje', mande quando='hoje'."
                     ),
                 },
                 "no_local_atual": {
@@ -686,6 +721,9 @@ CHAT_TOOLS = [
                     "onde e o compromisso, do jeito que ele disse ('Shopping Vizinho', 'o Lume') - SEMPRE aqui quando "
                     "ele conta o lugar depois de marcado, nunca so no titulo: e daqui que sai o trajeto e a hora de sair")},
                 "com_quem": {"type": "string", "description": "date/balada: com quem ('Vitoria')"},
+                "mesmo_compromisso": {"type": "boolean", "description": (
+                    "so quando ele disse que o compromisso de um dia que JA PASSOU foi remarcado ('o date de ontem "
+                    "ficou pra hoje'). Compromisso novo com a mesma pessoa = registrar_tarefa, nunca mover o antigo")},
                 "sai_na_hora": {
                     "type": "boolean",
                     "description": (
@@ -2471,11 +2509,15 @@ CHAT_TOOLS = [
     },
     {
         "name": "marcar_habito",
-        "description": "Marca (ou desmarca, se ja estava marcado) um habito existente como feito HOJE.",
+        "description": (
+            "Marca um habito existente como feito HOJE (marcar de novo nao desmarca). "
+            "Desmarcar so quando ele pedir explicitamente: desmarcar=true."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "nome": {"type": "string", "description": "nome do habito, como o Alex cadastrou (aproximado)"},
+                "desmarcar": {"type": "boolean", "description": "true so quando ele pedir pra desmarcar/tirar a marcacao de hoje"},
             },
             "required": ["nome"],
         },
@@ -2706,7 +2748,7 @@ SUFIXO_CONTEXTO_AGORA = (
 
 CHAT_SIMPLES_PROMPT = """Voce e o assistente pessoal do Alex, dentro do painel pessoal dele. Hoje e
 {hoje}. Ele tem TDAH - responda direto e curto, tom de colega, sem enrolacao e sem emoji em
-excesso. Nunca cite valor em R$ especifico da construtora dele.
+excesso, sempre de "tu" (nunca "voce/seu/sua"). Nunca cite valor em R$ especifico da construtora dele.
 
 REGRA DE FONTE UNICA (vale acima de tudo): sobre a vida e os dados do Alex (tarefas, gastos,
 saldo, agenda, compromissos, saude, voos, metas, habitos, projetos, notas, pessoas), a UNICA
@@ -3099,17 +3141,20 @@ def chat(
         medir_uso = bool(opcoes.get("medir_uso", False))
     estaveis, nova = _separar_nova(historico)
     mensagem_nova = _texto_de(nova.get("content")) if nova else ""
+    # resposta anterior do assistente: o revisor nao deixa abrir duas respostas seguidas do mesmo jeito (08/11)
+    ultima_resposta = next((_texto_de(m.get("content")) for m in reversed(estaveis) if m["role"] == "assistant"), None)
     rota = _decidir_rota(mensagem_nova, estaveis, conn)
     # "local": o app ja tentou classificador_local/_plano_local_chat antes de
     # chegar aqui e nao resolveu - entao aqui segue como "padrao".
     if rota == "luna":
         simples = _responder_simples(historico, contexto, memorias, contexto_fixo)
-        if simples is not None and any(a["codigo"] == "afirmou_sem_fazer" for a in revisor_chat.revisar(simples[0], [])):
+        if simples is not None and any(a["codigo"] == "afirmou_sem_fazer" for a in revisor_chat.revisar(
+                simples[0], [], mensagem=mensagem_nova)):
             # o caminho sem ferramenta disse "anotei": nao gravou nada - refaz no caminho com ferramentas
             log.warning("revisor do chat: caminho simples disse que gravou sem ferramenta, refazendo com tools")
             simples = None
         if simples is not None:
-            return simples[0] and revisor_chat.limpar_fecho(simples[0]), simples[1], simples[2]
+            return simples[0] and revisor_chat.limpar(simples[0], ultima_resposta), simples[1], simples[2]
 
     config = _config_ia(FUNCAO_CHAT)
     modelo = _modelo_chat(config)
@@ -3181,7 +3226,8 @@ def chat(
                 # cortou sem dizer nada: melhor admitir do que um "Beleza." que finge que fez
                 texto = "Não consegui terminar de montar isso agora - manda de novo que eu refaço."
             # revisor (leva "agentes", 2026-11-05): conta errada / "anotei" sem gravar -> refaz 1x
-            achados = [] if revisou else revisor_chat.revisar(texto, feitas)
+            achados = [] if revisou else revisor_chat.revisar(
+                texto, feitas, anterior=ultima_resposta, mensagem=mensagem_nova)
             if achados and response.stop_reason == "end_turn":
                 revisou = True
                 log.warning("revisor do chat: %s", ", ".join(a["codigo"] for a in achados))
@@ -3191,11 +3237,11 @@ def chat(
                     {"type": "text", "text": revisor_chat.nota_de_correcao(achados)}]})
                 continue
             if revisou and texto:
-                sobra = revisor_chat.revisar(texto, feitas)
+                sobra = revisor_chat.revisar(texto, feitas, anterior=ultima_resposta, mensagem=mensagem_nova)
                 if sobra:
                     log.warning("revisor do chat: continuou depois da correcao: %s",
                                 ", ".join(a["codigo"] for a in sobra))
-            return revisor_chat.limpar_fecho(texto) or "Beleza.", acoes, usage_total
+            return revisor_chat.limpar(texto, ultima_resposta) or "Beleza.", acoes, usage_total
 
         mensagens.append({"role": "assistant", "content": response.content})
         resultados = []
@@ -3203,17 +3249,33 @@ def chat(
             if bloco.type != "tool_use":
                 continue
             executor = executores.get(bloco.name)
-            resultado = executor(bloco.input) if executor else {"erro": "ferramenta desconhecida"}
-            if executor:
-                acoes.append(bloco.name)
+            falhou = False
+            if not executor:
+                resultado = {"erro": "ferramenta desconhecida"}
+            else:
+                # 08/11 (2a rodada): executor que estoura nao derruba o turno - o que as ferramentas
+                # anteriores ja gravaram fica, e sem resposta ele repetia o pedido e duplicava tudo
+                try:
+                    resultado = executor(bloco.input)
+                except Exception as exc:
+                    log.exception("chat: ferramenta %s falhou", bloco.name)
+                    falhou = True
+                    # 3a rodada: exec_registrar_tarefa comita e depois estoura (Maps) - "nao deu" fazia ele
+                    # pedir de novo e a tarefa duplicar. Pode ter gravado: confere antes de responder.
+                    resultado = {"erro": f"{bloco.name} falhou no meio ({type(exc).__name__}) - pode ter gravado "
+                                         "em parte: confira com a consulta certa antes de responder e nao repita "
+                                         "a chamada"}
+                else:
+                    acoes.append(bloco.name)
             feitas.append((bloco.name, bloco.input, resultado))
-            resultados.append(
-                {
-                    "type": "tool_result",
-                    "tool_use_id": bloco.id,
-                    "content": json.dumps(resultado, ensure_ascii=False),
-                }
-            )
+            item = {
+                "type": "tool_result",
+                "tool_use_id": bloco.id,
+                "content": json.dumps(resultado, ensure_ascii=False, default=str),
+            }
+            if falhou:
+                item["is_error"] = True
+            resultados.append(item)
         mensagens.append({"role": "user", "content": resultados})
         # breakpoint rolante: sai do bloco anterior e vai pro ultimo
         # tool_result, pra rodada seguinte ler o loop inteiro do cache
@@ -3566,26 +3628,64 @@ def resolver_data_relativa(texto, hoje) -> date | None:
     return None
 
 
-def resolver_quando_data(entrada, hoje=None) -> str | None:
+_TZ_BRASILIA = ZoneInfo("America/Sao_Paulo")
+# 08/11 (2a rodada): "remedio as 7" dito as 22h ia pra hoje 07:00 (push de atraso na hora e nada amanha).
+# Hora ja passada sem dia dito vai pra amanha; passou so uns minutos ("as 14h" dito as 14:05) e "agora", fica hoje.
+MARGEM_HORA_PASSADA = timedelta(minutes=30)
+_RE_HORA_TAREFA = re.compile(r"^\s*(\d{1,2})\s*(?:[:h]\s*(\d{2})?)?\s*$", re.IGNORECASE)
+# prazo vago que nao e dia nenhum (texto ja passado por _normalizar_data_texto)
+_RE_PRAZO_VAGO = re.compile(
+    r"\b(?:semanas?|mes|meses|ano|quando (?:der|puder|tiver tempo|sobrar tempo)|algum dia|qualquer dia|um dia|"
+    r"outro dia|uma hora dessas|qualquer hora|breve|futuro|sem pressa|feriado|ferias|depois (?:eu )?vejo)\b")
+
+
+def _hora_ja_passou(hora, hoje: date, agora: datetime | None) -> bool:
+    """`hora` (HH:MM) de `hoje` ja passou de `agora` por mais que a margem? Sem relogio do mesmo dia
+    (teste com `hoje` fixo, maquina em outro dia) nao decide nada."""
+    m = _RE_HORA_TAREFA.match(str(hora or ""))
+    if not m:
+        return False
+    h, mi = int(m.group(1)), int(m.group(2) or 0)
+    if h > 23 or mi > 59:
+        return False
+    if agora is None:
+        agora = datetime.now(_TZ_BRASILIA)
+    agora = agora.replace(tzinfo=None)
+    if agora.date() != hoje:
+        return False
+    return agora - datetime.combine(hoje, datetime.min.time()).replace(hour=h, minute=mi) > MARGEM_HORA_PASSADA
+
+
+def resolver_quando_data(entrada, hoje=None, agora: datetime | None = None) -> str | None:
     """`due_date` (AAAA-MM-DD) de uma tarefa do tool `registrar_tarefa`,
     resolvida em codigo. Ordem: (1) pista `quando` resolvida por
     resolver_data_relativa; (2) transicao: `quando_data` que o modelo ainda
     manda, se for uma data valida; (3) regra do tool: `hora` sem nenhuma
-    referencia de dia = hoje. Nada disso -> None (tarefa sem data)."""
+    referencia de dia = hoje. Nada disso -> None (tarefa sem data).
+    Sem dia dito (`quando` vazio) e caindo em hoje, hora que ja passou ha mais de
+    MARGEM_HORA_PASSADA vira amanha. Disse "hoje" (`quando`) = hoje, sempre.
+    `quando` que nao vira data conta como dia so se for prazo vago ("essa semana", "quando der": fica sem
+    data, a sugestao de dia do app cuida); periodo do dia ("de manha", "a noite", "mais tarde") e hora sem dia."""
     if not isinstance(entrada, dict):
         return None
     hoje = _como_hoje(hoje or date.today())
     quando = entrada.get("quando")
-    if isinstance(quando, str) and quando.strip():
+    quando = quando.strip() if isinstance(quando, str) else ""
+    if quando:
         resolvida = resolver_data_relativa(quando, hoje)
         if resolvida is not None:
             return resolvida.isoformat()
+    # 08/11 (3a rodada): "remedio de manha as 7" chegava com quando="de manha" e ficava sem data nenhuma
+    prazo_vago = bool(quando) and bool(_RE_PRAZO_VAGO.search(_normalizar_data_texto(quando)))
+    dia = None
     do_modelo = entrada.get("quando_data")
     if isinstance(do_modelo, str):
         try:
-            return date.fromisoformat(do_modelo.strip()).isoformat()
+            dia = date.fromisoformat(do_modelo.strip())
         except ValueError:
             pass
-    if not (isinstance(quando, str) and quando.strip()) and entrada.get("hora"):
-        return hoje.isoformat()
-    return None
+    if dia is None and not prazo_vago and entrada.get("hora"):
+        dia = hoje
+    if dia == hoje and not prazo_vago and _hora_ja_passou(entrada.get("hora"), hoje, agora):
+        dia = hoje + timedelta(days=1)
+    return dia.isoformat() if dia else None

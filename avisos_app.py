@@ -166,8 +166,9 @@ def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None
             except Exception:  # noqa: BLE001 - passo a passo e extra; sem ele o servidor avisa pelo navegador
                 pass
 
+        # SELECT *: o "e agora" olha a linha inteira (estilo, local, parada, extras) pra saber se e de sair
         rows = conn.execute(
-            "SELECT id, title, hora FROM tasks WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL",
+            "SELECT * FROM tasks WHERE completed_at IS NULL AND due_date = ? AND hora IS NOT NULL",
             (dia.isoformat(),),
         ).fetchall()
         for r in rows:
@@ -176,20 +177,26 @@ def montar(conn, agora: datetime, *, minutos_arrumar: int = 40, trajeto_min=None
             evento = _hora_do_dia(dia, r["hora"])
             if evento is None:
                 continue
+            # leva 08/11: o contexto do texto (hora, fim de semana, "sequencia" de feitas) e o da hora do PROPRIO
+            # aviso, nao o de agora - as 22h, com 3 feitas, o das 07:00 de amanha dizia "boa sequencia hoje".
+            quando_chegando = evento - timedelta(minutes=CHEGANDO_TAREFA_MIN)
+            quando_preparo = evento - timedelta(minutes=PREPARO_TAREFA_MIN)
             if notificacoes.e_refeicao(r["title"]):
                 titulo, corpo = notificacoes.TITULO_REFEICAO, notificacoes.texto_refeicao(r["title"])
             else:
                 titulo = notificacoes.titulo_tarefa(r["title"])
                 # 07/11 (frente C): mesma chave do tick do servidor -> mesmo texto nos dois caminhos
-                corpo = notificacoes.texto_tarefa_chegando(r["hora"], antes=True, conn=conn, agora=agora,
+                corpo = notificacoes.texto_tarefa_chegando(r["hora"], antes=True, conn=conn, agora=quando_chegando,
                                                            chave=f"tarefa_horario-{r['id']}-{dia.isoformat()}")
-                candidatos.append(("tarefa_preparo", r["id"], evento - timedelta(minutes=PREPARO_TAREFA_MIN), titulo,
-                                   notificacoes.texto_tarefa_preparo(r["hora"], PREPARO_TAREFA_MIN, conn=conn, agora=agora,
+                candidatos.append(("tarefa_preparo", r["id"], quando_preparo, titulo,
+                                   notificacoes.texto_tarefa_preparo(r["hora"], PREPARO_TAREFA_MIN, conn=conn,
+                                                                     agora=quando_preparo,
                                                                      chave=f"tarefa_preparo-{r['id']}-{dia.isoformat()}")))
-            candidatos.append(("tarefa_horario", r["id"], evento - timedelta(minutes=CHEGANDO_TAREFA_MIN), titulo, corpo))
+            candidatos.append(("tarefa_horario", r["id"], quando_chegando, titulo, corpo))
             if not notificacoes.e_refeicao(r["title"]):
-                candidatos.append(("tarefa_agora", r["id"], evento, titulo, notificacoes.texto_tarefa_agora(
-                    r["hora"], conn=conn, agora=agora, chave=f"tarefa_agora-{r['id']}-{dia.isoformat()}")))
+                # leva 08/11: compromisso de sair ganha texto de sair na hora exata (nunca "toca em Feito")
+                candidatos.append(("tarefa_agora", r["id"], evento, titulo, notificacoes.texto_agora_da_tarefa(
+                    r, conn=conn, agora=evento, chave=f"tarefa_agora-{r['id']}-{dia.isoformat()}")))
 
     if saida_voo:
         for voo in notificacoes.voos_de_hoje_com_horario(conn, agora.date()):

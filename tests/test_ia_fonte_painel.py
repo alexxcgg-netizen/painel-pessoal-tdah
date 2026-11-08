@@ -198,7 +198,7 @@ class TarefasTestCase(_Base):
 
     def test_concluidas_e_todas(self):
         self.tarefa("aberta", _iso(0))
-        self.tarefa("feita", _iso(0), concluida=f"{_iso(0)} 09:30:00")
+        self.tarefa("feita", _iso(0), concluida=f"{_iso(0)} 12:30:00")  # UTC -> 09:30 de Brasilia (08/11)
         r = self.exec["consultar_tarefas"]({"status": "concluidas"})
         self.assertEqual([t["titulo"] for t in r["tarefas"]], ["feita"])
         self.assertEqual(r["tarefas"][0]["concluida_em"], f"{_iso(0)} 09:30")

@@ -167,14 +167,27 @@ class NaRuaTestCase(_Base):
         self.assertEqual(na_rua.ajustar_plano(self.conn, plano, amanha, "20:00", "Viva Beach", agora), plano)
 
     def test_replanejar_saida_ja_na_rua(self):
-        tid = self.tarefa("Date com a Júlia", "23:50", "Viva Beach", "date")
+        # 08/11: so vale pro compromisso das proximas na_rua.HORIZONTE_H horas (o date daqui a 1 h)
+        if datetime.now().strftime("%H:%M") >= "22:50":
+            self.skipTest("rodando depois das 22:50")
+        hora = (datetime.now() + timedelta(hours=1)).strftime("%H:%M")
+        tid = self.tarefa("Date com a Júlia", hora, "Viva Beach", "date")
         self.visita(MECANICO, datetime.now() - timedelta(minutes=30))
         with patch.object(app.claude_client, "avisar_passo"):
-            r = app.replanejar_saida(self.conn, tid, {"hora": "23:50"})
-        if datetime.now().strftime("%H:%M") >= "23:50":
-            self.skipTest("rodando depois das 23:50")
+            r = app.replanejar_saida(self.conn, tid, {"hora": hora})
         self.assertNotIn("sair_de_casa", r["plano"])
         self.assertIn("ja_esta_na_rua", r["plano"])
+
+    def test_compromisso_de_noite_com_ele_na_rua_de_manha_segue_o_plano_de_casa(self):
+        """08/11 (rodada com a IA de verdade): na rua as 7h30, date as 20h -> "sai daqui 19h03" e o card sem
+        "se arrumar". Longe assim ele passa em casa antes."""
+        plano = {"sair_de_casa": "19:35", "comecar_a_se_arrumar": "18:55", "ida_min": 25}
+        self.visita(MECANICO, _em("07:00"))
+        self.assertEqual(na_rua.ajustar_plano(self.conn, plano, HOJE.isoformat(), "20:00", "Viva Beach",
+                                              _em("07:30")), plano)
+        self.assertNotEqual(na_rua.ajustar_plano(self.conn, plano, HOJE.isoformat(), "20:00", "Viva Beach",
+                                                 _em("17:30")), plano)
+        self.assertIn("plano de sempre", na_rua.linha_contexto(self.conn, _em("07:30")))
 
     def test_card_do_date_sem_se_arrumar_e_sair_de_casa(self):
         tid = self.tarefa("Date com a Júlia", "23:50", "Viva Beach", "date")
@@ -205,7 +218,9 @@ class AtrasoERecadoTestCase(_Base):
         msgs = self.conn.execute("SELECT texto, cards_json FROM chat_mensagens ORDER BY id").fetchall()[antes:]
         com_card = [m for m in msgs if m["cards_json"]]
         tipos = [[c["type"] for c in json.loads(criptografia.descriptografar(m["cards_json"]))] for m in com_card]
-        self.assertIn(["edicao", "recado_atraso"], tipos)
+        # leva 08/11 (A2): date e parede - o horario nao anda (sem card de edicao), o recado vai na mesma mensagem
+        self.assertIn(["recado_atraso"], tipos)
         self.assertEqual(sum("recado_atraso" in t for t in tipos), 1)
-        texto = criptografia.descriptografar(com_card[tipos.index(["edicao", "recado_atraso"])]["texto"])
+        texto = criptografia.descriptografar(com_card[tipos.index(["recado_atraso"])]["texto"])
         self.assertIn("Deixei o recado pronto", texto)
+        self.assertIn("Não mexi no horário", texto)

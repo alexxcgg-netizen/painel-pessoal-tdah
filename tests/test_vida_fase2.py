@@ -627,7 +627,7 @@ class AvisosFase2TestCase(VidaBaseTestCase):
         ida = date.today() + timedelta(days=3)
         self.client.post("/api/viagens", json={"destino": "Gramado", "data_ida": ida.isoformat()})
         agora = datetime.combine(date.today(), datetime.min.time()).replace(hour=9)
-        self.assertTrue([c for t, c in self._avisos(agora) if t == "viagem_documento" and "em 3 dia(s)" in c])
+        self.assertTrue([c for t, c in self._avisos(agora) if t == "viagem_documento" and "em 3 dias" in c])
 
     def test_manutencao_perto(self):
         ultima = (date.today() - timedelta(days=178)).isoformat()

@@ -175,11 +175,12 @@ def inicio():
         gasto_hoje = gasto_mes = agua = remedio = remedios_hoje = None
         if not visitante:
             gasto_hoje = conn.execute(
-                "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE date(created_at) = ? AND tipo = 'real'",
+                f"SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE {db.dia_local_sql()} = ? AND tipo = 'real'",
                 (hoje_iso,),
             ).fetchone()["t"]
             gasto_mes = conn.execute(
-                "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE substr(created_at, 1, 7) = ? AND tipo = 'real'",
+                f"SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE substr({db.dia_local_sql()}, 1, 7) = ? "
+                "AND tipo = 'real'",
                 (hoje_iso[:7],),
             ).fetchone()["t"]
             agua = db.contar_hidratacao_dia(conn, hoje_iso)

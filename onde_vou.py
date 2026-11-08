@@ -239,6 +239,10 @@ def _destino_da_tarefa(conn, t, lugares: list[dict]) -> tuple[str | None, str | 
 
     local = (t["local"] or "").strip()
     if local:
+        if vida_assistente.casa_de_alguem_sem_apelido(conn, local):
+            # 08/11 (rodada 3): "casa da Fulana" sem apelido nao tem endereco - o Google achava uma cidade
+            # (2158 min de trajeto). Sem destino, sem palpite de "Indo pra la" com chegada absurda.
+            return None, None
         return local, vida_assistente.resolver_lugar(conn, local)
     for x in lugares:
         if x["apelido"] != "casa" and onde_estou._bate(x["apelido"], t["title"]):
@@ -263,6 +267,31 @@ def _planos(conn, agora: datetime) -> dict[int, dict]:
         log.exception("onde_vou: plano da saida falhou")
         return {}
     return {p["id"]: p for p in planos}
+
+
+def caminho_min_tarefa(conn, t) -> int | None:
+    """Minutos de casa ate o lugar da tarefa agora (mesmo trajeto e cache de 1 h dos avisos do app; parada entra
+    na conta). Pro texto "saindo agora tu chega as HH:MM" (08/11, A1: notificacoes.tarefas_com_horario_chegando /
+    tarefas_horario_passou com `caminho_min=lambda r: onde_vou.caminho_min_tarefa(conn, r)`). None sem lugar, sem
+    app ou sem Maps - quem chama usa o ultimo guardado ou a folga."""
+    import vida_assistente
+
+    app = _app()
+    if app is None:
+        return None
+    try:
+        parada = (_coluna(t, "parada") or "").strip()
+        local = (t["local"] or "").strip()
+        if parada:
+            ate, resto = app._trajetos_parada_aviso(conn, parada, local or None)
+            return notificacoes.caminho_com_parada(None, FOLGA_MIN, parada, ate, resto)[0]
+        if not local or vida_assistente.casa_de_alguem_sem_apelido(conn, local):
+            return None
+        m = app._trajeto_min_aviso(vida_assistente.resolver_lugar(conn, local))
+        return m if isinstance(m, int) and m >= 0 else None
+    except Exception:
+        log.exception("onde_vou: caminho da tarefa falhou")
+        return None
 
 
 def _palpite(conn, visita, saiu: datetime) -> dict | None:
@@ -455,7 +484,9 @@ def na_saida(conn, visita, agora: datetime) -> list[str]:
     texto = f"{d['titulo']} " + (f"Chega {d['chega']}." if d["chega"] else "Te acompanho daqui.")
     onde_estou._publicar(conn, texto, [card])
     atraso = _min(ev, chegada) if chegada else None
-    if atraso is not None and atraso > ATRASO_TOLERANCIA_MIN and not palpite["sai_na_hora"]:
+    # 08/11 (A5): recado de atraso so quando tem alguem esperando (date, balada, com_quem); banco/orgao nao
+    if (atraso is not None and atraso > ATRASO_TOLERANCIA_MIN and not palpite["sai_na_hora"]
+            and notificacoes.com_pessoa(t)):
         # vai atrasar: o aviso que importa e o do recado (um push so, nao dois juntos)
         if recado(conn, row, t, atraso, agora, via=_via(viagem),
                   transito=bool(viagem.get("transito_min") and viagem["transito_min"] >= 3), chegada=chegada):
@@ -565,6 +596,40 @@ def dados_recado(t, atraso: int, chegada: datetime | None, modelo: str, via: str
     }
 
 
+def _titulo_chegada(d: dict, t) -> str:
+    """'Vai chegar 14:25, Consulta é 14:00' (ou 'Vai atrasar uns 10 min' sem chegada), cabendo no titulo."""
+    if d["chega"]:
+        titulo = f"Vai chegar {d['chega']}, {d['titulo']} é {t['hora']}"
+    else:
+        titulo = f"Vai atrasar uns {d['escolhido']} min"
+    if len(titulo) > notificacoes.TITULO_MAX:
+        titulo = f"Vai chegar {d['chega']}" if d["chega"] else titulo[: notificacoes.TITULO_MAX]
+    return titulo
+
+
+def aviso_chegada(conn, row, t, atraso: int, agora: datetime, chegada: datetime | None = None,
+                  via: str | None = None, transito: bool = False) -> bool:
+    """08/11 (rodada 3): sem ninguem esperando (banco, consulta, orgao) nao tem recado, mas o aviso de chegada
+    continua igual ao de antes ("Vai chegar 14:25, Consulta é 14:00"), so sem o recado. Mesma regra do recado:
+    uma vez por compromisso; de novo so se o atraso crescer mais que RECADO_CRESCE_MIN."""
+    import hora_certa
+    import onde_estou
+
+    if row["resposta"] == "outro":
+        return False
+    if row["recado_min"] is not None and atraso <= row["recado_min"] + RECADO_CRESCE_MIN:
+        return False
+    conn.execute("UPDATE indo_pra SET recado_min = ? WHERE id = ?", (int(atraso), row["id"]))
+    conn.commit()
+    d = dados_recado(t, atraso, chegada, "transito" if (via or transito) else "caminho", via, row["id"])
+    titulo_aviso = _titulo_chegada(d, t)
+    motivo = f"Lento na {via}. " if via else ("Trânsito no caminho. " if transito else "")
+    onde_estou._publicar(conn, f"{titulo_aviso}.", [])
+    hora_certa.avisar_evento(conn, TIPO_RECADO, titulo_aviso, f"{motivo}Vai com calma, sem correr.", agora,
+                             ref_legado=row["id"])
+    return True
+
+
 def recado(conn, row, t, atraso: int, agora: datetime, via: str | None = None, transito: bool = False,
            chegada: datetime | None = None, parado: bool = False, cartoes: list | None = None) -> bool:
     """Publica o card do recado + aviso cedo. Uma vez por compromisso; de novo so se crescer > 10 min.
@@ -588,13 +653,7 @@ def recado(conn, row, t, atraso: int, agora: datetime, via: str | None = None, t
     conn.commit()
     modelo = "saindo" if parado else ("transito" if (via or transito) else "caminho")
     d = dados_recado(t, atraso, chegada, modelo, via, row["id"])
-    nome = d["titulo"]
-    if d["chega"]:
-        titulo_aviso = f"Vai chegar {d['chega']}, {nome} é {t['hora']}"
-    else:
-        titulo_aviso = f"Vai atrasar uns {d['escolhido']} min"
-    if len(titulo_aviso) > notificacoes.TITULO_MAX:
-        titulo_aviso = f"Vai chegar {d['chega']}" if d["chega"] else titulo_aviso[: notificacoes.TITULO_MAX]
+    titulo_aviso = _titulo_chegada(d, t)
     motivo = f"Lento na {via}. " if via else ("Trânsito no caminho. " if transito else "")
     corpo = f"{motivo}Quer mandar um recado? O texto tá pronto."
     card = cards.novo_card("recado_atraso", d)
@@ -609,17 +668,15 @@ def recado(conn, row, t, atraso: int, agora: datetime, via: str | None = None, t
 
 
 def recado_parado(conn, r: dict, agora: datetime, cartoes: list | None = None) -> bool:
-    """Do onde_estou.checar_atraso (parado num lugar e nao chega a tempo): so compromisso de sair/com lugar,
-    que e onde tem alguem esperando."""
+    """Do onde_estou.checar_atraso (parado num lugar e nao chega a tempo): so compromisso com alguem esperando
+    (date, balada, com_quem, "buscar a Ana"). 08/11 (A5): ter lugar nao basta - banco e orgao nao ganham recado."""
     tid = r.get("tarefa_id")
     if not isinstance(tid, int) or not isinstance(r.get("atraso_min"), (int, float)):
         return False
     t = conn.execute("SELECT * FROM tasks WHERE id = ?", (tid,)).fetchone()
     if not t:
         return False
-    sair = (t["estilo"] in ("date", "balada") or notificacoes.e_compromisso_de_sair(t["title"])
-            or (t["local"] or "").strip())
-    if not sair or _coluna(t, "sai_na_hora"):
+    if not notificacoes.com_pessoa(t) or _coluna(t, "sai_na_hora"):
         return False
     hora_original = r.get("hora_original") or t["hora"]
     t = {**dict(t), "hora": hora_original}
@@ -656,8 +713,13 @@ def atualizar_posicao(conn, lat: float, lon: float, agora: datetime) -> list[str
         conn.execute("UPDATE indo_pra SET chegada_prevista = ? WHERE id = ?", (_iso(chegada), row["id"]))
         conn.commit()
         atraso = _min(ev, chegada)
-        if atraso > ATRASO_TOLERANCIA_MIN and recado(conn, row, t, atraso, agora, chegada=chegada, transito=True):
-            feito.append("recado")
+        if atraso <= ATRASO_TOLERANCIA_MIN:
+            continue
+        if notificacoes.com_pessoa(t):  # 08/11 (A5): recado so com alguem esperando
+            if recado(conn, row, t, atraso, agora, chegada=chegada, transito=True):
+                feito.append("recado")
+        elif aviso_chegada(conn, row, t, atraso, agora, chegada=chegada, transito=True):
+            feito.append("chegada")  # rodada 3: banco/consulta - o aviso de chegada, sem o recado
     return feito
 
 

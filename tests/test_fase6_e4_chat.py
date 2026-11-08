@@ -427,9 +427,15 @@ class ToolsModulosTestCase(Base):
         token = self.desfazer_de(corpo["cards"][0])
         self.client.post(f"/api/desfazer/{token}")
         self.assertFalse(db.habito_marcado(self.conn, self.hoje.isoformat(), hid))
-        # desmarcar pelo chat e desfazer marca de novo
+        # desmarcar pelo chat (08/11: so com desmarcar=true; marcar de novo nao desliga) e desfazer marca de novo
+        def fake_desmarcar(mensagens, contexto, memorias, executores):
+            executores["marcar_habito"]({"nome": "medit", "desmarcar": True})
+            return "Desmarquei.", ["marcar_habito"], fake_usage()
+
         corpo = self.chat_ia(fake_chat, "meditei")
-        corpo = self.chat_ia(fake_chat, "desmarca meditar")
+        corpo = self.chat_ia(fake_chat, "meditei")  # reenviada: continua marcado
+        self.assertTrue(db.habito_marcado(self.conn, self.hoje.isoformat(), hid))
+        corpo = self.chat_ia(fake_desmarcar, "desmarca meditar")
         self.assertEqual(corpo["cards"][0]["data"]["contexto"], "Desmarcado hoje.")
         self.client.post(f"/api/desfazer/{self.desfazer_de(corpo['cards'][0])}")
         self.assertTrue(db.habito_marcado(self.conn, self.hoje.isoformat(), hid))

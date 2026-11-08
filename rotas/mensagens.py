@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify
 
 from rotas._base import app_modulo
 from db import create_responder, get_db, list_responder_pendentes, marcar_respondido
+import db
 
 bp = Blueprint("mensagens", __name__)
 
@@ -18,7 +19,8 @@ def responder_pendentes():
     conn = get_db()
     resultado = []
     for r in list_responder_pendentes(conn):
-        dias = (hoje - datetime.fromisoformat(r["criado_em"]).date()).days
+        # 08/11: criado_em e UTC (datetime('now')) - anotado as 22h ja aparecia como "1 dia" na mesma noite
+        dias = (hoje - date.fromisoformat(db.dia_local(r["criado_em"]))).days
         resultado.append({**r, "dias": dias})
     conn.close()
     return jsonify(resultado)
@@ -31,7 +33,7 @@ def criar_responder_rota():
     body = _corpo_json()
     quem = _texto_curto(body.get("quem"), 60)
     if not quem:
-        return jsonify({"error": "informe pra quem você precisa responder"}), 400
+        return jsonify({"error": "informe pra quem tu precisa responder"}), 400
     conn = get_db()
     responder_id = create_responder(conn, quem, _texto_curto(body.get("sobre"), 200))
     conn.close()
